@@ -1,5 +1,5 @@
-Main: Main.hs Lexer.hs Parser.hs AST.hs
-	ghc Lexer.hs Main.hs Parser.hs AST.hs -outputdir build
+Main: Main.hs Lexer.hs Parser.hs AST.hs Compiler.hs
+	ghc Lexer.hs Main.hs Parser.hs AST.hs Compiler.hs -outputdir build
 
 Lexer.hs: Lexer.x
 	alex Lexer.x

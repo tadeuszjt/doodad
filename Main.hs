@@ -10,7 +10,7 @@ import qualified Data.ByteString.Char8 as BS
 import qualified Parser as P
 import qualified Lexer  as L
 --import qualified AST      as S
---import qualified Compiler as C
+import qualified Compiler as C
 
 import qualified LLVM.Module as LM
 import LLVM.AST
@@ -30,15 +30,17 @@ main = runInputT defaultSettings loop
 		loop = do
 			minput <- getInputLine "% "
 			case minput of
-				Nothing -> return ()
-				Just "q" -> return ()
-				Just input -> do
-					case L.alexScanner input of
-						Left  errStr -> outputStrLn $ "Lexer error: " ++ errStr
-						Right tokens -> case (P.parseTokens tokens) 0 of
-							P.ParseOk ast -> outputStrLn $ show ast
-						
-					loop
+				Nothing    -> return ()
+				Just "q"   -> return ()
+				Just input -> process input >> loop
+
+		process :: String -> InputT IO ()
+		process input = do
+			case L.alexScanner input of
+				Left  errStr -> outputStrLn $ "Lexer error: " ++ errStr
+				Right tokens -> case (P.parseTokens tokens) 0 of
+					P.ParseOk ast -> outputStrLn $ show ast
+			
 
 
 
