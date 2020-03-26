@@ -6,6 +6,7 @@ import System.Console.Haskeline
 import Control.Monad.Except
 import Control.Monad.State
 import qualified Data.ByteString.Char8 as BS
+import qualified Data.ByteString.Short as BSS
 
 import qualified Parser as P
 import qualified Lexer  as L
@@ -17,41 +18,32 @@ import LLVM.AST
 import LLVM.Context
 
 
---putLLVMModule :: Module -> IO ()
---putLLVMModule mod =
---	withContext $ \ctx ->
---		BS.putStrLn =<< LM.withModuleFromAST ctx mod LM.moduleLLVMAssembly
+putLLVMModule :: Module -> IO ()
+putLLVMModule mod =
+	withContext $ \ctx ->
+		BS.putStrLn =<< LM.withModuleFromAST ctx mod LM.moduleLLVMAssembly
+
+
+initModule = defaultModule
+	{ moduleName = BSS.toShort $ BS.pack "I just don't give a JIT"
+	}
 
 
 main :: IO ()
-main = runInputT defaultSettings loop
+main = runInputT defaultSettings (loop initModule)
 	where
-		loop :: InputT IO ()
-		loop = do
+		loop :: Module -> InputT IO ()
+		loop mod = do
 			minput <- getInputLine "% "
 			case minput of
 				Nothing    -> return ()
 				Just "q"   -> return ()
-				Just input -> process input >> loop
+				Just input -> liftIO (process mod input) >>= loop
 
-		process :: String -> InputT IO ()
-		process input = do
-			case L.alexScanner input of
-				Left  errStr -> outputStrLn $ "Lexer error: " ++ errStr
+
+		process :: Module -> String -> IO Module
+		process mod source = do
+			case L.alexScanner source of
+				Left  errStr -> putStrLn errStr >> return mod
 				Right tokens -> case (P.parseTokens tokens) 0 of
-					P.ParseOk ast -> outputStrLn $ show ast
-			
-
-
-
---	[fileName] <- getArgs
---	handle <- openFile fileName ReadMode
---	content <- hGetContents handle
---
---	let tokens = L.alexScanTokens content
---	let ast = P.parseTokens tokens
---
---	case C.compileAST ast of
---		Left e -> print e
---		Right m -> putLLVMModule m
---
+					P.ParseOk ast -> C.codeGen mod ast >> return mod
