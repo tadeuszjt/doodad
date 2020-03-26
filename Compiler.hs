@@ -5,6 +5,8 @@ module Compiler where
 import qualified Data.Map as Map
 import Control.Monad.Except hiding (void)
 import Control.Monad.State hiding (void)
+import qualified Data.ByteString.Char8 as BS
+import qualified Data.ByteString.Short as BSS
 
 import qualified AST   as S
 import qualified Lexer as L
@@ -32,9 +34,32 @@ newtype LLVM a
 	deriving (Functor, Applicative, Monad, MonadError CmpError, MonadState Module)
 
 
-codeGen :: Module -> S.AST -> IO (Either CmpError Module)
-codeGen = undefined
+data CmpState
+	= CmpState
+		{ modul  :: Module
+		, symTab :: SymTab.SymTab Name Operand
+		}
 
+
+initModule = defaultModule
+	{ moduleName = BSS.toShort $ BS.pack "I just don't give a JIT"
+	}
+
+
+initCmpState = CmpState
+	{ modul  = initModule
+	, symTab = SymTab.initSymTab
+	}
+
+codeGen :: CmpState -> S.AST -> IO (Either CmpError CmpState)
+codeGen cmpState ast = do
+	putStrLn "benis"
+	return $ Right cmpState
+
+
+--compileAST :: S.AST -> Either CmpError Module
+--compileAST ast =
+--	evalState (runExceptT $ getCmp $ cmpAST ast) initCmpState 
 --
 --
 --data BlockState

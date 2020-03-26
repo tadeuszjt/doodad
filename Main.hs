@@ -24,26 +24,26 @@ putLLVMModule mod =
 		BS.putStrLn =<< LM.withModuleFromAST ctx mod LM.moduleLLVMAssembly
 
 
-initModule = defaultModule
-	{ moduleName = BSS.toShort $ BS.pack "I just don't give a JIT"
-	}
-
-
 main :: IO ()
-main = runInputT defaultSettings (loop initModule)
+main = runInputT defaultSettings (loop C.initCmpState)
 	where
-		loop :: Module -> InputT IO ()
-		loop mod = do
+		loop :: C.CmpState -> InputT IO ()
+		loop state = do
 			minput <- getInputLine "% "
 			case minput of
 				Nothing    -> return ()
 				Just "q"   -> return ()
-				Just input -> liftIO (process mod input) >>= loop
+				Just input -> liftIO (process state input) >>= loop
 
 
-		process :: Module -> String -> IO Module
-		process mod source = do
+		process :: C.CmpState -> String -> IO C.CmpState
+		process state source = do
 			case L.alexScanner source of
-				Left  errStr -> putStrLn errStr >> return mod
+				Left  errStr -> putStrLn errStr >> return state
 				Right tokens -> case (P.parseTokens tokens) 0 of
-					P.ParseOk ast -> C.codeGen mod ast >> return mod
+					P.ParseOk ast -> do
+						res <- C.codeGen state ast
+						case res of
+							Right newState -> putStrLn "success" >> return newState
+							Left e -> putStrLn (show e) >> return state
+						
