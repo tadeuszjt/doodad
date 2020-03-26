@@ -1,14 +1,15 @@
 {
 module Lexer
 	( Token(..)
+	, TokenType(..)
 	, AlexPosn(..)
-	, alexScanTokens
-	, tokPosn
+	, alexScanner
+	, alexMonadScan
 	)
 where
 }
 
-%wrapper "posn"
+%wrapper "monad"
 
 $white  = [\ \t\n]
 $digit  = 0-9
@@ -20,28 +21,46 @@ $symbol = [\{\}\(\)\,\;]
 
 tokens :-
 	$white                     ; 
-	$symbol                    { \p s -> Sym p (head s) }
-	@reserved                  { \p s -> Reserved p s }
-	@reservedOp                { \p s -> ReservedOp p s }
-	$alpha [$alpha $digit \_]* { \p s -> Ident p s }
-	$digit+                    { \p s -> Int p (read s) }
+	$symbol                    { mkT Sym }
+	@reserved                  { mkT Reserved }
+	@reservedOp                { mkT ReservedOp }
+	$alpha [$alpha $digit \_]* { mkT Ident }
+	$digit+                    { mkT Int }
 
 
 {
+
+mkT :: TokenType -> AlexInput -> Int -> Alex Token
+mkT t (p,_,_,s) len = return $ Token p t (take len s)
+
+alexEOF = return (Token undefined EOF "")
+
+alexScanner str = runAlex str (loop)
+	where
+		loop = do
+			tok@(Token _ t _) <- alexMonadScan
+			if t == EOF
+				then return []
+				else do
+					ts <- loop
+					return (tok:ts)
+
+
 data Token
-	= Sym        AlexPosn Char
-	| Reserved   AlexPosn String
-	| ReservedOp AlexPosn String
-	| Ident      AlexPosn String
-	| Int        AlexPosn Int
+	= Token
+		{ tokPosn :: AlexPosn
+		, tokType :: TokenType
+		, tokStr  :: String
+		}
 	deriving (Show, Eq)
 
 
-tokPosn :: Token -> AlexPosn
-tokPosn tok = case tok of
-	(Sym p _)        -> p
-	(Reserved p _)   -> p
-	(ReservedOp p _) -> p
-	(Ident p _)      -> p
-	(Int p _)        -> p
+data TokenType
+	= Sym
+	| Reserved
+	| ReservedOp
+	| Ident
+	| Int
+	| EOF
+	deriving (Show, Eq)
 }

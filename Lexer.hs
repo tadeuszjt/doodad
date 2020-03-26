@@ -4,9 +4,10 @@
 
 module Lexer
 	( Token(..)
+	, TokenType(..)
 	, AlexPosn(..)
-	, alexScanTokens
-	, tokPosn
+	, alexScanner
+	, alexMonadScan
 	)
 where
 
@@ -29,8 +30,8 @@ import Array
 -- it for any purpose whatsoever.
 
 
-
-
+import Control.Applicative as App (Applicative (..))
+import qualified Control.Monad (ap)
 
 
 import Data.Word (Word8)
@@ -187,23 +188,70 @@ alexMove (AlexPn a l c) _    = AlexPn (a+1)  l     (c+1)
 -- Default monad
 
 
+data AlexState = AlexState {
+        alex_pos :: !AlexPosn,  -- position at current input location
+        alex_inp :: String,     -- the current input
+        alex_chr :: !Char,      -- the character before the input
+        alex_bytes :: [Byte],
+        alex_scd :: !Int        -- the current startcode
 
 
 
+    }
 
+-- Compile with -funbox-strict-fields for best results!
 
+runAlex :: String -> Alex a -> Either String a
+runAlex input__ (Alex f)
+   = case f (AlexState {alex_pos = alexStartPos,
+                        alex_inp = input__,
+                        alex_chr = '\n',
+                        alex_bytes = [],
 
 
 
+                        alex_scd = 0}) of Left msg -> Left msg
+                                          Right ( _, a ) -> Right a
 
+newtype Alex a = Alex { unAlex :: AlexState -> Either String (AlexState, a) }
 
+instance Functor Alex where
+  fmap f a = Alex $ \s -> case unAlex a s of
+                            Left msg -> Left msg
+                            Right (s', a') -> Right (s', f a')
 
+instance Applicative Alex where
+  pure a   = Alex $ \s -> Right (s, a)
+  fa <*> a = Alex $ \s -> case unAlex fa s of
+                            Left msg -> Left msg
+                            Right (s', f) -> case unAlex a s' of
+                                               Left msg -> Left msg
+                                               Right (s'', b) -> Right (s'', f b)
 
+instance Monad Alex where
+  m >>= k  = Alex $ \s -> case unAlex m s of
+                                Left msg -> Left msg
+                                Right (s',a) -> unAlex (k a) s'
+  return = App.pure
 
+alexGetInput :: Alex AlexInput
+alexGetInput
+ = Alex $ \s@AlexState{alex_pos=pos,alex_chr=c,alex_bytes=bs,alex_inp=inp__} ->
+        Right (s, (pos,c,bs,inp__))
 
+alexSetInput :: AlexInput -> Alex ()
+alexSetInput (pos,c,bs,inp__)
+ = Alex $ \s -> case s{alex_pos=pos,alex_chr=c,alex_bytes=bs,alex_inp=inp__} of
+                  state__@(AlexState{}) -> Right (state__, ())
 
+alexError :: String -> Alex a
+alexError message = Alex $ const $ Left message
 
+alexGetStartCode :: Alex Int
+alexGetStartCode = Alex $ \s@AlexState{alex_scd=sc} -> Right (s, sc)
 
+alexSetStartCode :: Int -> Alex ()
+alexSetStartCode sc = Alex $ \s -> Right (s{alex_scd=sc}, ())
 
 
 
@@ -213,87 +261,40 @@ alexMove (AlexPn a l c) _    = AlexPn (a+1)  l     (c+1)
 
 
 
+alexMonadScan = do
+  inp__ <- alexGetInput
+  sc <- alexGetStartCode
+  case alexScan inp__ sc of
+    AlexEOF -> alexEOF
+    AlexError ((AlexPn _ line column),_,_,_) -> alexError $ "lexical error at line " ++ (show line) ++ ", column " ++ (show column)
+    AlexSkip  inp__' _len -> do
+        alexSetInput inp__'
+        alexMonadScan
+    AlexToken inp__' len action -> do
+        alexSetInput inp__'
+        action (ignorePendingBytes inp__) len
 
+-- -----------------------------------------------------------------------------
+-- Useful token actions
 
+type AlexAction result = AlexInput -> Int -> Alex result
 
+-- just ignore this token and scan another one
+-- skip :: AlexAction result
+skip _input _len = alexMonadScan
 
+-- ignore this token, but set the start code to a new value
+-- begin :: Int -> AlexAction result
+begin code _input _len = do alexSetStartCode code; alexMonadScan
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+-- perform an action for this token, and set the start code to a new value
+andBegin :: AlexAction result -> Int -> AlexAction result
+(action `andBegin` code) input__ len = do
+  alexSetStartCode code
+  action input__ len
+
+token :: (AlexInput -> Int -> token) -> AlexAction token
+token t input__ len = return (t input__ len)
 
 
 
@@ -469,14 +470,14 @@ alexMove (AlexPn a l c) _    = AlexPn (a+1)  l     (c+1)
 -- Adds text positions to the basic model.
 
 
---alexScanTokens :: String -> [token]
-alexScanTokens str0 = go (alexStartPos,'\n',[],str0)
-  where go inp__@(pos,_,_,str) =
-          case alexScan inp__ 0 of
-                AlexEOF -> []
-                AlexError ((AlexPn _ line column),_,_,_) -> error $ "lexical error at line " ++ (show line) ++ ", column " ++ (show column)
-                AlexSkip  inp__' _ln     -> go inp__'
-                AlexToken inp__' len act -> act pos (take len str) : go inp__'
+
+
+
+
+
+
+
+
 
 
 
@@ -4459,30 +4460,48 @@ alex_actions = array (0 :: Int, 26)
   , (0,alex_action_5)
   ]
 
-{-# LINE 30 "Lexer.x" #-}
+{-# LINE 31 "Lexer.x" #-}
+
+
+mkT :: TokenType -> AlexInput -> Int -> Alex Token
+mkT t (p,_,_,s) len = return $ Token p t (take len s)
+
+alexEOF = return (Token undefined EOF "")
+
+alexScanner str = runAlex str (loop)
+	where
+		loop = do
+			tok@(Token _ t _) <- alexMonadScan
+			if t == EOF
+				then return []
+				else do
+					ts <- loop
+					return (tok:ts)
+
 
 data Token
-	= Sym        AlexPosn Char
-	| Reserved   AlexPosn String
-	| ReservedOp AlexPosn String
-	| Ident      AlexPosn String
-	| Int        AlexPosn Int
+	= Token
+		{ tokPosn :: AlexPosn
+		, tokType :: TokenType
+		, tokStr  :: String
+		}
 	deriving (Show, Eq)
 
 
-tokPosn :: Token -> AlexPosn
-tokPosn tok = case tok of
-	(Sym p _)        -> p
-	(Reserved p _)   -> p
-	(ReservedOp p _) -> p
-	(Ident p _)      -> p
-	(Int p _)        -> p
+data TokenType
+	= Sym
+	| Reserved
+	| ReservedOp
+	| Ident
+	| Int
+	| EOF
+	deriving (Show, Eq)
 
-alex_action_1 =  \p s -> Sym p (head s) 
-alex_action_2 =  \p s -> Reserved p s 
-alex_action_3 =  \p s -> ReservedOp p s 
-alex_action_4 =  \p s -> Ident p s 
-alex_action_5 =  \p s -> Int p (read s) 
+alex_action_1 =  mkT Sym 
+alex_action_2 =  mkT Reserved 
+alex_action_3 =  mkT ReservedOp 
+alex_action_4 =  mkT Ident 
+alex_action_5 =  mkT Int 
 {-# LINE 1 "templates/GenericTemplate.hs" #-}
 -- -----------------------------------------------------------------------------
 -- ALEX TEMPLATE

@@ -8,6 +8,7 @@ import Control.Monad.State hiding (void)
 
 import qualified AST   as S
 import qualified Lexer as L
+import qualified SymTab
 
 import LLVM.AST
 import LLVM.AST.Type
@@ -49,6 +50,7 @@ data CmpState
 	= CmpState
 		{ functions :: Map.Map Name FnState
 		, currentFn :: Name
+		, symTab    :: SymTab.SymTab Name Operand
 		}
 	deriving (Show)
 
@@ -76,19 +78,19 @@ initFnState = FnState
 initCmpState = CmpState
 	{ functions = Map.singleton (mkName "main") initFnState
 	, currentFn = (mkName "main")
+	, symTab    = SymTab.initSymTab
 	}
 
 
 compileAST :: S.AST -> Either CmpError Module
 compileAST ast =
-	eval
-	where
-		eval = evalState (runExceptT $ getCmp $ cmpAST ast) initCmpState 
+	evalState (runExceptT $ getCmp $ cmpAST ast) initCmpState 
 
 
 cmpAST :: S.AST -> Cmp Module
 cmpAST ast = do
 	mapM_ cmpStmt ast
+	term $ Do $ Ret Nothing []
 	fns <- fmap Map.toList (gets functions)
 
 	return $ defaultModule

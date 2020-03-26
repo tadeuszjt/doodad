@@ -125,7 +125,7 @@ happyReduction_3 (HappyAbsSyn6  happy_var_3)
 	(HappyTerminal happy_var_2)
 	(HappyTerminal happy_var_1)
 	 =  HappyAbsSyn5
-		 (let L.Ident _ s = happy_var_1 in S.Assign (L.tokPosn happy_var_2) s happy_var_3
+		 (S.Assign (L.tokPosn happy_var_2) (L.tokStr happy_var_1) happy_var_3
 	)
 happyReduction_3 _ _ _  = notHappyAtAll 
 
@@ -142,14 +142,14 @@ happyReduction_4 (_ `HappyStk`
 happyReduce_5 = happySpecReduce_1  6 happyReduction_5
 happyReduction_5 (HappyTerminal happy_var_1)
 	 =  HappyAbsSyn6
-		 (let L.Int pos n = happy_var_1 in S.Int pos n
+		 (S.Int (L.tokPosn happy_var_1) (read $ L.tokStr happy_var_1)
 	)
 happyReduction_5 _  = notHappyAtAll 
 
 happyReduce_6 = happySpecReduce_1  6 happyReduction_6
 happyReduction_6 (HappyTerminal happy_var_1)
 	 =  HappyAbsSyn6
-		 (let L.Ident p s = happy_var_1 in S.Ident p s
+		 (S.Ident (L.tokPosn happy_var_1) (L.tokStr happy_var_1)
 	)
 happyReduction_6 _  = notHappyAtAll 
 
@@ -175,72 +175,74 @@ happyNewToken action sts stk [] =
 happyNewToken action sts stk (tk:tks) =
 	let cont i = action i i tk (HappyState action) sts stk tks in
 	case tk of {
-	L.ReservedOp _ "=" -> cont 8;
-	L.ReservedOp _ "+" -> cont 9;
-	L.ReservedOp _ "-" -> cont 10;
-	L.ReservedOp _ "*" -> cont 11;
-	L.ReservedOp _ "/" -> cont 12;
-	L.ReservedOp _ "%" -> cont 13;
-	L.ReservedOp _ "<" -> cont 14;
-	L.ReservedOp _ ">" -> cont 15;
-	L.ReservedOp _ ":=" -> cont 16;
-	L.ReservedOp _ "<=" -> cont 17;
-	L.ReservedOp _ ">=" -> cont 18;
-	L.ReservedOp _ "==" -> cont 19;
-	L.ReservedOp _ "&&" -> cont 20;
-	L.ReservedOp _ "||" -> cont 21;
-	L.Reserved _ "fn" -> cont 22;
-	L.Reserved _ "if" -> cont 23;
-	L.Reserved _ "else" -> cont 24;
-	L.Reserved _ "for" -> cont 25;
-	L.Reserved _ "return" -> cont 26;
-	L.Reserved _ "print" -> cont 27;
-	L.Int _ _ -> cont 28;
-	L.Ident _ _ -> cont 29;
-	L.Sym _ '(' -> cont 30;
-	L.Sym _ ')' -> cont 31;
-	L.Sym _ '{' -> cont 32;
-	L.Sym _ '}' -> cont 33;
-	L.Sym _ ',' -> cont 34;
-	L.Sym _ ';' -> cont 35;
+	L.Token _ L.ReservedOp "=" -> cont 8;
+	L.Token _ L.ReservedOp "+" -> cont 9;
+	L.Token _ L.ReservedOp "-" -> cont 10;
+	L.Token _ L.ReservedOp "*" -> cont 11;
+	L.Token _ L.ReservedOp "/" -> cont 12;
+	L.Token _ L.ReservedOp "%" -> cont 13;
+	L.Token _ L.ReservedOp "<" -> cont 14;
+	L.Token _ L.ReservedOp ">" -> cont 15;
+	L.Token _ L.ReservedOp ":=" -> cont 16;
+	L.Token _ L.ReservedOp "<=" -> cont 17;
+	L.Token _ L.ReservedOp ">=" -> cont 18;
+	L.Token _ L.ReservedOp "==" -> cont 19;
+	L.Token _ L.ReservedOp "&&" -> cont 20;
+	L.Token _ L.ReservedOp "||" -> cont 21;
+	L.Token _ L.Reserved "fn" -> cont 22;
+	L.Token _ L.Reserved "if" -> cont 23;
+	L.Token _ L.Reserved "else" -> cont 24;
+	L.Token _ L.Reserved "for" -> cont 25;
+	L.Token _ L.Reserved "return" -> cont 26;
+	L.Token _ L.Reserved "print" -> cont 27;
+	L.Token _ L.Int _ -> cont 28;
+	L.Token _ L.Ident _ -> cont 29;
+	L.Token _ L.Sym "(" -> cont 30;
+	L.Token _ L.Sym ")" -> cont 31;
+	L.Token _ L.Sym "{" -> cont 32;
+	L.Token _ L.Sym "}" -> cont 33;
+	L.Token _ L.Sym "," -> cont 34;
+	L.Token _ L.Sym ";" -> cont 35;
 	_ -> happyError' ((tk:tks), [])
 	}
 
 happyError_ explist 36 tk tks = happyError' (tks, explist)
 happyError_ explist _ tk tks = happyError' ((tk:tks), explist)
 
-newtype HappyIdentity a = HappyIdentity a
-happyIdentity = HappyIdentity
-happyRunIdentity (HappyIdentity a) = a
-
-instance Functor HappyIdentity where
-    fmap f (HappyIdentity a) = HappyIdentity (f a)
-
-instance Applicative HappyIdentity where
-    pure  = HappyIdentity
-    (<*>) = ap
-instance Monad HappyIdentity where
-    return = pure
-    (HappyIdentity p) >>= q = q p
-
-happyThen :: () => HappyIdentity a -> (a -> HappyIdentity b) -> HappyIdentity b
-happyThen = (>>=)
-happyReturn :: () => a -> HappyIdentity a
-happyReturn = (return)
-happyThen1 m k tks = (>>=) m (\a -> k a tks)
-happyReturn1 :: () => a -> b -> HappyIdentity a
-happyReturn1 = \a tks -> (return) a
-happyError' :: () => ([(L.Token)], [String]) -> HappyIdentity a
-happyError' = HappyIdentity . (\(tokens, _) -> parseError tokens)
-parseTokens tks = happyRunIdentity happySomeParser where
+happyThen :: () => P a -> (a -> P b) -> P b
+happyThen = (thenP)
+happyReturn :: () => a -> P a
+happyReturn = (returnP)
+happyThen1 m k tks = (thenP) m (\a -> k a tks)
+happyReturn1 :: () => a -> b -> P a
+happyReturn1 = \a tks -> (returnP) a
+happyError' :: () => ([(L.Token)], [String]) -> P a
+happyError' = (\(tokens, _) -> happyError tokens)
+parseTokens tks = happySomeParser where
  happySomeParser = happyThen (happyParse action_0 tks) (\x -> case x of {HappyAbsSyn4 z -> happyReturn z; _other -> notHappyAtAll })
 
 happySeq = happyDontSeq
 
 
-parseError :: [L.Token] -> a
-parseError (x:_) =
-    error $ "parser error: " ++ show x
+data ParseResult a
+	= ParseOk a 
+	| ParseFail String
+	deriving (Show)
+
+
+type P a = Int -> ParseResult a
+
+thenP :: P a -> (a -> P b) -> P b
+thenP m k = \l -> case m l of
+	ParseFail s -> ParseFail s
+	ParseOk a -> k a l
+
+
+returnP :: a -> P a
+returnP a = \l -> ParseOk a
+
+happyError :: [L.Token] -> a
+happyError x = error $ show x
 {-# LINE 1 "templates/GenericTemplate.hs" #-}
 {-# LINE 1 "templates/GenericTemplate.hs" #-}
 {-# LINE 1 "<built-in>" #-}

@@ -6,7 +6,7 @@ import qualified AST as S
 
 %name      parseTokens 
 %tokentype { L.Token }
-%error     { parseError }
+%monad { P } { thenP } { returnP }
 
 %left      '||'
 %left      '&&'
@@ -19,55 +19,71 @@ import qualified AST as S
 
 
 %token
-    '='        { L.ReservedOp _ "=" }
-    '+'        { L.ReservedOp _ "+" }
-    '-'        { L.ReservedOp _ "-" }
-    '*'        { L.ReservedOp _ "*" }
-    '/'        { L.ReservedOp _ "/" }
-    '%'        { L.ReservedOp _ "%" }
-    '<'        { L.ReservedOp _ "<" }
-    '>'        { L.ReservedOp _ ">" }
-    ':='       { L.ReservedOp _ ":=" }
-    '<='       { L.ReservedOp _ "<=" }
-    '>='       { L.ReservedOp _ ">=" }
-    '=='       { L.ReservedOp _ "==" }
-    '&&'       { L.ReservedOp _ "&&" }
-    '||'       { L.ReservedOp _ "||" }
+    '='        { L.Token _ L.ReservedOp "=" }
+    '+'        { L.Token _ L.ReservedOp "+" }
+    '-'        { L.Token _ L.ReservedOp "-" }
+    '*'        { L.Token _ L.ReservedOp "*" }
+    '/'        { L.Token _ L.ReservedOp "/" }
+    '%'        { L.Token _ L.ReservedOp "%" }
+    '<'        { L.Token _ L.ReservedOp "<" }
+    '>'        { L.Token _ L.ReservedOp ">" }
+    ':='       { L.Token _ L.ReservedOp ":=" }
+    '<='       { L.Token _ L.ReservedOp "<=" }
+    '>='       { L.Token _ L.ReservedOp ">=" }
+    '=='       { L.Token _ L.ReservedOp "==" }
+    '&&'       { L.Token _ L.ReservedOp "&&" }
+    '||'       { L.Token _ L.ReservedOp "||" }
 
-    fn         { L.Reserved _ "fn" }
-    if         { L.Reserved _ "if" }
-    else       { L.Reserved _ "else" }
-    for        { L.Reserved _ "for" }
-    return     { L.Reserved _ "return" }
-    print      { L.Reserved _ "print" }
+    fn         { L.Token _ L.Reserved "fn" }
+    if         { L.Token _ L.Reserved "if" }
+    else       { L.Token _ L.Reserved "else" }
+    for        { L.Token _ L.Reserved "for" }
+    return     { L.Token _ L.Reserved "return" }
+    print      { L.Token _ L.Reserved "print" }
 
-    int        { L.Int _ _ }
-    ident      { L.Ident _ _ }
+    int        { L.Token _ L.Int _ }
+    ident      { L.Token _ L.Ident _ }
 
-    '('        { L.Sym _ '(' }
-    ')'        { L.Sym _ ')' }
-    '{'        { L.Sym _ '{' }
-    '}'        { L.Sym _ '}' }
-    ','        { L.Sym _ ',' }
-    ';'        { L.Sym _ ';' }
+    '('        { L.Token _ L.Sym "(" }
+    ')'        { L.Token _ L.Sym ")" }
+    '{'        { L.Token _ L.Sym "{" }
+    '}'        { L.Token _ L.Sym "}" }
+    ','        { L.Token _ L.Sym "," }
+    ';'        { L.Token _ L.Sym ";" }
 
 %%
 
 Prog : Stmt ';'           { [$1] }
 	 | Stmt ';' Prog      { $1 : $3 }
 
-Stmt : ident ':=' Expr    { let L.Ident _ s = $1 in S.Assign (L.tokPosn $2) s $3 }  
+Stmt : ident ':=' Expr    { S.Assign (L.tokPosn $2) (L.tokStr $1) $3 }  
 	 | print '(' Args ')' { S.Print (L.tokPosn $1) $3 }
 
-Expr : int                { let L.Int pos n = $1 in S.Int pos n }
-	 | ident              { let L.Ident p s = $1 in S.Ident p s }
+Expr : int                { S.Int (L.tokPosn $1) (read $ L.tokStr $1) }
+	 | ident              { S.Ident (L.tokPosn $1) (L.tokStr $1) }
 
 Args : Expr               { [$1] }
 	 | Expr ',' Args      { $1 : $3 }
 
 
 {
-parseError :: [L.Token] -> a
-parseError (x:_) =
-    error $ "parser error: " ++ show x
+data ParseResult a
+	= ParseOk a 
+	| ParseFail String
+	deriving (Show)
+
+
+type P a = Int -> ParseResult a
+
+thenP :: P a -> (a -> P b) -> P b
+thenP m k = \l -> case m l of
+	ParseFail s -> ParseFail s
+	ParseOk a -> k a l
+
+
+returnP :: a -> P a
+returnP a = \l -> ParseOk a
+
+happyError :: [L.Token] -> a
+happyError x = error $ show x
 }
