@@ -18,21 +18,27 @@ import LLVM.AST
 import LLVM.Context
 
 
-putLLVMModule :: Module -> IO ()
-putLLVMModule mod =
+hPutLLVMModule :: Handle -> Module -> IO ()
+hPutLLVMModule handle mod =
 	withContext $ \ctx ->
-		BS.putStrLn =<< LM.withModuleFromAST ctx mod LM.moduleLLVMAssembly
+		BS.hPutStrLn handle =<< LM.withModuleFromAST ctx mod LM.moduleLLVMAssembly
 
 
 main :: IO ()
-main = runInputT defaultSettings (loop C.initCmpState)
+main = do
+	mod <- runInputT defaultSettings (loop C.initCmpState)
+
+	handle <- openFile "main.ll" WriteMode
+	hPutLLVMModule handle mod
+	hClose handle
+	
 	where
-		loop :: C.CmpState -> InputT IO ()
+		loop :: C.CmpState -> InputT IO Module
 		loop state = do
 			minput <- getInputLine "% "
 			case minput of
-				Nothing    -> return ()
-				Just "q"   -> return ()
+				Nothing    -> return (C.llvmModule state)
+				Just "q"   -> return (C.llvmModule state)
 				Just input -> liftIO (process state input) >>= loop
 
 
@@ -44,6 +50,6 @@ main = runInputT defaultSettings (loop C.initCmpState)
 					P.ParseOk ast -> do
 						res <- C.codeGen state ast
 						case res of
-							Right newState -> putLLVMModule (C.llvmModule newState) >> return newState
+							Right newState -> hPutLLVMModule stdout (C.llvmModule newState) >> return newState
 							Left e -> putStrLn (show e) >> return state
 						

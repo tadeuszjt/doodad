@@ -3,6 +3,7 @@
 module Compiler where
 
 import qualified Data.Map as Map
+import Data.Char
 import Control.Monad.Except hiding (void)
 import Control.Monad.State hiding (void)
 import qualified Data.ByteString.Char8 as BS
@@ -17,11 +18,22 @@ import LLVM.AST.Type
 import qualified LLVM.AST.Global as LG
 import LLVM.AST.Name
 import LLVM.AST.Instruction
-import LLVM.AST.Constant as C
+import qualified LLVM.AST.Constant as C
 import LLVM.AST.Linkage
 import LLVM.AST.AddrSpace
 import LLVM.AST.AddrSpace
 import LLVM.AST.CallingConvention
+
+
+
+codeGen :: CmpState -> S.AST -> IO (Either CmpError CmpState)
+codeGen cmpState ast = do
+	let (res, cmpState') = runState (runExceptT $ getCmp $ mapM_ cmpTopStmt ast) cmpState
+	case res of
+		Left cmpErr -> return (Left cmpErr)
+		Right _     -> return (Right cmpState')
+
+
 
 newtype CmpError
 	= CmpError { getCmpError :: (L.AlexPosn, String) }
@@ -37,6 +49,7 @@ data CmpState
 	= CmpState
 		{ llvmModule  :: Module
 		, symTab      :: SymTab.SymTab Name Operand
+		, uniqueCount :: Word
 		}
 
 
@@ -51,9 +64,17 @@ initModule = defaultModule
 
 
 initCmpState = CmpState
-	{ llvmModule = initModule
-	, symTab     = SymTab.initSymTab
+	{ llvmModule  = initModule
+	, symTab      = SymTab.initSymTab
+	, uniqueCount = 0
 	}
+
+
+unique :: Cmp Name
+unique = do
+	count <- gets uniqueCount
+	modify $ \s -> s { uniqueCount = count + 1 }
+	return $ UnName count
 
 
 addDef :: Definition -> Cmp ()
@@ -62,6 +83,11 @@ addDef def =
 		{ moduleDefinitions = (moduleDefinitions $ llvmModule s) ++ [def]
 		}}
 
+
+ensureDef :: Definition -> Cmp ()
+ensureDef def = do
+	defs <- gets (moduleDefinitions . llvmModule)
+	unless (def `elem` defs) (addDef def)
 
 
 defName :: Name -> Operand -> Cmp ()
@@ -79,25 +105,21 @@ lookupName nameStr pos = do
 
 
 
-codeGen :: CmpState -> S.AST -> IO (Either CmpError CmpState)
-codeGen cmpState ast = do
-	let (res, cmpState') = runState (runExceptT $ getCmp $ mapM_ cmpTopStmt ast) cmpState
-	case res of
-		Left cmpErr -> return (Left cmpErr)
-		Right _     -> return (Right cmpState')
-
 
 cmpTopStmt :: S.Stmt -> Cmp ()
 cmpTopStmt stmt = case stmt of
 	S.Assign pos nameStr expr -> do
 		let name = mkName nameStr
+
 		st <- gets symTab
 		case SymTab.lookup name [head st] of
 			Just _  -> throwError $ CmpError (pos, nameStr ++ " already defined")	
 			Nothing -> return ()
 
 		(init, typ) <- case expr of
-			S.Int _ n   -> return (Just (Int 32 (toInteger n)), i32)
+			S.Int _ n   ->
+				return (C.Int 32 (toInteger n), i32)
+
 			S.Ident _ idStr -> do
 				op <- lookupName idStr pos
 				let opTyp = typeOf op
@@ -110,43 +132,60 @@ cmpTopStmt stmt = case stmt of
 				let store     = Do $ Store False storeAddr storeVal Nothing 0 []
 
 				addDef (mainFn [load, store])
-				return (Nothing, opTyp)
+				return (initOf opTyp, opTyp)
 			
-
-		addDef $ globalVar name False typ init
+		addDef $ globalVar name False typ (Just init)
 		defName name $ cons (global (ptr typ) name)
 
+	S.Print pos [expr] -> do
+		fmt <- defString "benis\n"
+
+		ensureDef printfFn
+		let printfTyp = FunctionType i32 [ptr i8] True
+		let printfOp  = cons $ global (ptr printfTyp) (mkName "printf")
+		let args      = [(cons fmt, [])]
+		let ins       = Do $ Call Nothing C [] (Right printfOp) args [] []
+		addDef (mainFn [ins])
+		return ()
 
 
-cmpConsExpr :: S.Expr -> Cmp Constant
-cmpConsExpr expr = case expr of
-	S.Int p n -> return $ Int 32 (toInteger n)
+defString :: String -> Cmp C.Constant 
+defString str = do
+	let chars     = map (C.Int 8 . toInteger . ord) (str ++ "\0")
+	let strArr    = C.Array i8 chars
+	let strArrTyp = typeOf (cons strArr)
 
-	S.Ident pos nameStr -> do
-		st <- gets symTab
-		case SymTab.lookup (mkName nameStr) st of
-			Nothing -> throwError $ CmpError (pos, nameStr ++ " doesn't exist")
-			Just op -> return $ global (typeOf op) (mkName nameStr)
+	strName <- unique
+	addDef $ globalVar strName True strArrTyp (Just strArr)
+	let strRef = global (ptr strArrTyp) strName
+	return $ C.BitCast (C.GetElementPtr False strRef []) (ptr i8)
 
 
 typeOf :: Operand -> Type
-typeOf (ConstantOperand (Int 32 _))              = i32
-typeOf (ConstantOperand (GlobalReference (PointerType typ _)_)) = typ 
+typeOf (ConstantOperand (C.Int 32 _))                             = i32
+typeOf (ConstantOperand (C.GlobalReference (PointerType typ _)_)) = typ
+typeOf (ConstantOperand (C.Array t elems))                      
+	= ArrayType (fromIntegral $ length elems) t
+typeOf x = error $ show x
 
 
-global :: Type -> Name -> Constant
-global = GlobalReference
+initOf :: Type -> C.Constant
+initOf (IntegerType 32) = C.Int 32 0
+
+
+global :: Type -> Name -> C.Constant
+global = C.GlobalReference
 
 
 local :: Type -> Name -> Operand
 local = LocalReference
 
 
-cons :: Constant -> Operand
+cons :: C.Constant -> Operand
 cons = ConstantOperand
 
 
-globalVar :: Name -> Bool -> Type -> Maybe Constant -> Definition
+globalVar :: Name -> Bool -> Type -> Maybe C.Constant -> Definition
 globalVar name isCons typ init = GlobalDefinition $ globalVariableDefaults
 	{ LG.name        = name
 	, LG.isConstant  = isCons
@@ -164,128 +203,11 @@ mainFn ins = GlobalDefinition $ functionDefaults
 	where 
 		block = BasicBlock (mkName "entry") ins (Do $ Ret Nothing [])
 
---compileAST :: S.AST -> Either CmpError Module
---compileAST ast =
---	evalState (runExceptT $ getCmp $ cmpAST ast) initCmpState 
---
---
---data BlockState
---	= BlockState
---		{ instructions :: [Named Instruction]
---		, terminator   :: Maybe (Named Terminator)
---		}
---	deriving Show
---
---
---data FnState
---	= FnState
---		{ uniqueCount :: Int
---		, blocks      :: Map.Map Name BlockState
---		, curBlock    :: Name
---		, retType     :: Type
---		, fnArgs      :: [(Name, Type)]
---		}
---	deriving (Show)
---
---
---data CmpState
---	= CmpState
---		{ functions :: Map.Map Name FnState
---		, currentFn :: Name
---		, symTab    :: SymTab.SymTab Name Operand
---		}
---	deriving (Show)
---
---
---newtype Cmp a
---	= Cmp { getCmp :: ExceptT CmpError (State CmpState) a }
---	deriving (Functor, Applicative, Monad, MonadError CmpError, MonadState CmpState)
---
---
---initBlockState = BlockState
---	{ instructions = []
---	, terminator   = Nothing
---	}
---
---
---initFnState = FnState
---	{ uniqueCount = 0
---	, blocks      = Map.singleton (mkName "entry") initBlockState
---	, curBlock    = mkName "entry"
---	, retType     = void 
---	, fnArgs      = []
---	}
---
---
---initCmpState = CmpState
---	{ functions = Map.empty 
---	, currentFn = mkName ""
---	, symTab    = SymTab.initSymTab
---	}
---
---
---compileAST :: S.AST -> Either CmpError Module
---compileAST ast =
---	evalState (runExceptT $ getCmp $ cmpAST ast) initCmpState 
---
---
---cmpAST :: S.AST -> Cmp Module
---cmpAST ast = do
---	mapM_ cmpTopStmt ast
---	fns <- fmap Map.toList (gets functions)
---
---	return $ defaultModule
---		{ moduleDefinitions = map fnDef fns
---		}
---
---	where
---		fnDef :: (Name, FnState) -> Definition
---		fnDef (name, fn) = GlobalDefinition $ functionDefaults
---			{ name        = name
---			, returnType  = retType fn
---			, parameters  = ([Parameter ty nm [] | (nm, ty) <- fnArgs fn], False)
---			, basicBlocks = map mkBlock (Map.toList $ blocks fn)
---			}
---
---
---		mkBlock :: (Name, BlockState) -> BasicBlock
---		mkBlock (name, blk) =
---			case terminator blk of
---				Nothing -> error $ "block has no terminator: " ++ show (name, blk)
---				Just t  -> BasicBlock name (instructions blk) t
---
---
---modifyCurFn :: (FnState -> FnState) -> Cmp ()
---modifyCurFn f = do
---	curFn <- gets currentFn
---	fn <- fmap (Map.! curFn) (gets functions)
---	modify $ \s -> s { functions = Map.insert curFn (f fn) (functions s) }
---
---
---modifyCurBlock :: (BlockState -> BlockState) -> Cmp ()
---modifyCurBlock f =
---	modifyCurFn $ \fn -> let
---			name = curBlock fn
---			blks = blocks fn
---			blk  = (Map.!) blks name
---		in fn { blocks = Map.insert name (f blk) blks }
---
---
---instr :: Named Instruction -> Cmp ()
---instr ins =
---	modifyCurBlock $ \blk -> blk { instructions = instructions blk ++ [ins] }
---
---
---term :: Named Terminator -> Cmp ()
---term ter =
---	modifyCurBlock $ \blk -> blk { terminator = Just ter }
---
---
---cmpTopStmt :: S.Stmt -> Cmp ()
---cmpTopStmt stmt = case stmt of
---	S.Assign pos name expr -> do
---		return ()
---
---	S.Print pos exprs -> do
---		return ()
---
+
+printfFn :: Definition
+printfFn = GlobalDefinition $ functionDefaults
+	{ LG.returnType = i32
+	, LG.name       = mkName "printf"
+	, LG.parameters = ([Parameter (ptr i8) (mkName "fmt") []], True)
+	}
+
