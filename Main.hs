@@ -44,6 +44,6 @@ main = runInputT defaultSettings (loop C.initCmpState)
 					P.ParseOk ast -> do
 						res <- C.codeGen state ast
 						case res of
-							Right newState -> putStrLn "success" >> return newState
+							Right newState -> putLLVMModule (C.llvmModule newState) >> return newState
 							Left e -> putStrLn (show e) >> return state
 						

@@ -14,7 +14,7 @@ import qualified SymTab
 
 import LLVM.AST
 import LLVM.AST.Type
-import LLVM.AST.Global
+import qualified LLVM.AST.Global as LG
 import LLVM.AST.Name
 import LLVM.AST.Instruction
 import LLVM.AST.Constant as C
@@ -28,7 +28,6 @@ newtype CmpError
 	deriving (Show)
 
 
-
 newtype LLVM a
 	= LLVM { getLLVM :: ExceptT CmpError (State Module) a }
 	deriving (Functor, Applicative, Monad, MonadError CmpError, MonadState Module)
@@ -36,9 +35,14 @@ newtype LLVM a
 
 data CmpState
 	= CmpState
-		{ modul  :: Module
-		, symTab :: SymTab.SymTab Name Operand
+		{ llvmModule  :: Module
+		, symTab      :: SymTab.SymTab Name Operand
 		}
+
+
+newtype Cmp a
+	= Cmp { getCmp :: ExceptT CmpError (State CmpState) a }
+	deriving (Functor, Applicative, Monad, MonadError CmpError, MonadState CmpState)
 
 
 initModule = defaultModule
@@ -47,15 +51,64 @@ initModule = defaultModule
 
 
 initCmpState = CmpState
-	{ modul  = initModule
-	, symTab = SymTab.initSymTab
+	{ llvmModule = initModule
+	, symTab     = SymTab.initSymTab
 	}
+
+
+addDef :: Definition -> Cmp ()
+addDef def =
+	modify $ \s -> s { llvmModule = (llvmModule s)
+		{ moduleDefinitions = (moduleDefinitions $ llvmModule s) ++ [def]
+		}}
+
+
+
+defName :: Name -> Operand -> Cmp ()
+defName name op =
+	modify $ \s -> s { symTab = SymTab.insert name op (symTab s) }
+
+
 
 codeGen :: CmpState -> S.AST -> IO (Either CmpError CmpState)
 codeGen cmpState ast = do
-	putStrLn "benis"
-	return $ Right cmpState
+	let (res, cmpState') = runState (runExceptT $ getCmp $ mapM_ cmpTopStmt ast) cmpState
+	case res of
+		Left cmpErr -> return (Left cmpErr)
+		Right _     -> return (Right cmpState')
 
+
+cmpTopStmt :: S.Stmt -> Cmp ()
+cmpTopStmt stmt = case stmt of
+	S.Assign pos nameStr expr -> do
+		let name = mkName nameStr
+		st <- gets symTab
+		case SymTab.lookup name [head st] of
+			Just _  -> throwError $ CmpError (pos, nameStr ++ " already defined")	
+			Nothing -> return ()
+
+		val <- cmpConsExpr expr
+		let typ = typeOf (ConstantOperand val)
+		addDef $ globalVar name False typ (Just val)
+		defName name $ ConstantOperand (GlobalReference typ name)
+
+
+cmpConsExpr :: S.Expr -> Cmp Constant
+cmpConsExpr expr = case expr of
+	S.Int p n -> return $ Int 32 (toInteger n)
+
+
+typeOf :: Operand -> Type
+typeOf (ConstantOperand (Int 32 _)) = i32
+
+
+globalVar :: Name -> Bool -> Type -> Maybe Constant -> Definition
+globalVar name isCons typ init = GlobalDefinition $ globalVariableDefaults
+	{ LG.name        = name
+	, LG.isConstant  = isCons
+	, LG.type'       = typ
+	, LG.initializer = init
+	}
 
 --compileAST :: S.AST -> Either CmpError Module
 --compileAST ast =
