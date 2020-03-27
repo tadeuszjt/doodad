@@ -8,6 +8,7 @@ import Control.Monad.Except hiding (void)
 import Control.Monad.State hiding (void)
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.ByteString.Short as BSS
+import Foreign.Ptr ( FunPtr, castFunPtr )
 
 import qualified AST   as S
 import qualified Lexer as L
@@ -21,9 +22,13 @@ import LLVM.AST.Instruction
 import qualified LLVM.AST.Constant as C
 import LLVM.AST.Linkage
 import LLVM.AST.AddrSpace
-import LLVM.AST.AddrSpace
 import LLVM.AST.CallingConvention
+import LLVM.Context
+import qualified LLVM.Module as M
+import LLVM.ExecutionEngine
+import LLVM.PassManager
 
+foreign import ccall "dynamic" haskFun :: FunPtr (IO ()) -> (IO ())
 
 
 codeGen :: CmpState -> S.AST -> IO (Either CmpError CmpState)
@@ -31,7 +36,45 @@ codeGen cmpState ast = do
 	let (res, cmpState') = runState (runExceptT $ getCmp $ mapM_ cmpTopStmt ast) cmpState
 	case res of
 		Left cmpErr -> return (Left cmpErr)
-		Right _     -> return (Right cmpState')
+		Right _     -> do
+			let mod = llvmModule cmpState'
+			runJIT mod
+			return (Right cmpState')
+
+
+run :: FunPtr a -> IO ()
+run fn = haskFun (castFunPtr fn :: FunPtr (IO ()))
+
+
+jit :: Context -> (MCJIT -> IO a) -> IO a
+jit c = withMCJIT c optLevel model ptrelim fastins
+	where
+			optLevel = Just 0
+			model    = Nothing
+			ptrelim  = Nothing
+			fastins  = Nothing
+
+passes :: PassSetSpec
+passes = defaultCuratedPassSetSpec { optLevel = Just 3 }
+
+
+runJIT :: Module -> IO Module
+runJIT mod = do
+	withContext $ \context ->
+		jit context $ \executionEngine ->
+			M.withModuleFromAST context mod $ \m ->
+				withPassManager passes $ \pm -> do
+					{-runPassManager pm m-}
+					optmod <- M.moduleAST m
+					s <- M.moduleLLVMAssembly m
+					--print module
+					--BS.putStrLn s
+					withModuleInEngine executionEngine m $ \ee -> do
+						mainfn <- getFunction ee (mkName "main")
+						case mainfn of
+							Just fn -> run fn
+							Nothing -> return ()
+					return optmod
 
 
 
