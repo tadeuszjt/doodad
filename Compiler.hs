@@ -69,6 +69,15 @@ defName name op =
 	modify $ \s -> s { symTab = SymTab.insert name op (symTab s) }
 
 
+lookupName :: String -> L.AlexPosn -> Cmp Operand
+lookupName nameStr pos = do
+	let name = mkName nameStr
+	st <- gets symTab
+	case SymTab.lookup name st of
+		Nothing -> throwError $ CmpError (pos, nameStr ++ " doesn't exist")
+		Just op -> return op
+
+
 
 codeGen :: CmpState -> S.AST -> IO (Either CmpError CmpState)
 codeGen cmpState ast = do
@@ -87,19 +96,54 @@ cmpTopStmt stmt = case stmt of
 			Just _  -> throwError $ CmpError (pos, nameStr ++ " already defined")	
 			Nothing -> return ()
 
-		val <- cmpConsExpr expr
-		let typ = typeOf (ConstantOperand val)
-		addDef $ globalVar name False typ (Just val)
-		defName name $ ConstantOperand (GlobalReference typ name)
+		(init, typ) <- case expr of
+			S.Int _ n   -> return (Just (Int 32 (toInteger n)), i32)
+			S.Ident _ idStr -> do
+				op <- lookupName idStr pos
+				let opTyp = typeOf op
+
+				let loadRef = UnName 0
+				let load    = loadRef := Load False op Nothing 0 []
+
+				let storeAddr = cons $ global (ptr opTyp) name
+				let storeVal  = local opTyp loadRef
+				let store     = Do $ Store False storeAddr storeVal Nothing 0 []
+
+				addDef (mainFn [load, store])
+				return (Nothing, opTyp)
+			
+
+		addDef $ globalVar name False typ init
+		defName name $ cons (global (ptr typ) name)
+
 
 
 cmpConsExpr :: S.Expr -> Cmp Constant
 cmpConsExpr expr = case expr of
 	S.Int p n -> return $ Int 32 (toInteger n)
 
+	S.Ident pos nameStr -> do
+		st <- gets symTab
+		case SymTab.lookup (mkName nameStr) st of
+			Nothing -> throwError $ CmpError (pos, nameStr ++ " doesn't exist")
+			Just op -> return $ global (typeOf op) (mkName nameStr)
+
 
 typeOf :: Operand -> Type
-typeOf (ConstantOperand (Int 32 _)) = i32
+typeOf (ConstantOperand (Int 32 _))              = i32
+typeOf (ConstantOperand (GlobalReference (PointerType typ _)_)) = typ 
+
+
+global :: Type -> Name -> Constant
+global = GlobalReference
+
+
+local :: Type -> Name -> Operand
+local = LocalReference
+
+
+cons :: Constant -> Operand
+cons = ConstantOperand
 
 
 globalVar :: Name -> Bool -> Type -> Maybe Constant -> Definition
@@ -109,6 +153,16 @@ globalVar name isCons typ init = GlobalDefinition $ globalVariableDefaults
 	, LG.type'       = typ
 	, LG.initializer = init
 	}
+
+
+mainFn :: [Named Instruction] -> Definition
+mainFn ins = GlobalDefinition $ functionDefaults
+	{ LG.returnType  = void
+	, LG.name        = mkName "main"
+	, LG.basicBlocks = [block]
+	}
+	where 
+		block = BasicBlock (mkName "entry") ins (Do $ Ret Nothing [])
 
 --compileAST :: S.AST -> Either CmpError Module
 --compileAST ast =
