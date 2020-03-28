@@ -2,13 +2,13 @@
 
 module Compiler where
 
-import qualified Data.Map as Map
 import Data.Char
 import Control.Monad.Except hiding (void)
 import Control.Monad.State hiding (void)
+import Foreign.Ptr (FunPtr, castFunPtr)
+import qualified Data.Map              as Map
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.ByteString.Short as BSS
-import Foreign.Ptr ( FunPtr, castFunPtr )
 
 import qualified AST   as S
 import qualified Lexer as L
@@ -16,17 +16,17 @@ import qualified SymTab
 
 import LLVM.AST
 import LLVM.AST.Type
-import qualified LLVM.AST.Global as LG
 import LLVM.AST.Name
 import LLVM.AST.Instruction
-import qualified LLVM.AST.Constant as C
 import LLVM.AST.Linkage
 import LLVM.AST.AddrSpace
 import LLVM.AST.CallingConvention
 import LLVM.Context
-import qualified LLVM.Module as M
 import LLVM.ExecutionEngine
 import LLVM.PassManager
+import qualified LLVM.AST.Global   as G
+import qualified LLVM.AST.Constant as C
+import qualified LLVM.Module       as M
 
 foreign import ccall "dynamic" haskFun :: FunPtr (IO ()) -> (IO ())
 
@@ -37,9 +37,8 @@ codeGen cmpState ast = do
 	case res of
 		Left cmpErr -> return (Left cmpErr)
 		Right _     -> do
-			let mod = llvmModule cmpState'
-			runJIT mod
-			return (Right cmpState')
+			optMod <- runJIT (llvmModule cmpState') 
+			return $ Right (cmpState' { llvmModule = optMod })
 
 
 run :: FunPtr a -> IO ()
@@ -47,45 +46,43 @@ run fn = haskFun (castFunPtr fn :: FunPtr (IO ()))
 
 
 jit :: Context -> (MCJIT -> IO a) -> IO a
-jit c = withMCJIT c optLevel model ptrelim fastins
+jit ctx f = withMCJIT ctx optLevel model ptrelim fastins f
 	where
-			optLevel = Just 0
-			model    = Nothing
-			ptrelim  = Nothing
-			fastins  = Nothing
+		optLevel = Just 0
+		model    = Nothing
+		ptrelim  = Nothing
+		fastins  = Nothing
+
 
 passes :: PassSetSpec
 passes = defaultCuratedPassSetSpec { optLevel = Just 3 }
 
 
 runJIT :: Module -> IO Module
-runJIT mod = do
-	withContext $ \context ->
-		jit context $ \executionEngine ->
-			M.withModuleFromAST context mod $ \m ->
-				withPassManager passes $ \pm -> do
-					{-runPassManager pm m-}
-					optmod <- M.moduleAST m
-					s <- M.moduleLLVMAssembly m
-					--print module
-					--BS.putStrLn s
-					withModuleInEngine executionEngine m $ \ee -> do
-						mainfn <- getFunction ee (mkName "main")
-						case mainfn of
-							Just fn -> run fn
-							Nothing -> return ()
-					return optmod
+runJIT mod =
+	withContext (\ctx -> jit ctx $ mcJITAction ctx)
+	where
+		mcJITAction :: Context -> MCJIT -> IO Module
+		mcJITAction context ee = 
+			M.withModuleFromAST context mod (moduleAction ee)
 
+		moduleAction :: MCJIT -> M.Module -> IO Module
+		moduleAction ee m = do
+			s <- M.moduleLLVMAssembly m
+			BS.putStrLn s
+
+			withModuleInEngine ee m $ \em -> do
+				mainfn <- getFunction em (mkName "main")
+				case mainfn of
+					Just fn -> run fn
+					Nothing -> return ()
+
+			M.moduleAST m 
 
 
 newtype CmpError
 	= CmpError { getCmpError :: (L.AlexPosn, String) }
 	deriving (Show)
-
-
-newtype LLVM a
-	= LLVM { getLLVM :: ExceptT CmpError (State Module) a }
-	deriving (Functor, Applicative, Monad, MonadError CmpError, MonadState Module)
 
 
 data CmpState
@@ -204,11 +201,14 @@ defString str = do
 	return $ C.BitCast (C.GetElementPtr False strRef []) (ptr i8)
 
 
+
+
+
 typeOf :: Operand -> Type
-typeOf (ConstantOperand (C.Int 32 _))                             = i32
-typeOf (ConstantOperand (C.GlobalReference (PointerType typ _)_)) = typ
-typeOf (ConstantOperand (C.Array t elems))                      
-	= ArrayType (fromIntegral $ length elems) t
+typeOf (ConstantOperand cons) = case cons of
+	C.Int 32 _                              -> i32
+	C.GlobalReference (PointerType typ _) _ -> typ
+	C.Array t elems                         -> ArrayType (fromIntegral $ length elems) t
 typeOf x = error $ show x
 
 
@@ -230,18 +230,18 @@ cons = ConstantOperand
 
 globalVar :: Name -> Bool -> Type -> Maybe C.Constant -> Definition
 globalVar name isCons typ init = GlobalDefinition $ globalVariableDefaults
-	{ LG.name        = name
-	, LG.isConstant  = isCons
-	, LG.type'       = typ
-	, LG.initializer = init
+	{ G.name        = name
+	, G.isConstant  = isCons
+	, G.type'       = typ
+	, G.initializer = init
 	}
 
 
 mainFn :: [Named Instruction] -> Definition
 mainFn ins = GlobalDefinition $ functionDefaults
-	{ LG.returnType  = void
-	, LG.name        = mkName "main"
-	, LG.basicBlocks = [block]
+	{ G.returnType  = void
+	, G.name        = mkName "main"
+	, G.basicBlocks = [block]
 	}
 	where 
 		block = BasicBlock (mkName "entry") ins (Do $ Ret Nothing [])
@@ -249,8 +249,8 @@ mainFn ins = GlobalDefinition $ functionDefaults
 
 printfFn :: Definition
 printfFn = GlobalDefinition $ functionDefaults
-	{ LG.returnType = i32
-	, LG.name       = mkName "printf"
-	, LG.parameters = ([Parameter (ptr i8) (mkName "fmt") []], True)
+	{ G.returnType = i32
+	, G.name       = mkName "printf"
+	, G.parameters = ([Parameter (ptr i8) (mkName "fmt") []], True)
 	}
 
