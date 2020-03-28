@@ -51,29 +51,30 @@ run :: FunPtr a -> IO ()
 run fn = haskFun (castFunPtr fn :: FunPtr (IO ()))
 
 
-jit :: Context -> (MCJIT -> IO a) -> IO a
-jit ctx f = withMCJIT ctx optLevel model ptrelim fastins f
+passes :: PassSetSpec
+passes = defaultCuratedPassSetSpec { optLevel = Just 3 }
+
+
+runJIT :: Module -> IO Module
+runJIT astMod =
+	withContext $ \ctx ->
+		withMCJIT ctx optLevel model ptrelim fastins $ \ee -> 
+			M.withModuleFromAST ctx astMod $ \mod -> do
+				withModuleInEngine ee mod $ \em -> do
+					fn <- getFunction em (mkName "main")
+					case fn of
+						Just f  -> run f
+						Nothing -> return ()
+
+				optmod <- M.moduleAST mod
+				--BS.putStrLn =<< M.moduleLLVMAssembly mod
+				return optmod 
 	where
 		optLevel = Just 0
 		model    = Nothing
 		ptrelim  = Nothing
 		fastins  = Nothing
 
-
-passes :: PassSetSpec
-passes = defaultCuratedPassSetSpec { optLevel = Just 3 }
-
-
-runJIT :: Module -> IO Module
-runJIT mod =
-	withContext $ \ctx ->
-		jit ctx $ \ee -> 
-			M.withModuleFromAST ctx mod $ \m ->
-				withPassManager passes $ \pm -> do
-					--runPassManager pm m
-					optmod <- M.moduleAST m
-					BS.putStrLn =<< M.moduleLLVMAssembly m
-					return optmod
 
 
 newtype CmpError
@@ -122,11 +123,6 @@ addDef def =
 		}}
 
 
-addInstr :: Named Instruction -> Cmp ()
-addInstr instr =
-	modify $ \s -> s { instructions = (instructions s) ++ [instr] }
-
-
 ensureDef :: Definition -> Cmp ()
 ensureDef def = do
 	defs <- gets (moduleDefinitions . llvmModule)
@@ -145,6 +141,11 @@ lookupName pos nameStr = do
 	case SymTab.lookup name st of
 		Nothing -> throwError $ CmpError (pos, nameStr ++ " doesn't exist")
 		Just op -> return op
+
+
+addInstr :: Named Instruction -> Cmp ()
+addInstr instr =
+	modify $ \s -> s { instructions = (instructions s) ++ [instr] }
 
 
 cmpTopStmt :: S.Stmt -> Cmp ()
@@ -169,6 +170,15 @@ cmpTopStmt stmt = case stmt of
 		else do
 			addInstr $ Do $ Store False (cons $ global (ptr typ) name) val Nothing 0 []
 			addDef $ globalVar name False typ (Just $ initOf typ)
+	
+	S.Set pos nameStr expr -> do
+		st <- gets symTab
+		op <- case SymTab.lookup (mkName nameStr) st of
+			Nothing -> throwError $ CmpError (pos, nameStr ++ " doesn't exist")
+			Just op -> return op
+
+		val <- cmpExpr expr
+		addInstr $ Do $ Store False op val Nothing 0 []
 			
 
 	S.Print pos exprs -> do
@@ -202,14 +212,16 @@ cmpExpr expr = case expr of
 		val2 <- cmpExpr expr2
 
 		if isCons val1 && isCons val2
-		then
+		then return $ cons $ 
 			let ConstantOperand cons1 = val1 in
 			let ConstantOperand cons2 = val2 in
-			return $ cons $ case (typeOf val1, typeOf val2) of
-				(IntegerType 32, IntegerType 32) ->
-					case op of
-						S.Plus  -> C.Add False False cons1 cons2 
-						S.Minus -> C.Sub False False cons1 cons2 
+			case (typeOf (cons cons1), typeOf (cons cons2)) of
+				(IntegerType 32, IntegerType 32) -> case op of
+					S.Plus   -> C.Add False False cons1 cons2
+					S.Minus  -> C.Sub False False cons1 cons2
+					S.Times  -> C.Mul False False cons1 cons2
+					S.Divide -> C.SDiv False cons1 cons2
+					S.Mod    -> C.SRem cons1 cons2
 		else do
 			ref <- unique
 			case (typeOf val1, typeOf val2) of
@@ -223,8 +235,6 @@ cmpExpr expr = case expr of
 						_ -> throwError $ CmpError (pos, "i32 does not support operator")
 					addInstr (ref := ins)
 					return (local i32 ref)
-
-
 
 
 defString :: String -> Cmp C.Constant 
@@ -243,9 +253,14 @@ typeOf :: Operand -> Type
 typeOf (LocalReference typ _) = typ
 typeOf (ConstantOperand cons) = case cons of
 	C.GlobalReference (PointerType typ _) _ -> typ
-	C.Int 32 _                              -> i32
+	C.Int nb _                              -> IntegerType nb
 	C.Array typ elems                       -> ArrayType (fromIntegral $ length elems) typ
 	C.Add _ _ a b                           -> typeOf (ConstantOperand a)
+	C.Sub _ _ a b                           -> typeOf (ConstantOperand a)
+	C.Mul _ _ a b                           -> typeOf (ConstantOperand a)
+	C.SDiv _ a b                            -> typeOf (ConstantOperand a)
+	C.SRem a b                              -> typeOf (ConstantOperand a)
+
 
 
 isCons :: Operand -> Bool

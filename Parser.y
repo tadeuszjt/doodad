@@ -19,7 +19,6 @@ import qualified AST as S
 
 
 %token
-    '='        { L.Token _ L.ReservedOp "=" }
     '+'        { L.Token _ L.ReservedOp "+" }
     '-'        { L.Token _ L.ReservedOp "-" }
     '*'        { L.Token _ L.ReservedOp "*" }
@@ -27,6 +26,7 @@ import qualified AST as S
     '%'        { L.Token _ L.ReservedOp "%" }
     '<'        { L.Token _ L.ReservedOp "<" }
     '>'        { L.Token _ L.ReservedOp ">" }
+    '='        { L.Token _ L.ReservedOp "=" }
     ':='       { L.Token _ L.ReservedOp ":=" }
     '<='       { L.Token _ L.ReservedOp "<=" }
     '>='       { L.Token _ L.ReservedOp ">=" }
@@ -57,6 +57,7 @@ Prog : Stmt ';'           { [$1] }
 	 | Stmt ';' Prog      { $1 : $3 }
 
 Stmt : ident ':=' Expr    { S.Assign (L.tokPosn $2) (L.tokStr $1) $3 }  
+	 | ident '=' Expr     { S.Set (L.tokPosn $2) (L.tokStr $1) $3 }
 	 | print '(' Args ')' { S.Print (L.tokPosn $1) $3 }
 
 Expr : int                { S.Int (L.tokPosn $1) (read $ L.tokStr $1) }

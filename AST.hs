@@ -31,5 +31,6 @@ data Expr
 
 data Stmt
 	= Assign Posn String Expr
+	| Set Posn String Expr
 	| Print  Posn [Expr]
 	deriving (Show, Eq)
