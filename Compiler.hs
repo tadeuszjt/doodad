@@ -33,12 +33,17 @@ foreign import ccall "dynamic" haskFun :: FunPtr (IO ()) -> (IO ())
 
 codeGen :: CmpState -> S.AST -> IO (Either CmpError CmpState)
 codeGen cmpState ast = do
-	let (res, cmpState') = runState (runExceptT $ getCmp $ mapM_ cmpTopStmt ast) cmpState
+	let (res, cmpState') = runState (runExceptT $ getCmp cmp) cmpState
 	case res of
 		Left cmpErr -> return (Left cmpErr)
 		Right _     -> do
 			optMod <- runJIT (llvmModule cmpState') 
 			return $ Right (cmpState' { llvmModule = optMod })
+
+	where
+		cmp = do
+			mapM_ cmpTopStmt ast
+			addDef . mainFn =<< gets instructions
 
 
 run :: FunPtr a -> IO ()
@@ -87,9 +92,10 @@ newtype CmpError
 
 data CmpState
 	= CmpState
-		{ llvmModule  :: Module
-		, symTab      :: SymTab.SymTab Name Operand
-		, uniqueCount :: Word
+		{ llvmModule   :: Module
+		, symTab       :: SymTab.SymTab Name Operand
+		, instructions :: [Named Instruction]
+		, uniqueCount  :: Word
 		}
 
 
@@ -104,9 +110,10 @@ initModule = defaultModule
 
 
 initCmpState = CmpState
-	{ llvmModule  = initModule
-	, symTab      = SymTab.initSymTab
-	, uniqueCount = 0
+	{ llvmModule   = initModule
+	, symTab       = SymTab.initSymTab
+	, instructions = []
+	, uniqueCount  = 0
 	}
 
 
@@ -122,6 +129,11 @@ addDef def =
 	modify $ \s -> s { llvmModule = (llvmModule s)
 		{ moduleDefinitions = (moduleDefinitions $ llvmModule s) ++ [def]
 		}}
+
+
+addInstr :: Named Instruction -> Cmp ()
+addInstr instr =
+	modify $ \s -> s { instructions = (instructions s) ++ [instr] }
 
 
 ensureDef :: Definition -> Cmp ()
@@ -164,14 +176,15 @@ cmpTopStmt stmt = case stmt of
 				op <- lookupName idStr pos
 				let opTyp = typeOf op
 
-				let loadRef = UnName 0
-				let load    = loadRef := Load False op Nothing 0 []
+				loadRef <- unique
+				let load = loadRef := Load False op Nothing 0 []
 
 				let storeAddr = cons $ global (ptr opTyp) name
 				let storeVal  = local opTyp loadRef
 				let store     = Do $ Store False storeAddr storeVal Nothing 0 []
 
-				addDef (mainFn [load, store])
+				addInstr load
+				addInstr store
 				return (initOf opTyp, opTyp)
 			
 		addDef $ globalVar name False typ (Just init)
@@ -184,9 +197,7 @@ cmpTopStmt stmt = case stmt of
 		let printfTyp = FunctionType i32 [ptr i8] True
 		let printfOp  = cons $ global (ptr printfTyp) (mkName "printf")
 		let args      = [(cons fmt, [])]
-		let ins       = Do $ Call Nothing C [] (Right printfOp) args [] []
-		addDef (mainFn [ins])
-		return ()
+		addInstr $ Do $ Call Nothing C [] (Right printfOp) args [] []
 
 
 defString :: String -> Cmp C.Constant 
