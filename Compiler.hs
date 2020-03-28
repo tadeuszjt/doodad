@@ -3,6 +3,7 @@
 module Compiler where
 
 import Data.Char
+import Data.List
 import Control.Monad.Except hiding (void)
 import Control.Monad.State hiding (void)
 import Foreign.Ptr (FunPtr, castFunPtr)
@@ -147,15 +148,13 @@ defName name op =
 	modify $ \s -> s { symTab = SymTab.insert name op (symTab s) }
 
 
-lookupName :: String -> L.AlexPosn -> Cmp Operand
-lookupName nameStr pos = do
+lookupName :: L.AlexPosn -> String -> Cmp Operand
+lookupName pos nameStr = do
 	let name = mkName nameStr
 	st <- gets symTab
 	case SymTab.lookup name st of
 		Nothing -> throwError $ CmpError (pos, nameStr ++ " doesn't exist")
 		Just op -> return op
-
-
 
 
 cmpTopStmt :: S.Stmt -> Cmp ()
@@ -173,31 +172,46 @@ cmpTopStmt stmt = case stmt of
 				return (C.Int 32 (toInteger n), i32)
 
 			S.Ident _ idStr -> do
-				op <- lookupName idStr pos
+				op <- lookupName pos idStr
 				let opTyp = typeOf op
 
 				loadRef <- unique
-				let load = loadRef := Load False op Nothing 0 []
+				addInstr $ loadRef := Load False op Nothing 0 []
 
 				let storeAddr = cons $ global (ptr opTyp) name
 				let storeVal  = local opTyp loadRef
-				let store     = Do $ Store False storeAddr storeVal Nothing 0 []
-
-				addInstr load
-				addInstr store
+				addInstr $ Do $ Store False storeAddr storeVal Nothing 0 []
 				return (initOf opTyp, opTyp)
 			
 		addDef $ globalVar name False typ (Just init)
-		defName name $ cons (global (ptr typ) name)
+		defName name $ cons $ global (ptr typ) name
 
-	S.Print pos [expr] -> do
-		fmt <- defString "benis\n"
+	S.Print pos exprs -> do
+		vals <- mapM cmpExpr exprs
+		let fmtStrs = (flip map) vals $ \val -> case typeOf val of
+			IntegerType 32 -> "%d"
+
+		let fmtStr = intercalate ", " fmtStrs
+		fmt <- defString (fmtStr ++ "\n")
 
 		ensureDef printfFn
 		let printfTyp = FunctionType i32 [ptr i8] True
 		let printfOp  = cons $ global (ptr printfTyp) (mkName "printf")
-		let args      = [(cons fmt, [])]
+		let args      = (cons fmt, []) : [ (op, []) | op <- vals ]
 		addInstr $ Do $ Call Nothing C [] (Right printfOp) args [] []
+
+
+cmpExpr :: S.Expr -> Cmp Operand
+cmpExpr expr = case expr of
+	S.Int pos n ->
+		return $ cons (C.Int 32 $ toInteger n)
+
+	S.Ident pos idStr -> do
+		op <- lookupName pos idStr		
+		loadRef <- unique
+		addInstr $ loadRef := Load False op Nothing 0 []
+		return $ local (typeOf op) loadRef
+
 
 
 defString :: String -> Cmp C.Constant 
@@ -212,15 +226,12 @@ defString str = do
 	return $ C.BitCast (C.GetElementPtr False strRef []) (ptr i8)
 
 
-
-
-
 typeOf :: Operand -> Type
+typeOf (LocalReference typ _) = typ
 typeOf (ConstantOperand cons) = case cons of
-	C.Int 32 _                              -> i32
 	C.GlobalReference (PointerType typ _) _ -> typ
-	C.Array t elems                         -> ArrayType (fromIntegral $ length elems) t
-typeOf x = error $ show x
+	C.Int 32 _                              -> i32
+	C.Array typ elems                       -> ArrayType (fromIntegral $ length elems) typ
 
 
 initOf :: Type -> C.Constant
