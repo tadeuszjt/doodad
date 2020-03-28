@@ -67,7 +67,7 @@ runJIT astMod =
 						Nothing -> return ()
 
 				optmod <- M.moduleAST mod
-				--BS.putStrLn =<< M.moduleLLVMAssembly mod
+				BS.putStrLn =<< M.moduleLLVMAssembly mod
 				return optmod 
 	where
 		optLevel = Just 0
@@ -85,9 +85,10 @@ newtype CmpError
 data CmpState
 	= CmpState
 		{ llvmModule   :: Module
-		, symTab       :: SymTab.SymTab Name Operand
+		, symTab       :: SymTab.SymTab String Operand
 		, instructions :: [Named Instruction]
 		, uniqueCount  :: Word
+		, nameSupply   :: Map.Map String Int
 		}
 
 
@@ -106,6 +107,7 @@ initCmpState = CmpState
 	, symTab       = SymTab.initSymTab
 	, instructions = []
 	, uniqueCount  = 0
+	, nameSupply   = Map.fromList $ [("printf", 1), ("main", 1)]
 	}
 
 
@@ -114,6 +116,16 @@ unique = do
 	count <- gets uniqueCount
 	modify $ \s -> s { uniqueCount = count + 1 }
 	return $ UnName count
+
+
+uniqueName :: String -> Cmp Name
+uniqueName name = do
+	names <- gets nameSupply
+	let (x', name') = case Map.lookup name names of
+		Just x  -> (x+1, name ++ show x)
+		Nothing -> (1, name)
+	modify $ \s -> s { nameSupply = Map.insert name x' names }
+	return (mkName name')
 
 
 addDef :: Definition -> Cmp ()
@@ -129,17 +141,16 @@ ensureDef def = do
 	unless (def `elem` defs) (addDef def)
 
 
-defName :: Name -> Operand -> Cmp ()
+defName :: String -> Operand -> Cmp ()
 defName name op =
 	modify $ \s -> s { symTab = SymTab.insert name op (symTab s) }
 
 
 lookupName :: L.AlexPosn -> String -> Cmp Operand
-lookupName pos nameStr = do
-	let name = mkName nameStr
+lookupName pos name = do
 	st <- gets symTab
 	case SymTab.lookup name st of
-		Nothing -> throwError $ CmpError (pos, nameStr ++ " doesn't exist")
+		Nothing -> throwError $ CmpError (pos, name ++ " doesn't exist")
 		Just op -> return op
 
 
@@ -150,31 +161,30 @@ addInstr instr =
 
 cmpTopStmt :: S.Stmt -> Cmp ()
 cmpTopStmt stmt = case stmt of
-	S.Assign pos nameStr expr -> do
-		let name = mkName nameStr
-
+	S.Assign pos name expr -> do
 		st <- gets symTab
 		case SymTab.lookup name [head st] of
-			Just _  -> throwError $ CmpError (pos, nameStr ++ " already defined")	
+			Just _  -> throwError $ CmpError (pos, name ++ " already defined")	
 			Nothing -> return ()
 
 		val <- cmpExpr expr
 		let typ = typeOf val
 
-		defName name $ cons $ global (ptr typ) name
+		unName <- uniqueName name
+		defName name $ cons $ global (ptr typ) unName
 
 		if isCons val
 		then
 			let ConstantOperand cons = val in
-			addDef $ globalVar name False typ (Just cons)
+			addDef $ globalVar unName False typ (Just cons)
 		else do
-			addInstr $ Do $ Store False (cons $ global (ptr typ) name) val Nothing 0 []
-			addDef $ globalVar name False typ (Just $ initOf typ)
+			addInstr $ Do $ Store False (cons $ global (ptr typ) unName) val Nothing 0 []
+			addDef $ globalVar unName False typ (Just $ initOf typ)
 	
-	S.Set pos nameStr expr -> do
+	S.Set pos name expr -> do
 		st <- gets symTab
-		op <- case SymTab.lookup (mkName nameStr) st of
-			Nothing -> throwError $ CmpError (pos, nameStr ++ " doesn't exist")
+		op <- case SymTab.lookup name st of
+			Nothing -> throwError $ CmpError (pos, name ++ " doesn't exist")
 			Just op -> return op
 
 		val <- cmpExpr expr
