@@ -61,6 +61,11 @@ Stmt : ident ':=' Expr    { S.Assign (L.tokPosn $2) (L.tokStr $1) $3 }
 
 Expr : int                { S.Int (L.tokPosn $1) (read $ L.tokStr $1) }
 	 | ident              { S.Ident (L.tokPosn $1) (L.tokStr $1) }
+	 | Expr '+' Expr      { S.Infix (L.tokPosn $2) S.Plus $1 $3 }
+	 | Expr '-' Expr      { S.Infix (L.tokPosn $2) S.Minus $1 $3 }
+	 | Expr '*' Expr      { S.Infix (L.tokPosn $2) S.Times $1 $3 }
+	 | Expr '/' Expr      { S.Infix (L.tokPosn $2) S.Divide $1 $3 }
+	 | Expr '%' Expr      { S.Infix (L.tokPosn $2) S.Mod $1 $3 }
 
 Args : Expr               { [$1] }
 	 | Expr ',' Args      { $1 : $3 }

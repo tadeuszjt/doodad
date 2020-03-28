@@ -66,24 +66,14 @@ passes = defaultCuratedPassSetSpec { optLevel = Just 3 }
 
 runJIT :: Module -> IO Module
 runJIT mod =
-	withContext (\ctx -> jit ctx $ mcJITAction ctx)
-	where
-		mcJITAction :: Context -> MCJIT -> IO Module
-		mcJITAction context ee = 
-			M.withModuleFromAST context mod (moduleAction ee)
-
-		moduleAction :: MCJIT -> M.Module -> IO Module
-		moduleAction ee m = do
-			s <- M.moduleLLVMAssembly m
-			BS.putStrLn s
-
-			withModuleInEngine ee m $ \em -> do
-				mainfn <- getFunction em (mkName "main")
-				case mainfn of
-					Just fn -> run fn
-					Nothing -> return ()
-
-			M.moduleAST m 
+	withContext $ \ctx ->
+		jit ctx $ \ee -> 
+			M.withModuleFromAST ctx mod $ \m ->
+				withPassManager passes $ \pm -> do
+					--runPassManager pm m
+					optmod <- M.moduleAST m
+					BS.putStrLn =<< M.moduleLLVMAssembly m
+					return optmod
 
 
 newtype CmpError
@@ -167,24 +157,19 @@ cmpTopStmt stmt = case stmt of
 			Just _  -> throwError $ CmpError (pos, nameStr ++ " already defined")	
 			Nothing -> return ()
 
-		(init, typ) <- case expr of
-			S.Int _ n   ->
-				return (C.Int 32 (toInteger n), i32)
+		val <- cmpExpr expr
+		let typ = typeOf val
 
-			S.Ident _ idStr -> do
-				op <- lookupName pos idStr
-				let opTyp = typeOf op
-
-				loadRef <- unique
-				addInstr $ loadRef := Load False op Nothing 0 []
-
-				let storeAddr = cons $ global (ptr opTyp) name
-				let storeVal  = local opTyp loadRef
-				addInstr $ Do $ Store False storeAddr storeVal Nothing 0 []
-				return (initOf opTyp, opTyp)
-			
-		addDef $ globalVar name False typ (Just init)
 		defName name $ cons $ global (ptr typ) name
+
+		if isCons val
+		then
+			let ConstantOperand cons = val in
+			addDef $ globalVar name False typ (Just cons)
+		else do
+			addInstr $ Do $ Store False (cons $ global (ptr typ) name) val Nothing 0 []
+			addDef $ globalVar name False typ (Just $ initOf typ)
+			
 
 	S.Print pos exprs -> do
 		vals <- mapM cmpExpr exprs
@@ -212,6 +197,34 @@ cmpExpr expr = case expr of
 		addInstr $ loadRef := Load False op Nothing 0 []
 		return $ local (typeOf op) loadRef
 
+	S.Infix pos op expr1 expr2 -> do
+		val1 <- cmpExpr expr1
+		val2 <- cmpExpr expr2
+
+		if isCons val1 && isCons val2
+		then
+			let ConstantOperand cons1 = val1 in
+			let ConstantOperand cons2 = val2 in
+			return $ cons $ case (typeOf val1, typeOf val2) of
+				(IntegerType 32, IntegerType 32) ->
+					case op of
+						S.Plus  -> C.Add False False cons1 cons2 
+						S.Minus -> C.Sub False False cons1 cons2 
+		else do
+			ref <- unique
+			case (typeOf val1, typeOf val2) of
+				(IntegerType 32, IntegerType 32) -> do
+					ins <- case op of
+						S.Plus   -> return $ Add False False val1 val2 []
+						S.Minus  -> return $ Sub False False val1 val2 []
+						S.Times  -> return $ Mul False False val1 val2 []
+						S.Divide -> return $ SDiv False val1 val2 []
+						S.Mod    -> return $ SRem val1 val2 []
+						_ -> throwError $ CmpError (pos, "i32 does not support operator")
+					addInstr (ref := ins)
+					return (local i32 ref)
+
+
 
 
 defString :: String -> Cmp C.Constant 
@@ -232,6 +245,12 @@ typeOf (ConstantOperand cons) = case cons of
 	C.GlobalReference (PointerType typ _) _ -> typ
 	C.Int 32 _                              -> i32
 	C.Array typ elems                       -> ArrayType (fromIntegral $ length elems) typ
+	C.Add _ _ a b                           -> typeOf (ConstantOperand a)
+
+
+isCons :: Operand -> Bool
+isCons (ConstantOperand _) = True
+isCons _                   = False
 
 
 initOf :: Type -> C.Constant
