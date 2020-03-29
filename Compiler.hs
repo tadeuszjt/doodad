@@ -14,6 +14,7 @@ import LLVM.AST
 import LLVM.AST.Type
 import LLVM.AST.Name
 import LLVM.AST.Instruction
+import LLVM.AST.Linkage
 import qualified LLVM.AST.Global   as G
 import qualified LLVM.AST.Constant as C
 
@@ -231,7 +232,8 @@ globalVar name isCons typ init = GlobalDefinition $ globalVariableDefaults
 
 mainFn :: Name -> [Named Instruction] -> Definition
 mainFn name ins = GlobalDefinition $ functionDefaults
-	{ G.returnType  = void
+    { G.linkage     = External
+	, G.returnType  = void
 	, G.name        = name
 	, G.basicBlocks = [block]
 	}
