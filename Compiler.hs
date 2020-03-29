@@ -2,14 +2,9 @@
 
 module Compiler where
 
-import Data.Char
-import Data.List
 import Control.Monad.Except hiding (void)
 import Control.Monad.State hiding (void)
-import Foreign.Ptr (FunPtr, castFunPtr)
-import qualified Data.Map              as Map
-import qualified Data.ByteString.Char8 as BS
-import qualified Data.ByteString.Short as BSS
+import qualified Data.Map as Map
 
 import qualified AST   as S
 import qualified Lexer as L
@@ -19,62 +14,13 @@ import LLVM.AST
 import LLVM.AST.Type
 import LLVM.AST.Name
 import LLVM.AST.Instruction
-import LLVM.AST.Linkage
-import LLVM.AST.AddrSpace
-import LLVM.AST.CallingConvention
-import LLVM.Context
-import LLVM.ExecutionEngine
-import LLVM.PassManager
 import qualified LLVM.AST.Global   as G
 import qualified LLVM.AST.Constant as C
-import qualified LLVM.Module       as M
-
-foreign import ccall "dynamic" haskFun :: FunPtr (IO ()) -> (IO ())
 
 
-codeGen :: CmpState -> S.AST -> IO (Either CmpError CmpState)
-codeGen cmpState ast = do
-	let (res, cmpState') = runState (runExceptT $ getCmp cmp) cmpState
-	case res of
-		Left cmpErr -> return (Left cmpErr)
-		Right _     -> do
-			optMod <- runJIT (llvmModule cmpState') 
-			return $ Right (cmpState' { llvmModule = optMod })
-
-	where
-		cmp = do
-			mapM_ cmpTopStmt ast
-			addDef . mainFn =<< gets instructions
-
-
-run :: FunPtr a -> IO ()
-run fn = haskFun (castFunPtr fn :: FunPtr (IO ()))
-
-
-passes :: PassSetSpec
-passes = defaultCuratedPassSetSpec { optLevel = Just 3 }
-
-
-runJIT :: Module -> IO Module
-runJIT astMod =
-	withContext $ \ctx ->
-		withMCJIT ctx optLevel model ptrelim fastins $ \ee -> 
-			M.withModuleFromAST ctx astMod $ \mod -> do
-				withModuleInEngine ee mod $ \em -> do
-					fn <- getFunction em (mkName "main")
-					case fn of
-						Just f  -> run f
-						Nothing -> return ()
-
-				optmod <- M.moduleAST mod
-				BS.putStrLn =<< M.moduleLLVMAssembly mod
-				return optmod 
-	where
-		optLevel = Just 0
-		model    = Nothing
-		ptrelim  = Nothing
-		fastins  = Nothing
-
+codeGen :: CmpState -> S.Stmt -> (Either CmpError Definition, CmpState)
+codeGen cmpState stmt =
+	runState (runExceptT $ getCmp $ cmpTopStmt stmt) cmpState
 
 
 newtype CmpError
@@ -84,11 +30,10 @@ newtype CmpError
 
 data CmpState
 	= CmpState
-		{ llvmModule   :: Module
-		, symTab       :: SymTab.SymTab String Operand
-		, instructions :: [Named Instruction]
-		, uniqueCount  :: Word
+		{ symTab       :: SymTab.SymTab String Operand
 		, nameSupply   :: Map.Map String Int
+		, uniqueCount  :: Word
+		, externs      :: [Definition]
 		}
 
 
@@ -97,113 +42,90 @@ newtype Cmp a
 	deriving (Functor, Applicative, Monad, MonadError CmpError, MonadState CmpState)
 
 
-initModule = defaultModule
-	{ moduleName = BSS.toShort $ BS.pack "I just don't give a JIT"
-	}
-
-
 initCmpState = CmpState
-	{ llvmModule   = initModule
-	, symTab       = SymTab.initSymTab
-	, instructions = []
-	, uniqueCount  = 0
+	{ symTab       = SymTab.initSymTab
 	, nameSupply   = Map.fromList $ [("printf", 1), ("main", 1)]
+	, uniqueCount  = 0
+	, externs      = []
 	}
+
+
+cmpErr :: L.AlexPosn -> String -> Cmp a
+cmpErr pos str = throwError $ CmpError (pos, str)
 
 
 unique :: Cmp Name
 unique = do
 	count <- gets uniqueCount
 	modify $ \s -> s { uniqueCount = count + 1 }
-	return $ UnName count
+	return (UnName count)
 
 
 uniqueName :: String -> Cmp Name
 uniqueName name = do
 	names <- gets nameSupply
 	let (x', name') = case Map.lookup name names of
-		Just x  -> (x+1, name ++ show x)
+		Just x  -> (x+1, name ++ "." ++ show x)
 		Nothing -> (1, name)
 	modify $ \s -> s { nameSupply = Map.insert name x' names }
 	return (mkName name')
 
 
-addDef :: Definition -> Cmp ()
-addDef def =
-	modify $ \s -> s { llvmModule = (llvmModule s)
-		{ moduleDefinitions = (moduleDefinitions $ llvmModule s) ++ [def]
-		}}
+addExtern :: Definition -> Cmp ()
+addExtern def =
+	modify $ \s -> s { externs = (externs s) ++ [def] }
 
 
-ensureDef :: Definition -> Cmp ()
-ensureDef def = do
-	defs <- gets (moduleDefinitions . llvmModule)
-	unless (def `elem` defs) (addDef def)
-
-
-defName :: String -> Operand -> Cmp ()
-defName name op =
+addSymbol :: String -> Operand -> Cmp ()
+addSymbol name op =
 	modify $ \s -> s { symTab = SymTab.insert name op (symTab s) }
 
 
-lookupName :: L.AlexPosn -> String -> Cmp Operand
-lookupName pos name = do
+lookupSymbol :: L.AlexPosn -> String -> Cmp Operand
+lookupSymbol pos name = do
 	st <- gets symTab
 	case SymTab.lookup name st of
 		Nothing -> throwError $ CmpError (pos, name ++ " doesn't exist")
 		Just op -> return op
 
 
-addInstr :: Named Instruction -> Cmp ()
-addInstr instr =
-	modify $ \s -> s { instructions = (instructions s) ++ [instr] }
-
-
-cmpTopStmt :: S.Stmt -> Cmp ()
+cmpTopStmt :: S.Stmt -> Cmp Definition
 cmpTopStmt stmt = case stmt of
 	S.Assign pos name expr -> do
-		st <- gets symTab
-		case SymTab.lookup name [head st] of
-			Just _  -> throwError $ CmpError (pos, name ++ " already defined")	
+		[st] <- gets symTab
+		case SymTab.lookup name [st] of
+			Just _  -> cmpErr pos (name ++ " already defined")
 			Nothing -> return ()
 
 		val <- cmpExpr expr
+		unless (isCons val) (cmpErr pos "const only")
 		let typ = typeOf val
 
 		unName <- uniqueName name
-		defName name $ cons $ global (ptr typ) unName
+		addSymbol name (cons $ global (ptr typ) unName)
 
-		if isCons val
-		then
-			let ConstantOperand cons = val in
-			addDef $ globalVar unName False typ (Just cons)
-		else do
-			addInstr $ Do $ Store False (cons $ global (ptr typ) unName) val Nothing 0 []
-			addDef $ globalVar unName False typ (Just $ initOf typ)
-	
+		let def = globalVar unName False typ 
+		addExtern (def Nothing)
+		return $ def $ Just (toCons val)
+
 	S.Set pos name expr -> do
-		st <- gets symTab
-		op <- case SymTab.lookup name st of
-			Nothing -> throwError $ CmpError (pos, name ++ " doesn't exist")
-			Just op -> return op
-
+		op <- lookupSymbol pos name
 		val <- cmpExpr expr
-		addInstr $ Do $ Store False op val Nothing 0 []
+		unless (isCons val) (cmpErr pos "const only")
+		unName <- uniqueName "main"
+		let ins = Do $ Store False op val Nothing 0 []
+		return (mainFn unName [ins])
 			
-
-	S.Print pos exprs -> do
-		vals <- mapM cmpExpr exprs
-		let fmtStrs = (flip map) vals $ \val -> case typeOf val of
-			IntegerType 32 -> "%d"
-
-		let fmtStr = intercalate ", " fmtStrs
-		fmt <- defString (fmtStr ++ "\n")
-
-		ensureDef printfFn
-		let printfTyp = FunctionType i32 [ptr i8] True
-		let printfOp  = cons $ global (ptr printfTyp) (mkName "printf")
-		let args      = (cons fmt, []) : [ (op, []) | op <- vals ]
-		addInstr $ Do $ Call Nothing C [] (Right printfOp) args [] []
+--	S.Print pos exprs -> do
+--		vals <- mapM cmpExpr exprs
+--		fmt <- defString $ intercalate "," $ (flip map) vals $ \val -> case typeOf val of
+--			IntegerType 32 -> "%d"
+--
+--		ensureDef printfFn
+--		let printfTyp = FunctionType i32 [ptr i8] True
+--		let printfOp  = const $ global (ptr printfTyp) (mkName "printf")
+--		let args      = (cons fmt, []) : [ (op, []) | op <- vals ]
+--		addInstr $ Do $ Call Nothing C [] (Right printfOp) args [] []
 
 
 cmpExpr :: S.Expr -> Cmp Operand
@@ -211,52 +133,53 @@ cmpExpr expr = case expr of
 	S.Int pos n ->
 		return $ cons (C.Int 32 $ toInteger n)
 
-	S.Ident pos idStr -> do
-		op <- lookupName pos idStr		
-		loadRef <- unique
-		addInstr $ loadRef := Load False op Nothing 0 []
-		return $ local (typeOf op) loadRef
+--	S.Ident pos name -> do
+--		op <- lookupName pos name 
+--		ref <- unique
+--
+--		addInstr $ loadRef := Load False op Nothing 0 []
+--		return $ local (typeOf op) loadRef
+--
+--	S.Infix pos op expr1 expr2 -> do
+--		val1 <- cmpExpr expr1
+--		val2 <- cmpExpr expr2
+--
+--		if isCons val1 && isCons val2
+--		then return $ cons $ 
+--			let ConstantOperand cons1 = val1 in
+--			let ConstantOperand cons2 = val2 in
+--			case (typeOf (cons cons1), typeOf (cons cons2)) of
+--				(IntegerType 32, IntegerType 32) -> case op of
+--					S.Plus   -> C.Add False False cons1 cons2
+--					S.Minus  -> C.Sub False False cons1 cons2
+--					S.Times  -> C.Mul False False cons1 cons2
+--					S.Divide -> C.SDiv False cons1 cons2
+--					S.Mod    -> C.SRem cons1 cons2
+--		else do
+--			ref <- unique
+--			case (typeOf val1, typeOf val2) of
+--				(IntegerType 32, IntegerType 32) -> do
+--					ins <- case op of
+--						S.Plus   -> return $ Add False False val1 val2 []
+--						S.Minus  -> return $ Sub False False val1 val2 []
+--						S.Times  -> return $ Mul False False val1 val2 []
+--						S.Divide -> return $ SDiv False val1 val2 []
+--						S.Mod    -> return $ SRem val1 val2 []
+--						_ -> throwError $ CmpError (pos, "i32 does not support operator")
+--					addInstr (ref := ins)
+--					return (local i32 ref)
 
-	S.Infix pos op expr1 expr2 -> do
-		val1 <- cmpExpr expr1
-		val2 <- cmpExpr expr2
 
-		if isCons val1 && isCons val2
-		then return $ cons $ 
-			let ConstantOperand cons1 = val1 in
-			let ConstantOperand cons2 = val2 in
-			case (typeOf (cons cons1), typeOf (cons cons2)) of
-				(IntegerType 32, IntegerType 32) -> case op of
-					S.Plus   -> C.Add False False cons1 cons2
-					S.Minus  -> C.Sub False False cons1 cons2
-					S.Times  -> C.Mul False False cons1 cons2
-					S.Divide -> C.SDiv False cons1 cons2
-					S.Mod    -> C.SRem cons1 cons2
-		else do
-			ref <- unique
-			case (typeOf val1, typeOf val2) of
-				(IntegerType 32, IntegerType 32) -> do
-					ins <- case op of
-						S.Plus   -> return $ Add False False val1 val2 []
-						S.Minus  -> return $ Sub False False val1 val2 []
-						S.Times  -> return $ Mul False False val1 val2 []
-						S.Divide -> return $ SDiv False val1 val2 []
-						S.Mod    -> return $ SRem val1 val2 []
-						_ -> throwError $ CmpError (pos, "i32 does not support operator")
-					addInstr (ref := ins)
-					return (local i32 ref)
-
-
-defString :: String -> Cmp C.Constant 
-defString str = do
-	let chars     = map (C.Int 8 . toInteger . ord) (str ++ "\0")
-	let strArr    = C.Array i8 chars
-	let strArrTyp = typeOf (cons strArr)
-
-	strName <- unique
-	addDef $ globalVar strName True strArrTyp (Just strArr)
-	let strRef = global (ptr strArrTyp) strName
-	return $ C.BitCast (C.GetElementPtr False strRef []) (ptr i8)
+--defString :: String -> Cmp C.Constant 
+--defString str = do
+--	let chars     = map (C.Int 8 . toInteger . ord) (str ++ "\0")
+--	let strArr    = C.Array i8 chars
+--	let strArrTyp = typeOf (cons strArr)
+--
+--	strName <- unique
+--	addDef $ globalVar strName True strArrTyp (Just strArr)
+--	let strRef = global (ptr strArrTyp) strName
+--	return $ C.BitCast (C.GetElementPtr False strRef []) (ptr i8)
 
 
 typeOf :: Operand -> Type
@@ -276,6 +199,10 @@ typeOf (ConstantOperand cons) = case cons of
 isCons :: Operand -> Bool
 isCons (ConstantOperand _) = True
 isCons _                   = False
+
+
+toCons :: Operand -> C.Constant
+toCons (ConstantOperand c) = c
 
 
 initOf :: Type -> C.Constant
@@ -302,15 +229,15 @@ globalVar name isCons typ init = GlobalDefinition $ globalVariableDefaults
 	, G.initializer = init
 	}
 
-
-mainFn :: [Named Instruction] -> Definition
-mainFn ins = GlobalDefinition $ functionDefaults
+mainFn :: Name -> [Named Instruction] -> Definition
+mainFn name ins = GlobalDefinition $ functionDefaults
 	{ G.returnType  = void
-	, G.name        = mkName "main"
+	, G.name        = name
 	, G.basicBlocks = [block]
 	}
 	where 
 		block = BasicBlock (mkName "entry") ins (Do $ Ret Nothing [])
+
 
 
 printfFn :: Definition
