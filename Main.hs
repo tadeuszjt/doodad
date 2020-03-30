@@ -1,11 +1,11 @@
 {-#LANGUAGE ForeignFunctionInterface#-}
 module Main where
 
-import Data.Int
 import Foreign.Ptr
 import System.IO
 import System.Console.Haskeline
 import Control.Monad.Except hiding (void)
+import qualified Data.Map              as Map
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.ByteString.Short as BSS
 
@@ -14,6 +14,8 @@ import qualified Parser   as P
 import qualified Compiler as C
 
 import LLVM.AST
+import LLVM.AST.Global
+import LLVM.AST.Type
 import LLVM.Context
 import LLVM.Target
 import LLVM.Linking
@@ -24,11 +26,11 @@ import qualified LLVM.Relocation as Reloc
 import qualified LLVM.CodeModel  as CodeModel 
 import qualified LLVM.CodeGenOpt as CodeGenOpt 
 
-foreign import ccall "dynamic" mkFun :: FunPtr (IO Int32) -> (IO Int32)
+foreign import ccall "dynamic" mkFun :: FunPtr (IO ()) -> (IO ())
 
 
-run :: FunPtr a -> IO Int32
-run fn = mkFun (castFunPtr fn :: FunPtr (IO Int32))
+run :: FunPtr a -> IO ()
+run fn = mkFun (castFunPtr fn :: FunPtr (IO ()))
 
 
 mkBSS = BSS.toShort . BS.pack
@@ -86,28 +88,45 @@ repl ctx es tm cl = runInputT defaultSettings (loop C.initCmpState)
 					P.ParseOk ast ->
 						let (res, state') = C.codeGen state (head ast) in
 						case res of
-							Left err          -> putStrLn (show err) >> return state
-							Right (defs, def) -> runDefinition state (defs, def) >> return state'
+							Left err -> putStrLn (show err) >> return state
+							Right () -> runDefinition state' >> return state'
+								{ C.globals      = Map.empty
+								, C.instructions = []
+								}
 
-		runDefinition :: C.CmpState -> ([Definition], Definition) -> IO ()
-		runDefinition state (defs, def) = do
-			let astmod = defaultModule
-				{ moduleDefinitions = (C.externs state) ++ defs ++ [def]
-				, moduleName        = mkBSS "bolang"
+		runDefinition :: C.CmpState -> IO ()
+		runDefinition state = do
+			let globals = Map.elems (C.globals state)
+			let externs = Map.elems (C.externs state)
+			let instructions = reverse (C.instructions state)
+
+			let mainName = mkBSS "main.0"
+			let mainFn = GlobalDefinition $ functionDefaults
+				{ returnType  = void
+				, name        = Name mainName
+				, basicBlocks = [BasicBlock (mkName "entry") instructions (Do $ Ret Nothing [])]
 				}
-			M.withModuleFromAST ctx astmod $ \mod -> do
-				BS.putStrLn =<< M.moduleLLVMAssembly mod
-				withModuleKey es $ \modKey ->
-					case def of
-						GlobalDefinition (GlobalVariable _ _ _ _ _ _ _ _ _ _ _ _ _ _) ->
+
+			case instructions of
+				[] -> do
+					let astmod = defaultModule
+						{ moduleDefinitions = externs ++ globals 
+						}
+					M.withModuleFromAST ctx astmod $ \mod -> do
+						BS.putStrLn =<< M.moduleLLVMAssembly mod
+						withModuleKey es $ \modKey ->
 							addModule cl modKey mod
-						GlobalDefinition (Function _ _ _ _ _ _ (Name fnName) _ _ _ _ _ _ _ _ _ _) ->
+				x -> do
+					let astmod = defaultModule
+						{ moduleDefinitions = externs ++ globals ++ [mainFn]
+						}
+					M.withModuleFromAST ctx astmod $ \mod -> do
+						BS.putStrLn =<< M.moduleLLVMAssembly mod
+						withModuleKey es $ \modKey ->
 							withModule cl modKey mod $ do
-								res <- (\mangled -> findSymbol cl mangled False) =<< mangleSymbol cl fnName
+								res <- (\mangled -> findSymbol cl mangled False) =<< mangleSymbol cl mainName
 								case res of
-									Left _ -> putStrLn ("Couldn't find: " ++ show fnName)
+									Left _ -> putStrLn ("Couldn't find: " ++ show mainName)
 									Right (JITSymbol fn _)-> do
-										i <- run $ castPtrToFunPtr (wordPtrToPtr fn)
-										hFlush stdout
-										putStrLn ("Result: " ++ show i)
+										run $ castPtrToFunPtr (wordPtrToPtr fn)
 
