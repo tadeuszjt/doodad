@@ -1,9 +1,8 @@
+{-#LANGUAGE ForeignFunctionInterface#-}
 module Main where
 
-import GHC.Ptr
-import Data.Word
+import Data.Int
 import Foreign.Ptr
-import Foreign.C.String
 import System.Console.Haskeline
 import Control.Monad.Except hiding (void)
 import qualified Data.ByteString.Char8 as BS
@@ -16,22 +15,20 @@ import qualified Compiler as C
 import LLVM.AST
 import LLVM.Context
 import LLVM.Target
+import LLVM.Linking
 import LLVM.OrcJIT
 import LLVM.OrcJIT.CompileLayer
-import LLVM.Internal.OrcJIT
-import LLVM.Linking
-import LLVM.AST.Global
-import LLVM.AST.Type
+import qualified LLVM.Module     as M
 import qualified LLVM.Relocation as Reloc
-import qualified LLVM.CodeModel as CodeModel 
+import qualified LLVM.CodeModel  as CodeModel 
 import qualified LLVM.CodeGenOpt as CodeGenOpt 
-import qualified LLVM.Module as M
-import qualified LLVM.Internal.FFI.OrcJIT as FFI
 
---foreign import ccall "dynamic" haskFun :: FunPtr (IO ()) -> (IO ())
+foreign import ccall "dynamic" mkFun :: FunPtr (IO Int32) -> (IO Int32)
 
---run :: FunPtr a -> IO ()
---run fn = haskFun (castFunPtr fn :: FunPtr (IO ()))
+
+run :: FunPtr a -> IO Int32
+run fn = mkFun (castFunPtr fn :: FunPtr (IO Int32))
+
 
 mkBSS = BSS.toShort . BS.pack
 
@@ -39,13 +36,13 @@ mkBSS = BSS.toShort . BS.pack
 main :: IO ()
 main =
 	withContext $ \ctx ->
-	withExecutionSession $ \es ->
-	withMyTargetMachine $ \tm ->
-	withSymbolResolver es myResolver $ \psr ->
-	withObjectLinkingLayer es (\_ -> return psr) $ \oll ->
-	withIRCompileLayer oll tm $ \ircl -> do
-		loadLibraryPermanently Nothing
-		repl ctx es tm ircl
+		withExecutionSession $ \es ->
+			withMyTargetMachine $ \tm ->
+				withSymbolResolver es myResolver $ \psr ->
+					withObjectLinkingLayer es (\_ -> return psr) $ \oll ->
+						withIRCompileLayer oll tm $ \ircl -> do
+							loadLibraryPermanently Nothing
+							repl ctx es tm ircl
 
 	where
 		withMyTargetMachine :: (TargetMachine -> IO a) -> IO a
@@ -55,7 +52,7 @@ main =
 			cpu         <- getHostCPUName
 			features    <- getHostCPUFeatures
 			(target, _) <- lookupTarget Nothing triple
-			let rm = Reloc.Default
+			let rm = Reloc.PIC
 			let cm = CodeModel.Default
 			let go = CodeGenOpt.None
 			withTargetOptions $ \options ->
@@ -74,38 +71,41 @@ repl :: Context -> ExecutionSession -> TargetMachine -> IRCompileLayer ObjectLin
 repl ctx es tm cl = runInputT defaultSettings (loop C.initCmpState)
 	where
 		loop :: C.CmpState -> InputT IO ()
-		loop state = do
-			minput <- getInputLine "% "
-			case minput of
+		loop state =
+			getInputLine "% " >>= \minput -> case minput of
 				Nothing    -> return ()
 				Just "q"   -> return ()
 				Just input -> liftIO (process state input) >>= loop
 
 		process :: C.CmpState -> String -> IO C.CmpState
-		process state source = do
+		process state source =
 			case L.alexScanner source of
 				Left  errStr -> putStrLn errStr >> return state
 				Right tokens -> case (P.parseTokens tokens) 0 of
-					P.ParseOk ast -> do
-						let (res, state') = C.codeGen state (head ast)
+					P.ParseOk ast ->
+						let (res, state') = C.codeGen state (head ast) in
 						case res of
-							Left err  -> print err >> return state
-							Right def -> runDefinition state def >> return state'
+							Left err          -> putStrLn (show err) >> return state
+							Right (defs, def) -> runDefinition state (defs, def) >> return state'
 
-		runDefinition :: C.CmpState -> Definition -> IO ()
-		runDefinition state def = do
-			let astmod = defaultModule { moduleDefinitions = (C.externs state) ++ [def] }
+		runDefinition :: C.CmpState -> ([Definition], Definition) -> IO ()
+		runDefinition state (defs, def) = do
+			let astmod = defaultModule
+				{ moduleDefinitions = (C.externs state) ++ defs ++ [def]
+				, moduleName        = mkBSS "bolang"
+				}
 			M.withModuleFromAST ctx astmod $ \mod -> do
 				BS.putStrLn =<< M.moduleLLVMAssembly mod
 				withModuleKey es $ \modKey ->
 					case def of
 						GlobalDefinition (GlobalVariable _ _ _ _ _ _ _ _ _ _ _ _ _ _) ->
 							addModule cl modKey mod
-						GlobalDefinition (Function _ _ _ _ _ _ fnName _ _ _ _ _ _ _ _ _ _) -> do
+						GlobalDefinition (Function _ _ _ _ _ _ (Name fnName) _ _ _ _ _ _ _ _ _ _) ->
 							withModule cl modKey mod $ do
-								mangled <- let Name fnStr = fnName in mangleSymbol cl fnStr
-								_ <- findSymbol cl mangled False -- silly hack to make findSymbol work
-								res <- findSymbol cl mangled False
-								print (res, mangled)
-								return ()
+								res <- (\mangled -> findSymbol cl mangled False) =<< mangleSymbol cl fnName
+								case res of
+									Left _ -> putStrLn ("Couldn't find: " ++ show fnName)
+									Right (JITSymbol fn _)-> do
+										i <- run $ castPtrToFunPtr (wordPtrToPtr fn)
+										putStrLn ("Result: " ++ show i)
 
