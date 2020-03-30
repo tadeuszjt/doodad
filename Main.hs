@@ -3,6 +3,7 @@ module Main where
 
 import Data.Int
 import Foreign.Ptr
+import System.IO
 import System.Console.Haskeline
 import Control.Monad.Except hiding (void)
 import qualified Data.ByteString.Char8 as BS
@@ -107,5 +108,6 @@ repl ctx es tm cl = runInputT defaultSettings (loop C.initCmpState)
 									Left _ -> putStrLn ("Couldn't find: " ++ show fnName)
 									Right (JITSymbol fn _)-> do
 										i <- run $ castPtrToFunPtr (wordPtrToPtr fn)
+										hFlush stdout
 										putStrLn ("Result: " ++ show i)
 

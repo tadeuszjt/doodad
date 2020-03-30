@@ -125,7 +125,7 @@ cmpTopStmt stmt = case stmt of
 		addExtern printfFn
 
 		vals <- mapM cmpExpr exprs
-		(fmtDef, fmtCons) <- stringDef $ intercalate "," $ (flip map) vals $ \val -> case typeOf val of
+		(fmtDef, fmtCons) <- stringDef $ (++ "\n") $ intercalate "," $ (flip map) vals $ \val -> case typeOf val of
 			IntegerType 32 -> "%d"
 
 
