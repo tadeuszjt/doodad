@@ -40,7 +40,7 @@ main :: IO ()
 main =
 	withContext $ \ctx ->
 		withExecutionSession $ \es ->
-			withMyTargetMachine $ \tm ->
+			withHostTargetMachine Reloc.PIC CodeModel.Default CodeGenOpt.None $ \tm ->
 				withSymbolResolver es myResolver $ \psr ->
 					withObjectLinkingLayer es (\_ -> return psr) $ \oll ->
 						withIRCompileLayer oll tm $ \ircl -> do
@@ -48,19 +48,6 @@ main =
 							repl ctx es tm ircl
 
 	where
-		withMyTargetMachine :: (TargetMachine -> IO a) -> IO a
-		withMyTargetMachine f = do
-			initializeNativeTarget
-			triple      <- getProcessTargetTriple
-			cpu         <- getHostCPUName
-			features    <- getHostCPUFeatures
-			(target, _) <- lookupTarget Nothing triple
-			let rm = Reloc.PIC
-			let cm = CodeModel.Default
-			let go = CodeGenOpt.None
-			withTargetOptions $ \options ->
-				withTargetMachine target triple cpu features options rm cm go f
-
 		myResolver :: SymbolResolver
 		myResolver = SymbolResolver $ \mangled -> do
 			ptr <- getSymbolAddressInProcess mangled
@@ -89,7 +76,7 @@ repl ctx es tm cl = runInputT defaultSettings (loop C.initCmpState)
 						let (res, state') = C.codeGen state (head ast) in
 						case res of
 							Left err -> putStrLn (show err) >> return state
-							Right () -> runDefinition state' >> return state'
+							Right () -> runDefinition (state' { C.externs = C.externs state }) >> return state'
 								{ C.globals      = Map.empty
 								, C.instructions = []
 								}

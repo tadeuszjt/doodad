@@ -4,6 +4,7 @@ module Compiler where
 
 import Control.Monad.Except hiding (void)
 import Control.Monad.State hiding (void)
+import Control.Monad.Fail
 import qualified Data.Map as Map
 import Data.List
 import Data.Char
@@ -118,8 +119,8 @@ lookupSymbol pos name = do
 cmpTopStmt :: S.Stmt -> Cmp ()
 cmpTopStmt stmt = case stmt of
 	S.Assign pos name expr -> do
-		[st] <- gets symTab
-		case SymTab.lookup name [st] of
+		st <- gets symTab
+		case SymTab.lookup name [head st] of
 			Just _  -> cmpErr pos (name ++ " already defined")
 			Nothing -> return ()
 
@@ -165,13 +166,11 @@ cmpExpr expr = case expr of
 	S.Int pos n ->
 		return $ cons (C.Int 32 $ toInteger n)
 
---	S.Ident pos name -> do
---		op <- lookupName pos name 
---		ref <- unique
---
---		addInstr $ loadRef := Load False op Nothing 0 []
---		return $ local (typeOf op) loadRef
---
+	S.Ident pos name -> do
+		op <- lookupSymbol pos name 
+		ref <- instr $ Load False op Nothing 0 []
+		return $ local (typeOf op) ref 
+
 	S.Infix pos op expr1 expr2 -> do
 		val1 <- cmpExpr expr1
 		val2 <- cmpExpr expr2
