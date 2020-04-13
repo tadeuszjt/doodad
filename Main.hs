@@ -5,6 +5,7 @@ import Foreign.Ptr
 import System.IO
 import System.Console.Haskeline
 import Control.Monad.Except hiding (void)
+import Data.IORef
 import qualified Data.Map              as Map
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.ByteString.Short as BSS
@@ -37,24 +38,30 @@ mkBSS = BSS.toShort . BS.pack
 
 
 main :: IO ()
-main =
+main = do
+	resolvers <- newIORef []
 	withContext $ \ctx ->
 		withExecutionSession $ \es ->
 			withHostTargetMachine Reloc.PIC CodeModel.Default CodeGenOpt.None $ \tm ->
-				withSymbolResolver es myResolver $ \psr ->
-					withObjectLinkingLayer es (\_ -> return psr) $ \oll ->
-						withIRCompileLayer oll tm $ \ircl -> do
+				withObjectLinkingLayer es (\_ -> fmap head $ readIORef resolvers) $ \oll ->
+					withIRCompileLayer oll tm $ \ircl ->
+						withSymbolResolver es (myResolver ircl) $ \psr -> do
+							writeIORef resolvers [psr]
 							loadLibraryPermanently Nothing
 							repl ctx es tm ircl
 
 	where
-		myResolver :: SymbolResolver
-		myResolver = SymbolResolver $ \mangled -> do
-			ptr <- getSymbolAddressInProcess mangled
-			return $ Right $ JITSymbol
-				{ jitSymbolAddress = ptr 
-				, jitSymbolFlags   = defaultJITSymbolFlags { jitSymbolExported = True }
-				}
+		myResolver :: IRCompileLayer ObjectLinkingLayer -> SymbolResolver
+		myResolver ircl = SymbolResolver $ \mangled -> do
+			f <- findSymbol ircl mangled False
+			case f of
+				Right symbol -> return f
+				Left _ -> do
+					ptr <- getSymbolAddressInProcess mangled
+					return $ Right $ JITSymbol
+						{ jitSymbolAddress = ptr 
+						, jitSymbolFlags   = defaultJITSymbolFlags { jitSymbolExported = True }
+						}
 
 
 repl :: Context -> ExecutionSession -> TargetMachine -> IRCompileLayer ObjectLinkingLayer ->  IO ()
