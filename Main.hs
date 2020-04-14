@@ -7,6 +7,7 @@ import System.Console.Haskeline
 import Control.Monad.Except hiding (void)
 import Data.IORef
 import qualified Data.Map              as Map
+import qualified Data.Set              as Set
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.ByteString.Short as BSS
 
@@ -44,19 +45,19 @@ main = do
 		withExecutionSession $ \es ->
 			withHostTargetMachine Reloc.PIC CodeModel.Default CodeGenOpt.None $ \tm ->
 				withObjectLinkingLayer es (\_ -> fmap head $ readIORef resolvers) $ \oll ->
-					withIRCompileLayer oll tm $ \ircl ->
-						withSymbolResolver es (myResolver ircl) $ \psr -> do
+					withIRCompileLayer oll tm $ \cl ->
+						withSymbolResolver es (myResolver cl) $ \psr -> do
 							writeIORef resolvers [psr]
 							loadLibraryPermanently Nothing
-							repl ctx es tm ircl
+							repl ctx es cl
 
 	where
 		myResolver :: IRCompileLayer ObjectLinkingLayer -> SymbolResolver
-		myResolver ircl = SymbolResolver $ \mangled -> do
-			f <- findSymbol ircl mangled False
-			case f of
-				Right symbol -> return f
-				Left _ -> do
+		myResolver cl = SymbolResolver $ \mangled -> do
+			symbol <- findSymbol cl mangled False
+			case symbol of
+				Right _ -> return symbol
+				Left _  -> do
 					ptr <- getSymbolAddressInProcess mangled
 					return $ Right $ JITSymbol
 						{ jitSymbolAddress = ptr 
@@ -64,8 +65,8 @@ main = do
 						}
 
 
-repl :: Context -> ExecutionSession -> TargetMachine -> IRCompileLayer ObjectLinkingLayer ->  IO ()
-repl ctx es tm cl = runInputT defaultSettings (loop C.initCmpState)
+repl :: Context -> ExecutionSession -> IRCompileLayer ObjectLinkingLayer ->  IO ()
+repl ctx es cl = runInputT defaultSettings (loop C.initCmpState)
 	where
 		loop :: C.CmpState -> InputT IO ()
 		loop state =
@@ -83,44 +84,37 @@ repl ctx es tm cl = runInputT defaultSettings (loop C.initCmpState)
 						let (res, state') = C.codeGen state (head ast) in
 						case res of
 							Left err -> putStrLn (show err) >> return state
-							Right () -> runDefinition (state' { C.externs = C.externs state }) >> return state'
-								{ C.globals      = Map.empty
+							Right () -> runDefinition state' >> return state'
+								{ C.declared     = Set.empty
+								, C.globals      = []
 								, C.instructions = []
 								}
 
 		runDefinition :: C.CmpState -> IO ()
 		runDefinition state = do
-			let globals = Map.elems (C.globals state)
-			let externs = Map.elems (C.externs state)
+			let globals = reverse (C.globals state)
 			let instructions = reverse (C.instructions state)
-
-			let mainName = mkBSS "main.0"
-			let mainFn = GlobalDefinition $ functionDefaults
-				{ returnType  = void
-				, name        = Name mainName
-				, basicBlocks = [BasicBlock (mkName "entry") instructions (Do $ Ret Nothing [])]
-				}
 
 			case instructions of
 				[] -> do
-					let astmod = defaultModule
-						{ moduleDefinitions = externs ++ globals 
-						}
+					let astmod = defaultModule { moduleDefinitions = globals }
 					M.withModuleFromAST ctx astmod $ \mod -> do
 						BS.putStrLn =<< M.moduleLLVMAssembly mod
 						withModuleKey es $ \modKey ->
 							addModule cl modKey mod
 				x -> do
-					let astmod = defaultModule
-						{ moduleDefinitions = externs ++ globals ++ [mainFn]
+					let mainName = mkBSS "main.0"
+					let mainFn = GlobalDefinition $ functionDefaults
+						{ returnType  = void
+						, name        = Name mainName
+						, basicBlocks = [BasicBlock (mkName "entry") instructions (Do $ Ret Nothing [])]
 						}
+					let astmod = defaultModule { moduleDefinitions = globals ++ [mainFn] }
 					M.withModuleFromAST ctx astmod $ \mod -> do
 						BS.putStrLn =<< M.moduleLLVMAssembly mod
 						withModuleKey es $ \modKey ->
-							withModule cl modKey mod $ do
-								res <- (\mangled -> findSymbol cl mangled False) =<< mangleSymbol cl mainName
-								case res of
-									Left _ -> putStrLn ("Couldn't find: " ++ show mainName)
-									Right (JITSymbol fn _)-> do
-										run $ castPtrToFunPtr (wordPtrToPtr fn)
+							withModule cl modKey mod $
+								mangleSymbol cl mainName >>= \mangled -> findSymbol cl mangled False >>= \res -> case res of
+									Left _                -> putStrLn "linkage error"
+									Right (JITSymbol fn _)-> run $ castPtrToFunPtr (wordPtrToPtr fn)
 

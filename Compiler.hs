@@ -5,6 +5,7 @@ module Compiler where
 import Control.Monad.Except hiding (void)
 import Control.Monad.State hiding (void)
 import Control.Monad.Fail
+import qualified Data.Set as Set
 import qualified Data.Map as Map
 import Data.List
 import Data.Char
@@ -28,6 +29,9 @@ codeGen cmpState stmt =
 	runState (runExceptT $ getCmp $ cmpTopStmt stmt) cmpState
 
 
+type Extern = (Name, Definition)
+
+
 newtype CmpError
 	= CmpError { getCmpError :: (L.AlexPosn, String) }
 	deriving (Show)
@@ -35,11 +39,11 @@ newtype CmpError
 
 data CmpState
 	= CmpState
-		{ symTab       :: SymTab.SymTab String Operand
+		{ symTab       :: SymTab.SymTab String (Operand, Maybe Extern)
 		, nameSupply   :: Map.Map String Int
 		, uniqueCount  :: Word
-		, externs      :: Map.Map Name Definition
-		, globals      :: Map.Map Name Definition
+		, declared     :: Set.Set Name
+		, globals      :: [Definition]
 		, instructions :: [Named Instruction]
 		}
 
@@ -53,8 +57,8 @@ initCmpState = CmpState
 	{ symTab       = SymTab.initSymTab
 	, nameSupply   = Map.fromList $ [("printf", 1), ("main", 1)]
 	, uniqueCount  = 0
-	, externs      = Map.empty
-	, globals      = Map.empty
+	, declared     = Set.empty
+	, globals      = []
 	, instructions = []
 	}
 
@@ -80,25 +84,19 @@ uniqueName name = do
 	return (mkName name')
 
 
-lookupExtern :: Name -> Cmp (Maybe Definition)
-lookupExtern name = 
-	fmap (Map.lookup name) (gets externs)
+addDeclared :: Name -> Cmp ()
+addDeclared name =
+	modify $ \s -> s { declared = Set.insert name (declared s) }
 
 
-addExtern :: Name -> Definition -> Cmp ()
-addExtern name def =
-	modify $ \s -> s { externs = Map.insert name def (externs s) }
+addGlobal :: Definition -> Cmp ()
+addGlobal glob =
+	modify $ \s -> s { globals = glob : (globals s) }
 
 
-addGlobal :: Name -> Definition -> Cmp ()
-addGlobal name glob =
-	modify $ \s -> s { globals = Map.insert name glob (globals s) }
-
-
-addSymbol :: String -> Operand -> Cmp ()
-addSymbol name op =
-	modify $ \s -> s { symTab = SymTab.insert name op (symTab s) }
-
+addSymbol :: String -> (Operand, Maybe Extern) -> Cmp ()
+addSymbol name (op, extern) =
+	modify $ \s -> s { symTab = SymTab.insert name (op, extern) (symTab s) }
 
 
 instr :: Instruction -> Cmp Name
@@ -108,12 +106,22 @@ instr ins = do
 	return un
 
 
+doInstr :: Instruction -> Cmp ()
+doInstr ins = 
+	modify $ \s -> s { instructions = (Do ins) : (instructions s) }
+
+
 lookupSymbol :: L.AlexPosn -> String -> Cmp Operand
 lookupSymbol pos name = do
 	st <- gets symTab
 	case SymTab.lookup name st of
-		Nothing -> throwError $ CmpError (pos, name ++ " doesn't exist")
-		Just op -> return op
+		Nothing           -> cmpErr pos (name ++ " doesn't exist")
+		Just (op, extern) -> do
+			case extern of
+				Nothing        -> return ()
+				Just (nm, def) -> gets declared >>= \decls ->
+					unless (nm `elem` decls) (addGlobal def >> addDeclared nm)
+			return op
 
 
 cmpTopStmt :: S.Stmt -> Cmp ()
@@ -129,19 +137,17 @@ cmpTopStmt stmt = case stmt of
 		let typ = typeOf val
 
 		unName <- uniqueName name
-		addSymbol name (cons $ global (ptr typ) unName)
-
+		let op = cons $ global (ptr typ) unName
 		let def = globalVar unName False typ 
-		addExtern unName (def Nothing)
-		addGlobal unName (def $ Just (toCons val))
 
---	S.Set pos name expr -> do
---		op <- lookupSymbol pos name
---		val <- cmpExpr expr
---		unless (isCons val) (cmpErr pos "const only")
---		unName <- uniqueName "main"
---		let ins = Do $ Store False op val Nothing 0 []
---		return ([], mainFn unName [ins])
+		addSymbol name (op, Just (unName, def Nothing))
+		addDeclared unName
+		addGlobal $ def (Just $ toCons val)
+
+	S.Set pos name expr -> do
+		op <- lookupSymbol pos name
+		val <- cmpExpr expr
+		doInstr $ Store False op val Nothing 0 []
 			
 	S.Print pos exprs -> do
 		vals <- mapM cmpExpr exprs
@@ -156,9 +162,8 @@ cmpTopStmt stmt = case stmt of
 		let printfOp  = cons $ global (ptr printfTyp) (mkName "printf")
 		let args      = (cons fmtCons, []) : [ (op, []) | op <- vals ]
 
-		addGlobal (mkName "printf") printfFn
-		instr $ Call Nothing C [] (Right printfOp) args [] []
-		return ()
+		addGlobal printfFn
+		doInstr $ Call Nothing C [] (Right printfOp) args [] []
 
 
 cmpExpr :: S.Expr -> Cmp Operand
@@ -207,7 +212,7 @@ stringDef str = do
 
 	strName <- unique
 	let strRef = global (ptr strArrTyp) strName
-	addGlobal strName $ globalVar strName True strArrTyp (Just strArr)
+	addGlobal $ globalVar strName True strArrTyp (Just strArr)
 	return $ C.BitCast (C.GetElementPtr False strRef []) (ptr i8)
 
 
