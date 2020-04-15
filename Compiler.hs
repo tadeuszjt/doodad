@@ -24,9 +24,9 @@ import qualified LLVM.AST.Global   as G
 import qualified LLVM.AST.Constant as C
 
 
-codeGen :: CmpState -> S.Stmt -> (Either CmpError (), CmpState)
-codeGen cmpState stmt =
-	runState (runExceptT $ getCmp $ cmpTopStmt stmt) cmpState
+codeGen :: CmpState -> S.AST -> (Either CmpError (), CmpState)
+codeGen cmpState ast =
+	runState (runExceptT $ getCmp $ mapM_ cmpTopStmt ast) cmpState
 
 
 type Extern = (Name, Definition)
@@ -43,6 +43,7 @@ data CmpState
 		, nameSupply   :: Map.Map String Int
 		, uniqueCount  :: Word
 		, declared     :: Set.Set Name
+		, exported     :: Set.Set Name
 		, globals      :: [Definition]
 		, instructions :: [Named Instruction]
 		}
@@ -58,6 +59,7 @@ initCmpState = CmpState
 	, nameSupply   = Map.fromList $ [("printf", 1), ("main", 1)]
 	, uniqueCount  = 0
 	, declared     = Set.empty
+	, exported     = Set.empty
 	, globals      = []
 	, instructions = []
 	}
@@ -87,6 +89,11 @@ uniqueName name = do
 addDeclared :: Name -> Cmp ()
 addDeclared name =
 	modify $ \s -> s { declared = Set.insert name (declared s) }
+	  
+
+addExported :: Name -> Cmp ()
+addExported name =
+	modify $ \s -> s { exported = Set.insert name (exported s) }
 
 
 addGlobal :: Definition -> Cmp ()
@@ -142,6 +149,7 @@ cmpTopStmt stmt = case stmt of
 
 		addSymbol name (op, Just (unName, def Nothing))
 		addDeclared unName
+		addExported unName
 		addGlobal $ def (Just $ toCons val)
 
 	S.Set pos name expr -> do
@@ -158,11 +166,13 @@ cmpTopStmt stmt = case stmt of
 
 		fmtCons <- stringDef (intercalate ", " fmts ++ "\n")
 
+		let printfName = mkName "printf"
 		let printfTyp = FunctionType i32 [ptr i8] True
-		let printfOp  = cons $ global (ptr printfTyp) (mkName "printf")
+		let printfOp  = cons $ global (ptr printfTyp) printfName
 		let args      = (cons fmtCons, []) : [ (op, []) | op <- vals ]
 
-		addGlobal printfFn
+		decs <- gets declared
+		unless (printfName `elem` decs) (addDeclared printfName >> addGlobal printfFn)
 		doInstr $ Call Nothing C [] (Right printfOp) args [] []
 
 

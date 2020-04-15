@@ -73,48 +73,50 @@ repl ctx es cl = runInputT defaultSettings (loop C.initCmpState)
 			getInputLine "% " >>= \minput -> case minput of
 				Nothing    -> return ()
 				Just "q"   -> return ()
-				Just input -> liftIO (process state input) >>= loop
+				Just input -> liftIO (compile state input) >>= loop
 
-		process :: C.CmpState -> String -> IO C.CmpState
-		process state source =
+		compile :: C.CmpState -> String -> IO C.CmpState
+		compile state source =
 			case L.alexScanner source of
 				Left  errStr -> putStrLn errStr >> return state
 				Right tokens -> case (P.parseTokens tokens) 0 of
 					P.ParseOk ast ->
-						let (res, state') = C.codeGen state (head ast) in
+						let (res, state') = C.codeGen state ast in
 						case res of
 							Left err -> putStrLn (show err) >> return state
-							Right () -> runDefinition state' >> return state'
-								{ C.declared     = Set.empty
-								, C.globals      = []
-								, C.instructions = []
-								}
+							Right () -> jitAndRun state'
 
-		runDefinition :: C.CmpState -> IO ()
-		runDefinition state = do
+		jitAndRun :: C.CmpState -> IO C.CmpState
+		jitAndRun state = do
 			let globals = reverse (C.globals state)
 			let instructions = reverse (C.instructions state)
+			let exported = C.exported state
+			let mainName = mkBSS "main.0"
 
-			case instructions of
-				[] -> do
-					let astmod = defaultModule { moduleDefinitions = globals }
-					M.withModuleFromAST ctx astmod $ \mod -> do
-						BS.putStrLn =<< M.moduleLLVMAssembly mod
-						withModuleKey es $ \modKey ->
-							addModule cl modKey mod
-				x -> do
-					let mainName = mkBSS "main.0"
+			astmod <- case instructions of
+				[] -> return $ defaultModule { moduleDefinitions = globals }
+				is -> do
 					let mainFn = GlobalDefinition $ functionDefaults
 						{ returnType  = void
 						, name        = Name mainName
 						, basicBlocks = [BasicBlock (mkName "entry") instructions (Do $ Ret Nothing [])]
 						}
-					let astmod = defaultModule { moduleDefinitions = globals ++ [mainFn] }
-					M.withModuleFromAST ctx astmod $ \mod -> do
-						BS.putStrLn =<< M.moduleLLVMAssembly mod
-						withModuleKey es $ \modKey ->
-							withModule cl modKey mod $
-								mangleSymbol cl mainName >>= \mangled -> findSymbol cl mangled False >>= \res -> case res of
-									Left _                -> putStrLn "linkage error"
-									Right (JITSymbol fn _)-> run $ castPtrToFunPtr (wordPtrToPtr fn)
+					return $ defaultModule { moduleDefinitions = globals ++ [mainFn] }
 
+			withModuleKey es $ \modKey ->
+				M.withModuleFromAST ctx astmod $ \mod -> do
+					BS.putStrLn =<< M.moduleLLVMAssembly mod
+					addModule cl modKey mod 
+					unless (null instructions) $ do
+						mangled <- mangleSymbol cl mainName
+						res <- findSymbolIn cl modKey mangled False
+						case res of
+							Left _                -> putStrLn "linkage error"
+							Right (JITSymbol fn _)-> run $ castPtrToFunPtr (wordPtrToPtr fn)
+					when (Set.null exported) (removeModule cl modKey)
+					return state
+						{ C.declared     = Set.empty
+						, C.exported     = Set.empty
+						, C.globals      = []
+						, C.instructions = []
+						}
