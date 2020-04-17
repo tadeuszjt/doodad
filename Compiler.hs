@@ -118,6 +118,11 @@ doInstr ins =
 	modify $ \s -> s { instructions = (Do ins) : (instructions s) }
 
 
+namedInstr :: Named Instruction -> Cmp ()
+namedInstr ins = do
+	modify $ \s -> s { instructions = ins : (instructions s) }
+
+
 lookupSymbol :: L.AlexPosn -> String -> Cmp Operand
 lookupSymbol pos name = do
 	st <- gets symTab
@@ -152,11 +157,34 @@ cmpTopStmt stmt = case stmt of
 		addExported unName
 		addGlobal $ def (Just $ toCons val)
 
-	S.Set pos name expr -> do
-		op <- lookupSymbol pos name
-		val <- cmpExpr expr
-		doInstr $ Store False op val Nothing 0 []
+	S.Set pos name expr -> 
+		cmpStmt stmt
 			
+	S.Print pos exprs ->
+		cmpStmt stmt
+
+	S.Block pos stmts -> do
+		modify $ \s -> s { symTab = SymTab.push (symTab s) }
+		mapM_ cmpStmt stmts
+		modify $ \s -> s { symTab = SymTab.pop (symTab s) }
+
+cmpStmt :: S.Stmt -> Cmp ()
+cmpStmt stmt = case stmt of
+	S.Assign pos name expr -> do
+		st <- gets symTab
+		case SymTab.lookup name [head st] of
+			Just _  -> cmpErr pos (name ++ " already defined")
+			Nothing -> return ()
+
+		val <- cmpExpr expr
+		let typ = typeOf val
+
+		unName <- uniqueName name
+		namedInstr $ unName := Alloca typ Nothing 0 []
+		doInstr $ Store False (local (ptr typ) unName) val Nothing 0 []
+		let op = local (ptr typ) unName
+		addSymbol name (op, Nothing)
+
 	S.Print pos exprs -> do
 		vals <- mapM cmpExpr exprs
 
@@ -175,6 +203,11 @@ cmpTopStmt stmt = case stmt of
 		unless (printfName `elem` decs) (addDeclared printfName >> addGlobal printfFn)
 		doInstr $ Call Nothing C [] (Right printfOp) args [] []
 
+	S.Set pos name expr -> do
+		op <- lookupSymbol pos name
+		val <- cmpExpr expr
+		doInstr $ Store False op val Nothing 0 []
+
 
 cmpExpr :: S.Expr -> Cmp Operand
 cmpExpr expr = case expr of
@@ -184,7 +217,7 @@ cmpExpr expr = case expr of
 	S.Ident pos name -> do
 		op <- lookupSymbol pos name 
 		ref <- instr $ Load False op Nothing 0 []
-		return $ local (typeOf op) ref 
+		return $ local (ptr $ typeOf op) ref 
 
 	S.Infix pos op expr1 expr2 -> do
 		val1 <- cmpExpr expr1
@@ -227,7 +260,7 @@ stringDef str = do
 
 
 typeOf :: Operand -> Type
-typeOf (LocalReference typ _) = typ
+typeOf (LocalReference (PointerType typ _) _) = typ
 typeOf (ConstantOperand cons) = case cons of
 	C.GlobalReference (PointerType typ _) _ -> typ
 	C.Int nb _                              -> IntegerType nb

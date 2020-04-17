@@ -53,12 +53,17 @@ import qualified AST as S
 
 %%
 
-Prog : Stmt ';'           { [$1] }
-	 | Stmt ';' Prog      { $1 : $3 }
+Prog : Stmt               { [$1] }
+	 | Stmt Prog          { $1 : $2 }
 
-Stmt : ident ':=' Expr    { S.Assign (L.tokPosn $2) (L.tokStr $1) $3 }  
-	 | ident '=' Expr     { S.Set (L.tokPosn $2) (L.tokStr $1) $3 }
-	 | print '(' Args ')' { S.Print (L.tokPosn $1) $3 }
+Stmt : StmtS ';'           { $1 }
+	 | StmtB               { $1 }
+
+StmtS : ident ':=' Expr    { S.Assign (L.tokPosn $2) (L.tokStr $1) $3 }  
+	  | ident '=' Expr     { S.Set (L.tokPosn $2) (L.tokStr $1) $3 }
+	  | print '(' Args ')' { S.Print (L.tokPosn $1) $3 }
+
+StmtB : '{' Prog '}'       { S.Block (L.tokPosn $1) $2 }
 
 Expr : int                { S.Int (L.tokPosn $1) (read $ L.tokStr $1) }
 	 | ident              { S.Ident (L.tokPosn $1) (L.tokStr $1) }
