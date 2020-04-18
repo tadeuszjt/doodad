@@ -13,6 +13,7 @@ import Data.Char
 import qualified AST   as S
 import qualified Lexer as L
 import qualified SymTab
+import CmpState
 
 import LLVM.AST
 import LLVM.AST.Type
@@ -26,123 +27,22 @@ import qualified LLVM.AST.Constant as C
 
 codeGen :: CmpState -> S.AST -> (Either CmpError (), CmpState)
 codeGen cmpState ast =
-	runState (runExceptT $ getCmp $ mapM_ cmpTopStmt ast) cmpState
-
-
-type Extern = (Name, Definition)
-
-
-newtype CmpError
-	= CmpError { getCmpError :: (L.AlexPosn, String) }
-	deriving (Show)
-
-
-data CmpState
-	= CmpState
-		{ symTab       :: SymTab.SymTab String (Operand, Maybe Extern)
-		, nameSupply   :: Map.Map String Int
-		, uniqueCount  :: Word
-		, declared     :: Set.Set Name
-		, exported     :: Set.Set Name
-		, globals      :: [Definition]
-		, instructions :: [Named Instruction]
-		}
-
-
-newtype Cmp a
-	= Cmp { getCmp :: ExceptT CmpError (State CmpState) a }
-	deriving (Functor, Applicative, Monad, MonadError CmpError, MonadState CmpState)
-
-
-initCmpState = CmpState
-	{ symTab       = SymTab.initSymTab
-	, nameSupply   = Map.fromList $ [("printf", 1), ("main", 1)]
-	, uniqueCount  = 0
-	, declared     = Set.empty
-	, exported     = Set.empty
-	, globals      = []
-	, instructions = []
-	}
-
-
-cmpErr :: L.AlexPosn -> String -> Cmp a
-cmpErr pos str = throwError $ CmpError (pos, str)
-
-
-unique :: Cmp Name
-unique = do
-	count <- gets uniqueCount
-	modify $ \s -> s { uniqueCount = count + 1 }
-	return (UnName count)
-
-
-uniqueName :: String -> Cmp Name
-uniqueName name = do
-	names <- gets nameSupply
-	let (x', name') = case Map.lookup name names of
-		Just x  -> (x+1, name ++ "." ++ show x)
-		Nothing -> (1, name)
-	modify $ \s -> s { nameSupply = Map.insert name x' names }
-	return (mkName name')
-
-
-addDeclared :: Name -> Cmp ()
-addDeclared name =
-	modify $ \s -> s { declared = Set.insert name (declared s) }
-	  
-
-addExported :: Name -> Cmp ()
-addExported name =
-	modify $ \s -> s { exported = Set.insert name (exported s) }
-
-
-addGlobal :: Definition -> Cmp ()
-addGlobal glob =
-	modify $ \s -> s { globals = glob : (globals s) }
-
-
-addSymbol :: String -> (Operand, Maybe Extern) -> Cmp ()
-addSymbol name (op, extern) =
-	modify $ \s -> s { symTab = SymTab.insert name (op, extern) (symTab s) }
-
-
-instr :: Instruction -> Cmp Name
-instr ins = do
-	un <- unique
-	modify $ \s -> s { instructions = (un := ins) : (instructions s) }
-	return un
-
-
-doInstr :: Instruction -> Cmp ()
-doInstr ins = 
-	modify $ \s -> s { instructions = (Do ins) : (instructions s) }
-
-
-namedInstr :: Named Instruction -> Cmp ()
-namedInstr ins = do
-	modify $ \s -> s { instructions = ins : (instructions s) }
-
-
-lookupSymbol :: L.AlexPosn -> String -> Cmp Operand
-lookupSymbol pos name = do
-	st <- gets symTab
-	case SymTab.lookup name st of
-		Nothing           -> cmpErr pos (name ++ " doesn't exist")
-		Just (op, extern) -> do
-			case extern of
-				Nothing        -> return ()
-				Just (nm, def) -> gets declared >>= \decls ->
-					unless (nm `elem` decls) (addGlobal def >> addDeclared nm)
-			return op
+	runState (runExceptT $ getCmp cmp) cmpState
+	where
+		cmp = do
+			addBlock $ BasicBlock (mkName "entry") [] (Do $ Ret Nothing [])
+			mapM_ cmpTopStmt ast
 
 
 cmpTopStmt :: S.Stmt -> Cmp ()
 cmpTopStmt stmt = case stmt of
+	S.Set pos name expr -> cmpStmt stmt
+	S.Print pos exprs -> cmpStmt stmt
+	S.Block pos stmts -> cmpStmt stmt
+	S.Call pos name args -> cmpStmt stmt
+
 	S.Assign pos name expr -> do
-		st <- gets symTab
-		case SymTab.lookup name [head st] of
-			Just _  -> cmpErr pos (name ++ " already defined")
-			Nothing -> return ()
+		checkSymbolIsFree pos name
 
 		val <- cmpExpr expr
 		unless (isCons val) (cmpErr pos "const only")
@@ -152,38 +52,56 @@ cmpTopStmt stmt = case stmt of
 		let op = cons $ global (ptr typ) unName
 		let def = globalVar unName False typ 
 
-		addSymbol name (op, Just (unName, def Nothing))
+		addSymbol name op $ Just (unName, def Nothing)
 		addDeclared unName
 		addExported unName
 		addGlobal $ def (Just $ toCons val)
 
-	S.Set pos name expr -> 
-		cmpStmt stmt
-			
-	S.Print pos exprs ->
-		cmpStmt stmt
+	S.Func pos name block -> do
+		checkSymbolIsFree pos name
 
-	S.Block pos stmts -> do
-		modify $ \s -> s { symTab = SymTab.push (symTab s) }
-		mapM_ cmpStmt stmts
-		modify $ \s -> s { symTab = SymTab.pop (symTab s) }
+		pushBlocks
+		addBlock $ BasicBlock (mkName "entry") [] (Do $ Ret Nothing [])
+		cmpStmt block
+		blocks <- popBlocks
+
+		unName <- uniqueName name
+
+		let fnRetType  = void
+		let fnArgTypes = []
+		let fnType     = FunctionType fnRetType fnArgTypes False
+
+		let op = cons $ global (ptr fnType) unName
+		let ext = GlobalDefinition $ functionDefaults
+			{ G.name       = unName
+			, G.returnType = fnRetType
+			}
+		let def = GlobalDefinition $ functionDefaults
+			{ G.name        = unName
+			, G.returnType  = fnRetType
+			, G.basicBlocks = blocks
+			}
+
+		addSymbol name op $ Just (unName, ext)
+		addDeclared unName
+		addExported unName
+		addGlobal def
+
 
 cmpStmt :: S.Stmt -> Cmp ()
 cmpStmt stmt = case stmt of
 	S.Assign pos name expr -> do
-		st <- gets symTab
-		case SymTab.lookup name [head st] of
-			Just _  -> cmpErr pos (name ++ " already defined")
-			Nothing -> return ()
+		checkSymbolIsFree pos name
 
 		val <- cmpExpr expr
 		let typ = typeOf val
 
 		unName <- uniqueName name
-		namedInstr $ unName := Alloca typ Nothing 0 []
-		doInstr $ Store False (local (ptr typ) unName) val Nothing 0 []
 		let op = local (ptr typ) unName
-		addSymbol name (op, Nothing)
+		addSymbol name op Nothing
+
+		instr $ unName := Alloca typ Nothing 0 []
+		instr $ Do $ Store False op val Nothing 0 []
 
 	S.Print pos exprs -> do
 		vals <- mapM cmpExpr exprs
@@ -201,12 +119,27 @@ cmpStmt stmt = case stmt of
 
 		decs <- gets declared
 		unless (printfName `elem` decs) (addDeclared printfName >> addGlobal printfFn)
-		doInstr $ Call Nothing C [] (Right printfOp) args [] []
+		instr $ Do $ Call Nothing C [] (Right printfOp) args [] []
 
 	S.Set pos name expr -> do
 		op <- lookupSymbol pos name
 		val <- cmpExpr expr
-		doInstr $ Store False op val Nothing 0 []
+		instr $ Do $ Store False op val Nothing 0 []
+	
+	S.Block pos block -> do
+		pushSymTab
+		mapM_ cmpStmt block
+		popSymTab
+
+	S.Call pos name args -> do
+		op <- lookupSymbol pos name
+		let typ = typeOf op
+		case typ of
+			FunctionType _ _ _ -> return ()
+			_                  -> cmpErr pos (name ++ " isn't a function")
+
+		let FunctionType retType argTypes isVarg = typ
+		instr $ Do $ Call Nothing C [] (Right op) [] [] [] 
 
 
 cmpExpr :: S.Expr -> Cmp Operand
@@ -216,8 +149,9 @@ cmpExpr expr = case expr of
 
 	S.Ident pos name -> do
 		op <- lookupSymbol pos name 
-		ref <- instr $ Load False op Nothing 0 []
-		return $ local (ptr $ typeOf op) ref 
+		un <- unique
+		instr $ un := Load False op Nothing 0 []
+		return $ local (ptr $ typeOf op) un
 
 	S.Infix pos op expr1 expr2 -> do
 		val1 <- cmpExpr expr1
@@ -244,7 +178,9 @@ cmpExpr expr = case expr of
 						S.Divide -> return $ SDiv False val1 val2 []
 						S.Mod    -> return $ SRem val1 val2 []
 						_ -> throwError $ CmpError (pos, "i32 does not support operator")
-					fmap (local i32) (instr ins)
+					un <- unique
+					instr (un := ins)
+					return (local i32 un)
 
 
 stringDef :: String -> Cmp C.Constant

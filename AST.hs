@@ -1,8 +1,9 @@
 module AST where
 
 import qualified Lexer as L
+import qualified CmpState
 
-type Posn = L.AlexPosn
+type Posn = CmpState.TextPos
 type AST  = [Stmt]
 
 
@@ -34,4 +35,6 @@ data Stmt
 	| Set Posn String Expr
 	| Print  Posn [Expr]
 	| Block Posn [Stmt]
+	| Func Posn String Stmt
+	| Call Posn String [Expr]
 	deriving (Show, Eq)

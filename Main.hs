@@ -14,6 +14,7 @@ import qualified Data.ByteString.Short as BSS
 import qualified Lexer    as L
 import qualified Parser   as P
 import qualified Compiler as C
+import qualified CmpState as C
 
 import LLVM.AST
 import LLVM.AST.Global
@@ -89,25 +90,22 @@ repl ctx es cl = runInputT defaultSettings (loop C.initCmpState)
 		jitAndRun :: C.CmpState -> IO C.CmpState
 		jitAndRun state = do
 			let globals = reverse (C.globals state)
-			let instructions = reverse (C.instructions state)
 			let exported = C.exported state
 			let mainName = mkBSS "main.0"
+			let blocks = reverse $ head (C.basicBlocks state)
 
-			astmod <- case instructions of
-				[] -> return $ defaultModule { moduleDefinitions = globals }
-				is -> do
-					let mainFn = GlobalDefinition $ functionDefaults
-						{ returnType  = void
-						, name        = Name mainName
-						, basicBlocks = [BasicBlock (mkName "entry") instructions (Do $ Ret Nothing [])]
-						}
-					return $ defaultModule { moduleDefinitions = globals ++ [mainFn] }
+			let mainFn = GlobalDefinition $ functionDefaults
+				{ returnType  = void
+				, name        = Name mainName
+				, basicBlocks = blocks
+				}
+			let astmod = defaultModule { moduleDefinitions = globals ++ [mainFn] }
 
 			withModuleKey es $ \modKey ->
 				M.withModuleFromAST ctx astmod $ \mod -> do
 					BS.putStrLn =<< M.moduleLLVMAssembly mod
 					addModule cl modKey mod 
-					unless (null instructions) $ do
+					unless (null blocks) $ do
 						mangled <- mangleSymbol cl mainName
 						res <- findSymbolIn cl modKey mangled False
 						case res of
@@ -115,8 +113,8 @@ repl ctx es cl = runInputT defaultSettings (loop C.initCmpState)
 							Right (JITSymbol fn _)-> run $ castPtrToFunPtr (wordPtrToPtr fn)
 					when (Set.null exported) (removeModule cl modKey)
 					return state
-						{ C.declared     = Set.empty
-						, C.exported     = Set.empty
-						, C.globals      = []
-						, C.instructions = []
+						{ C.declared    = Set.empty
+						, C.exported    = Set.empty
+						, C.globals     = []
+						, C.basicBlocks = [[]]
 						}
