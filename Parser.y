@@ -54,30 +54,32 @@ import qualified CmpState as C
 
 %%
 
-Prog : Stmt               { [$1] }
-	 | Stmt Prog          { $1 : $2 }
+Prog : Stmt                    { [$1] }
+	 | Stmt Prog               { $1 : $2 }
 
-Stmt : StmtS ';'           { $1 }
-	 | StmtB               { $1 }
+Stmt : StmtS ';'               { $1 }
+	 | StmtB                   { $1 }
 
-StmtS : ident ':=' Expr    { S.Assign (tokPosn $2) (L.tokStr $1) $3 }  
-	  | ident '=' Expr     { S.Set (tokPosn $2) (L.tokStr $1) $3 }
-	  | print '(' Args ')' { S.Print (tokPosn $1) $3 }
-	  | ident '(' Args ')' { S.Call (tokPosn $1) (L.tokStr $1) $3 }
+StmtS : ident ':=' Expr        { S.Assign (tokPosn $2) (L.tokStr $1) $3 }  
+	  | ident '=' Expr         { S.Set (tokPosn $2) (L.tokStr $1) $3 }
+	  | print '(' Args ')'     { S.Print (tokPosn $1) $3 }
+	  | ident '(' Args ')'     { S.Call (tokPosn $1) (L.tokStr $1) $3 }
+	  | return                 { S.Return (tokPosn $1) Nothing }
 
-StmtB : Block              { $1 }
-      | fn ident '(' ')' Block   { S.Func (tokPosn $1) (L.tokStr $2) $5 }
+StmtB : Block                  { $1 }
+      | fn ident '(' ')' Block { S.Func (tokPosn $1) (L.tokStr $2) $5 }
+	  | if Expr Block          { S.If (tokPosn $1) $2 $3 }
 
-Block : '{' Prog '}'       { S.Block (tokPosn $1) $2 }
+Block : '{' Prog '}'           { S.Block (tokPosn $1) $2 }
 
 
-Expr : int                { S.Int (tokPosn $1) (read $ L.tokStr $1) }
-	 | ident              { S.Ident (tokPosn $1) (L.tokStr $1) }
-	 | Expr '+' Expr      { S.Infix (tokPosn $2) S.Plus $1 $3 }
-	 | Expr '-' Expr      { S.Infix (tokPosn $2) S.Minus $1 $3 }
-	 | Expr '*' Expr      { S.Infix (tokPosn $2) S.Times $1 $3 }
-	 | Expr '/' Expr      { S.Infix (tokPosn $2) S.Divide $1 $3 }
-	 | Expr '%' Expr      { S.Infix (tokPosn $2) S.Mod $1 $3 }
+Expr : int                     { S.Int (tokPosn $1) (read $ L.tokStr $1) }
+	 | ident                   { S.Ident (tokPosn $1) (L.tokStr $1) }
+	 | Expr '+' Expr           { S.Infix (tokPosn $2) S.Plus $1 $3 }
+	 | Expr '-' Expr           { S.Infix (tokPosn $2) S.Minus $1 $3 }
+	 | Expr '*' Expr           { S.Infix (tokPosn $2) S.Times $1 $3 }
+	 | Expr '/' Expr           { S.Infix (tokPosn $2) S.Divide $1 $3 }
+	 | Expr '%' Expr           { S.Infix (tokPosn $2) S.Mod $1 $3 }
 
 Args : {- empty -} { [] }
 	 | Args_       { $1 }

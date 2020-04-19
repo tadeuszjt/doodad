@@ -1,4 +1,4 @@
-module AST where
+	module AST where
 
 import qualified Lexer as L
 import qualified CmpState
@@ -37,4 +37,6 @@ data Stmt
 	| Block Posn [Stmt]
 	| Func Posn String Stmt
 	| Call Posn String [Expr]
+	| If Posn Expr Stmt
+	| Return Posn (Maybe Expr)
 	deriving (Show, Eq)
