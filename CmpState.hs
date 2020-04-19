@@ -16,6 +16,7 @@ import LLVM.AST.Name
 import LLVM.AST.Instruction
 import LLVM.AST.Linkage
 import LLVM.AST.CallingConvention
+import LLVM.AST.IntegerPredicate
 import qualified LLVM.AST.Global   as G
 import qualified LLVM.AST.Constant as C
 
@@ -98,8 +99,8 @@ addExported name =
 	modify $ \s -> s { exported = Set.insert name (exported s) }
 
 
-addGlobal :: Definition -> Cmp ()
-addGlobal glob =
+addDef :: Definition -> Cmp ()
+addDef glob =
 	modify $ \s -> s { globals = glob : (globals s) }
 
 
@@ -117,7 +118,7 @@ lookupSymbol pos name = do
 			case extern of
 				Nothing        -> return ()
 				Just (nm, def) -> gets declared >>= \decls ->
-					unless (nm `elem` decls) (addGlobal def >> addDeclared nm)
+					unless (nm `elem` decls) (addDef def >> addDeclared nm)
 			return op
 
 
@@ -186,15 +187,6 @@ typeOf (ConstantOperand cons) = case cons of
 	C.SRem a b                              -> typeOf (ConstantOperand a)
 
 
-isCons :: Operand -> Bool
-isCons (ConstantOperand _) = True
-isCons _                   = False
-
-
-toCons :: Operand -> C.Constant
-toCons (ConstantOperand c) = c
-
-
 globalVar :: Type -> Name -> Bool -> Maybe C.Constant -> Definition
 globalVar typ name isCons init =
 	GlobalDefinition $ globalVariableDefaults
@@ -221,13 +213,22 @@ string str = do
 	let typ = typeOf (cons array)
 
 	name <- unique
-	let op = global (ptr typ) name
-	addGlobal $ globalVar typ name True (Just array)
+	let op = toCons $ global (ptr typ) name
+	addDef $ globalVar typ name True (Just array)
 	return $ cons $ C.BitCast (C.GetElementPtr False op []) (ptr i8)
 
 
-global :: Type -> Name -> C.Constant
-global = C.GlobalReference
+isCons :: Operand -> Bool
+isCons (ConstantOperand _) = True
+isCons _                   = False
+
+
+toCons :: Operand -> C.Constant
+toCons (ConstantOperand c) = c
+
+
+global :: Type -> Name -> Operand
+global typ name = cons (C.GlobalReference typ name)
 
 
 local :: Type -> Name -> Operand
@@ -258,3 +259,20 @@ call op args =
 alloca :: Type -> Name -> Cmp ()
 alloca typ name =
 	instr $ name := Alloca typ Nothing 0 []
+
+
+icmp :: Operand -> Operand -> IntegerPredicate -> Cmp Operand
+icmp a b ip = do
+	un <- unique
+	instr $ un := ICmp ip a b []
+	return (local i1 un)
+
+
+cndBr :: Operand -> Name -> Name -> Named Terminator
+cndBr cnd trueDest falseDest =
+	Do $ CondBr cnd trueDest falseDest []
+
+
+brk :: Name -> Named Terminator
+brk dest =
+	Do $ Br dest []

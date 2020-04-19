@@ -9,6 +9,7 @@ import qualified Data.Set as Set
 import qualified Data.Map as Map
 import Data.List
 import Data.Char
+import Data.Maybe
 
 import qualified AST   as S
 import qualified Lexer as L
@@ -51,13 +52,13 @@ cmpTopStmt stmt = case stmt of
 		let typ = typeOf val
 
 		unName <- uniqueName name
-		let op = cons $ global (ptr typ) unName
+		let op = global (ptr typ) unName
 		let def = globalVar typ unName False
 
 		addSymbol name op $ Just (unName, def Nothing)
 		addDeclared unName
 		addExported unName
-		addGlobal $ def (Just $ toCons val)
+		addDef $ def (Just $ toCons val)
 
 	S.Func pos name block -> do
 		checkSymbolUndefined pos name
@@ -65,7 +66,7 @@ cmpTopStmt stmt = case stmt of
 
 		let retType = void
 		let fnType  = FunctionType retType [] False
-		let op      = cons $ global (ptr fnType) unName
+		let op      = global (ptr fnType) unName
 		let ext     = funcDef unName retType [] False []
 
 		addSymbol name op $ Just (unName, ext)
@@ -77,7 +78,7 @@ cmpTopStmt stmt = case stmt of
 		cmpStmt block
 		blocks <- popBlocks
 
-		addGlobal $ funcDef unName retType [] False blocks
+		addDef $ funcDef unName retType [] False blocks
 
 
 cmpStmt :: S.Stmt -> Cmp ()
@@ -105,14 +106,11 @@ cmpStmt stmt = case stmt of
 
 		let name = mkName "printf"
 		let typ  = FunctionType i32 [ptr i8] False
-		let op   = cons $ global (ptr typ) name
+		let op   = global (ptr typ) name
 		let ext  = funcDef name i32 [Parameter (ptr i8) (mkName "fmt") []] False []
 
 		decls <- gets declared
-		unless (name `elem` decls) $ do
-			addDeclared name
-			addGlobal ext
-
+		unless (name `elem` decls) $ addDeclared name >> addDef ext
 		instr $ Do $ call op (fmt:vals)
 
 	S.Set pos name expr -> do
@@ -136,20 +134,17 @@ cmpStmt stmt = case stmt of
 
 	S.If pos expr block -> do
 		val <- cmpExpr expr
-		cnd <- unique
-		instr $ cnd := ICmp NE val (cons $ C.Int 32 0) []
-		ifBlock <- uniqueName "true"
-		nextBlock <- unique
-		terminator $ Do $ CondBr (local i1 cnd) ifBlock nextBlock []
-		addBlock ifBlock
+		cnd <- icmp val (cons $ C.Int 32 0) NE 
+		true <- uniqueName "true"
+		next <- unique
+		terminator (cndBr cnd true next)
+		addBlock true
 		cmpStmt block
-		terminator $ Do $ Br nextBlock []
-		addBlock nextBlock
+		terminator (brk next)
+		addBlock next
 
 	S.Return pos expr -> do
-		case expr of
-			Nothing -> return ()
-			Just _  -> cmpErr pos "cannot return value in void function"
+		unless (isNothing expr) (cmpErr pos "cannot return value in void function")
 		terminator $ Do $ Ret Nothing []
 		addBlock =<< unique
 
