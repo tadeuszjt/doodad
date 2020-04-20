@@ -2,6 +2,7 @@
 
 module Compiler where
 
+import Control.Monad
 import Control.Monad.Except hiding (void)
 import Control.Monad.State hiding (void)
 import Control.Monad.Fail
@@ -17,7 +18,7 @@ import qualified SymTab
 import CmpState
 
 import LLVM.AST
-import LLVM.AST.Type
+import LLVM.AST.Type hiding (void)
 import LLVM.AST.Name
 import LLVM.AST.Instruction
 import LLVM.AST.IntegerPredicate
@@ -41,14 +42,13 @@ cmpTopStmt stmt = case stmt of
 	S.Set pos name expr -> cmpStmt stmt
 	S.Print pos exprs -> cmpStmt stmt
 	S.Block pos stmts -> cmpStmt stmt
-	S.Call pos name args -> cmpStmt stmt
+	S.CallStmt pos name args -> cmpStmt stmt
 	S.If pos expr block -> cmpStmt stmt
 
 	S.Assign pos name expr -> do
 		checkSymbolUndefined pos name
 
 		val <- cmpExpr expr
-		unless (isCons val) (cmpErr pos "const only")
 		let typ = typeOf val
 
 		unName <- uniqueName name
@@ -58,27 +58,38 @@ cmpTopStmt stmt = case stmt of
 		addSymbol name op $ Just (unName, def Nothing)
 		addDeclared unName
 		addExported unName
-		addDef $ def (Just $ toCons val)
+		
+		if isCons val then
+			addDef $ def $ Just (toCons val)
+		else do
+			addDef $ def $ Just (initOf typ)
+			store op val
 
-	S.Func pos name block -> do
+	S.Func pos name retType block -> do
 		checkSymbolUndefined pos name
 		unName <- uniqueName name
 
-		let retType = void
-		let fnType  = FunctionType retType [] False
+		let fnRetType = case retType of
+			Nothing    -> VoidType
+			Just S.I64 -> i64
+
+		let fnType  = FunctionType fnRetType [] False
 		let op      = global (ptr fnType) unName
-		let ext     = funcDef unName retType [] False []
+		let ext     = funcDef unName fnRetType [] False []
 
 		addSymbol name op $ Just (unName, ext)
 		addDeclared unName
 		addExported unName
 
+		curTyp <- gets curRetType
+		modify $ \s -> s { curRetType = fnRetType }
 		pushBlocks
 		addBlock (mkName "entry")
 		cmpStmt block
 		blocks <- popBlocks
+		modify $ \s -> s { curRetType = curTyp }
 
-		addDef $ funcDef unName retType [] False blocks
+		addDef $ funcDef unName fnRetType [] False blocks
 
 
 cmpStmt :: S.Stmt -> Cmp ()
@@ -98,11 +109,20 @@ cmpStmt stmt = case stmt of
 	S.Print pos exprs -> do
 		vals <- mapM cmpExpr exprs
 
-		let fmts = (flip map) vals $ \val ->
-			case typeOf val of
-				IntegerType 32 -> "%d"
+		fmtArgs <- forM vals $ \val -> case typeOf val of
+			IntegerType 64 -> return ("%d", val)
+			IntegerType 1  -> do
+				valI8 <- zext val i8
+				boolStr <- string "false\x00true"
+				boolIdx <- mul valI8 $ cons (C.Int 8 6)
+				boolPtr <- subscript boolStr boolIdx
+				return ("%s", boolPtr)
+			t              -> error ("can't print type: " ++ show t)
 
-		fmt <- string (intercalate ", " fmts ++ "\n")
+		let fmts = map fst fmtArgs
+		let args = map snd fmtArgs
+		str <- string (intercalate ", " fmts ++ "\n")
+		fmt <- subscript str $ cons (C.Int 64 0)
 
 		let name = mkName "printf"
 		let typ  = FunctionType i32 [ptr i8] False
@@ -111,7 +131,7 @@ cmpStmt stmt = case stmt of
 
 		decls <- gets declared
 		unless (name `elem` decls) $ addDeclared name >> addDef ext
-		instr $ Do $ call op (fmt:vals)
+		void $ call op (fmt:args)
 
 	S.Set pos name expr -> do
 		op <- lookupSymbol pos name
@@ -122,7 +142,7 @@ cmpStmt stmt = case stmt of
 		mapM_ cmpStmt block
 		popSymTab
 
-	S.Call pos name args -> do
+	S.CallStmt pos name args -> do
 		op <- lookupSymbol pos name
 		let typ = typeOf op
 		case typ of
@@ -130,11 +150,11 @@ cmpStmt stmt = case stmt of
 			_                  -> cmpErr pos (name ++ " isn't a function")
 
 		let FunctionType _ [] False = typ
-		instr $ Do $ call op [] 
+		void $ call op [] 
 
 	S.If pos expr block -> do
 		val <- cmpExpr expr
-		cnd <- icmp val (cons $ C.Int 32 0) NE 
+		cnd <- icmp val (cons $ C.Int 64 0) NE 
 		true <- uniqueName "true"
 		next <- unique
 		terminator (cndBr cnd true next)
@@ -144,17 +164,42 @@ cmpStmt stmt = case stmt of
 		addBlock next
 
 	S.Return pos expr -> do
-		unless (isNothing expr) (cmpErr pos "cannot return value in void function")
-		terminator $ Do $ Ret Nothing []
+		curTyp <- gets curRetType 
+		val <- case expr of
+			Nothing -> do
+				unless (curTyp == VoidType) (cmpErr pos "function requires return value")
+				return Nothing
+			Just ex -> do
+				val <- cmpExpr ex
+				unless (curTyp == typeOf val) (cmpErr pos "incorrect return type")
+				return (Just val)
+
+		terminator $ Do $ Ret val []
 		addBlock =<< unique
 
 cmpExpr :: S.Expr -> Cmp Operand
 cmpExpr expr = case expr of
 	S.Int pos n ->
-		return $ cons (C.Int 32 $ toInteger n)
+		return $ cons (C.Int 64 $ toInteger n)
+
+	S.Bool pos b ->
+		return $ cons (C.Int 1 $ if b then 1 else 0)
 
 	S.Ident pos name ->
 		load =<< lookupSymbol pos name
+
+	S.Call pos name args -> do
+		op <- lookupSymbol pos name
+		let typ = typeOf op
+		case typ of
+			FunctionType _ _ _ -> return ()
+			_                  -> cmpErr pos (name ++ " isn't a function")
+
+		unless (resultType typ == i64) $ cmpErr pos (name ++ " doesn't return i64")
+		unless (argumentTypes typ == []) $ cmpErr pos (name ++ "has args")
+
+		fmap fromJust (call op [])
+
 
 	S.Infix pos op expr1 expr2 -> do
 		val1 <- cmpExpr expr1
@@ -165,7 +210,7 @@ cmpExpr expr = case expr of
 				let ConstantOperand cons1 = val1 in
 				let ConstantOperand cons2 = val2 in
 				case (typeOf (cons cons1), typeOf (cons cons2)) of
-					(IntegerType 32, IntegerType 32) -> case op of
+					(IntegerType 64, IntegerType 64) -> case op of
 						S.Plus   -> C.Add False False cons1 cons2
 						S.Minus  -> C.Sub False False cons1 cons2
 						S.Times  -> C.Mul False False cons1 cons2
@@ -173,14 +218,14 @@ cmpExpr expr = case expr of
 						S.Mod    -> C.SRem cons1 cons2
 		else
 			case (typeOf val1, typeOf val2) of
-				(IntegerType 32, IntegerType 32) -> do
+				(IntegerType 64, IntegerType 64) -> do
 					ins <- case op of
 						S.Plus   -> return $ Add False False val1 val2 []
 						S.Minus  -> return $ Sub False False val1 val2 []
 						S.Times  -> return $ Mul False False val1 val2 []
 						S.Divide -> return $ SDiv False val1 val2 []
 						S.Mod    -> return $ SRem val1 val2 []
-						_ -> throwError $ CmpError (pos, "i32 does not support operator")
+						_ -> throwError $ CmpError (pos, "i64 does not support operator")
 					un <- unique
 					instr (un := ins)
-					return (local i32 un)
+					return $ local (ptr i64) un

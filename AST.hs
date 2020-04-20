@@ -23,10 +23,18 @@ data Op
     deriving (Show, Eq, Ord)
 
 
+data Type
+	= I64
+	| TBool
+	deriving (Show, Eq)
+
+
 data Expr
     = Int   Posn Int
+	| Bool  Posn Bool
     | Ident Posn String 
     | Infix Posn Op Expr Expr
+	| Call  Posn String [Expr]
     deriving (Show, Eq)
 
 
@@ -35,8 +43,8 @@ data Stmt
 	| Set Posn String Expr
 	| Print  Posn [Expr]
 	| Block Posn [Stmt]
-	| Func Posn String Stmt
-	| Call Posn String [Expr]
+	| Func Posn String (Maybe Type) Stmt
+	| CallStmt Posn String [Expr]
 	| If Posn Expr Stmt
 	| Return Posn (Maybe Expr)
 	deriving (Show, Eq)

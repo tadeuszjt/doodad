@@ -11,11 +11,6 @@ import qualified Data.Set              as Set
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.ByteString.Short as BSS
 
-import qualified Lexer    as L
-import qualified Parser   as P
-import qualified Compiler as C
-import qualified CmpState as C
-
 import LLVM.AST
 import LLVM.AST.Global
 import LLVM.AST.Type
@@ -28,6 +23,11 @@ import qualified LLVM.Module     as M
 import qualified LLVM.Relocation as Reloc
 import qualified LLVM.CodeModel  as CodeModel 
 import qualified LLVM.CodeGenOpt as CodeGenOpt 
+
+import qualified Lexer    as L
+import qualified Parser   as P
+import qualified Compiler as C
+import qualified CmpState as C
 
 foreign import ccall "dynamic" mkFun :: FunPtr (IO ()) -> (IO ())
 
@@ -113,7 +113,8 @@ repl ctx es cl = runInputT defaultSettings (loop C.initCmpState)
 							Right (JITSymbol fn _)-> run $ castPtrToFunPtr (wordPtrToPtr fn)
 					when (Set.null exported) (removeModule cl modKey)
 					return state
-						{ C.declared    = Set.empty
+						{ C.curRetType  = VoidType
+						, C.declared    = Set.empty
 						, C.exported    = Set.empty
 						, C.globals     = []
 						, C.basicBlocks = [[]]

@@ -16,7 +16,8 @@ $digit  = 0-9
 $alpha  = [a-zA-Z]
 $symbol = [\{\}\(\)\,\;]
 
-@reserved   = fn | for | if | else | return | print | int | float | bool
+@types      = i64 | bool
+@reserved   = fn | for | if | else | return | print | true | false | @types
 @reservedOp = [\+\-\*\/\%\<\>\=] | ":=" | "==" | "<=" | ">=" | "||" | "&&"
 
 tokens :-

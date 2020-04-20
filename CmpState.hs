@@ -11,7 +11,7 @@ import Data.List
 import Data.Char
 
 import LLVM.AST
-import LLVM.AST.Type
+import LLVM.AST.Type hiding (void)
 import LLVM.AST.Name
 import LLVM.AST.Instruction
 import LLVM.AST.Linkage
@@ -45,6 +45,7 @@ data CmpState
 		{ symTab       :: SymTab.SymTab String (Operand, Maybe Extern)
 		, nameSupply   :: Map.Map String Int
 		, uniqueCount  :: Word
+		, curRetType   :: Type
 		, declared     :: Set.Set Name
 		, exported     :: Set.Set Name
 		, globals      :: [Definition]
@@ -61,6 +62,7 @@ initCmpState = CmpState
 	{ symTab       = SymTab.initSymTab
 	, nameSupply   = Map.fromList $ [("printf", 1), ("main", 1)]
 	, uniqueCount  = 0
+	, curRetType   = VoidType
 	, declared     = Set.empty
 	, exported     = Set.empty
 	, globals      = []
@@ -185,6 +187,8 @@ typeOf (ConstantOperand cons) = case cons of
 	C.Mul _ _ a b                           -> typeOf (ConstantOperand a)
 	C.SDiv _ a b                            -> typeOf (ConstantOperand a)
 	C.SRem a b                              -> typeOf (ConstantOperand a)
+	_                                       -> error (show cons)
+typeOf x = error (show x)
 
 
 globalVar :: Type -> Name -> Bool -> Maybe C.Constant -> Definition
@@ -212,10 +216,14 @@ string str = do
 	let array = C.Array i8 $ map (C.Int 8 . toInteger . ord) (str ++ "\0")
 	let typ = typeOf (cons array)
 
-	name <- unique
-	let op = toCons $ global (ptr typ) name
+	name <- uniqueName "string"
 	addDef $ globalVar typ name True (Just array)
-	return $ cons $ C.BitCast (C.GetElementPtr False op []) (ptr i8)
+	return $ global (ptr typ) name
+
+
+initOf :: Type -> C.Constant
+initOf typ = case typ of
+	IntegerType nbits -> C.Int nbits 0
 
 
 isCons :: Operand -> Bool
@@ -248,12 +256,40 @@ load :: Operand -> Cmp Operand
 load addr = do
 	un <- unique
 	instr $ un := Load False addr Nothing 0 []
-	return $ local (typeOf addr) un
+	return $ local (ptr $ typeOf addr) un
 
 
-call :: Operand -> [Operand] -> Instruction
+mul :: Operand -> Operand -> Cmp Operand
+mul a b =
+	if isCons a && isCons b then
+		return $ cons $ C.Mul False False (toCons a) (toCons b)
+	else do
+		un <- unique
+		instr $ un := Mul False False a b []
+		return $ local (ptr $ typeOf a) un
+
+
+zext :: Operand -> Type -> Cmp Operand
+zext val typ =
+	if isCons val then
+		return $ cons $ C.ZExt (toCons val) typ
+	else do
+		un <- unique
+		instr $ un := ZExt val typ []
+		return $ local (ptr typ) un
+
+
+call :: Operand -> [Operand] -> Cmp (Maybe Operand)
 call op args =
-	Call Nothing C [] (Right op) [(arg, []) | arg <- args] [] []
+	let typ = typeOf op in
+	case resultType typ of
+		VoidType -> do
+			instr $ Do $ Call Nothing C [] (Right op) [(arg, []) | arg <- args] [] []
+			return Nothing
+		retType  -> do
+			un <- unique
+			instr $ un := Call Nothing C [] (Right op) [(arg, []) | arg <- args] [] []
+			return $ Just $ local (ptr retType) un
 
 
 alloca :: Type -> Name -> Cmp ()
@@ -265,7 +301,7 @@ icmp :: Operand -> Operand -> IntegerPredicate -> Cmp Operand
 icmp a b ip = do
 	un <- unique
 	instr $ un := ICmp ip a b []
-	return (local i1 un)
+	return $ local (ptr i1) un
 
 
 cndBr :: Operand -> Name -> Name -> Named Terminator
@@ -276,3 +312,18 @@ cndBr cnd trueDest falseDest =
 brk :: Name -> Named Terminator
 brk dest =
 	Do $ Br dest []
+
+
+subscript :: Operand -> Operand -> Cmp Operand
+subscript arr idx =
+	let typ@(ArrayType _ elemType) = typeOf arr in
+	if isCons idx && isCons arr then do
+		let elem = C.GetElementPtr True (toCons arr) [C.Int 8 0, toCons idx]
+		return $ cons $ C.BitCast elem (ptr elemType)
+	else do
+		elem <- unique
+		cast <- unique
+		instr $ elem := GetElementPtr True arr [(cons $ C.Int 8 0), idx] []
+		instr $ cast := BitCast (local (ptr typ) elem) (ptr elemType) []
+		return $ local (ptr elemType) cast
+
