@@ -260,23 +260,17 @@ load addr = do
 
 
 mul :: Operand -> Operand -> Cmp Operand
-mul a b =
-	if isCons a && isCons b then
-		return $ cons $ C.Mul False False (toCons a) (toCons b)
-	else do
-		un <- unique
-		instr $ un := Mul False False a b []
-		return $ local (ptr $ typeOf a) un
+mul a b = do
+	un <- unique
+	instr $ un := Mul False False a b []
+	return $ local (ptr $ typeOf a) un
 
 
 zext :: Operand -> Type -> Cmp Operand
-zext val typ =
-	if isCons val then
-		return $ cons $ C.ZExt (toCons val) typ
-	else do
-		un <- unique
-		instr $ un := ZExt val typ []
-		return $ local (ptr typ) un
+zext val typ = do
+	un <- unique
+	instr $ un := ZExt val typ []
+	return $ local (ptr typ) un
 
 
 call :: Operand -> [Operand] -> Cmp (Maybe Operand)
@@ -315,15 +309,11 @@ brk dest =
 
 
 subscript :: Operand -> Operand -> Cmp Operand
-subscript arr idx =
-	let typ@(ArrayType _ elemType) = typeOf arr in
-	if isCons idx && isCons arr then do
-		let elem = C.GetElementPtr True (toCons arr) [C.Int 8 0, toCons idx]
-		return $ cons $ C.BitCast elem (ptr elemType)
-	else do
-		elem <- unique
-		cast <- unique
-		instr $ elem := GetElementPtr True arr [(cons $ C.Int 8 0), idx] []
-		instr $ cast := BitCast (local (ptr typ) elem) (ptr elemType) []
-		return $ local (ptr elemType) cast
+subscript arr idx = do
+	let typ@(ArrayType _ elemType) = typeOf arr
+	elem <- unique
+	cast <- unique
+	instr $ elem := GetElementPtr True arr [(cons $ C.Int 8 0), idx] []
+	instr $ cast := BitCast (local (ptr typ) elem) (ptr elemType) []
+	return $ local (ptr elemType) cast
 

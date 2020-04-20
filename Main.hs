@@ -19,6 +19,7 @@ import LLVM.Target
 import LLVM.Linking
 import LLVM.OrcJIT
 import LLVM.OrcJIT.CompileLayer
+import LLVM.PassManager
 import qualified LLVM.Module     as M
 import qualified LLVM.Relocation as Reloc
 import qualified LLVM.CodeModel  as CodeModel 
@@ -47,10 +48,11 @@ main = do
 			withHostTargetMachine Reloc.PIC CodeModel.Default CodeGenOpt.None $ \tm ->
 				withObjectLinkingLayer es (\_ -> fmap head $ readIORef resolvers) $ \oll ->
 					withIRCompileLayer oll tm $ \cl ->
-						withSymbolResolver es (myResolver cl) $ \psr -> do
-							writeIORef resolvers [psr]
-							loadLibraryPermanently Nothing
-							repl ctx es cl
+						withPassManager defaultCuratedPassSetSpec $ \pm ->
+							withSymbolResolver es (myResolver cl) $ \psr -> do
+								writeIORef resolvers [psr]
+								loadLibraryPermanently Nothing
+								repl ctx es cl pm
 
 	where
 		myResolver :: IRCompileLayer ObjectLinkingLayer -> SymbolResolver
@@ -66,8 +68,8 @@ main = do
 						}
 
 
-repl :: Context -> ExecutionSession -> IRCompileLayer ObjectLinkingLayer ->  IO ()
-repl ctx es cl = runInputT defaultSettings (loop C.initCmpState)
+repl :: Context -> ExecutionSession -> IRCompileLayer ObjectLinkingLayer -> PassManager -> IO ()
+repl ctx es cl pm = runInputT defaultSettings (loop C.initCmpState)
 	where
 		loop :: C.CmpState -> InputT IO ()
 		loop state =
@@ -103,6 +105,8 @@ repl ctx es cl = runInputT defaultSettings (loop C.initCmpState)
 
 			withModuleKey es $ \modKey ->
 				M.withModuleFromAST ctx astmod $ \mod -> do
+					passRes <- runPassManager pm mod
+					putStrLn ("optimisation pass: " ++ show passRes)
 					BS.putStrLn =<< M.moduleLLVMAssembly mod
 					addModule cl modKey mod 
 					unless (null blocks) $ do

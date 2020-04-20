@@ -125,9 +125,9 @@ cmpStmt stmt = case stmt of
 		fmt <- subscript str $ cons (C.Int 64 0)
 
 		let name = mkName "printf"
-		let typ  = FunctionType i32 [ptr i8] False
+		let typ  = FunctionType i32 [ptr i8] True
 		let op   = global (ptr typ) name
-		let ext  = funcDef name i32 [Parameter (ptr i8) (mkName "fmt") []] False []
+		let ext  = funcDef name i32 [Parameter (ptr i8) (mkName "fmt") []] True []
 
 		decls <- gets declared
 		unless (name `elem` decls) $ addDeclared name >> addDef ext
@@ -204,28 +204,15 @@ cmpExpr expr = case expr of
 	S.Infix pos op expr1 expr2 -> do
 		val1 <- cmpExpr expr1
 		val2 <- cmpExpr expr2
-
-		if isCons val1 && isCons val2 then
-			return $ cons $ 
-				let ConstantOperand cons1 = val1 in
-				let ConstantOperand cons2 = val2 in
-				case (typeOf (cons cons1), typeOf (cons cons2)) of
-					(IntegerType 64, IntegerType 64) -> case op of
-						S.Plus   -> C.Add False False cons1 cons2
-						S.Minus  -> C.Sub False False cons1 cons2
-						S.Times  -> C.Mul False False cons1 cons2
-						S.Divide -> C.SDiv False cons1 cons2
-						S.Mod    -> C.SRem cons1 cons2
-		else
-			case (typeOf val1, typeOf val2) of
-				(IntegerType 64, IntegerType 64) -> do
-					ins <- case op of
-						S.Plus   -> return $ Add False False val1 val2 []
-						S.Minus  -> return $ Sub False False val1 val2 []
-						S.Times  -> return $ Mul False False val1 val2 []
-						S.Divide -> return $ SDiv False val1 val2 []
-						S.Mod    -> return $ SRem val1 val2 []
-						_ -> throwError $ CmpError (pos, "i64 does not support operator")
-					un <- unique
-					instr (un := ins)
-					return $ local (ptr i64) un
+		case (typeOf val1, typeOf val2) of
+			(IntegerType 64, IntegerType 64) -> do
+				ins <- case op of
+					S.Plus   -> return $ Add False False val1 val2 []
+					S.Minus  -> return $ Sub False False val1 val2 []
+					S.Times  -> return $ Mul False False val1 val2 []
+					S.Divide -> return $ SDiv False val1 val2 []
+					S.Mod    -> return $ SRem val1 val2 []
+					_ -> throwError $ CmpError (pos, "i64 does not support operator")
+				un <- unique
+				instr (un := ins)
+				return $ local (ptr i64) un
