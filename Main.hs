@@ -91,17 +91,12 @@ repl ctx es cl pm = runInputT defaultSettings (loop C.initCmpState)
 
 		jitAndRun :: C.CmpState -> IO C.CmpState
 		jitAndRun state = do
-			let globals = reverse (C.globals state)
+			let globals  = reverse (C.globals state)
 			let exported = C.exported state
-			let mainName = mkBSS "main.0"
-			let blocks = reverse $ head (C.basicBlocks state)
-
-			let mainFn = GlobalDefinition $ functionDefaults
-				{ returnType  = void
-				, name        = Name mainName
-				, basicBlocks = blocks
-				}
-			let astmod = defaultModule { moduleDefinitions = globals ++ [mainFn] }
+			let mainName = mkBSS ".main"
+			let blocks   = reverse $ head (C.basicBlocks state)
+			let mainFn   = C.funcDef (Name mainName) void [] False blocks
+			let astmod   = defaultModule { moduleDefinitions = globals ++ [mainFn] }
 
 			withModuleKey es $ \modKey ->
 				M.withModuleFromAST ctx astmod $ \mod -> do
@@ -109,7 +104,7 @@ repl ctx es cl pm = runInputT defaultSettings (loop C.initCmpState)
 					putStrLn ("optimisation pass: " ++ show passRes)
 					BS.putStrLn =<< M.moduleLLVMAssembly mod
 					addModule cl modKey mod 
-					unless (null blocks) $ do
+					unless (blocks == [BasicBlock (mkName "entry") [] (Do $ Ret Nothing [])]) $ do
 						mangled <- mangleSymbol cl mainName
 						res <- findSymbolIn cl modKey mangled False
 						case res of

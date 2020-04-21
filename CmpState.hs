@@ -5,10 +5,12 @@ module CmpState where
 import Control.Monad.Except hiding (void)
 import Control.Monad.State hiding (void)
 import Control.Monad.Fail
+import Control.Monad
 import qualified Data.Set as Set
 import qualified Data.Map as Map
 import Data.List
 import Data.Char
+import Data.Maybe
 
 import LLVM.AST
 import LLVM.AST.Type hiding (void)
@@ -60,7 +62,7 @@ newtype Cmp a
 
 initCmpState = CmpState
 	{ symTab       = SymTab.initSymTab
-	, nameSupply   = Map.fromList $ [("printf", 1), ("main", 1)]
+	, nameSupply   = Map.empty
 	, uniqueCount  = 0
 	, curRetType   = VoidType
 	, declared     = Set.empty
@@ -89,6 +91,12 @@ uniqueName name = do
 		Nothing -> (1, name)
 	modify $ \s -> s { nameSupply = Map.insert name x' names }
 	return (mkName name')
+
+
+reserveName :: String -> Cmp ()
+reserveName name = do
+	supply <- gets nameSupply
+	unless (isJust $ Map.lookup name supply) (void $ uniqueName name)
 
 
 addDeclared :: Name -> Cmp ()
@@ -182,11 +190,6 @@ typeOf (ConstantOperand cons) = case cons of
 	C.GlobalReference (PointerType typ _) _ -> typ
 	C.Int nb _                              -> IntegerType nb
 	C.Array typ elems                       -> ArrayType (fromIntegral $ length elems) typ
-	C.Add _ _ a b                           -> typeOf (ConstantOperand a)
-	C.Sub _ _ a b                           -> typeOf (ConstantOperand a)
-	C.Mul _ _ a b                           -> typeOf (ConstantOperand a)
-	C.SDiv _ a b                            -> typeOf (ConstantOperand a)
-	C.SRem a b                              -> typeOf (ConstantOperand a)
 	_                                       -> error (show cons)
 typeOf x = error (show x)
 
@@ -201,12 +204,12 @@ globalVar typ name isCons init =
 		}
 
 
-funcDef :: Name -> Type -> [Parameter] -> Bool -> [BasicBlock] -> Definition
+funcDef :: Name -> Type -> [(Type, Name)] -> Bool -> [BasicBlock] -> Definition
 funcDef name retType args isVarg basicBlocks =
 	GlobalDefinition $ functionDefaults
 		{ G.returnType  = retType
 		, G.name        = name
-		, G.parameters  = (args, isVarg)
+		, G.parameters  = ([ Parameter t n [] | (t, n) <- args ], isVarg)
 		, G.basicBlocks = basicBlocks
 		}
 
@@ -261,16 +264,32 @@ load addr = do
 
 mul :: Operand -> Operand -> Cmp Operand
 mul a b = do
+	unless (typeOf a == typeOf b) (error "int types don't match")
 	un <- unique
 	instr $ un := Mul False False a b []
 	return $ local (ptr $ typeOf a) un
 
 
-zext :: Operand -> Type -> Cmp Operand
-zext val typ = do
+zext :: Type -> Operand -> Cmp Operand
+zext typ val = do
 	un <- unique
 	instr $ un := ZExt val typ []
 	return $ local (ptr typ) un
+
+
+bitcast :: Type -> Operand -> Cmp Operand
+bitcast typ val = do
+	un <- unique
+	instr $ un := BitCast val typ []
+	return $ local (ptr typ) un
+	
+
+select :: Operand -> Operand -> Operand -> Cmp Operand
+select s a b = do
+	unless (typeOf a == typeOf b) (error "types don't match")
+	un <- unique
+	instr $ un := Select s a b []
+	return $ local (ptr $ typeOf a) un
 
 
 call :: Operand -> [Operand] -> Cmp (Maybe Operand)
@@ -312,8 +331,6 @@ subscript :: Operand -> Operand -> Cmp Operand
 subscript arr idx = do
 	let typ@(ArrayType _ elemType) = typeOf arr
 	elem <- unique
-	cast <- unique
 	instr $ elem := GetElementPtr True arr [(cons $ C.Int 8 0), idx] []
-	instr $ cast := BitCast (local (ptr typ) elem) (ptr elemType) []
-	return $ local (ptr elemType) cast
+	bitcast (ptr elemType) $ local (ptr typ) elem
 

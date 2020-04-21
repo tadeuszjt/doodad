@@ -1,0 +1,3 @@
+x := 4; y := false;
+print(x, x * x); fn f() i64 { return x; }
+print(f(), x); print(true, y);

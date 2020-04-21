@@ -33,6 +33,19 @@ codeGen cmpState ast =
 	runState (runExceptT $ getCmp cmp) cmpState
 	where
 		cmp = do
+			reserveName "printf"
+			let printfName = mkName "printf"
+			let printfOp  = global (ptr $ FunctionType i32 [ptr i8] True) printfName
+			let printfExt = funcDef printfName i32 [(ptr i8, mkName "fmt")] True []
+			addSymbol ".printf" printfOp $ Just (printfName, printfExt)
+
+			let boolStrName  = mkName ".boolStr"
+			let boolStrArray = C.Array i8 $ map (C.Int 8 . toInteger . ord) "false\x00true\x00"
+			let boolStrTyp   = typeOf (cons boolStrArray)
+			let boolStrOp    = global (ptr boolStrTyp) boolStrName
+			let boolStr      = globalVar boolStrTyp boolStrName True (Just boolStrArray)
+			addSymbol ".boolStr" boolStrOp $ Just (boolStrName, boolStr)
+
 			addBlock (mkName "entry") 
 			mapM_ cmpTopStmt ast
 
@@ -110,27 +123,22 @@ cmpStmt stmt = case stmt of
 		vals <- mapM cmpExpr exprs
 
 		fmtArgs <- forM vals $ \val -> case typeOf val of
-			IntegerType 64 -> return ("%d", val)
-			IntegerType 1  -> do
-				valI8 <- zext val i8
-				boolStr <- string "false\x00true"
-				boolIdx <- mul valI8 $ cons (C.Int 8 6)
-				boolPtr <- subscript boolStr boolIdx
+			IntegerType 1 -> do
+				boolStr <- lookupSymbol pos ".boolStr"
+				boolPtr <- subscript boolStr =<< select val (cons $ C.Int 8 0) (cons $ C.Int 8 6)
 				return ("%s", boolPtr)
-			t              -> error ("can't print type: " ++ show t)
+
+			IntegerType _ ->
+				return ("%d", val)
+
+			t ->
+				error ("can't print type: " ++ show t)
 
 		let fmts = map fst fmtArgs
 		let args = map snd fmtArgs
-		str <- string (intercalate ", " fmts ++ "\n")
-		fmt <- subscript str $ cons (C.Int 64 0)
 
-		let name = mkName "printf"
-		let typ  = FunctionType i32 [ptr i8] True
-		let op   = global (ptr typ) name
-		let ext  = funcDef name i32 [Parameter (ptr i8) (mkName "fmt") []] True []
-
-		decls <- gets declared
-		unless (name `elem` decls) $ addDeclared name >> addDef ext
+		fmt <- bitcast (ptr i8) =<< string (intercalate ", " fmts ++ "\n")
+		op <- lookupSymbol pos ".printf"
 		void $ call op (fmt:args)
 
 	S.Set pos name expr -> do
