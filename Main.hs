@@ -1,34 +1,35 @@
-{-#LANGUAGE ForeignFunctionInterface#-}
+{-# LANGUAGE ForeignFunctionInterface #-}
 module Main where
 
-import Foreign.Ptr
-import System.IO
-import System.Console.Haskeline
-import Control.Monad.Except hiding (void)
-import Data.IORef
-import qualified Data.Map              as Map
-import qualified Data.Set              as Set
-import qualified Data.ByteString.Char8 as BS
-import qualified Data.ByteString.Short as BSS
+import           Control.Monad.Except     hiding (void)
+import qualified Data.ByteString.Char8    as BS
+import qualified Data.ByteString.Short    as BSS
+import           Data.IORef
+import qualified Data.Map                 as Map
+import qualified Data.Set                 as Set
+import           Foreign.Ptr
+import           System.Console.Haskeline
+import           System.Environment
+import           System.IO
 
-import LLVM.AST
-import LLVM.AST.Global
-import LLVM.AST.Type
-import LLVM.Context
-import LLVM.Target
-import LLVM.Linking
-import LLVM.OrcJIT
-import LLVM.OrcJIT.CompileLayer
-import LLVM.PassManager
-import qualified LLVM.Module     as M
-import qualified LLVM.Relocation as Reloc
-import qualified LLVM.CodeModel  as CodeModel 
-import qualified LLVM.CodeGenOpt as CodeGenOpt 
+import           LLVM.AST
+import           LLVM.AST.Global
+import           LLVM.AST.Type
+import qualified LLVM.CodeGenOpt          as CodeGenOpt
+import qualified LLVM.CodeModel           as CodeModel
+import           LLVM.Context
+import           LLVM.Linking
+import qualified LLVM.Module              as M
+import           LLVM.OrcJIT
+import           LLVM.OrcJIT.CompileLayer
+import           LLVM.PassManager
+import qualified LLVM.Relocation          as Reloc
+import           LLVM.Target
 
-import qualified Lexer    as L
-import qualified Parser   as P
-import qualified Compiler as C
-import qualified CmpState as C
+import qualified CmpState                 as C
+import qualified Compiler                 as C
+import qualified Lexer                    as L
+import qualified Parser                   as P
 
 foreign import ccall "dynamic" mkFun :: FunPtr (IO ()) -> (IO ())
 
@@ -42,6 +43,8 @@ mkBSS = BSS.toShort . BS.pack
 
 main :: IO ()
 main = do
+	args <- getArgs
+	let verbose = "-v" `elem` args
 	resolvers <- newIORef []
 	withContext $ \ctx ->
 		withExecutionSession $ \es ->
@@ -52,7 +55,7 @@ main = do
 							withSymbolResolver es (myResolver cl) $ \psr -> do
 								writeIORef resolvers [psr]
 								loadLibraryPermanently Nothing
-								repl ctx es cl pm
+								repl ctx es cl pm verbose
 
 	where
 		myResolver :: IRCompileLayer ObjectLinkingLayer -> SymbolResolver
@@ -63,13 +66,13 @@ main = do
 				Left _  -> do
 					ptr <- getSymbolAddressInProcess mangled
 					return $ Right $ JITSymbol
-						{ jitSymbolAddress = ptr 
+						{ jitSymbolAddress = ptr
 						, jitSymbolFlags   = defaultJITSymbolFlags { jitSymbolExported = True }
 						}
 
 
-repl :: Context -> ExecutionSession -> IRCompileLayer ObjectLinkingLayer -> PassManager -> IO ()
-repl ctx es cl pm = runInputT defaultSettings (loop C.initCmpState)
+repl :: Context -> ExecutionSession -> IRCompileLayer ObjectLinkingLayer -> PassManager -> Bool -> IO ()
+repl ctx es cl pm verbose = runInputT defaultSettings (loop C.initCmpState)
 	where
 		loop :: C.CmpState -> InputT IO ()
 		loop state =
@@ -84,27 +87,26 @@ repl ctx es cl pm = runInputT defaultSettings (loop C.initCmpState)
 			case L.alexScanner source of
 				Left  errStr -> putStrLn errStr >> return state
 				Right tokens -> case (P.parseTokens tokens) 0 of
-					P.ParseOk ast ->
-						let ((res, bbs), state') = C.codeGen state ast in
+					P.ParseOk ast -> do
+						let ((res, defs), state') = C.codeGen state ast
 						case res of
 							Left err -> putStrLn (show err) >> return state
-							Right () -> jitAndRun state'
+							Right () -> jitAndRun defs state'
 
-		jitAndRun :: C.CmpState -> IO C.CmpState
-		jitAndRun state = do
-			let globals  = reverse (C.globals state)
-			let exported = C.exported state
+		jitAndRun :: [Definition] -> C.CmpState -> IO C.CmpState
+		jitAndRun defs state = do
 			let mainName = mkBSS ".main"
+			let exported = C.exported state
 			let blocks   = reverse $ head (C.basicBlocks state)
 			let mainFn   = C.funcDef (Name mainName) void [] False blocks
-			let astmod   = defaultModule { moduleDefinitions = globals ++ [mainFn] }
+			let astmod   = defaultModule { moduleDefinitions = defs ++ [mainFn] }
 
 			withModuleKey es $ \modKey ->
 				M.withModuleFromAST ctx astmod $ \mod -> do
 					passRes <- runPassManager pm mod
-					putStrLn ("optimisation pass: " ++ show passRes)
-					BS.putStrLn =<< M.moduleLLVMAssembly mod
-					addModule cl modKey mod 
+					when verbose $ putStrLn ("optimisation pass: " ++ show passRes)
+					when verbose $ BS.putStrLn =<< M.moduleLLVMAssembly mod
+					addModule cl modKey mod
 					unless (blocks == [BasicBlock (mkName "entry") [] (Do $ Ret Nothing [])]) $ do
 						mangled <- mangleSymbol cl mainName
 						res <- findSymbolIn cl modKey mangled False
@@ -116,6 +118,5 @@ repl ctx es cl pm = runInputT defaultSettings (loop C.initCmpState)
 						{ C.curRetType  = VoidType
 						, C.declared    = Set.empty
 						, C.exported    = Set.empty
-						, C.globals     = []
 						, C.basicBlocks = [[]]
 						}

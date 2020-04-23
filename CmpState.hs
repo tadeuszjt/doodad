@@ -52,14 +52,13 @@ data CmpState
 		, curRetType   :: Type
 		, declared     :: Set.Set Name
 		, exported     :: Set.Set Name
-		, globals      :: [Definition]
 		, basicBlocks  :: [[BasicBlock]]
 		}
 
 
 newtype Cmp a
-	= Cmp { getCmp :: ExceptT CmpError (IRBuilderT (State CmpState)) a }
-	deriving (Functor, Applicative, Monad, MonadError CmpError, MonadState CmpState)
+	= Cmp { getCmp :: ExceptT CmpError (ModuleBuilderT (State CmpState)) a }
+	deriving (Functor, Applicative, Monad, MonadError CmpError, MonadState CmpState, MonadModuleBuilder)
 
 
 initCmpState = CmpState
@@ -69,7 +68,6 @@ initCmpState = CmpState
 	, curRetType   = VoidType
 	, declared     = Set.empty
 	, exported     = Set.empty
-	, globals      = []
 	, basicBlocks  = [[]]
 	}
 
@@ -111,11 +109,6 @@ addExported name =
 	modify $ \s -> s { exported = Set.insert name (exported s) }
 
 
-addDef :: Definition -> Cmp ()
-addDef glob =
-	modify $ \s -> s { globals = glob : (globals s) }
-
-
 addSymbol :: String -> Operand -> Maybe Extern -> Cmp ()
 addSymbol name op extern =
 	modify $ \s -> s { symTab = SymTab.insert name (op, extern) (symTab s) }
@@ -130,7 +123,7 @@ lookupSymbol pos name = do
 			case extern of
 				Nothing        -> return ()
 				Just (nm, def) -> gets declared >>= \decls ->
-					unless (nm `elem` decls) (addDef def >> addDeclared nm)
+					unless (nm `elem` decls) (emitDefn def >> addDeclared nm)
 			return op
 
 
@@ -223,7 +216,7 @@ string str = do
 	let typ = typeOf (cons array)
 
 	name <- uniqueName "string"
-	addDef $ globalVar typ name True (Just array)
+	emitDefn $ globalVar typ name True (Just array)
 	return $ global (ptr typ) name
 
 

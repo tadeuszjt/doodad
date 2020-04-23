@@ -2,6 +2,7 @@
 
 module Compiler where
 
+import Prelude hiding (EQ)
 import Control.Monad
 import Control.Monad.Except hiding (void)
 import Control.Monad.State hiding (void)
@@ -25,14 +26,14 @@ import LLVM.AST.IntegerPredicate
 import LLVM.AST.Linkage
 import LLVM.AST.CallingConvention
 import LLVM.IRBuilder.Monad
-import LLVM.IRBuilder.Module hiding (global)
+import qualified LLVM.IRBuilder.Module as IR 
 import qualified LLVM.AST.Global   as G
 import qualified LLVM.AST.Constant as C
 
 
-codeGen :: CmpState -> S.AST -> ((Either CmpError (), [BasicBlock]), CmpState)
+codeGen :: CmpState -> S.AST -> ((Either CmpError (), [Definition]), CmpState)
 codeGen cmpState ast =
-	runState (runIRBuilderT emptyIRBuilder $ runExceptT $ getCmp cmp) cmpState
+	runState (IR.runModuleBuilderT IR.emptyModuleBuilder $ runExceptT $ getCmp cmp) cmpState
 	where
 		cmp = do
 			mapM_ reserveName ["printf", "puts"]
@@ -75,9 +76,9 @@ cmpTopStmt stmt = case stmt of
 		addExported unName
 		
 		if isCons val then
-			addDef $ def $ Just (toCons val)
+			void $ IR.global unName typ (toCons val)
 		else do
-			addDef $ def $ Just (initOf typ)
+			op <- IR.global unName typ (initOf typ)
 			store op val
 
 	S.Func pos name params retType block -> do
@@ -117,7 +118,8 @@ cmpTopStmt stmt = case stmt of
 		let ext = funcDef unName fnRetType params' False []
 		addSymbol name op $ Just (unName, ext)
 		addExported unName
-		addDef $ funcDef unName fnRetType params' False blocks
+		IR.emitDefn $ funcDef unName fnRetType params' False blocks
+		--void $ IR.function unName [] fnRetType (\_ -> return ()) 
 
 
 cmpStmt :: S.Stmt -> Cmp ()
@@ -173,24 +175,10 @@ cmpStmt stmt = case stmt of
 			_                   -> cmpErr pos (name ++ " isn't a function")
 
 		vals <- mapM cmpExpr args
-		let typs = map typeOf vals
-
-		unless (paramTypes == typs) $ cmpErr pos "arg types don't match"
-
+		unless (paramTypes == map typeOf vals) $ cmpErr pos "arg types don't match"
 		void $ call op vals
 
-	S.If pos expr block Nothing -> do
-		cnd <- cmpExpr expr
-		unless (typeOf cnd == i1) $ cmpErr pos "expression isn't boolean"
-		true <- uniqueName "if.true"
-		next <- uniqueName "if.next"
-		terminator (cndBr cnd true next)
-		addBlock true
-		cmpStmt block
-		terminator (brk next)
-		addBlock next
-
-	S.If pos expr block (Just els) -> do
+	S.If pos expr block els -> do
 		cnd <- cmpExpr expr
 		unless (typeOf cnd == i1) $ cmpErr pos "expression isn't boolean"
 		true  <- uniqueName "if.true"
@@ -201,7 +189,7 @@ cmpStmt stmt = case stmt of
 		cmpStmt block
 		terminator (brk next)
 		addBlock false
-		cmpStmt els
+		unless (isNothing els) $ cmpStmt (fromJust els)
 		terminator (brk next)
 		addBlock next
 
@@ -264,3 +252,4 @@ cmpExpr expr = case expr of
 					S.GT      -> icmp val1 val2 SGT
 					S.LTEq    -> icmp val1 val2 SLE
 					S.GTEq    -> icmp val1 val2 SGT
+					S.EqEq    -> icmp val1 val2 EQ

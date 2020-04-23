@@ -57,7 +57,7 @@ import qualified CmpState as C
     ','        { L.Token _ L.Sym "," }
     ';'        { L.Token _ L.Sym ";" }
 
-%%
+	%%
 
 Prog : {- empty -}                  { [] }
      | Stmt                         { [$1] }
@@ -104,6 +104,7 @@ Expr : int                          { S.Int (tokPosn $1) (read $ L.tokStr $1) }
 	 | Expr '>' Expr                { S.Infix (tokPosn $2) S.GT $1 $3 }
 	 | Expr '<=' Expr               { S.Infix (tokPosn $2) S.LTEq $1 $3 }
 	 | Expr '>=' Expr               { S.Infix (tokPosn $2) S.GTEq $1 $3 }
+	 | Expr '==' Expr               { S.Infix (tokPosn $2) S.EqEq $1 $3 }
 
 Args : {- empty -}                  { [] }
 	 | Args_                        { $1 }
