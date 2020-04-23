@@ -59,7 +59,8 @@ import qualified CmpState as C
 
 %%
 
-Prog : Stmt                         { [$1] }
+Prog : {- empty -}                  { [] }
+     | Stmt                         { [$1] }
 	 | Stmt Prog                    { $1 : $2 }
 
 Stmt : StmtS ';'                    { $1 }
@@ -72,10 +73,19 @@ StmtS : ident ':=' Expr             { S.Assign (tokPosn $2) (L.tokStr $1) $3 }
 	  | return                      { S.Return (tokPosn $1) Nothing }
 	  | return Expr                 { S.Return (tokPosn $1) (Just $2) }
 
-StmtB : Block                       { $1 }
-      | fn ident '(' ')' Block      { S.Func (tokPosn $1) (L.tokStr $2) Nothing $5 }
-      | fn ident '(' ')' Type Block { S.Func (tokPosn $1) (L.tokStr $2) (Just $5) $6 }
-	  | if Expr Block               { S.If (tokPosn $1) $2 $3 }
+StmtB : Block                              { $1 }
+      | fn ident '(' Params ')' Block      { S.Func (tokPosn $1) (L.tokStr $2) $4 Nothing $6 }
+      | fn ident '(' Params ')' Type Block { S.Func (tokPosn $1) (L.tokStr $2) $4 (Just $6) $7 }
+	  | If                                 { $1 }
+
+
+If : if Expr Block                  { S.If (tokPosn $1) $2 $3 Nothing }
+   | if Expr Block Else             { S.If (tokPosn $1) $2 $3 (Just $4) }
+
+
+Else : else Block                   { $2 }
+     | else If                      { $2 }
+
 
 Block : '{' Prog '}'                { S.Block (tokPosn $1) $2 }
 
@@ -90,12 +100,24 @@ Expr : int                          { S.Int (tokPosn $1) (read $ L.tokStr $1) }
 	 | Expr '*' Expr                { S.Infix (tokPosn $2) S.Times $1 $3 }
 	 | Expr '/' Expr                { S.Infix (tokPosn $2) S.Divide $1 $3 }
 	 | Expr '%' Expr                { S.Infix (tokPosn $2) S.Mod $1 $3 }
+	 | Expr '<' Expr                { S.Infix (tokPosn $2) S.LT $1 $3 }
+	 | Expr '>' Expr                { S.Infix (tokPosn $2) S.GT $1 $3 }
+	 | Expr '<=' Expr               { S.Infix (tokPosn $2) S.LTEq $1 $3 }
+	 | Expr '>=' Expr               { S.Infix (tokPosn $2) S.GTEq $1 $3 }
 
 Args : {- empty -}                  { [] }
 	 | Args_                        { $1 }
 
 Args_ : Expr                        { [$1] }
 	  | Expr ',' Args_              { $1 : $3 }
+
+Params : {- empty -}                { [] }
+       | Params_                    { $1 }
+
+Params_ : Param                     { [$1] }
+		| Param ',' Params_         { $1 : $3 }
+
+Param : ident Type                  { S.Param (tokPosn $1) (L.tokStr $1) $2 }
 
 Type : i64                          { S.I64 }
 	 | bool                         { S.TBool }

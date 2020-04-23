@@ -23,6 +23,15 @@ data Op
     deriving (Show, Eq, Ord)
 
 
+data Param
+	= Param
+		{ paramPos  :: Posn
+		, paramName :: String
+		, paramType :: Type
+		}
+	deriving (Show, Eq)
+
+
 data Type
 	= I64
 	| TBool
@@ -43,8 +52,8 @@ data Stmt
 	| Set Posn String Expr
 	| Print  Posn [Expr]
 	| Block Posn [Stmt]
-	| Func Posn String (Maybe Type) Stmt
+	| Func Posn String [Param] (Maybe Type) Stmt
 	| CallStmt Posn String [Expr]
-	| If Posn Expr Stmt
+	| If Posn Expr Stmt (Maybe Stmt)
 	| Return Posn (Maybe Expr)
 	deriving (Show, Eq)

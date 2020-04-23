@@ -76,6 +76,7 @@ repl ctx es cl pm = runInputT defaultSettings (loop C.initCmpState)
 			getInputLine "% " >>= \minput -> case minput of
 				Nothing    -> return ()
 				Just "q"   -> return ()
+				Just ""    -> loop state
 				Just input -> liftIO (compile state input) >>= loop
 
 		compile :: C.CmpState -> String -> IO C.CmpState
@@ -84,7 +85,7 @@ repl ctx es cl pm = runInputT defaultSettings (loop C.initCmpState)
 				Left  errStr -> putStrLn errStr >> return state
 				Right tokens -> case (P.parseTokens tokens) 0 of
 					P.ParseOk ast ->
-						let (res, state') = C.codeGen state ast in
+						let ((res, bbs), state') = C.codeGen state ast in
 						case res of
 							Left err -> putStrLn (show err) >> return state
 							Right () -> jitAndRun state'

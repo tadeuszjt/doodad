@@ -1,3 +1,5 @@
-x := 4; y := false;
-print(x, x * x); fn f() i64 { return x; }
-print(f(), x); print(true, y);
+x := 20; y := false; puts := 2;
+
+fn f(x i64) { print(x); if x < 10 { print(0); } else if x < 20 { print(10); } else { print(20); } }
+fn g(x i64) { print(x); if x > 10 { print(11); } else { print(10); } }
+f(x); g(x);

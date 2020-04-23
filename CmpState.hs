@@ -19,6 +19,8 @@ import LLVM.AST.Instruction
 import LLVM.AST.Linkage
 import LLVM.AST.CallingConvention
 import LLVM.AST.IntegerPredicate
+import LLVM.IRBuilder.Monad
+import LLVM.IRBuilder.Module hiding (global)
 import qualified LLVM.AST.Global   as G
 import qualified LLVM.AST.Constant as C
 
@@ -56,7 +58,7 @@ data CmpState
 
 
 newtype Cmp a
-	= Cmp { getCmp :: ExceptT CmpError (State CmpState) a }
+	= Cmp { getCmp :: ExceptT CmpError (IRBuilderT (State CmpState)) a }
 	deriving (Functor, Applicative, Monad, MonadError CmpError, MonadState CmpState)
 
 
@@ -186,6 +188,7 @@ terminator term = do
 
 typeOf :: Operand -> Type
 typeOf (LocalReference (PointerType typ _) _) = typ
+typeOf (LocalReference typ _) = typ
 typeOf (ConstantOperand cons) = case cons of
 	C.GlobalReference (PointerType typ _) _ -> typ
 	C.Int nb _                              -> IntegerType nb
@@ -204,12 +207,12 @@ globalVar typ name isCons init =
 		}
 
 
-funcDef :: Name -> Type -> [(Type, Name)] -> Bool -> [BasicBlock] -> Definition
+funcDef :: Name -> Type -> [(Name, Type)] -> Bool -> [BasicBlock] -> Definition
 funcDef name retType args isVarg basicBlocks =
 	GlobalDefinition $ functionDefaults
 		{ G.returnType  = retType
 		, G.name        = name
-		, G.parameters  = ([ Parameter t n [] | (t, n) <- args ], isVarg)
+		, G.parameters  = ([ Parameter t n [] | (n, t) <- args ], isVarg)
 		, G.basicBlocks = basicBlocks
 		}
 
@@ -234,6 +237,12 @@ isCons (ConstantOperand _) = True
 isCons _                   = False
 
 
+isPtr :: Operand -> Bool
+isPtr (ConstantOperand (C.GlobalReference (PointerType _ _) _)) = True
+isPtr (LocalReference (PointerType _ _) _)                      = True
+isPtr _                                                         = False
+
+
 toCons :: Operand -> C.Constant
 toCons (ConstantOperand c) = c
 
@@ -250,6 +259,50 @@ cons :: C.Constant -> Operand
 cons = ConstantOperand
 
 
+add :: Operand -> Operand -> Cmp Operand
+add a b = do
+	un <- unique
+	instr $ un := Add False False a b []
+	return $ local (typeOf a) un
+
+
+sub :: Operand -> Operand -> Cmp Operand
+sub a b = do
+	un <- unique
+	instr $ un := Sub False False a b []
+	return $ local (typeOf a) un
+
+
+mul :: Operand -> Operand -> Cmp Operand
+mul a b = do
+	unless (typeOf a == typeOf b) (error "int types don't match")
+	un <- unique
+	instr $ un := Mul False False a b []
+	return $ local (typeOf a) un
+
+
+idiv :: Operand -> Operand -> Cmp Operand
+idiv a b = do
+	un <- unique
+	instr $ un := SDiv False a b []
+	return $ local (typeOf a) un
+
+
+imod :: Operand -> Operand -> Cmp Operand
+imod a b = do
+	un <- unique
+	instr $ un := SRem a b []
+	return $ local (typeOf a) un
+
+
+icmp :: Operand -> Operand -> IntegerPredicate -> Cmp Operand
+icmp a b ip = do
+	unless (typeOf a == typeOf b) (error "int types don't match")
+	un <- unique
+	instr $ un := ICmp ip a b []
+	return $ local (ptr i1) un
+
+
 store :: Operand -> Operand -> Cmp ()
 store addr val =
 	instr $ Do $ Store False addr val Nothing 0 []
@@ -259,29 +312,21 @@ load :: Operand -> Cmp Operand
 load addr = do
 	un <- unique
 	instr $ un := Load False addr Nothing 0 []
-	return $ local (ptr $ typeOf addr) un
-
-
-mul :: Operand -> Operand -> Cmp Operand
-mul a b = do
-	unless (typeOf a == typeOf b) (error "int types don't match")
-	un <- unique
-	instr $ un := Mul False False a b []
-	return $ local (ptr $ typeOf a) un
+	return $ local (typeOf addr) un
 
 
 zext :: Type -> Operand -> Cmp Operand
 zext typ val = do
 	un <- unique
 	instr $ un := ZExt val typ []
-	return $ local (ptr typ) un
+	return $ local typ un
 
 
 bitcast :: Type -> Operand -> Cmp Operand
 bitcast typ val = do
 	un <- unique
 	instr $ un := BitCast val typ []
-	return $ local (ptr typ) un
+	return $ local typ un
 	
 
 select :: Operand -> Operand -> Operand -> Cmp Operand
@@ -289,7 +334,7 @@ select s a b = do
 	unless (typeOf a == typeOf b) (error "types don't match")
 	un <- unique
 	instr $ un := Select s a b []
-	return $ local (ptr $ typeOf a) un
+	return $ local (typeOf a) un
 
 
 call :: Operand -> [Operand] -> Cmp (Maybe Operand)
@@ -302,19 +347,12 @@ call op args =
 		retType  -> do
 			un <- unique
 			instr $ un := Call Nothing C [] (Right op) [(arg, []) | arg <- args] [] []
-			return $ Just $ local (ptr retType) un
+			return $ Just $ local retType un
 
 
 alloca :: Type -> Name -> Cmp ()
 alloca typ name =
 	instr $ name := Alloca typ Nothing 0 []
-
-
-icmp :: Operand -> Operand -> IntegerPredicate -> Cmp Operand
-icmp a b ip = do
-	un <- unique
-	instr $ un := ICmp ip a b []
-	return $ local (ptr i1) un
 
 
 cndBr :: Operand -> Name -> Name -> Named Terminator
@@ -332,5 +370,5 @@ subscript arr idx = do
 	let typ@(ArrayType _ elemType) = typeOf arr
 	elem <- unique
 	instr $ elem := GetElementPtr True arr [(cons $ C.Int 8 0), idx] []
-	bitcast (ptr elemType) $ local (ptr typ) elem
+	bitcast (ptr elemType) $ local typ elem
 
