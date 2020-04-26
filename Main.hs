@@ -45,6 +45,7 @@ main :: IO ()
 main = do
 	args <- getArgs
 	let verbose = "-v" `elem` args
+	let dontOptimise = "-n" `elem` args
 	resolvers <- newIORef []
 	withContext $ \ctx ->
 		withExecutionSession $ \es ->
@@ -55,7 +56,7 @@ main = do
 							withSymbolResolver es (myResolver cl) $ \psr -> do
 								writeIORef resolvers [psr]
 								loadLibraryPermanently Nothing
-								repl ctx es cl pm verbose
+								repl ctx es cl pm verbose dontOptimise
 
 	where
 		myResolver :: IRCompileLayer ObjectLinkingLayer -> SymbolResolver
@@ -71,8 +72,8 @@ main = do
 						}
 
 
-repl :: Context -> ExecutionSession -> IRCompileLayer ObjectLinkingLayer -> PassManager -> Bool -> IO ()
-repl ctx es cl pm verbose = runInputT defaultSettings (loop C.initCmpState)
+repl :: Context -> ExecutionSession -> IRCompileLayer ObjectLinkingLayer -> PassManager -> Bool -> Bool -> IO ()
+repl ctx es cl pm verbose dontOptimise = runInputT defaultSettings (loop C.initCmpState)
 	where
 		loop :: C.CmpState -> InputT IO ()
 		loop state =
@@ -82,41 +83,47 @@ repl ctx es cl pm verbose = runInputT defaultSettings (loop C.initCmpState)
 				Just ""    -> loop state
 				Just input -> liftIO (compile state input) >>= loop
 
+
 		compile :: C.CmpState -> String -> IO C.CmpState
 		compile state source =
 			case L.alexScanner source of
 				Left  errStr -> putStrLn errStr >> return state
 				Right tokens -> case (P.parseTokens tokens) 0 of
 					P.ParseOk ast -> do
-						let ((res, defs), state') = C.codeGen state ast
+						let (res, state') = C.codeGen state ast
 						case res of
-							Left err -> putStrLn (show err) >> return state
-							Right () -> jitAndRun defs state'
+							Left err -> printError err source >> return state
+							Right ((), defs) -> jitAndRun defs state'
+
 
 		jitAndRun :: [Definition] -> C.CmpState -> IO C.CmpState
 		jitAndRun defs state = do
-			let mainName = mkBSS ".main"
 			let exported = C.exported state
-			let blocks   = reverse $ head (C.basicBlocks state)
-			let mainFn   = C.funcDef (Name mainName) void [] False blocks
-			let astmod   = defaultModule { moduleDefinitions = defs ++ [mainFn] }
-
+			let astmod   = defaultModule { moduleDefinitions = defs }
 			withModuleKey es $ \modKey ->
 				M.withModuleFromAST ctx astmod $ \mod -> do
-					passRes <- runPassManager pm mod
-					when verbose $ putStrLn ("optimisation pass: " ++ show passRes)
+					unless dontOptimise $ do
+						passRes <- runPassManager pm mod
+						when verbose $ putStrLn ("optimisation pass: " ++ show passRes)
 					when verbose $ BS.putStrLn =<< M.moduleLLVMAssembly mod
 					addModule cl modKey mod
-					unless (blocks == [BasicBlock (mkName "entry") [] (Do $ Ret Nothing [])]) $ do
-						mangled <- mangleSymbol cl mainName
-						res <- findSymbolIn cl modKey mangled False
-						case res of
-							Left _                -> putStrLn "linkage error"
-							Right (JITSymbol fn _)-> run $ castPtrToFunPtr (wordPtrToPtr fn)
+					mangled <- mangleSymbol cl (mkBSS ".main")
+					res <- findSymbolIn cl modKey mangled False
+					case res of
+						Left _                -> putStrLn "linkage error"
+						Right (JITSymbol fn _)-> run $ castPtrToFunPtr (wordPtrToPtr fn)
 					when (Set.null exported) (removeModule cl modKey)
 					return state
 						{ C.curRetType  = VoidType
 						, C.declared    = Set.empty
 						, C.exported    = Set.empty
-						, C.basicBlocks = [[]]
 						}
+
+
+		printError :: C.CmpError -> String -> IO ()
+		printError (C.CmpError (C.TextPos p l c, str)) source = do
+			putStrLn ("error " ++ show l ++ ":" ++ show c ++ " " ++ str ++ ":")
+			let sourceLines = lines source
+			unless (length sourceLines <= 1) $ putStrLn ("\t" ++ sourceLines !! (l-2))
+			unless (length sourceLines <= 0) $ putStrLn ("\t" ++ sourceLines !! (l-1))
+			putStrLn ("\t" ++ replicate (c-1) '-' ++ "^")

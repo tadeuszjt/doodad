@@ -1,3 +1,3 @@
-fn fib(x i64) i64 { if x <= 0 { return 0; } else if x == 1 { return 1; } else { return fib(x - 1) + fib(x - 2); } }
-
-print(fib(0), fib(1), fib(2), fib(3), fib(4), fib(5), fib(6), fib(7));
+x := 2;
+fn fib(x i64) i64 { if x <= 0 { return 0; } else if x == 1 { return 1; } return fib(x-1) + fib(x-2); } 
+print(fib(-1),fib(0),fib(1),fib(2),fib(3),fib(4),fib(5));

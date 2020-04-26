@@ -1,5 +1,3 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-
 module Compiler where
 
 import Prelude hiding (EQ)
@@ -12,244 +10,258 @@ import qualified Data.Map as Map
 import Data.List
 import Data.Char
 import Data.Maybe
+import qualified Data.ByteString.Char8    as BS
+import qualified Data.ByteString.Short    as BSS
 
 import qualified AST   as S
 import qualified Lexer as L
 import qualified SymTab
 import CmpState
 
-import LLVM.AST
+import LLVM.AST hiding (function)
 import LLVM.AST.Type hiding (void)
+import LLVM.AST.Typed
 import LLVM.AST.Name
-import LLVM.AST.Instruction
+import LLVM.AST.Instruction hiding (function)
 import LLVM.AST.IntegerPredicate
 import LLVM.AST.Linkage
 import LLVM.AST.CallingConvention
+import LLVM.AST.Global
 import LLVM.IRBuilder.Monad
-import qualified LLVM.IRBuilder.Module as IR 
+import LLVM.IRBuilder.Module 
+import LLVM.IRBuilder.Instruction
+import LLVM.IRBuilder.Constant
 import qualified LLVM.AST.Global   as G
 import qualified LLVM.AST.Constant as C
 
 
-codeGen :: CmpState -> S.AST -> ((Either CmpError (), [Definition]), CmpState)
+mkBSS = BSS.toShort . BS.pack
+
+
+type ModuleGen = ModuleBuilderT Cmp
+type InstrGen  = IRBuilderT ModuleGen
+
+
+look :: TextPos -> String -> ModuleGen Operand
+look pos symbol = do
+	(addr, ext) <- lift $ lookupSymbol pos symbol
+	when (isJust ext) $ do
+		isDec <- lift $ isDeclared symbol
+		unless isDec $ do
+			emitDefn (fromJust ext)
+			lift (addDeclared symbol)
+	return addr
+
+
+l2 = lift . lift
+
+
+codeGen :: CmpState -> S.AST -> (Either CmpError ((), [Definition]), CmpState)
 codeGen cmpState ast =
-	runState (IR.runModuleBuilderT IR.emptyModuleBuilder $ runExceptT $ getCmp cmp) cmpState
+	(runState . runExceptT . getCmp) (runModuleBuilderT emptyModuleBuilder cmp) cmpState
 	where
+		cmp :: ModuleGen ()
 		cmp = do
-			mapM_ reserveName ["printf", "puts"]
-			let printfName = mkName "printf"
-			let printfOp  = global (ptr $ FunctionType i32 [ptr i8] True) printfName
-			let printfExt = funcDef printfName i32 [(mkName "fmt", ptr i8)] True []
-			addSymbol ".printf" printfOp $ Just (printfName, printfExt)
+			function (mkName ".main") [] VoidType $ \_ ->
+				mapM_ cmpTopStmt ast
 
-			let boolStrName  = mkName ".boolStr"
-			let boolStrArray = C.Array i8 $ map (C.Int 8 . toInteger . ord) "false\x00true\x00"
-			let boolStrTyp   = typeOf (cons boolStrArray)
-			let boolStrOp    = global (ptr boolStrTyp) boolStrName
-			let boolStr      = globalVar boolStrTyp boolStrName True (Just boolStrArray)
-			addSymbol ".boolStr" boolStrOp $ Just (boolStrName, boolStr)
-
-			addBlock (mkName "entry") 
-			mapM_ cmpTopStmt ast
+			return ()
 
 
-cmpTopStmt :: S.Stmt -> Cmp ()
+cmpTopStmt :: S.Stmt -> InstrGen ()
 cmpTopStmt stmt = case stmt of
-	S.Set pos name expr -> cmpStmt stmt
-	S.Print pos exprs -> cmpStmt stmt
-	S.Block pos stmts -> cmpStmt stmt
-	S.CallStmt pos name args -> cmpStmt stmt
-	S.If pos expr block els -> cmpStmt stmt
+	S.Print _ _ -> cmpStmt stmt
+	S.CallStmt _ _ _ -> cmpStmt stmt
 
-	S.Assign pos name expr -> do
-		checkSymbolUndefined pos name
-
+	S.Assign pos symbol expr -> do
+		l2 (checkSymbolUndefined pos symbol)
 		val <- cmpExpr expr
+		fresh <- freshName (mkBSS symbol)
 		let typ = typeOf val
+		let ext = globalDef fresh typ Nothing
 
-		unName <- uniqueName name
-		let op = global (ptr typ) unName
-		let def = globalVar typ unName False
+		l2 (addDeclared symbol)
+		l2 (addExported fresh)
 
-		addSymbol name op $ Just (unName, def Nothing)
-		addDeclared unName
-		addExported unName
-		
-		if isCons val then
-			void $ IR.global unName typ (toCons val)
+		if isCons val then do
+			addr <- global fresh typ (toCons val)
+			l2 $ addSymbol symbol addr (Just ext)
 		else do
-			op <- IR.global unName typ (initOf typ)
-			store op val
+			addr <- global fresh typ (initOf typ)
+			l2 $ addSymbol symbol addr (Just ext)
+			void (store addr 0 val)
 
-	S.Func pos name params retType block -> do
-		checkSymbolUndefined pos name
-		unName <- uniqueName name
+	
+	S.Func pos symbol params retty stmts -> do
+		l2 (checkSymbolUndefined pos symbol)
+		name <- freshName (mkBSS symbol)
 
 		let mapType = \t -> case t of
 			S.I64 -> i64
 			S.TBool -> i1
 
-		let fnRetType = case retType of
-			Nothing -> VoidType
-			Just t  -> mapType t
+		let paramSymbols = map S.paramName params
+		let paramTypes   = map (mapType . S.paramType) params
+		let paramNames   = map (ParameterName . mkBSS) paramSymbols
+		let returnType   = maybe VoidType mapType retty
 
-		let fnType  = FunctionType fnRetType (map (mapType . S.paramType) params) False
-		let op      = global (ptr fnType) unName
-		addSymbol name op Nothing
-		addDeclared unName
+		let op = cons $ C.GlobalReference (ptr $ FunctionType returnType paramTypes False) name
+		let ext = funcDef name (zip paramTypes $ map mkName paramSymbols) returnType []
+		l2 (addDeclared symbol)
+		l2 (addExported name)
+		l2 $ addSymbol symbol op $ (Just ext)
 
-		pushSymTab
-		params' <- forM params $ \(S.Param pos name typ) -> do
-			checkSymbolUndefined pos name
-			unName <- uniqueName name
-			let typ' = mapType typ
-			addSymbol name (local (typ') unName) Nothing
-			return (unName, typ')
-			
-		pushBlocks
-		curTyp <- gets curRetType
-		modify $ \s -> s { curRetType = fnRetType }
-		addBlock (mkName "entry")
-		cmpStmt block
-		blocks <- popBlocks
-		modify $ \s -> s { curRetType = curTyp }
-		popSymTab
+		lift $ function name (zip paramTypes paramNames) returnType $ \args -> do
 
-		let ext = funcDef unName fnRetType params' False []
-		addSymbol name op $ Just (unName, ext)
-		addExported unName
-		IR.emitDefn $ funcDef unName fnRetType params' False blocks
-		--void $ IR.function unName [] fnRetType (\_ -> return ()) 
+			l2 pushSymTab
+			curRetType <- l2 getCurRetType
+			l2 (setCurRetType returnType)
+
+			forM (zip paramSymbols args) $ \(sym, arg) -> do
+				op <- alloca (typeOf arg) Nothing 0
+				store op 0 arg
+				l2 (addSymbol sym op Nothing)
+
+			mapM_ cmpStmt stmts
+			l2 (setCurRetType curRetType)
+			l2 popSymTab
+
+		return ()
 
 
-cmpStmt :: S.Stmt -> Cmp ()
+cmpStmt :: S.Stmt -> InstrGen ()
 cmpStmt stmt = case stmt of
-	S.Assign pos name expr -> do
-		checkSymbolUndefined pos name
-		unName <- uniqueName name
-
+	S.Assign pos symbol expr -> do
+		l2 (checkSymbolUndefined pos symbol)
 		val <- cmpExpr expr
-		let typ = typeOf val
-		let op = local typ unName
+		op <- alloca (typeOf val) Nothing 0
+		store op 0 val
+		l2 (addSymbol symbol op Nothing)
 
-		addSymbol name op Nothing
-		alloca typ unName
-		store op val
+	S.Set pos symbol expr -> do
+		op <- lift (look pos symbol)
+		store op 0 =<< cmpExpr expr
+
+	S.Block pos stmts -> do
+		l2 pushSymTab
+		mapM_ cmpStmt stmts
+		l2 popSymTab
+	
+	S.CallStmt pos symbol args -> do
+		op <- lift (look pos symbol)
+		paramTypes <- case typeOf op of
+			PointerType (FunctionType _ pts _) _ -> return pts
+			_                  -> l2 $ cmpErr pos (symbol ++ " isn't a function")
+
+		vals <- mapM cmpExpr args
+		unless (map typeOf vals == paramTypes) (l2 $ cmpErr pos "arg types don't match")
+		void $ call op [(val, []) | val <- vals]
 
 	S.Print pos exprs -> do
 		vals <- mapM cmpExpr exprs
 
 		fmtArgs <- forM vals $ \val -> case typeOf val of
 			IntegerType 1 -> do
-				boolStr <- lookupSymbol pos ".boolStr"
-				boolPtr <- subscript boolStr =<< select val (cons $ C.Int 8 0) (cons $ C.Int 8 6)
-				return ("%s", boolPtr)
-
+				str <- globalStringPtr "true\0false" =<< freshName (mkBSS "boolstr")
+				idx <- select val (int8 0) (int8 5)
+				ptr <- gep (cons str) [idx]
+				return ("%s", ptr)
 			IntegerType _ ->
 				return ("%d", val)
-
 			t ->
 				error ("can't print type: " ++ show t)
 
 		let fmts = map fst fmtArgs
 		let args = map snd fmtArgs
+		fmt <- globalStringPtr (intercalate ", " fmts ++ "\n") =<< freshName (mkBSS "fmt")
+		isDec <- l2 (isDeclared ".printf")
+		unless isDec $ do
+			l2 (addDeclared ".printf")
+			void . lift $ externVarArgs (mkName "printf") [ptr i8] i32
 
-		fmt <- bitcast (ptr i8) =<< string (intercalate ", " fmts ++ "\n")
-		op <- lookupSymbol pos ".printf"
-		void $ call op (fmt:args)
-
-	S.Set pos name expr -> do
-		op <- lookupSymbol pos name
-		store op =<< cmpExpr expr
+		let op = cons $ C.GlobalReference (ptr $ FunctionType i32 [ptr i8] True) (mkName "printf")
+		void $ call op $ [(arg, []) | arg <- (cons fmt):args]
 	
-	S.Block pos block -> do
-		pushSymTab
-		mapM_ cmpStmt block
-		popSymTab
-
-	S.CallStmt pos name args -> do
-		op <- lookupSymbol pos name
-		let typ = typeOf op
-		(retType, paramTypes) <- case typ of
-			FunctionType r pt _ -> return (r, pt)
-			_                   -> cmpErr pos (name ++ " isn't a function")
-
-		vals <- mapM cmpExpr args
-		unless (paramTypes == map typeOf vals) $ cmpErr pos "arg types don't match"
-		void $ call op vals
-
+	S.Return pos expr -> do
+		typ <- l2 getCurRetType
+		if isNothing expr then do
+			unless (typ == VoidType) (l2 $ cmpErr pos "return value required")
+			retVoid
+		else do
+			unless (typ /= VoidType) (l2 $ cmpErr pos "cannot return value in void function")
+			val <- cmpExpr (fromJust expr)
+			unless (typ == typeOf val) (l2 $ cmpErr pos "wrong type")
+			ret val
+		void block
+			
 	S.If pos expr block els -> do
 		cnd <- cmpExpr expr
-		unless (typeOf cnd == i1) $ cmpErr pos "expression isn't boolean"
-		true  <- uniqueName "if.true"
-		false <- uniqueName "if.false"
-		next  <- uniqueName "if.next"
-		terminator (cndBr cnd true false)
-		addBlock true
+		unless (typeOf cnd == i1) (l2 $ cmpErr pos "expression isn't boolean")
+		true <- freshName (mkBSS "if.true")
+		false <- freshName (mkBSS "if.false")
+		cont <- freshName (mkBSS "if.cont")
+		condBr cnd true false
+		emitBlockStart true
 		cmpStmt block
-		terminator (brk next)
-		addBlock false
+		br cont
+		emitBlockStart false
 		unless (isNothing els) $ cmpStmt (fromJust els)
-		terminator (brk next)
-		addBlock next
+		br cont
+		emitBlockStart cont
 
-	S.Return pos expr -> do
-		curTyp <- gets curRetType 
-		val <- case expr of
-			Nothing -> do
-				unless (curTyp == VoidType) (cmpErr pos "function requires return value")
-				return Nothing
-			Just ex -> do
-				val <- cmpExpr ex
-				unless (curTyp == typeOf val) (cmpErr pos "incorrect return type")
-				return (Just val)
 
-		terminator $ Do $ Ret val []
-		addBlock =<< unique
-
-cmpExpr :: S.Expr -> Cmp Operand
+cmpExpr :: S.Expr -> InstrGen Operand
 cmpExpr expr = case expr of
 	S.Int pos n ->
-		return $ cons (C.Int 64 $ toInteger n)
-
+		return (int64 n)
+	
 	S.Bool pos b ->
-		return $ cons (C.Int 1 $ if b then 1 else 0)
+		return $ bit (if b then 1 else 0)
 
-	S.Ident pos name -> do
-		op <- lookupSymbol pos name
-		if isPtr op then load op else return op
-
-	S.Call pos name args -> do
-		op <- lookupSymbol pos name
-		let typ = typeOf op
-		(retType, paramTypes) <- case typ of
-			FunctionType r pt _ -> return (r, pt)
-			_                   -> cmpErr pos (name ++ " isn't a function")
-
+	S.Ident pos symbol -> do
+		addr <- lift (look pos symbol)
+		load addr 0
+		
+	S.Call pos symbol args -> do
+		op <- lift (look pos symbol)
 		vals <- mapM cmpExpr args
-		let typs = map typeOf vals
 
-		unless (retType /= VoidType) $ cmpErr pos (name ++ "void function in expression")
-		unless (paramTypes == typs) $ cmpErr pos "arg types don't match"
+		typ <- case typeOf op of
+			PointerType t@(FunctionType _ _ _) _ -> return t
+			_                                    -> l2 $ cmpErr pos (symbol ++ " isn't a function")
 
-		fmap fromJust (call op vals)
+		let FunctionType retType argTypes _ = typ
+		when (retType == VoidType) (l2 $ cmpErr pos "cannot use a void function as an expression")
+		unless (map typeOf vals == argTypes) (l2 $ cmpErr pos "argument types don't match")
 
+		call op [(val, []) | val <- vals]
+	
+	S.Prefix pos op expr -> do
+		val <- cmpExpr expr
+		case typeOf val of
+			IntegerType 1 -> l2 (cmpErr pos "unsupported prefix")
+			IntegerType n -> case op of
+				S.Plus  -> return val
+				S.Minus -> sub val (int8 1)
+				_       -> l2 (cmpErr pos "unsupported prefix")
 
 	S.Infix pos op expr1 expr2 -> do
 		val1 <- cmpExpr expr1
 		val2 <- cmpExpr expr2
 
 		case (typeOf val1, typeOf val2) of
+			(IntegerType 1, IntegerType 1) -> do
+				l2 (cmpErr pos "unsupported infix")
 			(IntegerType aBits, IntegerType bBits) -> do
-				unless (aBits == bBits) $ cmpErr pos "integer types don't match"
-				case op of
-					S.Plus    -> add val1 val2
-					S.Minus   -> sub val1 val2
-					S.Times   -> mul val1 val2
-					S.Divide  -> idiv val1 val2
-					S.Mod     -> imod val1 val2
-					S.LT      -> icmp val1 val2 SLT
-					S.GT      -> icmp val1 val2 SGT
-					S.LTEq    -> icmp val1 val2 SLE
-					S.GTEq    -> icmp val1 val2 SGT
-					S.EqEq    -> icmp val1 val2 EQ
+				unless (aBits == bBits) (l2 $ cmpErr pos "integer types don't match")
+				(\f -> f val1 val2) $ case op of
+					S.Plus    -> add 
+					S.Minus   -> sub
+					S.Times   -> mul 
+					S.Divide  -> sdiv 
+					S.Mod     -> srem
+					S.LT      -> icmp SLT
+					S.GT      -> icmp SGT
+					S.LTEq    -> icmp SLE
+					S.GTEq    -> icmp SGT
+					S.EqEq    -> icmp EQ

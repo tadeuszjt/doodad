@@ -74,8 +74,8 @@ StmtS : ident ':=' Expr             { S.Assign (tokPosn $2) (L.tokStr $1) $3 }
 	  | return Expr                 { S.Return (tokPosn $1) (Just $2) }
 
 StmtB : Block                              { $1 }
-      | fn ident '(' Params ')' Block      { S.Func (tokPosn $1) (L.tokStr $2) $4 Nothing $6 }
-      | fn ident '(' Params ')' Type Block { S.Func (tokPosn $1) (L.tokStr $2) $4 (Just $6) $7 }
+      | fn ident '(' Params ')' Prog       { S.Func (tokPosn $1) (L.tokStr $2) $4 Nothing $6 }
+      | fn ident '(' Params ')' Type Prog  { S.Func (tokPosn $1) (L.tokStr $2) $4 (Just $6) $7 }
 	  | If                                 { $1 }
 
 
@@ -95,6 +95,7 @@ Expr : int                          { S.Int (tokPosn $1) (read $ L.tokStr $1) }
 	 | false                        { S.Bool (tokPosn $1) False }
 	 | ident                        { S.Ident (tokPosn $1) (L.tokStr $1) }
 	 | ident '(' Args ')'           { S.Call (tokPosn $1) (L.tokStr $1) $3 }
+	 | '-' Expr                     { S.Prefix (tokPosn $1) S.Minus $2 }
 	 | Expr '+' Expr                { S.Infix (tokPosn $2) S.Plus $1 $3 }
 	 | Expr '-' Expr                { S.Infix (tokPosn $2) S.Minus $1 $3 }
 	 | Expr '*' Expr                { S.Infix (tokPosn $2) S.Times $1 $3 }

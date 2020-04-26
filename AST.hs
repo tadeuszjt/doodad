@@ -39,10 +39,11 @@ data Type
 
 
 data Expr
-    = Int   Posn Int
+    = Int   Posn Integer
 	| Bool  Posn Bool
     | Ident Posn String 
     | Infix Posn Op Expr Expr
+	| Prefix Posn Op Expr
 	| Call  Posn String [Expr]
     deriving (Show, Eq)
 
@@ -52,7 +53,7 @@ data Stmt
 	| Set Posn String Expr
 	| Print  Posn [Expr]
 	| Block Posn [Stmt]
-	| Func Posn String [Param] (Maybe Type) Stmt
+	| Func Posn String [Param] (Maybe Type) [Stmt]
 	| CallStmt Posn String [Expr]
 	| If Posn Expr Stmt (Maybe Stmt)
 	| Return Posn (Maybe Expr)
