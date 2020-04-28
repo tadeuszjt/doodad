@@ -1,38 +1,38 @@
 module Compiler where
 
-import Prelude hiding (EQ)
-import Control.Monad
-import Control.Monad.Except hiding (void)
-import Control.Monad.State hiding (void)
-import Control.Monad.Fail
-import qualified Data.Set as Set
-import qualified Data.Map as Map
-import Data.List
-import Data.Char
-import Data.Maybe
-import qualified Data.ByteString.Char8    as BS
-import qualified Data.ByteString.Short    as BSS
+import           Control.Monad
+import           Control.Monad.Except       hiding (void)
+import           Control.Monad.Fail
+import           Control.Monad.State        hiding (void)
+import qualified Data.ByteString.Char8      as BS
+import qualified Data.ByteString.Short      as BSS
+import           Data.Char
+import           Data.List                  hiding (and, or)
+import qualified Data.Map                   as Map
+import           Data.Maybe
+import qualified Data.Set                   as Set
+import           Prelude                    hiding (EQ, and, or)
 
-import qualified AST   as S
-import qualified Lexer as L
+import qualified AST                        as S
+import           CmpState
+import qualified Lexer                      as L
 import qualified SymTab
-import CmpState
 
-import LLVM.AST hiding (function)
-import LLVM.AST.Type hiding (void)
-import LLVM.AST.Typed
-import LLVM.AST.Name
-import LLVM.AST.Instruction hiding (function)
-import LLVM.AST.IntegerPredicate
-import LLVM.AST.Linkage
-import LLVM.AST.CallingConvention
-import LLVM.AST.Global
-import LLVM.IRBuilder.Monad
-import LLVM.IRBuilder.Module 
-import LLVM.IRBuilder.Instruction
-import LLVM.IRBuilder.Constant
-import qualified LLVM.AST.Global   as G
-import qualified LLVM.AST.Constant as C
+import           LLVM.AST                   hiding (function)
+import           LLVM.AST.CallingConvention
+import qualified LLVM.AST.Constant          as C
+import           LLVM.AST.Global
+import qualified LLVM.AST.Global            as G
+import           LLVM.AST.Instruction       hiding (function)
+import           LLVM.AST.IntegerPredicate
+import           LLVM.AST.Linkage
+import           LLVM.AST.Name
+import           LLVM.AST.Type              hiding (void)
+import           LLVM.AST.Typed
+import           LLVM.IRBuilder.Constant
+import           LLVM.IRBuilder.Instruction
+import           LLVM.IRBuilder.Module
+import           LLVM.IRBuilder.Monad
 
 
 mkBSS = BSS.toShort . BS.pack
@@ -53,6 +53,31 @@ look pos symbol = do
 	return addr
 
 
+for :: Operand -> (Operand -> InstrGen ()) -> InstrGen ()
+for num f = do
+	forCond <- freshName (mkBSS "for.cond")
+	forBody <- freshName (mkBSS "for.body")
+	forExit <- freshName (mkBSS "for.exit")
+
+	i <- alloca i64 Nothing 0
+	store i 0 (int64 0)
+	br forCond
+
+	emitBlockStart forCond
+	li <- load i 0
+	cnd <- icmp SLT li num 
+	condBr cnd forBody forExit
+
+	emitBlockStart forBody
+	store i 0 =<< add li (int64 1)
+	f li
+	br forCond
+
+	emitBlockStart forExit
+	return ()
+
+
+
 l2 = lift . lift
 
 
@@ -62,39 +87,40 @@ codeGen cmpState ast =
 	where
 		cmp :: ModuleGen ()
 		cmp = do
-			function (mkName ".main") [] VoidType $ \_ ->
+			function (mkName "main") [] VoidType $ \_ ->
 				mapM_ cmpTopStmt ast
-
 			return ()
 
 
 cmpTopStmt :: S.Stmt -> InstrGen ()
 cmpTopStmt stmt = case stmt of
-	S.Print _ _ -> cmpStmt stmt
+	S.Print _ _      -> cmpStmt stmt
 	S.CallStmt _ _ _ -> cmpStmt stmt
+	S.Map _ _ _      -> cmpStmt stmt
 
 	S.Assign pos symbol expr -> do
 		l2 (checkSymbolUndefined pos symbol)
 		val <- cmpExpr expr
-		fresh <- freshName (mkBSS symbol)
+		name <- freshName (mkBSS symbol)
 		let typ = typeOf val
-		let ext = globalDef fresh typ Nothing
+		let ext = globalDef name typ Nothing
 
 		l2 (addDeclared symbol)
-		l2 (addExported fresh)
+		l2 (addExported name)
 
 		if isCons val then do
-			addr <- global fresh typ (toCons val)
+			addr <- global name typ (toCons val)
 			l2 $ addSymbol symbol addr (Just ext)
 		else do
-			addr <- global fresh typ (initOf typ)
+			addr <- global name typ (initOf typ)
 			l2 $ addSymbol symbol addr (Just ext)
 			void (store addr 0 val)
 
-	
+
 	S.Func pos symbol params retty stmts -> do
 		l2 (checkSymbolUndefined pos symbol)
 		name <- freshName (mkBSS symbol)
+		let Name nameStr = name	
 
 		let mapType = \t -> case t of
 			S.I64 -> i64
@@ -111,8 +137,7 @@ cmpTopStmt stmt = case stmt of
 		l2 (addExported name)
 		l2 $ addSymbol symbol op $ (Just ext)
 
-		lift $ function name (zip paramTypes paramNames) returnType $ \args -> do
-
+		lift $ function name (zip paramTypes paramNames) returnType $ \args -> (flip named) nameStr $ do
 			l2 pushSymTab
 			curRetType <- l2 getCurRetType
 			l2 (setCurRetType returnType)
@@ -146,7 +171,7 @@ cmpStmt stmt = case stmt of
 		l2 pushSymTab
 		mapM_ cmpStmt stmts
 		l2 popSymTab
-	
+
 	S.CallStmt pos symbol args -> do
 		op <- lift (look pos symbol)
 		paramTypes <- case typeOf op of
@@ -162,18 +187,27 @@ cmpStmt stmt = case stmt of
 
 		fmtArgs <- forM vals $ \val -> case typeOf val of
 			IntegerType 1 -> do
-				str <- globalStringPtr "true\0false" =<< freshName (mkBSS "boolstr")
+				str <- globalStringPtr "true\0false" =<< fresh
 				idx <- select val (int8 0) (int8 5)
 				ptr <- gep (cons str) [idx]
 				return ("%s", ptr)
 			IntegerType _ ->
 				return ("%d", val)
+			PointerType (IntegerType 8) _ ->
+				return ("%s", val)
+			PointerType (ArrayType n t) _ -> do
+				for (int64 $ fromIntegral n) $ \i -> do
+					ptr <- gep val [int64 0, i]
+					elem <- load ptr 0
+					return ()
+				return ("%d", val)
+
 			t ->
 				error ("can't print type: " ++ show t)
 
 		let fmts = map fst fmtArgs
 		let args = map snd fmtArgs
-		fmt <- globalStringPtr (intercalate ", " fmts ++ "\n") =<< freshName (mkBSS "fmt")
+		fmt <- globalStringPtr (intercalate ", " fmts ++ "\n") =<< fresh
 		isDec <- l2 (isDeclared ".printf")
 		unless isDec $ do
 			l2 (addDeclared ".printf")
@@ -181,7 +215,41 @@ cmpStmt stmt = case stmt of
 
 		let op = cons $ C.GlobalReference (ptr $ FunctionType i32 [ptr i8] True) (mkName "printf")
 		void $ call op $ [(arg, []) | arg <- (cons fmt):args]
-	
+
+	S.Map pos symbol expr -> do
+		val <- cmpExpr expr
+		(elemType, len) <- case typeOf val of
+			PointerType (ArrayType n t) _ -> return (t, n)
+			_ -> l2 (cmpErr pos "expression isn't an array")
+
+		fun <- lift (look pos symbol)
+		argTypes <- case typeOf fun of
+			PointerType (FunctionType _ at _) _ -> return at
+			_ -> l2 $ cmpErr pos (symbol ++ " isn't a function")
+
+		unless (argTypes == [elemType]) (l2 $ cmpErr pos "incorrect function type")
+
+		forLoop <- freshName (mkBSS "for.loop")
+		forBody <- freshName (mkBSS "for.body")
+		forExit <- freshName (mkBSS "for.exit")
+
+		i <- alloca i64 Nothing 0
+		store i 0 (int64 0)
+		br forLoop
+		emitBlockStart forLoop
+		li <- load i 0
+		cnd <- icmp SLT li (int64 $ fromIntegral len)
+		condBr cnd forBody forExit
+		emitBlockStart forBody
+		ptr <- gep val [int64 0, li]
+		elem <- load ptr 0
+		call fun [(elem, [])]
+		store i 0 =<< add li (int64 1)
+		br forLoop
+		emitBlockStart forExit
+		return ()
+
+
 	S.Return pos expr -> do
 		typ <- l2 getCurRetType
 		if isNothing expr then do
@@ -193,7 +261,7 @@ cmpStmt stmt = case stmt of
 			unless (typ == typeOf val) (l2 $ cmpErr pos "wrong type")
 			ret val
 		void block
-			
+
 	S.If pos expr block els -> do
 		cnd <- cmpExpr expr
 		unless (typeOf cnd == i1) (l2 $ cmpErr pos "expression isn't boolean")
@@ -214,14 +282,14 @@ cmpExpr :: S.Expr -> InstrGen Operand
 cmpExpr expr = case expr of
 	S.Int pos n ->
 		return (int64 n)
-	
+
 	S.Bool pos b ->
 		return $ bit (if b then 1 else 0)
 
 	S.Ident pos symbol -> do
 		addr <- lift (look pos symbol)
 		load addr 0
-		
+
 	S.Call pos symbol args -> do
 		op <- lift (look pos symbol)
 		vals <- mapM cmpExpr args
@@ -235,14 +303,32 @@ cmpExpr expr = case expr of
 		unless (map typeOf vals == argTypes) (l2 $ cmpErr pos "argument types don't match")
 
 		call op [(val, []) | val <- vals]
-	
+
+	S.Array pos exprs -> do
+		vals <- mapM cmpExpr exprs
+		let typ = typeOf (head vals)
+		let num = fromIntegral (length vals)
+		unless (num > 0) (l2 $ cmpErr pos "cannot deduce array type")
+		unless (all (== typ) (map typeOf vals)) (l2 $ cmpErr pos "element types don't match")
+
+		name <- fresh
+
+		if all isCons vals then
+			lift $ global name (ArrayType num typ) (C.Array typ $ map toCons vals)
+		else
+			l2 (cmpErr pos "todo")
+
+	S.String pos str -> do
+		ptr <- globalStringPtr str =<< fresh
+		return (cons ptr)
+
 	S.Prefix pos op expr -> do
 		val <- cmpExpr expr
 		case typeOf val of
 			IntegerType 1 -> l2 (cmpErr pos "unsupported prefix")
 			IntegerType n -> case op of
 				S.Plus  -> return val
-				S.Minus -> sub val (int8 1)
+				S.Minus -> sub (cons $ C.Int n 0) val
 				_       -> l2 (cmpErr pos "unsupported prefix")
 
 	S.Infix pos op expr1 expr2 -> do
@@ -251,17 +337,23 @@ cmpExpr expr = case expr of
 
 		case (typeOf val1, typeOf val2) of
 			(IntegerType 1, IntegerType 1) -> do
-				l2 (cmpErr pos "unsupported infix")
+				case op of
+					S.EqEq   -> icmp EQ val1 val2
+					S.AndAnd -> and val1 val2
+					S.OrOr   -> or val1 val2
+					_        -> l2 (cmpErr pos "unsupported prefix")
+
 			(IntegerType aBits, IntegerType bBits) -> do
 				unless (aBits == bBits) (l2 $ cmpErr pos "integer types don't match")
-				(\f -> f val1 val2) $ case op of
-					S.Plus    -> add 
-					S.Minus   -> sub
-					S.Times   -> mul 
-					S.Divide  -> sdiv 
-					S.Mod     -> srem
-					S.LT      -> icmp SLT
-					S.GT      -> icmp SGT
-					S.LTEq    -> icmp SLE
-					S.GTEq    -> icmp SGT
-					S.EqEq    -> icmp EQ
+				case op of
+					S.Plus   -> add val1 val2
+					S.Minus  -> sub val1 val2
+					S.Times  -> mul val1 val2
+					S.Divide -> sdiv val1 val2
+					S.Mod    -> srem val1 val2
+					S.LT     -> icmp SLT val1 val2 >>= \i -> trunc i i1
+					S.GT     -> icmp SGT val1 val2 >>= \i -> trunc i i1
+					S.LTEq   -> icmp SLE val1 val2 >>= \i -> trunc i i1
+					S.GTEq   -> icmp SGT val1 val2 >>= \i -> trunc i i1
+					S.EqEq   -> icmp EQ val1 val2 >>= \i -> trunc i i1
+					_        -> l2 (cmpErr pos "unsupported prefix")

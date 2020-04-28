@@ -14,10 +14,11 @@ where
 $white  = [\ \t\n]
 $digit  = 0-9
 $alpha  = [a-zA-Z]
-$symbol = [\{\}\(\)\,\;]
+$symbol = [\{\}\(\)\[\]\,\;]
 
 @types      = i64 | bool
-@reserved   = fn | for | if | else | return | print | true | false | @types
+@keywords   = fn | for | if | else | return | print | map | true | false
+@reserved   = @keywords | @types
 @reservedOp = [\+\-\*\/\%\<\>\=] | ":=" | "==" | "<=" | ">=" | "||" | "&&"
 
 tokens :-
@@ -27,11 +28,13 @@ tokens :-
 	@reservedOp                { mkT ReservedOp }
 	$alpha [$alpha $digit \_]* { mkT Ident }
 	$digit+                    { mkT Int }
+	\" [$white $alpha $digit \_]* \" { mkT String }
 
 
 {
 
 mkT :: TokenType -> AlexInput -> Int -> Alex Token
+mkT String (p,_,_,s) len = return $ Token p String (drop 1 (take (len-1) s))
 mkT t (p,_,_,s) len = return $ Token p t (take len s)
 
 alexEOF = return (Token undefined EOF "")
@@ -62,6 +65,7 @@ data TokenType
 	| ReservedOp
 	| Ident
 	| Int
+	| String
 	| EOF
 	deriving (Show, Eq)
 }

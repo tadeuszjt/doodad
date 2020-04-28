@@ -1,6 +1,7 @@
 {-# LANGUAGE ForeignFunctionInterface #-}
 module Main where
 
+import           Control.Monad
 import           Control.Monad.Except     hiding (void)
 import qualified Data.ByteString.Char8    as BS
 import qualified Data.ByteString.Short    as BSS
@@ -14,7 +15,6 @@ import           System.IO
 
 import           LLVM.AST
 import           LLVM.AST.Global
-import           LLVM.AST.Type
 import qualified LLVM.CodeGenOpt          as CodeGenOpt
 import qualified LLVM.CodeModel           as CodeModel
 import           LLVM.Context
@@ -56,7 +56,13 @@ main = do
 							withSymbolResolver es (myResolver cl) $ \psr -> do
 								writeIORef resolvers [psr]
 								loadLibraryPermanently Nothing
-								repl ctx es cl pm verbose dontOptimise
+
+								if length args > 0 && head (head args) /= '-' then
+									withFile (head args) ReadMode $ \h -> do
+										content <- hGetContents h
+										void (compile C.initCmpState content ctx es cl pm verbose dontOptimise)
+								else
+									repl ctx es cl pm verbose dontOptimise
 
 	where
 		myResolver :: IRCompileLayer ObjectLinkingLayer -> SymbolResolver
@@ -81,21 +87,29 @@ repl ctx es cl pm verbose dontOptimise = runInputT defaultSettings (loop C.initC
 				Nothing    -> return ()
 				Just "q"   -> return ()
 				Just ""    -> loop state
-				Just input -> liftIO (compile state input) >>= loop
+				Just input -> liftIO (compile state input ctx es cl pm verbose dontOptimise) >>= loop
 
 
-		compile :: C.CmpState -> String -> IO C.CmpState
-		compile state source =
-			case L.alexScanner source of
-				Left  errStr -> putStrLn errStr >> return state
-				Right tokens -> case (P.parseTokens tokens) 0 of
-					P.ParseOk ast -> do
-						let (res, state') = C.codeGen state ast
-						case res of
-							Left err -> printError err source >> return state
-							Right ((), defs) -> jitAndRun defs state'
-
-
+compile
+	:: C.CmpState
+	-> String
+	-> Context
+	-> ExecutionSession
+	-> IRCompileLayer ObjectLinkingLayer
+	-> PassManager
+	-> Bool
+	-> Bool
+	-> IO C.CmpState
+compile state source ctx es cl pm verbose dontOptimise =
+	case L.alexScanner source of
+		Left  errStr -> putStrLn errStr >> return state
+		Right tokens -> case (P.parseTokens tokens) 0 of
+			P.ParseOk ast -> do
+				let (res, state') = C.codeGen state ast
+				case res of
+					Left err -> printError err source >> return state
+					Right ((), defs) -> jitAndRun defs state'
+	where
 		jitAndRun :: [Definition] -> C.CmpState -> IO C.CmpState
 		jitAndRun defs state = do
 			let exported = C.exported state
@@ -107,7 +121,7 @@ repl ctx es cl pm verbose dontOptimise = runInputT defaultSettings (loop C.initC
 						when verbose $ putStrLn ("optimisation pass: " ++ show passRes)
 					when verbose $ BS.putStrLn =<< M.moduleLLVMAssembly mod
 					addModule cl modKey mod
-					mangled <- mangleSymbol cl (mkBSS ".main")
+					mangled <- mangleSymbol cl (mkBSS "main")
 					res <- findSymbolIn cl modKey mangled False
 					case res of
 						Left _                -> putStrLn "linkage error"

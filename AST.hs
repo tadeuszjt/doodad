@@ -1,7 +1,7 @@
-	module AST where
+module AST where
 
-import qualified Lexer as L
 import qualified CmpState
+import qualified Lexer    as L
 
 type Posn = CmpState.TextPos
 type AST  = [Stmt]
@@ -41,10 +41,12 @@ data Type
 data Expr
     = Int   Posn Integer
 	| Bool  Posn Bool
-    | Ident Posn String 
+    | Ident Posn String
     | Infix Posn Op Expr Expr
+	| Array Posn [Expr]
 	| Prefix Posn Op Expr
 	| Call  Posn String [Expr]
+	| String Posn String
     deriving (Show, Eq)
 
 
@@ -52,6 +54,7 @@ data Stmt
 	= Assign Posn String Expr
 	| Set Posn String Expr
 	| Print  Posn [Expr]
+	| Map Posn String Expr
 	| Block Posn [Stmt]
 	| Func Posn String [Param] (Maybe Type) [Stmt]
 	| CallStmt Posn String [Expr]

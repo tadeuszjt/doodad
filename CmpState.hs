@@ -121,6 +121,8 @@ checkSymbolUndefined pos name =
 initOf :: Type -> C.Constant
 initOf typ = case typ of
 	IntegerType nbits -> C.Int nbits 0
+	ArrayType n t     -> C.Array t (replicate (fromIntegral n) (initOf t))
+	_                 -> error (show typ)
 
 
 isCons :: Operand -> Bool

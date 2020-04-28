@@ -41,6 +41,7 @@ import qualified CmpState as C
     for        { L.Token _ L.Reserved "for" }
     return     { L.Token _ L.Reserved "return" }
     print      { L.Token _ L.Reserved "print" }
+    map        { L.Token _ L.Reserved "map" }
 	true       { L.Token _ L.Reserved "true" }
 	false      { L.Token _ L.Reserved "false" }
 
@@ -54,8 +55,12 @@ import qualified CmpState as C
     ')'        { L.Token _ L.Sym ")" }
     '{'        { L.Token _ L.Sym "{" }
     '}'        { L.Token _ L.Sym "}" }
+	'['        { L.Token _ L.Sym "[" }
+	']'        { L.Token _ L.Sym "]" }
     ','        { L.Token _ L.Sym "," }
     ';'        { L.Token _ L.Sym ";" }
+	 
+	string     { L.Token _ L.String _ }
 
 	%%
 
@@ -72,11 +77,12 @@ StmtS : ident ':=' Expr             { S.Assign (tokPosn $2) (L.tokStr $1) $3 }
 	  | ident '(' Args ')'          { S.CallStmt (tokPosn $1) (L.tokStr $1) $3 }
 	  | return                      { S.Return (tokPosn $1) Nothing }
 	  | return Expr                 { S.Return (tokPosn $1) (Just $2) }
+	  | map ident Expr              { S.Map (tokPosn $1) (L.tokStr $2) $3 }
 
-StmtB : Block                              { $1 }
-      | fn ident '(' Params ')' Prog       { S.Func (tokPosn $1) (L.tokStr $2) $4 Nothing $6 }
-      | fn ident '(' Params ')' Type Prog  { S.Func (tokPosn $1) (L.tokStr $2) $4 (Just $6) $7 }
-	  | If                                 { $1 }
+StmtB : Block                                     { $1 }
+      | fn ident '(' Params ')' '{' Prog '}'      { S.Func (tokPosn $1) (L.tokStr $2) $4 Nothing $7 }
+      | fn ident '(' Params ')' Type '{' Prog '}' { S.Func (tokPosn $1) (L.tokStr $2) $4 (Just $6) $8 }
+	  | If                                        { $1 }
 
 
 If : if Expr Block                  { S.If (tokPosn $1) $2 $3 Nothing }
@@ -94,8 +100,10 @@ Expr : int                          { S.Int (tokPosn $1) (read $ L.tokStr $1) }
 	 | true                         { S.Bool (tokPosn $1) True }
 	 | false                        { S.Bool (tokPosn $1) False }
 	 | ident                        { S.Ident (tokPosn $1) (L.tokStr $1) }
+	 | string                       { S.String (tokPosn $1) (L.tokStr $1) }
 	 | ident '(' Args ')'           { S.Call (tokPosn $1) (L.tokStr $1) $3 }
 	 | '-' Expr                     { S.Prefix (tokPosn $1) S.Minus $2 }
+	 | '[' Args ']'                 { S.Array (tokPosn $1) $2 }
 	 | Expr '+' Expr                { S.Infix (tokPosn $2) S.Plus $1 $3 }
 	 | Expr '-' Expr                { S.Infix (tokPosn $2) S.Minus $1 $3 }
 	 | Expr '*' Expr                { S.Infix (tokPosn $2) S.Times $1 $3 }
@@ -106,6 +114,8 @@ Expr : int                          { S.Int (tokPosn $1) (read $ L.tokStr $1) }
 	 | Expr '<=' Expr               { S.Infix (tokPosn $2) S.LTEq $1 $3 }
 	 | Expr '>=' Expr               { S.Infix (tokPosn $2) S.GTEq $1 $3 }
 	 | Expr '==' Expr               { S.Infix (tokPosn $2) S.EqEq $1 $3 }
+	 | Expr '&&' Expr               { S.Infix (tokPosn $2) S.AndAnd $1 $3 }
+	 | Expr '||' Expr               { S.Infix (tokPosn $2) S.OrOr $1 $3 }
 
 Args : {- empty -}                  { [] }
 	 | Args_                        { $1 }
