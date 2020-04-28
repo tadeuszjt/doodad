@@ -2,31 +2,15 @@ module Compiler where
 
 import           Control.Monad
 import           Control.Monad.Except       hiding (void)
-import           Control.Monad.Fail
 import           Control.Monad.State        hiding (void)
 import qualified Data.ByteString.Char8      as BS
 import qualified Data.ByteString.Short      as BSS
-import           Data.Char
-import           Data.List                  hiding (and, or)
-import qualified Data.Map                   as Map
 import           Data.Maybe
-import qualified Data.Set                   as Set
 import           Prelude                    hiding (EQ, and, or)
 
-import qualified AST                        as S
-import           CmpState
-import qualified Lexer                      as L
-import qualified SymTab
-
 import           LLVM.AST                   hiding (function)
-import           LLVM.AST.CallingConvention
 import qualified LLVM.AST.Constant          as C
-import           LLVM.AST.Global
-import qualified LLVM.AST.Global            as G
-import           LLVM.AST.Instruction       hiding (function)
 import           LLVM.AST.IntegerPredicate
-import           LLVM.AST.Linkage
-import           LLVM.AST.Name
 import           LLVM.AST.Type              hiding (void)
 import           LLVM.AST.Typed
 import           LLVM.IRBuilder.Constant
@@ -34,51 +18,10 @@ import           LLVM.IRBuilder.Instruction
 import           LLVM.IRBuilder.Module
 import           LLVM.IRBuilder.Monad
 
-
-mkBSS = BSS.toShort . BS.pack
-
-
-type ModuleGen = ModuleBuilderT Cmp
-type InstrGen  = IRBuilderT ModuleGen
-
-
-look :: TextPos -> String -> ModuleGen Operand
-look pos symbol = do
-	(addr, ext) <- lift $ lookupSymbol pos symbol
-	when (isJust ext) $ do
-		isDec <- lift $ isDeclared symbol
-		unless isDec $ do
-			emitDefn (fromJust ext)
-			lift (addDeclared symbol)
-	return addr
-
-
-for :: Operand -> (Operand -> InstrGen ()) -> InstrGen ()
-for num f = do
-	forCond <- freshName (mkBSS "for.cond")
-	forBody <- freshName (mkBSS "for.body")
-	forExit <- freshName (mkBSS "for.exit")
-
-	i <- alloca i64 Nothing 0
-	store i 0 (int64 0)
-	br forCond
-
-	emitBlockStart forCond
-	li <- load i 0
-	cnd <- icmp SLT li num 
-	condBr cnd forBody forExit
-
-	emitBlockStart forBody
-	store i 0 =<< add li (int64 1)
-	f li
-	br forCond
-
-	emitBlockStart forExit
-	return ()
-
-
-
-l2 = lift . lift
+import qualified Lexer                      as L
+import qualified AST                        as S
+import           CmpState
+import           CmpBuilder
 
 
 codeGen :: CmpState -> S.AST -> (Either CmpError ((), [Definition]), CmpState)
@@ -184,37 +127,35 @@ cmpStmt stmt = case stmt of
 
 	S.Print pos exprs -> do
 		vals <- mapM cmpExpr exprs
+		sep <- globalStringPtr ", " =<< fresh
 
-		fmtArgs <- forM vals $ \val -> case typeOf val of
-			IntegerType 1 -> do
-				str <- globalStringPtr "true\0false" =<< fresh
-				idx <- select val (int8 0) (int8 5)
-				ptr <- gep (cons str) [idx]
-				return ("%s", ptr)
-			IntegerType _ ->
-				return ("%d", val)
-			PointerType (IntegerType 8) _ ->
-				return ("%s", val)
-			PointerType (ArrayType n t) _ -> do
-				for (int64 $ fromIntegral n) $ \i -> do
-					ptr <- gep val [int64 0, i]
-					elem <- load ptr 0
+		forM_ vals $ \val -> do
+			case typeOf val of
+				IntegerType 1 -> do
+					str <- globalStringPtr "true\0false" =<< fresh
+					idx <- select val (int8 0) (int8 5)
+					ptr <- gep (cons str) [idx]
 					return ()
-				return ("%d", val)
+				IntegerType _ ->
+					void (printf "%d" [val])
+				PointerType (IntegerType 8) _ ->
+					void $ printf "%s" [val]
+				PointerType (ArrayType n t) _ -> do
+					putchar '['
+					for (int64 $ fromIntegral n) $ \i -> do
+						ptr <- gep val [int64 0, i]
+						elem <- load ptr 0
+						printf "%d, " [elem]
+						return ()
+					putchar ']'
+					return ()
+				t ->
+					error ("can't print type: " ++ show t)
 
-			t ->
-				error ("can't print type: " ++ show t)
+			printf "%s" [cons sep]
 
-		let fmts = map fst fmtArgs
-		let args = map snd fmtArgs
-		fmt <- globalStringPtr (intercalate ", " fmts ++ "\n") =<< fresh
-		isDec <- l2 (isDeclared ".printf")
-		unless isDec $ do
-			l2 (addDeclared ".printf")
-			void . lift $ externVarArgs (mkName "printf") [ptr i8] i32
+		void (putchar '\n')
 
-		let op = cons $ C.GlobalReference (ptr $ FunctionType i32 [ptr i8] True) (mkName "printf")
-		void $ call op $ [(arg, []) | arg <- (cons fmt):args]
 
 	S.Map pos symbol expr -> do
 		val <- cmpExpr expr
@@ -229,25 +170,10 @@ cmpStmt stmt = case stmt of
 
 		unless (argTypes == [elemType]) (l2 $ cmpErr pos "incorrect function type")
 
-		forLoop <- freshName (mkBSS "for.loop")
-		forBody <- freshName (mkBSS "for.body")
-		forExit <- freshName (mkBSS "for.exit")
-
-		i <- alloca i64 Nothing 0
-		store i 0 (int64 0)
-		br forLoop
-		emitBlockStart forLoop
-		li <- load i 0
-		cnd <- icmp SLT li (int64 $ fromIntegral len)
-		condBr cnd forBody forExit
-		emitBlockStart forBody
-		ptr <- gep val [int64 0, li]
-		elem <- load ptr 0
-		call fun [(elem, [])]
-		store i 0 =<< add li (int64 1)
-		br forLoop
-		emitBlockStart forExit
-		return ()
+		for (int64 $ fromIntegral len) $ \i -> do
+			ptr <- gep val [int64 0, i]
+			elem <- load ptr 0
+			void $ call fun [(elem, [])]
 
 
 	S.Return pos expr -> do
@@ -280,11 +206,9 @@ cmpStmt stmt = case stmt of
 
 cmpExpr :: S.Expr -> InstrGen Operand
 cmpExpr expr = case expr of
-	S.Int pos n ->
-		return (int64 n)
-
-	S.Bool pos b ->
-		return $ bit (if b then 1 else 0)
+	S.Int pos n      -> return (int64 n)
+	S.Bool pos b     -> return $ bit (if b then 1 else 0)
+	S.String pos str -> fmap cons (globalStringPtr str =<< fresh)
 
 	S.Ident pos symbol -> do
 		addr <- lift (look pos symbol)
@@ -317,10 +241,6 @@ cmpExpr expr = case expr of
 			lift $ global name (ArrayType num typ) (C.Array typ $ map toCons vals)
 		else
 			l2 (cmpErr pos "todo")
-
-	S.String pos str -> do
-		ptr <- globalStringPtr str =<< fresh
-		return (cons ptr)
 
 	S.Prefix pos op expr -> do
 		val <- cmpExpr expr
