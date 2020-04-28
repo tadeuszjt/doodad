@@ -12,15 +12,7 @@ import Data.List
 import Data.Char
 import Data.Maybe
 
-import LLVM.AST
 import LLVM.AST.Type hiding (void)
-import LLVM.AST.Name
-import LLVM.AST.Instruction
-import LLVM.AST.Linkage
-import LLVM.AST.CallingConvention
-import LLVM.AST.IntegerPredicate
-import qualified LLVM.AST.Global   as G
-import qualified LLVM.AST.Constant as C
 
 import qualified SymTab
 
@@ -39,117 +31,92 @@ newtype CmpError
 	deriving (Show)
 
 
-data CmpState
+data CmpState o d
 	= CmpState
-		{ symTab       :: SymTab.SymTab String (Operand, Maybe Definition)
+		{ symTab       :: SymTab.SymTab String o
+		, externs      :: Map.Map String d
 		, declared     :: Set.Set String
+		, exported     :: Set.Set String
 		, curRetType   :: Type
-		, exported     :: Set.Set Name
 		}
 
 
-newtype Cmp a
-	= Cmp { getCmp :: ExceptT CmpError (State CmpState) a }
-	deriving (Functor, Applicative, Monad, MonadError CmpError, MonadState CmpState, MonadFix)
+newtype Cmp o d a
+	= Cmp { getCmp :: ExceptT CmpError (State (CmpState o d)) a }
+	deriving (Functor, Applicative, Monad, MonadError CmpError, MonadState (CmpState o d), MonadFix)
 
 
 initCmpState = CmpState
 	{ symTab       = SymTab.initSymTab
+	, externs      = Map.empty
 	, declared     = Set.empty
-	, curRetType   = VoidType
 	, exported     = Set.empty
+	, curRetType   = VoidType
 	}
 
 
-cmpErr :: TextPos -> String -> Cmp a
+cmpErr :: TextPos -> String -> Cmp o d a
 cmpErr pos str = throwError $ CmpError (pos, str)
 
 
-addDeclared :: String -> Cmp ()
+addDeclared :: String -> Cmp o d ()
 addDeclared symbol =
 	modify $ \s -> s { declared = Set.insert symbol (declared s) }
 	  
 
-isDeclared :: String -> Cmp Bool
+isDeclared :: String -> Cmp o d Bool
 isDeclared symbol =
 	fmap (elem symbol) (gets declared)
 
 
-addExported :: Name -> Cmp ()
-addExported name =
-	modify $ \s -> s { exported = Set.insert name (exported s) }
+addExported :: String -> Cmp o d ()
+addExported symbol =
+	modify $ \s -> s { exported = Set.insert symbol (exported s) }
 
 
-addSymbol :: String -> Operand -> Maybe Definition -> Cmp ()
-addSymbol name op extern =
-	modify $ \s -> s { symTab = SymTab.insert name (op, extern) (symTab s) }
+addExtern :: String -> d -> Cmp o d ()
+addExtern symbol def =
+	modify $ \s -> s { externs = Map.insert symbol def (externs s) }
 
 
-lookupSymbol :: TextPos -> String -> Cmp (Operand, Maybe Definition)
-lookupSymbol pos name = do
+lookupExtern :: String -> Cmp o d (Maybe d)
+lookupExtern symbol =
+	fmap (Map.lookup symbol) (gets externs)
+
+
+addSymbol :: String -> o -> Cmp o d ()
+addSymbol symbol op =
+	modify $ \s -> s { symTab = SymTab.insert symbol op (symTab s) }
+
+
+lookupSymbol :: TextPos -> String -> Cmp o d o
+lookupSymbol pos symbol = do
 	st <- gets symTab
-	maybe (cmpErr pos $ name ++ " doesn't exist") return (SymTab.lookup name st)
+	maybe (cmpErr pos $ symbol ++ " doesn't exist") return (SymTab.lookup symbol st)
 
 
-pushSymTab :: Cmp ()
+pushSymTab :: Cmp o d ()
 pushSymTab =
 	modify $ \s -> s { symTab = SymTab.push (symTab s) }
 
 
-popSymTab :: Cmp ()
+popSymTab :: Cmp o d ()
 popSymTab =
 	modify $ \s -> s { symTab = SymTab.pop (symTab s) }
 
 
-setCurRetType :: Type -> Cmp ()
+setCurRetType :: Type -> Cmp o d ()
 setCurRetType typ =
 	modify $ \s -> s { curRetType = typ }
 
 
-getCurRetType :: Cmp Type
+getCurRetType :: Cmp o d Type
 getCurRetType =
 	gets curRetType
 
 
-checkSymbolUndefined :: TextPos -> String -> Cmp ()
-checkSymbolUndefined pos name =
-	gets symTab >>= \st -> case SymTab.lookup name [head st] of
-		Just _  -> cmpErr pos (name ++ " already defined")
+checkSymbolUndefined :: TextPos -> String -> Cmp o d ()
+checkSymbolUndefined pos symbol =
+	gets symTab >>= \st -> case SymTab.lookup symbol [head st] of
+		Just _  -> cmpErr pos (symbol ++ " already defined")
 		Nothing -> return ()
-
-
-initOf :: Type -> C.Constant
-initOf typ = case typ of
-	IntegerType nbits -> C.Int nbits 0
-	ArrayType n t     -> C.Array t (replicate (fromIntegral n) (initOf t))
-	_                 -> error (show typ)
-
-
-isCons :: Operand -> Bool
-isCons (ConstantOperand _) = True
-isCons _                   = False
-
-
-toCons :: Operand -> C.Constant
-toCons (ConstantOperand c) = c
-
-
-cons :: C.Constant -> Operand
-cons = ConstantOperand
-
-
-globalDef :: Name -> Type -> Maybe C.Constant -> Definition
-globalDef nm ty init = GlobalDefinition globalVariableDefaults
-	{ G.name        = nm
-	, G.type'       = ty
-	, G.initializer = init
-	}
-
-
-funcDef :: Name -> [(Type, Name)] -> Type -> [BasicBlock] -> Definition
-funcDef nm params retty blocks = GlobalDefinition functionDefaults
-	{ G.name        = nm
-	, G.parameters  = ([Parameter t n [] | (t, n) <- params], False)
-	, G.returnType  = retty
-	, G.basicBlocks = blocks
-	}

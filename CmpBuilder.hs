@@ -17,6 +17,8 @@ import           LLVM.IRBuilder.Constant
 import           LLVM.IRBuilder.Instruction
 import           LLVM.IRBuilder.Module
 import           LLVM.IRBuilder.Monad
+import qualified LLVM.AST.Global   as G
+import qualified LLVM.AST.Constant as C
 
 import           CmpState
 
@@ -27,13 +29,14 @@ mkBSS = BSS.toShort . BS.pack
 l2 = lift . lift
 
 
-type ModuleGen = ModuleBuilderT Cmp
+type ModuleGen = ModuleBuilderT (Cmp Operand Definition)
 type InstrGen  = IRBuilderT ModuleGen
 
 
 look :: TextPos -> String -> ModuleGen Operand
 look pos symbol = do
-	(addr, ext) <- lift $ lookupSymbol pos symbol
+	addr <- lift (lookupSymbol pos symbol)
+	ext <- lift (lookupExtern symbol)	
 	when (isJust ext) $ do
 		isDec <- lift $ isDeclared symbol
 		unless isDec $ do
@@ -99,3 +102,39 @@ puts str = do
 	op <- ensureExtern "puts" [ptr i8] i32 False
 	call op [(str, [])]
 
+
+initOf :: Type -> C.Constant
+initOf typ = case typ of
+	IntegerType nbits -> C.Int nbits 0
+	ArrayType n t     -> C.Array t (replicate (fromIntegral n) (initOf t))
+	_                 -> error (show typ)
+
+
+isCons :: Operand -> Bool
+isCons (ConstantOperand _) = True
+isCons _                   = False
+
+
+toCons :: Operand -> C.Constant
+toCons (ConstantOperand c) = c
+
+
+cons :: C.Constant -> Operand
+cons = ConstantOperand
+
+
+globalDef :: Name -> Type -> Maybe C.Constant -> Definition
+globalDef nm ty init = GlobalDefinition globalVariableDefaults
+	{ G.name        = nm
+	, G.type'       = ty
+	, G.initializer = init
+	}
+
+
+funcDef :: Name -> [(Type, Name)] -> Type -> [BasicBlock] -> Definition
+funcDef nm params retty blocks = GlobalDefinition functionDefaults
+	{ G.name        = nm
+	, G.parameters  = ([Parameter t n [] | (t, n) <- params], False)
+	, G.returnType  = retty
+	, G.basicBlocks = blocks
+	}

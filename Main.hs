@@ -81,7 +81,7 @@ main = do
 repl :: Context -> ExecutionSession -> IRCompileLayer ObjectLinkingLayer -> PassManager -> Bool -> Bool -> IO ()
 repl ctx es cl pm verbose dontOptimise = runInputT defaultSettings (loop C.initCmpState)
 	where
-		loop :: C.CmpState -> InputT IO ()
+		loop :: C.CmpState Operand Definition -> InputT IO ()
 		loop state =
 			getInputLine "% " >>= \minput -> case minput of
 				Nothing    -> return ()
@@ -91,7 +91,7 @@ repl ctx es cl pm verbose dontOptimise = runInputT defaultSettings (loop C.initC
 
 
 compile
-	:: C.CmpState
+	:: C.CmpState Operand Definition
 	-> String
 	-> Context
 	-> ExecutionSession
@@ -99,7 +99,7 @@ compile
 	-> PassManager
 	-> Bool
 	-> Bool
-	-> IO C.CmpState
+	-> IO (C.CmpState Operand Definition)
 compile state source ctx es cl pm verbose dontOptimise =
 	case L.alexScanner source of
 		Left  errStr -> putStrLn errStr >> return state
@@ -110,7 +110,7 @@ compile state source ctx es cl pm verbose dontOptimise =
 					Left err -> printError err source >> return state
 					Right ((), defs) -> jitAndRun defs state'
 	where
-		jitAndRun :: [Definition] -> C.CmpState -> IO C.CmpState
+		jitAndRun :: [Definition] -> C.CmpState Operand Definition -> IO (C.CmpState Operand Definition)
 		jitAndRun defs state = do
 			let exported = C.exported state
 			let astmod   = defaultModule { moduleDefinitions = defs }
@@ -128,9 +128,10 @@ compile state source ctx es cl pm verbose dontOptimise =
 						Right (JITSymbol fn _)-> run $ castPtrToFunPtr (wordPtrToPtr fn)
 					when (Set.null exported) (removeModule cl modKey)
 					return state
-						{ C.curRetType  = VoidType
-						, C.declared    = Set.empty
-						, C.exported    = Set.empty
+						{ C.curRetType = VoidType
+						, C.declared   = Set.empty
+						, C.exported   = Set.empty
+						, C.externs    = Map.empty
 						}
 
 

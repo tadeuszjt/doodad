@@ -24,7 +24,7 @@ import           CmpState
 import           CmpBuilder
 
 
-codeGen :: CmpState -> S.AST -> (Either CmpError ((), [Definition]), CmpState)
+codeGen :: CmpState Operand Definition -> S.AST -> (Either CmpError ((), [Definition]), CmpState Operand Definition)
 codeGen cmpState ast =
 	(runState . runExceptT . getCmp) (runModuleBuilderT emptyModuleBuilder cmp) cmpState
 	where
@@ -45,25 +45,27 @@ cmpTopStmt stmt = case stmt of
 		l2 (checkSymbolUndefined pos symbol)
 		val <- cmpExpr expr
 		name <- freshName (mkBSS symbol)
+
 		let typ = typeOf val
 		let ext = globalDef name typ Nothing
 
 		l2 (addDeclared symbol)
-		l2 (addExported name)
+		l2 (addExported symbol)
+		l2 (addExtern symbol ext)
 
 		if isCons val then do
 			addr <- global name typ (toCons val)
-			l2 $ addSymbol symbol addr (Just ext)
+			l2 (addSymbol symbol addr)
 		else do
 			addr <- global name typ (initOf typ)
-			l2 $ addSymbol symbol addr (Just ext)
+			l2 (addSymbol symbol addr)
 			void (store addr 0 val)
 
 
 	S.Func pos symbol params retty stmts -> do
 		l2 (checkSymbolUndefined pos symbol)
 		name <- freshName (mkBSS symbol)
-		let Name nameStr = name	
+		let Name nameStr = name
 
 		let mapType = \t -> case t of
 			S.I64 -> i64
@@ -76,9 +78,11 @@ cmpTopStmt stmt = case stmt of
 
 		let op = cons $ C.GlobalReference (ptr $ FunctionType returnType paramTypes False) name
 		let ext = funcDef name (zip paramTypes $ map mkName paramSymbols) returnType []
+
 		l2 (addDeclared symbol)
-		l2 (addExported name)
-		l2 $ addSymbol symbol op $ (Just ext)
+		l2 (addExtern symbol ext)
+		l2 (addSymbol symbol op)
+		l2 (addExported symbol)
 
 		lift $ function name (zip paramTypes paramNames) returnType $ \args -> (flip named) nameStr $ do
 			l2 pushSymTab
@@ -88,7 +92,7 @@ cmpTopStmt stmt = case stmt of
 			forM (zip paramSymbols args) $ \(sym, arg) -> do
 				op <- alloca (typeOf arg) Nothing 0
 				store op 0 arg
-				l2 (addSymbol sym op Nothing)
+				l2 (addSymbol sym op)
 
 			mapM_ cmpStmt stmts
 			l2 (setCurRetType curRetType)
@@ -104,7 +108,7 @@ cmpStmt stmt = case stmt of
 		val <- cmpExpr expr
 		op <- alloca (typeOf val) Nothing 0
 		store op 0 val
-		l2 (addSymbol symbol op Nothing)
+		l2 (addSymbol symbol op)
 
 	S.Set pos symbol expr -> do
 		op <- lift (look pos symbol)
@@ -123,7 +127,7 @@ cmpStmt stmt = case stmt of
 
 		vals <- mapM cmpExpr args
 		unless (map typeOf vals == paramTypes) (l2 $ cmpErr pos "arg types don't match")
-		void $ call op [(val, []) | val <- vals]
+		void $ call op $ map (\arg -> (arg, [])) vals
 
 	S.Print pos exprs -> do
 		vals <- mapM cmpExpr exprs
@@ -156,7 +160,6 @@ cmpStmt stmt = case stmt of
 
 		void (putchar '\n')
 
-
 	S.Map pos symbol expr -> do
 		val <- cmpExpr expr
 		(elemType, len) <- case typeOf val of
@@ -174,7 +177,6 @@ cmpStmt stmt = case stmt of
 			ptr <- gep val [int64 0, i]
 			elem <- load ptr 0
 			void $ call fun [(elem, [])]
-
 
 	S.Return pos expr -> do
 		typ <- l2 getCurRetType
@@ -211,8 +213,10 @@ cmpExpr expr = case expr of
 	S.String pos str -> fmap cons (globalStringPtr str =<< fresh)
 
 	S.Ident pos symbol -> do
-		addr <- lift (look pos symbol)
-		load addr 0
+		val <- lift (look pos symbol)
+		case typeOf val of
+			PointerType (IntegerType _) _ -> load val 0
+			_ -> l2 $ cmpErr pos (symbol ++ " isn't an expression")
 
 	S.Call pos symbol args -> do
 		op <- lift (look pos symbol)

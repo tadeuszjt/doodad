@@ -8,4 +8,4 @@ fn fib(x i64) i64 {
 	}
 }
 
-print("benis", fib(4), [1, 2, 3, 4]);
+print("benis", fib(4));
