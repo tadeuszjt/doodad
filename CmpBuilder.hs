@@ -1,12 +1,17 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE FlexibleContexts #-}
+
 module CmpBuilder where
 
 import           Control.Monad
 import           Control.Monad.Except       hiding (void)
-import           Control.Monad.State        hiding (void)
+import           Control.Monad.State        hiding (void, state)
 import qualified Data.ByteString.Char8      as BS
 import qualified Data.ByteString.Short      as BSS
 import           Data.Char
 import           Data.Maybe
+import qualified Data.Set as Set
+import qualified Data.Map as Map
 import           Prelude                    hiding (EQ, and, or)
 
 import           LLVM.AST                   hiding (function)
@@ -20,32 +25,15 @@ import           LLVM.IRBuilder.Monad
 import qualified LLVM.AST.Global   as G
 import qualified LLVM.AST.Constant as C
 
-import           CmpState
-
+import qualified SymTab
+import           Cmp
 
 mkBSS = BSS.toShort . BS.pack
 
 
-l2 = lift . lift
 
 
-type ModuleGen = ModuleBuilderT (Cmp Operand Definition)
-type InstrGen  = IRBuilderT ModuleGen
-
-
-look :: TextPos -> String -> ModuleGen Operand
-look pos symbol = do
-	addr <- lift (lookupSymbol pos symbol)
-	ext <- lift (lookupExtern symbol)	
-	when (isJust ext) $ do
-		isDec <- lift $ isDeclared symbol
-		unless isDec $ do
-			emitDefn (fromJust ext)
-			lift (addDeclared symbol)
-	return addr
-
-
-for :: Operand -> (Operand -> InstrGen ()) -> InstrGen ()
+for :: Operand -> (Operand -> InstrCmp t ()) -> InstrCmp t ()
 for num f = do
 	forCond <- freshName (mkBSS "for.cond")
 	forBody <- freshName (mkBSS "for.body")
@@ -69,35 +57,21 @@ for num f = do
 	return ()
 
 
-ensureExtern :: String -> [Type] -> Type -> Bool -> InstrGen Operand
-ensureExtern name argTypes retty varg = do
-	let dotName = '.' : name
-	isDec <- l2 (isDeclared dotName)
-	unless isDec $ do
-		l2 (addDeclared dotName)
-		if varg then
-			void . lift $ externVarArgs (mkName name) argTypes retty
-		else
-			void . lift $ extern (mkName name) argTypes retty
-	
-	return $ cons $ C.GlobalReference (ptr $ FunctionType retty argTypes varg) (mkName name)
-
-
-putchar :: Char -> InstrGen Operand
+putchar :: Char -> InstrCmp t Operand
 putchar ch = do
 	op <- ensureExtern "putchar" [i32] i32 False
 	let c8 = fromIntegral (ord ch)
 	call op [(int32 c8, [])]
 
 
-printf :: String -> [Operand] -> InstrGen Operand
+printf :: String -> [Operand] -> InstrCmp t Operand
 printf fmt args = do
 	op <- ensureExtern "printf" [ptr i8] i32 True
 	str <- globalStringPtr fmt =<< fresh
 	call op $ map (\a -> (a, [])) (cons str:args)
 
 
-puts :: Operand -> InstrGen Operand
+puts :: Operand -> InstrCmp t Operand
 puts str = do
 	op <- ensureExtern "puts" [ptr i8] i32 False
 	call op [(str, [])]
@@ -138,3 +112,6 @@ funcDef nm params retty blocks = GlobalDefinition functionDefaults
 	, G.returnType  = retty
 	, G.basicBlocks = blocks
 	}
+
+
+

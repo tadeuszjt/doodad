@@ -6,8 +6,7 @@ import           Control.Monad.Except     hiding (void)
 import qualified Data.ByteString.Char8    as BS
 import qualified Data.ByteString.Short    as BSS
 import           Data.IORef
-import qualified Data.Map                 as Map
-import qualified Data.Set                 as Set
+import qualified Data.Set                   as Set
 import           Foreign.Ptr
 import           System.Console.Haskeline
 import           System.Environment
@@ -26,8 +25,9 @@ import           LLVM.PassManager
 import qualified LLVM.Relocation          as Reloc
 import           LLVM.Target
 
-import qualified CmpState                 as C
 import qualified Compiler                 as C
+import qualified CmpBuilder               as C
+import qualified Cmp                      as C
 import qualified Lexer                    as L
 import qualified Parser                   as P
 
@@ -81,7 +81,7 @@ main = do
 repl :: Context -> ExecutionSession -> IRCompileLayer ObjectLinkingLayer -> PassManager -> Bool -> Bool -> IO ()
 repl ctx es cl pm verbose dontOptimise = runInputT defaultSettings (loop C.initCmpState)
 	where
-		loop :: C.CmpState Operand Definition -> InputT IO ()
+		loop :: C.State -> InputT IO ()
 		loop state =
 			getInputLine "% " >>= \minput -> case minput of
 				Nothing    -> return ()
@@ -91,7 +91,7 @@ repl ctx es cl pm verbose dontOptimise = runInputT defaultSettings (loop C.initC
 
 
 compile
-	:: C.CmpState Operand Definition
+	:: C.State
 	-> String
 	-> Context
 	-> ExecutionSession
@@ -99,18 +99,16 @@ compile
 	-> PassManager
 	-> Bool
 	-> Bool
-	-> IO (C.CmpState Operand Definition)
+	-> IO C.State 
 compile state source ctx es cl pm verbose dontOptimise =
 	case L.alexScanner source of
 		Left  errStr -> putStrLn errStr >> return state
 		Right tokens -> case (P.parseTokens tokens) 0 of
-			P.ParseOk ast -> do
-				let (res, state') = C.codeGen state ast
-				case res of
-					Left err -> printError err source >> return state
-					Right ((), defs) -> jitAndRun defs state'
+			P.ParseOk ast -> case C.compile state ast of
+				Left err             -> printError err source >> return state
+				Right (defs, state') -> jitAndRun defs state'
 	where
-		jitAndRun :: [Definition] -> C.CmpState Operand Definition -> IO (C.CmpState Operand Definition)
+		jitAndRun :: [Definition] -> C.CmpState C.ValType -> IO (C.CmpState C.ValType)
 		jitAndRun defs state = do
 			let exported = C.exported state
 			let astmod   = defaultModule { moduleDefinitions = defs }
@@ -128,11 +126,6 @@ compile state source ctx es cl pm verbose dontOptimise =
 						Right (JITSymbol fn _)-> run $ castPtrToFunPtr (wordPtrToPtr fn)
 					when (Set.null exported) (removeModule cl modKey)
 					return state
-						{ C.curRetType = VoidType
-						, C.declared   = Set.empty
-						, C.exported   = Set.empty
-						, C.externs    = Map.empty
-						}
 
 
 		printError :: C.CmpError -> String -> IO ()

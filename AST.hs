@@ -1,9 +1,9 @@
 module AST where
 
-import qualified CmpState
+import qualified Cmp
 import qualified Lexer    as L
 
-type Posn = CmpState.TextPos
+type Posn = Cmp.TextPos
 type AST  = [Stmt]
 
 

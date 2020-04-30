@@ -2,7 +2,7 @@
 module Parser where
 import qualified Lexer as L
 import qualified AST as S
-import qualified CmpState as C
+import qualified Cmp as C
 }
 
 %name      parseTokens 
