@@ -36,9 +36,9 @@ data ValType
 	deriving (Show, Eq)
 
 
-type State = CmpState ValType
-type Instr        = InstrCmp ValType
-type Module       = ModuleCmp ValType
+type State  = CmpState ValType
+type Instr  = InstrCmp ValType
+type Module = ModuleCmp ValType
 
 
 compile :: State -> S.AST -> Either CmpError ([Definition], State)
@@ -53,14 +53,13 @@ compile state ast =
 
 cmpTopStmt :: S.Stmt -> Instr ()
 cmpTopStmt stmt = case stmt of
+	S.Set _ _ _      -> cmpStmt stmt
 	S.Print _ _      -> cmpStmt stmt
 	S.CallStmt _ _ _ -> cmpStmt stmt
-	S.Map _ _ _      -> cmpStmt stmt
 
 	S.Assign pos symbol expr -> do
-		checkSymbolUndefined pos symbol
+		checkUndefined pos symbol
 		name <- freshName (mkBSS symbol)
-
 		(typ, op) <- cmpExpr expr
 
 		case typ of
@@ -76,50 +75,13 @@ cmpTopStmt stmt = case stmt of
 				addExtern symbol (globalDef name i64 Nothing)
 				addSymbol symbol (I64, loc)
 
-		(addDeclared symbol)
-
-
---	S.Func pos symbol [] retty stmts -> do
---		(checkSymbolUndefined pos symbol)
---		name <- freshName (mkBSS symbol)
---		let Name nameStr = name
---
---		returnType <- fmap fromValType $ case retty of
---			Nothing     -> return Void
---			Just S.I64  -> return I64
---			Just S.TBool -> return Bool
---			_ -> cmpErr pos "invalid return type"
---
---		let typ = FunctionType returnType [] False
---		let op = cons $ C.GlobalReference (ptr typ) name
---		let ext = funcDef name [] returnType []
---
---		(addDeclared symbol)
---		(addExported symbol)
---		(addExtern symbol ext)
---		$ addSymbol symbol (Func, op)
---
-----		lift $ function name [] returnType $ \args -> (flip named) nameStr $ do
-----			pushSymTab
-----			curRetType <- getState
-----
-------			forM (zip paramSymbols args) $ \(sym, arg) -> do
-------				op <- alloca (typeOf arg) Nothing 0
-------				store op 0 arg
-------				$ addSymbol sym (I64, op)
-----
-----			mapM_ cmpStmt stmts
-----			(setState curRetType)
-----			popSymTab
---
---		return ()
+		addDeclared symbol
 
 
 cmpStmt :: S.Stmt -> Instr ()
 cmpStmt stmt = case stmt of
 	S.Assign pos symbol expr -> do
-		(checkSymbolUndefined pos symbol)
-
+		checkUndefined pos symbol
 		(typ, op) <- cmpExpr expr
 
 		case typ of
@@ -135,64 +97,42 @@ cmpStmt stmt = case stmt of
 
 
 	S.Set pos symbol expr -> do
-		(styp, sop) <- look pos symbol
-		(etyp, eop) <- cmpExpr expr
-		unless (styp == etyp) (cmpErr pos "types don't match")
+		(symType, loc) <- look pos symbol
+		(exprType, op) <- cmpExpr expr
+		unless (symType == exprType) (cmpErr pos "types don't match")
 
-		case styp of
-			Bool -> store sop 0 eop
-			I64  -> store sop 0 eop
+		void $ case symType of
+			Bool -> store loc 0 op
+			I64  -> store loc 0 op
 
-		return ()
 			
 	S.Block pos stmts -> do
 		pushSymTab
 		mapM_ cmpStmt stmts
 		popSymTab
 
---	S.CallStmt pos symbol args -> do
---		(typ, op) <- look pos symbol
---		paramTypes <- case typeOf op of
---			PointerType (FunctionType _ pts _) _ -> return pts
---			_ -> $ cmpErr pos (symbol ++ " isn't a function")
---
---		vals <- mapM cmpExpr args
---		unless (map typeOf vals == paramTypes) ($ cmpErr pos "arg types don't match")
---		void $ call op $ map (\arg -> (arg, [])) vals
 
 	S.Print pos exprs -> do
+		let print = \(typ, op) -> case typ of
+			I64  -> void (printf "%ld" [op])
+
+			Bool -> do
+				str <- globalStringPtr "true\0false" =<< fresh
+				idx <- select op (int64 0) (int64 5)
+				ptr <- gep (cons str) [idx]
+				void (puts ptr)
+
+			t -> cmpErr pos ("can't print type: " ++ show typ)
+
+		let prints = \vals -> case vals of
+			[]     -> return ()
+			[val]  -> print val
+			(v:vs) -> print v >> printf ", " [] >> prints vs
+			
 		vals <- mapM cmpExpr exprs
-		sep <- globalStringPtr ", " =<< fresh
-
-		forM_ vals $ \(typ, op) -> do
-			case typ of
-				Bool -> do
-					str <- globalStringPtr "true\0false" =<< fresh
-					idx <- select op (int64 0) (int64 5)
-					ptr <- gep (cons str) [idx]
-					return ()
-
-				I64 -> void (printf "%ld" [op])
-
-				t -> error ("can't print type: " ++ show t)
-
-			printf "%s" [cons sep]
-
+		prints vals
 		void (putchar '\n')
 
---	S.Return pos expr -> do
---		curRetty <- getState
---
---		if isNothing expr then do
---			unless (curRetty == Void) (cmpErr pos "return value required")
---			retVoid
---		else do
---			unless (curRetty /= Void) (cmpErr pos "cannot return value in void function")
---			(typ, op) <- cmpExpr (fromJust expr)
---			unless (typ == curRetty) (cmpErr pos "wrong type")
---			ret op
---
---		void block
 
 	S.If pos expr block els -> do
 		(typ, cnd) <- cmpExpr expr
@@ -217,8 +157,8 @@ cmpStmt stmt = case stmt of
 
 cmpExpr :: S.Expr -> Instr (ValType, Operand)
 cmpExpr expr = case expr of
-	S.Int pos i      -> return (I64, int64 i)
-	S.Bool pos b     -> return (Bool, bit $ if b then 1 else 0)
+	S.Int pos i  -> return (I64, int64 i)
+	S.Bool pos b -> return (Bool, bit $ if b then 1 else 0)
 
 	S.Ident pos symbol -> do
 		(typ, op) <- look pos symbol
@@ -226,55 +166,44 @@ cmpExpr expr = case expr of
 		op' <- case typ of
 			I64  -> load op 0
 			Bool -> load op 0
-			_   -> cmpErr pos (symbol ++ " isn't an expression")
+			_ -> cmpErr pos (symbol ++ " isn't an expression")
 
 		return (typ, op')
 
---	S.Call pos symbol args -> do
---		(typ, op) <- look pos symbol
---		case typ of
---			_ -> cmpErr pos (symbol ++ " isn't a function")
---
---		vals <- mapM cmpExpr args
---
---		let FunctionType retType argTypes _ = typ
---		when (retType == VoidType) ($ cmpErr pos "cannot use a void function as an expression")
---		unless (map typeOf vals == argTypes) ($ cmpErr pos "argument types don't match")
---
---		call op [(val, []) | val <- vals]
 
 	S.Prefix pos operator expr -> do
 		(typ, op) <- cmpExpr expr
+
 		case typ of
 			I64 -> case operator of
-				S.Plus  -> return (typ, op)
-				S.Minus -> return . (I64,) =<< sub (int64 0) op
-				_       -> (cmpErr pos "unsupported prefix")
-			_ -> (cmpErr pos "unsupported prefix")
+				S.Plus  -> return (I64, op)
+				S.Minus -> fmap (I64,) $ sub (int64 0) op
+				_       -> cmpErr pos "unsupported prefix"
+			_ -> cmpErr pos "unsupported prefix"
 
-	S.Infix pos op expr1 expr2 -> do
+	S.Infix pos operator expr1 expr2 -> do
 		(typ1, val1) <- cmpExpr expr1
 		(typ2, val2) <- cmpExpr expr2
 
-		case (typeOf val1, typeOf val2) of
-			(IntegerType 1, IntegerType 1) -> do
-				case op of
-					S.EqEq   -> icmp EQ val1 val2 >>= return . (Bool,)
-					S.AndAnd -> and val1 val2 >>= return . (Bool,)
-					S.OrOr   -> or val1 val2 >>= return . (Bool,)
-					_        -> (cmpErr pos "unsupported prefix")
+		case (typ1, typ2) of
+			(Bool, Bool) ->
+				case operator of
+					S.EqEq   -> fmap (Bool,) (icmp EQ val1 val2)
+					S.AndAnd -> fmap (Bool,) (and val1 val2)
+					S.OrOr   -> fmap (Bool,) (or val1 val2)
+					_        -> cmpErr pos "unsupported infix"
 
-			(IntegerType 64, IntegerType 64) -> do
-				case op of
-					S.Plus   -> add val1 val2 >>= \o -> return (I64, o)
-					S.Minus  -> sub val1 val2 >>= \o -> return (I64, o)
-					S.Times  -> mul val1 val2 >>= \o -> return (I64, o)
-					S.Divide -> sdiv val1 val2 >>= \o -> return (I64, o)
-					S.Mod    -> srem val1 val2 >>= \o -> return (I64, o)
-					S.LT     -> icmp SLT val1 val2 >>= \i -> trunc i i1 >>= \o -> return (Bool, o)
-					S.GT     -> icmp SGT val1 val2 >>= \i -> trunc i i1 >>= \o -> return (Bool, o)
-					S.LTEq   -> icmp SLE val1 val2 >>= \i -> trunc i i1 >>= \o -> return (Bool, o)
-					S.GTEq   -> icmp SGT val1 val2 >>= \i -> trunc i i1 >>= \o -> return (Bool, o)
-					S.EqEq   -> icmp EQ val1 val2 >>= \i -> trunc i i1 >>= \o -> return (Bool, o)
-					_        -> (cmpErr pos "unsupported prefix")
+			(I64, I64) ->
+				case operator of
+					S.Plus   -> fmap (I64,) (add val1 val2)
+					S.Minus  -> fmap (I64,) (sub val1 val2)
+					S.Times  -> fmap (I64,) (mul val1 val2)
+					S.Divide -> fmap (I64,) (sdiv val1 val2)
+					S.Mod    -> fmap (I64,) (srem val1 val2)
+					S.LT     -> fmap (Bool,) $ (flip trunc) i1 =<< icmp SLT val1 val2 
+					S.GT     -> fmap (Bool,) $ (flip trunc) i1 =<< icmp SGT val1 val2
+					S.LTEq   -> fmap (Bool,) $ (flip trunc) i1 =<< icmp SLE val1 val2
+					S.GTEq   -> fmap (Bool,) $ (flip trunc) i1 =<< icmp SGT val1 val2
+					S.EqEq   -> fmap (Bool,) $ (flip trunc) i1 =<< icmp EQ val1 val2
+					_        -> cmpErr pos "unsupported infix"
 			(ta, tb) -> error $ show (ta, tb)

@@ -131,8 +131,8 @@ ensureExtern name ats rt varg = do
 	return $ ConstantOperand $ C.GlobalReference (ptr typ) (mkName name)
 
 
-checkSymbolUndefined :: MonadModuleCmp t m => TextPos -> String -> m ()
-checkSymbolUndefined pos symbol = do
+checkUndefined :: MonadModuleCmp t m => TextPos -> String -> m ()
+checkUndefined pos symbol = do
 	st <- fmap head (gets symTab)
 	unless (isNothing $ SymTab.lookup symbol [st]) $ cmpErr pos (symbol ++ " already defined") 
 
