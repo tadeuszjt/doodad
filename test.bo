@@ -2,4 +2,7 @@ x := 2;
 x = 31;
 y := x;
 z := x + y;
-print(x, y, z, x > z);
+
+fn f() { 
+	print(x, y, z, x > z, z == y);
+}

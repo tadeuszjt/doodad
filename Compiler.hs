@@ -28,6 +28,9 @@ import           CmpBuilder
 import           Cmp
 
 
+mkBSS = BSS.toShort . BS.pack
+
+
 data ValType
 	= Void
 	| I64
@@ -57,6 +60,7 @@ cmpTopStmt stmt = case stmt of
 	S.Print _ _      -> cmpStmt stmt
 	S.CallStmt _ _ _ -> cmpStmt stmt
 
+
 	S.Assign pos symbol expr -> do
 		checkUndefined pos symbol
 		name <- freshName (mkBSS symbol)
@@ -76,6 +80,44 @@ cmpTopStmt stmt = case stmt of
 				addSymbol symbol (I64, loc)
 
 		addDeclared symbol
+		addExported symbol
+	
+
+	S.Func pos symbol params retty stmts -> do
+		checkUndefined pos symbol
+		name <- freshName (mkBSS symbol)
+		let Name nameStr = name
+		
+		(retType, retOpType) <- (flip $ maybe $ return (Void, VoidType)) retty $ \typ -> case typ of
+			S.TBool -> return (Bool, i1)
+			S.I64   -> return (I64, i64)
+			_ -> cmpErr pos "unsupported return type"
+
+
+		paramTypes <- forM params $ \(S.Param _ paramName paramType) ->
+			return $ case paramType of
+				S.TBool -> (Bool, i1)
+				S.I64   -> (I64, i64)
+
+		let paramNames = map (mkName . S.paramName) params
+		let paramNames' = map (ParameterName . mkBSS . S.paramName) params
+		let paramOpTypes = map snd paramTypes
+
+		let ext    = funcDef name (zip paramOpTypes paramNames) retOpType []
+		let opType = FunctionType retOpType paramOpTypes False
+		let op     = cons $ C.GlobalReference (ptr opType) name
+
+		addDeclared symbol
+		addExported symbol
+		addExtern symbol ext
+		addSymbol symbol (Func, op)
+
+		InstrCmpT $ IRBuilderT . lift $ function name (zip paramOpTypes paramNames') retOpType $
+			\arg -> (flip named) nameStr $ getInstrCmp $ do
+				mapM_ cmpStmt stmts
+
+		return ()
+		
 
 
 cmpStmt :: S.Stmt -> Instr ()
@@ -120,7 +162,7 @@ cmpStmt stmt = case stmt of
 				str <- globalStringPtr "true\0false" =<< fresh
 				idx <- select op (int64 0) (int64 5)
 				ptr <- gep (cons str) [idx]
-				void (puts ptr)
+				void (printf "%s" [ptr])
 
 			t -> cmpErr pos ("can't print type: " ++ show typ)
 

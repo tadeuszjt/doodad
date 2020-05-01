@@ -4,6 +4,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE InstanceSigs #-}
+{-# LANGUAGE TupleSections #-}
 
 
 module Cmp where
@@ -33,7 +34,10 @@ instance Monad m => (MonadModuleCmp t) (InstrCmpT t m)
 instance Monad m => (MonadInstrCmp t) (InstrCmpT t m)
 
 instance MonadTrans (ModuleCmpT t) where
-	--lift = (ModuleCmpT . ModuleBuilderT . StateT) (\s -> ExceptT)
+	lift = ModuleCmpT . ModuleBuilderT . lift . lift . ExceptT . (fmap Right)
+
+instance MonadTrans (InstrCmpT t) where
+	lift = InstrCmpT . IRBuilderT . lift . lift
 
 
 type ModuleCmp t = ModuleCmpT t Identity

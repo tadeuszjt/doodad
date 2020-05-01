@@ -1,43 +1,29 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module CmpBuilder where
 
-import           Control.Monad
-import           Control.Monad.Except       hiding (void)
-import           Control.Monad.State        hiding (void, state)
-import qualified Data.ByteString.Char8      as BS
-import qualified Data.ByteString.Short      as BSS
 import           Data.Char
-import           Data.Maybe
-import qualified Data.Set as Set
-import qualified Data.Map as Map
 import           Prelude                    hiding (EQ, and, or)
 
-import           LLVM.AST                   hiding (function)
-import qualified LLVM.AST.Constant          as C
+import           LLVM.AST 
 import           LLVM.AST.IntegerPredicate
 import           LLVM.AST.Type              hiding (void)
 import           LLVM.IRBuilder.Constant
 import           LLVM.IRBuilder.Instruction
-import           LLVM.IRBuilder.Module
 import           LLVM.IRBuilder.Monad
 import qualified LLVM.AST.Global   as G
 import qualified LLVM.AST.Constant as C
 
-import qualified SymTab
 import           Cmp
-
-mkBSS = BSS.toShort . BS.pack
-
-
 
 
 for :: Operand -> (Operand -> InstrCmp t ()) -> InstrCmp t ()
 for num f = do
-	forCond <- freshName (mkBSS "for.cond")
-	forBody <- freshName (mkBSS "for.body")
-	forExit <- freshName (mkBSS "for.exit")
+	forCond <- freshName "for.cond"
+	forBody <- freshName "for.body"
+	forExit <- freshName "for.exit"
 
 	i <- alloca i64 Nothing 0
 	store i 0 (int64 0)
