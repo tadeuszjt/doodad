@@ -58,6 +58,18 @@ fromASTType typ = case typ of
 	S.I64      -> I64
 	S.TTuple ts -> Tuple (map fromASTType ts)
 
+opTypeOf :: ValType -> Type
+opTypeOf typ = case typ of
+	Void       -> VoidType
+	I64        -> i64
+	Bool       -> i1
+	Tuple typs -> StructureType False (map opTypeOf typs)
+
+zeroOf :: ValType -> C.Constant
+zeroOf typ = case typ of
+	I64        -> toCons (int64 0)
+	Bool       -> toCons (bit 0)
+	Tuple typs -> toCons $ struct Nothing False (map zeroOf typs)
 
 data CompileState
 	= CompileState
@@ -77,20 +89,6 @@ type Instr   = InstrCmpT ValType Compile
 type Module  = ModuleCmpT ValType Compile
 
 
-opTypeOf :: ValType -> Type
-opTypeOf typ = case typ of
-	Void       -> VoidType
-	I64        -> i64
-	Bool       -> i1
-	Tuple typs -> StructureType False (map opTypeOf typs)
-
-
-zeroOf :: ValType -> C.Constant
-zeroOf typ = case typ of
-	I64        -> toCons (int64 0)
-	Bool       -> toCons (bit 0)
-	Tuple typs -> toCons $ struct Nothing False (map zeroOf typs)
-
 
 compile :: CmpState ValType -> S.AST -> Either CmpError ([Definition], CmpState ValType)
 compile state ast =
@@ -101,7 +99,6 @@ compile state ast =
 		cmp =
 			void $ function "main" [] VoidType $ \_ ->
 				getInstrCmp (mapM_ cmpTopStmt ast)
-
 
 cmpEquality :: TextPos -> S.Expr -> S.Expr -> Instr Operand
 cmpEquality pos a b = do
@@ -128,26 +125,39 @@ cmpEquality pos a b = do
 
 
 cmpTopStmt :: S.Stmt -> Instr ()
+cmpTopStmt (S.Assign pos pattern expr) = do
+	assignPattern pos pattern =<< cmpExpr expr
+	where
+		assignPattern :: TextPos -> S.Pattern -> Value -> Instr ()
+		assignPattern _   (S.PatIgnore _) _ = return ()
+		assignPattern pos (S.PatTuple _ ps)  (Tuple ts, op) = do
+			unless (length ps == length ts) (cmpErr pos "incorrect tuple length")
+			forM_ (zip3 ps ts [0..]) $ \(p, t, i) -> do
+				o <- extractValue op [fromIntegral i]
+				assignPattern pos p (t, o)
+		assignPattern pos (S.PatIdent _ symbol) (typ, op) = do
+			checkUndefined pos symbol
+			name <- freshName (mkBSS symbol)
+			unless (isExpr typ) (cmpErr pos "isn't an expression")
+			let opType = typeOf op
+			loc <- global name opType (zeroOf typ)
+			store loc 0 op
+			addExtern symbol (globalDef name opType Nothing)
+			addSymbol symbol (typ, loc)
+			addDeclared symbol
+			addExported symbol
+		assignPattern pos _ _ =
+			cmpErr pos "invalid pattern"
+			
+		
+
+
+
 cmpTopStmt stmt = case stmt of
 	S.Set _ _ _      -> cmpStmt stmt
 	S.Print _ _      -> cmpStmt stmt
 	S.CallStmt _ _ _ -> cmpStmt stmt
 	S.Switch _ _ _   -> cmpStmt stmt
-
-
-	S.Assign pos symbol expr -> do
-		checkUndefined pos symbol
-		name <- freshName (mkBSS symbol)
-		(typ, op) <- cmpExpr expr
-		unless (isExpr typ) (cmpErr pos "isn't an expression")
-
-		let opType = opTypeOf typ
-		loc <- global name opType (zeroOf typ)
-		store loc 0 op
-		addExtern symbol (globalDef name opType Nothing)
-		addSymbol symbol (typ, loc)
-		addDeclared symbol
-		addExported symbol
 	
 
 	S.Func pos symbol params retty stmts -> do
@@ -225,95 +235,107 @@ cmpStmt (S.Print pos exprs) = do
 
 			t -> cmpErr pos ("can't print type: " ++ show typ)
 
-cmpStmt stmt = case stmt of
-	S.Assign pos symbol expr -> do
-		checkUndefined pos symbol
-		(typ, op) <- cmpExpr expr
-		loc <- alloca (typeOf op) Nothing 0
-		store loc 0 op
-		addSymbol symbol (typ, loc)
+cmpStmt (S.Assign pos pattern expr) = do
+	assignPattern pos pattern =<< cmpExpr expr
+	where
+		assignPattern :: TextPos -> S.Pattern -> Value -> Instr ()
+		assignPattern _   (S.PatIgnore _) _ = return ()
+		assignPattern pos (S.PatTuple _ ps)  (Tuple ts, op) = do
+			unless (length ps == length ts) (cmpErr pos "incorrect tuple length")
+			forM_ (zip3 ps ts [0..]) $ \(p, t, i) -> do
+				o <- extractValue op [fromIntegral i]
+				assignPattern pos p (t, o)
+		assignPattern pos (S.PatIdent _ symbol) (typ, op) = do
+			checkUndefined pos symbol
+			name <- freshName (mkBSS symbol)
+			unless (isExpr typ) (cmpErr pos "isn't an expression")
+			loc <- alloca (typeOf op) Nothing 0
+			store loc 0 op
+			addSymbol symbol (typ, loc)
+		assignPattern pos _ _ =
+			cmpErr pos "invalid pattern"
+		
 
+cmpStmt (S.Assign pos pattern expr) = do
+	let S.PatIdent _ symbol = pattern
+	checkUndefined pos symbol
+	(typ, op) <- cmpExpr expr
+	loc <- alloca (typeOf op) Nothing 0
+	store loc 0 op
+	addSymbol symbol (typ, loc)
 
-	S.Set pos symbol expr -> do
-		(symType, loc) <- look pos symbol
-		(exprType, op) <- cmpExpr expr
-		unless (symType == exprType) (cmpErr pos "types don't match")
+cmpStmt (S.Set pos symbol expr) = do
+	(symType, loc) <- look pos symbol
+	(exprType, op) <- cmpExpr expr
+	unless (symType == exprType) (cmpErr pos "types don't match")
 
-		void $ case symType of
-			Bool -> store loc 0 op
-			I64  -> store loc 0 op
+	void $ case symType of
+		Bool -> store loc 0 op
+		I64  -> store loc 0 op
 
+cmpStmt (S.CallStmt pos symbol args) = do
+	(typ, op) <- look pos symbol
+	unless (isFunc typ) $ cmpErr pos (symbol ++ " isn't a function")
+	vals <- mapM cmpExpr args
+	return ()
 
-	S.CallStmt pos symbol args -> do
-		(typ, op) <- look pos symbol
-		unless (isFunc typ) $ cmpErr pos (symbol ++ " isn't a function")
-		vals <- mapM cmpExpr args
-		return ()
+cmpStmt (S.Return pos expr) = do
+	curRetType <- lift (gets curRetType) 
+	if isNothing expr then do
+		unless (curRetType == Void) (cmpErr pos "cannot return void")
+		retVoid
+	else do
+		(typ, op) <- cmpExpr (fromJust expr)
+		unless (curRetType == typ) $ cmpErr pos ("incorrect type: " ++ show typ)
+		ret op
+	void block
 
-	S.Return pos expr -> do
-		curRetType <- lift (gets curRetType) 
-		if isNothing expr then do
-			unless (curRetType == Void) (cmpErr pos "cannot return void")
-			retVoid
-		else do
-			(typ, op) <- cmpExpr (fromJust expr)
-			unless (curRetType == typ) $ cmpErr pos ("incorrect type: " ++ show typ)
-			ret op
-		void block
+cmpStmt (S.Block pos stmts) = do
+	pushSymTab
+	mapM_ cmpStmt stmts
+	popSymTab
 
+cmpStmt (S.If pos expr block els) = do
+	(typ, cnd) <- cmpExpr expr
+	unless (typ == Bool) (cmpErr pos "expression isn't boolean")
+	true  <- freshName (mkBSS "if.true")
+	false <- freshName (mkBSS "if.false")
+	exit  <- freshUnName
+	condBr cnd true false
+	emitBlockStart true
+	cmpStmt block
+	br exit
+	emitBlockStart false
+	when (isJust els) $ cmpStmt (fromJust els)
+	br exit
+	emitBlockStart exit
 
-	S.Block pos stmts -> do
-		pushSymTab
-		mapM_ cmpStmt stmts
-		popSymTab
+cmpStmt (S.Switch pos expr []) = return ()
+cmpStmt (S.Switch pos expr cases) = do
+	exit      <- freshUnName
+	cndNames  <- replicateM (length cases) (freshName "case")
+	stmtNames <- replicateM (length cases) (freshName "case_stmt")
+	let nextNames = tail cndNames ++ [exit]
+	let (caseExprs, stmts) = unzip cases
 
+	br (head cndNames)
+	pushSymTab
 
-	S.If pos expr block els -> do
-		(typ, cnd) <- cmpExpr expr
-		unless (typ == Bool) (cmpErr pos "expression isn't boolean")
+	forM_ (zip5 caseExprs cndNames stmtNames nextNames stmts) $
+		\(caseExpr, cndName, stmtName, nextName, stmt) -> do
+			emitBlockStart cndName
+			if isJust caseExpr then do
+				cnd <- cmpEquality pos expr (fromJust caseExpr)
+				condBr cnd stmtName nextName
+			else
+				br stmtName
+			emitBlockStart stmtName
+			cmpStmt stmt
+			br exit
 
-		true  <- freshName (mkBSS "if.true")
-		false <- freshName (mkBSS "if.false")
-		exit  <- freshUnName
-
-		condBr cnd true false
-
-		emitBlockStart true
-		cmpStmt block
-		br exit
-
-		emitBlockStart false
-		when (isJust els) $ cmpStmt (fromJust els)
-		br exit
-
-		emitBlockStart exit
-	
-	S.Switch pos expr []    -> return ()
-	S.Switch pos expr cases -> do
-		exit      <- freshUnName
-		cndNames  <- replicateM (length cases) (freshName "case")
-		stmtNames <- replicateM (length cases) (freshName "case_stmt")
-		let nextNames = tail cndNames ++ [exit]
-		let (caseExprs, stmts) = unzip cases
-
-		br (head cndNames)
-		pushSymTab
-
-		forM_ (zip5 caseExprs cndNames stmtNames nextNames stmts) $
-			\(caseExpr, cndName, stmtName, nextName, stmt) -> do
-				emitBlockStart cndName
-				if isJust caseExpr then do
-					cnd <- cmpEquality pos expr (fromJust caseExpr)
-					condBr cnd stmtName nextName
-				else
-					br stmtName
-				emitBlockStart stmtName
-				cmpStmt stmt
-				br exit
-
-		popSymTab
-		br exit
-		emitBlockStart exit
+	popSymTab
+	br exit
+	emitBlockStart exit
 
 
 cmpExpr :: S.Expr -> Instr (ValType, Operand)

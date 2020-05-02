@@ -72,38 +72,19 @@ Prog : {- empty -}                  { [] }
      | Stmt                         { [$1] }
 	 | Stmt Prog                    { $1 : $2 }
 
-Stmt : StmtS ';'                    { $1 }
-	 | StmtB                        { $1 }
-
-StmtS : ident ':=' Expr             { S.Assign (tokPosn $2) (L.tokStr $1) $3 }  
-	  | ident '=' Expr              { S.Set (tokPosn $2) (L.tokStr $1) $3 }
-	  | print '(' Args ')'          { S.Print (tokPosn $1) $3 }
-	  | ident '(' Args ')'          { S.CallStmt (tokPosn $1) (L.tokStr $1) $3 }
-	  | return                      { S.Return (tokPosn $1) Nothing }
-	  | return Expr                 { S.Return (tokPosn $1) (Just $2) }
-
+Stmt  : StmtS ';'                                 { $1 }
+	  | StmtB                                     { $1 }
+StmtS : Pattern ':=' Expr                         { S.Assign (tokPosn $2) $1 $3 }  
+	  | ident '=' Expr                            { S.Set (tokPosn $2) (L.tokStr $1) $3 }
+	  | print '(' Args ')'                        { S.Print (tokPosn $1) $3 }
+	  | ident '(' Args ')'                        { S.CallStmt (tokPosn $1) (L.tokStr $1) $3 }
+	  | return                                    { S.Return (tokPosn $1) Nothing }
+	  | return Expr                               { S.Return (tokPosn $1) (Just $2) }
 StmtB : Block                                     { $1 }
       | fn ident '(' Params ')' '{' Prog '}'      { S.Func (tokPosn $1) (L.tokStr $2) $4 Nothing $7 }
       | fn ident '(' Params ')' Type '{' Prog '}' { S.Func (tokPosn $1) (L.tokStr $2) $4 (Just $6) $8 }
-	  | If                                        { $1 }
 	  | switch Expr '{' Cases '}'                 { S.Switch (tokPosn $1) $2 $4 }
-
-Cases : {- empty -}                 { [] }
-	  | Case Cases                  { $1 : $2 }
-
-Case : Expr ':' Stmt                { (Just $1, $3) }
-	 | '_'  ':' Stmt                { (Nothing, $3) }
-
-
-If : if Expr Block                  { S.If (tokPosn $1) $2 $3 Nothing }
-   | if Expr Block Else             { S.If (tokPosn $1) $2 $3 (Just $4) }
-
-
-Else : else Block                   { $2 }
-     | else If                      { $2 }
-
-
-Block : '{' Prog '}'                { S.Block (tokPosn $1) $2 }
+	  | If                                        { $1 }
 
 
 Expr : int                          { S.Int (tokPosn $1) (read $ L.tokStr $1) }
@@ -128,6 +109,33 @@ Expr : int                          { S.Int (tokPosn $1) (read $ L.tokStr $1) }
 	 | Expr '==' Expr               { S.Infix (tokPosn $2) S.EqEq $1 $3 }
 	 | Expr '&&' Expr               { S.Infix (tokPosn $2) S.AndAnd $1 $3 }
 	 | Expr '||' Expr               { S.Infix (tokPosn $2) S.OrOr $1 $3 }
+
+
+Pattern   : '_'                     { S.PatIgnore (tokPosn $1) }
+		  | ident                   { S.PatIdent (tokPosn $1) (L.tokStr $1) }
+		  | '(' Patterns ')'        { S.PatTuple (tokPosn $1) $2 }
+Patterns  : {- empty -}             { [] }
+          | Patterns_               { $1 }
+Patterns_ : Pattern                 { [$1] }
+		  | Pattern ',' Patterns_   { $1 : $3 }
+
+
+Switch : switch Expr '{' Cases '}'  { S.Switch (tokPosn $1) $2 $4 }
+Cases  : {- empty -}                { [] }
+	   | Case Cases                 { $1 : $2 }
+Case   : Expr ':' Stmt              { (Just $1, $3) }
+	   | '_'  ':' Stmt              { (Nothing, $3) }
+
+
+If : if Expr Block                  { S.If (tokPosn $1) $2 $3 Nothing }
+   | if Expr Block Else             { S.If (tokPosn $1) $2 $3 (Just $4) }
+
+
+Else : else Block                   { $2 }
+     | else If                      { $2 }
+
+
+Block : '{' Prog '}'                { S.Block (tokPosn $1) $2 }
 
 
 Type : i64                          { S.I64 }

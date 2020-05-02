@@ -39,6 +39,12 @@ data Type
 	deriving (Show, Eq)
 
 
+data Pattern
+	= PatIgnore Posn
+	| PatIdent Posn String
+	| PatTuple Posn [Pattern]
+	deriving (Show, Eq)
+
 data Expr
     = Int   Posn Integer
 	| Bool  Posn Bool
@@ -54,7 +60,7 @@ data Expr
 
 
 data Stmt
-	= Assign Posn String Expr
+	= Assign Posn Pattern Expr
 	| Set Posn String Expr
 	| Print  Posn [Expr]
 	| Map Posn String Expr
