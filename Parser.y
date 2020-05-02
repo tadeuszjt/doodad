@@ -14,6 +14,7 @@ import qualified Cmp as C
 %left      '==' '!='
 %left      '+' '-'
 %left      '*' '/' '%'
+%left      '.'
 %nonassoc  '<' '>'
 %nonassoc  '<=' '>='
 %nonassoc  '(' ')'
@@ -41,7 +42,7 @@ import qualified Cmp as C
     for        { L.Token _ L.Reserved "for" }
     return     { L.Token _ L.Reserved "return" }
     print      { L.Token _ L.Reserved "print" }
-    map        { L.Token _ L.Reserved "map" }
+    switch     { L.Token _ L.Reserved "switch" }
 	true       { L.Token _ L.Reserved "true" }
 	false      { L.Token _ L.Reserved "false" }
 
@@ -58,7 +59,10 @@ import qualified Cmp as C
 	'['        { L.Token _ L.Sym "[" }
 	']'        { L.Token _ L.Sym "]" }
     ','        { L.Token _ L.Sym "," }
+    '.'        { L.Token _ L.Sym "." }
     ';'        { L.Token _ L.Sym ";" }
+    ':'        { L.Token _ L.Sym ":" }
+    '_'        { L.Token _ L.Sym "_" }
 	 
 	string     { L.Token _ L.String _ }
 
@@ -77,12 +81,18 @@ StmtS : ident ':=' Expr             { S.Assign (tokPosn $2) (L.tokStr $1) $3 }
 	  | ident '(' Args ')'          { S.CallStmt (tokPosn $1) (L.tokStr $1) $3 }
 	  | return                      { S.Return (tokPosn $1) Nothing }
 	  | return Expr                 { S.Return (tokPosn $1) (Just $2) }
-	  | map ident Expr              { S.Map (tokPosn $1) (L.tokStr $2) $3 }
 
 StmtB : Block                                     { $1 }
       | fn ident '(' Params ')' '{' Prog '}'      { S.Func (tokPosn $1) (L.tokStr $2) $4 Nothing $7 }
       | fn ident '(' Params ')' Type '{' Prog '}' { S.Func (tokPosn $1) (L.tokStr $2) $4 (Just $6) $8 }
 	  | If                                        { $1 }
+	  | switch Expr '{' Cases '}'                 { S.Switch (tokPosn $1) $2 $4 }
+
+Cases : {- empty -}                 { [] }
+	  | Case Cases                  { $1 : $2 }
+
+Case : Expr ':' Stmt                { (Just $1, $3) }
+	 | '_'  ':' Stmt                { (Nothing, $3) }
 
 
 If : if Expr Block                  { S.If (tokPosn $1) $2 $3 Nothing }
@@ -104,6 +114,8 @@ Expr : int                          { S.Int (tokPosn $1) (read $ L.tokStr $1) }
 	 | ident '(' Args ')'           { S.Call (tokPosn $1) (L.tokStr $1) $3 }
 	 | '-' Expr                     { S.Prefix (tokPosn $1) S.Minus $2 }
 	 | '[' Args ']'                 { S.Array (tokPosn $1) $2 }
+	 | '(' Args ')'                 { S.Tuple (tokPosn $1) $2 }
+	 | Expr '.' int                 { S.TupleIndex (tokPosn $2) $1 (read $ L.tokStr $3) }
 	 | Expr '+' Expr                { S.Infix (tokPosn $2) S.Plus $1 $3 }
 	 | Expr '-' Expr                { S.Infix (tokPosn $2) S.Minus $1 $3 }
 	 | Expr '*' Expr                { S.Infix (tokPosn $2) S.Times $1 $3 }
@@ -117,22 +129,32 @@ Expr : int                          { S.Int (tokPosn $1) (read $ L.tokStr $1) }
 	 | Expr '&&' Expr               { S.Infix (tokPosn $2) S.AndAnd $1 $3 }
 	 | Expr '||' Expr               { S.Infix (tokPosn $2) S.OrOr $1 $3 }
 
-Args : {- empty -}                  { [] }
-	 | Args_                        { $1 }
-
-Args_ : Expr                        { [$1] }
-	  | Expr ',' Args_              { $1 : $3 }
-
-Params : {- empty -}                { [] }
-       | Params_                    { $1 }
-
-Params_ : Param                     { [$1] }
-		| Param ',' Params_         { $1 : $3 }
-
-Param : ident Type                  { S.Param (tokPosn $1) (L.tokStr $1) $2 }
 
 Type : i64                          { S.I64 }
 	 | bool                         { S.TBool }
+	 | '(' Types ')'                { S.TTuple $2 }
+
+
+Param : ident Type                  { S.Param (tokPosn $1) (L.tokStr $1) $2 }
+
+
+Args  : {- empty -}                 { [] }
+	  | Args_                       { $1 }
+Args_ : Expr                        { [$1] }
+	  | Expr ',' Args_              { $1 : $3 }
+
+
+Params  : {- empty -}               { [] }
+        | Params_                   { $1 }
+Params_ : Param                     { [$1] }
+		| Param ',' Params_         { $1 : $3 }
+
+
+Types  : {- empty -}                { [] }
+	   | Types_                     { $1 }
+Types_ : Type                       { [$1] }
+	   | Type ',' Types_            { $1 : $3 }
+
 
 {
 data ParseResult a

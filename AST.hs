@@ -35,6 +35,7 @@ data Param
 data Type
 	= I64
 	| TBool
+	| TTuple [Type]
 	deriving (Show, Eq)
 
 
@@ -43,7 +44,9 @@ data Expr
 	| Bool  Posn Bool
     | Ident Posn String
     | Infix Posn Op Expr Expr
+	| TupleIndex Posn Expr Int
 	| Array Posn [Expr]
+	| Tuple Posn [Expr]
 	| Prefix Posn Op Expr
 	| Call  Posn String [Expr]
 	| String Posn String
@@ -60,4 +63,5 @@ data Stmt
 	| CallStmt Posn String [Expr]
 	| If Posn Expr Stmt (Maybe Stmt)
 	| Return Posn (Maybe Expr)
+	| Switch Posn Expr [(Maybe Expr, Stmt)]
 	deriving (Show, Eq)

@@ -12,6 +12,7 @@ import           Data.Maybe
 import qualified Data.Map                   as Map
 import qualified Data.Set                   as Set
 import           Data.List                  hiding (and, or)
+import           Data.Word
 import           Prelude                    hiding (EQ, and, or)
 
 import           LLVM.AST                   hiding (function, Module)
@@ -37,12 +38,25 @@ data ValType
 	= Void
 	| I64
 	| Bool
+	| Tuple [ValType]
 	| Func [ValType] ValType
 	deriving (Show, Eq)
 
-isFunc :: ValType -> Bool
+isFunc, isExpr :: ValType -> Bool
 isFunc (Func _ _) = True
 isFunc _          = False
+isExpr I64        = True
+isExpr Bool       = True
+isExpr (Tuple _)  = True
+isExpr _          = False
+isTuple (Tuple _) = True
+isTuple _         = False
+
+fromASTType :: S.Type -> ValType
+fromASTType typ = case typ of
+	S.TBool    -> Bool
+	S.I64      -> I64
+	S.TTuple ts -> Tuple (map fromASTType ts)
 
 
 data CompileState
@@ -57,6 +71,7 @@ initCompileState
 		}
 
 
+type Value   = (ValType, Operand)
 type Compile = State CompileState
 type Instr   = InstrCmpT ValType Compile
 type Module  = ModuleCmpT ValType Compile
@@ -64,15 +79,17 @@ type Module  = ModuleCmpT ValType Compile
 
 opTypeOf :: ValType -> Type
 opTypeOf typ = case typ of
-	Void -> VoidType
-	I64  -> i64
-	Bool -> i1
+	Void       -> VoidType
+	I64        -> i64
+	Bool       -> i1
+	Tuple typs -> StructureType False (map opTypeOf typs)
 
 
 zeroOf :: ValType -> C.Constant
 zeroOf typ = case typ of
-	I64  -> toCons (int64 0)
-	Bool -> toCons (bit 0)
+	I64        -> toCons (int64 0)
+	Bool       -> toCons (bit 0)
+	Tuple typs -> toCons $ struct Nothing False (map zeroOf typs)
 
 
 compile :: CmpState ValType -> S.AST -> Either CmpError ([Definition], CmpState ValType)
@@ -86,27 +103,49 @@ compile state ast =
 				getInstrCmp (mapM_ cmpTopStmt ast)
 
 
+cmpEquality :: TextPos -> S.Expr -> S.Expr -> Instr Operand
+cmpEquality pos a b = do
+	(aTyp, aOp) <- cmpExpr a
+	(bTyp, bOp) <- cmpExpr b
+	unless (aTyp == bTyp) (cmpErr pos "invalid comparison")
+	opEquality aTyp aOp bOp
+	where
+		opEquality :: ValType -> Operand -> Operand -> Instr Operand
+		opEquality typ aOp bOp = case typ of
+			I64        -> (flip trunc) i1 =<< icmp EQ aOp bOp
+			Bool       -> (flip trunc) i1 =<< icmp EQ aOp bOp
+			Tuple typs -> do
+				cnds <- forM (zip typs [0..]) $ \(ty, i) -> do
+					fa <- extractValue aOp [i]
+					fb <- extractValue bOp [i]
+					opEquality ty fa fb
+				cnd <- alloca i1 Nothing 0
+				store cnd 0 (bit 1)
+				forM_ cnds (\c -> store cnd 0 =<< and c =<< load cnd 0)
+				load cnd 0
+			_         -> cmpErr pos "invalid comparison"
+		
+
+
 cmpTopStmt :: S.Stmt -> Instr ()
 cmpTopStmt stmt = case stmt of
 	S.Set _ _ _      -> cmpStmt stmt
 	S.Print _ _      -> cmpStmt stmt
 	S.CallStmt _ _ _ -> cmpStmt stmt
+	S.Switch _ _ _   -> cmpStmt stmt
 
 
 	S.Assign pos symbol expr -> do
 		checkUndefined pos symbol
 		name <- freshName (mkBSS symbol)
 		(typ, op) <- cmpExpr expr
+		unless (isExpr typ) (cmpErr pos "isn't an expression")
 
-		if typ `elem` [Bool, I64] then do
-			let opType = opTypeOf typ
-			loc <- global name opType (zeroOf typ)
-			store loc 0 op
-			addExtern symbol (globalDef name opType Nothing)
-			addSymbol symbol (typ, loc)
-		else
-			cmpErr pos "cannot assign type"
-
+		let opType = opTypeOf typ
+		loc <- global name opType (zeroOf typ)
+		store loc 0 op
+		addExtern symbol (globalDef name opType Nothing)
+		addSymbol symbol (typ, loc)
 		addDeclared symbol
 		addExported symbol
 	
@@ -116,12 +155,7 @@ cmpTopStmt stmt = case stmt of
 		name <- freshName (mkBSS symbol)
 		let Name nameStr = name
 		
-		retType <- (flip $ maybe $ return Void) retty $ \typ -> case typ of
-			S.TBool -> return Bool
-			S.I64   -> return I64
-			_ -> cmpErr pos "unsupported return type"
-
-
+		let retType = maybe Void fromASTType retty
 		paramTypes <- forM params $ \(S.Param _ paramName paramType) ->
 			return $ case paramType of
 				S.TBool -> Bool
@@ -160,23 +194,44 @@ cmpTopStmt stmt = case stmt of
 		return ()
 		
 
-
 cmpStmt :: S.Stmt -> Instr ()
+cmpStmt (S.Print pos exprs) = do
+	prints =<< mapM cmpExpr exprs
+	void (putchar '\n')
+	where
+		prints :: [Value] -> Instr ()
+		prints []     = return ()
+		prints [val]  = print val
+		prints (v:vs) = print v >> printf ", " [] >> prints vs
+
+		print :: Value -> Instr ()
+		print (typ, op) = case typ of
+			I64  -> void (printf "%ld" [op])
+
+			Bool -> do
+				str <- globalStringPtr "true\0false" =<< fresh
+				idx <- select op (int64 0) (int64 5)
+				ptr <- gep (cons str) [idx]
+				void (printf "%s" [ptr])
+
+			Tuple typs -> do
+				putchar '('
+				fields <- forM [0..length typs-1] $ \i ->
+					extractValue op [toEnum i]
+
+				prints (zip typs fields)
+				putchar ')'
+				return ()
+
+			t -> cmpErr pos ("can't print type: " ++ show typ)
+
 cmpStmt stmt = case stmt of
 	S.Assign pos symbol expr -> do
 		checkUndefined pos symbol
 		(typ, op) <- cmpExpr expr
-
-		case typ of
-			Bool -> do
-				loc <- alloca i1 Nothing 0
-				store loc 0 op
-				addSymbol symbol (Bool, op)
-
-			I64 -> do
-				loc <- alloca i64 Nothing 0
-				store loc 0 op
-				addSymbol symbol (Bool, op)
+		loc <- alloca (typeOf op) Nothing 0
+		store loc 0 op
+		addSymbol symbol (typ, loc)
 
 
 	S.Set pos symbol expr -> do
@@ -194,29 +249,6 @@ cmpStmt stmt = case stmt of
 		unless (isFunc typ) $ cmpErr pos (symbol ++ " isn't a function")
 		vals <- mapM cmpExpr args
 		return ()
-
-
-	S.Print pos exprs -> do
-		let print = \(typ, op) -> case typ of
-			I64  -> void (printf "%ld" [op])
-
-			Bool -> do
-				str <- globalStringPtr "true\0false" =<< fresh
-				idx <- select op (int64 0) (int64 5)
-				ptr <- gep (cons str) [idx]
-				void (printf "%s" [ptr])
-
-			t -> cmpErr pos ("can't print type: " ++ show typ)
-
-		let prints = \vals -> case vals of
-			[]     -> return ()
-			[val]  -> print val
-			(v:vs) -> print v >> printf ", " [] >> prints vs
-			
-		vals <- mapM cmpExpr exprs
-		prints vals
-		void (putchar '\n')
-	
 
 	S.Return pos expr -> do
 		curRetType <- lift (gets curRetType) 
@@ -255,6 +287,33 @@ cmpStmt stmt = case stmt of
 		br exit
 
 		emitBlockStart exit
+	
+	S.Switch pos expr []    -> return ()
+	S.Switch pos expr cases -> do
+		exit      <- freshUnName
+		cndNames  <- replicateM (length cases) (freshName "case")
+		stmtNames <- replicateM (length cases) (freshName "case_stmt")
+		let nextNames = tail cndNames ++ [exit]
+		let (caseExprs, stmts) = unzip cases
+
+		br (head cndNames)
+		pushSymTab
+
+		forM_ (zip5 caseExprs cndNames stmtNames nextNames stmts) $
+			\(caseExpr, cndName, stmtName, nextName, stmt) -> do
+				emitBlockStart cndName
+				if isJust caseExpr then do
+					cnd <- cmpEquality pos expr (fromJust caseExpr)
+					condBr cnd stmtName nextName
+				else
+					br stmtName
+				emitBlockStart stmtName
+				cmpStmt stmt
+				br exit
+
+		popSymTab
+		br exit
+		emitBlockStart exit
 
 
 cmpExpr :: S.Expr -> Instr (ValType, Operand)
@@ -263,29 +322,45 @@ cmpExpr expr = case expr of
 	S.Bool pos b -> return (Bool, bit $ if b then 1 else 0)
 
 	S.Ident pos symbol -> do
-		(typ, op) <- look pos symbol
-
-		op' <- case typ of
-			I64  -> load op 0
-			Bool -> load op 0
-			_ -> cmpErr pos (symbol ++ " isn't an expression")
-
-		return (typ, op')
+		(typ, loc) <- look pos symbol
+		unless (isExpr typ) $ cmpErr pos (symbol ++ " isn't an expression")
+		op <- load loc 0
+		return (typ, op)
 	
 
 	S.Call pos symbol args -> do
 		(typ, op) <- look pos symbol
-		case typ of
-			Func _ _ -> return ()
-			_        -> cmpErr pos (symbol ++ " isn't a function")
-
+		unless (isFunc typ) $ cmpErr pos (symbol ++ " isn't a function")
 		let Func argTypes retType = typ
-
 		vals <- mapM cmpExpr args
 		let (typs, ops) = unzip vals
-
+		unless (argTypes == typs) (cmpErr pos "arg types don't match")
 		ret <- call op (map (,[]) ops)
-		return (I64, ret)
+		return (retType, ret)
+	
+
+	S.Tuple pos [arg] -> cmpExpr arg
+	S.Tuple pos args  -> do
+		(typs, ops) <- fmap unzip (mapM cmpExpr args)
+		let tupOpType = StructureType False (map typeOf ops)
+		loc <- alloca tupOpType Nothing 0
+
+		forM_ (zip3 typs ops [0..]) $ \(typ, op, i) -> do
+			loc' <- load loc 0
+			agg <- insertValue loc' op [i]
+			store loc 0 agg
+
+		op <- load loc 0
+		return (Tuple typs, op)
+		
+
+	S.TupleIndex pos tup idx -> do
+		(typ, op) <- cmpExpr tup
+		unless (isTuple typ) (cmpErr pos "expr isn't tuple")
+		let Tuple typs = typ
+		unless (idx >= 0 && idx < length typs) (cmpErr pos "tuple index out of range")
+		field <- extractValue op [fromIntegral idx]
+		return (typs !! idx, field)
 
 
 	S.Prefix pos operator expr -> do

@@ -14,10 +14,10 @@ where
 $white  = [\ \t\n]
 $digit  = 0-9
 $alpha  = [a-zA-Z]
-$symbol = [\{\}\(\)\[\]\,\;]
+$symbol = [\{\}\(\)\[\]\,\.\;\:\_]
 
 @types      = i64 | bool
-@keywords   = fn | for | if | else | return | print | map | true | false
+@keywords   = fn | for | if | else | return | print | switch | true | false
 @reserved   = @keywords | @types
 @reservedOp = [\+\-\*\/\%\<\>\=] | ":=" | "==" | "<=" | ">=" | "||" | "&&"
 
