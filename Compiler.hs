@@ -5,11 +5,13 @@ module Compiler where
 
 import           Control.Monad
 import           Control.Monad.Except       hiding (void)
+import           Control.Monad.State
 import qualified Data.ByteString.Char8      as BS
 import qualified Data.ByteString.Short      as BSS
 import           Data.Maybe
 import qualified Data.Map                   as Map
 import qualified Data.Set                   as Set
+import           Data.List                  hiding (and, or)
 import           Prelude                    hiding (EQ, and, or)
 
 import           LLVM.AST                   hiding (function, Module)
@@ -35,18 +37,48 @@ data ValType
 	= Void
 	| I64
 	| Bool
-	| Func
+	| Func [ValType] ValType
 	deriving (Show, Eq)
 
+isFunc :: ValType -> Bool
+isFunc (Func _ _) = True
+isFunc _          = False
 
-type State  = CmpState ValType
-type Instr  = InstrCmp ValType
-type Module = ModuleCmp ValType
+
+data CompileState
+	= CompileState
+		{ curRetType :: ValType
+		}
+	deriving (Show, Eq)
+
+initCompileState
+	= CompileState
+		{ curRetType = Void
+		}
 
 
-compile :: State -> S.AST -> Either CmpError ([Definition], State)
+type Compile = State CompileState
+type Instr   = InstrCmpT ValType Compile
+type Module  = ModuleCmpT ValType Compile
+
+
+opTypeOf :: ValType -> Type
+opTypeOf typ = case typ of
+	Void -> VoidType
+	I64  -> i64
+	Bool -> i1
+
+
+zeroOf :: ValType -> C.Constant
+zeroOf typ = case typ of
+	I64  -> toCons (int64 0)
+	Bool -> toCons (bit 0)
+
+
+compile :: CmpState ValType -> S.AST -> Either CmpError ([Definition], CmpState ValType)
 compile state ast =
-	fmap (\((_, defs), st) -> (defs, st)) (runModuleCmp emptyModuleBuilder state cmp)
+	let (res, _) = runState (runModuleCmpT emptyModuleBuilder state cmp) initCompileState in
+	fmap (\((_, defs), state') -> (defs, state')) res
 	where
 		cmp :: Module ()
 		cmp =
@@ -66,18 +98,14 @@ cmpTopStmt stmt = case stmt of
 		name <- freshName (mkBSS symbol)
 		(typ, op) <- cmpExpr expr
 
-		case typ of
-			Bool -> do
-				loc <- global name i1 (toCons $ bit 0)
-				store loc 0 op
-				addExtern symbol (globalDef name i1 Nothing)
-				addSymbol symbol (Bool, loc)
-
-			I64 -> do
-				loc <- global name i64 (toCons $ int64 0)
-				store loc 0 op
-				addExtern symbol (globalDef name i64 Nothing)
-				addSymbol symbol (I64, loc)
+		if typ `elem` [Bool, I64] then do
+			let opType = opTypeOf typ
+			loc <- global name opType (zeroOf typ)
+			store loc 0 op
+			addExtern symbol (globalDef name opType Nothing)
+			addSymbol symbol (typ, loc)
+		else
+			cmpErr pos "cannot assign type"
 
 		addDeclared symbol
 		addExported symbol
@@ -88,20 +116,22 @@ cmpTopStmt stmt = case stmt of
 		name <- freshName (mkBSS symbol)
 		let Name nameStr = name
 		
-		(retType, retOpType) <- (flip $ maybe $ return (Void, VoidType)) retty $ \typ -> case typ of
-			S.TBool -> return (Bool, i1)
-			S.I64   -> return (I64, i64)
+		retType <- (flip $ maybe $ return Void) retty $ \typ -> case typ of
+			S.TBool -> return Bool
+			S.I64   -> return I64
 			_ -> cmpErr pos "unsupported return type"
 
 
 		paramTypes <- forM params $ \(S.Param _ paramName paramType) ->
 			return $ case paramType of
-				S.TBool -> (Bool, i1)
-				S.I64   -> (I64, i64)
+				S.TBool -> Bool
+				S.I64   -> I64
 
-		let paramNames = map (mkName . S.paramName) params
-		let paramNames' = map (ParameterName . mkBSS . S.paramName) params
-		let paramOpTypes = map snd paramTypes
+		let retOpType    = opTypeOf retType
+		let paramSymbols = map S.paramName params
+		let paramNames   = map mkName paramSymbols
+		let paramNames'  = map (ParameterName . mkBSS) paramSymbols
+		let paramOpTypes = map opTypeOf paramTypes
 
 		let ext    = funcDef name (zip paramOpTypes paramNames) retOpType []
 		let opType = FunctionType retOpType paramOpTypes False
@@ -110,11 +140,22 @@ cmpTopStmt stmt = case stmt of
 		addDeclared symbol
 		addExported symbol
 		addExtern symbol ext
-		addSymbol symbol (Func, op)
+		addSymbol symbol (Func paramTypes retType, op)
 
 		InstrCmpT $ IRBuilderT . lift $ function name (zip paramOpTypes paramNames') retOpType $
-			\arg -> (flip named) nameStr $ getInstrCmp $ do
+			\args -> (flip named) nameStr $ getInstrCmp $ do
+				pushSymTab
+				curRetType <- lift (gets curRetType)
+				lift $ modify $ \s -> s { curRetType = retType }
+
+				forM_ (zip4 paramSymbols paramTypes paramOpTypes args) $ \(sym, typ, opType, arg)-> do
+					loc <- alloca opType Nothing 0
+					store loc 0 arg
+					addSymbol sym (typ, loc)
+					
 				mapM_ cmpStmt stmts
+				popSymTab
+				lift $ modify $ \s -> s { curRetType = curRetType }
 
 		return ()
 		
@@ -147,11 +188,12 @@ cmpStmt stmt = case stmt of
 			Bool -> store loc 0 op
 			I64  -> store loc 0 op
 
-			
-	S.Block pos stmts -> do
-		pushSymTab
-		mapM_ cmpStmt stmts
-		popSymTab
+
+	S.CallStmt pos symbol args -> do
+		(typ, op) <- look pos symbol
+		unless (isFunc typ) $ cmpErr pos (symbol ++ " isn't a function")
+		vals <- mapM cmpExpr args
+		return ()
 
 
 	S.Print pos exprs -> do
@@ -174,6 +216,24 @@ cmpStmt stmt = case stmt of
 		vals <- mapM cmpExpr exprs
 		prints vals
 		void (putchar '\n')
+	
+
+	S.Return pos expr -> do
+		curRetType <- lift (gets curRetType) 
+		if isNothing expr then do
+			unless (curRetType == Void) (cmpErr pos "cannot return void")
+			retVoid
+		else do
+			(typ, op) <- cmpExpr (fromJust expr)
+			unless (curRetType == typ) $ cmpErr pos ("incorrect type: " ++ show typ)
+			ret op
+		void block
+
+
+	S.Block pos stmts -> do
+		pushSymTab
+		mapM_ cmpStmt stmts
+		popSymTab
 
 
 	S.If pos expr block els -> do
@@ -211,6 +271,21 @@ cmpExpr expr = case expr of
 			_ -> cmpErr pos (symbol ++ " isn't an expression")
 
 		return (typ, op')
+	
+
+	S.Call pos symbol args -> do
+		(typ, op) <- look pos symbol
+		case typ of
+			Func _ _ -> return ()
+			_        -> cmpErr pos (symbol ++ " isn't a function")
+
+		let Func argTypes retType = typ
+
+		vals <- mapM cmpExpr args
+		let (typs, ops) = unzip vals
+
+		ret <- call op (map (,[]) ops)
+		return (I64, ret)
 
 
 	S.Prefix pos operator expr -> do
@@ -249,3 +324,5 @@ cmpExpr expr = case expr of
 					S.EqEq   -> fmap (Bool,) $ (flip trunc) i1 =<< icmp EQ val1 val2
 					_        -> cmpErr pos "unsupported infix"
 			(ta, tb) -> error $ show (ta, tb)
+
+	_ -> error (show expr)

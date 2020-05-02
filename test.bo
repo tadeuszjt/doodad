@@ -1,8 +1,12 @@
-x := 2;
-x = 31;
-y := x;
-z := x + y;
-
-fn f() { 
-	print(x, y, z, x > z, z == y);
+fn fib(x i64) i64 { 
+	if x <= 0 {
+		return 0;
+	} else if x == 1 {
+		return ;
+	} else {
+		return fib(x - 1) + fib(x - 2);
+	}
 }
+
+res := fib(41);
+print(res);

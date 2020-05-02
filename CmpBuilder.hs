@@ -19,6 +19,7 @@ import qualified LLVM.AST.Constant as C
 import           Cmp
 
 
+
 for :: Operand -> (Operand -> InstrCmp t ()) -> InstrCmp t ()
 for num f = do
 	forCond <- freshName "for.cond"
@@ -43,31 +44,24 @@ for num f = do
 	return ()
 
 
-putchar :: Char -> InstrCmp t Operand
+putchar :: Monad m => Char -> InstrCmpT t m Operand
 putchar ch = do
 	op <- ensureExtern "putchar" [i32] i32 False
 	let c8 = fromIntegral (ord ch)
 	call op [(int32 c8, [])]
 
 
-printf :: String -> [Operand] -> InstrCmp t Operand
+printf :: Monad m => String -> [Operand] -> InstrCmpT t m Operand
 printf fmt args = do
 	op <- ensureExtern "printf" [ptr i8] i32 True
 	str <- globalStringPtr fmt =<< fresh
 	call op $ map (\a -> (a, [])) (cons str:args)
 
 
-puts :: Operand -> InstrCmp t Operand
+puts :: Monad m => Operand -> InstrCmpT t m Operand
 puts str = do
 	op <- ensureExtern "puts" [ptr i8] i32 False
 	call op [(str, [])]
-
-
-initOf :: Type -> C.Constant
-initOf typ = case typ of
-	IntegerType nbits -> C.Int nbits 0
-	ArrayType n t     -> C.Array t (replicate (fromIntegral n) (initOf t))
-	_                 -> error (show typ)
 
 
 isCons :: Operand -> Bool

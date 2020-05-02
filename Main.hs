@@ -81,7 +81,7 @@ main = do
 repl :: Context -> ExecutionSession -> IRCompileLayer ObjectLinkingLayer -> PassManager -> Bool -> Bool -> IO ()
 repl ctx es cl pm verbose dontOptimise = runInputT defaultSettings (loop C.initCmpState)
 	where
-		loop :: C.State -> InputT IO ()
+		loop :: C.CmpState C.ValType -> InputT IO ()
 		loop state =
 			getInputLine "% " >>= \minput -> case minput of
 				Nothing    -> return ()
@@ -91,7 +91,7 @@ repl ctx es cl pm verbose dontOptimise = runInputT defaultSettings (loop C.initC
 
 
 compile
-	:: C.State
+	:: C.CmpState C.ValType
 	-> String
 	-> Context
 	-> ExecutionSession
@@ -99,7 +99,7 @@ compile
 	-> PassManager
 	-> Bool
 	-> Bool
-	-> IO C.State 
+	-> IO (C.CmpState C.ValType)
 compile state source ctx es cl pm verbose dontOptimise =
 	case L.alexScanner source of
 		Left  errStr -> putStrLn errStr >> return state
@@ -132,6 +132,6 @@ compile state source ctx es cl pm verbose dontOptimise =
 		printError (C.CmpError (C.TextPos p l c, str)) source = do
 			putStrLn ("error " ++ show l ++ ":" ++ show c ++ " " ++ str ++ ":")
 			let sourceLines = lines source
-			unless (length sourceLines <= 1) $ putStrLn ("\t" ++ sourceLines !! (l-2))
-			unless (length sourceLines <= 0) $ putStrLn ("\t" ++ sourceLines !! (l-1))
-			putStrLn ("\t" ++ replicate (c-1) '-' ++ "^")
+			unless (length sourceLines <= 1) $ putStrLn (sourceLines !! (l-2))
+			unless (length sourceLines <= 0) $ putStrLn (sourceLines !! (l-1))
+			putStrLn (replicate (c-1) '-' ++ "^")
