@@ -33,8 +33,12 @@ data Param
 
 
 data Type
-	= I64
-	| TBool
+	= TBool
+	| TI32
+	| TI64
+	| TChar
+	| TString
+	| TArray Int Type
 	| TTuple [Type]
 	deriving (Show, Eq)
 
@@ -48,14 +52,16 @@ data Pattern
 data Expr
     = Int   Posn Integer
 	| Bool  Posn Bool
+	| Char Posn Char
+	| String Posn String
     | Ident Posn String
+	| Constructor Posn Type Expr
     | Infix Posn Op Expr Expr
 	| TupleIndex Posn Expr Int
 	| Array Posn [Expr]
 	| Tuple Posn [Expr]
 	| Prefix Posn Op Expr
 	| Call  Posn String [Expr]
-	| String Posn String
     deriving (Show, Eq)
 
 
@@ -66,6 +72,7 @@ data Stmt
 	| Map Posn String Expr
 	| Block Posn [Stmt]
 	| Func Posn String [Param] (Maybe Type) [Stmt]
+	| Extern Posn String [Param] (Maybe Type)
 	| CallStmt Posn String [Expr]
 	| If Posn Expr Stmt (Maybe Stmt)
 	| Return Posn (Maybe Expr)

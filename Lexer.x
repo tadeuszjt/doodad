@@ -14,20 +14,22 @@ where
 $white  = [\ \t\n]
 $digit  = 0-9
 $alpha  = [a-zA-Z]
+$ascii  = [$alpha $digit \ \_\?\!]
 $symbol = [\{\}\(\)\[\]\,\.\;\:\_]
 
-@types      = i64 | bool
-@keywords   = fn | for | if | else | return | print | switch | true | false
+@types      = i64 | i32 | bool | char | string
+@keywords   = fn | extern | for | if | else | return | print | switch | true | false
 @reserved   = @keywords | @types
 @reservedOp = [\+\-\*\/\%\<\>\=] | ":=" | "==" | "<=" | ">=" | "||" | "&&"
 
 tokens :-
-	$white                     ; 
-	$symbol                    { mkT Sym }
-	@reserved                  { mkT Reserved }
-	@reservedOp                { mkT ReservedOp }
-	$alpha [$alpha $digit \_]* { mkT Ident }
-	$digit+                    { mkT Int }
+	$white                           ; 
+	$symbol                          { mkT Sym }
+	@reserved                        { mkT Reserved }
+	@reservedOp                      { mkT ReservedOp }
+	$alpha [$alpha $digit \_]*       { mkT Ident }
+	$digit+                          { mkT Int }
+	\' $ascii \'                     { mkT Char }
 	\" [$white $alpha $digit \_]* \" { mkT String }
 
 
@@ -65,6 +67,7 @@ data TokenType
 	| ReservedOp
 	| Ident
 	| Int
+	| Char
 	| String
 	| EOF
 	deriving (Show, Eq)
