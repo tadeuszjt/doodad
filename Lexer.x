@@ -11,16 +11,24 @@ where
 
 %wrapper "monad"
 
-$white  = [\ \t\n]
-$digit  = 0-9
-$alpha  = [a-zA-Z]
-$ascii  = [$alpha $digit \ \_\?\!]
-$symbol = [\{\}\(\)\[\]\,\.\;\:\_]
+$white   = [\ \t\n]
+$digit   = 0-9
+$alpha   = [a-zA-Z]
+$ascsym  = [\!\#\$\%\&\*\+\.\/\<\=\>\?\@\\\^\|\-\~]
+$special = [\(\)\,\;\[\]\`\{\}]
+$graphic = [$alpha $digit $ascsym $special \:\"\']
+
+
+$symbol  = [\{\}\(\)\[\]\,\.\;\:\_]
 
 @types      = i64 | i32 | bool | char | string
 @keywords   = fn | extern | for | if | else | return | print | switch | true | false
 @reserved   = @keywords | @types
 @reservedOp = [\+\-\*\/\%\<\>\=] | ":=" | "==" | "<=" | ">=" | "||" | "&&"
+
+@escape     = \\ [tn]
+@string     = $graphic # [\"\\] | " " | @escape
+@char       = $graphic # [\'\\] | " " | @escape
 
 tokens :-
 	$white                           ; 
@@ -29,8 +37,8 @@ tokens :-
 	@reservedOp                      { mkT ReservedOp }
 	$alpha [$alpha $digit \_]*       { mkT Ident }
 	$digit+                          { mkT Int }
-	\' $ascii \'                     { mkT Char }
-	\" [$white $alpha $digit \_]* \" { mkT String }
+	\' @char \'                      { mkT Char }
+	\" @string* \"                   { mkT String }
 
 
 {

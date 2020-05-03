@@ -1,3 +1,23 @@
-a := [3, 2, 5] == [3, 4, 5];
+extern getchar() i32;
+extern putchar(c i32) i32;
 
-print(a);
+fn getLine() {
+	c := char(getchar());
+
+	switch true {
+		c < char(0): return;
+		c == '\t'  : {
+			putchar(i32(' '));
+			putchar(i32(' '));
+			putchar(i32(' '));
+			putchar(i32(' '));
+		}
+		_ : {
+			putchar(i32(c));
+		}
+	}
+
+	getLine();
+}
+		
+getLine();

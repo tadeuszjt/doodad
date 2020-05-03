@@ -131,10 +131,10 @@ valsEqual pos (aTyp, aOp) (bTyp, bOp) = do
 	where
 		opEquality :: ValType -> Operand -> Operand -> Instr Operand
 		opEquality typ aOp bOp = case typ of
-			I64      -> (flip trunc) i1 =<< icmp EQ aOp bOp
-			Bool     -> (flip trunc) i1 =<< icmp EQ aOp bOp
-			Char     -> (flip trunc) i1 =<< icmp EQ aOp bOp
-			String   -> (flip trunc) i1 =<< icmp EQ (int32 0) =<< strcmp aOp bOp
+			I64      -> icmp EQ aOp bOp
+			Bool     -> icmp EQ aOp bOp
+			Char     -> icmp EQ aOp bOp
+			String   -> icmp EQ (int32 0) =<< strcmp aOp bOp
 			Array n t -> do
 				cnd <- alloca i1 Nothing 0
 				store cnd 0 (bit 1)
@@ -521,11 +521,16 @@ cmpExpr expr = case expr of
 					S.Times  -> fmap (I64,) (mul op1 op2)
 					S.Divide -> fmap (I64,) (sdiv op1 op2)
 					S.Mod    -> fmap (I64,) (srem op1 op2)
-					S.LT     -> fmap (Bool,) $ (flip trunc) i1 =<< icmp SLT op1 op2 
-					S.GT     -> fmap (Bool,) $ (flip trunc) i1 =<< icmp SGT op1 op2
-					S.LTEq   -> fmap (Bool,) $ (flip trunc) i1 =<< icmp SLE op1 op2
-					S.GTEq   -> fmap (Bool,) $ (flip trunc) i1 =<< icmp SGT op1 op2
-					S.EqEq   -> fmap (Bool,) $ (flip trunc) i1 =<< icmp EQ op1 op2
+					S.LT     -> fmap (Bool,) $ icmp SLT op1 op2 
+					S.GT     -> fmap (Bool,) $ icmp SGT op1 op2
+					S.LTEq   -> fmap (Bool,) $ icmp SLE op1 op2
+					S.GTEq   -> fmap (Bool,) $ icmp SGT op1 op2
+					S.EqEq   -> fmap (Bool,) $ icmp EQ op1 op2
+					_        -> invalid
+			(Char, Char) ->
+				case operator of
+					S.EqEq   -> fmap (Bool,) $ icmp EQ op1 op2
+					S.LT     -> fmap (Bool,) $ icmp SLT op1 op2 
 					_        -> invalid
 			(String, String) ->
 				case operator of

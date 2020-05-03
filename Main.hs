@@ -30,108 +30,56 @@ import qualified CmpBuilder               as C
 import qualified Cmp                      as C
 import qualified Lexer                    as L
 import qualified Parser                   as P
-
-foreign import ccall "dynamic" mkFun :: FunPtr (IO ()) -> (IO ())
-
-
-run :: FunPtr a -> IO ()
-run fn = mkFun (castFunPtr fn :: FunPtr (IO ()))
-
-
-mkBSS = BSS.toShort . BS.pack
+import           JIT
 
 
 main :: IO ()
 main = do
-	args <- getArgs
-	let verbose = "-v" `elem` args
-	let dontOptimise = "-n" `elem` args
-	resolvers <- newIORef []
-	withContext $ \ctx ->
-		withExecutionSession $ \es ->
-			withHostTargetMachine Reloc.PIC CodeModel.Default CodeGenOpt.None $ \tm ->
-				withObjectLinkingLayer es (\_ -> fmap head $ readIORef resolvers) $ \oll ->
-					withIRCompileLayer oll tm $ \cl ->
-						withPassManager defaultCuratedPassSetSpec $ \pm ->
-							withSymbolResolver es (myResolver cl) $ \psr -> do
-								writeIORef resolvers [psr]
-								loadLibraryPermanently Nothing
+    args <- getArgs
+    let verbose = "-v" `elem` args
+    let optimise = not ("-n" `elem` args)
+    let hasFile  = length args > 0 && head (head args) /= '-'
 
-								if length args > 0 && head (head args) /= '-' then
-									withFile (head args) ReadMode $ \h -> do
-										content <- hGetContents h
-										void (compile C.initCmpState content ctx es cl pm verbose dontOptimise)
-								else
-									repl ctx es cl pm verbose dontOptimise
-
-	where
-		myResolver :: IRCompileLayer ObjectLinkingLayer -> SymbolResolver
-		myResolver cl = SymbolResolver $ \mangled -> do
-			symbol <- findSymbol cl mangled False
-			case symbol of
-				Right _ -> return symbol
-				Left _  -> do
-					ptr <- getSymbolAddressInProcess mangled
-					return $ Right $ JITSymbol
-						{ jitSymbolAddress = ptr
-						, jitSymbolFlags   = defaultJITSymbolFlags { jitSymbolExported = True }
-						}
+    if hasFile then
+        let filename = head args in
+        withFile filename ReadMode $ \h ->
+            withContext $ \ctx -> do
+                content <- hGetContents h
+                case compile C.initCmpState content verbose of
+                    Left err -> printError err content
+                    Right (defs, state) -> do
+                        let astmod = defaultModule { moduleDefinitions = defs }
+                        M.withModuleFromAST ctx astmod $ \mod ->
+                            M.writeLLVMAssemblyToFile (M.File $ filename ++ ".ll") mod
+                            
+    else
+        withSession optimise $ \session -> repl session verbose
 
 
-repl :: Context -> ExecutionSession -> IRCompileLayer ObjectLinkingLayer -> PassManager -> Bool -> Bool -> IO ()
-repl ctx es cl pm verbose dontOptimise = runInputT defaultSettings (loop C.initCmpState)
-	where
-		loop :: C.CmpState C.ValType -> InputT IO ()
-		loop state =
-			getInputLine "% " >>= \minput -> case minput of
-				Nothing    -> return ()
-				Just "q"   -> return ()
-				Just ""    -> loop state
-				Just input -> liftIO (compile state input ctx es cl pm verbose dontOptimise) >>= loop
+repl :: Session -> Bool -> IO ()
+repl session verbose = runInputT defaultSettings (loop C.initCmpState)
+    where
+        loop :: C.CmpState C.ValType -> InputT IO ()
+        loop state =
+            getInputLine "% " >>= \minput -> case minput of
+                Nothing    -> return ()
+                Just "q"   -> return ()
+                Just ""    -> loop state
+                Just input -> return ()--liftIO (compile state input session verbose) >>= loop
 
 
-compile
-	:: C.CmpState C.ValType
-	-> String
-	-> Context
-	-> ExecutionSession
-	-> IRCompileLayer ObjectLinkingLayer
-	-> PassManager
-	-> Bool
-	-> Bool
-	-> IO (C.CmpState C.ValType)
-compile state source ctx es cl pm verbose dontOptimise =
-	case L.alexScanner source of
-		Left  errStr -> putStrLn errStr >> return state
-		Right tokens -> case (P.parseTokens tokens) 0 of
-			P.ParseOk ast -> case C.compile state ast of
-				Left err             -> printError err source >> return state
-				Right (defs, state') -> jitAndRun defs state'
-	where
-		jitAndRun :: [Definition] -> C.CmpState C.ValType -> IO (C.CmpState C.ValType)
-		jitAndRun defs state = do
-			let exported = C.exported state
-			let astmod   = defaultModule { moduleDefinitions = defs }
-			withModuleKey es $ \modKey ->
-				M.withModuleFromAST ctx astmod $ \mod -> do
-					unless dontOptimise $ do
-						passRes <- runPassManager pm mod
-						when verbose $ putStrLn ("optimisation pass: " ++ show passRes)
-					when verbose $ BS.putStrLn =<< M.moduleLLVMAssembly mod
-					addModule cl modKey mod
-					mangled <- mangleSymbol cl (mkBSS "main")
-					res <- findSymbolIn cl modKey mangled False
-					case res of
-						Left _                -> putStrLn "linkage error"
-						Right (JITSymbol fn _)-> run $ castPtrToFunPtr (wordPtrToPtr fn)
-					when (Set.null exported) (removeModule cl modKey)
-					return state
+compile :: C.CmpState C.ValType -> String -> Bool -> Either C.CmpError ([Definition], C.CmpState C.ValType)
+compile state source verbose =
+    case L.alexScanner source of
+        Left  errStr -> Left $ C.CmpError (C.TextPos{}, errStr)
+        Right tokens -> case (P.parseTokens tokens) 0 of
+            P.ParseOk ast -> C.compile state ast
 
 
-		printError :: C.CmpError -> String -> IO ()
-		printError (C.CmpError (C.TextPos p l c, str)) source = do
-			putStrLn ("error " ++ show l ++ ":" ++ show c ++ " " ++ str ++ ":")
-			let sourceLines = lines source
-			unless (length sourceLines <= 1) $ putStrLn (sourceLines !! (l-2))
-			unless (length sourceLines <= 0) $ putStrLn (sourceLines !! (l-1))
-			putStrLn (replicate (c-1) '-' ++ "^")
+printError :: C.CmpError -> String -> IO ()
+printError (C.CmpError (C.TextPos p l c, str)) source = do
+    putStrLn ("error " ++ show l ++ ":" ++ show c ++ " " ++ str ++ ":")
+    let sourceLines = lines source
+    unless (length sourceLines <= 1) $ putStrLn (sourceLines !! (l-2))
+    unless (length sourceLines <= 0) $ putStrLn (sourceLines !! (l-1))
+    putStrLn (replicate (c-1) '-' ++ "^")
