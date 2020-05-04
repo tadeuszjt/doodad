@@ -42,10 +42,12 @@ import qualified Cmp as C
     else       { L.Token _ L.Reserved "else" }
     for        { L.Token _ L.Reserved "for" }
     return     { L.Token _ L.Reserved "return" }
-    print      { L.Token _ L.Reserved "print" }
     switch     { L.Token _ L.Reserved "switch" }
 	true       { L.Token _ L.Reserved "true" }
 	false      { L.Token _ L.Reserved "false" }
+
+    print      { L.Token _ L.Reserved "print" }
+	len        { L.Token _ L.Reserved "len" }
 
 	i64        { L.Token _ L.Reserved "i64" }
 	i32        { L.Token _ L.Reserved "i32" }
@@ -78,6 +80,7 @@ Prog : {- empty -}                  { [] }
      | Stmt                         { [$1] }
 	 | Stmt Prog                    { $1 : $2 }
 
+
 Stmt  : StmtS ';'                                 { $1 }
 	  | StmtB                                     { $1 }
 StmtS : Pattern ':=' Expr                         { S.Assign (tokPosn $2) $1 $3 }  
@@ -95,20 +98,31 @@ StmtB : Block                                     { $1 }
 	  | If                                        { $1 }
 
 
+Type : bool                         { S.TBool }
+	 | i32                          { S.TI32 }
+     | i64                          { S.TI64 }
+	 | char                         { S.TChar }
+	 | string                       { S.TString }
+	 | '[' int Type ']'             { S.TArray (read $ L.tokStr $2) $3 }
+	 | '(' Types ')'                { S.TTuple $2 }
+
 
 Expr : int                          { S.Int (tokPosn $1) (read $ L.tokStr $1) }
 	 | floatlit                     { S.Float (tokPosn $1) (read $ L.tokStr $1) }
+	 | charlit                      { S.Char (tokPosn $1) (read $ L.tokStr $1) }
+	 | strlit                       { S.String (tokPosn $1) (L.tokStr $1) }
 	 | true                         { S.Bool (tokPosn $1) True }
 	 | false                        { S.Bool (tokPosn $1) False }
 	 | ident                        { S.Ident (tokPosn $1) (L.tokStr $1) }
-	 | charlit                      { S.Char (tokPosn $1) (read $ L.tokStr $1) }
-	 | strlit                       { S.String (tokPosn $1) (L.tokStr $1) }
-	 | ident '(' Args ')'           { S.Call (tokPosn $1) (L.tokStr $1) $3 }
-	 | Type '(' Expr ')'            { S.Constructor (tokPosn $2) $1 $3 }
-	 | '-' Expr                     { S.Prefix (tokPosn $1) S.Minus $2 }
 	 | '[' Args ']'                 { S.Array (tokPosn $1) $2 }
 	 | '(' Args ')'                 { S.Tuple (tokPosn $1) $2 }
+	 | ident '(' Args ')'           { S.Call (tokPosn $1) (L.tokStr $1) $3 }
+	 | Type '(' Expr ')'            { S.Constructor (tokPosn $2) $1 $3 }
+	 | len '(' Expr ')'             { S.Len (tokPosn $1) $3 }
 	 | Expr '.' int                 { S.TupleIndex (tokPosn $2) $1 (read $ L.tokStr $3) }
+     | Expr '[' Expr ']'            { S.ArrayIndex (tokPosn $2) $1 $3 }
+	 | '-' Expr                     { S.Prefix (tokPosn $1) S.Minus $2 }
+	 | '+' Expr                     { S.Prefix (tokPosn $1) S.Plus $2 }
 	 | Expr '+' Expr                { S.Infix (tokPosn $2) S.Plus $1 $3 }
 	 | Expr '-' Expr                { S.Infix (tokPosn $2) S.Minus $1 $3 }
 	 | Expr '*' Expr                { S.Infix (tokPosn $2) S.Times $1 $3 }
@@ -149,15 +163,6 @@ Else : else Block                   { $2 }
 
 
 Block : '{' Prog '}'                { S.Block (tokPosn $1) $2 }
-
-
-Type : bool                         { S.TBool }
-	 | i32                          { S.TI32 }
-     | i64                          { S.TI64 }
-	 | char                         { S.TChar }
-	 | string                       { S.TString }
-	 | '[' int ']' Type             { S.TArray (read $ L.tokStr $2) $4 }
-	 | '(' Types ')'                { S.TTuple $2 }
 
 
 Param : ident Type                  { S.Param (tokPosn $1) (L.tokStr $1) $2 }

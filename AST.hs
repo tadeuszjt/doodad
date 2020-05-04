@@ -55,14 +55,16 @@ data Expr
 	| Bool TextPos Bool
 	| Char TextPos Char
 	| String TextPos String
-    | Ident TextPos String
-	| Constructor TextPos Type Expr
-    | Infix TextPos Op Expr Expr
-	| TupleIndex TextPos Expr Int
-	| Array TextPos [Expr]
 	| Tuple TextPos [Expr]
-	| Prefix TextPos Op Expr
+	| Array TextPos [Expr]
+	| TupleIndex TextPos Expr Int
+    | ArrayIndex TextPos Expr Expr
+    | Ident TextPos String
 	| Call TextPos String [Expr]
+	| Constructor TextPos Type Expr
+    | Len TextPos Expr
+	| Prefix TextPos Op Expr
+    | Infix TextPos Op Expr Expr
     deriving (Show, Eq)
 
 data Stmt

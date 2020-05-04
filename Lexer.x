@@ -21,8 +21,9 @@ $graphic = [$alpha $digit $ascsym $special \:\"\']
 $symbol  = [\{\}\(\)\[\]\,\.\;\:\_]
 
 @types      = i64 | i32 | bool | char | string
-@keywords   = fn | extern | for | if | else | return | print | switch | true | false
-@reserved   = @keywords | @types
+@builtin    = print | len 
+@keywords   = fn | extern | for | if | else | return | switch | true | false
+@reserved   = @keywords | @types | @builtin
 @reservedOp = [\+\-\*\/\%\<\>\=] | ":=" | "==" | "<=" | ">=" | "||" | "&&"
 
 @escape     = \\ [tn]
@@ -40,8 +41,6 @@ tokens :-
 	$digit+ \. $digit*               { mkT Float }
 	\' @char \'                      { mkT Char }
 	\" @string* \"                   { mkT String }
-
-
 {
 
 mkT :: TokenType -> AlexInput -> Int -> Alex Token

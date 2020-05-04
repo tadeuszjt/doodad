@@ -5,6 +5,7 @@ import           Control.Monad
 import           System.Console.Haskeline
 import           System.Environment
 import           System.IO
+import qualified Data.ByteString.Char8    as BS
 
 import           LLVM.AST
 import           LLVM.Context
@@ -38,8 +39,10 @@ main = do
                         Right (defs, state) -> do
                             let astmod = defaultModule { moduleDefinitions = defs }
                             M.withModuleFromAST ctx astmod $ \mod -> do
-                                passRes <- runPassManager pm mod
-                                when verbose $ putStrLn ("optimisation pass: " ++ if passRes then "success" else "fail")
+                                when optimise $ do
+                                    passRes <- runPassManager pm mod
+                                    when verbose $ putStrLn ("optimisation pass: " ++ if passRes then "success" else "fail")
+                                when verbose (BS.putStrLn =<< M.moduleLLVMAssembly mod)
                                 M.writeLLVMAssemblyToFile (M.File $ filename ++ ".ll") mod
 								
 

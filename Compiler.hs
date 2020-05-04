@@ -44,65 +44,81 @@ data ValType
     | Bool
     | Char
     | String
-    | Array Int ValType
+    | ArrayPtr Int ValType
+    | ArrayVal Int ValType
     | Tuple [ValType]
     | Func [ValType] ValType
     deriving (Show, Eq)
 
-isFunc, isFirst, isTuple :: ValType -> Bool
-isFunc (Func _ _)   = True
-isFunc _            = False
-isFirst I32         = True
-isFirst I64         = True
-isFirst F32         = True
-isFirst F64         = True
-isFirst Bool        = True
-isFirst Char        = True
-isFirst String      = True
-isFirst (Tuple _)   = True
-isFirst (Array _ _) = True
-isFirst _           = False
-isArray (Array _ _) = True
-isArray _           = False
-isTuple (Tuple _)   = True
-isTuple _           = False
+isFunc, isInt, isFloat, isFirst, isArray, isTuple :: ValType -> Bool
+isFunc (Func _ _)      = True
+isFunc _               = False
+
+isInt   I32            = True
+isInt   I64            = True
+isInt   _              = False
+
+isFloat F32            = True
+isFloat F64            = True
+isFloat _              = False
+
+isFirst x
+    | isInt x          = True
+    | isFloat x        = True
+isFirst Bool           = True
+isFirst Char           = True
+isFirst String         = True
+isFirst (ArrayVal _ _) = True
+isFirst _              = False
+
+isArray (ArrayVal _ _) = True
+isArray (ArrayPtr _ _) = True
+isArray _              = False
+
+isTuple (Tuple _)      = True
+isTuple _              = False
 
 fromASTType :: S.Type -> ValType
 fromASTType typ = case typ of
-    S.TBool     -> Bool
-    S.TI32      -> I32
-    S.TI64      -> I64
-    S.TF32      -> F32
-    S.TF64      -> F64
-    S.TChar     -> Char
-    S.TString   -> String
-    S.TArray n t -> Array n (fromASTType t)
-    S.TTuple ts -> Tuple (map fromASTType ts)
+    S.TBool      -> Bool
+    S.TI32       -> I32
+    S.TI64       -> I64
+    S.TF32       -> F32
+    S.TF64       -> F64
+    S.TChar      -> Char
+    S.TString    -> String
+    S.TArray n t -> ArrayVal n (fromASTType t)
+    S.TTuple ts  -> Tuple (map fromASTType ts)
 
+-- globals will be pointers!
+-- cmpExpr gaurantees correct type
+-- all Values will be correct
+-- symtab entries will not be correct
 opTypeOf :: ValType -> Type
 opTypeOf typ = case typ of
     Void       -> VoidType
-    I32        -> i32
-    I64        -> i64
-    F32        -> FloatingPointType DoubleFP
-    F64        -> FloatingPointType HalfFP
-    Bool       -> i1
-    Char       -> i32
-    String     -> ptr i8
-    Array n e  -> ArrayType (fromIntegral n) (opTypeOf e)
-    Tuple typs -> StructureType False (map opTypeOf typs)
+    I32          -> i32
+    I64          -> i64
+    F32          -> FloatingPointType DoubleFP
+    F64          -> FloatingPointType HalfFP
+    Bool         -> i1
+    Char         -> i32
+    Tuple typs   -> StructureType False (map opTypeOf typs)
+    ArrayPtr n t -> ptr $ ArrayType (fromIntegral n) (opTypeOf t)
+    ArrayVal n t -> ArrayType (fromIntegral n) (opTypeOf t)
+    String       -> ptr i8
 
 zeroOf :: ValType -> C.Constant
 zeroOf typ = case typ of
-    I32        -> toCons (int32 0)
-    I64        -> toCons (int64 0)
-    F32        -> toCons (single 0)
-    F64        -> toCons (double 0)
-    Bool       -> toCons (bit 0)
-    Char       -> toCons (int32 0)
-    String     -> C.IntToPtr (toCons $ int64 0) (ptr i8)
-    Array n t  -> toCons $ array $ replicate n (zeroOf t)
-    Tuple typs -> toCons $ struct Nothing False (map zeroOf typs)
+    I32          -> toCons (int32 0)
+    I64          -> toCons (int64 0)
+    F32          -> toCons (single 0)
+    F64          -> toCons (double 0)
+    Bool         -> toCons (bit 0)
+    Char         -> toCons (int32 0)
+    String       -> C.IntToPtr (toCons $ int64 0) (ptr i8)
+    ArrayVal n t -> toCons $ array $ replicate n (zeroOf t)
+    Tuple typs   -> toCons $ struct Nothing False (map zeroOf typs)
 
 
 data CompileState
@@ -135,9 +151,42 @@ compile state ast =
                 getInstrCmp (mapM_ cmpTopStmt ast)
 
 
+valArrayToPtr :: Value -> Instr Value
+valArrayToPtr (ArrayVal n t, arr) = do
+    loc <- alloca (typeOf arr) Nothing 0
+    store loc 0 arr
+    return (ArrayPtr n t, loc)
+
+valArrayIdx :: Value -> Value -> Instr Value
+valArrayIdx (ArrayPtr n t, loc) (idxTyp, idx) = do
+    unless (isInt idxTyp) (error "wasn't int")
+    ptr <- gep loc [int64 0, idx]
+    op <- load ptr 0
+    return (t, op)
+
+valArrayConstIdx :: Value -> Int -> Instr Value
+valArrayConstIdx (ArrayVal n t, arr) i = do
+    op <- extractValue arr [fromIntegral i]
+    return (t, op)
+valArrayConstIdx (ArrayPtr n t, loc) i = do
+    ptr <- gep loc [int64 0, (int64 $ fromIntegral i)]
+    op <- load ptr 0
+    return (t, op)
+
+valArrayLen :: Value -> Int
+valArrayLen (ArrayPtr n _, _) = n
+valArrayLen (ArrayVal n _, _) = n
+
+valTupleIdx :: TextPos -> Value -> Int -> Instr Value
+valTupleIdx pos (Tuple typs, op) i = do
+    unless (i >= 0 && i < length typs) (cmpErr pos "tuple index out of range")
+    o <- extractValue op [fromIntegral i]
+    return (typs !! i, o)
+    
+
 valsEqual :: TextPos -> Value -> Value -> Instr Value
 valsEqual pos (aTyp, aOp) (bTyp, bOp) = do
-    unless (aTyp == bTyp) (cmpErr pos "typs don't match")
+    unless (aTyp == bTyp) (cmpErr pos "types don't match")
     op <- opEquality aTyp aOp bOp
     return (Bool, op)
     where
@@ -150,17 +199,19 @@ valsEqual pos (aTyp, aOp) (bTyp, bOp) = do
             Bool     -> icmp EQ aOp bOp
             Char     -> icmp EQ aOp bOp
             String   -> icmp EQ (int32 0) =<< strcmp aOp bOp
-            Array n t -> do
-                cnd <- alloca i1 Nothing 0
-                store cnd 0 (bit 1)
-                for (int64 $ fromIntegral n) $ \i -> do
-                    pa <- gep aOp [int64 0, i]
-                    pb <- gep bOp [int64 0, i]
-                    a <- load pa 0
-                    b <- load pb 0
-                    c <- opEquality t a b
-                    store cnd 0 =<< and c =<< load cnd 0
-                load cnd 0
+--            ArrayVal n t -> do
+--                cnd <- alloca i1 Nothing 0
+--                store cnd 0 (bit 1)
+--                a <- valArrayPtr (aTyp aOp)
+--                b <- valArrayPtr (bTyp bOp)
+--                for (int64 $ fromIntegral n) $ \i -> do
+--                    pea <- gep a [int64 0, i]
+--                    peb <- gep a [int64 0, i]
+--                    eb <- load pa 0
+--                    b <- load pb 0
+--                    c <- opEquality t a b
+--                    store cnd 0 =<< and c =<< load cnd 0
+--                load cnd 0
             Tuple ts -> do
                 cnds <- forM (zip ts [0..]) $ \(t, i) -> do
                     a <- extractValue aOp [i]
@@ -183,19 +234,23 @@ cmpTopStmt (S.Assign pos pattern expr) = do
     assignPattern pos pattern =<< cmpExpr expr
     where
         assignPattern :: TextPos -> S.Pattern -> Value -> Instr ()
-        assignPattern _   (S.PatIgnore _) _ = return ()
+        assignPattern _   (S.PatIgnore _) _ =
+            return ()
 
-        assignPattern _ (S.PatArray pos ps) (Array n t, op) = do
+        assignPattern _ (S.PatArray pos ps) val@(ArrayVal n t, op) = do
             unless (length ps == n) (cmpErr pos "incorrect array length")
-            forM_ (zip ps [0..]) $ \(p, i) -> do
-                o <- extractValue op [fromIntegral i]
-                assignPattern pos p (t, o)
+            forM_ (zip ps [0..]) $ \(p, i) ->
+                assignPattern pos p =<< valArrayConstIdx val i
 
-        assignPattern _ (S.PatTuple pos ps) (Tuple ts, op) = do
+        assignPattern _ (S.PatArray pos ps) val@(ArrayPtr n t, op) = do
+            unless (length ps == n) (cmpErr pos "incorrect array length")
+            forM_ (zip ps [0..]) $ \(p, i) ->
+                assignPattern pos p =<< valArrayConstIdx val i
+
+        assignPattern _ (S.PatTuple pos ps) val@(Tuple ts, op) = do
             unless (length ps == length ts) (cmpErr pos "incorrect tuple length")
-            forM_ (zip3 ps ts [0..]) $ \(p, t, i) -> do
-                o <- extractValue op [fromIntegral i]
-                assignPattern pos p (t, o)
+            forM_ (zip ps [0..]) $ \(p, i) ->
+                assignPattern pos p =<< valTupleIdx pos val i
 
         assignPattern pos (S.PatIdent _ symbol) (typ, op) = do
             checkUndefined pos symbol
@@ -285,7 +340,15 @@ cmpStmt (S.Print pos exprs) = do
         prints (v:vs) = print v >> printf ", " [] >> prints vs
 
         print :: Value -> Instr ()
-        print (typ, op) = case typ of
+        print val@(typ, op)
+            | isArray typ = do
+                vals <- forM [0..(valArrayLen val)-1] $ \i ->
+                    valArrayConstIdx val i
+                putchar '['
+                prints vals
+                void (putchar ']')
+
+        print val@(typ, op) = case typ of
             I32  -> void (printf "%d" [op])
             I64  -> void (printf "%ld" [op])
             F32  -> void (printf "f" [op])
@@ -307,16 +370,6 @@ cmpStmt (S.Print pos exprs) = do
                 prints (zip typs ops)
                 void (putchar ')')
 
-            Array n t -> do
-                vals <- forM [0..n-1] $ \i -> do
-                    ptr <- gep op [int64 0, int64 (fromIntegral i)]
-                    elm <- load ptr 0
-                    return (t, elm)
-
-                putchar '['
-                prints vals
-                void (putchar ']')
-                
             t -> cmpErr pos ("can't print type: " ++ show typ)
 
 cmpStmt (S.Assign pos pattern expr) = do
@@ -324,11 +377,10 @@ cmpStmt (S.Assign pos pattern expr) = do
     where
         assignPattern :: TextPos -> S.Pattern -> Value -> Instr ()
         assignPattern _   (S.PatIgnore _) _ = return ()
-        assignPattern _ (S.PatArray pos ps) (Array n t, op) = do
+        assignPattern _ (S.PatArray pos ps) val@(ArrayPtr n t, op) = do
             unless (length ps == n) (cmpErr pos "incorrect array length")
-            forM_ (zip ps [0..]) $ \(p, i) -> do
-                o <- extractValue op [fromIntegral i]
-                assignPattern pos p (t, o)
+            forM_ (zip ps [0..]) $ \(p, i) ->
+                assignPattern pos p =<< valArrayConstIdx val i
 
         assignPattern pos (S.PatTuple _ ps)  (Tuple ts, op) = do
             unless (length ps == length ts) (cmpErr pos "incorrect tuple length")
@@ -472,7 +524,7 @@ cmpExpr expr = case expr of
         unless (isFirst elemType) (cmpErr pos "element type isn't expression")
         unless (all (== elemType) types) (cmpErr pos "element types don't match")
         name <- fresh
-        let typ = Array num elemType
+        let typ = ArrayVal num elemType
         loc <- alloca (opTypeOf typ) Nothing 0
         forM_ (zip ops [0..]) $ \(o, i) -> do
             ptr <- gep loc [int64 0, int64 i]
@@ -502,6 +554,20 @@ cmpExpr expr = case expr of
         unless (idx >= 0 && idx < length typs) (cmpErr pos "tuple index out of range")
         o <- extractValue op [fromIntegral idx]
         return (typs !! idx, o)
+
+    S.ArrayIndex pos arr idx -> do
+        arrVal@(arrTyp, arrOp) <- cmpExpr arr
+        idxVal@(idxTyp, idxOp) <- cmpExpr idx
+        unless (isArray arrTyp) (cmpErr pos "expression isn't an array")
+        unless (isInt idxTyp) (cmpErr pos "index isn't an integer")
+        valArrayIdx arrVal idxVal
+
+    S.Len pos expr -> do
+        (typ, op) <- cmpExpr expr
+        case typ of
+            ArrayPtr n t -> return (I64, int64 $ fromIntegral n)
+            ArrayVal n t -> return (I64, int64 $ fromIntegral n)
+            _         -> cmpErr pos ("cannot len type: " ++ show typ)
 
     S.Prefix pos operator expr -> do
         let invalid = cmpErr pos "invalid prefix"
