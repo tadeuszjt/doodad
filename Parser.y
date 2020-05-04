@@ -54,6 +54,7 @@ import qualified Cmp as C
 	string     { L.Token _ L.Reserved "string" }
 
     int        { L.Token _ L.Int _ }
+	floatlit   { L.Token _ L.Float _ }
     ident      { L.Token _ L.Ident _ }
 	charlit    { L.Token _ L.Char _ }
 	strlit     { L.Token _ L.String _ }
@@ -94,7 +95,9 @@ StmtB : Block                                     { $1 }
 	  | If                                        { $1 }
 
 
+
 Expr : int                          { S.Int (tokPosn $1) (read $ L.tokStr $1) }
+	 | floatlit                     { S.Float (tokPosn $1) (read $ L.tokStr $1) }
 	 | true                         { S.Bool (tokPosn $1) True }
 	 | false                        { S.Bool (tokPosn $1) False }
 	 | ident                        { S.Ident (tokPosn $1) (L.tokStr $1) }
@@ -123,6 +126,7 @@ Expr : int                          { S.Int (tokPosn $1) (read $ L.tokStr $1) }
 Pattern   : '_'                     { S.PatIgnore (tokPosn $1) }
 		  | ident                   { S.PatIdent (tokPosn $1) (L.tokStr $1) }
 		  | '(' Patterns ')'        { S.PatTuple (tokPosn $1) $2 }
+		  | '[' Patterns ']'        { S.PatArray (tokPosn $1) $2 }
 Patterns  : {- empty -}             { [] }
           | Patterns_               { $1 }
 Patterns_ : Pattern                 { [$1] }

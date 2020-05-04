@@ -2,31 +2,16 @@
 module Main where
 
 import           Control.Monad
-import           Control.Monad.Except     hiding (void)
-import qualified Data.ByteString.Char8    as BS
-import qualified Data.ByteString.Short    as BSS
-import           Data.IORef
-import qualified Data.Set                   as Set
-import           Foreign.Ptr
 import           System.Console.Haskeline
 import           System.Environment
 import           System.IO
 
 import           LLVM.AST
-import           LLVM.AST.Global
-import qualified LLVM.CodeGenOpt          as CodeGenOpt
-import qualified LLVM.CodeModel           as CodeModel
 import           LLVM.Context
-import           LLVM.Linking
 import qualified LLVM.Module              as M
-import           LLVM.OrcJIT
-import           LLVM.OrcJIT.CompileLayer
 import           LLVM.PassManager
-import qualified LLVM.Relocation          as Reloc
-import           LLVM.Target
 
 import qualified Compiler                 as C
-import qualified CmpBuilder               as C
 import qualified Cmp                      as C
 import qualified Lexer                    as L
 import qualified Parser                   as P
@@ -40,20 +25,23 @@ main = do
     let optimise = not ("-n" `elem` args)
     let hasFile  = length args > 0 && head (head args) /= '-'
 
-    if hasFile then
+    if not hasFile then
+        withSession optimise $ \session -> repl session verbose
+	else
         let filename = head args in
         withFile filename ReadMode $ \h ->
-            withContext $ \ctx -> do
-                content <- hGetContents h
-                case compile C.initCmpState content verbose of
-                    Left err -> printError err content
-                    Right (defs, state) -> do
-                        let astmod = defaultModule { moduleDefinitions = defs }
-                        M.withModuleFromAST ctx astmod $ \mod ->
-                            M.writeLLVMAssemblyToFile (M.File $ filename ++ ".ll") mod
-                            
-    else
-        withSession optimise $ \session -> repl session verbose
+            withContext $ \ctx ->
+                withPassManager defaultCuratedPassSetSpec $ \pm -> do
+                    content <- hGetContents h
+                    case compile C.initCmpState content verbose of
+                        Left err -> printError err content
+                        Right (defs, state) -> do
+                            let astmod = defaultModule { moduleDefinitions = defs }
+                            M.withModuleFromAST ctx astmod $ \mod -> do
+                                passRes <- runPassManager pm mod
+                                when verbose $ putStrLn ("optimisation pass: " ++ if passRes then "success" else "fail")
+                                M.writeLLVMAssemblyToFile (M.File $ filename ++ ".ll") mod
+								
 
 
 repl :: Session -> Bool -> IO ()

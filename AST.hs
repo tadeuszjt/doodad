@@ -1,11 +1,10 @@
 module AST where
 
-import qualified Cmp
+import           Cmp      (TextPos)
 import qualified Lexer    as L
 
-type Posn = Cmp.TextPos
-type AST  = [Stmt]
 
+type AST  = [Stmt]
 
 data Op
     = Plus
@@ -22,20 +21,20 @@ data Op
 	| AndAnd
     deriving (Show, Eq, Ord)
 
-
 data Param
 	= Param
-		{ paramPos  :: Posn
+		{ paramPos  :: TextPos
 		, paramName :: String
 		, paramType :: Type
 		}
 	deriving (Show, Eq)
 
-
 data Type
 	= TBool
 	| TI32
 	| TI64
+	| TF32
+	| TF64
 	| TChar
 	| TString
 	| TArray Int Type
@@ -44,37 +43,38 @@ data Type
 
 
 data Pattern
-	= PatIgnore Posn
-	| PatIdent Posn String
-	| PatTuple Posn [Pattern]
+	= PatIgnore TextPos
+	| PatIdent TextPos String
+	| PatTuple TextPos [Pattern]
+	| PatArray TextPos [Pattern]
 	deriving (Show, Eq)
 
 data Expr
-    = Int   Posn Integer
-	| Bool  Posn Bool
-	| Char Posn Char
-	| String Posn String
-    | Ident Posn String
-	| Constructor Posn Type Expr
-    | Infix Posn Op Expr Expr
-	| TupleIndex Posn Expr Int
-	| Array Posn [Expr]
-	| Tuple Posn [Expr]
-	| Prefix Posn Op Expr
-	| Call  Posn String [Expr]
+    = Int TextPos Integer
+	| Float TextPos Double
+	| Bool TextPos Bool
+	| Char TextPos Char
+	| String TextPos String
+    | Ident TextPos String
+	| Constructor TextPos Type Expr
+    | Infix TextPos Op Expr Expr
+	| TupleIndex TextPos Expr Int
+	| Array TextPos [Expr]
+	| Tuple TextPos [Expr]
+	| Prefix TextPos Op Expr
+	| Call TextPos String [Expr]
     deriving (Show, Eq)
 
-
 data Stmt
-	= Assign Posn Pattern Expr
-	| Set Posn String Expr
-	| Print  Posn [Expr]
-	| Map Posn String Expr
-	| Block Posn [Stmt]
-	| Func Posn String [Param] (Maybe Type) [Stmt]
-	| Extern Posn String [Param] (Maybe Type)
-	| CallStmt Posn String [Expr]
-	| If Posn Expr Stmt (Maybe Stmt)
-	| Return Posn (Maybe Expr)
-	| Switch Posn Expr [(Maybe Expr, Stmt)]
+	= Assign TextPos Pattern Expr
+	| Set TextPos String Expr
+	| Print TextPos [Expr]
+	| Map TextPos String Expr
+	| Block TextPos [Stmt]
+	| Func TextPos String [Param] (Maybe Type) [Stmt]
+	| Extern TextPos String [Param] (Maybe Type)
+	| CallStmt TextPos String [Expr]
+	| If TextPos Expr Stmt (Maybe Stmt)
+	| Return TextPos (Maybe Expr)
+	| Switch TextPos Expr [(Maybe Expr, Stmt)]
 	deriving (Show, Eq)

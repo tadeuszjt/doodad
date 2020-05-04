@@ -18,7 +18,6 @@ $ascsym  = [\!\#\$\%\&\*\+\.\/\<\=\>\?\@\\\^\|\-\~]
 $special = [\(\)\,\;\[\]\`\{\}]
 $graphic = [$alpha $digit $ascsym $special \:\"\']
 
-
 $symbol  = [\{\}\(\)\[\]\,\.\;\:\_]
 
 @types      = i64 | i32 | bool | char | string
@@ -37,6 +36,8 @@ tokens :-
 	@reservedOp                      { mkT ReservedOp }
 	$alpha [$alpha $digit \_]*       { mkT Ident }
 	$digit+                          { mkT Int }
+	$digit* \. $digit+               { mkT Float }
+	$digit+ \. $digit*               { mkT Float }
 	\' @char \'                      { mkT Char }
 	\" @string* \"                   { mkT String }
 
@@ -75,6 +76,7 @@ data TokenType
 	| ReservedOp
 	| Ident
 	| Int
+	| Float
 	| Char
 	| String
 	| EOF
