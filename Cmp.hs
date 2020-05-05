@@ -54,7 +54,7 @@ newtype InstrCmpT t m a
 
 data CmpState t
     = CmpState
-        { symTab   :: SymTab.SymTab String (t, Operand)
+        { symTab   :: SymTab.SymTab String t
         , externs  :: Map.Map String Definition
         , declared :: Set.Set String
         , exported :: Set.Set String
@@ -108,9 +108,9 @@ cmpErr pos str =
     throwError $ CmpError (pos, str)
 
 
-look :: MonadModuleCmp t m => TextPos -> String -> m (t, Operand)
+look :: MonadModuleCmp t m => TextPos -> String -> m t
 look pos symbol = do
-    (typ, addr) <- lookupSymbol pos symbol
+    entry <- lookupSymbol pos symbol
     ext <- lookupExtern symbol
 
     when (isJust ext) $ do
@@ -119,7 +119,7 @@ look pos symbol = do
             emitDefn (fromJust ext)
             addDeclared symbol
 
-    return (typ, addr)
+    return entry
 
 
 ensureExtern :: MonadModuleCmp t m => String -> [Type] -> Type -> Bool -> m Operand
@@ -156,7 +156,7 @@ addExtern symbol def =
     modify $ \s -> s { externs = Map.insert symbol def (externs s) }
 
 
-addSymbol :: MonadModuleCmp t m => String -> (t, Operand) -> m ()
+addSymbol :: MonadModuleCmp t m => String -> t -> m ()
 addSymbol symbol val =
     modify $ \s -> s { symTab = SymTab.insert symbol val (symTab s) }
 
@@ -171,7 +171,7 @@ lookupExtern symbol =
     fmap (Map.lookup symbol) (gets externs)
 
 
-lookupSymbol :: MonadModuleCmp t m => TextPos -> String -> m (t, Operand)
+lookupSymbol :: MonadModuleCmp t m => TextPos -> String -> m t
 lookupSymbol pos symbol = do
     st <- gets symTab
     maybe (cmpErr pos $ symbol ++ " doesn't exist") return (SymTab.lookup symbol st)

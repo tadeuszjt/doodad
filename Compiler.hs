@@ -31,8 +31,35 @@ import qualified AST                        as S
 import           CmpBuilder
 import           Cmp
 
-
 mkBSS = BSS.toShort . BS.pack
+
+
+data CompileState
+    = CompileState
+        { curRetType :: ValType
+        }
+    deriving (Show, Eq)
+
+initCompileState
+    = CompileState
+        { curRetType = Void
+        }
+
+
+type Compile    = State CompileState
+type MyCmpState = CmpState SymEntry
+type Instr      = InstrCmpT SymEntry Compile
+type Module     = ModuleCmpT SymEntry Compile
+
+
+type Value = (ValType, Operand)
+type Func  = ([ValType], ValType, Operand)
+
+
+data SymEntry
+    = SymVal Value
+    | SymFunc [Func]
+    deriving (Show, Eq)
 
 
 data ValType
@@ -47,21 +74,22 @@ data ValType
     | ArrayPtr Int ValType
     | ArrayVal Int ValType
     | Tuple [ValType]
-    | Func [ValType] ValType
     deriving (Show, Eq)
 
-isFunc, isInt, isFloat, isFirst, isArray, isTuple :: ValType -> Bool
-isFunc (Func _ _)      = True
-isFunc _               = False
+
+isVal, isFunc :: SymEntry -> Bool
+isVal (SymVal _)   = True
+isVal _            = False
+isFunc (SymFunc _) = True
+isFunc _           = False
+
 
 isInt   I32            = True
 isInt   I64            = True
 isInt   _              = False
-
 isFloat F32            = True
 isFloat F64            = True
 isFloat _              = False
-
 isFirst x
     | isInt x          = True
     | isFloat x        = True
@@ -70,13 +98,12 @@ isFirst Char           = True
 isFirst String         = True
 isFirst (ArrayVal _ _) = True
 isFirst _              = False
-
 isArray (ArrayVal _ _) = True
 isArray (ArrayPtr _ _) = True
 isArray _              = False
-
 isTuple (Tuple _)      = True
 isTuple _              = False
+
 
 fromASTType :: S.Type -> ValType
 fromASTType typ = case typ of
@@ -89,6 +116,7 @@ fromASTType typ = case typ of
     S.TString    -> String
     S.TArray n t -> ArrayVal n (fromASTType t)
     S.TTuple ts  -> Tuple (map fromASTType ts)
+
 
 -- globals will be pointers!
 -- cmpExpr gaurantees correct type
@@ -121,26 +149,9 @@ zeroOf typ = case typ of
     Tuple typs   -> toCons $ struct Nothing False (map zeroOf typs)
 
 
-data CompileState
-    = CompileState
-        { curRetType :: ValType
-        }
-    deriving (Show, Eq)
-
-initCompileState
-    = CompileState
-        { curRetType = Void
-        }
 
 
-type Value   = (ValType, Operand)
-type Compile = State CompileState
-type Instr   = InstrCmpT ValType Compile
-type Module  = ModuleCmpT ValType Compile
-
-
-
-compile :: CmpState ValType -> S.AST -> Either CmpError ([Definition], CmpState ValType)
+compile :: MyCmpState -> S.AST -> Either CmpError ([Definition], MyCmpState) 
 compile state ast =
     let (res, _) = runState (runModuleCmpT emptyModuleBuilder state cmp) initCompileState in
     fmap (\((_, defs), state') -> (defs, state')) res
@@ -260,7 +271,7 @@ cmpTopStmt (S.Assign pos pattern expr) = do
             loc <- global name opType (zeroOf typ)
             store loc 0 op
             addExtern symbol (globalDef name opType Nothing)
-            addSymbol symbol (typ, loc)
+            addSymbol symbol $ SymVal (typ, loc)
             addDeclared symbol
             addExported symbol
 
@@ -281,8 +292,7 @@ cmpTopStmt (S.Extern pos symbol params retty) = do
         return (paramType, opTypeOf paramType)
     
     op <- ensureExtern symbol paramOpTypes retOpType False
-    addSymbol symbol (Func paramTypes retType, op)
-
+    addSymbol symbol $ SymFunc [(paramTypes, retType, op)]
 
 cmpTopStmt (S.Func pos symbol params retty stmts) = do
         checkUndefined pos symbol
@@ -311,7 +321,7 @@ cmpTopStmt (S.Func pos symbol params retty stmts) = do
         addDeclared symbol
         addExported symbol
         addExtern symbol ext
-        addSymbol symbol (Func paramTypes retType, op)
+        addSymbol symbol $ SymFunc [(paramTypes, retType, op)]
 
         void $ InstrCmpT $ IRBuilderT . lift $ function name (zip paramOpTypes paramNames') retOpType $
             \args -> (flip named) nameStr $ getInstrCmp $ do
@@ -322,7 +332,7 @@ cmpTopStmt (S.Func pos symbol params retty stmts) = do
                 forM_ (zip4 paramSymbols paramTypes paramOpTypes args) $ \(sym, typ, opType, arg)-> do
                     loc <- alloca opType Nothing 0
                     store loc 0 arg
-                    addSymbol sym (typ, loc)
+                    addSymbol sym $ SymVal (typ, loc)
                     
                 mapM_ cmpStmt stmts
                 popSymTab
@@ -394,13 +404,15 @@ cmpStmt (S.Assign pos pattern expr) = do
             unless (isFirst typ) (cmpErr pos "isn't an expression")
             loc <- alloca (typeOf op) Nothing 0
             store loc 0 op
-            addSymbol symbol (typ, loc)
+            addSymbol symbol $ SymVal (typ, loc)
 
         assignPattern pos _ _ =
             cmpErr pos "invalid pattern"
         
 cmpStmt (S.Set pos symbol expr) = do
-    (symType, loc) <- look pos symbol
+    entry <- look pos symbol
+    unless (isVal entry) (cmpErr pos "symbol isn't a value")
+    let SymVal (symType, loc) = entry
     (exprType, op) <- cmpExpr expr
     unless (symType == exprType) (cmpErr pos "types don't match")
 
@@ -409,9 +421,10 @@ cmpStmt (S.Set pos symbol expr) = do
         I64  -> store loc 0 op
 
 cmpStmt (S.CallStmt pos symbol args) = do
-    (typ, op) <- look pos symbol
-    unless (isFunc typ) $ cmpErr pos (symbol ++ " isn't a function")
-    let Func paramTypes retType = typ
+    entry <- look pos symbol
+    unless (isFunc entry) (cmpErr pos "symbol isn't func")
+    let SymFunc [(paramTypes, _, op)] = entry
+
     (argTypes, argOps) <- fmap unzip (mapM cmpExpr args)
     unless (argTypes == paramTypes) (cmpErr pos "arg types don't match param types")
     void $ call op (map (,[]) argOps)
@@ -485,8 +498,9 @@ cmpExpr expr = case expr of
     S.Char pos c  -> return (Char, int32 $ fromIntegral $ fromEnum c)
 
     S.Ident pos symbol -> do
-        (typ, loc) <- look pos symbol
-        unless (isFirst typ) $ cmpErr pos (symbol ++ " isn't an expression")
+        entry <- look pos symbol
+        unless (isVal entry) $ cmpErr pos (symbol ++ "isn't an expression")
+        let SymVal (typ, loc) = entry
         op <- load loc 0
         return (typ, op)
     
@@ -495,12 +509,13 @@ cmpExpr expr = case expr of
         return (String, cons ptr)
 
     S.Call pos symbol args -> do
-        (typ, op) <- look pos symbol
-        unless (isFunc typ) $ cmpErr pos (symbol ++ " isn't a function")
-        let Func argTypes retType = typ
-        (typs, ops) <- fmap unzip (mapM cmpExpr args)
-        unless (argTypes == typs) (cmpErr pos "arg types don't match param types")
-        r <- call op $ map (,[]) ops
+        entry <- look pos symbol
+        unless (isFunc entry) $ cmpErr pos (symbol ++ " isn't a function")
+        let SymFunc [(paramTypes, retType, op)] = entry
+
+        (argTypes, argOps) <- fmap unzip (mapM cmpExpr args)
+        unless (argTypes == paramTypes) (cmpErr pos "arg types don't match param types")
+        r <- call op $ map (,[]) argOps
         return (retType, r)
     
     S.Constructor pos newASTType expr -> do
@@ -564,10 +579,9 @@ cmpExpr expr = case expr of
 
     S.Len pos expr -> do
         (typ, op) <- cmpExpr expr
-        case typ of
-            ArrayPtr n t -> return (I64, int64 $ fromIntegral n)
-            ArrayVal n t -> return (I64, int64 $ fromIntegral n)
-            _         -> cmpErr pos ("cannot len type: " ++ show typ)
+        unless (isArray typ) (cmpErr pos "not an array")
+        let len = valArrayLen (typ, op)
+        return (I64, int64 $ fromIntegral len)
 
     S.Prefix pos operator expr -> do
         let invalid = cmpErr pos "invalid prefix"

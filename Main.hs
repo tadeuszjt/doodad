@@ -50,7 +50,7 @@ main = do
 repl :: Session -> Bool -> IO ()
 repl session verbose = runInputT defaultSettings (loop C.initCmpState)
     where
-        loop :: C.CmpState C.ValType -> InputT IO ()
+        loop :: C.CmpState C.Value -> InputT IO ()
         loop state =
             getInputLine "% " >>= \minput -> case minput of
                 Nothing    -> return ()
@@ -59,7 +59,7 @@ repl session verbose = runInputT defaultSettings (loop C.initCmpState)
                 Just input -> return ()--liftIO (compile state input session verbose) >>= loop
 
 
-compile :: C.CmpState C.ValType -> String -> Bool -> Either C.CmpError ([Definition], C.CmpState C.ValType)
+compile :: C.MyCmpState -> String -> Bool -> Either C.CmpError ([Definition], C.MyCmpState)
 compile state source verbose =
     case L.alexScanner source of
         Left  errStr -> Left $ C.CmpError (C.TextPos{}, errStr)
