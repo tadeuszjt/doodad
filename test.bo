@@ -1,14 +1,13 @@
-extern getchar() i32;
-extern putchar(c i32) i32;
+type int = i64;
 
+type int_ = int;
 
 fn sq(x i64) i64 { return x*x; }
 fn sq(x i32) i32 { return x*x; }
+fn sq(x int) int { return x*x; }
+fn sq(x int_) int_ { return x*x; }
 
 x := i32(113);
 y := i64(31);
-
-sq(x);
-
 
 print(sq(x), sq(y));

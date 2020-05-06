@@ -18,6 +18,7 @@ import qualified Cmp as C
 %nonassoc  '<' '>'
 %nonassoc  '<=' '>='
 %nonassoc  '(' ')'
+%nonassoc  '[' ']'
 
 
 %token
@@ -38,6 +39,7 @@ import qualified Cmp as C
 
     fn         { L.Token _ L.Reserved "fn" }
     extern     { L.Token _ L.Reserved "extern" }
+    type       { L.Token _ L.Reserved "type" }
     if         { L.Token _ L.Reserved "if" }
     else       { L.Token _ L.Reserved "else" }
     for        { L.Token _ L.Reserved "for" }
@@ -57,9 +59,9 @@ import qualified Cmp as C
 
     int        { L.Token _ L.Int _ }
 	floatlit   { L.Token _ L.Float _ }
-    ident      { L.Token _ L.Ident _ }
 	charlit    { L.Token _ L.Char _ }
 	strlit     { L.Token _ L.String _ }
+    ident      { L.Token _ L.Ident _ }
 
     '('        { L.Token _ L.Sym "(" }
     ')'        { L.Token _ L.Sym ")" }
@@ -91,6 +93,7 @@ StmtS : Pattern ':=' Expr                         { S.Assign (tokPosn $2) $1 $3 
 	  | return Expr                               { S.Return (tokPosn $1) (Just $2) }
 	  | extern ident '(' Params ')' Type          { S.Extern (tokPosn $2) (L.tokStr $2) $4 (Just $6) }
 	  | extern ident '(' Params ')'               { S.Extern (tokPosn $2) (L.tokStr $2) $4 Nothing }
+      | type ident '=' Type                       { S.Typedef (tokPosn $2) (L.tokStr $2) $4 }
 StmtB : Block                                     { $1 }
       | fn ident '(' Params ')' '{' Prog '}'      { S.Func (tokPosn $1) (L.tokStr $2) $4 Nothing $7 }
       | fn ident '(' Params ')' Type '{' Prog '}' { S.Func (tokPosn $1) (L.tokStr $2) $4 (Just $6) $8 }
@@ -105,6 +108,7 @@ Type : bool                         { S.TBool }
 	 | string                       { S.TString }
 	 | '[' int Type ']'             { S.TArray (read $ L.tokStr $2) $3 }
 	 | '(' Types ')'                { S.TTuple $2 }
+     | ident                        { S.TIdent (L.tokStr $1) }
 
 
 Expr : int                          { S.Int (tokPosn $1) (read $ L.tokStr $1) }

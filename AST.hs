@@ -39,6 +39,7 @@ data Type
 	| TString
 	| TArray Int Type
 	| TTuple [Type]
+    | TIdent String
 	deriving (Show, Eq)
 
 
@@ -75,6 +76,7 @@ data Stmt
 	| Block TextPos [Stmt]
 	| Func TextPos String [Param] (Maybe Type) [Stmt]
 	| Extern TextPos String [Param] (Maybe Type)
+    | Typedef TextPos String Type
 	| CallStmt TextPos String [Expr]
 	| If TextPos Expr Stmt (Maybe Stmt)
 	| Return TextPos (Maybe Expr)

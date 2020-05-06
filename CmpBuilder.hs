@@ -47,7 +47,7 @@ for num f = do
     f li
     br forCond
 
-    void (emitBlockStart forExit)
+    emitBlockStart forExit
 
 
 if_ :: MonadInstrCmp t m => Operand -> m () -> m () -> m ()
@@ -55,13 +55,16 @@ if_ cnd trueIns falseIns = do
     true  <- freshName "if_true"
     false <- freshName "if_false"
     exit  <- fresh
+
     condBr cnd true false
     emitBlockStart true
     trueIns
     br exit
+
     emitBlockStart false
     falseIns
     br exit
+
     emitBlockStart exit
 
 

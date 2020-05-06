@@ -54,7 +54,8 @@ newtype InstrCmpT t m a
 
 data CmpState t
     = CmpState
-        { symTab   :: SymTab.SymTab String t
+        { curFn    :: Name
+        , symTab   :: SymTab.SymTab String t
         , externs  :: Map.Map String Definition
         , declared :: Set.Set String
         , exported :: Set.Set String
@@ -96,7 +97,8 @@ runModuleCmp moduleBuilderState cmpState moduleCmpT =
 
 
 initCmpState = CmpState
-    { symTab   = SymTab.initSymTab
+    { curFn    = mkName ""
+    , symTab   = SymTab.initSymTab
     , externs  = Map.empty
     , declared = Set.empty
     , exported = Set.empty
@@ -145,6 +147,16 @@ checkUndefined pos symbol = do
 addDeclared :: MonadModuleCmp t m => String -> m ()
 addDeclared symbol =
     modify $ \s -> s { declared = Set.insert symbol (declared s) }
+
+
+getCurFnName :: MonadModuleCmp t m => m Name
+getCurFnName =
+    gets curFn
+
+
+setCurFnName :: MonadModuleCmp t m => Name -> m ()
+setCurFnName name =
+    modify $ \s -> s { curFn = name }
 
 
 addExported :: MonadModuleCmp t m => String -> m ()

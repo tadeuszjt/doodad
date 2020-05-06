@@ -8,7 +8,7 @@ test: Main
 	clang test.bo.s
 	./a.out || true
 
-Main: Main.hs Lexer.hs Parser.hs AST.hs Compiler.hs CmpBuilder.hs Cmp.hs JIT.hs
+Main: Main.hs Lexer.hs Parser.hs AST.hs Compiler.hs CmpVal.hs CmpBuilder.hs Cmp.hs JIT.hs
 	ghc -package haskeline -package llvm-hs-pure -package mtl *.hs -outputdir build
 
 Lexer.hs: Lexer.x

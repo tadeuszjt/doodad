@@ -13,6 +13,7 @@ import qualified LLVM.Module              as M
 import           LLVM.PassManager
 
 import qualified Compiler                 as C
+import qualified CmpVal                   as C
 import qualified Cmp                      as C
 import qualified Lexer                    as L
 import qualified Parser                   as P
@@ -37,6 +38,10 @@ main = do
                     case compile C.initCmpState content verbose of
                         Left err -> printError err content
                         Right (defs, state) -> do
+                            forM_ (head $ C.symTab state) $ \ent -> do
+                                forM_ ent $ \e ->
+                                    putStrLn (show e)
+                                putStrLn ""
                             let astmod = defaultModule { moduleDefinitions = defs }
                             M.withModuleFromAST ctx astmod $ \mod -> do
                                 when optimise $ do
@@ -44,7 +49,6 @@ main = do
                                     when verbose $ putStrLn ("optimisation pass: " ++ if passRes then "success" else "fail")
                                 when verbose (BS.putStrLn =<< M.moduleLLVMAssembly mod)
                                 M.writeLLVMAssemblyToFile (M.File $ filename ++ ".ll") mod
-								
 
 
 repl :: Session -> Bool -> IO ()
