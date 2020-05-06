@@ -45,22 +45,30 @@ initCompileState
         { curRetType = Void
         }
 
+compile :: MyCmpState -> S.AST -> Either CmpError ([Definition], MyCmpState) 
+compile state ast =
+    let (res, _) = runState (runModuleCmpT emptyModuleBuilder state cmp) initCompileState in
+    fmap (\((_, defs), state') -> (defs, state')) res
+    where
+        cmp :: Module ()
+        cmp =
+            void $ function "main" [] VoidType $ \_ ->
+                getInstrCmp (mapM_ cmpTopStmt ast)
+
 
 type Compile    = State CompileState
 type MyCmpState = CmpState SymEntry
 type Instr      = InstrCmpT SymEntry Compile
 type Module     = ModuleCmpT SymEntry Compile
 
-
 type Value = (ValType, Operand)
-type Func  = ([ValType], ValType, Operand)
+type Func  = ([ValType], (ValType, Operand))
 
 
 data SymEntry
     = SymVal Value
     | SymFunc [Func]
     deriving (Show, Eq)
-
 
 data ValType
     = Void
@@ -74,7 +82,23 @@ data ValType
     | ArrayPtr Int ValType
     | ArrayVal Int ValType
     | Tuple [ValType]
-    deriving (Show, Eq)
+    deriving (Show, Eq, Ord)
+
+
+lookupFunction :: String -> [ValType] -> Instr (Maybe (ValType, Operand)) 
+lookupFunction symbol paramTypes = do
+    entry <- lookupSymbol symbol
+    case entry of
+        Just (SymFunc fs) -> return (lookup paramTypes fs)
+        _                 -> return Nothing
+
+
+addFunction :: String -> Func -> Instr ()
+addFunction symbol fn = do
+    entry <- lookupSymbol symbol
+    addSymbol symbol $ case entry of
+        Nothing           -> SymFunc [fn]
+        Just (SymFunc fs) -> SymFunc (insert fn fs)
 
 
 isVal, isFunc :: SymEntry -> Bool
@@ -84,25 +108,19 @@ isFunc (SymFunc _) = True
 isFunc _           = False
 
 
-isInt   I32            = True
-isInt   I64            = True
-isInt   _              = False
-isFloat F32            = True
-isFloat F64            = True
-isFloat _              = False
+isInt t                             = t `elem` [I32, I64]
+isFloat t                           = t `elem` [F32, F64]
 isFirst x
-    | isInt x          = True
-    | isFloat x        = True
-isFirst Bool           = True
-isFirst Char           = True
-isFirst String         = True
-isFirst (ArrayVal _ _) = True
-isFirst _              = False
-isArray (ArrayVal _ _) = True
-isArray (ArrayPtr _ _) = True
-isArray _              = False
-isTuple (Tuple _)      = True
-isTuple _              = False
+    | isInt x                       = True
+    | isFloat x                     = True
+    | x `elem` [Bool, Char, String] = True
+isFirst (ArrayVal _ _)              = True
+isFirst _                           = False
+isArray (ArrayVal _ _)              = True
+isArray (ArrayPtr _ _)              = True
+isArray _                           = False
+isTuple (Tuple _)                   = True
+isTuple _                           = False
 
 
 fromASTType :: S.Type -> ValType
@@ -118,10 +136,6 @@ fromASTType typ = case typ of
     S.TTuple ts  -> Tuple (map fromASTType ts)
 
 
--- globals will be pointers!
--- cmpExpr gaurantees correct type
--- all Values will be correct
--- symtab entries will not be correct
 opTypeOf :: ValType -> Type
 opTypeOf typ = case typ of
     Void       -> VoidType
@@ -136,6 +150,7 @@ opTypeOf typ = case typ of
     ArrayVal n t -> ArrayType (fromIntegral n) (opTypeOf t)
     String       -> ptr i8
 
+
 zeroOf :: ValType -> C.Constant
 zeroOf typ = case typ of
     I32          -> toCons (int32 0)
@@ -149,31 +164,23 @@ zeroOf typ = case typ of
     Tuple typs   -> toCons $ struct Nothing False (map zeroOf typs)
 
 
-
-
-compile :: MyCmpState -> S.AST -> Either CmpError ([Definition], MyCmpState) 
-compile state ast =
-    let (res, _) = runState (runModuleCmpT emptyModuleBuilder state cmp) initCompileState in
-    fmap (\((_, defs), state') -> (defs, state')) res
-    where
-        cmp :: Module ()
-        cmp =
-            void $ function "main" [] VoidType $ \_ ->
-                getInstrCmp (mapM_ cmpTopStmt ast)
-
-
 valArrayToPtr :: Value -> Instr Value
 valArrayToPtr (ArrayVal n t, arr) = do
     loc <- alloca (typeOf arr) Nothing 0
     store loc 0 arr
     return (ArrayPtr n t, loc)
 
+
 valArrayIdx :: Value -> Value -> Instr Value
+valArrayIdx val@(ArrayVal n t, _) idx = do
+    arr <- valArrayToPtr val
+    valArrayIdx arr idx
 valArrayIdx (ArrayPtr n t, loc) (idxTyp, idx) = do
     unless (isInt idxTyp) (error "wasn't int")
     ptr <- gep loc [int64 0, idx]
     op <- load ptr 0
     return (t, op)
+
 
 valArrayConstIdx :: Value -> Int -> Instr Value
 valArrayConstIdx (ArrayVal n t, arr) i = do
@@ -183,6 +190,7 @@ valArrayConstIdx (ArrayPtr n t, loc) i = do
     ptr <- gep loc [int64 0, (int64 $ fromIntegral i)]
     op <- load ptr 0
     return (t, op)
+
 
 valArrayLen :: Value -> Int
 valArrayLen (ArrayPtr n _, _) = n
@@ -292,10 +300,9 @@ cmpTopStmt (S.Extern pos symbol params retty) = do
         return (paramType, opTypeOf paramType)
     
     op <- ensureExtern symbol paramOpTypes retOpType False
-    addSymbol symbol $ SymFunc [(paramTypes, retType, op)]
+    addSymbol symbol $ SymFunc [(paramTypes, (retType, op))]
 
 cmpTopStmt (S.Func pos symbol params retty stmts) = do
-        checkUndefined pos symbol
         name <- freshName (mkBSS symbol)
         let Name nameStr = name
         
@@ -307,6 +314,11 @@ cmpTopStmt (S.Func pos symbol params retty stmts) = do
             let typ = fromASTType paramType
             unless (isFirst typ) (cmpErr pos "param type isn't an expression")
             return typ
+
+        entry <- lookupFunction symbol paramTypes
+        when (isJust entry) $ do
+            let (rt, _) = fromJust entry
+            when (rt == retType) $ cmpErr pos (symbol ++ "already defined")
 
         let retOpType    = opTypeOf retType
         let paramSymbols = map S.paramName params
@@ -321,7 +333,7 @@ cmpTopStmt (S.Func pos symbol params retty stmts) = do
         addDeclared symbol
         addExported symbol
         addExtern symbol ext
-        addSymbol symbol $ SymFunc [(paramTypes, retType, op)]
+        addFunction symbol (paramTypes, (retType, op))
 
         void $ InstrCmpT $ IRBuilderT . lift $ function name (zip paramOpTypes paramNames') retOpType $
             \args -> (flip named) nameStr $ getInstrCmp $ do
@@ -340,6 +352,26 @@ cmpTopStmt (S.Func pos symbol params retty stmts) = do
         
 
 cmpStmt :: S.Stmt -> Instr ()
+cmpStmt (S.CallStmt pos symbol args) = void $ cmpExpr (S.Call pos symbol args)
+cmpStmt (S.Block pos stmts)          = pushSymTab >> mapM_ cmpStmt stmts >> popSymTab
+
+cmpStmt (S.If pos expr block els) = do
+    (typ, cnd) <- cmpExpr expr
+    unless (typ == Bool) (cmpErr pos "expression isn't boolean")
+    if_ cnd (cmpStmt block) $
+        when (isJust els) $ cmpStmt (fromJust els)
+
+cmpStmt (S.Return pos expr) = do
+    curRetType <- lift (gets curRetType) 
+    if isNothing expr then do
+        unless (curRetType == Void) (cmpErr pos "must return expression")
+        retVoid
+    else do
+        (typ, op) <- cmpExpr (fromJust expr)
+        unless (curRetType == typ) $ cmpErr pos ("incorrect type: " ++ show typ)
+        ret op
+    void block
+
 cmpStmt (S.Print pos exprs) = do
     prints =<< mapM cmpExpr exprs
     void (putchar '\n')
@@ -420,46 +452,6 @@ cmpStmt (S.Set pos symbol expr) = do
         Bool -> store loc 0 op
         I64  -> store loc 0 op
 
-cmpStmt (S.CallStmt pos symbol args) = do
-    entry <- look pos symbol
-    unless (isFunc entry) (cmpErr pos "symbol isn't func")
-    let SymFunc [(paramTypes, _, op)] = entry
-
-    (argTypes, argOps) <- fmap unzip (mapM cmpExpr args)
-    unless (argTypes == paramTypes) (cmpErr pos "arg types don't match param types")
-    void $ call op (map (,[]) argOps)
-
-cmpStmt (S.Return pos expr) = do
-    curRetType <- lift (gets curRetType) 
-    if isNothing expr then do
-        unless (curRetType == Void) (cmpErr pos "must return expression")
-        retVoid
-    else do
-        (typ, op) <- cmpExpr (fromJust expr)
-        unless (curRetType == typ) $ cmpErr pos ("incorrect type: " ++ show typ)
-        ret op
-    void block
-
-cmpStmt (S.Block pos stmts) = do
-    pushSymTab
-    mapM_ cmpStmt stmts
-    popSymTab
-
-cmpStmt (S.If pos expr block els) = do
-    (typ, cnd) <- cmpExpr expr
-    unless (typ == Bool) (cmpErr pos "expression isn't boolean")
-    true  <- freshName (mkBSS "if_true")
-    false <- freshName (mkBSS "if_false")
-    exit  <- fresh
-    condBr cnd true false
-    emitBlockStart true
-    cmpStmt block
-    br exit
-    emitBlockStart false
-    when (isJust els) $ cmpStmt (fromJust els)
-    br exit
-    emitBlockStart exit
-
 cmpStmt (S.Switch pos expr []) = return ()
 cmpStmt (S.Switch pos expr cases) = do
     exit      <- fresh
@@ -509,12 +501,13 @@ cmpExpr expr = case expr of
         return (String, cons ptr)
 
     S.Call pos symbol args -> do
-        entry <- look pos symbol
-        unless (isFunc entry) $ cmpErr pos (symbol ++ " isn't a function")
-        let SymFunc [(paramTypes, retType, op)] = entry
+        lk <- look pos symbol
+        unless (isFunc lk) $ cmpErr pos (symbol ++ " isn't a function")
 
         (argTypes, argOps) <- fmap unzip (mapM cmpExpr args)
-        unless (argTypes == paramTypes) (cmpErr pos "arg types don't match param types")
+        entry <- lookupFunction symbol argTypes
+        unless (isJust entry) (cmpErr pos "no definition matches argument types")
+        let (retType, op) = fromJust entry
         r <- call op $ map (,[]) argOps
         return (retType, r)
     
@@ -524,6 +517,7 @@ cmpExpr expr = case expr of
         (typ, op) <- cmpExpr expr
         unless (isFirst newType) $ cmpErr pos ("isn't an expression")
         newOp <- case (newType, typ) of
+            (I64, I64)  -> return op
             (I32, I64)  -> trunc op i32
             (I32, Char) -> return op
             (Char, I32) -> return op
@@ -623,6 +617,18 @@ cmpExpr expr = case expr of
                     S.GTEq   -> rt Bool (icmp SGT op1 op2)
                     _        -> invalid
 
+            (I32, I32) ->
+                case operator of
+                    S.Plus   -> rt I32 (add op1 op2)
+                    S.Minus  -> rt I32 (sub op1 op2)
+                    S.Times  -> rt I32 (mul op1 op2)
+                    S.Divide -> rt I32 (sdiv op1 op2)
+                    S.Mod    -> rt I32 (srem op1 op2)
+                    S.LT     -> rt Bool (icmp SLT op1 op2)
+                    S.GT     -> rt Bool (icmp SGT op1 op2)
+                    S.LTEq   -> rt Bool (icmp SLE op1 op2)
+                    S.GTEq   -> rt Bool (icmp SGT op1 op2)
+                    _        -> invalid
             (Char, Char) ->
                 case operator of
                     S.LT     -> rt Bool (icmp SLT op1 op2)

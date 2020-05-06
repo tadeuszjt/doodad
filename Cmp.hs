@@ -110,16 +110,17 @@ cmpErr pos str =
 
 look :: MonadModuleCmp t m => TextPos -> String -> m t
 look pos symbol = do
-    entry <- lookupSymbol pos symbol
-    ext <- lookupExtern symbol
+    entry <- lookupSymbol symbol
+    when (isNothing entry) $ cmpErr pos (symbol ++ " doesn't exist")
 
+    ext <- lookupExtern symbol
     when (isJust ext) $ do
         declared <- isDeclared symbol
         unless declared $ do
             emitDefn (fromJust ext)
             addDeclared symbol
 
-    return entry
+    return (fromJust entry)
 
 
 ensureExtern :: MonadModuleCmp t m => String -> [Type] -> Type -> Bool -> m Operand
@@ -171,10 +172,9 @@ lookupExtern symbol =
     fmap (Map.lookup symbol) (gets externs)
 
 
-lookupSymbol :: MonadModuleCmp t m => TextPos -> String -> m t
-lookupSymbol pos symbol = do
-    st <- gets symTab
-    maybe (cmpErr pos $ symbol ++ " doesn't exist") return (SymTab.lookup symbol st)
+lookupSymbol :: MonadModuleCmp t m => String -> m (Maybe t)
+lookupSymbol symbol =
+    fmap (SymTab.lookup symbol) (gets symTab)
 
 
 pushSymTab :: MonadModuleCmp t m => m ()

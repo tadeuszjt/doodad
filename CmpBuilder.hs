@@ -50,6 +50,21 @@ for num f = do
     void (emitBlockStart forExit)
 
 
+if_ :: MonadInstrCmp t m => Operand -> m () -> m () -> m ()
+if_ cnd trueIns falseIns = do
+    true  <- freshName "if_true"
+    false <- freshName "if_false"
+    exit  <- fresh
+    condBr cnd true false
+    emitBlockStart true
+    trueIns
+    br exit
+    emitBlockStart false
+    falseIns
+    br exit
+    emitBlockStart exit
+
+
 putchar :: MonadInstrCmp t m => Char -> m Operand
 putchar ch = do
     op <- ensureExtern "putchar" [i32] i32 False
