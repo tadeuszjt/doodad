@@ -42,7 +42,7 @@ instance MonadTrans (InstrCmpT k o) where
     lift = InstrCmpT . IRBuilderT . lift . lift
 
 instance (Monad m, Ord k) => MonadFail (InstrCmpT k o m) where
-    fail = cmpErr (TextPos 0 0 0)
+    fail = cmpErr
 
 type ModuleCmp k o = ModuleCmpT k o Identity
 newtype ModuleCmpT k o m a
@@ -56,9 +56,13 @@ newtype InstrCmpT k o m a
     deriving (Functor, Applicative, Monad, MonadError CmpError, MonadState (CmpState k o), MonadModuleBuilder, MonadIRBuilder) 
 
 
+data TextPos = TextPos { textPos, textLine, textCol :: Int } deriving (Show, Eq)
+
+
 data CmpState k o
     = CmpState
         { curFn    :: Name
+        , posStack :: [TextPos]
         , symTab   :: SymTab.SymTab String (Map.Map k (o, Set.Set Name))
         , defs     :: Map.Map Name Definition
         , declared :: Set.Set Name
@@ -67,7 +71,14 @@ data CmpState k o
     deriving (Show)
 
 
-data TextPos = TextPos { textPos, textLine, textCol :: Int } deriving (Show, Eq)
+initCmpState = CmpState
+    { curFn    = mkName ""
+    , posStack = [TextPos 0 0 0]
+    , symTab   = SymTab.initSymTab
+    , defs     = Map.empty
+    , declared = Set.empty
+    , exported = Set.empty
+    }
 
 
 newtype CmpError
@@ -96,24 +107,29 @@ runModuleCmp moduleBuilderState cmpState moduleCmpT =
         runModuleBuilderT moduleBuilderState $ getModuleCmp moduleCmpT
 
 
-initCmpState = CmpState
-    { curFn    = mkName ""
-    , symTab   = SymTab.initSymTab
-    , defs     = Map.empty
-    , declared = Set.empty
-    , exported = Set.empty
-    }
-
-
-cmpErr:: MonadModuleCmp k o m => TextPos -> String -> m a
-cmpErr pos str =
+cmpErr:: MonadModuleCmp k o m => String -> m a
+cmpErr str = do
+    pos <- fmap head (gets posStack)
     throwError $ CmpError (pos, str)
 
 
-checkUndefined :: MonadModuleCmp k o m => TextPos -> String -> m ()
-checkUndefined pos symbol = do
+assert :: MonadModuleCmp k o m => Bool -> String -> m ()
+assert cnd str =
+    unless cnd $ void (cmpErr str)
+
+
+withPos :: MonadModuleCmp k o m => TextPos -> m a -> m a
+withPos pos f = do
+    modify $ \s -> s { posStack = pos:(posStack s) }
+    r <- f
+    modify $ \s -> s { posStack = tail (posStack s) }
+    return r
+
+
+checkUndefined :: MonadModuleCmp k o m => String -> m ()
+checkUndefined symbol = do
     res <- lookupSymbol symbol
-    unless (isNothing res) $ cmpErr pos (symbol ++ " already defined") 
+    assert (isNothing res) (symbol ++ " already defined") 
 
 
 lookupSymbol :: MonadModuleCmp k o m => String -> m (Maybe (Map.Map k (o, Set.Set Name)))
@@ -131,12 +147,12 @@ lookupSymKey symbol key = do
             Just (o,_) -> return (Just o)
 
 
-look :: (Show k, Show o, MonadModuleCmp k o m) => TextPos -> String -> k -> m o
-look pos symbol key = do
+look :: (Show k, Show o, MonadModuleCmp k o m) => String -> k -> m o
+look symbol key = do
     keyMap <- lookupSymbol symbol 
-    unless (isJust keyMap) $ cmpErr pos (symbol ++ " doesn't exist")
+    assert (isJust keyMap) (symbol ++ " doesn't exist")
     let entry = Map.lookup key (fromJust keyMap)
-    unless (isJust entry) $ cmpErr pos ("no matching entry for symbol")
+    assert (isJust entry) ("no matching entry for symbol")
     let (obj, nameSet) = fromJust entry 
     unless (Set.null nameSet) $ mapM_ ensureDef (Set.toList nameSet)
     return obj
@@ -149,8 +165,8 @@ addSymObj symbol key obj = do
     modify $ \s -> s { symTab = SymTab.insert symbol keyMap' (symTab s) }
 
 
-addSymObjRequirement :: MonadModuleCmp k o m => String -> k -> Name -> m ()
-addSymObjRequirement symbol key name = do
+addSymObjReq :: MonadModuleCmp k o m => String -> k -> Name -> m ()
+addSymObjReq symbol key name = do
     keyMap <- fmap fromJust (lookupSymbol symbol)
     let (obj, nameSet) = fromJust (Map.lookup key keyMap)
     let keyMap' = Map.insert key (obj, Set.insert name nameSet) keyMap

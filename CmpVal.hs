@@ -101,8 +101,8 @@ isExpr x
 isExpr _                            = False
 
 
-fromASTType :: TextPos -> S.Type -> Instr ValType
-fromASTType pos typ = case typ of
+fromASTType :: S.Type -> Instr ValType
+fromASTType typ = case typ of
     S.TBool      -> return Bool
     S.TI32       -> return I32
     S.TI64       -> return I64
@@ -110,13 +110,13 @@ fromASTType pos typ = case typ of
     S.TF64       -> return F64
     S.TChar      -> return Char
     S.TString    -> return String
-    S.TArray n t -> fmap (ArrayVal n) (fromASTType pos t)
-    S.TTuple ts  -> fmap Tuple $ mapM (fromASTType pos) ts
+    S.TArray n t -> fmap (ArrayVal n) (fromASTType t)
+    S.TTuple ts  -> fmap Tuple (mapM fromASTType ts)
     S.TIdent sym -> return (Typedef sym)
 
 
-opTypeOf :: TextPos -> ValType -> Instr Type
-opTypeOf pos typ = case typ of
+opTypeOf :: ValType -> Instr Type
+opTypeOf typ = case typ of
         Void         -> error "opTypeOf void"
         Bool         -> return i1
         Char         -> return i32
@@ -124,11 +124,11 @@ opTypeOf pos typ = case typ of
         I64          -> return i64
         F32          -> return (FloatingPointType HalfFP)
         F64          -> return (FloatingPointType DoubleFP)
-        Tuple typs   -> fmap (StructureType False) $ mapM (opTypeOf pos) typs
-        ArrayPtr n t -> fmap (ptr . (ArrayType $ fromIntegral n)) (opTypeOf pos t)
-        ArrayVal n t -> fmap (ArrayType $ fromIntegral n) (opTypeOf pos t)
+        Tuple typs   -> fmap (StructureType False) (mapM opTypeOf typs)
+        ArrayPtr n t -> fmap (ptr . (ArrayType $ fromIntegral n)) (opTypeOf t)
+        ArrayVal n t -> fmap (ArrayType $ fromIntegral n) (opTypeOf t)
         String       -> return (ptr i8)
-        Typedef sym  -> opTypeOf pos =<< getConcreteType pos typ
+        Typedef sym  -> opTypeOf =<< getConcreteType typ
 
 
 zeroOf :: ValType -> C.Constant
@@ -144,68 +144,75 @@ zeroOf typ = case typ of
     Tuple typs   -> toCons $ struct Nothing False (map zeroOf typs)
 
 
-valGlobalClone :: TextPos -> Name -> Value -> Instr Operand
-valGlobalClone pos name val@(typ@(ArrayPtr n t), op) = do
-    (t, op) <- valFlatten pos val
-    opTyp <- opTypeOf pos typ
+valGlobalClone :: Name -> Value -> Instr (ValType, Operand, Definition)
+valGlobalClone name val@(typ@(ArrayPtr n t), _) = do
+    (flatTyp@(ArrayVal _ _), op) <- valFlatten val
+    opTyp <- opTypeOf flatTyp
+    loc <- global name opTyp (zeroOf flatTyp)
+    store loc 0 op
+    return (ArrayPtr n t, loc, globalDef name opTyp Nothing)
+
+valGlobalClone name (typ, op) = do
+    opTyp <- opTypeOf typ
     loc <- global name opTyp (zeroOf typ)
     store loc 0 op
-    return loc
-valGlobalClone pos name (typ, op) = do
-    opTyp <- opTypeOf pos typ
-    loc <- global name opTyp (zeroOf typ)
-    store loc 0 op
-    return loc
+    return (typ, loc, globalDef name opTyp Nothing)
+
+
+valLoad :: Value -> Instr Value
+valLoad val@(ArrayPtr _ _, _) = return val
+valLoad (typ, loc) = do
+    op <- load loc 0
+    return (typ, op)
     
 
-valFlatten :: TextPos -> Value -> Instr Value
-valFlatten pos val@(ArrayPtr n t, loc)   = fmap (ArrayVal n t,) (load loc 0)
-valFlatten pos val@(typ@(Typedef _), op) = getConcreteType pos typ >>= \t -> valFlatten pos (t, op)
-valFlatten pos val                       = return val
+valFlatten :: Value -> Instr Value
+valFlatten val@(ArrayPtr n t, loc)   = fmap (ArrayVal n t,) (load loc 0)
+valFlatten val@(typ@(Typedef _), op) = getConcreteType typ >>= \t -> valFlatten (t, op)
+valFlatten val                       = return val
 
 
-getConcreteType :: TextPos -> ValType -> Instr ValType
-getConcreteType pos (Typedef symbol) = do
-    ObjType typ <- look pos symbol KeyType
-    getConcreteType pos typ
-getConcreteType pos typ = return typ
+getConcreteType :: ValType -> Instr ValType
+getConcreteType (Typedef symbol) = do
+    ObjType typ <- look symbol KeyType
+    getConcreteType typ
+getConcreteType typ = return typ
 
 
-typesMatch :: TextPos -> ValType -> ValType -> Instr Bool
-typesMatch pos a b = do
-    ca <- getConcreteType pos a
-    cb <- getConcreteType pos b
+typesMatch :: ValType -> ValType -> Instr Bool
+typesMatch a b = do
+    ca <- getConcreteType a
+    cb <- getConcreteType b
     return (ca == cb)
 
 
-valPrint :: Value -> Instr ()
-valPrint (Bool, op) = do
+valPrint :: String -> Value -> Instr ()
+valPrint append (Bool, op) = do
     str <- globalStringPtr "true\0false" =<< fresh
     idx <- select op (int64 0) (int64 5)
     ptr <- gep (cons str) [idx]
-    void (printf "%s" [ptr])
-valPrint val@(typ, op)
+    void $ printf ("%s" ++ append) [ptr]
+valPrint append val@(typ, op)
     | isArray typ = do
         let len = valArrayLen val
         putchar '['
         forM_ [0..len-1] $ \i -> do
-            valPrint =<< valArrayConstIdx val i
-            when (i < len-1) $ void (printf ", " [])
-        void (putchar ']')
-valPrint val@(Tuple ts, op) = do
+            let app = if i < len-1 then ", " else "]"++append
+            valPrint app =<< valArrayConstIdx val i
+valPrint append val@(Tuple ts, op) = do
     let len = length ts
     putchar '('
     forM_ [0..len-1] $ \i -> do
-        valPrint =<< valTupleIdx (TextPos 0 0 0) val i
-        when (i < len-1) $ void (printf ", " [])
-    void (putchar ')')
-valPrint val@(typ, op) = case typ of
-    I32    -> void (printf "%d" [op])
-    I64    -> void (printf "%ld" [op])
-    F32    -> void (printf "f" [op])
-    F64    -> void (printf "%f" [op])
-    Char   -> void (putchar' op)
-    String -> void (printf "%s" [op])
+        let app = if i < len-1 then ", " else ")"++append
+        valPrint app =<< valTupleIdx val i
+valPrint append val@(typ, op) =
+    case typ of
+        I32    -> void $ printf ("%d"++append) [op]
+        I64    -> void $ printf ("%ld"++append) [op]
+        F32    -> void $ printf ("f"++append) [op]
+        F64    -> void $ printf ("%f"++append) [op]
+        Char   -> void $ printf ("%c"++append) [op]
+        String -> void $ printf ("%s"++append) [op]
 
 
 
@@ -238,23 +245,32 @@ valArrayConstIdx (ArrayPtr n t, loc) i = do
     return (t, op)
 
 
+valArraySet :: Value -> Value -> Value -> Instr ()
+valArraySet (ArrayPtr n t, loc) (idxTyp, idxOp) val = do
+    assert (isInt idxTyp) "index isn't int"
+    (typ, op) <- valFlatten val
+    assert (typ == t) "incorrect element type"
+    ptr <- gep loc [int64 0, idxOp]
+    store ptr 0 op
+    
+
 valArrayLen :: Value -> Int
 valArrayLen (ArrayPtr n _, _) = n
 valArrayLen (ArrayVal n _, _) = n
 
 
-valTupleIdx :: TextPos -> Value -> Int -> Instr Value
-valTupleIdx pos (Tuple typs, op) i = do
-    unless (i >= 0 && i < length typs) (cmpErr pos "tuple index out of range")
+valTupleIdx :: Value -> Int -> Instr Value
+valTupleIdx (Tuple typs, op) i = do
+    assert (i >= 0 && i < length typs) "tuple index out of range"
     o <- extractValue op [fromIntegral i]
     return (typs !! i, o)
     
 
-valsEqual :: TextPos -> Value -> Value -> Instr Value
-valsEqual pos (aTyp_, aOp) (bTyp_, bOp) = do
-    aTyp <- getConcreteType pos aTyp_
-    bTyp <- getConcreteType pos bTyp_
-    unless (aTyp == bTyp) (cmpErr pos "types don't match")
+valsEqual :: Value -> Value -> Instr Value
+valsEqual (aTyp_, aOp) (bTyp_, bOp) = do
+    aTyp <- getConcreteType aTyp_
+    bTyp <- getConcreteType bTyp_
+    assert (aTyp == bTyp) "types don't match"
     op <- opEquality aTyp aOp bOp
     return (Bool, op)
     where
@@ -275,6 +291,6 @@ valsEqual pos (aTyp_, aOp) (bTyp_, bOp) = do
                 cnd <- alloca i1 Nothing 0
                 forM_ cnds (\c -> store cnd 0 =<< and c =<< load cnd 0)
                 load cnd 0
-            _         -> cmpErr pos "invalid comparison"
+            _         -> cmpErr "invalid comparison"
         
 

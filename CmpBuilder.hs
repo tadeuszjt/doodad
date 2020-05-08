@@ -110,11 +110,6 @@ isGlobal (ConstantOperand (C.GlobalReference _ _)) = True
 isGlobal _                                         = False
 
 
-isPtr :: Operand -> Bool
-isPtr (ConstantOperand (C.GlobalReference (PointerType _ _) _)) = True
-isPtr (LocalReference  (PointerType _ _) _)                     = True
-isPtr _                                                         = False
-
 
 toCons :: Operand -> C.Constant
 toCons (ConstantOperand c) = c

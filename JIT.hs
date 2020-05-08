@@ -48,7 +48,7 @@ withSession optimise f = do
 							withSymbolResolver es (myResolver cl) $ \psr -> do
 								writeIORef resolvers [psr]
 								loadLibraryPermanently Nothing
-								f $ Session ctx es cl (Just pm)
+								f $ Session ctx es cl (if optimise then Just pm else Nothing)
 
 
 	where
