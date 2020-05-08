@@ -44,10 +44,10 @@ data Type
 
 
 data Pattern
-	= PatIgnore TextPos
-	| PatIdent TextPos String
-	| PatTuple TextPos [Pattern]
-	| PatArray TextPos [Pattern]
+	= PatIgnore { pos :: TextPos }
+	| PatIdent  { pos :: TextPos, symbol :: String }
+	| PatTuple  { pos :: TextPos, patterns :: [Pattern] }
+	| PatArray  { pos :: TextPos, patterns :: [Pattern] }
 	deriving (Show, Eq)
 
 data Expr

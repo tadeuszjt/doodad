@@ -50,7 +50,7 @@ cmpTopStmt stmt@(S.Print _ _)      = cmpStmt stmt
 cmpTopStmt stmt@(S.CallStmt _ _ _) = cmpStmt stmt
 cmpTopStmt stmt@(S.Switch _ _ _)   = cmpStmt stmt
 
-cmpTopStmt (S.Assign pos pattern expr) = withPos pos $ do
+cmpTopStmt (S.Assign pos pattern expr) =
     assignPattern pattern =<< cmpExpr expr
     where
         assignPattern ::  S.Pattern -> Value -> Instr ()
@@ -59,7 +59,12 @@ cmpTopStmt (S.Assign pos pattern expr) = withPos pos $ do
             forM_ (zip patterns [0..]) $ \(pattern, idx) ->
                 assignPattern pattern =<< valTupleIdx val idx
 
-        assignPattern (S.PatIdent _ symbol) val = do
+        assignPattern (S.PatArray p patterns) val@(typ, _)
+            | isArray typ = withPos p $ do
+                forM_ (zip patterns [0..]) $ \(pattern, idx) ->
+                    assignPattern pattern =<< valArrayConstIdx val idx
+
+        assignPattern (S.PatIdent p symbol) val = withPos p $ do
             checkUndefined symbol
             name <- freshName (mkBSS symbol)
             (typ, loc, ext) <- valGlobalClone name val
@@ -69,6 +74,8 @@ cmpTopStmt (S.Assign pos pattern expr) = withPos pos $ do
             addDef name ext
             addDeclared name
             addExported name
+
+        assignPattern pat _ = withPos (S.pos pat) (cmpErr "invalid assignment pattern")
 
 
 cmpStmt :: S.Stmt -> Instr ()
@@ -114,6 +121,21 @@ cmpExpr (S.Array pos exprs) = do
         valArraySet (typ, loc) (I64, int64 i) val
 
     return (typ, loc)
+
+cmpExpr (S.Tuple pos exprs) = do
+    vals <- mapM valFlatten =<< mapM cmpExpr exprs
+    let (typs, ops) = unzip vals
+
+    let typ = Tuple typs
+    opTyp <- opTypeOf typ
+    loc <- alloca opTyp Nothing 0
+    forM_ (zip ops [0..]) $ \(op, i) -> do
+        ptr <- gep loc [int32 0, int32 i]
+        store ptr 0 op
+
+    tup <- load loc 0
+    return (typ, tup)
+
 
 cmpExpr (S.Infix pos operator a b) = do
     va <- cmpExpr a

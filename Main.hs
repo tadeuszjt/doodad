@@ -71,10 +71,6 @@ repl session verbose = runInputT defaultSettings (loop C.initCmpState)
                             liftIO $ printError err input 
                             loop state
                         Right (defs, state') -> do
-                            liftIO $ when verbose $ do
-                                putStrLn ("declared: " ++ show (Set.toList $ C.declared state'))
-                                putStrLn ("exported: " ++ show (Set.toList $ C.exported state'))
-                                putStrLn ("defs:     " ++ show (Map.keys $ C.defs state'))
                             let keepModule = not $ Set.null (C.exported state')
                             let verbose    = True
                             liftIO (jitAndRun defs session keepModule verbose)

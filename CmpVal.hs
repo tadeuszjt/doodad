@@ -167,7 +167,14 @@ valLoad (typ, loc) = do
     
 
 valFlatten :: Value -> Instr Value
-valFlatten val@(ArrayPtr n t, loc)   = fmap (ArrayVal n t,) (load loc 0)
+valFlatten val@(ArrayPtr n t, loc) = do
+    arrValOpTyp <- opTypeOf (ArrayVal n t)
+    newLoc <- alloca arrValOpTyp Nothing 0
+    for (int64 $ fromIntegral n) $ \i -> do
+        ptr <- gep loc [int64 0, i]
+        elm <- valFlatten =<< valLoad (t, ptr)
+        valArraySet (ArrayPtr n t, newLoc) (I64, i) elm
+    fmap (ArrayVal n t,) (load newLoc 0)
 valFlatten val@(typ@(Typedef _), op) = getConcreteType typ >>= \t -> valFlatten (t, op)
 valFlatten val                       = return val
 
