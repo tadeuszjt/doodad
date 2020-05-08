@@ -118,6 +118,7 @@ assert cnd str =
     unless cnd $ void (cmpErr str)
 
 
+
 withPos :: MonadModuleCmp k o m => TextPos -> m a -> m a
 withPos pos f = do
     modify $ \s -> s { posStack = pos:(posStack s) }

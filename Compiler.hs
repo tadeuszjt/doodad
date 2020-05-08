@@ -54,22 +54,24 @@ cmpTopStmt (S.Assign pos pattern expr) =
     assignPattern pattern =<< cmpExpr expr
     where
         assignPattern ::  S.Pattern -> Value -> Instr ()
-        assignPattern (S.PatTuple p patterns) val@(Tuple ts, _) = withPos p $ do
-            assert (length patterns == length ts) "incorrect tuple length"
-            forM_ (zip patterns [0..]) $ \(pattern, idx) ->
-                assignPattern pattern =<< valTupleIdx val idx
+        assignPattern (S.PatTuple p patterns) val
+            | isTuple (valType val) = withPos p $ do
+                assert (length patterns == valLen val) "incorrect tuple length"
+                forM_ (zip patterns [0..]) $ \(pattern, i) ->
+                    assignPattern pattern =<< valTupleIdx val i
 
-        assignPattern (S.PatArray p patterns) val@(typ, _)
-            | isArray typ = withPos p $ do
-                forM_ (zip patterns [0..]) $ \(pattern, idx) ->
-                    assignPattern pattern =<< valArrayConstIdx val idx
+        assignPattern (S.PatArray p patterns) val 
+            | isArray (valType val) = withPos p $ do
+                forM_ (zip patterns [0..]) $ \(pattern, i) ->
+                    assignPattern pattern =<< valArrayConstIdx val i
 
         assignPattern (S.PatIdent p symbol) val = withPos p $ do
             checkUndefined symbol
             name <- freshName (mkBSS symbol)
-            (typ, loc, ext) <- valGlobalClone name val
+            (new, ext) <- valGlobal name (valType val)
+            valStore new val
 
-            addSymObj symbol KeyVal $ ObjVal (typ, loc)
+            addSymObj symbol KeyVal (ObjVal new)
             addSymObjReq symbol KeyVal name
             addDef name ext
             addDeclared name
@@ -90,120 +92,106 @@ cmpStmt (S.Print pos exprs) =
 
 
 cmpExpr :: S.Expr -> Instr Value
-cmpExpr (S.Int pos i)   = return (I64, int64 i)
-cmpExpr (S.Float pos f) = return (F64, double f)
-cmpExpr (S.Bool pos b)  = return (Bool, bit $ if b then 1 else 0)
-cmpExpr (S.Char pos c)  = return (Char, int32 $ fromIntegral $ fromEnum c)
+cmpExpr (S.Int pos i)   = return $ Val I64 (int64 i)
+cmpExpr (S.Float pos f) = return $ Val F64 (double f)
+cmpExpr (S.Bool pos b)  = return $ Val Bool (bit $ if b then 1 else 0)
+cmpExpr (S.Char pos c)  = return $ Val Char (int32 $ fromIntegral $ fromEnum c)
 
 cmpExpr (S.Call pos symbol args) = do
-    (argTypes, argOps)   <- fmap unzip (mapM cmpExpr args)
-    ObjFunc retType fnOp <- look symbol (KeyFunc argTypes)
-    op <- call fnOp $ map (,[]) argOps
-    return (retType, op)
+    vals <- mapM cmpExpr args
+    ObjFunc retType fnOp <- look symbol $ KeyFunc (map valType vals)
+    op <- call fnOp $ map (,[]) (map valOp vals)
+    return (Val retType op)
 
 cmpExpr (S.Ident pos symbol) = do
     ObjVal val <- look symbol KeyVal
     valLoad val
 
 cmpExpr (S.Array pos exprs) = do
-    let num = length exprs
-    unless (num > 0) (cmpErr "can't deduce array type")
-
-    vals <- mapM (valFlatten) =<< mapM cmpExpr exprs
-    let (typs, _) = unzip vals
-    let elemType = head typs
-    unless (all (== elemType) typs) (cmpErr "element types don't match")
-
-    let typ = ArrayPtr num elemType
-    opType <- opTypeOf (ArrayVal num elemType)
-    loc <- alloca opType Nothing 0
+    vals <- mapM cmpExpr exprs
+    let n = length vals
+    assert (n > 0) "can't deduce array type"
+    let t = valType (head vals)
+    arr <- valLocal (Array n t)
     forM_ (zip vals [0..]) $ \(val, i) ->
-        valArraySet (typ, loc) (I64, int64 i) val
-
-    return (typ, loc)
+        valArraySet arr (Val I64 $ int64 i) val
+    return arr
 
 cmpExpr (S.Tuple pos exprs) = do
-    vals <- mapM valFlatten =<< mapM cmpExpr exprs
-    let (typs, ops) = unzip vals
+    vals <- mapM cmpExpr exprs
+    let ts = map valType vals
+    tup <- valLocal (Tuple ts)
+    forM_ (zip vals [0..]) $ \(val, i) ->
+        valTupleSet tup i val
+    return tup
 
-    let typ = Tuple typs
-    opTyp <- opTypeOf typ
-    loc <- alloca opTyp Nothing 0
-    forM_ (zip ops [0..]) $ \(op, i) -> do
-        ptr <- gep loc [int32 0, int32 i]
-        store ptr 0 op
-
-    tup <- load loc 0
-    return (typ, tup)
-
-
-cmpExpr (S.Infix pos operator a b) = do
-    va <- cmpExpr a
-    vb <- cmpExpr b
-    cmpInfix operator va vb
-    where
-        cmpInfix ::  S.Op -> Value -> Value -> Instr Value
-        cmpInfix S.EqEq va vb =
-            valsEqual va vb
-        cmpInfix operator (typA_, opA) (typB_, opB) = do
-            typA <- getConcreteType typA_
-            typB <- getConcreteType typB_
-
-            let invalid = cmpErr "invalid infix"
-            let rt      = \typ ins -> fmap (typ,) ins
-
-            case (typA, typB) of
-                (Bool, Bool) ->
-                    case operator of
-                        S.AndAnd -> rt Bool (and opA opB)
-                        S.OrOr   -> rt Bool (or opA opB)
-                        _        -> invalid
-
-                (I64, I64) ->
-                    case operator of
-                        S.Plus   -> rt I64 (add opA opB)
-                        S.Minus  -> rt I64 (sub opA opB)
-                        S.Times  -> rt I64 (mul opA opB)
-                        S.Divide -> rt I64 (sdiv opA opB)
-                        S.Mod    -> rt I64 (srem opA opB)
-                        S.LT     -> rt Bool (icmp SLT opA opB)
-                        S.GT     -> rt Bool (icmp SGT opA opB)
-                        S.LTEq   -> rt Bool (icmp SLE opA opB)
-                        S.GTEq   -> rt Bool (icmp SGT opA opB)
-                        _        -> invalid
-
-                (I32, I32) ->
-                    case operator of
-                        S.Plus   -> rt I32 (add opA opB)
-                        S.Minus  -> rt I32 (sub opA opB)
-                        S.Times  -> rt I32 (mul opA opB)
-                        S.Divide -> rt I32 (sdiv opA opB)
-                        S.Mod    -> rt I32 (srem opA opB)
-                        S.LT     -> rt Bool (icmp SLT opA opB)
-                        S.GT     -> rt Bool (icmp SGT opA opB)
-                        S.LTEq   -> rt Bool (icmp SLE opA opB)
-                        S.GTEq   -> rt Bool (icmp SGT opA opB)
-                        _        -> invalid
-
-                (F64, F64) ->
-                    case operator of
-                        S.Plus   -> rt F64 (fadd opA opB)
-                        S.Minus  -> rt F64 (fsub opA opB)
-                        S.Times  -> rt F64 (fmul opA opB)
-                        S.Divide -> rt F64 (fdiv opA opB)
-                        S.Mod    -> rt F64 (frem opA opB)
-                        S.LT     -> rt Bool (fcmp F.OLT opA opB)
-                        S.GT     -> rt Bool (fcmp F.OGT opA opB)
-                        S.LTEq   -> rt Bool (fcmp F.OLE opA opB)
-                        S.GTEq   -> rt Bool (fcmp F.OGE opA opB)
-                        _        -> invalid
-                (Char, Char) ->
-                    case operator of
-                        S.LT     -> rt Bool (icmp SLT opA opB)
-                        _        -> invalid
-
-                _-> invalid
-
+--cmpExpr (S.Infix pos operator a b) = do
+--    va <- cmpExpr a
+--    vb <- cmpExpr b
+--    cmpInfix operator va vb
+--    where
+--        cmpInfix ::  S.Op -> Value -> Value -> Instr Value
+--        cmpInfix S.EqEq va vb =
+--            valsEqual va vb
+--        cmpInfix operator (typA_, opA) (typB_, opB) = do
+--            typA <- getConcreteType typA_
+--            typB <- getConcreteType typB_
+--
+--            let invalid = cmpErr "invalid infix"
+--            let rt      = \typ ins -> fmap (typ,) ins
+--
+--            case (typA, typB) of
+--                (Bool, Bool) ->
+--                    case operator of
+--                        S.AndAnd -> rt Bool (and opA opB)
+--                        S.OrOr   -> rt Bool (or opA opB)
+--                        _        -> invalid
+--
+--                (I64, I64) ->
+--                    case operator of
+--                        S.Plus   -> rt I64 (add opA opB)
+--                        S.Minus  -> rt I64 (sub opA opB)
+--                        S.Times  -> rt I64 (mul opA opB)
+--                        S.Divide -> rt I64 (sdiv opA opB)
+--                        S.Mod    -> rt I64 (srem opA opB)
+--                        S.LT     -> rt Bool (icmp SLT opA opB)
+--                        S.GT     -> rt Bool (icmp SGT opA opB)
+--                        S.LTEq   -> rt Bool (icmp SLE opA opB)
+--                        S.GTEq   -> rt Bool (icmp SGT opA opB)
+--                        _        -> invalid
+--
+--                (I32, I32) ->
+--                    case operator of
+--                        S.Plus   -> rt I32 (add opA opB)
+--                        S.Minus  -> rt I32 (sub opA opB)
+--                        S.Times  -> rt I32 (mul opA opB)
+--                        S.Divide -> rt I32 (sdiv opA opB)
+--                        S.Mod    -> rt I32 (srem opA opB)
+--                        S.LT     -> rt Bool (icmp SLT opA opB)
+--                        S.GT     -> rt Bool (icmp SGT opA opB)
+--                        S.LTEq   -> rt Bool (icmp SLE opA opB)
+--                        S.GTEq   -> rt Bool (icmp SGT opA opB)
+--                        _        -> invalid
+--
+--                (F64, F64) ->
+--                    case operator of
+--                        S.Plus   -> rt F64 (fadd opA opB)
+--                        S.Minus  -> rt F64 (fsub opA opB)
+--                        S.Times  -> rt F64 (fmul opA opB)
+--                        S.Divide -> rt F64 (fdiv opA opB)
+--                        S.Mod    -> rt F64 (frem opA opB)
+--                        S.LT     -> rt Bool (fcmp F.OLT opA opB)
+--                        S.GT     -> rt Bool (fcmp F.OGT opA opB)
+--                        S.LTEq   -> rt Bool (fcmp F.OLE opA opB)
+--                        S.GTEq   -> rt Bool (fcmp F.OGE opA opB)
+--                        _        -> invalid
+--                (Char, Char) ->
+--                    case operator of
+--                        S.LT     -> rt Bool (icmp SLT opA opB)
+--                        _        -> invalid
+--
+--                _-> invalid
+--
 
 
 
