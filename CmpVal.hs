@@ -1,3 +1,5 @@
+{-# LANGUAGE TupleSections #-}
+
 module CmpVal where
 
 import           Control.Monad
@@ -32,9 +34,9 @@ mkBSS = BSS.toShort . BS.pack
 
 
 type Compile    = State CompileState
-type MyCmpState = CmpState [SymEntry]
-type Instr      = InstrCmpT [SymEntry] Compile
-type Module     = ModuleCmpT [SymEntry] Compile
+type MyCmpState = CmpState SymKey SymObj
+type Instr      = InstrCmpT SymKey SymObj Compile
+type Module     = ModuleCmpT SymKey SymObj Compile
 
 
 type Value = (ValType, Operand)
@@ -54,10 +56,17 @@ initCompileState
         }
 
 
-data SymEntry
-    = SymVal Value
-    | SymFunc Func
-    | SymType ValType
+data SymKey
+    = KeyVal
+    | KeyFunc [ValType]
+    | KeyType
+    deriving (Show, Eq, Ord)
+
+
+data SymObj
+    = ObjVal Value
+    | ObjFunc ValType Operand
+    | ObjType ValType
     deriving (Show, Eq)
 
 
@@ -77,79 +86,19 @@ data ValType
     deriving (Show, Eq, Ord)
 
 
-isVal, isFunc :: SymEntry -> Bool
-isVal (SymVal _)   = True
-isVal _            = False
-isFunc (SymFunc _) = True
-isFunc _           = False
-
-
-isInt t                             = t `elem` [I32, I64]
-isFloat t                           = t `elem` [F32, F64]
-isFirst x
-    | isInt x                       = True
-    | isFloat x                     = True
-    | x `elem` [Bool, Char, String] = True
-isFirst (ArrayVal _ _)              = True
-isFirst (Typedef _)                 = True
-isFirst _                           = False
+isInt x                             = x `elem` [I32, I64]
+isFloat x                           = x `elem` [F32, F64]
 isArray (ArrayVal _ _)              = True
 isArray (ArrayPtr _ _)              = True
 isArray _                           = False
 isTuple (Tuple _)                   = True
 isTuple _                           = False
-
-
-lookupType :: ValType -> Instr (Maybe ValType)
-lookupType (Typedef symbol) = do
-    entries <- lookupSymbol symbol
-    case entries of
-        Nothing -> return Nothing
-        Just ss -> return (lookupTypes ss)
-    where
-        lookupTypes :: [SymEntry] -> Maybe ValType
-        lookupTypes (SymType t:_) = Just t
-        lookupTypes (_:ss)        = lookupTypes ss
-        lookupTypes _             = Nothing
-lookupType t = return (Just t)
-
-
-getConcreteType :: TextPos -> ValType -> Instr ValType
-getConcreteType pos typ = do
-    t <- lookupType typ
-    unless (isJust t) (cmpErr pos "isn't a type")
-    case fromJust t of
-        Typedef s -> getConcreteType pos (Typedef s)
-        t         -> return t
-
-
-typesMatch :: TextPos -> ValType -> ValType -> Instr Bool
-typesMatch pos a b = do
-    ca <- getConcreteType pos a
-    cb <- getConcreteType pos b
-    return (ca == cb)
-    
-
-lookupFunction :: String -> [ValType] -> Instr (Maybe Func) 
-lookupFunction symbol params = do
-    entries <- lookupSymbol symbol
-    case entries of
-        Nothing -> return Nothing
-        Just ss -> return (lookupParams params ss)
-    where
-        lookupParams :: [ValType] -> [SymEntry] -> Maybe Func
-        lookupParams params (SymFunc f@(ps, _, _):_)
-            | params == ps = Just f
-        lookupParams params (_:ss) = lookupParams params ss
-        lookupParams _ _           = Nothing
-
-
-addFunction :: String -> Func -> Instr ()
-addFunction symbol fn = do
-    entry <- lookupSymbol symbol
-    addSymbol symbol $ case entry of
-        Nothing -> [SymFunc fn]
-        Just ss -> SymFunc fn:ss
+isExpr (Typedef _)                  = True
+isExpr x
+    | isInt x || isFloat x          = True
+    | isArray x || isTuple x        = True
+    | x `elem` [Bool, Char, String] = True
+isExpr _                            = False
 
 
 fromASTType :: TextPos -> S.Type -> Instr ValType
@@ -166,21 +115,20 @@ fromASTType pos typ = case typ of
     S.TIdent sym -> return (Typedef sym)
 
 
-opTypeOf :: ValType -> Instr Type
-opTypeOf typ = do
-    t <- getConcreteType (TextPos 0 0 0) typ 
-    case t of
-        Void         -> return (VoidType)
-        I32          -> return (i32)
-        I64          -> return (i64)
-        F32          -> return (FloatingPointType DoubleFP)
-        F64          -> return (FloatingPointType HalfFP)
-        Bool         -> return (i1)
-        Char         -> return (i32)
-        Tuple typs   -> fmap (StructureType False) (mapM opTypeOf typs)
-        ArrayPtr n t -> fmap (ptr . (ArrayType $ fromIntegral n)) (opTypeOf t)
-        ArrayVal n t -> fmap (ArrayType $ fromIntegral n) (opTypeOf t)
+opTypeOf :: TextPos -> ValType -> Instr Type
+opTypeOf pos typ = case typ of
+        Void         -> error "opTypeOf void"
+        Bool         -> return i1
+        Char         -> return i32
+        I32          -> return i32
+        I64          -> return i64
+        F32          -> return (FloatingPointType HalfFP)
+        F64          -> return (FloatingPointType DoubleFP)
+        Tuple typs   -> fmap (StructureType False) $ mapM (opTypeOf pos) typs
+        ArrayPtr n t -> fmap (ptr . (ArrayType $ fromIntegral n)) (opTypeOf pos t)
+        ArrayVal n t -> fmap (ArrayType $ fromIntegral n) (opTypeOf pos t)
         String       -> return (ptr i8)
+        Typedef sym  -> opTypeOf pos =<< getConcreteType pos typ
 
 
 zeroOf :: ValType -> C.Constant
@@ -196,10 +144,70 @@ zeroOf typ = case typ of
     Tuple typs   -> toCons $ struct Nothing False (map zeroOf typs)
 
 
-flattenVal :: TextPos -> Value -> Instr Value
-flattenVal pos val@(ArrayVal _ _, _)     = valArrayToPtr val
-flattenVal pos val@(typ@(Typedef _), op) = getConcreteType pos typ >>= \t -> flattenVal pos (t, op)
-flattenVal pos val                       = return val
+valGlobalClone :: TextPos -> Name -> Value -> Instr Operand
+valGlobalClone pos name val@(typ@(ArrayPtr n t), op) = do
+    (t, op) <- valFlatten pos val
+    opTyp <- opTypeOf pos typ
+    loc <- global name opTyp (zeroOf typ)
+    store loc 0 op
+    return loc
+valGlobalClone pos name (typ, op) = do
+    opTyp <- opTypeOf pos typ
+    loc <- global name opTyp (zeroOf typ)
+    store loc 0 op
+    return loc
+    
+
+valFlatten :: TextPos -> Value -> Instr Value
+valFlatten pos val@(ArrayPtr n t, loc)   = fmap (ArrayVal n t,) (load loc 0)
+valFlatten pos val@(typ@(Typedef _), op) = getConcreteType pos typ >>= \t -> valFlatten pos (t, op)
+valFlatten pos val                       = return val
+
+
+getConcreteType :: TextPos -> ValType -> Instr ValType
+getConcreteType pos (Typedef symbol) = do
+    ObjType typ <- look pos symbol KeyType
+    getConcreteType pos typ
+getConcreteType pos typ = return typ
+
+
+typesMatch :: TextPos -> ValType -> ValType -> Instr Bool
+typesMatch pos a b = do
+    ca <- getConcreteType pos a
+    cb <- getConcreteType pos b
+    return (ca == cb)
+
+
+valPrint :: Value -> Instr ()
+valPrint (Bool, op) = do
+    str <- globalStringPtr "true\0false" =<< fresh
+    idx <- select op (int64 0) (int64 5)
+    ptr <- gep (cons str) [idx]
+    void (printf "%s" [ptr])
+valPrint val@(typ, op)
+    | isArray typ = do
+        let len = valArrayLen val
+        putchar '['
+        forM_ [0..len-1] $ \i -> do
+            valPrint =<< valArrayConstIdx val i
+            when (i < len-1) $ void (printf ", " [])
+        void (putchar ']')
+valPrint val@(Tuple ts, op) = do
+    let len = length ts
+    putchar '('
+    forM_ [0..len-1] $ \i -> do
+        valPrint =<< valTupleIdx (TextPos 0 0 0) val i
+        when (i < len-1) $ void (printf ", " [])
+    void (putchar ')')
+valPrint val@(typ, op) = case typ of
+    I32    -> void (printf "%d" [op])
+    I64    -> void (printf "%ld" [op])
+    F32    -> void (printf "f" [op])
+    F64    -> void (printf "%f" [op])
+    Char   -> void (putchar' op)
+    String -> void (printf "%s" [op])
+
+
 
 
 valArrayToPtr :: Value -> Instr Value

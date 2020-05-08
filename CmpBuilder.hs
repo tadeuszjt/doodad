@@ -21,13 +21,7 @@ import qualified LLVM.AST.Constant as C
 import           Cmp
 
 
---func :: MonadInstrCmp t m => Name -> [(Type, ParameterName)] -> Type -> ([Operand] -> m ()) -> m ()
---func name params retty instr = do
---    let paramtys = map fst params
---    return ()
-
-
-for :: MonadInstrCmp t m => Operand -> (Operand -> m ()) -> m ()
+for :: MonadInstrCmp k o m => Operand -> (Operand -> m ()) -> m ()
 for num f = do
     forCond <- freshName "for_cond"
     forBody <- freshName "for_body"
@@ -50,7 +44,7 @@ for num f = do
     emitBlockStart forExit
 
 
-if_ :: MonadInstrCmp t m => Operand -> m () -> m () -> m ()
+if_ :: MonadInstrCmp k o m => Operand -> m () -> m () -> m ()
 if_ cnd trueIns falseIns = do
     true  <- freshName "if_true"
     false <- freshName "if_false"
@@ -68,34 +62,34 @@ if_ cnd trueIns falseIns = do
     emitBlockStart exit
 
 
-putchar :: MonadInstrCmp t m => Char -> m Operand
+putchar :: MonadInstrCmp k o m => Char -> m Operand
 putchar ch = do
     op <- ensureExtern "putchar" [i32] i32 False
     let c8 = fromIntegral (ord ch)
     call op [(int32 c8, [])]
 
 
-putchar' :: MonadInstrCmp t m => Operand -> m Operand
+putchar' :: MonadInstrCmp k o m => Operand -> m Operand
 putchar' ch = do
     op <- ensureExtern "putchar" [i32] i32 False
     call op [(ch, [])]
     
 
 
-printf :: MonadInstrCmp t m => String -> [Operand] -> m Operand
+printf :: MonadInstrCmp k o m => String -> [Operand] -> m Operand
 printf fmt args = do
     op <- ensureExtern "printf" [ptr i8] i32 True
     str <- globalStringPtr fmt =<< fresh
     call op $ map (\a -> (a, [])) (cons str:args)
 
 
-puts :: MonadInstrCmp t m => Operand -> m Operand
+puts :: MonadInstrCmp k o m => Operand -> m Operand
 puts str = do
     op <- ensureExtern "puts" [ptr i8] i32 False
     call op [(str, [])]
 
 
-strcmp :: MonadInstrCmp t m => Operand -> Operand -> m Operand
+strcmp :: MonadInstrCmp k o m => Operand -> Operand -> m Operand
 strcmp a b = do
     op <- ensureExtern "strcmp" [ptr i8, ptr i8] i32 False
     call op [(a, []), (b, [])] 

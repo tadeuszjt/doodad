@@ -1,11 +1,15 @@
 {-# LANGUAGE ForeignFunctionInterface #-}
+
 module Main where
 
 import           Control.Monad
+import           Control.Monad.IO.Class
 import           System.Console.Haskeline
 import           System.Environment
 import           System.IO
 import qualified Data.ByteString.Char8    as BS
+import qualified Data.Set                 as Set
+import qualified Data.Map                 as Map
 
 import           LLVM.AST
 import           LLVM.Context
@@ -54,13 +58,30 @@ main = do
 repl :: Session -> Bool -> IO ()
 repl session verbose = runInputT defaultSettings (loop C.initCmpState)
     where
-        loop :: C.CmpState C.Value -> InputT IO ()
-        loop state =
+        loop :: C.MyCmpState -> InputT IO ()
+        loop state = do
             getInputLine "% " >>= \minput -> case minput of
                 Nothing    -> return ()
                 Just "q"   -> return ()
                 Just ""    -> loop state
-                Just input -> return ()--liftIO (compile state input session verbose) >>= loop
+                Just input -> do
+                    when verbose $ liftIO (putStrLn "compiling...")
+                    case compile state input verbose of
+                        Left err             -> do
+                            liftIO $ printError err input 
+                            loop state
+                        Right (defs, state') -> do
+                            liftIO $ when verbose $ do
+                                putStrLn ("declared: " ++ show (Set.toList $ C.declared state'))
+                                putStrLn ("exported: " ++ show (Set.toList $ C.exported state'))
+                                putStrLn ("defs:     " ++ show (Map.keys $ C.defs state'))
+                            let keepModule = not $ Set.null (C.exported state')
+                            let verbose    = True
+                            liftIO (jitAndRun defs session keepModule verbose)
+                            loop state'
+                                { C.exported = Set.empty
+                                , C.declared = Set.empty
+                                }
 
 
 compile :: C.MyCmpState -> String -> Bool -> Either C.CmpError ([Definition], C.MyCmpState)

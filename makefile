@@ -2,11 +2,7 @@ run: Main
 	./Main
 
 test: Main
-	rm test.bo.ll || true
-	./Main test.bo -v
-	llc test.bo.ll
-	clang test.bo.s
-	./a.out || true
+	./Main -v < test.bo
 
 Main: Main.hs Lexer.hs Parser.hs AST.hs Compiler.hs CmpVal.hs CmpBuilder.hs Cmp.hs JIT.hs
 	ghc -package haskeline -package llvm-hs-pure -package mtl *.hs -outputdir build

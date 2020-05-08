@@ -53,6 +53,8 @@ import qualified Cmp as C
 
 	i64        { L.Token _ L.Reserved "i64" }
 	i32        { L.Token _ L.Reserved "i32" }
+    f64        { L.Token _ L.Reserved "f64" }
+    f32        { L.Token _ L.Reserved "f32" }
 	bool       { L.Token _ L.Reserved "bool" }
 	char       { L.Token _ L.Reserved "char" }
 	string     { L.Token _ L.Reserved "string" }
@@ -77,7 +79,6 @@ import qualified Cmp as C
 	 
 
 	%%
-
 Prog : {- empty -}                  { [] }
      | Stmt                         { [$1] }
 	 | Stmt Prog                    { $1 : $2 }
@@ -101,14 +102,21 @@ StmtB : Block                                     { $1 }
 	  | If                                        { $1 }
 
 
-Type : bool                         { S.TBool }
-	 | i32                          { S.TI32 }
-     | i64                          { S.TI64 }
-	 | char                         { S.TChar }
-	 | string                       { S.TString }
-	 | '[' int Type ']'             { S.TArray (read $ L.tokStr $2) $3 }
-	 | '(' Types ')'                { S.TTuple $2 }
-     | ident                        { S.TIdent (L.tokStr $1) }
+Type         : ConcreteType         { $1 }
+             | ident                { S.TIdent (L.tokStr $1) }
+ConcreteType : bool                 { S.TBool }
+	         | i32                  { S.TI32 }
+             | i64                  { S.TI64 }
+             | f32                  { S.TF32 }
+             | f64                  { S.TF64 }
+	         | char                 { S.TChar }
+	         | string               { S.TString }
+	         | '[' int Type ']'     { S.TArray (read $ L.tokStr $2) $3 }
+	         | '(' Types ')'        { S.TTuple $2 }
+Types        : {- empty -}          { [] }
+	         | Types_               { $1 }
+Types_       : Type                 { [$1] }
+	         | Type ',' Types_      { $1 : $3 }
 
 
 Expr : int                          { S.Int (tokPosn $1) (read $ L.tokStr $1) }
@@ -121,7 +129,6 @@ Expr : int                          { S.Int (tokPosn $1) (read $ L.tokStr $1) }
 	 | '[' Args ']'                 { S.Array (tokPosn $1) $2 }
 	 | '(' Args ')'                 { S.Tuple (tokPosn $1) $2 }
 	 | ident '(' Args ')'           { S.Call (tokPosn $1) (L.tokStr $1) $3 }
-	 | Type '(' Expr ')'            { S.Constructor (tokPosn $2) $1 $3 }
 	 | len '(' Expr ')'             { S.Len (tokPosn $1) $3 }
 	 | Expr '.' int                 { S.TupleIndex (tokPosn $2) $1 (read $ L.tokStr $3) }
      | Expr '[' Expr ']'            { S.ArrayIndex (tokPosn $2) $1 $3 }
@@ -158,18 +165,13 @@ Case   : Expr ':' Stmt              { (Just $1, $3) }
 	   | '_'  ':' Stmt              { (Nothing, $3) }
 
 
-If : if Expr Block                  { S.If (tokPosn $1) $2 $3 Nothing }
-   | if Expr Block Else             { S.If (tokPosn $1) $2 $3 (Just $4) }
-
-
+If   : if Expr Block                { S.If (tokPosn $1) $2 $3 Nothing }
+     | if Expr Block Else           { S.If (tokPosn $1) $2 $3 (Just $4) }
 Else : else Block                   { $2 }
      | else If                      { $2 }
 
 
 Block : '{' Prog '}'                { S.Block (tokPosn $1) $2 }
-
-
-Param : ident Type                  { S.Param (tokPosn $1) (L.tokStr $1) $2 }
 
 
 Args  : {- empty -}                 { [] }
@@ -178,17 +180,11 @@ Args_ : Expr                        { [$1] }
 	  | Expr ',' Args_              { $1 : $3 }
 
 
+Param   : ident Type                { S.Param (tokPosn $1) (L.tokStr $1) $2 }
 Params  : {- empty -}               { [] }
         | Params_                   { $1 }
 Params_ : Param                     { [$1] }
 		| Param ',' Params_         { $1 : $3 }
-
-
-Types  : {- empty -}                { [] }
-	   | Types_                     { $1 }
-Types_ : Type                       { [$1] }
-	   | Type ',' Types_            { $1 : $3 }
-
 
 {
 data ParseResult a
