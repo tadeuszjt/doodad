@@ -69,6 +69,7 @@ repl session verbose = runInputT defaultSettings (loop C.initCmpState)
                     case compile state input verbose of
                         Left err             -> do
                             liftIO $ printError err input 
+                            liftIO $ C.prettySymTab $ state
                             loop state
                         Right (defs, state') -> do
                             let keepModule = not $ Set.null (C.exported state')
@@ -83,7 +84,7 @@ repl session verbose = runInputT defaultSettings (loop C.initCmpState)
 compile :: C.MyCmpState -> String -> Bool -> Either C.CmpError ([Definition], C.MyCmpState)
 compile state source verbose =
     case L.alexScanner source of
-        Left  errStr -> Left $ C.CmpError (C.TextPos{}, errStr)
+        Left  errStr -> Left $ C.CmpError (C.TextPos 0 0 0, errStr)
         Right tokens -> case (P.parseTokens tokens) 0 of
             P.ParseOk ast -> C.compile state ast
 

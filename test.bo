@@ -1,4 +1,3 @@
-b := ["oieaioa", "trtprp"];
-b[0] = "ioei";
-
-print(b);
+type Arr =  [3 string];
+fn f(a Arr) (string, string, string) { [x, y, z] := a; return (x, y, z); }
+print(f(Arr(["oiea", "ioe", "rntr"])));

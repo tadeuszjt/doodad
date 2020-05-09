@@ -133,6 +133,12 @@ checkUndefined symbol = do
     assert (isNothing res) (symbol ++ " already defined") 
 
 
+checkSymKeyUndefined :: MonadModuleCmp k o m => String -> k -> m ()
+checkSymKeyUndefined symbol key = do
+    res <- lookupSymKey symbol key
+    assert (isNothing res) (symbol ++ " already defined")
+
+
 lookupSymbol :: MonadModuleCmp k o m => String -> m (Maybe (Map.Map k (o, Set.Set Name)))
 lookupSymbol symbol =
     fmap (SymTab.lookup symbol) (gets symTab)
@@ -245,4 +251,14 @@ isDeclared name =
     fmap (elem name) (gets declared)
 
 
+prettySymTab :: (Show k, Show o) => CmpState k o -> IO ()
+prettySymTab state = do
+    let st = symTab state
+    forM_ (zip st [0..]) $ \(frame, i) -> do
+        putStrLn ("frame " ++ show i ++ ":")
+        forM_ (Map.toList frame) $ \(sym, keyMap) -> do
+            putStrLn ("  " ++ sym ++ ":")
+            forM_ (Map.toList keyMap) $ \(key, obj) -> do
+                let kstr = show key
+                putStrLn ("    " ++ show key ++ " " ++ (replicate (50-length kstr) '-') ++ "> " ++ take 60 (show obj) ++ "...")
 

@@ -33,8 +33,19 @@ import           Cmp
 mkBSS = BSS.toShort . BS.pack
 
 
-type Compile     = State ()
-initCompileState = ()
+type Compile     = State ValType
+initCompileState = Void
+
+
+setCurRetTyp :: ValType -> Instr ()
+setCurRetTyp typ =
+    void $ lift $ put typ
+
+
+getCurRetTyp :: Instr ValType
+getCurRetTyp =
+    lift get
+
 
 type MyCmpState = CmpState SymKey SymObj
 type Instr      = InstrCmpT SymKey SymObj Compile
@@ -76,17 +87,19 @@ data ValType
     deriving (Show, Eq, Ord)
 
 
-isInt x             = x `elem` [I32, I64]
-isFloat x           = x `elem` [F32, F64]
-isBase x            = isInt x || isFloat x || x `elem` [Bool, String, Char]
-isArray (Array _ _) = True
-isArray _           = False
-isTuple (Tuple _)   = True
-isTuple _           = False
-isAggregate x       = isTuple x || isArray x
-isExpr x            = isBase x || isAggregate x
-isExpr (Typedef _)  = True
-isExpr _            = False
+isInt x               = x `elem` [I32, I64]
+isFloat x             = x `elem` [F32, F64]
+isBase x              = isInt x || isFloat x || x `elem` [Bool, String, Char]
+isArray (Array _ _)   = True
+isArray _             = False
+isTuple (Tuple _)     = True
+isTuple _             = False
+isTypedef (Typedef _) = True
+isTypedef _           = False
+isIntegral x          = isInt x || x == Char
+isAggregate x         = isTuple x || isArray x
+isExpr x              = isBase x || isAggregate x || isTypedef x
+isExpr _              = False
 
 
 fromASTType :: S.Type -> ValType
@@ -118,17 +131,19 @@ opTypeOf typ = case typ of
         Typedef _ -> opTypeOf =<< getConcreteType typ
 
 
-zeroOf :: ValType -> C.Constant
+zeroOf :: ValType -> Instr C.Constant
 zeroOf typ = case typ of
-    I32        -> toCons (int32 0)
-    I64        -> toCons (int64 0)
-    F32        -> toCons (single 0)
-    F64        -> toCons (double 0)
-    Bool       -> toCons (bit 0)
-    Char       -> toCons (int32 0)
-    String     -> C.IntToPtr (toCons $ int64 0) (ptr i8)
-    Array n t  -> toCons $ array $ replicate n (zeroOf t)
-    Tuple typs -> toCons $ struct Nothing False (map zeroOf typs)
+    I32        -> return $ toCons (int32 0)
+    I64        -> return $ toCons (int64 0)
+    F32        -> return $ toCons (single 0)
+    F64        -> return $ toCons (double 0)
+    Bool       -> return $ toCons (bit 0)
+    Char       -> return $ toCons (int32 0)
+    String     -> return $ C.IntToPtr (toCons $ int64 0) (ptr i8)
+    Array n t  -> return . toCons . array . replicate n =<< zeroOf t
+    Tuple typs -> return . toCons . (struct Nothing False) =<< mapM zeroOf typs
+    Typedef _  -> zeroOf =<< getConcreteType typ
+    x          -> error (show x)
 
 
 getConcreteType :: ValType -> Instr ValType
@@ -153,7 +168,7 @@ typesMatch a b = do
 valGlobal :: Name -> ValType -> Instr (Value, Definition)
 valGlobal name typ = do
     opTyp <- opTypeOf typ
-    loc <- global name opTyp (zeroOf typ)
+    loc <- global name opTyp =<< zeroOf typ
     return (Ptr typ loc, globalDef name opTyp Nothing)
 
 
@@ -257,4 +272,40 @@ valPrint append val
             Char   -> void $ printf ("%c" ++ append) [op]
             String -> void $ printf ("\"%s\"" ++ append) [op]
             t      -> cmpErr ("cannot print value with type: " ++ show t)
+
+
+publicFunction :: String -> [(String, ValType)] -> ValType -> ([Value] ->  Instr ()) -> Instr ()
+publicFunction symbol params retty f = do 
+    retOpTyp <- opTypeOf retty
+    let (paramSymbols, paramTyps) = unzip params
+    checkSymKeyUndefined symbol (KeyFunc paramTyps)
+
+    let paramNames = map mkName paramSymbols
+    let paramFnNames = map (ParameterName . mkBSS) paramSymbols
+    paramOpTyps <- mapM opTypeOf paramTyps
+
+    name <- freshName (mkBSS symbol)
+
+    pushSymTab
+    oldRetTyp <- getCurRetTyp
+    setCurRetTyp retty
+    op <- InstrCmpT $ IRBuilderT . lift $ function name (zip paramOpTyps paramFnNames) retOpTyp $ \argOps ->
+        getInstrCmp $ do
+            forM_ (zip3 paramSymbols paramTyps argOps) $ \(sym, ty, op) -> do
+                checkUndefined sym
+                arg <- valLocal ty
+                valStore arg (Val ty op)
+                addSymObj sym KeyVal (ObjVal arg)
+
+            f [Val t o | (t, o) <- zip paramTyps argOps]
+
+    setCurRetTyp oldRetTyp
+    popSymTab
+
+    addDeclared name
+    addExported name
+    addSymObj symbol (KeyFunc paramTyps) (ObjFunc retty op)
+    addSymObjReq symbol (KeyFunc paramTyps) name
+    addDef name $ funcDef name (zip paramOpTyps paramNames) retOpTyp []
+
 
