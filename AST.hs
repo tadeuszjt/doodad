@@ -6,6 +6,7 @@ import qualified Lexer    as L
 
 type AST  = [Stmt]
 
+
 data Op
     = Plus
     | Minus
@@ -21,6 +22,7 @@ data Op
 	| AndAnd
     deriving (Show, Eq, Ord)
 
+
 data Param
 	= Param
 		{ paramPos  :: TextPos
@@ -28,6 +30,7 @@ data Param
 		, paramType :: Type
 		}
 	deriving (Show, Eq)
+
 
 data Type
 	= TBool
@@ -50,6 +53,14 @@ data Pattern
 	| PatArray  { pos :: TextPos, patterns :: [Pattern] }
 	deriving (Show, Eq)
 
+
+data Index
+    = IndIdent { indPos :: TextPos, indSym :: String }
+    | IndArray { indPos :: TextPos, index :: Index, expr :: Expr }
+    | IndTuple { indPos :: TextPos, index :: Index, tupleIdx :: Int }
+    deriving (Show, Eq)
+
+
 data Expr
     = Int TextPos Integer
 	| Float TextPos Double
@@ -70,7 +81,7 @@ data Expr
 
 data Stmt
 	= Assign TextPos Pattern Expr
-	| Set TextPos String Expr
+	| Set TextPos Index Expr
 	| Print TextPos [Expr]
 	| Map TextPos String Expr
 	| Block TextPos [Stmt]

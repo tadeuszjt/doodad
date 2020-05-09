@@ -87,7 +87,7 @@ Prog : {- empty -}                  { [] }
 Stmt  : StmtS ';'                                 { $1 }
 	  | StmtB                                     { $1 }
 StmtS : Pattern ':=' Expr                         { S.Assign (tokPosn $2) $1 $3 }  
-	  | ident '=' Expr                            { S.Set (tokPosn $2) (L.tokStr $1) $3 }
+	  | Index '=' Expr                            { S.Set (tokPosn $2) $1 $3 }
 	  | print '(' Args ')'                        { S.Print (tokPosn $1) $3 }
 	  | ident '(' Args ')'                        { S.CallStmt (tokPosn $1) (L.tokStr $1) $3 }
 	  | return                                    { S.Return (tokPosn $1) Nothing }
@@ -156,6 +156,11 @@ Patterns  : {- empty -}             { [] }
           | Patterns_               { $1 }
 Patterns_ : Pattern                 { [$1] }
 		  | Pattern ',' Patterns_   { $1 : $3 }
+
+
+Index  : ident                      { S.IndIdent (tokPosn $1) (L.tokStr $1) }
+       | Index '[' Expr ']'         { S.IndArray (tokPosn $2) $1 $3 }
+       | Index '.' int              { S.IndTuple (tokPosn $2) $1 (read $ L.tokStr $3) }
 
 
 Switch : switch Expr '{' Cases '}'  { S.Switch (tokPosn $1) $2 $4 }

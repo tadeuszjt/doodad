@@ -17,6 +17,7 @@ import           Prelude                    hiding (EQ, and, or)
 
 import           LLVM.AST                   hiding (function, Module)
 import qualified LLVM.AST.Constant          as C
+import           LLVM.AST.Global
 import           LLVM.AST.IntegerPredicate
 import qualified LLVM.AST.FloatingPointPredicate as F
 import           LLVM.AST.Type              hiding (void, double)
@@ -49,6 +50,7 @@ cmpTopStmt stmt@(S.Set _ _ _)      = cmpStmt stmt
 cmpTopStmt stmt@(S.Print _ _)      = cmpStmt stmt
 cmpTopStmt stmt@(S.CallStmt _ _ _) = cmpStmt stmt
 cmpTopStmt stmt@(S.Switch _ _ _)   = cmpStmt stmt
+cmpTopStmt stmt@(S.Typedef _ _ _)  = cmpStmt stmt
 
 cmpTopStmt (S.Assign pos pattern expr) =
     assignPattern pattern =<< cmpExpr expr
@@ -82,6 +84,26 @@ cmpTopStmt (S.Assign pos pattern expr) =
 
 cmpStmt :: S.Stmt -> Instr ()
 cmpStmt (S.CallStmt pos symbol args) = void $ cmpExpr (S.Call pos symbol args)
+cmpStmt (S.Set pos index expr) = withPos pos $ do
+    val <- cmpExpr expr
+    idx <- idxPtr index
+    valStore idx val
+    where
+        idxPtr :: S.Index -> Instr Value
+        idxPtr (S.IndIdent p symbol) = withPos p $ do
+            ObjVal loc@(Ptr _ _) <- look symbol KeyVal
+            return loc
+
+        idxPtr (S.IndArray p ind exp) = withPos p $ do
+            arr <- idxPtr ind
+            idx <- cmpExpr exp
+            valArrayIdx arr idx
+
+        idxPtr (S.IndTuple p ind i) = withPos p $ do
+            tup <- idxPtr ind
+            valTupleIdx tup i
+
+
 cmpStmt (S.Print pos exprs) =
     prints =<< mapM cmpExpr exprs
     where
@@ -90,14 +112,37 @@ cmpStmt (S.Print pos exprs) =
         prints [val]  = valPrint "\n" val
         prints (v:vs) = valPrint ", " v >> prints vs
 
+cmpStmt (S.Typedef pos symbol typ) = do
+    let t = fromASTType typ
+    ct <- getConcreteType t
+    checkUndefined symbol
+    addSymObj symbol KeyType (ObjType t)
+
+    name <- freshName (mkBSS symbol)
+    opTyp <- opTypeOf t
+    op <- InstrCmpT $ IRBuilderT . lift $ function name [] opTyp $ \_ ->
+        getInstrCmp (ret $ cons (zeroOf ct))
+    addDeclared name
+    addExported name
+    addSymObj symbol (KeyFunc []) (ObjFunc t op)
+    addSymObjReq symbol (KeyFunc []) name
+    addDef name (funcDef name [] opTyp [])
+
+
 
 cmpExpr :: S.Expr -> Instr Value
-cmpExpr (S.Int pos i)   = return $ Val I64 (int64 i)
-cmpExpr (S.Float pos f) = return $ Val F64 (double f)
-cmpExpr (S.Bool pos b)  = return $ Val Bool (bit $ if b then 1 else 0)
-cmpExpr (S.Char pos c)  = return $ Val Char (int32 $ fromIntegral $ fromEnum c)
+cmpExpr (S.Int pos i)    = return $ Val I64 (int64 i)
+cmpExpr (S.Float pos f)  = return $ Val F64 (double f)
+cmpExpr (S.Bool pos b)   = return $ Val Bool (bit $ if b then 1 else 0)
+cmpExpr (S.Char pos c)   = return $ Val Char (int32 $ fromIntegral $ fromEnum c)
 
-cmpExpr (S.Call pos symbol args) = do
+cmpExpr (S.String pos s) = do
+    name <- freshName (mkBSS "string")
+    str <- globalStringPtr s name
+    addExported name
+    return $ Val String (cons str)
+
+cmpExpr (S.Call pos symbol args) = withPos pos $ do
     vals <- mapM cmpExpr args
     ObjFunc retType fnOp <- look symbol $ KeyFunc (map valType vals)
     op <- call fnOp $ map (,[]) (map valOp vals)
@@ -105,7 +150,7 @@ cmpExpr (S.Call pos symbol args) = do
 
 cmpExpr (S.Ident pos symbol) = do
     ObjVal val <- look symbol KeyVal
-    valLoad val
+    return val
 
 cmpExpr (S.Array pos exprs) = do
     vals <- mapM cmpExpr exprs
@@ -124,6 +169,12 @@ cmpExpr (S.Tuple pos exprs) = do
     forM_ (zip vals [0..]) $ \(val, i) ->
         valTupleSet tup i val
     return tup
+
+cmpExpr (S.ArrayIndex pos arrExpr idxExpr) = do
+    arr <- cmpExpr arrExpr
+    idx <- cmpExpr idxExpr
+    valArrayIdx arr idx
+
 
 --cmpExpr (S.Infix pos operator a b) = do
 --    va <- cmpExpr a
