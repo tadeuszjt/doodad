@@ -1,6 +1,7 @@
 module AST where
 
-import           Cmp      (TextPos)
+import           Data.Word
+import           CmpMonad (TextPos)
 import qualified Lexer    as L
 
 
@@ -40,10 +41,15 @@ data Type
 	| TF64
 	| TChar
 	| TString
-	| TArray Int Type
+	| TArray Word64 Type
 	| TTuple [Type]
     | TIdent String
 	deriving (Show, Eq)
+
+
+data Data
+    = DataIdent { dataPos :: TextPos, dataSymbol :: String }
+    deriving (Show, Eq)
 
 
 data Pattern
@@ -57,7 +63,7 @@ data Pattern
 data Index
     = IndIdent { indPos :: TextPos, indSym :: String }
     | IndArray { indPos :: TextPos, index :: Index, expr :: Expr }
-    | IndTuple { indPos :: TextPos, index :: Index, tupleIdx :: Int }
+    | IndTuple { indPos :: TextPos, index :: Index, tupleIdx :: Word64 }
     deriving (Show, Eq)
 
 
@@ -88,6 +94,7 @@ data Stmt
 	| Func TextPos String [Param] (Maybe Type) [Stmt]
 	| Extern TextPos String [Param] (Maybe Type)
     | Typedef TextPos String Type
+    | Datadef TextPos String [Data] 
 	| CallStmt TextPos String [Expr]
 	| If TextPos Expr Stmt (Maybe Stmt)
 	| Return TextPos (Maybe Expr)

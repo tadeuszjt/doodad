@@ -22,7 +22,7 @@ $symbol  = [\{\}\(\)\[\]\,\.\;\:\_]
 
 @types      = i64 | i32 | f64 | f32 | bool | char | string
 @builtin    = print | len 
-@keywords   = fn | extern | type | for | if | else | return | switch | true | false
+@keywords   = fn | extern | type | data | for | if | else | return | switch | true | false
 @reserved   = @keywords | @types | @builtin
 @reservedOp = [\+\-\*\/\%\<\>\=] | ":=" | "==" | "<=" | ">=" | "||" | "&&"
 

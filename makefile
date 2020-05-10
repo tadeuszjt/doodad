@@ -4,7 +4,7 @@ run: Main
 test: Main
 	./Main -v < test.bo
 
-Main: Main.hs Lexer.hs Parser.hs AST.hs Compiler.hs CmpVal.hs CmpBuilder.hs Cmp.hs JIT.hs
+Main: Main.hs Lexer.hs Parser.hs AST.hs CmpAST.hs CmpValue.hs CmpFuncs.hs CmpMonad.hs JIT.hs
 	ghc -package haskeline -package llvm-hs-pure -package mtl *.hs -outputdir build
 
 Lexer.hs: Lexer.x

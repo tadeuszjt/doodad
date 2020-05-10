@@ -1,7 +1,7 @@
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Compiler where
+module CmpAST where
 
 import           Control.Monad
 import           Control.Monad.Except       hiding (void)
@@ -29,9 +29,9 @@ import           LLVM.IRBuilder.Monad
 
 import qualified Lexer                      as L
 import qualified AST                        as S
-import           CmpBuilder
-import           CmpVal
-import           Cmp
+import           CmpFuncs
+import           CmpValue
+import           CmpMonad
 
 
 compile :: MyCmpState -> S.AST -> Either CmpError ([Definition], MyCmpState) 
@@ -54,10 +54,44 @@ cmpTopStmt stmt@(S.Switch _ _ _)   = cmpStmt stmt
 cmpTopStmt (S.Typedef pos symbol typ) = do
     let typDef = Typedef symbol
     let ty = fromASTType typ
+    zero   <- fmap cons (zeroOf ty)
     checkUndefined symbol
-    addSymObj symbol KeyType (ObjType ty)
-    publicFunction symbol [] typDef          $ \_   -> ret =<< fmap cons (zeroOf ty)
+    addSymObj symbol KeyType      (ObjType ty)
+    addSymObj symbol (KeyFunc []) (ObjVal $ Val typDef zero)
     publicFunction symbol [("x", ty)] typDef $ \[a] -> ret (valOp a)
+    unless (isConcrete ty) $ do
+        conc <- getConcreteType ty
+        publicFunction symbol [("x", conc)] typDef $ \[a] -> ret (valOp a)
+
+cmpTopStmt (S.Datadef pos symbol datas) = withPos pos $ do
+    checkUndefined symbol
+    (nameStrs, nameStrLens) <- fmap unzip $ forM (map S.dataSymbol datas) $ \sym -> do
+        checkUndefined sym
+        return (sym ++ "\0", fromIntegral $ length sym + 1)
+
+    let numIdxs = fromIntegral (length nameStrLens)
+    let (_, idxs) = foldl (\(n, a) l -> (n+l, a ++ [n])) (0, []) nameStrLens
+
+    strName <- freshName $ mkBSS (symbol ++ "str")
+    idxName <- freshName $ mkBSS (symbol ++ "idx")
+
+    let (strDef, strOp) = stringDef strName (concat nameStrs)
+    let (idxDef, idxOp) = globalDef idxName (ArrayType numIdxs i64) $ Just $ C.Array i64 $ map (C.Int 64) idxs
+
+    addDef strName strDef
+    addDef idxName idxDef
+
+    addSymObj symbol KeyType $ ObjData (Val String strOp) (Ptr (Array numIdxs I64) idxOp) 
+    addSymObjReq symbol KeyType strName
+    addSymObjReq symbol KeyType idxName
+
+    forM_ (zip datas [0..]) $ \(d, i) -> cmpData d i
+    where
+        cmpData :: S.Data -> Integer -> Instr ()
+        cmpData (S.DataIdent p sym) i = do
+            checkUndefined sym
+            addSymObj sym (KeyFunc []) $ ObjVal $ Val (Typedef symbol) (int64 i)
+            
 
 cmpTopStmt (S.Assign pos pattern expr) =
     assignPattern pattern =<< cmpExpr expr
@@ -65,7 +99,7 @@ cmpTopStmt (S.Assign pos pattern expr) =
         assignPattern ::  S.Pattern -> Value -> Instr ()
         assignPattern (S.PatTuple p patterns) val
             | isTuple (valType val) = withPos p $ do
-                assert (length patterns == valLen val) "incorrect tuple length"
+                assert (fromIntegral (length patterns) == valLen val) "incorrect tuple length"
                 forM_ (zip patterns [0..]) $ \(pattern, i) ->
                     assignPattern pattern =<< valTupleIdx val i
 
@@ -108,7 +142,7 @@ cmpStmt (S.Assign pos pattern expr) = do
         assignPattern ::  S.Pattern -> Value -> Instr ()
         assignPattern (S.PatTuple p patterns) val
             | isTuple (valType val) = withPos p $ do
-                assert (length patterns == valLen val) "incorrect tuple length"
+                assert (fromIntegral (length patterns) == valLen val) "incorrect tuple length"
                 forM_ (zip patterns [0..]) $ \(pattern, i) ->
                     assignPattern pattern =<< valTupleIdx val i
 
@@ -145,6 +179,36 @@ cmpStmt (S.Set pos index expr) = withPos pos $ do
             tup <- idxPtr ind
             valTupleIdx tup i
 
+cmpStmt (S.Switch pos expr []) = return ()
+cmpStmt (S.Switch pos expr cases) = withPos pos $ do
+    exit <- fresh
+    cndNames <- replicateM (length cases) (freshName "case")
+    stmtNames <- replicateM (length cases) (freshName "case_stmt")
+
+    let nextNames = tail cndNames ++ [exit]
+    let (caseExprs, stmts) = unzip cases
+
+    br (head cndNames)
+    pushSymTab
+
+    forM_ (zip5 caseExprs cndNames stmtNames nextNames stmts) $
+        \(caseExpr, cndName, stmtName, nextName, stmt) -> do
+            emitBlockStart cndName
+            if isJust caseExpr then do
+                val <- cmpExpr expr
+                cas <- cmpExpr (fromJust caseExpr)
+                Val Bool cnd <- valsEqual val cas
+                condBr cnd stmtName nextName
+            else
+                br stmtName
+            emitBlockStart stmtName
+            cmpStmt stmt
+            br exit
+
+    popSymTab
+    br exit
+    emitBlockStart exit
+
 cmpStmt (S.Return pos mexpr) = withPos pos $ do
     retTyp <- getCurRetTyp
     if isNothing mexpr then do
@@ -156,7 +220,7 @@ cmpStmt (S.Return pos mexpr) = withPos pos $ do
         ret (valOp val)
     return ()
 
-cmpStmt (S.Print pos exprs) =
+cmpStmt (S.Print pos exprs) = withPos pos $
     prints =<< mapM cmpExpr exprs
     where
         prints :: [Value] -> Instr ()
@@ -179,9 +243,10 @@ cmpExpr (S.String pos s) = do
 
 cmpExpr (S.Call pos symbol args) = withPos pos $ do
     vals <- mapM valLoad =<< mapM cmpExpr args
-    ObjFunc retType fnOp <- look symbol $ KeyFunc (map valType vals)
-    op <- call fnOp $ map (,[]) (map valOp vals)
-    return (Val retType op)
+    res <- look symbol $ KeyFunc (map valType vals)
+    case res of
+        ObjFunc retType fnOp -> fmap (Val retType) $ call fnOp $ map (,[]) (map valOp vals)
+        ObjVal val           -> return val
 
 cmpExpr (S.Ident pos symbol) = do
     ObjVal val <- look symbol KeyVal
@@ -189,7 +254,7 @@ cmpExpr (S.Ident pos symbol) = do
 
 cmpExpr (S.Array pos exprs) = do
     vals <- mapM cmpExpr exprs
-    let n = length vals
+    let n = fromIntegral (length vals)
     assert (n > 0) "can't deduce array type"
     let t = valType (head vals)
     arr <- valLocal (Array n t)
@@ -199,10 +264,8 @@ cmpExpr (S.Array pos exprs) = do
 
 cmpExpr (S.Tuple pos exprs) = do
     vals <- mapM cmpExpr exprs
-    let ts = map valType vals
-    tup <- valLocal (Tuple ts)
-    forM_ (zip vals [0..]) $ \(val, i) ->
-        valTupleSet tup i val
+    tup <- valLocal $ Tuple (map valType vals)
+    forM_ (zip vals [0..]) $ \(val, i) -> valTupleSet tup i val
     return tup
 
 cmpExpr (S.ArrayIndex pos arrExpr idxExpr) = do
@@ -210,6 +273,10 @@ cmpExpr (S.ArrayIndex pos arrExpr idxExpr) = do
     idx <- cmpExpr idxExpr
     valArrayIdx arr idx
 
+cmpExpr (S.Infix pos S.EqEq exprA exprB) = withPos pos $ do
+    valA <- cmpExpr exprA
+    valB <- cmpExpr exprB
+    valsEqual valA valB
 cmpExpr (S.Infix pos operator exprA exprB) = do
     valA <- valLoad =<< cmpExpr exprA
     valB <- valLoad =<< cmpExpr exprB

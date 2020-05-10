@@ -2,7 +2,7 @@
 module Parser where
 import qualified Lexer as L
 import qualified AST as S
-import qualified Cmp as C
+import qualified CmpMonad as C
 }
 
 %name      parseTokens 
@@ -40,6 +40,7 @@ import qualified Cmp as C
     fn         { L.Token _ L.Reserved "fn" }
     extern     { L.Token _ L.Reserved "extern" }
     type       { L.Token _ L.Reserved "type" }
+    data       { L.Token _ L.Reserved "data" }
     if         { L.Token _ L.Reserved "if" }
     else       { L.Token _ L.Reserved "else" }
     for        { L.Token _ L.Reserved "for" }
@@ -79,44 +80,27 @@ import qualified Cmp as C
 	 
 
 	%%
-Prog : {- empty -}                  { [] }
-     | Stmt                         { [$1] }
-	 | Stmt Prog                    { $1 : $2 }
+Prog  : {- empty -}                         { [] }
+      | Stmt Prog                           { $1 : $2 }
 
 
-Stmt  : StmtS ';'                                 { $1 }
-	  | StmtB                                     { $1 }
-StmtS : Pattern ':=' Expr                         { S.Assign (tokPosn $2) $1 $3 }  
-	  | Index '=' Expr                            { S.Set (tokPosn $2) $1 $3 }
-	  | print '(' Args ')'                        { S.Print (tokPosn $1) $3 }
-	  | ident '(' Args ')'                        { S.CallStmt (tokPosn $1) (L.tokStr $1) $3 }
-	  | return                                    { S.Return (tokPosn $1) Nothing }
-	  | return Expr                               { S.Return (tokPosn $1) (Just $2) }
-	  | extern ident '(' Params ')' Type          { S.Extern (tokPosn $2) (L.tokStr $2) $4 (Just $6) }
-	  | extern ident '(' Params ')'               { S.Extern (tokPosn $2) (L.tokStr $2) $4 Nothing }
-      | type ident '=' Type                       { S.Typedef (tokPosn $2) (L.tokStr $2) $4 }
-StmtB : Block                                     { $1 }
-      | fn ident '(' Params ')' '{' Prog '}'      { S.Func (tokPosn $1) (L.tokStr $2) $4 Nothing $7 }
-      | fn ident '(' Params ')' Type '{' Prog '}' { S.Func (tokPosn $1) (L.tokStr $2) $4 (Just $6) $8 }
-	  | switch Expr '{' Cases '}'                 { S.Switch (tokPosn $1) $2 $4 }
-	  | If                                        { $1 }
-
-
-Type         : ConcreteType         { $1 }
-             | ident                { S.TIdent (L.tokStr $1) }
-ConcreteType : bool                 { S.TBool }
-	         | i32                  { S.TI32 }
-             | i64                  { S.TI64 }
-             | f32                  { S.TF32 }
-             | f64                  { S.TF64 }
-	         | char                 { S.TChar }
-	         | string               { S.TString }
-	         | '[' int Type ']'     { S.TArray (read $ L.tokStr $2) $3 }
-	         | '(' Types ')'        { S.TTuple $2 }
-Types        : {- empty -}          { [] }
-	         | Types_               { $1 }
-Types_       : Type                 { [$1] }
-	         | Type ',' Types_      { $1 : $3 }
+Stmt  : StmtS ';'                           { $1 }
+      | StmtB                               { $1 }
+StmtS : Pattern ':=' Expr                   { S.Assign (tokPosn $2) $1 $3 }  
+	  | Index '=' Expr                      { S.Set (tokPosn $2) $1 $3 }
+	  | print '(' Args ')'                  { S.Print (tokPosn $1) $3 }
+	  | ident '(' Args ')'                  { S.CallStmt (tokPosn $1) (L.tokStr $1) $3 }
+	  | return                              { S.Return (tokPosn $1) Nothing }
+	  | return Expr                         { S.Return (tokPosn $1) (Just $2) }
+	  | extern ident '(' Params ')' Type    { S.Extern (tokPosn $2) (L.tokStr $2) $4 (Just $6) }
+	  | extern ident '(' Params ')'         { S.Extern (tokPosn $2) (L.tokStr $2) $4 Nothing }
+      | type ident '=' Type                 { S.Typedef (tokPosn $2) (L.tokStr $2) $4 }
+      | data ident '=' Datas                { S.Datadef (tokPosn $2) (L.tokStr $2) $4 }
+StmtB : Block                               { $1 }
+	  | If                                  { $1 }
+      | fn ident '(' Params ')' Block_      { S.Func (tokPosn $1) (L.tokStr $2) $4 Nothing $6 }
+      | fn ident '(' Params ')' Type Block_ { S.Func (tokPosn $1) (L.tokStr $2) $4 (Just $6) $7 }
+	  | switch Expr '{' Cases '}'           { S.Switch (tokPosn $1) $2 $4 }
 
 
 Expr : int                          { S.Int (tokPosn $1) (read $ L.tokStr $1) }
@@ -148,6 +132,30 @@ Expr : int                          { S.Int (tokPosn $1) (read $ L.tokStr $1) }
 	 | Expr '||' Expr               { S.Infix (tokPosn $2) S.OrOr $1 $3 }
 
 
+Type         : ConcreteType         { $1 }
+             | ident                { S.TIdent (L.tokStr $1) }
+ConcreteType : bool                 { S.TBool }
+	         | i32                  { S.TI32 }
+             | i64                  { S.TI64 }
+             | f32                  { S.TF32 }
+             | f64                  { S.TF64 }
+	         | char                 { S.TChar }
+	         | string               { S.TString }
+	         | '[' int Type ']'     { S.TArray (read $ L.tokStr $2) $3 }
+	         | '(' Types ')'        { S.TTuple $2 }
+Types        : {- empty -}          { [] }
+	         | Types_               { $1 }
+Types_       : Type                 { [$1] }
+	         | Type ',' Types_      { $1 : $3 }
+
+
+Data   : ident                      { S.DataIdent (tokPosn $1) (L.tokStr $1) }
+Datas  : Data                       { [$1] }
+       | Data ',' Datas             { $1 : $3 }
+
+
+
+
 Pattern   : '_'                     { S.PatIgnore (tokPosn $1) }
 		  | ident                   { S.PatIdent (tokPosn $1) (L.tokStr $1) }
 		  | '(' Patterns ')'        { S.PatTuple (tokPosn $1) $2 }
@@ -176,7 +184,8 @@ Else : else Block                   { $2 }
      | else If                      { $2 }
 
 
-Block : '{' Prog '}'                { S.Block (tokPosn $1) $2 }
+Block  : '{' Prog '}'               { S.Block (tokPosn $1) $2 }
+Block_ : '{' Prog '}'               { $2 }
 
 
 Args  : {- empty -}                 { [] }

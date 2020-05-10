@@ -7,7 +7,7 @@
 {-# LANGUAGE TupleSections #-}
 
 
-module Cmp where
+module CmpMonad where
 
 import           Control.Monad.Except       hiding (void)
 import           Control.Monad.State        hiding (void)
@@ -129,7 +129,8 @@ withPos pos f = do
 
 checkUndefined :: MonadModuleCmp k o m => String -> m ()
 checkUndefined symbol = do
-    res <- lookupSymbol symbol
+    st  <- gets symTab
+    let res = SymTab.lookup symbol [head st]
     assert (isNothing res) (symbol ++ " already defined") 
 
 

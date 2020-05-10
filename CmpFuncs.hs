@@ -2,7 +2,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module CmpBuilder where
+module CmpFuncs where
 
 import           Control.Monad
 import           Data.Char
@@ -11,6 +11,7 @@ import           Prelude                    hiding (EQ, and, or)
 import           LLVM.AST 
 import           LLVM.AST.IntegerPredicate
 import           LLVM.AST.Type              hiding (void)
+import           LLVM.AST.Typed
 import           LLVM.IRBuilder.Constant
 import           LLVM.IRBuilder.Instruction
 import           LLVM.IRBuilder.Monad
@@ -18,7 +19,7 @@ import           LLVM.IRBuilder.Module
 import qualified LLVM.AST.Global   as G
 import qualified LLVM.AST.Constant as C
 
-import           Cmp
+import           CmpMonad
 
 
 for :: MonadInstrCmp k o m => Operand -> (Operand -> m ()) -> m ()
@@ -119,12 +120,20 @@ cons :: C.Constant -> Operand
 cons = ConstantOperand
 
 
-globalDef :: Name -> Type -> Maybe C.Constant -> Definition
-globalDef nm ty init = GlobalDefinition globalVariableDefaults
-    { G.name        = nm
-    , G.type'       = ty
-    , G.initializer = init
-    }
+externOf :: Definition -> Definition
+externOf (GlobalDefinition var@(GlobalVariable _ _ _ _ _ _ _ _ _ _ _ _ _ _)) = GlobalDefinition (var { G.initializer = Nothing } )
+externOf (GlobalDefinition fun@(Function _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _)) = GlobalDefinition (fun { G.basicBlocks = [] } )
+
+
+globalDef :: Name -> Type -> Maybe C.Constant -> (Definition, Operand)
+globalDef nm ty init = (def, op)
+    where
+        op  = ConstantOperand $ C.GlobalReference (ptr ty) nm
+        def = GlobalDefinition globalVariableDefaults
+            { G.name        = nm
+            , G.type'       = ty
+            , G.initializer = init
+            }
 
 
 funcDef :: Name -> [(Type, Name)] -> Type -> [BasicBlock] -> Definition
@@ -136,4 +145,12 @@ funcDef nm params retty blocks = GlobalDefinition functionDefaults
     }
 
 
+stringDef :: Name -> String -> (Definition, Operand)
+stringDef name str = (def, op)
+    where
+        chars    = map (fromIntegral . ord) str
+        chArr    = C.Array i8 $ map (C.Int 8) (chars ++ [0])
+        typ      = typeOf chArr
+        (def, _) = globalDef name typ (Just chArr)
+        op       = cons (C.GetElementPtr True (C.GlobalReference (ptr typ) name) [C.Int 32 0, C.Int 32 0])
 

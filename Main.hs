@@ -16,9 +16,9 @@ import           LLVM.Context
 import qualified LLVM.Module              as M
 import           LLVM.PassManager
 
-import qualified Compiler                 as C
-import qualified CmpVal                   as C
-import qualified Cmp                      as C
+import qualified CmpAST                   as C
+import qualified CmpValue                 as C
+import qualified CmpMonad                 as C
 import qualified Lexer                    as L
 import qualified Parser                   as P
 import           JIT

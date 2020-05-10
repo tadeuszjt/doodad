@@ -1,3 +1,7 @@
-type Arr =  [3 string];
-fn f(a Arr) (string, string, string) { [x, y, z] := a; return (x, y, z); }
-print(f(Arr(["oiea", "ioe", "rntr"])));
+data OS = Wangblows, Loonix, TempleOS;
+
+a := Loonix();
+a = TempleOS();
+
+fn benis(a OS) { switch a {Wangblows(): print(a); Loonix() : print(a); TempleOS() : print(a);} }
+benis(a);

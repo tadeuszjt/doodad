@@ -1,6 +1,6 @@
 {-# LANGUAGE TupleSections #-}
 
-module CmpVal where
+module CmpValue where
 
 import           Control.Monad
 import           Control.Monad.Except       hiding (void)
@@ -27,8 +27,8 @@ import           LLVM.IRBuilder.Monad
 
 import qualified Lexer                      as L
 import qualified AST                        as S
-import           CmpBuilder
-import           Cmp
+import           CmpFuncs
+import           CmpMonad
 
 mkBSS = BSS.toShort . BS.pack
 
@@ -63,6 +63,7 @@ data SymObj
     = ObjVal Value
     | ObjFunc ValType Operand
     | ObjType ValType
+    | ObjData { namesStr, strIdxArr :: Value }
     deriving (Show, Eq)
 
 
@@ -82,14 +83,14 @@ data ValType
     | Char
     | String
     | Tuple [ValType]
-    | Array Int ValType
+    | Array Word64 ValType
     | Typedef String
     deriving (Show, Eq, Ord)
 
 
 isInt x               = x `elem` [I32, I64]
 isFloat x             = x `elem` [F32, F64]
-isBase x              = isInt x || isFloat x || x `elem` [Bool, String, Char]
+isBase x              = isInt x || isFloat x || x `elem` [Bool, Char]
 isArray (Array _ _)   = True
 isArray _             = False
 isTuple (Tuple _)     = True
@@ -98,7 +99,8 @@ isTypedef (Typedef _) = True
 isTypedef _           = False
 isIntegral x          = isInt x || x == Char
 isAggregate x         = isTuple x || isArray x
-isExpr x              = isBase x || isAggregate x || isTypedef x
+isConcrete x          = not (isTypedef x)
+isExpr x              = isBase x || isAggregate x || isTypedef x || x == String
 isExpr _              = False
 
 
@@ -118,7 +120,7 @@ fromASTType typ = case typ of
 
 opTypeOf :: ValType -> Instr Type
 opTypeOf typ = case typ of
-        Void      -> error "opTypeOf void"
+        Void      -> return VoidType
         Bool      -> return i1
         Char      -> return i32
         I32       -> return i32
@@ -140,7 +142,7 @@ zeroOf typ = case typ of
     Bool       -> return $ toCons (bit 0)
     Char       -> return $ toCons (int32 0)
     String     -> return $ C.IntToPtr (toCons $ int64 0) (ptr i8)
-    Array n t  -> return . toCons . array . replicate n =<< zeroOf t
+    Array n t  -> return . toCons . array . replicate (fromIntegral n) =<< zeroOf t
     Tuple typs -> return . toCons . (struct Nothing False) =<< mapM zeroOf typs
     Typedef _  -> zeroOf =<< getConcreteType typ
     x          -> error (show x)
@@ -152,8 +154,10 @@ getConcreteType (Tuple ts) =
 getConcreteType (Array n t) =
     fmap (Array n) (getConcreteType t)
 getConcreteType (Typedef symbol) = do
-    ObjType typ <- look symbol KeyType
-    getConcreteType typ
+    res <- look symbol KeyType
+    case res of
+        ObjType typ -> getConcreteType typ
+        ObjData _ _ -> return I64
 getConcreteType typ =
     return typ
 
@@ -169,7 +173,8 @@ valGlobal :: Name -> ValType -> Instr (Value, Definition)
 valGlobal name typ = do
     opTyp <- opTypeOf typ
     loc <- global name opTyp =<< zeroOf typ
-    return (Ptr typ loc, globalDef name opTyp Nothing)
+    let (ext, op) = globalDef name opTyp Nothing
+    return (Ptr typ op, ext)
 
 
 valLocal :: ValType -> Instr Value
@@ -201,7 +206,7 @@ valArrayIdx (Ptr (Array n t) loc) idx = do
     return (Ptr t ptr)
 
 
-valArrayConstIdx :: Value -> Int -> Instr Value
+valArrayConstIdx :: Value -> Word64 -> Instr Value
 valArrayConstIdx (Val (Array n t) op) i =
     fmap (Val t) (extractValue op [fromIntegral i])
 valArrayConstIdx (Ptr (Array n t) loc) i =
@@ -217,26 +222,42 @@ valArraySet (Ptr (Array n t) loc) idx val = do
     valStore (Ptr t ptr) val
 
 
-valLen :: Value -> Int
+valLen :: Value -> Word64
 valLen (Ptr (Array n _) _) = n
 valLen (Val (Array n _) _) = n
-valLen (Ptr (Tuple ts) _)  = length ts
-valLen (Val (Tuple ts) _)  = length ts
+valLen (Ptr (Tuple ts) _)  = fromIntegral (length ts)
+valLen (Val (Tuple ts) _)  = fromIntegral (length ts)
 
 
-valTupleIdx :: Value -> Int -> Instr Value
+valTupleIdx :: Value -> Word64 -> Instr Value
 valTupleIdx (Val (Tuple ts) op) i = do
-    assert (i >= 0 && i < length ts) "tuple index out of range"
-    fmap (Val (ts !! i)) $ extractValue op [fromIntegral i]
+    assert (i >= 0 && i < fromIntegral (length ts)) "tuple index out of range"
+    fmap (Val (ts !! fromIntegral i)) $ extractValue op [fromIntegral i]
 valTupleIdx (Ptr (Tuple ts) loc) i = do
-    assert (i >= 0 && i < length ts) "tuple index out of range"
-    fmap (Ptr (ts !! i)) $ gep loc [int32 0, int32 (fromIntegral i)]
+    assert (i >= 0 && i < fromIntegral (length ts)) "tuple index out of range"
+    fmap (Ptr (ts !! fromIntegral i)) $ gep loc [int32 0, int32 (fromIntegral i)]
     
 
 valTupleSet :: Value -> Int -> Value -> Instr ()
 valTupleSet (Ptr (Tuple ts) loc) i val = do
     ptr <- gep loc [int32 0, int32 (fromIntegral i)]
     valStore (Ptr (ts !! i) ptr) val
+
+
+valsEqual :: Value -> Value -> Instr Value
+valsEqual a b = do
+    assert (valType a == valType b) "invalid equality, types don't match"
+    typ <- getConcreteType (valType a)
+    fmap (Val Bool) $ valsEqual' typ a b
+    where
+        valsEqual' :: ValType -> Value -> Value -> Instr Operand
+        valsEqual' typ a b
+            | isIntegral typ || typ == Bool = do
+                Val _ opA <- valLoad a
+                Val _ opB <- valLoad b
+                icmp EQ opA opB
+
+        valsEqual' typ a b = error $ show (typ, a, b)
 
 
 valPrint :: String -> Value -> Instr ()
@@ -261,6 +282,16 @@ valPrint append val
         forM_ [0..len-1] $ \i -> do
             let app = if i < len-1 then ", " else ")" ++ append
             valPrint app =<< valTupleIdx val i
+
+    | isTypedef (valType val) = do
+        Val (Typedef symbol) op <- valLoad val
+        obj <- look symbol KeyType
+        case obj of
+            ObjData (Val String strOp) (Ptr _ arrOp) -> do
+                ptr <- gep arrOp [int32 0, op]
+                idx <- load ptr 0
+                str <- gep strOp [idx]
+                void $ printf ("%s" ++ append) [str]
 
     | otherwise = do
         Val typ op <- valLoad val
