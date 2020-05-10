@@ -1,4 +1,5 @@
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE FlexibleInstances #-}
 
 module CmpValue where
 
@@ -59,12 +60,16 @@ data SymKey
     deriving (Show, Eq, Ord)
 
 
+
+
+instance Show ([Value] -> Value) where show _ = "Inline"
 data SymObj
     = ObjVal Value
     | ObjFunc ValType Operand
+    | ObjInline ([Value] -> Value)
     | ObjType ValType
     | ObjData { namesStr, strIdxArr :: Value }
-    deriving (Show, Eq)
+    deriving (Show)
 
 
 data Value
@@ -85,23 +90,32 @@ data ValType
     | Tuple [ValType]
     | Array Word64 ValType
     | Typedef String
+    | Named Name ValType
     deriving (Show, Eq, Ord)
 
 
-isInt x               = x `elem` [I32, I64]
-isFloat x             = x `elem` [F32, F64]
-isBase x              = isInt x || isFloat x || x `elem` [Bool, Char]
-isArray (Array _ _)   = True
-isArray _             = False
-isTuple (Tuple _)     = True
-isTuple _             = False
-isTypedef (Typedef _) = True
-isTypedef _           = False
-isIntegral x          = isInt x || x == Char
-isAggregate x         = isTuple x || isArray x
-isConcrete x          = not (isTypedef x)
-isExpr x              = isBase x || isAggregate x || isTypedef x || x == String
-isExpr _              = False
+isInt (Named _ t)       = isInt t
+isInt x                 = x `elem` [I32, I64]
+isFloat (Named _ t)     = isFloat t
+isFloat x               = x `elem` [F32, F64]
+isBase (Named _ t)      = isBase t
+isBase x                = isInt x || isFloat x || x `elem` [Bool, Char]
+isArray (Named _ t)     = isArray t
+isArray (Array _ _)     = True
+isArray _               = False
+isTuple (Named _ t)     = isTuple t
+isTuple (Tuple _)       = True
+isTuple _               = False
+isTypedef (Typedef _)   = True
+isTypedef _             = False
+isIntegral (Named _ t)  = isIntegral t
+isIntegral x            = isInt x || x == Char
+isAggregate (Named _ t) = isAggregate t
+isAggregate x           = isTuple x || isArray x
+isConcrete (Named _ t)  = isConcrete t
+isConcrete x            = not (isTypedef x)
+isExpr (Named _ t)      = isExpr t
+isExpr x                = isBase x || isAggregate x || isTypedef x || x == String
 
 
 fromASTType :: S.Type -> ValType
@@ -120,17 +134,20 @@ fromASTType typ = case typ of
 
 opTypeOf :: ValType -> Instr Type
 opTypeOf typ = case typ of
-        Void      -> return VoidType
-        Bool      -> return i1
-        Char      -> return i32
-        I32       -> return i32
-        I64       -> return i64
-        F32       -> return (FloatingPointType HalfFP)
-        F64       -> return (FloatingPointType DoubleFP)
-        Tuple ts  -> fmap (StructureType False) (mapM opTypeOf ts)
-        Array n t -> fmap (ArrayType $ fromIntegral n) (opTypeOf t)
-        String    -> return (ptr i8)
-        Typedef _ -> opTypeOf =<< getConcreteType typ
+        Void       -> return VoidType
+        Bool       -> return i1
+        Char       -> return i32
+        I32        -> return i32
+        I64        -> return i64
+        F32        -> return (FloatingPointType HalfFP)
+        F64        -> return (FloatingPointType DoubleFP)
+        Tuple ts   -> fmap (StructureType False) (mapM opTypeOf ts)
+        Array n t  -> fmap (ArrayType $ fromIntegral n) (opTypeOf t)
+        String     -> return (ptr i8)
+        Named nm t -> return (NamedTypeReference nm)
+        Typedef sym  -> do
+            ObjType t <- look sym KeyType
+            opTypeOf t
 
 
 zeroOf :: ValType -> Instr C.Constant
@@ -145,6 +162,7 @@ zeroOf typ = case typ of
     Array n t  -> return . toCons . array . replicate (fromIntegral n) =<< zeroOf t
     Tuple typs -> return . toCons . (struct Nothing False) =<< mapM zeroOf typs
     Typedef _  -> zeroOf =<< getConcreteType typ
+    Named _ t  -> zeroOf t
     x          -> error (show x)
 
 
@@ -153,6 +171,8 @@ getConcreteType (Tuple ts) =
     fmap Tuple (mapM getConcreteType ts)
 getConcreteType (Array n t) =
     fmap (Array n) (getConcreteType t)
+getConcreteType (Named _ t) =
+    getConcreteType t
 getConcreteType (Typedef symbol) = do
     res <- look symbol KeyType
     case res of
@@ -222,18 +242,25 @@ valArraySet (Ptr (Array n t) loc) idx val = do
     valStore (Ptr t ptr) val
 
 
-valLen :: Value -> Word64
-valLen (Ptr (Array n _) _) = n
-valLen (Val (Array n _) _) = n
-valLen (Ptr (Tuple ts) _)  = fromIntegral (length ts)
-valLen (Val (Tuple ts) _)  = fromIntegral (length ts)
+valLen :: Value -> Instr Word64
+valLen val
+    | isTuple (valType val) = do
+        Tuple ts <- getConcreteType (valType val)
+        return $ fromIntegral (length ts)
+    | isArray (valType val) = do
+        Array n _ <- getConcreteType (valType val)
+        return n
 
 
 valTupleIdx :: Value -> Word64 -> Instr Value
-valTupleIdx (Val (Tuple ts) op) i = do
+valTupleIdx (Val typ op) i = do
+    assert (isTuple typ) "wasn't a tuple"
+    Tuple ts <- getConcreteType typ
     assert (i >= 0 && i < fromIntegral (length ts)) "tuple index out of range"
     fmap (Val (ts !! fromIntegral i)) $ extractValue op [fromIntegral i]
-valTupleIdx (Ptr (Tuple ts) loc) i = do
+valTupleIdx (Ptr typ loc) i = do
+    assert (isTuple typ) "wasn't a tuple"
+    Tuple ts <- getConcreteType typ
     assert (i >= 0 && i < fromIntegral (length ts)) "tuple index out of range"
     fmap (Ptr (ts !! fromIntegral i)) $ gep loc [int32 0, int32 (fromIntegral i)]
     
@@ -270,24 +297,33 @@ valPrint append val
         void $ printf ("%s" ++ append) [ptr]
 
     | isArray (valType val) = do
-        let len = valLen val
+        len <- valLen val
         putchar '['
         for (int64 $ fromIntegral len-1) $ \i -> do
             valPrint ", " =<< valArrayIdx val (Val I64 i)
         valPrint ("]" ++ append) =<< valArrayConstIdx val (len-1)
 
     | isTuple (valType val) = do
-        let len = valLen val 
+        len <- valLen val 
         putchar '('
         forM_ [0..len-1] $ \i -> do
             let app = if i < len-1 then ", " else ")" ++ append
             valPrint app =<< valTupleIdx val i
 
     | isTypedef (valType val) = do
-        Val (Typedef symbol) op <- valLoad val
+        let Typedef symbol = valType val
         obj <- look symbol KeyType
         case obj of
+            ObjType typ -> do
+                conc <- getConcreteType typ
+                if isTuple conc then do
+                    void $ printf symbol []
+                    valPrint append (val { valType = conc })
+                else do
+                    void $ printf (symbol ++ "(") []
+                    valPrint (")" ++ append) (val { valType = conc })
             ObjData (Val String strOp) (Ptr _ arrOp) -> do
+                Val _ op <- valLoad val
                 ptr <- gep arrOp [int32 0, op]
                 idx <- load ptr 0
                 str <- gep strOp [idx]
@@ -337,6 +373,6 @@ publicFunction symbol params retty f = do
     addExported name
     addSymObj symbol (KeyFunc paramTyps) (ObjFunc retty op)
     addSymObjReq symbol (KeyFunc paramTyps) name
-    addDef name $ funcDef name (zip paramOpTyps paramNames) retOpTyp []
+    addAction name $ emitDefn $ funcDef name (zip paramOpTyps paramNames) retOpTyp []
 
 

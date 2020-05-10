@@ -1,7 +1,6 @@
-data OS = Wangblows, Loonix, TempleOS;
+type Point = (i64, i64);
+type Point_ = Point;
 
-a := Loonix();
-a = TempleOS();
+p := Point_((31, 32));
 
-fn benis(a OS) { switch a {Wangblows(): print(a); Loonix() : print(a); TempleOS() : print(a);} }
-benis(a);
+print(p);

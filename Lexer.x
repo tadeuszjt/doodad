@@ -1,11 +1,11 @@
 {
 module Lexer
-	( Token(..)
-	, TokenType(..)
-	, AlexPosn(..)
-	, alexScanner
-	, alexMonadScan
-	)
+    ( Token(..)
+    , TokenType(..)
+    , AlexPosn(..)
+    , alexScanner
+    , alexMonadScan
+    )
 where
 }
 
@@ -31,16 +31,16 @@ $symbol  = [\{\}\(\)\[\]\,\.\;\:\_]
 @char       = $graphic # [\'\\] | " " | @escape
 
 tokens :-
-	$white                           ; 
-	$symbol                          { mkT Sym }
-	@reserved                        { mkT Reserved }
-	@reservedOp                      { mkT ReservedOp }
-	$alpha [$alpha $digit \_]*       { mkT Ident }
-	$digit+                          { mkT Int }
-	$digit* \. $digit+               { mkT Float }
-	$digit+ \. $digit*               { mkT Float }
-	\' @char \'                      { mkT Char }
-	\" @string* \"                   { mkT String }
+    $white                           ; 
+    $symbol                          { mkT Sym }
+    @reserved                        { mkT Reserved }
+    @reservedOp                      { mkT ReservedOp }
+    $alpha [$alpha $digit \_]*       { mkT Ident }
+    $digit+                          { mkT Int }
+    $digit* \. $digit+               { mkT Float }
+    $digit+ \. $digit*               { mkT Float }
+    \' @char \'                      { mkT Char }
+    \" @string* \"                   { mkT String }
 {
 
 mkT :: TokenType -> AlexInput -> Int -> Alex Token
@@ -50,34 +50,34 @@ mkT t (p,_,_,s) len = return $ Token p t (take len s)
 alexEOF = return (Token undefined EOF "")
 
 alexScanner str = runAlex str (loop)
-	where
-		loop = do
-			tok@(Token _ t _) <- alexMonadScan
-			if t == EOF
-				then return []
-				else do
-					ts <- loop
-					return (tok:ts)
+    where
+        loop = do
+            tok@(Token _ t _) <- alexMonadScan
+            if t == EOF
+                then return []
+                else do
+                    ts <- loop
+                    return (tok:ts)
 
 
 data Token
-	= Token
-		{ tokPosn :: AlexPosn
-		, tokType :: TokenType
-		, tokStr  :: String
-		}
-	deriving (Show, Eq)
+    = Token
+        { tokPosn :: AlexPosn
+        , tokType :: TokenType
+        , tokStr  :: String
+        }
+    deriving (Show, Eq)
 
 
 data TokenType
-	= Sym
-	| Reserved
-	| ReservedOp
-	| Ident
-	| Int
-	| Float
-	| Char
-	| String
-	| EOF
-	deriving (Show, Eq)
+    = Sym
+    | Reserved
+    | ReservedOp
+    | Ident
+    | Int
+    | Float
+    | Char
+    | String
+    | EOF
+    deriving (Show, Eq)
 }

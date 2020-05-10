@@ -64,18 +64,18 @@ data CmpState k o
         { curFn    :: Name
         , posStack :: [TextPos]
         , symTab   :: SymTab.SymTab String (Map.Map k (o, Set.Set Name))
-        , defs     :: Map.Map Name Definition
+        , actions  :: Map.Map Name (ModuleBuilder ())
         , declared :: Set.Set Name
         , exported :: Set.Set Name
         }
-    deriving (Show)
+    deriving ()
 
 
 initCmpState = CmpState
     { curFn    = mkName ""
     , posStack = [TextPos 0 0 0]
     , symTab   = SymTab.initSymTab
-    , defs     = Map.empty
+    , actions  = Map.empty
     , declared = Set.empty
     , exported = Set.empty
     }
@@ -191,27 +191,28 @@ popSymTab =
     modify $ \s -> s { symTab = SymTab.pop (symTab s) }
 
 
-addDef :: MonadModuleCmp k o m => Name -> Definition -> m ()
-addDef name def =
-    modify $ \s -> s { defs = Map.insert name def (defs s) }
+addAction :: MonadModuleCmp k o m => Name -> ModuleBuilder a -> m ()
+addAction name action =
+    modify $ \s -> s { actions = Map.insert name (void action) (actions s) }
 
 
-lookupDef :: MonadModuleCmp k o m => Name -> m (Maybe Definition)
-lookupDef name =
-    fmap (Map.lookup name) (gets defs)
+lookupAction :: MonadModuleCmp k o m => Name -> m (Maybe (ModuleBuilder ()))
+lookupAction name =
+    fmap (Map.lookup name) (gets actions)
 
 
 ensureDef :: MonadModuleCmp k o m => Name -> m ()
 ensureDef name = do
     declared <- isDeclared name
     unless declared $ do
-        emitDefn =<< fmap fromJust (lookupDef name)
+        action <- fmap fromJust (lookupAction name)
+        liftModuleState (unModuleBuilderT action)
         addDeclared name
 
 
 addExtern :: MonadModuleCmp k o m => Name -> [Type] -> Type -> Bool -> m ()
 addExtern name paramTypes retType isVarg = do
-    addDef name $ GlobalDefinition $ functionDefaults
+    addAction name $ emitDefn $ GlobalDefinition $ functionDefaults
         { returnType = retType
         , name       = name
         , parameters = ([Parameter typ (mkName "") [] | typ <- paramTypes], isVarg)
@@ -220,7 +221,7 @@ addExtern name paramTypes retType isVarg = do
 
 ensureExtern :: MonadModuleCmp k o m => Name -> [Type] -> Type -> Bool -> m Operand
 ensureExtern name paramTypes returnType isVarg = do
-    exists <- lookupDef name
+    exists <- lookupAction name
     unless (isJust exists) (addExtern name paramTypes returnType isVarg)
     ensureDef name
     return $ ConstantOperand $

@@ -41,7 +41,7 @@ compile state ast = do
     where
         cmp :: Module ()
         cmp =
-            void $ function "main" [] VoidType $ \_ ->
+            void $ function "main" [] VoidType $ \_ -> do
                 getInstrCmp (mapM_ cmpTopStmt ast)
 
 
@@ -51,17 +51,28 @@ cmpTopStmt stmt@(S.Print _ _)      = cmpStmt stmt
 cmpTopStmt stmt@(S.CallStmt _ _ _) = cmpStmt stmt
 cmpTopStmt stmt@(S.Switch _ _ _)   = cmpStmt stmt
 
-cmpTopStmt (S.Typedef pos symbol typ) = do
-    let typDef = Typedef symbol
-    let ty = fromASTType typ
-    zero   <- fmap cons (zeroOf ty)
+cmpTopStmt (S.Typedef pos symbol astTyp) = do
     checkUndefined symbol
-    addSymObj symbol KeyType      (ObjType ty)
-    addSymObj symbol (KeyFunc []) (ObjVal $ Val typDef zero)
-    publicFunction symbol [("x", ty)] typDef $ \[a] -> ret (valOp a)
-    unless (isConcrete ty) $ do
-        conc <- getConcreteType ty
-        publicFunction symbol [("x", conc)] typDef $ \[a] -> ret (valOp a)
+
+    let typ    = fromASTType astTyp
+    let typdef = Typedef symbol
+    zero  <- fmap cons (zeroOf typ)
+    conc  <- getConcreteType typ
+
+    if isTuple typ then do
+        name <- freshName (mkBSS symbol)
+        opTyp <- opTypeOf typ
+        addAction name (typedef name $ Just opTyp)
+        addSymObj symbol KeyType $ ObjType (Named name typ)
+        addSymObjReq symbol KeyType name
+    else
+        addSymObj symbol KeyType (ObjType typ)
+
+    addSymObj symbol (KeyFunc [])    $ ObjVal (Val typdef zero)
+    addSymObj symbol (KeyFunc [typ]) $ ObjInline (\[Val _ op] -> Val typdef op)
+    unless (conc == typ) $ 
+        addSymObj symbol (KeyFunc [conc]) $ ObjInline (\[Val _ op] -> Val typdef op)
+
 
 cmpTopStmt (S.Datadef pos symbol datas) = withPos pos $ do
     checkUndefined symbol
@@ -78,8 +89,8 @@ cmpTopStmt (S.Datadef pos symbol datas) = withPos pos $ do
     let (strDef, strOp) = stringDef strName (concat nameStrs)
     let (idxDef, idxOp) = globalDef idxName (ArrayType numIdxs i64) $ Just $ C.Array i64 $ map (C.Int 64) idxs
 
-    addDef strName strDef
-    addDef idxName idxDef
+    addAction strName (emitDefn strDef)
+    addAction idxName (emitDefn idxDef)
 
     addSymObj symbol KeyType $ ObjData (Val String strOp) (Ptr (Array numIdxs I64) idxOp) 
     addSymObjReq symbol KeyType strName
@@ -99,7 +110,8 @@ cmpTopStmt (S.Assign pos pattern expr) =
         assignPattern ::  S.Pattern -> Value -> Instr ()
         assignPattern (S.PatTuple p patterns) val
             | isTuple (valType val) = withPos p $ do
-                assert (fromIntegral (length patterns) == valLen val) "incorrect tuple length"
+                len <- valLen val
+                assert (fromIntegral (length patterns) == len) "incorrect tuple length"
                 forM_ (zip patterns [0..]) $ \(pattern, i) ->
                     assignPattern pattern =<< valTupleIdx val i
 
@@ -116,7 +128,7 @@ cmpTopStmt (S.Assign pos pattern expr) =
 
             addSymObj symbol KeyVal (ObjVal new)
             addSymObjReq symbol KeyVal name
-            addDef name ext
+            addAction name (emitDefn ext)
             addDeclared name
             addExported name
 
@@ -142,7 +154,8 @@ cmpStmt (S.Assign pos pattern expr) = do
         assignPattern ::  S.Pattern -> Value -> Instr ()
         assignPattern (S.PatTuple p patterns) val
             | isTuple (valType val) = withPos p $ do
-                assert (fromIntegral (length patterns) == valLen val) "incorrect tuple length"
+                len <- valLen val
+                assert (fromIntegral (length patterns) == len) "incorrect tuple length"
                 forM_ (zip patterns [0..]) $ \(pattern, i) ->
                     assignPattern pattern =<< valTupleIdx val i
 
@@ -163,6 +176,7 @@ cmpStmt (S.Assign pos pattern expr) = do
 cmpStmt (S.Set pos index expr) = withPos pos $ do
     val <- cmpExpr expr
     idx <- idxPtr index
+    assert (valType val == valType idx) "type mismatch"
     valStore idx val
     where
         idxPtr :: S.Index -> Instr Value
@@ -245,8 +259,9 @@ cmpExpr (S.Call pos symbol args) = withPos pos $ do
     vals <- mapM valLoad =<< mapM cmpExpr args
     res <- look symbol $ KeyFunc (map valType vals)
     case res of
-        ObjFunc retType fnOp -> fmap (Val retType) $ call fnOp $ map (,[]) (map valOp vals)
-        ObjVal val           -> return val
+        ObjFunc typ op -> fmap (Val typ) $ call op $ map (,[]) (map valOp vals)
+        ObjVal val     -> return val
+        ObjInline f    -> return (f vals)
 
 cmpExpr (S.Ident pos symbol) = do
     ObjVal val <- look symbol KeyVal
