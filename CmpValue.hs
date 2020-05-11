@@ -38,16 +38,6 @@ type Compile     = State ValType
 initCompileState = Void
 
 
-setCurRetTyp :: ValType -> Instr ()
-setCurRetTyp typ =
-    void $ lift $ put typ
-
-
-getCurRetTyp :: Instr ValType
-getCurRetTyp =
-    lift get
-
-
 type MyCmpState = CmpState SymKey SymObj
 type Instr      = InstrCmpT SymKey SymObj Compile
 type Module     = ModuleCmpT SymKey SymObj Compile
@@ -163,35 +153,46 @@ zeroOf typ = case typ of
     Tuple typs -> return . toCons . (struct Nothing False) =<< mapM zeroOf typs
     Typedef _  -> zeroOf =<< getConcreteType typ
     Named _ t  -> zeroOf t
-    x          -> error (show x)
+
+
+setCurRetTyp :: ValType -> Instr ()
+setCurRetTyp typ =
+    void $ lift $ put typ
+
+
+getCurRetTyp :: Instr ValType
+getCurRetTyp =
+    lift get
 
 
 getConcreteType :: ValType -> Instr ValType
-getConcreteType (Tuple ts) =
-    fmap Tuple (mapM getConcreteType ts)
-getConcreteType (Array n t) =
-    fmap (Array n) (getConcreteType t)
-getConcreteType (Named _ t) =
-    getConcreteType t
-getConcreteType (Typedef symbol) = do
-    res <- look symbol KeyType
-    case res of
-        ObjType typ -> getConcreteType typ
-        ObjData _ _ -> return I64
-getConcreteType typ =
-    return typ
+getConcreteType typ = case typ of
+    Tuple ts    -> fmap Tuple (mapM getConcreteType ts)
+    Array n t   -> fmap (Array n) (getConcreteType t)
+    Named _ t   -> getConcreteType t
+    Typedef sym -> do
+        res <- look sym KeyType
+        case res of
+            ObjType typ -> getConcreteType typ
+            ObjData _ _ -> return I64
+    t           -> return t
 
 
 getTupleType :: ValType -> Instr ValType
-getTupleType typ@(Tuple _) =
-    return typ
-getTupleType typ@(Typedef sym) = do
-    ObjType t <- look sym KeyType
-    getTupleType t
-getTupleType typ@(Named _ t) =
-    getTupleType t
-getTupleType typ = error (show typ)
+getTupleType typ = case typ of
+    Tuple _     -> return typ
+    Named _ t   -> getTupleType t
+    Typedef sym -> do ObjType t <- look sym KeyType; getTupleType t
+    _           -> cmpErr "isn't a tuple"
 
+
+getArrayType :: ValType -> Instr ValType
+getArrayType typ = case typ of
+    Array _ _   -> return typ
+    Named _ t   -> getTupleType t
+    Typedef sym -> do ObjType t <- look sym KeyType; getArrayType t
+    _           -> cmpErr "isn't an array"
+    
 
 typesMatch :: ValType -> ValType -> Instr Bool
 typesMatch a b = do
@@ -217,9 +218,11 @@ ensureTypeDeps _ = return ()
 valGlobal :: Name -> ValType -> Instr (Value, Definition)
 valGlobal name typ = do
     opTyp <- opTypeOf typ
-    loc <- global name opTyp =<< zeroOf typ
-    let (ext, op) = globalDef name opTyp Nothing
-    return (Ptr typ op, ext)
+    zero <- zeroOf typ
+    let (def, loc) = globalDef name opTyp (Just zero)
+    let (ext, _) = globalDef name opTyp Nothing
+    emitDefn def
+    return (Ptr typ loc, ext)
 
 
 valLocal :: ValType -> Instr Value
@@ -252,14 +255,16 @@ valArrayIdx (Ptr (Array n t) loc) idx = do
 
 
 valArrayConstIdx :: Value -> Word64 -> Instr Value
-valArrayConstIdx (Val (Array n t) op) i =
-    fmap (Val t) (extractValue op [fromIntegral i])
-valArrayConstIdx (Ptr (Array n t) loc) i =
-    fmap (Ptr t) (gep loc [int32 0, int32 (fromIntegral i)])
+valArrayConstIdx val i = do
+    Array n t <- getArrayType (valType val)
+    case val of
+        Ptr typ loc -> fmap (Ptr t) (gep loc [int64 0, int64 (fromIntegral i)])
+        Val typ op  -> fmap (Val t) (extractValue op [fromIntegral i])
 
 
 valArraySet :: Value -> Value -> Value -> Instr ()
-valArraySet (Ptr (Array n t) loc) idx val = do
+valArraySet (Ptr typ loc) idx val = do
+    Array n t <- getArrayType typ
     assert (isInt $ valType idx) "index isn't int"
     assert (valType val == t) "incorrect element type"
     i <- valLoad idx
@@ -276,16 +281,13 @@ valLen val = do
 
 
 valTupleIdx :: Value -> Word32 -> Instr Value
-valTupleIdx (Val typ op) i = do
-    assert (isTuple typ) "wasn't a tuple"
-    Tuple ts <- getTupleType typ
+valTupleIdx val i = do
+    Tuple ts <- getTupleType (valType val)
     assert (i >= 0 && i < fromIntegral (length ts)) "tuple index out of range"
-    fmap (Val (ts !! fromIntegral i)) $ extractValue op [fromIntegral i]
-valTupleIdx (Ptr typ loc) i = do
-    assert (isTuple typ) "wasn't a tuple"
-    Tuple ts <- getTupleType typ
-    assert (i >= 0 && i < fromIntegral (length ts)) "tuple index out of range"
-    fmap (Ptr (ts !! fromIntegral i)) $ gep loc [int32 0, int32 (fromIntegral i)]
+    let t = ts !! fromIntegral i
+    case val of
+        Ptr typ loc -> fmap (Ptr t) (gep loc [int32 0, int32 (fromIntegral i)])
+        Val typ op  -> fmap (Val t) (extractValue op [i])
     
 
 valTupleSet :: Value -> Int -> Value -> Instr ()

@@ -65,7 +65,7 @@ repl session verbose = runInputT defaultSettings (loop C.initCmpState)
                 Just "q"   -> return ()
                 Just ""    -> loop state
                 Just input -> do
-                    when verbose $ liftIO (putStrLn "compiling...")
+                    liftIO (putStrLn "compiling...")
                     case compile state input verbose of
                         Left err             -> do
                             liftIO $ printError err input 
@@ -73,7 +73,6 @@ repl session verbose = runInputT defaultSettings (loop C.initCmpState)
                             loop state
                         Right (defs, state') -> do
                             let keepModule = not $ Set.null (C.exported state')
-                            let verbose    = True
                             liftIO (putStrLn "running...")
                             liftIO (jitAndRun defs session keepModule verbose)
                             loop state'

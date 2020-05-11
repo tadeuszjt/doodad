@@ -1,15 +1,16 @@
 type Point = (i64, i64);
 
-fn x(p Point) i64 { return p.0; }
-fn y(p Point) i64 { return p.1; }
-
 a := [Point(1, 2), Point(3, 4), Point(5, 6)];
+[x, y, z] := a;
+a = [y, z, x];
+print(a, a[0], a[2], x, y, z);
 
 data Drink = Aviation, WhiteRussian, Vesper;
 type Item = (Point, Drink);
 
 fn f(i Item) { print("item", i); }
 
-f(Item());
-f(Item(Point(31, 23), Vesper()));
+((px, py), d) := Item(Point(31, 20), Aviation);
+
+print(Item(Point(px, py), d));
 

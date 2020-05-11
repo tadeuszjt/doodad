@@ -15,6 +15,7 @@ import qualified CmpMonad as C
 %left      '+' '-'
 %left      '*' '/' '%'
 %left      '.'
+%nonassoc  ','
 %nonassoc  '<' '>'
 %nonassoc  '<=' '>='
 %nonassoc  '(' ')'
@@ -80,56 +81,58 @@ import qualified CmpMonad as C
      
 
     %%
+
+
 Prog  : {- empty -}                         { [] }
       | Stmt Prog                           { $1 : $2 }
 
 
 Stmt  : StmtS ';'                           { $1 }
       | StmtB                               { $1 }
-StmtS : Pattern ':=' Expr                   { S.Assign (tokPosn $2) $1 $3 }  
-      | Index '=' Expr                      { S.Set (tokPosn $2) $1 $3 }
+StmtS : pattern ':=' expr                   { S.Assign (tokPosn $2) $1 $3 }  
+      | Index '=' expr                      { S.Set (tokPosn $2) $1 $3 }
       | type ident '=' Type                 { S.Typedef (tokPosn $2) (L.tokStr $2) $4 }
       | data ident '=' Datas                { S.Datadef (tokPosn $2) (L.tokStr $2) $4 }
       | extern ident '(' Params ')' Type    { S.Extern (tokPosn $2) (L.tokStr $2) $4 (Just $6) }
       | extern ident '(' Params ')'         { S.Extern (tokPosn $2) (L.tokStr $2) $4 Nothing }
-      | print '(' Args ')'                  { S.Print (tokPosn $1) $3 }
-      | ident '(' Args ')'                  { S.CallStmt (tokPosn $1) (L.tokStr $1) $3 }
+      | print '(' args ')'                  { S.Print (tokPosn $1) $3 }
+      | ident '(' args ')'                  { S.CallStmt (tokPosn $1) (L.tokStr $1) $3 }
       | return                              { S.Return (tokPosn $1) Nothing }
-      | return Expr                         { S.Return (tokPosn $1) (Just $2) }
+      | return expr                         { S.Return (tokPosn $1) (Just $2) }
 StmtB : Block                               { $1 }
       | If                                  { $1 }
       | fn ident '(' Params ')' Block_      { S.Func (tokPosn $1) (L.tokStr $2) $4 Nothing $6 }
       | fn ident '(' Params ')' Type Block_ { S.Func (tokPosn $1) (L.tokStr $2) $4 (Just $6) $7 }
-      | switch Expr '{' Cases '}'           { S.Switch (tokPosn $1) $2 $4 }
+      | switch expr '{' Cases '}'           { S.Switch (tokPosn $1) $2 $4 }
 
 
-Expr : int                          { S.Int (tokPosn $1) (read $ L.tokStr $1) }
+expr : int                          { S.Int (tokPosn $1) (read $ L.tokStr $1) }
      | floatlit                     { S.Float (tokPosn $1) (read $ L.tokStr $1) }
      | charlit                      { S.Char (tokPosn $1) (read $ L.tokStr $1) }
      | strlit                       { S.String (tokPosn $1) (L.tokStr $1) }
      | true                         { S.Bool (tokPosn $1) True }
      | false                        { S.Bool (tokPosn $1) False }
      | ident                        { S.Ident (tokPosn $1) (L.tokStr $1) }
-     | '[' Args ']'                 { S.Array (tokPosn $1) $2 }
-     | '(' Args ')'                 { S.Tuple (tokPosn $1) $2 }
-     | ident '(' Args ')'           { S.Call (tokPosn $1) (L.tokStr $1) $3 }
-     | len '(' Expr ')'             { S.Len (tokPosn $1) $3 }
-     | Expr '.' int                 { S.TupleIndex (tokPosn $2) $1 (read $ L.tokStr $3) }
-     | Expr '[' Expr ']'            { S.ArrayIndex (tokPosn $2) $1 $3 }
-     | '-' Expr                     { S.Prefix (tokPosn $1) S.Minus $2 }
-     | '+' Expr                     { S.Prefix (tokPosn $1) S.Plus $2 }
-     | Expr '+' Expr                { S.Infix (tokPosn $2) S.Plus $1 $3 }
-     | Expr '-' Expr                { S.Infix (tokPosn $2) S.Minus $1 $3 }
-     | Expr '*' Expr                { S.Infix (tokPosn $2) S.Times $1 $3 }
-     | Expr '/' Expr                { S.Infix (tokPosn $2) S.Divide $1 $3 }
-     | Expr '%' Expr                { S.Infix (tokPosn $2) S.Mod $1 $3 }
-     | Expr '<' Expr                { S.Infix (tokPosn $2) S.LT $1 $3 }
-     | Expr '>' Expr                { S.Infix (tokPosn $2) S.GT $1 $3 }
-     | Expr '<=' Expr               { S.Infix (tokPosn $2) S.LTEq $1 $3 }
-     | Expr '>=' Expr               { S.Infix (tokPosn $2) S.GTEq $1 $3 }
-     | Expr '==' Expr               { S.Infix (tokPosn $2) S.EqEq $1 $3 }
-     | Expr '&&' Expr               { S.Infix (tokPosn $2) S.AndAnd $1 $3 }
-     | Expr '||' Expr               { S.Infix (tokPosn $2) S.OrOr $1 $3 }
+     | '[' args ']'                 { S.Array (tokPosn $1) $2 }
+     | '(' args ')'                 { S.Tuple (tokPosn $1) $2 }
+     | ident '(' args ')'           { S.Call (tokPosn $1) (L.tokStr $1) $3 }
+     | len '(' expr ')'             { S.Len (tokPosn $1) $3 }
+     | expr '.' int                 { S.TupleIndex (tokPosn $2) $1 (read $ L.tokStr $3) }
+     | expr '[' expr ']'            { S.ArrayIndex (tokPosn $2) $1 $3 }
+     | '-' expr                     { S.Prefix (tokPosn $1) S.Minus $2 }
+     | '+' expr                     { S.Prefix (tokPosn $1) S.Plus $2 }
+     | expr '+' expr                { S.Infix (tokPosn $2) S.Plus $1 $3 }
+     | expr '-' expr                { S.Infix (tokPosn $2) S.Minus $1 $3 }
+     | expr '*' expr                { S.Infix (tokPosn $2) S.Times $1 $3 }
+     | expr '/' expr                { S.Infix (tokPosn $2) S.Divide $1 $3 }
+     | expr '%' expr                { S.Infix (tokPosn $2) S.Mod $1 $3 }
+     | expr '<' expr                { S.Infix (tokPosn $2) S.LT $1 $3 }
+     | expr '>' expr                { S.Infix (tokPosn $2) S.GT $1 $3 }
+     | expr '<=' expr               { S.Infix (tokPosn $2) S.LTEq $1 $3 }
+     | expr '>=' expr               { S.Infix (tokPosn $2) S.GTEq $1 $3 }
+     | expr '==' expr               { S.Infix (tokPosn $2) S.EqEq $1 $3 }
+     | expr '&&' expr               { S.Infix (tokPosn $2) S.AndAnd $1 $3 }
+     | expr '||' expr               { S.Infix (tokPosn $2) S.OrOr $1 $3 }
 
 
 Type         : ConcreteType         { $1 }
@@ -154,30 +157,28 @@ Datas  : Data                       { [$1] }
        | Data ',' Datas             { $1 : $3 }
 
 
-Pattern   : '_'                     { S.PatIgnore (tokPosn $1) }
+pattern   : '_'                     { S.PatIgnore (tokPosn $1) }
           | ident                   { S.PatIdent (tokPosn $1) (L.tokStr $1) }
-          | '(' Patterns ')'        { S.PatTuple (tokPosn $1) $2 }
-          | '[' Patterns ']'        { S.PatArray (tokPosn $1) $2 }
-Patterns  : {- empty -}             { [] }
-          | Patterns_               { $1 }
-Patterns_ : Pattern                 { [$1] }
-          | Pattern ',' Patterns_   { $1 : $3 }
+          | '(' patterns ')'        { S.PatTuple (tokPosn $1) $2 }
+          | '[' patterns ']'        { S.PatArray (tokPosn $1) $2 }
+patterns  : pattern                 { [$1] }
+          | pattern ',' patterns    { $1 : $3 }
 
 
 Index  : ident                      { S.IndIdent (tokPosn $1) (L.tokStr $1) }
-       | Index '[' Expr ']'         { S.IndArray (tokPosn $2) $1 $3 }
+       | Index '[' expr ']'         { S.IndArray (tokPosn $2) $1 $3 }
        | Index '.' int              { S.IndTuple (tokPosn $2) $1 (read $ L.tokStr $3) }
 
 
-Switch : switch Expr '{' Cases '}'  { S.Switch (tokPosn $1) $2 $4 }
+Switch : switch expr '{' Cases '}'  { S.Switch (tokPosn $1) $2 $4 }
 Cases  : {- empty -}                { [] }
        | Case Cases                 { $1 : $2 }
-Case   : Expr ':' Stmt              { (Just $1, $3) }
+Case   : expr ':' Stmt              { (Just $1, $3) }
        | '_'  ':' Stmt              { (Nothing, $3) }
 
 
-If   : if Expr Block                { S.If (tokPosn $1) $2 $3 Nothing }
-     | if Expr Block Else           { S.If (tokPosn $1) $2 $3 (Just $4) }
+If   : if expr Block                { S.If (tokPosn $1) $2 $3 Nothing }
+     | if expr Block Else           { S.If (tokPosn $1) $2 $3 (Just $4) }
 Else : else Block                   { $2 }
      | else If                      { $2 }
 
@@ -186,10 +187,10 @@ Block  : '{' Prog '}'               { S.Block (tokPosn $1) $2 }
 Block_ : '{' Prog '}'               { $2 }
 
 
-Args  : {- empty -}                 { [] }
-      | Args_                       { $1 }
-Args_ : Expr                        { [$1] }
-      | Expr ',' Args_              { $1 : $3 }
+args  : {- empty -}                 { [] }
+      | args_                       { $1 }
+args_ : expr                        { [$1] }
+      | expr ',' args_              { $1 : $3 }
 
 
 Param   : ident Type                { S.Param (tokPosn $1) (L.tokStr $1) $2 }

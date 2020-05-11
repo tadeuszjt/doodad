@@ -112,25 +112,29 @@ cmpTopStmt (S.Datadef pos symbol datas) = withPos pos $ do
         cmpData :: S.Data -> Integer -> Instr ()
         cmpData (S.DataIdent p sym) i = do
             checkUndefined sym
-            addSymObj sym (KeyFunc []) $ ObjVal $ Val (Typedef symbol) (int64 i)
+            let val = Val (Typedef symbol) (int64 i)
+            addSymObj sym (KeyFunc []) (ObjVal val)
+            addSymObj sym KeyVal       (ObjVal val)
             
-cmpTopStmt (S.Assign pos pattern expr) =
-    assignPattern pattern =<< cmpExpr expr
+cmpTopStmt (S.Assign pos pattern expr) = do
+    val <- cmpExpr expr
+    conc <- getConcreteType (valType val)
+    assignPattern pattern conc val
     where
-        assignPattern ::  S.Pattern -> Value -> Instr ()
-        assignPattern (S.PatTuple p patterns) val
-            | isTuple (valType val) = withPos p $ do
+        assignPattern ::  S.Pattern -> ValType -> Value -> Instr ()
+        assignPattern (S.PatTuple p patterns) conc val
+            | isTuple conc = withPos p $ do
                 len <- valLen val
                 assert (fromIntegral (length patterns) == len) "incorrect tuple length"
                 forM_ (zip patterns [0..]) $ \(pattern, i) ->
-                    assignPattern pattern =<< valTupleIdx val i
+                    assignPattern pattern conc =<< valTupleIdx val i
 
-        assignPattern (S.PatArray p patterns) val 
-            | isArray (valType val) = withPos p $ do
+        assignPattern (S.PatArray p patterns) conc val 
+            | isArray conc = withPos p $ do
                 forM_ (zip patterns [0..]) $ \(pattern, i) ->
-                    assignPattern pattern =<< valArrayConstIdx val i
+                    assignPattern pattern conc =<< valArrayConstIdx val i
 
-        assignPattern (S.PatIdent p symbol) val = withPos p $ do
+        assignPattern (S.PatIdent p symbol) conc val = withPos p $ do
             checkUndefined symbol
             name <- freshName (mkBSS symbol)
             (new, ext) <- valGlobal name (valType val)
@@ -142,7 +146,7 @@ cmpTopStmt (S.Assign pos pattern expr) =
             addDeclared name
             addExported name
 
-        assignPattern pat _ =
+        assignPattern pat _ _ =
             withPos (S.pos pat) (cmpErr "invalid assignment pattern")
 
 cmpTopStmt (S.Func pos symbol params mretty block) = withPos pos $ do

@@ -82,6 +82,6 @@ jitAndRun defs session keepModule verbose = do
             mangled <- mangleSymbol cl "main"
             res <- findSymbolIn cl modKey mangled False
             case res of
-                Left _                -> putStrLn "linkage error"
+                Left _                -> return ()
                 Right (JITSymbol fn _)-> run $ castPtrToFunPtr (wordPtrToPtr fn)
             unless keepModule (removeModule cl modKey)
