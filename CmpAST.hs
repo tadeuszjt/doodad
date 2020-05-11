@@ -267,6 +267,7 @@ cmpExpr (S.String pos s) = do
 
 cmpExpr (S.Call pos symbol args) = withPos pos $ do
     vals <- mapM valLoad =<< mapM cmpExpr args
+    mapM ensureTypeDeps (map valType vals)
     res <- look symbol $ KeyFunc (map valType vals)
     case res of
         ObjFunc typ op -> fmap (Val typ) $ call op $ map (,[]) (map valOp vals)
@@ -275,6 +276,7 @@ cmpExpr (S.Call pos symbol args) = withPos pos $ do
 
 cmpExpr (S.Ident pos symbol) = do
     ObjVal val <- look symbol KeyVal
+    ensureTypeDeps (valType val)
     return val
 
 cmpExpr (S.Array pos exprs) = do
@@ -297,6 +299,11 @@ cmpExpr (S.ArrayIndex pos arrExpr idxExpr) = do
     arr <- cmpExpr arrExpr
     idx <- cmpExpr idxExpr
     valArrayIdx arr idx
+
+cmpExpr (S.TupleIndex pos tupExpr i) = do
+    tup <- cmpExpr tupExpr
+    typ <- getTupleType (valType tup)
+    valTupleIdx (tup { valType = typ }) i
 
 cmpExpr (S.Infix pos S.EqEq exprA exprB) = withPos pos $ do
     valA <- cmpExpr exprA

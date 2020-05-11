@@ -154,8 +154,6 @@ Datas  : Data                       { [$1] }
        | Data ',' Datas             { $1 : $3 }
 
 
-
-
 Pattern   : '_'                     { S.PatIgnore (tokPosn $1) }
           | ident                   { S.PatIdent (tokPosn $1) (L.tokStr $1) }
           | '(' Patterns ')'        { S.PatTuple (tokPosn $1) $2 }

@@ -63,7 +63,7 @@ data Pattern
 data Index
     = IndIdent { indPos :: TextPos, indSym :: String }
     | IndArray { indPos :: TextPos, index :: Index, expr :: Expr }
-    | IndTuple { indPos :: TextPos, index :: Index, tupleIdx :: Word64 }
+    | IndTuple { indPos :: TextPos, index :: Index, tupleIdx :: Word32 }
     deriving (Show, Eq)
 
 
@@ -75,7 +75,7 @@ data Expr
 	| String TextPos String
 	| Tuple TextPos [Expr]
 	| Array TextPos [Expr]
-	| TupleIndex TextPos Expr Int
+	| TupleIndex TextPos Expr Word32
     | ArrayIndex TextPos Expr Expr
     | Ident TextPos String
 	| Call TextPos String [Expr]

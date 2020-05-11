@@ -37,8 +37,7 @@ tokens :-
     @reservedOp                      { mkT ReservedOp }
     $alpha [$alpha $digit \_]*       { mkT Ident }
     $digit+                          { mkT Int }
-    $digit* \. $digit+               { mkT Float }
-    $digit+ \. $digit*               { mkT Float }
+    $digit+ \. $digit+               { mkT Float }
     \' @char \'                      { mkT Char }
     \" @string* \"                   { mkT String }
 {

@@ -190,6 +190,7 @@ getTupleType typ@(Typedef sym) = do
     getTupleType t
 getTupleType typ@(Named _ t) =
     getTupleType t
+getTupleType typ = error (show typ)
 
 
 typesMatch :: ValType -> ValType -> Instr Bool
@@ -197,6 +198,20 @@ typesMatch a b = do
     ca <- getConcreteType a
     cb <- getConcreteType b
     return (ca == cb)
+
+
+ensureTypeDeps :: ValType -> Instr ()
+ensureTypeDeps (Array _ t) = ensureTypeDeps t
+ensureTypeDeps (Tuple ts)  = mapM_ ensureTypeDeps ts
+ensureTypeDeps (Typedef sym) = do
+    res <- look sym KeyType
+    case res of
+        ObjType t -> ensureTypeDeps t
+        ObjData _ _-> return ()
+ensureTypeDeps (Named name t) = do
+    ensureDef name
+    ensureTypeDeps t
+ensureTypeDeps _ = return ()
 
 
 valGlobal :: Name -> ValType -> Instr (Value, Definition)
@@ -253,16 +268,14 @@ valArraySet (Ptr (Array n t) loc) idx val = do
 
 
 valLen :: Value -> Instr Word64
-valLen val
-    | isTuple (valType val) = do
-        Tuple ts <- getTupleType (valType val)
-        return $ fromIntegral (length ts)
-    | isArray (valType val) = do
-        Array n _ <- getTupleType (valType val)
-        return n
+valLen val = do
+    typ <- getConcreteType (valType val)
+    case typ of
+        Array n t -> return n
+        Tuple ts  -> return $ fromIntegral (length ts)
 
 
-valTupleIdx :: Value -> Word64 -> Instr Value
+valTupleIdx :: Value -> Word32 -> Instr Value
 valTupleIdx (Val typ op) i = do
     assert (isTuple typ) "wasn't a tuple"
     Tuple ts <- getTupleType typ
@@ -318,7 +331,7 @@ valPrint append val
         putchar '('
         forM_ [0..len-1] $ \i -> do
             let app = if i < len-1 then ", " else ")" ++ append
-            valPrint app =<< valTupleIdx val i
+            valPrint app =<< valTupleIdx val (fromIntegral i)
 
     | isTypedef (valType val) = do
         let Typedef symbol = valType val
