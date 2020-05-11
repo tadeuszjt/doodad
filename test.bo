@@ -1,6 +1,8 @@
 type Point = (i64, i64);
-type Point_ = Point;
+data Friend = Beni, Luke, Tom, Dakota;
 
-p := Point_((31, 32));
+type Point_ = (Point, Friend);
+
+p := Point_(Point(3, 2), Luke());
 
 print(p);

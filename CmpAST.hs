@@ -56,8 +56,8 @@ cmpTopStmt (S.Typedef pos symbol astTyp) = do
 
     let typ    = fromASTType astTyp
     let typdef = Typedef symbol
-    zero  <- fmap cons (zeroOf typ)
-    conc  <- getConcreteType typ
+    zero <- fmap cons (zeroOf typ)
+    conc <- getConcreteType typ
 
     if isTuple typ then do
         name <- freshName (mkBSS symbol)
@@ -69,10 +69,21 @@ cmpTopStmt (S.Typedef pos symbol astTyp) = do
         addSymObj symbol KeyType (ObjType typ)
 
     addSymObj symbol (KeyFunc [])    $ ObjVal (Val typdef zero)
-    addSymObj symbol (KeyFunc [typ]) $ ObjInline (\[Val _ op] -> Val typdef op)
+    addSymObj symbol (KeyFunc [typ]) $ ObjInline (\[Val _ op] -> return $ Val typdef op)
+    when (isTuple conc) $ do
+        tupTyp@(Tuple ts) <- getTupleType typ
+        addSymObj symbol (KeyFunc ts) $ ObjInline $ \vals -> do
+            tup <- valLocal (Tuple ts)
+            forM_ (zip vals [0..]) $ \(v, i) -> valTupleSet tup i v
+            return (tup { valType = typdef })
+        unless (conc == tupTyp) $ do
+            let Tuple ts = conc
+            addSymObj symbol (KeyFunc ts) $ ObjInline $ \vals -> do
+                tup <- valLocal (Tuple ts)
+                forM_ (zip vals [0..]) $ \(v, i) -> valTupleSet tup i v
+                return (tup { valType = typdef })
     unless (conc == typ) $ 
-        addSymObj symbol (KeyFunc [conc]) $ ObjInline (\[Val _ op] -> Val typdef op)
-
+        addSymObj symbol (KeyFunc [conc]) $ ObjInline (\[Val _ op] -> return $ Val typdef op)
 
 cmpTopStmt (S.Datadef pos symbol datas) = withPos pos $ do
     checkUndefined symbol
@@ -103,7 +114,6 @@ cmpTopStmt (S.Datadef pos symbol datas) = withPos pos $ do
             checkUndefined sym
             addSymObj sym (KeyFunc []) $ ObjVal $ Val (Typedef symbol) (int64 i)
             
-
 cmpTopStmt (S.Assign pos pattern expr) =
     assignPattern pattern =<< cmpExpr expr
     where
@@ -261,7 +271,7 @@ cmpExpr (S.Call pos symbol args) = withPos pos $ do
     case res of
         ObjFunc typ op -> fmap (Val typ) $ call op $ map (,[]) (map valOp vals)
         ObjVal val     -> return val
-        ObjInline f    -> return (f vals)
+        ObjInline f    -> f vals
 
 cmpExpr (S.Ident pos symbol) = do
     ObjVal val <- look symbol KeyVal

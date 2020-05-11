@@ -60,13 +60,11 @@ data SymKey
     deriving (Show, Eq, Ord)
 
 
-
-
-instance Show ([Value] -> Value) where show _ = "Inline"
+instance Show ([Value] -> Instr Value) where show _ = "Inline"
 data SymObj
     = ObjVal Value
     | ObjFunc ValType Operand
-    | ObjInline ([Value] -> Value)
+    | ObjInline ([Value] -> Instr Value)
     | ObjType ValType
     | ObjData { namesStr, strIdxArr :: Value }
     deriving (Show)
@@ -146,8 +144,10 @@ opTypeOf typ = case typ of
         String     -> return (ptr i8)
         Named nm t -> return (NamedTypeReference nm)
         Typedef sym  -> do
-            ObjType t <- look sym KeyType
-            opTypeOf t
+            res <- look sym KeyType
+            case res of
+                ObjType t   -> opTypeOf t
+                ObjData _ _ -> return i64
 
 
 zeroOf :: ValType -> Instr C.Constant
@@ -180,6 +180,16 @@ getConcreteType (Typedef symbol) = do
         ObjData _ _ -> return I64
 getConcreteType typ =
     return typ
+
+
+getTupleType :: ValType -> Instr ValType
+getTupleType typ@(Tuple _) =
+    return typ
+getTupleType typ@(Typedef sym) = do
+    ObjType t <- look sym KeyType
+    getTupleType t
+getTupleType typ@(Named _ t) =
+    getTupleType t
 
 
 typesMatch :: ValType -> ValType -> Instr Bool
@@ -245,22 +255,22 @@ valArraySet (Ptr (Array n t) loc) idx val = do
 valLen :: Value -> Instr Word64
 valLen val
     | isTuple (valType val) = do
-        Tuple ts <- getConcreteType (valType val)
+        Tuple ts <- getTupleType (valType val)
         return $ fromIntegral (length ts)
     | isArray (valType val) = do
-        Array n _ <- getConcreteType (valType val)
+        Array n _ <- getTupleType (valType val)
         return n
 
 
 valTupleIdx :: Value -> Word64 -> Instr Value
 valTupleIdx (Val typ op) i = do
     assert (isTuple typ) "wasn't a tuple"
-    Tuple ts <- getConcreteType typ
+    Tuple ts <- getTupleType typ
     assert (i >= 0 && i < fromIntegral (length ts)) "tuple index out of range"
     fmap (Val (ts !! fromIntegral i)) $ extractValue op [fromIntegral i]
 valTupleIdx (Ptr typ loc) i = do
     assert (isTuple typ) "wasn't a tuple"
-    Tuple ts <- getConcreteType typ
+    Tuple ts <- getTupleType typ
     assert (i >= 0 && i < fromIntegral (length ts)) "tuple index out of range"
     fmap (Ptr (ts !! fromIntegral i)) $ gep loc [int32 0, int32 (fromIntegral i)]
     
@@ -315,13 +325,16 @@ valPrint append val
         obj <- look symbol KeyType
         case obj of
             ObjType typ -> do
+                void $ printf symbol []
                 conc <- getConcreteType typ
+
                 if isTuple conc then do
-                    void $ printf symbol []
-                    valPrint append (val { valType = conc })
+                    tup <- getTupleType typ
+                    valPrint append (val { valType = tup })
                 else do
                     void $ printf (symbol ++ "(") []
                     valPrint (")" ++ append) (val { valType = conc })
+
             ObjData (Val String strOp) (Ptr _ arrOp) -> do
                 Val _ op <- valLoad val
                 ptr <- gep arrOp [int32 0, op]
