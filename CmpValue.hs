@@ -291,7 +291,8 @@ valTupleIdx val i = do
     
 
 valTupleSet :: Value -> Int -> Value -> Instr ()
-valTupleSet (Ptr (Tuple ts) loc) i val = do
+valTupleSet (Ptr typ loc) i val = do
+    Tuple ts <- getTupleType typ
     ptr <- gep loc [int32 0, int32 (fromIntegral i)]
     valStore (Ptr (ts !! i) ptr) val
 

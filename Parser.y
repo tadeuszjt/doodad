@@ -93,16 +93,16 @@ StmtS : pattern ':=' expr                   { S.Assign (tokPosn $2) $1 $3 }
       | Index '=' expr                      { S.Set (tokPosn $2) $1 $3 }
       | type ident '=' Type                 { S.Typedef (tokPosn $2) (L.tokStr $2) $4 }
       | data ident '=' Datas                { S.Datadef (tokPosn $2) (L.tokStr $2) $4 }
-      | extern ident '(' Params ')' Type    { S.Extern (tokPosn $2) (L.tokStr $2) $4 (Just $6) }
-      | extern ident '(' Params ')'         { S.Extern (tokPosn $2) (L.tokStr $2) $4 Nothing }
+      | extern ident '(' params ')' Type    { S.Extern (tokPosn $2) (L.tokStr $2) $4 (Just $6) }
+      | extern ident '(' params ')'         { S.Extern (tokPosn $2) (L.tokStr $2) $4 Nothing }
       | print '(' args ')'                  { S.Print (tokPosn $1) $3 }
       | ident '(' args ')'                  { S.CallStmt (tokPosn $1) (L.tokStr $1) $3 }
       | return                              { S.Return (tokPosn $1) Nothing }
       | return expr                         { S.Return (tokPosn $1) (Just $2) }
 StmtB : Block                               { $1 }
       | If                                  { $1 }
-      | fn ident '(' Params ')' Block_      { S.Func (tokPosn $1) (L.tokStr $2) $4 Nothing $6 }
-      | fn ident '(' Params ')' Type Block_ { S.Func (tokPosn $1) (L.tokStr $2) $4 (Just $6) $7 }
+      | fn ident '(' params ')' Block_      { S.Func (tokPosn $1) (L.tokStr $2) $4 Nothing $6 }
+      | fn ident '(' params ')' Type Block_ { S.Func (tokPosn $1) (L.tokStr $2) $4 (Just $6) $7 }
       | switch expr '{' Cases '}'           { S.Switch (tokPosn $1) $2 $4 }
 
 
@@ -153,6 +153,8 @@ Types_       : Type                 { [$1] }
 
 
 Data   : ident                      { S.DataIdent (tokPosn $1) (L.tokStr $1) }
+       | ident '(' ')'              { S.DataIdent (tokPosn $1) (L.tokStr $1) }
+       | ident '(' params_ ')'      { S.DataFunc (tokPosn $1) (L.tokStr $1) $3 }
 Datas  : Data                       { [$1] }
        | Data ',' Datas             { $1 : $3 }
 
@@ -193,11 +195,11 @@ args_ : expr                        { [$1] }
       | expr ',' args_              { $1 : $3 }
 
 
-Param   : ident Type                { S.Param (tokPosn $1) (L.tokStr $1) $2 }
-Params  : {- empty -}               { [] }
-        | Params_                   { $1 }
-Params_ : Param                     { [$1] }
-        | Param ',' Params_         { $1 : $3 }
+param   : ident Type                { S.Param (tokPosn $1) (L.tokStr $1) $2 }
+params  : {- empty -}               { [] }
+        | params_                   { $1 }
+params_ : param                     { [$1] }
+        | param ',' params_         { $1 : $3 }
 
 {
 data ParseResult a

@@ -49,6 +49,7 @@ data Type
 
 data Data
     = DataIdent { dataPos :: TextPos, dataSymbol :: String }
+    | DataFunc  { dataPos :: TextPos, dataSymbol :: String, dataParams :: [Param] }
     deriving (Show, Eq)
 
 

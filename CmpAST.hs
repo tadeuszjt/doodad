@@ -68,22 +68,6 @@ cmpTopStmt (S.Typedef pos symbol astTyp) = do
     else
         addSymObj symbol KeyType (ObjType typ)
 
-    addSymObj symbol (KeyFunc [])    $ ObjVal (Val typdef zero)
-    addSymObj symbol (KeyFunc [typ]) $ ObjInline (\[Val _ op] -> return $ Val typdef op)
-    when (isTuple conc) $ do
-        tupTyp@(Tuple ts) <- getTupleType typ
-        addSymObj symbol (KeyFunc ts) $ ObjInline $ \vals -> do
-            tup <- valLocal (Tuple ts)
-            forM_ (zip vals [0..]) $ \(v, i) -> valTupleSet tup i v
-            return (tup { valType = typdef })
-        unless (conc == tupTyp) $ do
-            let Tuple ts = conc
-            addSymObj symbol (KeyFunc ts) $ ObjInline $ \vals -> do
-                tup <- valLocal (Tuple ts)
-                forM_ (zip vals [0..]) $ \(v, i) -> valTupleSet tup i v
-                return (tup { valType = typdef })
-    unless (conc == typ) $ 
-        addSymObj symbol (KeyFunc [conc]) $ ObjInline (\[Val _ op] -> return $ Val typdef op)
 
 cmpTopStmt (S.Datadef pos symbol datas) = withPos pos $ do
     checkUndefined symbol
@@ -110,11 +94,27 @@ cmpTopStmt (S.Datadef pos symbol datas) = withPos pos $ do
     forM_ (zip datas [0..]) $ \(d, i) -> cmpData d i
     where
         cmpData :: S.Data -> Integer -> Instr ()
-        cmpData (S.DataIdent p sym) i = do
+        cmpData (S.DataIdent p sym) i = withPos p $ do
             checkUndefined sym
             let val = Val (Typedef symbol) (int64 i)
             addSymObj sym (KeyFunc []) (ObjVal val)
             addSymObj sym KeyVal       (ObjVal val)
+
+
+        cmpData (S.DataFunc p sym params) i = withPos p $ do
+            checkUndefined sym 
+            let val = Val (Typedef symbol) (int64 i)
+            let paramSymbols= map S.paramName params
+            let paramASTTypes = map S.paramType params
+            pushSymTab
+            paramTypes <- forM (zip paramSymbols paramASTTypes) $ \(sym, astTyp) -> do
+                checkUndefined sym
+                let typ = fromASTType astTyp
+                ensureTypeDeps typ
+                return typ
+            popSymTab
+            addSymObj sym (KeyFunc paramTypes) (ObjVal val)
+            addSymObj sym KeyVal                 (ObjVal val)
             
 cmpTopStmt (S.Assign pos pattern expr) = do
     val <- cmpExpr expr
@@ -264,7 +264,7 @@ cmpExpr (S.Bool pos b)  = return $ Val Bool (bit $ if b then 1 else 0)
 cmpExpr (S.Char pos c)  = return $ Val Char (int32 $ fromIntegral $ fromEnum c)
 
 cmpExpr (S.String pos s) = do
-    name <- freshName (mkBSS "string")
+    name <- freshName "string"
     str <- globalStringPtr s name
     addExported name
     return $ Val String (cons str)
@@ -272,11 +272,28 @@ cmpExpr (S.String pos s) = do
 cmpExpr (S.Call pos symbol args) = withPos pos $ do
     vals <- mapM valLoad =<< mapM cmpExpr args
     mapM ensureTypeDeps (map valType vals)
-    res <- look symbol $ KeyFunc (map valType vals)
-    case res of
-        ObjFunc typ op -> fmap (Val typ) $ call op $ map (,[]) (map valOp vals)
-        ObjVal val     -> return val
-        ObjInline f    -> f vals
+
+    rfun <- lookupSymKey symbol $ KeyFunc (map valType vals)
+    rtyp <- lookupSymKey symbol $ KeyType 
+    case (rtyp, rfun) of
+        (_, Just (ObjFunc typ op)) -> Val typ <$> call op [(o, []) | o <- map valOp vals]
+        (_, Just (ObjInline f))    -> f vals
+        (_, Just (ObjVal val))     -> return val
+        (Just (ObjType t), _)      -> ensureTypeDeps t >> cmpTypeFn (Typedef symbol) vals
+        _                          -> cmpErr ("no callable object exists for " ++ symbol)
+    where
+        cmpTypeFn :: ValType -> [Value] -> Instr Value
+        cmpTypeFn typ args = do
+            conc <- getConcreteType typ
+            concs <- mapM getConcreteType (map valType args)
+            case concs of
+                [t] | conc == t        -> return $ (head args) { valType = typ }
+                ts  | conc == Tuple ts -> do
+                    tup <- valLocal typ
+                    forM_ (zip args [0..]) $ \(a, i) -> valTupleSet tup i a
+                    return tup
+                _ -> cmpErr "cannot construct type from arguments"
+
 
 cmpExpr (S.Ident pos symbol) = do
     ObjVal val <- look symbol KeyVal

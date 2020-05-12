@@ -5,12 +5,12 @@ a := [Point(1, 2), Point(3, 4), Point(5, 6)];
 a = [y, z, x];
 print(a, a[0], a[2], x, y, z);
 
-data Drink = Aviation, WhiteRussian, Vesper;
+data Drink = Aviation, WhiteRussian, Vesper(olives i64);
 type Item = (Point, Drink);
 
 fn f(i Item) { print("item", i); }
 
-((px, py), d) := Item(Point(31, 20), Aviation);
+((px, py), d) := Item(Point(31, 20), Vesper(1));
 
 print(Item(Point(px, py), d));
 
