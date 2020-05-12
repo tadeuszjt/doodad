@@ -15,12 +15,22 @@ import           Data.List                  hiding (and, or)
 import           Data.Word
 import           Prelude                    hiding (EQ, and, or)
 
+import           LLVM.Context
 import           LLVM.AST                   hiding (function, Module)
 import qualified LLVM.AST.Constant          as C
 import           LLVM.AST.IntegerPredicate
 import           LLVM.AST.FloatingPointPredicate (FloatingPointPredicate(OEQ))
 import           LLVM.AST.Type              hiding (void, double)
 import           LLVM.AST.Typed
+import           LLVM.AST.DataLayout
+import           LLVM.Internal.DataLayout
+import           LLVM.Internal.Type
+import           LLVM.Internal.EncodeAST
+import           LLVM.Internal.Context
+import           LLVM.Internal.Coding           hiding (alloca)
+import           Foreign.Ptr
+import qualified LLVM.Internal.FFI.DataLayout   as FFI
+import qualified LLVM.Internal.FFI.PtrHierarchy as FFI
 import           LLVM.IRBuilder.Constant
 import           LLVM.IRBuilder.Instruction
 import           LLVM.IRBuilder.Module
@@ -34,8 +44,16 @@ import           CmpMonad
 mkBSS = BSS.toShort . BS.pack
 
 
-type Compile     = State ValType
-initCompileState = Void
+data CompileState
+    = CompileState
+        { context    :: Context
+        , dataLayout :: Ptr FFI.DataLayout
+        , curRetTyp  :: ValType
+        }
+
+
+type Compile        = StateT CompileState IO 
+initCompileState ctx dl = CompileState ctx dl Void
 
 
 type MyCmpState = CmpState SymKey SymObj
@@ -56,7 +74,7 @@ data SymObj
     | ObjFunc ValType Operand
     | ObjInline ([Value] -> Instr Value)
     | ObjType ValType
-    | ObjData { namesStr, strIdxArr :: Value }
+    | ObjData { sizeBytes :: Word64, namesStr, strIdxArr :: Value }
     deriving (Show)
 
 
@@ -136,8 +154,22 @@ opTypeOf typ = case typ of
         Typedef sym  -> do
             res <- look sym KeyType
             case res of
-                ObjType t   -> opTypeOf t
-                ObjData _ _ -> return i64
+                ObjType t     -> opTypeOf t
+                ObjData n _ _ -> return (dataOpType n)
+
+
+dataOpType :: Word64 -> Type
+dataOpType sizeBytes = ArrayType sizeBytes i8
+
+
+sizeOf :: Type -> Instr Word64
+sizeOf typ = do
+    name <- fresh
+    lift $ do
+        dl <- gets dataLayout
+        ctx <- gets context
+        ptrTyp <- liftIO $ runEncodeAST ctx (encodeM typ)
+        liftIO $ FFI.getTypeAllocSize dl ptrTyp
 
 
 zeroOf :: ValType -> Instr C.Constant
@@ -155,14 +187,15 @@ zeroOf typ = case typ of
     Named _ t  -> zeroOf t
 
 
+
 setCurRetTyp :: ValType -> Instr ()
 setCurRetTyp typ =
-    void $ lift $ put typ
+    lift $ modify $ \s -> s { curRetTyp = typ }
 
 
 getCurRetTyp :: Instr ValType
 getCurRetTyp =
-    lift get
+    lift (gets curRetTyp)
 
 
 getConcreteType :: ValType -> Instr ValType
@@ -173,8 +206,8 @@ getConcreteType typ = case typ of
     Typedef sym -> do
         res <- look sym KeyType
         case res of
-            ObjType typ -> getConcreteType typ
-            ObjData _ _ -> return I64
+            ObjType typ   -> getConcreteType typ
+            ObjData n _ _ -> return I64
     t           -> return t
 
 
@@ -207,8 +240,8 @@ ensureTypeDeps (Tuple ts)  = mapM_ ensureTypeDeps ts
 ensureTypeDeps (Typedef sym) = do
     res <- look sym KeyType
     case res of
-        ObjType t -> ensureTypeDeps t
-        ObjData _ _-> return ()
+        ObjType t    -> ensureTypeDeps t
+        ObjData n _ _-> return ()
 ensureTypeDeps (Named name t) = do
     ensureDef name
     ensureTypeDeps t
@@ -351,10 +384,13 @@ valPrint append val
                     void $ printf (symbol ++ "(") []
                     valPrint (")" ++ append) (val { valType = conc })
 
-            ObjData (Val String strOp) (Ptr _ arrOp) -> do
-                Val _ op <- valLoad val
-                ptr <- gep arrOp [int32 0, op]
-                idx <- load ptr 0
+            ObjData n (Val String strOp) (Ptr _ arrOp) -> do
+                loc <- valLocal (valType val)
+                valStore loc val
+                ptr <- bitcast (valOp loc) (ptr i64)
+                int <- load ptr 0
+                pid <- gep arrOp [int32 0, int]
+                idx <- load pid 0
                 str <- gep strOp [idx]
                 void $ printf ("%s" ++ append) [str]
 

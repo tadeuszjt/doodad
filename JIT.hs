@@ -16,6 +16,7 @@ import qualified LLVM.Relocation          as Reloc
 import           LLVM.Target
 import           LLVM.Linking
 import           LLVM.AST
+import           LLVM.AST.DataLayout
 import           LLVM.Context
 import qualified LLVM.Module              as M
 import           LLVM.OrcJIT
@@ -35,6 +36,7 @@ data Session
         , executionSession :: ExecutionSession
         , compileLayer     :: IRCompileLayer ObjectLinkingLayer
         , passManager      :: Maybe PassManager
+        , dataLayout       :: DataLayout
         }
 
 withSession :: Bool -> (Session -> IO ()) -> IO ()
@@ -49,7 +51,8 @@ withSession optimise f = do
                             withSymbolResolver es (myResolver cl) $ \psr -> do
                                 writeIORef resolvers [psr]
                                 loadLibraryPermanently Nothing
-                                f $ Session ctx es cl (if optimise then Just pm else Nothing)
+                                dl <- getTargetMachineDataLayout tm 
+                                f $ Session ctx es cl (if optimise then Just pm else Nothing) dl
 
 
     where

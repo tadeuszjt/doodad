@@ -12,9 +12,13 @@ import qualified Data.Set                 as Set
 import qualified Data.Map                 as Map
 
 import           LLVM.AST
+import           LLVM.AST.DataLayout
 import           LLVM.Context
 import qualified LLVM.Module              as M
 import           LLVM.PassManager
+import           Foreign.Ptr
+import           LLVM.Internal.DataLayout
+import qualified LLVM.Internal.FFI.DataLayout as FFI
 
 import qualified CmpAST                   as C
 import qualified CmpValue                 as C
@@ -32,31 +36,34 @@ main = do
     let hasFile  = length args > 0 && head (head args) /= '-'
 
     if not hasFile then
-        withSession optimise $ \session -> repl session verbose
+            withSession optimise $ \session ->
+                withFFIDataLayout (JIT.dataLayout session) $ \dl -> 
+                    repl dl session verbose
 	else
-        let filename = head args in
-        withFile filename ReadMode $ \h ->
-            withContext $ \ctx ->
-                withPassManager defaultCuratedPassSetSpec $ \pm -> do
-                    content <- hGetContents h
-                    case compile C.initCmpState content verbose of
-                        Left err -> printError err content
-                        Right (defs, state) -> do
-                            forM_ (head $ C.symTab state) $ \ent -> do
-                                forM_ ent $ \e ->
-                                    putStrLn (show e)
-                                putStrLn ""
-                            let astmod = defaultModule { moduleDefinitions = defs }
-                            M.withModuleFromAST ctx astmod $ \mod -> do
-                                when optimise $ do
-                                    passRes <- runPassManager pm mod
-                                    when verbose $ putStrLn ("optimisation pass: " ++ if passRes then "success" else "fail")
-                                when verbose (BS.putStrLn =<< M.moduleLLVMAssembly mod)
-                                M.writeLLVMAssemblyToFile (M.File $ filename ++ ".ll") mod
+        return ()
+--        let filename = head args in
+--        withFile filename ReadMode $ \h ->
+--            withContext $ \ctx ->
+--                withPassManager defaultCuratedPassSetSpec $ \pm -> do
+--                    content <- hGetContents h
+--                    case compile C.initCmpState content verbose of
+--                        Left err -> printError err content
+--                        Right (defs, state) -> do
+--                            forM_ (head $ C.symTab state) $ \ent -> do
+--                                forM_ ent $ \e ->
+--                                    putStrLn (show e)
+--                                putStrLn ""
+--                            let astmod = defaultModule { moduleDefinitions = defs }
+--                            M.withModuleFromAST ctx astmod $ \mod -> do
+--                                when optimise $ do
+--                                    passRes <- runPassManager pm mod
+--                                    when verbose $ putStrLn ("optimisation pass: " ++ if passRes then "success" else "fail")
+--                                when verbose (BS.putStrLn =<< M.moduleLLVMAssembly mod)
+--                                M.writeLLVMAssemblyToFile (M.File $ filename ++ ".ll") mod
 
 
-repl :: Session -> Bool -> IO ()
-repl session verbose = runInputT defaultSettings (loop C.initCmpState)
+repl :: Ptr FFI.DataLayout -> Session -> Bool -> IO ()
+repl dl session verbose = runInputT defaultSettings (loop C.initCmpState) 
     where
         loop :: C.MyCmpState -> InputT IO ()
         loop state = do
@@ -66,7 +73,8 @@ repl session verbose = runInputT defaultSettings (loop C.initCmpState)
                 Just ""    -> loop state
                 Just input -> do
                     liftIO (putStrLn "compiling...")
-                    case compile state input verbose of
+                    res <- liftIO $ compile (JIT.context session) dl state input verbose
+                    case res of
                         Left err             -> do
                             liftIO $ printError err input 
                             liftIO $ C.prettySymTab $ state
@@ -81,12 +89,12 @@ repl session verbose = runInputT defaultSettings (loop C.initCmpState)
                                 }
 
 
-compile :: C.MyCmpState -> String -> Bool -> Either C.CmpError ([Definition], C.MyCmpState)
-compile state source verbose =
+compile :: Context -> Ptr FFI.DataLayout -> C.MyCmpState -> String -> Bool -> IO (Either C.CmpError ([Definition], C.MyCmpState))
+compile ctx dl state source verbose =
     case L.alexScanner source of
-        Left  errStr -> Left $ C.CmpError (C.TextPos 0 0 0, errStr)
+        Left  errStr -> return $ Left $ C.CmpError (C.TextPos 0 0 0, errStr)
         Right tokens -> case (P.parseTokens tokens) 0 of
-            P.ParseOk ast -> C.compile state ast
+            P.ParseOk ast -> C.compile ctx dl state ast
 
 
 printError :: C.CmpError -> String -> IO ()

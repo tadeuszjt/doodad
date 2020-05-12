@@ -15,6 +15,7 @@ import           Data.List                  hiding (and, or)
 import           Data.Word
 import           Prelude                    hiding (EQ, and, or)
 
+import           LLVM.Context
 import           LLVM.AST                   hiding (function, Module)
 import qualified LLVM.AST.Constant          as C
 import           LLVM.AST.Global
@@ -22,6 +23,8 @@ import           LLVM.AST.IntegerPredicate
 import qualified LLVM.AST.FloatingPointPredicate as F
 import           LLVM.AST.Type              hiding (void, double)
 import           LLVM.AST.Typed
+import qualified LLVM.Internal.FFI.DataLayout as FFI
+import           Foreign.Ptr
 import           LLVM.IRBuilder.Constant
 import           LLVM.IRBuilder.Instruction
 import           LLVM.IRBuilder.Module
@@ -34,15 +37,14 @@ import           CmpValue
 import           CmpMonad
 
 
-compile :: MyCmpState -> S.AST -> Either CmpError ([Definition], MyCmpState) 
-compile state ast = do
-    let (res, _) = runState (runModuleCmpT emptyModuleBuilder state cmp) initCompileState
-    fmap (\((_, defs), state') -> (defs, state')) res
+compile :: Context -> Ptr FFI.DataLayout -> MyCmpState -> S.AST -> IO (Either CmpError ([Definition], MyCmpState))
+compile context dataLayout state ast = do
+    (res, _) <- runStateT (runModuleCmpT emptyModuleBuilder state cmp) (initCompileState context dataLayout)
+    return $ fmap (\((_, defs), state') -> (defs, state')) res
     where
         cmp :: Module ()
-        cmp =
-            void $ function "main" [] VoidType $ \_ -> do
-                getInstrCmp (mapM_ cmpTopStmt ast)
+        cmp = void $ function "main" [] VoidType $ \_ -> do
+            getInstrCmp (mapM_ cmpTopStmt ast)
 
 
 cmpTopStmt :: S.Stmt -> Instr ()
@@ -58,68 +60,71 @@ cmpTopStmt (S.Typedef pos symbol astTyp) = do
     let typdef = Typedef symbol
     zero <- fmap cons (zeroOf typ)
     conc <- getConcreteType typ
+    opTyp <- opTypeOf typ
 
     if isTuple typ then do
         name <- freshName (mkBSS symbol)
-        opTyp <- opTypeOf typ
         addAction name (typedef name $ Just opTyp)
         addSymObj symbol KeyType $ ObjType (Named name typ)
         addSymObjReq symbol KeyType name
+
     else
         addSymObj symbol KeyType (ObjType typ)
 
 
 cmpTopStmt (S.Datadef pos symbol datas) = withPos pos $ do
     checkUndefined symbol
+
     (nameStrs, nameStrLens) <- fmap unzip $ forM (map S.dataSymbol datas) $ \sym -> do
         checkUndefined sym
         return (sym ++ "\0", fromIntegral $ length sym + 1)
-
     let numIdxs = fromIntegral (length nameStrLens)
     let (_, idxs) = foldl (\(n, a) l -> (n+l, a ++ [n])) (0, []) nameStrLens
-
     strName <- freshName $ mkBSS (symbol ++ "str")
     idxName <- freshName $ mkBSS (symbol ++ "idx")
-
     let (strDef, strOp) = stringDef strName (concat nameStrs)
     let (idxDef, idxOp) = globalDef idxName (ArrayType numIdxs i64) $ Just $ C.Array i64 $ map (C.Int 64) idxs
-
     addAction strName (emitDefn strDef)
     addAction idxName (emitDefn idxDef)
 
-    addSymObj symbol KeyType $ ObjData (Val String strOp) (Ptr (Array numIdxs I64) idxOp) 
+
+    let n = 4
+
+
+    addSymObj symbol KeyType $ ObjData n (Val String strOp) (Ptr (Array numIdxs I64) idxOp) 
     addSymObjReq symbol KeyType strName
     addSymObjReq symbol KeyType idxName
 
     forM_ (zip datas [0..]) $ \(d, i) -> cmpData d i
     where
-        cmpData :: S.Data -> Integer -> Instr ()
+        cmpData :: S.Data -> Integer -> Instr Word64
         cmpData (S.DataIdent p sym) i = withPos p $ do
             checkUndefined sym
-            let val = Val (Typedef symbol) (int64 i)
+            let val = Val (Typedef symbol) (array [toCons (int64 i)])
             addSymObj sym (KeyFunc []) (ObjVal val)
             addSymObj sym KeyVal       (ObjVal val)
-
-
-        cmpData (S.DataFunc p sym params) i = withPos p $ do
-            checkUndefined sym 
-            let val = Val (Typedef symbol) (int64 i)
-            let paramSymbols= map S.paramName params
-            let paramASTTypes = map S.paramType params
-            pushSymTab
-            paramTypes <- forM (zip paramSymbols paramASTTypes) $ \(sym, astTyp) -> do
-                checkUndefined sym
-                let typ = fromASTType astTyp
-                ensureTypeDeps typ
-                return typ
-            popSymTab
-            addSymObj sym (KeyFunc paramTypes) (ObjVal val)
-            addSymObj sym KeyVal                 (ObjVal val)
+            sizeOf i64
+--
+--        cmpData (S.DataFunc p sym params) i = withPos p $ do
+--            checkUndefined sym 
+--            let val = Val (Typedef symbol) (int64 i)
+--            let paramSymbols= map S.paramName params
+--            let paramASTTypes = map S.paramType params
+--            pushSymTab
+--            paramTypes <- forM (zip paramSymbols paramASTTypes) $ \(sym, astTyp) -> do
+--                checkUndefined sym
+--                let typ = fromASTType astTyp
+--                ensureTypeDeps typ
+--                return typ
+--            popSymTab
+--            addSymObj sym (KeyFunc paramTypes) (ObjVal val)
+--            addSymObj sym KeyVal                 (ObjVal val)
             
 cmpTopStmt (S.Assign pos pattern expr) = do
     val <- cmpExpr expr
     conc <- getConcreteType (valType val)
     assignPattern pattern conc val
+
     where
         assignPattern ::  S.Pattern -> ValType -> Value -> Instr ()
         assignPattern (S.PatTuple p patterns) conc val
