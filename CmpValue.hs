@@ -69,6 +69,7 @@ data SymKey
 
 
 instance Show ([Value] -> Instr Value) where show _ = "Inline"
+instance Show (Value -> Instr ()) where show _ = "Inline"
 data SymObj
     = ObjVal Value
     | ObjFunc ValType Operand
@@ -76,6 +77,7 @@ data SymObj
     | ObjType ValType
     | ObjData
         { dataConcTyp :: ValType
+        , dataPrintFn :: (Value -> Instr ())
         }
     deriving (Show)
 
@@ -164,8 +166,8 @@ opTypeOf typ = case typ of
         Typedef sym  -> do
             res <- look sym KeyType
             case res of
-                ObjType t -> opTypeOf t
-                ObjData t -> opTypeOf t
+                ObjType t   -> opTypeOf t
+                ObjData t _ -> opTypeOf t
 
 
 dataOpType :: Word64 -> Type
@@ -218,7 +220,7 @@ getConcreteType typ = case typ of
         res <- look sym KeyType
         case res of
             ObjType typ -> getConcreteType typ
-            ObjData t   -> return t
+            ObjData _ _ -> return (dataConcTyp res)
     t           -> return t
 
 
@@ -251,8 +253,8 @@ ensureTypeDeps (Tuple ts)  = mapM_ ensureTypeDeps ts
 ensureTypeDeps (Typedef sym) = do
     res <- look sym KeyType
     case res of
-        ObjType t -> ensureTypeDeps t
-        ObjData t -> ensureTypeDeps t
+        ObjType t   -> ensureTypeDeps t
+        ObjData t _ -> ensureTypeDeps t
 ensureTypeDeps (Named name t) = do
     ensureDef name
     ensureTypeDeps t
@@ -395,27 +397,20 @@ valPrint append val
                     void $ printf (symbol ++ "(") []
                     valPrint (")" ++ append) (val { valType = conc })
 
-            ObjData t -> do
-                return ()
-
---                loc <- valLocal (valType val)
---                valStore loc val
---                ptr <- bitcast (valOp loc) (ptr i64)
---                int <- load ptr 0
---                pid <- gep arrOp [int32 0, int]
---                idx <- load pid 0
---                str <- gep strOp [idx]
---                void $ printf ("%s" ++ append) [str]
+            ObjData t f -> do
+                f val
+                void (printf append [])
 
     | otherwise = do
         Val typ op <- valLoad val
-        case typ of
-            I32    -> void $ printf ("%d" ++ append) [op]
-            I64    -> void $ printf ("%ld" ++ append) [op]
-            F32    -> void $ printf ("%f" ++ append) [op]
-            F64    -> void $ printf ("%f" ++ append) [op]
-            Char   -> void $ printf ("%c" ++ append) [op]
-            String -> void $ printf ("\"%s\"" ++ append) [op]
+        void $ case typ of
+            I8     -> printf ("%d" ++ append) [op]
+            I32    -> printf ("%d" ++ append) [op]
+            I64    -> printf ("%ld" ++ append) [op]
+            F32    -> printf ("%f" ++ append) [op]
+            F64    -> printf ("%f" ++ append) [op]
+            Char   -> printf ("%c" ++ append) [op]
+            String -> printf ("\"%s\"" ++ append) [op]
             t      -> cmpErr ("cannot print value with type: " ++ show t)
 
 

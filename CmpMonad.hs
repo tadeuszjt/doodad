@@ -161,8 +161,8 @@ look symbol key = do
     assert (isJust keyMap) (symbol ++ " doesn't exist")
     let entry = Map.lookup key (fromJust keyMap)
     assert (isJust entry) ("no matching entry for symbol")
-    let (obj, nameSet) = fromJust entry 
-    unless (Set.null nameSet) $ mapM_ ensureDef (Set.toList nameSet)
+    let Just (obj, nameSet) = entry 
+    mapM_ ensureDef (Set.toList nameSet)
     return obj
 
 
@@ -210,14 +210,12 @@ ensureDef name = do
         addDeclared name
 
 
-addExtern :: MonadModuleCmp k o m => Name -> [Type] -> Type -> Bool -> m ()
-addExtern name paramTypes retType isVarg = do
-    addAction name $ emitDefn $ GlobalDefinition $ functionDefaults
-        { returnType = retType
-        , name       = name
-        , parameters = ([Parameter typ (mkName "") [] | typ <- paramTypes], isVarg)
-        }
-
+ensureSymDeps :: MonadModuleCmp k o m => String -> k -> m ()
+ensureSymDeps symbol key = do
+    keyMap <- lookupSymbol symbol
+    let Just (obj, nameSet) = Map.lookup key (fromJust keyMap)
+    mapM_ ensureDef (Set.toList nameSet)
+    
 
 ensureExtern :: MonadModuleCmp k o m => Name -> [Type] -> Type -> Bool -> m Operand
 ensureExtern name paramTypes returnType isVarg = do
@@ -226,6 +224,15 @@ ensureExtern name paramTypes returnType isVarg = do
     ensureDef name
     return $ ConstantOperand $
         GlobalReference (ptr $ FunctionType returnType paramTypes isVarg) name
+
+
+addExtern :: MonadModuleCmp k o m => Name -> [Type] -> Type -> Bool -> m ()
+addExtern name paramTypes retType isVarg = do
+    addAction name $ emitDefn $ GlobalDefinition $ functionDefaults
+        { returnType = retType
+        , name       = name
+        , parameters = ([Parameter typ (mkName "") [] | typ <- paramTypes], isVarg)
+        }
 
 
 addDeclared :: MonadModuleCmp k o m => Name -> m ()

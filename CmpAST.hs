@@ -219,8 +219,13 @@ cmpExpr (S.Call pos symbol args) = withPos pos $ do
     vals <- mapM valLoad =<< mapM cmpExpr args
     mapM ensureTypeDeps (map valType vals)
 
-    rfun <- lookupSymKey symbol $ KeyFunc (map valType vals)
-    rtyp <- lookupSymKey symbol $ KeyType 
+
+    let key = KeyFunc (map valType vals)
+    rfun <- lookupSymKey symbol key
+    when (isJust rfun) (ensureSymDeps symbol key)
+    rtyp <- lookupSymKey symbol KeyType 
+    when (isJust rtyp) (ensureSymDeps symbol KeyType)
+
     case (rtyp, rfun) of
         (_, Just (ObjFunc typ op)) -> Val typ <$> call op [(o, []) | o <- map valOp vals]
         (_, Just (ObjInline f))    -> f vals
@@ -233,6 +238,7 @@ cmpExpr (S.Call pos symbol args) = withPos pos $ do
             conc <- getConcreteType typ
             concs <- mapM getConcreteType (map valType args)
             case concs of
+                []                     -> Val typ <$> (fmap cons $ zeroOf conc)
                 [t] | conc == t        -> return $ (head args) { valType = typ }
                 ts  | conc == Tuple ts -> do
                     tup <- valLocal typ

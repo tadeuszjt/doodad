@@ -11,6 +11,11 @@ import CmpMonad
 import CmpValue
 import CmpFuncs
 
+
+--printData :: SymObj -> Instr ()
+--printData (ObjData concTyp) = do
+    
+
 cmpDataDef :: S.Stmt -> Instr ()
 cmpDataDef (S.Datadef pos symbol datas) = withPos pos $ do
     checkUndefined symbol
@@ -31,15 +36,11 @@ cmpDataDef (S.Datadef pos symbol datas) = withPos pos $ do
         S.DataIdent p sym       -> return (Tuple [enumTyp])
         S.DataFunc p sym params -> return $ Tuple (enumTyp : map (fromASTType . S.paramType) params)
 
-        
     memSizes <- mapM sizeOf =<< mapM opTypeOf memTyps
+
+
     let memMaxSize = maximum memSizes
     let dataConcTyp = Array memMaxSize I8
-
-    addSymObj symbol KeyType $ ObjData 
-        { dataConcTyp = dataConcTyp
-        }
-    
     forM_ (zip3 memTyps datas [0..]) $ \(typ, dat, i) -> do
         checkUndefined (S.dataSymbol dat)
         case dat of
@@ -70,58 +71,31 @@ cmpDataDef (S.Datadef pos symbol datas) = withPos pos $ do
                     return (Ptr dataTyp loc)
 
 
---cmpTopStmt (S.Datadef pos symbol datas) = withPos pos $ do
---    checkUndefined symbol
---
---    (nameStrs, nameStrLens) <- fmap unzip $ forM (map S.dataSymbol datas) $ \sym -> do
---        checkUndefined sym
---        return (sym ++ "\0", fromIntegral $ length sym + 1)
---    let numIdxs = fromIntegral (length nameStrLens)
---    let (_, idxs) = foldl (\(n, a) l -> (n+l, a ++ [n])) (0, []) nameStrLens
---    strName <- freshName $ mkBSS (symbol ++ "str")
---    idxName <- freshName $ mkBSS (symbol ++ "idx")
---    let (strDef, strOp) = stringDef strName (concat nameStrs)
---    let (idxDef, idxOp) = globalDef idxName (ArrayType numIdxs i64) $ Just $ C.Array i64 $ map (C.Int 64) idxs
---    addAction strName (emitDefn strDef)
---    addAction idxName (emitDefn idxDef)
---
---
---    let n = 4
---
---    typs <- forM (zip datas [0..]) $ \(d, i) -> cmpData d i
---    sizes <- mapM sizeOf =<< mapM opTypeOf typs
---
---    addSymObj symbol KeyType $ ObjData (maximum sizes) (Val String strOp) (Ptr (Array numIdxs I64) idxOp) 
---    addSymObjReq symbol KeyType strName
---    addSymObjReq symbol KeyType idxName
---
---    where
---        cmpData :: S.Data -> Integer -> Instr ValType
---        cmpData (S.DataIdent p sym) i = withPos p $ do
---            checkUndefined sym
---            let val = Val (Typedef symbol) (array [toCons (int64 i)])
---            addSymObj sym (KeyFunc []) (ObjVal val)
---            addSymObj sym KeyVal       (ObjVal val)
---            return I64
---
---        cmpData (S.DataFunc p sym params) i = withPos p $ do
---            checkUndefined sym
---            let paramSymbols  = map S.paramName params
---            let paramASTTypes = map S.paramType params
---            let paramTypes    = map fromASTType paramASTTypes
---            pushSymTab 
---            forM_ (paramSymbols) $ \(sym) -> checkUndefined sym
---            popSymTab
---
---            let typ = Tuple (I64 : paramTypes)
---            opTyp <- opTypeOf typ
---            val <- Val (Typedef symbol) <$> fmap cons (zeroOf typ)
---            addSymObj sym (KeyFunc paramTypes) $ ObjInline $ \args -> do
---                loc <- valLocal typ
---                valTupleSet loc 0 (Val I64 $ int64 i)
---                forM_ (zip args [0..]) $ \(a, i) ->
---                    valTupleSet loc (i + 1) a
---                v <- valLoad loc
---                return $ v { valType = Typedef symbol }
---                
---            return $ Tuple (I64 : paramTypes)
+    addSymObj symbol KeyType $ ObjData 
+        { dataConcTyp = dataConcTyp
+        , dataPrintFn = (\v -> printFn enumTyp memTyps v)
+        }
+
+    where
+
+        printFn :: ValType -> [ValType] -> Value -> Instr ()
+        printFn enumTyp memTyps (Ptr _ loc) = do
+            let memSymbols = map S.dataSymbol datas
+            enumOpTyp <- opTypeOf enumTyp
+            ptr1 <- bitcast loc (ptr enumOpTyp)
+            en <- load ptr1 0
+
+            casesM <- forM (zip3 memSymbols memTyps [0..]) $ \(sym, typ, i) -> do
+                let cmpCnd = do
+                    Val Bool cnd <- valsEqual (Val enumTyp en) (consInt enumTyp i)
+                    return cnd
+
+                let cmpStmt = do
+                    printf sym []
+                    opTyp <- opTypeOf typ
+                    ptr2 <- bitcast loc (ptr opTyp)
+                    valPrint "" (Ptr typ ptr2)
+
+                return (cmpCnd, cmpStmt)
+
+            switch_ casesM

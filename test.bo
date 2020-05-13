@@ -1,3 +1,5 @@
 data Drink = Aviation, WhiteRussian, Vesper(x i64);
 
-y := Vesper(32);
+fn f(d Drink) { print(d, d, d, d); }
+
+f(Aviation());
