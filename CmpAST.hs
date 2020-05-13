@@ -90,36 +90,44 @@ cmpTopStmt (S.Datadef pos symbol datas) = withPos pos $ do
 
     let n = 4
 
+    typs <- forM (zip datas [0..]) $ \(d, i) -> cmpData d i
+    sizes <- mapM sizeOf =<< mapM opTypeOf typs
 
-    addSymObj symbol KeyType $ ObjData n (Val String strOp) (Ptr (Array numIdxs I64) idxOp) 
+    addSymObj symbol KeyType $ ObjData (maximum sizes) (Val String strOp) (Ptr (Array numIdxs I64) idxOp) 
     addSymObjReq symbol KeyType strName
     addSymObjReq symbol KeyType idxName
 
-    forM_ (zip datas [0..]) $ \(d, i) -> cmpData d i
     where
-        cmpData :: S.Data -> Integer -> Instr Word64
+        cmpData :: S.Data -> Integer -> Instr ValType
         cmpData (S.DataIdent p sym) i = withPos p $ do
             checkUndefined sym
             let val = Val (Typedef symbol) (array [toCons (int64 i)])
             addSymObj sym (KeyFunc []) (ObjVal val)
             addSymObj sym KeyVal       (ObjVal val)
-            sizeOf i64
---
---        cmpData (S.DataFunc p sym params) i = withPos p $ do
---            checkUndefined sym 
---            let val = Val (Typedef symbol) (int64 i)
---            let paramSymbols= map S.paramName params
---            let paramASTTypes = map S.paramType params
---            pushSymTab
---            paramTypes <- forM (zip paramSymbols paramASTTypes) $ \(sym, astTyp) -> do
---                checkUndefined sym
---                let typ = fromASTType astTyp
---                ensureTypeDeps typ
---                return typ
---            popSymTab
---            addSymObj sym (KeyFunc paramTypes) (ObjVal val)
---            addSymObj sym KeyVal                 (ObjVal val)
-            
+            return I64
+
+        cmpData (S.DataFunc p sym params) i = withPos p $ do
+            checkUndefined sym
+            let paramSymbols  = map S.paramName params
+            let paramASTTypes = map S.paramType params
+            let paramTypes    = map fromASTType paramASTTypes
+            pushSymTab 
+            forM_ (paramSymbols) $ \(sym) -> checkUndefined sym
+            popSymTab
+
+            let typ = Tuple (I64 : paramTypes)
+            opTyp <- opTypeOf typ
+            val <- Val (Typedef symbol) <$> fmap cons (zeroOf typ)
+            addSymObj sym (KeyFunc paramTypes) $ ObjInline $ \args -> do
+                loc <- valLocal typ
+                valTupleSet loc 0 (Val I64 $ int64 i)
+                forM_ (zip args [0..]) $ \(a, i) ->
+                    valTupleSet loc (i + 1) a
+                v <- valLoad loc
+                return $ v { valType = Typedef symbol }
+                
+            return $ Tuple (I64 : paramTypes)
+
 cmpTopStmt (S.Assign pos pattern expr) = do
     val <- cmpExpr expr
     conc <- getConcreteType (valType val)
@@ -212,35 +220,23 @@ cmpStmt (S.Set pos index expr) = withPos pos $ do
             tup <- idxPtr ind
             valTupleIdx tup i
 
-cmpStmt (S.Switch pos expr []) = return ()
+cmpStmt (S.Switch pos expr [])    = void (cmpExpr expr)
 cmpStmt (S.Switch pos expr cases) = withPos pos $ do
-    exit <- fresh
-    cndNames <- replicateM (length cases) (freshName "case")
-    stmtNames <- replicateM (length cases) (freshName "case_stmt")
-
-    let nextNames = tail cndNames ++ [exit]
-    let (caseExprs, stmts) = unzip cases
-
-    br (head cndNames)
     pushSymTab
-
-    forM_ (zip5 caseExprs cndNames stmtNames nextNames stmts) $
-        \(caseExpr, cndName, stmtName, nextName, stmt) -> do
-            emitBlockStart cndName
-            if isJust caseExpr then do
-                val <- cmpExpr expr
+    val <- cmpExpr expr
+    casesM <- forM cases $ \(caseExpr, caseStmt) -> do
+        let cmpCnd = if isJust caseExpr then do
                 cas <- cmpExpr (fromJust caseExpr)
                 Val Bool cnd <- valsEqual val cas
-                condBr cnd stmtName nextName
+                return cnd
             else
-                br stmtName
-            emitBlockStart stmtName
-            cmpStmt stmt
-            br exit
+                return (bit 1)
+        let cStmt = cmpStmt caseStmt
 
+        return (cmpCnd, cStmt)
+    switch_ casesM
     popSymTab
-    br exit
-    emitBlockStart exit
+
 
 cmpStmt (S.Return pos mexpr) = withPos pos $ do
     retTyp <- getCurRetTyp

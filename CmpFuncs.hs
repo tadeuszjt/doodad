@@ -6,6 +6,7 @@ module CmpFuncs where
 
 import           Control.Monad
 import           Data.Char
+import           Data.List
 import           Prelude                    hiding (EQ, and, or)
 
 import           LLVM.AST 
@@ -61,6 +62,28 @@ if_ cnd trueIns falseIns = do
     br exit
 
     emitBlockStart exit
+
+
+switch_ :: MonadInstrCmp k o m => [(m Operand, m ())] -> m ()
+switch_ cases = do
+    exitName <- fresh
+    cndNames <- replicateM (length cases) (freshName "case")
+    stmtNames <- replicateM (length cases) (freshName "case_stmt")
+    let nextNames = cndNames ++ [exitName]
+    let (cmpCnds, cmpStmts) = unzip cases
+
+    br (head nextNames)
+    forM_ (zip5 cmpCnds cmpStmts cndNames stmtNames (tail nextNames)) $
+        \(cmpCnd, cmpStmt, cndName, stmtName, nextName) -> do
+            emitBlockStart cndName
+            cnd <- cmpCnd
+            condBr cnd stmtName nextName
+            emitBlockStart stmtName
+            cmpStmt
+            br exitName
+
+    br exitName
+    emitBlockStart exitName
 
 
 putchar :: MonadInstrCmp k o m => Char -> m Operand
