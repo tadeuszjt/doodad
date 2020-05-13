@@ -74,7 +74,9 @@ data SymObj
     | ObjFunc ValType Operand
     | ObjInline ([Value] -> Instr Value)
     | ObjType ValType
-    | ObjData { sizeBytes :: Word64, namesStr, strIdxArr :: Value }
+    | ObjData
+        { dataConcTyp :: ValType
+        }
     deriving (Show)
 
 
@@ -86,6 +88,7 @@ data Value
 
 data ValType
     = Void
+    | I8
     | I32
     | I64
 	| F32
@@ -101,7 +104,7 @@ data ValType
 
 
 isInt (Named _ t)       = isInt t
-isInt x                 = x `elem` [I32, I64]
+isInt x                 = x `elem` [I8, I32, I64]
 isFloat (Named _ t)     = isFloat t
 isFloat x               = x `elem` [F32, F64]
 isBase (Named _ t)      = isBase t
@@ -124,6 +127,12 @@ isExpr (Named _ t)      = isExpr t
 isExpr x                = isBase x || isAggregate x || isTypedef x || x == String
 
 
+consInt :: ValType -> Integer -> Value
+consInt I8 n = Val I8 (int8 n)
+consInt I32 n = Val I32 (int32 n)
+consInt I64 n = Val I64 (int64 n)
+
+
 fromASTType :: S.Type -> ValType
 fromASTType typ = case typ of
     S.TBool      -> Bool
@@ -143,6 +152,7 @@ opTypeOf typ = case typ of
         Void       -> return VoidType
         Bool       -> return i1
         Char       -> return i32
+        I8         -> return i8
         I32        -> return i32
         I64        -> return i64
         F32        -> return (FloatingPointType HalfFP)
@@ -154,8 +164,8 @@ opTypeOf typ = case typ of
         Typedef sym  -> do
             res <- look sym KeyType
             case res of
-                ObjType t     -> opTypeOf t
-                ObjData n _ _ -> return (dataOpType n)
+                ObjType t -> opTypeOf t
+                ObjData t -> opTypeOf t
 
 
 dataOpType :: Word64 -> Type
@@ -174,6 +184,7 @@ sizeOf typ = do
 
 zeroOf :: ValType -> Instr C.Constant
 zeroOf typ = case typ of
+    I8         -> return $ toCons (int8 0)
     I32        -> return $ toCons (int32 0)
     I64        -> return $ toCons (int64 0)
     F32        -> return $ toCons (single 0)
@@ -206,8 +217,8 @@ getConcreteType typ = case typ of
     Typedef sym -> do
         res <- look sym KeyType
         case res of
-            ObjType typ   -> getConcreteType typ
-            ObjData n _ _ -> return I64
+            ObjType typ -> getConcreteType typ
+            ObjData t   -> return t
     t           -> return t
 
 
@@ -240,8 +251,8 @@ ensureTypeDeps (Tuple ts)  = mapM_ ensureTypeDeps ts
 ensureTypeDeps (Typedef sym) = do
     res <- look sym KeyType
     case res of
-        ObjType t    -> ensureTypeDeps t
-        ObjData n _ _-> return ()
+        ObjType t -> ensureTypeDeps t
+        ObjData t -> ensureTypeDeps t
 ensureTypeDeps (Named name t) = do
     ensureDef name
     ensureTypeDeps t
@@ -384,15 +395,17 @@ valPrint append val
                     void $ printf (symbol ++ "(") []
                     valPrint (")" ++ append) (val { valType = conc })
 
-            ObjData n (Val String strOp) (Ptr _ arrOp) -> do
-                loc <- valLocal (valType val)
-                valStore loc val
-                ptr <- bitcast (valOp loc) (ptr i64)
-                int <- load ptr 0
-                pid <- gep arrOp [int32 0, int]
-                idx <- load pid 0
-                str <- gep strOp [idx]
-                void $ printf ("%s" ++ append) [str]
+            ObjData t -> do
+                return ()
+
+--                loc <- valLocal (valType val)
+--                valStore loc val
+--                ptr <- bitcast (valOp loc) (ptr i64)
+--                int <- load ptr 0
+--                pid <- gep arrOp [int32 0, int]
+--                idx <- load pid 0
+--                str <- gep strOp [idx]
+--                void $ printf ("%s" ++ append) [str]
 
     | otherwise = do
         Val typ op <- valLoad val

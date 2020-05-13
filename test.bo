@@ -1,8 +1,3 @@
-data Drink = Aviation, WhiteRussian, Vesper(olives i64);
+data Drink = Aviation, WhiteRussian, Vesper(x i64);
 
-x := 23;
-
-switch x { 23: print(310); _ : print(9999); }
-
-print(Vesper(31));
-
+y := Vesper(32);

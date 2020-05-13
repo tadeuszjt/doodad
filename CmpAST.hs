@@ -35,6 +35,7 @@ import qualified AST                        as S
 import           CmpFuncs
 import           CmpValue
 import           CmpMonad
+import           CmpADT
 
 
 compile :: Context -> Ptr FFI.DataLayout -> MyCmpState -> S.AST -> IO (Either CmpError ([Definition], MyCmpState))
@@ -52,6 +53,7 @@ cmpTopStmt stmt@(S.Set _ _ _)      = cmpStmt stmt
 cmpTopStmt stmt@(S.Print _ _)      = cmpStmt stmt
 cmpTopStmt stmt@(S.CallStmt _ _ _) = cmpStmt stmt
 cmpTopStmt stmt@(S.Switch _ _ _)   = cmpStmt stmt
+cmpTopStmt stmt@(S.Datadef _ _ _)  = cmpDataDef stmt
 
 cmpTopStmt (S.Typedef pos symbol astTyp) = do
     checkUndefined symbol
@@ -70,63 +72,6 @@ cmpTopStmt (S.Typedef pos symbol astTyp) = do
 
     else
         addSymObj symbol KeyType (ObjType typ)
-
-
-cmpTopStmt (S.Datadef pos symbol datas) = withPos pos $ do
-    checkUndefined symbol
-
-    (nameStrs, nameStrLens) <- fmap unzip $ forM (map S.dataSymbol datas) $ \sym -> do
-        checkUndefined sym
-        return (sym ++ "\0", fromIntegral $ length sym + 1)
-    let numIdxs = fromIntegral (length nameStrLens)
-    let (_, idxs) = foldl (\(n, a) l -> (n+l, a ++ [n])) (0, []) nameStrLens
-    strName <- freshName $ mkBSS (symbol ++ "str")
-    idxName <- freshName $ mkBSS (symbol ++ "idx")
-    let (strDef, strOp) = stringDef strName (concat nameStrs)
-    let (idxDef, idxOp) = globalDef idxName (ArrayType numIdxs i64) $ Just $ C.Array i64 $ map (C.Int 64) idxs
-    addAction strName (emitDefn strDef)
-    addAction idxName (emitDefn idxDef)
-
-
-    let n = 4
-
-    typs <- forM (zip datas [0..]) $ \(d, i) -> cmpData d i
-    sizes <- mapM sizeOf =<< mapM opTypeOf typs
-
-    addSymObj symbol KeyType $ ObjData (maximum sizes) (Val String strOp) (Ptr (Array numIdxs I64) idxOp) 
-    addSymObjReq symbol KeyType strName
-    addSymObjReq symbol KeyType idxName
-
-    where
-        cmpData :: S.Data -> Integer -> Instr ValType
-        cmpData (S.DataIdent p sym) i = withPos p $ do
-            checkUndefined sym
-            let val = Val (Typedef symbol) (array [toCons (int64 i)])
-            addSymObj sym (KeyFunc []) (ObjVal val)
-            addSymObj sym KeyVal       (ObjVal val)
-            return I64
-
-        cmpData (S.DataFunc p sym params) i = withPos p $ do
-            checkUndefined sym
-            let paramSymbols  = map S.paramName params
-            let paramASTTypes = map S.paramType params
-            let paramTypes    = map fromASTType paramASTTypes
-            pushSymTab 
-            forM_ (paramSymbols) $ \(sym) -> checkUndefined sym
-            popSymTab
-
-            let typ = Tuple (I64 : paramTypes)
-            opTyp <- opTypeOf typ
-            val <- Val (Typedef symbol) <$> fmap cons (zeroOf typ)
-            addSymObj sym (KeyFunc paramTypes) $ ObjInline $ \args -> do
-                loc <- valLocal typ
-                valTupleSet loc 0 (Val I64 $ int64 i)
-                forM_ (zip args [0..]) $ \(a, i) ->
-                    valTupleSet loc (i + 1) a
-                v <- valLoad loc
-                return $ v { valType = Typedef symbol }
-                
-            return $ Tuple (I64 : paramTypes)
 
 cmpTopStmt (S.Assign pos pattern expr) = do
     val <- cmpExpr expr
