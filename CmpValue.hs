@@ -228,7 +228,11 @@ getTupleType :: ValType -> Instr ValType
 getTupleType typ = case typ of
     Tuple _     -> return typ
     Named _ t   -> getTupleType t
-    Typedef sym -> do ObjType t <- look sym KeyType; getTupleType t
+    Typedef sym -> do
+        res <- look sym KeyType
+        case res of
+            ObjType t   -> getTupleType t
+            ObjData t _ -> getTupleType t
     _           -> cmpErr "isn't a tuple"
 
 

@@ -12,10 +12,6 @@ import CmpValue
 import CmpFuncs
 
 
---printData :: SymObj -> Instr ()
---printData (ObjData concTyp) = do
-    
-
 cmpDataDef :: S.Stmt -> Instr ()
 cmpDataDef (S.Datadef pos symbol datas) = withPos pos $ do
     checkUndefined symbol
@@ -23,7 +19,7 @@ cmpDataDef (S.Datadef pos symbol datas) = withPos pos $ do
 
     enumTyp <- case length datas of
         x
-            | x < 2^8  -> return I8
+            | x < 2^8  -> return I64
             | x < 2^16 -> return I32
             | x < 2^32 -> return I32
             | x < 2^64 -> return I64
@@ -37,10 +33,16 @@ cmpDataDef (S.Datadef pos symbol datas) = withPos pos $ do
         S.DataFunc p sym params -> return $ Tuple (enumTyp : map (fromASTType . S.paramType) params)
 
     memSizes <- mapM sizeOf =<< mapM opTypeOf memTyps
-
-
     let memMaxSize = maximum memSizes
-    let dataConcTyp = Array memMaxSize I8
+
+    fillTyp <- case memMaxSize of
+        x
+            | mod x 8 == 0 -> return $ Array (div x 8) I64
+            | mod x 4 == 0 -> return $ Array (div x 4) I32
+            | otherwise     -> return $ Array x I8
+
+    let dataConcTyp = fillTyp
+
     forM_ (zip3 memTyps datas [0..]) $ \(typ, dat, i) -> do
         checkUndefined (S.dataSymbol dat)
         case dat of
@@ -79,15 +81,15 @@ cmpDataDef (S.Datadef pos symbol datas) = withPos pos $ do
     where
 
         printFn :: ValType -> [ValType] -> Value -> Instr ()
-        printFn enumTyp memTyps (Ptr _ loc) = do
+        printFn enumTyp memTyps val@(Ptr _ loc) = do
             let memSymbols = map S.dataSymbol datas
             enumOpTyp <- opTypeOf enumTyp
-            ptr1 <- bitcast loc (ptr enumOpTyp)
-            en <- load ptr1 0
+            enPtr <- bitcast loc (ptr enumOpTyp)
+            en <- valLoad (Ptr enumTyp enPtr)
 
             casesM <- forM (zip3 memSymbols memTyps [0..]) $ \(sym, typ, i) -> do
                 let cmpCnd = do
-                    Val Bool cnd <- valsEqual (Val enumTyp en) (consInt enumTyp i)
+                    Val Bool cnd <- valsEqual en $ consInt (valType en) i
                     return cnd
 
                 let cmpStmt = do

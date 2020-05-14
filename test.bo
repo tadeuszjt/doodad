@@ -1,5 +1,5 @@
-data Drink = Aviation, WhiteRussian, Vesper(x i64);
+data Drink = Aviation, WhiteRussian, Vesper(x i64, y i64);
 
-fn f(d Drink) { print(d, d, d, d); }
+fn f(d Drink) { print(d); }
 
-f(Aviation());
+f(Vesper(31, 321));
