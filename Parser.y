@@ -90,7 +90,7 @@ Prog  : {- empty -}                         { [] }
 Stmt  : StmtS ';'                           { $1 }
       | StmtB                               { $1 }
 StmtS : pattern ':=' expr                   { S.Assign (tokPosn $2) $1 $3 }  
-      | Index '=' expr                      { S.Set (tokPosn $2) $1 $3 }
+      | index '=' expr                      { S.Set (tokPosn $2) $1 $3 }
       | type ident '=' Type                 { S.Typedef (tokPosn $2) (L.tokStr $2) $4 }
       | data ident '=' Datas                { S.Datadef (tokPosn $2) (L.tokStr $2) $4 }
       | extern ident '(' params ')' Type    { S.Extern (tokPosn $2) (L.tokStr $2) $4 (Just $6) }
@@ -118,6 +118,7 @@ expr : int                          { S.Int (tokPosn $1) (read $ L.tokStr $1) }
      | ident '(' args ')'           { S.Call (tokPosn $1) (L.tokStr $1) $3 }
      | len '(' expr ')'             { S.Len (tokPosn $1) $3 }
      | expr '.' int                 { S.TupleIndex (tokPosn $2) $1 (read $ L.tokStr $3) }
+     | expr '.' ident               { S.TupleMember (tokPosn $2) $1 (L.tokStr $3) }
      | expr '[' expr ']'            { S.ArrayIndex (tokPosn $2) $1 $3 }
      | '-' expr                     { S.Prefix (tokPosn $1) S.Minus $2 }
      | '+' expr                     { S.Prefix (tokPosn $1) S.Plus $2 }
@@ -137,6 +138,8 @@ expr : int                          { S.Int (tokPosn $1) (read $ L.tokStr $1) }
 
 Type         : ConcreteType         { $1 }
              | ident                { S.TIdent (L.tokStr $1) }
+             | ident ConcreteType   { S.TAnno (L.tokStr $1) $2 }
+             | ident ident          { S.TAnno (L.tokStr $1) (S.TIdent (L.tokStr $2)) }
 ConcreteType : bool                 { S.TBool }
              | i32                  { S.TI32 }
              | i64                  { S.TI64 }
@@ -150,6 +153,7 @@ Types        : {- empty -}          { [] }
              | Types_               { $1 }
 Types_       : Type                 { [$1] }
              | Type ',' Types_      { $1 : $3 }
+
 
 
 Data   : ident                      { S.DataIdent (tokPosn $1) (L.tokStr $1) }
@@ -167,9 +171,9 @@ patterns  : pattern                 { [$1] }
           | pattern ',' patterns    { $1 : $3 }
 
 
-Index  : ident                      { S.IndIdent (tokPosn $1) (L.tokStr $1) }
-       | Index '[' expr ']'         { S.IndArray (tokPosn $2) $1 $3 }
-       | Index '.' int              { S.IndTuple (tokPosn $2) $1 (read $ L.tokStr $3) }
+index  : ident                      { S.IndIdent (tokPosn $1) (L.tokStr $1) }
+       | index '[' expr ']'         { S.IndArray (tokPosn $2) $1 $3 }
+       | index '.' int              { S.IndTuple (tokPosn $2) $1 (read $ L.tokStr $3) }
 
 
 Switch : switch expr '{' Cases '}'  { S.Switch (tokPosn $1) $2 $4 }

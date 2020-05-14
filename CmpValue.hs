@@ -102,31 +102,45 @@ data ValType
     | Array Word64 ValType
     | Typedef String
     | Named Name ValType
+    | AnnoTyp String ValType
     deriving (Show, Eq, Ord)
 
 
+isChar (AnnoTyp _ t)    = isChar t
+isChar (Named _ t)      = isChar t
+isChar x                = x == Char
+
+isString (AnnoTyp _ t)  = isString t
+isString (Named _ t)    = isString t
+isString x              = x == String
+
+isInt (AnnoTyp _ t)     = isInt t
 isInt (Named _ t)       = isInt t
 isInt x                 = x `elem` [I8, I32, I64]
+
+isFloat (AnnoTyp _ t)   = isFloat t
 isFloat (Named _ t)     = isFloat t
 isFloat x               = x `elem` [F32, F64]
-isBase (Named _ t)      = isBase t
-isBase x                = isInt x || isFloat x || x `elem` [Bool, Char]
+
+isArray (AnnoTyp _ t)   = isArray t
 isArray (Named _ t)     = isArray t
 isArray (Array _ _)     = True
 isArray _               = False
+
+isTuple (AnnoTyp _ t)   = isTuple t 
 isTuple (Named _ t)     = isTuple t
 isTuple (Tuple _)       = True
 isTuple _               = False
+
 isTypedef (Typedef _)   = True
 isTypedef _             = False
-isIntegral (Named _ t)  = isIntegral t
-isIntegral x            = isInt x || x == Char
-isAggregate (Named _ t) = isAggregate t
+
+isAnnoTyp (AnnoTyp _ _) = True
+isAnnoTyp _             = False
+
+isIntegral x            = isInt x || isChar x
+isBase x                = isInt x || isFloat x || isChar x
 isAggregate x           = isTuple x || isArray x
-isConcrete (Named _ t)  = isConcrete t
-isConcrete x            = not (isTypedef x)
-isExpr (Named _ t)      = isExpr t
-isExpr x                = isBase x || isAggregate x || isTypedef x || x == String
 
 
 consInt :: ValType -> Integer -> Value
@@ -147,31 +161,29 @@ fromASTType typ = case typ of
     S.TArray n t -> Array n (fromASTType t)
     S.TTuple ts  -> Tuple (map fromASTType ts)
     S.TIdent sym -> Typedef sym
+    S.TAnno s t  -> AnnoTyp s (fromASTType t)
 
 
 opTypeOf :: ValType -> Instr Type
 opTypeOf typ = case typ of
-        Void       -> return VoidType
-        Bool       -> return i1
-        Char       -> return i32
-        I8         -> return i8
-        I32        -> return i32
-        I64        -> return i64
-        F32        -> return (FloatingPointType HalfFP)
-        F64        -> return (FloatingPointType DoubleFP)
-        Tuple ts   -> fmap (StructureType False) (mapM opTypeOf ts)
-        Array n t  -> fmap (ArrayType $ fromIntegral n) (opTypeOf t)
-        String     -> return (ptr i8)
-        Named nm t -> return (NamedTypeReference nm)
-        Typedef sym  -> do
+        Void        -> return VoidType
+        Bool        -> return i1
+        Char        -> return i32
+        I8          -> return i8
+        I32         -> return i32
+        I64         -> return i64
+        F32         -> return (FloatingPointType HalfFP)
+        F64         -> return (FloatingPointType DoubleFP)
+        Tuple ts    -> fmap (StructureType False) (mapM opTypeOf ts)
+        Array n t   -> fmap (ArrayType $ fromIntegral n) (opTypeOf t)
+        String      -> return (ptr i8)
+        Named nm t  -> return (NamedTypeReference nm)
+        AnnoTyp _ t -> opTypeOf t
+        Typedef sym -> do
             res <- look sym KeyType
             case res of
                 ObjType t   -> opTypeOf t
                 ObjData t _ -> opTypeOf t
-
-
-dataOpType :: Word64 -> Type
-dataOpType sizeBytes = ArrayType sizeBytes i8
 
 
 sizeOf :: Type -> Instr Word64
@@ -186,19 +198,19 @@ sizeOf typ = do
 
 zeroOf :: ValType -> Instr C.Constant
 zeroOf typ = case typ of
-    I8         -> return $ toCons (int8 0)
-    I32        -> return $ toCons (int32 0)
-    I64        -> return $ toCons (int64 0)
-    F32        -> return $ toCons (single 0)
-    F64        -> return $ toCons (double 0)
-    Bool       -> return $ toCons (bit 0)
-    Char       -> return $ toCons (int32 0)
-    String     -> return $ C.IntToPtr (toCons $ int64 0) (ptr i8)
-    Array n t  -> return . toCons . array . replicate (fromIntegral n) =<< zeroOf t
-    Tuple typs -> return . toCons . (struct Nothing False) =<< mapM zeroOf typs
-    Typedef _  -> zeroOf =<< getConcreteType typ
-    Named _ t  -> zeroOf t
-
+    I8          -> return $ toCons (int8 0)
+    I32         -> return $ toCons (int32 0)
+    I64         -> return $ toCons (int64 0)
+    F32         -> return $ toCons (single 0)
+    F64         -> return $ toCons (double 0)
+    Bool        -> return $ toCons (bit 0)
+    Char        -> return $ toCons (int32 0)
+    String      -> return $ C.IntToPtr (toCons $ int64 0) (ptr i8)
+    Array n t   -> return . toCons . array . replicate (fromIntegral n) =<< zeroOf t
+    Tuple typs  -> return . toCons . (struct Nothing False) =<< mapM zeroOf typs
+    Typedef _   -> zeroOf =<< getConcreteType typ
+    Named _ t   -> zeroOf t
+    AnnoTyp _ t -> zeroOf t
 
 
 setCurRetTyp :: ValType -> Instr ()
@@ -216,6 +228,7 @@ getConcreteType typ = case typ of
     Tuple ts    -> fmap Tuple (mapM getConcreteType ts)
     Array n t   -> fmap (Array n) (getConcreteType t)
     Named _ t   -> getConcreteType t
+    AnnoTyp _ t -> getConcreteType t
     Typedef sym -> do
         res <- look sym KeyType
         case res of
@@ -296,6 +309,17 @@ valLoad (Val typ op)  = return (Val typ op)
 valLoad (Ptr typ loc) = fmap (Val typ) (load loc 0)
 
 
+valCast :: ValType -> Value -> Instr Value
+valCast typ' (Ptr typ loc) = do
+    opTyp' <- opTypeOf typ'
+    loc' <- bitcast loc (ptr opTyp')
+    return (Ptr typ' loc')
+valCast typ' (Val typ op) = do
+    opTyp' <- opTypeOf typ'
+    op' <- bitcast op opTyp'
+    return (Val typ' op')
+
+
 valArrayIdx :: Value -> Value -> Instr Value
 valArrayIdx (Ptr (Array n t) loc) idx = do
     assert (isInt $ valType idx) "array index isn't int"
@@ -365,6 +389,11 @@ valsEqual a b = do
 
 valPrint :: String -> Value -> Instr ()
 valPrint append val
+    | isAnnoTyp (valType val) = do
+        let AnnoTyp s t = valType val
+        printf (s ++ "=") []
+        valPrint append (val{ valType = t })
+
     | valType val == Bool = do
         Val Bool op <- valLoad val
         str <- globalStringPtr "true\0false" =<< fresh

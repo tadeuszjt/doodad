@@ -86,5 +86,7 @@ jitAndRun defs session keepModule verbose = do
             res <- findSymbolIn cl modKey mangled False
             case res of
                 Left _                -> return ()
-                Right (JITSymbol fn _)-> run $ castPtrToFunPtr (wordPtrToPtr fn)
+                Right (JITSymbol fn _)-> do
+                    when verbose (putStrLn "running...")
+                    run $ castPtrToFunPtr (wordPtrToPtr fn)
             unless keepModule (removeModule cl modKey)

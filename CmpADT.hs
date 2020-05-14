@@ -1,10 +1,14 @@
 module CmpADT where
 
 import Data.Word
+import Data.Ord
+import Data.List
 import Control.Monad
+import Control.Monad.State
 
 import LLVM.AST.Type
 import LLVM.IRBuilder.Instruction
+import LLVM.IRBuilder.Constant
 
 import qualified AST as S
 import CmpMonad
@@ -19,73 +23,53 @@ cmpDataDef (S.Datadef pos symbol datas) = withPos pos $ do
 
     enumTyp <- case length datas of
         x
-            | x < 2^8  -> return I64
-            | x < 2^16 -> return I32
-            | x < 2^32 -> return I32
+            | x < 2^8  -> return I64 -- I8 causes seq fault
+            | x < 2^16 -> return I64
+            | x < 2^32 -> return I64
             | x < 2^64 -> return I64
     
-    enumOpTyp <- opTypeOf enumTyp
-    enumSize <- sizeOf enumOpTyp
-
-
     memTyps <- forM datas $ \dat -> case dat of
         S.DataIdent p sym       -> return (Tuple [enumTyp])
         S.DataFunc p sym params -> return $ Tuple (enumTyp : map (fromASTType . S.paramType) params)
 
     memSizes <- mapM sizeOf =<< mapM opTypeOf memTyps
-    let memMaxSize = maximum memSizes
-
-    fillTyp <- case memMaxSize of
-        x
-            | mod x 8 == 0 -> return $ Array (div x 8) I64
-            | mod x 4 == 0 -> return $ Array (div x 4) I32
-            | otherwise     -> return $ Array x I8
-
-    let dataConcTyp = fillTyp
+    let (_, dataConcTyp) = maximumBy (comparing fst) (zip memSizes memTyps)
 
     forM_ (zip3 memTyps datas [0..]) $ \(typ, dat, i) -> do
         checkUndefined (S.dataSymbol dat)
         case dat of
             S.DataIdent p sym -> withPos p $ do
+                checkUndefined sym
                 addSymObj sym (KeyFunc []) $ ObjInline $ \[] -> do
-                    Ptr _ loc <- valLocal dataConcTyp
-                    ptr <- bitcast loc (ptr enumOpTyp)
-                    valStore (Ptr enumTyp ptr) (consInt enumTyp i)
-                    return (Ptr dataTyp loc)
+                    tup@(Ptr _ _) <- valLocal dataConcTyp
+                    valTupleSet tup 0 (consInt enumTyp i)
+                    return (tup { valType = dataTyp })
 
             S.DataFunc p sym params -> withPos p $ do
+                checkUndefined sym
                 let paramSymbols = map S.paramName params
                 let paramTypes   = map (fromASTType . S.paramType) params
                 pushSymTab
-                forM_ paramSymbols $ \sym -> checkUndefined sym
+                forM_ paramSymbols $ \s -> checkUndefined s
                 popSymTab
                 addSymObj sym (KeyFunc paramTypes) $ ObjInline $ \args -> do
-                    Ptr _ loc <- valLocal dataConcTyp
-                    ptr1 <- bitcast loc (ptr enumOpTyp) 
-                    valStore (Ptr enumTyp ptr1) (consInt enumTyp i)
-
-                    opTyp <- opTypeOf typ
-                    ptr2 <- bitcast loc (ptr opTyp)
-                    let val = Ptr typ ptr2
-                    forM_ (zip args [0..]) $ \(arg, ai) ->
-                        valTupleSet val (ai + 1) arg
-
-                    return (Ptr dataTyp loc)
+                    tup@(Ptr _ _) <- valLocal dataConcTyp
+                    valTupleSet tup 0 (consInt enumTyp i)
+                    ptr <- valCast typ tup
+                    forM_ (zip args [1..]) $ \(arg, i) -> valTupleSet ptr i arg
+                    return (tup { valType = dataTyp })
 
 
     addSymObj symbol KeyType $ ObjData 
         { dataConcTyp = dataConcTyp
-        , dataPrintFn = (\v -> printFn enumTyp memTyps v)
+        , dataPrintFn = printFn memTyps
         }
 
     where
-
-        printFn :: ValType -> [ValType] -> Value -> Instr ()
-        printFn enumTyp memTyps val@(Ptr _ loc) = do
+        printFn :: [ValType] -> Value -> Instr ()
+        printFn memTyps dat@(Ptr _ _) = do
             let memSymbols = map S.dataSymbol datas
-            enumOpTyp <- opTypeOf enumTyp
-            enPtr <- bitcast loc (ptr enumOpTyp)
-            en <- valLoad (Ptr enumTyp enPtr)
+            en <- valLoad =<< valTupleIdx dat 0
 
             casesM <- forM (zip3 memSymbols memTyps [0..]) $ \(sym, typ, i) -> do
                 let cmpCnd = do
@@ -93,10 +77,12 @@ cmpDataDef (S.Datadef pos symbol datas) = withPos pos $ do
                     return cnd
 
                 let cmpStmt = do
-                    printf sym []
-                    opTyp <- opTypeOf typ
-                    ptr2 <- bitcast loc (ptr opTyp)
-                    valPrint "" (Ptr typ ptr2)
+                    tup <- valCast typ dat
+                    len <- valLen tup
+                    printf (sym ++ if len > 1 then "(" else "") []
+                    forM_ [1..len-1] $ \i -> do
+                        let app = if i < len-1 then ", " else ")"
+                        valPrint app =<< valTupleIdx tup (fromIntegral i)
 
                 return (cmpCnd, cmpStmt)
 

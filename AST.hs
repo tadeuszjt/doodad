@@ -44,6 +44,7 @@ data Type
 	| TArray Word64 Type
 	| TTuple [Type]
     | TIdent String
+    | TAnno String Type
 	deriving (Show, Eq)
 
 
@@ -77,6 +78,7 @@ data Expr
 	| Tuple TextPos [Expr]
 	| Array TextPos [Expr]
 	| TupleIndex TextPos Expr Word32
+	| TupleMember TextPos Expr String
     | ArrayIndex TextPos Expr Expr
     | Ident TextPos String
 	| Call TextPos String [Expr]

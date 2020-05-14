@@ -81,7 +81,6 @@ repl dl session verbose = runInputT defaultSettings (loop C.initCmpState)
                             loop state
                         Right (defs, state') -> do
                             let keepModule = not $ Set.null (C.exported state')
-                            liftIO (putStrLn "running...")
                             liftIO (jitAndRun defs session keepModule verbose)
                             loop state'
                                 { C.exported = Set.empty

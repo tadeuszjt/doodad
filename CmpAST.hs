@@ -277,6 +277,36 @@ cmpExpr (S.TupleIndex pos tupExpr i) = do
     typ <- getTupleType (valType tup)
     valTupleIdx (tup { valType = typ }) i
 
+cmpExpr (S.TupleMember pos tupExpr member) = do
+    tup <- cmpExpr tupExpr
+    Just idx <- indexAnno member tup
+    return idx
+    where
+        indexAnno :: String -> Value -> Instr (Maybe Value)
+        indexAnno str val = case valType val of
+            Named _ t   -> indexAnno str (val { valType = t } )
+            AnnoTyp s t -> do
+                if s == str then do
+                    return $ Just (val { valType = t })
+                else
+                    indexAnno str (val { valType = t })
+
+            Typedef sym -> do
+                res <- look sym KeyType
+                case res of
+                    ObjType t -> indexAnno str (val{ valType = t })
+            
+            Tuple ts -> do
+                res <- forM (zip ts [0..]) $ \(t, i) -> do
+                   idx@(Ptr _ _) <- valTupleIdx val i
+                   indexAnno str (idx { valType = t })
+                case find isJust res of
+                    Nothing -> return Nothing
+                    Just r  -> return r
+
+            _ -> return Nothing
+
+
 cmpExpr (S.Infix pos S.EqEq exprA exprB) = withPos pos $ do
     valA <- cmpExpr exprA
     valB <- cmpExpr exprB
