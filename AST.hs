@@ -55,11 +55,12 @@ data Data
 
 
 data Pattern
-    = PatIgnore { pos :: TextPos }
-    | PatIdent  { pos :: TextPos, symbol :: String }
-    | PatTuple  { pos :: TextPos, patterns :: [Pattern] }
-    | PatArray  { pos :: TextPos, patterns :: [Pattern] }
-    | PatTyped  { pos :: TextPos, symbol :: String, patterns :: [Pattern] }
+    = PatIgnore  { pos :: TextPos }
+    | PatLiteral { literal :: Expr }
+    | PatIdent   { pos :: TextPos, symbol :: String }
+    | PatTuple   { pos :: TextPos, patterns :: [Pattern] }
+    | PatArray   { pos :: TextPos, patterns :: [Pattern] }
+    | PatTyped   { pos :: TextPos, symbol :: String, pattern :: Pattern }
     deriving (Show, Eq)
 
 
@@ -83,7 +84,6 @@ data Expr
     | ArrayIndex TextPos Expr Expr
     | Ident TextPos String
     | Call TextPos String [Expr]
-    | Constructor TextPos Type Expr
     | Len TextPos Expr
     | Prefix TextPos Op Expr
     | Infix TextPos Op Expr Expr
@@ -93,7 +93,6 @@ data Stmt
     = Assign TextPos Pattern Expr
     | Set TextPos Index Expr
     | Print TextPos [Expr]
-    | Map TextPos String Expr
     | Block TextPos [Stmt]
     | Func TextPos String [Param] (Maybe Type) [Stmt]
     | Extern TextPos String [Param] (Maybe Type)
@@ -102,5 +101,5 @@ data Stmt
     | CallStmt TextPos String [Expr]
     | If TextPos Expr Stmt (Maybe Stmt)
     | Return TextPos (Maybe Expr)
-    | Switch TextPos Expr [(Maybe Expr, Stmt)]
+    | Switch TextPos Expr [(Pattern, Stmt)]
     deriving (Show, Eq)

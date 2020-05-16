@@ -117,6 +117,12 @@ data ValType
     deriving (Show, Eq, Ord)
 
 
+data BoolOp
+    = And
+    | Or
+    deriving (Show, Eq)
+
+
 isChar (AnnoTyp _ t)    = isChar t
 isChar (Named _ t)      = isChar t
 isChar x                = x == Char
@@ -158,6 +164,10 @@ consInt :: ValType -> Integer -> Value
 consInt I8 n = Val I8 (int8 n)
 consInt I32 n = Val I32 (int32 n)
 consInt I64 n = Val I64 (int64 n)
+
+
+consBool :: Bool -> Value
+consBool b = Val Bool (if b then bit 1 else bit 0)
 
 
 fromASTType :: S.Type -> ValType
@@ -246,7 +256,7 @@ getTupleType typ = case typ of
         res <- look sym KeyType
         case res of
             ObjType t   -> getTupleType t
-            ObjData t _ -> getTupleType t
+            _           -> cmpErr "isn't a tuple"
     _           -> cmpErr "isn't a tuple"
 
 
@@ -385,7 +395,9 @@ valTupleSet (Ptr typ loc) i val = do
 
 valsEqual :: Value -> Value -> Instr Value
 valsEqual a b = do
-    assert (valType a == valType b) "invalid equality, types don't match"
+    typA <- skipAnnos (valType a)
+    typB <- skipAnnos (valType b)
+    assert (typA == typB) ("equality: type mismatch between " ++ show typA ++ " and " ++ show typB)
     typ <- getConcreteType (valType a)
     fmap (Val Bool) $ valsEqual' typ a b
     where
@@ -397,6 +409,17 @@ valsEqual a b = do
                 icmp EQ opA opB
 
         valsEqual' typ a b = error $ show (typ, a, b)
+
+
+valAnd :: [Value] -> Instr Value
+valAnd [val] = do
+    assert (valType val == Bool) "non-bool in and expression"
+    valLoad val
+valAnd (v:vs) = do
+    Val Bool op  <- valAnd [v]
+    Val Bool ops <- valAnd vs
+    fmap (Val Bool) (and ops op)
+
 
 
 valPrint :: String -> Value -> Instr ()

@@ -119,6 +119,12 @@ strcmp a b = do
     call op [(a, []), (b, [])] 
 
 
+trap :: MonadInstrCmp k o m => m ()
+trap = do
+    op <- ensureExtern "llvm.trap" [] VoidType False
+    void $ call op []
+
+
 isCons :: Operand -> Bool
 isCons (ConstantOperand _) = True
 isCons _                   = False

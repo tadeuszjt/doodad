@@ -79,15 +79,15 @@ cmpDataDef (S.Datadef pos symbol datas) = withPos pos $ do
         printFn :: [ValType] -> Value -> Instr ()
         printFn memTyps dat@(Ptr _ _) = do
             let memSymbols = map S.dataSymbol datas
-            en <- valLoad =<< valTupleIdx dat 0
 
             casesM <- forM (zip3 memSymbols memTyps [0..]) $ \(sym, typ, i) -> do
+                tup <- valCast typ dat
                 let cmpCnd = do
+                    en <- valTupleIdx tup 0
                     Val Bool cnd <- valsEqual en $ consInt (valType en) i
                     return cnd
 
                 let cmpStmt = do
-                    tup <- valCast typ dat
                     len <- valLen tup
                     printf (sym ++ if len > 1 then "(" else "") []
                     forM_ [1..len-1] $ \i -> do

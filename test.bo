@@ -1,10 +1,9 @@
 type Point = (x i64, y i64);
 data Item = ItemA(p Point), ItemB(b bool);
 
-a := ItemA(Point(31, 20));
-b := ItemB(true);
+let a = ItemA(Point(31, 20));
 
-ItemB(c) := b;
-ItemA(p) := a;
-print(c);
+let p = Point(31, 20);
+
+switch p { Point(31, 20): print(p); (x, y): print(x, y); }
 

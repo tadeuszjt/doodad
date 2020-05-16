@@ -48,6 +48,35 @@ compile context dataLayout state ast = do
             getInstrCmp (mapM_ cmpTopStmt ast)
 
 
+cmpPattern :: S.Pattern -> Value -> Instr Value
+cmpPattern pattern val = case pattern of
+    S.PatIgnore pos ->
+        return (consBool True)
+
+    S.PatLiteral expr -> do
+        valsEqual val =<< cmpExpr expr
+
+    S.PatIdent pos sym -> withPos pos $ do
+        checkSymKeyUndefined sym KeyType
+        v <- valLocal (valType val)
+        valStore v val
+        addSymObj sym KeyVal (ObjVal v)
+        return (consBool True)
+
+    S.PatTuple pos patterns -> withPos pos $ do
+        Tuple ts <- getTupleType (valType val)
+        cnds <- forM (zip patterns [0..]) $ \(pat, i) ->
+            cmpPattern pat =<< valTupleIdx val i
+        valAnd cnds
+
+    S.PatTyped pos sym pattern -> withPos pos $ do
+        res <- look sym KeyType
+        case res of
+            ObjType typ -> do
+                match <- typesMatch typ (valType val)
+                cmpPattern pattern val
+
+
 cmpTopStmt :: S.Stmt -> Instr ()
 cmpTopStmt stmt@(S.Set _ _ _)      = cmpStmt stmt
 cmpTopStmt stmt@(S.Print _ _)      = cmpStmt stmt
@@ -86,31 +115,33 @@ cmpTopStmt (S.Assign pos pattern expr) = do
                 assert (fromIntegral (length patterns) == len) "incorrect tuple length"
                 forM_ (zip patterns [0..]) $ \(pattern, i) ->
                     assignPattern pattern conc =<< valTupleIdx val i
+            | length patterns == 1 = withPos p $ do
+                assignPattern (head patterns) conc val
 
         assignPattern (S.PatArray p patterns) conc val 
             | isArray conc = withPos p $ do
                 forM_ (zip patterns [0..]) $ \(pattern, i) ->
                     assignPattern pattern conc =<< valArrayConstIdx val i
 
-        assignPattern (S.PatTyped p sym patterns) conc val = withPos p $ do
-            ObjDataCons _ (Tuple ts) datEn <- look sym KeyDataCons
-            en <- valLoad =<< valTupleIdx val 0
-            Val Bool eq <- valsEqual en $ consInt (valType en) (fromIntegral datEn)
-            cont <- fresh
-            exc <- freshName "pattern_fail"
-            condBr eq cont exc
-            emitBlockStart exc
-            printf (sym ++ ": pattern fail\n") []
-            retVoid
-            emitBlockStart cont
-
-            tup <- valLocal (Tuple $ tail ts)
-            dat <- valCast (Tuple ts) val
-            len <- valLen tup
-            forM_ [0..len-1] $ \i ->
-                valTupleSet tup (fromIntegral i) =<< valTupleIdx dat (fromIntegral i+1)
-            assignPattern (S.PatTuple p patterns) (valType tup) tup
-
+--        assignPattern (S.PatTyped p sym pattern) conc val = withPos p $ do
+--            ObjDataCons _ (Tuple ts) datEn <- look sym KeyDataCons
+--
+--            en <- valLoad =<< valTupleIdx val 0
+--            Val Bool eq <- valsEqual en $ consInt (valType en) (fromIntegral datEn)
+--            cont <- fresh
+--            exc <- freshName "pattern_fail"
+--            condBr eq cont exc
+--            emitBlockStart exc
+--            trap
+--            emitBlockStart cont
+--
+--            tup <- valLocal (Tuple $ tail ts)
+--            dat <- valCast (Tuple ts) val
+--            len <- valLen tup
+--            forM_ [0..len-1] $ \i ->
+--                valTupleSet tup (fromIntegral i) =<< valTupleIdx dat (fromIntegral i+1)
+--            assignPattern (S.PatTuple p patterns) (valType tup) tup
+--
         assignPattern (S.PatIdent p symbol) conc val = withPos p $ do
             checkUndefined symbol
             name <- freshName (mkBSS symbol)
@@ -139,31 +170,8 @@ cmpStmt :: S.Stmt -> Instr ()
 cmpStmt (S.CallStmt pos symbol args) = void $ cmpExpr (S.Call pos symbol args)
 
 cmpStmt (S.Assign pos pattern expr) = do
-    val <- cmpExpr expr
-    typ <- getConcreteType (valType val)
-    assignPattern pattern (val { valType = typ })
-    where
-        assignPattern ::  S.Pattern -> Value -> Instr ()
-        assignPattern (S.PatTuple p patterns) val
-            | isTuple (valType val) = withPos p $ do
-                len <- valLen val
-                assert (fromIntegral (length patterns) == len) "incorrect tuple length"
-                forM_ (zip patterns [0..]) $ \(pattern, i) ->
-                    assignPattern pattern =<< valTupleIdx val i
-
-        assignPattern (S.PatArray p patterns) val 
-            | isArray (valType val) = withPos p $ do
-                forM_ (zip patterns [0..]) $ \(pattern, i) ->
-                    assignPattern pattern =<< valArrayConstIdx val i
-
-        assignPattern (S.PatIdent p symbol) val = withPos p $ do
-            checkUndefined symbol
-            new <- valLocal (valType val)
-            valStore new val
-            addSymObj symbol KeyVal (ObjVal new)
-
-        assignPattern pat _ =
-            withPos (S.pos pat) (cmpErr "invalid assignment pattern")
+    Val Bool cnd <- cmpPattern pattern =<< cmpExpr expr
+    if_ cnd (return ()) (trap)
 
 cmpStmt (S.Set pos index expr) = withPos pos $ do
     val <- cmpExpr expr
@@ -189,19 +197,18 @@ cmpStmt (S.Switch pos expr [])    = void (cmpExpr expr)
 cmpStmt (S.Switch pos expr cases) = withPos pos $ do
     pushSymTab
     val <- cmpExpr expr
-    casesM <- forM cases $ \(caseExpr, caseStmt) -> do
-        let cmpCnd = if isJust caseExpr then do
-                cas <- cmpExpr (fromJust caseExpr)
-                Val Bool cnd <- valsEqual val cas
-                return cnd
-            else
-                return (bit 1)
-        let cStmt = cmpStmt caseStmt
-
+    casesM <- forM cases $ \(casePattern, caseStmt) -> do
+        let cmpCnd = do
+            pushSymTab
+            Val Bool cnd <- cmpPattern casePattern val
+            return cnd
+        let cStmt = do
+            cmpStmt caseStmt
+            popSymTab
         return (cmpCnd, cStmt)
+
     switch_ casesM
     popSymTab
-
 
 cmpStmt (S.Return pos mexpr) = withPos pos $ do
     retTyp <- getCurRetTyp
@@ -264,7 +271,6 @@ cmpExpr (S.Call pos symbol args) = withPos pos $ do
                     forM_ (zip args [0..]) $ \(a, i) -> valTupleSet tup i a
                     return tup
                 _ -> cmpErr "cannot construct type from arguments"
-
 
 cmpExpr (S.Ident pos symbol) = do
     ObjVal val <- look symbol KeyVal
