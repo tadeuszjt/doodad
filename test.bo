@@ -1,5 +1,10 @@
 type Point = (x i64, y i64);
+data Item = ItemA(p Point), ItemB(b bool);
 
-p := Point(31, 2);
+a := ItemA(Point(31, 20));
+b := ItemB(true);
 
-print(p.x, p.y);
+ItemB(c) := b;
+ItemA(p) := a;
+print(c);
+

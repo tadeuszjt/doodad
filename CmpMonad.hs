@@ -213,6 +213,7 @@ ensureDef name = do
 ensureSymDeps :: MonadModuleCmp k o m => String -> k -> m ()
 ensureSymDeps symbol key = do
     keyMap <- lookupSymbol symbol
+    assert (isJust keyMap) (symbol ++ " wasn't found")
     let Just (obj, nameSet) = Map.lookup key (fromJust keyMap)
     mapM_ ensureDef (Set.toList nameSet)
     
@@ -269,5 +270,5 @@ prettySymTab state = do
             putStrLn ("  " ++ sym ++ ":")
             forM_ (Map.toList keyMap) $ \(key, obj) -> do
                 let kstr = show key
-                putStrLn ("    " ++ show key ++ " " ++ (replicate (50-length kstr) '-') ++ "> " ++ take 60 (show obj) ++ "...")
+                putStrLn ("    " ++ show key ++ " " ++ (replicate (30-length kstr) '-') ++ "> " ++ take 90 (show obj) ++ "...")
 

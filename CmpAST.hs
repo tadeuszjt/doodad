@@ -92,6 +92,25 @@ cmpTopStmt (S.Assign pos pattern expr) = do
                 forM_ (zip patterns [0..]) $ \(pattern, i) ->
                     assignPattern pattern conc =<< valArrayConstIdx val i
 
+        assignPattern (S.PatTyped p sym patterns) conc val = withPos p $ do
+            ObjDataCons _ (Tuple ts) datEn <- look sym KeyDataCons
+            en <- valLoad =<< valTupleIdx val 0
+            Val Bool eq <- valsEqual en $ consInt (valType en) (fromIntegral datEn)
+            cont <- fresh
+            exc <- freshName "pattern_fail"
+            condBr eq cont exc
+            emitBlockStart exc
+            printf (sym ++ ": pattern fail\n") []
+            retVoid
+            emitBlockStart cont
+
+            tup <- valLocal (Tuple $ tail ts)
+            dat <- valCast (Tuple ts) val
+            len <- valLen tup
+            forM_ [0..len-1] $ \i ->
+                valTupleSet tup (fromIntegral i) =<< valTupleIdx dat (fromIntegral i+1)
+            assignPattern (S.PatTuple p patterns) (valType tup) tup
+
         assignPattern (S.PatIdent p symbol) conc val = withPos p $ do
             checkUndefined symbol
             name <- freshName (mkBSS symbol)
@@ -111,7 +130,8 @@ cmpTopStmt (S.Func pos symbol params mretty block) = withPos pos $ do
     let paramTyps    = map (fromASTType . S.paramType) params
     let paramSymbols = map S.paramName params
     let retTyp       = maybe Void fromASTType mretty
-    publicFunction symbol (zip paramSymbols paramTyps) retTyp $ \args ->
+    paramTyps' <- mapM skipAnnos paramTyps
+    publicFunction symbol (zip paramSymbols paramTyps') retTyp $ \args ->
         mapM_ cmpStmt block
         
 

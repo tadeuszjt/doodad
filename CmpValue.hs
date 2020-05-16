@@ -53,7 +53,19 @@ data CompileState
 
 
 type Compile        = StateT CompileState IO 
+
+
 initCompileState ctx dl = CompileState ctx dl Void
+
+
+setCurRetTyp :: ValType -> Instr ()
+setCurRetTyp typ =
+    lift $ modify $ \s -> s { curRetTyp = typ }
+
+
+getCurRetTyp :: Instr ValType
+getCurRetTyp =
+    lift (gets curRetTyp)
 
 
 type MyCmpState = CmpState SymKey SymObj
@@ -65,6 +77,7 @@ data SymKey
     = KeyVal
     | KeyFunc [ValType]
     | KeyType
+    | KeyDataCons
     deriving (Show, Eq, Ord)
 
 
@@ -75,10 +88,8 @@ data SymObj
     | ObjFunc ValType Operand
     | ObjInline ([Value] -> Instr Value)
     | ObjType ValType
-    | ObjData
-        { dataConcTyp :: ValType
-        , dataPrintFn :: (Value -> Instr ())
-        }
+    | ObjDataCons { dataTyp :: ValType, dataConsTyp :: ValType, dataEnum :: Word }
+    | ObjData     { dataConcTyp :: ValType, dataPrintFn :: (Value -> Instr ()) }
     deriving (Show)
 
 
@@ -203,24 +214,14 @@ zeroOf typ = case typ of
     I64         -> return $ toCons (int64 0)
     F32         -> return $ toCons (single 0)
     F64         -> return $ toCons (double 0)
-    Bool        -> return $ toCons (bit 0)
     Char        -> return $ toCons (int32 0)
+    Bool        -> return $ toCons (bit 0)
     String      -> return $ C.IntToPtr (toCons $ int64 0) (ptr i8)
     Array n t   -> return . toCons . array . replicate (fromIntegral n) =<< zeroOf t
     Tuple typs  -> return . toCons . (struct Nothing False) =<< mapM zeroOf typs
     Typedef _   -> zeroOf =<< getConcreteType typ
     Named _ t   -> zeroOf t
     AnnoTyp _ t -> zeroOf t
-
-
-setCurRetTyp :: ValType -> Instr ()
-setCurRetTyp typ =
-    lift $ modify $ \s -> s { curRetTyp = typ }
-
-
-getCurRetTyp :: Instr ValType
-getCurRetTyp =
-    lift (gets curRetTyp)
 
 
 getConcreteType :: ValType -> Instr ValType
@@ -259,9 +260,19 @@ getArrayType typ = case typ of
 
 typesMatch :: ValType -> ValType -> Instr Bool
 typesMatch a b = do
-    ca <- getConcreteType a
-    cb <- getConcreteType b
-    return (ca == cb)
+    a' <- skipAnnos a
+    b' <- skipAnnos b
+    return (a' == b')
+
+
+skipAnnos :: ValType -> Instr ValType
+skipAnnos typ = case typ of
+    AnnoTyp _ t -> return t
+    Typedef sym -> do ObjType t <- look sym KeyType; skipAnnos t
+    Tuple ts    -> fmap Tuple (mapM skipAnnos ts)
+    Array n t   -> fmap (Array n) (skipAnnos t)
+    Named s t   -> fmap (Named s) (skipAnnos t)
+    t           -> return t
 
 
 ensureTypeDeps :: ValType -> Instr ()
@@ -297,8 +308,9 @@ valLocal typ = do
 
 valStore :: Value -> Value -> Instr ()
 valStore (Ptr typ loc) val = do
-    match <- typesMatch typ (valType val)
-    assert match "underlying types don't match"
+    concA <- getConcreteType typ
+    concB <- getConcreteType (valType val)
+    assert (concA == concB) "underlying types don't match"
     case val of
         Ptr t l -> store loc 0 =<< load l 0
         Val t o -> store loc 0 o
@@ -364,11 +376,11 @@ valTupleIdx val i = do
         Val typ op  -> fmap (Val t) (extractValue op [i])
     
 
-valTupleSet :: Value -> Int -> Value -> Instr ()
+valTupleSet :: Value -> Word32 -> Value -> Instr ()
 valTupleSet (Ptr typ loc) i val = do
     Tuple ts <- getTupleType typ
     ptr <- gep loc [int32 0, int32 (fromIntegral i)]
-    valStore (Ptr (ts !! i) ptr) val
+    valStore (Ptr (ts !! fromIntegral i) ptr) val
 
 
 valsEqual :: Value -> Value -> Instr Value

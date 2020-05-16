@@ -7,6 +7,8 @@ import Control.Monad
 import Control.Monad.State
 
 import LLVM.AST.Type
+import LLVM.IRBuilder.Monad
+import LLVM.IRBuilder.Module
 import LLVM.IRBuilder.Instruction
 import LLVM.IRBuilder.Constant
 
@@ -19,6 +21,7 @@ import CmpFuncs
 cmpDataDef :: S.Stmt -> Instr ()
 cmpDataDef (S.Datadef pos symbol datas) = withPos pos $ do
     checkUndefined symbol
+    name <- freshName (mkBSS symbol)
     let dataTyp = Typedef symbol
 
     enumTyp <- case length datas of
@@ -32,14 +35,16 @@ cmpDataDef (S.Datadef pos symbol datas) = withPos pos $ do
         S.DataIdent p sym       -> return (Tuple [enumTyp])
         S.DataFunc p sym params -> return $ Tuple (enumTyp : map (fromASTType . S.paramType) params)
 
-    memSizes <- mapM sizeOf =<< mapM opTypeOf memTyps
-    let (_, dataConcTyp) = maximumBy (comparing fst) (zip memSizes memTyps)
+    memSizes <- mapM sizeOf =<< mapM opTypeOf =<< mapM getConcreteType memTyps
+    let (_, memMaxTyp) = maximumBy (comparing fst) (zip memSizes memTyps)
+    let dataConcTyp = memMaxTyp
 
     forM_ (zip3 memTyps datas [0..]) $ \(typ, dat, i) -> do
         checkUndefined (S.dataSymbol dat)
         case dat of
             S.DataIdent p sym -> withPos p $ do
                 checkUndefined sym
+                addSymObj sym KeyDataCons $ ObjDataCons dataTyp typ (fromIntegral i)
                 addSymObj sym (KeyFunc []) $ ObjInline $ \[] -> do
                     tup@(Ptr _ _) <- valLocal dataConcTyp
                     valTupleSet tup 0 (consInt enumTyp i)
@@ -50,8 +55,10 @@ cmpDataDef (S.Datadef pos symbol datas) = withPos pos $ do
                 let paramSymbols = map S.paramName params
                 let paramTypes   = map (fromASTType . S.paramType) params
                 pushSymTab
-                forM_ paramSymbols $ \s -> checkUndefined s
+                forM_ (zip paramSymbols paramTypes) $ \(s, t) ->
+                    checkUndefined s
                 popSymTab
+                addSymObj sym KeyDataCons $ ObjDataCons dataTyp typ (fromIntegral i)
                 addSymObj sym (KeyFunc paramTypes) $ ObjInline $ \args -> do
                     tup@(Ptr _ _) <- valLocal dataConcTyp
                     valTupleSet tup 0 (consInt enumTyp i)
@@ -61,9 +68,12 @@ cmpDataDef (S.Datadef pos symbol datas) = withPos pos $ do
 
 
     addSymObj symbol KeyType $ ObjData 
-        { dataConcTyp = dataConcTyp
+        { dataConcTyp = Named name dataConcTyp
         , dataPrintFn = printFn memTyps
         }
+    addSymObjReq symbol KeyType name
+    dataOpType <- opTypeOf dataConcTyp
+    addAction name (typedef name $ Just dataOpType)
 
     where
         printFn :: [ValType] -> Value -> Instr ()

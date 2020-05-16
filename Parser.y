@@ -163,12 +163,17 @@ Datas  : Data                       { [$1] }
        | Data ',' Datas             { $1 : $3 }
 
 
-pattern   : '_'                     { S.PatIgnore (tokPosn $1) }
+pattern   : pattern_                { $1 }
+pattern_  : '_'                     { S.PatIgnore (tokPosn $1) }
           | ident                   { S.PatIdent (tokPosn $1) (L.tokStr $1) }
+          | ident '(' patterns ')'  { S.PatTyped (tokPosn $1) (L.tokStr $1) $3 }
           | '(' patterns ')'        { S.PatTuple (tokPosn $1) $2 }
           | '[' patterns ']'        { S.PatArray (tokPosn $1) $2 }
-patterns  : pattern                 { [$1] }
-          | pattern ',' patterns    { $1 : $3 }
+pattuple  : '(' patterns ')'        { $2 }
+patterns  : {- empty -}             { [] }
+          | patterns_               { $1 }
+patterns_ : pattern_                { [$1] }
+          | pattern_ ',' patterns_  { $1 : $3 }
 
 
 index  : ident                      { S.IndIdent (tokPosn $1) (L.tokStr $1) }
