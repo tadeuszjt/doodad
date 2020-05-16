@@ -18,7 +18,7 @@ $ascsym  = [\!\#\$\%\&\*\+\.\/\<\=\>\?\@\\\^\|\-\~]
 $special = [\(\)\,\;\[\]\`\{\}]
 $graphic = [$alpha $digit $ascsym $special \:\"\']
 
-$symbol  = [\{\}\(\)\[\]\,\.\;\:\_]
+$symbol  = [\{\}\(\)\[\]\,\|\.\;\:\_]
 
 @types      = i64 | i32 | f64 | f32 | bool | char | string
 @builtin    = print | len 

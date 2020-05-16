@@ -74,6 +74,7 @@ import qualified CmpMonad as C
     '}'        { L.Token _ L.Sym "}" }
     '['        { L.Token _ L.Sym "[" }
     ']'        { L.Token _ L.Sym "]" }
+    '|'        { L.Token _ L.Sym "|" }
     ','        { L.Token _ L.Sym "," }
     '.'        { L.Token _ L.Sym "." }
     ';'        { L.Token _ L.Sym ";" }
@@ -110,6 +111,7 @@ stmtB : block                               { $1 }
 expr   : lit                          { $1 }
        | infix                        { $1 }
        | ident                        { S.Ident (tokPosn $1) (L.tokStr $1) }
+       | table                        { $1 }
        | '[' exprs ']'                { S.Array (tokPosn $1) $2 }
        | '(' exprs ')'                { S.Tuple (tokPosn $1) $2 }
        | ident '(' exprs ')'          { S.Call (tokPosn $1) (L.tokStr $1) $3 }
@@ -165,6 +167,10 @@ types        : {- empty -}          { [] }
 types_       : type_                { [$1] }
              | type_ ',' types_     { $1 : $3 }
 
+
+table     : '{' tableRows '}'       { S.Table (tokPosn $1) $2 } 
+tableRows : exprs                   { [$1] }
+          | exprs ';' tableRows     { $1 : $3 }
 
 
 data_   : ident                      { S.DataIdent (tokPosn $1) (L.tokStr $1) }

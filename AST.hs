@@ -79,6 +79,7 @@ data Expr
     | String TextPos String
     | Tuple TextPos [Expr]
     | Array TextPos [Expr]
+    | Table TextPos [[Expr]]
     | TupleIndex TextPos Expr Word32
     | TupleMember TextPos Expr String
     | ArrayIndex TextPos Expr Expr
@@ -88,6 +89,7 @@ data Expr
     | Prefix TextPos Op Expr
     | Infix TextPos Op Expr Expr
     deriving (Show, Eq)
+
 
 data Stmt
     = Assign TextPos Pattern Expr

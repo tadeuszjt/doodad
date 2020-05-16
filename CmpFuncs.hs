@@ -125,6 +125,20 @@ trap = do
     void $ call op []
 
 
+malloc :: MonadInstrCmp k o m => Operand -> m Operand
+malloc size = do
+    assert (typeOf size == i64) "wrong type for malloc"
+    op <- ensureExtern "malloc" [i64] (ptr i8) False
+    call op [(size, [])]
+
+
+free :: MonadInstrCmp k o m => Operand -> m Operand
+free mem = do
+    assert (typeOf mem == ptr i8) "wrong type for free"
+    op <- ensureExtern "free" [ptr i8] VoidType False
+    call op [(mem, [])]
+
+
 isCons :: Operand -> Bool
 isCons (ConstantOperand _) = True
 isCons _                   = False

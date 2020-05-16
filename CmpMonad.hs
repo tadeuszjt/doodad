@@ -56,13 +56,18 @@ newtype InstrCmpT k o m a
     deriving (Functor, Applicative, Monad, MonadError CmpError, MonadState (CmpState k o), MonadModuleBuilder, MonadIRBuilder) 
 
 
-data TextPos = TextPos { textPos, textLine, textCol :: Int } deriving (Show, Eq)
+data TextPos
+    = TextPos { textPos, textLine, textCol :: Int }
+    deriving (Eq)
+
+
+instance Show TextPos where
+    show (TextPos p l c) = "(" ++ show p ++ ":" ++ show l ++ ":" ++ show c ++ ")"
 
 
 data CmpState k o
     = CmpState
-        { curFn    :: Name
-        , posStack :: [TextPos]
+        { posStack :: [TextPos]
         , symTab   :: SymTab.SymTab String (Map.Map k (o, Set.Set Name))
         , actions  :: Map.Map Name (ModuleBuilder ())
         , declared :: Set.Set Name
@@ -72,8 +77,7 @@ data CmpState k o
 
 
 initCmpState = CmpState
-    { curFn    = mkName ""
-    , posStack = [TextPos 0 0 0]
+    { posStack = [TextPos 1 1 1]
     , symTab   = SymTab.initSymTab
     , actions  = Map.empty
     , declared = Set.empty
@@ -239,16 +243,6 @@ addExtern name paramTypes retType isVarg = do
 addDeclared :: MonadModuleCmp k o m => Name -> m ()
 addDeclared name =
     modify $ \s -> s { declared = Set.insert name (declared s) }
-
-
-getCurFnName :: MonadModuleCmp k o m => m Name
-getCurFnName =
-    gets curFn
-
-
-setCurFnName :: MonadModuleCmp k o m => Name -> m ()
-setCurFnName name =
-    modify $ \s -> s { curFn = name }
 
 
 addExported :: MonadModuleCmp k o m => Name -> m ()

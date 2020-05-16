@@ -195,36 +195,6 @@ cmpExpr (S.String pos s) = do
     addExported name
     return $ Val String (cons str)
 
-cmpExpr (S.Call pos symbol args) = withPos pos $ do
-    vals <- mapM valLoad =<< mapM cmpExpr args
-    mapM ensureTypeDeps (map valType vals)
-
-    let key = KeyFunc (map valType vals)
-    rfun <- lookupSymKey symbol key
-    when (isJust rfun) (ensureSymDeps symbol key)
-    rtyp <- lookupSymKey symbol KeyType 
-    when (isJust rtyp) (ensureSymDeps symbol KeyType)
-
-    case (rtyp, rfun) of
-        (_, Just (ObjFunc typ op)) -> Val typ <$> call op [(o, []) | o <- map valOp vals]
-        (_, Just (ObjInline f))    -> f vals
-        (_, Just (ObjVal val))     -> return val
-        (Just (ObjType t), _)      -> ensureTypeDeps t >> cmpTypeFn (Typedef symbol) vals
-        _                          -> cmpErr ("no callable object exists for " ++ symbol)
-    where
-        cmpTypeFn :: ValType -> [Value] -> Instr Value
-        cmpTypeFn typ args = do
-            conc <- getConcreteType typ
-            concs <- mapM getConcreteType (map valType args)
-            case concs of
-                []                     -> Val typ <$> cons <$> zeroOf conc
-                [t] | conc == t        -> return $ (head args) { valType = typ }
-                ts  | conc == Tuple ts -> do
-                    tup <- valLocal typ
-                    forM_ (zip args [0..]) $ \(a, i) -> valTupleSet tup i a
-                    return tup
-                _ -> cmpErr "cannot construct type from arguments"
-
 cmpExpr (S.Ident pos symbol) = do
     ObjVal val <- look symbol KeyVal
     ensureTypeDeps (valType val)
@@ -245,6 +215,43 @@ cmpExpr (S.Tuple pos exprs) = do
     tup <- valLocal $ Tuple (map valType vals)
     forM_ (zip vals [0..]) $ \(val, i) -> valTupleSet tup i val
     return tup
+
+cmpExpr (S.Table pos rows) = withPos pos $ do
+    let numRows = length rows
+    assert (numRows > 0) "cannot deduce table type"
+    let numCols = length (head rows)
+    assert (all (== numCols) (map length rows)) "row lengths differ" 
+    assert (numCols > 0) "cannot deduce table type"
+
+    (rowsVals, rowTyps, rowTypSizes) <- fmap unzip3 $ forM rows $ \row -> do
+        vals <- mapM cmpExpr row
+        let typ = valType (head vals)
+        assert (all (== typ) (map valType vals)) "element types differ in row"
+        size <- sizeOf =<< opTypeOf typ
+        return (vals, typ, size)
+
+    let typ = Table rowTyps
+    let len = numCols
+    let cap = len
+
+    opTyp <- opTypeOf typ
+    typName <- freshName (mkBSS "table_t")
+    addAction typName $ typedef typName (Just opTyp)
+    ensureDef typName
+    let namedTyp = Named typName typ
+
+    name <- freshName (mkBSS "table")
+    (val@(Ptr _ loc), ext) <- valGlobal name namedTyp
+    lenPtr <- gep loc [int32 0, int32 0]
+    store lenPtr 0 (int32 $ fromIntegral len)
+    capPtr <- gep loc [int32 0, int32 1]
+    store capPtr 0 (int32 $ fromIntegral cap)
+
+    forM_ (zip rowTypSizes [0..]) $ \(size, i) -> do
+        rowPtr <- gep loc [int32 0, int32 (i+2)]
+        store rowPtr 0 =<< malloc (int64 $ fromIntegral cap * fromIntegral size)
+
+    return val
 
 cmpExpr (S.ArrayIndex pos arrExpr idxExpr) = do
     arr <- cmpExpr arrExpr
@@ -283,6 +290,36 @@ cmpExpr (S.TupleMember pos tupExpr symbol) = do
                     Just r  -> return r
 
             _ -> return Nothing
+
+cmpExpr (S.Call pos symbol args) = withPos pos $ do
+    vals <- mapM valLoad =<< mapM cmpExpr args
+    mapM ensureTypeDeps (map valType vals)
+
+    let key = KeyFunc (map valType vals)
+    rfun <- lookupSymKey symbol key
+    when (isJust rfun) (ensureSymDeps symbol key)
+    rtyp <- lookupSymKey symbol KeyType 
+    when (isJust rtyp) (ensureSymDeps symbol KeyType)
+
+    case (rtyp, rfun) of
+        (_, Just (ObjFunc typ op)) -> Val typ <$> call op [(o, []) | o <- map valOp vals]
+        (_, Just (ObjInline f))    -> f vals
+        (_, Just (ObjVal val))     -> return val
+        (Just (ObjType t), _)      -> ensureTypeDeps t >> cmpTypeFn (Typedef symbol) vals
+        _                          -> cmpErr ("no callable object exists for " ++ symbol)
+    where
+        cmpTypeFn :: ValType -> [Value] -> Instr Value
+        cmpTypeFn typ args = do
+            conc <- getConcreteType typ
+            concs <- mapM getConcreteType (map valType args)
+            case concs of
+                []                     -> Val typ <$> cons <$> zeroOf conc
+                [t] | conc == t        -> return $ (head args) { valType = typ }
+                ts  | conc == Tuple ts -> do
+                    tup <- valLocal typ
+                    forM_ (zip args [0..]) $ \(a, i) -> valTupleSet tup i a
+                    return tup
+                _ -> cmpErr "cannot construct type from arguments"
 
 cmpExpr (S.Infix pos S.EqEq exprA exprB) = withPos pos $ do
     valA <- cmpExpr exprA

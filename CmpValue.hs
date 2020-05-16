@@ -111,6 +111,7 @@ data ValType
     | String
     | Tuple [ValType]
     | Array Word64 ValType
+    | Table [ValType]
     | Typedef String
     | Named Name ValType
     | AnnoTyp String ValType
@@ -130,6 +131,7 @@ instance Show ValType where
         String      -> "string"
         Tuple ts    -> "(" ++ intercalate ", " (map show ts) ++ ")"
         Array n t   -> "[" ++ show n ++ " " ++ show t ++ "]"
+        Table ts    -> "{" ++ intercalate " | " (map show ts) ++ "}"
         Typedef s   -> s
         Named _ t   -> show t
         AnnoTyp _ t -> show t
@@ -161,6 +163,11 @@ isTuple (Named _ t)     = isTuple t
 isTuple (Tuple _)       = True
 isTuple _               = False
 
+isTable (AnnoTyp _ t)   = isTable t
+isTable (Named _ t)     = isTable t
+isTable (Table _)       = True
+isTable _               = False
+
 isTypedef (Typedef _)   = True
 isTypedef _             = False
 
@@ -169,7 +176,7 @@ isAnnoTyp _             = False
 
 isIntegral x            = isInt x || isChar x
 isBase x                = isInt x || isFloat x || isChar x
-isAggregate x           = isTuple x || isArray x
+isAggregate x           = isTuple x || isArray x || isTable x
 
 
 valInt :: ValType -> Integer -> Value
@@ -209,6 +216,9 @@ opTypeOf typ = case typ of
         F64         -> return (FloatingPointType DoubleFP)
         Tuple ts    -> fmap (StructureType False) (mapM opTypeOf ts)
         Array n t   -> fmap (ArrayType $ fromIntegral n) (opTypeOf t)
+        Table ts    -> do
+            opTyps <- mapM (opTypeOf) ts
+            return $ StructureType False $ i64:i64: (map ptr opTyps)
         String      -> return (ptr i8)
         Named nm t  -> return (NamedTypeReference nm)
         AnnoTyp _ t -> opTypeOf t
@@ -239,8 +249,9 @@ zeroOf typ = case typ of
     Char        -> return $ toCons (int32 0)
     Bool        -> return $ toCons (bit 0)
     String      -> return $ C.IntToPtr (toCons $ int64 0) (ptr i8)
-    Array n t   -> return . toCons . array . replicate (fromIntegral n) =<< zeroOf t
-    Tuple typs  -> return . toCons . (struct Nothing False) =<< mapM zeroOf typs
+    Array n t   -> fmap (toCons . array . replicate (fromIntegral n)) (zeroOf t)
+    Table ts    -> fmap (toCons . (struct Nothing False)) $ mapM zeroOf (I64:I64:ts)
+    Tuple typs  -> fmap (toCons . (struct Nothing False)) (mapM zeroOf typs)
     Typedef _   -> zeroOf =<< getConcreteType typ
     Named _ t   -> zeroOf t
     AnnoTyp _ t -> zeroOf t
