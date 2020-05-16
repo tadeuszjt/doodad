@@ -94,8 +94,8 @@ data Stmt
     | Set TextPos Index Expr
     | Print TextPos [Expr]
     | Block TextPos [Stmt]
-    | Func TextPos String [Param] (Maybe Type) [Stmt]
-    | Extern TextPos String [Param] (Maybe Type)
+    | Func TextPos String [Pattern] (Maybe Type) [Stmt]
+    | Extern TextPos String [Pattern] (Maybe Type)
     | Typedef TextPos String Type
     | Datadef TextPos String [Data] 
     | CallStmt TextPos String [Expr]

@@ -92,22 +92,23 @@ stmt  : stmtS ';'                           { $1 }
       | stmtB                               { $1 }
 stmtS : let pattern '=' expr                { S.Assign (tokPosn $1) $2 $4 }  
       | index '=' expr                      { S.Set (tokPosn $2) $1 $3 }
-      | type ident '=' Type                 { S.Typedef (tokPosn $2) (L.tokStr $2) $4 }
+      | type ident '=' type_                 { S.Typedef (tokPosn $2) (L.tokStr $2) $4 }
       | data ident '=' datas                { S.Datadef (tokPosn $2) (L.tokStr $2) $4 }
-      | extern ident '(' params ')' Type    { S.Extern (tokPosn $2) (L.tokStr $2) $4 (Just $6) }
-      | extern ident '(' params ')'         { S.Extern (tokPosn $2) (L.tokStr $2) $4 Nothing }
+      | extern ident '(' patterns ')' type_    { S.Extern (tokPosn $2) (L.tokStr $2) $4 (Just $6) }
+      | extern ident '(' patterns ')'         { S.Extern (tokPosn $2) (L.tokStr $2) $4 Nothing }
       | ident '(' exprs ')'                 { S.CallStmt (tokPosn $1) (L.tokStr $1) $3 }
       | print '(' exprs ')'                  { S.Print (tokPosn $1) $3 }
       | return                              { S.Return (tokPosn $1) Nothing }
       | return expr                         { S.Return (tokPosn $1) (Just $2) }
-stmtB : Block                               { $1 }
+stmtB : block                               { $1 }
       | If                                  { $1 }
-      | fn ident '(' params ')' Block_      { S.Func (tokPosn $1) (L.tokStr $2) $4 Nothing $6 }
-      | fn ident '(' params ')' Type Block_ { S.Func (tokPosn $1) (L.tokStr $2) $4 (Just $6) $7 }
+      | fn ident '(' patterns ')' block_      { S.Func (tokPosn $1) (L.tokStr $2) $4 Nothing $6 }
+      | fn ident '(' patterns ')' type_ block_ { S.Func (tokPosn $1) (L.tokStr $2) $4 (Just $6) $7 }
       | switch expr '{' cases '}'           { S.Switch (tokPosn $1) $2 $4 }
 
 
 expr   : lit                          { $1 }
+       | infix                        { $1 }
        | ident                        { S.Ident (tokPosn $1) (L.tokStr $1) }
        | '[' exprs ']'                { S.Array (tokPosn $1) $2 }
        | '(' exprs ')'                { S.Tuple (tokPosn $1) $2 }
@@ -118,18 +119,6 @@ expr   : lit                          { $1 }
        | expr '[' expr ']'            { S.ArrayIndex (tokPosn $2) $1 $3 }
        | '-' expr                     { S.Prefix (tokPosn $1) S.Minus $2 }
        | '+' expr                     { S.Prefix (tokPosn $1) S.Plus $2 }
-       | expr '+' expr                { S.Infix (tokPosn $2) S.Plus $1 $3 }
-       | expr '-' expr                { S.Infix (tokPosn $2) S.Minus $1 $3 }
-       | expr '*' expr                { S.Infix (tokPosn $2) S.Times $1 $3 }
-       | expr '/' expr                { S.Infix (tokPosn $2) S.Divide $1 $3 }
-       | expr '%' expr                { S.Infix (tokPosn $2) S.Mod $1 $3 }
-       | expr '<' expr                { S.Infix (tokPosn $2) S.LT $1 $3 }
-       | expr '>' expr                { S.Infix (tokPosn $2) S.GT $1 $3 }
-       | expr '<=' expr               { S.Infix (tokPosn $2) S.LTEq $1 $3 }
-       | expr '>=' expr               { S.Infix (tokPosn $2) S.GTEq $1 $3 }
-       | expr '==' expr               { S.Infix (tokPosn $2) S.EqEq $1 $3 }
-       | expr '&&' expr               { S.Infix (tokPosn $2) S.AndAnd $1 $3 }
-       | expr '||' expr               { S.Infix (tokPosn $2) S.OrOr $1 $3 }
 exprs  : {- empty -}                  { [] }
        | exprs_                       { $1 }
 exprs_ : expr                         { [$1] }
@@ -144,7 +133,21 @@ lit : intlit                         { S.Int (tokPosn $1) (read $ L.tokStr $1) }
     | false                          { S.Bool (tokPosn $1) False }
 
 
-Type         : ConcreteType         { $1 }
+infix : expr '+' expr                { S.Infix (tokPosn $2) S.Plus $1 $3 }
+      | expr '-' expr                { S.Infix (tokPosn $2) S.Minus $1 $3 }
+      | expr '*' expr                { S.Infix (tokPosn $2) S.Times $1 $3 }
+      | expr '/' expr                { S.Infix (tokPosn $2) S.Divide $1 $3 }
+      | expr '%' expr                { S.Infix (tokPosn $2) S.Mod $1 $3 }
+      | expr '<' expr                { S.Infix (tokPosn $2) S.LT $1 $3 }
+      | expr '>' expr                { S.Infix (tokPosn $2) S.GT $1 $3 }
+      | expr '<=' expr               { S.Infix (tokPosn $2) S.LTEq $1 $3 }
+      | expr '>=' expr               { S.Infix (tokPosn $2) S.GTEq $1 $3 }
+      | expr '==' expr               { S.Infix (tokPosn $2) S.EqEq $1 $3 }
+      | expr '&&' expr               { S.Infix (tokPosn $2) S.AndAnd $1 $3 }
+      | expr '||' expr               { S.Infix (tokPosn $2) S.OrOr $1 $3 }
+
+
+type_        : ConcreteType         { $1 }
              | ident                { S.TIdent (L.tokStr $1) }
              | ident ConcreteType   { S.TAnno (L.tokStr $1) $2 }
              | ident ident          { S.TAnno (L.tokStr $1) (S.TIdent (L.tokStr $2)) }
@@ -155,27 +158,27 @@ ConcreteType : bool                 { S.TBool }
              | f64                  { S.TF64 }
              | char                 { S.TChar }
              | string               { S.TString }
-             | '[' intlit Type ']'     { S.TArray (read $ L.tokStr $2) $3 }
+             | '[' intlit type_ ']' { S.TArray (read $ L.tokStr $2) $3 }
              | '(' types ')'        { S.TTuple $2 }
 types        : {- empty -}          { [] }
              | types_               { $1 }
-types_       : Type                 { [$1] }
-             | Type ',' types_      { $1 : $3 }
+types_       : type_                { [$1] }
+             | type_ ',' types_     { $1 : $3 }
 
 
 
-Data   : ident                      { S.DataIdent (tokPosn $1) (L.tokStr $1) }
+data_   : ident                      { S.DataIdent (tokPosn $1) (L.tokStr $1) }
        | ident '(' ')'              { S.DataIdent (tokPosn $1) (L.tokStr $1) }
        | ident '(' params_ ')'      { S.DataFunc (tokPosn $1) (L.tokStr $1) $3 }
-datas  : Data                       { [$1] }
-       | Data ',' datas             { $1 : $3 }
+datas  : data_                       { [$1] }
+       | data_ ',' datas             { $1 : $3 }
 
 
 pattern   : pattern_                { $1 }
 pattern_  : '_'                     { S.PatIgnore (tokPosn $1) }
           | lit                     { S.PatLiteral $1 }
           | ident                   { S.PatIdent (tokPosn $1) (L.tokStr $1) }
-          | ident '(' patterns ')'  { S.PatTyped (tokPosn $1) (L.tokStr $1) (S.PatTuple (tokPosn $2) $3) }
+          | ident pattern           { S.PatTyped (tokPosn $1) (L.tokStr $1) $2 }
           | '(' patterns ')'        { S.PatTuple (tokPosn $1) $2 }
           | '[' patterns ']'        { S.PatArray (tokPosn $1) $2 }
 patterns  : {- empty -}             { [] }
@@ -186,7 +189,7 @@ patterns_ : pattern_                { [$1] }
 
 index  : ident                      { S.IndIdent (tokPosn $1) (L.tokStr $1) }
        | index '[' expr ']'         { S.IndArray (tokPosn $2) $1 $3 }
-       | index '.' intlit              { S.IndTuple (tokPosn $2) $1 (read $ L.tokStr $3) }
+       | index '.' intlit           { S.IndTuple (tokPosn $2) $1 (read $ L.tokStr $3) }
 
 
 Switch : switch expr '{' cases '}'  { S.Switch (tokPosn $1) $2 $4 }
@@ -195,19 +198,19 @@ cases  : {- empty -}                { [] }
 case   : pattern ':' stmt           { ($1, $3) }
 
 
-If   : if expr Block                { S.If (tokPosn $1) $2 $3 Nothing }
-     | if expr Block Else           { S.If (tokPosn $1) $2 $3 (Just $4) }
-Else : else Block                   { $2 }
+If   : if expr block                { S.If (tokPosn $1) $2 $3 Nothing }
+     | if expr block Else           { S.If (tokPosn $1) $2 $3 (Just $4) }
+Else : else block                   { $2 }
      | else If                      { $2 }
 
 
-Block  : '{' Prog '}'               { S.Block (tokPosn $1) $2 }
-Block_ : '{' Prog '}'               { $2 }
+block  : '{' Prog '}'               { S.Block (tokPosn $1) $2 }
+block_ : '{' Prog '}'               { $2 }
 
 
 
 
-param   : ident Type                { S.Param (tokPosn $1) (L.tokStr $1) $2 }
+param   : ident type_               { S.Param (tokPosn $1) (L.tokStr $1) $2 }
 params  : {- empty -}               { [] }
         | params_                   { $1 }
 params_ : param                     { [$1] }

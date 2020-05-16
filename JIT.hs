@@ -85,8 +85,10 @@ jitAndRun defs session keepModule verbose = do
             mangled <- mangleSymbol cl "main"
             res <- findSymbolIn cl modKey mangled False
             case res of
-                Left _                -> return ()
+                Left _                -> when verbose (putStrLn "no main")
                 Right (JITSymbol fn _)-> do
                     when verbose (putStrLn "running...")
                     run $ castPtrToFunPtr (wordPtrToPtr fn)
-            unless keepModule (removeModule cl modKey)
+            unless keepModule $ do
+                when verbose (putStrLn "removing module...")
+                (removeModule cl modKey)

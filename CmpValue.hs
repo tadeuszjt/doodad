@@ -114,13 +114,25 @@ data ValType
     | Typedef String
     | Named Name ValType
     | AnnoTyp String ValType
-    deriving (Show, Eq, Ord)
+    deriving (Eq, Ord)
 
 
-data BoolOp
-    = And
-    | Or
-    deriving (Show, Eq)
+instance Show ValType where
+    show t = case t of
+        Void        -> "void"
+        I8          -> "i8"
+        I32         -> "i32"
+        I64         -> "i64"
+        F32         -> "f32"
+        F64         -> "f64"
+        Bool        -> "bool"
+        Char        -> "char"
+        String      -> "string"
+        Tuple ts    -> "(" ++ intercalate ", " (map show ts) ++ ")"
+        Array n t   -> "[" ++ show n ++ " " ++ show t ++ "]"
+        Typedef s   -> s
+        Named _ t   -> show t
+        AnnoTyp _ t -> show t
 
 
 isChar (AnnoTyp _ t)    = isChar t
@@ -160,14 +172,14 @@ isBase x                = isInt x || isFloat x || isChar x
 isAggregate x           = isTuple x || isArray x
 
 
-consInt :: ValType -> Integer -> Value
-consInt I8 n = Val I8 (int8 n)
-consInt I32 n = Val I32 (int32 n)
-consInt I64 n = Val I64 (int64 n)
+valInt :: ValType -> Integer -> Value
+valInt I8 n = Val I8 (int8 n)
+valInt I32 n = Val I32 (int32 n)
+valInt I64 n = Val I64 (int64 n)
 
 
-consBool :: Bool -> Value
-consBool b = Val Bool (if b then bit 1 else bit 0)
+valBool :: Bool -> Value
+valBool b = Val Bool (if b then bit 1 else bit 0)
 
 
 fromASTType :: S.Type -> ValType
@@ -268,11 +280,11 @@ getArrayType typ = case typ of
     _           -> cmpErr "isn't an array"
     
 
-typesMatch :: ValType -> ValType -> Instr Bool
-typesMatch a b = do
+checkTypesMatch :: ValType -> ValType -> Instr ()
+checkTypesMatch a b = do
     a' <- skipAnnos a
     b' <- skipAnnos b
-    return (a' == b')
+    assert (a' == b') ("type mismatch between " ++ show a' ++ " and " ++ show b')
 
 
 skipAnnos :: ValType -> Instr ValType
@@ -376,14 +388,14 @@ valLen val = do
         Tuple ts  -> return $ fromIntegral (length ts)
 
 
-valTupleIdx :: Value -> Word32 -> Instr Value
-valTupleIdx val i = do
-    Tuple ts <- getTupleType (valType val)
-    assert (i >= 0 && i < fromIntegral (length ts)) "tuple index out of range"
+valTupleIdx :: Word32 -> Value -> Instr Value
+valTupleIdx i tup = do
+    Tuple ts <- getTupleType (valType tup)
+    assert (i >= 0 && fromIntegral i < length ts) "tuple index out of range"
     let t = ts !! fromIntegral i
-    case val of
-        Ptr typ loc -> fmap (Ptr t) (gep loc [int32 0, int32 (fromIntegral i)])
-        Val typ op  -> fmap (Val t) (extractValue op [i])
+    case tup of
+        Ptr _ loc -> fmap (Ptr t) (gep loc [int32 0, int32 (fromIntegral i)])
+        Val _ op  -> fmap (Val t) (extractValue op [i])
     
 
 valTupleSet :: Value -> Word32 -> Value -> Instr ()
@@ -448,7 +460,7 @@ valPrint append val
         putchar '('
         forM_ [0..len-1] $ \i -> do
             let app = if i < len-1 then ", " else ")" ++ append
-            valPrint app =<< valTupleIdx val (fromIntegral i)
+            valPrint app =<< valTupleIdx (fromIntegral i) val
 
     | isTypedef (valType val) = do
         let Typedef symbol = valType val

@@ -47,7 +47,7 @@ cmpDataDef (S.Datadef pos symbol datas) = withPos pos $ do
                 addSymObj sym KeyDataCons $ ObjDataCons dataTyp typ (fromIntegral i)
                 addSymObj sym (KeyFunc []) $ ObjInline $ \[] -> do
                     tup@(Ptr _ _) <- valLocal dataConcTyp
-                    valTupleSet tup 0 (consInt enumTyp i)
+                    valTupleSet tup 0 (valInt enumTyp i)
                     return (tup { valType = dataTyp })
 
             S.DataFunc p sym params -> withPos p $ do
@@ -61,7 +61,7 @@ cmpDataDef (S.Datadef pos symbol datas) = withPos pos $ do
                 addSymObj sym KeyDataCons $ ObjDataCons dataTyp typ (fromIntegral i)
                 addSymObj sym (KeyFunc paramTypes) $ ObjInline $ \args -> do
                     tup@(Ptr _ _) <- valLocal dataConcTyp
-                    valTupleSet tup 0 (consInt enumTyp i)
+                    valTupleSet tup 0 (valInt enumTyp i)
                     ptr <- valCast typ tup
                     forM_ (zip args [1..]) $ \(arg, i) -> valTupleSet ptr i arg
                     return (tup { valType = dataTyp })
@@ -81,18 +81,19 @@ cmpDataDef (S.Datadef pos symbol datas) = withPos pos $ do
             let memSymbols = map S.dataSymbol datas
 
             casesM <- forM (zip3 memSymbols memTyps [0..]) $ \(sym, typ, i) -> do
-                tup <- valCast typ dat
                 let cmpCnd = do
-                    en <- valTupleIdx tup 0
-                    Val Bool cnd <- valsEqual en $ consInt (valType en) i
+                    tup <- valCast typ dat
+                    en <- valTupleIdx 0 tup
+                    Val Bool cnd <- valsEqual en $ valInt (valType en) i
                     return cnd
 
                 let cmpStmt = do
+                    tup <- valCast typ dat
                     len <- valLen tup
                     printf (sym ++ if len > 1 then "(" else "") []
                     forM_ [1..len-1] $ \i -> do
                         let app = if i < len-1 then ", " else ")"
-                        valPrint app =<< valTupleIdx tup (fromIntegral i)
+                        valPrint app =<< valTupleIdx (fromIntegral i) tup
 
                 return (cmpCnd, cmpStmt)
 
