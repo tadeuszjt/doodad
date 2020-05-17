@@ -275,6 +275,7 @@ getTupleType :: ValType -> Instr ValType
 getTupleType typ = case typ of
     Tuple _     -> return typ
     Named _ t   -> getTupleType t
+    AnnoTyp _ t -> getTupleType t
     Typedef sym -> do
         res <- look sym KeyType
         case res of
@@ -286,11 +287,20 @@ getTupleType typ = case typ of
 getArrayType :: ValType -> Instr ValType
 getArrayType typ = case typ of
     Array _ _   -> return typ
-    Named _ t   -> getTupleType t
+    Named _ t   -> getArrayType t
+    AnnoTyp _ t -> getArrayType t
     Typedef sym -> do ObjType t <- look sym KeyType; getArrayType t
     _           -> cmpErr "isn't an array"
-    
 
+
+getNakedType :: ValType -> Instr ValType
+getNakedType typ = case typ of
+    Named _ t   -> getNakedType t
+    AnnoTyp _ t -> getNakedType t
+    Typedef sym -> do ObjType t <- look sym KeyType; getNakedType t
+    t           -> return t
+    
+    
 checkTypesMatch :: ValType -> ValType -> Instr ()
 checkTypesMatch a b = do
     a' <- skipAnnos a
@@ -445,6 +455,28 @@ valAnd (v:vs) = do
 
 
 
+valTablePrint :: String -> Value -> Instr ()
+valTablePrint append val = do
+    Table ts <- getNakedType (valType val)
+    printf "{" []
+    Val _ struct <- valLoad val
+    len <- extractValue struct [0]
+    forM_ (zip ts [0..]) $ \(typ, i) -> do
+        pi8 <- extractValue struct [2+i]
+        opTyp <- opTypeOf typ
+        pArr <- bitcast pi8 (ptr opTyp)
+        lenm1 <- sub len (int64 1)
+        for lenm1 $ \j -> do
+            pElem <- gep pArr [j]
+            valPrint ", " (Ptr typ pElem)
+
+        pElem <- gep pArr [lenm1]
+        valPrint "; " (Ptr typ pElem)
+
+    printf ("}" ++ append) []
+    return ()
+
+
 valPrint :: String -> Value -> Instr ()
 valPrint append val
     | isAnnoTyp (valType val) = do
@@ -472,6 +504,9 @@ valPrint append val
         forM_ [0..len-1] $ \i -> do
             let app = if i < len-1 then ", " else ")" ++ append
             valPrint app =<< valTupleIdx (fromIntegral i) val
+
+    | isTable (valType val) =
+        valTablePrint append val
 
     | isTypedef (valType val) = do
         let Typedef symbol = valType val

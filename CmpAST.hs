@@ -36,6 +36,7 @@ import           CmpFuncs
 import           CmpValue
 import           CmpMonad
 import           CmpADT
+import           CmpTable
 
 
 compile :: Context -> Ptr FFI.DataLayout -> MyCmpState -> S.AST -> IO (Either CmpError ([Definition], MyCmpState))
@@ -184,10 +185,11 @@ cmpStmt (S.Print pos exprs) = withPos pos $
 
 
 cmpExpr :: S.Expr -> Instr Value
-cmpExpr (S.Int pos i)   = return $ Val I64 (int64 i)
-cmpExpr (S.Float pos f) = return $ Val F64 (double f)
-cmpExpr (S.Bool pos b)  = return $ Val Bool (bit $ if b then 1 else 0)
-cmpExpr (S.Char pos c)  = return $ Val Char (int32 $ fromIntegral $ fromEnum c)
+cmpExpr (S.Int pos i)       = return $ Val I64 (int64 i)
+cmpExpr (S.Float pos f)     = return $ Val F64 (double f)
+cmpExpr (S.Bool pos b)      = return $ Val Bool (bit $ if b then 1 else 0)
+cmpExpr (S.Char pos c)      = return $ Val Char (int32 $ fromIntegral $ fromEnum c)
+cmpExpr (S.Table pos exprs) = cmpTableExpr =<< mapM (mapM cmpExpr) exprs
 
 cmpExpr (S.String pos s) = do
     name <- freshName "string"
@@ -215,43 +217,6 @@ cmpExpr (S.Tuple pos exprs) = do
     tup <- valLocal $ Tuple (map valType vals)
     forM_ (zip vals [0..]) $ \(val, i) -> valTupleSet tup i val
     return tup
-
-cmpExpr (S.Table pos rows) = withPos pos $ do
-    let numRows = length rows
-    assert (numRows > 0) "cannot deduce table type"
-    let numCols = length (head rows)
-    assert (all (== numCols) (map length rows)) "row lengths differ" 
-    assert (numCols > 0) "cannot deduce table type"
-
-    (rowsVals, rowTyps, rowTypSizes) <- fmap unzip3 $ forM rows $ \row -> do
-        vals <- mapM cmpExpr row
-        let typ = valType (head vals)
-        assert (all (== typ) (map valType vals)) "element types differ in row"
-        size <- sizeOf =<< opTypeOf typ
-        return (vals, typ, size)
-
-    let typ = Table rowTyps
-    let len = numCols
-    let cap = len
-
-    opTyp <- opTypeOf typ
-    typName <- freshName (mkBSS "table_t")
-    addAction typName $ typedef typName (Just opTyp)
-    ensureDef typName
-    let namedTyp = Named typName typ
-
-    name <- freshName (mkBSS "table")
-    (val@(Ptr _ loc), ext) <- valGlobal name namedTyp
-    lenPtr <- gep loc [int32 0, int32 0]
-    store lenPtr 0 (int32 $ fromIntegral len)
-    capPtr <- gep loc [int32 0, int32 1]
-    store capPtr 0 (int32 $ fromIntegral cap)
-
-    forM_ (zip rowTypSizes [0..]) $ \(size, i) -> do
-        rowPtr <- gep loc [int32 0, int32 (i+2)]
-        store rowPtr 0 =<< malloc (int64 $ fromIntegral cap * fromIntegral size)
-
-    return val
 
 cmpExpr (S.ArrayIndex pos arrExpr idxExpr) = do
     arr <- cmpExpr arrExpr
