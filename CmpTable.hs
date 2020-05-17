@@ -27,18 +27,16 @@ cmpTableExpr rows = do
         size <- sizeOf =<< opTypeOf typ
         return (typ, size)
 
-    let typ = Table rowTyps
+    typName <- freshName (mkBSS "table_t")
+    let typ = Table (Just typName) rowTyps
+    opTyp <- opTypeOf (Table Nothing rowTyps)
+    addAction typName $ typedef typName (Just opTyp)
+    ensureDef typName
+
     let len = numCols
     let cap = len
 
-    opTyp <- opTypeOf typ
-    typName <- freshName (mkBSS "table_t")
-    addAction typName $ typedef typName (Just opTyp)
-    ensureDef typName
-    let namedTyp = typ
-
-    name <- freshName (mkBSS "table")
-    (val@(Ptr _ loc), ext) <- valGlobal name namedTyp
+    val@(Ptr (Table _ _) loc) <- valLocal typ
     lenPtr <- gep loc [int32 0, int32 0]
     store lenPtr 0 (int32 $ fromIntegral len)
     capPtr <- gep loc [int32 0, int32 1]

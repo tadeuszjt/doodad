@@ -65,7 +65,7 @@ cmpPattern isGlobal pattern val = case pattern of
         return (valBool True)
 
     S.PatTuple pos patterns -> withPos pos $ do
-        Tuple nm ts <- getTupleType (valType val)
+        Tuple nm ts <- nakedTypeOf (valType val)
         cnds <- forM (zip patterns [0..]) $ \(pat, i) ->
             cmpPattern isGlobal pat =<< valTupleIdx i val
         valAnd cnds
@@ -216,8 +216,8 @@ cmpExpr (S.ArrayIndex pos arrExpr idxExpr) = do
 
 cmpExpr (S.TupleIndex pos tupExpr i) = do
     tup <- cmpExpr tupExpr
-    typ <- getTupleType (valType tup)
-    valTupleIdx i (tup { valType = typ })
+    Tuple nm ts <- nakedTypeOf (valType tup)
+    valTupleIdx i (tup { valType = Tuple nm ts })
 
 cmpExpr (S.TupleMember pos tupExpr symbol) = do
     tup <- cmpExpr tupExpr
@@ -265,8 +265,8 @@ cmpExpr (S.Call pos symbol args) = withPos pos $ do
     where
 --        cmpTypeFn :: ValType -> [Value] -> Instr Value
 --        cmpTypeFn typ args = do
---            conc <- getConcreteType typ
---            concs <- mapM getConcreteType (map valType args)
+--            conc <- concreteTypeOf typ
+--            concs <- mapM concreteTypeOf (map valType args)
 --            case concs of
 --                []                        -> Val typ <$> cons <$> zeroOf conc
 --                [t] | conc == t           -> return $ (head args) { valType = typ }

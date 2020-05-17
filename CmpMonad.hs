@@ -47,13 +47,19 @@ instance (Monad m, Ord k) => MonadFail (InstrCmpT k o m) where
 type ModuleCmp k o = ModuleCmpT k o Identity
 newtype ModuleCmpT k o m a
     = ModuleCmpT { getModuleCmp :: ModuleBuilderT (StateT (CmpState k o) (ExceptT CmpError m)) a }
-    deriving (Functor, Applicative, Monad, MonadError CmpError, MonadState (CmpState k o), MonadModuleBuilder)
+    deriving
+        ( Functor, Applicative, Monad, MonadIO, MonadError CmpError, MonadState (CmpState k o)
+        , MonadModuleBuilder
+        )
 
 
 type InstrCmp k o = InstrCmpT k o Identity
 newtype InstrCmpT k o m a
     = InstrCmpT { getInstrCmp :: IRBuilderT (ModuleCmpT k o m) a }
-    deriving (Functor, Applicative, Monad, MonadError CmpError, MonadState (CmpState k o), MonadModuleBuilder, MonadIRBuilder) 
+    deriving
+        ( Functor, Applicative, Monad, MonadIO, MonadError CmpError, MonadState (CmpState k o)
+        , MonadModuleBuilder, MonadIRBuilder
+        )
 
 
 data TextPos

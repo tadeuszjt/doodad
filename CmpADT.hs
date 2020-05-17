@@ -35,7 +35,7 @@ cmpDataDef (S.Datadef pos symbol datas) = withPos pos $ do
         S.DataIdent p sym       -> return (Tuple (Just name) [enumTyp])
         S.DataFunc p sym params -> return $ Tuple (Just name) (enumTyp : map (fromASTType . S.paramType) params)
 
-    memSizes <- mapM sizeOf =<< mapM opTypeOf =<< mapM getConcreteType memTyps
+    memSizes <- mapM sizeOf =<< mapM opTypeOf memTyps
     let (_, memMaxTyp) = maximumBy (comparing fst) (zip memSizes memTyps)
     let dataConcTyp = memMaxTyp
 

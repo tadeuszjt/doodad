@@ -139,33 +139,12 @@ free mem = do
     call op [(mem, [])]
 
 
-isCons :: Operand -> Bool
-isCons (ConstantOperand _) = True
-isCons _                   = False
-
-
-isLocal :: Operand -> Bool
-isLocal (LocalReference _ _) = True
-isLocal _                    = False
-
-
-isGlobal :: Operand -> Bool
-isGlobal (ConstantOperand (C.GlobalReference _ _)) = True
-isGlobal _                                         = False
-
-
-
 toCons :: Operand -> C.Constant
 toCons (ConstantOperand c) = c
 
 
 cons :: C.Constant -> Operand
 cons = ConstantOperand
-
-
-externOf :: Definition -> Definition
-externOf (GlobalDefinition var@(GlobalVariable _ _ _ _ _ _ _ _ _ _ _ _ _ _)) = GlobalDefinition (var { G.initializer = Nothing } )
-externOf (GlobalDefinition fun@(Function _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _)) = GlobalDefinition (fun { G.basicBlocks = [] } )
 
 
 globalDef :: Name -> Type -> Maybe C.Constant -> (Definition, Operand)
