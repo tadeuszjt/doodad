@@ -106,7 +106,7 @@ instance Show ValType where
         String      -> "string"
         Tuple nm ts -> "(" ++ intercalate ", " (map show ts) ++ ")"
         Array n t   -> "[" ++ show n ++ " " ++ show t ++ "]"
-        Table nm ts -> "{" ++ intercalate " | " (map show ts) ++ "}"
+        Table nm ts -> "{" ++ intercalate "; " (map show ts) ++ "}"
         Typedef s   -> s
         AnnoTyp _ t -> show t
 
@@ -388,6 +388,27 @@ valTupleSet (Ptr typ loc) i val = do
     Tuple nm ts <- nakedTypeOf typ
     ptr <- gep loc [int32 0, int32 (fromIntegral i)]
     valStore (Ptr (ts !! fromIntegral i) ptr) val
+
+
+valTableIdx :: Value -> Value -> Instr Value
+valTableIdx tab idx = do
+    Table nm ts <- nakedTypeOf (valType tab)
+    idxTyp      <- nakedTypeOf (valType idx)
+    Val _ idxOp <- valLoad idx
+
+    assert (isInt idxTyp) "index isn't int"
+    maybe (return ()) ensureDef nm
+    tup <- valLocal (Tuple Nothing ts)
+
+    case tab of
+        Ptr _ loc ->
+            forM_ (zip ts [0..]) $ \(t, i) -> do
+                p <- (flip load) 0 =<< gep loc [int32 0, int32 (i+2)]
+                ep <- gep p [idxOp]
+                valTupleSet tup (fromIntegral i) (Ptr t ep)
+
+    return tup
+        
 
 
 valsEqual :: Value -> Value -> Instr Value

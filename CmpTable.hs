@@ -1,6 +1,7 @@
 module CmpTable where
 
 import           Control.Monad
+import           Data.List
 
 import           LLVM.AST.Type
 import           LLVM.IRBuilder.Constant
@@ -21,11 +22,12 @@ cmpTableExpr rows = do
     assert (all (== numCols) (map length rows)) "row lengths differ" 
     assert (numCols > 0) "cannot deduce table type"
 
-    (rowTyps, rowTypSizes) <- fmap unzip $ forM rows $ \row -> do
+    (rowTyps, rowOpTyps, rowTypSizes) <- fmap unzip3 $ forM rows $ \row -> do
         let typ = valType (head row)
         assert (all (== typ) (map valType row)) "element types differ in row"
-        size <- sizeOf =<< opTypeOf typ
-        return (typ, size)
+        opTyp <- opTypeOf typ
+        size <- sizeOf opTyp
+        return (typ, opTyp, size)
 
     typName <- freshName (mkBSS "table_t")
     let typ = Table (Just typName) rowTyps
@@ -42,9 +44,11 @@ cmpTableExpr rows = do
     capPtr <- gep loc [int32 0, int32 1]
     store capPtr 0 (int32 $ fromIntegral cap)
 
-    forM_ (zip3 rows rowTypSizes [0..]) $ \(row, size, i) -> do
+    forM_ (zip4 rows rowOpTyps rowTypSizes [0..]) $ \(row, rowOpTyp, size, i) -> do
         rowPtr <- gep loc [int32 0, int32 (i+2)]
-        store rowPtr 0 =<< malloc (int64 $ fromIntegral cap * fromIntegral size)
+        pi8 <- malloc $ int64 (fromIntegral cap * fromIntegral size)
+        pMem <- bitcast pi8 (ptr rowOpTyp)
+        store rowPtr 0 pMem
         forM_ (zip row [0..]) $ \(val, j) -> do
             rowPtrVal <- load rowPtr 0
             pi8 <- gep rowPtrVal [int64 j]
@@ -52,6 +56,6 @@ cmpTableExpr rows = do
             elemPtr <- bitcast pi8 (ptr opTyp)
             valStore (Ptr (valType val) elemPtr) val
             
+    valLoad val
 
-    return val
-    
+

@@ -209,10 +209,14 @@ cmpExpr (S.Tuple pos exprs) = do
     forM_ (zip vals [0..]) $ \(val, i) -> valTupleSet tup i val
     return tup
 
-cmpExpr (S.ArrayIndex pos arrExpr idxExpr) = do
-    arr <- cmpExpr arrExpr
-    idx <- cmpExpr idxExpr
-    valArrayIdx arr idx
+cmpExpr (S.ArrayIndex pos expr index) = do
+    val <- cmpExpr expr
+    idx <- cmpExpr index
+    typ <- nakedTypeOf (valType val)
+    case typ of
+        Array _ _ -> valArrayIdx val idx
+        Table _ _ -> valTableIdx val idx
+        _ -> cmpErr ("invalid array index for type: " ++ show (valType val))
 
 cmpExpr (S.TupleIndex pos tupExpr i) = do
     tup <- cmpExpr tupExpr
