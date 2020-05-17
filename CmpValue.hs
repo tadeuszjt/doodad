@@ -4,13 +4,10 @@
 module CmpValue where
 
 import           Control.Monad
-import           Control.Monad.Except       hiding (void)
 import           Control.Monad.State
 import qualified Data.ByteString.Char8      as BS
 import qualified Data.ByteString.Short      as BSS
 import           Data.Maybe
-import qualified Data.Map                   as Map
-import qualified Data.Set                   as Set
 import           Data.List                  hiding (and, or)
 import           Data.Word
 import           Prelude                    hiding (EQ, and, or)
@@ -19,24 +16,17 @@ import           LLVM.Context
 import           LLVM.AST                   hiding (function, Module)
 import qualified LLVM.AST.Constant          as C
 import           LLVM.AST.IntegerPredicate
-import           LLVM.AST.FloatingPointPredicate (FloatingPointPredicate(OEQ))
 import           LLVM.AST.Type              hiding (void, double)
-import           LLVM.AST.Typed
-import           LLVM.AST.DataLayout
-import           LLVM.Internal.DataLayout
 import           LLVM.Internal.Type
 import           LLVM.Internal.EncodeAST
-import           LLVM.Internal.Context
 import           LLVM.Internal.Coding           hiding (alloca)
 import           Foreign.Ptr
 import qualified LLVM.Internal.FFI.DataLayout   as FFI
-import qualified LLVM.Internal.FFI.PtrHierarchy as FFI
 import           LLVM.IRBuilder.Constant
 import           LLVM.IRBuilder.Instruction
 import           LLVM.IRBuilder.Module
 import           LLVM.IRBuilder.Monad
 
-import qualified Lexer                      as L
 import qualified AST                        as S
 import           CmpFuncs
 import           CmpMonad
@@ -109,11 +99,10 @@ data ValType
     | Bool
     | Char
     | String
-    | Tuple [ValType]
+    | Tuple (Maybe Name) [ValType]
     | Array Word64 ValType
     | Table [ValType]
     | Typedef String
-    | Named Name ValType
     | AnnoTyp String ValType
     deriving (Eq, Ord)
 
@@ -129,42 +118,34 @@ instance Show ValType where
         Bool        -> "bool"
         Char        -> "char"
         String      -> "string"
-        Tuple ts    -> "(" ++ intercalate ", " (map show ts) ++ ")"
+        Tuple nm ts -> "(" ++ intercalate ", " (map show ts) ++ ")"
         Array n t   -> "[" ++ show n ++ " " ++ show t ++ "]"
         Table ts    -> "{" ++ intercalate " | " (map show ts) ++ "}"
         Typedef s   -> s
-        Named _ t   -> show t
         AnnoTyp _ t -> show t
 
 
 isChar (AnnoTyp _ t)    = isChar t
-isChar (Named _ t)      = isChar t
 isChar x                = x == Char
 
 isString (AnnoTyp _ t)  = isString t
-isString (Named _ t)    = isString t
 isString x              = x == String
 
 isInt (AnnoTyp _ t)     = isInt t
-isInt (Named _ t)       = isInt t
 isInt x                 = x `elem` [I8, I32, I64]
 
 isFloat (AnnoTyp _ t)   = isFloat t
-isFloat (Named _ t)     = isFloat t
 isFloat x               = x `elem` [F32, F64]
 
 isArray (AnnoTyp _ t)   = isArray t
-isArray (Named _ t)     = isArray t
 isArray (Array _ _)     = True
 isArray _               = False
 
 isTuple (AnnoTyp _ t)   = isTuple t 
-isTuple (Named _ t)     = isTuple t
-isTuple (Tuple _)       = True
+isTuple (Tuple _ _)     = True
 isTuple _               = False
 
 isTable (AnnoTyp _ t)   = isTable t
-isTable (Named _ t)     = isTable t
 isTable (Table _)       = True
 isTable _               = False
 
@@ -180,7 +161,7 @@ isAggregate x           = isTuple x || isArray x || isTable x
 
 
 valInt :: ValType -> Integer -> Value
-valInt I8 n = Val I8 (int8 n)
+valInt I8 n  = Val I8 (int8 n)
 valInt I32 n = Val I32 (int32 n)
 valInt I64 n = Val I64 (int64 n)
 
@@ -199,7 +180,7 @@ fromASTType typ = case typ of
     S.TChar      -> Char
     S.TString    -> String
     S.TArray n t -> Array n (fromASTType t)
-    S.TTuple ts  -> Tuple (map fromASTType ts)
+    S.TTuple ts  -> Tuple Nothing (map fromASTType ts)
     S.TIdent sym -> Typedef sym
     S.TAnno s t  -> AnnoTyp s (fromASTType t)
 
@@ -214,13 +195,15 @@ opTypeOf typ = case typ of
         I64         -> return i64
         F32         -> return (FloatingPointType HalfFP)
         F64         -> return (FloatingPointType DoubleFP)
-        Tuple ts    -> fmap (StructureType False) (mapM opTypeOf ts)
+        Tuple nm ts ->
+            if isNothing nm
+            then fmap (StructureType False) (mapM opTypeOf ts)
+            else return $ NamedTypeReference (fromJust nm)
         Array n t   -> fmap (ArrayType $ fromIntegral n) (opTypeOf t)
         Table ts    -> do
             opTyps <- mapM (opTypeOf) ts
             return $ StructureType False $ i64:i64: (map ptr opTyps)
         String      -> return (ptr i8)
-        Named nm t  -> return (NamedTypeReference nm)
         AnnoTyp _ t -> opTypeOf t
         Typedef sym -> do
             res <- look sym KeyType
@@ -251,17 +234,15 @@ zeroOf typ = case typ of
     String      -> return $ C.IntToPtr (toCons $ int64 0) (ptr i8)
     Array n t   -> fmap (toCons . array . replicate (fromIntegral n)) (zeroOf t)
     Table ts    -> fmap (toCons . (struct Nothing False)) $ mapM zeroOf (I64:I64:ts)
-    Tuple typs  -> fmap (toCons . (struct Nothing False)) (mapM zeroOf typs)
+    Tuple nm ts -> fmap (toCons . (struct Nothing False)) (mapM zeroOf ts)
     Typedef _   -> zeroOf =<< getConcreteType typ
-    Named _ t   -> zeroOf t
     AnnoTyp _ t -> zeroOf t
 
 
 getConcreteType :: ValType -> Instr ValType
 getConcreteType typ = case typ of
-    Tuple ts    -> fmap Tuple (mapM getConcreteType ts)
+    Tuple nm ts -> fmap (Tuple nm) (mapM getConcreteType ts)
     Array n t   -> fmap (Array n) (getConcreteType t)
-    Named _ t   -> getConcreteType t
     AnnoTyp _ t -> getConcreteType t
     Typedef sym -> do
         res <- look sym KeyType
@@ -273,8 +254,9 @@ getConcreteType typ = case typ of
 
 getTupleType :: ValType -> Instr ValType
 getTupleType typ = case typ of
-    Tuple _     -> return typ
-    Named _ t   -> getTupleType t
+    Tuple nm _ -> do
+        maybe (return ()) ensureDef nm
+        return typ
     AnnoTyp _ t -> getTupleType t
     Typedef sym -> do
         res <- look sym KeyType
@@ -287,7 +269,6 @@ getTupleType typ = case typ of
 getArrayType :: ValType -> Instr ValType
 getArrayType typ = case typ of
     Array _ _   -> return typ
-    Named _ t   -> getArrayType t
     AnnoTyp _ t -> getArrayType t
     Typedef sym -> do ObjType t <- look sym KeyType; getArrayType t
     _           -> cmpErr "isn't an array"
@@ -295,7 +276,6 @@ getArrayType typ = case typ of
 
 getNakedType :: ValType -> Instr ValType
 getNakedType typ = case typ of
-    Named _ t   -> getNakedType t
     AnnoTyp _ t -> getNakedType t
     Typedef sym -> do ObjType t <- look sym KeyType; getNakedType t
     t           -> return t
@@ -312,23 +292,21 @@ skipAnnos :: ValType -> Instr ValType
 skipAnnos typ = case typ of
     AnnoTyp _ t -> return t
     Typedef sym -> do ObjType t <- look sym KeyType; skipAnnos t
-    Tuple ts    -> fmap Tuple (mapM skipAnnos ts)
+    Tuple nm ts -> fmap (Tuple nm) (mapM skipAnnos ts)
     Array n t   -> fmap (Array n) (skipAnnos t)
-    Named s t   -> fmap (Named s) (skipAnnos t)
     t           -> return t
 
 
 ensureTypeDeps :: ValType -> Instr ()
-ensureTypeDeps (Array _ t) = ensureTypeDeps t
-ensureTypeDeps (Tuple ts)  = mapM_ ensureTypeDeps ts
+ensureTypeDeps (Array _ t)   = ensureTypeDeps t
+ensureTypeDeps (Tuple nm ts) = do
+    maybe (return ()) ensureDef nm
+    mapM_ ensureTypeDeps ts
 ensureTypeDeps (Typedef sym) = do
     res <- look sym KeyType
     case res of
         ObjType t   -> ensureTypeDeps t
         ObjData t _ -> ensureTypeDeps t
-ensureTypeDeps (Named name t) = do
-    ensureDef name
-    ensureTypeDeps t
 ensureTypeDeps _ = return ()
 
 
@@ -405,13 +383,13 @@ valLen :: Value -> Instr Word64
 valLen val = do
     typ <- getConcreteType (valType val)
     case typ of
-        Array n t -> return n
-        Tuple ts  -> return $ fromIntegral (length ts)
+        Array n t   -> return n
+        Tuple nm ts -> return $ fromIntegral (length ts)
 
 
 valTupleIdx :: Word32 -> Value -> Instr Value
 valTupleIdx i tup = do
-    Tuple ts <- getTupleType (valType tup)
+    Tuple nm ts <- getTupleType (valType tup)
     assert (i >= 0 && fromIntegral i < length ts) "tuple index out of range"
     let t = ts !! fromIntegral i
     case tup of
@@ -421,7 +399,7 @@ valTupleIdx i tup = do
 
 valTupleSet :: Value -> Word32 -> Value -> Instr ()
 valTupleSet (Ptr typ loc) i val = do
-    Tuple ts <- getTupleType typ
+    Tuple nm ts <- getTupleType typ
     ptr <- gep loc [int32 0, int32 (fromIntegral i)]
     valStore (Ptr (ts !! fromIntegral i) ptr) val
 

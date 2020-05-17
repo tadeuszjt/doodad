@@ -4,25 +4,15 @@
 module CmpAST where
 
 import           Control.Monad
-import           Control.Monad.Except       hiding (void)
 import           Control.Monad.State
-import qualified Data.ByteString.Char8      as BS
-import qualified Data.ByteString.Short      as BSS
 import           Data.Maybe
-import qualified Data.Map                   as Map
-import qualified Data.Set                   as Set
 import           Data.List                  hiding (and, or)
-import           Data.Word
 import           Prelude                    hiding (EQ, and, or)
 
 import           LLVM.Context
 import           LLVM.AST                   hiding (function, Module)
-import qualified LLVM.AST.Constant          as C
-import           LLVM.AST.Global
 import           LLVM.AST.IntegerPredicate
 import qualified LLVM.AST.FloatingPointPredicate as F
-import           LLVM.AST.Type              hiding (void, double)
-import           LLVM.AST.Typed
 import qualified LLVM.Internal.FFI.DataLayout as FFI
 import           Foreign.Ptr
 import           LLVM.IRBuilder.Constant
@@ -30,7 +20,6 @@ import           LLVM.IRBuilder.Instruction
 import           LLVM.IRBuilder.Module
 import           LLVM.IRBuilder.Monad
 
-import qualified Lexer                      as L
 import qualified AST                        as S
 import           CmpFuncs
 import           CmpValue
@@ -76,7 +65,7 @@ cmpPattern isGlobal pattern val = case pattern of
         return (valBool True)
 
     S.PatTuple pos patterns -> withPos pos $ do
-        Tuple ts <- getTupleType (valType val)
+        Tuple nm ts <- getTupleType (valType val)
         cnds <- forM (zip patterns [0..]) $ \(pat, i) ->
             cmpPattern isGlobal pat =<< valTupleIdx i val
         valAnd cnds
@@ -101,9 +90,11 @@ cmpTopStmt (S.Typedef pos symbol astTyp) = do
     let typ = fromASTType astTyp
     opTyp <- opTypeOf typ
     if isTuple typ then do
+        let Tuple Nothing ts = typ
         name <- freshName (mkBSS symbol)
+        let typ' = Tuple (Just name) ts
         addAction name $ typedef name (Just opTyp)
-        addSymObj symbol KeyType $ ObjType (Named name typ)
+        addSymObj symbol KeyType (ObjType typ')
         addSymObjReq symbol KeyType name
     else
         addSymObj symbol KeyType (ObjType typ)
@@ -185,7 +176,7 @@ cmpStmt (S.Print pos exprs) = withPos pos $
 
 
 cmpExpr :: S.Expr -> Instr Value
-cmpExpr (S.Int pos i)       = return $ Val I64 (int64 i)
+cmpExpr (S.Int pos i)       = return (valInt I64 i)
 cmpExpr (S.Float pos f)     = return $ Val F64 (double f)
 cmpExpr (S.Bool pos b)      = return $ Val Bool (bit $ if b then 1 else 0)
 cmpExpr (S.Char pos c)      = return $ Val Char (int32 $ fromIntegral $ fromEnum c)
@@ -214,7 +205,7 @@ cmpExpr (S.Array pos exprs) = do
 
 cmpExpr (S.Tuple pos exprs) = do
     vals <- mapM cmpExpr exprs
-    tup <- valLocal $ Tuple (map valType vals)
+    tup <- valLocal $ Tuple Nothing (map valType vals)
     forM_ (zip vals [0..]) $ \(val, i) -> valTupleSet tup i val
     return tup
 
@@ -236,7 +227,6 @@ cmpExpr (S.TupleMember pos tupExpr symbol) = do
     where
         indexAnno :: String -> Value -> Instr (Maybe Value)
         indexAnno str val = case valType val of
-            Named _ t -> indexAnno str (val { valType = t } )
             AnnoTyp s t
                 | s == str  -> return $ Just (val { valType = t })
                 | otherwise -> indexAnno str (val { valType = t })
@@ -246,7 +236,7 @@ cmpExpr (S.TupleMember pos tupExpr symbol) = do
                 case res of
                     ObjType t -> indexAnno str (val{ valType = t })
             
-            Tuple ts -> do
+            Tuple nm ts -> do
                 res <- forM (zip ts [0..]) $ \(t, i) -> do
                    idx@(Ptr _ _) <- valTupleIdx i val
                    indexAnno str (idx { valType = t })
@@ -270,22 +260,22 @@ cmpExpr (S.Call pos symbol args) = withPos pos $ do
         (_, Just (ObjFunc typ op)) -> Val typ <$> call op [(o, []) | o <- map valOp vals]
         (_, Just (ObjInline f))    -> f vals
         (_, Just (ObjVal val))     -> return val
-        (Just (ObjType t), _)      -> ensureTypeDeps t >> cmpTypeFn (Typedef symbol) vals
+        --(Just (ObjType t), _)      -> ensureTypeDeps t >> cmpTypeFn (Typedef symbol) vals
         _                          -> cmpErr ("no callable object exists for " ++ symbol)
     where
-        cmpTypeFn :: ValType -> [Value] -> Instr Value
-        cmpTypeFn typ args = do
-            conc <- getConcreteType typ
-            concs <- mapM getConcreteType (map valType args)
-            case concs of
-                []                     -> Val typ <$> cons <$> zeroOf conc
-                [t] | conc == t        -> return $ (head args) { valType = typ }
-                ts  | conc == Tuple ts -> do
-                    tup <- valLocal typ
-                    forM_ (zip args [0..]) $ \(a, i) -> valTupleSet tup i a
-                    return tup
-                _ -> cmpErr "cannot construct type from arguments"
-
+--        cmpTypeFn :: ValType -> [Value] -> Instr Value
+--        cmpTypeFn typ args = do
+--            conc <- getConcreteType typ
+--            concs <- mapM getConcreteType (map valType args)
+--            case concs of
+--                []                        -> Val typ <$> cons <$> zeroOf conc
+--                [t] | conc == t           -> return $ (head args) { valType = typ }
+--                ts  | conc == Tuple nm ts -> do
+--                    tup <- valLocal typ
+--                    forM_ (zip args [0..]) $ \(a, i) -> valTupleSet tup i a
+--                    return tup
+--                _ -> cmpErr "cannot construct type from arguments"
+--
 cmpExpr (S.Infix pos S.EqEq exprA exprB) = withPos pos $ do
     valA <- cmpExpr exprA
     valB <- cmpExpr exprB

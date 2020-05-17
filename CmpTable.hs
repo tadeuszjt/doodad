@@ -35,7 +35,7 @@ cmpTableExpr rows = do
     typName <- freshName (mkBSS "table_t")
     addAction typName $ typedef typName (Just opTyp)
     ensureDef typName
-    let namedTyp = Named typName typ
+    let namedTyp = typ
 
     name <- freshName (mkBSS "table")
     (val@(Ptr _ loc), ext) <- valGlobal name namedTyp

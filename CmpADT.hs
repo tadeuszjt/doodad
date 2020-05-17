@@ -32,8 +32,8 @@ cmpDataDef (S.Datadef pos symbol datas) = withPos pos $ do
             | x < 2^64 -> return I64
     
     memTyps <- forM datas $ \dat -> case dat of
-        S.DataIdent p sym       -> return (Tuple [enumTyp])
-        S.DataFunc p sym params -> return $ Tuple (enumTyp : map (fromASTType . S.paramType) params)
+        S.DataIdent p sym       -> return (Tuple (Just name) [enumTyp])
+        S.DataFunc p sym params -> return $ Tuple (Just name) (enumTyp : map (fromASTType . S.paramType) params)
 
     memSizes <- mapM sizeOf =<< mapM opTypeOf =<< mapM getConcreteType memTyps
     let (_, memMaxTyp) = maximumBy (comparing fst) (zip memSizes memTyps)
@@ -68,7 +68,7 @@ cmpDataDef (S.Datadef pos symbol datas) = withPos pos $ do
 
 
     addSymObj symbol KeyType $ ObjData 
-        { dataConcTyp = Named name dataConcTyp
+        { dataConcTyp = dataConcTyp
         , dataPrintFn = printFn memTyps
         }
     addSymObjReq symbol KeyType name
