@@ -1,19 +1,19 @@
 module CmpTable where
 
-import           Control.Monad
-import           Data.List
-import           Data.Word
+import Control.Monad
+import Data.List
+import Data.Word
 
-import           LLVM.AST.Type
-import           LLVM.IRBuilder.Constant
-import           LLVM.IRBuilder.Instruction
-import           LLVM.IRBuilder.Module
-import           LLVM.IRBuilder.Monad
+import LLVM.AST.Type
+import LLVM.IRBuilder.Constant
+import LLVM.IRBuilder.Instruction
+import LLVM.IRBuilder.Module
+import LLVM.IRBuilder.Monad
 
-import           Type
-import           CmpFuncs
-import           CmpValue
-import           CmpMonad
+import Type
+import CmpFuncs
+import CmpValue
+import CmpMonad
 
 
 cmpTableExpr :: [[Value]] -> Instr Value
@@ -43,7 +43,7 @@ cmpTableExpr rows = do
     lenPtr <- gep loc [int32 0, int32 0]
     capPtr <- gep loc [int32 0, int32 1]
     store lenPtr 0 (int32 len)
-    store capPtr 0 (int32 len)
+    store capPtr 0 (int32 0)
 
     forM_ (zip4 rows rowTyps rowOpTyps [0..]) $ \(row, rowTyp, rowOpTyp, i) -> do
         Ptr _ p <- valLocal $ Array (fromIntegral len) rowTyp

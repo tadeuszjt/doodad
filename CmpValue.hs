@@ -50,6 +50,16 @@ data CompileState
 initCompileState ctx dl = CompileState ctx dl Void
 
 
+setCurRetTyp :: ValType -> Instr ()
+setCurRetTyp typ =
+    lift $ modify $ \s -> s { curRetTyp = typ }
+
+
+getCurRetTyp :: Instr ValType
+getCurRetTyp =
+    lift (gets curRetTyp)
+
+
 data SymKey
     = KeyVal
     | KeyFunc [ValType]
@@ -74,16 +84,6 @@ data Value
     = Val { valType :: ValType, valOp :: Operand }
     | Ptr { valType :: ValType, valOp :: Operand }
     deriving (Show, Eq)
-
-
-setCurRetTyp :: ValType -> Instr ()
-setCurRetTyp typ =
-    lift $ modify $ \s -> s { curRetTyp = typ }
-
-
-getCurRetTyp :: Instr ValType
-getCurRetTyp =
-    lift (gets curRetTyp)
 
 
 valInt :: ValType -> Integer -> Value
@@ -269,7 +269,7 @@ valArrayIdx (Ptr (Array n t) loc) idx = do
     return (Ptr t ptr)
 
 
-valArrayConstIdx :: Value -> Word64 -> Instr Value
+valArrayConstIdx :: Value -> Word -> Instr Value
 valArrayConstIdx val i = do
     Array n t <- nakedTypeOf (valType val)
     case val of
@@ -287,7 +287,7 @@ valArraySet (Ptr typ loc) idx val = do
     valStore (Ptr t ptr) val
 
 
-valLen :: Value -> Instr Word64
+valLen :: Value -> Instr Word
 valLen val = do
     typ <- concreteTypeOf (valType val)
     case typ of
@@ -338,92 +338,6 @@ valAnd (v:vs) = do
     Val Bool op  <- valAnd [v]
     Val Bool ops <- valAnd vs
     fmap (Val Bool) (and ops op)
-
-
-
-valTablePrint :: String -> Value -> Instr ()
-valTablePrint append val = do
-    Table nm ts <- nakedTypeOf (valType val)
-    printf "{" []
-    Val _ struct <- valLoad val
-    len <- extractValue struct [0]
-    forM_ (zip ts [0..]) $ \(typ, i) -> do
-        pi8 <- extractValue struct [2+i]
-        opTyp <- opTypeOf typ
-        pArr <- bitcast pi8 (ptr opTyp)
-        lenm1 <- sub len (int64 1)
-        for lenm1 $ \j -> do
-            pElem <- gep pArr [j]
-            valPrint ", " (Ptr typ pElem)
-
-        pElem <- gep pArr [lenm1]
-        valPrint "; " (Ptr typ pElem)
-
-    printf ("}" ++ append) []
-    return ()
-
-
-valPrint :: String -> Value -> Instr ()
-valPrint append val
-    | isAnnotated (valType val) = do
-        let Annotated s t = valType val
-        printf (s ++ "=") []
-        valPrint append (val{ valType = t })
-
-    | valType val == Bool = do
-        Val Bool op <- valLoad val
-        str <- globalStringPtr "true\0false" =<< fresh
-        idx <- select op (int64 0) (int64 5)
-        ptr <- gep (cons str) [idx]
-        void $ printf ("%s" ++ append) [ptr]
-
-    | isArray (valType val) = do
-        len <- valLen val
-        putchar '['
-        for (int64 $ fromIntegral len-1) $ \i -> do
-            valPrint ", " =<< valArrayIdx val (Val I64 i)
-        valPrint ("]" ++ append) =<< valArrayConstIdx val (len-1)
-
-    | isTuple (valType val) = do
-        len <- valLen val 
-        putchar '('
-        forM_ [0..len-1] $ \i -> do
-            let app = if i < len-1 then ", " else ")" ++ append
-            valPrint app =<< valTupleIdx (fromIntegral i) val
-
-    | isTable (valType val) =
-        valTablePrint append val
-
-    | isTypedef (valType val) = do
-        let Typedef symbol = valType val
-        obj <- look symbol KeyType
-        case obj of
-            ObjType typ -> do
-                void $ printf symbol []
-                conc <- concreteTypeOf typ
-
-                if isTuple conc then do
-                    tup@(Tuple nm ts) <- nakedTypeOf typ
-                    valPrint append (val { valType = tup })
-                else do
-                    void $ printf (symbol ++ "(") []
-                    valPrint (")" ++ append) (val { valType = conc })
-
-            ObjData t f -> do
-                f val
-                void (printf append [])
-
-    | otherwise = do
-        Val typ op <- valLoad val
-        void $ case typ of
-            I8     -> printf ("%d" ++ append) [op]
-            I32    -> printf ("%d" ++ append) [op]
-            I64    -> printf ("%ld" ++ append) [op]
-            F32    -> printf ("%f" ++ append) [op]
-            F64    -> printf ("%f" ++ append) [op]
-            Char   -> printf ("%c" ++ append) [op]
-            String -> printf ("\"%s\"" ++ append) [op]
-            t      -> cmpErr ("cannot print value with type: " ++ show t)
 
 
 publicFunction :: String -> [(String, ValType)] -> ValType -> ([Value] ->  Instr ()) -> Instr ()

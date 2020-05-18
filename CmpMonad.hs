@@ -28,12 +28,12 @@ import           LLVM.IRBuilder.Monad
 import qualified SymTab
 
 
-class (Ord k, MonadError CmpError m, MonadState (CmpState k o) m, MonadModuleBuilder m) => MonadModuleCmp k o m
+class (Ord k, MonadFail m, MonadError CmpError m, MonadState (CmpState k o) m, MonadModuleBuilder m) => MonadModuleCmp k o m
 class (MonadModuleCmp k o m, MonadIRBuilder m) => MonadInstrCmp k o m
 
-instance (Ord k, Monad m) => (MonadModuleCmp k o) (ModuleCmpT k o m)
-instance (Ord k, Monad m) => (MonadModuleCmp k o) (InstrCmpT k o m)
-instance (Ord k, Monad m) => (MonadInstrCmp k o) (InstrCmpT k o m)
+instance (Ord k, Monad m, MonadFail m) => (MonadModuleCmp k o) (ModuleCmpT k o m)
+instance (Ord k, Monad m, MonadFail m) => (MonadModuleCmp k o) (InstrCmpT k o m)
+instance (Ord k, Monad m, MonadFail m) => (MonadInstrCmp k o) (InstrCmpT k o m)
 
 instance MonadTrans (ModuleCmpT k o) where
     lift = ModuleCmpT . ModuleBuilderT . lift . lift . ExceptT . (fmap Right)
@@ -41,8 +41,12 @@ instance MonadTrans (ModuleCmpT k o) where
 instance MonadTrans (InstrCmpT k o) where
     lift = InstrCmpT . IRBuilderT . lift . lift
 
-instance (Monad m, Ord k) => MonadFail (InstrCmpT k o m) where
+instance (Ord k, Monad m, MonadFail m) => MonadFail (InstrCmpT k o m) where
     fail = cmpErr
+
+instance (Ord k, Monad m, MonadFail m) => MonadFail (ModuleCmpT k o m) where
+    fail = cmpErr
+
 
 type ModuleCmp k o = ModuleCmpT k o Identity
 newtype ModuleCmpT k o m a
@@ -126,7 +130,6 @@ cmpErr str = do
 assert :: MonadModuleCmp k o m => Bool -> String -> m ()
 assert cnd str =
     unless cnd $ void (cmpErr str)
-
 
 
 withPos :: MonadModuleCmp k o m => TextPos -> m a -> m a

@@ -14,6 +14,7 @@ import LLVM.IRBuilder.Constant
 
 import qualified AST as S
 import Type
+import Print
 import CmpMonad
 import CmpValue
 import CmpFuncs
