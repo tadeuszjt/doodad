@@ -26,6 +26,7 @@ import           CmpValue
 import           CmpMonad
 import           CmpADT
 import           CmpTable
+import           Type
 
 
 compile :: Context -> Ptr FFI.DataLayout -> MyCmpState -> S.AST -> IO (Either CmpError ([Definition], MyCmpState))
@@ -90,9 +91,8 @@ cmpTopStmt stmt@(S.CallStmt _ _ _) = cmpStmt stmt
 cmpTopStmt stmt@(S.Switch _ _ _)   = cmpStmt stmt
 cmpTopStmt stmt@(S.Datadef _ _ _)  = cmpDataDef stmt
 
-cmpTopStmt (S.Typedef pos symbol astTyp) = do
+cmpTopStmt (S.Typedef pos symbol typ) = do
     checkUndefined symbol
-    let typ = fromASTType astTyp
     opTyp <- opTypeOf typ
     if isTuple typ then do
         let Tuple Nothing ts = typ
@@ -239,7 +239,7 @@ cmpExpr (S.TupleMember pos tupExpr symbol) = do
     where
         indexAnno :: String -> Value -> Instr (Maybe Value)
         indexAnno str val = case valType val of
-            AnnoTyp s t
+            Annotated s t
                 | s == str  -> return $ Just (val { valType = t })
                 | otherwise -> indexAnno str (val { valType = t })
 

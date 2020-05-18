@@ -10,6 +10,7 @@ import           LLVM.IRBuilder.Instruction
 import           LLVM.IRBuilder.Module
 import           LLVM.IRBuilder.Monad
 
+import           Type
 import           CmpFuncs
 import           CmpValue
 import           CmpMonad

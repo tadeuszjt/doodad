@@ -28,6 +28,7 @@ import           LLVM.IRBuilder.Module
 import           LLVM.IRBuilder.Monad
 
 import qualified AST                        as S
+import           Type
 import           CmpFuncs
 import           CmpMonad
 
@@ -75,51 +76,6 @@ data Value
     deriving (Show, Eq)
 
 
-data ValType
-    = Void
-    | I8
-    | I32
-    | I64
-	| F32
-	| F64
-    | Bool
-    | Char
-    | String
-    | Tuple (Maybe Name) [ValType]
-    | Array Word64 ValType
-    | Table (Maybe Name) [ValType]
-    | Typedef String
-    | AnnoTyp String ValType
-    deriving (Eq, Ord)
-
-
-instance Show ValType where
-    show t = case t of
-        Void        -> "void"
-        I8          -> "i8"
-        I32         -> "i32"
-        I64         -> "i64"
-        F32         -> "f32"
-        F64         -> "f64"
-        Bool        -> "bool"
-        Char        -> "char"
-        String      -> "string"
-        Tuple nm ts -> "(" ++ intercalate ", " (map show ts) ++ ")"
-        Array n t   -> "[" ++ show n ++ " " ++ show t ++ "]"
-        Table nm ts -> "{" ++ intercalate "; " (map show ts) ++ "}"
-        Typedef s   -> s
-        AnnoTyp _ t -> show t
-
-
-fmapValType :: (ValType -> Instr ValType) -> ValType -> Instr ValType  
-fmapValType f typ = case typ of
-    Tuple nm ts -> f . (Tuple nm) =<< mapM (fmapValType f) ts
-    Table nm ts -> f . (Table nm) =<< mapM (fmapValType f) ts
-    Array n t   -> f . (Array n) =<< fmapValType f t
-    AnnoTyp s t -> f . (AnnoTyp s) =<< fmapValType f t
-    t           -> f t
-
-
 setCurRetTyp :: ValType -> Instr ()
 setCurRetTyp typ =
     lift $ modify $ \s -> s { curRetTyp = typ }
@@ -130,41 +86,6 @@ getCurRetTyp =
     lift (gets curRetTyp)
 
 
-isChar (AnnoTyp _ t)    = isChar t
-isChar x                = x == Char
-
-isString (AnnoTyp _ t)  = isString t
-isString x              = x == String
-
-isInt (AnnoTyp _ t)     = isInt t
-isInt x                 = x `elem` [I8, I32, I64]
-
-isFloat (AnnoTyp _ t)   = isFloat t
-isFloat x               = x `elem` [F32, F64]
-
-isArray (AnnoTyp _ t)   = isArray t
-isArray (Array _ _)     = True
-isArray _               = False
-
-isTuple (AnnoTyp _ t)   = isTuple t 
-isTuple (Tuple _ _)     = True
-isTuple _               = False
-
-isTable (AnnoTyp _ t)   = isTable t
-isTable (Table _ _)     = True
-isTable _               = False
-
-isTypedef (Typedef _)   = True
-isTypedef _             = False
-
-isAnnoTyp (AnnoTyp _ _) = True
-isAnnoTyp _             = False
-
-isIntegral x            = isInt x || isChar x
-isBase x                = isInt x || isFloat x || isChar x
-isAggregate x           = isTuple x || isArray x || isTable x
-
-
 valInt :: ValType -> Integer -> Value
 valInt I8 n  = Val I8 (int8 n)
 valInt I32 n = Val I32 (int32 n)
@@ -173,21 +94,6 @@ valInt I64 n = Val I64 (int64 n)
 
 valBool :: Bool -> Value
 valBool b = Val Bool (if b then bit 1 else bit 0)
-
-
-fromASTType :: S.Type -> ValType
-fromASTType typ = case typ of
-    S.TBool      -> Bool
-    S.TI32       -> I32
-    S.TI64       -> I64
-    S.TF32       -> F32
-    S.TF64       -> F64
-    S.TChar      -> Char
-    S.TString    -> String
-    S.TArray n t -> Array n (fromASTType t)
-    S.TTuple ts  -> Tuple Nothing (map fromASTType ts)
-    S.TIdent sym -> Typedef sym
-    S.TAnno s t  -> AnnoTyp s (fromASTType t)
 
 
 opTypeOf :: ValType -> Instr Type
@@ -223,7 +129,7 @@ opTypeOf typ = case typ of
     Char        -> return i32
     String      -> return (ptr i8)
     Array n t   -> fmap (ArrayType $ fromIntegral n) (opTypeOf t)
-    AnnoTyp _ t -> opTypeOf t
+    Annotated _ t -> opTypeOf t
 
 
 sizeOf :: Type -> Instr Word64
@@ -249,12 +155,12 @@ zeroOf typ = case typ of
     Table nm ts -> fmap (toCons . (struct Nothing False)) $ mapM zeroOf (I64:I64:ts)
     Tuple nm ts -> fmap (toCons . (struct Nothing False)) (mapM zeroOf ts)
     Typedef _   -> zeroOf =<< nakedTypeOf typ
-    AnnoTyp _ t -> zeroOf t
+    Annotated _ t -> zeroOf t
 
 
 nakedTypeOf :: ValType -> Instr ValType
 nakedTypeOf typ = case typ of
-    AnnoTyp _ t -> nakedTypeOf t
+    Annotated _ t -> nakedTypeOf t
     Typedef sym -> do ObjType t <- look sym KeyType; nakedTypeOf t
     t           -> return t
 
@@ -269,7 +175,7 @@ concreteTypeOf typ = case typ of
     Table nm ts -> fmap (Table Nothing) (mapM concreteTypeOf ts)
     Tuple nm ts -> fmap (Tuple Nothing) (mapM concreteTypeOf ts)
     Array n t   -> fmap (Array n) (concreteTypeOf t)
-    AnnoTyp _ t -> concreteTypeOf t
+    Annotated _ t -> concreteTypeOf t
     t           -> return t
 
 
@@ -289,7 +195,7 @@ checkConcTypesMatch a b = do
 
 skipAnnos :: ValType -> Instr ValType
 skipAnnos typ = case typ of
-    AnnoTyp _ t -> return t
+    Annotated _ t -> return t
     Typedef sym -> do ObjType t <- look sym KeyType; skipAnnos t
     Tuple nm ts -> fmap (Tuple nm) (mapM skipAnnos ts)
     Array n t   -> fmap (Array n) (skipAnnos t)
@@ -459,8 +365,8 @@ valTablePrint append val = do
 
 valPrint :: String -> Value -> Instr ()
 valPrint append val
-    | isAnnoTyp (valType val) = do
-        let AnnoTyp s t = valType val
+    | isAnnotated (valType val) = do
+        let Annotated s t = valType val
         printf (s ++ "=") []
         valPrint append (val{ valType = t })
 

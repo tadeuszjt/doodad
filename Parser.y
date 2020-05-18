@@ -1,7 +1,8 @@
 {
 module Parser where
-import qualified Lexer as L
-import qualified AST as S
+import qualified Type     as T
+import qualified Lexer    as L
+import qualified AST      as S
 import qualified CmpMonad as C
 }
 
@@ -150,18 +151,18 @@ infix : expr '+' expr                { S.Infix (tokPosn $2) S.Plus $1 $3 }
 
 
 type_        : ConcreteType         { $1 }
-             | ident                { S.TIdent (L.tokStr $1) }
-             | ident ConcreteType   { S.TAnno (L.tokStr $1) $2 }
-             | ident ident          { S.TAnno (L.tokStr $1) (S.TIdent (L.tokStr $2)) }
-ConcreteType : bool                 { S.TBool }
-             | i32                  { S.TI32 }
-             | i64                  { S.TI64 }
-             | f32                  { S.TF32 }
-             | f64                  { S.TF64 }
-             | char                 { S.TChar }
-             | string               { S.TString }
-             | '[' intlit type_ ']' { S.TArray (read $ L.tokStr $2) $3 }
-             | '(' types ')'        { S.TTuple $2 }
+             | ident                { T.Typedef (L.tokStr $1) }
+             | ident ConcreteType   { T.Annotated (L.tokStr $1) $2 }
+             | ident ident          { T.Annotated (L.tokStr $1) (T.Typedef (L.tokStr $2)) }
+ConcreteType : bool                 { T.Bool }
+             | i32                  { T.I32 }
+             | i64                  { T.I64 }
+             | f32                  { T.F32 }
+             | f64                  { T.F64 }
+             | char                 { T.Char }
+             | string               { T.String }
+             | '[' intlit type_ ']' { T.Array (read $ L.tokStr $2) $3 }
+             | '(' types ')'        { T.Tuple Nothing $2 }
 types        : {- empty -}          { [] }
              | types_               { $1 }
 types_       : type_                { [$1] }

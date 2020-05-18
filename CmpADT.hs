@@ -13,6 +13,7 @@ import LLVM.IRBuilder.Instruction
 import LLVM.IRBuilder.Constant
 
 import qualified AST as S
+import Type
 import CmpMonad
 import CmpValue
 import CmpFuncs
@@ -33,7 +34,7 @@ cmpDataDef (S.Datadef pos symbol datas) = withPos pos $ do
     
     memTyps <- forM datas $ \dat -> case dat of
         S.DataIdent p sym       -> return (Tuple (Just name) [enumTyp])
-        S.DataFunc p sym params -> return $ Tuple (Just name) (enumTyp : map (fromASTType . S.paramType) params)
+        S.DataFunc p sym params -> return $ Tuple (Just name) (enumTyp : map S.paramType params)
 
     memSizes <- mapM sizeOf =<< mapM opTypeOf memTyps
     let (_, memMaxTyp) = maximumBy (comparing fst) (zip memSizes memTyps)
@@ -53,7 +54,7 @@ cmpDataDef (S.Datadef pos symbol datas) = withPos pos $ do
             S.DataFunc p sym params -> withPos p $ do
                 checkUndefined sym
                 let paramSymbols = map S.paramName params
-                let paramTypes   = map (fromASTType . S.paramType) params
+                let paramTypes   = map S.paramType params
                 pushSymTab
                 forM_ (zip paramSymbols paramTypes) $ \(s, t) ->
                     checkUndefined s

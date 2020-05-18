@@ -2,6 +2,7 @@ module AST where
 
 import           Data.Word
 import           CmpMonad (TextPos)
+import           Type
 import qualified Lexer    as L
 
 
@@ -28,23 +29,8 @@ data Param
     = Param
         { paramPos  :: TextPos
         , paramName :: String
-        , paramType :: Type
+        , paramType :: ValType
         }
-    deriving (Show, Eq)
-
-
-data Type
-    = TBool
-    | TI32
-    | TI64
-    | TF32
-    | TF64
-    | TChar
-    | TString
-    | TArray Word64 Type
-    | TTuple [Type]
-    | TIdent String
-    | TAnno String Type
     deriving (Show, Eq)
 
 
@@ -96,9 +82,9 @@ data Stmt
     | Set TextPos Index Expr
     | Print TextPos [Expr]
     | Block TextPos [Stmt]
-    | Func TextPos String [Pattern] (Maybe Type) [Stmt]
-    | Extern TextPos String [Pattern] (Maybe Type)
-    | Typedef TextPos String Type
+    | Func TextPos String [Pattern] (Maybe ValType) [Stmt]
+    | Extern TextPos String [Pattern] (Maybe ValType)
+    | Typedef TextPos String ValType
     | Datadef TextPos String [Data] 
     | CallStmt TextPos String [Expr]
     | If TextPos Expr Stmt (Maybe Stmt)
