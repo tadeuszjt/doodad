@@ -111,6 +111,15 @@ instance Show ValType where
         AnnoTyp _ t -> show t
 
 
+fmapValType :: (ValType -> Instr ValType) -> ValType -> Instr ValType  
+fmapValType f typ = case typ of
+    Tuple nm ts -> f . (Tuple nm) =<< mapM (fmapValType f) ts
+    Table nm ts -> f . (Table nm) =<< mapM (fmapValType f) ts
+    Array n t   -> f . (Array n) =<< fmapValType f t
+    AnnoTyp s t -> f . (AnnoTyp s) =<< fmapValType f t
+    t           -> f t
+
+
 setCurRetTyp :: ValType -> Instr ()
 setCurRetTyp typ =
     lift $ modify $ \s -> s { curRetTyp = typ }
@@ -257,8 +266,8 @@ concreteTypeOf (Typedef sym) = do
         ObjType t   -> concreteTypeOf t
         ObjData _ _ -> return (dataConcTyp res)
 concreteTypeOf typ = case typ of
-    Table nm ts -> fmap (Table nm) (mapM concreteTypeOf ts)
-    Tuple nm ts -> fmap (Tuple nm) (mapM concreteTypeOf ts)
+    Table nm ts -> fmap (Table Nothing) (mapM concreteTypeOf ts)
+    Tuple nm ts -> fmap (Tuple Nothing) (mapM concreteTypeOf ts)
     Array n t   -> fmap (Array n) (concreteTypeOf t)
     AnnoTyp _ t -> concreteTypeOf t
     t           -> return t
@@ -269,6 +278,13 @@ checkTypesMatch a b = do
     a' <- skipAnnos a
     b' <- skipAnnos b
     assert (a' == b') ("type mismatch between " ++ show a' ++ " and " ++ show b')
+
+
+checkConcTypesMatch :: ValType -> ValType -> Instr ()
+checkConcTypesMatch a b = do
+    a' <- concreteTypeOf a
+    b' <- concreteTypeOf b
+    assert (a' == b') ("underlying type mismatch between " ++ show a' ++ " and " ++ show b')
 
 
 skipAnnos :: ValType -> Instr ValType
@@ -388,27 +404,6 @@ valTupleSet (Ptr typ loc) i val = do
     Tuple nm ts <- nakedTypeOf typ
     ptr <- gep loc [int32 0, int32 (fromIntegral i)]
     valStore (Ptr (ts !! fromIntegral i) ptr) val
-
-
-valTableIdx :: Value -> Value -> Instr Value
-valTableIdx tab idx = do
-    Table nm ts <- nakedTypeOf (valType tab)
-    idxTyp      <- nakedTypeOf (valType idx)
-    Val _ idxOp <- valLoad idx
-
-    assert (isInt idxTyp) "index isn't int"
-    maybe (return ()) ensureDef nm
-    tup <- valLocal (Tuple Nothing ts)
-
-    case tab of
-        Ptr _ loc ->
-            forM_ (zip ts [0..]) $ \(t, i) -> do
-                p <- (flip load) 0 =<< gep loc [int32 0, int32 (i+2)]
-                ep <- gep p [idxOp]
-                valTupleSet tup (fromIntegral i) (Ptr t ep)
-
-    return tup
-        
 
 
 valsEqual :: Value -> Value -> Instr Value

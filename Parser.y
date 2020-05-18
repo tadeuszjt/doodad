@@ -173,7 +173,7 @@ tableRows : exprs                   { [$1] }
           | exprs ';' tableRows     { $1 : $3 }
 
 
-data_   : ident                      { S.DataIdent (tokPosn $1) (L.tokStr $1) }
+data_  : ident                      { S.DataIdent (tokPosn $1) (L.tokStr $1) }
        | ident '(' ')'              { S.DataIdent (tokPosn $1) (L.tokStr $1) }
        | ident '(' params_ ')'      { S.DataFunc (tokPosn $1) (L.tokStr $1) $3 }
 datas  : data_                       { [$1] }
@@ -204,16 +204,14 @@ cases  : {- empty -}                { [] }
 case   : pattern ':' stmt           { ($1, $3) }
 
 
-If   : if expr block                { S.If (tokPosn $1) $2 $3 Nothing }
-     | if expr block Else           { S.If (tokPosn $1) $2 $3 (Just $4) }
-Else : else block                   { $2 }
-     | else If                      { $2 }
+If    : if expr block                { S.If (tokPosn $1) $2 $3 Nothing }
+      | if expr block else_           { S.If (tokPosn $1) $2 $3 (Just $4) }
+else_ : else block                   { $2 }
+      | else If                      { $2 }
 
 
 block  : '{' Prog '}'               { S.Block (tokPosn $1) $2 }
 block_ : '{' Prog '}'               { $2 }
-
-
 
 
 param   : ident type_               { S.Param (tokPosn $1) (L.tokStr $1) $2 }

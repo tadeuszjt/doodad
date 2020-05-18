@@ -140,6 +140,15 @@ free mem = do
     call op [(mem, [])]
 
 
+memcpy :: MonadInstrCmp k o m => Operand -> Operand -> Operand -> m Operand 
+memcpy dest src size = do
+    op <- ensureExtern "memcpy" [ptr VoidType, ptr VoidType, i32] (ptr VoidType) False
+    d <- bitcast dest (ptr VoidType)
+    s <- bitcast src (ptr VoidType)
+    --assert (typeOf size == i32) "type i32"
+    call op [(d, []), (s, []), (size, [])]
+
+
 toCons :: Operand -> C.Constant
 toCons (ConstantOperand c) = c
 

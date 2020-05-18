@@ -52,7 +52,12 @@ cmpPattern isGlobal pattern val = case pattern of
             checkSymKeyUndefined sym KeyType
             name <- freshName (mkBSS sym)
             (v, ext) <- valGlobal name (valType val)
-            valStore v val
+
+            typ <- nakedTypeOf (valType val)
+            case typ of
+                Table _ _ -> valTableStore v val
+                _         -> valStore v val
+
             addSymObj sym KeyVal (ObjVal v)
             addSymObjReq sym KeyVal name
             addAction name (emitDefn ext)
@@ -124,7 +129,10 @@ cmpStmt (S.Set pos index expr) = withPos pos $ do
     val <- cmpExpr expr
     idx <- idxPtr index
     checkTypesMatch (valType val) (valType idx)
-    valStore idx val
+    typ <- nakedTypeOf (valType idx)
+    case typ of
+        Table _ _ -> valTableStore idx val
+        _         -> valStore idx val
     where
         idxPtr :: S.Index -> Instr Value
         idxPtr (S.IndIdent p symbol) = withPos p $ do
