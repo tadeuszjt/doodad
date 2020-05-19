@@ -261,6 +261,13 @@ valCast typ' (Val typ op) = do
     return (Val typ' op')
 
 
+valPtrIdx :: Value -> Value -> Instr Value
+valPtrIdx (Ptr typ loc) idx = do
+    assert (isInt $ valType idx) "index isn't int"
+    i <- valLoad idx
+    fmap (Ptr typ) (gep loc [valOp i])
+
+
 valArrayIdx :: Value -> Value -> Instr Value
 valArrayIdx (Ptr (Array n t) loc) idx = do
     assert (isInt $ valType idx) "array index isn't int"

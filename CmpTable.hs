@@ -40,24 +40,21 @@ cmpTableExpr rows = do
     let len = fromIntegral numCols
 
     tab@(Ptr (Table _ _) loc) <- valLocal typ
-    lenPtr <- gep loc [int32 0, int32 0]
-    capPtr <- gep loc [int32 0, int32 1]
-    store lenPtr 0 (int32 len)
-    store capPtr 0 (int32 0)
+
+    tabLen <- valTableLen tab
+    tabCap <- valTableCap tab
+    valStore tabLen (valInt I64 len)
+    valStore tabCap (valInt I64 0)
 
     forM_ (zip4 rows rowTyps rowOpTyps [0..]) $ \(row, rowTyp, rowOpTyp, i) -> do
-        Ptr _ p <- valLocal $ Array (fromIntegral len) rowTyp
-        pMem <- bitcast p (ptr rowOpTyp)
-
+        arow <- valLocal $ Array (fromIntegral len) rowTyp
+        prow <- valCast rowTyp arow
         rowPtr <- gep loc [int32 0, int32 (i+2)]
-        store rowPtr 0 pMem
+        store rowPtr 0 (valOp prow)
 
         forM_ (zip row [0..]) $ \(val, j) -> do
-            rowPtrVal <- load rowPtr 0
-            pi8 <- gep rowPtrVal [int64 j]
-            opTyp <- opTypeOf (valType val)
-            elemPtr <- bitcast pi8 (ptr opTyp)
-            valStore (Ptr (valType val) elemPtr) val
+            p <- valPtrIdx prow (valInt I64 j)
+            valStore p val
             
     return tab
 
@@ -89,19 +86,12 @@ valTableRow i tab = do
 valTableIdx :: Value -> Value -> Instr Value
 valTableIdx tab idx = do
     Table nm ts <- nakedTypeOf (valType tab)
-    idxTyp      <- nakedTypeOf (valType idx)
-    Val _ idxOp <- valLoad idx
-
-    assert (isInt idxTyp) "index isn't int"
     maybe (return ()) ensureDef nm
     tup <- valLocal (Tuple Nothing ts)
 
-    case tab of
-        Ptr _ loc ->
-            forM_ (zip ts [0..]) $ \(t, i) -> do
-                p <- (flip load) 0 =<< gep loc [int32 0, int32 (i+2)]
-                ep <- gep p [idxOp]
-                valTupleSet tup (fromIntegral i) (Ptr t ep)
+    forM_ (zip ts [0..]) $ \(t, i) -> do
+        prow <- valTableRow i tab
+        valTupleSet tup i =<< valPtrIdx prow idx
 
     if length ts == 1
     then valTupleIdx 0 tup

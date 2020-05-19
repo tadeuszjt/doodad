@@ -30,6 +30,7 @@ import           Type
 import           CmpFuncs
 import           CmpMonad
 import CmpValue
+import CmpTable
 
 
 valPrint :: String -> Value -> Instr ()
@@ -68,16 +69,13 @@ valPrint append val = case valType val of
     Table nm ts -> do
         printf "{" []
         Val _ op <- valLoad val
-        len <- extractValue op [0]
-        forM_ (zip ts [0..]) $ \(t, i) -> do
-            ot <- opTypeOf t
-            pa <- extractValue op [2+i]
-            pb <- bitcast pa (ptr ot)
+        Val I64 len <- valLoad =<< valTableLen val
+
+        forM_ [0 .. length ts-1] $ \i -> do
+            row <- valTableRow (fromIntegral i) val
             n <- sub len (int64 1)
-            for n $ \j ->
-                gep pb [j] >>= \p -> valPrint ", " (Ptr t p)
-            p <- gep pb [n]
-            valPrint "; " (Ptr t p)
+            for n $ \j -> valPrint ", " =<< valPtrIdx row (Val I64 j)
+            valPrint "; " =<< valPtrIdx row (Val I64 n)
 
         void $ printf ("}" ++ append) []
 

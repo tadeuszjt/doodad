@@ -11,8 +11,8 @@ data ValType
     | I16
     | I32
     | I64
-	| F32
-	| F64
+    | F32
+    | F64
     | Bool
     | Char
     | String
@@ -43,27 +43,27 @@ instance Show ValType where
         Annotated _ t -> show t
 
 
-isChar (Annotated _ t)    = isChar t
-isChar x                = x == Char
-isString (Annotated _ t)  = isString t
-isString x              = x == String
-isInt (Annotated _ t)     = isInt t
-isInt x                 = x `elem` [I8, I16, I32, I64]
-isFloat (Annotated _ t)   = isFloat t
-isFloat x               = x `elem` [F32, F64]
-isArray (Annotated _ t)   = isArray t
-isArray (Array _ _)     = True
-isArray _               = False
-isTuple (Annotated _ t)   = isTuple t 
-isTuple (Tuple _ _)     = True
-isTuple _               = False
-isTable (Annotated _ t)   = isTable t
-isTable (Table _ _)     = True
-isTable _               = False
-isTypedef (Typedef _)   = True
-isTypedef _             = False
+isChar (Annotated _ t)      = isChar t
+isChar x                    = x == Char
+isString (Annotated _ t)    = isString t
+isString x                  = x == String
+isInt (Annotated _ t)       = isInt t
+isInt x                     = x `elem` [I8, I16, I32, I64]
+isFloat (Annotated _ t)     = isFloat t
+isFloat x                   = x `elem` [F32, F64]
+isArray (Annotated _ t)     = isArray t
+isArray (Array _ _)         = True
+isArray _                   = False
+isTuple (Annotated _ t)     = isTuple t
+isTuple (Tuple _ _)         = True
+isTuple _                   = False
+isTable (Annotated _ t)     = isTable t
+isTable (Table _ _)         = True
+isTable _                   = False
+isTypedef (Typedef _)       = True
+isTypedef _                 = False
 isAnnotated (Annotated _ _) = True
-isAnnotated _             = False
-isIntegral x            = isInt x || isChar x
-isBase x                = isInt x || isFloat x || isChar x
-isAggregate x           = isTuple x || isArray x || isTable x
+isAnnotated _               = False
+isIntegral x                = isInt x || isChar x
+isBase x                    = isInt x || isFloat x || isChar x
+isAggregate x               = isTuple x || isArray x || isTable x
