@@ -26,17 +26,17 @@ cmpTableExpr rows = do
 
     (rowTyps, rowOpTyps, rowTypSizes) <- fmap unzip3 $ forM rows $ \row -> do
         let typ = valType (head row)
-        assert (all (== typ) (map valType row)) "element types differ in row"
+        mapM_ (checkConcTypesMatch typ) (map valType row)
         opTyp <- opTypeOf typ
         size <- sizeOf opTyp
         return (typ, opTyp, size)
 
-    typName <- freshName (mkBSS "table_t")
     opTyp <- opTypeOf (Table Nothing rowTyps)
+    typName <- freshName (mkBSS "table_t")
     addAction typName $ typedef typName (Just opTyp)
-    ensureDef typName
+    typedef typName (Just opTyp)
 
-    let typ = Table (Just typName) rowTyps
+    let typ = Table Nothing rowTyps
     let len = fromIntegral numCols
 
     tab@(Ptr (Table _ _) loc) <- valLocal typ
@@ -73,14 +73,12 @@ valTableRow :: Word32 -> Value -> Instr Value
 valTableRow i tab = do
     Table nm ts <- nakedTypeOf (valType tab)
     maybe (return ()) ensureDef nm
+    let t = ts !! fromIntegral i
     case tab of
+        Val _ op  -> fmap (Ptr t) (extractValue op [i+2])
         Ptr _ loc -> do
-            pp <- gep loc [int32 0, int32 (fromIntegral i + 2)]
-            p <- load pp 0
-            return $ Ptr (ts !! fromIntegral i) p
-        Val _ op -> do
-            p <- extractValue op [i+2]
-            return $ Ptr (ts !! fromIntegral i) p
+            pp <- gep loc [int32 0, int32 $ fromIntegral i+2]
+            fmap (Ptr t) (load pp 0)
 
 
 valTableIdx :: Value -> Value -> Instr Value
@@ -98,27 +96,54 @@ valTableIdx tab idx = do
     else return tup
 
 
+valMalloc :: ValType -> Value -> Instr Value
+valMalloc typ (Val I64 i) = do
+    opTyp <- opTypeOf typ
+    size  <- fmap fromIntegral (sizeOf opTyp)
+    nBytes <- mul (int64 size) i
+    sI64 <- fmap fromIntegral (sizeOf i64)
+    nBytes' <- add nBytes (int64 sI64)
+    pMem <- malloc nBytes'
+    pI64 <- bitcast pMem (ptr i64)
+    store pI64 0 (int64 0) -- ref count
+    pI64' <- gep pI64 [int64 1]
+    pVals <- bitcast pI64' (ptr opTyp)
+    return (Ptr typ pVals)
+
+
 valTableStore :: Value -> Value -> Instr ()
-valTableStore dest@(Ptr _ destLoc) src = do
+valTableStore dest@(Ptr (Table nm ts) destLoc) src = do
     destConc <- concreteTypeOf (valType dest)
     srcConc <- concreteTypeOf (valType src)
     assert (destConc == srcConc) "table store"
-    let Table nm ts = destConc
 
-    pDestLen <- valTableLen dest
-    pDestCap <- valTableCap dest 
+    destLen <- valTableLen dest
+    destCap <- valTableCap dest 
     len <- valLoad =<< valTableLen src
-    valStore pDestLen len
-    valStore pDestCap len
+    cap <- valLoad =<< valTableCap src
+    valStore destLen len
+    valStore destCap len
 
-    forM_ (zip ts [0..]) $ \(t, i) -> do
-        opTyp <- opTypeOf t
-        size <- sizeOf opTyp
-        pp <- gep destLoc [int32 0, int32 (i+2)]
-        nb <- mul (int64 $ fromIntegral size) (valOp len)
-        ma <- malloc nb
-        mb <- bitcast ma (ptr opTyp)
-        store pp 0 mb
-        Ptr _ ms <- valTableRow (fromIntegral i) src
-        memcpy ma ms nb
+    let false = valStore dest src
+    let true = do
+        forM_ (zip ts [0..]) $ \(t, i) -> do
+            opTyp <- opTypeOf t
+            size <- sizeOf opTyp
 
+            Ptr _ p <- valMalloc t len
+            pp <- gep destLoc [int32 0, int32 (i+2)]
+            store pp 0 p
+
+            srcRow <- valTableRow (fromIntegral i) src
+            dstRow <- valTableRow (fromIntegral i) dest
+
+            for (valOp len) $ \j -> do
+                psrc <- valPtrIdx srcRow (Val I64 j)
+                pdst <- valPtrIdx dstRow (Val I64 j)
+                valTableStore pdst psrc
+
+    Val Bool cap0 <- valsEqual cap (valInt I64 0)
+    if_ cap0 true false
+
+
+valTableStore dest src = valStore dest src

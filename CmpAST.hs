@@ -90,6 +90,7 @@ cmpTopStmt stmt@(S.Set _ _ _)      = cmpStmt stmt
 cmpTopStmt stmt@(S.Print _ _)      = cmpStmt stmt
 cmpTopStmt stmt@(S.CallStmt _ _ _) = cmpStmt stmt
 cmpTopStmt stmt@(S.Switch _ _ _)   = cmpStmt stmt
+cmpTopStmt stmt@(S.Block _ _)      = cmpStmt stmt
 cmpTopStmt stmt@(S.Datadef _ _ _)  = cmpDataDef stmt
 
 cmpTopStmt (S.Typedef pos symbol typ) = do
@@ -125,6 +126,11 @@ cmpStmt (S.CallStmt pos symbol args) =
 cmpStmt (S.Assign pos pattern expr) = do
     Val Bool cnd <- cmpPattern False pattern =<< cmpExpr expr
     if_ cnd (return ()) (trap)
+
+cmpStmt (S.Block pos stmts) = do
+    pushSymTab
+    mapM_ cmpStmt stmts
+    popSymTab
 
 cmpStmt (S.Set pos index expr) = withPos pos $ do
     val <- cmpExpr expr

@@ -69,15 +69,15 @@ valPrint append val = case valType val of
     Table nm ts -> do
         printf "{" []
         Val _ op <- valLoad val
+        let nrows = fromIntegral (length ts)
         Val I64 len <- valLoad =<< valTableLen val
 
-        forM_ [0 .. length ts-1] $ \i -> do
-            row <- valTableRow (fromIntegral i) val
+        forM_ [0..nrows-1] $ \i -> do
+            row <- valTableRow i val
             n <- sub len (int64 1)
             for n $ \j -> valPrint ", " =<< valPtrIdx row (Val I64 j)
-            valPrint "; " =<< valPtrIdx row (Val I64 n)
-
-        void $ printf ("}" ++ append) []
+            let app = if i < nrows-1 then "; " else "}" ++ append
+            valPrint app =<< valPtrIdx row (Val I64 n)
 
     Bool -> do
         Val Bool op <- valLoad val

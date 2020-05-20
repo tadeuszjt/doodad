@@ -130,12 +130,14 @@ malloc size = do
     assert (typeOf size == i64) "wrong type for malloc"
     op <- ensureExtern "malloc" [i64] (ptr VoidType) False
     pv <- call op [(size, [])]
+    printf "malloc: %ld, %p\n" [size, pv]
     bitcast pv (ptr i8)
 
 
 free :: MonadInstrCmp k o m => Operand -> m Operand
 free mem = do
     assert (typeOf mem == ptr i8) "wrong type for free"
+    printf "free: %p\n" [mem]
     op <- ensureExtern "free" [ptr i8] VoidType False
     call op [(mem, [])]
 
