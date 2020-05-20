@@ -3,8 +3,10 @@ module CmpTable where
 import Control.Monad
 import Data.List
 import Data.Word
+import Prelude                    hiding (EQ)
 
-import LLVM.AST.Type
+import LLVM.AST.Type              hiding (void)
+import LLVM.AST.IntegerPredicate
 import LLVM.IRBuilder.Constant
 import LLVM.IRBuilder.Instruction
 import LLVM.IRBuilder.Module
@@ -72,6 +74,7 @@ valTableCap (Val _ op)  = fmap (Val I64) $ extractValue op [1]
 valTableRow :: Word32 -> Value -> Instr Value
 valTableRow i tab = do
     Table nm ts <- nakedTypeOf (valType tab)
+    assert (fromIntegral i < length ts) "invalid table row index" 
     maybe (return ()) ensureDef nm
     let t = ts !! fromIntegral i
     case tab of
@@ -111,6 +114,36 @@ valMalloc typ (Val I64 i) = do
     return (Ptr typ pVals)
 
 
+valMallocIncRef :: Value -> Instr ()
+valMallocIncRef (Ptr typ loc) = do
+    pI64 <- bitcast loc (ptr i64)
+    pRef <- gep pI64 [int64 $ -1]
+    void $ store pRef 0 =<< add (int64 1) =<< load pRef 0
+
+
+valMallocDecRef :: Value -> Instr ()
+valMallocDecRef (Ptr typ loc) = do
+    pI64 <- bitcast loc (ptr i64)
+    pRef <- gep pI64 [int64 $ -1]
+    ref  <- load pRef 0
+    b    <- icmp EQ ref (int64 1)
+    if_ b (void $ free pRef) $
+        void $ store pRef 0 =<< add (int64 $ -1) =<< load pRef 0
+
+
+valTableKill :: Value -> Instr ()
+valTableKill tab = do
+    let Table _ ts = valType tab
+    let len = fromIntegral (length ts)
+    forM_ [0..len-1] $ \i ->
+        valMallocDecRef =<< valTableRow i tab
+    len <- valTableLen tab
+    cap <- valTableCap tab
+    valStore len (valInt I64 0)
+    valStore cap (valInt I64 0)
+
+
+
 valTableStore :: Value -> Value -> Instr ()
 valTableStore dest@(Ptr (Table nm ts) destLoc) src = do
     destConc <- concreteTypeOf (valType dest)
@@ -130,9 +163,11 @@ valTableStore dest@(Ptr (Table nm ts) destLoc) src = do
             opTyp <- opTypeOf t
             size <- sizeOf opTyp
 
-            Ptr _ p <- valMalloc t len
+            m@(Ptr _ p) <- valMalloc t len
             pp <- gep destLoc [int32 0, int32 (i+2)]
             store pp 0 p
+            valMallocIncRef m
+
 
             srcRow <- valTableRow (fromIntegral i) src
             dstRow <- valTableRow (fromIntegral i) dest

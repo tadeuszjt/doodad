@@ -136,9 +136,8 @@ malloc size = do
 
 free :: MonadInstrCmp k o m => Operand -> m Operand
 free mem = do
-    assert (typeOf mem == ptr i8) "wrong type for free"
     printf "free: %p\n" [mem]
-    op <- ensureExtern "free" [ptr i8] VoidType False
+    op <- ensureExtern "free" [ptr VoidType] VoidType False
     call op [(mem, [])]
 
 

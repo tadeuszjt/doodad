@@ -138,7 +138,7 @@ cmpStmt (S.Set pos index expr) = withPos pos $ do
     checkTypesMatch (valType val) (valType idx)
     typ <- nakedTypeOf (valType idx)
     case typ of
-        Table _ _ -> valTableStore idx val
+        Table _ _ -> valTableKill idx >> valTableStore idx val
         _         -> valStore idx val
     where
         idxPtr :: S.Index -> Instr Value
