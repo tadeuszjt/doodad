@@ -194,6 +194,13 @@ patterns_ : pattern_                { [$1] }
           | pattern_ ',' patterns_  { $1 : $3 }
 
 
+param   : ident type_               { S.Param (tokPosn $1) (L.tokStr $1) $2 }
+params  : {- empty -}               { [] }
+        | params_                   { $1 }
+params_ : param                     { [$1] }
+        | param ',' params_         { $1 : $3 }
+
+
 index  : ident                      { S.IndIdent (tokPosn $1) (L.tokStr $1) }
        | index '[' expr ']'         { S.IndArray (tokPosn $2) $1 $3 }
        | index '.' intlit           { S.IndTuple (tokPosn $2) $1 (read $ L.tokStr $3) }
@@ -214,12 +221,6 @@ else_ : else block                   { $2 }
 block  : '{' Prog '}'               { S.Block (tokPosn $1) $2 }
 block_ : '{' Prog '}'               { $2 }
 
-
-param   : ident type_               { S.Param (tokPosn $1) (L.tokStr $1) $2 }
-params  : {- empty -}               { [] }
-        | params_                   { $1 }
-params_ : param                     { [$1] }
-        | param ',' params_         { $1 : $3 }
 
 {
 data ParseResult a

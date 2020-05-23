@@ -41,12 +41,12 @@ data Data
 
 
 data Pattern
-    = PatIgnore  { pos :: TextPos }
-    | PatLiteral { literal :: Expr }
-    | PatIdent   { pos :: TextPos, symbol :: String }
-    | PatTuple   { pos :: TextPos, patterns :: [Pattern] }
-    | PatArray   { pos :: TextPos, patterns :: [Pattern] }
-    | PatTyped   { pos :: TextPos, symbol :: String, pattern :: Pattern }
+    = PatIgnore  { patPos :: TextPos }
+    | PatLiteral { lit :: Expr }
+    | PatIdent   { patPos :: TextPos, symbol :: String }
+    | PatTuple   { patPos :: TextPos, patterns :: [Pattern] }
+    | PatArray   { patPos :: TextPos, patterns :: [Pattern] }
+    | PatTyped   { patPos :: TextPos, symbol :: String, pattern :: Pattern }
     deriving (Show, Eq)
 
 
