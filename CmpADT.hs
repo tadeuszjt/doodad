@@ -16,7 +16,7 @@ import qualified AST as S
 import Type
 import Print
 import CmpMonad
-import CmpValue
+import Value
 import CmpFuncs
 
 

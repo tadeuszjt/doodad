@@ -46,7 +46,7 @@ import qualified CmpMonad as C
     if         { L.Token _ L.Reserved "if" }
     else       { L.Token _ L.Reserved "else" }
     let        { L.Token _ L.Reserved "let" }
-    for        { L.Token _ L.Reserved "for" }
+    while      { L.Token _ L.Reserved "while" }
     return     { L.Token _ L.Reserved "return" }
     switch     { L.Token _ L.Reserved "switch" }
     true       { L.Token _ L.Reserved "true" }
@@ -107,6 +107,7 @@ stmtB : block                               { $1 }
       | fn ident '(' patterns ')' block_      { S.Func (tokPosn $1) (L.tokStr $2) $4 Nothing $6 }
       | fn ident '(' patterns ')' type_ block_ { S.Func (tokPosn $1) (L.tokStr $2) $4 (Just $6) $7 }
       | switch expr '{' cases '}'           { S.Switch (tokPosn $1) $2 $4 }
+      | while expr block_                      { S.While (tokPosn $1) $2 $3 }
 
 
 expr   : lit                          { $1 }

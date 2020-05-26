@@ -294,6 +294,11 @@ valArraySet (Ptr typ loc) idx val = do
     valStore (Ptr t ptr) val
 
 
+valTableLen :: Value -> Instr Value
+valTableLen (Ptr _ loc) = fmap (Ptr I64) $ gep loc [int32 0, int32 0]
+valTableLen (Val _ op)  = fmap (Val I64) $ extractValue op [0]
+
+
 valLen :: Value -> Instr Word
 valLen val = do
     typ <- concreteTypeOf (valType val)

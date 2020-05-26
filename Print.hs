@@ -29,8 +29,8 @@ import qualified AST                        as S
 import           Type
 import           CmpFuncs
 import           CmpMonad
-import CmpValue
-import CmpTable
+import Value
+import Table
 
 
 valPrint :: String -> Value -> Instr ()

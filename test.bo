@@ -1,3 +1,4 @@
-let t = { (1, 2), (3, 4), (5, 6) };
+let t = { (1, 2), (3, 4), (5, 6) }; print(t);
 
-fn x( t {(i64, i64)} ) { print(t); }
+let i = 0;
+while i < len(t) { print(t[i]); i = i + 1; }

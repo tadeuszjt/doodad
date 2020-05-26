@@ -61,11 +61,6 @@ cmpTableExpr rows = do
     return tab
 
 
-valTableLen :: Value -> Instr Value
-valTableLen (Ptr _ loc) = fmap (Ptr I64) $ gep loc [int32 0, int32 0]
-valTableLen (Val _ op)  = fmap (Val I64) $ extractValue op [0]
-
-
 valTableCap :: Value -> Instr Value
 valTableCap (Ptr _ loc) = fmap (Ptr I64) $ gep loc [int32 0, int32 1]
 valTableCap (Val _ op)  = fmap (Val I64) $ extractValue op [1]

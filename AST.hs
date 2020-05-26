@@ -90,4 +90,5 @@ data Stmt
     | If TextPos Expr Stmt (Maybe Stmt)
     | Return TextPos (Maybe Expr)
     | Switch TextPos Expr [(Pattern, Stmt)]
+    | While  TextPos Expr [Stmt]
     deriving (Show, Eq)

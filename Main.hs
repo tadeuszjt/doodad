@@ -21,7 +21,7 @@ import           LLVM.Internal.DataLayout
 import qualified LLVM.Internal.FFI.DataLayout as FFI
 
 import qualified CmpAST                   as C
-import qualified CmpValue                 as C
+import qualified Value                 as C
 import qualified CmpMonad                 as C
 import qualified Lexer                    as L
 import qualified Parser                   as P

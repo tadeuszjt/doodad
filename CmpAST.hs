@@ -21,12 +21,12 @@ import           LLVM.IRBuilder.Module
 import           LLVM.IRBuilder.Monad
 
 import qualified AST                        as S
+import           Type
 import           CmpFuncs
-import           CmpValue
 import           CmpMonad
 import           CmpADT
-import           CmpTable
-import           Type
+import           Value
+import           Table
 import           Print
 
 
@@ -90,6 +90,7 @@ cmpTopStmt stmt@(S.Set _ _ _)      = cmpStmt stmt
 cmpTopStmt stmt@(S.Print _ _)      = cmpStmt stmt
 cmpTopStmt stmt@(S.CallStmt _ _ _) = cmpStmt stmt
 cmpTopStmt stmt@(S.Switch _ _ _)   = cmpStmt stmt
+cmpTopStmt stmt@(S.While _ _ _)    = cmpStmt stmt
 cmpTopStmt stmt@(S.Block _ _)      = cmpStmt stmt
 cmpTopStmt stmt@(S.Datadef _ _ _)  = cmpDataDef stmt
 
@@ -132,6 +133,18 @@ cmpStmt (S.Block pos stmts) = do
     mapM_ cmpStmt stmts
     popSymTab
 
+
+cmpStmt (S.Return pos mexpr) = withPos pos $ do
+    retTyp <- getCurRetTyp
+    if isNothing mexpr then do
+        assert (retTyp == Void) "must return expression"
+        retVoid
+    else do
+        val <- valLoad =<< cmpExpr (fromJust mexpr)
+        assert (retTyp == valType val) "incorrect return type" 
+        ret (valOp val)
+    return ()
+
 cmpStmt (S.Set pos index expr) = withPos pos $ do
     val <- cmpExpr expr
     idx <- idxPtr index
@@ -170,16 +183,23 @@ cmpStmt (S.Switch pos expr cases) = withPos pos $ do
     switch_ casesM
     popSymTab
 
-cmpStmt (S.Return pos mexpr) = withPos pos $ do
-    retTyp <- getCurRetTyp
-    if isNothing mexpr then do
-        assert (retTyp == Void) "must return expression"
-        retVoid
-    else do
-        val <- valLoad =<< cmpExpr (fromJust mexpr)
-        assert (retTyp == valType val) "incorrect return type" 
-        ret (valOp val)
-    return ()
+cmpStmt (S.While pos expr stmts) = withPos pos $ do
+    cond <- freshName "while_cnd"
+    body <- freshName "while_body"
+    exit <- fresh
+    
+    br cond
+    emitBlockStart cond
+    val <- cmpExpr expr
+    typ <- nakedTypeOf (valType val)
+    assert (typ == Bool) "expression isn't bool"
+    condBr (valOp val) body exit
+
+    emitBlockStart body
+    mapM_ cmpStmt stmts
+    br cond
+
+    emitBlockStart exit
 
 cmpStmt (S.Print pos exprs) = withPos pos $
     prints =<< mapM cmpExpr exprs
@@ -237,6 +257,13 @@ cmpExpr (S.TupleIndex pos tupExpr i) = do
     tup <- cmpExpr tupExpr
     Tuple nm ts <- nakedTypeOf (valType tup)
     valTupleIdx i (tup { valType = Tuple nm ts })
+
+cmpExpr (S.Len pos expr) = do
+    val <- cmpExpr expr
+    typ <- nakedTypeOf (valType val)
+    case typ of
+        Array n _   -> return (valInt I64 $ fromIntegral n)
+        Table nm ts -> valTableLen val
 
 cmpExpr (S.TupleMember pos tupExpr symbol) = do
     tup <- cmpExpr tupExpr
