@@ -55,7 +55,7 @@ cmpPattern isGlobal pattern val = case pattern of
             name <- freshName (mkBSS sym)
             (v, ext) <- valGlobal name (valType val)
 
-            typ <- nakedTypeOf (valType val)
+            typ <- realTypeOf (valType val)
             case typ of
                 Table _ _ -> valTableStore v val
                 _         -> valStore v val
@@ -72,7 +72,7 @@ cmpPattern isGlobal pattern val = case pattern of
         return (valBool True)
 
     S.PatTuple pos patterns -> withPos pos $ do
-        Tuple nm ts <- nakedTypeOf (valType val)
+        Tuple nm ts <- realTypeOf (valType val)
         cnds <- forM (zip patterns [0..]) $ \(pat, i) ->
             cmpPattern isGlobal pat =<< valTupleIdx i val
         valAnd cnds
@@ -101,6 +101,8 @@ cmpTopStmt (S.Typedef pos symbol typ) = do
         let Tuple Nothing ts = typ
         name <- freshName (mkBSS symbol)
         let typ' = Tuple (Just name) ts
+        typedef name (Just opTyp)
+        addDeclared name
         addAction name $ typedef name (Just opTyp)
         addSymObj symbol KeyType (ObjType typ')
         addSymObjReq symbol KeyType name
@@ -121,18 +123,12 @@ cmpTopStmt (S.Assign pos pattern expr) = do
 
 
 cmpStmt :: S.Stmt -> Instr ()
-cmpStmt (S.CallStmt pos symbol args) =
-    void $ cmpExpr (S.Call pos symbol args)
+cmpStmt (S.CallStmt pos symbol args) = void $ cmpExpr (S.Call pos symbol args)
+cmpStmt (S.Block pos stmts) = pushSymTab >> mapM_ cmpStmt stmts >> popSymTab
 
 cmpStmt (S.Assign pos pattern expr) = do
     Val Bool cnd <- cmpPattern False pattern =<< cmpExpr expr
     if_ cnd (return ()) (trap)
-
-cmpStmt (S.Block pos stmts) = do
-    pushSymTab
-    mapM_ cmpStmt stmts
-    popSymTab
-
 
 cmpStmt (S.Return pos mexpr) = withPos pos $ do
     retTyp <- getCurRetTyp
@@ -149,7 +145,7 @@ cmpStmt (S.Set pos index expr) = withPos pos $ do
     val <- cmpExpr expr
     idx <- idxPtr index
     checkTypesMatch (valType val) (valType idx)
-    typ <- nakedTypeOf (valType idx)
+    typ <- realTypeOf (valType idx)
     case typ of
         Table _ _ -> valTableKill idx >> valTableStore idx val
         _         -> valStore idx val
@@ -191,7 +187,7 @@ cmpStmt (S.While pos expr stmts) = withPos pos $ do
     br cond
     emitBlockStart cond
     val <- cmpExpr expr
-    typ <- nakedTypeOf (valType val)
+    typ <- realTypeOf (valType val)
     assert (typ == Bool) "expression isn't bool"
     condBr (valOp val) body exit
 
@@ -224,9 +220,10 @@ cmpExpr (S.String pos s) = do
     return $ Val String (cons str)
 
 cmpExpr (S.Ident pos symbol) = do
-    ObjVal val <- look symbol KeyVal
-    ensureTypeDeps (valType val)
-    return val
+    res <- look symbol KeyVal
+    case res of
+        ObjVal val  -> return val
+        ObjInline f -> f []
 
 cmpExpr (S.Array pos exprs) = do
     vals <- mapM cmpExpr exprs
@@ -247,7 +244,7 @@ cmpExpr (S.Tuple pos exprs) = do
 cmpExpr (S.ArrayIndex pos expr index) = do
     val <- cmpExpr expr
     idx <- cmpExpr index
-    typ <- nakedTypeOf (valType val)
+    typ <- realTypeOf (valType val)
     case typ of
         Array _ _ -> valArrayIdx val idx
         Table _ _ -> valTableIdx val idx
@@ -255,12 +252,12 @@ cmpExpr (S.ArrayIndex pos expr index) = do
 
 cmpExpr (S.TupleIndex pos tupExpr i) = do
     tup <- cmpExpr tupExpr
-    Tuple nm ts <- nakedTypeOf (valType tup)
+    Tuple nm ts <- realTypeOf (valType tup)
     valTupleIdx i (tup { valType = Tuple nm ts })
 
 cmpExpr (S.Len pos expr) = do
     val <- cmpExpr expr
-    typ <- nakedTypeOf (valType val)
+    typ <- realTypeOf (valType val)
     case typ of
         Array n _   -> return (valInt I64 $ fromIntegral n)
         Table nm ts -> valTableLen val
@@ -306,22 +303,25 @@ cmpExpr (S.Call pos symbol args) = withPos pos $ do
         (_, Just (ObjFunc typ op)) -> Val typ <$> call op [(o, []) | o <- map valOp vals]
         (_, Just (ObjInline f))    -> f vals
         (_, Just (ObjVal val))     -> return val
-        --(Just (ObjType t), _)      -> ensureTypeDeps t >> cmpTypeFn (Typedef symbol) vals
+        (Just (ObjType t), _)      -> ensureTypeDeps t >> cmpTypeFn (Typedef symbol) vals
         _                          -> cmpErr ("no callable object exists for " ++ symbol)
     where
---        cmpTypeFn :: ValType -> [Value] -> Instr Value
---        cmpTypeFn typ args = do
---            conc <- concreteTypeOf typ
---            concs <- mapM concreteTypeOf (map valType args)
---            case concs of
---                []                        -> Val typ <$> cons <$> zeroOf conc
---                [t] | conc == t           -> return $ (head args) { valType = typ }
---                ts  | conc == Tuple nm ts -> do
---                    tup <- valLocal typ
---                    forM_ (zip args [0..]) $ \(a, i) -> valTupleSet tup i a
---                    return tup
---                _ -> cmpErr "cannot construct type from arguments"
---
+        cmpTypeFn :: ValType -> [Value] -> Instr Value
+        cmpTypeFn typ args = do
+            conc <- concreteTypeOf typ
+            argConcs <- mapM concreteTypeOf (map valType args)
+            case argConcs of
+                []             -> fmap (Val typ . cons) (zeroOf conc)
+                [t] | typ == t -> return $ (head args) { valType = typ }
+                ts             -> do 
+                    assert (isTuple conc) "multiple arguments for non-tuple type constructor"
+                    let Tuple _ tupTs = conc
+                    assert (ts == tupTs) "arguments do not match tuple fields"
+                    tup <- valLocal conc
+                    forM_ (zip args [0..]) $ \(a, i) ->
+                        valTupleSet tup i a
+                    return $ tup { valType = typ }
+
 cmpExpr (S.Infix pos S.EqEq exprA exprB) = withPos pos $ do
     valA <- cmpExpr exprA
     valB <- cmpExpr exprB

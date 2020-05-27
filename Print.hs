@@ -1,29 +1,29 @@
 module Print where
 
 
-import           Control.Monad
-import           Control.Monad.State
 import qualified Data.ByteString.Char8      as BS
 import qualified Data.ByteString.Short      as BSS
-import           Data.Maybe
-import           Data.List                  hiding (and, or)
-import           Data.Word
-import           Prelude                    hiding (EQ, and, or)
+import Control.Monad
+import Control.Monad.State
+import Data.Maybe
+import Data.List                  hiding (and, or)
+import Data.Word
+import Prelude                    hiding (EQ, and, or)
+import Foreign.Ptr
 
-import           LLVM.Context
-import           LLVM.AST                   hiding (function, Module)
 import qualified LLVM.AST.Constant          as C
-import           LLVM.AST.IntegerPredicate
-import           LLVM.AST.Type              hiding (void, double)
-import           LLVM.Internal.Type
-import           LLVM.Internal.EncodeAST
-import           LLVM.Internal.Coding           hiding (alloca)
-import           Foreign.Ptr
 import qualified LLVM.Internal.FFI.DataLayout   as FFI
-import           LLVM.IRBuilder.Constant
-import           LLVM.IRBuilder.Instruction
-import           LLVM.IRBuilder.Module
-import           LLVM.IRBuilder.Monad
+import LLVM.Context
+import LLVM.AST                   hiding (function, Module)
+import LLVM.AST.IntegerPredicate
+import LLVM.AST.Type              hiding (void, double)
+import LLVM.Internal.Type
+import LLVM.Internal.EncodeAST
+import LLVM.Internal.Coding           hiding (alloca)
+import LLVM.IRBuilder.Constant
+import LLVM.IRBuilder.Instruction
+import LLVM.IRBuilder.Module
+import LLVM.IRBuilder.Monad
 
 import qualified AST                        as S
 import           Type
@@ -45,9 +45,9 @@ valPrint append val = case valType val of
             ObjData t f -> f val >> void (printf append [])
             ObjType typ -> do
                 void $ printf sym []
-                t <- nakedTypeOf typ
+                t <- realTypeOf typ
                 if isTuple t then do
-                    tup <- nakedTypeOf typ
+                    tup <- realTypeOf typ
                     valPrint append $ val { valType = tup }
                 else do
                     void $ printf (sym ++ "(") []

@@ -26,12 +26,11 @@ cmpTableExpr rows = do
     assert (all (== numCols) (map length rows)) "row lengths differ" 
     assert (numCols > 0) "cannot deduce table type"
 
-    (rowTyps, rowOpTyps, rowTypSizes) <- fmap unzip3 $ forM rows $ \row -> do
+    (rowTyps, rowTypSizes) <- fmap unzip $ forM rows $ \row -> do
         let typ = valType (head row)
         mapM_ (checkConcTypesMatch typ) (map valType row)
-        opTyp <- opTypeOf typ
-        size <- sizeOf opTyp
-        return (typ, opTyp, size)
+        size <- sizeOf typ
+        return (typ, size)
 
     opTyp <- opTypeOf (Table Nothing rowTyps)
     typName <- freshName (mkBSS "table_t")
@@ -48,7 +47,7 @@ cmpTableExpr rows = do
     valStore tabLen (valInt I64 len)
     valStore tabCap (valInt I64 0)
 
-    forM_ (zip4 rows rowTyps rowOpTyps [0..]) $ \(row, rowTyp, rowOpTyp, i) -> do
+    forM_ (zip3 rows rowTyps [0..]) $ \(row, rowTyp, i) -> do
         arow <- valLocal $ Array (fromIntegral len) rowTyp
         prow <- valCast rowTyp arow
         rowPtr <- gep loc [int32 0, int32 (i+2)]
@@ -68,7 +67,7 @@ valTableCap (Val _ op)  = fmap (Val I64) $ extractValue op [1]
 
 valTableRow :: Word32 -> Value -> Instr Value
 valTableRow i tab = do
-    Table nm ts <- nakedTypeOf (valType tab)
+    Table nm ts <- realTypeOf (valType tab)
     assert (fromIntegral i < length ts) "invalid table row index" 
     maybe (return ()) ensureDef nm
     let t = ts !! fromIntegral i
@@ -81,7 +80,7 @@ valTableRow i tab = do
 
 valTableIdx :: Value -> Value -> Instr Value
 valTableIdx tab idx = do
-    Table nm ts <- nakedTypeOf (valType tab)
+    Table nm ts <- realTypeOf (valType tab)
     maybe (return ()) ensureDef nm
     tup <- valLocal (Tuple Nothing ts)
 
@@ -96,15 +95,15 @@ valTableIdx tab idx = do
 
 valMalloc :: ValType -> Value -> Instr Value
 valMalloc typ (Val I64 i) = do
-    opTyp <- opTypeOf typ
-    size  <- fmap fromIntegral (sizeOf opTyp)
+    size  <- fmap fromIntegral (sizeOf typ)
     nBytes <- mul (int64 size) i
-    sI64 <- fmap fromIntegral (sizeOf i64)
+    sI64 <- fmap fromIntegral (sizeOf I64)
     nBytes' <- add nBytes (int64 sI64)
     pMem <- malloc nBytes'
     pI64 <- bitcast pMem (ptr i64)
     store pI64 0 (int64 0) -- ref count
     pI64' <- gep pI64 [int64 1]
+    opTyp <- opTypeOf typ
     pVals <- bitcast pI64' (ptr opTyp)
     return (Ptr typ pVals)
 
@@ -155,8 +154,7 @@ valTableStore dest@(Ptr (Table nm ts) destLoc) src = do
     let false = valStore dest src
     let true = do
         forM_ (zip ts [0..]) $ \(t, i) -> do
-            opTyp <- opTypeOf t
-            size <- sizeOf opTyp
+            size <- sizeOf t
 
             m@(Ptr _ p) <- valMalloc t len
             pp <- gep destLoc [int32 0, int32 (i+2)]

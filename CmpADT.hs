@@ -7,6 +7,8 @@ import Control.Monad
 import Control.Monad.State
 
 import LLVM.AST.Type
+import LLVM.AST.Name
+import LLVM.AST
 import LLVM.IRBuilder.Monad
 import LLVM.IRBuilder.Module
 import LLVM.IRBuilder.Instruction
@@ -34,10 +36,10 @@ cmpDataDef (S.Datadef pos symbol datas) = withPos pos $ do
             | x < 2^64 -> return I64
     
     memTyps <- forM datas $ \dat -> case dat of
-        S.DataIdent p sym       -> return (Tuple (Just name) [enumTyp])
-        S.DataFunc p sym params -> return $ Tuple (Just name) (enumTyp : map S.paramType params)
+        S.DataIdent p sym       -> return (Tuple Nothing [enumTyp])
+        S.DataFunc p sym params -> return $ Tuple Nothing (enumTyp : map S.paramType params)
 
-    memSizes <- mapM sizeOf =<< mapM opTypeOf memTyps
+    memSizes <- mapM sizeOf memTyps
     let (_, memMaxTyp) = maximumBy (comparing fst) (zip memSizes memTyps)
     let dataConcTyp = memMaxTyp
 
@@ -47,10 +49,12 @@ cmpDataDef (S.Datadef pos symbol datas) = withPos pos $ do
             S.DataIdent p sym -> withPos p $ do
                 checkUndefined sym
                 addSymObj sym KeyDataCons $ ObjDataCons dataTyp typ (fromIntegral i)
-                addSymObj sym (KeyFunc []) $ ObjInline $ \[] -> do
+                let inline = ObjInline $ \[] -> do
                     tup@(Ptr _ _) <- valLocal dataConcTyp
                     valTupleSet tup 0 (valInt enumTyp i)
                     return (tup { valType = dataTyp })
+                addSymObj sym KeyVal inline
+                addSymObj sym (KeyFunc []) inline
 
             S.DataFunc p sym params -> withPos p $ do
                 checkUndefined sym

@@ -132,13 +132,16 @@ opTypeOf typ = case typ of
     Annotated _ t -> opTypeOf t
 
 
-sizeOf :: Type -> Instr Word64
-sizeOf typ =
-    lift $ do
-        dl <- gets dataLayout
-        ctx <- gets context
-        ptrTyp <- liftIO $ runEncodeAST ctx (encodeM typ)
-        liftIO (FFI.getTypeAllocSize dl ptrTyp)
+-- sizeOf cannot know about typedefs!
+sizeOf :: ValType -> Instr Word64
+sizeOf typ = size =<< opTypeOf =<< concreteTypeOf typ
+    where
+        size :: Type -> Instr Word64
+        size t = lift $ do
+            dl <- gets dataLayout
+            ctx <- gets context
+            ptrTyp <- liftIO $ runEncodeAST ctx (encodeM t)
+            liftIO (FFI.getTypeAllocSize dl ptrTyp)
 
 
 zeroOf :: ValType -> Instr C.Constant
@@ -154,15 +157,19 @@ zeroOf typ = case typ of
     Array n t   -> fmap (toCons . array . replicate (fromIntegral n)) (zeroOf t)
     Table nm ts -> fmap (toCons . (struct Nothing False)) $ mapM zeroOf (I64:I64:ts)
     Tuple nm ts -> fmap (toCons . (struct Nothing False)) (mapM zeroOf ts)
-    Typedef _   -> zeroOf =<< nakedTypeOf typ
+    Typedef _   -> zeroOf =<< realTypeOf typ
     Annotated _ t -> zeroOf t
 
 
-nakedTypeOf :: ValType -> Instr ValType
-nakedTypeOf typ = case typ of
-    Annotated _ t -> nakedTypeOf t
-    Typedef sym -> do ObjType t <- look sym KeyType; nakedTypeOf t
-    t           -> return t
+realTypeOf :: ValType -> Instr ValType
+realTypeOf typ = case typ of
+    Annotated _ t -> realTypeOf t
+    Typedef sym   -> do
+        res <- look sym KeyType
+        case res of
+            ObjType t   -> realTypeOf t
+            ObjData t _ -> realTypeOf t
+    t             -> return t
 
 
 concreteTypeOf :: ValType -> Instr ValType
@@ -203,19 +210,20 @@ skipAnnos typ = case typ of
 
 
 ensureTypeDeps :: ValType -> Instr ()
-ensureTypeDeps (Array _ t)   = ensureTypeDeps t
-ensureTypeDeps (Table nm ts) = do
-    maybe (return ()) ensureDef nm
-    mapM_ ensureTypeDeps ts
-ensureTypeDeps (Tuple nm ts) = do
-    maybe (return ()) ensureDef nm
-    mapM_ ensureTypeDeps ts
-ensureTypeDeps (Typedef sym) = do
-    res <- look sym KeyType
-    case res of
-        ObjType t   -> ensureTypeDeps t
-        ObjData t _ -> ensureTypeDeps t
-ensureTypeDeps _ = return ()
+ensureTypeDeps typ = case typ of
+    (Array _ t) -> ensureTypeDeps t
+    (Tuple nm ts) -> do
+        maybe (return ()) ensureDef nm
+        mapM_ ensureTypeDeps ts
+    (Table nm ts) -> do
+        maybe (return ()) ensureDef nm
+        mapM_ ensureTypeDeps ts
+    (Typedef sym) -> do
+        res <- look sym KeyType
+        case res of
+            ObjType t   -> ensureTypeDeps t
+            ObjData t _ -> ensureTypeDeps t
+    _ -> return ()
 
 
 valGlobal :: Name -> ValType -> Instr (Value, Definition)
@@ -278,7 +286,7 @@ valArrayIdx (Ptr (Array n t) loc) idx = do
 
 valArrayConstIdx :: Value -> Word -> Instr Value
 valArrayConstIdx val i = do
-    Array n t <- nakedTypeOf (valType val)
+    Array n t <- realTypeOf (valType val)
     case val of
         Ptr typ loc -> fmap (Ptr t) $ gep loc [int64 0, int64 (fromIntegral i)]
         Val typ op  -> fmap (Val t) $ extractValue op [fromIntegral i]
@@ -286,7 +294,7 @@ valArrayConstIdx val i = do
 
 valArraySet :: Value -> Value -> Value -> Instr ()
 valArraySet (Ptr typ loc) idx val = do
-    Array n t <- nakedTypeOf typ
+    Array n t <- realTypeOf typ
     assert (isInt $ valType idx) "index isn't int"
     assert (valType val == t) "incorrect element type"
     i <- valLoad idx
@@ -309,7 +317,7 @@ valLen val = do
 
 valTupleIdx :: Word32 -> Value -> Instr Value
 valTupleIdx i tup = do
-    Tuple nm ts <- nakedTypeOf (valType tup)
+    Tuple nm ts <- realTypeOf (valType tup)
     assert (i >= 0 && fromIntegral i < length ts) "tuple index out of range"
     let t = ts !! fromIntegral i
     case tup of
@@ -319,9 +327,9 @@ valTupleIdx i tup = do
 
 valTupleSet :: Value -> Word32 -> Value -> Instr ()
 valTupleSet (Ptr typ loc) i val = do
-    Tuple nm ts <- nakedTypeOf typ
-    ptr <- gep loc [int32 0, int32 (fromIntegral i)]
-    valStore (Ptr (ts !! fromIntegral i) ptr) val
+    Tuple nm ts <- realTypeOf typ
+    p <- gep loc [int32 0, int32 (fromIntegral i)]
+    valStore (Ptr (ts !! fromIntegral i) p) val
 
 
 valsEqual :: Value -> Value -> Instr Value

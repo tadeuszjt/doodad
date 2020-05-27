@@ -66,4 +66,5 @@ isAnnotated (Annotated _ _) = True
 isAnnotated _               = False
 isIntegral x                = isInt x || isChar x
 isBase x                    = isInt x || isFloat x || isChar x
+isSimple x                  = isBase x || isString x
 isAggregate x               = isTuple x || isArray x || isTable x
