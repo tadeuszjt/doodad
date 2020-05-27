@@ -5,7 +5,7 @@ import Data.List
 import Data.Word
 import Prelude                    hiding (EQ)
 
-import LLVM.AST.Type              hiding (void)
+import LLVM.AST.Type              hiding (Type, void)
 import LLVM.AST.IntegerPredicate
 import LLVM.IRBuilder.Constant
 import LLVM.IRBuilder.Instruction
@@ -93,7 +93,7 @@ valTableIdx tab idx = do
     else return tup
 
 
-valMalloc :: ValType -> Value -> Instr Value
+valMalloc :: Type -> Value -> Instr Value
 valMalloc typ (Val I64 i) = do
     size  <- fmap fromIntegral (sizeOf typ)
     nBytes <- mul (int64 size) i

@@ -29,7 +29,7 @@ data Param
     = Param
         { paramPos  :: TextPos
         , paramName :: String
-        , paramType :: ValType
+        , paramType :: Type
         }
     deriving (Show, Eq)
 
@@ -71,7 +71,7 @@ data Expr
     | ArrayIndex TextPos Expr Expr
     | Ident TextPos String
     | Call TextPos String [Expr]
-    | Conv TextPos ValType [Expr]
+    | Conv TextPos Type [Expr]
     | Len TextPos Expr
     | Prefix TextPos Op Expr
     | Infix TextPos Op Expr Expr
@@ -83,9 +83,9 @@ data Stmt
     | Set TextPos Index Expr
     | Print TextPos [Expr]
     | Block TextPos [Stmt]
-    | Func TextPos String [Pattern] (Maybe ValType) [Stmt]
-    | Extern TextPos String [Pattern] (Maybe ValType)
-    | Typedef TextPos String ValType
+    | Func TextPos String [Pattern] (Maybe Type) [Stmt]
+    | Extern TextPos String [Pattern] (Maybe Type)
+    | Typedef TextPos String Type
     | Datadef TextPos String [Data] 
     | CallStmt TextPos String [Expr]
     | If TextPos Expr Stmt (Maybe Stmt)

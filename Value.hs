@@ -13,10 +13,11 @@ import           Data.Word
 import           Prelude                    hiding (EQ, and, or)
 
 import           LLVM.Context
-import           LLVM.AST                   hiding (function, Module)
+import           LLVM.AST                   hiding (Type, function, Module)
+import qualified LLVM.AST                   as LL (Type) 
 import qualified LLVM.AST.Constant          as C
 import           LLVM.AST.IntegerPredicate
-import           LLVM.AST.Type              hiding (void, double)
+import           LLVM.AST.Type              hiding (Type, void, double)
 import           LLVM.Internal.Type
 import           LLVM.Internal.EncodeAST
 import           LLVM.Internal.Coding           hiding (alloca)
@@ -45,24 +46,24 @@ data CompileState
     = CompileState
         { context    :: Context
         , dataLayout :: Ptr FFI.DataLayout
-        , curRetTyp  :: ValType
+        , curRetTyp  :: Type
         }
 initCompileState ctx dl = CompileState ctx dl Void
 
 
-setCurRetTyp :: ValType -> Instr ()
+setCurRetTyp :: Type -> Instr ()
 setCurRetTyp typ =
     lift $ modify $ \s -> s { curRetTyp = typ }
 
 
-getCurRetTyp :: Instr ValType
+getCurRetTyp :: Instr Type
 getCurRetTyp =
     lift (gets curRetTyp)
 
 
 data SymKey
     = KeyVal
-    | KeyFunc [ValType]
+    | KeyFunc [Type]
     | KeyType
     | KeyDataCons
     deriving (Show, Eq, Ord)
@@ -72,21 +73,21 @@ instance Show ([Value] -> Instr Value) where show _ = "Inline"
 instance Show (Value -> Instr ()) where show _ = "Inline"
 data SymObj
     = ObjVal Value
-    | ObjFunc ValType Operand
+    | ObjFunc Type Operand
     | ObjInline ([Value] -> Instr Value)
-    | ObjType ValType
-    | ObjDataCons { dataTyp :: ValType, dataConsTyp :: ValType, dataEnum :: Word }
-    | ObjData     { dataConcTyp :: ValType, dataPrintFn :: (Value -> Instr ()) }
+    | ObjType Type
+    | ObjDataCons { dataTyp :: Type, dataConsTyp :: Type, dataEnum :: Word }
+    | ObjData     { dataConcTyp :: Type, dataPrintFn :: (Value -> Instr ()) }
     deriving (Show)
 
 
 data Value
-    = Val { valType :: ValType, valOp :: Operand }
-    | Ptr { valType :: ValType, valOp :: Operand }
+    = Val { valType :: Type, valOp :: Operand }
+    | Ptr { valType :: Type, valOp :: Operand }
     deriving (Show, Eq)
 
 
-valInt :: ValType -> Integer -> Value
+valInt :: Type -> Integer -> Value
 valInt I8 n  = Val I8 (int8 n)
 valInt I32 n = Val I32 (int32 n)
 valInt I64 n = Val I64 (int64 n)
@@ -96,7 +97,7 @@ valBool :: Bool -> Value
 valBool b = Val Bool (if b then bit 1 else bit 0)
 
 
-opTypeOf :: ValType -> Instr Type
+opTypeOf :: Type -> Instr LL.Type
 opTypeOf (Tuple nm ts) =
     if isNothing nm
     then fmap (StructureType False) (mapM opTypeOf ts)
@@ -133,10 +134,10 @@ opTypeOf typ = case typ of
 
 
 -- sizeOf cannot know about typedefs!
-sizeOf :: ValType -> Instr Word64
+sizeOf :: Type -> Instr Word64
 sizeOf typ = size =<< opTypeOf =<< concreteTypeOf typ
     where
-        size :: Type -> Instr Word64
+        size :: LL.Type -> Instr Word64
         size t = lift $ do
             dl <- gets dataLayout
             ctx <- gets context
@@ -144,7 +145,7 @@ sizeOf typ = size =<< opTypeOf =<< concreteTypeOf typ
             liftIO (FFI.getTypeAllocSize dl ptrTyp)
 
 
-zeroOf :: ValType -> Instr C.Constant
+zeroOf :: Type -> Instr C.Constant
 zeroOf typ = case typ of
     I8          -> return $ toCons (int8 0)
     I32         -> return $ toCons (int32 0)
@@ -161,7 +162,7 @@ zeroOf typ = case typ of
     Annotated _ t -> zeroOf t
 
 
-realTypeOf :: ValType -> Instr ValType
+realTypeOf :: Type -> Instr Type
 realTypeOf typ = case typ of
     Annotated _ t -> realTypeOf t
     Typedef sym   -> do
@@ -172,7 +173,7 @@ realTypeOf typ = case typ of
     t             -> return t
 
 
-concreteTypeOf :: ValType -> Instr ValType
+concreteTypeOf :: Type -> Instr Type
 concreteTypeOf (Typedef sym) = do
     res <- look sym KeyType
     case res of
@@ -186,21 +187,21 @@ concreteTypeOf typ = case typ of
     t           -> return t
 
 
-checkTypesMatch :: ValType -> ValType -> Instr ()
+checkTypesMatch :: Type -> Type -> Instr ()
 checkTypesMatch a b = do
     a' <- skipAnnos a
     b' <- skipAnnos b
     assert (a' == b') ("type mismatch between " ++ show a' ++ " and " ++ show b')
 
 
-checkConcTypesMatch :: ValType -> ValType -> Instr ()
+checkConcTypesMatch :: Type -> Type -> Instr ()
 checkConcTypesMatch a b = do
     a' <- concreteTypeOf a
     b' <- concreteTypeOf b
     assert (a' == b') ("underlying type mismatch between " ++ show a' ++ " and " ++ show b')
 
 
-skipAnnos :: ValType -> Instr ValType
+skipAnnos :: Type -> Instr Type
 skipAnnos typ = case typ of
     Annotated _ t -> return t
     Typedef sym -> do ObjType t <- look sym KeyType; skipAnnos t
@@ -209,7 +210,7 @@ skipAnnos typ = case typ of
     t           -> return t
 
 
-ensureTypeDeps :: ValType -> Instr ()
+ensureTypeDeps :: Type -> Instr ()
 ensureTypeDeps typ = case typ of
     (Array _ t) -> ensureTypeDeps t
     (Tuple nm ts) -> do
@@ -226,7 +227,7 @@ ensureTypeDeps typ = case typ of
     _ -> return ()
 
 
-valGlobal :: Name -> ValType -> Instr (Value, Definition)
+valGlobal :: Name -> Type -> Instr (Value, Definition)
 valGlobal name typ = do
     opTyp <- opTypeOf typ
     zero <- zeroOf typ
@@ -236,7 +237,7 @@ valGlobal name typ = do
     return (Ptr typ loc, ext)
 
 
-valLocal :: ValType -> Instr Value
+valLocal :: Type -> Instr Value
 valLocal typ = do
     opTyp <- opTypeOf typ
     loc <- alloca opTyp Nothing 0
@@ -258,7 +259,7 @@ valLoad (Val typ op)  = return (Val typ op)
 valLoad (Ptr typ loc) = fmap (Val typ) (load loc 0)
 
 
-valCast :: ValType -> Value -> Instr Value
+valCast :: Type -> Value -> Instr Value
 valCast typ' (Ptr typ loc) = do
     opTyp' <- opTypeOf typ'
     loc' <- bitcast loc (ptr opTyp')
@@ -340,7 +341,7 @@ valsEqual a b = do
     typ <- concreteTypeOf (valType a)
     fmap (Val Bool) $ valsEqual' typ a b
     where
-        valsEqual' :: ValType -> Value -> Value -> Instr Operand
+        valsEqual' :: Type -> Value -> Value -> Instr Operand
         valsEqual' typ a b
             | isIntegral typ || typ == Bool = do
                 Val _ opA <- valLoad a

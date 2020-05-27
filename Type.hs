@@ -2,10 +2,10 @@ module Type where
 
 import Data.Word
 import Data.List
-import LLVM.AST  hiding (function, Module)
+import LLVM.AST  hiding (Type, function, Module)
 
 
-data ValType
+data Type
     = Void
     | I8
     | I16
@@ -16,15 +16,15 @@ data ValType
     | Bool
     | Char
     | String
-    | Tuple (Maybe Name) [ValType]
-    | Array Word ValType
-    | Table (Maybe Name) [ValType]
+    | Tuple (Maybe Name) [Type]
+    | Array Word Type
+    | Table (Maybe Name) [Type]
     | Typedef String
-    | Annotated String ValType
+    | Annotated String Type
     deriving (Eq, Ord)
 
 
-instance Show ValType where
+instance Show Type where
     show t = case t of
         Void        -> "void"
         I8          -> "i8"

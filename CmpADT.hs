@@ -6,9 +6,9 @@ import Data.List
 import Control.Monad
 import Control.Monad.State
 
-import LLVM.AST.Type
+import LLVM.AST.Type hiding (Type)
 import LLVM.AST.Name
-import LLVM.AST
+import LLVM.AST hiding (Type)
 import LLVM.IRBuilder.Monad
 import LLVM.IRBuilder.Module
 import LLVM.IRBuilder.Instruction
@@ -78,7 +78,7 @@ cmpDataDef (S.Datadef pos symbol datas) = withPos pos $ do
     addSymObjReq symbol KeyType name
 
     where
-        printFn :: [ValType] -> Value -> Instr ()
+        printFn :: [Type] -> Value -> Instr ()
         printFn memTyps dat@(Ptr _ _) = do
             let memSymbols = map S.dataSymbol datas
 

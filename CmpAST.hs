@@ -10,8 +10,8 @@ import           Data.List                  hiding (and, or)
 import           Prelude                    hiding (EQ, and, or)
 
 import           LLVM.Context
-import           LLVM.AST                   hiding (function, Module)
-import           LLVM.AST.Type              hiding (void, double) 
+import           LLVM.AST                   hiding (Type, function, Module)
+import           LLVM.AST.Type              hiding (Type, void, double) 
 import           LLVM.AST.IntegerPredicate
 import qualified LLVM.AST.FloatingPointPredicate as F
 import qualified LLVM.Internal.FFI.DataLayout as FFI
@@ -89,8 +89,6 @@ cmpPattern isGlobal pattern val = case pattern of
                         error $ show d
                         return val
                         
-
-
 cmpTopStmt :: S.Stmt -> Instr ()
 cmpTopStmt stmt@(S.Set _ _ _)      = cmpStmt stmt
 cmpTopStmt stmt@(S.Print _ _)      = cmpStmt stmt
@@ -333,7 +331,7 @@ cmpExpr (S.Call pos symbol args) = withPos pos $ do
         (Just (ObjType t), _)      -> ensureTypeDeps t >> cmpTypeFn (Typedef symbol) vals
         _                          -> cmpErr ("no callable object exists for " ++ symbol)
     where
-        cmpTypeFn :: ValType -> [Value] -> Instr Value
+        cmpTypeFn :: Type -> [Value] -> Instr Value
         cmpTypeFn typ args = do
             conc <- concreteTypeOf typ
             argConcs <- mapM concreteTypeOf (map valType args)
