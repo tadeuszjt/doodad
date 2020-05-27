@@ -11,6 +11,7 @@ import           Prelude                    hiding (EQ, and, or)
 
 import           LLVM.Context
 import           LLVM.AST                   hiding (function, Module)
+import           LLVM.AST.Type              hiding (void, double) 
 import           LLVM.AST.IntegerPredicate
 import qualified LLVM.AST.FloatingPointPredicate as F
 import qualified LLVM.Internal.FFI.DataLayout as FFI
@@ -42,11 +43,8 @@ compile context dataLayout state ast = do
 
 cmpPattern :: Bool -> S.Pattern -> Value -> Instr Value
 cmpPattern isGlobal pattern val = case pattern of
-    S.PatIgnore pos ->
-        return (valBool True)
-
-    S.PatLiteral expr ->
-        valsEqual val =<< cmpExpr expr
+    S.PatIgnore pos   -> return (valBool True)
+    S.PatLiteral expr -> valsEqual val =<< cmpExpr expr
 
     S.PatIdent pos sym -> withPos pos $ do
         checkSymKeyUndefined sym KeyType
@@ -78,11 +76,19 @@ cmpPattern isGlobal pattern val = case pattern of
         valAnd cnds
 
     S.PatTyped pos sym pattern -> withPos pos $ do
-        res <- look sym KeyType
+        res <- lookupSymKey sym KeyType
         case res of
-            ObjType typ -> do
+            Just (ObjType typ) -> do
                 checkTypesMatch typ (valType val)
                 cmpPattern isGlobal pattern val
+            Nothing -> do
+                res <- lookupSymKey sym KeyDataCons
+                case res of
+                    Just (ObjDataCons d t e) -> do
+                        checkTypesMatch d (valType val)
+                        error $ show d
+                        return val
+                        
 
 
 cmpTopStmt :: S.Stmt -> Instr ()
@@ -212,6 +218,27 @@ cmpExpr (S.Float pos f)     = return $ Val F64 (double f)
 cmpExpr (S.Bool pos b)      = return $ Val Bool (bit $ if b then 1 else 0)
 cmpExpr (S.Char pos c)      = return $ Val Char (int32 $ fromIntegral $ fromEnum c)
 cmpExpr (S.Table pos exprs) = cmpTableExpr =<< mapM (mapM cmpExpr) exprs
+
+cmpExpr (S.Conv pos typ exprs) = withPos pos $ do
+    vals <- mapM cmpExpr exprs
+    let typs = map valType vals
+    case typs of
+        []  -> valLocal typ
+        [t] -> cmpConv (head vals)
+        ts  -> do
+            tup@(Ptr _ _) <- valLocal (Tuple Nothing ts)
+            forM_ (zip vals [0..]) $ \(val, i) -> valTupleSet tup i val
+            cmpConv tup
+    where
+        cmpConv :: Value -> Instr Value
+        cmpConv val
+            | isIntegral typ = do
+                conc <- concreteTypeOf (valType val)
+                case (typ, conc) of
+                    (I64, I64) -> return val
+                    (I32, I64) -> fmap (Val I32) $ trunc (valOp val) i32
+                    (I16, I64) -> fmap (Val I16) $ trunc (valOp val) (IntegerType 16)
+                    (I8, I64)  -> fmap (Val I8) $ trunc (valOp val) i8
 
 cmpExpr (S.String pos s) = do
     name <- freshName "string"

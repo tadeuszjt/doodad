@@ -71,6 +71,7 @@ data Expr
     | ArrayIndex TextPos Expr Expr
     | Ident TextPos String
     | Call TextPos String [Expr]
+    | Conv TextPos ValType [Expr]
     | Len TextPos Expr
     | Prefix TextPos Op Expr
     | Infix TextPos Op Expr Expr

@@ -1,8 +1,8 @@
 let t = { (1, 2), (3, 4), (5, 6) }; print(t);
 let i = 0;
 
-type Point = (x i64, y i64);
-let p = Point(1, 2);
+type Point = (x i32, y i32);
+let p = Point(i32(1), i32(2));
 
 type Square = (p0 Point, p1 Point);
 let s = Square(p, Point(3, 6));
@@ -10,6 +10,6 @@ let s = Square(p, Point(3, 6));
 data MaybePoint = Nothing, JustPoint(point Point);
 let m = Nothing;
 let n = JustPoint(p);
-let JustPoint(pm) = n;
-print(m, n);
+let JustPoint(Point(x, y)) = n;
+print(m, n, x, y);
 

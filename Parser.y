@@ -117,6 +117,7 @@ expr   : lit                          { $1 }
        | '[' exprs ']'                { S.Array (tokPosn $1) $2 }
        | '(' exprs ')'                { S.Tuple (tokPosn $1) $2 }
        | ident '(' exprs ')'          { S.Call (tokPosn $1) (L.tokStr $1) $3 }
+       | concreteType '(' exprs ')'   { S.Conv (tokPosn $2) $1 $3 }
        | len '(' expr ')'             { S.Len (tokPosn $1) $3 }
        | expr '.' intlit              { S.TupleIndex (tokPosn $2) $1 (read $ L.tokStr $3) }
        | expr '.' ident               { S.TupleMember (tokPosn $2) $1 (L.tokStr $3) }
@@ -151,11 +152,11 @@ infix : expr '+' expr                { S.Infix (tokPosn $2) S.Plus $1 $3 }
       | expr '||' expr               { S.Infix (tokPosn $2) S.OrOr $1 $3 }
 
 
-type_        : ConcreteType         { $1 }
+type_        : concreteType         { $1 }
              | ident                { T.Typedef (L.tokStr $1) }
-             | ident ConcreteType   { T.Annotated (L.tokStr $1) $2 }
+             | ident concreteType   { T.Annotated (L.tokStr $1) $2 }
              | ident ident          { T.Annotated (L.tokStr $1) (T.Typedef (L.tokStr $2)) }
-ConcreteType : bool                 { T.Bool }
+concreteType : bool                 { T.Bool }
              | i32                  { T.I32 }
              | i64                  { T.I64 }
              | f32                  { T.F32 }
