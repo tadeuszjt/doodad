@@ -147,18 +147,18 @@ sizeOf typ = size =<< opTypeOf =<< concreteTypeOf typ
 
 zeroOf :: Type -> Instr C.Constant
 zeroOf typ = case typ of
-    I8          -> return $ toCons (int8 0)
-    I32         -> return $ toCons (int32 0)
-    I64         -> return $ toCons (int64 0)
-    F32         -> return $ toCons (single 0)
-    F64         -> return $ toCons (double 0)
-    Char        -> return $ toCons (int32 0)
-    Bool        -> return $ toCons (bit 0)
-    String      -> return $ C.IntToPtr (toCons $ int64 0) (ptr i8)
-    Array n t   -> fmap (toCons . array . replicate (fromIntegral n)) (zeroOf t)
-    Table nm ts -> fmap (toCons . (struct Nothing False)) $ mapM zeroOf (I64:I64:ts)
-    Tuple nm ts -> fmap (toCons . (struct Nothing False)) (mapM zeroOf ts)
-    Typedef _   -> zeroOf =<< realTypeOf typ
+    I8            -> return $ toCons (int8 0)
+    I32           -> return $ toCons (int32 0)
+    I64           -> return $ toCons (int64 0)
+    F32           -> return $ toCons (single 0)
+    F64           -> return $ toCons (double 0)
+    Char          -> return $ toCons (int32 0)
+    Bool          -> return $ toCons (bit 0)
+    String        -> return $ C.IntToPtr (toCons $ int64 0) (ptr i8)
+    Array n t     -> fmap (toCons . array . replicate (fromIntegral n)) (zeroOf t)
+    Table nm ts   -> fmap (toCons . (struct Nothing False)) $ mapM zeroOf (I64:I64:ts)
+    Tuple nm ts   -> fmap (toCons . (struct Nothing False)) (mapM zeroOf ts)
+    Typedef _     -> zeroOf =<< realTypeOf typ
     Annotated _ t -> zeroOf t
 
 
@@ -180,18 +180,31 @@ concreteTypeOf (Typedef sym) = do
         ObjType t   -> concreteTypeOf t
         ObjData _ _ -> return (dataConcTyp res)
 concreteTypeOf typ = case typ of
-    Table nm ts -> fmap (Table Nothing) (mapM concreteTypeOf ts)
-    Tuple nm ts -> fmap (Tuple Nothing) (mapM concreteTypeOf ts)
-    Array n t   -> fmap (Array n) (concreteTypeOf t)
+    Table nm ts   -> fmap (Table Nothing) (mapM concreteTypeOf ts)
+    Tuple nm ts   -> fmap (Tuple Nothing) (mapM concreteTypeOf ts)
+    Array n t     -> fmap (Array n) (concreteTypeOf t)
     Annotated _ t -> concreteTypeOf t
-    t           -> return t
+    t             -> return t
 
 
+-- Same type
+-- Ignore annotations
+-- Recursively check aggregates
 checkTypesMatch :: Type -> Type -> Instr ()
-checkTypesMatch a b = do
-    a' <- skipAnnos a
-    b' <- skipAnnos b
-    assert (a' == b') ("type mismatch between " ++ show a' ++ " and " ++ show b')
+checkTypesMatch a b = case (a, b) of
+    (Annotated _ a, b)       -> checkTypesMatch a b
+    (a, Annotated _ b)       -> checkTypesMatch a b
+    (Tuple _ as, Tuple _ bs) -> do
+        assert (length as == length bs) "tuple length mismatch"
+        mapM_ (\(x, y) -> checkTypesMatch x y) (zip as bs)
+    (Array an at, Array bn bt) -> do
+        assert (an == bn) "array length mismatch"
+        checkTypesMatch at bt
+    (Table _ as, Table _ bs)   -> do
+        assert (length as == length bs) "table type mismatch"
+        mapM_ (\(x, y) -> checkTypesMatch x y) (zip as bs)
+    (a, b) | isTypedef a || isSimple a -> return ()
+    (a, b) -> assert (a == b) ("type mismatch between " ++ show a ++ " and " ++ show b)
 
 
 checkConcTypesMatch :: Type -> Type -> Instr ()
@@ -201,25 +214,16 @@ checkConcTypesMatch a b = do
     assert (a' == b') ("underlying type mismatch between " ++ show a' ++ " and " ++ show b')
 
 
-skipAnnos :: Type -> Instr Type
-skipAnnos typ = case typ of
-    Annotated _ t -> return t
-    Typedef sym -> do ObjType t <- look sym KeyType; skipAnnos t
-    Tuple nm ts -> fmap (Tuple nm) (mapM skipAnnos ts)
-    Array n t   -> fmap (Array n) (skipAnnos t)
-    t           -> return t
-
-
 ensureTypeDeps :: Type -> Instr ()
 ensureTypeDeps typ = case typ of
-    (Array _ t) -> ensureTypeDeps t
-    (Tuple nm ts) -> do
+    Array _ t -> ensureTypeDeps t
+    Tuple nm ts -> do
         maybe (return ()) ensureDef nm
         mapM_ ensureTypeDeps ts
-    (Table nm ts) -> do
+    Table nm ts -> do
         maybe (return ()) ensureDef nm
         mapM_ ensureTypeDeps ts
-    (Typedef sym) -> do
+    Typedef sym -> do
         res <- look sym KeyType
         case res of
             ObjType t   -> ensureTypeDeps t
@@ -335,9 +339,7 @@ valTupleSet (Ptr typ loc) i val = do
 
 valsEqual :: Value -> Value -> Instr Value
 valsEqual a b = do
-    typA <- skipAnnos (valType a)
-    typB <- skipAnnos (valType b)
-    assert (typA == typB) ("equality: type mismatch between " ++ show typA ++ " and " ++ show typB)
+    checkTypesMatch (valType a) (valType b)
     typ <- concreteTypeOf (valType a)
     fmap (Val Bool) $ valsEqual' typ a b
     where

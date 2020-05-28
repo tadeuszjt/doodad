@@ -26,20 +26,20 @@ data Type
 
 instance Show Type where
     show t = case t of
-        Void        -> "void"
-        I8          -> "i8"
-        I16         -> "i16"
-        I32         -> "i32"
-        I64         -> "i64"
-        F32         -> "f32"
-        F64         -> "f64"
-        Bool        -> "bool"
-        Char        -> "char"
-        String      -> "string"
-        Tuple nm ts -> "(" ++ intercalate ", " (map show ts) ++ ")"
-        Array n t   -> "[" ++ show n ++ " " ++ show t ++ "]"
-        Table nm ts -> "{" ++ intercalate "; " (map show ts) ++ "}"
-        Typedef s   -> s
+        Void          -> "void"
+        I8            -> "i8"
+        I16           -> "i16"
+        I32           -> "i32"
+        I64           -> "i64"
+        F32           -> "f32"
+        F64           -> "f64"
+        Bool          -> "bool"
+        Char          -> "char"
+        String        -> "string"
+        Tuple nm ts   -> "(" ++ intercalate ", " (map show ts) ++ ")"
+        Array n t     -> "[" ++ show n ++ " " ++ show t ++ "]"
+        Table nm ts   -> "{" ++ intercalate "; " (map show ts) ++ "}"
+        Typedef s     -> s
         Annotated _ t -> show t
 
 

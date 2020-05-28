@@ -71,6 +71,7 @@ cmpPattern isGlobal pattern val = case pattern of
 
     S.PatTuple pos patterns -> withPos pos $ do
         Tuple nm ts <- realTypeOf (valType val)
+        assert (length patterns == length ts) "incorrect tuple length"
         cnds <- forM (zip patterns [0..]) $ \(pat, i) ->
             cmpPattern isGlobal pat =<< valTupleIdx i val
         valAnd cnds
@@ -79,16 +80,25 @@ cmpPattern isGlobal pattern val = case pattern of
         res <- lookupSymKey sym KeyType
         case res of
             Just (ObjType typ) -> do
-                checkTypesMatch typ (valType val)
+                checkTypesMatch (Typedef sym) (valType val)
                 cmpPattern isGlobal pattern val
             Nothing -> do
                 res <- lookupSymKey sym KeyDataCons
                 case res of
-                    Just (ObjDataCons d t e) -> do
+                    Just (ObjDataCons d t@(Tuple _ ts) e) -> do
+                        ensureTypeDeps d
                         checkTypesMatch d (valType val)
-                        error $ show d
-                        return val
+                        let val' = val { valType = t }
+                        en <- valTupleIdx 0 val'
+                        eq <- valsEqual en $ valInt (valType en) (fromIntegral e)
+                        if_ (valOp eq) (return ()) trap
+                        let ts' = tail ts
+                        tup <- valLocal (Tuple Nothing ts')
+                        forM_ (zip ts' [0..]) $ \(_, i) ->
+                            valTupleSet tup i =<< valTupleIdx (i+1) val'
+                        cmpPattern isGlobal pattern tup
                         
+
 cmpTopStmt :: S.Stmt -> Instr ()
 cmpTopStmt stmt@(S.Set _ _ _)      = cmpStmt stmt
 cmpTopStmt stmt@(S.Print _ _)      = cmpStmt stmt
@@ -100,13 +110,11 @@ cmpTopStmt stmt@(S.Datadef _ _ _)  = cmpDataDef stmt
 
 cmpTopStmt (S.Typedef pos symbol typ) = do
     checkUndefined symbol
-    opTyp <- opTypeOf typ
     if isTuple typ then do
-        let Tuple Nothing ts = typ
         name <- freshName (mkBSS symbol)
+        let Tuple Nothing ts = typ
         let typ' = Tuple (Just name) ts
-        typedef name (Just opTyp)
-        addDeclared name
+        opTyp <- opTypeOf typ
         addAction name $ typedef name (Just opTyp)
         addSymObj symbol KeyType (ObjType typ')
         addSymObjReq symbol KeyType name

@@ -5,7 +5,7 @@ type Point = (x i32, y i32);
 let p = Point(i32(1), i32(2));
 
 type Square = (p0 Point, p1 Point);
-let s = Square(p, Point(3, 6));
+let s = Square(p, Point(i32(3), i32(6)));
 
 data MaybePoint = Nothing, JustPoint(point Point);
 let m = Nothing;
