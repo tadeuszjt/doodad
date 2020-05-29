@@ -73,6 +73,7 @@ data Expr
     | Call TextPos String [Expr]
     | Conv TextPos Type [Expr]
     | Len TextPos Expr
+    | Append TextPos Expr Expr
     | Prefix TextPos Op Expr
     | Infix TextPos Op Expr Expr
     deriving (Show, Eq)
@@ -83,7 +84,7 @@ data Stmt
     | Set TextPos Index Expr
     | Print TextPos [Expr]
     | Block TextPos [Stmt]
-    | Func TextPos String [Pattern] (Maybe Type) [Stmt]
+    | Func TextPos String [Param] (Maybe Type) [Stmt]
     | Extern TextPos String [Param] (Maybe Type)
     | Typedef TextPos String Type
     | Datadef TextPos String [Data] 

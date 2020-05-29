@@ -129,13 +129,42 @@ cmpTopStmt (S.Assign pos pattern expr) = do
     Val Bool matched <- cmpPattern True pattern =<< cmpExpr expr
     if_ matched (return ()) trap
 
---cmpTopStmt (S.Func pos symbol patterns mretty block) = withPos pos $ do
---    let paramTyps    = map (fromASTType . S.paramType) params
---    let paramSymbols = map S.paramName params
---    let retTyp       = maybe Void fromASTType mretty
---    paramTyps' <- mapM skipAnnos paramTyps
---    publicFunction symbol (zip paramSymbols paramTyps') retTyp $ \args ->
---        mapM_ cmpStmt block
+cmpTopStmt (S.Func pos symbol params mretty block) = withPos pos $ do
+    checkUndefined symbol
+    name <- freshName (mkBSS symbol)
+    
+    let paramTypes   = map S.paramType params
+    let paramSymbols = map S.paramName params
+    let retTyp       = maybe Void id mretty
+    let paramNames   = map mkName paramSymbols
+    let paramFnNames = map (ParameterName . mkBSS) paramSymbols
+
+    paramOpTypes <- mapM opTypeOf paramTypes
+    retOpType    <- opTypeOf retTyp
+
+    pushSymTab
+    oldRetTyp <- getCurRetTyp
+    setCurRetTyp retTyp
+
+    op <- InstrCmpT $ IRBuilderT . lift $ function name (zip paramOpTypes paramFnNames) retOpType $ \a ->
+        getInstrCmp $ do
+            forM_ (zip3 paramSymbols paramTypes a) $ \(sym, typ, op) -> do
+                checkUndefined sym
+                arg <- valLocal typ
+                valStore arg (Val typ op)
+                addSymObj sym KeyVal (ObjVal arg)
+
+            mapM_ cmpStmt block
+
+    setCurRetTyp oldRetTyp
+    popSymTab
+
+    addDeclared name
+    addExported name
+    addSymObj symbol (KeyFunc paramTypes) (ObjFunc retTyp op)
+    addSymObjReq symbol (KeyFunc paramTypes) name
+    addAction name $ emitDefn $ funcDef name (zip paramOpTypes paramNames) retOpType []
+    return ()
 
 
 cmpStmt :: S.Stmt -> Instr ()
@@ -219,7 +248,7 @@ cmpStmt (S.While pos expr stmts) = withPos pos $ do
     
     br cond
     emitBlockStart cond
-    val <- cmpExpr expr
+    val <- valLoad =<< cmpExpr expr
     typ <- realTypeOf (valType val)
     assert (typ == Bool) "expression isn't bool"
     condBr (valOp val) body exit
@@ -315,6 +344,11 @@ cmpExpr (S.Len pos expr) = do
     case typ of
         Array n _   -> return (valInt I64 $ fromIntegral n)
         Table nm ts -> valTableLen val
+
+cmpExpr (S.Append pos table elem) = withPos pos $ do
+    tab <- cmpExpr table
+    elm <- cmpExpr elem
+    valTableAppend tab elm
 
 cmpExpr (S.TupleMember pos tupExpr symbol) = do
     tup <- cmpExpr tupExpr

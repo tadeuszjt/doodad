@@ -1,11 +1,2 @@
-let i = 0;
-
-while i < 10 {
-    print("benis");
-    i = i + 1;
-}
-
-extern getchar() char;
-
-let c = getchar();
-print(c);
+let t = append({ 'b' }, 'e');
+print(t);

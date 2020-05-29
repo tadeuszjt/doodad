@@ -134,19 +134,27 @@ malloc size = do
     return pv
 
 
+realloc :: MonadInstrCmp k o m => Operand -> Operand -> m Operand
+realloc p size = do
+    assert (typeOf size == i64) "wrong type for realloc size"
+    op <- ensureExtern "realloc" [ptr i8, i64] (ptr i8) False
+    pr <- call op [(p, []), (size, [])]
+    printf "realloc: %ld, %p\n" [size, p]
+    return pr 
+
+
 free :: MonadInstrCmp k o m => Operand -> m Operand
 free mem = do
     printf "free: %p\n" [mem]
-    op <- ensureExtern "free" [ptr VoidType] VoidType False
+    op <- ensureExtern "free" [ptr i8] VoidType False
     call op [(mem, [])]
 
 
 memcpy :: MonadInstrCmp k o m => Operand -> Operand -> Operand -> m Operand 
 memcpy dest src size = do
-    op <- ensureExtern "memcpy" [ptr VoidType, ptr VoidType, i32] (ptr VoidType) False
-    d <- bitcast dest (ptr VoidType)
-    s <- bitcast src (ptr VoidType)
-    --assert (typeOf size == i32) "type i32"
+    op <- ensureExtern "memcpy" [ptr i8, ptr i8, i64] (ptr i8) False
+    d <- bitcast dest (ptr i8)
+    s <- bitcast src (ptr i8)
     call op [(d, []), (s, []), (size, [])]
 
 

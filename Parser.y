@@ -54,6 +54,7 @@ import qualified CmpMonad as C
 
     print      { L.Token _ L.Reserved "print" }
     len        { L.Token _ L.Reserved "len" }
+    append     { L.Token _ L.Reserved "append" }
 
     i64        { L.Token _ L.Reserved "i64" }
     i32        { L.Token _ L.Reserved "i32" }
@@ -104,8 +105,8 @@ stmtS : let pattern '=' expr                { S.Assign (tokPosn $1) $2 $4 }
       | return expr                         { S.Return (tokPosn $1) (Just $2) }
 stmtB : block                               { $1 }
       | If                                  { $1 }
-      | fn ident '(' patterns ')' block_      { S.Func (tokPosn $1) (L.tokStr $2) $4 Nothing $6 }
-      | fn ident '(' patterns ')' type_ block_ { S.Func (tokPosn $1) (L.tokStr $2) $4 (Just $6) $7 }
+      | fn ident '(' params ')' block_      { S.Func (tokPosn $1) (L.tokStr $2) $4 Nothing $6 }
+      | fn ident '(' params ')' type_ block_ { S.Func (tokPosn $1) (L.tokStr $2) $4 (Just $6) $7 }
       | switch expr '{' cases '}'           { S.Switch (tokPosn $1) $2 $4 }
       | while expr block_                      { S.While (tokPosn $1) $2 $3 }
 
@@ -118,8 +119,9 @@ expr   : lit                          { $1 }
        | '[' exprs ']'                { S.Array (tokPosn $1) $2 }
        | '(' exprs ')'                { S.Tuple (tokPosn $1) $2 }
        | ident '(' exprs ')'          { S.Call (tokPosn $1) (L.tokStr $1) $3 }
-       | concreteType '(' exprs ')'   { S.Conv (tokPosn $2) $1 $3 }
+       | type__ '(' exprs ')'         { S.Conv (tokPosn $2) $1 $3 }
        | len '(' expr ')'             { S.Len (tokPosn $1) $3 }
+       | append '(' expr ',' expr ')' { S.Append (tokPosn $1) $3 $5 }
        | expr '.' intlit              { S.TupleIndex (tokPosn $2) $1 (read $ L.tokStr $3) }
        | expr '.' ident               { S.TupleMember (tokPosn $2) $1 (L.tokStr $3) }
        | expr '[' expr ']'            { S.ArrayIndex (tokPosn $2) $1 $3 }
@@ -153,9 +155,10 @@ infix : expr '+' expr                { S.Infix (tokPosn $2) S.Plus $1 $3 }
       | expr '||' expr               { S.Infix (tokPosn $2) S.OrOr $1 $3 }
 
 
-type_         : concreteType         { $1 }
-              | aggregateType        { $1 }
+type_         : type__               { $1 }
               | ident                { T.Typedef (L.tokStr $1) }
+type__        : concreteType         { $1 }
+              | aggregateType        { $1 }
 types         : {- empty -}          { [] }
               | types_               { $1 }
 types_        : type_                { [$1] }
@@ -173,6 +176,11 @@ annos_        : anno                 { [$1] }
 aggregateType : '[' intlit type_ ']' { T.Array (read $ L.tokStr $2) $3 }
               | '(' types ')'        { T.Tuple Nothing $2 }
               | '(' annos_ ')'       { T.Tuple Nothing $2 }
+              | '{' rowTypes '}'     { T.Table Nothing $2 }
+rowTypes      : {- empty -}          { [] }
+              | rowTypes_            { $1 }
+rowTypes_     : type_                { [$1] }
+              | type_ ';' rowTypes_  { $1 : $3 }
 
 
 table     : '{' tableRows '}'       { S.Table (tokPosn $1) $2 } 

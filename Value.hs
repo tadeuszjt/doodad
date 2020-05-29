@@ -275,10 +275,16 @@ valCast typ' (Val typ op) = do
 
 
 valPtrIdx :: Value -> Value -> Instr Value
-valPtrIdx (Ptr typ loc) idx = do
-    assert (isInt $ valType idx) "index isn't int"
-    i <- valLoad idx
-    fmap (Ptr typ) (gep loc [valOp i])
+valPtrIdx (Ptr typ loc) (Val I64 i) =
+    fmap (Ptr typ) (gep loc [i])
+
+
+valPtrMemCpy :: Value -> Value -> Value -> Instr ()
+valPtrMemCpy (Ptr ta pa) (Ptr tb pb) (Val I64 n) = do
+    checkTypesMatch ta tb
+    size <- sizeOf ta
+    nbytes <- mul n $ int64 (fromIntegral size)
+    void (memcpy pa pb nbytes)
 
 
 valArrayIdx :: Value -> Value -> Instr Value
