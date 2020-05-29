@@ -96,8 +96,8 @@ stmtS : let pattern '=' expr                { S.Assign (tokPosn $1) $2 $4 }
       | index '=' expr                      { S.Set (tokPosn $2) $1 $3 }
       | type ident '=' type_                 { S.Typedef (tokPosn $2) (L.tokStr $2) $4 }
       | data ident '=' datas                { S.Datadef (tokPosn $2) (L.tokStr $2) $4 }
-      | extern ident '(' patterns ')' type_    { S.Extern (tokPosn $2) (L.tokStr $2) $4 (Just $6) }
-      | extern ident '(' patterns ')'         { S.Extern (tokPosn $2) (L.tokStr $2) $4 Nothing }
+      | extern ident '(' params ')' type_   { S.Extern (tokPosn $2) (L.tokStr $2) $4 (Just $6) }
+      | extern ident '(' params ')'         { S.Extern (tokPosn $2) (L.tokStr $2) $4 Nothing }
       | ident '(' exprs ')'                 { S.CallStmt (tokPosn $1) (L.tokStr $1) $3 }
       | print '(' exprs ')'                  { S.Print (tokPosn $1) $3 }
       | return                              { S.Return (tokPosn $1) Nothing }
@@ -108,6 +108,7 @@ stmtB : block                               { $1 }
       | fn ident '(' patterns ')' type_ block_ { S.Func (tokPosn $1) (L.tokStr $2) $4 (Just $6) $7 }
       | switch expr '{' cases '}'           { S.Switch (tokPosn $1) $2 $4 }
       | while expr block_                      { S.While (tokPosn $1) $2 $3 }
+
 
 
 expr   : lit                          { $1 }
@@ -152,23 +153,26 @@ infix : expr '+' expr                { S.Infix (tokPosn $2) S.Plus $1 $3 }
       | expr '||' expr               { S.Infix (tokPosn $2) S.OrOr $1 $3 }
 
 
-type_        : concreteType         { $1 }
-             | ident                { T.Typedef (L.tokStr $1) }
-             | ident concreteType   { T.Annotated (L.tokStr $1) $2 }
-             | ident ident          { T.Annotated (L.tokStr $1) (T.Typedef (L.tokStr $2)) }
-concreteType : bool                 { T.Bool }
-             | i32                  { T.I32 }
-             | i64                  { T.I64 }
-             | f32                  { T.F32 }
-             | f64                  { T.F64 }
-             | char                 { T.Char }
-             | string               { T.String }
-             | '[' intlit type_ ']' { T.Array (read $ L.tokStr $2) $3 }
-             | '(' types ')'        { T.Tuple Nothing $2 }
-types        : {- empty -}          { [] }
-             | types_               { $1 }
-types_       : type_                { [$1] }
-             | type_ ',' types_     { $1 : $3 }
+type_         : concreteType         { $1 }
+              | aggregateType        { $1 }
+              | ident                { T.Typedef (L.tokStr $1) }
+types         : {- empty -}          { [] }
+              | types_               { $1 }
+types_        : type_                { [$1] }
+              | type_ ',' types_     { $1 : $3 }
+concreteType  : bool                 { T.Bool }
+              | i32                  { T.I32 }
+              | i64                  { T.I64 }
+              | f32                  { T.F32 }
+              | f64                  { T.F64 }
+              | char                 { T.Char }
+              | string               { T.String }
+anno          : ident type_          { T.Annotated (L.tokStr $1) $2 }
+annos_        : anno                 { [$1] }
+              | anno ',' annos_      { $1 : $3 }
+aggregateType : '[' intlit type_ ']' { T.Array (read $ L.tokStr $2) $3 }
+              | '(' types ')'        { T.Tuple Nothing $2 }
+              | '(' annos_ ')'       { T.Tuple Nothing $2 }
 
 
 table     : '{' tableRows '}'       { S.Table (tokPosn $1) $2 } 

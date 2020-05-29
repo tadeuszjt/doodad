@@ -1,15 +1,11 @@
-let t = { (1, 2), (3, 4), (5, 6) }; print(t);
 let i = 0;
 
-type Point = (x i32, y i32);
-let p = Point(i32(1), i32(2));
+while i < 10 {
+    print("benis");
+    i = i + 1;
+}
 
-type Square = (p0 Point, p1 Point);
-let s = Square(p, Point(i32(3), i32(6)));
+extern getchar() char;
 
-data MaybePoint = Nothing, JustPoint(point Point);
-let m = Nothing;
-let n = JustPoint(p);
-let JustPoint(Point(x, y)) = n;
-print(m, n, x, y);
-
+let c = getchar();
+print(c);

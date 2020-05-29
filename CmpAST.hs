@@ -12,6 +12,9 @@ import           Prelude                    hiding (EQ, and, or)
 import           LLVM.Context
 import           LLVM.AST                   hiding (Type, function, Module)
 import           LLVM.AST.Type              hiding (Type, void, double) 
+import qualified LLVM.AST.Type              as LL  (Type) 
+import           LLVM.AST.Global
+import qualified LLVM.AST.Constant          as C
 import           LLVM.AST.IntegerPredicate
 import qualified LLVM.AST.FloatingPointPredicate as F
 import qualified LLVM.Internal.FFI.DataLayout as FFI
@@ -106,6 +109,7 @@ cmpTopStmt stmt@(S.CallStmt _ _ _) = cmpStmt stmt
 cmpTopStmt stmt@(S.Switch _ _ _)   = cmpStmt stmt
 cmpTopStmt stmt@(S.While _ _ _)    = cmpStmt stmt
 cmpTopStmt stmt@(S.Block _ _)      = cmpStmt stmt
+cmpTopStmt stmt@(S.Extern _ _ _ _) = cmpStmt stmt
 cmpTopStmt stmt@(S.Datadef _ _ _)  = cmpDataDef stmt
 
 cmpTopStmt (S.Typedef pos symbol typ) = do
@@ -137,6 +141,23 @@ cmpTopStmt (S.Assign pos pattern expr) = do
 cmpStmt :: S.Stmt -> Instr ()
 cmpStmt (S.CallStmt pos symbol args) = void $ cmpExpr (S.Call pos symbol args)
 cmpStmt (S.Block pos stmts) = pushSymTab >> mapM_ cmpStmt stmts >> popSymTab
+
+cmpStmt (S.Extern pos sym params mretty) = do
+    checkUndefined sym
+
+    let name         = mkName sym
+    let paramTyps    = map S.paramType params
+    let paramSymbols = map S.paramName params
+    let retty        = maybe Void id mretty
+    let paramNames   = map mkName paramSymbols
+    paramTyps' <- mapM opTypeOf paramTyps
+    retty' <- opTypeOf retty
+
+    let def = funcDef name (zip paramTyps' paramNames) retty' []
+    addAction name (emitDefn def)
+    let op = ConstantOperand $ C.GlobalReference (ptr $ FunctionType retty' paramTyps' False) name
+    addSymObj sym (KeyFunc paramTyps) (ObjFunc retty op)
+    addSymObjReq sym (KeyFunc paramTyps) name
 
 cmpStmt (S.Assign pos pattern expr) = do
     Val Bool cnd <- cmpPattern False pattern =<< cmpExpr expr

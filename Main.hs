@@ -19,6 +19,10 @@ import           LLVM.PassManager
 import           Foreign.Ptr
 import           LLVM.Internal.DataLayout
 import qualified LLVM.Internal.FFI.DataLayout as FFI
+import qualified LLVM.CodeGenOpt          as CodeGenOpt
+import qualified LLVM.CodeModel           as CodeModel
+import qualified LLVM.Relocation          as Reloc
+import           LLVM.Target
 
 import qualified CmpAST                   as C
 import qualified Value                 as C
@@ -39,27 +43,27 @@ main = do
             withSession optimise $ \session ->
                 withFFIDataLayout (JIT.dataLayout session) $ \dl -> 
                     repl dl session verbose
-	else
-        return ()
---        let filename = head args in
---        withFile filename ReadMode $ \h ->
---            withContext $ \ctx ->
---                withPassManager defaultCuratedPassSetSpec $ \pm -> do
---                    content <- hGetContents h
---                    case compile C.initCmpState content verbose of
---                        Left err -> printError err content
---                        Right (defs, state) -> do
---                            forM_ (head $ C.symTab state) $ \ent -> do
---                                forM_ ent $ \e ->
---                                    putStrLn (show e)
---                                putStrLn ""
---                            let astmod = defaultModule { moduleDefinitions = defs }
---                            M.withModuleFromAST ctx astmod $ \mod -> do
---                                when optimise $ do
---                                    passRes <- runPassManager pm mod
---                                    when verbose $ putStrLn ("optimisation pass: " ++ if passRes then "success" else "fail")
---                                when verbose (BS.putStrLn =<< M.moduleLLVMAssembly mod)
---                                M.writeLLVMAssemblyToFile (M.File $ filename ++ ".ll") mod
+    else do
+        let filename = head args
+        withFile filename ReadMode $ \h ->
+            withContext $ \ctx ->
+                withPassManager defaultCuratedPassSetSpec $ \pm ->
+                    withHostTargetMachine Reloc.PIC CodeModel.Default CodeGenOpt.None $ \tm -> do
+                        dl <- getTargetMachineDataLayout tm
+                        withFFIDataLayout dl $ \pdl -> do
+                            content <- hGetContents h
+                            putStrLn "compiling..."
+                            res <- compile ctx pdl C.initCmpState content verbose
+                            case res of
+                                Left err -> printError err content
+                                Right (defs, state) -> do
+                                    let astmod = defaultModule { moduleDefinitions = defs }
+                                    M.withModuleFromAST ctx astmod $ \mod -> do
+                                        when optimise $ do
+                                            passRes <- runPassManager pm mod
+                                            when verbose $ putStrLn ("optimisation pass: " ++ if passRes then "success" else "fail")
+                                        when verbose (BS.putStrLn =<< M.moduleLLVMAssembly mod)
+                                        M.writeLLVMAssemblyToFile (M.File $ filename ++ ".ll") mod
 
 
 repl :: Ptr FFI.DataLayout -> Session -> Bool -> IO ()

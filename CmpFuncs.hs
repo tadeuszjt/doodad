@@ -128,10 +128,10 @@ trap = do
 malloc :: MonadInstrCmp k o m => Operand -> m Operand
 malloc size = do
     assert (typeOf size == i64) "wrong type for malloc"
-    op <- ensureExtern "malloc" [i64] (ptr VoidType) False
+    op <- ensureExtern "malloc" [i64] (ptr i8) False
     pv <- call op [(size, [])]
     printf "malloc: %ld, %p\n" [size, pv]
-    bitcast pv (ptr i8)
+    return pv
 
 
 free :: MonadInstrCmp k o m => Operand -> m Operand
