@@ -35,7 +35,6 @@ cmpTableExpr rows = do
     opTyp <- opTypeOf (Table Nothing rowTyps)
     typName <- freshName (mkBSS "table_t")
     addAction typName $ typedef typName (Just opTyp)
-    ensureDef typName
 
     let typ = Table (Just typName) rowTyps
     let len = fromIntegral numCols
@@ -134,7 +133,7 @@ valMallocDecRef (Ptr typ loc) = do
 
 valTableKill :: Value -> Instr ()
 valTableKill tab = do
-    let Table _ ts = valType tab
+    Table _ ts <- realTypeOf (valType tab)
     let len = fromIntegral (length ts)
     forM_ [0..len-1] $ \i ->
         valMallocDecRef =<< valTableRow i tab
@@ -147,9 +146,7 @@ valTableKill tab = do
 
 valTableStore :: Value -> Value -> Instr ()
 valTableStore dest@(Ptr (Table nm ts) destLoc) src = do
-    destConc <- concreteTypeOf (valType dest)
-    srcConc <- concreteTypeOf (valType src)
-    assert (destConc == srcConc) "table store"
+    checkTypesMatch (valType dest) (valType src)
 
     destLen <- valTableLen dest
     destCap <- valTableCap dest 
@@ -199,18 +196,30 @@ valTableAppend tab elem = do
 
             let cap0Case = do
                 len2 <- fmap (Val I64) $ mul (valOp len) (int64 2)
-                len' <- fmap (Val I64) $ add (valOp len) (int64 1)
-
-                m    <- valMalloc t len2
+                m <- valMalloc t len2
                 valMallocIncRef m
                 valPtrMemCpy m row len
-
-                valStore valLen len'
                 valStore valCap len2
                 valTableSetRow val 0 m
 
-            if_ cap0 cap0Case trap
+            let normalCase = do
+                full <- icmp SGE (valOp len) (valOp cap)
+                let fullCase = do
+                    cap2 <- fmap (Val I64) $ mul (valOp cap) (int64 2)
+                    m <- valMalloc t cap2
+                    valMallocIncRef m
+                    valPtrMemCpy m row len
+                    valStore valCap cap2
+                    valRow <- valTableRow 0 val
+                    valTableSetRow val 0 m
+                    valMallocDecRef valRow
+                    
+                if_ full fullCase (return ())
 
+            if_ cap0 cap0Case normalCase
+
+            len' <- fmap (Val I64) $ add (valOp len) (int64 1)
+            valStore valLen len'
             valRow <- valTableRow 0 val
             p <- valPtrIdx valRow len
             valStore p elem

@@ -1,2 +1,17 @@
-let t = append({ 'b' }, 'e');
-print(t);
+extern getchar() char;
+
+fn getStrLn() {char} {
+    let str = {char}();
+    let loop = true;
+
+    while loop {
+        switch getchar() {
+            '\n': loop = false;
+            c   : str = append(str, c);
+        }
+    }
+
+    return str;
+}
+
+print(getStrLn());
