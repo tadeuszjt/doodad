@@ -41,7 +41,7 @@ cmpTableExpr rows = do
 
     tab <- valLocal typ
     tabLen <- valTableLen tab
-    tabCap <- valTableCap tab
+    tabCap@(Ptr _ _) <- valTableCap tab
     valStore tabLen (valInt I64 len)
     valStore tabCap (valInt I64 0)
 
@@ -54,6 +54,8 @@ cmpTableExpr rows = do
             p <- valPtrIdx prow (valInt I64 j)
             valStore p val
             
+    lcap <- valLoad =<< valTableCap tab
+    printf "%ld\n" [valOp lcap]
     return tab
 
 
@@ -112,6 +114,12 @@ valMalloc typ (Val I64 i) = do
     pVals <- bitcast pI64' (ptr opTyp)
     return (Ptr typ pVals)
 
+valMallocFree :: Value -> Instr ()
+valMallocFree (Ptr typ loc) = do
+    pI8 <- bitcast loc (ptr i8)
+    pMem <- gep pI8 [int64 (-8)]
+    void (free pMem)
+
 
 valMallocIncRef :: Value -> Instr ()
 valMallocIncRef (Ptr typ loc) = do
@@ -121,27 +129,30 @@ valMallocIncRef (Ptr typ loc) = do
 
 
 valMallocDecRef :: Value -> Instr ()
-valMallocDecRef (Ptr typ loc) = do
+valMallocDecRef m@(Ptr typ loc) = do
     pI64 <- bitcast loc (ptr i64)
     pRef <- gep pI64 [int64 $ -1]
-    pI8  <- bitcast pRef (ptr i8)
     ref  <- load pRef 0
     b    <- icmp EQ ref (int64 1)
-    if_ b (void $ free pI8) $
-        void $ store pRef 0 =<< add (int64 $ -1) =<< load pRef 0
+    if_ b (valMallocFree m) $ void $ store pRef 0 =<< sub ref (int64 1)
 
 
 valTableKill :: Value -> Instr ()
 valTableKill tab = do
     Table _ ts <- realTypeOf (valType tab)
-    let len = fromIntegral (length ts)
-    forM_ [0..len-1] $ \i ->
-        valMallocDecRef =<< valTableRow i tab
+    let numRows = fromIntegral (length ts)
     len <- valTableLen tab
     cap <- valTableCap tab
+    Val Bool cap0 <- valsEqual cap (valInt I64 0) 
+
+    let kill = do
+        forM_ [0..numRows-1] $ \i ->
+            valMallocDecRef =<< valTableRow i tab
+
+    if_ cap0 (return ()) kill
     valStore len (valInt I64 0)
     valStore cap (valInt I64 0)
-
+    
 
 
 valTableStore :: Value -> Value -> Instr ()
@@ -185,17 +196,19 @@ valTableAppend tab elem = do
         [tt] -> do
             checkTypesMatch tt t
 
-            cap <- valLoad =<< valTableCap tab
-            len <- valLoad =<< valTableLen tab
+            cap  <- valLoad =<< valTableCap tab
+            len  <- valLoad =<< valTableLen tab
+            len' <- fmap (Val I64) $ add (valOp len) (int64 1)
             row  <- valTableRow 0 tab
-            cap0 <- icmp EQ (valOp cap) (int64 0)
+            Val Bool cap0 <- valsEqual cap (valInt I64 0)
 
             val <- valLocal (valType tab)
             valLen <- valTableLen val
             valCap <- valTableCap val
 
+
             let cap0Case = do
-                len2 <- fmap (Val I64) $ mul (valOp len) (int64 2)
+                len2 <- fmap (Val I64) $ mul (valOp len') (int64 2)
                 m <- valMalloc t len2
                 valMallocIncRef m
                 valPtrMemCpy m row len
@@ -203,24 +216,21 @@ valTableAppend tab elem = do
                 valTableSetRow val 0 m
 
             let normalCase = do
-                full <- icmp SGE (valOp len) (valOp cap)
                 let fullCase = do
                     cap2 <- fmap (Val I64) $ mul (valOp cap) (int64 2)
                     m <- valMalloc t cap2
-                    valMallocIncRef m
                     valPtrMemCpy m row len
                     valStore valCap cap2
-                    valRow <- valTableRow 0 val
                     valTableSetRow val 0 m
-                    valMallocDecRef valRow
                     
-                if_ full fullCase (return ())
+                full <- icmp SGE (valOp len) (valOp cap)
+                if_ full fullCase (valStore val tab)
 
             if_ cap0 cap0Case normalCase
-
-            len' <- fmap (Val I64) $ add (valOp len) (int64 1)
+            
             valStore valLen len'
             valRow <- valTableRow 0 val
+            valMallocIncRef valRow
             p <- valPtrIdx valRow len
             valStore p elem
             return val

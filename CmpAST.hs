@@ -199,7 +199,7 @@ cmpStmt (S.Return pos mexpr) = withPos pos $ do
         retVoid
     else do
         val <- valLoad =<< cmpExpr (fromJust mexpr)
-        assert (retTyp == valType val) "incorrect return type" 
+        checkTypesMatch retTyp (valType val)
         ret (valOp val)
     return ()
 

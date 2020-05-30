@@ -245,14 +245,14 @@ valLocal :: Type -> Instr Value
 valLocal typ = do
     opTyp <- opTypeOf typ
     loc <- alloca opTyp Nothing 0
+    size <- sizeOf typ
+    memset loc (int64 0) $ int64 (fromIntegral size)
     return (Ptr typ loc)
 
 
 valStore :: Value -> Value -> Instr ()
 valStore (Ptr typ loc) val = do
-    concA <- concreteTypeOf typ
-    concB <- concreteTypeOf (valType val)
-    assert (concA == concB) "underlying types don't match"
+    checkTypesMatch typ (valType val)
     case val of
         Ptr t l -> store loc 0 =<< load l 0
         Val t o -> store loc 0 o

@@ -158,6 +158,13 @@ memcpy dest src size = do
     call op [(d, []), (s, []), (size, [])]
 
 
+memset :: MonadInstrCmp k o m => Operand -> Operand -> Operand -> m Operand 
+memset p v size = do
+    op <- ensureExtern "memset" [ptr i8, i64, i64] (ptr i8) False
+    d <- bitcast p (ptr i8)
+    call op [(d, []), (v, []), (size, [])]
+
+
 toCons :: Operand -> C.Constant
 toCons (ConstantOperand c) = c
 
