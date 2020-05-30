@@ -156,7 +156,11 @@ zeroOf typ = case typ of
     Bool          -> return $ toCons (bit 0)
     String        -> return $ C.IntToPtr (toCons $ int64 0) (ptr i8)
     Array n t     -> fmap (toCons . array . replicate (fromIntegral n)) (zeroOf t)
-    Table nm ts   -> fmap (toCons . (struct Nothing False)) $ mapM zeroOf (I64:I64:ts)
+    Table nm ts   -> do
+        let zi64 = toCons (int64 0)
+        ptrs <- fmap (map ptr) (mapM opTypeOf ts)
+        let zptrs = map (C.IntToPtr zi64) ptrs
+        return . toCons $ struct nm False (zi64:zi64:zptrs)
     Tuple nm ts   -> fmap (toCons . (struct Nothing False)) (mapM zeroOf ts)
     Typedef _     -> zeroOf =<< realTypeOf typ
     Annotated _ t -> zeroOf t
@@ -275,8 +279,8 @@ valCast typ' (Val typ op) = do
 
 
 valPtrIdx :: Value -> Value -> Instr Value
-valPtrIdx (Ptr typ loc) (Val I64 i) =
-    fmap (Ptr typ) (gep loc [i])
+valPtrIdx (Ptr typ loc) (Val I64 i) = fmap (Ptr typ) (gep loc [i])
+valPtrIdx (Ptr typ loc) (Ptr I64 i) = valPtrIdx (Ptr typ loc) =<< valLoad (Ptr I64 i)
 
 
 valPtrMemCpy :: Value -> Value -> Value -> Instr ()

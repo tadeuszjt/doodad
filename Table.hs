@@ -93,7 +93,7 @@ valTableIdx tab idx = do
 
     forM_ (zip ts [0..]) $ \(t, i) -> do
         prow <- valTableRow i tab
-        valTupleSet tup i =<< valPtrIdx prow idx
+        valTupleSet tup i =<< valPtrIdx prow =<< valLoad idx
 
     if length ts == 1
     then valTupleIdx 0 tup
@@ -210,7 +210,6 @@ valTableAppend tab elem = do
             let cap0Case = do
                 len2 <- fmap (Val I64) $ mul (valOp len') (int64 2)
                 m <- valMalloc t len2
-                valMallocIncRef m
                 valPtrMemCpy m row len
                 valStore valCap len2
                 valTableSetRow val 0 m

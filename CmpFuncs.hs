@@ -88,17 +88,16 @@ switch_ cases = do
 
 putchar :: MonadInstrCmp k o m => Char -> m Operand
 putchar ch = do
-    op <- ensureExtern "putchar" [i32] i32 False
+    op <- ensureExtern "putwchar" [i32] i32 False
     let c8 = fromIntegral (ord ch)
     call op [(int32 c8, [])]
 
 
 putchar' :: MonadInstrCmp k o m => Operand -> m Operand
 putchar' ch = do
-    op <- ensureExtern "putchar" [i32] i32 False
+    op <- ensureExtern "putwchar" [i32] i32 False
     call op [(ch, [])]
     
-
 
 printf :: MonadInstrCmp k o m => String -> [Operand] -> m Operand
 printf fmt args = do

@@ -156,6 +156,12 @@ cmpTopStmt (S.Func pos symbol params mretty block) = withPos pos $ do
 
             mapM_ cmpStmt block
 
+            hasTerm <- hasTerminator
+            unless hasTerm $
+                if retTyp == Void
+                then retVoid
+                else ret . cons =<< zeroOf retTyp
+
     setCurRetTyp oldRetTyp
     popSymTab
 

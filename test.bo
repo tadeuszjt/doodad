@@ -1,11 +1,13 @@
-extern getchar() char;
+extern getwchar() char;
+extern putwchar(c char) char;
+
 
 fn getStrLn() {char} {
     let str = {char}();
     let loop = true;
 
     while loop {
-        switch getchar() {
+        switch getwchar() {
             '\n': loop = false;
             c   : str = append(str, c);
         }
@@ -14,4 +16,18 @@ fn getStrLn() {char} {
     return str;
 }
 
-print(getStrLn());
+
+fn putStrLn(str {char}) i64 {
+    let i = 0;
+    while i < len(str) {
+        putwchar(str[i]);
+        i = i + 1;
+    }
+
+    putwchar('\n');
+    return i;
+}
+        
+        
+let line = getStrLn();
+print(putStrLn(line));
