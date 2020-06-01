@@ -4,6 +4,7 @@ module Main where
 
 import           Control.Monad
 import           Control.Monad.IO.Class
+import           Control.Monad.State
 import           System.Console.Haskeline
 import           System.Environment
 import           System.IO
@@ -29,6 +30,7 @@ import qualified Value                 as C
 import qualified CmpMonad                 as C
 import qualified Lexer                    as L
 import qualified Parser                   as P
+import qualified Compiler                 as R
 import           JIT
 
 
@@ -38,6 +40,7 @@ main = do
     let verbose = "-v" `elem` args
     let optimise = not ("-n" `elem` args)
     let hasFile  = length args > 0 && head (head args) /= '-'
+    let onlyIR   = "-i" `elem` args
 
     if not hasFile then
             withSession optimise $ \session ->
@@ -53,7 +56,7 @@ main = do
                         withFFIDataLayout dl $ \pdl -> do
                             content <- hGetContents h
                             putStrLn "compiling..."
-                            res <- compile ctx pdl C.initCmpState content verbose
+                            res <- compile ctx pdl C.initCmpState content verbose onlyIR
                             case res of
                                 Left err -> printError err content
                                 Right (defs, state) -> do
@@ -77,7 +80,7 @@ repl dl session verbose = runInputT defaultSettings (loop C.initCmpState)
                 Just ""    -> loop state
                 Just input -> do
                     liftIO (putStrLn "compiling...")
-                    res <- liftIO $ compile (JIT.context session) dl state input verbose
+                    res <- liftIO $ compile (JIT.context session) dl state input verbose False
                     case res of
                         Left err             -> do
                             liftIO $ printError err input 
@@ -92,12 +95,16 @@ repl dl session verbose = runInputT defaultSettings (loop C.initCmpState)
                                 }
 
 
-compile :: Context -> Ptr FFI.DataLayout -> C.MyCmpState -> String -> Bool -> IO (Either C.CmpError ([Definition], C.MyCmpState))
-compile ctx dl state source verbose =
+compile :: Context -> Ptr FFI.DataLayout -> C.MyCmpState -> String -> Bool -> Bool -> IO (Either C.CmpError ([Definition], C.MyCmpState))
+compile ctx dl state source verbose onlyIR =
     case L.alexScanner source of
         Left  errStr -> return $ Left $ C.CmpError (C.TextPos 0 0 0, errStr)
         Right tokens -> case (P.parseTokens tokens) 0 of
-            P.ParseOk ast -> C.compile ctx dl state ast
+            P.ParseOk ast -> if onlyIR then do
+                R.prettyModuleState =<< R.cmpAST ast
+                return $ Right ([], state)
+            else
+                C.compile ctx dl state ast
 
 
 printError :: C.CmpError -> String -> IO ()

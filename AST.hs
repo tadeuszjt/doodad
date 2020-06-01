@@ -41,19 +41,19 @@ data Data
 
 
 data Pattern
-    = PatIgnore  { patPos :: TextPos }
-    | PatLiteral { lit :: Expr }
-    | PatIdent   { patPos :: TextPos, symbol :: String }
-    | PatTuple   { patPos :: TextPos, patterns :: [Pattern] }
-    | PatArray   { patPos :: TextPos, patterns :: [Pattern] }
-    | PatTyped   { patPos :: TextPos, symbol :: String, pattern :: Pattern }
+    = PatLiteral Expr
+    | PatIgnore  TextPos
+    | PatIdent   TextPos String
+    | PatTuple   TextPos [Pattern]
+    | PatArray   TextPos [Pattern]
+    | PatTyped   TextPos String Pattern
     deriving (Show, Eq)
 
 
 data Index
-    = IndIdent { indPos :: TextPos, indSym :: String }
-    | IndArray { indPos :: TextPos, index :: Index, expr :: Expr }
-    | IndTuple { indPos :: TextPos, index :: Index, tupleIdx :: Word32 }
+    = IndIdent TextPos String
+    | IndArray TextPos Index Expr
+    | IndTuple TextPos Index Word32
     deriving (Show, Eq)
 
 

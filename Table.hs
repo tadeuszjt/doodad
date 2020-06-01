@@ -93,7 +93,7 @@ valTableIdx tab idx = do
 
     forM_ (zip ts [0..]) $ \(t, i) -> do
         prow <- valTableRow i tab
-        valTupleSet tup i =<< valPtrIdx prow =<< valLoad idx
+        valTupleSet tup i =<< valPtrIdx prow idx
 
     if length ts == 1
     then valTupleIdx 0 tup

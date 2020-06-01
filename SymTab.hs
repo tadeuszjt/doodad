@@ -27,4 +27,3 @@ push s =
 pop :: SymTab a b -> SymTab a b
 pop s =
 	tail s
-
