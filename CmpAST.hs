@@ -47,7 +47,7 @@ compile context dataLayout state ast = do
 cmpPattern :: Bool -> S.Pattern -> Value -> Instr Value
 cmpPattern isGlobal pattern val = case pattern of
     S.PatIgnore pos   -> return (valBool True)
-    S.PatLiteral expr -> valsEqual val =<< cmpExpr expr
+    S.PatLiteral cons -> valsEqual val =<< cmpExpr (S.Cons cons)
 
     S.PatIdent pos sym -> withPos pos $ do
         checkSymKeyUndefined sym KeyType
@@ -275,11 +275,19 @@ cmpStmt (S.Print pos exprs) = withPos pos $
 
 
 cmpExpr :: S.Expr -> Instr Value
-cmpExpr (S.Int pos i)       = return (valInt I64 i)
-cmpExpr (S.Float pos f)     = return $ Val F64 (double f)
-cmpExpr (S.Bool pos b)      = return $ Val Bool (bit $ if b then 1 else 0)
-cmpExpr (S.Char pos c)      = return $ Val Char (int32 $ fromIntegral $ fromEnum c)
-cmpExpr (S.Table pos exprs) = cmpTableExpr =<< mapM (mapM cmpExpr) exprs
+cmpExpr (S.Cons c) = case c of
+    S.Int pos i    -> return (valInt I64 i)
+    S.Float pos f  -> return $ Val F64 (double f)
+    S.Bool pos b   -> return $ Val Bool (bit $ if b then 1 else 0)
+    S.Char pos c   -> return $ Val Char (int32 $ fromIntegral $ fromEnum c)
+    S.String pos s -> do
+        name <- freshName "string"
+        str <- globalStringPtr s name
+        addExported name
+        return $ Val String (cons str)
+
+cmpExpr (S.Table pos exprs) =
+    cmpTableExpr =<< mapM (mapM cmpExpr) exprs
 
 cmpExpr (S.Conv pos typ exprs) = withPos pos $ do
     vals <- mapM cmpExpr exprs
@@ -302,11 +310,6 @@ cmpExpr (S.Conv pos typ exprs) = withPos pos $ do
                     (I16, I64) -> fmap (Val I16) $ trunc (valOp val) (IntegerType 16)
                     (I8, I64)  -> fmap (Val I8) $ trunc (valOp val) i8
 
-cmpExpr (S.String pos s) = do
-    name <- freshName "string"
-    str <- globalStringPtr s name
-    addExported name
-    return $ Val String (cons str)
 
 cmpExpr (S.Ident pos symbol) = do
     res <- look symbol KeyVal
@@ -330,7 +333,7 @@ cmpExpr (S.Tuple pos exprs) = do
     forM_ (zip vals [0..]) $ \(val, i) -> valTupleSet tup i val
     return tup
 
-cmpExpr (S.ArrayIndex pos expr index) = do
+cmpExpr (S.Subscript pos expr index) = do
     val <- cmpExpr expr
     idx <- cmpExpr index
     typ <- realTypeOf (valType val)
@@ -356,7 +359,7 @@ cmpExpr (S.Append pos table elem) = withPos pos $ do
     elm <- cmpExpr elem
     valTableAppend tab elm
 
-cmpExpr (S.TupleMember pos tupExpr symbol) = do
+cmpExpr (S.Member pos tupExpr symbol) = do
     tup <- cmpExpr tupExpr
     idx <- indexAnno symbol tup
     assert (isJust idx) ("undefined member " ++ symbol)

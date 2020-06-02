@@ -112,7 +112,7 @@ stmtB : block                               { $1 }
 
 
 
-expr   : lit                          { $1 }
+expr   : lit                          { S.Cons $1 }
        | infix                        { $1 }
        | ident                        { S.Ident (tokPosn $1) (L.tokStr $1) }
        | table                        { $1 }
@@ -123,8 +123,8 @@ expr   : lit                          { $1 }
        | len '(' expr ')'             { S.Len (tokPosn $1) $3 }
        | append '(' expr ',' expr ')' { S.Append (tokPosn $1) $3 $5 }
        | expr '.' intlit              { S.TupleIndex (tokPosn $2) $1 (read $ L.tokStr $3) }
-       | expr '.' ident               { S.TupleMember (tokPosn $2) $1 (L.tokStr $3) }
-       | expr '[' expr ']'            { S.ArrayIndex (tokPosn $2) $1 $3 }
+       | expr '.' ident               { S.Member (tokPosn $2) $1 (L.tokStr $3) }
+       | expr '[' expr ']'            { S.Subscript (tokPosn $2) $1 $3 }
        | '-' expr                     { S.Prefix (tokPosn $1) S.Minus $2 }
        | '+' expr                     { S.Prefix (tokPosn $1) S.Plus $2 }
 exprs  : {- empty -}                  { [] }

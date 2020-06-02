@@ -7,6 +7,7 @@ module Compiler where
 import Control.Monad.State
 import Data.Maybe
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 
 import qualified AST as S
 import qualified SymTab
@@ -16,35 +17,37 @@ import qualified Type as T
 type Symbol = String
 type Name   = String
 
-
-data ModuleState
-    = ModuleState
-        { moduleDefs  :: Map.Map Name Definition
-        , symbolUsage :: Map.Map Symbol Int
-        }
-    deriving Show
+newtype ModuleT m a
+    = ModuleT { getModule :: StateT ModuleState m a }
+    deriving (Functor, Applicative, Monad, MonadTrans, MonadState ModuleState)
 
 
-data InstrState
-    = InstrState
-        { deferred :: [Instruction]
-        , instrs   :: [Instruction]
-        }
-    deriving Show
+fresh :: MonadModule m => Symbol -> m Name
+fresh symbol = do
+    supply <- gets moduleSupply
+    let i = maybe 0 (+1) (Map.lookup symbol supply)
+    modify $ \s -> s { moduleSupply = Map.insert symbol i supply }
+    return (symbol ++ "_" ++ show i)
 
 
-initModuleState =
-    ModuleState
-        { moduleDefs  = Map.empty
-        , symbolUsage = Map.empty
-        }
+addDef :: MonadModule m => Name -> Definition -> m ()
+addDef name def =
+    modify $ \s -> s { moduleDefs = Map.insert name def (moduleDefs s) }
 
 
-initInstrState =
-    InstrState
-        { instrs   = []
-        , deferred = []
-        }
+addModuleSym :: MonadModule m => Symbol -> Name -> m ()
+addModuleSym symbol name =
+    modify $ \s -> s { moduleSymbols = Map.insert symbol name (moduleSymbols s) }
+
+
+lookupModuleSym :: MonadModule m => Symbol -> m (Maybe Name)
+lookupModuleSym symbol =
+    fmap (Map.lookup symbol) (gets moduleSymbols)
+
+
+lookupModuleDef :: MonadModule m => Name -> m (Maybe Definition)
+lookupModuleDef name =
+    fmap (Map.lookup name) (gets moduleDefs)
 
 
 prettyModuleState :: ModuleState -> IO ()
@@ -55,7 +58,7 @@ prettyModuleState moduleState = do
             Function instructions -> do
                 putStrLn "function"
                 forM_ instructions $ \i -> putStrLn ("\t" ++ show i)
-            Variable _ _ -> putStrLn (show def)
+            Variable _ -> putStrLn (show def)
 
 
 newtype InstrT m a
@@ -63,9 +66,32 @@ newtype InstrT m a
     deriving (Functor, Applicative, Monad, MonadTrans, MonadState InstrState)
 
 
-newtype ModuleT m a
-    = ModuleT { getModule :: StateT ModuleState m a }
-    deriving (Functor, Applicative, Monad, MonadTrans, MonadState ModuleState)
+addInstr :: MonadInstr m => Instruction -> m ()
+addInstr instr =
+    modify $ \s -> s { instrs = (instrs s) ++ [instr] }
+
+
+addSym :: MonadInstr m => Symbol -> Name -> m ()
+addSym symbol name = do
+    sc <- fmap head (gets scope)
+    let sc' = sc { symbols = Map.insert symbol name (symbols sc) }
+    modify $ \s -> s { scope = sc' : tail (scope s) }
+
+
+lookupSym :: MonadInstr m => Symbol -> m (Maybe Name)
+lookupSym symbol =
+    fmap lookupSym' (gets scope)
+    where
+        lookupSym' :: [ScopeState] -> Maybe Name
+        lookupSym' []      = Nothing
+        lookupSym' (s:ss)  = case Map.lookup symbol (symbols s) of
+            Nothing -> lookupSym' ss
+            Just nm -> Just nm
+        
+    
+pushScope, popScope :: MonadInstr m => m ()
+pushScope = modify $ \s -> s { scope = initScopeState : scope s }
+popScope  = modify $ \s -> s { scope = tail (scope s) }
 
 
 class (MonadState ModuleState m) => MonadModule m
@@ -76,39 +102,80 @@ instance (Monad m) => MonadModule (ModuleT m)
 instance (Monad m) => MonadInstr (InstrT m)
 
 
-data Instruction
-    = Store Name Value
-    | If Value [Instruction] [Instruction]
-    | Assert String
+data ModuleState
+    = ModuleState
+        { moduleDefs    :: Map.Map Name Definition
+        , moduleExports :: Set.Set Name
+        , moduleSupply  :: Map.Map Symbol Int
+        , moduleSymbols :: Map.Map Symbol Name
+        }
     deriving Show
+
+
+initModuleState =
+    ModuleState
+        { moduleDefs    = Map.empty
+        , moduleExports = Set.empty
+        , moduleSupply  = Map.empty
+        , moduleSymbols = Map.empty
+        }
+
+
+data InstrState
+    = InstrState
+        { scope    :: [ScopeState]
+        , instrs   :: [Instruction]
+        }
+    deriving Show
+
+
+initInstrState =
+    InstrState
+        { scope    = [initScopeState]
+        , instrs   = []
+        }
 
 
 data Definition
     = Function [Instruction]
-    | Variable T.Type (Maybe Constant)
-    deriving Show
-
-
-data Constant
-    = Int Integer
-    | Float Double
-    | Bool Bool
-    | Char Char
-    | String String
+    | Variable T.Type 
     deriving Show
 
 
 data Value
-    = Cons Constant
+    = Cons S.Constant
+    | Named Name
+    | Infix S.Op Value Value
     deriving Show
 
 
-isCons :: Value -> Bool
-isCons (Cons _) = True
+data Instruction
+    = Store Name Value
+    | If Value [Instruction] [Instruction]
+    | Assert String
+    | Print [Value]
+    deriving Show
 
 
-toCons :: Value -> Constant
-toCons (Cons c) = c
+data ScopeState
+    = ScopeState
+        { symbols  :: Map.Map Symbol Name
+        , deferred :: [Instruction]
+        }
+    deriving Show
+
+
+initScopeState =
+    ScopeState
+        { symbols  = Map.empty
+        , deferred = []
+        }
+
+
+function :: MonadModule m => Name -> [()] -> InstrT m () -> m ()
+function name params cmp = do
+    ins <- fmap instrs $ execStateT (getInstr cmp) initInstrState
+    addDef name (Function ins)
 
 
 cmpAST :: S.AST -> IO ModuleState
@@ -117,38 +184,13 @@ cmpAST ast = execStateT (getModule cmp) initModuleState
         cmp :: ModuleT IO ()
         cmp = do
             name <- fresh "main"
-            function name (mapM_ cmpTopStmt ast)
-
-
-fresh :: MonadModule m => Symbol -> m Name
-fresh symbol = do
-    symbols <- gets symbolUsage
-    let i = maybe 0 (+1) (Map.lookup symbol symbols)
-    modify $ \s -> s { symbolUsage = Map.insert symbol i symbols }
-    return (symbol ++ "_" ++ show i)
-
-
-addDef :: MonadModule m => Name -> Definition -> m ()
-addDef name def =
-    modify $ \s -> s { moduleDefs = Map.insert name def (moduleDefs s) }
-
-
-addInstr :: Monad m => Instruction -> InstrT m ()
-addInstr instr =
-    modify $ \s -> s { instrs = (instrs s) ++ [instr] }
-    
-
-function :: MonadModule m => Name -> InstrT m () -> m ()
-function name cmp = do
-    ins <- fmap instrs $ execStateT (getInstr cmp) initInstrState
-    addDef name (Function ins)
-    -- check exit
+            function name [] (mapM_ cmpTopStmt ast)
 
 
 cmpIf :: MonadModule m => Value -> InstrT m () -> InstrT m () -> InstrT m ()
-cmpIf (Cons (Bool True)) true _   = true
-cmpIf (Cons (Bool False)) _ false = false
-cmpIf cnd true false              = do
+cmpIf (Cons (S.Bool _ True)) true _   = true
+cmpIf (Cons (S.Bool _ False)) _ false = false
+cmpIf cnd true false                  = do
     trueInstr <- lift $ execStateT (getInstr true) initInstrState
     falseInstr <- lift $ execStateT (getInstr false) initInstrState 
     addInstr $ If cnd (instrs trueInstr) (instrs falseInstr)
@@ -156,15 +198,16 @@ cmpIf cnd true false              = do
 
 cmpTopPattern :: MonadModule m => S.Pattern -> Value -> InstrT m Value
 cmpTopPattern pattern val = case pattern of
-    S.PatIgnore pos    -> return $ Cons (Bool True)
+    S.PatIgnore pos    -> return $ Cons (S.Bool pos True)
     S.PatIdent pos sym -> do
         name <- lift (fresh sym)
+        lift (addModuleSym sym name)
         if isCons val then
-            lift $ addDef name $ Variable T.I64 (Just $ toCons val)
+            lift $ addDef name (Variable T.I64)
         else do
-            lift $ addDef name (Variable T.I64 Nothing)
+            lift $ addDef name (Variable T.I64)
             addInstr (Store name val)
-        return $ Cons (Bool True)
+        return $ Cons (S.Bool pos True)
     
 
 cmpTopStmt :: MonadModule m => S.Stmt -> InstrT m ()
@@ -174,20 +217,39 @@ cmpTopStmt stmt = case stmt of
         matched <- cmpTopPattern pattern val
         cmpIf matched (return ()) (addInstr $ Assert "pattern failure")
 
+    S.Print pos exprs ->
+        addInstr . Print =<< mapM cmpExpr exprs
+        
+
 
 cmpExpr :: MonadModule m => S.Expr -> InstrT m Value
 cmpExpr expr = case expr of
-    S.Int pos n     -> return $ Cons (Int n)
-    S.Float pos f   -> return $ Cons (Float f)
-    S.Bool pos b    -> return $ Cons (Bool b)
-    S.Char pos c    -> return $ Cons (Char c)
-    S.String pos s  -> return $ Cons (String s)
+    S.Cons c -> return (Cons c)
     S.Ident pos sym -> do
-        -- lookup symTab
-        defs <- lift (gets moduleDefs)
-        error "todo"
-        return $ Cons (Int 4)
+        name <- lookupSym sym
+        case name of
+            Just nm -> return (Named nm)
+            Nothing -> do
+                modName <- lift (lookupModuleSym sym)
+                maybe (error "") (return . Named) modName
+
     S.Tuple pos exprs -> do
         vals <- mapM cmpExpr exprs
         error "todo"
-        return $ Cons (Int 4)
+        return $ Cons (S.Int pos 4)
+
+    S.Infix pos op exprA exprB -> do
+        valA <- cmpExpr exprA
+        valB <- cmpExpr exprB
+        return (Infix op valA valB)
+
+
+
+isCons :: Value -> Bool
+isCons (Cons _) = True
+isCons _        = False
+
+
+toCons :: Value -> S.Constant
+toCons (Cons c) = c
+

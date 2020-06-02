@@ -41,7 +41,7 @@ data Data
 
 
 data Pattern
-    = PatLiteral Expr
+    = PatLiteral Constant
     | PatIgnore  TextPos
     | PatIdent   TextPos String
     | PatTuple   TextPos [Pattern]
@@ -57,18 +57,25 @@ data Index
     deriving (Show, Eq)
 
 
-data Expr
+data Constant
     = Int TextPos Integer
     | Float TextPos Double
     | Bool TextPos Bool
     | Char TextPos Char
     | String TextPos String
+    | CTuple TextPos [Constant]
+    | CArray TextPos [Constant]
+    deriving (Show, Eq)
+
+
+data Expr
+    = Cons Constant
     | Tuple TextPos [Expr]
     | Array TextPos [Expr]
     | Table TextPos [[Expr]]
     | TupleIndex TextPos Expr Word32
-    | TupleMember TextPos Expr String
-    | ArrayIndex TextPos Expr Expr
+    | Member TextPos Expr String
+    | Subscript TextPos Expr Expr
     | Ident TextPos String
     | Call TextPos String [Expr]
     | Conv TextPos Type [Expr]
