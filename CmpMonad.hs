@@ -26,6 +26,7 @@ import           LLVM.IRBuilder.Module
 import           LLVM.IRBuilder.Monad
 
 import qualified SymTab
+import           Error
 
 
 class (Ord k, MonadFail m, MonadError CmpError m, MonadState (CmpState k o) m, MonadModuleBuilder m) => MonadModuleCmp k o m
@@ -66,15 +67,6 @@ newtype InstrCmpT k o m a
         )
 
 
-data TextPos
-    = TextPos { textPos, textLine, textCol :: Int }
-    deriving (Eq)
-
-
-instance Show TextPos where
-    show (TextPos p l c) = "(" ++ show p ++ ":" ++ show l ++ ":" ++ show c ++ ")"
-
-
 data CmpState k o
     = CmpState
         { posStack :: [TextPos]
@@ -93,11 +85,6 @@ initCmpState = CmpState
     , declared = Set.empty
     , exported = Set.empty
     }
-
-
-newtype CmpError
-    = CmpError { getCmpError :: (TextPos, String) }
-    deriving (Show)
 
 
 runModuleCmpT

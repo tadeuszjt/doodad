@@ -32,6 +32,7 @@ import qualified Lexer                    as L
 import qualified Parser                   as P
 import qualified Compiler                 as R
 import           JIT
+import Error
 
 
 main :: IO ()
@@ -95,22 +96,14 @@ repl dl session verbose = runInputT defaultSettings (loop C.initCmpState)
                                 }
 
 
-compile :: Context -> Ptr FFI.DataLayout -> C.MyCmpState -> String -> Bool -> Bool -> IO (Either C.CmpError ([Definition], C.MyCmpState))
+compile :: Context -> Ptr FFI.DataLayout -> C.MyCmpState -> String -> Bool -> Bool -> IO (Either CmpError ([Definition], C.MyCmpState))
 compile ctx dl state source verbose onlyIR =
     case L.alexScanner source of
-        Left  errStr -> return $ Left $ C.CmpError (C.TextPos 0 0 0, errStr)
+        Left  errStr -> return $ Left $ CmpError (TextPos 0 0 0, errStr)
         Right tokens -> case (P.parseTokens tokens) 0 of
             P.ParseOk ast -> if onlyIR then do
-                R.prettyModuleState =<< R.cmpAST ast
+                --R.prettyModuleState =<< R.cmpAST ast
                 return $ Right ([], state)
             else
                 C.compile ctx dl state ast
 
-
-printError :: C.CmpError -> String -> IO ()
-printError (C.CmpError (C.TextPos p l c, str)) source = do
-    putStrLn ("error " ++ show l ++ ":" ++ show c ++ " " ++ str ++ ":")
-    let sourceLines = lines source
-    unless (length sourceLines <= 1) $ putStrLn (sourceLines !! (l-2))
-    unless (length sourceLines <= 0) $ putStrLn (sourceLines !! (l-1))
-    putStrLn (replicate (c-1) '-' ++ "^")

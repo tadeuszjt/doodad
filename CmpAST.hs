@@ -32,6 +32,7 @@ import           CmpADT
 import           Value
 import           Table
 import           Print
+import           Error
 
 
 compile :: Context -> Ptr FFI.DataLayout -> MyCmpState -> S.AST -> IO (Either CmpError ([Definition], MyCmpState))

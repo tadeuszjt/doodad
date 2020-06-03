@@ -1,8 +1,8 @@
 module AST where
 
 import           Data.Word
-import           CmpMonad (TextPos)
 import           Type
+import           Error
 import qualified Lexer    as L
 
 
@@ -63,8 +63,6 @@ data Constant
     | Bool TextPos Bool
     | Char TextPos Char
     | String TextPos String
-    | CTuple TextPos [Constant]
-    | CArray TextPos [Constant]
     deriving (Show, Eq)
 
 
@@ -73,9 +71,9 @@ data Expr
     | Tuple TextPos [Expr]
     | Array TextPos [Expr]
     | Table TextPos [[Expr]]
-    | TupleIndex TextPos Expr Word32
     | Member TextPos Expr String
     | Subscript TextPos Expr Expr
+    | TupleIndex TextPos Expr Word32
     | Ident TextPos String
     | Call TextPos String [Expr]
     | Conv TextPos Type [Expr]

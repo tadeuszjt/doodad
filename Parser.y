@@ -4,6 +4,7 @@ import qualified Type     as T
 import qualified Lexer    as L
 import qualified AST      as S
 import qualified CmpMonad as C
+import qualified Error    as C
 }
 
 %name      parseTokens 
