@@ -30,9 +30,10 @@ import qualified Value                 as C
 import qualified CmpMonad                 as C
 import qualified Lexer                    as L
 import qualified Parser                   as P
-import qualified Compiler                 as R
+import qualified Resolver                 as R
 import           JIT
 import Error
+import qualified AST as S
 
 
 main :: IO ()
@@ -102,7 +103,12 @@ compile ctx dl state source verbose onlyIR =
         Left  errStr -> return $ Left $ CmpError (TextPos 0 0 0, errStr)
         Right tokens -> case (P.parseTokens tokens) 0 of
             P.ParseOk ast -> if onlyIR then do
-                --R.prettyModuleState =<< R.cmpAST ast
+                res <- R.resolveAST ast
+                case res of
+                    Left err -> printError err source
+                    Right (ast, exprs) -> do
+                        mapM_ (\(i, e) -> putStrLn $ show i ++ ": " ++ show e) (Map.toList exprs)
+                        S.prettyAST ast
                 return $ Right ([], state)
             else
                 C.compile ctx dl state ast

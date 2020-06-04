@@ -88,14 +88,41 @@ data Stmt
     = Assign TextPos Pattern Expr
     | Set TextPos Index Expr
     | Print TextPos [Expr]
+    | CallStmt TextPos String [Expr]
+    | Return TextPos (Maybe Expr)
     | Block TextPos [Stmt]
+    | If TextPos Expr Stmt (Maybe Stmt)
+    | While  TextPos Expr [Stmt]
+    | Switch TextPos Expr [(Pattern, Stmt)]
     | Func TextPos String [Param] (Maybe Type) [Stmt]
     | Extern TextPos String [Param] (Maybe Type)
     | Typedef TextPos String Type
     | Datadef TextPos String [Data] 
-    | CallStmt TextPos String [Expr]
-    | If TextPos Expr Stmt (Maybe Stmt)
-    | Return TextPos (Maybe Expr)
-    | Switch TextPos Expr [(Pattern, Stmt)]
-    | While  TextPos Expr [Stmt]
     deriving (Show, Eq)
+
+
+prettyAST :: AST -> IO ()
+prettyAST ast =
+    mapM_ (prettyStmt "") ast
+    where
+        prettyStmt :: String -> Stmt -> IO ()
+        prettyStmt preppend stmt = case stmt of
+            Block pos stmts -> do
+                putStrLn (preppend ++ "block")
+                mapM_ (prettyStmt (preppend ++ "\t")) stmts
+
+            If pos cnd true false -> do
+                putStr (preppend ++ "if")
+                prettyStmt (preppend ++ "\t") true
+                maybe (return ()) (prettyStmt (preppend ++ "\t")) false
+
+            While pos cnd stmts -> do
+                putStrLn (preppend ++ "while " ++ show cnd)
+                mapM_ (prettyStmt (preppend ++ "\t")) stmts
+
+            Func pos symbol params mretty stmts -> do
+                putStrLn (preppend ++ "func " ++ show symbol ++ show params ++ show mretty)
+                mapM_ (prettyStmt (preppend ++ "\t")) stmts
+
+            _ -> putStrLn (preppend ++ show stmt)
+
