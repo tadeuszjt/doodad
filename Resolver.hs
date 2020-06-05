@@ -1,5 +1,4 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleContexts #-}
 
 module Resolver where
@@ -7,6 +6,7 @@ module Resolver where
 import Control.Monad.State
 import Control.Monad.Except hiding (void)
 import Data.Maybe
+import Data.Char
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
@@ -94,7 +94,7 @@ popScope  =
 
 addExpr :: MonadResolver m => S.Expr -> m S.Expr
 addExpr expr = do
-    name <- fresh ""
+    name <- fresh $ takeWhile (`elem` ['a'..'z']) $ map toLower (show expr)
     modify $ \s -> s { expressions = Map.insert name expr (expressions s) }
     return (S.Ident (TextPos 0 0 0) name)
 
@@ -120,9 +120,7 @@ resPattern pattern = case pattern of
 
 resIndex :: MonadResolver m => S.Index -> m S.Index
 resIndex index = case index of
-    S.IndIdent pos symbol -> do
-        name <- lookupSym symbol
-        return (S.IndIdent pos name)
+    S.IndIdent pos symbol -> fmap (S.IndIdent pos) (lookupSym symbol)
 
 
 resType :: MonadResolver m => T.Type -> m T.Type

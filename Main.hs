@@ -31,6 +31,7 @@ import qualified CmpMonad                 as C
 import qualified Lexer                    as L
 import qualified Parser                   as P
 import qualified Resolver                 as R
+import qualified TypeChecker              as Y
 import           JIT
 import Error
 import qualified AST as S
@@ -102,14 +103,15 @@ compile ctx dl state source verbose onlyIR =
     case L.alexScanner source of
         Left  errStr -> return $ Left $ CmpError (TextPos 0 0 0, errStr)
         Right tokens -> case (P.parseTokens tokens) 0 of
-            P.ParseOk ast -> if onlyIR then do
+            P.ParseOk ast -> do
                 res <- R.resolveAST ast
                 case res of
-                    Left err -> printError err source
-                    Right (ast, exprs) -> do
+                    Left err -> printError err source >> return (Left err)
+                    Right (ast', exprs) -> do
                         mapM_ (\(i, e) -> putStrLn $ show i ++ ": " ++ show e) (Map.toList exprs)
-                        S.prettyAST ast
-                return $ Right ([], state)
-            else
-                C.compile ctx dl state ast
+                        putStrLn ""
+                        S.prettyAST ast'
+                        putStrLn ""
+                        --mapM_ (\(i, t) -> putStrLn $ show i ++ ": " ++ show t) $ Map.toList (Y.typeCheck exprs)
+                        C.compile ctx dl state (Map.empty) ast
 

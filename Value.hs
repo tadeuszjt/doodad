@@ -10,6 +10,7 @@ import qualified Data.ByteString.Short      as BSS
 import           Data.Maybe
 import           Data.List                  hiding (and, or)
 import           Data.Word
+import qualified Data.Map                   as Map
 import           Prelude                    hiding (EQ, and, or)
 
 import           LLVM.Context
@@ -44,11 +45,12 @@ type Module     = ModuleCmpT SymKey SymObj Compile
 
 data CompileState
     = CompileState
-        { context    :: Context
-        , dataLayout :: Ptr FFI.DataLayout
-        , curRetTyp  :: Type
+        { context     :: Context
+        , dataLayout  :: Ptr FFI.DataLayout
+        , curRetTyp   :: Type
+        , expressions :: Map.Map String S.Expr
         }
-initCompileState ctx dl = CompileState ctx dl Void
+initCompileState ctx dl exprs = CompileState ctx dl Void exprs
 
 
 setCurRetTyp :: Type -> Instr ()

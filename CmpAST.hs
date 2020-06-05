@@ -5,6 +5,7 @@ module CmpAST where
 
 import           Control.Monad
 import           Control.Monad.State
+import qualified Data.Map                   as Map
 import           Data.Maybe
 import           Data.List                  hiding (and, or)
 import           Prelude                    hiding (EQ, and, or)
@@ -35,9 +36,9 @@ import           Print
 import           Error
 
 
-compile :: Context -> Ptr FFI.DataLayout -> MyCmpState -> S.AST -> IO (Either CmpError ([Definition], MyCmpState))
-compile context dataLayout state ast = do
-    (res, _) <- runStateT (runModuleCmpT emptyModuleBuilder state cmp) (initCompileState context dataLayout)
+compile :: Context -> Ptr FFI.DataLayout -> MyCmpState -> Map.Map String S.Expr -> S.AST -> IO (Either CmpError ([Definition], MyCmpState))
+compile context dataLayout state exprMap ast = do
+    (res, _) <- runStateT (runModuleCmpT emptyModuleBuilder state cmp) (initCompileState context dataLayout exprMap)
     return $ fmap (\((_, defs), state') -> (defs, state')) res
     where
         cmp :: Module ()
