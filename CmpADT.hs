@@ -24,8 +24,6 @@ import CmpFuncs
 
 cmpDataDef :: S.Stmt -> Instr ()
 cmpDataDef (S.Datadef pos symbol datas) = withPos pos $ do
-    checkUndefined symbol
-
     enumTyp <- case length datas of
         x
             | x < 2^8  -> return I8 -- I8 causes seq fault
@@ -48,10 +46,8 @@ cmpDataDef (S.Datadef pos symbol datas) = withPos pos $ do
     let dataDef = Typedef symbol
 
     forM_ (zip3 memTyps datas [0..]) $ \(typ, dat, i) -> do
-        checkUndefined (S.dataSymbol dat)
         case dat of
             S.DataIdent p sym -> withPos p $ do
-                checkUndefined sym
                 addSymObj sym KeyDataCons $ ObjDataCons dataDef typ (fromIntegral i)
                 let inline = ObjInline $ \[] -> do
                     tup@(Ptr _ _) <- valLocal dataTyp
@@ -61,10 +57,8 @@ cmpDataDef (S.Datadef pos symbol datas) = withPos pos $ do
                 addSymObj sym (KeyFunc []) inline
 
             S.DataFunc p sym params -> withPos p $ do
-                checkUndefined sym
                 let paramSymbols = map S.paramName params
                 let paramTypes   = map S.paramType params
-                pushSymTab >> mapM_ checkUndefined paramSymbols >> popSymTab
 
                 addSymObj sym KeyDataCons $ ObjDataCons dataDef typ (fromIntegral i)
                 addSymObj sym (KeyFunc paramTypes) $ ObjInline $ \args -> do

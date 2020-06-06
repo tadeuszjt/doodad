@@ -113,7 +113,7 @@ resPattern pattern = case pattern of
         checkSymUndef symbol
         name <- fresh symbol
         addSymDef symbol name
-        modify $ \s -> s { expressions = Map.insert name (S.Ident pos name) (expressions s) }
+        --modify $ \s -> s { expressions = Map.insert name (S.Ident pos name) (expressions s) }
         return (S.PatIdent pos name)
     _ -> fail (show pattern)
 
@@ -198,7 +198,7 @@ resStmt stmt = case stmt of
 
 resExpr :: MonadResolver m => S.Expr -> m S.Expr
 resExpr (S.Ident pos symbol) = fmap (S.Ident pos) (lookupSym symbol)
-resExpr expr = addExpr =<< case expr of
+resExpr expr = case expr of
     S.Cons c           -> return expr
     S.Tuple pos exprs  -> fmap (S.Tuple pos) (mapM resExpr exprs)
     S.Array pos exprs  -> fmap (S.Array pos) (mapM resExpr exprs)
@@ -216,8 +216,7 @@ resExpr expr = addExpr =<< case expr of
         fmap (S.Conv pos typ') (mapM resExpr exprs)
     S.Subscript pos expr ind -> do
         expr' <- resExpr expr
-        ind' <- resExpr ind
-        return (S.Subscript pos expr' ind)
+        fmap (S.Subscript pos expr') (resExpr ind)
     S.Infix pos op a b    -> do
         a' <- resExpr a
         b' <- resExpr b

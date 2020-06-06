@@ -109,9 +109,8 @@ compile ctx dl state source verbose onlyIR =
                     Left err -> printError err source >> return (Left err)
                     Right (ast', exprs) -> do
                         mapM_ (\(i, e) -> putStrLn $ show i ++ ": " ++ show e) (Map.toList exprs)
-                        putStrLn ""
-                        S.prettyAST ast'
+                        Y.prettyFlatAST (Y.flattenAST ast')
                         putStrLn ""
                         --mapM_ (\(i, t) -> putStrLn $ show i ++ ": " ++ show t) $ Map.toList (Y.typeCheck exprs)
-                        C.compile ctx dl state (Map.empty) ast
+                        C.compile ctx dl state exprs ast'
 

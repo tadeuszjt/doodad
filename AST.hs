@@ -67,7 +67,8 @@ data Constant
 
 
 data Expr
-    = Cons Constant
+    = Expr Int
+    | Cons Constant
     | Tuple TextPos [Expr]
     | Array TextPos [Expr]
     | Table TextPos [[Expr]]
@@ -85,7 +86,8 @@ data Expr
 
 
 data Stmt
-    = Assign TextPos Pattern Expr
+    = Stmt Int
+    | Assign TextPos Pattern Expr
     | Set TextPos Index Expr
     | Print TextPos [Expr]
     | CallStmt TextPos String [Expr]

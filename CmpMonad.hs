@@ -25,7 +25,6 @@ import qualified LLVM.AST.Constant          as C
 import           LLVM.IRBuilder.Module
 import           LLVM.IRBuilder.Monad
 
-import qualified SymTab
 import           Error
 
 
@@ -70,7 +69,7 @@ newtype InstrCmpT k o m a
 data CmpState k o
     = CmpState
         { posStack :: [TextPos]
-        , symTab   :: SymTab.SymTab String (Map.Map k (o, Set.Set Name))
+        , symTab   :: Map.Map String (Map.Map k (o, Set.Set Name))
         , actions  :: Map.Map Name (ModuleBuilder ())
         , declared :: Set.Set Name
         , exported :: Set.Set Name
@@ -80,7 +79,7 @@ data CmpState k o
 
 initCmpState = CmpState
     { posStack = [TextPos 1 1 1]
-    , symTab   = SymTab.initSymTab
+    , symTab   = Map.empty
     , actions  = Map.empty
     , declared = Set.empty
     , exported = Set.empty
@@ -127,13 +126,6 @@ withPos pos f = do
     return r
 
 
-checkUndefined :: MonadModuleCmp k o m => String -> m ()
-checkUndefined symbol = do
-    st  <- gets symTab
-    let res = SymTab.lookup symbol [head st]
-    assert (isNothing res) (symbol ++ " already defined") 
-
-
 checkSymKeyUndefined :: MonadModuleCmp k o m => String -> k -> m ()
 checkSymKeyUndefined symbol key = do
     res <- lookupSymKey symbol key
@@ -142,7 +134,7 @@ checkSymKeyUndefined symbol key = do
 
 lookupSymbol :: MonadModuleCmp k o m => String -> m (Maybe (Map.Map k (o, Set.Set Name)))
 lookupSymbol symbol =
-    fmap (SymTab.lookup symbol) (gets symTab)
+    fmap (Map.lookup symbol) (gets symTab)
 
 
 lookupSymKey :: MonadModuleCmp k o m => String -> k -> m (Maybe o)
@@ -170,7 +162,7 @@ addSymObj :: MonadModuleCmp k o m => String -> k -> o -> m ()
 addSymObj symbol key obj = do
     keyMap <- lookupSymbol symbol
     let keyMap' = Map.insert key (obj, Set.empty) (maybe Map.empty id keyMap)
-    modify $ \s -> s { symTab = SymTab.insert symbol keyMap' (symTab s) }
+    modify $ \s -> s { symTab = Map.insert symbol keyMap' (symTab s) }
 
 
 addSymObjReq :: MonadModuleCmp k o m => String -> k -> Name -> m ()
@@ -178,17 +170,7 @@ addSymObjReq symbol key name = do
     keyMap <- fmap fromJust (lookupSymbol symbol)
     let (obj, nameSet) = fromJust (Map.lookup key keyMap)
     let keyMap' = Map.insert key (obj, Set.insert name nameSet) keyMap
-    modify $ \s -> s { symTab = SymTab.insert symbol keyMap' (symTab s) }
-
-
-pushSymTab :: MonadModuleCmp k o m => m ()
-pushSymTab =
-    modify $ \s -> s { symTab = SymTab.push (symTab s) }
-
-
-popSymTab :: MonadModuleCmp k o m => m ()
-popSymTab =
-    modify $ \s -> s { symTab = SymTab.pop (symTab s) }
+    modify $ \s -> s { symTab = Map.insert symbol keyMap' (symTab s) }
 
 
 addAction :: MonadModuleCmp k o m => Name -> ModuleBuilder a -> m ()
@@ -254,11 +236,9 @@ isDeclared name =
 prettySymTab :: (Show k, Show o) => CmpState k o -> IO ()
 prettySymTab state = do
     let st = symTab state
-    forM_ (zip st [0..]) $ \(frame, i) -> do
-        putStrLn ("frame " ++ show i ++ ":")
-        forM_ (Map.toList frame) $ \(sym, keyMap) -> do
-            putStrLn ("  " ++ sym ++ ":")
-            forM_ (Map.toList keyMap) $ \(key, obj) -> do
-                let kstr = show key
-                putStrLn ("    " ++ show key ++ " " ++ (replicate (30-length kstr) '-') ++ "> " ++ take 90 (show obj) ++ "...")
+    forM_ (Map.toList st) $ \(sym, keyMap) -> do
+        putStrLn ("  " ++ sym ++ ":")
+        forM_ (Map.toList keyMap) $ \(key, obj) -> do
+            let kstr = show key
+            putStrLn ("    " ++ show key ++ " " ++ (replicate (30-length kstr) '-') ++ "> " ++ take 90 (show obj) ++ "...")
 

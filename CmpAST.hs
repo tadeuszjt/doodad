@@ -52,9 +52,7 @@ cmpPattern isGlobal pattern val = case pattern of
     S.PatLiteral cons -> valsEqual val =<< cmpExpr (S.Cons cons)
 
     S.PatIdent pos sym -> withPos pos $ do
-        checkSymKeyUndefined sym KeyType
         if isGlobal then do
-            checkSymKeyUndefined sym KeyType
             name <- freshName (mkBSS sym)
             (v, ext) <- valGlobal name (valType val)
 
@@ -115,7 +113,6 @@ cmpTopStmt stmt@(S.Extern _ _ _ _) = cmpStmt stmt
 cmpTopStmt stmt@(S.Datadef _ _ _)  = cmpDataDef stmt
 
 cmpTopStmt (S.Typedef pos symbol typ) = do
-    checkUndefined symbol
     if isTuple typ then do
         name <- freshName (mkBSS symbol)
         let Tuple Nothing ts = typ
@@ -132,7 +129,6 @@ cmpTopStmt (S.Assign pos pattern expr) = do
     if_ matched (return ()) trap
 
 cmpTopStmt (S.Func pos symbol params mretty block) = withPos pos $ do
-    checkUndefined symbol
     name <- freshName (mkBSS symbol)
     
     let paramTypes   = map S.paramType params
@@ -144,14 +140,12 @@ cmpTopStmt (S.Func pos symbol params mretty block) = withPos pos $ do
     paramOpTypes <- mapM opTypeOf paramTypes
     retOpType    <- opTypeOf retTyp
 
-    pushSymTab
     oldRetTyp <- getCurRetTyp
     setCurRetTyp retTyp
 
     op <- InstrCmpT $ IRBuilderT . lift $ function name (zip paramOpTypes paramFnNames) retOpType $ \a ->
         getInstrCmp $ do
             forM_ (zip3 paramSymbols paramTypes a) $ \(sym, typ, op) -> do
-                checkUndefined sym
                 arg <- valLocal typ
                 valStore arg (Val typ op)
                 addSymObj sym KeyVal (ObjVal arg)
@@ -165,7 +159,6 @@ cmpTopStmt (S.Func pos symbol params mretty block) = withPos pos $ do
                 else ret . cons =<< zeroOf retTyp
 
     setCurRetTyp oldRetTyp
-    popSymTab
 
     addDeclared name
     addExported name
@@ -177,11 +170,9 @@ cmpTopStmt (S.Func pos symbol params mretty block) = withPos pos $ do
 
 cmpStmt :: S.Stmt -> Instr ()
 cmpStmt (S.CallStmt pos symbol args) = void $ cmpExpr (S.Call pos symbol args)
-cmpStmt (S.Block pos stmts) = pushSymTab >> mapM_ cmpStmt stmts >> popSymTab
+cmpStmt (S.Block pos stmts) = mapM_ cmpStmt stmts
 
 cmpStmt (S.Extern pos sym params mretty) = do
-    checkUndefined sym
-
     let name         = mkName sym
     let paramTyps    = map S.paramType params
     let paramSymbols = map S.paramName params
@@ -234,20 +225,16 @@ cmpStmt (S.Set pos index expr) = withPos pos $ do
 
 cmpStmt (S.Switch pos expr [])    = void (cmpExpr expr)
 cmpStmt (S.Switch pos expr cases) = withPos pos $ do
-    pushSymTab
     val <- cmpExpr expr
     casesM <- forM cases $ \(casePattern, caseStmt) -> do
         let cmpCnd = do
-            pushSymTab
             Val Bool cnd <- cmpPattern False casePattern val
             return cnd
         let cStmt = do
             cmpStmt caseStmt
-            popSymTab
         return (cmpCnd, cStmt)
 
     switch_ casesM
-    popSymTab
 
 cmpStmt (S.While pos expr stmts) = withPos pos $ do
     cond <- freshName "while_cnd"
