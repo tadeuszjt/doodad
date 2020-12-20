@@ -7,6 +7,7 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Control.Monad.State
 import Control.Monad.Except
+import Control.Monad.Fail
 
 import qualified AST as S
 import qualified Type as T

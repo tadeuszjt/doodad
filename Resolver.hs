@@ -3,8 +3,10 @@
 
 module Resolver where
 
-import Control.Monad.State
-import Control.Monad.Except hiding (void)
+import Prelude hiding (fail)
+import Control.Monad.State hiding (fail)
+import Control.Monad.Fail
+import Control.Monad.Except hiding (void, fail)
 import Data.Maybe
 import Data.Char
 import qualified Data.Map as Map

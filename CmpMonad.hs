@@ -13,6 +13,7 @@ import           Control.Monad.Except       hiding (void)
 import           Control.Monad.State        hiding (void)
 import           Control.Monad.Trans
 import           Control.Monad.Identity
+import           Control.Monad.Fail
 import qualified Data.Set as Set
 import qualified Data.Map as Map
 import           Data.Maybe
