@@ -43,16 +43,22 @@ withSession :: Bool -> (Session -> IO ()) -> IO ()
 withSession optimise f = do
     resolvers <- newIORef []
     withContext $ \ctx ->
-        withExecutionSession $ \es ->
-            withHostTargetMachine Reloc.PIC CodeModel.Default CodeGenOpt.None $ \tm ->
-                withObjectLinkingLayer es (\_ -> fmap head $ readIORef resolvers) $ \oll ->
-                    withIRCompileLayer oll tm $ \cl ->
-                        withPassManager defaultCuratedPassSetSpec $ \pm ->
-                            withSymbolResolver es (myResolver cl) $ \psr -> do
-                                writeIORef resolvers [psr]
-                                loadLibraryPermanently Nothing
-                                dl <- getTargetMachineDataLayout tm 
-                                f $ Session ctx es cl (if optimise then Just pm else Nothing) dl
+        withExecutionSession $ \es -> do
+            initializeNativeTarget
+            triple <- getProcessTargetTriple
+            cpu <- getHostCPUName
+            features <- getHostCPUFeatures
+            (target, _) <- lookupTarget Nothing triple
+            withTargetOptions $ \options ->
+                withTargetMachine target triple cpu features options Reloc.PIC CodeModel.Default CodeGenOpt.None $ \tm -> do
+                    withObjectLinkingLayer es (\_ -> fmap head $ readIORef resolvers) $ \oll ->
+                        withIRCompileLayer oll tm $ \cl ->
+                            withPassManager defaultCuratedPassSetSpec $ \pm ->
+                                withSymbolResolver es (myResolver cl) $ \psr -> do
+                                    writeIORef resolvers [psr]
+                                    loadLibraryPermanently Nothing
+                                    dl <- getTargetMachineDataLayout tm 
+                                    f $ Session ctx es cl (if optimise then Just pm else Nothing) dl
 
 
     where
