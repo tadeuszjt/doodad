@@ -31,7 +31,6 @@ import qualified CmpMonad                 as C
 import qualified Lexer                    as L
 import qualified Parser                   as P
 import qualified Resolver                 as R
-import qualified TypeChecker              as Y
 import           JIT
 import Error
 import qualified AST as S
@@ -115,8 +114,6 @@ compile ctx dl state source verbose onlyIR =
                     Left err -> printError err source >> return (Left err)
                     Right (ast', exprs) -> do
                         mapM_ (\(i, e) -> putStrLn $ show i ++ ": " ++ show e) (Map.toList exprs)
-                        Y.prettyFlatAST (Y.flattenAST ast')
                         putStrLn ""
-                        --mapM_ (\(i, t) -> putStrLn $ show i ++ ": " ++ show t) $ Map.toList (Y.typeCheck exprs)
                         C.compile ctx dl state exprs ast'
 
