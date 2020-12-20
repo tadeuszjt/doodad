@@ -27,7 +27,7 @@ for :: MonadInstrCmp k o m => Operand -> (Operand -> m ()) -> m ()
 for num f = do
     forCond <- freshName "for_cond"
     forBody <- freshName "for_body"
-    forExit <- fresh
+    forExit <- freshName "for_exit"
 
     i <- alloca i64 Nothing 0
     store i 0 (int64 0)
@@ -50,7 +50,7 @@ if_ :: MonadInstrCmp k o m => Operand -> m () -> m () -> m ()
 if_ cnd trueIns falseIns = do
     true  <- freshName "if_true"
     false <- freshName "if_false"
-    exit  <- fresh
+    exit  <- freshName "if_exit"
 
     condBr cnd true false
     emitBlockStart true
@@ -66,7 +66,7 @@ if_ cnd trueIns falseIns = do
 
 switch_ :: MonadInstrCmp k o m => [(m Operand, m ())] -> m ()
 switch_ cases = do
-    exitName <- fresh
+    exitName <- freshName "switch_exit"
     cndNames <- replicateM (length cases) (freshName "case")
     stmtNames <- replicateM (length cases) (freshName "case_stmt")
     let nextNames = cndNames ++ [exitName]

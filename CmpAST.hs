@@ -239,7 +239,7 @@ cmpStmt (S.Switch pos expr cases) = withPos pos $ do
 cmpStmt (S.While pos expr stmts) = withPos pos $ do
     cond <- freshName "while_cnd"
     body <- freshName "while_body"
-    exit <- fresh
+    exit <- freshName "while_exit"
     
     br cond
     emitBlockStart cond

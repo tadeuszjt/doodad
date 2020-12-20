@@ -53,23 +53,29 @@ main = do
         let filename = head args
         withFile filename ReadMode $ \h ->
             withContext $ \ctx ->
-                withPassManager defaultCuratedPassSetSpec $ \pm ->
-                    withHostTargetMachine Reloc.PIC CodeModel.Default CodeGenOpt.None $ \tm -> do
-                        dl <- getTargetMachineDataLayout tm
-                        withFFIDataLayout dl $ \pdl -> do
-                            content <- hGetContents h
-                            putStrLn "compiling..."
-                            res <- compile ctx pdl C.initCmpState content verbose onlyIR
-                            case res of
-                                Left err -> printError err content
-                                Right (defs, state) -> do
-                                    let astmod = defaultModule { moduleDefinitions = defs }
-                                    M.withModuleFromAST ctx astmod $ \mod -> do
-                                        when optimise $ do
-                                            passRes <- runPassManager pm mod
-                                            when verbose $ putStrLn ("optimisation pass: " ++ if passRes then "success" else "fail")
-                                        when verbose (BS.putStrLn =<< M.moduleLLVMAssembly mod)
-                                        M.writeLLVMAssemblyToFile (M.File $ filename ++ ".ll") mod
+                withPassManager defaultCuratedPassSetSpec $ \pm -> do
+                    initializeNativeTarget
+                    triple <- getProcessTargetTriple
+                    cpu <- getHostCPUName
+                    features <- getHostCPUFeatures
+                    (target, _) <- lookupTarget Nothing triple
+                    withTargetOptions $ \options ->
+                        withTargetMachine target triple cpu features options Reloc.PIC CodeModel.Default CodeGenOpt.None $ \tm -> do
+                            dl <- getTargetMachineDataLayout tm
+                            withFFIDataLayout dl $ \pdl -> do
+                                content <- hGetContents h
+                                putStrLn "compiling..."
+                                res <- compile ctx pdl C.initCmpState content verbose onlyIR
+                                case res of
+                                    Left err -> printError err content
+                                    Right (defs, state) -> do
+                                        let astmod = defaultModule { moduleDefinitions = defs }
+                                        M.withModuleFromAST ctx astmod $ \mod -> do
+                                            when optimise $ do
+                                                passRes <- runPassManager pm mod
+                                                when verbose $ putStrLn ("optimisation pass: " ++ if passRes then "success" else "fail")
+                                            when verbose (BS.putStrLn =<< M.moduleLLVMAssembly mod)
+                                            M.writeLLVMAssemblyToFile (M.File $ filename ++ ".ll") mod
 
 
 repl :: Ptr FFI.DataLayout -> Session -> Bool -> IO ()
