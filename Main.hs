@@ -40,11 +40,13 @@ import qualified SymTab
 data Args = Args
     { verbose   :: Bool
     , optimise  :: Bool
+    , astOnly   :: Bool
     , filenames :: [String]
     }
 initArgs = Args
     { verbose   = False
     , optimise  = True
+    , astOnly   = False
     , filenames = []
     }
 
@@ -58,17 +60,32 @@ main = do
         else do
             let filename = head (filenames args)
             withFile filename ReadMode $ \h -> do
-                content <- hGetContents h
-                putStrLn ("running \"" ++ filename ++ "\" ...")
-                runFile session content
+                source <- hGetContents h
+                if (astOnly args) then
+                    case parse source of
+                        Left err  -> printError err source
+                        Right ast -> S.prettyAST ast
+                else do
+                    putStrLn ("running \"" ++ filename ++ "\" ...")
+                    runFile session source
     where
         parseArgs :: Args -> [String] -> Args
         parseArgs args argStrs = case argStrs of
             []     -> args
             ["-n"] -> args { optimise  = False }
             ["-v"] -> args { verbose   = True }
+            ["-a"] -> args { astOnly   = True }
             [str]  -> args { filenames = (filenames args) ++ [str] }
             (a:as) -> parseArgs (parseArgs args [a]) as
+
+
+parse :: String -> Either CmpError S.AST
+parse source =
+    case L.alexScanner source of
+        Left  errStr -> Left $ CmpError (TextPos 0 0 0, errStr)
+        Right tokens -> case (P.parseTokens tokens) 0 of
+            P.ParseFail pos -> Left $ CmpError (pos, "parse error")
+            P.ParseOk ast   -> Right ast 
 
 
 runFile :: Session -> String -> IO ()
@@ -111,20 +128,18 @@ compile
     -> Bool
     -> IO (Either CmpError ([Definition], C.MyCmpState, R.ResolverState))
 compile session state resolverState source verbose =
-    case L.alexScanner source of
-        Left  errStr -> return $ Left $ CmpError (TextPos 0 0 0, errStr)
-        Right tokens -> case (P.parseTokens tokens) 0 of
-            P.ParseFail pos -> return $ Left $ CmpError (pos, "parse error")
-            P.ParseOk ast   -> do
-                res <- R.resolveAST resolverState ast
-                case res of
-                    Left err -> return (Left err)
-                    Right (ast', resolverState') -> do
-                        withFFIDataLayout (JIT.dataLayout session) $ \dl -> do
-                            cmpRes <- C.compile (context session) dl state ast'
-                            case cmpRes of
-                                Left err             -> return (Left err)
-                                Right (defs, state') -> return $ Right (defs, state', resolverState')
+    case parse source of
+        Left err  -> return (Left err)
+        Right ast -> do
+            res <- R.resolveAST resolverState ast
+            case res of
+                Left err -> return (Left err)
+                Right (ast', resolverState') -> do
+                    withFFIDataLayout (JIT.dataLayout session) $ \dl -> do
+                        cmpRes <- C.compile (context session) dl state ast'
+                        case cmpRes of
+                            Left err             -> return (Left err)
+                            Right (defs, state') -> return $ Right (defs, state', resolverState')
 
 
 --                        let astmod = defaultModule { moduleDefinitions = defs }

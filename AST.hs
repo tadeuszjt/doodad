@@ -33,7 +33,9 @@ data Param
         , paramName :: String
         , paramType :: Type
         }
-    deriving (Show, Eq)
+    deriving (Eq)
+instance Show Param where
+    show (Param pos name typ) = name ++ " " ++ show typ
 
 
 data Data
