@@ -101,10 +101,9 @@ addExpr expr = do
     return (S.Ident (TextPos 0 0 0) name)
 
 
-resolveAST :: (MonadFail m) => S.AST -> m (Either CmpError (S.AST, Map.Map Name S.Expr))
-resolveAST ast = do
-    res <- runResolverT initResolverState (mapM resStmt ast)
-    return $ fmap (\(f, s) -> (f, expressions s)) res
+resolveAST :: (MonadFail m) => ResolverState -> S.AST -> m (Either CmpError (S.AST, ResolverState))
+resolveAST state ast =
+    runResolverT state (mapM resStmt ast)
 
 
 resPattern :: MonadResolver m => S.Pattern -> m S.Pattern

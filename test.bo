@@ -22,4 +22,5 @@ fn getStrLn() {char} {
     return str;
 }
 
-putStrLn(getStrLn());
+let x = 2;
+print(x);

@@ -3,7 +3,7 @@ run: Main
 
 test: Main
 	rm test.bo.ll || true
-	./Main test.bo -v
+	./Main test.bo
 	clang-10 test.bo.ll
 	./a.out || true
 

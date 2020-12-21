@@ -36,7 +36,13 @@ import           Print
 import           Error
 
 
-compile :: Context -> Ptr FFI.DataLayout -> MyCmpState -> Map.Map String S.Expr -> S.AST -> IO (Either CmpError ([Definition], MyCmpState))
+compile
+    :: Context
+    -> Ptr FFI.DataLayout
+    -> MyCmpState
+    -> Map.Map String S.Expr
+    -> S.AST
+    -> IO (Either CmpError ([Definition], MyCmpState))
 compile context dataLayout state exprMap ast = do
     (res, _) <- runStateT (runModuleCmpT emptyModuleBuilder state cmp) (initCompileState context dataLayout exprMap)
     return $ fmap (\((_, defs), state') -> (defs, state')) res
