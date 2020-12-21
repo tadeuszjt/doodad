@@ -48,9 +48,8 @@ data CompileState
         { context     :: Context
         , dataLayout  :: Ptr FFI.DataLayout
         , curRetTyp   :: Type
-        , expressions :: Map.Map String S.Expr
         }
-initCompileState ctx dl exprs = CompileState ctx dl Void exprs
+initCompileState ctx dl = CompileState ctx dl Void 
 
 
 setCurRetTyp :: Type -> Instr ()

@@ -40,16 +40,15 @@ compile
     :: Context
     -> Ptr FFI.DataLayout
     -> MyCmpState
-    -> Map.Map String S.Expr
     -> S.AST
     -> IO (Either CmpError ([Definition], MyCmpState))
-compile context dataLayout state exprMap ast = do
-    (res, _) <- runStateT (runModuleCmpT emptyModuleBuilder state cmp) (initCompileState context dataLayout exprMap)
+compile context dataLayout state ast = do
+    (res, _) <- runStateT (runModuleCmpT emptyModuleBuilder state cmp) (initCompileState context dataLayout)
     return $ fmap (\((_, defs), state') -> (defs, state')) res
     where
         cmp :: Module ()
         cmp = void $ function "main" [] VoidType $ \_ -> do
-            getInstrCmp (mapM_ cmpTopStmt ast)
+            getInstrCmp (mapM_ cmpTopStmt (S.astStmts ast))
 
 
 cmpPattern :: Bool -> S.Pattern -> Value -> Instr Value

@@ -6,7 +6,9 @@ import           Error
 import qualified Lexer    as L
 
 
-type AST  = [Stmt]
+data AST =
+    AST { astStmts :: [Stmt] }
+    deriving (Show)
 
 
 data Op
@@ -100,12 +102,13 @@ data Stmt
     | Extern TextPos String [Param] (Maybe Type)
     | Typedef TextPos String Type
     | Datadef TextPos String [Data] 
+    | ModuleName TextPos String
     deriving (Show, Eq)
 
 
 prettyAST :: AST -> IO ()
 prettyAST ast =
-    mapM_ (prettyStmt "") ast
+    mapM_ (prettyStmt "") (astStmts ast)
     where
         prettyStmt :: String -> Stmt -> IO ()
         prettyStmt preppend stmt = case stmt of

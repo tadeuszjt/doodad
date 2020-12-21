@@ -37,34 +37,46 @@ import Error
 import qualified AST as S
 import qualified SymTab
 
+data Args = Args
+    { verbose   :: Bool
+    , optimise  :: Bool
+    , filenames :: [String]
+    }
+initArgs = Args
+    { verbose   = False
+    , optimise  = True
+    , filenames = []
+    }
+
 
 main :: IO ()
 main = do
-    args <- getArgs
-    let verbose = "-v" `elem` args
-    let optimise = not ("-n" `elem` args)
-    let hasFile  = length args > 0 && head (head args) /= '-'
-
-    if not hasFile then
-            withSession optimise $ \session ->
-                repl session verbose
-    else do
-        let filename = head args
-        withFile filename ReadMode $ \h ->
-            withSession optimise $ \session -> do
+    args <- fmap (parseArgs initArgs) getArgs
+    withSession (optimise args) $ \session ->
+        if (filenames args) == [] then
+            repl session (verbose args)
+        else do
+            let filename = head (filenames args)
+            withFile filename ReadMode $ \h -> do
                 content <- hGetContents h
-                putStrLn "compiling..."
-                res <- compile session C.initCmpState R.initResolverState content verbose
-                case res of
-                    Left err -> printError err content
-                    Right (defs, state, resolverState) -> do
-                        let astmod = defaultModule { moduleDefinitions = defs }
-                        M.withModuleFromAST (context session) astmod $ \mod -> do
-                            when optimise $ do
-                                passRes <- runPassManager (fromJust $ passManager session) mod
-                                when verbose $ putStrLn ("optimisation pass: " ++ if passRes then "success" else "fail")
-                            when verbose (BS.putStrLn =<< M.moduleLLVMAssembly mod)
-                            M.writeLLVMAssemblyToFile (M.File $ filename ++ ".ll") mod
+                putStrLn ("running \"" ++ filename ++ "\" ...")
+                runFile session content
+    where
+        parseArgs :: Args -> [String] -> Args
+        parseArgs args argStrs = case argStrs of
+            []     -> args
+            ["-n"] -> args { optimise  = False }
+            ["-v"] -> args { verbose   = True }
+            [str]  -> args { filenames = (filenames args) ++ [str] }
+            (a:as) -> parseArgs (parseArgs args [a]) as
+
+
+runFile :: Session -> String -> IO ()
+runFile session source = do
+    res <- compile session C.initCmpState R.initResolverState source False
+    case res of
+        Left err -> printError err source
+        Right (defs, cmpState', resolverState') -> jitAndRun defs session False False
 
 
 repl :: Session -> Bool -> IO ()
@@ -78,17 +90,16 @@ repl session verbose =
                 Just "q"   -> return ()
                 Just ""    -> loop state resolverState
                 Just input -> do
-                    liftIO (putStrLn "compiling...")
+                    when verbose $ liftIO (putStrLn "compiling...")
                     res <- liftIO (compile session state resolverState input verbose)
                     case res of
                         Left err             -> do
                             liftIO (printError err input)
-                            liftIO (C.prettySymTab state)
                             loop state resolverState
                         Right (defs, state', resolverState') -> do
                             let keepModule = not $ Set.null (C.exported state')
                             liftIO (jitAndRun defs session keepModule verbose)
-                            let stateReset = state' { C.exported = Set.empty , C.declared = Set.empty }
+                            let stateReset = state' { C.exported = Set.empty, C.declared = Set.empty }
                             loop stateReset resolverState'
 
 
@@ -101,17 +112,25 @@ compile
     -> IO (Either CmpError ([Definition], C.MyCmpState, R.ResolverState))
 compile session state resolverState source verbose =
     case L.alexScanner source of
-        Left  errStr -> return $ Left $ CmpError (TextPos 1 1 1, errStr)
+        Left  errStr -> return $ Left $ CmpError (TextPos 0 0 0, errStr)
         Right tokens -> case (P.parseTokens tokens) 0 of
-            P.ParseOk ast -> do
+            P.ParseFail pos -> return $ Left $ CmpError (pos, "parse error")
+            P.ParseOk ast   -> do
                 res <- R.resolveAST resolverState ast
                 case res of
-                    Left err -> printError err source >> return (Left err)
+                    Left err -> return (Left err)
                     Right (ast', resolverState') -> do
-                        let exprs = R.expressions resolverState'
                         withFFIDataLayout (JIT.dataLayout session) $ \dl -> do
-                            cmpRes <- C.compile (context session) dl state exprs ast'
+                            cmpRes <- C.compile (context session) dl state ast'
                             case cmpRes of
                                 Left err             -> return (Left err)
                                 Right (defs, state') -> return $ Right (defs, state', resolverState')
 
+
+--                        let astmod = defaultModule { moduleDefinitions = defs }
+--                        M.withModuleFromAST (context session) astmod $ \mod -> do
+--                            when optimise $ do
+--                                passRes <- runPassManager (fromJust $ passManager session) mod
+--                                when verbose $ putStrLn ("optimisation pass: " ++ if passRes then "success" else "fail")
+--                            when verbose (BS.putStrLn =<< M.moduleLLVMAssembly mod)
+--                            M.writeLLVMAssemblyToFile (M.File $ filename ++ ".ll") mod

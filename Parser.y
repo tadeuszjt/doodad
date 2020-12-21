@@ -52,6 +52,7 @@ import qualified Error    as C
     switch     { L.Token _ L.Reserved "switch" }
     true       { L.Token _ L.Reserved "true" }
     false      { L.Token _ L.Reserved "false" }
+    module     { L.Token _ L.Reserved "module" }
 
     print      { L.Token _ L.Reserved "print" }
     len        { L.Token _ L.Reserved "len" }
@@ -88,29 +89,29 @@ import qualified Error    as C
     %%
 
 
-Prog  : {- empty -}                         { [] }
-      | stmt Prog                           { $1 : $2 }
+Prog  : Prog_                                { (S.AST { S.astStmts = $1 }) }
+Prog_ : {- empty -}                          { [] }
+      | stmt Prog_                           { $1 : $2 }
 
 
-stmt  : stmtS ';'                           { $1 }
-      | stmtB                               { $1 }
-stmtS : let pattern '=' expr                { S.Assign (tokPosn $1) $2 $4 }  
-      | index '=' expr                      { S.Set (tokPosn $2) $1 $3 }
+stmt  : stmtS ';'                            { $1 }
+      | stmtB                                { $1 }
+stmtS : let pattern '=' expr                 { S.Assign (tokPosn $1) $2 $4 }  
+      | index '=' expr                       { S.Set (tokPosn $2) $1 $3 }
       | type ident '=' type_                 { S.Typedef (tokPosn $2) (L.tokStr $2) $4 }
-      | data ident '=' datas                { S.Datadef (tokPosn $2) (L.tokStr $2) $4 }
-      | extern ident '(' params ')' type_   { S.Extern (tokPosn $2) (L.tokStr $2) $4 (Just $6) }
-      | extern ident '(' params ')'         { S.Extern (tokPosn $2) (L.tokStr $2) $4 Nothing }
-      | ident '(' exprs ')'                 { S.CallStmt (tokPosn $1) (L.tokStr $1) $3 }
+      | data ident '=' datas                 { S.Datadef (tokPosn $2) (L.tokStr $2) $4 }
+      | extern ident '(' params ')' type_    { S.Extern (tokPosn $2) (L.tokStr $2) $4 (Just $6) }
+      | extern ident '(' params ')'          { S.Extern (tokPosn $2) (L.tokStr $2) $4 Nothing }
+      | ident '(' exprs ')'                  { S.CallStmt (tokPosn $1) (L.tokStr $1) $3 }
       | print '(' exprs ')'                  { S.Print (tokPosn $1) $3 }
-      | return                              { S.Return (tokPosn $1) Nothing }
-      | return expr                         { S.Return (tokPosn $1) (Just $2) }
-stmtB : block                               { $1 }
-      | If                                  { $1 }
-      | fn ident '(' params ')' block_      { S.Func (tokPosn $1) (L.tokStr $2) $4 Nothing $6 }
+      | return                               { S.Return (tokPosn $1) Nothing }
+      | return expr                          { S.Return (tokPosn $1) (Just $2) }
+stmtB : block                                { $1 }
+      | If                                   { $1 }
+      | fn ident '(' params ')' block_       { S.Func (tokPosn $1) (L.tokStr $2) $4 Nothing $6 }
       | fn ident '(' params ')' type_ block_ { S.Func (tokPosn $1) (L.tokStr $2) $4 (Just $6) $7 }
-      | switch expr '{' cases '}'           { S.Switch (tokPosn $1) $2 $4 }
-      | while expr block_                      { S.While (tokPosn $1) $2 $3 }
-
+      | switch expr '{' cases '}'            { S.Switch (tokPosn $1) $2 $4 }
+      | while expr block_                    { S.While (tokPosn $1) $2 $3 }
 
 
 expr   : lit                          { S.Cons $1 }
@@ -233,14 +234,14 @@ else_ : else block                   { $2 }
       | else If                      { $2 }
 
 
-block  : '{' Prog '}'               { S.Block (tokPosn $1) $2 }
-block_ : '{' Prog '}'               { $2 }
+block  : '{' Prog_ '}'               { S.Block (tokPosn $1) $2 }
+block_ : '{' Prog_ '}'               { $2 }
 
 
 {
 data ParseResult a
     = ParseOk a 
-    | ParseFail String
+    | ParseFail C.TextPos
     deriving (Show)
 
 
@@ -255,8 +256,11 @@ thenP m k = \l -> case m l of
 returnP :: a -> P a
 returnP a = \l -> ParseOk a
 
-happyError :: [L.Token] -> a
-happyError x = error $ show x
+
+happyError :: [L.Token] -> P a
+happyError []    = return $ ParseFail (C.TextPos 0 0 0)
+happyError (x:_) = return $ ParseFail (tokPosn x)
+
 
 tokPosn :: L.Token -> C.TextPos
 tokPosn tok = C.TextPos

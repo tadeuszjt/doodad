@@ -26,7 +26,6 @@ data ResolverState
     = ResolverState
         { nameSupply  :: Map.Map Name Int
         , symbolTable :: SymTab.SymTab Symbol Name
-        , expressions :: Map.Map Name S.Expr
         }
     deriving Show
 
@@ -35,7 +34,6 @@ initResolverState
     = ResolverState
         { nameSupply  = Map.empty
         , symbolTable = SymTab.initSymTab
-        , expressions = Map.empty
         }
 
 
@@ -94,16 +92,13 @@ popScope  =
     modify $ \s -> s { symbolTable = SymTab.pop (symbolTable s) }
 
 
-addExpr :: MonadResolver m => S.Expr -> m S.Expr
-addExpr expr = do
-    name <- fresh $ takeWhile (`elem` ['a'..'z']) $ map toLower (show expr)
-    modify $ \s -> s { expressions = Map.insert name expr (expressions s) }
-    return (S.Ident (TextPos 0 0 0) name)
-
-
 resolveAST :: (MonadFail m) => ResolverState -> S.AST -> m (Either CmpError (S.AST, ResolverState))
 resolveAST state ast =
-    runResolverT state (mapM resStmt ast)
+    runResolverT state f
+    where
+        f = do
+            stmts <- mapM resStmt (S.astStmts ast)
+            return (ast { S.astStmts = stmts })
 
 
 resPattern :: MonadResolver m => S.Pattern -> m S.Pattern
@@ -114,7 +109,6 @@ resPattern pattern = case pattern of
         checkSymUndef symbol
         name <- fresh symbol
         addSymDef symbol name
-        --modify $ \s -> s { expressions = Map.insert name (S.Ident pos name) (expressions s) }
         return (S.PatIdent pos name)
     _ -> fail (show pattern)
 
