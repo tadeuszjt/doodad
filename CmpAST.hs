@@ -29,7 +29,6 @@ import qualified AST                        as S
 import           Type
 import           CmpFuncs
 import           CmpMonad
-import           CmpADT
 import           Value
 import           Table
 import           Print
@@ -90,22 +89,6 @@ cmpPattern isGlobal pattern val = case pattern of
             Just (ObjType typ) -> do
                 checkTypesMatch (Typedef sym) (valType val)
                 cmpPattern isGlobal pattern val
-            Nothing -> do
-                res <- lookupSymKey sym KeyDataCons
-                case res of
-                    Just (ObjDataCons d t@(Tuple _ ts) e) -> do
-                        ensureTypeDeps d
-                        checkTypesMatch d (valType val)
-                        let val' = val { valType = t }
-                        en <- valTupleIdx 0 val'
-                        eq <- valsEqual en $ valInt (valType en) (fromIntegral e)
-                        if_ (valOp eq) (return ()) trap
-                        let ts' = tail ts
-                        tup <- valLocal (Tuple Nothing ts')
-                        forM_ (zip ts' [0..]) $ \(_, i) ->
-                            valTupleSet tup i =<< valTupleIdx (i+1) val'
-                        cmpPattern isGlobal pattern tup
-                        
 
 cmpTopStmt :: S.Stmt -> Instr ()
 cmpTopStmt stmt@(S.Set _ _ _)      = cmpStmt stmt
@@ -115,7 +98,6 @@ cmpTopStmt stmt@(S.Switch _ _ _)   = cmpStmt stmt
 cmpTopStmt stmt@(S.While _ _ _)    = cmpStmt stmt
 cmpTopStmt stmt@(S.Block _ _)      = cmpStmt stmt
 cmpTopStmt stmt@(S.Extern _ _ _ _) = cmpStmt stmt
-cmpTopStmt stmt@(S.Datadef _ _ _)  = cmpDataDef stmt
 
 cmpTopStmt (S.Typedef pos symbol typ) = do
     if isTuple typ then do
@@ -134,7 +116,7 @@ cmpTopStmt (S.Assign pos pattern expr) = do
     if_ matched (return ()) trap
 
 cmpTopStmt (S.Func pos symbol params mretty block) = withPos pos $ do
-    name <- freshName (mkBSS symbol)
+    name <- freshName $ mkBSS ("bo." ++ symbol)
     
     let paramTypes   = map S.paramType params
     let paramSymbols = map S.paramName params

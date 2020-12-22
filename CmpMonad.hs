@@ -79,7 +79,7 @@ data CmpState k o
 
 
 initCmpState = CmpState
-    { posStack = [TextPos 1 1 1]
+    { posStack = [TextPos 0 0 0]
     , symTab   = Map.empty
     , actions  = Map.empty
     , declared = Set.empty

@@ -1,28 +1,2 @@
-module io
-
-extern getwchar() char;
-extern putwchar(c char);
-
-fn putStrLn(str {char}) {
-    let i = 0;
-    while i < len(str) {
-        putwchar(str[i]);
-        i = i + 1;
-    }
-    putwchar('\n');
-}
-
-fn getStrLn() {char} {
-    let str = {char}();
-    let loop = true;
-    while loop {
-        switch getwchar() {
-            '\n': loop = false;
-            c   : str = append(str, c);
-        }
-    }
-    return str;
-}
-
 let x = 2;
 print(x);

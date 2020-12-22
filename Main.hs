@@ -41,31 +41,25 @@ main :: IO ()
 main = do
     args <- fmap (parseArgs initArgs) getArgs
     if (modulesOnly args) then do
-        sources <- forM (filenames args) $ \filename ->
-            withFile filename ReadMode $ \h -> do
-                source <- hGetContents h
-                putStrLn source
-                return source
+        sources <- mapM readFile (filenames args) 
         res <- M.runModulesT M.initModulesState (M.runFiles sources)
         case res of
             Left err -> printError err ""
             Right (_, modState) -> M.prettyModules modState
-
     else do
         withSession (optimise args) $ \session ->
             if (filenames args) == [] then
                 repl session (verbose args)
             else do
                 forM_ (filenames args) $ \filename -> do
-                    withFile filename ReadMode $ \h -> do
-                        source <- hGetContents h
-                        if astOnly args then
-                            case parse source of
-                                Left err  -> printError err source
-                                Right ast -> S.prettyAST ast
-                        else do
-                            putStrLn ("running \"" ++ filename ++ "\" ...")
-                            runFile session source
+                    source <- readFile filename
+                    if astOnly args then
+                        case parse source of
+                            Left err  -> printError err source
+                            Right ast -> S.prettyAST ast
+                    else do
+                        putStrLn ("running \"" ++ filename ++ "\" ...")
+                        runFile session source (verbose args)
     where
         parseArgs :: Args -> [String] -> Args
         parseArgs args argStrs = case argStrs of
@@ -87,12 +81,12 @@ parse source =
             P.ParseOk ast   -> Right ast 
 
 
-runFile :: Session -> String -> IO ()
-runFile session source = do
+runFile :: Session -> String -> Bool -> IO ()
+runFile session source verbose = do
     res <- compile session C.initCmpState R.initResolverState source False
     case res of
         Left err -> printError err source
-        Right (defs, cmpState', resolverState') -> jitAndRun defs session False False
+        Right (defs, cmpState', resolverState') -> jitAndRun defs session False verbose
 
 
 repl :: Session -> Bool -> IO ()

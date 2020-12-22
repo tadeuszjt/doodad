@@ -77,8 +77,6 @@ data SymObj
     | ObjFunc Type Operand
     | ObjInline ([Value] -> Instr Value)
     | ObjType Type
-    | ObjDataCons { dataTyp :: Type, dataConsTyp :: Type, dataEnum :: Word }
-    | ObjData     { dataConcTyp :: Type, dataPrintFn :: (Value -> Instr ()) }
     deriving (Show)
 
 
@@ -119,7 +117,6 @@ opTypeOf (Typedef sym) = do
     res <- look sym KeyType
     case res of
         ObjType t   -> opTypeOf t
-        ObjData t _ -> opTypeOf t
 opTypeOf typ = case typ of
     Void        -> return VoidType
     I8          -> return i8
@@ -174,7 +171,6 @@ realTypeOf typ = case typ of
         res <- look sym KeyType
         case res of
             ObjType t   -> realTypeOf t
-            ObjData t _ -> realTypeOf t
     t             -> return t
 
 
@@ -183,7 +179,6 @@ concreteTypeOf (Typedef sym) = do
     res <- look sym KeyType
     case res of
         ObjType t   -> concreteTypeOf t
-        ObjData _ _ -> return (dataConcTyp res)
 concreteTypeOf typ = case typ of
     Table nm ts   -> fmap (Table Nothing) (mapM concreteTypeOf ts)
     Tuple nm ts   -> fmap (Tuple Nothing) (mapM concreteTypeOf ts)
@@ -232,7 +227,6 @@ ensureTypeDeps typ = case typ of
         res <- look sym KeyType
         case res of
             ObjType t   -> ensureTypeDeps t
-            ObjData t _ -> ensureTypeDeps t
     _ -> return ()
 
 

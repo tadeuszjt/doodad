@@ -42,7 +42,6 @@ valPrint append val = case valType val of
     Typedef sym -> do
         obj <- look sym KeyType
         case obj of
-            ObjData t f -> f val >> void (printf append [])
             ObjType typ -> do
                 void $ printf sym []
                 t <- realTypeOf typ
