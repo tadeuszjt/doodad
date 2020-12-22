@@ -1,41 +1,24 @@
-{-# LANGUAGE ForeignFunctionInterface #-}
-
 module Main where
 
-import           Control.Monad
-import           Control.Monad.IO.Class
 import           Control.Monad.State
 import           System.Console.Haskeline
 import           System.Environment
 import           System.IO
-import qualified Data.ByteString.Char8    as BS
 import qualified Data.Set                 as Set
-import qualified Data.Map                 as Map
-import           Data.Maybe
 
 import           LLVM.AST
-import           LLVM.AST.DataLayout
-import           LLVM.Context
-import           LLVM.PassManager
-import           Foreign.Ptr
 import           LLVM.Internal.DataLayout
-import qualified LLVM.Internal.FFI.DataLayout as FFI
-import qualified LLVM.CodeGenOpt          as CodeGenOpt
-import qualified LLVM.CodeModel           as CodeModel
-import qualified LLVM.Relocation          as Reloc
-import           LLVM.Target
 
 import qualified CmpAST                   as C
-import qualified Value                 as C
+import qualified Value                    as C
 import qualified CmpMonad                 as C
 import qualified Lexer                    as L
 import qualified Parser                   as P
 import qualified Resolver                 as R
 import           JIT
 import           Error
-import qualified AST as S
-import qualified SymTab
-import qualified Modules as M
+import qualified AST                      as S
+import qualified Modules                  as M
 
 
 data Args = Args
@@ -63,7 +46,11 @@ main = do
                 source <- hGetContents h
                 putStrLn source
                 return source
-        void $ M.runModulesT M.initModulesState (M.runFiles sources)
+        res <- M.runModulesT M.initModulesState (M.runFiles sources)
+        case res of
+            Left err -> printError err ""
+            Right (_, modState) -> M.prettyModules modState
+
     else do
         withSession (optimise args) $ \session ->
             if (filenames args) == [] then

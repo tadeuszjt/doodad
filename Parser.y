@@ -89,7 +89,8 @@ import qualified Error    as C
     %%
 
 
-Prog  : Prog_                                { (S.AST { S.astStmts = $1 }) }
+Prog  : Prog_                                { S.AST { S.astModuleName = Nothing, S.astStmts = $1 } }
+      | module ident Prog_                   { S.AST { S.astModuleName = Just (L.tokStr $2), S.astStmts = $3 } }
 Prog_ : {- empty -}                          { [] }
       | stmt Prog_                           { $1 : $2 }
 

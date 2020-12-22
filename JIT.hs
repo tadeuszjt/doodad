@@ -69,8 +69,6 @@ withSession optimise f = do
                                 loadLibraryPermanently Nothing
                                 dl <- getTargetMachineDataLayout tm 
                                 f $ Session ctx es cl (if optimise then Just pm else Nothing) dl
-
-
     where
         myResolver :: IRCompileLayer ObjectLinkingLayer -> SymbolResolver
         myResolver cl = SymbolResolver $ \mangled -> do
