@@ -52,7 +52,7 @@ class (MonadState ResolverState m, MonadFail m) => MonadResolver m
 instance (MonadFail m) => MonadResolver (ResolverT m)
 
 instance (Monad m, MonadFail m) => MonadFail (ResolverT m) where
-    fail s = throwError $ CmpError (TextPos 0 0 0, s)
+    fail s = throwError $ CmpError (Nothing, s)
 
 
 fresh :: MonadResolver m => Symbol -> m Name

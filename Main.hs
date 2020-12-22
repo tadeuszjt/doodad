@@ -16,7 +16,6 @@ import           Data.Maybe
 import           LLVM.AST
 import           LLVM.AST.DataLayout
 import           LLVM.Context
-import qualified LLVM.Module              as M
 import           LLVM.PassManager
 import           Foreign.Ptr
 import           LLVM.Internal.DataLayout
@@ -33,58 +32,71 @@ import qualified Lexer                    as L
 import qualified Parser                   as P
 import qualified Resolver                 as R
 import           JIT
-import Error
+import           Error
 import qualified AST as S
 import qualified SymTab
+import qualified Modules as M
+
 
 data Args = Args
-    { verbose   :: Bool
-    , optimise  :: Bool
-    , astOnly   :: Bool
-    , filenames :: [String]
+    { verbose     :: Bool
+    , optimise    :: Bool
+    , astOnly     :: Bool
+    , modulesOnly :: Bool
+    , filenames   :: [String]
     }
 initArgs = Args
-    { verbose   = False
-    , optimise  = True
-    , astOnly   = False
-    , filenames = []
+    { verbose     = False
+    , optimise    = True
+    , astOnly     = False
+    , modulesOnly = False
+    , filenames   = []
     }
 
 
 main :: IO ()
 main = do
     args <- fmap (parseArgs initArgs) getArgs
-    withSession (optimise args) $ \session ->
-        if (filenames args) == [] then
-            repl session (verbose args)
-        else do
-            let filename = head (filenames args)
+    if (modulesOnly args) then do
+        sources <- forM (filenames args) $ \filename ->
             withFile filename ReadMode $ \h -> do
                 source <- hGetContents h
-                if (astOnly args) then
-                    case parse source of
-                        Left err  -> printError err source
-                        Right ast -> S.prettyAST ast
-                else do
-                    putStrLn ("running \"" ++ filename ++ "\" ...")
-                    runFile session source
+                putStrLn source
+                return source
+        void $ M.runModulesT M.initModulesState (M.runFiles sources)
+    else do
+        withSession (optimise args) $ \session ->
+            if (filenames args) == [] then
+                repl session (verbose args)
+            else do
+                forM_ (filenames args) $ \filename -> do
+                    withFile filename ReadMode $ \h -> do
+                        source <- hGetContents h
+                        if astOnly args then
+                            case parse source of
+                                Left err  -> printError err source
+                                Right ast -> S.prettyAST ast
+                        else do
+                            putStrLn ("running \"" ++ filename ++ "\" ...")
+                            runFile session source
     where
         parseArgs :: Args -> [String] -> Args
         parseArgs args argStrs = case argStrs of
             []     -> args
-            ["-n"] -> args { optimise  = False }
-            ["-v"] -> args { verbose   = True }
-            ["-a"] -> args { astOnly   = True }
-            [str]  -> args { filenames = (filenames args) ++ [str] }
+            ["-n"] -> args { optimise    = False }
+            ["-v"] -> args { verbose     = True }
+            ["-a"] -> args { astOnly     = True }
+            ["-m"] -> args { modulesOnly = True }
+            [str]  -> args { filenames   = (filenames args) ++ [str] }
             (a:as) -> parseArgs (parseArgs args [a]) as
 
 
 parse :: String -> Either CmpError S.AST
 parse source =
     case L.alexScanner source of
-        Left  errStr -> Left $ CmpError (TextPos 0 0 0, errStr)
+        Left  errStr -> Left $ CmpError (Nothing, errStr)
         Right tokens -> case (P.parseTokens tokens) 0 of
-            P.ParseFail pos -> Left $ CmpError (pos, "parse error")
+            P.ParseFail pos -> Left $ CmpError (Just pos, "parse error")
             P.ParseOk ast   -> Right ast 
 
 

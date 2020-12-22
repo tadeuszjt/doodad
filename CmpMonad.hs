@@ -111,7 +111,7 @@ runModuleCmp moduleBuilderState cmpState moduleCmpT =
 cmpErr:: MonadModuleCmp k o m => String -> m a
 cmpErr str = do
     pos <- fmap head (gets posStack)
-    throwError $ CmpError (pos, str)
+    throwError $ CmpError (Just pos, str)
 
 
 assert :: MonadModuleCmp k o m => Bool -> String -> m ()

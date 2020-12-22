@@ -1,6 +1,7 @@
 module Error where
 
 import Control.Monad
+import Data.Maybe
 
 
 data TextPos
@@ -13,14 +14,15 @@ instance Show TextPos where
 
 
 newtype CmpError
-    = CmpError { getCmpError :: (TextPos, String) }
+    = CmpError { getCmpError :: (Maybe TextPos, String) }
     deriving (Show)
 
 
 printError :: CmpError -> String -> IO ()
-printError (CmpError (TextPos p l c, str)) source = do
-    putStrLn ("error " ++ show l ++ ":" ++ show c ++ " " ++ str ++ ":")
+printError (CmpError (Nothing, str)) source = putStrLn ("error: " ++ str)
+printError (CmpError (Just pos@(TextPos p l c), str)) source = do
+    putStrLn ("error " ++ show pos ++ " " ++ str ++ ":")
     let sourceLines = lines source
-    unless (length sourceLines <= 1) $ putStrLn (sourceLines !! (l-2))
-    unless (length sourceLines <= 0) $ putStrLn (sourceLines !! (l-1))
+    unless (l < 2) $ putStrLn (sourceLines !! (l-2))
+    unless (l < 1) $ putStrLn (sourceLines !! (l-1))
     putStrLn (replicate (c-1) '-' ++ "^")
