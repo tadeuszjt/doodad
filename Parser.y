@@ -43,7 +43,6 @@ import qualified Error    as C
     fn         { L.Token _ L.Reserved "fn" }
     extern     { L.Token _ L.Reserved "extern" }
     type       { L.Token _ L.Reserved "type" }
-    data       { L.Token _ L.Reserved "data" }
     if         { L.Token _ L.Reserved "if" }
     else       { L.Token _ L.Reserved "else" }
     let        { L.Token _ L.Reserved "let" }
@@ -100,7 +99,6 @@ stmt  : stmtS ';'                            { $1 }
 stmtS : let pattern '=' expr                 { S.Assign (tokPosn $1) $2 $4 }  
       | index '=' expr                       { S.Set (tokPosn $2) $1 $3 }
       | type ident '=' type_                 { S.Typedef (tokPosn $2) (L.tokStr $2) $4 }
-      | data ident '=' datas                 { S.Datadef (tokPosn $2) (L.tokStr $2) $4 }
       | extern ident '(' params ')' type_    { S.Extern (tokPosn $2) (L.tokStr $2) $4 (Just $6) }
       | extern ident '(' params ')'          { S.Extern (tokPosn $2) (L.tokStr $2) $4 Nothing }
       | ident '(' exprs ')'                  { S.CallStmt (tokPosn $1) (L.tokStr $1) $3 }
@@ -189,13 +187,6 @@ rowTypes_     : type_                { [$1] }
 table     : '{' tableRows '}'       { S.Table (tokPosn $1) $2 } 
 tableRows : exprs                   { [$1] }
           | exprs ';' tableRows     { $1 : $3 }
-
-
-data_  : ident                      { S.DataIdent (tokPosn $1) (L.tokStr $1) }
-       | ident '(' ')'              { S.DataIdent (tokPosn $1) (L.tokStr $1) }
-       | ident '(' params_ ')'      { S.DataFunc (tokPosn $1) (L.tokStr $1) $3 }
-datas  : data_                       { [$1] }
-       | data_ ',' datas             { $1 : $3 }
 
 
 pattern   : pattern_                { $1 }

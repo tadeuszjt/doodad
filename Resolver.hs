@@ -2,6 +2,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 
 module Resolver where
+-- Walks an AST and resolves all symbols into unique names depending on scope.
 
 import Prelude hiding (fail)
 import Control.Monad.State hiding (fail)
@@ -160,7 +161,7 @@ resStmt stmt = case stmt of
         resCnd <- resExpr cnd
         pushScope
         resStmts <- mapM resStmt stmts
-        pushScope
+        popScope
         return (S.While pos resCnd resStmts)
     S.Switch pos cnd cases -> do
         resCnd <- resExpr cnd
@@ -187,6 +188,7 @@ resStmt stmt = case stmt of
         params' <- mapM resParam params
         mretty' <- maybe (return Nothing) (fmap Just . resType) mretty
         stmts'  <- mapM resStmt stmts
+        popScope
         return (S.Func pos name params' mretty' stmts')
     _ -> fail (show stmt)
 
