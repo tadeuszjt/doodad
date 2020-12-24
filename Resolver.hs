@@ -190,7 +190,7 @@ resStmt stmt = case stmt of
         stmts'  <- mapM resStmt stmts
         popScope
         return (S.Func pos name params' mretty' stmts')
-    _ -> fail (show stmt)
+    _ -> fail ("resolver case: " ++ show stmt)
 
 
 resExpr :: MonadResolver m => S.Expr -> m S.Expr

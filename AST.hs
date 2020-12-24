@@ -32,16 +32,14 @@ data Op
 
 
 data Param
-    = Param { paramPos  :: TextPos , paramName :: String , paramType :: Type }
+    = Param
+        { paramPos  :: TextPos
+        , paramName :: String
+        , paramType :: Type
+        }
     deriving (Eq)
 instance Show Param where
     show (Param pos name typ) = name ++ " " ++ show typ
-
-
-data Data
-    = DataIdent { dataPos :: TextPos, dataSymbol :: String }
-    | DataFunc  { dataPos :: TextPos, dataSymbol :: String, dataParams :: [Param] }
-    deriving (Show, Eq)
 
 
 data Pattern
@@ -101,8 +99,6 @@ data Stmt
     | Func TextPos String [Param] (Maybe Type) [Stmt]
     | Extern TextPos String [Param] (Maybe Type)
     | Typedef TextPos String Type
-    | Datadef TextPos String [Data] 
-    | ModuleName TextPos String
     deriving (Show, Eq)
 
 

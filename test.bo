@@ -1,2 +1,8 @@
-let x = 2;
+type x = t;
+type t = bool;
+
+
+let x = 3;
 print(x);
+
+type a = x;

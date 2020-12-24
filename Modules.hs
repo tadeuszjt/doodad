@@ -15,6 +15,7 @@ import qualified AST as S
 import qualified Lexer as L
 import qualified Parser as P
 import qualified Resolver as R
+import qualified Flatten as F
 import           CmpMonad
 import           Value hiding (Module)
 import           LLVM.AST hiding (Module, Name)
@@ -29,6 +30,9 @@ data Module
     | ModuleResolved
         { modAST :: S.AST
         , symMap :: Map.Map R.Symbol R.Name
+        }
+    | ModuleFlat
+        { flatAST :: F.FlattenState
         }
 
 initModule
@@ -91,10 +95,24 @@ modResolveSymbols modName = do
 
     res <- R.resolveAST R.initResolverState combinedAST
     case res of
-        Left err                    -> fail "error"
+        Left err                    -> fail (show err)
         Right (ast', resolverState) -> modModify modName $ \_ -> do
             return $ ModuleResolved ast' (head $ R.symbolTable resolverState)
             
+    return ()
+
+
+modFlattenAST :: MonadModules m => ModuleName -> m ()
+modFlattenAST modName = do
+    ModuleAST asts <- fmap (Map.! modName) (gets modMap)
+    let combinedAST = S.AST {
+        S.astModuleName = Nothing,
+        S.astStmts      = concat (map S.astStmts asts)
+        }
+    res <- F.flattenAST combinedAST
+    case res of
+        Left err    -> fail (show err)
+        Right state -> modModify modName $ \_ -> return $ ModuleFlat state
     return ()
 
 
@@ -107,6 +125,7 @@ parse source =
             P.ParseOk ast   -> Right ast 
 
 
+
 runFiles :: MonadModules m => [String] -> m ()
 runFiles fs = do
     forM_ fs $ \f ->
@@ -115,17 +134,25 @@ runFiles fs = do
             Right ast -> modAddAST ast
 
     modMap <- gets modMap
-    forM_ (Map.keys modMap) $ \modName -> modResolveSymbols modName
+    --forM_ (Map.keys modMap) $ \modName -> modResolveSymbols modName
+    mapM_ modFlattenAST (Map.keys modMap)
+
+    return ()
 
 
 prettyModules :: ModulesState -> IO ()
 prettyModules modules = do
-    forM_ (Map.toList $ modMap modules) $ \(modName, mod) -> case mod of
-        ModuleAST asts -> do
-            putStrLn "ModuleAST"
-            mapM_ S.prettyAST asts
-        ModuleResolved ast symbols -> do
-            putStrLn ("ModuleResolved: " ++ modName)
-            mapM_ (putStrLn . show) (Map.toList symbols)
-            S.prettyAST ast
+    forM_ (Map.toList $ modMap modules) $ \(modName, mod) -> do
+        case mod of
+            ModuleAST asts -> do
+                putStrLn "ModuleAST"
+                mapM_ S.prettyAST asts
+            ModuleResolved ast symbols -> do
+                putStrLn ("ModuleResolved: " ++ modName)
+                mapM_ (putStrLn . show) (Map.toList symbols)
+                S.prettyAST ast
+            ModuleFlat flatState -> do
+                putStrLn ("ModuleFlat: " ++ modName)
+                F.prettyFlatAST flatState
+        putStrLn ""
 
