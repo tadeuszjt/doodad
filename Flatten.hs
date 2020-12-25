@@ -27,8 +27,6 @@ data FlattenState
         , funcDefs  :: [S.Stmt]
         , externs   :: [S.Stmt]
         }
-    deriving Show
-
 
 initFlattenState
     = FlattenState

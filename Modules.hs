@@ -9,6 +9,7 @@ import Control.Monad.State hiding (fail)
 import Control.Monad.Except hiding (void, fail)
 
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 import           Error
 import qualified SymTab
 import qualified AST as S
@@ -25,21 +26,17 @@ type ModuleName = String
 
 data Module
     = ModuleAST
-        { modASTs :: [S.AST]
-        }
-    | ModuleResolved
-        { modAST :: S.AST
-        , symMap :: Map.Map R.Symbol R.Name
+        { modASTs    :: [S.AST]
         }
     | ModuleFlat
         { flatAST :: F.FlattenState
+        , imports :: Set.Set String
         }
 
 initModule
     = ModuleAST
-        { modASTs = []
+        { modASTs    = []
         }
-
 
 data ModulesState
     = ModulesState
@@ -79,40 +76,32 @@ modModify modName f = do
 
 modAddAST :: MonadModules m => S.AST -> m ()
 modAddAST ast = do
-    let moduleName = maybe "main" id (S.astModuleName ast)
-    modModify moduleName $ \res -> case res of
-        Nothing  -> return $ initModule { modASTs = [ast] }
-        Just mod -> return $ mod { modASTs = (modASTs mod) ++ [ast] }
-
-
-modResolveSymbols :: MonadModules m => ModuleName -> m ()
-modResolveSymbols modName = do
-    ModuleAST asts <- fmap (Map.! modName) (gets modMap)
-    let combinedAST = S.AST {
-        S.astModuleName = Nothing,
-        S.astStmts      = concat (map S.astStmts asts)
-        }
-
-    res <- R.resolveAST R.initResolverState combinedAST
-    case res of
-        Left err                    -> fail (show err)
-        Right (ast', resolverState) -> modModify modName $ \_ -> do
-            return $ ModuleResolved ast' (head $ R.symbolTable resolverState)
-            
-    return ()
+    let name    = maybe "main" id (S.astModuleName ast)
+    modModify name $ \res -> case res of
+        Nothing  -> return $ initModule {
+            modASTs    = [ast]
+            }
+        Just mod -> return $ mod {
+            modASTs    = (modASTs mod) ++ [ast]
+            }
 
 
 modFlattenAST :: MonadModules m => ModuleName -> m ()
 modFlattenAST modName = do
     ModuleAST asts <- fmap (Map.! modName) (gets modMap)
     let combinedAST = S.AST {
+        S.astImports    = foldr Set.union Set.empty (map S.astImports asts),
         S.astModuleName = Nothing,
         S.astStmts      = concat (map S.astStmts asts)
         }
     res <- F.flattenAST combinedAST
     case res of
         Left err    -> fail (show err)
-        Right state -> modModify modName $ \_ -> return $ ModuleFlat state
+        Right state -> modModify modName $ \_ -> return $
+            ModuleFlat
+                { flatAST = state
+                , imports = S.astImports combinedAST
+                }
     return ()
 
 
@@ -147,12 +136,10 @@ prettyModules modules = do
             ModuleAST asts -> do
                 putStrLn "ModuleAST"
                 mapM_ S.prettyAST asts
-            ModuleResolved ast symbols -> do
-                putStrLn ("ModuleResolved: " ++ modName)
-                mapM_ (putStrLn . show) (Map.toList symbols)
-                S.prettyAST ast
-            ModuleFlat flatState -> do
+            ModuleFlat flatState imports -> do
                 putStrLn ("ModuleFlat: " ++ modName)
+                putStrLn ("Imports:")
+                mapM_ (putStrLn . show) (Set.toList imports)
                 F.prettyFlatAST flatState
         putStrLn ""
 

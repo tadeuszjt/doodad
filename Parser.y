@@ -5,6 +5,7 @@ import qualified Lexer    as L
 import qualified AST      as S
 import qualified CmpMonad as C
 import qualified Error    as C
+import qualified Data.Set as Set
 }
 
 %name      parseTokens 
@@ -52,6 +53,7 @@ import qualified Error    as C
     true       { L.Token _ L.Reserved "true" }
     false      { L.Token _ L.Reserved "false" }
     module     { L.Token _ L.Reserved "module" }
+    imports    { L.Token _ L.Reserved "imports" }
 
     print      { L.Token _ L.Reserved "print" }
     len        { L.Token _ L.Reserved "len" }
@@ -88,10 +90,15 @@ import qualified Error    as C
     %%
 
 
-Prog  : Prog_                                { S.AST { S.astModuleName = Nothing, S.astStmts = $1 } }
-      | module ident Prog_                   { S.AST { S.astModuleName = Just (L.tokStr $2), S.astStmts = $3 } }
+Prog  : Prog_                                { S.AST { S.astModuleName = Nothing, S.astStmts = $1, S.astImports = Set.empty} }
+      | module ident Imports Prog_           { S.AST { S.astModuleName = Just (L.tokStr $2), S.astStmts = $4, S.astImports = Set.fromList $3 } }
 Prog_ : {- empty -}                          { [] }
       | stmt Prog_                           { $1 : $2 }
+
+Imports  : {- empty -}                       { [] }
+         | Imports_                          { $1 }
+Imports_ : imports strlit                    { [(L.tokStr $2)] }
+         | imports strlit Imports_           { (L.tokStr $2) : $3 }
 
 
 stmt  : stmtS ';'                            { $1 }

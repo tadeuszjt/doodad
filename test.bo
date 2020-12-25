@@ -1,3 +1,6 @@
+module main
+imports "io"
+
 type x = t;
 type t = bool;
 

@@ -6,10 +6,12 @@ import           Control.Monad
 import           Type
 import           Error
 import qualified Lexer    as L
+import qualified Data.Set as Set
 
 
 data AST =
     AST { astModuleName :: Maybe String
+        , astImports    :: Set.Set String
         , astStmts      :: [Stmt]
         }
     deriving (Show)
@@ -171,6 +173,7 @@ instance Show Expr where
 prettyAST :: AST -> IO ()
 prettyAST ast = do
     putStrLn $ "Module: " ++ maybe "None" show (astModuleName ast)
+    putStrLn $ "Imports: " ++ show (astImports ast)
     forM_ (astStmts ast) $ \stmt -> prettyStmt "" stmt >> putStrLn ""
     where
         prettyStmt :: String -> Stmt -> IO ()
