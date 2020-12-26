@@ -33,6 +33,9 @@ data Module
         { flatAST :: F.FlattenState
         , imports :: Set.Set String
         }
+    | ModuleCompiled
+        { 
+        }
 
 initModule
     = ModuleAST
@@ -48,7 +51,6 @@ initModulesState
     = ModulesState
         { modMap = Map.empty
         }
-
 
 
 modModify :: BoM ModulesState m => ModuleName -> (Maybe Module -> m Module) -> m ()
@@ -86,9 +88,23 @@ modFlattenAST modName = do
                 { flatAST = state
                 , imports = S.astImports combinedAST
                 }
-    return ()
 
 
+modCompile :: BoM ModulesState m => ModuleName -> m ()
+modCompile modName = 
+    modCompileDep modName Set.empty
+    where
+        modCompileDep :: BoM ModulesState m => ModuleName -> Set.Set ModuleName -> m ()
+        modCompileDep depName modsVisited = do
+            when (Set.member depName modsVisited) $ 
+                fail ("circular dependency involving " ++ depName)
+            modModify depName $ \res -> case res of
+                Nothing                     -> fail (depName ++ " doesn't exist")
+                Just (ModuleFlat _ imports) -> do
+                    forM_ imports $ \imp -> modCompileDep imp (Set.insert depName modsVisited)
+                    return ModuleCompiled
+                
+    
 parse :: String -> Either CmpError S.AST
 parse source =
     case L.alexScanner source of
@@ -96,7 +112,6 @@ parse source =
         Right tokens -> case (P.parseTokens tokens) 0 of
             P.ParseFail pos -> Left $ CmpError (Just pos, "parse error")
             P.ParseOk ast   -> Right ast 
-
 
 
 runFiles :: BoM ModulesState m => [String] -> m ()
@@ -109,8 +124,7 @@ runFiles fs = do
     modMap <- gets modMap
     --forM_ (Map.keys modMap) $ \modName -> modResolveSymbols modName
     mapM_ modFlattenAST (Map.keys modMap)
-
-    return ()
+    modCompile "main"
 
 
 prettyModules :: ModulesState -> IO ()
@@ -125,5 +139,7 @@ prettyModules modules = do
                 putStrLn ("Imports:")
                 mapM_ (putStrLn . show) (Set.toList imports)
                 F.prettyFlatAST flatState
+            ModuleCompiled -> do
+                putStrLn ("ModuleCompiled " ++ modName)
         putStrLn ""
 

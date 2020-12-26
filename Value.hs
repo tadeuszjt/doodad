@@ -66,7 +66,6 @@ data SymKey
     = KeyVal
     | KeyFunc [Type]
     | KeyType
-    | KeyDataCons
     deriving (Show, Eq, Ord)
 
 
