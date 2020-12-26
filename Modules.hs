@@ -20,6 +20,7 @@ import qualified Flatten as F
 import           CmpMonad
 import           Value hiding (Module)
 import           LLVM.AST hiding (Module, Name)
+import Monad
 
 type ModuleName = String
 
@@ -35,46 +36,29 @@ data Module
 
 initModule
     = ModuleAST
-        { modASTs    = []
+        { modASTs = []
         }
 
 data ModulesState
     = ModulesState
-        { modMap      :: Map.Map ModuleName Module         -- Map of all modules
+        { modMap :: Map.Map ModuleName Module         -- Map of all modules
         }
 
 initModulesState
     = ModulesState
-        { modMap     = Map.empty
+        { modMap = Map.empty
         }
 
 
-newtype ModulesT m a
-    = ModulesT { getModules :: StateT ModulesState (ExceptT CmpError m) a }
-    deriving (Functor, Applicative, Monad, MonadIO, MonadState ModulesState, MonadError CmpError)
 
-class (MonadState ModulesState m, MonadFail m, MonadIO m) => MonadModules m
-
-instance (MonadFail m, MonadIO m) => MonadModules (ModulesT m)
-
-instance (Monad m, MonadFail m) => MonadFail (ModulesT m) where
-    fail s = throwError $ CmpError (Nothing, s)
-
-
-runModulesT :: Monad m => ModulesState -> ModulesT m a -> m (Either CmpError (a, ModulesState))
-runModulesT moddulesState modulesT  =
-    runExceptT $ runStateT (getModules modulesT) moddulesState
-
-
-
-modModify :: MonadModules m => ModuleName -> (Maybe Module -> m Module) -> m ()
+modModify :: BoM ModulesState m => ModuleName -> (Maybe Module -> m Module) -> m ()
 modModify modName f = do
     res <- fmap (Map.lookup modName) (gets modMap)
     mod' <- f res
     modify $ \s -> s { modMap = Map.insert modName mod' (modMap s) }
 
 
-modAddAST :: MonadModules m => S.AST -> m ()
+modAddAST :: BoM ModulesState m => S.AST -> m ()
 modAddAST ast = do
     let name    = maybe "main" id (S.astModuleName ast)
     modModify name $ \res -> case res of
@@ -86,7 +70,7 @@ modAddAST ast = do
             }
 
 
-modFlattenAST :: MonadModules m => ModuleName -> m ()
+modFlattenAST :: BoM ModulesState m => ModuleName -> m ()
 modFlattenAST modName = do
     ModuleAST asts <- fmap (Map.! modName) (gets modMap)
     let combinedAST = S.AST {
@@ -115,7 +99,7 @@ parse source =
 
 
 
-runFiles :: MonadModules m => [String] -> m ()
+runFiles :: BoM ModulesState m => [String] -> m ()
 runFiles fs = do
     forM_ fs $ \f ->
         case parse f of

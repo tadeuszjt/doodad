@@ -19,6 +19,7 @@ import           JIT
 import           Error
 import qualified AST                      as S
 import qualified Modules                  as M
+import Monad
 
 
 data Args = Args
@@ -42,7 +43,7 @@ main = do
     args <- fmap (parseArgs initArgs) getArgs
     if (modulesOnly args) then do
         sources <- mapM readFile (filenames args) 
-        res <- M.runModulesT M.initModulesState (M.runFiles sources)
+        res <- runBoMT M.initModulesState (M.runFiles sources)
         case res of
             Left err -> printError err ""
             Right (_, modState) -> M.prettyModules modState

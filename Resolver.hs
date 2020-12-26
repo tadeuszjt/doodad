@@ -17,6 +17,7 @@ import qualified AST as S
 import qualified SymTab
 import qualified Type as T
 import Error
+import Monad
 
 
 type Symbol = String
@@ -38,25 +39,7 @@ initResolverState
         }
 
 
-newtype ResolverT m a
-    = ResolverT { getResolver :: StateT ResolverState (ExceptT CmpError m) a }
-    deriving (Functor, Applicative, Monad, MonadState ResolverState, MonadError CmpError)
-
-
-runResolverT :: Monad m => ResolverState -> ResolverT m a -> m (Either CmpError (a, ResolverState))
-runResolverT resolverState resolverT =
-    runExceptT $ runStateT (getResolver resolverT) resolverState
-
-
-class (MonadState ResolverState m, MonadFail m) => MonadResolver m
-
-instance (MonadFail m) => MonadResolver (ResolverT m)
-
-instance (Monad m, MonadFail m) => MonadFail (ResolverT m) where
-    fail s = throwError $ CmpError (Nothing, s)
-
-
-fresh :: MonadResolver m => Symbol -> m Name
+fresh :: BoM ResolverState m => Symbol -> m Name
 fresh symbol = do
     names <- gets nameSupply
     let i = maybe 0 (+1) (Map.lookup symbol names)
@@ -64,13 +47,13 @@ fresh symbol = do
     return (symbol ++ "_" ++ show i)
 
 
-lookupSym :: MonadResolver m => Symbol -> m Name
+lookupSym :: BoM ResolverState m => Symbol -> m Name
 lookupSym symbol = do
     symTab <- gets symbolTable
     maybe (fail $ symbol ++ " doesn't exist") return (SymTab.lookup symbol symTab)
 
 
-checkSymUndef :: MonadResolver m => Symbol -> m ()
+checkSymUndef :: BoM ResolverState m => Symbol -> m ()
 checkSymUndef symbol = do
     symTab <- gets symbolTable
     case SymTab.lookup symbol [head symTab] of
@@ -78,31 +61,31 @@ checkSymUndef symbol = do
         Nothing -> return ()
 
 
-addSymDef :: MonadResolver m => Symbol -> Name -> m ()
+addSymDef :: BoM ResolverState m => Symbol -> Name -> m ()
 addSymDef symbol name =
     modify $ \s -> s { symbolTable = SymTab.insert symbol name (symbolTable s) }
 
 
-pushScope :: MonadResolver m => m ()
+pushScope :: BoM ResolverState m => m ()
 pushScope =
     modify $ \s -> s { symbolTable = SymTab.push (symbolTable s) }
 
 
-popScope :: MonadResolver m => m ()
+popScope :: BoM ResolverState m => m ()
 popScope  =
     modify $ \s -> s { symbolTable = SymTab.pop (symbolTable s) }
 
 
-resolveAST :: (MonadFail m) => ResolverState -> S.AST -> m (Either CmpError (S.AST, ResolverState))
+resolveAST :: (MonadIO m, MonadFail m) => ResolverState -> S.AST -> m (Either CmpError (S.AST, ResolverState))
 resolveAST state ast =
-    runResolverT state f
+    runBoMT state f
     where
         f = do
             stmts <- mapM resStmt (S.astStmts ast)
             return (ast { S.astStmts = stmts })
 
 
-resPattern :: MonadResolver m => S.Pattern -> m S.Pattern
+resPattern :: BoM ResolverState m => S.Pattern -> m S.Pattern
 resPattern pattern = case pattern of
     S.PatIgnore pos       -> return pattern
     S.PatLiteral cons     -> return pattern
@@ -114,18 +97,18 @@ resPattern pattern = case pattern of
     _ -> fail (show pattern)
 
 
-resIndex :: MonadResolver m => S.Index -> m S.Index
+resIndex :: BoM ResolverState m => S.Index -> m S.Index
 resIndex index = case index of
     S.IndIdent pos symbol -> fmap (S.IndIdent pos) (lookupSym symbol)
 
 
-resType :: MonadResolver m => T.Type -> m T.Type
+resType :: BoM ResolverState m => T.Type -> m T.Type
 resType typ = case typ of
     T.Char             -> return typ
     T.Table Nothing ts -> fmap (T.Table Nothing) (mapM resType ts)
         
 
-resParam :: MonadResolver m => S.Param -> m S.Param
+resParam :: BoM ResolverState m => S.Param -> m S.Param
 resParam (S.Param pos symbol typ) = do
     checkSymUndef symbol
     name <- fresh symbol
@@ -134,7 +117,7 @@ resParam (S.Param pos symbol typ) = do
     return (S.Param pos name typ')
 
 
-resStmt :: MonadResolver m => S.Stmt -> m S.Stmt
+resStmt :: BoM ResolverState m => S.Stmt -> m S.Stmt
 resStmt stmt = case stmt of
     S.Assign pos pattern expr -> do
         resPat <- resPattern pattern
@@ -193,7 +176,7 @@ resStmt stmt = case stmt of
     _ -> fail ("resolver case: " ++ show stmt)
 
 
-resExpr :: MonadResolver m => S.Expr -> m S.Expr
+resExpr :: BoM ResolverState m => S.Expr -> m S.Expr
 resExpr (S.Ident pos symbol) = fmap (S.Ident pos) (lookupSym symbol)
 resExpr expr = case expr of
     S.Cons c           -> return expr
