@@ -96,22 +96,19 @@ valBool b = Val Bool (if b then bit 1 else bit 0)
 
 
 opTypeOf :: Type -> Instr LL.Type
-opTypeOf (Tuple nm ts) =
-    if isNothing nm
-    then fmap (StructureType False) (mapM opTypeOf ts)
-    else do
-        let name = fromJust nm
-        ensureDef name
-        return (NamedTypeReference name)
-opTypeOf (Table nm ts) =
-    if isNothing nm
-    then do
-        opTyps <- mapM (opTypeOf) ts
-        return $ StructureType False $ i64:i64:(map ptr opTyps)
-    else do
-        let name = fromJust nm
-        ensureDef name
-        return (NamedTypeReference name)
+opTypeOf (Tuple ts) =
+    fmap (StructureType False) (mapM opTypeOf ts)
+--    else do
+--        let name = fromJust nm
+--        ensureDef name
+--        return (NamedTypeReference name)
+opTypeOf (Table ts) = do
+    opTyps <- mapM (opTypeOf) ts
+    return $ StructureType False $ i64:i64:(map ptr opTyps)
+--    else do
+--        let name = fromJust nm
+--        ensureDef name
+--        return (NamedTypeReference name)
 opTypeOf (Typedef sym) = do
     res <- look sym KeyType
     case res of
@@ -153,12 +150,12 @@ zeroOf typ = case typ of
     Bool          -> return $ toCons (bit 0)
     String        -> return $ C.IntToPtr (toCons $ int64 0) (ptr i8)
     Array n t     -> fmap (toCons . array . replicate (fromIntegral n)) (zeroOf t)
-    Table nm ts   -> do
+    Table ts   -> do
         let zi64 = toCons (int64 0)
         ptrs <- fmap (map ptr) (mapM opTypeOf ts)
         let zptrs = map (C.IntToPtr zi64) ptrs
-        return . toCons $ struct nm False (zi64:zi64:zptrs)
-    Tuple nm ts   -> fmap (toCons . (struct Nothing False)) (mapM zeroOf ts)
+        return . toCons $ struct Nothing False (zi64:zi64:zptrs)
+    Tuple ts   -> fmap (toCons . (struct Nothing False)) (mapM zeroOf ts)
     Typedef _     -> zeroOf =<< realTypeOf typ
     Annotated _ t -> zeroOf t
 
@@ -179,8 +176,8 @@ concreteTypeOf (Typedef sym) = do
     case res of
         ObjType t   -> concreteTypeOf t
 concreteTypeOf typ = case typ of
-    Table nm ts   -> fmap (Table Nothing) (mapM concreteTypeOf ts)
-    Tuple nm ts   -> fmap (Tuple Nothing) (mapM concreteTypeOf ts)
+    Table ts   -> fmap (Table) (mapM concreteTypeOf ts)
+    Tuple ts   -> fmap (Tuple) (mapM concreteTypeOf ts)
     Array n t     -> fmap (Array n) (concreteTypeOf t)
     Annotated _ t -> concreteTypeOf t
     t             -> return t
@@ -193,13 +190,13 @@ checkTypesMatch :: Type -> Type -> Instr ()
 checkTypesMatch a b = case (a, b) of
     (Annotated _ a, b)       -> checkTypesMatch a b
     (a, Annotated _ b)       -> checkTypesMatch a b
-    (Tuple _ as, Tuple _ bs) -> do
+    (Tuple as, Tuple bs) -> do
         assert (length as == length bs) "tuple length mismatch"
         mapM_ (\(x, y) -> checkTypesMatch x y) (zip as bs)
     (Array an at, Array bn bt) -> do
         assert (an == bn) "array length mismatch"
         checkTypesMatch at bt
-    (Table _ as, Table _ bs)   -> do
+    (Table as, Table bs)   -> do
         assert (length as == length bs) "table type mismatch"
         mapM_ (\(x, y) -> checkTypesMatch x y) (zip as bs)
     (a, b) | isTypedef a || isSimple a -> return ()
@@ -216,11 +213,11 @@ checkConcTypesMatch a b = do
 ensureTypeDeps :: Type -> Instr ()
 ensureTypeDeps typ = case typ of
     Array _ t -> ensureTypeDeps t
-    Tuple nm ts -> do
-        maybe (return ()) ensureDef nm
+    Tuple ts -> do
+        --maybe (return ()) ensureDef nm
         mapM_ ensureTypeDeps ts
-    Table nm ts -> do
-        maybe (return ()) ensureDef nm
+    Table ts -> do
+        --maybe (return ()) ensureDef nm
         mapM_ ensureTypeDeps ts
     Typedef sym -> do
         res <- look sym KeyType
@@ -320,13 +317,13 @@ valLen :: Value -> Instr Word
 valLen val = do
     typ <- concreteTypeOf (valType val)
     case typ of
-        Array n t   -> return n
-        Tuple nm ts -> return $ fromIntegral (length ts)
+        Array n t-> return n
+        Tuple ts -> return $ fromIntegral (length ts)
 
 
 valTupleIdx :: Word32 -> Value -> Instr Value
 valTupleIdx i tup = do
-    Tuple nm ts <- realTypeOf (valType tup)
+    Tuple ts <- realTypeOf (valType tup)
     assert (i >= 0 && fromIntegral i < length ts) "tuple index out of range"
     let t = ts !! fromIntegral i
     case tup of
@@ -336,7 +333,7 @@ valTupleIdx i tup = do
 
 valTupleSet :: Value -> Word32 -> Value -> Instr ()
 valTupleSet (Ptr typ loc) i val = do
-    Tuple nm ts <- realTypeOf typ
+    Tuple ts <- realTypeOf typ
     p <- gep loc [int32 0, int32 (fromIntegral i)]
     valStore (Ptr (ts !! fromIntegral i) p) val
 

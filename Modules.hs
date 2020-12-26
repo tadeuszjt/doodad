@@ -22,29 +22,16 @@ import           Value hiding (Module)
 import           LLVM.AST hiding (Module, Name)
 import Monad
 
-type ModuleName = String
-
 
 data Module
-    = ModuleAST
-        { modASTs    :: [S.AST]
-        }
-    | ModuleFlat
-        { flatAST :: F.FlattenState
-        , imports :: Set.Set String
-        }
+    = ModuleAST [S.AST]
+    | ModuleFlat F.FlattenState
     | ModuleCompiled
-        { 
-        }
 
-initModule
-    = ModuleAST
-        { modASTs = []
-        }
 
 data ModulesState
     = ModulesState
-        { modMap :: Map.Map ModuleName Module         -- Map of all modules
+        { modMap :: Map.Map S.ModuleName Module         -- Map of all modules
         }
 
 initModulesState
@@ -53,7 +40,7 @@ initModulesState
         }
 
 
-modModify :: BoM ModulesState m => ModuleName -> (Maybe Module -> m Module) -> m ()
+modModify :: BoM ModulesState m => S.ModuleName -> (Maybe Module -> m Module) -> m ()
 modModify modName f = do
     res <- fmap (Map.lookup modName) (gets modMap)
     mod' <- f res
@@ -64,15 +51,11 @@ modAddAST :: BoM ModulesState m => S.AST -> m ()
 modAddAST ast = do
     let name    = maybe "main" id (S.astModuleName ast)
     modModify name $ \res -> case res of
-        Nothing  -> return $ initModule {
-            modASTs    = [ast]
-            }
-        Just mod -> return $ mod {
-            modASTs    = (modASTs mod) ++ [ast]
-            }
+        Nothing               -> return (ModuleAST [ast])
+        Just (ModuleAST asts) -> return (ModuleAST (ast : asts))
 
 
-modFlattenAST :: BoM ModulesState m => ModuleName -> m ()
+modFlattenAST :: BoM ModulesState m => S.ModuleName -> m ()
 modFlattenAST modName = do
     ModuleAST asts <- fmap (Map.! modName) (gets modMap)
     let combinedAST = S.AST {
@@ -83,25 +66,22 @@ modFlattenAST modName = do
     res <- F.flattenAST combinedAST
     case res of
         Left err    -> fail (show err)
-        Right state -> modModify modName $ \_ -> return $
-            ModuleFlat
-                { flatAST = state
-                , imports = S.astImports combinedAST
-                }
+        Right state -> modModify modName $ \_ -> return $ ModuleFlat state
 
 
-modCompile :: BoM ModulesState m => ModuleName -> m ()
+modCompile :: BoM ModulesState m => S.ModuleName -> m ()
 modCompile modName = 
     modCompileDep modName Set.empty
     where
-        modCompileDep :: BoM ModulesState m => ModuleName -> Set.Set ModuleName -> m ()
+        modCompileDep :: BoM ModulesState m => S.ModuleName -> Set.Set S.ModuleName -> m ()
         modCompileDep depName modsVisited = do
             when (Set.member depName modsVisited) $ 
                 fail ("circular dependency involving " ++ depName)
             modModify depName $ \res -> case res of
-                Nothing                     -> fail (depName ++ " doesn't exist")
-                Just (ModuleFlat _ imports) -> do
-                    forM_ imports $ \imp -> modCompileDep imp (Set.insert depName modsVisited)
+                Nothing             -> fail (depName ++ " doesn't exist")
+                Just (ModuleFlat state) -> do
+                    forM_ (Set.toList $ F.imports state) $ \imp ->
+                        modCompileDep imp (Set.insert depName modsVisited)
                     return ModuleCompiled
                 
     
@@ -134,10 +114,10 @@ prettyModules modules = do
             ModuleAST asts -> do
                 putStrLn "ModuleAST"
                 mapM_ S.prettyAST asts
-            ModuleFlat flatState imports -> do
+            ModuleFlat flatState -> do
                 putStrLn ("ModuleFlat: " ++ modName)
                 putStrLn ("Imports:")
-                mapM_ (putStrLn . show) (Set.toList imports)
+                mapM_ (putStrLn . show) (Set.toList $ F.imports flatState)
                 F.prettyFlatAST flatState
             ModuleCompiled -> do
                 putStrLn ("ModuleCompiled " ++ modName)

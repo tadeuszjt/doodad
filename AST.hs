@@ -8,10 +8,13 @@ import           Error
 import qualified Lexer    as L
 import qualified Data.Set as Set
 
+type ModuleName = String
+type Symbol     = String
+
 
 data AST =
-    AST { astModuleName :: Maybe String
-        , astImports    :: Set.Set String
+    AST { astModuleName :: Maybe ModuleName
+        , astImports    :: Set.Set ModuleName
         , astStmts      :: [Stmt]
         }
     deriving (Show)
@@ -36,7 +39,7 @@ data Op
 data Param
     = Param
         { paramPos  :: TextPos
-        , paramName :: String
+        , paramName :: Symbol
         , paramType :: Type
         }
     deriving (Eq)
@@ -47,15 +50,15 @@ instance Show Param where
 data Pattern
     = PatLiteral Constant
     | PatIgnore  TextPos
-    | PatIdent   TextPos String
+    | PatIdent   TextPos Symbol
     | PatTuple   TextPos [Pattern]
     | PatArray   TextPos [Pattern]
-    | PatTyped   TextPos String Pattern
+    | PatTyped   TextPos Symbol Pattern
     deriving (Eq)
 
 
 data Index
-    = IndIdent TextPos String
+    = IndIdent TextPos Symbol
     | IndArray TextPos Index Expr
     | IndTuple TextPos Index Word32
     deriving (Eq)
@@ -75,11 +78,11 @@ data Expr
     | Tuple TextPos [Expr]
     | Array TextPos [Expr]
     | Table TextPos [[Expr]]
-    | Member TextPos Expr String
+    | Member TextPos Expr Symbol
     | Subscript TextPos Expr Expr
     | TupleIndex TextPos Expr Word32
-    | Ident TextPos String
-    | Call TextPos String [Expr]
+    | Ident TextPos Symbol
+    | Call TextPos Symbol [Expr]
     | Conv TextPos Type [Expr]
     | Len TextPos Expr
     | Append TextPos Expr Expr
@@ -92,15 +95,15 @@ data Stmt
     = Assign TextPos Pattern Expr
     | Set TextPos Index Expr
     | Print TextPos [Expr]
-    | CallStmt TextPos String [Expr]
+    | CallStmt TextPos Symbol [Expr]
     | Return TextPos (Maybe Expr)
     | Block TextPos [Stmt]
     | If TextPos Expr Stmt (Maybe Stmt)
     | While  TextPos Expr [Stmt]
     | Switch TextPos Expr [(Pattern, Stmt)]
-    | Func TextPos String [Param] (Maybe Type) [Stmt]
-    | Extern TextPos String [Param] (Maybe Type)
-    | Typedef TextPos String Type
+    | Func TextPos Symbol [Param] (Maybe Type) [Stmt]
+    | Extern TextPos Symbol [Param] (Maybe Type)
+    | Typedef TextPos Symbol Type
     deriving (Show, Eq)
 
 

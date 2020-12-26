@@ -32,11 +32,11 @@ cmpTableExpr rows = do
         size <- sizeOf typ
         return (typ, size)
 
-    opTyp <- opTypeOf (Table Nothing rowTyps)
-    typName <- freshName (mkBSS "table_t")
-    addAction typName $ typedef typName (Just opTyp)
+    opTyp <- opTypeOf (Table rowTyps)
+    --typName <- freshName (mkBSS "table_t")
+    --addAction typName $ typedef typName (Just opTyp)
 
-    let typ = Table (Just typName) rowTyps
+    let typ = Table rowTyps
     let len = fromIntegral numCols
 
     tab <- valLocal typ
@@ -60,15 +60,15 @@ cmpTableExpr rows = do
 
 
 valTableCap :: Value -> Instr Value
-valTableCap (Ptr (Table _ _) loc) = fmap (Ptr I64) $ gep loc [int32 0, int32 1]
-valTableCap (Val (Table _ _) op)  = fmap (Val I64) $ extractValue op [1]
+valTableCap (Ptr (Table _) loc) = fmap (Ptr I64) $ gep loc [int32 0, int32 1]
+valTableCap (Val (Table _) op)  = fmap (Val I64) $ extractValue op [1]
 
 
 valTableRow :: Word32 -> Value -> Instr Value
 valTableRow i tab = do
-    Table nm ts <- realTypeOf (valType tab)
+    Table ts <- realTypeOf (valType tab)
     assert (fromIntegral i < length ts) "invalid table row index" 
-    maybe (return ()) ensureDef nm
+    --maybe (return ()) ensureDef nm
     let t = ts !! fromIntegral i
     case tab of
         Val _ op  -> fmap (Ptr t) (extractValue op [i+2])
@@ -78,7 +78,7 @@ valTableRow i tab = do
 
 
 valTableSetRow :: Value -> Word32 -> Value -> Instr ()
-valTableSetRow (Ptr (Table _ ts) loc) idx (Ptr t row) = do
+valTableSetRow (Ptr (Table ts) loc) idx (Ptr t row) = do
     checkTypesMatch t (ts !! fromIntegral idx)
     pp <- gep loc [int32 0, int32 (fromIntegral idx+2)]
     store pp 0 row
@@ -87,9 +87,9 @@ valTableSetRow (Ptr (Table _ ts) loc) idx (Ptr t row) = do
 
 valTableIdx :: Value -> Value -> Instr Value
 valTableIdx tab idx = do
-    Table nm ts <- realTypeOf (valType tab)
-    maybe (return ()) ensureDef nm
-    tup <- valLocal (Tuple Nothing ts)
+    Table ts <- realTypeOf (valType tab)
+    --maybe (return ()) ensureDef nm
+    tup <- valLocal (Tuple ts)
 
     forM_ (zip ts [0..]) $ \(t, i) -> do
         prow <- valTableRow i tab
@@ -139,7 +139,7 @@ valMallocDecRef m@(Ptr typ loc) = do
 
 valTableKill :: Value -> Instr ()
 valTableKill tab = do
-    Table _ ts <- realTypeOf (valType tab)
+    Table ts <- realTypeOf (valType tab)
     let numRows = fromIntegral (length ts)
     len <- valTableLen tab
     cap <- valTableCap tab
@@ -156,7 +156,7 @@ valTableKill tab = do
 
 
 valTableStore :: Value -> Value -> Instr ()
-valTableStore dest@(Ptr (Table nm ts) destLoc) src = do
+valTableStore dest@(Ptr (Table ts) destLoc) src = do
     checkTypesMatch (valType dest) (valType src)
 
     destLen <- valTableLen dest
@@ -190,7 +190,7 @@ valTableStore dest src = valStore dest src
 
 valTableAppend :: Value -> Value -> Instr Value
 valTableAppend tab elem = do
-    Table _ ts <- realTypeOf (valType tab)
+    Table ts <- realTypeOf (valType tab)
     t <- realTypeOf (valType elem)
     case ts of
         [tt] -> do

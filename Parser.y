@@ -182,9 +182,9 @@ anno          : ident type_          { T.Annotated (L.tokStr $1) $2 }
 annos_        : anno                 { [$1] }
               | anno ',' annos_      { $1 : $3 }
 aggregateType : '[' intlit type_ ']' { T.Array (read $ L.tokStr $2) $3 }
-              | '(' types ')'        { T.Tuple Nothing $2 }
-              | '(' annos_ ')'       { T.Tuple Nothing $2 }
-              | '{' rowTypes '}'     { T.Table Nothing $2 }
+              | '(' types ')'        { T.Tuple $2 }
+              | '(' annos_ ')'       { T.Tuple $2 }
+              | '{' rowTypes '}'     { T.Table $2 }
 rowTypes      : {- empty -}          { [] }
               | rowTypes_            { $1 }
 rowTypes_     : type_                { [$1] }

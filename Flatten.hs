@@ -6,15 +6,37 @@ module Flatten where
 
 import Control.Monad.State hiding (fail)
 import Control.Monad.Fail
+import qualified Data.Set as Set 
+import qualified Data.Map as Map 
 import qualified AST as S
+import qualified Type as T
+import qualified SymTab
 import Monad
 import Error
-
-
+--
+--data Type
+--    = Void
+--    | I8
+--    | I16
+--    | I32
+--    | I64
+--    | F32
+--    | F64
+--    | Bool
+--    | Char
+--    | String
+--    | Tuple (Maybe Name) [Type]
+--    | Array Word Type
+--    | Table (Maybe Name) [Type]
+--    | Typedef String
+--    | Annotated String Type
+--    deriving (Eq, Ord)
+--
 
 data FlattenState
     = FlattenState
-        { typedefs  :: [S.Stmt]
+        { imports   :: Set.Set S.ModuleName
+        , typedefs  :: SymTab.SymTab S.Symbol (TextPos, T.Type)
         , variables :: [S.Stmt]
         , funcDefs  :: [S.Stmt]
         , externs   :: [S.Stmt]
@@ -22,7 +44,8 @@ data FlattenState
 
 initFlattenState
     = FlattenState
-        { typedefs  = []
+        { imports   = Set.empty
+        , typedefs  = SymTab.initSymTab
         , variables = []
         , funcDefs  = []
         , externs   = []
@@ -32,7 +55,7 @@ initFlattenState
 
 flattenAST :: (MonadIO m, MonadFail m) => S.AST -> m (Either CmpError FlattenState)
 flattenAST ast = do
-    res <- runBoMT initFlattenState f
+    res <- runBoMT (initFlattenState { imports = S.astImports ast }) f
     case res of
         Left err         -> return (Left err)
         Right (_, state) -> return (Right state)
@@ -41,11 +64,16 @@ flattenAST ast = do
         
         flattenStmt :: BoM FlattenState m => S.Stmt -> m ()
         flattenStmt stmt = case stmt of
-            S.Typedef _ _ _  -> modify $ \s -> s { typedefs = (typedefs s) ++ [stmt] }
+            S.Typedef _ _ _  -> flattenTypedef stmt
             S.Assign _ _ _   -> modify $ \s -> s { variables = (variables s) ++ [stmt] }
             S.Func _ _ _ _ _ -> modify $ \s -> s { funcDefs = (funcDefs s) ++ [stmt] }
             S.Extern _ _ _ _ -> modify $ \s -> s { externs = (externs s) ++ [stmt] }
             _ -> return ()
+
+
+        flattenTypedef :: BoM FlattenState m => S.Stmt -> m ()
+        flattenTypedef (S.Typedef pos sym typ) = do
+            return ()
 
 
 

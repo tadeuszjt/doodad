@@ -2,8 +2,6 @@ module Type where
 
 import Data.Word
 import Data.List
-import LLVM.AST  hiding (Type, function, Module)
-
 
 data Type
     = Void
@@ -16,9 +14,9 @@ data Type
     | Bool
     | Char
     | String
-    | Tuple (Maybe Name) [Type]
+    | Tuple [Type]
     | Array Word Type
-    | Table (Maybe Name) [Type]
+    | Table [Type]
     | Typedef String
     | Annotated String Type
     deriving (Eq, Ord)
@@ -36,9 +34,9 @@ instance Show Type where
         Bool          -> "bool"
         Char          -> "char"
         String        -> "string"
-        Tuple nm ts   -> "(" ++ intercalate ", " (map show ts) ++ ")"
+        Tuple ts   -> "(" ++ intercalate ", " (map show ts) ++ ")"
         Array n t     -> "[" ++ show n ++ " " ++ show t ++ "]"
-        Table nm ts   -> "{" ++ intercalate "; " (map show ts) ++ "}"
+        Table ts   -> "{" ++ intercalate "; " (map show ts) ++ "}"
         Typedef s     -> s
         Annotated _ t -> show t
 
@@ -55,10 +53,10 @@ isArray (Annotated _ t)     = isArray t
 isArray (Array _ _)         = True
 isArray _                   = False
 isTuple (Annotated _ t)     = isTuple t
-isTuple (Tuple _ _)         = True
+isTuple (Tuple _)         = True
 isTuple _                   = False
 isTable (Annotated _ t)     = isTable t
-isTable (Table _ _)         = True
+isTable (Table _)         = True
 isTable _                   = False
 isTypedef (Typedef _)       = True
 isTypedef _                 = False

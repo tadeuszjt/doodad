@@ -20,14 +20,13 @@ import Error
 import Monad
 
 
-type Symbol = String
-type Name   = String
+type Name = String
 
 
 data ResolverState
     = ResolverState
         { nameSupply  :: Map.Map Name Int
-        , symbolTable :: SymTab.SymTab Symbol Name
+        , symbolTable :: SymTab.SymTab S.Symbol Name
         }
     deriving Show
 
@@ -39,7 +38,7 @@ initResolverState
         }
 
 
-fresh :: BoM ResolverState m => Symbol -> m Name
+fresh :: BoM ResolverState m => S.Symbol -> m Name
 fresh symbol = do
     names <- gets nameSupply
     let i = maybe 0 (+1) (Map.lookup symbol names)
@@ -47,13 +46,13 @@ fresh symbol = do
     return (symbol ++ "_" ++ show i)
 
 
-lookupSym :: BoM ResolverState m => Symbol -> m Name
+lookupSym :: BoM ResolverState m => S.Symbol -> m Name
 lookupSym symbol = do
     symTab <- gets symbolTable
     maybe (fail $ symbol ++ " doesn't exist") return (SymTab.lookup symbol symTab)
 
 
-checkSymUndef :: BoM ResolverState m => Symbol -> m ()
+checkSymUndef :: BoM ResolverState m => S.Symbol -> m ()
 checkSymUndef symbol = do
     symTab <- gets symbolTable
     case SymTab.lookup symbol [head symTab] of
@@ -61,7 +60,7 @@ checkSymUndef symbol = do
         Nothing -> return ()
 
 
-addSymDef :: BoM ResolverState m => Symbol -> Name -> m ()
+addSymDef :: BoM ResolverState m => S.Symbol -> Name -> m ()
 addSymDef symbol name =
     modify $ \s -> s { symbolTable = SymTab.insert symbol name (symbolTable s) }
 
@@ -104,8 +103,8 @@ resIndex index = case index of
 
 resType :: BoM ResolverState m => T.Type -> m T.Type
 resType typ = case typ of
-    T.Char             -> return typ
-    T.Table Nothing ts -> fmap (T.Table Nothing) (mapM resType ts)
+    T.Char     -> return typ
+    T.Table ts -> fmap T.Table (mapM resType ts)
         
 
 resParam :: BoM ResolverState m => S.Param -> m S.Param

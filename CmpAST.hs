@@ -62,8 +62,8 @@ cmpPattern isGlobal pattern val = case pattern of
 
             typ <- realTypeOf (valType val)
             case typ of
-                Table _ _ -> valTableStore v val
-                _         -> valStore v val
+                Table _ -> valTableStore v val
+                _       -> valStore v val
 
             addSymObj sym KeyVal (ObjVal v)
             addSymObjReq sym KeyVal name
@@ -77,7 +77,7 @@ cmpPattern isGlobal pattern val = case pattern of
         return (valBool True)
 
     S.PatTuple pos patterns -> withPos pos $ do
-        Tuple nm ts <- realTypeOf (valType val)
+        Tuple ts <- realTypeOf (valType val)
         assert (length patterns == length ts) "incorrect tuple length"
         cnds <- forM (zip patterns [0..]) $ \(pat, i) ->
             cmpPattern isGlobal pat =<< valTupleIdx i val
@@ -102,8 +102,8 @@ cmpTopStmt stmt@(S.Extern _ _ _ _) = cmpStmt stmt
 cmpTopStmt (S.Typedef pos symbol typ) = do
     if isTuple typ then do
         name <- freshName (mkBSS symbol)
-        let Tuple Nothing ts = typ
-        let typ' = Tuple (Just name) ts
+        let Tuple ts = typ
+        let typ' = Tuple ts
         opTyp <- opTypeOf typ
         addAction name $ typedef name (Just opTyp)
         addSymObj symbol KeyType (ObjType typ')
@@ -195,7 +195,7 @@ cmpStmt (S.Set pos index expr) = withPos pos $ do
     checkTypesMatch (valType val) (valType idx)
     typ <- realTypeOf (valType idx)
     case typ of
-        Table _ _ -> valTableKill idx >> valTableStore idx val
+        Table _ -> valTableKill idx >> valTableStore idx val
         _         -> valStore idx val
     where
         idxPtr :: S.Index -> Instr Value
@@ -272,7 +272,7 @@ cmpExpr (S.Conv pos typ exprs) = withPos pos $ do
         []  -> valLocal typ
         [t] -> cmpConv (head vals)
         ts  -> do
-            tup@(Ptr _ _) <- valLocal (Tuple Nothing ts)
+            tup@(Ptr _ _) <- valLocal (Tuple ts)
             forM_ (zip vals [0..]) $ \(val, i) -> valTupleSet tup i val
             cmpConv tup
     where
@@ -305,7 +305,7 @@ cmpExpr (S.Array pos exprs) = do
 
 cmpExpr (S.Tuple pos exprs) = do
     vals <- mapM cmpExpr exprs
-    tup <- valLocal $ Tuple Nothing (map valType vals)
+    tup <- valLocal $ Tuple (map valType vals)
     forM_ (zip vals [0..]) $ \(val, i) -> valTupleSet tup i val
     return tup
 
@@ -315,20 +315,20 @@ cmpExpr (S.Subscript pos expr index) = do
     typ <- realTypeOf (valType val)
     case typ of
         Array _ _ -> valArrayIdx val idx
-        Table _ _ -> valTableIdx val idx
+        Table _ -> valTableIdx val idx
         _ -> cmpErr ("invalid array index for type: " ++ show (valType val))
 
 cmpExpr (S.TupleIndex pos tupExpr i) = do
     tup <- cmpExpr tupExpr
-    Tuple nm ts <- realTypeOf (valType tup)
-    valTupleIdx i (tup { valType = Tuple nm ts })
+    Tuple ts <- realTypeOf (valType tup)
+    valTupleIdx i (tup { valType = Tuple ts })
 
 cmpExpr (S.Len pos expr) = do
     val <- cmpExpr expr
     typ <- realTypeOf (valType val)
     case typ of
         Array n _   -> return (valInt I64 $ fromIntegral n)
-        Table nm ts -> valTableLen val
+        Table ts -> valTableLen val
 
 cmpExpr (S.Append pos table elem) = withPos pos $ do
     tab <- cmpExpr table
@@ -352,7 +352,7 @@ cmpExpr (S.Member pos tupExpr symbol) = do
                 case res of
                     ObjType t -> indexAnno str (val{ valType = t })
             
-            Tuple nm ts -> do
+            Tuple ts -> do
                 res <- forM (zip ts [0..]) $ \(t, i) -> do
                    idx@(Ptr _ _) <- valTupleIdx i val
                    indexAnno str (idx { valType = t })
@@ -388,7 +388,7 @@ cmpExpr (S.Call pos symbol args) = withPos pos $ do
                 [t] | typ == t -> return $ (head args) { valType = typ }
                 ts             -> do 
                     assert (isTuple conc) "multiple arguments for non-tuple type constructor"
-                    let Tuple _ tupTs = conc
+                    let Tuple tupTs = conc
                     assert (ts == tupTs) "arguments do not match tuple fields"
                     tup <- valLocal conc
                     forM_ (zip args [0..]) $ \(a, i) ->

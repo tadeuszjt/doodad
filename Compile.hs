@@ -6,12 +6,19 @@ import Error
 import qualified AST as S
 import qualified SymTab
 import qualified Modules as M
-import qualified Data.Map as Map
 
+
+data SymKey
+    = SymKey
+    deriving (Show, Eq)
+
+
+data SymObj
+    = SymObj
 
 data CmpState
     = CmpState
-        { 
+        { symTab :: SymTab.SymTab SymKey SymObj
         }
 
 cmpTypeDefs :: BoM CmpState m => [S.Stmt] -> m ()

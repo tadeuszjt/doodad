@@ -58,14 +58,14 @@ valPrint append val = case valType val of
             valPrint ", " =<< valArrayIdx val (Val I64 i)
         valPrint ("]" ++ append) =<< valArrayConstIdx val (n-1)
 
-    Tuple nm ts -> do
+    Tuple ts -> do
         let len = length ts
         putchar '('
         forM_ [0..len-1] $ \i -> do
             let app = if i < len-1 then ", " else ")" ++ append
             valPrint app =<< valTupleIdx (fromIntegral i) val
 
-    Table nm ts -> do
+    Table ts -> do
         printf "{" []
         Val _ op <- valLoad val
         let nrows = fromIntegral (length ts)
