@@ -57,7 +57,7 @@ main = do
                     if astOnly args then
                         case parse source of
                             Left err  -> printError err source
-                            Right ast -> S.prettyAST ast
+                            Right ast -> S.prettyAST "" ast
                     else do
                         putStrLn ("running \"" ++ filename ++ "\" ...")
                         runFile session source (verbose args)

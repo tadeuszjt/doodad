@@ -59,10 +59,12 @@ modFlattenAST :: BoM ModulesState m => S.ModuleName -> m ()
 modFlattenAST modName = do
     ModuleAST asts <- fmap (Map.! modName) (gets modMap)
     let combinedAST = S.AST {
+        S.astModuleName = Just modName,
         S.astImports    = foldr Set.union Set.empty (map S.astImports asts),
-        S.astModuleName = Nothing,
         S.astStmts      = concat (map S.astStmts asts)
         }
+
+
     res <- F.flattenAST combinedAST
     case res of
         Left err    -> fail (show err)
@@ -104,7 +106,7 @@ runFiles fs = do
     modMap <- gets modMap
     --forM_ (Map.keys modMap) $ \modName -> modResolveSymbols modName
     mapM_ modFlattenAST (Map.keys modMap)
-    modCompile "main"
+    --modCompile "main"
 
 
 prettyModules :: ModulesState -> IO ()
@@ -113,7 +115,7 @@ prettyModules modules = do
         case mod of
             ModuleAST asts -> do
                 putStrLn "ModuleAST"
-                mapM_ S.prettyAST asts
+                mapM_ (S.prettyAST "\t") asts
             ModuleFlat flatState -> do
                 putStrLn ("ModuleFlat: " ++ modName)
                 putStrLn ("Imports:")

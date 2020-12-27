@@ -173,54 +173,54 @@ instance Show Expr where
         AST.Infix pos op expr1 expr2  -> "(" ++ show expr1 ++ " " ++ show op ++ " " ++ show expr2 ++ ")"
 
 
-prettyAST :: AST -> IO ()
-prettyAST ast = do
-    putStrLn $ "Module: " ++ maybe "None" show (astModuleName ast)
-    putStrLn $ "Imports: " ++ show (astImports ast)
-    forM_ (astStmts ast) $ \stmt -> prettyStmt "" stmt >> putStrLn ""
+prettyAST :: String -> AST -> IO ()
+prettyAST pre ast = do
+    putStrLn $ pre ++ "Module: " ++ maybe "None" show (astModuleName ast)
+    putStrLn $ pre ++ "Imports: " ++ show (astImports ast)
+    forM_ (astStmts ast) $ \stmt -> prettyStmt pre stmt >> putStrLn ""
     where
         prettyStmt :: String -> Stmt -> IO ()
-        prettyStmt preppend stmt = case stmt of
+        prettyStmt pr stmt = case stmt of
             Assign pos pat expr -> do
-                putStrLn (preppend ++ "let " ++ show pat ++ " = " ++ show expr)
+                putStrLn (pr ++ "let " ++ show pat ++ " = " ++ show expr)
 
             Set pos ind expr -> do
-                putStrLn (preppend ++ show ind ++ " = " ++ show expr)
+                putStrLn (pr ++ show ind ++ " = " ++ show expr)
 
             Print pos exprs -> do
-                putStrLn (preppend ++ "Print" ++ tupStrs (map show exprs))
+                putStrLn (pr ++ "Print" ++ tupStrs (map show exprs))
 
             CallStmt pos symbol exprs -> do
-                putStrLn (preppend ++ symbol ++ tupStrs (map show exprs))
+                putStrLn (pr ++ symbol ++ tupStrs (map show exprs))
 
             Return pos mexpr -> do
-                putStrLn (preppend ++ "Return " ++ show mexpr)
+                putStrLn (pr ++ "Return " ++ show mexpr)
 
             Block pos stmts -> do
-                putStrLn (preppend ++ "block")
-                mapM_ (prettyStmt (preppend ++ "\t")) stmts
+                putStrLn (pr ++ "block")
+                mapM_ (prettyStmt (pr ++ "\t")) stmts
 
             If pos cnd true false -> do
-                putStr (preppend ++ "if")
-                prettyStmt (preppend ++ "\t") true
-                maybe (return ()) (prettyStmt (preppend ++ "\t")) false
+                putStr (pr ++ "if")
+                prettyStmt (pr ++ "\t") true
+                maybe (return ()) (prettyStmt (pr ++ "\t")) false
 
             While pos cnd stmts -> do
-                putStrLn (preppend ++ "while " ++ show cnd)
-                mapM_ (prettyStmt (preppend ++ "\t")) stmts
+                putStrLn (pr ++ "while " ++ show cnd)
+                mapM_ (prettyStmt (pr ++ "\t")) stmts
 
             Func pos symbol params mretty stmts -> do
-                putStrLn (preppend ++ "Func " ++ symbol ++ tupStrs (map show params) ++ " " ++ show mretty)
-                mapM_ (prettyStmt (preppend ++ "\t")) stmts
+                putStrLn (pr ++ "Func " ++ symbol ++ tupStrs (map show params) ++ " " ++ show mretty)
+                mapM_ (prettyStmt (pr ++ "\t")) stmts
 
             Extern pos symbol params mretty -> do
-                putStrLn (preppend ++ "Extern " ++ symbol ++ tupStrs (map show params) ++ " " ++ show mretty)
+                putStrLn (pr ++ "Extern " ++ symbol ++ tupStrs (map show params) ++ " " ++ show mretty)
 
             Switch pos cnd cases -> do
-                putStrLn (preppend ++ "switch " ++ show cnd)
+                putStrLn (pr ++ "switch " ++ show cnd)
                 forM_ cases $ \(c, blk) -> do
-                    putStrLn (preppend ++ "\tcase " ++ show c ++ ":")
-                    prettyStmt (preppend ++ "\t\t") blk
+                    putStrLn (pr ++ "\tcase " ++ show c ++ ":")
+                    prettyStmt (pr ++ "\t\t") blk
 
-            _ -> putStrLn (preppend ++ show stmt)
+            _ -> putStrLn (pr ++ show stmt)
 

@@ -1,11 +1,14 @@
 module main
 imports "io"
 
-type x = t;
-type t = bool;
+extern benis(x b);
 
+type t = z;
+type z = b;
+type b = bool;
+
+fn main() {
+    putStrLn("benis");
+}
 
 let x = 3;
-print(x);
-
-type a = x;
