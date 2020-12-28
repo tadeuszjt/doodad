@@ -8,6 +8,7 @@
 
 
 module CmpMonad where
+import           Data.Maybe
 
 import           Control.Monad.Except       hiding (void)
 import           Control.Monad.State        hiding (void)
@@ -16,7 +17,14 @@ import           Control.Monad.Identity
 import           Control.Monad.Fail
 import qualified Data.Set as Set
 import qualified Data.Map as Map
-import           Data.Maybe
+import           LLVM.AST 
+import           LLVM.AST.Global
+import           LLVM.AST.Constant          as C
+import           LLVM.AST.Type              hiding (void)
+import qualified LLVM.AST.Constant          as C
+import           LLVM.IRBuilder.Module
+import           LLVM.IRBuilder.Monad
+
 
 import           LLVM.AST 
 import           LLVM.AST.Global

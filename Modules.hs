@@ -58,14 +58,23 @@ modAddAST ast = do
 modFlattenAST :: BoM ModulesState m => S.ModuleName -> m ()
 modFlattenAST modName = do
     ModuleAST asts <- fmap (Map.! modName) (gets modMap)
+
+    let imports = foldr1 Set.union (map S.astImports asts)
+    when (Set.member modName imports) $ fail ("cannot import this module: " ++ modName)
+
+    importFlatMap <- fmap Map.fromList $ forM (Set.toList imports) $ \imp -> do
+        ModuleFlat flatState <- fmap (Map.! imp) (gets modMap)
+        return (imp, flatState)
+
+
     let combinedAST = S.AST {
         S.astModuleName = Just modName,
-        S.astImports    = foldr Set.union Set.empty (map S.astImports asts),
+        S.astImports    = imports,
         S.astStmts      = concat (map S.astStmts asts)
         }
 
 
-    res <- F.flattenAST combinedAST
+    res <- F.flattenAST importFlatMap combinedAST
     case res of
         Left err    -> fail (show err)
         Right state -> modModify modName $ \_ -> return $ ModuleFlat state
@@ -73,19 +82,20 @@ modFlattenAST modName = do
 
 modCompile :: BoM ModulesState m => S.ModuleName -> m ()
 modCompile modName = 
-    modCompileDep modName Set.empty
-    where
-        modCompileDep :: BoM ModulesState m => S.ModuleName -> Set.Set S.ModuleName -> m ()
-        modCompileDep depName modsVisited = do
-            when (Set.member depName modsVisited) $ 
-                fail ("circular dependency involving " ++ depName)
-            modModify depName $ \res -> case res of
-                Nothing             -> fail (depName ++ " doesn't exist")
-                Just (ModuleFlat state) -> do
-                    forM_ (Set.toList $ F.imports state) $ \imp ->
-                        modCompileDep imp (Set.insert depName modsVisited)
-                    return ModuleCompiled
-                
+    return ()
+--    modCompileDep modName Set.empty
+--    where
+--        modCompileDep :: BoM ModulesState m => S.ModuleName -> Set.Set S.ModuleName -> m ()
+--        modCompileDep depName modsVisited = do
+--            when (Set.member depName modsVisited) $ 
+--                fail ("circular dependency involving " ++ depName)
+--            modModify depName $ \res -> case res of
+--                Nothing             -> fail (depName ++ " doesn't exist")
+--                Just (ModuleFlat state) -> do
+--                    forM_ (Map.toList $ F.imports state) $ \imp ->
+--                        modCompileDep imp (Set.insert depName modsVisited)
+--                    return ModuleCompiled
+--                
     
 parse :: String -> Either CmpError S.AST
 parse source =
@@ -119,7 +129,7 @@ prettyModules modules = do
             ModuleFlat flatState -> do
                 putStrLn ("ModuleFlat: " ++ modName)
                 putStrLn ("Imports:")
-                mapM_ (putStrLn . show) (Set.toList $ F.imports flatState)
+                mapM_ (putStrLn . show) (Map.keys $ F.importFlat flatState)
                 F.prettyFlatAST flatState
             ModuleCompiled -> do
                 putStrLn ("ModuleCompiled " ++ modName)

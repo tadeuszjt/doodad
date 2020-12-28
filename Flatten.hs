@@ -4,9 +4,8 @@
 module Flatten where
 -- Walks an AST and resolves all symbols into unique names depending on scope.
 
-import Prelude hiding (fail)
-import Control.Monad.State hiding (fail)
-import Control.Monad.Fail
+import Control.Monad.State 
+import Control.Monad.Fail hiding (fail)
 import Data.Maybe
 import qualified Data.Set as Set 
 import qualified Data.Map as Map 
@@ -16,29 +15,28 @@ import qualified SymTab
 import Monad
 import Error
 
-type FlatSym     = String
-type FlatImports = Map.Map (S.ModuleName, S.Symbol) FlatSym
+type FlatSym = String
 
 data FlattenState
     = FlattenState
-        { imports   :: Set.Set S.ModuleName
-        , typedefs  :: Map.Map FlatSym (TextPos, T.Type)
-        , variables :: Map.Map FlatSym (TextPos, S.Expr)
-        , funcDefs  :: Map.Map FlatSym S.Stmt
-        , externs   :: Map.Map FlatSym S.Stmt
-        , symTab    :: SymTab.SymTab S.Symbol FlatSym
-        , symSupply :: Map.Map S.Symbol Int
+        { importFlat :: Map.Map S.ModuleName FlattenState
+        , typedefs   :: Map.Map FlatSym (TextPos, T.Type)
+        , variables  :: Map.Map FlatSym (TextPos, S.Expr)
+        , funcDefs   :: Map.Map FlatSym S.Stmt
+        , externs    :: Map.Map FlatSym S.Stmt
+        , symTab     :: SymTab.SymTab S.Symbol FlatSym
+        , symSupply  :: Map.Map S.Symbol Int
         }
 
-initFlattenState
+initFlattenState importFlatMap
     = FlattenState
-        { imports   = Set.empty
-        , typedefs  = Map.empty
-        , variables = Map.empty
-        , funcDefs  = Map.empty
-        , externs   = Map.empty
-        , symTab    = SymTab.initSymTab
-        , symSupply = Map.empty
+        { importFlat = importFlatMap
+        , typedefs   = Map.empty
+        , variables  = Map.empty
+        , funcDefs   = Map.empty
+        , externs    = Map.empty
+        , symTab     = SymTab.initSymTab
+        , symSupply  = Map.empty
         }
 
 
@@ -56,12 +54,22 @@ checkSymUndefined sym = do
     when (isJust res) $ fail (sym ++ " already defined")
 
 
+lookImportSym :: BoM FlattenState m => S.Symbol -> m FlatSym
+lookImportSym sym = do
+    importFlatMap <- (gets importFlat)
+    let symTabs    = map symTab $ Map.elems importFlatMap
+    let symTabTops = map (\[ss] -> ss) symTabs
+    let ress       = map fromJust $ filter isJust $ map (Map.lookup sym) symTabTops
+    when (length ress /= 1) $ fail (sym ++ " not defined once")
+    return (head ress)
+        
+
 lookSym :: BoM FlattenState m => S.Symbol -> m FlatSym
 lookSym sym = do
     res <- fmap (SymTab.lookup sym) (gets symTab)
-    when (isNothing res) $ fail (sym ++ " isn't defined")
-    return (fromJust res)
-
+    case res of
+        Just r  -> return r
+        Nothing -> lookImportSym sym
 
 addSym :: BoM FlattenState m => S.Symbol -> FlatSym -> m ()
 addSym sym flat =
@@ -77,9 +85,13 @@ popScope =
     modify $ \s -> s { symTab = SymTab.pop (symTab s) }
 
 
-flattenAST :: (MonadIO m, MonadFail m) => S.AST -> m (Either CmpError FlattenState)
-flattenAST ast = do
-    res <- runBoMT (initFlattenState { imports = S.astImports ast }) $ do
+flattenAST
+    :: (MonadIO m, MonadFail m)
+    => Map.Map S.ModuleName FlattenState
+    -> S.AST
+    -> m (Either CmpError FlattenState)
+flattenAST importFlatMap ast = do
+    res <- runBoMT (initFlattenState importFlatMap) $ do
         mapM_ flattenTopStmt (S.astStmts ast)
         mapM_ resolveTypedef =<< fmap Map.keys (gets typedefs)
         mapM_ resolveVariable =<< fmap Map.keys (gets variables)
