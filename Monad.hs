@@ -33,7 +33,7 @@ newtype BoMT s m a
     = BoMT { getStateT :: StateT s (ExceptT CmpError m) a }
     deriving (Functor, Applicative, Monad, MonadIO, MonadState s, MonadError CmpError)
 
-class (MonadState s m, MonadFail m, MonadIO m) => BoM s m
+class (MonadState s m, MonadFail m, MonadIO m, MonadError CmpError m) => BoM s m
 
 instance (MonadFail m, MonadIO m) => BoM s (BoMT s m)
 

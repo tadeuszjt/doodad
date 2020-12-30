@@ -17,6 +17,7 @@ import qualified Lexer as L
 import qualified Parser as P
 import qualified Resolver as R
 import qualified Flatten as F
+import qualified Compile as C
 import           CmpMonad
 import           Value hiding (Module)
 import           LLVM.AST hiding (Module, Name)
@@ -26,7 +27,7 @@ import Monad
 data Module
     = ModuleAST [S.AST]
     | ModuleFlat F.FlattenState
-    | ModuleCompiled
+    | ModuleCompiled C.CompileState
 
 
 data ModulesState
@@ -66,13 +67,11 @@ modFlattenAST modName = do
         ModuleFlat flatState <- fmap (Map.! imp) (gets modMap)
         return (imp, flatState)
 
-
     let combinedAST = S.AST {
         S.astModuleName = Just modName,
         S.astImports    = imports,
         S.astStmts      = concat (map S.astStmts asts)
         }
-
 
     res <- F.flattenAST importFlatMap combinedAST
     case res of
@@ -82,21 +81,24 @@ modFlattenAST modName = do
 
 modCompile :: BoM ModulesState m => S.ModuleName -> m ()
 modCompile modName = 
-    return ()
---    modCompileDep modName Set.empty
---    where
---        modCompileDep :: BoM ModulesState m => S.ModuleName -> Set.Set S.ModuleName -> m ()
---        modCompileDep depName modsVisited = do
---            when (Set.member depName modsVisited) $ 
---                fail ("circular dependency involving " ++ depName)
---            modModify depName $ \res -> case res of
---                Nothing             -> fail (depName ++ " doesn't exist")
---                Just (ModuleFlat state) -> do
---                    forM_ (Map.toList $ F.imports state) $ \imp ->
---                        modCompileDep imp (Set.insert depName modsVisited)
---                    return ModuleCompiled
---                
-    
+    modCompileDep modName Set.empty
+    where
+        modCompileDep :: BoM ModulesState m => S.ModuleName -> Set.Set S.ModuleName -> m ()
+        modCompileDep depName modsVisited = do
+            when (Set.member depName modsVisited) $
+                fail ("circular dependency involving " ++ depName)
+            modModify depName $ \res -> case res of
+                Nothing                 -> fail (depName ++ " doesn't exist")
+                Just (ModuleFlat flatState) -> do
+                    forM_ (Map.keys $ F.importFlat flatState) $ \imp ->
+                        modCompileDep imp (Set.insert depName modsVisited)
+
+                    res <- C.compileFlatState flatState
+                    case res of
+                        Left err    -> throwError err
+                        Right state -> return (ModuleCompiled state)
+
+
 parse :: String -> Either CmpError S.AST
 parse source =
     case L.alexScanner source of
@@ -114,9 +116,8 @@ runFiles fs = do
             Right ast -> modAddAST ast
 
     modMap <- gets modMap
-    --forM_ (Map.keys modMap) $ \modName -> modResolveSymbols modName
     mapM_ modFlattenAST (Map.keys modMap)
-    --modCompile "main"
+    modCompile "main"
 
 
 prettyModules :: ModulesState -> IO ()
@@ -131,7 +132,9 @@ prettyModules modules = do
                 putStrLn ("Imports:")
                 mapM_ (putStrLn . show) (Map.keys $ F.importFlat flatState)
                 F.prettyFlatAST flatState
-            ModuleCompiled -> do
+            ModuleCompiled state -> do
                 putStrLn ("ModuleCompiled " ++ modName)
+                forM_ (C.defs state) $ \d ->
+                    putStrLn $ take 100 (show d)
         putStrLn ""
 
