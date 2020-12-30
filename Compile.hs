@@ -69,7 +69,8 @@ compileFlatState importCompiled flatState = do
 
         cmp :: InsCmp CompileState m => m ()
         cmp = do
-            forM_ (Map.toList $ F.typedefs flatState) $ \(flat, (pos, typ)) ->
+            forM_ ((Map.! F.KeyType) $ F.flatTab flatState) $ \flat -> do
+                let F.ObjType pos typ = (Map.! flat) (F.objTab flatState)
                 cmpTypeDef flat pos typ
 
         cmpTypeDef :: InsCmp CompileState m => F.FlatSym -> TextPos -> T.Type -> m Type
@@ -93,9 +94,9 @@ compileFlatState importCompiled flatState = do
             T.Char         -> return i32
             T.String       -> return (ptr i8)
             T.Array n t    -> fmap (ArrayType $ fromIntegral n) (opTypeOf t)
-            T.Typedef flat -> case Map.lookup flat (F.typedefs flatState) of
-                    Just (pos, t) -> cmpTypeDef flat pos t
-                    Nothing       -> do
+            T.Typedef flat -> case Map.lookup flat (F.objTab flatState) of
+                    Just (F.ObjType pos t) -> cmpTypeDef flat pos t
+                    Nothing                -> do
                         fail (show importCompiled)
                         return $ (Map.! flat) $
                             foldr1 Map.union $ map types (Map.elems importCompiled)

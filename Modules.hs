@@ -122,7 +122,7 @@ runFiles fs = do
 
     modMap <- gets modMap
     mapM_ modFlattenAST (Map.keys modMap)
-    --modCompile "main"
+    modCompile "main"
 
 
 prettyModules :: ModulesState -> IO ()
