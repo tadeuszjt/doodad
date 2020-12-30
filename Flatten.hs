@@ -17,11 +17,21 @@ import Error
 
 type FlatSym = String
 
+
 data SymKey
     = KeyType
     | KeyVar
     | KeyFunc
     deriving (Show, Eq, Ord)
+
+
+data SymObj
+    = ObjType TextPos T.Type
+    | ObjVar  TextPos S.Expr
+    | ObjFunc S.Stmt
+    | ObjExtern S.Stmt
+    deriving (Show)
+
 
 data FlattenState
     = FlattenState
@@ -33,6 +43,7 @@ data FlattenState
         , symTab     :: SymTab.SymTab S.Symbol (Map.Map SymKey FlatSym)
         , symSupply  :: Map.Map S.Symbol Int
         }
+
 
 initFlattenState importFlatMap
     = FlattenState
@@ -71,7 +82,7 @@ checkSymKeyUndef sym key = do
 
 lookImport :: BoM FlattenState m => S.Symbol -> SymKey -> m FlatSym
 lookImport sym key = do
-    symTabs <- fmap (map symTab) $ fmap Map.elems (gets importFlat)
+    symTabs <- fmap (map symTab . Map.elems) (gets importFlat)
     let kmaps   = map fromJust $ filter isJust $ map (SymTab.lookupHead sym) symTabs
     let results = map fromJust $ filter isJust $ map (Map.lookup key) kmaps
     when (length results /= 1) $ fail (sym ++ " defined in multiple imported modules")
@@ -150,6 +161,7 @@ flattenAST importFlatMap ast = do
                 modify $ \s -> s { variables = Map.insert flat (pos, expr') (variables s) }
             _ -> fail "invalid top-level statement"
 
+
         resolveTypedef :: BoM FlattenState m => FlatSym -> m ()
         resolveTypedef flat = do
             (pos, typ) <- resolveTypedef' Set.empty flat
@@ -159,7 +171,8 @@ flattenAST importFlatMap ast = do
                 resolveTypedef' visitedSyms flat = do
                     when (Set.member flat visitedSyms) $
                         fail ("circular type dependency: " ++ flat)
-
+                    
+                    res <- fmap (Map.lookup flat) (gets typedefs)
                     (pos, typ) <- fmap (Map.! flat) (gets typedefs)
 
                     case typ of
@@ -170,144 +183,153 @@ flattenAST importFlatMap ast = do
                         T.I32  -> return (pos, typ)
                         T.Bool -> return (pos, typ)
 
-        resolveVariable :: BoM FlattenState m => FlatSym -> m ()
-        resolveVariable flat = do
-            (pos, expr) <- fmap (Map.! flat) (gets variables)
-            expr' <- resolveConstExpr expr
-            modify $ \s -> s { variables = Map.insert flat (pos, expr') (variables s) }
 
-        resolveConstExpr :: BoM FlattenState m => S.Expr -> m S.Expr
-        resolveConstExpr expr = case expr of
-            S.Cons _          -> return expr
-            S.Tuple pos exprs -> fmap (S.Tuple pos) (mapM resolveConstExpr exprs)
-
-        resolvePattern :: BoM FlattenState m => S.Pattern -> m S.Pattern
-        resolvePattern pat = case pat of
-            S.PatIgnore pos    -> return pat
-            S.PatIdent pos sym -> do
-                checkSymKeyUndef sym KeyVar
-                flat <- fresh sym
-                addSym sym KeyVar flat
-                return (S.PatIdent pos flat)
-            S.PatLiteral cons ->
-                return pat
-            _ -> fail ("resolvePattern: " ++ show pat)
-
-        resolveIndex :: BoM FlattenState m => S.Index -> m S.Index
-        resolveIndex ind = case ind of
-            S.IndIdent pos sym -> fmap (S.IndIdent pos) (look sym KeyVar)
-
-        resolveExtern :: BoM FlattenState m => FlatSym -> m ()
-        resolveExtern flat = do
-            S.Extern pos sym params retty <- fmap (Map.! flat) (gets externs)
-
-            pushScope
-            params' <- forM params $ \(S.Param pos sym typ) -> do
-                checkSymKeyUndef sym KeyVar
-                flat <- fresh sym
-                addSym sym KeyVar flat
-                fmap (S.Param pos flat) (resolveType typ) 
-            popScope
-
-            retty' <- case retty of
-                Nothing -> return Nothing
-                Just t  -> fmap Just (resolveType t)
-
-            modify $ \s -> s { externs = Map.insert flat (S.Extern pos sym params' retty') (externs s) }
-
-        resolveFunction :: BoM FlattenState m => FlatSym -> m ()
-        resolveFunction flat = do
-            S.Func pos sym params retty blk <- fmap (Map.! flat) (gets funcDefs)
-
-            pushScope
-            params' <- forM params $ \(S.Param pos sym typ) -> do
-                checkSymKeyUndef sym KeyVar
-                flat <- fresh sym
-                addSym sym KeyVar flat
-                fmap (S.Param pos flat) (resolveType typ)
+resolveVariable :: BoM FlattenState m => FlatSym -> m ()
+resolveVariable flat = do
+    (pos, expr) <- fmap (Map.! flat) (gets variables)
+    expr' <- resolveConstExpr expr
+    modify $ \s -> s { variables = Map.insert flat (pos, expr') (variables s) }
 
 
-            blk' <- mapM resolveStmt blk
-            popScope
+resolveConstExpr :: BoM FlattenState m => S.Expr -> m S.Expr
+resolveConstExpr expr = case expr of
+    S.Cons _          -> return expr
+    S.Tuple pos exprs -> fmap (S.Tuple pos) (mapM resolveConstExpr exprs)
 
-            retty' <- case retty of
-                Nothing -> return Nothing
-                Just t  -> fmap Just (resolveType t)
 
-            modify $ \s -> s { funcDefs = Map.insert flat (S.Func pos flat params' retty' blk') (funcDefs s) }
+resolvePattern :: BoM FlattenState m => S.Pattern -> m S.Pattern
+resolvePattern pat = case pat of
+    S.PatIgnore pos    -> return pat
+    S.PatIdent pos sym -> do
+        checkSymKeyUndef sym KeyVar
+        flat <- fresh sym
+        addSym sym KeyVar flat
+        return (S.PatIdent pos flat)
+    S.PatLiteral cons ->
+        return pat
+    _ -> fail ("resolvePattern: " ++ show pat)
 
-        resolveStmt :: BoM FlattenState m => S.Stmt -> m S.Stmt
-        resolveStmt stmt = case stmt of
-            S.Assign pos pat expr -> do
-                pat' <- resolvePattern pat
-                expr' <- resolveExpr expr
-                return (S.Assign pos pat' expr')
-            S.While pos cnd blk -> do
-                pushScope
-                cnd' <- resolveExpr cnd
-                blk' <- mapM resolveStmt blk
-                popScope
-                return (S.While pos cnd' blk')
-            S.Switch pos cnd cases -> do
-                cnd' <- resolveExpr cnd
-                pushScope
-                cases' <- forM cases $ \(pat, stmt) -> do
-                    pat' <- resolvePattern pat
-                    stmt' <- resolveStmt stmt
-                    return (pat', stmt')
-                popScope
-                return (S.Switch pos cnd' cases')
-            S.Set pos ind expr -> do
-                ind' <- resolveIndex ind
-                expr' <- resolveExpr expr
-                return (S.Set pos ind' expr')
-            S.Return pos mexpr -> do
-                fmap (S.Return pos) $ case mexpr of
-                    Nothing -> return Nothing
-                    Just ex -> fmap Just (resolveExpr ex)
-            S.CallStmt pos sym exprs -> do
-                flat <- look sym KeyFunc
-                exprs' <- mapM resolveExpr exprs
-                return (S.CallStmt pos flat exprs')
-            _ -> fail ("resolveStmt: " ++ show stmt)
 
-        resolveExpr :: BoM FlattenState m => S.Expr -> m S.Expr
-        resolveExpr expr = case expr of
-            S.Cons _ -> return expr
-            S.Conv pos typ exprs -> do
-                typ' <- resolveType typ
-                exprs' <- mapM resolveExpr exprs
-                return (S.Conv pos typ' exprs')
-            S.Ident pos sym ->
-                fmap (S.Ident pos) (look sym KeyVar)
-            S.Call pos sym exprs -> do
-                flat <- look sym KeyFunc
-                exprs' <- mapM resolveExpr exprs
-                return (S.Call pos flat exprs)
-            S.Append pos exprA exprB -> do
-                exprA' <- resolveExpr exprA
-                exprB' <- resolveExpr exprB
-                return (S.Append pos exprA' exprB')
-            S.Infix pos op exprA exprB -> do
-                exprA' <- resolveExpr exprA
-                exprB' <- resolveExpr exprB
-                return (S.Infix pos op exprA' exprB')
-            S.Len pos expr ->
-                fmap (S.Len pos) (resolveExpr expr)
-            S.Subscript pos exprA exprB -> do
-                exprA' <- resolveExpr exprA
-                exprB' <- resolveExpr exprB
-                return (S.Subscript pos exprA' exprB')
-            _ -> fail ("resolveExpr: " ++ show expr)
+resolveIndex :: BoM FlattenState m => S.Index -> m S.Index
+resolveIndex ind = case ind of
+    S.IndIdent pos sym -> fmap (S.IndIdent pos) (look sym KeyVar)
 
-        resolveType :: BoM FlattenState m => T.Type -> m T.Type
-        resolveType typ = case typ of
-            T.I8        -> return T.I8
-            T.Bool      -> return T.Bool
-            T.Char      -> return T.Char
-            T.Typedef s -> fmap T.Typedef (look s KeyType)
-            T.Table ts  -> fmap T.Table (mapM resolveType ts)
-            _ -> fail ("resolveTyp: " ++ show typ)
+
+resolveExtern :: BoM FlattenState m => FlatSym -> m ()
+resolveExtern flat = do
+    S.Extern pos sym params retty <- fmap (Map.! flat) (gets externs)
+
+    pushScope
+    params' <- forM params $ \(S.Param pos sym typ) -> do
+        checkSymKeyUndef sym KeyVar
+        flat <- fresh sym
+        addSym sym KeyVar flat
+        fmap (S.Param pos flat) (resolveType typ) 
+    popScope
+
+    retty' <- case retty of
+        Nothing -> return Nothing
+        Just t  -> fmap Just (resolveType t)
+
+    modify $ \s -> s { externs = Map.insert flat (S.Extern pos sym params' retty') (externs s) }
+
+
+resolveFunction :: BoM FlattenState m => FlatSym -> m ()
+resolveFunction flat = do
+    S.Func pos sym params retty blk <- fmap (Map.! flat) (gets funcDefs)
+
+    pushScope
+    params' <- forM params $ \(S.Param pos sym typ) -> do
+        checkSymKeyUndef sym KeyVar
+        flat <- fresh sym
+        addSym sym KeyVar flat
+        fmap (S.Param pos flat) (resolveType typ)
+
+
+    blk' <- mapM resolveStmt blk
+    popScope
+
+    retty' <- case retty of
+        Nothing -> return Nothing
+        Just t  -> fmap Just (resolveType t)
+
+    modify $ \s -> s { funcDefs = Map.insert flat (S.Func pos flat params' retty' blk') (funcDefs s) }
+
+
+resolveStmt :: BoM FlattenState m => S.Stmt -> m S.Stmt
+resolveStmt stmt = case stmt of
+    S.Assign pos pat expr -> do
+        pat' <- resolvePattern pat
+        expr' <- resolveExpr expr
+        return (S.Assign pos pat' expr')
+    S.While pos cnd blk -> do
+        pushScope
+        cnd' <- resolveExpr cnd
+        blk' <- mapM resolveStmt blk
+        popScope
+        return (S.While pos cnd' blk')
+    S.Switch pos cnd cases -> do
+        cnd' <- resolveExpr cnd
+        pushScope
+        cases' <- forM cases $ \(pat, stmt) -> do
+            pat' <- resolvePattern pat
+            stmt' <- resolveStmt stmt
+            return (pat', stmt')
+        popScope
+        return (S.Switch pos cnd' cases')
+    S.Set pos ind expr -> do
+        ind' <- resolveIndex ind
+        expr' <- resolveExpr expr
+        return (S.Set pos ind' expr')
+    S.Return pos mexpr -> do
+        fmap (S.Return pos) $ case mexpr of
+            Nothing -> return Nothing
+            Just ex -> fmap Just (resolveExpr ex)
+    S.CallStmt pos sym exprs -> do
+        flat <- look sym KeyFunc
+        exprs' <- mapM resolveExpr exprs
+        return (S.CallStmt pos flat exprs')
+    _ -> fail ("resolveStmt: " ++ show stmt)
+
+
+resolveExpr :: BoM FlattenState m => S.Expr -> m S.Expr
+resolveExpr expr = case expr of
+    S.Cons _ -> return expr
+    S.Conv pos typ exprs -> do
+        typ' <- resolveType typ
+        exprs' <- mapM resolveExpr exprs
+        return (S.Conv pos typ' exprs')
+    S.Ident pos sym ->
+        fmap (S.Ident pos) (look sym KeyVar)
+    S.Call pos sym exprs -> do
+        flat <- look sym KeyFunc
+        exprs' <- mapM resolveExpr exprs
+        return (S.Call pos flat exprs)
+    S.Append pos exprA exprB -> do
+        exprA' <- resolveExpr exprA
+        exprB' <- resolveExpr exprB
+        return (S.Append pos exprA' exprB')
+    S.Infix pos op exprA exprB -> do
+        exprA' <- resolveExpr exprA
+        exprB' <- resolveExpr exprB
+        return (S.Infix pos op exprA' exprB')
+    S.Len pos expr ->
+        fmap (S.Len pos) (resolveExpr expr)
+    S.Subscript pos exprA exprB -> do
+        exprA' <- resolveExpr exprA
+        exprB' <- resolveExpr exprB
+        return (S.Subscript pos exprA' exprB')
+    _ -> fail ("resolveExpr: " ++ show expr)
+
+
+resolveType :: BoM FlattenState m => T.Type -> m T.Type
+resolveType typ = case typ of
+    T.I8        -> return T.I8
+    T.Bool      -> return T.Bool
+    T.Char      -> return T.Char
+    T.Typedef s -> fmap T.Typedef (look s KeyType)
+    T.Table ts  -> fmap T.Table (mapM resolveType ts)
+    _ -> fail ("resolveTyp: " ++ show typ)
 
 
 prettyFlatAST :: FlattenState -> IO ()

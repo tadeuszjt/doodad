@@ -10,6 +10,7 @@ import Control.Monad.Except hiding (void, fail)
 
 import qualified Data.Map as Map
 import qualified Data.Set as Set
+import           Data.Maybe
 import           Error
 import qualified SymTab
 import qualified AST as S
@@ -64,6 +65,8 @@ modFlattenAST modName = do
     when (Set.member modName imports) $ fail ("cannot import this module: " ++ modName)
 
     importFlatMap <- fmap Map.fromList $ forM (Set.toList imports) $ \imp -> do
+        res <- fmap (Map.lookup imp) (gets modMap)
+        when (isNothing res) $ fail (imp ++ " isn't in modMap")
         ModuleFlat flatState <- fmap (Map.! imp) (gets modMap)
         return (imp, flatState)
 
@@ -90,10 +93,12 @@ modCompile modName =
             modModify depName $ \res -> case res of
                 Nothing                 -> fail (depName ++ " doesn't exist")
                 Just (ModuleFlat flatState) -> do
-                    forM_ (Map.keys $ F.importFlat flatState) $ \imp ->
+                    imports <- forM (Map.keys $ F.importFlat flatState) $ \imp -> do
                         modCompileDep imp (Set.insert depName modsVisited)
+                        mod@(ModuleCompiled state) <- fmap (Map.! imp) (gets modMap)
+                        return (imp, state)
 
-                    res <- C.compileFlatState flatState
+                    res <- C.compileFlatState (Map.fromList imports) flatState
                     case res of
                         Left err    -> throwError err
                         Right state -> return (ModuleCompiled state)
@@ -117,7 +122,7 @@ runFiles fs = do
 
     modMap <- gets modMap
     mapM_ modFlattenAST (Map.keys modMap)
-    modCompile "main"
+    --modCompile "main"
 
 
 prettyModules :: ModulesState -> IO ()

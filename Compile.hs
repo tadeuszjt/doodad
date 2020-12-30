@@ -39,29 +39,25 @@ mkBSS = BSS.toShort . BS.pack
 
 data CompileState
     = CompileState
-        { actions :: Map.Map F.FlatSym (ModuleCmpT CompileState Identity ())
-        , types   :: Map.Map F.FlatSym Type
+        { types   :: Map.Map F.FlatSym Type
         , defs    :: [Definition]
         }
+    deriving (Show)
 
 initCompileState
      = CompileState
-        { actions = Map.empty
-        , types   = Map.empty
+        { types   = Map.empty
         , defs    = []
         }
 
 
-addAction :: BoM CompileState m => F.FlatSym -> (ModuleCmpT CompileState Identity ()) -> m ()
-addAction flat f = do
-    res <- fmap (Map.lookup flat) (gets actions)
-    when (isJust res) $ fail (flat ++ ": action already created")
-    modify $ \s -> s { actions = Map.insert flat f (actions s) }
 
-
-
-compileFlatState :: (Monad m, MonadFail m, MonadIO m) => F.FlattenState -> m (Either CmpError CompileState)
-compileFlatState flatState = do
+compileFlatState
+    :: (Monad m, MonadFail m, MonadIO m)
+    => Map.Map S.ModuleName CompileState
+    -> F.FlattenState
+    -> m (Either CmpError CompileState)
+compileFlatState importCompiled flatState = do
     res <- runModuleCmpT emptyModuleBuilder initCompileState f
     case res of
         Left err                  -> return (Left err)
@@ -89,17 +85,20 @@ compileFlatState flatState = do
 
         opTypeOf :: InsCmp CompileState m => T.Type -> m Type
         opTypeOf typ = case typ of
-            T.Void        -> return VoidType
-            T.I8          -> return i8
-            T.I32         -> return i32
-            T.I64         -> return i64
-            T.Bool        -> return i1
-            T.Char        -> return i32
-            T.String      -> return (ptr i8)
-            T.Array n t   -> fmap (ArrayType $ fromIntegral n) (opTypeOf t)
-            T.Typedef f   -> do
-                let (p, t) = (Map.! f) (F.typedefs flatState)
-                cmpTypeDef f p t
+            T.Void         -> return VoidType
+            T.I8           -> return i8
+            T.I32          -> return i32
+            T.I64          -> return i64
+            T.Bool         -> return i1
+            T.Char         -> return i32
+            T.String       -> return (ptr i8)
+            T.Array n t    -> fmap (ArrayType $ fromIntegral n) (opTypeOf t)
+            T.Typedef flat -> case Map.lookup flat (F.typedefs flatState) of
+                    Just (pos, t) -> cmpTypeDef flat pos t
+                    Nothing       -> do
+                        fail (show importCompiled)
+                        return $ (Map.! flat) $
+                            foldr1 Map.union $ map types (Map.elems importCompiled)
                 
             _ -> fail (show typ) 
 
@@ -107,4 +106,3 @@ compileFlatState flatState = do
 prettyCompileState :: CompileState -> IO ()
 prettyCompileState state = do
     putStrLn "actions:"
-    forM_ (Map.toList $ actions state) $ \(flat, mod) -> putStrLn (flat ++ " modcmp")
