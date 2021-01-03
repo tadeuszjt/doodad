@@ -23,6 +23,7 @@ import           CmpMonad
 import           Value hiding (Module)
 import           LLVM.AST hiding (Module, Name)
 import Monad
+import           JIT
 
 
 data Module
@@ -33,12 +34,14 @@ data Module
 
 data ModulesState
     = ModulesState
-        { modMap :: Map.Map S.ModuleName Module         -- Map of all modules
+        { modMap  :: Map.Map S.ModuleName Module         -- Map of all modules
+        , session :: Session
         }
 
-initModulesState
+initModulesState session
     = ModulesState
-        { modMap = Map.empty
+        { modMap  = Map.empty
+        , session = session
         }
 
 
@@ -87,21 +90,24 @@ modCompile modName =
     modCompileDep modName Set.empty
     where
         modCompileDep :: BoM ModulesState m => S.ModuleName -> Set.Set S.ModuleName -> m ()
-        modCompileDep depName modsVisited = do
-            when (Set.member depName modsVisited) $
-                fail ("circular dependency involving " ++ depName)
-            modModify depName $ \res -> case res of
-                Nothing                 -> fail (depName ++ " doesn't exist")
+        modCompileDep name visited = do
+            when (Set.member name visited) $
+                fail ("circular dependency involving " ++ name)
+            modModify name $ \res -> case res of
+                Nothing                 -> fail (name ++ " doesn't exist")
                 Just (ModuleFlat flatState) -> do
-                    imports <- forM (Map.keys $ F.importFlat flatState) $ \imp -> do
-                        modCompileDep imp (Set.insert depName modsVisited)
+                    imports <- forM (Set.toList $ F.imports flatState) $ \imp -> do
+                        modCompileDep imp (Set.insert name visited)
                         mod@(ModuleCompiled state) <- fmap (Map.! imp) (gets modMap)
                         return (imp, state)
 
                     res <- C.compileFlatState (Map.fromList imports) flatState
                     case res of
                         Left err    -> throwError err
-                        Right state -> return (ModuleCompiled state)
+                        Right state -> do
+                            sess <- gets session
+                            liftIO $ jitAndRun (C.definitions state) sess True True
+                            return (ModuleCompiled state)
 
 
 parse :: String -> Either CmpError S.AST
@@ -117,7 +123,7 @@ runFiles :: BoM ModulesState m => [String] -> m ()
 runFiles fs = do
     forM_ fs $ \f ->
         case parse f of
-            Left err  -> liftIO (printError err f)
+            Left err  -> throwError err
             Right ast -> modAddAST ast
 
     modMap <- gets modMap
@@ -135,11 +141,10 @@ prettyModules modules = do
             ModuleFlat flatState -> do
                 putStrLn ("ModuleFlat: " ++ modName)
                 putStrLn ("Imports:")
-                mapM_ (putStrLn . show) (Map.keys $ F.importFlat flatState)
+                mapM_ (putStrLn . show) (F.imports flatState)
                 F.prettyFlatAST flatState
             ModuleCompiled state -> do
                 putStrLn ("ModuleCompiled " ++ modName)
-                forM_ (C.defs state) $ \d ->
-                    putStrLn $ take 100 (show d)
+                C.prettyCompileState state
         putStrLn ""
 

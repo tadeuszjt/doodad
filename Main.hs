@@ -41,14 +41,14 @@ initArgs = Args
 main :: IO ()
 main = do
     args <- fmap (parseArgs initArgs) getArgs
-    if (modulesOnly args) then do
-        sources <- mapM readFile (filenames args) 
-        res <- runBoMT M.initModulesState (M.runFiles sources)
-        case res of
-            Left err -> printError err ""
-            Right (_, modState) -> M.prettyModules modState
-    else do
-        withSession (optimise args) $ \session ->
+    withSession (optimise args) $ \session -> do
+        if (modulesOnly args) then do
+            sources <- mapM readFile (filenames args) 
+            res <- runBoMT (M.initModulesState session) (M.runFiles sources)
+            case res of
+                Left err -> printError err ""
+                Right (_, modState) -> M.prettyModules modState
+        else do
             if (filenames args) == [] then
                 repl session (verbose args)
             else do

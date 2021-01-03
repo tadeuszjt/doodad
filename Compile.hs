@@ -32,36 +32,81 @@ import Error
 import qualified AST as S
 import qualified Type as T
 import qualified SymTab
-import qualified Flatten as F
+import Flatten as F
 
 mkBSS = BSS.toShort . BS.pack
 
 
+data Obj
+    = ObType T.Type
+    deriving (Show)
+
+data Declaration
+    = DecType Name 
+    deriving (Show)
+
 data CompileState
     = CompileState
-        { types   :: Map.Map F.FlatSym Type
-        , defs    :: [Definition]
+        { declarations :: Map.Map FlatSym Declaration
+        , definitions  :: [Definition]
+        , declared     :: Set.Set FlatSym
+        , tab          :: Map.Map FlatSym Obj
         }
     deriving (Show)
 
 initCompileState
      = CompileState
-        { types   = Map.empty
-        , defs    = []
+        { declarations = Map.empty
+        , definitions  = []
+        , declared     = Set.empty
+        , tab          = Map.empty
         }
 
+
+
+addObj :: BoM CompileState m => FlatSym -> Obj -> m ()
+addObj flat obj =
+    modify $ \s -> s { tab = Map.insert flat obj (tab s) }
+
+
+
+ensureDeclared :: ModCmp CompileState m => FlatSym -> m ()
+ensureDeclared flat = do
+    isDeclared <- fmap (Set.member flat) (gets declared)
+    when (not isDeclared) $ do
+        dec <- fmap (Map.! flat) (gets declarations)
+        case dec of
+            DecType nm -> void (typedef nm Nothing)
+    modify $ \s -> s { declared = Set.insert flat (declared s) }
+
+
+addDeclaration :: BoM CompileState m => FlatSym -> Declaration -> m ()
+addDeclaration flat dec =
+    modify $ \s -> s { declarations = Map.insert flat dec (declarations s) }
+
+--        { imports    :: Set.Set S.ModuleName
+--        , defTab     :: Map.Map FlatSym SymObj
+--        , flatTab    :: Map.Map SymKey [FlatSym]
+--        , symTab     :: SymTab.SymTab S.Symbol (Map.Map SymKey FlatSym)
+--        , symSupply  :: Map.Map S.Symbol Int
+--
+--data SymObj
+--    = ObjTypeDef TextPos T.Type
+--    | ObjVar  TextPos S.Expr
+--    | ObjFunc S.Stmt
+--    | ObjExtern S.Stmt
 
 
 compileFlatState
     :: (Monad m, MonadFail m, MonadIO m)
     => Map.Map S.ModuleName CompileState
-    -> F.FlattenState
+    -> FlattenState
     -> m (Either CmpError CompileState)
 compileFlatState importCompiled flatState = do
     res <- runModuleCmpT emptyModuleBuilder initCompileState f
     case res of
         Left err                  -> return (Left err)
-        Right (((), defs), state) -> return (Right state { defs = defs })
+        Right (((), defs), state) -> return (Right state { definitions = defs })
     where
         f :: (MonadFail m, Monad m, MonadIO m) => ModuleCmpT CompileState m ()
         f = void $ function "main" [] VoidType $ \_ ->
@@ -69,41 +114,23 @@ compileFlatState importCompiled flatState = do
 
         cmp :: InsCmp CompileState m => m ()
         cmp = do
-            forM_ ((Map.! F.KeyType) $ F.flatTab flatState) $ \flat -> do
-                let F.ObjType pos typ = (Map.! flat) (F.objTab flatState)
-                cmpTypeDef flat pos typ
+            forM_ (Map.toList $ defTab flatState) $ \(flat, obj) ->
+                case obj of
+                    ObjTypeDef pos typ -> cmpType flat pos typ
+                    _ ->               return ()
 
-        cmpTypeDef :: InsCmp CompileState m => F.FlatSym -> TextPos -> T.Type -> m Type
-        cmpTypeDef flat pos typ = do
-            res <- fmap (Map.lookup flat) (gets types)
-            case res of
-                Just ty -> return ty
-                Nothing -> do
-                   name <- freshName (mkBSS flat)
-                   ty <- typedef name =<< fmap Just (opTypeOf typ)
-                   modify $ \s -> s { types = Map.insert flat ty (types s) }
-                   return ty
 
-        opTypeOf :: InsCmp CompileState m => T.Type -> m Type
-        opTypeOf typ = case typ of
-            T.Void         -> return VoidType
-            T.I8           -> return i8
-            T.I32          -> return i32
-            T.I64          -> return i64
-            T.Bool         -> return i1
-            T.Char         -> return i32
-            T.String       -> return (ptr i8)
-            T.Array n t    -> fmap (ArrayType $ fromIntegral n) (opTypeOf t)
-            T.Typedef flat -> case Map.lookup flat (F.objTab flatState) of
-                    Just (F.ObjType pos t) -> cmpTypeDef flat pos t
-                    Nothing                -> do
-                        fail (show importCompiled)
-                        return $ (Map.! flat) $
-                            foldr1 Map.union $ map types (Map.elems importCompiled)
-                
-            _ -> fail (show typ) 
+        cmpType :: ModCmp CompileState m => FlatSym -> TextPos -> T.Type -> m ()
+        cmpType flat pos typ = do
+            case typ of
+                T.I8        -> addObj flat (ObType T.I8)
+                T.Bool      -> addObj flat (ObType T.Bool)
+                _    -> return ()
+            return ()
 
 
 prettyCompileState :: CompileState -> IO ()
 prettyCompileState state = do
-    putStrLn "actions:"
+    putStrLn "objects:"
+    forM_ (Map.toList $ tab state) $ \(flat, o) ->
+        putStrLn $ take 100 (flat ++ ": " ++ show o)

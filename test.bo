@@ -6,6 +6,7 @@ extern benis(x b);
 type t = z;
 type z = b;
 type b = bool;
+type c = ioType;
 
 fn main() {
     putStrLn("benis");
