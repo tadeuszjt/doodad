@@ -108,6 +108,7 @@ flattenAST importFlatMap ast = do
             ObjTypeDef pos typ <- getObj flat
             typ' <- case typ of
                 T.I32       -> return typ
+                T.I64       -> return typ
                 T.Bool      -> return typ
                 T.Typedef s -> fmap T.Typedef (look s KeyType)
             addObj flat (ObjTypeDef pos typ')
@@ -326,6 +327,9 @@ flattenAST importFlatMap ast = do
                 flat <- look sym KeyFunc
                 exprs' <- mapM resolveExpr exprs
                 return (S.CallStmt pos flat exprs')
+            S.Print pos exprs -> do
+                exprs' <- mapM resolveExpr exprs
+                return (S.Print pos exprs')
             _ -> fail ("resolveStmt: " ++ show stmt)
 
 

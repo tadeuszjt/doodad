@@ -9,7 +9,7 @@ type b = bool;
 type c = ioType;
 
 fn main() {
-    putStrLn("benis");
+    print(x);
 }
 
 let x = 3;

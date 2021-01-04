@@ -74,9 +74,10 @@ ensureDeclared :: ModCmp CompileState m => FlatSym -> m ()
 ensureDeclared flat = do
     isDeclared <- fmap (Set.member flat) (gets declared)
     when (not isDeclared) $ do
-        dec <- fmap (Map.! flat) (gets declarations)
-        case dec of
-            DecType nm -> void (typedef nm Nothing)
+        res <- fmap (Map.lookup flat) (gets declarations)
+        case res of
+            Nothing           -> return ()
+            Just (DecType nm) -> void (typedef nm Nothing)
     modify $ \s -> s { declared = Set.insert flat (declared s) }
 
 
@@ -108,6 +109,23 @@ compileFlatState importCompiled flatState = do
         Left err                  -> return (Left err)
         Right (((), defs), state) -> return (Right state { definitions = defs })
     where
+        look :: ModCmp CompileState m => FlatSym -> m Obj
+        look flat = do
+            res <- fmap (Map.lookup flat) (gets tab)
+            case res of
+                Just obj -> do
+                    ensureDeclared flat
+                    return obj
+                Nothing -> do
+                    let ress = catMaybes $ map (Map.lookup flat . tab) (Map.elems importCompiled)
+                    case ress of
+                        [] -> error (flat ++ " not found")
+                        [o] -> return o
+                        _   -> error (flat ++ " ambiguous")
+
+
+
+
         f :: (MonadFail m, Monad m, MonadIO m) => ModuleCmpT CompileState m ()
         f = void $ function "main" [] VoidType $ \_ ->
                 getInstrCmp cmp
@@ -116,16 +134,25 @@ compileFlatState importCompiled flatState = do
         cmp = do
             forM_ (Map.toList $ defTab flatState) $ \(flat, obj) ->
                 case obj of
-                    ObjTypeDef pos typ -> cmpType flat pos typ
+                    ObjTypeDef pos typ -> cmpTypeDef flat pos typ
                     _ ->               return ()
 
 
-        cmpType :: ModCmp CompileState m => FlatSym -> TextPos -> T.Type -> m ()
-        cmpType flat pos typ = do
+        cmpTypeDef :: ModCmp CompileState m => FlatSym -> TextPos -> T.Type -> m ()
+        cmpTypeDef flat pos typ = do
             case typ of
                 T.I8        -> addObj flat (ObType T.I8)
+                T.I64       -> addObj flat (ObType T.I64)
                 T.Bool      -> addObj flat (ObType T.Bool)
-                _    -> return ()
+                T.Typedef f -> do
+                    let res = Map.lookup f (defTab flatState)
+                    case res of
+                        Nothing                -> return ()
+                        Just (ObjTypeDef p t)  -> do
+                            cmpTypeDef f p t
+                    look f
+                    addObj flat (ObType (T.Typedef f))
+                _ -> error (show typ)
             return ()
 
 
@@ -134,3 +161,6 @@ prettyCompileState state = do
     putStrLn "objects:"
     forM_ (Map.toList $ tab state) $ \(flat, o) ->
         putStrLn $ take 100 (flat ++ ": " ++ show o)
+    putStrLn "defs:"
+    forM_ (definitions state) $ \d ->
+        putStrLn $ take 100 (show d)
