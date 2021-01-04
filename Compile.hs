@@ -41,9 +41,11 @@ data Obj
     = ObType T.Type
     deriving (Show)
 
+
 data Declaration
     = DecType Name 
     deriving (Show)
+
 
 data CompileState
     = CompileState
@@ -69,33 +71,14 @@ addObj flat obj =
     modify $ \s -> s { tab = Map.insert flat obj (tab s) }
 
 
-
-ensureDeclared :: ModCmp CompileState m => FlatSym -> m ()
-ensureDeclared flat = do
-    isDeclared <- fmap (Set.member flat) (gets declared)
-    when (not isDeclared) $ do
-        res <- fmap (Map.lookup flat) (gets declarations)
-        case res of
-            Nothing           -> return ()
-            Just (DecType nm) -> void (typedef nm Nothing)
+addDeclared :: BoM CompileState m => FlatSym -> m ()
+addDeclared flat =
     modify $ \s -> s { declared = Set.insert flat (declared s) }
 
 
 addDeclaration :: BoM CompileState m => FlatSym -> Declaration -> m ()
 addDeclaration flat dec =
     modify $ \s -> s { declarations = Map.insert flat dec (declarations s) }
-
---        { imports    :: Set.Set S.ModuleName
---        , defTab     :: Map.Map FlatSym SymObj
---        , flatTab    :: Map.Map SymKey [FlatSym]
---        , symTab     :: SymTab.SymTab S.Symbol (Map.Map SymKey FlatSym)
---        , symSupply  :: Map.Map S.Symbol Int
---
---data SymObj
---    = ObjTypeDef TextPos T.Type
---    | ObjVar  TextPos S.Expr
---    | ObjFunc S.Stmt
---    | ObjExtern S.Stmt
 
 
 compileFlatState
@@ -109,21 +92,29 @@ compileFlatState importCompiled flatState = do
         Left err                  -> return (Left err)
         Right (((), defs), state) -> return (Right state { definitions = defs })
     where
+        ensureDeclared :: ModCmp CompileState m => FlatSym -> m ()
+        ensureDeclared flat = do
+            isDeclared <- fmap (Set.member flat) (gets declared)
+
+            when (not isDeclared) $ do
+                res <- fmap (Map.lookup flat) (gets declarations)
+                let ress = map (Map.lookup flat . declarations) (Map.elems importCompiled)
+
+                case catMaybes (res:ress) of
+                    []  -> return ()
+                    [r] -> case r of
+                        DecType nm -> void (typedef nm Nothing)
+
+            modify $ \s -> s { declared = Set.insert flat (declared s) }
+
+
         look :: ModCmp CompileState m => FlatSym -> m Obj
         look flat = do
+            ensureDeclared flat
             res <- fmap (Map.lookup flat) (gets tab)
             case res of
-                Just obj -> do
-                    ensureDeclared flat
-                    return obj
-                Nothing -> do
-                    let ress = catMaybes $ map (Map.lookup flat . tab) (Map.elems importCompiled)
-                    case ress of
-                        [] -> error (flat ++ " not found")
-                        [o] -> return o
-                        _   -> error (flat ++ " ambiguous")
-
-
+                Just obj -> return obj
+                Nothing  -> return $ (head . catMaybes) $ map (Map.lookup flat . tab) (Map.elems importCompiled)
 
 
         f :: (MonadFail m, Monad m, MonadIO m) => ModuleCmpT CompileState m ()
@@ -144,16 +135,25 @@ compileFlatState importCompiled flatState = do
                 T.I8        -> addObj flat (ObType T.I8)
                 T.I64       -> addObj flat (ObType T.I64)
                 T.Bool      -> addObj flat (ObType T.Bool)
-                T.Typedef f -> do
-                    let res = Map.lookup f (defTab flatState)
-                    case res of
-                        Nothing                -> return ()
-                        Just (ObjTypeDef p t)  -> do
-                            cmpTypeDef f p t
-                    look f
-                    addObj flat (ObType (T.Typedef f))
+                T.Typedef f -> addObj flat (ObType (T.Typedef f))
+                T.Tuple ts -> do
+                    let name = Name (mkBSS flat)
+                    opTyp <- opTypeOf typ
+                    typedef name (Just opTyp)
+                    addDeclared flat
+                    addDeclaration flat (DecType name)
+                    addObj flat (ObType (T.Tuple ts))
                 _ -> error (show typ)
             return ()
+
+
+        opTypeOf :: ModCmp CompileState m => T.Type -> m Type
+        opTypeOf typ = case typ of
+            T.I64       -> return i64
+            T.I32       -> return i32
+            T.Tuple ts  -> fmap (StructureType False) (mapM opTypeOf ts)
+            T.Typedef s -> do ObType t <- look s; opTypeOf t
+
 
 
 prettyCompileState :: CompileState -> IO ()

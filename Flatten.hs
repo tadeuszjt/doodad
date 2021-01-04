@@ -111,7 +111,21 @@ flattenAST importFlatMap ast = do
                 T.I64       -> return typ
                 T.Bool      -> return typ
                 T.Typedef s -> fmap T.Typedef (look s KeyType)
+                T.Tuple ts  -> fmap T.Tuple (mapM resolveType ts)
             addObj flat (ObjTypeDef pos typ')
+
+
+        resolveType :: BoM FlattenState m => T.Type -> m T.Type
+        resolveType typ = case typ of
+            T.I8        -> return T.I8
+            T.I32       -> return T.I32
+            T.I64       -> return T.I64
+            T.Bool      -> return T.Bool
+            T.Char      -> return T.Char
+            T.Typedef s -> fmap T.Typedef (look s KeyType)
+            T.Table ts  -> fmap T.Table (mapM resolveType ts)
+            _ -> fail ("resolveTyp: " ++ show typ)
+
 
 
         checkTypedefCircles :: BoM FlattenState m => FlatSym -> m ()
@@ -361,16 +375,6 @@ flattenAST importFlatMap ast = do
                 exprB' <- resolveExpr exprB
                 return (S.Subscript pos exprA' exprB')
             _ -> fail ("resolveExpr: " ++ show expr)
-
-
-        resolveType :: BoM FlattenState m => T.Type -> m T.Type
-        resolveType typ = case typ of
-            T.I8        -> return T.I8
-            T.Bool      -> return T.Bool
-            T.Char      -> return T.Char
-            T.Typedef s -> fmap T.Typedef (look s KeyType)
-            T.Table ts  -> fmap T.Table (mapM resolveType ts)
-            _ -> fail ("resolveTyp: " ++ show typ)
 
 
 prettyFlatAST :: FlattenState -> IO ()

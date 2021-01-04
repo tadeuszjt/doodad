@@ -8,6 +8,8 @@ type z = b;
 type b = bool;
 type c = ioType;
 
+type x = (i32, i64);
+
 fn main() {
     print(x);
 }
