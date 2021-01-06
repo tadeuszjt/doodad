@@ -27,7 +27,7 @@ data SymKey
 
 
 data SymObj
-    = ObjTypeDef    TextPos T.Type
+    = ObjTypeDef TextPos T.Type
     | ObjVarDef  TextPos S.Expr
     | ObjFuncDef S.Stmt
     | ObjExtern  S.Stmt
