@@ -1,34 +1,43 @@
 module SymTab where
 
 import qualified Data.Map as Map
+import           Data.Maybe
 
 
-type SymTab a b = [Map.Map a b]
-initSymTab      = [Map.empty]
+type SymTab s k o = [Map.Map s (Map.Map k o)]
+initSymTab        = [Map.empty]
 
 
-lookup :: Ord a => a -> SymTab a b -> Maybe b
-lookup sym []     = Nothing
-lookup sym (s:ss) = case Map.lookup sym s of
-    Just x  -> Just x
-    Nothing -> SymTab.lookup sym ss
+lookupSymKey :: (Ord s, Ord k) => s -> k -> SymTab s k o -> Maybe o
+lookupSymKey sym key []     = Nothing
+lookupSymKey sym key (s:ss) = case Map.lookup sym s of
+    Just km -> Map.lookup key km
+    Nothing -> lookupSymKey sym key ss
 
 
-lookupHead :: Ord a => a -> SymTab a b -> Maybe b
-lookupHead sym []    = Nothing
-lookupHead sym (s:_) = Map.lookup sym s
+lookupSym :: (Ord s, Ord k) => s -> SymTab s k o -> Maybe (Map.Map k o)
+lookupSym sym []     = Nothing
+lookupSym sym (s:ss) = case Map.lookup sym s of
+    Just km -> Just km
+    Nothing -> lookupSym sym ss
 
 
-insert :: Ord a => a -> b -> SymTab a b -> SymTab a b
-insert sym item (s:ss) =
-    (Map.insert sym item s):ss
+lookupHead :: (Ord s, Ord k) => s -> k -> SymTab s k o -> Maybe o
+lookupHead sym key []    = Nothing
+lookupHead sym key (s:_) = lookupSymKey sym key [s]
 
 
-push :: SymTab a b -> SymTab a b
+insert :: (Ord s, Ord k) => s -> k -> o -> SymTab s k o -> SymTab s k o
+insert sym key obj (s:ss) =
+    let km = maybe Map.empty id (Map.lookup sym s) in
+    (Map.insert sym (Map.insert key obj km) s):ss
+
+
+push :: SymTab s k o -> SymTab s k o
 push s =
     (Map.empty):s
 
 
-pop :: SymTab a b -> SymTab a b
+pop :: SymTab s k o -> SymTab s k o
 pop s =
     tail s

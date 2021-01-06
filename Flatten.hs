@@ -39,7 +39,7 @@ data FlattenState
         { imports    :: Set.Set S.ModuleName
         , defTab     :: Map.Map FlatSym SymObj
         , flatTab    :: Map.Map SymKey [FlatSym]
-        , symTab     :: SymTab.SymTab S.Symbol (Map.Map SymKey FlatSym)
+        , symTab     :: SymTab.SymTab S.Symbol SymKey FlatSym
         , symSupply  :: Map.Map S.Symbol Int
         }
 
@@ -152,24 +152,22 @@ flattenAST importFlatMap ast = do
 
         checkSymUndef :: BoM FlattenState m => S.Symbol -> m ()
         checkSymUndef sym = do
-            res <- fmap (SymTab.lookupHead sym) (gets symTab)
+            res <- fmap (Map.lookup sym . head) (gets symTab)
             when (isJust res) $ fail (sym ++ " already defined")
 
 
         checkSymKeyUndef :: BoM FlattenState m => S.Symbol -> SymKey -> m ()
         checkSymKeyUndef sym key = do
-            res <- fmap (SymTab.lookupHead sym) (gets symTab)
+            res <- fmap (SymTab.lookupHead sym key) (gets symTab)
             case res of
-                Nothing   -> return ()
-                Just kmap -> when (isJust $ Map.lookup key kmap) $
-                    fail (sym ++ " already defined for " ++ show key)
+                Nothing -> return ()
+                Just _  -> fail (sym ++ " already defined for " ++ show key)
 
 
         lookImport :: BoM FlattenState m => S.Symbol -> SymKey -> m FlatSym
         lookImport sym key = do
             let symTabs = map symTab (Map.elems importFlatMap)
-            let kmaps   = catMaybes $ map (SymTab.lookupHead sym) symTabs
-            let results = catMaybes $ map (Map.lookup key) kmaps
+            let results   = catMaybes $ map (SymTab.lookupHead sym key) symTabs
             case results of
                 [x] -> return x
                 []  -> fail (sym ++ " isn't defined")
@@ -178,7 +176,7 @@ flattenAST importFlatMap ast = do
 
         look :: BoM FlattenState m => S.Symbol -> SymKey -> m FlatSym
         look sym key = do
-            res <- fmap (SymTab.lookup sym) (gets symTab)
+            res <- fmap (SymTab.lookupSym sym) (gets symTab)
             case res of
                 Nothing   -> lookImport sym key
                 Just kmap -> do
@@ -189,9 +187,7 @@ flattenAST importFlatMap ast = do
 
         addSym :: BoM FlattenState m => S.Symbol -> SymKey -> FlatSym -> m ()
         addSym sym key flat = do
-            res <- fmap (SymTab.lookup sym) (gets symTab)
-            let kmap' = maybe Map.empty id res
-            modify $ \s -> s { symTab  = SymTab.insert sym (Map.insert key flat kmap') (symTab s) }
+            modify $ \s -> s { symTab  = SymTab.insert sym key flat (symTab s) }
 
 
 

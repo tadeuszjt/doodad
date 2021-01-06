@@ -26,7 +26,7 @@ type Name = String
 data ResolverState
     = ResolverState
         { nameSupply  :: Map.Map Name Int
-        , symbolTable :: SymTab.SymTab S.Symbol Name
+        , symbolTable :: SymTab.SymTab S.Symbol Int Name
         }
     deriving Show
 
@@ -49,20 +49,20 @@ fresh symbol = do
 lookupSym :: BoM ResolverState m => S.Symbol -> m Name
 lookupSym symbol = do
     symTab <- gets symbolTable
-    maybe (fail $ symbol ++ " doesn't exist") return (SymTab.lookup symbol symTab)
+    fmap (Map.! 0) $ maybe (fail $ symbol ++ " doesn't exist") return (SymTab.lookupSym symbol symTab)
 
 
 checkSymUndef :: BoM ResolverState m => S.Symbol -> m ()
 checkSymUndef symbol = do
     symTab <- gets symbolTable
-    case SymTab.lookup symbol [head symTab] of
+    case SymTab.lookupSym symbol [head symTab] of
         Just _  -> fail (symbol ++ " already defined")
         Nothing -> return ()
 
 
 addSymDef :: BoM ResolverState m => S.Symbol -> Name -> m ()
 addSymDef symbol name =
-    modify $ \s -> s { symbolTable = SymTab.insert symbol name (symbolTable s) }
+    modify $ \s -> s { symbolTable = SymTab.insert symbol 0 name (symbolTable s) }
 
 
 pushScope :: BoM ResolverState m => m ()

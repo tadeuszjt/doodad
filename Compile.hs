@@ -36,19 +36,25 @@ import qualified Flatten as F
 
 mkBSS = BSS.toShort . BS.pack
 
+data SymKey
+    = KeyType
+    | KeyVar
+    | KeyFunc
+    deriving (Show, Eq, Ord)
 
-data Obj
-    = ObType T.Type (Maybe Name)
+
+data Object
+    = ObType    T.Type   (Maybe Name)
     | ObjExtern [T.Type] (Maybe T.Type) Operand
-    | ObjFunc [T.Type] (Maybe T.Type) Operand
+    | ObjFunc   [T.Type] (Maybe T.Type) Operand
     | ObjVal
     deriving (Show)
 
 
 data Declaration
-    = DecType Name 
+    = DecType   Name 
     | DecExtern Name [Type] Type Bool
-    | DecFunc Name [Type] Type
+    | DecFunc   Name [Type] Type
     deriving (Show)
 
 
@@ -58,7 +64,7 @@ data CompileState
         , declarations :: Map.Map F.FlatSym Declaration
         , definitions  :: [Definition]
         , declared     :: Set.Set F.FlatSym
-        , objTab       :: Map.Map F.FlatSym Obj
+        , objTab       :: Map.Map F.FlatSym Object
         }
     deriving (Show)
 
@@ -73,7 +79,7 @@ initCompileState
 
 
 
-addObj :: BoM CompileState m => F.FlatSym -> Obj -> m ()
+addObj :: BoM CompileState m => F.FlatSym -> Object -> m ()
 addObj flat obj =
     modify $ \s -> s { objTab = Map.insert flat obj (objTab s) }
 
@@ -88,7 +94,7 @@ addDeclaration flat dec =
     modify $ \s -> s { declarations = Map.insert flat dec (declarations s) }
 
 
-look :: ModCmp CompileState m => F.FlatSym -> m Obj
+look :: ModCmp CompileState m => F.FlatSym -> m Object
 look flat = do
     ensureDeclared flat
     res <- fmap (Map.lookup flat) (gets objTab)
