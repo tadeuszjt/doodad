@@ -146,20 +146,9 @@ compileFlatState importCompiled flatState = do
 
             cmp :: InsCmp CompileState m => m ()
             cmp = do
-                forM_ (Map.toList $ F.defTab flatState) $ \(flat, obj) ->
-                    case obj of
-                        F.ObjTypeDef pos typ -> cmpTypeDef flat pos typ
-                        _                    -> return ()
-
-                forM_ (Map.toList $ F.defTab flatState) $ \(flat, obj) ->
-                    case obj of
-                        F.ObjExtern stmt -> cmpExtern stmt
-                        _                -> return ()
-
-                forM_ (Map.toList $ F.defTab flatState) $ \(flat, obj) ->
-                    case obj of
-                        F.ObjFuncDef stmt -> cmpFuncDef stmt
-                        _                 -> return ()
+                forM_ (Map.toList $ F.typeDefs flatState) $ \(flat, (pos, typ)) -> cmpTypeDef flat pos typ
+                forM_ (Map.toList $ F.externDefs flatState) $ \(flat, stmt) -> cmpExtern stmt
+                forM_ (Map.toList $ F.funcDefs flatState) $ \(flat, stmt) -> cmpFuncDef stmt
 
 
 cmpTypeDef :: InsCmp CompileState m => F.FlatSym -> TextPos -> T.Type -> m ()

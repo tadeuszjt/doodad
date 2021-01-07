@@ -37,7 +37,10 @@ data SymObj
 data FlattenState
     = FlattenState
         { imports    :: Set.Set S.ModuleName
-        , defTab     :: Map.Map FlatSym SymObj
+        , typeDefs   :: Map.Map FlatSym (TextPos, T.Type)
+        , funcDefs   :: Map.Map FlatSym S.Stmt
+        , externDefs :: Map.Map FlatSym S.Stmt
+        , varDefs    :: Map.Map FlatSym (TextPos, S.Expr)
         , flatTab    :: Map.Map SymKey [FlatSym]
         , symTab     :: SymTab.SymTab S.Symbol SymKey FlatSym
         , symSupply  :: Map.Map S.Symbol Int
@@ -47,7 +50,10 @@ data FlattenState
 initFlattenState importFlatMap
     = FlattenState
         { imports    = Set.empty
-        , defTab     = Map.empty
+        , typeDefs   = Map.empty
+        , funcDefs   = Map.empty
+        , externDefs = Map.empty
+        , varDefs    = Map.empty
         , flatTab    = Map.empty
         , symTab     = SymTab.initSymTab
         , symSupply  = Map.empty
@@ -79,19 +85,18 @@ flattenAST importFlatMap ast = do
                 checkSymKeyUndef sym KeyType
                 flat <- fresh (moduleName ++ "_type_" ++ sym)
                 addSym sym KeyType flat
-                addFlat KeyType flat
-                addObj flat (ObjTypeDef pos typ)
+                modify $ \s -> s { typeDefs = Map.insert flat (pos, typ) (typeDefs s) }
             S.Func pos sym params retty blk -> do
                 checkSymKeyUndef sym KeyFunc
                 flat <- fresh (moduleName ++ "_fn_" ++ sym)
                 addSym sym KeyFunc flat
                 addFlat KeyFunc flat
-                addObj flat (ObjFuncDef stmt) 
+                modify $ \s -> s { funcDefs = Map.insert flat stmt (funcDefs s) }
             S.Extern pos sym params retty -> do
                 checkSymKeyUndef sym KeyFunc 
                 addSym sym KeyFunc sym
                 addFlat KeyExtern sym
-                addObj sym (ObjExtern stmt) 
+                modify $ \s -> s { externDefs = Map.insert sym stmt (externDefs s) }
             S.Assign pos (S.PatIgnore _) expr ->
                 return ()
             S.Assign pos (S.PatIdent p sym) expr -> do
@@ -100,19 +105,19 @@ flattenAST importFlatMap ast = do
                 addSym sym KeyVar flat
                 addFlat KeyVar flat
                 expr' <- resolveConstExpr expr
-                addObj flat (ObjVarDef pos expr') 
+                modify $ \s -> s { varDefs = Map.insert flat (pos, expr') (varDefs s) }
             _ -> fail "invalid top-level statement"
 
         resolveTypedef :: BoM FlattenState m => FlatSym -> m ()
         resolveTypedef flat = do
-            ObjTypeDef pos typ <- getObj flat
+            (pos, typ) <- getTypeDef flat
             typ' <- case typ of
                 T.I32       -> return typ
                 T.I64       -> return typ
                 T.Bool      -> return typ
                 T.Typedef s -> fmap T.Typedef (look s KeyType)
                 T.Tuple ts  -> fmap T.Tuple (mapM resolveType ts)
-            addObj flat (ObjTypeDef pos typ')
+            modify $ \s -> s { typeDefs = Map.insert flat (pos, typ') (typeDefs s) }
 
 
         resolveType :: BoM FlattenState m => T.Type -> m T.Type
@@ -136,7 +141,7 @@ flattenAST importFlatMap ast = do
                 checkTypedefCircles' flat visited = do
                     when (Set.member flat visited) $
                         fail ("circular type dependency: " ++ flat)
-                    ObjTypeDef pos typ <- getObj flat
+                    (pos, typ) <- getTypeDef flat
                     case typ of
                         T.Typedef f -> checkTypedefCircles' f (Set.insert flat visited)
                         _           -> return ()
@@ -198,21 +203,13 @@ flattenAST importFlatMap ast = do
             modify $ \s -> s { flatTab = Map.insert key flats' (flatTab s) }
 
 
-        addObj :: BoM FlattenState m => FlatSym -> SymObj -> m ()
-        addObj flat obj = do
-            modify $ \s -> s { defTab  = Map.insert flat obj (defTab s) }
 
-
-
-        getObj :: BoM FlattenState m => FlatSym -> m SymObj
-        getObj flat = do
-            res <- fmap (Map.lookup flat) (gets defTab)
+        getTypeDef :: BoM FlattenState m => FlatSym -> m (TextPos, T.Type)
+        getTypeDef flat = do
+            res <- fmap (Map.lookup flat) (gets typeDefs)
             case res of
                 Just obj -> return obj
-                Nothing  -> do
-                    let defTabs = map defTab $ (Map.elems importFlatMap)
-                    return $ (Map.! flat) (foldr1 Map.union defTabs)
-
+                Nothing  -> return $ (Map.! flat) $ foldr1 Map.union $ map typeDefs (Map.elems importFlatMap)
 
 
         getFlats :: BoM FlattenState m => SymKey -> m [FlatSym]
@@ -234,9 +231,9 @@ flattenAST importFlatMap ast = do
 
         resolveVariable :: BoM FlattenState m => FlatSym -> m ()
         resolveVariable flat = do
-            ObjVarDef pos expr <- getObj flat
+            (pos, expr) <- fmap (Map.! flat) (gets varDefs)
             expr' <- resolveConstExpr expr
-            addObj flat (ObjVarDef pos expr')
+            modify $ \s -> s { varDefs = Map.insert flat (pos, expr') (varDefs s) }
 
 
         resolveConstExpr :: BoM FlattenState m => S.Expr -> m S.Expr
@@ -265,7 +262,7 @@ flattenAST importFlatMap ast = do
 
         resolveExtern :: BoM FlattenState m => FlatSym -> m ()
         resolveExtern flat = do
-            ObjExtern (S.Extern pos sym params retty) <- getObj flat
+            S.Extern pos sym params retty <- fmap (Map.! flat) (gets externDefs)
 
             pushScope
             params' <- forM params $ \(S.Param pos sym typ) -> do
@@ -279,12 +276,12 @@ flattenAST importFlatMap ast = do
                 Nothing -> return Nothing
                 Just t  -> fmap Just (resolveType t)
 
-            addObj flat (ObjExtern (S.Extern pos sym params' retty'))
+            modify $ \s -> s { externDefs = Map.insert flat (S.Extern pos sym params' retty') (externDefs s) }
 
 
         resolveFunction :: BoM FlattenState m => FlatSym -> m ()
         resolveFunction flat = do
-            ObjFuncDef (S.Func pos sym params retty blk) <- getObj flat
+            S.Func pos sym params retty blk <- fmap (Map.! flat) (gets funcDefs)
 
             pushScope
             params' <- forM params $ \(S.Param pos sym typ) -> do
@@ -301,7 +298,7 @@ flattenAST importFlatMap ast = do
                 Nothing -> return Nothing
                 Just t  -> fmap Just (resolveType t)
 
-            addObj flat (ObjFuncDef (S.Func pos flat params' retty' blk'))
+            modify $ \s -> s { funcDefs = Map.insert flat (S.Func pos flat params' retty' blk') (funcDefs s) }
 
 
         resolveStmt :: BoM FlattenState m => S.Stmt -> m S.Stmt
@@ -375,8 +372,8 @@ flattenAST importFlatMap ast = do
 
 prettyFlatAST :: FlattenState -> IO ()
 prettyFlatAST flatAST = do
-    putStrLn "objects:"
-    forM_ (Map.toList $ defTab flatAST) $ \(flat, obj) ->
+    putStrLn "typeDefs:"
+    forM_ (Map.toList $ typeDefs flatAST) $ \(flat, obj) ->
         putStrLn $ take 100 ("\t" ++ flat ++ ": " ++ show obj)
 
 
