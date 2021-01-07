@@ -38,12 +38,9 @@ data FlattenState
     = FlattenState
         { imports    :: Set.Set S.ModuleName
         , typeDefs   :: Map.Map FlatSym (TextPos, T.Type)
-        , funcDefs   :: Map.Map FlatSym S.Stmt
-        , externDefs :: Map.Map FlatSym S.Stmt
-        , varDefs    :: Map.Map FlatSym (TextPos, S.Expr)
-        , flatTab    :: Map.Map SymKey [FlatSym]
-        , symTab     :: SymTab.SymTab S.Symbol SymKey FlatSym
-        , symSupply  :: Map.Map S.Symbol Int
+        , varDefs    :: [S.Stmt]
+        , funcDefs   :: [S.Stmt]
+        , externDefs :: [S.Stmt]
         }
 
 
@@ -51,12 +48,9 @@ initFlattenState importFlatMap
     = FlattenState
         { imports    = Set.empty
         , typeDefs   = Map.empty
-        , funcDefs   = Map.empty
-        , externDefs = Map.empty
-        , varDefs    = Map.empty
-        , flatTab    = Map.empty
-        , symTab     = SymTab.initSymTab
-        , symSupply  = Map.empty
+        , varDefs    = []
+        , funcDefs   = []
+        , externDefs = []
         }
 
 
@@ -68,11 +62,7 @@ flattenAST
 flattenAST importFlatMap ast = do
     res <- runBoMT (initFlattenState importFlatMap) $ do
         mapM_ gatherTopStmt (S.astStmts ast)
-        mapM_ resolveTypedef =<< getFlats KeyType
-        mapM_ checkTypedefCircles =<< getFlats KeyType
-        mapM_ resolveVariable =<< getFlats KeyVar
-        mapM_ resolveExtern =<< getFlats KeyExtern
-        mapM_ resolveFunction =<< getFlats KeyFunc
+        mapM_ checkTypedefCircles =<< fmap Map.keys (gets typeDefs)
     case res of
         Left err         -> return (Left err)
         Right (_, state) -> return (Right state { imports = Map.keysSet importFlatMap })
@@ -82,55 +72,16 @@ flattenAST importFlatMap ast = do
         gatherTopStmt :: BoM FlattenState m => S.Stmt -> m ()
         gatherTopStmt stmt = case stmt of
             S.Typedef pos sym typ -> do
-                checkSymKeyUndef sym KeyType
-                flat <- fresh (moduleName ++ "_type_" ++ sym)
-                addSym sym KeyType flat
-                modify $ \s -> s { typeDefs = Map.insert flat (pos, typ) (typeDefs s) }
+                b <- fmap (Map.member sym) (gets typeDefs)
+                when b $ fail (sym ++ " already defined")
+                modify $ \s -> s { typeDefs = Map.insert sym (pos, typ) (typeDefs s) }
             S.Func pos sym params retty blk -> do
-                checkSymKeyUndef sym KeyFunc
-                flat <- fresh (moduleName ++ "_fn_" ++ sym)
-                addSym sym KeyFunc flat
-                addFlat KeyFunc flat
-                modify $ \s -> s { funcDefs = Map.insert flat stmt (funcDefs s) }
+                modify $ \s -> s { funcDefs = stmt:(funcDefs s) }
             S.Extern pos sym params retty -> do
-                checkSymKeyUndef sym KeyFunc 
-                addSym sym KeyFunc sym
-                addFlat KeyExtern sym
-                modify $ \s -> s { externDefs = Map.insert sym stmt (externDefs s) }
-            S.Assign pos (S.PatIgnore _) expr ->
-                return ()
+                modify $ \s -> s { externDefs = stmt:(externDefs s) }
             S.Assign pos (S.PatIdent p sym) expr -> do
-                checkSymKeyUndef sym KeyVar
-                flat <- fresh (moduleName ++ "_var_" ++ sym)
-                addSym sym KeyVar flat
-                addFlat KeyVar flat
-                expr' <- resolveConstExpr expr
-                modify $ \s -> s { varDefs = Map.insert flat (pos, expr') (varDefs s) }
+                modify $ \s -> s { varDefs = stmt:(varDefs s) }
             _ -> fail "invalid top-level statement"
-
-        resolveTypedef :: BoM FlattenState m => FlatSym -> m ()
-        resolveTypedef flat = do
-            (pos, typ) <- getTypeDef flat
-            typ' <- case typ of
-                T.I32       -> return typ
-                T.I64       -> return typ
-                T.Bool      -> return typ
-                T.Typedef s -> fmap T.Typedef (look s KeyType)
-                T.Tuple ts  -> fmap T.Tuple (mapM resolveType ts)
-            modify $ \s -> s { typeDefs = Map.insert flat (pos, typ') (typeDefs s) }
-
-
-        resolveType :: BoM FlattenState m => T.Type -> m T.Type
-        resolveType typ = case typ of
-            T.I8        -> return T.I8
-            T.I32       -> return T.I32
-            T.I64       -> return T.I64
-            T.Bool      -> return T.Bool
-            T.Char      -> return T.Char
-            T.Typedef s -> fmap T.Typedef (look s KeyType)
-            T.Table ts  -> fmap T.Table (mapM resolveType ts)
-            _ -> fail ("resolveTyp: " ++ show typ)
-
 
 
         checkTypedefCircles :: BoM FlattenState m => FlatSym -> m ()
@@ -141,233 +92,12 @@ flattenAST importFlatMap ast = do
                 checkTypedefCircles' flat visited = do
                     when (Set.member flat visited) $
                         fail ("circular type dependency: " ++ flat)
-                    (pos, typ) <- getTypeDef flat
-                    case typ of
-                        T.Typedef f -> checkTypedefCircles' f (Set.insert flat visited)
-                        _           -> return ()
+                    res <- fmap (Map.lookup flat) (gets typeDefs)
+                    case res of
+                        Just (pos, T.Typedef f) -> checkTypedefCircles' f (Set.insert flat visited)
+                        _                       -> return ()
 
 
-        fresh :: BoM FlattenState m => S.Symbol -> m FlatSym
-        fresh sym = do
-            res <- fmap (Map.lookup sym) (gets symSupply)
-            let i = maybe 0 (+1) res
-            modify $ \s -> s { symSupply = Map.insert sym i (symSupply s) }
-            return (sym ++ "_" ++ show i)
-
-
-        checkSymUndef :: BoM FlattenState m => S.Symbol -> m ()
-        checkSymUndef sym = do
-            res <- fmap (Map.lookup sym . head) (gets symTab)
-            when (isJust res) $ fail (sym ++ " already defined")
-
-
-        checkSymKeyUndef :: BoM FlattenState m => S.Symbol -> SymKey -> m ()
-        checkSymKeyUndef sym key = do
-            res <- fmap (SymTab.lookupHead sym key) (gets symTab)
-            case res of
-                Nothing -> return ()
-                Just _  -> fail (sym ++ " already defined for " ++ show key)
-
-
-        lookImport :: BoM FlattenState m => S.Symbol -> SymKey -> m FlatSym
-        lookImport sym key = do
-            let symTabs = map symTab (Map.elems importFlatMap)
-            let results   = catMaybes $ map (SymTab.lookupHead sym key) symTabs
-            case results of
-                [x] -> return x
-                []  -> fail (sym ++ " isn't defined")
-                n   -> fail (sym ++ " defined in multiple imported modules")
-                
-
-        look :: BoM FlattenState m => S.Symbol -> SymKey -> m FlatSym
-        look sym key = do
-            res <- fmap (SymTab.lookupSym sym) (gets symTab)
-            case res of
-                Nothing   -> lookImport sym key
-                Just kmap -> do
-                    let res = Map.lookup key kmap
-                    when (isNothing res) $ fail (sym ++ " for " ++ show key ++ " isn't defined")
-                    return (fromJust res)
-
-
-        addSym :: BoM FlattenState m => S.Symbol -> SymKey -> FlatSym -> m ()
-        addSym sym key flat = do
-            modify $ \s -> s { symTab  = SymTab.insert sym key flat (symTab s) }
-
-
-
-        addFlat :: BoM FlattenState m => SymKey -> FlatSym -> m ()
-        addFlat key flat = do
-            mflats <- fmap (Map.lookup key) (gets flatTab)
-            let flats' = maybe [flat] (flat:) mflats
-            modify $ \s -> s { flatTab = Map.insert key flats' (flatTab s) }
-
-
-
-        getTypeDef :: BoM FlattenState m => FlatSym -> m (TextPos, T.Type)
-        getTypeDef flat = do
-            res <- fmap (Map.lookup flat) (gets typeDefs)
-            case res of
-                Just obj -> return obj
-                Nothing  -> return $ (Map.! flat) $ foldr1 Map.union $ map typeDefs (Map.elems importFlatMap)
-
-
-        getFlats :: BoM FlattenState m => SymKey -> m [FlatSym]
-        getFlats key = do
-            mflats <- fmap (Map.lookup key) (gets flatTab)
-            return (maybe [] id mflats)
-
-
-        pushScope :: BoM FlattenState m => m ()
-        pushScope =
-            modify $ \s -> s { symTab = SymTab.push (symTab s) }
-
-
-        popScope :: BoM FlattenState m => m ()
-        popScope =
-            modify $ \s -> s { symTab = SymTab.pop (symTab s) }
-
-
-
-        resolveVariable :: BoM FlattenState m => FlatSym -> m ()
-        resolveVariable flat = do
-            (pos, expr) <- fmap (Map.! flat) (gets varDefs)
-            expr' <- resolveConstExpr expr
-            modify $ \s -> s { varDefs = Map.insert flat (pos, expr') (varDefs s) }
-
-
-        resolveConstExpr :: BoM FlattenState m => S.Expr -> m S.Expr
-        resolveConstExpr expr = case expr of
-            S.Cons _          -> return expr
-            S.Tuple pos exprs -> fmap (S.Tuple pos) (mapM resolveConstExpr exprs)
-
-
-        resolvePattern :: BoM FlattenState m => S.Pattern -> m S.Pattern
-        resolvePattern pat = case pat of
-            S.PatIgnore pos    -> return pat
-            S.PatIdent pos sym -> do
-                checkSymKeyUndef sym KeyVar
-                flat <- fresh sym
-                addSym sym KeyVar flat
-                return (S.PatIdent pos flat)
-            S.PatLiteral cons ->
-                return pat
-            _ -> fail ("resolvePattern: " ++ show pat)
-
-
-        resolveIndex :: BoM FlattenState m => S.Index -> m S.Index
-        resolveIndex ind = case ind of
-            S.IndIdent pos sym -> fmap (S.IndIdent pos) (look sym KeyVar)
-
-
-        resolveExtern :: BoM FlattenState m => FlatSym -> m ()
-        resolveExtern flat = do
-            S.Extern pos sym params retty <- fmap (Map.! flat) (gets externDefs)
-
-            pushScope
-            params' <- forM params $ \(S.Param pos sym typ) -> do
-                checkSymKeyUndef sym KeyVar
-                flat <- fresh sym
-                addSym sym KeyVar flat
-                fmap (S.Param pos flat) (resolveType typ) 
-            popScope
-
-            retty' <- case retty of
-                Nothing -> return Nothing
-                Just t  -> fmap Just (resolveType t)
-
-            modify $ \s -> s { externDefs = Map.insert flat (S.Extern pos sym params' retty') (externDefs s) }
-
-
-        resolveFunction :: BoM FlattenState m => FlatSym -> m ()
-        resolveFunction flat = do
-            S.Func pos sym params retty blk <- fmap (Map.! flat) (gets funcDefs)
-
-            pushScope
-            params' <- forM params $ \(S.Param pos sym typ) -> do
-                checkSymKeyUndef sym KeyVar
-                flat <- fresh sym
-                addSym sym KeyVar flat
-                fmap (S.Param pos flat) (resolveType typ)
-
-
-            blk' <- mapM resolveStmt blk
-            popScope
-
-            retty' <- case retty of
-                Nothing -> return Nothing
-                Just t  -> fmap Just (resolveType t)
-
-            modify $ \s -> s { funcDefs = Map.insert flat (S.Func pos flat params' retty' blk') (funcDefs s) }
-
-
-        resolveStmt :: BoM FlattenState m => S.Stmt -> m S.Stmt
-        resolveStmt stmt = case stmt of
-            S.Assign pos pat expr -> do
-                pat' <- resolvePattern pat
-                expr' <- resolveExpr expr
-                return (S.Assign pos pat' expr')
-            S.While pos cnd blk -> do
-                pushScope
-                cnd' <- resolveExpr cnd
-                blk' <- mapM resolveStmt blk
-                popScope
-                return (S.While pos cnd' blk')
-            S.Switch pos cnd cases -> do
-                cnd' <- resolveExpr cnd
-                pushScope
-                cases' <- forM cases $ \(pat, stmt) -> do
-                    pat' <- resolvePattern pat
-                    stmt' <- resolveStmt stmt
-                    return (pat', stmt')
-                popScope
-                return (S.Switch pos cnd' cases')
-            S.Set pos ind expr -> do
-                ind' <- resolveIndex ind
-                expr' <- resolveExpr expr
-                return (S.Set pos ind' expr')
-            S.Return pos mexpr -> do
-                fmap (S.Return pos) $ case mexpr of
-                    Nothing -> return Nothing
-                    Just ex -> fmap Just (resolveExpr ex)
-            S.CallStmt pos sym exprs -> do
-                flat <- look sym KeyFunc
-                exprs' <- mapM resolveExpr exprs
-                return (S.CallStmt pos flat exprs')
-            S.Print pos exprs -> do
-                exprs' <- mapM resolveExpr exprs
-                return (S.Print pos exprs')
-            _ -> fail ("resolveStmt: " ++ show stmt)
-
-
-        resolveExpr :: BoM FlattenState m => S.Expr -> m S.Expr
-        resolveExpr expr = case expr of
-            S.Cons _ -> return expr
-            S.Conv pos typ exprs -> do
-                typ' <- resolveType typ
-                exprs' <- mapM resolveExpr exprs
-                return (S.Conv pos typ' exprs')
-            S.Ident pos sym ->
-                fmap (S.Ident pos) (look sym KeyVar)
-            S.Call pos sym exprs -> do
-                flat <- look sym KeyFunc
-                exprs' <- mapM resolveExpr exprs
-                return (S.Call pos flat exprs)
-            S.Append pos exprA exprB -> do
-                exprA' <- resolveExpr exprA
-                exprB' <- resolveExpr exprB
-                return (S.Append pos exprA' exprB')
-            S.Infix pos op exprA exprB -> do
-                exprA' <- resolveExpr exprA
-                exprB' <- resolveExpr exprB
-                return (S.Infix pos op exprA' exprB')
-            S.Len pos expr ->
-                fmap (S.Len pos) (resolveExpr expr)
-            S.Subscript pos exprA exprB -> do
-                exprA' <- resolveExpr exprA
-                exprB' <- resolveExpr exprB
-                return (S.Subscript pos exprA' exprB')
-            _ -> fail ("resolveExpr: " ++ show expr)
 
 
 prettyFlatAST :: FlattenState -> IO ()
