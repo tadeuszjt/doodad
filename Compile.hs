@@ -167,6 +167,7 @@ compileFlatState importCompiled flatState = do
             cmp :: InsCmp CompileState m => m ()
             cmp = do
                 forM_ (Map.toList $ F.typeDefs flatState) $ \(flat, (pos, typ)) -> cmpTypeDef flat pos typ
+                mapM_ cmpVarDef (F.varDefs flatState)
                 mapM_ cmpExternDef (F.externDefs flatState)
                 mapM_ cmpFuncDef (F.funcDefs flatState)
 
@@ -176,6 +177,7 @@ cmpTypeDef sym pos typ = do
     checkSymKeyUndef sym KeyType
     case typ of
         T.I8        -> addObj sym KeyType (ObType typ Nothing)
+        T.I32       -> addObj sym KeyType (ObType typ Nothing)
         T.I64       -> addObj sym KeyType (ObType typ Nothing)
         T.Bool      -> addObj sym KeyType (ObType typ Nothing)
         T.Typedef f -> addObj sym KeyType (ObType typ Nothing)
@@ -187,6 +189,12 @@ cmpTypeDef sym pos typ = do
             addDeclaration sym KeyType (DecType name)
             addObj sym KeyType $ ObType typ (Just name)
         _ -> error (show typ)
+    return ()
+
+
+
+cmpVarDef :: InsCmp CompileState m => S.Stmt -> m ()
+cmpVarDef (S.Assign pos pat expr) = do
     return ()
 
 
@@ -222,8 +230,10 @@ cmpFuncDef (S.Func pos sym params mretty blk) = do
     returnOpType <- maybe (return VoidType) opTypeOf mretty
 
     -- InstrCmpT { getInstrCmp :: IRBuilderT (ModuleCmpT s m) a }
---    op <- function name (zip paramOpTypes paramNames) returnOpType $ \argOp -> do
---        getInstrCmp (mapM_ cmpStmt blk)
+    -- ModuleCmpT { getModuleCmp :: ModuleBuilderT (BoMT s m) a }
+    --
+    op <- function name (zip paramOpTypes paramNames) returnOpType $ \argOp -> lift $ do
+        (mapM_ cmpStmt blk)
     
     popSymTab
 
@@ -233,12 +243,14 @@ cmpFuncDef (S.Func pos sym params mretty blk) = do
 
 cmpStmt :: InsCmp CompileState m => S.Stmt -> m ()
 cmpStmt stmt = case stmt of
+    S.Print pos exprs -> return ()
     _ -> fail (show stmt)
 
 
 opTypeOf :: ModCmp CompileState m => T.Type -> m Type
 opTypeOf typ = case typ of
     T.I64       -> return i64
+    T.Char      -> return i32
     T.I32       -> return i32
     T.Bool      -> return i1
     T.Tuple ts  -> fmap (StructureType False) (mapM opTypeOf ts)
