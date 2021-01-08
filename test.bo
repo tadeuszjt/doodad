@@ -11,6 +11,7 @@ type c = ioType;
 type x = (i32, i64);
 
 fn main() {
+    benis(true);
     print(x);
 }
 

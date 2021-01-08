@@ -39,14 +39,14 @@ mkBSS = BSS.toShort . BS.pack
 data SymKey
     = KeyType
     | KeyVar
-    | KeyFunc
+    | KeyFunc [T.Type]
     deriving (Show, Eq, Ord)
 
 
 data Object
     = ObType    T.Type   (Maybe Name)
     | ObjExtern [T.Type] (Maybe T.Type) Operand
-    | ObjFunc   [T.Type] (Maybe T.Type) Operand
+    | ObjFunc   (Maybe T.Type) Operand
     | ObjVal
     deriving (Show)
 
@@ -103,6 +103,12 @@ checkSymKeyUndef sym key = do
     when (isJust res) $ fail (sym ++ " already defined")
 
 
+checkSymUndef :: BoM CompileState m => S.Symbol -> m ()
+checkSymUndef sym = do
+    res <- fmap (SymTab.lookupSym sym) (gets symTab)
+    when (isJust res) $ fail (sym ++ " already defined")
+
+
 addDeclared :: BoM CompileState m => S.Symbol -> SymKey -> m ()
 addDeclared sym key =
     modify $ \s -> s { declared = Set.insert (sym, key) (declared s) }
@@ -134,6 +140,14 @@ ensureDeclared sym key = do
 
     modify $ \s -> s { declared = Set.insert (sym, key) (declared s) }
 
+pushSymTab :: BoM CompileState m => m ()
+pushSymTab =
+    modify $ \s -> s { symTab = SymTab.push (symTab s) }
+
+popSymTab :: BoM CompileState m => m ()
+popSymTab =
+    modify $ \s -> s { symTab = SymTab.pop (symTab s) }
+
 
 compileFlatState
     :: (Monad m, MonadFail m, MonadIO m)
@@ -153,8 +167,8 @@ compileFlatState importCompiled flatState = do
             cmp :: InsCmp CompileState m => m ()
             cmp = do
                 forM_ (Map.toList $ F.typeDefs flatState) $ \(flat, (pos, typ)) -> cmpTypeDef flat pos typ
-                --mapM_ cmpExtern (F.externDefs flatState)
-                --mapM_ cmpFuncDef (F.funcDefs flatState)
+                mapM_ cmpExternDef (F.externDefs flatState)
+                mapM_ cmpFuncDef (F.funcDefs flatState)
 
 
 cmpTypeDef :: InsCmp CompileState m => S.Symbol-> TextPos -> T.Type -> m ()
@@ -165,15 +179,61 @@ cmpTypeDef sym pos typ = do
         T.I64       -> addObj sym KeyType (ObType typ Nothing)
         T.Bool      -> addObj sym KeyType (ObType typ Nothing)
         T.Typedef f -> addObj sym KeyType (ObType typ Nothing)
-        T.Tuple ts -> do
+        T.Tuple ts  -> do
             name <- freshName (mkBSS sym)
-            opTyp <- opTypeOf (T.Tuple ts)
+            opTyp <- opTypeOf typ
             typedef name (Just opTyp)
             addDeclared sym KeyType
             addDeclaration sym KeyType (DecType name)
             addObj sym KeyType $ ObType typ (Just name)
         _ -> error (show typ)
     return ()
+
+
+cmpExternDef :: InsCmp CompileState m => S.Stmt -> m ()
+cmpExternDef (S.Extern pos sym params mretty) = do
+    checkSymUndef sym 
+    let name = mkName sym
+    let paramTypes = map S.paramType params
+
+    pushSymTab
+    paramOpTypes <- forM params $ \(S.Param p s t) -> do
+        checkSymKeyUndef s KeyVar
+        opTypeOf t
+    returnOpType <- maybe (return VoidType) opTypeOf mretty
+    popSymTab
+
+    addDeclaration sym (KeyFunc paramTypes) (DecExtern name paramOpTypes returnOpType False)
+
+
+cmpFuncDef :: InsCmp CompileState m => S.Stmt -> m ()
+cmpFuncDef (S.Func pos sym params mretty blk) = do
+    let paramTypes = map S.paramType params
+    checkSymKeyUndef sym (KeyFunc paramTypes)
+    name <- freshName (mkBSS sym)
+
+    pushSymTab
+    (paramOpTypes, paramNames) <- fmap unzip $ forM params $ \(S.Param p s t) -> do
+        checkSymKeyUndef s KeyVar
+        opTyp <- opTypeOf t
+        let paramName = mkBSS s
+        return (opTyp, ParameterName paramName)
+
+    returnOpType <- maybe (return VoidType) opTypeOf mretty
+
+    -- InstrCmpT { getInstrCmp :: IRBuilderT (ModuleCmpT s m) a }
+--    op <- function name (zip paramOpTypes paramNames) returnOpType $ \argOp -> do
+--        getInstrCmp (mapM_ cmpStmt blk)
+    
+    popSymTab
+
+    --addObj sym (KeyFunc paramTypes) (ObjFunc mretty op) 
+    addDeclaration sym (KeyFunc paramTypes) (DecFunc name paramOpTypes returnOpType)
+
+
+cmpStmt :: InsCmp CompileState m => S.Stmt -> m ()
+cmpStmt stmt = case stmt of
+    _ -> fail (show stmt)
 
 
 opTypeOf :: ModCmp CompileState m => T.Type -> m Type
@@ -188,9 +248,6 @@ opTypeOf typ = case typ of
             Nothing -> opTypeOf t
             Just n  -> return (NamedTypeReference n)
     _ -> error (show typ) 
-
-
-    
 
 
 
