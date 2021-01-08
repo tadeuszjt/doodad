@@ -36,6 +36,11 @@ import qualified Flatten as F
 
 mkBSS = BSS.toShort . BS.pack
 
+data Value
+    = Val Operand
+    | Ptr Operand
+    deriving (Show)
+
 data SymKey
     = KeyType
     | KeyVar
@@ -47,7 +52,7 @@ data Object
     = ObType    T.Type   (Maybe Name)
     | ObjExtern [T.Type] (Maybe T.Type) Operand
     | ObjFunc   (Maybe T.Type) Operand
-    | ObjVal
+    | ObjVal    Value
     deriving (Show)
 
 
@@ -221,23 +226,22 @@ cmpFuncDef (S.Func pos sym params mretty blk) = do
     name <- freshName (mkBSS sym)
 
     pushSymTab
-    (paramOpTypes, paramNames) <- fmap unzip $ forM params $ \(S.Param p s t) -> do
-        checkSymKeyUndef s KeyVar
+    (paramOpTypes, paramNames, paramSyms) <- fmap unzip3 $ forM params $ \(S.Param p s t) -> do
         opTyp <- opTypeOf t
         let paramName = mkBSS s
-        return (opTyp, ParameterName paramName)
+        return (opTyp, ParameterName paramName, s)
 
     returnOpType <- maybe (return VoidType) opTypeOf mretty
 
-    -- InstrCmpT { getInstrCmp :: IRBuilderT (ModuleCmpT s m) a }
-    -- ModuleCmpT { getModuleCmp :: ModuleBuilderT (BoMT s m) a }
-    --
-    op <- function name (zip paramOpTypes paramNames) returnOpType $ \argOp -> lift $ do
-        (mapM_ cmpStmt blk)
+    op <- function name (zip paramOpTypes paramNames) returnOpType $ \paramOps -> lift $ do
+        forM_ (zip paramOps paramSyms) $ \(op, sym) -> do
+            checkSymKeyUndef sym KeyVar
+            addObj sym KeyVar (ObjVal (Ptr op))
+        mapM_ cmpStmt blk
     
     popSymTab
 
-    --addObj sym (KeyFunc paramTypes) (ObjFunc mretty op) 
+    addObj sym (KeyFunc paramTypes) (ObjFunc mretty op) 
     addDeclaration sym (KeyFunc paramTypes) (DecFunc name paramOpTypes returnOpType)
 
 
