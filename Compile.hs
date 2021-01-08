@@ -12,6 +12,7 @@ import qualified Data.ByteString.Char8      as BS
 import qualified Data.ByteString.Short      as BSS
 
 import           Data.Maybe
+import           Data.List
 import           Control.Monad.Except       hiding (void)
 import           Control.Monad.State        hiding (void)
 import           Control.Monad.Trans
@@ -26,6 +27,7 @@ import           LLVM.AST.Type              hiding (void)
 import qualified LLVM.AST.Constant          as C
 import           LLVM.IRBuilder.Module
 import           LLVM.IRBuilder.Monad
+import           LLVM.IRBuilder.Constant
 
 import Monad
 import Error
@@ -33,126 +35,10 @@ import qualified AST as S
 import qualified Type as T
 import qualified SymTab
 import qualified Flatten as F
+import Value2
+import CompileState
 
 mkBSS = BSS.toShort . BS.pack
-
-data Value
-    = Val Operand
-    | Ptr Operand
-    deriving (Show)
-
-data SymKey
-    = KeyType
-    | KeyVar
-    | KeyFunc [T.Type]
-    deriving (Show, Eq, Ord)
-
-
-data Object
-    = ObType    T.Type   (Maybe Name)
-    | ObjExtern [T.Type] (Maybe T.Type) Operand
-    | ObjFunc   (Maybe T.Type) Operand
-    | ObjVal    Value
-    deriving (Show)
-
-
-data Declaration
-    = DecType   Name 
-    | DecExtern Name [Type] Type Bool
-    | DecFunc   Name [Type] Type
-    deriving (Show)
-
-
-data CompileState
-    = CompileState
-        { imports      :: Map.Map S.ModuleName CompileState
-        , declarations :: Map.Map (S.Symbol, SymKey) Declaration
-        , declared     :: Set.Set (S.Symbol, SymKey)
-        , definitions  :: [Definition]
-        , symTab       :: SymTab.SymTab S.Symbol SymKey Object
-        }
-    deriving (Show)
-
-initCompileState
-     = CompileState
-        { imports      = Map.empty
-        , declarations = Map.empty
-        , declared     = Set.empty
-        , definitions  = []
-        , symTab       = SymTab.initSymTab
-        }
-
-
-
-addObj :: BoM CompileState m => S.Symbol -> SymKey -> Object -> m ()
-addObj sym key obj =
-    modify $ \s -> s { symTab = SymTab.insert sym key obj (symTab s) }
-
-
-look :: ModCmp CompileState m => S.Symbol -> SymKey -> m Object
-look sym key = do
-    ensureDeclared sym key
-    res <- fmap (SymTab.lookupSymKey sym key) (gets symTab)
-    case res of
-        Just obj -> return obj
-        Nothing  -> do
-            r <- fmap (catMaybes . map (SymTab.lookupSymKey sym key . symTab) . Map.elems) (gets imports)
-            case r of
-                [] -> error ("no obj for: " ++ sym)
-                [x] -> return x
-
-
-checkSymKeyUndef :: BoM CompileState m => S.Symbol -> SymKey -> m ()
-checkSymKeyUndef sym key = do
-    res <- fmap (SymTab.lookupSymKey sym key) (gets symTab)
-    when (isJust res) $ fail (sym ++ " already defined")
-
-
-checkSymUndef :: BoM CompileState m => S.Symbol -> m ()
-checkSymUndef sym = do
-    res <- fmap (SymTab.lookupSym sym) (gets symTab)
-    when (isJust res) $ fail (sym ++ " already defined")
-
-
-addDeclared :: BoM CompileState m => S.Symbol -> SymKey -> m ()
-addDeclared sym key =
-    modify $ \s -> s { declared = Set.insert (sym, key) (declared s) }
-
-
-addDeclaration :: BoM CompileState m => S.Symbol -> SymKey -> Declaration -> m ()
-addDeclaration sym key dec =
-    modify $ \s -> s { declarations = Map.insert (sym, key) dec (declarations s) }
-
-
-ensureDeclared :: ModCmp CompileState m => S.Symbol -> SymKey -> m ()
-ensureDeclared sym key = do
-    isDeclared <- fmap (Set.member (sym, key)) (gets declared)
-
-    when (not isDeclared) $ do
-        res <- fmap (Map.lookup (sym, key)) (gets declarations)
-        ress <- fmap (map (Map.lookup (sym, key) . declarations) . Map.elems) (gets imports)
-
-        case catMaybes (res:ress) of
-            []  -> return ()
-            [r] -> case r of
-                DecType nm                               -> void (typedef nm Nothing)
-                DecExtern name paramTypes retType isVarg -> do
-                    emitDefn $ GlobalDefinition $ functionDefaults
-                        { returnType = retType
-                        , name       = name
-                        , parameters = ([Parameter typ (mkName "") [] | typ <- paramTypes], isVarg)
-                        }
-
-    modify $ \s -> s { declared = Set.insert (sym, key) (declared s) }
-
-pushSymTab :: BoM CompileState m => m ()
-pushSymTab =
-    modify $ \s -> s { symTab = SymTab.push (symTab s) }
-
-popSymTab :: BoM CompileState m => m ()
-popSymTab =
-    modify $ \s -> s { symTab = SymTab.pop (symTab s) }
-
 
 compileFlatState
     :: (Monad m, MonadFail m, MonadIO m)
@@ -177,6 +63,22 @@ compileFlatState importCompiled flatState = do
                 mapM_ cmpFuncDef (F.funcDefs flatState)
 
 
+
+opTypeOf :: ModCmp CompileState m => T.Type -> m Type
+opTypeOf typ = case typ of
+    T.I64       -> return i64
+    T.Char      -> return i32
+    T.I32       -> return i32
+    T.Bool      -> return i1
+    T.Tuple ts  -> fmap (StructureType False) (mapM opTypeOf ts)
+    T.Typedef s -> do
+        ObType t nm <- look s KeyType
+        case nm of
+            Nothing -> opTypeOf t
+            Just n  -> return (NamedTypeReference n)
+    _ -> error (show typ) 
+
+
 cmpTypeDef :: InsCmp CompileState m => S.Symbol-> TextPos -> T.Type -> m ()
 cmpTypeDef sym pos typ = do
     checkSymKeyUndef sym KeyType
@@ -195,7 +97,6 @@ cmpTypeDef sym pos typ = do
             addObj sym KeyType $ ObType typ (Just name)
         _ -> error (show typ)
     return ()
-
 
 
 cmpVarDef :: InsCmp CompileState m => S.Stmt -> m ()
@@ -234,9 +135,9 @@ cmpFuncDef (S.Func pos sym params mretty blk) = do
     returnOpType <- maybe (return VoidType) opTypeOf mretty
 
     op <- function name (zip paramOpTypes paramNames) returnOpType $ \paramOps -> lift $ do
-        forM_ (zip paramOps paramSyms) $ \(op, sym) -> do
+        forM_ (zip3 paramTypes paramOps paramSyms) $ \(typ, op, sym) -> do
             checkSymKeyUndef sym KeyVar
-            addObj sym KeyVar (ObjVal (Ptr op))
+            addObj sym KeyVar (ObjVal (Ptr typ op))
         mapM_ cmpStmt blk
     
     popSymTab
@@ -247,28 +148,27 @@ cmpFuncDef (S.Func pos sym params mretty blk) = do
 
 cmpStmt :: InsCmp CompileState m => S.Stmt -> m ()
 cmpStmt stmt = case stmt of
-    S.Print pos exprs -> return ()
+    S.Print pos exprs -> do
+        vals <- mapM cmpExpr exprs
+        return ()
     _ -> fail (show stmt)
 
 
-opTypeOf :: ModCmp CompileState m => T.Type -> m Type
-opTypeOf typ = case typ of
-    T.I64       -> return i64
-    T.Char      -> return i32
-    T.I32       -> return i32
-    T.Bool      -> return i1
-    T.Tuple ts  -> fmap (StructureType False) (mapM opTypeOf ts)
-    T.Typedef s -> do
-        ObType t nm <- look s KeyType
-        case nm of
-            Nothing -> opTypeOf t
-            Just n  -> return (NamedTypeReference n)
-    _ -> error (show typ) 
+
+cmpExpr :: InsCmp CompileState m =>  S.Expr -> m Value
+cmpExpr expr = case expr of
+    S.Cons c -> case c of
+        S.Int p n  -> return (valInt T.I64 n)
+        S.Bool p b -> return (valBool b)
 
 
 
 prettyCompileState :: CompileState -> IO ()
 prettyCompileState state = do
     putStrLn "defs:"
-    forM_ (definitions state) $ \d ->
-        putStrLn $ take 200 (show d)
+    forM_ (definitions state) $ \def -> case def of
+        TypeDefinition name mtyp ->
+            putStrLn ("type: " ++ show name ++ " " ++ show mtyp)
+        GlobalDefinition (Function _ _ _ _ _ retty name params _ _ _ _ _ _ _ _ _) -> do
+            let ps = concat (map show $ fst params)
+            putStrLn ("func: " ++ show name ++ " " ++ ps ++ " " ++ show retty)

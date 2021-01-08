@@ -1,17 +1,6 @@
 module main
 imports "io"
 
-extern benis(x b);
-
-type t = z;
-type z = b;
-type b = bool;
-type c = ioType;
-
-type x = (i32, i64);
-
-fn main() {
+fn benis(x i64) {
     print(x);
 }
-
-let x = 3;

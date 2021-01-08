@@ -19,6 +19,7 @@ import qualified Parser as P
 import qualified Resolver as R
 import qualified Flatten as F
 import qualified Compile as C
+import qualified CompileState as C
 import           CmpMonad
 import           Value hiding (Module)
 import           LLVM.AST hiding (Module, Name)
