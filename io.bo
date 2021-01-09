@@ -1,0 +1,9 @@
+module io
+
+extern putchar(c char);
+
+fn io1() {
+    putchar('b');
+    putchar('e');
+    print(1, 2);
+}

@@ -1,0 +1,7 @@
+module io
+
+fn io2() {
+    print(2);
+}
+
+
