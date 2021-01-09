@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleContexts #-}
 module Value where
 
 import qualified Data.ByteString.Char8      as BS
@@ -11,14 +12,19 @@ import           Control.Monad.Fail         hiding (fail)
 import           Control.Monad.Identity     
 import qualified Data.Set as Set
 import qualified Data.Map as Map
-import           LLVM.AST                   hiding (function)
-import           LLVM.AST.Global
-import           LLVM.AST.Constant          as C
-import           LLVM.AST.Type              hiding (void)
-import qualified LLVM.AST.Constant          as C
+
+import           LLVM.AST                   hiding (Type, function, Module)
+import           LLVM.AST.IntegerPredicate
+import           LLVM.AST.Type              hiding (Type, void, double)
+import           LLVM.Internal.Type
+import           LLVM.Internal.EncodeAST
+import           LLVM.Internal.Coding           hiding (alloca)
+import           Foreign.Ptr
+import qualified LLVM.Internal.FFI.DataLayout   as FFI
+import           LLVM.IRBuilder.Constant
+import           LLVM.IRBuilder.Instruction
 import           LLVM.IRBuilder.Module
 import           LLVM.IRBuilder.Monad
-import           LLVM.IRBuilder.Constant
 
 import Monad
 import CompileState
@@ -34,3 +40,8 @@ valInt T.I64 n = Val T.I64 (int64 n)
 
 valBool :: Bool -> Value
 valBool b = Val T.Bool (if b then bit 1 else bit 0)
+
+
+valLoad :: InsCmp CompileState m => Value -> m Value
+valLoad (Val typ op)    = return (Val typ op)
+valLoad (Ptr T.I64 loc) = fail (show loc)

@@ -1,6 +1,7 @@
 module main
 imports "io"
 
-fn benis(x i64) i64 {
-    print(x);
+fn main() {
+    io1();
+    io2();
 }

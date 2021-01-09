@@ -22,6 +22,7 @@ import           LLVM.AST.Global
 import           LLVM.AST.Constant          as C
 import           LLVM.AST.Type              hiding (void)
 import qualified LLVM.AST.Constant          as C
+import           LLVM.IRBuilder.Instruction       
 import           LLVM.IRBuilder.Module
 import           LLVM.IRBuilder.Monad
 import           LLVM.IRBuilder.Constant
@@ -54,7 +55,7 @@ compileFlatState importCompiled flatState = do
             f = void $ function "main" [] VoidType $ \_ ->
                     getInstrCmp cmp
 
-            cmp :: InsCmp CompileState m => m ()
+            cmp :: (MonadFail m, Monad m, MonadIO m) => InstrCmpT CompileState m ()
             cmp = do
                 forM_ (Map.toList $ F.typeDefs flatState) $ \(flat, (pos, typ)) -> cmpTypeDef flat pos typ
                 mapM_ cmpVarDef (F.varDefs flatState)
@@ -119,12 +120,14 @@ cmpExternDef (S.Extern pos sym params mretty) = do
     addSymKeyDec sym (KeyFunc paramTypes) name (DecExtern paramOpTypes returnOpType False)
 
 
-cmpFuncDef :: InsCmp CompileState m => S.Stmt -> m ()
+cmpFuncDef :: (MonadFail m, Monad m, MonadIO m) => S.Stmt -> InstrCmpT CompileState m ()
 cmpFuncDef (S.Func pos sym params mretty blk) = do
     let paramTypes = map S.paramType params
     let symKey     = KeyFunc paramTypes
     checkSymKeyUndef sym symKey
-    name <- freshName (mkBSS sym)
+    name@(Name nameStr) <- case sym of
+        "main" -> return (mkName sym)
+        _      -> freshName (mkBSS sym)
 
     pushSymTab
     (paramOpTypes, paramNames, paramSyms) <- fmap unzip3 $ forM params $ \(S.Param p s t) -> do
@@ -134,13 +137,13 @@ cmpFuncDef (S.Func pos sym params mretty blk) = do
 
     returnOpType <- maybe (return VoidType) opTypeOf mretty
 
-    --TODO This doesn't work
-    op <- function name (zip paramOpTypes paramNames) returnOpType $ \paramOps -> lift $ do
-        forM_ (zip3 paramTypes paramOps paramSyms) $ \(typ, op, sym) -> do
-            checkSymKeyUndef sym KeyVar
-            addObj sym KeyVar (ObjVal (Ptr typ op))
-        mapM_ cmpStmt blk
-    
+    op <- InstrCmpT . IRBuilderT . lift $ function name (zip paramOpTypes paramNames) returnOpType $ \paramOps -> do
+        (flip named) nameStr $ getInstrCmp $ do
+            forM_ (zip3 paramTypes paramOps paramSyms) $ \(typ, op, sym) -> do
+                checkSymKeyUndef sym KeyVar
+                addObj sym KeyVar (ObjVal (Ptr typ op))
+            mapM_ cmpStmt blk
+
     popSymTab
 
     addObj sym symKey (ObjFunc mretty op) 
@@ -149,15 +152,25 @@ cmpFuncDef (S.Func pos sym params mretty blk) = do
 
 cmpStmt :: InsCmp CompileState m => S.Stmt -> m ()
 cmpStmt stmt = case stmt of
-    S.Print pos exprs -> do
+    S.Print pos exprs -> cmpPrint stmt
+
+    S.CallStmt pos sym exprs -> do
         vals <- mapM cmpExpr exprs
-        mapM_ (valPrint ", ") vals
-        printf ("\n") []
+        let valTypes = map valType vals
+        ObjFunc _ op <- look sym (KeyFunc valTypes)
+        void $ call op [(o, []) | o <- map valOp vals]
         
+    _ -> error (show stmt)
 
-        return ()
-    _ -> fail (show stmt)
 
+cmpPrint :: InsCmp CompileState m => S.Stmt -> m ()
+cmpPrint (S.Print pos exprs) = do
+    prints =<< mapM cmpExpr exprs
+    where
+        prints :: InsCmp CompileState m => [Value] -> m ()
+        prints []     = return ()
+        prints [val]  = valPrint "\n" val
+        prints (v:vs) = valPrint ", " v >> prints vs
 
 
 cmpExpr :: InsCmp CompileState m =>  S.Expr -> m Value
@@ -169,7 +182,6 @@ cmpExpr expr = case expr of
     _ -> fail (show expr)
 
 
-
 prettyCompileState :: CompileState -> IO ()
 prettyCompileState state = do
     putStrLn "defs:"
@@ -179,5 +191,4 @@ prettyCompileState state = do
         GlobalDefinition (Function _ _ _ _ _ retty name params _ _ _ _ _ _ basicBlocks _ _) -> do
             let ps = concat (map show $ fst params)
             putStrLn ("func: " ++ show name ++ " " ++ ps ++ " " ++ show retty)
-            forM_ basicBlocks $ \bb -> do
-                putStrLn ("\t" ++ "block:")
+        _ -> return ()

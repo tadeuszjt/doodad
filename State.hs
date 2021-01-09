@@ -114,33 +114,47 @@ addDeclaration name dec = do
     modify $ \s -> s { declarations = Map.insert name dec (declarations s) }
 
 
+emitDec :: ModCmp CompileState m => Name -> Declaration -> m ()
+emitDec name dec = case dec of
+    DecType                         -> void (typedef name Nothing)
+    DecFunc argTypes retty          -> emitDec name (DecExtern argTypes retty False)
+    DecExtern argTypes retty isVarg -> do
+        emitDefn $ GlobalDefinition $ functionDefaults
+            { returnType = retty
+            , name       = name
+            , parameters = ([Parameter typ (mkName "") [] | typ <- argTypes], isVarg)
+            }
+        
+
 ensureDec :: ModCmp CompileState m => Name -> m ()
 ensureDec name = do
     declared <- fmap (Set.member name) (gets declared)
     when (not declared) $ do
-        addDeclared name
         res <- fmap (Map.lookup name) (gets declarations)
-        ress <- fmap (map (Map.lookup name . declarations) . Map.elems) (gets imports)
-
-        case catMaybes (res:ress) of
-            []  -> return ()
-            [r] -> case r of
-                DecType                             -> void (typedef name Nothing)
-                DecExtern paramTypes retType isVarg -> do
-                    emitDefn $ GlobalDefinition $ functionDefaults
-                        { returnType = retType
-                        , name       = name
-                        , parameters = ([Parameter typ (mkName "") [] | typ <- paramTypes], isVarg)
-                        }
+        case res of
+            Nothing -> return ()
+            Just d  -> emitDec name d >> addDeclared name
 
 
 ensureSymKeyDec :: ModCmp CompileState m => S.Symbol -> SymKey -> m ()
 ensureSymKeyDec sym key = do
     nm <- fmap (Map.lookup (sym, key)) (gets decMap)
     case nm of
-        Nothing   -> return ()
         Just name -> ensureDec name
+        Nothing   -> do
+            imports <- fmap Map.elems (gets imports)
+            rs <- fmap catMaybes $ forM imports $ \imp -> do
+                let res = Map.lookup (sym, key) (decMap imp) 
+                case res of
+                    Nothing   -> return Nothing
+                    Just name -> do
+                        declared <- fmap (Set.member name) (gets declared)
+                        when (not declared) $ emitDec name ((Map.! name) $ declarations imp)
+                        return (Just ())
 
+            case rs of
+                [r]   -> return ()
+                (r:_) -> fail ("more than one declaration for: " ++ sym ++ " " ++ show key)
 
 
 ensureExtern :: ModCmp CompileState m => Name -> [Type] -> Type -> Bool -> m Operand
