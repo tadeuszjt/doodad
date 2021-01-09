@@ -40,29 +40,31 @@ data SymKey
     = KeyType
     | KeyVar
     | KeyFunc [T.Type]
+    | KeyExtern
     deriving (Show, Eq, Ord)
 
 
 data Object
-    = ObType    T.Type   (Maybe Name)
-    | ObjExtern [T.Type] (Maybe T.Type) Operand
+    = ObjVal    Value
+    | ObType    T.Type         (Maybe Name)
     | ObjFunc   (Maybe T.Type) Operand
-    | ObjVal    Value
+    | ObjExtern [T.Type]       (Maybe T.Type) Operand
     deriving (Show)
 
 
 data Declaration
-    = DecType   Name 
-    | DecExtern Name [Type] Type Bool
-    | DecFunc   Name [Type] Type
+    = DecType   
+    | DecExtern [Type] Type Bool
+    | DecFunc   [Type] Type
     deriving (Show)
 
 
 data CompileState
     = CompileState
         { imports      :: Map.Map S.ModuleName CompileState
-        , declarations :: Map.Map (S.Symbol, SymKey) Declaration
-        , declared     :: Set.Set (S.Symbol, SymKey)
+        , decMap       :: Map.Map (S.Symbol, SymKey) Name
+        , declarations :: Map.Map Name Declaration
+        , declared     :: Set.Set Name
         , definitions  :: [Definition]
         , symTab       :: SymTab.SymTab S.Symbol SymKey Object
         }
@@ -71,6 +73,7 @@ data CompileState
 initCompileState
      = CompileState
         { imports      = Map.empty
+        , decMap       = Map.empty
         , declarations = Map.empty
         , declared     = Set.empty
         , definitions  = []
@@ -95,18 +98,66 @@ checkSymUndef sym = do
     when (isJust res) $ fail (sym ++ " already defined")
 
 
-addDeclared :: BoM CompileState m => S.Symbol -> SymKey -> m ()
-addDeclared sym key =
-    modify $ \s -> s { declared = Set.insert (sym, key) (declared s) }
+addDeclared :: BoM CompileState m => Name -> m ()
+addDeclared name =
+    modify $ \s -> s { declared = Set.insert name (declared s) }
 
 
-addDeclaration :: BoM CompileState m => S.Symbol -> SymKey -> Declaration -> m ()
-addDeclaration sym key dec =
-    modify $ \s -> s { declarations = Map.insert (sym, key) dec (declarations s) }
+addSymKeyDec :: BoM CompileState m => S.Symbol -> SymKey -> Name -> Declaration -> m ()
+addSymKeyDec sym key name dec = do
+    modify $ \s -> s { decMap = Map.insert (sym, key) name (decMap s) }
+    modify $ \s -> s { declarations = Map.insert name dec (declarations s) }
+
+
+addDeclaration :: BoM CompileState m => Name -> Declaration -> m ()
+addDeclaration name dec = do
+    modify $ \s -> s { declarations = Map.insert name dec (declarations s) }
+
+
+ensureDec :: ModCmp CompileState m => Name -> m ()
+ensureDec name = do
+    declared <- fmap (Set.member name) (gets declared)
+    when (not declared) $ do
+        addDeclared name
+        res <- fmap (Map.lookup name) (gets declarations)
+        ress <- fmap (map (Map.lookup name . declarations) . Map.elems) (gets imports)
+
+        case catMaybes (res:ress) of
+            []  -> return ()
+            [r] -> case r of
+                DecType                             -> void (typedef name Nothing)
+                DecExtern paramTypes retType isVarg -> do
+                    emitDefn $ GlobalDefinition $ functionDefaults
+                        { returnType = retType
+                        , name       = name
+                        , parameters = ([Parameter typ (mkName "") [] | typ <- paramTypes], isVarg)
+                        }
+
+
+ensureSymKeyDec :: ModCmp CompileState m => S.Symbol -> SymKey -> m ()
+ensureSymKeyDec sym key = do
+    nm <- fmap (Map.lookup (sym, key)) (gets decMap)
+    case nm of
+        Nothing   -> return ()
+        Just name -> ensureDec name
+
+
+
+ensureExtern :: ModCmp CompileState m => Name -> [Type] -> Type -> Bool -> m Operand
+ensureExtern name argTypes retty isVarg = do
+    declared <- fmap (Set.member name) (gets declared)
+    when (not declared) $ do
+        addDeclaration name (DecExtern argTypes retty isVarg)
+        ensureDec name
+    
+    return $ ConstantOperand $
+        GlobalReference (ptr $ FunctionType retty argTypes isVarg) name
+
+
 
 look :: ModCmp CompileState m => S.Symbol -> SymKey -> m Object
 look sym key = do
-    ensureDeclared sym key
+    ensureSymKeyDec sym key
     res <- fmap (SymTab.lookupSymKey sym key) (gets symTab)
     case res of
         Just obj -> return obj
@@ -117,30 +168,10 @@ look sym key = do
                 [x] -> return x
 
 
-ensureDeclared :: ModCmp CompileState m => S.Symbol -> SymKey -> m ()
-ensureDeclared sym key = do
-    isDeclared <- fmap (Set.member (sym, key)) (gets declared)
-
-    when (not isDeclared) $ do
-        res <- fmap (Map.lookup (sym, key)) (gets declarations)
-        ress <- fmap (map (Map.lookup (sym, key) . declarations) . Map.elems) (gets imports)
-
-        case catMaybes (res:ress) of
-            []  -> return ()
-            [r] -> case r of
-                DecType nm                               -> void (typedef nm Nothing)
-                DecExtern name paramTypes retType isVarg -> do
-                    emitDefn $ GlobalDefinition $ functionDefaults
-                        { returnType = retType
-                        , name       = name
-                        , parameters = ([Parameter typ (mkName "") [] | typ <- paramTypes], isVarg)
-                        }
-
-    modify $ \s -> s { declared = Set.insert (sym, key) (declared s) }
-
 pushSymTab :: BoM CompileState m => m ()
 pushSymTab =
     modify $ \s -> s { symTab = SymTab.push (symTab s) }
+
 
 popSymTab :: BoM CompileState m => m ()
 popSymTab =

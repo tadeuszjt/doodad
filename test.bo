@@ -1,6 +1,6 @@
 module main
 imports "io"
 
-fn benis(x i64) {
+fn benis(x i64) i64 {
     print(x);
 }

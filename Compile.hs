@@ -13,10 +13,7 @@ import qualified Data.ByteString.Short      as BSS
 
 import           Data.Maybe
 import           Data.List
-import           Control.Monad.Except       hiding (void)
-import           Control.Monad.State        hiding (void)
 import           Control.Monad.Trans
-import           Control.Monad.Fail         hiding (fail)
 import           Control.Monad.Identity     
 import qualified Data.Set as Set
 import qualified Data.Map as Map
@@ -37,6 +34,8 @@ import qualified SymTab
 import qualified Flatten as F
 import Value2
 import CompileState
+import Print2
+import Funcs
 
 mkBSS = BSS.toShort . BS.pack
 
@@ -92,8 +91,8 @@ cmpTypeDef sym pos typ = do
             name <- freshName (mkBSS sym)
             opTyp <- opTypeOf typ
             typedef name (Just opTyp)
-            addDeclared sym KeyType
-            addDeclaration sym KeyType (DecType name)
+            addDeclared name
+            addSymKeyDec sym KeyType name DecType
             addObj sym KeyType $ ObType typ (Just name)
         _ -> error (show typ)
     return ()
@@ -117,13 +116,14 @@ cmpExternDef (S.Extern pos sym params mretty) = do
     returnOpType <- maybe (return VoidType) opTypeOf mretty
     popSymTab
 
-    addDeclaration sym (KeyFunc paramTypes) (DecExtern name paramOpTypes returnOpType False)
+    addSymKeyDec sym (KeyFunc paramTypes) name (DecExtern paramOpTypes returnOpType False)
 
 
 cmpFuncDef :: InsCmp CompileState m => S.Stmt -> m ()
 cmpFuncDef (S.Func pos sym params mretty blk) = do
     let paramTypes = map S.paramType params
-    checkSymKeyUndef sym (KeyFunc paramTypes)
+    let symKey     = KeyFunc paramTypes
+    checkSymKeyUndef sym symKey
     name <- freshName (mkBSS sym)
 
     pushSymTab
@@ -134,6 +134,7 @@ cmpFuncDef (S.Func pos sym params mretty blk) = do
 
     returnOpType <- maybe (return VoidType) opTypeOf mretty
 
+    --TODO This doesn't work
     op <- function name (zip paramOpTypes paramNames) returnOpType $ \paramOps -> lift $ do
         forM_ (zip3 paramTypes paramOps paramSyms) $ \(typ, op, sym) -> do
             checkSymKeyUndef sym KeyVar
@@ -142,14 +143,18 @@ cmpFuncDef (S.Func pos sym params mretty blk) = do
     
     popSymTab
 
-    addObj sym (KeyFunc paramTypes) (ObjFunc mretty op) 
-    addDeclaration sym (KeyFunc paramTypes) (DecFunc name paramOpTypes returnOpType)
+    addObj sym symKey (ObjFunc mretty op) 
+    addSymKeyDec sym (KeyFunc paramTypes) name (DecFunc paramOpTypes returnOpType)
 
 
 cmpStmt :: InsCmp CompileState m => S.Stmt -> m ()
 cmpStmt stmt = case stmt of
     S.Print pos exprs -> do
         vals <- mapM cmpExpr exprs
+        mapM_ (valPrint ", ") vals
+        printf ("\n") []
+        
+
         return ()
     _ -> fail (show stmt)
 
@@ -158,8 +163,10 @@ cmpStmt stmt = case stmt of
 cmpExpr :: InsCmp CompileState m =>  S.Expr -> m Value
 cmpExpr expr = case expr of
     S.Cons c -> case c of
-        S.Int p n  -> return (valInt T.I64 n)
-        S.Bool p b -> return (valBool b)
+        S.Int p n   -> return (valInt T.I64 n)
+        S.Bool p b  -> return (valBool b)
+    S.Ident p s -> do ObjVal v <- look s KeyVar; return v
+    _ -> fail (show expr)
 
 
 
@@ -169,6 +176,8 @@ prettyCompileState state = do
     forM_ (definitions state) $ \def -> case def of
         TypeDefinition name mtyp ->
             putStrLn ("type: " ++ show name ++ " " ++ show mtyp)
-        GlobalDefinition (Function _ _ _ _ _ retty name params _ _ _ _ _ _ _ _ _) -> do
+        GlobalDefinition (Function _ _ _ _ _ retty name params _ _ _ _ _ _ basicBlocks _ _) -> do
             let ps = concat (map show $ fst params)
             putStrLn ("func: " ++ show name ++ " " ++ ps ++ " " ++ show retty)
+            forM_ basicBlocks $ \bb -> do
+                putStrLn ("\t" ++ "block:")
