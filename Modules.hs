@@ -3,14 +3,11 @@
 
 module Modules where
 
-import Prelude hiding (fail)
-import Control.Monad.Fail
 import Control.Monad.State hiding (fail)
 import Control.Monad.Except hiding (void, fail)
 
 import qualified Data.Map as Map
 import qualified Data.Set as Set
-import           Data.Maybe
 import           Error
 import qualified SymTab
 import qualified AST as S
@@ -19,15 +16,14 @@ import qualified Parser as P
 import qualified Flatten as F
 import qualified Compile as C
 import qualified CompileState as C
-import           LLVM.AST hiding (Module, Name)
-import Monad
+import           Monad
 import           JIT
 
 
 data Module
-    = ModuleAST [S.AST]
-    | ModuleFlat F.FlattenState
-    | ModuleCompiled C.CompileState
+    = ModuleAST         [S.AST]
+    | ModuleFlat        F.FlattenState
+    | ModuleCompiled    C.CompileState
 
 
 data ModulesState
@@ -61,26 +57,15 @@ modAddAST ast = do
 modFlattenAST :: BoM ModulesState m => S.ModuleName -> m ()
 modFlattenAST modName = do
     ModuleAST asts <- fmap (Map.! modName) (gets modMap)
+    combinedAST <- F.combineASTs asts
 
-    let imports = foldr1 Set.union (map S.astImports asts)
+    let imports = S.astImports combinedAST
     when (Set.member modName imports) $ fail ("cannot import this module: " ++ modName)
 
-    importFlatMap <- fmap Map.fromList $ forM (Set.toList imports) $ \imp -> do
-        res <- fmap (Map.lookup imp) (gets modMap)
-        when (isNothing res) $ fail (imp ++ " isn't in modMap")
-        ModuleFlat flatState <- fmap (Map.! imp) (gets modMap)
-        return (imp, flatState)
-
-    let combinedAST = S.AST {
-        S.astModuleName = Just modName,
-        S.astImports    = imports,
-        S.astStmts      = concat (map S.astStmts asts)
-        }
-
-    res <- F.flattenAST importFlatMap combinedAST
+    res <- runBoMT F.initFlattenState (F.flattenAST combinedAST)
     case res of
-        Left err    -> fail (show err)
-        Right state -> modModify modName $ \_ -> return $ ModuleFlat state
+        Left err          -> fail (show err)
+        Right ((), state) -> modModify modName $ \_ -> return $ ModuleFlat state
 
 
 modCompile :: BoM ModulesState m => S.ModuleName -> m ()
@@ -92,7 +77,7 @@ modCompile modName =
             when (Set.member name visited) $
                 fail ("circular dependency involving " ++ name)
             modModify name $ \res -> case res of
-                Nothing                 -> fail (name ++ " doesn't exist")
+                Nothing                     -> fail (name ++ " doesn't exist")
                 Just (ModuleFlat flatState) -> do
                     imports <- forM (Set.toList $ F.imports flatState) $ \imp -> do
                         modCompileDep imp (Set.insert name visited)

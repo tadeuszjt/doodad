@@ -153,6 +153,7 @@ ensureSymKeyDec sym key = do
                         return (Just ())
 
             case rs of
+                []    -> return ()
                 [r]   -> return ()
                 (r:_) -> fail ("more than one declaration for: " ++ sym ++ " " ++ show key)
 

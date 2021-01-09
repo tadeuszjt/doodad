@@ -20,7 +20,7 @@ $graphic = [$alpha $digit $ascsym $special \:\"\']
 
 $symbol  = [\{\}\(\)\[\]\,\|\.\;\:\_]
 
-@types      = i64 | i32 | f64 | f32 | bool | char | string
+@types      = i64 | i32 | i16 | f64 | f32 | bool | char | string
 @builtin    = print | len | append
 @keywords   = fn | extern | type | let | while | if | else | return | switch | true | false | module | imports
 @reserved   = @keywords | @types | @builtin

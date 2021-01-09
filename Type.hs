@@ -37,7 +37,7 @@ instance Show Type where
         Tuple ts   -> "(" ++ intercalate ", " (map show ts) ++ ")"
         Array n t     -> "[" ++ show n ++ " " ++ show t ++ "]"
         Table ts   -> "{" ++ intercalate "; " (map show ts) ++ "}"
-        Typedef s     -> s
+        Typedef s     -> show s
         Annotated _ t -> show t
 
 

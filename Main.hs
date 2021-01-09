@@ -46,8 +46,7 @@ main = do
                 Right (_, modState) -> M.prettyModules modState
         else do
             if (filenames args) == [] then
-                return ()
-                --repl session (verbose args)
+                error "no repl"
             else do
                 forM_ (filenames args) $ \filename -> do
                     source <- readFile filename

@@ -60,6 +60,7 @@ import qualified Data.Set as Set
 
     i64        { L.Token _ L.Reserved "i64" }
     i32        { L.Token _ L.Reserved "i32" }
+    i16        { L.Token _ L.Reserved "i16" }
     f64        { L.Token _ L.Reserved "f64" }
     f32        { L.Token _ L.Reserved "f32" }
     bool       { L.Token _ L.Reserved "bool" }
@@ -171,6 +172,7 @@ types         : {- empty -}          { [] }
 types_        : type_                { [$1] }
               | type_ ',' types_     { $1 : $3 }
 concreteType  : bool                 { T.Bool }
+              | i16                  { T.I16 }
               | i32                  { T.I32 }
               | i64                  { T.I64 }
               | f32                  { T.F32 }

@@ -9,7 +9,6 @@
 module Monad where
 -- A monad which encapsulates StateT and error handling using CmpError
 
-import Prelude hiding (fail)
 import Control.Monad.State hiding (fail)
 import Control.Monad.Fail
 import Control.Monad.Except hiding (void, fail)
@@ -22,10 +21,6 @@ import           Control.Monad.Fail
 import qualified Data.Set as Set
 import qualified Data.Map as Map
 import           LLVM.AST 
-import           LLVM.AST.Global
-import           LLVM.AST.Constant          as C
-import           LLVM.AST.Type              hiding (void)
-import qualified LLVM.AST.Constant          as C
 import           LLVM.IRBuilder.Module
 import           LLVM.IRBuilder.Monad
 

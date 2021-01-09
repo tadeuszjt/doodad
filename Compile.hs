@@ -27,12 +27,12 @@ import           LLVM.IRBuilder.Module
 import           LLVM.IRBuilder.Monad
 import           LLVM.IRBuilder.Constant
 
-import Monad
-import Error
 import qualified AST as S
 import qualified Type as T
 import qualified SymTab
 import qualified Flatten as F
+import Monad
+import Error
 import Value
 import CompileState
 import Print
@@ -69,6 +69,7 @@ opTypeOf typ = case typ of
     T.I64       -> return i64
     T.Char      -> return i32
     T.I32       -> return i32
+    T.I16       -> return i16
     T.Bool      -> return i1
     T.Tuple ts  -> fmap (StructureType False) (mapM opTypeOf ts)
     T.Typedef s -> do
@@ -118,6 +119,8 @@ cmpExternDef (S.Extern pos sym params mretty) = do
     popSymTab
 
     addSymKeyDec sym (KeyFunc paramTypes) name (DecExtern paramOpTypes returnOpType False)
+    let op = fnOp name paramOpTypes returnOpType False
+    addObj sym (KeyFunc paramTypes) (ObjExtern paramTypes mretty op)
 
 
 cmpFuncDef :: (MonadFail m, Monad m, MonadIO m) => S.Stmt -> InstrCmpT CompileState m ()
@@ -156,8 +159,11 @@ cmpStmt stmt = case stmt of
 
     S.CallStmt pos sym exprs -> do
         vals <- mapM cmpExpr exprs
-        let valTypes = map valType vals
-        ObjFunc _ op <- look sym (KeyFunc valTypes)
+        res <- look sym $ KeyFunc (map valType vals)
+        op <- case res of
+            ObjFunc _ op     -> return op
+            ObjExtern _ _ op -> return op
+
         void $ call op [(o, []) | o <- map valOp vals]
         
     _ -> error (show stmt)
@@ -178,6 +184,7 @@ cmpExpr expr = case expr of
     S.Cons c -> case c of
         S.Int p n   -> return (valInt T.I64 n)
         S.Bool p b  -> return (valBool b)
+        S.Char p c  -> return $ Val T.Char (int32 $ fromIntegral $ fromEnum c)
     S.Ident p s -> do ObjVal v <- look s KeyVar; return v
     _ -> fail (show expr)
 
