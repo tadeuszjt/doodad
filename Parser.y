@@ -3,7 +3,6 @@ module Parser where
 import qualified Type     as T
 import qualified Lexer    as L
 import qualified AST      as S
-import qualified CmpMonad as C
 import qualified Error    as C
 import qualified Data.Set as Set
 }

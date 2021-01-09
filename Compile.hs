@@ -32,9 +32,9 @@ import qualified AST as S
 import qualified Type as T
 import qualified SymTab
 import qualified Flatten as F
-import Value2
+import Value
 import CompileState
-import Print2
+import Print
 import Funcs
 
 mkBSS = BSS.toShort . BS.pack

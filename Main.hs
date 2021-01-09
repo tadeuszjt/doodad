@@ -9,17 +9,13 @@ import qualified Data.Set                 as Set
 import           LLVM.AST
 import           LLVM.Internal.DataLayout
 
-import qualified CmpAST                   as C
-import qualified Value                    as C
-import qualified CmpMonad                 as C
 import qualified Lexer                    as L
 import qualified Parser                   as P
-import qualified Resolver                 as R
 import           JIT
 import           Error
 import qualified AST                      as S
 import qualified Modules                  as M
-import Monad
+import           Monad
 
 
 data Args = Args
@@ -50,7 +46,8 @@ main = do
                 Right (_, modState) -> M.prettyModules modState
         else do
             if (filenames args) == [] then
-                repl session (verbose args)
+                return ()
+                --repl session (verbose args)
             else do
                 forM_ (filenames args) $ \filename -> do
                     source <- readFile filename
@@ -60,7 +57,7 @@ main = do
                             Right ast -> S.prettyAST "" ast
                     else do
                         putStrLn ("running \"" ++ filename ++ "\" ...")
-                        runFile session source (verbose args)
+                        --runFile session source (verbose args)
     where
         parseArgs :: Args -> [String] -> Args
         parseArgs args argStrs = case argStrs of
@@ -82,58 +79,58 @@ parse source =
             P.ParseOk ast   -> Right ast 
 
 
-runFile :: Session -> String -> Bool -> IO ()
-runFile session source verbose = do
-    res <- compile session C.initCmpState R.initResolverState source False
-    case res of
-        Left err -> printError err source
-        Right (defs, cmpState', resolverState') -> jitAndRun defs session False verbose
+--runFile :: Session -> String -> Bool -> IO ()
+--runFile session source verbose = do
+--    res <- compile session C.initCmpState R.initResolverState source False
+--    case res of
+--        Left err -> printError err source
+--        Right (defs, cmpState', resolverState') -> jitAndRun defs session False verbose
 
 
-repl :: Session -> Bool -> IO ()
-repl session verbose =
-    runInputT defaultSettings (loop C.initCmpState R.initResolverState) 
-    where
-        loop :: C.MyCmpState -> R.ResolverState -> InputT IO ()
-        loop state resolverState = do
-            getInputLine "% " >>= \minput -> case minput of
-                Nothing    -> return ()
-                Just "q"   -> return ()
-                Just ""    -> loop state resolverState
-                Just input -> do
-                    when verbose $ liftIO (putStrLn "compiling...")
-                    res <- liftIO (compile session state resolverState input verbose)
-                    case res of
-                        Left err             -> do
-                            liftIO (printError err input)
-                            loop state resolverState
-                        Right (defs, state', resolverState') -> do
-                            let keepModule = not $ Set.null (C.exported state')
-                            liftIO (jitAndRun defs session keepModule verbose)
-                            let stateReset = state' { C.exported = Set.empty, C.declared = Set.empty }
-                            loop stateReset resolverState'
-
-
-compile
-    :: Session
-    -> C.MyCmpState
-    -> R.ResolverState
-    -> String
-    -> Bool
-    -> IO (Either CmpError ([Definition], C.MyCmpState, R.ResolverState))
-compile session state resolverState source verbose =
-    case parse source of
-        Left err  -> return (Left err)
-        Right ast -> do
-            res <- R.resolveAST resolverState ast
-            case res of
-                Left err -> return (Left err)
-                Right (ast', resolverState') -> do
-                    withFFIDataLayout (JIT.dataLayout session) $ \dl -> do
-                        cmpRes <- C.compile (context session) dl state ast'
-                        case cmpRes of
-                            Left err             -> return (Left err)
-                            Right (defs, state') -> return $ Right (defs, state', resolverState')
+--repl :: Session -> Bool -> IO ()
+--repl session verbose =
+--    runInputT defaultSettings (loop C.initCmpState R.initResolverState) 
+--    where
+--        loop :: C.MyCmpState -> R.ResolverState -> InputT IO ()
+--        loop state resolverState = do
+--            getInputLine "% " >>= \minput -> case minput of
+--                Nothing    -> return ()
+--                Just "q"   -> return ()
+--                Just ""    -> loop state resolverState
+--                Just input -> do
+--                    when verbose $ liftIO (putStrLn "compiling...")
+--                    res <- liftIO (compile session state resolverState input verbose)
+--                    case res of
+--                        Left err             -> do
+--                            liftIO (printError err input)
+--                            loop state resolverState
+--                        Right (defs, state', resolverState') -> do
+--                            let keepModule = not $ Set.null (C.exported state')
+--                            liftIO (jitAndRun defs session keepModule verbose)
+--                            let stateReset = state' { C.exported = Set.empty, C.declared = Set.empty }
+--                            loop stateReset resolverState'
+--
+--
+--compile
+--    :: Session
+--    -> C.MyCmpState
+--    -> R.ResolverState
+--    -> String
+--    -> Bool
+--    -> IO (Either CmpError ([Definition], C.MyCmpState, R.ResolverState))
+--compile session state resolverState source verbose =
+--    case parse source of
+--        Left err  -> return (Left err)
+--        Right ast -> do
+--            res <- R.resolveAST resolverState ast
+--            case res of
+--                Left err -> return (Left err)
+--                Right (ast', resolverState') -> do
+--                    withFFIDataLayout (JIT.dataLayout session) $ \dl -> do
+--                        cmpRes <- C.compile (context session) dl state ast'
+--                        case cmpRes of
+--                            Left err             -> return (Left err)
+--                            Right (defs, state') -> return $ Right (defs, state', resolverState')
 
 
 --                        let astmod = defaultModule { moduleDefinitions = defs }
