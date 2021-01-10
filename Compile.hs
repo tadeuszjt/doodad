@@ -13,6 +13,7 @@ import qualified Data.ByteString.Short      as BSS
 
 import           Data.Maybe
 import           Data.List
+import           Control.Monad.Except hiding (void, fail)
 import           Control.Monad.Trans
 import           Control.Monad.Identity     
 import qualified Data.Set as Set
@@ -40,16 +41,12 @@ import Funcs
 
 mkBSS = BSS.toShort . BS.pack
 
-compileFlatState
-    :: (Monad m, MonadFail m, MonadIO m)
-    => Map.Map S.ModuleName CompileState
-    -> F.FlattenState
-    -> m (Either CmpError CompileState)
+compileFlatState :: BoM s m => Map.Map S.ModuleName CompileState -> F.FlattenState -> m (CompileState)
 compileFlatState importCompiled flatState = do
     res <- runModuleCmpT emptyModuleBuilder (initCompileState { imports = importCompiled }) f
     case res of
-        Left err                  -> return (Left err)
-        Right (((), defs), state) -> return (Right state { definitions = defs })
+        Left err                  -> throwError err
+        Right (((), defs), state) -> return $ state { definitions = defs }
     where
             f :: (MonadFail m, Monad m, MonadIO m) => ModuleCmpT CompileState m ()
             f = void $ function "main" [] VoidType $ \_ ->

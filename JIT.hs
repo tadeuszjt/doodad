@@ -91,18 +91,22 @@ jitAndRun defs session keepModule verbose = do
         M.withModuleFromAST (context session) astmod $ \mod -> do
             let pm = passManager session
             let cl = compileLayer session
-            unless (isNothing pm) $
-                void $ runPassManager (fromJust pm) mod
-            when verbose (BS.putStrLn =<< M.moduleLLVMAssembly mod)
 
+            when (isJust pm) $ do
+                when verbose (putStrLn "running optimisation passes...")
+                void $ runPassManager (fromJust pm) mod
+
+            when verbose (BS.putStrLn =<< M.moduleLLVMAssembly mod)
             addModule cl modKey mod
+
             mangled <- mangleSymbol cl "main"
             res <- findSymbolIn cl modKey mangled False
             case res of
                 Left _                -> when verbose (putStrLn "no main")
                 Right (JITSymbol fn _)-> do
-                    when verbose (putStrLn "running...")
+                    when verbose (putStrLn "running main...")
                     run $ castPtrToFunPtr (wordPtrToPtr fn)
+
             unless keepModule $ do
                 when verbose (putStrLn "removing module...")
                 (removeModule cl modKey)

@@ -38,25 +38,21 @@ main :: IO ()
 main = do
     args <- fmap (parseArgs initArgs) getArgs
     withSession (optimise args) $ \session -> do
-        if (modulesOnly args) then do
+        if filenames args == [] then
+            error "no repl"
+        else if astOnly args then do
             sources <- mapM readFile (filenames args) 
-            res <- runBoMT (M.initModulesState session) (M.runFiles sources)
-            case res of
-                Left err -> printError err ""
-                Right (_, modState) -> M.prettyModules modState
+            forM_ sources $ \src -> do
+                case parse src of
+                    Left err  -> printError err src
+                    Right ast -> S.prettyAST "" ast
         else do
-            if (filenames args) == [] then
-                error "no repl"
-            else do
-                forM_ (filenames args) $ \filename -> do
-                    source <- readFile filename
-                    if astOnly args then
-                        case parse source of
-                            Left err  -> printError err source
-                            Right ast -> S.prettyAST "" ast
-                    else do
-                        putStrLn ("running \"" ++ filename ++ "\" ...")
-                        --runFile session source (verbose args)
+            sources <- mapM readFile (filenames args) 
+            res <- runBoMT (M.initModulesState session) $ M.runFiles sources (verbose args)
+            case res of
+                Left err            -> printError err ""
+                Right (_, modState) -> when (modulesOnly args) (M.prettyModules modState)
+
     where
         parseArgs :: Args -> [String] -> Args
         parseArgs args argStrs = case argStrs of

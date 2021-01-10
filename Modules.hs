@@ -8,6 +8,8 @@ import Control.Monad.Except hiding (void, fail)
 
 import qualified Data.Map as Map
 import qualified Data.Set as Set
+import           Data.Maybe
+
 import           Error
 import qualified SymTab
 import qualified AST as S
@@ -21,15 +23,14 @@ import           JIT
 
 
 data Module
-    = ModuleAST         [S.AST]
-    | ModuleFlat        F.FlattenState
-    | ModuleCompiled    C.CompileState
+    = ModuleAST      [S.AST]
+    | ModuleCompiled C.CompileState
 
 
 data ModulesState
     = ModulesState
-        { modMap  :: Map.Map S.ModuleName Module         -- Map of all modules
-        , session :: Session
+        { modMap  :: Map.Map S.ModuleName Module
+        , session :: JIT.Session
         }
 
 initModulesState session
@@ -48,70 +49,54 @@ modModify modName f = do
 
 modAddAST :: BoM ModulesState m => S.AST -> m ()
 modAddAST ast = do
-    let name    = maybe "main" id (S.astModuleName ast)
+    let name = maybe "main" id (S.astModuleName ast)
     modModify name $ \res -> case res of
         Nothing               -> return (ModuleAST [ast])
         Just (ModuleAST asts) -> return (ModuleAST (ast : asts))
 
 
-modFlattenAST :: BoM ModulesState m => S.ModuleName -> m ()
-modFlattenAST modName = do
-    ModuleAST asts <- fmap (Map.! modName) (gets modMap)
-    combinedAST <- F.combineASTs asts
-
-    let imports = S.astImports combinedAST
-    when (Set.member modName imports) $ fail ("cannot import this module: " ++ modName)
-
-    res <- runBoMT F.initFlattenState (F.flattenAST combinedAST)
-    case res of
-        Left err          -> fail (show err)
-        Right ((), state) -> modModify modName $ \_ -> return $ ModuleFlat state
-
-
-modCompile :: BoM ModulesState m => S.ModuleName -> m ()
-modCompile modName = 
+modCompile :: BoM ModulesState m => S.ModuleName -> Bool -> m ()
+modCompile modName verbose = 
     modCompileDep modName Set.empty
     where
         modCompileDep :: BoM ModulesState m => S.ModuleName -> Set.Set S.ModuleName -> m ()
         modCompileDep name visited = do
-            when (Set.member name visited) $
-                fail ("circular dependency involving " ++ name)
-            modModify name $ \res -> case res of
-                Nothing                     -> fail (name ++ " doesn't exist")
-                Just (ModuleFlat flatState) -> do
-                    imports <- forM (Set.toList $ F.imports flatState) $ \imp -> do
-                        modCompileDep imp (Set.insert name visited)
-                        mod@(ModuleCompiled state) <- fmap (Map.! imp) (gets modMap)
-                        return (imp, state)
+            when (Set.member name visited) $ fail ("circular dependency involving " ++ name)
 
-                    res <- C.compileFlatState (Map.fromList imports) flatState
-                    case res of
-                        Left err    -> throwError err
-                        Right state -> do
-                            sess <- gets session
-                            liftIO $ jitAndRun (C.definitions state) sess True True
-                            return (ModuleCompiled state)
+            modModify name $ \res -> do
+                when (isNothing res) $ fail ("module " ++ name ++ "doesn't exist")
+                let ModuleAST asts = fromJust res
+
+                combinedAST <- F.combineASTs asts
+                let imports = S.astImports combinedAST
+                res  <- runBoMT F.initFlattenState (F.flattenAST combinedAST)
+                case res of
+                    Left err              -> throwError err
+                    Right ((), flatState) -> do
+                        cmpImps <- forM (Set.toList $ imports) $ \imp -> do
+                            modCompileDep imp (Set.insert name visited)
+                            ModuleCompiled cmpState <- fmap (Map.! imp) (gets modMap)
+                            return (imp, cmpState)
+
+                        state <- C.compileFlatState (Map.fromList cmpImps) flatState
+                        sess <- gets session
+                        liftIO $ jitAndRun (C.definitions state) sess True verbose
+                        return (ModuleCompiled state)
 
 
-parse :: String -> Either CmpError S.AST
+parse :: BoM s m => String -> m S.AST
 parse source =
     case L.alexScanner source of
-        Left  errStr -> Left $ CmpError (Nothing, errStr)
+        Left  errStr -> fail errStr
         Right tokens -> case (P.parseTokens tokens) 0 of
-            P.ParseFail pos -> Left $ CmpError (Just pos, "parse error")
-            P.ParseOk ast   -> Right ast 
+            P.ParseFail pos -> throwError $ CmpError (Just pos, "parse error")
+            P.ParseOk ast   -> return ast 
 
 
-runFiles :: BoM ModulesState m => [String] -> m ()
-runFiles fs = do
-    forM_ fs $ \f ->
-        case parse f of
-            Left err  -> throwError err
-            Right ast -> modAddAST ast
-
-    modMap <- gets modMap
-    mapM_ modFlattenAST (Map.keys modMap)
-    modCompile "main"
+runFiles :: BoM ModulesState m => [String] -> Bool -> m ()
+runFiles fs verbose = do
+    forM_ fs $ \f -> modAddAST =<< parse f
+    modCompile "main" verbose
 
 
 prettyModules :: ModulesState -> IO ()
@@ -121,11 +106,6 @@ prettyModules modules = do
             ModuleAST asts -> do
                 putStrLn "ModuleAST"
                 mapM_ (S.prettyAST "\t") asts
-            ModuleFlat flatState -> do
-                putStrLn ("ModuleFlat: " ++ modName)
-                putStrLn ("Imports:")
-                mapM_ (putStrLn . show) (F.imports flatState)
-                F.prettyFlatAST flatState
             ModuleCompiled state -> do
                 putStrLn ("ModuleCompiled " ++ modName)
                 C.prettyCompileState state
