@@ -27,6 +27,8 @@ import           LLVM.IRBuilder.Instruction
 import           LLVM.IRBuilder.Module
 import           LLVM.IRBuilder.Monad
 import           LLVM.IRBuilder.Constant
+import           LLVM.AST.IntegerPredicate
+
 
 import qualified AST as S
 import qualified Type as T
@@ -43,17 +45,21 @@ mkBSS = BSS.toShort . BS.pack
 
 compileFlatState :: BoM s m => Map.Map S.ModuleName CompileState -> F.FlattenState -> m (CompileState)
 compileFlatState importCompiled flatState = do
-    res <- runModuleCmpT emptyModuleBuilder (initCompileState { imports = importCompiled }) f
+    let initState = initCompileState { imports = importCompiled }
+    res <- runBoMT initState (runModuleCmpT emptyModuleBuilder f)
     case res of
         Left err                  -> throwError err
         Right (((), defs), state) -> return $ state { definitions = defs }
     where
             f :: (MonadFail m, Monad m, MonadIO m) => ModuleCmpT CompileState m ()
-            f = void $ function "main" [] VoidType $ \_ ->
-                    getInstrCmp cmp
+            f = void $ func "main" [] VoidType $ \_ ->
+                    cmp
 
             cmp :: (MonadFail m, Monad m, MonadIO m) => InstrCmpT CompileState m ()
             cmp = do
+                void $ ensureExtern (mkName "GC_malloc") [i64] (ptr i8) False
+                void $ ensureExtern (mkName "GC_realloc") [ptr i8, i64] (ptr i8) False
+
                 forM_ (Map.toList $ F.typeDefs flatState) $ \(flat, (pos, typ)) -> cmpTypeDef flat pos typ
                 mapM_ cmpVarDef (F.varDefs flatState)
                 mapM_ cmpExternDef (F.externDefs flatState)
@@ -111,7 +117,9 @@ cmpExternDef (S.Extern pos sym params mretty) = do
     pushSymTab
     paramOpTypes <- forM params $ \(S.Param p s t) -> do
         checkSymKeyUndef s KeyVar
+        addObj s KeyVar $ ObjVal (valBool False)
         opTypeOf t
+
     returnOpType <- maybe (return VoidType) opTypeOf mretty
     popSymTab
 
@@ -137,8 +145,8 @@ cmpFuncDef (S.Func pos sym params mretty blk) = do
 
     returnOpType <- maybe (return VoidType) opTypeOf mretty
 
-    op <- InstrCmpT . IRBuilderT . lift $ function name (zip paramOpTypes paramNames) returnOpType $ \paramOps -> do
-        (flip named) nameStr $ getInstrCmp $ do
+    op <- InstrCmpT . IRBuilderT . lift $ func name (zip paramOpTypes paramNames) returnOpType $ \paramOps -> do
+        (flip named) nameStr $ do
             forM_ (zip3 paramTypes paramOps paramSyms) $ \(typ, op, sym) -> do
                 checkSymKeyUndef sym KeyVar
                 addObj sym KeyVar (ObjVal (Ptr typ op))
@@ -162,6 +170,11 @@ cmpStmt stmt = case stmt of
             ObjExtern _ _ op -> return op
 
         void $ call op [(o, []) | o <- map valOp vals]
+
+    S.Assign pos (S.PatIdent p sym) expr -> do
+        checkSymKeyUndef sym KeyVar
+        val <- cmpExpr expr
+        addObj sym KeyVar (ObjVal val)
         
     _ -> error (show stmt)
 
@@ -182,8 +195,36 @@ cmpExpr expr = case expr of
         S.Int p n   -> return (valInt T.I64 n)
         S.Bool p b  -> return (valBool b)
         S.Char p c  -> return $ Val T.Char (int32 $ fromIntegral $ fromEnum c)
-    S.Ident p s -> do ObjVal v <- look s KeyVar; return v
-    _ -> fail (show expr)
+
+    S.Ident p sym -> do
+        ObjVal val <- look sym KeyVar
+        return val
+
+    S.Infix pos op exprA exprB -> do
+        Val typA opA <- valLoad =<< cmpExpr exprA
+        Val typB opB <- valLoad =<< cmpExpr exprB
+        checkTypesMatch typA typB
+        typ <- realTypeOf typA
+        cmpInfix op typ opA opB
+
+    _ -> error ("expr: " ++ show expr)
+
+
+cmpInfix :: InsCmp CompileState m => S.Op -> T.Type -> Operand -> Operand -> m Value
+cmpInfix operator typ opA opB
+    | T.isIntegral typ = case operator of
+        S.Plus   -> res typ (add opA opB)
+        S.Minus  -> res typ (sub opA opB)
+        S.Times  -> res typ (mul opA opB)
+        S.Divide -> res typ (sdiv opA opB)
+        S.Mod    -> res typ (srem opA opB)
+        S.LT     -> res T.Bool (icmp SLT opA opB)
+        S.GT     -> res T.Bool (icmp SGT opA opB)
+        S.LTEq   -> res T.Bool (icmp SLE opA opB)
+        S.GTEq   -> res T.Bool (icmp SGT opA opB)
+        _        -> fail ("no infix for " ++ show typ)
+    where
+        res typ = fmap (Val typ)
 
 
 prettyCompileState :: CompileState -> IO ()

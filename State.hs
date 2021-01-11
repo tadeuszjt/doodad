@@ -3,6 +3,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE OverloadedStrings #-}
 module CompileState where
 
 import qualified Data.ByteString.Char8      as BS
@@ -26,6 +27,7 @@ import           LLVM.IRBuilder.Monad
 
 import qualified AST as S
 import Monad
+import Error
 import qualified SymTab
 import qualified Type as T
 
@@ -79,6 +81,11 @@ initCompileState
         , definitions  = []
         , symTab       = SymTab.initSymTab
         }
+
+
+assert :: MonadError CmpError m => Bool -> String -> m ()
+assert b s =
+    unless b $ throwError $ CmpError (Nothing, s)
 
 
 addObj :: BoM CompileState m => S.Symbol -> SymKey -> Object -> m ()

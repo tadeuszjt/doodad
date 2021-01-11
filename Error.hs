@@ -18,6 +18,7 @@ newtype CmpError
     deriving (Show)
 
 
+
 printError :: CmpError -> String -> IO ()
 printError (CmpError (Nothing, str)) source = putStrLn ("error: " ++ str)
 printError (CmpError (Just pos@(TextPos p l c), str)) source = do

@@ -236,6 +236,7 @@ else_ : else block                   { $2 }
 
 block  : '{' Prog_ '}'               { S.Block (tokPosn $1) $2 }
 block_ : '{' Prog_ '}'               { $2 }
+       | '{' '}'                     { [] }
 
 
 {

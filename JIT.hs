@@ -8,6 +8,7 @@ import           Control.Monad
 import qualified Data.ByteString.Char8    as BS
 import           Data.IORef
 import           Data.Maybe
+import           System.IO
 import           Foreign.Ptr
 
 import qualified LLVM.CodeGenOpt          as CodeGenOpt
@@ -22,6 +23,7 @@ import qualified LLVM.Module              as M
 import           LLVM.OrcJIT
 import           LLVM.OrcJIT.CompileLayer
 import           LLVM.PassManager
+import           LLVM.Internal.ObjectFile
 
 
 foreign import ccall "dynamic" mkFun :: FunPtr (IO ()) -> (IO ())
@@ -37,6 +39,7 @@ data Session
         , compileLayer     :: IRCompileLayer ObjectLinkingLayer
         , passManager      :: Maybe PassManager
         , dataLayout       :: DataLayout
+        , linkingLayer     :: ObjectLinkingLayer
         }
 
 
@@ -68,7 +71,7 @@ withSession optimise f = do
                                 writeIORef resolvers [psr]
                                 loadLibraryPermanently Nothing
                                 dl <- getTargetMachineDataLayout tm 
-                                f $ Session ctx es cl (if optimise then Just pm else Nothing) dl
+                                f $ Session ctx es cl (if optimise then Just pm else Nothing) dl oll
     where
         myResolver :: IRCompileLayer ObjectLinkingLayer -> SymbolResolver
         myResolver cl = SymbolResolver $ \mangled -> do
@@ -81,6 +84,14 @@ withSession optimise f = do
                         { jitSymbolAddress = ptr
                         , jitSymbolFlags   = defaultJITSymbolFlags { jitSymbolExported = True }
                         }
+
+
+jitAddObjectFile :: Session -> String -> IO ModuleKey
+jitAddObjectFile session filepath = do
+    withObjectFile filepath $ \objFile -> do
+        withModuleKey (executionSession session) $ \modKey -> do
+            addObjectFile (linkingLayer session) modKey objFile
+            return modKey
 
 
 jitAndRun :: [Definition] -> Session -> Bool -> Bool -> IO ()

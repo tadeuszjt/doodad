@@ -2,8 +2,12 @@ module io
 
 extern putchar(c char);
 
+
 fn io1() {
+    let x = 20;
+
+
     putchar('b');
     putchar('e');
-    print(1, 2);
+    print(1 - x);
 }

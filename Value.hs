@@ -45,3 +45,13 @@ valBool b = Val T.Bool (if b then bit 1 else bit 0)
 valLoad :: InsCmp CompileState m => Value -> m Value
 valLoad (Val typ op)    = return (Val typ op)
 valLoad (Ptr T.I64 loc) = fail (show loc)
+
+
+checkTypesMatch :: BoM s m => T.Type -> T.Type -> m ()
+checkTypesMatch typA typB
+    | T.isSimple typA = assert (typA == typB) (show typA ++ " does not match " ++ show typB)
+
+
+realTypeOf :: BoM CompileState m => T.Type -> m T.Type
+realTypeOf typ
+    | T.isSimple typ = return typ

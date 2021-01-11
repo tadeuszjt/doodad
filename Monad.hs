@@ -47,14 +47,14 @@ runBoMT state bomt =
     runExceptT $ runStateT (getStateT bomt) state
 
 
-runModuleCmpT
-    :: Monad m
-    => ModuleBuilderState
-    -> s
-    -> ModuleCmpT s m a
-    -> m (Either CmpError ((a, [Definition]), s))
-runModuleCmpT moduleBuilderState state moduleCmpT =
-    runBoMT state $ runModuleBuilderT moduleBuilderState (getModuleCmp moduleCmpT)
+runModuleCmpT :: Monad m => ModuleBuilderState -> ModuleCmpT s m a -> BoMT s m (a, [Definition])
+runModuleCmpT moduleBuilderState moduleCmpT =
+    runModuleBuilderT moduleBuilderState (getModuleCmp moduleCmpT)
+
+
+runInstrCmpT :: Monad m => IRBuilderState -> InstrCmpT s m a -> ModuleCmpT s m (a, [BasicBlock])
+runInstrCmpT irBuilderState instrCmpT =
+    runIRBuilderT irBuilderState (getInstrCmp instrCmpT)
 
 
 
