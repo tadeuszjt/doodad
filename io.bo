@@ -2,6 +2,12 @@ module io
 
 extern putchar(c char);
 
+fn getStrLn() {
+    let str = {'b', 'e', 'n', 'i', 's'};
+
+    print(str);
+}
+
 
 fn io1() {
     let x = 20;

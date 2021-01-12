@@ -40,6 +40,7 @@ import Value
 import CompileState
 import Print
 import Funcs
+import Table
 
 mkBSS = BSS.toShort . BS.pack
 
@@ -66,21 +67,6 @@ compileFlatState importCompiled flatState = do
                 mapM_ cmpFuncDef (F.funcDefs flatState)
 
 
-
-opTypeOf :: ModCmp CompileState m => T.Type -> m Type
-opTypeOf typ = case typ of
-    T.I64       -> return i64
-    T.Char      -> return i32
-    T.I32       -> return i32
-    T.I16       -> return i16
-    T.Bool      -> return i1
-    T.Tuple ts  -> fmap (StructureType False) (mapM opTypeOf ts)
-    T.Typedef s -> do
-        ObType t nm <- look s KeyType
-        case nm of
-            Nothing -> opTypeOf t
-            Just n  -> return (NamedTypeReference n)
-    _ -> error (show typ) 
 
 
 cmpTypeDef :: InsCmp CompileState m => S.Symbol-> TextPos -> T.Type -> m ()
@@ -194,7 +180,7 @@ cmpExpr expr = case expr of
     S.Cons c -> case c of
         S.Int p n   -> return (valInt T.I64 n)
         S.Bool p b  -> return (valBool b)
-        S.Char p c  -> return $ Val T.Char (int32 $ fromIntegral $ fromEnum c)
+        S.Char p c  -> return (valChar c)
 
     S.Ident p sym -> do
         ObjVal val <- look sym KeyVar
@@ -204,8 +190,42 @@ cmpExpr expr = case expr of
         Val typA opA <- valLoad =<< cmpExpr exprA
         Val typB opB <- valLoad =<< cmpExpr exprB
         checkTypesMatch typA typB
-        typ <- realTypeOf typA
+        typ <- baseTypeOf typA
         cmpInfix op typ opA opB
+
+    S.Conv pos typ [] -> do
+        zeroOf typ
+        
+
+    S.Table pos []     -> zeroOf (T.Table [])
+    S.Table pos ([]:_) -> fail "cannot determine type of table row with no elements"
+    S.Table pos exprss -> do
+        valss <- mapM (mapM cmpExpr) exprss
+        let rowLen = length (head valss)
+
+        rowTypes <- forM valss $ \vals -> do
+            assert (length vals == rowLen) $ "mismatched table row length of " ++ show (length vals)
+            forM_ vals $ \val -> checkTypesMatch (valType val) $ valType (head vals)
+            return $ valType (head vals)
+
+        arrs <- mapM (valLocal . T.Array (fromIntegral rowLen)) rowTypes
+
+        forM_ (zip arrs [0..]) $ \(arr, r) -> do
+            forM_ [0..rowLen-1] $ \i -> do
+                ptr <- valArrayIdx arr (valInt T.I64 $ fromIntegral i)
+                valStore ptr ((valss !! r) !! i)
+
+        tab <- valLocal (T.Table rowTypes)
+        len <- valTableLen tab
+        cap <- valTableCap tab
+
+        valStore len (valInt T.I64 $ fromIntegral rowLen)
+        valStore cap (valInt T.I64 $ fromIntegral rowLen)
+        forM_ (zip arrs [0..]) $ \(arr, r) -> do
+            ptr <- valArrayConstIdx arr 0
+            valTableSetRow tab r ptr
+
+        return tab
 
     _ -> error ("expr: " ++ show expr)
 

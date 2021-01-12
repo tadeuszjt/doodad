@@ -18,7 +18,6 @@ data Type
     | Array Word Type
     | Table [Type]
     | Typedef String
-    | Annotated String Type
     deriving (Eq, Ord)
 
 
@@ -38,43 +37,32 @@ instance Show Type where
         Array n t     -> "[" ++ show n ++ " " ++ show t ++ "]"
         Table ts      -> "{" ++ intercalate "; " (map show ts) ++ "}"
         Typedef s     -> show s
-        Annotated _ t -> show t
 
 
-isChar (Annotated _ t)      = isChar t
-isChar x                    = x == Char
+isChar x              = x == Char
 
-isString (Annotated _ t)    = isString t
-isString x                  = x == String
+isString x            = x == String
 
-isInt (Annotated _ t)       = isInt t
-isInt x                     = x `elem` [I8, I16, I32, I64]
+isInt x               = x `elem` [I8, I16, I32, I64]
 
-isFloat (Annotated _ t)     = isFloat t
-isFloat x                   = x `elem` [F32, F64]
+isFloat x             = x `elem` [F32, F64]
 
-isArray (Annotated _ t)     = isArray t
-isArray (Array _ _)         = True
-isArray _                   = False
+isArray (Array _ _)   = True
+isArray _             = False
 
-isTuple (Annotated _ t)     = isTuple t
-isTuple (Tuple _)         = True
-isTuple _                   = False
+isTuple (Tuple _)     = True
+isTuple _             = False
 
-isTable (Annotated _ t)     = isTable t
-isTable (Table _)         = True
-isTable _                   = False
+isTable (Table _)     = True
+isTable _             = False
 
-isTypedef (Typedef _)       = True
-isTypedef _                 = False
+isTypedef (Typedef _) = True
+isTypedef _           = False
 
-isAnnotated (Annotated _ _) = True
-isAnnotated _               = False
+isIntegral x          = isInt x || isChar x
 
-isIntegral x                = isInt x || isChar x
+isBase x              = isInt x || isFloat x || isChar x
 
-isBase x                    = isInt x || isFloat x || isChar x
+isSimple x            = isBase x || isString x
 
-isSimple x                  = isBase x || isString x
-
-isAggregate x               = isTuple x || isArray x || isTable x
+isAggregate x         = isTuple x || isArray x || isTable x
