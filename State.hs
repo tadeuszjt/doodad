@@ -24,10 +24,14 @@ import           LLVM.AST.Type              hiding (void)
 import qualified LLVM.AST.Constant          as C
 import           LLVM.IRBuilder.Module
 import           LLVM.IRBuilder.Monad
+import           LLVM.Context
+import qualified LLVM.Internal.FFI.DataLayout   as FFI
+import           Foreign.Ptr
 
 import qualified AST as S
 import Monad
 import Error
+import qualified JIT
 import qualified SymTab
 import qualified Type as T
 
@@ -63,23 +67,28 @@ data Declaration
 
 data CompileState
     = CompileState
-        { imports      :: Map.Map S.ModuleName CompileState
+        { context      :: Context
+        , dataLayout   :: Ptr FFI.DataLayout
+        , imports      :: Map.Map S.ModuleName CompileState
         , decMap       :: Map.Map (S.Symbol, SymKey) Name
         , declarations :: Map.Map Name Declaration
         , declared     :: Set.Set Name
         , definitions  :: [Definition]
         , symTab       :: SymTab.SymTab S.Symbol SymKey Object
+        , curRetType   :: T.Type
         }
-    deriving (Show)
 
-initCompileState
+initCompileState ctx dl
      = CompileState
-        { imports      = Map.empty
+        { context      = ctx
+        , dataLayout   = dl
+        , imports      = Map.empty
         , decMap       = Map.empty
         , declarations = Map.empty
         , declared     = Set.empty
         , definitions  = []
         , symTab       = SymTab.initSymTab
+        , curRetType   = T.Void
         }
 
 

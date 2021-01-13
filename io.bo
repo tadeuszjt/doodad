@@ -1,25 +1,5 @@
 module io
 
-extern putchar(c char);
-
-fn getStrLn() {
-    let str = {'b', 'e', 'n', 'i', 's'};
-    let ben = {
-        {'b'}, str;
-        str, str
-    };
-
-    let bin = {ben, ben};
-
-    print(str);
-}
-
-
-fn io1() {
-    let x = 20;
-
-
-    putchar('b');
-    putchar('e');
-    print(1 - x);
+fn getStrLn() {char} {
+    return {'b', 'e', 'n', 'i'};
 }

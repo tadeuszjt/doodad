@@ -2,11 +2,13 @@
 module Table where
 
 import Data.Word
+import Control.Monad
 
 
 import Monad
 import Value
 import CompileState
+import Funcs
 import qualified Type as T
 
 import           LLVM.AST.Type              hiding (Type, void, double)
@@ -15,6 +17,7 @@ import           LLVM.IRBuilder.Constant
 import           LLVM.IRBuilder.Instruction
 import           LLVM.IRBuilder.Module
 import           LLVM.IRBuilder.Monad
+import qualified LLVM.AST.IntegerPredicate as P
 
 
 valTableLen :: InsCmp s m => Value -> m Value
@@ -45,3 +48,53 @@ valTableSetRow i (Ptr (T.Table ts) loc) (Ptr t row) = do
     pp <- gep loc [int32 0, int32 $ fromIntegral i+2]
     store pp 0 row
 
+
+valMalloc :: InsCmp CompileState m => T.Type -> Value -> m Value
+valMalloc typ len = do
+    Val T.I64 l <- valLoad len
+    size <- sizeOf typ
+    pi8 <- malloc =<< mul l (int64 $ fromIntegral size)
+
+    opTyp <- opTypeOf typ
+    p <- bitcast pi8 (ptr opTyp)
+
+    return (Ptr typ p) 
+
+
+valTableForceAlloc :: InsCmp CompileState m => Value -> m Value
+valTableForceAlloc tab@(Ptr typ _) = valTableForceAlloc' tab
+valTableForceAlloc tab@(Val typ _) = do
+    tab' <- valLocal typ
+    valStore tab' tab
+    valTableForceAlloc' tab'
+    where 
+        valTableForceAlloc' tab@(Ptr _ _) = do
+            T.Table ts <- baseTypeOf (valType tab)
+            len <- valLoad =<< valTableLen tab
+            cap <- valTableCap tab
+            
+            let caseCapZero = do
+                valStore cap len
+                forM_ (zip ts [0..]) $ \(t, i) -> do
+                    mem@(Ptr _ m) <- valMalloc t len
+                    (Ptr _ p) <- valTableRow i tab
+
+                    size <- sizeOf t
+                    nb <- mul (valOp len) (int64 $ fromIntegral size)
+                    mi8 <- bitcast m (ptr i8)
+                    pi8 <- bitcast p (ptr i8)
+                    memcpy mi8 pi8 nb
+
+                    valTableSetRow i tab mem
+
+            Val T.I64 capOp <- valLoad cap
+            capZero <- icmp P.SLE capOp (int64 0)
+            if_ capZero caseCapZero (return ())
+
+            return tab
+
+
+
+
+
+        

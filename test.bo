@@ -2,7 +2,5 @@ module main
 imports "io"
 
 fn main() {
-    io1();
-    io2();
-    getStrLn();
+    print(getStrLn());
 }

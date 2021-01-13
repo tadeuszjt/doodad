@@ -78,7 +78,10 @@ modCompile modName verbose =
                             ModuleCompiled cmpState <- fmap (Map.! imp) (gets modMap)
                             return (imp, cmpState)
 
-                        state <- C.compileFlatState (Map.fromList cmpImps) flatState
+                        ctx <- fmap JIT.context (gets session)
+                        dl <- fmap JIT.dataLayout (gets session)
+
+                        state <- C.compileFlatState ctx dl (Map.fromList cmpImps) flatState
                         sess <- gets session
                         liftIO $ jitAndRun (C.definitions state) sess True verbose
                         return (ModuleCompiled state)

@@ -24,6 +24,9 @@ import           LLVM.OrcJIT
 import           LLVM.OrcJIT.CompileLayer
 import           LLVM.PassManager
 import           LLVM.Internal.ObjectFile
+import           Foreign.Ptr
+import qualified LLVM.Internal.FFI.DataLayout   as FFI
+import           LLVM.Internal.DataLayout
 
 
 foreign import ccall "dynamic" mkFun :: FunPtr (IO ()) -> (IO ())
@@ -38,7 +41,7 @@ data Session
         , executionSession :: ExecutionSession
         , compileLayer     :: IRCompileLayer ObjectLinkingLayer
         , passManager      :: Maybe PassManager
-        , dataLayout       :: DataLayout
+        , dataLayout       :: Ptr FFI.DataLayout
         , linkingLayer     :: ObjectLinkingLayer
         }
 
@@ -63,15 +66,16 @@ withSession optimise f = do
     resolvers <- newIORef []
     withContext $ \ctx ->
         withExecutionSession $ \es ->
-            withMyHostTargetMachine $ \tm ->
-                withObjectLinkingLayer es (\_ -> fmap head $ readIORef resolvers) $ \oll ->
-                    withIRCompileLayer oll tm $ \cl ->
-                        withPassManager defaultCuratedPassSetSpec $ \pm ->
-                            withSymbolResolver es (myResolver cl) $ \psr -> do
-                                writeIORef resolvers [psr]
-                                loadLibraryPermanently Nothing
-                                dl <- getTargetMachineDataLayout tm 
-                                f $ Session ctx es cl (if optimise then Just pm else Nothing) dl oll
+            withMyHostTargetMachine $ \tm -> do
+                dl <- getTargetMachineDataLayout tm
+                withFFIDataLayout dl $ \pdl -> 
+                    withObjectLinkingLayer es (\_ -> fmap head $ readIORef resolvers) $ \oll ->
+                        withIRCompileLayer oll tm $ \cl ->
+                            withPassManager defaultCuratedPassSetSpec $ \pm ->
+                                withSymbolResolver es (myResolver cl) $ \psr -> do
+                                    writeIORef resolvers [psr]
+                                    loadLibraryPermanently Nothing
+                                    f $ Session ctx es cl (if optimise then Just pm else Nothing) pdl oll
     where
         myResolver :: IRCompileLayer ObjectLinkingLayer -> SymbolResolver
         myResolver cl = SymbolResolver $ \mangled -> do

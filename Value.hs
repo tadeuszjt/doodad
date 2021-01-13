@@ -32,6 +32,7 @@ import qualified LLVM.AST.Constant          as C
 import Monad
 import CompileState
 import Funcs
+import qualified JIT
 import qualified AST as S
 import qualified Type as T
 
@@ -96,6 +97,7 @@ baseTypeOf :: BoM CompileState m => T.Type -> m T.Type
 baseTypeOf typ
     | T.isSimple typ = return typ
     | T.isArray typ  = return typ
+    | T.isTable typ  = return typ
 
 
 
@@ -117,6 +119,18 @@ zeroOf typ
         fmap (Val typ . array) $ replicateM (fromIntegral n) $ fmap (toCons . valOp) (zeroOf t)
 
     | otherwise     = fail ("no zero val for: " ++ show typ)
+
+
+sizeOf :: InsCmp CompileState m => T.Type -> m Word64
+sizeOf typ = size =<< opTypeOf =<< baseTypeOf typ
+    where
+        size :: InsCmp CompileState m => Type -> m Word64
+        size typ = do
+            ctx <- gets context
+            dl <- gets dataLayout
+            ptrTyp <- liftIO $ runEncodeAST ctx (encodeM typ)
+            liftIO (FFI.getTypeAllocSize dl ptrTyp)
+
 
 
 valLocal :: InsCmp CompileState m => T.Type -> m Value

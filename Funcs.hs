@@ -51,6 +51,17 @@ memset p v size = do
     call op [(d, []), (v, []), (size, [])]
 
 
+malloc :: InsCmp CompileState m => Operand -> m Operand
+malloc size = do
+    op <- ensureExtern "GC_malloc" [i64] (ptr i8) False
+    call op [(size, [])]
+
+
+memcpy :: InsCmp CompileState m => Operand -> Operand -> Operand -> m Operand
+memcpy dest src size = do
+    op <- ensureExtern "memcpy" [ptr i8, ptr i8, i64] (ptr i8) False
+    call op [(dest, []), (src, []), (size, [])]
+
 
 func :: Monad m => Name -> [(Type, ParameterName)] -> Type -> ([Operand] -> InstrCmpT s m ()) -> ModuleCmpT s m Operand
 func name argtys retty f = do

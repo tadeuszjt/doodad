@@ -16,11 +16,11 @@ import           Data.List
 import           Control.Monad.Except hiding (void, fail)
 import           Control.Monad.Trans
 import           Control.Monad.Identity     
+import           Control.Monad.State
 import qualified Data.Set as Set
 import qualified Data.Map as Map
 import           LLVM.AST                   hiding (function)
 import           LLVM.AST.Global
-import           LLVM.AST.Constant          as C
 import           LLVM.AST.Type              hiding (void)
 import qualified LLVM.AST.Constant          as C
 import           LLVM.IRBuilder.Instruction       
@@ -28,6 +28,9 @@ import           LLVM.IRBuilder.Module
 import           LLVM.IRBuilder.Monad
 import           LLVM.IRBuilder.Constant
 import           LLVM.AST.IntegerPredicate
+import           Foreign.Ptr
+import qualified LLVM.Internal.FFI.DataLayout   as FFI
+import           LLVM.Context
 
 import qualified AST as S
 import qualified Type as T
@@ -43,9 +46,15 @@ import Table
 
 mkBSS = BSS.toShort . BS.pack
 
-compileFlatState :: BoM s m => Map.Map S.ModuleName CompileState -> F.FlattenState -> m (CompileState)
-compileFlatState importCompiled flatState = do
-    let initState = initCompileState { imports = importCompiled }
+compileFlatState
+    :: BoM s m
+    => Context
+    -> Ptr FFI.DataLayout
+    -> Map.Map S.ModuleName CompileState
+    -> F.FlattenState
+    -> m CompileState
+compileFlatState ctx dl importCompiled flatState = do
+    let initState = (initCompileState ctx dl) { imports = importCompiled }
     res <- runBoMT initState (runModuleCmpT emptyModuleBuilder f)
     case res of
         Left err                  -> throwError err
@@ -57,9 +66,6 @@ compileFlatState importCompiled flatState = do
 
             cmp :: (MonadFail m, Monad m, MonadIO m) => InstrCmpT CompileState m ()
             cmp = do
-                void $ ensureExtern (mkName "GC_malloc") [i64] (ptr i8) False
-                void $ ensureExtern (mkName "GC_realloc") [ptr i8, i64] (ptr i8) False
-
                 forM_ (Map.toList $ F.typeDefs flatState) $ \(flat, (pos, typ)) -> cmpTypeDef flat pos typ
                 mapM_ cmpVarDef (F.varDefs flatState)
                 mapM_ cmpExternDef (F.externDefs flatState)
@@ -128,12 +134,17 @@ cmpFuncDef (S.Func pos sym params mretty blk) = do
 
     returnOpType <- maybe (return VoidType) opTypeOf mretty
 
+    curRetty <- gets curRetType
+    modify $ \s -> s { curRetType = maybe T.Void id mretty }
+
     op <- InstrCmpT . IRBuilderT . lift $ func name (zip paramOpTypes paramNames) returnOpType $ \paramOps -> do
         (flip named) nameStr $ do
             forM_ (zip3 paramTypes paramOps paramSyms) $ \(typ, op, sym) -> do
                 checkSymKeyUndef sym KeyVar
                 addObj sym KeyVar (ObjVal (Ptr typ op))
             mapM_ cmpStmt blk
+
+    modify $ \s -> s { curRetType = curRetty }
 
     popSymTab
 
@@ -158,22 +169,34 @@ cmpStmt stmt = case stmt of
         checkSymKeyUndef sym KeyVar
         val <- cmpExpr expr
         addObj sym KeyVar (ObjVal val)
-        
+    
+    S.Return pos (Just expr) -> do
+        val <- valLoad =<< cmpExpr expr
+        typ <- baseTypeOf (valType val)
+
+        val' <- case typ of
+            T.Table _ -> valTableForceAlloc val
+            _         -> return val
+
+        retty <- gets curRetType
+        checkTypesMatch (valType val') retty
+        ret . valOp =<< valLoad val'
+
     _ -> error (show stmt)
-
-
-cmpPrint :: InsCmp CompileState m => S.Stmt -> m ()
-cmpPrint (S.Print pos exprs) = do
-    prints =<< mapM cmpExpr exprs
-    where
-        prints :: InsCmp CompileState m => [Value] -> m ()
-        prints []     = return ()
-        prints [val]  = valPrint "\n" val
-        prints (v:vs) = valPrint ", " v >> prints vs
 
 
 cmpExpr :: InsCmp CompileState m =>  S.Expr -> m Value
 cmpExpr expr = case expr of
+    S.Call pos sym exprs -> do
+        vals <- mapM cmpExpr exprs
+        res <- look sym $ KeyFunc (map valType vals)
+        (op, typ) <- case res of
+            ObjFunc (Just typ) op     -> return (op, typ)
+            ObjExtern _ (Just typ) op -> return (op, typ)
+
+        fmap (Val typ) $ call op [(o, []) | o <- map valOp vals]
+        
+
     S.Cons c -> case c of
         S.Int p n   -> return (valInt T.I64 n)
         S.Bool p b  -> return (valBool b)
@@ -215,13 +238,24 @@ cmpExpr expr = case expr of
         cap <- valTableCap tab
 
         valStore len $ valInt T.I64 (fromIntegral rowLen)
-        valStore cap $ valInt T.I64 (fromIntegral rowLen)
-        forM_ (zip arrs [0..]) $ \(arr, row) ->
-            valTableSetRow row tab =<< valArrayConstIdx arr 0
+        valStore cap (valInt T.I64 0) -- shows stack mem
+
+        forM_ (zip arrs [0..]) $ \(arr, i) ->
+            valTableSetRow i tab =<< valArrayConstIdx arr 0
 
         return tab
 
     _ -> error ("expr: " ++ show expr)
+
+
+cmpPrint :: InsCmp CompileState m => S.Stmt -> m ()
+cmpPrint (S.Print pos exprs) = do
+    prints =<< mapM cmpExpr exprs
+    where
+        prints :: InsCmp CompileState m => [Value] -> m ()
+        prints []     = return ()
+        prints [val]  = valPrint "\n" val
+        prints (v:vs) = valPrint ", " v >> prints vs
 
 
 cmpInfix :: InsCmp CompileState m => S.Op -> T.Type -> Operand -> Operand -> m Value
