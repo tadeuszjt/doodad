@@ -4,6 +4,12 @@ extern putchar(c char);
 
 fn getStrLn() {
     let str = {'b', 'e', 'n', 'i', 's'};
+    let ben = {
+        {'b'}, str;
+        str, str
+    };
+
+    let bin = {ben, ben};
 
     print(str);
 }

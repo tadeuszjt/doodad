@@ -30,7 +30,6 @@ import           LLVM.AST.Type              hiding (void)
 import qualified LLVM.AST.Constant          as C
 
 import Monad
-import Table
 import CompileState
 import Funcs
 import qualified AST as S
@@ -64,25 +63,16 @@ valStore (Ptr typ loc) val = do
         Val t o -> store loc 0 o
 
 
-
 valPtrIdx :: InsCmp s m => Value -> Value -> m Value
 valPtrIdx (Ptr typ loc) (Val T.I64 i) = fmap (Ptr typ) (gep loc [i])
 valPtrIdx (Ptr typ loc) (Ptr T.I64 i) = valPtrIdx (Ptr typ loc) =<< valLoad (Ptr T.I64 i)
 
 
-valTableSetRow :: InsCmp CompileState m => Value -> Word32 -> Value -> m ()
-valTableSetRow (Ptr (T.Table ts) loc) idx (Ptr t row) = do
-    checkTypesMatch t (ts !! fromIntegral idx)
-    pp <- gep loc [int32 0, int32 (fromIntegral idx+2)]
-    store pp 0 row
-
-
 valArrayIdx :: InsCmp s m => Value -> Value -> m Value
 valArrayIdx (Ptr (T.Array n t) loc) idx = do
-    assert (T.isInt $ valType idx) "array index isn't an integer"
-    Val _ i <- valLoad idx
-    ptr <- gep loc [int64 0, i]
-    return (Ptr t ptr)
+    Val idxTyp idx <- valLoad idx
+    assert (T.isInt idxTyp) "array index isn't an integer"
+    fmap (Ptr t) $ gep loc [int64 0, idx]
 
 
 valArrayConstIdx :: InsCmp CompileState m => Value -> Word -> m Value
@@ -93,10 +83,11 @@ valArrayConstIdx val i = do
         Val typ op  -> fmap (Val t) $ extractValue op [fromIntegral i]
 
 
-
 checkTypesMatch :: BoM s m => T.Type -> T.Type -> m ()
 checkTypesMatch typA typB
     | T.isSimple typA = assert (typA == typB) str
+    | T.isTable typA  = assert (typA == typB) str
+    | otherwise       = error (show typA)
     where
         str = show typA ++ " does not match " ++ show typB
 
@@ -107,20 +98,13 @@ baseTypeOf typ
     | T.isArray typ  = return typ
 
 
---tabZeroOf :: BoM CompileState m => T.Type -> m Value
---tabZeroOf typ@(T.Table ts) = do
---    ptrTys <- fmap (map ptr) (mapM opTypeOf ts)
---    let zI64  = cons (int64 0)
---    let zPtrs = map (C.IntToPtr zI64) ptrTys
---    let op    = cons $ struct Nothing False (zI64:zI64:zPtrs)
---    return (Val typ op) 
---
 
 zeroOf :: ModCmp CompileState m => T.Type -> m Value
 zeroOf typ
     | T.isInt typ   = return (valInt typ 0)
     | typ == T.Bool = return (valBool False)
     | typ == T.Char = return (valChar '\0')
+
     | T.isTable typ = do
         let T.Table ts = typ
         let zi64 = toCons (int64 0)
@@ -130,13 +114,7 @@ zeroOf typ
 
     | T.isArray typ = do
         let T.Array n t = typ
-
-        zelems <- replicateM (fromIntegral n) $ do
-            Val _ op <- zeroOf t
-            return (toCons op)
-
-        return $ Val typ (array zelems)
-
+        fmap (Val typ . array) $ replicateM (fromIntegral n) $ fmap (toCons . valOp) (zeroOf t)
 
     | otherwise     = fail ("no zero val for: " ++ show typ)
 
@@ -169,6 +147,5 @@ opTypeOf typ = case typ of
         case nm of
             Nothing -> opTypeOf t
             Just n  -> return (NamedTypeReference n)
-
 
     _ -> error (show typ) 

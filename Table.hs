@@ -5,6 +5,7 @@ import Data.Word
 
 
 import Monad
+import Value
 import CompileState
 import qualified Type as T
 
@@ -36,4 +37,11 @@ valTableRow i val = do
         Ptr _ loc -> do
             pp <- gep loc [int32 0, int32 $ fromIntegral i+2]
             fmap (Ptr t) (load pp 0)
+
+
+valTableSetRow :: InsCmp CompileState m => Word32 -> Value -> Value -> m ()
+valTableSetRow i (Ptr (T.Table ts) loc) (Ptr t row) = do
+    checkTypesMatch t (ts !! fromIntegral i)
+    pp <- gep loc [int32 0, int32 $ fromIntegral i+2]
+    store pp 0 row
 

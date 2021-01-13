@@ -127,7 +127,7 @@ expr   : lit                          { S.Cons $1 }
        | '[' exprs ']'                { S.Array (tokPosn $1) $2 }
        | '(' exprs ')'                { S.Tuple (tokPosn $1) $2 }
        | ident '(' exprs ')'          { S.Call (tokPosn $1) (L.tokStr $1) $3 }
-       | type__ '(' exprs ')'         { S.Conv (tokPosn $2) $1 $3 }
+       | '(' type__ ')''(' exprs ')'  { S.Conv (tokPosn $4) $2 $5 }
        | len '(' expr ')'             { S.Len (tokPosn $1) $3 }
        | append '(' expr ',' expr ')' { S.Append (tokPosn $1) $3 $5 }
        | expr '.' intlit              { S.TupleIndex (tokPosn $2) $1 (read $ L.tokStr $3) }

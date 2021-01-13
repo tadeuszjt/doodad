@@ -29,7 +29,6 @@ import           LLVM.IRBuilder.Monad
 import           LLVM.IRBuilder.Constant
 import           LLVM.AST.IntegerPredicate
 
-
 import qualified AST as S
 import qualified Type as T
 import qualified SymTab
@@ -65,8 +64,6 @@ compileFlatState importCompiled flatState = do
                 mapM_ cmpVarDef (F.varDefs flatState)
                 mapM_ cmpExternDef (F.externDefs flatState)
                 mapM_ cmpFuncDef (F.funcDefs flatState)
-
-
 
 
 cmpTypeDef :: InsCmp CompileState m => S.Symbol-> TextPos -> T.Type -> m ()
@@ -193,10 +190,8 @@ cmpExpr expr = case expr of
         typ <- baseTypeOf typA
         cmpInfix op typ opA opB
 
-    S.Conv pos typ [] -> do
-        zeroOf typ
+    S.Conv pos typ [] -> zeroOf typ
         
-
     S.Table pos []     -> zeroOf (T.Table [])
     S.Table pos ([]:_) -> fail "cannot determine type of table row with no elements"
     S.Table pos exprss -> do
@@ -208,22 +203,21 @@ cmpExpr expr = case expr of
             forM_ vals $ \val -> checkTypesMatch (valType val) $ valType (head vals)
             return $ valType (head vals)
 
+        -- create local arrays to store table rows
         arrs <- mapM (valLocal . T.Array (fromIntegral rowLen)) rowTypes
-
         forM_ (zip arrs [0..]) $ \(arr, r) -> do
             forM_ [0..rowLen-1] $ \i -> do
-                ptr <- valArrayIdx arr (valInt T.I64 $ fromIntegral i)
+                ptr <- valArrayIdx arr $ valInt T.I64 (fromIntegral i)
                 valStore ptr ((valss !! r) !! i)
 
         tab <- valLocal (T.Table rowTypes)
         len <- valTableLen tab
         cap <- valTableCap tab
 
-        valStore len (valInt T.I64 $ fromIntegral rowLen)
-        valStore cap (valInt T.I64 $ fromIntegral rowLen)
-        forM_ (zip arrs [0..]) $ \(arr, r) -> do
-            ptr <- valArrayConstIdx arr 0
-            valTableSetRow tab r ptr
+        valStore len $ valInt T.I64 (fromIntegral rowLen)
+        valStore cap $ valInt T.I64 (fromIntegral rowLen)
+        forM_ (zip arrs [0..]) $ \(arr, row) ->
+            valTableSetRow row tab =<< valArrayConstIdx arr 0
 
         return tab
 
