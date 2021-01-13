@@ -1,5 +1,11 @@
 module io
 
+extern getchar() char;
+
 fn getStrLn() {char} {
+    let str = ({char})();
+    let loop = true;
+
+    
     return {'b', 'e', 'n', 'i'};
 }

@@ -171,7 +171,7 @@ cmpStmt stmt = case stmt of
         addObj sym KeyVar (ObjVal val)
     
     S.Return pos (Just expr) -> do
-        val <- valLoad =<< cmpExpr expr
+        val <- cmpExpr expr
         typ <- baseTypeOf (valType val)
 
         val' <- case typ of
@@ -196,7 +196,6 @@ cmpExpr expr = case expr of
 
         fmap (Val typ) $ call op [(o, []) | o <- map valOp vals]
         
-
     S.Cons c -> case c of
         S.Int p n   -> return (valInt T.I64 n)
         S.Bool p b  -> return (valBool b)

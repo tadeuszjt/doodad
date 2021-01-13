@@ -64,6 +64,16 @@ valStore (Ptr typ loc) val = do
         Val t o -> store loc 0 o
 
 
+valLocal :: InsCmp CompileState m => T.Type -> m Value
+valLocal typ = do
+    opTyp <- opTypeOf typ
+    loc <- alloca opTyp Nothing 0
+    --TODO
+    --size <- sizeOf typ
+    --memset loc (int64 0) $ int64 (fromIntegral size)
+    return (Ptr typ loc)
+    
+
 valPtrIdx :: InsCmp s m => Value -> Value -> m Value
 valPtrIdx (Ptr typ loc) (Val T.I64 i) = fmap (Ptr typ) (gep loc [i])
 valPtrIdx (Ptr typ loc) (Ptr T.I64 i) = valPtrIdx (Ptr typ loc) =<< valLoad (Ptr T.I64 i)
@@ -82,6 +92,21 @@ valArrayConstIdx val i = do
     case val of
         Ptr typ loc -> fmap (Ptr t) $ gep loc [int64 0, int64 (fromIntegral i)]
         Val typ op  -> fmap (Val t) $ extractValue op [fromIntegral i]
+
+
+valMemCpy :: InsCmp CompileState m => Value -> Value -> Value -> m ()
+valMemCpy dst src len = do
+    checkTypesMatch (valType dst) (valType src)
+    size <- sizeOf (valType dst)
+    Val T.I64 l <- valLoad len
+    let Ptr _ pDst = dst
+    let Ptr _ pSrc = src
+
+    pDstI8 <- bitcast pDst (ptr i8)
+    pSrcI8 <- bitcast pSrc (ptr i8)
+
+    num <- mul l (int64 $ fromIntegral size)
+    void $ memcpy pDstI8 pSrcI8 num
 
 
 checkTypesMatch :: BoM s m => T.Type -> T.Type -> m ()
@@ -130,18 +155,6 @@ sizeOf typ = size =<< opTypeOf =<< baseTypeOf typ
             dl <- gets dataLayout
             ptrTyp <- liftIO $ runEncodeAST ctx (encodeM typ)
             liftIO (FFI.getTypeAllocSize dl ptrTyp)
-
-
-
-valLocal :: InsCmp CompileState m => T.Type -> m Value
-valLocal typ = do
-    opTyp <- opTypeOf typ
-    loc <- alloca opTyp Nothing 0
-    --TODO
-    --size <- sizeOf typ
-    --memset loc (int64 0) $ int64 (fromIntegral size)
-    return (Ptr typ loc)
-    
 
 opTypeOf :: ModCmp CompileState m => T.Type -> m Type
 opTypeOf typ = case typ of

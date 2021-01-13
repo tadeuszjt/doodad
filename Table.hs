@@ -67,34 +67,28 @@ valTableForceAlloc tab@(Val typ _) = do
     tab' <- valLocal typ
     valStore tab' tab
     valTableForceAlloc' tab'
-    where 
-        valTableForceAlloc' tab@(Ptr _ _) = do
-            T.Table ts <- baseTypeOf (valType tab)
-            len <- valLoad =<< valTableLen tab
-            cap <- valTableCap tab
-            
-            let caseCapZero = do
-                valStore cap len
-                forM_ (zip ts [0..]) $ \(t, i) -> do
-                    mem@(Ptr _ m) <- valMalloc t len
-                    (Ptr _ p) <- valTableRow i tab
 
-                    size <- sizeOf t
-                    nb <- mul (valOp len) (int64 $ fromIntegral size)
-                    mi8 <- bitcast m (ptr i8)
-                    pi8 <- bitcast p (ptr i8)
-                    memcpy mi8 pi8 nb
+valTableForceAlloc' tab@(Ptr _ _) = do
+    T.Table ts <- baseTypeOf (valType tab)
+    len <- valTableLen tab
+    cap <- valTableCap tab
+    
+    let caseCapZero = do
+        valStore cap len
+        forM_ (zip ts [0..]) $ \(t, i) -> do
+            mem <- valMalloc t len
+            row <- valTableRow i tab
+            valMemCpy mem row len
+            valTableSetRow i tab mem
 
-                    valTableSetRow i tab mem
+    Val T.I64 capOp <- valLoad cap
+    capZero <- icmp P.SLE capOp (int64 0)
+    if_ capZero caseCapZero (return ())
 
-            Val T.I64 capOp <- valLoad cap
-            capZero <- icmp P.SLE capOp (int64 0)
-            if_ capZero caseCapZero (return ())
-
-            return tab
+    return tab
 
 
 
 
 
-        
+
