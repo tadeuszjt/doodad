@@ -7,8 +7,10 @@ fn getStrLn() {char} {
     let loop = true;
 
     while loop {
-        print(3201);
-        loop = false;
+        switch getchar() {
+            '\n': loop = false;
+            c   : str = append(str, c);
+        }
     }
     
     return str;

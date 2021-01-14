@@ -19,7 +19,7 @@ valPrint :: InsCmp CompileState m => String -> Value -> m ()
 valPrint append val = case valType val of
     T.I64 -> do
         Val _ op <- valLoad val
-        void $ printf ("%d" ++ append) [valOp val]
+        void $ printf ("%d" ++ append) [op]
 
     T.Char -> do
         Val _ op <- valLoad val
@@ -27,7 +27,6 @@ valPrint append val = case valType val of
 
     T.Table ts -> do
         printf "{" []
-        Val _ op <- valLoad val
         let nrows = fromIntegral (length ts)
         Val T.I64 len <- valLoad =<< valTableLen val
 
@@ -35,7 +34,6 @@ valPrint append val = case valType val of
 
         let m1 = forM_ [0..nrows-1] $ \i -> do
             row <- valTableRow i val
-
             n <- sub len (int64 1)
             for n $ \j ->
                 valPrint ", " =<< valPtrIdx row (Val T.I64 j)

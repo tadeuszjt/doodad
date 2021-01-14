@@ -176,7 +176,6 @@ cmpStmt stmt = case stmt of
         ObjVal val <- look sym KeyVar
         valStore val =<< cmpExpr expr
 
-    
     S.Return pos (Just expr) -> do
         val <- cmpExpr expr
         typ <- baseTypeOf (valType val)
@@ -193,9 +192,9 @@ cmpStmt stmt = case stmt of
         val <- cmpExpr expr
         checkTypesMatch T.Bool =<< baseTypeOf (valType val)
 
-        cond <- freshName "while_cnd"
+        cond <- freshName "while_cond"
         body <- freshName "while_body"
-        exit  <- freshName "while_exit"
+        exit <- freshName "while_exit"
 
         br cond
         emitBlockStart cond

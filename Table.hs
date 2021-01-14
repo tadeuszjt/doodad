@@ -4,13 +4,6 @@ module Table where
 import Data.Word
 import Control.Monad
 
-
-import Monad
-import Value
-import CompileState
-import Funcs
-import qualified Type as T
-
 import           LLVM.AST.Type              hiding (Type, void, double)
 import qualified LLVM.AST.Constant          as C
 import           LLVM.IRBuilder.Constant
@@ -19,6 +12,11 @@ import           LLVM.IRBuilder.Module
 import           LLVM.IRBuilder.Monad
 import qualified LLVM.AST.IntegerPredicate as P
 
+import Monad
+import Value
+import CompileState
+import Funcs
+import qualified Type as T
 
 valTableLen :: InsCmp s m => Value -> m Value
 valTableLen (Ptr (T.Table _) loc) = fmap (Ptr T.I64) $ gep loc [int32 0, int32 0]
@@ -54,11 +52,8 @@ valMalloc typ len = do
     Val T.I64 l <- valLoad len
     size <- sizeOf typ
     pi8 <- malloc =<< mul l (int64 $ fromIntegral size)
-
     opTyp <- opTypeOf typ
-    p <- bitcast pi8 (ptr opTyp)
-
-    return (Ptr typ p) 
+    fmap (Ptr typ) $ bitcast pi8 (ptr opTyp)
 
 
 valTableForceAlloc :: InsCmp CompileState m => Value -> m Value

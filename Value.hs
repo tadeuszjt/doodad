@@ -1,39 +1,22 @@
 {-# LANGUAGE FlexibleContexts #-}
 module Value where
 
-import qualified Data.ByteString.Char8      as BS
-import qualified Data.ByteString.Short      as BSS
+import Data.Word
+import Control.Monad
+import Control.Monad.State hiding (void)
+import Control.Monad.Trans
 
-import           Data.Word
-import           Data.Maybe
-import           Control.Monad.Except       hiding (void)
-import           Control.Monad.State        hiding (void)
-import           Control.Monad.Trans
-import           Control.Monad.Fail         hiding (fail)
-import           Control.Monad.Identity     
-import qualified Data.Set as Set
-import qualified Data.Map as Map
-
-import           LLVM.AST                   hiding (Type, function, Module)
-import           LLVM.AST.IntegerPredicate
-import           LLVM.AST.Type              hiding (Type, void, double)
-import           LLVM.Internal.Type
-import           LLVM.Internal.EncodeAST
-import           LLVM.Internal.Coding           hiding (alloca)
-import           Foreign.Ptr
-import qualified LLVM.Internal.FFI.DataLayout   as FFI
-import           LLVM.IRBuilder.Constant
-import           LLVM.IRBuilder.Instruction
-import           LLVM.IRBuilder.Module
-import           LLVM.IRBuilder.Monad
-import           LLVM.AST.Type              hiding (void)
-import qualified LLVM.AST.Constant          as C
+import LLVM.Internal.EncodeAST
+import LLVM.Internal.Coding hiding (alloca)
+import LLVM.IRBuilder.Constant
+import LLVM.IRBuilder.Instruction
+import LLVM.AST.Type hiding (void)
+import qualified LLVM.Internal.FFI.DataLayout as FFI
+import qualified LLVM.AST.Constant as C
 
 import Monad
 import CompileState
 import Funcs
-import qualified JIT
-import qualified AST as S
 import qualified Type as T
 
 
@@ -95,18 +78,14 @@ valArrayConstIdx val i = do
 
 
 valMemCpy :: InsCmp CompileState m => Value -> Value -> Value -> m ()
-valMemCpy dst src len = do
-    checkTypesMatch (valType dst) (valType src)
-    size <- sizeOf (valType dst)
+valMemCpy (Ptr dstTyp dst) (Ptr srcTyp src) len = do
+    checkTypesMatch dstTyp srcTyp
+    size <- sizeOf dstTyp
     Val T.I64 l <- valLoad len
-    let Ptr _ pDst = dst
-    let Ptr _ pSrc = src
-
-    pDstI8 <- bitcast pDst (ptr i8)
-    pSrcI8 <- bitcast pSrc (ptr i8)
-
+    pDstI8 <- bitcast dst (ptr i8)
+    pSrcI8 <- bitcast src (ptr i8)
     num <- mul l (int64 $ fromIntegral size)
-    void $ memcpy pDstI8 pSrcI8 num
+    void (memcpy pDstI8 pSrcI8 num)
 
 
 checkTypesMatch :: BoM s m => T.Type -> T.Type -> m ()
@@ -159,6 +138,7 @@ sizeOf typ = size =<< opTypeOf =<< baseTypeOf typ
             dl <- gets dataLayout
             ptrTyp <- liftIO $ runEncodeAST ctx (encodeM typ)
             liftIO (FFI.getTypeAllocSize dl ptrTyp)
+
 
 opTypeOf :: ModCmp CompileState m => T.Type -> m Type
 opTypeOf typ = case typ of
