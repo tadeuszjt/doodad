@@ -6,6 +6,10 @@ fn getStrLn() {char} {
     let str = ({char})();
     let loop = true;
 
+    while loop {
+        print(3201);
+        loop = false;
+    }
     
-    return {'b', 'e', 'n', 'i'};
+    return str;
 }

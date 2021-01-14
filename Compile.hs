@@ -168,7 +168,14 @@ cmpStmt stmt = case stmt of
     S.Assign pos (S.PatIdent p sym) expr -> do
         checkSymKeyUndef sym KeyVar
         val <- cmpExpr expr
-        addObj sym KeyVar (ObjVal val)
+        loc <- valLocal (valType val)
+        valStore loc val
+        addObj sym KeyVar (ObjVal loc)
+
+    S.Set pos (S.IndIdent p sym) expr -> do
+        ObjVal val <- look sym KeyVar
+        valStore val =<< cmpExpr expr
+
     
     S.Return pos (Just expr) -> do
         val <- cmpExpr expr
@@ -181,6 +188,27 @@ cmpStmt stmt = case stmt of
         retty <- gets curRetType
         checkTypesMatch (valType val') retty
         ret . valOp =<< valLoad val'
+
+    S.While pos expr blk -> do
+        val <- cmpExpr expr
+        checkTypesMatch T.Bool =<< baseTypeOf (valType val)
+
+        cond <- freshName "while_cnd"
+        body <- freshName "while_body"
+        exit  <- freshName "while_exit"
+
+        br cond
+        emitBlockStart cond
+        Val _ cnd <- valLoad val
+        condBr cnd body exit
+        
+        emitBlockStart body
+        pushSymTab
+        mapM_ cmpStmt blk
+        popSymTab
+        br cond
+        emitBlockStart exit
+
 
     _ -> error (show stmt)
 

@@ -118,11 +118,15 @@ checkTypesMatch typA typB
         str = show typA ++ " does not match " ++ show typB
 
 
-baseTypeOf :: BoM CompileState m => T.Type -> m T.Type
+baseTypeOf :: ModCmp CompileState m => T.Type -> m T.Type
+baseTypeOf (T.Typedef s) = do
+    ObType t _ <- look s KeyType
+    baseTypeOf t
 baseTypeOf typ
     | T.isSimple typ = return typ
     | T.isArray typ  = return typ
     | T.isTable typ  = return typ
+baseTypeOf t = error (show t) 
 
 
 

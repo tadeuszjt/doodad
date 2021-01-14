@@ -61,7 +61,7 @@ isTypedef _           = False
 
 isIntegral x          = isInt x || isChar x
 
-isBase x              = isInt x || isFloat x || isChar x
+isBase x              = isInt x || isFloat x || isChar x || x == Bool
 
 isSimple x            = isBase x || isString x
 
