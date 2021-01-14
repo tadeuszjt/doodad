@@ -13,11 +13,32 @@ import LLVM.IRBuilder.Instruction
 import LLVM.AST.Type hiding (void)
 import qualified LLVM.Internal.FFI.DataLayout as FFI
 import qualified LLVM.AST.Constant as C
+import qualified LLVM.AST.IntegerPredicate as P
 
 import Monad
 import CompileState
 import Funcs
 import qualified Type as T
+import qualified AST as S
+
+
+valsCompare :: InsCmp CompileState m => S.Op -> Value -> Value -> m Value
+valsCompare operator valA valB = do
+    checkTypesMatch (valType valA) (valType valB)
+    typ <- baseTypeOf (valType valA)
+    Val _ opA <- valLoad valA
+    Val _ opB <- valLoad valB
+
+    pred <- return $ case operator of
+        S.LT   -> P.SLT
+        S.LTEq -> P.SLE
+        S.EqEq -> P.EQ
+        _      -> error (show operator)
+
+    case typ of
+        T.I64  -> fmap (Val T.Bool) (icmp pred opA opB)
+        T.Char -> fmap (Val T.Bool) (icmp pred opA opB)
+        _     -> error (show typ)
 
 
 valInt :: T.Type -> Integer -> Value
@@ -62,6 +83,31 @@ valPtrIdx (Ptr typ loc) (Val T.I64 i) = fmap (Ptr typ) (gep loc [i])
 valPtrIdx (Ptr typ loc) (Ptr T.I64 i) = valPtrIdx (Ptr typ loc) =<< valLoad (Ptr T.I64 i)
 
 
+valTupleSet :: InsCmp CompileState m => Value -> Word -> Value -> m Value
+valTupleSet tup i val = do
+    T.Tuple ts <- baseTypeOf (valType tup)
+    assert (fromIntegral i < length ts) "invalid tuple index"
+    case tup of
+        Ptr _ _ -> do
+            ptr <- valTupleIdx tup i
+            valStore ptr val
+            return tup
+
+        Val _ _ -> do
+            val' <- valLoad val
+            fmap (Val $ valType tup) $ insertValue (valOp tup) (valOp val') [fromIntegral i]
+
+
+valTupleIdx :: InsCmp CompileState m => Value -> Word -> m Value
+valTupleIdx tup i = do
+    T.Tuple ts <- baseTypeOf (valType tup)
+    let t = ts !! fromIntegral i
+    case tup of
+        Ptr _ loc -> fmap (Ptr t) $ gep loc [int32 0, int32 $ fromIntegral i]
+        Val _ op  -> fmap (Val t) $ extractValue op [fromIntegral i]
+
+
+
 valArrayIdx :: InsCmp s m => Value -> Value -> m Value
 valArrayIdx (Ptr (T.Array n t) loc) idx = do
     Val idxTyp idx <- valLoad idx
@@ -92,6 +138,7 @@ checkTypesMatch :: BoM s m => T.Type -> T.Type -> m ()
 checkTypesMatch typA typB
     | T.isSimple typA = assert (typA == typB) str
     | T.isTable typA  = assert (typA == typB) str
+    | T.isTuple typA  = assert (typA == typB) str
     | otherwise       = error (show typA)
     where
         str = show typA ++ " does not match " ++ show typB
@@ -105,6 +152,7 @@ baseTypeOf typ
     | T.isSimple typ = return typ
     | T.isArray typ  = return typ
     | T.isTable typ  = return typ
+    | T.isTuple typ  = return typ
 baseTypeOf t = error (show t) 
 
 

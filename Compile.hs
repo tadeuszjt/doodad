@@ -157,7 +157,7 @@ cmpStmt stmt = case stmt of
     S.Print pos exprs -> cmpPrint stmt
 
     S.CallStmt pos sym exprs -> do
-        vals <- mapM cmpExpr exprs
+        vals <- mapM valLoad =<< mapM cmpExpr exprs
         res <- look sym $ KeyFunc (map valType vals)
         op <- case res of
             ObjFunc _ op     -> return op
@@ -165,12 +165,10 @@ cmpStmt stmt = case stmt of
 
         void $ call op [(o, []) | o <- map valOp vals]
 
-    S.Assign pos (S.PatIdent p sym) expr -> do
-        checkSymKeyUndef sym KeyVar
+    S.Assign pos pat expr -> do
         val <- cmpExpr expr
-        loc <- valLocal (valType val)
-        valStore loc val
-        addObj sym KeyVar (ObjVal loc)
+        matched <- cmpPattern pat val
+        if_ (valOp matched) (return ()) (void trap) 
 
     S.Set pos (S.IndIdent p sym) expr -> do
         ObjVal val <- look sym KeyVar
@@ -208,6 +206,14 @@ cmpStmt stmt = case stmt of
         br cond
         emitBlockStart exit
 
+    S.Switch pos expr cases -> do
+        val <- cmpExpr expr
+        casesM <- forM cases $ \(pat, stmt) -> do
+            let b = return . valOp =<< valLoad =<< cmpPattern pat val
+            let s = cmpStmt stmt
+            return (b, s)
+
+        switch_ casesM
 
     _ -> error (show stmt)
 
@@ -215,7 +221,7 @@ cmpStmt stmt = case stmt of
 cmpExpr :: InsCmp CompileState m =>  S.Expr -> m Value
 cmpExpr expr = case expr of
     S.Call pos sym exprs -> do
-        vals <- mapM cmpExpr exprs
+        vals <- mapM valLoad =<< mapM cmpExpr exprs
         res <- look sym $ KeyFunc (map valType vals)
         (op, typ) <- case res of
             ObjFunc (Just typ) op     -> return (op, typ)
@@ -240,6 +246,16 @@ cmpExpr expr = case expr of
         cmpInfix op typ opA opB
 
     S.Conv pos typ [] -> zeroOf typ
+
+    S.Tuple pos exprs -> do
+        vals <- mapM cmpExpr exprs
+        tup <- valLocal $ T.Tuple (map valType vals)
+        forM_ (zip vals [0..]) $ \(val, i) -> do
+            valTupleSet tup i val
+
+        return tup
+
+
         
     S.Table pos []     -> zeroOf (T.Table [])
     S.Table pos ([]:_) -> fail "cannot determine type of table row with no elements"
@@ -272,6 +288,20 @@ cmpExpr expr = case expr of
         return tab
 
     _ -> error ("expr: " ++ show expr)
+
+
+
+cmpPattern :: InsCmp CompileState m => S.Pattern -> Value -> m Value
+cmpPattern pat val = case pat of
+    S.PatIgnore pos    -> return (valBool True)
+    S.PatLiteral cons  -> valsCompare S.EqEq val =<< cmpExpr (S.Cons cons)
+    S.PatIdent pos sym -> do
+        checkSymKeyUndef sym KeyVar
+        loc <- valLocal (valType val)
+        addObj sym KeyVar (ObjVal loc)
+        valStore loc val
+        return (valBool True)
+        
 
 
 cmpPrint :: InsCmp CompileState m => S.Stmt -> m ()

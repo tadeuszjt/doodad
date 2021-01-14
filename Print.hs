@@ -9,6 +9,7 @@ import Monad
 import Funcs
 import Table
 import qualified Type as T
+import qualified AST as S
 
 import LLVM.IRBuilder.Instruction
 import LLVM.IRBuilder.Constant
@@ -25,16 +26,24 @@ valPrint append val = case valType val of
         Val _ op <- valLoad val
         void $ printf ("%c" ++ append) [op]
 
+    T.Tuple ts -> do
+        printf "(" []
+        forM_ (zip ts [0..]) $ \(t, i) -> do
+            elem <- valTupleIdx val (fromIntegral i)
+            if i < length ts - 1
+            then valPrint ", " elem
+            else valPrint (")" ++ append) elem
+
+
     T.Table ts -> do
         printf "{" []
         let nrows = fromIntegral (length ts)
-        Val T.I64 len <- valLoad =<< valTableLen val
-
-        lenZero <- icmp P.SLE len (int64 0)
+        len@(Val T.I64 l) <- valLoad =<< valTableLen val
+        lenZero <- valsCompare S.LTEq len (valInt T.I64 0)
 
         let m1 = forM_ [0..nrows-1] $ \i -> do
             row <- valTableRow i val
-            n <- sub len (int64 1)
+            n <- sub l (int64 1)
             for n $ \j ->
                 valPrint ", " =<< valPtrIdx row (Val T.I64 j)
             let app = if i < nrows-1 then "; " else "}" ++ append
@@ -42,7 +51,7 @@ valPrint append val = case valType val of
 
         let m2 = void (printf "}" [])
 
-        if_ lenZero m2 m1 
+        if_ (valOp lenZero) m2 m1 
 
     T.Array n t -> do
         printf "[" []

@@ -37,8 +37,8 @@ import qualified Type as T
 
 
 data Value
-    = Val { valType :: T.Type, valOp :: Operand }
-    | Ptr { valType :: T.Type, valOp :: Operand }
+    = Val { valType :: T.Type, valOp  :: Operand }
+    | Ptr { valType :: T.Type, valLoc :: Operand }
     deriving (Show, Eq)
 
 

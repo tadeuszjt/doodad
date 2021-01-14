@@ -5,6 +5,7 @@ module Funcs where
 import CompileState
 import Monad
 
+import Data.List
 import Control.Monad
 
 import LLVM.AST                   hiding (function, Module)
@@ -29,6 +30,12 @@ int16 = ConstantOperand . Int 16
 fnOp :: Name -> [Type] -> Type -> Bool -> Operand
 fnOp name argTypes retty isVarg =
     cons $ GlobalReference (ptr $ FunctionType retty argTypes isVarg) name
+
+
+trap :: InsCmp CompileState m => m Operand
+trap = do
+    op <- ensureExtern (mkName "llvm.trap") [] VoidType False
+    call op []
 
 
 printf :: InsCmp CompileState m => String -> [Operand] -> m Operand
@@ -122,4 +129,27 @@ if_ cnd trueIns falseIns = do
     br exit
 
     emitBlockStart exit
+
+
+switch_ :: InsCmp s m => [(m Operand, m ())] -> m ()
+switch_ cases = do
+    exitName <- freshName "switch_exit"
+    cndNames <- replicateM (length cases) (freshName "case")
+    stmtNames <- replicateM (length cases) (freshName "case_stmt")
+    let nextNames = cndNames ++ [exitName]
+    let (cmpCnds, cmpStmts) = unzip cases
+
+    br (head nextNames)
+    forM_ (zip5 cmpCnds cmpStmts cndNames stmtNames (tail nextNames)) $
+        \(cmpCnd, cmpStmt, cndName, stmtName, nextName) -> do
+            emitBlockStart cndName
+            cnd <- cmpCnd
+            condBr cnd stmtName nextName
+            emitBlockStart stmtName
+            cmpStmt
+            br exitName
+
+    br exitName
+    emitBlockStart exitName
+
 

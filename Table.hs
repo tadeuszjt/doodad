@@ -17,6 +17,7 @@ import Value
 import CompileState
 import Funcs
 import qualified Type as T
+import qualified AST as S
 
 valTableLen :: InsCmp s m => Value -> m Value
 valTableLen (Ptr (T.Table _) loc) = fmap (Ptr T.I64) $ gep loc [int32 0, int32 0]
@@ -76,14 +77,52 @@ valTableForceAlloc' tab@(Ptr _ _) = do
             valMemCpy mem row len
             valTableSetRow i tab mem
 
-    Val T.I64 capOp <- valLoad cap
-    capZero <- icmp P.SLE capOp (int64 0)
-    if_ capZero caseCapZero (return ())
-
+    z <- valsCompare S.EqEq cap (valInt T.I64 0)
+    if_ (valOp z) caseCapZero (return ())
     return tab
 
+--
+--valTableAppend :: InsCmp CompileState m => Value -> Value -> m Value
+--valTableAppend tab tup = do
+--    T.Table tabTs <- baseTypeOf (valType tab)
+--    T.Tuple tupTs <- baseTypeOf (valType tup)
+--
+--    -- create local table
+--    loc <- valLocal (valType tab)
+--    forM_ (zip tabTs [0..]) $ \(t, i) ->
+--        valTableSetRow i loc =<< valTableRow i tab
+--
+--    cap <- valTableCap tab
+--    len <- valTableLen tab
+--    full <- valsCompare S.LTEq cap len
+--    zero <- valsCompare S.LTEq cap (valInt T.I64 0)
+--
+--    -- change cap if zero
+--    let zeroCase = do
+--        l <- add (int64 2) =<< fmap valOp (valLoad len)
+--        locCap <- valTableCap loc
+--        valStore locCap (Val T.I64 l)
+--
+--    if_ (valOp zero) zeroCase (return ())
+--
+--
+--    let fullCase = do
+--        forM_ (zip tabTs [0..]) $ \(t, i) -> do
+--            cap <- valTableCap loc
+--            row <- valTableRow i loc
+--            mem <- valMalloc t cap
 
 
+
+--
+--    forM_ (zip tabTs tupTs [0..]) $ \(tabT, tupT, i) -> do
+--        checkTypesMatch tabT tupT
+--        row <- valTableRow i tab
+--        valTableSetRow loc i row
+--        ptr <- valPtrIdx row len
+--        valStore ptr =<< valTupleIdx tup i
+--
+--      return loc
 
 
 

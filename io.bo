@@ -4,14 +4,9 @@ extern getchar() char;
 
 fn getStrLn() {char} {
     let str = ({char})();
-    let loop = true;
 
-    while loop {
-        switch getchar() {
-            '\n': loop = false;
-            c   : str = append(str, c);
-        }
-    }
+    let tup = (1, 2, 3);
+    print(tup);
     
     return str;
 }
