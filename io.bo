@@ -20,13 +20,10 @@ fn getStrLn() {char} {
 fn putStrLn(str {char}) {
     let i = 0;
 
-    while true {
-        if i >= len(str) {
-            putchar('\n');
-            return;
-        }
-
+    while i < len(str) {
         putchar(str[i]);
         i = i + 1;
     }
+
+    putchar('\n');
 }

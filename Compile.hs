@@ -217,17 +217,15 @@ cmpStmt stmt = case stmt of
             Nothing -> if_ (valOp val) (cmpStmt blk) (return ())
 
     S.While pos expr blk -> do
-        val <- cmpExpr expr
-        checkTypesMatch T.Bool =<< baseTypeOf (valType val)
-
         cond <- freshName "while_cond"
         body <- freshName "while_body"
         exit <- freshName "while_exit"
 
         br cond
         emitBlockStart cond
-        Val _ cnd <- valLoad val
-        condBr cnd body exit
+        cnd <- valLoad =<< cmpExpr expr
+        checkTypesMatch T.Bool =<< baseTypeOf (valType cnd)
+        condBr (valOp cnd) body exit
         
         emitBlockStart body
         pushSymTab
