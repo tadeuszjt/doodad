@@ -29,28 +29,29 @@ valTableCap (Ptr (T.Table _) loc) = fmap (Ptr T.I64) $ gep loc [int32 0, int32 1
 valTableCap (Val (T.Table _) op)  = fmap (Val T.I64) $ extractValue op [1]
 
 
-valTableRow :: InsCmp s m => Word32 -> Value -> m Value
-valTableRow i val = do
-    let T.Table ts = valType val
+valTableRow :: InsCmp CompileState m => Word32 -> Value -> m Value
+valTableRow i tab = do
+    T.Table ts <- baseTypeOf (valType tab)
     assert (fromIntegral i < length ts) "table row index >= num rows"
     let t = ts !! fromIntegral i
-    case val of
+    case tab of
         Val _ op  -> fmap (Ptr t) (extractValue op [i+2])
         Ptr _ loc -> do
             pp <- gep loc [int32 0, int32 $ fromIntegral i+2]
             fmap (Ptr t) (load pp 0)
 
 
-valTableSetRow :: InsCmp CompileState m => Word32 -> Value -> Value -> m ()
-valTableSetRow i (Ptr (T.Table ts) loc) (Ptr t row) = do
-    checkTypesMatch t (ts !! fromIntegral i)
-    pp <- gep loc [int32 0, int32 $ fromIntegral i+2]
-    store pp 0 row
+valTableSetRow :: InsCmp CompileState m => Value -> Word32 -> Value -> m ()
+valTableSetRow tab i row = do
+    T.Table ts <- baseTypeOf (valType tab)
+    checkTypesMatch (valType row) (ts !! fromIntegral i)
+    pp <- gep (valLoc tab) [int32 0, int32 $ fromIntegral i+2]
+    store pp 0 (valLoc row)
 
 
 valMalloc :: InsCmp CompileState m => T.Type -> Value -> m Value
 valMalloc typ len = do
-    size <- return . valInt T.I64 . fromIntegral =<< sizeOf typ
+    size <- fmap (valInt T.I64 . fromIntegral) (sizeOf typ)
     num  <- valsArith S.Times len size
     pi8  <- malloc (valOp num)
     opTyp <- opTypeOf typ
@@ -75,60 +76,71 @@ valTableForceAlloc' tab@(Ptr _ _) = do
             mem <- valMalloc t len
             row <- valTableRow i tab
             valMemCpy mem row len
-            valTableSetRow i tab mem
+            valTableSetRow tab i mem
 
-    z <- valsCompare S.EqEq cap (valInt T.I64 0)
+    z <- valsCompare S.LTEq cap (valI64 0)
     if_ (valOp z) caseCapZero (return ())
     return tab
 
 
---
---valTableAppend :: InsCmp CompileState m => Value -> Value -> m Value
---valTableAppend tab val = do
---    typ <- baseTypeOf (valType val)
---    case typ of
---        T.Tuple _ -> valTableAppend' tab val
---        t         -> do
---            tup <- valLocal (T.Tuple [t])
---            valTupleSet tup 0 val
---            valTableAppend' tab tup
---            
---
---valTableAppend' :: InsCmp CompileState m => Value -> Value -> m Value
---valTableAppend' tab tup = do
---    T.Table tabTs <- baseTypeOf (valType tab)
---    T.Tuple tupTs <- baseTypeOf (valType tup)
---
---    -- check types match
---    assert (length tabTs == length tupTs) "tuple type does not match table column"
---    forM_ (zip tabTs tupTs) $ \(tabT, tupT) -> checkTypesMatch tabT tupT
---
---    -- create local table
---    loc <- valLocal (valType tab)
---
---    -- check cases
---    cap <- valTableCap tab
---    len <- valTableLen tab
---    capZero <- valsCompare S.LTEq cap (valInt T.I64 0)
---    lenZero <- valsCompare S.LTEq len (valInt T.I64 0)
---
---
---    empty  <- valsArith S.AndAnd capZero lenZero
---
---    let emptyCase = do
---        forM_ (zip tabTs [0..]) $ \(t, i) -> do
---            locCap <- valTableCap loc
---            locLen <- valTableLen loc
---            valStore locCap (valInt T.I64 16)
---            valStore locLen (valInt T.I64 1)
---            size <- sizeOf t 
---            mal <- valMalloc t (valInt T.I64 16)
---            ptr <- valPtrIdx mal (valInt T.I64 0)
---            valStore ptr =<< valTupleIdx tup i
---            valTableSetRow (fromIntegral i) loc mal
---
---
---    switch_
---        [ (return (valOp empty), emptyCase)
---        ]
---
+valTableSetElem :: InsCmp CompileState m => Value -> Value -> Value -> m ()
+valTableSetElem tab idx tup = do
+    T.Table ts  <- baseTypeOf (valType tab)
+    T.Tuple ts' <- baseTypeOf (valType tup)
+    idxType     <- baseTypeOf (valType idx)
+
+    -- check types match
+    assert (T.isInt idxType) "index is not an integer type"
+    assert (length ts == length ts') "tuple type does not match table column"
+    zipWithM_ checkTypesMatch ts ts'
+
+    forM_ (zip ts [0..]) $ \(t, i) -> do
+        row <- valTableRow i tab
+        ptr <- valPtrIdx row idx
+        valStore ptr =<< valTupleIdx tup (fromIntegral i)
+
+
+
+valTableAppend :: InsCmp CompileState m => Value -> Value -> m Value
+valTableAppend tab tup = do
+    T.Table ts  <- baseTypeOf (valType tab)
+    T.Tuple ts' <- baseTypeOf (valType tup)
+
+    -- check types match
+    assert (length ts == length ts') "tuple type does not match table column"
+    zipWithM_ checkTypesMatch ts ts'
+
+    -- create local table
+    loc <- valLocal (valType tab)
+    valStore loc tab
+
+    cap <- valTableCap loc
+    len <- valTableLen loc
+    idx <- valLoad len
+
+    capZero <- valsCompare S.LTEq cap (valI64 0)
+    lenZero <- valsCompare S.LTEq len (valI64 0)
+    empty   <- valsArith S.AndAnd lenZero capZero
+    full    <- valsCompare S.LTEq cap len
+
+    let emptyCase = do
+        valStore cap (valI64 16)
+        forM_ (zip ts [0..]) $ \(t, i) ->
+            valTableSetRow loc i =<< valMalloc t cap
+    
+    let fullCase = do
+        valStore cap =<< valsArith S.Times len (valI64 2)
+        forM_ (zip ts [0..]) $ \(t, i) -> do
+            mal <- valMalloc t cap
+            row <- valTableRow i loc
+            valMemCpy mal row idx
+            valTableSetRow loc i mal
+
+    switch_ [
+        (return (valOp empty), emptyCase),
+        (return (valOp full), fullCase)
+        ]
+
+    valStore len =<< valsArith S.Plus len (valI64 1)
+    valTableSetElem loc idx tup
+    return loc

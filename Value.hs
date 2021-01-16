@@ -33,6 +33,8 @@ valsCompare operator valA valB = do
 
     pred <- return $ case operator of
         S.LT   -> P.SLT
+        S.GT   -> P.SGT
+        S.GTEq -> P.SGE
         S.LTEq -> P.SLE
         S.EqEq -> P.EQ
         _      -> error (show operator)
@@ -75,6 +77,10 @@ valInt :: T.Type -> Integer -> Value
 valInt T.I8 n  = Val T.I8  (int8 n)
 valInt T.I32 n = Val T.I32 (int32 n)
 valInt T.I64 n = Val T.I64 (int64 n)
+
+
+valI64 :: Integer -> Value
+valI64 = valInt T.I64
 
 
 valChar :: Char -> Value

@@ -170,9 +170,14 @@ cmpStmt stmt = case stmt of
         matched <- cmpPattern pat val
         if_ (valOp matched) (return ()) (void trap) 
 
-    S.Set pos (S.IndIdent p sym) expr -> do
-        ObjVal val <- look sym KeyVar
-        valStore val =<< cmpExpr expr
+    S.Set pos ind expr -> do
+        val <- cmpExpr expr
+
+        case ind of
+            S.IndIdent p sym -> do
+                ObjVal loc <- look sym KeyVar
+                valStore loc val
+        
 
     S.Return pos (Just expr) -> do
         val <- cmpExpr expr
@@ -279,14 +284,20 @@ cmpExpr expr = case expr of
         valStore cap (valInt T.I64 0) -- shows stack mem
 
         forM_ (zip arrs [0..]) $ \(arr, i) ->
-            valTableSetRow i tab =<< valArrayConstIdx arr 0
+            valTableSetRow tab i =<< valArrayConstIdx arr 0
 
         return tab
 
---    S.Append pos expr elem -> do
---        tab <- cmpExpr expr
---        val <- cmpExpr elem
---        valTableAppend tab val
+    S.Append pos expr elem -> do
+        tab <- cmpExpr expr
+        val <- cmpExpr elem
+        typ <- baseTypeOf (valType val)
+        case typ of
+            T.Tuple _ -> valTableAppend tab val
+            _         -> do
+                tup <- valLocal (T.Tuple [valType val])
+                valTupleSet tup 0 val
+                valTableAppend tab tup
 
     _ -> error ("expr: " ++ show expr)
 
