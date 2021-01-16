@@ -239,11 +239,9 @@ cmpExpr expr = case expr of
         return val
 
     S.Infix pos op exprA exprB -> do
-        Val typA opA <- valLoad =<< cmpExpr exprA
-        Val typB opB <- valLoad =<< cmpExpr exprB
-        checkTypesMatch typA typB
-        typ <- baseTypeOf typA
-        cmpInfix op typ opA opB
+        valA <- cmpExpr exprA
+        valB <- cmpExpr exprB
+        valsArith op valA valB
 
     S.Conv pos typ [] -> zeroOf typ
 
@@ -255,8 +253,6 @@ cmpExpr expr = case expr of
 
         return tup
 
-
-        
     S.Table pos []     -> zeroOf (T.Table [])
     S.Table pos ([]:_) -> fail "cannot determine type of table row with no elements"
     S.Table pos exprss -> do
@@ -287,6 +283,11 @@ cmpExpr expr = case expr of
 
         return tab
 
+--    S.Append pos expr elem -> do
+--        tab <- cmpExpr expr
+--        val <- cmpExpr elem
+--        valTableAppend tab val
+
     _ -> error ("expr: " ++ show expr)
 
 
@@ -312,23 +313,6 @@ cmpPrint (S.Print pos exprs) = do
         prints []     = return ()
         prints [val]  = valPrint "\n" val
         prints (v:vs) = valPrint ", " v >> prints vs
-
-
-cmpInfix :: InsCmp CompileState m => S.Op -> T.Type -> Operand -> Operand -> m Value
-cmpInfix operator typ opA opB
-    | T.isIntegral typ = case operator of
-        S.Plus   -> res typ (add opA opB)
-        S.Minus  -> res typ (sub opA opB)
-        S.Times  -> res typ (mul opA opB)
-        S.Divide -> res typ (sdiv opA opB)
-        S.Mod    -> res typ (srem opA opB)
-        S.LT     -> res T.Bool (icmp SLT opA opB)
-        S.GT     -> res T.Bool (icmp SGT opA opB)
-        S.LTEq   -> res T.Bool (icmp SLE opA opB)
-        S.GTEq   -> res T.Bool (icmp SGT opA opB)
-        _        -> fail ("no infix for " ++ show typ)
-    where
-        res typ = fmap (Val typ)
 
 
 prettyCompileState :: CompileState -> IO ()

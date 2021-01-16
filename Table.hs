@@ -50,9 +50,9 @@ valTableSetRow i (Ptr (T.Table ts) loc) (Ptr t row) = do
 
 valMalloc :: InsCmp CompileState m => T.Type -> Value -> m Value
 valMalloc typ len = do
-    Val T.I64 l <- valLoad len
-    size <- sizeOf typ
-    pi8 <- malloc =<< mul l (int64 $ fromIntegral size)
+    size <- return . valInt T.I64 . fromIntegral =<< sizeOf typ
+    num  <- valsArith S.Times len size
+    pi8  <- malloc (valOp num)
     opTyp <- opTypeOf typ
     fmap (Ptr typ) $ bitcast pi8 (ptr opTyp)
 
@@ -81,48 +81,54 @@ valTableForceAlloc' tab@(Ptr _ _) = do
     if_ (valOp z) caseCapZero (return ())
     return tab
 
+
 --
 --valTableAppend :: InsCmp CompileState m => Value -> Value -> m Value
---valTableAppend tab tup = do
+--valTableAppend tab val = do
+--    typ <- baseTypeOf (valType val)
+--    case typ of
+--        T.Tuple _ -> valTableAppend' tab val
+--        t         -> do
+--            tup <- valLocal (T.Tuple [t])
+--            valTupleSet tup 0 val
+--            valTableAppend' tab tup
+--            
+--
+--valTableAppend' :: InsCmp CompileState m => Value -> Value -> m Value
+--valTableAppend' tab tup = do
 --    T.Table tabTs <- baseTypeOf (valType tab)
 --    T.Tuple tupTs <- baseTypeOf (valType tup)
 --
+--    -- check types match
+--    assert (length tabTs == length tupTs) "tuple type does not match table column"
+--    forM_ (zip tabTs tupTs) $ \(tabT, tupT) -> checkTypesMatch tabT tupT
+--
 --    -- create local table
 --    loc <- valLocal (valType tab)
---    forM_ (zip tabTs [0..]) $ \(t, i) ->
---        valTableSetRow i loc =<< valTableRow i tab
 --
+--    -- check cases
 --    cap <- valTableCap tab
 --    len <- valTableLen tab
---    full <- valsCompare S.LTEq cap len
---    zero <- valsCompare S.LTEq cap (valInt T.I64 0)
---
---    -- change cap if zero
---    let zeroCase = do
---        l <- add (int64 2) =<< fmap valOp (valLoad len)
---        locCap <- valTableCap loc
---        valStore locCap (Val T.I64 l)
---
---    if_ (valOp zero) zeroCase (return ())
+--    capZero <- valsCompare S.LTEq cap (valInt T.I64 0)
+--    lenZero <- valsCompare S.LTEq len (valInt T.I64 0)
 --
 --
---    let fullCase = do
+--    empty  <- valsArith S.AndAnd capZero lenZero
+--
+--    let emptyCase = do
 --        forM_ (zip tabTs [0..]) $ \(t, i) -> do
---            cap <- valTableCap loc
---            row <- valTableRow i loc
---            mem <- valMalloc t cap
-
-
-
+--            locCap <- valTableCap loc
+--            locLen <- valTableLen loc
+--            valStore locCap (valInt T.I64 16)
+--            valStore locLen (valInt T.I64 1)
+--            size <- sizeOf t 
+--            mal <- valMalloc t (valInt T.I64 16)
+--            ptr <- valPtrIdx mal (valInt T.I64 0)
+--            valStore ptr =<< valTupleIdx tup i
+--            valTableSetRow (fromIntegral i) loc mal
 --
---    forM_ (zip tabTs tupTs [0..]) $ \(tabT, tupT, i) -> do
---        checkTypesMatch tabT tupT
---        row <- valTableRow i tab
---        valTableSetRow loc i row
---        ptr <- valPtrIdx row len
---        valStore ptr =<< valTupleIdx tup i
 --
---      return loc
-
-
-
+--    switch_
+--        [ (return (valOp empty), emptyCase)
+--        ]
+--

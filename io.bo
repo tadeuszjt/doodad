@@ -3,10 +3,8 @@ module io
 extern getchar() char;
 
 fn getStrLn() {char} {
-    let str = ({char})();
+    let str = {'b', 'e'};
+    print(1 + 2 / 4);
 
-    let tup = (1, 2, 3);
-    print(tup);
-    
     return str;
 }
