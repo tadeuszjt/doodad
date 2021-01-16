@@ -1,42 +1,29 @@
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE AllowAmbiguousTypes #-}
-{-# LANGUAGE InstanceSigs #-}
-{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Compile where
 
-import qualified Data.ByteString.Char8      as BS
-import qualified Data.ByteString.Short      as BSS
-
-import           Data.Maybe
-import           Data.List
-import           Control.Monad.Except hiding (void, fail)
-import           Control.Monad.Trans
-import           Control.Monad.Identity     
-import           Control.Monad.State
-import qualified Data.Set as Set
 import qualified Data.Map as Map
-import           LLVM.AST                   hiding (function)
-import           LLVM.AST.Global
-import           LLVM.AST.Type              hiding (void)
-import qualified LLVM.AST.Constant          as C
-import           LLVM.IRBuilder.Instruction       
-import           LLVM.IRBuilder.Module
-import           LLVM.IRBuilder.Monad
-import           LLVM.IRBuilder.Constant
-import           LLVM.AST.IntegerPredicate
-import           Foreign.Ptr
-import qualified LLVM.Internal.FFI.DataLayout   as FFI
-import           LLVM.Context
+import qualified Data.ByteString.Char8 as BS
+import qualified Data.ByteString.Short as BSS
+import Control.Monad
+import Control.Monad.State
+import Control.Monad.IO.Class
+import Control.Monad.Except hiding (void, fail)
+import Foreign.Ptr
+
+import qualified LLVM.AST as LL
+import qualified LLVM.AST.Type as LL
+import qualified LLVM.Internal.FFI.DataLayout as FFI
+import LLVM.AST.Global
+import LLVM.IRBuilder.Instruction       
+import LLVM.IRBuilder.Module
+import LLVM.IRBuilder.Monad
+import LLVM.Context
 
 import qualified AST as S
-import qualified Type as T
-import qualified SymTab
 import qualified Flatten as F
 import Monad
+import Type
 import Error
 import Value
 import CompileState
@@ -61,7 +48,7 @@ compileFlatState ctx dl importCompiled flatState = do
         Right (((), defs), state) -> return $ state { definitions = defs }
     where
             f :: (MonadFail m, Monad m, MonadIO m) => ModuleCmpT CompileState m ()
-            f = void $ func "main" [] VoidType $ \_ ->
+            f = void $ func "main" [] LL.VoidType $ \_ ->
                     cmp
 
             cmp :: (MonadFail m, Monad m, MonadIO m) => InstrCmpT CompileState m ()
@@ -72,16 +59,16 @@ compileFlatState ctx dl importCompiled flatState = do
                 mapM_ cmpFuncDef (F.funcDefs flatState)
 
 
-cmpTypeDef :: InsCmp CompileState m => S.Symbol-> TextPos -> T.Type -> m ()
+cmpTypeDef :: InsCmp CompileState m => S.Symbol-> TextPos -> Type -> m ()
 cmpTypeDef sym pos typ = do
     checkSymKeyUndef sym KeyType
     case typ of
-        T.I8        -> addObj sym KeyType (ObType typ Nothing)
-        T.I32       -> addObj sym KeyType (ObType typ Nothing)
-        T.I64       -> addObj sym KeyType (ObType typ Nothing)
-        T.Bool      -> addObj sym KeyType (ObType typ Nothing)
-        T.Typedef f -> addObj sym KeyType (ObType typ Nothing)
-        T.Tuple ts  -> do
+        I8        -> addObj sym KeyType (ObType typ Nothing)
+        I32       -> addObj sym KeyType (ObType typ Nothing)
+        I64       -> addObj sym KeyType (ObType typ Nothing)
+        Bool      -> addObj sym KeyType (ObType typ Nothing)
+        Typedef f -> addObj sym KeyType (ObType typ Nothing)
+        Tuple ts  -> do
             name <- freshName (mkBSS sym)
             opTyp <- opTypeOf typ
             typedef name (Just opTyp)
@@ -100,7 +87,7 @@ cmpVarDef (S.Assign pos pat expr) = do
 cmpExternDef :: InsCmp CompileState m => S.Stmt -> m ()
 cmpExternDef (S.Extern pos sym params mretty) = do
     checkSymUndef sym 
-    let name = mkName sym
+    let name = LL.mkName sym
     let paramTypes = map S.paramType params
 
     pushSymTab
@@ -109,7 +96,7 @@ cmpExternDef (S.Extern pos sym params mretty) = do
         addObj s KeyVar $ ObjVal (valBool False)
         opTypeOf t
 
-    returnOpType <- maybe (return VoidType) opTypeOf mretty
+    returnOpType <- maybe (return LL.VoidType) opTypeOf mretty
     popSymTab
 
     addSymKeyDec sym (KeyFunc paramTypes) name (DecExtern paramOpTypes returnOpType False)
@@ -122,8 +109,8 @@ cmpFuncDef (S.Func pos sym params mretty blk) = do
     let paramTypes = map S.paramType params
     let symKey     = KeyFunc paramTypes
     checkSymKeyUndef sym symKey
-    name@(Name nameStr) <- case sym of
-        "main" -> return (mkName sym)
+    name@(LL.Name nameStr) <- case sym of
+        "main" -> return (LL.mkName sym)
         _      -> freshName (mkBSS sym)
 
     (paramOpTypes, paramNames, paramSyms) <- fmap unzip3 $ forM params $ \(S.Param p s t) -> do
@@ -131,7 +118,7 @@ cmpFuncDef (S.Func pos sym params mretty blk) = do
         let paramName = mkBSS s
         return (opTyp, ParameterName paramName, s)
 
-    returnOpType <- maybe (return VoidType) opTypeOf mretty
+    returnOpType <- maybe (return LL.VoidType) opTypeOf mretty
 
     let op = fnOp name paramOpTypes returnOpType False
     addObj sym symKey (ObjFunc mretty op) 
@@ -140,7 +127,7 @@ cmpFuncDef (S.Func pos sym params mretty blk) = do
 
     pushSymTab
     curRetty <- gets curRetType
-    modify $ \s -> s { curRetType = maybe T.Void id mretty }
+    modify $ \s -> s { curRetType = maybe Void id mretty }
     void $ InstrCmpT . IRBuilderT . lift $ func name (zip paramOpTypes paramNames) returnOpType $ \paramOps -> do
         (flip named) nameStr $ do
             forM_ (zip3 paramTypes paramOps paramSyms) $ \(typ, op, sym) -> do
@@ -154,7 +141,7 @@ cmpFuncDef (S.Func pos sym params mretty blk) = do
             retTyp <- gets curRetType
             hasTerm <- hasTerminator
             unless hasTerm $
-                if retTyp == T.Void
+                if retTyp == Void
                 then retVoid
                 else ret . valOp =<< zeroOf retTyp
 
@@ -191,7 +178,7 @@ cmpStmt stmt = case stmt of
         
     S.Return pos Nothing -> do
         curRetty <- gets curRetType
-        assert (curRetty == T.Void) "must return a value"
+        assert (curRetty == Void) "must return a value"
         retVoid
         emitBlockStart =<< fresh
 
@@ -200,7 +187,7 @@ cmpStmt stmt = case stmt of
         typ <- baseTypeOf (valType val)
 
         val' <- case typ of
-            T.Table _ -> valTableForceAlloc val
+            Table _ -> valTableForceAlloc val
             _         -> return val
 
         retty <- gets curRetType
@@ -211,7 +198,7 @@ cmpStmt stmt = case stmt of
     S.If pos expr blk melse -> do
         val <- cmpExpr expr
         typ <- baseTypeOf (valType val)
-        checkTypesMatch typ T.Bool
+        checkTypesMatch typ Bool
 
         case melse of
             Nothing -> if_ (valOp val) (cmpStmt blk) (return ())
@@ -224,7 +211,7 @@ cmpStmt stmt = case stmt of
         br cond
         emitBlockStart cond
         cnd <- valLoad =<< cmpExpr expr
-        checkTypesMatch T.Bool =<< baseTypeOf (valType cnd)
+        checkTypesMatch Bool =<< baseTypeOf (valType cnd)
         condBr (valOp cnd) body exit
         
         emitBlockStart body
@@ -277,17 +264,18 @@ cmpExpr expr = case expr of
         b <- cmpExpr exprB
         valsInfix op a b
 
-    S.Conv pos typ [] -> zeroOf typ
+    S.Conv pos typ [] ->
+        zeroOf typ
 
     S.Len pos expr -> do
         val <- cmpExpr expr
         typ <- baseTypeOf (valType val)
         case typ of
-            T.Table _ -> valTableLen val
+            Table _ -> valTableLen val
 
     S.Tuple pos exprs -> do
         vals <- mapM cmpExpr exprs
-        tup <- valLocal $ T.Tuple (map valType vals)
+        tup <- valLocal $ Tuple (map valType vals)
         forM_ (zip vals [0..]) $ \(val, i) -> do
             valTupleSet tup i val
 
@@ -300,16 +288,15 @@ cmpExpr expr = case expr of
         idxType <- baseTypeOf (valType idx)
         aggType <- baseTypeOf (valType agg)
 
-        assert (T.isInt idxType) "index type isn't an integer"
+        assert (isInt idxType) "index type isn't an integer"
 
         case aggType of
-            T.Table [t] -> do
+            Table [t] -> do
                 tup <- valTableGetElem agg idx
                 valTupleIdx tup 0
 
 
-
-    S.Table pos []     -> zeroOf (T.Table [])
+    S.Table pos []     -> zeroOf (Table [])
     S.Table pos ([]:_) -> fail "cannot determine type of table row with no elements"
     S.Table pos exprss -> do
         valss <- mapM (mapM cmpExpr) exprss
@@ -321,13 +308,13 @@ cmpExpr expr = case expr of
             return $ valType (head vals)
 
         -- create local arrays to store table rows
-        arrs <- mapM (valLocal . T.Array (fromIntegral rowLen)) rowTypes
+        arrs <- mapM (valLocal . Array (fromIntegral rowLen)) rowTypes
         forM_ (zip arrs [0..]) $ \(arr, r) -> do
             forM_ [0..rowLen-1] $ \i -> do
                 ptr <- valArrayIdx arr $ valI64 (fromIntegral i)
                 valStore ptr ((valss !! r) !! i)
 
-        tab <- valLocal (T.Table rowTypes)
+        tab <- valLocal (Table rowTypes)
         len <- valTableLen tab
         cap <- valTableCap tab
 
@@ -344,9 +331,9 @@ cmpExpr expr = case expr of
         val <- cmpExpr elem
         typ <- baseTypeOf (valType val)
         case typ of
-            T.Tuple _ -> valTableAppend tab val
+            Tuple _ -> valTableAppend tab val
             _         -> do
-                tup <- valLocal (T.Tuple [valType val])
+                tup <- valLocal (Tuple [valType val])
                 valTupleSet tup 0 val
                 valTableAppend tab tup
 
@@ -379,9 +366,9 @@ prettyCompileState :: CompileState -> IO ()
 prettyCompileState state = do
     putStrLn "defs:"
     forM_ (definitions state) $ \def -> case def of
-        TypeDefinition name mtyp ->
+        LL.TypeDefinition name mtyp ->
             putStrLn ("type: " ++ show name ++ " " ++ show mtyp)
-        GlobalDefinition (Function _ _ _ _ _ retty name params _ _ _ _ _ _ basicBlocks _ _) -> do
+        LL.GlobalDefinition (Function _ _ _ _ _ retty name params _ _ _ _ _ _ basicBlocks _ _) -> do
             let ps = concat (map show $ fst params)
             putStrLn ("func: " ++ show name ++ " " ++ ps ++ " " ++ show retty)
         _ -> return ()
