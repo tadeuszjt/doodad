@@ -1,6 +1,7 @@
 module io
 
 extern getchar() char;
+extern putchar(c char);
 
 fn getStrLn() {char} {
     let str = ({char})();
@@ -14,4 +15,18 @@ fn getStrLn() {char} {
     }
 
     return str;
+}
+
+fn putStrLn(str {char}) {
+    let i = 0;
+
+    while true {
+        if i >= len(str) {
+            putchar('\n');
+            return;
+        }
+
+        putchar(str[i]);
+        i = i + 1;
+    }
 }

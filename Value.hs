@@ -24,46 +24,34 @@ import qualified Type as T
 import qualified AST as S
 
 
-valsCompare :: InsCmp CompileState m => S.Op -> Value -> Value -> m Value
-valsCompare operator valA valB = do
-    checkTypesMatch (valType valA) (valType valB)
-    typ <- baseTypeOf (valType valA)
-    Val _ opA <- valLoad valA
-    Val _ opB <- valLoad valB
+valsInfix :: InsCmp CompileState m => S.Op -> Value -> Value -> m Value
+valsInfix operator a b = do
+    checkTypesMatch (valType a) (valType b)
+    typ <- baseTypeOf (valType a)
+    Val _ opA <- valLoad a
+    Val _ opB <- valLoad b
 
-    pred <- return $ case operator of
-        S.LT   -> P.SLT
-        S.GT   -> P.SGT
-        S.GTEq -> P.SGE
-        S.LTEq -> P.SLE
-        S.EqEq -> P.EQ
-        _      -> error (show operator)
+    valsInfix' operator typ opA opB
 
-    case typ of
-        T.I64  -> fmap (Val T.Bool) (icmp pred opA opB)
-        T.Char -> fmap (Val T.Bool) (icmp pred opA opB)
-        _     -> error (show typ)
-
-
-valsArith :: InsCmp CompileState m => S.Op -> Value -> Value -> m Value
-valsArith operator valA valB = do
-    checkTypesMatch (valType valA) (valType valB)
-    typ <- baseTypeOf (valType valA)
-    Val _ opA <- valLoad valA
-    Val _ opB <- valLoad valB
-    valsArith' operator typ opA opB
     where
-        valsArith' :: InsCmp CompileState m => S.Op -> T.Type -> Operand -> Operand -> m Value
-        valsArith' operator typ opA opB
-            | T.isInt typ = case operator of
+        valsInfix' :: InsCmp CompileState m => S.Op -> T.Type -> Operand -> Operand -> m Value
+        valsInfix' operator typ opA opB
+            | T.isInt typ || T.isChar typ = case operator of
                 S.Plus   -> fmap (Val typ) (add opA opB)
                 S.Minus  -> fmap (Val typ) (sub opA opB)
                 S.Times  -> fmap (Val typ) (mul opA opB)
                 S.Divide -> fmap (Val typ) (sdiv opA opB)
+                S.LT     -> fmap (Val T.Bool) (icmp P.SLT opA opB)
+                S.GTEq   -> fmap (Val T.Bool) (icmp P.SGE opA opB)
+                S.LTEq   -> fmap (Val T.Bool) (icmp P.SLE opA opB)
+                S.EqEq   -> fmap (Val T.Bool) (icmp P.EQ opA opB)
+                _        -> error ("int infix: " ++ show operator)
             | typ == T.Bool = case operator of
                 S.OrOr   -> fmap (Val T.Bool) (or opA opB)
                 S.AndAnd -> fmap (Val T.Bool) (and opA opB)
-            | otherwise = fail $ "invalid infix: " ++ show (valType valA) ++ show operator ++ show (valType valB)
+                _        -> error ("bool infix: " ++ show operator)
+            | otherwise  = error (show operator)
+        
 
 
 valNot :: InsCmp CompileState m => Value -> m Value
@@ -143,7 +131,6 @@ valTupleIdx tup i = do
         Val _ op  -> fmap (Val t) $ extractValue op [fromIntegral i]
 
 
-
 valArrayIdx :: InsCmp s m => Value -> Value -> m Value
 valArrayIdx (Ptr (T.Array n t) loc) idx = do
     Val idxTyp idx <- valLoad idx
@@ -162,8 +149,8 @@ valArrayConstIdx val i = do
 valMemCpy :: InsCmp CompileState m => Value -> Value -> Value -> m ()
 valMemCpy (Ptr dstTyp dst) (Ptr srcTyp src) len = do
     checkTypesMatch dstTyp srcTyp
-    size <- return . valInt T.I64 . fromIntegral =<< sizeOf dstTyp
-    num <- valsArith S.Times len size
+    size <- fmap (valI64 . fromIntegral) (sizeOf dstTyp)
+    num <- valsInfix S.Times len size
     pDstI8 <- bitcast dst (ptr i8)
     pSrcI8 <- bitcast src (ptr i8)
     void $ memcpy pDstI8 pSrcI8 (valOp num)

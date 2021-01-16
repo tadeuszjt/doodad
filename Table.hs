@@ -52,7 +52,7 @@ valTableSetRow tab i row = do
 valMalloc :: InsCmp CompileState m => T.Type -> Value -> m Value
 valMalloc typ len = do
     size <- fmap (valInt T.I64 . fromIntegral) (sizeOf typ)
-    num  <- valsArith S.Times len size
+    num  <- valsInfix S.Times len size
     pi8  <- malloc (valOp num)
     opTyp <- opTypeOf typ
     fmap (Ptr typ) $ bitcast pi8 (ptr opTyp)
@@ -78,9 +78,23 @@ valTableForceAlloc' tab@(Ptr _ _) = do
             valMemCpy mem row len
             valTableSetRow tab i mem
 
-    z <- valsCompare S.LTEq cap (valI64 0)
+    z <- valsInfix S.LTEq cap (valI64 0)
     if_ (valOp z) caseCapZero (return ())
     return tab
+
+
+
+valTableGetElem :: InsCmp CompileState m => Value -> Value -> m Value
+valTableGetElem tab idx = do
+    T.Table ts <- baseTypeOf (valType tab)
+
+    tup <- valLocal (T.Tuple ts)
+    forM_ (zip ts [0..]) $ \(t, i) -> do
+        row <- valTableRow i tab
+        ptr <- valPtrIdx row idx
+        valTupleSet tup (fromIntegral i) ptr
+
+    return tup
 
 
 valTableSetElem :: InsCmp CompileState m => Value -> Value -> Value -> m ()
@@ -116,12 +130,11 @@ valTableAppend tab tup = do
 
     cap <- valTableCap loc
     len <- valTableLen loc
-    idx <- valLoad len
 
-    capZero <- valsCompare S.LTEq cap (valI64 0)
-    lenZero <- valsCompare S.LTEq len (valI64 0)
-    empty   <- valsArith S.AndAnd lenZero capZero
-    full    <- valsCompare S.LTEq cap len
+    capZero <- valsInfix S.LTEq cap (valI64 0)
+    lenZero <- valsInfix S.LTEq len (valI64 0)
+    empty   <- valsInfix S.AndAnd lenZero capZero
+    full    <- valsInfix S.LTEq cap len
 
     let emptyCase = do
         valStore cap (valI64 16)
@@ -129,11 +142,11 @@ valTableAppend tab tup = do
             valTableSetRow loc i =<< valMalloc t cap
     
     let fullCase = do
-        valStore cap =<< valsArith S.Times len (valI64 2)
+        valStore cap =<< valsInfix S.Times len (valI64 2)
         forM_ (zip ts [0..]) $ \(t, i) -> do
             mal <- valMalloc t cap
             row <- valTableRow i loc
-            valMemCpy mal row idx
+            valMemCpy mal row len
             valTableSetRow loc i mal
 
     switch_ [
@@ -141,6 +154,6 @@ valTableAppend tab tup = do
         (return (valOp full), fullCase)
         ]
 
-    valStore len =<< valsArith S.Plus len (valI64 1)
-    valTableSetElem loc idx tup
+    valTableSetElem loc len tup
+    valStore len =<< valsInfix S.Plus len (valI64 1)
     return loc

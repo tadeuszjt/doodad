@@ -46,11 +46,11 @@ valPrint append val = case valType val of
         printf "{" []
         let nrows = fromIntegral (length ts)
         len <- valLoad =<< valTableLen val
-        lenZero <- valsCompare S.LTEq len (valInt T.I64 0)
+        lenZero <- valsInfix S.LTEq len (valInt T.I64 0)
 
         let m1 = forM_ [0..nrows-1] $ \i -> do
             row <- valTableRow i val
-            n <- valsArith S.Minus len (valInt T.I64 1)
+            n <- valsInfix S.Minus len (valInt T.I64 1)
             for (valOp n) $ \j -> valPrint ", " =<< valPtrIdx row (Val T.I64 j)
             if i < nrows-1
             then valPrint "; " =<< valPtrIdx row n
