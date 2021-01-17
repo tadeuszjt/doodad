@@ -105,7 +105,7 @@ cmpExternDef (S.Extern pos sym params mretty) = do
 
 
 cmpFuncDef :: (MonadFail m, Monad m, MonadIO m) => S.Stmt -> InstrCmpT CompileState m ()
-cmpFuncDef (S.Func pos sym params mretty blk) = do
+cmpFuncDef (S.Func pos sym params mretty blk) = withPos pos $ do
     let paramTypes = map S.paramType params
     let symKey     = KeyFunc paramTypes
     checkSymKeyUndef sym symKey
@@ -153,7 +153,7 @@ cmpStmt :: InsCmp CompileState m => S.Stmt -> m ()
 cmpStmt stmt = case stmt of
     S.Print pos exprs -> cmpPrint stmt
 
-    S.CallStmt pos sym exprs -> do
+    S.CallStmt pos sym exprs -> withPos pos $ do
         vals <- mapM valLoad =<< mapM cmpExpr exprs
         res <- look sym $ KeyFunc (map valType vals)
         op <- case res of
@@ -162,12 +162,12 @@ cmpStmt stmt = case stmt of
 
         void $ call op [(o, []) | o <- map valOp vals]
 
-    S.Assign pos pat expr -> do
+    S.Assign pos pat expr -> withPos pos $ do
         val <- cmpExpr expr
         matched <- cmpPattern pat val
         if_ (valOp matched) (return ()) (void trap) 
 
-    S.Set pos ind expr -> do
+    S.Set pos ind expr -> withPos pos $ do
         val <- cmpExpr expr
 
         case ind of
@@ -175,13 +175,13 @@ cmpStmt stmt = case stmt of
                 ObjVal loc <- look sym KeyVar
                 valStore loc val
         
-    S.Return pos Nothing -> do
+    S.Return pos Nothing -> withPos pos $ do
         curRetty <- gets curRetType
         assert (curRetty == Void) "must return a value"
         retVoid
         emitBlockStart =<< fresh
 
-    S.Return pos (Just expr) -> do
+    S.Return pos (Just expr) -> withPos pos $ do
         val <- cmpExpr expr
         typ <- valBaseType val
 
@@ -194,7 +194,7 @@ cmpStmt stmt = case stmt of
         ret . valOp =<< valLoad val'
         emitBlockStart =<< fresh
 
-    S.If pos expr blk melse -> do
+    S.If pos expr blk melse -> withPos pos $ do
         val <- cmpExpr expr
         typ <- valBaseType val
         checkTypesMatch typ Bool
@@ -202,7 +202,7 @@ cmpStmt stmt = case stmt of
         case melse of
             Nothing -> if_ (valOp val) (cmpStmt blk) (return ())
 
-    S.While pos expr blk -> do
+    S.While pos expr blk -> withPos pos $ do
         cond <- freshName "while_cond"
         body <- freshName "while_body"
         exit <- freshName "while_exit"
@@ -220,7 +220,7 @@ cmpStmt stmt = case stmt of
         br cond
         emitBlockStart exit
 
-    S.Switch pos expr cases -> do
+    S.Switch pos expr cases -> withPos pos $ do
         val <- cmpExpr expr
         casesM <- forM cases $ \(pat, stmt) -> do
             let b = return . valOp =<< valLoad =<< cmpPattern pat val
@@ -229,7 +229,7 @@ cmpStmt stmt = case stmt of
 
         switch_ casesM
 
-    S.Block pos stmts -> do
+    S.Block pos stmts -> withPos pos $ do
         pushSymTab
         mapM_ cmpStmt stmts
         popSymTab
@@ -240,7 +240,7 @@ cmpStmt stmt = case stmt of
 
 cmpExpr :: InsCmp CompileState m =>  S.Expr -> m Value
 cmpExpr expr = case expr of
-    S.Call pos sym exprs -> do
+    S.Call pos sym exprs -> withPos pos $ do
         vals <- mapM valLoad =<< mapM cmpExpr exprs
         res <- look sym $ KeyFunc (map valType vals)
         (op, typ) <- case res of
@@ -250,15 +250,15 @@ cmpExpr expr = case expr of
         fmap (Val typ) $ call op [(o, []) | o <- map valOp vals]
         
     S.Cons c -> case c of
-        S.Int p n  -> return (valI64 n)
-        S.Bool p b -> return (valBool b)
-        S.Char p c -> return (valChar c)
+        S.Int pos n  -> return (valI64 n)
+        S.Bool pos b -> return (valBool b)
+        S.Char pos c -> return (valChar c)
 
-    S.Ident p sym -> do
+    S.Ident pos sym -> withPos pos $ do
         ObjVal val <- look sym KeyVar
         return val
 
-    S.Infix pos op exprA exprB -> do
+    S.Infix pos op exprA exprB -> withPos pos $ do
         a <- cmpExpr exprA
         b <- cmpExpr exprB
         valsInfix op a b
@@ -266,14 +266,14 @@ cmpExpr expr = case expr of
     S.Conv pos typ [] ->
         zeroOf typ
 
-    S.Len pos expr -> do
+    S.Len pos expr -> withPos pos $ do
         val <- cmpExpr expr
         typ <- valBaseType val
         case typ of
             Table _ -> tableLen val
             _       -> fail $ "cannot take length of type: " ++ show (valType val)
 
-    S.Tuple pos exprs -> do
+    S.Tuple pos exprs -> withPos pos $ do
         vals <- mapM cmpExpr exprs
         tup <- valLocal $ Tuple (map valType vals)
         forM_ (zip vals [0..]) $ \(val, i) -> do
@@ -281,7 +281,7 @@ cmpExpr expr = case expr of
 
         return tup
 
-    S.Subscript pos aggExpr idxExpr -> do
+    S.Subscript pos aggExpr idxExpr -> withPos pos $ do
         agg <- cmpExpr aggExpr
         idx <- cmpExpr idxExpr
 
@@ -297,8 +297,8 @@ cmpExpr expr = case expr of
 
 
     S.Table pos []     -> zeroOf (Table [])
-    S.Table pos ([]:_) -> fail "cannot determine type of table row with no elements"
-    S.Table pos exprss -> do
+    S.Table pos ([]:_) -> withPos pos $ fail "cannot determine type of table row with no elements"
+    S.Table pos exprss -> withPos pos $ do
         valss <- mapM (mapM cmpExpr) exprss
         let rowLen = length (head valss)
 
@@ -326,7 +326,7 @@ cmpExpr expr = case expr of
 
         return tab
 
-    S.Append pos expr elem -> do
+    S.Append pos expr elem -> withPos pos $ do
         tab <- cmpExpr expr
         val <- cmpExpr elem
         typ <- valBaseType val
@@ -344,7 +344,7 @@ cmpPattern :: InsCmp CompileState m => S.Pattern -> Value -> m Value
 cmpPattern pat val = case pat of
     S.PatIgnore pos    -> return (valBool True)
     S.PatLiteral cons  -> valsInfix S.EqEq val =<< cmpExpr (S.Cons cons)
-    S.PatIdent pos sym -> do
+    S.PatIdent pos sym -> withPos pos $ do
         checkSymKeyUndef sym KeyVar
         loc <- valLocal (valType val)
         addObj sym KeyVar (ObjVal loc)
@@ -353,7 +353,7 @@ cmpPattern pat val = case pat of
         
 
 cmpPrint :: InsCmp CompileState m => S.Stmt -> m ()
-cmpPrint (S.Print pos exprs) = do
+cmpPrint (S.Print pos exprs) = withPos pos $ do
     prints =<< mapM cmpExpr exprs
     where
         prints :: InsCmp CompileState m => [Value] -> m ()

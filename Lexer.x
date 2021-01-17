@@ -7,6 +7,8 @@ module Lexer
     , alexMonadScan
     )
 where
+
+import Error
 }
 
 %wrapper "monad"
@@ -42,31 +44,30 @@ tokens :-
     \" @string* \"                   { mkT String }
 {
 
-mkT :: TokenType -> AlexInput -> Int -> Alex Token
-mkT String (p,_,_,s) len = return $ Token p String (drop 1 (take (len-1) s))
-mkT t (p,_,_,s) len = return $ Token p t (take len s)
+mkT :: TokenType -> AlexInput -> Int -> Alex (AlexPosn, TokenType, String)
+mkT String (p,_,_,s) len = return (p, String, drop 1 (take (len-1) s))
+mkT t      (p,_,_,s) len = return (p, t, take len s)
 
-alexEOF = return (Token undefined EOF "")
+alexEOF = return (undefined, EOF, "")
 
-alexScanner str = runAlex str (loop)
+alexScanner filename str = runAlex str loop
     where
         loop = do
-            tok@(Token _ t _) <- alexMonadScan
-            if t == EOF
+            (p, typ, str) <- alexMonadScan
+            if typ == EOF
                 then return []
                 else do
-                    ts <- loop
-                    return (tok:ts)
-
+                    let AlexPn pos line col = p
+                    let textPos = TextPos filename pos line col
+                    fmap (Token textPos typ str :) loop
 
 data Token
     = Token
-        { tokPosn :: AlexPosn
+        { tokPosn :: TextPos
         , tokType :: TokenType
         , tokStr  :: String
         }
     deriving (Show, Eq)
-
 
 data TokenType
     = Sym

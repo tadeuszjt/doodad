@@ -73,10 +73,10 @@ main = do
 
 parse :: String -> String -> Either Error S.AST
 parse filename source =
-    case L.alexScanner source of
+    case L.alexScanner filename source of
         Left  errStr -> Left (ErrorStr errStr)
         Right tokens -> case (P.parseTokens tokens) 0 of
-            P.ParseFail pos -> Left (ErrorFile filename pos "parse error")
+            P.ParseFail pos -> Left (ErrorFile pos "parse error")
             P.ParseOk ast   -> Right ast 
 
 

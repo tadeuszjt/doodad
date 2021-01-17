@@ -35,8 +35,8 @@ runFile filename = do
 
 parse :: BoM s m => String -> String -> m S.AST
 parse filename source =
-    case L.alexScanner source of
+    case L.alexScanner filename source of
         Left  errStr -> fail errStr
         Right tokens -> case (P.parseTokens tokens) 0 of
-            P.ParseFail pos -> throwError (ErrorFile filename pos "parse error")
+            P.ParseFail pos -> throwError (ErrorFile pos "parse error")
             P.ParseOk ast   -> return ast 

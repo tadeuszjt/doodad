@@ -138,7 +138,7 @@ valTupleIdx tup i = do
         Val _ op  -> fmap (Val t) $ extractValue op [fromIntegral i]
 
 
-valArrayIdx :: InsCmp s m => Value -> Value -> m Value
+valArrayIdx :: InsCmp CompileState m => Value -> Value -> m Value
 valArrayIdx (Ptr (Array n t) loc) idx = do
     Val idxTyp idx <- valLoad idx
     assert (isInt idxTyp) "array index isn't an integer"
@@ -163,7 +163,7 @@ valMemCpy (Ptr dstTyp dst) (Ptr srcTyp src) len = do
     void $ memcpy pDstI8 pSrcI8 (valOp num)
 
 
-checkTypesMatch :: BoM s m => Type -> Type -> m ()
+checkTypesMatch :: BoM CompileState m => Type -> Type -> m ()
 checkTypesMatch typA typB
     | isSimple typA = assert (typA == typB) str
     | isTable typA  = assert (typA == typB) str

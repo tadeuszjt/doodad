@@ -76,6 +76,7 @@ data CompileState
         , definitions  :: [Definition]
         , symTab       :: SymTab.SymTab S.Symbol SymKey Object
         , curRetType   :: T.Type
+        , posStack     :: [TextPos]
         }
 
 initCompileState ctx dl
@@ -89,12 +90,22 @@ initCompileState ctx dl
         , definitions  = []
         , symTab       = SymTab.initSymTab
         , curRetType   = T.Void
+        , posStack     = [TextPos "" 0 0 0]
         }
 
 
-assert :: MonadError Error m => Bool -> String -> m ()
-assert b s =
-    unless b $ throwError (ErrorStr s)
+assert :: BoM CompileState m => Bool -> String -> m ()
+assert b s = do
+    pos <- fmap head (gets posStack)
+    unless b $ throwError (ErrorFile pos s)
+
+
+withPos :: BoM CompileState m => TextPos -> m a -> m a
+withPos pos f = do
+    modify $ \s -> s { posStack = pos:(posStack s) }
+    r <- f
+    modify $ \s -> s { posStack = tail (posStack s) }
+    return r
 
 
 addObj :: BoM CompileState m => S.Symbol -> SymKey -> Object -> m ()
