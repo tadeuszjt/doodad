@@ -2,6 +2,7 @@ module Error where
 
 import Control.Monad
 import Data.Maybe
+import qualified Data.Map as Map
 
 
 data TextPos
@@ -13,17 +14,29 @@ instance Show TextPos where
     show (TextPos p l c) = "(" ++ show p ++ ":" ++ show l ++ ":" ++ show c ++ ")"
 
 
-newtype CmpError
-    = CmpError { getCmpError :: (Maybe TextPos, String) }
+data Error
+    = ErrorStr
+        { errStr :: String
+        }
+    | ErrorFile
+        { errFile :: String
+        , errPos  :: TextPos
+        , errStr  :: String
+        }
     deriving (Show)
 
 
-
-printError :: CmpError -> String -> IO ()
-printError (CmpError (Nothing, str)) source = putStrLn ("error: " ++ str)
-printError (CmpError (Just pos@(TextPos p l c), str)) source = do
-    putStrLn ("error " ++ show pos ++ " " ++ str ++ ":")
-    let sourceLines = lines source
-    unless (l < 2) $ putStrLn (sourceLines !! (l-2))
-    unless (l < 1) $ putStrLn (sourceLines !! (l-1))
-    putStrLn (replicate (c-1) '-' ++ "^")
+printError :: Error -> Map.Map String String -> IO ()
+printError err srcFiles = case err of
+    ErrorStr str        -> putStrLn ("error: " ++ str)
+    ErrorFile f pos str -> do
+        let srcm = Map.lookup f srcFiles
+        case srcm of
+            Nothing  -> putStrLn ("error (no source): " ++ str)
+            Just src -> do
+                let sourceLines   = lines src
+                let TextPos p l c = pos
+                putStrLn ("error " ++ show pos ++ " " ++ str ++ ":")
+                unless (l < 2) $ putStrLn (sourceLines !! (l-2))
+                unless (l < 1) $ putStrLn (sourceLines !! (l-1))
+                putStrLn (replicate (c-1) '-' ++ "^")

@@ -5,6 +5,7 @@ import           System.Console.Haskeline
 import           System.Environment
 import           System.IO
 import qualified Data.Set                 as Set
+import qualified Data.Map                 as Map
 
 import           LLVM.AST
 import           LLVM.Internal.DataLayout
@@ -37,20 +38,25 @@ initArgs = Args
 main :: IO ()
 main = do
     args <- fmap (parseArgs initArgs) getArgs
+
+    sources <- forM (filenames args) $ \name -> do
+        src <- readFile name
+        return (name, src)
+
+
     withSession (optimise args) $ \session -> do
-        if filenames args == [] then
+        if sources == [] then
             error "no repl"
         else if astOnly args then do
-            sources <- mapM readFile (filenames args) 
-            forM_ sources $ \src -> do
-                case parse src of
-                    Left err  -> printError err src
+            forM_ sources $ \(filename, src) -> do
+                case parse filename src of
+                    Left err  -> printError err (Map.fromList sources)
                     Right ast -> S.prettyAST "" ast
+
         else do
-            sources <- mapM readFile (filenames args) 
-            res <- runBoMT (M.initModulesState session) $ M.runFiles sources (verbose args)
+            res <- runBoMT (M.initModulesState session) $ M.runFiles (filenames args) (verbose args)
             case res of
-                Left err            -> printError err ""
+                Left err            -> printError err (Map.fromList sources)
                 Right (_, modState) -> when (modulesOnly args) (M.prettyModules modState)
 
     where
@@ -65,12 +71,12 @@ main = do
             (a:as) -> parseArgs (parseArgs args [a]) as
 
 
-parse :: String -> Either CmpError S.AST
-parse source =
+parse :: String -> String -> Either Error S.AST
+parse filename source =
     case L.alexScanner source of
-        Left  errStr -> Left $ CmpError (Nothing, errStr)
+        Left  errStr -> Left (ErrorStr errStr)
         Right tokens -> case (P.parseTokens tokens) 0 of
-            P.ParseFail pos -> Left $ CmpError (Just pos, "parse error")
+            P.ParseFail pos -> Left (ErrorFile filename pos "parse error")
             P.ParseOk ast   -> Right ast 
 
 
@@ -112,7 +118,7 @@ parse source =
 --    -> R.ResolverState
 --    -> String
 --    -> Bool
---    -> IO (Either CmpError ([Definition], C.MyCmpState, R.ResolverState))
+--    -> IO (Either Error ([Definition], C.MyCmpState, R.ResolverState))
 --compile session state resolverState source verbose =
 --    case parse source of
 --        Left err  -> return (Left err)

@@ -8,7 +8,7 @@ import Control.Monad.Except hiding (void, fail)
 
 import qualified Data.Map as Map
 import qualified Data.Set as Set
-import           Data.Maybe
+import Data.Maybe
 
 import           Error
 import qualified SymTab
@@ -87,18 +87,20 @@ modCompile modName verbose =
                         return (ModuleCompiled state)
 
 
-parse :: BoM s m => String -> m S.AST
-parse source =
+parse :: BoM s m => String -> String -> m S.AST
+parse filename source =
     case L.alexScanner source of
         Left  errStr -> fail errStr
         Right tokens -> case (P.parseTokens tokens) 0 of
-            P.ParseFail pos -> throwError $ CmpError (Just pos, "parse error")
+            P.ParseFail pos -> throwError (ErrorFile filename pos "parse error")
             P.ParseOk ast   -> return ast 
 
 
 runFiles :: BoM ModulesState m => [String] -> Bool -> m ()
-runFiles fs verbose = do
-    forM_ fs $ \f -> modAddAST =<< parse f
+runFiles paths verbose = do
+    forM_ paths $ \path -> do
+        source <- liftIO (readFile path)
+        modAddAST =<< parse path source
     modCompile "main" verbose
 
 

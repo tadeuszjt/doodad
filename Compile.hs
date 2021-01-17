@@ -153,7 +153,6 @@ cmpStmt :: InsCmp CompileState m => S.Stmt -> m ()
 cmpStmt stmt = case stmt of
     S.Print pos exprs -> cmpPrint stmt
 
-
     S.CallStmt pos sym exprs -> do
         vals <- mapM valLoad =<< mapM cmpExpr exprs
         res <- look sym $ KeyFunc (map valType vals)
@@ -251,9 +250,9 @@ cmpExpr expr = case expr of
         fmap (Val typ) $ call op [(o, []) | o <- map valOp vals]
         
     S.Cons c -> case c of
-        S.Int p n   -> return (valI64 n)
-        S.Bool p b  -> return (valBool b)
-        S.Char p c  -> return (valChar c)
+        S.Int p n  -> return (valI64 n)
+        S.Bool p b -> return (valBool b)
+        S.Char p c -> return (valChar c)
 
     S.Ident p sym -> do
         ObjVal val <- look sym KeyVar
@@ -272,6 +271,7 @@ cmpExpr expr = case expr of
         typ <- valBaseType val
         case typ of
             Table _ -> tableLen val
+            _       -> fail $ "cannot take length of type: " ++ show (valType val)
 
     S.Tuple pos exprs -> do
         vals <- mapM cmpExpr exprs

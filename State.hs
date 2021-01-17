@@ -92,9 +92,9 @@ initCompileState ctx dl
         }
 
 
-assert :: MonadError CmpError m => Bool -> String -> m ()
+assert :: MonadError Error m => Bool -> String -> m ()
 assert b s =
-    unless b $ throwError $ CmpError (Nothing, s)
+    unless b $ throwError (ErrorStr s)
 
 
 addObj :: BoM CompileState m => S.Symbol -> SymKey -> Object -> m ()
