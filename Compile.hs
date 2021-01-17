@@ -184,10 +184,10 @@ cmpStmt stmt = case stmt of
 
     S.Return pos (Just expr) -> do
         val <- cmpExpr expr
-        typ <- baseTypeOf (valType val)
+        typ <- valBaseType val
 
         val' <- case typ of
-            Table _ -> valTableForceAlloc val
+            Table _ -> tableForceAlloc val
             _         -> return val
 
         retty <- gets curRetType
@@ -197,7 +197,7 @@ cmpStmt stmt = case stmt of
 
     S.If pos expr blk melse -> do
         val <- cmpExpr expr
-        typ <- baseTypeOf (valType val)
+        typ <- valBaseType val
         checkTypesMatch typ Bool
 
         case melse of
@@ -211,7 +211,7 @@ cmpStmt stmt = case stmt of
         br cond
         emitBlockStart cond
         cnd <- valLoad =<< cmpExpr expr
-        checkTypesMatch Bool =<< baseTypeOf (valType cnd)
+        checkTypesMatch Bool =<< valBaseType cnd
         condBr (valOp cnd) body exit
         
         emitBlockStart body
@@ -269,9 +269,9 @@ cmpExpr expr = case expr of
 
     S.Len pos expr -> do
         val <- cmpExpr expr
-        typ <- baseTypeOf (valType val)
+        typ <- valBaseType val
         case typ of
-            Table _ -> valTableLen val
+            Table _ -> tableLen val
 
     S.Tuple pos exprs -> do
         vals <- mapM cmpExpr exprs
@@ -285,14 +285,14 @@ cmpExpr expr = case expr of
         agg <- cmpExpr aggExpr
         idx <- cmpExpr idxExpr
 
-        idxType <- baseTypeOf (valType idx)
-        aggType <- baseTypeOf (valType agg)
+        idxType <- valBaseType idx
+        aggType <- valBaseType agg
 
         assert (isInt idxType) "index type isn't an integer"
 
         case aggType of
             Table [t] -> do
-                tup <- valTableGetElem agg idx
+                tup <- tableGetElem agg idx
                 valTupleIdx tup 0
 
 
@@ -315,27 +315,27 @@ cmpExpr expr = case expr of
                 valStore ptr ((valss !! r) !! i)
 
         tab <- valLocal (Table rowTypes)
-        len <- valTableLen tab
-        cap <- valTableCap tab
+        len <- tableLen tab
+        cap <- tableCap tab
 
         valStore len $ valI64 (fromIntegral rowLen)
         valStore cap (valI64 0) -- shows stack mem
 
         forM_ (zip arrs [0..]) $ \(arr, i) ->
-            valTableSetRow tab i =<< valArrayConstIdx arr 0
+            tableSetRow tab i =<< valArrayConstIdx arr 0
 
         return tab
 
     S.Append pos expr elem -> do
         tab <- cmpExpr expr
         val <- cmpExpr elem
-        typ <- baseTypeOf (valType val)
+        typ <- valBaseType val
         case typ of
-            Tuple _ -> valTableAppend tab val
+            Tuple _ -> tableAppend tab val
             _         -> do
                 tup <- valLocal (Tuple [valType val])
                 valTupleSet tup 0 val
-                valTableAppend tab tup
+                tableAppend tab tup
 
     _ -> error ("expr: " ++ show expr)
 
@@ -360,15 +360,3 @@ cmpPrint (S.Print pos exprs) = do
         prints []     = return ()
         prints [val]  = valPrint "\n" val
         prints (v:vs) = valPrint ", " v >> prints vs
-
-
-prettyCompileState :: CompileState -> IO ()
-prettyCompileState state = do
-    putStrLn "defs:"
-    forM_ (definitions state) $ \def -> case def of
-        LL.TypeDefinition name mtyp ->
-            putStrLn ("type: " ++ show name ++ " " ++ show mtyp)
-        LL.GlobalDefinition (Function _ _ _ _ _ retty name params _ _ _ _ _ _ basicBlocks _ _) -> do
-            let ps = concat (map show $ fst params)
-            putStrLn ("func: " ++ show name ++ " " ++ ps ++ " " ++ show retty)
-        _ -> return ()

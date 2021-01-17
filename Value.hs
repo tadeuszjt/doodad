@@ -27,16 +27,15 @@ import Type
 valsInfix :: InsCmp CompileState m => S.Op -> Value -> Value -> m Value
 valsInfix operator a b = do
     checkTypesMatch (valType a) (valType b)
-    typ <- baseTypeOf (valType a)
+    let typ = valType a
+    base <- valBaseType a
     Val _ opA <- valLoad a
     Val _ opB <- valLoad b
-
-    valsInfix' operator typ opA opB
-
+    valsInfix' operator typ base opA opB
     where
-        valsInfix' :: InsCmp CompileState m => S.Op -> Type -> LL.Operand -> LL.Operand -> m Value
-        valsInfix' operator typ opA opB
-            | isInt typ || isChar typ = case operator of
+        valsInfix' :: InsCmp CompileState m => S.Op -> Type -> Type -> LL.Operand -> LL.Operand -> m Value
+        valsInfix' operator typ base opA opB
+            | isInt base || isChar base = case operator of
                 S.Plus   -> fmap (Val typ) (add opA opB)
                 S.Minus  -> fmap (Val typ) (sub opA opB)
                 S.Times  -> fmap (Val typ) (mul opA opB)
@@ -53,12 +52,10 @@ valsInfix operator a b = do
             | otherwise  = error (show operator)
         
 
-
 valNot :: InsCmp CompileState m => Value -> m Value
 valNot val = do
-    let typ = valType val
-    checkTypesMatch Bool =<< baseTypeOf typ
-    fmap (Val typ) $ icmp P.EQ (valOp val) (bit 0)
+    Val Bool op <- valLoad val
+    fmap (Val Bool) $ icmp P.EQ op (bit 0)
 
 
 valInt :: Type -> Integer -> Value
@@ -102,14 +99,24 @@ valLocal typ = do
     return (Ptr typ loc)
     
 
+valMalloc :: InsCmp CompileState m => Type -> Value -> m Value
+valMalloc typ len = do
+    size <- fmap (valInt I64 . fromIntegral) (sizeOf typ)
+    num  <- valsInfix S.Times len size
+    pi8  <- malloc (valOp num)
+    opTyp <- opTypeOf typ
+    fmap (Ptr typ) $ bitcast pi8 (LL.ptr opTyp)
+
+
 valPtrIdx :: InsCmp s m => Value -> Value -> m Value
-valPtrIdx (Ptr typ loc) (Val I64 i) = fmap (Ptr typ) (gep loc [i])
-valPtrIdx (Ptr typ loc) (Ptr I64 i) = valPtrIdx (Ptr typ loc) =<< valLoad (Ptr I64 i)
+valPtrIdx (Ptr typ loc) idx = do
+    Val I64 i <- valLoad idx
+    fmap (Ptr typ) (gep loc [i])
 
 
 valTupleSet :: InsCmp CompileState m => Value -> Word -> Value -> m Value
 valTupleSet tup i val = do
-    Tuple ts <- baseTypeOf (valType tup)
+    Tuple ts <- valBaseType tup
     assert (fromIntegral i < length ts) "invalid tuple index"
     case tup of
         Ptr _ _ -> do
@@ -124,7 +131,7 @@ valTupleSet tup i val = do
 
 valTupleIdx :: InsCmp CompileState m => Value -> Word -> m Value
 valTupleIdx tup i = do
-    Tuple ts <- baseTypeOf (valType tup)
+    Tuple ts <- valBaseType tup
     let t = ts !! fromIntegral i
     case tup of
         Ptr _ loc -> fmap (Ptr t) $ gep loc [int32 0, int32 $ fromIntegral i]
@@ -140,7 +147,7 @@ valArrayIdx (Ptr (Array n t) loc) idx = do
 
 valArrayConstIdx :: InsCmp CompileState m => Value -> Word -> m Value
 valArrayConstIdx val i = do
-    Array n t <- baseTypeOf (valType val)
+    Array n t <- valBaseType val
     case val of
         Ptr typ loc -> fmap (Ptr t) $ gep loc [int64 0, int64 (fromIntegral i)]
         Val typ op  -> fmap (Val t) $ extractValue op [fromIntegral i]
@@ -178,6 +185,9 @@ baseTypeOf typ
 baseTypeOf t = error (show t) 
 
 
+valBaseType :: ModCmp CompileState m => Value -> m Type
+valBaseType = baseTypeOf . valType
+
 
 zeroOf :: ModCmp CompileState m => Type -> m Value
 zeroOf typ
@@ -212,21 +222,18 @@ sizeOf typ = size =<< opTypeOf =<< baseTypeOf typ
 
 opTypeOf :: ModCmp CompileState m => Type -> m LL.Type
 opTypeOf typ = case typ of
+    I16       -> return LL.i16
+    I32       -> return LL.i32
     I64       -> return LL.i64
     Char      -> return LL.i32
-    I32       -> return LL.i32
-    I16       -> return LL.i16
     Bool      -> return LL.i1
     Tuple ts  -> fmap (LL.StructureType False) (mapM opTypeOf ts)
     Array n t -> fmap (LL.ArrayType $ fromIntegral n) (opTypeOf t)
     Table ts  -> do
-        opTypes <- mapM opTypeOf ts
-        let ptrTypes = map LL.ptr opTypes
-        return $ LL.StructureType False (LL.i64:LL.i64:ptrTypes)
+        ptrOpTypes <- mapM (fmap LL.ptr . opTypeOf) ts
+        return $ LL.StructureType False (LL.i64:LL.i64:ptrOpTypes)
     Typedef s -> do
         ObType t nm <- look s KeyType
-        case nm of
-            Nothing -> opTypeOf t
-            Just n  -> return (LL.NamedTypeReference n)
+        maybe (opTypeOf t) (return . LL.NamedTypeReference) nm
 
     _ -> error (show typ) 
