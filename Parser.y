@@ -26,6 +26,9 @@ import qualified Data.Set as Set
 
 
 %token
+	'I'        { Token _ Indent _ }
+	'D'        { Token _ Dedent _ }
+
     '+'        { Token _ ReservedOp "+" }
     '-'        { Token _ ReservedOp "-" }
     '*'        { Token _ ReservedOp "*" }
@@ -117,7 +120,7 @@ stmtB : block                                { $1 }
       | If                                   { $1 }
       | fn ident '(' params ')' block_       { S.Func (tokPosn $1) (tokStr $2) $4 Nothing $6 }
       | fn ident '(' params ')' type_ block_ { S.Func (tokPosn $1) (tokStr $2) $4 (Just $6) $7 }
-      | switch expr '{' cases '}'            { S.Switch (tokPosn $1) $2 $4 }
+      | switch expr 'I' cases 'D'            { S.Switch (tokPosn $1) $2 $4 }
       | while expr block_                    { S.While (tokPosn $1) $2 $3 }
 
 
@@ -219,7 +222,7 @@ index  : ident                      { S.IndIdent (tokPosn $1) (tokStr $1) }
        | index '.' intlit           { S.IndTuple (tokPosn $2) $1 (read $ tokStr $3) }
 
 
-Switch : switch expr '{' cases '}'  { S.Switch (tokPosn $1) $2 $4 }
+Switch : switch expr 'I' cases 'D'  { S.Switch (tokPosn $1) $2 $4 }
 cases  : {- empty -}                { [] }
        | case cases                 { $1 : $2 }
 case   : pattern ':' stmt           { ($1, $3) }
@@ -231,9 +234,9 @@ else_ : else block                   { $2 }
       | else If                      { $2 }
 
 
-block  : '{' Prog_ '}'               { S.Block (tokPosn $1) $2 }
-block_ : '{' Prog_ '}'               { $2 }
-       | '{' '}'                     { [] }
+block  : 'I' Prog_ 'D'               { S.Block (tokPosn $1) $2 }
+block_ : 'I' Prog_ 'D'               { $2 }
+       | 'I' 'D'                     { [] }
 
 
 {

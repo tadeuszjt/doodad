@@ -37,7 +37,7 @@ printError err srcFiles = case err of
         let TextPos filename p l c = pos
         let srcm = Map.lookup filename srcFiles
         case srcm of
-            Nothing  -> putStrLn ("error (no source): " ++ str)
+            Nothing  -> putStrLn ("error (no source for: " ++ filename ++ "): " ++ str)
             Just src -> do
                 let sourceLines   = lines src
                 putStrLn ("error " ++ show pos ++ " " ++ str ++ ":")

@@ -11,9 +11,11 @@ where
 import Error
 }
 
-%wrapper "monad"
+%wrapper "monadUserState"
 
-$white   = [\ \t\n]
+$white   = [\ ]
+$newline = \n
+$tab     = \t
 $digit   = 0-9
 $alpha   = [a-zA-Z]
 $ascsym  = [\!\#\$\%\&\*\+\.\/\<\=\>\?\@\\\^\|\-\~]
@@ -28,9 +30,8 @@ $symbol  = [\{\}\(\)\[\]\,\|\.\;\:\_]
 @reserved   = @keywords | @types | @builtin
 @reservedOp = [\+\-\*\/\%\<\>\=] | ":=" | "==" | "<=" | ">=" | "||" | "&&"
 
-@escape     = \\ [tn]
-@string     = $graphic # [\"\\] | " " | @escape
-@char       = $graphic # [\'\\] | " " | @escape
+@string     = $graphic # [\"\\] | " " 
+@char       = $graphic # [\'\\] | " "
 
 tokens :-
     $white                           ; 
@@ -42,11 +43,31 @@ tokens :-
     $digit+ \. $digit+               { mkT Float }
     \' @char \'                      { mkT Char }
     \" @string* \"                   { mkT String }
+    \' $newline \'                   { mkT Char }
+    $newline $tab*                   { mkIndentT }
 {
 
 mkT :: TokenType -> AlexInput -> Int -> Alex (AlexPosn, TokenType, String)
 mkT String (p,_,_,s) len = return (p, String, drop 1 (take (len-1) s))
 mkT t      (p,_,_,s) len = return (p, t, take len s)
+
+
+mkIndentT :: AlexInput -> Int -> Alex (AlexPosn, TokenType, String)
+mkIndentT (p,_,_,s) len = do
+    stack <- getLexerIndentLevel
+    let lineLevel = len - 1
+    let curLevel  = head stack
+
+    if lineLevel > curLevel then do
+        pushIndent lineLevel
+        return (p, Indent, "")
+
+    else if lineLevel == curLevel then do
+        return (p, NoToken, "")
+
+    else
+        return (p, Dedent, show lineLevel)
+
 
 alexEOF = return (undefined, EOF, "")
 
@@ -54,12 +75,54 @@ alexScanner filename str = runAlex str loop
     where
         loop = do
             (p, typ, str) <- alexMonadScan
-            if typ == EOF
-                then return []
-                else do
-                    let AlexPn pos line col = p
-                    let textPos = TextPos filename pos line col
-                    fmap (Token textPos typ str :) loop
+            let AlexPn pos line col = p
+            let textPos = TextPos filename pos line col
+            case typ of
+                NoToken -> loop
+                EOF     -> return []
+                Dedent  -> do
+                    toks <- dedentLoop textPos (read str :: Int)
+                    fmap (toks ++) loop
+
+                _       -> fmap (Token textPos typ str :) loop
+            
+        dedentLoop textPos level = do
+            i <- popIndent
+            if level < (i-1)
+            then fmap (Token textPos Dedent "" :) (dedentLoop textPos level)
+            else return [Token textPos Dedent ""]
+                
+
+
+data AlexUserState
+    = AlexUserState
+        { lexerIndentLevel :: [Int]
+        }
+
+alexInitUserState =
+    AlexUserState
+        { lexerIndentLevel = [0]
+        }
+
+getLexerIndentLevel :: Alex [Int]
+getLexerIndentLevel = Alex $ \s@AlexState{alex_ust=ust} -> Right (s, lexerIndentLevel ust)
+
+setLexerIndentLevel :: [Int] -> Alex ()
+setLexerIndentLevel i = Alex $ \s -> Right (s { alex_ust = (alex_ust s){lexerIndentLevel = i}}, ())
+
+
+pushIndent :: Int -> Alex ()
+pushIndent i = do
+    stack <- getLexerIndentLevel
+    setLexerIndentLevel (i:stack)
+
+
+popIndent :: Alex Int
+popIndent = do
+    stack <- getLexerIndentLevel
+    setLexerIndentLevel (tail stack)
+    return (head stack)
+
 
 data Token
     = Token
@@ -67,7 +130,11 @@ data Token
         , tokType :: TokenType
         , tokStr  :: String
         }
-    deriving (Show, Eq)
+    deriving (Eq)
+
+
+instance Show Token where
+    show (Token p t s) = show t ++ ":" ++ s
 
 data TokenType
     = Sym
@@ -78,6 +145,9 @@ data TokenType
     | Float
     | Char
     | String
+    | Indent
+    | Dedent
+    | NoToken
     | EOF
     deriving (Show, Eq)
 }

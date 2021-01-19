@@ -24,6 +24,7 @@ data Args = Args
     , optimise    :: Bool
     , astOnly     :: Bool
     , modulesOnly :: Bool
+    , lexOnly     :: Bool
     , filenames   :: [String]
     }
 initArgs = Args
@@ -31,6 +32,7 @@ initArgs = Args
     , optimise    = True
     , astOnly     = False
     , modulesOnly = False
+    , lexOnly     = False
     , filenames   = []
     }
 
@@ -43,9 +45,12 @@ main = do
         src <- readFile name
         return (name, src)
 
-
     withSession (optimise args) $ \session -> do
-        if sources == [] then
+        if lexOnly args then do
+            forM_ sources $ \(filename, src) -> do
+                let res = L.alexScanner filename src
+                putStrLn (show res)
+        else if sources == [] then
             error "no repl"
         else if astOnly args then do
             forM_ sources $ \(filename, src) -> do
@@ -67,6 +72,7 @@ main = do
             ["-v"] -> args { verbose     = True }
             ["-a"] -> args { astOnly     = True }
             ["-m"] -> args { modulesOnly = True }
+            ["-l"] -> args { lexOnly     = True }
             [str]  -> args { filenames   = (filenames args) ++ [str] }
             (a:as) -> parseArgs (parseArgs args [a]) as
 

@@ -1,7 +1,7 @@
 module main
 imports "io"
 
-fn main() {
-    let str = getStrLn();
-    putStrLn(str);
-}
+fn main()
+	let str = getStrLn();
+	putStrLn(str);
+
