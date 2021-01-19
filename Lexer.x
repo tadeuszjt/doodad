@@ -88,9 +88,9 @@ alexScanner filename str = runAlex str loop
             
         dedentLoop textPos level = do
             i <- popIndent
-            if level < (i-1)
+            if level < i
             then fmap (Token textPos Dedent "" :) (dedentLoop textPos level)
-            else return [Token textPos Dedent ""]
+            else pushIndent i >> return []
                 
 
 
