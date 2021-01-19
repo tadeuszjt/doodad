@@ -7,8 +7,8 @@ fn getStrLn() {char}
 	let str = {char}();
 	while true
 		switch getchar()
-			c    : str = append(str, c);
 			'\n' : return str;
+			c    : str = append(str, c);
 
 
 fn putStrLn(str {char})
@@ -16,4 +16,6 @@ fn putStrLn(str {char})
 	while i < len(str)
 		putchar(str[i]);
 		i = i + 1;
+	
+	putchar('\n');
 

@@ -43,7 +43,7 @@ tokens :-
     $digit+ \. $digit+               { mkT Float }
     \' @char \'                      { mkT Char }
     \" @string* \"                   { mkT String }
-    \' $newline \'                   { mkT Char }
+    \' \\ n \'                       { mkT Char }
     $newline $tab*                   { mkIndentT }
 {
 
