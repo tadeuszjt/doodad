@@ -169,13 +169,7 @@ infix : expr '+' expr                { S.Infix (tokPosn $2) S.Plus $1 $3 }
 
 type_         : type__               { $1 }
               | ident                { T.Typedef (tokStr $1) }
-type__        : concreteType         { $1 }
-              | aggregateType        { $1 }
-types         : {- empty -}          { [] }
-              | types_               { $1 }
-types_        : type_                { [$1] }
-              | type_ ',' types_     { $1 : $3 }
-concreteType  : bool                 { T.Bool }
+type__        : bool                 { T.Bool }
               | i16                  { T.I16 }
               | i32                  { T.I32 }
               | i64                  { T.I64 }
@@ -183,13 +177,20 @@ concreteType  : bool                 { T.Bool }
               | f64                  { T.F64 }
               | char                 { T.Char }
               | string               { T.String }
-aggregateType : '[' intlit type_ ']' { T.Array (read $ tokStr $2) $3 }
-              | '(' types ')'        { T.Tuple $2 }
+              | '[' intlit rowType ']' { T.Array (read $ tokStr $2) $3 }
+              | '(' rowTypes ')'     { T.Tuple $2 }
               | '{' rowTypes '}'     { T.Table $2 }
+
+types         : {- empty -}          { [] }
+              | types_               { $1 }
+types_        : type_                { [$1] }
+              | type_ ',' types_     { $1 : $3 }
+
+rowType       : ':' type_            { $2 }
 rowTypes      : {- empty -}          { [] }
               | rowTypes_            { $1 }
-rowTypes_     : type_                { [$1] }
-              | type_ ';' rowTypes_  { $1 : $3 }
+rowTypes_     : rowType              { [$1] }
+              | rowType ';' rowTypes_  { $1 : $3 }
 
 
 table     : '{' tableRows '}'       { S.Table (tokPosn $1) $2 } 

@@ -3,15 +3,15 @@ module io
 extern getchar() char;
 extern putchar(c char);
 
-fn getStrLn() {char}
-	let str = {char}();
+fn getStrLn() {:char}
+	let str = {:char}();
 	while true
 		switch getchar()
 			'\n' : return str;
 			c    : str = append(str, c);
 
 
-fn putStrLn(str {char})
+fn putStrLn(str {:char})
 	let i = 0;
 	while i < len(str)
 			putchar(str[i]);
