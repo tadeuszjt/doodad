@@ -8,6 +8,7 @@ import qualified Data.ByteString.Short as BSS
 import Control.Monad
 import Control.Monad.State
 import Control.Monad.IO.Class
+import Control.Monad.Fail hiding (fail)
 import Control.Monad.Except hiding (void, fail)
 import Foreign.Ptr
 

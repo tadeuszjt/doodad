@@ -2,6 +2,6 @@ module main
 imports "io"
 
 fn main()
-	let str = getStrLn();
-	putStrLn(str);
+	let str = getStrLn()
+	putStrLn(str)
 

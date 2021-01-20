@@ -34,17 +34,17 @@ $symbol  = [\{\}\(\)\[\]\,\|\.\;\:\_]
 @char       = $graphic # [\'\\] | " "
 
 tokens :-
-    $white                           ; 
-    $symbol                          { mkT Sym }
-    @reserved                        { mkT Reserved }
-    @reservedOp                      { mkT ReservedOp }
-    $alpha [$alpha $digit \_]*       { mkT Ident }
-    $digit+                          { mkT Int }
-    $digit+ \. $digit+               { mkT Float }
-    \' @char \'                      { mkT Char }
-    \" @string* \"                   { mkT String }
-    \' \\ n \'                       { mkT Char }
-    $newline $tab*                   { mkIndentT }
+    $white                                 ; 
+    $symbol                                { mkT Sym }
+    @reserved                              { mkT Reserved }
+    @reservedOp                            { mkT ReservedOp }
+    $alpha [$alpha $digit \_]*             { mkT Ident }
+    $digit+                                { mkT Int }
+    $digit+ \. $digit+                     { mkT Float }
+    \' @char \'                            { mkT Char }
+    \" @string* \"                         { mkT String }
+    \' \\ n \'                             { mkT Char }
+    [$newline $tab $white]* $newline $tab* { mkIndentT }
 {
 
 mkT :: TokenType -> AlexInput -> Int -> Alex (AlexPosn, TokenType, String)
@@ -54,8 +54,9 @@ mkT t      (p,_,_,s) len = return (p, t, take len s)
 
 mkIndentT :: AlexInput -> Int -> Alex (AlexPosn, TokenType, String)
 mkIndentT (p,_,_,s) len = do
+    let str = take len s
+    let lineLevel = length $ takeWhile (== '\t') (reverse str)
     stack <- getLexerIndentLevel
-    let lineLevel = len - 1
     let curLevel  = head stack
 
     if lineLevel > curLevel then do
@@ -63,7 +64,7 @@ mkIndentT (p,_,_,s) len = do
         return (p, Indent, "")
 
     else if lineLevel == curLevel then do
-        return (p, NoToken, "")
+        return (p, NewLine, "")
 
     else
         return (p, Dedent, show lineLevel)
@@ -146,6 +147,7 @@ data TokenType
     | Char
     | String
     | Indent
+    | NewLine
     | Dedent
     | NoToken
     | EOF

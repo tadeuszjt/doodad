@@ -28,6 +28,7 @@ import qualified Data.Set as Set
 %token
 	'I'        { Token _ Indent _ }
 	'D'        { Token _ Dedent _ }
+	'N'        { Token _ NewLine _ }
 
     '+'        { Token _ ReservedOp "+" }
     '-'        { Token _ ReservedOp "-" }
@@ -95,18 +96,19 @@ import qualified Data.Set as Set
 
 
 Prog  : Prog_                                { S.AST { S.astModuleName = Nothing, S.astStmts = $1, S.astImports = Set.empty} }
-      | module ident Imports Prog_           { S.AST { S.astModuleName = Just (tokStr $2), S.astStmts = $4, S.astImports = Set.fromList $3 } }
-Prog_ : {- empty -}                          { [] }
-      | stmt Prog_                           { $1 : $2 }
+      | module ident 'N' Imports Prog_       { S.AST { S.astModuleName = Just (tokStr $2), S.astStmts = $5, S.astImports = Set.fromList $4 } }
+Prog_ : stmtS                                { [$1] }
+      | stmtB                                { [$1] }
+      | stmtS 'N' Prog_                      { $1 : $3 }
+      | stmtB  Prog_                         { $1 : $2 }
+
 
 Imports  : {- empty -}                       { [] }
          | Imports_                          { $1 }
-Imports_ : imports strlit                    { [(tokStr $2)] }
-         | imports strlit Imports_           { (tokStr $2) : $3 }
+Imports_ : imports strlit 'N'                { [(tokStr $2)] }
+         | imports strlit 'N' Imports_       { (tokStr $2) : $4 }
 
 
-stmt  : stmtS ';'                            { $1 }
-      | stmtB                                { $1 }
 stmtS : let pattern '=' expr                 { S.Assign (tokPosn $1) $2 $4 }  
       | index '=' expr                       { S.Set (tokPosn $2) $1 $3 }
       | type ident '=' type_                 { S.Typedef (tokPosn $2) (tokStr $2) $4 }
@@ -122,6 +124,10 @@ stmtB : block                                { $1 }
       | fn ident '(' params ')' type_ block_ { S.Func (tokPosn $1) (tokStr $2) $4 (Just $6) $7 }
       | switch expr 'I' cases 'D'            { S.Switch (tokPosn $1) $2 $4 }
       | while expr block_                    { S.While (tokPosn $1) $2 $3 }
+
+block  : 'I' Prog_ 'D'               { S.Block (tokPosn $1) $2 }
+block_ : 'I' Prog_ 'D'               { $2 }
+       | 'I' 'D'                     { [] }
 
 
 expr   : lit                          { S.Cons $1 }
@@ -225,8 +231,10 @@ index  : ident                      { S.IndIdent (tokPosn $1) (tokStr $1) }
 
 Switch : switch expr 'I' cases 'D'  { S.Switch (tokPosn $1) $2 $4 }
 cases  : {- empty -}                { [] }
-       | case cases                 { $1 : $2 }
-case   : pattern ':' stmt           { ($1, $3) }
+       | cases_                     { $1 }
+cases_ : case                       { [$1] }
+       | case 'N' cases_            { $1 : $3 }
+case   : pattern ':' stmtS          { ($1, $3) }
 
 
 If    : if expr block                { S.If (tokPosn $1) $2 $3 Nothing }
@@ -234,10 +242,6 @@ If    : if expr block                { S.If (tokPosn $1) $2 $3 Nothing }
 else_ : else block                   { $2 }
       | else If                      { $2 }
 
-
-block  : 'I' Prog_ 'D'               { S.Block (tokPosn $1) $2 }
-block_ : 'I' Prog_ 'D'               { $2 }
-       | 'I' 'D'                     { [] }
 
 
 {
