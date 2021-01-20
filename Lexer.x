@@ -8,6 +8,8 @@ module Lexer
     )
 where
 
+import Data.List
+import Data.Maybe
 import Error
 }
 
@@ -24,7 +26,7 @@ $graphic = [$alpha $digit $ascsym $special \:\"\']
 
 $symbol  = [\{\}\(\)\[\]\,\|\.\;\:\_]
 
-@types      = i64 | i32 | i16 | f64 | f32 | bool | char | string
+@types      = i16 | i32 | i64 | f32 | f64 | bool | char | string
 @builtin    = print | len | append
 @keywords   = fn | extern | type | let | while | if | else | return | switch | true | false | module | imports
 @reserved   = @keywords | @types | @builtin
@@ -34,17 +36,17 @@ $symbol  = [\{\}\(\)\[\]\,\|\.\;\:\_]
 @char       = $graphic # [\'\\] | " "
 
 tokens :-
-    $white                                 ; 
-    $symbol                                { mkT Sym }
-    @reserved                              { mkT Reserved }
-    @reservedOp                            { mkT ReservedOp }
-    $alpha [$alpha $digit \_]*             { mkT Ident }
-    $digit+                                { mkT Int }
-    $digit+ \. $digit+                     { mkT Float }
-    \' @char \'                            { mkT Char }
-    \" @string* \"                         { mkT String }
-    \' \\ n \'                             { mkT Char }
-    [$newline $tab $white]* $newline $tab* { mkIndentT }
+    $white                                          { mkT NoToken }
+    $symbol                                         { mkT Sym }
+    @reserved                                       { mkT Reserved }
+    @reservedOp                                     { mkT ReservedOp }
+    $alpha [$alpha $digit \_]*                      { mkT Ident }
+    $digit+                                         { mkT Int }
+    $digit+ \. $digit+                              { mkT Float }
+    \' @char \'                                     { mkT Char }
+    \" @string* \"                                  { mkT String }
+    \' \\ n \'                                      { mkT Char }
+    [$newline $tab $white]* $newline [$tab $white]* { mkIndentT }
 {
 
 mkT :: TokenType -> AlexInput -> Int -> Alex (AlexPosn, TokenType, String)
@@ -54,20 +56,25 @@ mkT t      (p,_,_,s) len = return (p, t, take len s)
 
 mkIndentT :: AlexInput -> Int -> Alex (AlexPosn, TokenType, String)
 mkIndentT (p,_,_,s) len = do
-    let str = take len s
-    let lineLevel = length $ takeWhile (== '\t') (reverse str)
-    stack <- getLexerIndentLevel
-    let curLevel  = head stack
+    let lineIndent = reverse $ takeWhile (/= '\n') $ reverse (take len s)
+    curIndent <- fmap (concat . reverse)  getLexerIndentStack
 
-    if lineLevel > curLevel then do
-        pushIndent lineLevel
-        return (p, Indent, "")
-
-    else if lineLevel == curLevel then do
+    if lineIndent == curIndent then
         return (p, NewLine, "")
-
+    else if curIndent `isPrefixOf` lineIndent then do
+        let s = fromJust (stripPrefix curIndent lineIndent)
+        pushIndent s
+        return (p, Indent, "")
+    else if lineIndent `isPrefixOf` curIndent then
+        return (p, Dedent, lineIndent)
     else
-        return (p, Dedent, show lineLevel)
+        error ("invalid indentation of: " ++ map rep lineIndent)
+
+    where
+        rep c = case c of
+            '\t' -> 't'
+            ' '  -> 's'
+            _    -> c
 
 
 alexEOF = return (undefined, EOF, "")
@@ -82,46 +89,48 @@ alexScanner filename str = runAlex str loop
                 NoToken -> loop
                 EOF     -> return []
                 Dedent  -> do
-                    toks <- dedentLoop textPos (read str :: Int)
+                    toks <- dedentLoop textPos str
                     fmap (toks ++) loop
 
                 _       -> fmap (Token textPos typ str :) loop
             
-        dedentLoop textPos level = do
-            i <- popIndent
-            if level < i
-            then fmap (Token textPos Dedent "" :) (dedentLoop textPos level)
-            else pushIndent i >> return []
+        dedentLoop textPos indent = do
+            curIndent <- fmap concat getLexerIndentStack
+            if (length indent) < (length curIndent)
+            then do
+                popIndent
+                fmap (Token textPos Dedent "" :) (dedentLoop textPos indent)
+            else return []
                 
 
 
 data AlexUserState
     = AlexUserState
-        { lexerIndentLevel :: [Int]
+        { lexerIndentStack :: [String]
         }
 
 alexInitUserState =
     AlexUserState
-        { lexerIndentLevel = [0]
+        { lexerIndentStack = [""]
         }
 
-getLexerIndentLevel :: Alex [Int]
-getLexerIndentLevel = Alex $ \s@AlexState{alex_ust=ust} -> Right (s, lexerIndentLevel ust)
+getLexerIndentStack :: Alex [String]
+getLexerIndentStack = Alex $ \s@AlexState{alex_ust=ust} -> Right (s, lexerIndentStack ust)
 
-setLexerIndentLevel :: [Int] -> Alex ()
-setLexerIndentLevel i = Alex $ \s -> Right (s { alex_ust = (alex_ust s){lexerIndentLevel = i}}, ())
-
-
-pushIndent :: Int -> Alex ()
-pushIndent i = do
-    stack <- getLexerIndentLevel
-    setLexerIndentLevel (i:stack)
+setLexerIndentStack :: [String] -> Alex ()
+setLexerIndentStack i = Alex $ \s -> Right (s { alex_ust = (alex_ust s){lexerIndentStack = i}}, ())
 
 
-popIndent :: Alex Int
+pushIndent :: String -> Alex ()
+pushIndent s = do
+    stack <- getLexerIndentStack
+    setLexerIndentStack (s:stack)
+
+
+popIndent :: Alex String
 popIndent = do
-    stack <- getLexerIndentLevel
-    setLexerIndentLevel (tail stack)
+    stack <- getLexerIndentStack
+    setLexerIndentStack (tail stack)
     return (head stack)
 
 

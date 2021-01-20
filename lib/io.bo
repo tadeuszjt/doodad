@@ -9,8 +9,8 @@ fn getStrLn() {:char}
 
 	while true
 		switch getchar()
-			'\n' : return str
-			c    : str = append(str, c)
+		  '\n' : return str
+		  c    : str = append(str, c)
 
 
 fn putStrLn(str {:char})
