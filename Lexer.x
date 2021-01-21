@@ -61,29 +61,33 @@ mkIndentT (p,_,_,s) len = do
 
     if lineIndent == curIndent then
         return (p, NewLine, "")
+
     else if curIndent `isPrefixOf` lineIndent then do
-        let s = fromJust (stripPrefix curIndent lineIndent)
-        pushIndent s
+        pushIndent $ fromJust (stripPrefix curIndent lineIndent)
         return (p, Indent, "")
+
     else if lineIndent `isPrefixOf` curIndent then
         return (p, Dedent, lineIndent)
+
     else
-        error ("invalid indentation of: " ++ map rep lineIndent)
+        alexError $ "invalid indentation of: " ++ concat (map rep lineIndent)
 
     where
         rep c = case c of
-            '\t' -> 't'
-            ' '  -> 's'
-            _    -> c
+            '\t' -> "<tab>"
+            ' '  -> "<space>"
+            '\n' -> "<newline>"
+            _    -> show c
 
 
-alexEOF = return (undefined, EOF, "")
+alexEOF = return (AlexPn 0 0 0, EOF, "")
 
+
+alexScanner :: String -> String -> Either String [Token]
 alexScanner filename str = runAlex str loop
     where
         loop = do
-            (p, typ, str) <- alexMonadScan
-            let AlexPn pos line col = p
+            (AlexPn pos line col, typ, str) <- alexMonadScan
             let textPos = TextPos filename pos line col
             case typ of
                 NoToken -> loop
@@ -91,17 +95,17 @@ alexScanner filename str = runAlex str loop
                 Dedent  -> do
                     toks <- dedentLoop textPos str
                     fmap (toks ++) loop
-
                 _       -> fmap (Token textPos typ str :) loop
             
         dedentLoop textPos indent = do
-            curIndent <- fmap concat getLexerIndentStack
-            if (length indent) < (length curIndent)
-            then do
+            curIndent <- fmap (concat . reverse) getLexerIndentStack
+            if indent == curIndent then
+                return []
+            else if indent `isPrefixOf` curIndent then do
                 popIndent
                 fmap (Token textPos Dedent "" :) (dedentLoop textPos indent)
-            else return []
-                
+            else
+                alexError "indentation processing error"
 
 
 data AlexUserState
@@ -111,14 +115,16 @@ data AlexUserState
 
 alexInitUserState =
     AlexUserState
-        { lexerIndentStack = [""]
+        { lexerIndentStack = []
         }
 
 getLexerIndentStack :: Alex [String]
-getLexerIndentStack = Alex $ \s@AlexState{alex_ust=ust} -> Right (s, lexerIndentStack ust)
+getLexerIndentStack = Alex $ \s@AlexState{alex_ust=ust} ->
+    Right (s, lexerIndentStack ust)
 
 setLexerIndentStack :: [String] -> Alex ()
-setLexerIndentStack i = Alex $ \s -> Right (s { alex_ust = (alex_ust s){lexerIndentStack = i}}, ())
+setLexerIndentStack i = Alex $ \s ->
+    Right (s { alex_ust = (alex_ust s){lexerIndentStack = i}}, ())
 
 
 pushIndent :: String -> Alex ()

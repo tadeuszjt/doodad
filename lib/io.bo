@@ -5,7 +5,9 @@ extern putchar(c char)
 
 
 fn getStrLn() {:char}
-	let str = {:char}()
+	let str = {
+		:char
+	}()
 
 	while true
 		switch getchar()

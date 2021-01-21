@@ -127,7 +127,6 @@ stmtB : block                                { $1 }
 
 block  : 'I' Prog_ 'D'               { S.Block (tokPosn $1) $2 }
 block_ : 'I' Prog_ 'D'               { $2 }
-       | 'I' 'D'                     { [] }
 
 
 expr   : lit                          { S.Cons $1 }
@@ -137,7 +136,7 @@ expr   : lit                          { S.Cons $1 }
        | '[' exprs ']'                { S.Array (tokPosn $1) $2 }
        | '(' exprs ')'                { S.Tuple (tokPosn $1) $2 }
        | ident '(' exprs ')'          { S.Call (tokPosn $1) (tokStr $1) $3 }
-       | type__ '(' exprs ')'         { S.Conv (tokPosn $2) $1 $3 }
+       | typeNoIdent '(' exprs ')'         { S.Conv (tokPosn $2) $1 $3 }
        | len '(' expr ')'             { S.Len (tokPosn $1) $3 }
        | append '(' expr ',' expr ')' { S.Append (tokPosn $1) $3 $5 }
        | expr '.' intlit              { S.TupleIndex (tokPosn $2) $1 (read $ tokStr $3) }
@@ -173,9 +172,9 @@ infix : expr '+' expr                { S.Infix (tokPosn $2) S.Plus $1 $3 }
       | expr '||' expr               { S.Infix (tokPosn $2) S.OrOr $1 $3 }
 
 
-type_         : type__               { $1 }
+type_         : typeNoIdent          { $1 }
               | ident                { T.Typedef (tokStr $1) }
-type__        : bool                 { T.Bool }
+typeNoIdent   : bool                 { T.Bool }
               | i16                  { T.I16 }
               | i32                  { T.I32 }
               | i64                  { T.I64 }
@@ -183,9 +182,10 @@ type__        : bool                 { T.Bool }
               | f64                  { T.F64 }
               | char                 { T.Char }
               | string               { T.String }
-              | '[' intlit rowType ']' { T.Array (read $ tokStr $2) $3 }
-              | '(' rowTypes ')'     { T.Tuple $2 }
-              | '{' rowTypes '}'     { T.Table $2 }
+              | '[' intlit ':' type_ ']'       { T.Array (read $ tokStr $2) $4 }
+              | '(' rowTypes_ ')'              { T.Tuple $2 }
+              | '{' rowTypes_ '}'              { T.Table $2 }
+              | '{' 'I' rowTypes__ 'D' '}'     { T.Table $3 }
 
 types         : {- empty -}          { [] }
               | types_               { $1 }
@@ -193,10 +193,14 @@ types_        : type_                { [$1] }
               | type_ ',' types_     { $1 : $3 }
 
 rowType       : ':' type_            { $2 }
-rowTypes      : {- empty -}          { [] }
-              | rowTypes_            { $1 }
-rowTypes_     : rowType              { [$1] }
+
+rowTypes_     : rowType                { [$1] }
               | rowType ';' rowTypes_  { $1 : $3 }
+
+rowTypes__    : rowType                { [$1] }
+              | rowType 'N' rowTypes__ { $1 : $3 }
+
+
 
 
 table     : '{' tableRows '}'       { S.Table (tokPosn $1) $2 } 
