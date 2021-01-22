@@ -87,20 +87,17 @@ modCompile modName verbose =
                         return (ModuleCompiled state)
 
 
-parse :: BoM s m => String -> String -> m S.AST
-parse filename source =
-    case L.alexScanner filename source of
-        Left  errStr -> fail errStr
-        Right tokens -> case (P.parseTokens tokens) 0 of
-            P.ParseFail pos -> throwError (ErrorFile pos "parse error")
-            P.ParseOk ast   -> return ast 
-
 
 runFiles :: BoM ModulesState m => [String] -> Bool -> m ()
 runFiles paths verbose = do
     forM_ paths $ \path -> do
         source <- liftIO (readFile path)
-        modAddAST =<< parse path source
+        let res = P.parse path source
+
+        case res of
+            Left err  -> throwError err
+            Right ast -> modAddAST ast
+
     modCompile "main" verbose
 
 

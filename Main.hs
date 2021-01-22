@@ -16,6 +16,7 @@ import           JIT
 import           Error
 import qualified AST                      as S
 import qualified Modules                  as M
+import Modules2 
 import           Monad
 
 
@@ -50,19 +51,27 @@ main = do
             forM_ sources $ \(filename, src) -> do
                 let res = L.alexScanner filename src
                 putStrLn (show res)
+
         else if sources == [] then
             error "no repl"
+
         else if astOnly args then do
             forM_ sources $ \(filename, src) -> do
-                case parse filename src of
+                case P.parse filename src of
                     Left err  -> printError err (Map.fromList sources)
                     Right ast -> S.prettyAST "" ast
 
-        else do
-            res <- runBoMT (M.initModulesState session) $ M.runFiles (filenames args) (verbose args)
-            case res of
-                Left err            -> printError err (Map.fromList sources)
-                Right (_, modState) -> when (modulesOnly args) (M.prettyModules modState)
+		else if length (filenames args) == 1 then do
+			res <- runBoMT initModulesState $ runFile (head $ filenames args)
+			return ()
+
+		else
+			error ""
+--        else do
+--            res <- runBoMT (M.initModulesState session) $ M.runFiles (filenames args) (verbose args)
+--            case res of
+--                Left err            -> printError err (Map.fromList sources)
+--                Right (_, modState) -> when (modulesOnly args) (M.prettyModules modState)
 
     where
         parseArgs :: Args -> [String] -> Args
@@ -77,13 +86,6 @@ main = do
             (a:as) -> parseArgs (parseArgs args [a]) as
 
 
-parse :: String -> String -> Either Error S.AST
-parse filename source =
-    case L.alexScanner filename source of
-        Left  errStr -> Left (ErrorStr errStr)
-        Right tokens -> case (P.parseTokens tokens) 0 of
-            P.ParseFail pos -> Left (ErrorFile pos "parse error")
-            P.ParseOk ast   -> Right ast 
 
 
 --runFile :: Session -> String -> Bool -> IO ()

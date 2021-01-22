@@ -2,8 +2,10 @@
 module Modules2 where
 
 import System.Environment
+import System.Directory
 import Control.Monad.IO.Class
 import Control.Monad.Except hiding (void, fail)
+import Data.List
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
@@ -26,17 +28,33 @@ data Modules
         }
 
 
+initModulesState
+    = Modules
+        { modMap = Map.empty
+        }
+
+
 runFile :: BoM Modules m => String -> m ()
 runFile filename = do
     source <- liftIO (readFile filename)
-    ast <- parse filename source
+    ast <- case (P.parse filename source) of
+        Left err  -> throwError err
+        Right ast -> return ast
+
+    forM_ (S.astImports ast) $ \imprt -> do
+        files <- liftIO $ getBoFilesInDirectory "lib"
+        liftIO $ putStrLn $ show files
+        return ()
+
+    
+    liftIO (S.prettyAST "" ast)
+
+    
     return ()
 
+    where
+        getBoFilesInDirectory :: FilePath -> IO [FilePath]
+        getBoFilesInDirectory dir = do
+            list <- listDirectory dir
+            return [ dir ++ "/" ++ f | f <- list, isSuffixOf ".bo" f ]
 
-parse :: BoM s m => String -> String -> m S.AST
-parse filename source =
-    case L.alexScanner filename source of
-        Left  errStr -> fail errStr
-        Right tokens -> case (P.parseTokens tokens) 0 of
-            P.ParseFail pos -> throwError (ErrorFile pos "parse error")
-            P.ParseOk ast   -> return ast 

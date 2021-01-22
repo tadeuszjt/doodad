@@ -5,6 +5,8 @@ import Error
 import qualified Type as T
 import qualified AST as S
 import qualified Data.Set as Set
+
+
 }
 
 %name      parseTokens 
@@ -63,11 +65,11 @@ import qualified Data.Set as Set
     len        { Token _ Reserved "len" }
     append     { Token _ Reserved "append" }
 
-    i64        { Token _ Reserved "i64" }
-    i32        { Token _ Reserved "i32" }
     i16        { Token _ Reserved "i16" }
-    f64        { Token _ Reserved "f64" }
+    i32        { Token _ Reserved "i32" }
+    i64        { Token _ Reserved "i64" }
     f32        { Token _ Reserved "f32" }
+    f64        { Token _ Reserved "f64" }
     bool       { Token _ Reserved "bool" }
     char       { Token _ Reserved "char" }
     string     { Token _ Reserved "string" }
@@ -249,6 +251,15 @@ else_ : else block                   { $2 }
 
 
 {
+parse :: String -> String -> Either Error S.AST
+parse filename source =
+    case alexScanner filename source of
+        Left  errStr -> Left (ErrorStr errStr)
+        Right tokens -> case (parseTokens tokens) 0 of
+            ParseFail pos -> Left (ErrorFile pos "parse error")
+            ParseOk ast   -> Right ast 
+
+
 data ParseResult a
     = ParseOk a 
     | ParseFail TextPos

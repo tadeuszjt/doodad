@@ -2,10 +2,10 @@ run: Main
 	./Main
 
 test: Main
-	./Main -a test.bo lib/io.bo
+	./Main -v test.bo 
 
 Main: Modules2.hs Table.hs Funcs.hs Print.hs State.hs Value.hs Compile.hs Monad.hs Flatten.hs Modules.hs Error.hs Main.hs Lexer.hs Parser.hs Type.hs AST.hs JIT.hs
-	ghc -package haskeline -package llvm-hs-pure -package llvm-hs -package mtl *.hs -outputdir build
+	ghc -lgc -package haskeline -package llvm-hs-pure -package llvm-hs -package mtl *.hs -outputdir build
 
 Lexer.hs: Lexer.x
 	alex Lexer.x
