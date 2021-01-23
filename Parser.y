@@ -1,7 +1,9 @@
 {
+{-# LANGUAGE FlexibleContexts #-}
 module Parser where
 import Lexer
 import Error
+import Control.Monad.Except hiding (void, fail)
 import qualified Type as T
 import qualified AST as S
 import qualified Data.Set as Set
@@ -251,13 +253,13 @@ else_ : else block                   { $2 }
 
 
 {
-parse :: String -> String -> Either Error S.AST
-parse filename source =
+parse :: MonadError Error m => String -> String -> m S.AST
+parse filename source = do
     case alexScanner filename source of
-        Left  errStr -> Left (ErrorStr errStr)
+        Left  errStr -> throwError (ErrorStr errStr)
         Right tokens -> case (parseTokens tokens) 0 of
-            ParseFail pos -> Left (ErrorFile pos "parse error")
-            ParseOk ast   -> Right ast 
+            ParseFail pos -> throwError (ErrorFile pos "parse error")
+            ParseOk ast   -> return ast 
 
 
 data ParseResult a

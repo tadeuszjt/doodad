@@ -51,6 +51,11 @@ initFlattenState
         }
 
 
+flattenASTs :: BoM FlattenState m => [S.AST] -> m ()
+flattenASTs asts = do
+    ast <- combineASTs asts
+    flattenAST ast
+
 
 combineASTs :: BoM s m => [S.AST] -> m S.AST
 combineASTs asts = do
@@ -63,8 +68,6 @@ combineASTs asts = do
         S.astStmts      = concat (map S.astStmts asts)
         }
         
-
-
 
 flattenAST :: BoM FlattenState m => S.AST -> m ()
 flattenAST ast = do
