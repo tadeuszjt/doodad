@@ -1,7 +1,7 @@
 module main
-imports lib/io
+imports std/io
+imports lang/lexer
 
 fn main()
-	let str = getStrLn()
-	putStrLn(str)
+	putStrLn({'b'})
 

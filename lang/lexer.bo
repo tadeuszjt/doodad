@@ -1,0 +1,7 @@
+module lexer
+
+imports ../std/io
+
+fn lex()
+    print(2)
+

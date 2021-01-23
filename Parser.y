@@ -48,6 +48,7 @@ import qualified Data.Set as Set
     '=='       { Token _ ReservedOp "==" }
     '&&'       { Token _ ReservedOp "&&" }
     '||'       { Token _ ReservedOp "||" }
+    '..'       { Token _ ReservedOp ".." }
 
     fn         { Token _ Reserved "fn" }
     extern     { Token _ Reserved "extern" }
@@ -116,6 +117,7 @@ Imports_ : imports importPath 'N'            { [$2] }
 
 
 importPath : ident                           { [tokStr $1] }
+           | '..'                            { [tokStr $1] }
            | importPath '/' ident            { $1 ++ [tokStr $3] }
 
 

@@ -42,30 +42,33 @@ showPath :: S.Path -> String
 showPath path = concat (intersperse "/" path)
 
 
-runMod :: BoM Modules m => Args -> S.Path -> m CompileState
-runMod args modPath = do
-    res <- fmap (Map.lookup modPath) (gets modMap)
+runMod :: BoM Modules m => Args -> Set.Set S.Path -> S.Path -> m CompileState
+runMod args visited modPath = do
+    debug "running"
+
+    path <- resolvePath modPath
+    let (dir, name) = (init path, last path)
+
+    when (Set.member path visited) $
+        fail ("importing \"" ++ showPath path ++ "\" forms a cycle")
+
+    res <- fmap (Map.lookup path) (gets modMap)
     case res of
         Just state -> return state
         Nothing    -> do
-            when (verbose args) $ liftIO $ putStrLn ("running: " ++ showPath modPath) 
-
-            let modName = last modPath
-            let modDir  = showPath (init modPath)
-
-            let dir = if null modDir then "." else modDir
-            files <- liftIO $ getSpecificModuleFiles modName =<< getBoFilesInDirectory dir
-            when (files == []) $ fail ("no files for: " ++ showPath modPath)
+            files <- liftIO $ getSpecificModuleFiles name =<< getBoFilesInDirectory (if null dir then "." else showPath dir)
+            when (null files) $ fail ("no files for: " ++ showPath path)
 
             asts <- forM files $ \file -> do
-                when (verbose args) $ liftIO $ putStrLn ("using file: " ++ file)
+                debug ("using file: " ++ file)
                 P.parse file =<< liftIO (readFile file) 
 
             -- flatten asts
             combinedAST <- combineASTs asts
             imports <- fmap Map.fromList $ forM (S.astImports combinedAST) $ \importPath -> do
-                when (verbose args) $ liftIO $ putStrLn (showPath modPath ++ " importing " ++ showPath importPath)
-                state <- runMod args importPath
+                resPath <- resolvePath (dir ++ importPath)
+                debug ("importing : " ++ showPath importPath)
+                state <- runMod args (Set.insert path visited) resPath
                 return (importPath, state)
 
             flatRes <- runBoMT initFlattenState (flattenAST combinedAST)
@@ -74,11 +77,27 @@ runMod args modPath = do
                 Right ((), flatState) -> return flatState
 
             -- compile and run
+            debug ("compiling : " ++ showPath path)
             session <- gets session
             state <- compileFlatState (JIT.context session) (JIT.dataLayout session) imports flat
-            liftIO $ jitAndRun (definitions state) session True (verbose args)
-            modify $ \s -> s { modMap = Map.insert modPath state (modMap s) }
+            liftIO $ jitAndRun (definitions state) session True (printLLIR args) 
+            modify $ \s -> s { modMap = Map.insert path state (modMap s) }
             return state
+
+
+    where
+        debug str =
+            when (verbose args) $
+                liftIO $ putStrLn (showPath modPath ++ " -> " ++ str)
+
+
+resolvePath :: BoM s m => S.Path -> m S.Path
+resolvePath path = case path of
+    ("..":_)    -> fail ("cannot resolve directory: " ++ showPath path)
+    (x:"..":xs) -> resolvePath xs
+    (".":xs)    -> resolvePath xs
+    (x:xs)      -> fmap (x:) (resolvePath xs)
+    _           -> return []
 
 
 getBoFilesInDirectory :: FilePath -> IO [FilePath]
