@@ -102,8 +102,8 @@ data Stmt
     | If TextPos Expr Stmt (Maybe Stmt)
     | While  TextPos Expr [Stmt]
     | Switch TextPos Expr [(Pattern, Stmt)]
-    | Func TextPos Symbol [Param] (Maybe Type) [Stmt]
-    | Extern TextPos Symbol [Param] (Maybe Type)
+    | Func TextPos Symbol [Param] Type [Stmt]
+    | Extern TextPos Symbol [Param] Type
     | Typedef TextPos Symbol Type
     deriving (Show, Eq)
 

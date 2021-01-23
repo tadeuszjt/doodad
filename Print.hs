@@ -3,18 +3,17 @@ module Print where
 
 import Control.Monad
 
+import LLVM.IRBuilder.Monad
+import LLVM.IRBuilder.Instruction
+import LLVM.IRBuilder.Constant
+
+import qualified AST as S
 import Value
 import CompileState
 import Monad
 import Funcs
 import Table
 import Type 
-import qualified AST as S
-
-import LLVM.IRBuilder.Monad
-import LLVM.IRBuilder.Instruction
-import LLVM.IRBuilder.Constant
-import qualified LLVM.AST.IntegerPredicate as P
 
 
 valPrint :: InsCmp CompileState m => String -> Value -> m ()

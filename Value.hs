@@ -236,6 +236,7 @@ sizeOf typ = size =<< opTypeOf =<< baseTypeOf typ
 
 opTypeOf :: ModCmp CompileState m => Type -> m LL.Type
 opTypeOf typ = case typ of
+    Void      -> return LL.VoidType
     I16       -> return LL.i16
     I32       -> return LL.i32
     I64       -> return LL.i64

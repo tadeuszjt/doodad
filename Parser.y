@@ -125,16 +125,16 @@ importPath : ident                           { [tokStr $1] }
 stmtS : let pattern '=' expr                 { S.Assign (tokPosn $1) $2 $4 }  
       | index '=' expr                       { S.Set (tokPosn $2) $1 $3 }
       | type ident '=' type_                 { S.Typedef (tokPosn $2) (tokStr $2) $4 }
-      | extern ident '(' params ')' type_    { S.Extern (tokPosn $2) (tokStr $2) $4 (Just $6) }
-      | extern ident '(' params ')'          { S.Extern (tokPosn $2) (tokStr $2) $4 Nothing }
+      | extern ident '(' params ')' type_    { S.Extern (tokPosn $2) (tokStr $2) $4 $6 }
+      | extern ident '(' params ')'          { S.Extern (tokPosn $2) (tokStr $2) $4 T.Void }
       | ident '(' exprs ')'                  { S.CallStmt (tokPosn $1) (tokStr $1) $3 }
       | print '(' exprs ')'                  { S.Print (tokPosn $1) $3 }
       | return                               { S.Return (tokPosn $1) Nothing }
       | return expr                          { S.Return (tokPosn $1) (Just $2) }
 stmtB : block                                { $1 }
       | If                                   { $1 }
-      | fn ident '(' params ')' block_       { S.Func (tokPosn $1) (tokStr $2) $4 Nothing $6 }
-      | fn ident '(' params ')' type_ block_ { S.Func (tokPosn $1) (tokStr $2) $4 (Just $6) $7 }
+      | fn ident '(' params ')' block_       { S.Func (tokPosn $1) (tokStr $2) $4 T.Void $6 }
+      | fn ident '(' params ')' type_ block_ { S.Func (tokPosn $1) (tokStr $2) $4 $6 $7 }
       | switch expr 'I' cases 'D'            { S.Switch (tokPosn $1) $2 $4 }
       | while expr block_                    { S.While (tokPosn $1) $2 $3 }
 

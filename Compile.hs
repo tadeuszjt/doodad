@@ -82,7 +82,7 @@ cmpVarDef (S.Assign pos pat expr) = do
 
 
 cmpExternDef :: InsCmp CompileState m => S.Stmt -> m ()
-cmpExternDef (S.Extern pos sym params mretty) = do
+cmpExternDef (S.Extern pos sym params retty) = do
     checkSymUndef sym 
     let name = LL.mkName sym
     let paramTypes = map S.paramType params
@@ -93,16 +93,16 @@ cmpExternDef (S.Extern pos sym params mretty) = do
         addObj s KeyVar $ ObjVal (valBool False)
         opTypeOf t
 
-    returnOpType <- maybe (return LL.VoidType) opTypeOf mretty
+    returnOpType <- opTypeOf retty
     popSymTab
 
     addSymKeyDec sym (KeyFunc paramTypes) name (DecExtern paramOpTypes returnOpType False)
     let op = fnOp name paramOpTypes returnOpType False
-    addObj sym (KeyFunc paramTypes) (ObjExtern paramTypes mretty op)
+    addObj sym (KeyFunc paramTypes) (ObjExtern paramTypes retty op)
 
 
 cmpFuncDef :: (MonadFail m, Monad m, MonadIO m) => S.Stmt -> InstrCmpT CompileState m ()
-cmpFuncDef (S.Func pos sym params mretty blk) = withPos pos $ do
+cmpFuncDef (S.Func pos sym params retty blk) = withPos pos $ do
     let paramTypes = map S.paramType params
     let symKey     = KeyFunc paramTypes
     checkSymKeyUndef sym symKey
@@ -115,16 +115,16 @@ cmpFuncDef (S.Func pos sym params mretty blk) = withPos pos $ do
         let paramName = mkBSS s
         return (opTyp, ParameterName paramName, s)
 
-    returnOpType <- maybe (return LL.VoidType) opTypeOf mretty
+    returnOpType <- opTypeOf retty
 
     let op = fnOp name paramOpTypes returnOpType False
-    addObj sym symKey (ObjFunc mretty op) 
+    addObj sym symKey (ObjFunc retty op) 
     addSymKeyDec sym (KeyFunc paramTypes) name (DecFunc paramOpTypes returnOpType)
     addDeclared name
 
     pushSymTab
     curRetty <- gets curRetType
-    modify $ \s -> s { curRetType = maybe Void id mretty }
+    modify $ \s -> s { curRetType = retty }
     void $ InstrCmpT . IRBuilderT . lift $ func name (zip paramOpTypes paramNames) returnOpType $ \paramOps -> do
         (flip named) nameStr $ do
             forM_ (zip3 paramTypes paramOps paramSyms) $ \(typ, op, sym) -> do
@@ -253,8 +253,10 @@ cmpExpr expr = case expr of
             ObjConstructor typ -> cmpConstructor typ vals
             _                  -> do
                 (op, typ) <- case res of
-                    ObjFunc (Just typ) op     -> return (op, typ)
-                    ObjExtern _ (Just typ) op -> return (op, typ)
+                    ObjFunc Void _     -> fail "cannot use void function as expression"
+                    ObjExtern _ Void _ -> fail "cannot use void function as expression"
+                    ObjFunc typ op     -> return (op, typ)
+                    ObjExtern _ typ op -> return (op, typ)
 
                 fmap (Val typ) $ call op [(o, []) | o <- map valOp vals]
             

@@ -1,40 +1,30 @@
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE AllowAmbiguousTypes #-}
-{-# LANGUAGE OverloadedStrings #-}
 module CompileState where
 
-import qualified Data.ByteString.Char8      as BS
-import qualified Data.ByteString.Short      as BSS
-
-import           Data.Maybe
-import           Control.Monad.Except       hiding (void)
-import           Control.Monad.State        hiding (void)
-import           Control.Monad.Trans
-import           Control.Monad.Fail         hiding (fail)
-import           Control.Monad.Identity     
 import qualified Data.Set as Set
 import qualified Data.Map as Map
-import           LLVM.AST                   hiding (function)
-import           LLVM.AST.Global
-import           LLVM.AST.Constant          as C
-import           LLVM.AST.Type              hiding (void)
-import qualified LLVM.AST.Constant          as C
-import           LLVM.IRBuilder.Module
-import           LLVM.IRBuilder.Monad
-import           LLVM.Context
-import qualified LLVM.Internal.FFI.DataLayout   as FFI
-import           Foreign.Ptr
+import Data.Maybe
+import Control.Monad
+import Control.Monad.Except hiding (void)
+import Control.Monad.State hiding (void)
+
+import qualified LLVM.AST.Constant as C
+import qualified LLVM.Internal.FFI.DataLayout as FFI
+import LLVM.AST hiding (function)
+import LLVM.AST.Global
+import LLVM.AST.Constant as C
+import LLVM.AST.Type hiding (void)
+import LLVM.IRBuilder.Module
+import LLVM.IRBuilder.Monad
+import LLVM.Context
+import Foreign.Ptr
 
 import qualified AST as S
+import qualified Type as T
+import qualified SymTab
+import qualified JIT
 import Monad
 import Error
-import qualified JIT
-import qualified SymTab
-import qualified Type as T
-
 
 data Value
     = Val { valType :: T.Type, valOp  :: Operand }
@@ -51,10 +41,10 @@ data SymKey
 
 
 data Object
-    = ObjVal    Value
-    | ObType    T.Type         (Maybe Name)
-    | ObjFunc   (Maybe T.Type) Operand
-    | ObjExtern [T.Type]       (Maybe T.Type) Operand
+    = ObjVal         Value
+    | ObType         T.Type   (Maybe Name)
+    | ObjFunc        T.Type   Operand
+    | ObjExtern      [T.Type] T.Type Operand
     | ObjConstructor T.Type
     deriving (Show)
 
