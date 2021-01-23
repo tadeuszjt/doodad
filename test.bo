@@ -1,5 +1,5 @@
 module main
-imports "lib/io"
+imports lib/io
 
 fn main()
 	let str = getStrLn()

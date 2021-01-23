@@ -15,9 +15,8 @@ import qualified Parser                   as P
 import           JIT
 import           Error
 import qualified AST                      as S
-import qualified Modules                  as M
-import Modules2 
-import           Monad
+import Modules
+import Monad
 
 
 data Args = Args
@@ -61,12 +60,12 @@ main = do
                     Left err  -> printError err (Map.fromList sources)
                     Right ast -> S.prettyAST "" ast
 
-		else if length (filenames args) == 1 then do
-			res <- runBoMT initModulesState $ runFile (head $ filenames args)
-			return ()
+        else if length (filenames args) == 1 then do
+            res <- runBoMT (initModulesState session) $ runMod ["main"]
+            return ()
 
-		else
-			error ""
+        else
+            error ""
 --        else do
 --            res <- runBoMT (M.initModulesState session) $ M.runFiles (filenames args) (verbose args)
 --            case res of

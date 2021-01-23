@@ -69,7 +69,7 @@ data CompileState
     = CompileState
         { context      :: Context
         , dataLayout   :: Ptr FFI.DataLayout
-        , imports      :: Map.Map S.ModuleName CompileState
+        , imports      :: Map.Map S.Path CompileState
         , decMap       :: Map.Map (S.Symbol, SymKey) Name
         , declarations :: Map.Map Name Declaration
         , declared     :: Set.Set Name
@@ -79,11 +79,11 @@ data CompileState
         , posStack     :: [TextPos]
         }
 
-initCompileState ctx dl
+initCompileState ctx dl imports
      = CompileState
         { context      = ctx
         , dataLayout   = dl
-        , imports      = Map.empty
+        , imports      = imports
         , decMap       = Map.empty
         , declarations = Map.empty
         , declared     = Set.empty

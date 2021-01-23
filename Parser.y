@@ -99,18 +99,25 @@ import qualified Data.Set as Set
     %%
 
 
-Prog  : Prog_                                { S.AST { S.astModuleName = Nothing, S.astStmts = $1, S.astImports = Set.empty} }
-      | module ident 'N' Imports Prog_       { S.AST { S.astModuleName = Just (tokStr $2), S.astStmts = $5, S.astImports = Set.fromList $4 } }
+Prog  : Prog_                                { S.AST Nothing [] $1 }
+      | module ident 'N' Imports Prog_       { S.AST (Just (tokStr $2)) $4 $5 }
 Prog_ : stmtS                                { [$1] }
       | stmtB                                { [$1] }
       | stmtS 'N' Prog_                      { $1 : $3 }
       | stmtB  Prog_                         { $1 : $2 }
 
 
+
 Imports  : {- empty -}                       { [] }
          | Imports_                          { $1 }
-Imports_ : imports strlit 'N'                { [(tokStr $2)] }
-         | imports strlit 'N' Imports_       { (tokStr $2) : $4 }
+Imports_ : imports importPath 'N'            { [$2] }
+         | imports importPath 'N' Imports_   { $2 : $4 }
+
+
+
+importPath : ident                           { [tokStr $1] }
+           | importPath '/' ident            { $1 ++ [tokStr $3] }
+
 
 
 stmtS : let pattern '=' expr                 { S.Assign (tokPosn $1) $2 $4 }  

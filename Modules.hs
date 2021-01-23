@@ -1,115 +1,105 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE FlexibleContexts #-}
-
 module Modules where
 
-import Control.Monad.State hiding (fail)
+import System.Environment
+import System.Directory
+import Control.Monad.State
+import Control.Monad.IO.Class
 import Control.Monad.Except hiding (void, fail)
-
+import Data.List
+import Data.Char
+import Data.Maybe
 import qualified Data.Map as Map
 import qualified Data.Set as Set
-import Data.Maybe
 
-import           Error
-import qualified SymTab
 import qualified AST as S
-import qualified Lexer as L
 import qualified Parser as P
-import qualified Flatten as F
-import qualified Compile as C
-import qualified CompileState as C
-import           Monad
-import           JIT
+import qualified Lexer as L
+import Flatten
+import Monad
+import Error
+import JIT
+import Compile
+import CompileState
 
 
-data Module
-    = ModuleAST      [S.AST]
-    | ModuleCompiled C.CompileState
-
-
-data ModulesState
-    = ModulesState
-        { modMap  :: Map.Map S.ModuleName Module
+data Modules
+    = Modules
+        { modMap  :: Map.Map S.Path CompileState
         , session :: JIT.Session
         }
 
+
 initModulesState session
-    = ModulesState
+    = Modules
         { modMap  = Map.empty
         , session = session
         }
 
 
-modModify :: BoM ModulesState m => S.ModuleName -> (Maybe Module -> m Module) -> m ()
-modModify modName f = do
-    res <- fmap (Map.lookup modName) (gets modMap)
-    mod' <- f res
-    modify $ \s -> s { modMap = Map.insert modName mod' (modMap s) }
+showPath :: S.Path -> String
+showPath path = concat (intersperse "/" path)
 
 
-modAddAST :: BoM ModulesState m => S.AST -> m ()
-modAddAST ast = do
-    let name = maybe "main" id (S.astModuleName ast)
-    modModify name $ \res -> case res of
-        Nothing               -> return (ModuleAST [ast])
-        Just (ModuleAST asts) -> return (ModuleAST (ast : asts))
+runMod :: BoM Modules m => S.Path -> m CompileState
+runMod modPath = do
+    res <- fmap (Map.lookup modPath) (gets modMap)
+    case res of
+        Just state -> return state
+        Nothing    -> do
+            liftIO $ putStrLn ("running mod: " ++ showPath modPath) 
+
+            let modName = last modPath
+            let modDir  = showPath (init modPath)
+
+            let dir = if null modDir then "." else modDir
+            files <- liftIO $ getSpecificModuleFiles modName =<< getBoFilesInDirectory dir
+            when (null files) $ fail ("no files for: " ++ showPath modPath)
+
+            asts <- forM files $ \file -> do
+                liftIO $ putStrLn ("using file: " ++ file)
+                P.parse file =<< liftIO (readFile file) 
+
+            -- flatten asts
+            combinedAST <- combineASTs asts
+            imports <- fmap Map.fromList $ forM (S.astImports combinedAST) $ \importPath -> do
+                liftIO $ putStrLn (showPath modPath ++ " importing " ++ showPath importPath)
+                state <- runMod importPath
+                return (importPath, state)
+
+            flatRes <- runBoMT initFlattenState (flattenAST combinedAST)
+            flat <- case flatRes of
+                Left err              -> throwError err
+                Right ((), flatState) -> return flatState
+
+            -- compile and run
+            session <- gets session
+            state <- compileFlatState (JIT.context session) (JIT.dataLayout session) imports flat
+            liftIO $ jitAndRun (definitions state) session True True
+            modify $ \s -> s { modMap = Map.insert modPath state (modMap s) }
+            return state
 
 
-modCompile :: BoM ModulesState m => S.ModuleName -> Bool -> m ()
-modCompile modName verbose = 
-    modCompileDep modName Set.empty
-    where
-        modCompileDep :: BoM ModulesState m => S.ModuleName -> Set.Set S.ModuleName -> m ()
-        modCompileDep name visited = do
-            when (Set.member name visited) $ fail ("circular dependency involving " ++ name)
-
-            modModify name $ \res -> do
-                when (isNothing res) $ fail ("module " ++ name ++ "doesn't exist")
-                let ModuleAST asts = fromJust res
-
-                combinedAST <- F.combineASTs asts
-                let imports = S.astImports combinedAST
-                res  <- runBoMT F.initFlattenState (F.flattenAST combinedAST)
-                case res of
-                    Left err              -> throwError err
-                    Right ((), flatState) -> do
-                        cmpImps <- forM (Set.toList $ imports) $ \imp -> do
-                            modCompileDep imp (Set.insert name visited)
-                            ModuleCompiled cmpState <- fmap (Map.! imp) (gets modMap)
-                            return (imp, cmpState)
-
-                        ctx <- fmap JIT.context (gets session)
-                        dl <- fmap JIT.dataLayout (gets session)
-
-                        state <- C.compileFlatState ctx dl (Map.fromList cmpImps) flatState
-                        sess <- gets session
-                        liftIO $ jitAndRun (C.definitions state) sess True verbose
-                        return (ModuleCompiled state)
+getBoFilesInDirectory :: FilePath -> IO [FilePath]
+getBoFilesInDirectory dir = do
+    list <- listDirectory dir
+    return [ dir ++ "/" ++ f | f <- list, isSuffixOf ".bo" f ]
 
 
+getSpecificModuleFiles :: String -> [FilePath] -> IO [FilePath]
+getSpecificModuleFiles name []     = return []
+getSpecificModuleFiles name (f:fs) = do
+    source <- readFile f
+    ast <- case (P.parse f source) of
+        Left err  -> error (show err)
+        Right ast -> return ast
 
-runFiles :: BoM ModulesState m => [String] -> Bool -> m ()
-runFiles paths verbose = do
-    forM_ paths $ \path -> do
-        source <- liftIO (readFile path)
-        let res = P.parse path source
-
-        case res of
-            Left err  -> throwError err
-            Right ast -> modAddAST ast
-
-    modCompile "main" verbose
+    if fromJust (S.astModuleName ast) == name then
+        fmap (f :) (getSpecificModuleFiles name fs)
+    else
+        getSpecificModuleFiles name fs
 
 
-prettyModules :: ModulesState -> IO ()
-prettyModules modules = do
-    forM_ (Map.toList $ modMap modules) $ \(modName, mod) -> do
-        case mod of
-            ModuleAST asts -> do
-                putStrLn "ModuleAST"
-                mapM_ (S.prettyAST "\t") asts
-            ModuleCompiled state -> do
-                putStrLn ("ModuleCompiled " ++ modName)
-                C.prettyCompileState state
-        putStrLn ""
+    
+    
 

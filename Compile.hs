@@ -38,15 +38,14 @@ compileFlatState
     :: BoM s m
     => Context
     -> Ptr FFI.DataLayout
-    -> Map.Map S.ModuleName CompileState
+    -> Map.Map S.Path CompileState
     -> F.FlattenState
     -> m CompileState
-compileFlatState ctx dl importCompiled flatState = do
-    let initState = (initCompileState ctx dl) { imports = importCompiled }
-    res <- runBoMT initState (runModuleCmpT emptyModuleBuilder f)
+compileFlatState ctx dl imports flatState = do
+    res <- runBoMT (initCompileState ctx dl imports) (runModuleCmpT emptyModuleBuilder f)
     case res of
-        Left err                  -> throwError err
-        Right (((), defs), state) -> return $ state { definitions = defs }
+        Left err                 -> throwError err
+        Right ((_, defs), state) -> return $ state { definitions = defs }
     where
             f :: (MonadFail m, Monad m, MonadIO m) => ModuleCmpT CompileState m ()
             f = void $ func "main" [] LL.VoidType $ \_ ->

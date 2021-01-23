@@ -10,11 +10,12 @@ import qualified Data.Set as Set
 
 type ModuleName = String
 type Symbol     = String
+type Path       = [String]
 
 
 data AST =
     AST { astModuleName :: Maybe ModuleName
-        , astImports    :: Set.Set ModuleName
+        , astImports    :: [Path]
         , astStmts      :: [Stmt]
         }
     deriving (Show)

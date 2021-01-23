@@ -33,7 +33,7 @@ data SymObj
 
 data FlattenState
     = FlattenState
-        { imports    :: Set.Set S.ModuleName
+        { imports    :: [[S.ModuleName]]
         , typeDefs   :: Map.Map FlatSym (TextPos, T.Type)
         , varDefs    :: [S.Stmt]
         , funcDefs   :: [S.Stmt]
@@ -43,7 +43,7 @@ data FlattenState
 
 initFlattenState 
     = FlattenState
-        { imports    = Set.empty
+        { imports    = []
         , typeDefs   = Map.empty
         , varDefs    = []
         , funcDefs   = []
@@ -64,7 +64,7 @@ combineASTs asts = do
 
     return S.AST {
         S.astModuleName = head modNames,
-        S.astImports    = foldr1 Set.union (map S.astImports asts),
+        S.astImports    = Set.toList $ Set.fromList $ concat (map S.astImports asts),
         S.astStmts      = concat (map S.astStmts asts)
         }
         
