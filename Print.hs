@@ -21,7 +21,7 @@ valPrint append val = case valType val of
     Typedef s -> do
         printf (s ++ "(") []
         base <- valBaseType val
-        valPrint ")" (val { valType = base }) 
+        valPrint (")" ++ append) (val { valType = base }) 
 
     I64 -> do
         Val _ op <- valLoad val
