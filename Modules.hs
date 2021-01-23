@@ -21,6 +21,7 @@ import Error
 import JIT
 import Compile
 import CompileState
+import Args
 
 
 data Modules
@@ -41,30 +42,30 @@ showPath :: S.Path -> String
 showPath path = concat (intersperse "/" path)
 
 
-runMod :: BoM Modules m => S.Path -> m CompileState
-runMod modPath = do
+runMod :: BoM Modules m => Args -> S.Path -> m CompileState
+runMod args modPath = do
     res <- fmap (Map.lookup modPath) (gets modMap)
     case res of
         Just state -> return state
         Nothing    -> do
-            liftIO $ putStrLn ("running mod: " ++ showPath modPath) 
+            when (verbose args) $ liftIO $ putStrLn ("running: " ++ showPath modPath) 
 
             let modName = last modPath
             let modDir  = showPath (init modPath)
 
             let dir = if null modDir then "." else modDir
             files <- liftIO $ getSpecificModuleFiles modName =<< getBoFilesInDirectory dir
-            when (null files) $ fail ("no files for: " ++ showPath modPath)
+            when (files == []) $ fail ("no files for: " ++ showPath modPath)
 
             asts <- forM files $ \file -> do
-                liftIO $ putStrLn ("using file: " ++ file)
+                when (verbose args) $ liftIO $ putStrLn ("using file: " ++ file)
                 P.parse file =<< liftIO (readFile file) 
 
             -- flatten asts
             combinedAST <- combineASTs asts
             imports <- fmap Map.fromList $ forM (S.astImports combinedAST) $ \importPath -> do
-                liftIO $ putStrLn (showPath modPath ++ " importing " ++ showPath importPath)
-                state <- runMod importPath
+                when (verbose args) $ liftIO $ putStrLn (showPath modPath ++ " importing " ++ showPath importPath)
+                state <- runMod args importPath
                 return (importPath, state)
 
             flatRes <- runBoMT initFlattenState (flattenAST combinedAST)
@@ -75,7 +76,7 @@ runMod modPath = do
             -- compile and run
             session <- gets session
             state <- compileFlatState (JIT.context session) (JIT.dataLayout session) imports flat
-            liftIO $ jitAndRun (definitions state) session True True
+            liftIO $ jitAndRun (definitions state) session True (verbose args)
             modify $ \s -> s { modMap = Map.insert modPath state (modMap s) }
             return state
 
