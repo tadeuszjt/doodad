@@ -3,5 +3,5 @@ imports std/io
 imports lang/lexer
 
 fn main()
-	putStrLn({'b'})
+    print(getNextToken())
 

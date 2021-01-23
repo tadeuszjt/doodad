@@ -30,17 +30,15 @@ data Error
     deriving (Show)
 
 
-printError :: Error -> Map.Map String String -> IO ()
-printError err srcFiles = case err of
+printError :: Error -> IO ()
+printError err = case err of
     ErrorStr str      -> putStrLn ("error: " ++ str)
     ErrorFile pos str -> do
-        let TextPos filename p l c = pos
-        let srcm = Map.lookup filename srcFiles
-        case srcm of
-            Nothing  -> putStrLn ("error (no source for: " ++ filename ++ "): " ++ str)
-            Just src -> do
-                let sourceLines   = lines src
-                putStrLn ("error " ++ show pos ++ " " ++ str ++ ":")
-                unless (l < 2) $ putStrLn (sourceLines !! (l-2))
-                unless (l < 1) $ putStrLn (sourceLines !! (l-1))
-                putStrLn (replicate (c-1) '-' ++ "^")
+        let TextPos path p l c = pos
+        sourceLines <- fmap lines (readFile path)
+        
+        putStrLn ("error " ++ show pos ++ " " ++ str ++ ":")
+        unless (l < 3) $ putStrLn (sourceLines !! (l-3))
+        unless (l < 2) $ putStrLn (sourceLines !! (l-2))
+        unless (l < 1) $ putStrLn (sourceLines !! (l-1))
+        putStrLn (replicate (c-1) '-' ++ "^")

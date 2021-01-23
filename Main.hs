@@ -21,5 +21,5 @@ main = do
         forM_ (modPaths args) $ \path -> do
             res <- runBoMT (initModulesState session) $ runMod args Set.empty (splitOn "/" path)
             case res of
-                Left err -> printError err Map.empty
+                Left err -> printError err 
                 Right _  -> return ()

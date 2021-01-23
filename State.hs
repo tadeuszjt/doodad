@@ -55,7 +55,9 @@ data Object
     | ObType    T.Type         (Maybe Name)
     | ObjFunc   (Maybe T.Type) Operand
     | ObjExtern [T.Type]       (Maybe T.Type) Operand
+    | ObjConstructor T.Type
     deriving (Show)
+
 
 
 data Declaration
@@ -205,7 +207,7 @@ look sym key = do
         Nothing  -> do
             r <- fmap (catMaybes . map (SymTab.lookupSymKey sym key . symTab) . Map.elems) (gets imports)
             case r of
-                [] -> error ("no obj for: " ++ sym)
+                []  -> fail ("no obj for: " ++ sym)
                 [x] -> return x
 
 

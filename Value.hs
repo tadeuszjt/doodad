@@ -40,6 +40,7 @@ valsInfix operator a b = do
                 S.Minus  -> fmap (Val typ) (sub opA opB)
                 S.Times  -> fmap (Val typ) (mul opA opB)
                 S.Divide -> fmap (Val typ) (sdiv opA opB)
+                S.GT     -> fmap (Val Bool) (icmp P.SGT opA opB)
                 S.LT     -> fmap (Val Bool) (icmp P.SLT opA opB)
                 S.GTEq   -> fmap (Val Bool) (icmp P.SGE opA opB)
                 S.LTEq   -> fmap (Val Bool) (icmp P.SLE opA opB)
@@ -165,9 +166,10 @@ valMemCpy (Ptr dstTyp dst) (Ptr srcTyp src) len = do
 
 checkTypesMatch :: BoM CompileState m => Type -> Type -> m ()
 checkTypesMatch typA typB
-    | isSimple typA = assert (typA == typB) str
-    | isTable typA  = assert (typA == typB) str
-    | isTuple typA  = assert (typA == typB) str
+    | isSimple typA  = assert (typA == typB) str
+    | isTable typA   = assert (typA == typB) str
+    | isTuple typA   = assert (typA == typB) str
+    | isTypedef typA = assert (typA == typB) str
     | otherwise     = error (show typA)
     where
         str = show typA ++ " does not match " ++ show typB
@@ -189,6 +191,16 @@ valBaseType :: ModCmp CompileState m => Value -> m Type
 valBaseType = baseTypeOf . valType
 
 
+
+pureTypeOf :: ModCmp CompileState m => Type -> m Type
+pureTypeOf (Typedef s) = do
+    ObType t _ <- look s KeyType
+    pureTypeOf t
+pureTypeOf typ
+    | isSimple typ = return typ
+
+
+
 zeroOf :: ModCmp CompileState m => Type -> m Value
 zeroOf typ
     | isInt typ   = return (valInt typ 0)
@@ -205,6 +217,8 @@ zeroOf typ
     | isArray typ = do
         let Array n t = typ
         fmap (Val typ . array) $ replicateM (fromIntegral n) $ fmap (toCons . valOp) (zeroOf t)
+
+    | isTypedef typ = zeroOf =<< baseTypeOf typ
 
     | otherwise     = fail ("no zero val for: " ++ show typ)
 

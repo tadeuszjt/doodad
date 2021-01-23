@@ -53,30 +53,27 @@ compileFlatState ctx dl imports flatState = do
 
             cmp :: (MonadFail m, Monad m, MonadIO m) => InstrCmpT CompileState m ()
             cmp = do
-                forM_ (Map.toList $ F.typeDefs flatState) $ \(flat, (pos, typ)) -> cmpTypeDef flat pos typ
+                forM_ (Map.toList $ F.typeDefs flatState) $ \(flat, (pos, typ)) -> cmpTypeDef (S.Typedef pos flat typ)
                 mapM_ cmpVarDef (F.varDefs flatState)
                 mapM_ cmpExternDef (F.externDefs flatState)
                 mapM_ cmpFuncDef (F.funcDefs flatState)
 
 
-cmpTypeDef :: InsCmp CompileState m => S.Symbol-> TextPos -> Type -> m ()
-cmpTypeDef sym pos typ = do
+cmpTypeDef :: InsCmp CompileState m => S.Stmt -> m ()
+cmpTypeDef (S.Typedef pos sym typ) = do
     checkSymKeyUndef sym KeyType
+    checkSymKeyUndef sym (KeyFunc [typ])
+    addObj sym (KeyFunc [typ]) (ObjConstructor (Typedef sym))
     case typ of
-        I8        -> addObj sym KeyType (ObType typ Nothing)
-        I32       -> addObj sym KeyType (ObType typ Nothing)
-        I64       -> addObj sym KeyType (ObType typ Nothing)
-        Bool      -> addObj sym KeyType (ObType typ Nothing)
-        Typedef f -> addObj sym KeyType (ObType typ Nothing)
-        Tuple ts  -> do
+        Tuple ts -> do
             name <- freshName (mkBSS sym)
             opTyp <- opTypeOf typ
             typedef name (Just opTyp)
             addDeclared name
             addSymKeyDec sym KeyType name DecType
             addObj sym KeyType $ ObType typ (Just name)
-        _ -> error (show typ)
-    return ()
+
+        _ -> addObj sym KeyType (ObType typ Nothing)
 
 
 cmpVarDef :: InsCmp CompileState m => S.Stmt -> m ()
@@ -238,17 +235,29 @@ cmpStmt stmt = case stmt of
     _ -> error (show stmt)
 
 
+cmpConstructor :: InsCmp CompileState m => Type -> [Value] -> m Value
+cmpConstructor typ []    = zeroOf typ
+cmpConstructor typ [val] = do
+    pureType    <- pureTypeOf typ
+    pureValType <- pureTypeOf (valType val)
+    checkTypesMatch pureType pureValType
+    return $ Val typ (valOp val)
+
+
 cmpExpr :: InsCmp CompileState m =>  S.Expr -> m Value
 cmpExpr expr = case expr of
     S.Call pos sym exprs -> withPos pos $ do
         vals <- mapM valLoad =<< mapM cmpExpr exprs
         res <- look sym $ KeyFunc (map valType vals)
-        (op, typ) <- case res of
-            ObjFunc (Just typ) op     -> return (op, typ)
-            ObjExtern _ (Just typ) op -> return (op, typ)
+        case res of
+            ObjConstructor typ -> cmpConstructor typ vals
+            _                  -> do
+                (op, typ) <- case res of
+                    ObjFunc (Just typ) op     -> return (op, typ)
+                    ObjExtern _ (Just typ) op -> return (op, typ)
 
-        fmap (Val typ) $ call op [(o, []) | o <- map valOp vals]
-        
+                fmap (Val typ) $ call op [(o, []) | o <- map valOp vals]
+            
     S.Cons c -> case c of
         S.Int pos n  -> return (valI64 n)
         S.Bool pos b -> return (valBool b)

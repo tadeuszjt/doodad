@@ -2,6 +2,13 @@ module lexer
 
 imports ../std/io
 
-fn lex()
-    print(2)
+
+type Token = i64
+
+let TokenSym = Token(1)
+
+
+fn getNextToken() Token
+    return Token(2)
+
 

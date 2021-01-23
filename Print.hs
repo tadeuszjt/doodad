@@ -19,6 +19,11 @@ import qualified LLVM.AST.IntegerPredicate as P
 
 valPrint :: InsCmp CompileState m => String -> Value -> m ()
 valPrint append val = case valType val of
+    Typedef s -> do
+        printf (s ++ "(") []
+        base <- valBaseType val
+        valPrint ")" (val { valType = base }) 
+
     I64 -> do
         Val _ op <- valLoad val
         void $ printf ("%d" ++ append) [op]
