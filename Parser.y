@@ -196,7 +196,7 @@ typeNoIdent   : bool                 { T.Bool }
               | char                 { T.Char }
               | string               { T.String }
               | '[' intlit ':' type_ ']'       { T.Array (read $ tokStr $2) $4 }
-              | '(' rowTypes_ ')'              { T.Tuple $2 }
+              | '(' tupTypes ')'               { T.Tuple $2 }
               | '{' rowTypes_ '}'              { T.Table $2 }
               | '{' 'I' rowTypes__ 'D' '}'     { T.Table $3 }
 
@@ -212,6 +212,10 @@ rowTypes_     : rowType                { [$1] }
 
 rowTypes__    : rowType                { [$1] }
               | rowType 'N' rowTypes__ { $1 : $3 }
+
+
+tupTypes : rowType              { [$1] }
+         | rowType ',' tupTypes { $1 : $3 }
 
 
 

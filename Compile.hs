@@ -64,6 +64,8 @@ cmpTypeDef (S.Typedef pos sym typ) = do
     checkSymKeyUndef sym KeyType
     checkSymKeyUndef sym (KeyFunc [typ])
     addObj sym (KeyFunc [typ]) (ObjConstructor (Typedef sym))
+    addObj sym (KeyFunc []) (ObjConstructor (Typedef sym))
+
     case typ of
         Tuple ts -> do
             name <- freshName (mkBSS sym)
@@ -119,9 +121,7 @@ cmpFuncDef :: (MonadFail m, Monad m, MonadIO m) => S.Stmt -> InstrCmpT CompileSt
 cmpFuncDef (S.Func pos "main" params retty blk) = withPos pos $ do
     assert (params == [])  "main cannot have parameters"
     assert (retty == Void) "main must return void"
-    pushSymTab
-    mapM_ cmpStmt blk
-    popSymTab
+    pushSymTab >> mapM_ cmpStmt blk >> popSymTab
 cmpFuncDef (S.Func pos sym params retty blk) = withPos pos $ do
     let paramTypes = map S.paramType params
     let symKey     = KeyFunc paramTypes

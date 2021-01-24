@@ -177,29 +177,22 @@ checkTypesMatch typA typB
 
 
 baseTypeOf :: ModCmp CompileState m => Type -> m Type
-baseTypeOf (Typedef s) = do
-    ObType t _ <- look s KeyType
-    baseTypeOf t
-baseTypeOf typ
-    | isSimple typ = return typ
-    | isArray typ  = return typ
-    | isTable typ  = return typ
-    | isTuple typ  = return typ
-baseTypeOf t = error (show t) 
+baseTypeOf typ = case typ of
+    Typedef s -> do ObType t _ <- look s KeyType; baseTypeOf t
+    _         -> return typ
 
 
 valBaseType :: ModCmp CompileState m => Value -> m Type
 valBaseType = baseTypeOf . valType
 
 
-
 pureTypeOf :: ModCmp CompileState m => Type -> m Type
-pureTypeOf (Typedef s) = do
-    ObType t _ <- look s KeyType
-    pureTypeOf t
-pureTypeOf typ
-    | isSimple typ = return typ
-
+pureTypeOf typ = case typ of
+    Typedef s -> do ObType t _ <- look s KeyType; pureTypeOf t
+    Table ts  -> fmap Table (mapM pureTypeOf ts)
+    Tuple ts  -> fmap Tuple (mapM pureTypeOf ts)
+    Array n t -> fmap (Array n) (pureTypeOf t)
+    _ | isSimple typ -> return typ
 
 
 zeroOf :: ModCmp CompileState m => Type -> m Value
@@ -207,6 +200,12 @@ zeroOf typ
     | isInt typ   = return (valInt typ 0)
     | typ == Bool = return (valBool False)
     | typ == Char = return (valChar '\0')
+
+    | isTuple typ = do
+        let Tuple ts = typ
+        vals <- mapM zeroOf ts
+        let ops = map (toCons . valOp) vals
+        return $ Val typ (struct Nothing False ops)
 
     | isTable typ = do
         let Table ts = typ
@@ -219,7 +218,9 @@ zeroOf typ
         let Array n t = typ
         fmap (Val typ . array) $ replicateM (fromIntegral n) $ fmap (toCons . valOp) (zeroOf t)
 
-    | isTypedef typ = zeroOf =<< baseTypeOf typ
+    | isTypedef typ = do
+        zero <- zeroOf =<< baseTypeOf typ
+        return $ zero { valType = typ }
 
     | otherwise     = fail ("no zero val for: " ++ show typ)
 

@@ -1,11 +1,21 @@
 module lexer
 
+imports ../std/io
+
 type Token = i64
 
 let TokenSym = Token(1)
+let TokenOp  = Token(2)
 
 
-fn getNextToken() Token
-    return TokenSym
+fn getNextToken(str String) (:Token, :String)
+    let loop = true
+    let next = char()
+
+    while loop 
+        loop = false
+        next = getChar()
+
+    return (TokenSym, str)
 
 
