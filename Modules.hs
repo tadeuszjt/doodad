@@ -61,7 +61,11 @@ runMod args visited modPath = do
 
             asts <- forM files $ \file -> do
                 debug ("using file: " ++ file)
-                P.parse file =<< liftIO (readFile file) 
+                source <- liftIO (readFile file)
+                case P.parse source of
+                    Left (ErrorStr str)         -> throwError (ErrorStr str)
+                    Left (ErrorFile "" pos str) -> throwError (ErrorFile file pos str)
+                    Right a                     -> return a
 
             -- flatten asts
             combinedAST <- combineASTs asts
@@ -111,7 +115,7 @@ getSpecificModuleFiles :: BoM s m => String -> [FilePath] -> m [FilePath]
 getSpecificModuleFiles name []     = return []
 getSpecificModuleFiles name (f:fs) = do
     source <- liftIO (readFile f)
-    case P.parse f source of
+    case P.parse source of
         Left err -> do
             liftIO $ putStrLn ("couldn't parse: " ++ f)
             liftIO $ printError err

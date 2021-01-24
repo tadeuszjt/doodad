@@ -8,8 +8,7 @@ import qualified Data.Map as Map
 
 data TextPos
     = TextPos
-        { textFile :: String
-        , textPos  :: Int
+        { textPos  :: Int
         , textLine :: Int
         , textCol  :: Int
         }
@@ -17,7 +16,7 @@ data TextPos
 
 
 instance Show TextPos where
-    show (TextPos f p l c) = "(" ++ show p ++ ":" ++ show l ++ ":" ++ show c ++ ")"
+    show (TextPos p l c) = "(" ++ show p ++ ":" ++ show l ++ ":" ++ show c ++ ")"
 
 
 data Error
@@ -25,7 +24,8 @@ data Error
         { errStr :: String
         }
     | ErrorFile
-        { errPos  :: TextPos
+        { errFile :: String
+        , errPos  :: TextPos
         , errStr  :: String
         }
     deriving (Show)
@@ -33,9 +33,9 @@ data Error
 
 printError :: Error -> IO ()
 printError err = case err of
-    ErrorStr str      -> putStrLn ("error: " ++ str)
-    ErrorFile pos str -> do
-        let TextPos path p l c = pos
+    ErrorStr str           -> putStrLn ("error: " ++ str)
+    ErrorFile path pos str -> do
+        let TextPos p l c = pos
         putStrLn ("error " ++ show pos ++ " " ++ str ++ ":")
         file <- try (readFile path) :: IO (Either SomeException String)
         case file of

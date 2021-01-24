@@ -10,7 +10,6 @@ where
 
 import Data.List
 import Data.Maybe
-import Error
 }
 
 %wrapper "monadUserState"
@@ -83,27 +82,26 @@ mkIndentT (p,_,_,s) len = do
 alexEOF = return (AlexPn 0 0 0, EOF, "")
 
 
-alexScanner :: String -> String -> Either String [Token]
-alexScanner filename str = runAlex str loop
+alexScanner :: String -> Either String [Token]
+alexScanner str = runAlex str loop
     where
         loop = do
-            (AlexPn pos line col, typ, str) <- alexMonadScan
-            let textPos = TextPos filename pos line col
+            (pos, typ, str) <- alexMonadScan
             case typ of
                 NoToken -> loop
                 EOF     -> return []
                 Dedent  -> do
-                    toks <- dedentLoop textPos str
+                    toks <- dedentLoop pos str
                     fmap (toks ++) loop
-                _       -> fmap (Token textPos typ str :) loop
+                _       -> fmap (Token pos typ str :) loop
             
-        dedentLoop textPos indent = do
+        dedentLoop pos indent = do
             curIndent <- fmap (concat . reverse) getLexerIndentStack
             if indent == curIndent then
                 return []
             else if indent `isPrefixOf` curIndent then do
                 popIndent
-                fmap (Token textPos Dedent "" :) (dedentLoop textPos indent)
+                fmap (Token pos Dedent "" :) (dedentLoop pos indent)
             else
                 alexError "indentation processing error"
 
@@ -142,7 +140,7 @@ popIndent = do
 
 data Token
     = Token
-        { tokPosn :: TextPos
+        { tokPosn :: AlexPosn
         , tokType :: TokenType
         , tokStr  :: String
         }

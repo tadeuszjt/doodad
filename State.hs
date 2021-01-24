@@ -88,14 +88,14 @@ initCompileState ctx dl imports
         , definitions  = []
         , symTab       = SymTab.initSymTab
         , curRetType   = T.Void
-        , posStack     = [TextPos "" 0 0 0]
+        , posStack     = [TextPos 0 0 0]
         }
 
 
 assert :: BoM CompileState m => Bool -> String -> m ()
 assert b s = do
     pos <- fmap head (gets posStack)
-    unless b $ throwError (ErrorFile pos s)
+    unless b $ throwError (ErrorFile "" pos s)
 
 
 withPos :: BoM CompileState m => TextPos -> m a -> m a
