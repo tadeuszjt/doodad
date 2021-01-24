@@ -26,9 +26,14 @@ import qualified JIT
 import Monad
 import Error
 
+
+
+
 data Value
-    = Val { valType :: T.Type, valOp  :: Operand }
+    = Val { valType :: T.Type, valOp :: Operand }
     | Ptr { valType :: T.Type, valLoc :: Operand }
+    | CtxTable [[Value]]
+    | CtxTuple [Value]
     deriving (Show, Eq)
 
 

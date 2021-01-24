@@ -24,6 +24,26 @@ import Funcs
 import Type
 
 
+valAsType :: InsCmp CompileState m => Type -> Value -> m Value
+valAsType typ val = case val of
+    Val _ _       -> checkTypesMatch typ (valType val) >> return val
+    Ptr _ _       -> checkTypesMatch typ (valType val) >> return val
+    CtxTable [[]] -> do
+        base <- baseTypeOf typ
+        assert (isTable base) ("does not satisfy " ++ show typ)
+        zeroOf typ
+    CtxTuple vals -> do
+        base <- baseTypeOf typ
+        assert (isTuple base) ("does not satisfy " ++ show typ)
+        let Tuple ts = base
+        assert (length vals == length ts) ("does not satisfy " ++ show typ)
+
+        tup <- valLocal typ
+        zipWithM_ (valTupleSet tup) [0..] =<< zipWithM valAsType ts vals
+        return tup
+                
+
+
 valsInfix :: InsCmp CompileState m => S.Op -> Value -> Value -> m Value
 valsInfix operator a b = do
     checkTypesMatch (valType a) (valType b)
@@ -94,11 +114,7 @@ valLocal :: InsCmp CompileState m => Type -> m Value
 valLocal typ = do
     opTyp <- opTypeOf typ
     loc <- alloca opTyp Nothing 0
-    --TODO
-    --size <- sizeOf typ
-    --memset loc (int64 0) $ int64 (fromIntegral size)
     return (Ptr typ loc)
-
     
 
 valMalloc :: InsCmp CompileState m => Type -> Value -> m Value
@@ -165,6 +181,13 @@ valMemCpy (Ptr dstTyp dst) (Ptr srcTyp src) len = do
     void $ memcpy pDstI8 pSrcI8 (valOp num)
 
 
+
+valContextual :: Value -> Bool
+valContextual (CtxTable _) = True
+valContextual (CtxTuple _) = True
+valContextual _            = False
+
+
 checkTypesMatch :: BoM CompileState m => Type -> Type -> m ()
 checkTypesMatch typA typB
     | isSimple typA  = assert (typA == typB) str
@@ -174,6 +197,7 @@ checkTypesMatch typA typB
     | otherwise     = error (show typA)
     where
         str = show typA ++ " does not match " ++ show typB
+
 
 
 baseTypeOf :: ModCmp CompileState m => Type -> m Type
@@ -196,33 +220,28 @@ pureTypeOf typ = case typ of
 
 
 zeroOf :: ModCmp CompileState m => Type -> m Value
-zeroOf typ
-    | isInt typ   = return (valInt typ 0)
-    | typ == Bool = return (valBool False)
-    | typ == Char = return (valChar '\0')
-
-    | isTuple typ = do
-        let Tuple ts = typ
-        vals <- mapM zeroOf ts
-        let ops = map (toCons . valOp) vals
+zeroOf typ = case typ of
+    _ | isInt typ -> return (valInt typ 0)
+    Bool          -> return (valBool False)
+    Char          -> return (valChar '\0')
+    Tuple ts      -> do
+        ops <- fmap (map toCons) $ fmap (map valOp) (mapM zeroOf ts)
         return $ Val typ (struct Nothing False ops)
 
-    | isTable typ = do
-        let Table ts = typ
+    Table ts      -> do
         let zi64 = toCons (int64 0)
         ptrs <- fmap (map LL.ptr) (mapM opTypeOf ts)
         let zptrs = map (C.IntToPtr zi64) ptrs
         return . (Val typ) $ struct Nothing False (zi64:zi64:zptrs)
 
-    | isArray typ = do
-        let Array n t = typ
+    Array n t     -> 
         fmap (Val typ . array) $ replicateM (fromIntegral n) $ fmap (toCons . valOp) (zeroOf t)
 
-    | isTypedef typ = do
-        zero <- zeroOf =<< baseTypeOf typ
-        return $ zero { valType = typ }
+    Typedef sym   -> do
+        Val t op <- zeroOf =<< baseTypeOf typ
+        return (Val typ op)
 
-    | otherwise     = fail ("no zero val for: " ++ show typ)
+    _             -> fail ("no zero val for: " ++ show typ)
 
 
 sizeOf :: InsCmp CompileState m => Type -> m Word64
@@ -246,11 +265,13 @@ opTypeOf typ = case typ of
     Bool      -> return LL.i1
     Tuple ts  -> fmap (LL.StructureType False) (mapM opTypeOf ts)
     Array n t -> fmap (LL.ArrayType $ fromIntegral n) (opTypeOf t)
+
     Table ts  -> do
         ptrOpTypes <- mapM (fmap LL.ptr . opTypeOf) ts
         return $ LL.StructureType False (LL.i64:LL.i64:ptrOpTypes)
+
     Typedef s -> do
-        ObType t nm <- look s KeyType
-        maybe (opTypeOf t) (return . LL.NamedTypeReference) nm
+        ObType t namem <- look s KeyType
+        maybe (opTypeOf t) (return . LL.NamedTypeReference) namem
 
     _ -> error (show typ) 

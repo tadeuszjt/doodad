@@ -21,7 +21,9 @@ valPrint append val = case valType val of
     Typedef s -> do
         printf (s ++ "(") []
         base <- valBaseType val
-        valPrint (")" ++ append) (val { valType = base }) 
+        case val of
+            Ptr t loc -> valPrint (")" ++ append) (Ptr base loc)
+            Val t op  -> valPrint (")" ++ append) (Val base op)
 
     I64 -> do
         Val _ op <- valLoad val
@@ -60,7 +62,7 @@ valPrint append val = case valType val of
             then valPrint "; " =<< valPtrIdx row n
             else valPrint ("}" ++ append) =<< valPtrIdx row n
 
-        let m2 = void (printf "}" [])
+        let m2 = void $ printf ("}" ++ append) []
         if_ (valOp lenZero) m2 m1 
 
     Array n t -> do

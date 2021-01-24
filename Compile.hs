@@ -197,7 +197,8 @@ cmpStmt stmt = case stmt of
         emitBlockStart =<< fresh
 
     S.Return pos (Just expr) -> withPos pos $ do
-        val <- cmpExpr expr
+        retty <- gets curRetType
+        val <- valAsType retty =<< cmpExpr expr
         typ <- valBaseType val
 
         val' <- case typ of
@@ -304,11 +305,12 @@ cmpExpr expr = case expr of
 
     S.Tuple pos exprs -> withPos pos $ do
         vals <- mapM cmpExpr exprs
-        tup <- valLocal $ Tuple (map valType vals)
-        forM_ (zip vals [0..]) $ \(val, i) -> do
-            valTupleSet tup i val
-
-        return tup
+        if any valContextual vals
+        then return (CtxTuple vals)
+        else do
+            tup <- valLocal $ Tuple (map valType vals)
+            zipWithM_ (valTupleSet tup) [0..] vals
+            return tup
 
     S.Subscript pos aggExpr idxExpr -> withPos pos $ do
         agg <- cmpExpr aggExpr
@@ -325,8 +327,9 @@ cmpExpr expr = case expr of
                 valTupleIdx tup 0
 
 
-    S.Table pos []     -> zeroOf (Table [])
-    S.Table pos ([]:_) -> withPos pos $ fail "cannot determine type of table row with no elements"
+    S.Table pos ([]:rs) -> withPos pos $ do
+        assert (all null rs) "ron lengths do not match"
+        return (CtxTable [[]])
     S.Table pos exprss -> withPos pos $ do
         valss <- mapM (mapM cmpExpr) exprss
         let rowLen = length (head valss)

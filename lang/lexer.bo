@@ -8,6 +8,14 @@ let TokenSym = Token(1)
 let TokenOp  = Token(2)
 
 
+
+fn lexLet(str String) (:{:Token}, :String)
+    if len(str) < 3
+        return ({}, str)
+
+    return ({}, str)
+
+
 fn getNextToken(str String) (:Token, :String)
     let loop = true
     let next = char()
