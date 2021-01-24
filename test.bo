@@ -1,5 +1,5 @@
 module main
-imports std/io
+
 imports lang/lexer
 
 fn main()

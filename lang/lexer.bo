@@ -1,14 +1,11 @@
 module lexer
 
-imports ../std/io
-
-
 type Token = i64
 
 let TokenSym = Token(1)
 
 
 fn getNextToken() Token
-    return Token(2)
+    return TokenSym
 
 

@@ -10,9 +10,9 @@ import Control.Monad.State hiding (void)
 
 import qualified LLVM.AST.Constant as C
 import qualified LLVM.Internal.FFI.DataLayout as FFI
-import LLVM.AST hiding (function)
+import LLVM.AST hiding (function, type')
 import LLVM.AST.Global
-import LLVM.AST.Constant as C
+import LLVM.AST.Constant as C hiding (type')
 import LLVM.AST.Type hiding (void)
 import LLVM.IRBuilder.Module
 import LLVM.IRBuilder.Monad
@@ -54,6 +54,7 @@ data Declaration
     = DecType   
     | DecExtern [Type] Type Bool
     | DecFunc   [Type] Type
+    | DecVar    Type
     deriving (Show)
 
 
@@ -137,6 +138,11 @@ emitDec :: ModCmp CompileState m => Name -> Declaration -> m ()
 emitDec name dec = case dec of
     DecType                         -> void (typedef name Nothing)
     DecFunc argTypes retty          -> emitDec name (DecExtern argTypes retty False)
+    DecVar opTyp                    -> do
+        emitDefn $ GlobalDefinition $ globalVariableDefaults
+            { name  = name
+            , type' = opTyp
+            }
     DecExtern argTypes retty isVarg -> do
         emitDefn $ GlobalDefinition $ functionDefaults
             { returnType = retty

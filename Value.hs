@@ -98,6 +98,7 @@ valLocal typ = do
     --size <- sizeOf typ
     --memset loc (int64 0) $ int64 (fromIntegral size)
     return (Ptr typ loc)
+
     
 
 valMalloc :: InsCmp CompileState m => Type -> Value -> m Value

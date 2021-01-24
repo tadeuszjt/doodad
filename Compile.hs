@@ -76,9 +76,23 @@ cmpTypeDef (S.Typedef pos sym typ) = do
         _ -> addObj sym KeyType (ObType typ Nothing)
 
 
+
 cmpVarDef :: InsCmp CompileState m => S.Stmt -> m ()
-cmpVarDef (S.Assign pos pat expr) = do
-    return ()
+cmpVarDef (S.Assign pos (S.PatIdent p sym) expr) = do
+    val <- cmpExpr expr
+
+    checkSymKeyUndef sym KeyVar
+    name <- freshName (mkBSS sym)
+    
+    let typ = valType val
+    opTyp <- opTypeOf typ
+    initialiser <- zeroOf typ
+    loc <- fmap (Ptr typ) $ global name opTyp (toCons $ valOp initialiser)
+    valStore loc val
+
+    addObj sym KeyVar (ObjVal loc)
+    addSymKeyDec sym KeyVar name (DecVar opTyp)
+    addDeclared name
 
 
 cmpExternDef :: InsCmp CompileState m => S.Stmt -> m ()
@@ -102,13 +116,17 @@ cmpExternDef (S.Extern pos sym params retty) = do
 
 
 cmpFuncDef :: (MonadFail m, Monad m, MonadIO m) => S.Stmt -> InstrCmpT CompileState m ()
+cmpFuncDef (S.Func pos "main" params retty blk) = withPos pos $ do
+    assert (params == [])  "main cannot have parameters"
+    assert (retty == Void) "main must return void"
+    pushSymTab
+    mapM_ cmpStmt blk
+    popSymTab
 cmpFuncDef (S.Func pos sym params retty blk) = withPos pos $ do
     let paramTypes = map S.paramType params
     let symKey     = KeyFunc paramTypes
     checkSymKeyUndef sym symKey
-    name@(LL.Name nameStr) <- case sym of
-        "main" -> return (LL.mkName sym)
-        _      -> freshName (mkBSS sym)
+    name@(LL.Name nameStr) <- freshName (mkBSS sym)
 
     (paramOpTypes, paramNames, paramSyms) <- fmap unzip3 $ forM params $ \(S.Param p s t) -> do
         opTyp <- opTypeOf t
