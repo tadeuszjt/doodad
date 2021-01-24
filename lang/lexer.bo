@@ -1,6 +1,7 @@
 module lexer
 
 imports ../std/io
+imports ../std/strings
 
 type Token = i64
 

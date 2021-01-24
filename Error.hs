@@ -1,6 +1,7 @@
 module Error where
 
 import Control.Monad
+import Control.Exception
 import Data.Maybe
 import qualified Data.Map as Map
 
@@ -35,10 +36,13 @@ printError err = case err of
     ErrorStr str      -> putStrLn ("error: " ++ str)
     ErrorFile pos str -> do
         let TextPos path p l c = pos
-        sourceLines <- fmap lines (readFile path)
-        
         putStrLn ("error " ++ show pos ++ " " ++ str ++ ":")
-        unless (l < 3) $ putStrLn (sourceLines !! (l-3))
-        unless (l < 2) $ putStrLn (sourceLines !! (l-2))
-        unless (l < 1) $ putStrLn (sourceLines !! (l-1))
-        putStrLn (replicate (c-1) '-' ++ "^")
+        file <- try (readFile path) :: IO (Either SomeException String)
+        case file of
+            Left e -> putStrLn ("couldn't read: " ++ path)
+            Right source -> do
+                let sourceLines = lines source
+                unless (l < 3) $ putStrLn (sourceLines !! (l-3))
+                unless (l < 2) $ putStrLn (sourceLines !! (l-2))
+                unless (l < 1) $ putStrLn (sourceLines !! (l-1))
+                putStrLn (replicate (c-1) '-' ++ "^")

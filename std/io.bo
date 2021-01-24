@@ -1,10 +1,9 @@
 module io
 
+imports strings
+
 extern getchar() char
 extern putchar(c char)
-
-
-type String = {:char}
 
 fn getChar() char
     return getchar()

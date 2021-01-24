@@ -1,0 +1,7 @@
+module strings
+
+type String = {:char}
+
+fn ben()
+    print(2)
+

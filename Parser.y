@@ -294,7 +294,7 @@ returnP a = \l -> ParseOk a
 
 
 happyError :: [Token] -> P a
-happyError []    = return $ ParseFail (TextPos "" 0 0 0)
+happyError []    = return $ ParseFail (TextPos "no file" 0 0 0)
 happyError (x:_) = return $ ParseFail (tokPosn x)
 
 }

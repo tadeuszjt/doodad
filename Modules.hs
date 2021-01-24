@@ -111,12 +111,16 @@ getSpecificModuleFiles :: BoM s m => String -> [FilePath] -> m [FilePath]
 getSpecificModuleFiles name []     = return []
 getSpecificModuleFiles name (f:fs) = do
     source <- liftIO (readFile f)
-    ast <- P.parse f source
-
-    if fromJust (S.astModuleName ast) == name then
-        fmap (f :) (getSpecificModuleFiles name fs)
-    else
-        getSpecificModuleFiles name fs
+    case P.parse f source of
+        Left err -> do
+            liftIO $ putStrLn ("couldn't parse: " ++ f)
+            liftIO $ printError err
+            getSpecificModuleFiles name fs
+        Right ast -> 
+            if fromJust (S.astModuleName ast) == name then
+                fmap (f :) (getSpecificModuleFiles name fs)
+            else
+                getSpecificModuleFiles name fs
 
 
     
