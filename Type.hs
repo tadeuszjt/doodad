@@ -17,6 +17,7 @@ data Type
     | Tuple [Type]
     | Array Word Type
     | Table [Type]
+    | Pointer [Type]
     | Typedef String
     deriving (Eq, Ord)
 
@@ -36,6 +37,7 @@ instance Show Type where
         Tuple ts      -> "(" ++ intercalate ", " (map show ts) ++ ")"
         Array n t     -> "[" ++ show n ++ " " ++ show t ++ "]"
         Table ts      -> "{" ++ intercalate "; " (map show ts) ++ "}"
+        Pointer ts    -> "<" ++ intercalate ", " (map show ts) ++ ">"
         Typedef s     -> show s
 
 
@@ -58,6 +60,9 @@ isTable _             = False
 
 isTypedef (Typedef _) = True
 isTypedef _           = False
+
+isPointer (Pointer _) = True
+isPointer _           = False
 
 isIntegral x          = isInt x || isChar x
 

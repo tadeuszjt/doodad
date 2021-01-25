@@ -1,6 +1,6 @@
 module strings
 
-type String = {:char}
+type String {:char}
 
 fn isPrefix(pre String, str String) bool
     let i = 0

@@ -19,6 +19,7 @@ import qualified Data.Set as Set
 %left      '+' '-'
 %left      '*' '/' '%'
 %left      '.'
+%nonassoc  '&'
 %nonassoc  ','
 %nonassoc  '<' '>'
 %nonassoc  '<=' '>='
@@ -40,6 +41,7 @@ import qualified Data.Set as Set
     '<'        { Token _ ReservedOp "<" }
     '>'        { Token _ ReservedOp ">" }
     '='        { Token _ ReservedOp "=" }
+    '&'        { Token _ ReservedOp "&" }
     '!='       { Token _ ReservedOp "!=" }
     '<='       { Token _ ReservedOp "<=" }
     '>='       { Token _ ReservedOp ">=" }
@@ -122,7 +124,7 @@ importPath : ident                           { [tokStr $1] }
 
 stmtS : let pattern '=' expr                 { S.Assign (tokPos $1) $2 $4 }  
       | index '=' expr                       { S.Set (tokPos $2) $1 $3 }
-      | type ident '=' type_                 { S.Typedef (tokPos $2) (tokStr $2) $4 }
+      | type ident type_                     { S.Typedef (tokPos $2) (tokStr $2) $3 }
       | extern ident '(' params ')' type_    { S.Extern (tokPos $2) (tokStr $2) $4 $6 }
       | extern ident '(' params ')'          { S.Extern (tokPos $2) (tokStr $2) $4 T.Void }
       | ident '(' exprs ')'                  { S.CallStmt (tokPos $1) (tokStr $1) $3 }
@@ -146,8 +148,9 @@ expr   : lit                          { S.Cons $1 }
        | table                        { $1 }
        | '[' exprs ']'                { S.Array (tokPos $1) $2 }
        | '(' exprs ')'                { S.Tuple (tokPos $1) $2 }
+       | '&' expr                     { S.Address (tokPos $1) $2 }
        | ident '(' exprs ')'          { S.Call (tokPos $1) (tokStr $1) $3 }
-       | typeNoIdent '(' exprs ')'         { S.Conv (tokPos $2) $1 $3 }
+       | typeNoIdent '(' exprs ')'    { S.Conv (tokPos $2) $1 $3 }
        | len '(' expr ')'             { S.Len (tokPos $1) $3 }
        | append '(' expr ',' expr ')' { S.Append (tokPos $1) $3 $5 }
        | expr '.' intlit              { S.TupleIndex (tokPos $2) $1 (read $ tokStr $3) }
@@ -198,6 +201,7 @@ typeNoIdent   : bool                 { T.Bool }
               | '(' tupTypes ')'               { T.Tuple $2 }
               | '{' rowTypes_ '}'              { T.Table $2 }
               | '{' 'I' rowTypes__ 'D' '}'     { T.Table $3 }
+              | '<' rowTypes_ '>'              { T.Pointer $2 }
 
 types         : {- empty -}          { [] }
               | types_               { $1 }

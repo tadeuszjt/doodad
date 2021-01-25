@@ -1,10 +1,8 @@
 module main
 
-imports lang/lexer
 imports std/io
-imports std/strings
 
 fn main()
-    let line = String({'b', 'e', 'n', 'i', 's'})
-    print(getNextToken(line))
+    print({'b'})
+
 

@@ -195,6 +195,7 @@ checkTypesMatch typA typB
     | isTable typA   = assert (typA == typB) str
     | isTuple typA   = assert (typA == typB) str
     | isTypedef typA = assert (typA == typB) str
+    | isPointer typA = assert (typA == typB) str
     | otherwise     = error (show typA)
     where
         str = show typA ++ " does not match " ++ show typB
@@ -270,6 +271,11 @@ opTypeOf typ = case typ of
     Table ts  -> do
         ptrOpTypes <- mapM (fmap LL.ptr . opTypeOf) ts
         return $ LL.StructureType False (LL.i64:LL.i64:ptrOpTypes)
+
+    Pointer [t] -> fmap LL.ptr (opTypeOf t)
+
+    Pointer ts -> do
+        return $ LL.StructureType False [LL.i64, LL.ptr LL.i8]
 
     Typedef s -> do
         ObType t namem <- look s KeyType

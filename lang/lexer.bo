@@ -3,28 +3,21 @@ module lexer
 imports ../std/io
 imports ../std/strings
 
-type Token = i64
 
-let TokenSym = Token(1)
-let TokenOp  = Token(2)
-
+type Token <TokSym, TokInt>
+type Tokens {:Token}
 
 
-fn lexLet(str String) (:{:Token}, :String)
-    if isPrefix(String({'l', 'e', 't'}), str)
-        return ({TokenSym}, str)
-
-    return ({}, str)
+type TokSym String
+type TokInt Int
 
 
-fn getNextToken(str String) (:Token, :String)
-    let loop = true
-    let next = char()
 
-    while loop 
-        loop = false
-        next = getChar()
+fn parseLet(str String) (:Tokens, :String)
+    return ({}, {})
 
-    return (TokenSym, str)
 
+
+fn ben()
+    print(32)
 

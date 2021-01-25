@@ -198,16 +198,7 @@ cmpStmt stmt = case stmt of
 
     S.Return pos (Just expr) -> withPos pos $ do
         retty <- gets curRetType
-        val <- valAsType retty =<< cmpExpr expr
-        typ <- valBaseType val
-
-        val' <- case typ of
-            Table _ -> tableForceAlloc val
-            _         -> return val
-
-        retty <- gets curRetType
-        checkTypesMatch (valType val') retty
-        ret . valOp =<< valLoad val'
+        ret . valOp =<< valLoad =<< valAsType retty =<< cmpExpr expr
         emitBlockStart =<< fresh
 
     S.If pos expr blk melse -> withPos pos $ do
@@ -326,9 +317,14 @@ cmpExpr expr = case expr of
                 tup <- tableGetElem agg idx
                 valTupleIdx tup 0
 
-
+    S.Address pos expr -> withPos pos $ do
+        val <- cmpExpr expr
+        case val of
+            Ptr t loc -> return $ Val (Pointer [t]) loc
+            Val t _   -> fail "cannot take address of a value"
+        
     S.Table pos ([]:rs) -> withPos pos $ do
-        assert (all null rs) "ron lengths do not match"
+        assert (all null rs) "row lengths do not match"
         return (CtxTable [[]])
     S.Table pos exprss -> withPos pos $ do
         valss <- mapM (mapM cmpExpr) exprss
@@ -339,23 +335,21 @@ cmpExpr expr = case expr of
             forM_ vals $ \val -> checkTypesMatch (valType val) $ valType (head vals)
             return $ valType (head vals)
 
-        -- create local arrays to store table rows
-        arrs <- mapM (valLocal . Array (fromIntegral rowLen)) rowTypes
-        forM_ (zip arrs [0..]) $ \(arr, r) -> do
+        rows <- forM (zip rowTypes [0..]) $ \(t, r) -> do
+            mal <- valMalloc t $ valI64 (fromIntegral rowLen)
             forM_ [0..rowLen-1] $ \i -> do
-                ptr <- valArrayIdx arr $ valI64 (fromIntegral i)
+                ptr <- valPtrIdx mal $ valI64 (fromIntegral i) 
                 valStore ptr ((valss !! r) !! i)
+            return mal
 
         tab <- valLocal (Table rowTypes)
         len <- tableLen tab
         cap <- tableCap tab
 
         valStore len $ valI64 (fromIntegral rowLen)
-        valStore cap (valI64 0) -- shows stack mem
+        valStore cap len
 
-        forM_ (zip arrs [0..]) $ \(arr, i) ->
-            tableSetRow tab i =<< valArrayConstIdx arr 0
-
+        zipWithM_ (tableSetRow tab) [0..] rows
         return tab
 
     S.Append pos expr elem -> withPos pos $ do

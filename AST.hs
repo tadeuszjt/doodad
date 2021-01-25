@@ -89,6 +89,7 @@ data Expr
     | Append TextPos Expr Expr
     | Prefix TextPos Op Expr
     | Infix TextPos Op Expr Expr
+    | Address TextPos Expr
     deriving (Eq)
 
 
@@ -173,6 +174,7 @@ instance Show Expr where
         AST.Append pos expr1 expr2    -> "Append" ++ tupStrs [show expr1, show expr2]
         AST.Prefix pos op expr        -> show op ++ show expr
         AST.Infix pos op expr1 expr2  -> "(" ++ show expr1 ++ " " ++ show op ++ " " ++ show expr2 ++ ")"
+        AST.Address pos expr          -> "&" ++ show expr
 
 
 prettyAST :: String -> AST -> IO ()

@@ -52,31 +52,6 @@ tableSetRow tab i row = do
     store pp 0 (valLoc row)
 
 
-tableForceAlloc :: InsCmp CompileState m => Value -> m Value
-tableForceAlloc tab@(Ptr typ _) = tableForceAlloc' tab
-tableForceAlloc tab@(Val typ _) = do
-    tab' <- valLocal typ
-    valStore tab' tab
-    tableForceAlloc' tab'
-
-tableForceAlloc' tab@(Ptr _ _) = do
-    Table ts <- valBaseType tab
-    len <- tableLen tab
-    cap <- tableCap tab
-    
-    let caseCapZero = do
-        valStore cap len
-        forM_ (zip ts [0..]) $ \(t, i) -> do
-            mem <- valMalloc t len
-            row <- tableRow i tab
-            valMemCpy mem row len
-            tableSetRow tab i mem
-
-    z <- valsInfix S.LTEq cap (valI64 0)
-    if_ (valOp z) caseCapZero (return ())
-    return tab
-
-
 tableGetElem :: InsCmp CompileState m => Value -> Value -> m Value
 tableGetElem tab idx = do
     Table ts <- valBaseType tab

@@ -29,7 +29,7 @@ $symbol  = [\{\}\(\)\[\]\,\|\.\;\:\_]
 @builtin    = print | len | append
 @keywords   = fn | extern | type | let | while | if | else | return | switch | true | false | module | imports
 @reserved   = @keywords | @types | @builtin
-@reservedOp = [\+\-\*\/\%\<\>\=] | "!=" | "==" | "<=" | ">=" | "||" | "&&" | ".."
+@reservedOp = [\+\-\*\/\%\<\>\=\&] | "!=" | "==" | "<=" | ">=" | "||" | "&&" | ".."
 
 @string     = $graphic # [\"\\] | " " 
 @char       = $graphic # [\'\\] | " "

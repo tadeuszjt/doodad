@@ -6,6 +6,7 @@ import Control.Monad
 import LLVM.IRBuilder.Monad
 import LLVM.IRBuilder.Instruction
 import LLVM.IRBuilder.Constant
+import qualified LLVM.AST.Type as LL
 
 import qualified AST as S
 import Value
@@ -24,6 +25,12 @@ valPrint append val = case valType val of
         case val of
             Ptr t loc -> valPrint (")" ++ append) (Ptr base loc)
             Val t op  -> valPrint (")" ++ append) (Val base op)
+
+    Pointer [t] -> do
+        void $ printf (show (valType val) ++ "(") []
+        Val _ op <- valLoad val
+        x <- ptrtoint op LL.i64
+        void $ printf ("%#x)" ++ append) [x]
 
     I64 -> do
         Val _ op <- valLoad val
