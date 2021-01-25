@@ -2,6 +2,15 @@ module strings
 
 type String = {:char}
 
+fn isPrefix(pre String, str String) bool
+    let i = 0
+    while i < len(pre) 
+        if i >= len(str) || pre[i] != str[i]
+            return false 
+
+    return true
+
+
 fn ben()
     print(2)
 

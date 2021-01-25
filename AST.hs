@@ -5,16 +5,15 @@ import           Data.List
 import           Control.Monad
 import           Type
 import           Error
-import qualified Lexer    as L
-import qualified Data.Set as Set
 
 type ModuleName = String
 type Symbol     = String
 type Path       = [String]
 
 
-data AST =
-    AST { astModuleName :: Maybe ModuleName
+data AST
+    = AST
+        { astModuleName :: Maybe ModuleName
         , astImports    :: [Path]
         , astStmts      :: [Stmt]
         }
@@ -34,6 +33,7 @@ data Op
     | EqEq
     | OrOr
     | AndAnd
+    | NotEq
     deriving (Eq, Ord)
 
 
@@ -128,6 +128,7 @@ instance Show Op where
         AST.EqEq   -> "=="
         AST.OrOr   -> "||"
         AST.AndAnd -> "&&"
+        AST.NotEq  -> "!="
 
 
 instance Show Pattern where

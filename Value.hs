@@ -65,6 +65,7 @@ valsInfix operator a b = do
                 S.GTEq   -> fmap (Val Bool) (icmp P.SGE opA opB)
                 S.LTEq   -> fmap (Val Bool) (icmp P.SLE opA opB)
                 S.EqEq   -> fmap (Val Bool) (icmp P.EQ opA opB)
+                S.NotEq  -> fmap (Val Bool) (icmp P.NE opA opB)
                 _        -> error ("int infix: " ++ show operator)
             | typ == Bool = case operator of
                 S.OrOr   -> fmap (Val Bool) (or opA opB)

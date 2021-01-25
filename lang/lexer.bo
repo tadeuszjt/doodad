@@ -11,8 +11,8 @@ let TokenOp  = Token(2)
 
 
 fn lexLet(str String) (:{:Token}, :String)
-    if len(str) < 3
-        return ({}, str)
+    if isPrefix(String({'l', 'e', 't'}), str)
+        return ({TokenSym}, str)
 
     return ({}, str)
 

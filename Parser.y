@@ -7,8 +7,6 @@ import Control.Monad.Except hiding (void, fail)
 import qualified Type as T
 import qualified AST as S
 import qualified Data.Set as Set
-
-
 }
 
 %name      parseTokens 
@@ -42,7 +40,7 @@ import qualified Data.Set as Set
     '<'        { Token _ ReservedOp "<" }
     '>'        { Token _ ReservedOp ">" }
     '='        { Token _ ReservedOp "=" }
-    ':='       { Token _ ReservedOp ":=" }
+    '!='       { Token _ ReservedOp "!=" }
     '<='       { Token _ ReservedOp "<=" }
     '>='       { Token _ ReservedOp ">=" }
     '=='       { Token _ ReservedOp "==" }
@@ -183,6 +181,7 @@ infix : expr '+' expr                { S.Infix (tokPos $2) S.Plus $1 $3 }
       | expr '==' expr               { S.Infix (tokPos $2) S.EqEq $1 $3 }
       | expr '&&' expr               { S.Infix (tokPos $2) S.AndAnd $1 $3 }
       | expr '||' expr               { S.Infix (tokPos $2) S.OrOr $1 $3 }
+      | expr '!=' expr               { S.Infix (tokPos $2) S.NotEq $1 $3 }
 
 
 type_         : typeNoIdent          { $1 }

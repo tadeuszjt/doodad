@@ -42,6 +42,15 @@ showPath :: S.Path -> String
 showPath path = concat (intersperse "/" path)
 
 
+parse :: BoM s m => FilePath -> m S.AST
+parse file = do
+    source <- liftIO (readFile file)
+    case P.parse source of
+        Left (ErrorStr str)         -> throwError (ErrorStr str)
+        Left (ErrorFile "" pos str) -> throwError (ErrorFile file pos str)
+        Right a                     -> return a
+
+
 runMod :: BoM Modules m => Args -> Set.Set S.Path -> S.Path -> m CompileState
 runMod args visited modPath = do
     debug "running"
@@ -61,11 +70,7 @@ runMod args visited modPath = do
 
             asts <- forM files $ \file -> do
                 debug ("using file: " ++ file)
-                source <- liftIO (readFile file)
-                case P.parse source of
-                    Left (ErrorStr str)         -> throwError (ErrorStr str)
-                    Left (ErrorFile "" pos str) -> throwError (ErrorFile file pos str)
-                    Right a                     -> return a
+                parse file
 
             -- flatten asts
             combinedAST <- combineASTs asts
@@ -115,16 +120,11 @@ getSpecificModuleFiles :: BoM s m => String -> [FilePath] -> m [FilePath]
 getSpecificModuleFiles name []     = return []
 getSpecificModuleFiles name (f:fs) = do
     source <- liftIO (readFile f)
-    case P.parse source of
-        Left err -> do
-            liftIO $ putStrLn ("couldn't parse: " ++ f)
-            liftIO $ printError err
-            getSpecificModuleFiles name fs
-        Right ast -> 
-            if fromJust (S.astModuleName ast) == name then
-                fmap (f :) (getSpecificModuleFiles name fs)
-            else
-                getSpecificModuleFiles name fs
+    ast <- parse f
+    if fromJust (S.astModuleName ast) == name then
+        fmap (f :) (getSpecificModuleFiles name fs)
+    else
+        getSpecificModuleFiles name fs
 
 
     
