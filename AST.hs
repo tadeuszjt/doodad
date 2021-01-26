@@ -49,7 +49,7 @@ instance Show Param where
 
 
 data Pattern
-    = PatLiteral Constant
+    = PatLiteral Expr
     | PatIgnore  TextPos
     | PatIdent   TextPos Symbol
     | PatTuple   TextPos [Pattern]
@@ -64,18 +64,12 @@ data Index
     | IndTuple TextPos Index Word32
     deriving (Eq)
 
-
-data Constant
+data Expr
     = Int TextPos Integer
     | Float TextPos Double
     | Bool TextPos Bool
     | Char TextPos Char
     | String TextPos String
-    deriving (Eq)
-
-
-data Expr
-    = Cons Constant
     | Tuple TextPos [Expr]
     | Array TextPos [Expr]
     | Table TextPos [[Expr]]
@@ -149,18 +143,13 @@ instance Show Index where
         IndTuple pos idx n    -> "IndTuple(" ++ show idx ++ ", " ++ show n ++ ")"
 
 
-instance Show Constant where
-    show cons = case cons of
-        AST.Int pos n    -> show n
-        AST.Float pos f  -> show f
-        AST.Bool pos b   -> show b
-        AST.Char pos c   -> show c
-        AST.String pos s -> show s
-
-
 instance Show Expr where
     show expr = case expr of
-        AST.Cons c                    -> show c
+        AST.Int pos n                 -> show n
+        AST.Float pos f               -> show f
+        AST.Bool pos b                -> show b
+        AST.Char pos c                -> show c
+        AST.String pos s              -> show s
         AST.Tuple pos exprs           -> "Tuple" ++ tupStrs (map show exprs) 
         AST.Array pos exprs           -> "Array" ++ arrStrs (map show exprs)
         AST.Table pos exprss          -> "Table" ++ brcStrs (map show (map (AST.Array pos) exprss))

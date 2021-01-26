@@ -142,7 +142,7 @@ block  : 'I' Prog_ 'D'               { S.Block (tokPos $1) $2 }
 block_ : 'I' Prog_ 'D'               { $2 }
 
 
-expr   : lit                          { S.Cons $1 }
+expr   : lit                          { $1 }
        | infix                        { $1 }
        | ident                        { S.Ident (tokPos $1) (tokStr $1) }
        | table                        { $1 }

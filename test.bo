@@ -1,8 +1,9 @@
 module main
 
-imports std/io
+imports std/strings
 
 fn main()
-    print({'b'})
+    let s = String("benis")
+    print(String(s))
 
 

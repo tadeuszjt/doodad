@@ -3,19 +3,17 @@ module lexer
 imports ../std/io
 imports ../std/strings
 
-
-type Token <TokSym, TokInt>
-type Tokens {:Token}
-
+type Token <null, TokSym, TokInt>
 
 type TokSym String
 type TokInt Int
 
-
-
-fn parseLet(str String) (:Tokens, :String)
-    return ({}, {})
-
+fn parseLet(str String) (:Token, :String)
+    let letStr = {'l', 'e', 't'}
+    if isPrefix letStr str
+        return (Token(TokSym(letStr)), str[len(letStr):])
+        
+    return (null, )
 
 
 fn ben()

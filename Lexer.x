@@ -45,6 +45,7 @@ tokens :-
     \' @char \'                                     { mkT Char }
     \" @string* \"                                  { mkT String }
     \' \\ n \'                                      { mkT Char }
+    \' \\ 0 \'                                      { mkT Char }
     [$newline $tab $white]* $newline [$tab $white]* { mkIndentT }
 {
 

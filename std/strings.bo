@@ -2,6 +2,19 @@ module strings
 
 type String {:char}
 
+
+fn String(s string) String
+    let str = String()
+
+    let i = 0
+    while s[i] != '\0'
+        str = append(str, s[i])
+        i = i + 1
+
+    return str
+        
+
+
 fn isPrefix(pre String, str String) bool
     let i = 0
     while i < len(pre) 

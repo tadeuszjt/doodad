@@ -265,6 +265,7 @@ opTypeOf typ = case typ of
     I64       -> return LL.i64
     Char      -> return LL.i32
     Bool      -> return LL.i1
+    String    -> return (LL.ptr LL.i8)
     Tuple ts  -> fmap (LL.StructureType False) (mapM opTypeOf ts)
     Array n t -> fmap (LL.ArrayType $ fromIntegral n) (opTypeOf t)
 

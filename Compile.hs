@@ -60,11 +60,14 @@ compileFlatState ctx dl imports flatState = do
 
 
 cmpTypeDef :: InsCmp CompileState m => S.Stmt -> m ()
-cmpTypeDef (S.Typedef pos sym typ) = do
+cmpTypeDef (S.Typedef pos sym typ) = withPos pos $ do
     checkSymKeyUndef sym KeyType
+    checkSymKeyUndef sym (KeyFunc [])
     checkSymKeyUndef sym (KeyFunc [typ])
-    addObj sym (KeyFunc [typ]) (ObjConstructor (Typedef sym))
-    addObj sym (KeyFunc []) (ObjConstructor (Typedef sym))
+    checkSymKeyUndef sym (KeyFunc [Typedef sym])
+    addObj sym (KeyFunc [])            (ObjConstructor (Typedef sym))
+    addObj sym (KeyFunc [typ])         (ObjConstructor (Typedef sym))
+    addObj sym (KeyFunc [Typedef sym]) (ObjConstructor (Typedef sym))
 
     case typ of
         Tuple ts -> do
@@ -251,11 +254,15 @@ cmpConstructor typ [val] = do
     pureType    <- pureTypeOf typ
     pureValType <- pureTypeOf (valType val)
     checkTypesMatch pureType pureValType
-    return $ Val typ (valOp val)
+    fmap (Val typ) $ fmap valOp (valLoad val)
 
 
 cmpExpr :: InsCmp CompileState m =>  S.Expr -> m Value
 cmpExpr expr = case expr of
+    S.Int pos n    -> return (valI64 n)
+    S.Bool pos b   -> return (valBool b)
+    S.Char pos c   -> return (valChar c)
+
     S.Call pos sym exprs -> withPos pos $ do
         vals <- mapM valLoad =<< mapM cmpExpr exprs
         res <- look sym $ KeyFunc (map valType vals)
@@ -270,10 +277,11 @@ cmpExpr expr = case expr of
 
                 fmap (Val typ) $ call op [(o, []) | o <- map valOp vals]
             
-    S.Cons c -> case c of
-        S.Int pos n  -> return (valI64 n)
-        S.Bool pos b -> return (valBool b)
-        S.Char pos c -> return (valChar c)
+    S.String pos s -> do
+        loc <- globalStringPtr s =<< fresh
+        pi8 <- bitcast (cons loc) (LL.ptr LL.i8)
+        return $ Val String pi8
+
 
     S.Ident pos sym -> withPos pos $ do
         ObjVal val <- look sym KeyVar
@@ -313,6 +321,14 @@ cmpExpr expr = case expr of
         assert (isInt idxType) "index type isn't an integer"
 
         case aggType of
+            String    -> do
+                Val _ idxOp    <- valLoad idx
+                Val _ loc <- valLoad agg
+                p <- gep loc [idxOp]
+                e <- load p 0
+                c <- sext e LL.i32
+                return (Val Char c)
+                
             Table [t] -> do
                 tup <- tableGetElem agg idx
                 valTupleIdx tup 0
@@ -369,7 +385,7 @@ cmpExpr expr = case expr of
 cmpPattern :: InsCmp CompileState m => S.Pattern -> Value -> m Value
 cmpPattern pat val = case pat of
     S.PatIgnore pos    -> return (valBool True)
-    S.PatLiteral cons  -> valsInfix S.EqEq val =<< cmpExpr (S.Cons cons)
+    S.PatLiteral expr  -> valsInfix S.EqEq val =<< cmpExpr expr
     S.PatIdent pos sym -> withPos pos $ do
         checkSymKeyUndef sym KeyVar
         loc <- valLocal (valType val)

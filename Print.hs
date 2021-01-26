@@ -47,13 +47,18 @@ valPrint append val = case valType val of
         pst <- gep (cons str) [idx]
         void $ printf ("%s" ++ append) [pst]
 
+    String -> do
+        op <- fmap valOp (valLoad val)
+        void $ printf ("\"%s\"" ++ append) [op]
+
     Tuple ts -> do
         printf "(" []
         forM_ (zip ts [0..]) $ \(t, i) -> do
             elem <- valTupleIdx val (fromIntegral i)
             if i < length ts - 1
             then valPrint ", " elem
-            else valPrint (")" ++ append) elem
+            else valPrint "" elem
+        void $ printf (")" ++ append) []
 
     Table ts -> do
         printf "{" []
