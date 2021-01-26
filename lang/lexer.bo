@@ -9,8 +9,9 @@ type TokInt i64
 type Token {:TokSym, :TokInt}
 
 
-fn parseLet(str String) (:Token, :String)
+fn parseLet(str String) (:{:TokSym}, :String)
     let s   = String("let")
-    let tok = Token(&TokSym(s))
     if isPrefix(s, str)
-        return (tok, str)
+        return (&TokSym(s), str)
+
+    return (&TokSym(s), str)

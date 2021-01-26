@@ -254,6 +254,10 @@ zeroOf typ = case typ of
     Array n t     -> 
         fmap (Val typ . array) $ replicateM (fromIntegral n) $ fmap (toCons . valOp) (zeroOf t)
 
+    Pointer [t] -> do
+        pt <- fmap LL.ptr (opTypeOf t)
+        return $ Val typ $ cons (C.Null pt)
+
     Typedef sym   -> do
         Val t op <- zeroOf =<< baseTypeOf typ
         return (Val typ op)
