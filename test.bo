@@ -1,9 +1,12 @@
 module main
 
 imports std/strings
+imports lang/lexer
 
 fn main()
-    let s = String("benis")
+    let s = String("letbenis")
+    parseLet(s)
+
     print(String(s))
 
 

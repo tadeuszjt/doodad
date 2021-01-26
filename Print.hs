@@ -27,10 +27,10 @@ valPrint append val = case valType val of
             Val t op  -> valPrint (")" ++ append) (Val base op)
 
     Pointer [t] -> do
-        void $ printf (show (valType val) ++ "(") []
+        void $ printf (show (valType val) ++ "{") []
         Val _ op <- valLoad val
         x <- ptrtoint op LL.i64
-        void $ printf ("%#x)" ++ append) [x]
+        void $ printf ("%#x}" ++ append) [x]
 
     I64 -> do
         Val _ op <- valLoad val
@@ -61,7 +61,7 @@ valPrint append val = case valType val of
         void $ printf (")" ++ append) []
 
     Table ts -> do
-        printf "{" []
+        printf "[" []
         let nrows = fromIntegral (length ts)
         len <- tableLen val
         lenZero <- valsInfix S.LTEq len (valI64 0)
@@ -72,13 +72,13 @@ valPrint append val = case valType val of
             for (valOp n) $ \j -> valPrint ", " =<< valPtrIdx row (Val I64 j)
             if i < nrows-1
             then valPrint "; " =<< valPtrIdx row n
-            else valPrint ("}" ++ append) =<< valPtrIdx row n
+            else valPrint ("]" ++ append) =<< valPtrIdx row n
 
         let m2 = void $ printf ("}" ++ append) []
         if_ (valOp lenZero) m2 m1 
 
     Array n t -> do
-        printf "[" []
+        printf "[%d| " $ (:[]) $ valOp $ valI64 (fromIntegral n)
         for (int64 $ fromIntegral n-1) $ \i -> do
             valPrint ", " =<< valArrayIdx val (Val I64 i)
         valPrint ("]" ++ append) =<< valArrayConstIdx val (n-1)

@@ -98,6 +98,12 @@ assert b s = do
     unless b $ throwError (ErrorFile "" pos s)
 
 
+err :: BoM CompileState m => String -> m a
+err s = do
+    pos <- fmap head (gets posStack)
+    throwError (ErrorFile "" pos s)
+
+
 withPos :: BoM CompileState m => TextPos -> m a -> m a
 withPos pos f = do
     modify $ \s -> s { posStack = pos:(posStack s) }

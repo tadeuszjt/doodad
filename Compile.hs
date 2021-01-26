@@ -270,8 +270,8 @@ cmpExpr expr = case expr of
             ObjConstructor typ -> cmpConstructor typ vals
             _                  -> do
                 (op, typ) <- case res of
-                    ObjFunc Void _     -> fail "cannot use void function as expression"
-                    ObjExtern _ Void _ -> fail "cannot use void function as expression"
+                    ObjFunc Void _     -> err "cannot use void function as expression"
+                    ObjExtern _ Void _ -> err "cannot use void function as expression"
                     ObjFunc typ op     -> return (op, typ)
                     ObjExtern _ typ op -> return (op, typ)
 
@@ -300,7 +300,7 @@ cmpExpr expr = case expr of
         typ <- valBaseType val
         case typ of
             Table _ -> tableLen val
-            _       -> fail $ "cannot take length of type: " ++ show (valType val)
+            _       -> err ("cannot take length of type " ++ show typ)
 
     S.Tuple pos exprs -> withPos pos $ do
         vals <- mapM cmpExpr exprs
@@ -337,7 +337,7 @@ cmpExpr expr = case expr of
         val <- cmpExpr expr
         case val of
             Ptr t loc -> return $ Val (Pointer [t]) loc
-            Val t _   -> fail "cannot take address of a value"
+            Val t _   -> err "cannot take address of a value"
         
     S.Table pos ([]:rs) -> withPos pos $ do
         assert (all null rs) "row lengths do not match"

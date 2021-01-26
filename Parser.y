@@ -146,7 +146,7 @@ expr   : lit                          { $1 }
        | infix                        { $1 }
        | ident                        { S.Ident (tokPos $1) (tokStr $1) }
        | table                        { $1 }
-       | '[' exprs ']'                { S.Array (tokPos $1) $2 }
+       | '[' '|' exprs ']'            { S.Array (tokPos $1) $3 }
        | '(' exprs ')'                { S.Tuple (tokPos $1) $2 }
        | '&' expr                     { S.Address (tokPos $1) $2 }
        | ident '(' exprs ')'          { S.Call (tokPos $1) (tokStr $1) $3 }
@@ -197,11 +197,10 @@ typeNoIdent   : bool                 { T.Bool }
               | f64                  { T.F64 }
               | char                 { T.Char }
               | string               { T.String }
-              | '[' intlit ':' type_ ']'       { T.Array (read $ tokStr $2) $4 }
+              | '[' intlit '|' type_ ']'       { T.Array (read $ tokStr $2) $4 }
               | '(' tupTypes ')'               { T.Tuple $2 }
-              | '{' rowTypes_ '}'              { T.Table $2 }
-              | '{' 'I' rowTypes__ 'D' '}'     { T.Table $3 }
-              | '<' rowTypes_ '>'              { T.Pointer $2 }
+              | '[' rowTypes_ ']'              { T.Table $2 }
+              | '{' tupTypes '}'               { T.Pointer $2 }
 
 types         : {- empty -}          { [] }
               | types_               { $1 }
@@ -213,17 +212,12 @@ rowType       : ':' type_            { $2 }
 rowTypes_     : rowType                { [$1] }
               | rowType ';' rowTypes_  { $1 : $3 }
 
-rowTypes__    : rowType                { [$1] }
-              | rowType 'N' rowTypes__ { $1 : $3 }
-
 
 tupTypes : rowType              { [$1] }
          | rowType ',' tupTypes { $1 : $3 }
 
 
-
-
-table     : '{' tableRows '}'       { S.Table (tokPos $1) $2 } 
+table     : '[' tableRows ']'       { S.Table (tokPos $1) $2 } 
 tableRows : exprs                   { [$1] }
           | exprs ';' tableRows     { $1 : $3 }
 

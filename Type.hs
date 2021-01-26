@@ -35,9 +35,9 @@ instance Show Type where
         Char          -> "char"
         String        -> "string"
         Tuple ts      -> "(" ++ intercalate ", " (map show ts) ++ ")"
-        Array n t     -> "[" ++ show n ++ " " ++ show t ++ "]"
-        Table ts      -> "{" ++ intercalate "; " (map show ts) ++ "}"
-        Pointer ts    -> "<" ++ intercalate ", " (map show ts) ++ ">"
+        Array n t     -> "[" ++ show n ++ "| " ++ show t ++ "]"
+        Table ts      -> "[" ++ intercalate "; " (map show ts) ++ "]"
+        Pointer ts    -> "{" ++ intercalate ", " (map show ts) ++ "}"
         Typedef s     -> show s
 
 
