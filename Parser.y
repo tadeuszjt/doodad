@@ -108,18 +108,13 @@ Prog_ : stmtS                                { [$1] }
       | stmtB  Prog_                         { $1 : $2 }
 
 
-
-Imports  : {- empty -}                       { [] }
-         | Imports_                          { $1 }
-Imports_ : imports importPath 'N'            { [$2] }
-         | imports importPath 'N' Imports_   { $2 : $4 }
-
+Imports : {- empty -}                      { [] }
+        | imports importPath 'N' Imports   { $2 : $4 }
 
 
 importPath : ident                           { [tokStr $1] }
-           | '..'                            { [tokStr $1] }
-           | importPath '/' ident            { $1 ++ [tokStr $3] }
-
+           | '..'                            { [".."] }
+           | importPath '/' importPath       { $1 ++ $3 }
 
 
 stmtS : let pattern '=' expr                 { S.Assign (tokPos $1) $2 $4 }  
@@ -141,6 +136,17 @@ stmtB : block                                { $1 }
 block  : 'I' Prog_ 'D'               { S.Block (tokPos $1) $2 }
 block_ : 'I' Prog_ 'D'               { $2 }
 
+
+lit : intlit                         { S.Int (tokPos $1) (read $ tokStr $1) }
+    | floatlit                       { S.Float (tokPos $1) (read $ tokStr $1) }
+    | charlit                        { S.Char (tokPos $1) (read $ tokStr $1) }
+    | strlit                         { S.String (tokPos $1) (tokStr $1) }
+    | true                           { S.Bool (tokPos $1) True }
+    | false                          { S.Bool (tokPos $1) False }
+
+table     : '[' tableRows ']'       { S.Table (tokPos $1) $2 } 
+tableRows : exprs                   { [$1] }
+          | exprs ';' tableRows     { $1 : $3 }
 
 expr   : lit                          { $1 }
        | infix                        { $1 }
@@ -164,14 +170,6 @@ exprs_ : expr                         { [$1] }
        | expr ',' exprs_              { $1 : $3 }
 
 
-lit : intlit                         { S.Int (tokPos $1) (read $ tokStr $1) }
-    | floatlit                       { S.Float (tokPos $1) (read $ tokStr $1) }
-    | charlit                        { S.Char (tokPos $1) (read $ tokStr $1) }
-    | strlit                         { S.String (tokPos $1) (tokStr $1) }
-    | true                           { S.Bool (tokPos $1) True }
-    | false                          { S.Bool (tokPos $1) False }
-
-
 infix : expr '+' expr                { S.Infix (tokPos $2) S.Plus $1 $3 }
       | expr '-' expr                { S.Infix (tokPos $2) S.Minus $1 $3 }
       | expr '*' expr                { S.Infix (tokPos $2) S.Times $1 $3 }
@@ -185,7 +183,6 @@ infix : expr '+' expr                { S.Infix (tokPos $2) S.Plus $1 $3 }
       | expr '&&' expr               { S.Infix (tokPos $2) S.AndAnd $1 $3 }
       | expr '||' expr               { S.Infix (tokPos $2) S.OrOr $1 $3 }
       | expr '!=' expr               { S.Infix (tokPos $2) S.NotEq $1 $3 }
-
 
 type_         : typeNoIdent          { $1 }
               | ident                { T.Typedef (tokStr $1) }
@@ -215,11 +212,6 @@ rowTypes_     : rowType                { [$1] }
 
 tupTypes : rowType              { [$1] }
          | rowType ',' tupTypes { $1 : $3 }
-
-
-table     : '[' tableRows ']'       { S.Table (tokPos $1) $2 } 
-tableRows : exprs                   { [$1] }
-          | exprs ';' tableRows     { $1 : $3 }
 
 
 pattern   : pattern_                { $1 }

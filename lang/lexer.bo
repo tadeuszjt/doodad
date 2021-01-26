@@ -4,7 +4,7 @@ imports ../std/io
 imports ../std/strings
 
 type TokSym String
-type TokInt Int
+type TokInt i64
 
 type Token {:TokSym, :TokInt}
 

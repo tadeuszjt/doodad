@@ -78,8 +78,13 @@ cmpTypeDef (S.Typedef pos sym typ) = withPos pos $ do
             addSymKeyDec sym KeyType name DecType
             addObj sym KeyType $ ObType typ (Just name)
 
-        _ -> addObj sym KeyType (ObType typ Nothing)
 
+        Pointer ts -> do
+            forM_ ts $ \t -> do
+                addObj sym (KeyFunc [Pointer [t]]) (ObjConstructor (Typedef sym))
+            addObj sym KeyType (ObType typ Nothing)
+
+        _ -> addObj sym KeyType (ObType typ Nothing)
 
 
 cmpVarDef :: InsCmp CompileState m => S.Stmt -> m ()
@@ -244,30 +249,29 @@ cmpStmt stmt = case stmt of
         mapM_ cmpStmt stmts
         popSymTab
 
-
     _ -> error (show stmt)
 
 
-cmpConstructor :: InsCmp CompileState m => Type -> [Value] -> m Value
-cmpConstructor typ []    = zeroOf typ
-cmpConstructor typ [val] = do
-    pureType    <- pureTypeOf typ
-    pureValType <- pureTypeOf (valType val)
-    checkTypesMatch pureType pureValType
-    fmap (Val typ) $ fmap valOp (valLoad val)
-
-
+-- must return Val unless local variable
 cmpExpr :: InsCmp CompileState m =>  S.Expr -> m Value
 cmpExpr expr = case expr of
     S.Int pos n    -> return (valI64 n)
     S.Bool pos b   -> return (valBool b)
     S.Char pos c   -> return (valChar c)
+            
+    S.String pos s -> do
+        loc <- globalStringPtr s =<< fresh
+        fmap (Val String) $ bitcast (cons loc) (LL.ptr LL.i8)
+
+    S.Ident pos sym -> withPos pos $ do
+        ObjVal loc <- look sym KeyVar
+        return loc
 
     S.Call pos sym exprs -> withPos pos $ do
         vals <- mapM valLoad =<< mapM cmpExpr exprs
         res <- look sym $ KeyFunc (map valType vals)
         case res of
-            ObjConstructor typ -> cmpConstructor typ vals
+            ObjConstructor typ -> valConstruct typ vals
             _                  -> do
                 (op, typ) <- case res of
                     ObjFunc Void _     -> err "cannot use void function as expression"
@@ -276,16 +280,6 @@ cmpExpr expr = case expr of
                     ObjExtern _ typ op -> return (op, typ)
 
                 fmap (Val typ) $ call op [(o, []) | o <- map valOp vals]
-            
-    S.String pos s -> do
-        loc <- globalStringPtr s =<< fresh
-        pi8 <- bitcast (cons loc) (LL.ptr LL.i8)
-        return $ Val String pi8
-
-
-    S.Ident pos sym -> withPos pos $ do
-        ObjVal val <- look sym KeyVar
-        return val
 
     S.Infix pos op exprA exprB -> withPos pos $ do
         a <- cmpExpr exprA
@@ -295,14 +289,14 @@ cmpExpr expr = case expr of
     S.Conv pos typ [] ->
         zeroOf typ
 
-    S.Len pos expr -> withPos pos $ do
+    S.Len pos expr -> withPos pos $ valLoad =<< do
         val <- cmpExpr expr
         typ <- valBaseType val
         case typ of
             Table _ -> tableLen val
             _       -> err ("cannot take length of type " ++ show typ)
 
-    S.Tuple pos exprs -> withPos pos $ do
+    S.Tuple pos exprs -> withPos pos $ valLoad =<< do
         vals <- mapM cmpExpr exprs
         if any valContextual vals
         then return (CtxTuple vals)
@@ -311,7 +305,7 @@ cmpExpr expr = case expr of
             zipWithM_ (valTupleSet tup) [0..] vals
             return tup
 
-    S.Subscript pos aggExpr idxExpr -> withPos pos $ do
+    S.Subscript pos aggExpr idxExpr -> withPos pos $ valLoad =<< do
         agg <- cmpExpr aggExpr
         idx <- cmpExpr idxExpr
 
@@ -337,12 +331,15 @@ cmpExpr expr = case expr of
         val <- cmpExpr expr
         case val of
             Ptr t loc -> return $ Val (Pointer [t]) loc
-            Val t _   -> err "cannot take address of a value"
+            Val t _   -> do
+                mal <- valMalloc t (valI64 1)
+                valStore mal val
+                return $ Val (Pointer [t]) (valLoc mal) 
         
     S.Table pos ([]:rs) -> withPos pos $ do
         assert (all null rs) "row lengths do not match"
         return (CtxTable [[]])
-    S.Table pos exprss -> withPos pos $ do
+    S.Table pos exprss -> withPos pos $ valLoad =<< do
         valss <- mapM (mapM cmpExpr) exprss
         let rowLen = length (head valss)
 
@@ -368,7 +365,7 @@ cmpExpr expr = case expr of
         zipWithM_ (tableSetRow tab) [0..] rows
         return tab
 
-    S.Append pos expr elem -> withPos pos $ do
+    S.Append pos expr elem -> withPos pos $ valLoad =<< do
         tab <- cmpExpr expr
         val <- cmpExpr elem
         typ <- valBaseType val

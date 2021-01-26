@@ -2,27 +2,17 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE AllowAmbiguousTypes #-}
-{-# LANGUAGE InstanceSigs #-}
-{-# LANGUAGE TupleSections #-}
-
 module Monad where
 -- A monad which encapsulates StateT and error handling using Error
 
-import Control.Monad.State hiding (fail)
-import Control.Monad.Fail
-import Control.Monad.Except hiding (void, fail)
+import Control.Monad.State 
+import Control.Monad.Except 
+import Control.Monad.Trans
+import Control.Monad.Identity
 
-import           Control.Monad.Except       hiding (void)
-import           Control.Monad.State        hiding (void)
-import           Control.Monad.Trans
-import           Control.Monad.Identity
-import           Control.Monad.Fail
-import qualified Data.Set as Set
-import qualified Data.Map as Map
-import           LLVM.AST 
-import           LLVM.IRBuilder.Module
-import           LLVM.IRBuilder.Monad
+import LLVM.AST 
+import LLVM.IRBuilder.Module
+import LLVM.IRBuilder.Monad
 
 import Error
 
@@ -59,7 +49,7 @@ runInstrCmpT irBuilderState instrCmpT =
 
 
 class (MonadFail m, MonadError Error m, BoM s m, MonadModuleBuilder m) => ModCmp s m
-class (ModCmp s m, MonadIRBuilder m)                                      => InsCmp s m
+class (ModCmp s m, MonadIRBuilder m)                                   => InsCmp s m
 
 instance (Monad m, MonadFail m, MonadIO m) => (ModCmp s) (ModuleCmpT s m)
 instance (Monad m, MonadFail m, MonadIO m) => (ModCmp s) (InstrCmpT s m)

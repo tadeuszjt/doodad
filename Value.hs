@@ -24,62 +24,6 @@ import Funcs
 import Type
 
 
-valAsType :: InsCmp CompileState m => Type -> Value -> m Value
-valAsType typ val = case val of
-    Val _ _       -> checkTypesMatch typ (valType val) >> return val
-    Ptr _ _       -> checkTypesMatch typ (valType val) >> return val
-    CtxTable [[]] -> do
-        base <- baseTypeOf typ
-        assert (isTable base) ("does not satisfy " ++ show typ)
-        zeroOf typ
-    CtxTuple vals -> do
-        base <- baseTypeOf typ
-        assert (isTuple base) ("does not satisfy " ++ show typ)
-        let Tuple ts = base
-        assert (length vals == length ts) ("does not satisfy " ++ show typ)
-
-        tup <- valLocal typ
-        zipWithM_ (valTupleSet tup) [0..] =<< zipWithM valAsType ts vals
-        return tup
-                
-
-
-valsInfix :: InsCmp CompileState m => S.Op -> Value -> Value -> m Value
-valsInfix operator a b = do
-    checkTypesMatch (valType a) (valType b)
-    let typ = valType a
-    base <- valBaseType a
-    Val _ opA <- valLoad a
-    Val _ opB <- valLoad b
-    valsInfix' operator typ base opA opB
-    where
-        valsInfix' :: InsCmp CompileState m => S.Op -> Type -> Type -> LL.Operand -> LL.Operand -> m Value
-        valsInfix' operator typ base opA opB
-            | isInt base || isChar base = case operator of
-                S.Plus   -> fmap (Val typ) (add opA opB)
-                S.Minus  -> fmap (Val typ) (sub opA opB)
-                S.Times  -> fmap (Val typ) (mul opA opB)
-                S.Divide -> fmap (Val typ) (sdiv opA opB)
-                S.GT     -> fmap (Val Bool) (icmp P.SGT opA opB)
-                S.LT     -> fmap (Val Bool) (icmp P.SLT opA opB)
-                S.GTEq   -> fmap (Val Bool) (icmp P.SGE opA opB)
-                S.LTEq   -> fmap (Val Bool) (icmp P.SLE opA opB)
-                S.EqEq   -> fmap (Val Bool) (icmp P.EQ opA opB)
-                S.NotEq  -> fmap (Val Bool) (icmp P.NE opA opB)
-                _        -> error ("int infix: " ++ show operator)
-            | typ == Bool = case operator of
-                S.OrOr   -> fmap (Val Bool) (or opA opB)
-                S.AndAnd -> fmap (Val Bool) (and opA opB)
-                _        -> error ("bool infix: " ++ show operator)
-            | otherwise  = error (show operator)
-        
-
-valNot :: InsCmp CompileState m => Value -> m Value
-valNot val = do
-    Val Bool op <- valLoad val
-    fmap (Val Bool) $ icmp P.EQ op (bit 0)
-
-
 valInt :: Type -> Integer -> Value
 valInt I8 n  = Val I8  (int8 n)
 valInt I32 n = Val I32 (int32 n)
@@ -125,6 +69,75 @@ valMalloc typ len = do
     pi8  <- malloc (valOp num)
     opTyp <- opTypeOf typ
     fmap (Ptr typ) $ bitcast pi8 (LL.ptr opTyp)
+
+
+valConstruct :: InsCmp CompileState m => Type -> [Value] -> m Value
+valConstruct typ []                         = zeroOf typ
+valConstruct typ [val] | typ == valType val = valLoad val
+valConstruct typ [val]                      = do
+    base <- baseTypeOf typ
+    case base of
+        Pointer ts -> error "pointer"
+        _          -> do
+            pureType    <- pureTypeOf typ
+            pureValType <- pureTypeOf (valType val)
+            checkTypesMatch pureType pureValType
+            fmap (Val typ) $ fmap valOp (valLoad val)
+
+
+valAsType :: InsCmp CompileState m => Type -> Value -> m Value
+valAsType typ val = case val of
+    Val _ _       -> checkTypesMatch typ (valType val) >> return val
+    Ptr _ _       -> checkTypesMatch typ (valType val) >> return val
+    CtxTable [[]] -> do
+        base <- baseTypeOf typ
+        assert (isTable base) ("does not satisfy " ++ show typ)
+        zeroOf typ
+    CtxTuple vals -> do
+        base <- baseTypeOf typ
+        assert (isTuple base) ("does not satisfy " ++ show typ)
+        let Tuple ts = base
+        assert (length vals == length ts) ("does not satisfy " ++ show typ)
+
+        tup <- valLocal typ
+        zipWithM_ (valTupleSet tup) [0..] =<< zipWithM valAsType ts vals
+        return tup
+                
+
+valsInfix :: InsCmp CompileState m => S.Op -> Value -> Value -> m Value
+valsInfix operator a b = do
+    checkTypesMatch (valType a) (valType b)
+    let typ = valType a
+    base <- valBaseType a
+    Val _ opA <- valLoad a
+    Val _ opB <- valLoad b
+    valsInfix' operator typ base opA opB
+    where
+        valsInfix' :: InsCmp CompileState m => S.Op -> Type -> Type -> LL.Operand -> LL.Operand -> m Value
+        valsInfix' operator typ base opA opB
+            | isInt base || isChar base = case operator of
+                S.Plus   -> fmap (Val typ) (add opA opB)
+                S.Minus  -> fmap (Val typ) (sub opA opB)
+                S.Times  -> fmap (Val typ) (mul opA opB)
+                S.Divide -> fmap (Val typ) (sdiv opA opB)
+                S.GT     -> fmap (Val Bool) (icmp P.SGT opA opB)
+                S.LT     -> fmap (Val Bool) (icmp P.SLT opA opB)
+                S.GTEq   -> fmap (Val Bool) (icmp P.SGE opA opB)
+                S.LTEq   -> fmap (Val Bool) (icmp P.SLE opA opB)
+                S.EqEq   -> fmap (Val Bool) (icmp P.EQ opA opB)
+                S.NotEq  -> fmap (Val Bool) (icmp P.NE opA opB)
+                _        -> error ("int infix: " ++ show operator)
+            | typ == Bool = case operator of
+                S.OrOr   -> fmap (Val Bool) (or opA opB)
+                S.AndAnd -> fmap (Val Bool) (and opA opB)
+                _        -> error ("bool infix: " ++ show operator)
+            | otherwise  = error (show operator)
+        
+
+valNot :: InsCmp CompileState m => Value -> m Value
+valNot val = do
+    Val Bool op <- valLoad val
+    fmap (Val Bool) $ icmp P.EQ op (bit 0)
 
 
 valPtrIdx :: InsCmp s m => Value -> Value -> m Value
@@ -201,7 +214,6 @@ checkTypesMatch typA typB
         str = show typA ++ " does not match " ++ show typB
 
 
-
 baseTypeOf :: ModCmp CompileState m => Type -> m Type
 baseTypeOf typ = case typ of
     Typedef s -> do ObType t _ <- look s KeyType; baseTypeOf t
@@ -214,11 +226,14 @@ valBaseType = baseTypeOf . valType
 
 pureTypeOf :: ModCmp CompileState m => Type -> m Type
 pureTypeOf typ = case typ of
-    Typedef s -> do ObType t _ <- look s KeyType; pureTypeOf t
-    Table ts  -> fmap Table (mapM pureTypeOf ts)
-    Tuple ts  -> fmap Tuple (mapM pureTypeOf ts)
-    Array n t -> fmap (Array n) (pureTypeOf t)
+    Typedef s  -> do ObType t _ <- look s KeyType; pureTypeOf t
+    Table ts   -> fmap Table (mapM pureTypeOf ts)
+    Tuple ts   -> fmap Tuple (mapM pureTypeOf ts)
+    Array n t  -> fmap (Array n) (pureTypeOf t)
+    Pointer ts -> fmap Pointer (mapM pureTypeOf ts)
     _ | isSimple typ -> return typ
+
+
 
 
 zeroOf :: ModCmp CompileState m => Type -> m Value
@@ -246,17 +261,6 @@ zeroOf typ = case typ of
     _             -> fail ("no zero val for: " ++ show typ)
 
 
-sizeOf :: InsCmp CompileState m => Type -> m Word64
-sizeOf typ = size =<< opTypeOf =<< baseTypeOf typ
-    where
-        size :: InsCmp CompileState m => LL.Type -> m Word64
-        size typ = do
-            ctx <- gets context
-            dl <- gets dataLayout
-            ptrTyp <- liftIO $ runEncodeAST ctx (encodeM typ)
-            liftIO (FFI.getTypeAllocSize dl ptrTyp)
-
-
 opTypeOf :: ModCmp CompileState m => Type -> m LL.Type
 opTypeOf typ = case typ of
     Void      -> return LL.VoidType
@@ -273,13 +277,23 @@ opTypeOf typ = case typ of
         ptrOpTypes <- mapM (fmap LL.ptr . opTypeOf) ts
         return $ LL.StructureType False (LL.i64:LL.i64:ptrOpTypes)
 
+    Pointer []  -> error ""
     Pointer [t] -> fmap LL.ptr (opTypeOf t)
-
-    Pointer ts -> do
-        return $ LL.StructureType False [LL.i64, LL.ptr LL.i8]
+    Pointer ts  -> return $ LL.StructureType False [LL.i64, LL.ptr LL.i8]
 
     Typedef s -> do
         ObType t namem <- look s KeyType
         maybe (opTypeOf t) (return . LL.NamedTypeReference) namem
 
     _ -> error (show typ) 
+
+sizeOf :: InsCmp CompileState m => Type -> m Word64
+sizeOf typ = size =<< opTypeOf =<< pureTypeOf typ
+    where
+        size :: InsCmp CompileState m => LL.Type -> m Word64
+        size typ = do
+            ctx <- gets context
+            dl <- gets dataLayout
+            ptrTyp <- liftIO $ runEncodeAST ctx (encodeM typ)
+            liftIO (FFI.getTypeAllocSize dl ptrTyp)
+
