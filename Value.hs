@@ -101,6 +101,15 @@ valPointerDeref val = do
 
 valConstruct :: InsCmp CompileState m => Type -> [Value] -> m Value
 valConstruct typ []                         = zeroOf typ
+valConstruct typ [Null]                     = do
+    base <- baseTypeOf typ
+    assert (isPointer base) "cannot construct non-pointer type from null"
+    let Pointer ts = base
+    assert (Void `elem` ts) "pointer type does not allow null value"
+    loc <- valLocal typ
+    en <- valPointerEnum loc
+    valStore en $ valI64 $ fromJust (elemIndex Void ts)
+    valLoad loc
 valConstruct typ [val] | typ == valType val = valLoad val
 valConstruct typ [val]                      = do
     base <- baseTypeOf typ

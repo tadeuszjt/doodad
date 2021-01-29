@@ -2,6 +2,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Compile where
 
+import Data.List
+import Data.Maybe
 import qualified Data.Map as Map
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.ByteString.Short as BSS
@@ -77,6 +79,7 @@ cmpTypeDef (S.Typedef pos sym typ) = withPos pos $ do
         Pointer ts -> do
             forM_ ts $ \t -> do
                 addObj sym (KeyFunc [Pointer [t]]) (ObjConstructor (Typedef sym))
+            addObj sym (KeyFunc [Void]) (ObjConstructor (Typedef sym))
             addObj sym KeyType (ObType typ Nothing)
 
         _ -> addObj sym KeyType (ObType typ Nothing)
@@ -247,6 +250,7 @@ cmpExpr expr = case expr of
     S.Int pos n    -> return (valI64 n)
     S.Bool pos b   -> return (valBool b)
     S.Char pos c   -> return (valChar c)
+    S.Null pos     -> return Null
             
     S.String pos s -> do
         loc <- globalStringPtr s =<< fresh
@@ -257,7 +261,7 @@ cmpExpr expr = case expr of
         return loc
 
     S.Call pos sym exprs -> withPos pos $ do
-        vals <- mapM valLoad =<< mapM cmpExpr exprs
+        vals <- mapM cmpExpr exprs
         res <- look sym $ KeyFunc (map valType vals)
         case res of
             ObjConstructor typ -> valConstruct typ vals
@@ -268,7 +272,8 @@ cmpExpr expr = case expr of
                     ObjFunc typ op     -> return (op, typ)
                     ObjExtern _ typ op -> return (op, typ)
 
-                fmap (Val typ) $ call op [(o, []) | o <- map valOp vals]
+                vals' <- mapM valLoad vals
+                fmap (Val typ) $ call op [(o, []) | o <- map valOp vals']
 
     S.Infix pos op exprA exprB -> withPos pos $ do
         a <- cmpExpr exprA
@@ -277,6 +282,17 @@ cmpExpr expr = case expr of
 
     S.Conv pos typ [] ->
         zeroOf typ
+
+    S.Conv pos typ [S.Null p] -> withPos pos $ do
+        base <- baseTypeOf typ
+        assert (isPointer typ) "type isn't a pointer"
+        let Pointer ts = base
+        assert (Void `elem` ts) "pointer does not allow null"
+        loc <- valLocal typ
+        en <- valPointerEnum loc
+        valStore en $ valI64 $ fromJust (elemIndex Void ts)
+        valLoad loc
+        
 
     S.Len pos expr -> withPos pos $ valLoad =<< do
         val <- cmpExpr expr
@@ -316,14 +332,25 @@ cmpExpr expr = case expr of
                 tup <- tableGetElem agg idx
                 valTupleIdx tup 0
 
+
+    S.Range pos expr mstart mend -> withPos pos $ do
+        val <- cmpExpr expr
+        base <- valBaseType val
+        case base of
+            Table ts -> do
+                start <- maybe (return (valI64 0)) cmpExpr mstart
+                end <- maybe (tableLen val) cmpExpr mend
+                tableRange val start end
+                
+        
+
     S.Address pos expr -> withPos pos $ do
         val <- cmpExpr expr
         case val of
             Ptr t loc -> return $ Val (Pointer [t]) loc
             Val t _   -> do
-                mal <- valMalloc t (valI64 1)
-                valStore mal val
-                return $ Val (Pointer [t]) (valLoc mal) 
+                Ptr _ m <- valMalloc t (valI64 1)
+                fmap (Val (Pointer [t])) $ bitcast m (LL.ptr LL.i8)
         
     S.Table pos ([]:rs) -> withPos pos $ do
         assert (all null rs) "row lengths do not match"

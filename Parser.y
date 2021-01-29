@@ -67,6 +67,7 @@ import qualified Data.Set as Set
     print      { Token _ Reserved "print" }
     len        { Token _ Reserved "len" }
     append     { Token _ Reserved "append" }
+    null       { Token _ Reserved "null" }
 
     i16        { Token _ Reserved "i16" }
     i32        { Token _ Reserved "i32" }
@@ -162,8 +163,10 @@ expr   : lit                          { $1 }
        | expr '.' intlit              { S.TupleIndex (tokPos $2) $1 (read $ tokStr $3) }
        | expr '.' ident               { S.Member (tokPos $2) $1 (tokStr $3) }
        | expr '[' expr ']'            { S.Subscript (tokPos $2) $1 $3 }
+       | expr '[' expr '..' ']'       { S.Range (tokPos $2) $1 (Just $3) Nothing }
        | '-' expr                     { S.Prefix (tokPos $1) S.Minus $2 }
        | '+' expr                     { S.Prefix (tokPos $1) S.Plus $2 }
+       | null                         { S.Null (tokPos $1) }
 exprs  : {- empty -}                  { [] }
        | exprs_                       { $1 }
 exprs_ : expr                         { [$1] }
@@ -197,7 +200,7 @@ typeNoIdent   : bool                 { T.Bool }
               | '[' intlit '|' type_ ']'       { T.Array (read $ tokStr $2) $4 }
               | '(' tupTypes ')'               { T.Tuple $2 }
               | '[' rowTypes_ ']'              { T.Table $2 }
-              | '{' types '}'                  { T.Pointer $2 }
+              | '{' ptrTypes '}'               { T.Pointer $2 }
 
 types         : {- empty -}          { [] }
               | types_               { $1 }
@@ -213,6 +216,11 @@ rowTypes_     : rowType                { [$1] }
 tupTypes : rowType              { [$1] }
          | rowType ',' tupTypes { $1 : $3 }
 
+
+ptrType : type_                 { $1 }
+        | null                  { T.Void }
+ptrTypes : ptrType              { [$1] }
+         | ptrType ',' ptrTypes { $1 : $3 }
 
 pattern   : pattern_                { $1 }
 pattern_  : '_'                     { S.PatIgnore (tokPos $1) }

@@ -82,6 +82,43 @@ tableSetElem tab idx tup = do
         valStore ptr =<< valTupleIdx tup (fromIntegral i)
 
 
+tableRange :: InsCmp CompileState m => Value -> Value -> Value -> m Value
+tableRange tab start end = do
+    Table ts <- valBaseType tab
+    len <- valLoad =<< tableLen tab
+    cap <- valLoad =<< tableCap tab
+
+    baseStart <- valBaseType start
+    baseEnd <- valBaseType end
+    assert (isInt baseStart && isInt baseEnd) "range index isn't integer"
+
+    bStartNeg <- valsInfix S.LT start (valI64 0) 
+    startLoc <- valLocal (valType start)
+    if_ (valOp bStartNeg)
+        (valStore startLoc (valI64 0))
+        (valStore startLoc start)
+
+    bEndGT <- valsInfix S.GTEq end len
+    endLoc <- valLocal (valType end)
+    if_ (valOp bEndGT)
+        (valStore endLoc =<< valsInfix S.Minus len (valI64 1))
+        (valStore endLoc end)
+
+
+    loc <- valLocal (valType tab)
+    locLen <- tableLen loc
+    locCap <- tableCap loc
+    valStore locLen =<< valsInfix S.Plus (valI64 1) =<< valsInfix S.Minus endLoc startLoc
+    valStore locCap =<< valsInfix S.Minus cap startLoc
+
+    forM_ (zip ts [0..]) $ \(t, i) -> do
+        row <- tableRow i tab 
+        tableSetRow loc i =<< valPtrIdx row startLoc
+
+    valLoad loc
+
+
+
 tableAppend :: InsCmp CompileState m => Value -> Value -> m Value
 tableAppend tab tup = do
     Table ts  <- valBaseType tab

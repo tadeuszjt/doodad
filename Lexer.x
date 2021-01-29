@@ -29,7 +29,7 @@ $symbol  = [\{\}\(\)\[\]\,\|\.\;\:\_]
 
 @types      = i16 | i32 | i64 | f32 | f64 | bool | char | string
 @builtin    = print | len | append
-@keywords   = fn | extern | type | let | while | if | else | return | switch | true | false | module | imports
+@keywords   = fn | extern | type | let | while | if | else | return | switch | true | false | module | imports | null
 @reserved   = @keywords | @types | @builtin
 @reservedOp = [\+\-\*\/\%\<\>\=\&] | "!=" | "==" | "<=" | ">=" | "||" | "&&" | ".."
 

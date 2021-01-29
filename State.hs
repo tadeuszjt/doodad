@@ -12,7 +12,7 @@ import qualified LLVM.AST.Constant as C
 import qualified LLVM.Internal.FFI.DataLayout as FFI
 import LLVM.AST hiding (function, type')
 import LLVM.AST.Global
-import LLVM.AST.Constant as C hiding (type')
+import qualified LLVM.AST.Constant as C hiding (type')
 import LLVM.AST.Type hiding (void)
 import LLVM.IRBuilder.Module
 import LLVM.IRBuilder.Monad
@@ -30,11 +30,19 @@ import Error
 
 
 data Value
-    = Val { valType :: T.Type, valOp :: Operand }
-    | Ptr { valType :: T.Type, valLoc :: Operand }
+    = Val T.Type Operand
+    | Ptr T.Type Operand
+    | Null
     | CtxTable [[Value]]
     | CtxTuple [Value]
     deriving (Show, Eq)
+
+valType (Val t op) = t
+valType (Ptr t op) = t
+valType Null       = T.Void
+
+valOp (Val t op)   = op
+valLoc (Ptr t loc) = loc
 
 
 data SymKey
@@ -203,7 +211,7 @@ ensureExtern name argTypes retty isVarg = do
         ensureDec name
     
     return $ ConstantOperand $
-        GlobalReference (ptr $ FunctionType retty argTypes isVarg) name
+        C.GlobalReference (ptr $ FunctionType retty argTypes isVarg) name
 
 
 look :: ModCmp CompileState m => S.Symbol -> SymKey -> m Object
@@ -215,7 +223,7 @@ look sym key = do
         Nothing  -> do
             r <- fmap (catMaybes . map (SymTab.lookupSymKey sym key . symTab) . Map.elems) (gets imports)
             case r of
-                []  -> fail ("no obj for: " ++ sym)
+                []  -> fail ("no obj for: " ++ sym ++ " " ++ show key)
                 [x] -> return x
 
 

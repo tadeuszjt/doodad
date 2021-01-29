@@ -75,6 +75,7 @@ data Expr
     | Table TextPos [[Expr]]
     | Member TextPos Expr Symbol
     | Subscript TextPos Expr Expr
+    | Range TextPos Expr (Maybe Expr) (Maybe Expr)
     | TupleIndex TextPos Expr Word32
     | Ident TextPos Symbol
     | Call TextPos Symbol [Expr]
@@ -84,6 +85,7 @@ data Expr
     | Prefix TextPos Op Expr
     | Infix TextPos Op Expr Expr
     | Address TextPos Expr
+    | Null TextPos
     deriving (Eq)
 
 
@@ -145,25 +147,27 @@ instance Show Index where
 
 instance Show Expr where
     show expr = case expr of
-        AST.Int pos n                 -> show n
-        AST.Float pos f               -> show f
-        AST.Bool pos b                -> show b
-        AST.Char pos c                -> show c
-        AST.String pos s              -> show s
-        AST.Tuple pos exprs           -> "Tuple" ++ tupStrs (map show exprs) 
-        AST.Array pos exprs           -> "Array" ++ arrStrs (map show exprs)
-        AST.Table pos exprss          -> "Table" ++ brcStrs (map show (map (AST.Array pos) exprss))
-        AST.Member pos expr str       -> "Member" ++ tupStrs [show expr, show str]
-        AST.Subscript pos expr1 expr2 -> "Subscript" ++ tupStrs [show expr1, show expr2]
-        AST.TupleIndex pos expr n     -> "Index" ++ tupStrs [show expr, show n]
-        AST.Ident pos s               -> "Ident(" ++ show s ++ ")"
-        AST.Call pos symbol exprs     -> "Call" ++ tupStrs (show symbol: map show exprs)
-        AST.Conv pos typ exprs        -> "Conv" ++ tupStrs (show typ: map show exprs)
-        AST.Len pos expr              -> "Len(" ++ show expr ++ ")"
-        AST.Append pos expr1 expr2    -> "Append" ++ tupStrs [show expr1, show expr2]
-        AST.Prefix pos op expr        -> show op ++ show expr
-        AST.Infix pos op expr1 expr2  -> "(" ++ show expr1 ++ " " ++ show op ++ " " ++ show expr2 ++ ")"
-        AST.Address pos expr          -> "&" ++ show expr
+        AST.Int pos n                   -> show n
+        AST.Float pos f                 -> show f
+        AST.Bool pos b                  -> show b
+        AST.Char pos c                  -> show c
+        AST.String pos s                -> show s
+        AST.Tuple pos exprs             -> "Tuple" ++ tupStrs (map show exprs) 
+        AST.Array pos exprs             -> "Array" ++ arrStrs (map show exprs)
+        AST.Table pos exprss            -> "Table" ++ brcStrs (map show (map (AST.Array pos) exprss))
+        AST.Member pos expr str         -> "Member" ++ tupStrs [show expr, show str]
+        AST.Subscript pos expr1 expr2   -> "Subscript" ++ tupStrs [show expr1, show expr2]
+        AST.Range pos expr mLeft mRight -> "Range" ++ tupStrs [show expr, show mLeft, show mRight]
+        AST.TupleIndex pos expr n       -> "Index" ++ tupStrs [show expr, show n]
+        AST.Ident pos s                 -> "Ident(" ++ show s ++ ")"
+        AST.Call pos symbol exprs       -> "Call" ++ tupStrs (show symbol: map show exprs)
+        AST.Conv pos typ exprs          -> "Conv" ++ tupStrs (show typ: map show exprs)
+        AST.Len pos expr                -> "Len(" ++ show expr ++ ")"
+        AST.Append pos expr1 expr2      -> "Append" ++ tupStrs [show expr1, show expr2]
+        AST.Prefix pos op expr          -> show op ++ show expr
+        AST.Infix pos op expr1 expr2    -> "(" ++ show expr1 ++ " " ++ show op ++ " " ++ show expr2 ++ ")"
+        AST.Address pos expr            -> "&" ++ show expr
+        AST.Null pos                    -> "null"
 
 
 prettyAST :: String -> AST -> IO ()

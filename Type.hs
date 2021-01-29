@@ -38,7 +38,7 @@ instance Show Type where
         Array n t     -> "[" ++ show n ++ "| " ++ show t ++ "]"
         Table ts      -> "[" ++ intercalate "; " (map show ts) ++ "]"
         Pointer ts    -> "{" ++ intercalate ", " (map show ts) ++ "}"
-        Typedef s     -> show s
+        Typedef s     -> s
 
 
 isChar x              = x == Char
