@@ -28,9 +28,15 @@ valPrint append val = case valType val of
 
     Pointer [t] -> do
         void $ printf (show (valType val) ++ "{") []
-        Val _ op <- valLoad val
-        x <- ptrtoint op LL.i64
-        void $ printf ("%#x}" ++ append) [x]
+        op <- fmap valOp (valLoad val)
+        void $ printf ("%p}" ++ append) [op]
+
+
+    Pointer ts -> do
+        void $ printf (show (valType val) ++ "{") []
+        en <- valPointerEnum val
+        valPrint ("}" ++ append) en
+
 
     I64 -> do
         Val _ op <- valLoad val

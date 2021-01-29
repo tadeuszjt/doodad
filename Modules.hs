@@ -42,10 +42,10 @@ showPath :: S.Path -> String
 showPath path = concat (intersperse "/" path)
 
 
-parse :: BoM s m => FilePath -> m S.AST
-parse file = do
+parse :: BoM s m => Int -> FilePath -> m S.AST
+parse id file = do
     source <- liftIO (readFile file)
-    case P.parse source of
+    case P.parse id source of
         Left (ErrorStr str)         -> throwError (ErrorStr str)
         Left (ErrorFile "" pos str) -> throwError (ErrorFile file pos str)
         Right a                     -> return a
@@ -68,9 +68,9 @@ runMod args visited modPath = do
             files <- getSpecificModuleFiles name =<< getBoFilesInDirectory (if null dir then "." else showPath dir)
             when (null files) $ fail ("no files for: " ++ showPath path)
 
-            asts <- forM files $ \file -> do
+            asts <- forM (zip files [0..]) $ \(file, id) -> do
                 debug ("using file: " ++ file)
-                parse file
+                parse id file
 
             -- flatten asts
             combinedAST <- combineASTs asts
@@ -82,13 +82,14 @@ runMod args visited modPath = do
 
             flatRes <- runBoMT initFlattenState (flattenAST combinedAST)
             flat <- case flatRes of
-                Left err              -> throwError err
-                Right ((), flatState) -> return flatState
+                Left (ErrorFile "" (TextPos id p l c) str) -> throwError $ ErrorFile (files !! id) (TextPos id p l c) str
+                Right ((), flatState)                      -> return flatState
 
             -- compile and run
             debug "compiling"
             session <- gets session
             state <- compileFlatState (JIT.context session) (JIT.dataLayout session) imports flat
+
             liftIO $ jitAndRun (definitions state) session True (printLLIR args) 
             modify $ \s -> s { modMap = Map.insert path state (modMap s) }
             return state
@@ -120,7 +121,7 @@ getSpecificModuleFiles :: BoM s m => String -> [FilePath] -> m [FilePath]
 getSpecificModuleFiles name []     = return []
 getSpecificModuleFiles name (f:fs) = do
     source <- liftIO (readFile f)
-    ast <- parse f
+    ast <- parse 0 f
     if fromJust (S.astModuleName ast) == name then
         fmap (f :) (getSpecificModuleFiles name fs)
     else

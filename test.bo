@@ -5,8 +5,7 @@ imports lang/lexer
 
 fn main()
     let s = String("letbenis")
-    parseLet(s)
-
-    print(String(s))
+    let (p, xs) = parseLet(s)
+    print(parseLet(s))
 
 

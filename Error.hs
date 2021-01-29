@@ -8,7 +8,8 @@ import qualified Data.Map as Map
 
 data TextPos
     = TextPos
-        { textPos  :: Int
+        { textFile :: Int
+        , textPos  :: Int
         , textLine :: Int
         , textCol  :: Int
         }
@@ -16,7 +17,7 @@ data TextPos
 
 
 instance Show TextPos where
-    show (TextPos p l c) = "(" ++ show p ++ ":" ++ show l ++ ":" ++ show c ++ ")"
+    show (TextPos i p l c) = "(" ++ show p ++ ":" ++ show l ++ ":" ++ show c ++ ")"
 
 
 data Error
@@ -35,9 +36,12 @@ printError :: Error -> IO ()
 printError err = case err of
     ErrorStr str           -> putStrLn ("error: " ++ str)
     ErrorFile path pos str -> do
-        let TextPos p l c = pos
+
+        let TextPos i p l c = pos
         putStrLn ("error " ++ show pos ++ " " ++ str ++ ":")
+
         file <- try (readFile path) :: IO (Either SomeException String)
+
         case file of
             Left e -> putStrLn ("couldn't read: " ++ path)
             Right source -> do

@@ -197,7 +197,7 @@ typeNoIdent   : bool                 { T.Bool }
               | '[' intlit '|' type_ ']'       { T.Array (read $ tokStr $2) $4 }
               | '(' tupTypes ')'               { T.Tuple $2 }
               | '[' rowTypes_ ']'              { T.Table $2 }
-              | '{' tupTypes '}'               { T.Pointer $2 }
+              | '{' types '}'                  { T.Pointer $2 }
 
 types         : {- empty -}          { [] }
               | types_               { $1 }
@@ -255,9 +255,9 @@ else_ : else block                   { $2 }
 
 
 {
-parse :: MonadError Error m => String -> m S.AST
-parse source = do
-    case alexScanner source of
+parse :: MonadError Error m => Int -> String -> m S.AST
+parse id source = do
+    case alexScanner id source of
         Left  errStr -> throwError (ErrorStr errStr)
         Right tokens -> case (parseTokens tokens) 0 of
             ParseFail pos -> throwError (ErrorFile "" pos "parse error")
@@ -282,12 +282,11 @@ returnP :: a -> P a
 returnP a = \l -> ParseOk a
 
 tokPos :: Token -> TextPos
-tokPos tok =
-    let AlexPn p l c = tokPosn tok in TextPos p l c
+tokPos tok = tokPosn tok
 
 
 happyError :: [Token] -> P a
-happyError []    = return $ ParseFail (TextPos 0 0 0)
-happyError (x:_) = return $ ParseFail (let AlexPn p l c = tokPosn x in TextPos p l c)
+happyError []    = return $ ParseFail (TextPos (-1) 0 0 0)
+happyError (x:_) = return $ ParseFail (tokPosn x)
 
 }

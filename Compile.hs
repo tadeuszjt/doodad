@@ -48,15 +48,11 @@ compileFlatState ctx dl imports flatState = do
         Right ((_, defs), state) -> return $ state { definitions = defs }
     where
             f :: (MonadFail m, Monad m, MonadIO m) => ModuleCmpT CompileState m ()
-            f = void $ func "main" [] LL.VoidType $ \_ ->
-                    cmp
-
-            cmp :: (MonadFail m, Monad m, MonadIO m) => InstrCmpT CompileState m ()
-            cmp = do
-                forM_ (Map.toList $ F.typeDefs flatState) $ \(flat, (pos, typ)) -> cmpTypeDef (S.Typedef pos flat typ)
-                mapM_ cmpVarDef (F.varDefs flatState)
-                mapM_ cmpExternDef (F.externDefs flatState)
-                mapM_ cmpFuncDef (F.funcDefs flatState)
+            f = void $ func "main" [] LL.VoidType $ \_ -> do
+                    forM_ (Map.toList $ F.typeDefs flatState) $ \(flat, (pos, typ)) -> cmpTypeDef (S.Typedef pos flat typ)
+                    mapM_ cmpVarDef (F.varDefs flatState)
+                    mapM_ cmpExternDef (F.externDefs flatState)
+                    mapM_ cmpFuncDef (F.funcDefs flatState)
 
 
 cmpTypeDef :: InsCmp CompileState m => S.Stmt -> m ()
@@ -77,7 +73,6 @@ cmpTypeDef (S.Typedef pos sym typ) = withPos pos $ do
             addDeclared name
             addSymKeyDec sym KeyType name DecType
             addObj sym KeyType $ ObType typ (Just name)
-
 
         Pointer ts -> do
             forM_ ts $ \t -> do
@@ -160,13 +155,7 @@ cmpFuncDef (S.Func pos sym params retty blk) = withPos pos $ do
                 addObj sym KeyVar (ObjVal loc)
 
             mapM_ cmpStmt blk
-
-            retTyp <- gets curRetType
-            hasTerm <- hasTerminator
-            unless hasTerm $
-                if retTyp == Void
-                then retVoid
-                else ret . valOp =<< zeroOf retTyp
+            retVoid -- will crash when non-void function
 
     modify $ \s -> s { curRetType = curRetty }
     popSymTab
@@ -389,6 +378,19 @@ cmpPattern pat val = case pat of
         addObj sym KeyVar (ObjVal loc)
         valStore loc val
         return (valBool True)
+    S.PatTuple pos pats -> withPos pos $ do
+        base <- valBaseType val
+        assert (isTuple base) "tuple pattern for non tuple type"
+        let Tuple ts = base
+        assert (length ts == length pats) "tuple pattern length mismatch"
+        bs <- forM (zip pats [0..]) $ \(p, i) ->
+            cmpPattern p =<< valTupleIdx val i
+
+        foldM (valsInfix S.AndAnd) (valBool True) bs
+
+
+
+
         
 
 cmpPrint :: InsCmp CompileState m => S.Stmt -> m ()
@@ -396,6 +398,6 @@ cmpPrint (S.Print pos exprs) = withPos pos $ do
     prints =<< mapM cmpExpr exprs
     where
         prints :: InsCmp CompileState m => [Value] -> m ()
-        prints []     = return ()
+        prints []     = void $ printf "\n" []
         prints [val]  = valPrint "\n" val
         prints (v:vs) = valPrint ", " v >> prints vs

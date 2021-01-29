@@ -10,6 +10,8 @@ where
 
 import Data.List
 import Data.Maybe
+
+import Error
 }
 
 %wrapper "monadUserState"
@@ -83,18 +85,18 @@ mkIndentT (p,_,_,s) len = do
 alexEOF = return (AlexPn 0 0 0, EOF, "")
 
 
-alexScanner :: String -> Either String [Token]
-alexScanner str = runAlex str loop
+alexScanner :: Int -> String -> Either String [Token]
+alexScanner id str = runAlex str loop
     where
         loop = do
-            (pos, typ, str) <- alexMonadScan
+            (AlexPn p l c, typ, str) <- alexMonadScan
             case typ of
                 NoToken -> loop
                 EOF     -> return []
                 Dedent  -> do
-                    toks <- dedentLoop pos str
+                    toks <- dedentLoop (TextPos id p l c) str
                     fmap (toks ++) loop
-                _       -> fmap (Token pos typ str :) loop
+                _       -> fmap (Token (TextPos id p l c) typ str :) loop
             
         dedentLoop pos indent = do
             curIndent <- fmap (concat . reverse) getLexerIndentStack
@@ -141,7 +143,7 @@ popIndent = do
 
 data Token
     = Token
-        { tokPosn :: AlexPosn
+        { tokPosn :: TextPos
         , tokType :: TokenType
         , tokStr  :: String
         }
@@ -167,3 +169,5 @@ data TokenType
     | EOF
     deriving (Show, Eq)
 }
+
+

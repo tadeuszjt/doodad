@@ -88,7 +88,7 @@ initCompileState ctx dl imports
         , definitions  = []
         , symTab       = SymTab.initSymTab
         , curRetType   = T.Void
-        , posStack     = [TextPos 0 0 0]
+        , posStack     = []
         }
 
 
@@ -180,12 +180,13 @@ ensureSymKeyDec sym key = do
         Nothing   -> do
             imports <- fmap Map.elems (gets imports)
             rs <- fmap catMaybes $ forM imports $ \imp -> do
-                let res = Map.lookup (sym, key) (decMap imp) 
-                case res of
+                case Map.lookup (sym, key) (decMap imp) of
                     Nothing   -> return Nothing
                     Just name -> do
                         declared <- fmap (Set.member name) (gets declared)
-                        when (not declared) $ emitDec name ((Map.! name) $ declarations imp)
+                        when (not declared) $ do
+                            emitDec name ((Map.! name) $ declarations imp)
+                            addDeclared name
                         return (Just ())
 
             case rs of

@@ -6,12 +6,14 @@ imports ../std/strings
 type TokSym String
 type TokInt i64
 
-type Token {:TokSym, :TokInt}
+type Token {TokSym, TokInt}
 
 
-fn parseLet(str String) (:{:TokSym}, :String)
-    let s   = String("let")
+fn parseLet(str String) (:Token, :String)
+    let s = String("let")
+    let t = Token(&TokSym(s))
+
     if isPrefix(s, str)
-        return (&TokSym(s), str)
+        return (t, str)
 
-    return (&TokSym(s), str)
+    return (t, str)

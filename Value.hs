@@ -3,6 +3,8 @@ module Value where
 
 import Prelude hiding (or, and)
 import Data.Word
+import Data.Maybe
+import Data.List hiding (or, and)
 import Control.Monad
 import Control.Monad.State hiding (void)
 import Control.Monad.Trans
@@ -24,14 +26,14 @@ import Funcs
 import Type
 
 
-valInt :: Type -> Integer -> Value
-valInt I8 n  = Val I8  (int8 n)
-valInt I32 n = Val I32 (int32 n)
-valInt I64 n = Val I64 (int64 n)
+valInt :: Integral i => Type -> i -> Value
+valInt I8 n  = Val I8  (int8 $ fromIntegral n)
+valInt I32 n = Val I32 (int32 $ fromIntegral n)
+valInt I64 n = Val I64 (int64 $ fromIntegral n)
 
 
-valI64 :: Integer -> Value
-valI64 = valInt I64
+valI64 :: Integral i => i -> Value
+valI64 = valInt I64 
 
 
 valChar :: Char -> Value
@@ -64,11 +66,37 @@ valLocal typ = do
 
 valMalloc :: InsCmp CompileState m => Type -> Value -> m Value
 valMalloc typ len = do
-    size <- fmap (valInt I64 . fromIntegral) (sizeOf typ)
+    size <- fmap (valInt I64) (sizeOf typ)
     num  <- valsInfix S.Times len size
     pi8  <- malloc (valOp num)
     opTyp <- opTypeOf typ
     fmap (Ptr typ) $ bitcast pi8 (LL.ptr opTyp)
+
+
+
+
+
+valPointerEnum :: InsCmp CompileState m => Value -> m Value
+valPointerEnum ptr = do
+    Pointer ts <- valBaseType ptr
+    assert (length ts > 1) "pointer has no enum"
+    case ptr of
+        Val _ op  -> fmap (Val I64) (extractValue op [0])
+        Ptr _ loc -> fmap (Ptr I64) (gep loc [int32 0, int32 0])
+
+
+valPointerDeref :: InsCmp CompileState m => Value -> m Value
+valPointerDeref val = do
+    base <- valBaseType val
+    case base of
+        Pointer []  -> error ""
+        Pointer [t] -> do
+            case val of
+                Val _ op  -> return (Ptr t op)
+                Ptr _ loc -> fmap (Ptr t) (load loc 0)
+        Pointer ts -> error ""
+            
+
 
 
 valConstruct :: InsCmp CompileState m => Type -> [Value] -> m Value
@@ -77,7 +105,26 @@ valConstruct typ [val] | typ == valType val = valLoad val
 valConstruct typ [val]                      = do
     base <- baseTypeOf typ
     case base of
-        Pointer ts -> error "pointer"
+        Pointer []  -> error ""
+        Pointer [t] -> error ""
+        Pointer ts  -> do
+            Pointer [t] <- valBaseType val
+            assert (t `elem` ts) "incompatible pointer types"
+
+            loc <- valLocal typ
+            en  <- valPointerEnum loc
+            valStore en $ valI64 $ fromJust (elemIndex t ts)
+
+
+
+            ppi8 <- gep (valLoc loc) [int32 0, int32 1]
+            Val _ op <- valLoad val
+            pi8 <- bitcast op (LL.ptr LL.i8)
+            store ppi8 0 pi8
+            
+            valLoad loc
+
+            
         _          -> do
             pureType    <- pureTypeOf typ
             pureValType <- pureTypeOf (valType val)
@@ -188,7 +235,7 @@ valArrayConstIdx val i = do
 valMemCpy :: InsCmp CompileState m => Value -> Value -> Value -> m ()
 valMemCpy (Ptr dstTyp dst) (Ptr srcTyp src) len = do
     checkTypesMatch dstTyp srcTyp
-    size <- fmap (valI64 . fromIntegral) (sizeOf dstTyp)
+    size <- fmap valI64 (sizeOf dstTyp)
     num <- valsInfix S.Times len size
     pDstI8 <- bitcast dst (LL.ptr LL.i8)
     pSrcI8 <- bitcast src (LL.ptr LL.i8)
@@ -282,7 +329,7 @@ opTypeOf typ = case typ of
         return $ LL.StructureType False (LL.i64:LL.i64:ptrOpTypes)
 
     Pointer []  -> error ""
-    Pointer [t] -> fmap LL.ptr (opTypeOf t)
+    Pointer [t] -> return (LL.ptr LL.i8)
     Pointer ts  -> return $ LL.StructureType False [LL.i64, LL.ptr LL.i8]
 
     Typedef s -> do
