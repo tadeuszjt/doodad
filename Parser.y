@@ -164,6 +164,7 @@ expr   : lit                          { $1 }
        | expr '.' ident               { S.Member (tokPos $2) $1 (tokStr $3) }
        | expr '[' expr ']'            { S.Subscript (tokPos $2) $1 $3 }
        | expr '[' expr '..' ']'       { S.Range (tokPos $2) $1 (Just $3) Nothing }
+       | expr '[' '..' expr ']'       { S.Range (tokPos $2) $1 Nothing (Just $4) }
        | '-' expr                     { S.Prefix (tokPos $1) S.Minus $2 }
        | '+' expr                     { S.Prefix (tokPos $1) S.Plus $2 }
        | null                         { S.Null (tokPos $1) }

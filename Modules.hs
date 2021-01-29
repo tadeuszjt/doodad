@@ -82,13 +82,16 @@ runMod args visited modPath = do
 
             flatRes <- runBoMT initFlattenState (flattenAST combinedAST)
             flat <- case flatRes of
-                Left (ErrorFile "" (TextPos id p l c) str) -> throwError $ ErrorFile (files !! id) (TextPos id p l c) str
-                Right ((), flatState)                      -> return flatState
+                Left (ErrorFile "" pos str) -> throwError $ ErrorFile (files !! textFile pos) pos str
+                Right ((), flatState)       -> return flatState
 
             -- compile and run
             debug "compiling"
             session <- gets session
-            state <- compileFlatState (JIT.context session) (JIT.dataLayout session) imports flat
+            cmpRes <- runBoMT () $ compileFlatState (JIT.context session) (JIT.dataLayout session) imports flat
+            state <- case cmpRes of
+                Left (ErrorFile "" pos str) -> throwError $ ErrorFile (files !! textFile pos) pos str
+                Right (s, _)                -> return s
 
             liftIO $ jitAndRun (definitions state) session True (printLLIR args) 
             modify $ \s -> s { modMap = Map.insert path state (modMap s) }
@@ -126,8 +129,4 @@ getSpecificModuleFiles name (f:fs) = do
         fmap (f :) (getSpecificModuleFiles name fs)
     else
         getSpecificModuleFiles name fs
-
-
-    
-    
 

@@ -265,7 +265,7 @@ checkTypesMatch typA typB
     | isTuple typA   = assert (typA == typB) str
     | isTypedef typA = assert (typA == typB) str
     | isPointer typA = assert (typA == typB) str
-    | otherwise     = error (show typA)
+    | otherwise      = err (show typA ++ " does not match " ++ show typB)
     where
         str = show typA ++ " does not match " ++ show typB
 
