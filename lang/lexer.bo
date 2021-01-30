@@ -11,21 +11,11 @@ type Token {null, TokSym, TokInt}
 
 fn parseKeyword(word String, str String) (:Token, :String)
     let i = 0
-    while i < len(word)
-        if i >= len(str)
-            return (null, str)
+    while true
         if i >= len(word)
-            return ( Token(&TokSym(str[..i])), str[i..] )
+            return (Token(&TokSym(str[..i])), str[i..])
+        if i >= len(str)
+            return (Token(null), str)
+        if word[i] != str[i]
+            return (Token(null), str)
         i = i + 1
-
-
-
-
-fn parseLet(str String) (:Token, :String)
-    let s = String("let")
-    let t = &TokSym(s)
-
-    if isPrefix(s, str)
-        return ( Token(t), str[len(s)..] )
-
-    return (Token(t), str)

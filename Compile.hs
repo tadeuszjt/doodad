@@ -158,7 +158,13 @@ cmpFuncDef (S.Func pos sym params retty blk) = withPos pos $ do
                 addObj sym KeyVar (ObjVal loc)
 
             mapM_ cmpStmt blk
-            retVoid -- will crash when non-void function
+            hasTerm <- hasTerminator
+            retty <- gets curRetType
+            if hasTerm
+            then return ()
+            else if retty == Void
+            then retVoid
+            else unreachable
 
     modify $ \s -> s { curRetType = curRetty }
     popSymTab
