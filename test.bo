@@ -5,7 +5,7 @@ imports lang/lexer
 
 fn main()
     let s = String("letbenis")
-    let r = parseKeyword(String("let"), s)
+    let r = parseStr(String("let"), s)
     print(r)
 
 

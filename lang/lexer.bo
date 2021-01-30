@@ -9,13 +9,25 @@ type TokInt i64
 type Token {null, TokSym, TokInt}
 
 
-fn parseKeyword(word String, str String) (:Token, :String)
+let keywords = [ "let", "while", "fn", "true", "false", "null", "if", "else"]
+
+fn parseStr(word String, str String) (:Token, :String)
     let i = 0
     while true
-        if i >= len(word)
-            return (Token(&TokSym(str[..i])), str[i..])
-        if i >= len(str)
-            return (Token(null), str)
-        if word[i] != str[i]
-            return (Token(null), str)
-        i = i + 1
+        switch i
+            _ | i >= len(word)    : return (Token(&TokSym(str[..i])), str[i..])
+            _ | i >= len(str)     : return (Token(null), str)
+            _ | word[i] != str[i] : return (Token(null), str)
+            _                     : i = i + 1
+
+
+fn parseKeyword(str String) (:Token, :String)
+    let i = 0
+    while i < len(keywords)
+        let word = String(keywords[i])
+        switch parseStr(word, str)
+            (Token(null), _) : i = i + 1
+            (tok, rest)      : return (tok, rest)
+
+    return (Token(null), str)
+

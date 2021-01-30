@@ -80,9 +80,6 @@ valMalloc typ len = do
     fmap (Ptr typ) $ bitcast pi8 (LL.ptr opTyp)
 
 
-
-
-
 valAsType :: InsCmp CompileState m => Type -> Value -> m Value
 valAsType typ val = case val of
     Val _ _       -> checkTypesMatch typ (valType val) >> return val

@@ -55,6 +55,7 @@ data Pattern
     | PatTuple   TextPos [Pattern]
     | PatArray   TextPos [Pattern]
     | PatTyped   TextPos Symbol Pattern
+    | PatGuarded TextPos Pattern Expr
     deriving (Eq)
 
 

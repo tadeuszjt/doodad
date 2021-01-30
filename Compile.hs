@@ -400,12 +400,20 @@ cmpPattern :: InsCmp CompileState m => S.Pattern -> Value -> m Value
 cmpPattern pat val = case pat of
     S.PatIgnore pos    -> return (valBool True)
     S.PatLiteral expr  -> valsInfix S.EqEq val =<< cmpExpr expr
+
+    S.PatGuarded pos pat expr -> withPos pos $ do
+        guard <- cmpExpr expr
+        match <- cmpPattern pat val
+        assertBaseType (== Bool) (valType guard)
+        valsInfix S.AndAnd match guard
+
     S.PatIdent pos sym -> withPos pos $ do
         checkSymKeyUndef sym KeyVar
         loc <- valLocal (valType val)
         addObj sym KeyVar (ObjVal loc)
         valStore loc val
         return (valBool True)
+
     S.PatTuple pos pats -> withPos pos $ do
         base <- valBaseType val
         assert (isTuple base) "tuple pattern for non tuple type"
@@ -415,6 +423,8 @@ cmpPattern pat val = case pat of
             cmpPattern p =<< valTupleIdx val i
 
         foldM (valsInfix S.AndAnd) (valBool True) bs
+
+
 
 
 cmpPrint :: InsCmp CompileState m => S.Stmt -> m ()
