@@ -199,7 +199,7 @@ typeNoIdent   : bool                 { T.Bool }
               | f64                  { T.F64 }
               | char                 { T.Char }
               | string               { T.String }
-              | '[' intlit '|' type_ ']'       { T.Array (read $ tokStr $2) $4 }
+              | '[' intlit ':' type_ ']'       { T.Array (read $ tokStr $2) $4 }
               | '(' tupTypes ')'               { T.Tuple $2 }
               | '[' rowTypes_ ']'              { T.Table $2 }
               | '{' ptrTypes '}'               { T.Pointer $2 }
@@ -227,9 +227,12 @@ ptrTypes : ptrType              { [$1] }
 pattern  : '_'                     { S.PatIgnore (tokPos $1) }
          | lit                     { S.PatLiteral $1 }
          | ident                   { S.PatIdent (tokPos $1) (tokStr $1) }
+         | type_ '(' pattern ')'   { S.PatTyped (tokPos $2) $1 $3 }
+         | null                    { S.PatNull  (tokPos $1) }
          | '(' patterns ')'        { S.PatTuple (tokPos $1) $2 }
          | '[' patterns ']'        { S.PatArray (tokPos $1) $2 }
          | pattern '|' expr        { S.PatGuarded (tokPos $2) $1 $3 }
+
 
 patterns  : {- empty -}             { [] }
           | patterns_               { $1 }

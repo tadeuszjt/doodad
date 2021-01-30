@@ -24,10 +24,9 @@ fn parseStr(word String, str String) (:Token, :String)
 fn parseKeyword(str String) (:Token, :String)
     let i = 0
     while i < len(keywords)
-        let word = String(keywords[i])
-        switch parseStr(word, str)
-            (Token(null), _) : i = i + 1
-            (tok, rest)      : return (tok, rest)
+        switch parseStr(String(keywords[i]), str)
+            (null, _)   : i = i + 1
+            (tok, rest) : return (tok, rest)
 
     return (Token(null), str)
 

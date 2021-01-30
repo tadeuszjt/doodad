@@ -54,8 +54,9 @@ data Pattern
     | PatIdent   TextPos Symbol
     | PatTuple   TextPos [Pattern]
     | PatArray   TextPos [Pattern]
-    | PatTyped   TextPos Symbol Pattern
     | PatGuarded TextPos Pattern Expr
+    | PatTyped   TextPos Type Pattern
+    | PatNull    TextPos
     deriving (Eq)
 
 

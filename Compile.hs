@@ -14,8 +14,10 @@ import Control.Monad.Fail hiding (fail)
 import Control.Monad.Except hiding (void, fail)
 import Foreign.Ptr
 
+import LLVM.AST.Name
 import qualified LLVM.AST as LL
 import qualified LLVM.AST.Type as LL
+import qualified LLVM.AST.Constant as LL
 import qualified LLVM.Internal.FFI.DataLayout as FFI
 import LLVM.AST.Global
 import LLVM.IRBuilder.Instruction       
@@ -56,6 +58,7 @@ compileFlatState ctx dl imports flatState = do
                     forM_ (Map.toList $ F.typeDefs flatState) $ \(flat, (pos, typ)) -> cmpTypeDef (S.Typedef pos flat typ)
                     mapM_ cmpVarDef (F.varDefs flatState)
                     mapM_ cmpExternDef (F.externDefs flatState)
+                    mapM_ cmpFuncHdr (F.funcDefs flatState)
                     mapM_ cmpFuncDef (F.funcDefs flatState)
 
 
@@ -125,6 +128,21 @@ cmpExternDef (S.Extern pos sym params retty) = do
     addObj sym (KeyFunc paramTypes) (ObjExtern paramTypes retty op)
 
 
+cmpFuncHdr :: InsCmp CompileState m => S.Stmt -> m ()
+cmpFuncHdr (S.Func pos "main" params retty blk) = return ()
+cmpFuncHdr (S.Func pos sym params retty blk)    = withPos pos $ do
+    let paramTypes = map S.paramType params
+    let symKey     = KeyFunc paramTypes
+    checkSymKeyUndef sym symKey
+    name <- freshName (mkBSS sym)
+
+    paramOpTypes <- forM params $ \(S.Param p s t) -> opTypeOf t
+    returnOpType <- opTypeOf retty
+
+    let op = fnOp name paramOpTypes returnOpType False
+    addObj sym symKey (ObjFunc retty op) 
+    
+
 cmpFuncDef :: (MonadFail m, Monad m, MonadIO m) => S.Stmt -> InstrCmpT CompileState m ()
 cmpFuncDef (S.Func pos "main" params retty blk) = withPos pos $ do
     assert (params == [])  "main cannot have parameters"
@@ -132,9 +150,10 @@ cmpFuncDef (S.Func pos "main" params retty blk) = withPos pos $ do
     pushSymTab >> mapM_ cmpStmt blk >> popSymTab
 cmpFuncDef (S.Func pos sym params retty blk) = withPos pos $ do
     let paramTypes = map S.paramType params
-    let symKey     = KeyFunc paramTypes
-    checkSymKeyUndef sym symKey
-    name@(LL.Name nameStr) <- freshName (mkBSS sym)
+
+    ObjFunc _ op <- look sym (KeyFunc paramTypes)
+    let LL.ConstantOperand (LL.GlobalReference _ name) = op
+    let Name nameStr = name
 
     (paramOpTypes, paramNames, paramSyms) <- fmap unzip3 $ forM params $ \(S.Param p s t) -> do
         opTyp <- opTypeOf t
@@ -143,8 +162,6 @@ cmpFuncDef (S.Func pos sym params retty blk) = withPos pos $ do
 
     returnOpType <- opTypeOf retty
 
-    let op = fnOp name paramOpTypes returnOpType False
-    addObj sym symKey (ObjFunc retty op) 
     addSymKeyDec sym (KeyFunc paramTypes) name (DecFunc paramOpTypes returnOpType)
     addDeclared name
 
@@ -400,6 +417,11 @@ cmpPattern :: InsCmp CompileState m => S.Pattern -> Value -> m Value
 cmpPattern pat val = case pat of
     S.PatIgnore pos    -> return (valBool True)
     S.PatLiteral expr  -> valsInfix S.EqEq val =<< cmpExpr expr
+    S.PatNull pos      -> withPos pos $ do
+        Pointer ts <- assertBaseType isPointer (valType val)
+        assert (Void `elem` ts) "pointer doesn't support null"
+        en <- valPointerEnum val
+        valsInfix S.EqEq en $ valI64 $ fromJust (elemIndex Void ts)
 
     S.PatGuarded pos pat expr -> withPos pos $ do
         guard <- cmpExpr expr
