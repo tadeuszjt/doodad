@@ -32,11 +32,23 @@ valPrint append val = case valType val of
         op <- fmap valOp (valLoad val)
         void $ printf ("%p}" ++ append) [op]
 
-
     Pointer ts -> do
-        void $ printf (show (valType val) ++ "{") []
         en <- valPointerEnum val
-        valPrint ("}" ++ append) en
+
+        cases <- forM (zip ts [0..]) $ \(t, i) -> do
+            let b = fmap valOp $ valsInfix S.EqEq en (valI64 i)
+            let s = do
+                if t /= Void then do
+                    ptr <- valPointerConstruct (Pointer [t]) val
+                    loc <- valPointerDeref ptr
+                    valPrint "" loc
+                else do
+                    void $ printf "null" []
+            return (b, s)
+
+        switch_ cases
+
+        void $ printf append []
 
 
     I64 -> do
@@ -81,7 +93,7 @@ valPrint append val = case valType val of
             then valPrint "; " =<< valPtrIdx row n
             else valPrint ("]" ++ append) =<< valPtrIdx row n
 
-        let m2 = void $ printf ("}" ++ append) []
+        let m2 = void $ printf ("]" ++ append) []
         if_ (valOp lenZero) m2 m1 
 
     Array n t -> do

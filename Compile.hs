@@ -349,8 +349,9 @@ cmpExpr expr = case expr of
         case val of
             Ptr t loc -> return $ Val (Pointer [t]) loc
             Val t _   -> do
-                Ptr _ m <- valMalloc t (valI64 1)
-                fmap (Val (Pointer [t])) $ bitcast m (LL.ptr LL.i8)
+                mal <- valMalloc t (valI64 1)
+                valStore mal val
+                fmap (Val (Pointer [t])) $ bitcast (valLoc mal) (LL.ptr LL.i8)
         
     S.Table pos ([]:rs) -> withPos pos $ do
         assert (all null rs) "row lengths do not match"

@@ -99,13 +99,13 @@ tableRange tab start end = do
     bEndGT <- valsInfix S.GTEq end len
     endLoc <- valLocal (valType end)
     if_ (valOp bEndGT)
-        (valStore endLoc =<< valsInfix S.Minus len (valI64 1))
+        (valStore endLoc len)
         (valStore endLoc end)
 
     loc <- valLocal (valType tab)
     locLen <- tableLen loc
     locCap <- tableCap loc
-    valStore locLen =<< valsInfix S.Plus (valI64 1) =<< valsInfix S.Minus endLoc startLoc
+    valStore locLen =<< valsInfix S.Minus endLoc startLoc
     valStore locCap =<< valsInfix S.Minus cap startLoc
 
     forM_ (zip ts [0..]) $ \(t, i) -> do

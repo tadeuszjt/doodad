@@ -10,12 +10,13 @@ import qualified LLVM.AST.Type as LL
 import LLVM.IRBuilder.Constant
 import LLVM.IRBuilder.Instruction
 
+import qualified AST as S
 import Value
 import Type
 import CompileState
 import Monad
 import Funcs
-import qualified AST as S
+
 
 valPointerEnum :: InsCmp CompileState m => Value -> m Value
 valPointerEnum ptr = do
@@ -32,8 +33,9 @@ valPointerDeref val = do
     case ts of
         []  -> error ""
         [t] -> do
-            op <- fmap valOp (valLoad val)
-            return . (Ptr t) =<< bitcast op =<< fmap LL.ptr (opTypeOf t)
+            pi8 <- valPointerPi8 val
+            pt  <- fmap LL.ptr (opTypeOf t)
+            fmap (Ptr t) (bitcast pi8 pt)
         ts -> error ""
 
 
@@ -51,21 +53,6 @@ valPointerNull typ = do
 
     valLoad loc
 
-
-
-valPointerStore :: InsCmp CompileState m => Value -> Value -> m ()
-valPointerStore ptr@(Ptr _ loc) val = do
-    Pointer ts  <- assertBaseType isPointer (valType ptr)
-    Pointer [t] <- assertBaseType isPointer (valType val)
-
-    assert (t `elem` ts) "incompatible pointer types"
-    case ts of
-        []  -> error ""
-        [_] -> error ""
-        ts  -> do
-            en <- valPointerEnum ptr
-            valStore en $ valI64 $ fromJust (elemIndex t ts)
-            valPointerSetPi8 ptr =<< valPointerPi8 val
 
 
 valPointerPi8 :: InsCmp CompileState m => Value -> m LL.Operand
@@ -108,9 +95,13 @@ valPointerConstruct typ val  = do
         (_,   [t]) -> do
             en <- valPointerEnum loc
             valStore en $ valI64 $ fromJust (elemIndex t ts)
-        ([t], _)   -> error ""
-        (_,   _)   -> do
+        ([t], _)   -> do
             valEn <- valLoad =<< valPointerEnum val
+            b <- valsInfix S.EqEq valEn $ valI64 $ fromJust (elemIndex t ts')
+            if_ (valOp b) (return ()) (void trap)
+            
+        (_,   _)   -> do
+            valEn <- valPointerEnum val
 
             cases <- forM ts'' $ \t -> do
                 let b = fmap valOp $ valsInfix S.EqEq valEn $ valI64 $ fromJust (elemIndex t ts')
