@@ -26,10 +26,17 @@ import Funcs
 import Type
 
 
+assertBaseType :: InsCmp CompileState m => (Type -> Bool) -> Type -> m Type
+assertBaseType f typ = do
+    base <- baseTypeOf typ
+    assert (f base) "invalid type"
+    return base
+
+
 valInt :: Integral i => Type -> i -> Value
-valInt I8 n  = Val I8  (int8 $ fromIntegral n)
-valInt I32 n = Val I32 (int32 $ fromIntegral n)
-valInt I64 n = Val I64 (int64 $ fromIntegral n)
+valInt I8 n  = Val I8  $ int8  (fromIntegral n)
+valInt I32 n = Val I32 $ int32 (fromIntegral n)
+valInt I64 n = Val I64 $ int64 (fromIntegral n)
 
 
 valI64 :: Integral i => i -> Value
@@ -76,83 +83,15 @@ valMalloc typ len = do
 
 
 
-valPointerEnum :: InsCmp CompileState m => Value -> m Value
-valPointerEnum ptr = do
-    Pointer ts <- valBaseType ptr
-    assert (length ts > 1) "pointer has no enum"
-    case ptr of
-        Val _ op  -> fmap (Val I64) (extractValue op [0])
-        Ptr _ loc -> fmap (Ptr I64) (gep loc [int32 0, int32 0])
-
-
-valPointerDeref :: InsCmp CompileState m => Value -> m Value
-valPointerDeref val = do
-    base <- valBaseType val
-    case base of
-        Pointer []  -> error ""
-        Pointer [t] -> do
-            case val of
-                Val _ op  -> return (Ptr t op)
-                Ptr _ loc -> fmap (Ptr t) (load loc 0)
-        Pointer ts -> error ""
-            
-
-
-
-valConstruct :: InsCmp CompileState m => Type -> [Value] -> m Value
-valConstruct typ []                         = zeroOf typ
-valConstruct typ [Null]                     = do
-    base <- baseTypeOf typ
-    assert (isPointer base) "cannot construct non-pointer type from null"
-    let Pointer ts = base
-    assert (Void `elem` ts) "pointer type does not allow null value"
-    loc <- valLocal typ
-    en <- valPointerEnum loc
-    valStore en $ valI64 $ fromJust (elemIndex Void ts)
-    valLoad loc
-valConstruct typ [val] | typ == valType val = valLoad val
-valConstruct typ [val]                      = do
-    base <- baseTypeOf typ
-    case base of
-        Pointer []  -> error ""
-        Pointer [t] -> error ""
-        Pointer ts  -> do
-            Pointer [t] <- valBaseType val
-            assert (t `elem` ts) "incompatible pointer types"
-
-            loc <- valLocal typ
-            en  <- valPointerEnum loc
-            valStore en $ valI64 $ fromJust (elemIndex t ts)
-
-
-
-            ppi8 <- gep (valLoc loc) [int32 0, int32 1]
-            Val _ op <- valLoad val
-            pi8 <- bitcast op (LL.ptr LL.i8)
-            store ppi8 0 pi8
-            
-            valLoad loc
-
-            
-        _          -> do
-            pureType    <- pureTypeOf typ
-            pureValType <- pureTypeOf (valType val)
-            checkTypesMatch pureType pureValType
-            fmap (Val typ) $ fmap valOp (valLoad val)
-
-
 valAsType :: InsCmp CompileState m => Type -> Value -> m Value
 valAsType typ val = case val of
     Val _ _       -> checkTypesMatch typ (valType val) >> return val
     Ptr _ _       -> checkTypesMatch typ (valType val) >> return val
     CtxTable [[]] -> do
-        base <- baseTypeOf typ
-        assert (isTable base) ("does not satisfy " ++ show typ)
+        Tuple ts <- assertBaseType isTuple typ
         zeroOf typ
     CtxTuple vals -> do
-        base <- baseTypeOf typ
-        assert (isTuple base) ("does not satisfy " ++ show typ)
-        let Tuple ts = base
+        Tuple ts <- assertBaseType isTuple typ
         assert (length vals == length ts) ("does not satisfy " ++ show typ)
 
         tup <- valLocal typ
@@ -192,7 +131,8 @@ valsInfix operator a b = do
 
 valNot :: InsCmp CompileState m => Value -> m Value
 valNot val = do
-    Val Bool op <- valLoad val
+    assertBaseType (== Bool) (valType val)
+    op <- fmap valOp (valLoad val)
     fmap (Val Bool) $ icmp P.EQ op (bit 0)
 
 
@@ -235,7 +175,7 @@ valArrayIdx (Ptr (Array n t) loc) idx = do
 
 valArrayConstIdx :: InsCmp CompileState m => Value -> Word -> m Value
 valArrayConstIdx val i = do
-    Array n t <- valBaseType val
+    Array n t <- assertBaseType isArray (valType val)
     case val of
         Ptr typ loc -> fmap (Ptr t) $ gep loc [int64 0, int64 (fromIntegral i)]
         Val typ op  -> fmap (Val t) $ extractValue op [fromIntegral i]

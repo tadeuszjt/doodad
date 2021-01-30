@@ -15,6 +15,7 @@ import Monad
 import Funcs
 import Table
 import Type 
+import Pointer
 
 
 valPrint :: InsCmp CompileState m => String -> Value -> m ()

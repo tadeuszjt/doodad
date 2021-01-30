@@ -19,6 +19,7 @@ import qualified LLVM.AST.Type as LL
 import qualified LLVM.Internal.FFI.DataLayout as FFI
 import LLVM.AST.Global
 import LLVM.IRBuilder.Instruction       
+import LLVM.IRBuilder.Constant
 import LLVM.IRBuilder.Module
 import LLVM.IRBuilder.Monad
 import LLVM.Context
@@ -33,6 +34,7 @@ import CompileState
 import Print
 import Funcs
 import Table
+import Pointer
 
 mkBSS = BSS.toShort . BS.pack
 
@@ -289,16 +291,8 @@ cmpExpr expr = case expr of
     S.Conv pos typ [] ->
         zeroOf typ
 
-    S.Conv pos typ [S.Null p] -> withPos pos $ do
-        base <- baseTypeOf typ
-        assert (isPointer typ) "type isn't a pointer"
-        let Pointer ts = base
-        assert (Void `elem` ts) "pointer does not allow null"
-        loc <- valLocal typ
-        en <- valPointerEnum loc
-        valStore en $ valI64 $ fromJust (elemIndex Void ts)
-        valLoad loc
-        
+    S.Conv pos typ [S.Null p] -> withPos pos $
+        valPointerNull typ
 
     S.Len pos expr -> withPos pos $ valLoad =<< do
         val <- cmpExpr expr
@@ -422,10 +416,6 @@ cmpPattern pat val = case pat of
         foldM (valsInfix S.AndAnd) (valBool True) bs
 
 
-
-
-        
-
 cmpPrint :: InsCmp CompileState m => S.Stmt -> m ()
 cmpPrint (S.Print pos exprs) = withPos pos $ do
     prints =<< mapM cmpExpr exprs
@@ -434,3 +424,17 @@ cmpPrint (S.Print pos exprs) = withPos pos $ do
         prints []     = void $ printf "\n" []
         prints [val]  = valPrint "\n" val
         prints (v:vs) = valPrint ", " v >> prints vs
+
+
+valConstruct :: InsCmp CompileState m => Type -> [Value] -> m Value
+valConstruct typ []                         = zeroOf typ
+valConstruct typ [val] | typ == valType val = valLoad val
+valConstruct typ [val]                      = do
+    base <- baseTypeOf typ
+    case base of
+        Pointer _   -> valPointerConstruct typ val
+        _           -> do
+            pureType    <- pureTypeOf typ
+            pureValType <- pureTypeOf (valType val)
+            checkTypesMatch pureType pureValType
+            fmap (Val typ) $ fmap valOp (valLoad val)

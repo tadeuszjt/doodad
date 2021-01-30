@@ -18,7 +18,7 @@ import Type
 
 tableLen :: InsCmp CompileState m => Value -> m Value
 tableLen tab = do
-    Table _ <- valBaseType tab
+    Table _ <- assertBaseType isTable (valType tab)
     case tab of
         Ptr _ loc -> fmap (Ptr I64) $ gep loc [int32 0, int32 0]
         Val _ op  -> fmap (Val I64) $ extractValue op [0]
@@ -26,7 +26,7 @@ tableLen tab = do
 
 tableCap :: InsCmp CompileState m => Value -> m Value
 tableCap tab = do
-    Table _ <- valBaseType tab
+    Table _ <- assertBaseType isTable (valType tab)
     case tab of
         Ptr _ loc -> fmap (Ptr I64) $ gep loc [int32 0, int32 1]
         Val _ op  -> fmap (Val I64) $ extractValue op [1]
@@ -34,7 +34,7 @@ tableCap tab = do
 
 tableRow :: InsCmp CompileState m => Word32 -> Value -> m Value
 tableRow i tab = do
-    Table ts <- valBaseType tab
+    Table ts <- assertBaseType isTable (valType tab)
     assert (fromIntegral i < length ts) "table row index >= num rows"
     let t = ts !! fromIntegral i
     case tab of
@@ -46,7 +46,7 @@ tableRow i tab = do
 
 tableSetRow :: InsCmp CompileState m => Value -> Word32 -> Value -> m ()
 tableSetRow tab i row = do
-    Table ts <- valBaseType tab
+    Table ts <- assertBaseType isTable (valType tab)
     checkTypesMatch (valType row) (ts !! fromIntegral i)
     pp <- gep (valLoc tab) [int32 0, int32 $ fromIntegral i+2]
     store pp 0 (valLoc row)
@@ -54,7 +54,7 @@ tableSetRow tab i row = do
 
 tableGetElem :: InsCmp CompileState m => Value -> Value -> m Value
 tableGetElem tab idx = do
-    Table ts <- valBaseType tab
+    Table ts <- assertBaseType isTable (valType tab)
 
     tup <- valLocal (Tuple ts)
     forM_ (zip ts [0..]) $ \(t, i) -> do
@@ -67,12 +67,11 @@ tableGetElem tab idx = do
 
 tableSetElem :: InsCmp CompileState m => Value -> Value -> Value -> m ()
 tableSetElem tab idx tup = do
-    Table ts  <- valBaseType tab
-    Tuple ts' <- valBaseType tup
-    idxType   <- valBaseType idx
+    Table ts  <- assertBaseType isTable (valType tab)
+    Tuple ts' <- assertBaseType isTuple (valType tup)
+    idxType   <- assertBaseType isInt (valType idx)
 
     -- check types match
-    assert (isInt idxType) "index is not an integer type"
     assert (length ts == length ts') "tuple type does not match table column"
     zipWithM_ checkTypesMatch ts ts'
 
@@ -84,13 +83,12 @@ tableSetElem tab idx tup = do
 
 tableRange :: InsCmp CompileState m => Value -> Value -> Value -> m Value
 tableRange tab start end = do
-    Table ts <- valBaseType tab
+    Table ts <- assertBaseType isTable (valType tab)
     len <- valLoad =<< tableLen tab
     cap <- valLoad =<< tableCap tab
 
-    baseStart <- valBaseType start
-    baseEnd <- valBaseType end
-    assert (isInt baseStart && isInt baseEnd) "range index isn't integer"
+    baseStart <- assertBaseType isInt (valType start)
+    baseEnd   <- assertBaseType isInt (valType end)
 
     bStartNeg <- valsInfix S.LT start (valI64 0) 
     startLoc <- valLocal (valType start)
@@ -103,7 +101,6 @@ tableRange tab start end = do
     if_ (valOp bEndGT)
         (valStore endLoc =<< valsInfix S.Minus len (valI64 1))
         (valStore endLoc end)
-
 
     loc <- valLocal (valType tab)
     locLen <- tableLen loc
@@ -121,8 +118,8 @@ tableRange tab start end = do
 
 tableAppend :: InsCmp CompileState m => Value -> Value -> m Value
 tableAppend tab tup = do
-    Table ts  <- valBaseType tab
-    Tuple ts' <- valBaseType tup
+    Table ts  <- assertBaseType isTable (valType tab)
+    Tuple ts' <- assertBaseType isTuple (valType tup)
 
     -- check types match
     assert (length ts == length ts') "tuple type does not match table column"
