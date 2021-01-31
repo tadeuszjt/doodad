@@ -28,7 +28,7 @@ data SymObj
     | ObjVarDef  TextPos S.Expr
     | ObjFuncDef S.Stmt
     | ObjExtern  S.Stmt
-    deriving (Show)
+    deriving ()
 
 
 data FlattenState

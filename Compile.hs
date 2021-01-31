@@ -48,17 +48,18 @@ compileFlatState
     -> F.FlattenState
     -> m CompileState
 compileFlatState ctx dl imports flatState = do
-    res <- runBoMT (initCompileState ctx dl imports) (runModuleCmpT emptyModuleBuilder f)
+    res <- runBoMT (initCompileState ctx dl imports) (runModuleCmpT emptyModuleBuilder cmp)
     case res of
         Left err                 -> throwError err
         Right ((_, defs), state) -> return $ state { definitions = defs }
     where
-            f :: (MonadFail m, Monad m, MonadIO m) => ModuleCmpT CompileState m ()
-            f = void $ func "main" [] LL.VoidType $ \_ -> do
-                    forM_ (Map.toList $ F.typeDefs flatState) $ \(flat, (pos, typ)) -> cmpTypeDef (S.Typedef pos flat typ)
-                    mapM_ cmpVarDef (F.varDefs flatState)
-                    mapM_ cmpExternDef (F.externDefs flatState)
+            cmp :: (MonadFail m, Monad m, MonadIO m) => ModuleCmpT CompileState m ()
+            cmp = void $ func "main" [] LL.VoidType $ \_ -> do
+                    forM_ (Map.toList $ F.typeDefs flatState) $ \(flat, (pos, typ)) ->
+                        cmpTypeDef (S.Typedef pos flat typ)
                     mapM_ cmpFuncHdr (F.funcDefs flatState)
+                    mapM_ cmpExternDef (F.externDefs flatState)
+                    mapM_ cmpVarDef (F.varDefs flatState)
                     mapM_ cmpFuncDef (F.funcDefs flatState)
 
 
@@ -131,16 +132,14 @@ cmpExternDef (S.Extern pos sym params retty) = do
 cmpFuncHdr :: InsCmp CompileState m => S.Stmt -> m ()
 cmpFuncHdr (S.Func pos "main" params retty blk) = return ()
 cmpFuncHdr (S.Func pos sym params retty blk)    = withPos pos $ do
-    let paramTypes = map S.paramType params
-    let symKey     = KeyFunc paramTypes
-    checkSymKeyUndef sym symKey
+    let key = KeyFunc (map S.paramType params)
+    checkSymKeyUndef sym key
     name <- freshName (mkBSS sym)
 
-    paramOpTypes <- forM params $ \(S.Param p s t) -> opTypeOf t
+    paramOpTypes <- mapM (opTypeOf . S.paramType) params
     returnOpType <- opTypeOf retty
-
     let op = fnOp name paramOpTypes returnOpType False
-    addObj sym symKey (ObjFunc retty op) 
+    addObj sym key (ObjFunc retty op) 
     
 
 cmpFuncDef :: (MonadFail m, Monad m, MonadIO m) => S.Stmt -> InstrCmpT CompileState m ()
@@ -149,18 +148,15 @@ cmpFuncDef (S.Func pos "main" params retty blk) = withPos pos $ do
     assert (retty == Void) "main must return void"
     pushSymTab >> mapM_ cmpStmt blk >> popSymTab
 cmpFuncDef (S.Func pos sym params retty blk) = withPos pos $ do
+    returnOpType <- opTypeOf retty
+    paramOpTypes <- mapM (opTypeOf . S.paramType) params
     let paramTypes = map S.paramType params
+    let paramNames = map (ParameterName . mkBSS . S.paramName) params
+    let paramSyms  = map S.paramName params
 
     ObjFunc _ op <- look sym (KeyFunc paramTypes)
     let LL.ConstantOperand (LL.GlobalReference _ name) = op
     let Name nameStr = name
-
-    (paramOpTypes, paramNames, paramSyms) <- fmap unzip3 $ forM params $ \(S.Param p s t) -> do
-        opTyp <- opTypeOf t
-        let paramName = mkBSS s
-        return (opTyp, ParameterName paramName, s)
-
-    returnOpType <- opTypeOf retty
 
     addSymKeyDec sym (KeyFunc paramTypes) name (DecFunc paramOpTypes returnOpType)
     addDeclared name
@@ -214,7 +210,7 @@ cmpStmt stmt = case stmt of
             S.IndIdent p sym -> do
                 ObjVal loc <- look sym KeyVar
                 valStore loc val
-        
+
     S.Return pos Nothing -> withPos pos $ do
         curRetty <- gets curRetType
         assert (curRetty == Void) "must return a value"
@@ -242,7 +238,7 @@ cmpStmt stmt = case stmt of
         br cond
         emitBlockStart cond
         cnd <- valLoad =<< cmpExpr expr
-        checkTypesMatch Bool =<< valBaseType cnd
+        assertBaseType (== Bool) (valType cnd)
         condBr (valOp cnd) body exit
         
         emitBlockStart body
@@ -266,7 +262,7 @@ cmpStmt stmt = case stmt of
         mapM_ cmpStmt stmts
         popSymTab
 
-    _ -> error (show stmt)
+    _ -> error "stmt"
 
 
 -- must return Val unless local variable
@@ -305,6 +301,11 @@ cmpExpr expr = case expr of
         b <- cmpExpr exprB
         valsInfix op a b
 
+    S.Prefix pos op expr -> withPos pos $ do
+        val <- cmpExpr expr
+        case op of
+            S.Not -> valNot val
+
     S.Conv pos typ [] ->
         zeroOf typ
 
@@ -318,14 +319,15 @@ cmpExpr expr = case expr of
             Table _ -> tableLen val
             _       -> err ("cannot take length of type " ++ show typ)
 
-    S.Tuple pos exprs -> withPos pos $ valLoad =<< do
+    S.Tuple pos [expr] -> withPos pos (cmpExpr expr)
+    S.Tuple pos exprs -> withPos pos $ do
         vals <- mapM cmpExpr exprs
         if any valContextual vals
         then return (CtxTuple vals)
         else do
             tup <- valLocal $ Tuple (map valType vals)
             zipWithM_ (valTupleSet tup) [0..] vals
-            return tup
+            valLoad tup
 
     S.Subscript pos aggExpr idxExpr -> withPos pos $ valLoad =<< do
         agg <- cmpExpr aggExpr
@@ -415,13 +417,16 @@ cmpExpr expr = case expr of
 
 cmpPattern :: InsCmp CompileState m => S.Pattern -> Value -> m Value
 cmpPattern pat val = case pat of
-    S.PatIgnore pos    -> return (valBool True)
-    S.PatLiteral expr  -> valsInfix S.EqEq val =<< cmpExpr expr
-    S.PatNull pos      -> withPos pos $ do
+    S.PatIgnore pos -> return (valBool True)
+
+    S.PatLiteral (S.Null pos) -> withPos pos $ do
         Pointer ts <- assertBaseType isPointer (valType val)
         assert (Void `elem` ts) "pointer doesn't support null"
         en <- valPointerEnum val
         valsInfix S.EqEq en $ valI64 $ fromJust (elemIndex Void ts)
+
+    S.PatLiteral expr ->
+        valsInfix S.EqEq val =<< cmpExpr expr
 
     S.PatGuarded pos pat expr -> withPos pos $ do
         guard <- cmpExpr expr
@@ -437,16 +442,12 @@ cmpPattern pat val = case pat of
         return (valBool True)
 
     S.PatTuple pos pats -> withPos pos $ do
-        base <- valBaseType val
-        assert (isTuple base) "tuple pattern for non tuple type"
-        let Tuple ts = base
+        Tuple ts <- assertBaseType isTuple (valType val)
         assert (length ts == length pats) "tuple pattern length mismatch"
         bs <- forM (zip pats [0..]) $ \(p, i) ->
             cmpPattern p =<< valTupleIdx val i
 
         foldM (valsInfix S.AndAnd) (valBool True) bs
-
-
 
 
 cmpPrint :: InsCmp CompileState m => S.Stmt -> m ()
@@ -471,3 +472,22 @@ valConstruct typ [val]                      = do
             pureValType <- pureTypeOf (valType val)
             checkTypesMatch pureType pureValType
             fmap (Val typ) $ fmap valOp (valLoad val)
+
+
+valAsType :: InsCmp CompileState m => Type -> Value -> m Value
+valAsType typ val = case val of
+    Val _ _       -> checkTypesMatch typ (valType val) >> return val
+    Ptr _ _       -> checkTypesMatch typ (valType val) >> return val
+    Null          -> valPointerNull typ
+    CtxTable [[]] -> do
+        Table ts <- assertBaseType isTable typ
+        zeroOf typ
+    CtxTuple vals -> do
+        Tuple ts <- assertBaseType isTuple typ
+        assert (length vals == length ts) ("does not satisfy " ++ show typ)
+
+        tup <- valLocal typ
+        zipWithM_ (valTupleSet tup) [0..] =<< zipWithM valAsType ts vals
+        return tup
+                
+

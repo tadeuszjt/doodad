@@ -223,7 +223,7 @@ look sym key = do
         Nothing  -> do
             r <- fmap (catMaybes . map (SymTab.lookupSymKey sym key . symTab) . Map.elems) (gets imports)
             case r of
-                []  -> fail ("no obj for: " ++ sym ++ " " ++ show key)
+                []  -> err ("no definition for: " ++ sym ++ " " ++ show key)
                 [x] -> return x
 
 

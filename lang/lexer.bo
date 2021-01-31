@@ -2,22 +2,24 @@ module lexer
 
 imports ../std/io
 imports ../std/strings
+imports ../std/chars
 
-type TokSym String
-type TokInt i64
+type TokSym   String
+type TokIdent String
+type TokInt   i64
 
-type Token {null, TokSym, TokInt}
+type Token {null, TokSym, TokInt, TokIdent}
 
 
-let keywords = [ "let", "while", "fn", "true", "false", "null", "if", "else"]
+let keywords = ["let", "while", "fn", "true", "false", "null", "if", "else"]
 
 fn parseStr(word String, str String) (:Token, :String)
     let i = 0
     while true
         switch i
             _ | i >= len(word)    : return (Token(&TokSym(str[..i])), str[i..])
-            _ | i >= len(str)     : return (Token(null), str)
-            _ | word[i] != str[i] : return (Token(null), str)
+            _ | i >= len(str)     : return (null, str)
+            _ | word[i] != str[i] : return (null, str)
             _                     : i = i + 1
 
 
@@ -28,5 +30,22 @@ fn parseKeyword(str String) (:Token, :String)
             (null, _)   : i = i + 1
             (tok, rest) : return (tok, rest)
 
-    return (Token(null), str)
+    return (null, str)
 
+
+fn parseIdent(str String) (:Token, :String)
+    let i = 0
+
+    if i >= len(str) || !isAlpha(str[i])
+        return (null, str)
+
+    while i < len(str) && (isDigit(str[i]) || isAlpha(str[i]))
+        i = i + 1
+
+    return (Token(&TokIdent(str[..i])), str[i..])
+
+
+
+
+            
+    

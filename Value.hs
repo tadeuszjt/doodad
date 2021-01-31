@@ -80,22 +80,6 @@ valMalloc typ len = do
     fmap (Ptr typ) $ bitcast pi8 (LL.ptr opTyp)
 
 
-valAsType :: InsCmp CompileState m => Type -> Value -> m Value
-valAsType typ val = case val of
-    Val _ _       -> checkTypesMatch typ (valType val) >> return val
-    Ptr _ _       -> checkTypesMatch typ (valType val) >> return val
-    CtxTable [[]] -> do
-        Tuple ts <- assertBaseType isTuple typ
-        zeroOf typ
-    CtxTuple vals -> do
-        Tuple ts <- assertBaseType isTuple typ
-        assert (length vals == length ts) ("does not satisfy " ++ show typ)
-
-        tup <- valLocal typ
-        zipWithM_ (valTupleSet tup) [0..] =<< zipWithM valAsType ts vals
-        return tup
-                
-
 valsInfix :: InsCmp CompileState m => S.Op -> Value -> Value -> m Value
 valsInfix operator a b = do
     checkTypesMatch (valType a) (valType b)
@@ -123,14 +107,14 @@ valsInfix operator a b = do
                 S.OrOr   -> fmap (Val Bool) (or opA opB)
                 S.AndAnd -> fmap (Val Bool) (and opA opB)
                 _        -> error ("bool infix: " ++ show operator)
-            | otherwise  = error (show operator)
+            | otherwise  = err ("cannot use op: " ++ show operator ++ " for: " ++ show typ)
         
 
 valNot :: InsCmp CompileState m => Value -> m Value
 valNot val = do
     assertBaseType (== Bool) (valType val)
     op <- fmap valOp (valLoad val)
-    fmap (Val Bool) $ icmp P.EQ op (bit 0)
+    fmap (Val (valType val)) $ icmp P.EQ op (bit 0)
 
 
 valPtrIdx :: InsCmp s m => Value -> Value -> m Value
@@ -192,6 +176,7 @@ valMemCpy (Ptr dstTyp dst) (Ptr srcTyp src) len = do
 valContextual :: Value -> Bool
 valContextual (CtxTable _) = True
 valContextual (CtxTuple _) = True
+valContextual (Null)       = True
 valContextual _            = False
 
 

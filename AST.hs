@@ -17,7 +17,6 @@ data AST
         , astImports    :: [Path]
         , astStmts      :: [Stmt]
         }
-    deriving (Show)
 
 
 data Op
@@ -34,6 +33,7 @@ data Op
     | OrOr
     | AndAnd
     | NotEq
+    | Not
     deriving (Eq, Ord)
 
 
@@ -56,7 +56,6 @@ data Pattern
     | PatArray   TextPos [Pattern]
     | PatGuarded TextPos Pattern Expr
     | PatTyped   TextPos Type Pattern
-    | PatNull    TextPos
     deriving (Eq)
 
 
@@ -67,44 +66,44 @@ data Index
     deriving (Eq)
 
 data Expr
-    = Int TextPos Integer
-    | Float TextPos Double
-    | Bool TextPos Bool
-    | Char TextPos Char
-    | String TextPos String
-    | Tuple TextPos [Expr]
-    | Array TextPos [Expr]
-    | Table TextPos [[Expr]]
-    | Member TextPos Expr Symbol
-    | Subscript TextPos Expr Expr
-    | Range TextPos Expr (Maybe Expr) (Maybe Expr)
+    = Int        TextPos Integer
+    | Float      TextPos Double
+    | Bool       TextPos Bool
+    | Char       TextPos Char
+    | Null       TextPos
+    | String     TextPos String
+    | Tuple      TextPos [Expr]
+    | Array      TextPos [Expr]
+    | Table      TextPos [[Expr]]
+    | Member     TextPos Expr Symbol
+    | Subscript  TextPos Expr Expr
+    | Range      TextPos Expr (Maybe Expr) (Maybe Expr)
     | TupleIndex TextPos Expr Word32
-    | Ident TextPos Symbol
-    | Call TextPos Symbol [Expr]
-    | Conv TextPos Type [Expr]
-    | Len TextPos Expr
-    | Append TextPos Expr Expr
-    | Prefix TextPos Op Expr
-    | Infix TextPos Op Expr Expr
-    | Address TextPos Expr
-    | Null TextPos
+    | Ident      TextPos Symbol
+    | Call       TextPos Symbol [Expr]
+    | Conv       TextPos Type [Expr]
+    | Len        TextPos Expr
+    | Append     TextPos Expr Expr
+    | Prefix     TextPos Op Expr
+    | Infix      TextPos Op Expr Expr
+    | Address    TextPos Expr
     deriving (Eq)
 
 
 data Stmt
-    = Assign TextPos Pattern Expr
-    | Set TextPos Index Expr
-    | Print TextPos [Expr]
-    | CallStmt TextPos Symbol [Expr]
-    | Return TextPos (Maybe Expr)
-    | Block TextPos [Stmt]
-    | If TextPos Expr Stmt (Maybe Stmt)
-    | While  TextPos Expr [Stmt]
-    | Switch TextPos Expr [(Pattern, Stmt)]
-    | Func TextPos Symbol [Param] Type [Stmt]
-    | Extern TextPos Symbol [Param] Type
-    | Typedef TextPos Symbol Type
-    deriving (Show, Eq)
+    = Assign   TextPos Pattern Expr
+    | Set      TextPos Index   Expr
+    | Print    TextPos [Expr]
+    | CallStmt TextPos Symbol  [Expr]
+    | Return   TextPos (Maybe Expr)
+    | Block    TextPos [Stmt]
+    | If       TextPos Expr Stmt (Maybe Stmt)
+    | While    TextPos Expr [Stmt]
+    | Switch   TextPos Expr [(Pattern, Stmt)]
+    | Func     TextPos Symbol [Param] Type [Stmt]
+    | Extern   TextPos Symbol [Param] Type
+    | Typedef  TextPos Symbol Type
+    deriving (Eq)
 
 
 tupStrs, arrStrs, brcStrs :: [String] -> String
@@ -128,6 +127,7 @@ instance Show Op where
         AST.OrOr   -> "||"
         AST.AndAnd -> "&&"
         AST.NotEq  -> "!="
+        AST.Not    -> "!"
 
 
 instance Show Pattern where
@@ -220,6 +220,4 @@ prettyAST pre ast = do
                 forM_ cases $ \(c, blk) -> do
                     putStrLn (pr ++ "\tcase " ++ show c ++ ":")
                     prettyStmt (pr ++ "\t\t") blk
-
-            _ -> putStrLn (pr ++ show stmt)
 

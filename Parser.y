@@ -20,6 +20,7 @@ import qualified Data.Set as Set
 %left      '*' '/' '%'
 %left      '.'
 %nonassoc  '&'
+%nonassoc  '!'
 %nonassoc  ','
 %nonassoc  '<' '>'
 %nonassoc  '<=' '>='
@@ -43,6 +44,7 @@ import qualified Data.Set as Set
     '>'        { Token _ ReservedOp ">" }
     '='        { Token _ ReservedOp "=" }
     '&'        { Token _ ReservedOp "&" }
+    '!'        { Token _ ReservedOp "!" }
     '!='       { Token _ ReservedOp "!=" }
     '<='       { Token _ ReservedOp "<=" }
     '>='       { Token _ ReservedOp ">=" }
@@ -145,15 +147,13 @@ lit : intlit                         { S.Int (tokPos $1) (read $ tokStr $1) }
     | strlit                         { S.String (tokPos $1) (tokStr $1) }
     | true                           { S.Bool (tokPos $1) True }
     | false                          { S.Bool (tokPos $1) False }
-
-table     : '[' tableRows ']'       { S.Table (tokPos $1) $2 } 
-tableRows : exprs                   { [$1] }
-          | exprs ';' tableRows     { $1 : $3 }
+    | null                           { S.Null (tokPos $1) }
 
 expr   : lit                          { $1 }
        | infix                        { $1 }
+       | prefix                       { $1 }
        | ident                        { S.Ident (tokPos $1) (tokStr $1) }
-       | table                        { $1 }
+       | '[' tableRows ']'            { S.Table (tokPos $1) $2 }
        | '[' '|' exprs ']'            { S.Array (tokPos $1) $3 }
        | '(' exprs ')'                { S.Tuple (tokPos $1) $2 }
        | '&' expr                     { S.Address (tokPos $1) $2 }
@@ -166,14 +166,18 @@ expr   : lit                          { $1 }
        | expr '[' expr ']'            { S.Subscript (tokPos $2) $1 $3 }
        | expr '[' expr '..' ']'       { S.Range (tokPos $2) $1 (Just $3) Nothing }
        | expr '[' '..' expr ']'       { S.Range (tokPos $2) $1 Nothing (Just $4) }
-       | '-' expr                     { S.Prefix (tokPos $1) S.Minus $2 }
-       | '+' expr                     { S.Prefix (tokPos $1) S.Plus $2 }
-       | null                         { S.Null (tokPos $1) }
 exprs  : {- empty -}                  { [] }
        | exprs_                       { $1 }
 exprs_ : expr                         { [$1] }
        | expr ',' exprs_              { $1 : $3 }
+tableRows : exprs                   { [$1] }
+          | exprs ';' tableRows     { $1 : $3 }
 
+
+
+prefix : '-' expr                    { S.Prefix (tokPos $1) S.Minus $2 }
+       | '+' expr                    { S.Prefix (tokPos $1) S.Plus $2 }
+       | '!' expr                    { S.Prefix (tokPos $1) S.Not $2 }
 
 infix : expr '+' expr                { S.Infix (tokPos $2) S.Plus $1 $3 }
       | expr '-' expr                { S.Infix (tokPos $2) S.Minus $1 $3 }
@@ -228,7 +232,6 @@ pattern  : '_'                     { S.PatIgnore (tokPos $1) }
          | lit                     { S.PatLiteral $1 }
          | ident                   { S.PatIdent (tokPos $1) (tokStr $1) }
          | type_ '(' pattern ')'   { S.PatTyped (tokPos $2) $1 $3 }
-         | null                    { S.PatNull  (tokPos $1) }
          | '(' patterns ')'        { S.PatTuple (tokPos $1) $2 }
          | '[' patterns ']'        { S.PatArray (tokPos $1) $2 }
          | pattern '|' expr        { S.PatGuarded (tokPos $2) $1 $3 }

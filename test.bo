@@ -4,8 +4,8 @@ imports std/strings
 imports lang/lexer
 
 fn main()
-    let s = String("fnbenis")
-    let r = parseKeyword(s)
+    let s = String("fnbenis ionae")
+    let r = parseIdent(s)
     print(r)
 
 
