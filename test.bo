@@ -5,7 +5,7 @@ imports lang/lexer
 
 fn main()
     let s = String("fnbenis ionae")
-    let r = parseIdent(s)
+    let r = parseKeyword(s)
     print(r)
 
 

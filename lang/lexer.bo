@@ -4,12 +4,7 @@ imports ../std/io
 imports ../std/strings
 imports ../std/chars
 
-type TokSym   String
-type TokIdent String
-type TokInt   i64
-
-type Token {null | TokSym | TokInt | TokIdent }
-
+type Token {null | TokInt:i64 | TokIdent:String | TokKeyword:String }
 
 let keywords = ["let", "while", "fn", "true", "false", "null", "if", "else"]
 
@@ -28,7 +23,7 @@ fn parseKeyword(str String) (:Token, :String)
     while i < len(keywords)
         switch parseStr(String(keywords[i]), str)
             ([], _)   ; i = i + 1
-            (s, rest) ; return (Token(&TokSym(str[..i])), rest)
+            (s, rest) ; return (TokKeyword(&String(s)), rest)
 
     return (null, str)
 
@@ -42,7 +37,7 @@ fn parseIdent(str String) (:Token, :String)
     while i < len(str) && (isDigit(str[i]) || isAlpha(str[i]))
         i = i + 1
 
-    return (Token(&TokIdent(str[..i])), str[i..])
+    return (TokIdent(&str[..i]), str[i..])
 
 
 

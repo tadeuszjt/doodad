@@ -18,8 +18,8 @@ import Monad
 import Funcs
 
 
-valPointerEnum :: InsCmp CompileState m => Value -> m Value
-valPointerEnum ptr = do
+pointerEnum :: InsCmp CompileState m => Value -> m Value
+pointerEnum ptr = do
     Pointer ts <- assertBaseType isPointer (valType ptr)
     assert (length ts > 1) "pointer has no enum"
     case ptr of
@@ -27,47 +27,52 @@ valPointerEnum ptr = do
         Ptr _ loc -> fmap (Ptr I64) (gep loc [int32 0, int32 0])
 
 
-valPointerDeref :: InsCmp CompileState m => Value -> m Value
-valPointerDeref val = do
+
+pointerSetEnum :: InsCmp CompileState m => Value -> Int -> m ()
+pointerSetEnum ptr@(Ptr _ loc) i = do
+    Pointer ts <- assertBaseType isPointer (valType ptr)
+    assert (length ts > 1)           "pointer type has no enum"
+    assert (i >= 0 && i < length ts) "invalid pointer enum"
+
+    en <- fmap (Ptr I64) (gep loc [int32 0, int32 0])
+    valStore en (valI64 i)
+
+
+pointerDeref :: InsCmp CompileState m => Value -> m Value
+pointerDeref val = do
     Pointer ts <- assertBaseType isPointer (valType val)
-    case ts of
-        []  -> error ""
-        [t] -> do
-            pi8 <- valPointerPi8 val
-            pt  <- fmap LL.ptr (opTypeOf t)
-            fmap (Ptr t) (bitcast pi8 pt)
-        ts -> error ""
+    assert (length ts == 1) "cannot dereference multi-type pointer"
+    let [t] = ts
+    pi8 <- pointerPi8 val
+    pt  <- fmap LL.ptr (opTypeOf t)
+    fmap (Ptr t) (bitcast pi8 pt)
 
 
-valPointerNull :: InsCmp CompileState m => Type -> m Value
-valPointerNull typ = do
+pointerNull :: InsCmp CompileState m => Type -> m Value
+pointerNull typ = do
     Pointer ts <- assertBaseType isPointer typ
     let ns = filter (== Void) ts
-    assert (length ns == 1) (show typ ++ " does have a unique null constructor")
+    assert (length ns == 1) (show typ ++ " does not have a unique null constructor")
 
     loc <- valLocal typ
-    case ts of
-        [t] -> return ()
-        ts  -> do
-            en <- valPointerEnum loc
-            valStore en $ valI64 $ fromJust (elemIndex Void ts)
+    when (length ts > 1) $
+        pointerSetEnum loc $ fromJust (elemIndex Void ts)
 
     valLoad loc
 
 
-
-valPointerPi8 :: InsCmp CompileState m => Value -> m LL.Operand
-valPointerPi8 ptr = do
+pointerPi8 :: InsCmp CompileState m => Value -> m LL.Operand
+pointerPi8 ptr = do
     Pointer ts <- assertBaseType isPointer (valType ptr)
     op <- fmap valOp (valLoad ptr)
     case ts of
-        []  -> error ""
+        []  -> return op
         [t] -> return op
         _   -> extractValue op [1]
 
 
-valPointerSetPi8 :: InsCmp CompileState m => Value -> LL.Operand -> m ()
-valPointerSetPi8 ptr@(Ptr _ loc) pi8 = do
+pointerSetPi8 :: InsCmp CompileState m => Value -> LL.Operand -> m ()
+pointerSetPi8 ptr@(Ptr _ loc) pi8 = do
     Pointer ts <- assertBaseType isPointer (valType ptr)
     case ts of
         []  -> error ""
@@ -77,45 +82,61 @@ valPointerSetPi8 ptr@(Ptr _ loc) pi8 = do
             store ppi8 0 pi8
 
 
+pointerConstructField :: InsCmp CompileState m => String -> Type -> [Value] -> m Value
+pointerConstructField sym typ [val] = do
+    Pointer ts <- assertBaseType isPointer typ
+    Pointer [t] <- assertBaseType isPointer (valType val)
+    let tn = Named sym t
+    assert (tn `elem` ts) "invalid pointer field constructor"
 
-valPointerConstructField :: InsCmp CompileState m => String -> Type -> [Value] -> m Value
-valPointerConstructField sym typ vals = do
-    error (show typ)
+    loc <- valLocal typ
+    pointerSetEnum loc $ fromJust (elemIndex tn ts)
+    pointerSetPi8 loc =<< pointerPi8 val
+
+    valLoad loc
+
+
+--pointerMatchPattern :: InsCmp CompileState m => S.Pattern -> Value -> m Value
+--pointerMatchPattern pat val = do
+--    Pointer ts <- assertBaseType isPointer (valType val)
+--
+--    case pat of
+--        S.PatLiteral S.Null -> do
+            
+            
 
 
 
-valPointerConstruct :: InsCmp CompileState m => Type -> Value -> m Value
-valPointerConstruct typ Null = valPointerNull typ
-valPointerConstruct typ val  = do
+
+pointerConstruct :: InsCmp CompileState m => Type -> Value -> m Value
+pointerConstruct typ Null = pointerNull typ
+pointerConstruct typ val  = do
     Pointer ts  <- assertBaseType isPointer typ
     Pointer ts' <- assertBaseType isPointer (valType val)
 
-    let ts'' = intersect ts ts'
-    assert (not $ null ts'') "incompatible pointer types"
+    assert (not $ null $ intersect ts ts') "incompatible pointer types"
 
     loc <- valLocal typ
-    valPointerSetPi8 loc =<< valPointerPi8 val
+    pointerSetPi8 loc =<< pointerPi8 val
 
     case (ts, ts') of
         ([],  _)   -> error ""
         (_,   [])  -> error ""
         ([_], [_]) -> return ()
         (_,   [t]) -> do
-            en <- valPointerEnum loc
+            en <- pointerEnum loc
             valStore en $ valI64 $ fromJust (elemIndex t ts)
         ([t], _)   -> do
-            valEn <- valLoad =<< valPointerEnum val
+            valEn <- valLoad =<< pointerEnum val
             b <- valsInfix S.EqEq valEn $ valI64 $ fromJust (elemIndex t ts')
             if_ (valOp b) (return ()) (void trap)
-            
-        (_,   _)   -> do
-            valEn <- valPointerEnum val
 
-            cases <- forM ts'' $ \t -> do
+        (_,   _)   -> do
+            valEn <- pointerEnum val
+
+            cases <- forM (intersect ts ts') $ \t -> do
                 let b = fmap valOp $ valsInfix S.EqEq valEn $ valI64 $ fromJust (elemIndex t ts')
-                let s = do
-                    en <- valPointerEnum loc
-                    valStore en $ valI64 $ fromJust (elemIndex t ts)
+                let s = pointerSetEnum loc $ fromJust (elemIndex t ts)
                 return (b, s)
 
             switch_ $ cases ++ [(return (bit 1), void trap)]

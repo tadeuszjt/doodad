@@ -54,12 +54,12 @@ data SymKey
 
 
 data Object
-    = ObjVal         Value
-    | ObType         T.Type   (Maybe Name)
-    | ObjFunc        T.Type   Operand
-    | ObjExtern      [T.Type] T.Type Operand
-    | ObjConstructor T.Type
-    | ObjPointer     T.Type
+    = ObjVal          Value
+    | ObType          T.Type   (Maybe Name)
+    | ObjFunc         T.Type   Operand
+    | ObjExtern       [T.Type] T.Type Operand
+    | ObjConstructor  T.Type
+    | ObjPtrFieldCons T.Type
     deriving (Show)
 
 

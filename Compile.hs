@@ -40,6 +40,7 @@ import Pointer
 
 mkBSS = BSS.toShort . BS.pack
 
+
 compileFlatState
     :: BoM s m
     => Context
@@ -83,8 +84,12 @@ cmpTypeDef (S.Typedef pos sym typ) = withPos pos $ do
             addObj sym KeyType $ ObType typ (Just name)
 
         Pointer ts -> do
-            forM_ ts $ \t -> do
-                addObj sym (KeyFunc [Pointer [t]]) (ObjConstructor (Typedef sym))
+            forM_ ts $ \t -> case t of
+                Named s t -> do
+                    checkSymKeyUndef sym (KeyFunc [Pointer [t]])
+                    addObj s (KeyFunc [Pointer [t]]) (ObjPtrFieldCons (Typedef sym))
+                t -> addObj sym (KeyFunc [Pointer [t]]) (ObjConstructor (Typedef sym))
+
             addObj sym (KeyFunc [Void]) (ObjConstructor (Typedef sym))
             addObj sym KeyType (ObType typ Nothing)
 
@@ -285,8 +290,9 @@ cmpExpr expr = case expr of
         vals <- mapM cmpExpr exprs
         res <- look sym $ KeyFunc (map valType vals)
         case res of
-            ObjConstructor typ -> valConstruct typ vals
-            _                  -> do
+            ObjConstructor typ   -> valConstruct typ vals
+            ObjPtrFieldCons  typ -> pointerConstructField sym typ vals
+            _                    -> do
                 (op, typ) <- case res of
                     ObjFunc Void _     -> err "cannot use void function as expression"
                     ObjExtern _ Void _ -> err "cannot use void function as expression"
@@ -310,7 +316,7 @@ cmpExpr expr = case expr of
         zeroOf typ
 
     S.Conv pos typ [S.Null p] -> withPos pos $
-        valPointerNull typ
+        pointerNull typ
 
     S.Len pos expr -> withPos pos $ valLoad =<< do
         val <- cmpExpr expr
@@ -424,7 +430,7 @@ cmpPattern pat val = case pat of
         let ns = filter (== Void) ts
         assert (length ns == 1) "pointer doesn't have a unique null constructor"
 
-        en <- valPointerEnum val
+        en <- pointerEnum val
         valsInfix S.EqEq en $ valI64 $ fromJust (elemIndex Void ts)
 
     S.PatLiteral expr ->
@@ -455,18 +461,15 @@ cmpPattern pat val = case pat of
         base <- valBaseType val 
         case base of
             Table ts -> do
-                len <- tableLen val
-                lgt <- valsInfix S.GTEq len (valI64 $ length pats)
+                len   <- tableLen val
+                lenEq <- valsInfix S.EqEq len (valI64 $ length pats)
 
                 assert (length ts == 1) "patterns don't support multiple rows (yet)"
                 bs <- forM (zip pats [0..]) $ \(p, i) -> do
                     tup <- tableGetElem val (valI64 i)
                     cmpPattern p =<< valTupleIdx tup 0
 
-                foldM (valsInfix S.AndAnd) (valBool True) (lgt:bs)
-
-
-                
+                foldM (valsInfix S.AndAnd) (valBool True) (lenEq:bs)
 
     _ -> error (show pat)
 
@@ -487,7 +490,7 @@ valConstruct typ [val] | typ == valType val = valLoad val
 valConstruct typ [val]                      = do
     base <- baseTypeOf typ
     case base of
-        Pointer _   -> valPointerConstruct typ val
+        Pointer _   -> pointerConstruct typ val
         _           -> do
             pureType    <- pureTypeOf typ
             pureValType <- pureTypeOf (valType val)
@@ -499,7 +502,7 @@ valAsType :: InsCmp CompileState m => Type -> Value -> m Value
 valAsType typ val = case val of
     Val _ _       -> checkTypesMatch typ (valType val) >> return val
     Ptr _ _       -> checkTypesMatch typ (valType val) >> return val
-    Null          -> valPointerNull typ
+    Null          -> pointerNull typ
     CtxTable [[]] -> do
         Table ts <- assertBaseType isTable typ
         zeroOf typ

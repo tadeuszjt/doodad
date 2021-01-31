@@ -19,7 +19,7 @@ import Pointer
 
 
 valPrint :: InsCmp CompileState m => String -> Value -> m ()
-valPrint append val = case valType val of
+valPrint append val = case unNamed (valType val) of
     Typedef s -> do
         printf (s ++ "(") []
         base <- valBaseType val
@@ -33,14 +33,14 @@ valPrint append val = case valType val of
         void $ printf ("%p}" ++ append) [op]
 
     Pointer ts -> do
-        en <- valPointerEnum val
+        en <- pointerEnum val
 
         cases <- forM (zip ts [0..]) $ \(t, i) -> do
             let b = fmap valOp $ valsInfix S.EqEq en (valI64 i)
             let s = do
                 if t /= Void then do
-                    ptr <- valPointerConstruct (Pointer [t]) val
-                    loc <- valPointerDeref ptr
+                    ptr <- pointerConstruct (Pointer [t]) val
+                    loc <- pointerDeref ptr
                     valPrint "" loc
                 else do
                     void $ printf "null" []
@@ -101,5 +101,5 @@ valPrint append val = case valType val of
         for (int64 $ fromIntegral n-1) $ \i -> do
             valPrint ", " =<< valArrayIdx val (Val I64 i)
         valPrint ("]" ++ append) =<< valArrayConstIdx val (n-1)
-        
+
     _ -> error ("print: " ++ show (valType val))

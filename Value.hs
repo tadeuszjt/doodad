@@ -254,6 +254,7 @@ opTypeOf typ = case typ of
     String    -> return (LL.ptr LL.i8)
     Tuple ts  -> fmap (LL.StructureType False) (mapM opTypeOf ts)
     Array n t -> fmap (LL.ArrayType $ fromIntegral n) (opTypeOf t)
+    Named n t -> opTypeOf t
 
     Table ts  -> do
         ptrOpTypes <- mapM (fmap LL.ptr . opTypeOf) ts
@@ -266,6 +267,7 @@ opTypeOf typ = case typ of
     Typedef s -> do
         ObType t namem <- look s KeyType
         maybe (opTypeOf t) (return . LL.NamedTypeReference) namem
+
 
     _ -> error (show typ) 
 
