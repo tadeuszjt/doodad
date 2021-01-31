@@ -59,6 +59,7 @@ data Object
     | ObjFunc        T.Type   Operand
     | ObjExtern      [T.Type] T.Type Operand
     | ObjConstructor T.Type
+    | ObjPointer     T.Type
     deriving (Show)
 
 

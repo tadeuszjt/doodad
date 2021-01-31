@@ -19,6 +19,7 @@ data Type
     | Table [Type]
     | Pointer [Type]
     | Typedef String
+    | Named String Type
     deriving (Eq, Ord)
 
 
@@ -39,35 +40,46 @@ instance Show Type where
         Table ts      -> "[" ++ intercalate "; " (map show ts) ++ "]"
         Pointer ts    -> "{" ++ intercalate ", " (map show ts) ++ "}"
         Typedef s     -> s
+        Named s t     -> s ++ ":" ++ show t
 
 
-isChar x              = x == Char
+unNamed (Named s t)   = t
+unNamed t             = t
 
-isString x            = x == String
+isInt (Named _ t)     = isInt t
+isInt x               = (unNamed x) `elem` [I8, I16, I32, I64]
 
-isInt x               = x `elem` [I8, I16, I32, I64]
+isFloat (Named _ t)   = isFloat t
+isFloat x             = (unNamed x) `elem` [F32, F64]
 
-isFloat x             = x `elem` [F32, F64]
-
+isArray (Named _ t)   = isArray t
 isArray (Array _ _)   = True
 isArray _             = False
 
+isTuple (Named _ t)   = isTuple t
 isTuple (Tuple _)     = True
 isTuple _             = False
 
+isTable (Named _ t)   = isTable t
 isTable (Table _)     = True
 isTable _             = False
 
+isTypedef (Named _ t) = isTypedef t
 isTypedef (Typedef _) = True
 isTypedef _           = False
 
+isPointer (Named _ t) = isPointer t
 isPointer (Pointer _) = True
 isPointer _           = False
 
-isIntegral x          = isInt x || isChar x
+isIntegral (Named _ t) = isIntegral t
+isIntegral x           = isInt x || x == Char
 
-isBase x              = isInt x || isFloat x || isChar x || x == Bool
+isBase (Named _ t)    = isBase t
+isBase x              = isInt x || isFloat x || x == Char || x == Bool
 
-isSimple x            = isBase x || isString x
+isSimple (Named _ t)  = isSimple t
+isSimple x            = isBase x || x == String
 
-isAggregate x         = isTuple x || isArray x || isTable x
+isAggregate (Named _ t) = isAggregate t
+isAggregate x           = isTuple x || isArray x || isTable x || isPointer x

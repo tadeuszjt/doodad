@@ -421,7 +421,9 @@ cmpPattern pat val = case pat of
 
     S.PatLiteral (S.Null pos) -> withPos pos $ do
         Pointer ts <- assertBaseType isPointer (valType val)
-        assert (Void `elem` ts) "pointer doesn't support null"
+        let ns = filter (== Void) ts
+        assert (length ns == 1) "pointer doesn't have a unique null constructor"
+
         en <- valPointerEnum val
         valsInfix S.EqEq en $ valI64 $ fromJust (elemIndex Void ts)
 
@@ -448,6 +450,25 @@ cmpPattern pat val = case pat of
             cmpPattern p =<< valTupleIdx val i
 
         foldM (valsInfix S.AndAnd) (valBool True) bs
+
+    S.PatArray pos pats -> withPos pos $ do
+        base <- valBaseType val 
+        case base of
+            Table ts -> do
+                len <- tableLen val
+                lgt <- valsInfix S.GTEq len (valI64 $ length pats)
+
+                assert (length ts == 1) "patterns don't support multiple rows (yet)"
+                bs <- forM (zip pats [0..]) $ \(p, i) -> do
+                    tup <- tableGetElem val (valI64 i)
+                    cmpPattern p =<< valTupleIdx tup 0
+
+                foldM (valsInfix S.AndAnd) (valBool True) (lgt:bs)
+
+
+                
+
+    _ -> error (show pat)
 
 
 cmpPrint :: InsCmp CompileState m => S.Stmt -> m ()

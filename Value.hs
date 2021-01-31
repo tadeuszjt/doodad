@@ -29,7 +29,7 @@ import Type
 assertBaseType :: InsCmp CompileState m => (Type -> Bool) -> Type -> m Type
 assertBaseType f typ = do
     base <- baseTypeOf typ
-    assert (f base) "invalid type"
+    assert (f base) ("invalid type of " ++ show typ)
     return base
 
 
@@ -91,7 +91,7 @@ valsInfix operator a b = do
     where
         valsInfix' :: InsCmp CompileState m => S.Op -> Type -> Type -> LL.Operand -> LL.Operand -> m Value
         valsInfix' operator typ base opA opB
-            | isInt base || isChar base = case operator of
+            | isInt base || base == Char = case operator of
                 S.Plus   -> fmap (Val typ) (add opA opB)
                 S.Minus  -> fmap (Val typ) (sub opA opB)
                 S.Times  -> fmap (Val typ) (mul opA opB)
@@ -195,6 +195,7 @@ checkTypesMatch typA typB
 baseTypeOf :: ModCmp CompileState m => Type -> m Type
 baseTypeOf typ = case typ of
     Typedef s -> do ObType t _ <- look s KeyType; baseTypeOf t
+    Named s t -> baseTypeOf t
     _         -> return typ
 
 
@@ -208,7 +209,6 @@ pureTypeOf typ = case typ of
     Table ts   -> fmap Table (mapM pureTypeOf ts)
     Tuple ts   -> fmap Tuple (mapM pureTypeOf ts)
     Array n t  -> fmap (Array n) (pureTypeOf t)
-    Pointer ts -> fmap Pointer (mapM pureTypeOf ts)
     _ | isSimple typ -> return typ
 
 

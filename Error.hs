@@ -38,13 +38,14 @@ printError err = case err of
     ErrorFile path pos str -> do
 
         let TextPos i p l c = pos
-        putStrLn ("error " ++ show pos ++ " " ++ str ++ ":")
 
         file <- try (readFile path) :: IO (Either SomeException String)
+
 
         case file of
             Left e -> putStrLn ("couldn't read: " ++ path)
             Right source -> do
+                putStrLn ("error " ++ path ++ " " ++ show pos ++ " " ++ str ++ ":")
                 let sourceLines = lines source
                 unless (l < 3) $ putStrLn (sourceLines !! (l-3))
                 unless (l < 2) $ putStrLn (sourceLines !! (l-2))

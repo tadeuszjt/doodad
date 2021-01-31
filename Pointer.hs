@@ -42,7 +42,8 @@ valPointerDeref val = do
 valPointerNull :: InsCmp CompileState m => Type -> m Value
 valPointerNull typ = do
     Pointer ts <- assertBaseType isPointer typ
-    assert (Void `elem` ts) (show typ ++ " does not support null")
+    let ns = filter (== Void) ts
+    assert (length ns == 1) (show typ ++ " does have a unique null constructor")
 
     loc <- valLocal typ
     case ts of
@@ -74,6 +75,13 @@ valPointerSetPi8 ptr@(Ptr _ loc) pi8 = do
         ts  -> do
             ppi8 <- gep loc [int32 0, int32 1]
             store ppi8 0 pi8
+
+
+
+valPointerConstructField :: InsCmp CompileState m => String -> Type -> [Value] -> m Value
+valPointerConstructField sym typ vals = do
+    error (show typ)
+
 
 
 valPointerConstruct :: InsCmp CompileState m => Type -> Value -> m Value

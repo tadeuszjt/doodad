@@ -8,27 +8,27 @@ type TokSym   String
 type TokIdent String
 type TokInt   i64
 
-type Token {null, TokSym, TokInt, TokIdent}
+type Token {null | TokSym | TokInt | TokIdent }
 
 
 let keywords = ["let", "while", "fn", "true", "false", "null", "if", "else"]
 
-fn parseStr(word String, str String) (:Token, :String)
+fn parseStr(word String, str String) (:String, :String)
     let i = 0
     while true
         switch i
-            _ | i >= len(word)    : return (Token(&TokSym(str[..i])), str[i..])
-            _ | i >= len(str)     : return (null, str)
-            _ | word[i] != str[i] : return (null, str)
-            _                     : i = i + 1
+            _ | i >= len(word)    ; return (str[..i], str[i..])
+            _ | i >= len(str)     ; return ([], str)
+            _ | word[i] != str[i] ; return ([], str)
+            _                     ; i = i + 1
 
 
 fn parseKeyword(str String) (:Token, :String)
     let i = 0
     while i < len(keywords)
         switch parseStr(String(keywords[i]), str)
-            (null, _)   : i = i + 1
-            (tok, rest) : return (tok, rest)
+            ([], _)   ; i = i + 1
+            (s, rest) ; return (Token(&TokSym(str[..i])), rest)
 
     return (null, str)
 

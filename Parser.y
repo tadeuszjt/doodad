@@ -225,8 +225,10 @@ tupTypes : rowType              { [$1] }
 
 ptrType : type_                 { $1 }
         | null                  { T.Void }
+        | ident ':' type_       { T.Named (tokStr $1) $3 }
+        | ident ':' null        { T.Named (tokStr $1) T.Void }
 ptrTypes : ptrType              { [$1] }
-         | ptrType ',' ptrTypes { $1 : $3 }
+         | ptrType '|' ptrTypes { $1 : $3 }
 
 pattern  : '_'                     { S.PatIgnore (tokPos $1) }
          | lit                     { S.PatLiteral $1 }
@@ -260,7 +262,7 @@ cases  : {- empty -}                { [] }
        | cases_                     { $1 }
 cases_ : case                       { [$1] }
        | case 'N' cases_            { $1 : $3 }
-case   : pattern ':' stmtS          { ($1, $3) }
+case   : pattern ';' stmtS          { ($1, $3) }
 
 
 If    : if expr block                { S.If (tokPos $1) $2 $3 Nothing }
