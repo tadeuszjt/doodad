@@ -255,12 +255,27 @@ cmpStmt stmt = case stmt of
 
     S.Switch pos expr cases -> withPos pos $ do
         val <- cmpExpr expr
-        casesM <- forM cases $ \(pat, stmt) -> do
-            let b = return . valOp =<< valLoad =<< cmpPattern pat val
-            let s = cmpStmt stmt
-            return (b, s)
 
-        switch_ casesM
+        exitName <- freshName "switch_exit"
+        cndNames <- replicateM (length cases) (freshName "case")
+        stmtNames <- replicateM (length cases) (freshName "case_stmt")
+        let nextNames = cndNames ++ [exitName]
+
+        br (head nextNames)
+        forM_ (zip4 cases cndNames stmtNames (tail nextNames)) $
+            \((pat, stmt), cndName, stmtName, nextName) -> do
+                emitBlockStart cndName
+                pushSymTab
+                matched <- valLoad =<< cmpPattern pat val
+                condBr (valOp matched) stmtName nextName
+                emitBlockStart stmtName
+                cmpStmt stmt
+                popSymTab
+                br exitName
+
+        br exitName
+        emitBlockStart exitName
+
 
     S.Block pos stmts -> withPos pos $ do
         pushSymTab
@@ -423,18 +438,16 @@ cmpExpr expr = case expr of
 
 cmpPattern :: InsCmp CompileState m => S.Pattern -> Value -> m Value
 cmpPattern pat val = case pat of
-    S.PatIgnore pos -> return (valBool True)
+    S.PatIgnore pos   -> return (valBool True)
 
     S.PatLiteral (S.Null pos) -> withPos pos $ do
         Pointer ts <- assertBaseType isPointer (valType val)
-        let ns = filter (== Void) ts
-        assert (length ns == 1) "pointer doesn't have a unique null constructor"
-
+        let ns = filter ((== Void) . unNamed) ts
+        assert (length ns == 1) "pointer type does not support a unique null value"
         en <- pointerEnum val
-        valsInfix S.EqEq en $ valI64 $ fromJust (elemIndex Void ts)
+        valsInfix S.EqEq en $ valI64 $ fromJust (elemIndex (head ns) ts)
 
-    S.PatLiteral expr ->
-        valsInfix S.EqEq val =<< cmpExpr expr
+    S.PatLiteral expr -> valsInfix S.EqEq val =<< cmpExpr expr
 
     S.PatGuarded pos pat expr -> withPos pos $ do
         guard <- cmpExpr expr
@@ -471,7 +484,24 @@ cmpPattern pat val = case pat of
 
                 foldM (valsInfix S.AndAnd) (valBool True) (lenEq:bs)
 
+    S.PatTyped pos (Typedef s) pat -> withPos pos $ do
+        Pointer ts <- assertBaseType isPointer (valType val)
+        ns <- fmap catMaybes $ forM ts $ \t -> return $ case t of
+                Named n _ -> if n == s then Just t else Nothing
+                _         -> Nothing
+
+        assert (length ns == 1) "invalid field name"
+        let Named n t = head ns
+
+        en <- pointerEnum val
+        b <- valsInfix S.EqEq en $ valI64 $ fromJust (elemIndex (Named n t) ts)
+
+        loc <- valLocal (Pointer [t])
+        pointerSetPi8 loc =<< pointerPi8 val
+        valsInfix S.AndAnd b =<< cmpPattern pat loc
+
     _ -> error (show pat)
+
 
 
 cmpPrint :: InsCmp CompileState m => S.Stmt -> m ()

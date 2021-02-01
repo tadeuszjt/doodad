@@ -96,17 +96,6 @@ pointerConstructField sym typ [val] = do
     valLoad loc
 
 
---pointerMatchPattern :: InsCmp CompileState m => S.Pattern -> Value -> m Value
---pointerMatchPattern pat val = do
---    Pointer ts <- assertBaseType isPointer (valType val)
---
---    case pat of
---        S.PatLiteral S.Null -> do
-            
-            
-
-
-
 
 pointerConstruct :: InsCmp CompileState m => Type -> Value -> m Value
 pointerConstruct typ Null = pointerNull typ

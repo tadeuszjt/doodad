@@ -128,14 +128,14 @@ addObj sym key obj =
 
 checkSymKeyUndef :: BoM CompileState m => S.Symbol -> SymKey -> m ()
 checkSymKeyUndef sym key = do
-    res <- fmap (SymTab.lookupSymKey sym key) (gets symTab)
-    when (isJust res) $ fail (sym ++ " already defined")
+    res <- fmap (SymTab.lookupHead sym key) (gets symTab)
+    when (isJust res) $ err (sym ++ " already defined")
 
 
 checkSymUndef :: BoM CompileState m => S.Symbol -> m ()
 checkSymUndef sym = do
     res <- fmap (SymTab.lookupSym sym) (gets symTab)
-    when (isJust res) $ fail (sym ++ " already defined")
+    when (isJust res) $ err (sym ++ " already defined")
 
 
 addDeclared :: BoM CompileState m => Name -> m ()

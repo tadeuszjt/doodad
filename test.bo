@@ -6,6 +6,12 @@ imports lang/lexer
 fn main()
     let s = String("fnbenis ionae")
     let r = parseKeyword(s)
+
+    switch r 
+        (null, s)          ; print("was null")
+        (TokKeyword(a), s) ; print("was keyword")
+        _                  ; print("wasn't null")
+
     print(r)
 
 
