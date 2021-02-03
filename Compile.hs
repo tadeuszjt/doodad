@@ -285,6 +285,7 @@ cmpStmt stmt = case stmt of
     _ -> error "stmt"
 
 
+
 -- must return Val unless local variable
 cmpExpr :: InsCmp CompileState m =>  S.Expr -> m Value
 cmpExpr expr = case expr of

@@ -263,6 +263,7 @@ cases  : {- empty -}                { [] }
 cases_ : case                       { [$1] }
        | case 'N' cases_            { $1 : $3 }
 case   : pattern ';' stmtS          { ($1, $3) }
+       | pattern ';'                { ($1, (S.Block (tokPos $2) [])) }
 
 
 If    : if expr block                { S.If (tokPos $1) $2 $3 Nothing }

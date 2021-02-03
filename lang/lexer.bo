@@ -4,9 +4,10 @@ imports ../std/io
 imports ../std/strings
 imports ../std/chars
 
-type Token {null | TokInt:i64 | TokIdent:String | TokKeyword:String }
+type Token {null | TokOp:String | TokInt:i64 | TokIdent:String | TokKeyword:String }
 
-let keywords = ["let", "while", "fn", "true", "false", "null", "if", "else"]
+let keywords  = ["let", "while", "fn", "true", "false", "null", "if", "else"]
+let operators = ["+", "-", "*", "/", "%", "=", "+=", "-=", "*=", "/=", "%="]
 
 fn parseStr(word String, str String) (:String, :String)
     let i = 0
@@ -38,6 +39,23 @@ fn parseIdent(str String) (:Token, :String)
         i = i + 1
 
     return (TokIdent(&str[..i]), str[i..])
+
+
+fn parseOperator(str String) (:Token, :String)
+    let i = 0
+    let parse = String()
+
+    while i < len(operators)
+        let (s, _) = parseStr(String(operators[i]), str)
+        if len(s) > len(parse)
+            parse = s
+        i = i + 1
+    
+    if len(parse) > 0
+        return (TokOp(&String(parse)),  str[len(parse)..])
+    return (null, str)
+    
+
 
 
 
