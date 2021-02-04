@@ -24,8 +24,8 @@ $alpha   = [a-zA-Z]
 $ascsym  = [\!\#\$\%\&\*\+\.\/\<\=\>\?\@\\\^\|\-\~]
 $special = [\(\)\,\;\[\]\`\{\}]
 $graphic = [$alpha $digit $ascsym $special \:\"\']
-
 $symbol  = [\{\}\(\)\[\]\,\|\.\;\:\_]
+@escape  = "\t" | "\n" | "\0"
 
 @types      = i16 | i32 | i64 | f32 | f64 | bool | char | string
 @builtin    = print | len | append
@@ -33,8 +33,9 @@ $symbol  = [\{\}\(\)\[\]\,\|\.\;\:\_]
 @reserved   = @keywords | @types | @builtin
 @reservedOp = [\+\-\*\/\%\<\>\=\&\!] | "!=" | "==" | "<=" | ">=" | "||" | "&&" | ".."
 
-@string     = $graphic # [\"\\] | " " 
-@char       = $graphic # [\'\\] | " "
+
+@string     = $graphic # [\"\\] | " " | @escape
+@char       = $graphic # [\'\\] | " " | @escape
 
 tokens :-
     $white                                          { mkT NoToken }
@@ -46,9 +47,6 @@ tokens :-
     $digit+ \. $digit+                              { mkT Float }
     \' @char \'                                     { mkT Char }
     \" @string* \"                                  { mkT String }
-    \' \\ n \'                                      { mkT Char }
-    \' \\ 0 \'                                      { mkT Char }
-    \' \\ t \'                                      { mkT Char }
     [$newline $tab $white]* $newline [$tab $white]* { mkIndentT }
 {
 

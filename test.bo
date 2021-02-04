@@ -6,7 +6,7 @@ imports lang/lexer
 fn main()
     let str = String("+=iroa terioater")
 
-    let toks = [:Token]()
+    let toks = :[Token]()
     let loop = true
 
     while loop

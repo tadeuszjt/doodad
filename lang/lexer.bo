@@ -9,7 +9,7 @@ type Token {null | TokOp:String | TokInt:i64 | TokIdent:String | TokKeyword:Stri
 let keywords  = ["let", "while", "fn", "true", "false", "null", "if", "else"]
 let operators = ["+", "-", "*", "/", "%", "=", "+=", "-=", "*=", "/=", "%="]
 
-fn parseStr(word String, str String) (:String, :String)
+fn parseStr(word String, str String) (String, String)
     let i = 0
     while true
         switch i
@@ -19,7 +19,7 @@ fn parseStr(word String, str String) (:String, :String)
             _                     ; i = i + 1
 
 
-fn parseKeyword(str String) (:Token, :String)
+fn parseKeyword(str String) (Token, String)
     let i = 0
     while i < len(keywords)
         switch parseStr(String(keywords[i]), str)
@@ -29,7 +29,7 @@ fn parseKeyword(str String) (:Token, :String)
     return (null, str)
 
 
-fn parseIdent(str String) (:Token, :String)
+fn parseIdent(str String) (Token, String)
     let i = 0
 
     if i >= len(str) || !isAlpha(str[i])
@@ -41,7 +41,7 @@ fn parseIdent(str String) (:Token, :String)
     return (TokIdent(&str[..i]), str[i..])
 
 
-fn parseOperator(str String) (:Token, :String)
+fn parseOperator(str String) (Token, String)
     let i = 0
     let (j, max) = (0, 0)
 
@@ -65,7 +65,7 @@ fn parseWhite(str String) String
     return str[i..]
 
 
-fn parseToken(str String) (:Token, :String)
+fn parseToken(str String) (Token, String)
     switch parseKeyword(str)
         (null, _) ;
         (tok, ss) ; return (tok, parseWhite(ss))

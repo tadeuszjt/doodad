@@ -149,29 +149,29 @@ lit : intlit                         { S.Int (tokPos $1) (read $ tokStr $1) }
     | false                          { S.Bool (tokPos $1) False }
     | null                           { S.Null (tokPos $1) }
 
-expr   : lit                          { $1 }
-       | infix                        { $1 }
-       | prefix                       { $1 }
-       | ident                        { S.Ident (tokPos $1) (tokStr $1) }
-       | '[' tableRows ']'            { S.Table (tokPos $1) $2 }
-       | '[' '|' exprs ']'            { S.Array (tokPos $1) $3 }
-       | '(' exprs ')'                { S.Tuple (tokPos $1) $2 }
-       | '&' expr                     { S.Address (tokPos $1) $2 }
-       | ident '(' exprs ')'          { S.Call (tokPos $1) (tokStr $1) $3 }
-       | typeNoIdent '(' exprs ')'    { S.Conv (tokPos $2) $1 $3 }
-       | len '(' expr ')'             { S.Len (tokPos $1) $3 }
-       | append '(' expr ',' expr ')' { S.Append (tokPos $1) $3 $5 }
-       | expr '.' intlit              { S.TupleIndex (tokPos $2) $1 (read $ tokStr $3) }
-       | expr '.' ident               { S.Member (tokPos $2) $1 (tokStr $3) }
-       | expr '[' expr ']'            { S.Subscript (tokPos $2) $1 $3 }
-       | expr '[' expr '..' ']'       { S.Range (tokPos $2) $1 (Just $3) Nothing }
-       | expr '[' '..' expr ']'       { S.Range (tokPos $2) $1 Nothing (Just $4) }
-exprs  : {- empty -}                  { [] }
-       | exprs_                       { $1 }
-exprs_ : expr                         { [$1] }
-       | expr ',' exprs_              { $1 : $3 }
-tableRows : exprs                   { [$1] }
-          | exprs ';' tableRows     { $1 : $3 }
+expr   : lit                           { $1 }
+       | infix                         { $1 }
+       | prefix                        { $1 }
+       | ident                         { S.Ident (tokPos $1) (tokStr $1) }
+       | '[' tableRows ']'             { S.Table (tokPos $1) $2 }
+       | '[' '|' exprs ']'             { S.Array (tokPos $1) $3 }
+       | '(' exprs ')'                 { S.Tuple (tokPos $1) $2 }
+       | '&' expr                      { S.Address (tokPos $1) $2 }
+       | ident '(' exprs ')'           { S.Call (tokPos $1) (tokStr $1) $3 }
+       | ':' typeNoIdent '(' exprs ')' { S.Conv (tokPos $3) $2 $4 }
+       | len '(' expr ')'              { S.Len (tokPos $1) $3 }
+       | append '(' expr ',' expr ')'  { S.Append (tokPos $1) $3 $5 }
+       | expr '.' intlit               { S.TupleIndex (tokPos $2) $1 (read $ tokStr $3) }
+       | expr '.' ident                { S.Member (tokPos $2) $1 (tokStr $3) }
+       | expr '[' expr ']'             { S.Subscript (tokPos $2) $1 $3 }
+       | expr '[' expr '..' ']'        { S.Range (tokPos $2) $1 (Just $3) Nothing }
+       | expr '[' '..' expr ']'        { S.Range (tokPos $2) $1 Nothing (Just $4) }
+exprs  : {- empty -}                   { [] }
+       | exprs_                        { $1 }
+exprs_ : expr                          { [$1] }
+       | expr ',' exprs_               { $1 : $3 }
+tableRows : exprs                      { [$1] }
+          | exprs ';' tableRows        { $1 : $3 }
 
 
 
@@ -204,7 +204,7 @@ typeNoIdent   : bool                 { T.Bool }
               | char                 { T.Char }
               | string               { T.String }
               | '[' intlit ':' type_ ']'       { T.Array (read $ tokStr $2) $4 }
-              | '(' tupTypes ')'               { T.Tuple $2 }
+              | '(' types ')'                  { T.Tuple $2 }
               | '[' rowTypes_ ']'              { T.Table $2 }
               | '{' ptrTypes '}'               { T.Pointer $2 }
 
@@ -213,14 +213,8 @@ types         : {- empty -}          { [] }
 types_        : type_                { [$1] }
               | type_ ',' types_     { $1 : $3 }
 
-rowType       : ':' type_            { $2 }
-
-rowTypes_     : rowType                { [$1] }
-              | rowType ';' rowTypes_  { $1 : $3 }
-
-
-tupTypes : rowType              { [$1] }
-         | rowType ',' tupTypes { $1 : $3 }
+rowTypes_     : type_                  { [$1] }
+              | type_ ';' rowTypes_    { $1 : $3 }
 
 
 ptrType : type_                 { $1 }
@@ -233,7 +227,7 @@ ptrTypes : ptrType              { [$1] }
 pattern  : '_'                     { S.PatIgnore (tokPos $1) }
          | lit                     { S.PatLiteral $1 }
          | ident                   { S.PatIdent (tokPos $1) (tokStr $1) }
-         | type_ '(' pattern ')'   { S.PatTyped (tokPos $2) $1 $3 }
+         | ident '(' pattern ')'   { S.PatTyped (tokPos $2) (T.Typedef $ tokStr $1) $3 }
          | '(' patterns ')'        { S.PatTuple (tokPos $1) $2 }
          | '[' patterns ']'        { S.PatArray (tokPos $1) $2 }
          | pattern '|' expr        { S.PatGuarded (tokPos $2) $1 $3 }
