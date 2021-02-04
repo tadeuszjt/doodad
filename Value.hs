@@ -205,11 +205,15 @@ valBaseType = baseTypeOf . valType
 
 pureTypeOf :: ModCmp CompileState m => Type -> m Type
 pureTypeOf typ = case typ of
+    Void       -> return Void
     Typedef s  -> do ObType t _ <- look s KeyType; pureTypeOf t
     Table ts   -> fmap Table (mapM pureTypeOf ts)
     Tuple ts   -> fmap Tuple (mapM pureTypeOf ts)
     Array n t  -> fmap (Array n) (pureTypeOf t)
+    Pointer ts -> fmap Pointer (mapM pureTypeOf ts)
+    Named n t  -> pureTypeOf t
     _ | isSimple typ -> return typ
+    _ -> error (show typ)
 
 
 

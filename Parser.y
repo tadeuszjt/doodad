@@ -261,9 +261,13 @@ Switch : switch expr 'I' cases 'D'  { S.Switch (tokPos $1) $2 $4 }
 cases  : {- empty -}                { [] }
        | cases_                     { $1 }
 cases_ : case                       { [$1] }
+       | case_                      { [$1] }
        | case 'N' cases_            { $1 : $3 }
+       | case_ cases_               { $1 : $2 }
+
 case   : pattern ';' stmtS          { ($1, $3) }
        | pattern ';'                { ($1, (S.Block (tokPos $2) [])) }
+case_  : pattern block              { ($1, $2) }
 
 
 If    : if expr block                { S.If (tokPos $1) $2 $3 Nothing }

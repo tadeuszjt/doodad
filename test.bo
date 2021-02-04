@@ -4,9 +4,20 @@ imports std/strings
 imports lang/lexer
 
 fn main()
-    let s = String("+=fnbenis ionae")
-    let r = parseOperator(s)
+    let str = String("+=iroa terioater")
 
-    print(r)
+    let toks = [:Token]()
+    let loop = true
+
+    while loop
+        switch parseToken(str)
+            (null, _) ; loop = false
+            (tok, ss)
+                toks = append(toks, tok)
+                str = ss
+
+
+    print(toks)
+    print(str)
 
 

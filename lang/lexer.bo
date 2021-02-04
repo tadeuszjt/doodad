@@ -43,19 +43,42 @@ fn parseIdent(str String) (:Token, :String)
 
 fn parseOperator(str String) (:Token, :String)
     let i = 0
-    let parse = String()
+    let (j, max) = (0, 0)
 
     while i < len(operators)
-        let (s, _) = parseStr(String(operators[i]), str)
-        if len(s) > len(parse)
-            parse = s
+        let s = String(operators[i])
+        if isPrefix(s, str) && len(s) > max
+            max = len(s)
+            j = i
         i = i + 1
     
-    if len(parse) > 0
-        return (TokOp(&String(parse)),  str[len(parse)..])
+    if max > 0
+        return (TokOp(&String(operators[j])),  str[max..])
     return (null, str)
-    
 
+
+fn parseWhite(str String) String
+    let i = 0
+    while i < len(str) && (str[i] == ' ' || str[i] == '\t')
+        i = i + 1
+
+    return str[i..]
+
+
+fn parseToken(str String) (:Token, :String)
+    switch parseKeyword(str)
+        (null, _) ;
+        (tok, ss) ; return (tok, parseWhite(ss))
+
+    switch parseIdent(str)
+        (null, _) ;
+        (tok, ss) ; return (tok, parseWhite(ss))
+
+    switch parseOperator(str)
+        (null, _) ;
+        (tok, ss) ; return (tok, parseWhite(ss))
+
+    return (null, str)
 
 
 
