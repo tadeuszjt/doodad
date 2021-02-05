@@ -4,20 +4,7 @@ imports std/strings
 imports lang/lexer
 
 fn main()
-    let str = "+=iroa fn terioater"
+    let str = "203201terioater"
 
-    let toks = :[Token]()
-    let loop = true
-
-    while loop
-        switch parseToken(str)
-            (null, _) ; loop = false
-            (tok, ss)
-                toks = append(toks, tok)
-                str = ss
-
-
-    print(toks)
-    print(str)
-
+    print(parseToken(str))
 

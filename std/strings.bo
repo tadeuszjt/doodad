@@ -1,5 +1,7 @@
 module strings
 
+imports chars
+
 
 fn isPrefix(pre string, str string) bool
     let i = 0
@@ -22,3 +24,17 @@ fn strEqual(a string, b string) bool
         i = i + 1
 
     return true
+
+
+fn strReadInt(s string) ({null | i64}, string)
+    if len(s) <= 0 || !isDigit(s[0])
+        return (null, s)
+
+    let (i, n) = (0, 0)
+
+    while isDigit(s[i])
+        n = n * 10
+        n = n + :i64(s[i] - '0')
+        i = i + 1
+
+    return (:{null | i64}(&:i64(n)), s[i..])

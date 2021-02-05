@@ -257,9 +257,10 @@ cmpStmt stmt = case stmt of
         val <- cmpExpr expr
 
         exitName <- freshName "switch_exit"
+        trapName <- freshName "switch_trap"
         cndNames <- replicateM (length cases) (freshName "case")
         stmtNames <- replicateM (length cases) (freshName "case_stmt")
-        let nextNames = cndNames ++ [exitName]
+        let nextNames = cndNames ++ [trapName]
 
         br (head nextNames)
         forM_ (zip4 cases cndNames stmtNames (tail nextNames)) $
@@ -273,6 +274,9 @@ cmpStmt stmt = case stmt of
                 popSymTab
                 br exitName
 
+        br trapName
+        emitBlockStart trapName
+        void trap 
         br exitName
         emitBlockStart exitName
 
@@ -487,23 +491,27 @@ cmpPattern pat val = case pat of
 
                 foldM (valsInfix S.AndAnd) (valBool True) (lenEq:bs)
 
-    S.PatTyped pos (Typedef s) pat -> withPos pos $ do
+    S.PatTyped pos typ pat -> withPos pos $ do
         Pointer ts <- assertBaseType isPointer (valType val)
-        ns <- fmap catMaybes $ forM ts $ \t -> return $ case t of
-                Named n _ -> if n == s then Just t else Nothing
-                _         -> Nothing
+
+        ns <- fmap catMaybes $ forM ts $ \t -> case t of
+            Named n t -> case typ of
+                Typedef s -> return (if s == n then Just (Named n t) else Nothing)
+                _         -> return Nothing
+            t -> return (if t == typ then Just t else Nothing)
+
 
         assert (length ns == 1) "invalid field name"
-        let Named n t = head ns
+        let t = head ns
 
         en <- pointerEnum val
-        b <- valsInfix S.EqEq en $ valI64 $ fromJust (elemIndex (Named n t) ts)
+        b <- valsInfix S.EqEq en $ valI64 $ fromJust (elemIndex t ts)
 
-        loc <- valLocal (Pointer [t])
+        loc <- valLocal (Pointer [unNamed t])
         pointerSetPi8 loc =<< pointerPi8 val
-        valsInfix S.AndAnd b =<< cmpPattern pat loc
+        val <- pointerDeref loc
 
-    _ -> error (show pat)
+        valsInfix S.AndAnd b =<< cmpPattern pat val
 
 
 
@@ -523,6 +531,10 @@ valConstruct typ [val] | typ == valType val = valLoad val
 valConstruct typ [val]                      = do
     base <- baseTypeOf typ
     case base of
+        I64 -> case valType val of
+            Char -> fmap (Val base) $ sext (valOp val) LL.i64
+
+
         Pointer _   -> pointerConstruct typ val
         _           -> do
             pureType    <- pureTypeOf typ

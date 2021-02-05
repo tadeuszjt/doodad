@@ -7,7 +7,8 @@ imports ../std/chars
 type Token {null | TokOp:string | TokInt:i64 | TokIdent:string | TokKeyword:string }
 
 let keywords  = ["let", "while", "fn", "true", "false", "null", "if", "else"]
-let operators = ["+", "-", "*", "/", "%", "=", "+=", "-=", "*=", "/=", "%="]
+let operators = ["+", "-", "*", "/", "%", "=", "+=", "-=", "*=", "/=", "%=", ".."]
+let symbols   = ['(', ')', '[', ']', '{', '}', ':']
 
 
 fn parseKeyword(str string) (Token, string)
@@ -23,6 +24,11 @@ fn parseKeyword(str string) (Token, string)
         k = k + 1
 
     return (null, str)
+
+fn parseDigits(str string) (Token, string)
+    switch strReadInt(str)
+        (null, _)     ; return (null, str)
+        (:i64(n), ss) ; return (TokInt(&:i64(n)), ss)
 
 
 fn parseIdent(str string) (Token, string)
@@ -69,6 +75,10 @@ fn parseToken(str string) (Token, string)
         (tok, ss) ; return (tok, parseWhite(ss))
 
     switch parseOperator(str)
+        (null, _) ;
+        (tok, ss) ; return (tok, parseWhite(ss))
+
+    switch parseDigits(str)
         (null, _) ;
         (tok, ss) ; return (tok, parseWhite(ss))
 
