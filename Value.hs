@@ -44,7 +44,7 @@ valI64 = valInt I64
 
 
 valChar :: Char -> Value
-valChar c = Val Char (int32 $ fromIntegral $ fromEnum c)
+valChar c = Val Char (int8 $ fromIntegral $ fromEnum c)
 
 
 valBool :: Bool -> Value
@@ -253,9 +253,8 @@ opTypeOf typ = case typ of
     I16       -> return LL.i16
     I32       -> return LL.i32
     I64       -> return LL.i64
-    Char      -> return LL.i32
+    Char      -> return LL.i8
     Bool      -> return LL.i1
-    String    -> return (LL.ptr LL.i8)
     Tuple ts  -> fmap (LL.StructureType False) (mapM opTypeOf ts)
     Array n t -> fmap (LL.ArrayType $ fromIntegral n) (opTypeOf t)
     Named n t -> opTypeOf t

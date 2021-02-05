@@ -9,16 +9,17 @@ fn getChar() char
     return getchar()
 
 
-fn getStrLn() String
-	let str = String()
+fn getStrLn() string
+	let str = ""
 
 	while true
 		switch getchar()
+		  '\0' ; return str
 		  '\n' ; return str
 		  c    ; str = append(str, c)
 
 
-fn putStrLn(str String)
+fn putStrLn(str string)
 	let i = 0
 
 	while i < len(str)

@@ -202,7 +202,7 @@ typeNoIdent   : bool                 { T.Bool }
               | f32                  { T.F32 }
               | f64                  { T.F64 }
               | char                 { T.Char }
-              | string               { T.String }
+              | string               { T.Table [T.Char] }
               | '[' intlit ':' type_ ']'       { T.Array (read $ tokStr $2) $4 }
               | '(' types ')'                  { T.Tuple $2 }
               | '[' rowTypes_ ']'              { T.Table $2 }

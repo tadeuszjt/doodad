@@ -13,7 +13,6 @@ data Type
     | F64                    -- 
     | Bool                   --
     | Char                   --
-    | String                 ----
     | Tuple [Type]
     | Array Word Type
     | Table [Type]
@@ -34,7 +33,6 @@ instance Show Type where
         F64           -> "f64"
         Bool          -> "bool"
         Char          -> "char"
-        String        -> "string"
         Tuple ts      -> "(" ++ intercalate ", " (map show ts) ++ ")"
         Array n t     -> "[" ++ show n ++ "| " ++ show t ++ "]"
         Table ts      -> "[" ++ intercalate "; " (map show ts) ++ "]"
@@ -79,7 +77,7 @@ isBase (Named _ t)    = isBase t
 isBase x              = isInt x || isFloat x || x == Char || x == Bool
 
 isSimple (Named _ t)  = isSimple t
-isSimple x            = isBase x || x == String
+isSimple x            = isBase x
 
 isAggregate (Named _ t) = isAggregate t
 isAggregate x           = isTuple x || isArray x || isTable x || isPointer x

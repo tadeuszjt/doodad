@@ -4,32 +4,28 @@ imports ../std/io
 imports ../std/strings
 imports ../std/chars
 
-type Token {null | TokOp:String | TokInt:i64 | TokIdent:String | TokKeyword:String }
+type Token {null | TokOp:string | TokInt:i64 | TokIdent:string | TokKeyword:string }
 
 let keywords  = ["let", "while", "fn", "true", "false", "null", "if", "else"]
 let operators = ["+", "-", "*", "/", "%", "=", "+=", "-=", "*=", "/=", "%="]
 
-fn parseStr(word String, str String) (String, String)
-    let i = 0
-    while true
-        switch i
-            _ | i >= len(word)    ; return (str[..i], str[i..])
-            _ | i >= len(str)     ; return ([], str)
-            _ | word[i] != str[i] ; return ([], str)
-            _                     ; i = i + 1
 
+fn parseKeyword(str string) (Token, string)
+    let (i, k) = (0, 0)
 
-fn parseKeyword(str String) (Token, String)
-    let i = 0
-    while i < len(keywords)
-        switch parseStr(String(keywords[i]), str)
-            ([], _)   ; i = i + 1
-            (s, rest) ; return (TokKeyword(&String(s)), rest)
+    while i < len(str) && isAlpha(str[i])
+        i = i + 1
+
+    let word = str[..i]
+    while k < len(keywords)
+        if strEqual(word, keywords[k])
+            return (TokKeyword(&:string(word)), str[i..])
+        k = k + 1
 
     return (null, str)
 
 
-fn parseIdent(str String) (Token, String)
+fn parseIdent(str string) (Token, string)
     let i = 0
 
     if i >= len(str) || !isAlpha(str[i])
@@ -41,23 +37,21 @@ fn parseIdent(str String) (Token, String)
     return (TokIdent(&str[..i]), str[i..])
 
 
-fn parseOperator(str String) (Token, String)
-    let i = 0
-    let (j, max) = (0, 0)
+fn parseOperator(str string) (Token, string)
+    let (i, j, max) = (0, 0, 0)
 
     while i < len(operators)
-        let s = String(operators[i])
-        if isPrefix(s, str) && len(s) > max
-            max = len(s)
+        if isPrefix(operators[i], str) && len(operators[i]) > max
+            max = len(operators[i])
             j = i
         i = i + 1
     
-    if max > 0
-        return (TokOp(&String(operators[j])),  str[max..])
-    return (null, str)
+    switch max
+        0; return (null, str)
+        n; return (TokOp(&:string(operators[j])),  str[n..])
 
 
-fn parseWhite(str String) String
+fn parseWhite(str string) string
     let i = 0
     while i < len(str) && (str[i] == ' ' || str[i] == '\t')
         i = i + 1
@@ -65,7 +59,7 @@ fn parseWhite(str String) String
     return str[i..]
 
 
-fn parseToken(str String) (Token, String)
+fn parseToken(str string) (Token, string)
     switch parseKeyword(str)
         (null, _) ;
         (tok, ss) ; return (tok, parseWhite(ss))

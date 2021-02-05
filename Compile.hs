@@ -296,7 +296,14 @@ cmpExpr expr = case expr of
             
     S.String pos s -> do
         loc <- globalStringPtr s =<< fresh
-        fmap (Val String) $ bitcast (cons loc) (LL.ptr LL.i8)
+        pi8 <- bitcast (cons loc) (LL.ptr LL.i8)
+        tab <- valLocal (Table [Char])
+        tableSetRow tab 0 (Ptr Char pi8)
+        len <- tableLen tab
+        cap <- tableCap tab
+        valStore len $ valI64 (length s)
+        valStore cap $ valI64 (length s)
+        valLoad tab
 
     S.Ident pos sym -> withPos pos $ do
         ObjVal loc <- look sym KeyVar
@@ -334,6 +341,9 @@ cmpExpr expr = case expr of
     S.Conv pos typ [S.Null p] -> withPos pos $
         pointerNull typ
 
+    S.Conv pos typ exprs -> withPos pos $
+        valConstruct typ =<< mapM cmpExpr exprs
+
     S.Len pos expr -> withPos pos $ valLoad =<< do
         val <- cmpExpr expr
         typ <- valBaseType val
@@ -361,14 +371,6 @@ cmpExpr expr = case expr of
         assert (isInt idxType) "index type isn't an integer"
 
         case aggType of
-            String    -> do
-                Val _ idxOp    <- valLoad idx
-                Val _ loc <- valLoad agg
-                p <- gep loc [idxOp]
-                e <- load p 0
-                c <- sext e LL.i32
-                return (Val Char c)
-                
             Table [t] -> do
                 tup <- tableGetElem agg idx
                 valTupleIdx tup 0

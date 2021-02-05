@@ -39,9 +39,16 @@ valPrint append val = case unNamed (valType val) of
             let b = fmap valOp $ valsInfix S.EqEq en (valI64 i)
             let s = do
                 if t /= Void then do
-                    ptr <- pointerConstruct (Pointer [t]) val
-                    loc <- pointerDeref ptr
-                    valPrint "" loc
+                    case t of
+                        Named n t -> do
+                            void $ printf (n ++ "(") []
+                            ptr <- pointerConstruct (Pointer [Named n t]) val
+                            loc <- pointerDeref ptr
+                            valPrint ")" loc
+                        t -> do
+                            ptr <- pointerConstruct (Pointer [t]) val
+                            loc <- pointerDeref ptr
+                            valPrint "" loc
                 else do
                     void $ printf "null" []
             return (b, s)
@@ -66,10 +73,6 @@ valPrint append val = case unNamed (valType val) of
         pst <- gep (cons str) [idx]
         void $ printf ("%s" ++ append) [pst]
 
-    String -> do
-        op <- fmap valOp (valLoad val)
-        void $ printf ("\"%s\"" ++ append) [op]
-
     Tuple ts -> do
         printf "(" []
         forM_ (zip ts [0..]) $ \(t, i) -> do
@@ -78,6 +81,11 @@ valPrint append val = case unNamed (valType val) of
             then valPrint ", " elem
             else valPrint "" elem
         void $ printf (")" ++ append) []
+
+    Table [Char] -> do
+        row <- tableRow 0 val
+        len <- valLoad =<< tableLen val
+        void $ printf ("\"%-.*s\"" ++ append) [valOp len, valLoc row]
 
     Table ts -> do
         printf "[" []

@@ -87,17 +87,19 @@ tableRange tab start end = do
     len <- valLoad =<< tableLen tab
     cap <- valLoad =<< tableCap tab
 
-    baseStart <- assertBaseType isInt (valType start)
-    baseEnd   <- assertBaseType isInt (valType end)
+    assertBaseType isInt (valType start)
+    assertBaseType isInt (valType end)
+
+    startLoc <- valLocal (valType start)
+    endLoc   <- valLocal (valType end)
+    
 
     bStartNeg <- valsInfix S.LT start (valI64 0) 
-    startLoc <- valLocal (valType start)
     if_ (valOp bStartNeg)
         (valStore startLoc (valI64 0))
         (valStore startLoc start)
 
     bEndGT <- valsInfix S.GTEq end len
-    endLoc <- valLocal (valType end)
     if_ (valOp bEndGT)
         (valStore endLoc len)
         (valStore endLoc end)

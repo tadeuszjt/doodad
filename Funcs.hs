@@ -70,6 +70,7 @@ memcpy dest src size = do
     call op [(dest, []), (src, []), (size, [])]
 
 
+
 func :: Monad m => Name -> [(Type, ParameterName)] -> Type -> ([Operand] -> InstrCmpT s m ()) -> ModuleCmpT s m Operand
 func name argtys retty f = do
     let tys = map fst argtys
