@@ -450,7 +450,7 @@ cmpPattern pat val = case pat of
     S.PatLiteral expr -> valsInfix S.EqEq val =<< cmpExpr expr
 
     S.PatGuarded pos pat expr -> withPos pos $ do
-        match <- cmpPattern pat val
+        match <- cmpPattern pat =<< valLoad val
         guard <- valLoad =<< cmpExpr expr
         assertBaseType (== Bool) (valType guard)
         valsInfix S.AndAnd match guard
@@ -525,11 +525,15 @@ valConstruct typ [val]                      = do
     base <- baseTypeOf typ
     op <- fmap valOp (valLoad val)
     case base of
+        I32 -> case valType val of
+            I64 -> fmap (Val base) $ trunc op LL.i32
+
         I64 -> case valType val of
             Char -> fmap (Val base) $ sext op LL.i64
 
         Char -> case valType val of
             I64 -> fmap (Val base) $ trunc op LL.i8
+            I32 -> fmap (Val base) $ trunc op LL.i8
 
 
         Pointer _   -> pointerConstruct typ val

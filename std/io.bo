@@ -2,7 +2,7 @@ module io
 
 imports strings
 
-extern getchar() i64
+extern getchar() i32
 extern putchar(c char)
 
 fn getChar() char
@@ -14,12 +14,7 @@ fn getStrLn() string
 
     while true
         switch getchar()
-            x 
-                let a = x
-                print(a, a < 1)
-                if a < 1
-                    print(x, "-1")
-                return str
+            x | x < :i32(1); return str
             x
                 switch :char(x)
                     '\n'; return str

@@ -58,7 +58,7 @@ valPrint append val = case unNamed (valType val) of
         void $ printf append []
 
 
-    I64 -> do
+    t | isInt t -> do
         Val _ op <- valLoad val
         void $ printf ("%d" ++ append) [op]
 
