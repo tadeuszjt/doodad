@@ -298,7 +298,7 @@ cmpStmt stmt = case stmt of
 -- must return Val unless local variable
 cmpExpr :: InsCmp CompileState m =>  S.Expr -> m Value
 cmpExpr expr = case expr of
-    S.Int pos n    -> return (valI64 n)
+    S.Int pos n    -> return (CtxInt n)
     S.Bool pos b   -> return (valBool b)
     S.Char pos c   -> return (valChar c)
     S.Null pos     -> return Null
@@ -521,20 +521,21 @@ cmpPrint (S.Print pos exprs) = withPos pos $ do
 valConstruct :: InsCmp CompileState m => Type -> [Value] -> m Value
 valConstruct typ []                         = zeroOf typ
 valConstruct typ [val] | typ == valType val = valLoad val
-valConstruct typ [val]                      = do
+valConstruct typ [val']                      = do
+    val <- valLoad val'
     base <- baseTypeOf typ
-    op <- fmap valOp (valLoad val)
     case base of
-        I32 -> case valType val of
-            I64 -> fmap (Val base) $ trunc op LL.i32
+        I32 -> case val of
+            Val I64 op -> fmap (Val base) (trunc op LL.i32)
+            Val I8 op  -> fmap (Val base) (sext op LL.i32)
 
-        I64 -> case valType val of
-            Char -> fmap (Val base) $ sext op LL.i64
+        I64 -> case val of
+            Val Char op -> fmap (Val base) (sext op LL.i64)
 
-        Char -> case valType val of
-            I64 -> fmap (Val base) $ trunc op LL.i8
-            I32 -> fmap (Val base) $ trunc op LL.i8
-
+        Char -> case val of
+            Val I64 op -> fmap (Val base) (trunc op LL.i8)
+            Val I32 op -> fmap (Val base) (trunc op LL.i8)
+            _          -> error (show val)
 
         Pointer _   -> pointerConstruct typ val
         _           -> do

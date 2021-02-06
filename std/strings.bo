@@ -2,7 +2,6 @@ module strings
 
 imports chars
 
-
 fn isPrefix(pre string, str string) bool
     let i = 0
     while i < len(pre) 

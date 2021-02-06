@@ -54,14 +54,16 @@ valBool b = Val Bool (if b then bit 1 else bit 0)
 valLoad :: InsCmp s m => Value -> m Value
 valLoad (Val typ op)  = return (Val typ op)
 valLoad (Ptr typ loc) = fmap (Val typ) (load loc 0)
+valLoad (CtxInt n)    = return (valI64 n)
 
 
 valStore :: InsCmp CompileState m => Value -> Value -> m ()
 valStore (Ptr typ loc) val = do
     checkTypesMatch typ (valType val)
     case val of
-        Ptr t l -> store loc 0 =<< load l 0
-        Val t o -> store loc 0 o
+        Ptr t l  -> store loc 0 =<< load l 0
+        Val t o  -> store loc 0 o
+        CtxInt n -> valStore (Ptr typ loc) =<< valLoad val
 
 
 valLocal :: InsCmp CompileState m => Type -> m Value
@@ -81,12 +83,27 @@ valMalloc typ len = do
 
 
 valsInfix :: InsCmp CompileState m => S.Op -> Value -> Value -> m Value
+valsInfix operator (CtxInt a) (CtxInt b) = return $ case operator of
+    S.Plus   -> CtxInt (a + b)
+    S.Minus  -> CtxInt (a - b)
+    S.Times  -> CtxInt (a * b)
+    S.Divide -> CtxInt (a `div` b)
+    S.GT     -> valBool (a > b)
+    S.LT     -> valBool (a < b)
+valsInfix operator (CtxInt a) b = do
+    typ <- assertBaseType isInt (valType b)
+    valsInfix operator (valInt typ a) b
+valsInfix operator a (CtxInt b) = do
+    typ <- assertBaseType isInt (valType a)
+    valsInfix operator a (valInt typ b)
 valsInfix operator a b = do
-    checkTypesMatch (valType a) (valType b)
-    base <- baseTypeOf (valType a)
+    baseA <- baseTypeOf (valType a)
+    baseB <- baseTypeOf (valType b)
+    checkTypesMatch baseA baseB
+
     Val _ opA <- valLoad a
     Val _ opB <- valLoad b
-    valsInfix' operator (valType a) base opA opB
+    valsInfix' operator (valType a) baseA opA opB
     where
         valsInfix' :: InsCmp CompileState m => S.Op -> Type -> Type -> LL.Operand -> LL.Operand -> m Value
         valsInfix' operator typ base opA opB
