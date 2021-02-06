@@ -2,26 +2,32 @@ module io
 
 imports strings
 
-extern getchar() char
+extern getchar() i64
 extern putchar(c char)
 
 fn getChar() char
-    return getchar()
+    return :char(getchar())
 
 
 fn getStrLn() string
-	let str = ""
+    let str = ""
 
-	while true
-		switch getchar()
-		  '\0' ; return str
-		  '\n' ; return str
-		  c    ; str = append(str, c)
+    while true
+        switch getchar()
+            x 
+                let a = x
+                print(a, a < 1)
+                if a < 1
+                    print(x, "-1")
+                return str
+            x
+                switch :char(x)
+                    '\n'; return str
+                    c   ; str = append(str, [c])
 
 
 fn putStrLn(str string)
 	let i = 0
-
 	while i < len(str)
 			putchar(str[i])
 			i = i + 1

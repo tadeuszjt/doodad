@@ -83,11 +83,10 @@ valMalloc typ len = do
 valsInfix :: InsCmp CompileState m => S.Op -> Value -> Value -> m Value
 valsInfix operator a b = do
     checkTypesMatch (valType a) (valType b)
-    let typ = valType a
-    base <- valBaseType a
+    base <- baseTypeOf (valType a)
     Val _ opA <- valLoad a
     Val _ opB <- valLoad b
-    valsInfix' operator typ base opA opB
+    valsInfix' operator (valType a) base opA opB
     where
         valsInfix' :: InsCmp CompileState m => S.Op -> Type -> Type -> LL.Operand -> LL.Operand -> m Value
         valsInfix' operator typ base opA opB
@@ -125,7 +124,8 @@ valPtrIdx (Ptr typ loc) idx = do
 
 valTupleSet :: InsCmp CompileState m => Value -> Word -> Value -> m Value
 valTupleSet tup i val = do
-    Tuple ts <- valBaseType tup
+    Tuple ts <- assertBaseType isTuple (valType tup)
+
     assert (fromIntegral i < length ts) "invalid tuple index"
     case tup of
         Ptr _ _ -> do
@@ -140,7 +140,8 @@ valTupleSet tup i val = do
 
 valTupleIdx :: InsCmp CompileState m => Value -> Word -> m Value
 valTupleIdx tup i = do
-    Tuple ts <- valBaseType tup
+    Tuple ts <- assertBaseType isTuple (valType tup)
+
     let t = ts !! fromIntegral i
     case tup of
         Ptr _ loc -> fmap (Ptr t) $ gep loc [int32 0, int32 $ fromIntegral i]
@@ -197,10 +198,6 @@ baseTypeOf typ = case typ of
     Typedef s -> do ObType t _ <- look s KeyType; baseTypeOf t
     Named s t -> baseTypeOf t
     _         -> return typ
-
-
-valBaseType :: ModCmp CompileState m => Value -> m Type
-valBaseType = baseTypeOf . valType
 
 
 pureTypeOf :: ModCmp CompileState m => Type -> m Type

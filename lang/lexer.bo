@@ -4,14 +4,20 @@ imports ../std/io
 imports ../std/strings
 imports ../std/chars
 
-type Token {null | TokOp:string | TokInt:i64 | TokIdent:string | TokKeyword:string }
+type Token {
+    null
+    TokOp      string
+    TokInt     i64
+    TokIdent   string
+    TokKeyword string
+}
 
 let keywords  = ["let", "while", "fn", "true", "false", "null", "if", "else"]
 let operators = ["+", "-", "*", "/", "%", "=", "+=", "-=", "*=", "/=", "%=", ".."]
 let symbols   = ['(', ')', '[', ']', '{', '}', ':']
 
 
-fn parseKeyword(str string) (Token, string)
+fn lexKeyword(str string) (Token, string)
     let (i, k) = (0, 0)
 
     while i < len(str) && isAlpha(str[i])
@@ -25,13 +31,13 @@ fn parseKeyword(str string) (Token, string)
 
     return (null, str)
 
-fn parseDigits(str string) (Token, string)
+fn lexDigits(str string) (Token, string)
     switch strReadInt(str)
         (null, _)     ; return (null, str)
         (:i64(n), ss) ; return (TokInt(&:i64(n)), ss)
 
 
-fn parseIdent(str string) (Token, string)
+fn lexIdent(str string) (Token, string)
     let i = 0
 
     if i >= len(str) || !isAlpha(str[i])
@@ -43,7 +49,7 @@ fn parseIdent(str string) (Token, string)
     return (TokIdent(&str[..i]), str[i..])
 
 
-fn parseOperator(str string) (Token, string)
+fn lexOperator(str string) (Token, string)
     let (i, j, max) = (0, 0, 0)
 
     while i < len(operators)
@@ -57,7 +63,7 @@ fn parseOperator(str string) (Token, string)
         n; return (TokOp(&:string(operators[j])),  str[n..])
 
 
-fn parseWhite(str string) string
+fn lexWhite(str string) string
     let i = 0
     while i < len(str) && (str[i] == ' ' || str[i] == '\t')
         i = i + 1
@@ -65,22 +71,22 @@ fn parseWhite(str string) string
     return str[i..]
 
 
-fn parseToken(str string) (Token, string)
-    switch parseKeyword(str)
+fn lexToken(str string) (Token, string)
+    switch lexKeyword(str)
         (null, _) ;
-        (tok, ss) ; return (tok, parseWhite(ss))
+        (tok, ss) ; return (tok, lexWhite(ss))
 
-    switch parseIdent(str)
+    switch lexIdent(str)
         (null, _) ;
-        (tok, ss) ; return (tok, parseWhite(ss))
+        (tok, ss) ; return (tok, lexWhite(ss))
 
-    switch parseOperator(str)
+    switch lexOperator(str)
         (null, _) ;
-        (tok, ss) ; return (tok, parseWhite(ss))
+        (tok, ss) ; return (tok, lexWhite(ss))
 
-    switch parseDigits(str)
+    switch lexDigits(str)
         (null, _) ;
-        (tok, ss) ; return (tok, parseWhite(ss))
+        (tok, ss) ; return (tok, lexWhite(ss))
 
     return (null, str)
 

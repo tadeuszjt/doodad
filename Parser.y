@@ -207,6 +207,7 @@ typeNoIdent   : bool                 { T.Bool }
               | '(' types ')'                  { T.Tuple $2 }
               | '[' rowTypes_ ']'              { T.Table $2 }
               | '{' ptrTypes '}'               { T.Pointer $2 }
+              | '{' 'I' ptrTypes 'D' '}'       { T.Pointer $3 }
 
 types         : {- empty -}          { [] }
               | types_               { $1 }
@@ -219,10 +220,11 @@ rowTypes_     : type_                  { [$1] }
 
 ptrType : type_                 { $1 }
         | null                  { T.Void }
-        | ident ':' type_       { T.Named (tokStr $1) $3 }
-        | ident ':' null        { T.Named (tokStr $1) T.Void }
+        | ident  type_       { T.Named (tokStr $1) $2 }
+        | ident  null        { T.Named (tokStr $1) T.Void }
 ptrTypes : ptrType              { [$1] }
          | ptrType '|' ptrTypes { $1 : $3 }
+         | ptrType 'N' ptrTypes { $1 : $3 }
 
 pattern  : '_'                     { S.PatIgnore (tokPos $1) }
          | lit                     { S.PatLiteral $1 }

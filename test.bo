@@ -1,10 +1,31 @@
 module main
 
 imports std/strings
+imports std/io
 imports lang/lexer
 
 fn main()
-    let str = "203201terioater"
+    let str = ""
+    let loop = true
+    while loop
+        let line = getStrLn()
+        switch len(line)
+            0; loop = false
+            n; str = append(str, line)
 
-    print(parseToken(str))
+
+    let toks = :[Token]()
+    loop = true
+
+    while loop
+        switch lexToken(str)
+            (null, ss); loop = false
+            (tok,  ss)
+                str  = ss
+                switch tok
+                    :TokIdent(s)   ; print("ident  ", s)
+                    :TokOp(s)      ; print("op     ", s)
+                    :TokKeyword(s) ; print("keyword", s)
+                    :TokInt(n)     ; print("integer", n)
+            
 

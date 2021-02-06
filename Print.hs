@@ -22,7 +22,7 @@ valPrint :: InsCmp CompileState m => String -> Value -> m ()
 valPrint append val = case unNamed (valType val) of
     Typedef s -> do
         printf (s ++ "(") []
-        base <- valBaseType val
+        base <- baseTypeOf (valType val)
         case val of
             Ptr t loc -> valPrint (")" ++ append) (Ptr base loc)
             Val t op  -> valPrint (")" ++ append) (Val base op)
@@ -84,8 +84,8 @@ valPrint append val = case unNamed (valType val) of
 
     Table [Char] -> do
         row <- tableRow 0 val
-        len <- valLoad =<< tableLen val
-        void $ printf ("\"%-.*s\"" ++ append) [valOp len, valLoc row]
+        len <- tableLen val
+        void $ printf ("%-.*s" ++ append) [valOp len, valLoc row]
 
     Table ts -> do
         printf "[" []

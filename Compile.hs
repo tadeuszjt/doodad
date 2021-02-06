@@ -105,11 +105,17 @@ cmpVarDef (S.Assign pos (S.PatIdent p sym) expr) = do
     
     let typ = valType val
     opTyp <- opTypeOf typ
-    initialiser <- zeroOf typ
-    loc <- fmap (Ptr typ) $ global name opTyp (toCons $ valOp initialiser)
-    valStore loc val
 
-    addObj sym KeyVar (ObjVal loc)
+    if isCons (valOp val)
+    then do
+        loc <- fmap (Ptr typ) $ global name opTyp $ toCons (valOp val)
+        addObj sym KeyVar (ObjVal loc)
+    else do
+        initialiser <- zeroOf typ
+        loc <- fmap (Ptr typ) $ global name opTyp $ toCons (valOp initialiser)
+        valStore loc val
+        addObj sym KeyVar (ObjVal loc)
+
     addSymKeyDec sym KeyVar name (DecVar opTyp)
     addDeclared name
 
@@ -229,7 +235,7 @@ cmpStmt stmt = case stmt of
 
     S.If pos expr blk melse -> withPos pos $ do
         val <- cmpExpr expr
-        typ <- valBaseType val
+        typ <- baseTypeOf (valType val)
         checkTypesMatch typ Bool
 
         case melse of
@@ -274,7 +280,6 @@ cmpStmt stmt = case stmt of
                 popSymTab
                 br exitName
 
-        br trapName
         emitBlockStart trapName
         void trap 
         br exitName
@@ -301,12 +306,11 @@ cmpExpr expr = case expr of
     S.String pos s -> do
         loc <- globalStringPtr s =<< fresh
         pi8 <- bitcast (cons loc) (LL.ptr LL.i8)
+
         tab <- valLocal (Table [Char])
         tableSetRow tab 0 (Ptr Char pi8)
-        len <- tableLen tab
-        cap <- tableCap tab
-        valStore len $ valI64 (length s)
-        valStore cap $ valI64 (length s)
+        tableSetLen tab $ valI64 (length s)
+        tableSetCap tab $ valI64 (length s)
         valLoad tab
 
     S.Ident pos sym -> withPos pos $ do
@@ -337,7 +341,8 @@ cmpExpr expr = case expr of
     S.Prefix pos op expr -> withPos pos $ do
         val <- cmpExpr expr
         case op of
-            S.Not -> valNot val
+            S.Not   -> valNot val
+            S.Minus -> valsInfix S.Minus (valI64 0) val
 
     S.Conv pos typ [] ->
         zeroOf typ
@@ -350,7 +355,7 @@ cmpExpr expr = case expr of
 
     S.Len pos expr -> withPos pos $ valLoad =<< do
         val <- cmpExpr expr
-        typ <- valBaseType val
+        typ <- baseTypeOf (valType val)
         case typ of
             Table _ -> tableLen val
             _       -> err ("cannot take length of type " ++ show typ)
@@ -369,8 +374,8 @@ cmpExpr expr = case expr of
         agg <- cmpExpr aggExpr
         idx <- cmpExpr idxExpr
 
-        idxType <- valBaseType idx
-        aggType <- valBaseType agg
+        idxType <- baseTypeOf (valType idx)
+        aggType <- baseTypeOf (valType agg)
 
         assert (isInt idxType) "index type isn't an integer"
 
@@ -379,18 +384,15 @@ cmpExpr expr = case expr of
                 tup <- tableGetElem agg idx
                 valTupleIdx tup 0
 
-
     S.Range pos expr mstart mend -> withPos pos $ do
         val <- cmpExpr expr
-        base <- valBaseType val
+        base <- baseTypeOf (valType val)
         case base of
             Table ts -> do
                 start <- maybe (return (valI64 0)) cmpExpr mstart
                 end <- maybe (tableLen val) cmpExpr mend
-                tableRange val start end
-                
+                valLoad =<< tableRange val start end
         
-
     S.Address pos expr -> withPos pos $ do
         val <- cmpExpr expr
         case val of
@@ -420,25 +422,16 @@ cmpExpr expr = case expr of
             return mal
 
         tab <- valLocal (Table rowTypes)
-        len <- tableLen tab
-        cap <- tableCap tab
-
-        valStore len $ valI64 (fromIntegral rowLen)
-        valStore cap len
+        tableSetLen tab $ valI64 (fromIntegral rowLen)
+        tableSetCap tab $ valI64 (fromIntegral rowLen)
 
         zipWithM_ (tableSetRow tab) [0..] rows
         return tab
 
-    S.Append pos expr elem -> withPos pos $ valLoad =<< do
-        tab <- cmpExpr expr
-        val <- cmpExpr elem
-        typ <- valBaseType val
-        case typ of
-            Tuple _ -> tableAppend tab val
-            _         -> do
-                tup <- valLocal (Tuple [valType val])
-                valTupleSet tup 0 val
-                tableAppend tab tup
+    S.Append pos exprA exprB -> withPos pos $ valLoad =<< do
+        valA <- cmpExpr exprA
+        valB <- cmpExpr exprB
+        tableAppend valA valB
 
     _ -> error ("expr: " ++ show expr)
 
@@ -457,16 +450,16 @@ cmpPattern pat val = case pat of
     S.PatLiteral expr -> valsInfix S.EqEq val =<< cmpExpr expr
 
     S.PatGuarded pos pat expr -> withPos pos $ do
-        guard <- cmpExpr expr
         match <- cmpPattern pat val
+        guard <- valLoad =<< cmpExpr expr
         assertBaseType (== Bool) (valType guard)
         valsInfix S.AndAnd match guard
 
     S.PatIdent pos sym -> withPos pos $ do
         checkSymKeyUndef sym KeyVar
         loc <- valLocal (valType val)
-        addObj sym KeyVar (ObjVal loc)
         valStore loc val
+        addObj sym KeyVar (ObjVal loc)
         return (valBool True)
 
     S.PatTuple pos pats -> withPos pos $ do
@@ -478,7 +471,7 @@ cmpPattern pat val = case pat of
         foldM (valsInfix S.AndAnd) (valBool True) bs
 
     S.PatArray pos pats -> withPos pos $ do
-        base <- valBaseType val 
+        base <- baseTypeOf (valType val)
         case base of
             Table ts -> do
                 len   <- tableLen val
@@ -530,9 +523,13 @@ valConstruct typ []                         = zeroOf typ
 valConstruct typ [val] | typ == valType val = valLoad val
 valConstruct typ [val]                      = do
     base <- baseTypeOf typ
+    op <- fmap valOp (valLoad val)
     case base of
         I64 -> case valType val of
-            Char -> fmap (Val base) $ sext (valOp val) LL.i64
+            Char -> fmap (Val base) $ sext op LL.i64
+
+        Char -> case valType val of
+            I64 -> fmap (Val base) $ trunc op LL.i8
 
 
         Pointer _   -> pointerConstruct typ val

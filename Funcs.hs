@@ -27,6 +27,10 @@ toCons (ConstantOperand c) = c
 int16 = ConstantOperand . Int 16
 
 
+isCons (ConstantOperand _) = True
+isCons _                   = False
+
+
 fnOp :: Name -> [Type] -> Type -> Bool -> Operand
 fnOp name argTypes retty isVarg =
     cons $ GlobalReference (ptr $ FunctionType retty argTypes isVarg) name
