@@ -7,11 +7,11 @@ imports lang/lexer
 fn main()
     let str = ""
     let loop = true
+
     while loop
-        let line = getStrLn()
-        switch len(line)
-            0; loop = false
-            n; str = append(str, line)
+        switch getStrLn()
+            s | strEqual("\0", s) ; loop = false
+            s ; str = append(append(str, s), ['\n'])
 
 
     let toks = :[Token]()
@@ -23,9 +23,12 @@ fn main()
             (tok,  ss)
                 str  = ss
                 switch tok
-                    :TokIdent(s)   ; print("ident  ", s)
-                    :TokOp(s)      ; print("op     ", s)
-                    :TokKeyword(s) ; print("keyword", s)
-                    :TokInt(n)     ; print("integer", n)
+                    TokIdent(s)   ; print("ident  ", s)
+                    TokOp(s)      ; print("op     ", s)
+                    TokKeyword(s) ; print("keyword", s)
+                    TokInt(n)     ; print("integer", n)
+                    TokSym(c)     ; print("symbol ", c)
+
+    print(str)
             
 

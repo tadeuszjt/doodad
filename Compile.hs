@@ -560,5 +560,3 @@ valAsType typ val = case val of
         tup <- valLocal typ
         zipWithM_ (valTupleSet tup) [0..] =<< zipWithM valAsType ts vals
         return tup
-                
-

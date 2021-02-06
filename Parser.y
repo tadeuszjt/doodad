@@ -158,7 +158,8 @@ expr   : lit                           { $1 }
        | '(' exprs ')'                 { S.Tuple (tokPos $1) $2 }
        | '&' expr                      { S.Address (tokPos $1) $2 }
        | ident '(' exprs ')'           { S.Call (tokPos $1) (tokStr $1) $3 }
-       | ':' typeNoIdent '(' exprs ')' { S.Conv (tokPos $3) $2 $4 }
+       | typeOrdinal '(' exprs ')'     { S.Conv (tokPos $2) $1 $3 }
+       | ':' typeAggregate '(' exprs ')' { S.Conv (tokPos $3) $2 $4 }
        | len '(' expr ')'              { S.Len (tokPos $1) $3 }
        | append '(' expr ',' expr ')'  { S.Append (tokPos $1) $3 $5 }
        | expr '.' intlit               { S.TupleIndex (tokPos $2) $1 (read $ tokStr $3) }
@@ -193,9 +194,10 @@ infix : expr '+' expr                { S.Infix (tokPos $2) S.Plus $1 $3 }
       | expr '||' expr               { S.Infix (tokPos $2) S.OrOr $1 $3 }
       | expr '!=' expr               { S.Infix (tokPos $2) S.NotEq $1 $3 }
 
-type_         : typeNoIdent          { $1 }
-              | ident                { T.Typedef (tokStr $1) }
-typeNoIdent   : bool                 { T.Bool }
+type_         : ident                { T.Typedef (tokStr $1) }
+              | typeOrdinal          { $1 }
+              | typeAggregate        { $1 }
+typeOrdinal   : bool                 { T.Bool }
               | i16                  { T.I16 }
               | i32                  { T.I32 }
               | i64                  { T.I64 }
@@ -203,7 +205,7 @@ typeNoIdent   : bool                 { T.Bool }
               | f64                  { T.F64 }
               | char                 { T.Char }
               | string               { T.Table [T.Char] }
-              | '[' intlit ':' type_ ']'       { T.Array (read $ tokStr $2) $4 }
+typeAggregate : '[' intlit ':' type_ ']'       { T.Array (read $ tokStr $2) $4 }
               | '(' types ')'                  { T.Tuple $2 }
               | '[' rowTypes_ ']'              { T.Table $2 }
               | '{' ptrTypes '}'               { T.Pointer $2 }
@@ -229,7 +231,8 @@ ptrTypes : ptrType              { [$1] }
 pattern  : '_'                     { S.PatIgnore (tokPos $1) }
          | lit                     { S.PatLiteral $1 }
          | ident                   { S.PatIdent (tokPos $1) (tokStr $1) }
-         | ':' type_ '(' pattern ')'   { S.PatTyped (tokPos $3) $2 $4 }
+         | typeOrdinal '(' pattern ')'   { S.PatTyped (tokPos $2) $1 $3 }
+         | ident '(' pattern ')'         { S.PatTyped (tokPos $2) (T.Typedef $ tokStr $1) $3 }
          | '(' patterns ')'        { S.PatTuple (tokPos $1) $2 }
          | '[' patterns ']'        { S.PatArray (tokPos $1) $2 }
          | pattern '|' expr        { S.PatGuarded (tokPos $2) $1 $3 }

@@ -25,15 +25,15 @@ fn strEqual(a string, b string) bool
     return true
 
 
-fn strReadInt(s string) ({null | i64}, string)
+fn strReadInt(s string) {null | i64}
     if len(s) <= 0 || !isDigit(s[0])
-        return (null, s)
+        return null
 
     let (i, n) = (0, 0)
 
     while isDigit(s[i])
         n = n * 10
-        n = n + :i64(s[i] - '0')
+        n = n + i64(s[i] - '0')
         i = i + 1
 
-    return (:{null | i64}(&:i64(n)), s[i..])
+    return :{null | i64}(&i64(n))

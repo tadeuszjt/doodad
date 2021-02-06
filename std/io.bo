@@ -6,19 +6,19 @@ extern getchar() i32
 extern putchar(c char)
 
 fn getChar() char
-    return :char(getchar())
+    return char(getchar())
 
 
 fn getStrLn() string
     let str = ""
 
     while true
-        switch getchar()
-            x | x < 1; return str
-            x
-                switch :char(x)
-                    '\n'; return str
-                    c   ; str = append(str, [c])
+        let x = getchar()
+        if x < 1
+            return "\0"
+        switch char(x)
+            '\n'; return str
+            c   ; str = append(str, [c])
 
 
 fn putStrLn(str string)
