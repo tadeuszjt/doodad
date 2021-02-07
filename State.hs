@@ -69,7 +69,7 @@ data Object
 
 
 data Declaration
-    = DecType   
+    = DecType   Type
     | DecExtern [Type] Type Bool
     | DecFunc   [Type] Type
     | DecVar    Type
@@ -160,20 +160,13 @@ addDeclaration name dec = do
 
 emitDec :: ModCmp CompileState m => Name -> Declaration -> m ()
 emitDec name dec = case dec of
-    DecType                         -> void (typedef name Nothing)
+    DecType opTyp                   -> void $ typedef name (Just opTyp)
     DecFunc argTypes retty          -> emitDec name (DecExtern argTypes retty False)
-    DecVar opTyp                    -> do
-        emitDefn $ GlobalDefinition $ globalVariableDefaults
-            { name  = name
-            , type' = opTyp
-            }
-    DecExtern argTypes retty isVarg -> do
-        emitDefn $ GlobalDefinition $ functionDefaults
-            { returnType = retty
-            , name       = name
-            , parameters = ([Parameter typ (mkName "") [] | typ <- argTypes], isVarg)
-            }
-        
+    DecExtern argTypes retty False  -> void $ extern name argTypes retty
+    DecExtern argTypes retty True   -> void $ externVarArgs name argTypes retty
+    DecVar opTyp                    ->
+        emitDefn $ GlobalDefinition $ globalVariableDefaults { name = name , type' = opTyp }
+
 
 ensureDec :: ModCmp CompileState m => Name -> m ()
 ensureDec name = do

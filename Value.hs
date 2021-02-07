@@ -2,7 +2,6 @@
 module Value where
 
 import Prelude hiding (or, and)
-import Data.Word
 import Data.Maybe
 import Data.List hiding (or, and)
 import Control.Monad
@@ -66,11 +65,17 @@ valStore (Ptr typ loc) val = do
         CtxInt n -> valStore (Ptr typ loc) =<< valLoad val
 
 
+valSelect :: InsCmp CompileState m => Value -> Value -> Value -> m Value
+valSelect cnd t f = do
+    assertBaseType (==Bool) (valType cnd)
+    checkTypesMatch (valType t) (valType f)
+    return . Val (valType t) =<< select (valOp cnd) (valOp t) (valOp f)
+
+
 valLocal :: InsCmp CompileState m => Type -> m Value
 valLocal typ = do
     opTyp <- opTypeOf typ
-    loc <- alloca opTyp Nothing 0
-    return (Ptr typ loc)
+    fmap (Ptr typ) (alloca opTyp Nothing 0)
     
 
 valMalloc :: InsCmp CompileState m => Type -> Value -> m Value
@@ -139,7 +144,7 @@ valPtrIdx (Ptr typ loc) idx = do
     fmap (Ptr typ) (gep loc [i])
 
 
-valTupleSet :: InsCmp CompileState m => Value -> Word -> Value -> m Value
+valTupleSet :: InsCmp CompileState m => Value -> Int -> Value -> m Value
 valTupleSet tup i val = do
     Tuple ts <- assertBaseType isTuple (valType tup)
 
@@ -155,15 +160,15 @@ valTupleSet tup i val = do
             fmap (Val $ valType tup) $ insertValue (valOp tup) (valOp val') [fromIntegral i]
 
 
-valTupleIdx :: InsCmp CompileState m => Value -> Word -> m Value
+valTupleIdx :: InsCmp CompileState m => Value -> Int -> m Value
 valTupleIdx tup i = do
     Tuple ts <- assertBaseType isTuple (valType tup)
 
-    let t = ts !! fromIntegral i
+    let t = ts !! i
     case tup of
         Ptr _ loc   -> fmap (Ptr t) $ gep loc [int32 0, int32 $ fromIntegral i]
         Val _ op    -> fmap (Val t) $ extractValue op [fromIntegral i]
-        CtxTuple vs -> return (vs !! fromIntegral i)
+        CtxTuple vs -> return (vs !! i)
 
 
 valArrayIdx :: InsCmp CompileState m => Value -> Value -> m Value
@@ -173,7 +178,7 @@ valArrayIdx (Ptr (Array n t) loc) idx = do
     fmap (Ptr t) $ gep loc [int64 0, idx]
 
 
-valArrayConstIdx :: InsCmp CompileState m => Value -> Word -> m Value
+valArrayConstIdx :: InsCmp CompileState m => Value -> Int -> m Value
 valArrayConstIdx val i = do
     Array n t <- assertBaseType isArray (valType val)
     case val of
@@ -221,17 +226,15 @@ baseTypeOf typ = case typ of
 
 pureTypeOf :: ModCmp CompileState m => Type -> m Type
 pureTypeOf typ = case typ of
-    Void       -> return Void
-    Typedef s  -> do ObType t _ <- look s KeyType; pureTypeOf t
-    Table ts   -> fmap Table (mapM pureTypeOf ts)
-    Tuple ts   -> fmap Tuple (mapM pureTypeOf ts)
-    Array n t  -> fmap (Array n) (pureTypeOf t)
-    ADT ts -> fmap ADT (mapM pureTypeOf ts)
-    Named n t  -> pureTypeOf t
+    Void             -> return Void
+    Typedef s        -> do ObType t _ <- look s KeyType; pureTypeOf t
+    Table ts         -> fmap Table (mapM pureTypeOf ts)
+    Tuple ts         -> fmap Tuple (mapM pureTypeOf ts)
+    Array n t        -> fmap (Array n) (pureTypeOf t)
+    ADT ts           -> fmap ADT (mapM pureTypeOf ts)
+    Named n t        -> pureTypeOf t
     _ | isSimple typ -> return typ
-    _ -> error (show typ)
-
-
+    _                -> error (show typ)
 
 
 zeroOf :: ModCmp CompileState m => Type -> m Value
@@ -240,15 +243,16 @@ zeroOf typ = case typ of
     Bool          -> return (valBool False)
     Char          -> return (valChar '\0')
     Typedef sym   -> fmap (Val typ . valOp) (zeroOf =<< baseTypeOf typ)
-    Array n t     -> fmap (Val typ . array) $ replicateM (fromIntegral n) $ fmap (toCons . valOp) (zeroOf t)
+    Array n t     -> fmap (Val typ . array) $ replicateM n $ fmap (toCons . valOp) (zeroOf t)
     ADT [t]       -> fmap (Val typ . cons . C.Null . LL.ptr) (opTypeOf t)
+
     Tuple ts      -> do
-        ops <- fmap (map toCons) $ fmap (map valOp) (mapM zeroOf ts)
+        ops <- mapM (return . toCons . valOp <=< zeroOf) ts
         return $ Val typ (struct Nothing False ops)
 
     Table ts      -> do
         let zi64 = toCons (int64 0)
-        ptrs <- fmap (map LL.ptr) (mapM opTypeOf ts)
+        ptrs <- mapM (return . LL.ptr <=< opTypeOf) ts
         let zptrs = map (C.IntToPtr zi64) ptrs
         return . (Val typ) $ struct Nothing False (zi64:zi64:zptrs)
 
@@ -271,7 +275,7 @@ opTypeOf typ = case typ of
     ADT ts    -> return $ LL.StructureType False [LL.i64, LL.ptr LL.i8]
 
     Table ts  -> do
-        ptrOpTypes <- mapM (fmap LL.ptr . opTypeOf) ts
+        ptrOpTypes <- mapM (return . LL.ptr <=< opTypeOf) ts
         return $ LL.StructureType False (LL.i64:LL.i64:ptrOpTypes)
 
     Typedef s -> do
@@ -281,13 +285,13 @@ opTypeOf typ = case typ of
     _ -> error (show typ) 
 
 
-sizeOf :: InsCmp CompileState m => Type -> m Word64
+sizeOf :: InsCmp CompileState m => Type -> m Int
 sizeOf typ = size =<< opTypeOf =<< pureTypeOf typ
     where
-        size :: InsCmp CompileState m => LL.Type -> m Word64
+        size :: InsCmp CompileState m => LL.Type -> m Int
         size typ = do
             ctx <- gets context
             dl <- gets dataLayout
             ptrTyp <- liftIO $ runEncodeAST ctx (encodeM typ)
-            liftIO (FFI.getTypeAllocSize dl ptrTyp)
+            fmap fromIntegral $ liftIO (FFI.getTypeAllocSize dl ptrTyp)
 

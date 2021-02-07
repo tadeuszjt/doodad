@@ -76,7 +76,7 @@ valPrint append val = case unNamed (valType val) of
     Tuple ts -> do
         printf "(" []
         forM_ (zip ts [0..]) $ \(t, i) -> do
-            elem <- valTupleIdx val (fromIntegral i)
+            elem <- valTupleIdx val i
             if i < length ts - 1
             then valPrint ", " elem
             else valPrint "" elem
@@ -89,15 +89,15 @@ valPrint append val = case unNamed (valType val) of
 
     Table ts -> do
         printf "[" []
-        let nrows = fromIntegral (length ts)
+        let nrows = (length ts)
         len <- tableLen val
         lenZero <- valsInfix S.LTEq len (valI64 0)
 
-        let m1 = forM_ [0..nrows-1] $ \i -> do
+        let m1 = forM_ [0..length ts - 1] $ \i -> do
             row <- tableRow i val
             n <- valsInfix S.Minus len (valInt I64 1)
             for (valOp n) $ \j -> valPrint ", " =<< valPtrIdx row (Val I64 j)
-            if i < nrows-1
+            if i < length ts - 1
             then valPrint "; " =<< valPtrIdx row n
             else valPrint ("]" ++ append) =<< valPtrIdx row n
 
@@ -105,7 +105,7 @@ valPrint append val = case unNamed (valType val) of
         if_ (valOp lenZero) m2 m1 
 
     Array n t -> do
-        printf "[%d| " $ (:[]) $ valOp $ valI64 (fromIntegral n)
+        printf "[%d| " $ (:[]) $ valOp (valI64 n)
         for (int64 $ fromIntegral n-1) $ \i -> do
             valPrint ", " =<< valArrayIdx val (Val I64 i)
         valPrint ("]" ++ append) =<< valArrayConstIdx val (n-1)

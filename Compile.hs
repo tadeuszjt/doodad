@@ -66,34 +66,34 @@ compileFlatState ctx dl imports flatState = do
 
 cmpTypeDef :: InsCmp CompileState m => S.Stmt -> m ()
 cmpTypeDef (S.Typedef pos sym typ) = withPos pos $ do
-    checkSymKeyUndef sym KeyType
-    checkSymKeyUndef sym (KeyFunc [])
-    checkSymKeyUndef sym (KeyFunc [typ])
-    checkSymKeyUndef sym (KeyFunc [Typedef sym])
-    addObj sym (KeyFunc [])            (ObjConstructor (Typedef sym))
-    addObj sym (KeyFunc [typ])         (ObjConstructor (Typedef sym))
-    addObj sym (KeyFunc [Typedef sym]) (ObjConstructor (Typedef sym))
+    let typdef = Typedef sym
+
+    forM_ [KeyFunc [], KeyFunc [typ], KeyFunc [typdef]] $ \key -> do
+        checkSymKeyUndef sym key
+        addObj sym key (ObjConstructor typdef)
+
+    if isTuple typ || isTable typ || isADT typ
+    then do
+        name <- freshName (mkBSS sym)
+        addSymKeyDec sym KeyType name . DecType =<< opTypeOf typ
+        checkSymKeyUndef sym KeyType
+        addObj sym KeyType $ ObType typ (Just name)
+    else do
+        checkSymKeyUndef sym KeyType
+        addObj sym KeyType $ ObType typ Nothing
 
     case typ of
-        Tuple ts -> do
-            name <- freshName (mkBSS sym)
-            opTyp <- opTypeOf typ
-            typedef name (Just opTyp)
-            addDeclared name
-            addSymKeyDec sym KeyType name DecType
-            addObj sym KeyType $ ObType typ (Just name)
-
         ADT ts -> do
             forM_ ts $ \t -> case t of
                 Named s t -> do
                     checkSymKeyUndef s (KeyFunc [ADT [t]])
-                    addObj s (KeyFunc [t]) (ObjPtrFieldCons (Typedef sym))
-                t -> addObj sym (KeyFunc [t]) (ObjConstructor (Typedef sym))
+                    addObj s (KeyFunc [t]) (ObjPtrFieldCons typdef)
+                t -> do
+                    checkSymKeyUndef sym (KeyFunc [t])
+                    addObj sym (KeyFunc [t]) (ObjConstructor typdef)
 
-            addObj sym (KeyFunc [Void]) (ObjConstructor (Typedef sym))
-            addObj sym KeyType (ObType typ Nothing)
 
-        _ -> addObj sym KeyType (ObType typ Nothing)
+        _ -> return ()
 
 
 cmpVarDef :: InsCmp CompileState m => S.Stmt -> m ()
@@ -176,21 +176,20 @@ cmpFuncDef (S.Func pos sym params retty blk) = withPos pos $ do
     curRetty <- gets curRetType
     modify $ \s -> s { curRetType = retty }
     void $ InstrCmpT . IRBuilderT . lift $ func name (zip paramOpTypes paramNames) returnOpType $ \paramOps -> do
-        (flip named) nameStr $ do
-            forM_ (zip3 paramTypes paramOps paramSyms) $ \(typ, op, sym) -> do
-                checkSymKeyUndef sym KeyVar
-                loc <- valLocal typ
-                valStore loc (Val typ op)
-                addObj sym KeyVar (ObjVal loc)
+        forM_ (zip3 paramTypes paramOps paramSyms) $ \(typ, op, sym) -> do
+            checkSymKeyUndef sym KeyVar
+            loc <- valLocal typ
+            valStore loc (Val typ op)
+            addObj sym KeyVar (ObjVal loc)
 
-            mapM_ cmpStmt blk
-            hasTerm <- hasTerminator
-            retty <- gets curRetType
-            if hasTerm
-            then return ()
-            else if retty == Void
-            then retVoid
-            else unreachable
+        mapM_ cmpStmt blk
+        hasTerm <- hasTerminator
+        retty <- gets curRetType
+        if hasTerm
+        then return ()
+        else if retty == Void
+        then retVoid
+        else unreachable
 
     modify $ \s -> s { curRetType = curRetty }
     popSymTab
@@ -199,9 +198,11 @@ cmpFuncDef (S.Func pos sym params retty blk) = withPos pos $ do
 cmpStmt :: InsCmp CompileState m => S.Stmt -> m ()
 cmpStmt stmt = case stmt of
     S.Print pos exprs -> cmpPrint stmt
+    S.Block pos stmts -> withPos pos (pushSymTab >> mapM_ cmpStmt stmts >> popSymTab)
 
     S.CallStmt pos sym exprs -> withPos pos $ do
-        vals <- mapM valLoad =<< mapM cmpExpr exprs
+
+        vals <- mapM (valLoad <=< cmpExpr) exprs
         res <- look sym $ KeyFunc (map valType vals)
         op <- case res of
             ObjFunc _ op     -> return op
@@ -285,12 +286,6 @@ cmpStmt stmt = case stmt of
         br exitName
         emitBlockStart exitName
 
-
-    S.Block pos stmts -> withPos pos $ do
-        pushSymTab
-        mapM_ cmpStmt stmts
-        popSymTab
-
     _ -> error "stmt"
 
 
@@ -305,6 +300,21 @@ cmpExpr expr = case expr of
     S.Conv pos typ []         -> zeroOf typ
     S.Conv pos typ [S.Null p] -> withPos pos (adtNull typ)
     S.Conv pos typ exprs      -> withPos pos (valConstruct typ =<< mapM cmpExpr exprs)
+
+    S.Ident pos sym -> withPos pos $ do
+        ObjVal loc <- look sym KeyVar
+        return loc
+
+    S.Infix pos op exprA exprB -> withPos pos $ do
+        a <- cmpExpr exprA
+        b <- cmpExpr exprB
+        valsInfix op a b
+
+    S.Prefix pos op expr -> withPos pos $ do
+        val <- cmpExpr expr
+        case op of
+            S.Not   -> valNot val
+            S.Minus -> valsInfix S.Minus (CtxInt 0) val
             
     S.String pos s -> do
         loc <- globalStringPtr s =<< fresh
@@ -312,11 +322,6 @@ cmpExpr expr = case expr of
         let i64 = toCons $ int64 $ fromIntegral (length s)
         let stc = struct Nothing False [i64, i64, pi8]
         return $ Val (Table [Char]) stc
-
-
-    S.Ident pos sym -> withPos pos $ do
-        ObjVal loc <- look sym KeyVar
-        return loc
 
     S.Call pos sym exprs -> withPos pos $ do
         vals <- mapM cmpExpr exprs
@@ -333,17 +338,6 @@ cmpExpr expr = case expr of
 
                 vals' <- mapM valLoad vals
                 fmap (Val typ) $ call op [(o, []) | o <- map valOp vals']
-
-    S.Infix pos op exprA exprB -> withPos pos $ do
-        a <- cmpExpr exprA
-        b <- cmpExpr exprB
-        valsInfix op a b
-
-    S.Prefix pos op expr -> withPos pos $ do
-        val <- cmpExpr expr
-        case op of
-            S.Not   -> valNot val
-            S.Minus -> valsInfix S.Minus (CtxInt 0) val
 
 
     S.Len pos expr -> withPos pos $ valLoad =<< do
@@ -385,37 +379,37 @@ cmpExpr expr = case expr of
                 start <- maybe (return (valI64 0)) cmpExpr mstart
                 end <- maybe (tableLen val) cmpExpr mend
                 valLoad =<< tableRange val start end
-        
+
+    S.Append pos exprA exprB -> withPos pos $ valLoad =<< do
+        valA <- cmpExpr exprA
+        tableAppend valA =<< cmpExpr exprB
+    
     S.Table pos ([]:rs) -> withPos pos $ do
         assert (all null rs) "row lengths do not match"
         return (CtxTable [[]])
+
     S.Table pos exprss -> withPos pos $ valLoad =<< do
         valss <- mapM (mapM cmpExpr) exprss
         let rowLen = length (head valss)
 
         rowTypes <- forM valss $ \vals -> do
             assert (length vals == rowLen) $ "mismatched table row length of " ++ show (length vals)
-            forM_ vals $ \val -> checkTypesMatch (valType val) $ valType (head vals)
-            return $ valType (head vals)
+            let typ = valType (head vals)
+            mapM_ (checkTypesMatch typ) (map valType vals)
+            return typ
 
         rows <- forM (zip rowTypes [0..]) $ \(t, r) -> do
             mal <- valMalloc t (valI64 rowLen)
-            forM_ [0..rowLen-1] $ \i -> do
+            forM_ [0..rowLen - 1] $ \i -> do
                 ptr <- valPtrIdx mal (valI64 i) 
                 valStore ptr ((valss !! r) !! i)
             return mal
 
         tab <- valLocal (Table rowTypes)
-        tableSetLen tab $ valI64 rowLen
-        tableSetCap tab $ valI64 rowLen
-
+        tableSetLen tab (valI64 rowLen)
+        tableSetCap tab (valI64 rowLen)
         zipWithM_ (tableSetRow tab) [0..] rows
         return tab
-
-    S.Append pos exprA exprB -> withPos pos $ valLoad =<< do
-        valA <- cmpExpr exprA
-        valB <- cmpExpr exprB
-        tableAppend valA valB
 
     _ -> err "invalid expression"
 
@@ -429,7 +423,7 @@ cmpPattern pat val = case pat of
         let ns = filter ((== Void) . unNamed) ts
         assert (length ns == 1) "adt type does not support a unique null value"
         en <- adtEnum val
-        valsInfix S.EqEq en $ valI64 $ fromJust (elemIndex (head ns) ts)
+        valsInfix S.EqEq en $ valI64 $ fromJust $ elemIndex (head ns) ts
 
     S.PatLiteral expr -> valsInfix S.EqEq val =<< cmpExpr expr
 

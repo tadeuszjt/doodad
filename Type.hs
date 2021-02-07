@@ -1,6 +1,5 @@
 module Type where
 
-import Data.Word
 import Data.List
 
 data Type
@@ -14,7 +13,7 @@ data Type
     | Bool                   --
     | Char                   --
     | Tuple [Type]
-    | Array Word Type
+    | Array Int Type
     | Table [Type]
     | ADT [Type]
     | Typedef String
@@ -36,7 +35,7 @@ instance Show Type where
         Tuple ts      -> "(" ++ intercalate ", " (map show ts) ++ ")"
         Array n t     -> "[" ++ show n ++ "| " ++ show t ++ "]"
         Table ts      -> "[" ++ intercalate "; " (map show ts) ++ "]"
-        ADT ts    -> "{" ++ intercalate ", " (map show ts) ++ "}"
+        ADT ts        -> "{" ++ intercalate ", " (map show ts) ++ "}"
         Typedef s     -> s
         Named s t     -> s ++ ":" ++ show t
 

@@ -1,7 +1,6 @@
 {-# LANGUAGE FlexibleContexts #-}
 module Table where
 
-import Data.Word
 import Control.Monad
 
 import qualified LLVM.AST.Type as LL
@@ -46,18 +45,18 @@ tableSetCap tab@(Ptr _ loc) cap = do
     store c 0 =<< fmap valOp (valLoad cap)
 
 
-tableRow :: InsCmp CompileState m => Word32 -> Value -> m Value
+tableRow :: InsCmp CompileState m => Int -> Value -> m Value
 tableRow i tab = do
     Table ts <- assertBaseType isTable (valType tab)
-    let t = ts !! fromIntegral i
+    let t = ts !! i
     op <- fmap valOp (valLoad tab)
-    fmap (Ptr t) (extractValue op [i+2])
+    fmap (Ptr t) (extractValue op [fromIntegral i+2])
 
 
-tableSetRow :: InsCmp CompileState m => Value -> Word32 -> Value -> m ()
+tableSetRow :: InsCmp CompileState m => Value -> Int -> Value -> m ()
 tableSetRow tab i row = do
     Table ts <- assertBaseType isTable (valType tab)
-    checkTypesMatch (valType row) (ts !! fromIntegral i)
+    checkTypesMatch (valType row) (ts !! i)
     pp <- gep (valLoc tab) [int32 0, int32 (fromIntegral i+2)]
     store pp 0 (valLoc row)
 
@@ -69,8 +68,7 @@ tableGetElem tab idx = do
     tup <- valLocal (Tuple ts)
     forM_ (zip ts [0..]) $ \(t, i) -> do
         row <- tableRow i tab
-        ptr <- valPtrIdx row idx
-        valTupleSet tup (fromIntegral i) ptr
+        valTupleSet tup i =<< valPtrIdx row idx
 
     return tup
 
@@ -88,7 +86,7 @@ tableSetElem tab idx tup = do
     forM_ (zip ts [0..]) $ \(t, i) -> do
         row <- tableRow i tab
         ptr <- valPtrIdx row idx
-        valStore ptr =<< valTupleIdx tup (fromIntegral i)
+        valStore ptr =<< valTupleIdx tup i
 
 
 tableRange :: InsCmp CompileState m => Value -> Value -> Value -> m Value
