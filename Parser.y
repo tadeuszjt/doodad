@@ -167,6 +167,7 @@ expr   : lit                           { $1 }
        | expr '[' expr ']'             { S.Subscript (tokPos $2) $1 $3 }
        | expr '[' expr '..' ']'        { S.Range (tokPos $2) $1 (Just $3) Nothing }
        | expr '[' '..' expr ']'        { S.Range (tokPos $2) $1 Nothing (Just $4) }
+       | expr '[' expr  '..' expr ']'  { S.Range (tokPos $2) $1 (Just $3) (Just $5) }
 exprs  : {- empty -}                   { [] }
        | exprs_                        { $1 }
 exprs_ : expr                          { [$1] }
@@ -208,8 +209,8 @@ typeOrdinal   : bool                 { T.Bool }
 typeAggregate : '[' intlit ':' type_ ']'       { T.Array (read $ tokStr $2) $4 }
               | '(' types ')'                  { T.Tuple $2 }
               | '[' rowTypes_ ']'              { T.Table $2 }
-              | '{' ptrTypes '}'               { T.Pointer $2 }
-              | '{' 'I' ptrTypes 'D' '}'       { T.Pointer $3 }
+              | '{' ptrTypes '}'               { T.ADT $2 }
+              | '{' 'I' ptrTypes 'D' '}'       { T.ADT $3 }
 
 types         : {- empty -}          { [] }
               | types_               { $1 }

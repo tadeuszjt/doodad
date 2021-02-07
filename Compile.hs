@@ -36,7 +36,7 @@ import CompileState
 import Print
 import Funcs
 import Table
-import Pointer
+import ADT
 
 mkBSS = BSS.toShort . BS.pack
 
@@ -83,12 +83,12 @@ cmpTypeDef (S.Typedef pos sym typ) = withPos pos $ do
             addSymKeyDec sym KeyType name DecType
             addObj sym KeyType $ ObType typ (Just name)
 
-        Pointer ts -> do
+        ADT ts -> do
             forM_ ts $ \t -> case t of
                 Named s t -> do
-                    checkSymKeyUndef sym (KeyFunc [Pointer [t]])
-                    addObj s (KeyFunc [Pointer [t]]) (ObjPtrFieldCons (Typedef sym))
-                t -> addObj sym (KeyFunc [Pointer [t]]) (ObjConstructor (Typedef sym))
+                    checkSymKeyUndef s (KeyFunc [ADT [t]])
+                    addObj s (KeyFunc [t]) (ObjPtrFieldCons (Typedef sym))
+                t -> addObj sym (KeyFunc [t]) (ObjConstructor (Typedef sym))
 
             addObj sym (KeyFunc [Void]) (ObjConstructor (Typedef sym))
             addObj sym KeyType (ObType typ Nothing)
@@ -322,7 +322,7 @@ cmpExpr expr = case expr of
         res <- look sym $ KeyFunc (map valType vals)
         case res of
             ObjConstructor typ   -> valConstruct typ vals
-            ObjPtrFieldCons  typ -> pointerConstructField sym typ vals
+            ObjPtrFieldCons  typ -> adtConstructField sym typ vals
             _                    -> do
                 (op, typ) <- case res of
                     ObjFunc Void _     -> err "cannot use void function as expression"
@@ -348,7 +348,7 @@ cmpExpr expr = case expr of
         zeroOf typ
 
     S.Conv pos typ [S.Null p] -> withPos pos $
-        pointerNull typ
+        adtNull typ
 
     S.Conv pos typ exprs -> withPos pos $
         valConstruct typ =<< mapM cmpExpr exprs
@@ -393,15 +393,6 @@ cmpExpr expr = case expr of
                 end <- maybe (tableLen val) cmpExpr mend
                 valLoad =<< tableRange val start end
         
-    S.Address pos expr -> withPos pos $ do
-        val <- cmpExpr expr
-        case val of
-            Ptr t loc -> return $ Val (Pointer [t]) loc
-            Val t _   -> do
-                mal <- valMalloc t (valI64 1)
-                valStore mal val
-                fmap (Val (Pointer [t])) $ bitcast (valLoc mal) (LL.ptr LL.i8)
-        
     S.Table pos ([]:rs) -> withPos pos $ do
         assert (all null rs) "row lengths do not match"
         return (CtxTable [[]])
@@ -433,7 +424,7 @@ cmpExpr expr = case expr of
         valB <- cmpExpr exprB
         tableAppend valA valB
 
-    _ -> error ("expr: " ++ show expr)
+    _ -> err "invalid expression"
 
 
 cmpPattern :: InsCmp CompileState m => S.Pattern -> Value -> m Value
@@ -441,10 +432,10 @@ cmpPattern pat val = case pat of
     S.PatIgnore pos   -> return (valBool True)
 
     S.PatLiteral (S.Null pos) -> withPos pos $ do
-        Pointer ts <- assertBaseType isPointer (valType val)
+        ADT ts <- assertBaseType isADT (valType val)
         let ns = filter ((== Void) . unNamed) ts
-        assert (length ns == 1) "pointer type does not support a unique null value"
-        en <- pointerEnum val
+        assert (length ns == 1) "adt type does not support a unique null value"
+        en <- adtEnum val
         valsInfix S.EqEq en $ valI64 $ fromJust (elemIndex (head ns) ts)
 
     S.PatLiteral expr -> valsInfix S.EqEq val =<< cmpExpr expr
@@ -485,7 +476,7 @@ cmpPattern pat val = case pat of
                 foldM (valsInfix S.AndAnd) (valBool True) (lenEq:bs)
 
     S.PatTyped pos typ pat -> withPos pos $ do
-        Pointer ts <- assertBaseType isPointer (valType val)
+        ADT ts <- assertBaseType isADT (valType val)
 
         ns <- fmap catMaybes $ forM ts $ \t -> case t of
             Named n t -> case typ of
@@ -497,12 +488,12 @@ cmpPattern pat val = case pat of
         assert (length ns == 1) "invalid field name"
         let t = head ns
 
-        en <- pointerEnum val
+        en <- adtEnum val
         b <- valsInfix S.EqEq en $ valI64 $ fromJust (elemIndex t ts)
 
-        loc <- valLocal (Pointer [unNamed t])
-        pointerSetPi8 loc =<< pointerPi8 val
-        val <- pointerDeref loc
+        loc <- valLocal (ADT [unNamed t])
+        adtSetPi8 loc =<< adtPi8 val
+        val <- adtDeref loc
 
         valsInfix S.AndAnd b =<< cmpPattern pat val
 
@@ -537,7 +528,7 @@ valConstruct typ [val']                      = do
             Val I32 op -> fmap (Val base) (trunc op LL.i8)
             _          -> error (show val)
 
-        Pointer _   -> pointerConstruct typ val
+        ADT _   -> adtConstruct typ val
         _           -> do
             pureType    <- pureTypeOf typ
             pureValType <- pureTypeOf (valType val)
@@ -549,7 +540,7 @@ valAsType :: InsCmp CompileState m => Type -> Value -> m Value
 valAsType typ val = case val of
     Val _ _       -> checkTypesMatch typ (valType val) >> return val
     Ptr _ _       -> checkTypesMatch typ (valType val) >> return val
-    Null          -> pointerNull typ
+    Null          -> adtNull typ
     CtxTable [[]] -> do
         Table ts <- assertBaseType isTable typ
         zeroOf typ

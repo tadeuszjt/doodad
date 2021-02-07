@@ -45,7 +45,7 @@ printError err = case err of
         case file of
             Left e -> putStrLn ("couldn't read: " ++ path)
             Right source -> do
-                putStrLn ("error " ++ path ++ " " ++ show pos ++ " " ++ str ++ ":")
+                putStrLn (path ++ ":" ++ show l ++ ":" ++ show c ++ ":" ++ str)
                 let sourceLines = lines source
                 unless (l < 3) $ putStrLn (sourceLines !! (l-3))
                 unless (l < 2) $ putStrLn (sourceLines !! (l-2))

@@ -36,4 +36,4 @@ fn strReadInt(s string) {null | i64}
         n = n + i64(s[i] - '0')
         i = i + 1
 
-    return :{null | i64}(&i64(n))
+    return :{null | i64}(n)

@@ -204,7 +204,7 @@ checkTypesMatch typA typB
     | isTable typA   = assert (typA == typB) str
     | isTuple typA   = assert (typA == typB) str
     | isTypedef typA = assert (typA == typB) str
-    | isPointer typA = assert (typA == typB) str
+    | isADT typA = assert (typA == typB) str
     | otherwise      = err (show typA ++ " does not match " ++ show typB)
     where
         str = show typA ++ " does not match " ++ show typB
@@ -224,7 +224,7 @@ pureTypeOf typ = case typ of
     Table ts   -> fmap Table (mapM pureTypeOf ts)
     Tuple ts   -> fmap Tuple (mapM pureTypeOf ts)
     Array n t  -> fmap (Array n) (pureTypeOf t)
-    Pointer ts -> fmap Pointer (mapM pureTypeOf ts)
+    ADT ts -> fmap ADT (mapM pureTypeOf ts)
     Named n t  -> pureTypeOf t
     _ | isSimple typ -> return typ
     _ -> error (show typ)
@@ -250,7 +250,7 @@ zeroOf typ = case typ of
     Array n t     -> 
         fmap (Val typ . array) $ replicateM (fromIntegral n) $ fmap (toCons . valOp) (zeroOf t)
 
-    Pointer [t] -> do
+    ADT [t] -> do
         pt <- fmap LL.ptr (opTypeOf t)
         return $ Val typ $ cons (C.Null pt)
 
@@ -258,7 +258,7 @@ zeroOf typ = case typ of
         Val t op <- zeroOf =<< baseTypeOf typ
         return (Val typ op)
 
-    _             -> fail ("no zero val for: " ++ show typ)
+    _ -> err ("no zero val for: " ++ show typ)
 
 
 opTypeOf :: ModCmp CompileState m => Type -> m LL.Type
@@ -277,16 +277,16 @@ opTypeOf typ = case typ of
         ptrOpTypes <- mapM (fmap LL.ptr . opTypeOf) ts
         return $ LL.StructureType False (LL.i64:LL.i64:ptrOpTypes)
 
-    Pointer []  -> error ""
-    Pointer [t] -> return (LL.ptr LL.i8)
-    Pointer ts  -> return $ LL.StructureType False [LL.i64, LL.ptr LL.i8]
+    ADT []  -> error ""
+    ADT [t] -> return (LL.ptr LL.i8)
+    ADT ts  -> return $ LL.StructureType False [LL.i64, LL.ptr LL.i8]
 
     Typedef s -> do
         ObType t namem <- look s KeyType
         maybe (opTypeOf t) (return . LL.NamedTypeReference) namem
 
-
     _ -> error (show typ) 
+
 
 sizeOf :: InsCmp CompileState m => Type -> m Word64
 sizeOf typ = size =<< opTypeOf =<< pureTypeOf typ

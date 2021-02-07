@@ -16,7 +16,7 @@ data Type
     | Tuple [Type]
     | Array Word Type
     | Table [Type]
-    | Pointer [Type]
+    | ADT [Type]
     | Typedef String
     | Named String Type
     deriving (Eq, Ord)
@@ -36,7 +36,7 @@ instance Show Type where
         Tuple ts      -> "(" ++ intercalate ", " (map show ts) ++ ")"
         Array n t     -> "[" ++ show n ++ "| " ++ show t ++ "]"
         Table ts      -> "[" ++ intercalate "; " (map show ts) ++ "]"
-        Pointer ts    -> "{" ++ intercalate ", " (map show ts) ++ "}"
+        ADT ts    -> "{" ++ intercalate ", " (map show ts) ++ "}"
         Typedef s     -> s
         Named s t     -> s ++ ":" ++ show t
 
@@ -66,9 +66,9 @@ isTypedef (Named _ t) = isTypedef t
 isTypedef (Typedef _) = True
 isTypedef _           = False
 
-isPointer (Named _ t) = isPointer t
-isPointer (Pointer _) = True
-isPointer _           = False
+isADT (Named _ t) = isADT t
+isADT (ADT _) = True
+isADT _           = False
 
 isIntegral (Named _ t) = isIntegral t
 isIntegral x           = isInt x || x == Char
@@ -80,4 +80,4 @@ isSimple (Named _ t)  = isSimple t
 isSimple x            = isBase x
 
 isAggregate (Named _ t) = isAggregate t
-isAggregate x           = isTuple x || isArray x || isTable x || isPointer x
+isAggregate x           = isTuple x || isArray x || isTable x || isADT x

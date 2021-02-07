@@ -10,23 +10,38 @@ type Token {
     TokInt     i64
     TokSym     char
     TokIdent   string
+    TokString  string
     TokKeyword string
 }
 
-let keywords  = ["let", "while", "fn", "true", "false", "null", "if", "else"]
+let keywords  = ["let", "while", "fn", "extern", "true", "false", "null", "if", "else", "return", "module", "imports"]
 let types     = ["i8", "i16", "i32", "i64", "char", "bool", "string"]
-let operators = ["+", "-", "*", "/", "%", "=", "+=", "-=", "*=", "/=", "%=", ".."]
+let operators = ["+", "-", "*", "/", "%", "=", "+=", "-=", "*=", "/=", "%=", "..", "<", ">", "<=", ">=", "&&", "||", "=="]
 let symbols   = ['(', ')', '[', ']', '{', '}', ':']
 
 
+fn lexString(str string) (Token, string)
+    if len(str) == 0 || str[0] != '"'
+        return (null, str)
+
+    let i = 1
+    while i < len(str) && (isAlpha(str[i]) || isDigit(str[i]))
+        i = i + 1
+
+    if i < len(str) && str[i] == '"'
+        return (TokString(str[1..i]), str[(i+1)..])
+
+    return (null, str)
+
+
 fn lexSymbol(str string) (Token, string)
-    if len(str) <= 0
+    if len(str) == 0
         return (null, str)
 
     let i = 0
     while i < len(symbols)
         if str[0] == symbols[i]
-            return (TokSym(&char(str[0])), str[1..])
+            return (TokSym(str[0]), str[1..])
         i = i + 1
 
     return (null, str)
@@ -41,7 +56,7 @@ fn lexKeyword(str string) (Token, string)
     let word = str[..i]
     while k < len(keywords)
         if strEqual(word, keywords[k])
-            return (TokKeyword(&string(word)), str[i..])
+            return (TokKeyword(word), str[i..])
         k = k + 1
 
     return (null, str)
@@ -52,8 +67,8 @@ fn lexDigits(str string) (Token, string)
         i = i + 1
     
     switch strReadInt(str[..i])
-        null    ; return (null, str)
-        i64(n) ; return (TokInt(&i64(n)), str[i..])
+        null   ; return (null, str)
+        i64(n) ; return (TokInt(n), str[i..])
 
 
 fn lexIdent(str string) (Token, string)
@@ -65,7 +80,7 @@ fn lexIdent(str string) (Token, string)
     while i < len(str) && (isDigit(str[i]) || isAlpha(str[i]))
         i = i + 1
 
-    return (TokIdent(&str[..i]), str[i..])
+    return (TokIdent(str[..i]), str[i..])
 
 
 fn lexOperator(str string) (Token, string)
@@ -79,7 +94,7 @@ fn lexOperator(str string) (Token, string)
     
     switch max
         0; return (null, str)
-        n; return (TokOp(&string(operators[j])),  str[n..])
+        n; return (TokOp(operators[j]),  str[n..])
 
 
 fn lexWhite(str string) string
@@ -96,6 +111,10 @@ fn lexToken(str string) (Token, string)
         _             ;
 
     switch lexKeyword(str)
+        (null, _) ;
+        (tok, ss) ; return (tok, ss)
+
+    switch lexString(str)
         (null, _) ;
         (tok, ss) ; return (tok, ss)
 

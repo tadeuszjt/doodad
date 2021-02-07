@@ -15,7 +15,7 @@ import Monad
 import Funcs
 import Table
 import Type 
-import Pointer
+import ADT
 
 
 valPrint :: InsCmp CompileState m => String -> Value -> m ()
@@ -27,13 +27,13 @@ valPrint append val = case unNamed (valType val) of
             Ptr t loc -> valPrint (")" ++ append) (Ptr base loc)
             Val t op  -> valPrint (")" ++ append) (Val base op)
 
-    Pointer [t] -> do
+    ADT [t] -> do
         void $ printf (show (valType val) ++ "{") []
         op <- fmap valOp (valLoad val)
         void $ printf ("%p}" ++ append) [op]
 
-    Pointer ts -> do
-        en <- pointerEnum val
+    ADT ts -> do
+        en <- adtEnum val
 
         cases <- forM (zip ts [0..]) $ \(t, i) -> do
             let b = fmap valOp $ valsInfix S.EqEq en (valI64 i)
@@ -42,12 +42,12 @@ valPrint append val = case unNamed (valType val) of
                     case t of
                         Named n t -> do
                             void $ printf (n ++ "(") []
-                            ptr <- pointerConstruct (Pointer [Named n t]) val
-                            loc <- pointerDeref ptr
+                            ptr <- adtConstruct (ADT [Named n t]) val
+                            loc <- adtDeref ptr
                             valPrint ")" loc
                         t -> do
-                            ptr <- pointerConstruct (Pointer [t]) val
-                            loc <- pointerDeref ptr
+                            ptr <- adtConstruct (ADT [t]) val
+                            loc <- adtDeref ptr
                             valPrint "" loc
                 else do
                     void $ printf "null" []

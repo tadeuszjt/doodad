@@ -28,6 +28,8 @@ fn main()
                     TokKeyword(s) ; print("keyword", s)
                     TokInt(n)     ; print("integer", n)
                     TokSym(c)     ; print("symbol ", c)
+                    TokString(s)  ; print("string ", s)
+                    _             ; print("illegal instruction lol")
 
     print(str)
             
