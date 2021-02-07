@@ -11,38 +11,64 @@ type Token {
     TokSym     char
     TokIdent   string
     TokString  string
+    TokChar    char
     TokKeyword string
 }
 
-let keywords  = ["let", "while", "fn", "extern", "true", "false", "null", "if", "else", "return", "module", "imports"]
+let keywords  = ["let", "while", "fn", "extern", "true", "false", "null", "if", "else", "return", "module", "imports", "append"]
 let types     = ["i8", "i16", "i32", "i64", "char", "bool", "string"]
 let operators = ["+", "-", "*", "/", "%", "=", "+=", "-=", "*=", "/=", "%=", "..", "<", ">", "<=", ">=", "&&", "||", "=="]
-let symbols   = ['(', ')', '[', ']', '{', '}', ':']
+let symbols   = ['(', ')', '[', ']', '{', '}', ':', ';', '.', ',']
+
+fn lexChar(str string) (Token, string)
+    switch str
+        ['\'', '\\', 'n', '\'' .. rest]  ; return (TokChar('\n'), rest)
+        ['\'', '\\', '0', '\'' .. rest]  ; return (TokChar('\0'), rest)
+        ['\'', '\\', 't', '\'' .. rest]  ; return (TokChar('\t'), rest)
+        ['\'', '\\', '\\', '\'' .. rest] ; return (TokChar('\\'), rest)
+        ['\'', '\n', '\'' .. rest]       ; return (null, str)
+        ['\'', '\t', '\'' .. rest]       ; return (null, str)
+        ['\'', c, '\'' .. rest]          ; return (TokChar(c), rest)
+        _                                ; return (null, str)
 
 
 fn lexString(str string) (Token, string)
-    if len(str) == 0 || str[0] != '"'
-        return (null, str)
+    switch str
+        ['"' .. s];
+        _         ; return (null, str)
 
-    let i = 1
-    while i < len(str) && (isAlpha(str[i]) || isDigit(str[i]))
-        i = i + 1
+    let s = ""
+    let ss = str[1..]
 
-    if i < len(str) && str[i] == '"'
-        return (TokString(str[1..i]), str[(i+1)..])
-
-    return (null, str)
+    while true
+        switch ss
+            ['\n' .. rest]
+                return (null, str)
+            ['\\', 'n' .. rest]
+                s = append(s, "\n")
+                ss = rest
+            ['\\', '0' .. rest]
+                s = append(s, "\0")
+                ss = rest
+            ['\\', 't' .. rest]
+                s = append(s, "\t")
+                ss = rest
+            ['"' .. rest]
+                return (TokString(s), rest)
+            [c .. rest]
+                s = append(s, [c])
+                ss = rest
 
 
 fn lexSymbol(str string) (Token, string)
-    if len(str) == 0
-        return (null, str)
-
-    let i = 0
-    while i < len(symbols)
-        if str[0] == symbols[i]
-            return (TokSym(str[0]), str[1..])
-        i = i + 1
+    switch str
+        [c .. s]
+            let i = 0
+            while i < len(symbols)
+                if c == symbols[i]
+                    return (TokSym(c), s)
+                i = i + 1
+        _;
 
     return (null, str)
 
@@ -63,24 +89,27 @@ fn lexKeyword(str string) (Token, string)
 
 fn lexDigits(str string) (Token, string)
     let i = 0
-    while i < len(str) && isDigit(str[i])
-        i = i + 1
-    
+
+    switch str[i..]
+        [c ..] | isDigit(c); i = i + 1
+        _; 
+ 
     switch strReadInt(str[..i])
-        null   ; return (null, str)
         i64(n) ; return (TokInt(n), str[i..])
+        _      ; return (null, str)
 
 
 fn lexIdent(str string) (Token, string)
     let i = 0
 
-    if i >= len(str) || !isAlpha(str[i])
-        return (null, str)
+    switch str
+        [c ..] | isAlpha(c);
+        _                  ; return (null, str)
 
-    while i < len(str) && (isDigit(str[i]) || isAlpha(str[i]))
-        i = i + 1
-
-    return (TokIdent(str[..i]), str[i..])
+    while true
+        switch str[i..]
+            [c ..] | isAlpha(c) || isDigit(c) ; i = i + 1
+            _                                 ; return (TokIdent(str[..i]), str[i..])
 
 
 fn lexOperator(str string) (Token, string)
@@ -99,10 +128,14 @@ fn lexOperator(str string) (Token, string)
 
 fn lexWhite(str string) string
     let i = 0
-    while i < len(str) && (str[i] == ' ' || str[i] == '\t' || str[i] == '\n')
-        i = i + 1
 
-    return str[..i]
+    while true
+        switch str[i..]
+            [' '  ..];
+            ['\t' ..];
+            ['\n' ..];
+            _        ; return str[..i]
+        i = i + 1
 
 
 fn lexToken(str string) (Token, string)
@@ -115,6 +148,10 @@ fn lexToken(str string) (Token, string)
         (tok, ss) ; return (tok, ss)
 
     switch lexString(str)
+        (null, _) ;
+        (tok, ss) ; return (tok, ss)
+
+    switch lexChar(str)
         (null, _) ;
         (tok, ss) ; return (tok, ss)
 
@@ -135,9 +172,3 @@ fn lexToken(str string) (Token, string)
         (tok, ss) ; return (tok, ss)
 
     return (null, str)
-
-
-
-
-            
-    

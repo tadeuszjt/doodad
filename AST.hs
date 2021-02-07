@@ -56,6 +56,7 @@ data Pattern
     | PatArray   TextPos [Pattern]
     | PatGuarded TextPos Pattern Expr
     | PatTyped   TextPos Type Pattern
+    | PatSplit   TextPos [Pattern] Pattern
     deriving (Eq)
 
 

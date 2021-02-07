@@ -475,6 +475,12 @@ cmpPattern pat val = case pat of
 
                 foldM (valsInfix S.AndAnd) (valBool True) (lenEq:bs)
 
+    S.PatSplit pos pats rest -> withPos pos $ do
+        initMatched <- cmpPattern (S.PatArray pos pats) =<< tableRange val (valI64 0) (valI64 $ length pats)
+        restMatched <- cmpPattern rest =<< tableRange val (valI64 $ length pats) =<< tableLen val
+        valsInfix S.AndAnd initMatched restMatched
+
+
     S.PatTyped pos typ pat -> withPos pos $ do
         ADT ts <- assertBaseType isADT (valType val)
 

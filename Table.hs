@@ -98,15 +98,39 @@ tableRange tab start end = do
     assertBaseType isInt (valType start)
     assertBaseType isInt (valType end)
 
+    len <- tableLen tab
     cap <- tableCap tab
+
+    startLoc <- valLocal (valType start)
+    endLoc   <- valLocal (valType end)
+
+    startLT0 <- valsInfix S.LT start (CtxInt 0)
+    if_ (valOp startLT0)
+        (valStore startLoc (CtxInt 0))
+        (valStore startLoc start)
+
+    endGT <- valsInfix S.GT end len
+    if_ (valOp endGT)
+        (valStore endLoc len)
+        (valStore endLoc end)
+
+    startGT <- valsInfix S.GT startLoc len
+    if_ (valOp startGT)
+        (valStore startLoc len)
+        (return ())
+
+    crossed <- valsInfix S.GT startLoc endLoc
+    if_ (valOp crossed)
+        (valStore endLoc startLoc)
+        (return ())
     
     loc <- valLocal (valType tab)
-    tableSetLen loc =<< valsInfix S.Minus end start
-    tableSetCap loc =<< valsInfix S.Minus cap start
+    tableSetLen loc =<< valsInfix S.Minus endLoc startLoc
+    tableSetCap loc =<< valsInfix S.Minus cap startLoc
 
     forM_ (zip ts [0..]) $ \(t, i) -> do
         row <- tableRow i tab 
-        tableSetRow loc i =<< valPtrIdx row start
+        tableSetRow loc i =<< valPtrIdx row startLoc
 
     return loc
 

@@ -25,7 +25,7 @@ $ascsym  = [\!\#\$\%\&\*\+\.\/\<\=\>\?\@\\\^\|\-\~]
 $special = [\(\)\,\;\[\]\`\{\}]
 $graphic = [$alpha $digit $ascsym $special \:\"\']
 $symbol  = [\{\}\(\)\[\]\,\|\.\;\:\_]
-@escape  = "\t" | "\n" | "\0"
+@escape  = "\t" | "\n" | "\0" | "\\" 
 
 @types      = i16 | i32 | i64 | f32 | f64 | bool | char | string
 @builtin    = print | len | append
@@ -34,8 +34,8 @@ $symbol  = [\{\}\(\)\[\]\,\|\.\;\:\_]
 @reservedOp = [\+\-\*\/\%\<\>\=\&\!] | "!=" | "==" | "<=" | ">=" | "||" | "&&" | ".."
 
 
-@string     = $graphic # [\"\\] | " " | @escape
-@char       = $graphic # [\'\\] | " " | @escape
+@string     = $graphic # [\"\\] | " " | @escape | "\\""
+@char       = $graphic # [\'\\] | " " | @escape | "\'"
 
 tokens :-
     $white                                          { mkT NoToken }
