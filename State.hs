@@ -38,11 +38,12 @@ data Value
     | CtxInt   Integer
     deriving (Show, Eq)
 
-valType (Val t op) = t
-valType (Ptr t op) = t
-valType Null       = T.Void
-valType (CtxInt _) = T.I64
-valType val        = error (show val)
+valType (Val t op)    = t
+valType (Ptr t op)    = t
+valType Null          = T.Void
+valType (CtxInt _)    = T.I64
+valType (CtxTuple vs) = T.Tuple (map valType vs)
+valType val           = error (show val)
 
 valOp (Val t op)   = op
 valLoc (Ptr t loc) = loc

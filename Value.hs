@@ -161,8 +161,9 @@ valTupleIdx tup i = do
 
     let t = ts !! fromIntegral i
     case tup of
-        Ptr _ loc -> fmap (Ptr t) $ gep loc [int32 0, int32 $ fromIntegral i]
-        Val _ op  -> fmap (Val t) $ extractValue op [fromIntegral i]
+        Ptr _ loc   -> fmap (Ptr t) $ gep loc [int32 0, int32 $ fromIntegral i]
+        Val _ op    -> fmap (Val t) $ extractValue op [fromIntegral i]
+        CtxTuple vs -> return (vs !! fromIntegral i)
 
 
 valArrayIdx :: InsCmp CompileState m => Value -> Value -> m Value
@@ -194,6 +195,7 @@ valMemCpy (Ptr dstTyp dst) (Ptr srcTyp src) len = do
 valContextual :: Value -> Bool
 valContextual (CtxTable _) = True
 valContextual (CtxTuple _) = True
+valContextual (CtxInt _)   = True
 valContextual (Null)       = True
 valContextual _            = False
 
@@ -237,6 +239,9 @@ zeroOf typ = case typ of
     _ | isInt typ -> return (valInt typ 0)
     Bool          -> return (valBool False)
     Char          -> return (valChar '\0')
+    Typedef sym   -> fmap (Val typ . valOp) (zeroOf =<< baseTypeOf typ)
+    Array n t     -> fmap (Val typ . array) $ replicateM (fromIntegral n) $ fmap (toCons . valOp) (zeroOf t)
+    ADT [t]       -> fmap (Val typ . cons . C.Null . LL.ptr) (opTypeOf t)
     Tuple ts      -> do
         ops <- fmap (map toCons) $ fmap (map valOp) (mapM zeroOf ts)
         return $ Val typ (struct Nothing False ops)
@@ -246,17 +251,6 @@ zeroOf typ = case typ of
         ptrs <- fmap (map LL.ptr) (mapM opTypeOf ts)
         let zptrs = map (C.IntToPtr zi64) ptrs
         return . (Val typ) $ struct Nothing False (zi64:zi64:zptrs)
-
-    Array n t     -> 
-        fmap (Val typ . array) $ replicateM (fromIntegral n) $ fmap (toCons . valOp) (zeroOf t)
-
-    ADT [t] -> do
-        pt <- fmap LL.ptr (opTypeOf t)
-        return $ Val typ $ cons (C.Null pt)
-
-    Typedef sym   -> do
-        Val t op <- zeroOf =<< baseTypeOf typ
-        return (Val typ op)
 
     _ -> err ("no zero val for: " ++ show typ)
 
@@ -272,14 +266,13 @@ opTypeOf typ = case typ of
     Tuple ts  -> fmap (LL.StructureType False) (mapM opTypeOf ts)
     Array n t -> fmap (LL.ArrayType $ fromIntegral n) (opTypeOf t)
     Named n t -> opTypeOf t
+    ADT []    -> error ""
+    ADT [t]   -> return (LL.ptr LL.i8)
+    ADT ts    -> return $ LL.StructureType False [LL.i64, LL.ptr LL.i8]
 
     Table ts  -> do
         ptrOpTypes <- mapM (fmap LL.ptr . opTypeOf) ts
         return $ LL.StructureType False (LL.i64:LL.i64:ptrOpTypes)
-
-    ADT []  -> error ""
-    ADT [t] -> return (LL.ptr LL.i8)
-    ADT ts  -> return $ LL.StructureType False [LL.i64, LL.ptr LL.i8]
 
     Typedef s -> do
         ObType t namem <- look s KeyType

@@ -17,7 +17,7 @@ import Foreign.Ptr
 import LLVM.AST.Name
 import qualified LLVM.AST as LL
 import qualified LLVM.AST.Type as LL
-import qualified LLVM.AST.Constant as LL
+import qualified LLVM.AST.Constant as C
 import qualified LLVM.Internal.FFI.DataLayout as FFI
 import LLVM.AST.Global
 import LLVM.IRBuilder.Instruction       
@@ -166,7 +166,7 @@ cmpFuncDef (S.Func pos sym params retty blk) = withPos pos $ do
     let paramSyms  = map S.paramName params
 
     ObjFunc _ op <- look sym (KeyFunc paramTypes)
-    let LL.ConstantOperand (LL.GlobalReference _ name) = op
+    let LL.ConstantOperand (C.GlobalReference _ name) = op
     let Name nameStr = name
 
     addSymKeyDec sym (KeyFunc paramTypes) name (DecFunc paramOpTypes returnOpType)
@@ -298,20 +298,21 @@ cmpStmt stmt = case stmt of
 -- must return Val unless local variable
 cmpExpr :: InsCmp CompileState m =>  S.Expr -> m Value
 cmpExpr expr = case expr of
-    S.Int pos n    -> return (CtxInt n)
-    S.Bool pos b   -> return (valBool b)
-    S.Char pos c   -> return (valChar c)
-    S.Null pos     -> return Null
+    S.Int pos n               -> return (CtxInt n)
+    S.Bool pos b              -> return (valBool b)
+    S.Char pos c              -> return (valChar c)
+    S.Null pos                -> return Null
+    S.Conv pos typ []         -> zeroOf typ
+    S.Conv pos typ [S.Null p] -> withPos pos (adtNull typ)
+    S.Conv pos typ exprs      -> withPos pos (valConstruct typ =<< mapM cmpExpr exprs)
             
     S.String pos s -> do
         loc <- globalStringPtr s =<< fresh
-        pi8 <- bitcast (cons loc) (LL.ptr LL.i8)
+        let pi8 = C.BitCast loc (LL.ptr LL.i8)
+        let i64 = toCons $ int64 $ fromIntegral (length s)
+        let stc = struct Nothing False [i64, i64, pi8]
+        return $ Val (Table [Char]) stc
 
-        tab <- valLocal (Table [Char])
-        tableSetRow tab 0 (Ptr Char pi8)
-        tableSetLen tab $ valI64 (length s)
-        tableSetCap tab $ valI64 (length s)
-        valLoad tab
 
     S.Ident pos sym -> withPos pos $ do
         ObjVal loc <- look sym KeyVar
@@ -342,16 +343,8 @@ cmpExpr expr = case expr of
         val <- cmpExpr expr
         case op of
             S.Not   -> valNot val
-            S.Minus -> valsInfix S.Minus (valI64 0) val
+            S.Minus -> valsInfix S.Minus (CtxInt 0) val
 
-    S.Conv pos typ [] ->
-        zeroOf typ
-
-    S.Conv pos typ [S.Null p] -> withPos pos $
-        adtNull typ
-
-    S.Conv pos typ exprs -> withPos pos $
-        valConstruct typ =<< mapM cmpExpr exprs
 
     S.Len pos expr -> withPos pos $ valLoad =<< do
         val <- cmpExpr expr
@@ -406,15 +399,15 @@ cmpExpr expr = case expr of
             return $ valType (head vals)
 
         rows <- forM (zip rowTypes [0..]) $ \(t, r) -> do
-            mal <- valMalloc t $ valI64 (fromIntegral rowLen)
+            mal <- valMalloc t (valI64 rowLen)
             forM_ [0..rowLen-1] $ \i -> do
-                ptr <- valPtrIdx mal $ valI64 (fromIntegral i) 
+                ptr <- valPtrIdx mal (valI64 i) 
                 valStore ptr ((valss !! r) !! i)
             return mal
 
         tab <- valLocal (Table rowTypes)
-        tableSetLen tab $ valI64 (fromIntegral rowLen)
-        tableSetCap tab $ valI64 (fromIntegral rowLen)
+        tableSetLen tab $ valI64 rowLen
+        tableSetCap tab $ valI64 rowLen
 
         zipWithM_ (tableSetRow tab) [0..] rows
         return tab

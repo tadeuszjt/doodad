@@ -16,7 +16,6 @@ import Funcs
 import Type 
 
 
-
 tableLen :: InsCmp CompileState m => Value -> m Value
 tableLen tab = do
     Table _ <- assertBaseType isTable (valType tab)
