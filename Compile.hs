@@ -211,13 +211,11 @@ cmpStmt stmt = case stmt of
         void $ call op [(o, []) | o <- map valOp vals]
 
     S.Assign pos pat expr -> withPos pos $ do
-        val <- cmpExpr expr
-        matched <- cmpPattern pat val
+        matched <- cmpPattern pat =<< cmpExpr expr
         if_ (valOp matched) (return ()) (void trap) 
 
     S.Set pos ind expr -> withPos pos $ do
         val <- cmpExpr expr
-
         case ind of
             S.IndIdent p sym -> do
                 ObjVal loc <- look sym KeyVar
@@ -293,28 +291,18 @@ cmpStmt stmt = case stmt of
 -- must return Val unless local variable
 cmpExpr :: InsCmp CompileState m =>  S.Expr -> m Value
 cmpExpr expr = case expr of
-    S.Int pos n               -> return (CtxInt n)
-    S.Bool pos b              -> return (valBool b)
-    S.Char pos c              -> return (valChar c)
-    S.Null pos                -> return Null
-    S.Conv pos typ []         -> zeroOf typ
-    S.Conv pos typ [S.Null p] -> withPos pos (adtNull typ)
-    S.Conv pos typ exprs      -> withPos pos (valConstruct typ =<< mapM cmpExpr exprs)
-
-    S.Ident pos sym -> withPos pos $ do
-        ObjVal loc <- look sym KeyVar
-        return loc
-
-    S.Infix pos op exprA exprB -> withPos pos $ do
-        a <- cmpExpr exprA
-        b <- cmpExpr exprB
-        valsInfix op a b
-
-    S.Prefix pos op expr -> withPos pos $ do
-        val <- cmpExpr expr
-        case op of
-            S.Not   -> valNot val
-            S.Minus -> valsInfix S.Minus (CtxInt 0) val
+    S.Int pos n                -> return (CtxInt n)
+    S.Bool pos b               -> return (valBool b)
+    S.Char pos c               -> return (valChar c)
+    S.Null pos                 -> return Null
+    S.Conv pos typ []          -> zeroOf typ
+    S.Conv pos typ [S.Null p]  -> withPos pos (adtNull typ)
+    S.Conv pos typ exprs       -> withPos pos $ valConstruct typ =<< mapM cmpExpr exprs
+    S.Ident pos sym            -> withPos pos $ look sym KeyVar >>= \(ObjVal loc) -> return loc
+    S.Infix pos op exprA exprB -> withPos pos $ join $ liftM2 (valsInfix op) (cmpExpr exprA) (cmpExpr exprB)
+    S.Prefix pos S.Not   expr  -> withPos pos $ valNot =<< cmpExpr expr
+    S.Prefix pos S.Minus expr  -> withPos pos $ valsInfix S.Minus (CtxInt 0) =<< cmpExpr expr
+    S.Append pos exprA exprB   -> withPos pos $ valLoad =<< join (liftM2 tableAppend (cmpExpr exprA) (cmpExpr exprB))
             
     S.String pos s -> do
         loc <- globalStringPtr s =<< fresh
@@ -380,9 +368,6 @@ cmpExpr expr = case expr of
                 end <- maybe (tableLen val) cmpExpr mend
                 valLoad =<< tableRange val start end
 
-    S.Append pos exprA exprB -> withPos pos $ valLoad =<< do
-        valA <- cmpExpr exprA
-        tableAppend valA =<< cmpExpr exprB
     
     S.Table pos ([]:rs) -> withPos pos $ do
         assert (all null rs) "row lengths do not match"

@@ -26,16 +26,16 @@ fn lexChar(str string) (Token, string)
         ['\'', '\\', '0', '\'' .. rest]  ; return (TokChar('\0'), rest)
         ['\'', '\\', 't', '\'' .. rest]  ; return (TokChar('\t'), rest)
         ['\'', '\\', '\\', '\'' .. rest] ; return (TokChar('\\'), rest)
-        ['\'', '\n', '\'' .. rest]       ; return (null, str)
-        ['\'', '\t', '\'' .. rest]       ; return (null, str)
+        ['\'', '\n' .. rest]             ; return (null, str)
+        ['\'', '\t' .. rest]             ; return (null, str)
         ['\'', c, '\'' .. rest]          ; return (TokChar(c), rest)
         _                                ; return (null, str)
 
 
 fn lexString(str string) (Token, string)
     switch str
-        ['"' .. s];
-        _         ; return (null, str)
+        ['"' ..];
+        _       ; return (null, str)
 
     let s = ""
     let ss = str[1..]

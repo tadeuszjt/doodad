@@ -20,6 +20,14 @@ import ADT
 
 valPrint :: InsCmp CompileState m => String -> Value -> m ()
 valPrint append val = case unNamed (valType val) of
+    t | isInt t -> void . printf ("%ld" ++ append) . (:[]) . valOp =<< valLoad val
+    Char        -> void . printf ("%c" ++ append) . (:[]) . valOp =<< valLoad val
+
+    Bool -> do
+        op <- valOp <$> valLoad val
+        str <- globalStringPtr "true\0false" =<< fresh
+        void . printf ("%s" ++ append) . (:[]) =<< gep (cons str) . (:[]) =<< select op (int64 0) (int64 5)
+
     Typedef s -> do
         printf (s ++ "(") []
         base <- baseTypeOf (valType val)
@@ -29,57 +37,27 @@ valPrint append val = case unNamed (valType val) of
 
     ADT [t] -> do
         void $ printf (show (valType val) ++ "{") []
-        op <- fmap valOp (valLoad val)
-        void $ printf ("%p}" ++ append) [op]
+        void . printf ("%p}" ++ append) . (:[]) . valOp =<< valLoad val
 
     ADT ts -> do
         en <- adtEnum val
 
-        cases <- forM (zip ts [0..]) $ \(t, i) -> do
-            let b = fmap valOp $ valsInfix S.EqEq en (valI64 i)
-            let s = do
-                if t /= Void then do
+        let cases = (flip map) (zip ts [0..]) $ \(t, i) ->
+                let b = valOp <$> valsInfix S.EqEq en (valI64 i) in
+                let s = do
                     case t of
-                        Named n t -> do
-                            void $ printf (n ++ "(") []
-                            ptr <- adtConstruct (ADT [Named n t]) val
-                            loc <- adtDeref ptr
-                            valPrint ")" loc
-                        t -> do
-                            ptr <- adtConstruct (ADT [t]) val
-                            loc <- adtDeref ptr
-                            valPrint "" loc
-                else do
-                    void $ printf "null" []
-            return (b, s)
+                        Void      -> printf "null" [] >> return ()
+                        Named n _ -> printf (n ++ "(") [] >> adtConstruct (ADT [t]) val >>= adtDeref >>= valPrint "("
+                        t         -> valPrint "" =<< adtDeref =<< adtConstruct (ADT [t]) val
+                in (b, s)
 
-        switch_ cases
-
-        void $ printf append []
-
-
-    t | isInt t -> do
-        Val _ op <- valLoad val
-        void $ printf ("%d" ++ append) [op]
-
-    Char -> do
-        Val _ op <- valLoad val
-        void $ printf ("%c" ++ append) [op]
-
-    Bool -> do
-        Val _ op <- valLoad val
-        str <- globalStringPtr "true\0false" =<< fresh
-        idx <- select op (int64 0) (int64 5)
-        pst <- gep (cons str) [idx]
-        void $ printf ("%s" ++ append) [pst]
+        switch_ cases >> printf append [] >> return ()
 
     Tuple ts -> do
         printf "(" []
-        forM_ (zip ts [0..]) $ \(t, i) -> do
-            elem <- valTupleIdx val i
-            if i < length ts - 1
-            then valPrint ", " elem
-            else valPrint "" elem
+        forM_ (zip ts [0..]) $ \(t, i) ->
+            let app = if i < length ts - 1 then ", " else ""
+            in valPrint app =<< valTupleIdx val i
         void $ printf (")" ++ append) []
 
     Table [Char] -> do
@@ -106,7 +84,7 @@ valPrint append val = case unNamed (valType val) of
 
     Array n t -> do
         printf "[%d| " $ (:[]) $ valOp (valI64 n)
-        for (int64 $ fromIntegral n-1) $ \i -> do
+        for (int64 $ fromIntegral n-1) $ \i ->
             valPrint ", " =<< valArrayIdx val (Val I64 i)
         valPrint ("]" ++ append) =<< valArrayConstIdx val (n-1)
 
