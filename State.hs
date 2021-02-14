@@ -32,18 +32,14 @@ import Error
 data Value
     = Val T.Type Operand
     | Ptr T.Type Operand
-    | Null
-    | CtxTable [[Value]]
-    | CtxTuple [Value]
-    | CtxInt   Integer
+    | Exp S.Expr
     deriving (Show, Eq)
 
-valType (Val t op)    = t
-valType (Ptr t op)    = t
-valType Null          = T.Void
-valType (CtxInt _)    = T.I64
-valType (CtxTuple vs) = T.Tuple (map valType vs)
-valType val           = error (show val)
+valType (Val t op)           = t
+valType (Ptr t op)           = t
+valType (Exp (S.Int _ _))    = T.I64
+valType (Exp (S.Tuple _ es)) = T.Tuple $ map (valType . Exp) es
+valType x = error (show x)
 
 valOp (Val t op)   = op
 valLoc (Ptr t loc) = loc

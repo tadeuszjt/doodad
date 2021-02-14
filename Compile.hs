@@ -287,21 +287,28 @@ cmpStmt stmt = case stmt of
     _ -> error "stmt"
 
 
+exprIsContextual :: S.Expr -> Bool
+exprIsContextual expr = case expr of
+    S.Int _ _                              -> True
+    S.Tuple _ es | any exprIsContextual es -> True
+    S.Null _                               -> True
+    S.Table _ ess | any null ess           -> True
+    _                                      -> False
+
 
 -- must return Val unless local variable
 cmpExpr :: InsCmp CompileState m =>  S.Expr -> m Value
 cmpExpr expr = case expr of
-    S.Int pos n                -> return (CtxInt n)
+    e | exprIsContextual e     -> return (Exp expr)
     S.Bool pos b               -> return (valBool b)
     S.Char pos c               -> return (valChar c)
-    S.Null pos                 -> return Null
     S.Conv pos typ []          -> zeroOf typ
     S.Conv pos typ [S.Null p]  -> withPos pos (adtNull typ)
     S.Conv pos typ exprs       -> withPos pos $ valConstruct typ =<< mapM cmpExpr exprs
     S.Ident pos sym            -> withPos pos $ look sym KeyVar >>= \(ObjVal loc) -> return loc
     S.Infix pos op exprA exprB -> withPos pos $ join $ liftM2 (valsInfix op) (cmpExpr exprA) (cmpExpr exprB)
     S.Prefix pos S.Not   expr  -> withPos pos $ valNot =<< cmpExpr expr
-    S.Prefix pos S.Minus expr  -> withPos pos $ valsInfix S.Minus (CtxInt 0) =<< cmpExpr expr
+    S.Prefix pos S.Minus expr  -> withPos pos $ valsInfix S.Minus (Exp (S.Int undefined 0)) =<< cmpExpr expr
     S.Append pos exprA exprB   -> withPos pos $ valLoad =<< join (liftM2 tableAppend (cmpExpr exprA) (cmpExpr exprB))
             
     S.String pos s -> do
@@ -338,12 +345,9 @@ cmpExpr expr = case expr of
     S.Tuple pos [expr] -> withPos pos (cmpExpr expr)
     S.Tuple pos exprs -> withPos pos $ do
         vals <- mapM cmpExpr exprs
-        if any valContextual vals
-        then return (CtxTuple vals)
-        else do
-            tup <- valLocal $ Tuple (map valType vals)
-            zipWithM_ (valTupleSet tup) [0..] vals
-            valLoad tup
+        tup <- valLocal $ Tuple (map valType vals)
+        zipWithM_ (valTupleSet tup) [0..] vals
+        valLoad tup
 
     S.Subscript pos aggExpr idxExpr -> withPos pos $ valLoad =<< do
         agg <- cmpExpr aggExpr
@@ -355,9 +359,7 @@ cmpExpr expr = case expr of
         assert (isInt idxType) "index type isn't an integer"
 
         case aggType of
-            Table [t] -> do
-                tup <- tableGetElem agg idx
-                valTupleIdx tup 0
+            Table [t] -> (flip valTupleIdx) 0 =<< tableGetElem agg idx
 
     S.Range pos expr mstart mend -> withPos pos $ do
         val <- cmpExpr expr
@@ -365,14 +367,8 @@ cmpExpr expr = case expr of
         case base of
             Table ts -> do
                 start <- maybe (return (valI64 0)) cmpExpr mstart
-                end <- maybe (tableLen val) cmpExpr mend
-                valLoad =<< tableRange val start end
-
+                valLoad =<< tableRange val start =<< maybe (tableLen val) cmpExpr mend
     
-    S.Table pos ([]:rs) -> withPos pos $ do
-        assert (all null rs) "row lengths do not match"
-        return (CtxTable [[]])
-
     S.Table pos exprss -> withPos pos $ valLoad =<< do
         valss <- mapM (mapM cmpExpr) exprss
         let rowLen = length (head valss)
@@ -518,13 +514,16 @@ valAsType :: InsCmp CompileState m => Type -> Value -> m Value
 valAsType typ val = case val of
     Val _ _       -> checkTypesMatch typ (valType val) >> return val
     Ptr _ _       -> checkTypesMatch typ (valType val) >> return val
-    Null          -> adtNull typ
-    CtxTable [[]] -> do
+    Exp (S.Null _)-> adtNull typ
+    Exp (S.Table _ [[]]) -> do
         Table ts <- assertBaseType isTable typ
         zeroOf typ
-    CtxTuple vals -> do
+    Exp (S.Tuple _ es) -> do
         Tuple ts <- assertBaseType isTuple typ
-        assert (length vals == length ts) ("does not satisfy " ++ show typ)
+
+        assert (length es == length ts) ("does not satisfy " ++ show typ)
+        vals <- forM (zip ts es) $ \(t, e) ->
+            valAsType t =<< cmpExpr e 
 
         tup <- valLocal typ
         zipWithM_ (valTupleSet tup) [0..] =<< zipWithM valAsType ts vals

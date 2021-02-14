@@ -51,18 +51,18 @@ valBool b = Val Bool (if b then bit 1 else bit 0)
 
 
 valLoad :: InsCmp s m => Value -> m Value
-valLoad (Val typ op)  = return (Val typ op)
-valLoad (Ptr typ loc) = Val typ <$> load loc 0
-valLoad (CtxInt n)    = return (valI64 n)
+valLoad (Val typ op)      = return (Val typ op)
+valLoad (Ptr typ loc)     = Val typ <$> load loc 0
+valLoad (Exp (S.Int _ n)) = return (valI64 n)
 
 
 valStore :: InsCmp CompileState m => Value -> Value -> m ()
 valStore (Ptr typ loc) val = do
     checkTypesMatch typ (valType val)
     case val of
-        Ptr t l  -> store loc 0 =<< load l 0
-        Val t o  -> store loc 0 o
-        CtxInt n -> valStore (Ptr typ loc) =<< valLoad val
+        Ptr t l         -> store loc 0 =<< load l 0
+        Val t o         -> store loc 0 o
+        Exp (S.Int _ n) -> valStore (Ptr typ loc) =<< valLoad val
 
 
 valSelect :: InsCmp CompileState m => Value -> Value -> Value -> m Value
@@ -85,17 +85,17 @@ valMalloc typ len = do
 
 
 valsInfix :: InsCmp CompileState m => S.Op -> Value -> Value -> m Value
-valsInfix operator (CtxInt a) (CtxInt b) = return $ case operator of
-    S.Plus   -> CtxInt (a + b)
-    S.Minus  -> CtxInt (a - b)
-    S.Times  -> CtxInt (a * b)
-    S.Divide -> CtxInt (a `div` b)
+valsInfix operator (Exp (S.Int p a)) (Exp (S.Int _ b)) = return $ case operator of
+    S.Plus   -> Exp (S.Int p (a + b))
+    S.Minus  -> Exp (S.Int p (a - b))
+    S.Times  -> Exp (S.Int p (a * b))
+    S.Divide -> Exp (S.Int p (a `div` b))
     S.GT     -> valBool (a > b)
     S.LT     -> valBool (a < b)
-valsInfix operator (CtxInt a) b = do
+valsInfix operator (Exp (S.Int _ a)) b = do
     typ <- assertBaseType isInt (valType b)
     valsInfix operator (valInt typ a) b
-valsInfix operator a (CtxInt b) = do
+valsInfix operator a (Exp (S.Int _ b)) = do
     typ <- assertBaseType isInt (valType a)
     valsInfix operator a (valInt typ b)
 valsInfix operator a b = do
@@ -159,9 +159,9 @@ valTupleIdx :: InsCmp CompileState m => Value -> Int -> m Value
 valTupleIdx tup i = do
     Tuple ts <- assertBaseType isTuple (valType tup)
     case tup of
-        Ptr _ loc   -> Ptr (ts !! i) <$> gep loc [int32 0, int32 $ fromIntegral i]
-        Val _ op    -> Val (ts !! i) <$> extractValue op [fromIntegral i]
-        CtxTuple vs -> return (vs !! i)
+        Ptr _ loc          -> Ptr (ts !! i) <$> gep loc [int32 0, int32 $ fromIntegral i]
+        Val _ op           -> Val (ts !! i) <$> extractValue op [fromIntegral i]
+        Exp (S.Tuple _ es) -> return $ Exp (es !! i)
 
 
 valArrayIdx :: InsCmp CompileState m => Value -> Value -> m Value
@@ -188,12 +188,9 @@ valMemCpy (Ptr dstTyp dst) (Ptr srcTyp src) len = do
 
 
 
-valContextual :: Value -> Bool
-valContextual (CtxTable _) = True
-valContextual (CtxTuple _) = True
-valContextual (CtxInt _)   = True
-valContextual (Null)       = True
-valContextual _            = False
+valIsExpr :: Value -> Bool
+valIsExpr (Exp _) = True
+valIsExpr _       = False
 
 
 checkTypesMatch :: BoM CompileState m => Type -> Type -> m ()

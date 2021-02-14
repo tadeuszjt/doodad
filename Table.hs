@@ -101,9 +101,9 @@ tableRange tab start end = do
     startLoc <- valLocal (valType start)
     endLoc   <- valLocal (valType end)
 
-    startLT0 <- valsInfix S.LT start (CtxInt 0)
+    startLT0 <- valsInfix S.LT start (valI64 0)
     if_ (valOp startLT0)
-        (valStore startLoc (CtxInt 0))
+        (valStore startLoc (valI64 0))
         (valStore startLoc start)
 
     endGT <- valsInfix S.GT end len

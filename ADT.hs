@@ -100,7 +100,7 @@ adtConstructField sym typ [val] = do
 
 
 adtConstruct :: InsCmp CompileState m => Type -> Value -> m Value
-adtConstruct typ Null = adtNull typ
+adtConstruct typ (Exp (S.Null _)) = adtNull typ
 adtConstruct typ val  = do
     ADT ts  <- assertBaseType isADT typ
 
