@@ -442,9 +442,10 @@ cmpPattern pat val = case pat of
                     cmpPattern p =<< valTupleIdx tup 0
 
                 foldM (valsInfix S.AndAnd) (valBool True) (lenEq:bs)
+            _ -> error (show base)
 
-    S.PatSplit pos pats rest -> withPos pos $ do
-        initMatched <- cmpPattern (S.PatArray pos pats) =<< tableRange val (valI64 0) (valI64 $ length pats)
+    S.PatSplit pos pat@(S.PatArray p pats) rest -> withPos pos $ do
+        initMatched <- cmpPattern pat =<< tableRange val (valI64 0) (valI64 $ length pats)
         restMatched <- cmpPattern rest =<< tableRange val (valI64 $ length pats) =<< tableLen val
         valsInfix S.AndAnd initMatched restMatched
 
@@ -470,6 +471,8 @@ cmpPattern pat val = case pat of
         val <- adtDeref loc
 
         valsInfix S.AndAnd b =<< cmpPattern pat val
+    
+    _ -> error (show pat)
 
 
 

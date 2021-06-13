@@ -56,7 +56,7 @@ data Pattern
     | PatArray   TextPos [Pattern]
     | PatGuarded TextPos Pattern Expr
     | PatTyped   TextPos Type Pattern
-    | PatSplit   TextPos [Pattern] Pattern
+    | PatSplit   TextPos Pattern Pattern
     deriving (Eq)
 
 
@@ -139,6 +139,7 @@ instance Show Pattern where
         PatTuple pos ps  -> tupStrs (map show ps)
         PatArray pos ps  -> arrStrs (map show ps)
         PatTyped pos s p -> show s ++ ":" ++ show p
+        PatSplit pos a b -> show a ++ " .. " ++ show b
 
 
 instance Show Index where

@@ -22,19 +22,19 @@ let symbols   = ['(', ')', '[', ']', '{', '}', ':', ';', '.', ',']
 
 fn lexChar(str string) (Token, string)
     switch str
-        ['\'', '\\', 'n', '\'' .. rest]  ; return (TokChar('\n'), rest)
-        ['\'', '\\', '0', '\'' .. rest]  ; return (TokChar('\0'), rest)
-        ['\'', '\\', 't', '\'' .. rest]  ; return (TokChar('\t'), rest)
-        ['\'', '\\', '\\', '\'' .. rest] ; return (TokChar('\\'), rest)
-        ['\'', '\n' .. rest]             ; return (null, str)
-        ['\'', '\t' .. rest]             ; return (null, str)
-        ['\'', c, '\'' .. rest]          ; return (TokChar(c), rest)
+        ['\'', '\\', 'n', '\''] .. rest  ; return (TokChar('\n'), rest)
+        ['\'', '\\', '0', '\''] .. rest  ; return (TokChar('\0'), rest)
+        ['\'', '\\', 't', '\''] .. rest  ; return (TokChar('\t'), rest)
+        ['\'', '\\', '\\', '\''] .. rest ; return (TokChar('\\'), rest)
+        ['\'', '\n'] .. rest             ; return (null, str)
+        ['\'', '\t'] .. rest             ; return (null, str)
+        ['\'', c, '\''] .. rest          ; return (TokChar(c), rest)
         _                                ; return (null, str)
 
 
 fn lexString(str string) (Token, string)
     switch str
-        ['"' ..];
+        ['"'] .. _;
         _       ; return (null, str)
 
     let s = ""
@@ -42,27 +42,27 @@ fn lexString(str string) (Token, string)
 
     while true
         switch ss
-            ['\n' .. rest]
+            ['\n'] .. rest
                 return (null, str)
-            ['\\', 'n' .. rest]
+            ['\\', 'n'] .. rest
                 s = append(s, "\n")
                 ss = rest
-            ['\\', '0' .. rest]
+            ['\\', '0'] .. rest
                 s = append(s, "\0")
                 ss = rest
-            ['\\', 't' .. rest]
+            ['\\', 't'] .. rest
                 s = append(s, "\t")
                 ss = rest
-            ['"' .. rest]
+            ['"'] .. rest
                 return (TokString(s), rest)
-            [c .. rest]
+            [c] .. rest
                 s = append(s, [c])
                 ss = rest
 
 
 fn lexSymbol(str string) (Token, string)
     switch str
-        [c .. s]
+        [c] .. s
             let i = 0
             while i < len(symbols)
                 if c == symbols[i]
@@ -91,7 +91,7 @@ fn lexDigits(str string) (Token, string)
     let i = 0
 
     switch str[i..]
-        [c ..] | isDigit(c); i = i + 1
+        [c] .. _ | isDigit(c); i = i + 1
         _; 
  
     switch strReadInt(str[..i])
@@ -103,12 +103,12 @@ fn lexIdent(str string) (Token, string)
     let i = 0
 
     switch str
-        [c ..] | isAlpha(c);
-        _                  ; return (null, str)
+        [c] .. _ | isAlpha(c);
+        _                    ; return (null, str)
 
     while true
         switch str[i..]
-            [c ..] | isAlpha(c) || isDigit(c) ; i = i + 1
+            [c] .. _ | isAlpha(c) || isDigit(c) ; i = i + 1
             _                                 ; return (TokIdent(str[..i]), str[i..])
 
 
@@ -131,9 +131,9 @@ fn lexWhite(str string) string
 
     while true
         switch str[i..]
-            [' '  ..];
-            ['\t' ..];
-            ['\n' ..];
+            [' ']  .. _;
+            ['\t'] .. _;
+            ['\n'] .. _;
             _        ; return str[..i]
         i = i + 1
 
