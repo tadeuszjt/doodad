@@ -34,7 +34,7 @@ $symbol  = [\{\}\(\)\[\]\,\|\.\;\:\_]
 @reservedOp = [\+\-\*\/\%\<\>\=\&\!] | "!=" | "==" | "<=" | ">=" | "||" | "&&" | ".."
 
 
-@string     = $graphic # [\"\\] | " " | @escape | "\\""
+@string     = $graphic # [\"\\] | " " | @escape | "\""
 @char       = $graphic # [\'\\] | " " | @escape | "\'"
 
 tokens :-
@@ -52,8 +52,14 @@ tokens :-
 {
 
 mkT :: TokenType -> AlexInput -> Int -> Alex (AlexPosn, TokenType, String)
-mkT String (p,_,_,s) len = return (p, String, drop 1 (take (len-1) s))
-mkT t      (p,_,_,s) len = return (p, t, take len s)
+mkT typ (p, _, _, s) len = case typ of
+    String -> return (p, String, readString $ drop 1 $ take (len-1) s)
+    _      -> return (p, typ, take len s)
+    where
+        readString :: String -> String
+        readString ('\\' : 'n' : ss) = '\n' : (readString ss)
+        readString ('\\' : 't' : ss) = '\t' : (readString ss)
+        readString ss = ss
 
 
 mkIndentT :: AlexInput -> Int -> Alex (AlexPosn, TokenType, String)

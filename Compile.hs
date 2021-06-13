@@ -397,7 +397,7 @@ cmpExpr expr = case expr of
 
 cmpPattern :: InsCmp CompileState m => S.Pattern -> Value -> m Value
 cmpPattern pat val = case pat of
-    S.PatIgnore pos   -> return (valBool True)
+    S.PatIgnore pos -> return (valBool True)
 
     S.PatLiteral (S.Null pos) -> withPos pos $ do
         ADT ts <- assertBaseType isADT (valType val)
@@ -449,6 +449,10 @@ cmpPattern pat val = case pat of
         restMatched <- cmpPattern rest =<< tableRange val (valI64 $ length pats) =<< tableLen val
         valsInfix S.AndAnd initMatched restMatched
 
+    S.PatSplit pos (S.PatLiteral (S.String p s)) rest -> withPos pos $ do
+        let charPats = map (S.PatLiteral . S.Char p) s
+        let arrPat   = S.PatArray p charPats
+        cmpPattern (S.PatSplit pos arrPat rest) val
 
     S.PatTyped pos typ pat -> withPos pos $ do
         ADT ts <- assertBaseType isADT (valType val)

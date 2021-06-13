@@ -230,6 +230,7 @@ ptrTypes : ptrType              { [$1] }
          | ptrType '|' ptrTypes { $1 : $3 }
          | ptrType 'N' ptrTypes { $1 : $3 }
 
+
 pattern  : '_'                           { S.PatIgnore (tokPos $1) }
          | lit                           { S.PatLiteral $1 }
          | ident                         { S.PatIdent (tokPos $1) (tokStr $1) }

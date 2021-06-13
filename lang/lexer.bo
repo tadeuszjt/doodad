@@ -22,20 +22,21 @@ let symbols   = ['(', ')', '[', ']', '{', '}', ':', ';', '.', ',']
 
 fn lexChar(str string) (Token, string)
     switch str
-        ['\'', '\\', 'n', '\''] .. rest  ; return (TokChar('\n'), rest)
-        ['\'', '\\', '0', '\''] .. rest  ; return (TokChar('\0'), rest)
-        ['\'', '\\', 't', '\''] .. rest  ; return (TokChar('\t'), rest)
-        ['\'', '\\', '\\', '\''] .. rest ; return (TokChar('\\'), rest)
-        ['\'', '\n'] .. rest             ; return (null, str)
-        ['\'', '\t'] .. rest             ; return (null, str)
-        ['\'', c, '\''] .. rest          ; return (TokChar(c), rest)
-        _                                ; return (null, str)
+        "'\n'" .. ss ; return (TokChar('\n'), ss)
+        "'\0'" .. ss ; return (TokChar('\0'), ss)
+        "'\t'" .. ss ; return (TokChar('\t'), ss)
+        "'\\'" .. ss ; return (TokChar('\\'), ss)
+
+        ['\'', '\n'] .. ss    ; return (null, str)
+        ['\'', '\t'] .. ss    ; return (null, str)
+        ['\'', c, '\''] .. ss ; return (TokChar(c), ss)
+        _                     ; return (null, str)
 
 
 fn lexString(str string) (Token, string)
     switch str
         ['"'] .. _;
-        _       ; return (null, str)
+        _         ; return (null, str)
 
     let s = ""
     let ss = str[1..]
@@ -130,11 +131,11 @@ fn lexWhite(str string) string
     let i = 0
 
     while true
-        switch str[i..]
-            [' ']  .. _;
-            ['\t'] .. _;
-            ['\n'] .. _;
-            _        ; return str[..i]
+        switch str[i]
+            ' ' ;
+            '\t';
+            '\n';
+            _   ; return str[..i]
         i = i + 1
 
 
