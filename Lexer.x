@@ -65,7 +65,7 @@ mkT typ (p, _, _, s) len = case typ of
 mkIndentT :: AlexInput -> Int -> Alex (AlexPosn, TokenType, String)
 mkIndentT (p,_,_,s) len = do
     let lineIndent = reverse $ takeWhile (/= '\n') $ reverse (take len s)
-    curIndent <- fmap (concat . reverse)  getLexerIndentStack
+    curIndent <- concat . reverse <$> getLexerIndentStack
 
     if lineIndent == curIndent then
         return (p, NewLine, "")
@@ -101,11 +101,11 @@ alexScanner id str = runAlex str loop
                 EOF     -> return []
                 Dedent  -> do
                     toks <- dedentLoop (TextPos id p l c) str
-                    fmap (toks ++) loop
+                    (toks ++) <$> loop
                 _       -> fmap (Token (TextPos id p l c) typ str :) loop
             
         dedentLoop pos indent = do
-            curIndent <- fmap (concat . reverse) getLexerIndentStack
+            curIndent <- concat . reverse <$> getLexerIndentStack
             if indent == curIndent then
                 return []
             else if indent `isPrefixOf` curIndent then do

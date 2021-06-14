@@ -16,7 +16,7 @@ import Args
 
 main :: IO ()
 main = do
-    args <- fmap (parseArgs initArgs) getArgs
+    args <- parseArgs initArgs <$> getArgs
     withSession (optimise args) $ \session -> do
         forM_ (modPaths args) $ \path -> do
             res <- runBoMT (initModulesState session) $ runMod args Set.empty (splitOn "/" path)

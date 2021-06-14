@@ -18,15 +18,15 @@ import Type
 tableLen :: InsCmp CompileState m => Value -> m Value
 tableLen tab = do
     Table _ <- assertBaseType isTable (valType tab)
-    op <- fmap valOp (valLoad tab)
-    fmap (Val I64) (extractValue op [0])
+    op <- valOp <$> valLoad tab
+    Val I64 <$> extractValue op [0]
 
 
 tableCap :: InsCmp CompileState m => Value -> m Value
 tableCap tab = do
     Table _ <- assertBaseType isTable (valType tab)
-    op <- fmap valOp (valLoad tab)
-    fmap (Val I64) (extractValue op [1])
+    op <- valOp <$> valLoad tab
+    Val I64 <$> extractValue op [1]
 
 
 tableSetLen :: InsCmp CompileState m => Value -> Value -> m ()
@@ -34,7 +34,7 @@ tableSetLen tab@(Ptr _ loc) len = do
     Table _ <- assertBaseType isTable (valType tab)
     assertBaseType isInt (valType len)
     l <- gep loc [int32 0, int32 0]
-    store l 0 =<< fmap valOp (valLoad len)
+    store l 0 =<< (valOp <$> valLoad len)
 
 
 tableSetCap :: InsCmp CompileState m => Value -> Value -> m ()
@@ -42,15 +42,15 @@ tableSetCap tab@(Ptr _ loc) cap = do
     Table _ <- assertBaseType isTable (valType tab)
     assertBaseType isInt (valType cap)
     c <- gep loc [int32 0, int32 1]
-    store c 0 =<< fmap valOp (valLoad cap)
+    store c 0 =<< (valOp <$> valLoad cap)
 
 
 tableRow :: InsCmp CompileState m => Int -> Value -> m Value
 tableRow i tab = do
     Table ts <- assertBaseType isTable (valType tab)
     let t = ts !! i
-    op <- fmap valOp (valLoad tab)
-    fmap (Ptr t) (extractValue op [fromIntegral i+2])
+    op <- valOp <$> valLoad tab
+    Ptr t <$> extractValue op [fromIntegral i+2]
 
 
 tableSetRow :: InsCmp CompileState m => Value -> Int -> Value -> m ()

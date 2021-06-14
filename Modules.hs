@@ -61,7 +61,7 @@ runMod args visited modPath = do
     when (Set.member path visited) $
         fail ("importing \"" ++ showPath path ++ "\" forms a cycle")
 
-    res <- fmap (Map.lookup path) (gets modMap)
+    res <- Map.lookup path <$> gets modMap
     case res of
         Just state -> return state
         Nothing    -> do
@@ -111,7 +111,7 @@ resolvePath path = case path of
     ("..":_)    -> fail ("cannot resolve directory: " ++ showPath path)
     (x:"..":xs) -> resolvePath xs
     (".":xs)    -> resolvePath xs
-    (x:xs)      -> fmap (x:) (resolvePath xs)
+    (x:xs)      -> (x:) <$> resolvePath xs
     _           -> return []
 
 
@@ -127,7 +127,7 @@ getSpecificModuleFiles name (f:fs) = do
     source <- liftIO (readFile f)
     ast <- parse 0 f
     if fromJust (S.astModuleName ast) == name then
-        fmap (f :) (getSpecificModuleFiles name fs)
+        (f:) <$> getSpecificModuleFiles name fs
     else
         getSpecificModuleFiles name fs
 

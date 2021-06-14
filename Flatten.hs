@@ -72,7 +72,7 @@ combineASTs asts = do
 flattenAST :: BoM FlattenState m => S.AST -> m ()
 flattenAST ast = do
     mapM_ gatherTopStmt (S.astStmts ast)
-    mapM_ checkTypedefCircles =<< fmap Map.keys (gets typeDefs)
+    mapM_ checkTypedefCircles =<< (Map.keys <$> gets typeDefs)
     modify $ \s -> s { imports = S.astImports ast }
     where
         moduleName = maybe "main" id (S.astModuleName ast)
@@ -83,7 +83,7 @@ flattenAST ast = do
             S.Extern _ _ _ _ -> modify $ \s -> s { externDefs = stmt:(externDefs s) }
             S.Assign _ _ _   -> modify $ \s -> s { varDefs    = stmt:(varDefs s) }
             S.Typedef pos sym typ -> do
-                b <- fmap (Map.member sym) (gets typeDefs)
+                b <- Map.member sym <$> gets typeDefs
                 when b $ fail (sym ++ " already defined")
                 modify $ \s -> s { typeDefs = Map.insert sym (pos, typ) (typeDefs s) }
 
@@ -97,7 +97,7 @@ flattenAST ast = do
                 checkTypedefCircles' flat visited = do
                     when (Set.member flat visited) $
                         fail ("circular type dependency: " ++ flat)
-                    res <- fmap (Map.lookup flat) (gets typeDefs)
+                    res <- Map.lookup flat <$> gets typeDefs
                     case res of
                         Just (pos, T.Typedef f) -> checkTypedefCircles' f (Set.insert flat visited)
                         _                       -> return ()

@@ -108,11 +108,11 @@ cmpVarDef (S.Assign pos (S.PatIdent p sym) expr) = do
 
     if isCons (valOp val)
     then do
-        loc <- fmap (Ptr typ) $ global name opTyp $ toCons (valOp val)
+        loc <- Ptr typ <$> global name opTyp (toCons $ valOp val)
         addObj sym KeyVar (ObjVal loc)
     else do
         initialiser <- zeroOf typ
-        loc <- fmap (Ptr typ) $ global name opTyp $ toCons (valOp initialiser)
+        loc <- Ptr typ <$> global name opTyp (toCons $ valOp initialiser)
         valStore loc val
         addObj sym KeyVar (ObjVal loc)
 
@@ -332,7 +332,7 @@ cmpExpr expr = case expr of
                     ObjExtern _ typ op -> return (op, typ)
 
                 vals' <- mapM valLoad vals
-                fmap (Val typ) $ call op [(o, []) | o <- map valOp vals']
+                Val typ <$> call op [(o, []) | o <- map valOp vals']
 
 
     S.Len pos expr -> withPos pos $ valLoad =<< do
@@ -498,15 +498,15 @@ valConstruct typ [val']                      = do
     base <- baseTypeOf typ
     case base of
         I32 -> case val of
-            Val I64 op -> fmap (Val base) (trunc op LL.i32)
-            Val I8 op  -> fmap (Val base) (sext op LL.i32)
+            Val I64 op -> Val base <$> trunc op LL.i32
+            Val I8 op  -> Val base <$> sext op LL.i32
 
         I64 -> case val of
-            Val Char op -> fmap (Val base) (sext op LL.i64)
+            Val Char op -> Val base <$> sext op LL.i64
 
         Char -> case val of
-            Val I64 op -> fmap (Val base) (trunc op LL.i8)
-            Val I32 op -> fmap (Val base) (trunc op LL.i8)
+            Val I64 op -> Val base <$> trunc op LL.i8
+            Val I32 op -> Val base <$> trunc op LL.i8
             _          -> error (show val)
 
         ADT _   -> adtConstruct typ val
@@ -514,7 +514,7 @@ valConstruct typ [val']                      = do
             pureType    <- pureTypeOf typ
             pureValType <- pureTypeOf (valType val)
             checkTypesMatch pureType pureValType
-            fmap (Val typ) $ fmap valOp (valLoad val)
+            Val typ <$> valOp <$> valLoad val
 
 
 valAsType :: InsCmp CompileState m => Type -> Value -> m Value

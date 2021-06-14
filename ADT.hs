@@ -23,8 +23,8 @@ adtEnum ptr = do
     ADT ts <- assertBaseType isADT (valType ptr)
     assert (length ts > 1) "adt has no enum"
     case ptr of
-        Val _ op  -> fmap (Val I64) (extractValue op [0])
-        Ptr _ loc -> fmap (Ptr I64) (gep loc [int32 0, int32 0])
+        Val _ op  -> Val I64 <$> extractValue op [0]
+        Ptr _ loc -> Ptr I64 <$> gep loc [int32 0, int32 0]
 
 
 
@@ -34,7 +34,7 @@ adtSetEnum ptr@(Ptr _ loc) i = do
     assert (length ts > 1)           "adt type has no enum"
     assert (i >= 0 && i < length ts) "invalid adt enum"
 
-    en <- fmap (Ptr I64) (gep loc [int32 0, int32 0])
+    en <- Ptr I64 <$> gep loc [int32 0, int32 0]
     valStore en (valI64 i)
 
 
@@ -44,8 +44,8 @@ adtDeref val = do
     assert (length ts == 1) "cannot dereference multi-type adt"
     let [t] = ts
     pi8 <- adtPi8 val
-    pt  <- fmap LL.ptr (opTypeOf t)
-    fmap (Ptr t) (bitcast pi8 pt)
+    pt  <- LL.ptr <$> opTypeOf t
+    Ptr t <$> bitcast pi8 pt
 
 
 adtNull :: InsCmp CompileState m => Type -> m Value
@@ -64,7 +64,7 @@ adtNull typ = do
 adtPi8 :: InsCmp CompileState m => Value -> m LL.Operand
 adtPi8 ptr = do
     ADT ts <- assertBaseType isADT (valType ptr)
-    op <- fmap valOp (valLoad ptr)
+    op <- valOp <$> valLoad ptr
     case ts of
         []  -> return op
         [t] -> return op

@@ -69,7 +69,7 @@ withSession optimise f = do
             withMyHostTargetMachine $ \tm -> do
                 dl <- getTargetMachineDataLayout tm
                 withFFIDataLayout dl $ \pdl -> 
-                    withObjectLinkingLayer es (\_ -> fmap head $ readIORef resolvers) $ \oll ->
+                    withObjectLinkingLayer es (\_ -> head <$> readIORef resolvers) $ \oll ->
                         withIRCompileLayer oll tm $ \cl ->
                             withPassManager defaultCuratedPassSetSpec $ \pm ->
                                 withSymbolResolver es (myResolver cl) $ \psr -> do

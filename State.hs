@@ -103,13 +103,13 @@ initCompileState ctx dl imports
 
 assert :: BoM CompileState m => Bool -> String -> m ()
 assert b s = do
-    pos <- fmap head (gets posStack)
+    pos <- head <$> gets posStack
     unless b $ throwError (ErrorFile "" pos s)
 
 
 err :: BoM CompileState m => String -> m a
 err s = do
-    pos <- fmap head (gets posStack)
+    pos <- head <$> gets posStack
     throwError (ErrorFile "" pos s)
 
 
@@ -128,13 +128,13 @@ addObj sym key obj =
 
 checkSymKeyUndef :: BoM CompileState m => S.Symbol -> SymKey -> m ()
 checkSymKeyUndef sym key = do
-    res <- fmap (SymTab.lookupHead sym key) (gets symTab)
+    res <- SymTab.lookupHead sym key <$> gets symTab
     when (isJust res) $ err (sym ++ " already defined")
 
 
 checkSymUndef :: BoM CompileState m => S.Symbol -> m ()
 checkSymUndef sym = do
-    res <- fmap (SymTab.lookupSym sym) (gets symTab)
+    res <- SymTab.lookupSym sym <$> gets symTab
     when (isJust res) $ err (sym ++ " already defined")
 
 
@@ -166,9 +166,9 @@ emitDec name dec = case dec of
 
 ensureDec :: ModCmp CompileState m => Name -> m ()
 ensureDec name = do
-    declared <- fmap (Set.member name) (gets declared)
+    declared <- Set.member name <$> gets declared
     when (not declared) $ do
-        res <- fmap (Map.lookup name) (gets declarations)
+        res <- Map.lookup name <$> gets declarations
         case res of
             Nothing -> return ()
             Just d  -> emitDec name d >> addDeclared name
@@ -176,16 +176,16 @@ ensureDec name = do
 
 ensureSymKeyDec :: ModCmp CompileState m => S.Symbol -> SymKey -> m ()
 ensureSymKeyDec sym key = do
-    nm <- fmap (Map.lookup (sym, key)) (gets decMap)
+    nm <- Map.lookup (sym, key) <$> gets decMap
     case nm of
         Just name -> ensureDec name
         Nothing   -> do
-            imports <- fmap Map.elems (gets imports)
+            imports <- Map.elems <$> gets imports
             rs <- fmap catMaybes $ forM imports $ \imp -> do
                 case Map.lookup (sym, key) (decMap imp) of
                     Nothing   -> return Nothing
                     Just name -> do
-                        declared <- fmap (Set.member name) (gets declared)
+                        declared <- Set.member name <$> gets declared
                         when (not declared) $ do
                             emitDec name ((Map.! name) $ declarations imp)
                             addDeclared name
@@ -199,7 +199,7 @@ ensureSymKeyDec sym key = do
 
 ensureExtern :: ModCmp CompileState m => Name -> [Type] -> Type -> Bool -> m Operand
 ensureExtern name argTypes retty isVarg = do
-    declared <- fmap (Set.member name) (gets declared)
+    declared <- Set.member name <$> gets declared
     when (not declared) $ do
         addDeclaration name (DecExtern argTypes retty isVarg)
         ensureDec name
@@ -211,11 +211,11 @@ ensureExtern name argTypes retty isVarg = do
 look :: ModCmp CompileState m => S.Symbol -> SymKey -> m Object
 look sym key = do
     ensureSymKeyDec sym key
-    res <- fmap (SymTab.lookupSymKey sym key) (gets symTab)
+    res <- SymTab.lookupSymKey sym key <$> gets symTab
     case res of
         Just obj -> return obj
         Nothing  -> do
-            r <- fmap (catMaybes . map (SymTab.lookupSymKey sym key . symTab) . Map.elems) (gets imports)
+            r <- (catMaybes . map (SymTab.lookupSymKey sym key . symTab) . Map.elems) <$> gets imports
             case r of
                 []  -> err ("no definition for: " ++ sym ++ " " ++ show key)
                 [x] -> return x
