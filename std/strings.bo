@@ -2,7 +2,7 @@ module strings
 
 imports chars
 
-fn isPrefix(pre string, str string) bool
+fn strIsPrefix(pre string, str string) bool
     let i = 0
     while i < len(pre) 
         if i >= len(str) || pre[i] != str[i]

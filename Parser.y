@@ -19,7 +19,8 @@ import qualified Data.Set as Set
 %left      '+' '-'
 %left      '*' '/' '%'
 %left      '.'
-%left      '..'
+%right     '..'
+%left      '?'
 %nonassoc  '&'
 %nonassoc  '!'
 %nonassoc  ','
@@ -46,10 +47,13 @@ import qualified Data.Set as Set
     '='        { Token _ ReservedOp "=" }
     '&'        { Token _ ReservedOp "&" }
     '!'        { Token _ ReservedOp "!" }
+    '?'        { Token _ ReservedOp "!" }
     '!='       { Token _ ReservedOp "!=" }
     '<='       { Token _ ReservedOp "<=" }
     '>='       { Token _ ReservedOp ">=" }
     '=='       { Token _ ReservedOp "==" }
+    '<-'       { Token _ ReservedOp "<-" }
+    '->'       { Token _ ReservedOp "->" }
     '&&'       { Token _ ReservedOp "&&" }
     '||'       { Token _ ReservedOp "||" }
     '..'       { Token _ ReservedOp ".." }
@@ -136,9 +140,9 @@ stmtB : block                                { $1 }
       | fn ident '(' params ')' block_       { S.Func (tokPos $1) (tokStr $2) $4 T.Void $6 }
       | fn ident '(' params ')' type_ block_ { S.Func (tokPos $1) (tokStr $2) $4 $6 $7 }
       | switch expr 'I' cases 'D'            { S.Switch (tokPos $1) $2 $4 }
-      | while expr block_                    { S.While (tokPos $1) $2 $3 }
+      | while condition block_               { S.While (tokPos $1) $2 $3 }
 
-block  : 'I' Prog_ 'D'               { S.Block (tokPos $1) $2 }
+block  : 'I' Prog_ 'D'               { S.Block $2 }
 block_ : 'I' Prog_ 'D'               { $2 }
 
 
@@ -178,54 +182,54 @@ tableRows : exprs                      { [$1] }
 
 
 
-prefix : '-' expr                    { S.Prefix (tokPos $1) S.Minus $2 }
-       | '+' expr                    { S.Prefix (tokPos $1) S.Plus $2 }
-       | '!' expr                    { S.Prefix (tokPos $1) S.Not $2 }
+prefix : '-' expr                        { S.Prefix (tokPos $1) S.Minus $2 }
+       | '+' expr                        { S.Prefix (tokPos $1) S.Plus $2 }
+       | '!' expr                        { S.Prefix (tokPos $1) S.Not $2 }
 
-infix : expr '+' expr                { S.Infix (tokPos $2) S.Plus $1 $3 }
-      | expr '-' expr                { S.Infix (tokPos $2) S.Minus $1 $3 }
-      | expr '*' expr                { S.Infix (tokPos $2) S.Times $1 $3 }
-      | expr '/' expr                { S.Infix (tokPos $2) S.Divide $1 $3 }
-      | expr '%' expr                { S.Infix (tokPos $2) S.Mod $1 $3 }
-      | expr '<' expr                { S.Infix (tokPos $2) S.LT $1 $3 }
-      | expr '>' expr                { S.Infix (tokPos $2) S.GT $1 $3 }
-      | expr '<=' expr               { S.Infix (tokPos $2) S.LTEq $1 $3 }
-      | expr '>=' expr               { S.Infix (tokPos $2) S.GTEq $1 $3 }
-      | expr '==' expr               { S.Infix (tokPos $2) S.EqEq $1 $3 }
-      | expr '&&' expr               { S.Infix (tokPos $2) S.AndAnd $1 $3 }
-      | expr '||' expr               { S.Infix (tokPos $2) S.OrOr $1 $3 }
-      | expr '!=' expr               { S.Infix (tokPos $2) S.NotEq $1 $3 }
+infix : expr '+' expr                    { S.Infix (tokPos $2) S.Plus $1 $3 }
+      | expr '-' expr                    { S.Infix (tokPos $2) S.Minus $1 $3 }
+      | expr '*' expr                    { S.Infix (tokPos $2) S.Times $1 $3 }
+      | expr '/' expr                    { S.Infix (tokPos $2) S.Divide $1 $3 }
+      | expr '%' expr                    { S.Infix (tokPos $2) S.Mod $1 $3 }
+      | expr '<' expr                    { S.Infix (tokPos $2) S.LT $1 $3 }
+      | expr '>' expr                    { S.Infix (tokPos $2) S.GT $1 $3 }
+      | expr '<=' expr                   { S.Infix (tokPos $2) S.LTEq $1 $3 }
+      | expr '>=' expr                   { S.Infix (tokPos $2) S.GTEq $1 $3 }
+      | expr '==' expr                   { S.Infix (tokPos $2) S.EqEq $1 $3 }
+      | expr '&&' expr                   { S.Infix (tokPos $2) S.AndAnd $1 $3 }
+      | expr '||' expr                   { S.Infix (tokPos $2) S.OrOr $1 $3 }
+      | expr '!=' expr                   { S.Infix (tokPos $2) S.NotEq $1 $3 }
 
-type_         : ident                { T.Typedef (tokStr $1) }
-              | typeOrdinal          { $1 }
-              | typeAggregate        { $1 }
-typeOrdinal   : bool                 { T.Bool }
-              | i16                  { T.I16 }
-              | i32                  { T.I32 }
-              | i64                  { T.I64 }
-              | f32                  { T.F32 }
-              | f64                  { T.F64 }
-              | char                 { T.Char }
-              | string               { T.Table [T.Char] }
-typeAggregate : '[' intlit ':' type_ ']'       { T.Array (read $ tokStr $2) $4 }
-              | '(' types ')'                  { T.Tuple $2 }
-              | '[' rowTypes_ ']'              { T.Table $2 }
-              | '{' ptrTypes '}'               { T.ADT $2 }
-              | '{' 'I' ptrTypes 'D' '}'       { T.ADT $3 }
+type_         : ident                    { T.Typedef (tokStr $1) }
+              | typeOrdinal              { $1 }
+              | typeAggregate            { $1 }
+typeOrdinal   : bool                     { T.Bool }
+              | i16                      { T.I16 }
+              | i32                      { T.I32 }
+              | i64                      { T.I64 }
+              | f32                      { T.F32 }
+              | f64                      { T.F64 }
+              | char                     { T.Char }
+              | string                   { T.Table [T.Char] }
+typeAggregate : '[' intlit ':' type_ ']' { T.Array (read $ tokStr $2) $4 }
+              | '(' types ')'            { T.Tuple $2 }
+              | '[' rowTypes_ ']'        { T.Table $2 }
+              | '{' ptrTypes '}'         { T.ADT $2 }
+              | '{' 'I' ptrTypes 'D' '}' { T.ADT $3 }
 
-types         : {- empty -}          { [] }
-              | types_               { $1 }
-types_        : type_                { [$1] }
-              | type_ ',' types_     { $1 : $3 }
+types         : {- empty -}              { [] }
+              | types_                   { $1 }
+types_        : type_                    { [$1] }
+              | type_ ',' types_         { $1 : $3 }
 
-rowTypes_     : type_                  { [$1] }
-              | type_ ';' rowTypes_    { $1 : $3 }
+rowTypes_     : type_                    { [$1] }
+              | type_ ';' rowTypes_      { $1 : $3 }
 
 
 ptrType : type_                 { $1 }
         | null                  { T.Void }
-        | ident  type_       { T.Named (tokStr $1) $2 }
-        | ident  null        { T.Named (tokStr $1) T.Void }
+        | ident  type_          { T.Named (tokStr $1) $2 }
+        | ident  null           { T.Named (tokStr $1) T.Void }
 ptrTypes : ptrType              { [$1] }
          | ptrType '|' ptrTypes { $1 : $3 }
          | ptrType 'N' ptrTypes { $1 : $3 }
@@ -239,6 +243,7 @@ pattern  : '_'                           { S.PatIgnore (tokPos $1) }
          | '(' patterns ')'              { S.PatTuple (tokPos $1) $2 }
          | '[' patterns ']'              { S.PatArray (tokPos $1) $2 }
          | pattern '..' pattern          { S.PatSplit (tokPos $2) $1 $3 }
+         | pattern '..'                  { S.PatSplit (tokPos $2) $1 (S.PatIgnore (tokPos $2)) }
          | pattern '|' expr              { S.PatGuarded (tokPos $2) $1 $3 }
 
 
@@ -269,14 +274,18 @@ cases_ : case                       { [$1] }
        | case_ cases_               { $1 : $2 }
 
 case   : pattern ';' stmtS          { ($1, $3) }
-       | pattern ';'                { ($1, (S.Block (tokPos $2) [])) }
+       | pattern ';'                { ($1, (S.Block [])) }
 case_  : pattern block              { ($1, $2) }
 
 
-If    : if expr block                { S.If (tokPos $1) $2 $3 Nothing }
-      | if expr block else_          { S.If (tokPos $1) $2 $3 (Just $4) }
+If    : if condition block           { S.If (tokPos $1) $2 $3 Nothing }
+      | if condition block else_     { S.If (tokPos $1) $2 $3 (Just $4) }
+      | if condition 'N' else_       { S.If (tokPos $1) $2 (S.Block []) (Just $4) }
 else_ : else block                   { $2 }
       | else If                      { $2 }
+
+condition : expr                   { S.CondExpr $1 }
+          | expr '->' pattern      { S.CondMatch $3 $1 }
 
 
 

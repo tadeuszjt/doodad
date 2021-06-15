@@ -31,7 +31,7 @@ $symbol  = [\{\}\(\)\[\]\,\|\.\;\:\_]
 @builtin    = print | len | append
 @keywords   = fn | extern | type | let | while | if | else | return | switch | true | false | module | imports | null
 @reserved   = @keywords | @types | @builtin
-@reservedOp = [\+\-\*\/\%\<\>\=\&\!] | "!=" | "==" | "<=" | ">=" | "||" | "&&" | ".."
+@reservedOp = [\+\-\*\/\%\<\>\=\&\!\?] | "!=" | "==" | "<=" | ">=" | "||" | "&&" | ".." | "<-" | "->"
 
 
 @string     = $graphic # [\"\\] | " " | @escape | "\""
@@ -57,9 +57,14 @@ mkT typ (p, _, _, s) len = case typ of
     _      -> return (p, typ, take len s)
     where
         readString :: String -> String
-        readString ('\\' : 'n' : ss) = '\n' : (readString ss)
-        readString ('\\' : 't' : ss) = '\t' : (readString ss)
-        readString ss = ss
+        readString str = case str of
+            ('\\' : '\\' : ss) -> '\\' : (readString ss)
+            ('\\' : 'n' : ss) -> '\n' : (readString ss)
+            ('\\' : 't' : ss) -> '\t' : (readString ss)
+            ('\\' : '0' : ss) -> '\0' : (readString ss)
+            ('\\' : '"' : ss) -> '"' : (readString ss)
+            (s:ss)            -> s : (readString ss)
+            []                ->  []
 
 
 mkIndentT :: AlexInput -> Int -> Alex (AlexPosn, TokenType, String)

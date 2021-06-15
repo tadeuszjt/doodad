@@ -198,7 +198,7 @@ cmpFuncDef (S.Func pos sym params retty blk) = withPos pos $ do
 cmpStmt :: InsCmp CompileState m => S.Stmt -> m ()
 cmpStmt stmt = case stmt of
     S.Print pos exprs -> cmpPrint stmt
-    S.Block pos stmts -> withPos pos (pushSymTab >> mapM_ cmpStmt stmts >> popSymTab)
+    S.Block stmts -> pushSymTab >> mapM_ cmpStmt stmts >> popSymTab
 
     S.CallStmt pos sym exprs -> withPos pos $ do
 
@@ -232,24 +232,25 @@ cmpStmt stmt = case stmt of
         ret . valOp =<< valLoad =<< valAsType retty =<< cmpExpr expr
         emitBlockStart =<< fresh
 
-    S.If pos expr blk melse -> withPos pos $ do
-        val <- cmpExpr expr
-        typ <- baseTypeOf (valType val)
-        checkTypesMatch typ Bool
+    S.If pos cnd blk melse -> withPos pos $ do
+        pushSymTab
+        val <- valLoad =<< cmpCondition cnd
 
         case melse of
-            Nothing -> if_ (valOp val) (cmpStmt blk) (return ())
+            Nothing                   -> if_ (valOp val) (cmpStmt blk) (return ())
+            Just blk2@(S.Block stmts) -> if_ (valOp val) (cmpStmt blk) (cmpStmt blk2)
 
-    S.While pos expr blk -> withPos pos $ do
+        popSymTab
+
+    S.While pos cnd blk -> withPos pos $ do
         cond <- freshName "while_cond"
         body <- freshName "while_body"
         exit <- freshName "while_exit"
 
         br cond
         emitBlockStart cond
-        cnd <- valLoad =<< cmpExpr expr
-        assertBaseType (== Bool) (valType cnd)
-        condBr (valOp cnd) body exit
+        val <- valLoad =<< cmpCondition cnd
+        condBr (valOp val) body exit
         
         emitBlockStart body
         pushSymTab
@@ -393,6 +394,17 @@ cmpExpr expr = case expr of
         return tab
 
     _ -> err "invalid expression"
+
+
+cmpCondition :: InsCmp CompileState m => S.Condition -> m Value
+cmpCondition cnd = do
+    val <- case cnd of
+        S.CondExpr expr -> cmpExpr expr
+        S.CondMatch pat expr -> cmpPattern pat =<< cmpExpr expr
+
+    assertBaseType (== Bool) (valType val)
+    return val
+
 
 
 cmpPattern :: InsCmp CompileState m => S.Pattern -> Value -> m Value

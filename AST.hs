@@ -66,6 +66,11 @@ data Index
     | IndTuple TextPos Index Word32
     deriving (Eq)
 
+data Condition
+    = CondExpr Expr
+    | CondMatch Pattern Expr
+    deriving (Eq)
+
 data Expr
     = Int        TextPos Integer
     | Float      TextPos Double
@@ -97,9 +102,9 @@ data Stmt
     | Print    TextPos [Expr]
     | CallStmt TextPos Symbol  [Expr]
     | Return   TextPos (Maybe Expr)
-    | Block    TextPos [Stmt]
-    | If       TextPos Expr Stmt (Maybe Stmt)
-    | While    TextPos Expr [Stmt]
+    | Block    [Stmt]
+    | If       TextPos Condition Stmt (Maybe Stmt)
+    | While    TextPos Condition [Stmt]
     | Switch   TextPos Expr [(Pattern, Stmt)]
     | Func     TextPos Symbol [Param] Type [Stmt]
     | Extern   TextPos Symbol [Param] Type
@@ -140,6 +145,11 @@ instance Show Pattern where
         PatArray pos ps  -> arrStrs (map show ps)
         PatTyped pos s p -> show s ++ ":" ++ show p
         PatSplit pos a b -> show a ++ " .. " ++ show b
+
+
+instance Show Condition where
+    show (CondExpr expr) = show expr
+    show (CondMatch pat expr) = show pat ++ " <- " ++ show expr
 
 
 instance Show Index where
@@ -197,7 +207,7 @@ prettyAST pre ast = do
             Return pos mexpr -> do
                 putStrLn (pr ++ "Return " ++ show mexpr)
 
-            Block pos stmts -> do
+            Block stmts -> do
                 putStrLn (pr ++ "block")
                 mapM_ (prettyStmt (pr ++ "\t")) stmts
 
