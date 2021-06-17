@@ -162,7 +162,7 @@ data Token
 
 
 instance Show Token where
-    show (Token p t s) = show t ++ ":" ++ s
+    show (Token p t s) = show t ++ ": " ++ s
 
 data TokenType
     = Sym
