@@ -24,6 +24,11 @@ data Error
     = ErrorStr
         { errStr :: String
         }
+    | ErrorSrc
+        { errSrc  :: String
+        , errPos  :: TextPos
+        , errStr  :: String
+        }
     | ErrorFile
         { errFile :: String
         , errPos  :: TextPos
@@ -35,19 +40,20 @@ data Error
 printError :: Error -> IO ()
 printError err = case err of
     ErrorStr str           -> putStrLn ("error: " ++ str)
+    ErrorSrc src pos str   -> printMsg "" src pos str
     ErrorFile path pos str -> do
-
-        let TextPos i p l c = pos
-
         file <- try (readFile path) :: IO (Either SomeException String)
-
-
         case file of
-            Left e -> putStrLn ("couldn't read: " ++ path)
-            Right source -> do
-                putStrLn (path ++ ":" ++ show l ++ ":" ++ show c ++ ":" ++ str)
-                let sourceLines = lines source
-                unless (l < 3) $ putStrLn (sourceLines !! (l-3))
-                unless (l < 2) $ putStrLn (sourceLines !! (l-2))
-                unless (l < 1) $ putStrLn (sourceLines !! (l-1))
-                putStrLn (replicate (c-1) '-' ++ "^")
+            Left e    -> putStrLn ("Failed to print error, couldn't read path: " ++ path)
+            Right src -> printMsg (path ++ ":") src pos str
+
+    where
+        printMsg :: String -> String -> TextPos -> String -> IO ()
+        printMsg pre src pos str = do
+            let TextPos i p l c = pos
+            putStrLn (pre ++ show l ++ ":" ++ show c ++ ": " ++ str)
+            let srcLines = lines src
+            unless (l < 3) $ putStrLn (srcLines !! (l-3))
+            unless (l < 2) $ putStrLn (srcLines !! (l-2))
+            unless (l < 1) $ putStrLn (srcLines !! (l-1))
+            putStrLn (replicate (c-1) '-' ++ "^")

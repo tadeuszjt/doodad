@@ -5,6 +5,8 @@ import System.IO
 import System.Console.Haskeline
 import Control.Monad
 import Data.List.Split
+import Control.Monad.Trans
+import Control.Monad.Except
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
@@ -13,6 +15,7 @@ import Error
 import Modules
 import Monad
 import Args
+import AST
 import qualified Parser as P
 import qualified Lexer as L
 
@@ -40,9 +43,9 @@ repl session = do
     case minput of
         Just "q"  -> return ()
         Just line -> do
-            case L.alexScanner 0 line of
-                Left  errStr -> error errStr
-                Right tokens -> outputStrLn (show tokens)
+            res <- runExceptT (P.parse 0 line)
+            case res of
+                Left e -> lift (printError e)
+                Right a -> lift (prettyAST "" a)
 
             repl session
-

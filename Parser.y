@@ -295,7 +295,7 @@ parse id source = do
     case alexScanner id source of
         Left  errStr -> throwError (ErrorStr errStr)
         Right tokens -> case (parseTokens tokens) 0 of
-            ParseFail pos -> throwError (ErrorFile "" pos "parse error")
+            ParseFail pos -> throwError (ErrorSrc source pos "parse error")
             ParseOk ast   -> return ast 
 
 
