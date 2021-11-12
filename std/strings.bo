@@ -37,3 +37,13 @@ fn strReadInt(s string) {null | i64}
         i = i + 1
 
     return :{null | i64}(n)
+
+
+fn strReverse(s string) string
+    let r = ""
+    let i = len(s)
+    while i > 0
+        i = i - 1
+        r = append(r, s[i..i+1])
+
+    return r

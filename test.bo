@@ -13,8 +13,8 @@ fn main()
 
     while loop
         switch getStrLn()
-            "\0" .. _; loop = false
-            s        ; str = append(append(str, s), ['\n'])
+            "\0" ..; loop = false
+            s      ; str = append(append(str, s), ['\n'])
 
     let toks = :[Token]()
     loop = true

@@ -95,16 +95,13 @@ fn lexDigits(str string) (Token, string)
 
 
 fn lexIdent(str string) (Token, string)
-    let i = 0
-
     if str -> [c] .. | isAlpha(c)
-    else
-        return (null, str)
+        let i = 0
+        while str[i..] -> [c] .. | isAlpha(c) || isDigit(c)
+            i = i + 1
+        return (TokIdent(str[..i]), str[i..])
 
-    while str[i..] -> [c] .. | isAlpha(c) || isDigit(c)
-        i = i + 1
-
-    return (TokIdent(str[..i]), str[i..])
+    return (null, str)
 
 
 fn lexOperator(str string) (Token, string)

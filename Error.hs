@@ -50,10 +50,11 @@ printError err = case err of
     where
         printMsg :: String -> String -> TextPos -> String -> IO ()
         printMsg pre src pos str = do
-            let TextPos i p l c = pos
+            let TextPos _ p l c = pos
             putStrLn (pre ++ show l ++ ":" ++ show c ++ ": " ++ str)
             let srcLines = lines src
             unless (l < 3) $ putStrLn (srcLines !! (l-3))
             unless (l < 2) $ putStrLn (srcLines !! (l-2))
             unless (l < 1) $ putStrLn (srcLines !! (l-1))
+            when   (l == 0) $ putStrLn (srcLines !! 0)
             putStrLn (replicate (c-1) '-' ++ "^")

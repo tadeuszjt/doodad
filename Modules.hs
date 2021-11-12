@@ -23,6 +23,9 @@ import Compile
 import CompileState
 import Args
 
+-- Modules are groups of .bo files with a module name header
+-- lang/lexer.bo: lexer module
+
 
 data Modules
     = Modules
@@ -38,15 +41,19 @@ initModulesState session
         }
 
 
+-- turn an array based path into a string
 showPath :: S.Path -> String
 showPath path = concat (intersperse "/" path)
 
 
+-- parse a file into an AST.
+-- Throw an error on failure.
 parse :: BoM s m => Int -> FilePath -> m S.AST
 parse id file = do
     source <- liftIO (readFile file)
     case P.parse id source of
         Left (ErrorStr str)         -> throwError (ErrorStr str)
+        Left (ErrorSrc src pos str) -> throwError (ErrorFile file pos str)
         Left (ErrorFile "" pos str) -> throwError (ErrorFile file pos str)
         Right a                     -> return a
 
