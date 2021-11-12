@@ -307,10 +307,13 @@ cmpExpr expr = case expr of
     S.Conv pos typ [S.Null p]  -> withPos pos (adtNull typ)
     S.Conv pos typ exprs       -> withPos pos $ valConstruct typ =<< mapM cmpExpr exprs
     S.Ident pos sym            -> withPos pos $ look sym KeyVar >>= \(ObjVal loc) -> return loc
-    S.Infix pos op exprA exprB -> withPos pos $ join $ liftM2 (valsInfix op) (cmpExpr exprA) (cmpExpr exprB)
     S.Prefix pos S.Not   expr  -> withPos pos $ valNot =<< cmpExpr expr
     S.Prefix pos S.Minus expr  -> withPos pos $ valsInfix S.Minus (Exp (S.Int undefined 0)) =<< cmpExpr expr
     S.Append pos exprA exprB   -> withPos pos $ valLoad =<< join (liftM2 tableAppend (cmpExpr exprA) (cmpExpr exprB))
+
+    S.Infix pos op exprA exprB -> do
+        let m = cmpExpr $ S.Call pos (show op) [exprA, exprB]
+        catchError m $ \e -> withPos pos $ join $ liftM2 (valsInfix op) (cmpExpr exprA) (cmpExpr exprB)
             
     S.String pos s -> do
         loc <- globalStringPtr s =<< fresh

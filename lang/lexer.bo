@@ -78,7 +78,7 @@ fn lexKeyword(str string) (Token, string)
 
     let word = str[..i]
     while k < len(keywords)
-        if strEqual(word, keywords[k])
+        if word == keywords[k]
             return (TokKeyword(word), str[i..])
         k = k + 1
 

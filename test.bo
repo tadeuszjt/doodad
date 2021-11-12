@@ -5,16 +5,13 @@ imports std/io
 imports lang/lexer
 
 fn main()
-    let test = "one tad\ntad\ttab\ttad\n\"qoute tad\"\ntad\\tad\n\0no tad"
-    print(test)
-
     let str = ""
     let loop = true
 
     while loop
         switch getStrLn()
             "\0" ..; loop = false
-            s      ; str = append(append(str, s), ['\n'])
+            s      ; str = str + s + "\n"
 
     let toks = :[Token]()
     loop = true
@@ -32,7 +29,4 @@ fn main()
                     TokIdent(s)   ; print("ident  ", s)
                     TokString(s)  ; print("string ", s)
                     TokKeyword(s) ; print("keyword", s)
-
-    print(str)
-            
 

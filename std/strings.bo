@@ -1,18 +1,11 @@
 module strings
-
 imports chars
 
-fn strIsPrefix(pre string, str string) bool
-    let i = 0
-    while i < len(pre) 
-        if i >= len(str) || pre[i] != str[i]
-            return false 
-        i = i + 1
-
-    return true
+fn + (a string, b string) string
+    return append(a, b)
 
 
-fn strEqual(a string, b string) bool
+fn == (a string, b string) bool
     if len(a) != len(b)
         return false
 
@@ -20,6 +13,16 @@ fn strEqual(a string, b string) bool
     while i < len(a)
         if a[i] != b[i]
             return false
+        i = i + 1
+
+    return true
+
+
+fn strIsPrefix(pre string, str string) bool
+    let i = 0
+    while i < len(pre) 
+        if i >= len(str) || pre[i] != str[i]
+            return false 
         i = i + 1
 
     return true

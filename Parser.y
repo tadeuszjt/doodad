@@ -45,17 +45,17 @@ import qualified Data.Set as Set
     '<'        { Token _ ReservedOp "<" }
     '>'        { Token _ ReservedOp ">" }
     '='        { Token _ ReservedOp "=" }
-    '&'        { Token _ ReservedOp "&" }
     '!'        { Token _ ReservedOp "!" }
-    '?'        { Token _ ReservedOp "!" }
     '!='       { Token _ ReservedOp "!=" }
     '<='       { Token _ ReservedOp "<=" }
     '>='       { Token _ ReservedOp ">=" }
     '=='       { Token _ ReservedOp "==" }
-    '<-'       { Token _ ReservedOp "<-" }
-    '->'       { Token _ ReservedOp "->" }
     '&&'       { Token _ ReservedOp "&&" }
     '||'       { Token _ ReservedOp "||" }
+    '&'        { Token _ ReservedOp "&" }
+    '?'        { Token _ ReservedOp "!" }
+    '<-'       { Token _ ReservedOp "<-" }
+    '->'       { Token _ ReservedOp "->" }
     '..'       { Token _ ReservedOp ".." }
 
     fn         { Token _ Reserved "fn" }
@@ -126,21 +126,38 @@ importPath : ident                           { [tokStr $1] }
            | importPath '/' importPath       { $1 ++ $3 }
 
 
-stmtS : let pattern '=' expr                 { S.Assign (tokPos $1) $2 $4 }  
-      | index '=' expr                       { S.Set (tokPos $2) $1 $3 }
-      | type ident type_                     { S.Typedef (tokPos $2) (tokStr $2) $3 }
-      | extern ident '(' params ')' type_    { S.Extern (tokPos $2) (tokStr $2) $4 $6 }
-      | extern ident '(' params ')'          { S.Extern (tokPos $2) (tokStr $2) $4 T.Void }
-      | ident '(' exprs ')'                  { S.CallStmt (tokPos $1) (tokStr $1) $3 }
-      | print '(' exprs ')'                  { S.Print (tokPos $1) $3 }
-      | return                               { S.Return (tokPos $1) Nothing }
-      | return expr                          { S.Return (tokPos $1) (Just $2) }
-stmtB : block                                { $1 }
-      | If                                   { $1 }
-      | fn ident '(' params ')' block_       { S.Func (tokPos $1) (tokStr $2) $4 T.Void $6 }
-      | fn ident '(' params ')' type_ block_ { S.Func (tokPos $1) (tokStr $2) $4 $6 $7 }
-      | switch expr 'I' cases 'D'            { S.Switch (tokPos $1) $2 $4 }
-      | while condition block_               { S.While (tokPos $1) $2 $3 }
+fnName  : ident { tokStr $1 }
+        | '+'   { tokStr $1 }
+        | '-'   { tokStr $1 }
+        | '*'   { tokStr $1 }
+        | '/'   { tokStr $1 }
+        | '%'   { tokStr $1 }
+        | '<'   { tokStr $1 }
+        | '>'   { tokStr $1 }
+        | '='   { tokStr $1 }
+        | '!'   { tokStr $1 }
+        | '!='  { tokStr $1 }
+        | '<='  { tokStr $1 }
+        | '>='  { tokStr $1 }
+        | '=='  { tokStr $1 }
+        | '&&'  { tokStr $1 }
+        | '||'  { tokStr $1 }
+
+stmtS : let pattern '=' expr                  { S.Assign (tokPos $1) $2 $4 }  
+      | index '=' expr                        { S.Set (tokPos $2) $1 $3 }
+      | type ident type_                      { S.Typedef (tokPos $2) (tokStr $2) $3 }
+      | extern ident '(' params ')' type_     { S.Extern (tokPos $2) (tokStr $2) $4 $6 }
+      | extern ident '(' params ')'           { S.Extern (tokPos $2) (tokStr $2) $4 T.Void }
+      | ident '(' exprs ')'                   { S.CallStmt (tokPos $1) (tokStr $1) $3 }
+      | print '(' exprs ')'                   { S.Print (tokPos $1) $3 }
+      | return                                { S.Return (tokPos $1) Nothing }
+      | return expr                           { S.Return (tokPos $1) (Just $2) }
+stmtB : block                                 { $1 }
+      | If                                    { $1 }
+      | fn fnName '(' params ')' block_       { S.Func (tokPos $1) $2 $4 T.Void $6 }
+      | fn fnName '(' params ')' type_ block_ { S.Func (tokPos $1) $2 $4 $6 $7 }
+      | switch expr 'I' cases 'D'             { S.Switch (tokPos $1) $2 $4 }
+      | while condition block_                { S.While (tokPos $1) $2 $3 }
 
 block  : 'I' Prog_ 'D'               { S.Block $2 }
 block_ : 'I' Prog_ 'D'               { $2 }
@@ -153,6 +170,7 @@ lit : intlit                         { S.Int (tokPos $1) (read $ tokStr $1) }
     | true                           { S.Bool (tokPos $1) True }
     | false                          { S.Bool (tokPos $1) False }
     | null                           { S.Null (tokPos $1) }
+
 
 expr   : lit                           { $1 }
        | infix                         { $1 }
