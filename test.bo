@@ -3,7 +3,7 @@ module main
 imports std/strings
 imports std/io
 imports lang/lexer
-imports std/vec2
+imports lang/parser 
 
 fn main()
     let str = ""

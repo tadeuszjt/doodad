@@ -46,6 +46,14 @@ showPath :: S.Path -> String
 showPath path = concat (intersperse "/" path)
 
 
+lexFile :: BoM s m => Int -> FilePath -> m [L.Token]
+lexFile id file = do
+    source <- liftIO (readFile file)
+    case L.alexScanner id source of
+        Left  errStr -> throwError (ErrorStr errStr)
+        Right tokens -> return tokens
+
+
 -- parse a file into an AST.
 -- Throw an error on failure.
 parse :: BoM s m => Int -> FilePath -> m S.AST
@@ -56,6 +64,17 @@ parse id file = do
         Left (ErrorSrc src pos str) -> throwError (ErrorFile file pos str)
         Left (ErrorFile "" pos str) -> throwError (ErrorFile file pos str)
         Right a                     -> return a
+
+
+lexMod :: BoM Modules m => Args -> S.Path -> m [L.Token]
+lexMod args modPath = do
+    path <- resolvePath modPath
+    let (dir, name) = (init path, last path)
+    files <- getSpecificModuleFiles name =<< getBoFilesInDirectory (if null dir then "." else showPath dir)
+    when (null files) $ fail ("no files for: " ++ showPath path)
+    tokss <- forM (zip files [0..]) $ \(file, id) -> lexFile id file
+    return (concat tokss)
+
 
 
 runMod :: BoM Modules m => Args -> Set.Set S.Path -> S.Path -> m CompileState

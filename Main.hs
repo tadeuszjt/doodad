@@ -23,12 +23,20 @@ import qualified Lexer as L
 main :: IO ()
 main = do
     args <- getArgs
+    let parsedArgs = parseArgs initArgs args
     if args == [] then do
         putStrLn "==== Bolang REPL ===="
         withSession True $ \session -> do
             runInputT defaultSettings (repl session)
+    else if lexOnly parsedArgs then do
+        withSession (optimise parsedArgs) $ \session -> do
+            forM_ (modPaths parsedArgs) $ \path -> do
+                res <- runBoMT (initModulesState session) $ lexMod parsedArgs (splitOn "/" path)
+
+                case res of
+                    Left err     -> printError err 
+                    Right (r, _) -> mapM_ (putStrLn . show) r
     else do
-        let parsedArgs = parseArgs initArgs args
         withSession (optimise parsedArgs) $ \session -> do
             forM_ (modPaths parsedArgs) $ \path -> do
                 res <- runBoMT (initModulesState session) $ runMod parsedArgs Set.empty (splitOn "/" path)

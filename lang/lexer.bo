@@ -22,15 +22,14 @@ let symbols   = ['(', ')', '[', ']', '{', '}', ':', ';', '.', ',']
 
 fn lexChar(str string) (Token, string)
     switch str
-        "'\\n'" .. ss          ; return (TokChar('\n'), ss)
-        "'\\0'" .. ss          ; return (TokChar('\0'), ss)
-        "'\\t'" .. ss          ; return (TokChar('\t'), ss)
-        "'\\'" .. ss           ; return (TokChar('\\'), ss)
-        "'\n" .. ss            ; return (null, str)
-        "'\t" .. ss            ; return (null, str)
-        "'" .. [c] .. "'" .. ss; return (TokChar(c), ss)
-        _;
-    return (null, str)
+        "'\\n'" .. ss        ; return (TokChar('\n'), ss)
+        "'\\0'" .. ss        ; return (TokChar('\0'), ss)
+        "'\\t'" .. ss        ; return (TokChar('\t'), ss)
+        "'\\'" .. ss         ; return (TokChar('\\'), ss)
+        "'\n" .. ss          ; return (null, str)
+        "'\t" .. ss          ; return (null, str)
+        ['\'', c, '\''] .. ss; return (TokChar(c), ss)
+        _                    ; return (null, str)
 
 
 fn lexString(str string) (Token, string)
