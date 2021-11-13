@@ -13,6 +13,7 @@ import Value
 import CompileState
 import Funcs
 import Type 
+import Tuple
 
 
 tableLen :: InsCmp CompileState m => Value -> m Value

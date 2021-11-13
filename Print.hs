@@ -14,6 +14,7 @@ import CompileState
 import Monad
 import Funcs
 import Table
+import Tuple
 import Type 
 import ADT
 

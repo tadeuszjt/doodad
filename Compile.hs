@@ -37,6 +37,7 @@ import CompileState
 import Print
 import Funcs
 import Table
+import Tuple
 import ADT
 
 compileFlatState

@@ -147,60 +147,6 @@ valPtrIdx (Ptr typ loc) idx = do
     Ptr typ <$> gep loc [i]
 
 
-valTupleSet :: InsCmp CompileState m => Value -> Int -> Value -> m Value
-valTupleSet tup i val = do
-    Tuple ts <- assertBaseType isTuple (valType tup)
-    assert (fromIntegral i < length ts) "invalid tuple index"
-
-    case tup of
-        Ptr _ _ -> do
-            ptr <- valTupleIdx tup i
-            valStore ptr val >> return tup
-
-        Val _ _ -> do
-            op <- valOp <$> valLoad val
-            Val (valType tup) <$> insertValue (valOp tup) op [fromIntegral i]
-
-
-valTupleMember :: InsCmp CompileState m => Value -> String -> m Value
-valTupleMember tup sym = do
-    Tuple xs <- assertBaseType isTuple (valType tup)
-    let is = [ i | ((s, t), i) <- zip xs [0..], s == sym ]
-
-    assert (length is == 1) $ "tuple has ambigous member: " ++ (show $ fst $ head xs)
-    let i = head is
-    valTupleIdx tup i
-
-
-valTupleIdx :: InsCmp CompileState m => Value -> Int -> m Value
-valTupleIdx tup i = do
-    Tuple xs <- assertBaseType isTuple (valType tup)
-    case tup of
-        Ptr _ loc          -> Ptr (snd $ xs !! i) <$> gep loc [int32 0, int32 $ fromIntegral i]
-        Val _ op           -> Val (snd $ xs !! i) <$> extractValue op [fromIntegral i]
-        Exp (S.Tuple _ es) -> return $ Exp (es !! i)
-
-
-valTupleConstruct :: InsCmp CompileState m => Type -> [Value] -> m Value
-valTupleConstruct tupTyp vals = do
-    Tuple xs <- assertBaseType isTuple tupTyp
-    tup <- valLocal tupTyp
-    case vals of
-        []    -> return ()
-        [val] -> do
-            pureVal <- pureTypeOf (valType val)
-            pureTup <- pureTypeOf tupTyp
-            if pureVal == pureTup
-            then do -- contructing from another tuple
-                forM_ (zip xs [0..]) $ \((s, t), i) -> valTupleSet tup i =<< valTupleIdx val i
-            else do
-                assert (length xs == 1) "Invalid tuple constructor"
-                void $ valTupleSet tup 0 val
-        vals -> do
-            assert (length vals == length xs) "Invalid number of args"
-            forM_ (zip xs [0..]) $ \((s, t), i) -> valTupleSet tup i (vals !! i)
-    return tup
-
 
             
 
