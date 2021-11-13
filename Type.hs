@@ -17,7 +17,6 @@ data Type
     | Table [Type]
     | ADT [(String, Type)]
     | Typedef String
-    | Named String Type
     deriving (Eq, Ord)
 
 
@@ -37,46 +36,31 @@ instance Show Type where
         Table ts      -> "[" ++ intercalate "; " (map show ts) ++ "]"
         ADT ts        -> "{" ++ intercalate ", " (map show ts) ++ "}"
         Typedef s     -> s
-        Named s t     -> s ++ ":" ++ show t
 
 
-unNamed (Named s t)   = t
-unNamed t             = t
+isInt x               = x `elem` [I8, I16, I32, I64]
 
-isInt (Named _ t)     = isInt t
-isInt x               = (unNamed x) `elem` [I8, I16, I32, I64]
+isFloat x             = x `elem` [F32, F64]
 
-isFloat (Named _ t)   = isFloat t
-isFloat x             = (unNamed x) `elem` [F32, F64]
-
-isArray (Named _ t)   = isArray t
 isArray (Array _ _)   = True
 isArray _             = False
 
-isTuple (Named _ t)   = isTuple t
 isTuple (Tuple _)     = True
 isTuple _             = False
 
-isTable (Named _ t)   = isTable t
 isTable (Table _)     = True
 isTable _             = False
 
-isTypedef (Named _ t) = isTypedef t
 isTypedef (Typedef _) = True
 isTypedef _           = False
 
-isADT (Named _ t) = isADT t
 isADT (ADT _) = True
 isADT _           = False
 
-isIntegral (Named _ t) = isIntegral t
 isIntegral x           = isInt x || x == Char
 
-isBase (Named _ t)    = isBase t
 isBase x              = isInt x || isFloat x || x == Char || x == Bool
 
-isSimple (Named _ t)  = isSimple t
 isSimple x            = isBase x
 
-isAggregate (Named _ t) = isAggregate t
 isAggregate x           = isTuple x || isArray x || isTable x || isADT x

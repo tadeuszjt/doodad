@@ -208,7 +208,6 @@ checkTypesMatch typA typB
 baseTypeOf :: ModCmp CompileState m => Type -> m Type
 baseTypeOf typ = case typ of
     Typedef s -> do ObType t _ <- look s KeyType; baseTypeOf t
-    Named s t -> baseTypeOf t
     _         -> return typ
 
 
@@ -224,7 +223,6 @@ pureTypeOf typ = case typ of
             t' <- pureTypeOf t
             return (s, t')
         return (ADT xs')
-    Named n t        -> pureTypeOf t
     _ | isSimple typ -> return typ
     _                -> error (show typ)
 
@@ -257,7 +255,6 @@ opTypeOf typ = case typ of
     Bool      -> return LL.i1
     Tuple ts  -> LL.StructureType False <$> mapM opTypeOf ts
     Array n t -> LL.ArrayType (fromIntegral n) <$> opTypeOf t
-    Named n t -> opTypeOf t
     ADT []    -> error ""
     ADT [t]   -> return (LL.ptr LL.i8)
     ADT ts    -> return $ LL.StructureType False [LL.i64, LL.ptr LL.i8]
