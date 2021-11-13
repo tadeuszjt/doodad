@@ -4,6 +4,7 @@ module Compile where
 
 import Data.List
 import Data.Maybe
+import qualified Data.Set as Set
 import qualified Data.Map as Map
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.ByteString.Short as BSS
@@ -72,6 +73,7 @@ cmpTypeDef (S.Typedef pos sym typ) = withPos pos $ do
         checkSymKeyUndef sym key
         addObj sym key (ObjConstructor typdef)
 
+    -- use named type
     if isTuple typ || isTable typ || isADT typ
     then do
         name <- freshName (mkBSS sym)
@@ -82,18 +84,33 @@ cmpTypeDef (S.Typedef pos sym typ) = withPos pos $ do
         checkSymKeyUndef sym KeyType
         addObj sym KeyType $ ObType typ Nothing
 
-    case typ of
-        ADT ts -> do
-            forM_ ts $ \t -> case t of
-                Named s t -> do
-                    checkSymKeyUndef s (KeyFunc [ADT [t]])
-                    addObj s (KeyFunc [t]) (ObjPtrFieldCons typdef)
-                t -> do
-                    checkSymKeyUndef sym (KeyFunc [t])
-                    addObj sym (KeyFunc [t]) (ObjConstructor typdef)
+    if isADT typ
+    then do
+        let ADT xs = typ
+        assert (length (Set.fromList xs) == length xs) "ADT fields must be unique"
 
+        forM_ xs $ \(s, t) -> case s of
+            "" -> do
+                -- Construct ADT from type: SpecialInt(32)
+                checkSymKeyUndef sym (KeyFunc [t])
+                addObj sym (KeyFunc [t]) (ObjConstructor typdef)
+            s -> do
+                -- Construct ADT field from type: SpecialIntField7(31)
+                checkSymKeyUndef s (KeyFunc [t])
+                addObj s (KeyFunc [t]) (ObjPtrFieldCons typdef)
+    else return ()
 
-        _ -> return ()
+--    case typ of
+--        ADT xs -> do
+--            error "why"
+--            forM_ xs $ \(s, t) -> case t of
+--                Named s t -> do
+--                    checkSymKeyUndef s (KeyFunc [ADT [t]])
+--                    addObj s (KeyFunc [t]) (ObjPtrFieldCons typdef)
+--                t -> do
+--                    checkSymKeyUndef sym (KeyFunc [t])
+--                    addObj sym (KeyFunc [t]) (ObjConstructor typdef)
+
 
 
 cmpVarDef :: InsCmp CompileState m => S.Stmt -> m ()
@@ -326,9 +343,9 @@ cmpExpr expr = case expr of
         vals <- mapM cmpExpr exprs
         res <- look sym $ KeyFunc (map valType vals)
         case res of
-            ObjConstructor typ   -> valConstruct typ vals
-            ObjPtrFieldCons  typ -> adtConstructField sym typ vals
-            _                    -> do
+            ObjConstructor typ     -> valConstruct typ vals
+            ObjPtrFieldCons adtTyp -> adtConstructField sym adtTyp vals
+            _                      -> do
                 (op, typ) <- case res of
                     ObjFunc Void _     -> err "cannot use void function as expression"
                     ObjExtern _ Void _ -> err "cannot use void function as expression"
@@ -415,11 +432,14 @@ cmpPattern pat val = case pat of
     S.PatIgnore pos -> return (valBool True)
 
     S.PatLiteral (S.Null pos) -> withPos pos $ do
-        ADT ts <- assertBaseType isADT (valType val)
-        let ns = filter ((== Void) . unNamed) ts
-        assert (length ns == 1) "adt type does not support a unique null value"
+        ADT xs <- assertBaseType isADT (valType val)
+
+        let is = [ i | (("", Void), i) <- zip xs [0..] ]
+        assert (length is == 1) "adt type does not support a unique null value"
+        let i = head is
+
         en <- adtEnum val
-        valsInfix S.EqEq en $ valI64 $ fromJust $ elemIndex (head ns) ts
+        valsInfix S.EqEq en (valI64 i)
 
     S.PatLiteral expr -> valsInfix S.EqEq val =<< cmpExpr expr
 
@@ -470,25 +490,21 @@ cmpPattern pat val = case pat of
         cmpPattern (S.PatSplit pos arrPat rest) val
 
     S.PatTyped pos typ pat -> withPos pos $ do
-        ADT ts <- assertBaseType isADT (valType val)
+        -- switch(tok)                 <- val
+        --    string(s); do_stuff(s)   <- use raw type
+        --    TokSym(s); do_stuff(s)   <- use field name
+        ADT xs <- assertBaseType isADT (valType val)
 
-        ns <- fmap catMaybes $ forM ts $ \t -> case t of
-            Named n t -> case typ of
-                Typedef s -> return (if s == n then Just (Named n t) else Nothing)
-                _         -> return Nothing
-            t -> return (if t == typ then Just t else Nothing)
-
-
-        assert (length ns == 1) "invalid field name"
-        let t = head ns
+        let is = [ i | ((s, t), i) <- zip xs [0..], (s == "" && t == typ) || (Typedef s == typ) ]
+        assert (length is == 1) "invalid ATD field identifier"
+        let i = head is
 
         en <- adtEnum val
-        b <- valsInfix S.EqEq en $ valI64 $ fromJust (elemIndex t ts)
+        b <- valsInfix S.EqEq en (valI64 i)
 
-        loc <- valLocal (ADT [unNamed t])
+        loc <- valLocal $ ADT [xs !! i]
         adtSetPi8 loc =<< adtPi8 val
         val <- adtDeref loc
-
         valsInfix S.AndAnd b =<< cmpPattern pat val
     
     _ -> error (show pat)
@@ -508,28 +524,28 @@ cmpPrint (S.Print pos exprs) = withPos pos $ do
 valConstruct :: InsCmp CompileState m => Type -> [Value] -> m Value
 valConstruct typ []                         = zeroOf typ
 valConstruct typ [val] | typ == valType val = valLoad val
-valConstruct typ [val']                      = do
-    val <- valLoad val'
+valConstruct typ [val]                      = do
+    val' <- valLoad val
     base <- baseTypeOf typ
     case base of
-        I32 -> case val of
+        I32 -> case val' of
             Val I64 op -> Val base <$> trunc op LL.i32
             Val I8 op  -> Val base <$> sext op LL.i32
 
-        I64 -> case val of
+        I64 -> case val' of
             Val Char op -> Val base <$> sext op LL.i64
 
-        Char -> case val of
+        Char -> case val' of
             Val I64 op -> Val base <$> trunc op LL.i8
             Val I32 op -> Val base <$> trunc op LL.i8
-            _          -> error (show val)
+            _          -> error (show val')
 
-        ADT _   -> adtConstruct typ val
+        ADT _   -> adtConstruct typ val'
         _           -> do
             pureType    <- pureTypeOf typ
-            pureValType <- pureTypeOf (valType val)
+            pureValType <- pureTypeOf (valType val')
             checkTypesMatch pureType pureValType
-            Val typ <$> valOp <$> valLoad val
+            Val typ <$> valOp <$> valLoad val'
 
 
 valAsType :: InsCmp CompileState m => Type -> Value -> m Value

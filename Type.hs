@@ -15,7 +15,7 @@ data Type
     | Tuple [Type]
     | Array Int Type
     | Table [Type]
-    | ADT [Type]
+    | ADT [(String, Type)]
     | Typedef String
     | Named String Type
     deriving (Eq, Ord)

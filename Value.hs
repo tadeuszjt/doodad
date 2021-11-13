@@ -219,7 +219,11 @@ pureTypeOf typ = case typ of
     Table ts         -> Table   <$> mapM pureTypeOf ts
     Tuple ts         -> Tuple   <$> mapM pureTypeOf ts
     Array n t        -> Array n <$> pureTypeOf t
-    ADT ts           -> ADT     <$> mapM pureTypeOf ts
+    ADT xs           -> do --ADT     <$> mapM pureTypeOf ts
+        xs' <- forM xs $ \(s, t) -> do
+            t' <- pureTypeOf t
+            return (s, t')
+        return (ADT xs')
     Named n t        -> pureTypeOf t
     _ | isSimple typ -> return typ
     _                -> error (show typ)
@@ -232,7 +236,7 @@ zeroOf typ = case typ of
     Char          -> return (valChar '\0')
     Typedef sym   -> Val typ . valOp <$> (zeroOf =<< baseTypeOf typ)
     Array n t     -> Val typ . array . replicate n . toCons . valOp <$> zeroOf t
-    ADT [t]       -> Val typ . cons . C.Null . LL.ptr <$> opTypeOf t
+    ADT [(s, t)]  -> Val typ . cons . C.Null . LL.ptr <$> opTypeOf t -- ADT with one type, has no enum
     Tuple ts      -> Val typ . struct Nothing False . map (toCons . valOp) <$> mapM zeroOf ts
 
     Table ts      -> do

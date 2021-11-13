@@ -35,23 +35,23 @@ valPrint append val = case unNamed (valType val) of
             Ptr t loc -> valPrint (")" ++ append) (Ptr base loc)
             Val t op  -> valPrint (")" ++ append) (Val base op)
 
-    ADT [t] -> do
+    ADT [(s, t)] -> do
         void $ printf (show (valType val) ++ "{") []
         void . printf ("%p}" ++ append) . (:[]) . valOp =<< valLoad val
-
-    ADT ts -> do
-        en <- adtEnum val
-
-        let cases = (flip map) (zip ts [0..]) $ \(t, i) ->
-                let b = valOp <$> valsInfix S.EqEq en (valI64 i) in
-                let s = do
-                    case t of
-                        Void      -> printf "null" [] >> return ()
-                        Named n _ -> printf (n ++ "(") [] >> adtConstruct (ADT [t]) val >>= adtDeref >>= valPrint "("
-                        t         -> valPrint "" =<< adtDeref =<< adtConstruct (ADT [t]) val
-                in (b, s)
-
-        switch_ cases >> printf append [] >> return ()
+--
+--    ADT xs -> do
+--        en <- adtEnum val
+--
+--        let cases = (flip map) (zip ts [0..]) $ \(t, i) ->
+--                let b = valOp <$> valsInfix S.EqEq en (valI64 i) in
+--                let s = do
+--                    case t of
+--                        Void      -> printf "null" [] >> return ()
+--                        Named n _ -> printf (n ++ "(") [] >> adtConstruct (ADT [t]) val >>= adtDeref >>= valPrint "("
+--                        t         -> valPrint "" =<< adtDeref =<< adtConstruct (ADT [t]) val
+--                in (b, s)
+--
+--        switch_ cases >> printf append [] >> return ()
 
     Tuple ts -> do
         printf "(" []

@@ -244,10 +244,10 @@ rowTypes_     : type_                    { [$1] }
               | type_ ';' rowTypes_      { $1 : $3 }
 
 
-ptrType : type_                 { $1 }
-        | null                  { T.Void }
-        | ident  type_          { T.Named (tokStr $1) $2 }
-        | ident  null           { T.Named (tokStr $1) T.Void }
+ptrType : type_                 { ("", $1) }
+        | null                  { ("", T.Void) }
+        | ident  type_          { (tokStr $1, $2) }
+        | ident  null           { (tokStr $1, T.Void) }
 ptrTypes : ptrType              { [$1] }
          | ptrType '|' ptrTypes { $1 : $3 }
          | ptrType 'N' ptrTypes { $1 : $3 }
