@@ -12,7 +12,7 @@ data Type
     | F64                    -- 
     | Bool                   --
     | Char                   --
-    | Tuple [Type]
+    | Tuple [(String, Type)]
     | Array Int Type
     | Table [Type]
     | ADT [(String, Type)]
@@ -54,13 +54,13 @@ isTable _             = False
 isTypedef (Typedef _) = True
 isTypedef _           = False
 
-isADT (ADT _) = True
-isADT _           = False
+isADT (ADT _)         = True
+isADT _               = False
 
-isIntegral x           = isInt x || x == Char
+isIntegral x  = isInt x || x == Char
 
-isBase x              = isInt x || isFloat x || x == Char || x == Bool
+isBase x      = isInt x || isFloat x || x == Char || x == Bool
 
-isSimple x            = isBase x
+isSimple x    = isBase x
 
-isAggregate x           = isTuple x || isArray x || isTable x || isADT x
+isAggregate x = isTuple x || isArray x || isTable x || isADT x

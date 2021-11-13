@@ -3,6 +3,7 @@ module main
 imports std/strings
 imports std/io
 imports lang/lexer
+imports std/vec2
 
 fn main()
     let str = ""
@@ -29,4 +30,9 @@ fn main()
                     TokIdent(s)   ; print("ident  ", s)
                     TokString(s)  ; print("string ", s)
                     TokKeyword(s) ; print("keyword", s)
+
+
+    let v = Vec2(32.0, 3.0)
+    let b = Vec2(1.0, 4.0)
+    print(v + b)
 

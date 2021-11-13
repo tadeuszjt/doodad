@@ -39,18 +39,16 @@ import Funcs
 import Table
 import ADT
 
-mkBSS = BSS.toShort . BS.pack
-
-
 compileFlatState
     :: BoM s m
     => Context
     -> Ptr FFI.DataLayout
     -> Map.Map S.Path CompileState
     -> F.FlattenState
+    -> S.Symbol
     -> m CompileState
-compileFlatState ctx dl imports flatState = do
-    res <- runBoMT (initCompileState ctx dl imports) (runModuleCmpT emptyModuleBuilder cmp)
+compileFlatState ctx dl imports flatState modName = do
+    res <- runBoMT (initCompileState ctx dl imports modName) (runModuleCmpT emptyModuleBuilder cmp)
     case res of
         Left err                 -> throwError err
         Right ((_, defs), state) -> return $ state { definitions = defs }
@@ -69,6 +67,7 @@ cmpTypeDef :: InsCmp CompileState m => S.Stmt -> m ()
 cmpTypeDef (S.Typedef pos sym typ) = withPos pos $ do
     let typdef = Typedef sym
 
+    -- Add zero, base and def constructors
     forM_ [KeyFunc [], KeyFunc [typ], KeyFunc [typdef]] $ \key -> do
         checkSymKeyUndef sym key
         addObj sym key (ObjConstructor typdef)
@@ -76,7 +75,7 @@ cmpTypeDef (S.Typedef pos sym typ) = withPos pos $ do
     -- use named type
     if isTuple typ || isTable typ || isADT typ
     then do
-        name <- freshName (mkBSS sym)
+        name <- myFresh sym
         addSymKeyDec sym KeyType name . DecType =<< opTypeOf typ
         checkSymKeyUndef sym KeyType
         addObj sym KeyType $ ObType typ (Just name)
@@ -84,6 +83,7 @@ cmpTypeDef (S.Typedef pos sym typ) = withPos pos $ do
         checkSymKeyUndef sym KeyType
         addObj sym KeyType $ ObType typ Nothing
 
+    -- Add specific constructors
     if isADT typ
     then do
         let ADT xs = typ
@@ -91,25 +91,25 @@ cmpTypeDef (S.Typedef pos sym typ) = withPos pos $ do
 
         forM_ xs $ \(s, t) -> case s of
             "" -> do
-                -- Construct ADT from type: SpecialInt(32)
+                -- Construct ADT from type: Token("str")
                 checkSymKeyUndef sym (KeyFunc [t])
                 addObj sym (KeyFunc [t]) (ObjConstructor typdef)
             s -> do
-                -- Construct ADT field from type: SpecialIntField7(31)
+                -- Construct ADT field from type: TokSym("str")
                 checkSymKeyUndef s (KeyFunc [t])
                 addObj s (KeyFunc [t]) (ObjPtrFieldCons typdef)
     else return ()
 
---    case typ of
---        ADT xs -> do
---            error "why"
---            forM_ xs $ \(s, t) -> case t of
---                Named s t -> do
---                    checkSymKeyUndef s (KeyFunc [ADT [t]])
---                    addObj s (KeyFunc [t]) (ObjPtrFieldCons typdef)
---                t -> do
---                    checkSymKeyUndef sym (KeyFunc [t])
---                    addObj sym (KeyFunc [t]) (ObjConstructor typdef)
+    if isTuple typ
+    then do
+        let Tuple xs = typ
+        let ts = map snd xs
+        if length ts > 0
+        then do
+            checkSymKeyUndef sym (KeyFunc ts)
+            addObj sym (KeyFunc ts) (ObjConstructor typdef)
+        else return ()
+    else return ()
 
 
 
@@ -118,7 +118,7 @@ cmpVarDef (S.Assign pos (S.PatIdent p sym) expr) = do
     val <- cmpExpr expr
 
     checkSymKeyUndef sym KeyVar
-    name <- freshName (mkBSS sym)
+    name <- myFresh sym
     
     let typ = valType val
     opTyp <- opTypeOf typ
@@ -162,7 +162,7 @@ cmpFuncHdr (S.Func pos "main" params retty blk) = return ()
 cmpFuncHdr (S.Func pos sym params retty blk)    = withPos pos $ do
     let key = KeyFunc (map S.paramType params)
     checkSymKeyUndef sym key
-    name <- freshName (mkBSS sym)
+    name <- myFresh sym
 
     paramOpTypes <- mapM (opTypeOf . S.paramType) params
     returnOpType <- opTypeOf retty
@@ -308,6 +308,7 @@ cmpStmt stmt = case stmt of
 exprIsContextual :: S.Expr -> Bool
 exprIsContextual expr = case expr of
     S.Int _ _                              -> True
+    S.Float _ _                            -> True
     S.Tuple _ es | any exprIsContextual es -> True
     S.Null _                               -> True
     S.Table _ ess | any null ess           -> True
@@ -342,18 +343,24 @@ cmpExpr expr = case expr of
     S.Call pos sym exprs -> withPos pos $ do
         vals <- mapM cmpExpr exprs
         res <- look sym $ KeyFunc (map valType vals)
+
+        if sym == "+" && valType (vals !! 0) == Typedef "Vec2"
+        then do
+            --error (show vals)
+            return ()
+        else return ()
+
         case res of
+            ObjFunc Void _         -> err "cannot use void function as expression"
+            ObjExtern _ Void _     -> err "cannot use void function as expression"
             ObjConstructor typ     -> valConstruct typ vals
             ObjPtrFieldCons adtTyp -> adtConstructField sym adtTyp vals
-            _                      -> do
-                (op, typ) <- case res of
-                    ObjFunc Void _     -> err "cannot use void function as expression"
-                    ObjExtern _ Void _ -> err "cannot use void function as expression"
-                    ObjFunc typ op     -> return (op, typ)
-                    ObjExtern _ typ op -> return (op, typ)
-
+            ObjFunc retty op       -> do
                 vals' <- mapM valLoad vals
-                Val typ <$> call op [(o, []) | o <- map valOp vals']
+                Val retty <$> call op [(o, []) | o <- map valOp vals']
+            ObjExtern _ retty op     -> do
+                vals' <- mapM valLoad vals
+                Val retty <$> call op [(o, []) | o <- map valOp vals']
 
 
     S.Len pos expr -> withPos pos $ valLoad =<< do
@@ -366,7 +373,7 @@ cmpExpr expr = case expr of
     S.Tuple pos [expr] -> withPos pos (cmpExpr expr)
     S.Tuple pos exprs -> withPos pos $ do
         vals <- mapM cmpExpr exprs
-        tup <- valLocal $ Tuple (map valType vals)
+        tup <- valLocal $ Tuple [ ("", valType v) | v <- vals ]
         zipWithM_ (valTupleSet tup) [0..] vals
         valLoad tup
 
@@ -413,7 +420,11 @@ cmpExpr expr = case expr of
         zipWithM_ (tableSetRow tab) [0..] rows
         return tab
 
-    _ -> err "invalid expression"
+    S.Member pos exp sym -> withPos pos $ do
+        val <- cmpExpr exp
+        valTupleMember val sym
+
+    _ -> err ("invalid expression: " ++ show expr)
 
 
 cmpCondition :: InsCmp CompileState m => S.Condition -> m Value
@@ -546,23 +557,25 @@ valConstruct typ [val]                      = do
             pureValType <- pureTypeOf (valType val')
             checkTypesMatch pureType pureValType
             Val typ <$> valOp <$> valLoad val'
+valConstruct typ vals = valTupleConstruct typ vals
 
 
 valAsType :: InsCmp CompileState m => Type -> Value -> m Value
 valAsType typ val = case val of
     Val _ _       -> checkTypesMatch typ (valType val) >> return val
     Ptr _ _       -> checkTypesMatch typ (valType val) >> return val
+    Exp (S.Int _ n) -> return $ valInt typ n
     Exp (S.Null _)-> adtNull typ
     Exp (S.Table _ [[]]) -> do
         Table ts <- assertBaseType isTable typ
         zeroOf typ
     Exp (S.Tuple _ es) -> do
-        Tuple ts <- assertBaseType isTuple typ
+        Tuple xs <- assertBaseType isTuple typ
 
-        assert (length es == length ts) ("does not satisfy " ++ show typ)
-        vals <- forM (zip ts es) $ \(t, e) ->
+        assert (length es == length xs) ("does not satisfy " ++ show typ)
+        vals <- forM (zip xs es) $ \((s, t), e) ->
             valAsType t =<< cmpExpr e 
 
         tup <- valLocal typ
-        zipWithM_ (valTupleSet tup) [0..] =<< zipWithM valAsType ts vals
+        zipWithM_ (valTupleSet tup) [0..] =<< zipWithM (valAsType . snd) xs vals
         return tup

@@ -41,6 +41,9 @@ valInt I64 n = Val I64 $ int64 (fromIntegral n)
 valI64 :: Integral i => i -> Value
 valI64 = valInt I64 
 
+valF64 :: Double -> Value
+valF64 f = Val F64 (double f)
+
 
 valChar :: Char -> Value
 valChar c = Val Char (int8 $ fromIntegral $ fromEnum c)
@@ -54,15 +57,17 @@ valLoad :: InsCmp s m => Value -> m Value
 valLoad (Val typ op)      = return (Val typ op)
 valLoad (Ptr typ loc)     = Val typ <$> load loc 0
 valLoad (Exp (S.Int _ n)) = return (valI64 n)
+valLoad (Exp (S.Float _ f)) = return (valF64 f)
 
 
 valStore :: InsCmp CompileState m => Value -> Value -> m ()
 valStore (Ptr typ loc) val = do
     checkTypesMatch typ (valType val)
     case val of
-        Ptr t l         -> store loc 0 =<< load l 0
-        Val t o         -> store loc 0 o
-        Exp (S.Int _ n) -> valStore (Ptr typ loc) =<< valLoad val
+        Ptr t l           -> store loc 0 =<< load l 0
+        Val t o           -> store loc 0 o
+        Exp (S.Int _ n)   -> valStore (Ptr typ loc) =<< valLoad val
+        Exp (S.Float _ f) -> valStore (Ptr typ loc) =<< valLoad val
 
 
 valSelect :: InsCmp CompileState m => Value -> Value -> Value -> m Value
@@ -121,6 +126,8 @@ valsInfix operator a b = do
                 S.EqEq   -> Val Bool <$> icmp P.EQ opA opB
                 S.NotEq  -> Val Bool <$> icmp P.NE opA opB
                 _        -> error ("int infix: " ++ show operator)
+            | isFloat base = case operator of
+                S.Plus   -> Val typ <$> fadd opA opB
             | typ == Bool = case operator of
                 S.OrOr   -> Val Bool <$> or opA opB
                 S.AndAnd -> Val Bool <$> and opA opB
@@ -155,13 +162,48 @@ valTupleSet tup i val = do
             Val (valType tup) <$> insertValue (valOp tup) op [fromIntegral i]
 
 
+valTupleMember :: InsCmp CompileState m => Value -> String -> m Value
+valTupleMember tup sym = do
+    Tuple xs <- assertBaseType isTuple (valType tup)
+    let is = [ i | ((s, t), i) <- zip xs [0..], s == sym ]
+
+    assert (length is == 1) $ "tuple has ambigous member: " ++ (show $ fst $ head xs)
+    let i = head is
+    valTupleIdx tup i
+
+
 valTupleIdx :: InsCmp CompileState m => Value -> Int -> m Value
 valTupleIdx tup i = do
-    Tuple ts <- assertBaseType isTuple (valType tup)
+    Tuple xs <- assertBaseType isTuple (valType tup)
     case tup of
-        Ptr _ loc          -> Ptr (ts !! i) <$> gep loc [int32 0, int32 $ fromIntegral i]
-        Val _ op           -> Val (ts !! i) <$> extractValue op [fromIntegral i]
+        Ptr _ loc          -> Ptr (snd $ xs !! i) <$> gep loc [int32 0, int32 $ fromIntegral i]
+        Val _ op           -> Val (snd $ xs !! i) <$> extractValue op [fromIntegral i]
         Exp (S.Tuple _ es) -> return $ Exp (es !! i)
+
+
+valTupleConstruct :: InsCmp CompileState m => Type -> [Value] -> m Value
+valTupleConstruct tupTyp vals = do
+    Tuple xs <- assertBaseType isTuple tupTyp
+    tup <- valLocal tupTyp
+    case vals of
+        []    -> return ()
+        [val] -> do
+            pureVal <- pureTypeOf (valType val)
+            pureTup <- pureTypeOf tupTyp
+            if pureVal == pureTup
+            then do -- contructing from another tuple
+                forM_ (zip xs [0..]) $ \((s, t), i) -> valTupleSet tup i =<< valTupleIdx val i
+            else do
+                assert (length xs == 1) "Invalid tuple constructor"
+                void $ valTupleSet tup 0 val
+        vals -> do
+            assert (length vals == length xs) "Invalid number of args"
+            forM_ (zip xs [0..]) $ \((s, t), i) -> valTupleSet tup i (vals !! i)
+    return tup
+
+
+            
+
 
 
 valArrayIdx :: InsCmp CompileState m => Value -> Value -> m Value
@@ -216,7 +258,11 @@ pureTypeOf typ = case typ of
     Void             -> return Void
     Typedef s        -> do ObType t _ <- look s KeyType; pureTypeOf t
     Table ts         -> Table   <$> mapM pureTypeOf ts
-    Tuple ts         -> Tuple   <$> mapM pureTypeOf ts
+    Tuple xs         -> do
+        xs' <- forM xs $ \(s, t) -> do
+            t' <- pureTypeOf t
+            return (s, t')
+        return (Tuple xs')
     Array n t        -> Array n <$> pureTypeOf t
     ADT xs           -> do --ADT     <$> mapM pureTypeOf ts
         xs' <- forM xs $ \(s, t) -> do
@@ -230,12 +276,13 @@ pureTypeOf typ = case typ of
 zeroOf :: ModCmp CompileState m => Type -> m Value
 zeroOf typ = case typ of
     _ | isInt typ -> return (valInt typ 0)
+    F64           -> return $ Val F64 (double 0.0)
     Bool          -> return (valBool False)
     Char          -> return (valChar '\0')
     Typedef sym   -> Val typ . valOp <$> (zeroOf =<< baseTypeOf typ)
     Array n t     -> Val typ . array . replicate n . toCons . valOp <$> zeroOf t
     ADT [(s, t)]  -> Val typ . cons . C.Null . LL.ptr <$> opTypeOf t -- ADT with one type, has no enum
-    Tuple ts      -> Val typ . struct Nothing False . map (toCons . valOp) <$> mapM zeroOf ts
+    Tuple xs      -> Val typ . struct Nothing False . map (toCons . valOp) <$> mapM (zeroOf . snd) xs
 
     Table ts      -> do
         let zi64 = toCons (int64 0)
@@ -251,20 +298,19 @@ opTypeOf typ = case typ of
     I16       -> return LL.i16
     I32       -> return LL.i32
     I64       -> return LL.i64
+    F64       -> return LL.double
     Char      -> return LL.i8
     Bool      -> return LL.i1
-    Tuple ts  -> LL.StructureType False <$> mapM opTypeOf ts
+    Tuple xs  -> LL.StructureType False <$> mapM (opTypeOf . snd) xs
     Array n t -> LL.ArrayType (fromIntegral n) <$> opTypeOf t
     ADT []    -> error ""
     ADT [t]   -> return (LL.ptr LL.i8)
     ADT ts    -> return $ LL.StructureType False [LL.i64, LL.ptr LL.i8]
     Table ts  -> LL.StructureType False . ([LL.i64, LL.i64] ++) . map LL.ptr <$> mapM opTypeOf ts
-
     Typedef s -> do
         ObType t namem <- look s KeyType
         maybe (opTypeOf t) (return . LL.NamedTypeReference) namem
-
-    _ -> error (show typ) 
+    _         -> error (show typ) 
 
 
 sizeOf :: InsCmp CompileState m => Type -> m Int

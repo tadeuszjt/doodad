@@ -20,8 +20,9 @@ import ADT
 
 valPrint :: InsCmp CompileState m => String -> Value -> m ()
 valPrint append val = case valType val of
-    t | isInt t -> void . printf ("%ld" ++ append) . (:[]) . valOp =<< valLoad val
-    Char        -> void . printf ("%c" ++ append) . (:[]) . valOp =<< valLoad val
+    t | isInt t   -> void . printf ("%ld" ++ append) . (:[]) . valOp =<< valLoad val
+    t | isFloat t -> void . printf ("%f" ++ append) . (:[]) . valOp =<< valLoad val
+    Char          -> void . printf ("%c" ++ append) . (:[]) . valOp =<< valLoad val
 
     Bool -> do
         op <- valOp <$> valLoad val

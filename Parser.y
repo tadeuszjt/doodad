@@ -230,19 +230,20 @@ typeOrdinal   : bool                     { T.Bool }
               | char                     { T.Char }
               | string                   { T.Table [T.Char] }
 typeAggregate : '[' intlit ':' type_ ']' { T.Array (read $ tokStr $2) $4 }
-              | '(' types ')'            { T.Tuple $2 }
+              | '(' tupTypes ')'         { T.Tuple $2 }
               | '[' rowTypes_ ']'        { T.Table $2 }
               | '{' ptrTypes '}'         { T.ADT $2 }
               | '{' 'I' ptrTypes 'D' '}' { T.ADT $3 }
 
-types         : {- empty -}              { [] }
-              | types_                   { $1 }
-types_        : type_                    { [$1] }
-              | type_ ',' types_         { $1 : $3 }
+tupTypes  : {-empty -}           { [] }
+          | tupTypes_            { $1 }
+tupTypes_ : tupType              { [$1] }
+          | tupType ',' tupTypes { $1 : $3 }
+tupType   : type_                { ("", $1) }
+          | ident ':' type_      { (tokStr $1, $3) }
 
 rowTypes_     : type_                    { [$1] }
               | type_ ';' rowTypes_      { $1 : $3 }
-
 
 ptrType : type_                 { ("", $1) }
         | null                  { ("", T.Void) }

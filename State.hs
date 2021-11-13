@@ -1,6 +1,8 @@
 {-# LANGUAGE FlexibleContexts #-}
 module CompileState where
 
+import qualified Data.ByteString.Char8 as BS
+import qualified Data.ByteString.Short as BSS
 import qualified Data.Set as Set
 import qualified Data.Map as Map
 import Data.Maybe
@@ -29,6 +31,7 @@ import Error
 
 
 
+
 data Value
     = Val T.Type Operand
     | Ptr T.Type Operand
@@ -38,7 +41,8 @@ data Value
 valType (Val t op)           = t
 valType (Ptr t op)           = t
 valType (Exp (S.Int _ _))    = T.I64
-valType (Exp (S.Tuple _ es)) = T.Tuple $ map (valType . Exp) es
+valType (Exp (S.Float _ _))  = T.F64
+valType (Exp (S.Tuple _ es)) = T.Tuple [ ("", (valType . Exp) e) | e <- es ]
 valType x = error (show x)
 
 valOp (Val t op)   = op
@@ -49,7 +53,6 @@ data SymKey
     = KeyType
     | KeyVar
     | KeyFunc [T.Type]
-    | KeyExtern
     deriving (Show, Eq, Ord)
 
 
@@ -83,10 +86,11 @@ data CompileState
         , definitions  :: [Definition]
         , symTab       :: SymTab.SymTab S.Symbol SymKey Object
         , curRetType   :: T.Type
+        , curModName   :: String
         , posStack     :: [TextPos]
         }
 
-initCompileState ctx dl imports
+initCompileState ctx dl imports modName
      = CompileState
         { context      = ctx
         , dataLayout   = dl
@@ -97,8 +101,18 @@ initCompileState ctx dl imports
         , definitions  = []
         , symTab       = SymTab.initSymTab
         , curRetType   = T.Void
+        , curModName   = modName
         , posStack     = []
         }
+
+
+mkBSS = BSS.toShort . BS.pack
+
+
+myFresh :: InsCmp CompileState m => String -> m Name
+myFresh sym = do
+    mod <- gets curModName
+    freshName $ mkBSS (mod ++ "." ++ sym)
 
 
 assert :: BoM CompileState m => Bool -> String -> m ()

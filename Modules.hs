@@ -95,7 +95,7 @@ runMod args visited modPath = do
             -- compile and run
             debug "compiling"
             session <- gets session
-            cmpRes <- runBoMT () $ compileFlatState (JIT.context session) (JIT.dataLayout session) imports flat
+            cmpRes <- runBoMT () $ compileFlatState (JIT.context session) (JIT.dataLayout session) imports flat name
             state <- case cmpRes of
                 Left (ErrorFile "" pos str) -> throwError $ ErrorFile (files !! textFile pos) pos str
                 Left (ErrorStr str)         -> throwError $ ErrorStr str
