@@ -75,7 +75,7 @@ tableGetElem tab idx = do
     tup <- valLocal $ Tuple [ ("", t) | t <- ts ]
     forM_ (zip ts [0..]) $ \(t, i) -> do
         row <- tableRow i tab
-        valTupleSet tup i =<< valPtrIdx row idx
+        tupleSet tup i =<< valPtrIdx row idx
 
     return tup
 
@@ -93,7 +93,7 @@ tableSetElem tab idx tup = do
     forM_ (zip ts [0..]) $ \(t, i) -> do
         row <- tableRow i tab
         ptr <- valPtrIdx row idx
-        valStore ptr =<< valTupleIdx i tup
+        valStore ptr =<< tupleIdx i tup
 
 
 tableRange :: InsCmp CompileState m => Value -> Value -> Value -> m Value

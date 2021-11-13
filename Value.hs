@@ -17,6 +17,7 @@ import LLVM.IRBuilder.Instruction
 import qualified LLVM.Internal.FFI.DataLayout as FFI
 import qualified LLVM.AST.Constant as C
 import qualified LLVM.AST.IntegerPredicate as P
+import qualified LLVM.AST.FloatingPointPredicate as P
 
 import qualified AST as S
 import Monad
@@ -65,18 +66,15 @@ valBool b = Val Bool (if b then bit 1 else bit 0)
 valLoad :: InsCmp s m => Value -> m Value
 valLoad (Val typ op)      = return (Val typ op)
 valLoad (Ptr typ loc)     = Val typ <$> load loc 0
-valLoad (Exp (S.Int _ n)) = return (valI64 n)
-valLoad (Exp (S.Float _ f)) = return (valF64 f)
+
 
 valStore :: InsCmp CompileState m => Value -> Value -> m ()
 valStore (Ptr typ loc) val = do
     assert (not $ valIsContextual val) "contextual 73"
     checkTypesMatch typ (valType val)
     case val of
-        Ptr t l           -> store loc 0 =<< load l 0
-        Val t o           -> store loc 0 o
-        Exp (S.Int _ n)   -> valStore (Ptr typ loc) =<< valLoad val
-        Exp (S.Float _ f) -> valStore (Ptr typ loc) =<< valLoad val
+        Ptr t l -> store loc 0 =<< load l 0
+        Val t o -> store loc 0 o
 
 
 valSelect :: InsCmp CompileState m => Value -> Value -> Value -> m Value
@@ -140,6 +138,10 @@ valsInfix operator a b = do
                 _        -> error ("int infix: " ++ show operator)
             | isFloat base = case operator of
                 S.Plus   -> Val typ <$> fadd opA opB
+                S.Minus  -> Val typ <$> fsub opA opB
+                S.Times  -> Val typ <$> fmul opA opB
+                S.Divide -> Val typ <$> fdiv opA opB
+                S.EqEq   -> Val Bool <$> fcmp P.OEQ opA opB
             | typ == Bool = case operator of
                 S.OrOr   -> Val Bool <$> or opA opB
                 S.AndAnd -> Val Bool <$> and opA opB

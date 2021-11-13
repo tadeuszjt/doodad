@@ -362,7 +362,7 @@ cmpExpr expr = case expr of
         vals <- mapM cmpExpr exprs
         assert (not $ any valIsContextual vals) "contextual 371"
         tup <- valLocal $ Tuple [ ("", valType v) | v <- vals ]
-        zipWithM_ (valTupleSet tup) [0..] vals
+        zipWithM_ (tupleSet tup) [0..] vals
         valLoad tup
 
     S.Subscript pos aggExpr idxExpr -> withPos pos $ valLoad =<< do
@@ -380,7 +380,7 @@ cmpExpr expr = case expr of
         assert (isInt idxType) "index type isn't an integer"
 
         case aggType of
-            Table [t] -> valTupleIdx 0 =<< tableGetElem agg idx
+            Table [t] -> tupleIdx 0 =<< tableGetElem agg idx
 
     S.Range pos expr mstart mend -> withPos pos $ do
         val <- cmpExpr expr
@@ -416,7 +416,7 @@ cmpExpr expr = case expr of
         zipWithM_ (tableSetRow tab) [0..] rows
         return tab
 
-    S.Member pos exp sym -> withPos pos $ valTupleMember sym =<< cmpExpr exp 
+    S.Member pos exp sym -> withPos pos $ tupleMember sym =<< cmpExpr exp 
 
     _ -> err ("invalid expression: " ++ show expr)
 
@@ -469,11 +469,11 @@ cmpPattern pat val = case pat of
     S.PatTuple pos pats -> withPos pos $ do
         b <- valIsTuple val
         assert b "expression isn't a tuple"
-        len <- valTupleLength val
+        len <- tupleLength val
         assert (len == length pats) "tuple pattern length mismatch"
 
         bs <- forM (zip pats [0..]) $ \(p, i) ->
-            cmpPattern p =<< valTupleIdx i val
+            cmpPattern p =<< tupleIdx i val
 
         foldM (valsInfix S.AndAnd) (valBool True) bs
 
@@ -487,7 +487,7 @@ cmpPattern pat val = case pat of
 
                 assert (length ts == 1) "patterns don't support multiple rows (yet)"
                 bs <- forM (zip pats [0..]) $ \(p, i) ->
-                    cmpPattern p =<< valTupleIdx 0 =<< tableGetElem val (valI64 i)
+                    cmpPattern p =<< tupleIdx 0 =<< tableGetElem val (valI64 i)
 
                 foldM (valsInfix S.AndAnd) (valBool True) (lenEq:bs)
             _ -> error (show base)
@@ -560,7 +560,7 @@ valConstruct typ [val]                                             = do
             pureValType <- pureTypeOf (valType val')
             checkTypesMatch pureType pureValType
             Val typ <$> valOp <$> valLoad val'
-valConstruct typ vals = valTupleConstruct typ vals
+valConstruct typ vals = tupleConstruct typ vals
 
 
 valAsType :: InsCmp CompileState m => Type -> Value -> m Value
@@ -580,5 +580,5 @@ valAsType typ val = case val of
             valAsType t =<< cmpExpr e 
 
         tup <- valLocal typ
-        zipWithM_ (valTupleSet tup) [0..] =<< zipWithM (valAsType . snd) xs vals
+        zipWithM_ (tupleSet tup) [0..] =<< zipWithM (valAsType . snd) xs vals
         return tup

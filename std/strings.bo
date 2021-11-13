@@ -47,6 +47,6 @@ fn strReverse(s string) string
     let i = len(s)
     while i > 0
         i = i - 1
-        r = append(r, s[i..i+1])
+        r = r + s[i..i+1]
 
     return r
