@@ -44,18 +44,18 @@ fn lexString(str string) (Token, string)
         switch rest
             "\n"  .. ss; return (null, str)
             "\\n" .. ss
-                s = append(s, "\n")
+                s = s + "\n"
                 rest = ss
             "\\0" .. ss
-                s = append(s, "\0")
+                s = s + "\0"
                 rest = ss
             "\\t" .. ss
-                s = append(s, "\t")
+                s = s + "\t"
                 rest = ss
             "\"" .. ss
                 return (TokString(s), ss)
             [c] .. ss
-                s = append(s, [c])
+                s = s + [c]
                 rest = ss
 
 

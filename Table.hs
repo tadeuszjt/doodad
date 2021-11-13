@@ -16,6 +16,12 @@ import Type
 import Tuple
 
 
+valIsTable :: InsCmp CompileState m => Value -> m Bool
+valIsTable (Exp (S.Table _ _)) = return True
+valIsTable (Exp _)             = return False
+valIsTable tab                 = isTable <$> baseTypeOf (valType tab)
+
+
 tableLen :: InsCmp CompileState m => Value -> m Value
 tableLen tab = do
     Table _ <- assertBaseType isTable (valType tab)
@@ -87,12 +93,19 @@ tableSetElem tab idx tup = do
     forM_ (zip ts [0..]) $ \(t, i) -> do
         row <- tableRow i tab
         ptr <- valPtrIdx row idx
-        valStore ptr =<< valTupleIdx tup i
+        valStore ptr =<< valTupleIdx i tup
 
 
 tableRange :: InsCmp CompileState m => Value -> Value -> Value -> m Value
-tableRange tab start end = do
-    Table ts <- assertBaseType isTable (valType tab)
+tableRange tab' start' end' = do
+    let tab = valResolveContextual tab'
+    let start = valResolveContextual start'
+    let end = valResolveContextual end'
+    b <- valIsTable tab'
+    assert b "isn't a table"
+
+    Table ts <- baseTypeOf (valType tab)
+
     assertBaseType isInt (valType start)
     assertBaseType isInt (valType end)
 

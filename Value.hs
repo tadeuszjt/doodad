@@ -32,6 +32,15 @@ assertBaseType f typ = do
     return base
 
 
+valResolveContextual :: Value -> Value
+valResolveContextual val = case val of
+    Exp (S.Int p n)   -> valI64 n
+    Exp (S.Float p f) -> valF64 f
+    Exp _             -> error "don't know"
+    Ptr _ _           -> val
+    Val _ _           -> val
+
+
 valInt :: Integral i => Type -> i -> Value
 valInt I8 n  = Val I8  $ int8  (fromIntegral n)
 valInt I32 n = Val I32 $ int32 (fromIntegral n)
@@ -59,9 +68,9 @@ valLoad (Ptr typ loc)     = Val typ <$> load loc 0
 valLoad (Exp (S.Int _ n)) = return (valI64 n)
 valLoad (Exp (S.Float _ f)) = return (valF64 f)
 
-
 valStore :: InsCmp CompileState m => Value -> Value -> m ()
 valStore (Ptr typ loc) val = do
+    assert (not $ valIsContextual val) "contextual 73"
     checkTypesMatch typ (valType val)
     case val of
         Ptr t l           -> store loc 0 =<< load l 0
@@ -72,6 +81,9 @@ valStore (Ptr typ loc) val = do
 
 valSelect :: InsCmp CompileState m => Value -> Value -> Value -> m Value
 valSelect cnd t f = do
+    assert (not $ valIsContextual cnd) "contextual 84"
+    assert (not $ valIsContextual t) "contextual 84"
+    assert (not $ valIsContextual f) "contextual 84"
     assertBaseType (==Bool) (valType cnd)
     checkTypesMatch (valType t) (valType f)
     return . Val (valType t) =<< select (valOp cnd) (valOp t) (valOp f)
@@ -137,6 +149,7 @@ valsInfix operator a b = do
 
 valNot :: InsCmp CompileState m => Value -> m Value
 valNot val = do
+    assert (not $ valIsContextual val) "contextual 152"
     assertBaseType (== Bool) (valType val)
     Val (valType val) <$> (icmp P.EQ (bit 0) . valOp =<< valLoad val)
 
@@ -145,11 +158,6 @@ valPtrIdx :: InsCmp s m => Value -> Value -> m Value
 valPtrIdx (Ptr typ loc) idx = do
     Val I64 i <- valLoad idx
     Ptr typ <$> gep loc [i]
-
-
-
-            
-
 
 
 valArrayIdx :: InsCmp CompileState m => Value -> Value -> m Value
@@ -161,6 +169,7 @@ valArrayIdx (Ptr (Array n t) loc) idx = do
 
 valArrayConstIdx :: InsCmp CompileState m => Value -> Int -> m Value
 valArrayConstIdx val i = do
+    assert (not $ valIsContextual val) "contextual 172"
     Array n t <- assertBaseType isArray (valType val)
     case val of
         Ptr _ loc -> Ptr t <$> gep loc [int64 0, int64 (fromIntegral i)]
@@ -173,12 +182,6 @@ valMemCpy (Ptr dstTyp dst) (Ptr srcTyp src) len = do
     pDstI8 <- bitcast dst (LL.ptr LL.i8)
     pSrcI8 <- bitcast src (LL.ptr LL.i8)
     void $ memcpy pDstI8 pSrcI8 . valOp =<< valsInfix S.Times len . valI64 =<< sizeOf dstTyp
-
-
-
-valIsExpr :: Value -> Bool
-valIsExpr (Exp _) = True
-valIsExpr _       = False
 
 
 checkTypesMatch :: BoM CompileState m => Type -> Type -> m ()

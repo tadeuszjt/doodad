@@ -35,18 +35,32 @@ import Error
 data Value
     = Val T.Type Operand
     | Ptr T.Type Operand
-    | Exp S.Expr
+    | Exp S.Expr -- Contextual
     deriving (Show, Eq)
 
-valType (Val t op)           = t
-valType (Ptr t op)           = t
-valType (Exp (S.Int _ _))    = T.I64
-valType (Exp (S.Float _ _))  = T.F64
-valType (Exp (S.Tuple _ es)) = T.Tuple [ ("", (valType . Exp) e) | e <- es ]
-valType x = error (show x)
+
+valType (Val t op) = t
+valType (Ptr t op) = t
+valType x = error ("contextual: " ++ show x)
+
 
 valOp (Val t op)   = op
 valLoc (Ptr t loc) = loc
+
+
+valIsContextual :: Value -> Bool
+valIsContextual (Exp _) = True
+valIsContextual _       = False
+
+
+exprIsContextual :: S.Expr -> Bool
+exprIsContextual expr = case expr of
+    S.Int _ _                              -> True
+    S.Float _ _                            -> True
+    S.Tuple _ es | any exprIsContextual es -> True
+    S.Null _                               -> True
+    S.Table _ ess | any null ess           -> True
+    _                                      -> False
 
 
 data SymKey

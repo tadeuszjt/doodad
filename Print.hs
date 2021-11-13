@@ -59,7 +59,7 @@ valPrint append val = case valType val of
         printf "(" []
         forM_ (zip ts [0..]) $ \(t, i) ->
             let app = if i < length ts - 1 then ", " else ""
-            in valPrint app =<< valTupleIdx val i
+            in valPrint app =<< valTupleIdx i val
         void $ printf (")" ++ append) []
 
     Table [Char] -> do

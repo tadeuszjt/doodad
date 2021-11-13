@@ -120,7 +120,8 @@ cmpVarDef (S.Assign pos (S.PatIdent p sym) expr) = do
 
     checkSymKeyUndef sym KeyVar
     name <- myFresh sym
-    
+
+    assert (not $ valIsContextual val) "contextual 124"
     let typ = valType val
     opTyp <- opTypeOf typ
 
@@ -219,8 +220,9 @@ cmpStmt stmt = case stmt of
     S.Block stmts -> pushSymTab >> mapM_ cmpStmt stmts >> popSymTab
 
     S.CallStmt pos sym exprs -> withPos pos $ do
-
         vals <- mapM (valLoad <=< cmpExpr) exprs
+        assert (not $ any valIsContextual vals) "contextual 224"
+
         res <- look sym $ KeyFunc (map valType vals)
         op <- case res of
             ObjFunc _ op     -> return op
@@ -306,16 +308,6 @@ cmpStmt stmt = case stmt of
     _ -> error "stmt"
 
 
-exprIsContextual :: S.Expr -> Bool
-exprIsContextual expr = case expr of
-    S.Int _ _                              -> True
-    S.Float _ _                            -> True
-    S.Tuple _ es | any exprIsContextual es -> True
-    S.Null _                               -> True
-    S.Table _ ess | any null ess           -> True
-    _                                      -> False
-
-
 -- must return Val unless local variable
 cmpExpr :: InsCmp CompileState m =>  S.Expr -> m Value
 cmpExpr expr = case expr of
@@ -342,14 +334,8 @@ cmpExpr expr = case expr of
         return $ Val (Table [Char]) stc
 
     S.Call pos sym exprs -> withPos pos $ do
-        vals <- mapM cmpExpr exprs
+        vals <- map valResolveContextual <$> mapM cmpExpr exprs
         res <- look sym $ KeyFunc (map valType vals)
-
-        if sym == "+" && valType (vals !! 0) == Typedef "Vec2"
-        then do
-            --error (show vals)
-            return ()
-        else return ()
 
         case res of
             ObjFunc Void _         -> err "cannot use void function as expression"
@@ -363,9 +349,9 @@ cmpExpr expr = case expr of
                 vals' <- mapM valLoad vals
                 Val retty <$> call op [(o, []) | o <- map valOp vals']
 
-
     S.Len pos expr -> withPos pos $ valLoad =<< do
         val <- cmpExpr expr
+        assert (not $ valIsContextual val) "contextual 362"
         typ <- baseTypeOf (valType val)
         case typ of
             Table _ -> tableLen val
@@ -374,13 +360,19 @@ cmpExpr expr = case expr of
     S.Tuple pos [expr] -> withPos pos (cmpExpr expr)
     S.Tuple pos exprs -> withPos pos $ do
         vals <- mapM cmpExpr exprs
+        assert (not $ any valIsContextual vals) "contextual 371"
         tup <- valLocal $ Tuple [ ("", valType v) | v <- vals ]
         zipWithM_ (valTupleSet tup) [0..] vals
         valLoad tup
 
     S.Subscript pos aggExpr idxExpr -> withPos pos $ valLoad =<< do
         agg <- cmpExpr aggExpr
-        idx <- cmpExpr idxExpr
+        idx <- case idxExpr of
+            S.Int p n -> return (valI64 n)
+            _         -> cmpExpr idxExpr
+
+        assert (not $ valIsContextual agg) "contextual 382"
+        assert (not $ valIsContextual idx) "contextual 383"
 
         idxType <- baseTypeOf (valType idx)
         aggType <- baseTypeOf (valType agg)
@@ -388,10 +380,11 @@ cmpExpr expr = case expr of
         assert (isInt idxType) "index type isn't an integer"
 
         case aggType of
-            Table [t] -> (flip valTupleIdx) 0 =<< tableGetElem agg idx
+            Table [t] -> valTupleIdx 0 =<< tableGetElem agg idx
 
     S.Range pos expr mstart mend -> withPos pos $ do
         val <- cmpExpr expr
+        assert (not $ valIsContextual val) "contextual 395"
         base <- baseTypeOf (valType val)
         case base of
             Table ts -> do
@@ -403,6 +396,8 @@ cmpExpr expr = case expr of
         let rowLen = length (head valss)
 
         rowTypes <- forM valss $ \vals -> do
+            assert (not $ any valIsContextual vals) "contextual 407"
+
             assert (length vals == rowLen) $ "mismatched table row length of " ++ show (length vals)
             let typ = valType (head vals)
             mapM_ (checkTypesMatch typ) (map valType vals)
@@ -421,9 +416,7 @@ cmpExpr expr = case expr of
         zipWithM_ (tableSetRow tab) [0..] rows
         return tab
 
-    S.Member pos exp sym -> withPos pos $ do
-        val <- cmpExpr exp
-        valTupleMember val sym
+    S.Member pos exp sym -> withPos pos $ valTupleMember sym =<< cmpExpr exp 
 
     _ -> err ("invalid expression: " ++ show expr)
 
@@ -433,6 +426,8 @@ cmpCondition cnd = do
     val <- case cnd of
         S.CondExpr expr -> cmpExpr expr
         S.CondMatch pat expr -> cmpPattern pat =<< cmpExpr expr
+
+    assert (not $ valIsContextual val) "contextual 430"
 
     assertBaseType (== Bool) (valType val)
     return val
@@ -444,6 +439,7 @@ cmpPattern pat val = case pat of
     S.PatIgnore pos -> return (valBool True)
 
     S.PatLiteral (S.Null pos) -> withPos pos $ do
+        assert (not $ valIsContextual val) "contextual 450"
         ADT xs <- assertBaseType isADT (valType val)
 
         let is = [ i | (("", Void), i) <- zip xs [0..] ]
@@ -457,26 +453,32 @@ cmpPattern pat val = case pat of
 
     S.PatGuarded pos pat expr -> withPos pos $ do
         match <- cmpPattern pat =<< valLoad val
-        guard <- valLoad =<< cmpExpr expr
+        guard <- cmpExpr expr
+        assert (not $ valIsContextual guard) "contextual 465"
         assertBaseType (== Bool) (valType guard)
         valsInfix S.AndAnd match guard
 
     S.PatIdent pos sym -> withPos pos $ do
         checkSymKeyUndef sym KeyVar
-        loc <- valLocal (valType val)
-        valStore loc val
+        let val' = valResolveContextual val
+        loc <- valLocal (valType val')
+        valStore loc val'
         addObj sym KeyVar (ObjVal loc)
         return (valBool True)
 
     S.PatTuple pos pats -> withPos pos $ do
-        Tuple ts <- assertBaseType isTuple (valType val)
-        assert (length ts == length pats) "tuple pattern length mismatch"
+        b <- valIsTuple val
+        assert b "expression isn't a tuple"
+        len <- valTupleLength val
+        assert (len == length pats) "tuple pattern length mismatch"
+
         bs <- forM (zip pats [0..]) $ \(p, i) ->
-            cmpPattern p =<< valTupleIdx val i
+            cmpPattern p =<< valTupleIdx i val
 
         foldM (valsInfix S.AndAnd) (valBool True) bs
 
     S.PatArray pos pats -> withPos pos $ do
+        assert (not $ valIsContextual val) "contextual 487"
         base <- baseTypeOf (valType val)
         case base of
             Table ts -> do
@@ -484,9 +486,8 @@ cmpPattern pat val = case pat of
                 lenEq <- valsInfix S.EqEq len (valI64 $ length pats)
 
                 assert (length ts == 1) "patterns don't support multiple rows (yet)"
-                bs <- forM (zip pats [0..]) $ \(p, i) -> do
-                    tup <- tableGetElem val (valI64 i)
-                    cmpPattern p =<< valTupleIdx tup 0
+                bs <- forM (zip pats [0..]) $ \(p, i) ->
+                    cmpPattern p =<< valTupleIdx 0 =<< tableGetElem val (valI64 i)
 
                 foldM (valsInfix S.AndAnd) (valBool True) (lenEq:bs)
             _ -> error (show base)
@@ -505,6 +506,7 @@ cmpPattern pat val = case pat of
         -- switch(tok)                 <- val
         --    string(s); do_stuff(s)   <- use raw type
         --    TokSym(s); do_stuff(s)   <- use field name
+        assert (not $ valIsContextual val) "contextual 515"
         ADT xs <- assertBaseType isADT (valType val)
 
         let is = [ i | ((s, t), i) <- zip xs [0..], (s == "" && t == typ) || (Typedef s == typ) ]
@@ -534,9 +536,9 @@ cmpPrint (S.Print pos exprs) = withPos pos $ do
 
 
 valConstruct :: InsCmp CompileState m => Type -> [Value] -> m Value
-valConstruct typ []                         = zeroOf typ
-valConstruct typ [val] | typ == valType val = valLoad val
-valConstruct typ [val]                      = do
+valConstruct typ []                                                = zeroOf typ
+valConstruct typ [val] | typ == valType (valResolveContextual val) = valLoad (valResolveContextual val)
+valConstruct typ [val]                                             = do
     val' <- valLoad val
     base <- baseTypeOf typ
     case base of
