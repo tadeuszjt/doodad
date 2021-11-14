@@ -1,26 +1,13 @@
 module main
 
-imports std/strings
-imports std/io
-imports lang/lexer
 imports lang/parser 
 
 fn main()
-    let str = ""
-    let loop = true
+    let o = OpMinus(())
+    let i = ExprInt(32)
+    let d = ExprIdent("benis")
 
-    while loop
-        switch getStrLn()
-            "\0" ..; loop = false
-            s      ; str = str + s + "\n"
+    let t = (o, i, d)
 
-    let toks = :[Token]()
-    loop = true
-
-    while loop
-        switch lexToken(str)
-            (null, ss); loop = false
-            (tok,  ss)
-                str  = ss
-                toks = append(toks, [tok])
+    print(t)
 

@@ -46,11 +46,11 @@ valPrint append val = case valType val of
         valPrint append en
         return ()
 
-    Tuple ts -> do
+    Tuple xs -> do
         printf "(" []
-        forM_ (zip ts [0..]) $ \(t, i) ->
-            let app = if i < length ts - 1 then ", " else ""
-            in valPrint app =<< tupleIdx i val
+        forM_ (zip xs [0..]) $ \((s, t), i) -> do
+            let app = if i < length xs - 1 then ", " else ""
+            valPrint app =<< tupleIdx i val
         void $ printf (")" ++ append) []
 
     Table [Char] -> do
@@ -66,7 +66,7 @@ valPrint append val = case valType val of
 
         let m1 = forM_ [0..length ts - 1] $ \i -> do
             row <- tableRow i val
-            n <- valsInfix S.Minus len (valInt I64 1)
+            n <- valsInfix S.Minus len =<< valInt I64 1
             for (valOp n) $ \j -> valPrint ", " =<< valPtrIdx row (Val I64 j)
             if i < length ts - 1
             then valPrint "; " =<< valPtrIdx row n

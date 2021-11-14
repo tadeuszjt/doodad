@@ -96,11 +96,11 @@ adtConstructField sym adtTyp [val] = do
     assert (xn `elem` xs) ("invalid adt field constructor for: " ++ sym)
 
     adtSetEnum adt $ fromJust (elemIndex xn xs)
-
     mal <- valMalloc (valType val) (valI64 1)
     valStore mal val
     adtSetPi8 adt =<< bitcast (valLoc mal) (LL.ptr LL.i8)
     return adt
+
 
 -- ADT()       -> zero constructor
 -- ADT(i64(n)) -> construct from unique type field

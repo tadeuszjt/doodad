@@ -1,14 +1,24 @@
 module parser
-imports lexer
 
-type Ident string
+type Operator {
+    OpPlus ()
+    OpMinus ()
+    OpTimes ()
+    OpDivide ()
+}
 
+type Expr {
+    ExprIdent string
+    ExprInt   i64
+    ExprFloat f64
+    ExprInfix (Operator, Expr, Expr)
+}
 
 type AST {
     null
-    Ident
+    Expr
 }
 
-fn parseTokens(tokens [Token]) AST
-    return AST(null)
+fn parseTokens() Operator
+    return OpMinus(())
 

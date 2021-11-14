@@ -1,7 +1,9 @@
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE TupleSections #-}
 module Value where
 
 import Prelude hiding (or, and)
+import GHC.Float
 import Data.Maybe
 import Data.List hiding (or, and)
 import Control.Monad
@@ -35,25 +37,33 @@ assertBaseType f typ = do
 
 valResolveContextual :: InsCmp CompileState m => Value -> m Value
 valResolveContextual val = case val of
-    Exp (S.Int p n)   -> return (valI64 n)
-    Exp (S.Float p f) -> return (valF64 f)
+    Exp (S.Int p n)   -> valInt I64 n
+    Exp (S.Float p f) -> valFloat F64 f
     Exp (S.Null p)    -> zeroOf $ ADT [("", Void)]
     Ptr _ _           -> return val
     Val _ _           -> return val
     _                 -> error ("can't resolve contextual: " ++ show val)
 
 
-valInt :: Integral i => Type -> i -> Value
-valInt I8 n  = Val I8  $ int8  (fromIntegral n)
-valInt I32 n = Val I32 $ int32 (fromIntegral n)
-valInt I64 n = Val I64 $ int64 (fromIntegral n)
+valInt :: InsCmp CompileState m => Integral i => Type -> i -> m Value
+valInt typ n = do
+    base <- assertBaseType isInt typ
+    return $ case base of
+        I8  -> Val typ $ int8 (fromIntegral n)
+        I32 -> Val typ $ int32 (fromIntegral n)
+        I64 -> Val typ $ int64 (fromIntegral n)
+
+
+valFloat :: InsCmp CompileState m => Type -> Double -> m Value
+valFloat typ f = do
+    base <- assertBaseType isFloat typ
+    return $ case base of
+        F32 -> Val typ $ single (double2Float f)
+        F64 -> Val typ $ double f
 
 
 valI64 :: Integral i => i -> Value
-valI64 = valInt I64 
-
-valF64 :: Double -> Value
-valF64 f = Val F64 (double f)
+valI64 n = Val I64 $ int64 (fromIntegral n)
 
 
 valChar :: Char -> Value
@@ -80,7 +90,6 @@ valStore (Ptr typ loc) val = do
 
 valSelect :: InsCmp CompileState m => Value -> Value -> Value -> m Value
 valSelect cnd t f = do
-    assert (not $ valIsContextual cnd) "contextual 84"
     assert (not $ valIsContextual t) "contextual 84"
     assert (not $ valIsContextual f) "contextual 84"
     assertBaseType (==Bool) (valType cnd)
@@ -96,7 +105,10 @@ valLocal typ = do
 
 valMalloc :: InsCmp CompileState m => Type -> Value -> m Value
 valMalloc typ len = do
-    pi8  <- malloc . valOp =<< valsInfix S.Times len =<< valI64 <$> sizeOf typ
+    lenTyp <- assertBaseType isInt (valType len)
+    siz <- sizeOf =<< baseTypeOf typ
+
+    pi8 <- malloc =<< mul (valOp len) (int64 $ fromIntegral siz)
     Ptr typ <$> (bitcast pi8 . LL.ptr =<< opTypeOf typ)
 
 
@@ -110,10 +122,11 @@ valsInfix operator (Exp (S.Int p a)) (Exp (S.Int _ b)) = return $ case operator 
     S.LT     -> valBool (a < b)
 valsInfix operator (Exp (S.Int _ a)) b = do
     typ <- assertBaseType isInt (valType b)
-    valsInfix operator (valInt typ a) b
+    i <- valInt typ a  
+    valsInfix operator i b
 valsInfix operator a (Exp (S.Int _ b)) = do
     typ <- assertBaseType isInt (valType a)
-    valsInfix operator a (valInt typ b)
+    valsInfix operator a =<< valInt typ b
 valsInfix operator a b = do
     baseA <- baseTypeOf (valType a)
     baseB <- baseTypeOf (valType b)
@@ -152,7 +165,6 @@ valsInfix operator a b = do
 
 valNot :: InsCmp CompileState m => Value -> m Value
 valNot val = do
-    assert (not $ valIsContextual val) "contextual 152"
     assertBaseType (== Bool) (valType val)
     Val (valType val) <$> (icmp P.EQ (bit 0) . valOp =<< valLoad val)
 
@@ -194,7 +206,7 @@ checkTypesMatch typA typB
     | isTuple typA   = assert (typA == typB) str
     | isTypedef typA = assert (typA == typB) str
     | isADT typA     = assert (typA == typB) str
-    | otherwise      = err (show typA ++ " does not match " ++ show typB)
+    | otherwise      = err str
     where
         str = show typA ++ " does not match " ++ show typB
 
@@ -209,32 +221,28 @@ pureTypeOf :: ModCmp CompileState m => Type -> m Type
 pureTypeOf typ = case typ of
     Void             -> return Void
     Typedef s        -> do ObType t _ <- look s KeyType; pureTypeOf t
-    Table ts         -> Table   <$> mapM pureTypeOf ts
+    Table ts         -> Table <$> mapM pureTypeOf ts
     Tuple xs         -> do
-        xs' <- forM xs $ \(s, t) -> do
-            t' <- pureTypeOf t
-            return (s, t')
-        return (Tuple xs')
+        let ts = map snd xs
+        let ss = map fst xs
+        ts' <- mapM pureTypeOf ts
+        return $ Tuple (zip ss ts')
     Array n t        -> Array n <$> pureTypeOf t
-    ADT xs           -> do --ADT     <$> mapM pureTypeOf ts
-        xs' <- forM xs $ \(s, t) -> do
-            t' <- pureTypeOf t
-            return (s, t')
-        return (ADT xs')
+    ADT xs           -> ADT <$> mapM (\(s, t) -> (s,) <$> pureTypeOf t) xs
     _ | isSimple typ -> return typ
     _                -> error (show typ)
 
 
-zeroOf :: ModCmp CompileState m => Type -> m Value
+zeroOf :: InsCmp CompileState m => Type -> m Value
 zeroOf typ = case typ of
-    _ | isInt typ -> return (valInt typ 0)
-    F64           -> return $ Val F64 (double 0.0)
-    Bool          -> return (valBool False)
-    Char          -> return (valChar '\0')
-    Typedef sym   -> Val typ . valOp <$> (zeroOf =<< baseTypeOf typ)
-    Array n t     -> Val typ . array . replicate n . toCons . valOp <$> zeroOf t
-    ADT [(s, t)]  -> Val typ . cons . C.Null . LL.ptr <$> opTypeOf t -- ADT with one type, has no enum
-    Tuple xs      -> Val typ . struct Nothing False . map (toCons . valOp) <$> mapM (zeroOf . snd) xs
+    _ | isInt typ   -> valInt typ 0
+    _ | isFloat typ -> valFloat typ 0.0
+    Bool            -> return (valBool False)
+    Char            -> return (valChar '\0')
+    Typedef sym     -> Val typ . valOp <$> (zeroOf =<< baseTypeOf typ)
+    Array n t       -> Val typ . array . replicate n . toCons . valOp <$> zeroOf t
+    ADT [(s, t)]    -> Val typ . cons . C.Null . LL.ptr <$> opTypeOf t -- ADT with one type, has no enum
+    Tuple xs        -> Val typ . struct Nothing False . map (toCons . valOp) <$> mapM (zeroOf . snd) xs
 
     Table ts      -> do
         let zi64 = toCons (int64 0)
@@ -266,11 +274,15 @@ opTypeOf typ = case typ of
 
 
 sizeOf :: InsCmp CompileState m => Type -> m Int
-sizeOf typ = size =<< opTypeOf =<< pureTypeOf typ
-    where
-        size :: InsCmp CompileState m => LL.Type -> m Int
-        size typ = do
-            ctx <- gets context
-            dl <- gets dataLayout
-            liftIO $ return . fromIntegral =<< FFI.getTypeAllocSize dl =<< runEncodeAST ctx (encodeM typ)
+sizeOf Void      = error "cannot take size of Void type"
+sizeOf (ADT [x]) = size (LL.ptr LL.i8)
+sizeOf (ADT [])  = error "invalid adt"
+sizeOf (ADT xs)  = sizeOf $ ADT [("", I64), ("", I32)]
+sizeOf typ       = size =<< opTypeOf =<< pureTypeOf typ
+
+size :: InsCmp CompileState m => LL.Type -> m Int
+size typ = do
+    ctx <- gets context
+    dl <- gets dataLayout
+    liftIO $ return . fromIntegral =<< FFI.getTypeAllocSize dl =<< runEncodeAST ctx (encodeM typ)
 

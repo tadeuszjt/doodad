@@ -344,7 +344,9 @@ cmpExpr expr = case expr of
             ObjFunc Void _         -> err "cannot use void function as expression"
             ObjExtern _ Void _     -> err "cannot use void function as expression"
             ObjConstructor typ     -> valConstruct typ vals
-            ObjADTFieldCons adtTyp -> adtConstructField sym adtTyp vals
+            ObjADTFieldCons adtTyp -> do
+                adtConstructField sym adtTyp vals
+
             ObjFunc retty op       -> do
                 vals' <- mapM valLoad vals
                 Val retty <$> call op [(o, []) | o <- map valOp vals']
@@ -572,14 +574,12 @@ valConstruct typ vals = tupleConstruct typ vals
 
 valAsType :: InsCmp CompileState m => Type -> Value -> m Value
 valAsType typ val = case val of
-    Val _ _       -> checkTypesMatch typ (valType val) >> return val
-    Ptr _ _       -> checkTypesMatch typ (valType val) >> return val
-    Exp (S.Int _ n) -> return $ valInt typ n
-    Exp (S.Null _)-> adtNull typ
-    Exp (S.Table _ [[]]) -> do
-        Table ts <- assertBaseType isTable typ
-        zeroOf typ
-    Exp (S.Tuple _ es) -> do
+    Val _ _              -> checkTypesMatch typ (valType val) >> return val
+    Ptr _ _              -> checkTypesMatch typ (valType val) >> return val
+    Exp (S.Int _ n)      -> valInt typ n
+    Exp (S.Null _)       -> adtNull typ
+    Exp (S.Table _ [[]]) -> assertBaseType isTable typ >> zeroOf typ
+    Exp (S.Tuple _ es)   -> do
         Tuple xs <- assertBaseType isTuple typ
 
         assert (length es == length xs) ("does not satisfy " ++ show typ)
