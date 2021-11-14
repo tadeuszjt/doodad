@@ -1,0 +1,11 @@
+module palindrome
+imports ../std/strings
+imports ../std/io
+
+fn main()
+    while true
+        let s = getStrLn()
+        if strReverse(s) == s
+            print("is palindrome!")
+        else
+            print("is not palindrome!")

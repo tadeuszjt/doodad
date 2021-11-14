@@ -98,9 +98,9 @@ tableSetElem tab idx tup = do
 
 tableRange :: InsCmp CompileState m => Value -> Value -> Value -> m Value
 tableRange tab' start' end' = do
-    let tab = valResolveContextual tab'
-    let start = valResolveContextual start'
-    let end = valResolveContextual end'
+    tab <-valResolveContextual tab'
+    start <- valResolveContextual start'
+    end <- valResolveContextual end'
     b <- valIsTable tab'
     assert b "isn't a table"
 

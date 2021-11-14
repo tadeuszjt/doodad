@@ -18,19 +18,25 @@ import Monad
 import Funcs
 
 
+-- ADT type rules:
+-- ADT []         *i8
+-- ADT [(s, f64)] *f64
+-- ADT [(s, f64), (t, i64)] struct { enum type, i8* }
+
+
 adtEnum :: InsCmp CompileState m => Value -> m Value
-adtEnum ptr = do
-    ADT xs <- assertBaseType isADT (valType ptr)
+adtEnum adt = do
+    ADT xs <- assertBaseType isADT (valType adt)
     assert (length xs > 1) "adt has no enum"
-    case ptr of
+    case adt of
         Val _ op  -> Val I64 <$> extractValue op [0]
         Ptr _ loc -> Ptr I64 <$> gep loc [int32 0, int32 0]
 
 
 
 adtSetEnum :: InsCmp CompileState m => Value -> Int -> m ()
-adtSetEnum ptr@(Ptr _ loc) i = do
-    ADT xs <- assertBaseType isADT (valType ptr)
+adtSetEnum adt@(Ptr _ loc) i = do
+    ADT xs <- assertBaseType isADT (valType adt)
     assert (length xs > 1)           "adt type has no enum"
     assert (i >= 0 && i < length xs) "invalid adt enum"
 
@@ -56,26 +62,26 @@ adtNull typ = do
 
     loc <- valLocal typ
     when (length xs > 1) $ adtSetEnum loc (head is)
-    valLoad loc
+    return loc
 
 
 adtPi8 :: InsCmp CompileState m => Value -> m LL.Operand
-adtPi8 ptr = do
-    ADT ts <- assertBaseType isADT (valType ptr)
-    op <- valOp <$> valLoad ptr
-    case ts of
-        []  -> return op
-        [t] -> return op
-        _   -> extractValue op [1]
+adtPi8 adt = do
+    ADT xs <- assertBaseType isADT (valType adt)
+    op <- valOp <$> valLoad adt
+    case xs of
+        []  -> error ""
+        [x] -> return op
+        xs  -> extractValue op [1]
 
 
 adtSetPi8 :: InsCmp CompileState m => Value -> LL.Operand -> m ()
-adtSetPi8 ptr@(Ptr _ loc) pi8 = do
-    ADT ts <- assertBaseType isADT (valType ptr)
-    case ts of
+adtSetPi8 adt@(Ptr _ loc) pi8 = do
+    ADT xs <- assertBaseType isADT (valType adt)
+    case xs of
         []  -> error ""
-        [t] -> store loc 0 pi8
-        ts  -> do
+        [x] -> store loc 0 pi8
+        xs  -> do
             ppi8 <- gep loc [int32 0, int32 1]
             store ppi8 0 pi8
 
@@ -96,19 +102,37 @@ adtConstructField sym adtTyp [val] = do
     adtSetPi8 adt =<< bitcast (valLoc mal) (LL.ptr LL.i8)
     return adt
 
-
+-- ADT()       -> zero constructor
+-- ADT(i64(n)) -> construct from unique type field
+-- ADT(adt2)   -> construct from adt with ONE equivalent field
+-- ADT(null)   -> null becomes adt with equivalent field
 adtConstruct :: InsCmp CompileState m => Type -> Value -> m Value
 adtConstruct adtTyp (Exp (S.Null _)) = adtNull adtTyp
+adtConstruct adtTyp (Exp _)          = error "adt constructing from contextual"
 adtConstruct adtTyp val              = do
     ADT xs  <- assertBaseType isADT adtTyp
 
-    let is = [ i | ((s, t), i) <- zip xs [0..], t == valType val ]
-    assert (length is == 1) "cannot resolve adt from type"
-    let i = head is
+    let is = [ i | ((s, t), i) <- zip xs [0..], t == valType val, s == "" ]
+    if length is == 1 then do -- has unique type field
+        let i = head is
+        adt <- valLocal adtTyp
+        adtSetEnum adt i
+        mal <- valMalloc (valType val) (valI64 1)
+        valStore mal val
+        adtSetPi8 adt =<< bitcast (valLoc mal) (LL.ptr LL.i8)
+        return adt
+    else do                   -- must be another adt
+        ADT xs' <- assertBaseType isADT (valType val)
+        assert (length xs' == 1) "Argument ADT must have one field"
+        assert (head xs' `elem` xs) "Argument ADT does have equivalent field"
+        let x@(s, t) = head xs'
 
-    loc <- valLocal adtTyp
-    adtSetEnum loc i
-    mal <- valMalloc (valType val) (valI64 1)
-    valStore mal val
-    adtSetPi8 loc =<< bitcast (valLoc mal) (LL.ptr LL.i8)
-    valLoad loc
+        adt <- valLocal adtTyp
+        adtSetEnum adt $ fromJust (elemIndex x xs)
+
+        if t == Void then return adt
+        else do
+            mal <- valMalloc t (valI64 1)
+            valStore mal =<< adtDeref val
+            adtSetPi8 adt =<< bitcast (valLoc mal) (LL.ptr LL.i8)
+            return adt

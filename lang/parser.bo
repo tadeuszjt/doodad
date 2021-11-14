@@ -1,0 +1,14 @@
+module parser
+imports lexer
+
+type Ident string
+
+
+type AST {
+    null
+    Ident
+}
+
+fn parseTokens(tokens [Token]) AST
+    return AST(null)
+

@@ -33,13 +33,14 @@ assertBaseType f typ = do
     return base
 
 
-valResolveContextual :: Value -> Value
+valResolveContextual :: InsCmp CompileState m => Value -> m Value
 valResolveContextual val = case val of
-    Exp (S.Int p n)   -> valI64 n
-    Exp (S.Float p f) -> valF64 f
-    Exp _             -> error "don't know"
-    Ptr _ _           -> val
-    Val _ _           -> val
+    Exp (S.Int p n)   -> return (valI64 n)
+    Exp (S.Float p f) -> return (valF64 f)
+    Exp (S.Null p)    -> zeroOf $ ADT [("", Void)]
+    Ptr _ _           -> return val
+    Val _ _           -> return val
+    _                 -> error ("can't resolve contextual: " ++ show val)
 
 
 valInt :: Integral i => Type -> i -> Value
@@ -254,7 +255,7 @@ opTypeOf typ = case typ of
     Bool      -> return LL.i1
     Tuple xs  -> LL.StructureType False <$> mapM (opTypeOf . snd) xs
     Array n t -> LL.ArrayType (fromIntegral n) <$> opTypeOf t
-    ADT []    -> error ""
+    ADT []    -> error "cannot get opType of empty ADT"
     ADT [t]   -> return (LL.ptr LL.i8)
     ADT ts    -> return $ LL.StructureType False [LL.i64, LL.ptr LL.i8]
     Table ts  -> LL.StructureType False . ([LL.i64, LL.i64] ++) . map LL.ptr <$> mapM opTypeOf ts

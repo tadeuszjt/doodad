@@ -22,12 +22,5 @@ fn main()
             (null, ss); loop = false
             (tok,  ss)
                 str  = ss
-                switch tok
-                    TokOp(s)      ; print("op     ", s)
-                    TokInt(n)     ; print("integer", n)
-                    TokSym(c)     ; print("symbol ", c)
-                    TokChar(c)    ; print("char   ", c)
-                    TokIdent(s)   ; print("ident  ", s)
-                    TokString(s)  ; print("string ", s)
-                    TokKeyword(s) ; print("keyword", s)
+                toks = append(toks, [tok])
 

@@ -66,17 +66,6 @@ parse id file = do
         Right a                     -> return a
 
 
-lexMod :: BoM Modules m => Args -> S.Path -> m [L.Token]
-lexMod args modPath = do
-    path <- resolvePath modPath
-    let (dir, name) = (init path, last path)
-    files <- getSpecificModuleFiles name =<< getBoFilesInDirectory (if null dir then "." else showPath dir)
-    when (null files) $ fail ("no files for: " ++ showPath path)
-    tokss <- forM (zip files [0..]) $ \(file, id) -> lexFile id file
-    return (concat tokss)
-
-
-
 runMod :: BoM Modules m => Args -> Set.Set S.Path -> S.Path -> m CompileState
 runMod args visited modPath = do
     debug "running"

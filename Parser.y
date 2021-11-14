@@ -112,11 +112,9 @@ import qualified Data.Set as Set
 Prog  : Prog_                           { S.AST Nothing [] $1 }
       | module ident 'N' Imports Prog_  { S.AST (Just (tokStr $2)) $4 $5 }
 Prog_ : {-empty-}                       { [] }
-      | Prog__                          { $1 }
-Prog__ : stmtS                          { [$1] }
-       | stmtB                          { [$1] }
-       | stmtS 'N' Prog__               { $1 : $3 }
-       | stmtB  Prog__                  { $1 : $2 }
+      | stmtS 'N' Prog_                 { $1 : $3 }
+      | stmtB Prog_                     { $1 : $2 }
+      | stmtS                           { [$1] }
 
 
 Imports : {- empty -}                      { [] }

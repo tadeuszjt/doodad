@@ -74,7 +74,7 @@ cmpTypeDef (S.Typedef pos sym typ) = withPos pos $ do
         addObj sym key (ObjConstructor typdef)
 
     -- use named type
-    if isTuple typ || isTable typ || isADT typ
+    if isTuple typ || isTable typ || isADT typ && (let ADT xs = typ in length xs > 1)
     then do
         name <- myFresh sym
         addSymKeyDec sym KeyType name . DecType =<< opTypeOf typ
@@ -95,10 +95,13 @@ cmpTypeDef (S.Typedef pos sym typ) = withPos pos $ do
                 -- Construct ADT from type: Token("str")
                 checkSymKeyUndef sym (KeyFunc [t])
                 addObj sym (KeyFunc [t]) (ObjConstructor typdef)
+                -- Construct ADT from ADT with equivalent field: Token(null)
+                checkSymKeyUndef sym $ KeyFunc [ADT [("", t)]]
+                addObj sym (KeyFunc [ADT [("", t)]]) (ObjConstructor typdef)
             s -> do
                 -- Construct ADT field from type: TokSym("str")
                 checkSymKeyUndef s (KeyFunc [t])
-                addObj s (KeyFunc [t]) (ObjPtrFieldCons typdef)
+                addObj s (KeyFunc [t]) (ObjADTFieldCons typdef)
     else return ()
 
     if isTuple typ
@@ -334,14 +337,14 @@ cmpExpr expr = case expr of
         return $ Val (Table [Char]) stc
 
     S.Call pos sym exprs -> withPos pos $ do
-        vals <- map valResolveContextual <$> mapM cmpExpr exprs
+        vals <- mapM valResolveContextual =<< mapM cmpExpr exprs
         res <- look sym $ KeyFunc (map valType vals)
 
         case res of
             ObjFunc Void _         -> err "cannot use void function as expression"
             ObjExtern _ Void _     -> err "cannot use void function as expression"
             ObjConstructor typ     -> valConstruct typ vals
-            ObjPtrFieldCons adtTyp -> adtConstructField sym adtTyp vals
+            ObjADTFieldCons adtTyp -> adtConstructField sym adtTyp vals
             ObjFunc retty op       -> do
                 vals' <- mapM valLoad vals
                 Val retty <$> call op [(o, []) | o <- map valOp vals']
@@ -460,7 +463,7 @@ cmpPattern pat val = case pat of
 
     S.PatIdent pos sym -> withPos pos $ do
         checkSymKeyUndef sym KeyVar
-        let val' = valResolveContextual val
+        val' <- valResolveContextual val
         loc <- valLocal (valType val')
         valStore loc val'
         addObj sym KeyVar (ObjVal loc)
@@ -536,30 +539,34 @@ cmpPrint (S.Print pos exprs) = withPos pos $ do
 
 
 valConstruct :: InsCmp CompileState m => Type -> [Value] -> m Value
-valConstruct typ []                                                = zeroOf typ
-valConstruct typ [val] | typ == valType (valResolveContextual val) = valLoad (valResolveContextual val)
-valConstruct typ [val]                                             = do
-    val' <- valLoad val
-    base <- baseTypeOf typ
-    case base of
-        I32 -> case val' of
-            Val I64 op -> Val base <$> trunc op LL.i32
-            Val I8 op  -> Val base <$> sext op LL.i32
+valConstruct typ []    = zeroOf typ
+valConstruct typ [val] = do
+    val' <- valResolveContextual val
 
-        I64 -> case val' of
-            Val Char op -> Val base <$> sext op LL.i64
+    if valType val' == typ then do
+        valLoad val'
+    else do
+        val' <- valLoad val
+        base <- baseTypeOf typ
+        case base of
+            I32 -> case val' of
+                Val I64 op -> Val base <$> trunc op LL.i32
+                Val I8 op  -> Val base <$> sext op LL.i32
 
-        Char -> case val' of
-            Val I64 op -> Val base <$> trunc op LL.i8
-            Val I32 op -> Val base <$> trunc op LL.i8
-            _          -> error (show val')
+            I64 -> case val' of
+                Val Char op -> Val base <$> sext op LL.i64
 
-        ADT _   -> adtConstruct typ val'
-        _           -> do
-            pureType    <- pureTypeOf typ
-            pureValType <- pureTypeOf (valType val')
-            checkTypesMatch pureType pureValType
-            Val typ <$> valOp <$> valLoad val'
+            Char -> case val' of
+                Val I64 op -> Val base <$> trunc op LL.i8
+                Val I32 op -> Val base <$> trunc op LL.i8
+                _          -> error (show val')
+
+            ADT _   -> adtConstruct typ val'
+            _           -> do
+                pureType    <- pureTypeOf typ
+                pureValType <- pureTypeOf (valType val')
+                checkTypesMatch pureType pureValType
+                Val typ <$> valOp <$> valLoad val'
 valConstruct typ vals = tupleConstruct typ vals
 
 
