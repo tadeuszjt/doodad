@@ -24,6 +24,7 @@ Boland is a procedural language with a collection of features that prioritises s
     let x = (23, "str", [1, 2 ,3])
   Indentation-sensitive syntax
   Abstract Data Types
+  
     type Num {
       i64
       i32
@@ -32,13 +33,16 @@ Boland is a procedural language with a collection of features that prioritises s
      }
       
   Arrays
+  
     let x = [3 :i64]([1, 2, 3])
     
   Pattern Matching
+  
     let x = (23, "str", [1, 2, 3])
     let (i, "str", [1] .. rest) = x
     
   Control Flow (if, switch, while, return etc)
+  
     let x = "tadeusz"
     if x == "tadeusz"
       print("x is: " + x)
