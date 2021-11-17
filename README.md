@@ -18,10 +18,14 @@ Boland is a procedural language with a collection of features that prioritises s
 
 # Features
   Operator overloading
+  
       fn +(a string, b string)
         return append(a, b)
+        
   Tuples
+  
     let x = (23, "str", [1, 2 ,3])
+    
   Indentation-sensitive syntax
   Abstract Data Types
   
@@ -51,6 +55,7 @@ Boland is a procedural language with a collection of features that prioritises s
       print(rest)
     
   Tables (A collection of one or more dynamically allocated 'rows')
+  
     let x = [1, 2, 3; "str", "ztr", "skr"; 'a', 'b', 'c']
     print(x.2)  // ['a', 'b', 'c']
     print(x[2]) // (3, "skr", 'c')
