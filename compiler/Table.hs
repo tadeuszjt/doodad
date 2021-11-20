@@ -10,7 +10,7 @@ import LLVM.IRBuilder.Instruction
 import qualified AST as S
 import Monad
 import Value
-import CompileState
+import State
 import Funcs
 import Type 
 import Tuple
@@ -163,17 +163,8 @@ tableAppend a b = do
     newLen <- valsInfix S.Plus aLen bLen
     tableSetLen loc newLen
 
-    --increase cap
-    let fullCase = do
-        tableSetCap loc =<< valsInfix S.Times newLen (valI64 2)
-        forM_ (zip ts [0..]) $ \(t, i) -> do
-            tableSetRow loc i =<< valMalloc t =<< tableCap loc
-            dst <- tableRow i loc
-            src <- tableRow i a
-            valMemCpy dst src aLen
-
     bFull <- valsInfix S.GT newLen =<< tableCap loc
-    if_ (valOp bFull) fullCase (return ())
+    if_ (valOp bFull) (fullCase loc newLen ts aLen) (return ())
 
     -- copy b into loc
     forM_ (zip ts [0..]) $ \(t, i) -> do
@@ -183,3 +174,11 @@ tableAppend a b = do
         valMemCpy dst src bLen
 
     return loc
+    where
+        fullCase loc newLen ts aLen = do
+            tableSetCap loc =<< valsInfix S.Times newLen (valI64 2)
+            forM_ (zip ts [0..]) $ \(t, i) -> do
+                tableSetRow loc i =<< valMalloc t =<< tableCap loc
+                dst <- tableRow i loc
+                src <- tableRow i a
+                valMemCpy dst src aLen

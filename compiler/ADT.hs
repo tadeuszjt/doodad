@@ -13,7 +13,7 @@ import LLVM.IRBuilder.Instruction
 import qualified AST as S
 import Value
 import Type
-import CompileState
+import State
 import Monad
 import Funcs
 

@@ -33,7 +33,7 @@ import Monad
 import Type
 import Error
 import Value
-import CompileState
+import State
 import Print
 import Funcs
 import Table

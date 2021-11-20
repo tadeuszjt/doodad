@@ -20,7 +20,7 @@ import Monad
 import Error
 import JIT
 import Compile
-import CompileState
+import State
 import Args
 
 -- Modules are groups of .bo files with a module name header

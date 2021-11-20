@@ -2,7 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Funcs where
 
-import CompileState
+import State
 import Monad
 
 import Data.List

@@ -1,0 +1,66 @@
+cabal-version:      2.4
+name:               bolang
+version:            2.4
+
+-- A short (one-line) description of the package.
+-- synopsis:
+
+-- A longer description of the package.
+-- description:
+
+-- A URL where users can report bugs.
+-- bug-reports:
+license:            MIT
+author:             Tadeusz
+maintainer:         tadeuszjt@protonmail.com
+
+-- A copyright notice.
+-- copyright:
+-- category:
+extra-source-files: CHANGELOG.md
+
+executable bolang
+    main-is:          Main.hs
+    build-depends:
+        llvm-hs      ^>= 9.0.0,
+        llvm-hs-pure ^>= 9.0.0,
+        containers,
+        mtl,
+        bytestring,
+        array,
+        directory,
+        haskeline,
+        split
+    build-tools:
+        alex,
+        happy
+    other-modules:
+        Parser,
+        Lexer
+        ADT,
+        AST,
+        Args,
+        Compile,
+        Error,
+        Flatten,
+        Funcs,
+        JIT,
+        Modules,
+        Monad,
+        Print,
+        State,
+        SymTab,
+        Table,
+        Tuple,
+        Type,
+        Value
+
+
+    -- Modules included in this executable, other than Main.
+    -- other-modules:
+
+    -- LANGUAGE extensions used by modules in this package.
+    -- other-extensions:
+    build-depends:    base ^>=4.13.0.0
+    hs-source-dirs:   compiler
+    default-language: Haskell2010

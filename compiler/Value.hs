@@ -23,7 +23,7 @@ import qualified LLVM.AST.FloatingPointPredicate as P
 
 import qualified AST as S
 import Monad
-import CompileState
+import State
 import Funcs
 import Type
 

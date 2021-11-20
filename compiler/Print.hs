@@ -10,7 +10,7 @@ import qualified LLVM.AST.Type as LL
 
 import qualified AST as S
 import Value
-import CompileState
+import State
 import Monad
 import Funcs
 import Table
@@ -59,21 +59,15 @@ valPrint append val = case valType val of
         void $ printf ("%-.*s" ++ append) [valOp len, valLoc row]
 
     Table ts -> do
+        return ()
         printf "[" []
         let nrows = (length ts)
         len <- tableLen val
         lenZero <- valsInfix S.LTEq len (valI64 0)
 
-        let m1 = forM_ [0..length ts - 1] $ \i -> do
-            row <- tableRow i val
-            n <- valsInfix S.Minus len =<< valInt I64 1
-            for (valOp n) $ \j -> valPrint ", " =<< valPtrIdx row (Val I64 j)
-            if i < length ts - 1
-            then valPrint "; " =<< valPtrIdx row n
-            else valPrint ("]" ++ append) =<< valPtrIdx row n
-
-        let m2 = void $ printf ("]" ++ append) []
-        if_ (valOp lenZero) m2 m1 
+        if_ (valOp lenZero)
+            (void $ printf ("]" ++ append) [])
+            (tablePrintHelper ts val len)
 
     Array n t -> do
         printf "[%d| " $ (:[]) $ valOp (valI64 n)
@@ -82,3 +76,11 @@ valPrint append val = case valType val of
         valPrint ("]" ++ append) =<< valArrayConstIdx val (n-1)
 
     _ -> error ("print: " ++ show (valType val))
+    where
+        tablePrintHelper ts val len = forM_ [0..length ts - 1] $ \i -> do
+            row <- tableRow i val
+            n <- valsInfix S.Minus len =<< valInt I64 1
+            for (valOp n) $ \j -> valPrint ", " =<< valPtrIdx row (Val I64 j)
+            if i < length ts - 1
+            then valPrint "; " =<< valPtrIdx row n
+            else valPrint ("]" ++ append) =<< valPtrIdx row n

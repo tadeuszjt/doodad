@@ -1,5 +1,5 @@
 {-# LANGUAGE FlexibleContexts #-}
-module CompileState where
+module State where
 
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.ByteString.Short as BSS
@@ -27,9 +27,6 @@ import qualified SymTab
 import qualified JIT
 import Monad
 import Error
-
-
-
 
 
 data Value
