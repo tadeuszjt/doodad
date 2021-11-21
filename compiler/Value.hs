@@ -218,19 +218,26 @@ baseTypeOf typ = case typ of
 
 
 pureTypeOf :: ModCmp CompileState m => Type -> m Type
-pureTypeOf typ = case typ of
-    Void             -> return Void
-    Typedef s        -> do ObType t _ <- look s KeyType; pureTypeOf t
-    Table ts         -> Table <$> mapM pureTypeOf ts
-    Tuple xs         -> do
-        let ts = map snd xs
-        let ss = map fst xs
-        ts' <- mapM pureTypeOf ts
-        return $ Tuple (zip ss ts')
-    Array n t        -> Array n <$> pureTypeOf t
-    ADT xs           -> ADT <$> mapM (\(s, t) -> (s,) <$> pureTypeOf t) xs
-    _ | isSimple typ -> return typ
-    _                -> error (show typ)
+pureTypeOf initialType = case initialType of
+    Typedef s      -> do ObType t _ <- look s KeyType; pureTypeOf' t
+    Void           -> return Void
+    Tuple xs       -> fmap Tuple $ forM xs $ \(_, t) -> ("",) <$> pureTypeOf' t
+
+    t | isSimple t -> return t
+    x              -> error ("pureTypeOf: " ++ show x)
+
+    where
+        pureTypeOf' :: ModCmp CompileState m => Type -> m Type
+        pureTypeOf' typ = case typ of
+            t | isSimple t -> return t
+            ADT xs -> fmap ADT $ forM xs $ \(s, t) ->
+                if t == initialType
+                then return (s, Self)
+                else (s,) <$> pureTypeOf' t
+
+            Typedef s -> do ObType t _ <- look s KeyType; pureTypeOf' t
+
+            x -> error ("pureTypeOf': " ++ show x)
 
 
 zeroOf :: InsCmp CompileState m => Type -> m Value

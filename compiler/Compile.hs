@@ -532,7 +532,7 @@ cmpPattern pat val = case pat of
 
 cmpPrint :: InsCmp CompileState m => S.Stmt -> m ()
 cmpPrint (S.Print pos exprs) = withPos pos $ do
-    prints =<< mapM cmpExpr exprs
+    prints =<< mapM valResolveContextual =<< mapM cmpExpr exprs
     where
         prints :: InsCmp CompileState m => [Value] -> m ()
         prints []     = void $ printf "\n" []
