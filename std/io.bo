@@ -1,0 +1,31 @@
+module io
+
+imports strings
+
+extern getchar() i32
+extern putchar(c char)
+
+fn getChar() char
+    return char(getchar())
+
+
+fn getStrLn() string
+    let str = ""
+
+    while true
+        let x = getchar()
+        if x < 1
+            return "\0"
+        switch char(x)
+            '\n'; return str
+            c   ; str = append(str, [c])
+
+
+fn putStrLn(str string)
+	let i = 0
+	while i < len(str)
+			putchar(str[i])
+			i = i + 1
+	
+	putchar('\n') 
+

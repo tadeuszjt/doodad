@@ -1,5 +1,7 @@
 module main
 
+imports lang/lexer
+
 type Expr {
     ExprInt   i64
     ExprIdent string
