@@ -104,12 +104,12 @@ runMod args visited modPath = do
             debug "compiling"
             session <- gets session
             cmpRes <- runBoMT () $ compileFlatState (JIT.context session) (JIT.dataLayout session) imports flat name
-            state <- case cmpRes of
+            (defs, state) <- case cmpRes of
                 Left (ErrorFile "" pos str) -> throwError $ ErrorFile (files !! textFile pos) pos str
                 Left (ErrorStr str)         -> throwError $ ErrorStr str
-                Right (s, _)                -> return s
+                Right ((defs, state), _)    -> return (defs, state)
 
-            liftIO $ jitAndRun (definitions state) session True (printLLIR args) 
+            liftIO $ jitAndRun defs session True (printLLIR args) 
             modify $ \s -> s { modMap = Map.insert path state (modMap s) }
             return state
 

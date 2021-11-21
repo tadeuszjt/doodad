@@ -47,21 +47,21 @@ compileFlatState
     -> Map.Map S.Path CompileState
     -> F.FlattenState
     -> S.Symbol
-    -> m CompileState
+    -> m ([LL.Definition], CompileState)
 compileFlatState ctx dl imports flatState modName = do
     res <- runBoMT (initCompileState ctx dl imports modName) (runModuleCmpT emptyModuleBuilder cmp)
     case res of
         Left err                 -> throwError err
-        Right ((_, defs), state) -> return $ state { definitions = defs }
+        Right ((_, defs), state) -> return (defs, state)
     where
-            cmp :: (MonadFail m, Monad m, MonadIO m) => ModuleCmpT CompileState m ()
-            cmp = void $ func "main" [] LL.VoidType $ \_ -> do
-                    forM_ (Map.toList $ F.typeDefs flatState) $ \(flat, (pos, typ)) ->
-                        cmpTypeDef (S.Typedef pos flat typ)
-                    mapM_ cmpFuncHdr (F.funcDefs flatState)
-                    mapM_ cmpExternDef (F.externDefs flatState)
-                    mapM_ cmpVarDef (F.varDefs flatState)
-                    mapM_ cmpFuncDef (F.funcDefs flatState)
+        cmp :: (MonadFail m, Monad m, MonadIO m) => ModuleCmpT CompileState m ()
+        cmp = void $ func "main" [] LL.VoidType $ \_ -> do
+                forM_ (Map.toList $ F.typeDefs flatState) $ \(flat, (pos, typ)) ->
+                    cmpTypeDef (S.Typedef pos flat typ)
+                mapM_ cmpFuncHdr (F.funcDefs flatState)
+                mapM_ cmpExternDef (F.externDefs flatState)
+                mapM_ cmpVarDef (F.varDefs flatState)
+                mapM_ cmpFuncDef (F.funcDefs flatState)
 
 
 cmpTypeDef :: InsCmp CompileState m => S.Stmt -> m ()

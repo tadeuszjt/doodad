@@ -19,6 +19,30 @@ maintainer:         tadeuszjt@protonmail.com
 -- category:
 extra-source-files: CHANGELOG.md
 
+test-suite type-tests
+    hs-source-dirs: test, compiler
+    main-is: Test.hs
+    type: exitcode-stdio-1.0
+    build-depends:
+        llvm-hs      ^>= 9.0.0,
+        llvm-hs-pure ^>= 9.0.0,
+        base,
+        HUnit,
+        containers,
+        mtl,
+        bytestring
+    other-modules:
+        Type,
+        Monad,
+        Error,
+        JIT,
+        State,
+        AST,
+        SymTab,
+        Value,
+        Funcs
+
+
 executable bolang
     main-is:          Main.hs
     build-depends:
@@ -54,6 +78,8 @@ executable bolang
         Tuple,
         Type,
         Value
+
+        
 
 
     -- Modules included in this executable, other than Main.
