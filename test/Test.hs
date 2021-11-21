@@ -27,8 +27,14 @@ test3 initState = TestCase $ do
     where
         testCode :: InsCmp CompileState m => m Type
         testCode = do
-            let t = ADT [("a", I64), ("b", F32)]
-            pureTypeOf t
+            let t = ADT [
+                ("a", I64),
+                ("b", F32),
+                ("s", Typedef "MyADTType")
+            ]
+
+            addObj "MyADTType" KeyType $ ObType t Nothing
+            pureTypeOf (Typedef "MyADTType")
 
 
 

@@ -107,13 +107,11 @@ runMod args visited modPath = do
             (defs, state) <- case cmpRes of
                 Left (ErrorFile "" pos str) -> throwError $ ErrorFile (files !! textFile pos) pos str
                 Left (ErrorStr str)         -> throwError $ ErrorStr str
-                Right ((defs, state), _)    -> return (defs, state)
+                Right (res, _)              -> return res
 
             liftIO $ jitAndRun defs session True (printLLIR args) 
             modify $ \s -> s { modMap = Map.insert path state (modMap s) }
             return state
-
-
     where
         debug str =
             if verbose args
