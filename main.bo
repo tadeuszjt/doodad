@@ -1,4 +1,21 @@
 module main
 
+type Expr {
+    ExprInt   i64
+    ExprIdent string
+    ExprInfix (string, Expr, Expr)
+}
+
+
 fn main()
-    print(2, "tadeusz")
+    print(1)
+    let e = ExprInt(32)
+
+    let i = ExprInfix(("+", e, ExprIdent("benis")))
+
+    switch i
+        ExprInt(n)           ; print("integer", n)
+        ExprIdent(s)         ; print("ident", s)
+        ExprInfix((op, a, b)); print("infix", op, a, b)
+
+    print(i, "tadeusz")

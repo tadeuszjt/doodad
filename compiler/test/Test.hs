@@ -29,6 +29,8 @@ test3 initState = TestCase $ do
     runTypeTest (pureTypeOf $ Tuple [("", I64)])              $ Tuple [("", I64)]
     runTypeTest (pureTypeOf $ Tuple [("a", I64), ("b", I32)]) $ Tuple [("", I64), ("", I32)]
 
+    runTypeTest (pureTypeOf $ Table [Char]) $ Table [Char]
+
     runTypeTest testCode1 $ ADT [("a", I64), ("b", F32), ("s", Self) ]
     where
         runTypeTest :: InstrCmpT CompileState IO Type -> Type -> IO ()

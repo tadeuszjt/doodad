@@ -37,14 +37,15 @@ valPrint append val = case valType val of
             Ptr t loc -> valPrint (")" ++ append) (Ptr base loc)
             Val t op  -> valPrint (")" ++ append) (Val base op)
 
-    ADT [(s, t)] -> do
-        void $ printf (show (valType val) ++ "{") []
-        void . printf ("%p}" ++ append) . (:[]) . valOp =<< valLoad val
+    typ@(ADT [(s, t)]) -> do
+        if s /= ""
+        then void $ printf (s ++ "(") []
+        else void $ printf (show typ ++ "(") []
+        valPrint (")" ++ append) =<< adtDeref val
 
     ADT xs -> do
         en <- adtEnum val
         valPrint append en
-        return ()
 
     Tuple xs -> do
         printf "(" []

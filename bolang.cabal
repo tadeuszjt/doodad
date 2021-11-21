@@ -44,8 +44,12 @@ test-suite type-tests
 
 
 executable bolang
-    main-is:          Main.hs
+    main-is:           Main.hs
+    hs-source-dirs:    compiler
+    default-language:  Haskell2010
+    extra-libraries:   gc
     build-depends:
+        base         ^>= 4.13.0.0,
         llvm-hs      ^>= 9.0.0,
         llvm-hs-pure ^>= 9.0.0,
         containers,
@@ -78,12 +82,3 @@ executable bolang
         Type,
         Value,
         Lexer
-
-    -- Modules included in this executable, other than Main.
-    -- other-modules:
-
-    -- LANGUAGE extensions used by modules in this package.
-    -- other-extensions:
-    build-depends:    base ^>=4.13.0.0
-    hs-source-dirs:   compiler
-    default-language: Haskell2010
