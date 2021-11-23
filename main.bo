@@ -1,23 +1,31 @@
 module main
 
-imports lang/lexer
+imports std/strings
 imports std/io
+imports lang/lexer
 
 fn main()
     let str = ""
-
     let loop = true
+
     while loop
         switch getStrLn()
             "\0" ..; loop = false
-            s      ; str = append(str, append(s, "\n"))
+            s      ; str = str + s + "\n"
 
-
+    let toks = :[Token]()
     loop = true
+
     while loop
-        let (tok, ss) = lexToken(str)
-        switch tok
-            null; loop = false
-            t
-                print(t)
-                str = ss
+        switch lexToken(str)
+            (null, ss); loop = false
+            (tok,  ss)
+                str  = ss
+                switch tok
+                    TokOp(s)      ; print("op     ", s)
+                    TokInt(n)     ; print("integer", n)
+                    TokSym(c)     ; print("symbol ", c)
+                    TokChar(c)    ; print("char   ", c)
+                    TokIdent(s)   ; print("ident  ", s)
+                    TokString(s)  ; print("string ", s)
+                    TokKeyword(s) ; print("keyword", s)

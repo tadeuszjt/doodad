@@ -21,6 +21,7 @@ data Type
     deriving (Eq, Ord)
 
 
+
 instance Show Type where
     show t = case t of
         Self          -> "self"

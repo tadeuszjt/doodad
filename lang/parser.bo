@@ -1,17 +1,17 @@
 module parser
 
 type Operator {
-    OpPlus   : ()
-    OpMinus  : ()
-    OpTimes  : ()
-    OpDivide : ()
+    OpPlus   ()
+    OpMinus  ()
+    OpTimes  ()
+    OpDivide ()
 }
 
 type Expr {
-    ExprIdent : string
-    ExprInt   : i64
-    ExprFloat : f64
-    ExprInfix : (Operator, Expr, Expr)
+    ExprIdent string
+    ExprInt   i64
+    ExprFloat f64
+    ExprInfix (Operator, Expr, Expr)
 }
 
 type AST {

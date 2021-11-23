@@ -6,13 +6,13 @@ imports ../std/chars
 
 type Token {
     null
-    TokOp      : string
-    TokInt     : i64
-    TokSym     : char
-    TokIdent   : string
-    TokString  : string
-    TokChar    : char
-    TokKeyword : string
+    TokOp      string
+    TokInt     i64
+    TokSym     char
+    TokIdent   string
+    TokString  string
+    TokChar    char
+    TokKeyword string
 }
 
 let keywords  = ["let", "while", "fn", "extern", "true", "false", "null", "if", "else", "return", "module", "imports", "append"]
