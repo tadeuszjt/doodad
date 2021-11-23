@@ -17,10 +17,36 @@ import LLVM.AST hiding (Type)
 
 
 
+typeTest = TestCase $ do
+    -- must have empty array
+    assertEqual "adt" False $ isEmptyADT I64
+    assertEqual "adt" False $ isEmptyADT $ ADT [("", I64)]
+    assertEqual "adt" True $ isEmptyADT $ ADT []
 
-test1 = TestCase $ assertEqual "benis" 1 1 
+    -- must have one non-void field
+    assertEqual "adt" False $ isPtrADT $ I32
+    assertEqual "adt" False $ isPtrADT $ ADT []
+    assertEqual "adt" True $ isPtrADT $ ADT [("", I64)]
+    assertEqual "adt" False $ isPtrADT $ ADT [("sym", Void)]
+    assertEqual "adt" False $ isPtrADT $ ADT [("", Void), ("", I64)]
 
-test2 = TestCase $ assertEqual "benis" 2 2
+    -- must have at least one field and all void
+    assertEqual "adt" False $ isEnumADT $ I64
+    assertEqual "adt" False $ isEnumADT $ ADT []
+    assertEqual "adt" False $ isEnumADT $ ADT [("", I64)]
+    assertEqual "adt" True $ isEnumADT $ ADT [("sym", Void)]
+    assertEqual "adt" True $ isEnumADT $ ADT [("a", Void), ("b", Void)]
+    assertEqual "adt" False $ isEnumADT $ ADT [("a", Void), ("b", I64)]
+
+    -- must have at least two fields and at least one non-void field
+    assertEqual "adt" False $ isNormalADT $ I64
+    assertEqual "adt" False $ isNormalADT $ ADT []
+    assertEqual "adt" False $ isNormalADT $ ADT [("", I64)]
+    assertEqual "adt" False $ isNormalADT $ ADT [("sym", Void)]
+    assertEqual "adt" False $ isNormalADT $ ADT [("a", Void), ("b", Void)]
+    assertEqual "adt" True $ isNormalADT $ ADT [("a", Void), ("b", I64)]
+    assertEqual "adt" True $ isNormalADT $ ADT [("a", F32), ("b", Void), ("", I32)]
+
 
 test3 initState = TestCase $ do 
     runTypeTest (pureTypeOf I64) $ I64
@@ -49,5 +75,5 @@ test3 initState = TestCase $ do
 main = do
     withSession False $ \session -> do
         let initState = initCompileState (JIT.context session) (JIT.dataLayout session) Map.empty "testMod"
-        runTestTTAndExit $ TestList [test1, test2, test3 initState]
+        runTestTTAndExit $ TestList [typeTest, test3 initState]
 

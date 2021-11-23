@@ -28,6 +28,29 @@ import Funcs
 import Type
 
 
+opTypeOf :: ModCmp CompileState m => Type -> m LL.Type
+opTypeOf typ = case typ of
+    Void      -> return LL.VoidType
+    I16       -> return LL.i16
+    I32       -> return LL.i32
+    I64       -> return LL.i64
+    F64       -> return LL.double
+    Char      -> return LL.i8
+    Bool      -> return LL.i1
+    Tuple xs  -> LL.StructureType False <$> mapM (opTypeOf . snd) xs
+    Array n t -> LL.ArrayType (fromIntegral n) <$> opTypeOf t
+    ADT xs
+        | isEmptyADT typ -> return (LL.ptr LL.i8)
+    ADT [t]   -> return (LL.ptr LL.i8)
+    ADT ts    -> return $ LL.StructureType False [LL.i64, LL.ptr LL.i8]
+    Table ts  -> LL.StructureType False . ([LL.i64, LL.i64] ++) . map LL.ptr <$> mapM opTypeOf ts
+    Typedef s -> do
+        ObType t namem <- look s KeyType
+        maybe (opTypeOf t) (return . LL.NamedTypeReference) namem
+    _         -> error (show typ) 
+
+
+
 assertBaseType :: InsCmp CompileState m => (Type -> Bool) -> Type -> m Type
 assertBaseType f typ = do
     base <- baseTypeOf typ
@@ -263,27 +286,6 @@ zeroOf typ = case typ of
         return $ Val typ $ struct Nothing False (zi64:zi64:zptrs)
 
     _ -> err ("no zero val for: " ++ show typ)
-
-
-opTypeOf :: ModCmp CompileState m => Type -> m LL.Type
-opTypeOf typ = case typ of
-    Void      -> return LL.VoidType
-    I16       -> return LL.i16
-    I32       -> return LL.i32
-    I64       -> return LL.i64
-    F64       -> return LL.double
-    Char      -> return LL.i8
-    Bool      -> return LL.i1
-    Tuple xs  -> LL.StructureType False <$> mapM (opTypeOf . snd) xs
-    Array n t -> LL.ArrayType (fromIntegral n) <$> opTypeOf t
-    ADT []    -> error "cannot get opType of empty ADT"
-    ADT [t]   -> return (LL.ptr LL.i8)
-    ADT ts    -> return $ LL.StructureType False [LL.i64, LL.ptr LL.i8]
-    Table ts  -> LL.StructureType False . ([LL.i64, LL.i64] ++) . map LL.ptr <$> mapM opTypeOf ts
-    Typedef s -> do
-        ObType t namem <- look s KeyType
-        maybe (opTypeOf t) (return . LL.NamedTypeReference) namem
-    _         -> error (show typ) 
 
 
 sizeOf :: InsCmp CompileState m => Type -> m Int

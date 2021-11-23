@@ -21,7 +21,6 @@ data Type
     deriving (Eq, Ord)
 
 
-
 instance Show Type where
     show t = case t of
         Self          -> "self"
@@ -41,29 +40,45 @@ instance Show Type where
         Typedef s     -> s
 
 
-isInt x               = x `elem` [I8, I16, I32, I64]
+isInt x                    = x `elem` [I8, I16, I32, I64]
 
-isFloat x             = x `elem` [F32, F64]
+isFloat x                  = x `elem` [F32, F64]
 
-isArray (Array _ _)   = True
-isArray _             = False
+isArray (Array _ _)        = True
+isArray _                  = False
 
-isTuple (Tuple _)     = True
-isTuple _             = False
+isTuple (Tuple _)          = True
+isTuple _                  = False
 
-isTable (Table _)     = True
-isTable _             = False
+isTable (Table _)          = True
+isTable _                  = False
 
-isTypedef (Typedef _) = True
-isTypedef _           = False
+isTypedef (Typedef _)      = True
+isTypedef _                = False
 
-isADT (ADT _)         = True
-isADT _               = False
+isADT (ADT _)              = True
+isADT _                    = False
 
-isIntegral x  = isInt x || x == Char
+isEmptyADT typ             = typ == ADT []
 
-isBase x      = isInt x || isFloat x || x == Char || x == Bool
+isPtrADT (ADT [(_, Void)]) = False
+isPtrADT (ADT [_])         = True
+isPtrADT _                 = False
 
-isSimple x    = isBase x
+isEnumADT (ADT [])         = False
+isEnumADT (ADT xs)         = all (== Void) $ map snd xs
+isEnumADT _                = False
 
-isAggregate x = isTuple x || isArray x || isTable x || isADT x
+isNormalADT typ@(ADT xs)   = not (isEmptyADT typ || isPtrADT typ || isEnumADT typ)
+isNormalADT _              = False
+
+isIntegral x               = isInt x || x == Char
+
+isBase x                   = isInt x || isFloat x || x == Char || x == Bool
+
+isSimple x                 = isBase x
+
+isAggregate x              = isTuple x || isArray x || isTable x || isADT x
+
+
+

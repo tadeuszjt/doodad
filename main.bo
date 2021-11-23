@@ -29,3 +29,5 @@ fn main()
                     TokIdent(s)   ; print("ident  ", s)
                     TokString(s)  ; print("string ", s)
                     TokKeyword(s) ; print("keyword", s)
+
+    print("left", str)
