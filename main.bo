@@ -1,23 +1,23 @@
 module main
 
 imports lang/lexer
-
-type Expr {
-    ExprInt   i64
-    ExprIdent string
-    ExprInfix (string, Expr, Expr)
-}
-
+imports std/io
 
 fn main()
-    print(1)
-    let e = ExprInt(32)
+    let str = ""
 
-    let i = ExprInfix(("+", e, ExprIdent("benis")))
+    let loop = true
+    while loop
+        switch getStrLn()
+            "\0" ..; loop = false
+            s      ; str = append(str, append(s, "\n"))
 
-    switch i
-        ExprInt(n)           ; print("integer", n)
-        ExprIdent(s)         ; print("ident", s)
-        ExprInfix((op, a, b)); print("infix", op, a, b)
 
-    print(i, "tadeusz")
+    loop = true
+    while loop
+        let (tok, ss) = lexToken(str)
+        switch tok
+            null; loop = false
+            t
+                print(t)
+                str = ss

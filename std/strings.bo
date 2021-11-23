@@ -28,7 +28,7 @@ fn strIsPrefix(pre string, str string) bool
     return true
 
 
-fn strReadInt(s string) {null | i64}
+fn strReadInt(s string) {null | :i64}
     if len(s) <= 0 || !isDigit(s[0])
         return null
 
@@ -39,7 +39,7 @@ fn strReadInt(s string) {null | i64}
         n = n + i64(s[i] - '0')
         i = i + 1
 
-    return :{null | i64}(n)
+    return :{null | :i64}(n)
 
 
 fn strReverse(s string) string
