@@ -1,6 +1,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 module ADT where
 
+import qualified Data.Set as Set
 import Data.Maybe
 import Data.List
 import Control.Monad
@@ -18,10 +19,44 @@ import Monad
 import Funcs
 
 
+
 -- ADT type rules:
 -- ADT []         *i8
 -- ADT [(s, f64)] *f64
 -- ADT [(s, f64), (t, i64)] struct { enum type, i8* }
+
+
+adtTypeDef :: InsCmp CompileState m => String -> Type -> m ()
+adtTypeDef sym typ = do
+    assert (isADT typ) "Isn't ADT"
+    let typdef = Typedef sym
+
+    -- Add zero, base and def constructors
+    forM_ [KeyFunc [], KeyFunc [typ], KeyFunc [typdef]] $ \key -> do
+        checkSymKeyUndef sym key
+        addObj sym key (ObjConstructor typdef)
+
+    case typ of
+        _ | isEmptyADT typ  -> err ""
+        _ | isEnumADT typ   -> err ""
+        _ | isPtrADT typ    -> err ""
+        _ | isNormalADT typ -> do
+            name <- myFresh sym
+            addSymKeyDec sym KeyType name . DecType =<< opTypeOf typ
+            checkSymKeyUndef sym KeyType
+            addObj sym KeyType $ ObType typ (Just name)
+
+    let ADT xs = typ
+    assert (length (Set.fromList xs) == length xs) "ADT fields must be unique"
+
+    forM_ xs $ \(s, t) ->
+        if s == ""
+        then do
+            checkSymKeyUndef sym (KeyFunc [t])
+            addObj sym (KeyFunc [t]) (ObjConstructor typdef)
+        else do
+            checkSymKeyUndef s (KeyFunc [t])
+            addObj s (KeyFunc [t]) (ObjADTFieldCons typdef)
 
 
 adtEnum :: InsCmp CompileState m => Value -> m Value

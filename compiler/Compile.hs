@@ -65,6 +65,8 @@ compileFlatState ctx dl imports flatState modName = do
 
 
 cmpTypeDef :: InsCmp CompileState m => S.Stmt -> m ()
+cmpTypeDef (S.Typedef pos sym typ)
+    | isADT typ = withPos pos $ adtTypeDef sym typ
 cmpTypeDef (S.Typedef pos sym typ) = withPos pos $ do
     let typdef = Typedef sym
 
@@ -74,7 +76,7 @@ cmpTypeDef (S.Typedef pos sym typ) = withPos pos $ do
         addObj sym key (ObjConstructor typdef)
 
     -- use named type
-    if isTuple typ || isTable typ || isADT typ && (let ADT xs = typ in length xs > 1)
+    if isTuple typ || isTable typ
     then do
         name <- myFresh sym
         addSymKeyDec sym KeyType name . DecType =<< opTypeOf typ
@@ -83,26 +85,6 @@ cmpTypeDef (S.Typedef pos sym typ) = withPos pos $ do
     else do
         checkSymKeyUndef sym KeyType
         addObj sym KeyType $ ObType typ Nothing
-
-    -- Add specific constructors
-    if isADT typ
-    then do
-        let ADT xs = typ
-        assert (length (Set.fromList xs) == length xs) "ADT fields must be unique"
-
-        forM_ xs $ \(s, t) -> case s of
-            "" -> do
-                -- Construct ADT from type: Token("str")
-                checkSymKeyUndef sym (KeyFunc [t])
-                addObj sym (KeyFunc [t]) (ObjConstructor typdef)
-                -- Construct ADT from ADT with equivalent field: Token(null)
-                checkSymKeyUndef sym $ KeyFunc [ADT [("", t)]]
-                addObj sym (KeyFunc [ADT [("", t)]]) (ObjConstructor typdef)
-            s -> do
-                -- Construct ADT field from type: TokSym("str")
-                checkSymKeyUndef s (KeyFunc [t])
-                addObj s (KeyFunc [t]) (ObjADTFieldCons typdef)
-    else return ()
 
     if isTuple typ
     then do

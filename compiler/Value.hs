@@ -58,7 +58,7 @@ zeroOf typ = case typ of
     _ | isFloat typ        -> valFloat typ 0.0
     Bool                   -> return (valBool False)
     Char                   -> return (valChar '\0')
-    Typedef sym            -> Val typ . valOp <$> (zeroOf =<< baseTypeOf typ)
+    Typedef sym            -> fmap (Val typ . valOp) $ zeroOf =<< baseTypeOf typ
     Array n t              -> Val typ . array . replicate n . toCons . valOp <$> zeroOf t
     ADT _
         | isEmptyADT typ -> return $ Val typ $ cons $ C.Null (LL.ptr LL.i8)
@@ -70,6 +70,34 @@ zeroOf typ = case typ of
         return $ Val typ $ struct Nothing False (zi64:zi64:zptrs)
 
     _ -> err ("no zero val for: " ++ show typ)
+
+
+pureTypeOf :: ModCmp CompileState m => Type -> m Type
+pureTypeOf initialType = case initialType of
+    Typedef s      -> do ObType t _ <- look s KeyType; pureTypeOf' t
+    Void           -> return Void
+    Tuple xs       -> fmap Tuple $ forM xs $ \(_, t) -> ("",) <$> pureTypeOf' t
+    Table ts       -> Table <$> mapM pureTypeOf' ts
+    t | isSimple t -> return t
+    x              -> error ("pureTypeOf: " ++ show x)
+
+    where
+        pureTypeOf' :: ModCmp CompileState m => Type -> m Type
+        pureTypeOf' typ = case typ of
+            t | isSimple t -> return t
+            ADT xs -> fmap ADT $ forM xs $ \(s, t) ->
+                if t == initialType
+                then return (s, Self)
+                else (s,) <$> pureTypeOf' t
+
+            Table ts -> fmap Table $ forM ts $ \t ->
+                if t == initialType
+                then err (show initialType ++ " is self-referential")
+                else pureTypeOf' t
+
+            Typedef s -> do ObType t _ <- look s KeyType; pureTypeOf' t
+
+            x -> error ("pureTypeOf': " ++ show x)
 
 
 assertBaseType :: InsCmp CompileState m => (Type -> Bool) -> Type -> m Type
@@ -260,41 +288,8 @@ baseTypeOf typ = case typ of
     _         -> return typ
 
 
-pureTypeOf :: ModCmp CompileState m => Type -> m Type
-pureTypeOf initialType = case initialType of
-    Typedef s      -> do ObType t _ <- look s KeyType; pureTypeOf' t
-    Void           -> return Void
-    Tuple xs       -> fmap Tuple $ forM xs $ \(_, t) -> ("",) <$> pureTypeOf' t
-    Table ts       -> Table <$> mapM pureTypeOf' ts
-    t | isSimple t -> return t
-    x              -> error ("pureTypeOf: " ++ show x)
-
-    where
-        pureTypeOf' :: ModCmp CompileState m => Type -> m Type
-        pureTypeOf' typ = case typ of
-            t | isSimple t -> return t
-            ADT xs -> fmap ADT $ forM xs $ \(s, t) ->
-                if t == initialType
-                then return (s, Self)
-                else (s,) <$> pureTypeOf' t
-
-            Table ts -> fmap Table $ forM ts $ \t ->
-                if t == initialType
-                then err (show initialType ++ " is self-referential")
-                else pureTypeOf' t
-
-            Typedef s -> do ObType t _ <- look s KeyType; pureTypeOf' t
-
-            x -> error ("pureTypeOf': " ++ show x)
-
-
 sizeOf :: InsCmp CompileState m => Type -> m Int
-sizeOf Void      = error "cannot take size of Void type"
-sizeOf (ADT [x]) = size (LL.ptr LL.i8)
-sizeOf (ADT [])  = error "invalid adt"
-sizeOf (ADT xs)  = sizeOf $ ADT [("", I64), ("", I32)]
 sizeOf typ       = size =<< opTypeOf =<< pureTypeOf typ
-
 size :: InsCmp CompileState m => LL.Type -> m Int
 size typ = do
     ctx <- gets context
