@@ -30,19 +30,10 @@ import Error
 
 
 data Value
-    = Val T.Type Operand
-    | Ptr T.Type Operand
+    = Val { valType :: T.Type, valOp :: Operand }
+    | Ptr { valType :: T.Type, valLoc :: Operand }
     | Exp S.Expr -- Contextual
     deriving (Show, Eq)
-
-
-valType (Val t op) = t
-valType (Ptr t op) = t
-valType x = error ("contextual: " ++ show x)
-
-
-valOp (Val t op)   = op
-valLoc (Ptr t loc) = loc
 
 
 valIsContextual :: Value -> Bool

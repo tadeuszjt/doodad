@@ -40,9 +40,10 @@ opTypeOf typ = case typ of
     Tuple xs  -> LL.StructureType False <$> mapM (opTypeOf . snd) xs
     Array n t -> LL.ArrayType (fromIntegral n) <$> opTypeOf t
     ADT xs
-        | isEmptyADT typ -> return (LL.ptr LL.i8)
-    ADT [t]   -> return (LL.ptr LL.i8)
-    ADT ts    -> return $ LL.StructureType False [LL.i64, LL.ptr LL.i8]
+        | isEmptyADT typ  -> return (LL.ptr LL.i8)
+        | isPtrADT typ    -> return (LL.ptr LL.i8)
+        | isEnumADT typ   -> return (LL.i64)
+        | isNormalADT typ -> return $ LL.StructureType False [LL.i64, LL.ptr LL.i8]
     Table ts  -> LL.StructureType False . ([LL.i64, LL.i64] ++) . map LL.ptr <$> mapM opTypeOf ts
     Typedef s -> do
         ObType t namem <- look s KeyType
@@ -98,14 +99,13 @@ valBool b = Val Bool (if b then bit 1 else bit 0)
 
 
 valLoad :: InsCmp s m => Value -> m Value
-valLoad (Val typ op)      = return (Val typ op)
-valLoad (Ptr typ loc)     = Val typ <$> load loc 0
+valLoad (Val typ op)  = return (Val typ op)
+valLoad (Ptr typ loc) = Val typ <$> load loc 0
 
 
 valStore :: InsCmp CompileState m => Value -> Value -> m ()
 valStore (Ptr typ loc) val = do
     assert (not $ valIsContextual val) "contextual 73"
-    checkTypesMatch typ (valType val)
     case val of
         Ptr t l -> store loc 0 =<< load l 0
         Val t o -> store loc 0 o

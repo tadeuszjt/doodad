@@ -26,29 +26,34 @@ import Funcs
 
 adtEnum :: InsCmp CompileState m => Value -> m Value
 adtEnum adt = do
-    ADT xs <- assertBaseType isADT (valType adt)
-    assert (length xs > 1) "adt has no enum"
-    case adt of
-        Val _ op  -> Val I64 <$> extractValue op [0]
-        Ptr _ loc -> Ptr I64 <$> gep loc [int32 0, int32 0]
-
+    adtTyp@(ADT xs) <- assertBaseType isADT (valType adt)
+    case adtTyp of
+        _ | isEmptyADT adtTyp  -> err "ADT has no enum"
+        _ | isPtrADT adtTyp    -> err "ADT has no enum"
+        _ | isEnumADT adtTyp   -> do
+            val <- valLoad adt
+            return $ val { valType = I64 }
+        _ | isNormalADT adtTyp -> do
+            val <- valLoad adt
+            Val I64 <$> extractValue (valOp val) [0]
 
 
 adtSetEnum :: InsCmp CompileState m => Value -> Int -> m ()
 adtSetEnum adt@(Ptr _ loc) i = do
-    ADT xs <- assertBaseType isADT (valType adt)
-    assert (length xs > 1)           "adt type has no enum"
-    assert (i >= 0 && i < length xs) "invalid adt enum"
-
-    en <- Ptr I64 <$> gep loc [int32 0, int32 0]
-    valStore en (valI64 i)
+    adtTyp@(ADT xs) <- assertBaseType isADT (valType adt)
+    assert (i >= 0 && i < length xs) "invalid ADT enum"
+    case adtTyp of
+        _ | isEmptyADT adtTyp  -> err "ADT has no enum"
+        _ | isPtrADT adtTyp    -> err "ADT has no enum"
+        _ | isEnumADT adtTyp   -> valStore adt (valI64 i)
+        _ | isNormalADT adtTyp -> do
+            en <- Ptr I64 <$> gep loc [int32 0, int32 0]
+            valStore en (valI64 i)
 
 
 adtDeref :: InsCmp CompileState m => Value -> m Value
 adtDeref val = do
-    ADT xs <- assertBaseType isADT (valType val)
-    assert (length xs == 1) "cannot dereference multi-type adt"
-    let [(s, t)] = xs
+    ADT [(s, t)] <- assertBaseType isPtrADT (valType val)
     pi8 <- adtPi8 val
     pt  <- LL.ptr <$> opTypeOf t
     Ptr t <$> bitcast pi8 pt
@@ -67,39 +72,64 @@ adtNull typ = do
 
 adtPi8 :: InsCmp CompileState m => Value -> m LL.Operand
 adtPi8 adt = do
-    ADT xs <- assertBaseType isADT (valType adt)
+    adtTyp@(ADT xs) <- assertBaseType isADT (valType adt)
     op <- valOp <$> valLoad adt
-    case xs of
-        []  -> error ""
-        [x] -> return op
-        xs  -> extractValue op [1]
+    case adtTyp of
+        _ | isEmptyADT adtTyp -> err "Empty ADT has no pointer"
+        _ | isEnumADT adtTyp  -> err "Empty ADT has no pointer"
+        _ | isPtrADT adtTyp   -> return op
+        _ | isNormalADT adtTyp -> extractValue op [1]
 
 
 adtSetPi8 :: InsCmp CompileState m => Value -> LL.Operand -> m ()
 adtSetPi8 adt@(Ptr _ loc) pi8 = do
-    ADT xs <- assertBaseType isADT (valType adt)
-    case xs of
-        []  -> error ""
-        [x] -> store loc 0 pi8
-        xs  -> do
+    adtTyp@(ADT xs) <- assertBaseType isADT (valType adt)
+    case adtTyp of
+        _ | isEmptyADT adtTyp  -> err "Empty ADT has no pointer"
+        _ | isEnumADT adtTyp   -> err "Empty ADT has no pointer"
+        _ | isPtrADT adtTyp    -> store loc 0 pi8
+        _ | isNormalADT adtTyp -> do
             ppi8 <- gep loc [int32 0, int32 1]
             store ppi8 0 pi8
 
 
 -- Construct a specific ADT field, eg: TokSym("ident")
 adtConstructField :: InsCmp CompileState m => String -> Type -> [Value] -> m Value
-adtConstructField sym adtTyp [val] = do
-    ADT xs <- assertBaseType isADT adtTyp
+adtConstructField sym typ vals = do
+    adtTyp@(ADT xs) <- assertBaseType isADT typ
+    adt <- valLocal typ
 
-    adt <- valLocal adtTyp
-    let xn = (sym, valType val)
-    assert (xn `elem` xs) ("invalid adt field constructor for: " ++ sym)
+    case adtTyp of
+        _ | isEmptyADT adtTyp  -> assert (length vals == 0) "Invalid ADT constructor arguments"
 
-    when (length xs > 1) $ adtSetEnum adt $ fromJust (elemIndex xn xs)
+        _ | isEnumADT adtTyp   -> do
+            assert (length vals == 0) "Invalid ADT constructor arguments"
+            let idxs = [ i | (s, i) <- zip (map fst xs) [0..], s == sym ]
+            assert (length idxs == 1) "Invalid or ambiguous ADT constructor"
+            adtSetEnum adt (head idxs)
 
-    mal <- valMalloc (valType val) (valI64 1)
-    valStore mal val
-    adtSetPi8 adt =<< bitcast (valLoc mal) (LL.ptr LL.i8)
+        _ | isPtrADT adtTyp -> do
+            assert (length vals == 1) "Invalid ADT constructor arguments"
+            let [(s, t)] = xs
+            let [val] = vals
+            assert (s == sym) "Invalid ADT constructor"
+            assert (t == valType val) "Invalid ADT argument type"
+            mal <- valMalloc (valType val) (valI64 1)
+            valStore mal val
+            adtSetPi8 adt =<< bitcast (valLoc mal) (LL.ptr LL.i8)
+
+        _ | isNormalADT adtTyp -> do
+            assert (length vals == 1) "Invalid ADT constructor arguments"
+            let idxs = [ i | (s, i) <- zip (map fst xs) [0..], s == sym ]
+            assert (length idxs == 1) "Invalid or ambiguous ADT constructor"
+            let [idx] = idxs
+            let [val] = vals
+            assert (valType val == map snd xs !! idx) "Invalid"
+            mal <- valMalloc (valType val) (valI64 1)
+            valStore mal val
+            adtSetPi8 adt =<< bitcast (valLoc mal) (LL.ptr LL.i8)
+            adtSetEnum adt idx
+            
     return adt
 
 

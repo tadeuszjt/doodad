@@ -23,7 +23,7 @@ typeTest = TestCase $ do
     assertEqual "adt" False $ isEmptyADT $ ADT [("", I64)]
     assertEqual "adt" True $ isEmptyADT $ ADT []
 
-    -- must have one non-void field
+    -- must have exactly one field which is non-Void 
     assertEqual "adt" False $ isPtrADT $ I32
     assertEqual "adt" False $ isPtrADT $ ADT []
     assertEqual "adt" True $ isPtrADT $ ADT [("", I64)]
