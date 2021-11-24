@@ -97,18 +97,22 @@ adtSetPi8 adt@(Ptr _ loc) pi8 = do
 adtConstructField :: InsCmp CompileState m => String -> Type -> [Value] -> m Value
 adtConstructField sym typ vals = do
     adtTyp@(ADT xs) <- assertBaseType isADT typ
-    adt <- valLocal typ
 
     case adtTyp of
-        _ | isEmptyADT adtTyp  -> assert (length vals == 0) "Invalid ADT constructor arguments"
+        _ | isEmptyADT adtTyp  -> do
+            assert (length vals == 0) "Invalid ADT constructor arguments"
+            zeroOf typ
 
         _ | isEnumADT adtTyp   -> do
+            adt <- valLocal typ
             assert (length vals == 0) "Invalid ADT constructor arguments"
             let idxs = [ i | (s, i) <- zip (map fst xs) [0..], s == sym ]
             assert (length idxs == 1) "Invalid or ambiguous ADT constructor"
             adtSetEnum adt (head idxs)
+            return adt
 
         _ | isPtrADT adtTyp -> do
+            adt <- valLocal typ
             assert (length vals == 1) "Invalid ADT constructor arguments"
             let [(s, t)] = xs
             let [val] = vals
@@ -117,8 +121,10 @@ adtConstructField sym typ vals = do
             mal <- valMalloc (valType val) (valI64 1)
             valStore mal val
             adtSetPi8 adt =<< bitcast (valLoc mal) (LL.ptr LL.i8)
+            return adt
 
         _ | isNormalADT adtTyp -> do
+            adt <- valLocal typ
             assert (length vals == 1) "Invalid ADT constructor arguments"
             let idxs = [ i | (s, i) <- zip (map fst xs) [0..], s == sym ]
             assert (length idxs == 1) "Invalid or ambiguous ADT constructor"
@@ -129,8 +135,8 @@ adtConstructField sym typ vals = do
             valStore mal val
             adtSetPi8 adt =<< bitcast (valLoc mal) (LL.ptr LL.i8)
             adtSetEnum adt idx
+            return adt
             
-    return adt
 
 
 -- ADT()       -> zero constructor
@@ -138,33 +144,24 @@ adtConstructField sym typ vals = do
 -- ADT(adt2)   -> construct from adt with ONE equivalent field
 -- ADT(null)   -> null becomes adt with equivalent field
 adtConstruct :: InsCmp CompileState m => Type -> Value -> m Value
-adtConstruct adtTyp (Exp (S.Null _)) = adtNull adtTyp
-adtConstruct adtTyp (Exp _)          = error "adt constructing from contextual"
-adtConstruct adtTyp val              = do
-    ADT xs  <- assertBaseType isADT adtTyp
+adtConstruct typ (Exp (S.Null _)) = adtNull typ
+adtConstruct typ (Exp _)          = error "adt constructing from contextual"
+adtConstruct typ val              = do
+    adtTyp@(ADT xs) <- assertBaseType isADT typ
+    case adtTyp of
+        _ | isEmptyADT adtTyp -> err "Cannot construct ADT type"
 
-    let is = [ i | ((s, t), i) <- zip xs [0..], t == valType val, s == "" ]
-    if length is == 1 then do -- has unique type field
-        let i = head is
-        adt <- valLocal adtTyp
-        adtSetEnum adt i
-        mal <- valMalloc (valType val) (valI64 1)
-        valStore mal val
-        adtSetPi8 adt =<< bitcast (valLoc mal) (LL.ptr LL.i8)
-        return adt
-    else do                   -- must be another adt
-        ADT xs' <- assertBaseType isADT (valType val)
-        assert (length xs' == 1) "Argument ADT must have one field"
-        assert (head xs' `elem` xs) "Argument ADT does have equivalent field"
-        let x@(s, t) = head xs'
+        _ | isEnumADT adtTyp -> err "here"
 
-        adt <- valLocal adtTyp
-        adtSetEnum adt $ fromJust (elemIndex x xs)
+        _ | isPtrADT adtTyp -> err "here"
 
-        if t == Void then return adt
-        else do
-            mal <- valMalloc t (valI64 1)
-            valStore mal =<< adtDeref val
+        _ | isNormalADT adtTyp -> do
+            let idxs = [ i | (t, i) <- zip (map snd xs) [0..], t == valType val ]
+            assert (length idxs == 1) "Ambiguous or invalid ADT type constructor"
+            let idx = head idxs
+            adt <- valLocal adtTyp
+            adtSetEnum adt idx
+            mal <- valMalloc (valType val) (valI64 1)
+            valStore mal val
             adtSetPi8 adt =<< bitcast (valLoc mal) (LL.ptr LL.i8)
             return adt
-

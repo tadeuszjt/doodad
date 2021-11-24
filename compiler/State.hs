@@ -243,15 +243,3 @@ pushSymTab =
 popSymTab :: BoM CompileState m => m ()
 popSymTab =
     modify $ \s -> s { symTab = SymTab.pop (symTab s) }
-
---
---prettyCompileState :: CompileState -> IO ()
---prettyCompileState state = do
---    putStrLn "defs:"
---    forM_ (definitions state) $ \def -> case def of
---        TypeDefinition name mtyp ->
---            putStrLn ("type: " ++ show name ++ " " ++ show mtyp)
---        GlobalDefinition (Function _ _ _ _ _ retty name params _ _ _ _ _ _ basicBlocks _ _) -> do
---            let ps = concat (map show $ fst params)
---            putStrLn ("func: " ++ show name ++ " " ++ ps ++ " " ++ show retty)
---        _ -> return ()

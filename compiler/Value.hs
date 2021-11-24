@@ -42,7 +42,7 @@ opTypeOf typ = case typ of
     ADT xs
         | isEmptyADT typ  -> return (LL.ptr LL.i8)
         | isPtrADT typ    -> return (LL.ptr LL.i8)
-        | isEnumADT typ   -> return (LL.i64)
+        | isEnumADT typ   -> return LL.i64
         | isNormalADT typ -> return $ LL.StructureType False [LL.i64, LL.ptr LL.i8]
     Table ts  -> LL.StructureType False . ([LL.i64, LL.i64] ++) . map LL.ptr <$> mapM opTypeOf ts
     Typedef s -> do
@@ -50,6 +50,26 @@ opTypeOf typ = case typ of
         maybe (opTypeOf t) (return . LL.NamedTypeReference) namem
     _         -> error (show typ) 
 
+
+
+zeroOf :: InsCmp CompileState m => Type -> m Value
+zeroOf typ = case typ of
+    _ | isInt typ          -> valInt typ 0
+    _ | isFloat typ        -> valFloat typ 0.0
+    Bool                   -> return (valBool False)
+    Char                   -> return (valChar '\0')
+    Typedef sym            -> Val typ . valOp <$> (zeroOf =<< baseTypeOf typ)
+    Array n t              -> Val typ . array . replicate n . toCons . valOp <$> zeroOf t
+    ADT _
+        | isEmptyADT typ -> return $ Val typ $ cons $ C.Null (LL.ptr LL.i8)
+        | isEnumADT typ  -> return $ Val typ (int64 0)
+    Tuple xs               -> Val typ . struct Nothing False . map (toCons . valOp) <$> mapM (zeroOf . snd) xs
+    Table ts -> do
+        let zi64 = toCons (int64 0)
+        zptrs <- mapM (return . C.IntToPtr zi64 . LL.ptr <=< opTypeOf) ts
+        return $ Val typ $ struct Nothing False (zi64:zi64:zptrs)
+
+    _ -> err ("no zero val for: " ++ show typ)
 
 
 assertBaseType :: InsCmp CompileState m => (Type -> Bool) -> Type -> m Type
@@ -246,7 +266,6 @@ pureTypeOf initialType = case initialType of
     Void           -> return Void
     Tuple xs       -> fmap Tuple $ forM xs $ \(_, t) -> ("",) <$> pureTypeOf' t
     Table ts       -> Table <$> mapM pureTypeOf' ts
-
     t | isSimple t -> return t
     x              -> error ("pureTypeOf: " ++ show x)
 
@@ -267,25 +286,6 @@ pureTypeOf initialType = case initialType of
             Typedef s -> do ObType t _ <- look s KeyType; pureTypeOf' t
 
             x -> error ("pureTypeOf': " ++ show x)
-
-
-zeroOf :: InsCmp CompileState m => Type -> m Value
-zeroOf typ = case typ of
-    _ | isInt typ   -> valInt typ 0
-    _ | isFloat typ -> valFloat typ 0.0
-    Bool            -> return (valBool False)
-    Char            -> return (valChar '\0')
-    Typedef sym     -> Val typ . valOp <$> (zeroOf =<< baseTypeOf typ)
-    Array n t       -> Val typ . array . replicate n . toCons . valOp <$> zeroOf t
-    ADT [(s, t)]    -> Val typ . cons . C.Null . LL.ptr <$> opTypeOf t -- ADT with one type, has no enum
-    Tuple xs        -> Val typ . struct Nothing False . map (toCons . valOp) <$> mapM (zeroOf . snd) xs
-
-    Table ts      -> do
-        let zi64 = toCons (int64 0)
-        zptrs <- mapM (return . C.IntToPtr zi64 . LL.ptr <=< opTypeOf) ts
-        return $ Val typ $ struct Nothing False (zi64:zi64:zptrs)
-
-    _ -> err ("no zero val for: " ++ show typ)
 
 
 sizeOf :: InsCmp CompileState m => Type -> m Int
