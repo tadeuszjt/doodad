@@ -1,5 +1,7 @@
 module parser
 
+imports lexer
+
 type Operator {
     OpPlus
     OpMinus
@@ -14,11 +16,6 @@ type Expr {
     ExprInfix : (Operator, Expr, Expr)
 }
 
-type AST {
-    null
-    : Expr
-}
-
-fn parseTokens() Operator
+fn parseTokens(tokens [Token]) Operator
     return OpMinus
 

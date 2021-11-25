@@ -214,8 +214,10 @@ cmpStmt stmt = case stmt of
         val <- cmpExpr expr
         case ind of
             S.IndIdent p sym -> do
-                ObjVal loc <- look sym KeyVar
-                valStore loc val
+                res <- look sym KeyVar
+                case res of
+                    ObjVal loc -> valStore loc val
+                    _          -> err "Cannot assign to non-variable object"
 
     S.Return pos Nothing -> withPos pos $ do
         curRetty <- gets curRetType
@@ -296,8 +298,8 @@ cmpExpr expr = case expr of
     S.Ident pos sym            -> withPos pos $ do
         obj <- look sym KeyVar
         case obj of
-            ObjVal loc         -> return loc
-            ObjConstructor typ -> valConstruct typ []
+            ObjVal loc             -> return loc
+            ObjADTFieldCons adtTyp -> adtConstructField sym adtTyp []
 
     S.Prefix pos S.Not   expr  -> withPos pos $ valNot =<< cmpExpr expr
     S.Prefix pos S.Minus expr  -> withPos pos $ valsInfix S.Minus (Exp (S.Int undefined 0)) =<< cmpExpr expr

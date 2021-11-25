@@ -42,9 +42,8 @@ adtTypeDef sym typ = do
         _ | isEnumADT typ   -> do
             addObjWithCheck sym KeyType $ ObType typ Nothing
             forM_ xs $ \(s, Void) -> do
-                addObjWithCheck s KeyVar (ObjConstructor typdef)
+                addObjWithCheck s KeyVar (ObjADTFieldCons typdef)
                 
-
         _ | isPtrADT typ    -> err "ptr"
         _ | isNormalADT typ -> do
             name <- myFresh sym

@@ -37,14 +37,16 @@ opTypeOf typ = case typ of
     F64       -> return LL.double
     Char      -> return LL.i8
     Bool      -> return LL.i1
-    Tuple xs  -> LL.StructureType False <$> mapM (opTypeOf . snd) xs
+    Tuple xs  -> LL.StructureType False <$> mapM opTypeOf (map snd xs)
     Array n t -> LL.ArrayType (fromIntegral n) <$> opTypeOf t
     ADT xs
         | isEmptyADT typ  -> return (LL.ptr LL.i8)
         | isPtrADT typ    -> return (LL.ptr LL.i8)
         | isEnumADT typ   -> return LL.i64
         | isNormalADT typ -> return $ LL.StructureType False [LL.i64, LL.ptr LL.i8]
-    Table ts  -> LL.StructureType False . ([LL.i64, LL.i64] ++) . map LL.ptr <$> mapM opTypeOf ts
+    Table ts  -> do
+        ps <- map LL.ptr <$> mapM opTypeOf ts
+        return $ LL.StructureType False (LL.i64:LL.i64:ps)
     Typedef s -> do
         ObType t namem <- look s KeyType
         maybe (opTypeOf t) (return . LL.NamedTypeReference) namem
@@ -78,12 +80,14 @@ pureTypeOf initialType = case initialType of
     Void           -> return Void
     Tuple xs       -> fmap Tuple $ forM xs $ \(_, t) -> ("",) <$> pureTypeOf' t
     Table ts       -> Table <$> mapM pureTypeOf' ts
+    ADT xs         -> fmap ADT $ forM xs $ \(s, t) -> ("",) <$> pureTypeOf' t
     t | isSimple t -> return t
     x              -> error ("pureTypeOf: " ++ show x)
 
     where
         pureTypeOf' :: ModCmp CompileState m => Type -> m Type
         pureTypeOf' typ = case typ of
+            Void           -> return Void
             t | isSimple t -> return t
             ADT xs -> fmap ADT $ forM xs $ \(s, t) ->
                 if t == initialType

@@ -7,6 +7,7 @@ import LLVM.IRBuilder.Monad
 import LLVM.IRBuilder.Instruction
 import LLVM.IRBuilder.Constant
 import qualified LLVM.AST.Type as LL
+import qualified LLVM.AST.IntegerPredicate as P
 
 import qualified AST as S
 import Value
@@ -31,11 +32,26 @@ valPrint append val = case valType val of
         void . printf ("%s" ++ append) . (:[]) =<< gep (cons str) . (:[]) =<< select op (int64 0) (int64 5)
 
     Typedef s -> do
-        printf (s ++ "(") []
         base <- baseTypeOf (valType val)
-        case val of
-            Ptr t loc -> valPrint (")" ++ append) (Ptr base loc)
-            Val t op  -> valPrint (")" ++ append) (Val base op)
+
+        case base of
+            ADT xs
+                | isEnumADT base -> valPrint append $ val { valType = base }
+            _ -> do
+                printf (s ++ "(") []
+                valPrint (")" ++ append) $ val { valType = base }
+
+    adtTyp@(ADT xs)
+        | isEmptyADT adtTyp -> void $ printf ("{}" ++ append) []
+        | isEnumADT  adtTyp -> do
+            adt <- valLoad val
+            cases <- forM (zip xs [0..]) $ \((s, t), i) -> do
+                let b = do icmp P.EQ (valOp adt) (int64 i)
+                let p = do void (printf s [])
+                return (b, p)
+
+            switch_ cases
+            void $ printf append []
 
     typ@(ADT [(s, t)]) -> do
         if s /= ""
