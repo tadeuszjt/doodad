@@ -80,7 +80,7 @@ pureTypeOf initialType = case initialType of
     Void           -> return Void
     Tuple xs       -> fmap Tuple $ forM xs $ \(_, t) -> ("",) <$> pureTypeOf' t
     Table ts       -> Table <$> mapM pureTypeOf' ts
-    ADT xs         -> fmap ADT $ forM xs $ \(s, t) -> ("",) <$> pureTypeOf' t
+    ADT xs         -> fmap ADT $ forM xs $ \(s, t) -> (s,) <$> pureTypeOf' t
     t | isSimple t -> return t
     x              -> error ("pureTypeOf: " ++ show x)
 
@@ -98,6 +98,12 @@ pureTypeOf initialType = case initialType of
                 if t == initialType
                 then err (show initialType ++ " is self-referential")
                 else pureTypeOf' t
+
+            Tuple xs -> fmap Tuple $ forM xs $ \(s, t) ->
+                if t == initialType
+                then err (show initialType ++ " is self-referential")
+                else (s,) <$> pureTypeOf' t
+
 
             Typedef s -> do ObType t _ <- look s KeyType; pureTypeOf' t
 

@@ -16,6 +16,8 @@ type Expr {
     ExprInfix : (Operator, Expr, Expr)
 }
 
-fn parseTokens(tokens [Token]) Operator
-    return OpMinus
+type ParseResult ({ null | :Expr }, [Token])
+
+fn parseTokens(tokens [Token]) ParseResult
+    return (null, [])
 
