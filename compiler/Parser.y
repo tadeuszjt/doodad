@@ -245,10 +245,10 @@ tupType   : type_                { ("", $1) }
 rowTypes_     : type_                    { [$1] }
               | type_ ';' rowTypes_      { $1 : $3 }
 
-ptrType : type_                 { ("", $1) }
-        | null                  { ("", T.Void) }
-        | ident  type_          { (tokStr $1, $2) }
-        | ident  null           { (tokStr $1, T.Void) }
+ptrType : null                  { ("", T.Void) }
+        | ident                 { (tokStr $1, T.Void) }
+        | ':' type_             { ("", $2) }
+        | ident ':' type_       { (tokStr $1, $3) }
 ptrTypes : ptrType              { [$1] }
          | ptrType '|' ptrTypes { $1 : $3 }
          | ptrType 'N' ptrTypes { $1 : $3 }

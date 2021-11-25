@@ -139,6 +139,11 @@ addObj :: BoM CompileState m => S.Symbol -> SymKey -> Object -> m ()
 addObj sym key obj =
     modify $ \s -> s { symTab = SymTab.insert sym key obj (symTab s) }
 
+addObjWithCheck :: BoM CompileState m => S.Symbol -> SymKey -> Object -> m ()
+addObjWithCheck sym key obj = do
+    checkSymKeyUndef sym key
+    addObj sym key obj
+
 
 checkSymKeyUndef :: BoM CompileState m => S.Symbol -> SymKey -> m ()
 checkSymKeyUndef sym key = do

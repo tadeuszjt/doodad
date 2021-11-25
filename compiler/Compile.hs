@@ -71,29 +71,24 @@ cmpTypeDef (S.Typedef pos sym typ) = withPos pos $ do
     let typdef = Typedef sym
 
     -- Add zero, base and def constructors
-    forM_ [KeyFunc [], KeyFunc [typ], KeyFunc [typdef]] $ \key -> do
-        checkSymKeyUndef sym key
-        addObj sym key (ObjConstructor typdef)
+    addObjWithCheck sym (KeyFunc []) (ObjConstructor typdef)
+    addObjWithCheck sym (KeyFunc [typ]) (ObjConstructor typdef)
+    addObjWithCheck sym (KeyFunc [typdef]) (ObjConstructor typdef)
 
     -- use named type
     if isTuple typ || isTable typ
     then do
         name <- myFresh sym
         addSymKeyDec sym KeyType name . DecType =<< opTypeOf typ
-        checkSymKeyUndef sym KeyType
-        addObj sym KeyType $ ObType typ (Just name)
-    else do
-        checkSymKeyUndef sym KeyType
-        addObj sym KeyType $ ObType typ Nothing
+        addObjWithCheck sym KeyType $ ObType typ (Just name)
+    else addObjWithCheck sym KeyType $ ObType typ Nothing
 
     if isTuple typ
     then do
         let Tuple xs = typ
         let ts = map snd xs
         if length ts > 0
-        then do
-            checkSymKeyUndef sym (KeyFunc ts)
-            addObj sym (KeyFunc ts) (ObjConstructor typdef)
+        then addObjWithCheck sym (KeyFunc ts) (ObjConstructor typdef)
         else return ()
     else return ()
 
@@ -103,7 +98,6 @@ cmpVarDef :: InsCmp CompileState m => S.Stmt -> m ()
 cmpVarDef (S.Assign pos (S.PatIdent p sym) expr) = do
     val <- cmpExpr expr
 
-    checkSymKeyUndef sym KeyVar
     name <- myFresh sym
 
     assert (not $ valIsContextual val) "contextual 124"
@@ -113,12 +107,12 @@ cmpVarDef (S.Assign pos (S.PatIdent p sym) expr) = do
     if isCons (valOp val)
     then do
         loc <- Ptr typ <$> global name opTyp (toCons $ valOp val)
-        addObj sym KeyVar (ObjVal loc)
+        addObjWithCheck sym KeyVar (ObjVal loc)
     else do
         initialiser <- zeroOf typ
         loc <- Ptr typ <$> global name opTyp (toCons $ valOp initialiser)
         valStore loc val
-        addObj sym KeyVar (ObjVal loc)
+        addObjWithCheck sym KeyVar (ObjVal loc)
 
     addSymKeyDec sym KeyVar name (DecVar opTyp)
     addDeclared name
@@ -132,8 +126,7 @@ cmpExternDef (S.Extern pos sym params retty) = do
 
     pushSymTab
     paramOpTypes <- forM params $ \(S.Param p s t) -> do
-        checkSymKeyUndef s KeyVar
-        addObj s KeyVar $ ObjVal (valBool False)
+        addObjWithCheck s KeyVar $ ObjVal (valBool False)
         opTypeOf t
 
     returnOpType <- opTypeOf retty
@@ -148,13 +141,12 @@ cmpFuncHdr :: InsCmp CompileState m => S.Stmt -> m ()
 cmpFuncHdr (S.Func pos "main" params retty blk) = return ()
 cmpFuncHdr (S.Func pos sym params retty blk)    = withPos pos $ do
     let key = KeyFunc (map S.paramType params)
-    checkSymKeyUndef sym key
     name <- myFresh sym
 
     paramOpTypes <- mapM (opTypeOf . S.paramType) params
     returnOpType <- opTypeOf retty
     let op = fnOp name paramOpTypes returnOpType False
-    addObj sym key (ObjFunc retty op) 
+    addObjWithCheck sym key (ObjFunc retty op) 
     
 
 cmpFuncDef :: (MonadFail m, Monad m, MonadIO m) => S.Stmt -> InstrCmpT CompileState m ()
@@ -181,10 +173,9 @@ cmpFuncDef (S.Func pos sym params retty blk) = withPos pos $ do
     modify $ \s -> s { curRetType = retty }
     void $ InstrCmpT . IRBuilderT . lift $ func name (zip paramOpTypes paramNames) returnOpType $ \paramOps -> do
         forM_ (zip3 paramTypes paramOps paramSyms) $ \(typ, op, sym) -> do
-            checkSymKeyUndef sym KeyVar
             loc <- valLocal typ
             valStore loc (Val typ op)
-            addObj sym KeyVar (ObjVal loc)
+            addObjWithCheck sym KeyVar (ObjVal loc)
 
         mapM_ cmpStmt blk
         hasTerm <- hasTerminator
@@ -302,7 +293,12 @@ cmpExpr expr = case expr of
     S.Conv pos typ []          -> zeroOf typ
     S.Conv pos typ [S.Null p]  -> withPos pos (adtNull typ)
     S.Conv pos typ exprs       -> withPos pos $ valConstruct typ =<< mapM cmpExpr exprs
-    S.Ident pos sym            -> withPos pos $ look sym KeyVar >>= \(ObjVal loc) -> return loc
+    S.Ident pos sym            -> withPos pos $ do
+        obj <- look sym KeyVar
+        case obj of
+            ObjVal loc         -> return loc
+            ObjConstructor typ -> valConstruct typ []
+
     S.Prefix pos S.Not   expr  -> withPos pos $ valNot =<< cmpExpr expr
     S.Prefix pos S.Minus expr  -> withPos pos $ valsInfix S.Minus (Exp (S.Int undefined 0)) =<< cmpExpr expr
     S.Append pos exprA exprB   -> withPos pos $ valLoad =<< join (liftM2 tableAppend (cmpExpr exprA) (cmpExpr exprB))
@@ -446,11 +442,10 @@ cmpPattern pat val = case pat of
         valsInfix S.AndAnd match guard
 
     S.PatIdent pos sym -> withPos pos $ do
-        checkSymKeyUndef sym KeyVar
         val' <- valResolveContextual val
         loc <- valLocal (valType val')
         valStore loc val'
-        addObj sym KeyVar (ObjVal loc)
+        addObjWithCheck sym KeyVar (ObjVal loc)
         return (valBool True)
 
     S.PatTuple pos pats -> withPos pos $ do

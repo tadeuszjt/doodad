@@ -29,34 +29,34 @@ import Funcs
 adtTypeDef :: InsCmp CompileState m => String -> Type -> m ()
 adtTypeDef sym typ = do
     assert (isADT typ) "Isn't ADT"
+    let ADT xs = typ
     let typdef = Typedef sym
 
     -- Add zero, base and def constructors
-    forM_ [KeyFunc [], KeyFunc [typ], KeyFunc [typdef]] $ \key -> do
-        checkSymKeyUndef sym key
-        addObj sym key (ObjConstructor typdef)
+    addObjWithCheck sym (KeyFunc []) (ObjConstructor typdef)
+    addObjWithCheck sym (KeyFunc [typ]) (ObjConstructor typdef)
+    addObjWithCheck sym (KeyFunc [typdef]) (ObjConstructor typdef)
 
     case typ of
-        _ | isEmptyADT typ  -> err ""
-        _ | isEnumADT typ   -> err ""
-        _ | isPtrADT typ    -> err ""
+        _ | isEmptyADT typ  -> err "empty"
+        _ | isEnumADT typ   -> do
+            addObjWithCheck sym KeyType $ ObType typ Nothing
+            forM_ xs $ \(s, Void) -> do
+                addObjWithCheck s KeyVar (ObjConstructor typdef)
+                
+
+        _ | isPtrADT typ    -> err "ptr"
         _ | isNormalADT typ -> do
             name <- myFresh sym
             addSymKeyDec sym KeyType name . DecType =<< opTypeOf typ
-            checkSymKeyUndef sym KeyType
-            addObj sym KeyType $ ObType typ (Just name)
+            addObjWithCheck sym KeyType $ ObType typ (Just name)
 
-    let ADT xs = typ
     assert (length (Set.fromList xs) == length xs) "ADT fields must be unique"
 
     forM_ xs $ \(s, t) ->
         if s == ""
-        then do
-            checkSymKeyUndef sym (KeyFunc [t])
-            addObj sym (KeyFunc [t]) (ObjConstructor typdef)
-        else do
-            checkSymKeyUndef s (KeyFunc [t])
-            addObj s (KeyFunc [t]) (ObjADTFieldCons typdef)
+        then addObjWithCheck sym (KeyFunc [t]) (ObjConstructor typdef)
+        else addObjWithCheck s (KeyFunc [t]) (ObjADTFieldCons typdef)
 
 
 adtEnum :: InsCmp CompileState m => Value -> m Value
