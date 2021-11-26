@@ -39,6 +39,7 @@ import Funcs
 import Table
 import Tuple
 import ADT
+import Construct
 
 compileFlatState
     :: BoM s m
@@ -518,37 +519,6 @@ cmpPrint (S.Print pos exprs) = withPos pos $ do
         prints [val]  = valPrint "\n" val
         prints (v:vs) = valPrint ", " v >> prints vs
 
-
-valConstruct :: InsCmp CompileState m => Type -> [Value] -> m Value
-valConstruct typ []    = zeroOf typ
-valConstruct typ [val] = do
-    val' <- valResolveContextual val
-
-    if valType val' == typ then do
-        valLoad val'
-    else do
-        val' <- valLoad val
-        base <- baseTypeOf typ
-        case base of
-            I32 -> case val' of
-                Val I64 op -> Val base <$> trunc op LL.i32
-                Val I8 op  -> Val base <$> sext op LL.i32
-
-            I64 -> case val' of
-                Val Char op -> Val base <$> sext op LL.i64
-
-            Char -> case val' of
-                Val I64 op -> Val base <$> trunc op LL.i8
-                Val I32 op -> Val base <$> trunc op LL.i8
-                _          -> error (show val')
-
-            ADT _   -> adtConstruct typ val'
-            _           -> do
-                pureType    <- pureTypeOf typ
-                pureValType <- pureTypeOf (valType val')
-                checkTypesMatch pureType pureValType
-                Val typ <$> valOp <$> valLoad val'
-valConstruct typ vals = tupleConstruct typ vals
 
 
 valAsType :: InsCmp CompileState m => Type -> Value -> m Value

@@ -81,4 +81,5 @@ executable bolang
         Tuple,
         Type,
         Value,
-        Lexer
+        Lexer,
+        Construct

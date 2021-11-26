@@ -1,6 +1,7 @@
 module parser
 
 imports lexer
+imports ../std/strings
 
 type Operator {
     OpPlus
@@ -16,7 +17,12 @@ type Expr {
     ExprInfix : (Operator, Expr, Expr)
 }
 
+fn string(e Expr) string
+    switch e
+        ExprIdent(str); return "ident: " + str
+
 type ParseResult ({ null | :Expr }, [Token])
+
 
 fn parseTokens(tokens [Token]) ParseResult
     return (null, [])

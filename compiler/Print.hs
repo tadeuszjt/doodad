@@ -18,6 +18,7 @@ import Table
 import Tuple
 import Type 
 import ADT
+import Construct
 
 
 valPrint :: InsCmp CompileState m => String -> Value -> m ()
@@ -32,36 +33,8 @@ valPrint append val = case valType val of
         void . printf ("%s" ++ append) . (:[]) =<< gep (cons str) . (:[]) =<< select op (int64 0) (int64 5)
 
     Typedef s -> do
-        base <- baseTypeOf (valType val)
-
-        case base of
-            ADT xs
-                | isEnumADT base -> valPrint append $ val { valType = base }
-            _ -> do
-                printf (s ++ "(") []
-                valPrint (")" ++ append) $ val { valType = base }
-
-    adtTyp@(ADT xs)
-        | isEmptyADT adtTyp -> void $ printf ("{}" ++ append) []
-        | isEnumADT  adtTyp -> do
-            adt <- valLoad val
-            cases <- forM (zip xs [0..]) $ \((s, t), i) -> do
-                let b = do icmp P.EQ (valOp adt) (int64 i)
-                let p = do void (printf s [])
-                return (b, p)
-
-            switch_ cases
-            void $ printf append []
-
-    typ@(ADT [(s, t)]) -> do
-        if s /= ""
-        then void $ printf (s ++ "(") []
-        else void $ printf (show typ ++ "(") []
-        valPrint (")" ++ append) =<< adtDeref val
-
-    ADT xs -> do
-        en <- adtEnum val
-        valPrint append en
+        str <- valConstruct (Table [Char]) [val]
+        valPrint append str
 
     Tuple xs -> do
         printf "(" []

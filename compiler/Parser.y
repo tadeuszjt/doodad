@@ -126,22 +126,23 @@ importPath : ident                           { [tokStr $1] }
            | importPath '/' importPath       { $1 ++ $3 }
 
 
-fnName  : ident { tokStr $1 }
-        | '+'   { tokStr $1 }
-        | '-'   { tokStr $1 }
-        | '*'   { tokStr $1 }
-        | '/'   { tokStr $1 }
-        | '%'   { tokStr $1 }
-        | '<'   { tokStr $1 }
-        | '>'   { tokStr $1 }
-        | '='   { tokStr $1 }
-        | '!'   { tokStr $1 }
-        | '!='  { tokStr $1 }
-        | '<='  { tokStr $1 }
-        | '>='  { tokStr $1 }
-        | '=='  { tokStr $1 }
-        | '&&'  { tokStr $1 }
-        | '||'  { tokStr $1 }
+fnName  : ident  { tokStr $1 }
+        | string { tokStr $1 }
+        | '+'    { tokStr $1 }
+        | '-'    { tokStr $1 }
+        | '*'    { tokStr $1 }
+        | '/'    { tokStr $1 }
+        | '%'    { tokStr $1 }
+        | '<'    { tokStr $1 }
+        | '>'    { tokStr $1 }
+        | '='    { tokStr $1 }
+        | '!'    { tokStr $1 }
+        | '!='   { tokStr $1 }
+        | '<='   { tokStr $1 }
+        | '>='   { tokStr $1 }
+        | '=='   { tokStr $1 }
+        | '&&'   { tokStr $1 }
+        | '||'   { tokStr $1 }
 
 stmtS : let pattern '=' expr                  { S.Assign (tokPos $1) $2 $4 }  
       | index '=' expr                        { S.Set (tokPos $2) $1 $3 }
