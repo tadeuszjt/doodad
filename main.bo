@@ -5,7 +5,7 @@ fn test()
     print(2)
 
 fn f2()
-    print("gay")
+    print("2")
 
 fn f3()
     f2()

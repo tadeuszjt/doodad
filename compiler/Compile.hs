@@ -246,6 +246,7 @@ cmpStmt stmt = case stmt of
     S.If pos cnd blk melse -> withPos pos $ do
         pushSymTab
         val <- valLoad =<< cmpCondition cnd
+        assertBaseType (== Bool) (valType val)
         if_ (valOp val) (cmpStmt blk) $ maybe (return ()) cmpStmt melse
         popSymTab
 
@@ -395,7 +396,7 @@ cmpExpr expr = case expr of
 
             assert (length vals == rowLen) $ "mismatched table row length of " ++ show (length vals)
             let typ = valType (head vals)
-            mapM_ (checkTypesMatch typ) (map valType vals)
+            assert (all (== typ) $ map valType vals) "Types do not match"
             return typ
 
         rows <- forM (zip rowTypes [0..]) $ \(t, r) -> do
@@ -419,14 +420,13 @@ cmpExpr expr = case expr of
 cmpCondition :: InsCmp CompileState m => S.Condition -> m Value
 cmpCondition cnd = do
     val <- case cnd of
-        S.CondExpr expr -> cmpExpr expr
+        S.CondExpr expr      -> cmpExpr expr
         S.CondMatch pat expr -> cmpPattern pat =<< cmpExpr expr
 
     assert (not $ valIsContextual val) "contextual 430"
 
     assertBaseType (== Bool) (valType val)
     return val
-
 
 
 cmpPattern :: InsCmp CompileState m => S.Pattern -> Value -> m Value
@@ -518,7 +518,6 @@ cmpPattern pat val = case pat of
     _ -> error (show pat)
 
 
-
 cmpPrint :: InsCmp CompileState m => S.Stmt -> m ()
 cmpPrint (S.Print pos exprs) = withPos pos $ do
     prints =<< mapM valResolveContextual =<< mapM cmpExpr exprs
@@ -529,11 +528,10 @@ cmpPrint (S.Print pos exprs) = withPos pos $ do
         prints (v:vs) = valPrint ", " v >> prints vs
 
 
-
 valAsType :: InsCmp CompileState m => Type -> Value -> m Value
 valAsType typ val = case val of
-    Val _ _              -> checkTypesMatch typ (valType val) >> return val
-    Ptr _ _              -> checkTypesMatch typ (valType val) >> return val
+    Val _ _              -> assert (typ == valType val) "Types do not match" >> return val
+    Ptr _ _              -> assert (typ == valType val) "Types do not match" >> return val
     Exp (S.Int _ n)      -> valInt typ n
     Exp (S.Null _)       -> adtNull typ
     Exp (S.Table _ [[]]) -> assertBaseType isTable typ >> zeroOf typ

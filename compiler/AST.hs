@@ -192,20 +192,11 @@ prettyAST pre ast = do
     where
         prettyStmt :: String -> Stmt -> IO ()
         prettyStmt pr stmt = case stmt of
-            Assign pos pat expr -> do
-                putStrLn (pr ++ "let " ++ show pat ++ " = " ++ show expr)
-
-            Set pos ind expr -> do
-                putStrLn (pr ++ show ind ++ " = " ++ show expr)
-
-            Print pos exprs -> do
-                putStrLn (pr ++ "Print" ++ tupStrs (map show exprs))
-
-            CallStmt pos expr exprs -> do
-                putStrLn (pr ++ show expr ++ tupStrs (map show exprs))
-
-            Return pos mexpr -> do
-                putStrLn (pr ++ "Return " ++ show mexpr)
+            Assign pos pat expr     -> putStrLn (pr ++ "let " ++ show pat ++ " = " ++ show expr)
+            Set pos ind expr        -> putStrLn (pr ++ show ind ++ " = " ++ show expr)
+            Print pos exprs         -> putStrLn (pr ++ "Print" ++ tupStrs (map show exprs))
+            CallStmt pos expr exprs -> putStrLn (pr ++ show expr ++ tupStrs (map show exprs))
+            Return pos mexpr        -> putStrLn (pr ++ "Return " ++ show mexpr)
 
             Block stmts -> do
                 putStrLn (pr ++ "block")

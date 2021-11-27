@@ -43,7 +43,8 @@ valConstruct typ [val] = do
             _           -> do
                 pureType    <- pureTypeOf typ
                 pureValType <- pureTypeOf (valType val')
-                checkTypesMatch pureType pureValType
+
+                assert (pureType == pureValType) "Pure types do not match"
                 Val typ <$> valOp <$> valLoad val'
 
 valConstruct typ vals = tupleConstruct typ vals

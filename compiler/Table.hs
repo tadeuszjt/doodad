@@ -63,7 +63,7 @@ tableRow i tab = do
 tableSetRow :: InsCmp CompileState m => Value -> Int -> Value -> m ()
 tableSetRow tab i row = do
     Table ts <- assertBaseType isTable (valType tab)
-    checkTypesMatch (valType row) (ts !! i)
+    assert (valType row == ts !! i) "Types do not match"
     pp <- gep (valLoc tab) [int32 0, int32 (fromIntegral i+2)]
     store pp 0 (valLoc row)
 
@@ -88,7 +88,7 @@ tableSetElem tab idx tup = do
 
     -- check types match
     assert (length ts == length xs) "tuple type does not match table column"
-    zipWithM_ checkTypesMatch ts (map snd xs)
+    assert (ts == map snd xs) "Types do not match"
 
     forM_ (zip ts [0..]) $ \(t, i) -> do
         row <- tableRow i tab
@@ -153,7 +153,7 @@ tableAppend a b = do
 
     ap <- pureTypeOf (valType a)
     bp <- pureTypeOf (valType b)
-    checkTypesMatch ap bp
+    assert (ap == bp) "Types do not match"
 
     loc <- valLocal (valType a)
     valStore loc a

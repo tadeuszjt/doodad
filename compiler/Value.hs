@@ -181,10 +181,8 @@ valStore (Ptr typ loc) val = do
 
 valSelect :: InsCmp CompileState m => Value -> Value -> Value -> m Value
 valSelect cnd t f = do
-    assert (not $ valIsContextual t) "contextual 84"
-    assert (not $ valIsContextual f) "contextual 84"
     assertBaseType (==Bool) (valType cnd)
-    checkTypesMatch (valType t) (valType f)
+    assert (valType t == valType f) "Types do not match"
     return . Val (valType t) =<< select (valOp cnd) (valOp t) (valOp f)
 
 
@@ -228,7 +226,7 @@ valsInfix operator a b = do
         Nothing                 -> do
             baseA <- baseTypeOf (valType a)
             baseB <- baseTypeOf (valType b)
-            checkTypesMatch baseA baseB
+            assert (baseA == baseB) "Base types do not match"
 
             case baseA of
                 Bool              -> boolInfix (valType a) operator opA opB
@@ -298,23 +296,13 @@ valArrayConstIdx val i = do
 
 valMemCpy :: InsCmp CompileState m => Value -> Value -> Value -> m ()
 valMemCpy (Ptr dstTyp dst) (Ptr srcTyp src) len = do
-    checkTypesMatch dstTyp srcTyp
+    assert (dstTyp == srcTyp) "Types do not match"
+    assertBaseType isInt (valType len)
+
     pDstI8 <- bitcast dst (LL.ptr LL.i8)
     pSrcI8 <- bitcast src (LL.ptr LL.i8)
     void $ memcpy pDstI8 pSrcI8 . valOp =<< valsInfix S.Times len . valI64 =<< sizeOf dstTyp
 
-
-checkTypesMatch :: BoM CompileState m => Type -> Type -> m ()
-checkTypesMatch typA typB
-    | isSimple typA   = assert (typA == typB) str
-    | isTable typA    = assert (typA == typB) str
-    | isTuple typA    = assert (typA == typB) str
-    | isTypedef typA  = assert (typA == typB) str
-    | isADT typA      = assert (typA == typB) str
-    | isFunction typA = assert (typA == typB) str
-    | otherwise       = err str
-    where
-        str = show typA ++ " does not match " ++ show typB
 
 
 baseTypeOf :: ModCmp CompileState m => Type -> m Type
