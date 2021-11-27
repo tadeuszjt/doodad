@@ -1,6 +1,8 @@
 module strings
 imports chars
 
+
+
 fn + (a string, b string) string
     return append(a, b)
 
@@ -16,6 +18,25 @@ fn == (a string, b string) bool
         i = i + 1
 
     return true
+
+
+fn string(n i64) string
+    let digits = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']
+    let str = ""
+
+    if n == 0
+        return "0"
+    else if n < 0
+        while n < 0
+            str = [digits[(n * -1) % 10]] + str
+            n   = n / 10
+        return "-" + str
+    else if n > 0
+        while n > 0
+            str = [digits[n % 10]] + str
+            n   = n / 10
+        return str
+
 
 
 fn strIsPrefix(pre string, str string) bool

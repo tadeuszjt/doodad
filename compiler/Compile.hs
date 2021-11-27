@@ -234,11 +234,7 @@ cmpStmt stmt = case stmt of
     S.If pos cnd blk melse -> withPos pos $ do
         pushSymTab
         val <- valLoad =<< cmpCondition cnd
-
-        case melse of
-            Nothing                   -> if_ (valOp val) (cmpStmt blk) (return ())
-            Just blk2@(S.Block stmts) -> if_ (valOp val) (cmpStmt blk) (cmpStmt blk2)
-
+        if_ (valOp val) (cmpStmt blk) $ maybe (return ()) cmpStmt melse
         popSymTab
 
     S.While pos cnd blk -> withPos pos $ do

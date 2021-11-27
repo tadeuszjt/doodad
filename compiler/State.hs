@@ -234,17 +234,24 @@ ensureExtern name argTypes retty isVarg = do
         C.GlobalReference (ptr $ FunctionType retty argTypes isVarg) name
 
 
-look :: ModCmp CompileState m => S.Symbol -> SymKey -> m Object
-look sym key = do
+lookm :: ModCmp CompileState m => S.Symbol -> SymKey -> m (Maybe Object)
+lookm sym key = do
     ensureSymKeyDec sym key
     res <- SymTab.lookupSymKey sym key <$> gets symTab
     case res of
-        Just obj -> return obj
+        Just obj -> return (Just obj)
         Nothing  -> do
             r <- (catMaybes . map (SymTab.lookupSymKey sym key . symTab) . Map.elems) <$> gets imports
             case r of
-                []  -> err ("no definition for: " ++ sym ++ " " ++ show key)
-                [x] -> return x
+                []  -> return Nothing
+                [x] -> return (Just x)
+
+look :: ModCmp CompileState m => S.Symbol -> SymKey -> m Object
+look sym key = do
+    res <- lookm sym key
+    case res of
+        Nothing -> err ("no definition for: " ++ sym ++ " " ++ show key)
+        Just x  -> return x
 
 
 pushSymTab :: BoM CompileState m => m ()

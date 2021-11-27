@@ -16,16 +16,15 @@ import ADT
 valConstruct :: InsCmp CompileState m => Type -> [Value] -> m Value
 valConstruct typ []    = zeroOf typ
 valConstruct typ [val] = do
-    val' <- valResolveContextual val
+    val' <- valLoad =<< valResolveContextual val
 
-    if valType val' == typ then do
-        valLoad val'
+    if valType val' == typ
+    then return val'
     else do
-        val' <- valLoad val
         base <- baseTypeOf typ
         case base of
             Table [Char] -> do
-                ObjFunc retty op <- look "string" (KeyFunc [valType val])
+                ObjFunc retty op <- look "string" (KeyFunc [valType val'])
                 Val retty <$> call op [(valOp val', [])]
 
             I32 -> case val' of

@@ -209,39 +209,53 @@ valsInfix operator a (Exp (S.Int _ b)) = do
     typ <- assertBaseType isInt (valType a)
     valsInfix operator a =<< valInt typ b
 valsInfix operator a b = do
-    baseA <- baseTypeOf (valType a)
-    baseB <- baseTypeOf (valType b)
-    checkTypesMatch baseA baseB
-
     Val _ opA <- valLoad a
     Val _ opB <- valLoad b
-    valsInfix' operator (valType a) baseA opA opB
+
+    resm <- lookm (show operator) $ KeyFunc [valType a, valType b]
+    case resm of
+        Just (ObjFunc retty op) -> Val retty <$> call op [ (opA, []), (opB, []) ]
+        Nothing                 -> do
+            baseA <- baseTypeOf (valType a)
+            baseB <- baseTypeOf (valType b)
+            checkTypesMatch baseA baseB
+
+            case baseA of
+                Bool              -> boolInfix (valType a) operator opA opB
+                Char              -> intInfix (valType a) operator opA opB
+                _ | isInt baseA   -> intInfix (valType a) operator opA opB
+                _ | isFloat baseA -> floatInfix (valType a) operator opA opB
+
     where
-        valsInfix' :: InsCmp CompileState m => S.Op -> Type -> Type -> LL.Operand -> LL.Operand -> m Value
-        valsInfix' operator typ base opA opB
-            | isInt base || base == Char = case operator of
-                S.Plus   -> Val typ  <$> add opA opB
-                S.Minus  -> Val typ  <$> sub opA opB
-                S.Times  -> Val typ  <$> mul opA opB
-                S.Divide -> Val typ  <$> sdiv opA opB
-                S.GT     -> Val Bool <$> icmp P.SGT opA opB
-                S.LT     -> Val Bool <$> icmp P.SLT opA opB
-                S.GTEq   -> Val Bool <$> icmp P.SGE opA opB
-                S.LTEq   -> Val Bool <$> icmp P.SLE opA opB
-                S.EqEq   -> Val Bool <$> icmp P.EQ opA opB
-                S.NotEq  -> Val Bool <$> icmp P.NE opA opB
-                _        -> error ("int infix: " ++ show operator)
-            | isFloat base = case operator of
-                S.Plus   -> Val typ <$> fadd opA opB
-                S.Minus  -> Val typ <$> fsub opA opB
-                S.Times  -> Val typ <$> fmul opA opB
-                S.Divide -> Val typ <$> fdiv opA opB
-                S.EqEq   -> Val Bool <$> fcmp P.OEQ opA opB
-            | typ == Bool = case operator of
-                S.OrOr   -> Val Bool <$> or opA opB
-                S.AndAnd -> Val Bool <$> and opA opB
-                _        -> error ("bool infix: " ++ show operator)
-            | otherwise  = err ("cannot use op: " ++ show operator ++ " for: " ++ show typ)
+        boolInfix :: InsCmp CompileState m => Type -> S.Op -> LL.Operand -> LL.Operand -> m Value
+        boolInfix typ operator opA opB = case operator of
+            S.OrOr   -> Val typ <$> or opA opB
+            S.AndAnd -> Val typ <$> and opA opB
+            _        -> error ("bool infix: " ++ show operator)
+        
+        intInfix :: InsCmp CompileState m => Type -> S.Op -> LL.Operand -> LL.Operand -> m Value
+        intInfix typ operator opA opB = case operator of
+            S.Plus   -> Val typ  <$> add opA opB
+            S.Minus  -> Val typ  <$> sub opA opB
+            S.Times  -> Val typ  <$> mul opA opB
+            S.Divide -> Val typ  <$> sdiv opA opB
+            S.GT     -> Val Bool <$> icmp P.SGT opA opB
+            S.LT     -> Val Bool <$> icmp P.SLT opA opB
+            S.GTEq   -> Val Bool <$> icmp P.SGE opA opB
+            S.LTEq   -> Val Bool <$> icmp P.SLE opA opB
+            S.EqEq   -> Val Bool <$> icmp P.EQ opA opB
+            S.NotEq  -> Val Bool <$> icmp P.NE opA opB
+            S.Modulo -> Val typ  <$> srem opA opB
+            _        -> error ("int infix: " ++ show operator)
+
+        floatInfix :: InsCmp CompileState m => Type -> S.Op -> LL.Operand -> LL.Operand -> m Value
+        floatInfix typ operator opA opB = case operator of
+            S.Plus   -> Val typ <$> fadd opA opB
+            S.Minus  -> Val typ <$> fsub opA opB
+            S.Times  -> Val typ <$> fmul opA opB
+            S.Divide -> Val typ <$> fdiv opA opB
+            S.EqEq   -> Val Bool <$> fcmp P.OEQ opA opB
+            _        -> error ("float infix: " ++ show operator)
 
 
 valNot :: InsCmp CompileState m => Value -> m Value

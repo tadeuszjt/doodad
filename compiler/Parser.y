@@ -209,7 +209,7 @@ infix : expr '+' expr                    { S.Infix (tokPos $2) S.Plus $1 $3 }
       | expr '-' expr                    { S.Infix (tokPos $2) S.Minus $1 $3 }
       | expr '*' expr                    { S.Infix (tokPos $2) S.Times $1 $3 }
       | expr '/' expr                    { S.Infix (tokPos $2) S.Divide $1 $3 }
-      | expr '%' expr                    { S.Infix (tokPos $2) S.Mod $1 $3 }
+      | expr '%' expr                    { S.Infix (tokPos $2) S.Modulo $1 $3 }
       | expr '<' expr                    { S.Infix (tokPos $2) S.LT $1 $3 }
       | expr '>' expr                    { S.Infix (tokPos $2) S.GT $1 $3 }
       | expr '<=' expr                   { S.Infix (tokPos $2) S.LTEq $1 $3 }

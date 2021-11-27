@@ -6,13 +6,24 @@ imports lang/lexer
 imports lang/parser
 
 fn main()
-    let str = "benis"
-
+    let str = ""
     let loop = true
+
+    while loop
+        switch getStrLn()
+            "\0" ..; loop = false
+            s      ; str = str + s + "\n"
+
+    let toks = :[Token]()
+    loop = true
 
     while loop
         switch lexToken(str)
             (null, ss); loop = false
             (tok,  ss)
+                str = ss
+                toks = append(toks, [tok])
                 print(tok)
-                str  = ss
+
+    print(2)
+

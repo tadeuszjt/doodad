@@ -11,10 +11,14 @@ import JIT
 import State
 import Value
 import Error
+import Compile
+import qualified AST as S
 
 import LLVM.AST.Global
 import LLVM.AST hiding (Type)
 
+
+noPos = TextPos 0 0 0 0
 
 
 typeTest = TestCase $ do
@@ -48,7 +52,7 @@ typeTest = TestCase $ do
     assertEqual "adt" True $ isNormalADT $ ADT [("a", F32), ("b", Void), ("", I32)]
 
 
-test3 initState = TestCase $ do 
+pureTypeTest initState = TestCase $ do 
     runTypeTest (pureTypeOf I64) $ I64
     runTypeTest (pureTypeOf Void) $ Void
 
@@ -71,9 +75,28 @@ test3 initState = TestCase $ do
             pureTypeOf (Typedef "MyADTType")
 
 
+instrTest initState = TestCase $ do
+
+    blocks <- run $ cmpStmt (S.Return noPos Nothing)
+    let block0 = BasicBlock (UnName 0) [] $ Do (Ret Nothing [])
+    let block1 = BasicBlock (UnName 1) [] $ Do (Ret Nothing [])
+    assertEqual "result" blocks [block0, block1]
+
+    where
+        run :: InstrCmpT CompileState IO () -> IO [BasicBlock]
+        run f = do
+            Right (_, blocks, _, _) <- runAll initState f
+            return blocks
+
+
 
 main = do
     withSession False $ \session -> do
         let initState = initCompileState (JIT.context session) (JIT.dataLayout session) Map.empty "testMod"
-        runTestTTAndExit $ TestList [typeTest, test3 initState]
+        runTestTTAndExit $
+            TestList
+                [ typeTest
+                , pureTypeTest initState
+                , instrTest initState
+                ]
 

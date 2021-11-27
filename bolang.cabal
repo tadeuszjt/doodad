@@ -22,25 +22,44 @@ extra-source-files: CHANGELOG.md
 test-suite type-tests
     hs-source-dirs: compiler, compiler/test
     main-is: Test.hs
+    default-language:  Haskell2010
     type: exitcode-stdio-1.0
     build-depends:
+        base         ^>= 4.13.0.0,
         llvm-hs      ^>= 9.0.0,
         llvm-hs-pure ^>= 9.0.0,
-        base,
-        HUnit,
         containers,
         mtl,
-        bytestring
+        bytestring,
+        array,
+        directory,
+        haskeline,
+        split,
+        HUnit
+    build-tools:
+        alex,
+        happy
     other-modules:
-        Type,
-        Monad,
-        Error,
-        JIT,
-        State,
+        ADT,
         AST,
+        Args,
+        Compile,
+        Error,
+        Flatten,
+        Funcs,
+        JIT,
+        Modules,
+        Monad,
+        Parser,
+        Print,
+        State,
         SymTab,
+        Table,
+        Tuple,
+        Type,
         Value,
-        Funcs
+        Lexer,
+        Construct
 
 
 executable bolang

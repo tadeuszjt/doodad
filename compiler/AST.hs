@@ -24,7 +24,7 @@ data Op
     | Minus
     | Times
     | Divide
-    | Mod
+    | Modulo
     | LT
     | GT
     | LTEq
@@ -124,7 +124,7 @@ instance Show Op where
         AST.Minus  -> "-"
         AST.Times  -> "*"
         AST.Divide -> "/"
-        AST.Mod    -> "%"
+        AST.Modulo -> "%"
         AST.LT     -> "<"
         AST.GT     -> ">"
         AST.LTEq   -> "<="

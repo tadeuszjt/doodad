@@ -5,6 +5,7 @@ imports ../std/strings
 
 
 type Operator {
+    null
     OpPlus
     OpMinus
     OpTimes
@@ -13,6 +14,7 @@ type Operator {
 
 
 type Expr {
+    null
     ExprIdent : string
     ExprInt   : i64
     ExprFloat : f64
@@ -22,7 +24,9 @@ type Expr {
 
 fn string(e Expr) string
     switch e
+        null          ; return "null"
         ExprIdent(str); return "ident: " + str
+        ExprInt(n)    ; return "int: " + string(n)
 
 
 type ParseResult ({ null | :Expr }, [Token])
