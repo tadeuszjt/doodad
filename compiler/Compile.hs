@@ -311,7 +311,7 @@ cmpExpr expr = case expr of
         catchError m $ \e -> withPos pos $ join $ liftM2 (valsInfix op) (cmpExpr exprA) (cmpExpr exprB)
             
     S.String pos s -> do
-        loc <- globalStringPtr s =<< fresh
+        loc <- globalStringPtr s =<< myFresh "str"
         let pi8 = C.BitCast loc (LL.ptr LL.i8)
         let i64 = toCons $ int64 $ fromIntegral (length s)
         let stc = struct Nothing False [i64, i64, pi8]

@@ -13,7 +13,6 @@ import Value
 import ADT
 
 
-
 valConstruct :: InsCmp CompileState m => Type -> [Value] -> m Value
 valConstruct typ []    = zeroOf typ
 valConstruct typ [val] = do

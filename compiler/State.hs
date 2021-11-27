@@ -68,7 +68,6 @@ data Object
     deriving (Show)
 
 
-
 data Declaration
     = DecType   Type
     | DecExtern [Type] Type Bool
@@ -88,6 +87,7 @@ data CompileState
         , symTab       :: SymTab.SymTab S.Symbol SymKey Object
         , curRetType   :: T.Type
         , curModName   :: String
+        , nameMap      :: Map.Map String Int
         , posStack     :: [TextPos]
         }
 
@@ -102,6 +102,7 @@ initCompileState ctx dl imports modName
         , symTab       = SymTab.initSymTab
         , curRetType   = T.Void
         , curModName   = modName
+        , nameMap      = Map.empty
         , posStack     = []
         }
 
@@ -111,8 +112,14 @@ mkBSS = BSS.toShort . BS.pack
 
 myFresh :: InsCmp CompileState m => String -> m Name
 myFresh sym = do
+    nameMap <- gets nameMap
     mod <- gets curModName
-    freshName $ mkBSS (mod ++ "." ++ sym)
+    n <- case Map.lookup sym nameMap of
+        Nothing -> return 0
+        Just n  -> return (n+1)
+
+    modify $ \s -> s { nameMap = Map.insert sym n nameMap }
+    return $ Name $ mkBSS (mod ++ "." ++ sym ++ "_" ++ show n )
 
 
 assert :: BoM CompileState m => Bool -> String -> m ()

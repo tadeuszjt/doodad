@@ -15,6 +15,14 @@ type Token {
     TokKeyword : string
 }
 
+fn string(token Token) string
+    switch token 
+        null       ; return "Token: null"
+        TokOp(s)   ; return "TokOp: " + s
+        TokIdent(s); return "TokIdent: " + s
+
+
+
 let keywords  = ["let", "while", "fn", "extern", "true", "false", "null", "if", "else", "return", "module", "imports", "append"]
 let types     = ["i8", "i16", "i32", "i64", "char", "bool", "string"]
 let operators = ["+", "-", "*", "/", "%", "=", "+=", "-=", "*=", "/=", "%=", "..", "<", ">", "<=", ">=", "&&", "||", "=="]

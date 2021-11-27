@@ -3,12 +3,14 @@ module parser
 imports lexer
 imports ../std/strings
 
+
 type Operator {
     OpPlus
     OpMinus
     OpTimes
     OpDivide
 }
+
 
 type Expr {
     ExprIdent : string
@@ -17,9 +19,11 @@ type Expr {
     ExprInfix : (Operator, Expr, Expr)
 }
 
+
 fn string(e Expr) string
     switch e
         ExprIdent(str); return "ident: " + str
+
 
 type ParseResult ({ null | :Expr }, [Token])
 

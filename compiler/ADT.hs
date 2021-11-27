@@ -172,7 +172,6 @@ adtConstructField sym typ vals = do
             return adt
             
 
-
 -- ADT()       -> zero constructor
 -- ADT(i64(n)) -> construct from unique type field
 -- ADT(adt2)   -> construct from adt with ONE equivalent field

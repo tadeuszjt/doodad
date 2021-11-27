@@ -45,7 +45,7 @@ trap = do
 printf :: InsCmp CompileState m => String -> [Operand] -> m Operand
 printf fmt args = do
     op <- ensureExtern (mkName "printf") [ptr i8] i32 True
-    str <- globalStringPtr fmt =<< fresh
+    str <- globalStringPtr fmt =<< myFresh "str"
     call op $ map (\a -> (a, [])) (cons str:args)
 
 

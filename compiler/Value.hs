@@ -242,7 +242,7 @@ valsInfix operator a b = do
                 S.AndAnd -> Val Bool <$> and opA opB
                 _        -> error ("bool infix: " ++ show operator)
             | otherwise  = err ("cannot use op: " ++ show operator ++ " for: " ++ show typ)
-        
+
 
 valNot :: InsCmp CompileState m => Value -> m Value
 valNot val = do
