@@ -10,6 +10,16 @@ type Operator {
     OpMinus
     OpTimes
     OpDivide
+    OpModulo
+    OpLT
+    OpGT
+    OpLTEq
+    OpGTEq
+    OpEqEq
+    OpOrOr
+    OpAndAnd
+    OpNotEq
+    OpNot
 }
 
 
@@ -29,9 +39,31 @@ fn string(e Expr) string
         ExprInt(n)    ; return "int: " + string(n)
 
 
-type ParseResult ({ null | :Expr }, [Token])
+
+fn parseOperator(tokens [Token]) (Operator, [Token])
+    if len(tokens) < 1
+        return (null, tokens)
+
+    switch tokens[0]
+        TokOp("+") ; return (OpPlus,   tokens[1..])
+        TokOp("-") ; return (OpMinus,  tokens[1..])
+        TokOp("*") ; return (OpTimes,  tokens[1..])
+        TokOp("/") ; return (OpDivide, tokens[1..])
+        TokOp("%") ; return (OpModulo, tokens[1..])
+        TokOp("<") ; return (OpLT,     tokens[1..])
+        TokOp(">") ; return (OpGT,     tokens[1..])
+        TokOp("<="); return (OpLTEq,   tokens[1..])
+        TokOp(">="); return (OpGTEq,   tokens[1..])
+        TokOp("=="); return (OpEqEq,   tokens[1..])
+        TokOp("||"); return (OpOrOr,   tokens[1..])
+        TokOp("&&"); return (OpAndAnd, tokens[1..])
+        TokOp("!="); return (OpNotEq,  tokens[1..])
+        TokOp("!") ; return (OpNot,    tokens[1..])
+        _          ; return (null,     tokens)
 
 
-fn parseTokens(tokens [Token]) ParseResult
-    return (null, [])
+fn parseExpr(tokens [Token]) Expr
+    if len(tokens) < 1
+        return null
+    
 

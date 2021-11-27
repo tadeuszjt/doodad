@@ -25,5 +25,3 @@ fn main()
                 toks = append(toks, [tok])
                 print(tok)
 
-    print(2)
-
