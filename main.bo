@@ -1,22 +1,15 @@
 module main
 
-
-fn test()
-    print(2)
-
-fn f2()
-    print("2")
-
-fn f3()
-    f2()
-
+imports lang/parser
+imports lang/lexer
 
 fn main()
-    let f = test 
+    let tokens = [TokOp("+"), TokIdent("benis")]
 
-    let a = [test, f2, f3]
+    let n = Node(OpPlus)
 
-    let i = 0
-    while i < len(a)
-        a[i]()
-        i = i + 1
+
+    print(tokens)
+
+    print(OpModulo)
+

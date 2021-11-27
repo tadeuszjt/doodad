@@ -5,7 +5,6 @@ imports ../std/strings
 
 
 type Operator {
-    null
     OpPlus
     OpMinus
     OpTimes
@@ -22,27 +21,52 @@ type Operator {
     OpNot
 }
 
+fn string(op Operator) string
+    switch op
+        OpPlus  ; return "+"
+        OpMinus ; return "-"
+        OpTimes ; return "*"
+        OpDivide; return "/"
+        OpModulo; return "%"
+        OpLT    ; return "<"
+        OpGT    ; return ">"
+        OpLTEq  ; return "<="
+        OpGTEq  ; return ">="
+        OpEqEq  ; return "=="
+        OpOrOr  ; return "||"
+        OpAndAnd; return "&&"
+        OpNotEq ; return "!="
+        OpNot   ; return "!"
+
 
 type Expr {
-    null
     ExprIdent : string
     ExprInt   : i64
     ExprFloat : f64
     ExprInfix : (Operator, Expr, Expr)
 }
 
-
 fn string(e Expr) string
     switch e
-        null          ; return "null"
         ExprIdent(str); return "ident: " + str
         ExprInt(n)    ; return "int: " + string(n)
 
 
+type Node {
+    : Operator
+    : Expr
+}
+
+fn string(n Node) string
+    switch(n)
+        Operator(o); return string(o)
+        Expr(e)    ; return string(e)
+
+
+type ParseResult [(Node, [Token])]
+
 
 fn parseOperator(tokens [Token]) (Operator, [Token])
-    if len(tokens) < 1
-        return (null, tokens)
 
     switch tokens[0]
         TokOp("+") ; return (OpPlus,   tokens[1..])
@@ -59,11 +83,4 @@ fn parseOperator(tokens [Token]) (Operator, [Token])
         TokOp("&&"); return (OpAndAnd, tokens[1..])
         TokOp("!="); return (OpNotEq,  tokens[1..])
         TokOp("!") ; return (OpNot,    tokens[1..])
-        _          ; return (null,     tokens)
-
-
-fn parseExpr(tokens [Token]) Expr
-    if len(tokens) < 1
-        return null
-    
 

@@ -331,11 +331,12 @@ cmpExpr expr = case expr of
         resm <- lookm sym $ KeyFunc (map valType vals)
 
         case resm of
-            Nothing -> err "function here"
+            Nothing -> err ("No definition for: " ++ sym)
             Just x  -> case x of
                 ObjFunc Void _         -> err "cannot use void function as expression"
                 ObjExtern _ Void _     -> err "cannot use void function as expression"
-                ObjConstructor typ     -> valConstruct typ vals
+                ObjConstructor typ     -> do
+                    valConstruct typ vals
                 ObjADTFieldCons adtTyp -> adtConstructField sym adtTyp vals
 
                 ObjFunc retty op       -> do
@@ -455,10 +456,20 @@ cmpPattern pat val = case pat of
 
     S.PatIdent pos sym -> withPos pos $ do
         val' <- valResolveContextual val
-        loc <- valLocal (valType val')
-        valStore loc val'
-        addObjWithCheck sym KeyVar (ObjVal loc)
-        return (valBool True)
+        base <- baseTypeOf (valType val')
+        if isADT base && (let ADT xs = base in sym `elem` map fst xs)
+        then do
+            let ADT xs = base
+            let idx = fromJust $ elemIndex sym (map fst xs)
+            let (s, t) = xs !! idx
+            assert (t == Void) "Ident patterns only valid for null fields"
+            en <- adtEnum val'
+            valsInfix S.EqEq en (valI64 idx)
+        else do
+            loc <- valLocal (valType val')
+            valStore loc val'
+            addObjWithCheck sym KeyVar (ObjVal loc)
+            return (valBool True)
 
     S.PatTuple pos pats -> withPos pos $ do
         b <- valIsTuple val
@@ -532,6 +543,7 @@ valAsType :: InsCmp CompileState m => Type -> Value -> m Value
 valAsType typ val = case val of
     Val _ _              -> assert (typ == valType val) "Types do not match" >> return val
     Ptr _ _              -> assert (typ == valType val) "Types do not match" >> return val
+
     Exp (S.Int _ n)      -> valInt typ n
     Exp (S.Null _)       -> adtNull typ
     Exp (S.Table _ [[]]) -> assertBaseType isTable typ >> zeroOf typ

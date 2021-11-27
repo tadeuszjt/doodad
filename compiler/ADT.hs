@@ -20,11 +20,6 @@ import Funcs
 
 
 
--- ADT type rules:
--- ADT []         *i8
--- ADT [(s, f64)] *f64
--- ADT [(s, f64), (t, i64)] struct { enum type, i8* }
-
 
 adtTypeDef :: InsCmp CompileState m => String -> Type -> m ()
 adtTypeDef sym typ = do
@@ -192,7 +187,7 @@ adtConstruct typ val              = do
             let idxs = [ i | (t, i) <- zip (map snd xs) [0..], t == valType val ]
             assert (length idxs == 1) "Ambiguous or invalid ADT type constructor"
             let idx = head idxs
-            adt <- valLocal adtTyp
+            adt <- valLocal typ
             adtSetEnum adt idx
             mal <- valMalloc (valType val) (valI64 1)
             valStore mal val

@@ -40,6 +40,7 @@ valConstruct typ [val] = do
                 _          -> error (show val')
 
             ADT _       -> adtConstruct typ val'
+
             _           -> do
                 pureType    <- pureTypeOf typ
                 pureValType <- pureTypeOf (valType val')

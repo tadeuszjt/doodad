@@ -233,7 +233,7 @@ valsInfix operator a b = do
                 Char              -> intInfix (valType a) operator opA opB
                 _ | isInt baseA   -> intInfix (valType a) operator opA opB
                 _ | isFloat baseA -> floatInfix (valType a) operator opA opB
-
+                _                 -> err ("Operator " ++ show operator ++ " undefined for types")
     where
         boolInfix :: InsCmp CompileState m => Type -> S.Op -> LL.Operand -> LL.Operand -> m Value
         boolInfix typ operator opA opB = case operator of

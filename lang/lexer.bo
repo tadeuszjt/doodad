@@ -26,6 +26,19 @@ fn string(token Token) string
         TokIdent(s)  ; return "TokIdent:   " + s
         TokKeyword(s); return "TokKeyword: " + s
 
+fn ==(a Token, b Token) bool
+    switch (a, b)
+        (null, null); return true
+        (TokOp(a), TokOp(b)) | a == b          ; return true
+        (TokInt(a), TokInt(b)) | a == b        ; return true
+        (TokSym(a), TokSym(b)) | a == b        ; return true
+        (TokIdent(a), TokIdent(b)) | a == b    ; return true
+        (TokString(a), TokString(b)) | a == b  ; return true
+        (TokChar(a), TokChar(b)) | a == b      ; return true
+        (TokKeyword(a), TokKeyword(b)) | a == b; return true
+        _                                      ; return false
+
+
 
 let keywords  = ["let", "while", "fn", "extern", "true", "false", "null", "if", "else", "return", "module", "imports", "append"]
 let types     = ["i8", "i16", "i32", "i64", "char", "bool", "string"]
