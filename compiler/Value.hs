@@ -50,6 +50,11 @@ opTypeOf typ = case typ of
     Typedef s -> do
         ObType t namem <- look s KeyType
         maybe (opTypeOf t) (return . LL.NamedTypeReference) namem
+
+    Func ts rt -> do
+        rt' <- opTypeOf rt
+        ts' <- mapM opTypeOf ts
+        return $ LL.ptr (LL.FunctionType rt' ts' False)
     _         -> error (show typ) 
 
 
@@ -82,6 +87,11 @@ pureTypeOf initialType = case initialType of
     Table ts       -> Table <$> mapM pureTypeOf' ts
     ADT xs         -> fmap ADT $ forM xs $ \(s, t) -> (s,) <$> pureTypeOf' t
     t | isSimple t -> return t
+    Func ts rt     -> do
+        rt' <- pureTypeOf' rt
+        ts' <- mapM pureTypeOf' ts
+        return (Func ts' rt')
+
     x              -> error ("pureTypeOf: " ++ show x)
 
     where
@@ -296,12 +306,13 @@ valMemCpy (Ptr dstTyp dst) (Ptr srcTyp src) len = do
 
 checkTypesMatch :: BoM CompileState m => Type -> Type -> m ()
 checkTypesMatch typA typB
-    | isSimple typA  = assert (typA == typB) str
-    | isTable typA   = assert (typA == typB) str
-    | isTuple typA   = assert (typA == typB) str
-    | isTypedef typA = assert (typA == typB) str
-    | isADT typA     = assert (typA == typB) str
-    | otherwise      = err str
+    | isSimple typA   = assert (typA == typB) str
+    | isTable typA    = assert (typA == typB) str
+    | isTuple typA    = assert (typA == typB) str
+    | isTypedef typA  = assert (typA == typB) str
+    | isADT typA      = assert (typA == typB) str
+    | isFunction typA = assert (typA == typB) str
+    | otherwise       = err str
     where
         str = show typA ++ " does not match " ++ show typB
 

@@ -86,7 +86,7 @@ data Expr
     | Range      TextPos Expr (Maybe Expr) (Maybe Expr)
     | TupleIndex TextPos Expr Word32
     | Ident      TextPos Symbol
-    | Call       TextPos Symbol [Expr]
+    | Call       TextPos Expr [Expr]
     | Conv       TextPos Type [Expr]
     | Len        TextPos Expr
     | Append     TextPos Expr Expr
@@ -100,13 +100,13 @@ data Stmt
     = Assign   TextPos Pattern Expr
     | Set      TextPos Index   Expr
     | Print    TextPos [Expr]
-    | CallStmt TextPos Symbol  [Expr]
+    | CallStmt TextPos Expr  [Expr]
     | Return   TextPos (Maybe Expr)
     | Block    [Stmt]
     | If       TextPos Condition Stmt (Maybe Stmt)
     | While    TextPos Condition [Stmt]
     | Switch   TextPos Expr [(Pattern, Stmt)]
-    | Func     TextPos Symbol [Param] Type [Stmt]
+    | FuncDef  TextPos Symbol [Param] Type [Stmt]
     | Extern   TextPos Symbol [Param] Type
     | Typedef  TextPos Symbol Type
     deriving (Eq)
@@ -201,8 +201,8 @@ prettyAST pre ast = do
             Print pos exprs -> do
                 putStrLn (pr ++ "Print" ++ tupStrs (map show exprs))
 
-            CallStmt pos symbol exprs -> do
-                putStrLn (pr ++ symbol ++ tupStrs (map show exprs))
+            CallStmt pos expr exprs -> do
+                putStrLn (pr ++ show expr ++ tupStrs (map show exprs))
 
             Return pos mexpr -> do
                 putStrLn (pr ++ "Return " ++ show mexpr)
@@ -220,7 +220,7 @@ prettyAST pre ast = do
                 putStrLn (pr ++ "while " ++ show cnd)
                 mapM_ (prettyStmt (pr ++ "\t")) stmts
 
-            Func pos symbol params mretty stmts -> do
+            FuncDef pos symbol params mretty stmts -> do
                 putStrLn (pr ++ "Func " ++ symbol ++ tupStrs (map show params) ++ " " ++ show mretty)
                 mapM_ (prettyStmt (pr ++ "\t")) stmts
 

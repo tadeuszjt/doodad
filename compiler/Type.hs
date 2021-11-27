@@ -18,6 +18,7 @@ data Type
     | Table [Type]
     | ADT [(String, Type)]
     | Typedef String
+    | Func [Type] Type 
     deriving (Eq, Ord)
 
 
@@ -38,6 +39,7 @@ instance Show Type where
         Table ts      -> "[" ++ intercalate "; " (map show ts) ++ "]"
         ADT ts        -> "{" ++ intercalate ", " (map show ts) ++ "}"
         Typedef s     -> s
+        Func ts rt    -> "fn(" ++ intercalate ", " (map show ts) ++ ")" ++ show rt
 
 
 isInt x                    = x `elem` [I8, I16, I32, I64]
@@ -80,5 +82,7 @@ isSimple x                 = isBase x
 
 isAggregate x              = isTuple x || isArray x || isTable x || isADT x
 
+isFunction (Func _ _)      = True
+isFunction _               = False
 
 

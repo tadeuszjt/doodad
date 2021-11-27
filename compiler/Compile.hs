@@ -15,7 +15,7 @@ import Control.Monad.Fail hiding (fail)
 import Control.Monad.Except hiding (void, fail)
 import Foreign.Ptr
 
-import LLVM.AST.Name
+import LLVM.AST.Name hiding (Func)
 import qualified LLVM.AST as LL
 import qualified LLVM.AST.Type as LL
 import qualified LLVM.AST.Constant as C
@@ -139,23 +139,24 @@ cmpExternDef (S.Extern pos sym params retty) = do
 
 
 cmpFuncHdr :: InsCmp CompileState m => S.Stmt -> m ()
-cmpFuncHdr (S.Func pos "main" params retty blk) = return ()
-cmpFuncHdr (S.Func pos sym params retty blk)    = withPos pos $ do
-    let key = KeyFunc (map S.paramType params)
+cmpFuncHdr (S.FuncDef pos "main" params retty blk) = return ()
+cmpFuncHdr (S.FuncDef pos sym params retty blk)    = withPos pos $ do
+    let paramTypes = map S.paramType params
     name <- myFresh sym
-
-    paramOpTypes <- mapM (opTypeOf . S.paramType) params
+    paramOpTypes <- mapM opTypeOf paramTypes
     returnOpType <- opTypeOf retty
     let op = fnOp name paramOpTypes returnOpType False
-    addObjWithCheck sym key (ObjFunc retty op) 
+
+    addObjWithCheck sym (KeyFunc paramTypes) (ObjFunc retty op) 
+    addObj sym KeyVar $ ObjVal $ Val (Func paramTypes retty) op
     
 
 cmpFuncDef :: (MonadFail m, Monad m, MonadIO m) => S.Stmt -> InstrCmpT CompileState m ()
-cmpFuncDef (S.Func pos "main" params retty blk) = withPos pos $ do
+cmpFuncDef (S.FuncDef pos "main" params retty blk) = withPos pos $ do
     assert (params == [])  "main cannot have parameters"
     assert (retty == Void) "main must return void"
     pushSymTab >> mapM_ cmpStmt blk >> popSymTab
-cmpFuncDef (S.Func pos sym params retty blk) = withPos pos $ do
+cmpFuncDef (S.FuncDef pos sym params retty blk) = withPos pos $ do
     returnOpType <- opTypeOf retty
     paramOpTypes <- mapM (opTypeOf . S.paramType) params
     let paramTypes = map S.paramType params
@@ -196,16 +197,27 @@ cmpStmt stmt = case stmt of
     S.Print pos exprs -> cmpPrint stmt
     S.Block stmts -> pushSymTab >> mapM_ cmpStmt stmts >> popSymTab
 
-    S.CallStmt pos sym exprs -> withPos pos $ do
-        vals <- mapM (valLoad <=< cmpExpr) exprs
-        assert (not $ any valIsContextual vals) "contextual 224"
 
-        res <- look sym $ KeyFunc (map valType vals)
-        op <- case res of
-            ObjFunc _ op     -> return op
-            ObjExtern _ _ op -> return op
+    S.CallStmt pos (S.Ident _ sym) exprs -> withPos pos $ do
+        vals <- mapM (valLoad <=< valResolveContextual <=< cmpExpr) exprs
+        resm <- lookm sym $ KeyFunc (map valType vals)
+        op <- case resm of
+            Just (ObjFunc _ op)     -> return op
+            Just (ObjExtern _ _ op) -> return op
+            Nothing                 -> do
+                ObjVal fval <- look sym KeyVar
+                ftyp@(Func ts rt) <- assertBaseType isFunction (valType fval)
+                assert (ts == map valType vals) ("Incorrect argument types for: " ++ show ftyp)
+                valOp <$> valLoad fval
 
         void $ call op [(o, []) | o <- map valOp vals]
+
+    S.CallStmt pos expr exprs -> withPos pos $ do
+        vals <- mapM (valLoad <=< valResolveContextual <=< cmpExpr) exprs
+        fval <- valLoad =<< cmpExpr expr
+        ftyp@(Func ts rt) <- assertBaseType isFunction (valType fval)
+        assert (ts == map valType vals) ("Incorrect argument types for: " ++ show ftyp)
+        void $ call (valOp fval) [(o, []) | o <- map valOp vals]
 
     S.Assign pos pat expr -> withPos pos $ do
         matched <- cmpPattern pat =<< cmpExpr expr
@@ -303,7 +315,7 @@ cmpExpr expr = case expr of
     S.Append pos exprA exprB   -> withPos pos $ valLoad =<< join (liftM2 tableAppend (cmpExpr exprA) (cmpExpr exprB))
 
     S.Infix pos op exprA exprB -> do
-        let m = cmpExpr $ S.Call pos (show op) [exprA, exprB]
+        let m = cmpExpr $ S.Call pos (S.Ident pos $ show op) [exprA, exprB]
         catchError m $ \e -> withPos pos $ join $ liftM2 (valsInfix op) (cmpExpr exprA) (cmpExpr exprB)
             
     S.String pos s -> do
@@ -313,27 +325,28 @@ cmpExpr expr = case expr of
         let stc = struct Nothing False [i64, i64, pi8]
         return $ Val (Table [Char]) stc
 
-    S.Call pos sym exprs -> withPos pos $ do
+    S.Call pos (S.Ident _ sym) exprs -> withPos pos $ do
         vals <- mapM valResolveContextual =<< mapM cmpExpr exprs
-        res <- look sym $ KeyFunc (map valType vals)
+        resm <- lookm sym $ KeyFunc (map valType vals)
 
-        case res of
-            ObjFunc Void _         -> err "cannot use void function as expression"
-            ObjExtern _ Void _     -> err "cannot use void function as expression"
-            ObjConstructor typ     -> valConstruct typ vals
-            ObjADTFieldCons adtTyp -> do
-                adtConstructField sym adtTyp vals
+        case resm of
+            Nothing -> err "function here"
+            Just x  -> case x of
+                ObjFunc Void _         -> err "cannot use void function as expression"
+                ObjExtern _ Void _     -> err "cannot use void function as expression"
+                ObjConstructor typ     -> valConstruct typ vals
+                ObjADTFieldCons adtTyp -> adtConstructField sym adtTyp vals
 
-            ObjFunc retty op       -> do
-                vals' <- mapM valLoad vals
-                Val retty <$> call op [(o, []) | o <- map valOp vals']
-            ObjExtern _ retty op     -> do
-                vals' <- mapM valLoad vals
-                Val retty <$> call op [(o, []) | o <- map valOp vals']
+                ObjFunc retty op       -> do
+                    vals' <- mapM valLoad vals
+                    Val retty <$> call op [(o, []) | o <- map valOp vals']
+
+                ObjExtern _ retty op   -> do
+                    vals' <- mapM valLoad vals
+                    Val retty <$> call op [(o, []) | o <- map valOp vals']
 
     S.Len pos expr -> withPos pos $ valLoad =<< do
-        val <- cmpExpr expr
-        assert (not $ valIsContextual val) "contextual 362"
+        val <- valResolveContextual =<< cmpExpr expr
         typ <- baseTypeOf (valType val)
         case typ of
             Table _ -> tableLen val

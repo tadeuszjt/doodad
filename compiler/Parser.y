@@ -149,14 +149,14 @@ stmtS : let pattern '=' expr                  { S.Assign (tokPos $1) $2 $4 }
       | type ident type_                      { S.Typedef (tokPos $2) (tokStr $2) $3 }
       | extern ident '(' params ')' type_     { S.Extern (tokPos $2) (tokStr $2) $4 $6 }
       | extern ident '(' params ')'           { S.Extern (tokPos $2) (tokStr $2) $4 T.Void }
-      | ident '(' exprs ')'                   { S.CallStmt (tokPos $1) (tokStr $1) $3 }
+      | expr '(' exprs ')'                    { S.CallStmt (tokPos $2) $1 $3 }
       | print '(' exprs ')'                   { S.Print (tokPos $1) $3 }
       | return                                { S.Return (tokPos $1) Nothing }
       | return expr                           { S.Return (tokPos $1) (Just $2) }
 stmtB : block                                 { $1 }
       | If                                    { $1 }
-      | fn fnName '(' params ')' block_       { S.Func (tokPos $1) $2 $4 T.Void $6 }
-      | fn fnName '(' params ')' type_ block_ { S.Func (tokPos $1) $2 $4 $6 $7 }
+      | fn fnName '(' params ')' block_       { S.FuncDef (tokPos $1) $2 $4 T.Void $6 }
+      | fn fnName '(' params ')' type_ block_ { S.FuncDef (tokPos $1) $2 $4 $6 $7 }
       | switch expr 'I' cases 'D'             { S.Switch (tokPos $1) $2 $4 }
       | while condition block_                { S.While (tokPos $1) $2 $3 }
 
@@ -181,7 +181,7 @@ expr   : lit                           { $1 }
        | '[' '|' exprs ']'             { S.Array (tokPos $1) $3 }
        | '(' exprs ')'                 { S.Tuple (tokPos $1) $2 }
        | '&' expr                      { S.Address (tokPos $1) $2 }
-       | ident '(' exprs ')'           { S.Call (tokPos $1) (tokStr $1) $3 }
+       | expr '(' exprs ')'            { S.Call (tokPos $2) $1 $3 }
        | typeOrdinal '(' exprs ')'     { S.Conv (tokPos $2) $1 $3 }
        | ':' typeAggregate '(' exprs ')' { S.Conv (tokPos $3) $2 $4 }
        | len '(' expr ')'              { S.Len (tokPos $1) $3 }
@@ -281,8 +281,8 @@ params_ : param                     { [$1] }
 
 
 index  : ident                      { S.IndIdent (tokPos $1) (tokStr $1) }
-       | index '[' expr ']'         { S.IndArray (tokPos $2) $1 $3 }
-       | index '.' intlit           { S.IndTuple (tokPos $2) $1 (read $ tokStr $3) }
+       --| index '[' expr ']'         { S.IndArray (tokPos $2) $1 $3 }
+       --| index '.' intlit           { S.IndTuple (tokPos $2) $1 (read $ tokStr $3) }
 
 
 Switch : switch expr 'I' cases 'D'  { S.Switch (tokPos $1) $2 $4 }
