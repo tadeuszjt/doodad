@@ -3,8 +3,7 @@ module Type where
 import Data.List
 
 data Type
-    = Self
-    | Void
+    = Void
     | I8                     ----
     | I16                    -- Simple Types
     | I32                    -- 
@@ -24,7 +23,6 @@ data Type
 
 instance Show Type where
     show t = case t of
-        Self          -> "self"
         Void          -> "void"
         I8            -> "i8"
         I16           -> "i16"

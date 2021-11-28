@@ -4,7 +4,6 @@ module Funcs where
 
 import Data.List
 import Control.Monad
-import Debug.Trace
 
 import LLVM.AST                   hiding (function, Module)
 import LLVM.AST.IntegerPredicate
@@ -18,6 +17,7 @@ import LLVM.IRBuilder.Monad
 
 import State
 import Monad
+import Trace
 
 cons = ConstantOperand
 

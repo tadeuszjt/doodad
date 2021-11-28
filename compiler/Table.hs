@@ -2,7 +2,6 @@
 module Table where
 
 import Control.Monad
-import Debug.Trace
 
 import qualified LLVM.AST.Type as LL
 import LLVM.IRBuilder.Constant
@@ -16,6 +15,7 @@ import Funcs
 import Type 
 import Tuple
 import Typeof
+import Trace
 
 
 valIsTable :: InsCmp CompileState m => Value -> m Bool
@@ -55,12 +55,15 @@ tableSetCap tab@(Ptr _ loc) cap = trace "tableSetCap" $ do
 
 
 tableRow :: InsCmp CompileState m => Int -> Value -> m Value
-tableRow i tab = trace "tableRow" $ do
+tableRow i tab = do
     Table ts <- assertBaseType isTable (valType tab)
-    let t = ts !! i
-    op <- valOp <$> valLoad tab
-    Ptr t <$> extractValue op [fromIntegral i+2]
-
+    assert (i >= 0 && i < length ts) "Invalid table row index"
+    case tab of
+        Val _ op  -> Ptr (ts !! i) <$> extractValue op [fromIntegral i + 2]
+        Ptr _ loc -> do
+            r <- gep loc [int32 0, int32 (fromIntegral i + 2)]
+            Ptr (ts !! i) <$> load r 0
+    
 
 tableSetRow :: InsCmp CompileState m => Value -> Int -> Value -> m ()
 tableSetRow tab i row = trace "tableSetRow" $ do

@@ -14,7 +14,6 @@ import Control.Monad.IO.Class
 import Control.Monad.Fail hiding (fail)
 import Control.Monad.Except hiding (void, fail)
 import Foreign.Ptr
-import Debug.Trace
 
 import LLVM.AST.Name hiding (Func)
 import qualified LLVM.AST as LL
@@ -42,6 +41,7 @@ import Tuple
 import ADT
 import Construct
 import Typeof
+import Trace
 
 compileFlatState
     :: BoM s m

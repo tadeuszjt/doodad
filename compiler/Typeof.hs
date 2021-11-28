@@ -5,7 +5,6 @@ module Typeof where
 import Control.Monad.Trans
 import Control.Monad.State hiding (void)
 import GHC.Float
-import Debug.Trace
 
 import qualified LLVM.AST.Type as LL
 import qualified LLVM.AST.Constant as C
@@ -19,6 +18,7 @@ import Type
 import Monad
 import State
 import Funcs
+import Trace
 
 assertBaseType :: InsCmp CompileState m => (Type -> Bool) -> Type -> m Type
 assertBaseType f typ = trace "assertBaseType" $ do

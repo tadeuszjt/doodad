@@ -69,13 +69,17 @@ fn string(p ParseResult) string
     return string(len(p)) + " parse results"
 
 
+fn concatParseResults(results [ParseResult]) ParseResult
+    let result = ParseResult()
+    let i = 0
+    while i < len(results)
+        result = append(result, results[i])
+        
+
+
 fn parseToken(tokens [Token], tok Token, result Node) ParseResult
-    if len(tokens) < 1
-        return []
-
-    if tokens[0] == tok
+    if tokens -> [t] .. | t == tok
         return ParseResult( [ (result, tokens[1..]) ] )
-
     return []
 
 

@@ -1,8 +1,6 @@
 {-# LANGUAGE FlexibleContexts #-}
 module Construct where
 
-import Debug.Trace
-
 import qualified LLVM.AST.Type as LL
 import LLVM.IRBuilder.Instruction       
 
@@ -13,10 +11,12 @@ import Tuple
 import Value
 import ADT
 import Typeof
+import Trace
+
 
 valConstruct :: InsCmp CompileState m => Type -> [Value] -> m Value
-valConstruct typ []           = trace ("valConstruct " ++ show typ ++ "()") $ zeroOf typ
-valConstruct typ [val]        = trace "valConstruct" $ do
+valConstruct typ []    = trace ("valConstruct " ++ show typ ++ "()") $ zeroOf typ
+valConstruct typ [val] = trace "valConstruct" $ do
     val' <- valLoad =<< valResolveContextual val
 
     if valType val' == typ

@@ -2,7 +2,6 @@
 module Tuple where
 
 import Control.Monad
-import Debug.Trace
 
 import qualified LLVM.AST.Type as LL
 import LLVM.IRBuilder.Constant
@@ -14,6 +13,7 @@ import State
 import Monad
 import Value
 import Typeof
+import Trace
 
 valIsTuple :: InsCmp CompileState m => Value -> m Bool
 valIsTuple (Exp (S.Tuple _ _)) = trace "valIsTuple" $ return True

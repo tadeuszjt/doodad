@@ -9,7 +9,6 @@ import Data.List hiding (or, and)
 import Control.Monad
 import Control.Monad.State hiding (void)
 import Control.Monad.Trans
-import Debug.Trace
 
 import qualified LLVM.AST as LL
 import qualified LLVM.AST.Type as LL
@@ -28,6 +27,7 @@ import State
 import Funcs
 import Type
 import Typeof
+import Trace
 
 
 valResolveContextual :: InsCmp CompileState m => Value -> m Value

@@ -9,7 +9,6 @@ import Data.Maybe
 import Control.Monad
 import Control.Monad.Except hiding (void)
 import Control.Monad.State hiding (void)
-import Debug.Trace
 
 import qualified LLVM.AST.Constant as C
 import qualified LLVM.Internal.FFI.DataLayout as FFI
@@ -28,6 +27,7 @@ import qualified SymTab
 import qualified JIT
 import Monad
 import Error
+import Trace
 
 
 data Value

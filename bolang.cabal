@@ -60,7 +60,8 @@ test-suite type-tests
         Value,
         Lexer,
         Construct,
-        Typeof
+        Typeof,
+        Trace
 
 
 executable bolang
@@ -103,4 +104,5 @@ executable bolang
         Value,
         Lexer,
         Construct,
-        Typeof
+        Typeof,
+        Trace

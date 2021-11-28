@@ -5,7 +5,6 @@ import qualified Data.Set as Set
 import Data.Maybe
 import Data.List
 import Control.Monad
-import Debug.Trace
 
 import qualified LLVM.AST as LL
 import qualified LLVM.AST.Type as LL
@@ -19,8 +18,7 @@ import State
 import Monad
 import Funcs
 import Typeof
-
-
+import Trace
 
 
 adtTypeDef :: InsCmp CompileState m => String -> Type -> m ()
