@@ -144,45 +144,45 @@ withPos pos f = do
 
 
 addObj :: BoM CompileState m => S.Symbol -> SymKey -> Object -> m ()
-addObj sym key obj =
+addObj sym key obj = trace "addObj" $ do
     modify $ \s -> s { symTab = SymTab.insert sym key obj (symTab s) }
 
 addObjWithCheck :: BoM CompileState m => S.Symbol -> SymKey -> Object -> m ()
-addObjWithCheck sym key obj = do
+addObjWithCheck sym key obj = trace "addObjWithCheck" $ do
     checkSymKeyUndef sym key
     addObj sym key obj
 
 
 checkSymKeyUndef :: BoM CompileState m => S.Symbol -> SymKey -> m ()
-checkSymKeyUndef sym key = do
+checkSymKeyUndef sym key = trace ("checkSymKeyUndef " ++ sym) $ do
     res <- SymTab.lookupHead sym key <$> gets symTab
     when (isJust res) $ err (sym ++ " already defined")
 
 
 checkSymUndef :: BoM CompileState m => S.Symbol -> m ()
-checkSymUndef sym = do
+checkSymUndef sym = trace ("checkSymUndef " ++ sym) $ do
     res <- SymTab.lookupSym sym <$> gets symTab
     when (isJust res) $ err (sym ++ " already defined")
 
 
 addDeclared :: BoM CompileState m => Name -> m ()
-addDeclared name =
+addDeclared name = trace "addDeclared" $ do
     modify $ \s -> s { declared = Set.insert name (declared s) }
 
 
 addSymKeyDec :: BoM CompileState m => S.Symbol -> SymKey -> Name -> Declaration -> m ()
-addSymKeyDec sym key name dec = do
+addSymKeyDec sym key name dec = trace ("addSymKeyDec " ++ sym) $ do
     modify $ \s -> s { decMap = Map.insert (sym, key) name (decMap s) }
     modify $ \s -> s { declarations = Map.insert name dec (declarations s) }
 
 
 addDeclaration :: BoM CompileState m => Name -> Declaration -> m ()
-addDeclaration name dec = do
+addDeclaration name dec = trace "addDeclaration" $ do
     modify $ \s -> s { declarations = Map.insert name dec (declarations s) }
 
 
 emitDec :: ModCmp CompileState m => Name -> Declaration -> m ()
-emitDec name dec = case dec of
+emitDec name dec = trace "emitDec" $ case dec of
     DecType opTyp                   -> void $ typedef name (Just opTyp)
     DecFunc argTypes retty          -> emitDec name (DecExtern argTypes retty False)
     DecExtern argTypes retty False  -> void $ extern name argTypes retty
@@ -192,7 +192,7 @@ emitDec name dec = case dec of
 
 
 ensureDec :: ModCmp CompileState m => Name -> m ()
-ensureDec name = do
+ensureDec name = trace "ensureDec" $ do
     declared <- Set.member name <$> gets declared
     when (not declared) $ do
         res <- Map.lookup name <$> gets declarations
@@ -202,7 +202,7 @@ ensureDec name = do
 
 
 ensureSymKeyDec :: ModCmp CompileState m => S.Symbol -> SymKey -> m ()
-ensureSymKeyDec sym key = do
+ensureSymKeyDec sym key = trace ("ensureSymKeyDec " ++ sym) $ do
     nm <- Map.lookup (sym, key) <$> gets decMap
     case nm of
         Just name -> ensureDec name
@@ -225,7 +225,7 @@ ensureSymKeyDec sym key = do
 
 
 ensureExtern :: ModCmp CompileState m => Name -> [Type] -> Type -> Bool -> m Operand
-ensureExtern name argTypes retty isVarg = do
+ensureExtern name argTypes retty isVarg = trace "ensureExtern" $ do
     declared <- Set.member name <$> gets declared
     when (not declared) $ do
         addDeclaration name (DecExtern argTypes retty isVarg)

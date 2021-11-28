@@ -52,29 +52,6 @@ typeTest = TestCase $ do
     assertEqual "adt" True $ isNormalADT $ ADT [("a", F32), ("b", Void), ("", I32)]
 
 
-pureTypeTest initState = TestCase $ do 
-    runTypeTest (pureTypeOf I64) $ I64
-    runTypeTest (pureTypeOf Void) $ Void
-
-    runTypeTest (pureTypeOf $ Tuple [("", I64)])              $ Tuple [("", I64)]
-    runTypeTest (pureTypeOf $ Tuple [("a", I64), ("b", I32)]) $ Tuple [("", I64), ("", I32)]
-
-    runTypeTest (pureTypeOf $ Table [Char]) $ Table [Char]
-
-    runTypeTest testCode1 $ ADT [("a", I64), ("b", F32), ("s", Self) ]
-    where
-        runTypeTest :: InstrCmpT CompileState IO Type -> Type -> IO ()
-        runTypeTest f expected = do
-            Right (actual, _, _, _) <- runAll initState f
-            assertEqual "type mismatch" expected actual
-
-        testCode1 :: InsCmp CompileState m => m Type
-        testCode1 = do
-            let t = ADT [ ("a", I64), ("b", F32), ("s", Typedef "MyADTType") ]
-            addObj "MyADTType" KeyType (ObType t Nothing)
-            pureTypeOf (Typedef "MyADTType")
-
-
 instrTest initState = TestCase $ do
 
     blocks <- run $ cmpStmt (S.Return noPos Nothing)
@@ -96,7 +73,6 @@ main = do
         runTestTTAndExit $
             TestList
                 [ typeTest
-                , pureTypeTest initState
                 , instrTest initState
                 ]
 

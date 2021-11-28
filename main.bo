@@ -1,8 +1,12 @@
 module main
 
 import lang/lexer
-
-type ParseResult [i64]
+import lang/parser
 
 fn main()
-    let p = ParseResult()
+    let tokens = [TokOp("-"), TokIdent("benis")]
+
+
+    let p = parseToken(tokens, TokOp("-"), Node(OpMinus))
+
+    print(p)

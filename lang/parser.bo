@@ -21,7 +21,6 @@ type Operator {
     OpNot
 }
 
-
 fn string(op Operator) string
     switch op
         OpPlus  ; return "+"
@@ -47,7 +46,6 @@ type Expr {
     ExprInfix : (Operator, Expr, Expr)
 }
 
-
 fn string(e Expr) string
     switch e
         ExprIdent(str); return "ident: " + str
@@ -59,16 +57,29 @@ type Node {
     : Expr
 }
 
-
 fn string(n Node) string
     switch(n)
         Operator(o); return string(o)
         Expr(e)    ; return string(e)
 
 
+type ParseResult [ ( Node, [Token] ) ]
+
+fn string(p ParseResult) string
+    return string(len(p)) + " parse results"
+
+
+fn parseToken(tokens [Token], tok Token, result Node) ParseResult
+    if len(tokens) < 1
+        return []
+
+    if tokens[0] == tok
+        return ParseResult( [ (result, tokens[1..]) ] )
+
+    return []
+
 
 fn parseOperator(tokens [Token]) (Operator, [Token])
-
     switch tokens[0]
         TokOp("+") ; return (OpPlus,   tokens[1..])
         TokOp("-") ; return (OpMinus,  tokens[1..])

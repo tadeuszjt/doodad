@@ -15,8 +15,8 @@ import ADT
 import Typeof
 
 valConstruct :: InsCmp CompileState m => Type -> [Value] -> m Value
-valConstruct typ []           = trace ("valConstruct: " ++ show typ ++ "()") $ zeroOf typ
-valConstruct typ [val]        = do
+valConstruct typ []           = trace ("valConstruct " ++ show typ ++ "()") $ zeroOf typ
+valConstruct typ [val]        = trace "valConstruct" $ do
     val' <- valLoad =<< valResolveContextual val
 
     if valType val' == typ
@@ -43,8 +43,5 @@ valConstruct typ [val]        = do
             ADT _       -> adtConstruct typ val'
 
             _           -> do
-                pureType    <- pureTypeOf typ
-                pureValType <- pureTypeOf (valType val')
-
-                assert (pureType == pureValType) "Pure types do not match"
+                assert (base == valType val' || typ == valType val') "Types do not match"
                 Val typ <$> valOp <$> valLoad val'

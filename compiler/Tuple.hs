@@ -2,6 +2,7 @@
 module Tuple where
 
 import Control.Monad
+import Debug.Trace
 
 import qualified LLVM.AST.Type as LL
 import LLVM.IRBuilder.Constant
@@ -15,20 +16,20 @@ import Value
 import Typeof
 
 valIsTuple :: InsCmp CompileState m => Value -> m Bool
-valIsTuple (Exp (S.Tuple _ _)) = return True
-valIsTuple (Exp _)             = return False
-valIsTuple tup                 = isTuple <$> baseTypeOf (valType tup)
+valIsTuple (Exp (S.Tuple _ _)) = trace "valIsTuple" $ return True
+valIsTuple (Exp _)             = trace "valIsTuple" $ return False
+valIsTuple tup                 = trace "valIsTuple" $ isTuple <$> baseTypeOf (valType tup)
 
 
 tupleLength :: InsCmp CompileState m => Value -> m Int
-tupleLength (Exp (S.Tuple _ vs)) = return (length vs)
-tupleLength val                  = do
+tupleLength (Exp (S.Tuple _ vs)) = trace "tupleLength" $ return (length vs)
+tupleLength val                  = trace "tupleLength" $ do
     Tuple xs <- assertBaseType isTuple (valType val)
     return (length xs)
 
 
 tupleSet :: InsCmp CompileState m => Value -> Int -> Value -> m ()
-tupleSet tup i val = do
+tupleSet tup i val = trace "tupleSet" $ do
     Tuple ts <- assertBaseType isTuple (valType tup)
     assert (fromIntegral i < length ts) "invalid tuple index"
     ptr <- tupleIdx i tup
@@ -36,7 +37,7 @@ tupleSet tup i val = do
 
 
 tupleMember :: InsCmp CompileState m => String -> Value -> m Value
-tupleMember sym tup = do
+tupleMember sym tup = trace "tupleMember" $ do
     Tuple xs <- assertBaseType isTuple (valType tup)
     let is = [ i | ((s, t), i) <- zip xs [0..], s == sym ]
 
@@ -45,7 +46,7 @@ tupleMember sym tup = do
 
 
 tupleIdx :: InsCmp CompileState m => Int -> Value -> m Value
-tupleIdx i tup = do
+tupleIdx i tup = trace "tupleIndex" $ do
     b <- valIsTuple tup
     assert b "isn't a tuple"
     case tup of
@@ -59,15 +60,15 @@ tupleIdx i tup = do
 
 
 tupleConstruct :: InsCmp CompileState m => Type -> [Value] -> m Value
-tupleConstruct tupTyp vals = do
+tupleConstruct tupTyp vals = trace "tupleConstruct" $ do
     Tuple xs <- assertBaseType isTuple tupTyp
     tup <- valLocal tupTyp
     case vals of
         []    -> return ()
         [val] -> do
-            pureVal <- pureTypeOf (valType val)
-            pureTup <- pureTypeOf tupTyp
-            if pureVal == pureTup
+            baseVal <- baseTypeOf (valType val)
+            baseTup <- baseTypeOf tupTyp
+            if baseVal == baseTup
             then do -- contructing from another tuple
                 forM_ (zip xs [0..]) $ \((s, t), i) -> tupleSet tup i =<< tupleIdx i val
             else do

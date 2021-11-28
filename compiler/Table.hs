@@ -2,6 +2,7 @@
 module Table where
 
 import Control.Monad
+import Debug.Trace
 
 import qualified LLVM.AST.Type as LL
 import LLVM.IRBuilder.Constant
@@ -18,27 +19,27 @@ import Typeof
 
 
 valIsTable :: InsCmp CompileState m => Value -> m Bool
-valIsTable (Exp (S.Table _ _)) = return True
-valIsTable (Exp _)             = return False
-valIsTable tab                 = isTable <$> baseTypeOf (valType tab)
+valIsTable (Exp (S.Table _ _)) = trace "valIsTable" $ return True
+valIsTable (Exp _)             = trace "valIsTable" $ return False
+valIsTable tab                 = trace "valIsTable" $ isTable <$> baseTypeOf (valType tab)
 
 
 tableLen :: InsCmp CompileState m => Value -> m Value
-tableLen tab = do
+tableLen tab = trace "tableLen" $ do
     Table _ <- assertBaseType isTable (valType tab)
     op <- valOp <$> valLoad tab
     Val I64 <$> extractValue op [0]
 
 
 tableCap :: InsCmp CompileState m => Value -> m Value
-tableCap tab = do
+tableCap tab = trace "tableCap" $ do
     Table _ <- assertBaseType isTable (valType tab)
     op <- valOp <$> valLoad tab
     Val I64 <$> extractValue op [1]
 
 
 tableSetLen :: InsCmp CompileState m => Value -> Value -> m ()
-tableSetLen tab@(Ptr _ loc) len = do
+tableSetLen tab@(Ptr _ loc) len = trace "tableSetLen" $ do
     Table _ <- assertBaseType isTable (valType tab)
     assertBaseType isInt (valType len)
     l <- gep loc [int32 0, int32 0]
@@ -46,7 +47,7 @@ tableSetLen tab@(Ptr _ loc) len = do
 
 
 tableSetCap :: InsCmp CompileState m => Value -> Value -> m ()
-tableSetCap tab@(Ptr _ loc) cap = do
+tableSetCap tab@(Ptr _ loc) cap = trace "tableSetCap" $ do
     Table _ <- assertBaseType isTable (valType tab)
     assertBaseType isInt (valType cap)
     c <- gep loc [int32 0, int32 1]
@@ -54,7 +55,7 @@ tableSetCap tab@(Ptr _ loc) cap = do
 
 
 tableRow :: InsCmp CompileState m => Int -> Value -> m Value
-tableRow i tab = do
+tableRow i tab = trace "tableRow" $ do
     Table ts <- assertBaseType isTable (valType tab)
     let t = ts !! i
     op <- valOp <$> valLoad tab
@@ -62,7 +63,7 @@ tableRow i tab = do
 
 
 tableSetRow :: InsCmp CompileState m => Value -> Int -> Value -> m ()
-tableSetRow tab i row = do
+tableSetRow tab i row = trace "tableSetRow" $ do
     Table ts <- assertBaseType isTable (valType tab)
     assert (valType row == ts !! i) "Types do not match"
     pp <- gep (valLoc tab) [int32 0, int32 (fromIntegral i+2)]
@@ -70,7 +71,7 @@ tableSetRow tab i row = do
 
 
 tableGetElem :: InsCmp CompileState m => Value -> Value -> m Value
-tableGetElem tab idx = do
+tableGetElem tab idx = trace "tableGetElem" $ do
     Table ts <- assertBaseType isTable (valType tab)
 
     tup <- valLocal $ Tuple [ ("", t) | t <- ts ]
@@ -82,7 +83,7 @@ tableGetElem tab idx = do
 
 
 tableSetElem :: InsCmp CompileState m => Value -> Value -> Value -> m ()
-tableSetElem tab idx tup = do
+tableSetElem tab idx tup = trace "tableSetElem" $ do
     Table ts <- assertBaseType isTable (valType tab)
     Tuple xs <- assertBaseType isTuple (valType tup)
     idxType  <- assertBaseType isInt (valType idx)
@@ -98,7 +99,7 @@ tableSetElem tab idx tup = do
 
 
 tableRange :: InsCmp CompileState m => Value -> Value -> Value -> m Value
-tableRange tab' start' end' = do
+tableRange tab' start' end' = trace "tableRange" $ do
     tab <-valResolveContextual tab'
     start <- valResolveContextual start'
     end <- valResolveContextual end'
@@ -148,13 +149,11 @@ tableRange tab' start' end' = do
 
 
 tableAppend :: InsCmp CompileState m => Value -> Value -> m Value
-tableAppend a b = do
+tableAppend a b = trace "tableAppend" $ do
     Table ts <- assertBaseType isTable (valType a)
     assertBaseType isTable (valType b)
 
-    ap <- pureTypeOf (valType a)
-    bp <- pureTypeOf (valType b)
-    assert (ap == bp) "Types do not match"
+    assert (valType a == valType b) "Types do not match"
 
     loc <- valLocal (valType a)
     valStore loc a

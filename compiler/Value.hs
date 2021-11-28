@@ -31,7 +31,7 @@ import Typeof
 
 
 valResolveContextual :: InsCmp CompileState m => Value -> m Value
-valResolveContextual val = case val of
+valResolveContextual val = trace "valResolveContextual" $ case val of
     Exp (S.Int p n)   -> valInt I64 n
     Exp (S.Float p f) -> valFloat F64 f
     Exp (S.Null p)    -> zeroOf $ ADT [("", Void)]
@@ -67,16 +67,14 @@ valLocal typ = trace ("valLocal " ++ show typ) $ do
     
 
 valMalloc :: InsCmp CompileState m => Type -> Value -> m Value
-valMalloc typ len = trace "valMalloc" $ do
+valMalloc typ len = trace ("valMalloc " ++ show typ) $ do
     lenTyp <- assertBaseType isInt (valType len)
-    siz <- sizeOf =<< baseTypeOf typ
-
-    pi8 <- malloc =<< mul (valOp len) (int64 $ fromIntegral siz)
+    pi8 <- malloc =<< mul (valOp len) . valOp =<< sizeOf typ
     Ptr typ <$> (bitcast pi8 . LL.ptr =<< opTypeOf typ)
 
 
 valsInfix :: InsCmp CompileState m => S.Op -> Value -> Value -> m Value
-valsInfix operator a b = trace "valsInfix" $ case (a, b) of
+valsInfix operator a b = trace ("valsInfix " ++ show operator) $ case (a, b) of
     (Exp _, Exp _) -> return $ Exp $ exprInfix operator (let Exp ea = a in ea) (let Exp eb = b in eb)
 
     (Exp (S.Int _ i), _) -> do
@@ -148,26 +146,26 @@ valsInfix operator a b = trace "valsInfix" $ case (a, b) of
         
 
 valNot :: InsCmp CompileState m => Value -> m Value
-valNot val = do
+valNot val = trace "valNot" $ do
     assertBaseType (== Bool) (valType val)
     Val (valType val) <$> (icmp P.EQ (bit 0) . valOp =<< valLoad val)
 
 
 valPtrIdx :: InsCmp s m => Value -> Value -> m Value
-valPtrIdx (Ptr typ loc) idx = do
+valPtrIdx (Ptr typ loc) idx = trace "valPtrIdx" $ do
     Val I64 i <- valLoad idx
     Ptr typ <$> gep loc [i]
 
 
 valArrayIdx :: InsCmp CompileState m => Value -> Value -> m Value
-valArrayIdx (Ptr (Array n t) loc) idx = do
+valArrayIdx (Ptr (Array n t) loc) idx = trace "valArrayIdx" $ do
     Val idxTyp idx <- valLoad idx
     assert (isInt idxTyp) "array index isn't an integer"
     Ptr t <$> gep loc [int64 0, idx]
 
 
 valArrayConstIdx :: InsCmp CompileState m => Value -> Int -> m Value
-valArrayConstIdx val i = do
+valArrayConstIdx val i = trace "valArrayConstIdx" $ do
     assert (not $ valIsContextual val) "contextual 172"
     Array n t <- assertBaseType isArray (valType val)
     case val of
@@ -176,12 +174,16 @@ valArrayConstIdx val i = do
 
 
 valMemCpy :: InsCmp CompileState m => Value -> Value -> Value -> m ()
-valMemCpy (Ptr dstTyp dst) (Ptr srcTyp src) len = do
+valMemCpy (Ptr dstTyp dst) (Ptr srcTyp src) len = trace "valMemCpy" $ do
     assert (dstTyp == srcTyp) "Types do not match"
     assertBaseType isInt (valType len)
 
     pDstI8 <- bitcast dst (LL.ptr LL.i8)
     pSrcI8 <- bitcast src (LL.ptr LL.i8)
-    void $ memcpy pDstI8 pSrcI8 . valOp =<< valsInfix S.Times len . valI64 =<< sizeOf dstTyp
+
+    sz <- sizeOf dstTyp
+    let sz' = trace (show $ valOp sz) sz
+
+    void $ memcpy pDstI8 pSrcI8 . valOp =<< valsInfix S.Times len sz'
 
 

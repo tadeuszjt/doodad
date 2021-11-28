@@ -5,6 +5,7 @@ import qualified Data.Set as Set
 import Data.Maybe
 import Data.List
 import Control.Monad
+import Debug.Trace
 
 import qualified LLVM.AST as LL
 import qualified LLVM.AST.Type as LL
@@ -23,7 +24,7 @@ import Typeof
 
 
 adtTypeDef :: InsCmp CompileState m => String -> Type -> m ()
-adtTypeDef sym typ = do
+adtTypeDef sym typ = trace "adtTypeDef" $ do
     assert (isADT typ) "Isn't ADT"
     let ADT xs = typ
     let typdef = Typedef sym
@@ -55,7 +56,7 @@ adtTypeDef sym typ = do
 
 
 adtEnum :: InsCmp CompileState m => Value -> m Value
-adtEnum adt = do
+adtEnum adt = trace "adtEnum" $ do
     adtTyp@(ADT xs) <- assertBaseType isADT (valType adt)
     case adtTyp of
         _ | isEmptyADT adtTyp  -> err "ADT has no enum"
@@ -69,7 +70,7 @@ adtEnum adt = do
 
 
 adtSetEnum :: InsCmp CompileState m => Value -> Int -> m ()
-adtSetEnum adt@(Ptr _ loc) i = do
+adtSetEnum adt@(Ptr _ loc) i = trace "adtSetEnum" $ do
     adtTyp@(ADT xs) <- assertBaseType isADT (valType adt)
     assert (i >= 0 && i < length xs) "invalid ADT enum"
     case adtTyp of
@@ -82,7 +83,7 @@ adtSetEnum adt@(Ptr _ loc) i = do
 
 
 adtDeref :: InsCmp CompileState m => Value -> m Value
-adtDeref val = do
+adtDeref val = trace "adtDeref" $ do
     ADT [(s, t)] <- assertBaseType isPtrADT (valType val)
     pi8 <- adtPi8 val
     pt  <- LL.ptr <$> opTypeOf t
@@ -90,7 +91,7 @@ adtDeref val = do
 
 
 adtNull :: InsCmp CompileState m => Type -> m Value
-adtNull typ = do
+adtNull typ = trace "adtNull" $ do
     ADT xs <- assertBaseType isADT typ
     let is = [ i | (("", Void), i) <- zip xs [0..] ]
     assert (length is == 1) (show typ ++ " does not have a unique null constructor")
@@ -101,7 +102,7 @@ adtNull typ = do
 
 
 adtPi8 :: InsCmp CompileState m => Value -> m LL.Operand
-adtPi8 adt = do
+adtPi8 adt = trace "adtPi8" $ do
     adtTyp@(ADT xs) <- assertBaseType isADT (valType adt)
     op <- valOp <$> valLoad adt
     case adtTyp of
@@ -112,7 +113,7 @@ adtPi8 adt = do
 
 
 adtSetPi8 :: InsCmp CompileState m => Value -> LL.Operand -> m ()
-adtSetPi8 adt@(Ptr _ loc) pi8 = do
+adtSetPi8 adt@(Ptr _ loc) pi8 = trace "adtSetPi8" $ do
     adtTyp@(ADT xs) <- assertBaseType isADT (valType adt)
     case adtTyp of
         _ | isEmptyADT adtTyp  -> err "Empty ADT has no pointer"
@@ -125,7 +126,7 @@ adtSetPi8 adt@(Ptr _ loc) pi8 = do
 
 -- Construct a specific ADT field, eg: TokSym("ident")
 adtConstructField :: InsCmp CompileState m => String -> Type -> [Value] -> m Value
-adtConstructField sym typ vals = do
+adtConstructField sym typ vals = trace "adtConstructField" $ do
     adtTyp@(ADT xs) <- assertBaseType isADT typ
 
     case adtTyp of
@@ -173,9 +174,9 @@ adtConstructField sym typ vals = do
 -- ADT(adt2)   -> construct from adt with ONE equivalent field
 -- ADT(null)   -> null becomes adt with equivalent field
 adtConstruct :: InsCmp CompileState m => Type -> Value -> m Value
-adtConstruct typ (Exp (S.Null _)) = adtNull typ
-adtConstruct typ (Exp _)          = error "adt constructing from contextual"
-adtConstruct typ val              = do
+adtConstruct typ (Exp (S.Null _)) = trace "adtConstruct" $ adtNull typ
+adtConstruct typ (Exp _)          = trace "adtConstruct" $ error "adt constructing from contextual"
+adtConstruct typ val              = trace "adtConstruct" $ do
     adtTyp@(ADT xs) <- assertBaseType isADT typ
     case adtTyp of
         _ | isEmptyADT adtTyp -> err "Cannot construct ADT type"

@@ -69,8 +69,8 @@ compileFlatState ctx dl imports flatState modName = do
 
 cmpTypeDef :: InsCmp CompileState m => S.Stmt -> m ()
 cmpTypeDef (S.Typedef pos sym typ)
-    | isADT typ = withPos pos $ adtTypeDef sym typ
-cmpTypeDef (S.Typedef pos sym typ) = withPos pos $ do
+    | isADT typ = trace "cmpTypeDef" $ withPos pos $ adtTypeDef sym typ
+cmpTypeDef (S.Typedef pos sym typ) = trace "cmpTypeDef" $ withPos pos $ do
     let typdef = Typedef sym
 
     -- Add zero, base and def constructors
@@ -94,7 +94,7 @@ cmpTypeDef (S.Typedef pos sym typ) = withPos pos $ do
 
 
 cmpVarDef :: InsCmp CompileState m => S.Stmt -> m ()
-cmpVarDef (S.Assign pos (S.PatIdent p sym) expr) = do
+cmpVarDef (S.Assign pos (S.PatIdent p sym) expr) = trace "cmpVarDef" $ withPos pos $ do
     val <- cmpExpr expr
 
     name <- myFresh sym
@@ -118,7 +118,7 @@ cmpVarDef (S.Assign pos (S.PatIdent p sym) expr) = do
 
 
 cmpExternDef :: InsCmp CompileState m => S.Stmt -> m ()
-cmpExternDef (S.Extern pos sym params retty) = do
+cmpExternDef (S.Extern pos sym params retty) = trace "cmpExternDef" $ withPos pos $ do
     checkSymUndef sym 
     let name = LL.mkName sym
     let paramTypes = map S.paramType params
@@ -137,8 +137,8 @@ cmpExternDef (S.Extern pos sym params retty) = do
 
 
 cmpFuncHdr :: InsCmp CompileState m => S.Stmt -> m ()
-cmpFuncHdr (S.FuncDef pos "main" params retty blk) = return ()
-cmpFuncHdr (S.FuncDef pos sym params retty blk)    = withPos pos $ do
+cmpFuncHdr (S.FuncDef pos "main" params retty blk) = trace "cmpFuncHdr" $ return ()
+cmpFuncHdr (S.FuncDef pos sym params retty blk)    = trace "cmpFuncHdr" $ withPos pos $ do
     let paramTypes = map S.paramType params
     name <- myFresh sym
     paramOpTypes <- mapM opTypeOf paramTypes
@@ -150,11 +150,11 @@ cmpFuncHdr (S.FuncDef pos sym params retty blk)    = withPos pos $ do
     
 
 cmpFuncDef :: (MonadFail m, Monad m, MonadIO m) => S.Stmt -> InstrCmpT CompileState m ()
-cmpFuncDef (S.FuncDef pos "main" params retty blk) = withPos pos $ do
+cmpFuncDef (S.FuncDef pos "main" params retty blk) = trace "cmpFuncDef" $ withPos pos $ do
     assert (params == [])  "main cannot have parameters"
     assert (retty == Void) "main must return void"
     pushSymTab >> mapM_ cmpStmt blk >> popSymTab
-cmpFuncDef (S.FuncDef pos sym params retty blk) = withPos pos $ do
+cmpFuncDef (S.FuncDef pos sym params retty blk) = trace "cmpFuncDef" $ withPos pos $ do
     returnOpType <- opTypeOf retty
     paramOpTypes <- mapM (opTypeOf . S.paramType) params
     let paramTypes = map S.paramType params
@@ -191,7 +191,7 @@ cmpFuncDef (S.FuncDef pos sym params retty blk) = withPos pos $ do
 
 
 cmpStmt :: InsCmp CompileState m => S.Stmt -> m ()
-cmpStmt stmt = case stmt of
+cmpStmt stmt = trace "cmpStmt" $ case stmt of
     S.Print pos exprs -> cmpPrint stmt
     S.Block stmts -> pushSymTab >> mapM_ cmpStmt stmts >> popSymTab
 
@@ -296,7 +296,7 @@ cmpStmt stmt = case stmt of
 
 -- must return Val unless local variable
 cmpExpr :: InsCmp CompileState m =>  S.Expr -> m Value
-cmpExpr expr = case expr of
+cmpExpr expr = trace "cmpExpr" $ case expr of
     e | exprIsContextual e     -> return (Exp expr)
     S.Bool pos b               -> return (valBool b)
     S.Char pos c               -> return (valChar c)
@@ -416,7 +416,7 @@ cmpExpr expr = case expr of
 
 
 cmpCondition :: InsCmp CompileState m => S.Condition -> m Value
-cmpCondition cnd = do
+cmpCondition cnd = trace "cmpCondition" $ do
     val <- case cnd of
         S.CondExpr expr      -> cmpExpr expr
         S.CondMatch pat expr -> cmpPattern pat =<< cmpExpr expr
@@ -428,7 +428,7 @@ cmpCondition cnd = do
 
 
 cmpPattern :: InsCmp CompileState m => S.Pattern -> Value -> m Value
-cmpPattern pat val = case pat of
+cmpPattern pat val = trace "cmpPattern" $ case pat of
     S.PatIgnore pos -> return (valBool True)
 
     S.PatLiteral (S.Null pos) -> withPos pos $ trace "cmpPattern null" $ do
@@ -528,7 +528,7 @@ cmpPattern pat val = case pat of
 
 
 cmpPrint :: InsCmp CompileState m => S.Stmt -> m ()
-cmpPrint (S.Print pos exprs) = withPos pos $ do
+cmpPrint (S.Print pos exprs) = trace "cmpPrint" $ withPos pos $ do
     prints =<< mapM valResolveContextual =<< mapM cmpExpr exprs
     where
         prints :: InsCmp CompileState m => [Value] -> m ()
@@ -538,7 +538,7 @@ cmpPrint (S.Print pos exprs) = withPos pos $ do
 
 
 valAsType :: InsCmp CompileState m => Type -> Value -> m Value
-valAsType typ val = case val of
+valAsType typ val = trace "valAsType" $ case val of
     Val _ _              -> assert (typ == valType val) "Types do not match" >> return val
     Ptr _ _              -> assert (typ == valType val) "Types do not match" >> return val
 

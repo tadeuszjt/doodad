@@ -21,14 +21,14 @@ import State
 import Funcs
 
 assertBaseType :: InsCmp CompileState m => (Type -> Bool) -> Type -> m Type
-assertBaseType f typ = do
+assertBaseType f typ = trace "assertBaseType" $ do
     base <- baseTypeOf typ
     assert (f base) ("invalid type of " ++ show typ)
     return base
 
 
 valInt :: InsCmp CompileState m => Integral i => Type -> i -> m Value
-valInt typ n = do
+valInt typ n = trace "valInt" $ do
     base <- assertBaseType isInt typ
     return $ case base of
         I8  -> Val typ $ int8 (fromIntegral n)
@@ -37,7 +37,7 @@ valInt typ n = do
 
 
 valFloat :: InsCmp CompileState m => Type -> Double -> m Value
-valFloat typ f = do
+valFloat typ f = trace "valFloat" $ do
     base <- assertBaseType isFloat typ
     return $ case base of
         F32 -> Val typ $ single (double2Float f)
@@ -58,7 +58,7 @@ valBool b = Val Bool (if b then bit 1 else bit 0)
 
 
 opTypeOf :: ModCmp CompileState m => Type -> m LL.Type
-opTypeOf typ = case typ of
+opTypeOf typ = trace "opTypOf" $ case typ of
     Void      -> return LL.VoidType
     I16       -> return LL.i16
     I32       -> return LL.i32
@@ -116,58 +116,13 @@ zeroOf typ = trace ("zeroOf " ++ show  typ) $ do
                     return $ Val typ $ struct namem False (zi64:zi64:zptrs)
 
 
-pureTypeOf :: ModCmp CompileState m => Type -> m Type
-pureTypeOf initialType = case initialType of
-    Typedef s      -> do ObType t _ <- look s KeyType; pureTypeOf' t
-    Void           -> return Void
-    Tuple xs       -> fmap Tuple $ forM xs $ \(_, t) -> ("",) <$> pureTypeOf' t
-    Table ts       -> Table <$> mapM pureTypeOf' ts
-    ADT xs         -> fmap ADT $ forM xs $ \(s, t) -> (s,) <$> pureTypeOf' t
-    t | isSimple t -> return t
-    Func ts rt     -> do
-        rt' <- pureTypeOf' rt
-        ts' <- mapM pureTypeOf' ts
-        return (Func ts' rt')
-
-    x              -> error ("pureTypeOf: " ++ show x)
-
-    where
-        pureTypeOf' :: ModCmp CompileState m => Type -> m Type
-        pureTypeOf' typ = case typ of
-            Void           -> return Void
-            t | isSimple t -> return t
-            ADT xs -> fmap ADT $ forM xs $ \(s, t) ->
-                if t == initialType
-                then return (s, Self)
-                else (s,) <$> pureTypeOf' t
-
-            Table ts -> fmap Table $ forM ts $ \t ->
-                if t == initialType
-                then err (show initialType ++ " is self-referential")
-                else pureTypeOf' t
-
-            Tuple xs -> fmap Tuple $ forM xs $ \(s, t) ->
-                if t == initialType
-                then err (show initialType ++ " is self-referential")
-                else (s,) <$> pureTypeOf' t
-
-
-            Typedef s -> do ObType t _ <- look s KeyType; pureTypeOf' t
-
-            x -> error ("pureTypeOf': " ++ show x)
-
-
 baseTypeOf :: ModCmp CompileState m => Type -> m Type
-baseTypeOf typ = case typ of
+baseTypeOf typ = trace "baseTypeOf" $ case typ of
     Typedef s -> do ObType t _ <- look s KeyType; baseTypeOf t
     _         -> return typ
 
 
-sizeOf :: InsCmp CompileState m => Type -> m Int
-sizeOf typ       = size =<< opTypeOf =<< pureTypeOf typ
-size :: InsCmp CompileState m => LL.Type -> m Int
-size typ = do
-    ctx <- gets context
-    dl <- gets dataLayout
-    liftIO $ return . fromIntegral =<< FFI.getTypeAllocSize dl =<< runEncodeAST ctx (encodeM typ)
-
+sizeOf :: InsCmp CompileState m => Type -> m Value
+sizeOf typ = trace "sizeOf" $ do
+    opType <- opTypeOf typ
+    return $ Val I64 $ cons $ C.SExt (C.sizeof opType) (LL.IntegerType 64)
