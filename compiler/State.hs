@@ -195,8 +195,8 @@ ensureDec :: ModCmp CompileState m => Name -> m ()
 ensureDec name = trace "ensureDec" $ do
     declared <- Set.member name <$> gets declared
     when (not declared) $ do
-        res <- Map.lookup name <$> gets declarations
-        case res of
+        resm <- Map.lookup name <$> gets declarations
+        case resm of
             Nothing -> return ()
             Just d  -> emitDec name d >> addDeclared name
 
@@ -217,11 +217,7 @@ ensureSymKeyDec sym key = trace ("ensureSymKeyDec " ++ sym) $ do
                             emitDec name ((Map.! name) $ declarations imp)
                             addDeclared name
                         return (Just ())
-
-            case rs of
-                []    -> return ()
-                [r]   -> return ()
-                (r:_) -> fail ("more than one declaration for: " ++ sym ++ " " ++ show key)
+            assert (length rs <= 1) ("more than one declaration for: " ++ sym ++ " " ++ show key)
 
 
 ensureExtern :: ModCmp CompileState m => Name -> [Type] -> Type -> Bool -> m Operand

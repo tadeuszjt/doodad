@@ -6,7 +6,6 @@ import lang/parser
 fn main()
     let tokens = [TokOp("-"), TokIdent("benis")]
 
-
-    let p = parseToken(tokens, TokOp("-"), Node(OpMinus))
+    let p = parseOperator(tokens)
 
     print(p)

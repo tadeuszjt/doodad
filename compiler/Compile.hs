@@ -147,6 +147,9 @@ cmpFuncHdr (S.FuncDef pos sym params retty blk)    = trace "cmpFuncHdr" $ withPo
 
     addObjWithCheck sym (KeyFunc paramTypes) (ObjFunc retty op) 
     addObj sym KeyVar $ ObjVal $ Val (Func paramTypes retty) op
+
+    addSymKeyDec sym (KeyFunc paramTypes) name (DecFunc paramOpTypes returnOpType)
+    addSymKeyDec sym KeyVar name (DecFunc paramOpTypes returnOpType)
     
 
 cmpFuncDef :: (MonadFail m, Monad m, MonadIO m) => S.Stmt -> InstrCmpT CompileState m ()
@@ -164,9 +167,6 @@ cmpFuncDef (S.FuncDef pos sym params retty blk) = trace "cmpFuncDef" $ withPos p
     ObjFunc _ op <- look sym (KeyFunc paramTypes)
     let LL.ConstantOperand (C.GlobalReference _ name) = op
     let Name nameStr = name
-
-    addSymKeyDec sym (KeyFunc paramTypes) name (DecFunc paramOpTypes returnOpType)
-    addDeclared name
 
     pushSymTab
     curRetty <- gets curRetType
@@ -343,6 +343,13 @@ cmpExpr expr = trace "cmpExpr" $ case expr of
                 ObjExtern _ retty op   -> do
                     vals' <- mapM valLoad vals
                     Val retty <$> call op [(o, []) | o <- map valOp vals']
+
+    S.Call pos expr exprs -> withPos pos $ do
+        Val typ op <- valLoad =<< cmpExpr expr
+        vals <- mapM valLoad =<< mapM valResolveContextual =<< mapM cmpExpr exprs
+        Func ts rt <- assertBaseType isFunction typ
+        assert (map valType vals == ts) "Invalid argument types"
+        Val rt <$> call op [(o, []) | o <- map valOp vals]
 
     S.Len pos expr -> withPos pos $ valLoad =<< do
         val <- valResolveContextual =<< cmpExpr expr

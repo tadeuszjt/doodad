@@ -178,6 +178,7 @@ expr   : lit                           { $1 }
        | prefix                        { $1 }
        | ident                         { S.Ident (tokPos $1) (tokStr $1) }
        | '[' tableRows ']'             { S.Table (tokPos $1) $2 }
+       | '[' 'I' exprsN 'D' ']'        { S.Table (tokPos $1) [$3] }
        | '[' '|' exprs ']'             { S.Array (tokPos $1) $3 }
        | '(' exprs ')'                 { S.Tuple (tokPos $1) $2 }
        | '&' expr                      { S.Address (tokPos $1) $2 }
@@ -196,6 +197,10 @@ exprs  : {- empty -}                   { [] }
        | exprs_                        { $1 }
 exprs_ : expr                          { [$1] }
        | expr ',' exprs_               { $1 : $3 }
+
+exprsN : expr                          { [$1] }
+       | expr ',' 'N' exprsN           { $1 : $4 }
+
 tableRows : exprs                      { [$1] }
           | exprs ';' tableRows        { $1 : $3 }
 
@@ -235,6 +240,12 @@ typeAggregate : '[' intlit ':' type_ ']' { T.Array (read $ tokStr $2) $4 }
               | '[' rowTypes_ ']'        { T.Table $2 }
               | '{' ptrTypes '}'         { T.ADT $2 }
               | '{' 'I' ptrTypes 'D' '}' { T.ADT $3 }
+              | fn '(' argTypes ')' type_ { T.Func $3 $5 }
+
+argTypes  : {-empty -}          { [] }
+          | argTypes_           { $1 }
+argTypes_ : type_               { [$1] }
+          | type_ ',' argTypes_ { $1:$3 }
 
 tupTypes  : {-empty -}           { [] }
           | tupTypes_            { $1 }

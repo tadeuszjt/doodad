@@ -83,20 +83,21 @@ fn parseToken(tokens [Token], tok Token, result Node) ParseResult
     return []
 
 
-fn parseOperator(tokens [Token]) (Operator, [Token])
-    switch tokens[0]
-        TokOp("+") ; return (OpPlus,   tokens[1..])
-        TokOp("-") ; return (OpMinus,  tokens[1..])
-        TokOp("*") ; return (OpTimes,  tokens[1..])
-        TokOp("/") ; return (OpDivide, tokens[1..])
-        TokOp("%") ; return (OpModulo, tokens[1..])
-        TokOp("<") ; return (OpLT,     tokens[1..])
-        TokOp(">") ; return (OpGT,     tokens[1..])
-        TokOp("<="); return (OpLTEq,   tokens[1..])
-        TokOp(">="); return (OpGTEq,   tokens[1..])
-        TokOp("=="); return (OpEqEq,   tokens[1..])
-        TokOp("||"); return (OpOrOr,   tokens[1..])
-        TokOp("&&"); return (OpAndAnd, tokens[1..])
-        TokOp("!="); return (OpNotEq,  tokens[1..])
-        TokOp("!") ; return (OpNot,    tokens[1..])
+fn parseAny(tokens [Token], fns [ fn ([Token]) ParseResult ]) ParseResult
+    let r = ParseResult()
+    let i = 0
+    while i < len(fns)
+        r = append(r, fns[i](tokens))
+        i = i + 1
+    return r
+
+
+fn parseOperator(tokens [Token]) ParseResult
+    let results = [
+        parseToken(tokens, TokOp("+"), Node(OpPlus)),
+        parseToken(tokens, TokOp("-"), Node(OpMinus)),
+        parseToken(tokens, TokOp("*"), Node(OpTimes)),
+        parseToken(tokens, TokOp("/"), Node(OpDivide))
+    ]
+    concatParseResults(results)
 
