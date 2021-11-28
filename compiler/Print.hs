@@ -19,6 +19,7 @@ import Tuple
 import Type 
 import ADT
 import Construct
+import Typeof
 
 
 valPrint :: InsCmp CompileState m => String -> Value -> m ()

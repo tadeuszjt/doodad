@@ -12,6 +12,7 @@ import Type
 import State
 import Monad
 import Value
+import Typeof
 
 valIsTuple :: InsCmp CompileState m => Value -> m Bool
 valIsTuple (Exp (S.Tuple _ _)) = return True
@@ -26,19 +27,12 @@ tupleLength val                  = do
     return (length xs)
 
 
-tupleSet :: InsCmp CompileState m => Value -> Int -> Value -> m Value
+tupleSet :: InsCmp CompileState m => Value -> Int -> Value -> m ()
 tupleSet tup i val = do
     Tuple ts <- assertBaseType isTuple (valType tup)
     assert (fromIntegral i < length ts) "invalid tuple index"
-
-    case tup of
-        Ptr _ _ -> do
-            ptr <- tupleIdx i tup
-            valStore ptr val >> return tup
-
-        Val _ _ -> do
-            op <- valOp <$> valLoad val
-            Val (valType tup) <$> insertValue (valOp tup) op [fromIntegral i]
+    ptr <- tupleIdx i tup
+    valStore ptr val
 
 
 tupleMember :: InsCmp CompileState m => String -> Value -> m Value

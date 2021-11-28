@@ -11,11 +11,12 @@ import Monad
 import Tuple
 import Value
 import ADT
+import Typeof
 
 
 valConstruct :: InsCmp CompileState m => Type -> [Value] -> m Value
-valConstruct typ []    = zeroOf typ
-valConstruct typ [val] = do
+valConstruct typ []           = zeroOf typ
+valConstruct typ [val]        = do
     val' <- valLoad =<< valResolveContextual val
 
     if valType val' == typ
@@ -47,5 +48,3 @@ valConstruct typ [val] = do
 
                 assert (pureType == pureValType) "Pure types do not match"
                 Val typ <$> valOp <$> valLoad val'
-
-valConstruct typ vals = tupleConstruct typ vals

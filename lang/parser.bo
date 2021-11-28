@@ -21,6 +21,7 @@ type Operator {
     OpNot
 }
 
+
 fn string(op Operator) string
     switch op
         OpPlus  ; return "+"
@@ -46,6 +47,7 @@ type Expr {
     ExprInfix : (Operator, Expr, Expr)
 }
 
+
 fn string(e Expr) string
     switch e
         ExprIdent(str); return "ident: " + str
@@ -56,6 +58,7 @@ type Node {
     : Operator
     : Expr
 }
+
 
 fn string(n Node) string
     switch(n)

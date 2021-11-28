@@ -40,6 +40,7 @@ import Table
 import Tuple
 import ADT
 import Construct
+import Typeof
 
 compileFlatState
     :: BoM s m

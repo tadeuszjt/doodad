@@ -14,6 +14,7 @@ import State
 import Funcs
 import Type 
 import Tuple
+import Typeof
 
 
 valIsTable :: InsCmp CompileState m => Value -> m Bool
