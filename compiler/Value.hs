@@ -73,39 +73,46 @@ valMalloc typ len = do
 
 
 valsInfix :: InsCmp CompileState m => S.Op -> Value -> Value -> m Value
-valsInfix operator (Exp (S.Int p a)) (Exp (S.Int _ b)) = return $ case operator of
-    S.Plus   -> Exp (S.Int p (a + b))
-    S.Minus  -> Exp (S.Int p (a - b))
-    S.Times  -> Exp (S.Int p (a * b))
-    S.Divide -> Exp (S.Int p (a `div` b))
-    S.GT     -> valBool (a > b)
-    S.LT     -> valBool (a < b)
-valsInfix operator (Exp (S.Int _ a)) b = do
-    typ <- assertBaseType isInt (valType b)
-    i <- valInt typ a  
-    valsInfix operator i b
-valsInfix operator a (Exp (S.Int _ b)) = do
-    typ <- assertBaseType isInt (valType a)
-    valsInfix operator a =<< valInt typ b
-valsInfix operator a b = do
-    Val _ opA <- valLoad a
-    Val _ opB <- valLoad b
+valsInfix operator a b = case (a, b) of
+    (Exp _, Exp _) -> return $ Exp $ exprInfix operator (let Exp ea = a in ea) (let Exp eb = b in eb)
 
-    resm <- lookm (show operator) $ KeyFunc [valType a, valType b]
-    case resm of
-        Just (ObjFunc retty op) -> Val retty <$> call op [ (opA, []), (opB, []) ]
-        Nothing                 -> do
-            baseA <- baseTypeOf (valType a)
-            baseB <- baseTypeOf (valType b)
-            assert (baseA == baseB) "Base types do not match"
+    (Exp (S.Int _ i), _) -> do
+        assertBaseType isInt (valType b)
+        val <- valInt (valType b) i
+        valsInfix operator val b
 
-            case baseA of
-                Bool              -> boolInfix (valType a) operator opA opB
-                Char              -> intInfix (valType a) operator opA opB
-                _ | isInt baseA   -> intInfix (valType a) operator opA opB
-                _ | isFloat baseA -> floatInfix (valType a) operator opA opB
-                _                 -> err ("Operator " ++ show operator ++ " undefined for types")
-    where
+    (_, Exp (S.Int _ i)) -> do
+        assertBaseType isInt (valType a)
+        val <- valInt (valType a) i
+        valsInfix operator a val
+
+    (_, Exp _) -> err ""
+
+    (Exp _, _) -> err ""
+
+    _ -> do
+        Val _ opA <- valLoad a
+        Val _ opB <- valLoad b
+
+        resm <- lookm (show operator) $ KeyFunc [valType a, valType b]
+        case resm of
+            Just (ObjFunc retty op) -> Val retty <$> call op [ (opA, []), (opB, []) ]
+            Nothing                 -> do
+                baseA <- baseTypeOf (valType a)
+                baseB <- baseTypeOf (valType b)
+                assert (baseA == baseB) "Base types do not match"
+
+                case baseA of
+                    Bool              -> boolInfix (valType a) operator opA opB
+                    Char              -> intInfix (valType a) operator opA opB
+                    _ | isInt baseA   -> intInfix (valType a) operator opA opB
+                    _ | isFloat baseA -> floatInfix (valType a) operator opA opB
+                    _                 -> err ("Operator " ++ show operator ++ " undefined for types")
+
+    where 
+        exprInfix operator exprA exprB = case (operator, exprA, exprB) of
+            (S.Plus, S.Int p a, S.Int _ b) -> S.Int p (a + b)
+
         boolInfix :: InsCmp CompileState m => Type -> S.Op -> LL.Operand -> LL.Operand -> m Value
         boolInfix typ operator opA opB = case operator of
             S.OrOr   -> Val typ <$> or opA opB
@@ -135,7 +142,7 @@ valsInfix operator a b = do
             S.Divide -> Val typ <$> fdiv opA opB
             S.EqEq   -> Val Bool <$> fcmp P.OEQ opA opB
             _        -> error ("float infix: " ++ show operator)
-
+        
 
 valNot :: InsCmp CompileState m => Value -> m Value
 valNot val = do
