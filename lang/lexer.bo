@@ -1,8 +1,8 @@
 module lexer
 
-imports ../std/io
-imports ../std/strings
-imports ../std/chars
+import ../std/io
+import ../std/strings
+import ../std/chars
 
 type Token {
     null

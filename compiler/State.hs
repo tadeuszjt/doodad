@@ -9,6 +9,7 @@ import Data.Maybe
 import Control.Monad
 import Control.Monad.Except hiding (void)
 import Control.Monad.State hiding (void)
+import Debug.Trace
 
 import qualified LLVM.AST.Constant as C
 import qualified LLVM.Internal.FFI.DataLayout as FFI
@@ -237,7 +238,7 @@ ensureExtern name argTypes retty isVarg = do
 lookm :: ModCmp CompileState m => S.Symbol -> SymKey -> m (Maybe Object)
 lookm sym key = do
     ensureSymKeyDec sym key
-    res <- SymTab.lookupSymKey sym key <$> gets symTab
+    res <- trace ("look    " ++ sym) $ SymTab.lookupSymKey sym key <$> gets symTab
     case res of
         Just obj -> return (Just obj)
         Nothing  -> do
@@ -255,10 +256,10 @@ look sym key = do
 
 
 pushSymTab :: BoM CompileState m => m ()
-pushSymTab =
+pushSymTab = trace "pushSymTab" $ do
     modify $ \s -> s { symTab = SymTab.push (symTab s) }
 
 
 popSymTab :: BoM CompileState m => m ()
-popSymTab =
+popSymTab = trace "popSymTab" $ do
     modify $ \s -> s { symTab = SymTab.pop (symTab s) }

@@ -2,11 +2,9 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Funcs where
 
-import State
-import Monad
-
 import Data.List
 import Control.Monad
+import Debug.Trace
 
 import LLVM.AST                   hiding (function, Module)
 import LLVM.AST.IntegerPredicate
@@ -17,6 +15,9 @@ import LLVM.IRBuilder.Constant
 import LLVM.IRBuilder.Instruction
 import LLVM.IRBuilder.Module
 import LLVM.IRBuilder.Monad
+
+import State
+import Monad
 
 cons = ConstantOperand
 
@@ -119,7 +120,7 @@ for num f = do
 
 
 if_ :: InsCmp s m => Operand -> m () -> m () -> m ()
-if_ cnd trueIns falseIns = do
+if_ cnd trueIns falseIns = trace "if_" $ do
     true  <- freshName "if_true"
     false <- freshName "if_false"
     exit  <- freshName "if_exit"

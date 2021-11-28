@@ -9,6 +9,7 @@ import Data.List hiding (or, and)
 import Control.Monad
 import Control.Monad.State hiding (void)
 import Control.Monad.Trans
+import Debug.Trace
 
 import qualified LLVM.AST as LL
 import qualified LLVM.AST.Type as LL
@@ -39,32 +40,34 @@ valResolveContextual val = case val of
     _                 -> error ("can't resolve contextual: " ++ show val)
 
 valLoad :: InsCmp s m => Value -> m Value
-valLoad (Val typ op)  = return (Val typ op)
-valLoad (Ptr typ loc) = Val typ <$> load loc 0
+valLoad (Val typ op)  = trace "valLoad" $ return (Val typ op)
+valLoad (Ptr typ loc) = trace "valLoad" $ Val typ <$> load loc 0
 
 
 valStore :: InsCmp CompileState m => Value -> Value -> m ()
-valStore (Ptr typ loc) val = do
+valStore (Ptr typ loc) val = trace traceMsg $ do
     case val of
         Ptr t l -> store loc 0 =<< load l 0
         Val t o -> store loc 0 o
+    where
+        traceMsg = "valStore " ++ show typ
 
 
 valSelect :: InsCmp CompileState m => Value -> Value -> Value -> m Value
-valSelect cnd t f = do
+valSelect cnd t f = trace "valSelect" $ do
     assertBaseType (==Bool) (valType cnd)
     assert (valType t == valType f) "Types do not match"
     return . Val (valType t) =<< select (valOp cnd) (valOp t) (valOp f)
 
 
 valLocal :: InsCmp CompileState m => Type -> m Value
-valLocal typ = do
+valLocal typ = trace ("valLocal " ++ show typ) $ do
     opTyp <- opTypeOf typ
     Ptr typ <$> alloca opTyp Nothing 0
     
 
 valMalloc :: InsCmp CompileState m => Type -> Value -> m Value
-valMalloc typ len = do
+valMalloc typ len = trace "valMalloc" $ do
     lenTyp <- assertBaseType isInt (valType len)
     siz <- sizeOf =<< baseTypeOf typ
 
@@ -73,7 +76,7 @@ valMalloc typ len = do
 
 
 valsInfix :: InsCmp CompileState m => S.Op -> Value -> Value -> m Value
-valsInfix operator a b = case (a, b) of
+valsInfix operator a b = trace "valsInfix" $ case (a, b) of
     (Exp _, Exp _) -> return $ Exp $ exprInfix operator (let Exp ea = a in ea) (let Exp eb = b in eb)
 
     (Exp (S.Int _ i), _) -> do

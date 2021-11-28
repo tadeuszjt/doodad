@@ -14,6 +14,7 @@ import Control.Monad.IO.Class
 import Control.Monad.Fail hiding (fail)
 import Control.Monad.Except hiding (void, fail)
 import Foreign.Ptr
+import Debug.Trace
 
 import LLVM.AST.Name hiding (Func)
 import qualified LLVM.AST as LL
@@ -85,14 +86,10 @@ cmpTypeDef (S.Typedef pos sym typ) = withPos pos $ do
         addObjWithCheck sym KeyType $ ObType typ (Just name)
     else addObjWithCheck sym KeyType $ ObType typ Nothing
 
-    if isTuple typ
-    then do
+    when (isTuple typ) $ do
         let Tuple xs = typ
         let ts = map snd xs
-        if length ts > 0
-        then addObjWithCheck sym (KeyFunc ts) (ObjConstructor typdef)
-        else return ()
-    else return ()
+        when (length ts > 0) $ addObjWithCheck sym (KeyFunc ts) (ObjConstructor typdef)
 
 
 
@@ -220,8 +217,8 @@ cmpStmt stmt = case stmt of
         assert (ts == map valType vals) ("Incorrect argument types for: " ++ show ftyp)
         void $ call (valOp fval) [(o, []) | o <- map valOp vals]
 
-    S.Assign pos pat expr -> withPos pos $ do
-        matched <- cmpPattern pat =<< cmpExpr expr
+    S.Assign pos pat expr -> withPos pos $ trace ("assign " ++ show pat) $ do
+        matched <- valLoad =<< cmpPattern pat =<< cmpExpr expr
         if_ (valOp matched) (return ()) (void trap) 
 
     S.Set pos ind expr -> withPos pos $ do
@@ -327,7 +324,7 @@ cmpExpr expr = case expr of
         let stc = struct Nothing False [i64, i64, pi8]
         return $ Val (Table [Char]) stc
 
-    S.Call pos (S.Ident _ sym) exprs -> withPos pos $ do
+    S.Call pos (S.Ident _ sym) exprs -> withPos pos $ trace ("call " ++ sym) $ do
         vals <- mapM valResolveContextual =<< mapM cmpExpr exprs
         resm <- lookm sym $ KeyFunc (map valType vals)
 
@@ -336,8 +333,7 @@ cmpExpr expr = case expr of
             Just x  -> case x of
                 ObjFunc Void _         -> err "cannot use void function as expression"
                 ObjExtern _ Void _     -> err "cannot use void function as expression"
-                ObjConstructor typ     -> do
-                    valConstruct typ vals
+                ObjConstructor typ     -> valConstruct typ vals
                 ObjADTFieldCons adtTyp -> adtConstructField sym adtTyp vals
 
                 ObjFunc retty op       -> do
@@ -435,7 +431,7 @@ cmpPattern :: InsCmp CompileState m => S.Pattern -> Value -> m Value
 cmpPattern pat val = case pat of
     S.PatIgnore pos -> return (valBool True)
 
-    S.PatLiteral (S.Null pos) -> withPos pos $ do
+    S.PatLiteral (S.Null pos) -> withPos pos $ trace "cmpPattern null" $ do
         assert (not $ valIsContextual val) "contextual 450"
         ADT xs <- assertBaseType isADT (valType val)
 
@@ -455,9 +451,10 @@ cmpPattern pat val = case pat of
         assertBaseType (== Bool) (valType guard)
         valsInfix S.AndAnd match guard
 
-    S.PatIdent pos sym -> withPos pos $ do
+    S.PatIdent pos sym -> withPos pos $ trace ("cmpPattern " ++ show pat) $ do
         val' <- valResolveContextual val
         base <- baseTypeOf (valType val')
+
         if isADT base && (let ADT xs = base in sym `elem` map fst xs)
         then do
             let ADT xs = base

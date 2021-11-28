@@ -1,6 +1,6 @@
 module io
 
-imports strings
+import strings
 
 extern getchar() i32
 extern putchar(c char)

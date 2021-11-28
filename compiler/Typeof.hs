@@ -5,10 +5,12 @@ module Typeof where
 import Control.Monad.Trans
 import Control.Monad.State hiding (void)
 import GHC.Float
+import Debug.Trace
 
 import qualified LLVM.AST.Type as LL
 import qualified LLVM.AST.Constant as C
 import qualified LLVM.Internal.FFI.DataLayout as FFI
+import LLVM.AST.Name
 import LLVM.Internal.EncodeAST
 import LLVM.Internal.Coding hiding (alloca)
 import LLVM.IRBuilder.Constant
@@ -87,23 +89,31 @@ opTypeOf typ = case typ of
 
 
 zeroOf :: InsCmp CompileState m => Type -> m Value
-zeroOf typ = case typ of
-    _ | isInt typ          -> valInt typ 0
-    _ | isFloat typ        -> valFloat typ 0.0
-    Bool                   -> return (valBool False)
-    Char                   -> return (valChar '\0')
-    Typedef sym            -> fmap (Val typ . valOp) $ zeroOf =<< baseTypeOf typ
-    Array n t              -> Val typ . array . replicate n . toCons . valOp <$> zeroOf t
-    ADT _
-        | isEmptyADT typ -> return $ Val typ $ cons $ C.Null (LL.ptr LL.i8)
-        | isEnumADT typ  -> return $ Val typ (int64 0)
-    Tuple xs               -> Val typ . struct Nothing False . map (toCons . valOp) <$> mapM (zeroOf . snd) xs
-    Table ts -> do
-        let zi64 = toCons (int64 0)
-        zptrs <- mapM (return . C.IntToPtr zi64 . LL.ptr <=< opTypeOf) ts
-        return $ Val typ $ struct Nothing False (zi64:zi64:zptrs)
+zeroOf typ = trace ("zeroOf " ++ show  typ) $ do
+    case typ of
+        Typedef sym -> do
+            ObType t namem <- look sym KeyType
+            fmap (Val typ . valOp) $ zeroOf' namem =<< baseTypeOf t
+        _ -> zeroOf' Nothing typ
 
-    _ -> err ("no zero val for: " ++ show typ)
+    where
+        zeroOf' :: InsCmp CompileState m => Maybe Name -> Type -> m Value
+        zeroOf' namem typ =
+            case typ of
+                _ | isInt typ          -> valInt typ 0
+                _ | isFloat typ        -> valFloat typ 0.0
+                Bool                   -> return (valBool False)
+                Char                   -> return (valChar '\0')
+                Typedef sym            -> fmap (Val typ . valOp) $ zeroOf =<< baseTypeOf typ
+                Array n t              -> Val typ . array . replicate n . toCons . valOp <$> zeroOf t
+                ADT _
+                    | isEmptyADT typ -> return $ Val typ $ cons $ C.Null (LL.ptr LL.i8)
+                    | isEnumADT typ  -> return $ Val typ (int64 0)
+                Tuple xs               -> Val typ . struct namem False . map (toCons . valOp) <$> mapM (zeroOf . snd) xs
+                Table ts -> do
+                    let zi64 = toCons (int64 0)
+                    zptrs <- map (C.IntToPtr zi64 . LL.ptr) <$> mapM opTypeOf ts
+                    return $ Val typ $ struct namem False (zi64:zi64:zptrs)
 
 
 pureTypeOf :: ModCmp CompileState m => Type -> m Type

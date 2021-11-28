@@ -1,15 +1,8 @@
 module main
 
-imports lang/parser
-imports lang/lexer
+import lang/lexer
+
+type ParseResult [i64]
 
 fn main()
-    let tokens = [TokOp("+"), TokIdent("benis")]
-
-    let n = Node(OpPlus)
-
-
-    print(tokens)
-
-    print(OpModulo)
-
+    let p = ParseResult()

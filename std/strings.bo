@@ -1,7 +1,7 @@
 module strings
 
-imports chars
-imports maths
+import chars
+import maths
 
 
 

@@ -70,7 +70,7 @@ import qualified Data.Set as Set
     true       { Token _ Reserved "true" }
     false      { Token _ Reserved "false" }
     module     { Token _ Reserved "module" }
-    imports    { Token _ Reserved "imports" }
+    import     { Token _ Reserved "import" }
 
     print      { Token _ Reserved "print" }
     len        { Token _ Reserved "len" }
@@ -117,8 +117,8 @@ Prog_ : {-empty-}                       { [] }
       | stmtS                           { [$1] }
 
 
-Imports : {- empty -}                      { [] }
-        | imports importPath 'N' Imports   { $2 : $4 }
+Imports : {- empty -}                   { [] }
+        | import importPath 'N' Imports { $2 : $4 }
 
 
 importPath : ident                           { [tokStr $1] }
