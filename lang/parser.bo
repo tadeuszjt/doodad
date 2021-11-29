@@ -74,6 +74,9 @@ fn concatParseResults(results [ParseResult]) ParseResult
     let i = 0
     while i < len(results)
         result = append(result, results[i])
+        i = i + 1
+
+    return result
         
 
 
@@ -99,5 +102,5 @@ fn parseOperator(tokens [Token]) ParseResult
         parseToken(tokens, TokOp("*"), Node(OpTimes)),
         parseToken(tokens, TokOp("/"), Node(OpDivide))
     ]
-    concatParseResults(results)
 
+    return concatParseResults(results)

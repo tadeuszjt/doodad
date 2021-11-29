@@ -78,13 +78,13 @@ cmpTypeDef (S.Typedef pos sym typ) = trace "cmpTypeDef" $ withPos pos $ do
     addObjWithCheck sym (KeyFunc [typ]) (ObjConstructor typdef)
     addObjWithCheck sym (KeyFunc [typdef]) (ObjConstructor typdef)
 
-    -- use named type
-    if isTuple typ || isTable typ
-    then do
-        name <- myFresh sym
-        addSymKeyDec sym KeyType name . DecType =<< opTypeOf typ
-        addObjWithCheck sym KeyType $ ObType typ (Just name)
-    else addObjWithCheck sym KeyType $ ObType typ Nothing
+--    -- use named type
+--    if isTuple typ || isTable typ
+--    then do
+--        name <- myFresh sym
+--        addSymKeyDec sym KeyType name . DecType =<< opTypeOf typ
+--        addObjWithCheck sym KeyType $ ObType typ (Just name)
+    addObjWithCheck sym KeyType $ ObType typ Nothing
 
     when (isTuple typ) $ do
         let Tuple xs = typ
@@ -150,7 +150,9 @@ cmpFuncHdr (S.FuncDef pos sym params retty blk)    = trace "cmpFuncHdr" $ withPo
 
     addSymKeyDec sym (KeyFunc paramTypes) name (DecFunc paramOpTypes returnOpType)
     addSymKeyDec sym KeyVar name (DecFunc paramOpTypes returnOpType)
-    
+
+    addDeclared name
+
 
 cmpFuncDef :: (MonadFail m, Monad m, MonadIO m) => S.Stmt -> InstrCmpT CompileState m ()
 cmpFuncDef (S.FuncDef pos "main" params retty blk) = trace "cmpFuncDef" $ withPos pos $ do

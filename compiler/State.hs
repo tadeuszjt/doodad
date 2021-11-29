@@ -184,7 +184,7 @@ addDeclaration name dec = trace "addDeclaration" $ do
 emitDec :: ModCmp CompileState m => Name -> Declaration -> m ()
 emitDec name dec = trace "emitDec" $ case dec of
     DecType opTyp                   -> void $ typedef name (Just opTyp)
-    DecFunc argTypes retty          -> emitDec name (DecExtern argTypes retty False)
+    DecFunc argTypes retty          -> void $ extern name argTypes retty
     DecExtern argTypes retty False  -> void $ extern name argTypes retty
     DecExtern argTypes retty True   -> void $ externVarArgs name argTypes retty
     DecVar opTyp                    ->

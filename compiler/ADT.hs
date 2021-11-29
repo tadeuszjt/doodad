@@ -41,9 +41,9 @@ adtTypeDef sym typ = trace "adtTypeDef" $ do
                 
         _ | isPtrADT typ    -> err "ptr"
         _ | isNormalADT typ -> do
-            name <- myFresh sym
-            addSymKeyDec sym KeyType name . DecType =<< opTypeOf typ
-            addObjWithCheck sym KeyType $ ObType typ (Just name)
+--            name <- myFresh sym
+--            addSymKeyDec sym KeyType name . DecType =<< opTypeOf typ
+            addObjWithCheck sym KeyType $ ObType typ Nothing
 
     assert (length (Set.fromList xs) == length xs) "ADT fields must be unique"
 
