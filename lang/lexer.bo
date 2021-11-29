@@ -187,3 +187,13 @@ fn lexToken(str string) (Token, string)
         (tok, ss) ; return (tok, ss)
 
     return (null, str)
+
+fn lexTokens(str string) ([Token], string)
+    let toks = :[Token]()
+    let loop = true
+    while loop
+        switch lexToken(str)
+            (null, _); return (toks, str)
+            (tok, ss)
+                str = ss
+                toks = append(toks, [tok])

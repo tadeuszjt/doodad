@@ -2,10 +2,15 @@ module main
 
 import lang/lexer
 import lang/parser
+import std/vec2
 
 fn main()
-    let tokens = [TokOp("-"), TokIdent("benis")]
+    let (tokens, ss) = lexTokens("22x-benis")
+    print(ss)
 
-    let p = parseOperator(tokens)
+    let p = parseExpr(tokens)
 
-    print(p)
+    let i = 0
+    while i < len(p)
+        print(p[i])
+        i = i + 1

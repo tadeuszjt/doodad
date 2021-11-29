@@ -15,8 +15,9 @@ import Trace
 
 
 valConstruct :: InsCmp CompileState m => Type -> [Value] -> m Value
-valConstruct typ []    = trace ("valConstruct " ++ show typ ++ "()") $ zeroOf typ
-valConstruct typ [val] = trace "valConstruct" $ do
+valConstruct typ []       = trace "valConstruct" $ zeroOf typ
+valConstruct typ (a:b:xs) = trace "valConstruct" $ tupleConstruct typ (a:b:xs)
+valConstruct typ [val]    = trace "valConstruct" $ do
     val' <- valLoad =<< valResolveContextual val
 
     if valType val' == typ

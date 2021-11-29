@@ -514,6 +514,12 @@ cmpPattern pat val = trace "cmpPattern" $ case pat of
         let arrPat   = S.PatArray p charPats
         cmpPattern (S.PatSplit pos arrPat rest) val
 
+    S.PatSplit pos pat rest -> withPos pos $ do
+        initMatched <- cmpPattern (S.PatArray pos [pat]) =<< tableRange val (valI64 0) (valI64 1)
+        restMatched <- cmpPattern rest =<< tableRange val (valI64 1) =<< tableLen val
+        valsInfix S.AndAnd initMatched restMatched
+        
+
     S.PatTyped pos typ pat -> withPos pos $ do
         -- switch(tok)                 <- val
         --    string(s); do_stuff(s)   <- use raw type
@@ -548,8 +554,17 @@ cmpPrint (S.Print pos exprs) = trace "cmpPrint" $ withPos pos $ do
 
 valAsType :: InsCmp CompileState m => Type -> Value -> m Value
 valAsType typ val = trace "valAsType" $ case val of
-    Val _ _              -> assert (typ == valType val) "Types do not match" >> return val
-    Ptr _ _              -> assert (typ == valType val) "Types do not match" >> return val
+    Val _ _              -> do
+        baseTyp <- baseTypeOf typ
+        baseVal <- baseTypeOf (valType val)
+        assert (baseTyp == baseVal) "Types do not match"
+        return $ val { valType = typ }
+
+    Ptr _ _              -> do
+        baseTyp <- baseTypeOf typ
+        baseVal <- baseTypeOf (valType val)
+        assert (baseTyp == baseVal) "Types do not match"
+        return $ val { valType = typ }
 
     Exp (S.Int _ n)      -> valInt typ n
     Exp (S.Null _)       -> adtNull typ

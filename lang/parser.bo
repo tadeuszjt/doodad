@@ -79,10 +79,9 @@ fn concatParseResults(results [ParseResult]) ParseResult
     return result
         
 
-
 fn parseToken(tokens [Token], tok Token, result Node) ParseResult
-    if tokens -> [t] .. | t == tok
-        return ParseResult( [ (result, tokens[1..]) ] )
+    if tokens -> [t] .. ts | t == tok
+        return [ (result, ts) ]
     return []
 
 
@@ -104,3 +103,24 @@ fn parseOperator(tokens [Token]) ParseResult
     ]
 
     return concatParseResults(results)
+
+
+fn parseIdent(tokens [Token]) ParseResult
+    switch tokens
+        TokIdent(s) .. ss; return [ (Node(ExprIdent(s)), ss) ]
+        _                ; return []
+
+
+fn parseInt(tokens [Token]) ParseResult
+    switch tokens
+        TokInt(n) .. ss; return [ (Node(ExprInt(n)), ss) ]
+        _              ; return []
+    
+    
+
+fn parseExpr(tokens [Token]) ParseResult
+    return parseAny(tokens, [parseIdent, parseInt])
+
+
+
+
