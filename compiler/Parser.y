@@ -141,6 +141,7 @@ stmtS : let pattern '=' expr                  { S.Assign (tokPos $1) $2 $4 }
       | print '(' exprs ')'                   { S.Print (tokPos $1) $3 }
       | return                                { S.Return (tokPos $1) Nothing }
       | return expr                           { S.Return (tokPos $1) (Just $2) }
+      | append_                               { S.AppendStmt $1 }
 stmtB : block                                 { $1 }
       | If                                    { $1 }
       | fn fnName '(' params ')' block_       { S.FuncDef (tokPos $1) $2 $4 T.Void $6 }
@@ -162,6 +163,10 @@ pattern  : '_'                                { S.PatIgnore (tokPos $1) }
 index  : ident                                { S.IndIdent (tokPos $1) (tokStr $1) }
        | index '[' expr ']'                   { S.IndArray (tokPos $2) $1 $3 }
        | index '.' ident                      { S.IndTuple (tokPos $2) $1 (read $ tokStr $3) }
+
+append_ : append_ '<<-' expr                  { S.AppendTable (tokPos $2) $1 $3 }
+        | append_ '<-' expr                   { S.AppendElem (tokPos $2) $1 $3 }
+        | index                               { S.AppendIndex $1 }
 
 fnName  : ident                               { tokStr $1 }
         | string                              { tokStr $1 }
@@ -229,8 +234,6 @@ expr   : literal                              { $1 }
        | expr '(' exprs ')'                   { S.Call (tokPos $2) $1 $3 }
        | len '(' expr ')'                     { S.Len (tokPos $1) $3 }
        | copy '(' expr ')'                    { S.Copy (tokPos $1) $3 }
-       | expr '<<-' expr                      { S.Append (tokPos $2) $1 $3 }
-       | expr '<-' expr                       { S.AppendElem (tokPos $2) $1 $3 }
        | typeOrdinal '(' exprs ')'            { S.Conv (tokPos $2) $1 $3 }
        | ':' typeAggregate '(' exprs ')'      { S.Conv (tokPos $3) $2 $4 }
        | expr '.' intlit                      { S.TupleIndex (tokPos $2) $1 (read $ tokStr $3) }

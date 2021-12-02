@@ -6,7 +6,9 @@ import maths
 
 
 fn + (a string, b string) string
-    return copy(a <<- b)
+    let r = copy(a)
+    r <<- b
+    return r
 
 
 fn == (a string, b string) bool

@@ -157,7 +157,6 @@ valArrayIdx (Ptr typ loc) idx = trace "valArrayIdx" $ do
 
 valArrayConstIdx :: InsCmp CompileState m => Value -> Int -> m Value
 valArrayConstIdx val i = trace "valArrayConstIdx" $ do
-    assert (not $ valIsContextual val) "contextual 172"
     Array n t <- assertBaseType isArray (valType val)
     case val of
         Ptr _ loc -> Ptr t <$> gep loc [int64 0, int64 (fromIntegral i)]
@@ -172,9 +171,6 @@ valMemCpy (Ptr dstTyp dst) (Ptr srcTyp src) len = trace "valMemCpy" $ do
     pDstI8 <- bitcast dst (LL.ptr LL.i8)
     pSrcI8 <- bitcast src (LL.ptr LL.i8)
 
-    sz <- sizeOf dstTyp
-    let sz' = trace (show $ valOp sz) sz
-
-    void $ memcpy pDstI8 pSrcI8 . valOp =<< valsInfix S.Times len sz'
+    void $ memcpy pDstI8 pSrcI8 . valOp =<< valsInfix S.Times len =<< sizeOf dstTyp
 
 

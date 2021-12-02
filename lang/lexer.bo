@@ -18,12 +18,12 @@ type Token {
 fn string(token Token) string
     switch token 
         null         ; return "null"
-        TokOp(s)     ; return "TokOp:      " + s
-        TokInt(n)    ; return "TokInt:     " + string(n)
-        TokSym(c)    ; return "TokSym:     " + [c]
-        TokString(s) ; return "TokString:  " + s
-        TokChar(c)   ; return "TokChar:    " + [c]
-        TokIdent(s)  ; return "TokIdent:   " + s
+        TokOp(s)     ; return "TokOp: " + s
+        TokInt(n)    ; return "TokInt: " + string(n)
+        TokSym(c)    ; return "TokSym: " + [c]
+        TokString(s) ; return "TokString: " + s
+        TokChar(c)   ; return "TokChar: " + [c]
+        TokIdent(s)  ; return "TokIdent: " + s
         TokKeyword(s); return "TokKeyword: " + s
 
 fn ==(a Token, b Token) bool
@@ -196,4 +196,4 @@ fn lexTokens(str string) ([Token], string)
             (null, _); return (toks, str)
             (tok, ss)
                 str = ss
-                toks = toks <<- [tok]
+                toks <- tok

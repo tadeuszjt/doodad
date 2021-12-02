@@ -48,6 +48,12 @@ instance Show Param where
     show (Param pos name typ) = name ++ " " ++ show typ
 
 
+data Append
+    = AppendTable TextPos Append Expr
+    | AppendElem TextPos Append Expr
+    | AppendIndex Index
+    deriving (Show, Eq)
+
 data Pattern
     = PatLiteral Expr
     | PatIgnore  TextPos
@@ -91,7 +97,6 @@ data Expr
     | Len        TextPos Expr
     | Copy       TextPos Expr
     | Append     TextPos Expr Expr
-    | AppendElem TextPos Expr Expr
     | Prefix     TextPos Op Expr
     | Infix      TextPos Op Expr Expr
     | Address    TextPos Expr
@@ -111,6 +116,7 @@ data Stmt
     | FuncDef  TextPos Symbol [Param] Type [Stmt]
     | Extern   TextPos Symbol [Param] Type
     | Typedef  TextPos Symbol Type
+    | AppendStmt Append
     deriving (Eq)
 
 
@@ -181,7 +187,6 @@ instance Show Expr where
         AST.Len pos expr                -> "Len(" ++ show expr ++ ")"
         AST.Copy pos expr               -> "Copy(" ++ show expr ++ ")"
         AST.Append pos expr1 expr2      -> "Append" ++ tupStrs [show expr1, show expr2]
-        AST.AppendElem pos expr1 expr2  -> "AppendElem" ++ tupStrs [show expr1, show expr2]
         AST.Prefix pos op expr          -> show op ++ show expr
         AST.Infix pos op expr1 expr2    -> "(" ++ show expr1 ++ " " ++ show op ++ " " ++ show expr2 ++ ")"
         AST.Address pos expr            -> "&" ++ show expr

@@ -199,11 +199,32 @@ cmpIndex index = case index of
         return val
 
 
+cmpAppend :: InsCmp CompileState m => S.Append -> m ()
+cmpAppend append = case append of
+    S.AppendTable pos (S.AppendIndex index) expr -> withPos pos $ do
+        loc <- cmpIndex index
+        val <- valResolveExp =<< cmpExpr expr
+        app <- tableAppend loc val
+        valStore loc app
+        -- TODO fix this jank
+
+    S.AppendElem pos (S.AppendIndex index) expr -> withPos pos $ do
+        loc <- cmpIndex index
+        val <- valResolveExp =<< cmpExpr (S.Table pos [[expr]])
+        app <- tableAppend loc val
+        valStore loc app
+        -- TODO fix this jank
+
+    _ -> err $ show append
+
+
 cmpStmt :: InsCmp CompileState m => S.Stmt -> m ()
 cmpStmt stmt = trace "cmpStmt" $ case stmt of
     S.Print pos exprs -> cmpPrint stmt
     S.Block stmts -> pushSymTab >> mapM_ cmpStmt stmts >> popSymTab
 
+
+    S.AppendStmt append -> cmpAppend append
 
     S.CallStmt pos (S.IndIdent _ sym) exprs -> withPos pos $ do
         vals <- mapM (valLoad <=< valResolveExp <=< cmpExpr) exprs
@@ -299,6 +320,7 @@ cmpStmt stmt = trace "cmpStmt" $ case stmt of
     _ -> error "stmt"
 
 
+
 -- must return Val unless local variable
 cmpExpr :: InsCmp CompileState m =>  S.Expr -> m Value
 cmpExpr expr = trace "cmpExpr" $ case expr of
@@ -318,26 +340,6 @@ cmpExpr expr = trace "cmpExpr" $ case expr of
 
     S.Prefix pos S.Not   expr  -> withPos pos $ valNot =<< cmpExpr expr
     S.Prefix pos S.Minus expr  -> withPos pos $ valsInfix S.Minus (Exp (S.Int undefined 0)) =<< cmpExpr expr
-
-    S.Append pos exprA exprB   -> withPos pos $ do
-        valA <- cmpExpr exprA
-        valB <- cmpExpr exprB
-        case (valA, valB) of
-            (Exp _, Exp _) -> err "appending contextuals (todo)"
-            (Exp _, _)     -> do
-                valA' <- valAsType (valType valB) valA
-                tableAppend valA' valB
-            (_, Exp _)     -> do
-                valB' <- valAsType (valType valA) valB
-                tableAppend valA valB'
-            (_, _)         -> do
-                tableAppend valA valB
-
-    S.AppendElem pos exprA exprB -> withPos pos $ do
-        valA <- cmpExpr exprA
-        valB <- cmpExpr exprB
-        tableAppendElem valA valB
-        
 
     S.Infix pos op exprA exprB -> do
         let m = cmpExpr $ S.Call pos (S.Ident pos $ show op) [exprA, exprB]
