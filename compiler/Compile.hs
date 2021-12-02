@@ -206,7 +206,7 @@ cmpStmt stmt = trace "cmpStmt" $ case stmt of
 
 
     S.CallStmt pos (S.IndIdent _ sym) exprs -> withPos pos $ do
-        vals <- mapM (valLoad <=< valResolveContextual <=< cmpExpr) exprs
+        vals <- mapM (valLoad <=< valResolveExp <=< cmpExpr) exprs
         resm <- lookm sym $ KeyFunc (map valType vals)
         op <- case resm of
             Just (ObjFunc _ op)     -> return op
@@ -220,7 +220,7 @@ cmpStmt stmt = trace "cmpStmt" $ case stmt of
         void $ call op [(o, []) | o <- map valOp vals]
 
     S.CallStmt pos index exprs -> withPos pos $ do
-        vals <- mapM (valLoad <=< valResolveContextual <=< cmpExpr) exprs
+        vals <- mapM (valLoad <=< valResolveExp <=< cmpExpr) exprs
         fval <- valLoad =<< cmpIndex index
         ftyp@(Func ts rt) <- assertBaseType isFunction (valType fval)
         assert (ts == map valType vals) ("Incorrect argument types for: " ++ show ftyp)
@@ -308,14 +308,7 @@ cmpExpr expr = trace "cmpExpr" $ case expr of
     S.Conv pos typ []          -> zeroOf typ
     S.Conv pos typ [S.Null p]  -> withPos pos (adtNull typ)
     S.Conv pos typ exprs       -> withPos pos $ valConstruct typ =<< mapM cmpExpr exprs
-
-    S.Copy pos expr            -> withPos pos $ do
-        val <- valResolveContextual =<< cmpExpr expr
-        base <- baseTypeOf (valType val)
-        case base of
-            t | isSimple t         -> valLoad val
-            Table ts               -> tableCopy val
-            t                      -> err $ "TODO copy: " ++ show (valType val)
+    S.Copy pos expr            -> withPos pos $ valCopy =<< cmpExpr expr
 
     S.Ident pos sym            -> withPos pos $ do
         obj <- look sym KeyVar
@@ -358,7 +351,7 @@ cmpExpr expr = trace "cmpExpr" $ case expr of
         return $ Val (Table [Char]) stc
 
     S.Call pos (S.Ident _ sym) exprs -> withPos pos $ trace ("call " ++ sym) $ do
-        vals <- mapM valResolveContextual =<< mapM cmpExpr exprs
+        vals <- mapM valResolveExp =<< mapM cmpExpr exprs
         resm <- lookm sym $ KeyFunc (map valType vals)
 
         case resm of
@@ -379,13 +372,13 @@ cmpExpr expr = trace "cmpExpr" $ case expr of
 
     S.Call pos expr exprs -> withPos pos $ do
         Val typ op <- valLoad =<< cmpExpr expr
-        vals <- mapM valLoad =<< mapM valResolveContextual =<< mapM cmpExpr exprs
+        vals <- mapM valLoad =<< mapM valResolveExp =<< mapM cmpExpr exprs
         Func ts rt <- assertBaseType isFunction typ
         assert (map valType vals == ts) "Invalid argument types"
         Val rt <$> call op [(o, []) | o <- map valOp vals]
 
     S.Len pos expr -> withPos pos $ valLoad =<< do
-        val <- valResolveContextual =<< cmpExpr expr
+        val <- valResolveExp =<< cmpExpr expr
         typ <- baseTypeOf (valType val)
         case typ of
             Table _ -> tableLen val
@@ -424,8 +417,8 @@ cmpExpr expr = trace "cmpExpr" $ case expr of
         base <- baseTypeOf (valType val)
         case base of
             Table ts -> do
-                start <- maybe (return (valI64 0)) cmpExpr mstart
-                valLoad =<< tableRange val start =<< maybe (tableLen val) cmpExpr mend
+                start <- maybe (return $ valI64 0) (valResolveExp <=< cmpExpr) mstart
+                valLoad =<< tableRange val start =<< maybe (tableLen val) (valResolveExp <=< cmpExpr) mend
     
     S.Table pos exprss -> withPos pos $ valLoad =<< do
         valss <- mapM (mapM cmpExpr) exprss
@@ -494,7 +487,7 @@ cmpPattern pat val = trace "cmpPattern" $ case pat of
         valsInfix S.AndAnd match guard
 
     S.PatIdent pos sym -> withPos pos $ trace ("cmpPattern " ++ show pat) $ do
-        val' <- valResolveContextual val
+        val' <- valResolveExp val
         base <- baseTypeOf (valType val')
 
         if isADT base && (let ADT xs = base in sym `elem` map fst xs)
@@ -571,7 +564,7 @@ cmpPattern pat val = trace "cmpPattern" $ case pat of
 
 cmpPrint :: InsCmp CompileState m => S.Stmt -> m ()
 cmpPrint (S.Print pos exprs) = trace "cmpPrint" $ withPos pos $ do
-    prints =<< mapM valResolveContextual =<< mapM cmpExpr exprs
+    prints =<< mapM valResolveExp =<< mapM cmpExpr exprs
     where
         prints :: InsCmp CompileState m => [Value] -> m ()
         prints []     = void $ printf "\n" []

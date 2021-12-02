@@ -30,14 +30,6 @@ import Typeof
 import Trace
 
 
-valResolveContextual :: InsCmp CompileState m => Value -> m Value
-valResolveContextual val = trace "valResolveContextual" $ case val of
-    Exp (S.Int p n)   -> valInt I64 n
-    Exp (S.Float p f) -> valFloat F64 f
-    Exp (S.Null p)    -> zeroOf $ ADT [("", Void)]
-    Ptr _ _           -> return val
-    Val _ _           -> return val
-    _                 -> error ("can't resolve contextual: " ++ show val)
 
 valLoad :: InsCmp s m => Value -> m Value
 valLoad (Val typ op)  = trace "valLoad" $ return (Val typ op)
@@ -45,19 +37,17 @@ valLoad (Ptr typ loc) = trace "valLoad" $ Val typ <$> load loc 0
 
 
 valStore :: InsCmp CompileState m => Value -> Value -> m ()
-valStore (Ptr typ loc) val = trace traceMsg $ do
+valStore (Ptr typ loc) val = trace "valStore" $ do
     case val of
         Ptr t l -> store loc 0 =<< load l 0
         Val t o -> store loc 0 o
-    where
-        traceMsg = "valStore " ++ show typ
 
 
 valSelect :: InsCmp CompileState m => Value -> Value -> Value -> m Value
 valSelect cnd t f = trace "valSelect" $ do
     assertBaseType (==Bool) (valType cnd)
     assert (valType t == valType f) "Types do not match"
-    return . Val (valType t) =<< select (valOp cnd) (valOp t) (valOp f)
+    Val (valType t) <$> select (valOp cnd) (valOp t) (valOp f)
 
 
 valLocal :: InsCmp CompileState m => Type -> m Value
@@ -73,7 +63,6 @@ valMalloc typ len = trace ("valMalloc " ++ show typ) $ do
     Ptr typ <$> (bitcast pi8 . LL.ptr =<< opTypeOf typ)
 
         
-
 valsInfix :: InsCmp CompileState m => S.Op -> Value -> Value -> m Value
 valsInfix operator a b = trace ("valsInfix " ++ show operator) $ case (a, b) of
     (Exp _, Exp _) -> return $ Exp $ exprInfix operator (let Exp ea = a in ea) (let Exp eb = b in eb)
@@ -159,7 +148,8 @@ valPtrIdx (Ptr typ loc) idx = trace "valPtrIdx" $ do
 
 
 valArrayIdx :: InsCmp CompileState m => Value -> Value -> m Value
-valArrayIdx (Ptr (Array n t) loc) idx = trace "valArrayIdx" $ do
+valArrayIdx (Ptr typ loc) idx = trace "valArrayIdx" $ do
+    Array n t <- assertBaseType isArray typ
     Val idxTyp idx <- valLoad idx
     assert (isInt idxTyp) "array index isn't an integer"
     Ptr t <$> gep loc [int64 0, idx]

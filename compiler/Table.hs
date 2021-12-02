@@ -18,32 +18,6 @@ import Typeof
 import Trace
 
 
-valIsTable :: InsCmp CompileState m => Value -> m Bool
-valIsTable (Exp (S.Table _ _)) = trace "valIsTable" $ return True
-valIsTable (Exp _)             = trace "valIsTable" $ return False
-valIsTable tab                 = trace "valIsTable" $ isTable <$> baseTypeOf (valType tab)
-
-
-tableCopy :: InsCmp CompileState m => Value -> m Value
-tableCopy tab = trace "tableCopy" $ do
-    Table ts <- assertBaseType isTable (valType tab)
-    len <- tableLen tab
-
-    loc <- valLocal (valType tab)
-    tableSetLen loc len
-    tableSetCap loc len
-    forM (zip ts [0..]) $ \(t, i) -> do
-        mal <- valMalloc t len
-        case t of
-            _ | isSimple t -> do
-                row <- tableRow i tab
-                valMemCpy mal row len
-            _              -> err "TODO copy"
-        tableSetRow loc i mal
-
-    valLoad loc
-
-
 
 tableLen :: InsCmp CompileState m => Value -> m Value
 tableLen tab = trace "tableLen" $ do
@@ -123,13 +97,7 @@ tableSetElem tab idx tup = trace "tableSetElem" $ do
 
 
 tableRange :: InsCmp CompileState m => Value -> Value -> Value -> m Value
-tableRange tab' start' end' = trace "tableRange" $ do
-    tab <-valResolveContextual tab'
-    start <- valResolveContextual start'
-    end <- valResolveContextual end'
-    b <- valIsTable tab'
-    assert b "isn't a table"
-
+tableRange tab start end = trace "tableRange" $ do
     Table ts <- baseTypeOf (valType tab)
 
     assertBaseType isInt (valType start)
