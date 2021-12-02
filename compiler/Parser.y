@@ -21,6 +21,7 @@ import qualified Data.Set as Set
 %left      '.'
 %right     '..'
 %left      '?'
+%left      '<<-' '<-'
 %nonassoc  '&'
 %nonassoc  '!'
 %nonassoc  ','
@@ -57,6 +58,7 @@ import qualified Data.Set as Set
     '<-'       { Token _ ReservedOp "<-" }
     '->'       { Token _ ReservedOp "->" }
     '..'       { Token _ ReservedOp ".." }
+    '<<-'      { Token _ ReservedOp "<<-" }
 
     fn         { Token _ Reserved "fn" }
     extern     { Token _ Reserved "extern" }
@@ -71,6 +73,7 @@ import qualified Data.Set as Set
     false      { Token _ Reserved "false" }
     module     { Token _ Reserved "module" }
     import     { Token _ Reserved "import" }
+    copy       { Token _ Reserved "copy" }
 
     print      { Token _ Reserved "print" }
     len        { Token _ Reserved "len" }
@@ -225,7 +228,9 @@ expr   : literal                              { $1 }
        | '(' exprs ')'                        { S.Tuple (tokPos $1) $2 }
        | expr '(' exprs ')'                   { S.Call (tokPos $2) $1 $3 }
        | len '(' expr ')'                     { S.Len (tokPos $1) $3 }
-       | append '(' expr ',' expr ')'         { S.Append (tokPos $1) $3 $5 }
+       | copy '(' expr ')'                    { S.Copy (tokPos $1) $3 }
+       | expr '<<-' expr                      { S.Append (tokPos $2) $1 $3 }
+       | expr '<-' expr                       { S.AppendElem (tokPos $2) $1 $3 }
        | typeOrdinal '(' exprs ')'            { S.Conv (tokPos $2) $1 $3 }
        | ':' typeAggregate '(' exprs ')'      { S.Conv (tokPos $3) $2 $4 }
        | expr '.' intlit                      { S.TupleIndex (tokPos $2) $1 (read $ tokStr $3) }

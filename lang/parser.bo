@@ -71,7 +71,7 @@ fn string(p ParseResult) string
     return string(len(p)) + " parse results"
 
 fn ||(a ParseResult, b ParseResult) ParseResult
-    return append(a, b)
+    return [] <<- a <<- b
 
 
 fn parseEpsilon(tokens [Token]) ParseResult

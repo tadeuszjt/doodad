@@ -18,7 +18,7 @@ fn getStrLn() string
             return "\0"
         switch char(x)
             '\n'; return str
-            c   ; str = str + [c]
+            c   ; str = str <<- [c]
 
 
 fn putStrLn(str string)

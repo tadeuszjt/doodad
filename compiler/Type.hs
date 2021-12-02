@@ -12,12 +12,12 @@ data Type
     | F64                    -- 
     | Bool                   --
     | Char                   --
-    | Tuple [(String, Type)]
-    | Array Int Type
-    | Table [Type]
-    | ADT [(String, Type)]
-    | Typedef String
+    | Tuple [(String, Type)] ----
+    | Array Int Type         -- Aggregate Types
+    | Table [Type]           --
+    | ADT [(String, Type)]   --
     | Func [Type] Type 
+    | Typedef String
     deriving (Eq, Ord)
 
 

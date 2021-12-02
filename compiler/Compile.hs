@@ -308,6 +308,15 @@ cmpExpr expr = trace "cmpExpr" $ case expr of
     S.Conv pos typ []          -> zeroOf typ
     S.Conv pos typ [S.Null p]  -> withPos pos (adtNull typ)
     S.Conv pos typ exprs       -> withPos pos $ valConstruct typ =<< mapM cmpExpr exprs
+
+    S.Copy pos expr            -> withPos pos $ do
+        val <- valResolveContextual =<< cmpExpr expr
+        base <- baseTypeOf (valType val)
+        case base of
+            t | isSimple t         -> valLoad val
+            Table ts               -> tableCopy val
+            t                      -> err $ "TODO copy: " ++ show (valType val)
+
     S.Ident pos sym            -> withPos pos $ do
         obj <- look sym KeyVar
         case obj of
@@ -316,7 +325,26 @@ cmpExpr expr = trace "cmpExpr" $ case expr of
 
     S.Prefix pos S.Not   expr  -> withPos pos $ valNot =<< cmpExpr expr
     S.Prefix pos S.Minus expr  -> withPos pos $ valsInfix S.Minus (Exp (S.Int undefined 0)) =<< cmpExpr expr
-    S.Append pos exprA exprB   -> withPos pos $ valLoad =<< join (liftM2 tableAppend (cmpExpr exprA) (cmpExpr exprB))
+
+    S.Append pos exprA exprB   -> withPos pos $ do
+        valA <- cmpExpr exprA
+        valB <- cmpExpr exprB
+        case (valA, valB) of
+            (Exp _, Exp _) -> err "appending contextuals (todo)"
+            (Exp _, _)     -> do
+                valA' <- valAsType (valType valB) valA
+                tableAppend valA' valB
+            (_, Exp _)     -> do
+                valB' <- valAsType (valType valA) valB
+                tableAppend valA valB'
+            (_, _)         -> do
+                tableAppend valA valB
+
+    S.AppendElem pos exprA exprB -> withPos pos $ do
+        valA <- cmpExpr exprA
+        valB <- cmpExpr exprB
+        tableAppendElem valA valB
+        
 
     S.Infix pos op exprA exprB -> do
         let m = cmpExpr $ S.Call pos (S.Ident pos $ show op) [exprA, exprB]
@@ -362,6 +390,8 @@ cmpExpr expr = trace "cmpExpr" $ case expr of
         case typ of
             Table _ -> tableLen val
             _       -> err ("cannot take length of type " ++ show typ)
+
+
 
     S.Tuple pos [expr] -> withPos pos (cmpExpr expr)
     S.Tuple pos exprs -> withPos pos $ do

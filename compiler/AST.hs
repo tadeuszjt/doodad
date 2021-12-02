@@ -89,7 +89,9 @@ data Expr
     | Call       TextPos Expr [Expr]
     | Conv       TextPos Type [Expr]
     | Len        TextPos Expr
+    | Copy       TextPos Expr
     | Append     TextPos Expr Expr
+    | AppendElem TextPos Expr Expr
     | Prefix     TextPos Op Expr
     | Infix      TextPos Op Expr Expr
     | Address    TextPos Expr
@@ -177,7 +179,9 @@ instance Show Expr where
         AST.Call pos symbol exprs       -> "Call" ++ tupStrs (show symbol: map show exprs)
         AST.Conv pos typ exprs          -> "Conv" ++ tupStrs (show typ: map show exprs)
         AST.Len pos expr                -> "Len(" ++ show expr ++ ")"
+        AST.Copy pos expr               -> "Copy(" ++ show expr ++ ")"
         AST.Append pos expr1 expr2      -> "Append" ++ tupStrs [show expr1, show expr2]
+        AST.AppendElem pos expr1 expr2  -> "AppendElem" ++ tupStrs [show expr1, show expr2]
         AST.Prefix pos op expr          -> show op ++ show expr
         AST.Infix pos op expr1 expr2    -> "(" ++ show expr1 ++ " " ++ show op ++ " " ++ show expr2 ++ ")"
         AST.Address pos expr            -> "&" ++ show expr

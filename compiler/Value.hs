@@ -72,6 +72,7 @@ valMalloc typ len = trace ("valMalloc " ++ show typ) $ do
     pi8 <- malloc =<< mul (valOp len) . valOp =<< sizeOf typ
     Ptr typ <$> (bitcast pi8 . LL.ptr =<< opTypeOf typ)
 
+        
 
 valsInfix :: InsCmp CompileState m => S.Op -> Value -> Value -> m Value
 valsInfix operator a b = trace ("valsInfix " ++ show operator) $ case (a, b) of

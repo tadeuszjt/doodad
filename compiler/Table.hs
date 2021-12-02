@@ -24,6 +24,27 @@ valIsTable (Exp _)             = trace "valIsTable" $ return False
 valIsTable tab                 = trace "valIsTable" $ isTable <$> baseTypeOf (valType tab)
 
 
+tableCopy :: InsCmp CompileState m => Value -> m Value
+tableCopy tab = trace "tableCopy" $ do
+    Table ts <- assertBaseType isTable (valType tab)
+    len <- tableLen tab
+
+    loc <- valLocal (valType tab)
+    tableSetLen loc len
+    tableSetCap loc len
+    forM (zip ts [0..]) $ \(t, i) -> do
+        mal <- valMalloc t len
+        case t of
+            _ | isSimple t -> do
+                row <- tableRow i tab
+                valMemCpy mal row len
+            _              -> err "TODO copy"
+        tableSetRow loc i mal
+
+    valLoad loc
+
+
+
 tableLen :: InsCmp CompileState m => Value -> m Value
 tableLen tab = trace "tableLen" $ do
     Table _ <- assertBaseType isTable (valType tab)
@@ -151,12 +172,49 @@ tableRange tab' start' end' = trace "tableRange" $ do
     return loc
 
 
+tableAppendElem :: InsCmp CompileState m => Value -> Value -> m Value
+tableAppendElem tab val = trace "tableAppendElem" $ do
+    err "TODO"
+--    
+--    Table ts <- assertBaseType isTable (valType tab)
+--    assert (length ts == 1) "Can only append to tables with one row"
+--    let [t] = ts
+--    
+--    baseT <- baseTypeOf t
+--    baseV <- baseTypeOf (valType val)
+--    assert (baseT == baseV) "Types do not match."
+--
+--    loc <- valLocal (valType tab)
+--    valStore loc tab
+--
+--    len <- tableLen loc
+--    cap <- tableCap loc
+--    newLen <- valsInfix S.Plus len (valI64 1) 
+--
+--
+--    bFull <- valsInfix S.GT newLen cap
+--    if_ (valOp bFull) (fullCase loc newLen t) (return ())
+--
+--    tup <- valLocal (Tuple [("", t)])
+--    tupleSet tup 0 val
+--    tableSetElem loc len tup
+--    valLoad loc
+--    where
+--        fullCase loc newLen t = do
+--            tableSetCap loc =<< valsInfix S.Times newLen (valI64 2)
+--            mal <- valMalloc t =<< tableCap loc
+--            row <- tableRow 0 loc
+--            valMemCpy mal row =<< tableLen loc
+--            tableSetRow loc 0 mal
+
+
+
 tableAppend :: InsCmp CompileState m => Value -> Value -> m Value
 tableAppend a b = trace "tableAppend" $ do
     Table ts <- assertBaseType isTable (valType a)
     assertBaseType isTable (valType b)
 
-    assert (valType a == valType b) "Types do not match"
+    assert (valType a == valType b) "Types do not match."
 
     loc <- valLocal (valType a)
     valStore loc a

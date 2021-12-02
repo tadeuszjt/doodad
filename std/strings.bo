@@ -6,7 +6,7 @@ import maths
 
 
 fn + (a string, b string) string
-    return append(a, b)
+    return copy(a <<- b)
 
 
 fn == (a string, b string) bool

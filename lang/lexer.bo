@@ -196,4 +196,4 @@ fn lexTokens(str string) ([Token], string)
             (null, _); return (toks, str)
             (tok, ss)
                 str = ss
-                toks = append(toks, [tok])
+                toks = toks <<- [tok]

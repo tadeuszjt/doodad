@@ -29,9 +29,9 @@ $symbol  = [\{\}\(\)\[\]\,\|\.\;\:\_]
 
 @types      = i16 | i32 | i64 | f32 | f64 | bool | char | string
 @builtin    = print | len | append
-@keywords   = fn | extern | type | let | while | if | else | return | switch | true | false | module | import | null
+@keywords   = fn | extern | type | let | while | if | else | return | switch | true | false | module | import | null | copy
 @reserved   = @keywords | @types | @builtin
-@reservedOp = [\+\-\*\/\%\<\>\=\&\!\?] | "!=" | "==" | "<=" | ">=" | "||" | "&&" | ".." | "<-" | "->"
+@reservedOp = [\+\-\*\/\%\<\>\=\&\!\?] | "!=" | "==" | "<=" | ">=" | "||" | "&&" | ".." | "<-" | "->" | "<<-"
 
 
 @string     = $graphic # [\"\\] | " " | @escape | "\""
