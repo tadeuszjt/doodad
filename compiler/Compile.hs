@@ -204,16 +204,12 @@ cmpAppend append = case append of
     S.AppendTable pos (S.AppendIndex index) expr -> withPos pos $ do
         loc <- cmpIndex index
         val <- valResolveExp =<< cmpExpr expr
-        app <- tableAppend loc val
-        valStore loc app
-        -- TODO fix this jank
+        tableAppend loc val
 
     S.AppendElem pos (S.AppendIndex index) expr -> withPos pos $ do
         loc <- cmpIndex index
-        val <- valResolveExp =<< cmpExpr (S.Table pos [[expr]])
-        app <- tableAppend loc val
-        valStore loc app
-        -- TODO fix this jank
+        val <- valResolveExp =<< cmpExpr expr
+        tableAppendElem loc val
 
     _ -> err $ show append
 

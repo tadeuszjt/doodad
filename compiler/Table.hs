@@ -38,7 +38,7 @@ tableSetLen tab@(Ptr _ loc) len = trace "tableSetLen" $ do
     Table _ <- assertBaseType isTable (valType tab)
     assertBaseType isInt (valType len)
     l <- gep loc [int32 0, int32 0]
-    store l 0 =<< (valOp <$> valLoad len)
+    store l 0 . valOp =<< valLoad len
 
 
 tableSetCap :: InsCmp CompileState m => Value -> Value -> m ()
@@ -46,7 +46,7 @@ tableSetCap tab@(Ptr _ loc) cap = trace "tableSetCap" $ do
     Table _ <- assertBaseType isTable (valType tab)
     assertBaseType isInt (valType cap)
     c <- gep loc [int32 0, int32 1]
-    store c 0 =<< (valOp <$> valLoad cap)
+    store c 0 . valOp =<< valLoad cap
 
 
 tableRow :: InsCmp CompileState m => Int -> Value -> m Value
@@ -140,74 +140,54 @@ tableRange tab start end = trace "tableRange" $ do
     return loc
 
 
-tableAppendElem :: InsCmp CompileState m => Value -> Value -> m Value
+tableGrow :: InsCmp CompileState m => Value -> Value -> m ()
+tableGrow tab newLen = trace "tableGrow" $ do
+    Table ts <- assertBaseType isTable (valType tab)
+    assertBaseType isInt (valType newLen)
+
+    bFull <- valsInfix S.GT newLen =<< tableCap tab
+    if_ (valOp bFull) (fullCase ts) (return ())
+    tableSetLen tab newLen
+
+    where
+        fullCase ts = do
+            len <- tableLen tab
+            newCap <- valsInfix S.Times newLen (valI64 2)
+            tableSetCap tab newCap
+
+            forM_ (zip ts [0..]) $ \(t, i) -> do
+                row <- tableRow i tab
+                mal <- valMalloc t newCap
+                valMemCpy mal row len
+                tableSetRow tab i mal
+
+
+tableAppendElem :: InsCmp CompileState m => Value -> Value -> m ()
 tableAppendElem tab val = trace "tableAppendElem" $ do
-    err "TODO"
---    
---    Table ts <- assertBaseType isTable (valType tab)
---    assert (length ts == 1) "Can only append to tables with one row"
---    let [t] = ts
---    
---    baseT <- baseTypeOf t
---    baseV <- baseTypeOf (valType val)
---    assert (baseT == baseV) "Types do not match."
---
---    loc <- valLocal (valType tab)
---    valStore loc tab
---
---    len <- tableLen loc
---    cap <- tableCap loc
---    newLen <- valsInfix S.Plus len (valI64 1) 
---
---
---    bFull <- valsInfix S.GT newLen cap
---    if_ (valOp bFull) (fullCase loc newLen t) (return ())
---
---    tup <- valLocal (Tuple [("", t)])
---    tupleSet tup 0 val
---    tableSetElem loc len tup
---    valLoad loc
---    where
---        fullCase loc newLen t = do
---            tableSetCap loc =<< valsInfix S.Times newLen (valI64 2)
---            mal <- valMalloc t =<< tableCap loc
---            row <- tableRow 0 loc
---            valMemCpy mal row =<< tableLen loc
---            tableSetRow loc 0 mal
+    Table [t] <- assertBaseType isTable (valType tab)
+    assert (valType val == t) "Types do not match."
+    
+    len <- tableLen tab
+    tableGrow tab =<< valsInfix S.Plus len (valI64 1)
+    row <- tableRow 0 tab
+    ptr <- valPtrIdx row len
+    valStore ptr val
 
 
+tableAppend :: InsCmp CompileState m => Value -> Value -> m ()
+tableAppend loc val = trace "tableAppend" $ do
+    Table ts <- assertBaseType isTable (valType loc)
+    assertBaseType isTable (valType val)
+    assert (valType loc == valType val) "Types do not match."
 
-tableAppend :: InsCmp CompileState m => Value -> Value -> m Value
-tableAppend a b = trace "tableAppend" $ do
-    Table ts <- assertBaseType isTable (valType a)
-    assertBaseType isTable (valType b)
-
-    assert (valType a == valType b) "Types do not match."
-
-    loc <- valLocal (valType a)
-    valStore loc a
-
-    aLen <- tableLen a
-    bLen <- tableLen b
-    newLen <- valsInfix S.Plus aLen bLen
-    tableSetLen loc newLen
-
-    bFull <- valsInfix S.GT newLen =<< tableCap loc
-    if_ (valOp bFull) (fullCase loc newLen ts aLen) (return ())
+    locLen <- tableLen loc
+    valLen <- tableLen val
+    newLen <- valsInfix S.Plus locLen valLen
+    tableGrow loc newLen
 
     -- copy b into loc
     forM_ (zip ts [0..]) $ \(t, i) -> do
         row <- tableRow i loc
-        dst <- valPtrIdx row aLen 
-        src <- tableRow i b
-        valMemCpy dst src bLen
-
-    return loc
-    where
-        fullCase loc newLen ts aLen = do
-            tableSetCap loc =<< valsInfix S.Times newLen (valI64 2)
-            forM_ (zip ts [0..]) $ \(t, i) -> do
-                tableSetRow loc i =<< valMalloc t =<< tableCap loc
-                dst <- tableRow i loc
-                src <- tableRow i a
-                valMemCpy dst src aLen
+        dst <- valPtrIdx row locLen 
+        src <- tableRow i val
+        valMemCpy dst src valLen
