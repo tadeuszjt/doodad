@@ -8,7 +8,7 @@ fn main()
     let (tokens, ss) = lexTokens("22x-benis")
     print(ss)
 
-    let p = parseExpr(tokens)
+    let p = parseTerm(tokens)
 
     let i = 0
     while i < len(p)

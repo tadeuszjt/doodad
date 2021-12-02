@@ -55,6 +55,8 @@ fn string(e Expr) string
 type Node {
     : Operator
     : Expr
+    : [Node]
+    NodeEmpty
 }
 
 fn string(n Node) string
@@ -68,58 +70,45 @@ type ParseResult [ ( Node, [Token] ) ]
 fn string(p ParseResult) string
     return string(len(p)) + " parse results"
 
-
-fn concatParseResults(results [ParseResult]) ParseResult
-    let result = ParseResult()
-    let i = 0
-    while i < len(results)
-        result = append(result, results[i])
-        i = i + 1
-
-    return result
-        
-
-fn parseToken(tokens [Token], tok Token, result Node) ParseResult
-    if tokens -> [t] .. ts | t == tok
-        return [ (result, ts) ]
-    return []
+fn ||(a ParseResult, b ParseResult) ParseResult
+    return append(a, b)
 
 
-fn parseAny(tokens [Token], fns [ fn ([Token]) ParseResult ]) ParseResult
-    let r = ParseResult()
-    let i = 0
-    while i < len(fns)
-        r = append(r, fns[i](tokens))
-        i = i + 1
-    return r
+fn parseEpsilon(tokens [Token]) ParseResult
+    return [ (NodeEmpty, tokens) ]
 
 
 fn parseOperator(tokens [Token]) ParseResult
-    let results = [
-        parseToken(tokens, TokOp("+"), Node(OpPlus)),
-        parseToken(tokens, TokOp("-"), Node(OpMinus)),
-        parseToken(tokens, TokOp("*"), Node(OpTimes)),
-        parseToken(tokens, TokOp("/"), Node(OpDivide))
-    ]
-
-    return concatParseResults(results)
+    if len(tokens) < 1
+        return []
+    switch tokens[0]
+        TokOp("+"); return [(Node(OpPlus), tokens[1..])]
+        TokOp("-"); return [(Node(OpMinus), tokens[1..])]
+        _         ; return []
 
 
 fn parseIdent(tokens [Token]) ParseResult
-    switch tokens
-        TokIdent(s) .. ss; return [ (Node(ExprIdent(s)), ss) ]
-        _                ; return []
+    if tokens -> [TokIdent(s)] .. ts
+        return [ (Node(ExprIdent(s)), ts) ]
+    return []
 
 
 fn parseInt(tokens [Token]) ParseResult
-    switch tokens
-        TokInt(n) .. ss; return [ (Node(ExprInt(n)), ss) ]
-        _              ; return []
-    
+    if tokens -> [TokInt(n)] .. ts
+        return [ (Node(ExprInt(n)), ts) ]
+    return []
     
 
-fn parseExpr(tokens [Token]) ParseResult
-    return parseAny(tokens, [parseIdent, parseInt])
+fn parseTerm(tokens [Token]) ParseResult 
+    switch tokens
+        [TokInt(n)] .. ts  ; return [ (Node(ExprInt(n)), ts) ]
+        [TokIdent(s)] .. ts; return [ (Node(ExprIdent(s)), ts) ]
+        _                  ; return []
+
+
+fn parseExpr_(tokens [Token]) ParseResult
+    return []
+
 
 
 

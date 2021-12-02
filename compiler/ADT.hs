@@ -41,6 +41,10 @@ adtTypeDef sym typ = trace "adtTypeDef" $ do
                 
         _ | isPtrADT typ    -> err "ptr"
         _ | isNormalADT typ -> do
+            forM_ xs $ \(s, t) -> do
+                case t of
+                    Void -> addObjWithCheck s KeyVar (ObjADTFieldCons typdef)
+                    _    -> return ()
 --            name <- myFresh sym
 --            addSymKeyDec sym KeyType name . DecType =<< opTypeOf typ
             addObjWithCheck sym KeyType $ ObType typ Nothing
@@ -152,9 +156,9 @@ adtConstructField sym typ vals = trace "adtConstructField" $ do
             adtSetPi8 adt =<< bitcast (valLoc mal) (LL.ptr LL.i8)
             return adt
 
-        _ | isNormalADT adtTyp -> do
+        _ | isNormalADT adtTyp && length vals == 1 -> do
             adt <- valLocal typ
-            assert (length vals == 1) "Invalid ADT constructor arguments"
+
             let idxs = [ i | (s, i) <- zip (map fst xs) [0..], s == sym ]
             assert (length idxs == 1) "Invalid or ambiguous ADT constructor"
             let [idx] = idxs
@@ -165,6 +169,16 @@ adtConstructField sym typ vals = trace "adtConstructField" $ do
             adtSetPi8 adt =<< bitcast (valLoc mal) (LL.ptr LL.i8)
             adtSetEnum adt idx
             return adt
+
+        _ | isNormalADT adtTyp && length vals == 0 -> do
+            adt <- valLocal typ
+            let idxs = [ i | ((s, Void), i) <- zip xs [0..], s == sym ]
+            assert (length idxs == 1) "Invalid or ambiguous ADT constructor"
+            let [idx] = idxs
+            adtSetEnum adt idx
+            return adt
+
+            
             
 
 -- ADT()       -> zero constructor
