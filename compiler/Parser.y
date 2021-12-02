@@ -111,21 +111,19 @@ import qualified Data.Set as Set
 ---------------------------------------------------------------------------------------------------
 -- Header -----------------------------------------------------------------------------------------
 
-Prog  : Prog_                                 { S.AST Nothing [] $1 }
-      | module ident 'N' Imports Prog_        { S.AST (Just (tokStr $2)) $4 $5 }
-Prog_ : {-empty-}                             { [] }
-      | stmtS 'N' Prog_                       { $1 : $3 }
-      | stmtB Prog_                           { $1 : $2 }
+prog  : prog_                                 { S.AST Nothing [] $1 }
+      | module ident 'N' imports prog_        { S.AST (Just (tokStr $2)) $4 $5 }
+prog_ : {-empty-}                             { [] }
+      | stmtS 'N' prog_                       { $1 : $3 }
+      | stmtB prog_                           { $1 : $2 }
       | stmtS                                 { [$1] }
 
-
-Imports : {- empty -}                         { [] }
-        | import importPath 'N' Imports       { $2 : $4 }
-
+imports : {- empty -}                         { [] }
+        | import importPath 'N' imports       { $2 : $4 }
 
 importPath : ident                            { [tokStr $1] }
-           | '..'                             { [".."] }
-           | importPath '/' importPath        { $1 ++ $3 }
+           | '..' '/' importPath              { ".." : $3 }
+           | ident '/' importPath             { (tokStr $1) : $3 }
 
 
 ---------------------------------------------------------------------------------------------------
@@ -133,10 +131,10 @@ importPath : ident                            { [tokStr $1] }
 
 stmtS : let pattern '=' expr                  { S.Assign (tokPos $1) $2 $4 }  
       | index '=' expr                        { S.Set (tokPos $2) $1 $3 }
+      | index '(' exprs ')'                   { S.CallStmt (tokPos $2) $1 $3 }
       | type ident type_                      { S.Typedef (tokPos $2) (tokStr $2) $3 }
       | extern ident '(' params ')' type_     { S.Extern (tokPos $2) (tokStr $2) $4 $6 }
       | extern ident '(' params ')'           { S.Extern (tokPos $2) (tokStr $2) $4 T.Void }
-      | expr '(' exprs ')'                    { S.CallStmt (tokPos $2) $1 $3 }
       | print '(' exprs ')'                   { S.Print (tokPos $1) $3 }
       | return                                { S.Return (tokPos $1) Nothing }
       | return expr                           { S.Return (tokPos $1) (Just $2) }
@@ -159,8 +157,8 @@ pattern  : '_'                                { S.PatIgnore (tokPos $1) }
          | pattern '|' expr                   { S.PatGuarded (tokPos $2) $1 $3 }
 
 index  : ident                                { S.IndIdent (tokPos $1) (tokStr $1) }
-       --| index '[' expr ']'                 { S.IndArray (tokPos $2) $1 $3 }
-       --| index '.' intlit                   { S.IndTuple (tokPos $2) $1 (read $ tokStr $3) }
+       | index '[' expr ']'                   { S.IndArray (tokPos $2) $1 $3 }
+       | index '.' ident                      { S.IndTuple (tokPos $2) $1 (read $ tokStr $3) }
 
 fnName  : ident                               { tokStr $1 }
         | string                              { tokStr $1 }
@@ -180,8 +178,8 @@ fnName  : ident                               { tokStr $1 }
         | '&&'                                { tokStr $1 }
         | '||'                                { tokStr $1 }
 
-block  : 'I' Prog_ 'D'                        { S.Block $2 }
-block_ : 'I' Prog_ 'D'                        { $2 }
+block  : 'I' prog_ 'D'                        { S.Block $2 }
+block_ : 'I' prog_ 'D'                        { $2 }
 
 cases  : {- empty -}                          { [] }
        | cases_                               { $1 }

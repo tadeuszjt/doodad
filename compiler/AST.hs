@@ -100,7 +100,7 @@ data Stmt
     = Assign   TextPos Pattern Expr
     | Set      TextPos Index   Expr
     | Print    TextPos [Expr]
-    | CallStmt TextPos Expr  [Expr]
+    | CallStmt TextPos Index  [Expr]
     | Return   TextPos (Maybe Expr)
     | Block    [Stmt]
     | If       TextPos Condition Stmt (Maybe Stmt)

@@ -192,13 +192,20 @@ cmpFuncDef (S.FuncDef pos sym params retty blk) = trace "cmpFuncDef" $ withPos p
     popSymTab
 
 
+cmpIndex:: InsCmp CompileState m => S.Index -> m Value
+cmpIndex index = case index of
+    S.IndIdent pos sym -> withPos pos $ do
+        ObjVal val <- look sym KeyVar
+        return val
+
+
 cmpStmt :: InsCmp CompileState m => S.Stmt -> m ()
 cmpStmt stmt = trace "cmpStmt" $ case stmt of
     S.Print pos exprs -> cmpPrint stmt
     S.Block stmts -> pushSymTab >> mapM_ cmpStmt stmts >> popSymTab
 
 
-    S.CallStmt pos (S.Ident _ sym) exprs -> withPos pos $ do
+    S.CallStmt pos (S.IndIdent _ sym) exprs -> withPos pos $ do
         vals <- mapM (valLoad <=< valResolveContextual <=< cmpExpr) exprs
         resm <- lookm sym $ KeyFunc (map valType vals)
         op <- case resm of
@@ -212,9 +219,9 @@ cmpStmt stmt = trace "cmpStmt" $ case stmt of
 
         void $ call op [(o, []) | o <- map valOp vals]
 
-    S.CallStmt pos expr exprs -> withPos pos $ do
+    S.CallStmt pos index exprs -> withPos pos $ do
         vals <- mapM (valLoad <=< valResolveContextual <=< cmpExpr) exprs
-        fval <- valLoad =<< cmpExpr expr
+        fval <- valLoad =<< cmpIndex index
         ftyp@(Func ts rt) <- assertBaseType isFunction (valType fval)
         assert (ts == map valType vals) ("Incorrect argument types for: " ++ show ftyp)
         void $ call (valOp fval) [(o, []) | o <- map valOp vals]
@@ -225,12 +232,8 @@ cmpStmt stmt = trace "cmpStmt" $ case stmt of
 
     S.Set pos ind expr -> withPos pos $ do
         val <- cmpExpr expr
-        case ind of
-            S.IndIdent p sym -> do
-                res <- look sym KeyVar
-                case res of
-                    ObjVal loc -> valStore loc val
-                    _          -> err "Cannot assign to non-variable object"
+        loc <- cmpIndex ind
+        valStore loc val
 
     S.Return pos Nothing -> withPos pos $ do
         curRetty <- gets curRetType
