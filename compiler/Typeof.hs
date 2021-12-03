@@ -73,12 +73,15 @@ opTypeOf typ = trace "opTypOf" $ case typ of
         | isPtrADT typ    -> return (LL.ptr LL.i8)
         | isEnumADT typ   -> return LL.i64
         | isNormalADT typ -> return $ LL.StructureType False [LL.i64, LL.ptr LL.i8]
+
     Table ts  -> do
         ps <- map LL.ptr <$> mapM opTypeOf ts
         return $ LL.StructureType False (LL.i64:LL.i64:ps)
     Typedef s -> do
+        ensureSymKeyDec s KeyType
         ObType t namem <- look s KeyType
-        maybe (opTypeOf t) (return . LL.NamedTypeReference) namem
+        opTyp <- opTypeOf t
+        maybe (return opTyp) (return . LL.NamedTypeReference) namem
 
     Func ts rt -> do
         rt' <- opTypeOf rt

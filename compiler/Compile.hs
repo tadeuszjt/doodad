@@ -78,13 +78,13 @@ cmpTypeDef (S.Typedef pos sym typ) = trace "cmpTypeDef" $ withPos pos $ do
     addObjWithCheck sym (KeyFunc [typ]) (ObjConstructor typdef)
     addObjWithCheck sym (KeyFunc [typdef]) (ObjConstructor typdef)
 
---    -- use named type
---    if isTuple typ || isTable typ
---    then do
---        name <- myFresh sym
---        addSymKeyDec sym KeyType name . DecType =<< opTypeOf typ
---        addObjWithCheck sym KeyType $ ObType typ (Just name)
-    addObjWithCheck sym KeyType $ ObType typ Nothing
+    -- use named type
+    if isTuple typ || isTable typ
+    then do
+        name <- myFresh sym
+        addSymKeyDec sym KeyType name . DecType =<< opTypeOf typ
+        addObjWithCheck sym KeyType $ ObType typ (Just name)
+    else addObjWithCheck sym KeyType $ ObType typ Nothing
 
     when (isTuple typ) $ do
         let Tuple xs = typ
