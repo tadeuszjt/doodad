@@ -81,14 +81,13 @@ fn parseEpsilon(tokens [Token]) ParseResult
 
 
 fn parseOperator(tokens [Token]) ParseResult
-    if len(tokens) < 1
-        return []
-    switch tokens[0]
-        TokOp("+"); return [(Node(OpPlus), tokens[1..])]
-        TokOp("-"); return [(Node(OpMinus), tokens[1..])]
-        _         ; return []
+    switch tokens
+        TokOp("+") -> _; return [(Node(OpPlus), tokens[1..])]
+        TokOp("-") -> _; return [(Node(OpMinus), tokens[1..])]
+        _              ; return []
 
 
+// A comment.
 fn parseIdent(tokens [Token]) ParseResult
     if tokens # TokIdent(s) -> ts
         return [ (Node(ExprIdent(s)), ts) ]

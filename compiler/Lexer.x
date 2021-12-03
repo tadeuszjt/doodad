@@ -38,7 +38,8 @@ $symbol  = [\{\}\(\)\[\]\,\|\.\;\:\_]
 @char       = $graphic # [\'\\] | " " | @escape | "\'"
 
 tokens :-
-    $white                                          { mkT NoToken }
+    $white                                          ;
+    [$tab $white]* "//" .* $newline                 ;
     $symbol                                         { mkT Sym }
     @reserved                                       { mkT Reserved }
     @reservedOp                                     { mkT ReservedOp }
@@ -102,7 +103,6 @@ alexScanner id str = runAlex str loop
         loop = do
             (AlexPn p l c, typ, str) <- alexMonadScan
             case typ of
-                NoToken -> loop
                 EOF     -> return []
                 Dedent  -> do
                     toks <- dedentLoop (TextPos id p l c) str
@@ -176,7 +176,6 @@ data TokenType
     | Indent
     | NewLine
     | Dedent
-    | NoToken
     | EOF
     deriving (Show, Eq)
 }
