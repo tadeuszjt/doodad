@@ -530,14 +530,16 @@ cmpPattern pat val = trace "cmpPattern" $ case pat of
 
     S.PatSplit pos pat@(S.PatArray p pats) rest -> withPos pos $ do
         initMatched <- cmpPattern pat =<< tableRange val (valI64 0) (valI64 $ length pats)
-        restMatched <- cmpPattern rest =<< tableRange val (valI64 $ length pats) =<< tableLen val
-        valsInfix S.AndAnd initMatched restMatched
+        matched <- valLocal Bool
+        if_ (valOp initMatched)
+            (valStore matched =<< cmpPattern rest =<< tableRange val (valI64 $ length pats) =<< tableLen val)
+            (valStore matched $ valBool False)
+        valLoad matched
 
     S.PatSplit pos (S.PatLiteral (S.String p s)) rest -> withPos pos $ do
         let charPats = map (S.PatLiteral . S.Char p) s
         let arrPat   = S.PatArray p charPats
         cmpPattern (S.PatSplit pos arrPat rest) val
-
 
     S.PatSplitElem pos pat rest -> withPos pos $ do
         hasElem <- valsInfix S.LT (valI64 0) =<< tableLen val

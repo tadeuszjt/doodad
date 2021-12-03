@@ -25,10 +25,9 @@ fn == (a string, b string) bool
 
 
 fn string(b bool) string
-    if b
-        return "true"
-    else
-        return "false"
+    switch b
+        true; return "true"
+        false; return "false"
 
 
 fn string(n i64) string
@@ -49,13 +48,7 @@ fn string(n i64) string
 
 
 fn strIsPrefix(pre string, str string) bool
-    let i = 0
-    while i < len(pre) 
-        if i >= len(str) || pre[i] != str[i]
-            return false 
-        i = i + 1
-
-    return true
+    return str[..len(pre)] == pre
 
 
 fn strReadInt(s string) (i64, bool)

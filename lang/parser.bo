@@ -90,7 +90,7 @@ fn parseOperator(tokens [Token]) ParseResult
 
 
 fn parseIdent(tokens [Token]) ParseResult
-    if tokens -> TokIdent(s) -> ts
+    if tokens # TokIdent(s) -> ts
         return [ (Node(ExprIdent(s)), ts) ]
     return []
 

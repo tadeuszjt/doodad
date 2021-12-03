@@ -61,6 +61,7 @@ import qualified Data.Set as Set
     '..'       { Token _ ReservedOp ".." }
     '<<-'      { Token _ ReservedOp "<<-" }
     '->>'      { Token _ ReservedOp "->>" }
+    '#'        { Token _ ReservedOp "#" }
 
     fn         { Token _ Reserved "fn" }
     extern     { Token _ Reserved "extern" }
@@ -159,8 +160,7 @@ pattern  : '_'                                { S.PatIgnore (tokPos $1) }
          | '(' patterns ')'                   { S.PatTuple (tokPos $1) $2 }
          | '[' patterns ']'                   { S.PatArray (tokPos $1) $2 }
          | pattern '->' pattern               { S.PatSplitElem (tokPos $2) $1 $3 }
-         | pattern '..' pattern               { S.PatSplit (tokPos $2) $1 $3 }
-         | pattern '..'                       { S.PatSplit (tokPos $2) $1 (S.PatIgnore (tokPos $2)) }
+         | pattern '->>' pattern              { S.PatSplit (tokPos $2) $1 $3 }
          | pattern '|' expr                   { S.PatGuarded (tokPos $2) $1 $3 }
 
 index  : ident                                { S.IndIdent (tokPos $1) (tokStr $1) }
@@ -203,7 +203,7 @@ case   : pattern ';' stmtS                    { ($1, $3) }
 case_  : pattern block                        { ($1, $2) }
 
 condition : expr                              { S.CondExpr $1 }
-          | expr '->' pattern                 { S.CondMatch $3 $1 }
+          | expr '#' pattern                  { S.CondMatch $3 $1 }
 
 patterns  : {- empty -}                       { [] }
           | patterns_                         { $1 }
