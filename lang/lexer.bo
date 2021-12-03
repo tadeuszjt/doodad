@@ -114,8 +114,8 @@ fn lexDigits(str string) (Token, string)
         i = i + 1
  
     switch strReadInt(str[..i])
-        i64(n); return (TokInt(n), str[i..])
-        null  ; return (null, str)
+        (n, true) ; return (TokInt(n), str[i..])
+        (_, false); return (null, str)
 
 
 fn lexIdent(str string) (Token, string)

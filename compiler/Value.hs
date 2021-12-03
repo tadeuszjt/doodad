@@ -108,6 +108,7 @@ valsInfix operator a b = trace ("valsInfix " ++ show operator) $ case (a, b) of
         boolInfix typ operator opA opB = case operator of
             S.OrOr   -> Val typ <$> or opA opB
             S.AndAnd -> Val typ <$> and opA opB
+            S.EqEq   -> Val typ <$> icmp P.EQ opA opB
             _        -> error ("bool infix: " ++ show operator)
         
         intInfix :: InsCmp CompileState m => Type -> S.Op -> LL.Operand -> LL.Operand -> m Value
