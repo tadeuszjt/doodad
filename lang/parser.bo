@@ -82,12 +82,19 @@ fn parseEpsilon(tokens [Token]) ParseResult
 
 fn parseOperator(tokens [Token]) ParseResult
     switch tokens
-        TokOp("+") -> _; return [(Node(OpPlus), tokens[1..])]
-        TokOp("-") -> _; return [(Node(OpMinus), tokens[1..])]
-        _              ; return []
+        TokOp("+") -> ts; return [(Node(OpPlus), ts)]
+        TokOp("-") -> ts; return [(Node(OpMinus), ts)]
+        _               ; return []
 
 
-// A comment.
+fn parseExpr_(tokens [Token]) ParseResult
+    return []
+    switch parseOperator(tokens)
+        (n, ts) -> _;
+
+        
+
+
 fn parseIdent(tokens [Token]) ParseResult
     if tokens # TokIdent(s) -> ts
         return [ (Node(ExprIdent(s)), ts) ]
@@ -105,12 +112,5 @@ fn parseTerm(tokens [Token]) ParseResult
         TokInt(n) -> ts  ; return [ (Node(ExprInt(n)), ts) ]
         TokIdent(s) -> ts; return [ (Node(ExprIdent(s)), ts) ]
         _                ; return []
-
-
-fn parseExpr_(tokens [Token]) ParseResult
-    return []
-
-
-
 
 

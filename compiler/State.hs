@@ -192,7 +192,7 @@ emitDec name dec = trace "emitDec" $ case dec of
 
 
 ensureDec :: ModCmp CompileState m => Name -> m ()
-ensureDec name = trace "ensureDec" $ do
+ensureDec name = trace ("ensureDec " ++ show name) $ do
     declared <- Set.member name <$> gets declared
     when (not declared) $ do
         resm <- Map.lookup name <$> gets declarations

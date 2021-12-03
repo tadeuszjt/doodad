@@ -79,12 +79,12 @@ cmpTypeDef (S.Typedef pos sym typ) = trace "cmpTypeDef" $ withPos pos $ do
     addObjWithCheck sym (KeyFunc [typdef]) (ObjConstructor typdef)
 
     -- use named type
-    if isTuple typ || isTable typ
-    then do
-        name <- myFresh sym
-        addSymKeyDec sym KeyType name . DecType =<< opTypeOf typ
-        addObjWithCheck sym KeyType $ ObType typ (Just name)
-    else addObjWithCheck sym KeyType $ ObType typ Nothing
+--    if isTuple typ || isTable typ
+--    then do
+--        name <- myFresh sym
+--        addSymKeyDec sym KeyType name . DecType =<< opTypeOf typ
+--        addObjWithCheck sym KeyType $ ObType typ (Just name)
+    addObjWithCheck sym KeyType $ ObType typ Nothing
 
     when (isTuple typ) $ do
         let Tuple xs = typ
@@ -199,28 +199,23 @@ cmpIndex index = case index of
         return val
 
 
-cmpAppend :: InsCmp CompileState m => S.Append -> m ()
-cmpAppend append = case append of
-    S.AppendTable pos (S.AppendIndex index) expr -> withPos pos $ do
-        loc <- cmpIndex index
-        val <- valResolveExp =<< cmpExpr expr
-        tableAppend loc val
-
-    S.AppendElem pos (S.AppendIndex index) expr -> withPos pos $ do
-        loc <- cmpIndex index
-        val <- valResolveExp =<< cmpExpr expr
-        tableAppendElem loc val
-
-    _ -> err $ show append
-
-
 cmpStmt :: InsCmp CompileState m => S.Stmt -> m ()
 cmpStmt stmt = trace "cmpStmt" $ case stmt of
     S.Print pos exprs -> cmpPrint stmt
     S.Block stmts -> pushSymTab >> mapM_ cmpStmt stmts >> popSymTab
 
+    S.AppendStmt append -> case append of
+        S.AppendTable pos (S.AppendIndex index) expr -> withPos pos $ do
+            loc <- cmpIndex index
+            val <- valResolveExp =<< cmpExpr expr
+            tableAppend loc val
 
-    S.AppendStmt append -> cmpAppend append
+        S.AppendElem pos (S.AppendIndex index) expr -> withPos pos $ do
+            loc <- cmpIndex index
+            val <- valResolveExp =<< cmpExpr expr
+            tableAppendElem loc val
+
+        _ -> err $ show append
 
     S.CallStmt pos (S.IndIdent _ sym) exprs -> withPos pos $ do
         vals <- mapM (valLoad <=< valResolveExp <=< cmpExpr) exprs
@@ -316,6 +311,19 @@ cmpStmt stmt = trace "cmpStmt" $ case stmt of
     _ -> error "stmt"
 
 
+cmpInfix :: InsCmp CompileState m => S.Op -> Value -> Value -> m Value
+cmpInfix op valA valB = do
+    resm <- lookm (show op) $ KeyFunc [valType valA, valType valB]
+    case resm of
+        Just (ObjFunc Void op)   -> err "Operator function does not return a value."
+
+        Just (ObjFunc retty op)  -> do
+            opA <- valOp <$> valLoad valA
+            opB <- valOp <$> valLoad valB
+            Val retty <$> call op [(opA, []), (opB, [])]
+
+        Nothing -> valsInfix op valA valB
+
 
 -- must return Val unless local variable
 cmpExpr :: InsCmp CompileState m =>  S.Expr -> m Value
@@ -328,6 +336,11 @@ cmpExpr expr = trace "cmpExpr" $ case expr of
     S.Conv pos typ exprs       -> withPos pos $ valConstruct typ =<< mapM cmpExpr exprs
     S.Copy pos expr            -> withPos pos $ valCopy =<< cmpExpr expr
 
+    S.Infix pos op exprA exprB -> withPos pos $ do
+        valA <- cmpExpr exprA
+        valB <- cmpExpr exprB
+        cmpInfix op valA valB
+
     S.Ident pos sym            -> withPos pos $ do
         obj <- look sym KeyVar
         case obj of
@@ -335,11 +348,10 @@ cmpExpr expr = trace "cmpExpr" $ case expr of
             ObjADTFieldCons adtTyp -> adtConstructField sym adtTyp []
 
     S.Prefix pos S.Not   expr  -> withPos pos $ valNot =<< cmpExpr expr
-    S.Prefix pos S.Minus expr  -> withPos pos $ valsInfix S.Minus (Exp (S.Int undefined 0)) =<< cmpExpr expr
-
-    S.Infix pos op exprA exprB -> do
-        let m = cmpExpr $ S.Call pos (S.Ident pos $ show op) [exprA, exprB]
-        catchError m $ \e -> withPos pos $ join $ liftM2 (valsInfix op) (cmpExpr exprA) (cmpExpr exprB)
+    S.Prefix pos S.Minus expr  -> withPos pos $ do
+        val <- cmpExpr expr
+        a <- valInt (valType val) 0
+        cmpInfix S.Minus a val
             
     S.String pos s -> do
         loc <- globalStringPtr s =<< myFresh "str"
@@ -475,7 +487,7 @@ cmpPattern pat val = trace "cmpPattern" $ case pat of
         en <- adtEnum val
         valsInfix S.EqEq en (valI64 i)
 
-    S.PatLiteral expr -> valsInfix S.EqEq val =<< cmpExpr expr
+    S.PatLiteral expr -> cmpInfix S.EqEq val =<< cmpExpr expr
 
     S.PatGuarded pos pat expr -> withPos pos $ do
         match <- cmpPattern pat =<< valLoad val
@@ -560,20 +572,23 @@ cmpPattern pat val = trace "cmpPattern" $ case pat of
         -- switch(tok)                 <- val
         --    string(s); do_stuff(s)   <- use raw type
         --    TokSym(s); do_stuff(s)   <- use field name
-        assert (not $ valIsContextual val) "contextual 515"
         ADT xs <- assertBaseType isADT (valType val)
 
         let is = [ i | ((s, t), i) <- zip xs [0..], (s == "" && t == typ) || (Typedef s == typ) ]
         assert (length is == 1) "invalid ATD field identifier"
         let i = head is
 
-        en <- adtEnum val
-        b <- valsInfix S.EqEq en (valI64 i)
+        enumMatched <- valsInfix S.EqEq (valI64 i) =<< adtEnum val
 
         loc <- valLocal $ ADT [xs !! i]
         adtSetPi8 loc =<< adtPi8 val
-        val <- adtDeref loc
-        valsInfix S.AndAnd b =<< cmpPattern pat val
+        matched <- valLocal Bool
+
+        if_ (valOp enumMatched)
+            (valStore matched =<< cmpPattern pat =<< adtDeref loc)
+            (valStore matched $ valBool False)
+
+        valLoad matched
     
     _ -> err (show pat)
 

@@ -45,9 +45,9 @@ adtTypeDef sym typ = trace "adtTypeDef" $ do
                 case t of
                     Void -> addObjWithCheck s KeyVar (ObjADTFieldCons typdef)
                     _    -> return ()
-            name <- myFresh sym
-            addSymKeyDec sym KeyType name . DecType =<< opTypeOf typ
-            addObjWithCheck sym KeyType $ ObType typ (Just name)
+            --name <- myFresh sym
+            --addSymKeyDec sym KeyType name . DecType =<< opTypeOf typ
+            addObjWithCheck sym KeyType $ ObType typ Nothing --(Just name)
 
     assert (length (Set.fromList xs) == length xs) "ADT fields must be unique"
 

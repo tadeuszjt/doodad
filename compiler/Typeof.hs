@@ -56,9 +56,8 @@ valBool :: Bool -> Value
 valBool b = Val Bool (if b then bit 1 else bit 0)
 
 
-
 opTypeOf :: ModCmp CompileState m => Type -> m LL.Type
-opTypeOf typ = trace "opTypOf" $ case typ of
+opTypeOf typ = trace ("opTypOf " ++ show typ) $ case typ of
     Void      -> return LL.VoidType
     I16       -> return LL.i16
     I32       -> return LL.i32
@@ -78,17 +77,14 @@ opTypeOf typ = trace "opTypOf" $ case typ of
         ps <- map LL.ptr <$> mapM opTypeOf ts
         return $ LL.StructureType False (LL.i64:LL.i64:ps)
     Typedef s -> do
-        ensureSymKeyDec s KeyType
         ObType t namem <- look s KeyType
-        opTyp <- opTypeOf t
-        maybe (return opTyp) (return . LL.NamedTypeReference) namem
+        maybe (opTypeOf t) (return . LL.NamedTypeReference) namem
 
     Func ts rt -> do
         rt' <- opTypeOf rt
         ts' <- mapM opTypeOf ts
         return $ LL.ptr (LL.FunctionType rt' ts' False)
     _         -> error (show typ) 
-
 
 
 zeroOf :: InsCmp CompileState m => Type -> m Value
@@ -120,7 +116,7 @@ zeroOf typ = trace ("zeroOf " ++ show  typ) $ do
 
 
 baseTypeOf :: ModCmp CompileState m => Type -> m Type
-baseTypeOf typ = trace "baseTypeOf" $ case typ of
+baseTypeOf typ = trace ("baseTypeOf " ++ show typ) $ case typ of
     Typedef s -> do ObType t _ <- look s KeyType; baseTypeOf t
     _         -> return typ
 

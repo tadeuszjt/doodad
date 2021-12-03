@@ -32,8 +32,8 @@ import Trace
 
 
 valLoad :: InsCmp s m => Value -> m Value
-valLoad (Val typ op)  = trace "valLoad" $ return (Val typ op)
-valLoad (Ptr typ loc) = trace "valLoad" $ Val typ <$> load loc 0
+valLoad (Val typ op)  = trace ("valLoad " ++ show typ) $ return (Val typ op)
+valLoad (Ptr typ loc) = trace ("valLoad " ++ show typ) $ Val typ <$> load loc 0
 
 
 valStore :: InsCmp CompileState m => Value -> Value -> m ()
@@ -65,7 +65,8 @@ valMalloc typ len = trace ("valMalloc " ++ show typ) $ do
         
 valsInfix :: InsCmp CompileState m => S.Op -> Value -> Value -> m Value
 valsInfix operator a b = trace ("valsInfix " ++ show operator) $ case (a, b) of
-    (Exp _, Exp _) -> return $ Exp $ exprInfix operator (let Exp ea = a in ea) (let Exp eb = b in eb)
+    (Exp ea, Exp eb) -> do
+        return $ Exp (exprInfix operator ea eb)
 
     (Exp (S.Int _ i), _) -> do
         assertBaseType isInt (valType b)
@@ -85,20 +86,16 @@ valsInfix operator a b = trace ("valsInfix " ++ show operator) $ case (a, b) of
         Val _ opA <- valLoad a
         Val _ opB <- valLoad b
 
-        resm <- lookm (show operator) $ KeyFunc [valType a, valType b]
-        case resm of
-            Just (ObjFunc retty op) -> Val retty <$> call op [ (opA, []), (opB, []) ]
-            Nothing                 -> do
-                baseA <- baseTypeOf (valType a)
-                baseB <- baseTypeOf (valType b)
-                assert (baseA == baseB) "Base types do not match"
+        baseA <- baseTypeOf (valType a)
+        baseB <- baseTypeOf (valType b)
+        assert (baseA == baseB) "Base types do not match"
 
-                case baseA of
-                    Bool              -> boolInfix (valType a) operator opA opB
-                    Char              -> intInfix (valType a) operator opA opB
-                    _ | isInt baseA   -> intInfix (valType a) operator opA opB
-                    _ | isFloat baseA -> floatInfix (valType a) operator opA opB
-                    _                 -> err ("Operator " ++ show operator ++ " undefined for types")
+        case baseA of
+            Bool              -> boolInfix (valType a) operator opA opB
+            Char              -> intInfix (valType a) operator opA opB
+            _ | isInt baseA   -> intInfix (valType a) operator opA opB
+            _ | isFloat baseA -> floatInfix (valType a) operator opA opB
+            _                 -> err ("Operator " ++ show operator ++ " undefined for types")
 
     where 
         exprInfix operator exprA exprB = case (operator, exprA, exprB) of
@@ -143,7 +140,7 @@ valNot val = trace "valNot" $ do
 
 
 valPtrIdx :: InsCmp s m => Value -> Value -> m Value
-valPtrIdx (Ptr typ loc) idx = trace "valPtrIdx" $ do
+valPtrIdx (Ptr typ loc) idx = trace ("valPtrIdx " ++ show typ) $ do
     Val I64 i <- valLoad idx
     Ptr typ <$> gep loc [i]
 

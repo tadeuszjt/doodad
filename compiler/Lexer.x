@@ -39,7 +39,7 @@ $symbol  = [\{\}\(\)\[\]\,\|\.\;\:\_]
 
 tokens :-
     $white                                          ;
-    [$tab $white]* "//" .* $newline                 ;
+    [$tab $white]* "//" .*                          ;
     $symbol                                         { mkT Sym }
     @reserved                                       { mkT Reserved }
     @reservedOp                                     { mkT ReservedOp }
