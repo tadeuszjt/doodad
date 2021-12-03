@@ -90,22 +90,22 @@ fn parseOperator(tokens [Token]) ParseResult
 
 
 fn parseIdent(tokens [Token]) ParseResult
-    if tokens -> [TokIdent(s)] .. ts
+    if tokens -> TokIdent(s) -> ts
         return [ (Node(ExprIdent(s)), ts) ]
     return []
 
 
 fn parseInt(tokens [Token]) ParseResult
-    if tokens -> [TokInt(n)] .. ts
-        return [ (Node(ExprInt(n)), ts) ]
-    return []
+    switch tokens
+        TokInt(n) -> ts; return [ (Node(ExprInt(n)), ts) ]
+        _              ; return []
     
 
 fn parseTerm(tokens [Token]) ParseResult 
     switch tokens
-        [TokInt(n)] .. ts  ; return [ (Node(ExprInt(n)), ts) ]
-        [TokIdent(s)] .. ts; return [ (Node(ExprIdent(s)), ts) ]
-        _                  ; return []
+        TokInt(n) -> ts  ; return [ (Node(ExprInt(n)), ts) ]
+        TokIdent(s) -> ts; return [ (Node(ExprIdent(s)), ts) ]
+        _                ; return []
 
 
 fn parseExpr_(tokens [Token]) ParseResult

@@ -407,7 +407,7 @@ cmpExpr expr = trace "cmpExpr" $ case expr of
         assert (isInt idxType) "index type isn't an integer"
 
         case aggType of
-            Table [t] -> tupleIdx 0 =<< tableGetElem agg idx
+            Table [t] -> tableGetElem agg idx
 
     S.Range pos expr mstart mend -> withPos pos $ do
         val <- cmpExpr expr
@@ -523,7 +523,7 @@ cmpPattern pat val = trace "cmpPattern" $ case pat of
 
                 assert (length ts == 1) "patterns don't support multiple rows (yet)"
                 bs <- forM (zip pats [0..]) $ \(p, i) ->
-                    cmpPattern p =<< tupleIdx 0 =<< tableGetElem val (valI64 i)
+                    cmpPattern p =<< tableGetElem val (valI64 i)
 
                 foldM (valsInfix S.AndAnd) (valBool True) (lenEq:bs)
             _ -> error (show base)
@@ -537,6 +537,22 @@ cmpPattern pat val = trace "cmpPattern" $ case pat of
         let charPats = map (S.PatLiteral . S.Char p) s
         let arrPat   = S.PatArray p charPats
         cmpPattern (S.PatSplit pos arrPat rest) val
+
+
+    S.PatSplitElem pos pat rest -> withPos pos $ do
+        hasElem <- valsInfix S.LT (valI64 0) =<< tableLen val
+        initMatched <- valLocal Bool
+        if_ (valOp hasElem)
+            (valStore initMatched =<< cmpPattern pat =<< tableGetElem val (valI64 0))
+            (valStore initMatched $ valBool False)
+
+        initMatchedVal <- valLoad initMatched
+        matched <- valLocal Bool
+        if_ (valOp initMatchedVal)
+            (valStore matched =<< cmpPattern rest =<< tableRange val (valI64 1) =<< tableLen val)
+            (valStore matched $ valBool False)
+
+        valLoad matched
 
     S.PatTyped pos typ pat -> withPos pos $ do
         -- switch(tok)                 <- val

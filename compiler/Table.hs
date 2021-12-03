@@ -71,13 +71,17 @@ tableSetRow tab i row = trace "tableSetRow" $ do
 tableGetElem :: InsCmp CompileState m => Value -> Value -> m Value
 tableGetElem tab idx = trace "tableGetElem" $ do
     Table ts <- assertBaseType isTable (valType tab)
+    case ts of
+        [t] -> do
+            row <- tableRow 0 tab
+            valLoad =<< valPtrIdx row idx
+        ts  -> do
+            tup <- valLocal $ Tuple [ ("", t) | t <- ts ]
+            forM_ (zip ts [0..]) $ \(t, i) -> do
+                row <- tableRow i tab
+                tupleSet tup i =<< valPtrIdx row idx
 
-    tup <- valLocal $ Tuple [ ("", t) | t <- ts ]
-    forM_ (zip ts [0..]) $ \(t, i) -> do
-        row <- tableRow i tab
-        tupleSet tup i =<< valPtrIdx row idx
-
-    return tup
+            return tup
 
 
 tableSetElem :: InsCmp CompileState m => Value -> Value -> Value -> m ()

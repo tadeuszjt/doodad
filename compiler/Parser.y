@@ -22,6 +22,7 @@ import qualified Data.Set as Set
 %right     '..'
 %left      '?'
 %left      '<<-' '<-'
+%right     '->>' '->'
 %nonassoc  '&'
 %nonassoc  '!'
 %nonassoc  ','
@@ -59,6 +60,7 @@ import qualified Data.Set as Set
     '->'       { Token _ ReservedOp "->" }
     '..'       { Token _ ReservedOp ".." }
     '<<-'      { Token _ ReservedOp "<<-" }
+    '->>'      { Token _ ReservedOp "->>" }
 
     fn         { Token _ Reserved "fn" }
     extern     { Token _ Reserved "extern" }
@@ -156,6 +158,7 @@ pattern  : '_'                                { S.PatIgnore (tokPos $1) }
          | ident '(' pattern ')'              { S.PatTyped (tokPos $2) (T.Typedef $ tokStr $1) $3 }
          | '(' patterns ')'                   { S.PatTuple (tokPos $1) $2 }
          | '[' patterns ']'                   { S.PatArray (tokPos $1) $2 }
+         | pattern '->' pattern               { S.PatSplitElem (tokPos $2) $1 $3 }
          | pattern '..' pattern               { S.PatSplit (tokPos $2) $1 $3 }
          | pattern '..'                       { S.PatSplit (tokPos $2) $1 (S.PatIgnore (tokPos $2)) }
          | pattern '|' expr                   { S.PatGuarded (tokPos $2) $1 $3 }
