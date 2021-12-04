@@ -95,11 +95,9 @@ cmpTypeDef (S.Typedef pos sym typ) = trace "cmpTypeDef" $ withPos pos $ do
 
 cmpVarDef :: InsCmp CompileState m => S.Stmt -> m ()
 cmpVarDef (S.Assign pos (S.PatIdent p sym) expr) = trace "cmpVarDef" $ withPos pos $ do
-    val <- cmpExpr expr
-
+    val <- valResolveExp =<< cmpExpr expr
     name <- myFresh sym
 
-    assert (not $ valIsContextual val) "contextual 124"
     let typ = valType val
     opTyp <- opTypeOf typ
 
@@ -108,7 +106,7 @@ cmpVarDef (S.Assign pos (S.PatIdent p sym) expr) = trace "cmpVarDef" $ withPos p
         loc <- Ptr typ <$> global name opTyp (toCons $ valOp val)
         addObjWithCheck sym KeyVar (ObjVal loc)
     else do
-        initialiser <- zeroOf typ
+        initialiser <- valZero typ
         loc <- Ptr typ <$> global name opTyp (toCons $ valOp initialiser)
         valStore loc val
         addObjWithCheck sym KeyVar (ObjVal loc)
@@ -331,7 +329,7 @@ cmpExpr expr = trace "cmpExpr" $ case expr of
     e | exprIsContextual e     -> return (Exp expr)
     S.Bool pos b               -> return (valBool b)
     S.Char pos c               -> return (valChar c)
-    S.Conv pos typ []          -> zeroOf typ
+    S.Conv pos typ []          -> valZero typ
     S.Conv pos typ [S.Null p]  -> withPos pos (adtNull typ)
     S.Conv pos typ exprs       -> withPos pos $ valConstruct typ =<< mapM cmpExpr exprs
     S.Copy pos expr            -> withPos pos $ valCopy =<< cmpExpr expr
@@ -466,8 +464,6 @@ cmpCondition cnd = trace "cmpCondition" $ do
         S.CondExpr expr      -> cmpExpr expr
         S.CondMatch pat expr -> cmpPattern pat =<< cmpExpr expr
 
-    assert (not $ valIsContextual val) "contextual 430"
-
     assertBaseType (== Bool) (valType val)
     return val
 
@@ -477,22 +473,19 @@ cmpPattern pat val = trace "cmpPattern" $ case pat of
     S.PatIgnore pos -> return (valBool True)
 
     S.PatLiteral (S.Null pos) -> withPos pos $ trace "cmpPattern null" $ do
-        assert (not $ valIsContextual val) "contextual 450"
         ADT xs <- assertBaseType isADT (valType val)
+        
+        idx <- case [ i | (("", Void), i) <- zip xs [0..] ] of
+            [i] -> return i
+            _   -> err "ADT does not support a unique null field"
 
-        let is = [ i | (("", Void), i) <- zip xs [0..] ]
-        assert (length is == 1) "adt type does not support a unique null value"
-        let i = head is
-
-        en <- adtEnum val
-        valsInfix S.EqEq en (valI64 i)
+        valsInfix S.EqEq (valI64 idx) =<< adtEnum val
 
     S.PatLiteral expr -> cmpInfix S.EqEq val =<< cmpExpr expr
 
     S.PatGuarded pos pat expr -> withPos pos $ do
         match <- cmpPattern pat =<< valLoad val
         guard <- cmpExpr expr
-        assert (not $ valIsContextual guard) "contextual 465"
         assertBaseType (== Bool) (valType guard)
         valsInfix S.AndAnd match guard
 
@@ -506,8 +499,7 @@ cmpPattern pat val = trace "cmpPattern" $ case pat of
             let idx = fromJust $ elemIndex sym (map fst xs)
             let (s, t) = xs !! idx
             assert (t == Void) "Ident patterns only valid for null fields"
-            en <- adtEnum val'
-            valsInfix S.EqEq en (valI64 idx)
+            valsInfix S.EqEq (valI64 idx) =<< adtEnum val'
         else do
             loc <- valLocal (valType val')
             valStore loc val'
@@ -515,18 +507,15 @@ cmpPattern pat val = trace "cmpPattern" $ case pat of
             return (valBool True)
 
     S.PatTuple pos pats -> withPos pos $ do
-        b <- valIsTuple val
-        assert b "expression isn't a tuple"
         len <- tupleLength val
         assert (len == length pats) "tuple pattern length mismatch"
 
         bs <- forM (zip pats [0..]) $ \(p, i) ->
-            cmpPattern p =<< tupleIdx i val
+            cmpPattern p =<< valResolveExp =<< tupleIdx i val
 
         foldM (valsInfix S.AndAnd) (valBool True) bs
 
     S.PatArray pos pats -> withPos pos $ do
-        assert (not $ valIsContextual val) "contextual 487"
         base <- baseTypeOf (valType val)
         case base of
             Table ts -> do
@@ -605,6 +594,10 @@ cmpPrint (S.Print pos exprs) = trace "cmpPrint" $ withPos pos $ do
 
 valAsType :: InsCmp CompileState m => Type -> Value -> m Value
 valAsType typ val = trace "valAsType" $ case val of
+    Exp (S.Int _ n)      -> valInt typ n
+    Exp (S.Null _)       -> adtNull typ
+    Exp (S.Table _ [[]]) -> assertBaseType isTable typ >> valZero typ
+
     Val _ _              -> do
         checkTypesCompatible typ (valType val)
         return $ val { valType = typ }
@@ -612,10 +605,6 @@ valAsType typ val = trace "valAsType" $ case val of
     Ptr _ _              -> do
         checkTypesCompatible typ (valType val)
         return $ val { valType = typ }
-
-    Exp (S.Int _ n)      -> valInt typ n
-    Exp (S.Null _)       -> adtNull typ
-    Exp (S.Table _ [[]]) -> assertBaseType isTable typ >> zeroOf typ
 
     Exp (S.Tuple _ es)   -> do
         Tuple xs <- assertBaseType isTuple typ

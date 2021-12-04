@@ -15,14 +15,9 @@ import Value
 import Typeof
 import Trace
 
-valIsTuple :: InsCmp CompileState m => Value -> m Bool
-valIsTuple (Exp (S.Tuple _ _)) = trace "valIsTuple" $ return True
-valIsTuple (Exp _)             = trace "valIsTuple" $ return False
-valIsTuple tup                 = trace "valIsTuple" $ isTuple <$> baseTypeOf (valType tup)
-
 
 tupleLength :: InsCmp CompileState m => Value -> m Int
-tupleLength (Exp (S.Tuple _ vs)) = trace "tupleLength" $ return (length vs)
+tupleLength (Exp (S.Tuple _ es)) = trace "tupleLength" $ return (length es)
 tupleLength val                  = trace "tupleLength" $ do
     Tuple xs <- assertBaseType isTuple (valType val)
     return (length xs)
@@ -46,36 +41,35 @@ tupleMember sym tup = trace "tupleMember" $ do
 
 
 tupleIdx :: InsCmp CompileState m => Int -> Value -> m Value
-tupleIdx i tup = trace "tupleIndex" $ do
-    b <- valIsTuple tup
-    assert b "isn't a tuple"
+tupleIdx i (Exp (S.Tuple _ es)) = trace "tupleIdx"   $ return $ Exp (es !! i)
+tupleIdx i tup                  = trace "tupleIndex" $ do
+    Tuple xs <- baseTypeOf (valType tup)
     case tup of
-        Exp (S.Tuple _ es) -> return $ Exp (es !! i)
-        Ptr _ loc          -> do
-            Tuple xs <- baseTypeOf (valType tup)
-            Ptr (snd $ xs !! i) <$> gep loc [int32 0, int32 $ fromIntegral i]
-        Val _ op           -> do
-            Tuple xs <- baseTypeOf (valType tup)
-            Val (snd $ xs !! i) <$> extractValue op [fromIntegral i]
+        Ptr _ loc -> Ptr (snd $ xs !! i) <$> gep loc [int32 0, int32 $ fromIntegral i]
+        Val _ op  -> Val (snd $ xs !! i) <$> extractValue op [fromIntegral i]
 
 
 tupleConstruct :: InsCmp CompileState m => Type -> [Value] -> m Value
 tupleConstruct tupTyp vals = trace "tupleConstruct" $ do
     Tuple xs <- assertBaseType isTuple tupTyp
-    tup <- valLocal tupTyp
+    loc <- valLocal tupTyp
+
     case vals of
-        []    -> return ()
+        []    -> valStore loc =<< valZero tupTyp
+
         [val] -> do
             baseVal <- baseTypeOf (valType val)
             baseTup <- baseTypeOf tupTyp
             if baseVal == baseTup
             then do -- contructing from another tuple
-                forM_ (zip xs [0..]) $ \((s, t), i) -> tupleSet tup i =<< tupleIdx i val
+                forM_ (zip xs [0..]) $ \((s, t), i) -> tupleSet loc i =<< tupleIdx i val
             else do
                 assert (length xs == 1) "Invalid tuple constructor"
-                void $ tupleSet tup 0 val
+                void $ tupleSet loc 0 val
+
         vals -> do
             assert (length vals == length xs) "Invalid number of args"
-            forM_ (zip xs [0..]) $ \((s, t), i) -> tupleSet tup i (vals !! i)
-    return tup
+            forM_ (zip xs [0..]) $ \((s, t), i) -> tupleSet loc i (vals !! i)
+
+    return loc
 

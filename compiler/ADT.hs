@@ -134,7 +134,7 @@ adtConstructField sym typ vals = trace "adtConstructField" $ do
     case adtTyp of
         _ | isEmptyADT adtTyp  -> do
             assert (length vals == 0) "Invalid ADT constructor arguments"
-            zeroOf typ
+            valZero typ
 
         _ | isEnumADT adtTyp   -> do
             adt <- valLocal typ
@@ -179,12 +179,6 @@ adtConstructField sym typ vals = trace "adtConstructField" $ do
             return adt
 
             
-            
-
--- ADT()       -> zero constructor
--- ADT(i64(n)) -> construct from unique type field
--- ADT(adt2)   -> construct from adt with ONE equivalent field
--- ADT(null)   -> null becomes adt with equivalent field
 adtConstruct :: InsCmp CompileState m => Type -> Value -> m Value
 adtConstruct typ (Exp (S.Null _)) = trace "adtConstruct" $ adtNull typ
 adtConstruct typ (Exp _)          = trace "adtConstruct" $ error "adt constructing from contextual"

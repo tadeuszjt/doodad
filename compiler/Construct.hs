@@ -58,44 +58,64 @@ valCopy val = trace "valCopy" $ do
 
 
 valConstruct :: InsCmp CompileState m => Type -> [Value] -> m Value
-valConstruct typ []       = trace "valConstruct" $ zeroOf typ
+valConstruct typ []       = trace "valConstruct" $ valZero typ
 valConstruct typ (a:b:xs) = trace "valConstruct" $ tupleConstruct typ (a:b:xs)
-valConstruct typ [val]    = trace "valConstruct" $ do
-    val' <- valLoad =<< valResolveExp val
+valConstruct typ [val']   = trace "valConstruct" $ do
+    val <- valLoad =<< valResolveExp val'
 
-    if valType val' == typ
-    then return val'
-    else do
-        base <- baseTypeOf typ
-        case base of
-            Table [Char] -> do
-                ObjFunc retty op <- look "string" (KeyFunc [valType val'])
-                Val retty <$> call op [(valOp val', [])]
+    base <- baseTypeOf typ
+    baseVal <- baseTypeOf (valType val)
 
-            I32 -> case val' of
-                Val I64 op -> Val typ <$> trunc op LL.i32
-                Val I8 op  -> Val typ <$> sext op LL.i32
+    case base of
+        t | isIntegral t -> convertIntegral baseVal typ val
+        ADT _            -> adtConstruct typ val
+        Table [Char] -> do
+            ObjFunc retty op <- look "string" $ KeyFunc [valType val]
+            Val retty <$> call op [(valOp val, [])]
 
-            I64 -> case val' of
-                Val Char op -> Val typ <$> sext op LL.i64
+        _ -> do
+            checkTypesCompatible typ (valType val)
+            Val typ <$> valOp <$> valLoad val
 
-            Char -> case val' of
-                Val I64 op -> Val typ <$> trunc op LL.i8
-                Val I32 op -> Val typ <$> trunc op LL.i8
-                _          -> error (show val')
+    where
+        convertIntegral :: InsCmp CompileState m => Type -> Type -> Value -> m Value
+        convertIntegral fromTyp toTyp val = case (fromTyp, toTyp) of
+            (I64, I64)  -> return $ Val toTyp (valOp val)
+            (I64, I32)  -> Val toTyp <$> trunc (valOp val) LL.i32
+            (I64, I16)  -> Val toTyp <$> trunc (valOp val) LL.i16
+            (I64, I8)   -> Val toTyp <$> trunc (valOp val) LL.i8
+            (I64, Char) -> Val toTyp <$> trunc (valOp val) LL.i8
 
-            ADT _       -> adtConstruct typ val'
+            (I32, I64) -> Val toTyp <$> sext (valOp val) LL.i64
+            (I32, I32) -> return $ Val toTyp (valOp val)
+            (I32, I16) -> Val toTyp <$> trunc (valOp val) LL.i16
+            (I32, I8)  -> Val toTyp <$> trunc (valOp val) LL.i8
+            (I32, Char) -> Val toTyp <$> trunc (valOp val) LL.i8
 
-            _           -> do
-                checkTypesCompatible typ (valType val')
-                Val typ <$> valOp <$> valLoad val'
+            (I16, I64) -> Val toTyp <$> sext (valOp val) LL.i64
+            (I16, I32) -> Val toTyp <$> sext (valOp val) LL.i32
+            (I16, I16) -> return $ Val toTyp (valOp val)
+            (I16, I8)  -> Val toTyp <$> trunc (valOp val) LL.i8
+            (I16, Char) -> Val toTyp <$> trunc (valOp val) LL.i8
+
+            (I8, I64) -> Val toTyp <$> sext (valOp val) LL.i64
+            (I8, I32) -> Val toTyp <$> sext (valOp val) LL.i32
+            (I8, I16) -> Val toTyp <$> sext (valOp val) LL.i16
+            (I8, I8)  -> return $ Val toTyp (valOp val)
+            (I8, Char) -> return $ Val toTyp (valOp val)
+
+            (Char, I64) -> Val toTyp <$> sext (valOp val) LL.i64
+            (Char, I32) -> Val toTyp <$> sext (valOp val) LL.i32
+            (Char, I16) -> Val toTyp <$> sext (valOp val) LL.i16
+            (Char, I8)  -> return $ Val toTyp (valOp val)
+            (Char, Char) -> return $ Val toTyp (valOp val)
 
 
 valResolveExp :: InsCmp CompileState m => Value -> m Value
 valResolveExp val = trace "valResolveExp" $ case val of
     Exp (S.Int p n)   -> valInt I64 n
     Exp (S.Float p f) -> valFloat F64 f
-    Exp (S.Null p)    -> zeroOf $ ADT [("", Void)]
+    Exp (S.Null p)    -> valZero $ ADT [("", Void)]
     Ptr _ _           -> return val
     Val _ _           -> return val
     _                 -> error ("can't resolve contextual: " ++ show val)

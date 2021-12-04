@@ -10,6 +10,7 @@ import Control.Monad
 import Control.Monad.State hiding (void)
 import Control.Monad.Trans
 
+import LLVM.AST.Name
 import qualified LLVM.AST as LL
 import qualified LLVM.AST.Type as LL
 import LLVM.Internal.EncodeAST
@@ -29,6 +30,62 @@ import Type
 import Typeof
 import Trace
 
+
+valI64 :: Integral i => i -> Value
+valI64 n = Val I64 $ int64 (fromIntegral n)
+
+
+valChar :: Char -> Value
+valChar c = Val Char (int8 $ fromIntegral $ fromEnum c)
+
+
+valBool :: Bool -> Value
+valBool b = Val Bool (if b then bit 1 else bit 0)
+
+
+valInt :: InsCmp CompileState m => Integral i => Type -> i -> m Value
+valInt typ n = trace "valInt" $ do
+    base <- assertBaseType isInt typ
+    return $ case base of
+        I8  -> Val typ $ int8 (fromIntegral n)
+        I32 -> Val typ $ int32 (fromIntegral n)
+        I64 -> Val typ $ int64 (fromIntegral n)
+
+
+valFloat :: InsCmp CompileState m => Type -> Double -> m Value
+valFloat typ f = trace "valFloat" $ do
+    base <- assertBaseType isFloat typ
+    return $ case base of
+        F32 -> Val typ $ single (double2Float f)
+        F64 -> Val typ $ double f
+
+
+valZero :: InsCmp CompileState m => Type -> m Value
+valZero typ = trace ("valZero " ++ show  typ) $ do
+    case typ of
+        Typedef sym -> do
+            ObType t namem <- look sym KeyType
+            fmap (Val typ . valOp) $ valZero' namem =<< baseTypeOf t
+        _ -> valZero' Nothing typ
+
+    where
+        valZero' :: InsCmp CompileState m => Maybe Name -> Type -> m Value
+        valZero' namem typ =
+            case typ of
+                _ | isInt typ   -> valInt typ 0
+                _ | isFloat typ -> valFloat typ 0.0
+                Bool            -> return (valBool False)
+                Char            -> return (valChar '\0')
+                Typedef sym     -> fmap (Val typ . valOp) $ valZero =<< baseTypeOf typ
+                Array n t       -> Val typ . array . replicate n . toCons . valOp <$> valZero t
+                ADT _
+                    | isEmptyADT typ -> return $ Val typ $ cons $ C.Null (LL.ptr LL.i8)
+                    | isEnumADT typ  -> return $ Val typ (int64 0)
+                Tuple xs        -> Val typ . struct namem False . map (toCons . valOp) <$> mapM (valZero . snd) xs
+                Table ts        -> do
+                    let zi64 = toCons (int64 0)
+                    zptrs <- map (C.IntToPtr zi64 . LL.ptr) <$> mapM opTypeOf ts
+                    return $ Val typ $ struct namem False (zi64:zi64:zptrs)
 
 
 valLoad :: InsCmp s m => Value -> m Value
@@ -56,11 +113,50 @@ valLocal typ = trace ("valLocal " ++ show typ) $ do
     Ptr typ <$> alloca opTyp Nothing 0
     
 
+valArrayIdx :: InsCmp CompileState m => Value -> Value -> m Value
+valArrayIdx (Ptr typ loc) idx = trace "valArrayIdx" $ do
+    Array n t <- assertBaseType isArray typ
+    Val idxTyp idx <- valLoad idx
+    assert (isInt idxTyp) "array index isn't an integer"
+    Ptr t <$> gep loc [int64 0, idx]
+
+
+valArrayConstIdx :: InsCmp CompileState m => Value -> Int -> m Value
+valArrayConstIdx val i = trace "valArrayConstIdx" $ do
+    Array n t <- assertBaseType isArray (valType val)
+    case val of
+        Ptr _ loc -> Ptr t <$> gep loc [int64 0, int64 (fromIntegral i)]
+        Val _ op  -> Val t <$> extractValue op [fromIntegral i]
+
+
 valMalloc :: InsCmp CompileState m => Type -> Value -> m Value
 valMalloc typ len = trace ("valMalloc " ++ show typ) $ do
     lenTyp <- assertBaseType isInt (valType len)
     pi8 <- malloc =<< mul (valOp len) . valOp =<< sizeOf typ
     Ptr typ <$> (bitcast pi8 . LL.ptr =<< opTypeOf typ)
+
+
+valPtrIdx :: InsCmp s m => Value -> Value -> m Value
+valPtrIdx (Ptr typ loc) idx = trace ("valPtrIdx " ++ show typ) $ do
+    Val I64 i <- valLoad idx
+    Ptr typ <$> gep loc [i]
+
+
+valMemCpy :: InsCmp CompileState m => Value -> Value -> Value -> m ()
+valMemCpy (Ptr dstTyp dst) (Ptr srcTyp src) len = trace "valMemCpy" $ do
+    assert (dstTyp == srcTyp) "Types do not match"
+    assertBaseType isInt (valType len)
+
+    pDstI8 <- bitcast dst (LL.ptr LL.i8)
+    pSrcI8 <- bitcast src (LL.ptr LL.i8)
+
+    void $ memcpy pDstI8 pSrcI8 . valOp =<< valsInfix S.Times len =<< sizeOf dstTyp
+
+
+valNot :: InsCmp CompileState m => Value -> m Value
+valNot val = trace "valNot" $ do
+    assertBaseType (== Bool) (valType val)
+    Val (valType val) <$> (icmp P.EQ (bit 0) . valOp =<< valLoad val)
 
         
 valsInfix :: InsCmp CompileState m => S.Op -> Value -> Value -> m Value
@@ -131,43 +227,3 @@ valsInfix operator a b = trace ("valsInfix " ++ show operator) $ case (a, b) of
             S.EqEq   -> Val Bool <$> fcmp P.OEQ opA opB
             _        -> error ("float infix: " ++ show operator)
         
-
-valNot :: InsCmp CompileState m => Value -> m Value
-valNot val = trace "valNot" $ do
-    assertBaseType (== Bool) (valType val)
-    Val (valType val) <$> (icmp P.EQ (bit 0) . valOp =<< valLoad val)
-
-
-valPtrIdx :: InsCmp s m => Value -> Value -> m Value
-valPtrIdx (Ptr typ loc) idx = trace ("valPtrIdx " ++ show typ) $ do
-    Val I64 i <- valLoad idx
-    Ptr typ <$> gep loc [i]
-
-
-valArrayIdx :: InsCmp CompileState m => Value -> Value -> m Value
-valArrayIdx (Ptr typ loc) idx = trace "valArrayIdx" $ do
-    Array n t <- assertBaseType isArray typ
-    Val idxTyp idx <- valLoad idx
-    assert (isInt idxTyp) "array index isn't an integer"
-    Ptr t <$> gep loc [int64 0, idx]
-
-
-valArrayConstIdx :: InsCmp CompileState m => Value -> Int -> m Value
-valArrayConstIdx val i = trace "valArrayConstIdx" $ do
-    Array n t <- assertBaseType isArray (valType val)
-    case val of
-        Ptr _ loc -> Ptr t <$> gep loc [int64 0, int64 (fromIntegral i)]
-        Val _ op  -> Val t <$> extractValue op [fromIntegral i]
-
-
-valMemCpy :: InsCmp CompileState m => Value -> Value -> Value -> m ()
-valMemCpy (Ptr dstTyp dst) (Ptr srcTyp src) len = trace "valMemCpy" $ do
-    assert (dstTyp == srcTyp) "Types do not match"
-    assertBaseType isInt (valType len)
-
-    pDstI8 <- bitcast dst (LL.ptr LL.i8)
-    pSrcI8 <- bitcast src (LL.ptr LL.i8)
-
-    void $ memcpy pDstI8 pSrcI8 . valOp =<< valsInfix S.Times len =<< sizeOf dstTyp
-
-

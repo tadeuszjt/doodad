@@ -36,47 +36,20 @@ checkTypesCompatible typA typB = do
         t | isADT t    -> assert (baseA == baseB) "Types aren't compatible"
 
         t | isTuple t  -> do
+            assertBaseType isTuple baseB
             let Tuple axs = baseA
             let Tuple bxs = baseB
             assert (length axs == length bxs) "Tuples aren't compatible"
             forM_ (zip axs bxs) $ \((_, ta), (_, tb)) -> checkTypesCompatible ta tb
 
         t | isTable t -> do
+            assertBaseType isTable baseB
             let Table ats = baseA
             let Table bts = baseB
             assert (length ats == length bts) "Tables aren't compatible"
             forM_ (zip ats bts) $ \(ta, tb) -> checkTypesCompatible ta tb
             
         _ -> err $ "Can't checkTypesCompatible: " ++ show typA
-
-
-valInt :: InsCmp CompileState m => Integral i => Type -> i -> m Value
-valInt typ n = trace "valInt" $ do
-    base <- assertBaseType isInt typ
-    return $ case base of
-        I8  -> Val typ $ int8 (fromIntegral n)
-        I32 -> Val typ $ int32 (fromIntegral n)
-        I64 -> Val typ $ int64 (fromIntegral n)
-
-
-valFloat :: InsCmp CompileState m => Type -> Double -> m Value
-valFloat typ f = trace "valFloat" $ do
-    base <- assertBaseType isFloat typ
-    return $ case base of
-        F32 -> Val typ $ single (double2Float f)
-        F64 -> Val typ $ double f
-
-
-valI64 :: Integral i => i -> Value
-valI64 n = Val I64 $ int64 (fromIntegral n)
-
-
-valChar :: Char -> Value
-valChar c = Val Char (int8 $ fromIntegral $ fromEnum c)
-
-
-valBool :: Bool -> Value
-valBool b = Val Bool (if b then bit 1 else bit 0)
 
 
 opTypeOf :: ModCmp CompileState m => Type -> m LL.Type
@@ -109,33 +82,6 @@ opTypeOf typ = trace ("opTypOf " ++ show typ) $ case typ of
         return $ LL.ptr (LL.FunctionType rt' ts' False)
     _         -> error (show typ) 
 
-
-zeroOf :: InsCmp CompileState m => Type -> m Value
-zeroOf typ = trace ("zeroOf " ++ show  typ) $ do
-    case typ of
-        Typedef sym -> do
-            ObType t namem <- look sym KeyType
-            fmap (Val typ . valOp) $ zeroOf' namem =<< baseTypeOf t
-        _ -> zeroOf' Nothing typ
-
-    where
-        zeroOf' :: InsCmp CompileState m => Maybe Name -> Type -> m Value
-        zeroOf' namem typ =
-            case typ of
-                _ | isInt typ          -> valInt typ 0
-                _ | isFloat typ        -> valFloat typ 0.0
-                Bool                   -> return (valBool False)
-                Char                   -> return (valChar '\0')
-                Typedef sym            -> fmap (Val typ . valOp) $ zeroOf =<< baseTypeOf typ
-                Array n t              -> Val typ . array . replicate n . toCons . valOp <$> zeroOf t
-                ADT _
-                    | isEmptyADT typ -> return $ Val typ $ cons $ C.Null (LL.ptr LL.i8)
-                    | isEnumADT typ  -> return $ Val typ (int64 0)
-                Tuple xs               -> Val typ . struct namem False . map (toCons . valOp) <$> mapM (zeroOf . snd) xs
-                Table ts -> do
-                    let zi64 = toCons (int64 0)
-                    zptrs <- map (C.IntToPtr zi64 . LL.ptr) <$> mapM opTypeOf ts
-                    return $ Val typ $ struct namem False (zi64:zi64:zptrs)
 
 
 baseTypeOf :: ModCmp CompileState m => Type -> m Type
