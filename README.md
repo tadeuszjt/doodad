@@ -48,7 +48,20 @@ Boland is a procedural language with a collection of features that prioritises s
       i32
       f64
       f32
-     }
+    }
+     
+    type Operator {
+      OpPlus
+      OpMinus
+      OpTimes
+      OpDivide
+    }
+    
+    type Expr {
+      ExprInt: i64
+      ExprIdent: string
+      ExprInfix: (Operator, Expr, Expr)
+    }
       
   Arrays
   
@@ -60,10 +73,12 @@ Boland is a procedural language with a collection of features that prioritises s
     let x = (23, "str", [1, 2, 3])
     let (i, "str", [1] .. rest) = x
     
-    switch x
-      (23, _, _)   ; print(23)
-      (_, "str", _); print("str")
-      _            ; print(x)
+    switch "a string"
+      c -> " string"   ; // matches character
+      "a " ->> "string";
+      c -> ' ' -> ss   ; // matches character and ss with rest
+      "a string"       ;
+      _                ;
     
   Control Flow (if, switch, while, return etc)
   
@@ -71,8 +86,15 @@ Boland is a procedural language with a collection of features that prioritises s
     if x == "tadeusz"
       print("x is: " + x)
       
-    if x -> "tad" .. rest
+    if x # "tad" ->> rest
       print(rest)
+      
+    switch "a string"
+      c -> " string"   ; // matches character
+      "a " ->> "string";
+      c -> ' ' -> ss   ; // matches character and ss with rest
+      "a string"       ;
+      _                ;
     
   Tables (A collection of one or more dynamically allocated 'rows')
   
