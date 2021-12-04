@@ -86,16 +86,15 @@ valsInfix operator a b = trace ("valsInfix " ++ show operator) $ case (a, b) of
         Val _ opA <- valLoad a
         Val _ opB <- valLoad b
 
-        baseA <- baseTypeOf (valType a)
-        baseB <- baseTypeOf (valType b)
-        assert (baseA == baseB) "Base types do not match"
+        checkTypesCompatible (valType a) (valType b)
+        base <- baseTypeOf (valType a)
 
-        case baseA of
-            Bool              -> boolInfix (valType a) operator opA opB
-            Char              -> intInfix (valType a) operator opA opB
-            _ | isInt baseA   -> intInfix (valType a) operator opA opB
-            _ | isFloat baseA -> floatInfix (valType a) operator opA opB
-            _                 -> err ("Operator " ++ show operator ++ " undefined for types")
+        case base of
+            Bool             -> boolInfix (valType a) operator opA opB
+            Char             -> intInfix (valType a) operator opA opB
+            _ | isInt base   -> intInfix (valType a) operator opA opB
+            _ | isFloat base -> floatInfix (valType a) operator opA opB
+            _                -> err ("Operator " ++ show operator ++ " undefined for types")
 
     where 
         exprInfix operator exprA exprB = case (operator, exprA, exprB) of

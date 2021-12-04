@@ -606,20 +606,17 @@ cmpPrint (S.Print pos exprs) = trace "cmpPrint" $ withPos pos $ do
 valAsType :: InsCmp CompileState m => Type -> Value -> m Value
 valAsType typ val = trace "valAsType" $ case val of
     Val _ _              -> do
-        baseTyp <- baseTypeOf typ
-        baseVal <- baseTypeOf (valType val)
-        assert (baseTyp == baseVal) "Types do not match"
+        checkTypesCompatible typ (valType val)
         return $ val { valType = typ }
 
     Ptr _ _              -> do
-        baseTyp <- baseTypeOf typ
-        baseVal <- baseTypeOf (valType val)
-        assert (baseTyp == baseVal) "Types do not match"
+        checkTypesCompatible typ (valType val)
         return $ val { valType = typ }
 
     Exp (S.Int _ n)      -> valInt typ n
     Exp (S.Null _)       -> adtNull typ
     Exp (S.Table _ [[]]) -> assertBaseType isTable typ >> zeroOf typ
+
     Exp (S.Tuple _ es)   -> do
         Tuple xs <- assertBaseType isTuple typ
 

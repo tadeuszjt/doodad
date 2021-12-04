@@ -27,6 +27,29 @@ assertBaseType f typ = trace "assertBaseType" $ do
     return base
 
 
+checkTypesCompatible :: InsCmp CompileState m => Type -> Type -> m ()
+checkTypesCompatible typA typB = do
+    baseA <- baseTypeOf typA
+    baseB <- baseTypeOf typB
+    case baseA of
+        t | isSimple t -> assert (baseA == baseB) "Types aren't compatible"
+        t | isADT t    -> assert (baseA == baseB) "Types aren't compatible"
+
+        t | isTuple t  -> do
+            let Tuple axs = baseA
+            let Tuple bxs = baseB
+            assert (length axs == length bxs) "Tuples aren't compatible"
+            forM_ (zip axs bxs) $ \((_, ta), (_, tb)) -> checkTypesCompatible ta tb
+
+        t | isTable t -> do
+            let Table ats = baseA
+            let Table bts = baseB
+            assert (length ats == length bts) "Tables aren't compatible"
+            forM_ (zip ats bts) $ \(ta, tb) -> checkTypesCompatible ta tb
+            
+        _ -> err $ "Can't checkTypesCompatible: " ++ show typA
+
+
 valInt :: InsCmp CompileState m => Integral i => Type -> i -> m Value
 valInt typ n = trace "valInt" $ do
     base <- assertBaseType isInt typ

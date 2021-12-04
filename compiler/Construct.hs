@@ -87,7 +87,7 @@ valConstruct typ [val]    = trace "valConstruct" $ do
             ADT _       -> adtConstruct typ val'
 
             _           -> do
-                assert (base == valType val' || typ == valType val') "Types do not match"
+                checkTypesCompatible typ (valType val')
                 Val typ <$> valOp <$> valLoad val'
 
 

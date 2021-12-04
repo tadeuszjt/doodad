@@ -29,12 +29,12 @@ fn string(token Token) string
 fn ==(a Token, b Token) bool
     switch (a, b)
         (null, null)                   ; return true
-        (TokOp(a), TokOp(b))           ; return a == b
-        (TokInt(a), TokInt(b))         ; return a == b
-        (TokSym(a), TokSym(b))         ; return a == b
-        (TokIdent(a), TokIdent(b))     ; return a == b
-        (TokString(a), TokString(b))   ; return a == b
-        (TokChar(a), TokChar(b))       ; return a == b
+        (TokOp(a),      TokOp(b))      ; return a == b
+        (TokInt(a),     TokInt(b))     ; return a == b
+        (TokSym(a),     TokSym(b))     ; return a == b
+        (TokIdent(a),   TokIdent(b))   ; return a == b
+        (TokString(a),  TokString(b))  ; return a == b
+        (TokChar(a),    TokChar(b))    ; return a == b
         (TokKeyword(a), TokKeyword(b)) ; return a == b
         _                              ; return false
 
@@ -188,10 +188,11 @@ fn lexToken(str string) (Token, string)
 
     return (null, str)
 
+
 fn lexTokens(str string) ([Token], string)
     let toks = :[Token]()
-    let loop = true
-    while loop
+
+    while true
         switch lexToken(str)
             (null, _); return (toks, str)
             (tok, ss)
