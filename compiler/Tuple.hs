@@ -15,6 +15,20 @@ import Value
 import Typeof
 import Trace
 
+tupleTypeDef :: InsCmp CompileState m => S.Symbol -> Type -> m ()
+tupleTypeDef sym typ = trace "tupleTypeDef" $ do
+    Tuple xs <- assertBaseType isTuple typ 
+    let typdef = Typedef sym
+
+    addObjWithCheck sym (KeyFunc []) (ObjConstructor typdef)
+    addObjWithCheck sym (KeyFunc [typ]) (ObjConstructor typdef)
+    addObjWithCheck sym (KeyFunc [typdef]) (ObjConstructor typdef)
+    addObjWithCheck sym KeyType $ ObType typ Nothing
+
+    let ts = map snd xs
+    when (length ts > 0) $
+        addObjWithCheck sym (KeyFunc ts) (ObjConstructor typdef)
+
 
 tupleLength :: InsCmp CompileState m => Value -> m Int
 tupleLength (Exp (S.Tuple _ es)) = trace "tupleLength" $ return (length es)

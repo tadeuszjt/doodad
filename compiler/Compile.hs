@@ -59,39 +59,26 @@ compileFlatState ctx dl imports flatState modName = do
     where
         cmp :: (MonadFail m, Monad m, MonadIO m) => ModuleCmpT CompileState m ()
         cmp = void $ func "main" [] LL.VoidType $ \_ -> do
-                forM_ (Map.toList $ F.typeDefs flatState) $ \(flat, (pos, typ)) ->
-                    cmpTypeDef (S.Typedef pos flat typ)
-                mapM_ cmpFuncHdr (F.funcDefs flatState)
-                mapM_ cmpExternDef (F.externDefs flatState)
-                mapM_ cmpVarDef (F.varDefs flatState)
-                mapM_ cmpFuncDef (F.funcDefs flatState)
+            forM_ (Map.toList $ F.typeDefs flatState) $ \(flat, (pos, typ)) ->
+                withPos pos $ cmpTypeDef flat typ
+            mapM_ cmpFuncHdr (F.funcDefs flatState)
+            mapM_ cmpExternDef (F.externDefs flatState)
+            mapM_ cmpVarDef (F.varDefs flatState)
+            mapM_ cmpFuncDef (F.funcDefs flatState)
 
 
-cmpTypeDef :: InsCmp CompileState m => S.Stmt -> m ()
-cmpTypeDef (S.Typedef pos sym typ)
-    | isADT typ = trace "cmpTypeDef" $ withPos pos $ adtTypeDef sym typ
-cmpTypeDef (S.Typedef pos sym typ) = trace "cmpTypeDef" $ withPos pos $ do
-    let typdef = Typedef sym
-
-    -- Add zero, base and def constructors
-    addObjWithCheck sym (KeyFunc []) (ObjConstructor typdef)
-    addObjWithCheck sym (KeyFunc [typ]) (ObjConstructor typdef)
-    addObjWithCheck sym (KeyFunc [typdef]) (ObjConstructor typdef)
-
-    -- use named type
---    if isTuple typ || isTable typ
---    then do
---        name <- myFresh sym
---        addSymKeyDec sym KeyType name . DecType =<< opTypeOf typ
---        addObjWithCheck sym KeyType $ ObType typ (Just name)
-    addObjWithCheck sym KeyType $ ObType typ Nothing
-
-    when (isTuple typ) $ do
-        let Tuple xs = typ
-        let ts = map snd xs
-        when (length ts > 0) $ addObjWithCheck sym (KeyFunc ts) (ObjConstructor typdef)
-
-
+cmpTypeDef :: InsCmp CompileState m => S.Symbol -> Type -> m ()
+cmpTypeDef sym typ = trace "cmpTypeDef" $ do
+    case typ of
+        t | isADT t   -> adtTypeDef sym t
+        t | isTuple t -> tupleTypeDef sym t
+        t             -> do
+            let typdef = Typedef sym
+            addObjWithCheck sym (KeyFunc []) (ObjConstructor typdef)
+            addObjWithCheck sym (KeyFunc [t]) (ObjConstructor typdef)
+            addObjWithCheck sym (KeyFunc [typdef]) (ObjConstructor typdef)
+            addObjWithCheck sym KeyType (ObType t Nothing)
+                    
 
 cmpVarDef :: InsCmp CompileState m => S.Stmt -> m ()
 cmpVarDef (S.Assign pos (S.PatIdent p sym) expr) = trace "cmpVarDef" $ withPos pos $ do
@@ -368,7 +355,7 @@ cmpStmt stmt = trace "cmpStmt" $ case stmt of
         br exitName
         emitBlockStart exitName
 
-    _ -> error "stmt"
+    _ -> err "stmt"
 
 
 -- must return Val unless local variable
