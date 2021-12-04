@@ -95,6 +95,7 @@ valLoad (Ptr typ loc) = trace ("valLoad " ++ show typ) $ Val typ <$> load loc 0
 
 valStore :: InsCmp CompileState m => Value -> Value -> m ()
 valStore (Ptr typ loc) val = trace "valStore" $ do
+    checkTypesCompatible typ (valType val)
     case val of
         Ptr t l -> store loc 0 =<< load l 0
         Val t o -> store loc 0 o

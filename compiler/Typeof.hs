@@ -32,8 +32,9 @@ checkTypesCompatible typA typB = do
     baseA <- baseTypeOf typA
     baseB <- baseTypeOf typB
     case baseA of
-        t | isSimple t -> assert (baseA == baseB) "Types aren't compatible"
-        t | isADT t    -> assert (baseA == baseB) "Types aren't compatible"
+        t | isSimple t -> assert (baseA == baseB) $ "Types " ++ show typA ++ " and " ++ show typB ++ " aren't compatible"
+
+        t | isADT t    -> assert (baseA == baseB) $ "Types " ++ show typA ++ " and " ++ show typB ++ " aren't compatible" 
 
         t | isTuple t  -> do
             assertBaseType isTuple baseB
@@ -85,8 +86,8 @@ opTypeOf typ = trace ("opTypOf " ++ show typ) $ case typ of
 
 
 baseTypeOf :: ModCmp CompileState m => Type -> m Type
-baseTypeOf typ = trace ("baseTypeOf " ++ show typ) $ case typ of
-    Typedef s -> do ObType t _ <- look s KeyType; baseTypeOf t
+baseTypeOf typ = case typ of
+    Typedef s -> trace ("baseTypeOf " ++ s) $ do ObType t _ <- look s KeyType; baseTypeOf t
     _         -> return typ
 
 

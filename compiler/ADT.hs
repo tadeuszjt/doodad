@@ -78,7 +78,7 @@ adtSetEnum adt@(Ptr _ loc) i = trace "adtSetEnum" $ do
     case adtTyp of
         _ | isEmptyADT adtTyp  -> err "ADT has no enum"
         _ | isPtrADT adtTyp    -> err "ADT has no enum"
-        _ | isEnumADT adtTyp   -> valStore adt (valI64 i)
+        _ | isEnumADT adtTyp   -> valStore adt $ (valI64 i) { valType = adtTyp }
         _ | isNormalADT adtTyp -> do
             en <- Ptr I64 <$> gep loc [int32 0, int32 0]
             valStore en (valI64 i)
@@ -128,7 +128,7 @@ adtSetPi8 adt@(Ptr _ loc) pi8 = trace "adtSetPi8" $ do
 
 -- Construct a specific ADT field, eg: TokSym("ident")
 adtConstructField :: InsCmp CompileState m => String -> Type -> [Value] -> m Value
-adtConstructField sym typ vals = trace "adtConstructField" $ do
+adtConstructField sym typ vals = trace ("adtConstructField " ++ sym) $ do
     adtTyp@(ADT xs) <- assertBaseType isADT typ
 
     case adtTyp of

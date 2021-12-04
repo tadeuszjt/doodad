@@ -97,7 +97,7 @@ fn lexSymbol(str string) (Token, string)
 fn lexKeyword(str string) (Token, string)
     let (i, k) = (0, 0)
 
-    while str[i..] # c -> _ | isAlpha(c)
+    while str[i..] # c -> ss | isAlpha(c)
         i = i + 1
 
     let word = str[..i]
@@ -110,7 +110,7 @@ fn lexKeyword(str string) (Token, string)
 
 fn lexDigits(str string) (Token, string)
     let i = 0
-    while str[i..] # c -> _ | isDigit(c)
+    while str[i..] # c -> ss | isDigit(c)
         i = i + 1
  
     switch strReadInt(str[..i])
@@ -121,7 +121,7 @@ fn lexDigits(str string) (Token, string)
 fn lexIdent(str string) (Token, string)
     if str # c -> _ | isAlpha(c)
         let i = 0
-        while str[i..] # c -> _ | isAlpha(c) || isDigit(c)
+        while str[i..] # c -> ss | isAlpha(c) || isDigit(c)
             i = i + 1
         return (TokIdent(str[..i]), str[i..])
 

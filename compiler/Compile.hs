@@ -197,6 +197,40 @@ cmpIndex index = case index of
         return val
 
 
+cmpInfix :: InsCmp CompileState m => S.Op -> Value -> Value -> m Value
+cmpInfix op valA valB = do
+    resm <- lookm (show op) $ KeyFunc [valType valA, valType valB]
+    case resm of
+        Just (ObjFunc Void op)   -> err "Operator function does not return a value."
+
+        Just (ObjFunc retty op)  -> do
+            opA <- valOp <$> valLoad valA
+            opB <- valOp <$> valLoad valB
+            Val retty <$> call op [(opA, []), (opB, [])]
+
+        Nothing -> valsInfix op valA valB
+
+
+cmpCondition :: InsCmp CompileState m => S.Condition -> m Value
+cmpCondition cnd = trace "cmpCondition" $ do
+    val <- case cnd of
+        S.CondExpr expr      -> cmpExpr expr
+        S.CondMatch pat expr -> cmpPattern pat =<< cmpExpr expr
+
+    assertBaseType (== Bool) (valType val)
+    return val
+
+
+cmpPrint :: InsCmp CompileState m => S.Stmt -> m ()
+cmpPrint (S.Print pos exprs) = trace "cmpPrint" $ withPos pos $ do
+    prints =<< mapM valResolveExp =<< mapM cmpExpr exprs
+    where
+        prints :: InsCmp CompileState m => [Value] -> m ()
+        prints []     = void $ printf "\n" []
+        prints [val]  = valPrint "\n" val
+        prints (v:vs) = valPrint ", " v >> prints vs
+
+
 cmpStmt :: InsCmp CompileState m => S.Stmt -> m ()
 cmpStmt stmt = trace "cmpStmt" $ case stmt of
     S.Print pos exprs -> cmpPrint stmt
@@ -309,20 +343,6 @@ cmpStmt stmt = trace "cmpStmt" $ case stmt of
     _ -> error "stmt"
 
 
-cmpInfix :: InsCmp CompileState m => S.Op -> Value -> Value -> m Value
-cmpInfix op valA valB = do
-    resm <- lookm (show op) $ KeyFunc [valType valA, valType valB]
-    case resm of
-        Just (ObjFunc Void op)   -> err "Operator function does not return a value."
-
-        Just (ObjFunc retty op)  -> do
-            opA <- valOp <$> valLoad valA
-            opB <- valOp <$> valLoad valB
-            Val retty <$> call op [(opA, []), (opB, [])]
-
-        Nothing -> valsInfix op valA valB
-
-
 -- must return Val unless local variable
 cmpExpr :: InsCmp CompileState m =>  S.Expr -> m Value
 cmpExpr expr = trace "cmpExpr" $ case expr of
@@ -392,8 +412,6 @@ cmpExpr expr = trace "cmpExpr" $ case expr of
             Table _ -> tableLen val
             _       -> err ("cannot take length of type " ++ show typ)
 
-
-
     S.Tuple pos [expr] -> withPos pos (cmpExpr expr)
     S.Tuple pos exprs -> withPos pos $ do
         vals <- mapM cmpExpr exprs
@@ -404,17 +422,10 @@ cmpExpr expr = trace "cmpExpr" $ case expr of
 
     S.Subscript pos aggExpr idxExpr -> withPos pos $ valLoad =<< do
         agg <- cmpExpr aggExpr
-        idx <- case idxExpr of
-            S.Int p n -> return (valI64 n)
-            _         -> cmpExpr idxExpr
+        idx <- valResolveExp =<< cmpExpr idxExpr
 
-        assert (not $ valIsContextual agg) "contextual 382"
-        assert (not $ valIsContextual idx) "contextual 383"
-
-        idxType <- baseTypeOf (valType idx)
+        idxType <- assertBaseType isInt (valType idx)
         aggType <- baseTypeOf (valType agg)
-
-        assert (isInt idxType) "index type isn't an integer"
 
         case aggType of
             Table [t] -> tableGetElem agg idx
@@ -456,16 +467,6 @@ cmpExpr expr = trace "cmpExpr" $ case expr of
     S.Member pos exp sym -> withPos pos $ tupleMember sym =<< cmpExpr exp 
 
     _ -> err ("invalid expression: " ++ show expr)
-
-
-cmpCondition :: InsCmp CompileState m => S.Condition -> m Value
-cmpCondition cnd = trace "cmpCondition" $ do
-    val <- case cnd of
-        S.CondExpr expr      -> cmpExpr expr
-        S.CondMatch pat expr -> cmpPattern pat =<< cmpExpr expr
-
-    assertBaseType (== Bool) (valType val)
-    return val
 
 
 cmpPattern :: InsCmp CompileState m => S.Pattern -> Value -> m Value
@@ -561,15 +562,17 @@ cmpPattern pat val = trace "cmpPattern" $ case pat of
         -- switch(tok)                 <- val
         --    string(s); do_stuff(s)   <- use raw type
         --    TokSym(s); do_stuff(s)   <- use field name
+        let fieldMatched = \(s, t) -> (s == "" && t == typ) || Typedef s == typ
+
         ADT xs <- assertBaseType isADT (valType val)
+        idx <- case [ i | (x, i) <- zip xs [0..], fieldMatched x ] of
+            [i] -> return i
+            []  -> err "Invalid ADT field identifier"
+            _   -> err "Ambiguous ADT field identifier"
 
-        let is = [ i | ((s, t), i) <- zip xs [0..], (s == "" && t == typ) || (Typedef s == typ) ]
-        assert (length is == 1) "invalid ATD field identifier"
-        let i = head is
+        enumMatched <- valsInfix S.EqEq (valI64 idx) =<< adtEnum val
 
-        enumMatched <- valsInfix S.EqEq (valI64 i) =<< adtEnum val
-
-        loc <- valLocal $ ADT [xs !! i]
+        loc <- valLocal $ ADT [xs !! idx]
         adtSetPi8 loc =<< adtPi8 val
         matched <- valLocal Bool
 
@@ -580,16 +583,6 @@ cmpPattern pat val = trace "cmpPattern" $ case pat of
         valLoad matched
     
     _ -> err (show pat)
-
-
-cmpPrint :: InsCmp CompileState m => S.Stmt -> m ()
-cmpPrint (S.Print pos exprs) = trace "cmpPrint" $ withPos pos $ do
-    prints =<< mapM valResolveExp =<< mapM cmpExpr exprs
-    where
-        prints :: InsCmp CompileState m => [Value] -> m ()
-        prints []     = void $ printf "\n" []
-        prints [val]  = valPrint "\n" val
-        prints (v:vs) = valPrint ", " v >> prints vs
 
 
 valAsType :: InsCmp CompileState m => Type -> Value -> m Value
