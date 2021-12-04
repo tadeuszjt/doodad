@@ -302,17 +302,45 @@ cmpStmt stmt = trace "cmpStmt" $ case stmt of
         body <- freshName "while_body"
         exit <- freshName "while_exit"
 
+        pushSymTab
         br cond
         emitBlockStart cond
         val <- valLoad =<< cmpCondition cnd
         condBr (valOp val) body exit
         
         emitBlockStart body
-        pushSymTab
         mapM_ cmpStmt blk
-        popSymTab
         br cond
         emitBlockStart exit
+        popSymTab
+
+    S.For pos idxSym expr blk -> withPos pos $ do
+        val <- valResolveExp =<< cmpExpr expr
+        assertBaseType isTable (valType val)
+        len <- tableLen val
+
+        idx <- valLocal I64
+        valStore idx (valI64 0)
+
+        pushSymTab
+        addObjWithCheck idxSym KeyVar (ObjVal idx)
+
+        cond <- freshName "for_cond"
+        body <- freshName "for_body"
+        exit <- freshName "for_exit"
+
+        br cond
+        emitBlockStart cond
+        cnd <- valsInfix S.LT idx len
+        condBr (valOp cnd) body exit
+
+        emitBlockStart body
+        mapM_ cmpStmt blk
+        valStore idx =<< valsInfix S.Plus idx (valI64 1)
+        br cond
+        emitBlockStart exit
+
+        popSymTab
 
     S.Switch pos expr cases -> withPos pos $ do
         val <- cmpExpr expr

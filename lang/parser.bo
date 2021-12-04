@@ -56,7 +56,6 @@ type Node {
     : Operator
     : Expr
     : [Node]
-    Expr_ : (Operator, Expr, Node)
     NodeEmpty
 }
 
@@ -88,24 +87,10 @@ fn parseOperator(tokens [Token]) ParseResult
         _               ; return []
 
 
-fn parseExpr(tokens [Token]) ParseResult
-    let num = 0
-    switch parseInt(tokens)
-        (Expr(ExprInt(n)), ts) -> ps
-            tokens = ts
-            num = n
-        _; return []
-
-    switch parseExpr_(tokens)
-        []; return [ (Node(ExprInt(num)), tokens) ]
-
-    return []
-
-
 fn parseExpr_(tokens [Token]) ParseResult
     return []
     switch parseOperator(tokens)
-        (n, ts) -> ps;
+        (n, ts) -> _;
 
         
 

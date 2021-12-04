@@ -85,12 +85,11 @@ fn lexString(str string) (Token, string)
 
 fn lexSymbol(str string) (Token, string)
     switch str
-        [c] ->> s
-            let i = 0
-            while i < len(symbols)
+        c -> s
+            for [i] symbols
                 if c == symbols[i]
                     return (TokSym(c), s)
-                i = i + 1
+
         _; return (null, str)
 
 
@@ -101,10 +100,9 @@ fn lexKeyword(str string) (Token, string)
         i = i + 1
 
     let word = str[..i]
-    while k < len(keywords)
+    for [k] keywords
         if word == keywords[k]
             return (TokKeyword(word), str[i..])
-        k = k + 1
 
     return (null, str)
 
@@ -131,12 +129,11 @@ fn lexIdent(str string) (Token, string)
 fn lexOperator(str string) (Token, string)
     let (i, j, max) = (0, 0, 0)
 
-    while i < len(operators)
+    for [i] operators
         if strIsPrefix(operators[i], str) && len(operators[i]) > max
             max = len(operators[i])
             j = i
-        i = i + 1
-    
+        
     switch max
         0; return (null, str)
         n; return (TokOp(operators[j]),  str[n..])

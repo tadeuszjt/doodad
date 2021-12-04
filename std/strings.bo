@@ -15,11 +15,9 @@ fn == (a string, b string) bool
     if len(a) != len(b)
         return false
 
-    let i = 0
-    while i < len(a)
+    for [i] a
         if a[i] != b[i]
             return false
-        i = i + 1
 
     return true
 

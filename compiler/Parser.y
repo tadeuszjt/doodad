@@ -77,6 +77,7 @@ import qualified Data.Set as Set
     module     { Token _ Reserved "module" }
     import     { Token _ Reserved "import" }
     copy       { Token _ Reserved "copy" }
+    for        { Token _ Reserved "for" }
 
     print      { Token _ Reserved "print" }
     len        { Token _ Reserved "len" }
@@ -151,6 +152,7 @@ stmtB : block                                 { $1 }
       | fn fnName '(' params ')' type_ block_ { S.FuncDef (tokPos $1) $2 $4 $6 $7 }
       | switch expr 'I' cases 'D'             { S.Switch (tokPos $1) $2 $4 }
       | while condition block_                { S.While (tokPos $1) $2 $3 }
+      | for '[' ident ']' expr block_         { S.For (tokPos $1) (tokStr $3) $5 $6 }
 
 pattern  : '_'                                { S.PatIgnore (tokPos $1) }
          | literal                            { S.PatLiteral $1 }
