@@ -69,17 +69,17 @@ parse id file = do
 runMod :: BoM Modules m => Args -> Set.Set S.Path -> S.Path -> m CompileState
 runMod args visited modPath = do
     debug "running"
-
     path <- resolvePath modPath
-    let (dir, name) = (init path, last path)
-
     when (Set.member path visited) $
         fail ("importing \"" ++ showPath path ++ "\" forms a cycle")
 
-    res <- Map.lookup path <$> gets modMap
-    case res of
-        Just state -> return state
-        Nothing    -> do
+    resm <- Map.lookup path <$> gets modMap
+    maybe (compile path) (return) resm
+    where
+        compile :: BoM Modules m => S.Path -> m CompileState
+        compile path = do
+            let (dir, name) = (init path, last path)
+
             files <- getSpecificModuleFiles name =<< getBoFilesInDirectory (if null dir then "." else showPath dir)
             when (null files) $ fail ("no files for: " ++ showPath path)
 
@@ -117,11 +117,12 @@ runMod args visited modPath = do
             liftIO $ jitAndRun defs session True (printLLIR args) 
             modify $ \s -> s { modMap = Map.insert path state (modMap s) }
             return state
-    where
+
         debug str =
             if verbose args
             then liftIO $ putStrLn (showPath modPath ++ " -> " ++ str)
             else return ()
+
 
 
 resolvePath :: BoM s m => S.Path -> m S.Path

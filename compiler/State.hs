@@ -115,10 +115,7 @@ myFresh :: InsCmp CompileState m => String -> m Name
 myFresh sym = do
     nameMap <- gets nameMap
     mod <- gets curModName
-    n <- case Map.lookup sym nameMap of
-        Nothing -> return 0
-        Just n  -> return (n+1)
-
+    let n = maybe 0 (+1) (Map.lookup sym nameMap)
     modify $ \s -> s { nameMap = Map.insert sym n nameMap }
     return $ Name $ mkBSS (mod ++ "." ++ sym ++ "_" ++ show n )
 
@@ -228,10 +225,10 @@ ensureSymKeyDec symbol key = trace ("ensureSymKeyDec " ++ show symbol) $ do
                 Just name -> ensureDec name
                 Nothing   -> do
                     states <- Map.elems <$> gets imports
-                    rs <- fmap catMaybes $ forM states $ \state -> do
+                    rs <- fmap concat $ forM states $ \state -> do
                         case Map.lookup (sym, key) (decMap state) of
-                            Nothing   -> return Nothing
-                            Just name -> return $ Just (name, (Map.! name) $ declarations state)
+                            Nothing   -> return []
+                            Just name -> return [(name, (Map.! name) $ declarations state)]
 
                     case rs of
                         [] -> return ()
@@ -280,10 +277,9 @@ lookm symbol key = do
 
 look :: ModCmp CompileState m => T.Symbol -> SymKey -> m Object
 look sym key = do
-    res <- lookm sym key
-    case res of
-        Nothing -> err ("no definition for: " ++ show sym ++ " " ++ show key)
-        Just x  -> return x
+    resm <- lookm sym key
+    assert (isJust resm) ("no definition for: " ++ show sym ++ " " ++ show key)
+    return (fromJust resm)
 
 
 pushSymTab :: BoM CompileState m => m ()
