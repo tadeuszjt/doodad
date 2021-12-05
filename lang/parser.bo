@@ -111,7 +111,6 @@ fn parseOperator(tokens [Token]) ParseResult
 fn parseExpr_(tokens [Token]) ParseResult
     let (ns, ts) = parseSequence(tokens, [parseOperator, parseExpr, parseExpr_])
     if ns # NodeOp(s) -> nodeExpr -> nodeExpr_ -> []
-        print("worked")
         let n = NodeExpr_((s, nodeExpr, nodeExpr_))
         return (n, ts)
     

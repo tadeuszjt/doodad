@@ -1,5 +1,6 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TupleSections #-}
 module Compile where
 
 import Data.List
@@ -393,46 +394,25 @@ cmpExpr expr = trace "cmpExpr" $ case expr of
         let stc = struct Nothing False [i64, i64, pi8]
         return $ Val (Table [Char]) stc
 
-    S.Call pos (S.Member _ (S.Ident _ mod) sym) exprs -> withPos pos $ trace ("call " ++ sym) $ do
-        vals <- mapM valResolveExp =<< mapM cmpExpr exprs
-        res <- look (SymQualified mod sym) $ KeyFunc (map valType vals)
-        case res of
-            ObjFunc Void _         -> err "cannot use void function as expression"
-            ObjExtern _ Void _     -> err "cannot use void function as expression"
-            ObjConstructor typ     -> valConstruct typ vals
-            ObjADTFieldCons adtTyp -> adtConstructField sym adtTyp vals
-
-            ObjFunc retty op       -> do
-                vals' <- mapM valLoad vals
-                Val retty <$> call op [(o, []) | o <- map valOp vals']
-
-            ObjExtern _ retty op   -> do
-                vals' <- mapM valLoad vals
-                Val retty <$> call op [(o, []) | o <- map valOp vals']
-
-    S.Call pos (S.Ident _ sym) exprs -> withPos pos $ trace ("call " ++ sym) $ do
-        vals <- mapM valResolveExp =<< mapM cmpExpr exprs
-        res <- look (Sym sym) $ KeyFunc (map valType vals)
-        case res of
-            ObjFunc Void _         -> err "cannot use void function as expression"
-            ObjExtern _ Void _     -> err "cannot use void function as expression"
-            ObjConstructor typ     -> valConstruct typ vals
-            ObjADTFieldCons adtTyp -> adtConstructField sym adtTyp vals
-
-            ObjFunc retty op       -> do
-                vals' <- mapM valLoad vals
-                Val retty <$> call op [(o, []) | o <- map valOp vals']
-
-            ObjExtern _ retty op   -> do
-                vals' <- mapM valLoad vals
-                Val retty <$> call op [(o, []) | o <- map valOp vals']
-
-    S.Call pos expr exprs -> withPos pos $ do
-        Val typ op <- valLoad =<< cmpExpr expr
+    S.Call pos expr exprs -> withPos pos $ trace "call" $ do
         vals <- mapM valLoad =<< mapM valResolveExp =<< mapM cmpExpr exprs
-        Func ts rt <- assertBaseType isFunction typ
-        assert (map valType vals == ts) "Invalid argument types"
-        Val rt <$> call op [(o, []) | o <- map valOp vals]
+
+        (s, obj) <- case expr of
+            S.Ident _ s                  -> fmap (s,) $ look (Sym s) $ KeyFunc (map valType vals)
+            S.Member _ (S.Ident _ mod) s -> fmap (s,) $ look (SymQualified mod s) $ KeyFunc (map valType vals)
+            _                            -> fmap ("",) $ fmap ObjVal $ valLoad =<< cmpExpr expr
+        
+        case obj of
+            ObjFunc Void _         -> err "cannot use void function as expression"
+            ObjExtern _ Void _     -> err "cannot use void function as expression"
+            ObjConstructor typ     -> valConstruct typ vals
+            ObjADTFieldCons adtTyp -> adtConstructField s adtTyp vals
+            ObjFunc retty op       -> Val retty <$> call op [(o, []) | o <- map valOp vals]
+            ObjExtern _ retty op   -> Val retty <$> call op [(o, []) | o <- map valOp vals]
+            ObjVal (Val typ op)    -> do
+                Func ts rt <- assertBaseType isFunction typ
+                assert (map valType vals == ts) "Invalid argument types"
+                Val rt <$> call op [(o, []) | o <- map valOp vals]
 
     S.Len pos expr -> withPos pos $ valLoad =<< do
         val <- valResolveExp =<< cmpExpr expr

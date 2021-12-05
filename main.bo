@@ -12,4 +12,3 @@ fn main()
 
     let (n, ts) = parser.parseExpr(tokens)
     print(n, ts)
-
