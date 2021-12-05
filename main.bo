@@ -5,13 +5,11 @@ import lang/parser
 import std/vec2
 
 fn main()
-    let t = lexer.TokOp("+")
-    print(t)
+    let str = "12 + 7-4 * 33"
 
-    let (tokens, ss) = lexer.lexTokens("22378x-benis")
-    print(ss)
+    let (tokens, rest) = lexer.lexTokens(str)
+    print(tokens, rest)
 
-    let p = parseTerm(tokens)
+    let (n, ts) = parser.parseExpr(tokens)
+    print(n, ts)
 
-    for [i] p
-        print(p[i])

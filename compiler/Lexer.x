@@ -22,7 +22,7 @@ $tab     = \t
 $digit   = 0-9
 $alpha   = [a-zA-Z]
 $ascsym  = [\!\#\$\%\&\*\+\.\/\<\=\>\?\@\\\^\|\-\~]
-$special = [\(\)\,\;\[\]\`\{\}]
+$special = [\(\)\,\;\[\]\`\{\}\_]
 $graphic = [$alpha $digit $ascsym $special \:\"\']
 $symbol  = [\{\}\(\)\[\]\,\|\.\;\:\_]
 @escape  = "\t" | "\n" | "\0" | "\\" 

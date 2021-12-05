@@ -558,7 +558,7 @@ cmpPattern pat val = trace "cmpPattern" $ case pat of
                     cmpPattern p =<< tableGetElem val (valI64 i)
 
                 foldM (valsInfix S.AndAnd) (valBool True) (lenEq:bs)
-            _ -> error (show base)
+            _ -> err "Invalid array pattern"
 
     S.PatSplit pos pat@(S.PatArray p pats) rest -> withPos pos $ do
         initMatched <- cmpPattern pat =<< tableRange val (valI64 0) (valI64 $ length pats)

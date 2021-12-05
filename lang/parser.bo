@@ -53,64 +53,76 @@ fn string(e Expr) string
 
 
 type Node {
-    : Operator
-    : Expr
-    : [Node]
+    NodeFail
     NodeEmpty
+    NodeInt : i64
+    NodeExpr_ : (string, Node, Node)
+    NodeExpr : (i64, Node)
+    NodeOp : string
 }
 
 fn string(n Node) string
     switch(n)
-        Operator(o); return string(o)
-        Expr(e)    ; return string(e)
+        NodeFail;               return "NodeFail"
+        NodeEmpty;              return "NodeEmpty"
+        NodeInt(n);             return "(NodeInt " + string(n) + ")"
+        NodeExpr((i, n));       return "(NodeExpr " + string(i) + " " + string(n) + ")"
+        NodeExpr_((s, n1, n2)); return "(NodeExpr_ " + s + " " + string(n1) + " " + string(n2) + ")"
+        _; return "Node"
 
 
-type ParseResult [ ( Node, [Token] ) ]
+type ParseResult (Node, [Token])
 
 fn string(p ParseResult) string
-    return string(len(p)) + " parse results"
-
-fn ||(a ParseResult, b ParseResult) ParseResult
-    let r = copy(a) 
-    r <<- copy(b)
-    return r
+    switch p
+        (NodeFail, _); return "Parse fail"
+        (node, ts);    return "Parse: " + string(node)
 
 
-fn parseEpsilon(tokens [Token]) parser.ParseResult
-    return [ (NodeEmpty, tokens) ]
+fn parseEpsilon(tokens [Token]) ParseResult
+    return (NodeEmpty, tokens)
 
 
-fn parseOperator(tokens [Token]) ParseResult
-    switch tokens
-        TokOp("+") -> ts; return [(Node(OpPlus), ts)]
-        TokOp("-") -> ts; return [(Node(OpMinus), ts)]
-        _               ; return []
+fn parseSequence(tokens [Token], fns [ fn([Token])ParseResult ]) ([Node], [Token])
+    let ns = :[Node]()
 
+    for [i] fns
+        switch fns[i](tokens)
+            (NodeFail, _); return ([], [])
+            (n, ts)
+                tokens = ts
+                ns <- n
 
-fn parseExpr_(tokens [Token]) ParseResult
-    return []
-    switch parseOperator(tokens)
-        (n, ts) -> _;
-
-        
-
-
-fn parseIdent(tokens [Token]) ParseResult
-    if tokens # TokIdent(s) -> ts
-        return [ (Node(ExprIdent(s)), ts) ]
-    return []
+    return (ns, tokens)
 
 
 fn parseInt(tokens [Token]) ParseResult
     switch tokens
-        TokInt(n) -> ts; return [ (Node(ExprInt(n)), ts) ]
-        _              ; return []
-    
+        TokInt(n) -> ts; return (NodeInt(n), ts)
+        _              ; return (NodeFail, [])
 
-fn parseTerm(tokens [Token]) ParseResult 
+
+fn parseOperator(tokens [Token]) ParseResult
     switch tokens
-        TokInt(n) -> ts  ; return [ (Node(ExprInt(n)), ts) ]
-        TokIdent(s) -> ts; return [ (Node(ExprIdent(s)), ts) ]
-        _                ; return []
+        TokOp(op) -> ts; return (NodeOp(op), ts)
+        _              ; return (NodeFail, [])
+
+
+fn parseExpr_(tokens [Token]) ParseResult
+    let (ns, ts) = parseSequence(tokens, [parseOperator, parseExpr, parseExpr_])
+    if ns # NodeOp(s) -> nodeExpr -> nodeExpr_ -> []
+        print("worked")
+        let n = NodeExpr_((s, nodeExpr, nodeExpr_))
+        return (n, ts)
+    
+    return parseEpsilon(tokens)
+
+
+fn parseExpr(tokens [Token]) ParseResult
+    let (ns, ts) = parseSequence(tokens, [parseInt, parseExpr_])
+    if ns # NodeInt(n) -> nodeExpr_ -> []
+        return (NodeExpr((n, nodeExpr_)), ts)
+
+    return (NodeFail, [])
 
 
