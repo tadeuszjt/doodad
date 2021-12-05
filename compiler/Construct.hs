@@ -27,18 +27,21 @@ valCopy val = trace "valCopy" $ do
 
         Table ts -> do
             loc <- valLocal (valType val) 
-            len <- valLoad =<< tableLen val
+            len <- tableLen val
             tableSetCap loc len
             tableSetLen loc len
 
             forM_ (zip ts [0..]) $ \(t, i) -> do
                 mal <- valMalloc t len
                 tableSetRow loc i mal
-                rowVal <- tableRow i val
-                rowLoc <- tableRow i loc
-                for (valOp len) $ \oi -> do
-                    ptr <- valPtrIdx rowLoc (Val I64 oi)
-                    valStore ptr =<< valCopy =<< valPtrIdx rowVal (Val I64 oi)
+                row <- tableRow i val
+                base <- baseTypeOf t
+
+                if isSimple base
+                then valMemCpy mal row len
+                else for (valOp len) $ \op -> do
+                    ptr <- valPtrIdx mal (Val I64 op)
+                    valStore ptr =<< valCopy =<< valPtrIdx row (Val I64 op)
                     
             valLoad loc
 

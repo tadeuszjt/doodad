@@ -7,7 +7,7 @@ import maths
 
 fn + (a string, b string) string
     let r = copy(a)
-    r <<- b
+    r <<- copy(b)
     return r
 
 
@@ -35,7 +35,7 @@ fn string(n i64) string
     let digits = "0123456789"
     let str = ""
 
-    let x = abs(n)
+    let x = maths.abs(n)
     while x > 0
         str <- digits[x % 10]
         x   = x / 10

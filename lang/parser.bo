@@ -76,7 +76,7 @@ fn ||(a ParseResult, b ParseResult) ParseResult
     return r
 
 
-fn parseEpsilon(tokens [Token]) ParseResult
+fn parseEpsilon(tokens [Token]) parser.ParseResult
     return [ (NodeEmpty, tokens) ]
 
 
