@@ -89,11 +89,16 @@ runMod args visited modPath = do
 
             -- flatten asts
             combinedAST <- combineASTs asts
+            let importNames = map last (S.astImports combinedAST)
+            when (length importNames /= length (Set.fromList importNames)) $
+                fail "import name collision"
+
             imports <- fmap Map.fromList $ forM (S.astImports combinedAST) $ \importPath -> do
                 resPath <- resolvePath (dir ++ importPath)
-                debug ("importing : " ++ showPath importPath)
+                let importName = last importPath
+                debug ("importing : " ++ showPath importPath ++ " as " ++ importName)
                 state <- runMod args (Set.insert path visited) resPath
-                return (importPath, state)
+                return (importName, state)
 
             flatRes <- runBoMT initFlattenState (flattenAST combinedAST)
             flat <- case flatRes of

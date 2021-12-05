@@ -158,7 +158,7 @@ pattern  : '_'                                { S.PatIgnore (tokPos $1) }
          | literal                            { S.PatLiteral $1 }
          | ident                              { S.PatIdent (tokPos $1) (tokStr $1) }
          | typeOrdinal '(' pattern ')'        { S.PatTyped (tokPos $2) $1 $3 }
-         | ident '(' pattern ')'              { S.PatTyped (tokPos $2) (T.Typedef $ tokStr $1) $3 }
+         | ident '(' pattern ')'              { S.PatTyped (tokPos $2) (T.Typedef $ T.Sym $ tokStr $1) $3 }
          | '(' patterns ')'                   { S.PatTuple (tokPos $1) $2 }
          | '[' patterns ']'                   { S.PatArray (tokPos $1) $2 }
          | pattern '->' pattern               { S.PatSplitElem (tokPos $2) $1 $3 }
@@ -289,7 +289,7 @@ prefix : '-' expr                             { S.Prefix (tokPos $1) S.Minus $2 
 ---------------------------------------------------------------------------------------------------
 -- Types ------------------------------------------------------------------------------------------
 
-type_         : ident                         { T.Typedef (tokStr $1) }
+type_         : ident                         { T.Typedef (T.Sym $ tokStr $1) }
               | typeOrdinal                   { $1 }
               | typeAggregate                 { $1 }
 

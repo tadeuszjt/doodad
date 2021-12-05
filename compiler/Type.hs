@@ -2,6 +2,12 @@ module Type where
 
 import Data.List
 
+data Symbol
+    = Sym String
+    | SymQualified String String
+    deriving (Show, Eq, Ord)
+
+
 data Type
     = Void
     | I8                     ----
@@ -17,7 +23,7 @@ data Type
     | Table [Type]           --
     | ADT [(String, Type)]   --
     | Func [Type] Type 
-    | Typedef String
+    | Typedef Symbol
     deriving (Eq, Ord)
 
 
@@ -36,7 +42,7 @@ instance Show Type where
         Array n t     -> "[" ++ show n ++ "| " ++ show t ++ "]"
         Table ts      -> "[" ++ intercalate "; " (map show ts) ++ "]"
         ADT ts        -> "{" ++ intercalate ", " (map show ts) ++ "}"
-        Typedef s     -> s
+        Typedef s     -> show s
         Func ts rt    -> "fn(" ++ intercalate ", " (map show ts) ++ ")" ++ show rt
 
 

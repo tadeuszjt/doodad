@@ -7,7 +7,6 @@ import           Type
 import           Error
 
 type ModuleName = String
-type Symbol     = String
 type Path       = [String]
 
 
@@ -40,7 +39,7 @@ data Op
 data Param
     = Param
         { paramPos  :: TextPos
-        , paramName :: Symbol
+        , paramName :: String
         , paramType :: Type
         }
     deriving (Eq)
@@ -57,7 +56,7 @@ data Append
 data Pattern
     = PatLiteral Expr
     | PatIgnore  TextPos
-    | PatIdent   TextPos Symbol
+    | PatIdent   TextPos String
     | PatTuple   TextPos [Pattern]
     | PatArray   TextPos [Pattern]
     | PatGuarded TextPos Pattern Expr
@@ -68,7 +67,7 @@ data Pattern
 
 
 data Index
-    = IndIdent TextPos Symbol
+    = IndIdent TextPos String
     | IndArray TextPos Index Expr
     | IndTuple TextPos Index Word32
     deriving (Eq)
@@ -88,11 +87,11 @@ data Expr
     | Tuple      TextPos [Expr]
     | Array      TextPos [Expr]
     | Table      TextPos [[Expr]]
-    | Member     TextPos Expr Symbol
+    | Member     TextPos Expr String
     | Subscript  TextPos Expr Expr
     | Range      TextPos Expr (Maybe Expr) (Maybe Expr)
     | TupleIndex TextPos Expr Word32
-    | Ident      TextPos Symbol
+    | Ident      TextPos String
     | Call       TextPos Expr [Expr]
     | Conv       TextPos Type [Expr]
     | Len        TextPos Expr
@@ -113,11 +112,11 @@ data Stmt
     | Block    [Stmt]
     | If       TextPos Condition Stmt (Maybe Stmt)
     | While    TextPos Condition [Stmt]
-    | For      TextPos Symbol Expr [Stmt]
+    | For      TextPos String Expr [Stmt]
     | Switch   TextPos Expr [(Pattern, Stmt)]
-    | FuncDef  TextPos Symbol [Param] Type [Stmt]
-    | Extern   TextPos Symbol [Param] Type
-    | Typedef  TextPos Symbol Type
+    | FuncDef  TextPos String [Param] Type [Stmt]
+    | Extern   TextPos String [Param] Type
+    | Typedef  TextPos String Type
     | AppendStmt Append
     deriving (Eq)
 
@@ -224,7 +223,7 @@ prettyAST pre ast = do
                 mapM_ (prettyStmt (pr ++ "\t")) stmts
 
             FuncDef pos symbol params mretty stmts -> do
-                putStrLn (pr ++ "Func " ++ symbol ++ tupStrs (map show params) ++ " " ++ show mretty)
+                putStrLn (pr ++ "Func " ++ show symbol ++ tupStrs (map show params) ++ " " ++ show mretty)
                 mapM_ (prettyStmt (pr ++ "\t")) stmts
 
             Extern pos symbol params mretty -> do

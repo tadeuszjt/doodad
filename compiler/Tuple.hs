@@ -15,10 +15,10 @@ import Value
 import Typeof
 import Trace
 
-tupleTypeDef :: InsCmp CompileState m => S.Symbol -> Type -> m ()
+tupleTypeDef :: InsCmp CompileState m => String -> Type -> m ()
 tupleTypeDef sym typ = trace "tupleTypeDef" $ do
     Tuple xs <- assertBaseType isTuple typ 
-    let typdef = Typedef sym
+    let typdef = Typedef (Sym sym)
 
     addObjWithCheck sym (KeyFunc []) (ObjConstructor typdef)
     addObjWithCheck sym (KeyFunc [typ]) (ObjConstructor typdef)

@@ -10,7 +10,5 @@ fn main()
 
     let p = parseTerm(tokens)
 
-    let i = 0
-    while i < len(p)
+    for [i] p
         print(p[i])
-        i = i + 1

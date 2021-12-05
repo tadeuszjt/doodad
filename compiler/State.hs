@@ -81,11 +81,11 @@ data CompileState
     = CompileState
         { context      :: Context
         , dataLayout   :: Ptr FFI.DataLayout
-        , imports      :: Map.Map S.Path CompileState
-        , decMap       :: Map.Map (S.Symbol, SymKey) Name
+        , imports      :: Map.Map S.ModuleName CompileState
+        , decMap       :: Map.Map (String, SymKey) Name
         , declarations :: Map.Map Name Declaration
         , declared     :: Set.Set Name
-        , symTab       :: SymTab.SymTab S.Symbol SymKey Object
+        , symTab       :: SymTab.SymTab String SymKey Object
         , curRetType   :: T.Type
         , curModName   :: String
         , nameMap      :: Map.Map String Int
@@ -143,23 +143,23 @@ withPos pos f = do
     return r
 
 
-addObj :: BoM CompileState m => S.Symbol -> SymKey -> Object -> m ()
+addObj :: BoM CompileState m => String -> SymKey -> Object -> m ()
 addObj sym key obj = trace "addObj" $ do
     modify $ \s -> s { symTab = SymTab.insert sym key obj (symTab s) }
 
-addObjWithCheck :: BoM CompileState m => S.Symbol -> SymKey -> Object -> m ()
+addObjWithCheck :: BoM CompileState m => String -> SymKey -> Object -> m ()
 addObjWithCheck sym key obj = trace "addObjWithCheck" $ do
     checkSymKeyUndef sym key
     addObj sym key obj
 
 
-checkSymKeyUndef :: BoM CompileState m => S.Symbol -> SymKey -> m ()
+checkSymKeyUndef :: BoM CompileState m => String -> SymKey -> m ()
 checkSymKeyUndef sym key = trace ("checkSymKeyUndef " ++ sym) $ do
     res <- SymTab.lookupHead sym key <$> gets symTab
     when (isJust res) $ err (sym ++ " already defined")
 
 
-checkSymUndef :: BoM CompileState m => S.Symbol -> m ()
+checkSymUndef :: BoM CompileState m => String -> m ()
 checkSymUndef sym = trace ("checkSymUndef " ++ sym) $ do
     res <- SymTab.lookupSym sym <$> gets symTab
     when (isJust res) $ err (sym ++ " already defined")
@@ -170,7 +170,7 @@ addDeclared name = trace "addDeclared" $ do
     modify $ \s -> s { declared = Set.insert name (declared s) }
 
 
-addSymKeyDec :: BoM CompileState m => S.Symbol -> SymKey -> Name -> Declaration -> m ()
+addSymKeyDec :: BoM CompileState m => String -> SymKey -> Name -> Declaration -> m ()
 addSymKeyDec sym key name dec = trace ("addSymKeyDec " ++ sym) $ do
     modify $ \s -> s { decMap = Map.insert (sym, key) name (decMap s) }
     modify $ \s -> s { declarations = Map.insert name dec (declarations s) }
@@ -201,8 +201,8 @@ ensureDec name = trace ("ensureDec " ++ show name) $ do
             Just d  -> emitDec name d >> addDeclared name
 
 
-ensureSymKeyDec :: ModCmp CompileState m => S.Symbol -> SymKey -> m ()
-ensureSymKeyDec sym key = trace ("ensureSymKeyDec " ++ sym) $ do
+ensureSymKeyDec :: ModCmp CompileState m => T.Symbol -> SymKey -> m ()
+ensureSymKeyDec (T.Sym sym) key = trace ("ensureSymKeyDec " ++ sym) $ do
     nm <- Map.lookup (sym, key) <$> gets decMap
     case nm of
         Just name -> ensureDec name
@@ -231,23 +231,26 @@ ensureExtern name argTypes retty isVarg = trace "ensureExtern" $ do
         C.GlobalReference (ptr $ FunctionType retty argTypes isVarg) name
 
 
-lookm :: ModCmp CompileState m => S.Symbol -> SymKey -> m (Maybe Object)
-lookm sym key = do
-    ensureSymKeyDec sym key
+lookm :: ModCmp CompileState m => T.Symbol -> SymKey -> m (Maybe Object)
+lookm (T.Sym sym) key = do
+    ensureSymKeyDec (T.Sym sym) key
     res <- trace ("look    " ++ sym) $ SymTab.lookupSymKey sym key <$> gets symTab
     case res of
         Just obj -> return (Just obj)
         Nothing  -> do
-            r <- (catMaybes . map (SymTab.lookupSymKey sym key . symTab) . Map.elems) <$> gets imports
+            imps <- gets imports
+            let r = catMaybes $ map (SymTab.lookupSymKey sym key) $ map symTab (Map.elems imps)
             case r of
                 []  -> return Nothing
                 [x] -> return (Just x)
+                _   -> err ("Ambiguous symbol: " ++ show sym)
 
-look :: ModCmp CompileState m => S.Symbol -> SymKey -> m Object
+
+look :: ModCmp CompileState m => T.Symbol -> SymKey -> m Object
 look sym key = do
     res <- lookm sym key
     case res of
-        Nothing -> err ("no definition for: " ++ sym ++ " " ++ show key)
+        Nothing -> err ("no definition for: " ++ show sym ++ " " ++ show key)
         Just x  -> return x
 
 

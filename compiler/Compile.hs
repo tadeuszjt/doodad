@@ -47,9 +47,9 @@ compileFlatState
     :: BoM s m
     => Context
     -> Ptr FFI.DataLayout
-    -> Map.Map S.Path CompileState
+    -> Map.Map S.ModuleName CompileState
     -> F.FlattenState
-    -> S.Symbol
+    -> S.ModuleName
     -> m ([LL.Definition], CompileState)
 compileFlatState ctx dl imports flatState modName = do
     res <- runBoMT (initCompileState ctx dl imports modName) (runModuleCmpT emptyModuleBuilder cmp)
@@ -67,13 +67,13 @@ compileFlatState ctx dl imports flatState modName = do
             mapM_ cmpFuncDef (F.funcDefs flatState)
 
 
-cmpTypeDef :: InsCmp CompileState m => S.Symbol -> Type -> m ()
+cmpTypeDef :: InsCmp CompileState m => String -> Type -> m ()
 cmpTypeDef sym typ = trace "cmpTypeDef" $ do
     case typ of
         t | isADT t   -> adtTypeDef sym t
         t | isTuple t -> tupleTypeDef sym t
         t             -> do
-            let typdef = Typedef sym
+            let typdef = Typedef (Sym sym)
             addObjWithCheck sym (KeyFunc []) (ObjConstructor typdef)
             addObjWithCheck sym (KeyFunc [t]) (ObjConstructor typdef)
             addObjWithCheck sym (KeyFunc [typdef]) (ObjConstructor typdef)
@@ -151,7 +151,7 @@ cmpFuncDef (S.FuncDef pos sym params retty blk) = trace "cmpFuncDef" $ withPos p
     let paramNames = map (ParameterName . mkBSS . S.paramName) params
     let paramSyms  = map S.paramName params
 
-    ObjFunc _ op <- look sym (KeyFunc paramTypes)
+    ObjFunc _ op <- look (Sym sym) (KeyFunc paramTypes)
     let LL.ConstantOperand (C.GlobalReference _ name) = op
     let Name nameStr = name
 
@@ -180,13 +180,13 @@ cmpFuncDef (S.FuncDef pos sym params retty blk) = trace "cmpFuncDef" $ withPos p
 cmpIndex:: InsCmp CompileState m => S.Index -> m Value
 cmpIndex index = case index of
     S.IndIdent pos sym -> withPos pos $ do
-        ObjVal val <- look sym KeyVar
+        ObjVal val <- look (Sym sym) KeyVar
         return val
 
 
 cmpInfix :: InsCmp CompileState m => S.Op -> Value -> Value -> m Value
 cmpInfix op valA valB = do
-    resm <- lookm (show op) $ KeyFunc [valType valA, valType valB]
+    resm <- lookm (Sym $ show op) $ KeyFunc [valType valA, valType valB]
     case resm of
         Just (ObjFunc Void op)   -> err "Operator function does not return a value."
 
@@ -238,12 +238,12 @@ cmpStmt stmt = trace "cmpStmt" $ case stmt of
 
     S.CallStmt pos (S.IndIdent _ sym) exprs -> withPos pos $ do
         vals <- mapM (valLoad <=< valResolveExp <=< cmpExpr) exprs
-        resm <- lookm sym $ KeyFunc (map valType vals)
+        resm <- lookm (Sym sym) $ KeyFunc (map valType vals)
         op <- case resm of
             Just (ObjFunc _ op)     -> return op
             Just (ObjExtern _ _ op) -> return op
             Nothing                 -> do
-                ObjVal fval <- look sym KeyVar
+                ObjVal fval <- look (Sym sym) KeyVar
                 ftyp@(Func ts rt) <- assertBaseType isFunction (valType fval)
                 assert (ts == map valType vals) ("Incorrect argument types for: " ++ show ftyp)
                 valOp <$> valLoad fval
@@ -375,7 +375,7 @@ cmpExpr expr = trace "cmpExpr" $ case expr of
         cmpInfix op valA valB
 
     S.Ident pos sym            -> withPos pos $ do
-        obj <- look sym KeyVar
+        obj <- look (Sym sym) KeyVar
         case obj of
             ObjVal loc             -> return loc
             ObjADTFieldCons adtTyp -> adtConstructField sym adtTyp []
@@ -395,7 +395,7 @@ cmpExpr expr = trace "cmpExpr" $ case expr of
 
     S.Call pos (S.Ident _ sym) exprs -> withPos pos $ trace ("call " ++ sym) $ do
         vals <- mapM valResolveExp =<< mapM cmpExpr exprs
-        resm <- lookm sym $ KeyFunc (map valType vals)
+        resm <- lookm (Sym sym) $ KeyFunc (map valType vals)
 
         case resm of
             Nothing -> err ("No definition for: " ++ sym)
@@ -577,7 +577,7 @@ cmpPattern pat val = trace "cmpPattern" $ case pat of
         -- switch(tok)                 <- val
         --    string(s); do_stuff(s)   <- use raw type
         --    TokSym(s); do_stuff(s)   <- use field name
-        let fieldMatched = \(s, t) -> (s == "" && t == typ) || Typedef s == typ
+        let fieldMatched = \(s, t) -> (s == "" && t == typ) || Typedef (Sym s) == typ
 
         ADT xs <- assertBaseType isADT (valType val)
         idx <- case [ i | (x, i) <- zip xs [0..], fieldMatched x ] of

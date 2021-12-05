@@ -99,7 +99,7 @@ flattenAST ast = do
                         fail ("circular type dependency: " ++ flat)
                     res <- Map.lookup flat <$> gets typeDefs
                     case res of
-                        Just (pos, T.Typedef f) -> checkTypedefCircles' f (Set.insert flat visited)
+                        Just (pos, T.Typedef (T.Sym s)) -> checkTypedefCircles' s (Set.insert flat visited)
                         _                       -> return ()
 
 

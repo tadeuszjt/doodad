@@ -70,7 +70,7 @@ valConstruct typ [val']   = trace "valConstruct" $ do
         t | isIntegral t -> convertIntegral baseVal typ val
         ADT _            -> adtConstruct typ val
         Table [Char] -> do
-            ObjFunc retty op <- look "string" $ KeyFunc [valType val]
+            ObjFunc retty op <- look (Sym "string") $ KeyFunc [valType val]
             Val retty <$> call op [(valOp val, [])]
 
         _ -> do

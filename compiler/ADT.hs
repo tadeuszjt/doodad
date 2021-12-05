@@ -25,7 +25,7 @@ adtTypeDef :: InsCmp CompileState m => String -> Type -> m ()
 adtTypeDef sym typ = trace "adtTypeDef" $ do
     assert (isADT typ) "Isn't ADT"
     let ADT xs = typ
-    let typdef = Typedef sym
+    let typdef = Typedef (Sym sym)
 
     -- Add zero, base and def constructors
     addObjWithCheck sym (KeyFunc []) (ObjConstructor typdef)

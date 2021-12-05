@@ -94,8 +94,8 @@ opTypeOf typ = trace ("opTypOf " ++ show typ) $ case typ of
 
 baseTypeOf :: ModCmp CompileState m => Type -> m Type
 baseTypeOf typ = case typ of
-    Typedef s -> trace ("baseTypeOf " ++ s) $ do ObType t _ <- look s KeyType; baseTypeOf t
-    _         -> return typ
+    Typedef sym -> trace ("baseTypeOf " ++ show sym) $ do ObType t _ <- look sym KeyType; baseTypeOf t
+    _           -> return typ
 
 
 sizeOf :: InsCmp CompileState m => Type -> m Value
