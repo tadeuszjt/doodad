@@ -393,6 +393,26 @@ cmpExpr expr = trace "cmpExpr" $ case expr of
         let stc = struct Nothing False [i64, i64, pi8]
         return $ Val (Table [Char]) stc
 
+    S.Call pos (S.Member _ (S.Ident _ mod) sym) exprs -> withPos pos $ trace ("call " ++ sym) $ do
+        vals <- mapM valResolveExp =<< mapM cmpExpr exprs
+        resm <- lookm (SymQualified mod sym) $ KeyFunc (map valType vals)
+
+        case resm of
+            Nothing -> err ("No definition for: " ++ sym)
+            Just x  -> case x of
+                ObjFunc Void _         -> err "cannot use void function as expression"
+                ObjExtern _ Void _     -> err "cannot use void function as expression"
+                ObjConstructor typ     -> valConstruct typ vals
+                ObjADTFieldCons adtTyp -> adtConstructField sym adtTyp vals
+
+                ObjFunc retty op       -> do
+                    vals' <- mapM valLoad vals
+                    Val retty <$> call op [(o, []) | o <- map valOp vals']
+
+                ObjExtern _ retty op   -> do
+                    vals' <- mapM valLoad vals
+                    Val retty <$> call op [(o, []) | o <- map valOp vals']
+
     S.Call pos (S.Ident _ sym) exprs -> withPos pos $ trace ("call " ++ sym) $ do
         vals <- mapM valResolveExp =<< mapM cmpExpr exprs
         resm <- lookm (Sym sym) $ KeyFunc (map valType vals)
@@ -479,7 +499,15 @@ cmpExpr expr = trace "cmpExpr" $ case expr of
         zipWithM_ (tableSetRow tab) [0..] rows
         return tab
 
-    S.Member pos exp sym -> withPos pos $ tupleMember sym =<< cmpExpr exp 
+    S.Member pos (S.Ident p s) str -> withPos pos $ do
+        mod <- gets curModName
+        objm <- lookm (SymQualified mod s) KeyVar
+        case objm of
+            Just (ObjVal loc) -> tupleMember str loc
+            Nothing -> err "blay"
+
+    S.Member pos exp sym -> withPos pos $ do
+        tupleMember sym =<< cmpExpr exp 
 
     _ -> err ("invalid expression: " ++ show expr)
 

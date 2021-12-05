@@ -5,7 +5,11 @@ import Data.List
 data Symbol
     = Sym String
     | SymQualified String String
-    deriving (Show, Eq, Ord)
+    deriving (Eq, Ord)
+
+instance Show Symbol where
+    show (Sym s)              = s
+    show (SymQualified mod s) = mod ++ "." ++ s
 
 
 data Type

@@ -290,6 +290,7 @@ prefix : '-' expr                             { S.Prefix (tokPos $1) S.Minus $2 
 -- Types ------------------------------------------------------------------------------------------
 
 type_         : ident                         { T.Typedef (T.Sym $ tokStr $1) }
+              | ident '.' ident               { T.Typedef (T.SymQualified (tokStr $1) (tokStr $3)) }
               | typeOrdinal                   { $1 }
               | typeAggregate                 { $1 }
 

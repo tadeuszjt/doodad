@@ -202,22 +202,45 @@ ensureDec name = trace ("ensureDec " ++ show name) $ do
 
 
 ensureSymKeyDec :: ModCmp CompileState m => T.Symbol -> SymKey -> m ()
-ensureSymKeyDec (T.Sym sym) key = trace ("ensureSymKeyDec " ++ sym) $ do
-    nm <- Map.lookup (sym, key) <$> gets decMap
-    case nm of
-        Just name -> ensureDec name
-        Nothing   -> do
-            imports <- Map.elems <$> gets imports
-            rs <- fmap catMaybes $ forM imports $ \imp -> do
-                case Map.lookup (sym, key) (decMap imp) of
-                    Nothing   -> return Nothing
-                    Just name -> do
-                        declared <- Set.member name <$> gets declared
-                        when (not declared) $ do
-                            emitDec name ((Map.! name) $ declarations imp)
-                            addDeclared name
-                        return (Just ())
-            assert (length rs <= 1) ("more than one declaration for: " ++ sym ++ " " ++ show key)
+ensureSymKeyDec symbol key = trace ("ensureSymKeyDec " ++ show symbol) $ do
+    curMod <- gets curModName
+    case symbol of
+        T.SymQualified mod sym | mod == curMod -> do
+            nm <- Map.lookup (sym, key) <$> gets decMap
+            maybe (return ()) ensureDec nm
+
+        T.SymQualified mod sym -> do
+            statem <- Map.lookup mod <$> gets imports
+            when (isNothing statem) $ err ("No module: " ++ mod ++ " exists")
+
+            let state = fromJust statem
+            case Map.lookup (sym, key) (decMap state) of
+                Nothing   -> return ()
+                Just name -> do
+                    declared <- Set.member name <$> gets declared
+                    when (not declared) $ do
+                        emitDec name $ (Map.! name) (declarations state)
+                        addDeclared name
+
+        T.Sym sym -> do
+            nm <- Map.lookup (sym, key) <$> gets decMap
+            case nm of
+                Just name -> ensureDec name
+                Nothing   -> do
+                    states <- Map.elems <$> gets imports
+                    rs <- fmap catMaybes $ forM states $ \state -> do
+                        case Map.lookup (sym, key) (decMap state) of
+                            Nothing   -> return Nothing
+                            Just name -> return $ Just (name, (Map.! name) $ declarations state)
+
+                    case rs of
+                        [] -> return ()
+                        [(name, dec)] -> do
+                            declared <- Set.member name <$> gets declared
+                            when (not declared) $ do
+                                emitDec name dec
+                                addDeclared name
+                        _ -> err ("More than one declaration for: " ++ show symbol)
 
 
 ensureExtern :: ModCmp CompileState m => Name -> [Type] -> Type -> Bool -> m Operand
@@ -232,15 +255,24 @@ ensureExtern name argTypes retty isVarg = trace "ensureExtern" $ do
 
 
 lookm :: ModCmp CompileState m => T.Symbol -> SymKey -> m (Maybe Object)
-lookm (T.Sym sym) key = do
-    ensureSymKeyDec (T.Sym sym) key
-    res <- trace ("look    " ++ sym) $ SymTab.lookupSymKey sym key <$> gets symTab
-    case res of
-        Just obj -> return (Just obj)
-        Nothing  -> do
-            imps <- gets imports
-            let r = catMaybes $ map (SymTab.lookupSymKey sym key) $ map symTab (Map.elems imps)
-            case r of
+lookm symbol key = do
+    ensureSymKeyDec symbol key
+    imports <- gets imports
+    curMod <- gets curModName
+    case symbol of
+        T.SymQualified mod sym | mod == curMod ->
+            SymTab.lookupSymKey sym key <$> gets symTab
+            
+        T.SymQualified mod sym ->
+            case Map.lookup mod imports of
+                Nothing    -> err ("No module: " ++ mod ++ " exists")
+                Just state -> return $ SymTab.lookupSymKey sym key (symTab state)
+
+        T.Sym sym -> do
+            objm <- SymTab.lookupSymKey sym key <$> gets symTab
+            let objsm = map (SymTab.lookupSymKey sym key) $ map symTab (Map.elems imports)
+
+            case catMaybes (objm:objsm) of
                 []  -> return Nothing
                 [x] -> return (Just x)
                 _   -> err ("Ambiguous symbol: " ++ show sym)

@@ -5,7 +5,10 @@ import lang/parser
 import std/vec2
 
 fn main()
-    let (tokens, ss) = lexTokens("22378x-benis")
+    let t = lexer.TokOp("+")
+    print(t)
+
+    let (tokens, ss) = lexer.lexTokens("22378x-benis")
     print(ss)
 
     let p = parseTerm(tokens)
