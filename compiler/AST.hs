@@ -54,14 +54,14 @@ data Append
     deriving (Show, Eq)
 
 data Pattern
-    = PatLiteral Expr
-    | PatIgnore  TextPos
-    | PatIdent   TextPos String
-    | PatTuple   TextPos [Pattern]
-    | PatArray   TextPos [Pattern]
-    | PatGuarded TextPos Pattern Expr
-    | PatTyped   TextPos Type Pattern
-    | PatSplit   TextPos Pattern Pattern
+    = PatLiteral   Expr
+    | PatIgnore    TextPos
+    | PatIdent     TextPos String
+    | PatTuple     TextPos [Pattern]
+    | PatArray     TextPos [Pattern]
+    | PatGuarded   TextPos Pattern Expr
+    | PatTyped     TextPos Type [Pattern]
+    | PatSplit     TextPos Pattern Pattern
     | PatSplitElem TextPos Pattern Pattern
     deriving (Eq)
 
@@ -111,10 +111,10 @@ data Stmt
     | Return   TextPos (Maybe Expr)
     | Block    [Stmt]
     | If       TextPos Condition Stmt (Maybe Stmt)
-    | While    TextPos Condition [Stmt]
-    | For      TextPos String Expr [Stmt]
+    | While    TextPos Condition Stmt
+    | For      TextPos String Expr Stmt
     | Switch   TextPos Expr [(Pattern, Stmt)]
-    | FuncDef  TextPos String [Param] Type [Stmt]
+    | FuncDef  TextPos String [Param] Type Stmt
     | Extern   TextPos String [Param] Type
     | Typedef  TextPos String Type
     | AppendStmt Append
@@ -218,13 +218,13 @@ prettyAST pre ast = do
                 prettyStmt (pr ++ "\t") true
                 maybe (return ()) (prettyStmt (pr ++ "\t")) false
 
-            While pos cnd stmts -> do
+            While pos cnd blk -> do
                 putStrLn (pr ++ "while " ++ show cnd)
-                mapM_ (prettyStmt (pr ++ "\t")) stmts
+                prettyStmt pr blk
 
-            FuncDef pos symbol params mretty stmts -> do
+            FuncDef pos symbol params mretty blk -> do
                 putStrLn (pr ++ "Func " ++ show symbol ++ tupStrs (map show params) ++ " " ++ show mretty)
-                mapM_ (prettyStmt (pr ++ "\t")) stmts
+                prettyStmt pr blk
 
             Extern pos symbol params mretty -> do
                 putStrLn (pr ++ "Extern " ++ symbol ++ tupStrs (map show params) ++ " " ++ show mretty)

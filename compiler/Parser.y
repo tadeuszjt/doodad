@@ -35,9 +35,9 @@ import qualified Data.Set as Set
 
 
 %token
-	'I'        { Token _ Indent _ }
-	'D'        { Token _ Dedent _ }
-	'N'        { Token _ NewLine _ }
+    'I'        { Token _ Indent _ }
+    'D'        { Token _ Dedent _ }
+    'N'        { Token _ NewLine _ }
 
     '+'        { Token _ ReservedOp "+" }
     '-'        { Token _ ReservedOp "-" }
@@ -111,9 +111,9 @@ import qualified Data.Set as Set
     ';'        { Token _ Sym ";" }
     ':'        { Token _ Sym ":" }
     '_'        { Token _ Sym "_" }
-     
 
-    %%
+
+%%
 
 ---------------------------------------------------------------------------------------------------
 -- Header -----------------------------------------------------------------------------------------
@@ -123,7 +123,6 @@ prog  : prog_                                 { S.AST Nothing [] $1 }
 prog_ : {-empty-}                             { [] }
       | stmtS 'N' prog_                       { $1 : $3 }
       | stmtB prog_                           { $1 : $2 }
-      | stmtS                                 { [$1] }
 
 imports : {- empty -}                         { [] }
         | import importPath 'N' imports       { $2 : $4 }
@@ -146,19 +145,18 @@ stmtS : let pattern '=' expr                  { S.Assign (tokPos $1) $2 $4 }
       | return                                { S.Return (tokPos $1) Nothing }
       | return expr                           { S.Return (tokPos $1) (Just $2) }
       | append_                               { S.AppendStmt $1 }
-stmtB : block                                 { $1 }
-      | If                                    { $1 }
-      | fn fnName '(' params ')' block_       { S.FuncDef (tokPos $1) $2 $4 T.Void $6 }
-      | fn fnName '(' params ')' type_ block_ { S.FuncDef (tokPos $1) $2 $4 $6 $7 }
-      | switch expr 'I' cases 'D'             { S.Switch (tokPos $1) $2 $4 }
-      | while condition block_                { S.While (tokPos $1) $2 $3 }
-      | for '[' ident ']' expr block_         { S.For (tokPos $1) (tokStr $3) $5 $6 }
+stmtB : If                                    { $1 }
+      | fn fnName '(' params ')' block        { S.FuncDef (tokPos $1) $2 $4 T.Void $6 }
+      | fn fnName '(' params ')' type_ block  { S.FuncDef (tokPos $1) $2 $4 $6 $7 }
+      | switch expr switchBlock               { S.Switch (tokPos $1) $2 $3 }
+      | while condition block                 { S.While (tokPos $1) $2 $3 }
+      | for '[' ident ']' expr block          { S.For (tokPos $1) (tokStr $3) $5 $6 }
 
 pattern  : '_'                                { S.PatIgnore (tokPos $1) }
          | literal                            { S.PatLiteral $1 }
          | ident                              { S.PatIdent (tokPos $1) (tokStr $1) }
-         | typeOrdinal '(' pattern ')'        { S.PatTyped (tokPos $2) $1 $3 }
-         | ident '(' pattern ')'              { S.PatTyped (tokPos $2) (T.Typedef $ T.Sym $ tokStr $1) $3 }
+         | typeOrdinal '(' patterns ')'       { S.PatTyped (tokPos $2) $1 $3 }
+         | ident '(' patterns ')'             { S.PatTyped (tokPos $2) (T.Typedef $ T.Sym $ tokStr $1) $3 }
          | '(' patterns ')'                   { S.PatTuple (tokPos $1) $2 }
          | '[' patterns ']'                   { S.PatArray (tokPos $1) $2 }
          | pattern '->' pattern               { S.PatSplitElem (tokPos $2) $1 $3 }
@@ -192,17 +190,17 @@ fnName  : ident                               { tokStr $1 }
         | '||'                                { tokStr $1 }
 
 block  : 'I' prog_ 'D'                        { S.Block $2 }
-block_ : 'I' prog_ 'D'                        { $2 }
+       | ';' stmtS 'N'                        { S.Block [$2] }
+--       | ';' stmtB                            { S.Block [$2] }
+       | ';' 'N'                              { S.Block [] }
 
-cases  : {- empty -}                          { [] }
-       | cases_                               { $1 }
-cases_ : case                                 { [$1] }
-       | case_                                { [$1] }
-       | case 'N' cases_                      { $1 : $3 }
-       | case_ cases_                         { $1 : $2 }
-case   : pattern ';' stmtS                    { ($1, $3) }
-       | pattern ';'                          { ($1, (S.Block [])) }
-case_  : pattern block                        { ($1, $2) }
+switchBlock : 'I' cases 'D'                   { $2 }
+            | ';' case                        { [$2] }
+            | ';' 'N'                         { [] }
+cases  : case cases                           { ($1:$2) }
+       | {-empty-}                            { [] }
+case   : pattern block                        { ($1, $2) }
+
 
 condition : expr                              { S.CondExpr $1 }
           | expr '#' pattern                  { S.CondMatch $3 $1 }
@@ -218,12 +216,11 @@ params  : {- empty -}                         { [] }
 params_ : param                               { [$1] }
         | param ',' params_                   { $1 : $3 }
 
-If    : if condition block                    { S.If (tokPos $1) $2 $3 Nothing }
-      | if condition block else_              { S.If (tokPos $1) $2 $3 (Just $4) }
-      | if condition 'N' else_                { S.If (tokPos $1) $2 (S.Block []) (Just $4) }
-else_ : else block                            { $2 }
-      | else If                               { $2 }
-
+If    : if condition block else_              { S.If (tokPos $1) $2 $3 $4 }
+      | if condition 'N' else_                { S.If (tokPos $1) $2 (S.Block []) $4 }
+else_ : else block                            { Just $2 }
+      | else If                               { Just $2 }
+      | {-empty-}                             { Nothing }
 
 ---------------------------------------------------------------------------------------------------
 -- Expressions ------------------------------------------------------------------------------------
@@ -329,7 +326,7 @@ adtType : null                                { ("", T.Void) }
         | ident                               { (tokStr $1, T.Void) }
         | ':' type_                           { ("", $2) }
         | ident ':' type_                     { (tokStr $1, $3) }
-adtTypes : adtType                            { [$1] }
+adtTypes : adtType 'N'                        { [$1] }
          | adtType '|' adtTypes               { $1 : $3 }
          | adtType 'N' adtTypes               { $1 : $3 }
 

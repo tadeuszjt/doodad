@@ -44,7 +44,6 @@ tokens :-
     @reserved                                       { mkT Reserved }
     @reservedOp                                     { mkT ReservedOp }
     $alpha [$alpha $digit \_]*                      { mkT Ident }
-    \- $digit+                                      { mkT Int }
     $digit+                                         { mkT Int }
     $digit+ \. $digit+                              { mkT Float }
     \' @char \'                                     { mkT Char }
@@ -102,12 +101,15 @@ alexScanner id str = runAlex str loop
     where
         loop = do
             (AlexPn p l c, typ, str) <- alexMonadScan
+            let pos = TextPos id p l c
+
             case typ of
                 EOF     -> return []
                 Dedent  -> do
-                    toks <- dedentLoop (TextPos id p l c) str
-                    (toks ++) <$> loop
-                _       -> fmap (Token (TextPos id p l c) typ str :) loop
+                    let nl = Token pos NewLine ""
+                    toks <- dedentLoop pos str
+                    ((nl:toks) ++) <$> loop
+                _       -> fmap (Token pos typ str :) loop
             
         dedentLoop pos indent = do
             curIndent <- concat . reverse <$> getLexerIndentStack

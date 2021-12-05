@@ -87,8 +87,7 @@ fn lexSymbol(str string) (Token, string)
     switch str
         c -> s
             for [i] symbols
-                if c == symbols[i]
-                    return (TokSym(c), s)
+                if c == symbols[i]; return (TokSym(c), s)
 
         _; return (null, str)
 
@@ -117,7 +116,7 @@ fn lexDigits(str string) (Token, string)
 
 
 fn lexIdent(str string) (Token, string)
-    if str # c -> _ | isAlpha(c)
+    if str # c -> ss | isAlpha(c)
         let i = 0
         while str[i..] # c -> ss | isAlpha(c) || isDigit(c)
             i = i + 1

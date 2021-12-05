@@ -19,6 +19,7 @@ import Monad
 import Funcs
 import Typeof
 import Trace
+import Tuple
 
 
 adtTypeDef :: InsCmp CompileState m => String -> Type -> m ()
@@ -26,6 +27,9 @@ adtTypeDef sym typ = trace "adtTypeDef" $ do
     assert (isADT typ) "Isn't ADT"
     let ADT xs = typ
     let typdef = Typedef (Sym sym)
+    assert (length (Set.fromList xs) == length xs) "ADT fields must be unique"
+
+    addObjWithCheck sym KeyType $ ObType typ Nothing
 
     -- Add zero, base and def constructors
     addObjWithCheck sym (KeyFunc []) (ObjConstructor typdef)
@@ -34,27 +38,22 @@ adtTypeDef sym typ = trace "adtTypeDef" $ do
 
     case typ of
         _ | isEmptyADT typ  -> err "empty"
-        _ | isEnumADT typ   -> do
-            addObjWithCheck sym KeyType $ ObType typ Nothing
-            forM_ xs $ \(s, Void) -> do
+
+        _ | isEnumADT typ   ->
+            forM_ xs $ \(s, Void) ->
                 addObjWithCheck s KeyVar (ObjADTFieldCons typdef)
                 
         _ | isPtrADT typ    -> err "ptr"
-        _ | isNormalADT typ -> do
+
+        _ | isNormalADT typ ->
             forM_ xs $ \(s, t) -> do
                 case t of
-                    Void -> addObjWithCheck s KeyVar (ObjADTFieldCons typdef)
-                    _    -> return ()
-            --name <- myFresh sym
-            --addSymKeyDec sym KeyType name . DecType =<< opTypeOf typ
-            addObjWithCheck sym KeyType $ ObType typ Nothing --(Just name)
-
-    assert (length (Set.fromList xs) == length xs) "ADT fields must be unique"
-
-    forM_ xs $ \(s, t) ->
-        if s == ""
-        then addObjWithCheck sym (KeyFunc [t]) (ObjConstructor typdef)
-        else addObjWithCheck s (KeyFunc [t]) (ObjADTFieldCons typdef)
+                    Void      -> addObjWithCheck s KeyVar (ObjADTFieldCons typdef)
+                    Tuple txs -> do
+                        addObjWithCheck s (KeyFunc [t]) (ObjADTFieldCons typdef)
+                        addObjWithCheck s (KeyFunc $ map snd txs) (ObjADTFieldCons typdef)
+                    _         -> do
+                        addObjWithCheck s (KeyFunc [t]) (ObjADTFieldCons typdef)
 
 
 adtEnum :: InsCmp CompileState m => Value -> m Value
@@ -171,12 +170,33 @@ adtConstructField sym typ vals = trace ("adtConstructField " ++ sym) $ do
             return adt
 
         _ | isNormalADT adtTyp && length vals == 0 -> do
-            adt <- valLocal typ
             let idxs = [ i | ((s, Void), i) <- zip xs [0..], s == sym ]
             assert (length idxs == 1) "Invalid or ambiguous ADT constructor"
             let [idx] = idxs
+
+            adt <- valLocal typ
             adtSetEnum adt idx
             return adt
+
+        _ | isNormalADT adtTyp && length vals > 1 -> do
+            let idxs = [ i | ((s, t), i) <- zip xs [0..], s == sym ]
+            assert (length idxs == 1) "Invalid or ambiguous ADT constructor"
+            let [idx] = idxs
+            let (s, t) = xs !! idx
+            Tuple txs <- assertBaseType isTuple t
+            mal <- valMalloc t (valI64 1)
+
+            assert (length vals == length txs) "Invalid ADT constructor"
+            zipWithM checkTypesCompatible (map valType vals) (map snd txs)
+
+            forM (zip vals [0..]) $ \(v, i) ->
+                tupleSet mal i v
+
+            adt <- valLocal typ
+            adtSetEnum adt idx
+            adtSetPi8 adt =<< bitcast (valLoc mal) (LL.ptr LL.i8)
+            return adt
+
 
             
 adtConstruct :: InsCmp CompileState m => Type -> Value -> m Value

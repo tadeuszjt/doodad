@@ -63,11 +63,11 @@ type Node {
 
 fn string(n Node) string
     switch(n)
-        NodeFail;               return "NodeFail"
-        NodeEmpty;              return "NodeEmpty"
-        NodeInt(n);             return "(NodeInt " + string(n) + ")"
-        NodeExpr((i, n));       return "(NodeExpr " + string(i) + " " + string(n) + ")"
-        NodeExpr_((s, n1, n2)); return "(NodeExpr_ " + s + " " + string(n1) + " " + string(n2) + ")"
+        NodeFail;             return "NodeFail"
+        NodeEmpty;            return "NodeEmpty"
+        NodeInt(n);           return "(NodeInt " + string(n) + ")"
+        NodeExpr(i, n);       return "(NodeExpr " + string(i) + " " + string(n) + ")"
+        NodeExpr_(s, n1, n2); return "(NodeExpr_ " + s + " " + string(n1) + " " + string(n2) + ")"
         _; return "Node"
 
 
@@ -111,7 +111,7 @@ fn parseOperator(tokens [Token]) ParseResult
 fn parseExpr_(tokens [Token]) ParseResult
     let (ns, ts) = parseSequence(tokens, [parseOperator, parseExpr, parseExpr_])
     if ns # NodeOp(s) -> nodeExpr -> nodeExpr_ -> []
-        let n = NodeExpr_((s, nodeExpr, nodeExpr_))
+        let n = NodeExpr_(s, nodeExpr, nodeExpr_)
         return (n, ts)
     
     return parseEpsilon(tokens)
@@ -120,7 +120,7 @@ fn parseExpr_(tokens [Token]) ParseResult
 fn parseExpr(tokens [Token]) ParseResult
     let (ns, ts) = parseSequence(tokens, [parseInt, parseExpr_])
     if ns # NodeInt(n) -> nodeExpr_ -> []
-        return (NodeExpr((n, nodeExpr_)), ts)
+        return (NodeExpr(n, nodeExpr_), ts)
 
     return (NodeFail, [])
 

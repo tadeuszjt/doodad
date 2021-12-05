@@ -23,7 +23,7 @@ import Trace
 assertBaseType :: InsCmp CompileState m => (Type -> Bool) -> Type -> m Type
 assertBaseType f typ = trace "assertBaseType" $ do
     base <- baseTypeOf typ
-    assert (f base) ("invalid type of " ++ show typ)
+    assert (f base) ("Invalid base type of: " ++ show typ)
     return base
 
 

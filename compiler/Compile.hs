@@ -144,7 +144,7 @@ cmpFuncDef :: (MonadFail m, Monad m, MonadIO m) => S.Stmt -> InstrCmpT CompileSt
 cmpFuncDef (S.FuncDef pos "main" params retty blk) = trace "cmpFuncDef" $ withPos pos $ do
     assert (params == [])  "main cannot have parameters"
     assert (retty == Void) "main must return void"
-    pushSymTab >> mapM_ cmpStmt blk >> popSymTab
+    cmpStmt blk
 cmpFuncDef (S.FuncDef pos sym params retty blk) = trace "cmpFuncDef" $ withPos pos $ do
     returnOpType <- opTypeOf retty
     paramOpTypes <- mapM (opTypeOf . S.paramType) params
@@ -165,7 +165,7 @@ cmpFuncDef (S.FuncDef pos sym params retty blk) = trace "cmpFuncDef" $ withPos p
             valStore loc (Val typ op)
             addObjWithCheck sym KeyVar (ObjVal loc)
 
-        mapM_ cmpStmt blk
+        cmpStmt blk
         hasTerm <- hasTerminator
         retty <- gets curRetType
         if hasTerm
@@ -297,7 +297,7 @@ cmpStmt stmt = trace "cmpStmt" $ case stmt of
         condBr (valOp val) body exit
         
         emitBlockStart body
-        mapM_ cmpStmt blk
+        cmpStmt blk
         br cond
         emitBlockStart exit
         popSymTab
@@ -323,7 +323,7 @@ cmpStmt stmt = trace "cmpStmt" $ case stmt of
         condBr (valOp cnd) body exit
 
         emitBlockStart body
-        mapM_ cmpStmt blk
+        cmpStmt blk
         valStore idx =<< valsInfix S.Plus idx (valI64 1)
         br cond
         emitBlockStart exit
@@ -480,7 +480,7 @@ cmpExpr expr = trace "cmpExpr" $ case expr of
 
 
 cmpPattern :: InsCmp CompileState m => S.Pattern -> Value -> m Value
-cmpPattern pat val = trace "cmpPattern" $ case pat of
+cmpPattern pattern val = trace "cmpPattern" $ case pattern of
     S.PatIgnore pos -> return (valBool True)
 
     S.PatLiteral (S.Null pos) -> withPos pos $ trace "cmpPattern null" $ do
@@ -500,7 +500,7 @@ cmpPattern pat val = trace "cmpPattern" $ case pat of
         assertBaseType (== Bool) (valType guard)
         valsInfix S.AndAnd match guard
 
-    S.PatIdent pos sym -> withPos pos $ trace ("cmpPattern " ++ show pat) $ do
+    S.PatIdent pos sym -> withPos pos $ trace ("cmpPattern " ++ show pattern) $ do
         val' <- valResolveExp val
         base <- baseTypeOf (valType val')
 
@@ -568,13 +568,11 @@ cmpPattern pat val = trace "cmpPattern" $ case pat of
 
         valLoad matched
 
-    S.PatTyped pos typ pat -> withPos pos $ do
-        -- switch(tok)                 <- val
-        --    string(s); do_stuff(s)   <- use raw type
-        --    TokSym(s); do_stuff(s)   <- use field name
+    S.PatTyped pos typ pats -> withPos pos $ do
+        ADT xs <- assertBaseType isADT (valType val)
+
         let fieldMatched = \(s, t) -> (s == "" && t == typ) || Typedef (Sym s) == typ
 
-        ADT xs <- assertBaseType isADT (valType val)
         idx <- case [ i | (x, i) <- zip xs [0..], fieldMatched x ] of
             [i] -> return i
             []  -> err "Invalid ADT field identifier"
@@ -582,17 +580,22 @@ cmpPattern pat val = trace "cmpPattern" $ case pat of
 
         enumMatched <- valsInfix S.EqEq (valI64 idx) =<< adtEnum val
 
-        loc <- valLocal $ ADT [xs !! idx]
-        adtSetPi8 loc =<< adtPi8 val
-        matched <- valLocal Bool
+        ptr <- valLocal $ ADT [xs !! idx]
+        adtSetPi8 ptr =<< adtPi8 val
+        drf <- adtDeref ptr
 
-        if_ (valOp enumMatched)
-            (valStore matched =<< cmpPattern pat =<< adtDeref loc)
-            (valStore matched $ valBool False)
-
-        valLoad matched
+        case pats of
+            []    -> err "Invalid pattern with no arguments."
+            [pat] -> valsInfix S.AndAnd enumMatched =<< cmpPattern pat drf
+            pats  -> do
+                Tuple txs <- assertBaseType isTuple (valType drf)
+                assert (length txs == length pats) "Invalid pattern"
+                tupVals <- forM (zip txs [0..]) $ \(_, i) -> tupleIdx i drf
+                bVals <- zipWithM cmpPattern pats tupVals
+                foldM (valsInfix S.AndAnd) (valBool True) (enumMatched:bVals)
     
-    _ -> err (show pat)
+    _ -> err ("Cannot compile pattern: " ++ show pattern)
+
 
 
 valAsType :: InsCmp CompileState m => Type -> Value -> m Value
