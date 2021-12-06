@@ -385,7 +385,7 @@ cmpExpr expr = trace "cmpExpr" $ case expr of
     S.Prefix pos S.Minus expr  -> withPos pos $ do
         val <- cmpExpr expr
         a <- valInt (valType val) 0
-        cmpInfix S.Minus a val
+        valsInfix S.Minus a val
             
     S.String pos s -> do
         loc <- globalStringPtr s =<< myFresh "str"
@@ -449,15 +449,15 @@ cmpExpr expr = trace "cmpExpr" $ case expr of
                 valLoad =<< tableRange val start =<< maybe (tableLen val) (valResolveExp <=< cmpExpr) mend
     
     S.Table pos exprss -> withPos pos $ valLoad =<< do
-        valss <- mapM (mapM cmpExpr) exprss
+        valss <- mapM (mapM (valResolveExp <=< cmpExpr)) exprss
+        assert (length valss > 0) "Cannot infer type of table."
         let rowLen = length (head valss)
+        assert (rowLen > 0) "Cannot infer type of table."
 
         rowTypes <- forM valss $ \vals -> do
-            assert (not $ any valIsContextual vals) "contextual 407"
-
-            assert (length vals == rowLen) $ "mismatched table row length of " ++ show (length vals)
+            assert (length vals == rowLen) $ "Mismatched table row length of " ++ show (length vals)
             let typ = valType (head vals)
-            assert (all (== typ) $ map valType vals) "Types do not match"
+            mapM_ (checkTypesCompatible typ) (map valType vals)
             return typ
 
         rows <- forM (zip rowTypes [0..]) $ \(t, r) -> do

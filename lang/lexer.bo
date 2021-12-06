@@ -67,6 +67,7 @@ fn lexString(str string) (Token, string)
     while true
         switch rest
             "\n"  ->> ss; return (null, str)
+            "\"" ->> ss ; return (TokString(s), ss)
             "\\n" ->> ss
                 s <- '\n'
                 rest = ss
@@ -76,20 +77,18 @@ fn lexString(str string) (Token, string)
             "\\t" ->> ss
                 s <- '\t'
                 rest = ss
-            "\"" ->> ss
-                return (TokString(s), ss)
             c -> ss
                 s <- c
                 rest = ss
 
 
 fn lexSymbol(str string) (Token, string)
-    switch str
-        c -> s
-            for [i] symbols
-                if c == symbols[i]; return (TokSym(c), s)
+    if str # c -> s
+        for [i] symbols
+            if c == symbols[i]
+                return (TokSym(c), s)
 
-        _; return (null, str)
+    return (null, str)
 
 
 fn lexKeyword(str string) (Token, string)
@@ -126,28 +125,23 @@ fn lexIdent(str string) (Token, string)
 
 
 fn lexOperator(str string) (Token, string)
-    let (i, j, max) = (0, 0, 0)
+    let op = ""
 
     for [i] operators
-        if strIsPrefix(operators[i], str) && len(operators[i]) > max
-            max = len(operators[i])
-            j = i
+        if strIsPrefix(operators[i], str) && len(operators[i]) > len(op)
+            op = operators[i]
         
-    switch max
+    switch len(op)
         0; return (null, str)
-        n; return (TokOp(operators[j]),  str[n..])
+        n; return (TokOp(op),  str[n..])
 
 
 fn lexWhite(str string) string
-    let i = 0
+    for [i] str
+        if str[i] != ' ' && str[i] != '\t' && str[i] != '\n'
+            return str[..i]
 
-    while true
-        switch str[i]
-            ' ' ;
-            '\t';
-            '\n';
-            _   ; return str[..i]
-        i = i + 1
+    return ""
 
 
 fn lexToken(str string) (Token, string)
