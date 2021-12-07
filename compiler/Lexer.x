@@ -83,7 +83,7 @@ mkIndentT (p,_,_,s) len = do
         return (p, Dedent, lineIndent)
 
     else
-        alexError $ "invalid indentation of: " ++ concat (map rep lineIndent)
+        alexError $ "invalid indentation of: " ++ concat (map rep lineIndent) ++ " at " ++ show p
 
     where
         rep c = case c of

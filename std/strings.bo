@@ -50,26 +50,21 @@ fn strIsPrefix(pre string, str string) bool
 
 
 fn strReadInt(s string) (i64, bool)
-    if len(s) <= 0 || !isDigit(s[0])
-        return (0, false)
+    let n = 0
+    let b = false
 
-    let (i, n) = (0, 0)
+    for [i] s | isDigit(s[i])
+        n = n*10 + i64(s[i] - '0')
+        b = true
 
-    while isDigit(s[i])
-        n = n * 10
-        n = n + i64(s[i] - '0')
-        i = i + 1
 
-    return (n, true)
+    return (n, b)
 
 
 fn strReverse(s string) string
-    let r = ""
-    let i = len(s)
-
-    while i > 0
-        i = i - 1
-        r <- s[i]
+    let r = copy(s)
+    for [i] r
+        r[i] = s[len(s) - 1 - i]
 
     return r
 

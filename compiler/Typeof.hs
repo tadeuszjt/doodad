@@ -32,9 +32,11 @@ checkTypesCompatible typA typB = do
     baseA <- baseTypeOf typA
     baseB <- baseTypeOf typB
     case baseA of
-        t | isSimple t -> assert (baseA == baseB) $ "Types " ++ show typA ++ " and " ++ show typB ++ " aren't compatible"
+        t | isSimple t -> assert (baseA == baseB) $
+            "Types " ++ show typA ++ " and " ++ show typB ++ " aren't compatible"
 
-        t | isADT t    -> assert (baseA == baseB) $ "Types " ++ show typA ++ " and " ++ show typB ++ " aren't compatible" 
+        t | isADT t    -> assert (baseA == baseB) $
+            "Types " ++ show typA ++ " and " ++ show typB ++ " aren't compatible" 
 
         t | isTuple t  -> do
             assertBaseType isTuple baseB
@@ -88,8 +90,8 @@ opTypeOf typ = trace ("opTypOf " ++ show typ) $ case typ of
         rt' <- opTypeOf rt
         ts' <- mapM opTypeOf ts
         return $ LL.ptr (LL.FunctionType rt' ts' False)
-    _         -> error (show typ) 
 
+    _         -> error (show typ) 
 
 
 baseTypeOf :: ModCmp CompileState m => Type -> m Type

@@ -5,20 +5,20 @@ import ../std/strings
 
 
 type Operator {
-    OpPlus
-    OpMinus
-    OpTimes
-    OpDivide
-    OpModulo
-    OpLT
-    OpGT
-    OpLTEq
-    OpGTEq
-    OpEqEq
-    OpOrOr
-    OpAndAnd
-    OpNotEq
-    OpNot
+    OpPlus()
+    OpMinus()
+    OpTimes()
+    OpDivide()
+    OpModulo()
+    OpLT()
+    OpGT()
+    OpLTEq()
+    OpGTEq()
+    OpEqEq()
+    OpOrOr()
+    OpAndAnd()
+    OpNotEq()
+    OpNot()
 }
 
 fn string(op Operator) string
@@ -40,10 +40,10 @@ fn string(op Operator) string
 
 
 type Expr {
-    ExprIdent : string
-    ExprInt   : i64
-    ExprFloat : f64
-    ExprInfix : (Operator, Expr, Expr)
+    ExprIdent (string)
+    ExprInt   (i64)
+    ExprFloat (f64)
+    ExprInfix (Operator, Expr, Expr)
 }
 
 fn string(e Expr) string
@@ -53,12 +53,12 @@ fn string(e Expr) string
 
 
 type Node {
-    NodeFail
-    NodeEmpty
-    NodeInt : i64
-    NodeExpr_ : (string, Node, Node)
-    NodeExpr : (i64, Node)
-    NodeOp : string
+    NodeFail()
+    NodeEmpty()
+    NodeInt(i64)
+    NodeExpr_(string, Node, Node)
+    NodeExpr(i64, Node)
+    NodeOp(string)
 }
 
 fn string(n Node) string

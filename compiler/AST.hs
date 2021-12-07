@@ -112,7 +112,7 @@ data Stmt
     | Block    [Stmt]
     | If       TextPos Condition Stmt (Maybe Stmt)
     | While    TextPos Condition Stmt
-    | For      TextPos String Expr Stmt
+    | For      TextPos String Expr (Maybe Expr) Stmt
     | Switch   TextPos Expr [(Pattern, Stmt)]
     | FuncDef  TextPos String [Param] Type Stmt
     | Extern   TextPos String [Param] Type

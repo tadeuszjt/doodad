@@ -150,7 +150,8 @@ stmtB : If                                    { $1 }
       | fn fnName '(' params ')' type_ block  { S.FuncDef (tokPos $1) $2 $4 $6 $7 }
       | switch expr switchBlock               { S.Switch (tokPos $1) $2 $3 }
       | while condition block                 { S.While (tokPos $1) $2 $3 }
-      | for '[' ident ']' expr block          { S.For (tokPos $1) (tokStr $3) $5 $6 }
+      | for '[' ident ']' expr block          { S.For (tokPos $1) (tokStr $3) $5 Nothing $6 }
+      | for '[' ident ']' expr '|' expr block { S.For (tokPos $1) (tokStr $3) $5 (Just $7) $8 }
 
 pattern  : '_'                                { S.PatIgnore (tokPos $1) }
          | literal                            { S.PatLiteral $1 }
@@ -323,9 +324,9 @@ rowTypes_     : type_                         { [$1] }
               | type_ ';' rowTypes_           { $1 : $3 }
 
 adtType : null                                { ("", T.Void) }
-        | ident                               { (tokStr $1, T.Void) }
-        | ':' type_                           { ("", $2) }
-        | ident ':' type_                     { (tokStr $1, $3) }
+        | type_                               { ("", $1) }
+        | ident '(' tupTypes ')'              { (tokStr $1, case length $3 of; 0 -> T.Void; 1 -> snd (head $3); n -> T.Tuple $3) }
+
 adtTypes : adtType 'N'                        { [$1] }
          | adtType '|' adtTypes               { $1 : $3 }
          | adtType 'N' adtTypes               { $1 : $3 }

@@ -22,10 +22,8 @@ fn getStrLn() string
 
 
 fn putStrLn(str string)
-	let i = 0
-	while i < len(str)
-			putchar(str[i])
-			i = i + 1
-	
-	putchar('\n') 
+    for [i] str 
+        putchar(str[i])
+
+    putchar('\n') 
 

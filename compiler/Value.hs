@@ -101,6 +101,7 @@ valStore (Ptr typ loc) val = trace "valStore" $ do
     case val of
         Ptr t l -> store loc 0 =<< load l 0
         Val t o -> store loc 0 o
+        Exp _   -> err "Cannot store"
 
 
 valSelect :: InsCmp CompileState m => Value -> Value -> Value -> m Value

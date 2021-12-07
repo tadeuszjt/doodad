@@ -6,13 +6,13 @@ import ../std/chars
 
 type Token {
     null
-    TokOp      : string
-    TokInt     : i64
-    TokSym     : char
-    TokIdent   : string
-    TokString  : string
-    TokChar    : char
-    TokKeyword : string
+    TokOp(string)
+    TokInt(i64)
+    TokSym(char)
+    TokIdent(string)
+    TokString(string)
+    TokChar(char)
+    TokKeyword(string)
 }
 
 fn string(token Token) string
@@ -148,33 +148,11 @@ fn lexToken(str string) (Token, string)
     if lexWhite(str) # s | len(s) > 0
         return lexToken(str[len(s)..])
 
-    switch lexKeyword(str)
-        (null, _) ;
-        (tok, ss) ; return (tok, ss)
-
-    switch lexString(str)
-        (null, _) ;
-        (tok, ss) ; return (tok, ss)
-
-    switch lexChar(str)
-        (null, _) ;
-        (tok, ss) ; return (tok, ss)
-
-    switch lexIdent(str)
-        (null, _) ;
-        (tok, ss) ; return (tok, ss)
-
-    switch lexOperator(str)
-        (null, _) ;
-        (tok, ss) ; return (tok, ss)
-
-    switch lexDigits(str)
-        (null, _) ;
-        (tok, ss) ; return (tok, ss)
-
-    switch lexSymbol(str)
-        (null, _) ;
-        (tok, ss) ; return (tok, ss)
+    let fns = [lexKeyword, lexString, lexChar, lexIdent, lexOperator, lexDigits, lexSymbol]
+    for [i] fns
+        switch fns[i](str)
+            (null, _);
+            (tok, ss); return (tok, ss)
 
     return (null, str)
 

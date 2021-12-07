@@ -183,6 +183,18 @@ cmpIndex index = case index of
     S.IndIdent pos sym -> withPos pos $ do
         ObjVal val <- look (Sym sym) KeyVar
         return val
+    S.IndArray pos ind idxExpr -> do
+        idxVal <- valResolveExp =<< cmpExpr idxExpr
+        assertBaseType isInt (valType idxVal)
+
+        loc <- cmpIndex ind
+        base <- baseTypeOf (valType loc)
+        case base of
+            Table [t] -> do
+                row <- tableRow 0 loc
+                ptr <- valPtrIdx row idxVal
+                return ptr
+
 
 
 cmpInfix :: InsCmp CompileState m => S.Op -> Value -> Value -> m Value
@@ -302,7 +314,7 @@ cmpStmt stmt = trace "cmpStmt" $ case stmt of
         emitBlockStart exit
         popSymTab
 
-    S.For pos idxSym expr blk -> withPos pos $ do
+    S.For pos idxSym expr guardm blk -> withPos pos $ do
         val <- valResolveExp =<< cmpExpr expr
         assertBaseType isTable (valType val)
         len <- tableLen val
@@ -319,8 +331,13 @@ cmpStmt stmt = trace "cmpStmt" $ case stmt of
 
         br cond
         emitBlockStart cond
-        cnd <- valsInfix S.LT idx len
-        condBr (valOp cnd) body exit
+        cnd <- valLocal Bool
+        valStore cnd =<< valsInfix S.LT idx len
+        when (isJust guardm) $ do
+            valStore cnd =<< valsInfix S.AndAnd cnd =<< cmpExpr (fromJust guardm)
+
+        cndOp <- valOp <$> valLoad cnd
+        condBr cndOp body exit
 
         emitBlockStart body
         cmpStmt blk
