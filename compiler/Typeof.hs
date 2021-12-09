@@ -65,6 +65,7 @@ checkTypesCompatible typA typB = do
 opTypeOf :: ModCmp CompileState m => Type -> m LL.Type
 opTypeOf typ = trace ("opTypOf " ++ show typ) $ case typ of
     Void      -> return LL.VoidType
+    I8        -> return LL.i8
     I16       -> return LL.i16
     I32       -> return LL.i32
     I64       -> return LL.i64

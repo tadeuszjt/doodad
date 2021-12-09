@@ -479,17 +479,14 @@ cmpExpr expr = trace "cmpExpr" $ case expr of
             mapM_ (checkTypesCompatible typ) (map valType vals)
             return typ
 
-        rows <- forM (zip rowTypes [0..]) $ \(t, r) -> do
-            mal <- valMalloc t (valI64 rowLen)
-            forM_ [0..rowLen - 1] $ \i -> do
-                ptr <- valPtrIdx mal (valI64 i) 
-                valStore ptr ((valss !! r) !! i)
-            return mal
+        tab <- tableMake (Table rowTypes) (valI64 rowLen)
+        
+        forM (zip rowTypes [0..]) $ \(t, r) ->
+            forM [0..rowLen - 1] $ \i -> do
+                row <- tableRow r tab
+                ptr <- valPtrIdx row (valI64 i)
+                valStore ptr $ (valss !! r) !! i
 
-        tab <- valLocal (Table rowTypes)
-        tableSetLen tab (valI64 rowLen)
-        tableSetCap tab (valI64 rowLen)
-        zipWithM_ (tableSetRow tab) [0..] rows
         return tab
 
     S.Member pos exp sym -> withPos pos $ do

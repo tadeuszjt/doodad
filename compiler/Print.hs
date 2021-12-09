@@ -27,15 +27,12 @@ valPrint append val = case valType val of
     t | isInt t   -> void . printf ("%ld" ++ append) . (:[]) . valOp =<< valLoad val
     t | isFloat t -> void . printf ("%f" ++ append) . (:[]) . valOp =<< valLoad val
     Char          -> void . printf ("%c" ++ append) . (:[]) . valOp =<< valLoad val
+    Typedef s     -> valPrint append =<< valConstruct (Table [Char]) [val]
 
     Bool -> do
         op <- valOp <$> valLoad val
         str <- globalStringPtr "true\0false" =<< myFresh "str"
         void . printf ("%s" ++ append) . (:[]) =<< gep (cons str) . (:[]) =<< select op (int64 0) (int64 5)
-
-    Typedef s -> do
-        str <- valConstruct (Table [Char]) [val]
-        valPrint append str
 
     Tuple xs -> do
         printf "(" []
@@ -50,13 +47,11 @@ valPrint append val = case valType val of
         void $ printf ("%-.*s" ++ append) [valOp len, valLoc row]
 
     Table ts -> do
-        return ()
         printf "[" []
-        let nrows = (length ts)
         len <- tableLen val
-        lenZero <- icmp P.EQ (int64 0) (valOp len)
+        lenZero <- valsInfix S.EqEq len (valI64 0)
 
-        if_ (lenZero)
+        if_ (valOp lenZero)
             (void $ printf ("]" ++ append) [])
             (tablePrintHelper ts val len)
 
@@ -67,6 +62,7 @@ valPrint append val = case valType val of
         valPrint ("]" ++ append) =<< valArrayConstIdx val (n-1)
 
     _ -> error ("print: " ++ show (valType val))
+
     where
         tablePrintHelper ts val len = forM_ [0..length ts - 1] $ \i -> do
             row <- tableRow i val

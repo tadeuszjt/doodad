@@ -36,7 +36,7 @@ tableCap tab = trace "tableCap" $ do
 tableSetLen :: InsCmp CompileState m => Value -> Value -> m ()
 tableSetLen tab@(Ptr _ loc) len = trace "tableSetLen" $ do
     Table _ <- assertBaseType isTable (valType tab)
-    assertBaseType isInt (valType len)
+    assertBaseType (==I64) (valType len)
     l <- gep loc [int32 0, int32 0]
     store l 0 . valOp =<< valLoad len
 
@@ -47,6 +47,33 @@ tableSetCap tab@(Ptr _ loc) cap = trace "tableSetCap" $ do
     assertBaseType isInt (valType cap)
     c <- gep loc [int32 0, int32 1]
     store c 0 . valOp =<< valLoad cap
+
+
+tableMake :: InsCmp CompileState m => Type -> Value -> m Value
+tableMake typ len = trace "tableMake" $ do
+    Table ts <- assertBaseType isTable typ
+    assertBaseType (==I64) (valType len)
+    
+    tab <- valLocal typ
+    tableSetLen tab len
+    tableSetCap tab len
+
+    siz <- valLocal I64
+    valStore siz (valI64 0)
+    idxs <- forM ts $ \t -> do
+        idx <- valLoad siz
+        valStore siz =<< valsInfix S.Plus siz =<< valsInfix S.Times len =<< sizeOf t
+        return idx
+
+    mal <- valMalloc I8 siz
+
+    forM_ (zip3 ts idxs [0..]) $ \(t, idx, i) -> do
+        ptr <- valPtrIdx mal idx
+        ptr' <- fmap (Ptr t) $ bitcast (valLoc ptr) =<< fmap LL.ptr (opTypeOf t)
+        tableSetRow tab i ptr'
+
+    return tab
+
 
 
 tableRow :: InsCmp CompileState m => Int -> Value -> m Value
@@ -92,7 +119,7 @@ tableSetElem tab idx tup = trace "tableSetElem" $ do
 
     -- check types match
     assert (length ts == length xs) "tuple type does not match table column"
-    assert (ts == map snd xs) "Types do not match"
+    zipWithM_ checkTypesCompatible ts (map snd xs)
 
     forM_ (zip ts [0..]) $ \(t, i) -> do
         row <- tableRow i tab
@@ -154,16 +181,15 @@ tableGrow tab newLen = trace "tableGrow" $ do
     tableSetLen tab newLen
 
     where
+        fullCase :: InsCmp CompileState m => [Type] -> m ()
         fullCase ts = do
-            len <- tableLen tab
-            newCap <- valsInfix S.Times newLen (valI64 2)
-            tableSetCap tab newCap
-
+            newTab <- tableMake (valType tab) =<< valsInfix S.Times newLen (valI64 2)
             forM_ (zip ts [0..]) $ \(t, i) -> do
-                row <- tableRow i tab
-                mal <- valMalloc t newCap
-                valMemCpy mal row len
-                tableSetRow tab i mal
+                newRow <- tableRow i newTab
+                oldRow <- tableRow i tab
+                valMemCpy newRow oldRow =<< tableLen tab
+
+            valStore tab newTab
 
 
 tableAppendElem :: InsCmp CompileState m => Value -> Value -> m ()

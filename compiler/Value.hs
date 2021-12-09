@@ -136,8 +136,9 @@ valArrayConstIdx val i = trace "valArrayConstIdx" $ do
 valMalloc :: InsCmp CompileState m => Type -> Value -> m Value
 valMalloc typ len = trace ("valMalloc " ++ show typ) $ do
     lenTyp <- assertBaseType isInt (valType len)
-    pi8 <- malloc =<< mul (valOp len) . valOp =<< sizeOf typ
-    Ptr typ <$> (bitcast pi8 . LL.ptr =<< opTypeOf typ)
+    lenOp <- valOp <$> valLoad len
+    pi8 <- malloc =<< mul lenOp . valOp =<< sizeOf typ
+    fmap (Ptr typ) $ bitcast pi8 . LL.ptr =<< opTypeOf typ
 
 
 valPtrIdx :: InsCmp s m => Value -> Value -> m Value
