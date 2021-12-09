@@ -317,7 +317,6 @@ cmpStmt stmt = trace "cmpStmt" $ case stmt of
     S.For pos idxSym expr guardm blk -> withPos pos $ do
         val <- valResolveExp =<< cmpExpr expr
         assertBaseType isTable (valType val)
-        len <- tableLen val
 
         idx <- valLocal I64
         valStore idx (valI64 0)
@@ -332,9 +331,12 @@ cmpStmt stmt = trace "cmpStmt" $ case stmt of
         br cond
         emitBlockStart cond
         cnd <- valLocal Bool
-        valStore cnd =<< valsInfix S.LT idx len
+        valStore cnd =<< valsInfix S.LT idx =<< tableLen val
         when (isJust guardm) $ do
-            valStore cnd =<< valsInfix S.AndAnd cnd =<< cmpExpr (fromJust guardm)
+            cndOp <- valOp <$> valLoad cnd
+            if_ cndOp
+                (valStore cnd =<< cmpExpr (fromJust guardm))
+                (return ())
 
         cndOp <- valOp <$> valLoad cnd
         condBr cndOp body exit

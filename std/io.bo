@@ -13,12 +13,10 @@ fn getStrLn() string
     let str = ""
 
     while true
-        let x = getchar()
-        if x < 1
-            return "\0"
-        switch char(x)
-            '\n'; return str
-            c   ; str <- c
+        switch char(getchar())
+            c | c < char(1); return "\0"
+            '\n'           ; return str
+            c              ; str <- c
 
 
 fn putStrLn(str string)

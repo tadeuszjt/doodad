@@ -57,7 +57,6 @@ fn strReadInt(s string) (i64, bool)
         n = n*10 + i64(s[i] - '0')
         b = true
 
-
     return (n, b)
 
 
