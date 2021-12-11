@@ -28,23 +28,6 @@ fn string(b bool) string
         false; return "false"
 
 
-fn string(n i64) string
-    if n == 0
-        return "0"
-
-    let digits = "0123456789"
-    let str = ""
-
-    let x = maths.abs(n)
-    while x > 0
-        str <- digits[x % 10]
-        x   = x / 10
-
-    if n < 0
-        str <- '-'
-    return strReverse(str)
-
-
 fn strIsPrefix(pre string, str string) bool
     return str[..len(pre)] == pre
 

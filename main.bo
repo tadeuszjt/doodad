@@ -13,3 +13,7 @@ fn main()
     let (n, ts) = parser.parseExpr(tokens)
     print(n, ts)
 
+    let v = Vec2(32.3201, 0.0)
+
+    print(v)
+

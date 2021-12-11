@@ -204,7 +204,7 @@ case   : pattern block                        { ($1, $2) }
 
 
 condition : expr                              { S.CondExpr $1 }
-          | expr '#' pattern                  { S.CondMatch $3 $1 }
+          | expr ':' pattern                  { S.CondMatch $3 $1 }
 
 patterns  : {- empty -}                       { [] }
           | patterns_                         { $1 }

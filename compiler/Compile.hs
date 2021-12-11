@@ -275,9 +275,8 @@ cmpStmt stmt = trace "cmpStmt" $ case stmt of
         if_ (valOp matched) (return ()) (void trap) 
 
     S.Set pos ind expr -> withPos pos $ do
-        val <- cmpExpr expr
         loc <- cmpIndex ind
-        valStore loc val
+        valStore loc =<< cmpExpr expr
 
     S.Return pos Nothing -> withPos pos $ do
         curRetty <- gets curRetType
