@@ -115,7 +115,7 @@ data Stmt
     | For      TextPos String Expr (Maybe Expr) Stmt
     | Switch   TextPos Expr [(Pattern, Stmt)]
     | FuncDef  TextPos String [Param] Type Stmt
-    | Extern   TextPos String [Param] Type
+    | Extern   TextPos String String [Param] Type
     | Typedef  TextPos String Type
     | AppendStmt Append
     deriving (Eq)
@@ -226,7 +226,7 @@ prettyAST pre ast = do
                 putStrLn (pr ++ "Func " ++ show symbol ++ tupStrs (map show params) ++ " " ++ show mretty)
                 prettyStmt pr blk
 
-            Extern pos symbol params mretty -> do
+            Extern pos nameStr symbol params mretty -> do
                 putStrLn (pr ++ "Extern " ++ symbol ++ tupStrs (map show params) ++ " " ++ show mretty)
 
             Switch pos cnd cases -> do

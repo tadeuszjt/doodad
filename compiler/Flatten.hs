@@ -68,7 +68,7 @@ flattenAST ast = do
         gatherTopStmt :: BoM FlattenState m => S.Stmt -> m ()
         gatherTopStmt stmt = case stmt of
             S.FuncDef _ _ _ _ _   -> modify $ \s -> s { funcDefs   = stmt:(funcDefs s) }
-            S.Extern _ _ _ _      -> modify $ \s -> s { externDefs = stmt:(externDefs s) }
+            S.Extern _ _ _ _ _    -> modify $ \s -> s { externDefs = stmt:(externDefs s) }
             S.Assign _ _ _        -> modify $ \s -> s { varDefs    = stmt:(varDefs s) }
             S.Typedef pos sym typ -> do
                 b <- Map.member sym <$> gets typeDefs

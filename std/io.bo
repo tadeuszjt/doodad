@@ -2,18 +2,18 @@ module io
 
 import strings
 
-extern getchar() i32
-extern putchar(c char)
+extern "getchar" Cgetchar() i32
+extern "putchar" Cputchar(c char)
 
 fn getChar() char
-    return char(getchar())
+    return char(Cgetchar())
 
 
 fn getStrLn() string
     let str = ""
 
     while true
-        switch char(getchar())
+        switch char(Cgetchar())
             c | c < char(1); return "\0"
             '\n'           ; return str
             c              ; str <- c
@@ -21,7 +21,7 @@ fn getStrLn() string
 
 fn putStrLn(str string)
     for [i] str 
-        putchar(str[i])
+        Cputchar(str[i])
 
-    putchar('\n') 
+    Cputchar('\n') 
 

@@ -139,8 +139,8 @@ stmtS : let pattern '=' expr                  { S.Assign (tokPos $1) $2 $4 }
       | index '=' expr                        { S.Set (tokPos $2) $1 $3 }
       | index '(' exprs ')'                   { S.CallStmt (tokPos $2) $1 $3 }
       | type ident type_                      { S.Typedef (tokPos $2) (tokStr $2) $3 }
-      | extern ident '(' params ')' type_     { S.Extern (tokPos $2) (tokStr $2) $4 $6 }
-      | extern ident '(' params ')'           { S.Extern (tokPos $2) (tokStr $2) $4 T.Void }
+      | extern strlit ident '(' params ')' type_     { S.Extern (tokPos $3) (tokStr $2) (tokStr $3) $5 $7 }
+      | extern strlit ident '(' params ')'           { S.Extern (tokPos $3) (tokStr $2) (tokStr $3) $5 T.Void }
       | print '(' exprs ')'                   { S.Print (tokPos $1) $3 }
       | return                                { S.Return (tokPos $1) Nothing }
       | return expr                           { S.Return (tokPos $1) (Just $2) }

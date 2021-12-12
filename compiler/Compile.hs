@@ -101,9 +101,9 @@ cmpVarDef (S.Assign pos (S.PatIdent p sym) expr) = trace "cmpVarDef" $ withPos p
 
 
 cmpExternDef :: InsCmp CompileState m => S.Stmt -> m ()
-cmpExternDef (S.Extern pos sym params retty) = trace "cmpExternDef" $ withPos pos $ do
+cmpExternDef (S.Extern pos nameStr sym params retty) = trace "cmpExternDef" $ withPos pos $ do
     checkSymUndef sym 
-    let name = LL.mkName sym
+    let name = LL.mkName nameStr
     let paramTypes = map S.paramType params
 
     pushSymTab
