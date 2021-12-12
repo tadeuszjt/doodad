@@ -1,7 +1,12 @@
 module maths
 
+
 fn abs(n i64) i64
     if n < 0
         return -n
     return n
 
+
+fn sqrt(f f64) f64
+    return f
+    

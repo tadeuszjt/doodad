@@ -15,5 +15,5 @@ fn main()
 
     let v = Vec2(32.3201, 0.0)
 
-    print(v)
+    print(v + Vec2(31.0, 2.0) )
 

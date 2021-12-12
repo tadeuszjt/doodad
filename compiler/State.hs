@@ -12,17 +12,17 @@ import Control.Monad.State hiding (void)
 
 import qualified LLVM.AST.Constant as C
 import qualified LLVM.Internal.FFI.DataLayout as FFI
-import LLVM.AST hiding (function, type')
+import qualified LLVM.AST as LL
 import LLVM.AST.Global
 import qualified LLVM.AST.Constant as C hiding (type')
-import LLVM.AST.Type hiding (void)
+import qualified LLVM.AST.Type as LL
 import LLVM.IRBuilder.Module
 import LLVM.IRBuilder.Monad
 import LLVM.Context
 import Foreign.Ptr
 
 import qualified AST as S
-import qualified Type as T
+import Type
 import qualified SymTab
 import qualified JIT
 import Monad
@@ -31,8 +31,8 @@ import Trace
 
 
 data Value
-    = Val { valType :: T.Type, valOp :: Operand }
-    | Ptr { valType :: T.Type, valLoc :: Operand }
+    = Val { valType :: Type, valOp :: LL.Operand }
+    | Ptr { valType :: Type, valLoc :: LL.Operand }
     | Exp S.Expr -- Contextual
     deriving (Show, Eq)
 
@@ -53,36 +53,36 @@ exprIsContextual expr = case expr of
 data SymKey
     = KeyType
     | KeyVar
-    | KeyFunc [T.Type]
+    | KeyFunc [Type]
     deriving (Show, Eq, Ord)
 
 
 data Object
     = ObjVal          Value
-    | ObType          T.Type   (Maybe Name)
-    | ObjFunc         T.Type   Operand
-    | ObjExtern       [T.Type] T.Type Operand
-    | ObjConstructor  T.Type
-    | ObjADTFieldCons T.Type
+    | ObType          Type   (Maybe LL.Name)
+    | ObjFunc         Type   LL.Operand
+    | ObjExtern       [Type] Type LL.Operand
+    | ObjConstructor  Type
+    | ObjADTFieldCons Type
     deriving (Show)
 
 
 data Declaration
-    = DecType   Type
-    | DecExtern [Type] Type Bool
-    | DecFunc   [Type] Type
-    | DecVar    Type
+    = DecType   LL.Type
+    | DecExtern [LL.Type] LL.Type Bool
+    | DecFunc   [LL.Type] LL.Type
+    | DecVar    LL.Type
     deriving (Show)
 
 
 data CompileState
     = CompileState
         { imports      :: Map.Map S.ModuleName CompileState
-        , decMap       :: Map.Map (String, SymKey) Name
-        , declarations :: Map.Map Name Declaration
-        , declared     :: Set.Set Name
+        , decMap       :: Map.Map (String, SymKey) LL.Name
+        , declarations :: Map.Map LL.Name Declaration
+        , declared     :: Set.Set LL.Name
         , symTab       :: SymTab.SymTab String SymKey Object
-        , curRetType   :: T.Type
+        , curRetType   :: Type
         , curModName   :: String
         , nameMap      :: Map.Map String Int
         , posStack     :: [TextPos]
@@ -95,7 +95,7 @@ initCompileState imports modName
         , declarations = Map.empty
         , declared     = Set.empty
         , symTab       = SymTab.initSymTab
-        , curRetType   = T.Void
+        , curRetType   = Void
         , curModName   = modName
         , nameMap      = Map.empty
         , posStack     = []
@@ -105,13 +105,13 @@ initCompileState imports modName
 mkBSS = BSS.toShort . BS.pack
 
 
-myFresh :: InsCmp CompileState m => String -> m Name
+myFresh :: InsCmp CompileState m => String -> m LL.Name
 myFresh sym = do
     nameMap <- gets nameMap
     mod <- gets curModName
     let n = maybe 0 (+1) (Map.lookup sym nameMap)
     modify $ \s -> s { nameMap = Map.insert sym n nameMap }
-    return $ Name $ mkBSS (mod ++ "." ++ sym ++ "_" ++ show n )
+    return $ LL.Name $ mkBSS (mod ++ "." ++ sym ++ "_" ++ show n )
 
 
 assert :: BoM CompileState m => Bool -> String -> m ()
@@ -156,33 +156,33 @@ checkSymUndef sym = trace ("checkSymUndef " ++ sym) $ do
     when (isJust res) $ err (sym ++ " already defined")
 
 
-addDeclared :: BoM CompileState m => Name -> m ()
+addDeclared :: BoM CompileState m => LL.Name -> m ()
 addDeclared name = trace "addDeclared" $ do
     modify $ \s -> s { declared = Set.insert name (declared s) }
 
 
-addSymKeyDec :: BoM CompileState m => String -> SymKey -> Name -> Declaration -> m ()
+addSymKeyDec :: BoM CompileState m => String -> SymKey -> LL.Name -> Declaration -> m ()
 addSymKeyDec sym key name dec = trace ("addSymKeyDec " ++ sym) $ do
     modify $ \s -> s { decMap = Map.insert (sym, key) name (decMap s) }
     modify $ \s -> s { declarations = Map.insert name dec (declarations s) }
 
 
-addDeclaration :: BoM CompileState m => Name -> Declaration -> m ()
+addDeclaration :: BoM CompileState m => LL.Name -> Declaration -> m ()
 addDeclaration name dec = trace "addDeclaration" $ do
     modify $ \s -> s { declarations = Map.insert name dec (declarations s) }
 
 
-emitDec :: ModCmp CompileState m => Name -> Declaration -> m ()
+emitDec :: ModCmp CompileState m => LL.Name -> Declaration -> m ()
 emitDec name dec = trace "emitDec" $ case dec of
     DecType opTyp                   -> void $ typedef name (Just opTyp)
     DecFunc argTypes retty          -> void $ extern name argTypes retty
     DecExtern argTypes retty False  -> void $ extern name argTypes retty
     DecExtern argTypes retty True   -> void $ externVarArgs name argTypes retty
     DecVar opTyp                    ->
-        emitDefn $ GlobalDefinition $ globalVariableDefaults { name = name , type' = opTyp }
+        emitDefn $ LL.GlobalDefinition $ globalVariableDefaults { name = name , type' = opTyp }
 
 
-ensureDec :: ModCmp CompileState m => Name -> m ()
+ensureDec :: ModCmp CompileState m => LL.Name -> m ()
 ensureDec name = trace ("ensureDec " ++ show name) $ do
     declared <- Set.member name <$> gets declared
     when (not declared) $ do
@@ -192,15 +192,15 @@ ensureDec name = trace ("ensureDec " ++ show name) $ do
             Just d  -> emitDec name d >> addDeclared name
 
 
-ensureSymKeyDec :: ModCmp CompileState m => T.Symbol -> SymKey -> m ()
+ensureSymKeyDec :: ModCmp CompileState m => Symbol -> SymKey -> m ()
 ensureSymKeyDec symbol key = trace ("ensureSymKeyDec " ++ show symbol) $ do
     curMod <- gets curModName
     case symbol of
-        T.SymQualified mod sym | mod == curMod -> do
+        SymQualified mod sym | mod == curMod -> do
             nm <- Map.lookup (sym, key) <$> gets decMap
             maybe (return ()) ensureDec nm
 
-        T.SymQualified mod sym -> do
+        SymQualified mod sym -> do
             statem <- Map.lookup mod <$> gets imports
             when (isNothing statem) $ err ("No module: " ++ mod ++ " exists")
 
@@ -213,7 +213,7 @@ ensureSymKeyDec symbol key = trace ("ensureSymKeyDec " ++ show symbol) $ do
                         emitDec name $ (Map.! name) (declarations state)
                         addDeclared name
 
-        T.Sym sym -> do
+        Sym sym -> do
             nm <- Map.lookup (sym, key) <$> gets decMap
             case nm of
                 Just name -> ensureDec name
@@ -234,32 +234,32 @@ ensureSymKeyDec symbol key = trace ("ensureSymKeyDec " ++ show symbol) $ do
                         _ -> err ("More than one declaration for: " ++ show symbol)
 
 
-ensureExtern :: ModCmp CompileState m => Name -> [Type] -> Type -> Bool -> m Operand
+ensureExtern :: ModCmp CompileState m => LL.Name -> [LL.Type] -> LL.Type -> Bool -> m LL.Operand
 ensureExtern name argTypes retty isVarg = trace "ensureExtern" $ do
     declared <- Set.member name <$> gets declared
     when (not declared) $ do
         addDeclaration name (DecExtern argTypes retty isVarg)
         ensureDec name
     
-    return $ ConstantOperand $
-        C.GlobalReference (ptr $ FunctionType retty argTypes isVarg) name
+    return $ LL.ConstantOperand $
+        C.GlobalReference (LL.ptr $ LL.FunctionType retty argTypes isVarg) name
 
 
-lookm :: ModCmp CompileState m => T.Symbol -> SymKey -> m (Maybe Object)
+lookm :: ModCmp CompileState m => Symbol -> SymKey -> m (Maybe Object)
 lookm symbol key = do
     ensureSymKeyDec symbol key
     imports <- gets imports
     curMod <- gets curModName
     case symbol of
-        T.SymQualified mod sym | mod == curMod ->
+        SymQualified mod sym | mod == curMod ->
             SymTab.lookupSymKey sym key <$> gets symTab
             
-        T.SymQualified mod sym ->
+        SymQualified mod sym ->
             case Map.lookup mod imports of
                 Nothing    -> err ("No module: " ++ mod ++ " exists")
                 Just state -> return $ SymTab.lookupSymKey sym key (symTab state)
 
-        T.Sym sym -> do
+        Sym sym -> do
             objm <- SymTab.lookupSymKey sym key <$> gets symTab
             let objsm = map (SymTab.lookupSymKey sym key) $ map symTab (Map.elems imports)
 
@@ -269,7 +269,7 @@ lookm symbol key = do
                 _   -> err ("Ambiguous symbol: " ++ show sym)
 
 
-look :: ModCmp CompileState m => T.Symbol -> SymKey -> m Object
+look :: ModCmp CompileState m => Symbol -> SymKey -> m Object
 look sym key = do
     resm <- lookm sym key
     assert (isJust resm) ("no definition for: " ++ show sym ++ " " ++ show key)
