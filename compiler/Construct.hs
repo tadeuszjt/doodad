@@ -116,7 +116,7 @@ valConstruct typ [val']   = trace "valConstruct" $ do
 
         _ -> do
             checkTypesCompatible typ (valType val)
-            Val typ <$> valOp <$> valLoad val
+            Val typ . valOp <$> valLoad val
 
     where
         convertNumber :: InsCmp CompileState m => Type -> Value -> m Value
@@ -130,6 +130,7 @@ valConstruct typ [val']   = trace "valConstruct" $ do
                 (I8,   I64) -> trunc op LL.i8
                 (Char, I64) -> trunc op LL.i8
                 (F64,  I64) -> sitofp op LL.double
+                (F32,  I64) -> sitofp op LL.float
 
                 (I64,  I32) -> sext op LL.i64
                 (I32,  I32) -> return op
@@ -156,4 +157,9 @@ valConstruct typ [val']   = trace "valConstruct" $ do
                 (Char, Char) -> return op
 
                 (I64, F64) -> fptosi op LL.i64
-                x -> err (show x)
+                (F32, F64) -> fptrunc op LL.float
+                (F64, F64) -> return op
+
+                (F64, F32) -> fpext op LL.double
+
+                x -> err $ "Cannot construct " ++ show typ ++ " from " ++ show valTyp

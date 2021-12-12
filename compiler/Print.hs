@@ -25,7 +25,7 @@ import Typeof
 valPrint :: InsCmp CompileState m => String -> Value -> m ()
 valPrint append val = case valType val of
     t | isInt t   -> void . printf ("%ld" ++ append) . (:[]) . valOp =<< valLoad val
-    t | isFloat t -> void . printf ("%f" ++ append) . (:[]) . valOp =<< valLoad val
+    t | isFloat t -> void . printf ("%f" ++ append) . (:[]) . valOp =<< valConstruct F64 [val]
     Char          -> void . printf ("%c" ++ append) . (:[]) . valOp =<< valLoad val
     Typedef s     -> valPrint append =<< valConstruct (Table [Char]) [val]
 

@@ -69,6 +69,7 @@ opTypeOf typ = trace ("opTypOf " ++ show typ) $ case typ of
     I16       -> return LL.i16
     I32       -> return LL.i32
     I64       -> return LL.i64
+    F32       -> return LL.float
     F64       -> return LL.double
     Char      -> return LL.i8
     Bool      -> return LL.i1

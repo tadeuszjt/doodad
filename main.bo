@@ -3,6 +3,7 @@ module main
 import lang/lexer
 import lang/parser
 import std/vec2
+import std/maths
 
 fn main()
     let str = "12 + 7-4 * 33"
@@ -17,4 +18,8 @@ fn main()
 
     print(v + Vec2(31.0, 2.0) )
     print(length(v))
+
+    print( maths.sqrt( f32(3))  )
+    print( maths.sqrt( 3.3 )  )
+    print( f32(3) )
 
