@@ -56,13 +56,42 @@ compileFlatState imports flatState modName = do
         Right ((_, defs), state) -> return (defs, state)
     where
         cmp :: (MonadFail m, Monad m, MonadIO m) => ModuleCmpT CompileState m ()
-        cmp = void $ func "main" [] LL.VoidType $ \_ -> do
-            forM_ (Map.toList $ F.typeDefs flatState) $ \(flat, (pos, typ)) ->
-                withPos pos $ cmpTypeDef flat typ
-            mapM_ cmpFuncHdr (F.funcDefs flatState)
-            mapM_ cmpExternDef (F.externDefs flatState)
-            mapM_ cmpVarDef (F.varDefs flatState)
-            mapM_ cmpFuncDef (F.funcDefs flatState)
+        cmp = do
+            mainName <- case modName of
+                "main" -> return "main"
+                s      -> return (s ++ "__main")
+
+            void $ func (LL.mkName mainName)  [] LL.VoidType $ \_ -> do
+                cmpMainGuard
+
+
+                forM_ (Map.toList $ F.typeDefs flatState) $ \(flat, (pos, typ)) ->
+                    withPos pos $ cmpTypeDef flat typ
+
+                mapM_ cmpFuncHdr (F.funcDefs flatState)
+                mapM_ cmpExternDef (F.externDefs flatState)
+                mapM_ cmpVarDef (F.varDefs flatState)
+                mapM_ cmpFuncDef (F.funcDefs flatState)
+        
+        cmpMainGuard :: InsCmp CompileState m => m ()
+        cmpMainGuard = do
+            boolName <- myFresh "bMainCalled"
+            bMainCalled <- global boolName LL.i1 $ toCons $ valOp $ valBool False
+            b <- load bMainCalled 0
+
+            true  <- freshName "main_called_true"
+            exit  <- freshName "main_called_exit"
+
+            condBr b true exit
+            emitBlockStart true
+            retVoid
+
+            emitBlockStart exit
+            store bMainCalled 0 $ valOp $ valBool True
+
+            forM_ (Map.keys imports) $ \modName -> do
+                op <- extern (LL.mkName $ modName ++ "__main") [] LL.VoidType
+                call op []
 
 
 cmpTypeDef :: InsCmp CompileState m => String -> Type -> m ()
