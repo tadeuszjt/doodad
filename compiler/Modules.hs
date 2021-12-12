@@ -118,7 +118,7 @@ runMod args visited modPath = do
                 let dir' = dir ++ ["build"]
                 let name' = name ++ ".o"
                 liftIO $ createDirectoryIfMissing True (showPath dir')
-                liftIO $ jitCompileToObject (showPath $ dir' ++ [name']) defs session
+                liftIO $ jitCompileToObject (verbose args) (showPath $ dir' ++ [name']) defs session
             else do
                 liftIO $ jitAndRun defs session True (printLLIR args) 
 

@@ -99,12 +99,18 @@ jitAddObjectFile session filepath = do
             return modKey
 
 
-jitCompileToObject :: FilePath -> [Definition] -> Session -> IO ()
-jitCompileToObject file defs session = do
+jitCompileToObject :: Bool -> FilePath -> [Definition] -> Session -> IO ()
+jitCompileToObject verbose file defs session = do
     let astmod = defaultModule { moduleDefinitions = defs }
 
     withModuleKey (executionSession session) $ \modKey ->
-        M.withModuleFromAST (context session) astmod $ \mod ->
+        M.withModuleFromAST (context session) astmod $ \mod -> do
+            let pm = passManager session
+            when (isJust pm) $ do
+                when verbose (putStrLn "running optimisation passes...")
+                void $ runPassManager (fromJust pm) mod
+
+            when verbose (BS.putStrLn =<< M.moduleLLVMAssembly mod)
             M.writeObjectToFile (JIT.targetMachine session) (M.File file) mod
     
 

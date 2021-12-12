@@ -12,29 +12,11 @@ import qualified Type as T
 import Monad
 import Error
 
-type FlatSym = String
-
-
-data SymKey
-    = KeyType
-    | KeyVar
-    | KeyFunc
-    | KeyExtern
-    deriving (Show, Eq, Ord)
-
-
-data SymObj
-    = ObjTypeDef TextPos T.Type
-    | ObjVarDef  TextPos S.Expr
-    | ObjFuncDef S.Stmt
-    | ObjExtern  S.Stmt
-    deriving ()
-
 
 data FlattenState
     = FlattenState
         { imports    :: [[S.ModuleName]]
-        , typeDefs   :: Map.Map FlatSym (TextPos, T.Type)
+        , typeDefs   :: Map.Map String (TextPos, T.Type)
         , varDefs    :: [S.Stmt]
         , funcDefs   :: [S.Stmt]
         , externDefs :: [S.Stmt]
@@ -72,8 +54,14 @@ combineASTs asts = do
 flattenAST :: BoM FlattenState m => S.AST -> m ()
 flattenAST ast = do
     mapM_ gatherTopStmt (S.astStmts ast)
-    mapM_ checkTypedefCircles =<< (Map.keys <$> gets typeDefs)
+    mapM_ checkTypedefCircles . Map.keys =<< gets typeDefs
     modify $ \s -> s { imports = S.astImports ast }
+
+    modify $ \s -> s {
+        funcDefs   = reverse (funcDefs s),
+        externDefs = reverse (externDefs s),
+        varDefs    = reverse (varDefs s)
+        }
     where
         moduleName = maybe "main" id (S.astModuleName ast)
         
@@ -89,18 +77,18 @@ flattenAST ast = do
 
             _ -> fail "invalid top-level statement"
 
-        checkTypedefCircles :: BoM FlattenState m => FlatSym -> m ()
-        checkTypedefCircles flat = do
-            checkTypedefCircles' flat Set.empty
+        checkTypedefCircles :: BoM FlattenState m => String -> m ()
+        checkTypedefCircles sym = do
+            checkTypedefCircles' sym Set.empty
             where
-                checkTypedefCircles' :: BoM FlattenState m => FlatSym -> Set.Set FlatSym -> m ()
-                checkTypedefCircles' flat visited = do
-                    when (Set.member flat visited) $
-                        fail ("circular type dependency: " ++ flat)
-                    res <- Map.lookup flat <$> gets typeDefs
+                checkTypedefCircles' :: BoM FlattenState m => String -> Set.Set String -> m ()
+                checkTypedefCircles' sym visited = do
+                    when (Set.member sym visited) $
+                        fail ("circular type dependency: " ++ sym)
+                    res <- Map.lookup sym <$> gets typeDefs
                     case res of
-                        Just (pos, T.Typedef (T.Sym s)) -> checkTypedefCircles' s (Set.insert flat visited)
-                        _                       -> return ()
+                        Just (pos, T.Typedef (T.Sym s)) -> checkTypedefCircles' s (Set.insert sym visited)
+                        _                               -> return ()
 
 
 prettyFlatAST :: FlattenState -> IO ()
