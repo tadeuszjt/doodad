@@ -1,6 +1,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 module Modules where
 
+import System.IO
 import System.Environment
 import System.Directory
 import Control.Monad.State
@@ -65,7 +66,6 @@ parse id file = do
         Left (ErrorFile "" pos str) -> throwError (ErrorFile file pos str)
         Right a                     -> return a
 
-
 runMod :: BoM Modules m => Args -> Set.Set S.Path -> S.Path -> m CompileState
 runMod args visited modPath = do
     debug "running"
@@ -114,7 +114,14 @@ runMod args visited modPath = do
                 Left (ErrorStr str)         -> throwError $ ErrorStr str
                 Right (res, _)              -> return res
 
-            liftIO $ jitAndRun defs session True (printLLIR args) 
+            if compileObj args then do
+                let dir' = dir ++ ["build"]
+                let name' = name ++ ".o"
+                liftIO $ createDirectoryIfMissing True (showPath dir')
+                liftIO $ jitCompileToObject (showPath $ dir' ++ [name']) defs session
+            else do
+                liftIO $ jitAndRun defs session True (printLLIR args) 
+
             modify $ \s -> s { modMap = Map.insert path state (modMap s) }
             return state
 

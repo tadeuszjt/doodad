@@ -43,6 +43,7 @@ data Session
         , passManager      :: Maybe PassManager
         , dataLayout       :: Ptr FFI.DataLayout
         , linkingLayer     :: ObjectLinkingLayer
+        , targetMachine    :: TargetMachine
         }
 
 
@@ -75,7 +76,7 @@ withSession optimise f = do
                                 withSymbolResolver es (myResolver cl) $ \psr -> do
                                     writeIORef resolvers [psr]
                                     loadLibraryPermanently Nothing
-                                    f $ Session ctx es cl (if optimise then Just pm else Nothing) pdl oll
+                                    f $ Session ctx es cl (if optimise then Just pm else Nothing) pdl oll tm
     where
         myResolver :: IRCompileLayer ObjectLinkingLayer -> SymbolResolver
         myResolver cl = SymbolResolver $ \mangled -> do
@@ -96,6 +97,16 @@ jitAddObjectFile session filepath = do
         withModuleKey (executionSession session) $ \modKey -> do
             addObjectFile (linkingLayer session) modKey objFile
             return modKey
+
+
+jitCompileToObject :: FilePath -> [Definition] -> Session -> IO ()
+jitCompileToObject file defs session = do
+    let astmod = defaultModule { moduleDefinitions = defs }
+
+    withModuleKey (executionSession session) $ \modKey ->
+        M.withModuleFromAST (context session) astmod $ \mod ->
+            M.writeObjectToFile (JIT.targetMachine session) (M.File file) mod
+    
 
 
 jitAndRun :: [Definition] -> Session -> Bool -> Bool -> IO ()
