@@ -41,7 +41,6 @@ valIsContextual :: Value -> Bool
 valIsContextual (Exp _) = True
 valIsContextual _       = False
 
-
 exprIsContextual :: S.Expr -> Bool
 exprIsContextual expr = case expr of
     S.Int _ _                              -> True
@@ -50,7 +49,6 @@ exprIsContextual expr = case expr of
     S.Null _                               -> True
     S.Table _ ess | any null ess           -> True
     _                                      -> False
-
 
 data SymKey
     = KeyType
@@ -79,9 +77,7 @@ data Declaration
 
 data CompileState
     = CompileState
-        { context      :: Context
-        , dataLayout   :: Ptr FFI.DataLayout
-        , imports      :: Map.Map S.ModuleName CompileState
+        { imports      :: Map.Map S.ModuleName CompileState
         , decMap       :: Map.Map (String, SymKey) Name
         , declarations :: Map.Map Name Declaration
         , declared     :: Set.Set Name
@@ -92,11 +88,9 @@ data CompileState
         , posStack     :: [TextPos]
         }
 
-initCompileState ctx dl imports modName
+initCompileState imports modName
      = CompileState
-        { context      = ctx
-        , dataLayout   = dl
-        , imports      = imports
+        { imports      = imports
         , decMap       = Map.empty
         , declarations = Map.empty
         , declared     = Set.empty

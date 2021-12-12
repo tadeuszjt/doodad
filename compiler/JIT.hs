@@ -41,7 +41,6 @@ data Session
         , executionSession :: ExecutionSession
         , compileLayer     :: IRCompileLayer ObjectLinkingLayer
         , passManager      :: Maybe PassManager
-        , dataLayout       :: Ptr FFI.DataLayout
         , linkingLayer     :: ObjectLinkingLayer
         , targetMachine    :: TargetMachine
         }
@@ -68,15 +67,13 @@ withSession optimise f = do
     withContext $ \ctx ->
         withExecutionSession $ \es ->
             withMyHostTargetMachine $ \tm -> do
-                dl <- getTargetMachineDataLayout tm
-                withFFIDataLayout dl $ \pdl -> 
-                    withObjectLinkingLayer es (\_ -> head <$> readIORef resolvers) $ \oll ->
-                        withIRCompileLayer oll tm $ \cl ->
-                            withPassManager defaultCuratedPassSetSpec $ \pm ->
-                                withSymbolResolver es (myResolver cl) $ \psr -> do
-                                    writeIORef resolvers [psr]
-                                    loadLibraryPermanently Nothing
-                                    f $ Session ctx es cl (if optimise then Just pm else Nothing) pdl oll tm
+                withObjectLinkingLayer es (\_ -> head <$> readIORef resolvers) $ \oll ->
+                    withIRCompileLayer oll tm $ \cl ->
+                        withPassManager defaultCuratedPassSetSpec $ \pm ->
+                            withSymbolResolver es (myResolver cl) $ \psr -> do
+                                writeIORef resolvers [psr]
+                                loadLibraryPermanently Nothing
+                                f $ Session ctx es cl (if optimise then Just pm else Nothing) oll tm
     where
         myResolver :: IRCompileLayer ObjectLinkingLayer -> SymbolResolver
         myResolver cl = SymbolResolver $ \mangled -> do

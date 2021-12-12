@@ -44,16 +44,13 @@ import Construct
 import Typeof
 import Trace
 
-compileFlatState
-    :: BoM s m
-    => Context
-    -> Ptr FFI.DataLayout
-    -> Map.Map S.ModuleName CompileState
+compileFlatState :: BoM s m
+    => Map.Map S.ModuleName CompileState
     -> F.FlattenState
     -> S.ModuleName
     -> m ([LL.Definition], CompileState)
-compileFlatState ctx dl imports flatState modName = do
-    res <- runBoMT (initCompileState ctx dl imports modName) (runModuleCmpT emptyModuleBuilder cmp)
+compileFlatState imports flatState modName = do
+    res <- runBoMT (initCompileState imports modName) (runModuleCmpT emptyModuleBuilder cmp)
     case res of
         Left err                 -> throwError err
         Right ((_, defs), state) -> return (defs, state)
