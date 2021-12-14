@@ -1,6 +1,9 @@
 # bolang
 Imperative language compiler written in Haskell targeting LLVM
 
+# Introduction
+Bolang is an imperative programming language which focuses on clean data structure representation and 'data-oriented' language abstractions.
+
 # Installation
 1.) Install ghc
   
@@ -15,30 +18,88 @@ Imperative language compiler written in Haskell targeting LLVM
 
 4.) Make sure clang is a high enough version
 
-5.) Install bdwgc, linked using -lgc
+5.) Install bdwgc: https://github.com/ivmai/bdwgc
+
   
 # Running
+  Run unit tests:
   
     cabal test 
-    cabal run bolang 
-    cabal run bolang -- <module path>
-
-# Introduction
-Bolang is my personal programming language which is currently under development and nearing completion. The name was originally chosen because I was creating a knock-off version of GoLang, it has stuck for the time being.
-
-Boland is a procedural language with a collection of features that prioritises streamlined construction and manipulation of data structures. I also has a fairly unique dynamic-array type that can be expanded laterally to create tables.
+  
+  Run repl (unfinished):
+  
+    cabal run bolang
+  
+  JIT compile and run a module:
+  
+    cabal run bolang -- main
+    cabal run bolang -- std/strings
+  
+  Print LLVM IR textual representation:
+  
+    cabal run bolang -- -p std/vec2
+    
+  General verbose debug:
+  
+    cabal run bolang -- -v main
+  
+  Compile to object files instead of running using JIT compiler:
+  
+    cabal run bolang -c main
+    
+  Link and run object files using gcc:
+  
+    gcc -lm -lgc build/* std/build/* lang/build/* -o main
+    ./main
 
 # Features
+
+  Functions:
+  
+    fn reverse(x [i64]) [i64]
+      let r = copy(x)
+      for [i] r
+        r[i] = x[len(x) - 1 - i]
+      return r
+
+  Switch statements with pattern matching:
+    
+    let x = ("string", [1, 2, 3])
+    
+    switch x
+      (_, [1, 2, 3]); print("123 case")
+      ("string", xs)
+        print("string with: ", xs)
+        print("can also use block statement")
+      (c -> s, _); print("string with first char: ", c)
+      ([], xs) | len(xs) > 0
+        print("pattern match with guard")
+      
+  Tables:
+  
+    let a = [1, 2, 3]                // one row
+    let b = [1, 2, 3; 'a', 'b', 'c'] // two rows
+    
+    print(a)      // [1, 2, 3]
+    print(len(a)) // 3
+    print(b)      // [1, 2, 3; "abc"]
+    print(b.1)    // "abc"
+    print(b[2])   // (2, 'b')
+    
+    let c = copy(a)
+    print(c)      // [1, 2, 3] - copy has created new memory
+    c <<- a
+    print(c)      // [1, 2, 3, 1, 2, 3] - appended a to c
+    c <- 4
+    print(c)      // [1, 2, 3, 1, 2, 3, 4] - appended single element 4 to c
+
+
   Operator overloading
   
       fn +(a string, b string)
-        return append(a, b)
-        
-  Tuples
-  
-    let x = (23, "str", [1, 2 ,3])
-    
-  Indentation-sensitive syntax
+        let s = copy(a)
+        s <<- b
+        return s
 
 
   Abstract Data Types
@@ -51,53 +112,28 @@ Boland is a procedural language with a collection of features that prioritises s
     }
      
     type Operator {
-      OpPlus
-      OpMinus
-      OpTimes
-      OpDivide
+      OpPlus()
+      OpMinus()
+      OpTimes()
+      OpDivide()
     }
     
     type Expr {
-      ExprInt: i64
-      ExprIdent: string
-      ExprInfix: (Operator, Expr, Expr)
+      ExprInt(i64)
+      ExprIdent(string)
+      ExprInfix(Operator, Expr, Expr)
     }
       
   Arrays
   
     let x = [ | 1, 2, 3]
     let y = [ 2 | 'a', 'b' ]
+
+  Function variables:
     
-  Pattern Matching
-  
-    let x = (23, "str", [1, 2, 3])
-    let (i, "str", [1] .. rest) = x
+    fn a(i i64) bool
+      return a == 3
     
-    switch "a string"
-      c -> " string"   ; // matches character
-      "a " ->> "string";
-      c -> ' ' -> ss   ; // matches character and ss with rest
-      "a string"       ;
-      _                ;
-    
-  Control Flow (if, switch, while, return etc)
-  
-    let x = "tadeusz"
-    if x == "tadeusz"
-      print("x is: " + x)
+    let x = [a]
+    x[0](3) // true
       
-    if x # "tad" ->> rest
-      print(rest)
-      
-    switch "a string"
-      c -> " string"   ; // matches character
-      "a " ->> "string";
-      c -> ' ' -> ss   ; // matches character and ss with rest
-      "a string"       ;
-      _                ;
-    
-  Tables (A collection of one or more dynamically allocated 'rows')
-  
-    let x = [1, 2, 3; "str", "ztr", "skr"; 'a', 'b', 'c']
-    print(x.2)  // ['a', 'b', 'c']
-    print(x[2]) // (3, "skr", 'c')
