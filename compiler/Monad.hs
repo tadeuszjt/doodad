@@ -5,6 +5,7 @@
 module Monad where
 -- A monad which encapsulates StateT and error handling using Error
 
+import Control.Monad.Fail
 import Control.Monad.State 
 import Control.Monad.Except 
 import Control.Monad.Trans

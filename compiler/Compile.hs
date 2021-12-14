@@ -64,9 +64,8 @@ compileFlatState imports flatState modName = do
             void $ func (LL.mkName mainName)  [] LL.VoidType $ \_ -> do
                 cmpMainGuard
 
-
-                forM_ (Map.toList $ F.typeDefs flatState) $ \(flat, (pos, typ)) ->
-                    withPos pos $ cmpTypeDef flat typ
+                forM_ (Map.toList $ F.typeDefs flatState) $ \(sym, (pos, typ)) ->
+                    withPos pos (cmpTypeDef sym typ)
 
                 mapM_ cmpFuncHdr (F.funcDefs flatState)
                 mapM_ cmpExternDef (F.externDefs flatState)
@@ -76,7 +75,7 @@ compileFlatState imports flatState modName = do
         cmpMainGuard :: InsCmp CompileState m => m ()
         cmpMainGuard = do
             boolName <- myFresh "bMainCalled"
-            bMainCalled <- global boolName LL.i1 $ toCons $ valOp $ valBool False
+            bMainCalled <- global boolName LL.i1 $ toCons (bit 0)
             b <- load bMainCalled 0
 
             true  <- freshName "main_called_true"
@@ -87,7 +86,7 @@ compileFlatState imports flatState modName = do
             retVoid
 
             emitBlockStart exit
-            store bMainCalled 0 $ valOp $ valBool True
+            store bMainCalled 0 (bit 1)
 
             forM_ (Map.keys imports) $ \modName -> do
                 op <- extern (LL.mkName $ modName ++ "__main") [] LL.VoidType

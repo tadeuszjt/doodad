@@ -69,7 +69,7 @@ instrTest initState = TestCase $ do
 
 main = do
     withSession False $ \session -> do
-        let initState = initCompileState (JIT.context session) (JIT.dataLayout session) Map.empty "testMod"
+        let initState = initCompileState Map.empty "testMod"
         runTestTTAndExit $
             TestList
                 [ typeTest

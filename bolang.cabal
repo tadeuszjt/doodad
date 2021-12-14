@@ -11,7 +11,7 @@ version:            2.4
 -- A URL where users can report bugs.
 -- bug-reports:
 license:            MIT
-author:             Tadeusz
+author:             Tadeusz Josef Tomoszek
 maintainer:         tadeuszjt@protonmail.com
 
 -- A copyright notice.
@@ -19,13 +19,56 @@ maintainer:         tadeuszjt@protonmail.com
 -- category:
 extra-source-files: CHANGELOG.md
 
+executable bolang
+    main-is:           Main.hs
+    hs-source-dirs:    compiler
+    default-language:  Haskell2010
+    extra-libraries:   gc
+    build-depends:
+        base         >= 4.0.0.0,
+        llvm-hs      ^>= 9.0.0,
+        llvm-hs-pure ^>= 9.0.0,
+        containers,
+        mtl,
+        bytestring,
+        array,
+        directory,
+        haskeline,
+        split
+    build-tools:
+        alex,
+        happy
+    other-modules:
+        ADT,
+        AST,
+        Args,
+        Compile,
+        Error,
+        Flatten,
+        Funcs,
+        JIT,
+        Modules,
+        Monad,
+        Parser,
+        Print,
+        State,
+        SymTab,
+        Table,
+        Tuple,
+        Type,
+        Value,
+        Lexer,
+        Construct,
+        Typeof,
+        Trace
+
 test-suite type-tests
     hs-source-dirs: compiler, compiler/test
     main-is: Test.hs
     default-language:  Haskell2010
     type: exitcode-stdio-1.0
     build-depends:
-        base         ^>= 4.13.0.0,
+        base         >= 4.0.0.0,
         llvm-hs      ^>= 9.0.0,
         llvm-hs-pure ^>= 9.0.0,
         containers,
@@ -63,46 +106,3 @@ test-suite type-tests
         Typeof,
         Trace
 
-
-executable bolang
-    main-is:           Main.hs
-    hs-source-dirs:    compiler
-    default-language:  Haskell2010
-    extra-libraries:   gc
-    build-depends:
-        base         ^>= 4.13.0.0,
-        llvm-hs      ^>= 9.0.0,
-        llvm-hs-pure ^>= 9.0.0,
-        containers,
-        mtl,
-        bytestring,
-        array,
-        directory,
-        haskeline,
-        split
-    build-tools:
-        alex,
-        happy
-    other-modules:
-        ADT,
-        AST,
-        Args,
-        Compile,
-        Error,
-        Flatten,
-        Funcs,
-        JIT,
-        Modules,
-        Monad,
-        Parser,
-        Print,
-        State,
-        SymTab,
-        Table,
-        Tuple,
-        Type,
-        Value,
-        Lexer,
-        Construct,
-        Typeof,
-        Trace
