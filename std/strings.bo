@@ -27,7 +27,7 @@ fn string(b bool) string
         false; return "false"
 
 
-fn strIsPrefix(pre string, str string) bool
+fn isPrefix(pre string, str string) bool
     return str[..len(pre)] == pre
 
 

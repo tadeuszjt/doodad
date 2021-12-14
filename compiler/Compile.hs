@@ -418,11 +418,11 @@ cmpExpr expr = trace "cmpExpr" $ case expr of
         valB <- cmpExpr exprB
         cmpInfix op valA valB
 
-    S.Ident pos sym            -> withPos pos $ do
-        obj <- look (Sym sym) KeyVar
+    S.Ident symbol             -> do
+        obj <- look symbol KeyVar
         case obj of
             ObjVal loc             -> return loc
-            ObjADTFieldCons adtTyp -> adtConstructField sym adtTyp []
+            ObjADTFieldCons adtTyp -> adtConstructField (sym symbol) adtTyp []
 
     S.Prefix pos S.Not   expr  -> withPos pos $ valNot =<< cmpExpr expr
     S.Prefix pos S.Minus expr  -> withPos pos $ do
@@ -441,8 +441,7 @@ cmpExpr expr = trace "cmpExpr" $ case expr of
         vals <- mapM valLoad =<< mapM valResolveExp =<< mapM cmpExpr exprs
 
         (s, obj) <- case expr of
-            S.Ident _ s                  -> fmap (s,) $ look (Sym s) $ KeyFunc (map valType vals)
-            S.Member _ (S.Ident _ mod) s -> fmap (s,) $ look (SymQualified mod s) $ KeyFunc (map valType vals)
+            S.Ident symbol               -> fmap (sym symbol,) $ look symbol $ KeyFunc (map valType vals)
             _                            -> fmap ("",) $ fmap ObjVal $ valLoad =<< cmpExpr expr
         
         case obj of
@@ -454,7 +453,7 @@ cmpExpr expr = trace "cmpExpr" $ case expr of
             ObjExtern _ retty op   -> Val retty <$> call op [(o, []) | o <- map valOp vals]
             ObjVal (Val typ op)    -> do
                 Func ts rt <- assertBaseType isFunction typ
-                assert (map valType vals == ts) "Invalid argument types"
+                assert (map valType vals == ts) ("Argument types do not match " ++ show ts)
                 Val rt <$> call op [(o, []) | o <- map valOp vals]
 
     S.Len pos expr -> withPos pos $ valLoad =<< do

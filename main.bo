@@ -8,10 +8,10 @@ import std/maths
 fn main()
     let str = "12 + 7-4 * 33"
 
-    let (tokens, rest) = lexer.lexTokens(str)
+    let (tokens, rest) = lexer::lexTokens(str)
     print(tokens, rest)
 
-    let (n, ts) = parser.parseExpr(tokens)
+    let (n, ts) = parser::parseExpr(tokens)
     print(n, ts)
 
     let v = Vec2(3.0, 4.0)
@@ -19,7 +19,7 @@ fn main()
     print(v + Vec2(31.0, 2.0) )
     print(length(v))
 
-    print( maths.sqrt( f32(3))  )
-    print( maths.sqrt( 3.3 )  )
+    print( maths::sqrt( f32(3))  )
+    print( maths::sqrt( 3.3 )  )
     print( f32(3) )
 

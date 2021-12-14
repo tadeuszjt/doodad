@@ -9,7 +9,6 @@ import           Error
 type ModuleName = String
 type Path       = [String]
 
-
 data AST
     = AST
         { astModuleName :: Maybe ModuleName
@@ -91,7 +90,7 @@ data Expr
     | Subscript  TextPos Expr Expr
     | Range      TextPos Expr (Maybe Expr) (Maybe Expr)
     | TupleIndex TextPos Expr Word32
-    | Ident      TextPos String
+    | Ident      Symbol
     | Call       TextPos Expr [Expr]
     | Conv       TextPos Type [Expr]
     | Len        TextPos Expr
@@ -183,7 +182,7 @@ instance Show Expr where
         AST.Subscript pos expr1 expr2   -> "Subscript" ++ tupStrs [show expr1, show expr2]
         AST.Range pos expr mLeft mRight -> "Range" ++ tupStrs [show expr, show mLeft, show mRight]
         AST.TupleIndex pos expr n       -> "Index" ++ tupStrs [show expr, show n]
-        AST.Ident pos s                 -> "Ident(" ++ show s ++ ")"
+        AST.Ident s                     -> "Ident(" ++ show s ++ ")"
         AST.Call pos symbol exprs       -> "Call" ++ tupStrs (show symbol: map show exprs)
         AST.Conv pos typ exprs          -> "Conv" ++ tupStrs (show typ: map show exprs)
         AST.Len pos expr                -> "Len(" ++ show expr ++ ")"

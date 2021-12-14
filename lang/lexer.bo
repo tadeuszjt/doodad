@@ -58,7 +58,7 @@ fn lexChar(str string) (Token, string)
 
 
 fn lexString(str string) (Token, string)
-    if !strIsPrefix("\"", str)
+    if !strings::isPrefix("\"", str)
         return (null, str)
 
     let s = ""
@@ -128,7 +128,7 @@ fn lexOperator(str string) (Token, string)
     let op = ""
 
     for [i] operators
-        if strIsPrefix(operators[i], str) && len(operators[i]) > len(op)
+        if strings::isPrefix(operators[i], str) && len(operators[i]) > len(op)
             op = operators[i]
         
     switch len(op)

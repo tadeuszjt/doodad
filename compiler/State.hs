@@ -54,7 +54,12 @@ data SymKey
     = KeyType
     | KeyVar
     | KeyFunc [Type]
-    deriving (Show, Eq, Ord)
+    deriving (Eq, Ord)
+
+instance Show SymKey where
+    show KeyType = "(type)"
+    show KeyVar  = "(variable)"
+    show (KeyFunc ts) = "function(" ++ show ts ++ ")"
 
 
 data Object

@@ -18,11 +18,12 @@ import qualified Data.Set as Set
 %left      '==' '!='
 %left      '+' '-'
 %left      '*' '/' '%'
-%left      '.'
 %right     '..'
-%left      '?'
+%right     '!'
 %left      '<<-' '<-'
 %right     '->>' '->'
+%nonassoc  '.'
+%nonassoc  '::'
 %nonassoc  '&'
 %nonassoc  '!'
 %nonassoc  ','
@@ -54,14 +55,13 @@ import qualified Data.Set as Set
     '=='       { Token _ ReservedOp "==" }
     '&&'       { Token _ ReservedOp "&&" }
     '||'       { Token _ ReservedOp "||" }
+    '::'       { Token _ ReservedOp "::" }
     '&'        { Token _ ReservedOp "&" }
-    '?'        { Token _ ReservedOp "!" }
     '<-'       { Token _ ReservedOp "<-" }
     '->'       { Token _ ReservedOp "->" }
     '..'       { Token _ ReservedOp ".." }
     '<<-'      { Token _ ReservedOp "<<-" }
     '->>'      { Token _ ReservedOp "->>" }
-    '#'        { Token _ ReservedOp "#" }
 
     fn         { Token _ Reserved "fn" }
     extern     { Token _ Reserved "extern" }
@@ -135,6 +135,9 @@ importPath : ident                            { [tokStr $1] }
 ---------------------------------------------------------------------------------------------------
 -- Statements -------------------------------------------------------------------------------------
 
+symbol : ident                                { T.Sym (tokStr $1) }
+       | ident '::' ident                     { T.SymQualified (tokStr $1) (tokStr $3) }
+
 stmtS : let pattern '=' expr                  { S.Assign (tokPos $1) $2 $4 }  
       | index '=' expr                        { S.Set (tokPos $2) $1 $3 }
       | index '(' exprs ')'                   { S.CallStmt (tokPos $2) $1 $3 }
@@ -192,7 +195,7 @@ fnName  : ident                               { tokStr $1 }
 
 block  : 'I' prog_ 'D'                        { S.Block $2 }
        | ';' stmtS 'N'                        { S.Block [$2] }
---       | ';' stmtB                            { S.Block [$2] }
+       --| ';' stmtB                            { S.Block [$2] }
        | ';' 'N'                              { S.Block [] }
 
 switchBlock : 'I' cases 'D'                   { $2 }
@@ -229,7 +232,7 @@ else_ : else block                            { Just $2 }
 expr   : literal                              { $1 }
        | infix                                { $1 }
        | prefix                               { $1 }
-       | ident                                { S.Ident (tokPos $1) (tokStr $1) }
+       | symbol                               { S.Ident $1 }
        | '[' tableRows ']'                    { S.Table (tokPos $1) $2 }
        | '[' 'I' exprsN 'D' ']'               { S.Table (tokPos $1) [$3] }
        | '[' '|' exprs ']'                    { S.Array (tokPos $1) $3 }
