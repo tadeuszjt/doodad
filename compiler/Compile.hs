@@ -418,45 +418,32 @@ cmpExpr expr = trace "cmpExpr" $ case expr of
     S.Copy pos expr            -> withPos pos $ valCopy =<< cmpExpr expr
 
     S.Float p f -> withPos p $ do
-        stack <- gets typeHintStack
-        case stack of
-            (t : ts) -> do
-                base <- baseTypeOf t
-                if isFloat base
-                then valFloat t f
-                else valFloat F64 f
-            _ -> valFloat F64 f
-
+        hint <- gets typeHint
+        base <- baseTypeOf hint
+        if isFloat base
+        then valFloat hint f
+        else valFloat F64 f
 
     S.Table p [[]] -> withPos p $ do
-        stack <- gets typeHintStack
-        case stack of
-            (t : ts) -> do
-                base <- baseTypeOf t
-                if isTable base
-                then valZero t
-                else err "Table no type"
-            _ -> err "Table no type"
+        hint <- gets typeHint
+        base <- baseTypeOf hint
+        if isTable base
+        then valZero hint
+        else err "Table no type"
 
     S.Null p -> withPos p $ do
-        stack <- gets typeHintStack
-        case stack of
-            (t : ts) -> do
-                base <- baseTypeOf t
-                if isADT base
-                then adtNull t
-                else adtNull $ ADT [("", Void)]
-            _ -> adtNull $ ADT [("", Void)]
-        
-    S.Int p n                  -> withPos p $ do
-        stack <- gets typeHintStack
-        case stack of
-            (t : ts) -> do
-                base <- baseTypeOf t
-                if isInt base
-                then valInt t n
-                else return (valI64 n)
-            _ -> return (valI64 n)
+        hint <- gets typeHint
+        base <- baseTypeOf hint
+        if isADT base
+        then adtNull hint
+        else adtNull $ ADT [("", Void)]
+
+    S.Int p n -> withPos p $ do
+        hint <- gets typeHint
+        base <- baseTypeOf hint
+        if isInt base
+        then valInt hint n
+        else valInt I64 n
 
     S.Infix pos op exprA exprB -> withPos pos $ do
         valA <- cmpExpr exprA
@@ -511,17 +498,14 @@ cmpExpr expr = trace "cmpExpr" $ case expr of
     S.Tuple pos [expr] -> withPos pos (cmpExpr expr)
 
     S.Tuple pos exprs -> withPos pos $ do
-        stack <- gets typeHintStack
-        vals <- case stack of
-            (t : ts) -> do
-                base <- baseTypeOf t
-                if isTuple base && (let Tuple ts = base in length ts == length exprs)
-                then do
-                    let Tuple xs = base
-                    forM (zip xs exprs) $ \((s, t), e) -> withTypeHint t (cmpExpr e)
-                else mapM cmpExpr exprs
-            _ -> mapM cmpExpr exprs
+        hint <- gets typeHint
+        base <- baseTypeOf hint
 
+        vals <- if isTuple base && (let Tuple ts = base in length ts == length exprs)
+        then do
+            let Tuple xs = base
+            forM (zip xs exprs) $ \((s, t), e) -> withTypeHint t (cmpExpr e)
+        else mapM cmpExpr exprs
 
         tup <- valLocal $ Tuple [ ("", valType v) | v <- vals ]
         zipWithM_ (tupleSet tup) [0..] vals

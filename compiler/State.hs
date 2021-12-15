@@ -68,30 +68,30 @@ data Declaration
 
 data CompileState
     = CompileState
-        { imports      :: Map.Map S.ModuleName CompileState
-        , decMap       :: Map.Map (String, SymKey) LL.Name
-        , declarations :: Map.Map LL.Name Declaration
-        , declared     :: Set.Set LL.Name
-        , symTab       :: SymTab.SymTab String SymKey Object
-        , curRetType   :: Type
-        , curModName   :: String
-        , nameMap      :: Map.Map String Int
-        , typeHintStack :: [Type]
-        , posStack     :: [TextPos]
+        { imports       :: Map.Map S.ModuleName CompileState
+        , decMap        :: Map.Map (String, SymKey) LL.Name
+        , declarations  :: Map.Map LL.Name Declaration
+        , declared      :: Set.Set LL.Name
+        , symTab        :: SymTab.SymTab String SymKey Object
+        , curRetType    :: Type
+        , curModName    :: String
+        , nameMap       :: Map.Map String Int
+        , typeHint      :: Type
+        , curTextPos    :: TextPos
         }
 
 initCompileState imports modName
      = CompileState
-        { imports      = imports
-        , decMap       = Map.empty
-        , declarations = Map.empty
-        , declared     = Set.empty
-        , symTab       = SymTab.initSymTab
-        , curRetType   = Void
-        , curModName   = modName
-        , nameMap      = Map.empty
-        , typeHintStack = []
-        , posStack     = []
+        { imports       = imports
+        , decMap        = Map.empty
+        , declarations  = Map.empty
+        , declared      = Set.empty
+        , symTab        = SymTab.initSymTab
+        , curRetType    = Void
+        , curModName    = modName
+        , nameMap       = Map.empty
+        , typeHint      = Void
+        , curTextPos    = TextPos 0 0 0 0
         }
 
 
@@ -109,29 +109,31 @@ myFresh sym = do
 
 assert :: BoM CompileState m => Bool -> String -> m ()
 assert b s = do
-    pos <- head <$> gets posStack
+    pos <- gets curTextPos
     unless b $ throwError (ErrorFile "" pos s)
 
 
 err :: BoM CompileState m => String -> m a
 err s = do
-    pos <- head <$> gets posStack
+    pos <- gets curTextPos
     throwError (ErrorFile "" pos s)
 
 
 withPos :: BoM CompileState m => TextPos -> m a -> m a
 withPos pos f = do
-    modify $ \s -> s { posStack = pos:(posStack s) }
+    oldPos <- gets curTextPos
+    modify $ \s -> s { curTextPos = pos }
     r <- f
-    modify $ \s -> s { posStack = tail (posStack s) }
+    modify $ \s -> s { curTextPos = oldPos }
     return r
 
 
 withTypeHint :: BoM CompileState m => Type -> m a -> m a
 withTypeHint typ f = do
-    modify $ \s -> s { typeHintStack = typ:(typeHintStack s) }
+    oldTypeHint <- gets typeHint
+    modify $ \s -> s { typeHint = typ }
     r <- f
-    modify $ \s -> s { typeHintStack = tail (typeHintStack s) }
+    modify $ \s -> s { typeHint = oldTypeHint }
     return r
 
 
