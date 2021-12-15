@@ -256,23 +256,28 @@ cmpPrint (S.Print pos exprs) = trace "cmpPrint" $ withPos pos $ do
         prints (v:vs) = valPrint ", " v >> prints vs
 
 
+cmpAppend :: InsCmp CompileState m => S.Append -> m Value
+cmpAppend append = case append of
+    S.AppendIndex index -> cmpIndex index
+
+    S.AppendTable pos app expr -> withPos pos $ do
+        loc <- cmpAppend app
+        val <- valResolveExp =<< cmpExpr expr
+        tableAppend loc val
+        return loc
+
+    S.AppendElem pos app expr -> withPos pos $ do
+        loc <- cmpAppend app
+        val <- valResolveExp =<< cmpExpr expr
+        tableAppendElem loc val
+        return loc
+
+
 cmpStmt :: InsCmp CompileState m => S.Stmt -> m ()
 cmpStmt stmt = trace "cmpStmt" $ case stmt of
-    S.Print pos exprs -> cmpPrint stmt
-    S.Block stmts -> pushSymTab >> mapM_ cmpStmt stmts >> popSymTab
-
-    S.AppendStmt append -> case append of
-        S.AppendTable pos (S.AppendIndex index) expr -> withPos pos $ do
-            loc <- cmpIndex index
-            val <- valResolveExp =<< cmpExpr expr
-            tableAppend loc val
-
-        S.AppendElem pos (S.AppendIndex index) expr -> withPos pos $ do
-            loc <- cmpIndex index
-            val <- valResolveExp =<< cmpExpr expr
-            tableAppendElem loc val
-
-        _ -> err $ show append
+    S.Print pos exprs   -> cmpPrint stmt
+    S.Block stmts       -> pushSymTab >> mapM_ cmpStmt stmts >> popSymTab
+    S.AppendStmt append -> void $ cmpAppend append
 
     S.CallStmt pos (S.IndIdent _ sym) exprs -> withPos pos $ do
         vals <- mapM (valLoad <=< valResolveExp <=< cmpExpr) exprs
@@ -408,7 +413,6 @@ cmpExpr expr = trace "cmpExpr" $ case expr of
     e | exprIsContextual e     -> return (Exp expr)
     S.Bool pos b               -> return (valBool b)
     S.Char pos c               -> return (valChar c)
-    S.Conv pos typ []          -> valZero typ
     S.Conv pos typ [S.Null p]  -> withPos pos (adtNull typ)
     S.Conv pos typ exprs       -> withPos pos $ valConstruct typ =<< mapM cmpExpr exprs
     S.Copy pos expr            -> withPos pos $ valCopy =<< cmpExpr expr
@@ -458,10 +462,10 @@ cmpExpr expr = trace "cmpExpr" $ case expr of
 
     S.Len pos expr -> withPos pos $ valLoad =<< do
         val <- valResolveExp =<< cmpExpr expr
-        typ <- baseTypeOf (valType val)
-        case typ of
+        base <- baseTypeOf (valType val)
+        case base of
             Table _ -> tableLen val
-            _       -> err ("cannot take length of type " ++ show typ)
+            _       -> err ("cannot take length of type " ++ show (valType val))
 
     S.Tuple pos [expr] -> withPos pos (cmpExpr expr)
     S.Tuple pos exprs -> withPos pos $ do

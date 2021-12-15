@@ -28,7 +28,7 @@ valResolveExp val = trace "valResolveExp" $ case val of
     Exp (S.Null p)    -> valZero $ ADT [("", Void)]
     Ptr _ _           -> return val
     Val _ _           -> return val
-    _                 -> error ("can't resolve contextual: " ++ show val)
+    _                 -> err ("can't resolve contextual: " ++ show val)
 
 
 valCopy :: InsCmp CompileState m => Value -> m Value
@@ -89,6 +89,8 @@ valString typ val = do
         F64 -> do
             n <- Val I32 <$> snprintf ptr (int64 bufSize) "%f" [op]
             tableSetLen tab =<< valConstruct I64 [n]
+        _ -> err $ "No string function for: " ++ show (valType val)
+        
 
 
     valLoad tab

@@ -24,7 +24,6 @@ import qualified Data.Set as Set
 %right     '->>' '->'
 %nonassoc  '.'
 %nonassoc  '::'
-%nonassoc  '&'
 %nonassoc  '!'
 %nonassoc  ','
 %nonassoc  '<' '>'
@@ -56,7 +55,6 @@ import qualified Data.Set as Set
     '&&'       { Token _ ReservedOp "&&" }
     '||'       { Token _ ReservedOp "||" }
     '::'       { Token _ ReservedOp "::" }
-    '&'        { Token _ ReservedOp "&" }
     '<-'       { Token _ ReservedOp "<-" }
     '->'       { Token _ ReservedOp "->" }
     '..'       { Token _ ReservedOp ".." }
@@ -81,7 +79,6 @@ import qualified Data.Set as Set
 
     print      { Token _ Reserved "print" }
     len        { Token _ Reserved "len" }
-    append     { Token _ Reserved "append" }
     null       { Token _ Reserved "null" }
 
     i16        { Token _ Reserved "i16" }
@@ -160,7 +157,7 @@ pattern  : '_'                                { S.PatIgnore (tokPos $1) }
          | literal                            { S.PatLiteral $1 }
          | ident                              { S.PatIdent (tokPos $1) (tokStr $1) }
          | typeOrdinal '(' patterns ')'       { S.PatTyped (tokPos $2) $1 $3 }
-         | ident '(' patterns ')'             { S.PatTyped (tokPos $2) (T.Typedef $ T.Sym $ tokStr $1) $3 }
+         | symbol '(' patterns ')'            { S.PatTyped (tokPos $2) (T.Typedef $ $1) $3 }
          | '(' patterns ')'                   { S.PatTuple (tokPos $1) $2 }
          | '[' patterns ']'                   { S.PatArray (tokPos $1) $2 }
          | pattern '->' pattern               { S.PatSplitElem (tokPos $2) $1 $3 }
@@ -290,8 +287,7 @@ prefix : '-' expr                             { S.Prefix (tokPos $1) S.Minus $2 
 ---------------------------------------------------------------------------------------------------
 -- Types ------------------------------------------------------------------------------------------
 
-type_         : ident                         { T.Typedef (T.Sym $ tokStr $1) }
-              | ident '.' ident               { T.Typedef (T.SymQualified (tokStr $1) (tokStr $3)) }
+type_         : symbol                        { T.Typedef $1 }
               | typeOrdinal                   { $1 }
               | typeAggregate                 { $1 }
 

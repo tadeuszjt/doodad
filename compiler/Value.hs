@@ -105,10 +105,13 @@ valStore (Ptr typ loc) val = trace "valStore" $ do
 
 
 valSelect :: InsCmp CompileState m => Value -> Value -> Value -> m Value
-valSelect cnd t f = trace "valSelect" $ do
+valSelect cnd true false = trace "valSelect" $ do
     assertBaseType (==Bool) (valType cnd)
-    assert (valType t == valType f) "Types do not match"
-    Val (valType t) <$> select (valOp cnd) (valOp t) (valOp f)
+    checkTypesCompatible (valType true) (valType false)
+    cndOp <- valOp <$> valLoad cnd
+    trueOp <- valOp <$> valLoad true
+    falseOp <- valOp <$> valLoad false
+    Val (valType true) <$> select cndOp trueOp falseOp
 
 
 valLocal :: InsCmp CompileState m => Type -> m Value
@@ -141,10 +144,11 @@ valMalloc typ len = trace ("valMalloc " ++ show typ) $ do
     fmap (Ptr typ) $ bitcast pi8 . LL.ptr =<< opTypeOf typ
 
 
-valPtrIdx :: InsCmp s m => Value -> Value -> m Value
+valPtrIdx :: InsCmp CompileState m => Value -> Value -> m Value
 valPtrIdx (Ptr typ loc) idx = trace ("valPtrIdx " ++ show typ) $ do
-    Val I64 i <- valLoad idx
-    Ptr typ <$> gep loc [i]
+    assertBaseType (== I64) (valType idx)
+    op <- valOp <$> valLoad idx
+    Ptr typ <$> gep loc [op]
 
 
 valMemCpy :: InsCmp CompileState m => Value -> Value -> Value -> m ()
@@ -161,7 +165,7 @@ valMemCpy (Ptr dstTyp dst) (Ptr srcTyp src) len = trace "valMemCpy" $ do
 valNot :: InsCmp CompileState m => Value -> m Value
 valNot val = trace "valNot" $ do
     assertBaseType (== Bool) (valType val)
-    Val (valType val) <$> (icmp P.EQ (bit 0) . valOp =<< valLoad val)
+    fmap (Val $ valType val) $ icmp P.EQ (bit 0) . valOp =<< valLoad val
 
         
 valsInfix :: InsCmp CompileState m => S.Op -> Value -> Value -> m Value

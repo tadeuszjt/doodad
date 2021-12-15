@@ -128,45 +128,37 @@ tableSetElem tab idx tup = trace "tableSetElem" $ do
 
 
 tableRange :: InsCmp CompileState m => Value -> Value -> Value -> m Value
-tableRange tab start end = trace "tableRange" $ do
+tableRange tab startArg endArg = trace "tableRange" $ do
     Table ts <- baseTypeOf (valType tab)
 
-    assertBaseType isInt (valType start)
-    assertBaseType isInt (valType end)
+    assertBaseType isInt (valType startArg)
+    assertBaseType isInt (valType endArg)
 
     len <- tableLen tab
     cap <- tableCap tab
 
-    startLoc <- valLocal (valType start)
-    endLoc   <- valLocal (valType end)
+    start <- valLocal (valType startArg)
+    end   <- valLocal (valType endArg)
 
-    startLT0 <- valsInfix S.LT start (valI64 0)
-    if_ (valOp startLT0)
-        (valStore startLoc (valI64 0))
-        (valStore startLoc start)
+    startLT0 <- valsInfix S.LT startArg (valI64 0)
+    valStore start =<< valSelect startLT0 (valI64 0) startArg
 
-    endGT <- valsInfix S.GT end len
-    if_ (valOp endGT)
-        (valStore endLoc len)
-        (valStore endLoc end)
+    endGT <- valsInfix S.GT endArg len
+    valStore end =<< valSelect endGT len endArg
 
-    startGT <- valsInfix S.GT startLoc len
-    if_ (valOp startGT)
-        (valStore startLoc len)
-        (return ())
+    startGT <- valsInfix S.GT start len
+    valStore start =<< valSelect startGT len start
 
-    crossed <- valsInfix S.GT startLoc endLoc
-    if_ (valOp crossed)
-        (valStore endLoc startLoc)
-        (return ())
+    crossed <- valsInfix S.GT start end
+    valStore end =<< valSelect crossed start end
     
     loc <- valLocal (valType tab)
-    tableSetLen loc =<< valsInfix S.Minus endLoc startLoc
-    tableSetCap loc =<< valsInfix S.Minus cap startLoc
+    tableSetLen loc =<< valsInfix S.Minus end start
+    tableSetCap loc =<< valsInfix S.Minus cap start
 
     forM_ (zip ts [0..]) $ \(t, i) -> do
         row <- tableRow i tab 
-        tableSetRow loc i =<< valPtrIdx row startLoc
+        tableSetRow loc i =<< valPtrIdx row start
 
     return loc
 

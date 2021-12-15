@@ -4,6 +4,7 @@ import lang/lexer
 import lang/parser
 import std/vec2
 import std/maths
+import std/rect
 
 fn main()
     let str = "12 + 7-4 * 33"
@@ -22,4 +23,7 @@ fn main()
     print( maths::sqrt( f32(3))  )
     print( maths::sqrt( 3.3 )  )
     print( f32(3) )
+
+    let r = Rect( Vec2(20.3, 1.0), v)
+    print(r)
 
