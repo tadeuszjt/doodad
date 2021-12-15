@@ -33,22 +33,8 @@ import Trace
 data Value
     = Val { valType :: Type, valOp :: LL.Operand }
     | Ptr { valType :: Type, valLoc :: LL.Operand }
-    | Exp S.Expr -- Contextual
     deriving (Show, Eq)
 
-
-valIsContextual :: Value -> Bool
-valIsContextual (Exp _) = True
-valIsContextual _       = False
-
-exprIsContextual :: S.Expr -> Bool
-exprIsContextual expr = case expr of
-    S.Int _ _                              -> True
-    S.Float _ _                            -> True
-    S.Tuple _ es | any exprIsContextual es -> True
-    S.Null _                               -> True
-    S.Table _ ess | any null ess           -> True
-    _                                      -> False
 
 data SymKey
     = KeyType
@@ -90,6 +76,7 @@ data CompileState
         , curRetType   :: Type
         , curModName   :: String
         , nameMap      :: Map.Map String Int
+        , typeHintStack :: [Type]
         , posStack     :: [TextPos]
         }
 
@@ -103,6 +90,7 @@ initCompileState imports modName
         , curRetType   = Void
         , curModName   = modName
         , nameMap      = Map.empty
+        , typeHintStack = []
         , posStack     = []
         }
 
@@ -136,6 +124,14 @@ withPos pos f = do
     modify $ \s -> s { posStack = pos:(posStack s) }
     r <- f
     modify $ \s -> s { posStack = tail (posStack s) }
+    return r
+
+
+withTypeHint :: BoM CompileState m => Type -> m a -> m a
+withTypeHint typ f = do
+    modify $ \s -> s { typeHintStack = typ:(typeHintStack s) }
+    r <- f
+    modify $ \s -> s { typeHintStack = tail (typeHintStack s) }
     return r
 
 

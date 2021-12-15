@@ -101,7 +101,6 @@ valStore (Ptr typ loc) val = trace "valStore" $ do
     case val of
         Ptr t l -> store loc 0 =<< load l 0
         Val t o -> store loc 0 o
-        Exp _   -> err "Cannot store"
 
 
 valSelect :: InsCmp CompileState m => Value -> Value -> Value -> m Value
@@ -169,37 +168,19 @@ valNot val = trace "valNot" $ do
 
         
 valsInfix :: InsCmp CompileState m => S.Op -> Value -> Value -> m Value
-valsInfix operator a b = trace ("valsInfix " ++ show operator) $ case (a, b) of
-    (Exp ea, Exp eb) -> do
-        return $ Exp (exprInfix operator ea eb)
+valsInfix operator a b = trace ("valsInfix " ++ show operator) $ do
+    Val _ opA <- valLoad a
+    Val _ opB <- valLoad b
 
-    (Exp (S.Int _ i), _) -> do
-        assertBaseType isInt (valType b)
-        val <- valInt (valType b) i
-        valsInfix operator val b
+    checkTypesCompatible (valType a) (valType b)
+    base <- baseTypeOf (valType a)
 
-    (_, Exp (S.Int _ i)) -> do
-        assertBaseType isInt (valType a)
-        val <- valInt (valType a) i
-        valsInfix operator a val
-
-    (_, Exp _) -> err ""
-
-    (Exp _, _) -> err ""
-
-    _ -> do
-        Val _ opA <- valLoad a
-        Val _ opB <- valLoad b
-
-        checkTypesCompatible (valType a) (valType b)
-        base <- baseTypeOf (valType a)
-
-        case base of
-            Bool             -> boolInfix (valType a) operator opA opB
-            Char             -> intInfix (valType a) operator opA opB
-            _ | isInt base   -> intInfix (valType a) operator opA opB
-            _ | isFloat base -> floatInfix (valType a) operator opA opB
-            _                -> err ("Operator " ++ show operator ++ " undefined for types")
+    case base of
+        Bool             -> boolInfix (valType a) operator opA opB
+        Char             -> intInfix (valType a) operator opA opB
+        _ | isInt base   -> intInfix (valType a) operator opA opB
+        _ | isFloat base -> floatInfix (valType a) operator opA opB
+        _                -> err ("Operator " ++ show operator ++ " undefined for types")
 
     where 
         exprInfix operator exprA exprB = case (operator, exprA, exprB) of

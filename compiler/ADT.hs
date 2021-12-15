@@ -200,9 +200,7 @@ adtConstructField sym typ vals = trace ("adtConstructField " ++ sym) $ do
 
             
 adtConstruct :: InsCmp CompileState m => Type -> Value -> m Value
-adtConstruct typ (Exp (S.Null _)) = trace "adtConstruct" $ adtNull typ
-adtConstruct typ (Exp _)          = trace "adtConstruct" $ error "adt constructing from contextual"
-adtConstruct typ val              = trace "adtConstruct" $ do
+adtConstruct typ val = trace "adtConstruct" $ do
     adtTyp@(ADT xs) <- assertBaseType isADT typ
     case adtTyp of
         _ | isEmptyADT adtTyp -> err "Cannot construct ADT type"

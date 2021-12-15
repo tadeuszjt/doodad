@@ -108,7 +108,7 @@ cmpTypeDef sym typ = trace "cmpTypeDef" $ do
 
 cmpVarDef :: InsCmp CompileState m => S.Stmt -> m ()
 cmpVarDef (S.Assign pos (S.PatIdent p sym) expr) = trace "cmpVarDef" $ withPos pos $ do
-    val <- valResolveExp =<< cmpExpr expr
+    val <- cmpExpr expr
     name <- myFresh sym
 
     let typ = valType val
@@ -209,7 +209,7 @@ cmpIndex index = case index of
         ObjVal val <- look (Sym sym) KeyVar
         return val
     S.IndArray pos ind idxExpr -> do
-        idxVal <- valResolveExp =<< cmpExpr idxExpr
+        idxVal <- withTypeHint I64 (cmpExpr idxExpr)
         assertBaseType isInt (valType idxVal)
 
         loc <- cmpIndex ind
@@ -248,7 +248,7 @@ cmpCondition cnd = trace "cmpCondition" $ do
 
 cmpPrint :: InsCmp CompileState m => S.Stmt -> m ()
 cmpPrint (S.Print pos exprs) = trace "cmpPrint" $ withPos pos $ do
-    prints =<< mapM valResolveExp =<< mapM cmpExpr exprs
+    prints =<< mapM cmpExpr exprs
     where
         prints :: InsCmp CompileState m => [Value] -> m ()
         prints []     = void $ printf "\n" []
@@ -262,13 +262,13 @@ cmpAppend append = case append of
 
     S.AppendTable pos app expr -> withPos pos $ do
         loc <- cmpAppend app
-        val <- valResolveExp =<< cmpExpr expr
+        val <- withTypeHint (valType loc) (cmpExpr expr)
         tableAppend loc val
         return loc
 
     S.AppendElem pos app expr -> withPos pos $ do
         loc <- cmpAppend app
-        val <- valResolveExp =<< cmpExpr expr
+        val <- cmpExpr expr
         tableAppendElem loc val
         return loc
 
@@ -280,7 +280,7 @@ cmpStmt stmt = trace "cmpStmt" $ case stmt of
     S.AppendStmt append -> void $ cmpAppend append
 
     S.CallStmt pos (S.IndIdent _ sym) exprs -> withPos pos $ do
-        vals <- mapM (valLoad <=< valResolveExp <=< cmpExpr) exprs
+        vals <- mapM (valLoad <=< cmpExpr) exprs
         resm <- lookm (Sym sym) $ KeyFunc (map valType vals)
         op <- case resm of
             Just (ObjFunc _ op)     -> return op
@@ -294,7 +294,7 @@ cmpStmt stmt = trace "cmpStmt" $ case stmt of
         void $ call op [(o, []) | o <- map valOp vals]
 
     S.CallStmt pos index exprs -> withPos pos $ do
-        vals <- mapM (valLoad <=< valResolveExp <=< cmpExpr) exprs
+        vals <- mapM (valLoad <=< cmpExpr) exprs
         fval <- valLoad =<< cmpIndex index
         ftyp@(Func ts rt) <- assertBaseType isFunction (valType fval)
         assert (ts == map valType vals) ("Incorrect argument types for: " ++ show ftyp)
@@ -316,7 +316,8 @@ cmpStmt stmt = trace "cmpStmt" $ case stmt of
 
     S.Return pos (Just expr) -> withPos pos $ do
         retty <- gets curRetType
-        ret . valOp =<< valLoad =<< valAsType retty =<< cmpExpr expr
+        val <- withTypeHint retty (cmpExpr expr)
+        ret . valOp =<< valLoad val
         emitBlockStart =<< fresh
 
     S.If pos cnd blk melse -> withPos pos $ do
@@ -344,7 +345,7 @@ cmpStmt stmt = trace "cmpStmt" $ case stmt of
         popSymTab
 
     S.For pos idxSym expr guardm blk -> withPos pos $ do
-        val <- valResolveExp =<< cmpExpr expr
+        val <- cmpExpr expr
         assertBaseType isTable (valType val)
 
         idx <- valLocal I64
@@ -410,12 +411,52 @@ cmpStmt stmt = trace "cmpStmt" $ case stmt of
 -- must return Val unless local variable
 cmpExpr :: InsCmp CompileState m =>  S.Expr -> m Value
 cmpExpr expr = trace "cmpExpr" $ case expr of
-    e | exprIsContextual e     -> return (Exp expr)
     S.Bool pos b               -> return (valBool b)
     S.Char pos c               -> return (valChar c)
     S.Conv pos typ [S.Null p]  -> withPos pos (adtNull typ)
     S.Conv pos typ exprs       -> withPos pos $ valConstruct typ =<< mapM cmpExpr exprs
     S.Copy pos expr            -> withPos pos $ valCopy =<< cmpExpr expr
+
+    S.Float p f -> withPos p $ do
+        stack <- gets typeHintStack
+        case stack of
+            (t : ts) -> do
+                base <- baseTypeOf t
+                if isFloat base
+                then valFloat t f
+                else valFloat F64 f
+            _ -> valFloat F64 f
+
+
+    S.Table p [[]] -> withPos p $ do
+        stack <- gets typeHintStack
+        case stack of
+            (t : ts) -> do
+                base <- baseTypeOf t
+                if isTable base
+                then valZero t
+                else err "Table no type"
+            _ -> err "Table no type"
+
+    S.Null p -> withPos p $ do
+        stack <- gets typeHintStack
+        case stack of
+            (t : ts) -> do
+                base <- baseTypeOf t
+                if isADT base
+                then adtNull t
+                else adtNull $ ADT [("", Void)]
+            _ -> adtNull $ ADT [("", Void)]
+        
+    S.Int p n                  -> withPos p $ do
+        stack <- gets typeHintStack
+        case stack of
+            (t : ts) -> do
+                base <- baseTypeOf t
+                if isInt base
+                then valInt t n
+                else return (valI64 n)
+            _ -> return (valI64 n)
 
     S.Infix pos op exprA exprB -> withPos pos $ do
         valA <- cmpExpr exprA
@@ -442,7 +483,7 @@ cmpExpr expr = trace "cmpExpr" $ case expr of
         return $ Val (Table [Char]) stc
 
     S.Call pos expr exprs -> withPos pos $ trace "call" $ do
-        vals <- mapM valLoad =<< mapM valResolveExp =<< mapM cmpExpr exprs
+        vals <- mapM valLoad =<< mapM cmpExpr exprs
 
         (s, obj) <- case expr of
             S.Ident symbol               -> fmap (sym symbol,) $ look symbol $ KeyFunc (map valType vals)
@@ -461,23 +502,34 @@ cmpExpr expr = trace "cmpExpr" $ case expr of
                 Val rt <$> call op [(o, []) | o <- map valOp vals]
 
     S.Len pos expr -> withPos pos $ valLoad =<< do
-        val <- valResolveExp =<< cmpExpr expr
+        val <- cmpExpr expr
         base <- baseTypeOf (valType val)
         case base of
             Table _ -> tableLen val
             _       -> err ("cannot take length of type " ++ show (valType val))
 
     S.Tuple pos [expr] -> withPos pos (cmpExpr expr)
+
     S.Tuple pos exprs -> withPos pos $ do
-        vals <- mapM cmpExpr exprs
-        assert (not $ any valIsContextual vals) "contextual 371"
+        stack <- gets typeHintStack
+        vals <- case stack of
+            (t : ts) -> do
+                base <- baseTypeOf t
+                if isTuple base && (let Tuple ts = base in length ts == length exprs)
+                then do
+                    let Tuple xs = base
+                    forM (zip xs exprs) $ \((s, t), e) -> withTypeHint t (cmpExpr e)
+                else mapM cmpExpr exprs
+            _ -> mapM cmpExpr exprs
+
+
         tup <- valLocal $ Tuple [ ("", valType v) | v <- vals ]
         zipWithM_ (tupleSet tup) [0..] vals
         valLoad tup
 
     S.Subscript pos aggExpr idxExpr -> withPos pos $ valLoad =<< do
         agg <- cmpExpr aggExpr
-        idx <- valResolveExp =<< cmpExpr idxExpr
+        idx <- withTypeHint I64 (cmpExpr idxExpr)
 
         idxType <- assertBaseType isInt (valType idx)
         aggType <- baseTypeOf (valType agg)
@@ -487,15 +539,14 @@ cmpExpr expr = trace "cmpExpr" $ case expr of
 
     S.Range pos expr mstart mend -> withPos pos $ do
         val <- cmpExpr expr
-        assert (not $ valIsContextual val) "contextual 395"
         base <- baseTypeOf (valType val)
         case base of
             Table ts -> do
-                start <- maybe (return $ valI64 0) (valResolveExp <=< cmpExpr) mstart
-                valLoad =<< tableRange val start =<< maybe (tableLen val) (valResolveExp <=< cmpExpr) mend
+                start <- maybe (return $ valI64 0) cmpExpr mstart
+                valLoad =<< tableRange val start =<< maybe (tableLen val) cmpExpr mend
     
     S.Table pos exprss -> withPos pos $ valLoad =<< do
-        valss <- mapM (mapM (valResolveExp <=< cmpExpr)) exprss
+        valss <- mapM (mapM cmpExpr) exprss
         assert (length valss > 0) "Cannot infer type of table."
         let rowLen = length (head valss)
         assert (rowLen > 0) "Cannot infer type of table."
@@ -544,8 +595,7 @@ cmpPattern pattern val = trace "cmpPattern" $ case pattern of
         valsInfix S.AndAnd match guard
 
     S.PatIdent pos sym -> withPos pos $ trace ("cmpPattern " ++ show pattern) $ do
-        val' <- valResolveExp val
-        base <- baseTypeOf (valType val')
+        base <- baseTypeOf (valType val)
 
         if isADT base && (let ADT xs = base in sym `elem` map fst xs)
         then do
@@ -553,10 +603,10 @@ cmpPattern pattern val = trace "cmpPattern" $ case pattern of
             let idx = fromJust $ elemIndex sym (map fst xs)
             let (s, t) = xs !! idx
             assert (t == Void) "Ident patterns only valid for null fields"
-            valsInfix S.EqEq (valI64 idx) =<< adtEnum val'
+            valsInfix S.EqEq (valI64 idx) =<< adtEnum val
         else do
-            loc <- valLocal (valType val')
-            valStore loc val'
+            loc <- valLocal (valType val)
+            valStore loc val
             addObjWithCheck sym KeyVar (ObjVal loc)
             return (valBool True)
 
@@ -565,7 +615,7 @@ cmpPattern pattern val = trace "cmpPattern" $ case pattern of
         assert (len == length pats) "tuple pattern length mismatch"
 
         bs <- forM (zip pats [0..]) $ \(p, i) ->
-            cmpPattern p =<< valResolveExp =<< tupleIdx i val
+            cmpPattern p =<< tupleIdx i val
 
         foldM (valsInfix S.AndAnd) (valBool True) bs
 
@@ -639,29 +689,3 @@ cmpPattern pattern val = trace "cmpPattern" $ case pattern of
     
     _ -> err ("Cannot compile pattern: " ++ show pattern)
 
-
-
-valAsType :: InsCmp CompileState m => Type -> Value -> m Value
-valAsType typ val = trace "valAsType" $ case val of
-    Exp (S.Int _ n)      -> valInt typ n
-    Exp (S.Null _)       -> adtNull typ
-    Exp (S.Table _ [[]]) -> assertBaseType isTable typ >> valZero typ
-
-    Val _ _              -> do
-        checkTypesCompatible typ (valType val)
-        return $ val { valType = typ }
-
-    Ptr _ _              -> do
-        checkTypesCompatible typ (valType val)
-        return $ val { valType = typ }
-
-    Exp (S.Tuple _ es)   -> do
-        Tuple xs <- assertBaseType isTuple typ
-
-        assert (length es == length xs) ("does not satisfy " ++ show typ)
-        vals <- forM (zip xs es) $ \((s, t), e) ->
-            valAsType t =<< cmpExpr e 
-
-        tup <- valLocal typ
-        zipWithM_ (tupleSet tup) [0..] =<< zipWithM (valAsType . snd) xs vals
-        return tup

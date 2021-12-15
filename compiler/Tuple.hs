@@ -31,8 +31,7 @@ tupleTypeDef sym typ = trace "tupleTypeDef" $ do
 
 
 tupleLength :: InsCmp CompileState m => Value -> m Int
-tupleLength (Exp (S.Tuple _ es)) = trace "tupleLength" $ return (length es)
-tupleLength val                  = trace "tupleLength" $ do
+tupleLength val = trace "tupleLength" $ do
     Tuple xs <- assertBaseType isTuple (valType val)
     return (length xs)
 
@@ -55,8 +54,7 @@ tupleMember sym tup = trace "tupleMember" $ do
 
 
 tupleIdx :: InsCmp CompileState m => Int -> Value -> m Value
-tupleIdx i (Exp (S.Tuple _ es)) = trace "tupleIdx"   $ return $ Exp (es !! i)
-tupleIdx i tup                  = trace "tupleIndex" $ do
+tupleIdx i tup = trace "tupleIndex" $ do
     Tuple xs <- baseTypeOf (valType tup)
     case tup of
         Ptr _ loc -> Ptr (snd $ xs !! i) <$> gep loc [int32 0, int32 $ fromIntegral i]

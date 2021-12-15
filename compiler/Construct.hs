@@ -20,17 +20,6 @@ import Funcs
 import qualified AST as S
 
 
-
-valResolveExp :: InsCmp CompileState m => Value -> m Value
-valResolveExp val = trace "valResolveExp" $ case val of
-    Exp (S.Int p n)   -> valInt I64 n
-    Exp (S.Float p f) -> valFloat F64 f
-    Exp (S.Null p)    -> valZero $ ADT [("", Void)]
-    Ptr _ _           -> return val
-    Val _ _           -> return val
-    _                 -> err ("can't resolve contextual: " ++ show val)
-
-
 valCopy :: InsCmp CompileState m => Value -> m Value
 valCopy val = trace "valCopy" $ do
     base <- baseTypeOf (valType val)
@@ -102,7 +91,7 @@ valConstruct :: InsCmp CompileState m => Type -> [Value] -> m Value
 valConstruct typ []       = trace "valConstruct" $ valZero typ
 valConstruct typ (a:b:xs) = trace "valConstruct" $ tupleConstruct typ (a:b:xs)
 valConstruct typ [val']   = trace "valConstruct" $ do
-    val <- valLoad =<< valResolveExp val'
+    val <- valLoad val'
     base <- baseTypeOf typ
 
     case base of
