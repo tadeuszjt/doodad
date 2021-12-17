@@ -101,6 +101,7 @@ data Expr
     | Copy       TextPos Expr
     | Prefix     TextPos Op Expr
     | Infix      TextPos Op Expr Expr
+    | Expr       Int
     deriving (Eq)
 
 
@@ -192,6 +193,7 @@ instance Show Expr where
         AST.Prefix pos op expr          -> show op ++ show expr
         AST.Infix pos op expr1 expr2    -> show expr1 ++ " " ++ show op ++ " " ++ show expr2
         AST.Null pos                    -> "null"
+        AST.Expr n                      -> "e" ++ show n
 
 
 prettyAST :: String -> AST -> IO ()

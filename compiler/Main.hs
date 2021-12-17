@@ -61,16 +61,12 @@ repl session state = do
         Just line -> do
             res <- runExceptT $ P.parse 0 line
             case res of
-                Left e -> lift (printError e)
+                Left e -> liftIO (printError e)
                 Right (AST _ _ [stmt]) -> do
-                    case stmt of
-                        Assign p pat expr -> do
-                            outputStrLn $ "let " ++ show pat ++ " = " ++ show expr
-                            x <- liftIO $ runBoMT state (annotate expr)
-                            case x of
-                                Left e          -> lift (printError e)
-                                Right (ae, state') -> do
-                                    outputStrLn (show ae)
-                                    repl session state' 
-                        Set p index expr  -> outputStrLn $ show index ++ " = " ++ show expr
-                        Print p expr      -> outputStrLn $ "print " ++ show expr
+                    res <- liftIO $ runBoMT initInferState (do { s' <- infStmt stmt; infResolve; return s' })
+                    case res of
+                        Left e -> liftIO $ printError e
+                        Right (stmt', state') -> do
+                            outputStrLn $ show stmt'
+                            liftIO $ prettyInferState state'
+                            repl session state'
