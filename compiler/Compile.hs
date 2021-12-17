@@ -317,6 +317,7 @@ cmpStmt stmt = trace "cmpStmt" $ case stmt of
     S.Return pos (Just expr) -> withPos pos $ do
         retty <- gets curRetType
         val <- withTypeHint retty (cmpExpr expr)
+        checkTypesCompatible (valType val) retty
         ret . valOp =<< valLoad val
         emitBlockStart =<< fresh
 

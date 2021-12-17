@@ -60,7 +60,8 @@ executable bolang
         Lexer,
         Construct,
         Typeof,
-        Trace
+        Trace,
+        Infer
 
 test-suite type-tests
     hs-source-dirs: compiler, compiler/test

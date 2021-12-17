@@ -118,6 +118,7 @@ import qualified Data.Set as Set
 prog  : prog_                                 { S.AST Nothing [] $1 }
       | module ident 'N' imports prog_        { S.AST (Just (tokStr $2)) $4 $5 }
 prog_ : {-empty-}                             { [] }
+      | stmtS                                 { [$1] }
       | stmtS 'N' prog_                       { $1 : $3 }
       | stmtB prog_                           { $1 : $2 }
 
@@ -191,7 +192,7 @@ fnName  : ident                               { tokStr $1 }
         | '||'                                { tokStr $1 }
 
 block  : 'I' prog_ 'D'                        { S.Block $2 }
-       | ';' stmtS 'N'                        { S.Block [$2] }
+       | ';' stmtS 'N'                        { $2 }
        --| ';' stmtB                            { S.Block [$2] }
        | ';' 'N'                              { S.Block [] }
 

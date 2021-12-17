@@ -43,12 +43,17 @@ instance Show Type where
         F64           -> "f64"
         Bool          -> "bool"
         Char          -> "char"
-        Tuple ts      -> "(" ++ intercalate ", " (map show ts) ++ ")"
+        Tuple xs      -> "(" ++ intercalate ", " (map showTupArg xs) ++ ")"
         Array n t     -> "[" ++ show n ++ "| " ++ show t ++ "]"
+        Table [Char]  -> "string"
         Table ts      -> "[" ++ intercalate "; " (map show ts) ++ "]"
         ADT ts        -> "{" ++ intercalate ", " (map show ts) ++ "}"
         Typedef s     -> show s
         Func ts rt    -> "fn(" ++ intercalate ", " (map show ts) ++ ")" ++ show rt
+        where
+            showTupArg :: (String, Type) -> String
+            showTupArg ("", t) = show t
+            showTupArg (s, t)  = s ++ ":" ++ show t
 
 
 isInt x                    = x `elem` [I8, I16, I32, I64]

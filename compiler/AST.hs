@@ -1,13 +1,17 @@
 module AST where
 
-import           Data.Word
-import           Data.List
-import           Control.Monad
-import           Type
-import           Error
+import Data.Maybe
+import Data.Word
+import Data.List
+import Control.Monad
+import Type
+import Error
 
 type ModuleName = String
 type Path       = [String]
+
+showPath path = concat (intersperse "/" path)
+
 
 data AST
     = AST
@@ -95,10 +99,8 @@ data Expr
     | Conv       TextPos Type [Expr]
     | Len        TextPos Expr
     | Copy       TextPos Expr
-    | Append     TextPos Expr Expr
     | Prefix     TextPos Op Expr
     | Infix      TextPos Op Expr Expr
-    | Address    TextPos Expr
     deriving (Eq)
 
 
@@ -117,7 +119,7 @@ data Stmt
     | Extern   TextPos String String [Param] Type
     | Typedef  TextPos String Type
     | AppendStmt Append
-    deriving (Eq)
+    deriving (Eq, Show)
 
 
 tupStrs, arrStrs, brcStrs :: [String] -> String
@@ -148,11 +150,11 @@ instance Show Pattern where
     show pat = case pat of
         PatLiteral c     -> show c
         PatIgnore pos    -> "_"
-        PatIdent pos s   -> "PatId(" ++ show s ++ ")"
+        PatIdent pos s   -> s
         PatTuple pos ps  -> tupStrs (map show ps)
         PatArray pos ps  -> arrStrs (map show ps)
-        PatTyped pos s p -> show s ++ ":" ++ show p
-        PatSplit pos a b -> show a ++ " .. " ++ show b
+        PatTyped pos s p -> show s ++ "(" ++ show p ++ ")"
+        PatSplit pos a b -> show a ++ " ->> " ++ show b
         PatSplitElem pos a b -> show a ++ " -> " ++ show b
 
 
@@ -163,74 +165,98 @@ instance Show Condition where
 
 instance Show Index where
     show ind = case ind of
-        IndIdent pos str      -> "IndIdent(" ++ show str ++ ")"
-        IndArray pos idx expr -> "IndArray(" ++ show idx ++ ", " ++ show expr ++ ")"
-        IndTuple pos idx n    -> "IndTuple(" ++ show idx ++ ", " ++ show n ++ ")"
+        IndIdent pos str      -> str
+        IndArray pos idx expr -> show idx ++ "[" ++ show expr ++ "]"
+        IndTuple pos idx n    -> show idx ++ "." ++ show n
 
 
 instance Show Expr where
     show expr = case expr of
         AST.Int pos n                   -> show n
         AST.Float pos f                 -> show f
-        AST.Bool pos b                  -> show b
+        AST.Bool pos b                  -> if b then "true" else "false"
         AST.Char pos c                  -> show c
         AST.String pos s                -> show s
-        AST.Tuple pos exprs             -> "Tuple" ++ tupStrs (map show exprs) 
-        AST.Array pos exprs             -> "Array" ++ arrStrs (map show exprs)
-        AST.Table pos exprss            -> "Table" ++ brcStrs (map show (map (AST.Array pos) exprss))
-        AST.Member pos expr str         -> "Member" ++ tupStrs [show expr, show str]
-        AST.Subscript pos expr1 expr2   -> "Subscript" ++ tupStrs [show expr1, show expr2]
-        AST.Range pos expr mLeft mRight -> "Range" ++ tupStrs [show expr, show mLeft, show mRight]
-        AST.TupleIndex pos expr n       -> "Index" ++ tupStrs [show expr, show n]
-        AST.Ident s                     -> "Ident(" ++ show s ++ ")"
-        AST.Call pos symbol exprs       -> "Call" ++ tupStrs (show symbol: map show exprs)
-        AST.Conv pos typ exprs          -> "Conv" ++ tupStrs (show typ: map show exprs)
-        AST.Len pos expr                -> "Len(" ++ show expr ++ ")"
-        AST.Copy pos expr               -> "Copy(" ++ show expr ++ ")"
-        AST.Append pos expr1 expr2      -> "Append" ++ tupStrs [show expr1, show expr2]
+        AST.Tuple pos exprs             -> tupStrs (map show exprs)
+        AST.Array pos exprs             -> "[ |" ++ intercalate ", " (map show exprs) ++ "]"
+        AST.Table pos exprss            -> "[" ++  intercalate "; " (map (intercalate ", " . map show) exprss) ++ "]"
+        AST.Member pos expr str         -> show expr ++ "." ++ show str
+        AST.Subscript pos expr1 expr2   -> show expr1 ++ "[" ++ show expr2 ++ "]"
+        AST.Range pos expr mLeft mRight -> "[" ++ maybe "" show mLeft ++ ".." ++ maybe "" show mRight ++ "]"
+        AST.TupleIndex pos expr n       -> show expr ++ "." ++ show n
+        AST.Ident s                     -> show s 
+        AST.Call pos symbol exprs       -> show symbol ++ tupStrs (map show exprs)
+        AST.Conv pos typ exprs          -> show typ ++ tupStrs (map show exprs)
+        AST.Len pos expr                -> "len(" ++ show expr ++ ")"
+        AST.Copy pos expr               -> "copy(" ++ show expr ++ ")"
         AST.Prefix pos op expr          -> show op ++ show expr
-        AST.Infix pos op expr1 expr2    -> "(" ++ show expr1 ++ " " ++ show op ++ " " ++ show expr2 ++ ")"
-        AST.Address pos expr            -> "&" ++ show expr
+        AST.Infix pos op expr1 expr2    -> show expr1 ++ " " ++ show op ++ " " ++ show expr2
         AST.Null pos                    -> "null"
 
 
 prettyAST :: String -> AST -> IO ()
 prettyAST pre ast = do
-    putStrLn $ pre ++ "Module: " ++ maybe "None" show (astModuleName ast)
-    putStrLn $ pre ++ "Imports: " ++ show (astImports ast)
+    when (isJust $ astModuleName ast) $
+        putStrLn $ pre ++ "module " ++ (fromJust $ astModuleName ast)
+
+    putStrLn ""
+    
+    forM_ (astImports ast) $ \path ->
+        putStrLn $ "import " ++ showPath path
+
+    putStrLn ""
+
+
     forM_ (astStmts ast) $ \stmt -> prettyStmt pre stmt >> putStrLn ""
     where
         prettyStmt :: String -> Stmt -> IO ()
         prettyStmt pr stmt = case stmt of
-            Assign pos pat expr     -> putStrLn (pr ++ "let " ++ show pat ++ " = " ++ show expr)
-            Set pos ind expr        -> putStrLn (pr ++ show ind ++ " = " ++ show expr)
-            Print pos exprs         -> putStrLn (pr ++ "Print" ++ tupStrs (map show exprs))
-            CallStmt pos expr exprs -> putStrLn (pr ++ show expr ++ tupStrs (map show exprs))
-            Return pos mexpr        -> putStrLn (pr ++ "Return " ++ show mexpr)
-
-            Block stmts -> do
-                putStrLn (pr ++ "block")
-                mapM_ (prettyStmt (pr ++ "\t")) stmts
+            Assign pos pat expr     -> putStrLn ("let " ++ show pat ++ " = " ++ show expr) >> putStr pr
+            Set pos ind expr        -> putStrLn (show ind ++ " = " ++ show expr) >> putStr pr
+            Print pos exprs         -> putStrLn ("print" ++ tupStrs (map show exprs)) >> putStr pr
+            CallStmt pos expr exprs -> putStrLn (show expr ++ tupStrs (map show exprs)) >> putStr pr
+            Return pos mexpr        -> putStrLn ("return " ++ maybe "" show mexpr) >> putStr pr
 
             If pos cnd true false -> do
-                putStr (pr ++ "if")
-                prettyStmt (pr ++ "\t") true
-                maybe (return ()) (prettyStmt (pr ++ "\t")) false
+                putStr $ "if " ++ show cnd
+                prettyBlock pr true
 
-            While pos cnd blk -> do
-                putStrLn (pr ++ "while " ++ show cnd)
-                prettyStmt pr blk
-
-            FuncDef pos symbol params mretty blk -> do
-                putStrLn (pr ++ "Func " ++ show symbol ++ tupStrs (map show params) ++ " " ++ show mretty)
-                prettyStmt pr blk
-
-            Extern pos nameStr symbol params mretty -> do
-                putStrLn (pr ++ "Extern " ++ symbol ++ tupStrs (map show params) ++ " " ++ show mretty)
+            FuncDef pos sym params mretty blk -> do
+                putStr $ "fn " ++ sym ++ tupStrs (map show params) ++ " " ++ if mretty == Void then "" else show mretty
+                prettyBlock pr blk
 
             Switch pos cnd cases -> do
-                putStrLn (pr ++ "switch " ++ show cnd)
+                putStrLn ("switch " ++ show cnd)
+                putStr (pr ++ "\t")
+                
                 forM_ cases $ \(c, blk) -> do
-                    putStrLn (pr ++ "\tcase " ++ show c ++ ":")
-                    prettyStmt (pr ++ "\t\t") blk
+                    putStr (show c)
+                    prettyBlock (pr ++ "\t") blk
+                    
+                putStrLn "" >> putStr pr
+
+
+
+            AppendStmt app -> putStrLn "append" >> putStr pr
+
+            For pos istr expr (mexpr) stmt -> do
+                putStr $ "for [" ++ istr ++ "] " ++ show expr ++ maybe "" ((" | " ++) . show) mexpr
+                prettyBlock pr stmt
+
+            _ -> error $ "Cannot pretty: " ++ show stmt
+
+        prettyBlock :: String -> Stmt -> IO ()
+        prettyBlock pr stmt = case stmt of
+            Block []    -> putStrLn "" >> putStr pr
+            Block stmts -> do
+                putStrLn ""
+                putStr (pr ++ "\t")
+
+                forM_ stmts $ \stmt ->
+                    prettyStmt (pr ++ "\t") stmt
+
+                putStrLn "" >> putStr pr
+
+
+            _           -> putStr "; " >> prettyStmt pr stmt
 
