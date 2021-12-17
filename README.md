@@ -74,7 +74,23 @@ Bolang is an imperative programming language which focuses on clean data structu
       (c -> s, _); print("string with first char: ", c)
       ([], xs) | len(xs) > 0
         print("pattern match with guard")
+
+  Tuples:
+  
+    type MyType = (i32, bool)                // basic tuple
+    type MyType2 = (thing:i32, flag:bool)    // tuple with field identifiers
+    
+    fn getMyType() MyType2
+      return (2, true)
       
+    let (x, b) = getMyType()                 // pattern matching tuples
+    let y      = getMyType()
+    
+    print(y)       // (thing: 2, flag: true) // prints with field names
+    print(y.1)     // true                   // access by field index
+    print(y.thing) // 2                      // access by field identifier
+  
+  
   Tables:
   
     let a = [1, 2, 3]                // one row
