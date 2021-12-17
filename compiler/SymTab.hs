@@ -1,5 +1,6 @@
 module SymTab where
 
+import Control.Monad
 import qualified Data.Map as Map
 import           Data.Maybe
 
@@ -41,3 +42,11 @@ push s =
 pop :: SymTab s k o -> SymTab s k o
 pop s =
     tail s
+
+
+prettySymTab :: (Show s, Show k, Show o) => SymTab s k o -> IO ()
+prettySymTab symTab = do
+    forM_ (reverse symTab) $ \symMap -> do
+        forM_ (Map.toList symMap) $ \(s, keyMap) -> do
+            putStrLn $ show s ++ " " ++ show keyMap
+        putStrLn ""

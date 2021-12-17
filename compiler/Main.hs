@@ -63,7 +63,7 @@ repl session state = do
             case res of
                 Left e -> liftIO (printError e)
                 Right (AST _ _ [stmt]) -> do
-                    res <- liftIO $ runBoMT initInferState (do { s' <- infStmt stmt; infResolve; return s' })
+                    res <- liftIO $ runBoMT state (do { s' <- infStmt stmt; infResolve; return s' })
                     case res of
                         Left e -> liftIO $ printError e
                         Right (stmt', state') -> do
