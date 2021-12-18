@@ -27,20 +27,19 @@ instance Show SymId where show (SymId i) = 's' : show i
 
 data InferState =
     InferState
-    { expressions  :: Map.Map ExprId (Expr, TypeId)
-    , exprIdSupply :: Int
-    , typeIdSupply :: Int
-    , symIdSupply  :: Int
-    , typeEqPairs  :: [(TypeId, TypeId)]
-    , typeDefaults :: Map.Map TypeId Type
-    , typeDefs     :: Map.Map TypeId Type
-    , symbols      :: Map.Map SymId (String, TypeId)
-    , symTab       :: SymTab.SymTab String () SymId
-    }
+        { expressions  :: Map.Map ExprId (Expr, TypeId)
+        , exprIdSupply :: Int
+        , typeIdSupply :: Int
+        , symIdSupply  :: Int
+        , typeEqPairs  :: [(TypeId, TypeId)]
+        , typeDefaults :: Map.Map TypeId Type
+        , typeDefs     :: Map.Map TypeId Type
+        , symbols      :: Map.Map SymId (String, TypeId)
+        , symTab       :: SymTab.SymTab String () SymId
+        }
     deriving (Show)
 
-initInferState =
-    InferState
+initInferState = InferState
     { expressions  = Map.empty
     , exprIdSupply = 0
     , typeIdSupply = 0
@@ -53,41 +52,41 @@ initInferState =
     }
 
 
-infAddExpr :: BoM InferState m => Expr -> TypeId -> m ExprId
-infAddExpr expr tid = do
-    eid <- gets exprIdSupply
-    modify $ \s -> s { expressions = Map.insert (ExprId eid) (expr, tid) (expressions s) }
-    modify $ \s -> s { exprIdSupply = eid + 1 }
-    return (ExprId eid)
+addExpr :: BoM InferState m => Expr -> TypeId -> m Expr
+addExpr expr tid = do
+    id <- gets exprIdSupply
+    modify $ \s -> s { expressions = Map.insert (ExprId id) (expr, tid) (expressions s) }
+    modify $ \s -> s { exprIdSupply = id + 1 }
+    return (Expr id)
 
 
-infGenTypeId :: BoM InferState m => m TypeId
-infGenTypeId = do
+genTypeId :: BoM InferState m => m TypeId
+genTypeId = do
     n <- gets typeIdSupply
     modify $ \s -> s { typeIdSupply = n + 1 }
     return (TypeId n)
 
 
-infAddTypeEq :: BoM InferState m => TypeId -> TypeId -> m ()
-infAddTypeEq t1 t2 = do
+addTypeEq :: BoM InferState m => TypeId -> TypeId -> m ()
+addTypeEq t1 t2 = do
     modify $ \s -> s { typeEqPairs = (t1, t2) : (typeEqPairs s) }
 
 
-infAddTypeToId:: BoM InferState m => TypeId -> Type -> m ()
-infAddTypeToId tid typ = do
+addTypeToId:: BoM InferState m => TypeId -> Type -> m ()
+addTypeToId tid typ = do
     tm <- Map.lookup tid <$> gets typeDefs
     when (isJust tm) $ fail $ show tid ++ " already has type definition"
     modify $ \s -> s { typeDefs = Map.insert tid typ (typeDefs s) }
     
 
-infAddDefaultTypeToId :: BoM InferState m => TypeId -> Type -> m ()
-infAddDefaultTypeToId tid typ =
+addDefaultTypeToId :: BoM InferState m => TypeId -> Type -> m ()
+addDefaultTypeToId tid typ =
     modify $ \s -> s { typeDefaults = Map.insert tid typ (typeDefaults s) }
 
 
-infGetTid :: BoM InferState m => ExprId -> m TypeId
-infGetTid eid = do
-    (_, tid) <- (Map.! eid) <$> gets expressions
+getExprTid :: BoM InferState m => Expr -> m TypeId
+getExprTid (Expr id) = do
+    (_, tid) <- (Map.! (ExprId id)) <$> gets expressions
     return tid
 
 infGetSymTid :: BoM InferState m => SymId -> m TypeId
@@ -95,8 +94,8 @@ infGetSymTid sid = do
     (_, tid) <- (Map.! sid) <$> gets symbols
     return tid
 
-infAddSym :: BoM InferState m => String -> TypeId -> m SymId
-infAddSym sym tid = do
+addSym :: BoM InferState m => String -> TypeId -> m SymId
+addSym sym tid = do
     id <- gets symIdSupply
     modify $ \s -> s { symIdSupply = id + 1 }
     modify $ \s -> s { symbols = Map.insert (SymId id) (sym, tid) (symbols s) }
@@ -104,53 +103,172 @@ infAddSym sym tid = do
     return (SymId id)
 
 
-infExpr :: BoM InferState m => Expr -> m ExprId
+pushSymTab :: BoM InferState m => m ()
+pushSymTab = do
+    modify $ \s -> s { symTab = SymTab.push (symTab s) }
+
+
+popSymTab :: BoM InferState m => m ()
+popSymTab = do
+    modify $ \s -> s { symTab = SymTab.pop (symTab s) }
+
+
+infExpr :: BoM InferState m => Expr -> m Expr
 infExpr expr = case expr of
     Int p n -> do
-        tid <- infGenTypeId
-        eid <- infAddExpr expr tid
-        infAddDefaultTypeToId tid I64
-        return eid
+        tid <- genTypeId
+        addDefaultTypeToId tid I64
+        addExpr expr tid
 
-    AST.Bool p b         -> do
-        tid <- infGenTypeId
-        eid <- infAddExpr expr tid
-        infAddTypeToId tid Type.Bool
-        return eid
+    Float p f -> do
+        tid <- genTypeId
+        addDefaultTypeToId tid F64
+        addExpr expr tid
+
+    AST.Bool p b -> do
+        tid <- genTypeId
+        addTypeToId tid Type.Bool
+        addExpr expr tid
+
 
     Infix p op e1 e2
         | op == EqEq || op == OrOr || op == AndAnd -> do
-            eid1@(ExprId ei1) <- infExpr e1
-            eid2@(ExprId ei2) <- infExpr e2
-            tid1 <- infGetTid eid1
-            tid2 <- infGetTid eid2
-            infAddTypeEq tid1 tid2
-            tid <- infGenTypeId
-            infAddTypeToId tid Type.Bool
-            infAddExpr (Infix p op (Expr ei1) (Expr ei2)) tid
+            e1' <- infExpr e1
+            e2' <- infExpr e2
+
+            tid1 <- getExprTid e1'
+            tid2 <- getExprTid e2'
+            addTypeEq tid1 tid2
+
+            tid <- genTypeId
+            addTypeToId tid Type.Bool
+            addExpr (Infix p op e1' e2') tid
 
     Infix p op e1 e2
-        | op == Plus || op == Times || op == Divide -> do
-            eid1@(ExprId ei1) <- infExpr e1
-            eid2@(ExprId ei2) <- infExpr e2
-            tid1 <- infGetTid eid1
-            tid2 <- infGetTid eid2
-            infAddTypeEq tid1 tid2
-            infAddExpr (Infix p op (Expr ei1) (Expr ei2)) tid1
+        | op == Plus || op == Times || op == Divide || op == Minus -> do
+            e1' <- infExpr e1
+            e2' <- infExpr e2
+
+            tid1 <- getExprTid e1'
+            tid2 <- getExprTid e2'
+            addTypeEq tid1 tid2
+            addExpr (Infix p op e1' e2') tid1
 
     Ident (Sym sym) -> do
-        Just sid <- SymTab.lookupSymKey sym () <$> gets symTab
+        res <- SymTab.lookupSymKey sym () <$> gets symTab
+        sid <- case res of
+            Just sid -> return sid
+            Nothing -> error $ "Cannot find symbol: " ++ sym
         tid <- infGetSymTid sid
-        infAddExpr (Ident (Sym sym)) tid
+
+        addExpr (Ident (Sym sym)) tid
+
+    String pos str -> do
+        tid <- genTypeId
+        addTypeToId tid $ Type.Table [Type.Char]
+        addExpr expr tid
+
+    Call pos expr@(Ident _) exprs -> do
+        es' <- mapM infExpr exprs
+        addExpr (Call pos expr es') =<< genTypeId
+
+
+    Call pos expr exprs -> do
+        e' <- infExpr expr
+        es' <- mapM infExpr exprs
+        addExpr (Call pos e' es') =<< genTypeId
+
+    AST.Table pos [[]] -> do
+        addExpr (AST.Table pos []) =<< genTypeId
+
+    AST.Tuple pos [expr] -> do
+        infExpr expr
+
+    Conv p typ [expr] -> do
+        e' <- infExpr expr
+        addExpr (Conv p typ [e']) =<< genTypeId
+
+
+    _ -> error $ "Cannot infer: " ++ show expr
+
+
+infPattern :: BoM InferState m => Pattern -> Expr -> m Pattern
+infPattern pattern expr@(Expr _) = case pattern of
+    PatIdent p sym -> do
+        tid <- getExprTid expr
+        addSym sym tid
+        return pattern
+
+    PatTuple p pats -> do
+        tupTid       <- genTypeId
+        tupFieldTids <- forM pats (\_ -> genTypeId)
+
+        let tupType = Type.Tuple [ ("", Type id) | TypeId id <- tupFieldTids ]
+        addTypeToId tupTid tupType
+
+        tid <- getExprTid expr
+        addTypeEq tid tupTid
+
+        pats' <- forM (zip3 pats tupFieldTids [0..]) $ \(pat, ftid, i) -> do
+            t <- genTypeId
+            e <- addExpr (TupleIndex p expr i) t
+            addTypeEq t ftid
+            infPattern pat e
+
+        return (PatTuple p pats')
+
+
+        
+
+    _ -> error $ "Cannot infer pattern: " ++ show pattern
 
 
 infStmt :: BoM InferState m => Stmt -> m Stmt
 infStmt stmt = case stmt of
-    Assign pos (PatIdent p sym) expr -> do
-        ExprId ei <- infExpr expr
-        tid <- infGetTid (ExprId ei) 
-        sid <- infAddSym sym tid
-        return $ Assign p (PatIdent p $ show sid) (Expr ei)
+    Assign pos pat expr -> do
+        e' <- infExpr expr
+        infPat <- infPattern pat e'
+        return $ Assign pos infPat e'
+
+    FuncDef pos sym [] Void blk -> do
+        pushSymTab
+        infBlk <- infStmt blk
+        popSymTab
+        return $ FuncDef pos sym [] Void infBlk
+
+    Block blk -> do
+        pushSymTab
+        r <- Block <$> mapM infStmt blk
+        popSymTab
+        return r
+
+    While pos cnd blk -> do
+        --infCnd
+        While pos cnd <$> infStmt blk
+
+    For pos idxStr expr Nothing blk -> do
+        pushSymTab
+
+        idxTid <- genTypeId
+        addDefaultTypeToId idxTid I64
+        addSym idxStr idxTid
+
+        e' <- infExpr expr
+        infBlk <- infStmt blk
+
+        popSymTab
+
+        return $ For pos idxStr e' Nothing infBlk
+
+    Print pos exprs -> do
+        Print pos <$> mapM infExpr exprs
+
+    _ -> error $ "Cannot infer: " ++ show stmt
+
+
+infAST :: BoM InferState m => AST -> m ()
+infAST ast = do
+    mapM_ infStmt (astStmts ast)
 
 
 infResolve :: BoM InferState m => m ()

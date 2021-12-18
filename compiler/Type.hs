@@ -14,7 +14,8 @@ instance Show Symbol where
 
 
 data Type
-    = Void
+    = Type Int
+    | Void
     | I8                     ----
     | I16                    -- Simple Types
     | I32                    -- 
@@ -34,6 +35,7 @@ data Type
 
 instance Show Type where
     show t = case t of
+        Type id       -> "t" ++ show id
         Void          -> "void"
         I8            -> "i8"
         I16           -> "i16"

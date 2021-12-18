@@ -5,6 +5,7 @@ data Args = Args
     , optimise    :: Bool
     , astOnly     :: Bool
     , lexOnly     :: Bool
+    , inferOnly   :: Bool
     , printLLIR   :: Bool
     , compileObj  :: Bool
     , modPaths    :: [String]
@@ -15,6 +16,7 @@ initArgs = Args
     , optimise  = True
     , astOnly   = False
     , lexOnly   = False
+    , inferOnly = False
     , printLLIR = False
     , compileObj = False
     , modPaths  = []
@@ -30,6 +32,7 @@ parseArgs args argStrs = case argStrs of
     ["-l"] -> args { lexOnly   = True }
     ["-p"] -> args { printLLIR = True }
     ["-c"] -> args { compileObj = True }
+    ["-i"] -> args { inferOnly  = True }
     [str]  -> args { modPaths  = (modPaths args) ++ [str] }
     (a:as) -> parseArgs (parseArgs args [a]) as
 

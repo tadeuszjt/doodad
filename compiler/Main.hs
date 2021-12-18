@@ -36,14 +36,24 @@ main = do
                 case res of
                     Left err     -> printError err 
                     Right (r, _) -> mapM_ (putStrLn . show) r
-    else if astOnly parsedArgs then do
-        withSession (optimise parsedArgs) $ \session -> do
-            forM_ (modPaths parsedArgs) $ \path -> do
-                res <- runBoMT (initModulesState session) (parse 0 path)
-                case res of
-                    Left err     -> printError err 
-                    Right (r, _) -> prettyAST "" r
-        
+    else if astOnly parsedArgs then
+        forM_ (modPaths parsedArgs) $ \path -> do
+            res <- runBoMT () (parse 0 path)
+            case res of
+                Left err     -> printError err 
+                Right (ast, _) -> prettyAST "" ast
+
+    else if inferOnly parsedArgs then do
+        forM_ (modPaths parsedArgs) $ \path -> do
+            res <- runBoMT () (parse 0 path)
+            case res of
+                Left err       -> printError err 
+                Right (ast, _) -> do
+                    infRes <- runBoMT initInferState (infAST ast >> infResolve)
+                    case infRes of
+                        Left e -> error (show e)
+                        Right (_, infState) -> prettyInferState infState
+    
     else do
         withSession (optimise parsedArgs) $ \session -> do
             forM_ (modPaths parsedArgs) $ \path -> do
