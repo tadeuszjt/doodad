@@ -3,12 +3,14 @@ module Type where
 import Data.List
 
 data Symbol
-    = Sym { sym :: String }
+    = Symbol Int
+    | Sym { sym :: String }
     | SymQualified { mod :: String, sym :: String }
     deriving (Eq, Ord)
 
 
 instance Show Symbol where
+    show (Symbol i)           = "s" ++ show i
     show (Sym s)              = s
     show (SymQualified mod s) = mod ++ "::" ++ s
 

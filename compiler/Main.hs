@@ -49,10 +49,12 @@ main = do
             case res of
                 Left err       -> printError err 
                 Right (ast, _) -> do
-                    infRes <- runBoMT initInferState (infAST ast >> infResolve)
+                    infRes <- runBoMT initInferState (do ast' <- infAST ast; infResolve; return ast' )
                     case infRes of
                         Left e -> error (show e)
-                        Right (_, infState) -> prettyInferState infState
+                        Right (ast', infState) -> do
+                            prettyInferState infState
+                            prettyAST "" ast'
     
     else do
         withSession (optimise parsedArgs) $ \session -> do

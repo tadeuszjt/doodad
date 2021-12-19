@@ -237,6 +237,13 @@ prettyAST pre ast = do
                     
                 putStrLn "" >> putStr pr
 
+            Block stmts -> do
+                putStr "\t"
+                mapM_ (prettyStmt (pr ++ "\t")) stmts
+                putStrLn ""
+                putStr pr
+                
+
 
 
             AppendStmt app -> putStrLn "append" >> putStr pr
