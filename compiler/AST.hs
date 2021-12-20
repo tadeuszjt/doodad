@@ -116,9 +116,9 @@ data Stmt
     | While    TextPos Condition Stmt
     | For      TextPos String Expr (Maybe Expr) Stmt
     | Switch   TextPos Expr [(Pattern, Stmt)]
-    | FuncDef  TextPos String [Param] Type Stmt
+    | FuncDef  TextPos Symbol [Param] Type Stmt
     | Extern   TextPos String String [Param] Type
-    | Typedef  TextPos String Type
+    | Typedef  TextPos Symbol Type
     | AppendStmt Append
     deriving (Eq, Show)
 
@@ -223,8 +223,8 @@ prettyAST pre ast = do
                 putStr $ "if " ++ show cnd
                 prettyBlock pr true
 
-            FuncDef pos sym params mretty blk -> do
-                putStr $ "fn " ++ sym ++ tupStrs (map show params) ++ " " ++ if mretty == Void then "" else show mretty
+            FuncDef pos symbol params mretty blk -> do
+                putStr $ "fn " ++ show symbol ++ tupStrs (map show params) ++ " " ++ if mretty == Void then "" else show mretty
                 prettyBlock pr blk
 
             Switch pos cnd cases -> do
