@@ -1,6 +1,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 module Modules where
 
+import System.FilePath
 import System.IO
 import System.Environment
 import System.Directory
@@ -30,7 +31,7 @@ import Args
 
 data Modules
     = Modules
-        { modMap  :: Map.Map S.Path CompileState
+        { modMap  :: Map.Map FilePath CompileState
         , session :: JIT.Session
         }
 
@@ -42,9 +43,52 @@ initModulesState session
         }
 
 
--- turn an array based path into a string
-showPath :: S.Path -> String
-showPath path = concat (intersperse "/" path)
+checkAndNormalisePath :: BoM s m => FilePath -> m FilePath
+checkAndNormalisePath path = do
+    when (not $ isValid path) $ fail (show path ++ " invalid")
+    processSplitPath (splitPath path)
+
+    where
+        processSplitPath :: BoM s m => [FilePath] -> m FilePath
+        processSplitPath path = case path of
+            [x]    -> checkValidModuleName x >> return x
+            ("./":xs) -> processSplitPath xs
+            (x:"../":xs) -> checkValidDirName x >> processSplitPath xs
+            (x:xs) -> do
+                checkValidDirName x
+                xs' <- processSplitPath xs
+                return $ joinPath [x, xs']
+            xs -> fail ("Cannot process: " ++ joinPath xs)
+
+        checkValidModuleName :: BoM s m => String -> m ()
+        checkValidModuleName name = do
+            when (null name) $ fail "Invalid module name"
+            when (not $ isAlpha $ head name) $ fail $ "Module name: " ++ name ++ " must have alpha as first char"
+            when (not $ all (== True) (map isAlphaNum name)) $ fail $ "Module name: " ++ name ++ " must be all alphanum"
+
+        checkValidDirName :: BoM s m => String -> m ()
+        checkValidDirName dirName = do
+            let name = dropTrailingPathSeparator dirName
+            when (null name) $ fail "Invalid directory name"
+            when (not $ isAlpha $ head name) $ fail $ "Directory name: " ++ name ++ " must have alpha as first char"
+            when (not $ all (== True) (map isAlphaNum name)) $ fail $ "Module name: " ++ name ++ " must be all alphanum"
+
+
+getBoFilesInDirectory :: BoM s m => FilePath -> m [FilePath]
+getBoFilesInDirectory dir = do
+    list <- liftIO (listDirectory dir)
+    return [ dir ++ "/" ++ f | f <- list, isSuffixOf ".bo" f ]
+
+
+getSpecificModuleFiles :: BoM s m => String -> [FilePath] -> m [FilePath]
+getSpecificModuleFiles name []     = return []
+getSpecificModuleFiles name (f:fs) = do
+    source <- liftIO (readFile f)
+    ast <- parse 0 f
+    if fromJust (S.astModuleName ast) == name then
+        (f:) <$> getSpecificModuleFiles name fs
+    else
+        getSpecificModuleFiles name fs
 
 
 lexFile :: BoM s m => Int -> FilePath -> m [L.Token]
@@ -66,37 +110,41 @@ parse id file = do
         Left (ErrorFile "" pos str) -> throwError (ErrorFile file pos str)
         Right a                     -> return a
 
-runMod :: BoM Modules m => Args -> Set.Set S.Path -> S.Path -> m CompileState
+
+runMod :: BoM Modules m => Args -> Set.Set FilePath -> FilePath -> m CompileState
 runMod args visited modPath = do
     debug "running"
-    path <- resolvePath modPath
+    path <- checkAndNormalisePath modPath
     when (Set.member path visited) $
-        fail ("importing \"" ++ showPath path ++ "\" forms a cycle")
+        fail ("importing \"" ++ path ++ "\" forms a cycle")
 
     resm <- Map.lookup path <$> gets modMap
     maybe (compile path) (return) resm
     where
-        compile :: BoM Modules m => S.Path -> m CompileState
+        -- path will be in the form "dir1/dirn/modname"
+        compile :: BoM Modules m => FilePath -> m CompileState
         compile path = do
-            let (dir, name) = (init path, last path)
+            let name = takeFileName path
+            let dir = takeDirectory path
 
-            files <- getSpecificModuleFiles name =<< getBoFilesInDirectory (if null dir then "." else showPath dir)
-            when (null files) $ fail ("no files for: " ++ showPath path)
+            files <- getSpecificModuleFiles name =<< getBoFilesInDirectory dir
+            when (null files) $ fail ("no files for: " ++ path)
 
+
+            -- flatten asts
             asts <- forM (zip files [0..]) $ \(file, id) -> do
                 debug ("using file: " ++ file)
                 parse id file
-
-            -- flatten asts
             combinedAST <- combineASTs asts
-            let importNames = map last (S.astImports combinedAST)
+            let importNames = map takeFileName (S.astImports combinedAST)
             when (length importNames /= length (Set.fromList importNames)) $
                 fail "import name collision"
 
             imports <- fmap Map.fromList $ forM (S.astImports combinedAST) $ \importPath -> do
-                resPath <- resolvePath (dir ++ importPath)
-                let importName = last importPath
-                debug ("importing : " ++ showPath importPath ++ " as " ++ importName)
+                resPath <- checkAndNormalisePath $ joinPath [dir, importPath]
+
+                let importName = takeFileName resPath
+                debug ("importing : " ++ importPath ++ " as " ++ importName)
                 state <- runMod args (Set.insert path visited) resPath
                 return (importName, state)
 
@@ -115,10 +163,10 @@ runMod args visited modPath = do
                 Right (res, _)              -> return res
 
             if compileObj args then do
-                let dir' = dir ++ ["build"]
-                let name' = name ++ ".o"
-                liftIO $ createDirectoryIfMissing True (showPath dir')
-                liftIO $ jitCompileToObject (printLLIR args) (showPath $ dir' ++ [name']) defs session
+                let dir' = joinPath [dir, "build"]
+                let name' = addExtension name ".o"
+                liftIO $ createDirectoryIfMissing True dir'
+                liftIO $ jitCompileToObject (printLLIR args) (joinPath [dir', name']) defs session
             else do
                 liftIO $ jitAndRun defs session True (printLLIR args) 
 
@@ -127,33 +175,6 @@ runMod args visited modPath = do
 
         debug str =
             if verbose args
-            then liftIO $ putStrLn (showPath modPath ++ " -> " ++ str)
+            then liftIO $ putStrLn (show modPath ++ " -> " ++ str)
             else return ()
-
-
-
-resolvePath :: BoM s m => S.Path -> m S.Path
-resolvePath path = case path of
-    ("..":_)    -> fail ("cannot resolve directory: " ++ showPath path)
-    (x:"..":xs) -> resolvePath xs
-    (".":xs)    -> resolvePath xs
-    (x:xs)      -> (x:) <$> resolvePath xs
-    _           -> return []
-
-
-getBoFilesInDirectory :: BoM s m => FilePath -> m [FilePath]
-getBoFilesInDirectory dir = do
-    list <- liftIO (listDirectory dir)
-    return [ dir ++ "/" ++ f | f <- list, isSuffixOf ".bo" f ]
-
-
-getSpecificModuleFiles :: BoM s m => String -> [FilePath] -> m [FilePath]
-getSpecificModuleFiles name []     = return []
-getSpecificModuleFiles name (f:fs) = do
-    source <- liftIO (readFile f)
-    ast <- parse 0 f
-    if fromJust (S.astModuleName ast) == name then
-        (f:) <$> getSpecificModuleFiles name fs
-    else
-        getSpecificModuleFiles name fs
 

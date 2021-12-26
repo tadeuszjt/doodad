@@ -34,7 +34,7 @@ executable bolang
         array,
         directory,
         haskeline,
-        split
+        filepath
     build-tools:
         alex,
         happy
@@ -78,8 +78,8 @@ test-suite type-tests
         array,
         directory,
         haskeline,
-        split,
-        HUnit
+        HUnit,
+        filepath
     build-tools:
         alex,
         happy

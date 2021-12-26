@@ -13,6 +13,7 @@ import AST
 import Type
 import Error
 import Monad
+import State (SymKey, Object)
 
 newtype TypeId = TypeId Int
     deriving (Eq, Ord)
@@ -42,6 +43,7 @@ data InferState =
         , defaults     :: Map.Map TypeId Type
         , symTab       :: SymTab.SymTab Symbol () SymId
         , constraints  :: [Constraint]
+        , imports      :: Map.Map ModuleName (SymTab.SymTab String SymKey Object)
         , exprIdSupply :: Int
         , typeIdSupply :: Int
         , symIdSupply  :: Int
@@ -49,11 +51,12 @@ data InferState =
         }
     deriving (Show)
 
-initInferState = InferState
+initInferState imp = InferState
     { expressions  = Map.empty
     , symbols      = Map.empty
     , defaults     = Map.empty
     , symTab       = SymTab.initSymTab
+    , imports      = imp
     , constraints  = []
     , exprIdSupply = 0
     , typeIdSupply = 0

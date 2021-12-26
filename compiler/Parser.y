@@ -125,9 +125,9 @@ prog_ : {-empty-}                             { [] }
 imports : {- empty -}                         { [] }
         | import importPath 'N' imports       { $2 : $4 }
 
-importPath : ident                            { [tokStr $1] }
-           | '..' '/' importPath              { ".." : $3 }
-           | ident '/' importPath             { (tokStr $1) : $3 }
+importPath : ident                            { (tokStr $1) }
+           | '..' '/' importPath              { "../" ++ $3 }
+           | ident '/' importPath             { (tokStr $1) ++ "/" ++ $3 }
 
 
 ---------------------------------------------------------------------------------------------------

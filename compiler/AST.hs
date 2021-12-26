@@ -8,7 +8,6 @@ import Type
 import Error
 
 type ModuleName = String
-type Path       = [String]
 
 showPath path = concat (intersperse "/" path)
 
@@ -16,7 +15,7 @@ showPath path = concat (intersperse "/" path)
 data AST
     = AST
         { astModuleName :: Maybe ModuleName
-        , astImports    :: [Path]
+        , astImports    :: [FilePath]
         , astStmts      :: [Stmt]
         }
 
@@ -204,7 +203,7 @@ prettyAST pre ast = do
     putStrLn ""
     
     forM_ (astImports ast) $ \path ->
-        putStrLn $ "import " ++ showPath path
+        putStrLn $ "import " ++ show path
 
     putStrLn ""
 

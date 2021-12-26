@@ -4,7 +4,6 @@ import System.Environment
 import System.IO
 import System.Console.Haskeline
 import Control.Monad
-import Data.List.Split
 import Control.Monad.Trans
 import Control.Monad.Except
 import qualified Data.Map as Map
@@ -28,7 +27,7 @@ main = do
     if args == [] then do
         putStrLn "==== Bolang REPL ===="
         withSession True $ \session -> do
-            runInputT defaultSettings (repl session initInferState)
+            runInputT defaultSettings (repl session $ initInferState Map.empty)
     else if lexOnly parsedArgs then do
         withSession (optimise parsedArgs) $ \session -> do
             forM_ (modPaths parsedArgs) $ \path -> do
@@ -49,7 +48,7 @@ main = do
             case res of
                 Left err       -> printError err 
                 Right (ast, _) -> do
-                    infRes <- runBoMT initInferState (do ast' <- infAST ast; infResolve; return ast' )
+                    infRes <- runBoMT (initInferState Map.empty) (do ast' <- infAST ast; infResolve; return ast' )
                     case infRes of
                         Left e -> error (show e)
                         Right (ast', infState) -> do
@@ -59,7 +58,7 @@ main = do
     else do
         withSession (optimise parsedArgs) $ \session -> do
             forM_ (modPaths parsedArgs) $ \path -> do
-                res <- runBoMT (initModulesState session) $ runMod parsedArgs Set.empty (splitOn "/" path)
+                res <- runBoMT (initModulesState session) $ runMod parsedArgs Set.empty path
                 case res of
                     Left err -> printError err 
                     Right _  -> return ()

@@ -15,7 +15,7 @@ import Error
 
 data FlattenState
     = FlattenState
-        { imports    :: [S.Path]
+        { imports    :: [FilePath]
         , typeDefs   :: Map.Map String (TextPos, T.Type)
         , varDefs    :: [S.Stmt]
         , funcDefs   :: [S.Stmt]
