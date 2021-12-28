@@ -44,17 +44,10 @@ main = do
 
     else if inferOnly parsedArgs then do
         forM_ (modPaths parsedArgs) $ \path -> do
-            res <- runBoMT () (parse 0 path)
+            res <- runBoMT initRunInferState (runModInfer path Set.empty)
             case res of
-                Left err       -> printError err 
-                Right (ast, _) -> do
-                    infRes <- runBoMT (initInferState Map.empty) (do ast' <- infAST ast; infResolve; return ast' )
-                    case infRes of
-                        Left e -> error (show e)
-                        Right (ast', infState) -> do
-                            prettyInferState infState
-                            prettyAST "" ast'
-    
+                Left err     -> printError err 
+                Right (x, y) -> prettyInferState x
     else do
         withSession (optimise parsedArgs) $ \session -> do
             forM_ (modPaths parsedArgs) $ \path -> do

@@ -1,6 +1,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 module Infer where
 
+import System.FilePath
 import Control.Monad.State
 import Data.Maybe
 import Data.Word
@@ -14,6 +15,8 @@ import Type
 import Error
 import Monad
 import State (SymKey, Object)
+import Modules
+import Flatten hiding (imports)
 
 newtype TypeId = TypeId Int
     deriving (Eq, Ord)
@@ -43,7 +46,7 @@ data InferState =
         , defaults     :: Map.Map TypeId Type
         , symTab       :: SymTab.SymTab Symbol () SymId
         , constraints  :: [Constraint]
-        , imports      :: Map.Map ModuleName (SymTab.SymTab String SymKey Object)
+        , imports      :: Map.Map ModuleName InferState
         , exprIdSupply :: Int
         , typeIdSupply :: Int
         , symIdSupply  :: Int
@@ -63,6 +66,51 @@ initInferState imp = InferState
     , symIdSupply  = 0
     , curRetty     = Void
     }
+
+
+data RunInferState
+    = RunInferState
+        { modInferMap :: Map.Map FilePath InferState
+        }
+
+
+initRunInferState = RunInferState { modInferMap = Map.empty }
+
+
+runModInfer :: BoM RunInferState m => FilePath -> Set.Set FilePath -> m InferState
+runModInfer modPath pathsVisited = do
+    path <- checkAndNormalisePath modPath
+    assert (not $ Set.member path pathsVisited) ("importing: " ++ path ++ " forms a cycle")
+    resm <- Map.lookup path <$> gets modInferMap
+    maybe (inferPath path) (return) resm
+    where
+        assert b s = when (not b) (fail s)
+
+        inferPath :: BoM RunInferState m => FilePath -> m InferState
+        inferPath path = do
+            let modName      = takeFileName path
+            let modDirectory = takeDirectory path
+            files <- getSpecificModuleFiles modName =<< getBoFilesInDirectory modDirectory
+            assert (not $ null files) ("no files for: " ++ path)
+
+            combinedAST <- combineASTs =<< zipWithM parse [0..] files
+            importPaths <- forM (AST.astImports combinedAST) $ \importPath ->
+                checkAndNormalisePath $ joinPath [modDirectory, importPath]
+
+            let importNames = map takeFileName importPaths
+            assert (length importNames == length (Set.fromList importNames)) "import name collision"
+
+
+            importMap <- fmap Map.fromList $ forM importPaths $ \importPath -> do
+                state <- runModInfer importPath (Set.insert path pathsVisited)
+                return (takeFileName importPath, state)
+
+            res <- runBoMT (initInferState importMap) (infAST combinedAST)
+            case res of
+                Left e -> error (show e)
+                Right (_, x) -> return x
+
+
 
 
 addExpr :: BoM InferState m => Expr -> Type -> m Expr
@@ -397,8 +445,12 @@ infResolve = do
 
 prettyInferState :: InferState -> IO ()
 prettyInferState state = do
-    putStrLn "Expressions"
+    putStrLn "Imports"
+    forM_ (Map.toList $ imports state) $ \(name, st) ->
+        putStrLn name
 
+    putStrLn ""
+    putStrLn "Expressions"
     forM_ (Map.toList $ expressions state) $ \(eid, (expr, tid)) ->
         putStrLn $ show eid ++ ":" ++ show tid ++ " " ++ show expr
 

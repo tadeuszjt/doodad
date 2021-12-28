@@ -45,33 +45,32 @@ initModulesState session
 
 checkAndNormalisePath :: BoM s m => FilePath -> m FilePath
 checkAndNormalisePath path = do
-    when (not $ isValid path) $ fail (show path ++ " invalid")
+    assert (isValid path) (show path ++ " invalid")
     processSplitPath (splitPath path)
 
     where
         processSplitPath :: BoM s m => [FilePath] -> m FilePath
         processSplitPath path = case path of
-            [x]    -> checkValidModuleName x >> return x
-            ("./":xs) -> processSplitPath xs
+            [x]          -> checkValidModuleName x >> return x
+            ("./":xs)    -> processSplitPath xs
             (x:"../":xs) -> checkValidDirName x >> processSplitPath xs
-            (x:xs) -> do
-                checkValidDirName x
-                xs' <- processSplitPath xs
-                return $ joinPath [x, xs']
-            xs -> fail ("Cannot process: " ++ joinPath xs)
+            (x:xs)       -> checkValidDirName x >> joinPath . (x:) . (:[]) <$> processSplitPath xs
+            xs           -> fail ("Cannot process: " ++ joinPath xs)
 
         checkValidModuleName :: BoM s m => String -> m ()
         checkValidModuleName name = do
-            when (null name) $ fail "Invalid module name"
-            when (not $ isAlpha $ head name) $ fail $ "Module name: " ++ name ++ " must have alpha as first char"
-            when (not $ all (== True) (map isAlphaNum name)) $ fail $ "Module name: " ++ name ++ " must be all alphanum"
+            assert (not $ null name) $ "Invalid module name"
+            assert (isAlpha $ head name) $ "Module name: " ++ name ++ " must have alpha as first char"
+            assert (all (== True) $ map isAlphaNum name) $ "Module name: " ++ name ++ " must be all alphanum"
 
         checkValidDirName :: BoM s m => String -> m ()
         checkValidDirName dirName = do
             let name = dropTrailingPathSeparator dirName
-            when (null name) $ fail "Invalid directory name"
-            when (not $ isAlpha $ head name) $ fail $ "Directory name: " ++ name ++ " must have alpha as first char"
-            when (not $ all (== True) (map isAlphaNum name)) $ fail $ "Module name: " ++ name ++ " must be all alphanum"
+            assert (not $ null name) "Invalid directory name"
+            assert (isAlpha $ head name) $ "Directory name: " ++ name ++ " must have alpha as first char"
+            assert (all (== True) $ map isAlphaNum name) $ "Module name: " ++ name ++ " must be all alphanum"
+
+        assert b s = when (not b) (fail s)
 
 
 getBoFilesInDirectory :: BoM s m => FilePath -> m [FilePath]
@@ -110,43 +109,40 @@ parse id file = do
         Left (ErrorFile "" pos str) -> throwError (ErrorFile file pos str)
         Right a                     -> return a
 
-
 runMod :: BoM Modules m => Args -> Set.Set FilePath -> FilePath -> m CompileState
-runMod args visited modPath = do
+runMod args pathsVisited modPath = do
     debug "running"
     path <- checkAndNormalisePath modPath
-    when (Set.member path visited) $
-        fail ("importing \"" ++ path ++ "\" forms a cycle")
-
+    assert (not $ Set.member path pathsVisited) ("importing \"" ++ path ++ "\" forms a cycle")
     resm <- Map.lookup path <$> gets modMap
     maybe (compile path) (return) resm
     where
+        assert b s = when (not b) (fail s)
+
         -- path will be in the form "dir1/dirn/modname"
         compile :: BoM Modules m => FilePath -> m CompileState
         compile path = do
-            let name = takeFileName path
-            let dir = takeDirectory path
+            let modName = takeFileName path
+            let modDirectory = takeDirectory path
 
-            files <- getSpecificModuleFiles name =<< getBoFilesInDirectory dir
-            when (null files) $ fail ("no files for: " ++ path)
+            -- get files and create combined AST
+            files <- getSpecificModuleFiles modName =<< getBoFilesInDirectory modDirectory
+            assert (not $ null files) ("no files for: " ++ path)
+            forM_ files $ debug . ("using file: " ++) 
+            combinedAST <- combineASTs =<< zipWithM parse [0..] files
 
 
-            -- flatten asts
-            asts <- forM (zip files [0..]) $ \(file, id) -> do
-                debug ("using file: " ++ file)
-                parse id file
-            combinedAST <- combineASTs asts
-            let importNames = map takeFileName (S.astImports combinedAST)
-            when (length importNames /= length (Set.fromList importNames)) $
+            -- resolve imports into paths and check for collisions
+            importPaths <- forM (S.astImports combinedAST) $ \importPath ->
+                checkAndNormalisePath $ joinPath [modDirectory, importPath]
+            let importModNames = map takeFileName importPaths
+            assert (length importModNames == length (Set.fromList importModNames)) $
                 fail "import name collision"
+            forM_ importPaths $ \p -> debug ("importing: " ++ p)
+            importMap <- fmap Map.fromList $ forM importPaths $ \importPath -> do
+                state <- runMod args (Set.insert path pathsVisited) importPath
+                return (takeFileName importPath, state)
 
-            imports <- fmap Map.fromList $ forM (S.astImports combinedAST) $ \importPath -> do
-                resPath <- checkAndNormalisePath $ joinPath [dir, importPath]
-
-                let importName = takeFileName resPath
-                debug ("importing : " ++ importPath ++ " as " ++ importName)
-                state <- runMod args (Set.insert path visited) resPath
-                return (importName, state)
 
             flatRes <- runBoMT initFlattenState (flattenAST combinedAST)
             flat <- case flatRes of
@@ -156,17 +152,17 @@ runMod args visited modPath = do
             -- compile and run
             debug "compiling"
             session <- gets session
-            cmpRes <- runBoMT () $ compileFlatState imports flat name
+            cmpRes <- runBoMT () $ compileFlatState importMap flat modName
             (defs, state) <- case cmpRes of
                 Left (ErrorFile "" pos str) -> throwError $ ErrorFile (files !! textFile pos) pos str
                 Left (ErrorStr str)         -> throwError $ ErrorStr str
                 Right (res, _)              -> return res
 
             if compileObj args then do
-                let dir' = joinPath [dir, "build"]
-                let name' = addExtension name ".o"
-                liftIO $ createDirectoryIfMissing True dir'
-                liftIO $ jitCompileToObject (printLLIR args) (joinPath [dir', name']) defs session
+                let modDirectory' = joinPath [modDirectory, "build"]
+                let modName' = addExtension modName ".o"
+                liftIO $ createDirectoryIfMissing True modDirectory'
+                liftIO $ jitCompileToObject (printLLIR args) (joinPath [modDirectory', modName']) defs session
             else do
                 liftIO $ jitAndRun defs session True (printLLIR args) 
 
