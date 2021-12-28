@@ -138,7 +138,7 @@ runMod args pathsVisited modPath = do
             let importModNames = map takeFileName importPaths
             assert (length importModNames == length (Set.fromList importModNames)) $
                 fail "import name collision"
-            forM_ importPaths $ \p -> debug ("importing: " ++ p)
+            forM_ importPaths $ debug . ("importing: " ++)
             importMap <- fmap Map.fromList $ forM importPaths $ \importPath -> do
                 state <- runMod args (Set.insert path pathsVisited) importPath
                 return (takeFileName importPath, state)
@@ -171,6 +171,6 @@ runMod args pathsVisited modPath = do
 
         debug str =
             if verbose args
-            then liftIO $ putStrLn (show modPath ++ " -> " ++ str)
+            then liftIO $ putStrLn (modPath ++ " -> " ++ str)
             else return ()
 
