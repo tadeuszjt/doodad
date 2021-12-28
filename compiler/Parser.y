@@ -133,8 +133,8 @@ importPath : ident                            { (tokStr $1) }
 ---------------------------------------------------------------------------------------------------
 -- Statements -------------------------------------------------------------------------------------
 
-symbol : ident                                { T.Sym (tokStr $1) }
-       | ident '::' ident                     { T.SymQualified (tokStr $1) (tokStr $3) }
+symbol : ident                                { (tokPos $1, T.Sym (tokStr $1)) }
+       | ident '::' ident                     { (tokPos $1, T.SymQualified (tokStr $1) (tokStr $3)) }
 
 stmtS : let pattern '=' expr                  { S.Assign (tokPos $1) $2 $4 }  
       | index '=' expr                        { S.Set (tokPos $2) $1 $3 }
@@ -158,7 +158,7 @@ pattern  : '_'                                { S.PatIgnore (tokPos $1) }
          | literal                            { S.PatLiteral $1 }
          | ident                              { S.PatIdent (tokPos $1) (tokStr $1) }
          | typeOrdinal '(' patterns ')'       { S.PatTyped (tokPos $2) $1 $3 }
-         | symbol '(' patterns ')'            { S.PatTyped (tokPos $2) (T.Typedef $ $1) $3 }
+         | symbol '(' patterns ')'            { S.PatTyped (tokPos $2) (T.Typedef $ snd $1) $3 }
          | '(' patterns ')'                   { S.PatTuple (tokPos $1) $2 }
          | '[' patterns ']'                   { S.PatArray (tokPos $1) $2 }
          | pattern '->' pattern               { S.PatSplitElem (tokPos $2) $1 $3 }
@@ -230,7 +230,7 @@ else_ : else block                            { Just $2 }
 expr   : literal                              { $1 }
        | infix                                { $1 }
        | prefix                               { $1 }
-       | symbol                               { S.Ident $1 }
+       | symbol                               { S.Ident (fst $1) (snd $1) }
        | '[' tableRows ']'                    { S.Table (tokPos $1) $2 }
        | '[' 'I' exprsN 'D' ']'               { S.Table (tokPos $1) [$3] }
        | '[' '|' exprs ']'                    { S.Array (tokPos $1) $3 }
@@ -288,7 +288,7 @@ prefix : '-' expr                             { S.Prefix (tokPos $1) S.Minus $2 
 ---------------------------------------------------------------------------------------------------
 -- Types ------------------------------------------------------------------------------------------
 
-type_         : symbol                        { T.Typedef $1 }
+type_         : symbol                        { T.Typedef (snd $1) }
               | typeOrdinal                   { $1 }
               | typeAggregate                 { $1 }
 

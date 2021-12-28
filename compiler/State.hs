@@ -110,13 +110,13 @@ myFresh sym = do
 assert :: BoM CompileState m => Bool -> String -> m ()
 assert b s = do
     pos <- gets curTextPos
-    unless b $ throwError (ErrorFile "" pos s)
+    unless b $ throwError (ErrorPos pos s)
 
 
 err :: BoM CompileState m => String -> m a
 err s = do
     pos <- gets curTextPos
-    throwError (ErrorFile "" pos s)
+    throwError (ErrorPos pos s)
 
 
 withPos :: BoM CompileState m => TextPos -> m a -> m a

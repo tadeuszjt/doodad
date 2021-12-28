@@ -34,6 +34,10 @@ data Error
         , errPos  :: TextPos
         , errStr  :: String
         }
+    | ErrorPos
+        { errPos :: TextPos
+        , errStr :: String
+        }
     deriving (Show)
 
 

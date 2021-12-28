@@ -4,7 +4,7 @@ import Data.List
 
 data Symbol
     = Symbol Int
-    | Sym { sym :: String }
+    | Sym          { sym :: String }
     | SymQualified { mod :: String, sym :: String }
     deriving (Eq, Ord)
 

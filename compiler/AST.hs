@@ -93,7 +93,7 @@ data Expr
     | Subscript  TextPos Expr Expr
     | Range      TextPos Expr (Maybe Expr) (Maybe Expr)
     | TupleIndex TextPos Expr Word32
-    | Ident      Symbol
+    | Ident      TextPos Symbol
     | Call       TextPos Expr [Expr]
     | Conv       TextPos Type [Expr]
     | Len        TextPos Expr
@@ -153,9 +153,11 @@ instance Show Pattern where
         PatIdent pos s   -> s
         PatTuple pos ps  -> tupStrs (map show ps)
         PatArray pos ps  -> arrStrs (map show ps)
+        PatGuarded pos pat expr -> show pat ++ " | " ++ show expr
         PatTyped pos s p -> show s ++ "(" ++ show p ++ ")"
         PatSplit pos a b -> show a ++ " ->> " ++ show b
         PatSplitElem pos a b -> show a ++ " -> " ++ show b
+        _                    -> error "pattern"
 
 
 instance Show Condition where
@@ -184,7 +186,7 @@ instance Show Expr where
         AST.Subscript pos expr1 expr2   -> show expr1 ++ "[" ++ show expr2 ++ "]"
         AST.Range pos expr mLeft mRight -> "[" ++ maybe "" show mLeft ++ ".." ++ maybe "" show mRight ++ "]"
         AST.TupleIndex pos expr n       -> show expr ++ "." ++ show n
-        AST.Ident s                     -> show s 
+        AST.Ident p s                   -> show s 
         AST.Call pos symbol exprs       -> show symbol ++ tupStrs (map show exprs)
         AST.Conv pos typ exprs          -> show typ ++ tupStrs (map show exprs)
         AST.Len pos expr                -> "len(" ++ show expr ++ ")"

@@ -451,7 +451,7 @@ cmpExpr expr = trace "cmpExpr" $ case expr of
         valB <- cmpExpr exprB
         cmpInfix op valA valB
 
-    S.Ident symbol             -> do
+    S.Ident pos symbol             -> withPos pos $ do
         obj <- look symbol KeyVar
         case obj of
             ObjVal loc             -> return loc
@@ -474,7 +474,7 @@ cmpExpr expr = trace "cmpExpr" $ case expr of
         vals <- mapM valLoad =<< mapM cmpExpr exprs
 
         (s, obj) <- case expr of
-            S.Ident symbol               -> fmap (sym symbol,) $ look symbol $ KeyFunc (map valType vals)
+            S.Ident p symbol             -> fmap (sym symbol,) $ look symbol $ KeyFunc (map valType vals)
             _                            -> fmap ("",) $ fmap ObjVal $ valLoad =<< cmpExpr expr
         
         case obj of

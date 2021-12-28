@@ -3,6 +3,7 @@ module Infer where
 
 import System.FilePath
 import Control.Monad.State
+import Control.Monad.Except hiding (void, fail)
 import Data.Maybe
 import Data.Word
 import Data.List
@@ -29,11 +30,13 @@ instance Show ExprId where show (ExprId i) = 'e' : show i
 
 data SymKey
     = KeyVar
+    | KeyFunc [Type]
     deriving (Show, Eq, Ord)
 
 
 data Object
     = ObjVar
+    | ObjFunc
     deriving (Show, Eq)
 
 
@@ -42,6 +45,7 @@ data Constraint
     | ConsBase Type Type
     | ConsElemType Type Type
     | ConsMemberType Type Type String
+    | ConsFieldType Type Type Int
     deriving (Eq, Ord, Show)
 
 
@@ -56,6 +60,7 @@ data InferState =
         , typeIdSupply :: Int
         , symIdSupply  :: Int
         , curRetty     :: Type
+        , curPos       :: TextPos
         }
     deriving (Show)
 
@@ -70,6 +75,7 @@ initInferState imp = InferState
     , typeIdSupply = 0
     , symIdSupply  = 0
     , curRetty     = Void
+    , curPos       = TextPos 0 0 0 0
     }
 
 
@@ -105,21 +111,37 @@ runModInfer modPath pathsVisited = do
             let importNames = map takeFileName importPaths
             assert (length importNames == length (Set.fromList importNames)) "import name collision"
 
-
             importMap <- fmap Map.fromList $ forM importPaths $ \importPath -> do
                 state <- runModInfer importPath (Set.insert path pathsVisited)
                 return (takeFileName importPath, state)
 
             res <- runBoMT (initInferState importMap) (infAST combinedAST)
             case res of
-                Left e -> error (show e)
-                Right (_, x) -> return x
+                Left (ErrorPos p s) -> throwError $ ErrorFile (files !! textFile p) p s
+                Left (ErrorStr s)   -> throwError $ ErrorStr s
+                Right (_, x)        -> return x
+                Left x              -> error (show x)
+
+
+withPos :: BoM InferState m => TextPos -> m a -> m a
+withPos pos f = do
+    oldPos <- gets curPos
+    modify $ \s -> s { curPos = pos }
+    r <- f
+    modify $ \s -> s { curPos = oldPos }
+    return r
+
+
+err :: BoM InferState m => String -> m a
+err str = do
+    pos <- gets curPos
+    throwError (ErrorPos pos str)
 
 
 define :: BoM InferState m => String -> SymKey -> Object -> m ()
 define sym key obj = do
-    resm <- SymTab.lookupSymKey sym key <$> (gets symTab)
-    when (isJust resm) $ fail "Already defined"
+    resm <- SymTab.lookupHead sym key <$> (gets symTab)
+    when (isJust resm) $ err (sym ++ " already defined")
     modify $ \s -> s { symTab = SymTab.insert sym key obj (symTab s) }
 
 
@@ -185,6 +207,7 @@ substitute t1 t2 = do
             ConsBase t1 t2 -> ConsBase (mapType f t1) (mapType f t2)
             ConsElemType t1 t2 -> ConsElemType (mapType f t1) (mapType f t2)
             ConsMemberType t1 t2 sym -> ConsMemberType (mapType f t1) (mapType f t2) sym
+            ConsFieldType t1 t2 i -> ConsFieldType (mapType f t1) (mapType f t2) i
     
         mapType :: (Type -> Type) -> Type -> Type
         mapType f typ = case typ of
@@ -277,23 +300,34 @@ infExpr expr = case expr of
             substitute t1 t2
             addExpr (Infix p op e1 e2) t2
 
-    Ident symbol -> do
+    Ident pos symbol -> withPos pos $ do
         objm <- lookm symbol KeyVar
         case objm of
-            Nothing -> error $ show symbol
-            Just ObjVar -> addExpr (Ident symbol) =<< genType
+            Nothing     -> err $ "Undefined symbol: " ++ show symbol
+            Just ObjVar -> addExpr (Ident pos symbol) =<< genType
 
-    String pos str -> do
+    String pos str -> withPos pos $ do
         t <- genType
         constrain $ ConsBase t $ Type.Table [Type.Char]
         addExpr expr t
 
-    Call pos expr exprs -> do
+    Call pos (Ident p symbol) exprs -> withPos pos $ do
+        es <- mapM infExpr exprs
+--        ts <- mapM typeOf es
+--        resm <- lookm symbol (KeyFunc ts)
+--        case resm of
+--            Nothing      -> err $ "Undefined function: " ++ show symbol
+--            Just ObjFunc -> return ()
+--            Just obj     -> err $ "symbol: " ++ show symbol ++ " isn't a function"
+
+        addExpr (Call pos (Ident p symbol) es) =<< genType --TODO
+
+    Call pos expr exprs -> withPos pos $ do
         e <- infExpr expr
         es <- mapM infExpr exprs
         addExpr (Call pos e es) =<< genType
 
-    AST.Tuple pos exprs -> do
+    AST.Tuple pos exprs -> withPos pos $ do
         es <- mapM infExpr exprs
         ts <- mapM typeOf es
 
@@ -335,28 +369,34 @@ infExpr expr = case expr of
     _ -> error $ "Cannot infer: " ++ show expr
 
 
-infPattern :: BoM InferState m => Pattern -> Expr -> m Pattern
-infPattern pattern expr@(Expr _) = case pattern of
+infPattern :: BoM InferState m => Pattern -> Type -> m Pattern
+infPattern pattern exprType = case pattern of
     PatIdent p sym -> do
         define sym KeyVar ObjVar
         return pattern
 
-    PatTuple p pats -> do
-        tupT <- genType
-        tupTs <- forM pats (\_ -> genType)
+    PatTuple pos pats -> withPos pos $ do
+        ps <- forM (zip pats [0..]) $ \(pat, i) -> do
+            t <- genType
+            constrain (ConsFieldType t exprType i)
+            infPattern pat t
 
-        let tupType = Type.Tuple [ ("", typ) | typ <- tupTs ]
-        constrain (ConsBase tupT tupType)
+        return (PatTuple pos ps)
 
-        t <- typeOf expr
-        substitute t tupT
+    PatSplitElem pos pat1 pat2 -> withPos pos $ do
+        t1 <- genType
+        constrain (ConsElemType t1 exprType)
+        p1 <- infPattern pat1 t1
+        p2 <- infPattern pat2 exprType
+        return $ PatSplitElem pos p1 p2
 
-        pats' <- forM (zip3 pats tupTs [0..]) $ \(pat, ft,  i) ->
-            infPattern pat =<< addExpr (TupleIndex p expr i) ft
+    PatGuarded pos pat expr -> withPos pos $ do
+        p <- infPattern pat exprType
+        e <- infExpr expr
+        t <- typeOf e
+        constrain (ConsBase t Type.Bool)
+        return $ PatGuarded pos p e
 
-        return (PatTuple p pats')
-
-    _ -> return pattern
 
 
     _ -> error $ "Cannot infer pattern: " ++ show pattern
@@ -372,23 +412,24 @@ infCondition cnd = case cnd of
 
     CondMatch pat expr -> do
         e <- infExpr expr
-        p <- infPattern pat e
+        t <- typeOf e
+        p <- infPattern pat t
         return (CondMatch p e)
 
 
 infStmt :: BoM InferState m => Stmt -> m Stmt
 infStmt stmt = case stmt of
-    AST.Typedef pos symbol typ -> do
+    AST.Typedef pos symbol typ -> withPos pos $ do
         return $ AST.Typedef pos symbol typ
         
-    Assign pos pat expr -> do
+    Assign pos pat expr -> withPos pos $ do
         e <- infExpr expr
-        infPat <- infPattern pat e
+        infPat <- infPattern pat =<< typeOf e
         return (Assign pos infPat e)
 
     Set pos index expr -> return stmt
 
-    FuncDef pos symbol [] Void blk -> do
+    FuncDef pos symbol [] Void blk -> withPos pos $ do
         pushSymTab
         infBlk <- infStmt blk
         popSymTab
@@ -400,12 +441,13 @@ infStmt stmt = case stmt of
         popSymTab
         return r
 
-    While pos cnd blk -> do
+    While pos cnd blk -> withPos pos $ do
         --infCnd
         While pos cnd <$> infStmt blk
 
-    For pos idxStr expr Nothing blk -> do
+    For pos idxStr expr Nothing blk -> withPos pos $ do
         pushSymTab
+        define idxStr KeyVar ObjVar
 
         t <- genType
         e <- infExpr expr
@@ -415,19 +457,23 @@ infStmt stmt = case stmt of
 
         return $ For pos idxStr e Nothing infBlk
 
-    Print pos exprs -> do
+    Print pos exprs -> withPos pos $ do
         Print pos <$> mapM infExpr exprs
 
-    FuncDef pos sym params retty blk -> withCurRetty retty $ do
-        pushSymTab
-        
---        forM_ params $ \(Param p ps pt) -> do
---            addSym (Sym ps) pt 
+    FuncDef pos (Sym sym) params retty blk -> withPos pos $ withCurRetty retty $ do
+        define sym (KeyFunc $ map paramType params) ObjFunc
 
+        pushSymTab
+        forM_ params $ \(Param p s t) -> do
+            define s KeyVar ObjVar
 
         blk' <- infStmt blk
         popSymTab
-        return $ FuncDef pos sym params retty blk'
+        return $ FuncDef pos (Sym sym) params retty blk'
+
+    Extern pos name sym params retty -> withPos pos $ do
+        define sym (KeyFunc $ map paramType params) ObjFunc
+        return $ Extern pos name sym params retty
 
     If p cnd blk Nothing -> do
         cnd' <- infCondition cnd
@@ -451,7 +497,6 @@ infStmt stmt = case stmt of
 
     For p idxStr expr guardm blk -> return stmt
 
-    Extern p _ _ _ _ -> return stmt
 
     CallStmt p _ _ -> return stmt
 

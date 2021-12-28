@@ -106,7 +106,7 @@ parse id file = do
     case P.parse id source of
         Left (ErrorStr str)         -> throwError (ErrorStr str)
         Left (ErrorSrc src pos str) -> throwError (ErrorFile file pos str)
-        Left (ErrorFile "" pos str) -> throwError (ErrorFile file pos str)
+        Left (ErrorPos pos str)     -> throwError (ErrorFile file pos str)
         Right a                     -> return a
 
 runMod :: BoM Modules m => Args -> Set.Set FilePath -> FilePath -> m CompileState
