@@ -9,11 +9,15 @@ import qualified Data.Map as Map
 data TextPos
     = TextPos
         { textFile :: Int
-        , textPos  :: Int
+        , textChar :: Int
         , textLine :: Int
         , textCol  :: Int
         }
     deriving (Eq)
+
+
+class TextPosition a where
+    textPos :: a -> TextPos
 
 
 instance Show TextPos where

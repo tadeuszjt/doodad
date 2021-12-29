@@ -123,6 +123,7 @@ runModInfer modPath pathsVisited = do
                 Left x              -> error (show x)
 
 
+
 withPos :: BoM InferState m => TextPos -> m a -> m a
 withPos pos f = do
     oldPos <- gets curPos
@@ -247,7 +248,7 @@ popSymTab = do
 
 
 infExpr :: BoM InferState m => Expr -> m Expr
-infExpr expr = case expr of
+infExpr expr = withPos (textPos expr) $ case expr of
     Int p n              -> addExpr expr =<< genType
     Float p f            -> addExpr expr =<< genType
     AST.Table pos [[]]   -> addExpr expr =<< genType
@@ -300,18 +301,18 @@ infExpr expr = case expr of
             substitute t1 t2
             addExpr (Infix p op e1 e2) t2
 
-    Ident pos symbol -> withPos pos $ do
+    Ident pos symbol -> do
         objm <- lookm symbol KeyVar
         case objm of
             Nothing     -> err $ "Undefined symbol: " ++ show symbol
             Just ObjVar -> addExpr (Ident pos symbol) =<< genType
 
-    String pos str -> withPos pos $ do
+    String pos str -> do
         t <- genType
         constrain $ ConsBase t $ Type.Table [Type.Char]
         addExpr expr t
 
-    Call pos (Ident p symbol) exprs -> withPos pos $ do
+    Call pos (Ident p symbol) exprs -> do
         es <- mapM infExpr exprs
 --        ts <- mapM typeOf es
 --        resm <- lookm symbol (KeyFunc ts)
@@ -322,12 +323,12 @@ infExpr expr = case expr of
 
         addExpr (Call pos (Ident p symbol) es) =<< genType --TODO
 
-    Call pos expr exprs -> withPos pos $ do
+    Call pos expr exprs -> do
         e <- infExpr expr
         es <- mapM infExpr exprs
         addExpr (Call pos e es) =<< genType
 
-    AST.Tuple pos exprs -> withPos pos $ do
+    AST.Tuple pos exprs -> do
         es <- mapM infExpr exprs
         ts <- mapM typeOf es
 
@@ -429,12 +430,6 @@ infStmt stmt = case stmt of
 
     Set pos index expr -> return stmt
 
-    FuncDef pos symbol [] Void blk -> withPos pos $ do
-        pushSymTab
-        infBlk <- infStmt blk
-        popSymTab
-        return $ FuncDef pos symbol [] Void infBlk
-
     Block blk -> do
         pushSymTab
         r <- Block <$> mapM infStmt blk
@@ -462,6 +457,7 @@ infStmt stmt = case stmt of
 
     FuncDef pos (Sym sym) params retty blk -> withPos pos $ withCurRetty retty $ do
         define sym (KeyFunc $ map paramType params) ObjFunc
+        define sym KeyVar ObjVar
 
         pushSymTab
         forM_ params $ \(Param p s t) -> do

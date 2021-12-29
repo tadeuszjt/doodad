@@ -11,7 +11,6 @@ type ModuleName = String
 
 showPath path = concat (intersperse "/" path)
 
-
 data AST
     = AST
         { astModuleName :: Maybe ModuleName
@@ -67,7 +66,6 @@ data Pattern
     | PatSplitElem TextPos Pattern Pattern
     deriving (Eq)
 
-
 data Index
     = IndIdent TextPos String
     | IndArray TextPos Index Expr
@@ -121,6 +119,73 @@ data Stmt
     | AppendStmt Append
     deriving (Eq, Show)
 
+
+instance TextPosition Append where
+    textPos append = case append of
+        AppendTable p _ _ -> p
+        AppendElem p _ _ -> p
+        AppendIndex i -> textPos i
+
+instance TextPosition Index where
+    textPos index = case index of
+        IndIdent p _ -> p
+        IndArray p _ _ -> p
+        IndTuple p _ _ -> p
+
+instance TextPosition Pattern where
+    textPos pattern = case pattern of
+        PatLiteral   e -> textPos e
+        PatIgnore    p -> p
+        PatIdent     p _ -> p
+        PatTuple     p _ -> p
+        PatArray     p _ -> p
+        PatGuarded   p _ _ -> p
+        PatTyped     p _ _ -> p
+        PatSplit     p _ _ -> p
+        PatSplitElem p _ _ -> p
+        
+
+instance TextPosition Expr where
+    textPos expr = case expr of
+        AST.Int        p _ -> p
+        AST.Float      p _ -> p
+        AST.Bool       p _ -> p
+        AST.Char       p _ -> p
+        AST.Null       p -> p
+        AST.String     p _ -> p
+        AST.Tuple      p _ -> p
+        AST.Array      p _ -> p
+        AST.Table      p _ -> p
+        AST.Member     p _ _ -> p
+        AST.Subscript  p _ _ -> p
+        AST.Range      p _ _ _ -> p
+        AST.TupleIndex p _ _ -> p
+        AST.Ident      p _ -> p
+        AST.Call       p _ _ -> p
+        AST.Conv       p _ _ -> p
+        AST.Len        p _ -> p
+        AST.Copy       p _ -> p
+        AST.Prefix     p _ _ -> p
+        AST.Infix      p _ _ _ -> p
+        AST.Expr       _ -> error "Cannot take text position"
+
+
+instance TextPosition Stmt where
+    textPos stmt = case stmt of
+        AST.Assign     p _ _ -> p
+        AST.Set        p _ _ -> p
+        AST.Print      p _ -> p
+        AST.CallStmt   p _ _ -> p
+        AST.Return     p _ -> p
+        AST.Block      s -> textPos (head s)
+        AST.If         p _ _ _ -> p
+        AST.While      p _ _ -> p
+        AST.For        p _ _ _ _ -> p
+        AST.Switch     p _ _ -> p
+        AST.FuncDef    p _ _ _ _ -> p
+        AST.Extern     p _ _ _ _ -> p
+        AST.Typedef    p _ _ -> p
+        AST.AppendStmt a -> textPos a
 
 tupStrs, arrStrs, brcStrs :: [String] -> String
 tupStrs strs = "(" ++ intercalate ", " strs ++ ")"
