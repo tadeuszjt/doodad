@@ -31,12 +31,14 @@ instance Show ExprId where show (ExprId i) = 'e' : show i
 data SymKey
     = KeyVar
     | KeyFunc [Type]
+    | KeyType
     deriving (Show, Eq, Ord)
 
 
 data Object
     = ObjVar
     | ObjFunc
+    | ObjType
     deriving (Show, Eq)
 
 
@@ -146,15 +148,20 @@ define sym key obj = do
     modify $ \s -> s { symTab = SymTab.insert sym key obj (symTab s) }
 
 
+undefine :: BoM InferState m => String -> SymKey -> m ()
+undefine sym key = do
+    modify $ \s -> s { symTab = SymTab.deleteHead sym key (symTab s) }
+
+
 lookm :: BoM InferState m => Symbol -> SymKey -> m (Maybe Object)
 lookm symbol key = case symbol of
     Sym sym -> do
-        localTabResm <- fmap (SymTab.lookupSymKey sym key) (gets symTab)
+        localTabResm <- fmap (SymTab.lookup sym key) (gets symTab)
         case localTabResm of
             Just obj -> return (Just obj)
             Nothing -> do
                 symTabs <- map symTab . Map.elems <$> gets imports
-                let results = catMaybes $ map (SymTab.lookupSymKey sym key) symTabs
+                let results = catMaybes $ map (SymTab.lookup sym key) symTabs
                 case results of
                     []  -> return Nothing
                     [x] -> return (Just x)
@@ -164,7 +171,6 @@ lookm symbol key = case symbol of
         error "SymQualified"
 
     _ -> error "lookm"
-
 
 
 addExpr :: BoM InferState m => Expr -> Type -> m Expr
@@ -371,12 +377,12 @@ infExpr expr = withPos (textPos expr) $ case expr of
 
 
 infPattern :: BoM InferState m => Pattern -> Type -> m Pattern
-infPattern pattern exprType = case pattern of
+infPattern pattern exprType = withPos (textPos pattern) $ case pattern of
     PatIdent p sym -> do
         define sym KeyVar ObjVar
         return pattern
 
-    PatTuple pos pats -> withPos pos $ do
+    PatTuple pos pats -> do
         ps <- forM (zip pats [0..]) $ \(pat, i) -> do
             t <- genType
             constrain (ConsFieldType t exprType i)
@@ -384,14 +390,14 @@ infPattern pattern exprType = case pattern of
 
         return (PatTuple pos ps)
 
-    PatSplitElem pos pat1 pat2 -> withPos pos $ do
+    PatSplitElem pos pat1 pat2 -> do
         t1 <- genType
         constrain (ConsElemType t1 exprType)
         p1 <- infPattern pat1 t1
         p2 <- infPattern pat2 exprType
         return $ PatSplitElem pos p1 p2
 
-    PatGuarded pos pat expr -> withPos pos $ do
+    PatGuarded pos pat expr -> do
         p <- infPattern pat exprType
         e <- infExpr expr
         t <- typeOf e
@@ -419,11 +425,12 @@ infCondition cnd = case cnd of
 
 
 infStmt :: BoM InferState m => Stmt -> m Stmt
-infStmt stmt = case stmt of
-    AST.Typedef pos symbol typ -> withPos pos $ do
-        return $ AST.Typedef pos symbol typ
+infStmt stmt = withPos (textPos stmt) $ case stmt of
+    AST.Typedef pos (Sym sym) typ -> do
+        define sym KeyType ObjType
+        return $ AST.Typedef pos (Sym sym) typ
         
-    Assign pos pat expr -> withPos pos $ do
+    Assign pos pat expr -> do
         e <- infExpr expr
         infPat <- infPattern pat =<< typeOf e
         return (Assign pos infPat e)
@@ -436,11 +443,11 @@ infStmt stmt = case stmt of
         popSymTab
         return r
 
-    While pos cnd blk -> withPos pos $ do
+    While pos cnd blk -> do
         --infCnd
         While pos cnd <$> infStmt blk
 
-    For pos idxStr expr Nothing blk -> withPos pos $ do
+    For pos idxStr expr Nothing blk -> do
         pushSymTab
         define idxStr KeyVar ObjVar
 
@@ -452,11 +459,12 @@ infStmt stmt = case stmt of
 
         return $ For pos idxStr e Nothing infBlk
 
-    Print pos exprs -> withPos pos $ do
+    Print pos exprs -> do
         Print pos <$> mapM infExpr exprs
 
-    FuncDef pos (Sym sym) params retty blk -> withPos pos $ withCurRetty retty $ do
+    FuncDef pos (Sym sym) params retty blk -> withCurRetty retty $ do
         define sym (KeyFunc $ map paramType params) ObjFunc
+        undefine sym KeyVar
         define sym KeyVar ObjVar
 
         pushSymTab
@@ -467,16 +475,14 @@ infStmt stmt = case stmt of
         popSymTab
         return $ FuncDef pos (Sym sym) params retty blk'
 
-    Extern pos name sym params retty -> withPos pos $ do
-        define sym (KeyFunc $ map paramType params) ObjFunc
+    Extern pos name sym params retty -> do
+        --define sym (KeyFunc $ map paramType params) ObjFunc
         return $ Extern pos name sym params retty
 
     If p cnd blk Nothing -> do
         cnd' <- infCondition cnd
         blk' <- infStmt blk
         return $ If p cnd' blk' Nothing
-
-
 
     Return p (Just expr) -> do
         curRetty <- gets curRetty

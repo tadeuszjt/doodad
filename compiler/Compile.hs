@@ -262,14 +262,12 @@ cmpAppend append = withPos (textPos append) $ case append of
 
     S.AppendTable pos app expr -> do
         loc <- cmpAppend app
-        val <- withTypeHint (valType loc) (cmpExpr expr)
-        tableAppend loc val
+        tableAppend loc =<< withTypeHint (valType loc) (cmpExpr expr)
         return loc
 
     S.AppendElem pos app expr -> do
         loc <- cmpAppend app
-        val <- cmpExpr expr
-        tableAppendElem loc val
+        tableAppendElem loc =<< cmpExpr expr
         return loc
 
 

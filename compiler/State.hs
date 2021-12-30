@@ -255,16 +255,16 @@ lookm symbol key = do
     curMod <- gets curModName
     case symbol of
         SymQualified mod sym | mod == curMod ->
-            SymTab.lookupSymKey sym key <$> gets symTab
+            SymTab.lookup sym key <$> gets symTab
             
         SymQualified mod sym ->
             case Map.lookup mod imports of
                 Nothing    -> err ("No module: " ++ mod ++ " exists")
-                Just state -> return $ SymTab.lookupSymKey sym key (symTab state)
+                Just state -> return $ SymTab.lookup sym key (symTab state)
 
         Sym sym -> do
-            objm <- SymTab.lookupSymKey sym key <$> gets symTab
-            let objsm = map (SymTab.lookupSymKey sym key) $ map symTab (Map.elems imports)
+            objm <- SymTab.lookup sym key <$> gets symTab
+            let objsm = map (SymTab.lookup sym key) $ map symTab (Map.elems imports)
 
             case catMaybes (objm:objsm) of
                 []  -> return Nothing
