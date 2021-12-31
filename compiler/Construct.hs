@@ -56,7 +56,7 @@ valCopy val = trace "valCopy" $ do
             valLoad loc
             -- TODO does this work?
             
-        _ -> err $ "Can't handle copy: " ++ show (valType val)
+        _ -> fail $ "Can't handle copy: " ++ show (valType val)
 
 
 valString :: InsCmp CompileState m => Type -> Value -> m Value
@@ -78,7 +78,7 @@ valString typ val = do
         F64 -> do
             n <- Val I32 <$> snprintf ptr (int64 bufSize) "%f" [op]
             tableSetLen tab =<< valConstruct I64 [n]
-        _ -> err $ "No string function for: " ++ show (valType val)
+        _ -> fail $ "No string function for: " ++ show (valType val)
         
 
 
@@ -153,4 +153,4 @@ valConstruct typ [val']   = trace "valConstruct" $ do
 
                 (F64, F32) -> fpext op LL.double
 
-                x -> err $ "Cannot construct " ++ show typ ++ " from " ++ show valTyp
+                x -> fail $ "Cannot construct " ++ show typ ++ " from " ++ show valTyp

@@ -77,7 +77,6 @@ data CompileState
         , curModName    :: String
         , nameMap       :: Map.Map String Int
         , typeHint      :: Type
-        , curTextPos    :: TextPos
         }
 
 initCompileState imports modName
@@ -91,7 +90,6 @@ initCompileState imports modName
         , curModName    = modName
         , nameMap       = Map.empty
         , typeHint      = Void
-        , curTextPos    = TextPos 0 0 0 0
         }
 
 
@@ -105,27 +103,6 @@ myFresh sym = do
     let n = maybe 0 (+1) (Map.lookup sym nameMap)
     modify $ \s -> s { nameMap = Map.insert sym n nameMap }
     return $ LL.Name $ mkBSS (mod ++ "." ++ sym ++ "_" ++ show n )
-
-
-assert :: BoM CompileState m => Bool -> String -> m ()
-assert b s = do
-    pos <- gets curTextPos
-    unless b $ throwError (ErrorPos pos s)
-
-
-err :: BoM CompileState m => String -> m a
-err s = do
-    pos <- gets curTextPos
-    throwError (ErrorPos pos s)
-
-
-withPos :: BoM CompileState m => TextPos -> m a -> m a
-withPos pos f = do
-    oldPos <- gets curTextPos
-    modify $ \s -> s { curTextPos = pos }
-    r <- f
-    modify $ \s -> s { curTextPos = oldPos }
-    return r
 
 
 withTypeHint :: BoM CompileState m => Type -> m a -> m a
@@ -150,13 +127,13 @@ addObjWithCheck sym key obj = trace "addObjWithCheck" $ do
 checkSymKeyUndef :: BoM CompileState m => String -> SymKey -> m ()
 checkSymKeyUndef sym key = trace ("checkSymKeyUndef " ++ sym) $ do
     res <- SymTab.lookupHead sym key <$> gets symTab
-    when (isJust res) $ err (sym ++ " already defined")
+    when (isJust res) $ fail (sym ++ " already defined")
 
 
 checkSymUndef :: BoM CompileState m => String -> m ()
 checkSymUndef sym = trace ("checkSymUndef " ++ sym) $ do
     res <- SymTab.lookupSym sym <$> gets symTab
-    when (isJust res) $ err (sym ++ " already defined")
+    when (isJust res) $ fail (sym ++ " already defined")
 
 
 addDeclared :: BoM CompileState m => LL.Name -> m ()
@@ -205,7 +182,7 @@ ensureSymKeyDec symbol key = trace ("ensureSymKeyDec " ++ show symbol) $ do
 
         SymQualified mod sym -> do
             statem <- Map.lookup mod <$> gets imports
-            when (isNothing statem) $ err ("No module: " ++ mod ++ " exists")
+            when (isNothing statem) $ fail ("No module: " ++ mod ++ " exists")
 
             let state = fromJust statem
             case Map.lookup (sym, key) (decMap state) of
@@ -234,7 +211,7 @@ ensureSymKeyDec symbol key = trace ("ensureSymKeyDec " ++ show symbol) $ do
                             when (not declared) $ do
                                 emitDec name dec
                                 addDeclared name
-                        _ -> err ("More than one declaration for: " ++ show symbol)
+                        _ -> fail ("More than one declaration for: " ++ show symbol)
 
 
 ensureExtern :: ModCmp CompileState m => LL.Name -> [LL.Type] -> LL.Type -> Bool -> m LL.Operand
@@ -259,7 +236,7 @@ lookm symbol key = do
             
         SymQualified mod sym ->
             case Map.lookup mod imports of
-                Nothing    -> err ("No module: " ++ mod ++ " exists")
+                Nothing    -> fail ("No module: " ++ mod ++ " exists")
                 Just state -> return $ SymTab.lookup sym key (symTab state)
 
         Sym sym -> do
@@ -269,7 +246,7 @@ lookm symbol key = do
             case catMaybes (objm:objsm) of
                 []  -> return Nothing
                 [x] -> return (Just x)
-                _   -> err ("Ambiguous symbol: " ++ show sym)
+                _   -> fail ("Ambiguous symbol: " ++ show sym)
 
 
 look :: ModCmp CompileState m => Symbol -> SymKey -> m Object

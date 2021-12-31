@@ -19,6 +19,7 @@ import Monad
 import State
 import Funcs
 import Trace
+import Error
 
 assertBaseType :: InsCmp CompileState m => (Type -> Bool) -> Type -> m Type
 assertBaseType f typ = trace "assertBaseType" $ do
@@ -59,7 +60,7 @@ checkTypesCompatible typA typB = do
             checkTypesCompatible atr btr
             forM_ (zip ats bts) $ \(ta, tb) -> checkTypesCompatible ta tb
             
-        _ -> err $ "Can't checkTypesCompatible: " ++ show typA
+        _ -> fail $ "Can't checkTypesCompatible: " ++ show typA
 
 
 opTypeOf :: ModCmp CompileState m => Type -> m LL.Type

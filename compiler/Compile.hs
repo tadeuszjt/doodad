@@ -226,7 +226,7 @@ cmpInfix :: InsCmp CompileState m => S.Op -> Value -> Value -> m Value
 cmpInfix op valA valB = do
     resm <- lookm (Sym $ show op) $ KeyFunc [valType valA, valType valB]
     case resm of
-        Just (ObjFunc Void op)   -> err "Operator function does not return a value."
+        Just (ObjFunc Void op)   -> fail "Operator function does not return a value."
 
         Just (ObjFunc retty op)  -> do
             opA <- valOp <$> valLoad valA
@@ -404,7 +404,7 @@ cmpStmt stmt = trace "cmpStmt" $ withPos (textPos stmt) $ case stmt of
         br exitName
         emitBlockStart exitName
 
-    _ -> err "stmt"
+    _ -> fail "stmt"
 
 
 -- must return Val unless local variable
@@ -429,7 +429,7 @@ cmpExpr expr = trace "cmpExpr" $ withPos (textPos expr) $ case expr of
         base <- baseTypeOf hint
         if isTable base
         then valZero hint
-        else err "Table no type"
+        else fail "Table no type"
 
     S.Null p -> do
         hint <- gets typeHint
@@ -477,8 +477,8 @@ cmpExpr expr = trace "cmpExpr" $ withPos (textPos expr) $ case expr of
             _                            -> fmap ("",) $ fmap ObjVal $ valLoad =<< cmpExpr expr
         
         case obj of
-            ObjFunc Void _         -> err "cannot use void function as expression"
-            ObjExtern _ Void _     -> err "cannot use void function as expression"
+            ObjFunc Void _         -> fail "cannot use void function as expression"
+            ObjExtern _ Void _     -> fail "cannot use void function as expression"
             ObjConstructor typ     -> valConstruct typ vals
             ObjADTFieldCons adtTyp -> adtConstructField s adtTyp vals
             ObjFunc retty op       -> Val retty <$> call op [(o, []) | o <- map valOp vals]
@@ -493,7 +493,7 @@ cmpExpr expr = trace "cmpExpr" $ withPos (textPos expr) $ case expr of
         base <- baseTypeOf (valType val)
         case base of
             Table _ -> tableLen val
-            _       -> err ("cannot take length of type " ++ show (valType val))
+            _       -> fail ("cannot take length of type " ++ show (valType val))
 
 
     S.Tuple pos exprs -> do
@@ -553,7 +553,7 @@ cmpExpr expr = trace "cmpExpr" $ withPos (textPos expr) $ case expr of
     S.Member pos exp sym -> do
         tupleMember sym =<< cmpExpr exp 
 
-    _ -> err ("invalid expression: " ++ show expr)
+    _ -> fail ("invalid expression: " ++ show expr)
 
 
 cmpPattern :: InsCmp CompileState m => S.Pattern -> Value -> m Value
@@ -564,7 +564,7 @@ cmpPattern pattern val = trace "cmpPattern" $ withPos (textPos pattern) $ case p
         
         idx <- case [ i | (("", Void), i) <- zip xs [0..] ] of
             [i] -> return i
-            _   -> err "ADT does not support a unique null field"
+            _   -> fail "ADT does not support a unique null field"
 
         valsInfix S.EqEq (valI64 idx) =<< adtEnum val
 
@@ -614,7 +614,7 @@ cmpPattern pattern val = trace "cmpPattern" $ withPos (textPos pattern) $ case p
                     cmpPattern p =<< tableGetElem val (valI64 i)
 
                 foldM (valsInfix S.AndAnd) (valBool True) (lenEq:bs)
-            _ -> err "Invalid array pattern"
+            _ -> fail "Invalid array pattern"
 
     S.PatSplit pos pat@(S.PatArray p pats) rest -> do
         initMatched <- cmpPattern pat =<< tableRange val (valI64 0) (valI64 $ length pats)
@@ -651,8 +651,8 @@ cmpPattern pattern val = trace "cmpPattern" $ withPos (textPos pattern) $ case p
 
         idx <- case [ i | (x, i) <- zip xs [0..], fieldMatched x ] of
             [i] -> return i
-            []  -> err "Invalid ADT field identifier"
-            _   -> err "Ambiguous ADT field identifier"
+            []  -> fail "Invalid ADT field identifier"
+            _   -> fail "Ambiguous ADT field identifier"
 
         enumMatched <- valsInfix S.EqEq (valI64 idx) =<< adtEnum val
 
@@ -661,7 +661,7 @@ cmpPattern pattern val = trace "cmpPattern" $ withPos (textPos pattern) $ case p
         drf <- adtDeref ptr
 
         case pats of
-            []    -> err "Invalid pattern with no arguments."
+            []    -> fail "Invalid pattern with no arguments."
             [pat] -> valsInfix S.AndAnd enumMatched =<< cmpPattern pat drf
             pats  -> do
                 Tuple txs <- assertBaseType isTuple (valType drf)
@@ -670,5 +670,5 @@ cmpPattern pattern val = trace "cmpPattern" $ withPos (textPos pattern) $ case p
                 bVals <- zipWithM cmpPattern pats tupVals
                 foldM (valsInfix S.AndAnd) (valBool True) (enumMatched:bVals)
     
-    _ -> err ("Cannot compile pattern: " ++ show pattern)
+    _ -> fail ("Cannot compile pattern: " ++ show pattern)
 

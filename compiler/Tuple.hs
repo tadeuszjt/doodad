@@ -14,6 +14,7 @@ import Monad
 import Value
 import Typeof
 import Trace
+import Error
 
 tupleTypeDef :: InsCmp CompileState m => String -> Type -> m ()
 tupleTypeDef sym typ = trace "tupleTypeDef" $ do

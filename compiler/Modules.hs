@@ -105,9 +105,9 @@ parse id file = do
     source <- liftIO (readFile file)
     case P.parse id source of
         Left (ErrorStr str)         -> throwError (ErrorStr str)
-        Left (ErrorSrc src pos str) -> throwError (ErrorFile file pos str)
         Left (ErrorPos pos str)     -> throwError (ErrorFile file pos str)
         Right a                     -> return a
+
 
 runMod :: BoM Modules m => Args -> Set.Set FilePath -> FilePath -> m CompileState
 runMod args pathsVisited modPath = do
@@ -143,21 +143,13 @@ runMod args pathsVisited modPath = do
                 state <- runMod args (Set.insert path pathsVisited) importPath
                 return (takeFileName importPath, state)
 
-
-            flatRes <- runBoMT initFlattenState (flattenAST combinedAST)
-            flat <- case flatRes of
-                Left (ErrorFile "" pos str) -> throwError $ ErrorFile (files !! textFile pos) pos str
-                Right ((), flatState)       -> return flatState
+            flat <- fmap snd $ withFiles files $ runBoMTExcept initFlattenState (flattenAST combinedAST)
 
             -- compile and run
             debug "compiling"
-            session <- gets session
-            cmpRes <- runBoMT () $ compileFlatState importMap flat modName
-            (defs, state) <- case cmpRes of
-                Left (ErrorFile "" pos str) -> throwError $ ErrorFile (files !! textFile pos) pos str
-                Left (ErrorStr str)         -> throwError $ ErrorStr str
-                Right (res, _)              -> return res
+            (defs, state) <- fmap fst $ withFiles files $ runBoMTExcept () $ compileFlatState importMap flat modName
 
+            session <- gets session
             if compileObj args then do
                 let modDirectory' = joinPath [modDirectory, "build"]
                 let modName' = addExtension modName ".o"

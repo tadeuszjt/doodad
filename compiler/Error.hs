@@ -1,7 +1,9 @@
+{-# LANGUAGE FlexibleContexts #-}
 module Error where
 
 import Control.Monad
 import Control.Exception
+import Control.Monad.Except 
 import Data.Maybe
 import qualified Data.Map as Map
 
@@ -15,23 +17,34 @@ data TextPos
         }
     deriving (Eq)
 
+instance Show TextPos where
+    show (TextPos i p l c) = "(" ++ show p ++ ":" ++ show l ++ ":" ++ show c ++ ")"
 
 class TextPosition a where
     textPos :: a -> TextPos
 
 
-instance Show TextPos where
-    show (TextPos i p l c) = "(" ++ show p ++ ":" ++ show l ++ ":" ++ show c ++ ")"
+withPos :: MonadError Error m => TextPos -> m a -> m a
+withPos pos f = do
+    catchError f $ \e -> case e of
+        ErrorStr s   -> throwError (ErrorPos pos s)
+        ErrorPos p s -> throwError (ErrorPos p s)
+
+
+withFiles :: MonadError Error m => [FilePath] -> m a -> m a
+withFiles files f = do
+    catchError f $ \e -> case e of
+        ErrorStr s   -> throwError e
+        ErrorPos p s -> throwError $ ErrorFile (files !! textFile p) p s
+
+
+assert :: MonadFail m => Bool -> String -> m ()
+assert b s = when (not b) (fail s)
 
 
 data Error
     = ErrorStr
         { errStr :: String
-        }
-    | ErrorSrc
-        { errSrc  :: String
-        , errPos  :: TextPos
-        , errStr  :: String
         }
     | ErrorFile
         { errFile :: String
@@ -48,7 +61,6 @@ data Error
 printError :: Error -> IO ()
 printError err = case err of
     ErrorStr str           -> putStrLn ("error: " ++ str)
-    ErrorSrc src pos str   -> printMsg "" src pos str
     ErrorFile path pos str -> do
         file <- try (readFile path) :: IO (Either SomeException String)
         case file of

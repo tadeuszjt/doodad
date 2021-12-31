@@ -39,17 +39,18 @@ newtype InstrCmpT s m a
         , MonadIRBuilder, BoM s, MonadState s)
 
 
-runAll :: Monad m => s -> InstrCmpT s m a -> m (Either Error (a, [BasicBlock], [Definition], s))
-runAll initState instrCmpT = do
-    res <- runBoMT initState $ runModuleCmpT emptyModuleBuilder $ runInstrCmpT emptyIRBuilder instrCmpT
-    case res of
-        Left e                             -> return $ Left e
-        Right (((a, blocks), defs), state) -> return $ Right (a, blocks, defs, state)
-
 
 runBoMT :: Monad m => s -> BoMT s m a -> m (Either Error (a, s))
 runBoMT state bomt =
     runExceptT $ runStateT (getStateT bomt) state
+
+
+runBoMTExcept :: BoM s m => s1 -> BoMT s1 m a -> m (a, s1)
+runBoMTExcept state bomt = do
+    res <- runExceptT $ runStateT (getStateT bomt) state
+    case res of
+        Left e -> throwError e
+        Right r -> return r
 
 
 runModuleCmpT :: Monad m => ModuleBuilderState -> ModuleCmpT s m a -> BoMT s m (a, [Definition])

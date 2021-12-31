@@ -62,7 +62,6 @@ data InferState =
         , typeIdSupply :: Int
         , symIdSupply  :: Int
         , curRetty     :: Type
-        , curPos       :: TextPos
         }
     deriving (Show)
 
@@ -77,7 +76,6 @@ initInferState imp = InferState
     , typeIdSupply = 0
     , symIdSupply  = 0
     , curRetty     = Void
-    , curPos       = TextPos 0 0 0 0
     }
 
 
@@ -97,8 +95,6 @@ runModInfer modPath pathsVisited = do
     resm <- Map.lookup path <$> gets modInferMap
     maybe (inferPath path) (return) resm
     where
-        assert b s = when (not b) (fail s)
-
         inferPath :: BoM RunInferState m => FilePath -> m InferState
         inferPath path = do
             let modName      = takeFileName path
@@ -110,6 +106,9 @@ runModInfer modPath pathsVisited = do
             importPaths <- forM (AST.astImports combinedAST) $ \importPath ->
                 checkAndNormalisePath $ joinPath [modDirectory, importPath]
 
+            flatAST <- snd <$> runBoMTExcept initFlattenState (flattenAST combinedAST)
+                
+
             let importNames = map takeFileName importPaths
             assert (length importNames == length (Set.fromList importNames)) "import name collision"
 
@@ -117,28 +116,13 @@ runModInfer modPath pathsVisited = do
                 state <- runModInfer importPath (Set.insert path pathsVisited)
                 return (takeFileName importPath, state)
 
-            res <- runBoMT (initInferState importMap) (infAST combinedAST)
-            case res of
-                Left (ErrorPos p s) -> throwError $ ErrorFile (files !! textFile p) p s
-                Left (ErrorStr s)   -> throwError $ ErrorStr s
-                Right (_, x)        -> return x
-                Left x              -> error (show x)
+            fmap snd $ withFiles files $ runBoMTExcept (initInferState importMap) (infAST combinedAST)
 
-
-
-withPos :: BoM InferState m => TextPos -> m a -> m a
-withPos pos f = do
-    oldPos <- gets curPos
-    modify $ \s -> s { curPos = pos }
-    r <- f
-    modify $ \s -> s { curPos = oldPos }
-    return r
 
 
 err :: BoM InferState m => String -> m a
 err str = do
-    pos <- gets curPos
-    throwError (ErrorPos pos str)
+    throwError (ErrorStr str)
 
 
 define :: BoM InferState m => String -> SymKey -> Object -> m ()
@@ -424,11 +408,24 @@ infCondition cnd = case cnd of
         return (CondMatch p e)
 
 
+infType :: BoM InferState m => Type -> m Type
+infType typ = case typ of
+    ADT xs -> do
+        forM_ xs $ \(s, t) -> do
+            when (t == Void) $ define s KeyVar ObjVar
+
+        return (ADT xs)
+
+    t -> return t
+
+
+
 infStmt :: BoM InferState m => Stmt -> m Stmt
 infStmt stmt = withPos (textPos stmt) $ case stmt of
     AST.Typedef pos (Sym sym) typ -> do
+        t <- infType typ
         define sym KeyType ObjType
-        return $ AST.Typedef pos (Sym sym) typ
+        return $ AST.Typedef pos (Sym sym) t
         
     Assign pos pat expr -> do
         e <- infExpr expr

@@ -20,6 +20,7 @@ import Funcs
 import Typeof
 import Trace
 import Tuple
+import Error
 
 
 adtTypeDef :: InsCmp CompileState m => String -> Type -> m ()
@@ -37,13 +38,13 @@ adtTypeDef sym typ = trace "adtTypeDef" $ do
     addObjWithCheck sym (KeyFunc [typdef]) (ObjConstructor typdef)
 
     case typ of
-        _ | isEmptyADT typ  -> err "empty"
+        _ | isEmptyADT typ  -> fail "empty"
 
         _ | isEnumADT typ   ->
             forM_ xs $ \(s, Void) ->
                 addObjWithCheck s KeyVar (ObjADTFieldCons typdef)
                 
-        _ | isPtrADT typ    -> err "ptr"
+        _ | isPtrADT typ    -> fail "ptr"
 
         _ | isNormalADT typ ->
             forM_ xs $ \(s, t) -> do
@@ -60,8 +61,8 @@ adtEnum :: InsCmp CompileState m => Value -> m Value
 adtEnum adt = trace "adtEnum" $ do
     adtTyp@(ADT xs) <- assertBaseType isADT (valType adt)
     case adtTyp of
-        _ | isEmptyADT adtTyp  -> err "ADT has no enum"
-        _ | isPtrADT adtTyp    -> err "ADT has no enum"
+        _ | isEmptyADT adtTyp  -> fail "ADT has no enum"
+        _ | isPtrADT adtTyp    -> fail "ADT has no enum"
         _ | isEnumADT adtTyp   -> do
             val <- valLoad adt
             return $ val { valType = I64 }
@@ -75,8 +76,8 @@ adtSetEnum adt@(Ptr _ loc) i = trace "adtSetEnum" $ do
     adtTyp@(ADT xs) <- assertBaseType isADT (valType adt)
     assert (i >= 0 && i < length xs) "invalid ADT enum"
     case adtTyp of
-        _ | isEmptyADT adtTyp  -> err "ADT has no enum"
-        _ | isPtrADT adtTyp    -> err "ADT has no enum"
+        _ | isEmptyADT adtTyp  -> fail "ADT has no enum"
+        _ | isPtrADT adtTyp    -> fail "ADT has no enum"
         _ | isEnumADT adtTyp   -> valStore adt $ (valI64 i) { valType = adtTyp }
         _ | isNormalADT adtTyp -> do
             en <- Ptr I64 <$> gep loc [int32 0, int32 0]
@@ -107,8 +108,8 @@ adtPi8 adt = trace "adtPi8" $ do
     adtTyp@(ADT xs) <- assertBaseType isADT (valType adt)
     op <- valOp <$> valLoad adt
     case adtTyp of
-        _ | isEmptyADT adtTyp -> err "Empty ADT has no pointer"
-        _ | isEnumADT adtTyp  -> err "Empty ADT has no pointer"
+        _ | isEmptyADT adtTyp -> fail "Empty ADT has no pointer"
+        _ | isEnumADT adtTyp  -> fail "Empty ADT has no pointer"
         _ | isPtrADT adtTyp   -> return op
         _ | isNormalADT adtTyp -> extractValue op [1]
 
@@ -117,8 +118,8 @@ adtSetPi8 :: InsCmp CompileState m => Value -> LL.Operand -> m ()
 adtSetPi8 adt@(Ptr _ loc) pi8 = trace "adtSetPi8" $ do
     adtTyp@(ADT xs) <- assertBaseType isADT (valType adt)
     case adtTyp of
-        _ | isEmptyADT adtTyp  -> err "Empty ADT has no pointer"
-        _ | isEnumADT adtTyp   -> err "Empty ADT has no pointer"
+        _ | isEmptyADT adtTyp  -> fail "Empty ADT has no pointer"
+        _ | isEnumADT adtTyp   -> fail "Empty ADT has no pointer"
         _ | isPtrADT adtTyp    -> store loc 0 pi8
         _ | isNormalADT adtTyp -> do
             ppi8 <- gep loc [int32 0, int32 1]
@@ -203,11 +204,11 @@ adtConstruct :: InsCmp CompileState m => Type -> Value -> m Value
 adtConstruct typ val = trace "adtConstruct" $ do
     adtTyp@(ADT xs) <- assertBaseType isADT typ
     case adtTyp of
-        _ | isEmptyADT adtTyp -> err "Cannot construct ADT type"
+        _ | isEmptyADT adtTyp -> fail "Cannot construct ADT type"
 
-        _ | isEnumADT adtTyp -> err "here"
+        _ | isEnumADT adtTyp -> fail "here"
 
-        _ | isPtrADT adtTyp -> err "here"
+        _ | isPtrADT adtTyp -> fail "here"
 
         _ | isNormalADT adtTyp -> do
             let idxs = [ i | (t, i) <- zip (map snd xs) [0..], t == valType val ]

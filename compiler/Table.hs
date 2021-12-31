@@ -16,6 +16,7 @@ import Type
 import Tuple
 import Typeof
 import Trace
+import Error
 
 
 

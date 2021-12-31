@@ -29,6 +29,7 @@ import Funcs
 import Type
 import Typeof
 import Trace
+import Error
 
 
 valI64 :: Integral i => i -> Value
@@ -81,7 +82,7 @@ valZero typ = trace ("valZero " ++ show  typ) $ do
                 ADT _
                     | isEmptyADT typ  -> return $ Val typ $ cons $ C.Null (LL.ptr LL.i8)
                     | isEnumADT typ   -> return $ Val typ (int64 0)
-                    | isNormalADT typ -> err "Cannot zero-construct ADT type. Use field constructor."
+                    | isNormalADT typ -> fail "Cannot zero-construct ADT type. Use field constructor."
                 Tuple xs        -> Val typ . struct namem False . map (toCons . valOp) <$> mapM (valZero . snd) xs
                 Table ts        -> do
                     let zi64 = toCons (int64 0)
@@ -180,7 +181,7 @@ valsInfix operator a b = trace ("valsInfix " ++ show operator) $ do
         Char             -> intInfix (valType a) operator opA opB
         _ | isInt base   -> intInfix (valType a) operator opA opB
         _ | isFloat base -> floatInfix (valType a) operator opA opB
-        _                -> err ("Operator " ++ show operator ++ " undefined for types")
+        _                -> fail ("Operator " ++ show operator ++ " undefined for types")
 
     where 
         exprInfix operator exprA exprB = case (operator, exprA, exprB) of
