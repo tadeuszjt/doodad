@@ -17,30 +17,6 @@ data TextPos
         }
     deriving (Eq)
 
-instance Show TextPos where
-    show (TextPos i p l c) = "(" ++ show p ++ ":" ++ show l ++ ":" ++ show c ++ ")"
-
-class TextPosition a where
-    textPos :: a -> TextPos
-
-
-withPos :: MonadError Error m => TextPos -> m a -> m a
-withPos pos f = do
-    catchError f $ \e -> case e of
-        ErrorStr s   -> throwError (ErrorPos pos s)
-        ErrorPos p s -> throwError (ErrorPos p s)
-
-
-withFiles :: MonadError Error m => [FilePath] -> m a -> m a
-withFiles files f = do
-    catchError f $ \e -> case e of
-        ErrorStr s   -> throwError e
-        ErrorPos p s -> throwError $ ErrorFile (files !! textFile p) p s
-
-
-assert :: MonadFail m => Bool -> String -> m ()
-assert b s = when (not b) (fail s)
-
 
 data Error
     = ErrorStr
@@ -56,6 +32,34 @@ data Error
         , errStr :: String
         }
     deriving (Show)
+
+
+class TextPosition a where
+    textPos :: a -> TextPos
+
+instance Show TextPos where
+    show (TextPos i p l c) = "(" ++ show p ++ ":" ++ show l ++ ":" ++ show c ++ ")"
+
+instance TextPosition TextPos where
+    textPos = id
+
+
+withPos :: (MonadError Error m, TextPosition a) => a -> m b -> m b
+withPos x f = do
+    catchError f $ \e -> case e of
+        ErrorStr s   -> throwError $ ErrorPos (textPos x) s
+        ErrorPos p s -> throwError $ ErrorPos p s
+
+
+withFiles :: MonadError Error m => [FilePath] -> m a -> m a
+withFiles files f = do
+    catchError f $ \e -> case e of
+        ErrorStr s   -> throwError e
+        ErrorPos p s -> throwError $ ErrorFile (files !! textFile p) p s
+
+
+assert :: MonadFail m => Bool -> String -> m ()
+assert b s = when (not b) (fail s)
 
 
 printError :: Error -> IO ()

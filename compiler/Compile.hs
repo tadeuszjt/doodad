@@ -204,7 +204,7 @@ cmpFuncDef (S.FuncDef pos symbol params retty blk) = trace "cmpFuncDef" $ withPo
 
 
 cmpIndex:: InsCmp CompileState m => S.Index -> m Value
-cmpIndex index = withPos (textPos index) $ case index of
+cmpIndex index = withPos index $ case index of
     S.IndIdent pos sym -> do
         ObjVal val <- look (Sym sym) KeyVar
         return val
@@ -257,7 +257,7 @@ cmpPrint (S.Print pos exprs) = trace "cmpPrint" $ do
 
 
 cmpAppend :: InsCmp CompileState m => S.Append -> m Value
-cmpAppend append = withPos (textPos append) $ case append of
+cmpAppend append = withPos append $ case append of
     S.AppendIndex index -> cmpIndex index
 
     S.AppendTable pos app expr -> do
@@ -272,7 +272,7 @@ cmpAppend append = withPos (textPos append) $ case append of
 
 
 cmpStmt :: InsCmp CompileState m => S.Stmt -> m ()
-cmpStmt stmt = trace "cmpStmt" $ withPos (textPos stmt) $ case stmt of
+cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
     S.Print pos exprs   -> cmpPrint stmt
     S.Block stmts       -> pushSymTab >> mapM_ cmpStmt stmts >> popSymTab
     S.AppendStmt append -> void $ cmpAppend append
@@ -409,7 +409,7 @@ cmpStmt stmt = trace "cmpStmt" $ withPos (textPos stmt) $ case stmt of
 
 -- must return Val unless local variable
 cmpExpr :: InsCmp CompileState m =>  S.Expr -> m Value
-cmpExpr expr = trace "cmpExpr" $ withPos (textPos expr) $ case expr of
+cmpExpr expr = trace "cmpExpr" $ withPos expr $ case expr of
     S.Bool pos b               -> return (valBool b)
     S.Char pos c               -> return (valChar c)
     S.Conv pos typ [S.Null p]  -> adtNull typ
@@ -557,7 +557,7 @@ cmpExpr expr = trace "cmpExpr" $ withPos (textPos expr) $ case expr of
 
 
 cmpPattern :: InsCmp CompileState m => S.Pattern -> Value -> m Value
-cmpPattern pattern val = trace "cmpPattern" $ withPos (textPos pattern) $ case pattern of
+cmpPattern pattern val = trace "cmpPattern" $ withPos pattern $ case pattern of
 
     S.PatLiteral (S.Null pos) -> trace "cmpPattern null" $ do
         ADT xs <- assertBaseType isADT (valType val)

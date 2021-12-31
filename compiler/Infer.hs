@@ -238,7 +238,7 @@ popSymTab = do
 
 
 infExpr :: BoM InferState m => Expr -> m Expr
-infExpr expr = withPos (textPos expr) $ case expr of
+infExpr expr = withPos expr $ case expr of
     Int p n              -> addExpr expr =<< genType
     Float p f            -> addExpr expr =<< genType
     AST.Table pos [[]]   -> addExpr expr =<< genType
@@ -361,7 +361,7 @@ infExpr expr = withPos (textPos expr) $ case expr of
 
 
 infPattern :: BoM InferState m => Pattern -> Type -> m Pattern
-infPattern pattern exprType = withPos (textPos pattern) $ case pattern of
+infPattern pattern exprType = withPos pattern $ case pattern of
     PatIdent p sym -> do
         define sym KeyVar ObjVar
         return pattern
@@ -421,7 +421,7 @@ infType typ = case typ of
 
 
 infStmt :: BoM InferState m => Stmt -> m Stmt
-infStmt stmt = withPos (textPos stmt) $ case stmt of
+infStmt stmt = withPos stmt $ case stmt of
     AST.Typedef pos (Sym sym) typ -> do
         t <- infType typ
         define sym KeyType ObjType
