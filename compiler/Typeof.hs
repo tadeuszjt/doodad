@@ -53,8 +53,8 @@ checkTypesCompatible typA typB = do
             assert (length ats == length bts) "Tables aren't compatible"
             forM_ (zip ats bts) $ \(ta, tb) -> checkTypesCompatible ta tb
 
-        t | isFunction t -> do
-            assertBaseType isFunction baseB
+        t | isFunc t -> do
+            assertBaseType isFunc baseB
             let Func ats atr = baseA
             let Func bts btr = baseB
             checkTypesCompatible atr btr

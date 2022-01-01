@@ -284,7 +284,7 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
             Just (ObjExtern _ _ op) -> return op
             Nothing                 -> do
                 ObjVal fval <- look (Sym sym) KeyVar
-                ftyp@(Func ts rt) <- assertBaseType isFunction (valType fval)
+                ftyp@(Func ts rt) <- assertBaseType isFunc (valType fval)
                 assert (ts == map valType vals) ("Incorrect argument types for: " ++ show ftyp)
                 valOp <$> valLoad fval
 
@@ -293,7 +293,7 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
     S.CallStmt pos index exprs -> do
         vals <- mapM (valLoad <=< cmpExpr) exprs
         fval <- valLoad =<< cmpIndex index
-        ftyp@(Func ts rt) <- assertBaseType isFunction (valType fval)
+        ftyp@(Func ts rt) <- assertBaseType isFunc (valType fval)
         assert (ts == map valType vals) ("Incorrect argument types for: " ++ show ftyp)
         void $ call (valOp fval) [(o, []) | o <- map valOp vals]
 
@@ -483,7 +483,7 @@ cmpExpr expr = trace "cmpExpr" $ withPos expr $ case expr of
             ObjFunc retty op       -> Val retty <$> call op [(o, []) | o <- map valOp vals]
             ObjExtern _ retty op   -> Val retty <$> call op [(o, []) | o <- map valOp vals]
             ObjVal (Val typ op)    -> do
-                Func ts rt <- assertBaseType isFunction typ
+                Func ts rt <- assertBaseType isFunc typ
                 assert (map valType vals == ts) ("Argument types do not match " ++ show ts)
                 Val rt <$> call op [(o, []) | o <- map valOp vals]
 

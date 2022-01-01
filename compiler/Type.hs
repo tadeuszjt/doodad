@@ -79,6 +79,12 @@ isTypedef _                = False
 isADT (ADT _)              = True
 isADT _                    = False
 
+isFunc (Func _ _) = True
+isFunc _          = False
+
+isTypeId (Type _) = True
+isTypeId _        = False
+
 isEmptyADT typ             = typ == ADT []
 
 isPtrADT (ADT [(_, Void)]) = False
@@ -93,14 +99,8 @@ isNormalADT typ@(ADT xs)   = not (isEmptyADT typ || isPtrADT typ || isEnumADT ty
 isNormalADT _              = False
 
 isIntegral x               = isInt x || x == Char
-
-isBase x                   = isInt x || isFloat x || x == Char || x == Bool
-
-isSimple x                 = isBase x
-
-isAggregate x              = isTuple x || isArray x || isTable x || isADT x
-
-isFunction (Func _ _)      = True
-isFunction _               = False
+isBase x                   = isSimple x || isAggregate x
+isSimple x                 = isInt x || isFloat x || x == Char || x == Bool
+isAggregate x              = isTuple x || isArray x || isTable x || isADT x || isFunc x
 
 

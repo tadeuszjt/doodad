@@ -36,9 +36,10 @@ data SymKey
 
 
 data Object
-    = ObjVar
+    = ObjVar Type
     | ObjFunc Type
-    | ObjType
+    | ObjType Type
+    | ObjADTCons Type
     deriving (Show, Eq)
 
 
@@ -200,10 +201,14 @@ withCurRetty typ m = do
     return r
 
 
-substitute :: BoM InferState m => Type -> Type -> m ()
-substitute t1 t2 = do
+unify :: BoM InferState m => Type -> Type -> m ()
+unify t1 t2 = do
     let f = \t -> if t == t1 then t2 else t
-    modify $ \s -> s { expressions = Map.map (\(e, t) -> (e, mapType f t)) (expressions s) }
+
+    case (t1, t2) of
+        (Type _, _) -> modify $ \s -> s { expressions = Map.map (\(e, t) -> (e, mapType f t)) (expressions s) }
+        (_, Type _) -> unify t2 t1
+        (_, _)      -> assert (t1 == t2) $ "Incompatible types: " ++ show t1 ++ ", " ++ show t2
     where
         mapType :: (Type -> Type) -> Type -> Type
         mapType f typ = case typ of
@@ -225,6 +230,18 @@ typeOf expr = do
         _       -> fail $ "Cannot get typeOf: " ++ show expr
 
 
+baseTypeOf :: BoM InferState m => Type -> m Type
+baseTypeOf typ = case typ of
+    _ | isBase typ -> return typ
+
+    Type.Typedef symbol -> do
+        ObjType t <- look symbol KeyType
+        baseTypeOf t
+
+    _ -> return typ
+
+
+
 pushSymTab :: BoM InferState m => m ()
 pushSymTab = do
     modify $ \s -> s { symTab = SymTab.push (symTab s) }
@@ -244,6 +261,7 @@ infExpr expr = withPos expr $ case expr of
     Range p _ _ _        -> addExpr expr =<< genType
     Null p               -> addExpr expr =<< genType
     AST.Bool p b         -> addExpr expr =<< genType
+    String pos str       -> addExpr expr =<< genType
 
     AST.Char p c -> do
         t <- genType
@@ -261,15 +279,14 @@ infExpr expr = withPos expr $ case expr of
 
             t1 <- typeOf e1
             t2 <- typeOf e2
-            substitute t1 t2
+            unify t1 t2
 
             t <- genType
             addExpr (Infix p op e1 e2) t
 
     Prefix p op exp -> do
         e <- infExpr exp
-        t <- typeOf e
-        addExpr (Prefix p op e) t
+        addExpr (Prefix p op e) =<< typeOf e
 
     Infix p op expr1 expr2
         | op == Plus || op == Times || op == Divide || op == Minus -> do
@@ -278,26 +295,37 @@ infExpr expr = withPos expr $ case expr of
 
             t1 <- typeOf e1
             t2 <- typeOf e2
-            substitute t1 t2
+            unify t1 t2
             addExpr (Infix p op e1 e2) t2
 
     Ident pos symbol -> do
-        objm <- lookm symbol KeyVar
-        case objm of
-            Nothing     -> fail $ "Undefined symbol: " ++ show symbol
-            Just ObjVar -> addExpr (Ident pos symbol) =<< genType
+        xs <- lookSym symbol
+        case xs of
+            []                        -> fail $ show symbol ++ " Undefined"
+            [(KeyVar, ObjVar t)]      -> addExpr (Ident pos symbol) t
+            [(KeyFunc ts, ObjFunc t)] -> addExpr (Ident pos symbol) (Func ts t)
+            [(KeyVar, ObjADTCons t)]  -> addExpr (Ident pos symbol) t
+            _                         -> fail $ show symbol ++ " has multiple definitions:" ++ show xs
 
-    String pos str -> do
-        t <- genType
-        addExpr expr t
 
     Call pos id@(Ident p symbol) exprs -> do
         es <- mapM infExpr exprs
         xs <- lookSym symbol
-        case xs of
-            --[]                   -> fail $ show symbol ++ " Undefined"
-            [(k, ObjFunc retty)] -> addExpr (Call pos id es) retty
-            _                    -> addExpr (Call pos id es) =<< genType
+
+        -- when all the expressions are resolved, call function
+        -- when all objects are func with same retty, use retty
+        -- when only one func object, resolve param types
+        case [ (k, o) | (k, o@(ObjFunc t)) <- xs ] of
+            [(KeyFunc fts, ObjFunc retty)] -> do
+                ts <- mapM typeOf es
+                zipWithM_ unify ts fts
+                addExpr (Call pos id es) retty
+
+            (k, o@(ObjFunc retty)):xs | all (== o) (map snd xs) ->
+                addExpr (Call pos id es) retty
+
+            _  ->
+                addExpr (Call pos id es) =<< genType
 
     Call pos expr exprs -> do
         e <- infExpr expr
@@ -313,7 +341,7 @@ infExpr expr = withPos expr $ case expr of
 
     Conv p typ exprs -> do
         es <- mapM infExpr exprs
-        addExpr (Conv p typ es) =<< genType
+        addExpr (Conv p typ es) typ
 
     Copy p expr -> do
         e <- infExpr expr
@@ -334,7 +362,7 @@ infExpr expr = withPos expr $ case expr of
         es <- mapM infExpr exprs
         ts <- mapM typeOf es
         let ts1 = head ts
-        mapM (\x -> substitute x ts1) ts
+        mapM (\x -> unify x ts1) ts
 
         t <- genType
         addExpr (AST.Table p [es]) t
@@ -346,15 +374,22 @@ infExpr expr = withPos expr $ case expr of
 infPattern :: BoM InferState m => Pattern -> Type -> m Pattern
 infPattern pattern exprType = withPos pattern $ case pattern of
     PatIdent _ sym -> do
-        define sym KeyVar ObjVar
+        define sym KeyVar (ObjVar exprType)
         return pattern
 
     PatTuple pos pats -> do
-        ps <- forM (zip pats [0..]) $ \(pat, i) -> do
-            t <- genType
-            infPattern pat t
+        base <- baseTypeOf exprType
 
-        return (PatTuple pos ps)
+        if (isTuple base) then do
+            let Type.Tuple xs = base
+            assert (length pats == length xs) "Pattern lengths do not match"
+            ps <- forM (zip pats xs) $ \(pat, (_, t)) -> infPattern pat t
+            return (PatTuple pos ps)
+        else do
+            ps <- forM (zip pats [0..]) $ \(pat, i) -> do
+                t <- genType
+                infPattern pat t
+            return (PatTuple pos ps)
 
     PatSplitElem pos pat1 pat2 -> do
         t1 <- genType
@@ -373,10 +408,6 @@ infPattern pattern exprType = withPos pattern $ case pattern of
         return $ PatTyped pos typ [pat']
     PatArray _ pats -> return pattern
         
-        
-
-
-
     _ -> error $ "Cannot infer pattern: " ++ show pattern
 
 
@@ -394,23 +425,10 @@ infCondition cnd = case cnd of
         return (CondMatch p e)
 
 
-infType :: BoM InferState m => Type -> m Type
-infType typ = case typ of
-    ADT xs -> do
-        forM_ xs $ \(s, t) -> do
-            when (t == Void) $ define s KeyVar ObjVar
-
-        return (ADT xs)
-
-    t -> return t
-
-
 infStmt :: BoM InferState m => Stmt -> m Stmt
 infStmt stmt = withPos stmt $ case stmt of
     AST.Typedef pos (Sym sym) typ -> do
-        t <- infType typ
-        define sym KeyType ObjType
-        return $ AST.Typedef pos (Sym sym) t
+        return $ AST.Typedef pos (Sym sym) typ
         
     Assign pos pat expr -> do
         e <- infExpr expr
@@ -431,7 +449,7 @@ infStmt stmt = withPos stmt $ case stmt of
 
     For pos idxStr expr Nothing blk -> do
         pushSymTab
-        define idxStr KeyVar ObjVar
+        define idxStr KeyVar (ObjVar I64)
 
         t <- genType
         e <- infExpr expr
@@ -445,11 +463,11 @@ infStmt stmt = withPos stmt $ case stmt of
         Print pos <$> mapM infExpr exprs
 
     FuncDef pos (Sym sym) params retty blk -> withCurRetty retty $ do
-        look (Sym sym) (KeyFunc $ map paramType params)
+        ObjFunc _ <- look (Sym sym) (KeyFunc $ map paramType params)
 
         pushSymTab
-        forM_ params $ \(Param p s t) -> do
-            define s KeyVar ObjVar
+        forM_ params $ \(Param p s t) -> withPos p $ do
+            define s KeyVar (ObjVar t)
 
         blk' <- infStmt blk
         popSymTab
@@ -469,8 +487,7 @@ infStmt stmt = withPos stmt $ case stmt of
         assert (curRetty /= Void) "Cannot return in void function"
 
         e <- infExpr expr
-        t <- typeOf e
-        substitute t curRetty
+        unify curRetty =<< typeOf e
         return $ Return p (Just e)
 
     AppendStmt append -> return stmt
@@ -488,10 +505,28 @@ infStmt stmt = withPos stmt $ case stmt of
 
 infTopFuncDef :: BoM InferState m => Stmt -> m ()
 infTopFuncDef (FuncDef pos (Sym sym) params retty _) = withPos pos $ do
-    define sym (KeyFunc $ map paramType params) (ObjFunc retty)
-    undefine sym KeyVar
-    define sym KeyVar ObjVar
+    let paramTypes = map paramType params
+    define sym (KeyFunc paramTypes) (ObjFunc retty)
     
+
+infTopTypeDef :: BoM InferState m => Stmt -> m ()
+infTopTypeDef (AST.Typedef pos (Sym sym) typ) = withPos pos $ case typ of
+    Type.Tuple xs -> do
+        define sym KeyType (ObjType typ)
+        define sym (KeyFunc $ map snd xs) (ObjFunc $ Type.Typedef $ Sym sym)
+
+    Type.ADT xs -> do
+        define sym KeyType (ObjType typ)
+        forM_ xs $ \(s, t) -> case t of
+            Void -> do
+                define s KeyVar (ObjADTCons $ Type.Typedef $ Sym sym)
+
+            t -> do
+                define s (KeyFunc [t]) (ObjADTCons $ Type.Typedef $ Sym sym)
+
+            _ -> fail (show t)
+
+    _ -> return ()
 
 
 infAST :: BoM InferState m => AST -> m AST
@@ -499,14 +534,10 @@ infAST ast = do
     let typeDefStmts = [ x | x@(AST.Typedef _ _ _) <- astStmts ast ]
     let funcDefStmts = [ x | x@(AST.FuncDef _ _ _ _ _) <- astStmts ast ]
 
+    mapM infTopTypeDef typeDefStmts
     mapM infTopFuncDef funcDefStmts
 
-
-
-
     stmts' <- mapM infStmt (astStmts ast)
-
-
 
     let ast' = AST {
         astModuleName = astModuleName ast,
@@ -523,9 +554,9 @@ infResolve = do
 
 prettyInferState :: InferState -> IO ()
 prettyInferState state = do
-    putStrLn "Imports"
     forM_ (Map.toList $ imports state) $ \(name, st) ->
-        putStrLn name
+        prettyInferState st
+        --putStrLn name
 
     putStrLn ""
     putStrLn "Expressions"
