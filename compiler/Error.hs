@@ -22,14 +22,14 @@ data Error
     = ErrorStr
         { errStr :: String
         }
-    | ErrorFile
-        { errFile :: String
-        , errPos  :: TextPos
-        , errStr  :: String
-        }
     | ErrorPos
         { errPos :: TextPos
         , errStr :: String
+        }
+    | ErrorFile
+        { errFile :: FilePath
+        , errPos  :: TextPos
+        , errStr  :: String
         }
     deriving (Show)
 

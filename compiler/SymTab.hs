@@ -17,10 +17,10 @@ lookup sym key (s:ss) = case Map.lookup sym s of
     Nothing -> lookup sym key ss
 
 
-lookupSym :: (Ord s, Ord k) => s -> SymTab s k o -> Maybe (Map.Map k o)
-lookupSym sym []     = Nothing
+lookupSym :: (Ord s, Ord k) => s -> SymTab s k o -> [(k, o)]
+lookupSym sym []     = []
 lookupSym sym (s:ss) = case Map.lookup sym s of
-    Just km -> Just km
+    Just km -> Map.toList km
     Nothing -> lookupSym sym ss
 
 

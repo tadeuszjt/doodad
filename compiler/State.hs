@@ -127,13 +127,13 @@ addObjWithCheck sym key obj = trace "addObjWithCheck" $ do
 checkSymKeyUndef :: BoM CompileState m => String -> SymKey -> m ()
 checkSymKeyUndef sym key = trace ("checkSymKeyUndef " ++ sym) $ do
     res <- SymTab.lookupHead sym key <$> gets symTab
-    when (isJust res) $ fail (sym ++ " already defined")
+    assert (isNothing res) (sym ++ " already defined")
 
 
 checkSymUndef :: BoM CompileState m => String -> m ()
 checkSymUndef sym = trace ("checkSymUndef " ++ sym) $ do
     res <- SymTab.lookupSym sym <$> gets symTab
-    when (isJust res) $ fail (sym ++ " already defined")
+    assert (null res) (sym ++ " already defined")
 
 
 addDeclared :: BoM CompileState m => LL.Name -> m ()
@@ -182,7 +182,7 @@ ensureSymKeyDec symbol key = trace ("ensureSymKeyDec " ++ show symbol) $ do
 
         SymQualified mod sym -> do
             statem <- Map.lookup mod <$> gets imports
-            when (isNothing statem) $ fail ("No module: " ++ mod ++ " exists")
+            assert (isJust statem) ("No module: " ++ mod ++ " exists")
 
             let state = fromJust statem
             case Map.lookup (sym, key) (decMap state) of

@@ -42,7 +42,7 @@ flattenASTs asts = do
 combineASTs :: BoM s m => [S.AST] -> m S.AST
 combineASTs asts = do
     let modNames = Set.toList $ Set.fromList $ map S.astModuleName asts
-    when (length modNames /= 1) $ fail ("differing module names in asts: " ++ show modNames)
+    assert (length modNames == 1) ("differing module names in asts: " ++ show modNames)
 
     return S.AST {
         S.astModuleName = head modNames,
@@ -72,7 +72,7 @@ flattenAST ast = do
             S.Assign _ _ _        -> modify $ \s -> s { varDefs    = stmt:(varDefs s) }
             S.Typedef pos (T.Sym sym) typ -> do
                 b <- Map.member sym <$> gets typeDefs
-                when b $ fail (sym ++ " already defined")
+                assert (not b) (sym ++ " already defined")
                 modify $ \s -> s { typeDefs = Map.insert sym (pos, typ) (typeDefs s) }
 
             _ -> fail "invalid top-level statement"
@@ -83,8 +83,7 @@ flattenAST ast = do
             where
                 checkTypedefCircles' :: BoM FlattenState m => String -> Set.Set String -> m ()
                 checkTypedefCircles' sym visited = do
-                    when (Set.member sym visited) $
-                        fail ("circular type dependency: " ++ sym)
+                    assert (not $ Set.member sym visited) ("circular type dependency: " ++ sym)
                     res <- Map.lookup sym <$> gets typeDefs
                     case res of
                         Just (pos, T.Typedef (T.Sym s)) -> checkTypedefCircles' s (Set.insert sym visited)

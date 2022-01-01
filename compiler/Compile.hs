@@ -221,7 +221,6 @@ cmpIndex index = withPos index $ case index of
                 return ptr
 
 
-
 cmpInfix :: InsCmp CompileState m => S.Op -> Value -> Value -> m Value
 cmpInfix op valA valB = do
     resm <- lookm (Sym $ show op) $ KeyFunc [valType valA, valType valB]
@@ -494,7 +493,6 @@ cmpExpr expr = trace "cmpExpr" $ withPos expr $ case expr of
         case base of
             Table _ -> tableLen val
             _       -> fail ("cannot take length of type " ++ show (valType val))
-
 
     S.Tuple pos exprs -> do
         hint <- gets typeHint

@@ -70,8 +70,6 @@ checkAndNormalisePath path = do
             assert (isAlpha $ head name) $ "Directory name: " ++ name ++ " must have alpha as first char"
             assert (all (== True) $ map isAlphaNum name) $ "Module name: " ++ name ++ " must be all alphanum"
 
-        assert b s = when (not b) (fail s)
-
 
 getBoFilesInDirectory :: BoM s m => FilePath -> m [FilePath]
 getBoFilesInDirectory dir = do
@@ -117,8 +115,6 @@ runMod args pathsVisited modPath = do
     resm <- Map.lookup path <$> gets modMap
     maybe (compile path) (return) resm
     where
-        assert b s = when (not b) (fail s)
-
         -- path will be in the form "dir1/dirn/modname"
         compile :: BoM Modules m => FilePath -> m CompileState
         compile path = do

@@ -37,7 +37,7 @@ data SymKey
 
 data Object
     = ObjVar
-    | ObjFunc
+    | ObjFunc Type
     | ObjType
     deriving (Show, Eq)
 
@@ -57,7 +57,6 @@ data InferState =
         , expressions  :: Map.Map ExprId (Expr, Type)
         , defaults     :: Map.Map TypeId Type
         , symTab       :: SymTab.SymTab String SymKey Object
-        , constraints  :: [Constraint]
         , exprIdSupply :: Int
         , typeIdSupply :: Int
         , symIdSupply  :: Int
@@ -71,7 +70,6 @@ initInferState imp = InferState
     , expressions  = Map.empty
     , defaults     = Map.empty
     , symTab       = SymTab.initSymTab
-    , constraints  = []
     , exprIdSupply = 0
     , typeIdSupply = 0
     , symIdSupply  = 0
@@ -119,22 +117,38 @@ runModInfer modPath pathsVisited = do
             fmap snd $ withFiles files $ runBoMTExcept (initInferState importMap) (infAST combinedAST)
 
 
-
-err :: BoM InferState m => String -> m a
-err str = do
-    throwError (ErrorStr str)
-
-
 define :: BoM InferState m => String -> SymKey -> Object -> m ()
 define sym key obj = do
     resm <- SymTab.lookupHead sym key <$> (gets symTab)
-    when (isJust resm) $ err (sym ++ " already defined")
+    assert (isNothing resm) (sym ++ " already defined")
     modify $ \s -> s { symTab = SymTab.insert sym key obj (symTab s) }
 
 
 undefine :: BoM InferState m => String -> SymKey -> m ()
 undefine sym key = do
     modify $ \s -> s { symTab = SymTab.deleteHead sym key (symTab s) }
+
+
+look :: BoM InferState m => Symbol -> SymKey -> m Object
+look symbol key = do
+    resm <- lookm symbol key
+    assert (isJust resm) (show symbol ++ " Undefined")
+    return (fromJust resm)
+
+
+lookSym :: BoM InferState m => Symbol -> m [(SymKey, Object)]
+lookSym symbol = case symbol of
+    Sym sym -> do
+        localTabRess <- fmap (SymTab.lookupSym sym) (gets symTab)
+        importTabRess <- concat . map (SymTab.lookupSym sym . symTab) . Map.elems <$> gets imports
+        return (localTabRess ++ importTabRess)
+
+    SymQualified mod sym -> do
+        impm <- Map.lookup mod <$> gets imports
+        assert (isJust impm) $ "No module: " ++ mod
+        let imp = fromJust impm
+        return $ SymTab.lookupSym sym (symTab imp)
+
 
 
 lookm :: BoM InferState m => Symbol -> SymKey -> m (Maybe Object)
@@ -190,16 +204,7 @@ substitute :: BoM InferState m => Type -> Type -> m ()
 substitute t1 t2 = do
     let f = \t -> if t == t1 then t2 else t
     modify $ \s -> s { expressions = Map.map (\(e, t) -> (e, mapType f t)) (expressions s) }
-    modify $ \s -> s { constraints = map (mapConstraint f) (constraints s) }
     where
-        mapConstraint :: (Type -> Type) -> Constraint -> Constraint
-        mapConstraint f con = case con of
-            ConsEq t1 t2 -> ConsEq (mapType f t1) (mapType f t2)
-            ConsBase t1 t2 -> ConsBase (mapType f t1) (mapType f t2)
-            ConsElemType t1 t2 -> ConsElemType (mapType f t1) (mapType f t2)
-            ConsMemberType t1 t2 sym -> ConsMemberType (mapType f t1) (mapType f t2) sym
-            ConsFieldType t1 t2 i -> ConsFieldType (mapType f t1) (mapType f t2) i
-    
         mapType :: (Type -> Type) -> Type -> Type
         mapType f typ = case typ of
             t | isSimple t  -> f t
@@ -211,13 +216,6 @@ substitute t1 t2 = do
             Type.Table ts   -> f $ Type.Table [mapType f t | t <- ts]
             Type.Func ts rt -> f $ Type.Func  [mapType f t | t <- ts] (mapType f rt)
             _ -> error $ show typ
-
-
-constrain :: BoM InferState m => Constraint -> m ()
-constrain con = do
-    cons <- gets constraints
-    when (not $ elem con cons) $
-        modify $ \s -> s { constraints = con : (constraints s) }
 
 
 typeOf :: BoM InferState m => Expr -> m Type
@@ -245,23 +243,16 @@ infExpr expr = withPos expr $ case expr of
     AST.Tuple pos [expr] -> infExpr expr
     Range p _ _ _        -> addExpr expr =<< genType
     Null p               -> addExpr expr =<< genType
+    AST.Bool p b         -> addExpr expr =<< genType
 
     AST.Char p c -> do
         t <- genType
-        constrain (ConsBase t Type.Char)
         addExpr expr t
 
-    Member p exp sym    -> do
+    Member pos exp sym    -> do
         e <- infExpr exp
-        et <- typeOf e
-        t <- genType
-        constrain $ ConsMemberType t et sym
-        addExpr (Member p e sym) t
+        addExpr (Member pos e sym) =<< genType
 
-    AST.Bool p b -> do
-        t <- genType
-        constrain (ConsBase t Type.Bool)
-        addExpr expr t
 
     Infix p op expr1 expr2
         | op `elem` [EqEq, OrOr, AndAnd, NotEq, AST.LT, AST.GT, GTEq, LTEq] -> do
@@ -273,7 +264,6 @@ infExpr expr = withPos expr $ case expr of
             substitute t1 t2
 
             t <- genType
-            constrain (ConsBase t Type.Bool)
             addExpr (Infix p op e1 e2) t
 
     Prefix p op exp -> do
@@ -294,24 +284,20 @@ infExpr expr = withPos expr $ case expr of
     Ident pos symbol -> do
         objm <- lookm symbol KeyVar
         case objm of
-            Nothing     -> err $ "Undefined symbol: " ++ show symbol
+            Nothing     -> fail $ "Undefined symbol: " ++ show symbol
             Just ObjVar -> addExpr (Ident pos symbol) =<< genType
 
     String pos str -> do
         t <- genType
-        constrain $ ConsBase t $ Type.Table [Type.Char]
         addExpr expr t
 
-    Call pos (Ident p symbol) exprs -> do
+    Call pos id@(Ident p symbol) exprs -> do
         es <- mapM infExpr exprs
---        ts <- mapM typeOf es
---        resm <- lookm symbol (KeyFunc ts)
---        case resm of
---            Nothing      -> err $ "Undefined function: " ++ show symbol
---            Just ObjFunc -> return ()
---            Just obj     -> err $ "symbol: " ++ show symbol ++ " isn't a function"
-
-        addExpr (Call pos (Ident p symbol) es) =<< genType --TODO
+        xs <- lookSym symbol
+        case xs of
+            --[]                   -> fail $ show symbol ++ " Undefined"
+            [(k, ObjFunc retty)] -> addExpr (Call pos id es) retty
+            _                    -> addExpr (Call pos id es) =<< genType
 
     Call pos expr exprs -> do
         e <- infExpr expr
@@ -323,7 +309,6 @@ infExpr expr = withPos expr $ case expr of
         ts <- mapM typeOf es
 
         t <- genType
-        constrain $ ConsBase t (Type.Tuple [("", t) | t <- ts])
         addExpr (AST.Tuple pos es) t
 
     Conv p typ exprs -> do
@@ -343,7 +328,6 @@ infExpr expr = withPos expr $ case expr of
         e2 <- infExpr expr2
         t1 <- typeOf e1
         t <- genType
-        constrain (ConsElemType t t1)
         addExpr (Subscript p e1 e2) t
 
     AST.Table p [exprs] -> do
@@ -353,7 +337,6 @@ infExpr expr = withPos expr $ case expr of
         mapM (\x -> substitute x ts1) ts
 
         t <- genType
-        constrain (ConsElemType ts1 t)
         addExpr (AST.Table p [es]) t
         
 
@@ -362,21 +345,19 @@ infExpr expr = withPos expr $ case expr of
 
 infPattern :: BoM InferState m => Pattern -> Type -> m Pattern
 infPattern pattern exprType = withPos pattern $ case pattern of
-    PatIdent p sym -> do
+    PatIdent _ sym -> do
         define sym KeyVar ObjVar
         return pattern
 
     PatTuple pos pats -> do
         ps <- forM (zip pats [0..]) $ \(pat, i) -> do
             t <- genType
-            constrain (ConsFieldType t exprType i)
             infPattern pat t
 
         return (PatTuple pos ps)
 
     PatSplitElem pos pat1 pat2 -> do
         t1 <- genType
-        constrain (ConsElemType t1 exprType)
         p1 <- infPattern pat1 t1
         p2 <- infPattern pat2 exprType
         return $ PatSplitElem pos p1 p2
@@ -385,8 +366,14 @@ infPattern pattern exprType = withPos pattern $ case pattern of
         p <- infPattern pat exprType
         e <- infExpr expr
         t <- typeOf e
-        constrain (ConsBase t Type.Bool)
         return $ PatGuarded pos p e
+
+    PatTyped pos typ [pat] -> do
+        pat' <- infPattern pat exprType
+        return $ PatTyped pos typ [pat']
+    PatArray _ pats -> return pattern
+        
+        
 
 
 
@@ -398,7 +385,6 @@ infCondition cnd = case cnd of
     CondExpr expr -> do
         e <- infExpr expr
         t <- typeOf e
-        constrain (ConsBase t Type.Bool)
         return (CondExpr e)
 
     CondMatch pat expr -> do
@@ -417,7 +403,6 @@ infType typ = case typ of
         return (ADT xs)
 
     t -> return t
-
 
 
 infStmt :: BoM InferState m => Stmt -> m Stmt
@@ -460,9 +445,7 @@ infStmt stmt = withPos stmt $ case stmt of
         Print pos <$> mapM infExpr exprs
 
     FuncDef pos (Sym sym) params retty blk -> withCurRetty retty $ do
-        define sym (KeyFunc $ map paramType params) ObjFunc
-        undefine sym KeyVar
-        define sym KeyVar ObjVar
+        look (Sym sym) (KeyFunc $ map paramType params)
 
         pushSymTab
         forM_ params $ \(Param p s t) -> do
@@ -473,7 +456,7 @@ infStmt stmt = withPos stmt $ case stmt of
         return $ FuncDef pos (Sym sym) params retty blk'
 
     Extern pos name sym params retty -> do
-        --define sym (KeyFunc $ map paramType params) ObjFunc
+        define sym (KeyFunc $ map paramType params) (ObjFunc retty)
         return $ Extern pos name sym params retty
 
     If p cnd blk Nothing -> do
@@ -483,7 +466,7 @@ infStmt stmt = withPos stmt $ case stmt of
 
     Return p (Just expr) -> do
         curRetty <- gets curRetty
-        when (curRetty == Void) $ fail $ "Cannot return in void function"
+        assert (curRetty /= Void) "Cannot return in void function"
 
         e <- infExpr expr
         t <- typeOf e
@@ -502,9 +485,29 @@ infStmt stmt = withPos stmt $ case stmt of
     _ -> error $ "Cannot infer: " ++ show stmt
 
 
+
+infTopFuncDef :: BoM InferState m => Stmt -> m ()
+infTopFuncDef (FuncDef pos (Sym sym) params retty _) = withPos pos $ do
+    define sym (KeyFunc $ map paramType params) (ObjFunc retty)
+    undefine sym KeyVar
+    define sym KeyVar ObjVar
+    
+
+
 infAST :: BoM InferState m => AST -> m AST
 infAST ast = do
+    let typeDefStmts = [ x | x@(AST.Typedef _ _ _) <- astStmts ast ]
+    let funcDefStmts = [ x | x@(AST.FuncDef _ _ _ _ _) <- astStmts ast ]
+
+    mapM infTopFuncDef funcDefStmts
+
+
+
+
     stmts' <- mapM infStmt (astStmts ast)
+
+
+
     let ast' = AST {
         astModuleName = astModuleName ast,
         astImports = astImports ast,
@@ -515,14 +518,7 @@ infAST ast = do
 
 infResolve :: BoM InferState m => m ()
 infResolve = do
-    eatStack
-
-    where
-
-        eatStack :: BoM InferState m => m ()
-        eatStack = do
-            resm <- head <$> gets constraints
-            return ()
+    return ()
 
 
 prettyInferState :: InferState -> IO ()
@@ -535,11 +531,6 @@ prettyInferState state = do
     putStrLn "Expressions"
     forM_ (Map.toList $ expressions state) $ \(eid, (expr, tid)) ->
         putStrLn $ show eid ++ ":" ++ show tid ++ " " ++ show expr
-
-    putStrLn ""
-    putStrLn "Constraints"
-    forM_ (constraints state) $ \cons ->
-        putStrLn $ show cons
 
     putStrLn ""
     putStrLn "Symbol Table"
