@@ -16,9 +16,9 @@ import Typeof
 import Trace
 import Error
 
-tupleTypeDef :: InsCmp CompileState m => String -> Type -> m ()
-tupleTypeDef sym typ = trace "tupleTypeDef" $ do
-    Tuple xs <- assertBaseType isTuple typ 
+tupleTypeDef :: InsCmp CompileState m => String -> S.AnnoType -> m ()
+tupleTypeDef sym (S.AnnoType typ) = trace "tupleTypeDef" $ do
+    Tuple ts <- assertBaseType isTuple typ
     let typdef = Typedef (Sym sym)
 
     addObjWithCheck sym (KeyFunc []) (ObjConstructor typdef)
@@ -26,9 +26,23 @@ tupleTypeDef sym typ = trace "tupleTypeDef" $ do
     addObjWithCheck sym (KeyFunc [typdef]) (ObjConstructor typdef)
     addObjWithCheck sym KeyType $ ObType typ Nothing
 
-    let ts = map snd xs
     when (length ts > 0) $
         addObjWithCheck sym (KeyFunc ts) (ObjConstructor typdef)
+
+tupleTypeDef sym (S.AnnoTuple xs) = trace "tupleTypeDef" $ do
+    let typdef = Typedef (Sym sym)
+    let tupTyp = Tuple (map snd xs)
+
+    addObjWithCheck sym (KeyFunc []) (ObjConstructor typdef)
+    addObjWithCheck sym (KeyFunc [tupTyp]) (ObjConstructor typdef)
+    addObjWithCheck sym (KeyFunc [typdef]) (ObjConstructor typdef)
+    addObjWithCheck sym KeyType $ ObType tupTyp Nothing
+
+    when (length xs > 0) $ do
+        addObjWithCheck sym (KeyFunc $ map snd xs) (ObjConstructor typdef)
+
+    forM_ (zip xs [0..]) $ \((s, t), i) -> do
+        addObjWithCheck s (KeyMember typdef) (ObjMember i)
 
 
 tupleLength :: InsCmp CompileState m => Value -> m Int
@@ -47,24 +61,25 @@ tupleSet tup i val = trace "tupleSet" $ do
 
 tupleMember :: InsCmp CompileState m => String -> Value -> m Value
 tupleMember sym tup = trace "tupleMember" $ do
-    Tuple xs <- assertBaseType isTuple (valType tup)
-    let is = [ i | ((s, t), i) <- zip xs [0..], s == sym ]
+    let typ = valType tup
+    assert (isTypedef typ) "Cannot have member of raw tuple"
+    assertBaseType isTuple typ
 
-    assert (length is == 1) $ "tuple has ambigous member: " ++ (show $ fst $ head xs)
-    tupleIdx (head is) tup
+    ObjMember i <- look (Sym sym) (KeyMember typ)
+    tupleIdx i tup
 
 
 tupleIdx :: InsCmp CompileState m => Int -> Value -> m Value
 tupleIdx i tup = trace "tupleIndex" $ do
-    Tuple xs <- baseTypeOf (valType tup)
+    Tuple ts <- baseTypeOf (valType tup)
     case tup of
-        Ptr _ loc -> Ptr (snd $ xs !! i) <$> gep loc [int32 0, int32 $ fromIntegral i]
-        Val _ op  -> Val (snd $ xs !! i) <$> extractValue op [fromIntegral i]
+        Ptr _ loc -> Ptr (ts !! i) <$> gep loc [int32 0, int32 $ fromIntegral i]
+        Val _ op  -> Val (ts !! i) <$> extractValue op [fromIntegral i]
 
 
 tupleConstruct :: InsCmp CompileState m => Type -> [Value] -> m Value
 tupleConstruct tupTyp vals = trace "tupleConstruct" $ do
-    Tuple xs <- assertBaseType isTuple tupTyp
+    Tuple ts <- assertBaseType isTuple tupTyp
     loc <- valLocal tupTyp
 
     case vals of
@@ -75,14 +90,14 @@ tupleConstruct tupTyp vals = trace "tupleConstruct" $ do
             baseTup <- baseTypeOf tupTyp
             if baseVal == baseTup
             then do -- contructing from another tuple
-                forM_ (zip xs [0..]) $ \((s, t), i) -> tupleSet loc i =<< tupleIdx i val
+                forM_ (zip ts [0..]) $ \(t, i) -> tupleSet loc i =<< tupleIdx i val
             else do
-                assert (length xs == 1) "Invalid tuple constructor"
+                assert (length ts == 1) "Invalid tuple constructor"
                 void $ tupleSet loc 0 val
 
         vals -> do
-            assert (length vals == length xs) "Invalid number of args"
-            forM_ (zip xs [0..]) $ \((s, t), i) -> tupleSet loc i (vals !! i)
+            assert (length vals == length ts) "Invalid number of args"
+            forM_ (zip ts [0..]) $ \(t, i) -> tupleSet loc i (vals !! i)
 
     return loc
 

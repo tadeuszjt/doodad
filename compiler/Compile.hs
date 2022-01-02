@@ -64,8 +64,8 @@ compileFlatState imports flatState modName = do
             void $ func (LL.mkName mainName)  [] LL.VoidType $ \_ -> do
                 cmpMainGuard
 
-                forM_ (Map.toList $ F.typeDefs flatState) $ \(sym, (pos, typ)) ->
-                    withPos pos (cmpTypeDef sym typ)
+                forM_ (Map.toList $ F.typeDefs flatState) $ \(sym, (pos, annoType)) ->
+                    withPos pos (cmpTypeDef sym annoType)
 
                 mapM_ cmpFuncHdr (F.funcDefs flatState)
                 mapM_ cmpExternDef (F.externDefs flatState)
@@ -93,11 +93,12 @@ compileFlatState imports flatState modName = do
                 call op []
 
 
-cmpTypeDef :: InsCmp CompileState m => String -> Type -> m ()
-cmpTypeDef sym typ = trace "cmpTypeDef" $ do
+cmpTypeDef :: InsCmp CompileState m => String -> S.AnnoType -> m ()
+cmpTypeDef sym (S.AnnoTuple xs) = tupleTypeDef sym (S.AnnoTuple xs)
+cmpTypeDef sym (S.AnnoType typ) = trace "cmpTypeDef" $ do
     case typ of
         t | isADT t   -> adtTypeDef sym t
-        t | isTuple t -> tupleTypeDef sym t
+        t | isTuple t -> tupleTypeDef sym (S.AnnoType typ)
         t             -> do
             let typdef = Typedef (Sym sym)
             addObjWithCheck sym (KeyFunc []) (ObjConstructor typdef)
@@ -500,11 +501,11 @@ cmpExpr expr = trace "cmpExpr" $ withPos expr $ case expr of
 
         vals <- if isTuple base && (let Tuple ts = base in length ts == length exprs)
         then do
-            let Tuple xs = base
-            forM (zip xs exprs) $ \((s, t), e) -> withTypeHint t (cmpExpr e)
+            let Tuple ts = base
+            forM (zip ts exprs) $ \(t, e) -> withTypeHint t (cmpExpr e)
         else mapM cmpExpr exprs
 
-        tup <- valLocal $ Tuple [ ("", valType v) | v <- vals ]
+        tup <- valLocal $ Tuple [ valType v | v <- vals ]
         zipWithM_ (tupleSet tup) [0..] vals
         valLoad tup
 

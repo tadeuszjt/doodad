@@ -41,10 +41,10 @@ checkTypesCompatible typA typB = do
 
         t | isTuple t  -> do
             assertBaseType isTuple baseB
-            let Tuple axs = baseA
-            let Tuple bxs = baseB
-            assert (length axs == length bxs) "Tuples aren't compatible"
-            forM_ (zip axs bxs) $ \((_, ta), (_, tb)) -> checkTypesCompatible ta tb
+            let Tuple ats = baseA
+            let Tuple bts = baseB
+            assert (length ats == length bts) "Tuples aren't compatible"
+            zipWithM_ checkTypesCompatible ats bts
 
         t | isTable t -> do
             assertBaseType isTable baseB
@@ -74,7 +74,7 @@ opTypeOf typ = trace ("opTypOf " ++ show typ) $ case typ of
     F64       -> return LL.double
     Char      -> return LL.i8
     Bool      -> return LL.i1
-    Tuple xs  -> LL.StructureType False <$> mapM opTypeOf (map snd xs)
+    Tuple ts  -> LL.StructureType False <$> mapM opTypeOf ts
     Array n t -> LL.ArrayType (fromIntegral n) <$> opTypeOf t
     ADT xs
         | isEmptyADT typ  -> return (LL.ptr LL.i8)

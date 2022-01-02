@@ -16,7 +16,7 @@ import Error
 data FlattenState
     = FlattenState
         { imports    :: [FilePath]
-        , typeDefs   :: Map.Map String (TextPos, T.Type)
+        , typeDefs   :: Map.Map String (TextPos, S.AnnoType)
         , varDefs    :: [S.Stmt]
         , funcDefs   :: [S.Stmt]
         , externDefs :: [S.Stmt]
@@ -70,10 +70,10 @@ flattenAST ast = do
             S.FuncDef _ _ _ _ _   -> modify $ \s -> s { funcDefs   = stmt:(funcDefs s) }
             S.Extern _ _ _ _ _    -> modify $ \s -> s { externDefs = stmt:(externDefs s) }
             S.Assign _ _ _        -> modify $ \s -> s { varDefs    = stmt:(varDefs s) }
-            S.Typedef pos (T.Sym sym) typ -> do
+            S.Typedef pos (T.Sym sym) annoType -> do
                 b <- Map.member sym <$> gets typeDefs
                 assert (not b) (sym ++ " already defined")
-                modify $ \s -> s { typeDefs = Map.insert sym (pos, typ) (typeDefs s) }
+                modify $ \s -> s { typeDefs = Map.insert sym (pos, annoType) (typeDefs s) }
 
             _ -> fail "invalid top-level statement"
 
@@ -86,7 +86,7 @@ flattenAST ast = do
                     assert (not $ Set.member sym visited) ("circular type dependency: " ++ sym)
                     res <- Map.lookup sym <$> gets typeDefs
                     case res of
-                        Just (pos, T.Typedef (T.Sym s)) -> checkTypedefCircles' s (Set.insert sym visited)
+                        Just (pos, S.AnnoType (T.Typedef (T.Sym s))) -> checkTypedefCircles' s (Set.insert sym visited)
                         _                               -> return ()
 
 

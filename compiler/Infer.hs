@@ -43,22 +43,13 @@ data Object
     deriving (Show, Eq)
 
 
-data Constraint
-    = ConsEq Type Type
-    | ConsBase Type Type
-    | ConsElemType Type Type
-    | ConsMemberType Type Type String
-    | ConsFieldType Type Type Int
-    deriving (Eq, Ord, Show)
-
-
 mapType :: (Type -> Type) -> Type -> Type
 mapType f typ = case typ of
     t | isSimple t  -> f t
     Type.Type id    -> f typ
     Type.Void       -> f typ
     Type.Typedef _  -> f typ
-    Type.Tuple xs   -> f $ Type.Tuple [(s, mapType f t) | (s, t) <- xs]
+    Type.Tuple ts   -> f $ Type.Tuple [ mapType f t | t <- ts ]
     Type.ADT xs     -> f $ Type.ADT   [(s, mapType f t) | (s, t) <- xs]
     Type.Table ts   -> f $ Type.Table [mapType f t | t <- ts]
     Type.Func ts rt -> f $ Type.Func  [mapType f t | t <- ts] (mapType f rt)
@@ -233,9 +224,9 @@ unify t1 t2 = do
             symTab      = SymTab.map (mapObjectType f) (symTab s)
             }
         (_, Type _) -> unify t2 t1
-        (Type.Tuple xs1, Type.Tuple xs2) -> do
-            assert (length xs1 == length xs2) $ "Incompatible tuple types."
-            zipWithM_ unify (map snd xs1) (map snd xs2)
+        (Type.Tuple ts1, Type.Tuple ts2) -> do
+            assert (length ts1 == length ts2) $ "Incompatible tuple types."
+            zipWithM_ unify ts1 ts2
 
         (_, _)      -> assert (t1 == t2) $ "Incompatible types: " ++ show t1 ++ ", " ++ show t2
 
@@ -292,11 +283,12 @@ infExpr expr = withPos expr $ case expr of
         t <- typeOf e
         base <- baseTypeOf t 
 
-        case base of
-            Type.Tuple xs -> addExpr (Member pos e sym) (fromJust $ lookup sym xs)
-                
-            _ -> addExpr (Member pos e sym) =<< genType
-
+        error "member"
+--
+--        case base of
+--            Type.Tuple ts -> addExpr (Member pos e sym) (fromJust $ lookup sym xs)
+--                
+--            _ -> addExpr (Member pos e sym) =<< genType
 
     Infix p op expr1 expr2
         | op `elem` [EqEq, OrOr, AndAnd, NotEq, AST.LT, AST.GT, GTEq, LTEq] -> do
@@ -361,7 +353,7 @@ infExpr expr = withPos expr $ case expr of
     AST.Tuple pos exprs -> do
         es <- mapM infExpr exprs
         ts <- mapM typeOf es
-        addExpr (AST.Tuple pos es) (Type.Tuple [ ("", t) | t <- ts ])
+        addExpr (AST.Tuple pos es) (Type.Tuple ts)
 
     Conv p typ exprs -> do
         es <- mapM infExpr exprs
@@ -406,9 +398,9 @@ infPattern pattern exprType = withPos pattern $ case pattern of
         base <- baseTypeOf exprType
 
         if (isTuple base) then do
-            let Type.Tuple xs = base
-            assert (length pats == length xs) "Pattern lengths do not match"
-            ps <- forM (zip pats xs) $ \(pat, (_, t)) -> infPattern pat t
+            let Type.Tuple ts = base
+            assert (length pats == length ts) "Pattern lengths do not match"
+            ps <- zipWithM infPattern pats ts
             return (PatTuple pos ps)
         else do
             ps <- forM (zip pats [0..]) $ \(pat, i) -> do
@@ -533,10 +525,10 @@ infTopFuncDef (FuncDef pos (Sym sym) params retty _) = withPos pos $ do
     
 
 infTopTypeDef :: BoM InferState m => Stmt -> m ()
-infTopTypeDef (AST.Typedef pos (Sym sym) typ) = withPos pos $ case typ of
-    Type.Tuple xs -> do
+infTopTypeDef (AST.Typedef pos (Sym sym) (AST.AnnoType typ)) = withPos pos $ case typ of
+    Type.Tuple ts -> do
         define sym KeyType (ObjType typ)
-        define sym (KeyFunc $ map snd xs) (ObjFunc $ Type.Typedef $ Sym sym)
+        define sym (KeyFunc ts) (ObjFunc $ Type.Typedef $ Sym sym)
 
     Type.ADT xs -> do
         define sym KeyType (ObjType typ)

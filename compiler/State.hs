@@ -40,12 +40,14 @@ data SymKey
     = KeyType
     | KeyVar
     | KeyFunc [Type]
+    | KeyMember Type
     deriving (Eq, Ord)
 
 instance Show SymKey where
     show KeyType = "(type)"
     show KeyVar  = "(variable)"
     show (KeyFunc ts) = "function(" ++ show ts ++ ")"
+    show (KeyMember t) = show t ++ "."
 
 
 data Object
@@ -55,6 +57,7 @@ data Object
     | ObjExtern       [Type] Type LL.Operand
     | ObjConstructor  Type
     | ObjADTFieldCons Type
+    | ObjMember       Int
     deriving (Show)
 
 

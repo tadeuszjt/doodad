@@ -50,9 +50,9 @@ adtTypeDef sym typ = trace "adtTypeDef" $ do
             forM_ xs $ \(s, t) -> do
                 case t of
                     Void      -> addObjWithCheck s KeyVar (ObjADTFieldCons typdef)
-                    Tuple txs -> do
+                    Tuple ts -> do
                         addObjWithCheck s (KeyFunc [t]) (ObjADTFieldCons typdef)
-                        addObjWithCheck s (KeyFunc $ map snd txs) (ObjADTFieldCons typdef)
+                        addObjWithCheck s (KeyFunc ts) (ObjADTFieldCons typdef)
                     _         -> do
                         addObjWithCheck s (KeyFunc [t]) (ObjADTFieldCons typdef)
 
@@ -184,11 +184,11 @@ adtConstructField sym typ vals = trace ("adtConstructField " ++ sym) $ do
             assert (length idxs == 1) "Invalid or ambiguous ADT constructor"
             let [idx] = idxs
             let (s, t) = xs !! idx
-            Tuple txs <- assertBaseType isTuple t
+            Tuple ts <- assertBaseType isTuple t
             mal <- valMalloc t (valI64 1)
 
-            assert (length vals == length txs) "Invalid ADT constructor"
-            zipWithM checkTypesCompatible (map valType vals) (map snd txs)
+            assert (length vals == length ts) "Invalid ADT constructor"
+            zipWithM checkTypesCompatible (map valType vals) ts
 
             forM (zip vals [0..]) $ \(v, i) ->
                 tupleSet mal i v

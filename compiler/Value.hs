@@ -83,7 +83,7 @@ valZero typ = trace ("valZero " ++ show  typ) $ do
                     | isEmptyADT typ  -> return $ Val typ $ cons $ C.Null (LL.ptr LL.i8)
                     | isEnumADT typ   -> return $ Val typ (int64 0)
                     | isNormalADT typ -> fail "Cannot zero-construct ADT type. Use field constructor."
-                Tuple xs        -> Val typ . struct namem False . map (toCons . valOp) <$> mapM (valZero . snd) xs
+                Tuple ts        -> Val typ . struct namem False . map (toCons . valOp) <$> mapM valZero ts
                 Table ts        -> do
                     let zi64 = toCons (int64 0)
                     zptrs <- map (C.IntToPtr zi64 . LL.ptr) <$> mapM opTypeOf ts

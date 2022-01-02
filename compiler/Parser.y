@@ -139,7 +139,7 @@ symbol : ident                                { (tokPos $1, T.Sym (tokStr $1)) }
 stmtS : let pattern '=' expr                  { S.Assign (tokPos $1) $2 $4 }  
       | index '=' expr                        { S.Set (tokPos $2) $1 $3 }
       | index '(' exprs ')'                   { S.CallStmt (tokPos $2) $1 $3 }
-      | type ident type_                      { S.Typedef (tokPos $2) (T.Sym $ tokStr $2) $3 }
+      | type ident annoType                   { S.Typedef (tokPos $2) (T.Sym $ tokStr $2) $3 }
       | extern strlit ident '(' params ')' type_     { S.Extern (tokPos $3) (tokStr $2) (tokStr $3) $5 $7 }
       | extern strlit ident '(' params ')'           { S.Extern (tokPos $3) (tokStr $2) (tokStr $3) $5 T.Void }
       | print '(' exprs ')'                   { S.Print (tokPos $1) $3 }
@@ -302,10 +302,9 @@ typeOrdinal   : bool                          { T.Bool }
               | string                        { T.Table [T.Char] }
 
 typeAggregate : '[' intlit ':' type_ ']'      { T.Array (read $ tokStr $2) $4 }
-              | '(' tupTypes ')'              { T.Tuple $2 }
               | '[' rowTypes_ ']'             { T.Table $2 }
-              | '{' adtTypes '}'              { T.ADT $2 }
-              | '{' 'I' adtTypes 'D' '}'      { T.ADT $3 }
+              | adtType                       { $1 }
+              | tupType                       { $1 }
               | fn '(' argTypes ')' type_     { T.Func $3 $5 }
 
 argTypes  : {-empty -}                        { [] }
@@ -313,23 +312,38 @@ argTypes  : {-empty -}                        { [] }
 argTypes_ : type_                             { [$1] }
           | type_ ',' argTypes_               { $1:$3 }
 
-tupTypes  : {-empty -}                        { [] }
-          | tupTypes_                         { $1 }
-tupTypes_ : tupType                           { [$1] }
-          | tupType ',' tupTypes              { $1 : $3 }
-tupType   : type_                             { ("", $1) }
-          | ident ':' type_                   { (tokStr $1, $3) }
+
+annoTupType : '(' annoTupFields ')'           { S.AnnoTuple $2 }
+annoTupField : ident ':' type_                { (tokStr $1, $3) }
+annoTupFields : annoTupField                  { [$1] }
+              | annoTupField ',' annoTupFields { $1 : $3 }
+
+
+tupType : '(' tupFieldTypes ')'               { T.Tuple $2 }
+tupFieldTypes : {-empty -}                    { [] }
+              | tupFieldTypes_                { $1 }
+tupFieldTypes_ : type_                        { [$1] }
+               | type_ ',' tupFieldTypes      { $1 : $3 }
+
 
 rowTypes_     : type_                         { [$1] }
               | type_ ';' rowTypes_           { $1 : $3 }
 
-adtType : null                                { ("", T.Void) }
-        | type_                               { ("", $1) }
-        | ident '(' tupTypes ')'              { (tokStr $1, case length $3 of; 0 -> T.Void; 1 -> snd (head $3); n -> T.Tuple $3) }
 
-adtTypes : adtType 'N'                        { [$1] }
-         | adtType '|' adtTypes               { $1 : $3 }
-         | adtType 'N' adtTypes               { $1 : $3 }
+adtType : '{' adtFieldTypes '}'               { T.ADT $2 }
+        | '{' 'I' adtFieldTypes 'D' '}'       { T.ADT $3 }
+adtFieldType : null                           { ("", T.Void) }
+        | type_                               { ("", $1) }
+        | ident '(' tupFieldTypes ')'         { (tokStr $1, case length $3 of; 0 -> T.Void; 1 -> (head $3); n -> T.Tuple $3) }
+adtFieldTypes : adtFieldType 'N'              { [$1] }
+         | adtFieldType '|' adtFieldTypes     { $1 : $3 }
+         | adtFieldType 'N' adtFieldTypes     { $1 : $3 }
+
+
+annoType : typeOrdinal                        { S.AnnoType $1 }
+         | adtType                            { S.AnnoType $1 }
+         | tupType                            { S.AnnoType $1 }
+         | annoTupType                        { $1 }
 
 {
 parse :: MonadError Error m => Int -> String -> m S.AST

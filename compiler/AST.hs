@@ -115,9 +115,16 @@ data Stmt
     | Switch   TextPos Expr [(Pattern, Stmt)]
     | FuncDef  TextPos Symbol [Param] Type Stmt
     | Extern   TextPos String String [Param] Type
-    | Typedef  TextPos Symbol Type
+    | Typedef  TextPos Symbol AnnoType
     | AppendStmt Append
     deriving (Eq, Show)
+
+
+data AnnoType
+    = AnnoType Type
+    | AnnoTuple [(String, Type)]
+    deriving (Eq, Show)
+
 
 
 instance TextPosition Append where

@@ -34,10 +34,10 @@ valPrint append val = case valType val of
         str <- globalStringPtr "true\0false" =<< myFresh "str"
         void . printf ("%s" ++ append) . (:[]) =<< gep (cons str) . (:[]) =<< select op (int64 0) (int64 5)
 
-    Tuple xs -> do
+    Tuple ts -> do
         printf "(" []
-        forM_ (zip xs [0..]) $ \((s, t), i) -> do
-            let app = if i < length xs - 1 then ", " else ""
+        forM_ (zip ts [0..]) $ \(t, i) -> do
+            let app = if i < length ts - 1 then ", " else ""
             valPrint app =<< tupleIdx i val
         void $ printf (")" ++ append) []
 

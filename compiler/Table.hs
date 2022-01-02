@@ -104,7 +104,7 @@ tableGetElem tab idx = trace "tableGetElem" $ do
             row <- tableRow 0 tab
             valLoad =<< valPtrIdx row idx
         ts  -> do
-            tup <- valLocal $ Tuple [ ("", t) | t <- ts ]
+            tup <- valLocal (Tuple ts)
             forM_ (zip ts [0..]) $ \(t, i) -> do
                 row <- tableRow i tab
                 tupleSet tup i =<< valPtrIdx row idx
@@ -115,12 +115,12 @@ tableGetElem tab idx = trace "tableGetElem" $ do
 tableSetElem :: InsCmp CompileState m => Value -> Value -> Value -> m ()
 tableSetElem tab idx tup = trace "tableSetElem" $ do
     Table ts <- assertBaseType isTable (valType tab)
-    Tuple xs <- assertBaseType isTuple (valType tup)
+    Tuple tts <- assertBaseType isTuple (valType tup)
     idxType  <- assertBaseType isInt (valType idx)
 
     -- check types match
-    assert (length ts == length xs) "tuple type does not match table column"
-    zipWithM_ checkTypesCompatible ts (map snd xs)
+    assert (length ts == length tts) "tuple type does not match table column"
+    zipWithM_ checkTypesCompatible ts tts
 
     forM_ (zip ts [0..]) $ \(t, i) -> do
         row <- tableRow i tab
