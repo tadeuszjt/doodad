@@ -247,7 +247,7 @@ instance Show Expr where
         AST.Tuple pos exprs             -> tupStrs (map show exprs)
         AST.Array pos exprs             -> "[ |" ++ intercalate ", " (map show exprs) ++ "]"
         AST.Table pos exprss            -> "[" ++  intercalate "; " (map (intercalate ", " . map show) exprss) ++ "]"
-        AST.Member pos expr str         -> show expr ++ "." ++ show str
+        AST.Member pos expr str         -> show expr ++ "." ++ str
         AST.Subscript pos expr1 expr2   -> show expr1 ++ "[" ++ show expr2 ++ "]"
         AST.Range pos expr mLeft mRight -> "[" ++ maybe "" show mLeft ++ ".." ++ maybe "" show mRight ++ "]"
         AST.TupleIndex pos expr n       -> show expr ++ "." ++ show n

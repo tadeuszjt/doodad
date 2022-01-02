@@ -52,6 +52,28 @@ data Constraint
     deriving (Eq, Ord, Show)
 
 
+mapType :: (Type -> Type) -> Type -> Type
+mapType f typ = case typ of
+    t | isSimple t  -> f t
+    Type.Type id    -> f typ
+    Type.Void       -> f typ
+    Type.Typedef _  -> f typ
+    Type.Tuple xs   -> f $ Type.Tuple [(s, mapType f t) | (s, t) <- xs]
+    Type.ADT xs     -> f $ Type.ADT   [(s, mapType f t) | (s, t) <- xs]
+    Type.Table ts   -> f $ Type.Table [mapType f t | t <- ts]
+    Type.Func ts rt -> f $ Type.Func  [mapType f t | t <- ts] (mapType f rt)
+    _ -> error $ show typ
+
+
+mapObjectType :: (Type -> Type) -> Object -> Object
+mapObjectType f obj = case obj of
+    ObjVar t     -> ObjVar (mapType f t)
+    ObjFunc t    -> ObjFunc (mapType f t)
+    ObjType t    -> ObjType (mapType f t)
+    ObjADTCons t -> ObjADTCons (mapType f t)
+
+
+
 data InferState =
     InferState
         { imports      :: Map.Map ModuleName InferState
@@ -206,21 +228,16 @@ unify t1 t2 = do
     let f = \t -> if t == t1 then t2 else t
 
     case (t1, t2) of
-        (Type _, _) -> modify $ \s -> s { expressions = Map.map (\(e, t) -> (e, mapType f t)) (expressions s) }
+        (Type _, _) -> modify $ \s -> s {
+            expressions = Map.map (\(e, t) -> (e, mapType f t)) (expressions s),
+            symTab      = SymTab.map (mapObjectType f) (symTab s)
+            }
         (_, Type _) -> unify t2 t1
+        (Type.Tuple xs1, Type.Tuple xs2) -> do
+            assert (length xs1 == length xs2) $ "Incompatible tuple types."
+            zipWithM_ unify (map snd xs1) (map snd xs2)
+
         (_, _)      -> assert (t1 == t2) $ "Incompatible types: " ++ show t1 ++ ", " ++ show t2
-    where
-        mapType :: (Type -> Type) -> Type -> Type
-        mapType f typ = case typ of
-            t | isSimple t  -> f t
-            Type.Type id    -> f typ
-            Type.Void       -> f typ
-            Type.Typedef _  -> f $ typ
-            Type.Tuple xs   -> f $ Type.Tuple [(s, mapType f t) | (s, t) <- xs]
-            Type.ADT xs     -> f $ Type.ADT   [(s, mapType f t) | (s, t) <- xs]
-            Type.Table ts   -> f $ Type.Table [mapType f t | t <- ts]
-            Type.Func ts rt -> f $ Type.Func  [mapType f t | t <- ts] (mapType f rt)
-            _ -> error $ show typ
 
 
 typeOf :: BoM InferState m => Expr -> m Type
@@ -258,18 +275,27 @@ infExpr expr = withPos expr $ case expr of
     Float p f            -> addExpr expr =<< genType
     AST.Table pos [[]]   -> addExpr expr =<< genType
     AST.Tuple pos [expr] -> infExpr expr
-    Range p _ _ _        -> addExpr expr =<< genType
     Null p               -> addExpr expr =<< genType
     AST.Bool p b         -> addExpr expr =<< genType
     String pos str       -> addExpr expr =<< genType
+
+    Range p exp m n        -> do
+        e <- infExpr exp
+        addExpr (Range p e m n) =<< typeOf e
 
     AST.Char p c -> do
         t <- genType
         addExpr expr t
 
-    Member pos exp sym    -> do
+    Member pos exp sym -> do
         e <- infExpr exp
-        addExpr (Member pos e sym) =<< genType
+        t <- typeOf e
+        base <- baseTypeOf t 
+
+        case base of
+            Type.Tuple xs -> addExpr (Member pos e sym) (fromJust $ lookup sym xs)
+                
+            _ -> addExpr (Member pos e sym) =<< genType
 
 
     Infix p op expr1 expr2
@@ -335,9 +361,7 @@ infExpr expr = withPos expr $ case expr of
     AST.Tuple pos exprs -> do
         es <- mapM infExpr exprs
         ts <- mapM typeOf es
-
-        t <- genType
-        addExpr (AST.Tuple pos es) t
+        addExpr (AST.Tuple pos es) (Type.Tuple [ ("", t) | t <- ts ])
 
     Conv p typ exprs -> do
         es <- mapM infExpr exprs
@@ -354,9 +378,11 @@ infExpr expr = withPos expr $ case expr of
     Subscript p expr1 expr2 -> do
         e1 <- infExpr expr1
         e2 <- infExpr expr2
-        t1 <- typeOf e1
-        t <- genType
-        addExpr (Subscript p e1 e2) t
+
+        base <- baseTypeOf =<< typeOf e1
+        case base of
+            Type.Table [t] -> addExpr (Subscript p e1 e2) t
+            _              -> addExpr (Subscript p e1 e2) =<< genType
 
     AST.Table p [exprs] -> do
         es <- mapM infExpr exprs
@@ -364,8 +390,7 @@ infExpr expr = withPos expr $ case expr of
         let ts1 = head ts
         mapM (\x -> unify x ts1) ts
 
-        t <- genType
-        addExpr (AST.Table p [es]) t
+        addExpr (AST.Table p [es]) (Type.Table [ts1])
         
 
     _ -> error $ "Cannot infer: " ++ show expr
@@ -406,6 +431,7 @@ infPattern pattern exprType = withPos pattern $ case pattern of
     PatTyped pos typ [pat] -> do
         pat' <- infPattern pat exprType
         return $ PatTyped pos typ [pat']
+
     PatArray _ pats -> return pattern
         
     _ -> error $ "Cannot infer pattern: " ++ show pattern
@@ -447,17 +473,18 @@ infStmt stmt = withPos stmt $ case stmt of
         --infCnd
         While pos cnd <$> infStmt blk
 
-    For pos idxStr expr Nothing blk -> do
+    For pos idxStr expr guardm blk -> do
         pushSymTab
-        define idxStr KeyVar (ObjVar I64)
+        define idxStr KeyVar . ObjVar =<< genType
 
         t <- genType
         e <- infExpr expr
+        gem <- maybe (return Nothing) (fmap Just . infExpr) guardm
         infBlk <- infStmt blk
 
         popSymTab
 
-        return $ For pos idxStr e Nothing infBlk
+        return $ For pos idxStr e gem infBlk
 
     Print pos exprs -> do
         Print pos <$> mapM infExpr exprs
@@ -485,7 +512,6 @@ infStmt stmt = withPos stmt $ case stmt of
     Return p (Just expr) -> do
         curRetty <- gets curRetty
         assert (curRetty /= Void) "Cannot return in void function"
-
         e <- infExpr expr
         unify curRetty =<< typeOf e
         return $ Return p (Just e)
@@ -493,9 +519,6 @@ infStmt stmt = withPos stmt $ case stmt of
     AppendStmt append -> return stmt
 
     Switch p expr cases -> return stmt
-
-    For p idxStr expr guardm blk -> return stmt
-
 
     CallStmt p _ _ -> return stmt
 
@@ -554,6 +577,7 @@ infResolve = do
 
 prettyInferState :: InferState -> IO ()
 prettyInferState state = do
+    putStrLn "PRETTY INFER STATE ----------------"
     forM_ (Map.toList $ imports state) $ \(name, st) ->
         prettyInferState st
         --putStrLn name

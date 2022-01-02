@@ -165,6 +165,11 @@ pattern  : '_'                                { S.PatIgnore (tokPos $1) }
          | pattern '->>' pattern              { S.PatSplit (tokPos $2) $1 $3 }
          | pattern '|' expr                   { S.PatGuarded (tokPos $2) $1 $3 }
 
+patterns  : {- empty -}                       { [] }
+          | patterns_                         { $1 }
+patterns_ : pattern                           { [$1] }
+          | pattern ',' patterns_             { $1 : $3 }
+
 index  : ident                                { S.IndIdent (tokPos $1) (tokStr $1) }
        | index '[' expr ']'                   { S.IndArray (tokPos $2) $1 $3 }
        | index '.' ident                      { S.IndTuple (tokPos $2) $1 (read $ tokStr $3) }
@@ -206,11 +211,6 @@ case   : pattern block                        { ($1, $2) }
 
 condition : expr                              { S.CondExpr $1 }
           | expr ':' pattern                  { S.CondMatch $3 $1 }
-
-patterns  : {- empty -}                       { [] }
-          | patterns_                         { $1 }
-patterns_ : pattern                           { [$1] }
-          | pattern ',' patterns_             { $1 : $3 }
 
 param   : ident type_                         { S.Param (tokPos $1) (tokStr $1) $2 }
 params  : {- empty -}                         { [] }

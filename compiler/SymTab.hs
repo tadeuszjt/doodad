@@ -1,6 +1,6 @@
 module SymTab where
 
-import Prelude hiding (lookup)
+import Prelude hiding (lookup, map)
 import Control.Monad
 import qualified Data.Map as Map
 import           Data.Maybe
@@ -36,6 +36,11 @@ deleteHead sym key (s:ss)
     | isNothing (Map.lookup key $ s Map.! sym) = (s:ss)
     | Map.size (s Map.! sym) == 1              = (Map.delete sym s:ss)
     | otherwise                                = (Map.adjust (Map.delete key) sym s:ss)
+
+
+map :: (o1 -> o2) -> SymTab s k o1 -> SymTab s k o2
+map f []     = []
+map f (s:ss) = (Map.map (Map.map f) s:map f ss)
 
 
 insert :: (Ord s, Ord k) => s -> k -> o -> SymTab s k o -> SymTab s k o
