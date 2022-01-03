@@ -88,7 +88,7 @@ fn parseSequence(tokens [Token], fns [ fn([Token])ParseResult ]) ([Node], [Token
 
     for [i] fns
         switch fns[i](tokens)
-            (NodeFail, _); return ([], [])
+            (NodeFail(), _); return ([], [])
             (n, ts)
                 tokens = ts
                 ns <- n

@@ -26,19 +26,19 @@ import Error
 adtTypeDef :: InsCmp CompileState m => String -> S.AnnoType -> m ()
 adtTypeDef sym anno = trace "adtTypeDef" $ do
     let typdef = Typedef (Sym sym)
-    addObjWithCheck sym (KeyFunc [])       (ObjConstructor typdef)
-    addObjWithCheck sym (KeyFunc [typdef]) (ObjConstructor typdef)
+    define sym (KeyFunc [])       (ObjConstructor typdef)
+    define sym (KeyFunc [typdef]) (ObjConstructor typdef)
 
     case anno of
         S.AnnoADT xs -> do
-            addObjWithCheck sym KeyType $ ObType (ADT $ map snd xs) Nothing
+            define sym KeyType $ ObType (ADT $ map snd xs) Nothing
             forM_ (zip xs [0..]) $ \((s, t), i) -> do
-                addObjWithCheck s (KeyMember typdef) (ObjMember i)
-                addObjWithCheck s (KeyFunc [t]) (ObjADTFieldCons typdef)
-                addObjWithCheck s (KeyFunc []) (ObjADTFieldCons typdef)
+                define s (KeyMember typdef) (ObjMember i)
+                define s (KeyFunc [t]) (ObjADTFieldCons typdef)
+                define s (KeyFunc []) (ObjADTFieldCons typdef)
                 when (isTuple t) $ do
                     let Tuple ts = t
-                    addObjWithCheck s (KeyFunc ts) (ObjADTFieldCons typdef)
+                    define s (KeyFunc ts) (ObjADTFieldCons typdef)
             
 
 

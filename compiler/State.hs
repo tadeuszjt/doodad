@@ -117,14 +117,14 @@ withTypeHint typ f = do
     return r
 
 
-addObj :: BoM CompileState m => String -> SymKey -> Object -> m ()
-addObj sym key obj = trace "addObj" $ do
+redefine :: BoM CompileState m => String -> SymKey -> Object -> m ()
+redefine sym key obj = trace "redefine" $ do
     modify $ \s -> s { symTab = SymTab.insert sym key obj (symTab s) }
 
-addObjWithCheck :: BoM CompileState m => String -> SymKey -> Object -> m ()
-addObjWithCheck sym key obj = trace "addObjWithCheck" $ do
+define :: BoM CompileState m => String -> SymKey -> Object -> m ()
+define sym key obj = trace "define" $ do
     checkSymKeyUndef sym key
-    addObj sym key obj
+    redefine sym key obj
 
 
 checkSymKeyUndef :: BoM CompileState m => String -> SymKey -> m ()

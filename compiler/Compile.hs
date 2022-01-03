@@ -102,10 +102,10 @@ cmpTypeDef sym (S.AnnoType typ) = trace "cmpTypeDef" $ do
         t | isTuple t -> tupleTypeDef sym (S.AnnoType t)
         t             -> do
             let typdef = Typedef (Sym sym)
-            addObjWithCheck sym (KeyFunc []) (ObjConstructor typdef)
-            addObjWithCheck sym (KeyFunc [t]) (ObjConstructor typdef)
-            addObjWithCheck sym (KeyFunc [typdef]) (ObjConstructor typdef)
-            addObjWithCheck sym KeyType (ObType t Nothing)
+            define sym (KeyFunc []) (ObjConstructor typdef)
+            define sym (KeyFunc [t]) (ObjConstructor typdef)
+            define sym (KeyFunc [typdef]) (ObjConstructor typdef)
+            define sym KeyType (ObType t Nothing)
                     
 
 cmpVarDef :: InsCmp CompileState m => S.Stmt -> m ()
@@ -119,12 +119,12 @@ cmpVarDef (S.Assign pos (S.PatIdent p sym) expr) = trace "cmpVarDef" $ withPos p
     if isCons (valOp val)
     then do
         loc <- Ptr typ <$> global name opTyp (toCons $ valOp val)
-        addObjWithCheck sym KeyVar (ObjVal loc)
+        define sym KeyVar (ObjVal loc)
     else do
         initialiser <- valZero typ
         loc <- Ptr typ <$> global name opTyp (toCons $ valOp initialiser)
         valStore loc val
-        addObjWithCheck sym KeyVar (ObjVal loc)
+        define sym KeyVar (ObjVal loc)
 
     addSymKeyDec sym KeyVar name (DecVar opTyp)
     addDeclared name
@@ -138,7 +138,7 @@ cmpExternDef (S.Extern pos nameStr sym params retty) = trace "cmpExternDef" $ wi
 
     pushSymTab
     paramOpTypes <- forM params $ \(S.Param p s t) -> do
-        addObjWithCheck s KeyVar $ ObjVal (valBool False)
+        define s KeyVar $ ObjVal (valBool False)
         opTypeOf t
 
     returnOpType <- opTypeOf retty
@@ -146,7 +146,7 @@ cmpExternDef (S.Extern pos nameStr sym params retty) = trace "cmpExternDef" $ wi
 
     addSymKeyDec sym (KeyFunc paramTypes) name (DecExtern paramOpTypes returnOpType False)
     let op = fnOp name paramOpTypes returnOpType False
-    addObj sym (KeyFunc paramTypes) (ObjExtern paramTypes retty op)
+    redefine sym (KeyFunc paramTypes) (ObjExtern paramTypes retty op)
 
 
 cmpFuncHdr :: InsCmp CompileState m => S.Stmt -> m ()
@@ -158,8 +158,8 @@ cmpFuncHdr (S.FuncDef pos (Sym sym) params retty blk)    = trace "cmpFuncHdr" $ 
     returnOpType <- opTypeOf retty
     let op = fnOp name paramOpTypes returnOpType False
 
-    addObjWithCheck sym (KeyFunc paramTypes) (ObjFunc retty op) 
-    addObj sym KeyVar $ ObjVal $ Val (Func paramTypes retty) op
+    define sym (KeyFunc paramTypes) (ObjFunc retty op) 
+    redefine sym KeyVar $ ObjVal $ Val (Func paramTypes retty) op
 
     addSymKeyDec sym (KeyFunc paramTypes) name (DecFunc paramOpTypes returnOpType)
     addSymKeyDec sym KeyVar name (DecFunc paramOpTypes returnOpType)
@@ -190,7 +190,7 @@ cmpFuncDef (S.FuncDef pos symbol params retty blk) = trace "cmpFuncDef" $ withPo
         forM_ (zip3 paramTypes paramOps paramSyms) $ \(typ, op, sym) -> do
             loc <- valLocal typ
             valStore loc (Val typ op)
-            addObjWithCheck sym KeyVar (ObjVal loc)
+            define sym KeyVar (ObjVal loc)
 
         cmpStmt blk
         hasTerm <- hasTerminator
@@ -352,7 +352,7 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
         valStore idx (valI64 0)
 
         pushSymTab
-        addObjWithCheck idxSym KeyVar (ObjVal idx)
+        define idxSym KeyVar (ObjVal idx)
 
         cond <- freshName "for_cond"
         body <- freshName "for_body"
@@ -578,7 +578,7 @@ cmpPattern pattern val = trace "cmpPattern" $ withPos pattern $ case pattern of
         base <- baseTypeOf (valType val)
         loc <- valLocal (valType val)
         valStore loc val
-        addObjWithCheck sym KeyVar (ObjVal loc)
+        define sym KeyVar (ObjVal loc)
         return (valBool True)
 
     S.PatTuple pos pats -> do

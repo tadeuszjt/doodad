@@ -21,28 +21,28 @@ tupleTypeDef sym (S.AnnoType typ) = trace "tupleTypeDef" $ do
     Tuple ts <- assertBaseType isTuple typ
     let typdef = Typedef (Sym sym)
 
-    addObjWithCheck sym (KeyFunc []) (ObjConstructor typdef)
-    addObjWithCheck sym (KeyFunc [typ]) (ObjConstructor typdef)
-    addObjWithCheck sym (KeyFunc [typdef]) (ObjConstructor typdef)
-    addObjWithCheck sym KeyType $ ObType typ Nothing
+    define sym (KeyFunc []) (ObjConstructor typdef)
+    define sym (KeyFunc [typ]) (ObjConstructor typdef)
+    define sym (KeyFunc [typdef]) (ObjConstructor typdef)
+    define sym KeyType $ ObType typ Nothing
 
     when (length ts > 0) $
-        addObjWithCheck sym (KeyFunc ts) (ObjConstructor typdef)
+        define sym (KeyFunc ts) (ObjConstructor typdef)
 
 tupleTypeDef sym (S.AnnoTuple xs) = trace "tupleTypeDef" $ do
     let typdef = Typedef (Sym sym)
     let tupTyp = Tuple (map snd xs)
 
-    addObjWithCheck sym (KeyFunc []) (ObjConstructor typdef)
-    addObjWithCheck sym (KeyFunc [tupTyp]) (ObjConstructor typdef)
-    addObjWithCheck sym (KeyFunc [typdef]) (ObjConstructor typdef)
-    addObjWithCheck sym KeyType $ ObType tupTyp Nothing
+    define sym (KeyFunc []) (ObjConstructor typdef)
+    define sym (KeyFunc [tupTyp]) (ObjConstructor typdef)
+    define sym (KeyFunc [typdef]) (ObjConstructor typdef)
+    define sym KeyType $ ObType tupTyp Nothing
 
     when (length xs > 0) $ do
-        addObjWithCheck sym (KeyFunc $ map snd xs) (ObjConstructor typdef)
+        define sym (KeyFunc $ map snd xs) (ObjConstructor typdef)
 
     forM_ (zip xs [0..]) $ \((s, t), i) -> do
-        addObjWithCheck s (KeyMember typdef) (ObjMember i)
+        define s (KeyMember typdef) (ObjMember i)
 
 
 tupleLength :: InsCmp CompileState m => Value -> m Int
