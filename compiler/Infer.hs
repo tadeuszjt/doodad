@@ -11,8 +11,8 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 
 import qualified SymTab
+import Type as T
 import AST
-import Type
 import Error
 import Monad
 import Modules
@@ -32,6 +32,7 @@ data SymKey
     = KeyVar
     | KeyFunc [Type]
     | KeyType
+    | KeyMember Type
     deriving (Show, Eq, Ord)
 
 
@@ -40,19 +41,20 @@ data Object
     | ObjFunc Type
     | ObjType Type
     | ObjADTCons Type
+    | ObjMember Int
     deriving (Show, Eq)
 
 
 mapType :: (Type -> Type) -> Type -> Type
 mapType f typ = case typ of
     t | isSimple t  -> f t
-    Type.Type id    -> f typ
-    Type.Void       -> f typ
-    Type.Typedef _  -> f typ
-    Type.Tuple ts   -> f $ Type.Tuple [ mapType f t | t <- ts ]
-    Type.ADT xs     -> f $ Type.ADT   [(s, mapType f t) | (s, t) <- xs]
-    Type.Table ts   -> f $ Type.Table [mapType f t | t <- ts]
-    Type.Func ts rt -> f $ Type.Func  [mapType f t | t <- ts] (mapType f rt)
+    T.Type id    -> f typ
+    T.Void       -> f typ
+    T.Typedef _  -> f typ
+    T.Tuple ts   -> f $ T.Tuple [mapType f t | t <- ts]
+    T.ADT xs     -> f $ T.ADT   [(s, mapType f t) | (s, t) <- xs]
+    T.Table ts   -> f $ T.Table [mapType f t | t <- ts]
+    T.Func ts rt -> f $ T.Func  [mapType f t | t <- ts] (mapType f rt)
     _ -> error $ show typ
 
 
@@ -62,6 +64,7 @@ mapObjectType f obj = case obj of
     ObjFunc t    -> ObjFunc (mapType f t)
     ObjType t    -> ObjType (mapType f t)
     ObjADTCons t -> ObjADTCons (mapType f t)
+    ObjMember i  -> ObjMember i
 
 
 
@@ -224,7 +227,7 @@ unify t1 t2 = do
             symTab      = SymTab.map (mapObjectType f) (symTab s)
             }
         (_, Type _) -> unify t2 t1
-        (Type.Tuple ts1, Type.Tuple ts2) -> do
+        (T.Tuple ts1, T.Tuple ts2) -> do
             assert (length ts1 == length ts2) $ "Incompatible tuple types."
             zipWithM_ unify ts1 ts2
 
@@ -242,7 +245,7 @@ baseTypeOf :: BoM InferState m => Type -> m Type
 baseTypeOf typ = case typ of
     _ | isBase typ -> return typ
 
-    Type.Typedef symbol -> do
+    T.Typedef symbol -> do
         ObjType t <- look symbol KeyType
         baseTypeOf t
 
@@ -281,14 +284,14 @@ infExpr expr = withPos expr $ case expr of
     Member pos exp sym -> do
         e <- infExpr exp
         t <- typeOf e
-        base <- baseTypeOf t 
-
-        error "member"
---
---        case base of
---            Type.Tuple ts -> addExpr (Member pos e sym) (fromJust $ lookup sym xs)
---                
---            _ -> addExpr (Member pos e sym) =<< genType
+        
+        resm <- lookm (Sym sym) (KeyMember t)
+        case resm of
+            Nothing            -> addExpr (Member pos e sym) =<< genType
+            Just (ObjMember i) -> do
+                base <- baseTypeOf t
+                case base of
+                    T.Tuple ts -> addExpr (Member pos e sym) (ts !! i)
 
     Infix p op expr1 expr2
         | op `elem` [EqEq, OrOr, AndAnd, NotEq, AST.LT, AST.GT, GTEq, LTEq] -> do
@@ -353,7 +356,7 @@ infExpr expr = withPos expr $ case expr of
     AST.Tuple pos exprs -> do
         es <- mapM infExpr exprs
         ts <- mapM typeOf es
-        addExpr (AST.Tuple pos es) (Type.Tuple ts)
+        addExpr (AST.Tuple pos es) (T.Tuple ts)
 
     Conv p typ exprs -> do
         es <- mapM infExpr exprs
@@ -373,7 +376,7 @@ infExpr expr = withPos expr $ case expr of
 
         base <- baseTypeOf =<< typeOf e1
         case base of
-            Type.Table [t] -> addExpr (Subscript p e1 e2) t
+            T.Table [t] -> addExpr (Subscript p e1 e2) t
             _              -> addExpr (Subscript p e1 e2) =<< genType
 
     AST.Table p [exprs] -> do
@@ -382,7 +385,7 @@ infExpr expr = withPos expr $ case expr of
         let ts1 = head ts
         mapM (\x -> unify x ts1) ts
 
-        addExpr (AST.Table p [es]) (Type.Table [ts1])
+        addExpr (AST.Table p [es]) (T.Table [ts1])
         
 
     _ -> error $ "Cannot infer: " ++ show expr
@@ -398,7 +401,7 @@ infPattern pattern exprType = withPos pattern $ case pattern of
         base <- baseTypeOf exprType
 
         if (isTuple base) then do
-            let Type.Tuple ts = base
+            let T.Tuple ts = base
             assert (length pats == length ts) "Pattern lengths do not match"
             ps <- zipWithM infPattern pats ts
             return (PatTuple pos ps)
@@ -525,19 +528,32 @@ infTopFuncDef (FuncDef pos (Sym sym) params retty _) = withPos pos $ do
     
 
 infTopTypeDef :: BoM InferState m => Stmt -> m ()
-infTopTypeDef (AST.Typedef pos (Sym sym) (AST.AnnoType typ)) = withPos pos $ case typ of
-    Type.Tuple ts -> do
-        define sym KeyType (ObjType typ)
-        define sym (KeyFunc ts) (ObjFunc $ Type.Typedef $ Sym sym)
+infTopTypeDef (AST.Typedef pos (Sym sym) anno) = withPos pos $ case anno of
+    AnnoTuple xs -> do
+        let ts = map snd xs
+        let tupTyp = T.Tuple ts
+        let typDef = T.Typedef (Sym sym)
+        define sym KeyType (ObjType tupTyp)
 
-    Type.ADT xs -> do
-        define sym KeyType (ObjType typ)
+        define sym (KeyFunc ts) (ObjFunc typDef)
+
+        forM_ (zip xs [0..]) $ \((s, t), i) ->
+            define s (KeyMember typDef) (ObjMember i)
+
+
+
+    AnnoType (T.Tuple ts) -> do
+        define sym KeyType (ObjType $ T.Tuple ts)
+        define sym (KeyFunc ts) (ObjFunc $ T.Typedef $ Sym sym)
+
+    AnnoType (T.ADT xs) -> do
+        define sym KeyType (ObjType $ T.ADT xs)
         forM_ xs $ \(s, t) -> case t of
             Void -> do
-                define s KeyVar (ObjADTCons $ Type.Typedef $ Sym sym)
+                define s KeyVar (ObjADTCons $ T.Typedef $ Sym sym)
 
             t -> do
-                define s (KeyFunc [t]) (ObjADTCons $ Type.Typedef $ Sym sym)
+                define s (KeyFunc [t]) (ObjADTCons $ T.Typedef $ Sym sym)
 
             _ -> fail (show t)
 
