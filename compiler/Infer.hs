@@ -121,9 +121,6 @@ runModInfer modPath pathsVisited = do
             importPaths <- forM (AST.astImports combinedAST) $ \importPath ->
                 checkAndNormalisePath $ joinPath [modDirectory, importPath]
 
-            flatAST <- snd <$> runBoMTExcept initFlattenState (flattenAST combinedAST)
-                
-
             let importNames = map takeFileName importPaths
             assert (length importNames == length (Set.fromList importNames)) "import name collision"
 
@@ -131,7 +128,9 @@ runModInfer modPath pathsVisited = do
                 state <- runModInfer importPath (Set.insert path pathsVisited)
                 return (takeFileName importPath, state)
 
-            fmap snd $ withFiles files $ runBoMTExcept (initInferState importMap) (infAST combinedAST)
+            (ast', state') <- withFiles files $ runBoMTExcept (initInferState importMap) (infAST combinedAST)
+            (ast'', state'') <- withFiles files $ runBoMTExcept (state' { symTab = SymTab.initSymTab }) (infAST ast')
+            return state''
 
 
 define :: BoM InferState m => String -> SymKey -> Object -> m ()
@@ -226,10 +225,17 @@ unify t1 t2 = do
             expressions = Map.map (\(e, t) -> (e, mapType f t)) (expressions s),
             symTab      = SymTab.map (mapObjectType f) (symTab s)
             }
+
         (_, Type _) -> unify t2 t1
+
         (T.Tuple ts1, T.Tuple ts2) -> do
             assert (length ts1 == length ts2) $ "Incompatible tuple types."
             zipWithM_ unify ts1 ts2
+
+        (T.Table ts1, T.Table ts2) -> do
+            assert (length ts1 == length ts2) $ "Incompatible table types."
+            zipWithM_ unify ts1 ts2
+            
 
         (_, _)      -> assert (t1 == t2) $ "Incompatible types: " ++ show t1 ++ ", " ++ show t2
 
@@ -268,18 +274,26 @@ infExpr expr = withPos expr $ case expr of
     Int p n              -> addExpr expr =<< genType
     Float p f            -> addExpr expr =<< genType
     AST.Table pos [[]]   -> addExpr expr =<< genType
-    AST.Tuple pos [expr] -> infExpr expr
     Null p               -> addExpr expr =<< genType
     AST.Bool p b         -> addExpr expr =<< genType
     String pos str       -> addExpr expr =<< genType
+    AST.Char p c         -> addExpr expr =<< genType
+
+    Expr i -> do
+        (exp, typ) <- (Map.! (ExprId i)) <$> gets expressions
+        withPos exp $ do
+            modify $ \s -> s { expressions = Map.delete (ExprId i) (expressions s) }
+            e <- infExpr exp
+            unify typ =<< typeOf e
+            return e
+
+    AST.Tuple pos [expr] -> do
+        e <- infExpr expr
+        addExpr (AST.Tuple pos [e]) =<< typeOf e
 
     Range p exp m n        -> do
         e <- infExpr exp
         addExpr (Range p e m n) =<< typeOf e
-
-    AST.Char p c -> do
-        t <- genType
-        addExpr expr t
 
     Member pos exp sym -> do
         e <- infExpr exp
