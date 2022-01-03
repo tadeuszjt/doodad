@@ -5,7 +5,7 @@ import ../std/strings
 import ../std/chars
 
 type Token {
-    null
+    TokNone()
     TokOp(string)
     TokInt(i64)
     TokSym(char)

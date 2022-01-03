@@ -319,30 +319,36 @@ annoTupFields : annoTupField                  { [$1] }
               | annoTupField ',' annoTupFields { $1 : $3 }
 
 
-tupType : '(' tupFieldTypes ')'               { T.Tuple $2 }
-tupFieldTypes : {-empty -}                    { [] }
-              | tupFieldTypes_                { $1 }
-tupFieldTypes_ : type_                        { [$1] }
-               | type_ ',' tupFieldTypes      { $1 : $3 }
+tupType : '(' tupFields ')'               { T.Tuple $2 }
+tupFields : {-empty -}                    { [] }
+              | tupFields_                { $1 }
+tupFields_ : type_                        { [$1] }
+               | type_ ',' tupFields      { $1 : $3 }
 
+
+adtType    : '{' adtFields '}'                { T.ADT $2 }
+adtField   : type_                            { $1 }
+           | null                             { T.Void }
+adtFields  : {-empty-}                        { [] }
+           | adtFields_                       { $1 }
+adtFields_ : adtField                         { [$1] }
+           | adtField '|' adtFields_          { $1 : $3 } 
 
 rowTypes_     : type_                         { [$1] }
               | type_ ';' rowTypes_           { $1 : $3 }
 
 
-adtType : '{' adtFieldTypes '}'               { T.ADT $2 }
-        | '{' 'I' adtFieldTypes 'D' '}'       { T.ADT $3 }
-adtFieldType : null                           { ("", T.Void) }
-        | type_                               { ("", $1) }
-        | ident '(' tupFieldTypes ')'         { (tokStr $1, case length $3 of; 0 -> T.Void; 1 -> (head $3); n -> T.Tuple $3) }
-adtFieldTypes : adtFieldType 'N'              { [$1] }
-         | adtFieldType '|' adtFieldTypes     { $1 : $3 }
-         | adtFieldType 'N' adtFieldTypes     { $1 : $3 }
+annoADTType   : '{' annoADTFields '}'         { S.AnnoADT $2 }
+              | '{' 'I' annoADTFields 'D' '}' { S.AnnoADT $3 }
+annoADTField  : ident '(' tupFields ')'       { (tokStr $1, case length $3 of; 0 -> T.Void; 1 -> (head $3); n -> T.Tuple $3) }
+annoADTFields : annoADTField 'N'              { [$1] }
+              | annoADTField '|' annoADTFields     { $1 : $3 }
+              | annoADTField 'N' annoADTFields     { $1 : $3 }
 
 
 annoType : typeOrdinal                        { S.AnnoType $1 }
-         | adtType                            { S.AnnoType $1 }
          | tupType                            { S.AnnoType $1 }
+         | annoADTType                        { $1 }
          | annoTupType                        { $1 }
 
 {

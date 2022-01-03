@@ -94,11 +94,12 @@ compileFlatState imports flatState modName = do
 
 
 cmpTypeDef :: InsCmp CompileState m => String -> S.AnnoType -> m ()
+cmpTypeDef sym (S.AnnoADT xs)   = adtTypeDef sym (S.AnnoADT xs)
 cmpTypeDef sym (S.AnnoTuple xs) = tupleTypeDef sym (S.AnnoTuple xs)
 cmpTypeDef sym (S.AnnoType typ) = trace "cmpTypeDef" $ do
     case typ of
-        t | isADT t   -> adtTypeDef sym t
-        t | isTuple t -> tupleTypeDef sym (S.AnnoType typ)
+        t | isADT t   -> adtTypeDef sym (S.AnnoType t)
+        t | isTuple t -> tupleTypeDef sym (S.AnnoType t)
         t             -> do
             let typdef = Typedef (Sym sym)
             addObjWithCheck sym (KeyFunc []) (ObjConstructor typdef)
@@ -436,7 +437,7 @@ cmpExpr expr = trace "cmpExpr" $ withPos expr $ case expr of
         base <- baseTypeOf hint
         if isADT base
         then adtNull hint
-        else adtNull $ ADT [("", Void)]
+        else adtNull $ ADT [Void]
 
     S.Int p n -> do
         hint <- gets typeHint
@@ -559,13 +560,10 @@ cmpPattern :: InsCmp CompileState m => S.Pattern -> Value -> m Value
 cmpPattern pattern val = trace "cmpPattern" $ withPos pattern $ case pattern of
 
     S.PatLiteral (S.Null pos) -> trace "cmpPattern null" $ do
-        ADT xs <- assertBaseType isADT (valType val)
-        
-        idx <- case [ i | (("", Void), i) <- zip xs [0..] ] of
-            [i] -> return i
+        ADT ts <- assertBaseType isADT (valType val)
+        case elemIndices Void ts of
+            [i] -> valsInfix S.EqEq (valI64 i) =<< adtEnum val
             _   -> fail "ADT does not support a unique null field"
-
-        valsInfix S.EqEq (valI64 idx) =<< adtEnum val
 
     S.PatIgnore pos   -> return (valBool True)
     S.PatLiteral expr -> cmpInfix S.EqEq val =<< cmpExpr expr
@@ -578,19 +576,10 @@ cmpPattern pattern val = trace "cmpPattern" $ withPos pattern $ case pattern of
 
     S.PatIdent pos sym -> trace ("cmpPattern " ++ show pattern) $ do
         base <- baseTypeOf (valType val)
-
-        if isADT base && (let ADT xs = base in sym `elem` map fst xs)
-        then do
-            let ADT xs = base
-            let idx = fromJust $ elemIndex sym (map fst xs)
-            let (s, t) = xs !! idx
-            assert (t == Void) "Ident patterns only valid for null fields"
-            valsInfix S.EqEq (valI64 idx) =<< adtEnum val
-        else do
-            loc <- valLocal (valType val)
-            valStore loc val
-            addObjWithCheck sym KeyVar (ObjVal loc)
-            return (valBool True)
+        loc <- valLocal (valType val)
+        valStore loc val
+        addObjWithCheck sym KeyVar (ObjVal loc)
+        return (valBool True)
 
     S.PatTuple pos pats -> do
         len <- tupleLength val
@@ -644,25 +633,29 @@ cmpPattern pattern val = trace "cmpPattern" $ withPos pattern $ case pattern of
         valLoad matched
 
     S.PatTyped pos typ pats -> do
-        ADT xs <- assertBaseType isADT (valType val)
+        ADT ts <- assertBaseType isADT (valType val)
 
-        let fieldMatched = \(s, t) -> (s == "" && t == typ) || Typedef (Sym s) == typ
+        im <- case typ of
+            Typedef s -> lookm s (KeyMember $ valType val)
+            _         -> return Nothing
 
-        idx <- case [ i | (x, i) <- zip xs [0..], fieldMatched x ] of
-            [i] -> return i
-            []  -> fail "Invalid ADT field identifier"
-            _   -> fail "Ambiguous ADT field identifier"
+        idx <- case (im, elemIndices typ ts) of
+            (Just (ObjMember i), _) -> return i
+            (Nothing, [i])          -> return i
+            (Nothing, [])           -> fail "Invalid ADT field identifier"
+            (Nothing, _)            -> fail "Ambiguous ADT field identifier"
 
         enumMatched <- valsInfix S.EqEq (valI64 idx) =<< adtEnum val
 
-        ptr <- valLocal $ ADT [xs !! idx]
-        adtSetPi8 ptr =<< adtPi8 val
-        drf <- adtDeref ptr
+        let t = ts !! idx
+        ptr <- valLocal $ ADT [t]
+        when (t /= Void) $ adtSetPi8 ptr =<< adtPi8 val
 
         case pats of
-            []    -> fail "Invalid pattern with no arguments."
-            [pat] -> valsInfix S.AndAnd enumMatched =<< cmpPattern pat drf
+            []    -> assert (t == Void) "Invalid ADT field" >> return enumMatched
+            [pat] -> valsInfix S.AndAnd enumMatched =<< cmpPattern pat =<< adtDeref ptr
             pats  -> do
+                drf <- adtDeref ptr
                 Tuple txs <- assertBaseType isTuple (valType drf)
                 assert (length txs == length pats) "Invalid pattern"
                 tupVals <- forM (zip txs [0..]) $ \(_, i) -> tupleIdx i drf

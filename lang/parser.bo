@@ -63,8 +63,8 @@ type Node {
 
 fn string(n Node) string
     switch(n)
-        NodeFail;             return "NodeFail"
-        NodeEmpty;            return "NodeEmpty"
+        NodeFail();           return "NodeFail"
+        NodeEmpty();          return "NodeEmpty"
         NodeInt(n);           return "(NodeInt " + string(n) + ")"
         NodeExpr(i, n);       return "(NodeExpr " + string(i) + " " + string(n) + ")"
         NodeExpr_(s, n1, n2); return "(NodeExpr_ " + s + " " + string(n1) + " " + string(n2) + ")"
@@ -80,7 +80,7 @@ fn string(p ParseResult) string
 
 
 fn parseEpsilon(tokens [Token]) ParseResult
-    return ParseResult(NodeEmpty, tokens)
+    return ParseResult(NodeEmpty(), tokens)
 
 
 fn parseSequence(tokens [Token], fns [ fn([Token])ParseResult ]) ([Node], [Token])
@@ -99,13 +99,13 @@ fn parseSequence(tokens [Token], fns [ fn([Token])ParseResult ]) ([Node], [Token
 fn parseInt(tokens [Token]) ParseResult
     switch tokens
         TokInt(n) -> ts; return (NodeInt(n), ts)
-        _              ; return (NodeFail, [])
+        _              ; return (NodeFail(), [])
 
 
 fn parseOperator(tokens [Token]) ParseResult
     switch tokens
         TokOp(op) -> ts; return (NodeOp(op), ts)
-        _              ; return (NodeFail, [])
+        _              ; return (NodeFail(), [])
 
 
 fn parseExpr_(tokens [Token]) ParseResult
@@ -122,6 +122,6 @@ fn parseExpr(tokens [Token]) ParseResult
     if ns: NodeInt(n) -> nodeExpr_ -> []
         return ParseResult(NodeExpr(n, nodeExpr_), ts)
 
-    return ParseResult(NodeFail, :[Token]())
+    return ParseResult(NodeFail(), :[Token]())
 
 

@@ -26,11 +26,11 @@ data Type
     | F64                    -- 
     | Bool                   --
     | Char                   --
-    | Tuple [Type] ----
+    | Tuple [Type]           ----
     | Array Int Type         -- Aggregate Types
     | Table [Type]           --
-    | ADT [(String, Type)]   --
-    | Func [Type] Type 
+    | ADT [Type]             --
+    | Func [Type] Type       --
     | Typedef Symbol
     deriving (Eq, Ord)
 
@@ -52,51 +52,49 @@ instance Show Type where
         Table [Char]  -> "string"
         Table ts      -> "[" ++ intercalate "; " (map show ts) ++ "]"
         ADT ts        -> "{" ++ intercalate ", " (map show ts) ++ "}"
-        Typedef s     -> show s
         Func ts rt    -> "fn(" ++ intercalate ", " (map show ts) ++ ")" ++ show rt
+        Typedef s     -> show s
 
 
-isInt x                    = x `elem` [I8, I16, I32, I64]
+isInt x                  = x `elem` [I8, I16, I32, I64]
 
-isFloat x                  = x `elem` [F32, F64]
+isFloat x                = x `elem` [F32, F64]
 
-isArray (Array _ _)        = True
-isArray _                  = False
+isArray (Array _ _)      = True
+isArray _                = False
 
-isTuple (Tuple _)          = True
-isTuple _                  = False
+isTuple (Tuple _)        = True
+isTuple _                = False
 
-isTable (Table _)          = True
-isTable _                  = False
+isTable (Table _)        = True
+isTable _                = False
 
-isTypedef (Typedef _)      = True
-isTypedef _                = False
+isTypedef (Typedef _)    = True
+isTypedef _              = False
 
-isADT (ADT _)              = True
-isADT _                    = False
+isADT (ADT _)            = True
+isADT _                  = False
 
-isFunc (Func _ _) = True
-isFunc _          = False
+isFunc (Func _ _)        = True
+isFunc _                 = False
 
-isTypeId (Type _) = True
-isTypeId _        = False
+isTypeId (Type _)        = True
+isTypeId _               = False
 
-isEmptyADT typ             = typ == ADT []
+isEmptyADT typ           = typ == ADT []
 
-isPtrADT (ADT [(_, Void)]) = False
-isPtrADT (ADT [_])         = True
-isPtrADT _                 = False
+isPtrADT (ADT [Void])    = False
+isPtrADT (ADT [_])       = True
+isPtrADT _               = False
 
-isEnumADT (ADT [])         = False
-isEnumADT (ADT xs)         = all (== Void) $ map snd xs
-isEnumADT _                = False
+isEnumADT (ADT [])       = False
+isEnumADT (ADT ts)       = all (== Void) ts
 
-isNormalADT typ@(ADT xs)   = not (isEmptyADT typ || isPtrADT typ || isEnumADT typ)
-isNormalADT _              = False
+isNormalADT typ@(ADT ts) = not (isEmptyADT typ || isPtrADT typ || isEnumADT typ)
 
-isIntegral x               = isInt x || x == Char
-isBase x                   = isSimple x || isAggregate x
-isSimple x                 = isInt x || isFloat x || x == Char || x == Bool
-isAggregate x              = isTuple x || isArray x || isTable x || isADT x || isFunc x
+isIntegral x             = isInt x || x == Char
+isBase x                 = isSimple x || isAggregate x
+isSimple x               = isInt x || isFloat x || x == Char || x == Bool
+isAggregate x            = isTuple x || isArray x || isTable x || isADT x || isFunc x
 
 

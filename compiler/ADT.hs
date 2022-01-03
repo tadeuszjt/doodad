@@ -23,38 +23,23 @@ import Tuple
 import Error
 
 
-adtTypeDef :: InsCmp CompileState m => String -> Type -> m ()
-adtTypeDef sym typ = trace "adtTypeDef" $ do
-    assert (isADT typ) "Isn't ADT"
-    let ADT xs = typ
+adtTypeDef :: InsCmp CompileState m => String -> S.AnnoType -> m ()
+adtTypeDef sym anno = trace "adtTypeDef" $ do
     let typdef = Typedef (Sym sym)
-    assert (length (Set.fromList xs) == length xs) "ADT fields must be unique"
-
-    addObjWithCheck sym KeyType $ ObType typ Nothing
-
-    -- Add zero, base and def constructors
-    addObjWithCheck sym (KeyFunc []) (ObjConstructor typdef)
-    addObjWithCheck sym (KeyFunc [typ]) (ObjConstructor typdef)
+    addObjWithCheck sym (KeyFunc [])       (ObjConstructor typdef)
     addObjWithCheck sym (KeyFunc [typdef]) (ObjConstructor typdef)
 
-    case typ of
-        _ | isEmptyADT typ  -> fail "empty"
-
-        _ | isEnumADT typ   ->
-            forM_ xs $ \(s, Void) ->
-                addObjWithCheck s KeyVar (ObjADTFieldCons typdef)
-                
-        _ | isPtrADT typ    -> fail "ptr"
-
-        _ | isNormalADT typ ->
-            forM_ xs $ \(s, t) -> do
-                case t of
-                    Void      -> addObjWithCheck s KeyVar (ObjADTFieldCons typdef)
-                    Tuple ts -> do
-                        addObjWithCheck s (KeyFunc [t]) (ObjADTFieldCons typdef)
-                        addObjWithCheck s (KeyFunc ts) (ObjADTFieldCons typdef)
-                    _         -> do
-                        addObjWithCheck s (KeyFunc [t]) (ObjADTFieldCons typdef)
+    case anno of
+        S.AnnoADT xs -> do
+            addObjWithCheck sym KeyType $ ObType (ADT $ map snd xs) Nothing
+            forM_ (zip xs [0..]) $ \((s, t), i) -> do
+                addObjWithCheck s (KeyMember typdef) (ObjMember i)
+                addObjWithCheck s (KeyFunc [t]) (ObjADTFieldCons typdef)
+                addObjWithCheck s (KeyFunc []) (ObjADTFieldCons typdef)
+                when (isTuple t) $ do
+                    let Tuple ts = t
+                    addObjWithCheck s (KeyFunc ts) (ObjADTFieldCons typdef)
+            
 
 
 adtEnum :: InsCmp CompileState m => Value -> m Value
@@ -86,7 +71,7 @@ adtSetEnum adt@(Ptr _ loc) i = trace "adtSetEnum" $ do
 
 adtDeref :: InsCmp CompileState m => Value -> m Value
 adtDeref val = trace "adtDeref" $ do
-    ADT [(s, t)] <- assertBaseType isPtrADT (valType val)
+    ADT [t] <- assertBaseType isPtrADT (valType val)
     pi8 <- adtPi8 val
     pt  <- LL.ptr <$> opTypeOf t
     Ptr t <$> bitcast pi8 pt
@@ -94,12 +79,12 @@ adtDeref val = trace "adtDeref" $ do
 
 adtNull :: InsCmp CompileState m => Type -> m Value
 adtNull typ = trace "adtNull" $ do
-    ADT xs <- assertBaseType isADT typ
-    let is = [ i | (("", Void), i) <- zip xs [0..] ]
+    ADT ts <- assertBaseType isADT typ
+    let is = elemIndices Void ts
     assert (length is == 1) (show typ ++ " does not have a unique null constructor")
 
     loc <- valLocal typ
-    when (length xs > 1) $ adtSetEnum loc (head is)
+    when (length ts > 1) $ adtSetEnum loc (head is)
     return loc
 
 
@@ -129,7 +114,7 @@ adtSetPi8 adt@(Ptr _ loc) pi8 = trace "adtSetPi8" $ do
 -- Construct a specific ADT field, eg: TokSym("ident")
 adtConstructField :: InsCmp CompileState m => String -> Type -> [Value] -> m Value
 adtConstructField sym typ vals = trace ("adtConstructField " ++ sym) $ do
-    adtTyp@(ADT xs) <- assertBaseType isADT typ
+    adtTyp@(ADT ts) <- assertBaseType isADT typ
 
     case adtTyp of
         _ | isEmptyADT adtTyp  -> do
@@ -137,64 +122,56 @@ adtConstructField sym typ vals = trace ("adtConstructField " ++ sym) $ do
             valZero typ
 
         _ | isEnumADT adtTyp   -> do
-            adt <- valLocal typ
+            ObjMember i <- look (Sym sym) (KeyMember typ)
             assert (length vals == 0) "Invalid ADT constructor arguments"
-            let idxs = [ i | (s, i) <- zip (map fst xs) [0..], s == sym ]
-            assert (length idxs == 1) "Invalid or ambiguous ADT constructor"
-            adtSetEnum adt (head idxs)
+            adt <- valLocal typ
+            adtSetEnum adt i
             return adt
 
         _ | isPtrADT adtTyp -> do
-            adt <- valLocal typ
+            ObjMember i <- look (Sym sym) (KeyMember typ)
+            
             assert (length vals == 1) "Invalid ADT constructor arguments"
-            let [(s, t)] = xs
             let [val] = vals
-            assert (s == sym) "Invalid ADT constructor"
-            assert (t == valType val) "Invalid ADT argument type"
-            mal <- valMalloc (valType val) (valI64 1)
+            checkTypesCompatible (valType val) (ts !! i)
+
+            adt <- valLocal typ
+            mal <- valMalloc (ts !! i) (valI64 1)
             valStore mal val
             adtSetPi8 adt =<< bitcast (valLoc mal) (LL.ptr LL.i8)
             return adt
 
         _ | isNormalADT adtTyp && length vals == 1 -> do
-            adt <- valLocal typ
+            ObjMember i <- look (Sym sym) (KeyMember typ)
 
-            let idxs = [ i | (s, i) <- zip (map fst xs) [0..], s == sym ]
-            assert (length idxs == 1) "Invalid or ambiguous ADT constructor"
-            let [idx] = idxs
             let [val] = vals
-            assert (valType val == map snd xs !! idx) "Invalid"
-            mal <- valMalloc (valType val) (valI64 1)
+            checkTypesCompatible (valType val) (ts !! i)
+            mal <- valMalloc (ts !! i) (valI64 1)
             valStore mal val
+
+            adt <- valLocal typ
             adtSetPi8 adt =<< bitcast (valLoc mal) (LL.ptr LL.i8)
-            adtSetEnum adt idx
+            adtSetEnum adt i
             return adt
 
         _ | isNormalADT adtTyp && length vals == 0 -> do
-            let idxs = [ i | ((s, Void), i) <- zip xs [0..], s == sym ]
-            assert (length idxs == 1) "Invalid or ambiguous ADT constructor"
-            let [idx] = idxs
-
+            ObjMember i <- look (Sym sym) (KeyMember typ)
+            assert (ts !! i == Void) "Invalid ADT constructor."
             adt <- valLocal typ
-            adtSetEnum adt idx
+            adtSetEnum adt i
             return adt
 
         _ | isNormalADT adtTyp && length vals > 1 -> do
-            let idxs = [ i | ((s, t), i) <- zip xs [0..], s == sym ]
-            assert (length idxs == 1) "Invalid or ambiguous ADT constructor"
-            let [idx] = idxs
-            let (s, t) = xs !! idx
-            Tuple ts <- assertBaseType isTuple t
-            mal <- valMalloc t (valI64 1)
+            ObjMember i <- look (Sym sym) (KeyMember typ)
+            Tuple tts <- assertBaseType isTuple (ts !! i)
+            mal <- valMalloc (ts !! i) (valI64 1)
 
-            assert (length vals == length ts) "Invalid ADT constructor"
-            zipWithM checkTypesCompatible (map valType vals) ts
-
-            forM (zip vals [0..]) $ \(v, i) ->
-                tupleSet mal i v
+            assert (length vals == length tts) "Invalid ADT constructor"
+            zipWithM_ checkTypesCompatible (map valType vals) tts
+            zipWithM_ (tupleSet mal) [0..] vals
 
             adt <- valLocal typ
-            adtSetEnum adt idx
+            adtSetEnum adt i
             adtSetPi8 adt =<< bitcast (valLoc mal) (LL.ptr LL.i8)
             return adt
 
@@ -202,7 +179,7 @@ adtConstructField sym typ vals = trace ("adtConstructField " ++ sym) $ do
             
 adtConstruct :: InsCmp CompileState m => Type -> Value -> m Value
 adtConstruct typ val = trace "adtConstruct" $ do
-    adtTyp@(ADT xs) <- assertBaseType isADT typ
+    adtTyp@(ADT ts) <- assertBaseType isADT typ
     case adtTyp of
         _ | isEmptyADT adtTyp -> fail "Cannot construct ADT type"
 
@@ -211,7 +188,7 @@ adtConstruct typ val = trace "adtConstruct" $ do
         _ | isPtrADT adtTyp -> fail "here"
 
         _ | isNormalADT adtTyp -> do
-            let idxs = [ i | (t, i) <- zip (map snd xs) [0..], t == valType val ]
+            let idxs = elemIndices (valType val) ts
             assert (length idxs == 1) "Ambiguous or invalid ADT type constructor"
             let idx = head idxs
             adt <- valLocal typ

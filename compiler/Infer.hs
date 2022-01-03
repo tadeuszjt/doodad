@@ -52,7 +52,7 @@ mapType f typ = case typ of
     T.Void       -> f typ
     T.Typedef _  -> f typ
     T.Tuple ts   -> f $ T.Tuple [mapType f t | t <- ts]
-    T.ADT xs     -> f $ T.ADT   [(s, mapType f t) | (s, t) <- xs]
+    T.ADT ts     -> f $ T.ADT   [mapType f t | t <- ts]
     T.Table ts   -> f $ T.Table [mapType f t | t <- ts]
     T.Func ts rt -> f $ T.Func  [mapType f t | t <- ts] (mapType f rt)
     _ -> error $ show typ
@@ -560,16 +560,8 @@ infTopTypeDef (AST.Typedef pos (Sym sym) anno) = withPos pos $ case anno of
         define sym KeyType (ObjType $ T.Tuple ts)
         define sym (KeyFunc ts) (ObjFunc $ T.Typedef $ Sym sym)
 
-    AnnoType (T.ADT xs) -> do
-        define sym KeyType (ObjType $ T.ADT xs)
-        forM_ xs $ \(s, t) -> case t of
-            Void -> do
-                define s KeyVar (ObjADTCons $ T.Typedef $ Sym sym)
-
-            t -> do
-                define s (KeyFunc [t]) (ObjADTCons $ T.Typedef $ Sym sym)
-
-            _ -> fail (show t)
+    AnnoType (T.ADT ts) -> do
+        define sym KeyType (ObjType $ T.ADT ts)
 
     _ -> return ()
 
