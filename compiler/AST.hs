@@ -93,7 +93,8 @@ data Expr
     | Range      TextPos Expr (Maybe Expr) (Maybe Expr)
     | TupleIndex TextPos Expr Word32
     | Ident      TextPos Symbol
-    | Call       TextPos Expr [Expr]
+    | Call       TextPos Symbol [Expr]
+    | CallExpr   TextPos Expr [Expr]
     | Conv       TextPos Type [Expr]
     | Len        TextPos Expr
     | Copy       TextPos Expr
@@ -170,7 +171,8 @@ instance TextPosition Expr where
         AST.Range      p _ _ _ -> p
         AST.TupleIndex p _ _ -> p
         AST.Ident      p _ -> p
-        AST.Call       p _ _ -> p
+        AST.Call       p _ _ -> p 
+        AST.CallExpr   p _ _ -> p
         AST.Conv       p _ _ -> p
         AST.Len        p _ -> p
         AST.Copy       p _ -> p
@@ -262,6 +264,7 @@ instance Show Expr where
         AST.TupleIndex pos expr n       -> show expr ++ "." ++ show n
         AST.Ident p s                   -> show s 
         AST.Call pos symbol exprs       -> show symbol ++ tupStrs (map show exprs)
+        AST.CallExpr pos expr exprs     -> show expr ++ tupStrs (map show exprs)
         AST.Conv pos typ exprs          -> show typ ++ tupStrs (map show exprs)
         AST.Len pos expr                -> "len(" ++ show expr ++ ")"
         AST.Copy pos expr               -> "copy(" ++ show expr ++ ")"

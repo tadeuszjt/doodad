@@ -470,24 +470,24 @@ cmpExpr expr = trace "cmpExpr" $ withPos expr $ case expr of
         let stc = struct Nothing False [i64, i64, pi8]
         return $ Val (Table [Char]) stc
 
-    S.Call pos expr exprs -> trace "call" $ do
+    S.Call pos symbol exprs -> do
         vals <- mapM valLoad =<< mapM cmpExpr exprs
-
-        (s, obj) <- case expr of
-            S.Ident p symbol             -> fmap (sym symbol,) $ look symbol $ KeyFunc (map valType vals)
-            _                            -> fmap ("",) $ fmap ObjVal $ valLoad =<< cmpExpr expr
-        
+        obj <- look symbol $ KeyFunc (map valType vals)
         case obj of
             ObjFunc Void _         -> fail "cannot use void function as expression"
             ObjExtern _ Void _     -> fail "cannot use void function as expression"
             ObjConstructor typ     -> valConstruct typ vals
-            ObjADTFieldCons adtTyp -> adtConstructField s adtTyp vals
+            ObjADTFieldCons adtTyp -> adtConstructField (sym symbol) adtTyp vals
             ObjFunc retty op       -> Val retty <$> call op [(o, []) | o <- map valOp vals]
             ObjExtern _ retty op   -> Val retty <$> call op [(o, []) | o <- map valOp vals]
-            ObjVal (Val typ op)    -> do
-                Func ts rt <- assertBaseType isFunc typ
-                assert (map valType vals == ts) ("Argument types do not match " ++ show ts)
-                Val rt <$> call op [(o, []) | o <- map valOp vals]
+        
+
+    S.CallExpr pos expr exprs -> trace "call" $ do
+        val <- valLoad =<< cmpExpr expr
+        vals <- mapM valLoad =<< mapM cmpExpr exprs
+        Func ts rt <- assertBaseType isFunc (valType val)
+        assert (map valType vals == ts) ("Argument types do not match " ++ show ts)
+        Val rt <$> call (valOp val) [(o, []) | o <- map valOp vals]
 
     S.Len pos expr -> valLoad =<< do
         val <- cmpExpr expr

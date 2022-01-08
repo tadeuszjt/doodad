@@ -132,14 +132,15 @@ annotateExpr expr = annotateWithType =<< case expr of
     Tuple p es -> Tuple p <$> mapM annotateExpr es
     Prefix p op e -> Prefix p op <$> annotateExpr e
     Table p ess -> Table p <$> mapM (mapM annotateExpr) ess
+    Call p s es -> Call p s <$> mapM annotateExpr es
 
     Infix p op e1 e2 -> do
         e1' <- annotateExpr e1
         Infix p op e1' <$> annotateExpr e2
 
-    Call p e es -> do
+    CallExpr p e es -> do
         e' <- annotateExpr e
-        Call p e' <$> mapM annotateExpr es
+        CallExpr p e' <$> mapM annotateExpr es
 
     Subscript p e1 e2 -> do
         e1' <- annotateExpr e1

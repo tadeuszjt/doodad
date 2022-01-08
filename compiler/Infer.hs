@@ -345,7 +345,7 @@ infExpr expr = withPos expr $ case expr of
             _                         -> fail $ show symbol ++ " has multiple definitions:" ++ show xs
 
 
-    Call pos id@(Ident p symbol) exprs -> do
+    CallExpr pos id@(Ident p symbol) exprs -> do
         es <- mapM infExpr exprs
         xs <- lookSym symbol
 
@@ -356,18 +356,18 @@ infExpr expr = withPos expr $ case expr of
             [(KeyFunc fts, ObjFunc retty)] -> do
                 ts <- mapM typeOf es
                 zipWithM_ unify ts fts
-                addExpr (Call pos id es) retty
+                addExpr (CallExpr pos id es) retty
 
             (k, o@(ObjFunc retty)):xs | all (== o) (map snd xs) ->
-                addExpr (Call pos id es) retty
+                addExpr (CallExpr pos id es) retty
 
             _  ->
-                addExpr (Call pos id es) =<< genType
+                addExpr (CallExpr pos id es) =<< genType
 
-    Call pos expr exprs -> do
+    CallExpr pos expr exprs -> do
         e <- infExpr expr
         es <- mapM infExpr exprs
-        addExpr (Call pos e es) =<< genType
+        addExpr (CallExpr pos e es) =<< genType
 
     AST.Tuple pos exprs -> do
         es <- mapM infExpr exprs

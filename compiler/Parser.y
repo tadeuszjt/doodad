@@ -235,7 +235,7 @@ expr   : literal                              { $1 }
        | '[' 'I' exprsN 'D' ']'               { S.Table (tokPos $1) [$3] }
        | '[' '|' exprs ']'                    { S.Array (tokPos $1) $3 }
        | '(' exprs ')'                        { S.Tuple (tokPos $1) $2 }
-       | expr '(' exprs ')'                   { S.Call (tokPos $2) $1 $3 }
+       | expr '(' exprs ')'                   { case $1 of S.Ident _ s -> S.Call (tokPos $2) s $3; _ -> S.CallExpr (tokPos $2) $1 $3 }
        | len '(' expr ')'                     { S.Len (tokPos $1) $3 }
        | copy '(' expr ')'                    { S.Copy (tokPos $1) $3 }
        | typeOrdinal '(' exprs ')'            { S.Conv (tokPos $2) $1 $3 }
