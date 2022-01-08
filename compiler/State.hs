@@ -54,7 +54,6 @@ data Object
     = ObjVal          Value
     | ObType          Type   (Maybe LL.Name)
     | ObjFunc         Type   LL.Operand
-    | ObjExtern       [Type] Type LL.Operand
     | ObjConstructor  Type
     | ObjADTFieldCons Type
     | ObjMember       Int

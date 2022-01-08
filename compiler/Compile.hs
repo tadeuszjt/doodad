@@ -146,12 +146,12 @@ cmpExternDef (S.Extern pos nameStr sym params retty) = trace "cmpExternDef" $ wi
 
     addSymKeyDec sym (KeyFunc paramTypes) name (DecExtern paramOpTypes returnOpType False)
     let op = fnOp name paramOpTypes returnOpType False
-    redefine sym (KeyFunc paramTypes) (ObjExtern paramTypes retty op)
+    redefine sym (KeyFunc paramTypes) (ObjFunc retty op)
 
 
 cmpFuncHdr :: InsCmp CompileState m => S.Stmt -> m ()
-cmpFuncHdr (S.FuncDef pos (Sym "main") params retty blk) = trace "cmpFuncHdr" $ return ()
-cmpFuncHdr (S.FuncDef pos (Sym sym) params retty blk)    = trace "cmpFuncHdr" $ withPos pos $ do
+cmpFuncHdr (S.FuncDef pos "main" params retty blk) = trace "cmpFuncHdr" $ return ()
+cmpFuncHdr (S.FuncDef pos sym params retty blk)    = trace "cmpFuncHdr" $ withPos pos $ do
     let paramTypes = map S.paramType params
     name <- myFresh sym
     paramOpTypes <- mapM opTypeOf paramTypes
@@ -168,18 +168,18 @@ cmpFuncHdr (S.FuncDef pos (Sym sym) params retty blk)    = trace "cmpFuncHdr" $ 
 
 
 cmpFuncDef :: (MonadFail m, Monad m, MonadIO m) => S.Stmt -> InstrCmpT CompileState m ()
-cmpFuncDef (S.FuncDef pos (Sym "main") params retty blk) = trace "cmpFuncDef" $ withPos pos $ do
+cmpFuncDef (S.FuncDef pos "main" params retty blk) = trace "cmpFuncDef" $ withPos pos $ do
     assert (params == [])  "main cannot have parameters"
     assert (retty == Void) "main must return void"
     cmpStmt blk
-cmpFuncDef (S.FuncDef pos symbol params retty blk) = trace "cmpFuncDef" $ withPos pos $ do
+cmpFuncDef (S.FuncDef pos sym params retty blk) = trace "cmpFuncDef" $ withPos pos $ do
     returnOpType <- opTypeOf retty
     paramOpTypes <- mapM (opTypeOf . S.paramType) params
     let paramTypes = map S.paramType params
     let paramNames = map (ParameterName . mkBSS . S.paramName) params
     let paramSyms  = map S.paramName params
 
-    ObjFunc _ op <- look symbol (KeyFunc paramTypes)
+    ObjFunc _ op <- look (Sym sym) (KeyFunc paramTypes)
     let LL.ConstantOperand (C.GlobalReference _ name) = op
     let Name nameStr = name
 
@@ -283,7 +283,6 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
         resm <- lookm (Sym sym) $ KeyFunc (map valType vals)
         op <- case resm of
             Just (ObjFunc _ op)     -> return op
-            Just (ObjExtern _ _ op) -> return op
             Nothing                 -> do
                 ObjVal fval <- look (Sym sym) KeyVar
                 ftyp@(Func ts rt) <- assertBaseType isFunc (valType fval)
@@ -451,11 +450,9 @@ cmpExpr expr = trace "cmpExpr" $ withPos expr $ case expr of
         valB <- cmpExpr exprB
         cmpInfix op valA valB
 
-    S.Ident pos symbol             -> do
-        obj <- look symbol KeyVar
-        case obj of
-            ObjVal loc             -> return loc
-            ObjADTFieldCons adtTyp -> adtConstructField (sym symbol) adtTyp []
+    S.Ident pos symbol -> do
+        ObjVal loc <- look symbol KeyVar
+        return loc
 
     S.Prefix pos S.Not   expr  -> valNot =<< cmpExpr expr
     S.Prefix pos S.Minus expr  -> do
@@ -475,12 +472,9 @@ cmpExpr expr = trace "cmpExpr" $ withPos expr $ case expr of
         obj <- look symbol $ KeyFunc (map valType vals)
         case obj of
             ObjFunc Void _         -> fail "cannot use void function as expression"
-            ObjExtern _ Void _     -> fail "cannot use void function as expression"
             ObjConstructor typ     -> valConstruct typ vals
             ObjADTFieldCons adtTyp -> adtConstructField (sym symbol) adtTyp vals
             ObjFunc retty op       -> Val retty <$> call op [(o, []) | o <- map valOp vals]
-            ObjExtern _ retty op   -> Val retty <$> call op [(o, []) | o <- map valOp vals]
-        
 
     S.CallExpr pos expr exprs -> trace "call" $ do
         val <- valLoad =<< cmpExpr expr

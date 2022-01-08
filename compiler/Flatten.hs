@@ -70,7 +70,7 @@ flattenAST ast = do
             S.FuncDef _ _ _ _ _   -> modify $ \s -> s { funcDefs   = stmt:(funcDefs s) }
             S.Extern _ _ _ _ _    -> modify $ \s -> s { externDefs = stmt:(externDefs s) }
             S.Assign _ _ _        -> modify $ \s -> s { varDefs    = stmt:(varDefs s) }
-            S.Typedef pos (T.Sym sym) annoType -> do
+            S.Typedef pos sym annoType -> do
                 b <- Map.member sym <$> gets typeDefs
                 assert (not b) (sym ++ " already defined")
                 modify $ \s -> s { typeDefs = Map.insert sym (pos, annoType) (typeDefs s) }

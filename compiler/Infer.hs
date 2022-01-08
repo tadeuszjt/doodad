@@ -98,21 +98,21 @@ initInferState imp = InferState
 
 data RunInferState
     = RunInferState
-        { modInferMap :: Map.Map FilePath (AST, InferState)
+        { modInferMap :: Map.Map FilePath (AST, C.SymTab)
         }
 
 
 initRunInferState = RunInferState { modInferMap = Map.empty }
 
 
-runModInfer :: BoM RunInferState m => FilePath -> Set.Set FilePath -> m (AST, InferState)
+runModInfer :: BoM RunInferState m => FilePath -> Set.Set FilePath -> m (AST, C.SymTab)
 runModInfer modPath pathsVisited = do
     path <- checkAndNormalisePath modPath
     assert (not $ Set.member path pathsVisited) ("importing: " ++ path ++ " forms a cycle")
     resm <- Map.lookup path <$> gets modInferMap
     maybe (inferPath path) (return) resm
     where
-        inferPath :: BoM RunInferState m => FilePath -> m (AST, InferState)
+        inferPath :: BoM RunInferState m => FilePath -> m (AST, C.SymTab)
         inferPath path = do
             let modName      = takeFileName path
             let modDirectory = takeDirectory path
@@ -131,9 +131,13 @@ runModInfer modPath pathsVisited = do
                 return (takeFileName importPath, state)
 
             annotatedAST <- fmap fst $ withFiles files $ runBoMTExcept 0 (annotateAST combinedAST)
-            --collected <- fmap fst $ withFiles files $ runBoMTExcept (SymTab.initSymTab) (C.collectAST annotatedAST)
-            --error $ show collected
-            return (annotatedAST, initInferState importMap)
+            (collected, symTab) <- withFiles files $ runBoMTExcept (SymTab.initSymTab) (C.collectAST annotatedAST)
+
+            modify $ \s -> s { modInferMap = Map.insert path (annotatedAST, symTab) (modInferMap s) }
+
+            liftIO $ putStrLn modName
+            liftIO $ SymTab.prettySymTab symTab
+            return (annotatedAST, symTab)
 
 
 define :: BoM InferState m => String -> SymKey -> Object -> m ()
@@ -464,8 +468,8 @@ infCondition cnd = case cnd of
 
 infStmt :: BoM InferState m => Stmt -> m Stmt
 infStmt stmt = withPos stmt $ case stmt of
-    AST.Typedef pos (Sym sym) typ -> do
-        return $ AST.Typedef pos (Sym sym) typ
+    AST.Typedef pos sym typ -> do
+        return $ AST.Typedef pos sym typ
         
     Assign pos pat expr -> do
         e <- infExpr expr
@@ -500,7 +504,7 @@ infStmt stmt = withPos stmt $ case stmt of
     Print pos exprs -> do
         Print pos <$> mapM infExpr exprs
 
-    FuncDef pos (Sym sym) params retty blk -> withCurRetty retty $ do
+    FuncDef pos sym params retty blk -> withCurRetty retty $ do
         ObjFunc _ <- look (Sym sym) (KeyFunc $ map paramType params)
 
         pushSymTab
@@ -509,7 +513,7 @@ infStmt stmt = withPos stmt $ case stmt of
 
         blk' <- infStmt blk
         popSymTab
-        return $ FuncDef pos (Sym sym) params retty blk'
+        return $ FuncDef pos sym params retty blk'
 
     Extern pos name sym params retty -> do
         define sym (KeyFunc $ map paramType params) (ObjFunc retty)
@@ -538,13 +542,13 @@ infStmt stmt = withPos stmt $ case stmt of
 
 
 infTopFuncDef :: BoM InferState m => Stmt -> m ()
-infTopFuncDef (FuncDef pos (Sym sym) params retty _) = withPos pos $ do
+infTopFuncDef (FuncDef pos sym params retty _) = withPos pos $ do
     let paramTypes = map paramType params
     define sym (KeyFunc paramTypes) (ObjFunc retty)
     
 
 infTopTypeDef :: BoM InferState m => Stmt -> m ()
-infTopTypeDef (AST.Typedef pos (Sym sym) anno) = withPos pos $ case anno of
+infTopTypeDef (AST.Typedef pos sym anno) = withPos pos $ case anno of
     AnnoTuple xs -> do
         let ts = map snd xs
         let tupTyp = T.Tuple ts

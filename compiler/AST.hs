@@ -115,9 +115,9 @@ data Stmt
     | While    TextPos Condition Stmt
     | For      TextPos String Expr (Maybe Expr) Stmt
     | Switch   TextPos Expr [(Pattern, Stmt)]
-    | FuncDef  TextPos Symbol [Param] Type Stmt
+    | FuncDef  TextPos String [Param] Type Stmt
     | Extern   TextPos String String [Param] Type
-    | Typedef  TextPos Symbol AnnoType
+    | Typedef  TextPos String AnnoType
     | AppendStmt Append
     deriving (Eq, Show)
 

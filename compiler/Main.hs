@@ -18,7 +18,7 @@ import AST
 import Infer
 import qualified Parser as P
 import qualified Lexer as L
-
+import qualified SymTab
 
 main :: IO ()
 main = do
@@ -47,7 +47,7 @@ main = do
             res <- runBoMT initRunInferState (runModInfer path Set.empty)
             case res of
                 Left err     -> printError err 
-                Right ((ast, state), y) -> prettyInferState state >> prettyAST "" ast
+                Right ((ast, state), y) -> SymTab.prettySymTab state >> prettyAST "" ast
     else do
         withSession (optimise parsedArgs) $ \session -> do
             forM_ (modPaths parsedArgs) $ \path -> do
