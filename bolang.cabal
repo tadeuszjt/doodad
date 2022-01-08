@@ -62,7 +62,8 @@ executable bolang
         Typeof,
         Trace,
         Infer,
-        Annotate
+        Annotate,
+        Collect
 
 test-suite type-tests
     hs-source-dirs: compiler, compiler/test

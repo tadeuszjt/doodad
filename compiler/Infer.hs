@@ -18,6 +18,7 @@ import Monad
 import Modules
 import Flatten hiding (imports)
 import Annotate
+import qualified Collect as C
 
 newtype TypeId = TypeId Int
     deriving (Eq, Ord)
@@ -128,11 +129,11 @@ runModInfer modPath pathsVisited = do
             importMap <- fmap Map.fromList $ forM importPaths $ \importPath -> do
                 (_, state) <- runModInfer importPath (Set.insert path pathsVisited)
                 return (takeFileName importPath, state)
---
---            (ast', state') <- withFiles files $ runBoMTExcept (initInferState importMap) (infAST combinedAST)
---            (ast'', state'') <- withFiles files $ runBoMTExcept (state' { symTab = SymTab.initSymTab }) (infAST ast')
-            (ast', _) <- withFiles files $ runBoMTExcept 0 (annotateAST combinedAST)
-            return (ast', initInferState importMap)
+
+            annotatedAST <- fmap fst $ withFiles files $ runBoMTExcept 0 (annotateAST combinedAST)
+            --collected <- fmap fst $ withFiles files $ runBoMTExcept (SymTab.initSymTab) (C.collectAST annotatedAST)
+            --error $ show collected
+            return (annotatedAST, initInferState importMap)
 
 
 define :: BoM InferState m => String -> SymKey -> Object -> m ()
