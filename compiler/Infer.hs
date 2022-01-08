@@ -17,6 +17,7 @@ import Error
 import Monad
 import Modules
 import Flatten hiding (imports)
+import Annotate
 
 newtype TypeId = TypeId Int
     deriving (Eq, Ord)
@@ -96,21 +97,21 @@ initInferState imp = InferState
 
 data RunInferState
     = RunInferState
-        { modInferMap :: Map.Map FilePath InferState
+        { modInferMap :: Map.Map FilePath (AST, InferState)
         }
 
 
 initRunInferState = RunInferState { modInferMap = Map.empty }
 
 
-runModInfer :: BoM RunInferState m => FilePath -> Set.Set FilePath -> m InferState
+runModInfer :: BoM RunInferState m => FilePath -> Set.Set FilePath -> m (AST, InferState)
 runModInfer modPath pathsVisited = do
     path <- checkAndNormalisePath modPath
     assert (not $ Set.member path pathsVisited) ("importing: " ++ path ++ " forms a cycle")
     resm <- Map.lookup path <$> gets modInferMap
     maybe (inferPath path) (return) resm
     where
-        inferPath :: BoM RunInferState m => FilePath -> m InferState
+        inferPath :: BoM RunInferState m => FilePath -> m (AST, InferState)
         inferPath path = do
             let modName      = takeFileName path
             let modDirectory = takeDirectory path
@@ -125,12 +126,13 @@ runModInfer modPath pathsVisited = do
             assert (length importNames == length (Set.fromList importNames)) "import name collision"
 
             importMap <- fmap Map.fromList $ forM importPaths $ \importPath -> do
-                state <- runModInfer importPath (Set.insert path pathsVisited)
+                (_, state) <- runModInfer importPath (Set.insert path pathsVisited)
                 return (takeFileName importPath, state)
-
-            (ast', state') <- withFiles files $ runBoMTExcept (initInferState importMap) (infAST combinedAST)
-            (ast'', state'') <- withFiles files $ runBoMTExcept (state' { symTab = SymTab.initSymTab }) (infAST ast')
-            return state''
+--
+--            (ast', state') <- withFiles files $ runBoMTExcept (initInferState importMap) (infAST combinedAST)
+--            (ast'', state'') <- withFiles files $ runBoMTExcept (state' { symTab = SymTab.initSymTab }) (infAST ast')
+            (ast', _) <- withFiles files $ runBoMTExcept 0 (annotateAST combinedAST)
+            return (ast', initInferState importMap)
 
 
 define :: BoM InferState m => String -> SymKey -> Object -> m ()
@@ -267,7 +269,6 @@ pushSymTab = do
 popSymTab :: BoM InferState m => m ()
 popSymTab = do
     modify $ \s -> s { symTab = SymTab.pop (symTab s) }
-
 
 infExpr :: BoM InferState m => Expr -> m Expr
 infExpr expr = withPos expr $ case expr of

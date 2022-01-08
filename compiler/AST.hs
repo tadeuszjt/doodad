@@ -78,7 +78,8 @@ data Condition
     deriving (Eq)
 
 data Expr
-    = Int        TextPos Integer
+    = AExpr      Type    Expr
+    | Int        TextPos Integer
     | Float      TextPos Double
     | Bool       TextPos Bool
     | Char       TextPos Char
@@ -230,7 +231,6 @@ instance Show Pattern where
         PatTyped pos s p -> show s ++ "(" ++ show p ++ ")"
         PatSplit pos a b -> show a ++ " ->> " ++ show b
         PatSplitElem pos a b -> show a ++ " -> " ++ show b
-        _                    -> error "pattern"
 
 
 instance Show Condition where
@@ -247,6 +247,7 @@ instance Show Index where
 
 instance Show Expr where
     show expr = case expr of
+        AST.AExpr t e                   -> show t ++ ":" ++ show e
         AST.Int pos n                   -> show n
         AST.Float pos f                 -> show f
         AST.Bool pos b                  -> if b then "true" else "false"

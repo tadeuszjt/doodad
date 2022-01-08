@@ -47,7 +47,7 @@ main = do
             res <- runBoMT initRunInferState (runModInfer path Set.empty)
             case res of
                 Left err     -> printError err 
-                Right (x, y) -> prettyInferState x
+                Right ((ast, state), y) -> prettyInferState state >> prettyAST "" ast
     else do
         withSession (optimise parsedArgs) $ \session -> do
             forM_ (modPaths parsedArgs) $ \path -> do
