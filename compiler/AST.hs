@@ -247,7 +247,7 @@ instance Show Index where
 
 instance Show Expr where
     show expr = case expr of
-        AST.AExpr t e                   -> show t ++ ":" ++ show e
+        AST.AExpr t e                   -> show e ++ ":" ++ show t
         AST.Int pos n                   -> show n
         AST.Float pos f                 -> show f
         AST.Bool pos b                  -> if b then "true" else "false"

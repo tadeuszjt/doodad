@@ -89,7 +89,6 @@ annotatePattern pattern = case pattern of
         pat2' <- annotatePattern pat2
         return $ PatSplitElem p pat1' pat2'
 
-
     PatGuarded p pat e -> do
         pat' <- annotatePattern pat
         PatGuarded p pat' <$> annotateExpr e
@@ -118,7 +117,49 @@ annotateIndex index = case index of
 
 
 annotateExpr :: BoM Int m => Expr -> m Expr
-annotateExpr expr = do
+annotateExpr expr = annotateWithType =<< case expr of
+    Ident p s -> return expr
+    Char p c -> return expr
+    Int p n -> return expr
+    Float p f -> return expr
+    Null p -> return expr
+    String p s -> return expr
+    Bool p b -> return expr
+
+    Conv p s es -> Conv p s <$> mapM annotateExpr es
+    Copy p e -> Copy p <$> annotateExpr e
+    Len p e -> Len p <$> annotateExpr e
+    Tuple p es -> Tuple p <$> mapM annotateExpr es
+    Prefix p op e -> Prefix p op <$> annotateExpr e
+    Table p ess -> Table p <$> mapM (mapM annotateExpr) ess
+
+    Infix p op e1 e2 -> do
+        e1' <- annotateExpr e1
+        Infix p op e1' <$> annotateExpr e2
+
+    Call p e es -> do
+        e' <- annotateExpr e
+        Call p e' <$> mapM annotateExpr es
+
+    Subscript p e1 e2 -> do
+        e1' <- annotateExpr e1
+        Subscript p e1' <$> annotateExpr e2
+
+    Member p e s -> do
+        e' <- annotateExpr e
+        return $ Member p e' s
+
+    Range p e me1 me2 -> do
+        e' <- annotateExpr e
+        me1' <- maybe (return Nothing) (fmap Just . annotateExpr) me1
+        me2' <- maybe (return Nothing) (fmap Just . annotateExpr) me2
+        return $ Range p e' me1' me2' 
+
+    _ -> error $ show expr
+
+
+annotateWithType :: BoM Int m => Expr -> m Expr
+annotateWithType expr = do
     i <- get
     put (i + 1)
     return $ AExpr (T.Type i) expr
