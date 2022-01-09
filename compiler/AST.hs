@@ -105,20 +105,21 @@ data Expr
 
 
 data Stmt
-    = Assign   TextPos Pattern Expr
-    | Set      TextPos Index   Expr
-    | Print    TextPos [Expr]
-    | CallStmt TextPos Index  [Expr]
-    | Return   TextPos (Maybe Expr)
-    | Block    [Stmt]
-    | If       TextPos Condition Stmt (Maybe Stmt)
-    | While    TextPos Condition Stmt
-    | For      TextPos String Expr (Maybe Expr) Stmt
-    | Switch   TextPos Expr [(Pattern, Stmt)]
-    | FuncDef  TextPos String [Param] Type Stmt
-    | Extern   TextPos String String [Param] Type
-    | Typedef  TextPos String AnnoType
-    | AppendStmt Append
+    = Assign      TextPos Pattern Expr
+    | Set         TextPos Index   Expr
+    | Print       TextPos [Expr]
+    | CallStmtIdx TextPos Index  [Expr]
+    | CallStmt    TextPos String [Expr]
+    | Return      TextPos (Maybe Expr)
+    | Block       [Stmt]
+    | If          TextPos Condition Stmt (Maybe Stmt)
+    | While       TextPos Condition Stmt
+    | For         TextPos String Expr (Maybe Expr) Stmt
+    | Switch      TextPos Expr [(Pattern, Stmt)]
+    | FuncDef     TextPos String [Param] Type Stmt
+    | Extern      TextPos String String [Param] Type
+    | Typedef     TextPos String AnnoType
+    | AppendStmt  Append
     deriving (Eq, Show)
 
 
@@ -184,20 +185,21 @@ instance TextPosition Expr where
 
 instance TextPosition Stmt where
     textPos stmt = case stmt of
-        AST.Assign     p _ _ -> p
-        AST.Set        p _ _ -> p
-        AST.Print      p _ -> p
-        AST.CallStmt   p _ _ -> p
-        AST.Return     p _ -> p
-        AST.Block      s -> textPos (head s)
-        AST.If         p _ _ _ -> p
-        AST.While      p _ _ -> p
-        AST.For        p _ _ _ _ -> p
-        AST.Switch     p _ _ -> p
-        AST.FuncDef    p _ _ _ _ -> p
-        AST.Extern     p _ _ _ _ -> p
-        AST.Typedef    p _ _ -> p
-        AST.AppendStmt a -> textPos a
+        AST.Assign      p _ _ -> p
+        AST.Set         p _ _ -> p
+        AST.Print       p _ -> p
+        AST.CallStmtIdx p _ _ -> p
+        AST.CallStmt    p _ _ -> p
+        AST.Return      p _ -> p
+        AST.Block       s -> textPos (head s)
+        AST.If          p _ _ _ -> p
+        AST.While       p _ _ -> p
+        AST.For         p _ _ _ _ -> p
+        AST.Switch      p _ _ -> p
+        AST.FuncDef     p _ _ _ _ -> p
+        AST.Extern      p _ _ _ _ -> p
+        AST.Typedef     p _ _ -> p
+        AST.AppendStmt  a -> textPos a
 
 tupStrs, arrStrs, brcStrs :: [String] -> String
 tupStrs strs = "(" ++ intercalate ", " strs ++ ")"
@@ -292,12 +294,12 @@ prettyAST pre ast = do
     where
         prettyStmt :: String -> Stmt -> IO ()
         prettyStmt pr stmt = case stmt of
-            Assign pos pat expr     -> putStrLn ("let " ++ show pat ++ " = " ++ show expr) >> putStr pr
-            Set pos ind expr        -> putStrLn (show ind ++ " = " ++ show expr) >> putStr pr
-            Print pos exprs         -> putStrLn ("print" ++ tupStrs (map show exprs)) >> putStr pr
-            CallStmt pos expr exprs -> putStrLn (show expr ++ tupStrs (map show exprs)) >> putStr pr
-            Return pos mexpr        -> putStrLn ("return " ++ maybe "" show mexpr) >> putStr pr
-
+            Assign pos pat expr        -> putStrLn ("let " ++ show pat ++ " = " ++ show expr) >> putStr pr
+            Set pos ind expr           -> putStrLn (show ind ++ " = " ++ show expr) >> putStr pr
+            Print pos exprs            -> putStrLn ("print" ++ tupStrs (map show exprs)) >> putStr pr
+            CallStmtIdx pos expr exprs -> putStrLn (show expr ++ tupStrs (map show exprs)) >> putStr pr
+            Return pos mexpr           -> putStrLn ("return " ++ maybe "" show mexpr) >> putStr pr
+ 
             If pos cnd true false -> do
                 putStr $ "if " ++ show cnd
                 prettyBlock pr true

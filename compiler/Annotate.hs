@@ -21,6 +21,7 @@ annotateStmt stmt = case stmt of
     AppendStmt a        -> AppendStmt <$> annotateAppend a
     Print p es          -> Print p <$> mapM annotateExpr es
     Typedef p s a       -> return $ Typedef p s a
+    CallStmt p s es     -> CallStmt p s <$> mapM annotateExpr es
 
     Assign p pat e      -> do
         pat' <- annotatePattern pat
@@ -56,9 +57,10 @@ annotateStmt stmt = case stmt of
         c' <- annotateCondition c
         While p c' <$> annotateStmt b
 
-    CallStmt p i es -> do
+    CallStmtIdx p i es -> do
         i' <- annotateIndex i
-        CallStmt p i' <$> mapM annotateExpr es
+        CallStmtIdx p i' <$> mapM annotateExpr es
+
 
 
 annotateCondition :: BoM Int m => Condition -> m Condition

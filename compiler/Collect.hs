@@ -149,8 +149,18 @@ collectStmt stmt = withPos stmt $ case stmt of
     Switch _ expr cases -> do
         collectExpr expr
         forM_ cases $ \(pattern, blk) -> do
+            pushSymTab
             collectPattern pattern (typeOf expr)
             collectStmt blk
+            popSymTab
+
+    While _ cond blk -> do
+        collectCondition cond
+        collectStmt blk
+
+    CallStmt p sym exprs -> do
+        mapM_ collectExpr exprs
+        -- TODO resm <- lookm (Sym sym) (KeyFunc $ map typeOf exprs)
 
 
     _ -> fail (show stmt)
@@ -194,6 +204,10 @@ collectPattern pattern typ = withPos pattern $ case pattern of
         define s KeyVar (ObjVar typ)
 
     PatLiteral expr -> collect typ (typeOf expr)
+
+    PatGuarded _ pat expr -> do
+        collectPattern pat typ
+        collectExpr expr
 
     _ -> fail (show pattern)
 

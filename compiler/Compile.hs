@@ -278,20 +278,12 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
     S.Block stmts       -> pushSymTab >> mapM_ cmpStmt stmts >> popSymTab
     S.AppendStmt append -> void $ cmpAppend append
 
-    S.CallStmt pos (S.IndIdent _ sym) exprs -> do
+    S.CallStmt pos sym exprs -> do
         vals <- mapM (valLoad <=< cmpExpr) exprs
-        resm <- lookm (Sym sym) $ KeyFunc (map valType vals)
-        op <- case resm of
-            Just (ObjFunc _ op)     -> return op
-            Nothing                 -> do
-                ObjVal fval <- look (Sym sym) KeyVar
-                ftyp@(Func ts rt) <- assertBaseType isFunc (valType fval)
-                assert (ts == map valType vals) ("Incorrect argument types for: " ++ show ftyp)
-                valOp <$> valLoad fval
-
+        ObjFunc _ op <- look (Sym sym) $ KeyFunc (map valType vals)
         void $ call op [(o, []) | o <- map valOp vals]
 
-    S.CallStmt pos index exprs -> do
+    S.CallStmtIdx pos index exprs -> do
         vals <- mapM (valLoad <=< cmpExpr) exprs
         fval <- valLoad =<< cmpIndex index
         ftyp@(Func ts rt) <- assertBaseType isFunc (valType fval)

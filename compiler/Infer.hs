@@ -536,7 +536,7 @@ infStmt stmt = withPos stmt $ case stmt of
 
     Switch p expr cases -> return stmt
 
-    CallStmt p _ _ -> return stmt
+    CallStmtIdx p _ _ -> return stmt
 
     _ -> error $ "Cannot infer: " ++ show stmt
 
