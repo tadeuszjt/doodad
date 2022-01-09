@@ -131,13 +131,14 @@ runModInfer modPath pathsVisited = do
                 return (takeFileName importPath, state)
 
             annotatedAST <- fmap fst $ withFiles files $ runBoMTExcept 0 (annotateAST combinedAST)
-            (collected, symTab) <- withFiles files $ runBoMTExcept (SymTab.initSymTab) (C.collectAST annotatedAST)
+            (collected, state) <- withFiles files $ runBoMTExcept (C.initCollectState) (C.collectAST annotatedAST)
 
-            modify $ \s -> s { modInferMap = Map.insert path (annotatedAST, symTab) (modInferMap s) }
+            modify $ \s -> s { modInferMap = Map.insert path (annotatedAST, C.symTab state) (modInferMap s) }
 
             liftIO $ putStrLn modName
-            liftIO $ SymTab.prettySymTab symTab
-            return (annotatedAST, symTab)
+            liftIO $ SymTab.prettySymTab (C.symTab state)
+            liftIO $ putStrLn $ show (C.collected state)
+            return (annotatedAST, C.symTab state)
 
 
 define :: BoM InferState m => String -> SymKey -> Object -> m ()

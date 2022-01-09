@@ -157,6 +157,7 @@ instance TextPosition Pattern where
 
 instance TextPosition Expr where
     textPos expr = case expr of
+        AST.AExpr      t e -> textPos e
         AST.Int        p _ -> p
         AST.Float      p _ -> p
         AST.Bool       p _ -> p
