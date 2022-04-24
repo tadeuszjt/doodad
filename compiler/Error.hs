@@ -3,7 +3,8 @@ module Error where
 
 import Control.Monad
 import Control.Exception
-import Control.Monad.Except 
+import Control.Monad.Except
+import Control.Monad.Fail hiding (fail)
 import Data.Maybe
 import qualified Data.Map as Map
 
