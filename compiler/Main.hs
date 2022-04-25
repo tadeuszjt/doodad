@@ -61,6 +61,7 @@ repl :: Session -> InferState -> InputT IO ()
 repl session state = do
     minput <- handleInterrupt (return $ Just "Ctrl-C exit") $ getInputLine "8===D "
     case minput of
+        Nothing   -> return ()
         Just "q"  -> return ()
         Just line -> do
             res <- runExceptT $ P.parse 0 line

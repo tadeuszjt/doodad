@@ -1,5 +1,4 @@
 module main
-
 import lang/lexer
 import lang/parser
 import std/vec2

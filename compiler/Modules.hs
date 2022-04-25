@@ -102,7 +102,7 @@ parse :: BoM s m => Int -> FilePath -> m S.AST
 parse id file = do
     source <- liftIO (readFile file)
     case P.parse id source of
-        Left (ErrorStr str)         -> throwError (ErrorStr str)
+        Left (ErrorStr str)         -> throwError (ErrorStr $ file ++ ": " ++ str)
         Left (ErrorPos pos str)     -> throwError (ErrorFile file pos str)
         Right a                     -> return a
 
