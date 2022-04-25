@@ -138,6 +138,7 @@ runModInfer modPath pathsVisited = do
             liftIO $ putStrLn modName
             liftIO $ SymTab.prettySymTab (C.symTab state)
             liftIO $ putStrLn $ show (C.collected state)
+            liftIO $ AST.prettyAST annotatedAST
             return (annotatedAST, C.symTab state)
 
 

@@ -40,14 +40,14 @@ main = do
             res <- runBoMT () (parse 0 path)
             case res of
                 Left err     -> printError err 
-                Right (ast, _) -> prettyAST "" ast
+                Right (ast, _) -> prettyAST ast
 
     else if inferOnly parsedArgs then do
         forM_ (modPaths parsedArgs) $ \path -> do
             res <- runBoMT initRunInferState (runModInfer path Set.empty)
             case res of
                 Left err     -> printError err 
-                Right ((ast, state), y) -> SymTab.prettySymTab state >> prettyAST "" ast
+                Right ((ast, state), y) -> SymTab.prettySymTab state >> prettyAST ast
     else do
         withSession (optimise parsedArgs) $ \session -> do
             forM_ (modPaths parsedArgs) $ \path -> do

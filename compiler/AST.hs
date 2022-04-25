@@ -277,76 +277,63 @@ instance Show Expr where
         AST.Expr n                      -> "e" ++ show n
 
 
-prettyAST :: String -> AST -> IO ()
-prettyAST pre ast = do
+-- every function must end on a newline and print pre before every line
+prettyAST :: AST -> IO ()
+prettyAST ast = do
     when (isJust $ astModuleName ast) $
-        putStrLn $ pre ++ "module " ++ (fromJust $ astModuleName ast)
+        putStrLn $ "module " ++ (fromJust $ astModuleName ast)
 
     putStrLn ""
-    
+
     forM_ (astImports ast) $ \path ->
         putStrLn $ "import " ++ show path
 
     putStrLn ""
 
-
-    forM_ (astStmts ast) $ \stmt -> prettyStmt pre stmt >> putStrLn ""
+    mapM_ (prettyStmt "") (astStmts ast)
     where
         prettyStmt :: String -> Stmt -> IO ()
-        prettyStmt pr stmt = case stmt of
-            Assign pos pat expr        -> putStrLn ("let " ++ show pat ++ " = " ++ show expr) >> putStr pr
-            Set pos ind expr           -> putStrLn (show ind ++ " = " ++ show expr) >> putStr pr
-            Print pos exprs            -> putStrLn ("print" ++ tupStrs (map show exprs)) >> putStr pr
-            CallStmtIdx pos expr exprs -> putStrLn (show expr ++ tupStrs (map show exprs)) >> putStr pr
-            Return pos mexpr           -> putStrLn ("return " ++ maybe "" show mexpr) >> putStr pr
- 
-            If pos cnd true false -> do
-                putStr $ "if " ++ show cnd
-                prettyBlock pr true
+        prettyStmt pre stmt = case stmt of
+            FuncDef pos sym params retty blk -> do
+                putStrLn $ pre ++ "fn " ++ sym ++ tupStrs (map show params) ++ " " ++ if retty == Void then "" else show retty
+                prettyStmt (pre ++ "\t") blk
+                putStrLn ""
 
-            FuncDef pos symbol params mretty blk -> do
-                putStr $ "fn " ++ show symbol ++ tupStrs (map show params) ++ " " ++ if mretty == Void then "" else show mretty
-                prettyBlock pr blk
+            Assign pos pat expr        -> putStrLn $ pre ++ "let " ++ show pat ++ " = " ++ show expr
+            Set pos ind expr           -> putStrLn $ pre ++ show ind ++ " = " ++ show expr
+--            Print pos exprs            -> putStrLn ("print" ++ tupStrs (map show exprs)) >> putStr pr
+--            CallStmtIdx pos expr exprs -> putStrLn (show expr ++ tupStrs (map show exprs)) >> putStr pr
+            Return pos mexpr -> putStrLn $ pre ++ "return " ++ maybe "" show mexpr
+            Extern pos name sym args retty -> do
+                putStrLn $ pre ++ "extern " ++ name ++ " " ++ sym ++ tupStrs (map show args) ++ " " ++ if retty == Void then "" else show retty
+                putStrLn ""
+            AppendStmt app -> putStrLn $ pre ++ "append"
+ 
+            If pos cnd true mfalse -> do
+                putStrLn $ pre ++ "if " ++ show cnd
+                prettyStmt (pre ++ "\t") true
+                putStrLn $ pre ++ "else"
+                maybe (return ()) (prettyStmt (pre ++ "\t")) mfalse
 
             Switch pos cnd cases -> do
-                putStrLn ("switch " ++ show cnd)
-                putStr (pr ++ "\t")
+                putStrLn $ pre ++ "switch " ++ show cnd
                 
                 forM_ cases $ \(c, blk) -> do
-                    putStr (show c)
-                    prettyBlock (pr ++ "\t") blk
+                    putStrLn $ pre ++ "\t" ++ show c
+                    prettyStmt (pre ++ "\t\t") blk
+
+            CallStmt pos sym exprs -> putStrLn $ pre ++ sym ++ tupStrs (map show exprs)
                     
-                putStrLn "" >> putStr pr
 
             Block stmts -> do
-                putStr "\t"
-                mapM_ (prettyStmt (pr ++ "\t")) stmts
-                putStrLn ""
-                putStr pr
-                
-
-
-
-            AppendStmt app -> putStrLn "append" >> putStr pr
+                mapM_ (prettyStmt pre) stmts
 
             For pos istr expr (mexpr) stmt -> do
-                putStr $ "for [" ++ istr ++ "] " ++ show expr ++ maybe "" ((" | " ++) . show) mexpr
-                prettyBlock pr stmt
+                putStrLn  $ pre ++ "for [" ++ istr ++ "] " ++ show expr ++ maybe "" ((" | " ++) . show) mexpr
+                prettyStmt (pre ++ "\t") stmt
+
+            While pos cnd stmt -> do
+                putStrLn $ pre ++ "while " ++ show cnd
+                prettyStmt (pre ++ "\t") stmt
 
             _ -> error $ "Cannot pretty: " ++ show stmt
-
-        prettyBlock :: String -> Stmt -> IO ()
-        prettyBlock pr stmt = case stmt of
-            Block []    -> putStrLn "" >> putStr pr
-            Block stmts -> do
-                putStrLn ""
-                putStr (pr ++ "\t")
-
-                forM_ stmts $ \stmt ->
-                    prettyStmt (pr ++ "\t") stmt
-
-                putStrLn "" >> putStr pr
-
-
-            _           -> putStr "; " >> prettyStmt pr stmt
-
