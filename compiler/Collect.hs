@@ -113,7 +113,11 @@ collectStmt stmt = withPos stmt $ case stmt of
     FuncDef _ sym params retty blk -> do
         oldRetty <- gets curRetty
         modify $ \s -> s { curRetty = retty }
+        pushSymTab
+        forM_ params $ \(Param _ s t) ->
+            define s KeyVar (ObjVar t)
         collectStmt blk
+        popSymTab
         modify $ \s -> s { curRetty = oldRetty }
 
     Block stmts -> pushSymTab >> mapM_ collectStmt stmts >> popSymTab
@@ -219,7 +223,17 @@ collectCondition cond = case cond of
 
 collectExpr :: BoM CollectState m => Expr -> m ()
 collectExpr expr = withPos expr $ case expr of
-    Infix p op e1 e2 -> return ()
+    AExpr typ (Conv p t [e]) -> do
+        collect typ t
+        collectExpr e
+
+    AExpr typ (Call p sym []) -> do
+        ObjFunc rt <- look sym (KeyFunc [])
+        collect typ rt
+
+    AExpr typ (Ident p sym) -> do
+        ObjVar t <- look sym KeyVar
+        collect t typ
 
     _ -> return ()
     
