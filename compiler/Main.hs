@@ -26,8 +26,8 @@ main = do
     let parsedArgs = parseArgs initArgs args
     if args == [] then do
         putStrLn "==== Bolang REPL ===="
-        withSession True $ \session -> do
-            runInputT defaultSettings (repl session $ initInferState Map.empty)
+--        withSession True $ \session -> do
+--            runInputT defaultSettings (repl session $ initInferState Map.empty)
     else if lexOnly parsedArgs then do
         withSession (optimise parsedArgs) $ \session -> do
             forM_ (modPaths parsedArgs) $ \path -> do
@@ -57,21 +57,21 @@ main = do
                     Right _  -> return ()
 
 
-repl :: Session -> InferState -> InputT IO ()
-repl session state = do
-    minput <- handleInterrupt (return $ Just "Ctrl-C exit") $ getInputLine "8===D "
-    case minput of
-        Nothing   -> return ()
-        Just "q"  -> return ()
-        Just line -> do
-            res <- runExceptT $ P.parse 0 line
-            case res of
-                Left e -> liftIO (printError e)
-                Right (AST _ _ [stmt]) -> do
-                    res <- liftIO $ runBoMT state (do { s' <- infStmt stmt; infResolve; return s' })
-                    case res of
-                        Left e -> liftIO $ printError e
-                        Right (stmt', state') -> do
-                            outputStrLn $ show stmt'
-                            liftIO $ prettyInferState state'
-                            repl session state'
+--repl :: Session -> InferState -> InputT IO ()
+--repl session state = do
+--    minput <- handleInterrupt (return $ Just "Ctrl-C exit") $ getInputLine "8===D "
+--    case minput of
+--        Nothing   -> return ()
+--        Just "q"  -> return ()
+--        Just line -> do
+--            res <- runExceptT $ P.parse 0 line
+--            case res of
+--                Left e -> liftIO (printError e)
+--                Right (AST _ _ [stmt]) -> do
+--                    res <- liftIO $ runBoMT state (do { s' <- infStmt stmt; infResolve; return s' })
+--                    case res of
+--                        Left e -> liftIO $ printError e
+--                        Right (stmt', state') -> do
+--                            outputStrLn $ show stmt'
+--                            liftIO $ prettyInferState state'
+--                            repl session state'

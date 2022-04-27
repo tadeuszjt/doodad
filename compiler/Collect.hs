@@ -11,6 +11,9 @@ import Control.Monad.State
 import qualified SymTab
 
 
+-- constraints obtained from sub-expressions must be to the left
+
+
 type SymTab = SymTab.SymTab String SymKey Object
 
 data SymKey
@@ -29,8 +32,8 @@ data Object
 
 data CollectState
     = CollectState
-        { symTab :: SymTab
-        , curRetty :: Type
+        { symTab    :: SymTab
+        , curRetty  :: Type
         , collected :: [(Type, Type)]
         }
 
@@ -55,12 +58,11 @@ look symbol key = do
     assert (isJust rm) $ show symbol ++ " undefined."
     return (fromJust rm)
 
+
 lookm :: BoM CollectState m => Symbol -> SymKey -> m (Maybe Object)
 lookm symbol key = case symbol of
     Sym sym -> SymTab.lookup sym key <$> gets symTab
         
-
-
 
 define :: BoM CollectState m => String -> SymKey -> Object -> m ()
 define sym key obj = do
@@ -125,8 +127,8 @@ collectStmt stmt = withPos stmt $ case stmt of
     Return _ (Just expr) -> do
         rt <- gets curRetty
         assert (rt /= Void) "Cannot return expression in void function."
-        collectExpr expr
         collect (typeOf expr) rt
+        collectExpr expr
 
     Extern _ _ _ _ _ -> return ()
     

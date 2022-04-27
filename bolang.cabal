@@ -63,7 +63,8 @@ executable bolang
         Trace,
         Infer,
         Annotate,
-        Collect
+        Collect,
+        Unify
 
 test-suite type-tests
     hs-source-dirs: compiler, compiler/test
