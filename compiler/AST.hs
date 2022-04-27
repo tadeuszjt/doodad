@@ -100,7 +100,6 @@ data Expr
     | Copy       TextPos Expr
     | Prefix     TextPos Op Expr
     | Infix      TextPos Op Expr Expr
-    | Expr       Int
     deriving (Eq)
 
 
@@ -180,7 +179,6 @@ instance TextPosition Expr where
         AST.Copy       p _ -> p
         AST.Prefix     p _ _ -> p
         AST.Infix      p _ _ _ -> p
-        AST.Expr       _ -> error "Cannot take text position"
 
 
 instance TextPosition Stmt where
@@ -263,7 +261,7 @@ instance Show Expr where
         AST.Table pos exprss            -> "[" ++  intercalate "; " (map (intercalate ", " . map show) exprss) ++ "]"
         AST.Member pos expr str         -> show expr ++ "." ++ str
         AST.Subscript pos expr1 expr2   -> show expr1 ++ "[" ++ show expr2 ++ "]"
-        AST.Range pos expr mLeft mRight -> "[" ++ maybe "" show mLeft ++ ".." ++ maybe "" show mRight ++ "]"
+        AST.Range pos expr mLeft mRight -> show expr ++ "[" ++ maybe "" show mLeft ++ ".." ++ maybe "" show mRight ++ "]"
         AST.TupleIndex pos expr n       -> show expr ++ "." ++ show n
         AST.Ident p s                   -> show s 
         AST.Call pos symbol exprs       -> show symbol ++ tupStrs (map show exprs)
@@ -274,7 +272,6 @@ instance Show Expr where
         AST.Prefix pos op expr          -> show op ++ show expr
         AST.Infix pos op expr1 expr2    -> show expr1 ++ " " ++ show op ++ " " ++ show expr2
         AST.Null pos                    -> "null"
-        AST.Expr n                      -> "e" ++ show n
 
 
 -- every function must end on a newline and print pre before every line

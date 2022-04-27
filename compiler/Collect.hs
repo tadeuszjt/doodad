@@ -2,6 +2,7 @@
 module Collect where
 
 import Data.Maybe
+import qualified Data.Map as Map
 
 import AST as S
 import Type as T
@@ -35,12 +36,14 @@ data CollectState
         { symTab    :: SymTab
         , curRetty  :: Type
         , collected :: [(Type, Type)]
+        , imports   :: Map.Map ModuleName SymTab
         }
 
-initCollectState = CollectState
+initCollectState imp = CollectState
     { symTab = SymTab.initSymTab
     , curRetty = Void
     , collected = []
+    , imports = imp
     }
 
 
@@ -61,8 +64,24 @@ look symbol key = do
 
 lookm :: BoM CollectState m => Symbol -> SymKey -> m (Maybe Object)
 lookm symbol key = case symbol of
-    Sym sym -> SymTab.lookup sym key <$> gets symTab
-        
+    Sym sym -> do
+        lm <- SymTab.lookup sym key <$> gets symTab
+        case lm of
+            Just _ -> return lm
+            Nothing -> do
+                ls <- catMaybes . map (SymTab.lookup sym key) . Map.elems <$> gets imports
+                case ls of
+                    [] -> return Nothing
+                    [o] -> return (Just o)
+                    _ -> fail $ show symbol ++ " is ambiguous"
+
+
+lookSym :: BoM CollectState m => Symbol -> m [(SymKey, Object)]
+lookSym symbol = case symbol of
+    Sym sym -> do
+        ls <- SymTab.lookupSym sym <$> gets symTab
+        lss <- concat . map (SymTab.lookupSym sym) . Map.elems <$> gets imports
+        return (ls ++ lss)
 
 define :: BoM CollectState m => String -> SymKey -> Object -> m ()
 define sym key obj = do
@@ -121,8 +140,14 @@ collectStmt stmt = withPos stmt $ case stmt of
         collectStmt blk
         popSymTab
         modify $ \s -> s { curRetty = oldRetty }
+    
+    Extern _ name sym params retty ->
+        return () -- already defined
 
-    Block stmts -> pushSymTab >> mapM_ collectStmt stmts >> popSymTab
+    Block stmts -> do
+        pushSymTab
+        mapM_ collectStmt stmts
+        popSymTab
 
     Return _ (Just expr) -> do
         rt <- gets curRetty
@@ -130,18 +155,18 @@ collectStmt stmt = withPos stmt $ case stmt of
         collect (typeOf expr) rt
         collectExpr expr
 
-    Extern _ _ _ _ _ -> return ()
-    
     If _ cond blk melse -> do
         collectCondition cond
         collectStmt blk
         maybe (return ()) collectStmt melse
 
-    Assign _ pattern expr -> collectExpr expr >> collectPattern pattern (typeOf expr)
+    Assign _ pattern expr -> do
+        collectPattern pattern (typeOf expr)
+        collectExpr expr
 
     Set _ index expr -> do
-        tm <- collectIndex index
-        when (isJust tm) $ collect (fromJust tm) (typeOf expr)
+        typm <- collectIndex index
+        when (isJust typm) $ collect (fromJust typm) (typeOf expr)
         collectExpr expr
 
     AppendStmt app -> void (collectAppend app)
@@ -224,19 +249,84 @@ collectCondition cond = case cond of
 
 
 collectExpr :: BoM CollectState m => Expr -> m ()
-collectExpr expr = withPos expr $ case expr of
-    AExpr typ (Conv p t [e]) -> do
+collectExpr (AExpr typ expr) = withPos expr $ case expr of
+    Conv p t [e] -> do
         collect typ t
         collectExpr e
 
-    AExpr typ (Call p sym []) -> do
+    Call p sym [] -> do
         ObjFunc rt <- look sym (KeyFunc [])
         collect typ rt
+    
+    Call p sym es -> do
+        os <- lookSym sym
+        case os of
+            []                         -> fail $ show sym ++ " undefined"
+            [(KeyFunc ts, ObjFunc rt)] -> do
+                assert (length ts == length es) "Invalid arguments"
+                mapM_ (collect typ) (map typeOf es)
+                collect typ rt
+        mapM_ collectExpr es
 
-    AExpr typ (Ident p sym) -> do
+    Ident p sym -> do
         ObjVar t <- look sym KeyVar
         collect t typ
 
-    _ -> return ()
+    Infix p op e1 e2 -> do
+        case op of
+            _ | op `elem` [S.Plus, S.Minus, S.Times, S.Divide, S.Modulo] -> collect typ (typeOf e1)
+            _ -> return ()
+                    
+        collect (typeOf e1) (typeOf e2)
+        collectExpr e1
+        collectExpr e2
+
+    S.Char p c -> return ()
+    S.Int p c -> return ()
+
+    S.Prefix p op e -> do
+        collect typ (typeOf e)
+        collectExpr e
+
+    S.Copy p e -> do
+        collect typ (typeOf e)
+        collectExpr e
+
+    S.Len p e -> collectExpr e
+
+    S.Bool p b -> return ()
     
-    _ -> fail (show expr)
+    S.Subscript p e1 e2 -> do
+        case typeOf e1 of
+            Type x      -> return ()
+            T.Table [t] -> collect typ t
+            _           -> error $ show (typeOf e1)
+        collectExpr e1
+        collectExpr e2
+
+    S.String p s -> return ()
+
+    S.Range p e mleft mright -> do
+        case typeOf e of
+            Type x      -> return ()
+            T.Table [t] -> collect typ t
+            _           -> error $ show (typeOf e)
+
+        case (mleft, mright) of
+            (Just e1, Just e2) -> do
+                collect (typeOf e1) (typeOf e2)
+                collectExpr e1
+                collectExpr e2
+            (Just e1, Nothing) -> do
+                collectExpr e1
+            (Nothing, Just e2) -> do
+                collectExpr e2
+
+    S.Tuple p es -> do
+        case typ of
+            T.Tuple ts -> zipWithM_ collect ts (map typeOf es)
+            _          -> return ()
+        mapM_ collectExpr es
+        
+
+    _ -> fail ("collect: " ++ show expr)

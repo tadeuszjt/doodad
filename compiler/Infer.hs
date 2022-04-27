@@ -87,19 +87,22 @@ runModInfer modPath pathsVisited = do
             assert (length importNames == length (Set.fromList importNames)) "import name collision"
 
             importMap <- fmap Map.fromList $ forM importPaths $ \importPath -> do
-                (_, state) <- runModInfer importPath (Set.insert path pathsVisited)
-                return (takeFileName importPath, state)
+                (_, symTab) <- runModInfer importPath (Set.insert path pathsVisited)
+                return (takeFileName importPath, symTab)
 
             annotatedAST <- fmap fst $ withFiles files $ runBoMTExcept 0 (annotateAST combinedAST)
-            (collected, state) <- withFiles files $ runBoMTExcept (C.initCollectState) (C.collectAST annotatedAST)
+            (_, state) <- withFiles files $
+                runBoMTExcept (C.initCollectState importMap) (C.collectAST annotatedAST)
 
             modify $ \s -> s { modInferMap = Map.insert path (annotatedAST, C.symTab state) (modInferMap s) }
+
+            let subs = unify $ C.collected state
 
             liftIO $ putStrLn modName
             liftIO $ SymTab.prettySymTab (C.symTab state)
             liftIO $ putStrLn $ show (C.collected state)
-            liftIO $ putStrLn $ show $ unify (C.collected state)
-            liftIO $ AST.prettyAST annotatedAST
+            liftIO $ putStrLn $ show subs
+            liftIO $ AST.prettyAST (apply subs annotatedAST)
             return (annotatedAST, C.symTab state)
 
 
