@@ -20,8 +20,10 @@ fn getStrLn() string
 
 
 fn putStrLn(str string)
-    for [i] str 
+    let i = 0
+    while i < len(str)
         Cputchar(str[i])
+        i = i + 1
 
     Cputchar('\n') 
 

@@ -1,16 +1,9 @@
 module main
-import lang/lexer
-import lang/parser
 import std/vec2
 import std/maths
 import std/rect
 
 fn main()
-        let str = "12 + 7-4 * 33"
-        let (tokens, rest) = lexer::lexTokens(str)
-        print(tokens, rest)
-        let (n, ts) = parser::parseExpr(tokens)
-        print(n, ts)
         let v = Vec2(3.0, 4.0)
         print((v + Vec2(31.0, 2.0)))
         print(length(v))

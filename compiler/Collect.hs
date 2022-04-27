@@ -171,12 +171,6 @@ collectStmt stmt = withPos stmt $ case stmt of
 
     AppendStmt app -> void (collectAppend app)
 
-    For _ idxStr expr guardm blk -> do
-        define idxStr KeyVar (ObjVar I64)
-        collectExpr expr
-        maybe (return ()) collectExpr guardm
-        collectStmt blk
-
     Switch _ expr cases -> do
         collectExpr expr
         forM_ cases $ \(pattern, blk) -> do

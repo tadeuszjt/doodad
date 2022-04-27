@@ -335,41 +335,6 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
         emitBlockStart exit
         popSymTab
 
-    S.For pos idxSym expr guardm blk -> do
-        val <- cmpExpr expr
-        assertBaseType isTable (valType val)
-
-        idx <- valLocal I64
-        valStore idx (valI64 0)
-
-        pushSymTab
-        define idxSym KeyVar (ObjVal idx)
-
-        cond <- freshName "for_cond"
-        body <- freshName "for_body"
-        exit <- freshName "for_exit"
-
-        br cond
-        emitBlockStart cond
-        cnd <- valLocal Bool
-        valStore cnd =<< valsInfix S.LT idx =<< tableLen val
-        when (isJust guardm) $ do
-            cndOp <- valOp <$> valLoad cnd
-            if_ cndOp
-                (valStore cnd =<< cmpExpr (fromJust guardm))
-                (return ())
-
-        cndOp <- valOp <$> valLoad cnd
-        condBr cndOp body exit
-
-        emitBlockStart body
-        cmpStmt blk
-        valStore idx =<< valsInfix S.Plus idx (valI64 1)
-        br cond
-        emitBlockStart exit
-
-        popSymTab
-
     S.Switch pos expr cases -> do
         val <- cmpExpr expr
 

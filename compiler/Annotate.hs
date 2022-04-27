@@ -39,13 +39,6 @@ annotateStmt stmt = case stmt of
             Just st -> Just <$> annotateStmt st
         return $ If p c' b' elm'
 
-    For p si e gm b -> do
-        e' <- annotateExpr e
-        gm' <- case gm of
-            Nothing -> return Nothing
-            Just e  -> Just <$> annotateExpr e
-        For p si e' gm' <$> annotateStmt b
-
     Switch p e cases -> do
         let (pats, stmts) = unzip cases
         pats' <- mapM annotatePattern pats

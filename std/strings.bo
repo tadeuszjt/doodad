@@ -14,9 +14,11 @@ fn == (a string, b string) bool
     if len(a) != len(b)
         return false
 
-    for [i] a
+    let i = 0
+    while i < len(a)
         if a[i] != b[i]
             return false
+        i = i + 1
 
     return true
 
@@ -35,17 +37,21 @@ fn strReadInt(s string) (i64, bool)
     let n = 0
     let b = false
 
-    for [i] s | isDigit(s[i])
+    let i = 0
+    while i < len(s) && isDigit(s[i])
         n = n*10 + i64(s[i] - '0')
         b = true
+        i = i + 1
 
     return (n, b)
 
 
 fn strReverse(s string) string
     let r = copy(s)
-    for [i] r
+    let i = 0
+    while i < len(r)
         r[i] = s[len(s) - 1 - i]
+        i = i + 1
 
     return r
 

@@ -113,7 +113,6 @@ data Stmt
     | Block       [Stmt]
     | If          TextPos Condition Stmt (Maybe Stmt)
     | While       TextPos Condition Stmt
-    | For         TextPos String Expr (Maybe Expr) Stmt
     | Switch      TextPos Expr [(Pattern, Stmt)]
     | FuncDef     TextPos String [Param] Type Stmt
     | Extern      TextPos String String [Param] Type
@@ -192,7 +191,6 @@ instance TextPosition Stmt where
         AST.Block       s -> textPos (head s)
         AST.If          p _ _ _ -> p
         AST.While       p _ _ -> p
-        AST.For         p _ _ _ _ -> p
         AST.Switch      p _ _ -> p
         AST.FuncDef     p _ _ _ _ -> p
         AST.Extern      p _ _ _ _ -> p
@@ -324,10 +322,6 @@ prettyAST ast = do
 
             Block stmts -> do
                 mapM_ (prettyStmt pre) stmts
-
-            For pos istr expr (mexpr) stmt -> do
-                putStrLn  $ pre ++ "for [" ++ istr ++ "] " ++ show expr ++ maybe "" ((" | " ++) . show) mexpr
-                prettyStmt (pre ++ "\t") stmt
 
             While pos cnd stmt -> do
                 putStrLn $ pre ++ "while " ++ show cnd

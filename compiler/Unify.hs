@@ -95,7 +95,6 @@ instance Apply Stmt where
         Return pos mexpr        -> Return pos $ fmap (apply subs) mexpr
         Assign pos pat expr     -> Assign pos (apply subs pat) (apply subs expr)
         AppendStmt app          -> AppendStmt (apply subs app)
-        For pos idxStr e em blk -> For pos idxStr (apply subs e) (fmap (apply subs) em) (apply subs blk)
         Set pos index e         -> Set pos (apply subs index) (apply subs e)
         While pos cnd blk       -> While pos (apply subs cnd) (apply subs blk)
         CallStmt pos sym es     -> CallStmt pos sym $ map (apply subs) es
