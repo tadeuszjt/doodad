@@ -39,13 +39,6 @@ annotateStmt stmt = case stmt of
             Just st -> Just <$> annotateStmt st
         return $ If p c' b' elm'
 
-    Switch p e cases -> do
-        let (pats, stmts) = unzip cases
-        pats' <- mapM annotatePattern pats
-        stmts' <- mapM annotateStmt stmts
-        e' <- annotateExpr e
-        return $ Switch p e' (zip pats' stmts')
-
     While p c b -> do
         c' <- annotateCondition c
         While p c' <$> annotateStmt b
@@ -70,19 +63,8 @@ annotatePattern pattern = case pattern of
     PatIgnore p         -> return $ PatIgnore p
     PatIdent p s        -> return $ PatIdent p s
     PatLiteral e        -> PatLiteral <$> annotateExpr e
-    PatTyped p typ pats -> PatTyped p typ <$> mapM annotatePattern pats
     PatTuple p pats     -> PatTuple p <$> mapM annotatePattern pats
     PatArray p pats     -> PatArray p <$> mapM annotatePattern pats
-
-    PatSplit p pat1 pat2 -> do
-        pat1' <- annotatePattern pat1
-        pat2' <- annotatePattern pat2
-        return $ PatSplit p pat1' pat2'
-
-    PatSplitElem p pat1 pat2 -> do
-        pat1' <- annotatePattern pat1
-        pat2' <- annotatePattern pat2
-        return $ PatSplitElem p pat1' pat2'
 
     PatGuarded p pat e -> do
         pat' <- annotatePattern pat

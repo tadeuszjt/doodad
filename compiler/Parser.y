@@ -21,7 +21,6 @@ import qualified Data.Set as Set
 %right     '..'
 %right     '!'
 %left      '<<-' '<-'
-%right     '->>' '->'
 %nonassoc  '.'
 %nonassoc  '::'
 %nonassoc  '!'
@@ -56,10 +55,8 @@ import qualified Data.Set as Set
     '||'       { Token _ ReservedOp "||" }
     '::'       { Token _ ReservedOp "::" }
     '<-'       { Token _ ReservedOp "<-" }
-    '->'       { Token _ ReservedOp "->" }
     '..'       { Token _ ReservedOp ".." }
     '<<-'      { Token _ ReservedOp "<<-" }
-    '->>'      { Token _ ReservedOp "->>" }
 
     fn         { Token _ Reserved "fn" }
     extern     { Token _ Reserved "extern" }
@@ -149,18 +146,13 @@ stmtS : let pattern '=' expr                  { S.Assign (tokPos $1) $2 $4 }
 stmtB : If                                    { $1 }
       | fn fnName '(' params ')' block        { S.FuncDef (tokPos $1) $2 $4 T.Void $6 }
       | fn fnName '(' params ')' type_ block  { S.FuncDef (tokPos $1) $2 $4 $6 $7 }
-      | switch expr switchBlock               { S.Switch (tokPos $1) $2 $3 }
       | while condition block                 { S.While (tokPos $1) $2 $3 }
 
 pattern  : '_'                                { S.PatIgnore (tokPos $1) }
          | literal                            { S.PatLiteral $1 }
          | ident                              { S.PatIdent (tokPos $1) (tokStr $1) }
-         | typeOrdinal '(' patterns ')'       { S.PatTyped (tokPos $2) $1 $3 }
-         | symbol '(' patterns ')'            { S.PatTyped (tokPos $2) (T.Typedef $ snd $1) $3 }
          | '(' patterns ')'                   { S.PatTuple (tokPos $1) $2 }
          | '[' patterns ']'                   { S.PatArray (tokPos $1) $2 }
-         | pattern '->' pattern               { S.PatSplitElem (tokPos $2) $1 $3 }
-         | pattern '->>' pattern              { S.PatSplit (tokPos $2) $1 $3 }
          | pattern '|' expr                   { S.PatGuarded (tokPos $2) $1 $3 }
 
 patterns  : {- empty -}                       { [] }
@@ -198,14 +190,6 @@ block  : 'I' prog_ 'D'                        { S.Block $2 }
        | ';' stmtS 'N'                        { $2 }
        --| ';' stmtB                            { S.Block [$2] }
        | ';' 'N'                              { S.Block [] }
-
-switchBlock : 'I' cases 'D'                   { $2 }
-            | ';' case                        { [$2] }
-            | ';' 'N'                         { [] }
-cases  : case cases                           { ($1:$2) }
-       | {-empty-}                            { [] }
-case   : pattern block                        { ($1, $2) }
-
 
 condition : expr                              { S.CondExpr $1 }
           | expr ':' pattern                  { S.CondMatch $3 $1 }

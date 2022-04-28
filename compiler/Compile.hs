@@ -335,32 +335,6 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
         emitBlockStart exit
         popSymTab
 
-    S.Switch pos expr cases -> do
-        val <- cmpExpr expr
-
-        exitName <- freshName "switch_exit"
-        trapName <- freshName "switch_trap"
-        cndNames <- replicateM (length cases) (freshName "case")
-        stmtNames <- replicateM (length cases) (freshName "case_stmt")
-        let nextNames = cndNames ++ [trapName]
-
-        br (head nextNames)
-        forM_ (zip4 cases cndNames stmtNames (tail nextNames)) $
-            \((pat, stmt), cndName, stmtName, nextName) -> do
-                emitBlockStart cndName
-                pushSymTab
-                matched <- valLoad =<< cmpPattern pat val
-                condBr (valOp matched) stmtName nextName
-                emitBlockStart stmtName
-                cmpStmt stmt
-                popSymTab
-                br exitName
-
-        emitBlockStart trapName
-        void trap 
-        br exitName
-        emitBlockStart exitName
-
     _ -> fail "stmt"
 
 
@@ -547,63 +521,5 @@ cmpPattern pattern val = trace "cmpPattern" $ withPos pattern $ case pattern of
                 foldM (valsInfix S.AndAnd) (valBool True) (lenEq:bs)
             _ -> fail "Invalid array pattern"
 
-    S.PatSplit pos pat@(S.PatArray p pats) rest -> do
-        initMatched <- cmpPattern pat =<< tableRange val (valI64 0) (valI64 $ length pats)
-        matched <- valLocal Bool
-        if_ (valOp initMatched)
-            (valStore matched =<< cmpPattern rest =<< tableRange val (valI64 $ length pats) =<< tableLen val)
-            (valStore matched $ valBool False)
-        valLoad matched
-
-    S.PatSplit pos (S.PatLiteral (S.String p s)) rest -> do
-        let charPats = map (S.PatLiteral . S.Char p) s
-        let arrPat   = S.PatArray p charPats
-        cmpPattern (S.PatSplit pos arrPat rest) val
-
-    S.PatSplitElem pos pat rest -> do
-        hasElem <- valsInfix S.LT (valI64 0) =<< tableLen val
-        initMatched <- valLocal Bool
-        if_ (valOp hasElem)
-            (valStore initMatched =<< cmpPattern pat =<< tableGetElem val (valI64 0))
-            (valStore initMatched $ valBool False)
-
-        initMatchedVal <- valLoad initMatched
-        matched <- valLocal Bool
-        if_ (valOp initMatchedVal)
-            (valStore matched =<< cmpPattern rest =<< tableRange val (valI64 1) =<< tableLen val)
-            (valStore matched $ valBool False)
-
-        valLoad matched
-
-    S.PatTyped pos typ pats -> do
-        ADT ts <- assertBaseType isADT (valType val)
-
-        im <- case typ of
-            Typedef s -> lookm s (KeyMember $ valType val)
-            _         -> return Nothing
-
-        idx <- case (im, elemIndices typ ts) of
-            (Just (ObjMember i), _) -> return i
-            (Nothing, [i])          -> return i
-            (Nothing, [])           -> fail "Invalid ADT field identifier"
-            (Nothing, _)            -> fail "Ambiguous ADT field identifier"
-
-        enumMatched <- valsInfix S.EqEq (valI64 idx) =<< adtEnum val
-
-        let t = ts !! idx
-        ptr <- valLocal $ ADT [t]
-        when (t /= Void) $ adtSetPi8 ptr =<< adtPi8 val
-
-        case pats of
-            []    -> assert (t == Void) "Invalid ADT field" >> return enumMatched
-            [pat] -> valsInfix S.AndAnd enumMatched =<< cmpPattern pat =<< adtDeref ptr
-            pats  -> do
-                drf <- adtDeref ptr
-                Tuple txs <- assertBaseType isTuple (valType drf)
-                assert (length txs == length pats) "Invalid pattern"
-                tupVals <- forM (zip txs [0..]) $ \(_, i) -> tupleIdx i drf
-                bVals <- zipWithM cmpPattern pats tupVals
-                foldM (valsInfix S.AndAnd) (valBool True) (enumMatched:bVals)
-    
     _ -> fail ("Cannot compile pattern: " ++ show pattern)
 

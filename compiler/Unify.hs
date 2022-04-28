@@ -109,10 +109,6 @@ instance Apply Stmt where
         If pos cnd block melse ->
             If pos (apply subs cnd) (apply subs block) $ fmap (apply subs) melse
 
-        Switch pos e cases ->
-            let cases' = map (\(pat, stmt) -> (apply subs pat, apply subs stmt)) cases in
-            Switch pos (apply subs e) cases'
-
         _ -> error $ show stmt
 
 instance Apply AST where

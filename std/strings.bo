@@ -24,9 +24,8 @@ fn == (a string, b string) bool
 
 
 fn string(b bool) string
-    switch b
-        true; return "true"
-        false; return "false"
+    if b; return "true"
+    else; return "false"
 
 
 fn strIsPrefix(pre string, str string) bool

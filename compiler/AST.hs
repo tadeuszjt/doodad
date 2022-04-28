@@ -61,9 +61,6 @@ data Pattern
     | PatTuple     TextPos [Pattern]
     | PatArray     TextPos [Pattern]
     | PatGuarded   TextPos Pattern Expr
-    | PatTyped     TextPos Type [Pattern]
-    | PatSplit     TextPos Pattern Pattern
-    | PatSplitElem TextPos Pattern Pattern
     deriving (Eq)
 
 data Index
@@ -112,7 +109,6 @@ data Stmt
     | Block       [Stmt]
     | If          TextPos Condition Stmt (Maybe Stmt)
     | While       TextPos Condition Stmt
-    | Switch      TextPos Expr [(Pattern, Stmt)]
     | FuncDef     TextPos String [Param] Type Stmt
     | Extern      TextPos String String [Param] Type
     | Typedef     TextPos String AnnoType
@@ -148,9 +144,6 @@ instance TextPosition Pattern where
         PatTuple     p _ -> p
         PatArray     p _ -> p
         PatGuarded   p _ _ -> p
-        PatTyped     p _ _ -> p
-        PatSplit     p _ _ -> p
-        PatSplitElem p _ _ -> p
         
 
 instance TextPosition Expr where
@@ -189,7 +182,6 @@ instance TextPosition Stmt where
         AST.Block       s -> textPos (head s)
         AST.If          p _ _ _ -> p
         AST.While       p _ _ -> p
-        AST.Switch      p _ _ -> p
         AST.FuncDef     p _ _ _ _ -> p
         AST.Extern      p _ _ _ _ -> p
         AST.Typedef     p _ _ -> p
@@ -227,9 +219,6 @@ instance Show Pattern where
         PatTuple pos ps  -> tupStrs (map show ps)
         PatArray pos ps  -> arrStrs (map show ps)
         PatGuarded pos pat expr -> show pat ++ " | " ++ show expr
-        PatTyped pos s p -> show s ++ "(" ++ show p ++ ")"
-        PatSplit pos a b -> show a ++ " ->> " ++ show b
-        PatSplitElem pos a b -> show a ++ " -> " ++ show b
 
 
 instance Show Condition where
@@ -306,13 +295,6 @@ prettyAST ast = do
                 prettyStmt (pre ++ "\t") true
                 putStrLn $ pre ++ "else"
                 maybe (return ()) (prettyStmt (pre ++ "\t")) mfalse
-
-            Switch pos cnd cases -> do
-                putStrLn $ pre ++ "switch " ++ show cnd
-                
-                forM_ cases $ \(c, blk) -> do
-                    putStrLn $ pre ++ "\t" ++ show c
-                    prettyStmt (pre ++ "\t\t") blk
 
             CallStmt pos sym exprs -> putStrLn $ pre ++ sym ++ tupStrs (map show exprs)
                     

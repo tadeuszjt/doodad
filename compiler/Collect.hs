@@ -171,14 +171,6 @@ collectStmt stmt = withPos stmt $ case stmt of
 
     AppendStmt app -> void (collectAppend app)
 
-    Switch _ expr cases -> do
-        collectExpr expr
-        forM_ cases $ \(pattern, blk) -> do
-            pushSymTab
-            collectPattern pattern (typeOf expr)
-            collectStmt blk
-            popSymTab
-
     While _ cond blk -> do
         collectCondition cond
         collectStmt blk
