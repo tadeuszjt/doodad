@@ -270,7 +270,7 @@ prettyAST ast = do
 
             Assign pos pat expr        -> putStrLn $ pre ++ "let " ++ show pat ++ " = " ++ show expr
             Set pos ind expr           -> putStrLn $ pre ++ show ind ++ " = " ++ show expr
---            Print pos exprs            -> putStrLn ("print" ++ tupStrs (map show exprs)) >> putStr pr
+            Print pos exprs            -> putStrLn $ pre ++ "print" ++ tupStrs (map show exprs)
             Return pos mexpr -> putStrLn $ pre ++ "return " ++ maybe "" show mexpr
             Extern pos name sym args retty -> do
                 putStrLn $ pre ++ "extern " ++ name ++ " " ++ sym ++ tupStrs (map show args) ++ " " ++ if retty == Void then "" else show retty
@@ -292,5 +292,10 @@ prettyAST ast = do
             While pos cnd stmt -> do
                 putStrLn $ pre ++ "while " ++ show cnd
                 prettyStmt (pre ++ "\t") stmt
+
+            AST.Typedef pos sym anno -> do
+                putStrLn $ pre ++ "typedef " ++ sym ++ " " ++ show anno
+
+
 
             _ -> error $ "Cannot pretty: " ++ show stmt

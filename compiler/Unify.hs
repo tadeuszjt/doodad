@@ -19,6 +19,7 @@ substitute u x t = case t of
     T.Table [T.Char] -> t
     T.Tuple ts       -> T.Tuple $ map (substitute u x) ts
     Void             -> t
+    T.Typedef symbol -> t
     _                -> error (show t)
 
 
@@ -64,6 +65,8 @@ instance Apply Expr where
         S.Bool  pos b            -> expr
         Subscript pos e1 e2      -> Subscript pos (apply subs e1) (apply subs e2)
         String pos s             -> expr
+        Member pos e s           -> Member pos (apply subs e) s
+        S.Float pos f            -> expr
         _                          -> error $ show expr
 
 instance Apply Condition where
@@ -97,6 +100,7 @@ instance Apply Stmt where
         Set pos index e         -> Set pos (apply subs index) (apply subs e)
         While pos cnd blk       -> While pos (apply subs cnd) (apply subs blk)
         CallStmt pos sym es     -> CallStmt pos sym $ map (apply subs) es
+        Print pos es            -> Print pos $ map (apply subs) es
 
         FuncDef pos sym params retty block ->
             let params' = map (\(Param p s t) -> Param p s (apply subs t)) params in
@@ -108,6 +112,9 @@ instance Apply Stmt where
 
         If pos cnd block melse ->
             If pos (apply subs cnd) (apply subs block) $ fmap (apply subs) melse
+
+        S.Typedef _ _ _ -> stmt -- leave this for now
+        
 
         _ -> error $ show stmt
 

@@ -2,6 +2,7 @@
 module Collect where
 
 import Data.Maybe
+import Data.List
 import qualified Data.Map as Map
 
 import AST as S
@@ -103,23 +104,24 @@ popSymTab = do
 
 collectAST :: BoM CollectState m => AST -> m ()
 collectAST ast = do
-    forM [ stmt | stmt@(S.Typedef _ _ _) <- astStmts ast ] $
-        \(S.Typedef pos sym annoTyp) ->
-            withPos pos $ define sym KeyType =<< case annoTyp of
-                AnnoType t   -> return (ObjType t)
+    let typedefs = [ stmt | stmt@(S.Typedef _ _ _) <- astStmts ast ]
+    let funcdefs = [ stmt | stmt@(S.FuncDef _ _ _ _ _) <- astStmts ast ]
+    let externdefs = [ stmt | stmt@(S.Extern _ _ _ _ _) <- astStmts ast ]
 
-                AnnoTuple xs   -> do
-                    let typedef = T.Typedef (Sym sym)
-                    forM_ (zip xs [0..]) $ \((s, t), i) -> define s (KeyMember typedef) (ObjMember i)
-                    return $ ObjType $ T.Tuple (map snd xs)
+    forM typedefs $ \(S.Typedef pos sym annoTyp) ->
+        withPos pos $ define sym KeyType =<< case annoTyp of
+            AnnoType t   -> return (ObjType t)
 
-    forM [ stmt | stmt@(S.FuncDef _ _ _ _ _) <- astStmts ast ] $
-        \(S.FuncDef pos sym params retty _) ->
-            define sym (KeyFunc $ map paramType params) (ObjFunc retty)
+            AnnoTuple xs   -> do
+                let typedef = T.Typedef (Sym sym)
+                forM_ (zip xs [0..]) $ \((s, t), i) -> define s (KeyMember typedef) (ObjMember i)
+                return $ ObjType $ T.Tuple (map snd xs)
 
-    forM [ stmt | stmt@(S.Extern _ _ _ _ _) <- astStmts ast ] $
-        \(S.Extern pos name sym params retty) ->
-            define sym (KeyFunc $ map paramType params) (ObjFunc retty)
+    forM funcdefs $ \(S.FuncDef pos sym params retty _) -> withPos pos $
+        define sym (KeyFunc $ map paramType params) (ObjFunc retty)
+
+    forM externdefs $ \(S.Extern pos name sym params retty) -> withPos pos $
+        define sym (KeyFunc $ map paramType params) (ObjFunc retty)
 
     mapM_ collectStmt (astStmts ast)
 
@@ -138,6 +140,8 @@ collectStmt stmt = withPos stmt $ case stmt of
     
     Extern _ name sym params retty ->
         return () -- already defined
+
+    S.Typedef _ _ _ -> return ()
 
     Block stmts -> do
         pushSymTab
@@ -173,6 +177,10 @@ collectStmt stmt = withPos stmt $ case stmt of
     CallStmt p sym exprs -> do
         mapM_ collectExpr exprs
         -- TODO resm <- lookm (Sym sym) (KeyFunc $ map typeOf exprs)
+
+    Print p exprs -> do
+        mapM_ collectExpr exprs
+
 
 
     _ -> fail (show stmt)
@@ -240,13 +248,31 @@ collectExpr (AExpr typ expr) = withPos expr $ case expr of
         collect typ rt
     
     Call p sym es -> do
-        os <- lookSym sym
-        case os of
+        kos <- lookSym sym
+        case kos of
+            -- no definitions 
             []                         -> fail $ show sym ++ " undefined"
+            -- one definition
             [(KeyFunc ts, ObjFunc rt)] -> do
                 assert (length ts == length es) "Invalid arguments"
-                mapM_ (collect typ) (map typeOf es)
+                zipWithM_  collect ts (map typeOf es)
                 collect typ rt
+
+            -- several definitions, return type matches one
+            _ | length (elemIndices (ObjFunc typ) (map snd kos)) == 1 -> do
+                let [idx] = elemIndices (ObjFunc typ) (map snd kos)
+                let (KeyFunc ts, ObjFunc _) = kos !! idx
+                assert (length ts == length es) "Invalid arguments"
+                zipWithM_  collect ts (map typeOf es)
+
+            -- several definitions, arg types match one
+            _ | length (elemIndices (KeyFunc $ map typeOf es) (map fst kos)) == 1 -> do
+                let Just (ObjFunc rt) = lookup (KeyFunc $ map typeOf es) kos
+                collect typ rt
+
+            -- do nothing
+            _ -> return ()
+                
         mapM_ collectExpr es
 
     Ident p sym -> do
@@ -292,6 +318,20 @@ collectExpr (AExpr typ expr) = withPos expr $ case expr of
             T.Tuple ts -> zipWithM_ collect ts (map typeOf es)
             _          -> return ()
         mapM_ collectExpr es
+
+    Member p e sym -> do
+        case typeOf e of
+            Type x                -> return ()
+            t@(T.Typedef (Sym s)) -> do
+                ObjMember i <- look (Sym sym) (KeyMember t)
+                ObjType bt <- look (Sym sym) KeyType
+                case bt of
+                    T.Tuple ts -> collect typ (ts !! i)
+
+        collectExpr e
+
+    S.Float p f -> return ()
+
         
 
     _ -> fail ("collect: " ++ show expr)
