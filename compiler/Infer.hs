@@ -64,6 +64,13 @@ data RunInferState
 initRunInferState = RunInferState { modInferMap = Map.empty }
 
 
+runTypeInference :: BoM s m => AST -> Map.Map ModuleName C.SymTab -> m AST
+runTypeInference annotatedAST imports = do
+    (_, state) <- runBoMTExcept (C.initCollectState imports) (C.collectAST annotatedAST)
+    let subs = unify $ C.collected state
+    return (apply subs annotatedAST)
+
+
 runModInfer :: BoM RunInferState m => FilePath -> Set.Set FilePath -> m (AST, C.SymTab)
 runModInfer modPath pathsVisited = do
     path <- checkAndNormalisePath modPath
@@ -93,16 +100,16 @@ runModInfer modPath pathsVisited = do
             (_, state) <- withFiles files $
                 runBoMTExcept (C.initCollectState importMap) (C.collectAST annotatedAST)
 
+            liftIO $ SymTab.prettySymTab (C.symTab state)
             modify $ \s -> s { modInferMap = Map.insert path (annotatedAST, C.symTab state) (modInferMap s) }
 
-            let subs = unify $ C.collected state
 
-            liftIO $ putStrLn modName
-            liftIO $ SymTab.prettySymTab (C.symTab state)
-            liftIO $ putStrLn $ show (C.collected state)
-            liftIO $ putStrLn $ show subs
-            liftIO $ AST.prettyAST (apply subs annotatedAST)
-            return (annotatedAST, C.symTab state)
+            ast1 <- withFiles files $ runTypeInference annotatedAST importMap
+            ast2 <- withFiles files $ runTypeInference ast1 importMap
+            ast3 <- withFiles files $ runTypeInference ast2 importMap
+
+            liftIO $ prettyAST (ast3)
+            return (ast3, C.symTab state)
 
 
 

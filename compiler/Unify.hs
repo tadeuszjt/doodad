@@ -33,6 +33,11 @@ unifyOne t1 t2 = case (t1, t2) of
     (F64, F64)                           -> []
     (T.Char, T.Char)                     -> []
     (T.Table [T.Char], T.Table [T.Char]) -> []
+    (T.Tuple tsa, T.Tuple tsb)
+        | length tsa /= length tsb       -> error "length"
+        | otherwise                      -> concat $ zipWith unifyOne tsa tsb
+    (T.Typedef s1, T.Typedef s2)
+        | s1 == s2                       -> []
     _                                    -> error $ show (t1, t2)
 
 
@@ -83,6 +88,9 @@ instance Apply Pattern where
 
 instance Apply Append where
     apply subs app = case app of
+        AppendTable p ap e -> AppendTable p (apply subs ap) (apply subs e)
+        AppendIndex index   -> AppendIndex (apply subs index)
+        AppendElem p ap e  -> AppendElem p (apply subs ap) (apply subs e)
         _ -> error $ show app
 
 instance Apply Index where

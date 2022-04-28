@@ -59,7 +59,7 @@ typeOf (S.AExpr t _) = t
 look :: BoM CollectState m => Symbol -> SymKey -> m Object
 look symbol key = do
     rm <- lookm symbol key
-    assert (isJust rm) $ show symbol ++ " undefined."
+    assert (isJust rm) $ show symbol ++ " " ++ show key ++ " undefined."
     return (fromJust rm)
 
 
@@ -109,13 +109,14 @@ collectAST ast = do
     let externdefs = [ stmt | stmt@(S.Extern _ _ _ _ _) <- astStmts ast ]
 
     forM typedefs $ \(S.Typedef pos sym annoTyp) ->
-        withPos pos $ define sym KeyType =<< case annoTyp of
-            AnnoType t   -> return (ObjType t)
+        withPos pos $ case annoTyp of
+            AnnoType t   ->
+                define sym KeyType (ObjType t)
 
             AnnoTuple xs   -> do
                 let typedef = T.Typedef (Sym sym)
                 forM_ (zip xs [0..]) $ \((s, t), i) -> define s (KeyMember typedef) (ObjMember i)
-                return $ ObjType $ T.Tuple (map snd xs)
+                define sym KeyType $ ObjType $ T.Tuple (map snd xs)
 
     forM funcdefs $ \(S.FuncDef pos sym params retty _) -> withPos pos $
         define sym (KeyFunc $ map paramType params) (ObjFunc retty)
@@ -324,7 +325,7 @@ collectExpr (AExpr typ expr) = withPos expr $ case expr of
             Type x                -> return ()
             t@(T.Typedef (Sym s)) -> do
                 ObjMember i <- look (Sym sym) (KeyMember t)
-                ObjType bt <- look (Sym sym) KeyType
+                ObjType bt <- look (Sym s) KeyType
                 case bt of
                     T.Tuple ts -> collect typ (ts !! i)
 

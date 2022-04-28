@@ -66,6 +66,7 @@ assert b s = when (not b) (fail s)
 printError :: Error -> IO ()
 printError err = case err of
     ErrorStr str           -> putStrLn ("error: " ++ str)
+    ErrorPos pos str       -> putStrLn ("error: " ++ show pos ++ ": " ++ str)
     ErrorFile path pos str -> do
         file <- try (readFile path) :: IO (Either SomeException String)
         case file of
