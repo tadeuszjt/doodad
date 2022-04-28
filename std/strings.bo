@@ -29,8 +29,17 @@ fn string(b bool) string
         false; return "false"
 
 
-fn isPrefix(pre string, str string) bool
-    return str[..len(pre)] == pre
+fn strIsPrefix(pre string, str string) bool
+    if len(pre) > len(str)
+        return false
+
+    let i = 0
+    while i < len(str) && i < len(pre)
+        if pre[i] != str[i]
+            return false
+        i = i + 1
+
+    return true
 
 
 fn strReadInt(s string) (i64, bool)

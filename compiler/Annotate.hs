@@ -145,12 +145,6 @@ annotateExpr expr = annotateWithType =<< case expr of
         e' <- annotateExpr e
         return $ Member p e' s
 
-    Range p e me1 me2 -> do
-        e' <- annotateExpr e
-        me1' <- maybe (return Nothing) (fmap Just . annotateExpr) me1
-        me2' <- maybe (return Nothing) (fmap Just . annotateExpr) me2
-        return $ Range p e' me1' me2' 
-
     _ -> error $ show expr
 
 

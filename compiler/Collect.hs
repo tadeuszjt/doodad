@@ -300,22 +300,6 @@ collectExpr (AExpr typ expr) = withPos expr $ case expr of
 
     S.String p s -> return ()
 
-    S.Range p e mleft mright -> do
-        case typeOf e of
-            Type x      -> return ()
-            T.Table [t] -> collect typ t
-            _           -> error $ show (typeOf e)
-
-        case (mleft, mright) of
-            (Just e1, Just e2) -> do
-                collect (typeOf e1) (typeOf e2)
-                collectExpr e1
-                collectExpr e2
-            (Just e1, Nothing) -> do
-                collectExpr e1
-            (Nothing, Just e2) -> do
-                collectExpr e2
-
     S.Tuple p es -> do
         case typ of
             T.Tuple ts -> zipWithM_ collect ts (map typeOf es)

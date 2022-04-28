@@ -242,9 +242,6 @@ expr   : literal                              { $1 }
        | expr '.' intlit                      { S.TupleIndex (tokPos $2) $1 (read $ tokStr $3) }
        | expr '.' ident                       { S.Member (tokPos $2) $1 (tokStr $3) }
        | expr '[' expr ']'                    { S.Subscript (tokPos $2) $1 $3 }
-       | expr '[' expr '..' ']'               { S.Range (tokPos $2) $1 (Just $3) Nothing }
-       | expr '[' '..' expr ']'               { S.Range (tokPos $2) $1 Nothing (Just $4) }
-       | expr '[' expr  '..' expr ']'         { S.Range (tokPos $2) $1 (Just $3) (Just $5) }
 
 literal : intlit                              { S.Int (tokPos $1) (read $ tokStr $1) }
         | floatlit                            { S.Float (tokPos $1) (read $ tokStr $1) }

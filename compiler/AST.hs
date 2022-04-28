@@ -90,7 +90,6 @@ data Expr
     | Table      TextPos [[Expr]]
     | Member     TextPos Expr String
     | Subscript  TextPos Expr Expr
-    | Range      TextPos Expr (Maybe Expr) (Maybe Expr)
     | TupleIndex TextPos Expr Word32
     | Ident      TextPos Symbol
     | Call       TextPos Symbol [Expr]
@@ -168,7 +167,6 @@ instance TextPosition Expr where
         AST.Table      p _ -> p
         AST.Member     p _ _ -> p
         AST.Subscript  p _ _ -> p
-        AST.Range      p _ _ _ -> p
         AST.TupleIndex p _ _ -> p
         AST.Ident      p _ -> p
         AST.Call       p _ _ -> p 
@@ -259,7 +257,6 @@ instance Show Expr where
         AST.Table pos exprss            -> "[" ++  intercalate "; " (map (intercalate ", " . map show) exprss) ++ "]"
         AST.Member pos expr str         -> show expr ++ "." ++ str
         AST.Subscript pos expr1 expr2   -> show expr1 ++ "[" ++ show expr2 ++ "]"
-        AST.Range pos expr mLeft mRight -> show expr ++ "[" ++ maybe "" show mLeft ++ ".." ++ maybe "" show mRight ++ "]"
         AST.TupleIndex pos expr n       -> show expr ++ "." ++ show n
         AST.Ident p s                   -> show s 
         AST.Call pos symbol exprs       -> show symbol ++ tupStrs (map show exprs)

@@ -471,14 +471,6 @@ cmpExpr expr = trace "cmpExpr" $ withPos expr $ case expr of
         case aggType of
             Table [t] -> tableGetElem agg idx
 
-    S.Range pos expr mstart mend -> do
-        val <- cmpExpr expr
-        base <- baseTypeOf (valType val)
-        case base of
-            Table ts -> do
-                start <- maybe (return $ valI64 0) cmpExpr mstart
-                valLoad =<< tableRange val start =<< maybe (tableLen val) cmpExpr mend
-    
     S.Table pos exprss -> valLoad =<< do
         valss <- mapM (mapM cmpExpr) exprss
         assert (length valss > 0) "Cannot infer type of table."

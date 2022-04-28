@@ -64,7 +64,6 @@ instance Apply Expr where
         S.Bool  pos b            -> expr
         Subscript pos e1 e2      -> Subscript pos (apply subs e1) (apply subs e2)
         String pos s             -> expr
-        Range pos e ml mr        -> Range pos (apply subs e) (fmap (apply subs) ml) (fmap (apply subs) mr)
         _                          -> error $ show expr
 
 instance Apply Condition where
