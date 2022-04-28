@@ -134,7 +134,7 @@ symbol : ident                                { (tokPos $1, T.Sym (tokStr $1)) }
 
 stmtS : let pattern '=' expr                  { S.Assign (tokPos $1) $2 $4 }  
       | index '=' expr                        { S.Set (tokPos $2) $1 $3 }
-      | index '(' exprs ')'                   { case $1 of S.IndIdent _ s -> S.CallStmt (tokPos $2) s $3; x -> S.CallStmtIdx (tokPos $2) x $3 }
+      | ident '(' exprs ')'                   { S.CallStmt (tokPos $2) (tokStr $1) $3 }
       | type ident annoType                   { S.Typedef (tokPos $2) (tokStr $2) $3 }
       | extern strlit ident '(' params ')' type_     { S.Extern (tokPos $3) (tokStr $2) (tokStr $3) $5 $7 }
       | extern strlit ident '(' params ')'           { S.Extern (tokPos $3) (tokStr $2) (tokStr $3) $5 T.Void }
@@ -216,7 +216,7 @@ expr   : literal                              { $1 }
        | '[' 'I' exprsN 'D' ']'               { S.Table (tokPos $1) [$3] }
        | '(' expr ')'                         { $2 }
        | '(' expr ',' exprs ')'               { S.Tuple (tokPos $1) ($2:$4) }
-       | expr '(' exprs ')'                   { case $1 of S.Ident _ s -> S.Call (tokPos $2) s $3; _ -> S.CallExpr (tokPos $2) $1 $3 }
+       | symbol '(' exprs ')'                 { S.Call (tokPos $2) (snd $1) $3 }
        | len '(' expr ')'                     { S.Len (tokPos $1) $3 }
        | copy '(' expr ')'                    { S.Copy (tokPos $1) $3 }
        | typeOrdinal '(' exprs ')'            { S.Conv (tokPos $2) $1 $3 }

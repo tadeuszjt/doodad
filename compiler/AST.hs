@@ -88,7 +88,6 @@ data Expr
     | TupleIndex TextPos Expr Word32
     | Ident      TextPos Symbol
     | Call       TextPos Symbol [Expr]
-    | CallExpr   TextPos Expr [Expr]
     | Conv       TextPos Type [Expr]
     | Len        TextPos Expr
     | Copy       TextPos Expr
@@ -101,7 +100,6 @@ data Stmt
     = Assign      TextPos Pattern Expr
     | Set         TextPos Index   Expr
     | Print       TextPos [Expr]
-    | CallStmtIdx TextPos Index  [Expr]
     | CallStmt    TextPos String [Expr]
     | Return      TextPos (Maybe Expr)
     | Block       [Stmt]
@@ -158,7 +156,6 @@ instance TextPosition Expr where
         AST.TupleIndex p _ _ -> p
         AST.Ident      p _ -> p
         AST.Call       p _ _ -> p 
-        AST.CallExpr   p _ _ -> p
         AST.Conv       p _ _ -> p
         AST.Len        p _ -> p
         AST.Copy       p _ -> p
@@ -171,7 +168,6 @@ instance TextPosition Stmt where
         AST.Assign      p _ _ -> p
         AST.Set         p _ _ -> p
         AST.Print       p _ -> p
-        AST.CallStmtIdx p _ _ -> p
         AST.CallStmt    p _ _ -> p
         AST.Return      p _ -> p
         AST.Block       s -> textPos (head s)
@@ -243,7 +239,6 @@ instance Show Expr where
         AST.TupleIndex pos expr n       -> show expr ++ "." ++ show n
         AST.Ident p s                   -> show s 
         AST.Call pos symbol exprs       -> show symbol ++ tupStrs (map show exprs)
-        AST.CallExpr pos expr exprs     -> show expr ++ tupStrs (map show exprs)
         AST.Conv pos typ exprs          -> show typ ++ tupStrs (map show exprs)
         AST.Len pos expr                -> "len(" ++ show expr ++ ")"
         AST.Copy pos expr               -> "copy(" ++ show expr ++ ")"
@@ -276,7 +271,6 @@ prettyAST ast = do
             Assign pos pat expr        -> putStrLn $ pre ++ "let " ++ show pat ++ " = " ++ show expr
             Set pos ind expr           -> putStrLn $ pre ++ show ind ++ " = " ++ show expr
 --            Print pos exprs            -> putStrLn ("print" ++ tupStrs (map show exprs)) >> putStr pr
---            CallStmtIdx pos expr exprs -> putStrLn (show expr ++ tupStrs (map show exprs)) >> putStr pr
             Return pos mexpr -> putStrLn $ pre ++ "return " ++ maybe "" show mexpr
             Extern pos name sym args retty -> do
                 putStrLn $ pre ++ "extern " ++ name ++ " " ++ sym ++ tupStrs (map show args) ++ " " ++ if retty == Void then "" else show retty

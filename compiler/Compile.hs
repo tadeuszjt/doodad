@@ -280,13 +280,6 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
         ObjFunc _ op <- look (Sym sym) $ KeyFunc (map valType vals)
         void $ call op [(o, []) | o <- map valOp vals]
 
-    S.CallStmtIdx pos index exprs -> do
-        vals <- mapM (valLoad <=< cmpExpr) exprs
-        fval <- valLoad =<< cmpIndex index
-        ftyp@(Func ts rt) <- assertBaseType isFunc (valType fval)
-        assert (ts == map valType vals) ("Incorrect argument types for: " ++ show ftyp)
-        void $ call (valOp fval) [(o, []) | o <- map valOp vals]
-
     S.Assign pos pat expr -> trace ("assign " ++ show pat) $ do
         matched <- valLoad =<< cmpPattern pat =<< cmpExpr expr
         if_ (valOp matched) (return ()) (void trap) 
@@ -394,13 +387,6 @@ cmpExpr expr = trace "cmpExpr" $ withPos expr $ case expr of
             ObjFunc Void _         -> fail "cannot use void function as expression"
             ObjConstructor typ     -> valConstruct typ vals
             ObjFunc retty op       -> Val retty <$> call op [(o, []) | o <- map valOp vals]
-
-    S.CallExpr pos expr exprs -> trace "call" $ do
-        val <- valLoad =<< cmpExpr expr
-        vals <- mapM valLoad =<< mapM cmpExpr exprs
-        Func ts rt <- assertBaseType isFunc (valType val)
-        assert (map valType vals == ts) ("Argument types do not match " ++ show ts)
-        Val rt <$> call (valOp val) [(o, []) | o <- map valOp vals]
 
     S.Len pos expr -> valLoad =<< do
         val <- cmpExpr expr

@@ -43,11 +43,6 @@ annotateStmt stmt = case stmt of
         c' <- annotateCondition c
         While p c' <$> annotateStmt b
 
-    CallStmtIdx p i es -> do
-        i' <- annotateIndex i
-        CallStmtIdx p i' <$> mapM annotateExpr es
-
-
 
 annotateCondition :: BoM Int m => Condition -> m Condition
 annotateCondition condition = case condition of
@@ -113,10 +108,6 @@ annotateExpr expr = annotateWithType =<< case expr of
     Infix p op e1 e2 -> do
         e1' <- annotateExpr e1
         Infix p op e1' <$> annotateExpr e2
-
-    CallExpr p e es -> do
-        e' <- annotateExpr e
-        CallExpr p e' <$> mapM annotateExpr es
 
     Subscript p e1 e2 -> do
         e1' <- annotateExpr e1
