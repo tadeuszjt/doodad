@@ -39,7 +39,6 @@ executable bolang
         alex,
         happy
     other-modules:
-        ADT,
         AST,
         Args,
         Compile,
@@ -87,7 +86,6 @@ test-suite type-tests
         alex,
         happy
     other-modules:
-        ADT,
         AST,
         Args,
         Compile,

@@ -36,9 +36,6 @@ checkTypesCompatible typA typB = do
         t | isSimple t -> assert (baseA == baseB) $
             "Types " ++ show typA ++ " and " ++ show typB ++ " aren't compatible"
 
-        t | isADT t    -> assert (baseA == baseB) $
-            "Types " ++ show typA ++ " and " ++ show typB ++ " aren't compatible" 
-
         t | isTuple t  -> do
             assertBaseType isTuple baseB
             let Tuple ats = baseA
@@ -76,11 +73,6 @@ opTypeOf typ = trace ("opTypOf " ++ show typ) $ case typ of
     Bool      -> return LL.i1
     Tuple ts  -> LL.StructureType False <$> mapM opTypeOf ts
     Array n t -> LL.ArrayType (fromIntegral n) <$> opTypeOf t
-    ADT xs
-        | isEmptyADT typ  -> return (LL.ptr LL.i8)
-        | isPtrADT typ    -> return (LL.ptr LL.i8)
-        | isEnumADT typ   -> return LL.i64
-        | isNormalADT typ -> return $ LL.StructureType False [LL.i64, LL.ptr LL.i8]
 
     Table ts  -> do
         ps <- map LL.ptr <$> mapM opTypeOf ts

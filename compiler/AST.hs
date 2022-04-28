@@ -80,10 +80,8 @@ data Expr
     | Float      TextPos Double
     | Bool       TextPos Bool
     | Char       TextPos Char
-    | Null       TextPos
     | String     TextPos String
     | Tuple      TextPos [Expr]
-    | Array      TextPos [Expr]
     | Table      TextPos [[Expr]]
     | Member     TextPos Expr String
     | Subscript  TextPos Expr Expr
@@ -119,7 +117,6 @@ data Stmt
 data AnnoType
     = AnnoType  Type
     | AnnoTuple [(String, Type)]
-    | AnnoADT   [(String, Type)]
     deriving (Eq, Show)
 
 
@@ -153,10 +150,8 @@ instance TextPosition Expr where
         AST.Float      p _ -> p
         AST.Bool       p _ -> p
         AST.Char       p _ -> p
-        AST.Null       p -> p
         AST.String     p _ -> p
         AST.Tuple      p _ -> p
-        AST.Array      p _ -> p
         AST.Table      p _ -> p
         AST.Member     p _ _ -> p
         AST.Subscript  p _ _ -> p
@@ -242,7 +237,6 @@ instance Show Expr where
         AST.Char pos c                  -> show c
         AST.String pos s                -> show s
         AST.Tuple pos exprs             -> tupStrs (map show exprs)
-        AST.Array pos exprs             -> "[ |" ++ intercalate ", " (map show exprs) ++ "]"
         AST.Table pos exprss            -> "[" ++  intercalate "; " (map (intercalate ", " . map show) exprss) ++ "]"
         AST.Member pos expr str         -> show expr ++ "." ++ str
         AST.Subscript pos expr1 expr2   -> show expr1 ++ "[" ++ show expr2 ++ "]"
@@ -255,7 +249,6 @@ instance Show Expr where
         AST.Copy pos expr               -> "copy(" ++ show expr ++ ")"
         AST.Prefix pos op expr          -> show op ++ show expr
         AST.Infix pos op expr1 expr2    -> show expr1 ++ " " ++ show op ++ " " ++ show expr2
-        AST.Null pos                    -> "null"
 
 
 -- every function must end on a newline and print pre before every line

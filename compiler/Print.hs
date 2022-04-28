@@ -17,7 +17,6 @@ import Funcs
 import Table
 import Tuple
 import Type 
-import ADT
 import Construct
 import Typeof
 

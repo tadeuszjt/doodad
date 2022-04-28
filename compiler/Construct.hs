@@ -12,7 +12,6 @@ import State
 import Monad
 import Tuple
 import Value
-import ADT
 import Typeof
 import Trace
 import Table
@@ -50,12 +49,6 @@ valCopy val = trace "valCopy" $ do
                 tupleSet loc i =<< valCopy =<< tupleIdx i val
             valLoad loc
 
-        ADT xs -> do
-            loc <- valLocal (valType val)
-            valStore loc val
-            valLoad loc
-            -- TODO does this work?
-            
         _ -> fail $ "Can't handle copy: " ++ show (valType val)
 
 
@@ -97,7 +90,6 @@ valConstruct typ [val']   = trace "valConstruct" $ do
     case base of
         t | isIntegral t || isFloat t -> convertNumber typ val
 
-        ADT _         -> adtConstruct typ val
         Table [Char] -> do
             res <- lookm (Sym "string") $ KeyFunc [valType val]
             case res of

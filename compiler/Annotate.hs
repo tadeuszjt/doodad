@@ -99,7 +99,6 @@ annotateExpr expr = annotateWithType =<< case expr of
     Char p c -> return expr
     Int p n -> return expr
     Float p f -> return expr
-    Null p -> return expr
     String p s -> return expr
     Bool p b -> return expr
 

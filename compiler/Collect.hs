@@ -113,11 +113,6 @@ collectAST ast = do
                     forM_ (zip xs [0..]) $ \((s, t), i) -> define s (KeyMember typedef) (ObjMember i)
                     return $ ObjType $ T.Tuple (map snd xs)
 
-                AnnoADT xs -> do
-                    let typedef = T.Typedef (Sym sym)
-                    forM_ (zip xs [0..]) $ \((s, t), i) -> define s (KeyMember typedef) (ObjMember i)
-                    return $ ObjType $ T.ADT (map snd xs)
-
     forM [ stmt | stmt@(S.FuncDef _ _ _ _ _) <- astStmts ast ] $
         \(S.FuncDef pos sym params retty _) ->
             define sym (KeyFunc $ map paramType params) (ObjFunc retty)

@@ -178,23 +178,6 @@ ensureSymKeyDec :: ModCmp CompileState m => Symbol -> SymKey -> m ()
 ensureSymKeyDec symbol key = trace ("ensureSymKeyDec " ++ show symbol) $ do
     curMod <- gets curModName
     case symbol of
-        SymQualified mod sym | mod == curMod -> do
-            nm <- Map.lookup (sym, key) <$> gets decMap
-            maybe (return ()) ensureDec nm
-
-        SymQualified mod sym -> do
-            statem <- Map.lookup mod <$> gets imports
-            assert (isJust statem) ("No module: " ++ mod ++ " exists")
-
-            let state = fromJust statem
-            case Map.lookup (sym, key) (decMap state) of
-                Nothing   -> return ()
-                Just name -> do
-                    declared <- Set.member name <$> gets declared
-                    when (not declared) $ do
-                        emitDec name $ (Map.! name) (declarations state)
-                        addDeclared name
-
         Sym sym -> do
             nm <- Map.lookup (sym, key) <$> gets decMap
             case nm of
@@ -233,14 +216,6 @@ lookm symbol key = do
     imports <- gets imports
     curMod <- gets curModName
     case symbol of
-        SymQualified mod sym | mod == curMod ->
-            SymTab.lookup sym key <$> gets symTab
-            
-        SymQualified mod sym ->
-            case Map.lookup mod imports of
-                Nothing    -> fail ("No module: " ++ mod ++ " exists")
-                Just state -> return $ SymTab.lookup sym key (symTab state)
-
         Sym sym -> do
             objm <- SymTab.lookup sym key <$> gets symTab
             let objsm = map (SymTab.lookup sym key) $ map symTab (Map.elems imports)

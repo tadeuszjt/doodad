@@ -3,16 +3,12 @@ module Type where
 import Data.List
 
 data Symbol
-    = Symbol Int
-    | Sym          { sym :: String }
-    | SymQualified { mod :: String, sym :: String }
+    = Sym          { sym :: String }
     deriving (Eq, Ord)
 
 
 instance Show Symbol where
-    show (Symbol i)           = "s" ++ show i
     show (Sym s)              = s
-    show (SymQualified mod s) = mod ++ "::" ++ s
 
 
 data Type
@@ -29,7 +25,6 @@ data Type
     | Tuple [Type]           ----
     | Array Int Type         -- Aggregate Types
     | Table [Type]           --
-    | ADT [Type]             --
     | Func [Type] Type       --
     | Typedef Symbol
     deriving (Eq, Ord)
@@ -51,7 +46,6 @@ instance Show Type where
         Array n t     -> "[" ++ show n ++ "| " ++ show t ++ "]"
         Table [Char]  -> "string"
         Table ts      -> "[" ++ intercalate "; " (map show ts) ++ "]"
-        ADT ts        -> "{" ++ intercalate ", " (map show ts) ++ "}"
         Func ts rt    -> "fn(" ++ intercalate ", " (map show ts) ++ ")" ++ show rt
         Typedef s     -> show s
 
@@ -72,29 +66,15 @@ isTable _                = False
 isTypedef (Typedef _)    = True
 isTypedef _              = False
 
-isADT (ADT _)            = True
-isADT _                  = False
-
 isFunc (Func _ _)        = True
 isFunc _                 = False
 
 isTypeId (Type _)        = True
 isTypeId _               = False
 
-isEmptyADT typ           = typ == ADT []
-
-isPtrADT (ADT [Void])    = False
-isPtrADT (ADT [_])       = True
-isPtrADT _               = False
-
-isEnumADT (ADT [])       = False
-isEnumADT (ADT ts)       = all (== Void) ts
-
-isNormalADT typ@(ADT ts) = not (isEmptyADT typ || isPtrADT typ || isEnumADT typ)
-
 isIntegral x             = isInt x || x == Char
 isBase x                 = isSimple x || isAggregate x
 isSimple x               = isInt x || isFloat x || x == Char || x == Bool
-isAggregate x            = isTuple x || isArray x || isTable x || isADT x || isFunc x
+isAggregate x            = isTuple x || isArray x || isTable x || isFunc x
 
 

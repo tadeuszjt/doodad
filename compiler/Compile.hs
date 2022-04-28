@@ -39,7 +39,6 @@ import Print
 import Funcs
 import Table
 import Tuple
-import ADT
 import Construct
 import Typeof
 import Trace
@@ -94,11 +93,9 @@ compileFlatState imports flatState modName = do
 
 
 cmpTypeDef :: InsCmp CompileState m => String -> S.AnnoType -> m ()
-cmpTypeDef sym (S.AnnoADT xs)   = adtTypeDef sym (S.AnnoADT xs)
 cmpTypeDef sym (S.AnnoTuple xs) = tupleTypeDef sym (S.AnnoTuple xs)
 cmpTypeDef sym (S.AnnoType typ) = trace "cmpTypeDef" $ do
     case typ of
-        t | isADT t   -> adtTypeDef sym (S.AnnoType t)
         t | isTuple t -> tupleTypeDef sym (S.AnnoType t)
         t             -> do
             let typdef = Typedef (Sym sym)
@@ -343,7 +340,6 @@ cmpExpr :: InsCmp CompileState m =>  S.Expr -> m Value
 cmpExpr expr = trace "cmpExpr" $ withPos expr $ case expr of
     S.Bool pos b               -> return (valBool b)
     S.Char pos c               -> return (valChar c)
-    S.Conv pos typ [S.Null p]  -> adtNull typ
     S.Conv pos typ exprs       -> valConstruct typ =<< mapM cmpExpr exprs
     S.Copy pos expr            -> valCopy =<< cmpExpr expr
     S.Tuple pos [expr]         -> cmpExpr expr
@@ -361,13 +357,6 @@ cmpExpr expr = trace "cmpExpr" $ withPos expr $ case expr of
         if isTable base
         then valZero hint
         else fail "Table no type"
-
-    S.Null p -> do
-        hint <- gets typeHint
-        base <- baseTypeOf hint
-        if isADT base
-        then adtNull hint
-        else adtNull $ ADT [Void]
 
     S.Int p n -> do
         hint <- gets typeHint
@@ -404,7 +393,6 @@ cmpExpr expr = trace "cmpExpr" $ withPos expr $ case expr of
         case obj of
             ObjFunc Void _         -> fail "cannot use void function as expression"
             ObjConstructor typ     -> valConstruct typ vals
-            ObjADTFieldCons adtTyp -> adtConstructField (sym symbol) adtTyp vals
             ObjFunc retty op       -> Val retty <$> call op [(o, []) | o <- map valOp vals]
 
     S.CallExpr pos expr exprs -> trace "call" $ do
@@ -475,13 +463,6 @@ cmpExpr expr = trace "cmpExpr" $ withPos expr $ case expr of
 
 cmpPattern :: InsCmp CompileState m => S.Pattern -> Value -> m Value
 cmpPattern pattern val = trace "cmpPattern" $ withPos pattern $ case pattern of
-
-    S.PatLiteral (S.Null pos) -> trace "cmpPattern null" $ do
-        ADT ts <- assertBaseType isADT (valType val)
-        case elemIndices Void ts of
-            [i] -> valsInfix S.EqEq (valI64 i) =<< adtEnum val
-            _   -> fail "ADT does not support a unique null field"
-
     S.PatIgnore pos   -> return (valBool True)
     S.PatLiteral expr -> cmpInfix S.EqEq val =<< cmpExpr expr
 

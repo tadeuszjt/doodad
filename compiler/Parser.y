@@ -131,7 +131,6 @@ importPath : ident                            { (tokStr $1) }
 -- Statements -------------------------------------------------------------------------------------
 
 symbol : ident                                { (tokPos $1, T.Sym (tokStr $1)) }
-       | ident '::' ident                     { (tokPos $1, T.SymQualified (tokStr $1) (tokStr $3)) }
 
 stmtS : let pattern '=' expr                  { S.Assign (tokPos $1) $2 $4 }  
       | index '=' expr                        { S.Set (tokPos $2) $1 $3 }
@@ -215,7 +214,6 @@ expr   : literal                              { $1 }
        | symbol                               { S.Ident (fst $1) (snd $1) }
        | '[' tableRows ']'                    { S.Table (tokPos $1) $2 }
        | '[' 'I' exprsN 'D' ']'               { S.Table (tokPos $1) [$3] }
-       | '[' '|' exprs ']'                    { S.Array (tokPos $1) $3 }
        | '(' expr ')'                         { $2 }
        | '(' expr ',' exprs ')'               { S.Tuple (tokPos $1) ($2:$4) }
        | expr '(' exprs ')'                   { case $1 of S.Ident _ s -> S.Call (tokPos $2) s $3; _ -> S.CallExpr (tokPos $2) $1 $3 }
@@ -233,7 +231,6 @@ literal : intlit                              { S.Int (tokPos $1) (read $ tokStr
         | strlit                              { S.String (tokPos $1) (tokStr $1) }
         | true                                { S.Bool (tokPos $1) True }
         | false                               { S.Bool (tokPos $1) False }
-        | null                                { S.Null (tokPos $1) }
 
 infix : expr '+' expr                         { S.Infix (tokPos $2) S.Plus $1 $3 }
       | expr '-' expr                         { S.Infix (tokPos $2) S.Minus $1 $3 }
@@ -281,9 +278,7 @@ typeOrdinal   : bool                          { T.Bool }
               | char                          { T.Char }
               | string                        { T.Table [T.Char] }
 
-typeAggregate : '[' intlit ':' type_ ']'      { T.Array (read $ tokStr $2) $4 }
-              | '[' rowTypes_ ']'             { T.Table $2 }
-              | adtType                       { $1 }
+typeAggregate : '[' rowTypes_ ']'             { T.Table $2 }
               | tupType                       { $1 }
               | fn '(' argTypes ')' type_     { T.Func $3 $5 }
 
@@ -306,29 +301,12 @@ tupFields_ : type_                        { [$1] }
                | type_ ',' tupFields      { $1 : $3 }
 
 
-adtType    : '{' adtFields '}'                { T.ADT $2 }
-adtField   : type_                            { $1 }
-           | null                             { T.Void }
-adtFields  : {-empty-}                        { [] }
-           | adtFields_                       { $1 }
-adtFields_ : adtField                         { [$1] }
-           | adtField '|' adtFields_          { $1 : $3 } 
-
 rowTypes_     : type_                         { [$1] }
               | type_ ';' rowTypes_           { $1 : $3 }
 
 
-annoADTType   : '{' annoADTFields '}'         { S.AnnoADT $2 }
-              | '{' 'I' annoADTFields 'D' '}' { S.AnnoADT $3 }
-annoADTField  : ident '(' tupFields ')'       { (tokStr $1, case length $3 of; 0 -> T.Void; 1 -> (head $3); n -> T.Tuple $3) }
-annoADTFields : annoADTField 'N'              { [$1] }
-              | annoADTField '|' annoADTFields     { $1 : $3 }
-              | annoADTField 'N' annoADTFields     { $1 : $3 }
-
-
 annoType : typeOrdinal                        { S.AnnoType $1 }
          | tupType                            { S.AnnoType $1 }
-         | annoADTType                        { $1 }
          | annoTupType                        { $1 }
 
 {

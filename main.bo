@@ -5,16 +5,11 @@ import std/rect
 import std/strings
 
 fn main()
-        let v = Vec2(3.0, 4.0)
-        print((v + Vec2(31.0, 2.0)))
-        print(length(v))
-        print(maths::sqrt(f32(3)))
-        print(maths::sqrt(3.3))
-        print(f32(3))
-        let r = Rect(Vec2(20.3, 1.0), v)
-        print(r)
+        let va = Vec2(1.0, 3.0)
+        let vb = Vec2(2.0, 1.0)
+        print("5:", length(va + vb))
 
         let str = "tadeusztomoszek"
-        print("true: ", strIsPrefix("tadeusz", str))
-        print("false: ", strIsPrefix("Tadeusz", str))
-        print("false: ", strIsPrefix("tadeusztomoszekiscool", str))
+        print("true:", strIsPrefix("tadeusz", str))
+        print("false:", strIsPrefix("Tadeusz", str))
+        print("false:", strIsPrefix("tadeusztomoszekiscool", str))

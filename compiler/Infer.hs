@@ -29,7 +29,6 @@ mapType f typ = case typ of
     T.Void       -> f typ
     T.Typedef _  -> f typ
     T.Tuple ts   -> f $ T.Tuple [mapType f t | t <- ts]
-    T.ADT ts     -> f $ T.ADT   [mapType f t | t <- ts]
     T.Table ts   -> f $ T.Table [mapType f t | t <- ts]
     T.Func ts rt -> f $ T.Func  [mapType f t | t <- ts] (mapType f rt)
     _ -> error $ show typ

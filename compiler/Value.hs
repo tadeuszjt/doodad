@@ -79,10 +79,6 @@ valZero typ = trace ("valZero " ++ show  typ) $ do
                 Char            -> return (valChar '\0')
                 Typedef sym     -> fmap (Val typ . valOp) $ valZero =<< baseTypeOf typ
                 Array n t       -> Val typ . array . replicate n . toCons . valOp <$> valZero t
-                ADT _
-                    | isEmptyADT typ  -> return $ Val typ $ cons $ C.Null (LL.ptr LL.i8)
-                    | isEnumADT typ   -> return $ Val typ (int64 0)
-                    | isNormalADT typ -> fail "Cannot zero-construct ADT type. Use field constructor."
                 Tuple ts        -> Val typ . struct namem False . map (toCons . valOp) <$> mapM valZero ts
                 Table ts        -> do
                     let zi64 = toCons (int64 0)
