@@ -14,7 +14,12 @@ import qualified SymTab
 
 
 -- constraints obtained from sub-expressions must be to the left
+data Constraint
+    = Constraint TextPos Type Type
+    deriving (Show, Eq)
 
+instance TextPosition Constraint where
+    textPos (Constraint pos _ _) = pos
 
 type SymTab = SymTab.SymTab String SymKey Object
 
@@ -36,8 +41,9 @@ data CollectState
     = CollectState
         { symTab    :: SymTab
         , curRetty  :: Type
-        , collected :: [(Type, Type)]
+        , collected :: [Constraint]
         , imports   :: Map.Map ModuleName SymTab
+        , curPos    :: TextPos
         }
 
 initCollectState imp = CollectState
@@ -45,11 +51,22 @@ initCollectState imp = CollectState
     , curRetty = Void
     , collected = []
     , imports = imp
+    , curPos = TextPos 0 0 0 0
     }
 
 
+collectPos :: (BoM CollectState m, TextPosition t) => t -> m a -> m a
+collectPos t m = withPos t $ do
+    old <- gets curPos
+    modify $ \s -> s { curPos = (textPos t) }
+    r <- m
+    modify $ \s -> s { curPos = old }
+    return r
+
+
 collect :: BoM CollectState m => Type -> Type -> m ()
-collect t1 t2 = modify $ \s -> s { collected = (t1, t2) : (collected s) }
+collect t1 t2 = do
+    modify $ \s -> s { collected = (Constraint (curPos s) t1 t2) : (collected s) }
 
 
 typeOf :: S.Expr -> T.Type
@@ -109,7 +126,7 @@ collectAST ast = do
     let externdefs = [ stmt | stmt@(S.Extern _ _ _ _ _) <- astStmts ast ]
 
     forM typedefs $ \(S.Typedef pos sym annoTyp) ->
-        withPos pos $ case annoTyp of
+        collectPos pos $ case annoTyp of
             AnnoType t   ->
                 define sym KeyType (ObjType t)
 
@@ -118,17 +135,17 @@ collectAST ast = do
                 forM_ (zip xs [0..]) $ \((s, t), i) -> define s (KeyMember typedef) (ObjMember i)
                 define sym KeyType $ ObjType $ T.Tuple (map snd xs)
 
-    forM funcdefs $ \(S.FuncDef pos sym params retty _) -> withPos pos $
+    forM funcdefs $ \(S.FuncDef pos sym params retty _) -> collectPos pos $
         define sym (KeyFunc $ map paramType params) (ObjFunc retty)
 
-    forM externdefs $ \(S.Extern pos name sym params retty) -> withPos pos $
+    forM externdefs $ \(S.Extern pos name sym params retty) -> collectPos pos $
         define sym (KeyFunc $ map paramType params) (ObjFunc retty)
 
     mapM_ collectStmt (astStmts ast)
 
 
 collectStmt :: BoM CollectState m => Stmt -> m ()
-collectStmt stmt = withPos stmt $ case stmt of
+collectStmt stmt = collectPos stmt $ case stmt of
     FuncDef _ sym params retty blk -> do
         oldRetty <- gets curRetty
         modify $ \s -> s { curRetty = retty }
@@ -187,24 +204,29 @@ collectStmt stmt = withPos stmt $ case stmt of
     _ -> fail (show stmt)
 
 
+-- return type of append result
 collectAppend :: BoM CollectState m => Append -> m (Maybe Type)
-collectAppend append = withPos append $ case append of
+collectAppend append = collectPos append $ case append of
     AppendTable _ app expr -> do
         tm <- collectAppend app
         when (isJust tm) $ collect (fromJust tm) (typeOf expr)
+        collectExpr expr
         return tm
 
     AppendElem _ app expr -> do
         tm <- collectAppend app
         case tm of
-            Just (T.Table [te]) -> collect te (fromJust tm) >> return tm
-            _                   -> return tm
+            Just (T.Table [te]) -> collect te (typeOf expr)
+            _                   -> return ()
+        collectExpr expr
+        return tm
 
     AppendIndex index -> collectIndex index
 
 
+-- returns type of resulting index
 collectIndex :: BoM CollectState m => Index -> m (Maybe Type)
-collectIndex index = withPos index $ case index of
+collectIndex index = collectPos index $ case index of
     IndIdent _ s -> do
         ObjVar t <- look (Sym s) KeyVar
         return (Just t)
@@ -220,7 +242,7 @@ collectIndex index = withPos index $ case index of
 
 
 collectPattern :: BoM CollectState m => Pattern -> Type -> m ()
-collectPattern pattern typ = withPos pattern $ case pattern of
+collectPattern pattern typ = collectPos pattern $ case pattern of
     PatIdent _ s -> do
         define s KeyVar (ObjVar typ)
 
@@ -239,7 +261,7 @@ collectCondition cond = case cond of
 
 
 collectExpr :: BoM CollectState m => Expr -> m ()
-collectExpr (AExpr typ expr) = withPos expr $ case expr of
+collectExpr (AExpr typ expr) = collectPos expr $ case expr of
     Conv p t [e] -> do
         collect typ t
         collectExpr e

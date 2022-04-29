@@ -1,7 +1,13 @@
 module Unify where
 
+import Data.List
+import Control.Monad
+
 import Type as T
 import AST as S
+import Collect
+import Monad
+import Error
 
 
 -- constraint:   (t1, t2) or (x, y)
@@ -23,33 +29,38 @@ substitute u x t = case t of
     _                -> error (show t)
 
 
-unifyOne :: Type -> Type -> [(Int, Type)]
-unifyOne t1 t2 = case (t1, t2) of
-    (Type x, t)                          -> [(x, t)]
-    (t, Type x)                          -> [(x, t)]
-    (T.Bool, T.Bool)                     -> []
-    (I64, I64)                           -> []
-    (F32, F32)                           -> []
-    (F64, F64)                           -> []
-    (T.Char, T.Char)                     -> []
-    (T.Table [T.Char], T.Table [T.Char]) -> []
+unifyOne :: BoM s m => Constraint -> m [(Int, Type)]
+unifyOne (Constraint pos t1 t2) = withPos pos $ case (t1, t2) of
+    (Type x, t)                          -> return [(x, t)]
+    (t, Type x)                          -> return [(x, t)]
+    (T.Bool, T.Bool)                     -> return []
+    (I64, I64)                           -> return []
+    (F32, F32)                           -> return []
+    (F64, F64)                           -> return []
+    (T.Char, T.Char)                     -> return []
+    (T.Table [T.Char], T.Table [T.Char]) -> return []
     (T.Tuple tsa, T.Tuple tsb)
-        | length tsa /= length tsb       -> error "length"
-        | otherwise                      -> concat $ zipWith unifyOne tsa tsb
+        | length tsa /= length tsb       -> fail "length"
+        | otherwise                      -> concat <$> zipWithM (\ta tb -> unifyOne (Constraint pos ta tb)) tsa tsb
     (T.Typedef s1, T.Typedef s2)
-        | s1 == s2                       -> []
-    _                                    -> error $ show (t1, t2)
+        | s1 == s2                       -> return []
+    _                                    -> fail $ show (t1, t2)
 
 
-unify :: [(Type, Type)] -> [(Int, Type)]
-unify []          = []
-unify ((x, y):xs) = let t2 = unify xs in
-    unifyOne (apply t2 x) (apply t2 y) ++ t2
+unify :: BoM s m => [Constraint] -> m [(Int, Type)]
+unify []     = return []
+unify (x:xs) = do
+    subs <- unify xs
+    s <- unifyOne (apply subs x)
+    return (s ++ subs)
 
 
 -- Apply represents taking a list of substitutions and applying them to all types in an object.
 class Apply a where
     apply :: [(Int, Type)] -> a -> a
+
+instance Apply Constraint where
+    apply subs (Constraint p t1 t2) = Constraint p (apply subs t1) (apply subs t2)
 
 instance Apply Type where
     apply subs t = foldr (\(x, u) z -> substitute u x z) t subs
