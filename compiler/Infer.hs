@@ -68,7 +68,8 @@ runTypeInference :: BoM s m => AST -> Map.Map ModuleName C.SymTab -> m AST
 runTypeInference annotatedAST imports = do
     (_, state) <- runBoMTExcept (C.initCollectState imports) (C.collectAST annotatedAST)
     subs <- unify $ C.collected state
-    return (apply subs annotatedAST)
+    defaults <- unify $ map (apply subs) (C.defaults state)
+    return $ apply defaults (apply subs annotatedAST)
 
 
 runModInfer :: BoM RunInferState m => FilePath -> Set.Set FilePath -> m (AST, C.SymTab)

@@ -42,6 +42,7 @@ data CollectState
         { symTab    :: SymTab
         , curRetty  :: Type
         , collected :: [Constraint]
+        , defaults  :: [Constraint]
         , imports   :: Map.Map ModuleName SymTab
         , curPos    :: TextPos
         }
@@ -50,6 +51,7 @@ initCollectState imp = CollectState
     { symTab = SymTab.initSymTab
     , curRetty = Void
     , collected = []
+    , defaults = []
     , imports = imp
     , curPos = TextPos 0 0 0 0
     }
@@ -68,6 +70,9 @@ collect :: BoM CollectState m => Type -> Type -> m ()
 collect t1 t2 = do
     modify $ \s -> s { collected = (Constraint (curPos s) t1 t2) : (collected s) }
 
+collectDefault :: BoM CollectState m => Type -> Type -> m ()
+collectDefault t1 t2 = do
+    modify $ \s -> s { defaults = (Constraint (curPos s) t1 t2) : (defaults s) }
 
 typeOf :: S.Expr -> T.Type
 typeOf (S.AExpr t _) = t
@@ -257,7 +262,9 @@ collectPattern pattern typ = collectPos pattern $ case pattern of
 
 collectCondition :: BoM CollectState m => Condition -> m ()
 collectCondition cond = case cond of
-    CondExpr expr -> collectExpr expr
+    CondExpr expr -> do
+        collectDefault (typeOf expr) T.Bool
+        collectExpr expr
 
 
 collectExpr :: BoM CollectState m => Expr -> m ()
@@ -305,14 +312,16 @@ collectExpr (AExpr typ expr) = collectPos expr $ case expr of
     Infix p op e1 e2 -> do
         case op of
             _ | op `elem` [S.Plus, S.Minus, S.Times, S.Divide, S.Modulo] -> collect typ (typeOf e1)
+            _ | op `elem` [S.LT, S.GT, S.LTEq, S.GTEq, S.EqEq, S.NotEq]  -> collectDefault typ T.Bool
+            _ | op `elem` [S.AndAnd, S.OrOr]                             -> collect typ (typeOf e1)
             _ -> return ()
                     
         collect (typeOf e1) (typeOf e2)
         collectExpr e1
         collectExpr e2
 
-    S.Char p c -> return ()
-    S.Int p c -> return ()
+    S.Char p c -> collectDefault typ T.Char
+    S.Int p c -> collectDefault typ I64
 
     S.Prefix p op e -> do
         collect typ (typeOf e)
@@ -322,9 +331,11 @@ collectExpr (AExpr typ expr) = collectPos expr $ case expr of
         collect typ (typeOf e)
         collectExpr e
 
-    S.Len p e -> collectExpr e
+    S.Len p e -> do
+        collectDefault typ I64
+        collectExpr e
 
-    S.Bool p b -> return ()
+    S.Bool p b -> collectDefault typ T.Bool
     
     S.Subscript p e1 e2 -> do
         case typeOf e1 of
@@ -334,7 +345,7 @@ collectExpr (AExpr typ expr) = collectPos expr $ case expr of
         collectExpr e1
         collectExpr e2
 
-    S.String p s -> return ()
+    S.String p s -> collectDefault typ (T.Table [T.Char])
 
     S.Tuple p es -> do
         case typ of
@@ -353,7 +364,7 @@ collectExpr (AExpr typ expr) = collectPos expr $ case expr of
 
         collectExpr e
 
-    S.Float p f -> return ()
+    S.Float p f -> collectDefault typ F64
 
         
 
