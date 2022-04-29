@@ -43,7 +43,7 @@ data CollectState
         , curRetty  :: Type
         , collected :: [Constraint]
         , defaults  :: [Constraint]
-        , imports   :: Map.Map ModuleName SymTab
+        , imports   :: Map.Map FilePath SymTab
         , curPos    :: TextPos
         }
 
@@ -123,6 +123,11 @@ popSymTab = do
     modify $ \s -> s { symTab = SymTab.pop (symTab s) }
 
 
+baseTypeOf :: BoM CollectState m => Type -> m Type
+baseTypeOf typ = case typ of
+    T.Typedef sym -> do ObjType t <- look sym KeyType; baseTypeOf t
+    _             -> return typ
+
 
 collectAST :: BoM CollectState m => AST -> m ()
 collectAST ast = do
@@ -136,9 +141,11 @@ collectAST ast = do
                 define sym KeyType (ObjType t)
 
             AnnoTuple xs   -> do
+                let ts = map snd xs
                 let typedef = T.Typedef (Sym sym)
                 forM_ (zip xs [0..]) $ \((s, t), i) -> define s (KeyMember typedef) (ObjMember i)
                 define sym KeyType $ ObjType $ T.Tuple (map snd xs)
+                define sym (KeyFunc ts) (ObjFunc typedef) 
 
     forM funcdefs $ \(S.FuncDef pos sym params retty _) -> collectPos pos $
         define sym (KeyFunc $ map paramType params) (ObjFunc retty)
@@ -348,9 +355,10 @@ collectExpr (AExpr typ expr) = collectPos expr $ case expr of
     S.String p s -> collectDefault typ (T.Table [T.Char])
 
     S.Tuple p es -> do
-        case typ of
+        base <- baseTypeOf typ
+        case base of
             T.Tuple ts -> zipWithM_ collect ts (map typeOf es)
-            _          -> return ()
+            T.Type x   -> return ()
         mapM_ collectExpr es
 
     Member p e sym -> do
@@ -365,7 +373,5 @@ collectExpr (AExpr typ expr) = collectPos expr $ case expr of
         collectExpr e
 
     S.Float p f -> collectDefault typ F64
-
-        
 
     _ -> fail ("collect: " ++ show expr)

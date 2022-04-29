@@ -135,7 +135,6 @@ cmpExternDef (S.Extern pos nameStr sym params retty) = trace "cmpExternDef" $ wi
 
     pushSymTab
     paramOpTypes <- forM params $ \(S.Param p s t) -> do
-        define s KeyVar $ ObjVal (valBool False)
         opTypeOf t
 
     returnOpType <- opTypeOf retty
@@ -181,8 +180,6 @@ cmpFuncDef (S.FuncDef pos sym params retty blk) = trace "cmpFuncDef" $ withPos p
     let Name nameStr = name
 
     pushSymTab
-    curRetty <- gets curRetType
-    modify $ \s -> s { curRetType = retty }
     void $ InstrCmpT . IRBuilderT . lift $ func name (zip paramOpTypes paramNames) returnOpType $ \paramOps -> do
         forM_ (zip3 paramTypes paramOps paramSyms) $ \(typ, op, sym) -> do
             loc <- valLocal typ
@@ -191,14 +188,12 @@ cmpFuncDef (S.FuncDef pos sym params retty blk) = trace "cmpFuncDef" $ withPos p
 
         cmpStmt blk
         hasTerm <- hasTerminator
-        retty <- gets curRetType
         if hasTerm
         then return ()
         else if retty == Void
         then retVoid
         else unreachable
 
-    modify $ \s -> s { curRetType = curRetty }
     popSymTab
 
 
@@ -208,7 +203,7 @@ cmpIndex index = withPos index $ case index of
         ObjVal val <- look (Sym sym) KeyVar
         return val
     S.IndArray pos ind idxExpr -> do
-        idxVal <- withTypeHint I64 (cmpExpr idxExpr)
+        idxVal <- cmpExpr idxExpr
         assertBaseType isInt (valType idxVal)
 
         loc <- cmpIndex ind
@@ -260,7 +255,7 @@ cmpAppend append = withPos append $ case append of
 
     S.AppendTable pos app expr -> do
         loc <- cmpAppend app
-        tableAppend loc =<< withTypeHint (valType loc) (cmpExpr expr)
+        tableAppend loc =<< cmpExpr expr
         return loc
 
     S.AppendElem pos app expr -> do
@@ -289,16 +284,11 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
         valStore loc =<< cmpExpr expr
 
     S.Return pos Nothing -> do
-        curRetty <- gets curRetType
-        assert (curRetty == Void) "must return a value"
         retVoid
         emitBlockStart =<< fresh
 
     S.Return pos (Just expr) -> do
-        retty <- gets curRetType
-        val <- withTypeHint retty (cmpExpr expr)
-        checkTypesCompatible (valType val) retty
-        ret . valOp =<< valLoad val
+        ret . valOp =<< valLoad =<< cmpExpr expr
         emitBlockStart =<< fresh
 
     S.If pos cnd blk melse -> do
@@ -330,33 +320,23 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
 
 -- must return Val unless local variable
 cmpExpr :: InsCmp CompileState m =>  S.Expr -> m Value
-cmpExpr expr = trace "cmpExpr" $ withPos expr $ case expr of
-    S.Bool pos b               -> return (valBool b)
-    S.Char pos c               -> return (valChar c)
+cmpExpr (S.AExpr exprTyp expr) = trace "cmpExpr" $ withPos expr $ case expr of
+    S.Bool pos b               -> valBool exprTyp b
+    S.Char pos c               -> valChar exprTyp c
     S.Conv pos typ exprs       -> valConstruct typ =<< mapM cmpExpr exprs
     S.Copy pos expr            -> valCopy =<< cmpExpr expr
     S.Tuple pos [expr]         -> cmpExpr expr
-
-    S.Float p f -> do
-        hint <- gets typeHint
-        base <- baseTypeOf hint
-        if isFloat base
-        then valFloat hint f
-        else valFloat F64 f
+    S.Float p f                -> valFloat exprTyp f
 
     S.Table p [[]] -> do
-        hint <- gets typeHint
-        base <- baseTypeOf hint
-        if isTable base
-        then valZero hint
-        else fail "Table no type"
+        assertBaseType isTable exprTyp
+        valZero exprTyp
 
     S.Int p n -> do
-        hint <- gets typeHint
-        base <- baseTypeOf hint
-        if isInt base
-        then valInt hint n
-        else valInt I64 n
+        base <- baseTypeOf exprTyp
+        case base of
+            _ | isInt base -> valInt exprTyp n
+            _ | isFloat base -> valFloat exprTyp (fromIntegral n)
 
     S.Infix pos op exprA exprB -> do
         valA <- cmpExpr exprA
@@ -396,22 +376,14 @@ cmpExpr expr = trace "cmpExpr" $ withPos expr $ case expr of
             _       -> fail ("cannot take length of type " ++ show (valType val))
 
     S.Tuple pos exprs -> do
-        hint <- gets typeHint
-        base <- baseTypeOf hint
-
-        vals <- if isTuple base && (let Tuple ts = base in length ts == length exprs)
-        then do
-            let Tuple ts = base
-            forM (zip ts exprs) $ \(t, e) -> withTypeHint t (cmpExpr e)
-        else mapM cmpExpr exprs
-
+        vals <- mapM cmpExpr exprs
         tup <- valLocal $ Tuple [ valType v | v <- vals ]
         zipWithM_ (tupleSet tup) [0..] vals
         valLoad tup
 
     S.Subscript pos aggExpr idxExpr -> valLoad =<< do
         agg <- cmpExpr aggExpr
-        idx <- withTypeHint I64 (cmpExpr idxExpr)
+        idx <- cmpExpr idxExpr
 
         idxType <- assertBaseType isInt (valType idx)
         aggType <- baseTypeOf (valType agg)
@@ -449,7 +421,7 @@ cmpExpr expr = trace "cmpExpr" $ withPos expr $ case expr of
 
 cmpPattern :: InsCmp CompileState m => S.Pattern -> Value -> m Value
 cmpPattern pattern val = trace "cmpPattern" $ withPos pattern $ case pattern of
-    S.PatIgnore pos   -> return (valBool True)
+    S.PatIgnore pos   -> valBool Bool True
     S.PatLiteral expr -> cmpInfix S.EqEq val =<< cmpExpr expr
 
     S.PatGuarded pos pat expr -> do
@@ -463,7 +435,7 @@ cmpPattern pattern val = trace "cmpPattern" $ withPos pattern $ case pattern of
         loc <- valLocal (valType val)
         valStore loc val
         define sym KeyVar (ObjVal loc)
-        return (valBool True)
+        valBool Bool True
 
     S.PatTuple pos pats -> do
         len <- tupleLength val
@@ -472,7 +444,8 @@ cmpPattern pattern val = trace "cmpPattern" $ withPos pattern $ case pattern of
         bs <- forM (zip pats [0..]) $ \(p, i) ->
             cmpPattern p =<< tupleIdx i val
 
-        foldM (valsInfix S.AndAnd) (valBool True) bs
+        true <- valBool Bool True
+        foldM (valsInfix S.AndAnd) true bs
 
     S.PatArray pos pats -> do
         base <- baseTypeOf (valType val)
@@ -485,7 +458,9 @@ cmpPattern pattern val = trace "cmpPattern" $ withPos pattern $ case pattern of
                 bs <- forM (zip pats [0..]) $ \(p, i) ->
                     cmpPattern p =<< tableGetElem val (valI64 i)
 
-                foldM (valsInfix S.AndAnd) (valBool True) (lenEq:bs)
+                true <- valBool (valType lenEq) True
+                foldM (valsInfix S.AndAnd) true (lenEq:bs)
+
             _ -> fail "Invalid array pattern"
 
     _ -> fail ("Cannot compile pattern: " ++ show pattern)

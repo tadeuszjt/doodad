@@ -14,7 +14,7 @@ fn getStrLn() string
 
     while true
         let c = char(Cgetchar())
-        if c < char(1);    return "\0"
+        if c < 1;          return "\0"
         else if c == '\n'; return str
         else;              str <- c
 

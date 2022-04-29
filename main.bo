@@ -6,7 +6,8 @@ import std/strings
 
 fn main()
         let va = Vec2(1.0, 3.0)
-        let vb = Vec2(2.0, 1.0)
+        let vb = Vec2(9, 7)
+        vb = (2, 1)
         print("5:", length(va + vb))
 
         let str = "tadeusztomoszek"

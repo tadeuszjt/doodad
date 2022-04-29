@@ -24,6 +24,10 @@ import JIT
 import Compile
 import State
 import Args
+import AST
+import Collect as C
+import Unify
+import Annotate
 
 -- Modules are groups of .bo files with a module name header
 -- lang/lexer.bo: lexer module
@@ -32,6 +36,7 @@ import Args
 data Modules
     = Modules
         { modMap  :: Map.Map FilePath CompileState
+        , symTabMap :: Map.Map FilePath C.SymTab
         , session :: JIT.Session
         }
 
@@ -40,6 +45,7 @@ initModulesState session
     = Modules
         { modMap  = Map.empty
         , session = session
+        , symTabMap = Map.empty
         }
 
 
@@ -107,6 +113,21 @@ parse id file = do
         Right a                     -> return a
 
 
+runTypeInference :: BoM s m => AST -> Map.Map FilePath C.SymTab -> m (AST, C.SymTab)
+runTypeInference annotatedAST imports = do
+    runRec annotatedAST imports
+    where
+        runRec :: BoM s m => AST -> Map.Map FilePath C.SymTab -> m (AST, C.SymTab)
+        runRec ast imports = do
+            (_, state) <- runBoMTExcept (C.initCollectState imports) (C.collectAST ast)
+            subs <- unify $ C.collected state
+            defaults <- unifyDefault $ map (apply subs) (C.defaults state)
+            let ast' = apply subs ast
+            if ast == ast'
+            then return (apply defaults ast', C.symTab state)
+            else runRec ast' imports
+
+
 runMod :: BoM Modules m => Args -> Set.Set FilePath -> FilePath -> m CompileState
 runMod args pathsVisited modPath = do
     debug "running"
@@ -139,7 +160,13 @@ runMod args pathsVisited modPath = do
                 state <- runMod args (Set.insert path pathsVisited) importPath
                 return (takeFileName importPath, state)
 
-            flat <- fmap snd $ withFiles files $ runBoMTExcept initFlattenState (flattenAST combinedAST)
+
+            -- run type inference on ast
+            annotatedAST <- fmap fst $ withFiles files $ runBoMTExcept 0 (annotateAST combinedAST)
+            (ast, symTab) <- withFiles files $ runTypeInference annotatedAST =<< gets symTabMap
+
+
+            flat <- fmap snd $ withFiles files $ runBoMTExcept initFlattenState (flattenAST ast)
 
             -- compile and run
             debug "compiling"
@@ -155,6 +182,7 @@ runMod args pathsVisited modPath = do
                 liftIO $ jitAndRun defs session True (printLLIR args) 
 
             modify $ \s -> s { modMap = Map.insert path state (modMap s) }
+            modify $ \s -> s { symTabMap = Map.insert path symTab (symTabMap s) }
             return state
 
         debug str =

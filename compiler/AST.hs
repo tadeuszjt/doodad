@@ -17,6 +17,7 @@ data AST
         , astImports    :: [FilePath]
         , astStmts      :: [Stmt]
         }
+    deriving (Eq)
 
 
 data Op

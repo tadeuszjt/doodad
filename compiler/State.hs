@@ -75,10 +75,8 @@ data CompileState
         , declarations  :: Map.Map LL.Name Declaration
         , declared      :: Set.Set LL.Name
         , symTab        :: SymTab.SymTab String SymKey Object
-        , curRetType    :: Type
         , curModName    :: String
         , nameMap       :: Map.Map String Int
-        , typeHint      :: Type
         }
 
 initCompileState imports modName
@@ -88,10 +86,8 @@ initCompileState imports modName
         , declarations  = Map.empty
         , declared      = Set.empty
         , symTab        = SymTab.initSymTab
-        , curRetType    = Void
         , curModName    = modName
         , nameMap       = Map.empty
-        , typeHint      = Void
         }
 
 
@@ -105,15 +101,6 @@ myFresh sym = do
     let n = maybe 0 (+1) (Map.lookup sym nameMap)
     modify $ \s -> s { nameMap = Map.insert sym n nameMap }
     return $ LL.Name $ mkBSS (mod ++ "." ++ sym ++ "_" ++ show n )
-
-
-withTypeHint :: BoM CompileState m => Type -> m a -> m a
-withTypeHint typ f = do
-    oldTypeHint <- gets typeHint
-    modify $ \s -> s { typeHint = typ }
-    r <- f
-    modify $ \s -> s { typeHint = oldTypeHint }
-    return r
 
 
 redefine :: BoM CompileState m => String -> SymKey -> Object -> m ()

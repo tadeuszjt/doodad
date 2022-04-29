@@ -36,12 +36,16 @@ valI64 :: Integral i => i -> Value
 valI64 n = Val I64 $ int64 (fromIntegral n)
 
 
-valChar :: Char -> Value
-valChar c = Val Char (int8 $ fromIntegral $ fromEnum c)
+valChar :: InsCmp CompileState m => Type -> Char -> m Value
+valChar typ c = do
+    assertBaseType (== Char) typ
+    return $ Val typ (int8 $ fromIntegral $ fromEnum c)
 
 
-valBool :: Bool -> Value
-valBool b = Val Bool (if b then bit 1 else bit 0)
+valBool :: InsCmp CompileState m => Type -> Bool -> m Value
+valBool typ b = do
+    assertBaseType (== Bool) typ
+    return $ Val typ (if b then bit 1 else bit 0)
 
 
 valInt :: InsCmp CompileState m => Integral i => Type -> i -> m Value
@@ -71,12 +75,12 @@ valZero typ = trace ("valZero " ++ show  typ) $ do
 
     where
         valZero' :: InsCmp CompileState m => Maybe Name -> Type -> m Value
-        valZero' namem typ =
-            case typ of
-                _ | isInt typ   -> valInt typ 0
-                _ | isFloat typ -> valFloat typ 0.0
-                Bool            -> return (valBool False)
-                Char            -> return (valChar '\0')
+        valZero' namem base =
+            case base of
+                _ | isInt base   -> valInt typ 0
+                _ | isFloat base -> valFloat typ 0.0
+                Bool            -> valBool typ False
+                Char            -> valChar typ '\0'
                 Typedef sym     -> fmap (Val typ . valOp) $ valZero =<< baseTypeOf typ
                 Array n t       -> Val typ . array . replicate n . toCons . valOp <$> valZero t
                 Tuple ts        -> Val typ . struct namem False . map (toCons . valOp) <$> mapM valZero ts

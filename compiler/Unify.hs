@@ -55,6 +55,32 @@ unify (x:xs) = do
     return (s ++ subs)
 
 
+unifyOneDefault :: BoM s m => Constraint -> m [(Int, Type)]
+unifyOneDefault (Constraint pos t1 t2) = withPos pos $ case (t1, t2) of
+    (Type x, t)                          -> return [(x, t)]
+    (t, Type x)                          -> return [(x, t)]
+    (T.Bool, T.Bool)                     -> return []
+    (I64, I64)                           -> return []
+    (F32, F32)                           -> return []
+    (F64, F64)                           -> return []
+    (T.Char, T.Char)                     -> return []
+    (T.Table [T.Char], T.Table [T.Char]) -> return []
+    (T.Tuple tsa, T.Tuple tsb)
+        | length tsa /= length tsb       -> fail "length"
+        | otherwise                      -> concat <$> zipWithM (\ta tb -> unifyOneDefault (Constraint pos ta tb)) tsa tsb
+    (T.Typedef s1, T.Typedef s2)
+        | s1 == s2                       -> return []
+    (ta, tb) | ta /= tb                  -> return [] -- ignore errors
+    _                                    -> fail $ show (t1, t2)
+
+
+unifyDefault :: BoM s m => [Constraint] -> m [(Int, Type)]
+unifyDefault []     = return []
+unifyDefault (x:xs) = do
+    subs <- unifyDefault xs
+    s <- unifyOneDefault (apply subs x)
+    return (s ++ subs)
+
 -- Apply represents taking a list of substitutions and applying them to all types in an object.
 class Apply a where
     apply :: [(Int, Type)] -> a -> a
