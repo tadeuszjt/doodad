@@ -41,6 +41,7 @@ executable bolang
     other-modules:
         AST,
         Args,
+        Apply,
         Compile,
         Error,
         Flatten,

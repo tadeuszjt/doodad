@@ -28,6 +28,7 @@ import AST
 import Collect as C
 import Unify
 import Annotate
+import Apply
 
 -- Modules are groups of .bo files with a module name header
 -- lang/lexer.bo: lexer module

@@ -204,9 +204,20 @@ collectStmt stmt = collectPos stmt $ case stmt of
         collectCondition cond
         collectStmt blk
 
-    CallStmt p sym exprs -> do
-        mapM_ collectExpr exprs
-        -- TODO resm <- lookm (Sym sym) (KeyFunc $ map typeOf exprs)
+    CallStmt p sym es -> do
+        kos <- lookSym (Sym sym)
+        case kos of
+            -- no definitions 
+            []                         -> fail $ show sym ++ " undefined"
+            -- one definition
+            [(KeyFunc ts, ObjFunc rt)] -> do
+                assert (length ts == length es) "Invalid arguments"
+                zipWithM_  collect ts (map typeOf es)
+
+            -- do nothing
+            _ -> return ()
+
+        mapM_ collectExpr es
 
     Print p exprs -> do
         mapM_ collectExpr exprs
@@ -275,14 +286,14 @@ collectCondition cond = case cond of
 
 
 collectExpr :: BoM CollectState m => Expr -> m ()
-collectExpr (AExpr typ expr) = collectPos expr $ case expr of
+collectExpr (AExpr exprType expr) = collectPos expr $ case expr of
     Conv p t [e] -> do
-        collect typ t
+        collect exprType t
         collectExpr e
 
     Call p sym [] -> do
         ObjFunc rt <- look sym (KeyFunc [])
-        collect typ rt
+        collect exprType rt
     
     Call p sym es -> do
         kos <- lookSym sym
@@ -293,11 +304,11 @@ collectExpr (AExpr typ expr) = collectPos expr $ case expr of
             [(KeyFunc ts, ObjFunc rt)] -> do
                 assert (length ts == length es) "Invalid arguments"
                 zipWithM_  collect ts (map typeOf es)
-                collect typ rt
+                collect exprType rt
 
             -- several definitions, return type matches one
-            _ | length (elemIndices (ObjFunc typ) (map snd kos)) == 1 -> do
-                let [idx] = elemIndices (ObjFunc typ) (map snd kos)
+            _ | length (elemIndices (ObjFunc exprType) (map snd kos)) == 1 -> do
+                let [idx] = elemIndices (ObjFunc exprType) (map snd kos)
                 let (KeyFunc ts, ObjFunc _) = kos !! idx
                 assert (length ts == length es) "Invalid arguments"
                 zipWithM_  collect ts (map typeOf es)
@@ -305,7 +316,7 @@ collectExpr (AExpr typ expr) = collectPos expr $ case expr of
             -- several definitions, arg types match one
             _ | length (elemIndices (KeyFunc $ map typeOf es) (map fst kos)) == 1 -> do
                 let Just (ObjFunc rt) = lookup (KeyFunc $ map typeOf es) kos
-                collect typ rt
+                collect exprType rt
 
             -- do nothing
             _ -> return ()
@@ -314,48 +325,48 @@ collectExpr (AExpr typ expr) = collectPos expr $ case expr of
 
     Ident p sym -> do
         ObjVar t <- look sym KeyVar
-        collect t typ
+        collect t exprType
 
     Infix p op e1 e2 -> do
         case op of
-            _ | op `elem` [S.Plus, S.Minus, S.Times, S.Divide, S.Modulo] -> collect typ (typeOf e1)
-            _ | op `elem` [S.LT, S.GT, S.LTEq, S.GTEq, S.EqEq, S.NotEq]  -> collectDefault typ T.Bool
-            _ | op `elem` [S.AndAnd, S.OrOr]                             -> collect typ (typeOf e1)
+            _ | op `elem` [S.Plus, S.Minus, S.Times, S.Divide, S.Modulo] -> collect exprType (typeOf e1)
+            _ | op `elem` [S.LT, S.GT, S.LTEq, S.GTEq, S.EqEq, S.NotEq]  -> collectDefault exprType T.Bool
+            _ | op `elem` [S.AndAnd, S.OrOr]                             -> collect exprType (typeOf e1)
             _ -> return ()
                     
         collect (typeOf e1) (typeOf e2)
         collectExpr e1
         collectExpr e2
 
-    S.Char p c -> collectDefault typ T.Char
-    S.Int p c -> collectDefault typ I64
+    S.Char p c -> collectDefault exprType T.Char
+    S.Int p c -> collectDefault exprType I64
 
     S.Prefix p op e -> do
-        collect typ (typeOf e)
+        collect exprType (typeOf e)
         collectExpr e
 
     S.Copy p e -> do
-        collect typ (typeOf e)
+        collect exprType (typeOf e)
         collectExpr e
 
     S.Len p e -> do
-        collectDefault typ I64
+        collectDefault exprType I64
         collectExpr e
 
-    S.Bool p b -> collectDefault typ T.Bool
+    S.Bool p b -> collectDefault exprType T.Bool
     
     S.Subscript p e1 e2 -> do
         case typeOf e1 of
             Type x      -> return ()
-            T.Table [t] -> collect typ t
+            T.Table [t] -> collect exprType t
             _           -> error $ show (typeOf e1)
         collectExpr e1
         collectExpr e2
 
-    S.String p s -> collectDefault typ (T.Table [T.Char])
+    S.String p s -> collectDefault exprType (T.Table [T.Char])
 
     S.Tuple p es -> do
-        base <- baseTypeOf typ
+        base <- baseTypeOf exprType
         case base of
             T.Tuple ts -> zipWithM_ collect ts (map typeOf es)
             T.Type x   -> return ()
@@ -363,15 +374,15 @@ collectExpr (AExpr typ expr) = collectPos expr $ case expr of
 
     Member p e sym -> do
         case typeOf e of
-            Type x                -> return ()
-            t@(T.Typedef (Sym s)) -> do
-                ObjMember i <- look (Sym sym) (KeyMember t)
-                ObjType bt <- look (Sym s) KeyType
-                case bt of
-                    T.Tuple ts -> collect typ (ts !! i)
+            Type x            -> return ()
+            T.Typedef (Sym s) -> do
+                ObjMember i  <- look (Sym sym) $ KeyMember (typeOf e)
+                ObjType base <- look (Sym s) KeyType
+                case base of
+                    T.Tuple ts -> collect exprType (ts !! i)
 
         collectExpr e
 
-    S.Float p f -> collectDefault typ F64
+    S.Float p f -> collectDefault exprType F64
 
     _ -> fail ("collect: " ++ show expr)
