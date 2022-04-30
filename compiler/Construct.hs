@@ -88,7 +88,7 @@ valConstruct typ [val']   = trace "valConstruct" $ do
     base <- baseTypeOf typ
 
     case base of
-        t | isIntegral t || isFloat t -> convertNumber typ val
+        t | isIntegral t || isFloat t -> valConvertNumber typ val
 
         Table [Char] -> do
             res <- lookm (Sym "string") $ KeyFunc [valType val]
@@ -100,49 +100,3 @@ valConstruct typ [val']   = trace "valConstruct" $ do
         _ -> do
             checkTypesCompatible typ (valType val)
             Val typ . valOp <$> valLoad val
-
-    where
-        convertNumber :: InsCmp CompileState m => Type -> Value -> m Value
-        convertNumber typ (Val valTyp op) = do
-            base <- baseTypeOf typ
-            baseVal <- baseTypeOf valTyp
-            fmap (Val typ) $ case (base, baseVal) of
-                (I64,  I64) -> return op
-                (I32,  I64) -> trunc op LL.i32
-                (I16,  I64) -> trunc op LL.i16
-                (I8,   I64) -> trunc op LL.i8
-                (Char, I64) -> trunc op LL.i8
-                (F64,  I64) -> sitofp op LL.double
-                (F32,  I64) -> sitofp op LL.float
-
-                (I64,  I32) -> sext op LL.i64
-                (I32,  I32) -> return op
-                (I16,  I32) -> trunc op LL.i16
-                (I8,   I32) -> trunc op LL.i8
-                (Char, I32) -> trunc op LL.i8
-
-                (I64, I16) -> sext op LL.i64
-                (I32, I16) -> sext op LL.i32
-                (I16, I16) -> return op
-                (I8,  I16) -> trunc op LL.i8
-                (Char, I16) -> trunc op LL.i8
-
-                (I64 , I8) -> sext op LL.i64
-                (I32 , I8) -> sext op LL.i32
-                (I16 , I8) -> sext op LL.i16
-                (I8  , I8) -> return op
-                (Char, I8) -> return op
-
-                (I64,  Char) -> sext op LL.i64
-                (I32,  Char) -> sext op LL.i32
-                (I16,  Char) -> sext op LL.i16
-                (I8,   Char) -> return op
-                (Char, Char) -> return op
-
-                (I64, F64) -> fptosi op LL.i64
-                (F32, F64) -> fptrunc op LL.float
-                (F64, F64) -> return op
-
-                (F64, F32) -> fpext op LL.double
-
-                x -> fail $ "Cannot construct " ++ show typ ++ " from " ++ show valTyp

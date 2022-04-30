@@ -86,6 +86,9 @@ annotateIndex index = case index of
 
 
 annotateExpr :: BoM Int m => Expr -> m Expr
+annotateExpr (AExpr t e) = do
+    AExpr t' e' <- annotateExpr e
+    return (AExpr t e')
 annotateExpr expr = annotateWithType =<< case expr of
     Ident p s -> return expr
     Char p c -> return expr

@@ -368,10 +368,11 @@ cmpExpr (S.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck exp
             ObjFunc retty op       -> Val retty <$> call op [(o, []) | o <- map valOp vals]
 
     S.Len pos expr -> valLoad =<< do
+        assertBaseType isIntegral exprType
         val <- cmpExpr expr
         base <- baseTypeOf (valType val)
         case base of
-            Table _ -> tableLen val
+            Table _ -> valConvertNumber exprType =<< tableLen val
             _       -> fail ("cannot take length of type " ++ show (valType val))
 
     S.Tuple pos exprs -> do

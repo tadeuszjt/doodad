@@ -21,6 +21,7 @@ import qualified Data.Set as Set
 %right     '..'
 %right     '!'
 %left      '<-'
+%left      ':'
 %nonassoc  '.'
 %nonassoc  '::'
 %nonassoc  '!'
@@ -31,6 +32,7 @@ import qualified Data.Set as Set
 %nonassoc  '[' ']'
 %nonassoc  '{' '}'
 %nonassoc  '|'
+
 
 
 %token
@@ -189,7 +191,7 @@ block  : 'I' prog_ 'D'                        { S.Block $2 }
        | ';' 'N'                              { S.Block [] }
 
 condition : expr                              { S.CondExpr $1 }
-          | expr ':' pattern                  { S.CondMatch $3 $1 }
+--          | expr ':' pattern                  { S.CondMatch $3 $1 }
 
 param   : ident type_                         { S.Param (tokPos $1) (tokStr $1) $2 }
 params  : {- empty -}                         { [] }
@@ -218,10 +220,11 @@ expr   : literal                              { $1 }
        | len '(' expr ')'                     { S.Len (tokPos $1) $3 }
        | copy '(' expr ')'                    { S.Copy (tokPos $1) $3 }
        | typeOrdinal '(' exprs ')'            { S.Conv (tokPos $2) $1 $3 }
-       | ':' typeAggregate '(' exprs ')'      { S.Conv (tokPos $3) $2 $4 }
+--       | ':' typeAggregate '(' exprs ')'      { S.Conv (tokPos $3) $2 $4 }
        | expr '.' intlit                      { S.TupleIndex (tokPos $2) $1 (read $ tokStr $3) }
        | expr '.' ident                       { S.Member (tokPos $2) $1 (tokStr $3) }
        | expr '[' expr ']'                    { S.Subscript (tokPos $2) $1 $3 }
+	   | expr ':' type_                       { S.AExpr $3 $1 }
 
 literal : intlit                              { S.Int (tokPos $1) (read $ tokStr $1) }
         | floatlit                            { S.Float (tokPos $1) (read $ tokStr $1) }

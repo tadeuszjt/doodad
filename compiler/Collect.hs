@@ -377,4 +377,6 @@ collectExpr (AExpr exprType expr) = collectPos expr $ case expr of
 
     S.Float p f -> collectDefault exprType F64
 
+    S.AExpr _ _ -> fail "what"
+
     _ -> fail ("collect: " ++ show expr)
