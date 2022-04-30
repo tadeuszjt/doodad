@@ -18,6 +18,7 @@ unifyOne (Constraint pos t1 t2) = withPos pos $ case (t1, t2) of
     (t, Type x)                          -> return [(x, t)]
     (T.Bool, T.Bool)                     -> return []
     (I64, I64)                           -> return []
+    (Void, Void)                         -> return []
     (F32, F32)                           -> return []
     (F64, F64)                           -> return []
     (T.Char, T.Char)                     -> return []

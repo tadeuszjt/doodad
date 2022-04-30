@@ -144,8 +144,8 @@ stmtS : let pattern '=' expr                  { S.Assign (tokPos $1) $2 $4 }
       | return expr                           { S.Return (tokPos $1) (Just $2) }
       | append_                               { S.AppendStmt $1 }
 stmtB : If                                    { $1 }
-      | fn fnName '(' params ')' block        { S.FuncDef (tokPos $1) $2 $4 T.Void $6 }
-      | fn fnName '(' params ')' type_ block  { S.FuncDef (tokPos $1) $2 $4 $6 $7 }
+      | fn fnName '(' params ')' block        { S.FuncDef (tokPos $1) $2 $4 Nothing $6 }
+      | fn fnName '(' params ')' type_ block  { S.FuncDef (tokPos $1) $2 $4 (Just $6) $7 }
       | while condition block                 { S.While (tokPos $1) $2 $3 }
 
 pattern  : '_'                                { S.PatIgnore (tokPos $1) }

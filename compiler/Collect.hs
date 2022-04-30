@@ -147,7 +147,7 @@ collectAST ast = do
                 define sym KeyType $ ObjType $ T.Tuple (map snd xs)
                 define sym (KeyFunc ts) (ObjFunc typedef) 
 
-    forM funcdefs $ \(S.FuncDef pos sym params retty _) -> collectPos pos $
+    forM funcdefs $ \(S.FuncDef pos sym params (Just retty) _) -> collectPos pos $
         define sym (KeyFunc $ map paramType params) (ObjFunc retty)
 
     forM externdefs $ \(S.Extern pos name sym params retty) -> collectPos pos $
@@ -158,7 +158,7 @@ collectAST ast = do
 
 collectStmt :: BoM CollectState m => Stmt -> m ()
 collectStmt stmt = collectPos stmt $ case stmt of
-    FuncDef _ sym params retty blk -> do
+    FuncDef _ sym params (Just retty) blk -> do
         oldRetty <- gets curRetty
         modify $ \s -> s { curRetty = retty }
         pushSymTab
@@ -167,6 +167,7 @@ collectStmt stmt = collectPos stmt $ case stmt of
         collectStmt blk
         popSymTab
         modify $ \s -> s { curRetty = oldRetty }
+        collectDefault retty T.Void
     
     Extern _ name sym params retty ->
         return () -- already defined
@@ -179,9 +180,7 @@ collectStmt stmt = collectPos stmt $ case stmt of
         popSymTab
 
     Return _ (Just expr) -> do
-        rt <- gets curRetty
-        assert (rt /= Void) "Cannot return expression in void function."
-        collect (typeOf expr) rt
+        collect (typeOf expr) =<< gets curRetty
         collectExpr expr
 
     If _ cond blk melse -> do

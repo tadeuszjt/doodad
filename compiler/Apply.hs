@@ -1,8 +1,11 @@
+{-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE FlexibleInstances #-}
 module Apply where
 
 import Type as T
 import AST as S
 import Collect
+import qualified Data.Map as Map
 
 -- constraint:   (t1, t2) or (x, y)
 -- substitution: (id, t) or (x, u)
@@ -26,6 +29,17 @@ substitute u x t = case t of
 -- Apply represents taking a list of substitutions and applying them to all types in an object.
 class Apply a where
     apply :: [(Int, Type)] -> a -> a
+
+
+instance Apply Collect.SymTab where
+    apply subs symTab = map (Map.map (Map.map (apply subs))) symTab
+
+instance Apply Collect.Object where
+    apply subs object = case object of
+        ObjVar t -> ObjVar (apply subs t)
+        ObjType t -> ObjType (apply subs t)
+        ObjFunc t -> ObjFunc (apply subs t)
+        ObjMember i -> ObjMember i
 
 instance Apply Constraint where
     apply subs (Constraint p t1 t2) = Constraint p (apply subs t1) (apply subs t2)
@@ -87,9 +101,9 @@ instance Apply Stmt where
         CallStmt pos sym es     -> CallStmt pos sym $ map (apply subs) es
         Print pos es            -> Print pos $ map (apply subs) es
 
-        FuncDef pos sym params retty block ->
+        FuncDef pos sym params (Just retty) block ->
             let params' = map (\(Param p s t) -> Param p s (apply subs t)) params in
-            FuncDef pos sym params' (apply subs retty) (apply subs block)
+            FuncDef pos sym params' (Just $ apply subs retty) (apply subs block)
 
         Extern pos name sym params retty ->
             let params' = map (\(Param p s t) -> Param p s (apply subs t)) params in

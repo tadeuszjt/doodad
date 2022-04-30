@@ -146,8 +146,8 @@ cmpExternDef (S.Extern pos nameStr sym params retty) = trace "cmpExternDef" $ wi
 
 
 cmpFuncHdr :: InsCmp CompileState m => S.Stmt -> m ()
-cmpFuncHdr (S.FuncDef pos "main" params retty blk) = trace "cmpFuncHdr" $ return ()
-cmpFuncHdr (S.FuncDef pos sym params retty blk)    = trace "cmpFuncHdr" $ withPos pos $ do
+cmpFuncHdr (S.FuncDef pos "main" params (Just retty) blk) = trace "cmpFuncHdr" $ return ()
+cmpFuncHdr (S.FuncDef pos sym params (Just retty) blk)    = trace "cmpFuncHdr" $ withPos pos $ do
     let paramTypes = map S.paramType params
     name <- myFresh sym
     paramOpTypes <- mapM opTypeOf paramTypes
@@ -164,11 +164,11 @@ cmpFuncHdr (S.FuncDef pos sym params retty blk)    = trace "cmpFuncHdr" $ withPo
 
 
 cmpFuncDef :: (MonadFail m, Monad m, MonadIO m) => S.Stmt -> InstrCmpT CompileState m ()
-cmpFuncDef (S.FuncDef pos "main" params retty blk) = trace "cmpFuncDef" $ withPos pos $ do
+cmpFuncDef (S.FuncDef pos "main" params (Just retty) blk) = trace "cmpFuncDef" $ withPos pos $ do
     assert (params == [])  "main cannot have parameters"
-    assert (retty == Void) "main must return void"
+    assert (retty == Void) $ "main must return void: " ++ show retty
     cmpStmt blk
-cmpFuncDef (S.FuncDef pos sym params retty blk) = trace "cmpFuncDef" $ withPos pos $ do
+cmpFuncDef (S.FuncDef pos sym params (Just retty) blk) = trace "cmpFuncDef" $ withPos pos $ do
     returnOpType <- opTypeOf retty
     paramOpTypes <- mapM (opTypeOf . S.paramType) params
     let paramTypes = map S.paramType params

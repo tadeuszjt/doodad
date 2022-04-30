@@ -127,7 +127,7 @@ runTypeInference args annotatedAST imports = do
             defaults <- unifyDefault $ map (apply subs) (C.defaults state)
             let ast' = apply subs ast
             if ast == ast'
-            then return (apply defaults ast', C.symTab state, 1)
+            then return (apply defaults ast', apply defaults (apply subs (C.symTab state)), 1)
             else do
                 (ast'', symTab, n) <- runRec ast' imports
                 return (ast'', symTab, n + 1)
@@ -167,7 +167,7 @@ runMod args pathsVisited modPath = do
 
 
             -- run type inference on ast
-            annotatedAST <- fmap fst $ withFiles files $ runBoMTExcept 0 (annotateAST combinedAST)
+            annotatedAST <- fmap fst $ withFiles files $ runBoMTExcept 0 (annotate combinedAST)
             (ast, symTab) <- withFiles files $ runTypeInference args annotatedAST =<< gets symTabMap
 
 
