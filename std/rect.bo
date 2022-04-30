@@ -7,6 +7,6 @@ type Rect (min:Vec2, max:Vec2)
 
 fn string(r Rect) string
     let s = ""
-    s <<- "Rect(" <<- string(r.min) <<- ", " <<- string(r.max) <- ')'
+    s <- "Rect(" <- string(r.min) <- ", " <- string(r.max) <- ")"
     return s
 

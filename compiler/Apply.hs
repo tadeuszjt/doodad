@@ -69,8 +69,6 @@ instance Apply Append where
     apply subs app = case app of
         AppendTable p ap e -> AppendTable p (apply subs ap) (apply subs e)
         AppendIndex index   -> AppendIndex (apply subs index)
-        AppendElem p ap e  -> AppendElem p (apply subs ap) (apply subs e)
-        _ -> error $ show app
 
 instance Apply Index where
     apply subs index = case index of
@@ -101,9 +99,6 @@ instance Apply Stmt where
             If pos (apply subs cnd) (apply subs block) $ fmap (apply subs) melse
 
         S.Typedef _ _ _ -> stmt -- leave this for now
-        
-
-        _ -> error $ show stmt
 
 instance Apply AST where
     apply subs ast = ast { astStmts = map (apply subs) (astStmts ast) }

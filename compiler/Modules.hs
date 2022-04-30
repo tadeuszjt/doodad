@@ -114,19 +114,23 @@ parse id file = do
         Right a                     -> return a
 
 
-runTypeInference :: BoM s m => AST -> Map.Map FilePath C.SymTab -> m (AST, C.SymTab)
-runTypeInference annotatedAST imports = do
-    runRec annotatedAST imports
+runTypeInference :: BoM s m => Args -> AST -> Map.Map FilePath C.SymTab -> m (AST, C.SymTab)
+runTypeInference args annotatedAST imports = do
+    (ast, symTab, n) <- runRec annotatedAST imports
+    when (verbose args) $ liftIO $ putStrLn ("Ran type inference with " ++ show n ++ " iterations")
+    return (ast, symTab)
     where
-        runRec :: BoM s m => AST -> Map.Map FilePath C.SymTab -> m (AST, C.SymTab)
+        runRec :: BoM s m => AST -> Map.Map FilePath C.SymTab -> m (AST, C.SymTab, Int)
         runRec ast imports = do
             (_, state) <- runBoMTExcept (C.initCollectState imports) (C.collectAST ast)
             subs <- unify $ C.collected state
             defaults <- unifyDefault $ map (apply subs) (C.defaults state)
             let ast' = apply subs ast
             if ast == ast'
-            then return (apply defaults ast', C.symTab state)
-            else runRec ast' imports
+            then return (apply defaults ast', C.symTab state, 1)
+            else do
+                (ast'', symTab, n) <- runRec ast' imports
+                return (ast'', symTab, n + 1)
 
 
 runMod :: BoM Modules m => Args -> Set.Set FilePath -> FilePath -> m CompileState
@@ -164,7 +168,7 @@ runMod args pathsVisited modPath = do
 
             -- run type inference on ast
             annotatedAST <- fmap fst $ withFiles files $ runBoMTExcept 0 (annotateAST combinedAST)
-            (ast, symTab) <- withFiles files $ runTypeInference annotatedAST =<< gets symTabMap
+            (ast, symTab) <- withFiles files $ runTypeInference args annotatedAST =<< gets symTabMap
 
 
             flat <- fmap snd $ withFiles files $ runBoMTExcept initFlattenState (flattenAST ast)

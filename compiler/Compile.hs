@@ -258,11 +258,6 @@ cmpAppend append = withPos append $ case append of
         tableAppend loc =<< cmpExpr expr
         return loc
 
-    S.AppendElem pos app expr -> do
-        loc <- cmpAppend app
-        tableAppendElem loc =<< cmpExpr expr
-        return loc
-
 
 cmpStmt :: InsCmp CompileState m => S.Stmt -> m ()
 cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
@@ -320,23 +315,27 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
 
 -- must return Val unless local variable
 cmpExpr :: InsCmp CompileState m =>  S.Expr -> m Value
-cmpExpr (S.AExpr exprTyp expr) = trace "cmpExpr" $ withPos expr $ case expr of
-    S.Bool pos b               -> valBool exprTyp b
-    S.Char pos c               -> valChar exprTyp c
-    S.Conv pos typ exprs       -> valConstruct typ =<< mapM cmpExpr exprs
+cmpExpr (S.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck exprType $ case expr of
+    S.Bool pos b               -> valBool exprType b
+    S.Char pos c               -> valChar exprType c
+    S.Conv pos typ exprs       -> do
+        val <- valConstruct typ =<< mapM cmpExpr exprs
+        assert (valType val == exprType) "Type mismatch"
+        return val
+
     S.Copy pos expr            -> valCopy =<< cmpExpr expr
     S.Tuple pos [expr]         -> cmpExpr expr
-    S.Float p f                -> valFloat exprTyp f
+    S.Float p f                -> valFloat exprType f
 
     S.Table p [[]] -> do
-        assertBaseType isTable exprTyp
-        valZero exprTyp
+        assertBaseType isTable exprType
+        valZero exprType
 
     S.Int p n -> do
-        base <- baseTypeOf exprTyp
+        base <- baseTypeOf exprType
         case base of
-            _ | isInt base -> valInt exprTyp n
-            _ | isFloat base -> valFloat exprTyp (fromIntegral n)
+            _ | isInt base -> valInt exprType n
+            _ | isFloat base -> valFloat exprType (fromIntegral n)
 
     S.Infix pos op exprA exprB -> do
         valA <- cmpExpr exprA
@@ -376,10 +375,12 @@ cmpExpr (S.AExpr exprTyp expr) = trace "cmpExpr" $ withPos expr $ case expr of
             _       -> fail ("cannot take length of type " ++ show (valType val))
 
     S.Tuple pos exprs -> do
+        Tuple ts <- assertBaseType isTuple exprType
         vals <- mapM cmpExpr exprs
-        tup <- valLocal $ Tuple [ valType v | v <- vals ]
+        assert (ts == map valType vals) "Incorrect val types."
+        tup <- valLocal exprType
         zipWithM_ (tupleSet tup) [0..] vals
-        valLoad tup
+        return tup
 
     S.Subscript pos aggExpr idxExpr -> valLoad =<< do
         agg <- cmpExpr aggExpr
@@ -417,6 +418,13 @@ cmpExpr (S.AExpr exprTyp expr) = trace "cmpExpr" $ withPos expr $ case expr of
         tupleMember sym =<< cmpExpr exp 
 
     _ -> fail ("invalid expression: " ++ show expr)
+    where
+        withCheck :: InsCmp s m => Type -> m Value -> m Value
+        withCheck typ m = do
+            val <- m
+            assert (valType val == typ) $ "Expression compiled to: " ++ show (valType val)
+            return val
+            
 
 
 cmpPattern :: InsCmp CompileState m => S.Pattern -> Value -> m Value
@@ -462,6 +470,4 @@ cmpPattern pattern val = trace "cmpPattern" $ withPos pattern $ case pattern of
                 foldM (valsInfix S.AndAnd) true (lenEq:bs)
 
             _ -> fail "Invalid array pattern"
-
-    _ -> fail ("Cannot compile pattern: " ++ show pattern)
 

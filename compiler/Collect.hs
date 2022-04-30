@@ -236,14 +236,6 @@ collectAppend append = collectPos append $ case append of
         collectExpr expr
         return tm
 
-    AppendElem _ app expr -> do
-        tm <- collectAppend app
-        case tm of
-            Just (T.Table [te]) -> collect te (typeOf expr)
-            _                   -> return ()
-        collectExpr expr
-        return tm
-
     AppendIndex index -> collectIndex index
 
 

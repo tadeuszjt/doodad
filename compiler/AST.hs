@@ -51,9 +51,8 @@ instance Show Param where
 
 data Append
     = AppendTable TextPos Append Expr
-    | AppendElem TextPos Append Expr
     | AppendIndex Index
-    deriving (Show, Eq)
+    deriving (Eq)
 
 data Pattern
     = PatLiteral   Expr
@@ -116,14 +115,11 @@ data Stmt
 data AnnoType
     = AnnoType  Type
     | AnnoTuple [(String, Type)]
-    deriving (Eq, Show)
-
-
+    deriving (Eq)
 
 instance TextPosition Append where
     textPos append = case append of
         AppendTable p _ _ -> p
-        AppendElem p _ _ -> p
         AppendIndex i -> textPos i
 
 instance TextPosition Index where
@@ -202,6 +198,10 @@ instance Show Op where
         AST.NotEq  -> "!="
         AST.Not    -> "!"
 
+instance Show AnnoType where
+    show annoType = case annoType of
+        AnnoType t   -> show t
+        AnnoTuple xs -> tupStrs $ map (\(s, t) -> s ++ ":" ++ show t) xs
 
 instance Show Pattern where
     show pat = case pat of
@@ -212,9 +212,14 @@ instance Show Pattern where
         PatArray pos ps  -> arrStrs (map show ps)
         PatGuarded pos pat expr -> show pat ++ " | " ++ show expr
 
+instance Show Append where
+    show append = case append of
+        AppendTable p a e -> show a ++ " <- " ++ show e
+        AppendIndex i -> show i
+
 
 instance Show Condition where
-    show (CondExpr expr) = show expr
+    show (CondExpr expr)      = show expr
     show (CondMatch pat expr) = show pat ++ " <- " ++ show expr
 
 
@@ -276,7 +281,7 @@ prettyAST ast = do
             Extern pos name sym args retty -> do
                 putStrLn $ pre ++ "extern " ++ name ++ " " ++ sym ++ tupStrs (map show args) ++ " " ++ if retty == Void then "" else show retty
                 putStrLn ""
-            AppendStmt app -> putStrLn $ pre ++ "append"
+            AppendStmt app -> putStrLn $ pre ++ show app
  
             If pos cnd true mfalse -> do
                 putStrLn $ pre ++ "if " ++ show cnd
@@ -297,6 +302,3 @@ prettyAST ast = do
             AST.Typedef pos sym anno -> do
                 putStrLn $ pre ++ "typedef " ++ sym ++ " " ++ show anno
 
-
-
-            _ -> error $ "Cannot pretty: " ++ show stmt

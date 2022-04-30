@@ -44,7 +44,7 @@ main = do
 
     else if inferOnly parsedArgs then do
         forM_ (modPaths parsedArgs) $ \path -> do
-            res <- runBoMT initRunInferState (runModInfer path Set.empty)
+            res <- runBoMT initRunInferState (runModInfer parsedArgs path Set.empty)
             case res of
                 Left err     -> printError err 
                 Right ((ast, state), y) -> return()

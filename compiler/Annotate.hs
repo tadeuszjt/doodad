@@ -72,9 +72,6 @@ annotateAppend append = case append of
     AppendTable p a e -> do
         a' <- annotateAppend a
         AppendTable p a' <$> annotateExpr e
-    AppendElem p a e -> do
-        a' <- annotateAppend a
-        AppendElem p a' <$> annotateExpr e
 
 
 annotateIndex :: BoM Int m => Index -> m Index

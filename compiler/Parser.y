@@ -20,7 +20,7 @@ import qualified Data.Set as Set
 %left      '*' '/' '%'
 %right     '..'
 %right     '!'
-%left      '<<-' '<-'
+%left      '<-'
 %nonassoc  '.'
 %nonassoc  '::'
 %nonassoc  '!'
@@ -56,7 +56,6 @@ import qualified Data.Set as Set
     '::'       { Token _ ReservedOp "::" }
     '<-'       { Token _ ReservedOp "<-" }
     '..'       { Token _ ReservedOp ".." }
-    '<<-'      { Token _ ReservedOp "<<-" }
 
     fn         { Token _ Reserved "fn" }
     extern     { Token _ Reserved "extern" }
@@ -163,8 +162,7 @@ index  : ident                                { S.IndIdent (tokPos $1) (tokStr $
        | index '[' expr ']'                   { S.IndArray (tokPos $2) $1 $3 }
        | index '.' ident                      { S.IndTuple (tokPos $2) $1 (read $ tokStr $3) }
 
-append_ : append_ '<<-' expr                  { S.AppendTable (tokPos $2) $1 $3 }
-        | append_ '<-' expr                   { S.AppendElem (tokPos $2) $1 $3 }
+append_ : append_ '<-' expr                   { S.AppendTable (tokPos $2) $1 $3 }
         | index                               { S.AppendIndex $1 }
 
 fnName  : ident                               { tokStr $1 }

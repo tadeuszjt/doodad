@@ -19,6 +19,7 @@ import Modules
 import Flatten hiding (imports)
 import Annotate
 import Unify
+import Args
 import qualified Collect as C
 
 
@@ -31,8 +32,8 @@ data RunInferState
 initRunInferState = RunInferState { modInferMap = Map.empty }
 
 
-runModInfer :: BoM RunInferState m => FilePath -> Set.Set FilePath -> m (AST, C.SymTab)
-runModInfer modPath pathsVisited = do
+runModInfer :: BoM RunInferState m => Args -> FilePath -> Set.Set FilePath -> m (AST, C.SymTab)
+runModInfer args modPath pathsVisited = do
     path <- checkAndNormalisePath modPath
     assert (not $ Set.member path pathsVisited) ("importing: " ++ path ++ " forms a cycle")
     resm <- Map.lookup path <$> gets modInferMap
@@ -53,11 +54,11 @@ runModInfer modPath pathsVisited = do
             assert (length importNames == length (Set.fromList importNames)) "import name collision"
 
             importMap <- fmap Map.fromList $ forM importPaths $ \importPath -> do
-                (_, symTab) <- runModInfer importPath (Set.insert path pathsVisited)
+                (_, symTab) <- runModInfer args importPath (Set.insert path pathsVisited)
                 return (takeFileName importPath, symTab)
 
             annotatedAST <- fmap fst $ withFiles files $ runBoMTExcept 0 (annotateAST combinedAST)
-            (ast, symTab) <- withFiles files $ runTypeInference annotatedAST importMap
+            (ast, symTab) <- withFiles files $ runTypeInference args annotatedAST importMap
 
             liftIO $ SymTab.prettySymTab symTab
             modify $ \s -> s { modInferMap = Map.insert path (ast, symTab) (modInferMap s) }
