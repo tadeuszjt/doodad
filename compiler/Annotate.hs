@@ -10,24 +10,36 @@ import qualified Type as T
 class Annotate a where
     annotate :: BoM Int m => a -> m a
 
+
+instance Annotate Param where
+    annotate (Param pos name T.Void) = Param pos name <$> genType
+    annotate (Param pos name typ)    = return (Param pos name typ)
+
 instance Annotate AST where
     annotate ast = do
         stmts <- mapM annotate (astStmts ast)
         return $ ast { astStmts = stmts }
 
-
 instance Annotate Stmt where
     annotate stmt = case stmt of
         FuncDef p s ps rt b -> do
             b' <- annotate b
-            rtm' <- case rt of
-                Just t -> return (Just t)
-                Nothing -> Just <$> genType
-            return $ FuncDef p s ps rtm' b'
+            ps' <- mapM annotate ps
+            rt' <- case rt of
+                T.Void -> genType
+                t      -> return t
+            return $ FuncDef p s ps' rt' b'
 
         Block ss            -> Block <$> mapM annotate ss
         Return p me         -> Return p <$> maybe (return Nothing) (fmap Just . annotate) me
-        Extern p n s ps rt  -> return stmt
+
+        Extern p n s ps rt  -> do
+            ps' <- mapM annotate ps
+            rt' <- case rt of
+                T.Void -> genType
+                _      -> return rt
+            return (Extern p n s ps' rt')
+
         AppendStmt a        -> AppendStmt <$> annotate a
         Print p es          -> Print p <$> mapM annotate es
         Typedef p s a       -> return $ Typedef p s a

@@ -137,15 +137,15 @@ stmtS : let pattern '=' expr                  { S.Assign (tokPos $1) $2 $4 }
       | index '=' expr                        { S.Set (tokPos $2) $1 $3 }
       | ident '(' exprs ')'                   { S.CallStmt (tokPos $2) (tokStr $1) $3 }
       | type ident annoType                   { S.Typedef (tokPos $2) (tokStr $2) $3 }
-      | extern strlit ident '(' params ')' type_     { S.Extern (tokPos $3) (tokStr $2) (tokStr $3) $5 $7 }
-      | extern strlit ident '(' params ')'           { S.Extern (tokPos $3) (tokStr $2) (tokStr $3) $5 T.Void }
+      | extern strlit ident '(' params ')' ':' type_  { S.Extern (tokPos $3) (tokStr $2) (tokStr $3) $5 $8 }
+      | extern strlit ident '(' params ')'            { S.Extern (tokPos $3) (tokStr $2) (tokStr $3) $5 T.Void }
       | print '(' exprs ')'                   { S.Print (tokPos $1) $3 }
       | return                                { S.Return (tokPos $1) Nothing }
       | return expr                           { S.Return (tokPos $1) (Just $2) }
       | append_                               { S.AppendStmt $1 }
 stmtB : If                                    { $1 }
-      | fn fnName '(' params ')' block        { S.FuncDef (tokPos $1) $2 $4 Nothing $6 }
-      | fn fnName '(' params ')' type_ block  { S.FuncDef (tokPos $1) $2 $4 (Just $6) $7 }
+      | fn fnName '(' params ')' block        { S.FuncDef (tokPos $1) $2 $4 T.Void $6 }
+      | fn fnName '(' params ')' ':' type_ block  { S.FuncDef (tokPos $1) $2 $4 $7 $8 }
       | while condition block                 { S.While (tokPos $1) $2 $3 }
 
 pattern  : '_'                                { S.PatIgnore (tokPos $1) }
@@ -193,7 +193,8 @@ block  : 'I' prog_ 'D'                        { S.Block $2 }
 condition : expr                              { S.CondExpr $1 }
 --          | expr ':' pattern                  { S.CondMatch $3 $1 }
 
-param   : ident type_                         { S.Param (tokPos $1) (tokStr $1) $2 }
+param   : ident ':' type_                     { S.Param (tokPos $1) (tokStr $1) $3 }
+		| ident                               { S.Param (tokPos $1) (tokStr $1) T.Void }
 params  : {- empty -}                         { [] }
         | params_                             { $1 }
 params_ : param                               { [$1] }

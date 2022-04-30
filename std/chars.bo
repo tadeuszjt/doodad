@@ -1,8 +1,8 @@
 module chars
 
-fn isAlpha(c char) bool
+fn isAlpha(c:char):bool
     return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')
 
-fn isDigit(c char) bool
+fn isDigit(c:char):bool
     return c >= '0' && c <= '9'
 

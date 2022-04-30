@@ -45,8 +45,6 @@ data Param
         , paramType :: Type
         }
     deriving (Eq)
-instance Show Param where
-    show (Param pos name typ) = name ++ " " ++ show typ
 
 
 data Append
@@ -105,7 +103,7 @@ data Stmt
     | Block       [Stmt]
     | If          TextPos Condition Stmt (Maybe Stmt)
     | While       TextPos Condition Stmt
-    | FuncDef     TextPos String [Param] (Maybe Type) Stmt
+    | FuncDef     TextPos String [Param] Type Stmt
     | Extern      TextPos String String [Param] Type
     | Typedef     TextPos String AnnoType
     | AppendStmt  Append
@@ -179,6 +177,10 @@ tupStrs, arrStrs, brcStrs :: [String] -> String
 tupStrs strs = "(" ++ intercalate ", " strs ++ ")"
 arrStrs strs = "[" ++ intercalate ", " strs ++ "]"
 brcStrs strs = "{" ++ intercalate ", " strs ++ "}"
+
+instance Show Param where
+    show (Param pos name Void) = name
+    show (Param pos name typ)  = name ++ ":" ++ show typ
 
 
 instance Show Op where
@@ -269,8 +271,8 @@ prettyAST ast = do
     where
         prettyStmt :: String -> Stmt -> IO ()
         prettyStmt pre stmt = case stmt of
-            FuncDef pos sym params rettym blk -> do
-                putStrLn $ pre ++ "fn " ++ sym ++ tupStrs (map show params) ++ " " ++ if isNothing rettym then "" else show (fromJust rettym)
+            FuncDef pos sym params retty blk -> do
+                putStrLn $ pre ++ "fn " ++ sym ++ tupStrs (map show params) ++ " " ++ if retty == Void then "" else show retty
                 prettyStmt (pre ++ "\t") blk
                 putStrLn ""
 

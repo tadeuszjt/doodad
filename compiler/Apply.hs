@@ -47,6 +47,9 @@ instance Apply Constraint where
 instance Apply Type where
     apply subs t = foldr (\(x, u) z -> substitute u x z) t subs
     
+instance Apply Param where
+    apply subs (Param p n t) = Param p n (apply subs t)
+
 instance Apply Expr where
     apply subs expr = case expr of
         AExpr t e                -> AExpr (apply subs t) (apply subs e)
@@ -101,13 +104,11 @@ instance Apply Stmt where
         CallStmt pos sym es     -> CallStmt pos sym $ map (apply subs) es
         Print pos es            -> Print pos $ map (apply subs) es
 
-        FuncDef pos sym params (Just retty) block ->
-            let params' = map (\(Param p s t) -> Param p s (apply subs t)) params in
-            FuncDef pos sym params' (Just $ apply subs retty) (apply subs block)
+        FuncDef pos sym params retty block ->
+            FuncDef pos sym (map (apply subs) params) (apply subs retty) (apply subs block)
 
         Extern pos name sym params retty ->
-            let params' = map (\(Param p s t) -> Param p s (apply subs t)) params in
-            Extern pos name sym params' (apply subs retty)
+            Extern pos name sym (map (apply subs) params) (apply subs retty)
 
         If pos cnd block melse ->
             If pos (apply subs cnd) (apply subs block) $ fmap (apply subs) melse
