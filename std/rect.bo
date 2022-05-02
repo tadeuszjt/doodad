@@ -3,9 +3,9 @@ module rect
 import vec2
 import strings
 
-type Rect (min:Vec2, max:Vec2)
+type Rect (min Vec2, max Vec2)
 
-fn string(r:Rect)
+fn string(r Rect)
     let s = ""
     s <- "Rect(" <- string(r.min) <- ", " <- string(r.max) <- ")"
     return s

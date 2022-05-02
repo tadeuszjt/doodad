@@ -4,13 +4,13 @@ import chars
 import maths
 
 
-fn + (a:string, b:string):string
+fn + (a string, b string) string
     let r = copy(a)
     r <- copy(b)
     return r
 
 
-fn == (a:string, b:string):bool
+fn == (a string, b string) bool
     if len(a) != len(b)
         return false
 
@@ -23,12 +23,12 @@ fn == (a:string, b:string):bool
     return true
 
 
-fn string(b:bool)
+fn string(b bool)
     if b; return "true"
     else; return "false"
 
 
-fn strIsPrefix(pre:string, str:string):bool
+fn strIsPrefix(pre string, str string) bool
     if len(pre) > len(str)
         return false
 
@@ -41,7 +41,7 @@ fn strIsPrefix(pre:string, str:string):bool
     return true
 
 
-fn strReadInt(s:string):(i64, bool)
+fn strReadInt(s string) (i64, bool)
     let n = 0
     let b = false
 
@@ -54,7 +54,7 @@ fn strReadInt(s:string):(i64, bool)
     return (n, b)
 
 
-fn strReverse(s:string)
+fn strReverse(s string)
     let r = copy(s)
     let i = 0
     while i < len(r)

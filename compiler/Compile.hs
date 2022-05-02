@@ -318,11 +318,7 @@ cmpExpr :: InsCmp CompileState m =>  S.Expr -> m Value
 cmpExpr (S.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck exprType $ case expr of
     S.Bool pos b               -> valBool exprType b
     S.Char pos c               -> valChar exprType c
-    S.Conv pos typ exprs       -> do
-        val <- valConstruct typ =<< mapM cmpExpr exprs
-        assert (valType val == exprType) "Type mismatch"
-        return val
-
+    S.Conv pos typ exprs       -> valConstruct typ =<< mapM cmpExpr exprs
     S.Copy pos expr            -> valCopy =<< cmpExpr expr
     S.Tuple pos [expr]         -> cmpExpr expr
     S.Float p f                -> valFloat exprType f
@@ -334,7 +330,7 @@ cmpExpr (S.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck exp
     S.Int p n -> do
         base <- baseTypeOf exprType
         case base of
-            _ | isInt base -> valInt exprType n
+            _ | isInt base   -> valInt exprType n
             _ | isFloat base -> valFloat exprType (fromIntegral n)
 
     S.Infix pos op exprA exprB -> do
@@ -353,19 +349,23 @@ cmpExpr (S.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck exp
         valsInfix S.Minus a val
             
     S.String pos s -> do
+        Table ts <- assertBaseType isTable exprType
+        assert (length ts == 1) "Cannot compile string as type"
+        assertBaseType (== Char) (head ts)
+
         loc <- globalStringPtr s =<< myFresh "str"
         let pi8 = C.BitCast loc (LL.ptr LL.i8)
         let i64 = toCons $ int64 $ fromIntegral (length s)
         let stc = struct Nothing False [i64, i64, pi8]
-        return $ Val (Table [Char]) stc
+        return (Val exprType stc)
 
     S.Call pos symbol exprs -> do
         vals <- mapM valLoad =<< mapM cmpExpr exprs
         obj <- look symbol $ KeyFunc (map valType vals)
         case obj of
-            ObjFunc Void _         -> fail "cannot use void function as expression"
-            ObjConstructor typ     -> valConstruct typ vals
-            ObjFunc retty op       -> Val retty <$> call op [(o, []) | o <- map valOp vals]
+            ObjFunc Void _     -> fail "cannot use void function as expression"
+            ObjConstructor typ -> valConstruct typ vals
+            ObjFunc retty op   -> Val retty <$> call op [(o, []) | o <- map valOp vals]
 
     S.Len pos expr -> valLoad =<< do
         assertBaseType isIntegral exprType

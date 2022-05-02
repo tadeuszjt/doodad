@@ -2,14 +2,14 @@ module io
 
 import strings
 
-extern "getchar" Cgetchar():i32
-extern "putchar" Cputchar(c:char)
+extern "getchar" Cgetchar() i32
+extern "putchar" Cputchar(c char)
 
-fn getChar():char
+fn getChar() char
     return char(Cgetchar())
 
 
-fn getStrLn():string
+fn getStrLn() string
     let str = ""
 
     while true

@@ -28,10 +28,10 @@ $symbol  = [\{\}\(\)\[\]\,\|\.\;\:\_]
 @escape  = "\t" | "\n" | "\0" | "\\" 
 
 @types      = i16 | i32 | i64 | f32 | f64 | bool | char | string
-@builtin    = print | len | append
-@keywords   = fn | extern | type | let | while | if | else | return | switch | true | false | module | import | null | copy | for
+@builtin    = print | len | append | copy
+@keywords   = fn | extern | type | let | while | if | else | return | switch | true | false | module | for
 @reserved   = @keywords | @types | @builtin
-@reservedOp = [\+\-\*\/\%\<\>\=\&\!\#] | "!=" | "==" | "<=" | ">=" | "||" | "&&" | ".." | "<-" | "->" | "<<-" | "->>" | "::"
+@reservedOp = [\+\-\*\/\%\<\>\=\&\!] | "!=" | "==" | "<=" | ">=" | "||" | "&&" | ".." | "<-" | "::"
 
 
 @string     = $graphic # [\"\\] | " " | @escape | "\""
@@ -44,6 +44,7 @@ tokens :-
     @reserved                                       { mkT Reserved }
     @reservedOp                                     { mkT ReservedOp }
     $alpha [$alpha $digit \_]*                      { mkT Ident }
+    import [$tab $white]* @string*                  { mkT Import }
     $digit+                                         { mkT Int }
     $digit+ \. $digit+                              { mkT Float }
     \' @char \'                                     { mkT Char }
@@ -177,6 +178,7 @@ data TokenType
     | String
     | Indent
     | NewLine
+    | Import
     | Dedent
     | EOF
     deriving (Show, Eq)

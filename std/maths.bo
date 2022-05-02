@@ -1,11 +1,11 @@
 module maths
 
-extern "sqrt" Csqrt(f:f64):f64
-extern "sin" Csin(f:f64):f64
-extern "cos" Ccos(f:f64):f64
+extern "sqrt" Csqrt(f f64) f64
+extern "sin" Csin(f f64) f64
+extern "cos" Ccos(f f64) f64
 
 
-fn abs(n:i64)
+fn abs(n i64)
     if n < 0
         return -n
     return n
@@ -15,6 +15,6 @@ fn sqrt(f); return Csqrt(f)
 fn sin(f); return Csin(f)
 fn cos(f); return Ccos(f)
 
-fn sqrt(f:f32); return f32(Csqrt(f64(f)))
-fn sin(f:f32); return f32(Csin(f64(f)))
-fn cos(f:f32); return f32(Ccos(f64(f)))
+fn sqrt(f f32); return f32(Csqrt(f64(f)))
+fn sin(f f32); return f32(Csin(f64(f)))
+fn cos(f f32); return f32(Ccos(f64(f)))
