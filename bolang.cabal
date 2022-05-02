@@ -28,6 +28,8 @@ executable bolang
         base         >= 4.0.0.0,
         llvm-hs      ^>= 9.0.0,
         llvm-hs-pure ^>= 9.0.0,
+        pretty,
+        language-c,
         containers,
         mtl,
         bytestring,

@@ -79,6 +79,7 @@ import qualified Data.Set as Set
     len        { Token _ Reserved "len" }
 
 	import     { Token _ Import _ }
+	import_c   { Token _ ImportC _ }
 
     i16        { Token _ Reserved "i16" }
     i32        { Token _ Reserved "i32" }
@@ -122,7 +123,8 @@ prog_ : {-empty-}                             { [] }
       | stmtB prog_                           { $1 : $2 }
 
 imports : {- empty -}                         { [] }
-        | import 'N' imports                  { (dropWhile isSpace $ dropWhile isAlpha $ tokStr $1) : $3 }
+        | import 'N' imports                  { S.Import  (dropWhile isSpace $ dropWhile (`elem` "import_c") $ tokStr $1) : $3 }
+        | import_c 'N' imports                { S.ImportC (dropWhile isSpace $ dropWhile (`elem` "import_c") $ tokStr $1) : $3 }
 
 
 ---------------------------------------------------------------------------------------------------

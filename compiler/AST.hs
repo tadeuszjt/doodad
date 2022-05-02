@@ -14,7 +14,7 @@ showPath path = concat (intersperse "/" path)
 data AST
     = AST
         { astModuleName :: Maybe ModuleName
-        , astImports    :: [FilePath]
+        , astImports    :: [Import]
         , astStmts      :: [Stmt]
         }
     deriving (Eq)
@@ -36,6 +36,12 @@ data Op
     | NotEq
     | Not
     deriving (Eq, Ord)
+
+
+data Import
+    = Import FilePath
+    | ImportC FilePath
+    deriving (Show, Eq, Ord)
 
 
 data Param

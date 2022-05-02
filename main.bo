@@ -4,6 +4,9 @@ import std/maths
 import std/rect
 import std/strings
 
+
+import_c thing.h
+
 fn main()
         let va = Vec2(1.0, 3.0)
         let vb = Vec2(9, 7)

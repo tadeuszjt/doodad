@@ -30,6 +30,12 @@ import Unify
 import Annotate
 import Apply
 
+import Language.C.Parser
+import Language.C.Data.InputStream
+import Language.C.Data.Position
+import Language.C.Pretty
+import Text.PrettyPrint
+
 -- Modules are groups of .bo files with a module name header
 -- lang/lexer.bo: lexer module
 
@@ -153,9 +159,8 @@ runMod args pathsVisited modPath = do
             forM_ files $ debug . ("using file: " ++) 
             combinedAST <- combineASTs =<< zipWithM parse [0..] files
 
-
             -- resolve imports into paths and check for collisions
-            importPaths <- forM (S.astImports combinedAST) $ \importPath ->
+            importPaths <- forM [fp | S.Import fp <- S.astImports combinedAST] $ \importPath ->
                 checkAndNormalisePath $ joinPath [modDirectory, importPath]
             let importModNames = map takeFileName importPaths
             assert (length importModNames == length (Set.fromList importModNames)) $
@@ -165,17 +170,32 @@ runMod args pathsVisited modPath = do
                 state <- runMod args (Set.insert path pathsVisited) importPath
                 return (takeFileName importPath, state)
 
-
             -- run type inference on ast
-            annotatedAST <- fmap fst $ withFiles files $ runBoMTExcept 0 (annotate combinedAST)
-            (ast, symTab) <- withFiles files $ runTypeInference args annotatedAST =<< gets symTabMap
+            annotatedAST <- fmap fst $ withErrorPrefix "annotate: " $ withFiles files $
+                runBoMTExcept 0 (annotate combinedAST)
+            (ast, symTab) <- withErrorPrefix "infer: " $ withFiles files $
+                runTypeInference args annotatedAST =<< gets symTabMap
+
+
+            -- load C imports
+            let cFilePaths = [fp | S.ImportC fp <- S.astImports ast]
+            cSources <- mapM (liftIO . readInputStream) cFilePaths
+            let cParsesEither = map (\(input, path) -> parseC input $ initPos path) (zip cSources cFilePaths)
+            cParses <- forM cParsesEither $ \cParse -> case cParse of
+                Left (ParseError x) -> fail (show x)
+                Right cTranslUnit   -> return cTranslUnit
+
+            mapM (liftIO . putStrLn . render . pretty) cParses
+
+
 
 
             flat <- fmap snd $ withFiles files $ runBoMTExcept initFlattenState (flattenAST ast)
 
             -- compile and run
             debug "compiling"
-            (defs, state) <- fmap fst $ withFiles files $ runBoMTExcept () $ compileFlatState importMap flat modName
+            (defs, state) <- fmap fst $ withErrorPrefix "compile: " $ withFiles files $
+                runBoMTExcept () $ compileFlatState importMap flat modName
 
             session <- gets session
             if compileObj args then do

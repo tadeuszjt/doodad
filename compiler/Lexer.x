@@ -44,6 +44,7 @@ tokens :-
     @reserved                                       { mkT Reserved }
     @reservedOp                                     { mkT ReservedOp }
     $alpha [$alpha $digit \_]*                      { mkT Ident }
+    import_c [$tab $white]* @string*                { mkT ImportC }
     import [$tab $white]* @string*                  { mkT Import }
     $digit+                                         { mkT Int }
     $digit+ \. $digit+                              { mkT Float }
@@ -179,6 +180,7 @@ data TokenType
     | Indent
     | NewLine
     | Import
+    | ImportC
     | Dedent
     | EOF
     deriving (Show, Eq)

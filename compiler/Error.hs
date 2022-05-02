@@ -58,6 +58,12 @@ withFiles files f = do
         ErrorStr s   -> throwError e
         ErrorPos p s -> throwError $ ErrorFile (files !! textFile p) p s
 
+withErrorPrefix :: MonadError Error m => String -> m a -> m a
+withErrorPrefix str f = do
+    catchError f $ \e -> case e of
+        ErrorStr s         -> throwError $ ErrorStr (str ++ s)
+        ErrorPos p s       -> throwError $ ErrorPos p (str ++ s)
+        ErrorFile path p s -> throwError $ ErrorFile path p (str ++ s)
 
 assert :: MonadFail m => Bool -> String -> m ()
 assert b s = when (not b) (fail s)

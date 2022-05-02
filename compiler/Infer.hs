@@ -47,7 +47,7 @@ runModInfer args modPath pathsVisited = do
             assert (not $ null files) ("no files for: " ++ path)
 
             combinedAST <- combineASTs =<< zipWithM parse [0..] files
-            importPaths <- forM (AST.astImports combinedAST) $ \importPath ->
+            importPaths <- forM (AST.astImports combinedAST) $ \(AST.Import importPath) ->
                 checkAndNormalisePath $ joinPath [modDirectory, importPath]
 
             let importNames = map takeFileName importPaths
