@@ -145,11 +145,11 @@ runMod args pathsVisited modPath = do
     path <- checkAndNormalisePath modPath
     assert (not $ Set.member path pathsVisited) ("importing \"" ++ path ++ "\" forms a cycle")
     resm <- Map.lookup path <$> gets modMap
-    maybe (compile path) (return) resm
+    maybe (compilePath path) (return) resm
     where
         -- path will be in the form "dir1/dirn/modname"
-        compile :: BoM Modules m => FilePath -> m CompileState
-        compile path = do
+        compilePath :: BoM Modules m => FilePath -> m CompileState
+        compilePath path = do
             let modName = takeFileName path
             let modDirectory = takeDirectory path
 
@@ -188,14 +188,13 @@ runMod args pathsVisited modPath = do
             mapM (liftIO . putStrLn . render . pretty) cParses
 
 
-
-
-            flat <- fmap snd $ withFiles files $ runBoMTExcept initFlattenState (flattenAST ast)
+            flat <- fmap fst $ withFiles files $ runBoMTExcept initFlattenState (flattenAST ast)
+            --assert (S.astModuleName flat == modName) "modName error"
 
             -- compile and run
             debug "compiling"
             (defs, state) <- fmap fst $ withErrorPrefix "compile: " $ withFiles files $
-                runBoMTExcept () $ compileFlatState importMap flat modName
+                runBoMTExcept () $ compile importMap flat
 
             session <- gets session
             if compileObj args then do

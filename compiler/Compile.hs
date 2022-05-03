@@ -43,17 +43,17 @@ import Construct
 import Typeof
 import Trace
 
-compileFlatState :: BoM s m
-    => Map.Map S.ModuleName CompileState
-    -> F.FlattenState
-    -> S.ModuleName
-    -> m ([LL.Definition], CompileState)
-compileFlatState imports flatState modName = do
+compile :: BoM s m => Map.Map S.ModuleName CompileState -> S.AST -> m ([LL.Definition], CompileState)
+compile imports ast = do
     res <- runBoMT (initCompileState imports modName) (runModuleCmpT emptyModuleBuilder cmp)
     case res of
         Left err                 -> throwError err
         Right ((_, defs), state) -> return (defs, state)
     where
+        modName = case S.astModuleName ast of
+            Nothing ->   "main"
+            Just name -> name
+
         cmp :: (MonadFail m, Monad m, MonadIO m) => ModuleCmpT CompileState m ()
         cmp = do
             mainName <- case modName of
@@ -63,14 +63,12 @@ compileFlatState imports flatState modName = do
             void $ func (LL.mkName mainName)  [] LL.VoidType $ \_ -> do
                 cmpMainGuard
 
-                forM_ (Map.toList $ F.typeDefs flatState) $ \(sym, (pos, annoType)) ->
-                    withPos pos (cmpTypeDef sym annoType)
+                mapM_ cmpTypeDef   [ stmt | stmt@(S.Typedef _ _ _) <- S.astStmts ast ]
+                mapM_ cmpFuncHdr   [ stmt | stmt@(S.FuncDef _ _ _ _ _) <- S.astStmts ast ]
+                mapM_ cmpExternDef [ stmt | stmt@(S.Extern _ _ _ _ _) <- S.astStmts ast ]
+                mapM_ cmpVarDef    [ stmt | stmt@(S.Assign _ _ _) <- S.astStmts ast ]
+                mapM_ cmpFuncDef   [ stmt | stmt@(S.FuncDef _ _ _ _ _) <- S.astStmts ast ]
 
-                mapM_ cmpFuncHdr (F.funcDefs flatState)
-                mapM_ cmpExternDef (F.externDefs flatState)
-                mapM_ cmpVarDef (F.varDefs flatState)
-                mapM_ cmpFuncDef (F.funcDefs flatState)
-        
         cmpMainGuard :: InsCmp CompileState m => m ()
         cmpMainGuard = do
             boolName <- myFresh "bMainCalled"
@@ -92,9 +90,9 @@ compileFlatState imports flatState modName = do
                 call op []
 
 
-cmpTypeDef :: InsCmp CompileState m => String -> S.AnnoType -> m ()
-cmpTypeDef sym (S.AnnoTuple xs) = tupleTypeDef sym (S.AnnoTuple xs)
-cmpTypeDef sym (S.AnnoType typ) = trace "cmpTypeDef" $ do
+cmpTypeDef :: InsCmp CompileState m => S.Stmt -> m ()
+cmpTypeDef (S.Typedef pos sym (S.AnnoTuple xs)) = withPos pos $ tupleTypeDef sym (S.AnnoTuple xs)
+cmpTypeDef (S.Typedef pos sym (S.AnnoType typ)) = withPos pos $ do
     case typ of
         t | isTuple t -> tupleTypeDef sym (S.AnnoType t)
         t             -> do

@@ -7,6 +7,10 @@ import std/strings
 
 import_c thing.h
 
+
+type Y (X, bool)
+type X (bool, i64)
+
 fn main()
         let va = Vec2(1.0, 3.0)
         let vb = Vec2(9, 7)
