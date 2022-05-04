@@ -48,6 +48,7 @@ executable bolang
         Error,
         Flatten,
         Funcs,
+        Interop,
         JIT,
         Modules,
         Monad,

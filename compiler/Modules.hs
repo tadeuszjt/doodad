@@ -30,10 +30,13 @@ import Unify
 import Annotate
 import Apply
 
+import Language.C
+import Language.C.System.GCC
 import Language.C.Parser
 import Language.C.Data.InputStream
 import Language.C.Data.Position
 import Language.C.Pretty
+import Language.C.Syntax.AST
 import Text.PrettyPrint
 
 -- Modules are groups of .bo files with a module name header
@@ -180,13 +183,25 @@ runMod args pathsVisited modPath = do
             -- load C imports
             let cFilePaths = [fp | S.ImportC fp <- S.astImports ast]
             cSources <- mapM (liftIO . readInputStream) cFilePaths
-            let cParsesEither = map (\(input, path) -> parseC input $ initPos path) (zip cSources cFilePaths)
-            cParses <- forM cParsesEither $ \cParse -> case cParse of
+            cParsesEither <- liftIO $ mapM (parseCFile (newGCC "gcc") Nothing []) cFilePaths
+            cTranslUnits <- forM cParsesEither $ \cParse -> case cParse of
                 Left (ParseError x) -> fail (show x)
                 Right cTranslUnit   -> return cTranslUnit
 
-            mapM (liftIO . putStrLn . render . pretty) cParses
+--            forM_ cTranslUnits $ \cParse -> case cParse of
+--                CTranslUnit cDeclarations a -> do
+--                    forM_ cDeclarations $ \cDec -> case cDec of
+--                        CDeclExt (CDecl specifiers decls a) -> do
+--                            forM_ specifiers $ \specifier -> liftIO $ putStrLn (show specifier)
+--                            forM_ decls $ \(dm, Nothing, Nothing) -> do
+--                                case dm of
+--                                    Nothing -> return ()
+--                                    Just (CDeclr (Just ident) [] Nothing [] _)  -> do
+--                                        liftIO $ putStrLn ("declarator: " ++ show ident)
+--
+--                        d -> fail (show d)
 
+            mapM (liftIO . putStrLn . render . pretty) cTranslUnits
 
             flat <- fmap fst $ withFiles files $ runBoMTExcept initFlattenState (flattenAST ast)
             --assert (S.astModuleName flat == modName) "modName error"
