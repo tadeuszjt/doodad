@@ -172,6 +172,9 @@ collectStmt stmt = collectPos stmt $ case stmt of
     Extern _ name sym params retty ->
         return () -- already defined
 
+    ExternVar p n s t -> do
+        define s KeyVar (ObjVar t)
+
     S.Typedef _ _ _ -> return ()
 
     Block stmts -> do

@@ -111,6 +111,7 @@ data Stmt
     | While       TextPos Condition Stmt
     | FuncDef     TextPos String [Param] Type Stmt
     | Extern      TextPos String String [Param] Type
+    | ExternVar   TextPos String String Type
     | Typedef     TextPos String AnnoType
     | AppendStmt  Append
     deriving (Eq, Show)
@@ -176,6 +177,7 @@ instance TextPosition Stmt where
         AST.While       p _ _ -> p
         AST.FuncDef     p _ _ _ _ -> p
         AST.Extern      p _ _ _ _ -> p
+        AST.ExternVar   p _ _ _ -> p
         AST.Typedef     p _ _ -> p
         AST.AppendStmt  a -> textPos a
 

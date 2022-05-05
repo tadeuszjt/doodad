@@ -40,6 +40,8 @@ instance Annotate Stmt where
                 _      -> return rt
             return (Extern p n s ps' rt')
 
+        ExternVar p n s t -> return $ ExternVar p n s t
+
         AppendStmt a        -> AppendStmt <$> annotate a
         Print p es          -> Print p <$> mapM annotate es
         Typedef p s a       -> return $ Typedef p s a

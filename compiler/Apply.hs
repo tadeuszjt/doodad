@@ -110,6 +110,8 @@ instance Apply Stmt where
         Extern pos name sym params retty ->
             Extern pos name sym (map (apply subs) params) (apply subs retty)
 
+        ExternVar pos name sym typ -> ExternVar pos name sym (apply subs typ)
+
         If pos cnd block melse ->
             If pos (apply subs cnd) (apply subs block) $ fmap (apply subs) melse
 

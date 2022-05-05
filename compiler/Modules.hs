@@ -30,6 +30,7 @@ import Collect as C
 import Unify
 import Annotate
 import Apply
+import Interop
 
 import Language.C
 import Language.C.System.GCC
@@ -148,8 +149,7 @@ runMod args pathsVisited modPath = do
     debug "running"
     path <- checkAndNormalisePath modPath
     assert (not $ Set.member path pathsVisited) ("importing \"" ++ path ++ "\" forms a cycle")
-    resm <- Map.lookup path <$> gets modMap
-    maybe (compilePath path) (return) resm
+    maybe (compilePath path) return =<< fmap (Map.lookup path) (gets modMap)
     where
         -- path will be in the form "dir1/dirn/modname"
         compilePath :: BoM Modules m => FilePath -> m CompileState
@@ -163,6 +163,7 @@ runMod args pathsVisited modPath = do
             forM_ files $ debug . ("using file: " ++) 
             combinedAST <- combineASTs =<< zipWithM parse [0..] files
 
+
             -- resolve imports into paths and check for collisions
             importPaths <- forM [fp | S.Import fp <- S.astImports combinedAST] $ \importPath ->
                 checkAndNormalisePath $ joinPath [modDirectory, importPath]
@@ -174,15 +175,9 @@ runMod args pathsVisited modPath = do
                 state <- runMod args (Set.insert path pathsVisited) importPath
                 return (takeFileName importPath, state)
 
-            -- run type inference on ast
-            annotatedAST <- fmap fst $ withErrorPrefix "annotate: " $ withFiles files $
-                runBoMTExcept 0 (annotate combinedAST)
-            (ast, symTab) <- withErrorPrefix "infer: " $ withFiles files $
-                runTypeInference args annotatedAST =<< gets symTabMap
-
 
             -- load C imports
-            let cFilePaths = [fp | S.ImportC fp <- S.astImports ast]
+            let cFilePaths = [fp | S.ImportC fp <- S.astImports combinedAST]
             cTranslUnitEither <- liftIO $ withTempFile "." "cimports.h" $ \filePath handle -> do
                 hClose handle
                 writeFile filePath $ concat $ map (\p -> "#include \"" ++ p ++ "\"\n") cFilePaths
@@ -191,6 +186,14 @@ runMod args pathsVisited modPath = do
                 Left (ParseError x) -> fail (show x)
                 Right cTranslUnit   -> return cTranslUnit
             liftIO $ putStrLn $ render (pretty cTranslUnit)
+            cStmts <- Interop.compile cTranslUnit
+
+
+            -- run type inference on ast
+            annotatedAST <- fmap fst $ withErrorPrefix "annotate: " $ withFiles files $
+                runBoMTExcept 0 $ annotate $ combinedAST { S.astStmts = cStmts ++ (S.astStmts combinedAST) }
+            (ast, symTab) <- withErrorPrefix "infer: " $ withFiles files $
+                runTypeInference args annotatedAST =<< gets symTabMap
 
 
             flat <- fmap fst $ withFiles files $ runBoMTExcept initFlattenState (flattenAST ast)
@@ -199,7 +202,7 @@ runMod args pathsVisited modPath = do
             -- compile and run
             debug "compiling"
             (defs, state) <- fmap fst $ withErrorPrefix "compile: " $ withFiles files $
-                runBoMTExcept () $ compile importMap flat
+                runBoMTExcept () $ Compile.compile importMap flat
 
             session <- gets session
             if compileObj args then do
