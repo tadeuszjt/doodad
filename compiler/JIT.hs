@@ -88,7 +88,7 @@ withSession optimise f = do
                         }
 
 
-jitAddObjectFile :: Session -> String -> IO ModuleKey
+jitAddObjectFile :: Session -> FilePath -> IO ModuleKey
 jitAddObjectFile session filepath = do
     withObjectFile filepath $ \objFile -> do
         withModuleKey (executionSession session) $ \modKey -> do

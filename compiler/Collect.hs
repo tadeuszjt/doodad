@@ -11,6 +11,7 @@ import Monad
 import Error
 import Control.Monad.State
 import qualified SymTab
+import Interop
 
 
 -- constraints obtained from sub-expressions must be to the left
@@ -129,8 +130,12 @@ baseTypeOf typ = case typ of
     _             -> return typ
 
 
-collectAST :: BoM CollectState m => AST -> m ()
-collectAST ast = do
+collectAST :: BoM CollectState m => [Extern] -> AST -> m ()
+collectAST externs ast = do
+    forM_ externs $ \extern -> case extern of
+        ExtVar sym (AnnoType typ) -> define sym KeyVar (ObjVar typ)
+
+
     let typedefs = [ stmt | stmt@(S.Typedef _ _ _) <- astStmts ast ]
     let funcdefs = [ stmt | stmt@(S.FuncDef _ _ _ _ _) <- astStmts ast ]
     let externdefs = [ stmt | stmt@(S.Extern _ _ _ _ _) <- astStmts ast ]

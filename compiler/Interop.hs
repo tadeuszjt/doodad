@@ -3,6 +3,7 @@
 module Interop where
 
 import Control.Monad
+import Control.Monad.State
 
 import State
 import Monad
@@ -19,12 +20,19 @@ import Language.C.Syntax.AST
 import Text.PrettyPrint
 
 
+data Extern
+    = ExtFunc String [(String, Type)] Type
+    | ExtVar String S.AnnoType
+    deriving (Show, Eq)
+
+
 cTypeToType :: BoM s m => CTypeSpecifier a -> m Type
 cTypeToType typeSpec = case typeSpec of
     CIntType _ -> return I64
 
-compile :: BoM s m => CTranslUnit -> m [S.Stmt]
-compile (CTranslUnit cExtDecls _) = forM cExtDecls $ \cExtDecl -> case cExtDecl of
+compile :: BoM [Extern] m => CTranslUnit -> m ()
+compile (CTranslUnit cExtDecls _) = forM_ cExtDecls $ \cExtDecl -> case cExtDecl of
     CDeclExt (CDecl [CTypeSpec typeSpec] [(Just (CDeclr (Just (Ident sym _ _)) [] Nothing [] _), Nothing, Nothing)] _) -> do
-        S.ExternVar (TextPos 0 0 0 0) sym sym <$> cTypeToType typeSpec
+        typ <- cTypeToType typeSpec
+        modify $ \externs -> ExtVar sym (S.AnnoType typ) : externs
     _ -> fail (show cExtDecl)

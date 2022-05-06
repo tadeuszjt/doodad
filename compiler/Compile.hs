@@ -42,16 +42,17 @@ import Tuple
 import Construct
 import Typeof
 import Trace
+import Interop
 
-compile :: BoM s m => Map.Map S.ModuleName CompileState -> S.AST -> m ([LL.Definition], CompileState)
-compile imports ast = do
+compile :: BoM s m => Map.Map S.ModuleName CompileState -> [Extern] -> S.AST -> m ([LL.Definition], CompileState)
+compile imports externs ast = do
     res <- runBoMT (initCompileState imports modName) (runModuleCmpT emptyModuleBuilder cmp)
     case res of
         Left err                 -> throwError err
         Right ((_, defs), state) -> return (defs, state)
     where
         modName = case S.astModuleName ast of
-            Nothing ->   "main"
+            Nothing   -> "main"
             Just name -> name
 
         cmp :: (MonadFail m, Monad m, MonadIO m) => ModuleCmpT CompileState m ()
@@ -62,6 +63,8 @@ compile imports ast = do
 
             void $ func (LL.mkName mainName)  [] LL.VoidType $ \_ -> do
                 cmpMainGuard
+
+                mapM_ cmpExtern externs
 
                 mapM_ cmpTypeDef   [ stmt | stmt@(S.Typedef _ _ _) <- S.astStmts ast ]
                 mapM_ cmpFuncHdr   [ stmt | stmt@(S.FuncDef _ _ _ _ _) <- S.astStmts ast ]
@@ -88,6 +91,14 @@ compile imports ast = do
             forM_ (Map.keys imports) $ \modName -> do
                 op <- extern (LL.mkName $ modName ++ "__main") [] LL.VoidType
                 call op []
+
+cmpExtern :: InsCmp CompileState m => Extern -> m ()
+cmpExtern extern = case extern of
+    ExtVar sym (S.AnnoType typ) -> do
+        let name = mkName sym
+        opTyp <- opTypeOf typ
+        addSymKeyDec sym KeyVar name (DecVar opTyp)
+        define sym KeyVar $ ObjVal $ Ptr typ $ cons $ C.GlobalReference (LL.ptr opTyp) name
 
 
 cmpTypeDef :: InsCmp CompileState m => S.Stmt -> m ()
