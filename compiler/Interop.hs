@@ -35,4 +35,9 @@ compile (CTranslUnit cExtDecls _) = forM_ cExtDecls $ \cExtDecl -> case cExtDecl
     CDeclExt (CDecl [CTypeSpec typeSpec] [(Just (CDeclr (Just (Ident sym _ _)) [] Nothing [] _), Nothing, Nothing)] _) -> do
         typ <- cTypeToType typeSpec
         modify $ \externs -> ExtVar sym (S.AnnoType typ) : externs
+
+    CDeclExt (CDecl [CStorageSpec (CExtern _), CTypeSpec typeSpec] [(Just (CDeclr (Just (Ident sym _ _)) [] Nothing [] _), Nothing, Nothing)] _) -> do
+        typ <- cTypeToType typeSpec
+        modify $ \externs -> ExtVar sym (S.AnnoType typ) : externs
+    _ -> return ()
     _ -> fail (show cExtDecl)
