@@ -31,13 +31,13 @@ main = do
     else if lexOnly parsedArgs then do
         withSession (optimise parsedArgs) $ \session -> do
             forM_ (modPaths parsedArgs) $ \path -> do
-                res <- runBoMT (initModulesState session) (lexFile 0 path)
+                res <- runBoMT (initModulesState session) (lexFile path)
                 case res of
                     Left err     -> printError err 
                     Right (r, _) -> mapM_ (putStrLn . show) r
     else if astOnly parsedArgs then
         forM_ (modPaths parsedArgs) $ \path -> do
-            res <- runBoMT () (parse 0 path)
+            res <- runBoMT () (parse path)
             case res of
                 Left err     -> printError err 
                 Right (ast, _) -> prettyAST ast

@@ -311,9 +311,9 @@ annoType : typeOrdinal                        { S.AnnoType $1 }
          | annoTupType                        { $1 }
 
 {
-parse :: MonadError Error m => Int -> String -> m S.AST
-parse id source = do
-    case alexScanner id source of
+parse :: MonadError Error m => FilePath -> String -> m S.AST
+parse filePath source = do
+    case alexScanner filePath source of
         Left  errStr -> throwError (ErrorStr errStr)
         Right tokens -> case (parseTokens tokens) 0 of
             ParseFail pos -> throwError (ErrorPos pos "parse error")
@@ -342,7 +342,7 @@ tokPos tok = tokPosn tok
 
 
 happyError :: [Token] -> P a
-happyError []    = return $ ParseFail (TextPos (-1) 0 0 0)
+happyError []    = return $ ParseFail (TextPos "" 0 0 0)
 happyError (x:_) = return $ ParseFail (tokPosn x)
 
 }

@@ -99,30 +99,29 @@ getSpecificModuleFiles :: BoM s m => String -> [FilePath] -> m [FilePath]
 getSpecificModuleFiles name []     = return []
 getSpecificModuleFiles name (f:fs) = do
     source <- liftIO (readFile f)
-    ast <- parse 0 f
+    ast <- parse f
     if fromJust (S.astModuleName ast) == name then
         (f:) <$> getSpecificModuleFiles name fs
     else
         getSpecificModuleFiles name fs
 
 
-lexFile :: BoM s m => Int -> FilePath -> m [L.Token]
-lexFile id file = do
+lexFile :: BoM s m => FilePath -> m [L.Token]
+lexFile file = do
     source <- liftIO (readFile file)
-    case L.alexScanner id source of
+    case L.alexScanner file source of
         Left  errStr -> throwError (ErrorStr errStr)
         Right tokens -> return tokens
 
 
 -- parse a file into an AST.
 -- Throw an error on failure.
-parse :: BoM s m => Int -> FilePath -> m S.AST
-parse id file = do
+parse :: BoM s m => FilePath -> m S.AST
+parse file = do
     source <- liftIO (readFile file)
-    case P.parse id source of
-        Left (ErrorStr str)         -> throwError (ErrorStr $ file ++ ": " ++ str)
-        Left (ErrorPos pos str)     -> throwError (ErrorFile file pos str)
-        Right a                     -> return a
+    case P.parse file source of
+        Left e  -> throwError e
+        Right a -> return a
 
 
 runTypeInference :: BoM s m => Args -> AST -> [Extern] -> Map.Map FilePath C.SymTab -> m (AST, C.SymTab)
@@ -161,7 +160,7 @@ runMod args pathsVisited modPath = do
             files <- getSpecificModuleFiles modName =<< getBoFilesInDirectory modDirectory
             assert (not $ null files) ("no files for: " ++ path)
             forM_ files $ debug . ("using file: " ++) 
-            combinedAST <- combineASTs =<< zipWithM parse [0..] files
+            combinedAST <- combineASTs =<< mapM parse files
 
 
             -- resolve imports into paths and check for collisions
@@ -190,18 +189,18 @@ runMod args pathsVisited modPath = do
 
 
             -- run type inference on ast
-            annotatedAST <- fmap fst $ withErrorPrefix "annotate: " $ withFiles files $
+            annotatedAST <- fmap fst $ withErrorPrefix "annotate: " $
                 runBoMTExcept 0 $ annotate combinedAST
-            (ast, symTab) <- withErrorPrefix "infer: " $ withFiles files $
+            (ast, symTab) <- withErrorPrefix "infer: " $
                 runTypeInference args annotatedAST cExterns =<< gets symTabMap
 
 
-            flat <- fmap fst $ withFiles files $ runBoMTExcept initFlattenState (flattenAST ast)
+            flat <- fmap fst $ runBoMTExcept initFlattenState (flattenAST ast)
             --assert (S.astModuleName flat == modName) "modName error"
 
             -- compile and run
             debug "compiling"
-            (defs, state) <- fmap fst $ withErrorPrefix "compile: " $ withFiles files $
+            (defs, state) <- fmap fst $ withErrorPrefix "compile: " $
                 runBoMTExcept () $ Compile.compile importMap cExterns flat
 
             session <- gets session

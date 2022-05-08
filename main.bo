@@ -17,6 +17,8 @@ fn main()
         vb = (2, 1)
         print("5:", length(va + vb))
 
+        print(h)
+
         let str = "tadeusztomoszek"
         print("true:", strIsPrefix("tadeusz", str))
         print("false:", strIsPrefix("Tadeusz", str))

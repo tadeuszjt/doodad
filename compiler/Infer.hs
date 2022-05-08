@@ -46,7 +46,7 @@ runModInfer args modPath pathsVisited = do
             files <- getSpecificModuleFiles modName =<< getBoFilesInDirectory modDirectory
             assert (not $ null files) ("no files for: " ++ path)
 
-            combinedAST <- combineASTs =<< zipWithM parse [0..] files
+            combinedAST <- combineASTs =<< mapM parse files
             importPaths <- forM (AST.astImports combinedAST) $ \(AST.Import importPath) ->
                 checkAndNormalisePath $ joinPath [modDirectory, importPath]
 
@@ -57,8 +57,8 @@ runModInfer args modPath pathsVisited = do
                 (_, symTab) <- runModInfer args importPath (Set.insert path pathsVisited)
                 return (takeFileName importPath, symTab)
 
-            annotatedAST <- fmap fst $ withFiles files $ runBoMTExcept 0 (annotate combinedAST)
-            (ast, symTab) <- withFiles files $ runTypeInference args annotatedAST [] importMap
+            annotatedAST <- fmap fst $ runBoMTExcept 0 (annotate combinedAST)
+            (ast, symTab) <- runTypeInference args annotatedAST [] importMap
 
             liftIO $ SymTab.prettySymTab symTab
             modify $ \s -> s { modInferMap = Map.insert path (ast, symTab) (modInferMap s) }

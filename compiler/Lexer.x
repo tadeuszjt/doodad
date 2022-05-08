@@ -98,12 +98,12 @@ mkIndentT (p,_,_,s) len = do
 alexEOF = return (AlexPn 0 0 0, EOF, "")
 
 
-alexScanner :: Int -> String -> Either String [Token]
-alexScanner id str = runAlex str loop
+alexScanner :: FilePath -> String -> Either String [Token]
+alexScanner filePath str = runAlex str loop
     where
         loop = do
             (AlexPn p l c, typ, str) <- alexMonadScan
-            let pos = TextPos id p l c
+            let pos = TextPos filePath p l c
 
             case typ of
                 EOF     -> return []

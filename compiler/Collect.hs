@@ -54,7 +54,7 @@ initCollectState imp = CollectState
     , collected = []
     , defaults = []
     , imports = imp
-    , curPos = TextPos 0 0 0 0
+    , curPos = TextPos "" 0 0 0
     }
 
 

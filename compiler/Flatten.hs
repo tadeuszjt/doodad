@@ -43,7 +43,6 @@ checkTypeDefs typedefs = do
         checkAnnoCircles visited anno = case anno of
             S.AnnoType t   -> checkTypeCircles visited t
             S.AnnoTuple xs -> forM_ xs $ \(_, t) -> checkTypeCircles visited t
-            _              -> fail (show anno)
 
         checkTypeCircles :: BoM s m => Set.Set String -> T.Type -> m ()
         checkTypeCircles visited typ = case typ of
