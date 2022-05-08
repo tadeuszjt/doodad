@@ -186,6 +186,7 @@ runMod args pathsVisited modPath = do
                 Right cTranslUnit   -> return cTranslUnit
             liftIO $ putStrLn $ render (pretty cTranslUnit)
             ((), cExterns) <- runBoMTExcept [] (Interop.compile cTranslUnit)
+            liftIO $ mapM_ (putStrLn . show) cExterns
 
 
             -- run type inference on ast

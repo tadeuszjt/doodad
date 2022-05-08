@@ -134,6 +134,7 @@ collectAST :: BoM CollectState m => [Extern] -> AST -> m ()
 collectAST externs ast = do
     forM_ externs $ \extern -> case extern of
         ExtVar sym (AnnoType typ) -> define sym KeyVar (ObjVar typ)
+        ExtFunc sym argTypes retty -> define sym (KeyFunc argTypes) (ObjFunc retty)
 
 
     let typedefs = [ stmt | stmt@(S.Typedef _ _ _) <- astStmts ast ]

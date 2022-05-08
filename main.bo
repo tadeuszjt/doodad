@@ -5,8 +5,7 @@ import std/rect
 import std/strings
 
 
-import_c thing.h
-
+import_c math.h
 
 type Y (X, bool)
 type X (bool, i64)

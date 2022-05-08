@@ -65,7 +65,6 @@ compile imports externs ast = do
                 cmpMainGuard
 
                 mapM_ cmpExtern externs
-
                 mapM_ cmpTypeDef   [ stmt | stmt@(S.Typedef _ _ _) <- S.astStmts ast ]
                 mapM_ cmpFuncHdr   [ stmt | stmt@(S.FuncDef _ _ _ _ _) <- S.astStmts ast ]
                 mapM_ cmpExternDef [ stmt | stmt@(S.Extern _ _ _ _ _) <- S.astStmts ast ]
@@ -99,6 +98,18 @@ cmpExtern extern = case extern of
         opTyp <- opTypeOf typ
         addSymKeyDec sym KeyVar name (DecVar opTyp)
         define sym KeyVar $ ObjVal $ Ptr typ $ cons $ C.GlobalReference (LL.ptr opTyp) name
+
+    ExtFunc sym argTypes retty -> do
+        checkSymUndef sym 
+        let name = LL.mkName sym
+
+        paramOpTypes <- mapM opTypeOf argTypes
+        returnOpType <- opTypeOf retty
+
+        addSymKeyDec sym (KeyFunc argTypes) name (DecExtern paramOpTypes returnOpType False)
+        let op = fnOp name paramOpTypes returnOpType False
+        define sym (KeyFunc argTypes) (ObjFunc retty op)
+
 
 
 cmpTypeDef :: InsCmp CompileState m => S.Stmt -> m ()

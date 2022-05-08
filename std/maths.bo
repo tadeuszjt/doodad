@@ -4,7 +4,6 @@ extern "sqrt" Csqrt(f f64) f64
 extern "sin" Csin(f f64) f64
 extern "cos" Ccos(f f64) f64
 
-
 fn abs(n i64)
     if n < 0
         return -n
