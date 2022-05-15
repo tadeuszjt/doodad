@@ -156,9 +156,10 @@ ensureDec name = trace ("ensureDec " ++ show name) $ do
     declared <- Set.member name <$> gets declared
     when (not declared) $ do
         resm <- Map.lookup name <$> gets declarations
-        case resm of
-            Nothing -> return ()
-            Just d  -> emitDec name d >> addDeclared name
+        case catMaybes [resm] of
+            [] -> return ()
+            [d]  -> emitDec name d >> addDeclared name
+            _    -> fail (show name)
 
 
 ensureSymKeyDec :: ModCmp CompileState m => Symbol -> SymKey -> m ()
@@ -185,6 +186,20 @@ ensureSymKeyDec symbol key = trace ("ensureSymKeyDec " ++ show symbol) $ do
                                 addDeclared name
                         _ -> fail ("More than one declaration for: " ++ show symbol)
 
+        SymQualified mod sym -> do
+            statem <- Map.lookup mod <$> gets imports
+            case statem of
+                Nothing -> fail $ "no module: " ++ mod
+                Just state -> case Map.lookup (sym, key) (decMap state) of
+                    Nothing   -> return ()
+                    Just name -> do
+                        let dec = (declarations state) Map.! name
+                        declared <- Set.member name <$> gets declared
+                        when (not declared) $ do
+                            emitDec name dec
+                            addDeclared name
+
+
 
 ensureExtern :: ModCmp CompileState m => LL.Name -> [LL.Type] -> LL.Type -> Bool -> m LL.Operand
 ensureExtern name argTypes retty isVarg = trace "ensureExtern" $ do
@@ -200,17 +215,24 @@ ensureExtern name argTypes retty isVarg = trace "ensureExtern" $ do
 lookm :: ModCmp CompileState m => Symbol -> SymKey -> m (Maybe Object)
 lookm symbol key = do
     ensureSymKeyDec symbol key
-    imports <- gets imports
     curMod <- gets curModName
     case symbol of
         Sym sym -> do
             objm <- SymTab.lookup sym key <$> gets symTab
-            let objsm = map (SymTab.lookup sym key) $ map symTab (Map.elems imports)
+            case objm of
+                Just _ -> return objm
+                Nothing -> do
+                    objsm <- fmap (map (SymTab.lookup sym key . symTab) . Map.elems) (gets imports)
+                    case catMaybes objsm of
+                        []  -> return Nothing
+                        [x] -> return (Just x)
+                        _   -> fail ("Ambiguous symbol: " ++ show sym)
 
-            case catMaybes (objm:objsm) of
-                []  -> return Nothing
-                [x] -> return (Just x)
-                _   -> fail ("Ambiguous symbol: " ++ show sym)
+        SymQualified mod sym -> do
+            statem <- fmap (Map.lookup mod) (gets imports)
+            case statem of
+                Nothing -> fail $ "no module: " ++ mod
+                Just state -> return $ SymTab.lookup sym key (symTab state)
 
 
 look :: ModCmp CompileState m => Symbol -> SymKey -> m Object

@@ -107,6 +107,14 @@ lookSym symbol = case symbol of
         lss <- concat . map (SymTab.lookupSym sym) . Map.elems <$> gets imports
         return (ls ++ lss)
 
+    SymQualified mod sym -> do
+        statem <- Map.lookup mod <$> gets imports
+        case statem of
+            Nothing -> fail $ mod ++ " not imported"
+            Just state -> do
+                return $ SymTab.lookupSym sym state
+        
+
 define :: BoM CollectState m => String -> SymKey -> Object -> m ()
 define sym key obj = do
     resm <- SymTab.lookupHead sym key <$> gets symTab
@@ -130,13 +138,14 @@ baseTypeOf typ = case typ of
     _             -> return typ
 
 
-collectAST :: BoM CollectState m => [Extern] -> AST -> m ()
-collectAST externs ast = do
+collectCExterns :: BoM CollectState m => [Extern] -> m ()
+collectCExterns externs = do
     forM_ externs $ \extern -> case extern of
         ExtVar sym (AnnoType typ) -> define sym KeyVar (ObjVar typ)
         ExtFunc sym argTypes retty -> define sym (KeyFunc argTypes) (ObjFunc retty)
 
-
+collectAST :: BoM CollectState m => AST -> m ()
+collectAST ast = do
     let typedefs = [ stmt | stmt@(S.Typedef _ _ _) <- astStmts ast ]
     let funcdefs = [ stmt | stmt@(S.FuncDef _ _ _ _ _) <- astStmts ast ]
     let externdefs = [ stmt | stmt@(S.Extern _ _ _ _ _) <- astStmts ast ]
@@ -291,15 +300,15 @@ collectExpr (AExpr exprType expr) = collectPos expr $ case expr of
         collect exprType t
         collectExpr e
 
-    Call p sym [] -> do
-        ObjFunc rt <- look sym (KeyFunc [])
+    Call p symbol [] -> do
+        ObjFunc rt <- look symbol (KeyFunc [])
         collect exprType rt
     
-    Call p sym es -> do
-        kos <- lookSym sym
+    Call p symbol es -> do
+        kos <- lookSym symbol
         case kos of
             -- no definitions 
-            []                         -> fail $ show sym ++ " undefined"
+            []                         -> fail $ show symbol ++ " undefined"
             -- one definition
             [(KeyFunc ts, ObjFunc rt)] -> do
                 assert (length ts == length es) "Invalid arguments"

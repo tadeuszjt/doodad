@@ -5,7 +5,7 @@ module Interop where
 import qualified Data.Map as Map
 import Control.Monad
 import Control.Monad.State
-import Control.Monad.Error
+import Control.Monad.Except
 
 import Language.C.Parser
 import Language.C.Data.InputStream

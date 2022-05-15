@@ -126,13 +126,15 @@ parse file = do
 
 runTypeInference :: BoM s m => Args -> AST -> [Extern] -> Map.Map FilePath C.SymTab -> m (AST, C.SymTab)
 runTypeInference args annotatedAST externs imports = do
-    (ast, symTab, n) <- runRec annotatedAST imports
+    cSymTab <- fmap (C.symTab . snd) $ runBoMTExcept (C.initCollectState Map.empty) (C.collectCExterns externs)
+    assert (not $ Map.member "c" imports) "Modeule named c already imported"
+    (ast, symTab, n) <- runRec annotatedAST (Map.insert "c" cSymTab imports)
     when (verbose args) $ liftIO $ putStrLn ("Ran type inference with " ++ show n ++ " iterations")
     return (ast, symTab)
     where
         runRec :: BoM s m => AST -> Map.Map FilePath C.SymTab -> m (AST, C.SymTab, Int)
         runRec ast imports = do
-            (_, state) <- runBoMTExcept (C.initCollectState imports) (C.collectAST externs ast)
+            (_, state) <- runBoMTExcept (C.initCollectState imports) (C.collectAST ast)
             subs <- unify $ C.collected state
             defaults <- unifyDefault $ map (apply subs) (C.defaults state)
             let ast' = apply subs ast
@@ -190,7 +192,6 @@ runMod args pathsVisited modPath = do
             cState <- Interop.compile cExterns
 
 
-            liftIO $ mapM (putStrLn . show) (Map.keys $ declarations $ cState)
             assert (not $ Map.member "c" importMap) "Already has a module named c"
             let importMapFull = Map.insert "c" cState importMap 
 

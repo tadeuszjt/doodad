@@ -17,3 +17,5 @@ fn main()
         print("false:", strIsPrefix("Tadeusz", str))
         print("false:", strIsPrefix("tadeusztomoszekiscool", str))
         print(len(str):i32)
+
+        print(sqrtf(34))
