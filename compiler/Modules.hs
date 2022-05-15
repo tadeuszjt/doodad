@@ -124,15 +124,15 @@ parse file = do
         Right a -> return a
 
 
-runTypeInference :: BoM s m => Args -> AST -> [Extern] -> Map.Map FilePath C.SymTab -> m (AST, C.SymTab)
-runTypeInference args annotatedAST externs imports = do
+runTypeInference :: BoM s m => Args -> AST -> Map.Map FilePath C.SymTab -> m (AST, C.SymTab)
+runTypeInference args annotatedAST imports = do
     (ast, symTab, n) <- runRec annotatedAST imports
     when (verbose args) $ liftIO $ putStrLn ("Ran type inference with " ++ show n ++ " iterations")
     return (ast, symTab)
     where
         runRec :: BoM s m => AST -> Map.Map FilePath C.SymTab -> m (AST, C.SymTab, Int)
         runRec ast imports = do
-            (_, state) <- runBoMTExcept (C.initCollectState imports) (C.collectAST externs ast)
+            (_, state) <- runBoMTExcept (C.initCollectState imports) (C.collectAST ast)
             subs <- unify $ C.collected state
             defaults <- unifyDefault $ map (apply subs) (C.defaults state)
             let ast' = apply subs ast
@@ -185,15 +185,20 @@ runMod args pathsVisited modPath = do
                 Left (ParseError x) -> fail (show x)
                 Right cTranslUnit   -> return cTranslUnit
             liftIO $ putStrLn $ render (pretty cTranslUnit)
-            ((), cExterns) <- runBoMTExcept [] (Interop.compile cTranslUnit)
+            ((), cExterns) <- runBoMTExcept [] (Interop.genExterns cTranslUnit)
             liftIO $ mapM_ (putStrLn . show) cExterns
+            cState <- Interop.compile cExterns
+
+
+            assert (not $ Map.member "c" importMap) "Already has a module named c"
+            let importMapFull = Map.insert "c" cState importMap 
 
 
             -- run type inference on ast
             annotatedAST <- fmap fst $ withErrorPrefix "annotate: " $
                 runBoMTExcept 0 $ annotate combinedAST
             (ast, symTab) <- withErrorPrefix "infer: " $
-                runTypeInference args annotatedAST cExterns =<< gets symTabMap
+                runTypeInference args annotatedAST =<< gets symTabMap
 
 
             flat <- fmap fst $ runBoMTExcept initFlattenState (flattenAST ast)
@@ -201,8 +206,7 @@ runMod args pathsVisited modPath = do
 
             -- compile and run
             debug "compiling"
-            (defs, state) <- fmap fst $ withErrorPrefix "compile: " $
-                runBoMTExcept () $ Compile.compile importMap cExterns flat
+            (defs, state) <- withErrorPrefix "compile: " $ Compile.compile importMapFull flat
 
             session <- gets session
             if compileObj args then do

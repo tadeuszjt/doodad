@@ -49,12 +49,12 @@ data CollectState
         }
 
 initCollectState imp = CollectState
-    { symTab = SymTab.initSymTab
-    , curRetty = Void
+    { symTab    = SymTab.initSymTab
+    , curRetty  = Void
     , collected = []
-    , defaults = []
-    , imports = imp
-    , curPos = TextPos "" 0 0 0
+    , defaults  = []
+    , imports   = imp
+    , curPos    = TextPos "" 0 0 0
     }
 
 
@@ -90,14 +90,11 @@ lookm :: BoM CollectState m => Symbol -> SymKey -> m (Maybe Object)
 lookm symbol key = case symbol of
     Sym sym -> do
         lm <- SymTab.lookup sym key <$> gets symTab
-        case lm of
-            Just _ -> return lm
-            Nothing -> do
-                ls <- catMaybes . map (SymTab.lookup sym key) . Map.elems <$> gets imports
-                case ls of
-                    [] -> return Nothing
-                    [o] -> return (Just o)
-                    _ -> fail $ show symbol ++ " is ambiguous"
+        lms <- map (SymTab.lookup sym key) . Map.elems <$> gets imports
+        case catMaybes (lm:lms) of
+            [] -> return Nothing
+            [o] -> return (Just o)
+            _ -> fail $ show symbol ++ " is ambiguous"
 
 
 lookSym :: BoM CollectState m => Symbol -> m [(SymKey, Object)]
@@ -107,12 +104,12 @@ lookSym symbol = case symbol of
         lss <- concat . map (SymTab.lookupSym sym) . Map.elems <$> gets imports
         return (ls ++ lss)
 
+
 define :: BoM CollectState m => String -> SymKey -> Object -> m ()
 define sym key obj = do
     resm <- SymTab.lookupHead sym key <$> gets symTab
     when (isJust resm) $ fail $ sym ++ " already defined"
     modify $ \s -> s { symTab = SymTab.insert sym key obj (symTab s) }
-
 
 pushSymTab :: BoM CollectState m => m ()
 pushSymTab = do
@@ -130,13 +127,8 @@ baseTypeOf typ = case typ of
     _             -> return typ
 
 
-collectAST :: BoM CollectState m => [Extern] -> AST -> m ()
-collectAST externs ast = do
-    forM_ externs $ \extern -> case extern of
-        ExtVar sym (AnnoType typ) -> define sym KeyVar (ObjVar typ)
-        ExtFunc sym argTypes retty -> define sym (KeyFunc argTypes) (ObjFunc retty)
-
-
+collectAST :: BoM CollectState m => AST -> m ()
+collectAST ast = do
     let typedefs = [ stmt | stmt@(S.Typedef _ _ _) <- astStmts ast ]
     let funcdefs = [ stmt | stmt@(S.FuncDef _ _ _ _ _) <- astStmts ast ]
     let externdefs = [ stmt | stmt@(S.Extern _ _ _ _ _) <- astStmts ast ]

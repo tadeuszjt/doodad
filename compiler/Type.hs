@@ -4,11 +4,13 @@ import Data.List
 
 data Symbol
     = Sym          { sym :: String }
+    | SymQualified { mod :: String, sym :: String }
     deriving (Eq, Ord)
 
 
 instance Show Symbol where
     show (Sym s)              = s
+    show (SymQualified m s)   = s
 
 
 data Type

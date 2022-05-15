@@ -1,5 +1,7 @@
 module maths
 
+import_c math.h
+
 extern "sqrt" Csqrt(f f64) f64
 extern "sin" Csin(f f64) f64
 extern "cos" Ccos(f f64) f64
@@ -10,7 +12,7 @@ fn abs(n i64)
     return n
 
 
-fn sqrt(f); return Csqrt(f)
+fn sqrt(f); return c::sqrt(f)
 fn sin(f); return Csin(f)
 fn cos(f); return Ccos(f)
 
