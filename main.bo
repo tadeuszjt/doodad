@@ -23,5 +23,7 @@ fn main()
         print("false:", strIsPrefix("Tadeusz", str))
         print("false:", strIsPrefix("tadeusztomoszekiscool", str))
         print(len(str):i32)
+
+        signgam = 12
         gam(45.56)
-        print(c::signgam)
+        print(signgam)

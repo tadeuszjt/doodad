@@ -131,7 +131,6 @@ imports : {- empty -}                         { [] }
 -- Statements -------------------------------------------------------------------------------------
 
 symbol : ident                                { (tokPos $1, T.Sym (tokStr $1)) }
-	   | ident '::' ident                     { (tokPos $3, T.SymQualified (tokStr $1) (tokStr $3)) }
 
 stmtS : let pattern '=' expr                  { S.Assign (tokPos $1) $2 $4 }  
       | index '=' expr                        { S.Set (tokPos $2) $1 $3 }

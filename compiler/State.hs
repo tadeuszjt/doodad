@@ -78,7 +78,6 @@ data CompileState
         , curModName    :: String
         , nameMap       :: Map.Map String Int
         }
-    deriving (Show)
 
 initCompileState imports modName
      = CompileState
@@ -158,12 +157,8 @@ ensureDec name = trace ("ensureDec " ++ show name) $ do
     when (not declared) $ do
         resm <- Map.lookup name <$> gets declarations
         case resm of
-            Just d -> emitDec name d >> addDeclared name
-            Nothing -> do
-                resms <- map (Map.lookup name . declarations) . Map.elems <$> gets imports
-                case catMaybes resms of
-                    []   -> return ()
-                    [d]  -> emitDec name d >> addDeclared name
+            Nothing -> return ()
+            Just d  -> emitDec name d >> addDeclared name
 
 
 ensureSymKeyDec :: ModCmp CompileState m => Symbol -> SymKey -> m ()
@@ -173,23 +168,22 @@ ensureSymKeyDec symbol key = trace ("ensureSymKeyDec " ++ show symbol) $ do
         Sym sym -> do
             nm <- Map.lookup (sym, key) <$> gets decMap
             case nm of
-                Just n -> ensureDec n
-                Nothing -> do
-                    nms <- map (Map.lookup (sym, key) . decMap) . Map.elems <$> gets imports
-                    case catMaybes nms of
-                        [] -> return ()
-                        [n] -> ensureDec n
-                        _ -> fail ("More than one declaration for: " ++ show symbol)
+                Just name -> ensureDec name
+                Nothing   -> do
+                    states <- Map.elems <$> gets imports
+                    rs <- fmap concat $ forM states $ \state -> do
+                        case Map.lookup (sym, key) (decMap state) of
+                            Nothing   -> return []
+                            Just name -> return [(name, (Map.! name) $ declarations state)]
 
-        SymQualified mod sym -> do
-            statem <- Map.lookup mod <$> gets imports
-            case statem of
-                Nothing    -> fail $ "No module called " ++ mod ++ " imported"
-                Just state -> do
-                    case Map.lookup (sym, key) (decMap state) of
-                        Nothing -> return ()
-                        Just n -> ensureDec n
-                    
+                    case rs of
+                        [] -> return ()
+                        [(name, dec)] -> do
+                            declared <- Set.member name <$> gets declared
+                            when (not declared) $ do
+                                emitDec name dec
+                                addDeclared name
+                        _ -> fail ("More than one declaration for: " ++ show symbol)
 
 
 ensureExtern :: ModCmp CompileState m => LL.Name -> [LL.Type] -> LL.Type -> Bool -> m LL.Operand
@@ -206,24 +200,17 @@ ensureExtern name argTypes retty isVarg = trace "ensureExtern" $ do
 lookm :: ModCmp CompileState m => Symbol -> SymKey -> m (Maybe Object)
 lookm symbol key = do
     ensureSymKeyDec symbol key
+    imports <- gets imports
     curMod <- gets curModName
     case symbol of
         Sym sym -> do
             objm <- SymTab.lookup sym key <$> gets symTab
-            case objm of
-                Just obj -> return (Just obj)
-                Nothing -> do
-                    objsm <- fmap (map (SymTab.lookup sym key . symTab)) (Map.elems <$> gets imports)
-                    case catMaybes objsm of
-                        []  -> return Nothing
-                        [x] -> return (Just x)
-                        _   -> fail ("Ambiguous symbol: " ++ show sym)
+            let objsm = map (SymTab.lookup sym key) $ map symTab (Map.elems imports)
 
-        SymQualified mod sym -> do
-            statem <- Map.lookup mod <$> gets imports
-            case statem of
-                Nothing -> fail $ "No module " ++ mod ++ " is imported"
-                Just state -> return $ SymTab.lookup sym key (symTab state)
+            case catMaybes (objm:objsm) of
+                []  -> return Nothing
+                [x] -> return (Just x)
+                _   -> fail ("Ambiguous symbol: " ++ show sym)
 
 
 look :: ModCmp CompileState m => Symbol -> SymKey -> m Object
