@@ -44,12 +44,10 @@ import Typeof
 import Trace
 import Interop
 
-compile :: BoM s m => Map.Map S.ModuleName CompileState -> [Extern] -> S.AST -> m ([LL.Definition], CompileState)
-compile imports externs ast = do
-    res <- runBoMT (initCompileState imports modName) (runModuleCmpT emptyModuleBuilder cmp)
-    case res of
-        Left err                 -> throwError err
-        Right ((_, defs), state) -> return (defs, state)
+compile :: BoM s m => Map.Map S.ModuleName CompileState -> S.AST ->  m ([LL.Definition], CompileState)
+compile imports ast = do
+    ((_, defs), state) <- runBoMTExcept (initCompileState imports modName) (runModuleCmpT emptyModuleBuilder cmp)
+    return (defs, state)
     where
         modName = case S.astModuleName ast of
             Nothing   -> "main"
@@ -64,7 +62,6 @@ compile imports externs ast = do
             void $ func (LL.mkName mainName)  [] LL.VoidType $ \_ -> do
                 cmpMainGuard
 
-                mapM_ cmpExtern externs
                 mapM_ cmpTypeDef   [ stmt | stmt@(S.Typedef _ _ _) <- S.astStmts ast ]
                 mapM_ cmpFuncHdr   [ stmt | stmt@(S.FuncDef _ _ _ _ _) <- S.astStmts ast ]
                 mapM_ cmpExternDef [ stmt | stmt@(S.Extern _ _ _ _ _) <- S.astStmts ast ]
@@ -87,30 +84,11 @@ compile imports externs ast = do
             emitBlockStart exit
             store bMainCalled 0 (bit 1)
 
-            forM_ (Map.keys imports) $ \modName -> do
-                op <- extern (LL.mkName $ modName ++ "__main") [] LL.VoidType
-                call op []
-
-cmpExtern :: InsCmp CompileState m => Extern -> m ()
-cmpExtern extern = case extern of
-    ExtVar sym (S.AnnoType typ) -> do
-        let name = mkName sym
-        opTyp <- opTypeOf typ
-        addSymKeyDec sym KeyVar name (DecVar opTyp)
-        define sym KeyVar $ ObjVal $ Ptr typ $ cons $ C.GlobalReference (LL.ptr opTyp) name
-
-    ExtFunc sym argTypes retty -> do
-        checkSymUndef sym 
-        let name = LL.mkName sym
-
-        paramOpTypes <- mapM opTypeOf argTypes
-        returnOpType <- opTypeOf retty
-
-        addSymKeyDec sym (KeyFunc argTypes) name (DecExtern paramOpTypes returnOpType False)
-        let op = fnOp name paramOpTypes returnOpType False
-        define sym (KeyFunc argTypes) (ObjFunc retty op)
-
-
+            forM_ (Map.keys imports) $ \modName -> case modName of
+                "c" -> return ()
+                _ -> do
+                    op <- extern (LL.mkName $ modName ++ "__main") [] LL.VoidType
+                    void $ call op []
 
 cmpTypeDef :: InsCmp CompileState m => S.Stmt -> m ()
 cmpTypeDef (S.Typedef pos sym (S.AnnoTuple xs)) = withPos pos $ tupleTypeDef sym (S.AnnoTuple xs)

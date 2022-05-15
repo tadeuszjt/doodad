@@ -184,10 +184,15 @@ runMod args pathsVisited modPath = do
             cTranslUnit <- case cTranslUnitEither of
                 Left (ParseError x) -> fail (show x)
                 Right cTranslUnit   -> return cTranslUnit
-            liftIO $ putStrLn $ render (pretty cTranslUnit)
-            ((), cExterns) <- runBoMTExcept [] (Interop.compile cTranslUnit)
-            liftIO $ mapM_ (putStrLn . show) cExterns
+            --liftIO $ putStrLn $ render (pretty cTranslUnit)
+            ((), cExterns) <- runBoMTExcept [] (Interop.genExterns cTranslUnit)
+            --liftIO $ mapM_ (putStrLn . show) cExterns
+            cState <- Interop.compile cExterns
 
+
+            liftIO $ mapM (putStrLn . show) (Map.keys $ declarations $ cState)
+            assert (not $ Map.member "c" importMap) "Already has a module named c"
+            let importMapFull = Map.insert "c" cState importMap 
 
             -- run type inference on ast
             annotatedAST <- fmap fst $ withErrorPrefix "annotate: " $
@@ -201,9 +206,9 @@ runMod args pathsVisited modPath = do
 
             -- compile and run
             debug "compiling"
-            (defs, state) <- fmap fst $ withErrorPrefix "compile: " $
-                runBoMTExcept () $ Compile.compile importMap cExterns flat
+            (defs, state) <- withErrorPrefix "compile: " $ Compile.compile importMapFull flat
 
+            debug "running"
             session <- gets session
             if compileObj args then do
                 let modDirectory' = joinPath [modDirectory, "build"]

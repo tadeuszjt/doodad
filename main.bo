@@ -4,13 +4,7 @@ import std/maths
 import std/rect
 import std/strings
 
-
 import_c math.h
-
-type Y (X, bool)
-type X (bool, i64)
-
-extern "lgammal" gam(a f64) f64
 
 fn main()
         let va = Vec2(1.0, 3.0)
@@ -23,7 +17,3 @@ fn main()
         print("false:", strIsPrefix("Tadeusz", str))
         print("false:", strIsPrefix("tadeusztomoszekiscool", str))
         print(len(str):i32)
-
-        signgam = 12
-        gam(45.56)
-        print(signgam)
