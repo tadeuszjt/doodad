@@ -293,19 +293,14 @@ collectCondition cond = case cond of
         collectDefault (typeOf expr) T.Bool
         collectExpr expr
 
-
-collectExpr :: BoM CollectState m => Expr -> m ()
-collectExpr (AExpr exprType expr) = collectPos expr $ case expr of
-    Conv p t [e] -> do
-        collect exprType t
-        collectExpr e
-
-    Call p symbol [] -> do
-        ObjFunc rt <- look symbol (KeyFunc [])
-        collect exprType rt
-    
-    Call p symbol es -> do
+collectCallExpr :: BoM CollectState m => Expr -> m ()
+collectCallExpr (AExpr exprType (Call p symbol es)) = do
         kos <- lookSym symbol
+
+        let rtm = rettySame kos
+        when (isJust rtm) $ do
+            collect exprType (fromJust rtm)
+
         case kos of
             -- no definitions 
             []                         -> fail $ show symbol ++ " undefined"
@@ -331,6 +326,26 @@ collectExpr (AExpr exprType expr) = collectPos expr $ case expr of
             _ -> return ()
                 
         mapM_ collectExpr es
+        where
+            rettySame :: [(SymKey, Object)] -> Maybe Type
+            rettySame []                = Nothing
+            rettySame [(_, ObjFunc rt)] = Just rt
+            rettySame ((_, ObjFunc rt):xs) = case rettySame xs of
+                Nothing -> Nothing
+                Just rt' -> if rt == rt' then Just rt else Nothing
+            rettySame (_:xs) = rettySame xs
+
+collectExpr :: BoM CollectState m => Expr -> m ()
+collectExpr (AExpr exprType expr) = collectPos expr $ case expr of
+    Conv p t [e] -> do
+        collect exprType t
+        collectExpr e
+
+    Call p symbol [] -> do
+        ObjFunc rt <- look symbol (KeyFunc [])
+        collect exprType rt
+    
+    Call p symbol es -> collectCallExpr (AExpr exprType expr)
 
     Ident p sym -> do
         ObjVar t <- look sym KeyVar

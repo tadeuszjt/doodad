@@ -128,7 +128,7 @@ runTypeInference :: BoM s m => Args -> AST -> [Extern] -> Map.Map FilePath C.Sym
 runTypeInference args annotatedAST externs imports = do
     cSymTab <- fmap (C.symTab . snd) $ runBoMTExcept (C.initCollectState Map.empty) (C.collectCExterns externs)
     assert (not $ Map.member "c" imports) "Modeule named c already imported"
-    (ast, symTab, n) <- runRec annotatedAST (Map.insert "c" cSymTab imports)
+    (ast, symTab, n) <- runRec annotatedAST (Map.insert "c" cSymTab $ Map.mapKeys takeFileName imports)
     when (verbose args) $ liftIO $ putStrLn ("Ran type inference with " ++ show n ++ " iterations")
     return (ast, symTab)
     where
@@ -200,6 +200,8 @@ runMod args pathsVisited modPath = do
                 runBoMTExcept 0 $ annotate combinedAST
             (ast, symTab) <- withErrorPrefix "infer: " $
                 runTypeInference args annotatedAST cExterns =<< gets symTabMap
+
+            liftIO $ S.prettyAST ast
 
 
             flat <- fmap fst $ runBoMTExcept initFlattenState (flattenAST ast)

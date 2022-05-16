@@ -1,8 +1,6 @@
 module strings
 
 import chars
-import maths
-
 
 fn + (a string, b string) string
     let r = copy(a)
@@ -28,7 +26,7 @@ fn string(b bool)
     else; return "false"
 
 
-fn strIsPrefix(pre string, str string) bool
+fn isPrefix(pre string, str string) bool
     if len(pre) > len(str)
         return false
 
@@ -41,7 +39,7 @@ fn strIsPrefix(pre string, str string) bool
     return true
 
 
-fn strReadInt(s string) (i64, bool)
+fn readInt(s string) (i64, bool)
     let n = 0
     let b = false
 
@@ -54,7 +52,7 @@ fn strReadInt(s string) (i64, bool)
     return (n, b)
 
 
-fn strReverse(s string)
+fn reverse(s string)
     let r = copy(s)
     let i = 0
     while i < len(r)

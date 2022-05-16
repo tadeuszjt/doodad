@@ -10,3 +10,5 @@ fn string(r Rect)
     s <- "Rect(" <- string(r.min) <- ", " <- string(r.max) <- ")"
     return s
 
+fn area(r Rect)
+    return (r.max.x - r.min.x) * (r.max.y - r.min.y)

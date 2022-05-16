@@ -4,8 +4,6 @@ import std/maths
 import std/rect
 import std/strings
 
-import_c math.h
-
 fn main()
         let va = Vec2(1.0, 3.0)
         let vb = Vec2(9, 7)
@@ -13,9 +11,10 @@ fn main()
         print("5:", length(va + vb))
 
         let str = "tadeusztomoszek"
-        print("true:", strIsPrefix("tadeusz", str))
-        print("false:", strIsPrefix("Tadeusz", str))
-        print("false:", strIsPrefix("tadeusztomoszekiscool", str))
+        print("true:", strings::isPrefix("tadeusz", str))
+        print("false:", strings::isPrefix("Tadeusz", str))
+        print("false:", strings::isPrefix("tadeusztomoszekiscool", str))
         print(len(str):i32)
-
-        print(sqrtf(34))
+        
+        let rect = Rect((0, 0), (3, 4))
+        print(maths::sqrt(34), rect::area(rect))

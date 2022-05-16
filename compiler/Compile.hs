@@ -421,7 +421,7 @@ cmpExpr (S.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck exp
         withCheck :: InsCmp s m => Type -> m Value -> m Value
         withCheck typ m = do
             val <- m
-            assert (valType val == typ) $ "Expression compiled to: " ++ show (valType val)
+            assert (valType val == typ) $ "Expression compiled to: " ++ show (valType val) ++ " instead of: " ++ show typ
             return val
             
 
