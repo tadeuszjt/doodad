@@ -293,59 +293,96 @@ collectCondition cond = case cond of
         collectDefault (typeOf expr) T.Bool
         collectExpr expr
 
+
 collectCallExpr :: BoM CollectState m => Expr -> m ()
 collectCallExpr (AExpr exprType (Call p symbol es)) = do
         kos <- lookSym symbol
 
-        let rtm = rettySame kos
+        let rtm = rettySame (map snd kos)
+        let odm = oneDef kos
+        let rmm = rettyMatchesOne exprType kos
+        let amm = argsMatch (map typeOf es) kos
+        let alm = argLengthsMatch (map typeOf es) kos
+
         when (isJust rtm) $ do
             collect exprType (fromJust rtm)
 
-        case kos of
-            -- no definitions 
-            []                         -> fail $ show symbol ++ " undefined"
-            -- one definition
-            [(KeyFunc ts, ObjFunc rt)] -> do
-                assert (length ts == length es) "Invalid arguments"
-                zipWithM_  collect ts (map typeOf es)
-                collect exprType rt
+        when (isJust odm) $ do
+            let (ts, rt) = fromJust odm
+            assert (length ts == length es) "Invalid arguments"
+            zipWithM_  collect ts (map typeOf es)
+            collect exprType rt
 
-            -- several definitions, return type matches one
-            _ | length (elemIndices (ObjFunc exprType) (map snd kos)) == 1 -> do
-                let [idx] = elemIndices (ObjFunc exprType) (map snd kos)
-                let (KeyFunc ts, ObjFunc _) = kos !! idx
-                assert (length ts == length es) "Invalid arguments"
-                zipWithM_  collect ts (map typeOf es)
+        when (isJust rmm) $ do
+            let (ts, rt) = fromJust rmm
+            assert (length ts == length es) "Invalid arguments"
+            zipWithM_  collect ts (map typeOf es)
 
-            -- several definitions, arg types match one
-            _ | length (elemIndices (KeyFunc $ map typeOf es) (map fst kos)) == 1 -> do
-                let Just (ObjFunc rt) = lookup (KeyFunc $ map typeOf es) kos
-                collect exprType rt
+        when (isJust amm) $ do
+            collect exprType (fromJust amm)
 
-            -- do nothing
-            _ -> return ()
-                
+        when (isJust alm) $ do
+            let (ts, rt) = fromJust alm
+            zipWithM_  collect ts (map typeOf es)
+            collect exprType rt
+
         mapM_ collectExpr es
         where
-            rettySame :: [(SymKey, Object)] -> Maybe Type
-            rettySame []                = Nothing
-            rettySame [(_, ObjFunc rt)] = Just rt
-            rettySame ((_, ObjFunc rt):xs) = case rettySame xs of
-                Nothing -> Nothing
-                Just rt' -> if rt == rt' then Just rt else Nothing
+            rettySame :: [Object] -> Maybe Type
+            rettySame []              = Nothing
+            rettySame (ObjFunc rt:xs) = case rettySame xs of
+                Just rt' | rt' == rt -> Just rt
+                _                    -> Nothing
             rettySame (_:xs) = rettySame xs
+
+
+            oneDef :: [(SymKey, Object)] -> Maybe ([Type], Type)
+            oneDef [(KeyFunc ts, ObjFunc rt)] = Just (ts, rt)
+            oneDef _                          = Nothing
+
+
+            rettyMatchesOne :: Type -> [(SymKey, Object)] -> Maybe ([Type], Type)
+            rettyMatchesOne _ [] = Nothing
+            rettyMatchesOne typ ((KeyFunc ts, ObjFunc rt):xs)
+                | typ == rt = case rettyMatchesOne typ xs of
+                    Nothing -> Just (ts, rt)
+                    Just _  -> Nothing
+                | otherwise = rettyMatchesOne typ xs
+            rettyMatchesOne typ (_:xs) = rettyMatchesOne typ xs
+
+
+            argsMatch :: [Type] -> [(SymKey, Object)] -> Maybe Type
+            argsMatch _ [] = Nothing
+            argsMatch ats ((KeyFunc ts, ObjFunc rt):xs)
+                | ats == ts = case argsMatch ats xs of
+                    Nothing -> Just rt
+                    Just _  -> Nothing
+                | otherwise = argsMatch ats xs
+            argsMatch ats (_:xs) = argsMatch ats xs
+
+
+            argLengthsMatch :: [Type] -> [(SymKey, Object)] -> Maybe ([Type], Type)
+            argLengthsMatch ats [] = Nothing
+            argLengthsMatch ats ((KeyFunc ts, ObjFunc rt):xs)
+                | length ats == length ts = case argLengthsMatch ats xs of
+                    Nothing -> Just (ts, rt)
+                    _       -> Nothing
+                | otherwise        = argLengthsMatch ats xs
+            argLengthsMatch ats (_:xs) = argLengthsMatch ats xs
+
 
 collectExpr :: BoM CollectState m => Expr -> m ()
 collectExpr (AExpr exprType expr) = collectPos expr $ case expr of
-    Conv p t [e] -> do
-        collect exprType t
-        collectExpr e
-
-    Call p symbol [] -> do
-        ObjFunc rt <- look symbol (KeyFunc [])
-        collect exprType rt
-    
     Call p symbol es -> collectCallExpr (AExpr exprType expr)
+    Conv p t [e] -> collect exprType t >> collectExpr e
+    S.Char p c -> collectDefault exprType T.Char
+    S.Int p c -> collectDefault exprType I64
+    S.Prefix p op e -> collect exprType (typeOf e) >> collectExpr e
+    S.Copy p e -> collect exprType (typeOf e) >> collectExpr e
+    S.Len p e -> collectDefault exprType I64 >> collectExpr e
+    S.Bool p b -> collectDefault exprType T.Bool
+    S.String p s -> collectDefault exprType (T.Table [T.Char])
+    S.Float p f -> collectDefault exprType F64
 
     Ident p sym -> do
         ObjVar t <- look sym KeyVar
@@ -362,23 +399,6 @@ collectExpr (AExpr exprType expr) = collectPos expr $ case expr of
         collectExpr e1
         collectExpr e2
 
-    S.Char p c -> collectDefault exprType T.Char
-    S.Int p c -> collectDefault exprType I64
-
-    S.Prefix p op e -> do
-        collect exprType (typeOf e)
-        collectExpr e
-
-    S.Copy p e -> do
-        collect exprType (typeOf e)
-        collectExpr e
-
-    S.Len p e -> do
-        collectDefault exprType I64
-        collectExpr e
-
-    S.Bool p b -> collectDefault exprType T.Bool
-    
     S.Subscript p e1 e2 -> do
         case typeOf e1 of
             Type x      -> return ()
@@ -387,7 +407,6 @@ collectExpr (AExpr exprType expr) = collectPos expr $ case expr of
         collectExpr e1
         collectExpr e2
 
-    S.String p s -> collectDefault exprType (T.Table [T.Char])
 
     S.Tuple p es -> do
         base <- baseTypeOf exprType
@@ -407,7 +426,6 @@ collectExpr (AExpr exprType expr) = collectPos expr $ case expr of
 
         collectExpr e
 
-    S.Float p f -> collectDefault exprType F64
 
     S.AExpr _ _ -> fail "what"
 
