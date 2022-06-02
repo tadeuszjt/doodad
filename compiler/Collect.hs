@@ -162,6 +162,12 @@ collectAST ast = do
                 define sym KeyType $ ObjType $ T.Tuple (map snd xs)
                 define sym (KeyFunc ts) (ObjFunc typedef) 
 
+            AnnoADT xs -> do
+                let ts = map snd xs
+                let typedef = T.Typedef (Sym sym)
+                forM_ (zip xs [0..]) $ \((s, t), i) -> define s (KeyMember typedef) (ObjMember i)
+                define sym KeyType $ ObjType $ T.ADT (map snd xs)
+
     forM funcdefs $ \(S.FuncDef pos sym params retty _) -> collectPos pos $
         define sym (KeyFunc $ map paramType params) (ObjFunc retty)
 

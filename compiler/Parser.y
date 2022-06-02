@@ -295,12 +295,17 @@ annoTupField : ident type_                    { (tokStr $1, $2) }
 annoTupFields : annoTupField                  { [$1] }
               | annoTupField ',' annoTupFields { $1 : $3 }
 
+annoADTType : '{' annoADTFields '}'           { S.AnnoADT $2 }
+		    | '{' '}'                         { S.AnnoADT [] }
+annoADTField : ident type_                    { (tokStr $1, $2) }
+annoADTFields : annoADTField                  { [$1] }
+			  | annoADTField '|' annoADTFields { $1 : $3 }
 
 tupType : '(' tupFields ')'               { T.Tuple $2 }
 tupFields : {-empty -}                    { [] }
-              | tupFields_                { $1 }
+          | tupFields_                    { $1 }
 tupFields_ : type_                        { [$1] }
-               | type_ ',' tupFields      { $1 : $3 }
+           | type_ ',' tupFields          { $1 : $3 }
 
 
 rowTypes_     : type_                         { [$1] }
@@ -310,6 +315,7 @@ rowTypes_     : type_                         { [$1] }
 annoType : typeOrdinal                        { S.AnnoType $1 }
          | tupType                            { S.AnnoType $1 }
          | annoTupType                        { $1 }
+		 | annoADTType                        { $1 }
 
 {
 parse :: MonadError Error m => FilePath -> String -> m S.AST

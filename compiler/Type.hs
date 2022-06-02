@@ -28,6 +28,7 @@ data Type
     | Array Int Type         -- Aggregate Types
     | Table [Type]           --
     | Func [Type] Type       --
+    | ADT [Type]
     | Typedef Symbol
     deriving (Eq, Ord)
 

@@ -120,6 +120,7 @@ data Stmt
 data AnnoType
     = AnnoType  Type
     | AnnoTuple [(String, Type)]
+    | AnnoADT   [(String, Type)]
     deriving (Eq)
 
 instance TextPosition Append where
@@ -211,7 +212,8 @@ instance Show Op where
 instance Show AnnoType where
     show annoType = case annoType of
         AnnoType t   -> show t
-        AnnoTuple xs -> tupStrs $ map (\(s, t) -> s ++ ":" ++ show t) xs
+        AnnoTuple xs -> tupStrs $ map (\(s, t) -> s ++ show t) xs
+        AnnoADT xs   -> brcStrs $ map (\(s, t) -> s ++ show t) xs
 
 instance Show Pattern where
     show pat = case pat of

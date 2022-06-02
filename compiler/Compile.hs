@@ -43,6 +43,7 @@ import Construct
 import Typeof
 import Trace
 import Interop
+import ADT
 
 compile :: BoM s m => Map.Map S.ModuleName CompileState -> S.AST ->  m ([LL.Definition], CompileState)
 compile imports ast = do
@@ -92,6 +93,7 @@ compile imports ast = do
 
 cmpTypeDef :: InsCmp CompileState m => S.Stmt -> m ()
 cmpTypeDef (S.Typedef pos sym (S.AnnoTuple xs)) = withPos pos $ tupleTypeDef sym (S.AnnoTuple xs)
+cmpTypeDef (S.Typedef pos sym (S.AnnoADT xs))   = withPos pos $ adtTypeDef sym (S.AnnoADT xs)
 cmpTypeDef (S.Typedef pos sym (S.AnnoType typ)) = withPos pos $ do
     case typ of
         t | isTuple t -> tupleTypeDef sym (S.AnnoType t)
