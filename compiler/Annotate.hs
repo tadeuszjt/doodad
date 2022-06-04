@@ -89,6 +89,8 @@ instance Annotate Pattern where
             pat' <- annotate pat
             PatGuarded p pat' <$> annotate e
 
+        PatField p symbol pat -> PatField p symbol <$> annotate pat
+
 
 instance Annotate Append where
     annotate append = case append of

@@ -78,8 +78,8 @@ import qualified Data.Set as Set
     print      { Token _ Reserved "print" }
     len        { Token _ Reserved "len" }
 
-	import     { Token _ Import _ }
-	import_c   { Token _ ImportC _ }
+    import     { Token _ Import _ }
+    import_c   { Token _ ImportC _ }
 
     i16        { Token _ Reserved "i16" }
     i32        { Token _ Reserved "i32" }
@@ -154,6 +154,7 @@ pattern  : '_'                                { S.PatIgnore (tokPos $1) }
          | '(' patterns ')'                   { S.PatTuple (tokPos $1) $2 }
          | '[' patterns ']'                   { S.PatArray (tokPos $1) $2 }
          | pattern '|' expr                   { S.PatGuarded (tokPos $2) $1 $3 }
+         | symbol '(' pattern ')'             { S.PatField (tokPos $2) (snd $1) $3 }
 
 patterns  : {- empty -}                       { [] }
           | patterns_                         { $1 }
@@ -194,7 +195,7 @@ condition : expr                              { S.CondExpr $1 }
 --          | expr ':' pattern                  { S.CondMatch $3 $1 }
 
 param   : ident type_                         { S.Param (tokPos $1) (tokStr $1) $2 }
-		| ident                               { S.Param (tokPos $1) (tokStr $1) T.Void }
+        | ident                               { S.Param (tokPos $1) (tokStr $1) T.Void }
 params  : {- empty -}                         { [] }
         | params_                             { $1 }
 params_ : param                               { [$1] }
@@ -225,7 +226,7 @@ expr   : literal                              { $1 }
        | expr '.' intlit                      { S.TupleIndex (tokPos $2) $1 (read $ tokStr $3) }
        | expr '.' ident                       { S.Member (tokPos $2) $1 (tokStr $3) }
        | expr '[' expr ']'                    { S.Subscript (tokPos $2) $1 $3 }
-	   | expr ':' type_                       { S.AExpr $3 $1 }
+       | expr ':' type_                       { S.AExpr $3 $1 }
 
 literal : intlit                              { S.Int (tokPos $1) (read $ tokStr $1) }
         | floatlit                            { S.Float (tokPos $1) (read $ tokStr $1) }
@@ -296,10 +297,10 @@ annoTupFields : annoTupField                  { [$1] }
               | annoTupField ',' annoTupFields { $1 : $3 }
 
 annoADTType : '{' annoADTFields '}'           { S.AnnoADT $2 }
-		    | '{' '}'                         { S.AnnoADT [] }
+            | '{' '}'                         { S.AnnoADT [] }
 annoADTField : ident type_                    { (tokStr $1, $2) }
 annoADTFields : annoADTField                  { [$1] }
-			  | annoADTField '|' annoADTFields { $1 : $3 }
+              | annoADTField '|' annoADTFields { $1 : $3 }
 
 tupType : '(' tupFields ')'               { T.Tuple $2 }
 tupFields : {-empty -}                    { [] }
@@ -315,7 +316,7 @@ rowTypes_     : type_                         { [$1] }
 annoType : typeOrdinal                        { S.AnnoType $1 }
          | tupType                            { S.AnnoType $1 }
          | annoTupType                        { $1 }
-		 | annoADTType                        { $1 }
+         | annoADTType                        { $1 }
 
 {
 parse :: MonadError Error m => FilePath -> String -> m S.AST

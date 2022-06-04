@@ -65,6 +65,7 @@ data Pattern
     | PatTuple     TextPos [Pattern]
     | PatArray     TextPos [Pattern]
     | PatGuarded   TextPos Pattern Expr
+    | PatField     TextPos Symbol Pattern
     deriving (Eq)
 
 data Index
@@ -142,6 +143,7 @@ instance TextPosition Pattern where
         PatTuple     p _ -> p
         PatArray     p _ -> p
         PatGuarded   p _ _ -> p
+        PatField     p _ _ -> p
         
 
 instance TextPosition Expr where
@@ -223,6 +225,7 @@ instance Show Pattern where
         PatTuple pos ps  -> tupStrs (map show ps)
         PatArray pos ps  -> arrStrs (map show ps)
         PatGuarded pos pat expr -> show pat ++ " | " ++ show expr
+        PatField pos symbol pat -> show symbol ++ "(" ++ show pat ++ ")"
 
 instance Show Append where
     show append = case append of

@@ -13,6 +13,7 @@ import Control.Monad.State
 import qualified SymTab
 import Interop
 
+import qualified Debug.Trace
 
 -- constraints obtained from sub-expressions must be to the left
 data Constraint
@@ -46,17 +47,25 @@ data CollectState
         , defaults  :: [Constraint]
         , imports   :: Map.Map FilePath SymTab
         , curPos    :: TextPos
+        , typeSupply :: Int
         }
 
 initCollectState imp = CollectState
-    { symTab = SymTab.initSymTab
-    , curRetty = Void
-    , collected = []
-    , defaults = []
-    , imports = imp
-    , curPos = TextPos "" 0 0 0
+    { symTab     = SymTab.initSymTab
+    , curRetty   = Void
+    , collected  = []
+    , defaults   = []
+    , imports    = imp
+    , curPos     = TextPos "" 0 0 0
+    , typeSupply = 0
     }
 
+
+genType :: BoM CollectState m => m Type
+genType = do
+    i <- gets typeSupply
+    modify $ \s -> s { typeSupply = i - 1 }
+    return $ Type (i - 1)
 
 collectPos :: (BoM CollectState m, TextPosition t) => t -> m a -> m a
 collectPos t m = withPos t $ do
@@ -292,7 +301,16 @@ collectPattern pattern typ = collectPos pattern $ case pattern of
         collectPattern pat typ
         collectExpr expr
 
-    _ -> fail (show pattern)
+    PatField _ symbol pat -> do
+        base <- Debug.Trace.trace (show typ) $ baseTypeOf typ
+        if (isADT base) then do
+            let ADT ts = base
+            ObjMember i <- look symbol (KeyMember typ)
+            collectPattern pat (ts !! i)
+        else do
+            collectPattern pat =<< genType
+
+    _ -> fail $ "cannot collect: " ++ show pattern
 
 
 collectCondition :: BoM CollectState m => Condition -> m ()

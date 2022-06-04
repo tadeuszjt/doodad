@@ -55,12 +55,14 @@ checkTypesCompatible typA typB = do
             let Func ats atr = baseA
             let Func bts btr = baseB
             checkTypesCompatible atr btr
+            assert (length ats == length bts) "Funcs aren't compatible"
             zipWithM_ checkTypesCompatible ats bts
 
         t | isADT t -> do
             assertBaseType isADT baseB
             let ADT ats = baseA
             let ADT bts = baseB
+            assert (length ats == length bts) "ADTs aren't compatible"
             zipWithM_ checkTypesCompatible ats bts
             
         _ -> fail $ "Can't checkTypesCompatible: " ++ show typA

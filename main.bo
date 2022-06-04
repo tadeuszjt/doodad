@@ -6,6 +6,7 @@ import std/strings
 
 type Adt { I64 i64 | F64 f64 }
 
+
 fn main()
         let va = Vec2(1.0, 3.0)
         let vb = Vec2(9, 7)
@@ -21,3 +22,7 @@ fn main()
         let rect = Rect((0, 0), (3, 4))
         print(maths::sqrt(34), rect::area(rect))
         let a = I64(64)
+
+        let I64(n) = a
+        print(n)
+

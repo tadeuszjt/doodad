@@ -80,6 +80,7 @@ instance Apply Pattern where
         PatIdent p s       -> pattern
         PatLiteral e       -> PatLiteral (apply subs e)
         PatGuarded p pat e -> PatGuarded p (apply subs pat) (apply subs e)
+        PatField p s pat   -> PatField p s (apply subs pat)
         _                    -> error $ show pattern
 
 instance Apply Append where
