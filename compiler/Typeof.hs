@@ -48,14 +48,20 @@ checkTypesCompatible typA typB = do
             let Table ats = baseA
             let Table bts = baseB
             assert (length ats == length bts) "Tables aren't compatible"
-            forM_ (zip ats bts) $ \(ta, tb) -> checkTypesCompatible ta tb
+            zipWithM_ checkTypesCompatible ats bts
 
         t | isFunc t -> do
             assertBaseType isFunc baseB
             let Func ats atr = baseA
             let Func bts btr = baseB
             checkTypesCompatible atr btr
-            forM_ (zip ats bts) $ \(ta, tb) -> checkTypesCompatible ta tb
+            zipWithM_ checkTypesCompatible ats bts
+
+        t | isADT t -> do
+            assertBaseType isADT baseB
+            let ADT ats = baseA
+            let ADT bts = baseB
+            zipWithM_ checkTypesCompatible ats bts
             
         _ -> fail $ "Can't checkTypesCompatible: " ++ show typA
 
@@ -85,6 +91,10 @@ opTypeOf typ = trace ("opTypOf " ++ show typ) $ case typ of
         rt' <- opTypeOf rt
         ts' <- mapM opTypeOf ts
         return $ LL.ptr (LL.FunctionType rt' ts' False)
+
+    ADT _
+        | isEmptyADT typ -> return $ LL.ptr LL.void
+        | isNormalADT typ -> return $ LL.StructureType False [LL.i64, LL.ptr LL.void]
 
     _         -> error (show typ) 
 

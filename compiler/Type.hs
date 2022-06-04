@@ -48,6 +48,7 @@ instance Show Type where
         Tuple ts      -> "(" ++ intercalate ", " (map show ts) ++ ")"
         Array n t     -> "[" ++ show n ++ "| " ++ show t ++ "]"
         Table [Char]  -> "string"
+        ADT ts        -> "{" ++ intercalate " | " (map show ts) ++ "}"
         Table ts      -> "[" ++ intercalate "; " (map show ts) ++ "]"
         Func ts rt    -> "fn(" ++ intercalate ", " (map show ts) ++ ")" ++ show rt
         Typedef s     -> show s
@@ -71,6 +72,24 @@ isTypedef _              = False
 
 isFunc (Func _ _)        = True
 isFunc _                 = False
+
+isADT (ADT _)            = True
+isADT _                  = False
+
+isEmptyADT :: Type -> Bool
+isEmptyADT (ADT []) = True
+isEmptyADT _        = False
+
+
+isPtrADT :: Type -> Bool
+isPtrADT (ADT [x]) = True
+isPtrADT _         = False
+
+isEnumADT :: Type -> Bool
+isEnumADT (ADT ts) = all (== Void) ts
+
+isNormalADT :: Type -> Bool
+isNormalADT adt@(ADT _) = not $ isEmptyADT adt || isPtrADT adt || isEnumADT adt
 
 isTypeId (Type _)        = True
 isTypeId _               = False

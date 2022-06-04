@@ -165,7 +165,9 @@ collectAST ast = do
             AnnoADT xs -> do
                 let ts = map snd xs
                 let typedef = T.Typedef (Sym sym)
-                forM_ (zip xs [0..]) $ \((s, t), i) -> define s (KeyMember typedef) (ObjMember i)
+                forM_ (zip xs [0..]) $ \((s, t), i) -> do
+                    define s (KeyMember typedef) (ObjMember i)
+                    define s (KeyFunc [t]) (ObjFunc typedef)
                 define sym KeyType $ ObjType $ T.ADT (map snd xs)
 
     forM funcdefs $ \(S.FuncDef pos sym params retty _) -> collectPos pos $

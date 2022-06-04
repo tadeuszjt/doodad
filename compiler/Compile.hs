@@ -366,6 +366,7 @@ cmpExpr (S.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck exp
             ObjFunc Void _     -> fail "cannot use void function as expression"
             ObjConstructor typ -> valConstruct typ vals
             ObjFunc retty op   -> Val retty <$> call op [(o, []) | o <- map valOp vals]
+            ObjADTFieldCons typ -> adtConstructField (sym symbol) typ vals
 
     S.Len pos expr -> valLoad =<< do
         assertBaseType isIntegral exprType
