@@ -136,7 +136,7 @@ symbol : ident                                { (tokPos $1, T.Sym (tokStr $1)) }
 stmtS : let pattern '=' expr                  { S.Assign (tokPos $1) $2 $4 }  
       | index '=' expr                        { S.Set (tokPos $2) $1 $3 }
       | ident '(' exprs ')'                   { S.CallStmt (tokPos $2) (tokStr $1) $3 }
-      | type ident annoType                   { S.Typedef (tokPos $2) (tokStr $2) $3 }
+      | type symbol annoType                  { S.Typedef (fst $2) (snd $2) $3 }
       | extern strlit ident '(' params ')' type_  { S.Extern (tokPos $3) (tokStr $2) (tokStr $3) $5 $7 }
       | extern strlit ident '(' params ')'        { S.Extern (tokPos $3) (tokStr $2) (tokStr $3) $5 T.Void }
       | print '(' exprs ')'                   { S.Print (tokPos $1) $3 }

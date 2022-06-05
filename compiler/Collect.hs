@@ -183,7 +183,7 @@ collectAST ast = do
 
 
 collectTypedef :: BoM CollectState m => Stmt -> m ()
-collectTypedef (S.Typedef pos sym annoTyp) = collectPos pos $ case annoTyp of
+collectTypedef (S.Typedef pos (Sym sym) annoTyp) = collectPos pos $ case annoTyp of
     AnnoType t   ->
         define sym KeyType (ObjType t)
 

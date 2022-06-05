@@ -113,7 +113,7 @@ data Stmt
     | FuncDef     TextPos String [Param] Type Stmt
     | Extern      TextPos String String [Param] Type
     | ExternVar   TextPos String String Type
-    | Typedef     TextPos String AnnoType
+    | Typedef     TextPos Symbol AnnoType
     | AppendStmt  Append
     | Switch      TextPos Expr [(Pattern, Stmt)]
     deriving (Eq, Show)
@@ -193,7 +193,7 @@ brcStrs strs = "{" ++ intercalate ", " strs ++ "}"
 
 instance Show Param where
     show (Param pos name Void) = name
-    show (Param pos name typ)  = name ++ ":" ++ show typ
+    show (Param pos name typ)  = name ++ " " ++ show typ
 
 
 instance Show Op where
@@ -316,8 +316,8 @@ prettyAST ast = do
                 putStrLn $ pre ++ "while " ++ show cnd
                 prettyStmt (pre ++ "\t") stmt
 
-            AST.Typedef pos sym anno -> do
-                putStrLn $ pre ++ "typedef " ++ sym ++ " " ++ show anno
+            AST.Typedef pos symbol anno -> do
+                putStrLn $ pre ++ "typedef " ++ show symbol ++ " " ++ show anno
 
             Switch pos expr cases -> do
                 putStrLn $ pre ++ "switch " ++ show expr

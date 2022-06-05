@@ -31,6 +31,7 @@ import Unify
 import Annotate
 import Apply
 import Interop
+import qualified Resolve as R
 
 import Language.C
 import Language.C.System.GCC
@@ -194,6 +195,12 @@ runMod args pathsVisited modPath = do
 
             assert (not $ Map.member "c" importMap) "Already has a module named c"
             let importMapFull = Map.insert "c" cState importMap 
+            
+
+            (resolvedAST, resolveState) <- withErrorPrefix "resolve: " $
+                runBoMTExcept (R.initResolveState Map.empty modName) (R.resolve combinedAST)
+            liftIO $ S.prettyAST resolvedAST
+
 
             -- run type inference on ast
             annotatedAST <- fmap fst $ withErrorPrefix "annotate: " $
@@ -201,7 +208,7 @@ runMod args pathsVisited modPath = do
             (ast, symTab) <- withErrorPrefix "infer: " $
                 runTypeInference args annotatedAST cExterns =<< gets symTabMap
 
-            liftIO $ S.prettyAST ast
+            --liftIO $ S.prettyAST ast
 
 
             flat <- fmap fst $ runBoMTExcept initFlattenState (flattenAST ast)

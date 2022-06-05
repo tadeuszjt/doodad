@@ -92,9 +92,9 @@ compile imports ast = do
                     void $ call op []
 
 cmpTypeDef :: InsCmp CompileState m => S.Stmt -> m ()
-cmpTypeDef (S.Typedef pos sym (S.AnnoTuple xs)) = withPos pos $ tupleTypeDef sym (S.AnnoTuple xs)
-cmpTypeDef (S.Typedef pos sym (S.AnnoADT xs))   = withPos pos $ adtTypeDef sym (S.AnnoADT xs)
-cmpTypeDef (S.Typedef pos sym (S.AnnoType typ)) = withPos pos $ do
+cmpTypeDef (S.Typedef pos (Sym sym) (S.AnnoTuple xs)) = withPos pos $ tupleTypeDef sym (S.AnnoTuple xs)
+cmpTypeDef (S.Typedef pos (Sym sym) (S.AnnoADT xs))   = withPos pos $ adtTypeDef sym (S.AnnoADT xs)
+cmpTypeDef (S.Typedef pos (Sym sym) (S.AnnoType typ)) = withPos pos $ do
     case typ of
         t | isTuple t -> tupleTypeDef sym (S.AnnoType t)
         t             -> do

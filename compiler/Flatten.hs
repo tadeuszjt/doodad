@@ -19,7 +19,7 @@ import Error
 checkTypeDefs :: BoM s m => [S.Stmt] -> m ()
 checkTypeDefs typedefs = do
     -- check multiple definitions
-    forM typedefs $ \(S.Typedef pos sym anno) -> withPos pos $
+    forM typedefs $ \(S.Typedef pos (T.Sym sym) anno) -> withPos pos $
         case elemIndices sym (map typedefSym typedefs) of
             [x] -> return ()
             _   -> fail $ "multiple definitions of " ++ sym
@@ -29,7 +29,7 @@ checkTypeDefs typedefs = do
 
     where
         typedefSym :: S.Stmt -> String
-        typedefSym (S.Typedef _ sym _) = sym
+        typedefSym (S.Typedef _ (T.Sym sym) _) = sym
 
         checkCircles :: BoM s m => Set.Set String -> String -> m ()
         checkCircles visited sym = case elemIndices sym (map typedefSym typedefs) of
