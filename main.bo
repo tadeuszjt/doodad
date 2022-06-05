@@ -22,8 +22,11 @@ fn main()
         
         let rect = Rect((0, 0), (3, 4))
         print(maths::sqrt(34), rect::area(rect))
-        let a = F64(64)
 
+        let a = F64(64)
         let F64(n) = a
-        print(n)
+
+        switch a
+            I64(n); print(n)
+            F64(f); print(f)
 

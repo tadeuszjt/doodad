@@ -117,6 +117,10 @@ instance Apply Stmt where
             If pos (apply subs cnd) (apply subs block) $ fmap (apply subs) melse
 
         S.Typedef _ _ _ -> stmt -- leave this for now
+        
+        Switch pos expr cases ->
+            Switch pos (apply subs expr) [(apply subs p, apply subs s) | (p, s) <- cases]
+            
 
 instance Apply AST where
     apply subs ast = ast { astStmts = map (apply subs) (astStmts ast) }

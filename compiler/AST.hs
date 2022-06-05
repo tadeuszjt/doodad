@@ -115,6 +115,7 @@ data Stmt
     | ExternVar   TextPos String String Type
     | Typedef     TextPos String AnnoType
     | AppendStmt  Append
+    | Switch      TextPos Expr [(Pattern, Stmt)]
     deriving (Eq, Show)
 
 
@@ -183,6 +184,7 @@ instance TextPosition Stmt where
         AST.ExternVar   p _ _ _ -> p
         AST.Typedef     p _ _ -> p
         AST.AppendStmt  a -> textPos a
+        AST.Switch      p _ _ -> p
 
 tupStrs, arrStrs, brcStrs :: [String] -> String
 tupStrs strs = "(" ++ intercalate ", " strs ++ ")"
@@ -316,4 +318,10 @@ prettyAST ast = do
 
             AST.Typedef pos sym anno -> do
                 putStrLn $ pre ++ "typedef " ++ sym ++ " " ++ show anno
+
+            Switch pos expr cases -> do
+                putStrLn $ pre ++ "switch " ++ show expr
+                forM_ cases $ \(pat, stmt) -> do
+                    putStrLn $ pre ++ "\t" ++ show pat
+                    prettyStmt (pre ++ "\t\t") stmt
 

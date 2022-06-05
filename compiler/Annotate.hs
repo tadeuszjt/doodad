@@ -67,6 +67,14 @@ instance Annotate Stmt where
             c' <- annotate c
             While p c' <$> annotate b
 
+        Switch p e cases -> do
+            e' <- annotate e
+            cases' <- forM cases $ \(pat, stmt) -> do
+                pat' <- annotate pat
+                stmt' <- annotate stmt
+                return (pat', stmt')
+            return $ Switch p e' cases'
+
 
 instance Annotate Condition where
     annotate condition = case condition of

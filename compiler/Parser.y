@@ -147,6 +147,7 @@ stmtB : If                                    { $1 }
       | fn fnName '(' params ')' block        { S.FuncDef (tokPos $1) $2 $4 T.Void $6 }
       | fn fnName '(' params ')' type_ block  { S.FuncDef (tokPos $1) $2 $4 $6 $7 }
       | while condition block                 { S.While (tokPos $1) $2 $3 }
+      | Switch                                { $1 }
 
 pattern  : '_'                                { S.PatIgnore (tokPos $1) }
          | literal                            { S.PatLiteral $1 }
@@ -206,6 +207,15 @@ If    : if condition block else_              { S.If (tokPos $1) $2 $3 $4 }
 else_ : else block                            { Just $2 }
       | else If                               { Just $2 }
       | {-empty-}                             { Nothing }
+
+
+Switch : switch expr 'I' cases 'D'            { S.Switch (tokPos $1) $2 $4 }
+       | switch expr                          { S.Switch (tokPos $1) $2 [] }
+
+cases : case                                  { [$1] }
+      | case cases                            { $1 : $2 }
+
+case : pattern ';' stmtS 'N'                  { ($1, $3) }
 
 ---------------------------------------------------------------------------------------------------
 -- Expressions ------------------------------------------------------------------------------------

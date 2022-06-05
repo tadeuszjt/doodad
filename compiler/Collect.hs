@@ -207,6 +207,11 @@ collectTypedef (S.Typedef pos sym annoTyp) = collectPos pos $ case annoTyp of
 collectStmt :: BoM CollectState m => Stmt -> m ()
 collectStmt stmt = collectPos stmt $ case stmt of
     S.Typedef _ _ _ -> collectTypedef stmt
+    Print p exprs -> mapM_ collectExpr exprs
+    S.Typedef _ _ _ -> return ()
+    ExternVar p n s t -> define s KeyVar (ObjVar t)
+    Extern _ name sym params retty -> return () -- already defined
+    Block stmts -> pushSymTab >> mapM_ collectStmt stmts >> popSymTab
 
     FuncDef _ sym params retty blk -> do
         oldRetty <- gets curRetty
@@ -218,19 +223,6 @@ collectStmt stmt = collectPos stmt $ case stmt of
         popSymTab
         modify $ \s -> s { curRetty = oldRetty }
         collectDefault retty T.Void
-    
-    Extern _ name sym params retty ->
-        return () -- already defined
-
-    ExternVar p n s t -> do
-        define s KeyVar (ObjVar t)
-
-    S.Typedef _ _ _ -> return ()
-
-    Block stmts -> do
-        pushSymTab
-        mapM_ collectStmt stmts
-        popSymTab
 
     Return _ (Just expr) -> do
         collect (typeOf expr) =<< gets curRetty
@@ -271,10 +263,13 @@ collectStmt stmt = collectPos stmt $ case stmt of
 
         mapM_ collectExpr es
 
-    Print p exprs -> do
-        mapM_ collectExpr exprs
-
-
+    Switch p expr cases -> do
+        collectExpr expr
+        pushSymTab
+        forM_ cases $ \(pat, stmt) -> do
+            collectPattern pat (typeOf expr)
+            collectStmt stmt
+        popSymTab
 
     _ -> fail (show stmt)
 
