@@ -19,6 +19,7 @@ import Infer
 import qualified Parser as P
 import qualified Lexer as L
 import qualified SymTab
+import Resolve
 
 main :: IO ()
 main = do

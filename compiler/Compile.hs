@@ -314,12 +314,8 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
     
     S.Switch _ expr cases -> do
         val <- cmpExpr expr
-
         pushSymTab
-        cases' <- forM cases $ \(pat, stmt) -> do
-            let mop = fmap valOp (cmpPattern pat val)
-            let mst = cmpStmt stmt
-            return (mop, mst)
+        let cases' = [(fmap valOp (cmpPattern pat val), cmpStmt stmt) | (pat, stmt) <- cases]
         switch_ $ cases' ++ [(return (bit 1), void trap)]
         popSymTab
 
