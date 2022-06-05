@@ -40,7 +40,6 @@ adtTypeDef sym anno = trace "adtTypeDef" $ do
                 when (isTuple t) $ do
                     let Tuple ts = t
                     define s (KeyFunc ts) (ObjADTFieldCons typdef)
-            
 
 
 adtEnum :: InsCmp CompileState m => Value -> m Value

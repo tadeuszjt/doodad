@@ -4,10 +4,11 @@ import std/maths
 import std/rect
 import std/strings
 
-type Adt { I64 i64 | F64 f64 }
 
 
 fn main()
+        type Adt { I64 i64 | F64 f64 }
+
         let va = Vec2(1.0, 3.0)
         let vb = Vec2(9, 7)
         vb = (2, 1)

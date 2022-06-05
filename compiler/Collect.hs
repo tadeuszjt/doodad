@@ -155,29 +155,11 @@ collectCExterns externs = do
 
 collectAST :: BoM CollectState m => AST -> m ()
 collectAST ast = do
-    let typedefs = [ stmt | stmt@(S.Typedef _ _ _) <- astStmts ast ]
-    let funcdefs = [ stmt | stmt@(S.FuncDef _ _ _ _ _) <- astStmts ast ]
-    let externdefs = [ stmt | stmt@(S.Extern _ _ _ _ _) <- astStmts ast ]
+    let (typedefs, stmts'') = partition isTypedef (S.astStmts ast)
+    let (funcdefs, stmts') = partition isFuncdef stmts''
+    let (externdefs, stmts) = partition isExterndef stmts'
 
-    forM typedefs $ \(S.Typedef pos sym annoTyp) ->
-        collectPos pos $ case annoTyp of
-            AnnoType t   ->
-                define sym KeyType (ObjType t)
-
-            AnnoTuple xs   -> do
-                let ts = map snd xs
-                let typedef = T.Typedef (Sym sym)
-                forM_ (zip xs [0..]) $ \((s, t), i) -> define s (KeyMember typedef) (ObjMember i)
-                define sym KeyType $ ObjType $ T.Tuple (map snd xs)
-                define sym (KeyFunc ts) (ObjFunc typedef) 
-
-            AnnoADT xs -> do
-                let ts = map snd xs
-                let typedef = T.Typedef (Sym sym)
-                forM_ (zip xs [0..]) $ \((s, t), i) -> do
-                    define s (KeyMember typedef) (ObjMember i)
-                    define s (KeyFunc [t]) (ObjFunc typedef)
-                define sym KeyType $ ObjType $ T.ADT (map snd xs)
+    forM typedefs $ collectTypedef
 
     forM funcdefs $ \(S.FuncDef pos sym params retty _) -> collectPos pos $
         define sym (KeyFunc $ map paramType params) (ObjFunc retty)
@@ -185,11 +167,47 @@ collectAST ast = do
     forM externdefs $ \(S.Extern pos name sym params retty) -> collectPos pos $
         define sym (KeyFunc $ map paramType params) (ObjFunc retty)
 
-    mapM_ collectStmt (astStmts ast)
+    mapM_ collectStmt stmts''
+    where
+        isTypedef :: Stmt -> Bool
+        isTypedef (S.Typedef _ _ _) = True
+        isTypedef _                 = False
+
+        isFuncdef :: Stmt -> Bool
+        isFuncdef (S.FuncDef _ _ _ _ _) = True
+        isFuncdef _                     = False
+
+        isExterndef :: Stmt -> Bool
+        isExterndef (S.Extern _ _ _ _ _)  = True
+        isExterndef _                     = False
+
+
+collectTypedef :: BoM CollectState m => Stmt -> m ()
+collectTypedef (S.Typedef pos sym annoTyp) = collectPos pos $ case annoTyp of
+    AnnoType t   ->
+        define sym KeyType (ObjType t)
+
+    AnnoTuple xs   -> do
+        let ts = map snd xs
+        let typedef = T.Typedef (Sym sym)
+        forM_ (zip xs [0..]) $ \((s, t), i) -> define s (KeyMember typedef) (ObjMember i)
+        define sym KeyType $ ObjType $ T.Tuple (map snd xs)
+        define sym (KeyFunc ts) (ObjFunc typedef) 
+
+    AnnoADT xs -> do
+        let ts = map snd xs
+        let typedef = T.Typedef (Sym sym)
+        forM_ (zip xs [0..]) $ \((s, t), i) -> do
+            define s (KeyMember typedef) (ObjMember i)
+            define s (KeyFunc [t]) (ObjFunc typedef)
+        define sym KeyType $ ObjType $ T.ADT (map snd xs)
+
 
 
 collectStmt :: BoM CollectState m => Stmt -> m ()
 collectStmt stmt = collectPos stmt $ case stmt of
+    S.Typedef _ _ _ -> collectTypedef stmt
+
     FuncDef _ sym params retty blk -> do
         oldRetty <- gets curRetty
         modify $ \s -> s { curRetty = retty }

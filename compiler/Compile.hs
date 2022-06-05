@@ -310,6 +310,8 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
         emitBlockStart exit
         popSymTab
 
+    S.Typedef _ _ _ -> cmpTypeDef stmt
+
     _ -> fail "stmt"
 
 
