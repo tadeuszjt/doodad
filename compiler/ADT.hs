@@ -70,12 +70,16 @@ adtSetEnum adt@(Ptr _ loc) i = trace "adtSetEnum" $ do
             valStore en (valI64 i)
 
 
-adtDeref :: InsCmp CompileState m => Value -> m Value
-adtDeref val = trace "adtDeref" $ do
-    ADT [t] <- assertBaseType isPtrADT (valType val)
-    pi8 <- adtPi8 val
-    pt  <- LL.ptr <$> opTypeOf t
-    Ptr t <$> bitcast pi8 pt
+adtDeref :: InsCmp CompileState m => Value -> Int -> m Value
+adtDeref val i = trace "adtDeref" $ do
+    base@(ADT ts) <- assertBaseType isADT (valType val)
+    case base of
+        _ | isEnumADT base -> fail "Cannot deref enum ADT"
+        _ | isEmptyADT base -> fail "Cannot deref empty ADT"
+        _ | isPtrADT base || isNormalADT base -> do
+            pi8 <- adtPi8 val
+            pt  <- LL.ptr <$> opTypeOf (ts !! i)
+            Ptr (ts !! i) <$> bitcast pi8 pt
 
 
 adtNull :: InsCmp CompileState m => Type -> m Value

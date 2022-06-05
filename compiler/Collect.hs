@@ -302,13 +302,12 @@ collectPattern pattern typ = collectPos pattern $ case pattern of
         collectExpr expr
 
     PatField _ symbol pat -> do
-        base <- Debug.Trace.trace (show typ) $ baseTypeOf typ
-        if (isADT base) then do
-            let ADT ts = base
-            ObjMember i <- look symbol (KeyMember typ)
-            collectPattern pat (ts !! i)
-        else do
-            collectPattern pat =<< genType
+        base <- baseTypeOf typ
+        case base of
+            ADT ts -> do
+                ObjMember i <- look symbol (KeyMember typ)
+                collectPattern pat (ts !! i)
+            _ -> collectPattern pat =<< genType
 
     _ -> fail $ "cannot collect: " ++ show pattern
 

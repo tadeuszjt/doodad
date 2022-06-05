@@ -431,23 +431,23 @@ cmpExpr (S.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck exp
 
 cmpPattern :: InsCmp CompileState m => S.Pattern -> Value -> m Value
 cmpPattern pattern val = trace "cmpPattern" $ withPos pattern $ case pattern of
-    S.PatIgnore pos   -> valBool Bool True
+    S.PatIgnore _   -> valBool Bool True
     S.PatLiteral expr -> cmpInfix S.EqEq val =<< cmpExpr expr
 
-    S.PatGuarded pos pat expr -> do
+    S.PatGuarded _ pat expr -> do
         match <- cmpPattern pat =<< valLoad val
         guard <- cmpExpr expr
         assertBaseType (== Bool) (valType guard)
         valsInfix S.AndAnd match guard
 
-    S.PatIdent pos sym -> trace ("cmpPattern " ++ show pattern) $ do
+    S.PatIdent _ sym -> trace ("cmpPattern " ++ show pattern) $ do
         base <- baseTypeOf (valType val)
         loc <- valLocal (valType val)
         valStore loc val
         define sym KeyVar (ObjVal loc)
         valBool Bool True
 
-    S.PatTuple pos pats -> do
+    S.PatTuple _ pats -> do
         len <- tupleLength val
         assert (len == length pats) "tuple pattern length mismatch"
 
@@ -457,7 +457,7 @@ cmpPattern pattern val = trace "cmpPattern" $ withPos pattern $ case pattern of
         true <- valBool Bool True
         foldM (valsInfix S.AndAnd) true bs
 
-    S.PatArray pos pats -> do
+    S.PatArray _ pats -> do
         base <- baseTypeOf (valType val)
         case base of
             Table ts -> do
@@ -470,6 +470,15 @@ cmpPattern pattern val = trace "cmpPattern" $ withPos pattern $ case pattern of
 
                 true <- valBool (valType lenEq) True
                 foldM (valsInfix S.AndAnd) true (lenEq:bs)
-
             _ -> fail "Invalid array pattern"
+
+    S.PatField _ symbol pat -> do
+        ObjMember i <- look symbol (KeyMember $ valType val)
+        match <- cmpPattern pat =<< adtDeref val i
+        n <- valInt I64 i
+        enumMatch <- valsInfix S.EqEq n =<< adtEnum val
+        valsInfix S.AndAnd match enumMatch
+
+
+
 
