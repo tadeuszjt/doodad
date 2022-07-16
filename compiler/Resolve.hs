@@ -19,7 +19,7 @@ class Resolve a where
 data SymKey
     = KeyVar
     | KeyType
-    | KeyFunc [Type]
+    | KeyFunc
     | KeyMember Symbol
     deriving (Show, Eq, Ord)
 
@@ -45,25 +45,46 @@ initResolveState imp modName = ResolveState
 
 
 look :: BoM ResolveState m => Symbol -> SymKey -> m Symbol
-look symbol key = case symbol of
+look symbol key = do
+    lm <- lookm symbol key
+    case lm of
+        Just symbol -> return symbol
+        Nothing     -> fail $ show symbol ++ " " ++ show key ++ " isn't defined"
+
+lookm :: BoM ResolveState m => Symbol -> SymKey -> m (Maybe Symbol)
+lookm symbol key = case symbol of
     Sym sym -> do
         lm <- gets $ SymTab.lookup sym key . symTab
-        modName <- gets modName
         case lm of
-            Just res -> return res
+            Just res -> return (Just res)
             Nothing -> do
                 ls <- gets $ catMaybes . map (SymTab.lookup sym key) . Map.elems . imports
                 case ls of
-                    [res] -> return res
-                    []  -> fail $ show symbol ++ " " ++ show key ++ " not defined"
+                    [res] -> return (Just res)
+                    [] -> return Nothing
                     _   -> fail $ show symbol ++ " is ambiguous"
-        
 
-define :: BoM ResolveState m => String -> SymKey -> m Symbol
-define sym key = do
-    resm <- gets $ SymTab.lookupHead sym key . symTab
-    when (isJust resm) $ fail $ sym ++ " already defined"
+    SymQualified mod sym -> do
+        modName <- gets modName
+        if mod == modName then do
+            lm <- gets $ SymTab.lookup sym key . symTab
+            case lm of
+                Just res -> return (Just res)
+                Nothing  -> return Nothing
+        else if mod == "c" then do
+            return (Just symbol)
+        else do
+            ls <- gets $ catMaybes . map (SymTab.lookup sym key) . Map.elems . imports
+            case ls of
+                [res] -> return (Just res)
+                []  -> return Nothing
+                _   -> fail $ show symbol ++ " is ambiguous"
 
+    _ -> fail $ show (symbol, key)
+
+
+genSymbol :: BoM ResolveState m => String -> m Symbol
+genSymbol sym = do  
     modName <- gets modName
     im <- gets $ Map.lookup (modName, sym) . supply
     i <- case im of
@@ -73,10 +94,15 @@ define sym key = do
         Just i -> do
             modify $ \s -> s { supply = Map.insert (modName, sym) (i + 1) (supply s) }
             return i
-    
     let symbol = SymResolved modName sym i
-    modify $ \s -> s { symTab = SymTab.insert sym key symbol (symTab s) }
     return symbol
+        
+
+define :: BoM ResolveState m => String -> SymKey -> Symbol -> m ()
+define sym key symbol = do
+    resm <- gets $ SymTab.lookupHead sym key . symTab
+    when (isJust resm) $ fail $ sym ++ " already defined"
+    modify $ \s -> s { symTab = SymTab.insert sym key symbol (symTab s) }
 
 
 pushSymTab :: BoM ResolveState m => m ()
@@ -97,8 +123,9 @@ instance Resolve AST where
 
         --forM typedefs $ resolveTypedef
 
-        forM funcdefs $ \(FuncDef pos sym params retty _) ->
-            define sym (KeyFunc $ map paramType params)
+        forM funcdefs $ \(FuncDef pos sym params retty _) -> do
+            --symbol <- genSymbol sym
+            define sym KeyFunc (Sym sym)
 --
 --        forM externdefs $ \(Extern pos name sym params retty) ->
 --            define sym (KeyFunc $ map paramType params) (ObjFunc retty)
@@ -144,19 +171,23 @@ instance Resolve Stmt where
             return $ Assign pos pat' expr'
         
         AST.Typedef pos (Sym sym) anno -> do
-            symbol <- define sym KeyType
+            symbol <- genSymbol sym
+            define sym KeyType symbol
             anno' <- case anno of
                 AnnoTuple xs -> do 
-                    xs' <- forM xs $ \(s, t) -> do
-                        define s (KeyMember symbol)
+                    xs' <- forM xs $ \(Sym s, t) -> do
+                        s' <- genSymbol s
+                        define s (KeyMember symbol) s'
                         t' <- resolve t
-                        return (s, t')
+                        return (s', t')
                     return $ AnnoTuple xs'
                 AnnoADT xs -> do
-                    xs' <- forM xs $ \(s, t) -> do
-                        define s (KeyMember symbol)
+                    xs' <- forM xs $ \(Sym s, t) -> do
+                        s' <- genSymbol s
+                        define s (KeyMember symbol) s'
+                        define s KeyFunc s'
                         t' <- resolve t
-                        return (s, t')
+                        return (s', t')
                     return $ AnnoADT xs'
                 _ -> fail (show anno)
 
@@ -228,12 +259,14 @@ instance Resolve Append where
 instance Resolve Pattern where
     resolve pattern = withPos pattern $ case pattern of
         PatIdent pos (Sym sym) -> do
-            symbol <- define sym KeyVar
+            symbol <- genSymbol sym
+            define sym KeyVar symbol
             return $ PatIdent pos symbol
 
         PatField pos symbol pat -> do
             pat' <- resolve pat
-            return $ PatField pos symbol pat' -- TODO
+            symbol' <- look symbol KeyFunc -- TODO bit of a hack
+            return $ PatField pos symbol' pat' -- TODO
 
         _ -> fail (show pattern)
 
@@ -242,7 +275,8 @@ instance Resolve Pattern where
 instance Resolve Param where
     resolve (Param pos (Sym sym) typ) = withPos pos $ do
         typ' <- resolve typ
-        symbol <- define sym KeyVar
+        symbol <- genSymbol sym
+        define sym KeyVar symbol
         return $ Param pos symbol typ'
 
 instance Resolve Type where 
@@ -258,7 +292,18 @@ instance Resolve Type where
 instance Resolve Expr where
     resolve expr = withPos expr $ case expr of
         Ident pos symbol      -> Ident pos <$> look symbol KeyVar
-        Call pos symbol exprs -> Call pos symbol <$> mapM resolve exprs
+
+        Call pos symbol exprs -> do
+            exprs' <- mapM resolve exprs
+            symbolm <- lookm symbol KeyFunc
+            case symbolm of
+                Just symbol' -> return $ Call pos symbol' exprs'
+                Nothing -> do
+                    symbolmm <- lookm symbol KeyType
+                    case symbolmm of
+                        Nothing ->      fail "here"
+                        Just symbol' -> return $ Call pos symbol' exprs'
+
         Infix pos op exprA exprB -> do
             exprA' <- resolve exprA
             exprB' <- resolve exprB

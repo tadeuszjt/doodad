@@ -190,14 +190,14 @@ collectTypedef (S.Typedef pos (Sym sym) annoTyp) = collectPos pos $ case annoTyp
     AnnoTuple xs   -> do
         let ts = map snd xs
         let typedef = T.Typedef (Sym sym)
-        forM_ (zip xs [0..]) $ \((s, t), i) -> define s (KeyMember typedef) (ObjMember i)
+        forM_ (zip xs [0..]) $ \(((Sym s), t), i) -> define s (KeyMember typedef) (ObjMember i)
         define sym KeyType $ ObjType $ T.Tuple (map snd xs)
         define sym (KeyFunc ts) (ObjFunc typedef) 
 
     AnnoADT xs -> do
         let ts = map snd xs
         let typedef = T.Typedef (Sym sym)
-        forM_ (zip xs [0..]) $ \((s, t), i) -> do
+        forM_ (zip xs [0..]) $ \(((Sym s), t), i) -> do
             define s (KeyMember typedef) (ObjMember i)
             define s (KeyFunc [t]) (ObjFunc typedef)
         define sym KeyType $ ObjType $ T.ADT (map snd xs)

@@ -302,13 +302,13 @@ argTypes_ : type_                             { [$1] }
 
 
 annoTupType : '(' annoTupFields ')'           { S.AnnoTuple $2 }
-annoTupField : ident type_                    { (tokStr $1, $2) }
+annoTupField : ident type_                    { (T.Sym (tokStr $1), $2) }
 annoTupFields : annoTupField                  { [$1] }
               | annoTupField ',' annoTupFields { $1 : $3 }
 
 annoADTType : '{' annoADTFields '}'           { S.AnnoADT $2 }
             | '{' '}'                         { S.AnnoADT [] }
-annoADTField : ident type_                    { (tokStr $1, $2) }
+annoADTField : ident type_                    { (T.Sym (tokStr $1), $2) }
 annoADTFields : annoADTField                  { [$1] }
               | annoADTField '|' annoADTFields { $1 : $3 }
 

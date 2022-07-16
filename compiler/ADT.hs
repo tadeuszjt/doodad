@@ -33,7 +33,7 @@ adtTypeDef sym anno = trace "adtTypeDef" $ do
     case anno of
         S.AnnoADT xs -> do
             define sym KeyType $ ObType (ADT $ map snd xs) Nothing
-            forM_ (zip xs [0..]) $ \((s, t), i) -> do
+            forM_ (zip xs [0..]) $ \(((Sym s), t), i) -> do
                 define s (KeyMember typdef) (ObjMember i)
                 define s (KeyFunc [t]) (ObjADTFieldCons typdef)
                 define s (KeyFunc []) (ObjADTFieldCons typdef)
