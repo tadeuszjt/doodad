@@ -8,3 +8,4 @@ fn sqrt(f f64); return c::sqrt(f)
 fn sin(f f64); return c::sin(f)
 fn cos(f f64); return c::cos(f)
 
+fn abs(f f64); return c::fabs(f)

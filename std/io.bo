@@ -1,9 +1,7 @@
 module io
 
-import strings
+importC stdio.h
 
-extern "getchar" Cgetchar() i32
-extern "putchar" Cputchar(c char)
 
 fn getChar() char
     return char(Cgetchar())

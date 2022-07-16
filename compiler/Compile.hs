@@ -65,7 +65,6 @@ compile imports ast = do
 
                 mapM_ cmpTypeDef   [ stmt | stmt@(S.Typedef _ _ _) <- S.astStmts ast ]
                 mapM_ cmpFuncHdr   [ stmt | stmt@(S.FuncDef _ _ _ _ _) <- S.astStmts ast ]
-                mapM_ cmpExternDef [ stmt | stmt@(S.Extern _ _ _ _ _) <- S.astStmts ast ]
                 mapM_ cmpVarDef    [ stmt | stmt@(S.Assign _ _ _) <- S.astStmts ast ]
                 mapM_ cmpFuncDef   [ stmt | stmt@(S.FuncDef _ _ _ _ _) <- S.astStmts ast ]
 
@@ -127,27 +126,10 @@ cmpVarDef (S.Assign pos (S.PatIdent p (Sym sym)) expr) = trace "cmpVarDef" $ wit
     addDeclared name
 
 
-cmpExternDef :: InsCmp CompileState m => S.Stmt -> m ()
-cmpExternDef (S.Extern pos nameStr sym params retty) = trace "cmpExternDef" $ withPos pos $ do
-    checkSymUndef sym 
-    let name = LL.mkName nameStr
-    let paramTypes = map S.paramType params
-
-    pushSymTab
-    paramOpTypes <- forM params $ \(S.Param p s t) -> do
-        opTypeOf t
-
-    returnOpType <- opTypeOf retty
-    popSymTab
-
-    addSymKeyDec sym (KeyFunc paramTypes) name (DecExtern paramOpTypes returnOpType False)
-    let op = fnOp name paramOpTypes returnOpType False
-    redefine sym (KeyFunc paramTypes) (ObjFunc retty op)
-
 
 cmpFuncHdr :: InsCmp CompileState m => S.Stmt -> m ()
-cmpFuncHdr (S.FuncDef pos "main" params retty blk) = trace "cmpFuncHdr" $ return ()
-cmpFuncHdr (S.FuncDef pos sym params retty blk)    = trace "cmpFuncHdr" $ withPos pos $ do
+cmpFuncHdr (S.FuncDef pos (Sym "main") params retty blk) = trace "cmpFuncHdr" $ return ()
+cmpFuncHdr (S.FuncDef pos (Sym sym) params retty blk)    = trace "cmpFuncHdr" $ withPos pos $ do
     let paramTypes = map S.paramType params
     name <- myFresh sym
     paramOpTypes <- mapM opTypeOf paramTypes
@@ -164,11 +146,11 @@ cmpFuncHdr (S.FuncDef pos sym params retty blk)    = trace "cmpFuncHdr" $ withPo
 
 
 cmpFuncDef :: (MonadFail m, Monad m, MonadIO m) => S.Stmt -> InstrCmpT CompileState m ()
-cmpFuncDef (S.FuncDef pos "main" params retty blk) = trace "cmpFuncDef" $ withPos pos $ do
+cmpFuncDef (S.FuncDef pos (Sym "main") params retty blk) = trace "cmpFuncDef" $ withPos pos $ do
     assert (params == [])  "main cannot have parameters"
     assert (retty == Void) $ "main must return void: " ++ show retty
     cmpStmt blk
-cmpFuncDef (S.FuncDef pos sym params retty blk) = trace "cmpFuncDef" $ withPos pos $ do
+cmpFuncDef (S.FuncDef pos (Sym sym) params retty blk) = trace "cmpFuncDef" $ withPos pos $ do
     returnOpType <- opTypeOf retty
     paramOpTypes <- mapM (opTypeOf . S.paramType) params
     let paramTypes = map S.paramType params
@@ -356,8 +338,12 @@ cmpExpr (S.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck exp
     S.Prefix pos S.Not   expr  -> valNot =<< cmpExpr expr
     S.Prefix pos S.Minus expr  -> do
         val <- cmpExpr expr
-        a <- valInt (valType val) 0
-        valsInfix S.Minus a val
+        base <- baseTypeOf (valType val)
+        x <- case base of
+            I64 -> valInt (valType val) 0
+            F64 -> valFloat (valType val) 0
+
+        valsInfix S.Minus x val
             
     S.String pos s -> do
         Table ts <- assertBaseType isTable exprType

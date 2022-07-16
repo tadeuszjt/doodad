@@ -81,6 +81,15 @@ lookm symbol key = case symbol of
                 _   -> fail $ show symbol ++ " is ambiguous"
 
     _ -> fail $ show (symbol, key)
+    where
+        lookmImports :: BoM ResolveState m => Symbol -> SymKey -> m (Maybe Symbol)
+        lookmImports (Sym sym) key = do
+            ls <- gets $ catMaybes . map (SymTab.lookup sym key) . Map.elems . imports
+            case ls of
+                [res] -> return (Just res)
+                []  -> return Nothing
+                _   -> fail $ show symbol ++ " is ambiguous"
+            
 
 
 genSymbol :: BoM ResolveState m => String -> m Symbol
@@ -118,19 +127,20 @@ popSymTab = do
 instance Resolve AST where
     resolve ast = do
         let (typedefs, stmts'') = partition isTypedef (astStmts ast)
-        let (funcdefs, stmts') = partition isFuncdef stmts''
-        let (externdefs, stmts) = partition isExterndef stmts'
+        let (funcdefs, stmts) = partition isFuncdef stmts''
 
         --forM typedefs $ resolveTypedef
 
-        forM funcdefs $ \(FuncDef pos sym params retty _) -> do
-            --symbol <- genSymbol sym
-            define sym KeyFunc (Sym sym)
---
---        forM externdefs $ \(Extern pos name sym params retty) ->
---            define sym (KeyFunc $ map paramType params) (ObjFunc retty)
+        funcdefs' <- forM funcdefs $ \(FuncDef pos (Sym sym) params retty blk) -> do
+            resm <- lookm (Sym sym) KeyFunc
+            case resm of
+                Just symbol -> return $ FuncDef pos symbol params retty blk
+                Nothing     -> do
+                    symbol <- genSymbol sym
+                    define sym KeyFunc symbol
+                    return $ FuncDef pos symbol params retty blk
 
-        astStmts <- mapM resolve (astStmts ast)
+        astStmts <- mapM resolve $ typedefs ++ funcdefs' ++ stmts
         return $ ast { astStmts = astStmts }
         where
             isTypedef :: Stmt -> Bool
@@ -140,10 +150,6 @@ instance Resolve AST where
             isFuncdef :: Stmt -> Bool
             isFuncdef (FuncDef _ _ _ _ _) = True
             isFuncdef _                     = False
-
-            isExterndef :: Stmt -> Bool
-            isExterndef (Extern _ _ _ _ _)  = True
-            isExterndef _                     = False
 
 instance Resolve Stmt where
     resolve stmt = withPos stmt $ case stmt of
@@ -268,6 +274,8 @@ instance Resolve Pattern where
             symbol' <- look symbol KeyFunc -- TODO bit of a hack
             return $ PatField pos symbol' pat' -- TODO
 
+        PatTuple pos pats -> PatTuple pos <$> mapM resolve pats
+
         _ -> fail (show pattern)
 
 
@@ -308,6 +316,8 @@ instance Resolve Expr where
             exprA' <- resolve exprA
             exprB' <- resolve exprB
             return $ Infix pos op exprA' exprB'
+
+        Prefix pos op expr -> Prefix pos op <$> resolve expr
 
         AST.Char pos c -> return expr
 

@@ -81,6 +81,7 @@ instance Apply Pattern where
         PatLiteral e       -> PatLiteral (apply subs e)
         PatGuarded p pat e -> PatGuarded p (apply subs pat) (apply subs e)
         PatField p s pat   -> PatField p s (apply subs pat)
+        PatTuple p pats    -> PatTuple p $ map (apply subs) pats
         _                    -> error $ show pattern
 
 instance Apply Append where
@@ -107,11 +108,6 @@ instance Apply Stmt where
 
         FuncDef pos sym params retty block ->
             FuncDef pos sym (map (apply subs) params) (apply subs retty) (apply subs block)
-
-        Extern pos name sym params retty ->
-            Extern pos name sym (map (apply subs) params) (apply subs retty)
-
-        ExternVar pos name sym typ -> ExternVar pos name sym (apply subs typ)
 
         If pos cnd block melse ->
             If pos (apply subs cnd) (apply subs block) $ fmap (apply subs) melse

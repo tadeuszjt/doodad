@@ -65,6 +65,7 @@ valFloat typ f = trace "valFloat" $ do
         F64 -> Val typ $ double f
 
 
+
 valConvertNumber :: InsCmp CompileState m => Type -> Value -> m Value
 valConvertNumber typ (Val valTyp op) = do
     base <- baseTypeOf typ

@@ -211,8 +211,7 @@ runMod args pathsVisited modPath = do
                 runBoMTExcept 0 $ annotate combinedAST
             (ast, symTab) <- withErrorPrefix "infer: " $
                 runTypeInference args annotatedAST cExterns =<< gets symTabMap
-
-            --liftIO $ S.prettyAST ast
+            liftIO $ S.prettyAST ast
 
 
             flat <- fmap fst $ runBoMTExcept initFlattenState (flattenAST ast)

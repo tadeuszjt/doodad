@@ -156,15 +156,11 @@ collectCExterns externs = do
 collectAST :: BoM CollectState m => AST -> m ()
 collectAST ast = do
     let (typedefs, stmts'') = partition isTypedef (S.astStmts ast)
-    let (funcdefs, stmts') = partition isFuncdef stmts''
-    let (externdefs, stmts) = partition isExterndef stmts'
+    let (funcdefs, stmts) = partition isFuncdef stmts''
 
     forM typedefs $ collectTypedef
 
-    forM funcdefs $ \(S.FuncDef pos sym params retty _) -> collectPos pos $
-        define sym (KeyFunc $ map paramType params) (ObjFunc retty)
-
-    forM externdefs $ \(S.Extern pos name sym params retty) -> collectPos pos $
+    forM funcdefs $ \(S.FuncDef pos (Sym sym) params retty _) -> collectPos pos $
         define sym (KeyFunc $ map paramType params) (ObjFunc retty)
 
     mapM_ collectStmt stmts''
@@ -176,11 +172,6 @@ collectAST ast = do
         isFuncdef :: Stmt -> Bool
         isFuncdef (S.FuncDef _ _ _ _ _) = True
         isFuncdef _                     = False
-
-        isExterndef :: Stmt -> Bool
-        isExterndef (S.Extern _ _ _ _ _)  = True
-        isExterndef _                     = False
-
 
 collectTypedef :: BoM CollectState m => Stmt -> m ()
 collectTypedef (S.Typedef pos (Sym sym) annoTyp) = collectPos pos $ case annoTyp of
@@ -209,8 +200,6 @@ collectStmt stmt = collectPos stmt $ case stmt of
     S.Typedef _ _ _ -> collectTypedef stmt
     Print p exprs -> mapM_ collectExpr exprs
     S.Typedef _ _ _ -> return ()
-    ExternVar p n s t -> define s KeyVar (ObjVar t)
-    Extern _ name sym params retty -> return () -- already defined
     Block stmts -> pushSymTab >> mapM_ collectStmt stmts >> popSymTab
 
     FuncDef _ sym params retty blk -> do
@@ -321,6 +310,17 @@ collectPattern pattern typ = collectPos pattern $ case pattern of
                 ObjMember i <- look symbol (KeyMember typ)
                 collectPattern pat (ts !! i)
             _ -> collectPattern pat =<< genType
+
+    PatTuple _ pats -> do
+        base <- baseTypeOf typ
+        case base of
+            T.Tuple ts -> do
+                assert (length ts == length pats) "Invalid tuple pattern"
+                zipWithM_ collectPattern pats ts
+            _ -> do
+                gts <- replicateM (length pats) genType
+                zipWithM_ collectPattern pats gts
+                collect base (T.Tuple gts)
 
     _ -> fail $ "cannot collect: " ++ show pattern
 

@@ -110,9 +110,7 @@ data Stmt
     | Block       [Stmt]
     | If          TextPos Condition Stmt (Maybe Stmt)
     | While       TextPos Condition Stmt
-    | FuncDef     TextPos String [Param] Type Stmt
-    | Extern      TextPos String String [Param] Type
-    | ExternVar   TextPos String String Type
+    | FuncDef     TextPos Symbol [Param] Type Stmt
     | Typedef     TextPos Symbol AnnoType
     | AppendStmt  Append
     | Switch      TextPos Expr [(Pattern, Stmt)]
@@ -180,8 +178,6 @@ instance TextPosition Stmt where
         AST.If          p _ _ _ -> p
         AST.While       p _ _ -> p
         AST.FuncDef     p _ _ _ _ -> p
-        AST.Extern      p _ _ _ _ -> p
-        AST.ExternVar   p _ _ _ -> p
         AST.Typedef     p _ _ -> p
         AST.AppendStmt  a -> textPos a
         AST.Switch      p _ _ -> p
@@ -286,8 +282,8 @@ prettyAST ast = do
     where
         prettyStmt :: String -> Stmt -> IO ()
         prettyStmt pre stmt = case stmt of
-            FuncDef pos sym params retty blk -> do
-                putStrLn $ pre ++ "fn " ++ sym ++ tupStrs (map show params) ++ " " ++ if retty == Void then "" else show retty
+            FuncDef pos symbol params retty blk -> do
+                putStrLn $ pre ++ "fn " ++ show symbol ++ tupStrs (map show params) ++ " " ++ if retty == Void then "" else show retty
                 prettyStmt (pre ++ "\t") blk
                 putStrLn ""
 
@@ -295,9 +291,6 @@ prettyAST ast = do
             Set pos ind expr           -> putStrLn $ pre ++ show ind ++ " = " ++ show expr
             Print pos exprs            -> putStrLn $ pre ++ "print" ++ tupStrs (map show exprs)
             Return pos mexpr -> putStrLn $ pre ++ "return " ++ maybe "" show mexpr
-            Extern pos name sym args retty -> do
-                putStrLn $ pre ++ "extern " ++ name ++ " " ++ sym ++ tupStrs (map show args) ++ " " ++ if retty == Void then "" else show retty
-                putStrLn ""
             AppendStmt app -> putStrLn $ pre ++ show app
  
             If pos cnd true mfalse -> do

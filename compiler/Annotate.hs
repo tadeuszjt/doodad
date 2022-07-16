@@ -33,15 +33,6 @@ instance Annotate Stmt where
         Block ss            -> Block <$> mapM annotate ss
         Return p me         -> Return p <$> maybe (return Nothing) (fmap Just . annotate) me
 
-        Extern p n s ps rt  -> do
-            ps' <- mapM annotate ps
-            rt' <- case rt of
-                T.Void -> genType
-                _      -> return rt
-            return (Extern p n s ps' rt')
-
-        ExternVar p n s t -> return $ ExternVar p n s t
-
         AppendStmt a        -> AppendStmt <$> annotate a
         Print p es          -> Print p <$> mapM annotate es
         Typedef p s a       -> return $ Typedef p s a
