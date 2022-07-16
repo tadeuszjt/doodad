@@ -119,7 +119,7 @@ data Stmt
 
 data AnnoType
     = AnnoType  Type
-    | AnnoTuple [(Symbol, Type)]
+    | AnnoTuple [(String, Type)]
     | AnnoADT   [(Symbol, Type)]
     deriving (Eq)
 

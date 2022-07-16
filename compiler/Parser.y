@@ -300,7 +300,7 @@ argTypes_ : type_                             { [$1] }
 
 
 annoTupType : '(' annoTupFields ')'           { S.AnnoTuple $2 }
-annoTupField : ident type_                    { (T.Sym (tokStr $1), $2) }
+annoTupField : ident type_                    { (tokStr $1, $2) }
 annoTupFields : annoTupField                  { [$1] }
               | annoTupField ',' annoTupFields { $1 : $3 }
 

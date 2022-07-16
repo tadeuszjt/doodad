@@ -41,7 +41,7 @@ tupleTypeDef sym (S.AnnoTuple xs) = trace "tupleTypeDef" $ do
     when (length xs > 0) $ do
         define sym (KeyFunc $ map snd xs) (ObjConstructor typdef)
 
-    forM_ (zip xs [0..]) $ \(((Sym s), t), i) -> do
+    forM_ (zip xs [0..]) $ \((s, t), i) -> do
         define s (KeyMember typdef) (ObjMember i)
 
 

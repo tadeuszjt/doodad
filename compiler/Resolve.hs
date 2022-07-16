@@ -20,7 +20,6 @@ data SymKey
     = KeyVar
     | KeyType
     | KeyFunc
-    | KeyMember Symbol
     deriving (Show, Eq, Ord)
 
 
@@ -181,16 +180,13 @@ instance Resolve Stmt where
             define sym KeyType symbol
             anno' <- case anno of
                 AnnoTuple xs -> do 
-                    xs' <- forM xs $ \(Sym s, t) -> do
-                        s' <- genSymbol s
-                        define s (KeyMember symbol) s'
+                    xs' <- forM xs $ \(s, t) -> do
                         t' <- resolve t
-                        return (s', t')
+                        return (s, t')
                     return $ AnnoTuple xs'
                 AnnoADT xs -> do
                     xs' <- forM xs $ \(Sym s, t) -> do
                         s' <- genSymbol s
-                        define s (KeyMember symbol) s'
                         define s KeyFunc s'
                         t' <- resolve t
                         return (s', t')
