@@ -47,7 +47,7 @@ data Import
 data Param
     = Param
         { paramPos  :: TextPos
-        , paramName :: String
+        , paramName :: Symbol
         , paramType :: Type
         }
     deriving (Eq)
@@ -61,7 +61,7 @@ data Append
 data Pattern
     = PatLiteral   Expr
     | PatIgnore    TextPos
-    | PatIdent     TextPos String
+    | PatIdent     TextPos Symbol
     | PatTuple     TextPos [Pattern]
     | PatArray     TextPos [Pattern]
     | PatGuarded   TextPos Pattern Expr
@@ -69,7 +69,7 @@ data Pattern
     deriving (Eq)
 
 data Index
-    = IndIdent TextPos String
+    = IndIdent TextPos Symbol
     | IndArray TextPos Index Expr
     | IndTuple TextPos Index Word32
     deriving (Eq)
@@ -192,8 +192,8 @@ arrStrs strs = "[" ++ intercalate ", " strs ++ "]"
 brcStrs strs = "{" ++ intercalate ", " strs ++ "}"
 
 instance Show Param where
-    show (Param pos name Void) = name
-    show (Param pos name typ)  = name ++ " " ++ show typ
+    show (Param pos name Void) = show name
+    show (Param pos name typ)  = show name ++ " " ++ show typ
 
 
 instance Show Op where
@@ -223,7 +223,7 @@ instance Show Pattern where
     show pat = case pat of
         PatLiteral c     -> show c
         PatIgnore pos    -> "_"
-        PatIdent pos s   -> s
+        PatIdent pos symbol -> show symbol
         PatTuple pos ps  -> tupStrs (map show ps)
         PatArray pos ps  -> arrStrs (map show ps)
         PatGuarded pos pat expr -> show pat ++ " | " ++ show expr
@@ -242,7 +242,7 @@ instance Show Condition where
 
 instance Show Index where
     show ind = case ind of
-        IndIdent pos str      -> str
+        IndIdent pos symbol   -> show symbol
         IndArray pos idx expr -> show idx ++ "[" ++ show expr ++ "]"
         IndTuple pos idx n    -> show idx ++ "." ++ show n
 

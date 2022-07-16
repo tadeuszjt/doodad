@@ -106,7 +106,7 @@ cmpTypeDef (S.Typedef pos (Sym sym) (S.AnnoType typ)) = withPos pos $ do
                     
 
 cmpVarDef :: InsCmp CompileState m => S.Stmt -> m ()
-cmpVarDef (S.Assign pos (S.PatIdent p sym) expr) = trace "cmpVarDef" $ withPos pos $ do
+cmpVarDef (S.Assign pos (S.PatIdent p (Sym sym)) expr) = trace "cmpVarDef" $ withPos pos $ do
     val <- cmpExpr expr
     name <- myFresh sym
 
@@ -172,7 +172,7 @@ cmpFuncDef (S.FuncDef pos sym params retty blk) = trace "cmpFuncDef" $ withPos p
     returnOpType <- opTypeOf retty
     paramOpTypes <- mapM (opTypeOf . S.paramType) params
     let paramTypes = map S.paramType params
-    let paramNames = map (ParameterName . mkBSS . S.paramName) params
+    let paramNames = map (\p -> let Sym s = S.paramName p in ParameterName $ mkBSS s) params
     let paramSyms  = map S.paramName params
 
     ObjFunc _ op <- look (Sym sym) (KeyFunc paramTypes)
@@ -181,7 +181,7 @@ cmpFuncDef (S.FuncDef pos sym params retty blk) = trace "cmpFuncDef" $ withPos p
 
     pushSymTab
     void $ InstrCmpT . IRBuilderT . lift $ func name (zip paramOpTypes paramNames) returnOpType $ \paramOps -> do
-        forM_ (zip3 paramTypes paramOps paramSyms) $ \(typ, op, sym) -> do
+        forM_ (zip3 paramTypes paramOps paramSyms) $ \(typ, op, Sym sym) -> do
             loc <- valLocal typ
             valStore loc (Val typ op)
             define sym KeyVar (ObjVal loc)
@@ -199,8 +199,8 @@ cmpFuncDef (S.FuncDef pos sym params retty blk) = trace "cmpFuncDef" $ withPos p
 
 cmpIndex:: InsCmp CompileState m => S.Index -> m Value
 cmpIndex index = withPos index $ case index of
-    S.IndIdent pos sym -> do
-        ObjVal val <- look (Sym sym) KeyVar
+    S.IndIdent pos symbol -> do
+        ObjVal val <- look symbol KeyVar
         return val
     S.IndArray pos ind idxExpr -> do
         idxVal <- cmpExpr idxExpr
@@ -451,7 +451,7 @@ cmpPattern pattern val = trace "cmpPattern" $ withPos pattern $ case pattern of
         assertBaseType (== Bool) (valType guard)
         valsInfix S.AndAnd match guard
 
-    S.PatIdent _ sym -> trace ("cmpPattern " ++ show pattern) $ do
+    S.PatIdent _ (Sym sym) -> trace ("cmpPattern " ++ show pattern) $ do
         base <- baseTypeOf (valType val)
         loc <- valLocal (valType val)
         valStore loc val

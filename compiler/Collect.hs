@@ -217,7 +217,7 @@ collectStmt stmt = collectPos stmt $ case stmt of
         oldRetty <- gets curRetty
         modify $ \s -> s { curRetty = retty }
         pushSymTab
-        forM_ params $ \(Param _ s t) ->
+        forM_ params $ \(Param _ (Sym s) t) ->
             define s KeyVar (ObjVar t)
         collectStmt blk
         popSymTab
@@ -289,8 +289,8 @@ collectAppend append = collectPos append $ case append of
 -- returns type of resulting index
 collectIndex :: BoM CollectState m => Index -> m (Maybe Type)
 collectIndex index = collectPos index $ case index of
-    IndIdent _ s -> do
-        ObjVar t <- look (Sym s) KeyVar
+    IndIdent _ symbol -> do
+        ObjVar t <- look symbol KeyVar
         return (Just t)
 
     IndArray _ ind expr -> do
@@ -305,7 +305,7 @@ collectIndex index = collectPos index $ case index of
 
 collectPattern :: BoM CollectState m => Pattern -> Type -> m ()
 collectPattern pattern typ = collectPos pattern $ case pattern of
-    PatIdent _ s -> do
+    PatIdent _ (Sym s) -> do
         define s KeyVar (ObjVar typ)
 
     PatLiteral expr -> collect typ (typeOf expr)

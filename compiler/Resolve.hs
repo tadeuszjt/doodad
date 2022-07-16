@@ -32,6 +32,7 @@ data ResolveState
         , curRetty  :: Type
         , imports   :: Map.Map FilePath SymTab
         , modName   :: String
+        , supply    :: Map.Map (String, String) Int
         }
 
 initResolveState imp modName = ResolveState
@@ -39,6 +40,7 @@ initResolveState imp modName = ResolveState
     , curRetty   = Void
     , imports    = imp
     , modName    = modName
+    , supply     = Map.empty
     }
 
 
@@ -53,7 +55,7 @@ look symbol key = case symbol of
                 ls <- gets $ catMaybes . map (SymTab.lookup sym key) . Map.elems . imports
                 case ls of
                     [res] -> return res
-                    []  -> fail $ show symbol ++ " not defined"
+                    []  -> fail $ show symbol ++ " " ++ show key ++ " not defined"
                     _   -> fail $ show symbol ++ " is ambiguous"
         
 
@@ -61,9 +63,18 @@ define :: BoM ResolveState m => String -> SymKey -> m Symbol
 define sym key = do
     resm <- gets $ SymTab.lookupHead sym key . symTab
     when (isJust resm) $ fail $ sym ++ " already defined"
-    level <- gets (length . symTab)
+
     modName <- gets modName
-    let symbol = SymResolved modName sym level
+    im <- gets $ Map.lookup (modName, sym) . supply
+    i <- case im of
+        Nothing -> do
+            modify $ \s -> s { supply = Map.insert (modName, sym) 1 (supply s) }
+            return 0
+        Just i -> do
+            modify $ \s -> s { supply = Map.insert (modName, sym) (i + 1) (supply s) }
+            return i
+    
+    let symbol = SymResolved modName sym i
     modify $ \s -> s { symTab = SymTab.insert sym key symbol (symTab s) }
     return symbol
 
@@ -141,28 +152,98 @@ instance Resolve Stmt where
                         t' <- resolve t
                         return (s, t')
                     return $ AnnoTuple xs'
+                AnnoADT xs -> do
+                    xs' <- forM xs $ \(s, t) -> do
+                        define s (KeyMember symbol)
+                        t' <- resolve t
+                        return (s, t')
+                    return $ AnnoADT xs'
+                _ -> fail (show anno)
 
             return $ AST.Typedef pos symbol anno'
 
+        AppendStmt append -> AppendStmt <$> resolve append
+        
+        If pos condition stmt melse -> do
+            condition' <- resolve condition
+            stmt' <- resolve stmt
+            melse' <- maybe (return Nothing) (fmap Just . resolve) melse
+            return $ If pos condition' stmt' melse'
+
+        While pos condition stmt -> do
+            condition' <- resolve condition
+            stmt' <- resolve stmt
+            return $ While pos condition' stmt' 
+
+        Set pos index expr -> do
+            index' <- resolve index
+            expr' <- resolve expr
+            return $ Set pos index' expr'
+
+        Print pos exprs -> Print pos <$> mapM resolve exprs
+
+        Switch pos expr cases -> do
+            expr' <- resolve expr
+            pushSymTab
+            cases' <- forM cases $ \(pat, stmt) -> do
+                pat' <- resolve pat
+                stmt' <- resolve stmt
+                return (pat', stmt')
+            popSymTab
+            return $ Switch pos expr' cases'
 
 
-        _ -> return stmt
+
+
+--        _ -> return stmt
         _ -> fail $ show stmt
+
+instance Resolve Condition where
+    resolve condition = case condition of
+        CondExpr expr -> CondExpr <$> resolve expr
+        CondMatch pat expr -> do
+            pat' <- resolve pat
+            expr' <- resolve expr
+            return $ CondMatch pat' expr'
+
+
+instance Resolve Index where
+    resolve index = withPos index $ case index of
+        IndIdent pos symbol -> IndIdent pos <$> look symbol KeyVar
+        IndArray pos ind expr -> do
+            ind' <- resolve ind
+            expr' <- resolve expr
+            return $ IndArray pos ind' expr'
+        _ -> fail $ "cannot resolve: " ++ show index
+
+instance Resolve Append where
+    resolve append = withPos append $ case append of
+        AppendIndex index -> AppendIndex <$> resolve index
+        AppendTable pos index expr -> do
+            index' <- resolve index
+            expr' <- resolve expr
+            return $ AppendTable pos index' expr'
 
 
 instance Resolve Pattern where
     resolve pattern = withPos pattern $ case pattern of
-        PatIdent pos sym -> do
-            define sym KeyVar
-            return $ PatIdent pos sym
+        PatIdent pos (Sym sym) -> do
+            symbol <- define sym KeyVar
+            return $ PatIdent pos symbol
+
+        PatField pos symbol pat -> do
+            pat' <- resolve pat
+            return $ PatField pos symbol pat' -- TODO
+
+        _ -> fail (show pattern)
 
 
 
 instance Resolve Param where
-    resolve (Param pos sym typ) = withPos pos $ do
+    resolve (Param pos (Sym sym) typ) = withPos pos $ do
         typ' <- resolve typ
-        define sym KeyVar
-        return $ Param pos sym typ'
+        symbol <- define sym KeyVar
+        return $ Param pos symbol typ'
 
 instance Resolve Type where 
     resolve typ = case typ of
@@ -178,7 +259,47 @@ instance Resolve Expr where
     resolve expr = withPos expr $ case expr of
         Ident pos symbol      -> Ident pos <$> look symbol KeyVar
         Call pos symbol exprs -> Call pos symbol <$> mapM resolve exprs
+        Infix pos op exprA exprB -> do
+            exprA' <- resolve exprA
+            exprB' <- resolve exprB
+            return $ Infix pos op exprA' exprB'
 
-        _ -> return expr
+        AST.Char pos c -> return expr
+
+        Copy pos expr -> Copy pos <$> resolve expr
+
+        AST.Int pos n -> return expr
+
+        AST.Bool pos b -> return expr
+
+        Float pos f -> return expr
+
+        AST.Tuple pos exprs -> AST.Tuple pos <$> mapM resolve exprs
+        AST.Table pos exprss -> AST.Table pos <$> mapM (mapM resolve) exprss
+        String pos s -> return expr
+
+        Len pos expr -> Len pos <$> resolve expr
+
+        Subscript pos e1 e2 -> do
+            e1' <- resolve e1
+            e2' <- resolve e2
+            return $ Subscript pos e1' e2'
+
+        Conv pos typ exprs -> do
+            typ' <- resolve typ
+            exprs' <- mapM resolve exprs
+            return $ Conv pos typ' exprs'
+
+        Member pos expr sym -> do
+            expr' <- resolve expr
+            return $ Member pos expr' sym
+
+        AExpr typ expr -> do
+            typ' <- resolve typ
+            expr' <- resolve expr
+            return $ AExpr typ' expr'
+
+
+        --_ -> return expr
 
         _ -> fail (show expr)

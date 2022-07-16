@@ -151,7 +151,7 @@ stmtB : If                                    { $1 }
 
 pattern  : '_'                                { S.PatIgnore (tokPos $1) }
          | literal                            { S.PatLiteral $1 }
-         | ident                              { S.PatIdent (tokPos $1) (tokStr $1) }
+         | ident                              { S.PatIdent (tokPos $1) (T.Sym $ tokStr $1) }
          | '(' patterns ')'                   { S.PatTuple (tokPos $1) $2 }
          | '[' patterns ']'                   { S.PatArray (tokPos $1) $2 }
          | pattern '|' expr                   { S.PatGuarded (tokPos $2) $1 $3 }
@@ -162,7 +162,7 @@ patterns  : {- empty -}                       { [] }
 patterns_ : pattern                           { [$1] }
           | pattern ',' patterns_             { $1 : $3 }
 
-index  : ident                                { S.IndIdent (tokPos $1) (tokStr $1) }
+index  : ident                                { S.IndIdent (tokPos $1) (T.Sym $ tokStr $1) }
        | index '[' expr ']'                   { S.IndArray (tokPos $2) $1 $3 }
        | index '.' ident                      { S.IndTuple (tokPos $2) $1 (read $ tokStr $3) }
 
@@ -195,8 +195,8 @@ block  : 'I' prog_ 'D'                        { S.Block $2 }
 condition : expr                              { S.CondExpr $1 }
 --          | expr ':' pattern                  { S.CondMatch $3 $1 }
 
-param   : ident type_                         { S.Param (tokPos $1) (tokStr $1) $2 }
-        | ident                               { S.Param (tokPos $1) (tokStr $1) T.Void }
+param   : ident type_                         { S.Param (tokPos $1) (T.Sym $ tokStr $1) $2 }
+        | ident                               { S.Param (tokPos $1) (T.Sym $ tokStr $1) T.Void }
 params  : {- empty -}                         { [] }
         | params_                             { $1 }
 params_ : param                               { [$1] }

@@ -50,6 +50,7 @@ data Modules
     = Modules
         { modMap  :: Map.Map FilePath CompileState
         , symTabMap :: Map.Map FilePath C.SymTab
+        , resolveSymTabMap :: Map.Map FilePath R.SymTab
         , session :: JIT.Session
         }
 
@@ -58,6 +59,7 @@ initModulesState session
     = Modules
         { modMap  = Map.empty
         , session = session
+        , resolveSymTabMap = Map.empty
         , symTabMap = Map.empty
         }
 
@@ -197,9 +199,11 @@ runMod args pathsVisited modPath = do
             let importMapFull = Map.insert "c" cState importMap 
             
 
+            resSymTabMap <- gets resolveSymTabMap
             (resolvedAST, resolveState) <- withErrorPrefix "resolve: " $
-                runBoMTExcept (R.initResolveState Map.empty modName) (R.resolve combinedAST)
+                runBoMTExcept (R.initResolveState resSymTabMap modName) (R.resolve combinedAST)
             liftIO $ S.prettyAST resolvedAST
+            modify $ \s -> s { resolveSymTabMap = Map.insert path (R.symTab resolveState) (resolveSymTabMap s) }
 
 
             -- run type inference on ast
