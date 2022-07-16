@@ -23,7 +23,7 @@ data Constraint
 instance TextPosition Constraint where
     textPos (Constraint pos _ _) = pos
 
-type SymTab = SymTab.SymTab String SymKey Object
+type SymTab = SymTab.SymTab Symbol SymKey Object
 
 data SymKey
     = KeyVar
@@ -48,9 +48,10 @@ data CollectState
         , imports   :: Map.Map FilePath SymTab
         , curPos    :: TextPos
         , typeSupply :: Int
+        , modName   :: String
         }
 
-initCollectState imp = CollectState
+initCollectState imp mod = CollectState
     { symTab     = SymTab.initSymTab
     , curRetty   = Void
     , collected  = []
@@ -58,6 +59,7 @@ initCollectState imp = CollectState
     , imports    = imp
     , curPos     = TextPos "" 0 0 0
     , typeSupply = 0
+    , modName    = mod
     }
 
 
@@ -66,6 +68,7 @@ genType = do
     i <- gets typeSupply
     modify $ \s -> s { typeSupply = i - 1 }
     return $ Type (i - 1)
+
 
 collectPos :: (BoM CollectState m, TextPosition t) => t -> m a -> m a
 collectPos t m = withPos t $ do
@@ -80,9 +83,11 @@ collect :: BoM CollectState m => Type -> Type -> m ()
 collect t1 t2 = do
     modify $ \s -> s { collected = (Constraint (curPos s) t1 t2) : (collected s) }
 
+
 collectDefault :: BoM CollectState m => Type -> Type -> m ()
 collectDefault t1 t2 = do
     modify $ \s -> s { defaults = (Constraint (curPos s) t1 t2) : (defaults s) }
+
 
 typeOf :: S.Expr -> T.Type
 typeOf (S.AExpr t _) = t
@@ -96,39 +101,47 @@ look symbol key = do
 
 
 lookm :: BoM CollectState m => Symbol -> SymKey -> m (Maybe Object)
-lookm symbol key = case symbol of
-    Sym sym -> do
-        lm <- SymTab.lookup sym key <$> gets symTab
-        case lm of
-            Just _ -> return lm
-            Nothing -> do
-                ls <- catMaybes . map (SymTab.lookup sym key) . Map.elems <$> gets imports
-                case ls of
-                    [] -> return Nothing
-                    [o] -> return (Just o)
-                    _ -> fail $ show symbol ++ " is ambiguous"
+lookm symbol key = do
+    lm <- SymTab.lookup symbol key <$> gets symTab
+    case lm of
+        Just _ -> return lm
+        Nothing -> do
+            ls <- catMaybes . map (SymTab.lookup symbol key) . Map.elems <$> gets imports
+            case ls of
+                [] -> return Nothing
+                [o] -> return (Just o)
+                _ -> fail $ show symbol ++ " is ambiguous"
 
 
 lookSym :: BoM CollectState m => Symbol -> m [(SymKey, Object)]
 lookSym symbol = case symbol of
     Sym sym -> do
-        ls <- SymTab.lookupSym sym <$> gets symTab
-        lss <- concat . map (SymTab.lookupSym sym) . Map.elems <$> gets imports
+        ls <- SymTab.lookupSym symbol <$> gets symTab
+        lss <- concat . map (SymTab.lookupSym symbol) . Map.elems <$> gets imports
         return (ls ++ lss)
 
     SymQualified mod sym -> do
         statem <- Map.lookup mod <$> gets imports
         case statem of
-            Nothing -> fail $ mod ++ " not imported"
-            Just state -> do
-                return $ SymTab.lookupSym sym state
-        
+            Nothing    -> fail $ mod ++ " not imported"
+            Just state -> return $ SymTab.lookupSym (Sym sym) state
 
-define :: BoM CollectState m => String -> SymKey -> Object -> m ()
-define sym key obj = do
-    resm <- SymTab.lookupHead sym key <$> gets symTab
-    when (isJust resm) $ fail $ sym ++ " already defined"
-    modify $ \s -> s { symTab = SymTab.insert sym key obj (symTab s) }
+    SymResolved mod sym _ -> do
+        modName <- gets modName
+        if mod == modName then
+            gets $ SymTab.lookupSym symbol . symTab
+        else do
+            statem <- Map.lookup mod <$> gets imports
+            case statem of
+                Nothing    -> fail $ mod ++ " not imported"
+                Just state -> return $ SymTab.lookupSym symbol state
+
+
+define :: BoM CollectState m => Symbol -> SymKey -> Object -> m ()
+define symbol key obj = do
+    resm <- SymTab.lookupHead symbol key <$> gets symTab
+    when (isJust resm) $ fail $ show symbol ++ " already defined"
+    modify $ \s -> s { symTab = SymTab.insert symbol key obj (symTab s) }
 
 
 pushSymTab :: BoM CollectState m => m ()
@@ -150,8 +163,8 @@ baseTypeOf typ = case typ of
 collectCExterns :: BoM CollectState m => [Extern] -> m ()
 collectCExterns externs = do
     forM_ externs $ \extern -> case extern of
-        ExtVar sym (AnnoType typ) -> define sym KeyVar (ObjVar typ)
-        ExtFunc sym argTypes retty -> define sym (KeyFunc argTypes) (ObjFunc retty)
+        ExtVar sym (AnnoType typ) -> define (Sym sym) KeyVar (ObjVar typ)
+        ExtFunc sym argTypes retty -> define (Sym sym) (KeyFunc argTypes) (ObjFunc retty)
 
 collectAST :: BoM CollectState m => AST -> m ()
 collectAST ast = do
@@ -160,8 +173,8 @@ collectAST ast = do
 
     forM typedefs $ collectTypedef
 
-    forM funcdefs $ \(S.FuncDef pos (Sym sym) params retty _) -> collectPos pos $
-        define sym (KeyFunc $ map paramType params) (ObjFunc retty)
+    forM funcdefs $ \(S.FuncDef pos symbol params retty _) -> collectPos pos $
+        define symbol (KeyFunc $ map paramType params) (ObjFunc retty)
 
     mapM_ collectStmt stmts''
     where
@@ -174,24 +187,24 @@ collectAST ast = do
         isFuncdef _                     = False
 
 collectTypedef :: BoM CollectState m => Stmt -> m ()
-collectTypedef (S.Typedef pos (Sym sym) annoTyp) = collectPos pos $ case annoTyp of
+collectTypedef (S.Typedef pos symbol annoTyp) = collectPos pos $ case annoTyp of
     AnnoType t   ->
-        define sym KeyType (ObjType t)
+        define symbol KeyType (ObjType t)
 
     AnnoTuple xs   -> do
         let ts = map snd xs
-        let typedef = T.Typedef (Sym sym)
-        forM_ (zip xs [0..]) $ \((s, t), i) -> define s (KeyMember typedef) (ObjMember i)
-        define sym KeyType $ ObjType $ T.Tuple (map snd xs)
-        define sym (KeyFunc ts) (ObjFunc typedef) 
+        let typedef = T.Typedef symbol
+        forM_ (zip xs [0..]) $ \((s, t), i) -> define (Sym s) (KeyMember typedef) (ObjMember i)
+        define symbol KeyType $ ObjType $ T.Tuple (map snd xs)
+        define symbol (KeyFunc ts) (ObjFunc typedef) 
 
     AnnoADT xs -> do
         let ts = map snd xs
-        let typedef = T.Typedef (Sym sym)
-        forM_ (zip xs [0..]) $ \(((Sym s), t), i) -> do
+        let typedef = T.Typedef symbol
+        forM_ (zip xs [0..]) $ \((s, t), i) -> do
             define s (KeyMember typedef) (ObjMember i)
             define s (KeyFunc [t]) (ObjFunc typedef)
-        define sym KeyType $ ObjType $ T.ADT (map snd xs)
+        define symbol KeyType $ ObjType $ T.ADT (map snd xs)
 
 
 
@@ -206,8 +219,8 @@ collectStmt stmt = collectPos stmt $ case stmt of
         oldRetty <- gets curRetty
         modify $ \s -> s { curRetty = retty }
         pushSymTab
-        forM_ params $ \(Param _ (Sym s) t) ->
-            define s KeyVar (ObjVar t)
+        forM_ params $ \(Param _ symbol t) ->
+            define symbol KeyVar (ObjVar t)
         collectStmt blk
         popSymTab
         modify $ \s -> s { curRetty = oldRetty }
@@ -294,8 +307,8 @@ collectIndex index = collectPos index $ case index of
 
 collectPattern :: BoM CollectState m => Pattern -> Type -> m ()
 collectPattern pattern typ = collectPos pattern $ case pattern of
-    PatIdent _ (Sym s) -> do
-        define s KeyVar (ObjVar typ)
+    PatIdent _ symbol -> do
+        define symbol KeyVar (ObjVar typ)
 
     PatLiteral expr -> collect typ (typeOf expr)
 
@@ -455,10 +468,10 @@ collectExpr (AExpr exprType expr) = collectPos expr $ case expr of
 
     Member p e sym -> do
         case typeOf e of
-            Type x            -> return ()
-            T.Typedef (Sym s) -> do
+            Type x           -> return ()
+            T.Typedef symbol -> do
                 ObjMember i  <- look (Sym sym) $ KeyMember (typeOf e)
-                ObjType base <- look (Sym s) KeyType
+                ObjType base <- look symbol KeyType
                 case base of
                     T.Tuple ts -> collect exprType (ts !! i)
 

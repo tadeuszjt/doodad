@@ -58,7 +58,7 @@ runModInfer args modPath pathsVisited = do
                 return (takeFileName importPath, symTab)
 
             annotatedAST <- fmap fst $ runBoMTExcept 0 (annotate combinedAST)
-            (ast, symTab) <- runTypeInference args annotatedAST [] importMap
+            (ast, symTab) <- runTypeInference args annotatedAST [] importMap modName
 
             liftIO $ SymTab.prettySymTab symTab
             modify $ \s -> s { modInferMap = Map.insert path (ast, symTab) (modInferMap s) }

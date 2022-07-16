@@ -32,6 +32,7 @@ import Annotate
 import Apply
 import Interop
 import qualified Resolve as R
+import qualified SymTab
 
 import Language.C
 import Language.C.System.GCC
@@ -50,6 +51,7 @@ data Modules
     = Modules
         { modMap  :: Map.Map FilePath CompileState
         , symTabMap :: Map.Map FilePath C.SymTab
+        , testSymTabMap :: Map.Map FilePath C.SymTab
         , resolveSymTabMap :: Map.Map FilePath R.SymTab
         , session :: JIT.Session
         }
@@ -60,6 +62,7 @@ initModulesState session
         { modMap  = Map.empty
         , session = session
         , resolveSymTabMap = Map.empty
+        , testSymTabMap = Map.empty
         , symTabMap = Map.empty
         }
 
@@ -127,9 +130,9 @@ parse file = do
         Right a -> return a
 
 
-runTypeInference :: BoM s m => Args -> AST -> [Extern] -> Map.Map FilePath C.SymTab -> m (AST, C.SymTab)
-runTypeInference args annotatedAST externs imports = do
-    cSymTab <- fmap (C.symTab . snd) $ runBoMTExcept (C.initCollectState Map.empty) (C.collectCExterns externs)
+runTypeInference :: BoM s m => Args -> AST -> [Extern] -> Map.Map FilePath C.SymTab -> String -> m (AST, C.SymTab)
+runTypeInference args annotatedAST externs imports modName = do
+    cSymTab <- fmap (C.symTab . snd) $ runBoMTExcept (C.initCollectState Map.empty modName) (C.collectCExterns externs)
     assert (not $ Map.member "c" imports) "Modeule named c already imported"
     (ast, symTab, n) <- runRec annotatedAST (Map.insert "c" cSymTab $ Map.mapKeys takeFileName imports)
     when (verbose args) $ liftIO $ putStrLn ("Ran type inference with " ++ show n ++ " iterations")
@@ -137,7 +140,7 @@ runTypeInference args annotatedAST externs imports = do
     where
         runRec :: BoM s m => AST -> Map.Map FilePath C.SymTab -> m (AST, C.SymTab, Int)
         runRec ast imports = do
-            (_, state) <- runBoMTExcept (C.initCollectState imports) (C.collectAST ast)
+            (_, state) <- runBoMTExcept (C.initCollectState imports modName) (C.collectAST ast)
             subs <- unify $ C.collected state
             defaults <- unifyDefault $ map (apply subs) (C.defaults state)
             let ast' = apply subs ast
@@ -202,16 +205,27 @@ runMod args pathsVisited modPath = do
             resSymTabMap <- gets resolveSymTabMap
             (resolvedAST, resolveState) <- withErrorPrefix "resolve: " $
                 runBoMTExcept (R.initResolveState resSymTabMap modName) (R.resolve combinedAST)
-            liftIO $ S.prettyAST resolvedAST
+            --liftIO $ S.prettyAST resolvedAST
             modify $ \s -> s { resolveSymTabMap = Map.insert path (R.symTab resolveState) (resolveSymTabMap s) }
+
+
+            -- run type inference on ast
+            testAnnotatedAST <- fmap fst $ withErrorPrefix "annotate: " $
+                runBoMTExcept 0 $ annotate resolvedAST
+            (testAST, testSymTab) <- withErrorPrefix "infer: " $ do
+                stm <- gets testSymTabMap
+                runTypeInference args testAnnotatedAST cExterns stm modName 
+            liftIO $ S.prettyAST testAST
+            liftIO $ SymTab.prettySymTab testSymTab
 
 
             -- run type inference on ast
             annotatedAST <- fmap fst $ withErrorPrefix "annotate: " $
                 runBoMTExcept 0 $ annotate combinedAST
-            (ast, symTab) <- withErrorPrefix "infer: " $
-                runTypeInference args annotatedAST cExterns =<< gets symTabMap
-            liftIO $ S.prettyAST ast
+            (ast, symTab) <- withErrorPrefix "infer: " $ do
+                stm <- gets symTabMap
+                runTypeInference args annotatedAST cExterns stm modName
+            --liftIO $ S.prettyAST ast
 
 
             flat <- fmap fst $ runBoMTExcept initFlattenState (flattenAST ast)
@@ -233,6 +247,7 @@ runMod args pathsVisited modPath = do
 
             modify $ \s -> s { modMap = Map.insert path state (modMap s) }
             modify $ \s -> s { symTabMap = Map.insert path symTab (symTabMap s) }
+            modify $ \s -> s { testSymTabMap = Map.insert path testSymTab (testSymTabMap s) }
             return state
 
         debug str =
