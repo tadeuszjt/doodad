@@ -69,6 +69,7 @@ instance Apply Expr where
         String pos s             -> expr
         Member pos e s           -> Member pos (apply subs e) s
         S.Float pos f            -> expr
+        S.Table pos ess          -> S.Table pos $ map (map (apply subs)) ess
         _                          -> error $ show expr
 
 instance Apply Condition where

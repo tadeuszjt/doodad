@@ -3,6 +3,7 @@ import std/vec2
 import std/maths
 import std/rect
 import std/strings
+import std/io
 
 
 
@@ -14,10 +15,9 @@ fn main()
         vb = (2, 1)
         print("5:", length(va + vb))
 
-        let str = "tadeusztomoszek"
-        print("true:", strings::isPrefix("tadeusz", str))
-        print("false:", strings::isPrefix("Tadeusz", str))
-        print("false:", strings::isPrefix("tadeusztomoszekiscool", str))
+        let str = "do_stuff"
+        print("true:", strings::isPrefix("do", str))
+        print("false:", strings::isPrefix(" do", str))
         print(len(str):i32)
         
         let rect = Rect((0, 0), (3, 4))
@@ -32,4 +32,6 @@ fn main()
         switch a
             I64(n); print(n)
             F64(f); print(f)
+
+        io::putStrLn("toast")
 

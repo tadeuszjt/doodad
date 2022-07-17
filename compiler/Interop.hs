@@ -53,13 +53,21 @@ genExterns (CTranslUnit cExtDecls _) = forM_ cExtDecls $ \cExtDecl -> case cExtD
         modify $ \externs -> ExtVar sym (S.AnnoType typ) : externs
 
     CDeclExt (CDecl [CStorageSpec (CExtern _), CTypeSpec typeSpec] cDeclr _) -> case cDeclr of
+        -- C variable
         [(Just (CDeclr (Just (Ident sym _ _)) [] Nothing [] _), Nothing, Nothing)] -> do
             typ <- cTypeToType typeSpec
             modify $ \externs -> ExtVar sym (S.AnnoType typ) : externs
 
+        -- C function with zero args and return type
+        [(Just (CDeclr (Just (Ident sym _ _)) [CFunDeclr (Right ([CDecl [CTypeSpec (CVoidType _)] [] _], False)) [] _] Nothing attributes _), Nothing, Nothing)] -> do
+            let m = do { typ <- cTypeToType typeSpec;  modify $ \externs -> ExtFunc sym [] typ : externs }
+            catchError m $ \e -> return ()
+
+        -- C function with one arg and return type
         [(Just (CDeclr (Just (Ident sym _ _)) [CFunDeclr (Right ([CDecl [CTypeSpec argTypeSpec] [argDeclr] _], False)) [] _] Nothing attributes _), Nothing, Nothing)] -> do
             let m = do { typ <- cTypeToType typeSpec; argType <- cTypeToType argTypeSpec; modify $ \externs -> ExtFunc sym [argType] typ : externs }
             catchError m $ \e -> return ()
+
 
         _ -> return ()
 

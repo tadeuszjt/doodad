@@ -224,6 +224,7 @@ runMod args pathsVisited modPath = do
             -- compile and run
             debug "compiling"
             (defs, state) <- withErrorPrefix "compile: " $ Compile.compile importMapFull flat
+            liftIO $ SymTab.prettySymTab (State.symTab state)
 
             debug "running"
             session <- gets session

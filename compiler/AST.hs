@@ -105,7 +105,7 @@ data Stmt
     = Assign      TextPos Pattern Expr
     | Set         TextPos Index   Expr
     | Print       TextPos [Expr]
-    | CallStmt    TextPos String [Expr]
+    | CallStmt    TextPos Symbol [Expr]
     | Return      TextPos (Maybe Expr)
     | Block       [Stmt]
     | If          TextPos Condition Stmt (Maybe Stmt)
@@ -299,7 +299,7 @@ prettyAST ast = do
                 putStrLn $ pre ++ "else"
                 maybe (return ()) (prettyStmt (pre ++ "\t")) mfalse
 
-            CallStmt pos sym exprs -> putStrLn $ pre ++ sym ++ tupStrs (map show exprs)
+            CallStmt pos symbol exprs -> putStrLn $ pre ++ show symbol ++ tupStrs (map show exprs)
                     
 
             Block stmts -> do

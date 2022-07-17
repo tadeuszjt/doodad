@@ -5,6 +5,7 @@ module Compile where
 
 import Data.List
 import Data.Maybe
+import Data.Char
 import qualified Data.Set as Set
 import qualified Data.Map as Map
 import qualified Data.ByteString.Char8 as BS
@@ -245,9 +246,9 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
     S.Block stmts       -> mapM_ cmpStmt stmts
     S.AppendStmt append -> void $ cmpAppend append
 
-    S.CallStmt pos sym exprs -> do
+    S.CallStmt pos symbol exprs -> do
         vals <- mapM (valLoad <=< cmpExpr) exprs
-        ObjFunc _ op <- look (Sym sym) $ KeyFunc (map valType vals)
+        ObjFunc _ op <- look symbol $ KeyFunc (map valType vals)
         void $ call op [(o, []) | o <- map valOp vals]
 
     S.Assign pos pat expr -> trace ("assign " ++ show pat) $ do
@@ -315,6 +316,8 @@ cmpExpr (S.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck exp
         case base of
             _ | isInt base   -> valInt exprType n
             _ | isFloat base -> valFloat exprType (fromIntegral n)
+            _ | base == Char -> valChar exprType (chr $ fromIntegral n)
+            _ -> fail $ "invalid base type: " ++ show base
 
     S.Infix pos op exprA exprB -> do
         valA <- cmpExpr exprA

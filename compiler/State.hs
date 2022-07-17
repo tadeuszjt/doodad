@@ -57,7 +57,17 @@ data Object
     | ObjConstructor  Type
     | ObjADTFieldCons Type
     | ObjMember       Int
-    deriving (Show)
+    deriving ()
+
+
+instance Show Object where
+    show object = case object of
+        ObjVal val -> "ObjVal val"
+        ObType typ mn -> "ObType " ++ show typ ++ " name"
+        ObjFunc typ op -> "ObjFunc " ++ show typ ++ " op"
+        ObjConstructor typ -> "ObjConstructor " ++ show typ
+        ObjADTFieldCons typ -> "ObjADTFieldCons " ++ show typ
+        ObjMember i -> "ObjMember " ++ show i
 
 
 data Declaration

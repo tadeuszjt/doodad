@@ -226,6 +226,17 @@ instance Resolve Stmt where
                 return (pat', stmt')
             popSymTab
             return $ Switch pos expr' cases'
+        
+        CallStmt pos symbol exprs -> do
+            exprs' <- mapM resolve exprs
+            symbolm <- lookm symbol KeyFunc
+            case symbolm of
+                Just symbol' -> return $ CallStmt pos symbol' exprs'
+                Nothing -> do
+                    symbolmm <- lookm symbol KeyType
+                    case symbolmm of
+                        Nothing ->      fail $ show symbol ++ " isn't defined"
+                        Just symbol' -> return $ CallStmt pos symbol' exprs'
 
 
 
@@ -307,7 +318,7 @@ instance Resolve Expr where
                 Nothing -> do
                     symbolmm <- lookm symbol KeyType
                     case symbolmm of
-                        Nothing ->      fail "here"
+                        Nothing ->      fail $ show symbol ++ " isn't defined"
                         Just symbol' -> return $ Call pos symbol' exprs'
 
         Infix pos op exprA exprB -> do

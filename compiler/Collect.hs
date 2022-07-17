@@ -238,11 +238,11 @@ collectStmt stmt = collectPos stmt $ case stmt of
         collectCondition cond
         collectStmt blk
 
-    CallStmt p sym es -> do
-        kos <- lookSym (Sym sym)
+    CallStmt p symbol es -> do
+        kos <- lookSym symbol
         case kos of
             -- no definitions 
-            []                         -> fail $ show sym ++ " undefined"
+            []                         -> fail $ show symbol ++ " undefined"
             -- one definition
             [(KeyFunc ts, ObjFunc rt)] -> do
                 assert (length ts == length es) "Invalid arguments"
@@ -443,6 +443,13 @@ collectExpr (AExpr exprType expr) = collectPos expr $ case expr of
             _           -> error $ show (typeOf e1)
         collectExpr e1
         collectExpr e2
+
+    S.Table p [es] -> do
+        base <- baseTypeOf exprType
+        case base of
+            T.Table [t] -> mapM_ (collect t) (map typeOf es)
+            Type x      -> return ()
+        mapM_ collectExpr es
 
 
     S.Tuple p es -> do
