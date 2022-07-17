@@ -73,21 +73,23 @@ genExterns (CTranslUnit cExtDecls _) = forM_ cExtDecls $ \cExtDecl -> case cExtD
 cmpExtern :: InsCmp CompileState m => Extern -> m ()
 cmpExtern extern = case extern of
     ExtVar sym (S.AnnoType typ) -> do
+        let symbol = SymQualified "c" sym
         let name = mkName sym
         opTyp <- opTypeOf typ
-        addSymKeyDec sym KeyVar name (DecVar opTyp)
-        define sym KeyVar $ ObjVal $ Ptr typ $ cons $ C.GlobalReference (LL.ptr opTyp) name
+        addSymKeyDec symbol KeyVar name (DecVar opTyp)
+        define symbol KeyVar $ ObjVal $ Ptr typ $ cons $ C.GlobalReference (LL.ptr opTyp) name
 
     ExtFunc sym argTypes retty -> do
-        checkSymUndef sym 
+        let symbol = SymQualified "c" sym
+        checkSymUndef symbol
         let name = LL.mkName sym
 
         paramOpTypes <- mapM opTypeOf argTypes
         returnOpType <- opTypeOf retty
 
-        addSymKeyDec sym (KeyFunc argTypes) name (DecExtern paramOpTypes returnOpType False)
+        addSymKeyDec symbol (KeyFunc argTypes) name (DecExtern paramOpTypes returnOpType False)
         let op = fnOp name paramOpTypes returnOpType False
-        define sym (KeyFunc argTypes) (ObjFunc retty op)
+        define symbol (KeyFunc argTypes) (ObjFunc retty op)
 
 
 compile :: BoM s m => [Extern] -> m CompileState

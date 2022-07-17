@@ -33,7 +33,6 @@ import Apply
 import Interop
 import qualified Resolve as R
 import qualified SymTab
-import Symbol
 
 import Language.C
 import Language.C.System.GCC
@@ -204,7 +203,6 @@ runMod args pathsVisited modPath = do
             resSymTabMap <- gets resolveSymTabMap
             (resolvedAST, resolveState) <- withErrorPrefix "resolve: " $
                 runBoMTExcept (R.initResolveState resSymTabMap modName) (R.resolve combinedAST)
-            --liftIO $ S.prettyAST resolvedAST
             modify $ \s -> s { resolveSymTabMap = Map.insert path (R.symTab resolveState) (resolveSymTabMap s) }
 
 
@@ -215,12 +213,12 @@ runMod args pathsVisited modPath = do
                 stm <- gets symTabMap
                 runTypeInference args annotatedAST cExterns stm modName
             
-            let ast = collapseAstSymbols astInferred
+            let ast = astInferred
             liftIO $ S.prettyAST ast
             liftIO $ SymTab.prettySymTab symTab
 
 
-            flat <- fmap fst $ runBoMTExcept initFlattenState (flattenAST ast)
+            flat <- fmap fst $ withErrorPrefix "flatten: " $ runBoMTExcept initFlattenState (flattenAST ast)
             --assert (S.astModuleName flat == modName) "modName error"
 
             -- compile and run

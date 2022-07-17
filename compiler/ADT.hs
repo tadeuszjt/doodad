@@ -24,16 +24,16 @@ import Error
 
 
 
-adtTypeDef :: InsCmp CompileState m => String -> S.AnnoType -> m ()
-adtTypeDef sym anno = trace "adtTypeDef" $ do
-    let typdef = Typedef (Sym sym)
-    define sym (KeyFunc [])       (ObjConstructor typdef)
-    define sym (KeyFunc [typdef]) (ObjConstructor typdef)
+adtTypeDef :: InsCmp CompileState m => Symbol -> S.AnnoType -> m ()
+adtTypeDef symbol anno = trace "adtTypeDef" $ do
+    let typdef = Typedef symbol
+    define symbol (KeyFunc [])       (ObjConstructor typdef)
+    define symbol (KeyFunc [typdef]) (ObjConstructor typdef)
 
     case anno of
         S.AnnoADT xs -> do
-            define sym KeyType $ ObType (ADT $ map snd xs) Nothing
-            forM_ (zip xs [0..]) $ \(((Sym s), t), i) -> do
+            define symbol KeyType $ ObType (ADT $ map snd xs) Nothing
+            forM_ (zip xs [0..]) $ \((s, t), i) -> do
                 define s (KeyMember typdef) (ObjMember i)
                 define s (KeyFunc [t]) (ObjADTFieldCons typdef)
                 define s (KeyFunc []) (ObjADTFieldCons typdef)
@@ -116,8 +116,8 @@ adtSetPi8 adt@(Ptr _ loc) pi8 = trace "adtSetPi8" $ do
 
 
 -- Construct a specific ADT field, eg: TokSym("ident")
-adtConstructField :: InsCmp CompileState m => String -> Type -> [Value] -> m Value
-adtConstructField sym typ vals = trace ("adtConstructField " ++ sym) $ do
+adtConstructField :: InsCmp CompileState m => Symbol -> Type -> [Value] -> m Value
+adtConstructField symbol typ vals = trace ("adtConstructField " ++ show symbol) $ do
     adtTyp@(ADT ts) <- assertBaseType isADT typ
 
     case adtTyp of
@@ -126,14 +126,14 @@ adtConstructField sym typ vals = trace ("adtConstructField " ++ sym) $ do
             valZero typ
 
         _ | isEnumADT adtTyp   -> do
-            ObjMember i <- look (Sym sym) (KeyMember typ)
+            ObjMember i <- look symbol (KeyMember typ)
             assert (length vals == 0) "Invalid ADT constructor arguments"
             adt <- valLocal typ
             adtSetEnum adt i
             return adt
 
         _ | isPtrADT adtTyp -> do
-            ObjMember i <- look (Sym sym) (KeyMember typ)
+            ObjMember i <- look symbol (KeyMember typ)
             
             assert (length vals == 1) "Invalid ADT constructor arguments"
             let [val] = vals
@@ -146,7 +146,7 @@ adtConstructField sym typ vals = trace ("adtConstructField " ++ sym) $ do
             return adt
 
         _ | isNormalADT adtTyp && length vals == 1 -> do
-            ObjMember i <- look (Sym sym) (KeyMember typ)
+            ObjMember i <- look symbol (KeyMember typ)
 
             let [val] = vals
             checkTypesCompatible (valType val) (ts !! i)
@@ -159,14 +159,14 @@ adtConstructField sym typ vals = trace ("adtConstructField " ++ sym) $ do
             return adt
 
         _ | isNormalADT adtTyp && length vals == 0 -> do
-            ObjMember i <- look (Sym sym) (KeyMember typ)
+            ObjMember i <- look symbol (KeyMember typ)
             assert (ts !! i == Void) "Invalid ADT constructor."
             adt <- valLocal typ
             adtSetEnum adt i
             return adt
 
         _ | isNormalADT adtTyp && length vals > 1 -> do
-            ObjMember i <- look (Sym sym) (KeyMember typ)
+            ObjMember i <- look symbol (KeyMember typ)
             Tuple tts <- assertBaseType isTuple (ts !! i)
             mal <- valMalloc (ts !! i) (valI64 1)
 

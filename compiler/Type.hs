@@ -12,24 +12,24 @@ data Symbol
 instance Show Symbol where
     show (Sym s)                     = s
     show (SymQualified mod sym)      = mod ++ "::" ++ sym
-    show (SymResolved mod sym level) = mod ++ "_" ++ sym ++ "_" ++ show level
+    show (SymResolved mod sym level) = mod ++ "@" ++ sym ++ "@" ++ show level
 
 
 data Type
     = Type Int
     | Void
-    | I8                     ----
-    | I16                    -- Simple Types
-    | I32                    -- 
-    | I64                    -- 
-    | F32                    --
-    | F64                    -- 
-    | Bool                   --
-    | Char                   --
-    | Tuple [Type]           ----
-    | Array Int Type         -- Aggregate Types
-    | Table [Type]           --
-    | Func [Type] Type       --
+    | I8                     
+    | I16                    
+    | I32                    
+    | I64                    
+    | F32                    
+    | F64                    
+    | Bool                   
+    | Char                   
+    | Tuple [Type]           
+    | Array Int Type         
+    | Table [Type]         
+    | Func [Type] Type 
     | ADT [Type]
     | Typedef Symbol
     deriving (Eq, Ord)

@@ -16,33 +16,33 @@ import Typeof
 import Trace
 import Error
 
-tupleTypeDef :: InsCmp CompileState m => String -> S.AnnoType -> m ()
-tupleTypeDef sym (S.AnnoType typ) = trace "tupleTypeDef" $ do
+tupleTypeDef :: InsCmp CompileState m => Symbol -> S.AnnoType -> m ()
+tupleTypeDef symbol (S.AnnoType typ) = trace "tupleTypeDef" $ do
     Tuple ts <- assertBaseType isTuple typ
-    let typdef = Typedef (Sym sym)
+    let typdef = Typedef symbol
 
-    define sym (KeyFunc []) (ObjConstructor typdef)
-    define sym (KeyFunc [typ]) (ObjConstructor typdef)
-    define sym (KeyFunc [typdef]) (ObjConstructor typdef)
-    define sym KeyType $ ObType typ Nothing
+    define symbol (KeyFunc []) (ObjConstructor typdef)
+    define symbol (KeyFunc [typ]) (ObjConstructor typdef)
+    define symbol (KeyFunc [typdef]) (ObjConstructor typdef)
+    define symbol KeyType $ ObType typ Nothing
 
     when (length ts > 0) $
-        define sym (KeyFunc ts) (ObjConstructor typdef)
+        define symbol (KeyFunc ts) (ObjConstructor typdef)
 
-tupleTypeDef sym (S.AnnoTuple xs) = trace "tupleTypeDef" $ do
-    let typdef = Typedef (Sym sym)
+tupleTypeDef symbol (S.AnnoTuple xs) = trace "tupleTypeDef" $ do
+    let typdef = Typedef symbol
     let tupTyp = Tuple (map snd xs)
 
-    define sym (KeyFunc []) (ObjConstructor typdef)
-    define sym (KeyFunc [tupTyp]) (ObjConstructor typdef)
-    define sym (KeyFunc [typdef]) (ObjConstructor typdef)
-    define sym KeyType $ ObType tupTyp Nothing
+    define symbol (KeyFunc []) (ObjConstructor typdef)
+    define symbol (KeyFunc [tupTyp]) (ObjConstructor typdef)
+    define symbol (KeyFunc [typdef]) (ObjConstructor typdef)
+    define symbol KeyType $ ObType tupTyp Nothing
 
     when (length xs > 0) $ do
-        define sym (KeyFunc $ map snd xs) (ObjConstructor typdef)
+        define symbol (KeyFunc $ map snd xs) (ObjConstructor typdef)
 
     forM_ (zip xs [0..]) $ \((s, t), i) -> do
-        define s (KeyMember typdef) (ObjMember i)
+        define (Sym s) (KeyMember typdef) (ObjMember i)
 
 
 tupleLength :: InsCmp CompileState m => Value -> m Int

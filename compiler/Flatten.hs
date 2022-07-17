@@ -19,39 +19,38 @@ import Error
 checkTypeDefs :: BoM s m => [S.Stmt] -> m ()
 checkTypeDefs typedefs = do
     -- check multiple definitions
-    forM typedefs $ \(S.Typedef pos symbol anno) -> withPos pos $ case symbol of
-        T.Sym sym -> case elemIndices sym (map typedefSym typedefs) of
+    forM typedefs $ \(S.Typedef pos symbol anno) -> withPos pos $
+        case elemIndices symbol (map typedefSymbol typedefs) of
             [x] -> return ()
-            _   -> fail $ "multiple definitions of " ++ sym
-        _ -> fail (show symbol)
+            _   -> fail $ "multiple definitions of " ++ show symbol
 
     -- check circles
-    mapM_ (checkCircles Set.empty) (map typedefSym typedefs)
+    mapM_ (checkCircles Set.empty) (map typedefSymbol typedefs)
 
     where
-        typedefSym :: S.Stmt -> String
-        typedefSym (S.Typedef _ (T.Sym sym) _) = sym
+        typedefSymbol :: S.Stmt -> T.Symbol
+        typedefSymbol (S.Typedef _ symbol _) = symbol
 
-        checkCircles :: BoM s m => Set.Set String -> String -> m ()
-        checkCircles visited sym = case elemIndices sym (map typedefSym typedefs) of
+        checkCircles :: BoM s m => Set.Set T.Symbol -> T.Symbol -> m ()
+        checkCircles visited symbol = case elemIndices symbol (map typedefSymbol typedefs) of
             [] -> return ()
             [idx] -> do
                 let S.Typedef pos _ anno = typedefs !! idx
-                withPos pos $ assert (not $ Set.member sym visited) "Typedef has circles"
-                checkAnnoCircles (Set.insert sym visited) anno
+                withPos pos $ assert (not $ Set.member symbol visited) "Typedef has circles"
+                checkAnnoCircles (Set.insert symbol visited) anno
         
-        checkAnnoCircles :: BoM s m => Set.Set String -> S.AnnoType -> m ()
+        checkAnnoCircles :: BoM s m => Set.Set T.Symbol -> S.AnnoType -> m ()
         checkAnnoCircles visited anno = case anno of
             S.AnnoType t   -> checkTypeCircles visited t
             S.AnnoTuple xs -> forM_ xs $ \(_, t) -> checkTypeCircles visited t
             S.AnnoADT xs   -> forM_ xs $ \(_, t) -> checkTypeCircles visited t
 
-        checkTypeCircles :: BoM s m => Set.Set String -> T.Type -> m ()
+        checkTypeCircles :: BoM s m => Set.Set T.Symbol -> T.Type -> m ()
         checkTypeCircles visited typ = case typ of
-            T.Typedef (T.Sym s) -> checkCircles visited s
-            T.Tuple ts          -> mapM_ (checkTypeCircles visited) ts
-            t | T.isSimple t    -> return ()
-            _                   -> fail ("checkTypeCircles " ++ show typ)
+            T.Typedef symbol  -> checkCircles visited symbol
+            T.Tuple ts        -> mapM_ (checkTypeCircles visited) ts
+            t | T.isSimple t  -> return ()
+            _                 -> fail ("checkTypeCircles " ++ show typ)
 
 
 

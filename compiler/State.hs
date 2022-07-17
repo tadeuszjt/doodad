@@ -71,10 +71,10 @@ data Declaration
 data CompileState
     = CompileState
         { imports       :: Map.Map S.ModuleName CompileState
-        , decMap        :: Map.Map (String, SymKey) LL.Name
+        , decMap        :: Map.Map (Symbol, SymKey) LL.Name
         , declarations  :: Map.Map LL.Name Declaration
         , declared      :: Set.Set LL.Name
-        , symTab        :: SymTab.SymTab String SymKey Object
+        , symTab        :: SymTab.SymTab Symbol SymKey Object
         , curModName    :: String
         , nameMap       :: Map.Map String Int
         }
@@ -103,26 +103,26 @@ myFresh sym = do
     return $ LL.Name $ mkBSS (mod ++ "." ++ sym ++ "_" ++ show n )
 
 
-redefine :: BoM CompileState m => String -> SymKey -> Object -> m ()
-redefine sym key obj = trace "redefine" $ do
-    modify $ \s -> s { symTab = SymTab.insert sym key obj (symTab s) }
+redefine :: BoM CompileState m => Symbol -> SymKey -> Object -> m ()
+redefine symbol key obj = trace "redefine" $ do
+    modify $ \s -> s { symTab = SymTab.insert symbol key obj (symTab s) }
 
-define :: BoM CompileState m => String -> SymKey -> Object -> m ()
-define sym key obj = trace "define" $ do
-    checkSymKeyUndef sym key
-    redefine sym key obj
-
-
-checkSymKeyUndef :: BoM CompileState m => String -> SymKey -> m ()
-checkSymKeyUndef sym key = trace ("checkSymKeyUndef " ++ sym) $ do
-    res <- SymTab.lookupHead sym key <$> gets symTab
-    assert (isNothing res) (sym ++ " already defined")
+define :: BoM CompileState m => Symbol -> SymKey -> Object -> m ()
+define symbol key obj = trace "define" $ do
+    checkSymKeyUndef symbol key
+    redefine symbol key obj
 
 
-checkSymUndef :: BoM CompileState m => String -> m ()
-checkSymUndef sym = trace ("checkSymUndef " ++ sym) $ do
-    res <- SymTab.lookupSym sym <$> gets symTab
-    assert (null res) (sym ++ " already defined")
+checkSymKeyUndef :: BoM CompileState m => Symbol -> SymKey -> m ()
+checkSymKeyUndef symbol key = trace ("checkSymKeyUndef " ++ show symbol) $ do
+    res <- SymTab.lookupHead symbol key <$> gets symTab
+    assert (isNothing res) (show symbol ++ " already defined")
+
+
+checkSymUndef :: BoM CompileState m => Symbol -> m ()
+checkSymUndef symbol = trace ("checkSymUndef " ++ show symbol) $ do
+    res <- SymTab.lookupSym symbol <$> gets symTab
+    assert (null res) (show symbol ++ " already defined")
 
 
 addDeclared :: BoM CompileState m => LL.Name -> m ()
@@ -130,9 +130,9 @@ addDeclared name = trace "addDeclared" $ do
     modify $ \s -> s { declared = Set.insert name (declared s) }
 
 
-addSymKeyDec :: BoM CompileState m => String -> SymKey -> LL.Name -> Declaration -> m ()
-addSymKeyDec sym key name dec = trace ("addSymKeyDec " ++ sym) $ do
-    modify $ \s -> s { decMap = Map.insert (sym, key) name (decMap s) }
+addSymKeyDec :: BoM CompileState m => Symbol -> SymKey -> LL.Name -> Declaration -> m ()
+addSymKeyDec symbol key name dec = trace ("addSymKeyDec " ++ show symbol) $ do
+    modify $ \s -> s { decMap = Map.insert (symbol, key) name (decMap s) }
     modify $ \s -> s { declarations = Map.insert name dec (declarations s) }
 
 
@@ -167,13 +167,13 @@ ensureSymKeyDec symbol key = trace ("ensureSymKeyDec " ++ show symbol) $ do
     curMod <- gets curModName
     case symbol of
         Sym sym -> do
-            nm <- Map.lookup (sym, key) <$> gets decMap
+            nm <- Map.lookup (symbol, key) <$> gets decMap
             case nm of
                 Just name -> ensureDec name
                 Nothing   -> do
                     states <- Map.elems <$> gets imports
                     rs <- fmap concat $ forM states $ \state -> do
-                        case Map.lookup (sym, key) (decMap state) of
+                        case Map.lookup (symbol, key) (decMap state) of
                             Nothing   -> return []
                             Just name -> return [(name, (Map.! name) $ declarations state)]
 
@@ -186,11 +186,30 @@ ensureSymKeyDec symbol key = trace ("ensureSymKeyDec " ++ show symbol) $ do
                                 addDeclared name
                         _ -> fail ("More than one declaration for: " ++ show symbol)
 
+        SymResolved mod sym level -> do
+            if mod == curMod then do
+                nm <- Map.lookup (symbol, key) <$> gets decMap
+                case nm of
+                    Just name -> ensureDec name
+                    Nothing   -> return ()
+            else do
+                statem <- Map.lookup mod <$> gets imports
+                case statem of
+                    Nothing -> fail $ "no module: " ++ mod
+                    Just state -> case Map.lookup (symbol, key) (decMap state) of
+                        Nothing   -> return ()
+                        Just name -> do
+                            let dec = (declarations state) Map.! name
+                            declared <- Set.member name <$> gets declared
+                            when (not declared) $ do
+                                emitDec name dec
+                                addDeclared name
+
         SymQualified mod sym -> do
             statem <- Map.lookup mod <$> gets imports
             case statem of
                 Nothing -> fail $ "no module: " ++ mod
-                Just state -> case Map.lookup (sym, key) (decMap state) of
+                Just state -> case Map.lookup (symbol, key) (decMap state) of
                     Nothing   -> return ()
                     Just name -> do
                         let dec = (declarations state) Map.! name
@@ -220,25 +239,34 @@ lookm symbol key = do
     curMod <- gets curModName
     case symbol of
         Sym sym -> do
-            objm <- SymTab.lookup sym key <$> gets symTab
+            objm <- SymTab.lookup symbol key <$> gets symTab
             case objm of
                 Just _ -> return objm
                 Nothing -> do
-                    objsm <- fmap (map (SymTab.lookup sym key . symTab) . Map.elems) (gets imports)
+                    objsm <- fmap (map (SymTab.lookup symbol key . symTab) . Map.elems) (gets imports)
                     case catMaybes objsm of
                         []  -> return Nothing
                         [x] -> return (Just x)
                         _   -> fail ("Ambiguous symbol: " ++ show sym)
 
+        SymResolved mod sym level-> do
+            if mod == curMod then do
+                SymTab.lookup symbol key <$> gets symTab
+            else do
+                statem <- fmap (Map.lookup mod) (gets imports)
+                case statem of
+                    Nothing -> fail $ "no module: " ++ mod
+                    Just state -> return $ SymTab.lookup symbol key (symTab state)
+
         SymQualified mod sym -> do
             statem <- fmap (Map.lookup mod) (gets imports)
             case statem of
                 Nothing -> fail $ "no module: " ++ mod
-                Just state -> return $ SymTab.lookup sym key (symTab state)
+                Just state -> return $ SymTab.lookup symbol key (symTab state)
 
 
 look :: ModCmp CompileState m => Symbol -> SymKey -> m Object
-look sym key = do
-    resm <- lookm sym key
-    assert (isJust resm) ("no definition for: " ++ show sym ++ " " ++ show key)
+look symbol key = do
+    resm <- lookm symbol key
+    assert (isJust resm) ("no definition for: " ++ show symbol ++ " " ++ show key)
     return (fromJust resm)

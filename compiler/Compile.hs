@@ -91,23 +91,23 @@ compile imports ast = do
                     void $ call op []
 
 cmpTypeDef :: InsCmp CompileState m => S.Stmt -> m ()
-cmpTypeDef (S.Typedef pos (Sym sym) (S.AnnoTuple xs)) = withPos pos $ tupleTypeDef sym (S.AnnoTuple xs)
-cmpTypeDef (S.Typedef pos (Sym sym) (S.AnnoADT xs))   = withPos pos $ adtTypeDef sym (S.AnnoADT xs)
-cmpTypeDef (S.Typedef pos (Sym sym) (S.AnnoType typ)) = withPos pos $ do
+cmpTypeDef (S.Typedef pos symbol (S.AnnoTuple xs)) = withPos pos $ tupleTypeDef symbol (S.AnnoTuple xs)
+cmpTypeDef (S.Typedef pos symbol (S.AnnoADT xs))   = withPos pos $ adtTypeDef symbol (S.AnnoADT xs)
+cmpTypeDef (S.Typedef pos symbol (S.AnnoType typ)) = withPos pos $ do
     case typ of
-        t | isTuple t -> tupleTypeDef sym (S.AnnoType t)
+        t | isTuple t -> tupleTypeDef symbol (S.AnnoType t)
         t             -> do
-            let typdef = Typedef (Sym sym)
-            define sym (KeyFunc []) (ObjConstructor typdef)
-            define sym (KeyFunc [t]) (ObjConstructor typdef)
-            define sym (KeyFunc [typdef]) (ObjConstructor typdef)
-            define sym KeyType (ObType t Nothing)
+            let typdef = Typedef symbol
+            define symbol (KeyFunc []) (ObjConstructor typdef)
+            define symbol (KeyFunc [t]) (ObjConstructor typdef)
+            define symbol (KeyFunc [typdef]) (ObjConstructor typdef)
+            define symbol KeyType (ObType t Nothing)
                     
 
 cmpVarDef :: InsCmp CompileState m => S.Stmt -> m ()
-cmpVarDef (S.Assign pos (S.PatIdent p (Sym sym)) expr) = trace "cmpVarDef" $ withPos pos $ do
+cmpVarDef (S.Assign pos (S.PatIdent p symbol) expr) = trace "cmpVarDef" $ withPos pos $ do
     val <- cmpExpr expr
-    name <- myFresh sym
+    name <- myFresh (sym symbol)
 
     let typ = valType val
     opTyp <- opTypeOf typ
@@ -115,14 +115,14 @@ cmpVarDef (S.Assign pos (S.PatIdent p (Sym sym)) expr) = trace "cmpVarDef" $ wit
     if isCons (valOp val)
     then do
         loc <- Ptr typ <$> global name opTyp (toCons $ valOp val)
-        define sym KeyVar (ObjVal loc)
+        define symbol KeyVar (ObjVal loc)
     else do
         initialiser <- valZero typ
         loc <- Ptr typ <$> global name opTyp (toCons $ valOp initialiser)
         valStore loc val
-        define sym KeyVar (ObjVal loc)
+        define symbol KeyVar (ObjVal loc)
 
-    addSymKeyDec sym KeyVar name (DecVar opTyp)
+    addSymKeyDec symbol KeyVar name (DecVar opTyp)
     addDeclared name
 
 
@@ -136,11 +136,11 @@ cmpFuncHdr (S.FuncDef pos sym params retty blk)    = trace "cmpFuncHdr" $ withPo
     returnOpType <- opTypeOf retty
     let op = fnOp name paramOpTypes returnOpType False
 
-    define sym (KeyFunc paramTypes) (ObjFunc retty op) 
-    redefine sym KeyVar $ ObjVal $ Val (Func paramTypes retty) op
+    define (Sym sym) (KeyFunc paramTypes) (ObjFunc retty op) 
+    redefine (Sym sym) KeyVar $ ObjVal $ Val (Func paramTypes retty) op
 
-    addSymKeyDec sym (KeyFunc paramTypes) name (DecFunc paramOpTypes returnOpType)
-    addSymKeyDec sym KeyVar name (DecFunc paramOpTypes returnOpType)
+    addSymKeyDec (Sym sym) (KeyFunc paramTypes) name (DecFunc paramOpTypes returnOpType)
+    addSymKeyDec (Sym sym) KeyVar name (DecFunc paramOpTypes returnOpType)
 
     addDeclared name
 
@@ -154,7 +154,7 @@ cmpFuncDef (S.FuncDef pos sym params retty blk) = trace "cmpFuncDef" $ withPos p
     returnOpType <- opTypeOf retty
     paramOpTypes <- mapM (opTypeOf . S.paramType) params
     let paramTypes = map S.paramType params
-    let paramNames = map (\p -> let Sym s = S.paramName p in ParameterName $ mkBSS s) params
+    let paramNames = map (\p -> ParameterName $ mkBSS $ show $ S.paramName p) params
     let paramSyms  = map S.paramName params
 
     ObjFunc _ op <- look (Sym sym) (KeyFunc paramTypes)
@@ -162,10 +162,10 @@ cmpFuncDef (S.FuncDef pos sym params retty blk) = trace "cmpFuncDef" $ withPos p
     let Name nameStr = name
 
     void $ InstrCmpT . IRBuilderT . lift $ func name (zip paramOpTypes paramNames) returnOpType $ \paramOps -> do
-        forM_ (zip3 paramTypes paramOps paramSyms) $ \(typ, op, Sym sym) -> do
+        forM_ (zip3 paramTypes paramOps paramSyms) $ \(typ, op, symbol) -> do
             loc <- valLocal typ
             valStore loc (Val typ op)
-            define sym KeyVar (ObjVal loc)
+            define symbol KeyVar (ObjVal loc)
 
         cmpStmt blk
         hasTerm <- hasTerminator
@@ -353,7 +353,7 @@ cmpExpr (S.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck exp
             ObjFunc Void _     -> fail "cannot use void function as expression"
             ObjConstructor typ -> valConstruct typ vals
             ObjFunc retty op   -> Val retty <$> call op [(o, []) | o <- map valOp vals]
-            ObjADTFieldCons typ -> adtConstructField (sym symbol) typ vals
+            ObjADTFieldCons typ -> adtConstructField symbol typ vals
 
     S.Len pos expr -> valLoad =<< do
         assertBaseType isIntegral exprType
@@ -427,11 +427,11 @@ cmpPattern pattern val = trace "cmpPattern" $ withPos pattern $ case pattern of
         assertBaseType (== Bool) (valType guard)
         valsInfix S.AndAnd match guard
 
-    S.PatIdent _ (Sym sym) -> trace ("cmpPattern " ++ show pattern) $ do
+    S.PatIdent _ symbol -> trace ("cmpPattern " ++ show pattern) $ do
         base <- baseTypeOf (valType val)
         loc <- valLocal (valType val)
         valStore loc val
-        define sym KeyVar (ObjVal loc)
+        define symbol KeyVar (ObjVal loc)
         valBool Bool True
 
     S.PatTuple _ pats -> do
