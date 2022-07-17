@@ -226,7 +226,7 @@ valsInfix operator a b = trace ("valsInfix " ++ show operator) $ do
         Char             -> intInfix (valType a) operator opA opB
         _ | isInt base   -> intInfix (valType a) operator opA opB
         _ | isFloat base -> floatInfix (valType a) operator opA opB
-        _                -> fail ("Operator " ++ show operator ++ " undefined for types")
+        _                -> fail $ "Operator " ++ show operator ++ " undefined for types " ++ show (valType a) ++ " " ++ show (valType b)
 
     where 
         exprInfix operator exprA exprB = case (operator, exprA, exprB) of

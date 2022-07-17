@@ -70,7 +70,8 @@ executable bolang
         Collect,
         Unify,
         ADT,
-        Resolve
+        Resolve,
+        Symbol
 
 test-suite type-tests
     hs-source-dirs: compiler, compiler/test

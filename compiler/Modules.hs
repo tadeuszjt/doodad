@@ -33,6 +33,7 @@ import Apply
 import Interop
 import qualified Resolve as R
 import qualified SymTab
+import Symbol
 
 import Language.C
 import Language.C.System.GCC
@@ -210,22 +211,25 @@ runMod args pathsVisited modPath = do
 
 
             -- run type inference on ast
-            testAnnotatedAST <- fmap fst $ withErrorPrefix "annotate: " $
-                runBoMTExcept 0 $ annotate resolvedAST
-            (testAST, testSymTab) <- withErrorPrefix "infer: " $ do
-                stm <- gets testSymTabMap
-                runTypeInference args testAnnotatedAST cExterns stm modName 
-            liftIO $ S.prettyAST testAST
-            liftIO $ SymTab.prettySymTab testSymTab
+--            testAnnotatedAST <- fmap fst $ withErrorPrefix "annotate: " $
+--                runBoMTExcept 0 $ annotate resolvedAST
+--            (testAST, testSymTab) <- withErrorPrefix "infer: " $ do
+--                stm <- gets testSymTabMap
+--                runTypeInference args testAnnotatedAST cExterns stm modName 
+--            liftIO $ S.prettyAST testAST
+--            liftIO $ SymTab.prettySymTab testSymTab
 
 
             -- run type inference on ast
             annotatedAST <- fmap fst $ withErrorPrefix "annotate: " $
-                runBoMTExcept 0 $ annotate combinedAST
-            (ast, symTab) <- withErrorPrefix "infer: " $ do
+                runBoMTExcept 0 $ annotate resolvedAST
+            (astInferred, symTab) <- withErrorPrefix "infer: " $ do
                 stm <- gets symTabMap
                 runTypeInference args annotatedAST cExterns stm modName
-            --liftIO $ S.prettyAST ast
+            --
+            
+            let ast = collapseAstSymbols astInferred
+            liftIO $ S.prettyAST ast
 
 
             flat <- fmap fst $ runBoMTExcept initFlattenState (flattenAST ast)
@@ -247,7 +251,7 @@ runMod args pathsVisited modPath = do
 
             modify $ \s -> s { modMap = Map.insert path state (modMap s) }
             modify $ \s -> s { symTabMap = Map.insert path symTab (symTabMap s) }
-            modify $ \s -> s { testSymTabMap = Map.insert path testSymTab (testSymTabMap s) }
+            --modify $ \s -> s { testSymTabMap = Map.insert path testSymTab (testSymTabMap s) }
             return state
 
         debug str =

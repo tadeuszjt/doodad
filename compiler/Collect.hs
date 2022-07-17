@@ -173,8 +173,8 @@ collectAST ast = do
 
     forM typedefs $ collectTypedef
 
-    forM funcdefs $ \(S.FuncDef pos symbol params retty _) -> collectPos pos $
-        define symbol (KeyFunc $ map paramType params) (ObjFunc retty)
+    forM funcdefs $ \(S.FuncDef pos sym params retty _) -> collectPos pos $
+        define (Sym sym) (KeyFunc $ map paramType params) (ObjFunc retty)
 
     mapM_ collectStmt stmts''
     where
@@ -273,7 +273,7 @@ collectStmt stmt = collectPos stmt $ case stmt of
             collectStmt stmt
         popSymTab
 
-    _ -> fail (show stmt)
+    _ -> error (show stmt)
 
 
 -- return type of append result
@@ -302,7 +302,7 @@ collectIndex index = collectPos index $ case index of
             Just (T.Table [te]) -> return (Just te)
             _                   -> return Nothing
 
-    _ -> fail (show index)
+    _ -> error (show index)
 
 
 collectPattern :: BoM CollectState m => Pattern -> Type -> m ()
@@ -335,7 +335,7 @@ collectPattern pattern typ = collectPos pattern $ case pattern of
                 zipWithM_ collectPattern pats gts
                 collect base (T.Tuple gts)
 
-    _ -> fail $ "cannot collect: " ++ show pattern
+    _ -> error $ show pattern
 
 
 collectCondition :: BoM CollectState m => Condition -> m ()
@@ -480,4 +480,4 @@ collectExpr (AExpr exprType expr) = collectPos expr $ case expr of
 
     S.AExpr _ _ -> fail "what"
 
-    _ -> fail ("collect: " ++ show expr)
+    _ -> error (show expr)

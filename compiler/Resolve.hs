@@ -130,14 +130,15 @@ instance Resolve AST where
 
         --forM typedefs $ resolveTypedef
 
-        funcdefs' <- forM funcdefs $ \(FuncDef pos (Sym sym) params retty blk) -> do
+        funcdefs' <- forM funcdefs $ \(FuncDef pos sym params retty blk) -> do
             resm <- lookm (Sym sym) KeyFunc
             case resm of
-                Just symbol -> return $ FuncDef pos symbol params retty blk
+                Just symbol -> return $ FuncDef pos sym params retty blk
                 Nothing     -> do
-                    symbol <- genSymbol sym
+                    --symbol <- genSymbol sym
+                    let symbol = (Sym sym)
                     define sym KeyFunc symbol
-                    return $ FuncDef pos symbol params retty blk
+                    return $ FuncDef pos sym params retty blk
 
         astStmts <- mapM resolve $ typedefs ++ funcdefs' ++ stmts
         return $ ast { astStmts = astStmts }
@@ -178,6 +179,7 @@ instance Resolve Stmt where
         AST.Typedef pos (Sym sym) anno -> do
             symbol <- genSymbol sym
             define sym KeyType symbol
+            define sym KeyFunc symbol
             anno' <- case anno of
                 AnnoTuple xs -> do 
                     xs' <- forM xs $ \(s, t) -> do

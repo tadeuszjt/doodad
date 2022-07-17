@@ -159,7 +159,7 @@ ensureDec name = trace ("ensureDec " ++ show name) $ do
         case catMaybes [resm] of
             [] -> return ()
             [d]  -> emitDec name d >> addDeclared name
-            _    -> fail (show name)
+            _    -> fail $ "ensureDec: " ++ (show name)
 
 
 ensureSymKeyDec :: ModCmp CompileState m => Symbol -> SymKey -> m ()
@@ -198,6 +198,8 @@ ensureSymKeyDec symbol key = trace ("ensureSymKeyDec " ++ show symbol) $ do
                         when (not declared) $ do
                             emitDec name dec
                             addDeclared name
+
+        _ -> fail $ "ensureSymKeyDec: " ++ show symbol
 
 
 

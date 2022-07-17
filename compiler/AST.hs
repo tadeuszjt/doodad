@@ -110,7 +110,7 @@ data Stmt
     | Block       [Stmt]
     | If          TextPos Condition Stmt (Maybe Stmt)
     | While       TextPos Condition Stmt
-    | FuncDef     TextPos Symbol [Param] Type Stmt
+    | FuncDef     TextPos String [Param] Type Stmt
     | Typedef     TextPos Symbol AnnoType
     | AppendStmt  Append
     | Switch      TextPos Expr [(Pattern, Stmt)]

@@ -19,10 +19,11 @@ import Error
 checkTypeDefs :: BoM s m => [S.Stmt] -> m ()
 checkTypeDefs typedefs = do
     -- check multiple definitions
-    forM typedefs $ \(S.Typedef pos (T.Sym sym) anno) -> withPos pos $
-        case elemIndices sym (map typedefSym typedefs) of
+    forM typedefs $ \(S.Typedef pos symbol anno) -> withPos pos $ case symbol of
+        T.Sym sym -> case elemIndices sym (map typedefSym typedefs) of
             [x] -> return ()
             _   -> fail $ "multiple definitions of " ++ sym
+        _ -> fail (show symbol)
 
     -- check circles
     mapM_ (checkCircles Set.empty) (map typedefSym typedefs)
