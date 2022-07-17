@@ -242,13 +242,3 @@ look sym key = do
     resm <- lookm sym key
     assert (isJust resm) ("no definition for: " ++ show sym ++ " " ++ show key)
     return (fromJust resm)
-
-
-pushSymTab :: BoM CompileState m => m ()
-pushSymTab = trace "pushSymTab" $ do
-    modify $ \s -> s { symTab = SymTab.push (symTab s) }
-
-
-popSymTab :: BoM CompileState m => m ()
-popSymTab = trace "popSymTab" $ do
-    modify $ \s -> s { symTab = SymTab.pop (symTab s) }

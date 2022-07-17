@@ -52,7 +52,6 @@ data Modules
     = Modules
         { modMap  :: Map.Map FilePath CompileState
         , symTabMap :: Map.Map FilePath C.SymTab
-        , testSymTabMap :: Map.Map FilePath C.SymTab
         , resolveSymTabMap :: Map.Map FilePath R.SymTab
         , session :: JIT.Session
         }
@@ -63,7 +62,6 @@ initModulesState session
         { modMap  = Map.empty
         , session = session
         , resolveSymTabMap = Map.empty
-        , testSymTabMap = Map.empty
         , symTabMap = Map.empty
         }
 
@@ -211,25 +209,15 @@ runMod args pathsVisited modPath = do
 
 
             -- run type inference on ast
---            testAnnotatedAST <- fmap fst $ withErrorPrefix "annotate: " $
---                runBoMTExcept 0 $ annotate resolvedAST
---            (testAST, testSymTab) <- withErrorPrefix "infer: " $ do
---                stm <- gets testSymTabMap
---                runTypeInference args testAnnotatedAST cExterns stm modName 
---            liftIO $ S.prettyAST testAST
---            liftIO $ SymTab.prettySymTab testSymTab
-
-
-            -- run type inference on ast
             annotatedAST <- fmap fst $ withErrorPrefix "annotate: " $
                 runBoMTExcept 0 $ annotate resolvedAST
             (astInferred, symTab) <- withErrorPrefix "infer: " $ do
                 stm <- gets symTabMap
                 runTypeInference args annotatedAST cExterns stm modName
-            --
             
             let ast = collapseAstSymbols astInferred
             liftIO $ S.prettyAST ast
+            liftIO $ SymTab.prettySymTab symTab
 
 
             flat <- fmap fst $ runBoMTExcept initFlattenState (flattenAST ast)
@@ -251,7 +239,6 @@ runMod args pathsVisited modPath = do
 
             modify $ \s -> s { modMap = Map.insert path state (modMap s) }
             modify $ \s -> s { symTabMap = Map.insert path symTab (symTabMap s) }
-            --modify $ \s -> s { testSymTabMap = Map.insert path testSymTab (testSymTabMap s) }
             return state
 
         debug str =

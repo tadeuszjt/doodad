@@ -63,5 +63,8 @@ prettySymTab :: (Show s, Show k, Show o) => SymTab s k o -> IO ()
 prettySymTab symTab = do
     forM_ (reverse symTab) $ \symMap -> do
         forM_ (Map.toList symMap) $ \(s, keyMap) -> do
-            putStrLn $ show s ++ " " ++ show keyMap
+            putStr $ show s ++ " "
+            forM (Map.toList keyMap) $ \(k, v) -> putStr $ show (k, v) ++ " "
+            putStrLn ""
+
         putStrLn ""

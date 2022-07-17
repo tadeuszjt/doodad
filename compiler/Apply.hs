@@ -23,6 +23,7 @@ substitute u x t = case t of
     T.Tuple ts       -> T.Tuple $ map (substitute u x) ts
     Void             -> t
     T.Typedef symbol -> t
+    ADT ts           -> ADT $ map (substitute u x) ts
     _                -> error (show t)
 
 

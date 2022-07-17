@@ -12,7 +12,7 @@ collapseAstSymbols ast =
         f s@(Sym sym) = s
         f s@(SymQualified "c" sym) = s
         f s@(SymQualified mod sym) = error $ "No SymQualified allowed: " ++ show s
-        f s@(SymResolved mod sym i) = Sym $ "bo_" ++ mod ++ "_" ++ sym ++ "_" ++ show i
+        f s@(SymResolved mod sym i) = Sym $ mod ++ "_" ++ sym ++ "_" ++ show i
 
 
 class MapSymbol a where

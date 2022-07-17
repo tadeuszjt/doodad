@@ -161,7 +161,6 @@ cmpFuncDef (S.FuncDef pos sym params retty blk) = trace "cmpFuncDef" $ withPos p
     let LL.ConstantOperand (C.GlobalReference _ name) = op
     let Name nameStr = name
 
-    pushSymTab
     void $ InstrCmpT . IRBuilderT . lift $ func name (zip paramOpTypes paramNames) returnOpType $ \paramOps -> do
         forM_ (zip3 paramTypes paramOps paramSyms) $ \(typ, op, Sym sym) -> do
             loc <- valLocal typ
@@ -176,7 +175,6 @@ cmpFuncDef (S.FuncDef pos sym params retty blk) = trace "cmpFuncDef" $ withPos p
         then retVoid
         else unreachable
 
-    popSymTab
 
 
 cmpIndex:: InsCmp CompileState m => S.Index -> m Value
@@ -244,7 +242,7 @@ cmpAppend append = withPos append $ case append of
 cmpStmt :: InsCmp CompileState m => S.Stmt -> m ()
 cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
     S.Print pos exprs   -> cmpPrint stmt
-    S.Block stmts       -> pushSymTab >> mapM_ cmpStmt stmts >> popSymTab
+    S.Block stmts       -> mapM_ cmpStmt stmts
     S.AppendStmt append -> void $ cmpAppend append
 
     S.CallStmt pos sym exprs -> do
@@ -269,18 +267,15 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
         emitBlockStart =<< fresh
 
     S.If pos cnd blk melse -> do
-        pushSymTab
         val <- valLoad =<< cmpCondition cnd
         assertBaseType (== Bool) (valType val)
         if_ (valOp val) (cmpStmt blk) $ maybe (return ()) cmpStmt melse
-        popSymTab
 
     S.While pos cnd blk -> do
         cond <- freshName "while_cond"
         body <- freshName "while_body"
         exit <- freshName "while_exit"
 
-        pushSymTab
         br cond
         emitBlockStart cond
         val <- valLoad =<< cmpCondition cnd
@@ -290,18 +285,13 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
         cmpStmt blk
         br cond
         emitBlockStart exit
-        popSymTab
 
     S.Typedef _ _ _ -> cmpTypeDef stmt
     
     S.Switch _ expr cases -> do
         val <- cmpExpr expr
-        pushSymTab
         let cases' = [(fmap valOp (cmpPattern pat val), cmpStmt stmt) | (pat, stmt) <- cases]
         switch_ $ cases' ++ [(return (bit 1), void trap)]
-        popSymTab
-
-            
 
     _ -> error "stmt"
 

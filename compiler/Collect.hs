@@ -144,16 +144,6 @@ define symbol key obj = do
     modify $ \s -> s { symTab = SymTab.insert symbol key obj (symTab s) }
 
 
-pushSymTab :: BoM CollectState m => m ()
-pushSymTab = do
-    modify $ \s -> s { symTab = SymTab.push (symTab s) }
-
-
-popSymTab :: BoM CollectState m => m ()
-popSymTab = do
-    modify $ \s -> s { symTab = SymTab.pop (symTab s) }
-
-
 baseTypeOf :: BoM CollectState m => Type -> m Type
 baseTypeOf typ = case typ of
     T.Typedef sym -> do ObjType t <- look sym KeyType; baseTypeOf t
@@ -213,16 +203,14 @@ collectStmt stmt = collectPos stmt $ case stmt of
     S.Typedef _ _ _ -> collectTypedef stmt
     Print p exprs -> mapM_ collectExpr exprs
     S.Typedef _ _ _ -> return ()
-    Block stmts -> pushSymTab >> mapM_ collectStmt stmts >> popSymTab
+    Block stmts -> mapM_ collectStmt stmts
 
     FuncDef _ sym params retty blk -> do
         oldRetty <- gets curRetty
         modify $ \s -> s { curRetty = retty }
-        pushSymTab
         forM_ params $ \(Param _ symbol t) ->
             define symbol KeyVar (ObjVar t)
         collectStmt blk
-        popSymTab
         modify $ \s -> s { curRetty = oldRetty }
         collectDefault retty T.Void
 
@@ -267,11 +255,9 @@ collectStmt stmt = collectPos stmt $ case stmt of
 
     Switch p expr cases -> do
         collectExpr expr
-        pushSymTab
         forM_ cases $ \(pat, stmt) -> do
             collectPattern pat (typeOf expr)
             collectStmt stmt
-        popSymTab
 
     _ -> error (show stmt)
 
