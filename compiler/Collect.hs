@@ -259,6 +259,14 @@ collectStmt stmt = collectPos stmt $ case stmt of
             collectPattern pat (typeOf expr)
             collectStmt stmt
 
+    For p symbol (Just t) expr blk -> do
+        define symbol KeyVar (ObjVar t)
+        collectDefault t I64
+
+        collectExpr expr
+        collectStmt blk
+        
+
     _ -> error (show stmt)
 
 

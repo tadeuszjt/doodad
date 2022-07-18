@@ -33,5 +33,5 @@ fn main()
             I64(n); print(n)
             F64(f); print(f)
 
-        io::putStrLn("toast")
+        putStrLn("toast")
 

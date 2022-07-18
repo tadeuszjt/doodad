@@ -66,6 +66,13 @@ instance Annotate Stmt where
                 return (pat', stmt')
             return $ Switch p e' cases'
 
+        For p symbol Nothing expr blk -> do
+            expr' <- annotate expr
+            blk' <- annotate blk
+            t <- genType
+            return $ For p symbol (Just t) expr' blk'
+
+
 
 instance Annotate Condition where
     annotate condition = case condition of

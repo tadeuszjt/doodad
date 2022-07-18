@@ -114,6 +114,7 @@ data Stmt
     | Typedef     TextPos Symbol AnnoType
     | AppendStmt  Append
     | Switch      TextPos Expr [(Pattern, Stmt)]
+    | For         TextPos Symbol (Maybe Type) Expr Stmt
     deriving (Eq, Show)
 
 
@@ -181,6 +182,7 @@ instance TextPosition Stmt where
         AST.Typedef     p _ _ -> p
         AST.AppendStmt  a -> textPos a
         AST.Switch      p _ _ -> p
+        AST.For         p _ _ _ _ -> p
 
 tupStrs, arrStrs, brcStrs :: [String] -> String
 tupStrs strs = "(" ++ intercalate ", " strs ++ ")"
@@ -317,4 +319,8 @@ prettyAST ast = do
                 forM_ cases $ \(pat, stmt) -> do
                     putStrLn $ pre ++ "\t" ++ show pat
                     prettyStmt (pre ++ "\t\t") stmt
+
+            For pos symbol _ expr blk -> do
+                putStrLn $ pre ++ "for " ++ "[" ++ show symbol ++ "] " ++ show expr
+                prettyStmt (pre ++ "\t") blk
 

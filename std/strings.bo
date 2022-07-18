@@ -12,11 +12,9 @@ fn == (a string, b string) bool
     if len(a) != len(b)
         return false
 
-    let i = 0
-    while i < len(a)
+    for [i] a
         if a[i] != b[i]
             return false
-        i = i + 1
 
     return true
 
@@ -30,11 +28,9 @@ fn isPrefix(pre string, str string) bool
     if len(pre) > len(str)
         return false
 
-    let i = 0
-    while i < len(str) && i < len(pre)
+    for [i] pre
         if pre[i] != str[i]
             return false
-        i = i + 1
 
     return true
 
@@ -54,10 +50,8 @@ fn readInt(s string) (i64, bool)
 
 fn reverse(s string)
     let r = copy(s)
-    let i = 0
-    while i < len(r)
+    for [i] r
         r[i] = s[len(s) - 1 - i]
-        i = i + 1
 
     return r
 
