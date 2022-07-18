@@ -46,7 +46,7 @@ import Trace
 import Interop
 import ADT
 
-compile :: BoM s m => Map.Map S.ModuleName CompileState -> S.AST ->  m ([LL.Definition], CompileState)
+compile :: BoM s m => [CompileState] -> S.AST ->  m ([LL.Definition], CompileState)
 compile imports ast = do
     ((_, defs), state) <- runBoMTExcept (initCompileState imports modName) (runModuleCmpT emptyModuleBuilder cmp)
     return (defs, state)
@@ -85,7 +85,7 @@ compile imports ast = do
             emitBlockStart exit
             store bMainCalled 0 (bit 1)
 
-            forM_ (Map.keys imports) $ \modName -> case modName of
+            forM_ (map curModName imports) $ \modName -> case modName of
                 "c" -> return ()
                 _ -> do
                     op <- extern (LL.mkName $ modName ++ "__main") [] LL.VoidType

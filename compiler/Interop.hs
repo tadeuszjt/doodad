@@ -102,7 +102,7 @@ cmpExtern extern = case extern of
 
 compile :: BoM s m => [Extern] -> m CompileState
 compile externs = do
-    ((_, defs), state) <- runBoMTExcept (initCompileState Map.empty "c") (runModuleCmpT emptyModuleBuilder cmp)
+    ((_, defs), state) <- runBoMTExcept (initCompileState [] "c") (runModuleCmpT emptyModuleBuilder cmp)
     return state
     where
         cmp :: (MonadFail m, Monad m, MonadIO m) => ModuleCmpT CompileState m ()

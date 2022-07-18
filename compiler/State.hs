@@ -80,7 +80,7 @@ data Declaration
 
 data CompileState
     = CompileState
-        { imports       :: Map.Map S.ModuleName CompileState
+        { imports       :: [CompileState]
         , decMap        :: Map.Map (Symbol, SymKey) LL.Name
         , declarations  :: Map.Map LL.Name Declaration
         , declared      :: Set.Set LL.Name
@@ -179,7 +179,7 @@ ensureSymKeyDec symbol key = trace ("ensureSymKeyDec " ++ show symbol) $ do
     case nm of
         Just name -> ensureDec name
         Nothing   -> do
-            states <- gets $ Map.elems . imports
+            states <- gets imports
             rs <- fmap catMaybes $ forM states $ \state -> do
                 case Map.lookup (symbol, key) (decMap state) of
                     Nothing   -> return Nothing
@@ -215,7 +215,7 @@ lookm symbol key = do
     case objm of
         Just obj -> return (Just obj)
         Nothing -> do
-            objs <- gets $ catMaybes . map (SymTab.lookup symbol key) . map symTab . Map.elems . imports
+            objs <- gets $ catMaybes . map (SymTab.lookup symbol key) . map symTab . imports
             case objs of
                 []    -> return Nothing
                 [obj] -> return (Just obj)

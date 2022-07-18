@@ -176,9 +176,7 @@ runMod args pathsVisited modPath = do
             assert (length importModNames == length (Set.fromList importModNames)) $
                 fail "import name collision"
             forM_ importPaths $ debug . ("importing: " ++)
-            importMap <- fmap Map.fromList $ forM importPaths $ \importPath -> do
-                state <- runMod args (Set.insert path pathsVisited) importPath
-                return (takeFileName importPath, state)
+            imports <- mapM (runMod args (Set.insert path pathsVisited)) importPaths
 
 
             -- load C imports
@@ -195,10 +193,6 @@ runMod args pathsVisited modPath = do
             --liftIO $ mapM_ (putStrLn . show) cExterns
             cState <- Interop.compile cExterns
 
-
-            assert (not $ Map.member "c" importMap) "Already has a module named c"
-            let importMapFull = Map.insert "c" cState importMap 
-            
 
             resSymTabMap <- gets resolveSymTabMap
             (resolvedAST, resolveState) <- withErrorPrefix "resolve: " $
@@ -223,7 +217,7 @@ runMod args pathsVisited modPath = do
 
             -- compile and run
             debug "compiling"
-            (defs, state) <- withErrorPrefix "compile: " $ Compile.compile importMapFull flat
+            (defs, state) <- withErrorPrefix "compile: " $ Compile.compile (cState : imports) flat
             liftIO $ SymTab.prettySymTab (State.symTab state)
 
             debug "running"
