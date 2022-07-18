@@ -175,60 +175,24 @@ ensureDec name = trace ("ensureDec " ++ show name) $ do
 ensureSymKeyDec :: ModCmp CompileState m => Symbol -> SymKey -> m ()
 ensureSymKeyDec symbol key = trace ("ensureSymKeyDec " ++ show symbol) $ do
     curMod <- gets curModName
-    case symbol of
-        Sym sym -> do
-            nm <- Map.lookup (symbol, key) <$> gets decMap
-            case nm of
-                Just name -> ensureDec name
-                Nothing   -> do
-                    states <- Map.elems <$> gets imports
-                    rs <- fmap concat $ forM states $ \state -> do
-                        case Map.lookup (symbol, key) (decMap state) of
-                            Nothing   -> return []
-                            Just name -> return [(name, (Map.! name) $ declarations state)]
+    nm <- gets $ Map.lookup (symbol, key) . decMap
+    case nm of
+        Just name -> ensureDec name
+        Nothing   -> do
+            states <- gets $ Map.elems . imports
+            rs <- fmap catMaybes $ forM states $ \state -> do
+                case Map.lookup (symbol, key) (decMap state) of
+                    Nothing   -> return Nothing
+                    Just name -> return $ Just (name, (declarations state) Map.! name)
 
-                    case rs of
-                        [] -> return ()
-                        [(name, dec)] -> do
-                            declared <- Set.member name <$> gets declared
-                            when (not declared) $ do
-                                emitDec name dec
-                                addDeclared name
-                        _ -> fail ("More than one declaration for: " ++ show symbol)
-
-        SymResolved mod sym level -> do
-            if mod == curMod then do
-                nm <- Map.lookup (symbol, key) <$> gets decMap
-                case nm of
-                    Just name -> ensureDec name
-                    Nothing   -> return ()
-            else do
-                statem <- Map.lookup mod <$> gets imports
-                case statem of
-                    Nothing -> fail $ "no module: " ++ mod
-                    Just state -> case Map.lookup (symbol, key) (decMap state) of
-                        Nothing   -> return ()
-                        Just name -> do
-                            let dec = (declarations state) Map.! name
-                            declared <- Set.member name <$> gets declared
-                            when (not declared) $ do
-                                emitDec name dec
-                                addDeclared name
-
-        SymQualified mod sym -> do
-            statem <- Map.lookup mod <$> gets imports
-            case statem of
-                Nothing -> fail $ "no module: " ++ mod
-                Just state -> case Map.lookup (symbol, key) (decMap state) of
-                    Nothing   -> return ()
-                    Just name -> do
-                        let dec = (declarations state) Map.! name
-                        declared <- Set.member name <$> gets declared
-                        when (not declared) $ do
-                            emitDec name dec
-                            addDeclared name
-
-        _ -> fail $ "ensureSymKeyDec: " ++ show symbol
+            case rs of
+                []            -> return ()
+                [(name, dec)] -> do
+                    declared <- gets $ Set.member name . declared
+                    when (not declared) $ do
+                        emitDec name dec
+                        addDeclared name
+                _             -> fail ("More than one declaration for: " ++ show symbol)
 
 
 
@@ -247,32 +211,15 @@ lookm :: ModCmp CompileState m => Symbol -> SymKey -> m (Maybe Object)
 lookm symbol key = do
     ensureSymKeyDec symbol key
     curMod <- gets curModName
-    case symbol of
-        Sym sym -> do
-            objm <- SymTab.lookup symbol key <$> gets symTab
-            case objm of
-                Just _ -> return objm
-                Nothing -> do
-                    objsm <- fmap (map (SymTab.lookup symbol key . symTab) . Map.elems) (gets imports)
-                    case catMaybes objsm of
-                        []  -> return Nothing
-                        [x] -> return (Just x)
-                        _   -> fail ("Ambiguous symbol: " ++ show sym)
-
-        SymResolved mod sym level-> do
-            if mod == curMod then do
-                SymTab.lookup symbol key <$> gets symTab
-            else do
-                statem <- fmap (Map.lookup mod) (gets imports)
-                case statem of
-                    Nothing -> fail $ "no module: " ++ mod
-                    Just state -> return $ SymTab.lookup symbol key (symTab state)
-
-        SymQualified mod sym -> do
-            statem <- fmap (Map.lookup mod) (gets imports)
-            case statem of
-                Nothing -> fail $ "no module: " ++ mod
-                Just state -> return $ SymTab.lookup symbol key (symTab state)
+    objm <- gets $ SymTab.lookup symbol key . symTab
+    case objm of
+        Just obj -> return (Just obj)
+        Nothing -> do
+            objs <- gets $ catMaybes . map (SymTab.lookup symbol key) . map symTab . Map.elems . imports
+            case objs of
+                []    -> return Nothing
+                [obj] -> return (Just obj)
+                _     -> fail ("Ambiguous symbol: " ++ show symbol)
 
 
 look :: ModCmp CompileState m => Symbol -> SymKey -> m Object
