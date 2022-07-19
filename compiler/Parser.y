@@ -80,6 +80,7 @@ import qualified Data.Set as Set
 
     import     { Token _ Import _ }
     import_c   { Token _ ImportC _ }
+    import_c_macro { Token _ ImportCMacro _ }
 
     i16        { Token _ Reserved "i16" }
     i32        { Token _ Reserved "i32" }
@@ -125,6 +126,7 @@ prog_ : {-empty-}                             { [] }
 imports : {- empty -}                         { [] }
         | import 'N' imports                  { S.Import  (dropWhile isSpace $ dropWhile (`elem` "import_c") $ tokStr $1) : $3 }
         | import_c 'N' imports                { S.ImportC (dropWhile isSpace $ dropWhile (`elem` "import_c") $ tokStr $1) : $3 }
+        | import_c_macro ident type_ 'N' imports { S.ImportCMacro (tokStr $2) $3 : $5 }
 
 
 ---------------------------------------------------------------------------------------------------

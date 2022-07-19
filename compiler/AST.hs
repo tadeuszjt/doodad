@@ -41,7 +41,8 @@ data Op
 data Import
     = Import FilePath
     | ImportC FilePath
-    deriving (Show, Eq, Ord)
+    | ImportCMacro String Type
+    deriving (Eq, Ord)
 
 
 data Param
@@ -189,6 +190,12 @@ tupStrs strs = "(" ++ intercalate ", " strs ++ ")"
 arrStrs strs = "[" ++ intercalate ", " strs ++ "]"
 brcStrs strs = "{" ++ intercalate ", " strs ++ "}"
 
+
+instance Show Import where
+    show (Import path) = "import " ++ path
+    show (ImportC path) = "import_c " ++ path
+    show (ImportCMacro macro typ) = "import_c_macro " ++ macro ++ " " ++ show typ
+
 instance Show Param where
     show (Param pos name Void) = show name
     show (Param pos name typ)  = show name ++ " " ++ show typ
@@ -275,8 +282,8 @@ prettyAST ast = do
 
     putStrLn ""
 
-    forM_ (astImports ast) $ \path ->
-        putStrLn $ "import " ++ show path
+    forM_ (astImports ast) $ \imp ->
+        putStrLn $ show imp
 
     putStrLn ""
 
@@ -284,8 +291,8 @@ prettyAST ast = do
     where
         prettyStmt :: String -> Stmt -> IO ()
         prettyStmt pre stmt = case stmt of
-            FuncDef pos symbol params retty blk -> do
-                putStrLn $ pre ++ "fn " ++ show symbol ++ tupStrs (map show params) ++ " " ++ if retty == Void then "" else show retty
+            FuncDef pos sym params retty blk -> do
+                putStrLn $ pre ++ "fn " ++ sym ++ tupStrs (map show params) ++ " " ++ if retty == Void then "" else show retty
                 prettyStmt (pre ++ "\t") blk
                 putStrLn ""
 

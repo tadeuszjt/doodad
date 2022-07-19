@@ -354,8 +354,10 @@ cmpExpr (S.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck exp
         cmpInfix op valA valB
 
     S.Ident pos symbol -> do
-        ObjVal loc <- look symbol KeyVar
-        return loc
+        obj <- look symbol KeyVar
+        case obj of
+            ObjVal (ConstInt n) -> valInt I64 n
+            ObjVal loc -> return loc
 
     S.Prefix pos S.Not   expr  -> valNot =<< cmpExpr expr
     S.Prefix pos S.Minus expr  -> do

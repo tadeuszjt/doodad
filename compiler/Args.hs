@@ -8,6 +8,8 @@ data Args = Args
     , printLLIR   :: Bool
     , printCImports :: Bool
     , compileObj  :: Bool
+    , printAst    :: Bool
+    , printCSymbols :: Bool
     , modPaths    :: [String]
     }
 
@@ -19,6 +21,8 @@ initArgs = Args
     , printLLIR = False
     , compileObj = False
     , printCImports = False
+    , printAst = False
+    , printCSymbols = False
     , modPaths  = []
     }
 
@@ -30,8 +34,10 @@ parseArgs args argStrs = case argStrs of
     ["-v"] -> args { verbose   = True }
     ["-a"] -> args { astOnly   = True }
     ["-l"] -> args { lexOnly   = True }
-    ["-p"] -> args { printLLIR = True }
+    ["--print-llir"] -> args { printLLIR = True }
     ["--print-c"] -> args { printCImports = True }
+    ["--print-ast"] -> args { printAst = True }
+    ["--print-c-symbols"] -> args { printCSymbols = True }
     ["-c"] -> args { compileObj = True }
     [str]  -> args { modPaths  = (modPaths args) ++ [str] }
     (a:as) -> parseArgs (parseArgs args [a]) as

@@ -43,9 +43,10 @@ tokens :-
     $symbol                                         { mkT Sym }
     @reserved                                       { mkT Reserved }
     @reservedOp                                     { mkT ReservedOp }
+    import_c_macro                                  { mkT ImportCMacro }
+    import_c [$tab $white]+ @string*                { mkT ImportC }
+    import [$tab $white]+ @string*                  { mkT Import }
     $alpha [$alpha $digit \_]*                      { mkT Ident }
-    import_c [$tab $white]* @string*                { mkT ImportC }
-    import [$tab $white]* @string*                  { mkT Import }
     $digit+                                         { mkT Int }
     $digit+ \. $digit+                              { mkT Float }
     \' @char \'                                     { mkT Char }
@@ -181,6 +182,7 @@ data TokenType
     | NewLine
     | Import
     | ImportC
+    | ImportCMacro
     | Dedent
     | EOF
     deriving (Show, Eq)

@@ -168,6 +168,8 @@ runMod args pathsVisited modPath = do
             forM_ files $ debug . ("using file: " ++) 
             combinedAST <- combineASTs =<< mapM parse files
 
+            when (printAst args) $ liftIO $ S.prettyAST combinedAST
+
 
             -- resolve imports into paths and check for collisions
             importPaths <- forM [fp | S.Import fp <- S.astImports combinedAST] $ \importPath ->
@@ -180,10 +182,19 @@ runMod args pathsVisited modPath = do
 
 
             -- load C imports
-            let cFilePaths = [fp | S.ImportC fp <- S.astImports combinedAST]
+            let cFilePaths =  [ fp | S.ImportC fp <- S.astImports combinedAST]
+            let cMacroStmts = [ Interop.importToCStmt imp  | imp@(S.ImportCMacro _ _) <- S.astImports combinedAST ]
             cTranslUnitEither <- liftIO $ withTempFile "." "cimports.h" $ \filePath handle -> do
                 hClose handle
-                writeFile filePath $ concat $ map (\p -> "#include \"" ++ p ++ "\"\n") cFilePaths
+
+                writeFile filePath $ concat $
+                    map (\p -> "#include \"" ++ p ++ "\"\n") cFilePaths ++
+                    map (\p -> p ++ "\n") cMacroStmts
+
+
+                putStrLn =<< readFile filePath
+
+
                 parseCFile (newGCC "gcc") Nothing [] filePath
             cTranslUnit <- case cTranslUnitEither of
                 Left (ParseError x) -> fail (show x)
@@ -192,7 +203,9 @@ runMod args pathsVisited modPath = do
             ((), cExterns) <- runBoMTExcept [] (Interop.genExterns cTranslUnit)
             --liftIO $ mapM_ (putStrLn . show) cExterns
             cState <- Interop.compile cExterns
-            liftIO $ SymTab.prettySymTab (State.symTab cState)
+            when (printCSymbols args) $ liftIO $ do
+                putStrLn $ "C Symbols imported by: " ++ modName 
+                SymTab.prettySymTab (State.symTab cState)
 
 
             resSymTabMap <- gets resolveSymTabMap

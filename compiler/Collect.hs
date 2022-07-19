@@ -153,8 +153,9 @@ baseTypeOf typ = case typ of
 collectCExterns :: BoM CollectState m => [Extern] -> m ()
 collectCExterns externs = do
     forM_ externs $ \extern -> case extern of
-        ExtVar sym (AnnoType typ) -> define (Sym sym) KeyVar (ObjVar typ)
+        ExtVar sym (AnnoType typ)  -> define (Sym sym) KeyVar (ObjVar typ)
         ExtFunc sym argTypes retty -> define (Sym sym) (KeyFunc argTypes) (ObjFunc retty)
+        ExtConstInt sym n          -> define (SymQualified "c" sym) KeyVar (ObjVar I64)
 
 collectAST :: BoM CollectState m => AST -> m ()
 collectAST ast = do
@@ -429,8 +430,8 @@ collectExpr (AExpr exprType expr) = collectPos expr $ case expr of
     S.String p s -> collectDefault exprType (T.Table [T.Char])
     S.Float p f -> collectDefault exprType F64
 
-    Ident p sym -> do
-        ObjVar t <- look sym KeyVar
+    Ident p symbol -> do
+        ObjVar t <- look symbol KeyVar
         collect t exprType
 
     Infix p op e1 e2 -> do

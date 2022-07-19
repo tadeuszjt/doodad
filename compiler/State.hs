@@ -33,6 +33,7 @@ import Trace
 data Value
     = Val { valType :: Type, valOp :: LL.Operand }
     | Ptr { valType :: Type, valLoc :: LL.Operand }
+    | ConstInt Integer
     deriving (Show, Eq)
 
 

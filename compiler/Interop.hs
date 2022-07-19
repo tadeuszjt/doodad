@@ -13,6 +13,7 @@ import Language.C.Data.Position
 import Language.C.Data.Ident
 import Language.C.Pretty
 import Language.C.Syntax.AST
+import Language.C.Syntax.Constants
 import Text.PrettyPrint
 
 import LLVM.AST.Name hiding (Func)
@@ -30,11 +31,27 @@ import Error
 import State
 import Funcs
 import Typeof
+import Value
 
 data Extern
     = ExtFunc String [Type] Type
     | ExtVar String S.AnnoType
+    | ExtConstInt String Integer
     deriving (Show, Eq)
+
+
+typeToCType :: Type -> String
+typeToCType typ = case typ of
+    I64 -> "int"
+
+
+macroToVar :: String -> String
+macroToVar macro = "c__" ++ macro
+
+
+importToCStmt :: S.Import -> String
+importToCStmt (S.ImportCMacro macro typ) =
+    typeToCType typ ++ " " ++ macroToVar macro ++ " = " ++ macro ++ ";"
 
 
 cTypeToType :: (BoM s m, Show a) => CTypeSpecifier a -> m Type
@@ -49,12 +66,17 @@ cTypeToType typeSpec = case typeSpec of
 genExterns :: BoM [Extern] m => CTranslUnit -> m ()
 genExterns (CTranslUnit cExtDecls _) = forM_ cExtDecls $ \cExtDecl -> case cExtDecl of
     CDeclExt decl -> case decl of
+        CDecl [CTypeSpec (CIntType _)] [(Just (CDeclr (Just (Ident ('c':'_':'_':sym) _ _)) [] Nothing [] _), Just (CInitExpr (CConst (CIntConst (CInteger i _ _) _)) _), e)] _ -> do
+            modify $ \externs -> ExtConstInt sym i : externs
+
         CDecl [CTypeSpec typeSpec] [(Just (CDeclr (Just (Ident sym _ _)) [] Nothing [] _), Nothing, Nothing)] _ -> do
             typ <- cTypeToType typeSpec
             modify $ \externs -> ExtVar sym (S.AnnoType typ) : externs
 
+
         -- With appended type spec: func return
         CDecl [CStorageSpec (CExtern _), CTypeSpec typeSpec] [(Just something, Nothing, Nothing)]  _ -> case something of
+
 
             CDeclr (Just (Ident sym _ _)) cFunDeclrs Nothing attributes _ -> case cFunDeclrs of
 
@@ -106,6 +128,10 @@ cmpExtern extern = case extern of
         addSymKeyDec symbol (KeyFunc argTypes) name (DecExtern paramOpTypes returnOpType False)
         let op = fnOp name paramOpTypes returnOpType False
         define symbol (KeyFunc argTypes) (ObjFunc retty op)
+
+    ExtConstInt sym integer -> do
+        let symbol = SymQualified "c" sym
+        define symbol KeyVar (ObjVal (ConstInt integer))
 
 
 compile :: BoM s m => [Extern] -> m CompileState
