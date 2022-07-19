@@ -42,38 +42,46 @@ cTypeToType typeSpec = case typeSpec of
     CIntType _    -> return I64
     CDoubleType _ -> return F64
     CFloatType _  -> return F32
+    CVoidType _   -> return Void
     _             -> fail (show typeSpec)
 
 
 genExterns :: BoM [Extern] m => CTranslUnit -> m ()
 genExterns (CTranslUnit cExtDecls _) = forM_ cExtDecls $ \cExtDecl -> case cExtDecl of
-
-    CDeclExt (CDecl [CTypeSpec typeSpec] [(Just (CDeclr (Just (Ident sym _ _)) [] Nothing [] _), Nothing, Nothing)] _) -> do
-        typ <- cTypeToType typeSpec
-        modify $ \externs -> ExtVar sym (S.AnnoType typ) : externs
-
-    CDeclExt (CDecl [CStorageSpec (CExtern _), CTypeSpec typeSpec] cDeclr _) -> case cDeclr of
-        -- C variable
-        [(Just (CDeclr (Just (Ident sym _ _)) [] Nothing [] _), Nothing, Nothing)] -> do
+    CDeclExt decl -> case decl of
+        CDecl [CTypeSpec typeSpec] [(Just (CDeclr (Just (Ident sym _ _)) [] Nothing [] _), Nothing, Nothing)] _ -> do
             typ <- cTypeToType typeSpec
             modify $ \externs -> ExtVar sym (S.AnnoType typ) : externs
 
-        -- C function with zero args and return type
-        [(Just (CDeclr (Just (Ident sym _ _)) [CFunDeclr (Right ([CDecl [CTypeSpec (CVoidType _)] [] _], False)) [] _] Nothing attributes _), Nothing, Nothing)] -> do
-            let m = do { typ <- cTypeToType typeSpec;  modify $ \externs -> ExtFunc sym [] typ : externs }
-            catchError m $ \e -> return ()
+        -- With appended type spec: func return
+        CDecl [CStorageSpec (CExtern _), CTypeSpec typeSpec] [(Just something, Nothing, Nothing)]  _ -> case something of
 
-        -- C function with one arg and return type
-        [(Just (CDeclr (Just (Ident sym _ _)) [CFunDeclr (Right ([CDecl [CTypeSpec argTypeSpec] [argDeclr] _], False)) [] _] Nothing attributes _), Nothing, Nothing)] -> do
-            let m = do { typ <- cTypeToType typeSpec; argType <- cTypeToType argTypeSpec; modify $ \externs -> ExtFunc sym [argType] typ : externs }
-            catchError m $ \e -> return ()
+            CDeclr (Just (Ident sym _ _)) cFunDeclrs Nothing attributes _ -> case cFunDeclrs of
 
+                [CFunDeclr (Right ([CDecl [CTypeSpec (CUnsigType _), CTypeSpec (CIntType _)] [argDeclr] _], False)) [] _] -> do
+                    let m = do { typ <- cTypeToType typeSpec;  modify $ \externs -> ExtFunc sym [I64] typ : externs }
+                    catchError m $ \e -> return ()
+
+                -- C variable
+                []  -> do
+                    typ <- cTypeToType typeSpec
+                    modify $ \externs -> ExtVar sym (S.AnnoType typ) : externs
+
+                -- C function with zero args and return type
+                [CFunDeclr (Right ([CDecl [CTypeSpec (CVoidType _)] [] _], False)) [] _] -> do
+                    let m = do { typ <- cTypeToType typeSpec;  modify $ \externs -> ExtFunc sym [] typ : externs }
+                    catchError m $ \e -> return ()
+
+                -- C function with one arg and return type
+                [CFunDeclr (Right ([CDecl [CTypeSpec argTypeSpec] [argDeclr] _], False)) [] _] -> do
+                    let m = do { typ <- cTypeToType typeSpec; argType <- cTypeToType argTypeSpec; modify $ \externs -> ExtFunc sym [argType] typ : externs }
+                    catchError m $ \e -> return ()
+
+                _ -> return ()
+
+            _ -> return ()
 
         _ -> return ()
-
-    CDeclExt (CDecl (CStorageSpec (CTypedef _):_) _ _) -> do
-        -- do nothing
-        return ()
 
     _ -> return ()
 

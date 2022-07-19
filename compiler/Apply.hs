@@ -19,7 +19,7 @@ substitute u x t = case t of
     F32              -> t
     F64              -> t
     T.Char           -> t
-    T.Table [T.Char] -> t
+    T.Table ts       -> T.Table $ map (substitute u x) ts
     T.Tuple ts       -> T.Tuple $ map (substitute u x) ts
     Void             -> t
     T.Typedef symbol -> t

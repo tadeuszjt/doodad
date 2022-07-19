@@ -192,6 +192,7 @@ runMod args pathsVisited modPath = do
             ((), cExterns) <- runBoMTExcept [] (Interop.genExterns cTranslUnit)
             --liftIO $ mapM_ (putStrLn . show) cExterns
             cState <- Interop.compile cExterns
+            liftIO $ SymTab.prettySymTab (State.symTab cState)
 
 
             resSymTabMap <- gets resolveSymTabMap
@@ -208,8 +209,8 @@ runMod args pathsVisited modPath = do
                 runTypeInference args annotatedAST cExterns stm modName
             
             let ast = astInferred
-            liftIO $ S.prettyAST ast
-            liftIO $ SymTab.prettySymTab symTab
+            --liftIO $ S.prettyAST ast
+            --liftIO $ SymTab.prettySymTab symTab
 
 
             flat <- fmap fst $ withErrorPrefix "flatten: " $ runBoMTExcept initFlattenState (flattenAST ast)
@@ -218,7 +219,7 @@ runMod args pathsVisited modPath = do
             -- compile and run
             debug "compiling"
             (defs, state) <- withErrorPrefix "compile: " $ Compile.compile (cState : imports) flat
-            liftIO $ SymTab.prettySymTab (State.symTab state)
+            --liftIO $ SymTab.prettySymTab (State.symTab state)
 
             debug "running"
             session <- gets session

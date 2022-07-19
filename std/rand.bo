@@ -1,0 +1,11 @@
+module rand
+
+import maths
+import_c stdlib.h
+
+
+fn randI64() i64; return c::rand()
+fn randF64() f64; return f64(randI64()) / f64(2147483648)
+
+fn main()
+    c::srand(123)

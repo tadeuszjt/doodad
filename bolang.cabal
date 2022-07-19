@@ -65,7 +65,6 @@ executable bolang
         Construct,
         Typeof,
         Trace,
-        Infer,
         Annotate,
         Collect,
         Unify,

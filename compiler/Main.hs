@@ -15,7 +15,6 @@ import Modules
 import Monad
 import Args
 import AST
-import Infer
 import qualified Parser as P
 import qualified Lexer as L
 import qualified SymTab
@@ -43,12 +42,6 @@ main = do
                 Left err     -> printError err 
                 Right (ast, _) -> prettyAST ast
 
-    else if inferOnly parsedArgs then do
-        forM_ (modPaths parsedArgs) $ \path -> do
-            res <- runBoMT initRunInferState (runModInfer parsedArgs path Set.empty)
-            case res of
-                Left err     -> printError err 
-                Right ((ast, state), y) -> return()
     else do
         withSession (optimise parsedArgs) $ \session -> do
             forM_ (modPaths parsedArgs) $ \path -> do

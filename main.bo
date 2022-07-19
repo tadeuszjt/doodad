@@ -4,6 +4,7 @@ import std/maths
 import std/rect
 import std/strings
 import std/io
+import std/rand
 
 
 
@@ -34,4 +35,7 @@ fn main()
             F64(f); print(f)
 
         putStrLn("toast")
+
+        for [i] [0, 1, 2, 3, 4, 5]:[i64]
+            putStrLn("randInt: " + string(randI64()) + ", randFloat: " + string(randF64()))
 

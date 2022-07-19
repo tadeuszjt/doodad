@@ -3,6 +3,8 @@ module maths
 import_c math.h
 import_c stdlib.h
 
+let MaxI64 = 9223372036854775807
+
 fn abs(n i64); return c::abs(n)
 fn sqrt(f f64); return c::sqrt(f)
 fn sin(f f64); return c::sin(f)
