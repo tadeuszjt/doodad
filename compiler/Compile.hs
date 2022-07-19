@@ -155,15 +155,15 @@ cmpFuncDef (S.FuncDef pos sym params retty blk) = trace "cmpFuncDef" $ withPos p
     returnOpType <- opTypeOf retty
     paramOpTypes <- mapM (opTypeOf . S.paramType) params
     let paramTypes = map S.paramType params
-    let paramNames = map (\p -> ParameterName $ mkBSS $ show $ S.paramName p) params
-    let paramSyms  = map S.paramName params
+    let paramSymbols = map S.paramName params
+    let paramNames = map (ParameterName . mkBSS . Type.sym) paramSymbols
 
     ObjFunc _ op <- look (Sym sym) (KeyFunc paramTypes)
     let LL.ConstantOperand (C.GlobalReference _ name) = op
     let Name nameStr = name
 
     void $ InstrCmpT . IRBuilderT . lift $ func name (zip paramOpTypes paramNames) returnOpType $ \paramOps -> do
-        forM_ (zip3 paramTypes paramOps paramSyms) $ \(typ, op, symbol) -> do
+        forM_ (zip3 paramTypes paramOps paramSymbols) $ \(typ, op, symbol) -> do
             loc <- valLocal typ
             valStore loc (Val typ op)
             define symbol KeyVar (ObjVal loc)

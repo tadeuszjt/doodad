@@ -111,7 +111,9 @@ myFresh sym = do
     mod <- gets curModName
     let n = maybe 0 (+1) (Map.lookup sym nameMap)
     modify $ \s -> s { nameMap = Map.insert sym n nameMap }
-    return $ LL.Name $ mkBSS (mod ++ "." ++ sym ++ "_" ++ show n )
+    case n of
+        0 -> return $ LL.Name $ mkBSS (mod ++ "." ++ sym)
+        _ -> return $ LL.Name $ mkBSS (mod ++ "." ++ sym ++ "_" ++ show n)
 
 
 redefine :: BoM CompileState m => Symbol -> SymKey -> Object -> m ()

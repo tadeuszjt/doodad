@@ -89,7 +89,7 @@ func name argtys retty f = do
     (paramNames, basicBlocks) <- runInstrCmpT emptyIRBuilder $ do
         paramNames <- forM argtys $ \(_, paramName) -> case paramName of
             NoParameterName -> fresh
-            ParameterName p -> fresh `named` p
+            ParameterName p -> return $ Name p
         f (zipWith LocalReference tys paramNames)
         return paramNames
 

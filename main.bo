@@ -6,8 +6,6 @@ import std/strings
 import std/io
 import std/rand
 
-
-
 fn main()
         type Adt { I64 i64 | F64 f64 }
 
