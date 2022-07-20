@@ -57,39 +57,37 @@ compile imports ast = do
 
         cmp :: (MonadFail m, Monad m, MonadIO m) => ModuleCmpT CompileState m ()
         cmp = do
-            mainName <- case modName of
-                "main" -> return "main"
-                s      -> return (s ++ "__main")
-
-            void $ func (LL.mkName mainName)  [] LL.VoidType $ \_ -> do
-                cmpMainGuard
-
+            mainOp <- func (LL.mkName "main")  [] LL.VoidType $ \_ -> do
                 mapM_ cmpTypeDef   [ stmt | stmt@(S.Typedef _ _ _) <- S.astStmts ast ]
                 mapM_ cmpFuncHdr   [ stmt | stmt@(S.FuncDef _ _ _ _ _) <- S.astStmts ast ]
                 mapM_ cmpVarDef    [ stmt | stmt@(S.Assign _ _ _) <- S.astStmts ast ]
                 mapM_ cmpFuncDef   [ stmt | stmt@(S.FuncDef _ _ _ _ _) <- S.astStmts ast ]
 
-        cmpMainGuard :: InsCmp CompileState m => m ()
-        cmpMainGuard = do
-            boolName <- myFresh "bMainCalled"
-            bMainCalled <- global boolName LL.i1 $ toCons (bit 0)
-            b <- load bMainCalled 0
+            func (LL.mkName $ modName ++ "..callMain")  [] LL.VoidType $ \_ -> do
+                boolName <- myFresh "bMainCalled"
+                bMainCalled <- global boolName LL.i1 $ toCons (bit 0)
+                b <- load bMainCalled 0
 
-            true  <- freshName "main_called_true"
-            exit  <- freshName "main_called_exit"
+                true  <- freshName "main_called_true"
+                exit  <- freshName "main_called_exit"
 
-            condBr b true exit
-            emitBlockStart true
-            retVoid
+                condBr b true exit
+                emitBlockStart true
+                retVoid
 
-            emitBlockStart exit
-            store bMainCalled 0 (bit 1)
+                emitBlockStart exit
+                store bMainCalled 0 (bit 1)
 
-            forM_ (map curModName imports) $ \modName -> case modName of
-                "c" -> return ()
-                _ -> do
-                    op <- extern (LL.mkName $ modName ++ "__main") [] LL.VoidType
-                    void $ call op []
+                forM_ (map curModName imports) $ \modName -> case modName of
+                    "c" -> return ()
+                    _ -> do
+                        op <- extern (LL.mkName $ modName ++ "..callMain") [] LL.VoidType
+                        void $ call op []
+
+                void $ call mainOp []
+
+            return ()
+
 
 cmpTypeDef :: InsCmp CompileState m => S.Stmt -> m ()
 cmpTypeDef (S.Typedef pos symbol (S.AnnoTuple xs)) = withPos pos $ tupleTypeDef symbol (S.AnnoTuple xs)
