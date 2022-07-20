@@ -64,12 +64,7 @@ prettySymTab :: (Show s, Show k, Show o) => SymTab s k o -> IO ()
 prettySymTab symTab = do
     forM_ (reverse symTab) $ \symMap -> do
         forM_ (Map.toList symMap) $ \(s, keyMap) -> do
-            putStr $ show s ++ "\t"
-            case Map.toList keyMap of
-                [(k, v)] -> putStrLn $ show k ++ ": " ++ show v
-                xs        -> do
-                    putStrLn ""
-                    forM_ xs $ \(k, v) -> do
-                        putStrLn $ "\t" ++ show k ++ ": " ++ show v
+            forM_ (Map.toList keyMap) $ \(k, v) -> do
+                putStrLn $ show s ++ "\t" ++ show k ++ "\t" ++ show v
 
         putStrLn ""
