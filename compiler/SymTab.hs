@@ -4,6 +4,7 @@ import Prelude hiding (lookup, map)
 import Control.Monad
 import qualified Data.Map as Map
 import           Data.Maybe
+import qualified Data.List as List 
 
 
 type SymTab s k o = [Map.Map s (Map.Map k o)]
@@ -63,8 +64,12 @@ prettySymTab :: (Show s, Show k, Show o) => SymTab s k o -> IO ()
 prettySymTab symTab = do
     forM_ (reverse symTab) $ \symMap -> do
         forM_ (Map.toList symMap) $ \(s, keyMap) -> do
-            putStr $ show s ++ " "
-            forM (Map.toList keyMap) $ \(k, v) -> putStr $ show (k, v) ++ " "
-            putStrLn ""
+            putStr $ show s ++ "\t"
+            case Map.toList keyMap of
+                [(k, v)] -> putStrLn $ show k ++ ": " ++ show v
+                xs        -> do
+                    putStrLn ""
+                    forM_ xs $ \(k, v) -> do
+                        putStrLn $ "\t" ++ show k ++ ": " ++ show v
 
         putStrLn ""

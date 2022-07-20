@@ -6,6 +6,8 @@ import std/strings
 import std/io
 import std/rand
 
+import_c stdlib.h
+
 fn main()
         type Adt { I64 i64 | F64 f64 }
 
@@ -40,4 +42,6 @@ fn main()
         print("max: ", 12.2, 12.4, max(12.2, 12.4):f64)
 
         print(strings::readInt("-453153"))
+
+        print(30:c::size_t)
 

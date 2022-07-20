@@ -138,7 +138,7 @@ cmpFuncHdr (S.FuncDef pos sym params retty blk)    = trace "cmpFuncHdr" $ withPo
     let op = fnOp name paramOpTypes returnOpType False
 
     define (Sym sym) (KeyFunc paramTypes) (ObjFunc retty op) 
-    redefine (Sym sym) KeyVar $ ObjVal $ Val (Func paramTypes retty) op
+    --redefine (Sym sym) KeyVar $ ObjVal $ Val (Func paramTypes retty) op
 
     addSymKeyDec (Sym sym) (KeyFunc paramTypes) name (DecFunc paramOpTypes returnOpType)
     addSymKeyDec (Sym sym) KeyVar name (DecFunc paramOpTypes returnOpType)

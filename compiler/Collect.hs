@@ -120,6 +120,12 @@ lookSym symbol = case symbol of
         lss <- concat . map (SymTab.lookupSym symbol) . Map.elems <$> gets imports
         return (ls ++ lss)
 
+    SymQualified "c" sym -> do
+        statem <- Map.lookup "c" <$> gets imports
+        case statem of
+            Nothing    -> fail $ "c" ++ " not imported"
+            Just state -> return $ SymTab.lookupSym symbol state
+
     SymQualified mod sym -> do
         statem <- Map.lookup mod <$> gets imports
         case statem of
@@ -153,9 +159,10 @@ baseTypeOf typ = case typ of
 collectCExterns :: BoM CollectState m => [Extern] -> m ()
 collectCExterns externs = do
     forM_ externs $ \extern -> case extern of
-        ExtVar sym (AnnoType typ)  -> define (Sym sym) KeyVar (ObjVar typ)
-        ExtFunc sym argTypes retty -> define (Sym sym) (KeyFunc argTypes) (ObjFunc retty)
+        ExtVar sym (AnnoType typ)  -> define (SymQualified "c" sym) KeyVar (ObjVar typ)
+        ExtFunc sym argTypes retty -> define (SymQualified "c" sym) (KeyFunc argTypes) (ObjFunc retty)
         ExtConstInt sym n          -> define (SymQualified "c" sym) KeyVar (ObjVar I64)
+        ExtTypeDef sym typ         -> define (SymQualified "c" sym) KeyType (ObjType typ)
 
 collectAST :: BoM CollectState m => AST -> m ()
 collectAST ast = do

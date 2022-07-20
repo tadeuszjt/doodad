@@ -37,6 +37,7 @@ data Extern
     = ExtFunc String [Type] Type
     | ExtVar String S.AnnoType
     | ExtConstInt String Integer
+    | ExtTypeDef String Type
     deriving (Show, Eq)
 
 
@@ -84,10 +85,11 @@ declrIsValid declr = case declr of
 
 defSpecsToType :: BoM s m => [CDeclSpec] -> m Type
 defSpecsToType specs = case specs of
-    [CStorageSpec (CExtern _), CTypeSpec (CIntType _)]    -> return I64
-    [CStorageSpec (CExtern _), CTypeSpec (CVoidType _)]   -> return Void
-    [CStorageSpec (CExtern _), CTypeSpec (CDoubleType _)] -> return F64
-    [CTypeSpec (CIntType _)]                              -> return I64
+    [CStorageSpec (CExtern _), CTypeSpec (CIntType _)]                          -> return I64
+    [CStorageSpec (CExtern _), CTypeSpec (CVoidType _)]                         -> return Void
+    [CStorageSpec (CExtern _), CTypeSpec (CDoubleType _)]                       -> return F64
+    [CTypeSpec (CIntType _)]                                                    -> return I64
+    [CTypeSpec (CLongType _), CTypeSpec (CUnsigType _), CTypeSpec (CIntType _)] -> return I64
     --_ -> error (show specs)
     _ -> fail "invalid specs"
 
@@ -112,6 +114,15 @@ genExterns (CTranslUnit cExtDecls _) = forM_ cExtDecls $ \cExtDecl -> case cExtD
         processCDecl cDecl = case cDecl of
             CDecl [CTypeSpec (CIntType _)] [(Just (CDeclr (Just (Ident ('c':'_':'_':sym) _ _)) [] Nothing [] _), Just (CInitExpr (CConst (CIntConst (CInteger i _ _) _)) _), e)] _ -> do
                 modify $ \externs -> ExtConstInt sym i : externs
+
+            -- Typedef 
+            CDecl (CStorageSpec (CTypedef _) : defSpecs) [(Just cDeclr, Nothing, Nothing)]  _ -> do
+                typ <- defSpecsToType defSpecs
+                case cDeclr of
+                    CDeclr (Just (Ident sym _ _)) [] Nothing [] _ -> do
+                        modify $ \externs -> ExtTypeDef sym typ : externs
+                        
+                    _ -> return ()
 
             -- Definition
             CDecl defSpecs [(Just cDeclr, Nothing, Nothing)]  _ -> case cDeclr of
@@ -164,6 +175,10 @@ cmpExtern extern = case extern of
     ExtConstInt sym integer -> do
         let symbol = SymQualified "c" sym
         define symbol KeyVar (ObjVal (ConstInt integer))
+
+    ExtTypeDef sym typ -> do
+        let symbol = SymQualified "c" sym
+        define symbol KeyType (ObType typ Nothing)
 
 
 compile :: BoM s m => [Extern] -> m CompileState

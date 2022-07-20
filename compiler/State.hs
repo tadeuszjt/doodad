@@ -5,6 +5,7 @@ import qualified Data.ByteString.Char8 as BS
 import qualified Data.ByteString.Short as BSS
 import qualified Data.Set as Set
 import qualified Data.Map as Map
+import Data.List
 import Data.Maybe
 import Control.Monad
 import Control.Monad.Except hiding (void)
@@ -45,9 +46,9 @@ data SymKey
     deriving (Eq, Ord)
 
 instance Show SymKey where
-    show KeyType = "(type)"
-    show KeyVar  = "(variable)"
-    show (KeyFunc ts) = "function(" ++ show ts ++ ")"
+    show KeyType = "type"
+    show KeyVar  = "var"
+    show (KeyFunc ts) = "fn(" ++ intercalate ", " (map show ts) ++ ")"
     show (KeyMember t) = show t ++ "."
 
 
@@ -63,12 +64,14 @@ data Object
 
 instance Show Object where
     show object = case object of
-        ObjVal val -> "ObjVal val"
-        ObType typ mn -> "ObType " ++ show typ ++ " name"
-        ObjFunc typ op -> "ObjFunc " ++ show typ ++ " op"
-        ObjConstructor typ -> "ObjConstructor " ++ show typ
-        ObjADTFieldCons typ -> "ObjADTFieldCons " ++ show typ
-        ObjMember i -> "ObjMember " ++ show i
+        ObjVal (Val t o)    -> "Val " ++ show t
+        ObjVal (Ptr t o)    -> "Ptr " ++ show t
+        ObjVal val          -> "val"
+        ObType typ mn       -> show typ
+        ObjFunc typ op      -> "fn(..)" ++ show typ
+        ObjConstructor typ  -> "(..)" ++ show typ
+        ObjADTFieldCons typ -> "Field:" ++ show typ
+        ObjMember i         -> "." ++ show i
 
 
 data Declaration
