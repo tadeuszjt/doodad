@@ -5,7 +5,7 @@ import_c       stdlib.h
 import_c_macro RAND_MAX i64
 
 fn randI64() i64; return c::rand()
-fn randF64() f64; return f64(randI64()) / f64(c::RAND_MAX)
+fn randF64() f64; return c::drand48()
 
 fn main()
     c::srand(1234)

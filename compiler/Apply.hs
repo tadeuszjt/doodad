@@ -119,8 +119,8 @@ instance Apply Stmt where
         Switch pos expr cases ->
             Switch pos (apply subs expr) [(apply subs p, apply subs s) | (p, s) <- cases]
 
-        For pos symbol (Just t) expr blk ->
-            For pos symbol (Just $ apply subs t) (apply subs expr) (apply subs blk)
+        For pos symbol (Just t) mexpr mcnd blk ->
+            For pos symbol (Just $ apply subs t) (fmap (apply subs) mexpr) (fmap (apply subs) mcnd) (apply subs blk)
             
 
 instance Apply AST where

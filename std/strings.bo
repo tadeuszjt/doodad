@@ -36,16 +36,20 @@ fn isPrefix(pre string, str string) bool
 
 
 fn readInt(s string) (i64, bool)
+    let start = 0
+    let mul = 1
+    if len(s) > 0 && s[0] == '-'
+        mul = -1
+        start = 1
+
     let n = 0
     let b = false
 
-    let i = 0
-    while i < len(s) && isDigit(s[i])
-        n = n*10 + i64(s[i] - '0')
+    for [i] | isDigit(s[i + start]) && (i + start) < len(s)
+        n = n*10 + i64(s[i + start] - '0')
         b = true
-        i = i + 1
 
-    return (n, b)
+    return (n * mul, b)
 
 
 fn reverse(s string)

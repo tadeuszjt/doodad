@@ -66,11 +66,12 @@ instance Annotate Stmt where
                 return (pat', stmt')
             return $ Switch p e' cases'
 
-        For p symbol Nothing expr blk -> do
-            expr' <- annotate expr
+        For p symbol Nothing mexpr mcnd blk -> do
+            mexpr' <- maybe (return Nothing) (fmap Just . annotate) mexpr
             blk' <- annotate blk
             t <- genType
-            return $ For p symbol (Just t) expr' blk'
+            mcnd' <- maybe (return Nothing) (fmap Just . annotate) mcnd
+            return $ For p symbol (Just t) mexpr' mcnd' blk'
 
 
 

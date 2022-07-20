@@ -260,11 +260,11 @@ collectStmt stmt = collectPos stmt $ case stmt of
             collectPattern pat (typeOf expr)
             collectStmt stmt
 
-    For p symbol (Just t) expr blk -> do
+    For p symbol (Just t) mexpr mcnd blk -> do
         define symbol KeyVar (ObjVar t)
         collectDefault t I64
-
-        collectExpr expr
+        when (isJust mexpr) $ collectExpr (fromJust mexpr)
+        when (isJust mcnd) $ collectCondition (fromJust mcnd)
         collectStmt blk
         
 
