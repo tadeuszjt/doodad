@@ -37,3 +37,5 @@ fn main()
         for [i] [0, 1, 2, 3, 4, 5]:[i64]
             putStrLn("randInt: " + string(randI64()) + ", randFloat: " + string(randF64()))
 
+        print("max: ", 12.2, 12.4, max(12.2, 12.4):f64)
+

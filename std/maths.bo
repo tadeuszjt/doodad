@@ -5,9 +5,19 @@ import_c stdlib.h
 
 let MaxI64 = 9223372036854775807
 
-fn abs(n i64); return c::abs(n)
 fn sqrt(f f64); return c::sqrt(f)
 fn sin(f f64); return c::sin(f)
 fn cos(f f64); return c::cos(f)
 
+fn abs(n i64); return c::abs(n)
 fn abs(f f64); return c::fabs(f)
+
+fn max(a f64, b f64) f64; return c::fmax(a, b)
+fn max(a i64, b i64) i64
+    if a > b; return a
+    else;     return b
+
+fn min(a f64, b f64) f64; return c::fmin(a, b)
+fn min(a i64, b i64) i64
+    if a > b; return b
+    else;     return a
