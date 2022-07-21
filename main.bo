@@ -45,3 +45,6 @@ fn main()
 
         print(30:c::size_t)
 
+        let dropStr = "    benis"
+        print(dropStr, strings::dropSpace(dropStr), strings::dropSpace(""))
+

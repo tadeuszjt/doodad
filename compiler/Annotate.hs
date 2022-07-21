@@ -150,6 +150,10 @@ instance Annotate Expr where
             e' <- annotate e
             return $ Member p e' s
 
+        TupleIndex p e i -> do
+            e' <- annotate e
+            return $ TupleIndex p e' i
+
         _ -> error $ show expr
 
 

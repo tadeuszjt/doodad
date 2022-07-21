@@ -312,6 +312,7 @@ collectIndex index = collectPos index $ case index of
 
 collectPattern :: BoM CollectState m => Pattern -> Type -> m ()
 collectPattern pattern typ = collectPos pattern $ case pattern of
+    PatIgnore pos -> return ()
     PatIdent _ symbol -> do
         define symbol KeyVar (ObjVar typ)
 
@@ -456,10 +457,12 @@ collectExpr (AExpr exprType expr) = collectPos expr $ case expr of
         collectExpr e2
 
     S.Subscript p e1 e2 -> do
-        case typeOf e1 of
+        base <- baseTypeOf (typeOf e1)
+        case base of
             Type x      -> return ()
             T.Table [t] -> collect exprType t
-            _           -> error $ show (typeOf e1)
+            _           -> fail $ "invalid type: " ++ show base
+
         collectExpr e1
         collectExpr e2
 
@@ -468,6 +471,15 @@ collectExpr (AExpr exprType expr) = collectPos expr $ case expr of
         case base of
             T.Table [t] -> mapM_ (collect t) (map typeOf es)
             Type x      -> return ()
+
+        case es of
+            -- TODO current default system causes this to break inference.
+            -- Suggest to choose defaults after cycling the type inference.
+            [] -> return () --collectDefault exprType $ T.Table [T.Tuple []] 
+            (x:xs) -> do
+                mapM (collect (typeOf x)) (map typeOf xs)
+                collectDefault exprType $ T.Table [typeOf x]
+
         mapM_ collectExpr es
 
 
@@ -476,6 +488,7 @@ collectExpr (AExpr exprType expr) = collectPos expr $ case expr of
         case base of
             T.Tuple ts -> zipWithM_ collect ts (map typeOf es)
             T.Type x   -> return ()
+        collectDefault exprType $ T.Tuple (map typeOf es)
         mapM_ collectExpr es
 
     Member p e sym -> do
@@ -488,6 +501,13 @@ collectExpr (AExpr exprType expr) = collectPos expr $ case expr of
                     T.Tuple ts -> collect exprType (ts !! i)
 
         collectExpr e
+
+    TupleIndex p e i -> do
+        base <- baseTypeOf (typeOf e)
+        case base of
+            Type x     -> return ()
+            T.Tuple ts -> collect exprType (ts !! fromIntegral i)
+            _          -> fail "expression isn't a tuple"
 
 
     S.AExpr _ _ -> fail "what"

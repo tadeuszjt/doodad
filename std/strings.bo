@@ -35,21 +35,26 @@ fn isPrefix(pre string, str string) bool
     return true
 
 
-fn readInt(s string) (i64, bool)
-    let start = 0
+fn readInt(s string) (i64, i64)
+    let length = 0
+    for [i] s | s[i] == ' '
+        length = length + 1
+
     let mul = 1
-    if len(s) > 0 && s[0] == '-'
+    if length < len(s) && s[length] == '-'
         mul = -1
-        start = 1
+        length = length + 1
 
     let n = 0
-    let b = false
+    let success = false
 
-    for [i] | isDigit(s[i + start]) && (i + start) < len(s)
-        n = n*10 + i64(s[i + start] - '0')
-        b = true
+    while isDigit(s[length]) && length < len(s)
+        n = n*10 + i64(s[length] - '0')
+        length = length + 1
+        success = true
 
-    return (n * mul, b)
+    if success; return (n * mul, length)
+    else;       return (0, 0)
 
 
 fn reverse(s string)
@@ -58,4 +63,21 @@ fn reverse(s string)
         r[i] = s[len(s) - 1 - i]
 
     return r
+
+
+fn dropSpace(s string) string
+    let r = ""
+
+    let start = 0
+    for [i] s | s[i] == ' '
+        start = start + 1
+
+    for [i] | (i + start) < len(s)
+        r <- [s[i + start]]
+
+    return r
+
+
+        
+    
 

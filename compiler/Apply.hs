@@ -70,6 +70,7 @@ instance Apply Expr where
         Member pos e s           -> Member pos (apply subs e) s
         S.Float pos f            -> expr
         S.Table pos ess          -> S.Table pos $ map (map (apply subs)) ess
+        S.TupleIndex pos e i     -> S.TupleIndex pos (apply subs e) i
         _                          -> error $ show expr
 
 instance Apply Condition where
@@ -84,6 +85,7 @@ instance Apply Pattern where
         PatGuarded p pat e -> PatGuarded p (apply subs pat) (apply subs e)
         PatField p s pat   -> PatField p s (apply subs pat)
         PatTuple p pats    -> PatTuple p $ map (apply subs) pats
+        PatIgnore p        -> PatIgnore p
         _                    -> error $ show pattern
 
 instance Apply Append where

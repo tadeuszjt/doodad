@@ -1,0 +1,117 @@
+module tictactoe
+
+import ../std/io
+import ../std/strings
+import ../std/rand
+
+type Square i64
+
+fn string(sq Square)
+    switch sq
+        0; return " "
+        1; return "0"
+        2; return "X"
+
+let board = [ [0, 0, 0], [0, 0, 0], [0, 0, 0] ]:[[Square]]
+
+
+fn printBoard()
+    for [row] board
+        print(board[row])
+    print()
+
+
+fn playerMove() bool
+    putStrLn("Please enter <row> <column> to move")
+
+    let s = getStrLn()
+    if s == "\0"
+        return false
+
+    let (row, l) = strings::readInt(s)
+
+    if l == 0
+        putStrLn("invalid string: " + s)
+        return false
+
+    let rest = ""
+    while l < len(s)
+        rest <- [s[l]]
+        l = l + 1
+
+    let (col, cl) = strings::readInt(rest)
+    if cl == 0
+        putStrLn("invalid string: " + s)
+        return false
+    else if row < 0 || row > len(board) || col < 0 || col > len(board[row])
+        putStrLn("invalid move: " + string(row) + " " + string(col))
+        return false
+    else if board[row][col] != 0
+        putStrLn("invalid move: " + string(row) + " " + string(col))
+        return false
+
+    putStrLn("moving: row " + string(row) + ", col " + string(col))
+    board[row][col] = 1
+    return true
+
+
+fn cpuMove()
+    print("cpu moving. Bzzzstt Ksssksk beep-beep-beep.")
+    let emptySquares = []
+    
+    for [row] board
+        for [col] board[row]
+            if board[row][col] == 0
+                emptySquares <- [(row, col)]
+
+    if len(emptySquares) == 0
+        return
+
+    let i = rand::randI64() % len(emptySquares)
+    let (row, col) = emptySquares[i]:(i64, i64)
+    board[row][col] = 2
+
+
+fn winner() Square
+    if len(board) < 1 || len(board[0]) < 1
+        return 0
+
+    for [row] board
+        let same = true
+        for [col] board[row]
+            if board[row][col] == 0 || board[row][col] != board[row][0]
+                same = false
+        if same; return board[row][0]
+
+    for [col] board[0]
+        let same = true
+        for [row] board
+            if board[row][col] == 0 || board[row][col] != board[0][col]
+                same = false
+        if same; return board[0][col]
+
+    let same = true
+    for [i] | i < len(board) && i < len(board[0])
+        if board[i][i] == 0 || board[i][i] != board[0][0]
+            same = false
+    if same; return board[0][0]
+    
+    return 0
+
+
+fn main()
+    print("tictactoe")
+    printBoard()
+
+    for [i] | i < 10
+        let win = winner()
+        if win != 0
+            putStrLn("winner is: " + string(win))
+            return
+        
+        while !playerMove();
+        cpuMove()
+        printBoard()
+
+
+

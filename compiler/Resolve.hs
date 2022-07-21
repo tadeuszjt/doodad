@@ -130,7 +130,7 @@ instance Resolve AST where
 
         --forM typedefs $ resolveTypedef
 
-        funcdefs' <- forM funcdefs $ \(FuncDef pos sym params retty blk) -> do
+        forM funcdefs $ \(FuncDef pos sym params retty blk) -> do
             resm <- lookm (Sym sym) KeyFunc
             case resm of
                 Just symbol -> return $ FuncDef pos sym params retty blk
@@ -140,7 +140,7 @@ instance Resolve AST where
                     define sym KeyFunc symbol
                     return $ FuncDef pos sym params retty blk
 
-        astStmts <- mapM resolve $ typedefs ++ funcdefs' ++ stmts
+        astStmts <- mapM resolve $ typedefs ++ stmts''
         return $ ast { astStmts = astStmts }
         where
             isTypedef :: Stmt -> Bool
@@ -181,6 +181,7 @@ instance Resolve Stmt where
             define sym KeyType symbol
             define sym KeyFunc symbol
             anno' <- case anno of
+                AnnoType t -> AnnoType <$> resolve t
                 AnnoTuple xs -> do 
                     xs' <- forM xs $ \(s, t) -> do
                         t' <- resolve t
@@ -193,7 +194,7 @@ instance Resolve Stmt where
                         t' <- resolve t
                         return (s', t')
                     return $ AnnoADT xs'
-                _ -> fail (show anno)
+                _ -> fail $ "invalid anno: " ++ show anno
 
             return $ AST.Typedef pos symbol anno'
 
@@ -239,11 +240,13 @@ instance Resolve Stmt where
                         Just symbol' -> return $ CallStmt pos symbol' exprs'
 
         For pos (Sym sym) Nothing mexpr mcnd blk -> do
+            pushSymTab
             symbol <- genSymbol sym
             define sym KeyVar symbol
             mexpr' <- maybe (return Nothing) (fmap Just . resolve) mexpr
             blk' <- resolve blk
             mcnd' <- maybe (return Nothing) (fmap Just . resolve) mcnd
+            popSymTab
             return $ For pos symbol Nothing mexpr' mcnd' blk'
 
 --        _ -> return stmt
@@ -278,6 +281,7 @@ instance Resolve Append where
 
 instance Resolve Pattern where
     resolve pattern = withPos pattern $ case pattern of
+        PatIgnore pos -> return $ PatIgnore pos
         PatIdent pos (Sym sym) -> do
             symbol <- genSymbol sym
             define sym KeyVar symbol
@@ -375,6 +379,9 @@ instance Resolve Expr where
             expr' <- resolve expr
             return $ AExpr typ' expr'
 
+        TupleIndex pos expr i -> do
+            expr' <- resolve expr
+            return $ TupleIndex pos expr' i
 
         --_ -> return expr
 

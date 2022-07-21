@@ -22,13 +22,13 @@ unifyOne (Constraint pos t1 t2) = withPos pos $ case (t1, t2) of
     (F32, F32)                           -> return []
     (F64, F64)                           -> return []
     (T.Char, T.Char)                     -> return []
-    (T.Table [T.Char], T.Table [T.Char]) -> return []
+    (T.Table [ta], T.Table [tb])         -> unifyOne (Constraint pos ta tb)
     (T.Tuple tsa, T.Tuple tsb)
         | length tsa /= length tsb       -> fail "length"
-        | otherwise                      -> concat <$> zipWithM (\ta tb -> unifyOne (Constraint pos ta tb)) tsa tsb
+        | otherwise                      -> unify $ zipWith (Constraint pos) tsa tsb
     (T.Typedef s1, T.Typedef s2)
         | s1 == s2                       -> return []
-    _                                    -> fail $ "unify: " ++ show (t1, t2)
+    _                                    -> fail $ "unifyOne: " ++ show (t1, t2)
 
 
 unify :: BoM s m => [Constraint] -> m [(Int, Type)]
@@ -49,10 +49,10 @@ unifyOneDefault (Constraint pos t1 t2) = withPos pos $ case (t1, t2) of
     (F64, F64)                           -> return []
     (Void, Void)                         -> return []
     (T.Char, T.Char)                     -> return []
-    (T.Table [T.Char], T.Table [T.Char]) -> return []
+    (T.Table [ta], T.Table [tb])         -> unifyOneDefault (Constraint pos ta tb)
     (T.Tuple tsa, T.Tuple tsb)
-        | length tsa /= length tsb       -> fail "length"
-        | otherwise                      -> concat <$> zipWithM (\ta tb -> unifyOneDefault (Constraint pos ta tb)) tsa tsb
+        | length tsa /= length tsb       -> fail $ "invalid tuple lengths: " ++ show (t1, t2)
+        | otherwise                      -> unify $ zipWith (Constraint pos) tsa tsb
     (T.Typedef s1, T.Typedef s2)
         | s1 == s2                       -> return []
     (ta, tb) | ta /= tb                  -> return [] -- ignore errors
