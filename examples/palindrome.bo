@@ -4,8 +4,10 @@ import ../std/io
 
 fn main()
     while true
-        let s = getStrLn()
-        if strings::reverse(s) == s
-            print("is palindrome!")
-        else
-            print("is not palindrome!")
+        switch getStrLn()
+            "";
+            "\0"; return
+            s | s == strings::reverse(s)
+                print(s + " is a palindrome")
+            s; print(s + " is not a palindrome")
+

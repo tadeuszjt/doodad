@@ -222,9 +222,12 @@ collectStmt stmt = collectPos stmt $ case stmt of
         modify $ \s -> s { curRetty = oldRetty }
         collectDefault retty T.Void
 
-    Return _ (Just expr) -> do
-        collect (typeOf expr) =<< gets curRetty
-        collectExpr expr
+    Return _ mexpr -> do
+        case mexpr of
+            Nothing -> collect Void =<< gets curRetty
+            Just expr -> do
+                collect (typeOf expr) =<< gets curRetty
+                collectExpr expr
 
     If _ cond blk melse -> do
         collectCondition cond

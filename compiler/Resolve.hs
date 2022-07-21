@@ -219,12 +219,12 @@ instance Resolve Stmt where
 
         Switch pos expr cases -> do
             expr' <- resolve expr
-            pushSymTab
             cases' <- forM cases $ \(pat, stmt) -> do
+                pushSymTab
                 pat' <- resolve pat
                 stmt' <- resolve stmt
+                popSymTab
                 return (pat', stmt')
-            popSymTab
             return $ Switch pos expr' cases'
         
         CallStmt pos symbol exprs -> do
@@ -290,7 +290,14 @@ instance Resolve Pattern where
 
         PatTuple pos pats -> PatTuple pos <$> mapM resolve pats
 
-        _ -> fail (show pattern)
+        PatLiteral expr -> PatLiteral <$> resolve expr
+
+        PatGuarded pos pat expr -> do
+            pat' <- resolve pat
+            expr' <- resolve expr
+            return $ PatGuarded pos pat' expr'
+
+        _ -> fail $ "invalid pattern: " ++ show pattern
 
 
 
@@ -371,4 +378,4 @@ instance Resolve Expr where
 
         --_ -> return expr
 
-        _ -> fail (show expr)
+        _ -> fail $ "invalid expression: " ++ show expr

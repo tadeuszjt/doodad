@@ -47,6 +47,7 @@ unifyOneDefault (Constraint pos t1 t2) = withPos pos $ case (t1, t2) of
     (I64, I64)                           -> return []
     (F32, F32)                           -> return []
     (F64, F64)                           -> return []
+    (Void, Void)                         -> return []
     (T.Char, T.Char)                     -> return []
     (T.Table [T.Char], T.Table [T.Char]) -> return []
     (T.Tuple tsa, T.Tuple tsb)
@@ -55,7 +56,7 @@ unifyOneDefault (Constraint pos t1 t2) = withPos pos $ case (t1, t2) of
     (T.Typedef s1, T.Typedef s2)
         | s1 == s2                       -> return []
     (ta, tb) | ta /= tb                  -> return [] -- ignore errors
-    _                                    -> fail $ show (t1, t2)
+    _                                    -> fail $ "unify " ++ show (t1, t2)
 
 
 unifyDefault :: BoM s m => [Constraint] -> m [(Int, Type)]
