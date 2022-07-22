@@ -11,24 +11,33 @@ import Error
 import Apply
 
 
-
 unifyOne :: BoM s m => Constraint -> m [(Int, Type)]
 unifyOne (Constraint pos t1 t2) = withPos pos $ case (t1, t2) of
-    (Type x, t)                          -> return [(x, t)]
-    (t, Type x)                          -> return [(x, t)]
-    (T.Bool, T.Bool)                     -> return []
-    (I64, I64)                           -> return []
-    (Void, Void)                         -> return []
-    (F32, F32)                           -> return []
-    (F64, F64)                           -> return []
-    (T.Char, T.Char)                     -> return []
-    (T.Table [ta], T.Table [tb])         -> unifyOne (Constraint pos ta tb)
+    _ | t1 == t2                   -> return []
+    (Type x, t)                    -> return [(x, t)]
+    (t, Type x)                    -> return [(x, t)]
+    (T.Table tsa, T.Table tsb)
+        | length tsa /= length tsb -> fail "length"
+        | otherwise                -> unify $ zipWith (Constraint pos) tsa tsb
     (T.Tuple tsa, T.Tuple tsb)
-        | length tsa /= length tsb       -> fail "length"
-        | otherwise                      -> unify $ zipWith (Constraint pos) tsa tsb
-    (T.Typedef s1, T.Typedef s2)
-        | s1 == s2                       -> return []
-    _                                    -> fail $ "unifyOne: " ++ show (t1, t2)
+        | length tsa /= length tsb -> fail "length"
+        | otherwise                -> unify $ zipWith (Constraint pos) tsa tsb
+    _                              -> fail $ "cannot unify " ++ show t1 ++ " with " ++ show t2
+
+
+unifyOneDefault :: BoM s m => Constraint -> m [(Int, Type)]
+unifyOneDefault (Constraint pos t1 t2) = withPos pos $ case (t1, t2) of
+    _ | t1 == t2                   -> return []
+    (Type x, t)                    -> return [(x, t)]
+    (t, Type x)                    -> return [(x, t)]
+    (T.Table tsa, T.Table tsb)
+        | length tsa /= length tsb -> fail "length"
+        | otherwise                -> unifyDefault $ zipWith (Constraint pos) tsa tsb
+    (T.Tuple tsa, T.Tuple tsb)
+        | length tsa /= length tsb -> fail "length"
+        | otherwise                -> unifyDefault $ zipWith (Constraint pos) tsa tsb
+    (ta, tb) | ta /= tb            -> return [] -- ignore errors
+    _                              -> fail $ "unifyOneDefault: " ++ show (t1, t2)
 
 
 unify :: BoM s m => [Constraint] -> m [(Int, Type)]
@@ -37,26 +46,6 @@ unify (x:xs) = do
     subs <- unify xs
     s <- unifyOne (apply subs x)
     return (s ++ subs)
-
-
-unifyOneDefault :: BoM s m => Constraint -> m [(Int, Type)]
-unifyOneDefault (Constraint pos t1 t2) = withPos pos $ case (t1, t2) of
-    (Type x, t)                          -> return [(x, t)]
-    (t, Type x)                          -> return [(x, t)]
-    (T.Bool, T.Bool)                     -> return []
-    (I64, I64)                           -> return []
-    (F32, F32)                           -> return []
-    (F64, F64)                           -> return []
-    (Void, Void)                         -> return []
-    (T.Char, T.Char)                     -> return []
-    (T.Table [ta], T.Table [tb])         -> unifyOneDefault (Constraint pos ta tb)
-    (T.Tuple tsa, T.Tuple tsb)
-        | length tsa /= length tsb       -> fail $ "invalid tuple lengths: " ++ show (t1, t2)
-        | otherwise                      -> unify $ zipWith (Constraint pos) tsa tsb
-    (T.Typedef s1, T.Typedef s2)
-        | s1 == s2                       -> return []
-    (ta, tb) | ta /= tb                  -> return [] -- ignore errors
-    _                                    -> fail $ "unify " ++ show (t1, t2)
 
 
 unifyDefault :: BoM s m => [Constraint] -> m [(Int, Type)]

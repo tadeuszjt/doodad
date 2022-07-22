@@ -327,10 +327,9 @@ prettyAST ast = do
                     putStrLn $ pre ++ "\t" ++ show pat
                     prettyStmt (pre ++ "\t\t") stmt
 
-            For pos symbol _ expr mcnd blk -> do
-                if isJust mcnd then do
-                    putStrLn $ pre ++ "for " ++ "[" ++ show symbol ++ "] " ++ show expr ++ " | " ++ show (fromJust mcnd)
-                else do
-                    putStrLn $ pre ++ "for " ++ "[" ++ show symbol ++ "] " ++ show expr
+            For pos symbol _ mexpr mcnd blk -> do
+                let cndStr = maybe "" ((" | " ++) . show) mcnd
+                let exprStr = maybe "" ((" " ++ ) . show) mexpr
+                putStrLn $ pre ++ "for " ++ "[" ++ show symbol ++ "]" ++ exprStr ++ cndStr
                 prettyStmt (pre ++ "\t") blk
 

@@ -24,8 +24,8 @@ fn main()
         let rect = Rect((0, 0), (3, 4))
         print(maths::sqrt(34), rect::area(rect))
 
-        let (f, n) = (-123, 123)
-        print("abs: ", f, n, maths::abs(f):f64, abs(n):i64)
+        let (f, n) = (-123:f64, 123)
+        print("abs: ", n, maths::abs(f):f64, abs(n):i64)
 
         let a = F64(64)
         let F64(x) = a
@@ -39,7 +39,7 @@ fn main()
         for [i] | i < 10
             print(randI64(), randF64())
 
-        print("max: ", 12.2, 12.4, max(12.2, 12.4):f64)
+        print("max: ", 12.2, 12.4, max(12.2, 12.4))
 
         print(strings::readInt("-453153"))
 

@@ -26,11 +26,10 @@ import Compile
 import State
 import Args
 import AST
-import Collect as C
-import Unify
 import Annotate
-import Apply
 import Interop
+import Infer
+import Collect as C
 import qualified Resolve as R
 import qualified SymTab
 
@@ -50,7 +49,7 @@ import Text.PrettyPrint
 data Modules
     = Modules
         { modMap  :: Map.Map FilePath CompileState
-        , symTabMap :: Map.Map FilePath C.SymTab
+        , symTabMap :: Map.Map String C.SymTab
         , resolveSymTabMap :: Map.Map FilePath R.SymTab
         , session :: JIT.Session
         }
@@ -128,27 +127,6 @@ parse file = do
         Right a -> return a
 
 
-runTypeInference :: BoM s m => Args -> AST -> [Extern] -> Map.Map FilePath C.SymTab -> String -> m (AST, C.SymTab)
-runTypeInference args annotatedAST externs imports modName = do
-    cSymTab <- fmap (C.symTab . snd) $ runBoMTExcept (C.initCollectState Map.empty modName) (C.collectCExterns externs)
-    assert (not $ Map.member "c" imports) "Modeule named c already imported"
-    (ast, symTab, n) <- runRec annotatedAST (Map.insert "c" cSymTab $ Map.mapKeys takeFileName imports)
-    when (verbose args) $ liftIO $ putStrLn ("Ran type inference with " ++ show n ++ " iterations")
-    return (ast, symTab)
-    where
-        runRec :: BoM s m => AST -> Map.Map FilePath C.SymTab -> m (AST, C.SymTab, Int)
-        runRec ast imports = do
-            (_, state) <- runBoMTExcept (C.initCollectState imports modName) (C.collectAST ast)
-            subs <- unify $ C.collected state
-            defaults <- unifyDefault $ map (apply subs) (C.defaults state)
-            let ast' = apply subs ast
-            if ast == ast'
-            then return (apply defaults ast', apply defaults (apply subs (C.symTab state)), 1)
-            else do
-                (ast'', symTab, n) <- runRec ast' imports
-                return (ast'', symTab, n + 1)
-
-
 runMod :: BoM Modules m => Args -> Set.Set FilePath -> FilePath -> m CompileState
 runMod args pathsVisited modPath = do
     debug "running"
@@ -217,7 +195,7 @@ runMod args pathsVisited modPath = do
                 runBoMTExcept 0 $ annotate resolvedAST
             (astInferred, symTab) <- withErrorPrefix "infer: " $ do
                 stm <- gets symTabMap
-                runTypeInference args annotatedAST cExterns stm modName
+                infer annotatedAST cExterns stm modName (verbose args)
             
             let ast = astInferred
             when (printFinalAst args) $ liftIO $ S.prettyAST ast
@@ -244,7 +222,7 @@ runMod args pathsVisited modPath = do
                 liftIO $ jitAndRun defs session True (printLLIR args) 
 
             modify $ \s -> s { modMap = Map.insert path state (modMap s) }
-            modify $ \s -> s { symTabMap = Map.insert path symTab (symTabMap s) }
+            modify $ \s -> s { symTabMap = Map.insert modName symTab (symTabMap s) }
             return state
 
         debug str =

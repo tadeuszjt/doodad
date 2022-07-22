@@ -166,4 +166,4 @@ genType :: BoM Int m => m T.Type
 genType = do
     i <- get
     put (i + 1)
-    return (T.Type i)
+    return (T.Type $ i + 1)

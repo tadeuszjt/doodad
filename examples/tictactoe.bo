@@ -68,7 +68,7 @@ fn cpuMove()
         return
 
     let i = rand::randI64() % len(emptySquares)
-    let (row, col) = emptySquares[i]:(i64, i64)
+    let (row, col) = emptySquares[i]
     board[row][col] = 2
 
 

@@ -35,7 +35,7 @@ parseArgs :: Args -> [String] -> Args
 parseArgs args argStrs = case argStrs of
     []     -> args
     ["-n"] -> args { optimise  = False }
-    ["-v"] -> args { verbose   = True }
+    ["--verbose"] -> args { verbose   = True }
     ["-a"] -> args { astOnly   = True }
     ["-l"] -> args { lexOnly   = True }
     ["--print-llir"] -> args { printLLIR = True }

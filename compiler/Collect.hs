@@ -146,13 +146,14 @@ lookSym symbol = case symbol of
 define :: BoM CollectState m => Symbol -> SymKey -> Object -> m ()
 define symbol key obj = do
     resm <- SymTab.lookupHead symbol key <$> gets symTab
-    when (isJust resm) $ fail $ show symbol ++ " already defined"
+    assert (isNothing resm) $ show symbol ++ " already defined"
     modify $ \s -> s { symTab = SymTab.insert symbol key obj (symTab s) }
 
 
 baseTypeOf :: BoM CollectState m => Type -> m Type
 baseTypeOf typ = case typ of
     T.Typedef sym -> do ObjType t <- look sym KeyType; baseTypeOf t
+    Type x        -> return (Type undefined)
     _             -> return typ
 
 
@@ -339,7 +340,6 @@ collectPattern pattern typ = collectPos pattern $ case pattern of
             _ -> do
                 gts <- replicateM (length pats) genType
                 zipWithM_ collectPattern pats gts
-                collect base (T.Tuple gts)
 
     _ -> error $ show pattern
 
@@ -459,7 +459,7 @@ collectExpr (AExpr exprType expr) = collectPos expr $ case expr of
     S.Subscript p e1 e2 -> do
         base <- baseTypeOf (typeOf e1)
         case base of
-            Type x      -> return ()
+            Type undef  -> return ()
             T.Table [t] -> collect exprType t
             _           -> fail $ "invalid type: " ++ show base
 
@@ -470,7 +470,7 @@ collectExpr (AExpr exprType expr) = collectPos expr $ case expr of
         base <- baseTypeOf exprType
         case base of
             T.Table [t] -> mapM_ (collect t) (map typeOf es)
-            Type x      -> return ()
+            _           -> return ()
 
         case es of
             -- TODO current default system causes this to break inference.
@@ -487,7 +487,7 @@ collectExpr (AExpr exprType expr) = collectPos expr $ case expr of
         base <- baseTypeOf exprType
         case base of
             T.Tuple ts -> zipWithM_ collect ts (map typeOf es)
-            T.Type x   -> return ()
+            _          -> return ()
         collectDefault exprType $ T.Tuple (map typeOf es)
         mapM_ collectExpr es
 
@@ -505,9 +505,8 @@ collectExpr (AExpr exprType expr) = collectPos expr $ case expr of
     TupleIndex p e i -> do
         base <- baseTypeOf (typeOf e)
         case base of
-            Type x     -> return ()
             T.Tuple ts -> collect exprType (ts !! fromIntegral i)
-            _          -> fail "expression isn't a tuple"
+            _          -> return ()
 
 
     S.AExpr _ _ -> fail "what"
