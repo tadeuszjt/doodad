@@ -10,21 +10,22 @@ import qualified Data.Map as Map
 -- constraint:   (t1, t2) or (x, y)
 -- substitution: (id, t) or (x, u)
 substitute :: Type -> Int -> Type -> Type
-substitute u x t = case t of
+substitute u x typ = case typ of
     Type i | i == x  -> u
-    Type _           -> t
-    T.Bool           -> t
-    I64              -> t
-    I32              -> t
-    F32              -> t
-    F64              -> t
-    T.Char           -> t
+    Type _           -> typ 
+    T.Bool           -> typ 
+    I64              -> typ 
+    I32              -> typ 
+    F32              -> typ 
+    F64              -> typ 
+    T.Char           -> typ 
     T.Table ts       -> T.Table $ map (substitute u x) ts
     T.Tuple ts       -> T.Tuple $ map (substitute u x) ts
-    Void             -> t
-    T.Typedef symbol -> t
+    Array n t        -> Array n (substitute u x t)
+    Void             -> typ
+    T.Typedef symbol -> typ
     ADT ts           -> ADT $ map (substitute u x) ts
-    _                -> error (show t)
+    _                -> error (show typ)
 
 
 -- Apply represents taking a list of substitutions and applying them to all types in an object.

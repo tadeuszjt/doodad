@@ -298,6 +298,7 @@ typeOrdinal   : bool                          { T.Bool }
               | string                        { T.Table [T.Char] }
 
 typeAggregate : '[' rowTypes_ ']'             { T.Table $2 }
+			  | '[' intlit type_ ']'          { T.Array (read $ tokStr $2) $3 }
               | tupType                       { $1 }
               | fn '(' argTypes ')' type_     { T.Func $3 $5 }
 

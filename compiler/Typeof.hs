@@ -50,6 +50,13 @@ checkTypesCompatible typA typB = do
             assert (length ats == length bts) "Tables aren't compatible"
             zipWithM_ checkTypesCompatible ats bts
 
+        t | isArray t -> do
+            assertBaseType isArray baseB
+            let Array na ta = baseA
+            let Array nb tb = baseB
+            assert (na == nb) "array length mismatch"
+            checkTypesCompatible ta tb
+
         t | isFunc t -> do
             assertBaseType isFunc baseB
             let Func ats atr = baseA

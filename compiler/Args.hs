@@ -35,15 +35,15 @@ parseArgs :: Args -> [String] -> Args
 parseArgs args argStrs = case argStrs of
     []     -> args
     ["-n"] -> args { optimise  = False }
-    ["--verbose"] -> args { verbose   = True }
     ["-a"] -> args { astOnly   = True }
     ["-l"] -> args { lexOnly   = True }
+    ["--verbose"] -> args { verbose   = True }
     ["--print-llir"] -> args { printLLIR = True }
     ["--print-c"] -> args { printCImports = True }
-    ["--print-ast"] -> args { printAst = True }
-    ["--print-symbols"] -> args { printSymbols = True }
     ["--print-c-symbols"] -> args { printCSymbols = True }
-    ["--print-final-ast"] -> args { printFinalAst = True }
+    ["--print-ast"] -> args { printAst = True }
+    ["--print-ast-final"] -> args { printFinalAst = True }
+    ["--print-symbols"] -> args { printSymbols = True }
     ["-c"] -> args { compileObj = True }
     [str]  -> args { modPaths  = (modPaths args) ++ [str] }
     (a:as) -> parseArgs (parseArgs args [a]) as

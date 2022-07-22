@@ -318,9 +318,10 @@ instance Resolve Type where
         _ | isSimple typ    -> return typ
         Type.Table ts       -> Type.Table <$> mapM resolve ts
         Type.Tuple ts       -> Type.Tuple <$> mapM resolve ts
+        Type.Array n t      -> Type.Array n <$> resolve t
         Type.Typedef symbol -> Type.Typedef <$> look symbol KeyType
 
-        _ -> fail (show typ)
+        _ -> fail $ "resolve type: " ++ show typ
 
 instance Resolve Expr where
     resolve expr = withPos expr $ case expr of

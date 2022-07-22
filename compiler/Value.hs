@@ -165,22 +165,6 @@ valLocal typ = trace ("valLocal " ++ show typ) $ do
     Ptr typ <$> alloca opTyp Nothing 0
     
 
-valArrayIdx :: InsCmp CompileState m => Value -> Value -> m Value
-valArrayIdx (Ptr typ loc) idx = trace "valArrayIdx" $ do
-    Array n t <- assertBaseType isArray typ
-    Val idxTyp idx <- valLoad idx
-    assert (isInt idxTyp) "array index isn't an integer"
-    Ptr t <$> gep loc [int64 0, idx]
-
-
-valArrayConstIdx :: InsCmp CompileState m => Value -> Int -> m Value
-valArrayConstIdx val i = trace "valArrayConstIdx" $ do
-    Array n t <- assertBaseType isArray (valType val)
-    case val of
-        Ptr _ loc -> Ptr t <$> gep loc [int64 0, int64 (fromIntegral i)]
-        Val _ op  -> Val t <$> extractValue op [fromIntegral i]
-
-
 valMalloc :: InsCmp CompileState m => Type -> Value -> m Value
 valMalloc typ len = trace ("valMalloc " ++ show typ) $ do
     lenTyp <- assertBaseType isInt (valType len)

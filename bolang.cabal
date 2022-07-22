@@ -70,7 +70,8 @@ executable bolang
         Unify,
         ADT,
         Resolve,
-        Infer
+        Infer,
+        Array
 
 test-suite type-tests
     hs-source-dirs: compiler, compiler/test

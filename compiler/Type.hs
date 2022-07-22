@@ -48,7 +48,7 @@ instance Show Type where
         Bool          -> "bool"
         Char          -> "char"
         Tuple ts      -> "(" ++ intercalate ", " (map show ts) ++ ")"
-        Array n t     -> "[" ++ show n ++ "| " ++ show t ++ "]"
+        Array n t     -> "[" ++ show n ++ " " ++ show t ++ "]"
         Table [Char]  -> "string"
         ADT ts        -> "{" ++ intercalate " | " (map show ts) ++ "}"
         Table ts      -> "[" ++ intercalate "; " (map show ts) ++ "]"

@@ -19,6 +19,7 @@ import Tuple
 import Type 
 import Construct
 import Typeof
+import Array
 
 
 valPrint :: InsCmp CompileState m => String -> Value -> m ()
@@ -56,9 +57,9 @@ valPrint append val = case valType val of
 
     Array n t -> do
         printf "[%d| " $ (:[]) $ valOp (valI64 n)
-        for (int64 $ fromIntegral n-1) $ \i ->
-            valPrint ", " =<< valArrayIdx val (Val I64 i)
-        valPrint ("]" ++ append) =<< valArrayConstIdx val (n-1)
+        forM_ [0..n-2] $ \i ->
+            valPrint ", " =<< arrayGetElemConst val i
+        valPrint ("]" ++ append) =<< arrayGetElemConst val (n-1)
 
     _ -> error ("print: " ++ show (valType val))
 

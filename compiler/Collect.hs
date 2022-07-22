@@ -461,6 +461,7 @@ collectExpr (AExpr exprType expr) = collectPos expr $ case expr of
         case base of
             Type undef  -> return ()
             T.Table [t] -> collect exprType t
+            Array n t   -> collect exprType t
             _           -> fail $ "invalid type: " ++ show base
 
         collectExpr e1
@@ -470,6 +471,7 @@ collectExpr (AExpr exprType expr) = collectPos expr $ case expr of
         base <- baseTypeOf exprType
         case base of
             T.Table [t] -> mapM_ (collect t) (map typeOf es)
+            Array n t   -> mapM_ (collect t) (map typeOf es)
             _           -> return ()
 
         case es of
