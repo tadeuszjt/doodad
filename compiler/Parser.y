@@ -191,7 +191,6 @@ fnName  : ident                               { tokStr $1 }
 
 block  : 'I' prog_ 'D'                        { S.Block $2 }
        | ';' stmtS 'N'                        { $2 }
-       --| ';' stmtB                            { S.Block [$2] }
        | ';' 'N'                              { S.Block [] }
 
 condition : expr                              { S.CondExpr $1 }
@@ -239,6 +238,7 @@ expr   : literal                              { $1 }
        | expr '.' ident                       { S.Member (tokPos $2) $1 (tokStr $3) }
        | expr '[' expr ']'                    { S.Subscript (tokPos $2) $1 $3 }
        | expr ':' type_                       { S.AExpr $3 $1 }
+	   | expr '[' maybeExpr '..' maybeExpr ']' { S.Range (tokPos $2) $1 $3 $5 }
 
 
 maybeExpr : expr                              { Just $1 }

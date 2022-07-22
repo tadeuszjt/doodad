@@ -154,6 +154,13 @@ instance Annotate Expr where
             e' <- annotate e
             return $ TupleIndex p e' i
 
+        Range pos e me1 me2 -> do
+            e' <- annotate e
+            me1' <- maybe (return Nothing) (fmap Just . annotate) me1
+            me2' <- maybe (return Nothing) (fmap Just . annotate) me2
+            return $ Range pos e' me1' me2'
+            
+
         _ -> error $ show expr
 
 

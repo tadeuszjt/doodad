@@ -4,7 +4,9 @@ import ../std/io
 import ../std/strings
 import ../std/rand
 
+
 type Square i64
+
 
 fn string(sq Square)
     switch sq
@@ -29,21 +31,17 @@ fn playerMove() bool
         return false
 
     let (row, l) = strings::read(s):(i64, i64)
-
     if l == 0
         putStrLn("invalid string: " + s)
         return false
+    s = s[l..]
 
-    let rest = ""
-    while l < len(s)
-        rest <- [s[l]]
-        l = l + 1
-
-    let (col, cl) = strings::read(rest):(i64, i64)
+    let (col, cl) = strings::read(s):(i64, i64)
     if cl == 0
         putStrLn("invalid string: " + s)
         return false
-    else if row < 0 || row > len(board) || col < 0 || col > len(board[row])
+
+    if row < 0 || row > len(board) || col < 0 || col > len(board[row])
         putStrLn("invalid move: " + string(row) + " " + string(col))
         return false
     else if board[row][col] != 0

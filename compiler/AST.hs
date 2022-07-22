@@ -99,6 +99,7 @@ data Expr
     | Copy       TextPos Expr
     | Prefix     TextPos Op Expr
     | Infix      TextPos Op Expr Expr
+    | Range      TextPos Expr (Maybe Expr) (Maybe Expr)
     deriving (Eq)
 
 
@@ -167,6 +168,7 @@ instance TextPosition Expr where
         AST.Copy       p _ -> p
         AST.Prefix     p _ _ -> p
         AST.Infix      p _ _ _ -> p
+        AST.Range      p _ _ _ -> p
 
 
 instance TextPosition Stmt where
@@ -272,6 +274,7 @@ instance Show Expr where
         AST.Copy pos expr               -> "copy(" ++ show expr ++ ")"
         AST.Prefix pos op expr          -> show op ++ show expr
         AST.Infix pos op expr1 expr2    -> show expr1 ++ " " ++ show op ++ " " ++ show expr2
+        AST.Range pos expr mexpr1 mexpr2 -> show expr ++ "[" ++ maybe "" show mexpr1 ++ ".." ++ maybe "" show mexpr2 ++ "]"
 
 
 -- every function must end on a newline and print pre before every line

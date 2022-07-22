@@ -384,6 +384,12 @@ instance Resolve Expr where
             expr' <- resolve expr
             return $ TupleIndex pos expr' i
 
+        Range pos expr mexpr1 mexpr2 -> do
+            expr' <- resolve expr
+            mexpr1' <- maybe (return Nothing) (fmap Just . resolve) mexpr1
+            mexpr2' <- maybe (return Nothing) (fmap Just . resolve) mexpr2
+            return $ Range pos expr' mexpr1' mexpr2'
+
         --_ -> return expr
 
         _ -> fail $ "invalid expression: " ++ show expr

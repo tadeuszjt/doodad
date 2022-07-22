@@ -36,40 +36,37 @@ fn isPrefix(pre string, str string) bool
 
 
 fn read(s string) (bool, i64)
-    let length = 0
+    let l = 0
     for [i] s | isSpace(s[i])
-        length = length + 1
+        l = l + 1
 
-    let rest = ""
-    for [i] | (i + length) < len(s)
-        rest <- [s[i + length]]
+    if isPrefix("true",       s[l..]); return (true, l + 4)
+    else if isPrefix("false", s[l..]); return (false, l + 5)
+    else;                              return (false, 0)
 
-    if isPrefix("true", rest);       return (true, length + 4)
-    else if isPrefix("false", rest); return (false, length + 5)
-    else;                            return (false, 0)
 
 
 
 
 fn read(s string) (i64, i64)
-    let length = 0
-    for [i] s | s[i] == ' '
-        length = length + 1
+    let l = 0
+    for [i] s | isSpace(s[i])
+        l = l + 1
 
     let mul = 1
-    if length < len(s) && s[length] == '-'
+    if len(s[l..]) > 0 && s[l] == '-'
         mul = -1
-        length = length + 1
+        l = l + 1
 
     let n = 0
     let success = false
 
-    while isDigit(s[length]) && length < len(s)
-        n = n*10 + i64(s[length] - '0')
-        length = length + 1
+    while isDigit(s[l]) && l < len(s)
+        n = n*10 + i64(s[l] - '0')
+        l = l + 1
         success = true
 
-    if success; return (n * mul, length)
+    if success; return (n * mul, l)
     else;       return (0, 0)
 
 
@@ -82,16 +79,11 @@ fn reverse(s string)
 
 
 fn dropSpace(s string) string
-    let r = ""
-
     let start = 0
-    for [i] s | s[i] == ' '
+    for [i] s | isSpace(s[i])
         start = start + 1
 
-    for [i] | (i + start) < len(s)
-        r <- [s[i + start]]
-
-    return r
+    return copy(s[start..])
 
 
         

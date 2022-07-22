@@ -510,6 +510,27 @@ collectExpr (AExpr exprType expr) = collectPos expr $ case expr of
             T.Tuple ts -> collect exprType (ts !! fromIntegral i)
             _          -> return ()
 
+    Range p e me1 me2 -> do
+        base <- baseTypeOf (typeOf e)
+        case base of
+            T.Table ts -> collect exprType (typeOf e)
+            Array n t  -> collect exprType (typeOf e)
+            Type undef -> collect exprType (typeOf e)
+            _          -> fail $ "cannot take range of expression"
+
+        collectExpr e
+
+        when (isJust me1) $ do
+            collectDefault (typeOf $ fromJust me1) I64
+            collectExpr (fromJust me1)
+
+        when (isJust me2) $ do
+            collectDefault (typeOf $ fromJust me2) I64
+            collectExpr (fromJust me2)
+
+        when (isJust me1 && isJust me2) $
+            collect (typeOf $ fromJust me1) (typeOf $ fromJust me2)
+
 
     S.AExpr _ _ -> fail "what"
 

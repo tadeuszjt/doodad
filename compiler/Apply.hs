@@ -81,6 +81,7 @@ instance Apply Expr where
         S.Float pos f            -> expr
         S.Table pos ess          -> S.Table pos $ map (map (apply subs)) ess
         S.TupleIndex pos e i     -> S.TupleIndex pos (apply subs e) i
+        Range pos e me1 me2      -> Range pos (apply subs e) (fmap (apply subs) me1) (fmap (apply subs) me2)
         _                          -> error $ show expr
 
 instance Apply Condition where

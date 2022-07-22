@@ -430,6 +430,15 @@ cmpExpr (S.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck exp
         zipWithM_ (tupleSet tup) [0..] vals
         return tup
 
+    S.Range pos expr mexpr1 mexpr2 -> do
+        val <- cmpExpr expr
+        base <- baseTypeOf (valType val)
+        case base of
+            Table ts -> do
+                start <- maybe (valInt I64 0) cmpExpr mexpr1
+                end <- maybe (tableLen val) cmpExpr mexpr2
+                tableRange val start end
+
     S.Subscript pos aggExpr idxExpr -> do
         agg <- cmpExpr aggExpr
         idx <- cmpExpr idxExpr
