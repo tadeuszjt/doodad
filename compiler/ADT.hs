@@ -27,19 +27,19 @@ import Error
 adtTypeDef :: InsCmp CompileState m => Symbol -> S.AnnoType -> m ()
 adtTypeDef symbol anno = trace "adtTypeDef" $ do
     let typdef = Typedef symbol
-    define symbol (KeyFunc [])       (ObjConstructor typdef)
-    define symbol (KeyFunc [typdef]) (ObjConstructor typdef)
+    define symbol (KeyFunc [] typdef)       ObjConstructor 
+    define symbol (KeyFunc [typdef] typdef) ObjConstructor
 
     case anno of
         S.AnnoADT xs -> do
             define symbol KeyType $ ObType (ADT $ map snd xs) Nothing
             forM_ (zip xs [0..]) $ \((s, t), i) -> do
                 define s (KeyMember typdef) (ObjMember i)
-                define s (KeyFunc [t]) (ObjADTFieldCons typdef)
-                define s (KeyFunc []) (ObjADTFieldCons typdef)
+                define s (KeyFunc [t] typdef) ObjADTFieldCons
+                define s (KeyFunc [] typdef) ObjADTFieldCons
                 when (isTuple t) $ do
                     let Tuple ts = t
-                    define s (KeyFunc ts) (ObjADTFieldCons typdef)
+                    define s (KeyFunc ts typdef) ObjADTFieldCons
 
 
 adtEnum :: InsCmp CompileState m => Value -> m Value

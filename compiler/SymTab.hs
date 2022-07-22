@@ -44,6 +44,11 @@ map f []     = []
 map f (s:ss) = (Map.map (Map.map f) s:map f ss)
 
 
+mapKeys :: (Ord k2) => (k1 -> k2) -> SymTab s k1 o -> SymTab s k2 o
+mapKeys f [] = []
+mapKeys f (s:ss) = Map.map (Map.mapKeys f) s : mapKeys f ss
+
+
 insert :: (Ord s, Ord k) => s -> k -> o -> SymTab s k o -> SymTab s k o
 insert sym key obj (s:ss) =
     let km = maybe Map.empty id (Map.lookup sym s) in

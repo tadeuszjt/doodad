@@ -4,8 +4,8 @@ import         maths
 import_c       stdlib.h
 import_c_macro RAND_MAX i64
 
-fn randI64() i64; return c::rand()
-fn randF64() f64; return c::drand48()
+fn I64() i64; return c::rand()
+fn F64() f64; return c::drand48()
 
 fn main()
     c::srand(1234)

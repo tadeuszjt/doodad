@@ -28,7 +28,7 @@ fn playerMove() bool
     if s == "\0"
         return false
 
-    let (row, l) = strings::readInt(s)
+    let (row, l) = strings::read(s):(i64, i64)
 
     if l == 0
         putStrLn("invalid string: " + s)
@@ -39,7 +39,7 @@ fn playerMove() bool
         rest <- [s[l]]
         l = l + 1
 
-    let (col, cl) = strings::readInt(rest)
+    let (col, cl) = strings::read(rest):(i64, i64)
     if cl == 0
         putStrLn("invalid string: " + s)
         return false
@@ -67,7 +67,7 @@ fn cpuMove()
     if len(emptySquares) == 0
         return
 
-    let i = rand::randI64() % len(emptySquares)
+    let i = rand::I64() % len(emptySquares)
     let (row, col) = emptySquares[i]
     board[row][col] = 2
 

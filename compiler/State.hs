@@ -41,23 +41,23 @@ data Value
 data SymKey
     = KeyType
     | KeyVar
-    | KeyFunc [Type]
+    | KeyFunc [Type] Type
     | KeyMember Type
     deriving (Eq, Ord)
 
 instance Show SymKey where
     show KeyType = "type"
     show KeyVar  = "var"
-    show (KeyFunc ts) = "fn(" ++ intercalate ", " (map show ts) ++ ")"
+    show (KeyFunc ts rt) = "fn(" ++ intercalate ", " (map show ts) ++ ")" ++ show rt
     show (KeyMember t) = show t ++ "."
 
 
 data Object
     = ObjVal          Value
     | ObType          Type   (Maybe LL.Name)
-    | ObjFunc         Type   LL.Operand
-    | ObjConstructor  Type
-    | ObjADTFieldCons Type
+    | ObjFunc         LL.Operand
+    | ObjConstructor 
+    | ObjADTFieldCons
     | ObjMember       Int
     deriving ()
 
@@ -68,9 +68,9 @@ instance Show Object where
         ObjVal (Ptr t o)    -> "Ptr " ++ show t
         ObjVal val          -> "val"
         ObType typ mn       -> show typ
-        ObjFunc typ op      -> "fn(..)" ++ show typ
-        ObjConstructor typ  -> "(..)" ++ show typ
-        ObjADTFieldCons typ -> "Field:" ++ show typ
+        ObjFunc op          -> "fn"
+        ObjConstructor      -> "(..)"
+        ObjADTFieldCons     -> "Field:"
         ObjMember i         -> "." ++ show i
 
 
@@ -233,3 +233,11 @@ look symbol key = do
     resm <- lookm symbol key
     assert (isJust resm) ("no definition for: " ++ show symbol ++ " " ++ show key)
     return (fromJust resm)
+
+
+lookSym :: ModCmp CompileState m => Symbol -> m [(SymKey, Object)]
+lookSym symbol = do
+    localObjs <- gets $ SymTab.lookupSym symbol . symTab
+    impObjs   <- gets $ concat . map (SymTab.lookupSym symbol) . map symTab . imports 
+    return $ localObjs ++ impObjs
+

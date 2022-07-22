@@ -28,14 +28,14 @@ type SymTab = SymTab.SymTab Symbol SymKey Object
 data SymKey
     = KeyVar
     | KeyType
-    | KeyFunc [Type]
+    | KeyFunc [Type] Type
     | KeyMember Type
     deriving (Show, Eq, Ord)
 
 data Object
     = ObjVar Type
     | ObjType Type
-    | ObjFunc Type
+    | ObjFunc 
     | ObjMember Int
     deriving (Show, Eq)
 
@@ -161,7 +161,7 @@ collectCExterns :: BoM CollectState m => [Extern] -> m ()
 collectCExterns externs = do
     forM_ externs $ \extern -> case extern of
         ExtVar sym (AnnoType typ)  -> define (SymQualified "c" sym) KeyVar (ObjVar typ)
-        ExtFunc sym argTypes retty -> define (SymQualified "c" sym) (KeyFunc argTypes) (ObjFunc retty)
+        ExtFunc sym argTypes retty -> define (SymQualified "c" sym) (KeyFunc argTypes retty) ObjFunc
         ExtConstInt sym n          -> define (SymQualified "c" sym) KeyVar (ObjVar I64)
         ExtTypeDef sym typ         -> define (SymQualified "c" sym) KeyType (ObjType typ)
 
@@ -173,7 +173,7 @@ collectAST ast = do
     forM typedefs $ collectTypedef
 
     forM funcdefs $ \(S.FuncDef pos sym params retty _) -> collectPos pos $
-        define (Sym sym) (KeyFunc $ map paramType params) (ObjFunc retty)
+        define (Sym sym) (KeyFunc (map paramType params) retty) ObjFunc
 
     mapM_ collectStmt stmts''
     where
@@ -195,14 +195,14 @@ collectTypedef (S.Typedef pos symbol annoTyp) = collectPos pos $ case annoTyp of
         let typedef = T.Typedef symbol
         forM_ (zip xs [0..]) $ \((s, t), i) -> define (Sym s) (KeyMember typedef) (ObjMember i)
         define symbol KeyType $ ObjType $ T.Tuple (map snd xs)
-        define symbol (KeyFunc ts) (ObjFunc typedef) 
+        define symbol (KeyFunc ts typedef) ObjFunc
 
     AnnoADT xs -> do
         let ts = map snd xs
         let typedef = T.Typedef symbol
         forM_ (zip xs [0..]) $ \((s, t), i) -> do
             define s (KeyMember typedef) (ObjMember i)
-            define s (KeyFunc [t]) (ObjFunc typedef)
+            define s (KeyFunc [t] typedef) ObjFunc
         define symbol KeyType $ ObjType $ T.ADT (map snd xs)
 
 
@@ -256,7 +256,7 @@ collectStmt stmt = collectPos stmt $ case stmt of
             -- no definitions 
             []                         -> fail $ show symbol ++ " undefined"
             -- one definition
-            [(KeyFunc ts, ObjFunc rt)] -> do
+            [(KeyFunc ts rt, ObjFunc)] -> do
                 assert (length ts == length es) "Invalid arguments"
                 zipWithM_  collect ts (map typeOf es)
 
@@ -355,7 +355,7 @@ collectCallExpr :: BoM CollectState m => Expr -> m ()
 collectCallExpr (AExpr exprType (Call p symbol es)) = do
         kos <- lookSym symbol
 
-        let rtm = rettySame (map snd kos)
+        let rtm = rettySame kos
         let odm = oneDef kos
         let rmm = rettyMatchesOne exprType kos
         let amm = argsMatch (map typeOf es) kos
@@ -385,22 +385,22 @@ collectCallExpr (AExpr exprType (Call p symbol es)) = do
 
         mapM_ collectExpr es
         where
-            rettySame :: [Object] -> Maybe Type
-            rettySame []              = Nothing
-            rettySame (ObjFunc rt:xs) = case rettySame xs of
+            rettySame :: [(SymKey, Object)] -> Maybe Type
+            rettySame []                            = Nothing
+            rettySame ((KeyFunc ts rt, ObjFunc):xs) = case rettySame xs of
                 Just rt' | rt' == rt -> Just rt
                 _                    -> Nothing
             rettySame (_:xs) = rettySame xs
 
 
             oneDef :: [(SymKey, Object)] -> Maybe ([Type], Type)
-            oneDef [(KeyFunc ts, ObjFunc rt)] = Just (ts, rt)
+            oneDef [(KeyFunc ts rt, ObjFunc)] = Just (ts, rt)
             oneDef _                          = Nothing
 
 
             rettyMatchesOne :: Type -> [(SymKey, Object)] -> Maybe ([Type], Type)
             rettyMatchesOne _ [] = Nothing
-            rettyMatchesOne typ ((KeyFunc ts, ObjFunc rt):xs)
+            rettyMatchesOne typ ((KeyFunc ts rt, ObjFunc):xs)
                 | typ == rt = case rettyMatchesOne typ xs of
                     Nothing -> Just (ts, rt)
                     Just _  -> Nothing
@@ -410,7 +410,7 @@ collectCallExpr (AExpr exprType (Call p symbol es)) = do
 
             argsMatch :: [Type] -> [(SymKey, Object)] -> Maybe Type
             argsMatch _ [] = Nothing
-            argsMatch ats ((KeyFunc ts, ObjFunc rt):xs)
+            argsMatch ats ((KeyFunc ts rt, ObjFunc):xs)
                 | ats == ts = case argsMatch ats xs of
                     Nothing -> Just rt
                     Just _  -> Nothing
@@ -420,7 +420,7 @@ collectCallExpr (AExpr exprType (Call p symbol es)) = do
 
             argLengthsMatch :: [Type] -> [(SymKey, Object)] -> Maybe ([Type], Type)
             argLengthsMatch ats [] = Nothing
-            argLengthsMatch ats ((KeyFunc ts, ObjFunc rt):xs)
+            argLengthsMatch ats ((KeyFunc ts rt, ObjFunc):xs)
                 | length ats == length ts = case argLengthsMatch ats xs of
                     Nothing -> Just (ts, rt)
                     _       -> Nothing

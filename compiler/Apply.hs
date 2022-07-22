@@ -6,6 +6,7 @@ import Type as T
 import AST as S
 import Collect
 import qualified Data.Map as Map
+import qualified SymTab
 
 -- constraint:   (t1, t2) or (x, y)
 -- substitution: (id, t) or (x, u)
@@ -34,14 +35,22 @@ class Apply a where
 
 
 instance Apply Collect.SymTab where
-    apply subs symTab = map (Map.map (Map.map (apply subs))) symTab
+    apply subs symTab =
+        SymTab.mapKeys (apply subs) $ SymTab.map (apply subs) symTab
 
 instance Apply Collect.Object where
     apply subs object = case object of
         ObjVar t -> ObjVar (apply subs t)
         ObjType t -> ObjType (apply subs t)
-        ObjFunc t -> ObjFunc (apply subs t)
+        ObjFunc  -> ObjFunc 
         ObjMember i -> ObjMember i
+
+instance Apply Collect.SymKey where
+    apply subs key = case key of
+        KeyVar        -> KeyVar
+        KeyType       -> KeyType
+        KeyFunc ts rt -> KeyFunc (map (apply subs) ts) (apply subs rt)
+        KeyMember t   -> KeyMember (apply subs t)
 
 instance Apply Constraint where
     apply subs (Constraint p t1 t2) = Constraint p (apply subs t1) (apply subs t2)

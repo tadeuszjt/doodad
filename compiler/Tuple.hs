@@ -21,25 +21,25 @@ tupleTypeDef symbol (S.AnnoType typ) = trace "tupleTypeDef" $ do
     Tuple ts <- assertBaseType isTuple typ
     let typdef = Typedef symbol
 
-    define symbol (KeyFunc []) (ObjConstructor typdef)
-    define symbol (KeyFunc [typ]) (ObjConstructor typdef)
-    define symbol (KeyFunc [typdef]) (ObjConstructor typdef)
+    define symbol (KeyFunc [] typdef) ObjConstructor
+    define symbol (KeyFunc [typ] typdef) ObjConstructor
+    define symbol (KeyFunc [typdef] typdef) ObjConstructor
     define symbol KeyType $ ObType typ Nothing
 
     when (length ts > 0) $
-        define symbol (KeyFunc ts) (ObjConstructor typdef)
+        define symbol (KeyFunc ts typdef) ObjConstructor
 
 tupleTypeDef symbol (S.AnnoTuple xs) = trace "tupleTypeDef" $ do
     let typdef = Typedef symbol
     let tupTyp = Tuple (map snd xs)
 
-    define symbol (KeyFunc []) (ObjConstructor typdef)
-    define symbol (KeyFunc [tupTyp]) (ObjConstructor typdef)
-    define symbol (KeyFunc [typdef]) (ObjConstructor typdef)
+    define symbol (KeyFunc [] typdef) ObjConstructor
+    define symbol (KeyFunc [tupTyp] typdef) ObjConstructor
+    define symbol (KeyFunc [typdef] typdef) ObjConstructor
     define symbol KeyType $ ObType tupTyp Nothing
 
     when (length xs > 0) $ do
-        define symbol (KeyFunc $ map snd xs) (ObjConstructor typdef)
+        define symbol (KeyFunc (map snd xs) typdef) ObjConstructor
 
     forM_ (zip xs [0..]) $ \((s, t), i) -> do
         define (Sym s) (KeyMember typdef) (ObjMember i)

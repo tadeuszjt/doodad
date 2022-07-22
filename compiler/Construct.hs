@@ -91,9 +91,9 @@ valConstruct typ [val']   = trace "valConstruct" $ do
         t | isIntegral t || isFloat t -> valConvertNumber typ val
 
         Table [Char] -> do
-            res <- lookm (Sym "string") $ KeyFunc [valType val]
+            res <- lookm (Sym "string") $ KeyFunc [valType val] typ
             case res of
-                Just (ObjFunc retty op) -> Val retty <$> call op [(valOp val, [])]
+                Just (ObjFunc op) -> Val typ <$> call op [(valOp val, [])]
                 Nothing -> valString typ val
 
 

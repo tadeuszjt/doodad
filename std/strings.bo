@@ -35,7 +35,23 @@ fn isPrefix(pre string, str string) bool
     return true
 
 
-fn readInt(s string) (i64, i64)
+fn read(s string) (bool, i64)
+    let length = 0
+    for [i] s | isSpace(s[i])
+        length = length + 1
+
+    let rest = ""
+    for [i] | (i + length) < len(s)
+        rest <- [s[i + length]]
+
+    if isPrefix("true", rest);       return (true, length + 4)
+    else if isPrefix("false", rest); return (false, length + 5)
+    else;                            return (false, 0)
+
+
+
+
+fn read(s string) (i64, i64)
     let length = 0
     for [i] s | s[i] == ' '
         length = length + 1

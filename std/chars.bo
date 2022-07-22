@@ -6,3 +6,5 @@ fn isAlpha(c char) bool
 fn isDigit(c char) bool
     return c >= '0' && c <= '9'
 
+fn isSpace(c char) bool
+    return c == ' ' || c == '\t' || c == '\n'

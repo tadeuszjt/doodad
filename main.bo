@@ -37,11 +37,11 @@ fn main()
         putStrLn("toast")
 
         for [i] | i < 10
-            print(randI64(), randF64())
+            print(rand::I64(), rand::F64())
 
         print("max: ", 12.2, 12.4, max(12.2, 12.4))
 
-        print(strings::readInt("-453153"))
+        print(strings::read("-453153"):(i64, i64), strings::read("   true 123"):(bool, i64))
 
         print(30:c::size_t)
 

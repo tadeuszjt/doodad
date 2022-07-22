@@ -47,6 +47,14 @@ import Interop
 import ADT
 import Array
 
+funcKeyMatch :: [Type] -> [SymKey] -> [SymKey]
+funcKeyMatch argTypes []         = []
+funcKeyMatch argTypes (key:keys) = case key of
+    KeyFunc ts rt
+        | ts == argTypes -> KeyFunc ts rt : funcKeyMatch argTypes keys
+    _ -> funcKeyMatch argTypes keys
+
+
 compile :: BoM s m => [CompileState] -> S.AST ->  m ([LL.Definition], CompileState)
 compile imports ast = do
     ((_, defs), state) <- runBoMTExcept (initCompileState imports modName) (runModuleCmpT emptyModuleBuilder cmp)
@@ -98,9 +106,9 @@ cmpTypeDef (S.Typedef pos symbol (S.AnnoType typ)) = withPos pos $ do
         t | isTuple t -> tupleTypeDef symbol (S.AnnoType t)
         t             -> do
             let typdef = Typedef symbol
-            define symbol (KeyFunc []) (ObjConstructor typdef)
-            define symbol (KeyFunc [t]) (ObjConstructor typdef)
-            define symbol (KeyFunc [typdef]) (ObjConstructor typdef)
+            define symbol (KeyFunc [] typdef) ObjConstructor
+            define symbol (KeyFunc [t] typdef) ObjConstructor
+            define symbol (KeyFunc [typdef] typdef) ObjConstructor
             define symbol KeyType (ObType t Nothing)
                     
 
@@ -136,10 +144,10 @@ cmpFuncHdr (S.FuncDef pos sym params retty blk)    = trace "cmpFuncHdr" $ withPo
     returnOpType <- opTypeOf retty
     let op = fnOp name paramOpTypes returnOpType False
 
-    define (Sym sym) (KeyFunc paramTypes) (ObjFunc retty op) 
+    define (Sym sym) (KeyFunc paramTypes retty) (ObjFunc op) 
     --redefine (Sym sym) KeyVar $ ObjVal $ Val (Func paramTypes retty) op
 
-    addSymKeyDec (Sym sym) (KeyFunc paramTypes) name (DecFunc paramOpTypes returnOpType)
+    addSymKeyDec (Sym sym) (KeyFunc paramTypes retty) name (DecFunc paramOpTypes returnOpType)
     addSymKeyDec (Sym sym) KeyVar name (DecFunc paramOpTypes returnOpType)
 
     addDeclared name
@@ -157,7 +165,7 @@ cmpFuncDef (S.FuncDef pos sym params retty blk) = trace "cmpFuncDef" $ withPos p
     let paramSymbols = map S.paramName params
     let paramNames = map (ParameterName . mkBSS . Type.sym) paramSymbols
 
-    ObjFunc _ op <- look (Sym sym) (KeyFunc paramTypes)
+    ObjFunc op <- look (Sym sym) (KeyFunc paramTypes retty)
     let LL.ConstantOperand (C.GlobalReference _ name) = op
     let Name nameStr = name
 
@@ -199,16 +207,15 @@ cmpIndex index = withPos index $ case index of
 
 cmpInfix :: InsCmp CompileState m => S.Op -> Value -> Value -> m Value
 cmpInfix op valA valB = do
-    resm <- lookm (Sym $ show op) $ KeyFunc [valType valA, valType valB]
-    case resm of
-        Just (ObjFunc Void op)   -> fail "Operator function does not return a value."
-
-        Just (ObjFunc retty op)  -> do
+    kos <- lookSym (Sym $ show op)
+    let matches = funcKeyMatch [valType valA, valType valB] (map fst kos)
+    case matches of
+        []              -> valsInfix op valA valB
+        [KeyFunc ts rt] -> do
+            ObjFunc op <- look (Sym $ show op) $ KeyFunc ts rt
             opA <- valOp <$> valLoad valA
             opB <- valOp <$> valLoad valB
-            Val retty <$> call op [(opA, []), (opB, [])]
-
-        Nothing -> valsInfix op valA valB
+            Val rt <$> call op [(opA, []), (opB, [])]
 
 
 cmpCondition :: InsCmp CompileState m => S.Condition -> m Value
@@ -248,9 +255,15 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
     S.AppendStmt append -> void $ cmpAppend append
 
     S.CallStmt pos symbol exprs -> do
-        vals <- mapM (valLoad <=< cmpExpr) exprs
-        ObjFunc _ op <- look symbol $ KeyFunc (map valType vals)
-        void $ call op [(o, []) | o <- map valOp vals]
+        vals <- mapM cmpExpr exprs
+
+        kos <- lookSym symbol
+        case funcKeyMatch (map valType vals) (map fst kos) of
+            [] -> fail $ "no matching function"
+            [KeyFunc ts rt] -> do
+                ObjFunc op <- look symbol $ KeyFunc ts rt
+                vals' <- mapM valLoad vals
+                void $ call op [(o, []) | o <- map valOp vals']
 
     S.Assign pos pat expr -> trace ("assign " ++ show pat) $ do
         matched <- valLoad =<< cmpPattern pat =<< cmpExpr expr
@@ -394,12 +407,11 @@ cmpExpr (S.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck exp
 
     S.Call pos symbol exprs -> do
         vals <- mapM valLoad =<< mapM cmpExpr exprs
-        obj <- look symbol $ KeyFunc (map valType vals)
+        obj <- look symbol $ KeyFunc (map valType vals) exprType
         case obj of
-            ObjFunc Void _     -> fail "cannot use void function as expression"
-            ObjConstructor typ -> valConstruct typ vals
-            ObjFunc retty op   -> Val retty <$> call op [(o, []) | o <- map valOp vals]
-            ObjADTFieldCons typ -> adtConstructField symbol typ vals
+            ObjConstructor     -> valConstruct exprType vals
+            ObjFunc op         -> Val exprType <$> call op [(o, []) | o <- map valOp vals]
+            ObjADTFieldCons    -> adtConstructField symbol exprType vals
 
     S.Len pos expr -> valLoad =<< do
         assertBaseType isIntegral exprType
