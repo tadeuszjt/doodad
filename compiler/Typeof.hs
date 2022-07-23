@@ -67,10 +67,12 @@ checkTypesCompatible typA typB = do
 
         t | isADT t -> do
             assertBaseType isADT baseB
-            let ADT ats = baseA
-            let ADT bts = baseB
-            assert (length ats == length bts) "ADTs aren't compatible"
-            zipWithM_ checkTypesCompatible ats bts
+            let ADT atss = baseA
+            let ADT btss = baseB
+            assert (length atss == length btss) "ADTs aren't compatible"
+            forM_ (zip atss btss) $ \(ats, bts) -> do
+                assert (length ats == length bts) "ADTs aren't compatible"
+                zipWithM_ checkTypesCompatible ats bts
             
         _ -> fail $ "Can't checkTypesCompatible: " ++ show typA
 
@@ -104,6 +106,7 @@ opTypeOf typ = trace ("opTypOf " ++ show typ) $ case typ of
     ADT _
         | isEmptyADT typ -> return $ LL.ptr LL.void
         | isNormalADT typ -> return $ LL.StructureType False [LL.i64, LL.ptr LL.void]
+        | isEnumADT typ -> return $ LL.i64
 
     _         -> error (show typ) 
 

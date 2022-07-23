@@ -191,18 +191,17 @@ collectTypedef (S.Typedef pos symbol annoTyp) = collectPos pos $ case annoTyp of
         define symbol KeyType (ObjType t)
 
     AnnoTuple xs   -> do
-        let ts = map snd xs
         let typedef = T.Typedef symbol
+        let ts = map snd xs
         forM_ (zip xs [0..]) $ \((s, t), i) -> define (Sym s) (KeyMember typedef) (ObjMember i)
         define symbol KeyType $ ObjType $ T.Tuple (map snd xs)
         define symbol (KeyFunc ts typedef) ObjFunc
 
     AnnoADT xs -> do
-        let ts = map snd xs
         let typedef = T.Typedef symbol
-        forM_ (zip xs [0..]) $ \((s, t), i) -> do
+        forM_ (zip xs [0..]) $ \((s, ts), i) -> do
             define s (KeyMember typedef) (ObjMember i)
-            define s (KeyFunc [t] typedef) ObjFunc
+            define s (KeyFunc ts typedef) ObjFunc
         define symbol KeyType $ ObjType $ T.ADT (map snd xs)
 
 
@@ -323,13 +322,15 @@ collectPattern pattern typ = collectPos pattern $ case pattern of
         collectPattern pat typ
         collectExpr expr
 
-    PatField _ symbol pat -> do
+    PatField _ symbol pats -> do
         base <- baseTypeOf typ
         case base of
-            ADT ts -> do
+            ADT tss -> do
                 ObjMember i <- look symbol (KeyMember typ)
-                collectPattern pat (ts !! i)
-            _ -> collectPattern pat =<< genType
+                let ts = tss !! i
+                assert (length ts == length pats) "Invalid field"
+                zipWithM_ collectPattern pats ts
+            _ -> forM_ pats $ \pat -> collectPattern pat =<< genType
 
     PatTuple _ pats -> do
         base <- baseTypeOf typ
@@ -337,9 +338,7 @@ collectPattern pattern typ = collectPos pattern $ case pattern of
             T.Tuple ts -> do
                 assert (length ts == length pats) "Invalid tuple pattern"
                 zipWithM_ collectPattern pats ts
-            _ -> do
-                gts <- replicateM (length pats) genType
-                zipWithM_ collectPattern pats gts
+            _ -> forM_ pats $ \pat -> collectPattern pat =<< genType
 
     _ -> error $ show pattern
 

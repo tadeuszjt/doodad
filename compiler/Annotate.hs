@@ -96,7 +96,7 @@ instance Annotate Pattern where
             pat' <- annotate pat
             PatGuarded p pat' <$> annotate e
 
-        PatField p symbol pat -> PatField p symbol <$> annotate pat
+        PatField p symbol pats -> PatField p symbol <$> mapM annotate pats
 
 
 instance Annotate Append where

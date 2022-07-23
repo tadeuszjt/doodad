@@ -66,7 +66,7 @@ data Pattern
     | PatTuple     TextPos [Pattern]
     | PatArray     TextPos [Pattern]
     | PatGuarded   TextPos Pattern Expr
-    | PatField     TextPos Symbol Pattern
+    | PatField     TextPos Symbol [Pattern]
     deriving (Eq)
 
 data Index
@@ -123,7 +123,7 @@ data Stmt
 data AnnoType
     = AnnoType  Type
     | AnnoTuple [(String, Type)]
-    | AnnoADT   [(Symbol, Type)]
+    | AnnoADT   [(Symbol, [Type])]
     deriving (Eq)
 
 instance TextPosition Append where
@@ -146,6 +146,10 @@ instance TextPosition Pattern where
         PatArray     p _ -> p
         PatGuarded   p _ _ -> p
         PatField     p _ _ -> p
+
+instance TextPosition Condition where
+    textPos condition = case condition of
+        CondExpr e -> textPos e
         
 
 instance TextPosition Expr where

@@ -157,7 +157,7 @@ pattern  : '_'                                { S.PatIgnore (tokPos $1) }
          | '(' patterns ')'                   { S.PatTuple (tokPos $1) $2 }
          | '[' patterns ']'                   { S.PatArray (tokPos $1) $2 }
          | pattern '|' expr                   { S.PatGuarded (tokPos $2) $1 $3 }
-         | symbol '(' pattern ')'             { S.PatField (tokPos $2) (snd $1) $3 }
+         | symbol '(' patterns ')'            { S.PatField (tokPos $2) (snd $1) $3 }
 
 patterns  : {- empty -}                       { [] }
           | patterns_                         { $1 }
@@ -270,7 +270,7 @@ exprs  : {- empty -}                          { [] }
 exprs_ : expr                                 { [$1] }
        | expr ',' exprs_                      { $1 : $3 }
 
-exprsN : expr                                 { [$1] }
+exprsN : expr 'N'                             { [$1] } 
        | expr ',' 'N' exprsN                  { $1 : $4 }
 
 tableRows : exprs                             { [$1] }
@@ -315,7 +315,7 @@ annoTupFields : annoTupField                  { [$1] }
 
 annoADTType : '{' annoADTFields '}'           { S.AnnoADT $2 }
             | '{' '}'                         { S.AnnoADT [] }
-annoADTField : ident type_                    { (T.Sym (tokStr $1), $2) }
+annoADTField : ident '(' argTypes ')'         { (T.Sym (tokStr $1), $3) }
 annoADTFields : annoADTField                  { [$1] }
               | annoADTField '|' annoADTFields { $1 : $3 }
 

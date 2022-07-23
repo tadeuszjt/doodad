@@ -30,7 +30,7 @@ data Type
     | Array Int Type         
     | Table [Type]         
     | Func [Type] Type 
-    | ADT [Type]
+    | ADT [[Type]]
     | Typedef Symbol
     deriving (Eq, Ord)
 
@@ -88,7 +88,7 @@ isPtrADT (ADT [x]) = True
 isPtrADT _         = False
 
 isEnumADT :: Type -> Bool
-isEnumADT (ADT ts) = all (== Void) ts
+isEnumADT (ADT tss) = all (== []) tss
 
 isNormalADT :: Type -> Bool
 isNormalADT adt@(ADT _) = not $ isEmptyADT adt || isPtrADT adt || isEnumADT adt

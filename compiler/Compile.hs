@@ -535,13 +535,21 @@ cmpPattern pattern val = trace "cmpPattern" $ withPos pattern $ case pattern of
                 foldM (valsInfix S.AndAnd) true (lenEq:bs)
             _ -> fail "Invalid array pattern"
 
-    S.PatField _ symbol pat -> do
+    S.PatField _ symbol pats -> do
+        base@(ADT tss) <- assertBaseType isADT (valType val)
         ObjMember i <- look symbol (KeyMember $ valType val)
-        match <- cmpPattern pat =<< adtDeref val i
-        n <- valInt I64 i
-        enumMatch <- valsInfix S.EqEq n =<< adtEnum val
-        valsInfix S.AndAnd match enumMatch
+        case base of
+            _ | isEnumADT base -> do
+                assert (length pats == 0) "invalid ADT pattern"
+                valsInfix S.EqEq (valI64 i) =<< adtEnum val
 
-
+            _ | isNormalADT base -> do
+                let ts = tss !! i
+                assert (length pats == length ts) "invalid ADT pattern"
+                valBool Bool True
+                bs <- forM (zip pats [0..]) $ \(pat, ti) -> 
+                    cmpPattern pat =<< adtDeref val i ti
+                enumMatch <- valsInfix S.EqEq (valI64 i) =<< adtEnum val
+                foldM (valsInfix S.AndAnd) enumMatch bs
 
 

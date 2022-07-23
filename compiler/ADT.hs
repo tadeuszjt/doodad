@@ -33,21 +33,17 @@ adtTypeDef symbol anno = trace "adtTypeDef" $ do
     case anno of
         S.AnnoADT xs -> do
             define symbol KeyType $ ObType (ADT $ map snd xs) Nothing
-            forM_ (zip xs [0..]) $ \((s, t), i) -> do
+            forM_ (zip xs [0..]) $ \((s, ts), i) -> do
                 define s (KeyMember typdef) (ObjMember i)
-                define s (KeyFunc [t] typdef) ObjADTFieldCons
-                define s (KeyFunc [] typdef) ObjADTFieldCons
-                when (isTuple t) $ do
-                    let Tuple ts = t
-                    define s (KeyFunc ts typdef) ObjADTFieldCons
+                define s (KeyFunc ts typdef) ObjADTFieldCons
 
 
 adtEnum :: InsCmp CompileState m => Value -> m Value
 adtEnum adt = trace "adtEnum" $ do
-    adtTyp@(ADT ts) <- assertBaseType isADT (valType adt)
+    adtTyp@(ADT tss) <- assertBaseType isADT (valType adt)
     case adtTyp of
         _ | isEmptyADT adtTyp  -> fail "ADT has no enum"
-        _ | isPtrADT adtTyp    -> fail "ADT has no enum"
+        --_ | isPtrADT adtTyp    -> fail "ADT has no enum"
         _ | isEnumADT adtTyp   -> do
             val <- valLoad adt
             return $ val { valType = I64 }
@@ -58,58 +54,49 @@ adtEnum adt = trace "adtEnum" $ do
 
 adtSetEnum :: InsCmp CompileState m => Value -> Int -> m ()
 adtSetEnum adt@(Ptr _ loc) i = trace "adtSetEnum" $ do
-    adtTyp@(ADT ts) <- assertBaseType isADT (valType adt)
-    assert (i >= 0 && i < length ts) "invalid ADT enum"
+    adtTyp@(ADT tss) <- assertBaseType isADT (valType adt)
+    assert (i >= 0 && i < length tss) "invalid ADT enum"
     case adtTyp of
         _ | isEmptyADT adtTyp  -> fail "ADT has no enum"
-        _ | isPtrADT adtTyp    -> fail "ADT has no enum"
+        --_ | isPtrADT adtTyp    -> fail "ADT has no enum"
         _ | isEnumADT adtTyp   -> valStore adt $ (valI64 i) { valType = adtTyp }
         _ | isNormalADT adtTyp -> do
             en <- Ptr I64 <$> gep loc [int32 0, int32 0]
             valStore en (valI64 i)
 
 
-adtDeref :: InsCmp CompileState m => Value -> Int -> m Value
-adtDeref val i = trace "adtDeref" $ do
-    base@(ADT ts) <- assertBaseType isADT (valType val)
+adtDeref :: InsCmp CompileState m => Value -> Int -> Int -> m Value
+adtDeref adt i ti = trace "adtDeref" $ do
+    base@(ADT tss) <- assertBaseType isADT (valType adt)
     case base of
         _ | isEnumADT base -> fail "Cannot deref enum ADT"
         _ | isEmptyADT base -> fail "Cannot deref empty ADT"
-        _ | isPtrADT base || isNormalADT base -> do
-            pi8 <- adtPi8 val
-            pt  <- LL.ptr <$> opTypeOf (ts !! i)
-            Ptr (ts !! i) <$> bitcast pi8 pt
+        _ | isNormalADT base -> do
+            ptr <- adtPi8 adt
+            case tss !! i of
+                [t] -> do -- ptr points directly to val
+                    assert (ti == 0) "invalid ADT deref"
+                    fmap (Ptr t) . bitcast ptr . LL.ptr =<< opTypeOf t
 
-
-adtNull :: InsCmp CompileState m => Type -> m Value
-adtNull typ = trace "adtNull" $ do
-    ADT ts <- assertBaseType isADT typ
-    let is = elemIndices Void ts
-    assert (length is == 1) (show typ ++ " does not have a unique null constructor")
-
-    loc <- valLocal typ
-    when (length ts > 1) $ adtSetEnum loc (head is)
-    return loc
-
-
+            
 adtPi8 :: InsCmp CompileState m => Value -> m LL.Operand
 adtPi8 adt = trace "adtPi8" $ do
-    adtTyp@(ADT ts) <- assertBaseType isADT (valType adt)
+    adtTyp@(ADT tss) <- assertBaseType isADT (valType adt)
     op <- valOp <$> valLoad adt
     case adtTyp of
         _ | isEmptyADT adtTyp -> fail "Empty ADT has no pointer"
         _ | isEnumADT adtTyp  -> fail "Empty ADT has no pointer"
-        _ | isPtrADT adtTyp   -> return op
+        --_ | isPtrADT adtTyp   -> return op
         _ | isNormalADT adtTyp -> extractValue op [1]
 
 
 adtSetPi8 :: InsCmp CompileState m => Value -> LL.Operand -> m ()
 adtSetPi8 adt@(Ptr _ loc) pi8 = trace "adtSetPi8" $ do
-    adtTyp@(ADT ts) <- assertBaseType isADT (valType adt)
+    adtTyp@(ADT tss) <- assertBaseType isADT (valType adt)
     case adtTyp of
         _ | isEmptyADT adtTyp  -> fail "Empty ADT has no pointer"
         _ | isEnumADT adtTyp   -> fail "Empty ADT has no pointer"
-        _ | isPtrADT adtTyp    -> store loc 0 pi8
+        --_ | isPtrADT adtTyp    -> store loc 0 pi8
         _ | isNormalADT adtTyp -> do
             ppi8 <- gep loc [int32 0, int32 1]
             store ppi8 0 pi8
@@ -118,7 +105,7 @@ adtSetPi8 adt@(Ptr _ loc) pi8 = trace "adtSetPi8" $ do
 -- Construct a specific ADT field, eg: TokSym("ident")
 adtConstructField :: InsCmp CompileState m => Symbol -> Type -> [Value] -> m Value
 adtConstructField symbol typ vals = trace ("adtConstructField " ++ show symbol) $ do
-    adtTyp@(ADT ts) <- assertBaseType isADT typ
+    adtTyp@(ADT tss) <- assertBaseType isADT typ
 
     case adtTyp of
         _ | isEmptyADT adtTyp  -> do
@@ -132,25 +119,17 @@ adtConstructField symbol typ vals = trace ("adtConstructField " ++ show symbol) 
             adtSetEnum adt i
             return adt
 
-        _ | isPtrADT adtTyp -> do
-            ObjMember i <- look symbol (KeyMember typ)
-            
-            assert (length vals == 1) "Invalid ADT constructor arguments"
-            let [val] = vals
-            checkTypesCompatible (valType val) (ts !! i)
-
-            adt <- valLocal typ
-            mal <- valMalloc (ts !! i) (valI64 1)
-            valStore mal val
-            adtSetPi8 adt =<< bitcast (valLoc mal) (LL.ptr LL.i8)
-            return adt
 
         _ | isNormalADT adtTyp && length vals == 1 -> do
             ObjMember i <- look symbol (KeyMember typ)
+            let ts = tss !! i
+            assert (length vals == 1) "Invalid ADT constructor arguments"
+            assert (length ts == 1) "Invalid ADT constructor args"
 
             let [val] = vals
-            checkTypesCompatible (valType val) (ts !! i)
-            mal <- valMalloc (ts !! i) (valI64 1)
+            let [t] = ts
+            checkTypesCompatible (valType val) t
+            mal <- valMalloc t (valI64 1)
             valStore mal val
 
             adt <- valLocal typ
@@ -158,26 +137,52 @@ adtConstructField symbol typ vals = trace ("adtConstructField " ++ show symbol) 
             adtSetEnum adt i
             return adt
 
-        _ | isNormalADT adtTyp && length vals == 0 -> do
-            ObjMember i <- look symbol (KeyMember typ)
-            assert (ts !! i == Void) "Invalid ADT constructor."
-            adt <- valLocal typ
-            adtSetEnum adt i
-            return adt
+--        _ | isPtrADT adtTyp -> do
+--            ObjMember i <- look symbol (KeyMember typ)
+--            let ts = tss !! i
+--            assert (length vals == 1) "Invalid ADT constructor arguments"
+--            assert (length ts == 1) "Invalid ADT constructor args"
+--            let t = head ts
+--            let [val] = vals
+--            checkTypesCompatible (valType val) t
+--
+--            adt <- valLocal typ
+--            mal <- valMalloc t (valI64 1)
+--            valStore mal val
+--            adtSetPi8 adt =<< bitcast (valLoc mal) (LL.ptr LL.i8)
+--            return adt
 
-        _ | isNormalADT adtTyp && length vals > 1 -> do
-            ObjMember i <- look symbol (KeyMember typ)
-            Tuple tts <- assertBaseType isTuple (ts !! i)
-            mal <- valMalloc (ts !! i) (valI64 1)
+--adtNull :: InsCmp CompileState m => Type -> m Value
+--adtNull typ = trace "adtNull" $ do
+--    ADT tss <- assertBaseType isADT typ
+--    assert (length is == 1) (show typ ++ " does not have a unique null constructor")
+--
+--    loc <- valLocal typ
+--    when (length ts > 1) $ adtSetEnum loc (head is)
+--    return loc
 
-            assert (length vals == length tts) "Invalid ADT constructor"
-            zipWithM_ checkTypesCompatible (map valType vals) tts
-            zipWithM_ (tupleSet mal) [0..] vals
 
-            adt <- valLocal typ
-            adtSetEnum adt i
-            adtSetPi8 adt =<< bitcast (valLoc mal) (LL.ptr LL.i8)
-            return adt
+--
+--        _ | isNormalADT adtTyp && length vals == 0 -> do
+--            ObjMember i <- look symbol (KeyMember typ)
+--            assert (ts !! i == Void) "Invalid ADT constructor."
+--            adt <- valLocal typ
+--            adtSetEnum adt i
+--            return adt
+--
+--        _ | isNormalADT adtTyp && length vals > 1 -> do
+--            ObjMember i <- look symbol (KeyMember typ)
+--            Tuple tts <- assertBaseType isTuple (ts !! i)
+--            mal <- valMalloc (ts !! i) (valI64 1)
+--
+--            assert (length vals == length tts) "Invalid ADT constructor"
+--            zipWithM_ checkTypesCompatible (map valType vals) tts
+--            zipWithM_ (tupleSet mal) [0..] vals
+--
+--            adt <- valLocal typ
+--            adtSetEnum adt i
+--            adtSetPi8 adt =<< bitcast (valLoc mal) (LL.ptr LL.i8)
+--            return adt
 --
 --
 --            

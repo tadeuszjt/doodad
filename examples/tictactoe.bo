@@ -5,16 +5,22 @@ import ../std/strings
 import ../std/rand
 
 
-type Square i64
 
+
+type Square { Empty() | Naught() | Cross() }
 
 fn string(sq Square)
     switch sq
-        0; return " "
-        1; return "0"
-        2; return "X"
+        Empty();  return " "
+        Naught(); return "0"
+        Cross();  return "X"
 
-let board = [ [0, 0, 0], [0, 0, 0], [0, 0, 0] ]:[3 [3 Square]]
+
+let board = [
+    [Empty(), Empty(), Empty()],
+    [Empty(), Empty(), Empty()],
+    [Empty(), Empty(), Empty()]
+]:[3 [3 Square]]
 
 
 fn printBoard()
@@ -44,22 +50,29 @@ fn playerMove() bool
     if row < 0 || row > len(board) || col < 0 || col > len(board[row])
         putStrLn("invalid move: " + string(row) + " " + string(col))
         return false
-    else if board[row][col] != 0
+    else if board[row][col] != Empty()
         putStrLn("invalid move: " + string(row) + " " + string(col))
         return false
 
     putStrLn("moving: row " + string(row) + ", col " + string(col))
-    board[row][col] = 1
+    board[row][col] = Naught()
     return true
 
 
 fn cpuMove()
-    print("cpu moving. Bzzzstt Ksssksk beep-beep-beep.")
+    let cpuWords = ["kssssksk", "beep", "click-click", "ka-chunk", "ding", "bzztzt"]
+    let cpuStr = "cpu moving."
+    let cpuNumWords = (rand::I64() % 5) + 1
+    for [i] | i < cpuNumWords
+        cpuStr <- " " <- cpuWords[rand::I64() % len(cpuWords)]
+    cpuStr <- "."
+    print(cpuStr)
+
     let emptySquares = []
     
     for [row] board
         for [col] board[row]
-            if board[row][col] == 0
+            if board[row][col] == Empty()
                 emptySquares <- [(row, col)]
 
     if len(emptySquares) == 0
@@ -67,34 +80,34 @@ fn cpuMove()
 
     let i = rand::I64() % len(emptySquares)
     let (row, col) = emptySquares[i]
-    board[row][col] = 2
+    board[row][col] = Cross()
 
 
 fn winner() Square
     if len(board) < 1 || len(board[0]) < 1
-        return 0
+        return Empty()
 
     for [row] board
         let same = true
         for [col] board[row]
-            if board[row][col] == 0 || board[row][col] != board[row][0]
+            if board[row][col] == Empty() || board[row][col] != board[row][0]
                 same = false
         if same; return board[row][0]
 
     for [col] board[0]
         let same = true
         for [row] board
-            if board[row][col] == 0 || board[row][col] != board[0][col]
+            if board[row][col] == Empty() || board[row][col] != board[0][col]
                 same = false
         if same; return board[0][col]
 
     let same = true
     for [i] | i < len(board) && i < len(board[0])
-        if board[i][i] == 0 || board[i][i] != board[0][0]
+        if board[i][i] == Empty() || board[i][i] != board[0][0]
             same = false
     if same; return board[0][0]
     
-    return 0
+    return Empty()
 
 
 fn main()
@@ -103,7 +116,7 @@ fn main()
 
     for [i] | i < 10
         let win = winner()
-        if win != 0
+        if win != Empty()
             putStrLn("winner is: " + string(win))
             return
         

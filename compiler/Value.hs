@@ -133,6 +133,8 @@ valZero typ = trace ("valZero " ++ show  typ) $ do
                     let zi64 = toCons (int64 0)
                     zptrs <- map (C.IntToPtr zi64 . LL.ptr) <$> mapM opTypeOf ts
                     return $ Val typ $ struct namem False (zi64:zi64:zptrs)
+                ADT tss
+                    | isEnumADT base -> Val typ . valOp <$> valZero I64
                 _ -> error ("valZero: " ++  show typ)
 
 
@@ -206,11 +208,12 @@ valsInfix operator a b = trace ("valsInfix " ++ show operator) $ do
     base <- baseTypeOf (valType a)
 
     case base of
-        Bool             -> boolInfix (valType a) operator opA opB
-        Char             -> intInfix (valType a) operator opA opB
-        _ | isInt base   -> intInfix (valType a) operator opA opB
-        _ | isFloat base -> floatInfix (valType a) operator opA opB
-        _                -> fail $ "Operator " ++ show operator ++ " undefined for types " ++ show (valType a) ++ " " ++ show (valType b)
+        Bool               -> boolInfix (valType a) operator opA opB
+        Char               -> intInfix (valType a) operator opA opB
+        _ | isInt base     -> intInfix (valType a) operator opA opB
+        _ | isFloat base   -> floatInfix (valType a) operator opA opB
+        _ | isEnumADT base -> adtEnumInfix (valType a) operator opA opB
+        _                  -> fail $ "Operator " ++ show operator ++ " undefined for types " ++ show (valType a) ++ " " ++ show (valType b)
 
     where 
         exprInfix operator exprA exprB = case (operator, exprA, exprB) of
@@ -246,4 +249,9 @@ valsInfix operator a b = trace ("valsInfix " ++ show operator) $ do
             S.Divide -> Val typ <$> fdiv opA opB
             S.EqEq   -> Val Bool <$> fcmp P.OEQ opA opB
             _        -> error ("float infix: " ++ show operator)
+
+        adtEnumInfix :: InsCmp CompileState m => Type -> S.Op -> LL.Operand -> LL.Operand -> m Value
+        adtEnumInfix typ operator opA opB = case operator of
+            S.NotEq -> Val Bool <$> icmp P.NE opA opB
+            S.EqEq  -> Val Bool <$> icmp P.EQ opA opB
         

@@ -182,18 +182,21 @@ instance Resolve Stmt where
             define sym KeyFunc symbol
             anno' <- case anno of
                 AnnoType t -> AnnoType <$> resolve t
+
                 AnnoTuple xs -> do 
                     xs' <- forM xs $ \(s, t) -> do
                         t' <- resolve t
                         return (s, t')
                     return $ AnnoTuple xs'
+
                 AnnoADT xs -> do
-                    xs' <- forM xs $ \(Sym s, t) -> do
+                    xs' <- forM xs $ \(Sym s, ts) -> do
                         s' <- genSymbol s
                         define s KeyFunc s'
-                        t' <- resolve t
-                        return (s', t')
+                        ts' <- mapM resolve ts
+                        return (s', ts')
                     return $ AnnoADT xs'
+
                 _ -> fail $ "invalid anno: " ++ show anno
 
             return $ AST.Typedef pos symbol anno'
@@ -253,7 +256,7 @@ instance Resolve Stmt where
         _ -> fail $ show stmt
 
 instance Resolve Condition where
-    resolve condition = case condition of
+    resolve condition = withPos condition $ case condition of
         CondExpr expr -> CondExpr <$> resolve expr
         CondMatch pat expr -> do
             pat' <- resolve pat
@@ -287,10 +290,10 @@ instance Resolve Pattern where
             define sym KeyVar symbol
             return $ PatIdent pos symbol
 
-        PatField pos symbol pat -> do
-            pat' <- resolve pat
+        PatField pos symbol pats -> do
+            pats' <- mapM resolve pats
             symbol' <- look symbol KeyFunc -- TODO bit of a hack
-            return $ PatField pos symbol' pat' -- TODO
+            return $ PatField pos symbol' pats' -- TODO
 
         PatTuple pos pats -> PatTuple pos <$> mapM resolve pats
 

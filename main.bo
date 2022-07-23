@@ -9,7 +9,7 @@ import std/rand
 import_c stdlib.h
 
 fn main()
-        type Adt { I64 i64 | F64 f64 }
+        type Adt { I64(i64) | F64(f64) }
 
         let va = Vec2(1.0, 3.0)
         let vb = Vec2(9, 7)

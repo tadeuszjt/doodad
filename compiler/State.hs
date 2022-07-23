@@ -132,7 +132,7 @@ define symbol key obj = trace "define" $ do
 checkSymKeyUndef :: BoM CompileState m => Symbol -> SymKey -> m ()
 checkSymKeyUndef symbol key = trace ("checkSymKeyUndef " ++ show symbol) $ do
     res <- SymTab.lookupHead symbol key <$> gets symTab
-    assert (isNothing res) (show symbol ++ " already defined")
+    assert (isNothing res) (show symbol ++ " " ++ show key ++ " already defined")
 
 
 checkSymUndef :: BoM CompileState m => Symbol -> m ()

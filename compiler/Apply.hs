@@ -25,7 +25,7 @@ substitute u x typ = case typ of
     Array n t        -> Array n (substitute u x t)
     Void             -> typ
     T.Typedef symbol -> typ
-    ADT ts           -> ADT $ map (substitute u x) ts
+    ADT tss          -> ADT $ map (map (substitute u x)) tss
     _                -> error (show typ)
 
 
@@ -94,7 +94,7 @@ instance Apply Pattern where
         PatIdent p s       -> pattern
         PatLiteral e       -> PatLiteral (apply subs e)
         PatGuarded p pat e -> PatGuarded p (apply subs pat) (apply subs e)
-        PatField p s pat   -> PatField p s (apply subs pat)
+        PatField p s pats  -> PatField p s $ map (apply subs) pats
         PatTuple p pats    -> PatTuple p $ map (apply subs) pats
         PatIgnore p        -> PatIgnore p
         _                    -> error $ show pattern
