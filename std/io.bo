@@ -15,6 +15,6 @@ fn getStrLn() string
         else;              str <- [c]
 
 fn putStrLn(str string)
-    for [i] str; c::putchar(i64(str[i]))
-    c::putchar(i64('\n')) 
+    for [i] str; c::putchar(i32(str[i]))
+    c::putchar(i32('\n')) 
 

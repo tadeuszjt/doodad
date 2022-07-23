@@ -57,20 +57,23 @@ importToCStmt (S.ImportCMacro macro typ) =
 
 cTypeToType :: (BoM s m, Show a) => CTypeSpecifier a -> m Type
 cTypeToType typeSpec = case typeSpec of
-    CIntType _    -> return I64
-    CDoubleType _ -> return F64
-    CFloatType _  -> return F32
-    CVoidType _   -> return Void
-    _             -> fail (show typeSpec)
+    CIntType _                 -> return I64
+    CDoubleType _              -> return F64
+    CFloatType _               -> return F32
+    CVoidType _                -> return Void
+    CTypeDef (Ident sym _ _) _ -> return $ Typedef (SymQualified "c" sym)
+    _ -> error (show typeSpec)
+    _ -> fail (show typeSpec)
 
 
 declSpecsToType :: BoM s m => [CDeclSpec] -> m Type
 declSpecsToType typeSpecs = case typeSpecs of
-    [CTypeSpec (CUnsigType _), CTypeSpec (CIntType _)]  -> return I64
+    [CTypeSpec (CUnsigType _), CTypeSpec (CIntType _)]  -> return I32
     [CTypeQual (CConstQual _), CTypeSpec (CCharType _)] -> return Char
-    [CTypeSpec (CIntType _)]                            -> return I64
+    [CTypeSpec (CIntType _)]                            -> return I32
     [CTypeSpec (CDoubleType _)]                         -> return F64
     [CTypeSpec (CFloatType _)]                          -> return F32
+    [CTypeSpec (CTypeDef (Ident sym _ _) _)]            -> return $ Typedef (SymQualified "c" sym)
     _                                                   -> fail (show typeSpecs)
 
 
@@ -85,11 +88,33 @@ declrIsValid declr = case declr of
 
 defSpecsToType :: BoM s m => [CDeclSpec] -> m Type
 defSpecsToType specs = case specs of
-    [CStorageSpec (CExtern _), CTypeSpec (CIntType _)]                          -> return I64
+    [CStorageSpec (CExtern _), CTypeSpec (CIntType _)]                          -> return I32
     [CStorageSpec (CExtern _), CTypeSpec (CVoidType _)]                         -> return Void
     [CStorageSpec (CExtern _), CTypeSpec (CDoubleType _)]                       -> return F64
-    [CTypeSpec (CIntType _)]                                                    -> return I64
+    [CTypeSpec (CTypeDef (Ident sym _ _) _)] -> return $ Typedef (SymQualified "c" sym)
+    [CTypeSpec (CIntType _)]                                                    -> return I32
     [CTypeSpec (CLongType _), CTypeSpec (CUnsigType _), CTypeSpec (CIntType _)] -> return I64
+    [CTypeSpec (CSignedType _), CTypeSpec (CCharType _)]                        -> return I8
+    [CTypeSpec (CUnsigType _), CTypeSpec (CCharType _)]                         -> return I8
+    [CTypeSpec (CSignedType _), CTypeSpec (CShortType _)]                       -> return I16
+    [CTypeSpec (CUnsigType _), CTypeSpec (CShortType _)]                        -> return I16
+    [CTypeSpec (CSignedType _), CTypeSpec (CIntType _)]                         -> return I32
+    [CTypeSpec (CUnsigType _), CTypeSpec (CIntType _)]                          -> return I32
+    [CTypeSpec (CSignedType _), CTypeSpec (CLongType _), CTypeSpec (CLongType _)] -> return I64
+    [CTypeSpec (CUnsigType _), CTypeSpec (CLongType _), CTypeSpec (CLongType _)] -> return I64
+    [CTypeSpec (CLongType _), CTypeSpec (CIntType _)] -> return I64
+    [CTypeSpec (CUnsigType _), CTypeSpec (CLongType _)] -> return I64
+
+    -- struct { cType decl } 
+    [CTypeSpec (CSUType (CStruct CStructTag Nothing (Just [CDecl fieldDeclSpecs [(Just (CDeclr (Just (Ident sym _ _)) [] Nothing [] _), Nothing, Nothing)] _]) [] _) _)] -> do
+        typ <- declSpecsToType fieldDeclSpecs
+        return $ Tuple [typ]
+
+    (CStorageSpec (CExtern _):_) -> fail ""
+
+    [CTypeSpec (CSUType a _)] -> fail ""
+    [CTypeSpec (CEnumType a _)] -> fail ""
+
     --_ -> error (show specs)
     _ -> fail "invalid specs"
 

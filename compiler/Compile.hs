@@ -399,7 +399,7 @@ cmpExpr (S.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck exp
         assert (length ts == 1) "Cannot compile string as type"
         assertBaseType (== Char) (head ts)
 
-        loc <- globalStringPtr s =<< myFresh "str"
+        loc <- globalStringPtr s =<< myFreshPrivate "str"
         let pi8 = C.BitCast loc (LL.ptr LL.i8)
         let i64 = toCons $ int64 $ fromIntegral (length s)
         let stc = struct Nothing False [i64, i64, pi8]

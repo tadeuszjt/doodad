@@ -87,6 +87,7 @@ instance Apply Expr where
 instance Apply Condition where
     apply subs cnd = case cnd of
         CondExpr expr -> CondExpr (apply subs expr)
+        CondMatch pat expr -> CondMatch (apply subs pat) (apply subs expr)
         _               -> error $ show cnd
 
 instance Apply Pattern where

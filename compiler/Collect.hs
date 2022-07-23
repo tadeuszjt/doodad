@@ -310,6 +310,7 @@ collectIndex index = collectPos index $ case index of
     _ -> error (show index)
 
 
+-- collectPattern pattern <with this type of expression trying to match>
 collectPattern :: BoM CollectState m => Pattern -> Type -> m ()
 collectPattern pattern typ = collectPos pattern $ case pattern of
     PatIgnore pos -> return ()
@@ -348,6 +349,11 @@ collectCondition cond = case cond of
     CondExpr expr -> do
         collectDefault (typeOf expr) T.Bool
         collectExpr expr
+
+    CondMatch pat expr -> do
+        collectPattern pat (typeOf expr)
+        collectExpr expr
+        
 
 
 collectCallExpr :: BoM CollectState m => Expr -> m ()

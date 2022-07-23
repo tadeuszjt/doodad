@@ -31,7 +31,7 @@ $symbol  = [\{\}\(\)\[\]\,\|\.\;\:\_]
 @builtin    = print | len | append | copy
 @keywords   = fn | extern | type | let | while | if | else | return | switch | true | false | module | for
 @reserved   = @keywords | @types | @builtin
-@reservedOp = [\+\-\*\/\%\<\>\=\&\!] | "!=" | "==" | "<=" | ">=" | "||" | "&&" | ".." | "<-" | "::"
+@reservedOp = [\+\-\*\/\%\<\>\=\&\!] | "!=" | "==" | "<=" | ">=" | "||" | "&&" | ".." | "<-" | "->" | "::"
 
 
 @string     = $graphic # [\"\\] | " " | @escape | "\""

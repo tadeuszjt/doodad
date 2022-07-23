@@ -9,8 +9,8 @@ fn sqrt(f f64); return c::sqrt(f)
 fn sin(f f64); return c::sin(f)
 fn cos(f f64); return c::cos(f)
 
-fn abs(n i64); return c::abs(n)
-fn abs(f f64); return c::fabs(f)
+fn abs(n i64); return i64(c::abs(i32(n)))
+fn abs(f f64); return f64(c::fabs(f))
 
 fn max(a f64, b f64) f64; return c::fmax(a, b)
 fn max(a i64, b i64) i64

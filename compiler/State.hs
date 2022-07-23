@@ -107,6 +107,14 @@ initCompileState imports modName
 
 mkBSS = BSS.toShort . BS.pack
 
+myFreshPrivate :: InsCmp CompileState m => String -> m LL.Name
+myFreshPrivate sym = do
+    nameMap <- gets nameMap
+    let n = maybe 0 (+1) (Map.lookup sym nameMap)
+    modify $ \s -> s { nameMap = Map.insert sym n nameMap }
+    case n of
+        0 -> return $ LL.Name $ mkBSS ("." ++ sym)
+        _ -> return $ LL.Name $ mkBSS ("." ++ sym ++ "." ++ show n)
 
 myFresh :: InsCmp CompileState m => String -> m LL.Name
 myFresh sym = do

@@ -247,8 +247,8 @@ instance Resolve Stmt where
             symbol <- genSymbol sym
             define sym KeyVar symbol
             mexpr' <- maybe (return Nothing) (fmap Just . resolve) mexpr
-            blk' <- resolve blk
             mcnd' <- maybe (return Nothing) (fmap Just . resolve) mcnd
+            blk' <- resolve blk
             popSymTab
             return $ For pos symbol Nothing mexpr' mcnd' blk'
 

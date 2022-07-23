@@ -69,37 +69,46 @@ fn cpuMove()
     print(cpuStr)
 
     let emptySquares = []
-    
-    for [row] board
-        for [col] board[row]
-            if board[row][col] == Empty()
-                emptySquares <- [(row, col)]
-
+    for [r] board
+        for [c] board[r]
+            if board[r][c] == Empty()
+                emptySquares <- [(r, c)]
     if len(emptySquares) == 0
         return
 
+    for [i] emptySquares | emptySquares[i] -> (r, c)
+        let brd = board
+        brd[r][c] = Cross()
+        if winner(brd) == Cross()
+            board[r][c] = Cross()
+            return
+
+    for [i] emptySquares | emptySquares[i] -> (r, c)
+        let brd = board
+        brd[r][c] = Naught()
+        if winner(brd) == Naught()
+            board[r][c] = Cross()
+            return
+
     let i = rand::I64() % len(emptySquares)
-    let (row, col) = emptySquares[i]
-    board[row][col] = Cross()
+    let (r, c) = emptySquares[i]
+    board[r][c] = Cross()
 
 
-fn winner() Square
-    if len(board) < 1 || len(board[0]) < 1
-        return Empty()
-
-    for [row] board
+fn winner(board [3[3 Square]]) Square
+    for [r] board
         let same = true
-        for [col] board[row]
-            if board[row][col] == Empty() || board[row][col] != board[row][0]
+        for [c] board[r]
+            if board[r][c] == Empty() || board[r][c] != board[r][0]
                 same = false
-        if same; return board[row][0]
+        if same; return board[r][0]
 
-    for [col] board[0]
+    for [c] board[0]
         let same = true
-        for [row] board
-            if board[row][col] == Empty() || board[row][col] != board[0][col]
+        for [r] board
+            if board[r][c] == Empty() || board[r][c] != board[0][c]
                 same = false
-        if same; return board[0][col]
+        if same; return board[0][c]
 
     let same = true
     for [i] | i < len(board) && i < len(board[0])
@@ -115,7 +124,7 @@ fn main()
     printBoard()
 
     for [i] | i < 10
-        let win = winner()
+        let win = winner(board)
         if win != Empty()
             putStrLn("winner is: " + string(win))
             return

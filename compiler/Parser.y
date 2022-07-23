@@ -23,6 +23,7 @@ import qualified Data.Set as Set
 %right     '!'
 %left      '<-'
 %left      ':'
+%nonassoc  '->'
 %nonassoc  '.'
 %nonassoc  '::'
 %nonassoc  '!'
@@ -58,6 +59,7 @@ import qualified Data.Set as Set
     '||'       { Token _ ReservedOp "||" }
     '::'       { Token _ ReservedOp "::" }
     '<-'       { Token _ ReservedOp "<-" }
+    '->'       { Token _ ReservedOp "->" }
     '..'       { Token _ ReservedOp ".." }
 
     fn         { Token _ Reserved "fn" }
@@ -194,7 +196,7 @@ block  : 'I' prog_ 'D'                        { S.Block $2 }
        | ';' 'N'                              { S.Block [] }
 
 condition : expr                              { S.CondExpr $1 }
---          | expr ':' pattern                  { S.CondMatch $3 $1 }
+          | expr '->' pattern                 { S.CondMatch $3 $1 }
 
 param   : ident type_                         { S.Param (tokPos $1) (T.Sym $ tokStr $1) $2 }
         | ident                               { S.Param (tokPos $1) (T.Sym $ tokStr $1) T.Void }
