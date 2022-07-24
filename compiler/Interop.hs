@@ -14,6 +14,8 @@ import Language.C.Data.Ident
 import Language.C.Pretty
 import Language.C.Syntax.AST
 import Language.C.Syntax.Constants
+import qualified Language.C.Analysis as A
+import Language.C.Data.Error
 import Text.PrettyPrint
 
 import LLVM.AST.Name hiding (Func)
@@ -140,15 +142,6 @@ genExterns (CTranslUnit cExtDecls _) = forM_ cExtDecls $ \cExtDecl -> case cExtD
             CDecl [CTypeSpec (CIntType _)] [(Just (CDeclr (Just (Ident ('c':'_':'_':sym) _ _)) [] Nothing [] _), Just (CInitExpr (CConst (CIntConst (CInteger i _ _) _)) _), e)] _ -> do
                 modify $ \externs -> ExtConstInt sym i : externs
 
-            -- Typedef 
-            CDecl (CStorageSpec (CTypedef _) : defSpecs) [(Just cDeclr, Nothing, Nothing)]  _ -> do
-                typ <- defSpecsToType defSpecs
-                case cDeclr of
-                    CDeclr (Just (Ident sym _ _)) [] Nothing [] _ -> do
-                        modify $ \externs -> ExtTypeDef sym typ : externs
-                        
-                    _ -> return ()
-
             -- Definition
             CDecl defSpecs [(Just cDeclr, Nothing, Nothing)]  _ -> case cDeclr of
 
@@ -214,3 +207,54 @@ compile externs = do
         cmp :: (MonadFail m, Monad m, MonadIO m) => ModuleCmpT CompileState m ()
         cmp = void $ func (LL.mkName ".__unused")  [] LL.VoidType $ \_ -> do
             mapM_ cmpExtern externs
+
+
+
+analyseCTranslUnit :: BoM s m => CTranslUnit -> m (A.GlobalDecls, [CError])
+analyseCTranslUnit ast =do
+    case A.runTrav_ $ A.analyseAST ast of
+        Left errs -> fail "ast errors"
+        Right (globs, errs) -> return (globs, errs)
+
+
+globTypeToType :: BoM s m => A.TypeName -> m Type
+globTypeToType cType = case cType of
+    A.TyIntegral A.TyUInt -> return I32
+    A.TyIntegral A.TyULong -> return I64
+    A.TyIntegral A.TyInt -> return I32
+    A.TyIntegral A.TyLong -> return I64
+    A.TyIntegral A.TyUShort -> return I16
+    A.TyIntegral A.TyUChar -> return Char
+    A.TyIntegral A.TyShort -> return I16
+    A.TyIntegral A.TySChar -> return Char
+    A.TyFloating A.TyFloat -> return F32
+    A.TyFloating A.TyDouble -> return F64
+    A.TyBuiltin _ -> fail ""
+    A.TyVoid -> fail ""
+    A.TyComp _ -> fail ""
+    A.TyEnum _ -> fail ""
+    _ -> error (show cType)
+
+genExternsFromGlobs :: BoM [Extern] m => A.GlobalDecls -> m ()
+genExternsFromGlobs globalDecls = do
+    forM_ (Map.toList $ A.gTypeDefs globalDecls) $ \(ident, typeDef) -> do
+        catchError (procTypeDef typeDef) $ \e -> return ()
+    where
+        procTypeDef :: BoM [Extern] m => A.TypeDef -> m ()
+        procTypeDef typeDef = case typeDef of
+            A.TypeDef ident (A.DirectType (A.TyComp (A.CompTypeRef (NamedRef refIdent) tag _)) typeQuals _) [] _ ->
+                return ()
+
+            A.TypeDef ident (A.TypeDefType (A.TypeDefRef refIdent (A.DirectType cType quals []) _) typeQuals _) [] _ -> do
+                let Ident sym _ _ = ident
+                let Ident ref _ _ = refIdent
+                modify $ \externs -> ExtTypeDef sym (Typedef (SymQualified "c" ref)) : externs
+
+            A.TypeDef ident (A.DirectType cType quals []) [] _ -> do
+                let Ident sym _ _ = ident
+                typ <- globTypeToType cType
+                modify $ \externs -> ExtTypeDef sym typ : externs
+
+            _ -> return ()
+            --a -> (error $ show a)
+    
