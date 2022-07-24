@@ -34,6 +34,7 @@ import State
 import Funcs
 import Typeof
 import Value
+import Trace
 
 data Extern
     = ExtFunc String [Type] Type
@@ -57,146 +58,38 @@ importToCStmt (S.ImportCMacro macro typ) =
     typeToCType typ ++ " " ++ macroToVar macro ++ " = " ++ macro ++ ";"
 
 
-cTypeToType :: (BoM s m, Show a) => CTypeSpecifier a -> m Type
-cTypeToType typeSpec = case typeSpec of
-    CIntType _                 -> return I64
-    CDoubleType _              -> return F64
-    CFloatType _               -> return F32
-    CVoidType _                -> return Void
-    CTypeDef (Ident sym _ _) _ -> return $ Typedef (SymQualified "c" sym)
-    _ -> error (show typeSpec)
-    _ -> fail (show typeSpec)
-
-
-declSpecsToType :: BoM s m => [CDeclSpec] -> m Type
-declSpecsToType typeSpecs = case typeSpecs of
-    [CTypeSpec (CUnsigType _), CTypeSpec (CIntType _)]  -> return I32
-    [CTypeQual (CConstQual _), CTypeSpec (CCharType _)] -> return Char
-    [CTypeSpec (CIntType _)]                            -> return I32
-    [CTypeSpec (CDoubleType _)]                         -> return F64
-    [CTypeSpec (CFloatType _)]                          -> return F32
-    [CTypeSpec (CTypeDef (Ident sym _ _) _)]            -> return $ Typedef (SymQualified "c" sym)
-    _                                                   -> fail (show typeSpecs)
-
-
-declrIsValid :: BoM s m => CDeclr -> m ()
-declrIsValid declr = case declr of
-    CDeclr (Just (Ident sym _ _)) []               Nothing [] _ -> return ()
-    CDeclr (Just (Ident sym _ _)) [CPtrDeclr [] _] Nothing [] _ -> fail "ptrs not allowed"
-    CDeclr Nothing                [CPtrDeclr [] _] Nothing [] _ -> fail "ptrs not allowed"
-    --_ -> error (show declr)
-    _ -> fail "invalid declr"
-
-
-defSpecsToType :: BoM s m => [CDeclSpec] -> m Type
-defSpecsToType specs = case specs of
-    [CStorageSpec (CExtern _), CTypeSpec (CIntType _)]                          -> return I32
-    [CStorageSpec (CExtern _), CTypeSpec (CVoidType _)]                         -> return Void
-    [CStorageSpec (CExtern _), CTypeSpec (CDoubleType _)]                       -> return F64
-    [CTypeSpec (CTypeDef (Ident sym _ _) _)] -> return $ Typedef (SymQualified "c" sym)
-    [CTypeSpec (CIntType _)]                                                    -> return I32
-    [CTypeSpec (CLongType _), CTypeSpec (CUnsigType _), CTypeSpec (CIntType _)] -> return I64
-    [CTypeSpec (CSignedType _), CTypeSpec (CCharType _)]                        -> return I8
-    [CTypeSpec (CUnsigType _), CTypeSpec (CCharType _)]                         -> return I8
-    [CTypeSpec (CSignedType _), CTypeSpec (CShortType _)]                       -> return I16
-    [CTypeSpec (CUnsigType _), CTypeSpec (CShortType _)]                        -> return I16
-    [CTypeSpec (CSignedType _), CTypeSpec (CIntType _)]                         -> return I32
-    [CTypeSpec (CUnsigType _), CTypeSpec (CIntType _)]                          -> return I32
-    [CTypeSpec (CSignedType _), CTypeSpec (CLongType _), CTypeSpec (CLongType _)] -> return I64
-    [CTypeSpec (CUnsigType _), CTypeSpec (CLongType _), CTypeSpec (CLongType _)] -> return I64
-    [CTypeSpec (CLongType _), CTypeSpec (CIntType _)] -> return I64
-    [CTypeSpec (CUnsigType _), CTypeSpec (CLongType _)] -> return I64
-
-    -- struct { cType decl } 
-    [CTypeSpec (CSUType (CStruct CStructTag Nothing (Just [CDecl fieldDeclSpecs [(Just (CDeclr (Just (Ident sym _ _)) [] Nothing [] _), Nothing, Nothing)] _]) [] _) _)] -> do
-        typ <- declSpecsToType fieldDeclSpecs
-        return $ Tuple [typ]
-
-    (CStorageSpec (CExtern _):_) -> fail ""
-
-    [CTypeSpec (CSUType a _)] -> fail ""
-    [CTypeSpec (CEnumType a _)] -> fail ""
-
-    --_ -> error (show specs)
-    _ -> fail "invalid specs"
-
-
-argDeclToType :: BoM s m => CDecl -> m Type
-argDeclToType decl = case decl of
-    CDecl argDeclSpecs [(Just argDeclr, Nothing, Nothing)] _ -> do
-        declrIsValid argDeclr
-        declSpecsToType argDeclSpecs
-
-    _ -> fail "invalid decl"
-
-
-genExterns :: BoM [Extern] m => CTranslUnit -> m ()
-genExterns (CTranslUnit cExtDecls _) = forM_ cExtDecls $ \cExtDecl -> case cExtDecl of
-    CDeclExt decl -> do
-        let m = processCDecl decl
-        catchError m $ \e -> return ()
-
-    _ -> return ()
-    where
-        processCDecl cDecl = case cDecl of
-            CDecl [CTypeSpec (CIntType _)] [(Just (CDeclr (Just (Ident ('c':'_':'_':sym) _ _)) [] Nothing [] _), Just (CInitExpr (CConst (CIntConst (CInteger i _ _) _)) _), e)] _ -> do
-                modify $ \externs -> ExtConstInt sym i : externs
-
-            -- Definition
-            CDecl defSpecs [(Just cDeclr, Nothing, Nothing)]  _ -> case cDeclr of
-
-                --Variable
-                CDeclr (Just (Ident sym _ _)) [] Nothing attributes _ -> do
-                    typ <- defSpecsToType defSpecs
-                    modify $ \externs -> ExtVar sym (S.AnnoType typ) : externs
-
-                --Function
-                CDeclr (Just (Ident sym _ _)) cFunDeclrs Nothing attributes _ -> case cFunDeclrs of
-                    -- Zero args (void)
-                    [CFunDeclr (Right ([CDecl [CTypeSpec (CVoidType _)] [] _], False)) [] _] -> do
-                        retty <- defSpecsToType defSpecs
-                        modify $ \externs -> ExtFunc sym [] retty : externs
-
-                    [CFunDeclr (Right (argDecls, False)) [] _] -> do
-                        retty <- defSpecsToType defSpecs
-                        argTyps <- mapM argDeclToType argDecls
-                        modify $ \externs -> ExtFunc sym argTyps retty : externs
-
-                    _ -> return ()
-
-                _ -> return ()
-
-            _ -> return ()
-
 
 cmpExtern :: InsCmp CompileState m => Extern -> m ()
-cmpExtern extern = case extern of
-    ExtVar sym (S.AnnoType typ) -> do
-        let symbol = SymQualified "c" sym
-        let name = mkName sym
-        opTyp <- opTypeOf typ
-        addSymKeyDec symbol KeyVar name (DecVar opTyp)
-        define symbol KeyVar $ ObjVal $ Ptr typ $ cons $ C.GlobalReference (LL.ptr opTyp) name
+cmpExtern extern = catchError (cmpExtern' extern) $ \e -> return ()
+    where
+        cmpExtern' :: InsCmp CompileState m => Extern -> m ()
+        cmpExtern' extern = case extern of
+            ExtVar sym (S.AnnoType typ) -> do
+                let symbol = SymQualified "c" sym
+                let name = mkName sym
+                opTyp <- opTypeOf typ
+                addSymKeyDec symbol KeyVar name (DecVar opTyp)
+                define symbol KeyVar $ ObjVal $ Ptr typ $ cons $ C.GlobalReference (LL.ptr opTyp) name
 
-    ExtFunc sym argTypes retty -> do
-        let symbol = SymQualified "c" sym
-        checkSymUndef symbol
-        let name = LL.mkName sym
+            ExtFunc sym argTypes retty -> do
+                let symbol = SymQualified "c" sym
+                checkSymUndef symbol
+                let name = LL.mkName sym
 
-        paramOpTypes <- mapM opTypeOf argTypes
-        returnOpType <- opTypeOf retty
+                paramOpTypes <- mapM opTypeOf argTypes
+                returnOpType <- opTypeOf retty
 
-        addSymKeyDec symbol (KeyFunc argTypes retty) name (DecExtern paramOpTypes returnOpType False)
-        let op = fnOp name paramOpTypes returnOpType False
-        define symbol (KeyFunc argTypes retty) (ObjFunc op)
+                addSymKeyDec symbol (KeyFunc argTypes retty) name (DecExtern paramOpTypes returnOpType False)
+                let op = fnOp name paramOpTypes returnOpType False
+                define symbol (KeyFunc argTypes retty) (ObjFunc op)
 
-    ExtConstInt sym integer -> do
-        let symbol = SymQualified "c" sym
-        define symbol KeyVar (ObjVal (ConstInt integer))
+            ExtConstInt sym integer -> do
+                let symbol = SymQualified "c" sym
+                define symbol KeyVar (ObjVal (ConstInt integer))
 
-    ExtTypeDef sym typ -> do
-        let symbol = SymQualified "c" sym
-        define symbol KeyType (ObType typ Nothing)
+            ExtTypeDef sym typ -> do
+                let symbol = SymQualified "c" sym
+                define symbol KeyType (ObType typ Nothing)
 
 
 compile :: BoM s m => [Extern] -> m CompileState
@@ -206,7 +99,8 @@ compile externs = do
     where
         cmp :: (MonadFail m, Monad m, MonadIO m) => ModuleCmpT CompileState m ()
         cmp = void $ func (LL.mkName ".__unused")  [] LL.VoidType $ \_ -> do
-            mapM_ cmpExtern externs
+            mapM_ cmpExtern [ e | e@(ExtTypeDef _ _) <- externs ]
+            mapM_ cmpExtern [ e | e@(ExtFunc _ _ _) <- externs ]
 
 
 
@@ -217,8 +111,8 @@ analyseCTranslUnit ast =do
         Right (globs, errs) -> return (globs, errs)
 
 
-globTypeToType :: BoM s m => A.TypeName -> m Type
-globTypeToType cType = case cType of
+directTypeToType :: BoM s m => A.TypeName -> m Type
+directTypeToType cType = trace "directTypeToType" $ case cType of
     A.TyIntegral A.TyUInt -> return I32
     A.TyIntegral A.TyULong -> return I64
     A.TyIntegral A.TyInt -> return I32
@@ -227,34 +121,73 @@ globTypeToType cType = case cType of
     A.TyIntegral A.TyUChar -> return Char
     A.TyIntegral A.TyShort -> return I16
     A.TyIntegral A.TySChar -> return Char
+    A.TyIntegral A.TyLLong -> return I64
+    A.TyIntegral A.TyULLong -> return I64
     A.TyFloating A.TyFloat -> return F32
     A.TyFloating A.TyDouble -> return F64
+    A.TyVoid -> return Void
     A.TyBuiltin _ -> fail ""
-    A.TyVoid -> fail ""
     A.TyComp _ -> fail ""
     A.TyEnum _ -> fail ""
+    A.TyFloating A.TyLDouble -> fail ""
+    _ -> fail ""
     _ -> error (show cType)
 
+aTypeToType :: BoM s m => A.Type -> m Type
+aTypeToType aType = trace "aTypeToType" $ case aType of
+    A.TypeDefType (A.TypeDefRef refIdent baseAType _) quals [] -> do
+        let Ident refSym _ _ = refIdent
+        return $ Typedef (SymQualified "c" refSym)
+
+    A.PtrType _ _ _ -> fail ""
+
+    A.DirectType dType quals _ -> directTypeToType dType
+
+    _ -> fail ""
+
+
 genExternsFromGlobs :: BoM [Extern] m => A.GlobalDecls -> m ()
-genExternsFromGlobs globalDecls = do
+genExternsFromGlobs globalDecls = trace "genExterns" $ do
     forM_ (Map.toList $ A.gTypeDefs globalDecls) $ \(ident, typeDef) -> do
         catchError (procTypeDef typeDef) $ \e -> return ()
+
+    forM_ (Map.toList $ A.gObjs globalDecls) $ \(ident, identDecl) -> case identDecl of
+        A.FunctionDef (A.FunDef varDecl body _)  -> do
+            catchError (procFunVarDecl varDecl) $ \e -> return ()
+--
+        A.Declaration (A.Decl varDecl nodeInfo) -> do
+            catchError (procFunVarDecl varDecl) $ \e -> return ()
+--
+--        a -> error (show a)
+        _ -> return ()
     where
         procTypeDef :: BoM [Extern] m => A.TypeDef -> m ()
-        procTypeDef typeDef = case typeDef of
-            A.TypeDef ident (A.DirectType (A.TyComp (A.CompTypeRef (NamedRef refIdent) tag _)) typeQuals _) [] _ ->
-                return ()
-
-            A.TypeDef ident (A.TypeDefType (A.TypeDefRef refIdent (A.DirectType cType quals []) _) typeQuals _) [] _ -> do
-                let Ident sym _ _ = ident
-                let Ident ref _ _ = refIdent
-                modify $ \externs -> ExtTypeDef sym (Typedef (SymQualified "c" ref)) : externs
-
-            A.TypeDef ident (A.DirectType cType quals []) [] _ -> do
-                let Ident sym _ _ = ident
-                typ <- globTypeToType cType
+        procTypeDef typeDef = trace "procTypeDef" $ case typeDef of
+            A.TypeDef (Ident sym _ _) aType attrs nodeInfo -> do
+                typ <- aTypeToType aType
                 modify $ \externs -> ExtTypeDef sym typ : externs
 
-            _ -> return ()
-            --a -> (error $ show a)
+            _ -> error (show typeDef)
+
+
+        procFunVarDecl :: BoM [Extern] m => A.VarDecl -> m ()
+        procFunVarDecl (A.VarDecl varName declAttrs varTyp) = trace "procFunVarDecl" $ do
+            let A.VarName (Ident sym _ _) Nothing = varName
+            case varTyp of
+                A.FunctionType (A.FunType funRetty paramDecls False) [] -> do
+                    retty <- aTypeToType funRetty
+                    assert (length paramDecls < 64) "too many params. infinite?"
+                    paramTypes <- mapM procParamDecl paramDecls
+                    modify $ \externs -> ExtFunc sym paramTypes retty : externs
+                    return ()
+
+                _ -> fail ""
+
+                _ -> error (show varTyp)
+
+        procParamDecl :: BoM [Extern] m => A.ParamDecl -> m Type
+        procParamDecl (A.ParamDecl varDecl nodeInfo) = trace "procParamDecl" $ do
+            let A.VarDecl varName attrs varTyp = varDecl
+            aTypeToType varTyp
+        procParamDecl _ = fail ""
     

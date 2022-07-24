@@ -176,11 +176,12 @@ runMod args pathsVisited modPath = do
                 Left (ParseError x) -> fail (show x)
                 Right cTranslUnit   -> return cTranslUnit
             (globs, errs) <- analyseCTranslUnit cTranslUnit
-            ((), cTypeExterns) <- runBoMTExcept [] (Interop.genExternsFromGlobs globs)
-            ((), cExterns) <- runBoMTExcept [] (Interop.genExterns cTranslUnit)
+            ((), cExterns) <- withErrorPrefix "interop compile" $
+                runBoMTExcept [] (Interop.genExternsFromGlobs globs)
+            --((), cExterns) <- runBoMTExcept [] (Interop.genExterns cTranslUnit)
             --liftIO $ putStrLn $ render (pretty cTranslUnit)
             --liftIO $ mapM_ (putStrLn . show) cExterns
-            cState <- Interop.compile (cExterns ++ cTypeExterns)
+            cState <- Interop.compile cExterns
             when (printCSymbols args) $ liftIO $ do
                 putStrLn $ "C Symbols imported by: " ++ modName 
                 SymTab.prettySymTab (State.symTab cState)
