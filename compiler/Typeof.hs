@@ -115,7 +115,9 @@ opTypeOf typ = trace ("opTypOf " ++ show typ) $ case typ of
         | isEnumADT typ -> return $ LL.i64
         | isPtrADT typ -> let [[t]] = tss in fmap LL.ptr (opTypeOf t)
 
-    UnsafePtr t -> LL.ptr <$> opTypeOf t
+    UnsafePtr t -> case t of
+        Char -> LL.ptr <$> opTypeOf Char
+        _ -> fail $ show t
 
     _         -> error (show typ) 
 
