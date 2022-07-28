@@ -7,6 +7,7 @@ import std/io
 import std/rand
 
 import_c stdlib.h
+import_c stdio.h
 
 fn main()
         type Adt { I64(i64) | F64(f64) }
@@ -47,4 +48,8 @@ fn main()
 
         let dropStr = "    benis"
         print(dropStr, strings::dropSpace(dropStr), strings::dropSpace(""))
+
+        let someStr = "benisbongis\0"
+        let p = unsafe_ptr(someStr[0])
+        c::puts(p)
 

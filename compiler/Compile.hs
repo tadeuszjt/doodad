@@ -478,6 +478,16 @@ cmpExpr (S.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck exp
                         valStore ptr $ (valss !! r) !! i
 
                 return tab
+    S.UnsafePtr pos expr -> do
+        val <- cmpExpr expr
+        let UnsafePtr t = exprType
+        assertBaseType (== t) (valType val)
+        case t of
+            Char -> case val of
+                Ptr _ loc -> return $ Val (UnsafePtr t) loc
+                Val _ _   -> fail $ "cannot take pointer of value"
+            _ -> fail (show t)
+            
 
     S.Member pos exp sym -> do
         tupleMember sym =<< cmpExpr exp 

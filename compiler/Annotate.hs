@@ -137,6 +137,7 @@ instance Annotate Expr where
         Prefix p op e -> Prefix p op <$> annotate e
         Table p ess -> Table p <$> mapM (mapM annotate) ess
         Call p s es -> Call p s <$> mapM annotate es
+        UnsafePtr p e -> UnsafePtr p <$> annotate e
 
         Infix p op e1 e2 -> do
             e1' <- annotate e1
@@ -159,7 +160,6 @@ instance Annotate Expr where
             me1' <- maybe (return Nothing) (fmap Just . annotate) me1
             me2' <- maybe (return Nothing) (fmap Just . annotate) me2
             return $ Range pos e' me1' me2'
-            
 
         _ -> error $ show expr
 

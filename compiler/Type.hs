@@ -32,6 +32,7 @@ data Type
     | Func [Type] Type 
     | ADT [[Type]]
     | Typedef Symbol
+    | UnsafePtr Type
     deriving (Eq, Ord)
 
 
@@ -50,10 +51,11 @@ instance Show Type where
         Tuple ts      -> "(" ++ intercalate ", " (map show ts) ++ ")"
         Array n t     -> "[" ++ show n ++ " " ++ show t ++ "]"
         Table [Char]  -> "string"
-        ADT ts        -> "{" ++ intercalate " | " (map show ts) ++ "}"
+        ADT tss       -> "{" ++ intercalate " | " (map show tss) ++ "}"
         Table ts      -> "[" ++ intercalate "; " (map show ts) ++ "]"
         Func ts rt    -> "fn(" ++ intercalate ", " (map show ts) ++ ")" ++ show rt
         Typedef s     -> show s
+        UnsafePtr t   -> "*" ++ show t
 
 
 isInt x                  = x `elem` [I8, I16, I32, I64]

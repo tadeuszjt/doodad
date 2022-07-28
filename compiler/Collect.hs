@@ -253,7 +253,7 @@ collectStmt stmt = collectPos stmt $ case stmt of
         kos <- lookSym symbol
         case kos of
             -- no definitions 
-            []                         -> fail $ show symbol ++ " undefined"
+            [] -> fail $ show symbol ++ " undefined"
             -- one definition
             [(KeyFunc ts rt, ObjFunc)] -> do
                 assert (length ts == length es) "Invalid arguments"
@@ -445,6 +445,10 @@ collectExpr (AExpr exprType expr) = collectPos expr $ case expr of
     S.Bool p b -> collectDefault exprType T.Bool
     S.String p s -> collectDefault exprType (T.Table [T.Char])
     S.Float p f -> collectDefault exprType F64
+
+    S.UnsafePtr p e -> do
+        collect exprType (T.UnsafePtr (typeOf e))
+        collectExpr e
 
     Ident p symbol -> do
         ObjVar t <- look symbol KeyVar

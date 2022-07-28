@@ -113,24 +113,26 @@ analyseCTranslUnit ast =do
 
 directTypeToType :: BoM s m => A.TypeName -> m Type
 directTypeToType cType = trace "directTypeToType" $ case cType of
+    A.TyVoid -> return Void
     A.TyIntegral A.TyUInt -> return I32
     A.TyIntegral A.TyULong -> return I64
     A.TyIntegral A.TyInt -> return I32
     A.TyIntegral A.TyLong -> return I64
     A.TyIntegral A.TyUShort -> return I16
     A.TyIntegral A.TyUChar -> return Char
+    A.TyIntegral A.TyChar -> return Char
     A.TyIntegral A.TyShort -> return I16
     A.TyIntegral A.TySChar -> return Char
     A.TyIntegral A.TyLLong -> return I64
     A.TyIntegral A.TyULLong -> return I64
     A.TyFloating A.TyFloat -> return F32
     A.TyFloating A.TyDouble -> return F64
-    A.TyVoid -> return Void
+    A.TyFloating (A.TyFloatN _ _) -> fail ""
+    A.TyFloating A.TyLDouble -> fail ""
     A.TyBuiltin _ -> fail ""
     A.TyComp _ -> fail ""
-    A.TyEnum _ -> fail ""
-    A.TyFloating A.TyLDouble -> fail ""
-    _ -> fail ""
+    --A.TyEnum a -> error (show a)
+    _ -> fail (show cType)
     _ -> error (show cType)
 
 aTypeToType :: BoM s m => A.Type -> m Type
@@ -139,7 +141,9 @@ aTypeToType aType = trace "aTypeToType" $ case aType of
         let Ident refSym _ _ = refIdent
         return $ Typedef (SymQualified "c" refSym)
 
-    A.PtrType _ _ _ -> fail ""
+    A.PtrType aTyp typeQuals [] -> do
+        t <- aTypeToType aTyp
+        return $ UnsafePtr t
 
     A.DirectType dType quals _ -> directTypeToType dType
 
@@ -157,8 +161,8 @@ genExternsFromGlobs globalDecls = trace "genExterns" $ do
 --
         A.Declaration (A.Decl varDecl nodeInfo) -> do
             catchError (procFunVarDecl varDecl) $ \e -> return ()
---
---        a -> error (show a)
+
+        --a -> error (show a)
         _ -> return ()
     where
         procTypeDef :: BoM [Extern] m => A.TypeDef -> m ()

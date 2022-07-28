@@ -100,6 +100,7 @@ data Expr
     | Prefix     TextPos Op Expr
     | Infix      TextPos Op Expr Expr
     | Range      TextPos Expr (Maybe Expr) (Maybe Expr)
+    | UnsafePtr  TextPos Expr
     deriving (Eq)
 
 
@@ -173,6 +174,7 @@ instance TextPosition Expr where
         AST.Prefix     p _ _ -> p
         AST.Infix      p _ _ _ -> p
         AST.Range      p _ _ _ -> p
+        AST.UnsafePtr  p _ -> p
 
 
 instance TextPosition Stmt where
@@ -276,6 +278,7 @@ instance Show Expr where
         AST.Conv pos typ exprs          -> show typ ++ tupStrs (map show exprs)
         AST.Len pos expr                -> "len(" ++ show expr ++ ")"
         AST.Copy pos expr               -> "copy(" ++ show expr ++ ")"
+        AST.UnsafePtr pos expr          -> "unsafe_ptr(" ++ show expr ++ ")"
         AST.Prefix pos op expr          -> show op ++ show expr
         AST.Infix pos op expr1 expr2    -> show expr1 ++ " " ++ show op ++ " " ++ show expr2
         AST.Range pos expr mexpr1 mexpr2 -> show expr ++ "[" ++ maybe "" show mexpr1 ++ ".." ++ maybe "" show mexpr2 ++ "]"

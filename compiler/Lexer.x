@@ -28,7 +28,7 @@ $symbol  = [\{\}\(\)\[\]\,\|\.\;\:\_]
 @escape  = "\t" | "\n" | "\0" | "\\" 
 
 @types      = i16 | i32 | i64 | f32 | f64 | bool | char | string
-@builtin    = print | len | append | copy
+@builtin    = print | len | append | copy | unsafe_ptr
 @keywords   = fn | extern | type | let | while | if | else | return | switch | true | false | module | for
 @reserved   = @keywords | @types | @builtin
 @reservedOp = [\+\-\*\/\%\<\>\=\&\!] | "!=" | "==" | "<=" | ">=" | "||" | "&&" | ".." | "<-" | "->" | "::"

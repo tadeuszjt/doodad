@@ -79,6 +79,7 @@ import qualified Data.Set as Set
 
     print      { Token _ Reserved "print" }
     len        { Token _ Reserved "len" }
+    unsafe_ptr { Token _ Reserved "unsafe_ptr" }
 
     import     { Token _ Import _ }
     import_c   { Token _ ImportC _ }
@@ -234,6 +235,7 @@ expr   : literal                              { $1 }
        | symbol '(' exprs ')'                 { S.Call (tokPos $2) (snd $1) $3 }
        | len '(' expr ')'                     { S.Len (tokPos $1) $3 }
        | copy '(' expr ')'                    { S.Copy (tokPos $1) $3 }
+       | unsafe_ptr '(' expr ')'              { S.UnsafePtr (tokPos $1) $3 }
        | typeOrdinal '(' exprs ')'            { S.Conv (tokPos $2) $1 $3 }
 --       | ':' typeAggregate '(' exprs ')'      { S.Conv (tokPos $3) $2 $4 }
        | expr '.' intlit                      { S.TupleIndex (tokPos $2) $1 (read $ tokStr $3) }

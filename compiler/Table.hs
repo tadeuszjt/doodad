@@ -102,7 +102,7 @@ tableGetElem tab idx = trace "tableGetElem" $ do
     case ts of
         [t] -> do
             row <- tableRow 0 tab
-            valLoad =<< valPtrIdx row idx
+            valPtrIdx row idx
         ts  -> do
             tup <- valLocal (Tuple ts)
             forM_ (zip ts [0..]) $ \(t, i) -> do

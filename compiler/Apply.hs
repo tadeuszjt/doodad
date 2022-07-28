@@ -26,6 +26,7 @@ substitute u x typ = case typ of
     Void             -> typ
     T.Typedef symbol -> typ
     ADT tss          -> ADT $ map (map (substitute u x)) tss
+    T.UnsafePtr t    -> T.UnsafePtr (substitute u x t)
     _                -> error (show typ)
 
 
@@ -82,6 +83,7 @@ instance Apply Expr where
         S.Table pos ess          -> S.Table pos $ map (map (apply subs)) ess
         S.TupleIndex pos e i     -> S.TupleIndex pos (apply subs e) i
         Range pos e me1 me2      -> Range pos (apply subs e) (fmap (apply subs) me1) (fmap (apply subs) me2)
+        S.UnsafePtr p e          -> S.UnsafePtr p (apply subs e)
         _                          -> error $ show expr
 
 instance Apply Condition where

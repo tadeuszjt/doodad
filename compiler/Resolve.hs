@@ -329,6 +329,17 @@ instance Resolve Type where
 instance Resolve Expr where
     resolve expr = withPos expr $ case expr of
         Ident pos symbol      -> Ident pos <$> look symbol KeyVar
+        Prefix pos op expr -> Prefix pos op <$> resolve expr
+        AST.Char pos c -> return expr
+        Len pos expr -> Len pos <$> resolve expr
+        Copy pos expr -> Copy pos <$> resolve expr
+        AST.UnsafePtr pos expr -> AST.UnsafePtr pos <$> resolve expr
+        AST.Int pos n -> return expr
+        AST.Bool pos b -> return expr
+        Float pos f -> return expr
+        AST.Tuple pos exprs -> AST.Tuple pos <$> mapM resolve exprs
+        AST.Table pos exprss -> AST.Table pos <$> mapM (mapM resolve) exprss
+        String pos s -> return expr
 
         Call pos symbol exprs -> do
             exprs' <- mapM resolve exprs
@@ -345,24 +356,6 @@ instance Resolve Expr where
             exprA' <- resolve exprA
             exprB' <- resolve exprB
             return $ Infix pos op exprA' exprB'
-
-        Prefix pos op expr -> Prefix pos op <$> resolve expr
-
-        AST.Char pos c -> return expr
-
-        Copy pos expr -> Copy pos <$> resolve expr
-
-        AST.Int pos n -> return expr
-
-        AST.Bool pos b -> return expr
-
-        Float pos f -> return expr
-
-        AST.Tuple pos exprs -> AST.Tuple pos <$> mapM resolve exprs
-        AST.Table pos exprss -> AST.Table pos <$> mapM (mapM resolve) exprss
-        String pos s -> return expr
-
-        Len pos expr -> Len pos <$> resolve expr
 
         Subscript pos e1 e2 -> do
             e1' <- resolve e1

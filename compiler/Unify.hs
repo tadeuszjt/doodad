@@ -22,6 +22,7 @@ unifyOne (Constraint pos t1 t2) = withPos pos $ case (t1, t2) of
     (T.Tuple tsa, T.Tuple tsb)
         | length tsa /= length tsb -> fail "length"
         | otherwise                -> unify $ zipWith (Constraint pos) tsa tsb
+    (T.UnsafePtr ta, T.UnsafePtr tb) -> unifyOne (Constraint pos ta tb)
     _                              -> fail $ "cannot unify " ++ show t1 ++ " with " ++ show t2
 
 

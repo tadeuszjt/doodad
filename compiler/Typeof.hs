@@ -73,6 +73,12 @@ checkTypesCompatible typA typB = do
             forM_ (zip atss btss) $ \(ats, bts) -> do
                 assert (length ats == length bts) "ADTs aren't compatible"
                 zipWithM_ checkTypesCompatible ats bts
+
+        UnsafePtr t -> do
+            let UnsafePtr ta = baseA
+            let UnsafePtr tb = baseB
+            checkTypesCompatible ta tb
+
             
         _ -> fail $ "Can't checkTypesCompatible: " ++ show typA
 
@@ -103,10 +109,13 @@ opTypeOf typ = trace ("opTypOf " ++ show typ) $ case typ of
         ts' <- mapM opTypeOf ts
         return $ LL.ptr (LL.FunctionType rt' ts' False)
 
-    ADT _
+    ADT tss
         | isEmptyADT typ -> return $ LL.ptr LL.void
         | isNormalADT typ -> return $ LL.StructureType False [LL.i64, LL.ptr LL.void]
         | isEnumADT typ -> return $ LL.i64
+        | isPtrADT typ -> let [[t]] = tss in fmap LL.ptr (opTypeOf t)
+
+    UnsafePtr t -> LL.ptr <$> opTypeOf t
 
     _         -> error (show typ) 
 
