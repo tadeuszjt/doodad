@@ -28,59 +28,16 @@ assertBaseType f typ = trace "assertBaseType" $ do
     return base
 
 
-checkTypesCompatible :: InsCmp CompileState m => Type -> Type -> m ()
-checkTypesCompatible typA typB = do
-    baseA <- baseTypeOf typA
-    baseB <- baseTypeOf typB
-    case baseA of
-        t | isSimple t -> assert (baseA == baseB) $
-            "Types " ++ show typA ++ " and " ++ show typB ++ " aren't compatible"
+baseTypeOf :: ModCmp CompileState m => Type -> m Type
+baseTypeOf typ = case typ of
+    Typedef sym -> trace ("baseTypeOf " ++ show sym) $ do ObType t _ <- look sym KeyType; baseTypeOf t
+    _           -> return typ
 
-        t | isTuple t  -> do
-            assertBaseType isTuple baseB
-            let Tuple ats = baseA
-            let Tuple bts = baseB
-            assert (length ats == length bts) "Tuples aren't compatible"
-            zipWithM_ checkTypesCompatible ats bts
 
-        t | isTable t -> do
-            assertBaseType isTable baseB
-            let Table ats = baseA
-            let Table bts = baseB
-            assert (length ats == length bts) "Tables aren't compatible"
-            zipWithM_ checkTypesCompatible ats bts
-
-        t | isArray t -> do
-            assertBaseType isArray baseB
-            let Array na ta = baseA
-            let Array nb tb = baseB
-            assert (na == nb) "array length mismatch"
-            checkTypesCompatible ta tb
-
-        t | isFunc t -> do
-            assertBaseType isFunc baseB
-            let Func ats atr = baseA
-            let Func bts btr = baseB
-            checkTypesCompatible atr btr
-            assert (length ats == length bts) "Funcs aren't compatible"
-            zipWithM_ checkTypesCompatible ats bts
-
-        t | isADT t -> do
-            assertBaseType isADT baseB
-            let ADT atss = baseA
-            let ADT btss = baseB
-            assert (length atss == length btss) "ADTs aren't compatible"
-            forM_ (zip atss btss) $ \(ats, bts) -> do
-                assert (length ats == length bts) "ADTs aren't compatible"
-                zipWithM_ checkTypesCompatible ats bts
-
-        UnsafePtr t -> do
-            let UnsafePtr ta = baseA
-            let UnsafePtr tb = baseB
-            checkTypesCompatible ta tb
-
-            
-        _ -> fail $ "Can't checkTypesCompatible: " ++ show typA
+sizeOf :: InsCmp CompileState m => Type -> m Value
+sizeOf typ = trace "sizeOf" $ do
+    opType <- opTypeOf typ
+    return $ Val I64 $ cons $ C.SExt (C.sizeof opType) (LL.IntegerType 64)
 
 
 opTypeOf :: ModCmp CompileState m => Type -> m LL.Type
@@ -122,13 +79,3 @@ opTypeOf typ = trace ("opTypOf " ++ show typ) $ case typ of
     _         -> error (show typ) 
 
 
-baseTypeOf :: ModCmp CompileState m => Type -> m Type
-baseTypeOf typ = case typ of
-    Typedef sym -> trace ("baseTypeOf " ++ show sym) $ do ObType t _ <- look sym KeyType; baseTypeOf t
-    _           -> return typ
-
-
-sizeOf :: InsCmp CompileState m => Type -> m Value
-sizeOf typ = trace "sizeOf" $ do
-    opType <- opTypeOf typ
-    return $ Val I64 $ cons $ C.SExt (C.sizeof opType) (LL.IntegerType 64)

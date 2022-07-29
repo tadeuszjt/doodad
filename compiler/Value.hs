@@ -145,7 +145,9 @@ valLoad (Ptr typ loc) = trace ("valLoad " ++ show typ) $ Val typ <$> load loc 0
 
 valStore :: InsCmp CompileState m => Value -> Value -> m ()
 valStore (Ptr typ loc) val = trace "valStore" $ do
-    checkTypesCompatible typ (valType val)
+    base <- baseTypeOf typ
+    valBase <- baseTypeOf (valType val)
+    assert (base == valBase) "types incompatible"
     case val of
         Ptr t l -> store loc 0 =<< load l 0
         Val t o -> store loc 0 o
@@ -154,7 +156,8 @@ valStore (Ptr typ loc) val = trace "valStore" $ do
 valSelect :: InsCmp CompileState m => Value -> Value -> Value -> m Value
 valSelect cnd true false = trace "valSelect" $ do
     assertBaseType (==Bool) (valType cnd)
-    checkTypesCompatible (valType true) (valType false)
+    assert (valType true == valType false) "incompatible types"
+
     cndOp <- valOp <$> valLoad cnd
     trueOp <- valOp <$> valLoad true
     falseOp <- valOp <$> valLoad false

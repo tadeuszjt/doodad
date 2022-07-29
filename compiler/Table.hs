@@ -117,10 +117,7 @@ tableSetElem tab idx tup = trace "tableSetElem" $ do
     Table ts <- assertBaseType isTable (valType tab)
     Tuple tts <- assertBaseType isTuple (valType tup)
     idxType  <- assertBaseType isInt (valType idx)
-
-    -- check types match
-    assert (length ts == length tts) "tuple type does not match table column"
-    zipWithM_ checkTypesCompatible ts tts
+    assert (ts == tts) "tuple type does not match table column"
 
     forM_ (zip ts [0..]) $ \(t, i) -> do
         row <- tableRow i tab

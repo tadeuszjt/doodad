@@ -482,6 +482,9 @@ cmpPattern :: InsCmp CompileState m => S.Pattern -> Value -> m Value
 cmpPattern pattern val = trace "cmpPattern" $ withPos pattern $ case pattern of
     S.PatIgnore _   -> valBool Bool True
     S.PatLiteral expr -> cmpInfix S.EqEq val =<< cmpExpr expr
+    S.PatAnnotated pat typ -> do
+        assert (valType val == typ) "pattern type mismatch"
+        cmpPattern pat val
 
     S.PatGuarded _ pat expr -> do
         match <- cmpPattern pat =<< valLoad val

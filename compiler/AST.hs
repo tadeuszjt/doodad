@@ -1,10 +1,11 @@
 module AST where
 
+import Prelude hiding (LT, GT)
 import Data.Maybe
 import Data.Word
 import Data.List
 import Control.Monad
-import Type
+import Type (Type, Symbol, Type(Void))
 import Error
 
 type ModuleName = String
@@ -67,6 +68,7 @@ data Pattern
     | PatArray     TextPos [Pattern]
     | PatGuarded   TextPos Pattern Expr
     | PatField     TextPos Symbol [Pattern]
+    | PatAnnotated Pattern Type
     deriving (Eq)
 
 data Index
@@ -81,7 +83,7 @@ data Condition
     deriving (Eq)
 
 data Expr
-    = AExpr      Type    Expr
+    = AExpr      Type  Expr
     | Int        TextPos Integer
     | Float      TextPos Double
     | Bool       TextPos Bool
@@ -147,6 +149,7 @@ instance TextPosition Pattern where
         PatArray     p _ -> p
         PatGuarded   p _ _ -> p
         PatField     p _ _ -> p
+        PatAnnotated pat _ -> textPos pat
 
 instance TextPosition Condition where
     textPos condition = case condition of
@@ -155,43 +158,43 @@ instance TextPosition Condition where
 
 instance TextPosition Expr where
     textPos expr = case expr of
-        AST.AExpr      t e -> textPos e
-        AST.Int        p _ -> p
-        AST.Float      p _ -> p
-        AST.Bool       p _ -> p
-        AST.Char       p _ -> p
-        AST.String     p _ -> p
-        AST.Tuple      p _ -> p
-        AST.Table      p _ -> p
-        AST.Member     p _ _ -> p
-        AST.Subscript  p _ _ -> p
-        AST.TupleIndex p _ _ -> p
-        AST.Ident      p _ -> p
-        AST.Call       p _ _ -> p 
-        AST.Conv       p _ _ -> p
-        AST.Len        p _ -> p
-        AST.Copy       p _ -> p
-        AST.Prefix     p _ _ -> p
-        AST.Infix      p _ _ _ -> p
-        AST.Range      p _ _ _ -> p
-        AST.UnsafePtr  p _ -> p
+        AExpr      t e -> textPos e
+        Int        p _ -> p
+        Float      p _ -> p
+        Bool       p _ -> p
+        Char       p _ -> p
+        String     p _ -> p
+        Tuple      p _ -> p
+        Table      p _ -> p
+        Member     p _ _ -> p
+        Subscript  p _ _ -> p
+        TupleIndex p _ _ -> p
+        Ident      p _ -> p
+        Call       p _ _ -> p 
+        Conv       p _ _ -> p
+        Len        p _ -> p
+        Copy       p _ -> p
+        Prefix     p _ _ -> p
+        Infix      p _ _ _ -> p
+        Range      p _ _ _ -> p
+        UnsafePtr  p _ -> p
 
 
 instance TextPosition Stmt where
     textPos stmt = case stmt of
-        AST.Assign      p _ _ -> p
-        AST.Set         p _ _ -> p
-        AST.Print       p _ -> p
-        AST.CallStmt    p _ _ -> p
-        AST.Return      p _ -> p
-        AST.Block       s -> textPos (head s)
-        AST.If          p _ _ _ -> p
-        AST.While       p _ _ -> p
-        AST.FuncDef     p _ _ _ _ -> p
-        AST.Typedef     p _ _ -> p
-        AST.AppendStmt  a -> textPos a
-        AST.Switch      p _ _ -> p
-        AST.For         p _ _ _ _ _ -> p
+        Assign      p _ _ -> p
+        Set         p _ _ -> p
+        Print       p _ -> p
+        CallStmt    p _ _ -> p
+        Return      p _ -> p
+        Block       s -> textPos (head s)
+        If          p _ _ _ -> p
+        While       p _ _ -> p
+        FuncDef     p _ _ _ _ -> p
+        Typedef     p _ _ -> p
+        AppendStmt  a -> textPos a
+        Switch      p _ _ -> p
+        For         p _ _ _ _ _ -> p
 
 tupStrs, arrStrs, brcStrs :: [String] -> String
 tupStrs strs = "(" ++ intercalate ", " strs ++ ")"
@@ -211,20 +214,20 @@ instance Show Param where
 
 instance Show Op where
     show op = case op of
-        AST.Plus   -> "+"
-        AST.Minus  -> "-"
-        AST.Times  -> "*"
-        AST.Divide -> "/"
-        AST.Modulo -> "%"
-        AST.LT     -> "<"
-        AST.GT     -> ">"
-        AST.LTEq   -> "<="
-        AST.GTEq   -> ">="
-        AST.EqEq   -> "=="
-        AST.OrOr   -> "||"
-        AST.AndAnd -> "&&"
-        AST.NotEq  -> "!="
-        AST.Not    -> "!"
+        Plus   -> "+"
+        Minus  -> "-"
+        Times  -> "*"
+        Divide -> "/"
+        Modulo -> "%"
+        LT     -> "<"
+        GT     -> ">"
+        LTEq   -> "<="
+        GTEq   -> ">="
+        EqEq   -> "=="
+        OrOr   -> "||"
+        AndAnd -> "&&"
+        NotEq  -> "!="
+        Not    -> "!"
 
 instance Show AnnoType where
     show annoType = case annoType of
@@ -234,13 +237,14 @@ instance Show AnnoType where
 
 instance Show Pattern where
     show pat = case pat of
-        PatLiteral c     -> show c
-        PatIgnore pos    -> "_"
-        PatIdent pos symbol -> show symbol
-        PatTuple pos ps  -> tupStrs (map show ps)
-        PatArray pos ps  -> arrStrs (map show ps)
-        PatGuarded pos pat expr -> show pat ++ " | " ++ show expr
-        PatField pos symbol pat -> show symbol ++ "(" ++ show pat ++ ")"
+        PatLiteral c             -> show c
+        PatIgnore pos            -> "_"
+        PatIdent pos symbol      -> show symbol
+        PatTuple pos ps          -> tupStrs (map show ps)
+        PatArray pos ps          -> arrStrs (map show ps)
+        PatGuarded pos pat expr  -> show pat ++ " | " ++ show expr
+        PatField pos symbol pat  -> show symbol ++ "(" ++ show pat ++ ")"
+        PatAnnotated pat typ     -> show pat ++ ":" ++ show typ
 
 instance Show Append where
     show append = case append of
@@ -262,26 +266,26 @@ instance Show Index where
 
 instance Show Expr where
     show expr = case expr of
-        AST.AExpr t e                   -> show e ++ ":" ++ show t
-        AST.Int pos n                   -> show n
-        AST.Float pos f                 -> show f
-        AST.Bool pos b                  -> if b then "true" else "false"
-        AST.Char pos c                  -> show c
-        AST.String pos s                -> show s
-        AST.Tuple pos exprs             -> tupStrs (map show exprs)
-        AST.Table pos exprss            -> "[" ++  intercalate "; " (map (intercalate ", " . map show) exprss) ++ "]"
-        AST.Member pos expr str         -> show expr ++ "." ++ str
-        AST.Subscript pos expr1 expr2   -> show expr1 ++ "[" ++ show expr2 ++ "]"
-        AST.TupleIndex pos expr n       -> show expr ++ "." ++ show n
-        AST.Ident p s                   -> show s 
-        AST.Call pos symbol exprs       -> show symbol ++ tupStrs (map show exprs)
-        AST.Conv pos typ exprs          -> show typ ++ tupStrs (map show exprs)
-        AST.Len pos expr                -> "len(" ++ show expr ++ ")"
-        AST.Copy pos expr               -> "copy(" ++ show expr ++ ")"
-        AST.UnsafePtr pos expr          -> "unsafe_ptr(" ++ show expr ++ ")"
-        AST.Prefix pos op expr          -> show op ++ show expr
-        AST.Infix pos op expr1 expr2    -> show expr1 ++ " " ++ show op ++ " " ++ show expr2
-        AST.Range pos expr mexpr1 mexpr2 -> show expr ++ "[" ++ maybe "" show mexpr1 ++ ".." ++ maybe "" show mexpr2 ++ "]"
+        AExpr t e                   -> show e ++ ":" ++ show t
+        Int pos n                   -> show n
+        Float pos f                 -> show f
+        Bool pos b                  -> if b then "true" else "false"
+        Char pos c                  -> show c
+        String pos s                -> show s
+        Tuple pos exprs             -> tupStrs (map show exprs)
+        Table pos exprss            -> "[" ++  intercalate "; " (map (intercalate ", " . map show) exprss) ++ "]"
+        Member pos expr str         -> show expr ++ "." ++ str
+        Subscript pos expr1 expr2   -> show expr1 ++ "[" ++ show expr2 ++ "]"
+        TupleIndex pos expr n       -> show expr ++ "." ++ show n
+        Ident p s                   -> show s 
+        Call pos symbol exprs       -> show symbol ++ tupStrs (map show exprs)
+        Conv pos typ exprs          -> show typ ++ tupStrs (map show exprs)
+        Len pos expr                -> "len(" ++ show expr ++ ")"
+        Copy pos expr               -> "copy(" ++ show expr ++ ")"
+        UnsafePtr pos expr          -> "unsafe_ptr(" ++ show expr ++ ")"
+        Prefix pos op expr          -> show op ++ show expr
+        Infix pos op expr1 expr2    -> show expr1 ++ " " ++ show op ++ " " ++ show expr2
+        Range pos expr mexpr1 mexpr2 -> show expr ++ "[" ++ maybe "" show mexpr1 ++ ".." ++ maybe "" show mexpr2 ++ "]"
 
 
 -- every function must end on a newline and print pre before every line
@@ -328,7 +332,7 @@ prettyAST ast = do
                 putStrLn $ pre ++ "while " ++ show cnd
                 prettyStmt (pre ++ "\t") stmt
 
-            AST.Typedef pos symbol anno -> do
+            Typedef pos symbol anno -> do
                 putStrLn $ pre ++ "typedef " ++ show symbol ++ " " ++ show anno
 
             Switch pos expr cases -> do

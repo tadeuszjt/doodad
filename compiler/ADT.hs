@@ -128,7 +128,7 @@ adtConstructField symbol typ vals = trace ("adtConstructField " ++ show symbol) 
 
             let [val] = vals
             let [t] = ts
-            checkTypesCompatible (valType val) t
+            assert (valType val == t) "mismatch types"
             mal <- valMalloc t (valI64 1)
             valStore mal val
 

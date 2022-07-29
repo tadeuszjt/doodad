@@ -2,8 +2,8 @@
 {-# LANGUAGE FlexibleInstances #-}
 module Apply where
 
-import Type as T
-import AST as S
+import Type
+import qualified AST as S
 import Collect
 import qualified Data.Map as Map
 import qualified SymTab
@@ -12,22 +12,22 @@ import qualified SymTab
 -- substitution: (id, t) or (x, u)
 substitute :: Type -> Int -> Type -> Type
 substitute u x typ = case typ of
-    Type i | i == x  -> u
-    Type _           -> typ 
-    T.Bool           -> typ 
-    I64              -> typ 
-    I32              -> typ 
-    F32              -> typ 
-    F64              -> typ 
-    T.Char           -> typ 
-    T.Table ts       -> T.Table $ map (substitute u x) ts
-    T.Tuple ts       -> T.Tuple $ map (substitute u x) ts
-    Array n t        -> Array n (substitute u x t)
-    Void             -> typ
-    T.Typedef symbol -> typ
-    ADT tss          -> ADT $ map (map (substitute u x)) tss
-    T.UnsafePtr t    -> T.UnsafePtr (substitute u x t)
-    _                -> error (show typ)
+    Type i | i == x -> u
+    Type _          -> typ
+    Bool            -> typ
+    I64             -> typ
+    I32             -> typ
+    F32             -> typ
+    F64             -> typ
+    Char            -> typ
+    Table ts        -> Table $ map (substitute u x) ts
+    Tuple ts        -> Tuple $ map (substitute u x) ts
+    Array n t       -> Array n (substitute u x t)
+    Void            -> typ
+    Typedef symbol  -> typ
+    ADT tss         -> ADT $ map (map (substitute u x)) tss
+    UnsafePtr t     -> UnsafePtr (substitute u x t)
+    _               -> error (show typ)
 
 
 -- Apply represents taking a list of substitutions and applying them to all types in an object.
@@ -41,9 +41,9 @@ instance Apply Collect.SymTab where
 
 instance Apply Collect.Object where
     apply subs object = case object of
-        ObjVar t -> ObjVar (apply subs t)
-        ObjType t -> ObjType (apply subs t)
-        ObjFunc  -> ObjFunc 
+        ObjVar t    -> ObjVar (apply subs t)
+        ObjType t   -> ObjType (apply subs t)
+        ObjFunc     -> ObjFunc
         ObjMember i -> ObjMember i
 
 instance Apply Collect.SymKey where
@@ -59,86 +59,87 @@ instance Apply Constraint where
 instance Apply Type where
     apply subs t = foldr (\(x, u) z -> substitute u x z) t subs
     
-instance Apply Param where
-    apply subs (Param p n t) = Param p n (apply subs t)
+instance Apply S.Param where
+    apply subs (S.Param p n t) = S.Param p n (apply subs t)
 
-instance Apply Expr where
+instance Apply S.Expr where
     apply subs expr = case expr of
-        AExpr t e                -> AExpr (apply subs t) (apply subs e)
-        Infix pos op expr1 expr2 -> Infix pos op (apply subs expr1) (apply subs expr2)
-        S.Tuple pos exprs        -> S.Tuple pos $ map (apply subs) exprs
-        Ident pos sym            -> expr
-        S.Char  pos c            -> expr
-        Int   pos n              -> expr
-        Prefix pos op expr1      -> Prefix pos op (apply subs expr1)
-        Call  pos sym exprs      -> Call pos sym $ map (apply subs) exprs
-        Conv  pos t exprs        -> Conv pos (apply subs t) $ map (apply subs) exprs
-        Copy  pos e              -> Copy pos (apply subs e)
-        Len   pos e              -> Len  pos (apply subs e)
-        S.Bool  pos b            -> expr
-        Subscript pos e1 e2      -> Subscript pos (apply subs e1) (apply subs e2)
-        String pos s             -> expr
-        Member pos e s           -> Member pos (apply subs e) s
-        S.Float pos f            -> expr
-        S.Table pos ess          -> S.Table pos $ map (map (apply subs)) ess
-        S.TupleIndex pos e i     -> S.TupleIndex pos (apply subs e) i
-        Range pos e me1 me2      -> Range pos (apply subs e) (fmap (apply subs) me1) (fmap (apply subs) me2)
-        S.UnsafePtr p e          -> S.UnsafePtr p (apply subs e)
+        S.AExpr t e                -> S.AExpr (apply subs t) (apply subs e)
+        S.Infix pos op expr1 expr2 -> S.Infix pos op (apply subs expr1) (apply subs expr2)
+        S.Tuple pos exprs          -> S.Tuple pos $ map (apply subs) exprs
+        S.Ident pos sym            -> expr
+        S.Char  pos c              -> expr
+        S.Int   pos n              -> expr
+        S.Prefix pos op expr1      -> S.Prefix pos op (apply subs expr1)
+        S.Call  pos sym exprs      -> S.Call pos sym $ map (apply subs) exprs
+        S.Conv  pos t exprs        -> S.Conv pos (apply subs t) $ map (apply subs) exprs
+        S.Copy  pos e              -> S.Copy pos (apply subs e)
+        S.Len   pos e              -> S.Len  pos (apply subs e)
+        S.Bool  pos b              -> expr
+        S.Subscript pos e1 e2      -> S.Subscript pos (apply subs e1) (apply subs e2)
+        S.String pos s             -> expr
+        S.Member pos e s           -> S.Member pos (apply subs e) s
+        S.Float pos f              -> expr
+        S.Table pos ess            -> S.Table pos $ map (map (apply subs)) ess
+        S.TupleIndex pos e i       -> S.TupleIndex pos (apply subs e) i
+        S.Range pos e me1 me2      -> S.Range pos (apply subs e) (fmap (apply subs) me1) (fmap (apply subs) me2)
+        S.UnsafePtr p e            -> S.UnsafePtr p (apply subs e)
         _                          -> error $ show expr
 
-instance Apply Condition where
+instance Apply S.Condition where
     apply subs cnd = case cnd of
-        CondExpr expr -> CondExpr (apply subs expr)
-        CondMatch pat expr -> CondMatch (apply subs pat) (apply subs expr)
+        S.CondExpr expr      -> S.CondExpr (apply subs expr)
+        S.CondMatch pat expr -> S.CondMatch (apply subs pat) (apply subs expr)
         _               -> error $ show cnd
 
-instance Apply Pattern where
+instance Apply S.Pattern where
     apply subs pattern = case pattern of
-        PatIdent p s       -> pattern
-        PatLiteral e       -> PatLiteral (apply subs e)
-        PatGuarded p pat e -> PatGuarded p (apply subs pat) (apply subs e)
-        PatField p s pats  -> PatField p s $ map (apply subs) pats
-        PatTuple p pats    -> PatTuple p $ map (apply subs) pats
-        PatIgnore p        -> PatIgnore p
-        PatArray p pats    -> PatArray p $ map (apply subs) pats
+        S.PatIdent p s       -> pattern
+        S.PatLiteral e       -> S.PatLiteral (apply subs e)
+        S.PatGuarded p pat e -> S.PatGuarded p (apply subs pat) (apply subs e)
+        S.PatField p s pats  -> S.PatField p s $ map (apply subs) pats
+        S.PatTuple p pats    -> S.PatTuple p $ map (apply subs) pats
+        S.PatIgnore p        -> S.PatIgnore p
+        S.PatArray p pats    -> S.PatArray p $ map (apply subs) pats
+        S.PatAnnotated pat typ -> S.PatAnnotated (apply subs pat) (apply subs typ)
         _                    -> error $ show pattern
 
-instance Apply Append where
+instance Apply S.Append where
     apply subs app = case app of
-        AppendTable p ap e -> AppendTable p (apply subs ap) (apply subs e)
-        AppendIndex index   -> AppendIndex (apply subs index)
+        S.AppendTable p ap e -> S.AppendTable p (apply subs ap) (apply subs e)
+        S.AppendIndex index  -> S.AppendIndex (apply subs index)
 
-instance Apply Index where
+instance Apply S.Index where
     apply subs index = case index of
-        IndIdent p sym -> index
-        IndArray p ind e -> IndArray p (apply subs ind) (apply subs e)
+        S.IndIdent p sym -> index
+        S.IndArray p ind e -> S.IndArray p (apply subs ind) (apply subs e)
         _ -> error $ show index
 
-instance Apply Stmt where
+instance Apply S.Stmt where
     apply subs stmt = case stmt of
-        Block stmts             -> Block $ map (apply subs) stmts
-        Return pos mexpr        -> Return pos $ fmap (apply subs) mexpr
-        Assign pos pat expr     -> Assign pos (apply subs pat) (apply subs expr)
-        AppendStmt app          -> AppendStmt (apply subs app)
-        Set pos index e         -> Set pos (apply subs index) (apply subs e)
-        While pos cnd blk       -> While pos (apply subs cnd) (apply subs blk)
-        CallStmt pos sym es     -> CallStmt pos sym $ map (apply subs) es
-        Print pos es            -> Print pos $ map (apply subs) es
+        S.Block stmts             -> S.Block $ map (apply subs) stmts
+        S.Return pos mexpr        -> S.Return pos $ fmap (apply subs) mexpr
+        S.Assign pos pat expr     -> S.Assign pos (apply subs pat) (apply subs expr)
+        S.AppendStmt app          -> S.AppendStmt (apply subs app)
+        S.Set pos index e         -> S.Set pos (apply subs index) (apply subs e)
+        S.While pos cnd blk       -> S.While pos (apply subs cnd) (apply subs blk)
+        S.CallStmt pos sym es     -> S.CallStmt pos sym $ map (apply subs) es
+        S.Print pos es            -> S.Print pos $ map (apply subs) es
 
-        FuncDef pos sym params retty block ->
-            FuncDef pos sym (map (apply subs) params) (apply subs retty) (apply subs block)
+        S.FuncDef pos sym params retty block ->
+            S.FuncDef pos sym (map (apply subs) params) (apply subs retty) (apply subs block)
 
-        If pos cnd block melse ->
-            If pos (apply subs cnd) (apply subs block) $ fmap (apply subs) melse
+        S.If pos cnd block melse ->
+            S.If pos (apply subs cnd) (apply subs block) $ fmap (apply subs) melse
 
         S.Typedef _ _ _ -> stmt -- leave this for now
         
-        Switch pos expr cases ->
-            Switch pos (apply subs expr) [(apply subs p, apply subs s) | (p, s) <- cases]
+        S.Switch pos expr cases ->
+            S.Switch pos (apply subs expr) [(apply subs p, apply subs s) | (p, s) <- cases]
 
-        For pos symbol (Just t) mexpr mcnd blk ->
-            For pos symbol (Just $ apply subs t) (fmap (apply subs) mexpr) (fmap (apply subs) mcnd) (apply subs blk)
+        S.For pos symbol (Just t) mexpr mcnd blk ->
+            S.For pos symbol (Just $ apply subs t) (fmap (apply subs) mexpr) (fmap (apply subs) mcnd) (apply subs blk)
             
 
-instance Apply AST where
-    apply subs ast = ast { astStmts = map (apply subs) (astStmts ast) }
+instance Apply S.AST where
+    apply subs ast = ast { S.astStmts = map (apply subs) (S.astStmts ast) }

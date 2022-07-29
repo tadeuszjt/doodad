@@ -306,7 +306,12 @@ instance Resolve Pattern where
 
         PatArray pos pats -> PatArray pos <$> mapM resolve pats
 
-        _ -> fail $ "invalid pattern: " ++ show pattern
+        PatAnnotated pat typ -> do
+            pat' <- resolve pat
+            typ' <- resolve typ
+            return $ PatAnnotated pat' typ'
+
+        _ -> error $ "invalid pattern: " ++ show pattern
 
 
 

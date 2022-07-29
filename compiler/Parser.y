@@ -161,6 +161,7 @@ pattern  : '_'                                { S.PatIgnore (tokPos $1) }
          | '[' patterns ']'                   { S.PatArray (tokPos $1) $2 }
          | pattern '|' expr                   { S.PatGuarded (tokPos $2) $1 $3 }
          | symbol '(' patterns ')'            { S.PatField (tokPos $2) (snd $1) $3 }
+         | pattern ':' type_                  { S.PatAnnotated $1 $3 }
 
 patterns  : {- empty -}                       { [] }
           | patterns_                         { $1 }

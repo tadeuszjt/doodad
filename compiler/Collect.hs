@@ -339,7 +339,10 @@ collectPattern pattern typ = collectPos pattern $ case pattern of
             T.Tuple ts -> do
                 assert (length ts == length pats) "Invalid tuple pattern"
                 zipWithM_ collectPattern pats ts
-            _ -> forM_ pats $ \pat -> collectPattern pat =<< genType
+            _ -> do
+                gts <- replicateM (length pats) genType
+                collectDefault typ (T.Tuple gts)
+                zipWithM_ collectPattern pats gts
 
     PatArray _ pats -> do
         base <- baseTypeOf typ
@@ -350,6 +353,11 @@ collectPattern pattern typ = collectPos pattern $ case pattern of
             _ -> do
                 t <- genType
                 mapM_ (\p -> collectPattern p t) pats
+
+    PatAnnotated pat t -> do
+        collect t typ
+        collectPattern pat typ
+        
 
     _ -> error $ show pattern
 

@@ -98,6 +98,11 @@ instance Annotate Pattern where
 
         PatField p symbol pats -> PatField p symbol <$> mapM annotate pats
 
+        PatAnnotated pat typ -> do
+            pat' <- annotate pat
+            return $ PatAnnotated pat' typ
+
+
 
 instance Annotate Append where
     annotate append = case append of

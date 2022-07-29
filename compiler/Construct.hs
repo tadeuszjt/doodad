@@ -16,6 +16,7 @@ import Typeof
 import Trace
 import Table
 import Funcs
+import Error
 import qualified AST as S
 
 
@@ -98,5 +99,5 @@ valConstruct typ [val']   = trace "valConstruct" $ do
 
 
         _ -> do
-            checkTypesCompatible typ (valType val)
+            assert (typ  == valType val) "mismatched types"
             Val typ . valOp <$> valLoad val

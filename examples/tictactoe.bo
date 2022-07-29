@@ -36,13 +36,13 @@ fn playerMove() bool
     if s == "\0"
         return false
 
-    let (row, l) = strings::read(s):(i64, i64)
+    let (row:i64, l) = strings::read(s)
     if l == 0
         putStrLn("invalid string: " + s)
         return false
     s = s[l..]
 
-    let (col, cl) = strings::read(s):(i64, i64)
+    let (col:i64, cl) = strings::read(s)
     if cl == 0
         putStrLn("invalid string: " + s)
         return false
