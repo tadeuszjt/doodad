@@ -198,27 +198,43 @@ valNot val = trace "valNot" $ do
     assertBaseType (== Bool) (valType val)
     fmap (Val $ valType val) $ icmp P.EQ (bit 0) . valOp =<< valLoad val
 
+
+valPrefix :: InsCmp CompileState m => S.Op -> Value -> m Value
+valPrefix operator val = do
+    Val typA opA <- valLoad val
+    Val typB opB <- valZero typA
+    base <- baseTypeOf typA
+    case base of
+        _ | isInt base -> case operator of
+            S.Minus -> Val typA <$> sub opB opA
+            S.Plus -> return $ Val typA opA
+
+        _ | isFloat base -> case operator of
+            S.Minus -> Val typA <$> fsub opB opA
+
+        Bool -> case operator of
+            S.Not -> Val typA <$> icmp P.EQ opA opB
+        
+    
         
 valsInfix :: InsCmp CompileState m => S.Op -> Value -> Value -> m Value
 valsInfix operator a b = trace ("valsInfix " ++ show operator) $ do
-    Val _ opA <- valLoad a
-    Val _ opB <- valLoad b
+    Val typA opA <- valLoad a
+    Val typB opB <- valLoad b
 
-    checkTypesCompatible (valType a) (valType b)
-    base <- baseTypeOf (valType a)
+    baseA <- baseTypeOf (typA)
+    baseB <- baseTypeOf (typB)
+    assert (baseA == baseB) "base types incompatible"
 
-    case base of
-        Bool               -> boolInfix (valType a) operator opA opB
-        Char               -> intInfix (valType a) operator opA opB
-        _ | isInt base     -> intInfix (valType a) operator opA opB
-        _ | isFloat base   -> floatInfix (valType a) operator opA opB
-        _ | isEnumADT base -> adtEnumInfix (valType a) operator opA opB
-        _                  -> fail $ "Operator " ++ show operator ++ " undefined for types " ++ show (valType a) ++ " " ++ show (valType b)
+    case baseA of
+        Bool               -> boolInfix (typA) operator opA opB
+        Char               -> intInfix (typA) operator opA opB
+        _ | isInt baseA     -> intInfix (typA) operator opA opB
+        _ | isFloat baseA   -> floatInfix (typA) operator opA opB
+        _ | isEnumADT baseA -> adtEnumInfix (typA) operator opA opB
+        _                  -> fail $ "Operator " ++ show operator ++ " undefined for types " ++ show (typA) ++ " " ++ show (valType b)
 
     where 
-        exprInfix operator exprA exprB = case (operator, exprA, exprB) of
-            (S.Plus, S.Int p a, S.Int _ b) -> S.Int p (a + b)
-
         boolInfix :: InsCmp CompileState m => Type -> S.Op -> LL.Operand -> LL.Operand -> m Value
         boolInfix typ operator opA opB = case operator of
             S.OrOr   -> Val typ <$> or opA opB

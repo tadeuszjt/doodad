@@ -360,10 +360,8 @@ cmpExpr (S.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck exp
     S.Copy pos expr            -> valCopy =<< cmpExpr expr
     S.Tuple pos [expr]         -> cmpExpr expr
     S.Float p f                -> valFloat exprType f
-
-    S.Table p [[]] -> do
-        assertBaseType isTable exprType
-        valZero exprType
+    S.Prefix pos operator expr -> valPrefix operator =<< cmpExpr expr
+    S.Member pos expr sym      -> tupleMember sym =<< cmpExpr expr
 
     S.Int p n -> do
         base <- baseTypeOf exprType
@@ -371,7 +369,6 @@ cmpExpr (S.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck exp
             _ | isInt base   -> valInt exprType n
             _ | isFloat base -> valFloat exprType (fromIntegral n)
             _ | base == Char -> valChar exprType (chr $ fromIntegral n)
-            _ -> fail $ "invalid base type: " ++ show base
 
     S.Infix pos op exprA exprB -> do
         valA <- cmpExpr exprA
@@ -384,21 +381,9 @@ cmpExpr (S.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck exp
             ObjVal (ConstInt n) -> valInt I64 n
             ObjVal loc -> return loc
 
-    S.Prefix pos S.Not   expr  -> valNot =<< cmpExpr expr
-    S.Prefix pos S.Minus expr  -> do
-        val <- cmpExpr expr
-        base <- baseTypeOf (valType val)
-        x <- case base of
-            I64 -> valInt (valType val) 0
-            F64 -> valFloat (valType val) 0
-
-        valsInfix S.Minus x val
             
     S.String pos s -> do
-        Table ts <- assertBaseType isTable exprType
-        assert (length ts == 1) "Cannot compile string as type"
-        assertBaseType (== Char) (head ts)
-
+        assertBaseType (== Table [Char]) exprType
         loc <- globalStringPtr s =<< myFreshPrivate "str"
         let pi8 = C.BitCast loc (LL.ptr LL.i8)
         let i64 = toCons $ int64 $ fromIntegral (length s)
@@ -409,12 +394,12 @@ cmpExpr (S.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck exp
         vals <- mapM valLoad =<< mapM cmpExpr exprs
         obj <- look symbol $ KeyFunc (map valType vals) exprType
         case obj of
-            ObjConstructor     -> valConstruct exprType vals
-            ObjFunc op         -> Val exprType <$> call op [(o, []) | o <- map valOp vals]
-            ObjADTFieldCons    -> adtConstructField symbol exprType vals
+            ObjConstructor  -> valConstruct exprType vals
+            ObjFunc op      -> Val exprType <$> call op [(o, []) | o <- map valOp vals]
+            ObjADTFieldCons -> adtConstructField symbol exprType vals
 
     S.Len pos expr -> valLoad =<< do
-        assertBaseType isIntegral exprType
+        assertBaseType isInt exprType
         val <- cmpExpr expr
         base <- baseTypeOf (valType val)
         case base of
@@ -439,45 +424,38 @@ cmpExpr (S.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck exp
                 end <- maybe (tableLen val) cmpExpr mexpr2
                 tableRange val start end
 
-    S.Subscript pos aggExpr idxExpr -> do
-        agg <- cmpExpr aggExpr
+    S.Subscript pos expr idxExpr -> do
+        val <- cmpExpr expr
         idx <- cmpExpr idxExpr
-
-        idxType <- assertBaseType isInt (valType idx)
-        aggType <- baseTypeOf (valType agg)
-
-        case aggType of
-            Table [t] -> tableGetElem agg idx
-            Array n t -> arrayGetElem agg idx
+        base <- baseTypeOf (valType val)
+        case base of
+            Table _   -> tableGetElem val idx
+            Array _ _ -> arrayGetElem val idx
 
     S.Table pos exprss -> valLoad =<< do
         base <- baseTypeOf exprType
         case base of
             Array n t -> do
                 assert (length exprss == 1) "Arrays cannot have multiple rows"
-                let exprs = head exprss
-                vals <- mapM cmpExpr exprs
-                arrayMake exprType
+                vals <- mapM cmpExpr (head exprss)
+                assert (length vals == n) "Invalid array length"
+                arr <- valLocal exprType
+                forM_ (zip vals [0..]) $ \(val, i) -> do
+                    arraySetElem arr (valI64 i) val
+                return arr
                 
             Table ts -> do
                 valss <- mapM (mapM cmpExpr) exprss
-                assert (length valss > 0) "Cannot infer type of table."
-                let rowLen = length (head valss)
-                assert (rowLen > 0) "Cannot infer type of table."
+                tab <- tableMake exprType (valI64 $ length $ head valss)
 
-                forM_ valss $ \vals -> do
-                    assert (length vals == rowLen) $
-                        "Mismatched table row length of " ++ show (length vals)
-
-                tab <- tableMake exprType (valI64 rowLen)
-                
-                forM (zip ts [0..]) $ \(t, r) ->
-                    forM [0..rowLen - 1] $ \i -> do
-                        row <- tableRow r tab
-                        ptr <- valPtrIdx row (valI64 i)
-                        valStore ptr $ (valss !! r) !! i
-
+                forM (zip valss [0..]) $ \(vals, r) -> do
+                    assert (length vals == (length $ head valss)) "Mismatched row length"
+                    row <- tableRow r tab
+                    forM (zip vals [0..]) $ \(val, c) -> do
+                        ptr <- valPtrIdx row (valI64 c)
+                        valStore ptr val
                 return tab
+
     S.UnsafePtr pos expr -> do
         val <- cmpExpr expr
         let UnsafePtr t = exprType
@@ -489,8 +467,6 @@ cmpExpr (S.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck exp
             _ -> fail (show t)
             
 
-    S.Member pos exp sym -> do
-        tupleMember sym =<< cmpExpr exp 
 
     _ -> fail ("invalid expression: " ++ show expr)
     where
