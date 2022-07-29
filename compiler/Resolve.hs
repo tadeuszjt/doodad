@@ -304,6 +304,8 @@ instance Resolve Pattern where
             expr' <- resolve expr
             return $ PatGuarded pos pat' expr'
 
+        PatArray pos pats -> PatArray pos <$> mapM resolve pats
+
         _ -> fail $ "invalid pattern: " ++ show pattern
 
 

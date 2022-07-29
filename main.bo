@@ -5,6 +5,7 @@ import std/rect
 import std/strings
 import std/io
 import std/rand
+import std/assert
 
 import_c stdlib.h
 import_c stdio.h
@@ -52,4 +53,6 @@ fn main()
         let someStr = "benisbongis\0"
         let p = unsafe_ptr(someStr[0])
         c::puts(p)
+
+        assert(false, "benis")
 

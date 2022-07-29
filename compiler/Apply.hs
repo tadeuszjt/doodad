@@ -100,6 +100,7 @@ instance Apply Pattern where
         PatField p s pats  -> PatField p s $ map (apply subs) pats
         PatTuple p pats    -> PatTuple p $ map (apply subs) pats
         PatIgnore p        -> PatIgnore p
+        PatArray p pats    -> PatArray p $ map (apply subs) pats
         _                    -> error $ show pattern
 
 instance Apply Append where

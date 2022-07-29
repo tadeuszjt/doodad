@@ -46,7 +46,7 @@ tokens :-
     import_c_macro                                  { mkT ImportCMacro }
     import_c [$tab $white]+ @string*                { mkT ImportC }
     import [$tab $white]+ @string*                  { mkT Import }
-    $alpha [$alpha $digit \_]*                      { mkT Ident }
+    [\_]* $alpha [$alpha $digit \_]*                { mkT Ident }
     $digit+                                         { mkT Int }
     $digit+ \. $digit+                              { mkT Float }
     \' @char \'                                     { mkT Char }

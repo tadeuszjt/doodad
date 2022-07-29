@@ -96,28 +96,19 @@ fn cpuMove()
 
 
 fn winner(board [3[3 Square]]) Square
-    for [r] board
-        let same = true
-        for [c] board[r]
-            if board[r][c] == Empty() || board[r][c] != board[r][0]
-                same = false
-        if same; return board[r][0]
+    switch board
+        [[a, b, c], _, _] | a != Empty() && a == b && a == c; return a
+        [_, [a, b, c], _] | a != Empty() && a == b && a == c; return a
+        [_, _, [a, b, c]] | a != Empty() && a == b && a == c; return a
 
-    for [c] board[0]
-        let same = true
-        for [r] board
-            if board[r][c] == Empty() || board[r][c] != board[0][c]
-                same = false
-        if same; return board[0][c]
-
-    let same = true
-    for [i] | i < len(board) && i < len(board[0])
-        if board[i][i] == Empty() || board[i][i] != board[0][0]
-            same = false
-    if same; return board[0][0]
+        [[a, _, _], [b, _, _], [c, _, _]] | a != Empty() && a == b && a == c; return a
+        [[_, a, _], [_, b, _], [_, c, _]] | a != Empty() && a == b && a == c; return a
+        [[_, _, a], [_, _, b], [_, _, c]] | a != Empty() && a == b && a == c; return a
     
-    return Empty()
+        [[a, _, _], [_, b, _], [_, _, c]] | a != Empty() && a == b && a == c; return a
+        [[_, _, a], [_, b, _], [c, _, _]] | a != Empty() && a == b && a == c; return a
 
+        _; return Empty()
 
 fn main()
     print("tictactoe")

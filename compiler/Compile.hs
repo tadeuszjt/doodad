@@ -543,6 +543,15 @@ cmpPattern pattern val = trace "cmpPattern" $ withPos pattern $ case pattern of
 
                 true <- valBool (valType lenEq) True
                 foldM (valsInfix S.AndAnd) true (lenEq:bs)
+
+            Array n t -> do
+                assert (n == length pats) "Invalid array pattern"
+                bs <- forM (zip pats [0..]) $ \(p, i) ->
+                    cmpPattern p =<< arrayGetElemConst val i
+
+                true <- valBool Bool True
+                foldM (valsInfix S.AndAnd) true bs
+            
             _ -> fail "Invalid array pattern"
 
     S.PatField _ symbol pats -> do

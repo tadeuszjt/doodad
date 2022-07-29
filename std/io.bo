@@ -2,8 +2,10 @@ module io
 
 import_c stdio.h
 
+
 fn getChar() char
     return char(c::getchar())
+
 
 fn getStrLn() string
     let str = ""
@@ -13,6 +15,11 @@ fn getStrLn() string
         if c < 1;          return "\0"
         else if c == '\n'; return str
         else;              str <- [c]
+
+
+fn putStr(str string)
+    for [i] str; c::putchar(i32(str[i]))
+
 
 fn putStrLn(str string)
     for [i] str; c::putchar(i32(str[i]))

@@ -341,6 +341,16 @@ collectPattern pattern typ = collectPos pattern $ case pattern of
                 zipWithM_ collectPattern pats ts
             _ -> forM_ pats $ \pat -> collectPattern pat =<< genType
 
+    PatArray _ pats -> do
+        base <- baseTypeOf typ
+        case base of
+            T.Array n t -> do
+                assert (n == length pats) "Invalid array pattern"
+                mapM_ (\p -> collectPattern p t) pats
+            _ -> do
+                t <- genType
+                mapM_ (\p -> collectPattern p t) pats
+
     _ -> error $ show pattern
 
 
