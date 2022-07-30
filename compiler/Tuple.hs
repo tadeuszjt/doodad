@@ -83,7 +83,7 @@ tupleConstruct tupTyp vals = trace "tupleConstruct" $ do
     loc <- valLocal tupTyp
 
     case vals of
-        []    -> valStore loc =<< valZero tupTyp
+        --[]    -> valStore loc =<< valZero tupTyp
 
         [val] -> do
             baseVal <- baseTypeOf (valType val)

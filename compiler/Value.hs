@@ -110,32 +110,6 @@ valConvertNumber typ (Val valTyp op) = do
         (F64, F32) -> fpext op LL.double
 
 
-valZero :: InsCmp CompileState m => Type -> m Value
-valZero typ = trace ("valZero " ++ show  typ) $ do
-    case typ of
-        Typedef sym -> do
-            ObType t namem <- look sym KeyType
-            fmap (Val typ . valOp) $ valZero' namem =<< baseTypeOf t
-        _ -> valZero' Nothing typ
-
-    where
-        valZero' :: InsCmp CompileState m => Maybe Name -> Type -> m Value
-        valZero' namem base =
-            case base of
-                _ | isInt base   -> valInt typ 0
-                _ | isFloat base -> valFloat typ 0.0
-                Bool            -> valBool typ False
-                Char            -> valChar typ '\0'
-                Typedef sym     -> fmap (Val typ . valOp) $ valZero =<< baseTypeOf typ
-                Array n t       -> Val typ . array . replicate n . toCons . valOp <$> valZero t
-                Tuple ts        -> Val typ . struct namem False . map (toCons . valOp) <$> mapM valZero ts
-                Table ts        -> do
-                    let zi64 = toCons (int64 0)
-                    zptrs <- map (C.IntToPtr zi64 . LL.ptr) <$> mapM opTypeOf ts
-                    return $ Val typ $ struct namem False (zi64:zi64:zptrs)
-                ADT tss
-                    | isEnumADT base -> Val typ . valOp <$> valZero I64
-                _ -> error ("valZero: " ++  show typ)
 
 
 valLoad :: InsCmp s m => Value -> m Value
@@ -204,19 +178,25 @@ valNot val = trace "valNot" $ do
 
 valPrefix :: InsCmp CompileState m => S.Op -> Value -> m Value
 valPrefix operator val = do
-    Val typA opA <- valLoad val
-    Val typB opB <- valZero typA
-    base <- baseTypeOf typA
+    Val typ op <- valLoad val
+    base <- baseTypeOf typ
     case base of
         _ | isInt base -> case operator of
-            S.Minus -> Val typA <$> sub opB opA
-            S.Plus -> return $ Val typA opA
+            S.Minus -> do
+                zero <- valInt typ 0
+                Val typ <$> sub (valOp zero) op
+
+            S.Plus -> return (Val typ op)
 
         _ | isFloat base -> case operator of
-            S.Minus -> Val typA <$> fsub opB opA
+            S.Minus -> do
+                zero <- valFloat typ 0
+                Val typ <$> fsub (valOp zero) op
 
         Bool -> case operator of
-            S.Not -> Val typA <$> icmp P.EQ opA opB
+            S.Not -> do
+                false <- valBool typ False
+                Val typ <$> icmp P.EQ (valOp false) op
         
     
         

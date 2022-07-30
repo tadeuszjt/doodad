@@ -112,9 +112,9 @@ adtConstructField symbol typ vals = trace ("adtConstructField " ++ show symbol) 
     adtTyp@(ADT tss) <- assertBaseType isADT typ
 
     case adtTyp of
-        _ | isEmptyADT adtTyp  -> do
-            assert (length vals == 0) "Invalid ADT constructor arguments"
-            valZero typ
+--        _ | isEmptyADT adtTyp  -> do
+--            assert (length vals == 0) "Invalid ADT constructor arguments"
+--            valZero typ
 
         _ | isEnumADT adtTyp   -> do
             ObjMember i <- look symbol (KeyMember typ)
