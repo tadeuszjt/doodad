@@ -99,6 +99,7 @@ data Expr
     | Conv       TextPos Type [Expr]
     | Len        TextPos Expr
     | Copy       TextPos Expr
+    | Zero       TextPos
     | Prefix     TextPos Op Expr
     | Infix      TextPos Op Expr Expr
     | Range      TextPos Expr (Maybe Expr) (Maybe Expr)
@@ -173,6 +174,7 @@ instance TextPosition Expr where
         Call       p _ _ -> p 
         Conv       p _ _ -> p
         Len        p _ -> p
+        Zero       p -> p
         Copy       p _ -> p
         Prefix     p _ _ -> p
         Infix      p _ _ _ -> p
@@ -281,6 +283,7 @@ instance Show Expr where
         Call pos symbol exprs       -> show symbol ++ tupStrs (map show exprs)
         Conv pos typ exprs          -> show typ ++ tupStrs (map show exprs)
         Len pos expr                -> "len(" ++ show expr ++ ")"
+        Zero pos                    -> "zero()"
         Copy pos expr               -> "copy(" ++ show expr ++ ")"
         UnsafePtr pos expr          -> "unsafe_ptr(" ++ show expr ++ ")"
         Prefix pos op expr          -> show op ++ show expr

@@ -70,7 +70,7 @@ adtSetEnum adt@(Ptr _ loc) i = trace "adtSetEnum" $ do
 
 
 adtDeref :: InsCmp CompileState m => Value -> Int -> Int -> m Value
-adtDeref adt i ti = trace "adtDeref" $ do
+adtDeref adt i j = trace "adtDeref" $ do
     base@(ADT tss) <- assertBaseType isADT (valType adt)
     case base of
         _ | isEnumADT base -> fail "Cannot deref enum ADT"
@@ -79,7 +79,7 @@ adtDeref adt i ti = trace "adtDeref" $ do
             ptr <- adtPi8 adt
             case tss !! i of
                 [t] -> do -- ptr points directly to val
-                    assert (ti == 0) "invalid ADT deref"
+                    assert (j == 0) "invalid ADT deref"
                     fmap (Ptr t) . bitcast ptr . LL.ptr =<< opTypeOf t
 
             

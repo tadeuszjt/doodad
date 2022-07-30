@@ -454,15 +454,16 @@ collectCallExpr (AExpr exprType (Call p symbol es)) = do
 collectExpr :: BoM CollectState m => Expr -> m ()
 collectExpr (AExpr exprType expr) = collectPos expr $ case expr of
     Call p symbol es -> collectCallExpr (AExpr exprType expr)
-    Conv p t [e] -> collect exprType t >> collectExpr e
-    S.Char p c -> collectDefault exprType T.Char
-    S.Int p c -> collectDefault exprType I64
-    S.Prefix p op e -> collect exprType (typeOf e) >> collectExpr e
-    S.Copy p e -> collect exprType (typeOf e) >> collectExpr e
-    S.Len p e -> collectDefault exprType I64 >> collectExpr e
-    S.Bool p b -> collectDefault exprType T.Bool
-    S.String p s -> collectDefault exprType (T.Table [T.Char])
-    S.Float p f -> collectDefault exprType F64
+    Conv p t [e]     -> collect exprType t >> collectExpr e
+    S.Char p c       -> collectDefault exprType T.Char
+    S.Int p c        -> collectDefault exprType I64
+    S.Prefix p op e  -> collect exprType (typeOf e) >> collectExpr e
+    S.Copy p e       -> collect exprType (typeOf e) >> collectExpr e
+    S.Len p e        -> collectDefault exprType I64 >> collectExpr e
+    S.Bool p b       -> collectDefault exprType T.Bool
+    S.String p s     -> collectDefault exprType (T.Table [T.Char])
+    S.Float p f      -> collectDefault exprType F64
+    S.Zero p         -> collectDefault exprType (T.Tuple [])
 
     S.UnsafePtr p e -> do
         collect exprType (T.UnsafePtr (typeOf e))

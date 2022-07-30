@@ -16,11 +16,7 @@ fn string(sq Square)
         Cross();  return "X"
 
 
-let board = [
-    [Empty(), Empty(), Empty()],
-    [Empty(), Empty(), Empty()],
-    [Empty(), Empty(), Empty()]
-]:[3 [3 Square]]
+let board = zero():[3 [3 Square]]
 
 
 fn printBoard()

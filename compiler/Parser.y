@@ -80,6 +80,7 @@ import qualified Data.Set as Set
     print      { Token _ Reserved "print" }
     len        { Token _ Reserved "len" }
     unsafe_ptr { Token _ Reserved "unsafe_ptr" }
+    zero       { Token _ Reserved "zero" }
 
     import     { Token _ Import _ }
     import_c   { Token _ ImportC _ }
@@ -236,6 +237,7 @@ expr   : literal                              { $1 }
        | symbol '(' exprs ')'                 { S.Call (tokPos $2) (snd $1) $3 }
        | len '(' expr ')'                     { S.Len (tokPos $1) $3 }
        | copy '(' expr ')'                    { S.Copy (tokPos $1) $3 }
+       | zero '(' ')'                         { S.Zero (tokPos $1) }
        | unsafe_ptr '(' expr ')'              { S.UnsafePtr (tokPos $1) $3 }
        | typeOrdinal '(' exprs ')'            { S.Conv (tokPos $2) $1 $3 }
 --       | ':' typeAggregate '(' exprs ')'      { S.Conv (tokPos $3) $2 $4 }
@@ -243,7 +245,7 @@ expr   : literal                              { $1 }
        | expr '.' ident                       { S.Member (tokPos $2) $1 (tokStr $3) }
        | expr '[' expr ']'                    { S.Subscript (tokPos $2) $1 $3 }
        | expr ':' type_                       { S.AExpr $3 $1 }
-	   | expr '[' maybeExpr '..' maybeExpr ']' { S.Range (tokPos $2) $1 $3 $5 }
+       | expr '[' maybeExpr '..' maybeExpr ']' { S.Range (tokPos $2) $1 $3 $5 }
 
 
 maybeExpr : expr                              { Just $1 }
@@ -303,7 +305,7 @@ typeOrdinal   : bool                          { T.Bool }
               | string                        { T.Table [T.Char] }
 
 typeAggregate : '[' rowTypes_ ']'             { T.Table $2 }
-			  | '[' intlit type_ ']'          { T.Array (read $ tokStr $2) $3 }
+              | '[' intlit type_ ']'          { T.Array (read $ tokStr $2) $3 }
               | tupType                       { $1 }
               | fn '(' argTypes ')' type_     { T.Func $3 $5 }
 

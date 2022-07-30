@@ -75,6 +75,7 @@ instance Apply S.Expr where
         S.Conv  pos t exprs        -> S.Conv pos (apply subs t) $ map (apply subs) exprs
         S.Copy  pos e              -> S.Copy pos (apply subs e)
         S.Len   pos e              -> S.Len  pos (apply subs e)
+        S.Zero  pos                -> expr
         S.Bool  pos b              -> expr
         S.Subscript pos e1 e2      -> S.Subscript pos (apply subs e1) (apply subs e2)
         S.String pos s             -> expr

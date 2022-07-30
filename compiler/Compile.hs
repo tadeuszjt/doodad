@@ -362,6 +362,7 @@ cmpExpr (S.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck exp
     S.Float p f                -> valFloat exprType f
     S.Prefix pos operator expr -> valPrefix operator =<< cmpExpr expr
     S.Member pos expr sym      -> tupleMember sym =<< cmpExpr expr
+    S.Zero pos                 -> valZero exprType
 
     S.Int p n -> do
         base <- baseTypeOf exprType

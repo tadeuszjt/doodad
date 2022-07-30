@@ -393,6 +393,8 @@ instance Resolve Expr where
             mexpr2' <- maybe (return Nothing) (fmap Just . resolve) mexpr2
             return $ Range pos expr' mexpr1' mexpr2'
 
+        Zero pos -> return (Zero pos)
+
         --_ -> return expr
 
         _ -> fail $ "invalid expression: " ++ show expr

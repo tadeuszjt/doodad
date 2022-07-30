@@ -134,6 +134,7 @@ instance Annotate Expr where
         Float p f -> return expr
         String p s -> return expr
         Bool p b -> return expr
+        Zero p -> return expr
 
         Conv p s es -> Conv p s <$> mapM annotate es
         Copy p e -> Copy p <$> annotate e
