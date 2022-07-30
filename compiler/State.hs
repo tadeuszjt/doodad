@@ -32,10 +32,25 @@ import Trace
 
 
 data Value
-    = Val { valType :: Type, valOp :: LL.Operand }
-    | Ptr { valType :: Type, valLoc :: LL.Operand }
+    = Val Type LL.Operand
+    | Ptr Type LL.Operand
     | ConstInt Integer
     deriving (Show, Eq)
+
+
+valOp :: Value -> LL.Operand
+valOp (Val _ op) = op
+valOp (Ptr typ _) = error (show typ)
+
+
+valLoc :: Value -> LL.Operand
+valLoc (Ptr _ loc) = loc
+valLoc (Val typ _) = error (show typ)
+
+
+valType :: Value -> Type
+valType (Ptr typ _) = typ
+valType (Val typ _) = typ
 
 
 data SymKey

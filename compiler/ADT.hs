@@ -44,9 +44,11 @@ adtEnum adt = trace "adtEnum" $ do
     case adtTyp of
         _ | isEmptyADT adtTyp  -> fail "ADT has no enum"
         --_ | isPtrADT adtTyp    -> fail "ADT has no enum"
+        --
         _ | isEnumADT adtTyp   -> do
-            val <- valLoad adt
-            return $ val { valType = I64 }
+            Val _ op <- valLoad adt
+            return $ Val I64 op
+
         _ | isNormalADT adtTyp -> do
             val <- valLoad adt
             Val I64 <$> extractValue (valOp val) [0]
@@ -59,7 +61,9 @@ adtSetEnum adt@(Ptr _ loc) i = trace "adtSetEnum" $ do
     case adtTyp of
         _ | isEmptyADT adtTyp  -> fail "ADT has no enum"
         --_ | isPtrADT adtTyp    -> fail "ADT has no enum"
-        _ | isEnumADT adtTyp   -> valStore adt $ (valI64 i) { valType = adtTyp }
+        _ | isEnumADT adtTyp   -> do
+            Val I64 iop <- valInt I64 i
+            valStore adt (Val adtTyp iop)
         _ | isNormalADT adtTyp -> do
             en <- Ptr I64 <$> gep loc [int32 0, int32 0]
             valStore en (valI64 i)
