@@ -78,9 +78,17 @@ adtDeref adt i j = trace "adtDeref" $ do
         _ | isNormalADT base -> do
             ptr <- adtPi8 adt
             case tss !! i of
+                [] -> fail "invalid adt deref"
                 [t] -> do -- ptr points directly to val
                     assert (j == 0) "invalid ADT deref"
                     fmap (Ptr t) . bitcast ptr . LL.ptr =<< opTypeOf t
+                ts -> do
+                    assert (j < length ts) "invalid adt deref"
+                    ptr <- adtPi8 adt
+                    ptup <- bitcast ptr . LL.ptr =<< opTypeOf (Tuple ts)
+                    tupleIdx j (Ptr (Tuple ts) ptup)
+
+
 
             
 adtPi8 :: InsCmp CompileState m => Value -> m LL.Operand
@@ -124,21 +132,26 @@ adtConstructField symbol typ vals = trace ("adtConstructField " ++ show symbol) 
             return adt
 
 
-        _ | isNormalADT adtTyp && length vals == 1 -> do
+        _ | isNormalADT adtTyp -> do
             ObjMember i <- look symbol (KeyMember typ)
             let ts = tss !! i
-            assert (length vals == 1) "Invalid ADT constructor arguments"
-            assert (length ts == 1) "Invalid ADT constructor args"
-
-            let [val] = vals
-            let [t] = ts
-            assert (valType val == t) "mismatch types"
-            mal <- valMalloc t (valI64 1)
-            valStore mal val
+            assert (length vals == length ts) "Invalid ADT constructor arguments"
+            assert (map valType vals == ts) "mismatch types"
 
             adt <- valLocal typ
-            adtSetPi8 adt =<< bitcast (valLoc mal) (LL.ptr LL.i8)
             adtSetEnum adt i
+
+            case ts of
+                [t] -> do
+                    mal <- valMalloc t (valI64 1)
+                    valStore mal (head vals)
+                    adtSetPi8 adt =<< bitcast (valLoc mal) (LL.ptr LL.i8)
+                ts -> do
+                    tup <- valMalloc (Tuple ts) (valI64 1)
+                    forM_ (zip vals [0..]) $ \(val, j) -> do
+                        tupleSet tup j val
+                    adtSetPi8 adt =<< bitcast (valLoc tup) (LL.ptr LL.i8)
+
             return adt
 
 --        _ | isPtrADT adtTyp -> do

@@ -24,6 +24,13 @@ fn string(b bool)
     else; return "false"
 
 
+fn toUpper(str string) string
+    let r = copy(str)
+    for [i] str
+        r[i] = chars::toUpper(str[i])
+    return r
+
+
 fn isPrefix(pre string, str string) bool
     if len(pre) > len(str)
         return false

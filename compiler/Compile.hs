@@ -457,6 +457,8 @@ cmpExpr (S.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck exp
                         valStore ptr val
                 return tab
 
+            _ -> error (show base)
+
     S.UnsafePtr pos expr -> do
         val <- cmpExpr expr
         let UnsafePtr t = exprType
@@ -545,10 +547,22 @@ cmpPattern pattern val = trace "cmpPattern" $ withPos pattern $ case pattern of
             _ | isNormalADT base -> do
                 let ts = tss !! i
                 assert (length pats == length ts) "invalid ADT pattern"
-                valBool Bool True
-                bs <- forM (zip pats [0..]) $ \(pat, ti) -> 
-                    cmpPattern pat =<< adtDeref val i ti
+
+                exit <- freshName "pattern_exit"
+                enumSuccess <- freshName "pattern_enum_success"
                 enumMatch <- valsInfix S.EqEq (valI64 i) =<< adtEnum val
-                foldM (valsInfix S.AndAnd) enumMatch bs
+                match <- valLocal Bool
+                valStore match =<< valBool Bool False
+                condBr (valOp enumMatch) enumSuccess exit 
+
+                emitBlockStart enumSuccess
+                true <- valBool Bool True
+                bs <- forM (zip pats [0..]) $ \(pat, j) -> 
+                    cmpPattern pat =<< adtDeref val i j
+                valStore match =<< foldM (valsInfix S.AndAnd) true bs
+                br exit
+
+                emitBlockStart exit
+                valLoad match
 
 

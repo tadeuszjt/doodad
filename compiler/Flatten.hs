@@ -49,6 +49,7 @@ checkTypeDefs typedefs = do
         checkTypeCircles visited typ = case typ of
             T.Typedef symbol  -> checkCircles visited symbol
             T.Tuple ts        -> mapM_ (checkTypeCircles visited) ts
+            T.Array n t       -> checkTypeCircles visited t
             t | T.isSimple t  -> return ()
             _                 -> fail ("checkTypeCircles " ++ show typ)
 

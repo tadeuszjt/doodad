@@ -305,9 +305,21 @@ typeOrdinal   : bool                          { T.Bool }
               | string                        { T.Table [T.Char] }
 
 typeAggregate : '[' rowTypes_ ']'             { T.Table $2 }
-              | '[' intlit type_ ']'          { T.Array (read $ tokStr $2) $3 }
+              | arrayType                     { $1 }
               | tupType                       { $1 }
               | fn '(' argTypes ')' type_     { T.Func $3 $5 }
+
+
+tupType : '(' tupFields ')'               { T.Tuple $2 }
+tupFields : {-empty -}                    { [] }
+          | tupFields_                    { $1 }
+tupFields_ : type_                        { [$1] }
+           | type_ ',' tupFields          { $1 : $3 }
+
+
+arrayType : '[' intlit type_ ']'              { T.Array (read $ tokStr $2) $3 }
+
+
 
 argTypes  : {-empty -}                        { [] }
           | argTypes_                         { $1 }
@@ -326,11 +338,6 @@ annoADTField : ident '(' argTypes ')'         { (T.Sym (tokStr $1), $3) }
 annoADTFields : annoADTField                  { [$1] }
               | annoADTField '|' annoADTFields { $1 : $3 }
 
-tupType : '(' tupFields ')'               { T.Tuple $2 }
-tupFields : {-empty -}                    { [] }
-          | tupFields_                    { $1 }
-tupFields_ : type_                        { [$1] }
-           | type_ ',' tupFields          { $1 : $3 }
 
 
 rowTypes_     : type_                         { [$1] }
@@ -339,6 +346,7 @@ rowTypes_     : type_                         { [$1] }
 
 annoType : typeOrdinal                        { S.AnnoType $1 }
          | tupType                            { S.AnnoType $1 }
+         | arrayType                          { S.AnnoType $1 }
          | annoTupType                        { $1 }
          | annoADTType                        { $1 }
 

@@ -1,5 +1,7 @@
 module chars
 
+import_c ctype.h
+
 fn isAlpha(c char) bool
     return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')
 
@@ -8,3 +10,6 @@ fn isDigit(c char) bool
 
 fn isSpace(c char) bool
     return c == ' ' || c == '\t' || c == '\n'
+
+fn toUpper(c char) char
+    return char(c::toupper(i32(c)))
