@@ -56,13 +56,13 @@ fn playerMove() bool
 
 
 fn cpuMove()
-
     let emptySquares = []
     for [r] board
         for [c] board[r]
-            if board[r][c] == Empty()
+            if board[r][c] -> Empty()
                 emptySquares <- [(r, c)]
-    if len(emptySquares) == 0
+
+    if emptySquares == []
         return
 
     for [i] emptySquares -> (r, c)

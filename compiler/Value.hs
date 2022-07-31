@@ -167,7 +167,7 @@ valMemCpy (Ptr dstTyp dst) (Ptr srcTyp src) len = trace "valMemCpy" $ do
     pDstI8 <- bitcast dst (LL.ptr LL.i8)
     pSrcI8 <- bitcast src (LL.ptr LL.i8)
 
-    void $ memcpy pDstI8 pSrcI8 . valOp =<< valsInfix S.Times len =<< sizeOf dstTyp
+    void $ memcpy pDstI8 pSrcI8 . valOp =<< valIntInfix S.Times len =<< sizeOf dstTyp
 
 
 valNot :: InsCmp CompileState m => Value -> m Value
@@ -198,59 +198,25 @@ valPrefix operator val = do
                 false <- valBool typ False
                 Val typ <$> icmp P.EQ (valOp false) op
         
+
+valIntInfix :: InsCmp CompileState m => S.Op -> Value -> Value -> m Value
+valIntInfix operator a b = do
+    assert (valType a == valType b) "type mismatch"
+    assertBaseType isInt (valType a)
+    Val typ opA <- valLoad a
+    Val _   opB <- valLoad b
+    case operator of
+        S.Plus   -> Val typ  <$> add opA opB
+        S.Minus  -> Val typ  <$> sub opA opB
+        S.Times  -> Val typ  <$> mul opA opB
+        S.Divide -> Val typ  <$> sdiv opA opB
+        S.GT     -> Val Bool <$> icmp P.SGT opA opB
+        S.LT     -> Val Bool <$> icmp P.SLT opA opB
+        S.GTEq   -> Val Bool <$> icmp P.SGE opA opB
+        S.LTEq   -> Val Bool <$> icmp P.SLE opA opB
+        S.EqEq   -> Val Bool <$> icmp P.EQ opA opB
+        S.NotEq  -> Val Bool <$> icmp P.NE opA opB
+        S.Modulo -> Val typ  <$> srem opA opB
+        _        -> error ("int infix: " ++ show operator)
     
-        
-valsInfix :: InsCmp CompileState m => S.Op -> Value -> Value -> m Value
-valsInfix operator a b = trace ("valsInfix " ++ show operator) $ do
-    Val typA opA <- valLoad a
-    Val typB opB <- valLoad b
-
-    baseA <- baseTypeOf (typA)
-    baseB <- baseTypeOf (typB)
-    assert (baseA == baseB) "base types incompatible"
-
-    case baseA of
-        Bool               -> boolInfix (typA) operator opA opB
-        Char               -> intInfix (typA) operator opA opB
-        _ | isInt baseA     -> intInfix (typA) operator opA opB
-        _ | isFloat baseA   -> floatInfix (typA) operator opA opB
-        _ | isEnumADT baseA -> adtEnumInfix (typA) operator opA opB
-        _                  -> fail $ "Operator " ++ show operator ++ " undefined for types " ++ show (typA) ++ " " ++ show (valType b)
-
-    where 
-        boolInfix :: InsCmp CompileState m => Type -> S.Op -> LL.Operand -> LL.Operand -> m Value
-        boolInfix typ operator opA opB = case operator of
-            S.OrOr   -> Val typ <$> or opA opB
-            S.AndAnd -> Val typ <$> and opA opB
-            S.EqEq   -> Val typ <$> icmp P.EQ opA opB
-            _        -> error ("bool infix: " ++ show operator)
-        
-        intInfix :: InsCmp CompileState m => Type -> S.Op -> LL.Operand -> LL.Operand -> m Value
-        intInfix typ operator opA opB = case operator of
-            S.Plus   -> Val typ  <$> add opA opB
-            S.Minus  -> Val typ  <$> sub opA opB
-            S.Times  -> Val typ  <$> mul opA opB
-            S.Divide -> Val typ  <$> sdiv opA opB
-            S.GT     -> Val Bool <$> icmp P.SGT opA opB
-            S.LT     -> Val Bool <$> icmp P.SLT opA opB
-            S.GTEq   -> Val Bool <$> icmp P.SGE opA opB
-            S.LTEq   -> Val Bool <$> icmp P.SLE opA opB
-            S.EqEq   -> Val Bool <$> icmp P.EQ opA opB
-            S.NotEq  -> Val Bool <$> icmp P.NE opA opB
-            S.Modulo -> Val typ  <$> srem opA opB
-            _        -> error ("int infix: " ++ show operator)
-
-        floatInfix :: InsCmp CompileState m => Type -> S.Op -> LL.Operand -> LL.Operand -> m Value
-        floatInfix typ operator opA opB = case operator of
-            S.Plus   -> Val typ <$> fadd opA opB
-            S.Minus  -> Val typ <$> fsub opA opB
-            S.Times  -> Val typ <$> fmul opA opB
-            S.Divide -> Val typ <$> fdiv opA opB
-            S.EqEq   -> Val Bool <$> fcmp P.OEQ opA opB
-            _        -> error ("float infix: " ++ show operator)
-
-        adtEnumInfix :: InsCmp CompileState m => Type -> S.Op -> LL.Operand -> LL.Operand -> m Value
-        adtEnumInfix typ operator opA opB = case operator of
-            S.NotEq -> Val Bool <$> icmp P.NE opA opB
-            S.EqEq  -> Val Bool <$> icmp P.EQ opA opB
         

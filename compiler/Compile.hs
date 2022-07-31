@@ -46,6 +46,7 @@ import Trace
 import Interop
 import ADT
 import Array
+import Builtin
 
 funcKeyMatch :: [Type] -> [SymKey] -> [SymKey]
 funcKeyMatch argTypes []         = []
@@ -314,33 +315,39 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
         define symbol KeyVar (ObjVal idx) 
 
         val <- cmpExpr expr
+        base <- baseTypeOf (valType val)
 
         cond <- freshName "for_cond"
         body <- freshName "for_body"
+        patm <- freshName "for_patm"
+        incr <- freshName "for_incr"
         exit <- freshName "for_exit"
 
         br cond
         emitBlockStart cond
 
-        base <- baseTypeOf (valType val)
         len <- case base of
             Table ts  -> tableLen val
             Array n t -> return $ valI64 n
         ilt <- valsInfix S.LT idx len
+        condBr (valOp ilt) patm exit
 
-        cnd <- case mpat of
-            Nothing -> return ilt
+        emitBlockStart patm
+        patMatch <- case mpat of
+            Nothing -> valBool Bool True
             Just pat -> case base of
-                Table ts -> do
-                    valsInfix S.AndAnd ilt =<< cmpPattern pat =<< tableGetElem val idx
-
-        condBr (valOp cnd) body exit
+                Table ts  -> cmpPattern pat =<< tableGetElem val idx
+                Array n t -> cmpPattern pat =<< arrayGetElem val idx
+        condBr (valOp patMatch) body exit
         
         emitBlockStart body
         cmpStmt blk
+        br incr
 
+        emitBlockStart incr
         valStore idx =<< valsInfix S.Plus idx =<< valInt typ 1
         br cond
+
         emitBlockStart exit
         
 

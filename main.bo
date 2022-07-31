@@ -38,9 +38,6 @@ fn main()
 
         putStrLn("toast")
 
-        for [i] | i < 10
-            print(rand::I64(), rand::F64())
-
         print("max: ", 12.2, 12.4, max(12.2, 12.4))
 
         print(strings::read("-453153"):(i64, i64), strings::read("   true 123"):(bool, i64))
@@ -53,6 +50,8 @@ fn main()
         let someStr = "benisbongis\0"
         let p = unsafe_ptr(someStr[0])
         c::puts(p)
+
+        print("abc == abc", "abc" == "abc", "abc" == "abd", [("abc", "abd")] == [("abc", "abd")])
 
         assert(false, "benis")
 

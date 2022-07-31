@@ -20,6 +20,7 @@ import Type
 import Construct
 import Typeof
 import Array
+import Builtin
 
 
 valPrint :: InsCmp CompileState m => String -> Value -> m ()

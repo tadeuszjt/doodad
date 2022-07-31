@@ -86,11 +86,12 @@ isEmptyADT _        = False
 
 
 isPtrADT :: Type -> Bool
-isPtrADT (ADT [x]) = True
-isPtrADT _         = False
+isPtrADT (ADT [(x:xs)]) = True
+isPtrADT _              = False
 
 isEnumADT :: Type -> Bool
-isEnumADT (ADT tss) = all (== []) tss
+isEnumADT (ADT tss) = length tss > 0 && all (==[]) tss
+isEnumADT _         = False
 
 isNormalADT :: Type -> Bool
 isNormalADT adt@(ADT _) = not $ isEmptyADT adt || isPtrADT adt || isEnumADT adt

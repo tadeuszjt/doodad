@@ -71,4 +71,5 @@ executable bolang
         ADT,
         Resolve,
         Infer,
-        Array
+        Array,
+        Builtin

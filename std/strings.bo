@@ -8,17 +8,6 @@ fn + (a string, b string) string
     return r
 
 
-fn == (a string, b string) bool
-    if len(a) != len(b)
-        return false
-
-    for [i] a
-        if a[i] != b[i]
-            return false
-
-    return true
-
-
 fn string(b bool)
     if b; return "true"
     else; return "false"
@@ -32,14 +21,7 @@ fn toUpper(str string) string
 
 
 fn isPrefix(pre string, str string) bool
-    if len(pre) > len(str)
-        return false
-
-    for [i] pre
-        if pre[i] != str[i]
-            return false
-
-    return true
+    return str[..len(pre)] == pre
 
 
 fn read(s string) (bool, i64)
@@ -61,7 +43,7 @@ fn read(s string) (i64, i64)
         l = l + 1
 
     let mul = 1
-    if len(s[l..]) > 0 && s[l] == '-'
+    if s[l..l+1] -> "-"
         mul = -1
         l = l + 1
 

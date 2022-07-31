@@ -63,7 +63,7 @@ tableMake typ len = trace "tableMake" $ do
     valStore siz (valI64 0)
     idxs <- forM ts $ \t -> do
         idx <- valLoad siz
-        valStore siz =<< valsInfix S.Plus siz =<< valsInfix S.Times len =<< sizeOf t
+        valStore siz =<< valIntInfix S.Plus siz =<< valIntInfix S.Times len =<< sizeOf t
         return idx
 
     mal <- valMalloc I8 siz
@@ -138,21 +138,21 @@ tableRange tab startArg endArg = trace "tableRange" $ do
     start <- valLocal (valType startArg)
     end   <- valLocal (valType endArg)
 
-    startLT0 <- valsInfix S.LT startArg (valI64 0)
+    startLT0 <- valIntInfix S.LT startArg (valI64 0)
     valStore start =<< valSelect startLT0 (valI64 0) startArg
 
-    endGT <- valsInfix S.GT endArg len
+    endGT <- valIntInfix S.GT endArg len
     valStore end =<< valSelect endGT len endArg
 
-    startGT <- valsInfix S.GT start len
+    startGT <- valIntInfix S.GT start len
     valStore start =<< valSelect startGT len start
 
-    crossed <- valsInfix S.GT start end
+    crossed <- valIntInfix S.GT start end
     valStore end =<< valSelect crossed start end
     
     loc <- valLocal (valType tab)
-    tableSetLen loc =<< valsInfix S.Minus end start
-    tableSetCap loc =<< valsInfix S.Minus cap start
+    tableSetLen loc =<< valIntInfix S.Minus end start
+    tableSetCap loc =<< valIntInfix S.Minus cap start
 
     forM_ (zip ts [0..]) $ \(t, i) -> do
         row <- tableRow i tab 
@@ -166,14 +166,14 @@ tableGrow tab newLen = trace "tableGrow" $ do
     Table ts <- assertBaseType isTable (valType tab)
     assertBaseType isInt (valType newLen)
 
-    bFull <- valsInfix S.GT newLen =<< tableCap tab
+    bFull <- valIntInfix S.GT newLen =<< tableCap tab
     if_ (valOp bFull) (fullCase ts) (return ())
     tableSetLen tab newLen
 
     where
         fullCase :: InsCmp CompileState m => [Type] -> m ()
         fullCase ts = do
-            newTab <- tableMake (valType tab) =<< valsInfix S.Times newLen (valI64 2)
+            newTab <- tableMake (valType tab) =<< valIntInfix S.Times newLen (valI64 2)
             forM_ (zip ts [0..]) $ \(t, i) -> do
                 newRow <- tableRow i newTab
                 oldRow <- tableRow i tab
@@ -188,7 +188,7 @@ tableAppendElem tab val = trace "tableAppendElem" $ do
     assert (valType val == t) "Types do not match."
     
     len <- tableLen tab
-    tableGrow tab =<< valsInfix S.Plus len (valI64 1)
+    tableGrow tab =<< valIntInfix S.Plus len (valI64 1)
     row <- tableRow 0 tab
     ptr <- valPtrIdx row len
     valStore ptr val
@@ -202,7 +202,7 @@ tableAppend loc val = trace "tableAppend" $ do
 
     locLen <- tableLen loc
     valLen <- tableLen val
-    newLen <- valsInfix S.Plus locLen valLen
+    newLen <- valIntInfix S.Plus locLen valLen
     tableGrow loc newLen
 
     -- copy b into loc
