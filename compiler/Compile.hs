@@ -308,15 +308,12 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
         let cases' = [(fmap valOp (cmpPattern pat val), cmpStmt stmt) | (pat, stmt) <- cases]
         switch_ $ cases' ++ [(return (bit 1), void trap)]
     
-    S.For _ symbol (Just typ) mexpr mcnd blk -> do
+    S.For _ symbol (Just typ) expr mpat blk -> do
         idx <- valLocal typ
         valStore idx =<< valZero typ
         define symbol KeyVar (ObjVal idx) 
 
-        mval <- case mexpr of
-            Nothing -> return Nothing
-            Just expr -> Just <$> cmpExpr expr
-
+        val <- cmpExpr expr
 
         cond <- freshName "for_cond"
         body <- freshName "for_body"
@@ -325,18 +322,17 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
         br cond
         emitBlockStart cond
 
-        ilt <- case mval of
-            Nothing -> valBool Bool True
-            Just val -> do
-                base <- baseTypeOf (valType val)
-                len <- case base of
-                    Table ts  -> tableLen val
-                    Array n t -> return $ valI64 n
-                valsInfix S.LT idx len
+        base <- baseTypeOf (valType val)
+        len <- case base of
+            Table ts  -> tableLen val
+            Array n t -> return $ valI64 n
+        ilt <- valsInfix S.LT idx len
 
-        cnd <- case mcnd of
+        cnd <- case mpat of
             Nothing -> return ilt
-            Just gc -> valsInfix S.AndAnd ilt =<< cmpCondition gc
+            Just pat -> case base of
+                Table ts -> do
+                    valsInfix S.AndAnd ilt =<< cmpPattern pat =<< tableGetElem val idx
 
         condBr (valOp cnd) body exit
         

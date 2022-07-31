@@ -270,11 +270,18 @@ collectStmt stmt = collectPos stmt $ case stmt of
             collectPattern pat (typeOf expr)
             collectStmt stmt
 
-    For p symbol (Just t) mexpr mcnd blk -> do
+    For p symbol (Just t) expr mpat blk -> do
         define symbol KeyVar (ObjVar t)
         collectDefault t I64
-        when (isJust mexpr) $ collectExpr (fromJust mexpr)
-        when (isJust mcnd) $ collectCondition (fromJust mcnd)
+        collectExpr expr
+
+        when (isJust mpat) $ do
+            base <- baseTypeOf (typeOf expr)
+            case base of
+                T.Type x    -> collectPattern (fromJust mpat) =<< genType
+                T.Table [t] -> collectPattern (fromJust mpat) t
+                T.Array n t -> collectPattern (fromJust mpat) t
+
         collectStmt blk
         
 

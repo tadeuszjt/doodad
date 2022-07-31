@@ -120,7 +120,7 @@ data Stmt
     | Typedef     TextPos Symbol AnnoType
     | AppendStmt  Append
     | Switch      TextPos Expr [(Pattern, Stmt)]
-    | For         TextPos Symbol (Maybe Type) (Maybe Expr) (Maybe Condition) Stmt
+    | For         TextPos Symbol (Maybe Type) Expr (Maybe Pattern) Stmt
     deriving (Eq, Show)
 
 
@@ -344,9 +344,9 @@ prettyAST ast = do
                     putStrLn $ pre ++ "\t" ++ show pat
                     prettyStmt (pre ++ "\t\t") stmt
 
-            For pos symbol _ mexpr mcnd blk -> do
+            For pos symbol _ expr mcnd blk -> do
                 let cndStr = maybe "" ((" | " ++) . show) mcnd
-                let exprStr = maybe "" ((" " ++ ) . show) mexpr
+                let exprStr = " " ++ show expr
                 putStrLn $ pre ++ "for " ++ "[" ++ show symbol ++ "]" ++ exprStr ++ cndStr
                 prettyStmt (pre ++ "\t") blk
 

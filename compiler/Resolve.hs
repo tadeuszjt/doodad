@@ -242,15 +242,15 @@ instance Resolve Stmt where
                         Nothing ->      fail $ show symbol ++ " isn't defined"
                         Just symbol' -> return $ CallStmt pos symbol' exprs'
 
-        For pos (Sym sym) Nothing mexpr mcnd blk -> do
+        For pos (Sym sym) Nothing expr mpattern blk -> do
             pushSymTab
             symbol <- genSymbol sym
             define sym KeyVar symbol
-            mexpr' <- maybe (return Nothing) (fmap Just . resolve) mexpr
-            mcnd' <- maybe (return Nothing) (fmap Just . resolve) mcnd
+            expr' <- resolve expr
+            mpattern' <- maybe (return Nothing) (fmap Just . resolve) mpattern
             blk' <- resolve blk
             popSymTab
-            return $ For pos symbol Nothing mexpr' mcnd' blk'
+            return $ For pos symbol Nothing expr' mpattern' blk'
 
 --        _ -> return stmt
         _ -> fail $ show stmt

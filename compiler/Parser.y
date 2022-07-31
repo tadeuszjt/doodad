@@ -151,8 +151,8 @@ stmtB : If                                    { $1 }
       | fn fnName '(' params ')' block        { S.FuncDef (tokPos $1) ($2) $4 T.Void $6 }
       | fn fnName '(' params ')' type_ block  { S.FuncDef (tokPos $1) ($2) $4 $6 $7 }
       | while condition block                 { S.While (tokPos $1) $2 $3 }
-      | for '[' ident ']' maybeExpr block     { S.For (tokPos $1) (T.Sym $ tokStr $3) Nothing $5 Nothing $6 }
-      | for '[' ident ']' maybeExpr '|' condition block { S.For (tokPos $1) (T.Sym $ tokStr $3) Nothing $5 (Just $7) $8 }
+      | for '[' ident ']' expr block          { S.For (tokPos $1) (T.Sym $ tokStr $3) Nothing $5 Nothing $6 }
+      | for '[' ident ']' expr '->' pattern block { S.For (tokPos $1) (T.Sym $ tokStr $3) Nothing $5 (Just $7) $8 }
       | Switch                                { $1 }
 
 pattern  : '_'                                { S.PatIgnore (tokPos $1) }

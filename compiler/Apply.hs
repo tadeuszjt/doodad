@@ -138,8 +138,8 @@ instance Apply S.Stmt where
         S.Switch pos expr cases ->
             S.Switch pos (apply subs expr) [(apply subs p, apply subs s) | (p, s) <- cases]
 
-        S.For pos symbol (Just t) mexpr mcnd blk ->
-            S.For pos symbol (Just $ apply subs t) (fmap (apply subs) mexpr) (fmap (apply subs) mcnd) (apply subs blk)
+        S.For pos symbol (Just t) expr mpat blk ->
+            S.For pos symbol (Just $ apply subs t) (apply subs expr) (fmap (apply subs) mpat) (apply subs blk)
             
 
 instance Apply S.AST where

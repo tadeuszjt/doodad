@@ -56,13 +56,6 @@ fn playerMove() bool
 
 
 fn cpuMove()
-    let cpuWords = ["kssssksk", "beep", "click-click", "ka-chunk", "ding", "bzztzt"]
-    let cpuStr = "cpu moving."
-    let cpuNumWords = (rand::I64() % 5) + 1
-    for [i] | i < cpuNumWords
-        cpuStr <- " " <- cpuWords[rand::I64() % len(cpuWords)]
-    cpuStr <- "."
-    print(cpuStr)
 
     let emptySquares = []
     for [r] board
@@ -72,14 +65,14 @@ fn cpuMove()
     if len(emptySquares) == 0
         return
 
-    for [i] emptySquares | emptySquares[i] -> (r, c)
+    for [i] emptySquares -> (r, c)
         let brd = board
         brd[r][c] = Cross()
         if winner(brd) == Cross()
             board[r][c] = Cross()
             return
 
-    for [i] emptySquares | emptySquares[i] -> (r, c)
+    for [i] emptySquares -> (r, c)
         let brd = board
         brd[r][c] = Naught()
         if winner(brd) == Naught()
@@ -110,7 +103,8 @@ fn main()
     print("tictactoe")
     printBoard()
 
-    for [i] | i < 10
+    let i = 0
+    while i < 9
         let win = winner(board)
         if win != Empty()
             putStrLn("winner is: " + string(win))
@@ -119,6 +113,7 @@ fn main()
         while !playerMove();
         cpuMove()
         printBoard()
+        i = i + 1
 
 
 

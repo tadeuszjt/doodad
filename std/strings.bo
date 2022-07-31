@@ -44,7 +44,7 @@ fn isPrefix(pre string, str string) bool
 
 fn read(s string) (bool, i64)
     let l = 0
-    for [i] s | isSpace(s[i])
+    for [i] s -> c | isSpace(c)
         l = l + 1
 
     if isPrefix("true",       s[l..]); return (true, l + 4)
@@ -57,7 +57,7 @@ fn read(s string) (bool, i64)
 
 fn read(s string) (i64, i64)
     let l = 0
-    for [i] s | isSpace(s[i])
+    for [i] s -> c | isSpace(c)
         l = l + 1
 
     let mul = 1
@@ -87,7 +87,7 @@ fn reverse(s string)
 
 fn dropSpace(s string) string
     let start = 0
-    for [i] s | isSpace(s[i])
+    for [i] s -> c | isSpace(c)
         start = start + 1
 
     return copy(s[start..])
