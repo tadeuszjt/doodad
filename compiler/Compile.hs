@@ -419,6 +419,10 @@ cmpExpr (S.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck exp
         zipWithM_ (tupleSet tup) [0..] vals
         return tup
 
+    S.TupleIndex pos expr n -> do
+        val <- cmpExpr expr
+        tupleIdx (fromIntegral n) val
+
     S.Range pos expr mexpr1 mexpr2 -> do
         val <- cmpExpr expr
         base <- baseTypeOf (valType val)

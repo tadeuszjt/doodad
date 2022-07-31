@@ -38,12 +38,12 @@ valsInfix operator a b = do
 
     case base of
         Bool               -> boolInfix typ operator opA opB
-        Char               -> intInfix typ operator opA opB
-        _ | isInt base     -> intInfix typ operator opA opB
+        Char               -> valIntInfix operator a b
+        _ | isInt base     -> valIntInfix operator a b
         _ | isFloat base   -> floatInfix typ operator opA opB
         _ | isEnumADT base -> adtEnumInfix typ operator opA opB
-        _ | isTable base   -> tableInfix typ operator opA opB
-        _ | isTuple base   -> tupleInfix typ operator opA opB
+        _ | isTable base   -> tableInfix operator a b
+        _ | isTuple base   -> tupleInfix operator a b
         _                  -> fail $ "Operator " ++ show operator ++ " undefined for types " ++ show typ ++ " " ++ show (valType b)
 
     where 
@@ -54,21 +54,6 @@ valsInfix operator a b = do
             S.EqEq   -> Val typ <$> icmp P.EQ opA opB
             _        -> error ("bool infix: " ++ show operator)
         
-        intInfix :: InsCmp CompileState m => Type -> S.Op -> LL.Operand -> LL.Operand -> m Value
-        intInfix typ operator opA opB = case operator of
-            S.Plus   -> Val typ  <$> add opA opB
-            S.Minus  -> Val typ  <$> sub opA opB
-            S.Times  -> Val typ  <$> mul opA opB
-            S.Divide -> Val typ  <$> sdiv opA opB
-            S.GT     -> Val Bool <$> icmp P.SGT opA opB
-            S.LT     -> Val Bool <$> icmp P.SLT opA opB
-            S.GTEq   -> Val Bool <$> icmp P.SGE opA opB
-            S.LTEq   -> Val Bool <$> icmp P.SLE opA opB
-            S.EqEq   -> Val Bool <$> icmp P.EQ opA opB
-            S.NotEq  -> Val Bool <$> icmp P.NE opA opB
-            S.Modulo -> Val typ  <$> srem opA opB
-            _        -> error ("int infix: " ++ show operator)
-
         floatInfix :: InsCmp CompileState m => Type -> S.Op -> LL.Operand -> LL.Operand -> m Value
         floatInfix typ operator opA opB = case operator of
             S.Plus   -> Val typ <$> fadd opA opB
@@ -83,66 +68,65 @@ valsInfix operator a b = do
             S.NotEq -> Val Bool <$> icmp P.NE opA opB
             S.EqEq  -> Val Bool <$> icmp P.EQ opA opB
 
-        tupleInfix :: InsCmp CompileState m => Type -> S.Op -> LL.Operand -> LL.Operand -> m Value
-        tupleInfix typ operator opA opB = do
-            let a = Val typ opA
-            let b = Val typ opB
-            assertBaseType isTuple typ
-            --assert (typ == typB) "type mismatch"
+tupleInfix :: InsCmp CompileState m => S.Op -> Value -> Value -> m Value
+tupleInfix operator a b = do
+    assert (valType a == valType b) "type mismatch"
+    Tuple ts <- assertBaseType isTuple (valType a)
 
-            Tuple ts <- baseTypeOf typ
+    case operator of
+        S.NotEq -> valNot =<< tupleInfix S.EqEq a b
+        S.EqEq -> do
+            bs <- forM (zip ts [0..]) $ \(t, i) -> do
+                elmA <- tupleIdx i a
+                elmB <- tupleIdx i b
+                valsInfix S.EqEq elmA elmB
 
-            case operator of
-                S.EqEq -> do
-                    bs <- forM (zip ts [0..]) $ \(t, i) -> do
-                        elmA <- tupleIdx i a
-                        elmB <- tupleIdx i b
-                        valsInfix S.EqEq elmA elmB
-
-                    true <- valBool Bool True
-                    foldM (valsInfix S.AndAnd) true bs
+            true <- valBool Bool True
+            foldM (valsInfix S.AndAnd) true bs
                     
         
-        tableInfix :: InsCmp CompileState m => Type -> S.Op -> LL.Operand -> LL.Operand -> m Value
-        tableInfix typ operator opA opB = do
-            let a = Val typ opA
-            let b = Val typ opB
+tableInfix :: InsCmp CompileState m => S.Op -> Value -> Value -> m Value
+tableInfix operator a b = do
+    assert (valType a == valType b) "type mismatch"
+    assertBaseType isTable (valType a)
+    let typ = valType a
 
-            lenA <- tableLen a
-            lenB <- tableLen b
-            lenEq <- valIntInfix S.EqEq lenA lenB
+    lenA <- tableLen a
+    lenB <- tableLen b
+    lenEq <- valIntInfix S.EqEq lenA lenB
 
-            case operator of
-                S.EqEq  -> do
-                    eq <- valLocal Bool
-                    idx <- valLocal I64
-                    valStore eq =<< valBool Bool False
-                    valStore idx =<< valInt I64 0
+    case operator of
+        S.NotEq -> valNot =<< tableInfix S.EqEq a b
+        S.EqEq  -> do
+            eq <- valLocal Bool
+            idx <- valLocal I64
+            valStore eq =<< valBool Bool False
+            valStore idx =<< valInt I64 0
 
-                    exit <- freshName "eqeq_table_exit"
-                    start <- freshName "eqeq_table_start"
-                    cond <- freshName "eqeq_table_cond"
-                    body <- freshName "eqeq_table_body"
+            exit <- freshName "eqeq_table_exit"
+            start <- freshName "eqeq_table_start"
+            cond <- freshName "eqeq_table_cond"
+            body <- freshName "eqeq_table_body"
 
-                    -- test that len(a) == len(b)
-                    condBr (valOp lenEq) start exit
-                    emitBlockStart start
-                    valStore eq =<< valBool Bool True
-                    br cond
+            -- test that len(a) == len(b)
+            condBr (valOp lenEq) start exit
+            emitBlockStart start
+            valStore eq =<< valBool Bool True
+            br cond
 
-                    -- test that the idx < len
-                    emitBlockStart cond
-                    idxLT <- valIntInfix S.LT idx lenA
-                    condBr (valOp idxLT) body exit
+            -- test that the idx < len
+            emitBlockStart cond
+            idxLT <- valIntInfix S.LT idx lenA
+            condBr (valOp idxLT) body exit
 
-                    -- test that a[i] == b[i]
-                    emitBlockStart body
-                    elmA <- tableGetElem a idx
-                    elmB <- tableGetElem b idx
-                    elmEq <- valsInfix S.EqEq elmA elmB
-                    valStore eq elmEq
-                    valStore idx =<< valIntInfix S.Plus idx (valI64 1)
-                    condBr (valOp elmEq) cond exit
+            -- test that a[i] == b[i]
+            emitBlockStart body
+            elmA <- tableGetElem a idx
+            elmB <- tableGetElem b idx
+            elmEq <- valsInfix S.EqEq elmA elmB
+            valStore eq elmEq
+            valStore idx =<< valIntInfix S.Plus idx (valI64 1)
+            condBr (valOp elmEq) cond exit
 
-                    emitBlockStart exit
-                    valLoad eq
+            emitBlockStart exit
+            valLoad eq

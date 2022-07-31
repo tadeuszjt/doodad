@@ -15,8 +15,8 @@ fn string(b bool)
 
 fn toUpper(str string) string
     let r = copy(str)
-    for [i] str
-        r[i] = chars::toUpper(str[i])
+    for [i] r
+        r[i] = chars::toUpper(r[i])
     return r
 
 
@@ -32,9 +32,6 @@ fn read(s string) (bool, i64)
     if isPrefix("true",       s[l..]); return (true, l + 4)
     else if isPrefix("false", s[l..]); return (false, l + 5)
     else;                              return (false, 0)
-
-
-
 
 
 fn read(s string) (i64, i64)
@@ -73,8 +70,4 @@ fn dropSpace(s string) string
         start = start + 1
 
     return copy(s[start..])
-
-
-        
-    
 

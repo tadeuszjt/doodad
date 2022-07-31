@@ -202,7 +202,7 @@ valPrefix operator val = do
 valIntInfix :: InsCmp CompileState m => S.Op -> Value -> Value -> m Value
 valIntInfix operator a b = do
     assert (valType a == valType b) "type mismatch"
-    assertBaseType isInt (valType a)
+    assertBaseType (\t -> isInt t || t == Char) (valType a)
     Val typ opA <- valLoad a
     Val _   opB <- valLoad b
     case operator of

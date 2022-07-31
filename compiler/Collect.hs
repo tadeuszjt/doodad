@@ -502,6 +502,8 @@ collectExpr (AExpr exprType expr) = collectPos expr $ case expr of
         collectExpr e1
         collectExpr e2
 
+    S.Table p [[]] -> collectDefault exprType (T.Table [T.Tuple []])
+
     S.Table p [es] -> do
         base <- baseTypeOf exprType
         case base of
@@ -540,6 +542,7 @@ collectExpr (AExpr exprType expr) = collectPos expr $ case expr of
         collectExpr e
 
     TupleIndex p e i -> do
+        collectExpr e
         base <- baseTypeOf (typeOf e)
         case base of
             T.Tuple ts -> collect exprType (ts !! fromIntegral i)

@@ -4,8 +4,10 @@ module Table where
 import Control.Monad
 
 import qualified LLVM.AST.Type as LL
+import LLVM.IRBuilder.Instruction       
 import LLVM.IRBuilder.Constant
-import LLVM.IRBuilder.Instruction
+import LLVM.IRBuilder.Module
+import LLVM.IRBuilder.Monad
 
 import qualified AST as S
 import Monad
