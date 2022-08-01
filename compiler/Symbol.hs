@@ -1,6 +1,7 @@
 module Symbol where
 
 import qualified Data.Map as Map
+import Data.Maybe
 import qualified SymTab 
 
 data Symbol
@@ -24,4 +25,20 @@ lookupSym
     -> [(k, o)]
 lookupSym symbol symTab imports =
     SymTab.lookupSym symbol symTab ++ (concat $ map (SymTab.lookupSym symbol) imports)
+
+
+lookupSymKey
+    :: (Ord k, Ord s)
+    => s
+    -> k
+    -> SymTab.SymTab s k o
+    -> [SymTab.SymTab s k o]
+    -> Maybe o
+lookupSymKey symbol key symTab imports =
+    case SymTab.lookup symbol key symTab of
+        Just o -> Just o
+        Nothing -> case catMaybes (map (SymTab.lookup symbol key) imports) of
+            [] -> Nothing
+            [o] -> Just o
+            _ -> error "symbol ambiguous"
 

@@ -47,49 +47,26 @@ initResolveState imp modName = ResolveState
 look :: BoM ResolveState m => Symbol -> SymKey -> m Symbol
 look symbol key = do
     lm <- lookm symbol key
-    case lm of
-        Just symbol -> return symbol
-        Nothing     -> fail $ show symbol ++ " " ++ show key ++ " isn't defined"
+    assert (isJust lm) $ show symbol ++ " isn't defined"
+    return $ fromJust lm
+
 
 lookm :: BoM ResolveState m => Symbol -> SymKey -> m (Maybe Symbol)
 lookm symbol key = case symbol of
     Sym sym -> do
-        lm <- gets $ SymTab.lookup sym key . symTab
-        case lm of
-            Just res -> return (Just res)
-            Nothing -> do
-                ls <- gets $ catMaybes . map (SymTab.lookup sym key) . Map.elems . imports
-                case ls of
-                    [res] -> return (Just res)
-                    [] -> return Nothing
-                    _   -> fail $ show symbol ++ " is ambiguous"
+        imports <- gets $ Map.elems . imports
+        symTab <- gets symTab
+        return $ lookupSymKey sym key symTab imports
 
     SymQualified mod sym -> do
         modName <- gets modName
-        if mod == modName then do
-            lm <- gets $ SymTab.lookup sym key . symTab
-            case lm of
-                Just res -> return (Just res)
-                Nothing  -> return Nothing
-        else if mod == "c" then do
-            return (Just symbol)
-        else do
-            ls <- gets $ catMaybes . map (SymTab.lookup sym key) . Map.elems . imports
-            case ls of
-                [res] -> return (Just res)
-                []  -> return Nothing
-                _   -> fail $ show symbol ++ " is ambiguous"
+        symTab <- gets symTab
+        imports <- gets $ Map.elems . imports
+        if mod == modName then  return $ lookupSymKey sym key symTab []
+        else if mod == "c" then return (Just symbol)
+        else                    return $ lookupSymKey sym key symTab imports
 
     _ -> fail $ show (symbol, key)
-    where
-        lookmImports :: BoM ResolveState m => Symbol -> SymKey -> m (Maybe Symbol)
-        lookmImports (Sym sym) key = do
-            ls <- gets $ catMaybes . map (SymTab.lookup sym key) . Map.elems . imports
-            case ls of
-                [res] -> return (Just res)
-                []  -> return Nothing
-                _   -> fail $ show symbol ++ " is ambiguous"
-            
 
 
 genSymbol :: BoM ResolveState m => String -> m Symbol

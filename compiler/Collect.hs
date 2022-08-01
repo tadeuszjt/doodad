@@ -103,11 +103,9 @@ look symbol key = do
 
 lookm :: BoM CollectState m => Symbol -> SymKey -> m (Maybe Object)
 lookm symbol key = do
-    kos <- lookSym symbol
-    case map snd $ filter ((== key) . fst) kos of
-        [] -> return Nothing
-        [o] -> return (Just o)
-        _ -> fail $ show symbol ++ " is ambiguous"
+    imports <- gets $ Map.elems . imports
+    symTab <- gets symTab
+    return $ lookupSymKey symbol key symTab imports
 
 
 lookSym :: BoM CollectState m => Symbol -> m [(SymKey, Object)]
