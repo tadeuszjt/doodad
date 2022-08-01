@@ -261,7 +261,7 @@ look symbol key = do
 
 lookSym :: ModCmp CompileState m => Symbol -> m [(SymKey, Object)]
 lookSym symbol = do
-    localObjs <- gets $ SymTab.lookupSym symbol . symTab
-    impObjs   <- gets $ concat . map (SymTab.lookupSym symbol) . map symTab . imports 
-    return $ localObjs ++ impObjs
+    imports <- gets $ map symTab . imports
+    symTab <- gets symTab
+    return $ lookupSym symbol symTab imports
 

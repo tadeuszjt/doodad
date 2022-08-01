@@ -103,45 +103,19 @@ look symbol key = do
 
 lookm :: BoM CollectState m => Symbol -> SymKey -> m (Maybe Object)
 lookm symbol key = do
-    lm <- SymTab.lookup symbol key <$> gets symTab
-    case lm of
-        Just _ -> return lm
-        Nothing -> do
-            ls <- catMaybes . map (SymTab.lookup symbol key) . Map.elems <$> gets imports
-            case ls of
-                [] -> return Nothing
-                [o] -> return (Just o)
-                _ -> fail $ show symbol ++ " is ambiguous"
+    kos <- lookSym symbol
+    case map snd $ filter ((== key) . fst) kos of
+        [] -> return Nothing
+        [o] -> return (Just o)
+        _ -> fail $ show symbol ++ " is ambiguous"
 
 
 lookSym :: BoM CollectState m => Symbol -> m [(SymKey, Object)]
-lookSym symbol = case symbol of
-    Sym sym -> do
-        ls <- SymTab.lookupSym symbol <$> gets symTab
-        lss <- concat . map (SymTab.lookupSym symbol) . Map.elems <$> gets imports
-        return (ls ++ lss)
+lookSym symbol = do
+    symTab <- gets symTab
+    imports <- gets $ Map.elems . imports
+    return $ lookupSym symbol symTab imports
 
-    SymQualified "c" sym -> do
-        statem <- Map.lookup "c" <$> gets imports
-        case statem of
-            Nothing    -> fail $ "c" ++ " not imported"
-            Just state -> return $ SymTab.lookupSym symbol state
-
-    SymQualified mod sym -> do
-        statem <- Map.lookup mod <$> gets imports
-        case statem of
-            Nothing    -> fail $ mod ++ " not imported"
-            Just state -> return $ SymTab.lookupSym (Sym sym) state
-
-    SymResolved mod sym _ -> do
-        modName <- gets modName
-        if mod == modName then
-            gets $ SymTab.lookupSym symbol . symTab
-        else do
-            statem <- Map.lookup mod <$> gets imports
-            case statem of
-                Nothing    -> fail $ mod ++ " not imported"
-                Just state -> return $ SymTab.lookupSym symbol state
 
 
 define :: BoM CollectState m => Symbol -> SymKey -> Object -> m ()
