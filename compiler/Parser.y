@@ -8,6 +8,7 @@ import Data.Char
 import qualified Type as T
 import qualified AST as S
 import qualified Data.Set as Set
+import Symbol
 }
 
 %name      parseTokens 
@@ -101,18 +102,18 @@ import qualified Data.Set as Set
     strlit     { Token _ String _ }
     ident      { Token _ Ident _ }
 
-    '('        { Token _ Sym "(" }
-    ')'        { Token _ Sym ")" }
-    '{'        { Token _ Sym "{" }
-    '}'        { Token _ Sym "}" }
-    '['        { Token _ Sym "[" }
-    ']'        { Token _ Sym "]" }
-    '|'        { Token _ Sym "|" }
-    ','        { Token _ Sym "," }
-    '.'        { Token _ Sym "." }
-    ';'        { Token _ Sym ";" }
-    ':'        { Token _ Sym ":" }
-    '_'        { Token _ Sym "_" }
+    '('        { Token _ TokSym "(" }
+    ')'        { Token _ TokSym ")" }
+    '{'        { Token _ TokSym "{" }
+    '}'        { Token _ TokSym "}" }
+    '['        { Token _ TokSym "[" }
+    ']'        { Token _ TokSym "]" }
+    '|'        { Token _ TokSym "|" }
+    ','        { Token _ TokSym "," }
+    '.'        { Token _ TokSym "." }
+    ';'        { Token _ TokSym ";" }
+    ':'        { Token _ TokSym ":" }
+    '_'        { Token _ TokSym "_" }
 
 
 %%
@@ -136,8 +137,8 @@ imports : {- empty -}                         { [] }
 ---------------------------------------------------------------------------------------------------
 -- Statements -------------------------------------------------------------------------------------
 
-symbol : ident                                { (tokPos $1, T.Sym (tokStr $1)) }
-       | ident '::' ident                     { (tokPos $3, T.SymQualified (tokStr $1) (tokStr $3)) }
+symbol : ident                                { (tokPos $1, Sym (tokStr $1)) }
+       | ident '::' ident                     { (tokPos $3, SymQualified (tokStr $1) (tokStr $3)) }
 
 stmtS : let pattern '=' expr                  { S.Assign (tokPos $1) $2 $4 }  
       | index '=' expr                        { S.Set (tokPos $2) $1 $3 }
@@ -151,13 +152,13 @@ stmtB : If                                    { $1 }
       | fn fnName '(' params ')' block        { S.FuncDef (tokPos $1) ($2) $4 T.Void $6 }
       | fn fnName '(' params ')' type_ block  { S.FuncDef (tokPos $1) ($2) $4 $6 $7 }
       | while condition block                 { S.While (tokPos $1) $2 $3 }
-      | for '[' ident ']' expr block          { S.For (tokPos $1) (T.Sym $ tokStr $3) Nothing $5 Nothing $6 }
-      | for '[' ident ']' expr '->' pattern block { S.For (tokPos $1) (T.Sym $ tokStr $3) Nothing $5 (Just $7) $8 }
+      | for '[' ident ']' expr block          { S.For (tokPos $1) (Sym $ tokStr $3) Nothing $5 Nothing $6 }
+      | for '[' ident ']' expr '->' pattern block { S.For (tokPos $1) (Sym $ tokStr $3) Nothing $5 (Just $7) $8 }
       | Switch                                { $1 }
 
 pattern  : '_'                                { S.PatIgnore (tokPos $1) }
          | literal                            { S.PatLiteral $1 }
-         | ident                              { S.PatIdent (tokPos $1) (T.Sym $ tokStr $1) }
+         | ident                              { S.PatIdent (tokPos $1) (Sym $ tokStr $1) }
          | '(' patterns ')'                   { S.PatTuple (tokPos $1) $2 }
          | '[' patterns ']'                   { S.PatArray (tokPos $1) $2 }
          | pattern '|' expr                   { S.PatGuarded (tokPos $2) $1 $3 }
@@ -169,7 +170,7 @@ patterns  : {- empty -}                       { [] }
 patterns_ : pattern                           { [$1] }
           | pattern ',' patterns_             { $1 : $3 }
 
-index  : ident                                { S.IndIdent (tokPos $1) (T.Sym $ tokStr $1) }
+index  : ident                                { S.IndIdent (tokPos $1) (Sym $ tokStr $1) }
        | index '[' expr ']'                   { S.IndArray (tokPos $2) $1 $3 }
        | index '.' ident                      { S.IndTuple (tokPos $2) $1 (read $ tokStr $3) }
 
@@ -201,8 +202,8 @@ block  : 'I' prog_ 'D'                        { S.Block $2 }
 condition : expr                              { S.CondExpr $1 }
           | expr '->' pattern                 { S.CondMatch $3 $1 }
 
-param   : ident type_                         { S.Param (tokPos $1) (T.Sym $ tokStr $1) $2 }
-        | ident                               { S.Param (tokPos $1) (T.Sym $ tokStr $1) T.Void }
+param   : ident type_                         { S.Param (tokPos $1) (Sym $ tokStr $1) $2 }
+        | ident                               { S.Param (tokPos $1) (Sym $ tokStr $1) T.Void }
 params  : {- empty -}                         { [] }
         | params_                             { $1 }
 params_ : param                               { [$1] }
@@ -334,7 +335,7 @@ annoTupFields : annoTupField                  { [$1] }
 
 annoADTType : '{' annoADTFields '}'           { S.AnnoADT $2 }
             | '{' '}'                         { S.AnnoADT [] }
-annoADTField : ident '(' argTypes ')'         { (T.Sym (tokStr $1), $3) }
+annoADTField : ident '(' argTypes ')'         { (Sym (tokStr $1), $3) }
 annoADTFields : annoADTField                  { [$1] }
               | annoADTField '|' annoADTFields { $1 : $3 }
 

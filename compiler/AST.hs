@@ -5,8 +5,9 @@ import Data.Maybe
 import Data.Word
 import Data.List
 import Control.Monad
-import Type (Type, Symbol, Type(Void))
+import Type (Type, Type(Void))
 import Error
+import Symbol
 
 type ModuleName = String
 

@@ -11,6 +11,7 @@ import Type
 import AST
 import Monad
 import Error
+import Symbol
 
 
 class Resolve a where

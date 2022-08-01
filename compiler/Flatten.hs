@@ -12,6 +12,7 @@ import qualified AST as S
 import qualified Type as T
 import Monad
 import Error
+import Symbol
 
 
 
@@ -28,10 +29,10 @@ checkTypeDefs typedefs = do
     mapM_ (checkCircles Set.empty) (map typedefSymbol typedefs)
 
     where
-        typedefSymbol :: S.Stmt -> T.Symbol
+        typedefSymbol :: S.Stmt -> Symbol
         typedefSymbol (S.Typedef _ symbol _) = symbol
 
-        checkCircles :: BoM s m => Set.Set T.Symbol -> T.Symbol -> m ()
+        checkCircles :: BoM s m => Set.Set Symbol -> Symbol -> m ()
         checkCircles visited symbol = case elemIndices symbol (map typedefSymbol typedefs) of
             [] -> return ()
             [idx] -> do
@@ -39,13 +40,13 @@ checkTypeDefs typedefs = do
                 withPos pos $ assert (not $ Set.member symbol visited) "Typedef has circles"
                 checkAnnoCircles (Set.insert symbol visited) anno
         
-        checkAnnoCircles :: BoM s m => Set.Set T.Symbol -> S.AnnoType -> m ()
+        checkAnnoCircles :: BoM s m => Set.Set Symbol -> S.AnnoType -> m ()
         checkAnnoCircles visited anno = case anno of
             S.AnnoType t   -> checkTypeCircles visited t
             S.AnnoTuple xs -> forM_ xs $ \(_, t) -> checkTypeCircles visited t
             S.AnnoADT xs   -> forM_ xs $ \(_, ts) -> mapM_ (checkTypeCircles visited) ts
 
-        checkTypeCircles :: BoM s m => Set.Set T.Symbol -> T.Type -> m ()
+        checkTypeCircles :: BoM s m => Set.Set Symbol -> T.Type -> m ()
         checkTypeCircles visited typ = case typ of
             T.Typedef symbol  -> checkCircles visited symbol
             T.Tuple ts        -> mapM_ (checkTypeCircles visited) ts

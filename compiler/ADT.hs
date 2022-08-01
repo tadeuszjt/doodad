@@ -21,7 +21,7 @@ import Typeof
 import Trace
 import Tuple
 import Error
-
+import Symbol
 
 
 adtTypeDef :: InsCmp CompileState m => Symbol -> S.AnnoType -> m ()

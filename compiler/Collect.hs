@@ -12,6 +12,7 @@ import Error
 import Control.Monad.State
 import qualified SymTab
 import Interop
+import Symbol
 
 import qualified Debug.Trace
 
@@ -502,7 +503,7 @@ collectExpr (AExpr exprType expr) = collectPos expr $ case expr of
         collectExpr e1
         collectExpr e2
 
-    S.Table p [[]] -> collectDefault exprType (T.Table [T.Tuple []])
+    --S.Table p [[]] -> collectDefault exprType (T.Table [T.Tuple []])
 
     S.Table p [es] -> do
         base <- baseTypeOf exprType

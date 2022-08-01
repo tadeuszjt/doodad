@@ -47,6 +47,7 @@ import Interop
 import ADT
 import Array
 import Builtin
+import Symbol
 
 funcKeyMatch :: [Type] -> [SymKey] -> [SymKey]
 funcKeyMatch argTypes []         = []
@@ -164,7 +165,7 @@ cmpFuncDef (S.FuncDef pos sym params retty blk) = trace "cmpFuncDef" $ withPos p
     paramOpTypes <- mapM (opTypeOf . S.paramType) params
     let paramTypes = map S.paramType params
     let paramSymbols = map S.paramName params
-    let paramNames = map (ParameterName . mkBSS . Type.sym) paramSymbols
+    let paramNames = map (ParameterName . mkBSS . Symbol.sym) paramSymbols
 
     ObjFunc op <- look (Sym sym) (KeyFunc paramTypes retty)
     let LL.ConstantOperand (C.GlobalReference _ name) = op

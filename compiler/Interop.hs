@@ -35,6 +35,7 @@ import Funcs
 import Typeof
 import Value
 import Trace
+import Symbol
 
 data Extern
     = ExtFunc String [Type] Type

@@ -40,7 +40,7 @@ $symbol  = [\{\}\(\)\[\]\,\|\.\;\:\_]
 tokens :-
     $white                                          ;
     [$tab $white]* "//" .*                          ;
-    $symbol                                         { mkT Sym }
+    $symbol                                         { mkT TokSym }
     @reserved                                       { mkT Reserved }
     @reservedOp                                     { mkT ReservedOp }
     import_c_macro                                  { mkT ImportCMacro }
@@ -170,7 +170,7 @@ instance Show Token where
     show (Token p t s) = show t ++ ": " ++ s
 
 data TokenType
-    = Sym
+    = TokSym
     | Reserved
     | ReservedOp
     | Ident

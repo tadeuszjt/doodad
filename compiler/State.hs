@@ -29,6 +29,7 @@ import qualified JIT
 import Monad
 import Error
 import Trace
+import Symbol
 
 
 data Value

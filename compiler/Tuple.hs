@@ -15,6 +15,7 @@ import Value
 import Typeof
 import Trace
 import Error
+import Symbol
 
 tupleTypeDef :: InsCmp CompileState m => Symbol -> S.AnnoType -> m ()
 tupleTypeDef symbol (S.AnnoType typ) = trace "tupleTypeDef" $ do

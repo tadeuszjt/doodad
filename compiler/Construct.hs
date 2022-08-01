@@ -20,6 +20,7 @@ import Table
 import Funcs
 import Error
 import qualified AST as S
+import Symbol
 
 
 valZero :: InsCmp CompileState m => Type -> m Value
