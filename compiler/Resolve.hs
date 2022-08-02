@@ -182,9 +182,11 @@ instance Resolve Stmt where
         AppendStmt append -> AppendStmt <$> resolve append
         
         If pos condition stmt melse -> do
+            pushSymTab
             condition' <- resolve condition
             stmt' <- resolve stmt
             melse' <- maybe (return Nothing) (fmap Just . resolve) melse
+            popSymTab
             return $ If pos condition' stmt' melse'
 
         While pos condition stmt -> do

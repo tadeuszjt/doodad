@@ -38,4 +38,21 @@ fn main()
             test (x == 0)
     test (x == 1)
 
+    type ADT { OneBool(bool) | Nothing() | OneTuple(string, bool)}
+    let n = Nothing()
+    let b = OneBool(true)
+    let t = OneTuple("benis", true)
+    let t2 = OneTuple("beni3", true)
+    if b -> OneBool(bt)
+        test(bt)
+    else; test(false)
+    test(n != b)
+    test(t == t)
+    test(t != t2)
+    if t2 -> OneTuple(s, b)
+        test(s == "beni3")
+    else; test(false)
+
     print("tests passed", passCount)
+
+

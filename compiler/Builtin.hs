@@ -26,6 +26,7 @@ import Typeof
 import Trace
 import Table
 import Tuple
+import ADT
 
 
 valsInfix :: InsCmp CompileState m => S.Op -> Value -> Value -> m Value
@@ -42,8 +43,9 @@ valsInfix operator a b = do
         _ | isInt base     -> valIntInfix operator a b
         _ | isFloat base   -> floatInfix typ operator opA opB
         _ | isEnumADT base -> adtEnumInfix typ operator opA opB
-        _ | isTable base   -> tableInfix operator a b
-        _ | isTuple base   -> tupleInfix operator a b
+        _ | isTable base   -> valTableInfix operator a b
+        _ | isTuple base   -> valTupleInfix operator a b
+        _ | isNormalADT base -> valAdtNormalInfix operator a b
         _                  -> fail $ "Operator " ++ show operator ++ " undefined for types " ++ show typ ++ " " ++ show (valType b)
 
     where 
@@ -68,13 +70,52 @@ valsInfix operator a b = do
             S.NotEq -> Val Bool <$> icmp P.NE opA opB
             S.EqEq  -> Val Bool <$> icmp P.EQ opA opB
 
-tupleInfix :: InsCmp CompileState m => S.Op -> Value -> Value -> m Value
-tupleInfix operator a b = do
+
+valAdtNormalInfix :: InsCmp CompileState m => S.Op -> Value -> Value -> m Value
+valAdtNormalInfix operator a b = do
+    assert (valType a == valType b) "type mismatch"
+    base@(ADT tss) <- assertBaseType isNormalADT (valType a)
+
+    case operator of
+        S.NotEq -> valNot =<< valAdtNormalInfix S.EqEq a b
+        S.EqEq -> do
+            exit <- freshName "exit"
+            cndNames <- replicateM (length tss) (freshName "eq_case")
+            bodyNames <- replicateM (length tss) (freshName "eq_case_body")
+            let nextNames = tail cndNames ++ [exit]
+
+            enA <- adtEnum a
+            enB <- adtEnum b
+            enEq <- valsInfix S.EqEq enA enB
+            match <- valLocal Bool
+            valStore match =<< valBool Bool False
+            condBr (valOp enEq) (cndNames !! 0) exit
+
+            forM_ (zip tss [0..]) $ \(ts, i) -> do
+                emitBlockStart (cndNames !! i)
+                idxMatch <- valsInfix S.EqEq enA (valI64 i)
+                condBr (valOp idxMatch) (bodyNames !! i) (nextNames !! i)
+                emitBlockStart (bodyNames !! i)
+                bs <- forM (zip ts [0..]) $ \(t, j) -> do
+                    valA <- adtDeref a i j
+                    valB <- adtDeref b i j
+                    valsInfix S.EqEq valA valB
+                true <- valBool Bool True
+                valStore match =<< foldM (valsInfix S.EqEq) true bs
+                br exit
+
+            emitBlockStart exit
+            valLoad match
+
+
+
+valTupleInfix :: InsCmp CompileState m => S.Op -> Value -> Value -> m Value
+valTupleInfix operator a b = do
     assert (valType a == valType b) "type mismatch"
     Tuple ts <- assertBaseType isTuple (valType a)
 
     case operator of
-        S.NotEq -> valNot =<< tupleInfix S.EqEq a b
+        S.NotEq -> valNot =<< valTupleInfix S.EqEq a b
         S.EqEq -> do
             bs <- forM (zip ts [0..]) $ \(t, i) -> do
                 elmA <- tupleIdx i a
@@ -85,8 +126,8 @@ tupleInfix operator a b = do
             foldM (valsInfix S.AndAnd) true bs
                     
         
-tableInfix :: InsCmp CompileState m => S.Op -> Value -> Value -> m Value
-tableInfix operator a b = do
+valTableInfix :: InsCmp CompileState m => S.Op -> Value -> Value -> m Value
+valTableInfix operator a b = do
     assert (valType a == valType b) "type mismatch"
     assertBaseType isTable (valType a)
     let typ = valType a
@@ -96,7 +137,7 @@ tableInfix operator a b = do
     lenEq <- valIntInfix S.EqEq lenA lenB
 
     case operator of
-        S.NotEq -> valNot =<< tableInfix S.EqEq a b
+        S.NotEq -> valNot =<< valTableInfix S.EqEq a b
         S.EqEq  -> do
             eq <- valLocal Bool
             idx <- valLocal I64
