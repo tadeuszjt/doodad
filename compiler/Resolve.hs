@@ -190,8 +190,10 @@ instance Resolve Stmt where
             return $ If pos condition' stmt' melse'
 
         While pos condition stmt -> do
+            pushSymTab
             condition' <- resolve condition
             stmt' <- resolve stmt
+            popSymTab
             return $ While pos condition' stmt' 
 
         Set pos index expr -> do

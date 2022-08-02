@@ -15,6 +15,7 @@ import LLVM.IRBuilder.Instruction
 import LLVM.IRBuilder.Constant
 import LLVM.IRBuilder.Module
 import LLVM.IRBuilder.Monad
+import qualified LLVM.AST.Constant as C
 
 import qualified AST as S
 import Type
@@ -27,6 +28,34 @@ import Trace
 import Table
 import Tuple
 import ADT
+import Funcs
+
+
+valZero :: InsCmp CompileState m => Type -> m Value
+valZero typ = trace ("valZero " ++ show  typ) $ do
+    base <- baseTypeOf typ
+    case base of
+        _ | isInt base     -> valInt typ 0
+        _ | isFloat base   -> valFloat typ 0.0
+        Bool               -> valBool typ False
+        Char               -> valChar typ '\0'
+        Array n t          -> Val typ . array . replicate n . toCons . valOp <$> valZero t
+        Tuple ts           -> Val typ . struct Nothing False . map (toCons . valOp) <$> mapM valZero ts
+        _ | isEnumADT base -> Val typ . valOp <$> valZero I64
+
+        Table ts         -> do
+            let zi64 = toCons (int64 0)
+            zptrs <- map (C.IntToPtr zi64 . LL.ptr) <$> mapM opTypeOf ts
+            return $ Val typ $ struct Nothing False (zi64:zi64:zptrs)
+
+        ADT tss | isNormalADT base -> do
+            case head tss of
+                [] -> do
+                    let zi64 = toCons (int64 0)
+                    let zptr = C.IntToPtr zi64 (LL.ptr LL.void)
+                    return $ Val typ $ struct Nothing False [zi64, zptr]
+                                
+        _ -> error ("valZero: " ++  show typ)
 
 
 valsInfix :: InsCmp CompileState m => S.Op -> Value -> Value -> m Value
@@ -36,17 +65,16 @@ valsInfix operator a b = do
 
     assert (typ == typB) "type mismatch"
     base <- baseTypeOf typ
-
     case base of
-        Bool               -> boolInfix typ operator opA opB
-        Char               -> valIntInfix operator a b
-        _ | isInt base     -> valIntInfix operator a b
-        _ | isFloat base   -> floatInfix typ operator opA opB
-        _ | isEnumADT base -> adtEnumInfix typ operator opA opB
-        _ | isTable base   -> valTableInfix operator a b
-        _ | isTuple base   -> valTupleInfix operator a b
+        Bool                 -> boolInfix typ operator opA opB
+        Char                 -> valIntInfix operator a b
+        _ | isInt base       -> valIntInfix operator a b
+        _ | isFloat base     -> floatInfix typ operator opA opB
+        _ | isTable base     -> valTableInfix operator a b
+        _ | isTuple base     -> valTupleInfix operator a b
         _ | isNormalADT base -> valAdtNormalInfix operator a b
-        _                  -> fail $ "Operator " ++ show operator ++ " undefined for types " ++ show typ ++ " " ++ show (valType b)
+        _ | isEnumADT base   -> valAdtEnumInfix operator a b
+        _                    -> fail $ "Operator " ++ show operator ++ " undefined for types " ++ show typ ++ " " ++ show (valType b)
 
     where 
         boolInfix :: InsCmp CompileState m => Type -> S.Op -> LL.Operand -> LL.Operand -> m Value
@@ -65,10 +93,16 @@ valsInfix operator a b = do
             S.EqEq   -> Val Bool <$> fcmp P.OEQ opA opB
             _        -> error ("float infix: " ++ show operator)
 
-        adtEnumInfix :: InsCmp CompileState m => Type -> S.Op -> LL.Operand -> LL.Operand -> m Value
-        adtEnumInfix typ operator opA opB = case operator of
-            S.NotEq -> Val Bool <$> icmp P.NE opA opB
-            S.EqEq  -> Val Bool <$> icmp P.EQ opA opB
+
+valAdtEnumInfix :: InsCmp CompileState m => S.Op -> Value -> Value -> m Value
+valAdtEnumInfix operator a b = do
+    assert (valType a == valType b) "type mismatch"
+    assertBaseType isEnumADT (valType a)
+    opA <- valOp <$> valLoad a
+    opB <- valOp <$> valLoad b
+    case operator of
+        S.NotEq -> Val Bool <$> icmp P.NE opA opB
+        S.EqEq  -> Val Bool <$> icmp P.EQ opA opB
 
 
 valAdtNormalInfix :: InsCmp CompileState m => S.Op -> Value -> Value -> m Value
@@ -106,7 +140,6 @@ valAdtNormalInfix operator a b = do
 
             emitBlockStart exit
             valLoad match
-
 
 
 valTupleInfix :: InsCmp CompileState m => S.Op -> Value -> Value -> m Value

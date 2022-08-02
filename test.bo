@@ -5,7 +5,7 @@ import std/assert
 let passCount = 0
 
 fn test(b bool)
-    if b; passCount = passCount + 1
+    if b; print("test passed")
     else; print("test failed")
 
 fn main()
@@ -52,6 +52,13 @@ fn main()
     if t2 -> OneTuple(s, b)
         test(s == "beni3")
     else; test(false)
+
+    let zx = zero():i64
+    test (zx == 0:i64)
+    let zxa = zero():[10 (i64, bool)]
+    for [i] zxa
+        print(zxa[i])
+        test(zxa[i] == (0, false))
 
     print("tests passed", passCount)
 

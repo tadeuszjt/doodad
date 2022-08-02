@@ -136,7 +136,6 @@ cmpVarDef (S.Assign pos (S.PatIdent p symbol) expr) = trace "cmpVarDef" $ withPo
     addDeclared name
 
 
-
 cmpFuncHdr :: InsCmp CompileState m => S.Stmt -> m ()
 cmpFuncHdr (S.FuncDef pos "main" params retty blk) = trace "cmpFuncHdr" $ return ()
 cmpFuncHdr (S.FuncDef pos sym params retty blk)    = trace "cmpFuncHdr" $ withPos pos $ do

@@ -21,41 +21,9 @@ import Funcs
 import Error
 import qualified AST as S
 import Symbol
+import Builtin
 
 
-valZero :: InsCmp CompileState m => Type -> m Value
-valZero typ = trace ("valZero " ++ show  typ) $ do
-    case typ of
-        Typedef sym -> do
-            ObType t namem <- look sym KeyType
-            fmap (Val typ . valOp) $ valZero' namem =<< baseTypeOf t
-        _ -> valZero' Nothing typ
-
-    where
-        valZero' :: InsCmp CompileState m => Maybe Name -> Type -> m Value
-        valZero' namem base =
-            case base of
-                _ | isInt base   -> valInt typ 0
-                _ | isFloat base -> valFloat typ 0.0
-                Bool            -> valBool typ False
-                Char            -> valChar typ '\0'
-                Typedef sym     -> fmap (Val typ . valOp) $ valZero =<< baseTypeOf typ
-                Array n t       -> Val typ . array . replicate n . toCons . valOp <$> valZero t
-                Tuple ts        -> Val typ . struct namem False . map (toCons . valOp) <$> mapM valZero ts
-                Table ts        -> do
-                    let zi64 = toCons (int64 0)
-                    zptrs <- map (C.IntToPtr zi64 . LL.ptr) <$> mapM opTypeOf ts
-                    return $ Val typ $ struct namem False (zi64:zi64:zptrs)
-                ADT tss | isEnumADT base -> Val typ . valOp <$> valZero I64
-                ADT tss | isNormalADT base -> do
-                    case head tss of
-                        [] -> do
-                            let zi64 = toCons (int64 0)
-                            let zptr = C.IntToPtr zi64 (LL.ptr LL.void)
-                            return $ Val typ $ struct namem False [zi64, zptr]
-                                
-
-                _ -> error ("valZero: " ++  show typ)
 
 valCopy :: InsCmp CompileState m => Value -> m Value
 valCopy val = trace "valCopy" $ do
