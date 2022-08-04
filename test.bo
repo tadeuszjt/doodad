@@ -5,7 +5,7 @@ import std/assert
 let passCount = 0
 
 fn test(b bool)
-    if b; print("test passed")
+    if b; passCount = passCount + 1
     else; print("test failed")
 
 fn main()
@@ -57,7 +57,6 @@ fn main()
     test (zx == 0:i64)
     let zxa = zero():[10 (i64, bool)]
     for [i] zxa
-        print(zxa[i])
         test(zxa[i] == (0, false))
 
     print("tests passed", passCount)

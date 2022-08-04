@@ -46,7 +46,7 @@ valZero typ = trace ("valZero " ++ show  typ) $ do
         Table ts         -> do
             let zi64 = toCons (int64 0)
             zptrs <- map (C.IntToPtr zi64 . LL.ptr) <$> mapM opTypeOf ts
-            return $ Val typ $ struct Nothing False (zi64:zi64:zptrs)
+            return $ Val typ $ struct Nothing True (zi64:zi64:zptrs)
 
         ADT tss | isNormalADT base -> do
             case head tss of
