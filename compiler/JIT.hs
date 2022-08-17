@@ -27,6 +27,7 @@ import           LLVM.Internal.ObjectFile
 import           Foreign.Ptr
 import qualified LLVM.Internal.FFI.DataLayout   as FFI
 import           LLVM.Internal.DataLayout
+import           LLVM.Analysis
 
 
 foreign import ccall "dynamic" mkFun :: FunPtr (IO ()) -> (IO ())
@@ -102,12 +103,14 @@ jitCompileToObject verbose file defs session = do
 
     withModuleKey (executionSession session) $ \modKey ->
         M.withModuleFromAST (context session) astmod $ \mod -> do
+            when verbose (BS.putStrLn =<< M.moduleLLVMAssembly mod)
+            --verify mod
+
             let pm = passManager session
             when (isJust pm) $ do
                 when verbose (putStrLn "running optimisation passes...")
                 void $ runPassManager (fromJust pm) mod
 
-            when verbose (BS.putStrLn =<< M.moduleLLVMAssembly mod)
             M.writeObjectToFile (JIT.targetMachine session) (M.File file) mod
     
 
@@ -118,6 +121,9 @@ jitAndRun defs session keepModule verbose = do
 
     withModuleKey (executionSession session) $ \modKey ->
         M.withModuleFromAST (context session) astmod $ \mod -> do
+            when verbose (BS.putStrLn =<< M.moduleLLVMAssembly mod)
+            --verify mod
+
             let pm = passManager session
             let cl = compileLayer session
 
@@ -125,7 +131,6 @@ jitAndRun defs session keepModule verbose = do
                 when verbose (putStrLn "running optimisation passes...")
                 void $ runPassManager (fromJust pm) mod
 
-            when verbose (BS.putStrLn =<< M.moduleLLVMAssembly mod)
             addModule cl modKey mod
 
             mangled <- mangleSymbol cl "main"

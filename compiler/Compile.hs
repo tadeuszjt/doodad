@@ -420,7 +420,7 @@ cmpExpr (S.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck exp
         loc <- globalStringPtr s =<< myFreshPrivate "str"
         let pi8 = C.BitCast loc (LL.ptr LL.i8)
         let i64 = toCons $ int64 $ fromIntegral (length s)
-        let stc = struct Nothing False [i64, i64, pi8]
+        let stc = struct (Just $ mkName "String") False [i64, i64, pi8]
         return (Val exprType stc)
 
     S.Call pos symbol exprs -> do
@@ -578,15 +578,20 @@ cmpPattern pattern val = trace "cmpPattern" $ withPos pattern $ case pattern of
         case base of
             _ | isEnumADT base -> do
                 assert (length pats == 0) "invalid ADT pattern"
-                valsInfix S.EqEq (valI64 i) =<< adtEnum val
+                valIntInfix S.EqEq (valI64 i) =<< adtEnum val
 
             _ | isNormalADT base -> do
                 let ts = tss !! i
                 assert (length pats == length ts) "invalid ADT pattern"
 
+                start <- freshName "pattern_start"
                 exit <- freshName "pattern_exit"
                 enumSuccess <- freshName "pattern_enum_success"
-                enumMatch <- valsInfix S.EqEq (valI64 i) =<< adtEnum val
+
+                br start
+                emitBlockStart start
+
+                enumMatch <- valIntInfix S.EqEq (valI64 i) =<< adtEnum val
                 match <- valLocal Bool
                 valStore match =<< valBool Bool False
                 condBr (valOp enumMatch) enumSuccess exit 
