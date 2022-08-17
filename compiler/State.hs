@@ -91,8 +91,7 @@ instance Show Object where
 
 
 data Declaration
-    = DecType   LL.Type
-    | DecExtern [LL.Type] LL.Type Bool
+    = DecExtern [LL.Type] LL.Type Bool
     | DecFunc   [LL.Type] LL.Type
     | DecVar    LL.Type
     deriving (Show)
@@ -107,6 +106,7 @@ data CompileState
         , symTab        :: SymTab.SymTab Symbol SymKey Object
         , curModName    :: String
         , nameMap       :: Map.Map String Int
+        , typeMap       :: Map.Map Symbol (LL.Name, LL.Type)
         }
 
 initCompileState imports modName
@@ -118,10 +118,25 @@ initCompileState imports modName
         , symTab        = SymTab.initSymTab
         , curModName    = modName
         , nameMap       = Map.empty
+        , typeMap       = Map.empty
         }
 
 
 mkBSS = BSS.toShort . BS.pack
+
+
+
+addTypeDef :: InsCmp CompileState m => Symbol -> LL.Type -> m LL.Name
+addTypeDef symbol opType = do
+    name <- myFresh (sym symbol)
+    typedef name (Just opType)
+
+    tm <- gets typeMap
+    assert (not $ Map.member symbol tm) "type already defined"
+    modify $ \s -> s { typeMap = Map.insert symbol (name, opType) (typeMap s) }
+    return name
+
+
 
 myFreshPrivate :: InsCmp CompileState m => String -> m LL.Name
 myFreshPrivate sym = do
@@ -183,7 +198,6 @@ addDeclaration name dec = trace "addDeclaration" $ do
 
 emitDec :: ModCmp CompileState m => LL.Name -> Declaration -> m ()
 emitDec name dec = trace "emitDec" $ case dec of
-    DecType opTyp                   -> void $ typedef name (Just opTyp)
     DecFunc argTypes retty          -> void $ extern name argTypes retty
     DecExtern argTypes retty False  -> void $ extern name argTypes retty
     DecExtern argTypes retty True   -> void $ externVarArgs name argTypes retty
@@ -240,16 +254,9 @@ ensureExtern name argTypes retty isVarg = trace "ensureExtern" $ do
 lookm :: ModCmp CompileState m => Symbol -> SymKey -> m (Maybe Object)
 lookm symbol key = do
     ensureSymKeyDec symbol key
-    curMod <- gets curModName
-    objm <- gets $ SymTab.lookup symbol key . symTab
-    case objm of
-        Just obj -> return (Just obj)
-        Nothing -> do
-            objs <- gets $ catMaybes . map (SymTab.lookup symbol key) . map symTab . imports
-            case objs of
-                []    -> return Nothing
-                [obj] -> return (Just obj)
-                _     -> fail ("Ambiguous symbol: " ++ show symbol)
+    im <- gets $ map symTab . imports
+    st <- gets symTab
+    return $ lookupSymKey symbol key st im
 
 
 look :: ModCmp CompileState m => Symbol -> SymKey -> m Object

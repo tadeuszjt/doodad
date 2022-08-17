@@ -33,6 +33,12 @@ import Funcs
 
 valZero :: InsCmp CompileState m => Type -> m Value
 valZero typ = trace ("valZero " ++ show  typ) $ do
+    namem <- case typ of
+        Typedef symbol -> do
+            ObType t nm <- look symbol KeyType
+            return nm
+        _ -> return Nothing
+
     base <- baseTypeOf typ
     case base of
         _ | isInt base     -> valInt typ 0
@@ -40,20 +46,20 @@ valZero typ = trace ("valZero " ++ show  typ) $ do
         Bool               -> valBool typ False
         Char               -> valChar typ '\0'
         Array n t          -> Val typ . array . replicate n . toCons . valOp <$> valZero t
-        Tuple ts           -> Val typ . struct Nothing False . map (toCons . valOp) <$> mapM valZero ts
+        Tuple ts           -> Val typ . struct namem True . map (toCons . valOp) <$> mapM valZero ts
         _ | isEnumADT base -> Val typ . valOp <$> valZero I64
 
         Table ts         -> do
             let zi64 = toCons (int64 0)
             zptrs <- map (C.IntToPtr zi64 . LL.ptr) <$> mapM opTypeOf ts
-            return $ Val typ $ struct Nothing True (zi64:zi64:zptrs)
+            return $ Val typ $ struct namem False (zi64:zi64:zptrs)
 
         ADT tss | isNormalADT base -> do
             case head tss of
                 [] -> do
                     let zi64 = toCons (int64 0)
                     let zptr = C.IntToPtr zi64 (LL.ptr LL.void)
-                    return $ Val typ $ struct Nothing False [zi64, zptr]
+                    return $ Val typ $ struct namem False [zi64, zptr]
                                 
         _ -> error ("valZero: " ++  show typ)
 
@@ -106,9 +112,7 @@ valAdtEnumInfix operator a b = do
 
 
 valAdtNormalInfix :: InsCmp CompileState m => S.Op -> Value -> Value -> m Value
-valAdtNormalInfix operator a' b' = do
-    a <- valLoad a'
-    b <- valLoad b'
+valAdtNormalInfix operator a b = do
     assert (valType a == valType b) "type mismatch"
     base@(ADT tss) <- assertBaseType isNormalADT (valType a)
 
@@ -117,7 +121,7 @@ valAdtNormalInfix operator a' b' = do
         S.EqEq -> do
             enA <- valLoad =<< adtEnum a
             enB <- valLoad =<< adtEnum b
-            enEq <- valsInfix S.EqEq enA enB
+            enEq <- valIntInfix S.EqEq enA enB
 
             -- if enum isn't matched, exit
             match <- valLocal Bool
@@ -131,18 +135,15 @@ valAdtNormalInfix operator a' b' = do
             valStore match =<< valBool Bool True
 
             -- select block based on enum
-            idxs <- forM (zip tss [0..]) $ \(ts, i) ->
-                return $ toCons $ valOp (valI64 i)
             caseNames <- replicateM (length tss) (freshName "case")
-            switch (valOp enA) exit $ zip idxs caseNames
+            switch (valOp enA) exit $ zip (map (toCons . int64) [0..]) caseNames
 
-            forM_ (zip caseNames [0..]) $ \(name, i) -> do
-                let ts = tss !! i
-                emitBlockStart name
+            forM_ (zip caseNames [0..]) $ \(caseName, i) -> do
+                emitBlockStart caseName
 
-                bs <- forM (zip ts [0..]) $ \(t, j) -> do
-                    valA <- valLoad =<< adtDeref a i j
-                    valB <- valLoad =<< adtDeref b i j
+                bs <- forM (zip (tss !! i) [0..]) $ \(t, j) -> do
+                    valA <- adtDeref a i j
+                    valB <- adtDeref b i j
                     valsInfix S.EqEq valA valB
 
                 true <- valBool Bool True

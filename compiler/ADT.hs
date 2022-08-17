@@ -32,7 +32,14 @@ adtTypeDef symbol anno = trace "adtTypeDef" $ do
 
     case anno of
         S.AnnoADT xs -> do
-            define symbol KeyType $ ObType (ADT $ map snd xs) Nothing
+            let typ = ADT (map snd xs)
+
+            if isNormalADT typ then do
+                name <- addTypeDef symbol =<< opTypeOf typ
+                define symbol KeyType $ ObType (ADT $ map snd xs) (Just name)
+            else do
+                define symbol KeyType $ ObType (ADT $ map snd xs) Nothing
+
             forM_ (zip xs [0..]) $ \((s, ts), i) -> do
                 define s (KeyMember typdef) (ObjMember i)
                 define s (KeyFunc ts typdef) ObjADTFieldCons

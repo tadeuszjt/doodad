@@ -54,6 +54,9 @@ opTypeOf typ = trace ("opTypOf " ++ show typ) $ case typ of
     Tuple ts  -> LL.StructureType True <$> mapM opTypeOf ts
     Array n t -> LL.ArrayType (fromIntegral n) <$> opTypeOf t
 
+    Table [Char] -> do
+        return $ LL.NamedTypeReference (mkName "String")
+
     Table ts  -> do
         ps <- map LL.ptr <$> mapM opTypeOf ts
         return $ LL.StructureType False (LL.i64:LL.i64:ps)

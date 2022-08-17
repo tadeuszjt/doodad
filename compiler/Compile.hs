@@ -68,6 +68,14 @@ compile imports ast = do
 
         cmp :: (MonadFail m, Monad m, MonadIO m) => ModuleCmpT CompileState m ()
         cmp = do
+            typedef (mkName "String") $
+                Just (LL.StructureType False [LL.i64, LL.i64, LL.ptr LL.i8])
+            
+            forM_ imports $ \imp -> do
+                forM_ (Map.elems $ typeMap imp) $ \(name, opType) -> do
+                    typedef name (Just opType)
+
+
             mainOp <- func (LL.mkName "main")  [] LL.VoidType $ \_ -> do
                 mapM_ cmpTypeDef   [ stmt | stmt@(S.Typedef _ _ _) <- S.astStmts ast ]
                 mapM_ cmpFuncHdr   [ stmt | stmt@(S.FuncDef _ _ _ _ _) <- S.astStmts ast ]
@@ -251,11 +259,17 @@ cmpAppend append = withPos append $ case append of
 
 cmpStmt :: InsCmp CompileState m => S.Stmt -> m ()
 cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
-    S.Print pos exprs   -> cmpPrint stmt
+    S.Print pos exprs   -> do
+        label "print"
+        cmpPrint stmt
+
     S.Block stmts       -> mapM_ cmpStmt stmts
-    S.AppendStmt append -> void $ cmpAppend append
+    S.AppendStmt append -> do
+        label "append"
+        void $ cmpAppend append
 
     S.CallStmt pos symbol exprs -> do
+        label "call"
         vals <- mapM cmpExpr exprs
 
         kos <- lookSym symbol
@@ -267,27 +281,33 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
                 void $ call op [(o, []) | o <- map valOp vals']
 
     S.Assign pos pat expr -> trace ("assign " ++ show pat) $ do
+        label "assign"
         matched <- valLoad =<< cmpPattern pat =<< cmpExpr expr
         if_ (valOp matched) (return ()) (void trap) 
 
     S.Set pos ind expr -> do
+        label "set"
         loc <- cmpIndex ind
         valStore loc =<< cmpExpr expr
 
     S.Return pos Nothing -> do
+        label "return"
         retVoid
         emitBlockStart =<< fresh
 
     S.Return pos (Just expr) -> do
+        label "return_expr"
         ret . valOp =<< valLoad =<< cmpExpr expr
         emitBlockStart =<< fresh
 
     S.If pos cnd blk melse -> do
+        label "if"
         val <- valLoad =<< cmpCondition cnd
         assertBaseType (== Bool) (valType val)
         if_ (valOp val) (cmpStmt blk) $ maybe (return ()) cmpStmt melse
 
     S.While pos cnd blk -> do
+        label "while"
         cond <- freshName "while_cond"
         body <- freshName "while_body"
         exit <- freshName "while_exit"
@@ -305,11 +325,13 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
     S.Typedef _ _ _ -> cmpTypeDef stmt
     
     S.Switch _ expr cases -> do
+        label "switch"
         val <- cmpExpr expr
         let cases' = [(fmap valOp (cmpPattern pat val), cmpStmt stmt) | (pat, stmt) <- cases]
         switch_ $ cases' ++ [(return (bit 1), void trap)]
     
     S.For _ symbol (Just typ) expr mpat blk -> do
+        label "for"
         idx <- valLocal typ
         valStore idx =<< valZero typ
         define symbol KeyVar (ObjVal idx) 
@@ -349,9 +371,16 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
         br cond
 
         emitBlockStart exit
-        
 
     _ -> error "stmt"
+    where
+        label :: InsCmp CompileState m => String -> m ()
+        label str = do
+            let pos = textPos stmt
+            name <- freshName $ mkBSS $ str ++ " " ++ show (textLine pos)
+            --printf (str ++ " " ++ show (Error.textLine pos) ++ "\n") []
+            br name
+            emitBlockStart name
 
 
 -- must return Val unless local variable
