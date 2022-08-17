@@ -388,7 +388,7 @@ cmpExpr :: InsCmp CompileState m =>  S.Expr -> m Value
 cmpExpr (S.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck exprType $ case expr of
     S.Bool pos b               -> valBool exprType b
     S.Char pos c               -> valChar exprType c
-    S.Conv pos typ exprs       -> valConstruct typ =<< mapM cmpExpr exprs
+    S.Conv pos typ [expr]      -> valConvert typ =<< cmpExpr expr
     S.Copy pos expr            -> valCopy =<< cmpExpr expr
     S.Tuple pos [expr]         -> cmpExpr expr
     S.Float p f                -> valFloat exprType f

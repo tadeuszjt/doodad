@@ -29,6 +29,86 @@ import Table
 import Tuple
 import ADT
 import Funcs
+import Symbol
+
+-- guarantees an equivalent value in a different memory location
+valCopy :: InsCmp CompileState m => Value -> m Value
+valCopy val = trace "valCopy" $ do
+    base <- baseTypeOf (valType val)
+    case base of
+        _ | isSimple base -> valLoad val
+
+        Table ts -> do
+            len <- tableLen val
+            tab <- tableMake (valType val) len
+
+            forM_ (zip ts [0..]) $ \(t, i) -> do
+                baseT <- baseTypeOf t
+                valRow <- tableRow i val
+                tabRow <- tableRow i tab
+
+                if isSimple baseT
+                then valMemCpy tabRow valRow len
+                else for (valOp len) $ \op -> do
+                    ptr <- valPtrIdx tabRow (Val I64 op)
+                    valStore ptr =<< valCopy =<< valPtrIdx valRow (Val I64 op)
+
+            valLoad tab
+
+        Tuple ts -> do
+            loc <- valLocal (valType val)
+            forM_ (zip ts [0..]) $ \(t, i) ->
+                tupleSet loc i =<< valCopy =<< tupleIdx i val
+            valLoad loc
+
+        _ -> fail $ "Can't handle copy: " ++ show (valType val)
+
+
+valString :: InsCmp CompileState m => Type -> Value -> m Value
+valString typ val = do
+    assertBaseType (== Table [Char]) typ
+    base <- baseTypeOf (valType val)
+    let bufSize = 32
+
+    resm <- lookm (Sym "string") $ KeyFunc [valType val] typ
+    valm <- case resm of
+        Just (ObjFunc op) -> do
+            valOpp <- valOp <$> valLoad val
+            fmap (Just . Val typ) (call op [(valOpp, [])])
+        Nothing           -> return Nothing
+
+    case valm of
+        Just v -> return v
+        Nothing -> do
+            tab <- tableMake typ (valI64 bufSize)
+            row <- tableRow 0 tab
+            ptr <- bitcast (valLoc row) (LL.ptr LL.i8)
+            op <- valOp <$> valLoad val
+
+            case base of
+                I64 -> do
+                    n <- Val I32 <$> snprintf ptr (int64 bufSize) "%d" [op]
+                    tableSetLen tab =<< valConvert I64 n
+                F64 -> do
+                    n <- Val I32 <$> snprintf ptr (int64 bufSize) "%f" [op]
+                    tableSetLen tab =<< valConvert I64 n
+                _ -> fail $ "No string function for: " ++ show (valType val)
+
+            valLoad tab
+
+
+valConvert :: InsCmp CompileState m => Type -> Value -> m Value
+valConvert typ val = do
+    base <- baseTypeOf typ
+    baseVal <- baseTypeOf (valType val)
+
+    case base of
+        _ | isInt base   -> valConvertNumber typ val
+        _ | isFloat base -> valConvertNumber typ val
+        Char             -> valConvertNumber typ val
+        Table [Char]     -> valString typ val
+        _                -> fail ("valConvert " ++ show base)
+
 
 
 valZero :: InsCmp CompileState m => Type -> m Value

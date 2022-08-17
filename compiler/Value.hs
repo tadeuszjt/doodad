@@ -67,9 +67,10 @@ valFloat typ f = trace "valFloat" $ do
 
 
 valConvertNumber :: InsCmp CompileState m => Type -> Value -> m Value
-valConvertNumber typ (Val valTyp op) = do
+valConvertNumber typ val = do
+    op <- valOp <$> valLoad val
     base <- baseTypeOf typ
-    baseVal <- baseTypeOf valTyp
+    baseVal <- baseTypeOf (valType val)
     fmap (Val typ) $ case (base, baseVal) of
         (I64,  I64) -> return op
         (I32,  I64) -> trunc op LL.i32
