@@ -122,7 +122,7 @@ jitAndRun defs session keepModule verbose = do
     withModuleKey (executionSession session) $ \modKey ->
         M.withModuleFromAST (context session) astmod $ \mod -> do
             when verbose (BS.putStrLn =<< M.moduleLLVMAssembly mod)
-            --verify mod
+            verify mod
 
             let pm = passManager session
             let cl = compileLayer session

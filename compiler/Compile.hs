@@ -584,26 +584,25 @@ cmpPattern pattern val = trace "cmpPattern" $ withPos pattern $ case pattern of
                 let ts = tss !! i
                 assert (length pats == length ts) "invalid ADT pattern"
 
-                start <- freshName "pattern_start"
-                exit <- freshName "pattern_exit"
-                enumSuccess <- freshName "pattern_enum_success"
+                exitName <- freshName "pattern_field_exit"
+                startName <- freshName "pattern_field_start"
 
-                br start
-                emitBlockStart start
+                en <- valLoad =<< adtEnum val
+                Val Bool enumMatch <- valIntInfix S.EqEq en (valI64 i)
+                matched <- valLocal Bool
+                valStore matched =<< valBool Bool False
 
-                enumMatch <- valIntInfix S.EqEq (valI64 i) =<< adtEnum val
-                match <- valLocal Bool
-                valStore match =<< valBool Bool False
-                condBr (valOp enumMatch) enumSuccess exit 
-
-                emitBlockStart enumSuccess
-                true <- valBool Bool True
+                -- can't be inside a block which may or may not happen
+                -- as cmpPattern may add variables to the symbol table
                 bs <- forM (zip pats [0..]) $ \(pat, j) -> 
                     cmpPattern pat =<< adtDeref val i j
-                valStore match =<< foldM (valsInfix S.AndAnd) true bs
-                br exit
 
-                emitBlockStart exit
-                valLoad match
+                condBr enumMatch startName exitName
 
+                emitBlockStart startName
+                true <- valBool Bool True
+                valStore matched =<< foldM (valsInfix S.AndAnd) true bs
+                br exitName
 
+                emitBlockStart exitName
+                valLoad matched

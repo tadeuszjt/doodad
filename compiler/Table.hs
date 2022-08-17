@@ -8,6 +8,7 @@ import LLVM.IRBuilder.Instruction
 import LLVM.IRBuilder.Constant
 import LLVM.IRBuilder.Module
 import LLVM.IRBuilder.Monad
+import LLVM.AST.Instruction
 
 import qualified AST as S
 import Monad
@@ -84,7 +85,11 @@ tableRow i tab = do
     Table ts <- assertBaseType isTable (valType tab)
     assert (i >= 0 && i < length ts) "Invalid table row index"
     case tab of
-        Val _ op  -> Ptr (ts !! i) <$> extractValue op [fromIntegral i + 2]
+        Val _ op  -> do
+            retty <- LL.ptr <$> opTypeOf (ts !! i)
+            r <- emitInstr retty $ ExtractValue op [fromIntegral i + 2] []
+            return $ Ptr (ts !! i) r
+
         Ptr _ loc -> do
             r <- gep loc [int32 0, int32 (fromIntegral i + 2)]
             Ptr (ts !! i) <$> load r 0
