@@ -464,7 +464,7 @@ cmpExpr (S.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck exp
                         valStore ptr val
                 return tab
 
-            _ -> error (show base)
+            _ -> fail $ "invalid table base type: " ++ show base
 
     S.UnsafePtr pos expr -> do
         val <- cmpExpr expr

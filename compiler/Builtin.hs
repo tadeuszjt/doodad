@@ -106,34 +106,45 @@ valAdtEnumInfix operator a b = do
 
 
 valAdtNormalInfix :: InsCmp CompileState m => S.Op -> Value -> Value -> m Value
-valAdtNormalInfix operator a b = do
+valAdtNormalInfix operator a' b' = do
+    a <- valLoad a'
+    b <- valLoad b'
     assert (valType a == valType b) "type mismatch"
     base@(ADT tss) <- assertBaseType isNormalADT (valType a)
 
     case operator of
         S.NotEq -> valNot =<< valAdtNormalInfix S.EqEq a b
         S.EqEq -> do
-            exit <- freshName "exit"
-            cndNames <- replicateM (length tss) (freshName "eq_case")
-            bodyNames <- replicateM (length tss) (freshName "eq_case_body")
-            let nextNames = tail cndNames ++ [exit]
-
-            enA <- adtEnum a
-            enB <- adtEnum b
+            enA <- valLoad =<< adtEnum a
+            enB <- valLoad =<< adtEnum b
             enEq <- valsInfix S.EqEq enA enB
+
+            -- if enum isn't matched, exit
             match <- valLocal Bool
             valStore match =<< valBool Bool False
-            condBr (valOp enEq) (cndNames !! 0) exit
+            start <- freshName "start"
+            exit <- freshName "exit"
+            condBr (valOp enEq) start exit
 
-            forM_ (zip tss [0..]) $ \(ts, i) -> do
-                emitBlockStart (cndNames !! i)
-                idxMatch <- valsInfix S.EqEq enA (valI64 i)
-                condBr (valOp idxMatch) (bodyNames !! i) (nextNames !! i)
-                emitBlockStart (bodyNames !! i)
+            -- enum matched, match args
+            emitBlockStart start
+            valStore match =<< valBool Bool True
+
+            -- select block based on enum
+            idxs <- forM (zip tss [0..]) $ \(ts, i) ->
+                return $ toCons $ valOp (valI64 i)
+            caseNames <- replicateM (length tss) (freshName "case")
+            switch (valOp enA) exit $ zip idxs caseNames
+
+            forM_ (zip caseNames [0..]) $ \(name, i) -> do
+                let ts = tss !! i
+                emitBlockStart name
+
                 bs <- forM (zip ts [0..]) $ \(t, j) -> do
-                    valA <- adtDeref a i j
-                    valB <- adtDeref b i j
+                    valA <- valLoad =<< adtDeref a i j
+                    valB <- valLoad =<< adtDeref b i j
                     valsInfix S.EqEq valA valB
+
                 true <- valBool Bool True
                 valStore match =<< foldM (valsInfix S.EqEq) true bs
                 br exit

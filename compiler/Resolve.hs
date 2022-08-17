@@ -137,7 +137,9 @@ instance Resolve Stmt where
             retty' <- resolve retty
             blk' <- resolve blk
             popSymTab
+
             return $ FuncDef pos sym params' retty' blk'
+
 
         Block stmts -> do
             pushSymTab
