@@ -99,6 +99,7 @@ instance Apply S.Pattern where
         S.PatLiteral e       -> S.PatLiteral (apply subs e)
         S.PatGuarded p pat e -> S.PatGuarded p (apply subs pat) (apply subs e)
         S.PatField p s pats  -> S.PatField p s $ map (apply subs) pats
+        S.PatTypeField p t pat -> S.PatTypeField p (apply subs t) (apply subs pat)
         S.PatTuple p pats    -> S.PatTuple p $ map (apply subs) pats
         S.PatIgnore p        -> S.PatIgnore p
         S.PatArray p pats    -> S.PatArray p $ map (apply subs) pats

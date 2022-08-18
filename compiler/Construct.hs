@@ -22,16 +22,21 @@ import Error
 import qualified AST as S
 import Symbol
 import Builtin
+import ADT
 
 valConstruct :: InsCmp CompileState m => Type -> [Value] -> m Value
-valConstruct typ []       = trace "valConstruct" $ valZero typ
-valConstruct typ (a:b:xs) = trace "valConstruct" $ tupleConstruct typ (a:b:xs)
-valConstruct typ [val']   = trace "valConstruct" $ do
+valConstruct typ []       = valZero typ
+valConstruct typ (a:b:xs) = tupleConstruct typ (a:b:xs)
+valConstruct typ [val']   = do
     val <- valLoad val'
     base <- baseTypeOf typ
 
     case base of
-        t | isIntegral t || isFloat t -> valConvertNumber typ val
+        _ | isIntegral base || isFloat base -> valConvertNumber typ val
+        _ | isADT base                      -> do
+            mal <- valMalloc (valType val) (valI64 1)
+            valStore mal =<< valCopy val
+            adtConstruct typ mal
 
         _ -> do
             assert (typ  == valType val) "mismatched types"

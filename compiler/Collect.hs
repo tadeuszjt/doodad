@@ -172,10 +172,15 @@ collectTypedef (S.Typedef pos symbol annoTyp) = collectPos pos $ case annoTyp of
 
     AnnoADT xs -> do
         let typedef = T.Typedef symbol
-        forM_ (zip xs [0..]) $ \((s, ts), i) -> do
-            define s (KeyMember typedef) (ObjMember i)
-            define s (KeyFunc ts typedef) ObjFunc
-        define symbol KeyType $ ObjType $ T.ADT (map snd xs)
+        tss <- forM (zip xs [0..]) $ \(x, i) -> case x of
+            ADTFieldMember s ts -> do
+                define s (KeyMember typedef) (ObjMember i)
+                define s (KeyFunc ts typedef) ObjFunc
+                return ts
+
+            ADTFieldType t -> return [t]
+
+        define symbol KeyType $ ObjType (T.ADT tss)
 
 
 
@@ -312,6 +317,15 @@ collectPattern pattern typ = collectPos pattern $ case pattern of
                 assert (length ts == length pats) "Invalid field"
                 zipWithM_ collectPattern pats ts
             _ -> forM_ pats $ \pat -> collectPattern pat =<< genType
+
+    PatTypeField _ t pat -> do
+        base <- baseTypeOf typ
+        case base of
+            ADT tss -> do
+                assert (elem [t] tss) "ADT does not contain a member for type"
+            _ -> return ()
+
+        collectPattern pat t
 
     PatTuple _ pats -> do
         base <- baseTypeOf typ

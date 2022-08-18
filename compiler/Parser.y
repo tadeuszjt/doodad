@@ -163,6 +163,7 @@ pattern  : '_'                                { S.PatIgnore (tokPos $1) }
          | '[' patterns ']'                   { S.PatArray (tokPos $1) $2 }
          | pattern '|' expr                   { S.PatGuarded (tokPos $2) $1 $3 }
          | symbol '(' patterns ')'            { S.PatField (tokPos $2) (snd $1) $3 }
+         | typeOrdinal '(' pattern ')'        { S.PatTypeField (tokPos $2) $1 $3 }
          | pattern ':' type_                  { S.PatAnnotated $1 $3 }
 
 patterns  : {- empty -}                       { [] }
@@ -335,7 +336,8 @@ annoTupFields : annoTupField                  { [$1] }
 
 annoADTType : '{' annoADTFields '}'           { S.AnnoADT $2 }
             | '{' '}'                         { S.AnnoADT [] }
-annoADTField : ident '(' argTypes ')'         { (Sym (tokStr $1), $3) }
+annoADTField : ident '(' argTypes ')'         { S.ADTFieldMember (Sym (tokStr $1)) $3 }
+             | type_                          { S.ADTFieldType $1 }
 annoADTFields : annoADTField                  { [$1] }
               | annoADTField '|' annoADTFields { $1 : $3 }
 

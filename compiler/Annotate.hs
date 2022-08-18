@@ -98,6 +98,9 @@ instance Annotate Pattern where
 
         PatField p symbol pats -> PatField p symbol <$> mapM annotate pats
 
+        PatTypeField p typ pat -> PatTypeField p typ <$> annotate pat
+            
+
         PatAnnotated pat typ -> do
             pat' <- annotate pat
             return $ PatAnnotated pat' typ

@@ -69,6 +69,7 @@ data Pattern
     | PatArray     TextPos [Pattern]
     | PatGuarded   TextPos Pattern Expr
     | PatField     TextPos Symbol [Pattern]
+    | PatTypeField TextPos Type Pattern
     | PatAnnotated Pattern Type
     deriving (Eq)
 
@@ -125,11 +126,18 @@ data Stmt
     deriving (Eq, Show)
 
 
+data AnnoADTField
+    = ADTFieldMember Symbol [Type]
+    | ADTFieldType   Type
+    deriving (Eq)
+
+
 data AnnoType
     = AnnoType  Type
     | AnnoTuple [(String, Type)]
-    | AnnoADT   [(Symbol, [Type])]
+    | AnnoADT   [AnnoADTField]
     deriving (Eq)
+
 
 instance TextPosition Append where
     textPos append = case append of
@@ -151,6 +159,7 @@ instance TextPosition Pattern where
         PatArray     p _ -> p
         PatGuarded   p _ _ -> p
         PatField     p _ _ -> p
+        PatTypeField p _ _ -> p
         PatAnnotated pat _ -> textPos pat
 
 instance TextPosition Condition where
@@ -232,11 +241,16 @@ instance Show Op where
         NotEq  -> "!="
         Not    -> "!"
 
+instance Show AnnoADTField where
+    show annoAdtField = case annoAdtField of
+        ADTFieldType typ -> show typ
+        ADTFieldMember sym ts -> show sym ++ tupStrs (map show ts)
+
 instance Show AnnoType where
     show annoType = case annoType of
         AnnoType t   -> show t
         AnnoTuple xs -> tupStrs $ map (\(s, t) -> show s ++ " " ++ show t) xs
-        AnnoADT xs   -> brcStrs $ map (\(s, t) -> show s ++ " " ++ show t) xs
+        AnnoADT xs   -> brcStrs $ map show xs
 
 instance Show Pattern where
     show pat = case pat of
@@ -246,7 +260,8 @@ instance Show Pattern where
         PatTuple pos ps          -> tupStrs (map show ps)
         PatArray pos ps          -> arrStrs (map show ps)
         PatGuarded pos pat expr  -> show pat ++ " | " ++ show expr
-        PatField pos symbol pat  -> show symbol ++ "(" ++ show pat ++ ")"
+        PatField pos symbol pats -> show symbol ++ tupStrs (map show pats)
+        PatTypeField pos typ pat -> show typ ++ tupStrs [show pat]
         PatAnnotated pat typ     -> show pat ++ ":" ++ show typ
 
 instance Show Append where

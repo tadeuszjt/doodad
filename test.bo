@@ -59,6 +59,24 @@ fn main()
     for [i] zxa
         test(zxa[i] == (0, false))
 
+    type AdtMixed { Member(bool) | i64 | MemberI64(i64) }
+    let adtMixed = Member(true)
+    switch adtMixed
+        Member(b); print("member", b)
+        i64(n);    print("i64", n)
+    test(adtMixed == Member(true))
+    adtMixed = AdtMixed(3:i64)
+    switch adtMixed
+        i64(3); test(true)
+        _; test(false)
+    let i64(mn) = adtMixed
+    test(mn == 3)
+    adtMixed = MemberI64(4)
+    switch adtMixed
+        i64(n); test(false)
+        Member(b); test(false)
+        MemberI64(n); test(n == 4)
+
     print("tests passed", passCount)
 
 

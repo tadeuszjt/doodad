@@ -59,6 +59,7 @@ data SymKey
     | KeyVar
     | KeyFunc [Type] Type
     | KeyMember Type
+    | KeyTypeField Type Type
     deriving (Eq, Ord)
 
 instance Show SymKey where
@@ -66,6 +67,7 @@ instance Show SymKey where
     show KeyVar  = "var"
     show (KeyFunc ts rt) = "fn(" ++ intercalate ", " (map show ts) ++ ")" ++ show rt
     show (KeyMember t) = show t ++ "."
+    show (KeyTypeField adtTyp typ) = show adtTyp ++ "." ++ show typ
 
 
 data Object
@@ -262,7 +264,8 @@ lookm symbol key = do
 look :: ModCmp CompileState m => Symbol -> SymKey -> m Object
 look symbol key = do
     resm <- lookm symbol key
-    assert (isJust resm) ("no definition for: " ++ show symbol ++ " " ++ show key)
+    assert (isJust resm) $ 
+        "no definition for: " ++ show symbol ++ " " ++ show key
     return (fromJust resm)
 
 

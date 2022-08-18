@@ -575,34 +575,31 @@ cmpPattern pattern val = trace "cmpPattern" $ withPos pattern $ case pattern of
     S.PatField _ symbol pats -> do
         base@(ADT tss) <- assertBaseType isADT (valType val)
         ObjMember i <- look symbol (KeyMember $ valType val)
+        let ts = tss !! i
+        assert (length pats == length ts) "invalid ADT pattern"
+
         case base of
             _ | isEnumADT base -> do
                 assert (length pats == 0) "invalid ADT pattern"
                 valIntInfix S.EqEq (valI64 i) =<< adtEnum val
 
             _ | isNormalADT base -> do
-                let ts = tss !! i
-                assert (length pats == length ts) "invalid ADT pattern"
-
-                exitName <- freshName "pattern_field_exit"
-                startName <- freshName "pattern_field_start"
-
-                en <- valLoad =<< adtEnum val
-                Val Bool enumMatch <- valIntInfix S.EqEq en (valI64 i)
-                matched <- valLocal Bool
-                valStore matched =<< valBool Bool False
-
+                enumMatch <- valIntInfix S.EqEq (valI64 i) =<< adtEnum val
                 -- can't be inside a block which may or may not happen
                 -- as cmpPattern may add variables to the symbol table
                 bs <- forM (zip pats [0..]) $ \(pat, j) -> 
                     cmpPattern pat =<< adtDeref val i j
 
-                condBr enumMatch startName exitName
+                valLoad =<< foldM (valsInfix S.AndAnd) enumMatch bs
 
-                emitBlockStart startName
-                true <- valBool Bool True
-                valStore matched =<< foldM (valsInfix S.AndAnd) true bs
-                br exitName
 
-                emitBlockStart exitName
-                valLoad matched
+    S.PatTypeField _ typ pat -> do
+        base@(ADT tss) <- assertBaseType isADT (valType val)
+        ObjMember i <- look (Sym "") $ KeyTypeField (valType val) typ
+        assert (tss !! i == [typ]) "Invalid type field"
+        case base of
+            _ | isNormalADT base -> do
+                enumMatch <- valIntInfix S.EqEq (valI64 i) =<< adtEnum val
+                b <- cmpPattern pat =<< adtDeref val i 0
+                valLoad =<< valsInfix S.AndAnd enumMatch b
+

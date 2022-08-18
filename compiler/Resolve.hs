@@ -170,11 +170,15 @@ instance Resolve Stmt where
                     return $ AnnoTuple xs'
 
                 AnnoADT xs -> do
-                    xs' <- forM xs $ \(Sym s, ts) -> do
-                        s' <- genSymbol s
-                        define s KeyFunc s'
-                        ts' <- mapM resolve ts
-                        return (s', ts')
+                    xs' <- forM xs $ \x -> case x of
+                        ADTFieldMember (Sym s) ts -> do
+                            s' <- genSymbol s
+                            define s KeyFunc s'
+                            ts' <- mapM resolve ts
+                            return $ ADTFieldMember s' ts'
+
+                        ADTFieldType t -> ADTFieldType <$> resolve t
+
                     return $ AnnoADT xs'
 
                 _ -> fail $ "invalid anno: " ++ show anno
@@ -278,6 +282,11 @@ instance Resolve Pattern where
             pats' <- mapM resolve pats
             symbol' <- look symbol KeyFunc -- TODO bit of a hack
             return $ PatField pos symbol' pats' -- TODO
+
+        PatTypeField pos typ pat -> do
+            pat' <- resolve pat
+            typ' <- resolve typ
+            return $ PatTypeField pos typ' pat'
 
         PatTuple pos pats -> PatTuple pos <$> mapM resolve pats
 

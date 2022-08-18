@@ -24,25 +24,55 @@ import Error
 import Symbol
 
 
+-- construct ADT from a value.
+-- E.g. SomeAdt(4:i64), SomeAdt must have i64 field
+-- This function will use the location, must be allocated beforehand.
+adtConstruct :: InsCmp CompileState m => Type -> Value -> m Value
+adtConstruct adtTyp loc@(Ptr _ _) = do
+    base@(ADT tss) <- assertBaseType isADT adtTyp
+
+    case adtTyp of
+        Typedef symbol -> do -- can lookup member
+            ObjMember i <- look (Sym "") (KeyTypeField adtTyp $ valType loc)
+            adt <- valLocal adtTyp
+            adtSetEnum adt i
+            pi8 <- bitcast (valLoc loc) (LL.ptr LL.i8)
+            adtSetPi8 adt pi8
+            return adt
+
+    
+
+
 adtTypeDef :: InsCmp CompileState m => Symbol -> S.AnnoType -> m ()
-adtTypeDef symbol anno = trace "adtTypeDef" $ do
+adtTypeDef symbol (S.AnnoADT xs) = trace "adtTypeDef" $ do
     let typdef = Typedef symbol
+
+    tss <- forM xs $ \x -> case x of
+        S.ADTFieldMember symbol ts -> return ts
+        S.ADTFieldType t           -> return [t]
+
+    namem <- case ADT tss of
+        _ | isNormalADT (ADT tss) -> do
+            name <- addTypeDef symbol =<< opTypeOf (ADT tss)
+            return (Just name)
+        _ | otherwise -> return Nothing
+
+    define symbol KeyType $ ObType (ADT tss) namem
+
+    -- define member loopkups
+    forM_ (zip xs [0..]) $ \(x, i) -> case x of
+        S.ADTFieldMember s ts -> do
+            define s (KeyMember typdef) (ObjMember i)
+            define s (KeyFunc ts typdef) ObjADTFieldCons
+        S.ADTFieldType t -> do
+            define (Sym "") (KeyTypeField typdef t) (ObjMember i)
+
+    -- define constructors
     define symbol (KeyFunc [] typdef)       ObjConstructor 
     define symbol (KeyFunc [typdef] typdef) ObjConstructor
-
-    case anno of
-        S.AnnoADT xs -> do
-            let typ = ADT (map snd xs)
-
-            if isNormalADT typ then do
-                name <- addTypeDef symbol =<< opTypeOf typ
-                define symbol KeyType $ ObType (ADT $ map snd xs) (Just name)
-            else do
-                define symbol KeyType $ ObType (ADT $ map snd xs) Nothing
-
-            forM_ (zip xs [0..]) $ \((s, ts), i) -> do
-                define s (KeyMember typdef) (ObjMember i)
-                define s (KeyFunc ts typdef) ObjADTFieldCons
+    forM_ xs $ \x -> case x of
+        S.ADTFieldType t -> define symbol (KeyFunc [t] typdef) ObjConstructor
+        _ -> return ()
 
 
 adtEnum :: InsCmp CompileState m => Value -> m Value
