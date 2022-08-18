@@ -54,7 +54,7 @@ adtConstruct adtTyp loc@(Ptr _ _) = do
 
     case adtTyp of
         Typedef symbol -> do -- can lookup member
-            ObjMember i <- look (Sym "") (KeyTypeField adtTyp $ valType loc)
+            ObjMember i <- look symbol (KeyTypeField $ valType loc)
             adt <- valLocal adtTyp
             adtSetEnum adt i
             pi8 <- bitcast (valLoc loc) (LL.ptr LL.i8)
@@ -86,7 +86,7 @@ adtTypeDef symbol (S.AnnoADT xs) = trace "adtTypeDef" $ do
             define s (KeyMember typdef) (ObjMember i)
             define s (KeyFunc ts typdef) ObjADTFieldCons
         S.ADTFieldType t -> do
-            define (Sym "") (KeyTypeField typdef t) (ObjMember i)
+            define symbol (KeyTypeField t) (ObjMember i)
 
     -- define constructors
     define symbol (KeyFunc [] typdef)       ObjConstructor 

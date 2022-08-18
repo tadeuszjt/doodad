@@ -59,7 +59,7 @@ data SymKey
     | KeyVar
     | KeyFunc [Type] Type
     | KeyMember Type
-    | KeyTypeField Type Type
+    | KeyTypeField Type
     deriving (Eq, Ord)
 
 instance Show SymKey where
@@ -67,7 +67,7 @@ instance Show SymKey where
     show KeyVar  = "var"
     show (KeyFunc ts rt) = "fn(" ++ intercalate ", " (map show ts) ++ ")" ++ show rt
     show (KeyMember t) = show t ++ "."
-    show (KeyTypeField adtTyp typ) = show adtTyp ++ "." ++ show typ
+    show (KeyTypeField typ) = show typ
 
 
 data Object

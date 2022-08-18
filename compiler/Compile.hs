@@ -604,8 +604,11 @@ cmpPattern pattern val = trace "cmpPattern" $ withPos pattern $ case pattern of
 
     S.PatTypeField _ typ pat -> do
         base@(ADT tss) <- assertBaseType isADT (valType val)
-        ObjMember i <- look (Sym "") $ KeyTypeField (valType val) typ
+        assert (isTypedef $ valType val) "Need a defined ADT"
+        let Typedef symbol = valType val
+        ObjMember i <- look symbol $ KeyTypeField typ
         assert (tss !! i == [typ]) "Invalid type field"
+
         case base of
             _ | isNormalADT base -> do
                 enumMatch <- valIntInfix S.EqEq (valI64 i) =<< adtEnum val
