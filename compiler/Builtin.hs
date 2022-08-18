@@ -135,34 +135,53 @@ valZero typ = trace ("valZero " ++ show  typ) $ do
             return $ Val typ $ struct namem False (zi64:zi64:zptrs)
 
         ADT tss | isNormalADT base -> do
-            case head tss of
-                [] -> do
+            im <- adtHasNull typ
+            case im of
+                Just i -> do
+                    let ii64 = toCons (int64 $ fromIntegral i)
                     let zi64 = toCons (int64 0)
                     let zptr = C.IntToPtr zi64 (LL.ptr LL.void)
-                    return $ Val typ $ struct namem False [zi64, zptr]
+                    return $ Val typ $ struct namem False [ii64, zptr]
+
+                Nothing -> do
+                    case head tss of
+                        [] -> do
+                            let zi64 = toCons (int64 0)
+                            let zptr = C.IntToPtr zi64 (LL.ptr LL.void)
+                            return $ Val typ $ struct namem False [zi64, zptr]
+
                                 
         _ -> error ("valZero: " ++  show typ)
 
 
 valsInfix :: InsCmp CompileState m => S.Op -> Value -> Value -> m Value
 valsInfix operator a b = do
-    Val typ opA  <- valLoad a
-    Val typB opB <- valLoad b
+    assert (valType a == valType b) "type mismatch"
+    base <- baseTypeOf (valType a)
 
-    assert (typ == typB) "type mismatch"
-    base <- baseTypeOf typ
-    case base of
-        Bool                 -> boolInfix typ operator opA opB
-        Char                 -> valIntInfix operator a b
-        _ | isInt base       -> valIntInfix operator a b
-        _ | isFloat base     -> floatInfix typ operator opA opB
-        _ | isTable base     -> valTableInfix operator a b
-        _ | isTuple base     -> valTupleInfix operator a b
-        _ | isNormalADT base -> valAdtNormalInfix operator a b
-        _ | isEnumADT base   -> valAdtEnumInfix operator a b
-        _                    -> fail $ "Operator " ++ show operator ++ " undefined for types " ++ show typ ++ " " ++ show (valType b)
+    if base == Void then nullInfix operator
+    else do
+        Val typ opA  <- valLoad a
+        Val typB opB <- valLoad b
+
+        case base of
+            Bool                 -> boolInfix typ operator opA opB
+            Char                 -> valIntInfix operator a b
+            Void                 -> nullInfix operator
+            _ | isInt base       -> valIntInfix operator a b
+            _ | isFloat base     -> floatInfix typ operator opA opB
+            _ | isTable base     -> valTableInfix operator a b
+            _ | isTuple base     -> valTupleInfix operator a b
+            _ | isNormalADT base -> valAdtNormalInfix operator a b
+            _ | isEnumADT base   -> valAdtEnumInfix operator a b
+            _                    -> fail $ "Operator " ++ show operator ++ " undefined for types " ++ show typ ++ " " ++ show (valType b)
 
     where 
+        nullInfix :: InsCmp CompileState m => S.Op -> m Value
+        nullInfix operator = case operator of
+            S.EqEq -> valBool Bool True
+            S.NotEq -> valBool Bool False
+
         boolInfix :: InsCmp CompileState m => Type -> S.Op -> LL.Operand -> LL.Operand -> m Value
         boolInfix typ operator opA opB = case operator of
             S.OrOr   -> Val typ <$> or opA opB

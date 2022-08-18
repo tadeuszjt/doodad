@@ -82,7 +82,7 @@ isEnumADT (ADT tss) = length tss > 0 && all (==[]) tss
 isEnumADT _         = False
 
 isNormalADT :: Type -> Bool
-isNormalADT adt@(ADT _) = not $ isEmptyADT adt || isPtrADT adt || isEnumADT adt
+isNormalADT adt = isADT adt && (not $ isEmptyADT adt || isPtrADT adt || isEnumADT adt)
 
 isTypeId (Type _)        = True
 isTypeId _               = False

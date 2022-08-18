@@ -123,7 +123,7 @@ cmpTypeDef (S.Typedef pos symbol (S.AnnoType typ)) = withPos pos $ do
                     
 
 cmpVarDef :: InsCmp CompileState m => S.Stmt -> m ()
-cmpVarDef (S.Assign pos (S.PatIdent p symbol) expr) = trace "cmpVarDef" $ withPos pos $ do
+cmpVarDef (S.Assign pos (S.PatIdent p symbol) expr) = withPos pos $ do
     val <- cmpExpr expr
     name <- myFresh (sym symbol)
 
@@ -395,6 +395,7 @@ cmpExpr (S.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck exp
     S.Prefix pos operator expr -> valPrefix operator =<< cmpExpr expr
     S.Member pos expr sym      -> tupleMember sym =<< cmpExpr expr
     S.Zero pos                 -> valZero exprType
+    S.Null p                   -> adtNull exprType
 
     S.Int p n -> do
         base <- baseTypeOf exprType
@@ -521,6 +522,14 @@ cmpPattern :: InsCmp CompileState m => S.Pattern -> Value -> m Value
 cmpPattern pattern val = trace "cmpPattern" $ withPos pattern $ case pattern of
     S.PatIgnore _   -> valBool Bool True
     S.PatLiteral expr -> cmpInfix S.EqEq val =<< cmpExpr expr
+
+    S.PatNull _ -> do
+        base@(ADT tss) <- assertBaseType isADT (valType val)
+        let is = elemIndices [Void] tss
+        assert (length is == 1) "ADT type does not have unique null field"
+        let [i] = is
+        valIntInfix S.EqEq (valI64 i) =<< adtEnum val
+
     S.PatAnnotated pat typ -> do
         assert (valType val == typ) "pattern type mismatch"
         cmpPattern pat val

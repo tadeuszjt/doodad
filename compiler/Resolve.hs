@@ -304,6 +304,8 @@ instance Resolve Pattern where
             typ' <- resolve typ
             return $ PatAnnotated pat' typ'
 
+        PatNull pos -> return $ PatNull pos
+
         _ -> error $ "invalid pattern: " ++ show pattern
 
 
@@ -387,6 +389,8 @@ instance Resolve Expr where
             return $ Range pos expr' mexpr1' mexpr2'
 
         Zero pos -> return (Zero pos)
+
+        Null pos -> return (Null pos)
 
         --_ -> return expr
 

@@ -71,6 +71,7 @@ data Pattern
     | PatField     TextPos Symbol [Pattern]
     | PatTypeField TextPos Type Pattern
     | PatAnnotated Pattern Type
+    | PatNull      TextPos
     deriving (Eq)
 
 data Index
@@ -90,6 +91,7 @@ data Expr
     | Float      TextPos Double
     | Bool       TextPos Bool
     | Char       TextPos Char
+    | Null       TextPos 
     | String     TextPos String
     | Tuple      TextPos [Expr]
     | Table      TextPos [[Expr]]
@@ -161,6 +163,7 @@ instance TextPosition Pattern where
         PatField     p _ _ -> p
         PatTypeField p _ _ -> p
         PatAnnotated pat _ -> textPos pat
+        PatNull      p -> p
 
 instance TextPosition Condition where
     textPos condition = case condition of
@@ -174,6 +177,7 @@ instance TextPosition Expr where
         Float      p _ -> p
         Bool       p _ -> p
         Char       p _ -> p
+        Null       p -> p
         String     p _ -> p
         Tuple      p _ -> p
         Table      p _ -> p
@@ -263,6 +267,7 @@ instance Show Pattern where
         PatField pos symbol pats -> show symbol ++ tupStrs (map show pats)
         PatTypeField pos typ pat -> show typ ++ tupStrs [show pat]
         PatAnnotated pat typ     -> show pat ++ ":" ++ show typ
+        PatNull pos              -> "null"
 
 instance Show Append where
     show append = case append of
@@ -289,6 +294,7 @@ instance Show Expr where
         Float pos f                 -> show f
         Bool pos b                  -> if b then "true" else "false"
         Char pos c                  -> show c
+        Null p                      -> "null"
         String pos s                -> show s
         Tuple pos exprs             -> tupStrs (map show exprs)
         Table pos exprss            -> "[" ++  intercalate "; " (map (intercalate ", " . map show) exprss) ++ "]"

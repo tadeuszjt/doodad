@@ -351,6 +351,8 @@ collectPattern pattern typ = collectPos pattern $ case pattern of
     PatAnnotated pat t -> do
         collect t typ
         collectPattern pat typ
+
+    PatNull _ -> return ()
         
 
     _ -> error $ show pattern
@@ -555,6 +557,8 @@ collectExpr (AExpr exprType expr) = collectPos expr $ case expr of
 
         when (isJust me1 && isJust me2) $
             collect (typeOf $ fromJust me1) (typeOf $ fromJust me2)
+
+    Null p -> return ()
 
 
     S.AExpr _ _ -> fail "what"

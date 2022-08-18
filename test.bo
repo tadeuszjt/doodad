@@ -77,6 +77,17 @@ fn main()
         Member(b); test(false)
         MemberI64(n); test(n == 4)
 
+    type OptionalBool { null | bool }
+    let ob = OptionalBool(false:bool):OptionalBool
+    if ob -> bool(true)
+        test(false)
+    else if ob -> bool(false)
+        test(true)
+    ob = null
+    if ob -> null
+        test(true)
+    else; test(false)
+
     print("tests passed", passCount)
 
 

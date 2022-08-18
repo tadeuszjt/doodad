@@ -77,11 +77,11 @@ import Symbol
     module     { Token _ Reserved "module" }
     copy       { Token _ Reserved "copy" }
     for        { Token _ Reserved "for" }
-
     print      { Token _ Reserved "print" }
     len        { Token _ Reserved "len" }
     unsafe_ptr { Token _ Reserved "unsafe_ptr" }
     zero       { Token _ Reserved "zero" }
+    null       { Token _ Reserved "null" }
 
     import     { Token _ Import _ }
     import_c   { Token _ ImportC _ }
@@ -159,6 +159,7 @@ stmtB : If                                    { $1 }
 pattern  : '_'                                { S.PatIgnore (tokPos $1) }
          | literal                            { S.PatLiteral $1 }
          | ident                              { S.PatIdent (tokPos $1) (Sym $ tokStr $1) }
+         | null                               { S.PatNull (tokPos $1) }
          | '(' patterns ')'                   { S.PatTuple (tokPos $1) $2 }
          | '[' patterns ']'                   { S.PatArray (tokPos $1) $2 }
          | pattern '|' expr                   { S.PatGuarded (tokPos $2) $1 $3 }
@@ -242,6 +243,7 @@ expr   : literal                              { $1 }
        | zero '(' ')'                         { S.Zero (tokPos $1) }
        | unsafe_ptr '(' expr ')'              { S.UnsafePtr (tokPos $1) $3 }
        | typeOrdinal '(' exprs ')'            { S.Conv (tokPos $2) $1 $3 }
+       | null                                 { S.Null (tokPos $1) }
 --       | ':' typeAggregate '(' exprs ')'      { S.Conv (tokPos $3) $2 $4 }
        | expr '.' intlit                      { S.TupleIndex (tokPos $2) $1 (read $ tokStr $3) }
        | expr '.' ident                       { S.Member (tokPos $2) $1 (tokStr $3) }
@@ -338,6 +340,7 @@ annoADTType : '{' annoADTFields '}'           { S.AnnoADT $2 }
             | '{' '}'                         { S.AnnoADT [] }
 annoADTField : ident '(' argTypes ')'         { S.ADTFieldMember (Sym (tokStr $1)) $3 }
              | type_                          { S.ADTFieldType $1 }
+             | null                           { S.ADTFieldType T.Void }
 annoADTFields : annoADTField                  { [$1] }
               | annoADTField '|' annoADTFields { $1 : $3 }
 

@@ -91,6 +91,7 @@ instance Annotate Pattern where
         PatLiteral e        -> PatLiteral <$> annotate e
         PatTuple p pats     -> PatTuple p <$> mapM annotate pats
         PatArray p pats     -> PatArray p <$> mapM annotate pats
+        PatNull p           -> return $ PatNull p
 
         PatGuarded p pat e -> do
             pat' <- annotate pat
@@ -138,6 +139,7 @@ instance Annotate Expr where
         String p s -> return expr
         Bool p b -> return expr
         Zero p -> return expr
+        Null p -> return expr
 
         Conv p s es -> Conv p s <$> mapM annotate es
         Copy p e -> Copy p <$> annotate e

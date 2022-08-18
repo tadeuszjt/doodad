@@ -24,6 +24,27 @@ import Error
 import Symbol
 
 
+adtHasNull :: InsCmp CompileState m => Type -> m (Maybe Int)
+adtHasNull typ = do 
+    ADT tss <- assertBaseType isADT typ
+    let is = elemIndices [Void] tss
+    assert (length is <= 1) "ADT does not have a unique null field"
+    case is of
+        [i] -> return (Just i)
+        _   -> return Nothing
+
+
+adtNull :: InsCmp CompileState m => Type -> m Value
+adtNull adtTyp = do
+    assertBaseType isADT adtTyp
+    im <- adtHasNull adtTyp
+    assert (isJust im) "ADT does not have a null field"
+
+    adt <- valLocal adtTyp
+    adtSetEnum adt (fromJust im)
+    return adt
+
+
 -- construct ADT from a value.
 -- E.g. SomeAdt(4:i64), SomeAdt must have i64 field
 -- This function will use the location, must be allocated beforehand.

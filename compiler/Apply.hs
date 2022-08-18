@@ -70,6 +70,7 @@ instance Apply S.Expr where
         S.Ident pos sym            -> expr
         S.Char  pos c              -> expr
         S.Int   pos n              -> expr
+        S.Null  pos                -> expr
         S.Prefix pos op expr1      -> S.Prefix pos op (apply subs expr1)
         S.Call  pos sym exprs      -> S.Call pos sym $ map (apply subs) exprs
         S.Conv  pos t exprs        -> S.Conv pos (apply subs t) $ map (apply subs) exprs
@@ -104,6 +105,7 @@ instance Apply S.Pattern where
         S.PatIgnore p        -> S.PatIgnore p
         S.PatArray p pats    -> S.PatArray p $ map (apply subs) pats
         S.PatAnnotated pat typ -> S.PatAnnotated (apply subs pat) (apply subs typ)
+        S.PatNull p            -> S.PatNull p
         _                    -> error $ show pattern
 
 instance Apply S.Append where
