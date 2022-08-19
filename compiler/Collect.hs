@@ -18,24 +18,12 @@ import qualified Debug.Trace
 
 -- constraints obtained from sub-expressions must be to the left
 data Constraint
-    = Constraint TextPos Type Type
-    | ConsBase   TextPos Type Type -- both types must have same base
-    | ConsElem   TextPos Type Type -- both types must have same base
-    | ConsMember TextPos Type Int Type 
-    deriving (Show, Eq)
-
-getTuple :: Constraint -> (Int, Int, Type, Type)
-getTuple (Constraint _ t1 t2)   = (1, 0, t1, t2)
-getTuple (ConsBase _ t1 t2)     = (2, 0, t1, t2)
-getTuple (ConsElem _ t1 t2)     = (3, 0, t1, t2)
-getTuple (ConsMember _ t1 i t2) = (3, i, t1, t2)
-
-instance Ord Constraint where
-    compare c1 c2 = compare (getTuple c1) (getTuple c2)
-
-
-instance TextPosition Constraint where
-    textPos (Constraint pos _ _) = pos
+    = ConsEq Type Type
+    | ConsBase   Type Type -- both types must have same base
+    | ConsElem   Type Type -- both types must have same base
+    | ConsMember Type Int Type 
+    | ConsAdtMem Type Int Int Type
+    deriving (Show, Eq, Ord)
 
 type SymTab = SymTab.SymTab Symbol SymKey Object
 
@@ -44,6 +32,7 @@ data SymKey
     | KeyType
     | KeyFunc [Type] Type
     | KeyMember Type
+    | KeyAdtField
     deriving (Show, Eq, Ord)
 
 data Object
@@ -57,8 +46,8 @@ data CollectState
     = CollectState
         { symTab    :: SymTab
         , curRetty  :: Type
-        , collected :: [Constraint]
-        , defaults  :: [Constraint]
+        , collected :: [(TextPos, Constraint)]
+        , defaults  :: [(TextPos, Constraint)]
         , imports   :: Map.Map FilePath SymTab
         , curPos    :: TextPos
         , typeSupply :: Int
@@ -92,27 +81,30 @@ collectPos t m = withPos t $ do
     modify $ \s -> s { curPos = old }
     return r
 
+collectAdtMember :: BoM CollectState m => Type -> Int -> Int -> Type -> m () 
+collectAdtMember t i j agg =
+    modify $ \s -> s { collected = (curPos s, ConsAdtMem t i j agg) : (collected s) }
 
 collectMember :: BoM CollectState m => Type -> Int -> Type -> m () 
 collectMember t i agg =
-    modify $ \s -> s { collected = (ConsMember (curPos s) t i agg) : (collected s) }
+    modify $ \s -> s { collected = (curPos s, ConsMember t i agg) : (collected s) }
 
 
-collect :: BoM CollectState m => Type -> Type -> m ()
-collect t1 t2 = do
-    modify $ \s -> s { collected = (Constraint (curPos s) t1 t2) : (collected s) }
+collect :: BoM CollectState m => Constraint -> m ()
+collect constraint = do
+    modify $ \s -> s { collected = (curPos s, constraint) : (collected s) }
 
 collectBase :: BoM CollectState m => Type -> Type -> m ()
 collectBase t1 t2 = do
-    modify $ \s -> s { collected = (ConsBase (curPos s) t1 t2) : (collected s) }
+    modify $ \s -> s { collected = (curPos s, ConsBase t1 t2) : (collected s) }
 
 collectElem :: BoM CollectState m => Type -> Type -> m ()
 collectElem t1 t2 = do
-    modify $ \s -> s { collected = (ConsElem (curPos s) t1 t2) : (collected s) }
+    modify $ \s -> s { collected = (curPos s, ConsElem t1 t2) : (collected s) }
 
 collectDefault :: BoM CollectState m => Type -> Type -> m ()
 collectDefault t1 t2 = do
-    modify $ \s -> s { defaults = (Constraint (curPos s) t1 t2) : (defaults s) }
+    modify $ \s -> s { defaults = (curPos s, ConsEq t1 t2) : (defaults s) }
 
 
 typeOf :: S.Expr -> T.Type
@@ -146,13 +138,6 @@ define symbol key obj = do
     resm <- SymTab.lookupHead symbol key <$> gets symTab
     assert (isNothing resm) $ show symbol ++ " already defined"
     modify $ \s -> s { symTab = SymTab.insert symbol key obj (symTab s) }
-
-
-baseTypeOf :: BoM CollectState m => Type -> m Type
-baseTypeOf typ = case typ of
-    T.Typedef sym -> do ObjType t <- look sym KeyType; baseTypeOf t
-    Type x        -> return (Type undefined)
-    _             -> return typ
 
 
 collectCExterns :: BoM CollectState m => [Extern] -> m ()
@@ -199,7 +184,7 @@ collectTypedef (S.Typedef pos symbol annoTyp) = collectPos pos $ case annoTyp of
         let typedef = T.Typedef symbol
         tss <- forM (zip xs [0..]) $ \(x, i) -> case x of
             ADTFieldMember s ts -> do
-                define s (KeyMember typedef) (ObjMember i)
+                define s KeyAdtField (ObjMember i)
                 define s (KeyFunc ts typedef) ObjFunc
                 return ts
 
@@ -226,10 +211,11 @@ collectStmt stmt = collectPos stmt $ case stmt of
         collectDefault retty T.Void
 
     Return _ mexpr -> do
+        retty <- gets curRetty
         case mexpr of
-            Nothing -> collect Void =<< gets curRetty
+            Nothing -> collect $ ConsEq Void retty
             Just expr -> do
-                collect (typeOf expr) =<< gets curRetty
+                collect $ ConsEq (typeOf expr) retty
                 collectExpr expr
 
     If _ cond blk melse -> do
@@ -243,7 +229,7 @@ collectStmt stmt = collectPos stmt $ case stmt of
 
     Set _ index expr -> do
         typ <- collectIndex index
-        collect typ (typeOf expr)
+        collect $ ConsEq typ (typeOf expr)
         collectExpr expr
 
     AppendStmt app -> void (collectAppend app)
@@ -260,7 +246,7 @@ collectStmt stmt = collectPos stmt $ case stmt of
             -- one definition
             [(KeyFunc ts rt, ObjFunc)] -> do
                 assert (length ts == length es) "Invalid arguments"
-                zipWithM_  collect ts (map typeOf es)
+                mapM_ collect $ zipWith ConsEq ts (map typeOf es)
 
             -- do nothing
             _ -> return ()
@@ -294,7 +280,7 @@ collectAppend :: BoM CollectState m => Append -> m Type
 collectAppend append = collectPos append $ case append of
     AppendTable _ app expr -> do
         t <- collectAppend app
-        collect t (typeOf expr)
+        collect $ ConsEq t (typeOf expr)
         collectExpr expr
         return t
 
@@ -324,7 +310,7 @@ collectPattern pattern typ = collectPos pattern $ case pattern of
     PatIdent _ symbol -> do
         define symbol KeyVar (ObjVar typ)
 
-    PatLiteral expr -> collect typ (typeOf expr)
+    PatLiteral expr -> collect $ ConsEq typ (typeOf expr)
 
     PatGuarded _ pat expr -> do
         collectPattern pat typ
@@ -332,14 +318,10 @@ collectPattern pattern typ = collectPos pattern $ case pattern of
         collectExpr expr
 
     PatField _ symbol pats -> do
-        base <- baseTypeOf typ
-        case base of
-            ADT tss -> do
-                ObjMember i <- look symbol (KeyMember typ)
-                let ts = tss !! i
-                assert (length ts == length pats) "Invalid field"
-                zipWithM_ collectPattern pats ts
-            _ -> forM_ pats $ \pat -> collectPattern pat =<< genType
+        ObjMember i <- look symbol KeyAdtField
+        gts <- replicateM (length pats) genType
+        zipWithM_ collectPattern pats gts
+        forM_ (zip gts [0..]) $ \(t, j) -> collectAdtMember t i j typ
 
     PatTypeField _ t pat -> do
         collectPattern pat t
@@ -356,7 +338,7 @@ collectPattern pattern typ = collectPos pattern $ case pattern of
         collectElem gt typ
 
     PatAnnotated pat t -> do
-        collect t typ
+        collect $ ConsEq t typ
         collectPattern pat typ
 
     PatNull _ -> return ()
@@ -389,26 +371,26 @@ collectCallExpr (AExpr exprType (Call p symbol es)) = do
         let alm = argLengthsMatch (map typeOf es) kos
 
         when (isJust rtm) $ do
-            collect exprType (fromJust rtm)
+            collect $ ConsEq exprType (fromJust rtm)
 
         when (isJust odm) $ do
             let (ts, rt) = fromJust odm
             assert (length ts == length es) "Invalid arguments"
-            zipWithM_  collect ts (map typeOf es)
-            collect exprType rt
+            mapM_  collect $ zipWith ConsEq ts (map typeOf es)
+            collect $ ConsEq exprType rt
 
         when (isJust rmm) $ do
             let (ts, rt) = fromJust rmm
             assert (length ts == length es) "Invalid arguments"
-            zipWithM_  collect ts (map typeOf es)
+            mapM_ collect $ zipWith ConsEq ts (map typeOf es)
 
         when (isJust amm) $ do
-            collect exprType (fromJust amm)
+            collect $ ConsEq exprType (fromJust amm)
 
         when (isJust alm) $ do
             let (ts, rt) = fromJust alm
-            zipWithM_  collect ts (map typeOf es)
-            collect exprType rt
+            mapM_ collect $ zipWith ConsEq ts (map typeOf es)
+            collect $ ConsEq exprType rt
 
         mapM_ collectExpr es
         where
@@ -458,10 +440,10 @@ collectCallExpr (AExpr exprType (Call p symbol es)) = do
 collectExpr :: BoM CollectState m => Expr -> m ()
 collectExpr (AExpr exprType expr) = collectPos expr $ case expr of
     Call p symbol es -> collectCallExpr (AExpr exprType expr)
-    Conv p t [e]     -> collect exprType t >> collectExpr e
+    Conv p t [e]     -> collect (ConsEq exprType t) >> collectExpr e
     S.Int p c        -> collectDefault exprType I64
-    S.Prefix p op e  -> collect exprType (typeOf e) >> collectExpr e
-    S.Copy p e       -> collect exprType (typeOf e) >> collectExpr e
+    S.Prefix p op e  -> collect (ConsEq exprType (typeOf e)) >> collectExpr e
+    S.Copy p e       -> collect (ConsEq exprType (typeOf e)) >> collectExpr e
     S.Len p e        -> collectDefault exprType I64 >> collectExpr e
     S.Float p f      -> collectDefault exprType F64
     S.Zero p         -> collectDefault exprType (T.Tuple [])
@@ -479,26 +461,26 @@ collectExpr (AExpr exprType expr) = collectPos expr $ case expr of
         collectDefault exprType (T.Table [T.Char])
 
     S.UnsafePtr p e -> do
-        collect exprType (T.UnsafePtr (typeOf e))
+        collect $ ConsEq exprType (T.UnsafePtr (typeOf e))
         collectExpr e
 
     Ident p symbol -> do
         ObjVar t <- look symbol KeyVar
-        collect t exprType
+        collect $ ConsEq t exprType
 
     Infix p op e1 e2 -> do
         case op of
             _ | op `elem` [S.Plus, S.Minus, S.Times, S.Divide, S.Modulo] -> do
-                collect exprType (typeOf e1)
+                collect $ ConsEq exprType (typeOf e1)
             _ | op `elem` [S.LT, S.GT, S.LTEq, S.GTEq, S.EqEq, S.NotEq]  -> do
                 collectBase exprType T.Bool
                 collectDefault exprType T.Bool
             _ | op `elem` [S.AndAnd, S.OrOr] -> do
                 collectBase exprType T.Bool
-                collect exprType (typeOf e1)
+                collect $ ConsEq exprType (typeOf e1)
             _ -> return ()
                     
-        collect (typeOf e1) (typeOf e2)
+        collect $ ConsEq (typeOf e1) (typeOf e2)
         collectExpr e1
         collectExpr e2
 
@@ -537,7 +519,7 @@ collectExpr (AExpr exprType expr) = collectPos expr $ case expr of
         collectExpr e
 
     Range p e me1 me2 -> do
-        collect exprType (typeOf e)
+        collect $ ConsEq exprType (typeOf e)
         collectExpr e
 
         when (isJust me1) $ do
@@ -549,7 +531,7 @@ collectExpr (AExpr exprType expr) = collectPos expr $ case expr of
             collectExpr (fromJust me2)
 
         when (isJust me1 && isJust me2) $
-            collect (typeOf $ fromJust me1) (typeOf $ fromJust me2)
+            collect $ ConsEq (typeOf $ fromJust me1) (typeOf $ fromJust me2)
 
     Null p -> return ()
 

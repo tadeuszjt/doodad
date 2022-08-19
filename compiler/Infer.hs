@@ -27,6 +27,7 @@ infer ::
     Bool ->
     m (AST, Collect.SymTab)
 infer ast externs imports modName verbose = do
+    --liftIO $ putStrLn $ "infer: " ++ modName
     -- create C imports module
     assert (not $ Map.member "c" imports) "Module named c already imported"
     cSymTab <- fmap (symTab . snd) $
@@ -50,16 +51,11 @@ infer ast externs imports modName verbose = do
             let symTabs = (symTab state) : Map.elems (Collect.imports state)
             let sos     = concat $ map (SymTab.lookupKey Collect.KeyType) symTabs
             let typeMap = Map.map (\(ObjType t) -> t) $ Map.fromList sos
-
-
             let constraints = Set.toList $ Set.fromList (collected state)
+            (subs, _) <- runBoMTExcept typeMap (unify2 constraints)
 
             --liftIO $ putStrLn $ modName ++ " constraints:"
             --liftIO $ mapM_ (putStrLn . show) constraints
-
-
-            (subs, _) <- runBoMTExcept typeMap (unify2 constraints)
-
             --liftIO $ putStrLn $ modName ++ " substitutions:"
             --liftIO $ mapM_ (putStrLn . show) subs
 
@@ -67,19 +63,23 @@ infer ast externs imports modName verbose = do
             let subbedAst = apply subs ast
             if ast == subbedAst
             then do
-                (defaults, _) <- runBoMTExcept typeMap $ unifyDefault $ map (apply subs) (defaults state)
+                --liftIO $ putStrLn $ "ast == subbedAst"
+                (defaults, _) <- runBoMTExcept typeMap $ unifyDefault $ map (\(p, c) -> (p, apply subs c)) (defaults state)
                 --liftIO $ putStrLn $ modName ++ " defaults:"
                 --liftIO $ mapM_ (putStrLn . show) defaults
 
                 let defaultedAst = apply defaults subbedAst
                 let defaultedSymTab = apply defaults $ apply subs $ symTab state
 
-                if defaultedAst == ast then do
+                if defaultedAst == subbedAst then do
+                    --liftIO $ putStrLn $ "defaultedAst == ast"
                     return (defaultedAst, defaultedSymTab, 1)
                 else do
+                    --liftIO $ putStrLn $ "defaultedAst != ast"
                     (subbedAst', symTab, n) <- recursiveInfer defaultedAst imports
                     return (subbedAst', symTab, n + 1)
             else do
+                --liftIO $ putStrLn $ "ast != subbedAst"
                 (subbedAst', symTab, n) <- recursiveInfer subbedAst imports
                 return (subbedAst', symTab, n + 1)
 
