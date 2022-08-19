@@ -55,6 +55,8 @@ instance Apply Collect.SymKey where
 
 instance Apply Constraint where
     apply subs (Constraint p t1 t2) = Constraint p (apply subs t1) (apply subs t2)
+    apply subs (ConsBase   p t1 t2) = ConsBase   p (apply subs t1) (apply subs t2)
+    apply subs (ConsElem   p t1 t2) = ConsElem   p (apply subs t1) (apply subs t2)
 
 instance Apply Type where
     apply subs t = foldr (\(x, u) z -> substitute u x z) t subs

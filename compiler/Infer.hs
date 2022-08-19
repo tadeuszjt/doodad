@@ -5,6 +5,7 @@ import Control.Monad.State
 
 import qualified Data.Map as Map
 import Control.Monad
+import qualified SymTab
 import AST
 import Args
 import Monad
@@ -45,7 +46,8 @@ infer ast externs imports modName verbose = do
                 runBoMTExcept (initCollectState imports modName) (collectAST ast)
             
             -- turn type constraints into substitutions using unify
-            subs <- unify $ collected state
+            let typeMap = Map.map (\(ObjType t) -> t) $ Map.fromList $ SymTab.lookupKey Collect.KeyType (symTab state)
+            (subs, _) <- runBoMTExcept typeMap (unify $ collected state)
 
             --liftIO $ putStrLn $ modName ++ " substitutions:"
             --liftIO $ mapM_ (putStrLn . show) subs
@@ -54,7 +56,7 @@ infer ast externs imports modName verbose = do
             let subbedAst = apply subs ast
             if ast == subbedAst
             then do
-                defaults <- unifyDefault $ map (apply subs) (defaults state)
+                (defaults, _) <- runBoMTExcept typeMap $ unifyDefault $ map (apply subs) (defaults state)
                 --liftIO $ putStrLn $ modName ++ " defaults:"
                 --liftIO $ mapM_ (putStrLn . show) defaults
 

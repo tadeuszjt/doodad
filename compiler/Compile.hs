@@ -403,6 +403,7 @@ cmpExpr (S.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck exp
             _ | isInt base   -> valInt exprType n
             _ | isFloat base -> valFloat exprType (fromIntegral n)
             _ | base == Char -> valChar exprType (chr $ fromIntegral n)
+            _ | otherwise    -> fail $ "invalid base type of: " ++ show base
 
     S.Infix pos op exprA exprB -> do
         valA <- cmpExpr exprA
@@ -444,7 +445,9 @@ cmpExpr (S.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck exp
     S.Tuple pos exprs -> do
         Tuple ts <- assertBaseType isTuple exprType
         vals <- mapM cmpExpr exprs
-        assert (ts == map valType vals) "Incorrect val types."
+        assert (ts == map valType vals) $
+            "Incorrect val types: " ++ show ts ++ ", " ++ show (map valType vals)
+
         tup <- valLocal exprType
         zipWithM_ (tupleSet tup) [0..] vals
         return tup

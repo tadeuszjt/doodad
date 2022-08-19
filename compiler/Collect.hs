@@ -19,6 +19,8 @@ import qualified Debug.Trace
 -- constraints obtained from sub-expressions must be to the left
 data Constraint
     = Constraint TextPos Type Type
+    | ConsBase   TextPos Type Type -- both types must have same base
+    | ConsElem   TextPos Type Type -- both types must have same base
     deriving (Show, Eq)
 
 instance TextPosition Constraint where
@@ -84,6 +86,13 @@ collect :: BoM CollectState m => Type -> Type -> m ()
 collect t1 t2 = do
     modify $ \s -> s { collected = (Constraint (curPos s) t1 t2) : (collected s) }
 
+collectBase :: BoM CollectState m => Type -> Type -> m ()
+collectBase t1 t2 = do
+    modify $ \s -> s { collected = (ConsBase (curPos s) t1 t2) : (collected s) }
+
+collectElem :: BoM CollectState m => Type -> Type -> m ()
+collectElem t1 t2 = do
+    modify $ \s -> s { collected = (ConsElem (curPos s) t1 t2) : (collected s) }
 
 collectDefault :: BoM CollectState m => Type -> Type -> m ()
 collectDefault t1 t2 = do
@@ -306,6 +315,7 @@ collectPattern pattern typ = collectPos pattern $ case pattern of
 
     PatGuarded _ pat expr -> do
         collectPattern pat typ
+        collectBase (typeOf expr) T.Bool
         collectExpr expr
 
     PatField _ symbol pats -> do
@@ -328,15 +338,11 @@ collectPattern pattern typ = collectPos pattern $ case pattern of
         collectPattern pat t
 
     PatTuple _ pats -> do
-        base <- baseTypeOf typ
-        case base of
-            T.Tuple ts -> do
-                assert (length ts == length pats) "Invalid tuple pattern"
-                zipWithM_ collectPattern pats ts
-            _ -> do
-                gts <- replicateM (length pats) genType
-                collectDefault typ (T.Tuple gts)
-                zipWithM_ collectPattern pats gts
+        gts <- replicateM (length pats) genType
+        collectDefault typ (T.Tuple gts)
+        collectBase typ (T.Tuple gts)
+        zipWithM_ collectPattern pats gts
+
 
     PatArray _ pats -> do
         base <- baseTypeOf typ
@@ -451,15 +457,24 @@ collectExpr :: BoM CollectState m => Expr -> m ()
 collectExpr (AExpr exprType expr) = collectPos expr $ case expr of
     Call p symbol es -> collectCallExpr (AExpr exprType expr)
     Conv p t [e]     -> collect exprType t >> collectExpr e
-    S.Char p c       -> collectDefault exprType T.Char
     S.Int p c        -> collectDefault exprType I64
     S.Prefix p op e  -> collect exprType (typeOf e) >> collectExpr e
     S.Copy p e       -> collect exprType (typeOf e) >> collectExpr e
     S.Len p e        -> collectDefault exprType I64 >> collectExpr e
-    S.Bool p b       -> collectDefault exprType T.Bool
-    S.String p s     -> collectDefault exprType (T.Table [T.Char])
     S.Float p f      -> collectDefault exprType F64
     S.Zero p         -> collectDefault exprType (T.Tuple [])
+
+    S.Char p c       -> do
+        collectBase exprType T.Char
+        collectDefault exprType T.Char
+
+    S.Bool p b       -> do
+        collectBase exprType T.Bool
+        collectDefault exprType T.Bool
+
+    S.String p s     -> do
+        collectBase exprType (T.Table [T.Char])
+        collectDefault exprType (T.Table [T.Char])
 
     S.UnsafePtr p e -> do
         collect exprType (T.UnsafePtr (typeOf e))
@@ -488,17 +503,16 @@ collectExpr (AExpr exprType expr) = collectPos expr $ case expr of
             Array n t   -> collect exprType t
             _           -> fail $ "invalid type: " ++ show base
 
+        collectElem exprType (typeOf e2)
+
         collectExpr e1
         collectExpr e2
 
     --S.Table p [[]] -> collectDefault exprType (T.Table [T.Tuple []])
 
     S.Table p [es] -> do
-        base <- baseTypeOf exprType
-        case base of
-            T.Table [t] -> mapM_ (collect t) (map typeOf es)
-            Array n t   -> mapM_ (collect t) (map typeOf es)
-            _           -> return ()
+        mapM_ (\e -> collectElem e exprType) (map typeOf es)
+
 
         case es of
             -- TODO current default system causes this to break inference.
@@ -516,6 +530,8 @@ collectExpr (AExpr exprType expr) = collectPos expr $ case expr of
         case base of
             T.Tuple ts -> zipWithM_ collect ts (map typeOf es)
             _          -> return ()
+
+        collectBase exprType $ T.Tuple (map typeOf es)
         collectDefault exprType $ T.Tuple (map typeOf es)
         mapM_ collectExpr es
 
@@ -538,13 +554,7 @@ collectExpr (AExpr exprType expr) = collectPos expr $ case expr of
             _          -> return ()
 
     Range p e me1 me2 -> do
-        base <- baseTypeOf (typeOf e)
-        case base of
-            T.Table ts -> collect exprType (typeOf e)
-            Array n t  -> collect exprType (typeOf e)
-            Type undef -> collect exprType (typeOf e)
-            _          -> fail $ "cannot take range of expression"
-
+        collect exprType (typeOf e)
         collectExpr e
 
         when (isJust me1) $ do

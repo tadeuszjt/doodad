@@ -1,17 +1,51 @@
+{-# LANGUAGE FlexibleContexts #-}
 module Unify where
 
 import Data.List
+import Data.Maybe
+import qualified Data.Map as Map
 import Control.Monad
+import Control.Monad.State
 
 import Type as T
 import AST as S
-import Collect
+import Collect hiding (baseTypeOf)
 import Monad
 import Error
 import Apply
+import Symbol
 
 
-unifyOne :: BoM s m => Constraint -> m [(Int, Type)]
+type TypeMap = Map.Map Symbol Type
+
+
+baseTypeOf :: BoM TypeMap m => Type -> m (Maybe Type)
+baseTypeOf typ = case typ of
+    T.Typedef symbol -> do
+        gets $ Map.lookup symbol
+
+    T.Type x -> return Nothing
+
+    t -> return (Just t)
+
+
+unifyOne :: BoM TypeMap m => Constraint -> m [(Int, Type)]
+unifyOne (ConsElem pos t1 t2) = withPos pos $ do
+    basem <- baseTypeOf t2
+    case basem of
+        Just (T.Table [t]) -> unifyOne (Constraint pos t1 t)
+        Just (T.Array n t) -> unifyOne (Constraint pos t1 t)
+        _ -> return []
+
+
+unifyOne (ConsBase pos t1 t2) = withPos pos $ do
+    base1m <- baseTypeOf t1
+    base2m <- baseTypeOf t2
+    if isJust base1m && isJust base2m then
+        unifyOne $ Constraint pos (fromJust base1m) (fromJust base2m)
+    else
+        return []
+    
 unifyOne (Constraint pos t1 t2) = withPos pos $ case (t1, t2) of
     _ | t1 == t2                   -> return []
     (Type x, t)                    -> return [(x, t)]
@@ -26,7 +60,7 @@ unifyOne (Constraint pos t1 t2) = withPos pos $ case (t1, t2) of
     _                              -> fail $ "cannot unify " ++ show t1 ++ " with " ++ show t2
 
 
-unifyOneDefault :: BoM s m => Constraint -> m [(Int, Type)]
+unifyOneDefault :: BoM TypeMap m => Constraint -> m [(Int, Type)]
 unifyOneDefault (Constraint pos t1 t2) = withPos pos $ case (t1, t2) of
     _ | t1 == t2                   -> return []
     (Type x, t)                    -> return [(x, t)]
@@ -41,7 +75,7 @@ unifyOneDefault (Constraint pos t1 t2) = withPos pos $ case (t1, t2) of
     _                              -> fail $ "unifyOneDefault: " ++ show (t1, t2)
 
 
-unify :: BoM s m => [Constraint] -> m [(Int, Type)]
+unify :: BoM TypeMap m => [Constraint] -> m [(Int, Type)]
 unify []     = return []
 unify (x:xs) = do
     subs <- unify xs
@@ -49,7 +83,7 @@ unify (x:xs) = do
     return (s ++ subs)
 
 
-unifyDefault :: BoM s m => [Constraint] -> m [(Int, Type)]
+unifyDefault :: BoM TypeMap m => [Constraint] -> m [(Int, Type)]
 unifyDefault []     = return []
 unifyDefault (x:xs) = do
     subs <- unifyDefault xs
