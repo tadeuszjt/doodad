@@ -23,6 +23,15 @@ data Constraint
     | ConsElem   TextPos Type Type -- both types must have same base
     deriving (Show, Eq)
 
+getTuple :: Constraint -> (Int, Type, Type)
+getTuple (Constraint _ t1 t2) = (1, t1, t2)
+getTuple (ConsBase _ t1 t2)   = (2, t1, t2)
+getTuple (ConsElem _ t1 t2)   = (3, t1, t2)
+
+instance Ord Constraint where
+    compare c1 c2 = compare (getTuple c1) (getTuple c2)
+
+
 instance TextPosition Constraint where
     textPos (Constraint pos _ _) = pos
 
@@ -486,9 +495,14 @@ collectExpr (AExpr exprType expr) = collectPos expr $ case expr of
 
     Infix p op e1 e2 -> do
         case op of
-            _ | op `elem` [S.Plus, S.Minus, S.Times, S.Divide, S.Modulo] -> collect exprType (typeOf e1)
-            _ | op `elem` [S.LT, S.GT, S.LTEq, S.GTEq, S.EqEq, S.NotEq]  -> collectDefault exprType T.Bool
-            _ | op `elem` [S.AndAnd, S.OrOr]                             -> collect exprType (typeOf e1)
+            _ | op `elem` [S.Plus, S.Minus, S.Times, S.Divide, S.Modulo] -> do
+                collect exprType (typeOf e1)
+            _ | op `elem` [S.LT, S.GT, S.LTEq, S.GTEq, S.EqEq, S.NotEq]  -> do
+                collectBase exprType T.Bool
+                collectDefault exprType T.Bool
+            _ | op `elem` [S.AndAnd, S.OrOr] -> do
+                collectBase exprType T.Bool
+                collect exprType (typeOf e1)
             _ -> return ()
                     
         collect (typeOf e1) (typeOf e2)
@@ -496,41 +510,22 @@ collectExpr (AExpr exprType expr) = collectPos expr $ case expr of
         collectExpr e2
 
     S.Subscript p e1 e2 -> do
-        base <- baseTypeOf (typeOf e1)
-        case base of
-            Type undef  -> return ()
-            T.Table [t] -> collect exprType t
-            Array n t   -> collect exprType t
-            _           -> fail $ "invalid type: " ++ show base
-
-        collectElem exprType (typeOf e2)
-
+        collectElem exprType (typeOf e1)
         collectExpr e1
         collectExpr e2
 
-    --S.Table p [[]] -> collectDefault exprType (T.Table [T.Tuple []])
-
     S.Table p [es] -> do
         mapM_ (\e -> collectElem e exprType) (map typeOf es)
-
-
         case es of
-            -- TODO current default system causes this to break inference.
-            -- Suggest to choose defaults after cycling the type inference.
-            [] -> return () --collectDefault exprType $ T.Table [T.Tuple []] 
             (x:xs) -> do
-                mapM (collect (typeOf x)) (map typeOf xs)
                 collectDefault exprType $ T.Table [typeOf x]
-
+                collectBase exprType $ T.Table [typeOf x]
+            _ -> return ()
+            
         mapM_ collectExpr es
 
 
     S.Tuple p es -> do
-        base <- baseTypeOf exprType
-        case base of
-            T.Tuple ts -> zipWithM_ collect ts (map typeOf es)
-            _          -> return ()
-
         collectBase exprType $ T.Tuple (map typeOf es)
         collectDefault exprType $ T.Tuple (map typeOf es)
         mapM_ collectExpr es

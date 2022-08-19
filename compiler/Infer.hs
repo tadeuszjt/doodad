@@ -4,6 +4,7 @@ import System.FilePath
 import Control.Monad.State
 
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 import Control.Monad
 import qualified SymTab
 import AST
@@ -46,11 +47,22 @@ infer ast externs imports modName verbose = do
                 runBoMTExcept (initCollectState imports modName) (collectAST ast)
             
             -- turn type constraints into substitutions using unify
-            let typeMap = Map.map (\(ObjType t) -> t) $ Map.fromList $ SymTab.lookupKey Collect.KeyType (symTab state)
-            (subs, _) <- runBoMTExcept typeMap (unify $ collected state)
+            let symTabs = (symTab state) : Map.elems (Collect.imports state)
+            let sos     = concat $ map (SymTab.lookupKey Collect.KeyType) symTabs
+            let typeMap = Map.map (\(ObjType t) -> t) $ Map.fromList sos
 
-            --liftIO $ putStrLn $ modName ++ " substitutions:"
-            --liftIO $ mapM_ (putStrLn . show) subs
+
+            let constraints = Set.toList $ Set.fromList (collected state)
+
+
+            liftIO $ putStrLn $ modName ++ " constraints:"
+            liftIO $ mapM_ (putStrLn . show) constraints
+
+
+            (subs, _) <- runBoMTExcept typeMap (unify2 constraints)
+
+            liftIO $ putStrLn $ modName ++ " substitutions:"
+            liftIO $ mapM_ (putStrLn . show) subs
 
             -- if the infered ast is the same as the last iteration, finish
             let subbedAst = apply subs ast

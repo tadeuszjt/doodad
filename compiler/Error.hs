@@ -16,7 +16,7 @@ data TextPos
         , textLine :: Int
         , textCol  :: Int
         }
-    deriving (Eq)
+    deriving (Eq, Ord)
 
 
 data Error

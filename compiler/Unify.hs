@@ -4,6 +4,7 @@ module Unify where
 import Data.List
 import Data.Maybe
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 import Control.Monad
 import Control.Monad.State
 
@@ -54,6 +55,34 @@ unifyOne constraint = withPos (textPos constraint) $ case constraint of
             | otherwise                 -> unify $ zipWith (Constraint pos) tsa tsb
         (T.UnsafePtr ta, T.UnsafePtr tb)-> unifyOne (Constraint pos ta tb)
         _                               -> fail $ "cannot unify " ++ show t1 ++ " with " ++ show t2
+
+
+unify2 :: BoM TypeMap m => [Constraint] -> m [(Int, Type)]
+unify2 constraints = do
+    liftIO $ putStrLn $ "unify2"
+    subs <- unify constraints
+    reduced <- reduceSubs subs
+
+    let constraints' = map (apply reduced) constraints
+    if constraints' == constraints then
+        return reduced
+    else do
+        subs' <- unify2 constraints'
+        return $ Set.toList $ Set.union (Set.fromList reduced) (Set.fromList subs')
+
+    where
+        reduceSubs :: BoM TypeMap m => [(Int, Type)] -> m [(Int, Type)]
+        reduceSubs subs = do
+            liftIO $ putStrLn $ "reduceSubs"
+            let subs' = Set.toList $ Set.fromList subs
+            let subs'' = map (\(i, t) -> (i, apply subs' t)) subs'
+            let subs''' = Set.toList $ Set.fromList subs''
+            if subs''' == subs then
+                return subs'''
+            else
+                reduceSubs subs'''
+        
+
 
 
 unify :: BoM TypeMap m => [Constraint] -> m [(Int, Type)]
