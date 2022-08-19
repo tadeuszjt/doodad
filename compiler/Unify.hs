@@ -29,21 +29,27 @@ baseTypeOf typ = case typ of
 
 unifyOne :: BoM TypeMap m => Constraint -> m [(Int, Type)]
 unifyOne constraint = withPos (textPos constraint) $ case constraint of
-    (ConsElem pos t1 t2) -> do
+    ConsMember pos t i agg -> do
+        basem <- baseTypeOf agg
+        case basem of
+            Just (T.Tuple ts) -> unifyOne (Constraint pos t $ ts !! i)
+            _                 -> return []
+
+    ConsElem pos t1 t2 -> do
         basem <- baseTypeOf t2
         case basem of
             Just (T.Table [t]) -> unifyOne (Constraint pos t1 t)
             Just (T.Array n t) -> unifyOne (Constraint pos t1 t)
             _ -> return []
 
-    (ConsBase pos t1 t2) -> do
+    ConsBase pos t1 t2 -> do
         base1m <- baseTypeOf t1
         base2m <- baseTypeOf t2
         case (base1m, base2m) of
             (Just b1, Just b2) -> unifyOne $ Constraint pos b1 b2
             _                  -> return []
 
-    (Constraint pos t1 t2) -> case (t1, t2) of
+    Constraint pos t1 t2 -> case (t1, t2) of
         _ | t1 == t2                    -> return []
         (Type x, t)                     -> return [(x, t)]
         (t, Type x)                     -> return [(x, t)]
@@ -59,7 +65,7 @@ unifyOne constraint = withPos (textPos constraint) $ case constraint of
 
 unify2 :: BoM TypeMap m => [Constraint] -> m [(Int, Type)]
 unify2 constraints = do
-    liftIO $ putStrLn $ "unify2"
+    --liftIO $ putStrLn $ "unify2"
     subs <- unify constraints
     reduced <- reduceSubs subs
 
@@ -73,7 +79,7 @@ unify2 constraints = do
     where
         reduceSubs :: BoM TypeMap m => [(Int, Type)] -> m [(Int, Type)]
         reduceSubs subs = do
-            liftIO $ putStrLn $ "reduceSubs"
+            --liftIO $ putStrLn $ "reduceSubs"
             let subs' = Set.toList $ Set.fromList subs
             let subs'' = map (\(i, t) -> (i, apply subs' t)) subs'
             let subs''' = Set.toList $ Set.fromList subs''

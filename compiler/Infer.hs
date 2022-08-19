@@ -54,15 +54,14 @@ infer ast externs imports modName verbose = do
 
             let constraints = Set.toList $ Set.fromList (collected state)
 
-
-            liftIO $ putStrLn $ modName ++ " constraints:"
-            liftIO $ mapM_ (putStrLn . show) constraints
+            --liftIO $ putStrLn $ modName ++ " constraints:"
+            --liftIO $ mapM_ (putStrLn . show) constraints
 
 
             (subs, _) <- runBoMTExcept typeMap (unify2 constraints)
 
-            liftIO $ putStrLn $ modName ++ " substitutions:"
-            liftIO $ mapM_ (putStrLn . show) subs
+            --liftIO $ putStrLn $ modName ++ " substitutions:"
+            --liftIO $ mapM_ (putStrLn . show) subs
 
             -- if the infered ast is the same as the last iteration, finish
             let subbedAst = apply subs ast

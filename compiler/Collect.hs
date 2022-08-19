@@ -21,12 +21,14 @@ data Constraint
     = Constraint TextPos Type Type
     | ConsBase   TextPos Type Type -- both types must have same base
     | ConsElem   TextPos Type Type -- both types must have same base
+    | ConsMember TextPos Type Int Type 
     deriving (Show, Eq)
 
-getTuple :: Constraint -> (Int, Type, Type)
-getTuple (Constraint _ t1 t2) = (1, t1, t2)
-getTuple (ConsBase _ t1 t2)   = (2, t1, t2)
-getTuple (ConsElem _ t1 t2)   = (3, t1, t2)
+getTuple :: Constraint -> (Int, Int, Type, Type)
+getTuple (Constraint _ t1 t2)   = (1, 0, t1, t2)
+getTuple (ConsBase _ t1 t2)     = (2, 0, t1, t2)
+getTuple (ConsElem _ t1 t2)     = (3, 0, t1, t2)
+getTuple (ConsMember _ t1 i t2) = (3, i, t1, t2)
 
 instance Ord Constraint where
     compare c1 c2 = compare (getTuple c1) (getTuple c2)
@@ -89,6 +91,11 @@ collectPos t m = withPos t $ do
     r <- m
     modify $ \s -> s { curPos = old }
     return r
+
+
+collectMember :: BoM CollectState m => Type -> Int -> Type -> m () 
+collectMember t i agg =
+    modify $ \s -> s { collected = (ConsMember (curPos s) t i agg) : (collected s) }
 
 
 collect :: BoM CollectState m => Type -> Type -> m ()
@@ -235,8 +242,8 @@ collectStmt stmt = collectPos stmt $ case stmt of
         collectExpr expr
 
     Set _ index expr -> do
-        typm <- collectIndex index
-        when (isJust typm) $ collect (fromJust typm) (typeOf expr)
+        typ <- collectIndex index
+        collect typ (typeOf expr)
         collectExpr expr
 
     AppendStmt app -> void (collectAppend app)
@@ -272,11 +279,9 @@ collectStmt stmt = collectPos stmt $ case stmt of
         collectExpr expr
 
         when (isJust mpat) $ do
-            base <- baseTypeOf (typeOf expr)
-            case base of
-                T.Type x    -> collectPattern (fromJust mpat) =<< genType
-                T.Table [t] -> collectPattern (fromJust mpat) t
-                T.Array n t -> collectPattern (fromJust mpat) t
+            gt <- genType
+            collectElem gt (typeOf expr)
+            collectPattern (fromJust mpat) gt
 
         collectStmt blk
         
@@ -285,30 +290,29 @@ collectStmt stmt = collectPos stmt $ case stmt of
 
 
 -- return type of append result
-collectAppend :: BoM CollectState m => Append -> m (Maybe Type)
+collectAppend :: BoM CollectState m => Append -> m Type
 collectAppend append = collectPos append $ case append of
     AppendTable _ app expr -> do
-        tm <- collectAppend app
-        when (isJust tm) $ collect (fromJust tm) (typeOf expr)
+        t <- collectAppend app
+        collect t (typeOf expr)
         collectExpr expr
-        return tm
+        return t
 
     AppendIndex index -> collectIndex index
 
 
 -- returns type of resulting index
-collectIndex :: BoM CollectState m => Index -> m (Maybe Type)
+collectIndex :: BoM CollectState m => Index -> m Type
 collectIndex index = collectPos index $ case index of
     IndIdent _ symbol -> do
         ObjVar t <- look symbol KeyVar
-        return (Just t)
+        return t
 
     IndArray _ ind expr -> do
+        gt <- genType
+        collectElem gt =<< collectIndex ind
         collectExpr expr
-        t <- collectIndex ind
-        case t of
-            Just (T.Table [te]) -> return (Just te)
-            _                   -> return Nothing
+        return gt
 
     _ -> error (show index)
 
@@ -338,12 +342,6 @@ collectPattern pattern typ = collectPos pattern $ case pattern of
             _ -> forM_ pats $ \pat -> collectPattern pat =<< genType
 
     PatTypeField _ t pat -> do
-        base <- baseTypeOf typ
-        case base of
-            ADT tss -> do
-                assert (elem [t] tss) "ADT does not contain a member for type"
-            _ -> return ()
-
         collectPattern pat t
 
     PatTuple _ pats -> do
@@ -352,16 +350,10 @@ collectPattern pattern typ = collectPos pattern $ case pattern of
         collectBase typ (T.Tuple gts)
         zipWithM_ collectPattern pats gts
 
-
     PatArray _ pats -> do
-        base <- baseTypeOf typ
-        case base of
-            T.Array n t -> do
-                assert (n == length pats) "Invalid array pattern"
-                mapM_ (\p -> collectPattern p t) pats
-            _ -> do
-                t <- genType
-                mapM_ (\p -> collectPattern p t) pats
+        gt <- genType
+        mapM_ (\p -> collectPattern p gt) pats
+        collectElem gt typ
 
     PatAnnotated pat t -> do
         collect t typ
@@ -377,6 +369,7 @@ collectCondition :: BoM CollectState m => Condition -> m ()
 collectCondition cond = case cond of
     CondExpr expr -> do
         collectDefault (typeOf expr) T.Bool
+        collectBase (typeOf expr) T.Bool
         collectExpr expr
 
     CondMatch pat expr -> do
@@ -535,18 +528,13 @@ collectExpr (AExpr exprType expr) = collectPos expr $ case expr of
             Type x           -> return ()
             T.Typedef symbol -> do
                 ObjMember i  <- look (Sym sym) $ KeyMember (typeOf e)
-                ObjType base <- look symbol KeyType
-                case base of
-                    T.Tuple ts -> collect exprType (ts !! i)
+                collectMember exprType i (typeOf e)
 
         collectExpr e
 
     TupleIndex p e i -> do
+        collectMember exprType (fromIntegral i) (typeOf e)
         collectExpr e
-        base <- baseTypeOf (typeOf e)
-        case base of
-            T.Tuple ts -> collect exprType (ts !! fromIntegral i)
-            _          -> return ()
 
     Range p e me1 me2 -> do
         collect exprType (typeOf e)
