@@ -8,8 +8,8 @@ import qualified Data.Set as Set
 import Control.Monad
 import Control.Monad.State
 
-import Type as T
-import AST as S
+import Type
+import qualified AST as S
 import Collect hiding (baseTypeOf)
 import Monad
 import Error
@@ -22,53 +22,53 @@ type TypeMap = Map.Map Symbol Type
 
 baseTypeOf :: BoM TypeMap m => Type -> m (Maybe Type)
 baseTypeOf typ = case typ of
-    T.Typedef symbol -> gets $ Map.lookup symbol
-    T.Type x         -> return Nothing
-    t                -> return (Just t)
+    Typedef symbol -> baseTypeOf =<< gets (Map.! symbol)
+    Type x         -> return Nothing
+    t              -> return (Just t)
 
 
-unifyOne :: BoM TypeMap m => (TextPos, Constraint) -> m [(Int, Type)]
-unifyOne (pos, constraint) = withPos pos $ case constraint of
+unifyOne :: BoM TypeMap m => TextPos -> Constraint -> m [(Int, Type)]
+unifyOne pos constraint = withPos pos $ case constraint of
     ConsAdtMem t i j agg -> do
         basem <- baseTypeOf agg
         case basem of
-            Just (T.ADT tss) -> do
+            Just (ADT tss) -> do
                 assert (i < length tss)        "Invalid ADT member"
                 assert (j < length (tss !! i)) "Invalid ADT member"
-                unifyOne (pos, ConsEq t ((tss !! i) !! j))
+                unifyOne pos $ ConsEq t ((tss !! i) !! j)
             _ -> return []
         
     ConsMember t i agg -> do
         basem <- baseTypeOf agg
         case basem of
-            Just (T.Tuple ts) -> unifyOne (pos, ConsEq t $ ts !! i)
-            _                 -> return []
+            Just (Tuple ts) -> unifyOne pos (ConsEq t $ ts !! i)
+            _               -> return []
 
     ConsElem t1 t2 -> do
         basem <- baseTypeOf t2
         case basem of
-            Just (T.Table [t]) -> unifyOne (pos, ConsEq t1 t)
-            Just (T.Array n t) -> unifyOne (pos, ConsEq t1 t)
+            Just (Table [t]) -> unifyOne pos (ConsEq t1 t)
+            Just (Array n t) -> unifyOne pos (ConsEq t1 t)
             _ -> return []
 
     ConsBase t1 t2 -> do
         base1m <- baseTypeOf t1
         base2m <- baseTypeOf t2
         case (base1m, base2m) of
-            (Just b1, Just b2) -> unifyOne (pos, ConsEq b1 b2)
+            (Just b1, Just b2) -> unifyOne pos (ConsEq b1 b2)
             _                  -> return []
 
     ConsEq t1 t2 -> case (t1, t2) of
         _ | t1 == t2                    -> return []
         (Type x, t)                     -> return [(x, t)]
         (t, Type x)                     -> return [(x, t)]
-        (T.Table tsa, T.Table tsb)
+        (Table tsa, Table tsb)
             | length tsa /= length tsb  -> fail "length"
             | otherwise                 -> unify $ zipWith (\a b -> (pos, ConsEq a b)) tsa tsb
-        (T.Tuple tsa, T.Tuple tsb)
+        (Tuple tsa, Tuple tsb)
             | length tsa /= length tsb  -> fail "length"
             | otherwise                 -> unify $ zipWith (\a b -> (pos, ConsEq a b)) tsa tsb
-        (T.UnsafePtr ta, T.UnsafePtr tb)-> unifyOne (pos, ConsEq ta tb)
+        (UnsafePtr ta, UnsafePtr tb)    -> unifyOne pos (ConsEq ta tb)
         _                               -> fail $ "cannot unify " ++ show t1 ++ " with " ++ show t2
 
 
@@ -104,7 +104,7 @@ unify :: BoM TypeMap m => [(TextPos, Constraint)] -> m [(Int, Type)]
 unify []     = return []
 unify (x:xs) = do
     subs <- unify xs
-    s <- unifyOne (fst x, apply subs (snd x))
+    s <- unifyOne (fst x) $ apply subs (snd x)
     return (s ++ subs)
 
 
@@ -113,10 +113,10 @@ unifyOneDefault (pos, ConsEq t1 t2) = withPos pos $ case (t1, t2) of
     _ | t1 == t2                   -> return []
     (Type x, t)                    -> return [(x, t)]
     (t, Type x)                    -> return [(x, t)]
-    (T.Table tsa, T.Table tsb)
+    (Table tsa, Table tsb)
         | length tsa /= length tsb -> fail "length"
         | otherwise                -> unifyDefault $ zipWith (\a b -> (pos, ConsEq a b)) tsa tsb
-    (T.Tuple tsa, T.Tuple tsb)
+    (Tuple tsa, Tuple tsb)
         | length tsa /= length tsb -> fail "length"
         | otherwise                -> unifyDefault $ zipWith (\a b -> (pos, ConsEq a b)) tsa tsb
     (ta, tb) | ta /= tb            -> return [] -- ignore errors

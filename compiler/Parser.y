@@ -351,6 +351,7 @@ rowTypes_     : type_                         { [$1] }
 
 
 annoType : typeOrdinal                        { S.AnnoType $1 }
+         | symbol                             { S.AnnoType (T.Typedef $ snd $1) }
          | tupType                            { S.AnnoType $1 }
          | arrayType                          { S.AnnoType $1 }
          | annoTupType                        { $1 }

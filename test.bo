@@ -90,6 +90,11 @@ fn main()
 
     test([] == [])
 
+    type Type2 string
+    type Type1 Type2
+    let xt2 = "benis":Type2
+    test (xt2 == "benis")
+
     print("tests passed", passCount)
 
 
