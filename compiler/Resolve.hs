@@ -325,6 +325,7 @@ instance Resolve Type where
         Type.Tuple ts       -> Type.Tuple <$> mapM resolve ts
         Type.Array n t      -> Type.Array n <$> resolve t
         Type.Typedef symbol -> Type.Typedef <$> look symbol KeyType
+        Type.ADT tss        -> Type.ADT <$> mapM (mapM resolve) tss
 
         _ -> fail $ "resolve type: " ++ show typ
 

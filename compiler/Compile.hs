@@ -431,7 +431,7 @@ cmpExpr (S.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck exp
         case obj of
             ObjConstructor  -> valConstruct exprType vals
             ObjFunc op      -> Val exprType <$> call op [(o, []) | o <- map valOp vals]
-            ObjADTFieldCons -> adtConstructField symbol exprType vals
+            ObjMember i     -> adtConstructField symbol exprType vals
 
     S.Len pos expr -> valLoad =<< do
         assertBaseType isInt exprType
@@ -586,35 +586,51 @@ cmpPattern pattern val = trace "cmpPattern" $ withPos pattern $ case pattern of
 
     S.PatField _ symbol pats -> do
         base@(ADT tss) <- assertBaseType isADT (valType val)
-        ObjMember i <- look symbol (KeyMember $ valType val)
-        let ts = tss !! i
-        assert (length pats == length ts) "invalid ADT pattern"
-
-        case base of
-            _ | isEnumADT base -> do
-                assert (length pats == 0) "invalid ADT pattern"
-                valIntInfix S.EqEq (valI64 i) =<< adtEnum val
-
-            _ | isNormalADT base -> do
+        obj <- look symbol (KeyMember $ valType val)
+        case obj of
+            ObjAdtTypeMember i -> do
+                assert (length (tss !! i) == 1) "One pattern allowed for type field"
+                assert (length pats == 1)       "One pattern allowed for type field"
+                let t = tss !! i !! 0
                 enumMatch <- valIntInfix S.EqEq (valI64 i) =<< adtEnum val
-                -- can't be inside a block which may or may not happen
-                -- as cmpPattern may add variables to the symbol table
-                bs <- forM (zip pats [0..]) $ \(pat, j) -> 
-                    cmpPattern pat =<< adtDeref val i j
+                Ptr _ loc <- adtDeref val i 0
+                ObType t0 _ <- look symbol KeyType
+                b <- cmpPattern (head pats) $ Ptr t0 loc
+                valLoad =<< valsInfix S.AndAnd enumMatch b
 
-                valLoad =<< foldM (valsInfix S.AndAnd) enumMatch bs
+
+            ObjMember i -> do
+                let ts = tss !! i
+                assert (length pats == length ts) "invalid ADT pattern"
+
+                case base of
+                    _ | isEnumADT base -> do
+                        assert (length pats == 0) "invalid ADT pattern"
+                        valIntInfix S.EqEq (valI64 i) =<< adtEnum val
+
+                    _ | isNormalADT base -> do
+                        enumMatch <- valIntInfix S.EqEq (valI64 i) =<< adtEnum val
+                        -- can't be inside a block which may or may not happen
+                        -- as cmpPattern may add variables to the symbol table
+                        bs <- forM (zip pats [0..]) $ \(pat, j) -> 
+                            cmpPattern pat =<< adtDeref val i j
+
+                        valLoad =<< foldM (valsInfix S.AndAnd) enumMatch bs
 
 
     S.PatTypeField _ typ pat -> do
         base@(ADT tss) <- assertBaseType isADT (valType val)
-        assert (isTypedef $ valType val) "Need a defined ADT"
-        let Typedef symbol = valType val
-        ObjMember i <- look symbol $ KeyTypeField typ
-        assert (tss !! i == [typ]) "Invalid type field"
+        i <- case valType val of
+            Typedef symbol -> do
+                ObjMember i <- look symbol (KeyTypeField typ)
+                return i
+            _ -> do
+                let is = elemIndices [typ] tss
+                assert (length is == 1) "ADT does not contain unique type field"
+                return (head is)
 
         case base of
             _ | isNormalADT base -> do
                 enumMatch <- valIntInfix S.EqEq (valI64 i) =<< adtEnum val
                 b <- cmpPattern pat =<< adtDeref val i 0
                 valLoad =<< valsInfix S.AndAnd enumMatch b
-

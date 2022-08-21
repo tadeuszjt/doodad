@@ -318,10 +318,16 @@ collectPattern pattern typ = collectPos pattern $ case pattern of
         collectExpr expr
 
     S.PatField _ symbol pats -> do
-        ObjMember i <- look symbol KeyAdtField
-        gts <- replicateM (length pats) genType
-        zipWithM_ collectPattern pats gts
-        forM_ (zip gts [0..]) $ \(t, j) -> collectAdtMember t i j typ
+        resm <- lookm symbol KeyAdtField
+        case resm of
+            Just (ObjMember i) -> do
+                gts <- replicateM (length pats) genType
+                zipWithM_ collectPattern pats gts
+                forM_ (zip gts [0..]) $ \(t, j) -> collectAdtMember t i j typ
+            Nothing -> do
+                ObjType t <- look symbol KeyType
+                assert (length pats == 1) "One pattern needed for type field"
+                collectPattern (head pats) t
 
     S.PatTypeField _ t pat -> do
         collectPattern pat t

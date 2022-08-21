@@ -83,8 +83,11 @@ adtTypeDef symbol (S.AnnoADT xs) = trace "adtTypeDef" $ do
     -- define member loopkups
     forM_ (zip xs [0..]) $ \(x, i) -> case x of
         S.ADTFieldMember s ts -> do
+            define s (KeyFunc ts typdef) (ObjMember i)
             define s (KeyMember typdef) (ObjMember i)
-            define s (KeyFunc ts typdef) ObjADTFieldCons
+        S.ADTFieldType t@(Typedef s) -> do
+            define s (KeyMember typdef) (ObjAdtTypeMember i)
+            define symbol (KeyTypeField t) (ObjMember i)
         S.ADTFieldType t -> do
             define symbol (KeyTypeField t) (ObjMember i)
 

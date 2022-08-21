@@ -311,14 +311,24 @@ typeOrdinal   : bool                          { T.Bool }
 typeAggregate : '[' rowTypes_ ']'             { T.Table $2 }
               | arrayType                     { $1 }
               | tupType                       { $1 }
+              | adtType                       { $1 }
               | fn '(' argTypes ')' type_     { T.Func $3 $5 }
+
+
+adtType : '{' adtFields '}'               { T.ADT $2 }
+adtFields : {-empty-}                     { [] }
+          | adtFields_                    { $1 }
+adtFields_ : adtField                     { [$1] }
+           | adtField '|' adtFields_      { $1 : $3 }
+adtField : type_                          { [$1] }
+         | null                           { [T.Void] }
 
 
 tupType : '(' tupFields ')'               { T.Tuple $2 }
 tupFields : {-empty -}                    { [] }
           | tupFields_                    { $1 }
 tupFields_ : type_                        { [$1] }
-           | type_ ',' tupFields          { $1 : $3 }
+           | type_ ',' tupFields_         { $1 : $3 }
 
 
 arrayType : '[' intlit type_ ']'              { T.Array (read $ tokStr $2) $3 }
@@ -337,12 +347,15 @@ annoTupFields : annoTupField                  { [$1] }
               | annoTupField ',' annoTupFields { $1 : $3 }
 
 annoADTType : '{' annoADTFields '}'           { S.AnnoADT $2 }
+            | '{' 'I' annoADTFields 'D' '}'   { S.AnnoADT $3 }
             | '{' '}'                         { S.AnnoADT [] }
 annoADTField : ident '(' argTypes ')'         { S.ADTFieldMember (Sym (tokStr $1)) $3 }
              | type_                          { S.ADTFieldType $1 }
              | null                           { S.ADTFieldType T.Void }
 annoADTFields : annoADTField                  { [$1] }
+annoADTFields : annoADTField 'N'              { [$1] }
               | annoADTField '|' annoADTFields { $1 : $3 }
+              | annoADTField '|' 'N' annoADTFields { $1 : $4 }
 
 
 

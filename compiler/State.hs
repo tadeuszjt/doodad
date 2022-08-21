@@ -74,8 +74,8 @@ data Object
     = ObjVal          Value
     | ObType          Type   (Maybe LL.Name)
     | ObjFunc         LL.Operand
+    | ObjAdtTypeMember Int
     | ObjConstructor 
-    | ObjADTFieldCons
     | ObjMember       Int
     deriving ()
 
@@ -88,7 +88,6 @@ instance Show Object where
         ObType typ mn       -> show typ
         ObjFunc op          -> "fn"
         ObjConstructor      -> "(..)"
-        ObjADTFieldCons     -> "Field:"
         ObjMember i         -> "." ++ show i
 
 
