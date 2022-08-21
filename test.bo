@@ -88,6 +88,8 @@ fn main()
         test(true)
     else; test(false)
 
+    test([] == [])
+
     print("tests passed", passCount)
 
 

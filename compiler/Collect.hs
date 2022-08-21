@@ -489,6 +489,8 @@ collectExpr (AExpr exprType expr) = collectPos expr $ case expr of
         collectExpr e1
         collectExpr e2
 
+    S.Table p [[]] -> collectDefault exprType (T.Table [T.Tuple []])
+
     S.Table p [es] -> do
         mapM_ (\e -> collectElem e exprType) (map typeOf es)
         case es of
