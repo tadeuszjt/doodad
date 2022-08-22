@@ -32,10 +32,16 @@ unifyOne pos constraint = withPos pos $ case constraint of
     ConsAdtMem t i j agg -> do
         basem <- baseTypeOf agg
         case basem of
-            Just (ADT tss) -> do
-                assert (i < length tss)        "Invalid ADT member"
-                assert (j < length (tss !! i)) "Invalid ADT member"
-                unifyOne pos $ ConsEq t ((tss !! i) !! j)
+            Just (ADT fs) -> do
+                assert (i < length fs)        "Invalid ADT member"
+                case fs !! i of
+                    FieldNull -> fail "Invalid ADT member"
+                    FieldType ft -> do
+                        assert (j == 0) "Invalid ADT member"
+                        unifyOne pos $ ConsEq t ft
+                    FieldCtor ts -> do
+                        assert (j < length ts) "Invalid ADT member"
+                        unifyOne pos $ ConsEq t (ts !! j)
             _ -> return []
         
     ConsMember t i agg -> do

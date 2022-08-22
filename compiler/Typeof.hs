@@ -73,7 +73,7 @@ opTypeOf typ = trace ("opTypOf " ++ show typ) $ case typ of
         | isEmptyADT typ -> return $ LL.ptr LL.void
         | isNormalADT typ -> return $ LL.StructureType False [LL.i64, LL.ptr LL.i8]
         | isEnumADT typ -> return $ LL.i64
-        | isPtrADT typ -> let [[t]] = tss in fmap LL.ptr (opTypeOf t)
+        | isPtrADT typ -> error ""
 
     UnsafePtr t -> case t of
         Char -> LL.ptr <$> opTypeOf Char

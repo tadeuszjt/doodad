@@ -182,15 +182,17 @@ collectTypedef (S.Typedef pos symbol annoTyp) = collectPos pos $ case annoTyp of
 
     S.AnnoADT xs -> do
         let typedef = Typedef symbol
-        tss <- forM (zip xs [0..]) $ \(x, i) -> case x of
+        fs <- forM (zip xs [0..]) $ \(x, i) -> case x of
             S.ADTFieldMember s ts -> do
                 define s KeyAdtField (ObjMember i)
                 define s (KeyFunc ts typedef) ObjFunc
-                return ts
+                return (FieldCtor ts)
 
-            S.ADTFieldType t -> return [t]
+            S.ADTFieldType t -> return (FieldType t)
 
-        define symbol KeyType $ ObjType (ADT tss)
+            S.ADTFieldNull -> return FieldNull
+
+        define symbol KeyType $ ObjType (ADT fs)
 
 
 

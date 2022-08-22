@@ -131,6 +131,7 @@ data Stmt
 data AnnoADTField
     = ADTFieldMember Symbol [Type]
     | ADTFieldType   Type
+    | ADTFieldNull
     deriving (Eq)
 
 

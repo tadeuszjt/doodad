@@ -134,7 +134,7 @@ valZero typ = trace ("valZero " ++ show  typ) $ do
             zptrs <- map (C.IntToPtr zi64 . LL.ptr) <$> mapM opTypeOf ts
             return $ Val typ $ struct namem False (zi64:zi64:zptrs)
 
-        ADT tss | isNormalADT base -> do
+        ADT fs | isNormalADT base -> do
             im <- adtHasNull typ
             case im of
                 Just i -> do
@@ -144,8 +144,8 @@ valZero typ = trace ("valZero " ++ show  typ) $ do
                     return $ Val typ $ struct namem False [ii64, zptr]
 
                 Nothing -> do
-                    case head tss of
-                        [] -> do
+                    case head fs of
+                        FieldCtor [] -> do
                             let zi64 = toCons (int64 0)
                             let zptr = C.IntToPtr zi64 (LL.ptr LL.void)
                             return $ Val typ $ struct namem False [zi64, zptr]
@@ -213,7 +213,7 @@ valAdtEnumInfix operator a b = do
 valAdtNormalInfix :: InsCmp CompileState m => S.Op -> Value -> Value -> m Value
 valAdtNormalInfix operator a b = do
     assert (valType a == valType b) "type mismatch"
-    base@(ADT tss) <- assertBaseType isNormalADT (valType a)
+    base@(ADT fs) <- assertBaseType isNormalADT (valType a)
 
     case operator of
         S.NotEq -> valNot =<< valAdtNormalInfix S.EqEq a b
@@ -234,16 +234,23 @@ valAdtNormalInfix operator a b = do
             valStore match =<< valBool Bool True
 
             -- select block based on enum
-            caseNames <- replicateM (length tss) (freshName "case")
+            caseNames <- replicateM (length fs) (freshName "case")
             switch (valOp enA) exit $ zip (map (toCons . int64) [0..]) caseNames
 
             forM_ (zip caseNames [0..]) $ \(caseName, i) -> do
                 emitBlockStart caseName
 
-                bs <- forM (zip (tss !! i) [0..]) $ \(t, j) -> do
-                    valA <- adtDeref a i j
-                    valB <- adtDeref b i j
-                    valsInfix S.EqEq valA valB
+                bs <- case fs !! i of
+                    FieldNull -> fmap (\a -> [a]) $ valBool Bool True
+                    FieldType t -> do
+                        valA <- adtDeref a i 0
+                        valB <- adtDeref b i 0
+                        fmap (\a -> [a]) $ valsInfix S.EqEq valA valB
+                    FieldCtor ts -> do
+                        forM (zip ts [0..]) $ \(t, j) -> do
+                            valA <- adtDeref a i j
+                            valB <- adtDeref b i j
+                            valsInfix S.EqEq valA valB
 
                 true <- valBool Bool True
                 valStore match =<< foldM (valsInfix S.EqEq) true bs

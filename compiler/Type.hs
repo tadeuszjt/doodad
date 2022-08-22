@@ -3,6 +3,13 @@ module Type where
 import Data.List
 import Symbol
 
+
+data AdtField
+    = FieldNull
+    | FieldType Type
+    | FieldCtor [Type]
+    deriving (Eq, Ord)
+
 data Type
     = Type Int
     | Void
@@ -18,11 +25,17 @@ data Type
     | Array Int Type         
     | Table [Type]         
     | Func [Type] Type 
-    | ADT [[Type]]
+    | ADT [AdtField]
     | Typedef Symbol
     | UnsafePtr Type
     deriving (Eq, Ord)
 
+
+instance Show AdtField where
+    show adtField = case adtField of
+        FieldNull -> "null"
+        FieldCtor ts -> "(" ++ intercalate ", " (map show ts) ++ ")"
+        FieldType t -> show t
 
 instance Show Type where
     show t = case t of
@@ -74,11 +87,11 @@ isEmptyADT _        = False
 
 
 isPtrADT :: Type -> Bool
-isPtrADT (ADT [(x:xs)]) = True
-isPtrADT _              = False
+isPtrADT (ADT [x]) = True
+isPtrADT _         = False
 
 isEnumADT :: Type -> Bool
-isEnumADT (ADT tss) = length tss > 0 && all (==[]) tss
+isEnumADT (ADT tss) = length tss > 0 && all (== FieldCtor []) tss
 isEnumADT _         = False
 
 isNormalADT :: Type -> Bool

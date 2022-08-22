@@ -527,8 +527,8 @@ cmpPattern pattern val = trace "cmpPattern" $ withPos pattern $ case pattern of
     S.PatLiteral expr -> cmpInfix S.EqEq val =<< cmpExpr expr
 
     S.PatNull _ -> do
-        base@(ADT tss) <- assertBaseType isADT (valType val)
-        let is = elemIndices [Void] tss
+        base@(ADT fs) <- assertBaseType isADT (valType val)
+        let is = elemIndices FieldNull fs
         assert (length is == 1) "ADT type does not have unique null field"
         let [i] = is
         valIntInfix S.EqEq (valI64 i) =<< adtEnum val
@@ -585,13 +585,11 @@ cmpPattern pattern val = trace "cmpPattern" $ withPos pattern $ case pattern of
             _ -> fail "Invalid array pattern"
 
     S.PatField _ symbol pats -> do
-        base@(ADT tss) <- assertBaseType isADT (valType val)
+        base@(ADT fs) <- assertBaseType isADT (valType val)
         obj <- look symbol (KeyMember $ valType val)
         case obj of
             ObjAdtTypeMember i -> do
-                assert (length (tss !! i) == 1) "One pattern allowed for type field"
                 assert (length pats == 1)       "One pattern allowed for type field"
-                let t = tss !! i !! 0
                 enumMatch <- valIntInfix S.EqEq (valI64 i) =<< adtEnum val
                 Ptr _ loc <- adtDeref val i 0
                 ObType t0 _ <- look symbol KeyType
@@ -600,7 +598,7 @@ cmpPattern pattern val = trace "cmpPattern" $ withPos pattern $ case pattern of
 
 
             ObjMember i -> do
-                let ts = tss !! i
+                let FieldCtor ts = fs !! i
                 assert (length pats == length ts) "invalid ADT pattern"
 
                 case base of
@@ -619,13 +617,13 @@ cmpPattern pattern val = trace "cmpPattern" $ withPos pattern $ case pattern of
 
 
     S.PatTypeField _ typ pat -> do
-        base@(ADT tss) <- assertBaseType isADT (valType val)
+        base@(ADT fs) <- assertBaseType isADT (valType val)
         i <- case valType val of
             Typedef symbol -> do
                 ObjMember i <- look symbol (KeyTypeField typ)
                 return i
             _ -> do
-                let is = elemIndices [typ] tss
+                let is = elemIndices (FieldType typ) fs
                 assert (length is == 1) "ADT does not contain unique type field"
                 return (head is)
 

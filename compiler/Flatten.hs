@@ -51,7 +51,11 @@ checkTypeDefs typedefs = do
             T.Typedef symbol  -> checkCircles visited symbol
             T.Tuple ts        -> mapM_ (checkTypeCircles visited) ts
             T.Table ts        -> mapM_ (checkTypeCircles visited) ts
-            T.ADT tss         -> mapM_ (mapM_ (checkTypeCircles visited)) tss
+            T.ADT fs          -> do
+                forM_ fs $ \field -> case field of
+                    T.FieldNull -> return ()
+                    T.FieldType t -> checkTypeCircles visited t
+                    T.FieldCtor ts -> mapM_ (checkTypeCircles visited) ts
             T.Array n t       -> checkTypeCircles visited t
             T.Void            -> return ()
             t | T.isSimple t  -> return ()

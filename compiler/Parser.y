@@ -320,8 +320,8 @@ adtFields : {-empty-}                     { [] }
           | adtFields_                    { $1 }
 adtFields_ : adtField                     { [$1] }
            | adtField '|' adtFields_      { $1 : $3 }
-adtField : type_                          { [$1] }
-         | null                           { [T.Void] }
+adtField : type_                          { T.FieldType $1 }
+         | null                           { T.FieldNull }
 
 
 tupType : '(' tupFields ')'               { T.Tuple $2 }
@@ -351,7 +351,7 @@ annoADTType : '{' annoADTFields '}'           { S.AnnoADT $2 }
             | '{' '}'                         { S.AnnoADT [] }
 annoADTField : ident '(' argTypes ')'         { S.ADTFieldMember (Sym (tokStr $1)) $3 }
              | type_                          { S.ADTFieldType $1 }
-             | null                           { S.ADTFieldType T.Void }
+             | null                           { S.ADTFieldNull }
 annoADTFields : annoADTField                  { [$1] }
 annoADTFields : annoADTField 'N'              { [$1] }
               | annoADTField '|' annoADTFields { $1 : $3 }

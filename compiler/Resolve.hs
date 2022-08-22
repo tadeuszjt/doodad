@@ -179,6 +179,8 @@ instance Resolve Stmt where
 
                         ADTFieldType t -> ADTFieldType <$> resolve t
 
+                        ADTFieldNull -> return ADTFieldNull
+
                     return $ AnnoADT xs'
 
                 _ -> fail $ "invalid anno: " ++ show anno
@@ -317,6 +319,13 @@ instance Resolve Param where
         define sym KeyVar symbol
         return $ Param pos symbol typ'
 
+
+instance Resolve AdtField where
+    resolve adtField = case adtField of
+        FieldNull -> return FieldNull
+        FieldType t -> FieldType <$> resolve t
+        FieldCtor ts -> FieldCtor <$> mapM resolve ts
+
 instance Resolve Type where 
     resolve typ = case typ of
         Void                -> return typ
@@ -325,7 +334,7 @@ instance Resolve Type where
         Type.Tuple ts       -> Type.Tuple <$> mapM resolve ts
         Type.Array n t      -> Type.Array n <$> resolve t
         Type.Typedef symbol -> Type.Typedef <$> look symbol KeyType
-        Type.ADT tss        -> Type.ADT <$> mapM (mapM resolve) tss
+        Type.ADT fs         -> Type.ADT <$>  mapM resolve fs
 
         _ -> fail $ "resolve type: " ++ show typ
 

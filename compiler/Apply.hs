@@ -25,9 +25,15 @@ substitute u x typ = case typ of
     Array n t       -> Array n (substitute u x t)
     Void            -> typ
     Typedef symbol  -> typ
-    ADT tss         -> ADT $ map (map (substitute u x)) tss
+    ADT fs          -> ADT $ map subAdtField fs
     UnsafePtr t     -> UnsafePtr (substitute u x t)
     _               -> error (show typ)
+    where
+        subAdtField :: AdtField -> AdtField
+        subAdtField field = case field of
+            FieldNull -> FieldNull
+            FieldType t -> FieldType (substitute u x t)
+            FieldCtor ts -> FieldCtor $ map (substitute u x) ts
 
 
 -- Apply represents taking a list of substitutions and applying them to all types in an object.
