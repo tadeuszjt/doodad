@@ -6,7 +6,7 @@ let passCount = 0
 
 fn test(b bool)
     if b; passCount = passCount + 1
-    else; print("test failed")
+    else; print("TEST FAILED", passCount)
 
 fn main()
     test(1 + 1 == 2)
@@ -61,9 +61,6 @@ fn main()
 
     type AdtMixed { Member(bool) | i64 | MemberI64(i64) }
     let adtMixed = Member(true)
-    switch adtMixed
-        Member(b); print("member", b)
-        i64(n);    print("i64", n)
     test(adtMixed == Member(true))
     adtMixed = AdtMixed(3:i64)
     switch adtMixed
@@ -94,6 +91,17 @@ fn main()
     type Type1 Type2
     let xt2 = "benis":Type2
     test (xt2 == "benis")
+
+
+    type Type3 (bool, { i64 | null})
+    let t3x = 34
+    let t3 = (true, {t3x}):Type3
+    if t3 -> (true, i64(34))
+        test(true)
+    else; test(false)
+    if t3 -> (true, i64(33))
+        test(false)
+    else; test(true)
 
     print("tests passed", passCount)
 

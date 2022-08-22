@@ -172,6 +172,8 @@ instance Annotate Expr where
             me2' <- maybe (return Nothing) (fmap Just . annotate) me2
             return $ Range pos e' me1' me2'
 
+        AST.ADT pos e -> AST.ADT pos <$> annotate e
+
         _ -> error $ show expr
 
 

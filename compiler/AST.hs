@@ -108,6 +108,7 @@ data Expr
     | Infix      TextPos Op Expr Expr
     | Range      TextPos Expr (Maybe Expr) (Maybe Expr)
     | UnsafePtr  TextPos Expr
+    | ADT        TextPos Expr
     deriving (Eq)
 
 
@@ -195,6 +196,7 @@ instance TextPosition Expr where
         Infix      p _ _ _ -> p
         Range      p _ _ _ -> p
         UnsafePtr  p _ -> p
+        ADT        p _ -> p
 
 
 instance TextPosition Stmt where
@@ -312,6 +314,7 @@ instance Show Expr where
         Prefix pos op expr          -> show op ++ show expr
         Infix pos op expr1 expr2    -> show expr1 ++ " " ++ show op ++ " " ++ show expr2
         Range pos expr mexpr1 mexpr2 -> show expr ++ "[" ++ maybe "" show mexpr1 ++ ".." ++ maybe "" show mexpr2 ++ "]"
+        ADT pos expr                 -> brcStrs [show expr]
 
 
 -- every function must end on a newline and print pre before every line

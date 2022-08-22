@@ -402,6 +402,8 @@ instance Resolve Expr where
 
         Null pos -> return (Null pos)
 
+        AST.ADT pos expr -> AST.ADT pos <$> resolve expr
+
         --_ -> return expr
 
         _ -> fail $ "invalid expression: " ++ show expr

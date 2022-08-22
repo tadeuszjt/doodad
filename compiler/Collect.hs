@@ -555,4 +555,7 @@ collectExpr (S.AExpr exprType expr) = collectPos expr $ case expr of
 
     S.AExpr _ _ -> fail "what"
 
+    S.ADT p e -> do
+        collectExpr e
+
     _ -> error (show expr)

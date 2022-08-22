@@ -51,7 +51,7 @@ opTypeOf typ = trace ("opTypOf " ++ show typ) $ case typ of
     F64       -> return LL.double
     Char      -> return LL.i8
     Bool      -> return LL.i1
-    Tuple ts  -> LL.StructureType False <$> mapM opTypeOf ts
+    Tuple ts  -> LL.StructureType True <$> mapM opTypeOf ts
     Array n t -> LL.ArrayType (fromIntegral n) <$> opTypeOf t
 
     Table [Char] -> do

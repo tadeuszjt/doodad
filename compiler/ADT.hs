@@ -57,9 +57,16 @@ adtConstruct adtTyp loc@(Ptr _ _) = do
             ObjMember i <- look symbol (KeyTypeField $ valType loc)
             adt <- valLocal adtTyp
             adtSetEnum adt i
-            pi8 <- bitcast (valLoc loc) (LL.ptr LL.i8)
-            adtSetPi8 adt pi8
+            adtSetPi8 adt =<< bitcast (valLoc loc) (LL.ptr LL.i8)
             return adt
+        ADT fs -> do
+            let is = elemIndices (FieldType $ valType loc) fs
+            assert (length is == 1) "ADT doe not have unique type field"
+            adt <- valLocal adtTyp
+            adtSetEnum adt (head is)
+            adtSetPi8 adt =<< bitcast (valLoc loc) (LL.ptr LL.i8)
+            return adt
+
 
     
 

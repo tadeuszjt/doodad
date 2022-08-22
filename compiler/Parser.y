@@ -250,6 +250,7 @@ expr   : literal                              { $1 }
        | expr '[' expr ']'                    { S.Subscript (tokPos $2) $1 $3 }
        | expr ':' type_                       { S.AExpr $3 $1 }
        | expr '[' maybeExpr '..' maybeExpr ']' { S.Range (tokPos $2) $1 $3 $5 }
+       | '{' expr '}'                          { S.ADT (tokPos $1) $2 }
 
 
 maybeExpr : expr                              { Just $1 }

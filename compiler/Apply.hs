@@ -96,6 +96,7 @@ instance Apply S.Expr where
         S.TupleIndex pos e i       -> S.TupleIndex pos (apply subs e) i
         S.Range pos e me1 me2      -> S.Range pos (apply subs e) (fmap (apply subs) me1) (fmap (apply subs) me2)
         S.UnsafePtr p e            -> S.UnsafePtr p (apply subs e)
+        S.ADT p e                  -> S.ADT p (apply subs e)
         _                          -> error $ show expr
 
 instance Apply S.Condition where

@@ -508,7 +508,12 @@ cmpExpr (S.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck exp
                 Ptr _ loc -> return $ Val (UnsafePtr t) loc
                 Val _ _   -> fail $ "cannot take pointer of value"
             _ -> fail (show t)
-            
+
+    S.ADT pos expr -> do
+        val <- cmpExpr expr
+        mal <- valMalloc (valType val) (valI64 1)
+        valStore mal =<< valCopy val
+        adtConstruct exprType mal
 
 
     _ -> fail ("invalid expression: " ++ show expr)
