@@ -1,8 +1,8 @@
-# bolang
+# Doodad
 Imperative language compiler written in Haskell targeting LLVM
 
 # Introduction
-Bolang is an imperative programming language which focuses on clean data structure representation and 'data-oriented' language abstractions.
+Doodad is an imperative programming language which focuses on clean data structure representation and 'data-oriented' language abstractions.
 
 # Installation
 1.) Install ghc
@@ -22,10 +22,7 @@ Bolang is an imperative programming language which focuses on clean data structu
 
   
 # Running
-  Run unit tests:
-  
-    cabal test 
-  
+
   Run repl (unfinished):
   
     cabal run bolang
@@ -37,7 +34,7 @@ Bolang is an imperative programming language which focuses on clean data structu
   
   Print LLVM IR textual representation:
   
-    cabal run bolang -- -p std/vec2
+    cabal run bolang -- std/vec2 --print-llir
     
   General verbose debug:
   
@@ -114,7 +111,7 @@ Bolang is an imperative programming language which focuses on clean data structu
   
       fn +(a string, b string)
         let s = copy(a)
-        s <<- b
+        s <- b
         return s
 
 
