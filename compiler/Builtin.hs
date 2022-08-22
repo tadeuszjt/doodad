@@ -126,7 +126,7 @@ valZero typ = trace ("valZero " ++ show  typ) $ do
         Bool               -> valBool typ False
         Char               -> valChar typ '\0'
         Array n t          -> Val typ . array . replicate n . toCons . valOp <$> valZero t
-        Tuple ts           -> Val typ . struct namem True . map (toCons . valOp) <$> mapM valZero ts
+        Tuple ts           -> Val typ . struct namem False . map (toCons . valOp) <$> mapM valZero ts
         _ | isEnumADT base -> Val typ . valOp <$> valZero I64
 
         Table ts         -> do

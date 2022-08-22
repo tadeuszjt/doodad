@@ -170,8 +170,15 @@ collectAST ast = do
 
 collectTypedef :: BoM CollectState m => S.Stmt -> m ()
 collectTypedef (S.Typedef pos symbol annoTyp) = collectPos pos $ case annoTyp of
-    S.AnnoType t   ->
+    S.AnnoType (Tuple ts) -> do
+        let typedef = Typedef symbol
+        define symbol KeyType (ObjType $ Tuple ts)
+        define symbol (KeyFunc ts typedef) ObjFunc
+        
+    S.AnnoType t   -> do
+        let typedef = Typedef symbol
         define symbol KeyType (ObjType t)
+        define symbol (KeyFunc [t] typedef) ObjFunc
 
     S.AnnoTuple xs   -> do
         let typedef = Typedef symbol

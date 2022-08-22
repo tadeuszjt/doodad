@@ -46,6 +46,9 @@ infer ast externs imports modName verbose = do
             -- run collect to get collect state containing type constraints
             (_, state) <- withErrorPrefix "collect: " $
                 runBoMTExcept (initCollectState imports modName) (collectAST ast)
+
+--            liftIO $ putStrLn ""
+--            liftIO $ SymTab.prettySymTab (symTab state)
             
             -- turn type constraints into substitutions using unify
             let symTabs = (symTab state) : Map.elems (Collect.imports state)
