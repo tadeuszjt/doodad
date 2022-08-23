@@ -36,7 +36,7 @@ valConstruct typ [val']   = do
         _ | isADT base                      -> do
             mal <- valMalloc (valType val) (valI64 1)
             valStore mal =<< valCopy val
-            adtConstruct typ mal
+            adtConstructFromPtr typ mal
 
         _ -> do
             assert (typ  == valType val) "mismatched types"

@@ -92,10 +92,10 @@ checkAndNormalisePath path = do
             assert (all (== True) $ map isAlphaNum name) $ "Module name: " ++ name ++ " must be all alphanum"
 
 
-getBoFilesInDirectory :: BoM s m => FilePath -> m [FilePath]
-getBoFilesInDirectory dir = do
+getDoodadFilesInDirectory :: BoM s m => FilePath -> m [FilePath]
+getDoodadFilesInDirectory dir = do
     list <- liftIO (listDirectory dir)
-    return [ dir ++ "/" ++ f | f <- list, isSuffixOf ".bo" f ]
+    return [ dir ++ "/" ++ f | f <- list, isSuffixOf ".do" f ]
 
 
 getSpecificModuleFiles :: BoM s m => String -> [FilePath] -> m [FilePath]
@@ -141,7 +141,7 @@ runMod args pathsVisited modPath = do
             let modDirectory = takeDirectory path
 
             -- get files and create combined AST
-            files <- getSpecificModuleFiles modName =<< getBoFilesInDirectory modDirectory
+            files <- getSpecificModuleFiles modName =<< getDoodadFilesInDirectory modDirectory
             assert (not $ null files) ("no files for: " ++ path)
             forM_ files $ debug . ("using file: " ++) 
             combinedAST <- combineASTs =<< mapM parse files

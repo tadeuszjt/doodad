@@ -513,7 +513,7 @@ cmpExpr (S.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck exp
         val <- cmpExpr expr
         mal <- valMalloc (valType val) (valI64 1)
         valStore mal =<< valCopy val
-        adtConstruct exprType mal
+        adtConstructFromPtr exprType mal
 
 
     _ -> fail ("invalid expression: " ++ show expr)

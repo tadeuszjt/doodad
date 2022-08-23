@@ -12,7 +12,6 @@ import qualified Data.Map as Map
 data TextPos
     = TextPos
         { textFile :: FilePath
-        , textChar :: Int
         , textLine :: Int
         , textCol  :: Int
         }
@@ -34,7 +33,7 @@ class TextPosition a where
     textPos :: a -> TextPos
 
 instance Show TextPos where
-    show (TextPos f p l c) = f ++ ":" ++ show p ++ ":" ++ show l ++ ":" ++ show c
+    show (TextPos f l c) = f ++ ":" ++ show l ++ ":" ++ show c
 
 instance TextPosition TextPos where
     textPos = id
@@ -69,7 +68,7 @@ printError err = case err of
     where
         printMsg :: String -> TextPos -> String -> IO ()
         printMsg src pos str = do
-            let TextPos _ p l c = pos
+            let TextPos _ l c = pos
             putStrLn (show pos ++ " " ++ str)
             let srcLines = lines src
             unless (l < 3) $ putStrLn (srcLines !! (l-3))

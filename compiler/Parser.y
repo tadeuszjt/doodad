@@ -403,7 +403,7 @@ tokPos tok = tokPosn tok
 
 
 happyError :: [Token] -> P a
-happyError []    = return $ ParseFail (TextPos "" 0 0 0)
+happyError []    = return $ ParseFail (TextPos "" 0 0)
 happyError (x:_) = return $ ParseFail (tokPosn x)
 
 }

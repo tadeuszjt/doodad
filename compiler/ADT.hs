@@ -48,8 +48,8 @@ adtNull adtTyp = do
 -- construct ADT from a value.
 -- E.g. SomeAdt(4:i64), SomeAdt must have i64 field
 -- This function will use the location, must be allocated beforehand.
-adtConstruct :: InsCmp CompileState m => Type -> Value -> m Value
-adtConstruct adtTyp loc@(Ptr _ _) = do
+adtConstructFromPtr :: InsCmp CompileState m => Type -> Value -> m Value
+adtConstructFromPtr adtTyp loc@(Ptr _ _) = do
     base@(ADT tss) <- assertBaseType isADT adtTyp
 
     case adtTyp of
@@ -59,6 +59,7 @@ adtConstruct adtTyp loc@(Ptr _ _) = do
             adtSetEnum adt i
             adtSetPi8 adt =<< bitcast (valLoc loc) (LL.ptr LL.i8)
             return adt
+
         ADT fs -> do
             let is = elemIndices (FieldType $ valType loc) fs
             assert (length is == 1) "ADT doe not have unique type field"
@@ -67,8 +68,6 @@ adtConstruct adtTyp loc@(Ptr _ _) = do
             adtSetPi8 adt =<< bitcast (valLoc loc) (LL.ptr LL.i8)
             return adt
 
-
-    
 
 
 adtTypeDef :: InsCmp CompileState m => Symbol -> S.AnnoType -> m ()
@@ -222,73 +221,3 @@ adtConstructField symbol typ vals = trace ("adtConstructField " ++ show symbol) 
                     adtSetPi8 adt =<< bitcast (valLoc tup) (LL.ptr LL.i8)
 
             return adt
-
---        _ | isPtrADT adtTyp -> do
---            ObjMember i <- look symbol (KeyMember typ)
---            let ts = tss !! i
---            assert (length vals == 1) "Invalid ADT constructor arguments"
---            assert (length ts == 1) "Invalid ADT constructor args"
---            let t = head ts
---            let [val] = vals
---            checkTypesCompatible (valType val) t
---
---            adt <- valLocal typ
---            mal <- valMalloc t (valI64 1)
---            valStore mal val
---            adtSetPi8 adt =<< bitcast (valLoc mal) (LL.ptr LL.i8)
---            return adt
-
---adtNull :: InsCmp CompileState m => Type -> m Value
---adtNull typ = trace "adtNull" $ do
---    ADT tss <- assertBaseType isADT typ
---    assert (length is == 1) (show typ ++ " does not have a unique null constructor")
---
---    loc <- valLocal typ
---    when (length ts > 1) $ adtSetEnum loc (head is)
---    return loc
-
-
---
---        _ | isNormalADT adtTyp && length vals == 0 -> do
---            ObjMember i <- look symbol (KeyMember typ)
---            assert (ts !! i == Void) "Invalid ADT constructor."
---            adt <- valLocal typ
---            adtSetEnum adt i
---            return adt
---
---        _ | isNormalADT adtTyp && length vals > 1 -> do
---            ObjMember i <- look symbol (KeyMember typ)
---            Tuple tts <- assertBaseType isTuple (ts !! i)
---            mal <- valMalloc (ts !! i) (valI64 1)
---
---            assert (length vals == length tts) "Invalid ADT constructor"
---            zipWithM_ checkTypesCompatible (map valType vals) tts
---            zipWithM_ (tupleSet mal) [0..] vals
---
---            adt <- valLocal typ
---            adtSetEnum adt i
---            adtSetPi8 adt =<< bitcast (valLoc mal) (LL.ptr LL.i8)
---            return adt
---
---
---            
---adtConstruct :: InsCmp CompileState m => Type -> Value -> m Value
---adtConstruct typ val = trace "adtConstruct" $ do
---    adtTyp@(ADT ts) <- assertBaseType isADT typ
---    case adtTyp of
---        _ | isEmptyADT adtTyp -> fail "Cannot construct ADT type"
---
---        _ | isEnumADT adtTyp -> fail "here"
---
---        _ | isPtrADT adtTyp -> fail "here"
---
---        _ | isNormalADT adtTyp -> do
---            let idxs = elemIndices (valType val) ts
---            assert (length idxs == 1) "Ambiguous or invalid ADT type constructor"
---            let idx = head idxs
---            adt <- valLocal typ
---            adtSetEnum adt idx
---            mal <- valMalloc (valType val) (valI64 1)
---            valStore mal val
---            adtSetPi8 adt =<< bitcast (valLoc mal) (LL.ptr LL.i8)
---            return adt

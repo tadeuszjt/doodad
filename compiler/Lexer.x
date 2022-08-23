@@ -104,7 +104,7 @@ alexScanner filePath str = runAlex str loop
     where
         loop = do
             (AlexPn p l c, typ, str) <- alexMonadScan
-            let pos = TextPos filePath p l c
+            let pos = TextPos filePath l c
 
             case typ of
                 EOF     -> return []
