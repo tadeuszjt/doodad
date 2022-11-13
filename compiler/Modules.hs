@@ -95,7 +95,7 @@ checkAndNormalisePath path = do
 getDoodadFilesInDirectory :: BoM s m => FilePath -> m [FilePath]
 getDoodadFilesInDirectory dir = do
     list <- liftIO (listDirectory dir)
-    return [ dir ++ "/" ++ f | f <- list, isSuffixOf ".do" f ]
+    return [ dir ++ "/" ++ f | f <- list, isSuffixOf ".doo" f ]
 
 
 getSpecificModuleFiles :: BoM s m => String -> [FilePath] -> m [FilePath]
