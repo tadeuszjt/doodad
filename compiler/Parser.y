@@ -310,7 +310,7 @@ typeOrdinal   : bool                          { T.Bool }
               | f32                           { T.F32 }
               | f64                           { T.F64 }
               | char                          { T.Char }
-              | string                        { T.Table [T.Char] }
+              | string                        { T.String }
 
 typeAggregate : '[' rowTypes_ ']'             { T.Table $2 }
               | arrayType                     { $1 }

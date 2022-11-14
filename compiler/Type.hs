@@ -20,6 +20,7 @@ data Type
     | F64                    
     | Bool                   
     | Char                   
+    | String
     | KeyMap [Type]
     | Tuple [Type]           
     | Array Int Type         
@@ -49,10 +50,10 @@ instance Show Type where
         F64           -> "f64"
         Bool          -> "bool"
         Char          -> "char"
+        String        -> "string"
         KeyMap ts     -> "keymap" ++ "[" ++ intercalate "; " (map show ts) ++ "]"
         Tuple ts      -> "(" ++ intercalate ", " (map show ts) ++ ")"
         Array n t     -> "[" ++ show n ++ " " ++ show t ++ "]"
-        Table [Char]  -> "string"
         ADT tss       -> "{" ++ intercalate " | " (map show tss) ++ "}"
         Table ts      -> "[" ++ intercalate "; " (map show ts) ++ "]"
         Func ts rt    -> "fn(" ++ intercalate ", " (map show ts) ++ ")" ++ show rt
@@ -103,7 +104,7 @@ isTypeId _               = False
 
 isIntegral x             = isInt x || x == Char
 isBase x                 = isSimple x || isAggregate x
-isSimple x               = isInt x || isFloat x || x == Char || x == Bool
+isSimple x               = isInt x || isFloat x || x == Char || x == Bool || x == String
 isAggregate x            = isTuple x || isArray x || isTable x || isFunc x
 
 

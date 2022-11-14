@@ -82,6 +82,12 @@ memcpy dest src size = do
     call op [(dest, []), (src, []), (size, [])]
 
 
+strlen :: InsCmp CompileState m => Operand -> m Operand
+strlen str = do
+    op <- ensureExtern "strlen" [ptr i8] i64 False
+    call op [(str, [])]
+
+
 
 func :: Monad m => Name -> [(Type, ParameterName)] -> Type -> ([Operand] -> InstrCmpT s m ()) -> ModuleCmpT s m Operand
 func name argtys retty f = do

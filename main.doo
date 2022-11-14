@@ -14,6 +14,10 @@ import_c stdio.h
 data stuff i64
 
 
+fn printString(s string)
+    print(s)
+
+
 fn main()
         let va = Vec2(1.0, 3.0)
         let vb = Vec2(9, 7)
@@ -25,3 +29,7 @@ fn main()
         let (f, n) = (-123:f64, 123)
 
         print(30:c::size_t)
+
+        let s = "string"
+        printString(s)
+        for [i] s; print(s[i])

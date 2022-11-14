@@ -475,8 +475,8 @@ collectExpr (S.AExpr exprType expr) = collectPos expr $ case expr of
         collectDefault exprType Bool
 
     S.String p s     -> do
-        collectBase exprType (Table [Char])
-        collectDefault exprType (Table [Char])
+        collectBase exprType String
+        collectDefault exprType String
 
     S.UnsafePtr p e -> do
         collect $ ConsEq exprType (UnsafePtr (typeOf e))

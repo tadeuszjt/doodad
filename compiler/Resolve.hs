@@ -358,7 +358,7 @@ instance Resolve Expr where
         Float pos f -> return expr
         AST.Tuple pos exprs -> AST.Tuple pos <$> mapM resolve exprs
         AST.Table pos exprss -> AST.Table pos <$> mapM (mapM resolve) exprss
-        String pos s -> return expr
+        AST.String pos s -> return expr
 
         Call pos symbol exprs -> do
             exprs' <- mapM resolve exprs

@@ -47,6 +47,7 @@ isDataType typ = do
     case base of
         _ | isSimple base -> return False
         Void              -> return False
+        String            -> return False
         Tuple ts          -> any (== True) <$> mapM isDataType ts
         Array n t         -> isDataType t
         _                 -> return True
@@ -64,6 +65,7 @@ opTypeOf typ = trace ("opTypOf " ++ show typ) $ case typ of
     F64       -> return LL.double
     Char      -> return LL.i8
     Bool      -> return LL.i1
+    String    -> return $ LL.ptr LL.i8
     Tuple ts  -> LL.StructureType True <$> mapM opTypeOf ts
     Array n t -> LL.ArrayType (fromIntegral n) <$> opTypeOf t
 

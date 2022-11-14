@@ -160,6 +160,16 @@ valPtrIdx (Ptr typ loc) idx = trace ("valPtrIdx " ++ show typ) $ do
     Ptr typ <$> gep loc [op]
 
 
+valStringIdx :: InsCmp CompileState m => Value -> Value -> m Value
+valStringIdx str idx = do
+    assertBaseType (== String) (valType str)
+    assertBaseType isInt (valType idx)
+    loc <- valOp <$> valLoad str
+    op <- valOp <$> valLoad idx
+    pi8 <- gep loc [op]
+    Val Char <$> load pi8 0
+
+
 valMemCpy :: InsCmp CompileState m => Value -> Value -> Value -> m ()
 valMemCpy (Ptr dstTyp dst) (Ptr srcTyp src) len = trace "valMemCpy" $ do
     assert (dstTyp == srcTyp) "Types do not match"

@@ -28,7 +28,9 @@ valPrint append val = case valType val of
     t | isInt t   -> void . printf ("%ld" ++ append) . (:[]) . valOp =<< valLoad val
     t | isFloat t -> void . printf ("%f" ++ append) . (:[]) . valOp =<< valConvert F64 val
     Char          -> void . printf ("%c" ++ append) . (:[]) . valOp =<< valLoad val
-    Typedef s     -> valPrint append =<< valString (Table [Char]) val
+    Typedef s     -> do
+        base <- baseTypeOf (Typedef s)
+        valPrint append =<< valConvert base val
 
     Bool -> do
         op <- valOp <$> valLoad val
@@ -41,6 +43,10 @@ valPrint append val = case valType val of
             let app = if i < length ts - 1 then ", " else ""
             valPrint app =<< tupleIdx i val
         void $ printf (")" ++ append) []
+
+    String -> do
+        Val _ loc <- valLoad val
+        void $ printf ("%s" ++ append) [loc]
 
     Table [Char] -> do
         row <- tableRow 0 val

@@ -371,6 +371,7 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
         len <- case base of
             Table ts  -> tableLen val
             Array n t -> return $ valI64 n
+            String    -> valStringLen I64 val
         ilt <- valsInfix S.LT idx len
         condBr (valOp ilt) patm exit
 
@@ -438,12 +439,9 @@ cmpExpr (S.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck exp
 
             
     S.String pos s -> do
-        assertBaseType (== Table [Char]) exprType
+        assertBaseType (== String) exprType
         loc <- globalStringPtr s =<< myFreshPrivate "str"
-        let pi8 = C.BitCast loc (LL.ptr LL.i8)
-        let i64 = toCons $ int64 $ fromIntegral (length s)
-        let stc = struct (Just $ mkName "String") False [i64, i64, pi8]
-        return (Val exprType stc)
+        return (Val exprType $ cons loc)
 
     S.Call pos symbol exprs -> do
         vals <- mapM valLoad =<< mapM cmpExpr exprs
@@ -492,6 +490,7 @@ cmpExpr (S.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck exp
         case base of
             Table _   -> tableGetElem val idx
             Array _ _ -> arrayGetElem val idx
+            String    -> valStringIdx val idx 
 
     S.Table pos exprss -> valLoad =<< do
         base <- baseTypeOf exprType
@@ -540,9 +539,9 @@ cmpExpr (S.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck exp
     where
         withCheck :: InsCmp CompileState m => Type -> m Value -> m Value
         withCheck typ m = do
-            isDataType <- isDataType typ
-            assert (not isDataType) "Cannot use data type as expression"
             val <- m
+            isDataType <- isDataType (valType val)
+            assert (not isDataType) "Cannot use data type as expression"
             assert (valType val == typ) $ "Expression compiled to: " ++ show (valType val) ++ " instead of: " ++ show typ
             return val
             
