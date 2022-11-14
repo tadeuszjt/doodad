@@ -5,10 +5,6 @@ import maths
 
 type Vec2 (x f64, y f64)
 
-fn string(v Vec2)
-    return "Vec2(" + string(v.x) + ", " + string(v.y) + ")"
-    
-
 fn +(a Vec2, b Vec2); return Vec2(a.x + b.x, a.y + b.y)
 fn -(a Vec2, b Vec2); return (a.x - b.x, a.y - b.y):Vec2
 fn *(a Vec2, b Vec2) Vec2; return (a.x * b.x, a.y * b.y)

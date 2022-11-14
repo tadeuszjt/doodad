@@ -279,6 +279,9 @@ collectStmt stmt = collectPos stmt $ case stmt of
             collectPattern (fromJust mpat) gt
 
         collectStmt blk
+
+    S.Data p symbol typ -> do
+        define symbol KeyVar (ObjVar typ)
         
 
     _ -> error (show stmt)

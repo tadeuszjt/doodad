@@ -69,6 +69,7 @@ data FlattenState
         , funcDefs   :: [S.Stmt]
         , externDefs :: [S.Stmt]
         , typedefs   :: [S.Stmt]
+        , dataDefs   :: [S.Stmt]
         }
 
 
@@ -78,6 +79,7 @@ initFlattenState
         , funcDefs   = []
         , externDefs = []
         , typedefs   = []
+        , dataDefs   = []
         }
 
 
@@ -108,12 +110,13 @@ flattenAST ast = do
         funcDefs   = reverse (funcDefs s),
         externDefs = reverse (externDefs s),
         varDefs    = reverse (varDefs s),
-        typedefs   = reverse (typedefs s)
+        typedefs   = reverse (typedefs s),
+        dataDefs   = reverse (dataDefs s)
         }
 
     s <- get
 
-    return $ ast { S.astStmts = typedefs s ++ externDefs s ++ varDefs s ++ funcDefs s }
+    return $ ast { S.astStmts = typedefs s ++ externDefs s ++ dataDefs s ++ varDefs s ++ funcDefs s }
     where
         moduleName = maybe "main" id (S.astModuleName ast)
         
@@ -122,5 +125,6 @@ flattenAST ast = do
             S.FuncDef _ _ _ _ _        -> modify $ \s -> s { funcDefs   = stmt:(funcDefs s) }
             S.Assign _ _ _             -> modify $ \s -> s { varDefs    = stmt:(varDefs s) }
             S.Typedef pos sym annoType -> modify $ \s -> s { typedefs   = stmt:(typedefs s) }
+            S.Data pos symbol typ      -> modify $ \s -> s { dataDefs   = stmt:(dataDefs s) }
             _ -> fail "invalid top-level statement"
 

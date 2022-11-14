@@ -73,6 +73,9 @@ instance Annotate Stmt where
             mcnd' <- maybe (return Nothing) (fmap Just . annotate) mcnd
             return $ For p symbol (Just t) expr' mcnd' blk'
 
+        Data p symbol typ -> do
+            return $ Data p symbol typ
+
 
 
 instance Annotate Condition where

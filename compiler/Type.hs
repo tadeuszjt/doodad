@@ -3,7 +3,6 @@ module Type where
 import Data.List
 import Symbol
 
-
 data AdtField
     = FieldNull
     | FieldType Type
@@ -21,6 +20,7 @@ data Type
     | F64                    
     | Bool                   
     | Char                   
+    | KeyMap [Type]
     | Tuple [Type]           
     | Array Int Type         
     | Table [Type]         
@@ -49,6 +49,7 @@ instance Show Type where
         F64           -> "f64"
         Bool          -> "bool"
         Char          -> "char"
+        KeyMap ts     -> "keymap" ++ "[" ++ intercalate "; " (map show ts) ++ "]"
         Tuple ts      -> "(" ++ intercalate ", " (map show ts) ++ ")"
         Array n t     -> "[" ++ show n ++ " " ++ show t ++ "]"
         Table [Char]  -> "string"

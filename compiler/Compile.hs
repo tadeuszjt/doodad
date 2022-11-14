@@ -79,6 +79,7 @@ compile imports ast = do
             mainOp <- func (LL.mkName "main")  [] LL.VoidType $ \_ -> do
                 mapM_ cmpTypeDef   [ stmt | stmt@(S.Typedef _ _ _) <- S.astStmts ast ]
                 mapM_ cmpFuncHdr   [ stmt | stmt@(S.FuncDef _ _ _ _ _) <- S.astStmts ast ]
+                mapM_ cmpDataDef   [ stmt | stmt@(S.Data _ _ _) <- S.astStmts ast ]
                 mapM_ cmpVarDef    [ stmt | stmt@(S.Assign _ _ _) <- S.astStmts ast ]
                 mapM_ cmpFuncDef   [ stmt | stmt@(S.FuncDef _ _ _ _ _) <- S.astStmts ast ]
 
@@ -122,12 +123,21 @@ cmpTypeDef (S.Typedef pos symbol (S.AnnoType typ)) = withPos pos $ do
             define symbol KeyType (ObType t Nothing)
                     
 
+cmpDataDef :: InsCmp CompileState m => S.Stmt -> m ()
+cmpDataDef (S.Data pos symbol typ) = withPos pos $ do
+    return ()
+
+
 cmpVarDef :: InsCmp CompileState m => S.Stmt -> m ()
 cmpVarDef (S.Assign pos (S.PatIdent p symbol) expr) = withPos pos $ do
     val <- cmpExpr expr
     name <- myFresh (sym symbol)
 
     let typ = valType val
+    isDataType <- isDataType typ
+    assert (not isDataType) "Cannot use a data type for a variable"
+
+
     opTyp <- opTypeOf typ
 
     if isCons (valOp val)
@@ -148,6 +158,13 @@ cmpFuncHdr :: InsCmp CompileState m => S.Stmt -> m ()
 cmpFuncHdr (S.FuncDef pos "main" params retty blk) = trace "cmpFuncHdr" $ return ()
 cmpFuncHdr (S.FuncDef pos sym params retty blk)    = trace "cmpFuncHdr" $ withPos pos $ do
     let paramTypes = map S.paramType params
+
+    forM_ params $ \(S.Param pos name typ) -> withPos pos $ do
+        isDataType <- isDataType typ
+        assert (not isDataType) "Cannot use a data type for an argument"
+    isDataType <- isDataType retty
+    assert (not isDataType) "Cannot return a data type"
+
     name <- myFresh sym
     paramOpTypes <- mapM opTypeOf paramTypes
     returnOpType <- opTypeOf retty
@@ -282,7 +299,10 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
 
     S.Assign pos pat expr -> trace ("assign " ++ show pat) $ do
         label "assign"
-        matched <- valLoad =<< cmpPattern pat =<< cmpExpr expr
+        val <- cmpExpr expr
+        isDataType <- isDataType (valType val)
+        assert (not isDataType) "Cannot use a data type for a variable"
+        matched <- valLoad =<< cmpPattern pat val
         if_ (valOp matched) (return ()) (void trap) 
 
     S.Set pos ind expr -> do
@@ -329,7 +349,7 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
         val <- cmpExpr expr
         let cases' = [(fmap valOp (cmpPattern pat val), cmpStmt stmt) | (pat, stmt) <- cases]
         switch_ $ cases' ++ [(return (bit 1), void trap)]
-    
+
     S.For _ symbol (Just typ) expr mpat blk -> do
         label "for"
         idx <- valLocal typ
@@ -518,8 +538,10 @@ cmpExpr (S.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck exp
 
     _ -> fail ("invalid expression: " ++ show expr)
     where
-        withCheck :: InsCmp s m => Type -> m Value -> m Value
+        withCheck :: InsCmp CompileState m => Type -> m Value -> m Value
         withCheck typ m = do
+            isDataType <- isDataType typ
+            assert (not isDataType) "Cannot use data type as expression"
             val <- m
             assert (valType val == typ) $ "Expression compiled to: " ++ show (valType val) ++ " instead of: " ++ show typ
             return val

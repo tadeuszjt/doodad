@@ -10,48 +10,18 @@ import std/assert
 import_c stdlib.h
 import_c stdio.h
 
-fn main()
-        type Adt { I64(i64) | F64(f64) }
 
+data stuff i64
+
+
+fn main()
         let va = Vec2(1.0, 3.0)
         let vb = Vec2(9, 7)
         vb = (2, 1)
-        print("5:", length(va + vb))
 
-        let str = "do_stuff"
-        print("true:", strings::isPrefix("do", str))
-        print("false:", strings::isPrefix(" do", str))
-        print(len(str):i32)
-        
         let rect = Rect((0, 0), (3, 4))
         print(maths::sqrt(34), rect::area(rect))
 
         let (f, n) = (-123:f64, 123)
-        print("abs: ", n, maths::abs(f):f64, abs(n):i64)
-
-        let a = F64(64)
-        let F64(x) = a
-
-        switch a
-            I64(n); print(n)
-            F64(f); print(f)
-
-        putStrLn("toast")
-
-        print("max: ", 12.2, 12.4, max(12.2, 12.4))
-
-        print(strings::read("-453153"):(i64, i64), strings::read("   true 123"):(bool, i64))
 
         print(30:c::size_t)
-
-        let dropStr = "    benis"
-        print(dropStr, strings::dropSpace(dropStr), strings::dropSpace(""))
-
-        let someStr = "benisbongis\0"
-        let p = unsafe_ptr(someStr[0])
-        c::puts(p)
-
-        print("abc == abc", "abc" == "abc", "abc" == "abd", [("abc", "abd")] == [("abc", "abd")])
-
-        assert(false, "benis")
-

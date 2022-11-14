@@ -242,6 +242,12 @@ instance Resolve Stmt where
             popSymTab
             return $ For pos symbol Nothing expr' mpattern' blk'
 
+        Data pos (Sym sym) typ -> do
+            symbol <- genSymbol sym
+            define sym KeyVar symbol
+            typ' <- resolve typ
+            return $ Data pos symbol typ'
+
 --        _ -> return stmt
         _ -> fail $ show stmt
 
@@ -335,6 +341,7 @@ instance Resolve Type where
         Type.Array n t      -> Type.Array n <$> resolve t
         Type.Typedef symbol -> Type.Typedef <$> look symbol KeyType
         Type.ADT fs         -> Type.ADT <$>  mapM resolve fs
+        Type.KeyMap ts      -> Type.KeyMap <$> mapM resolve ts
 
         _ -> fail $ "resolve type: " ++ show typ
 

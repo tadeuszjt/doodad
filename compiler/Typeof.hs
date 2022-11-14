@@ -40,6 +40,19 @@ sizeOf typ = trace "sizeOf" $ do
     return $ Val I64 $ cons $ C.SExt (C.sizeof opType) (LL.IntegerType 64)
 
 
+
+isDataType :: InsCmp CompileState m => Type -> m Bool
+isDataType typ = do
+    base <- baseTypeOf typ
+    case base of
+        _ | isSimple base -> return False
+        Void              -> return False
+        Tuple ts          -> any (== True) <$> mapM isDataType ts
+        Array n t         -> isDataType t
+        _                 -> return True
+
+
+
 opTypeOf :: ModCmp CompileState m => Type -> m LL.Type
 opTypeOf typ = trace ("opTypOf " ++ show typ) $ case typ of
     Void      -> return LL.VoidType

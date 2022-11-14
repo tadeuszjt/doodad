@@ -154,6 +154,9 @@ instance Apply S.Stmt where
 
         S.For pos symbol (Just t) expr mpat blk ->
             S.For pos symbol (Just $ apply subs t) (apply subs expr) (fmap (apply subs) mpat) (apply subs blk)
+
+        S.Data pos symbol typ ->
+            S.Data pos symbol (apply subs typ)
             
 
 instance Apply S.AST where

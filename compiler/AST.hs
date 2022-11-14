@@ -126,6 +126,7 @@ data Stmt
     | AppendStmt  Append
     | Switch      TextPos Expr [(Pattern, Stmt)]
     | For         TextPos Symbol (Maybe Type) Expr (Maybe Pattern) Stmt
+    | Data        TextPos Symbol Type
     deriving (Eq, Show)
 
 
@@ -214,6 +215,7 @@ instance TextPosition Stmt where
         AppendStmt  a -> textPos a
         Switch      p _ _ -> p
         For         p _ _ _ _ _ -> p
+        Data        p _ _ -> p
 
 tupStrs, arrStrs, brcStrs :: [String] -> String
 tupStrs strs = "(" ++ intercalate ", " strs ++ ")"

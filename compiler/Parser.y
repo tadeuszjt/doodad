@@ -82,6 +82,7 @@ import Symbol
     unsafe_ptr { Token _ Reserved "unsafe_ptr" }
     zero       { Token _ Reserved "zero" }
     null       { Token _ Reserved "null" }
+    data       { Token _ Reserved "data" }
 
     import     { Token _ Import _ }
     import_c   { Token _ ImportC _ }
@@ -95,6 +96,7 @@ import Symbol
     bool       { Token _ Reserved "bool" }
     char       { Token _ Reserved "char" }
     string     { Token _ Reserved "string" }
+    keymap     { Token _ Reserved "keymap" }
 
     intlit     { Token _ Int _ }
     floatlit   { Token _ Float _ }
@@ -148,6 +150,7 @@ stmtS : let pattern '=' expr                  { S.Assign (tokPos $1) $2 $4 }
       | return                                { S.Return (tokPos $1) Nothing }
       | return expr                           { S.Return (tokPos $1) (Just $2) }
       | append_                               { S.AppendStmt $1 }
+      | data symbol type_                     { S.Data (tokPos $1) (snd $2) $3 }
 stmtB : If                                    { $1 }
       | fn fnName '(' params ')' block        { S.FuncDef (tokPos $1) ($2) $4 T.Void $6 }
       | fn fnName '(' params ')' type_ block  { S.FuncDef (tokPos $1) ($2) $4 $6 $7 }
@@ -314,6 +317,7 @@ typeAggregate : '[' rowTypes_ ']'             { T.Table $2 }
               | tupType                       { $1 }
               | adtType                       { $1 }
               | fn '(' argTypes ')' type_     { T.Func $3 $5 }
+              | keymap '[' rowTypes_ ']'      { T.KeyMap $3 }
 
 
 adtType : '{' adtFields '}'               { T.ADT $2 }
