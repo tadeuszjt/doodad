@@ -142,25 +142,24 @@ imports : {- empty -}                         { [] }
 symbol : ident                                { (tokPos $1, Sym (tokStr $1)) }
        | ident '::' ident                     { (tokPos $3, SymQualified (tokStr $1) (tokStr $3)) }
 
-objptr : {-empty-}                            { Nothing }
+mfnrec : {-empty-}                            { Nothing }
        | '(' param ')'                        { Just $2 }
 
-stmtS : let pattern '=' expr                  { S.Assign (tokPos $1) $2 $4 }  
-      | index '=' expr                        { S.Set (tokPos $2) $1 $3 }
-      | symbol '(' exprs ')'                  { S.CallStmt (tokPos $2) (snd $1) $3 }
-      | type symbol annoType                  { S.Typedef (fst $2) (snd $2) $3 }
-      | print '(' exprs ')'                   { S.Print (tokPos $1) $3 }
-      | return                                { S.Return (tokPos $1) Nothing }
-      | return expr                           { S.Return (tokPos $1) (Just $2) }
-      | append_                               { S.AppendStmt $1 }
-      | data symbol type_                     { S.Data (tokPos $1) (snd $2) $3 }
-stmtB : If                                    { $1 }
-      | fn objptr fnName '(' params ')' block        { S.FuncDef (tokPos $1) $2 ($3) $5 T.Void $7 }
-      | fn objptr fnName '(' params ')' type_ block  { S.FuncDef (tokPos $1) $2 ($3) $5 $7 $8 }
-      | while condition block                 { S.While (tokPos $1) $2 $3 }
-      | for '[' ident ']' expr block          { S.For (tokPos $1) (Sym $ tokStr $3) Nothing $5 Nothing $6 }
-      | for '[' ident ']' expr '->' pattern block { S.For (tokPos $1) (Sym $ tokStr $3) Nothing $5 (Just $7) $8 }
-      | Switch                                { $1 }
+stmtS : let pattern '=' expr                         { S.Assign (tokPos $1) $2 $4 }  
+      | index '=' expr                               { S.Set (tokPos $2) $1 $3 }
+      | symbol '(' exprs ')'                         { S.CallStmt (tokPos $2) (snd $1) $3 }
+      | type symbol annoType                         { S.Typedef (fst $2) (snd $2) $3 }
+      | print '(' exprs ')'                          { S.Print (tokPos $1) $3 }
+      | return mexpr                                 { S.Return (tokPos $1) $2 }
+      | append_                                      { S.AppendStmt $1 }
+      | data symbol type_                            { S.Data (tokPos $1) (snd $2) $3 }
+stmtB : If                                           { $1 }
+      | fn mfnrec fnName '(' params ')' type_ block  { S.FuncDef (tokPos $1) $2 ($3) $5 $7 $8 }
+      | fn mfnrec fnName '(' params ')' block        { S.FuncDef (tokPos $1) $2 ($3) $5 T.Void $7 }
+      | while condition block                        { S.While (tokPos $1) $2 $3 }
+      | for '[' ident ']' expr block                 { S.For (tokPos $1) (Sym $ tokStr $3) Nothing $5 Nothing $6 }
+      | for '[' ident ']' expr '->' pattern block    { S.For (tokPos $1) (Sym $ tokStr $3) Nothing $5 (Just $7) $8 }
+      | Switch                                       { $1 }
 
 pattern  : '_'                                { S.PatIgnore (tokPos $1) }
          | literal                            { S.PatLiteral $1 }
@@ -174,9 +173,9 @@ pattern  : '_'                                { S.PatIgnore (tokPos $1) }
          | pattern ':' type_                  { S.PatAnnotated $1 $3 }
 
 patterns  : {- empty -}                       { [] }
-          | patterns_                         { $1 }
-patterns_ : pattern                           { [$1] }
-          | pattern ',' patterns_             { $1 : $3 }
+          | patterns1                         { $1 }
+patterns1 : pattern                           { [$1] }
+          | pattern ',' patterns1             { $1 : $3 }
 
 index  : ident                                { S.IndIdent (tokPos $1) (Sym $ tokStr $1) }
        | index '[' expr ']'                   { S.IndArray (tokPos $2) $1 $3 }
@@ -212,9 +211,9 @@ condition : expr                              { S.CondExpr $1 }
 
 param   : ident type_                         { S.Param (tokPos $1) (Sym $ tokStr $1) $2 }
 params  : {- empty -}                         { [] }
-        | params_                             { $1 }
-params_ : param                               { [$1] }
-        | param ',' params_                   { $1 : $3 }
+        | params1                             { $1 }
+params1 : param                               { [$1] }
+        | param ',' params1                   { $1 : $3 }
 
 If    : if condition block else_              { S.If (tokPos $1) $2 $3 $4 }
       | if condition 'N' else_                { S.If (tokPos $1) $2 (S.Block []) $4 }
@@ -223,25 +222,34 @@ else_ : else block                            { Just $2 }
       | {-empty-}                             { Nothing }
 
 
-Switch : switch expr 'I' cases 'D'            { S.Switch (tokPos $1) $2 $4 }
+Switch : switch expr 'I' cases1 'D'           { S.Switch (tokPos $1) $2 $4 }
        | switch expr                          { S.Switch (tokPos $1) $2 [] }
-
-cases : case                                  { [$1] }
-      | case cases                            { $1 : $2 }
-
+cases1 : case                                 { [$1] }
+      | case cases1                           { $1 : $2 }
 case : pattern block                          { ($1, $2) }
 
 ---------------------------------------------------------------------------------------------------
 -- Expressions ------------------------------------------------------------------------------------
+
+exprs  : {- empty -}                          { [] }
+       | exprs1                               { $1 }
+exprs1 : expr                                 { [$1] }
+       | expr ',' exprs1                      { $1 : $3 }
+exprsN : expr 'N'                             { [$1] } 
+       | expr ',' 'N' exprsN                  { $1 : $4 }
+
+mexpr : {-empty-}                             { Nothing }
+      | expr                                  { Just $1 }
 
 expr   : literal                              { $1 }
        | infix                                { $1 }
        | prefix                               { $1 }
        | symbol                               { S.Ident (fst $1) (snd $1) }
        | '[' tableRows ']'                    { S.Table (tokPos $1) $2 }
+       | '[' ']'                              { S.Table (tokPos $1) [] }
        | '[' 'I' exprsN 'D' ']'               { S.Table (tokPos $1) [$3] }
        | '(' expr ')'                         { $2 }
-       | '(' expr ',' exprs ')'               { S.Tuple (tokPos $1) ($2:$4) }
+       | '(' expr ',' exprs1 ')'              { S.Tuple (tokPos $1) ($2:$4) }
        | symbol '(' exprs ')'                 { S.Call (tokPos $2) (snd $1) $3 }
        | len '(' expr ')'                     { S.Len (tokPos $1) $3 }
        | copy '(' expr ')'                    { S.Copy (tokPos $1) $3 }
@@ -249,18 +257,18 @@ expr   : literal                              { $1 }
        | unsafe_ptr '(' expr ')'              { S.UnsafePtr (tokPos $1) $3 }
        | typeOrdinal '(' exprs ')'            { S.Conv (tokPos $2) $1 $3 }
        | null                                 { S.Null (tokPos $1) }
---       | ':' typeAggregate '(' exprs ')'      { S.Conv (tokPos $3) $2 $4 }
+       | ':' typeAggregate '(' exprs ')'    { S.Conv (tokPos $3) $2 $4 }
        | expr '.' intlit                      { S.TupleIndex (tokPos $2) $1 (read $ tokStr $3) }
        | expr '.' ident                       { S.Member (tokPos $2) $1 (tokStr $3) }
        | expr '[' expr ']'                    { S.Subscript (tokPos $2) $1 $3 }
        | expr ':' type_                       { S.AExpr $3 $1 }
-       | expr '[' maybeExpr '..' maybeExpr ']' { S.Range (tokPos $2) $1 $3 $5 }
-       | '{' expr '}'                          { S.ADT (tokPos $1) $2 }
-       | expr '.' ident '(' exprs ')'          { S.CallMember (tokPos $4) $1 (Sym $ tokStr $3) $5 }
+       | expr '[' mexpr '..' mexpr ']'        { S.Range (tokPos $2) $1 $3 $5 }
+       | '{' expr '}'                         { S.ADT (tokPos $1) $2 }
+       | expr '.' ident '(' exprs ')'         { S.CallMember (tokPos $4) $1 (Sym $ tokStr $3) $5 }
 
+tableRows : exprs1                             { [$1] }
+          | exprs1 ';' tableRows               { $1 : $3 }
 
-maybeExpr : expr                              { Just $1 }
-          | {-empty-}                         { Nothing }
 
 literal : intlit                              { S.Int (tokPos $1) (read $ tokStr $1) }
         | floatlit                            { S.Float (tokPos $1) (read $ tokStr $1) }
@@ -283,16 +291,6 @@ infix : expr '+' expr                         { S.Infix (tokPos $2) S.Plus $1 $3
       | expr '||' expr                        { S.Infix (tokPos $2) S.OrOr $1 $3 }
       | expr '!=' expr                        { S.Infix (tokPos $2) S.NotEq $1 $3 }
 
-exprs  : {- empty -}                          { [] }
-       | exprs_                               { $1 }
-exprs_ : expr                                 { [$1] }
-       | expr ',' exprs_                      { $1 : $3 }
-
-exprsN : expr 'N'                             { [$1] } 
-       | expr ',' 'N' exprsN                  { $1 : $4 }
-
-tableRows : exprs                             { [$1] }
-          | exprs ';' tableRows               { $1 : $3 }
 
 prefix : '-' expr                             { S.Prefix (tokPos $1) S.Minus $2 }
        | '+' expr                             { S.Prefix (tokPos $1) S.Plus $2 }
@@ -306,6 +304,9 @@ type_         : symbol                        { T.Typedef (snd $1) }
               | typeOrdinal                   { $1 }
               | typeAggregate                 { $1 }
 
+mtype  : {-empty-}                            { Nothing }
+       | type_                                { Just $1 }
+
 typeOrdinal   : bool                          { T.Bool }
               | i16                           { T.I16 }
               | i32                           { T.I32 }
@@ -315,28 +316,28 @@ typeOrdinal   : bool                          { T.Bool }
               | char                          { T.Char }
               | string                        { T.String }
 
-typeAggregate : '[' rowTypes_ ']'             { T.Table $2 }
+typeAggregate : '[' rowTypes1 ']'             { T.Table $2 }
               | arrayType                     { $1 }
               | tupType                       { $1 }
               | adtType                       { $1 }
               | fn '(' argTypes ')' type_     { T.Func $3 $5 }
-              | keymap '[' rowTypes_ ']'      { T.KeyMap $3 }
+              | keymap '[' rowTypes1 ']'      { T.KeyMap $3 }
 
 
 adtType : '{' adtFields '}'               { T.ADT $2 }
 adtFields : {-empty-}                     { [] }
-          | adtFields_                    { $1 }
-adtFields_ : adtField                     { [$1] }
-           | adtField '|' adtFields_      { $1 : $3 }
+          | adtFields1                    { $1 }
+adtFields1 : adtField                     { [$1] }
+           | adtField '|' adtFields1      { $1 : $3 }
 adtField : type_                          { T.FieldType $1 }
          | null                           { T.FieldNull }
 
 
 tupType : '(' tupFields ')'               { T.Tuple $2 }
 tupFields : {-empty -}                    { [] }
-          | tupFields_                    { $1 }
-tupFields_ : type_                        { [$1] }
-           | type_ ',' tupFields_         { $1 : $3 }
+          | tupFields1                    { $1 }
+tupFields1 : type_                        { [$1] }
+           | type_ ',' tupFields1         { $1 : $3 }
 
 
 arrayType : '[' intlit type_ ']'              { T.Array (read $ tokStr $2) $3 }
@@ -344,9 +345,9 @@ arrayType : '[' intlit type_ ']'              { T.Array (read $ tokStr $2) $3 }
 
 
 argTypes  : {-empty -}                        { [] }
-          | argTypes_                         { $1 }
-argTypes_ : type_                             { [$1] }
-          | type_ ',' argTypes_               { $1:$3 }
+          | argTypes1                         { $1 }
+argTypes1 : type_                             { [$1] }
+          | type_ ',' argTypes1               { $1:$3 }
 
 
 annoTupType : '(' annoTupFields ')'           { S.AnnoTuple $2 }
@@ -367,8 +368,8 @@ annoADTFields : annoADTField 'N'              { [$1] }
 
 
 
-rowTypes_     : type_                         { [$1] }
-              | type_ ';' rowTypes_           { $1 : $3 }
+rowTypes1     : type_                         { [$1] }
+              | type_ ';' rowTypes1           { $1 : $3 }
 
 
 annoType : typeOrdinal                        { S.AnnoType $1 }
