@@ -22,6 +22,10 @@ fn (s string) printString() i64
     print(s)
     return len(s)
 
+
+fn func()
+    print("func")
+
 fn main()
         let va = Vec2(1.0, 3.0)
         let vb = Vec2(9, 7)
@@ -33,8 +37,10 @@ fn main()
         let (f, n) = (-123:f64, 123)
 
         print("n before addOne():", n)
-        let z = n.addOne()
+        n->addOne()
         print("n after addOne(): ", n)
+
+        func()
 
         print(30:c::size_t)
 

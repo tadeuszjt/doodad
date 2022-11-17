@@ -136,14 +136,14 @@ instance Apply S.Index where
 
 instance Apply S.Stmt where
     apply subs stmt = case stmt of
-        S.Block stmts             -> S.Block $ map (apply subs) stmts
-        S.Return pos mexpr        -> S.Return pos $ fmap (apply subs) mexpr
-        S.Assign pos pat expr     -> S.Assign pos (apply subs pat) (apply subs expr)
-        S.AppendStmt app          -> S.AppendStmt (apply subs app)
-        S.Set pos index e         -> S.Set pos (apply subs index) (apply subs e)
-        S.While pos cnd blk       -> S.While pos (apply subs cnd) (apply subs blk)
-        S.CallStmt pos sym es     -> S.CallStmt pos sym $ map (apply subs) es
-        S.Print pos es            -> S.Print pos $ map (apply subs) es
+        S.Block stmts           -> S.Block $ map (apply subs) stmts
+        S.Return pos mexpr      -> S.Return pos $ fmap (apply subs) mexpr
+        S.Assign pos pat expr   -> S.Assign pos (apply subs pat) (apply subs expr)
+        S.AppendStmt app        -> S.AppendStmt (apply subs app)
+        S.Set pos index e       -> S.Set pos (apply subs index) (apply subs e)
+        S.While pos cnd blk     -> S.While pos (apply subs cnd) (apply subs blk)
+        S.ExprStmt pos e        -> S.ExprStmt pos (apply subs e)
+        S.Print pos es          -> S.Print pos $ map (apply subs) es
 
         S.FuncDef pos mparam sym params retty block ->
             S.FuncDef pos (fmap (apply subs) mparam) sym (map (apply subs) params) (apply subs retty) (apply subs block)
@@ -162,8 +162,6 @@ instance Apply S.Stmt where
         S.Data pos symbol typ ->
             S.Data pos symbol (apply subs typ)
             
-        S.CallMemberStmt pos e sym es ->
-            S.CallMemberStmt pos (apply subs e) sym $ map (apply subs) es
 
 instance Apply S.AST where
     apply subs ast = ast { S.astStmts = map (apply subs) (S.astStmts ast) }

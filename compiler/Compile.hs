@@ -311,6 +311,7 @@ cmpAppend append = withPos append $ case append of
         tableAppend loc =<< cmpExpr expr
         return loc
 
+
 cmpStmt :: InsCmp CompileState m => S.Stmt -> m ()
 cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
     S.Print pos exprs   -> do
@@ -322,23 +323,7 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
         label "append"
         void $ cmpAppend append
 
---    S.CallMemberStmt pos expr symbol exprs -> do
---        label "call member"
---        val <- cmpExpr exprs
---        vals <- mapM cmpExpr exprs
-
-
-    S.CallStmt pos symbol exprs -> do
-        label "call"
-        vals <- mapM cmpExpr exprs
-
-        kos <- lookSym symbol
-        case funcKeyMatch (map valType vals) (map fst kos) of
-            [] -> fail $ "no matching function"
-            [KeyFunc ts rt] -> do
-                ObjFnOp op <- look symbol $ KeyFunc ts rt
-                vals' <- mapM valLoad vals
-                void $ call op [(o, []) | o <- map valOp vals']
+    S.ExprStmt pos expr       -> void $ cmpExpr expr
 
     S.Assign pos pat expr -> trace ("assign " ++ show pat) $ do
         label "assign"
@@ -446,7 +431,6 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
             br name
             emitBlockStart name
 
-
 -- must return Val unless local variable
 cmpExpr :: InsCmp CompileState m =>  S.Expr -> m Value
 cmpExpr (S.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck exprType $ case expr of
@@ -479,22 +463,13 @@ cmpExpr (S.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck exp
         case obj of
             ObjVal (ConstInt n) -> valInt I64 n
             ObjVal loc -> return loc
-
             
     S.String pos s -> do
         assertBaseType (== String) exprType
         loc <- globalStringPtr s =<< myFreshPrivate "str"
         return (Val exprType $ cons loc)
 
-    S.Call pos symbol exprs -> do
-        vals <- mapM valLoad =<< mapM cmpExpr exprs
-        obj <- look symbol $ KeyFunc (map valType vals) exprType
-        case obj of
-            ObjConstructor  -> valConstruct exprType vals
-            ObjFnOp op      -> Val exprType <$> call op [(o, []) | o <- map valOp vals]
-            ObjField i     -> adtConstructField symbol exprType vals
-    
-    S.CallMember pos expr symbol exprs -> do
+    S.CallMember pos expr symbol exprs  -> do
         val <- cmpExpr expr
         -- TODO possible to cause incorrect logic?
         loc <- case val of
@@ -508,6 +483,14 @@ cmpExpr (S.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck exp
         case obj of
             ObjFnOp op -> Val exprType <$> call op [(o, []) | o <- loc : map valOp vals]
 
+    S.Call pos symbol exprs -> do
+        vals <- mapM valLoad =<< mapM cmpExpr exprs
+        obj <- look symbol $ KeyFunc (map valType vals) exprType
+        case obj of
+            ObjConstructor  -> valConstruct exprType vals
+            ObjFnOp op      -> Val exprType <$> call op [(o, []) | o <- map valOp vals]
+            ObjField i     -> adtConstructField symbol exprType vals
+    
     S.Len pos expr -> valLoad =<< do
         assertBaseType isInt exprType
         val <- cmpExpr expr

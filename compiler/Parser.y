@@ -147,8 +147,8 @@ mfnrec : {-empty-}                            { Nothing }
 
 stmtS : let pattern '=' expr                         { S.Assign (tokPos $1) $2 $4 }  
       | index '=' expr                               { S.Set (tokPos $2) $1 $3 }
-      | symbol '(' exprs ')'                         { S.CallStmt (tokPos $2) (snd $1) $3 }
-      | symbol '->' ident '(' exprs ')'               { S.CallMemberStmt (tokPos $4) (S.Ident (fst $1) (snd $1)) (Sym $ tokStr $ $3) $5 }
+      | call                                         { S.ExprStmt (snd $1) (fst $1) }
+      | symbol '->' ident '(' exprs ')'              { S.ExprStmt (tokPos $2) (S.CallMember (tokPos $4) (S.Ident (fst $1) (snd $1)) (Sym $ tokStr $3) $5) }
       | type symbol annoType                         { S.Typedef (fst $2) (snd $2) $3 }
       | print '(' exprs ')'                          { S.Print (tokPos $1) $3 }
       | return mexpr                                 { S.Return (tokPos $1) $2 }
@@ -242,16 +242,18 @@ exprsN : expr 'N'                             { [$1] }
 mexpr : {-empty-}                             { Nothing }
       | expr                                  { Just $1 }
 
+call : symbol '(' exprs ')'                   { (S.Call (tokPos $2) (snd $1) $3, tokPos $2) }
+
 expr   : literal                              { $1 }
        | infix                                { $1 }
        | prefix                               { $1 }
+       | call                                 { (fst $1) }
        | symbol                               { S.Ident (fst $1) (snd $1) }
        | '[' tableRows ']'                    { S.Table (tokPos $1) $2 }
        | '[' ']'                              { S.Table (tokPos $1) [] }
        | '[' 'I' exprsN 'D' ']'               { S.Table (tokPos $1) [$3] }
        | '(' expr ')'                         { $2 }
        | '(' expr ',' exprs1 ')'              { S.Tuple (tokPos $1) ($2:$4) }
-       | symbol '(' exprs ')'                 { S.Call (tokPos $2) (snd $1) $3 }
        | len '(' expr ')'                     { S.Len (tokPos $1) $3 }
        | copy '(' expr ')'                    { S.Copy (tokPos $1) $3 }
        | zero '(' ')'                         { S.Zero (tokPos $1) }

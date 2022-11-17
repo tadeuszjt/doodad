@@ -134,6 +134,7 @@ instance Resolve Stmt where
 
             return $ FuncDef pos mparam' sym params' retty' blk'
 
+        ExprStmt pos callExpr -> ExprStmt pos <$> resolve callExpr
 
         Block stmts -> do
             pushSymTab
@@ -215,17 +216,6 @@ instance Resolve Stmt where
                 return (pat', stmt')
             return $ Switch pos expr' cases'
         
-        CallStmt pos symbol exprs -> do
-            exprs' <- mapM resolve exprs
-            symbolm <- lookm symbol KeyFunc
-            case symbolm of
-                Just symbol' -> return $ CallStmt pos symbol' exprs'
-                Nothing -> do
-                    symbolmm <- lookm symbol KeyType
-                    case symbolmm of
-                        Nothing ->      fail $ show symbol ++ " isn't defined"
-                        Just symbol' -> return $ CallStmt pos symbol' exprs'
-
         For pos (Sym sym) Nothing expr mpattern blk -> do
             pushSymTab
             symbol <- genSymbol sym
@@ -241,11 +231,6 @@ instance Resolve Stmt where
             define sym KeyVar symbol
             typ' <- resolve typ
             return $ Data pos symbol typ'
-
-        CallMemberStmt pos expr ident exprs -> do
-            expr' <- resolve expr
-            exprs' <- mapM resolve exprs
-            return $ CallMemberStmt pos expr' ident exprs'
 
 --        _ -> return stmt
         _ -> fail $ show stmt

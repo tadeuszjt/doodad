@@ -117,8 +117,7 @@ data Stmt
     = Assign      TextPos Pattern Expr
     | Set         TextPos Index   Expr
     | Print       TextPos [Expr]
-    | CallStmt    TextPos Symbol [Expr]
-    | CallMemberStmt TextPos Expr Symbol [Expr]
+    | ExprStmt    TextPos Expr
     | Return      TextPos (Maybe Expr)
     | Block       [Stmt]
     | If          TextPos Condition Stmt (Maybe Stmt)
@@ -208,8 +207,7 @@ instance TextPosition Stmt where
         Assign      p _ _ -> p
         Set         p _ _ -> p
         Print       p _ -> p
-        CallStmt    p _ _ -> p
-        CallMemberStmt p _ _ _ -> p
+        ExprStmt    p _ -> p
         Return      p _ -> p
         Block       s -> textPos (head s)
         If          p _ _ _ -> p
@@ -362,7 +360,7 @@ prettyAST ast = do
                 putStrLn $ pre ++ "else"
                 maybe (return ()) (prettyStmt (pre ++ "\t")) mfalse
 
-            CallStmt pos symbol exprs -> putStrLn $ pre ++ show symbol ++ tupStrs (map show exprs)
+            ExprStmt pos callExpr -> putStrLn $ pre ++ show callExpr
                     
 
             Block stmts -> do

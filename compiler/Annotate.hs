@@ -37,7 +37,7 @@ instance Annotate Stmt where
         AppendStmt a        -> AppendStmt <$> annotate a
         Print p es          -> Print p <$> mapM annotate es
         Typedef p s a       -> return $ Typedef p s a
-        CallStmt p s es     -> CallStmt p s <$> mapM annotate es
+        ExprStmt p e        -> ExprStmt p <$> annotate e
 
         Assign p pat e      -> do
             pat' <- annotate pat
@@ -74,13 +74,7 @@ instance Annotate Stmt where
             mcnd' <- maybe (return Nothing) (fmap Just . annotate) mcnd
             return $ For p symbol (Just t) expr' mcnd' blk'
 
-        Data p symbol typ -> do
-            return $ Data p symbol typ
-
-        CallMemberStmt pos e ident es -> do
-            e' <- annotate e
-            es' <- mapM annotate es
-            return $ CallMemberStmt pos e' ident es'
+        Data p symbol typ -> do return $ Data p symbol typ
 
 
 

@@ -216,7 +216,8 @@ collectStmt stmt = collectPos stmt $ case stmt of
     S.Print p exprs -> mapM_ collectExpr exprs
     S.Typedef _ _ _ -> return ()
     S.Block stmts -> mapM_ collectStmt stmts
-    S.CallMemberStmt _ _ _ _ -> collectCallMemberStmt stmt
+    S.AppendStmt app -> void (collectAppend app)
+    S.ExprStmt p e -> collectExpr e
 
     S.FuncDef _ mparam sym params retty blk -> do
         oldRetty <- gets curRetty
@@ -253,26 +254,10 @@ collectStmt stmt = collectPos stmt $ case stmt of
         collectEq typ (typeOf expr)
         collectExpr expr
 
-    S.AppendStmt app -> void (collectAppend app)
 
     S.While _ cond blk -> do
         collectCondition cond
         collectStmt blk
-
-    S.CallStmt p symbol es -> do
-        kos <- lookSym symbol
-        case kos of
-            -- no definitions 
-            [] -> fail $ show symbol ++ " undefined"
-            -- one definition
-            [(KeyFunc ts rt, ObjFunc)] -> do
-                assert (length ts == length es) "Invalid arguments"
-                zipWithM_ collectEq ts (map typeOf es)
-
-            -- do nothing
-            _ -> return ()
-
-        mapM_ collectExpr es
 
     S.Switch p expr cases -> do
         collectExpr expr
@@ -388,9 +373,9 @@ collectCondition cond = case cond of
         collectExpr expr
         
 
-collectCallMemberExpr :: BoM CollectState m => S.Expr -> m ()
-collectCallMemberExpr (S.AExpr exprType (S.CallMember p e ident es)) = do
-    kos <- lookSym ident
+collectCallMember :: BoM CollectState m => Type -> S.Expr -> Symbol -> [S.Expr] -> m ()
+collectCallMember exprType e symbol es = do
+    kos <- lookSym symbol
     let ks = [ k | (k@(KeyMember _ _ _), ObjFunc) <- kos ]
 
     let ksSameRetty   = [ k | k@(KeyMember _ _ rt) <- ks, rt == exprType ]
@@ -418,36 +403,8 @@ collectCallMemberExpr (S.AExpr exprType (S.CallMember p e ident es)) = do
             ks2 -> intersect ks ks2
 
 
-collectCallMemberStmt :: BoM CollectState m => S.Stmt -> m ()
-collectCallMemberStmt (S.CallMemberStmt p e ident es) = do
-    kos <- lookSym ident
-    let ks = [ k | (k@(KeyMember _ _ _), ObjFunc) <- kos ]
-
-    let ksSameArgs    = [ k | k@(KeyMember _ as _) <- ks, as == map typeOf es ]
-    let ksSameArgsLen = [ k | k@(KeyMember _ as _) <- ks, length as == length es ]
-    let ksSameRecType = [ k | k@(KeyMember t _ _) <- ks, t == typeOf e ]
-
-    collectIfOneDef $ intersectMatches [ks, ksSameArgs, ksSameArgsLen, ksSameRecType]
-    
-    collectExpr e
-    mapM_ collectExpr es
-    where
-        collectIfOneDef :: BoM CollectState m => [SymKey] -> m ()
-        collectIfOneDef [KeyMember t as rt] = do
-            assert (length as == length es) "Invalid number of arguments"
-            collectEq t (typeOf e)
-            zipWithM_ collectEq as (map typeOf es)
-        collectIfOneDef _ = return ()
-
-        intersectMatches :: [[SymKey]] -> [SymKey]
-        intersectMatches []       = []
-        intersectMatches (ks:kss) = case intersectMatches kss of
-            []  -> ks
-            ks2 -> intersect ks ks2
-
-
-collectCallExpr :: BoM CollectState m => S.Expr -> m ()
-collectCallExpr (S.AExpr exprType (S.Call p symbol es)) = do
+collectCall :: BoM CollectState m => Type -> Symbol -> [S.Expr] -> m ()
+collectCall exprType symbol es = do
     kos <- lookSym symbol
     let ks = [ k | (k@(KeyFunc _ _), ObjFunc) <- kos ]
 
@@ -475,8 +432,8 @@ collectCallExpr (S.AExpr exprType (S.Call p symbol es)) = do
 
 collectExpr :: BoM CollectState m => S.Expr -> m ()
 collectExpr (S.AExpr exprType expr) = collectPos expr $ case expr of
-    S.Call _ _ _         -> collectCallExpr (S.AExpr exprType expr)
-    S.CallMember _ _ _ _ -> collectCallMemberExpr (S.AExpr exprType expr)
+    S.Call _ s es        -> collectCall exprType s es
+    S.CallMember _ e s es -> collectCallMember exprType e s es
     S.Conv _ t [e]       -> collectEq exprType t >> collectExpr e
     S.Prefix _ op e      -> collectEq exprType (typeOf e) >> collectExpr e
     S.Copy _ e           -> collectEq exprType (typeOf e) >> collectExpr e
