@@ -58,25 +58,27 @@ data SymKey
     = KeyType
     | KeyVar
     | KeyFunc [Type] Type
-    | KeyMember Type
+    | KeyMember Type [Type] Type
+    | KeyField Type
     | KeyTypeField Type
     deriving (Eq, Ord)
 
 instance Show SymKey where
     show KeyType = "type"
     show KeyVar  = "var"
+    show (KeyMember t ts rt) = "fn(" ++ show t ++ ")(" ++ intercalate ", " (map show ts) ++ ")" ++ show rt
     show (KeyFunc ts rt) = "fn(" ++ intercalate ", " (map show ts) ++ ")" ++ show rt
-    show (KeyMember t) = show t ++ "."
+    show (KeyField t) = show t ++ "."
     show (KeyTypeField typ) = show typ
 
 
 data Object
     = ObjVal          Value
     | ObType          Type   (Maybe LL.Name)
-    | ObjFunc         LL.Operand
+    | ObjFnOp         LL.Operand
     | ObjAdtTypeMember Int
     | ObjConstructor 
-    | ObjMember       Int
+    | ObjField       Int
     deriving ()
 
 
@@ -86,9 +88,9 @@ instance Show Object where
         ObjVal (Ptr t o)    -> "Ptr " ++ show t
         ObjVal val          -> "val"
         ObType typ mn       -> show typ
-        ObjFunc op          -> "fn"
+        ObjFnOp op          -> "fn"
         ObjConstructor      -> "(..)"
-        ObjMember i         -> "." ++ show i
+        ObjField i         -> "." ++ show i
 
 
 data Declaration

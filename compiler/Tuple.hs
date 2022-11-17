@@ -48,7 +48,7 @@ tupleTypeDef symbol (S.AnnoTuple xs) = trace "tupleTypeDef" $ do
         define symbol (KeyFunc (map snd xs) typdef) ObjConstructor
 
     forM_ (zip xs [0..]) $ \((s, t), i) -> do
-        define (Sym s) (KeyMember typdef) (ObjMember i)
+        define (Sym s) (KeyField typdef) (ObjField i)
 
 
 tupleLength :: InsCmp CompileState m => Value -> m Int
@@ -71,7 +71,7 @@ tupleMember sym tup = trace "tupleMember" $ do
     assert (isTypedef typ) "Cannot have member of raw tuple"
     assertBaseType isTuple typ
 
-    ObjMember i <- look (Sym sym) (KeyMember typ)
+    ObjField i <- look (Sym sym) (KeyField typ)
     tupleIdx i tup
 
 

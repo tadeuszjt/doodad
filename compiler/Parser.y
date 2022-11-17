@@ -142,6 +142,9 @@ imports : {- empty -}                         { [] }
 symbol : ident                                { (tokPos $1, Sym (tokStr $1)) }
        | ident '::' ident                     { (tokPos $3, SymQualified (tokStr $1) (tokStr $3)) }
 
+objptr : {-empty-}                            { Nothing }
+       | '(' param ')'                        { Just $2 }
+
 stmtS : let pattern '=' expr                  { S.Assign (tokPos $1) $2 $4 }  
       | index '=' expr                        { S.Set (tokPos $2) $1 $3 }
       | symbol '(' exprs ')'                  { S.CallStmt (tokPos $2) (snd $1) $3 }
@@ -152,8 +155,8 @@ stmtS : let pattern '=' expr                  { S.Assign (tokPos $1) $2 $4 }
       | append_                               { S.AppendStmt $1 }
       | data symbol type_                     { S.Data (tokPos $1) (snd $2) $3 }
 stmtB : If                                    { $1 }
-      | fn fnName '(' params ')' block        { S.FuncDef (tokPos $1) ($2) $4 T.Void $6 }
-      | fn fnName '(' params ')' type_ block  { S.FuncDef (tokPos $1) ($2) $4 $6 $7 }
+      | fn objptr fnName '(' params ')' block        { S.FuncDef (tokPos $1) $2 ($3) $5 T.Void $7 }
+      | fn objptr fnName '(' params ')' type_ block  { S.FuncDef (tokPos $1) $2 ($3) $5 $7 $8 }
       | while condition block                 { S.While (tokPos $1) $2 $3 }
       | for '[' ident ']' expr block          { S.For (tokPos $1) (Sym $ tokStr $3) Nothing $5 Nothing $6 }
       | for '[' ident ']' expr '->' pattern block { S.For (tokPos $1) (Sym $ tokStr $3) Nothing $5 (Just $7) $8 }
@@ -208,7 +211,6 @@ condition : expr                              { S.CondExpr $1 }
           | expr '->' pattern                 { S.CondMatch $3 $1 }
 
 param   : ident type_                         { S.Param (tokPos $1) (Sym $ tokStr $1) $2 }
-        | ident                               { S.Param (tokPos $1) (Sym $ tokStr $1) T.Void }
 params  : {- empty -}                         { [] }
         | params_                             { $1 }
 params_ : param                               { [$1] }
@@ -254,6 +256,7 @@ expr   : literal                              { $1 }
        | expr ':' type_                       { S.AExpr $3 $1 }
        | expr '[' maybeExpr '..' maybeExpr ']' { S.Range (tokPos $2) $1 $3 $5 }
        | '{' expr '}'                          { S.ADT (tokPos $1) $2 }
+       | expr '.' ident '(' exprs ')'          { S.CallMember (tokPos $4) $1 (Sym $ tokStr $3) $5 }
 
 
 maybeExpr : expr                              { Just $1 }

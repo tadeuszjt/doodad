@@ -14,8 +14,13 @@ import_c stdio.h
 data stuff i64
 
 
-fn printString(s string)
+fn (s string) printString()
+    print("stuff")
+
+
+fn printString(s string) i64
     print(s)
+    return 3
 
 
 fn main()

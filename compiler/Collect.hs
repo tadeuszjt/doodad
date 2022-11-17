@@ -31,7 +31,8 @@ data SymKey
     = KeyVar
     | KeyType
     | KeyFunc [Type] Type
-    | KeyMember Type
+    | KeyMember Type [Type] Type
+    | KeyField Type
     | KeyAdtField
     deriving (Show, Eq, Ord)
 
@@ -155,8 +156,10 @@ collectAST ast = do
 
     forM typedefs $ collectTypedef
 
-    forM funcdefs $ \(S.FuncDef pos sym params retty _) -> collectPos pos $
-        define (Sym sym) (KeyFunc (map S.paramType params) retty) ObjFunc
+    forM funcdefs $ \(S.FuncDef pos mparam sym params retty _) -> collectPos pos $ do
+        case mparam of
+            Nothing    -> define (Sym sym) (KeyFunc   (map S.paramType params) retty) ObjFunc
+            Just param -> define (Sym sym) (KeyMember (S.paramType param) (map S.paramType params) retty) ObjFunc
 
     mapM_ collectStmt stmts''
     where
@@ -165,8 +168,9 @@ collectAST ast = do
         isTypedef _                 = False
 
         isFuncdef :: S.Stmt -> Bool
-        isFuncdef (S.FuncDef _ _ _ _ _) = True
-        isFuncdef _                     = False
+        isFuncdef (S.FuncDef _ _ _ _ _ _) = True
+        isFuncdef _                       = False
+
 
 collectTypedef :: BoM CollectState m => S.Stmt -> m ()
 collectTypedef (S.Typedef pos symbol annoTyp) = collectPos pos $ case annoTyp of
@@ -183,7 +187,7 @@ collectTypedef (S.Typedef pos symbol annoTyp) = collectPos pos $ case annoTyp of
     S.AnnoTuple xs   -> do
         let typedef = Typedef symbol
         let ts = map snd xs
-        forM_ (zip xs [0..]) $ \((s, t), i) -> define (Sym s) (KeyMember typedef) (ObjMember i)
+        forM_ (zip xs [0..]) $ \((s, t), i) -> define (Sym s) (KeyField typedef) (ObjMember i)
         define symbol KeyType $ ObjType $ Tuple (map snd xs)
         define symbol (KeyFunc ts typedef) ObjFunc
 
@@ -210,9 +214,13 @@ collectStmt stmt = collectPos stmt $ case stmt of
     S.Typedef _ _ _ -> return ()
     S.Block stmts -> mapM_ collectStmt stmts
 
-    S.FuncDef _ sym params retty blk -> do
+    S.FuncDef _ mparam sym params retty blk -> do
         oldRetty <- gets curRetty
         modify $ \s -> s { curRetty = retty }
+
+        flip (maybe (return ())) mparam $ \(S.Param _ symbol t) ->
+            define symbol KeyVar (ObjVar t)
+
         forM_ params $ \(S.Param _ symbol t) ->
             define symbol KeyVar (ObjVar t)
         collectStmt blk
@@ -377,6 +385,11 @@ collectCondition cond = case cond of
         collectExpr expr
         
 
+collectCallMemberExpr :: BoM CollectState m => S.Expr -> m ()
+collectCallMemberExpr (S.AExpr exprType (S.CallMember p e ident es)) = do
+    collectExpr e
+    return ()
+
 
 collectCallExpr :: BoM CollectState m => S.Expr -> m ()
 collectCallExpr (S.AExpr exprType (S.Call p symbol es)) = do
@@ -458,6 +471,7 @@ collectCallExpr (S.AExpr exprType (S.Call p symbol es)) = do
 collectExpr :: BoM CollectState m => S.Expr -> m ()
 collectExpr (S.AExpr exprType expr) = collectPos expr $ case expr of
     S.Call p symbol es -> collectCallExpr (S.AExpr exprType expr)
+    S.CallMember p e ident es -> collectCallMemberExpr  (S.AExpr exprType expr)
     S.Conv p t [e]     -> collect (ConsEq exprType t) >> collectExpr e
     S.Int p c        -> collectDefault exprType I64
     S.Prefix p op e  -> collect (ConsEq exprType (typeOf e)) >> collectExpr e
@@ -529,7 +543,7 @@ collectExpr (S.AExpr exprType expr) = collectPos expr $ case expr of
         case typeOf e of
             Type x         -> return ()
             Typedef symbol -> do
-                ObjMember i  <- look (Sym sym) $ KeyMember (typeOf e)
+                ObjMember i  <- look (Sym sym) $ KeyField (typeOf e)
                 collectMember exprType i (typeOf e)
 
         collectExpr e
@@ -560,5 +574,8 @@ collectExpr (S.AExpr exprType expr) = collectPos expr $ case expr of
 
     S.ADT p e -> do
         collectExpr e
+
+
+        return () -- TODO
 
     _ -> error (show expr)

@@ -22,13 +22,14 @@ instance Annotate AST where
 
 instance Annotate Stmt where
     annotate stmt = case stmt of
-        FuncDef p s ps rt b -> do
+        FuncDef p mp s ps rt b -> do
+            mp' <- maybe (return Nothing) (fmap Just . annotate) mp
             b' <- annotate b
             ps' <- mapM annotate ps
             rt' <- case rt of
                 T.Void -> genType
                 t      -> return t
-            return $ FuncDef p s ps' rt' b'
+            return $ FuncDef p mp s ps' rt' b'
 
         Block ss            -> Block <$> mapM annotate ss
         Return p me         -> Return p <$> maybe (return Nothing) (fmap Just . annotate) me
@@ -176,6 +177,11 @@ instance Annotate Expr where
             return $ Range pos e' me1' me2'
 
         AST.ADT pos e -> AST.ADT pos <$> annotate e
+
+        CallMember pos e ident es -> do
+            e' <- annotate e
+            es' <- mapM annotate es
+            return $ CallMember pos e' ident es'
 
         _ -> error $ show expr
 

@@ -73,4 +73,5 @@ executable doodad
         Infer,
         Array,
         Builtin,
-        Symbol
+        Symbol,
+        KeyMap

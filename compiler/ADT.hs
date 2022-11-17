@@ -54,7 +54,7 @@ adtConstructFromPtr adtTyp loc@(Ptr _ _) = do
 
     case adtTyp of
         Typedef symbol -> do -- can lookup member
-            ObjMember i <- look symbol (KeyTypeField $ valType loc)
+            ObjField i <- look symbol (KeyTypeField $ valType loc)
             adt <- valLocal adtTyp
             adtSetEnum adt i
             adtSetPi8 adt =<< bitcast (valLoc loc) (LL.ptr LL.i8)
@@ -90,13 +90,13 @@ adtTypeDef symbol (S.AnnoADT xs) = trace "adtTypeDef" $ do
     -- define member loopkups
     forM_ (zip xs [0..]) $ \(x, i) -> case x of
         S.ADTFieldMember s ts -> do
-            define s (KeyFunc ts typdef) (ObjMember i)
-            define s (KeyMember typdef) (ObjMember i)
+            define s (KeyFunc ts typdef) (ObjField i)
+            define s (KeyField typdef) (ObjField i)
         S.ADTFieldType t@(Typedef s) -> do
-            define s (KeyMember typdef) (ObjAdtTypeMember i)
-            define symbol (KeyTypeField t) (ObjMember i)
+            define s (KeyField typdef) (ObjAdtTypeMember i)
+            define symbol (KeyTypeField t) (ObjField i)
         S.ADTFieldType t -> do
-            define symbol (KeyTypeField t) (ObjMember i)
+            define symbol (KeyTypeField t) (ObjField i)
         S.ADTFieldNull -> return ()
 
     -- define constructors
@@ -194,7 +194,7 @@ adtConstructField symbol typ vals = trace ("adtConstructField " ++ show symbol) 
 --            valZero typ
 
         _ | isEnumADT adtTyp   -> do
-            ObjMember i <- look symbol (KeyMember typ)
+            ObjField i <- look symbol (KeyField typ)
             assert (length vals == 0) "Invalid ADT constructor arguments"
             adt <- valLocal typ
             adtSetEnum adt i
@@ -202,7 +202,7 @@ adtConstructField symbol typ vals = trace ("adtConstructField " ++ show symbol) 
 
 
         _ | isNormalADT adtTyp -> do
-            ObjMember i <- look symbol (KeyMember typ)
+            ObjField i <- look symbol (KeyField typ)
             adt <- valLocal typ
             adtSetEnum adt i
             case fs !! i of

@@ -106,39 +106,33 @@ instance Resolve AST where
         let (typedefs, stmts'') = partition isTypedef (astStmts ast)
         let (funcdefs, stmts) = partition isFuncdef stmts''
 
-        --forM typedefs $ resolveTypedef
-
-        forM funcdefs $ \(FuncDef pos sym params retty blk) -> do
+        forM funcdefs $ \(FuncDef pos mparam sym params retty blk) -> do
             resm <- lookm (Sym sym) KeyFunc
-            case resm of
-                Just symbol -> return $ FuncDef pos sym params retty blk
-                Nothing     -> do
-                    --symbol <- genSymbol sym
-                    let symbol = (Sym sym)
-                    define sym KeyFunc symbol
-                    return $ FuncDef pos sym params retty blk
+            when (isNothing resm) $ define sym KeyFunc (Sym sym)
 
         astStmts <- mapM resolve $ typedefs ++ stmts''
         return $ ast { astStmts = astStmts }
         where
             isTypedef :: Stmt -> Bool
             isTypedef (AST.Typedef _ _ _) = True
-            isTypedef _                 = False
+            isTypedef _                   = False
 
             isFuncdef :: Stmt -> Bool
-            isFuncdef (FuncDef _ _ _ _ _) = True
+            isFuncdef (FuncDef _ _ _ _ _ _) = True
             isFuncdef _                     = False
+
 
 instance Resolve Stmt where
     resolve stmt = withPos stmt $ case stmt of
-        FuncDef pos sym params retty blk -> do
+        FuncDef pos mparam sym params retty blk -> do
             pushSymTab
+            mparam' <- maybe (return Nothing) (fmap Just . resolve) mparam
             params' <- mapM resolve params
             retty' <- resolve retty
             blk' <- resolve blk
             popSymTab
 
-            return $ FuncDef pos sym params' retty' blk'
+            return $ FuncDef pos mparam' sym params' retty' blk'
 
 
         Block stmts -> do
@@ -410,6 +404,12 @@ instance Resolve Expr where
         Null pos -> return (Null pos)
 
         AST.ADT pos expr -> AST.ADT pos <$> resolve expr
+
+        CallMember pos expr ident exprs -> do
+            expr' <- resolve expr
+            exprs' <- mapM resolve exprs
+            return $ CallMember pos expr' ident exprs'
+
 
         --_ -> return expr
 

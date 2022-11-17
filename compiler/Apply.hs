@@ -21,6 +21,7 @@ substitute u x typ = case typ of
     F64             -> typ
     Char            -> typ
     String          -> typ
+    KeyMap ts       -> KeyMap $ map (substitute u x) ts
     Table ts        -> Table $ map (substitute u x) ts
     Tuple ts        -> Tuple $ map (substitute u x) ts
     Array n t       -> Array n (substitute u x t)
@@ -58,7 +59,8 @@ instance Apply Collect.SymKey where
         KeyVar        -> KeyVar
         KeyType       -> KeyType
         KeyFunc ts rt -> KeyFunc (map (apply subs) ts) (apply subs rt)
-        KeyMember t   -> KeyMember (apply subs t)
+        KeyField t   -> KeyField (apply subs t)
+        KeyMember t ts rt -> KeyMember (apply subs t) (map (apply subs) ts) (apply subs rt)
 
 instance Apply Constraint where
     apply subs (ConsEq t1 t2)       = ConsEq (apply subs t1) (apply subs t2)
@@ -98,6 +100,7 @@ instance Apply S.Expr where
         S.Range pos e me1 me2      -> S.Range pos (apply subs e) (fmap (apply subs) me1) (fmap (apply subs) me2)
         S.UnsafePtr p e            -> S.UnsafePtr p (apply subs e)
         S.ADT p e                  -> S.ADT p (apply subs e)
+        S.CallMember p e ident es  -> S.CallMember p (apply subs e) ident (map (apply subs) es)
         _                          -> error $ show expr
 
 instance Apply S.Condition where
@@ -142,8 +145,8 @@ instance Apply S.Stmt where
         S.CallStmt pos sym es     -> S.CallStmt pos sym $ map (apply subs) es
         S.Print pos es            -> S.Print pos $ map (apply subs) es
 
-        S.FuncDef pos sym params retty block ->
-            S.FuncDef pos sym (map (apply subs) params) (apply subs retty) (apply subs block)
+        S.FuncDef pos mparam sym params retty block ->
+            S.FuncDef pos (fmap (apply subs) mparam) sym (map (apply subs) params) (apply subs retty) (apply subs block)
 
         S.If pos cnd block melse ->
             S.If pos (apply subs cnd) (apply subs block) $ fmap (apply subs) melse

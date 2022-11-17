@@ -109,6 +109,7 @@ data Expr
     | Range      TextPos Expr (Maybe Expr) (Maybe Expr)
     | UnsafePtr  TextPos Expr
     | ADT        TextPos Expr
+    | CallMember TextPos Expr Symbol [Expr]
     deriving (Eq)
 
 
@@ -121,7 +122,7 @@ data Stmt
     | Block       [Stmt]
     | If          TextPos Condition Stmt (Maybe Stmt)
     | While       TextPos Condition Stmt
-    | FuncDef     TextPos String [Param] Type Stmt
+    | FuncDef     TextPos (Maybe Param) String [Param] Type Stmt
     | Typedef     TextPos Symbol AnnoType
     | AppendStmt  Append
     | Switch      TextPos Expr [(Pattern, Stmt)]
@@ -198,6 +199,7 @@ instance TextPosition Expr where
         Range      p _ _ _ -> p
         UnsafePtr  p _ -> p
         ADT        p _ -> p
+        CallMember p _ _ _ -> p
 
 
 instance TextPosition Stmt where
@@ -210,7 +212,7 @@ instance TextPosition Stmt where
         Block       s -> textPos (head s)
         If          p _ _ _ -> p
         While       p _ _ -> p
-        FuncDef     p _ _ _ _ -> p
+        FuncDef     p _ _ _ _ _ -> p
         Typedef     p _ _ -> p
         AppendStmt  a -> textPos a
         Switch      p _ _ -> p
@@ -317,6 +319,7 @@ instance Show Expr where
         Infix pos op expr1 expr2    -> show expr1 ++ " " ++ show op ++ " " ++ show expr2
         Range pos expr mexpr1 mexpr2 -> show expr ++ "[" ++ maybe "" show mexpr1 ++ ".." ++ maybe "" show mexpr2 ++ "]"
         ADT pos expr                 -> brcStrs [show expr]
+        CallMember pos expr symbol exprs -> show expr ++ "." ++ show symbol ++ tupStrs (map show exprs)
 
 
 -- every function must end on a newline and print pre before every line
@@ -336,8 +339,12 @@ prettyAST ast = do
     where
         prettyStmt :: String -> Stmt -> IO ()
         prettyStmt pre stmt = case stmt of
-            FuncDef pos sym params retty blk -> do
-                putStrLn $ pre ++ "fn " ++ sym ++ tupStrs (map show params) ++ " " ++ if retty == Void then "" else show retty
+            FuncDef pos mparam sym params retty blk -> do
+                paramStr <- case mparam of
+                    Nothing            -> return ""
+                    Just (Param _ s t) -> return $ "(" ++ show s ++ " " ++ show t ++ ") "
+                
+                putStrLn $ pre ++ "fn " ++ paramStr ++ sym ++ tupStrs (map show params) ++ " " ++ if retty == Void then "" else show retty
                 prettyStmt (pre ++ "\t") blk
                 putStrLn ""
 
@@ -377,4 +384,9 @@ prettyAST ast = do
                 let exprStr = " " ++ show expr
                 putStrLn $ pre ++ "for " ++ "[" ++ show symbol ++ "]" ++ exprStr ++ cndStr
                 prettyStmt (pre ++ "\t") blk
+
+            Data pos symbol typ -> do
+                putStrLn $ pre ++ "data " ++ show symbol ++ " " ++ show typ
+
+            _  -> error $ "invalid stmt: " ++ show stmt
 
