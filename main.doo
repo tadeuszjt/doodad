@@ -14,8 +14,9 @@ import_c stdio.h
 data stuff i64
 
 
-fn (s string) printString()
+fn (s string) printString() i64
     print("stuff")
+    return 3
 
 
 fn printString(s string) i64
@@ -36,5 +37,6 @@ fn main()
         print(30:c::size_t)
 
         let s = "string"
+        let x = s.printString()
         printString(s)
         for [i] s; print(s[i])

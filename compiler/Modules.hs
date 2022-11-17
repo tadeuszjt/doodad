@@ -192,11 +192,12 @@ runMod args pathsVisited modPath = do
             (resolvedAST, resolveState) <- withErrorPrefix "resolve: " $
                 runBoMTExcept (R.initResolveState resSymTabMap modName) (R.resolve combinedAST)
             modify $ \s -> s { resolveSymTabMap = Map.insert path (R.symTab resolveState) (resolveSymTabMap s) }
-
+            when (printAstResolved args) $ liftIO $ S.prettyAST resolvedAST
 
             -- run type inference on ast
             annotatedAST <- fmap fst $ withErrorPrefix "annotate: " $
                 runBoMTExcept 0 $ annotate resolvedAST
+            when (printAstAnnotated args) $ liftIO $ S.prettyAST annotatedAST
             (astInferred, symTab) <- withErrorPrefix "infer: " $ do
                 stm <- gets symTabMap
                 infer annotatedAST cExterns stm modName (verbose args)

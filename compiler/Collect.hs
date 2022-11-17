@@ -387,85 +387,109 @@ collectCondition cond = case cond of
 
 collectCallMemberExpr :: BoM CollectState m => S.Expr -> m ()
 collectCallMemberExpr (S.AExpr exprType (S.CallMember p e ident es)) = do
+    -- [(KeyMember _ _ _, ObjFunc)]
+    ks <- filter isKeyMember . map fst <$> (lookSym ident)
+
+    let rettySame = [ ko | ko@(KeyMember _ _ rt) <- ks, rt == exprType ]
+    let recTypSame = [ ko | ko@(KeyMember t _ _) <- ks, t == typeOf e ]
+    let argCountSame = [ ko | ko@(KeyMember _ as _) <- ks, length as == length es ]
+
+    
+    case argCountSame of
+        [KeyMember t as rt] -> do
+            collect $ ConsEq rt exprType
+            collect $ ConsEq (typeOf e) t
+            mapM collect $ zipWith ConsEq as (map typeOf es)
+
+    -- intersect
+
+
+
     collectExpr e
+    mapM_ collectExpr es
     return ()
+
+    where
+        isKeyMember :: SymKey -> Bool
+        isKeyMember (KeyMember _ _ _) = True
+        isKeyMember _                 = False
 
 
 collectCallExpr :: BoM CollectState m => S.Expr -> m ()
 collectCallExpr (S.AExpr exprType (S.Call p symbol es)) = do
-        kos <- lookSym symbol
+    kos <- lookSym symbol
 
-        let rtm = rettySame kos
-        let odm = oneDef kos
-        let rmm = rettyMatchesOne exprType kos
-        let amm = argsMatch (map typeOf es) kos
-        let alm = argLengthsMatch (map typeOf es) kos
+    let rtm = rettySame kos
+    let odm = oneDef kos
+    let rmm = rettyMatchesOne exprType kos
+    let amm = argsMatch (map typeOf es) kos
+    let alm = argLengthsMatch (map typeOf es) kos
 
-        when (isJust rtm) $ do
-            collect $ ConsEq exprType (fromJust rtm)
+    when (isJust rtm) $ do
+        collect $ ConsEq exprType (fromJust rtm)
 
-        when (isJust odm) $ do
-            let (ts, rt) = fromJust odm
-            assert (length ts == length es) "Invalid arguments"
-            mapM_  collect $ zipWith ConsEq ts (map typeOf es)
-            collect $ ConsEq exprType rt
+    when (isJust odm) $ do
+        let (ts, rt) = fromJust odm
+        assert (length ts == length es) "Invalid arguments"
+        mapM_  collect $ zipWith ConsEq ts (map typeOf es)
+        collect $ ConsEq exprType rt
 
-        when (isJust rmm) $ do
-            let (ts, rt) = fromJust rmm
-            assert (length ts == length es) "Invalid arguments"
-            mapM_ collect $ zipWith ConsEq ts (map typeOf es)
+    when (isJust rmm) $ do
+        let (ts, rt) = fromJust rmm
+        assert (length ts == length es) "Invalid arguments"
+        mapM_ collect $ zipWith ConsEq ts (map typeOf es)
 
-        when (isJust amm) $ do
-            collect $ ConsEq exprType (fromJust amm)
+    when (isJust amm) $ do
+        collect $ ConsEq exprType (fromJust amm)
 
-        when (isJust alm) $ do
-            let (ts, rt) = fromJust alm
-            mapM_ collect $ zipWith ConsEq ts (map typeOf es)
-            collect $ ConsEq exprType rt
+    when (isJust alm) $ do
+        let (ts, rt) = fromJust alm
+        mapM_ collect $ zipWith ConsEq ts (map typeOf es)
+        collect $ ConsEq exprType rt
 
-        mapM_ collectExpr es
-        where
-            rettySame :: [(SymKey, Object)] -> Maybe Type
-            rettySame []                            = Nothing
-            rettySame ((KeyFunc ts rt, ObjFunc):xs) = case rettySame xs of
-                Just rt' | rt' == rt -> Just rt
-                _                    -> Nothing
-            rettySame (_:xs) = rettySame xs
-
-
-            oneDef :: [(SymKey, Object)] -> Maybe ([Type], Type)
-            oneDef [(KeyFunc ts rt, ObjFunc)] = Just (ts, rt)
-            oneDef _                          = Nothing
+    mapM_ collectExpr es
+    where
+        rettySame :: [(SymKey, Object)] -> Maybe Type
+        rettySame []                            = Nothing
+        rettySame ((KeyFunc ts rt, ObjFunc):xs) = case rettySame xs of
+            Just rt' | rt' == rt -> Just rt
+            _                    -> Nothing
+        rettySame (_:xs) = rettySame xs
 
 
-            rettyMatchesOne :: Type -> [(SymKey, Object)] -> Maybe ([Type], Type)
-            rettyMatchesOne _ [] = Nothing
-            rettyMatchesOne typ ((KeyFunc ts rt, ObjFunc):xs)
-                | typ == rt = case rettyMatchesOne typ xs of
-                    Nothing -> Just (ts, rt)
-                    Just _  -> Nothing
-                | otherwise = rettyMatchesOne typ xs
-            rettyMatchesOne typ (_:xs) = rettyMatchesOne typ xs
+        oneDef :: [(SymKey, Object)] -> Maybe ([Type], Type)
+        oneDef [(KeyFunc ts rt, ObjFunc)] = Just (ts, rt)
+        oneDef _                          = Nothing
 
 
-            argsMatch :: [Type] -> [(SymKey, Object)] -> Maybe Type
-            argsMatch _ [] = Nothing
-            argsMatch ats ((KeyFunc ts rt, ObjFunc):xs)
-                | ats == ts = case argsMatch ats xs of
-                    Nothing -> Just rt
-                    Just _  -> Nothing
-                | otherwise = argsMatch ats xs
-            argsMatch ats (_:xs) = argsMatch ats xs
+        rettyMatchesOne :: Type -> [(SymKey, Object)] -> Maybe ([Type], Type)
+        rettyMatchesOne _ [] = Nothing
+        rettyMatchesOne typ ((KeyFunc ts rt, ObjFunc):xs)
+            | typ == rt = case rettyMatchesOne typ xs of
+                Nothing -> Just (ts, rt)
+                Just _  -> Nothing
+            | otherwise = rettyMatchesOne typ xs
+        rettyMatchesOne typ (_:xs) = rettyMatchesOne typ xs
 
 
-            argLengthsMatch :: [Type] -> [(SymKey, Object)] -> Maybe ([Type], Type)
-            argLengthsMatch ats [] = Nothing
-            argLengthsMatch ats ((KeyFunc ts rt, ObjFunc):xs)
-                | length ats == length ts = case argLengthsMatch ats xs of
-                    Nothing -> Just (ts, rt)
-                    _       -> Nothing
-                | otherwise        = argLengthsMatch ats xs
-            argLengthsMatch ats (_:xs) = argLengthsMatch ats xs
+        argsMatch :: [Type] -> [(SymKey, Object)] -> Maybe Type
+        argsMatch _ [] = Nothing
+        argsMatch ats ((KeyFunc ts rt, ObjFunc):xs)
+            | ats == ts = case argsMatch ats xs of
+                Nothing -> Just rt
+                Just _  -> Nothing
+            | otherwise = argsMatch ats xs
+        argsMatch ats (_:xs) = argsMatch ats xs
+
+
+        argLengthsMatch :: [Type] -> [(SymKey, Object)] -> Maybe ([Type], Type)
+        argLengthsMatch ats [] = Nothing
+        argLengthsMatch ats ((KeyFunc ts rt, ObjFunc):xs)
+            | length ats == length ts = case argLengthsMatch ats xs of
+                Nothing -> Just (ts, rt)
+                _       -> Nothing
+            | otherwise        = argLengthsMatch ats xs
+        argLengthsMatch ats (_:xs) = argLengthsMatch ats xs
 
 
 collectExpr :: BoM CollectState m => S.Expr -> m ()

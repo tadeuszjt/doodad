@@ -9,6 +9,8 @@ data Args = Args
     , printCImports :: Bool
     , compileObj  :: Bool
     , printAst    :: Bool
+    , printAstResolved :: Bool
+    , printAstAnnotated :: Bool
     , printSymbols :: Bool
     , printCSymbols :: Bool
     , printFinalAst :: Bool
@@ -24,6 +26,8 @@ initArgs = Args
     , compileObj = False
     , printCImports = False
     , printAst = False
+    , printAstResolved = False
+    , printAstAnnotated = False
     , printSymbols = False
     , printCSymbols = False
     , printFinalAst = False
@@ -42,6 +46,8 @@ parseArgs args argStrs = case argStrs of
     ["--print-c"] -> args { printCImports = True }
     ["--print-c-symbols"] -> args { printCSymbols = True }
     ["--print-ast"] -> args { printAst = True }
+    ["--print-ast-resolved"] -> args { printAstResolved = True }
+    ["--print-ast-annotated"] -> args { printAstAnnotated = True }
     ["--print-ast-final"] -> args { printFinalAst = True }
     ["--print-symbols"] -> args { printSymbols = True }
     ["-c"] -> args { compileObj = True }

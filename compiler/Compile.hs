@@ -487,11 +487,11 @@ cmpExpr (S.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck exp
             ObjField i     -> adtConstructField symbol exprType vals
     
     S.CallMember pos expr symbol exprs -> do
-        val@(Ptr _ _) <- cmpExpr expr
+        val@(Ptr _ loc) <- cmpExpr expr
         vals <- mapM valLoad =<< mapM cmpExpr exprs
         obj <- look symbol $ KeyMember (valType val) (map valType vals) exprType
         case obj of
-            ObjFnOp op -> Val exprType <$> call op [(o, []) | o <- map valOp (val:vals)]
+            ObjFnOp op -> Val exprType <$> call op [(o, []) | o <- loc : map valOp vals]
 
     S.Len pos expr -> valLoad =<< do
         assertBaseType isInt exprType

@@ -4,10 +4,6 @@ import chars
 
 data strings keymap[char]
 
-
-fn (x i64) do_stuff()
-    return
-
 fn New()
     return
 
