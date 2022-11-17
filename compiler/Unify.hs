@@ -44,7 +44,7 @@ unifyOne pos constraint = withPos pos $ case constraint of
                         unifyOne pos $ ConsEq t (ts !! j)
             _ -> return []
         
-    ConsMember t i agg -> do
+    ConsField t i agg -> do
         basem <- baseTypeOf agg
         case basem of
             Just (Tuple ts) -> unifyOne pos (ConsEq t $ ts !! i)

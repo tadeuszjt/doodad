@@ -65,12 +65,11 @@ tupleSet tup i val = trace "tupleSet" $ do
     valStore ptr val
 
 
-tupleMember :: InsCmp CompileState m => String -> Value -> m Value
-tupleMember sym tup = trace "tupleMember" $ do
+tupleField :: InsCmp CompileState m => String -> Value -> m Value
+tupleField sym tup = trace "tupleField" $ do
     let typ = valType tup
     assert (isTypedef typ) "Cannot have member of raw tuple"
     assertBaseType isTuple typ
-
     ObjField i <- look (Sym sym) (KeyField typ)
     tupleIdx i tup
 

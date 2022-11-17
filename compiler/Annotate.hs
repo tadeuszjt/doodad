@@ -77,6 +77,11 @@ instance Annotate Stmt where
         Data p symbol typ -> do
             return $ Data p symbol typ
 
+        CallMemberStmt pos e ident es -> do
+            e' <- annotate e
+            es' <- mapM annotate es
+            return $ CallMemberStmt pos e' ident es'
+
 
 
 instance Annotate Condition where
@@ -162,9 +167,9 @@ instance Annotate Expr where
             e1' <- annotate e1
             Subscript p e1' <$> annotate e2
 
-        Member p e s -> do
+        Field p e s -> do
             e' <- annotate e
-            return $ Member p e' s
+            return $ Field p e' s
 
         TupleIndex p e i -> do
             e' <- annotate e

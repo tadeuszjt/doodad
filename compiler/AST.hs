@@ -95,7 +95,7 @@ data Expr
     | String     TextPos String
     | Tuple      TextPos [Expr]
     | Table      TextPos [[Expr]]
-    | Member     TextPos Expr String
+    | Field     TextPos Expr String
     | Subscript  TextPos Expr Expr
     | TupleIndex TextPos Expr Word32
     | Ident      TextPos Symbol
@@ -118,6 +118,7 @@ data Stmt
     | Set         TextPos Index   Expr
     | Print       TextPos [Expr]
     | CallStmt    TextPos Symbol [Expr]
+    | CallMemberStmt TextPos Expr Symbol [Expr]
     | Return      TextPos (Maybe Expr)
     | Block       [Stmt]
     | If          TextPos Condition Stmt (Maybe Stmt)
@@ -185,7 +186,7 @@ instance TextPosition Expr where
         String     p _ -> p
         Tuple      p _ -> p
         Table      p _ -> p
-        Member     p _ _ -> p
+        Field     p _ _ -> p
         Subscript  p _ _ -> p
         TupleIndex p _ _ -> p
         Ident      p _ -> p
@@ -208,6 +209,7 @@ instance TextPosition Stmt where
         Set         p _ _ -> p
         Print       p _ -> p
         CallStmt    p _ _ -> p
+        CallMemberStmt p _ _ _ -> p
         Return      p _ -> p
         Block       s -> textPos (head s)
         If          p _ _ _ -> p
@@ -305,7 +307,7 @@ instance Show Expr where
         String pos s                -> show s
         Tuple pos exprs             -> tupStrs (map show exprs)
         Table pos exprss            -> "[" ++  intercalate "; " (map (intercalate ", " . map show) exprss) ++ "]"
-        Member pos expr str         -> show expr ++ "." ++ str
+        Field pos expr str         -> show expr ++ "." ++ str
         Subscript pos expr1 expr2   -> show expr1 ++ "[" ++ show expr2 ++ "]"
         TupleIndex pos expr n       -> show expr ++ "." ++ show n
         Ident p s                   -> show s 

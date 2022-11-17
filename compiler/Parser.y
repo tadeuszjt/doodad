@@ -148,10 +148,11 @@ mfnrec : {-empty-}                            { Nothing }
 stmtS : let pattern '=' expr                         { S.Assign (tokPos $1) $2 $4 }  
       | index '=' expr                               { S.Set (tokPos $2) $1 $3 }
       | symbol '(' exprs ')'                         { S.CallStmt (tokPos $2) (snd $1) $3 }
+      | symbol '->' ident '(' exprs ')'               { S.CallMemberStmt (tokPos $4) (S.Ident (fst $1) (snd $1)) (Sym $ tokStr $ $3) $5 }
       | type symbol annoType                         { S.Typedef (fst $2) (snd $2) $3 }
       | print '(' exprs ')'                          { S.Print (tokPos $1) $3 }
       | return mexpr                                 { S.Return (tokPos $1) $2 }
-      | append_                                      { S.AppendStmt $1 }
+      --| append_                                      { S.AppendStmt $1 }
       | data symbol type_                            { S.Data (tokPos $1) (snd $2) $3 }
 stmtB : If                                           { $1 }
       | fn mfnrec fnName '(' params ')' type_ block  { S.FuncDef (tokPos $1) $2 ($3) $5 $7 $8 }
@@ -259,7 +260,7 @@ expr   : literal                              { $1 }
        | null                                 { S.Null (tokPos $1) }
        | ':' typeAggregate '(' exprs ')'    { S.Conv (tokPos $3) $2 $4 }
        | expr '.' intlit                      { S.TupleIndex (tokPos $2) $1 (read $ tokStr $3) }
-       | expr '.' ident                       { S.Member (tokPos $2) $1 (tokStr $3) }
+       | expr '.' ident                       { S.Field (tokPos $2) $1 (tokStr $3) }
        | expr '[' expr ']'                    { S.Subscript (tokPos $2) $1 $3 }
        | expr ':' type_                       { S.AExpr $3 $1 }
        | expr '[' mexpr '..' mexpr ']'        { S.Range (tokPos $2) $1 $3 $5 }

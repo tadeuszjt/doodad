@@ -11,6 +11,10 @@ fn *(a Vec2, b Vec2) Vec2; return (a.x * b.x, a.y * b.y)
 fn /(a Vec2, b Vec2) Vec2; return (a.x / b.x, a.y / b.y)
 fn ==(a Vec2, b Vec2); return a.x == b.x && a.y == b.y
 
-
-fn length(v Vec2)
+fn (v Vec2) length()
     return sqrt(v.x*v.x + v.y*v.y)
+
+fn (v Vec2) normal() Vec2
+    let l = v.length()
+    return (v.x / l, v.y / l)
+

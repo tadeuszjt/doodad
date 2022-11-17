@@ -76,7 +76,7 @@ data Object
     = ObjVal          Value
     | ObType          Type   (Maybe LL.Name)
     | ObjFnOp         LL.Operand
-    | ObjAdtTypeMember Int
+    | ObjAdtTypeField Int
     | ObjConstructor 
     | ObjField       Int
     deriving ()

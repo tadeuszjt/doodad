@@ -52,7 +52,7 @@ instance Apply Collect.Object where
         ObjVar t    -> ObjVar (apply subs t)
         ObjType t   -> ObjType (apply subs t)
         ObjFunc     -> ObjFunc
-        ObjMember i -> ObjMember i
+        ObjField i -> ObjField i
 
 instance Apply Collect.SymKey where
     apply subs key = case key of
@@ -66,7 +66,7 @@ instance Apply Constraint where
     apply subs (ConsEq t1 t2)       = ConsEq (apply subs t1) (apply subs t2)
     apply subs (ConsBase   t1 t2)   = ConsBase   (apply subs t1) (apply subs t2)
     apply subs (ConsElem   t1 t2)   = ConsElem   (apply subs t1) (apply subs t2)
-    apply subs (ConsMember t1 i t2) = ConsMember (apply subs t1) i (apply subs t2)
+    apply subs (ConsField t1 i t2) = ConsField (apply subs t1) i (apply subs t2)
     apply subs (ConsAdtMem t1 i j t2) = ConsAdtMem (apply subs t1) i j (apply subs t2)
 
 instance Apply Type where
@@ -93,7 +93,7 @@ instance Apply S.Expr where
         S.Bool  pos b              -> expr
         S.Subscript pos e1 e2      -> S.Subscript pos (apply subs e1) (apply subs e2)
         S.String pos s             -> expr
-        S.Member pos e s           -> S.Member pos (apply subs e) s
+        S.Field pos e s           -> S.Field pos (apply subs e) s
         S.Float pos f              -> expr
         S.Table pos ess            -> S.Table pos $ map (map (apply subs)) ess
         S.TupleIndex pos e i       -> S.TupleIndex pos (apply subs e) i
@@ -162,6 +162,8 @@ instance Apply S.Stmt where
         S.Data pos symbol typ ->
             S.Data pos symbol (apply subs typ)
             
+        S.CallMemberStmt pos e sym es ->
+            S.CallMemberStmt pos (apply subs e) sym $ map (apply subs) es
 
 instance Apply S.AST where
     apply subs ast = ast { S.astStmts = map (apply subs) (S.astStmts ast) }

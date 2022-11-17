@@ -205,13 +205,16 @@ cmpFuncDef (S.FuncDef pos mparam sym args retty blk) = trace "cmpFuncDef" $ with
     case mparam of
         Just param -> do
             let paramType = S.paramType param
+            let paramSymbol = S.paramName param
             paramOpTyp <- LL.ptr <$> opTypeOf paramType
-            let paramName = ParameterName $ mkBSS $ Symbol.sym $ S.paramName param
+            let paramName = ParameterName $ mkBSS $ Symbol.sym $ paramSymbol
             ObjFnOp op <- look (Sym sym) (KeyMember paramType argTypes retty)
             let LL.ConstantOperand (C.GlobalReference _ name) = op
             let Name nameStr = name
 
             void $ InstrCmpT . IRBuilderT . lift $ func name (zip (paramOpTyp : argOpTypes)  (paramName :argNames)) returnOpType $ \argOps -> do
+                define paramSymbol KeyVar (ObjVal $ Ptr paramType $ head argOps)
+
                 forM_ (zip3 argTypes (tail argOps) argSymbols) $ \(typ, op, symbol) -> do
                     loc <- valLocal typ
                     valStore loc (Val typ op)
@@ -308,7 +311,6 @@ cmpAppend append = withPos append $ case append of
         tableAppend loc =<< cmpExpr expr
         return loc
 
-
 cmpStmt :: InsCmp CompileState m => S.Stmt -> m ()
 cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
     S.Print pos exprs   -> do
@@ -319,6 +321,12 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
     S.AppendStmt append -> do
         label "append"
         void $ cmpAppend append
+
+--    S.CallMemberStmt pos expr symbol exprs -> do
+--        label "call member"
+--        val <- cmpExpr exprs
+--        vals <- mapM cmpExpr exprs
+
 
     S.CallStmt pos symbol exprs -> do
         label "call"
@@ -449,7 +457,7 @@ cmpExpr (S.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck exp
     S.Tuple pos [expr]         -> cmpExpr expr
     S.Float p f                -> valFloat exprType f
     S.Prefix pos operator expr -> valPrefix operator =<< cmpExpr expr
-    S.Member pos expr sym      -> tupleMember sym =<< cmpExpr expr
+    S.Field pos expr sym      -> tupleField sym =<< cmpExpr expr
     S.Zero pos                 -> valZero exprType
     S.Null p                   -> adtNull exprType
 
@@ -487,7 +495,14 @@ cmpExpr (S.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck exp
             ObjField i     -> adtConstructField symbol exprType vals
     
     S.CallMember pos expr symbol exprs -> do
-        val@(Ptr _ loc) <- cmpExpr expr
+        val <- cmpExpr expr
+        -- TODO possible to cause incorrect logic?
+        loc <- case val of
+            Val _ op -> do 
+                local <- valLocal (valType val)
+                valStore local val
+                return $ valLoc local
+            Ptr _ loc -> return loc
         vals <- mapM valLoad =<< mapM cmpExpr exprs
         obj <- look symbol $ KeyMember (valType val) (map valType vals) exprType
         case obj of
@@ -500,6 +515,7 @@ cmpExpr (S.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck exp
         case base of
             Table _   -> valConvertNumber exprType =<< tableLen val
             Array n t -> valInt exprType n
+            String    -> valStringLen exprType val
             _       -> fail ("cannot take length of type " ++ show (valType val))
 
     S.Tuple pos exprs -> do
@@ -656,7 +672,7 @@ cmpPattern pattern val = trace "cmpPattern" $ withPos pattern $ case pattern of
         base@(ADT fs) <- assertBaseType isADT (valType val)
         obj <- look symbol (KeyField $ valType val)
         case obj of
-            ObjAdtTypeMember i -> do
+            ObjAdtTypeField i -> do
                 assert (length pats == 1)       "One pattern allowed for type field"
                 enumMatch <- valIntInfix S.EqEq (valI64 i) =<< adtEnum val
                 Ptr _ loc <- adtDeref val i 0

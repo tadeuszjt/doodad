@@ -93,7 +93,7 @@ adtTypeDef symbol (S.AnnoADT xs) = trace "adtTypeDef" $ do
             define s (KeyFunc ts typdef) (ObjField i)
             define s (KeyField typdef) (ObjField i)
         S.ADTFieldType t@(Typedef s) -> do
-            define s (KeyField typdef) (ObjAdtTypeMember i)
+            define s (KeyField typdef) (ObjAdtTypeField i)
             define symbol (KeyTypeField t) (ObjField i)
         S.ADTFieldType t -> do
             define symbol (KeyTypeField t) (ObjField i)

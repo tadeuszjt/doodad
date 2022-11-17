@@ -242,6 +242,11 @@ instance Resolve Stmt where
             typ' <- resolve typ
             return $ Data pos symbol typ'
 
+        CallMemberStmt pos expr ident exprs -> do
+            expr' <- resolve expr
+            exprs' <- mapM resolve exprs
+            return $ CallMemberStmt pos expr' ident exprs'
+
 --        _ -> return stmt
         _ -> fail $ show stmt
 
@@ -380,9 +385,9 @@ instance Resolve Expr where
             exprs' <- mapM resolve exprs
             return $ Conv pos typ' exprs'
 
-        Member pos expr sym -> do
+        Field pos expr sym -> do
             expr' <- resolve expr
-            return $ Member pos expr' sym
+            return $ Field pos expr' sym
 
         AExpr typ expr -> do
             typ' <- resolve typ

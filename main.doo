@@ -14,29 +14,31 @@ import_c stdio.h
 data stuff i64
 
 
+fn (n i64) addOne()
+    n = n + 1
+    return 4
+
 fn (s string) printString() i64
-    print("stuff")
-    return 3
-
-
-fn printString(s string) i64
     print(s)
-    return 3
-
+    return len(s)
 
 fn main()
         let va = Vec2(1.0, 3.0)
         let vb = Vec2(9, 7)
-        vb = (2, 1)
+        print(vb.x, vb.y, vb.length(), vb.normal().length())
 
         let rect = Rect((0, 0), (3, 4))
-        print(maths::sqrt(34), rect::area(rect))
+        print(maths::sqrt(34), rect.area(), rect.width(), rect.height())
 
         let (f, n) = (-123:f64, 123)
+
+        print("n before addOne():", n)
+        let z = n.addOne()
+        print("n after addOne(): ", n)
 
         print(30:c::size_t)
 
         let s = "string"
         let x = s.printString()
-        printString(s)
+        print(x)
         for [i] s; print(s[i])
