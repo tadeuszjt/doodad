@@ -1,20 +1,42 @@
 module strings
 import chars
 
+type StringKey i64
 type String [char]
 type Strings [String]
 
+data strings Strings
 
-fn (ss Strings) New(s string) i64
+
+fn (ss Strings) New(s string) StringKey
     let idx = ss.New()
     for [i] s
         ss[idx] <- [s[i]]
     return idx
 
-fn (ss Strings) New() i64
+
+fn (ss Strings) New() StringKey
     let idx = len(ss)
     ss <- [zero():String]
     return idx
 
-fn (ss Strings) Print(idx i64)
+
+fn (ss Strings) Delete(key StringKey)
+    if key == len(ss) - 1
+        ss = ss[..len(ss) - 1]
+    else
+        ss[key] = ss[key][..1]
+
+
+fn (ss Strings) Append(idx StringKey, s string)
+    for [i] s
+        ss[idx] <- [s[i]]
+
+
+fn (ss Strings) Append(idx StringKey, idx2 StringKey)
+    for [i] ss[idx2]
+        ss[idx] <- [ss[idx2][i]]
+
+
+fn (ss Strings) Print(idx StringKey)
     print(ss[idx])

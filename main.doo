@@ -10,8 +10,6 @@ import std/assert
 import_c stdlib.h
 import_c stdio.h
 
-data strings Strings 
-
 fn main()
         let va = Vec2(1.0, 3.0)
         let vb = Vec2(9, 7)
@@ -31,5 +29,10 @@ fn main()
         print(idx, idx2)
         strings->Print(idx)
         strings->Print(idx2)
+        strings->Append(idx2, " bongis")
+        strings->Print(idx2)
+        strings->Append(idx, idx2)
+        strings->Append(idx, idx2)
+        strings->Print(idx)
 
 

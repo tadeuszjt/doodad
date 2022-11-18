@@ -78,11 +78,13 @@ import Symbol
     copy       { Token _ Reserved "copy" }
     for        { Token _ Reserved "for" }
     print      { Token _ Reserved "print" }
-    len        { Token _ Reserved "len" }
     unsafe_ptr { Token _ Reserved "unsafe_ptr" }
     zero       { Token _ Reserved "zero" }
     null       { Token _ Reserved "null" }
     data       { Token _ Reserved "data" }
+    push       { Token _ Reserved "push" }
+    pop        { Token _ Reserved "pop" }
+    len        { Token _ Reserved "len" }
 
     import     { Token _ Import _ }
     import_c   { Token _ ImportC _ }
@@ -181,9 +183,9 @@ patterns  : {- empty -}                       { [] }
 patterns1 : pattern                           { [$1] }
           | pattern ',' patterns1             { $1 : $3 }
 
-index  : ident                                { S.IndIdent (tokPos $1) (Sym $ tokStr $1) }
-       | index '[' expr ']'                   { S.IndArray (tokPos $2) $1 $3 }
-       | index '.' ident                      { S.IndTuple (tokPos $2) $1 (read $ tokStr $3) }
+index  : symbol                               { S.Ident (fst $1) (snd $1) }
+       | index '[' expr ']'                   { S.Subscript (tokPos $2) $1 $3 }
+       | index '.' ident                      { S.Field (tokPos $2) $1 (tokStr $3) }
 
 append_ : append_ '<-' expr                   { S.AppendTable (tokPos $2) $1 $3 }
         | index                               { S.AppendIndex $1 }
@@ -257,13 +259,12 @@ expr   : literal                              { $1 }
        | '[' 'I' exprsN 'D' ']'               { S.Table (tokPos $1) [$3] }
        | '(' expr ')'                         { $2 }
        | '(' expr ',' exprs1 ')'              { S.Tuple (tokPos $1) ($2:$4) }
-       | len '(' expr ')'                     { S.Len (tokPos $1) $3 }
        | copy '(' expr ')'                    { S.Copy (tokPos $1) $3 }
        | zero '(' ')'                         { S.Zero (tokPos $1) }
        | unsafe_ptr '(' expr ')'              { S.UnsafePtr (tokPos $1) $3 }
        | typeOrdinal '(' exprs ')'            { S.Conv (tokPos $2) $1 $3 }
        | null                                 { S.Null (tokPos $1) }
-       | ':' typeAggregate '(' exprs ')'    { S.Conv (tokPos $3) $2 $4 }
+       | ':' typeAggregate '(' exprs ')'      { S.Conv (tokPos $3) $2 $4 }
        | expr '.' intlit                      { S.TupleIndex (tokPos $2) $1 (read $ tokStr $3) }
        | expr '.' ident                       { S.Field (tokPos $2) $1 (tokStr $3) }
        | expr '[' expr ']'                    { S.Subscript (tokPos $2) $1 $3 }
@@ -271,6 +272,10 @@ expr   : literal                              { $1 }
        | expr '[' mexpr '..' mexpr ']'        { S.Range (tokPos $2) $1 $3 $5 }
        | '{' expr '}'                         { S.ADT (tokPos $1) $2 }
        | expr '.' ident '(' exprs ')'         { S.CallMember (tokPos $4) $1 (Sym $ tokStr $3) $5 }
+       | expr '.' push '(' exprs ')'          { S.Push (tokPos $4) $1 $5 }
+       | expr '.' pop '(' exprs ')'           { S.Pop (tokPos $4) $1 $5 }
+       | expr '.' len '(' ')'                 { S.Len (tokPos $4) $1 }
+       | len '(' expr ')'                     { S.Len (tokPos $1) $3 }
 
 tableRows : exprs1                             { [$1] }
           | exprs1 ';' tableRows               { $1 : $3 }
@@ -380,12 +385,8 @@ annoADTFields : annoADTField 'N'              { [$1] }
               | annoADTField '|' annoADTFields { $1 : $3 }
               | annoADTField '|' 'N' annoADTFields { $1 : $4 }
 
-
-
 rowTypes1     : type_                         { [$1] }
               | type_ ';' rowTypes1           { $1 : $3 }
-
-
 {
 parse :: MonadError Error m => FilePath -> String -> m S.AST
 parse filePath source = do

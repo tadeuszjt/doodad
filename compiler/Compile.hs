@@ -242,25 +242,6 @@ cmpFuncDef (S.FuncDef pos mparam sym args retty blk) = trace "cmpFuncDef" $ with
 
 
 
-cmpIndex:: InsCmp CompileState m => S.Index -> m Value
-cmpIndex index = withPos index $ case index of
-    S.IndIdent pos symbol -> do
-        ObjVal val <- look symbol KeyVar
-        return val
-    S.IndArray pos ind idxExpr -> do
-        idxVal <- cmpExpr idxExpr
-        assertBaseType isInt (valType idxVal)
-
-        loc <- cmpIndex ind
-        base <- baseTypeOf (valType loc)
-        case base of
-            Table [t] -> do
-                row <- tableRow 0 loc
-                ptr <- valPtrIdx row idxVal
-                return ptr
-            Array n t -> do
-                arrayGetElem loc idxVal
-
 
 cmpInfix :: InsCmp CompileState m => Type -> S.Op -> Value -> Value -> m Value
 cmpInfix typ op valA valB = do
@@ -295,12 +276,11 @@ cmpPrint (S.Print pos exprs) = trace "cmpPrint" $ do
 
 cmpAppend :: InsCmp CompileState m => S.Append -> m Value
 cmpAppend append = withPos append $ case append of
-    S.AppendIndex index -> cmpIndex index
-
     S.AppendTable pos app expr -> do
         loc <- cmpAppend app
         tableAppend loc =<< cmpExpr expr
         return loc
+    S.AppendIndex expr -> cmpExpr expr
 
 
 cmpStmt :: InsCmp CompileState m => S.Stmt -> m ()
@@ -324,10 +304,10 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
         matched <- valLoad =<< cmpPattern pat val
         if_ (valOp matched) (return ()) (void trap) 
 
-    S.Set pos ind expr -> do
+    S.Set pos expr1 expr2 -> do
         label "set"
-        loc <- cmpIndex ind
-        valStore loc =<< cmpExpr expr
+        loc@(Ptr _ _) <- cmpExpr expr1
+        valStore loc =<< cmpExpr expr2
 
     S.Return pos Nothing -> do
         label "return"

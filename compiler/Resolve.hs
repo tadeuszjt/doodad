@@ -244,22 +244,14 @@ instance Resolve Condition where
             return $ CondMatch pat' expr'
 
 
-instance Resolve Index where
-    resolve index = withPos index $ case index of
-        IndIdent pos symbol -> IndIdent pos <$> look symbol KeyVar
-        IndArray pos ind expr -> do
-            ind' <- resolve ind
-            expr' <- resolve expr
-            return $ IndArray pos ind' expr'
-        _ -> fail $ "cannot resolve: " ++ show index
-
 instance Resolve Append where
     resolve append = withPos append $ case append of
-        AppendIndex index -> AppendIndex <$> resolve index
         AppendTable pos index expr -> do
             index' <- resolve index
             expr' <- resolve expr
             return $ AppendTable pos index' expr'
+
+        AppendIndex expr -> AppendIndex <$> resolve expr
 
 
 instance Resolve Pattern where

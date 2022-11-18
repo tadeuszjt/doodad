@@ -126,13 +126,8 @@ instance Apply S.Pattern where
 instance Apply S.Append where
     apply subs app = case app of
         S.AppendTable p ap e -> S.AppendTable p (apply subs ap) (apply subs e)
-        S.AppendIndex index  -> S.AppendIndex (apply subs index)
+        S.AppendIndex e      -> S.AppendIndex (apply subs e)
 
-instance Apply S.Index where
-    apply subs index = case index of
-        S.IndIdent p sym -> index
-        S.IndArray p ind e -> S.IndArray p (apply subs ind) (apply subs e)
-        _ -> error $ show index
 
 instance Apply S.Stmt where
     apply subs stmt = case stmt of

@@ -223,8 +223,9 @@ collectStmt stmt = collectPos stmt $ case stmt of
         oldRetty <- gets curRetty
         modify $ \s -> s { curRetty = retty }
 
-        flip (maybe (return ())) mparam $ \(S.Param _ symbol t) ->
-            define symbol KeyVar (ObjVar t)
+        case mparam of
+            Nothing -> return ()
+            Just (S.Param _ symbol t) -> define symbol KeyVar (ObjVar t)
 
         forM_ params $ \(S.Param _ symbol t) ->
             define symbol KeyVar (ObjVar t)
@@ -249,11 +250,10 @@ collectStmt stmt = collectPos stmt $ case stmt of
         collectPattern pattern (typeOf expr)
         collectExpr expr
 
-    S.Set _ index expr -> do
-        typ <- collectIndex index
-        collectEq typ (typeOf expr)
-        collectExpr expr
-
+    S.Set _ expr1 expr2 -> do
+        collectEq (typeOf expr1) (typeOf expr2)
+        collectExpr expr1
+        collectExpr expr2
 
     S.While _ cond blk -> do
         collectCondition cond
@@ -292,24 +292,9 @@ collectAppend append = collectPos append $ case append of
         collectEq t (typeOf expr)
         collectExpr expr
         return t
-
-    S.AppendIndex index -> collectIndex index
-
-
--- returns type of resulting index
-collectIndex :: BoM CollectState m => S.Index -> m Type
-collectIndex index = collectPos index $ case index of
-    S.IndIdent _ symbol -> do
-        ObjVar t <- look symbol KeyVar
-        return t
-
-    S.IndArray _ ind expr -> do
-        gt <- genType
-        collectElem gt =<< collectIndex ind
+    S.AppendIndex expr -> do
         collectExpr expr
-        return gt
-
-    _ -> error (show index)
+        return $ typeOf expr
 
 
 -- collectPattern pattern <with this type of expression trying to match>

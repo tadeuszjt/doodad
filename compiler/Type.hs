@@ -32,6 +32,23 @@ data Type
     deriving (Eq, Ord)
 
 
+tableBuiltinMembers :: Type -> [(String, [Type], Type)]
+tableBuiltinMembers (Table ts) = [
+    ("push",  [], Void),
+    ("pop",   [], popRet),
+    ("len",   [], I64),
+    ("clear", [], Void),
+    ("push",  ts, Void)
+    ]
+    where
+        popRet = case ts of
+            [] -> Void
+            [t] -> t
+            ts -> Tuple ts
+
+
+
+
 instance Show AdtField where
     show adtField = case adtField of
         FieldNull -> "null"

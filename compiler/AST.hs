@@ -58,7 +58,7 @@ data Param
 
 data Append
     = AppendTable TextPos Append Expr
-    | AppendIndex Index
+    | AppendIndex Expr
     deriving (Eq)
 
 data Pattern
@@ -72,12 +72,6 @@ data Pattern
     | PatTypeField TextPos Type Pattern
     | PatAnnotated Pattern Type
     | PatNull      TextPos
-    deriving (Eq)
-
-data Index
-    = IndIdent TextPos Symbol
-    | IndArray TextPos Index Expr
-    | IndTuple TextPos Index Word32
     deriving (Eq)
 
 data Condition
@@ -95,13 +89,15 @@ data Expr
     | String     TextPos String
     | Tuple      TextPos [Expr]
     | Table      TextPos [[Expr]]
-    | Field     TextPos Expr String
+    | Field      TextPos Expr String
     | Subscript  TextPos Expr Expr
     | TupleIndex TextPos Expr Word32
     | Ident      TextPos Symbol
     | Call       TextPos Symbol [Expr]
     | Conv       TextPos Type [Expr]
     | Len        TextPos Expr
+    | Push       TextPos Expr [Expr]
+    | Pop        TextPos Expr [Expr]
     | Copy       TextPos Expr
     | Zero       TextPos
     | Prefix     TextPos Op Expr
@@ -115,7 +111,7 @@ data Expr
 
 data Stmt
     = Assign      TextPos Pattern Expr
-    | Set         TextPos Index   Expr
+    | Set         TextPos Expr   Expr
     | Print       TextPos [Expr]
     | ExprStmt    TextPos Expr
     | Return      TextPos (Maybe Expr)
@@ -149,12 +145,6 @@ instance TextPosition Append where
     textPos append = case append of
         AppendTable p _ _ -> p
         AppendIndex i -> textPos i
-
-instance TextPosition Index where
-    textPos index = case index of
-        IndIdent p _ -> p
-        IndArray p _ _ -> p
-        IndTuple p _ _ -> p
 
 instance TextPosition Pattern where
     textPos pattern = case pattern of
@@ -285,13 +275,6 @@ instance Show Append where
 instance Show Condition where
     show (CondExpr expr)      = show expr
     show (CondMatch pat expr) = show pat ++ " <- " ++ show expr
-
-
-instance Show Index where
-    show ind = case ind of
-        IndIdent pos symbol   -> show symbol
-        IndArray pos idx expr -> show idx ++ "[" ++ show expr ++ "]"
-        IndTuple pos idx n    -> show idx ++ "." ++ show n
 
 
 instance Show Expr where

@@ -113,22 +113,11 @@ instance Annotate Pattern where
 
 instance Annotate Append where
     annotate append = case append of
-        AppendIndex i -> AppendIndex <$> annotate i
         AppendTable p a e -> do
             a' <- annotate a
             AppendTable p a' <$> annotate e
-
-
-instance Annotate Index where
-    annotate index = case index of
-        IndIdent p s -> return index
-
-        IndArray p idx e -> do
-            idx' <- annotate idx
-            IndArray p idx' <$> annotate e
+        AppendIndex e -> AppendIndex <$> annotate e
             
-        _ -> fail $ "Cannot annotate: " ++ show index
-
 
 instance Annotate Expr where
     annotate (AExpr t e) = do
