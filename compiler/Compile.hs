@@ -49,13 +49,6 @@ import Array
 import Builtin
 import Symbol
 
-funcKeyMatch :: [Type] -> [SymKey] -> [SymKey]
-funcKeyMatch argTypes []         = []
-funcKeyMatch argTypes (key:keys) = case key of
-    KeyFunc ts rt
-        | ts == argTypes -> KeyFunc ts rt : funcKeyMatch argTypes keys
-    _ -> funcKeyMatch argTypes keys
-
 
 compile :: BoM s m => [CompileState] -> S.AST ->  m ([LL.Definition], CompileState)
 compile imports ast = do
@@ -194,7 +187,6 @@ cmpFuncDef (S.FuncDef pos mparam "main" args retty blk) = trace "cmpFuncDef" $ w
     assert (args == [])  "main cannot have argeters"
     assert (retty == Void) $ "main must return void: " ++ show retty
     cmpStmt blk
-
 cmpFuncDef (S.FuncDef pos mparam sym args retty blk) = trace "cmpFuncDef" $ withPos pos $ do
     returnOpType <- opTypeOf retty
     argOpTypes <- mapM (opTypeOf . S.paramType) args
@@ -209,43 +201,37 @@ cmpFuncDef (S.FuncDef pos mparam sym args retty blk) = trace "cmpFuncDef" $ with
             paramOpTyp <- LL.ptr <$> opTypeOf paramType
             let paramName = ParameterName $ mkBSS $ Symbol.sym $ paramSymbol
             ObjFnOp op <- look (Sym sym) (KeyMember paramType argTypes retty)
+
             let LL.ConstantOperand (C.GlobalReference _ name) = op
             let Name nameStr = name
-
             void $ InstrCmpT . IRBuilderT . lift $ func name (zip (paramOpTyp : argOpTypes)  (paramName :argNames)) returnOpType $ \argOps -> do
                 define paramSymbol KeyVar (ObjVal $ Ptr paramType $ head argOps)
-
                 forM_ (zip3 argTypes (tail argOps) argSymbols) $ \(typ, op, symbol) -> do
                     loc <- valLocal typ
                     valStore loc (Val typ op)
                     define symbol KeyVar (ObjVal loc)
-
-                cmpStmt blk
-                hasTerm <- hasTerminator
-                if hasTerm
-                then return ()
-                else if retty == Void
-                then retVoid
-                else unreachable
-
+                cmpFnBlock
         Nothing -> do
             ObjFnOp op <- look (Sym sym) (KeyFunc argTypes retty)
+
             let LL.ConstantOperand (C.GlobalReference _ name) = op
             let Name nameStr = name
-
             void $ InstrCmpT . IRBuilderT . lift $ func name (zip argOpTypes argNames) returnOpType $ \argOps -> do
                 forM_ (zip3 argTypes argOps argSymbols) $ \(typ, op, symbol) -> do
                     loc <- valLocal typ
                     valStore loc (Val typ op)
                     define symbol KeyVar (ObjVal loc)
-
-                cmpStmt blk
-                hasTerm <- hasTerminator
-                if hasTerm
-                then return ()
-                else if retty == Void
-                then retVoid
-                else unreachable
+                cmpFnBlock
+    where
+        cmpFnBlock :: InsCmp CompileState m => m ()
+        cmpFnBlock = do
+            cmpStmt blk
+            hasTerm <- hasTerminator
+            if hasTerm
+            then return ()
+            else if retty == Void
+            then retVoid
+            else unreachable
 
 
 
@@ -269,17 +255,15 @@ cmpIndex index = withPos index $ case index of
                 arrayGetElem loc idxVal
 
 
-cmpInfix :: InsCmp CompileState m => S.Op -> Value -> Value -> m Value
-cmpInfix op valA valB = do
-    kos <- lookSym (Sym $ show op)
-    let matches = funcKeyMatch [valType valA, valType valB] (map fst kos)
-    case matches of
-        []              -> valsInfix op valA valB
-        [KeyFunc ts rt] -> do
-            ObjFnOp op <- look (Sym $ show op) $ KeyFunc ts rt
+cmpInfix :: InsCmp CompileState m => Type -> S.Op -> Value -> Value -> m Value
+cmpInfix typ op valA valB = do
+    mobj <- lookm (Sym $ show op) $ KeyFunc [valType valA, valType valB] typ
+    case mobj of
+        Just (ObjFnOp op) -> do
             opA <- valOp <$> valLoad valA
             opB <- valOp <$> valLoad valB
-            Val rt <$> call op [(opA, []), (opB, [])]
+            Val typ <$> call op [(opA, []), (opB, [])]
+        Nothing -> valsInfix op valA valB
 
 
 cmpCondition :: InsCmp CompileState m => S.Condition -> m Value
@@ -456,7 +440,7 @@ cmpExpr (S.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck exp
     S.Infix pos op exprA exprB -> do
         valA <- cmpExpr exprA
         valB <- cmpExpr exprB
-        cmpInfix op valA valB
+        cmpInfix exprType op valA valB
 
     S.Ident pos symbol -> do
         obj <- look symbol KeyVar
@@ -590,8 +574,8 @@ cmpExpr (S.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck exp
 
 cmpPattern :: InsCmp CompileState m => S.Pattern -> Value -> m Value
 cmpPattern pattern val = trace "cmpPattern" $ withPos pattern $ case pattern of
-    S.PatIgnore _   -> valBool Bool True
-    S.PatLiteral expr -> cmpInfix S.EqEq val =<< cmpExpr expr
+    S.PatIgnore _     -> valBool Bool True
+    S.PatLiteral expr -> cmpInfix Bool S.EqEq val =<< cmpExpr expr
 
     S.PatNull _ -> do
         base@(ADT fs) <- assertBaseType isADT (valType val)
