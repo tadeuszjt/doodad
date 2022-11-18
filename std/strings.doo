@@ -1,10 +1,20 @@
 module strings
-
 import chars
 
-data strings keymap[char]
-
-fn New()
-    return
+type String [char]
+type Strings [String]
 
 
+fn (ss Strings) New(s string) i64
+    let idx = ss.New()
+    for [i] s
+        ss[idx] <- [s[i]]
+    return idx
+
+fn (ss Strings) New() i64
+    let idx = len(ss)
+    ss <- [zero():String]
+    return idx
+
+fn (ss Strings) Print(idx i64)
+    print(ss[idx])

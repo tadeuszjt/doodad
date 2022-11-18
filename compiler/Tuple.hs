@@ -19,9 +19,9 @@ import Symbol
 
 tupleTypeDef :: InsCmp CompileState m => Symbol -> S.AnnoType -> m ()
 tupleTypeDef symbol (S.AnnoType typ) = trace "tupleTypeDef" $ do
-    name <- addTypeDef symbol =<< opTypeOf typ
+    base@(Tuple ts) <- assertBaseType isTuple typ
+    name <- addTypeDef symbol =<< opTypeOf base
 
-    Tuple ts <- assertBaseType isTuple typ
     let typdef = Typedef symbol
 
     define symbol (KeyFunc [] typdef) ObjConstructor

@@ -121,11 +121,11 @@ jitAndRun defs session keepModule verbose = do
 
     withModuleKey (executionSession session) $ \modKey ->
         M.withModuleFromAST (context session) astmod $ \mod -> do
-            verify mod
 
             let pm = passManager session
             let cl = compileLayer session
 
+            verify mod
             when (isJust pm) $ do
                 when verbose (putStrLn "running optimisation passes...")
                 void $ runPassManager (fromJust pm) mod

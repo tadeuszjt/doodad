@@ -20,7 +20,22 @@ import Tuple
 import Typeof
 import Trace
 import Error
+import Symbol
 
+tableTypeDef :: InsCmp CompileState m => Symbol -> S.AnnoType -> m ()
+tableTypeDef symbol (S.AnnoType typ) = trace "tableTypeDef" $ do
+    base@(Table ts) <- assertBaseType isTable typ
+    name <- addTypeDef symbol =<< opTypeOf base
+    let typdef = Typedef symbol
+
+--    define symbol (KeyFunc [] typdef) ObjConstructor
+--    define symbol (KeyFunc [typ] typdef) ObjConstructor
+--    define symbol (KeyFunc [typdef] typdef) ObjConstructor
+    define symbol KeyType $ ObType typ (Just name)
+
+--    when (length ts > 0) $
+--        define symbol (KeyFunc ts typdef) ObjConstructor
+--
 
 
 tableLen :: InsCmp CompileState m => Value -> m Value

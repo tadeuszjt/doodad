@@ -155,7 +155,7 @@ stmtS : let pattern '=' expr                         { S.Assign (tokPos $1) $2 $
       | type symbol annoType                         { S.Typedef (fst $2) (snd $2) $3 }
       | print '(' exprs ')'                          { S.Print (tokPos $1) $3 }
       | return mexpr                                 { S.Return (tokPos $1) $2 }
-      --| append_                                      { S.AppendStmt $1 }
+      | append_                                      { S.AppendStmt $1 }
       | data symbol type_                            { S.Data (tokPos $1) (snd $2) $3 }
 stmtB : If                                           { $1 }
       | fn mFnTypArg mfnrec fnName '(' params ')' type_ block  { S.FuncDef (tokPos $1) $3 ($4) $6 $8 $9 }
@@ -305,13 +305,13 @@ prefix : '-' expr                             { S.Prefix (tokPos $1) S.Minus $2 
 
 ---------------------------------------------------------------------------------------------------
 -- Types ------------------------------------------------------------------------------------------
+mtype  : {-empty-}                            { Nothing }
+       | type_                                { Just $1 }
+
 
 type_         : symbol                        { T.Typedef (snd $1) }
               | typeOrdinal                   { $1 }
               | typeAggregate                 { $1 }
-
-mtype  : {-empty-}                            { Nothing }
-       | type_                                { Just $1 }
 
 typeOrdinal   : bool                          { T.Bool }
               | i16                           { T.I16 }
@@ -322,15 +322,28 @@ typeOrdinal   : bool                          { T.Bool }
               | char                          { T.Char }
               | string                        { T.String }
 
-typeAggregate : '[' rowTypes1 ']'             { T.Table $2 }
+typeAggregate : tableType                     { $1 }
               | arrayType                     { $1 }
               | tupType                       { $1 }
               | adtType                       { $1 }
               | fn '(' argTypes ')' type_     { T.Func $3 $5 }
-              | keymap '[' rowTypes1 ']'      { T.KeyMap $3 }
 
 
-adtType : '{' adtFields '}'               { T.ADT $2 }
+adtType : '{' adtFields '}'                   { T.ADT $2 }
+arrayType : '[' intlit type_ ']'              { T.Array (read $ tokStr $2) $3 }
+tableType : '[' rowTypes1 ']'                 { T.Table $2 }
+tupType : '(' tupFields ')'                   { T.Tuple $2 }
+
+
+annoType : typeOrdinal                        { S.AnnoType $1 }
+         | symbol                             { S.AnnoType (T.Typedef $ snd $1) }
+         | tupType                            { S.AnnoType $1 }
+         | arrayType                          { S.AnnoType $1 }
+         | tableType                          { S.AnnoType $1 }
+         | annoTupType                        { $1 }
+         | annoADTType                        { $1 }
+
+
 adtFields : {-empty-}                     { [] }
           | adtFields1                    { $1 }
 adtFields1 : adtField                     { [$1] }
@@ -339,15 +352,10 @@ adtField : type_                          { T.FieldType $1 }
          | null                           { T.FieldNull }
 
 
-tupType : '(' tupFields ')'               { T.Tuple $2 }
 tupFields : {-empty -}                    { [] }
           | tupFields1                    { $1 }
 tupFields1 : type_                        { [$1] }
            | type_ ',' tupFields1         { $1 : $3 }
-
-
-arrayType : '[' intlit type_ ']'              { T.Array (read $ tokStr $2) $3 }
-
 
 
 argTypes  : {-empty -}                        { [] }
@@ -377,13 +385,6 @@ annoADTFields : annoADTField 'N'              { [$1] }
 rowTypes1     : type_                         { [$1] }
               | type_ ';' rowTypes1           { $1 : $3 }
 
-
-annoType : typeOrdinal                        { S.AnnoType $1 }
-         | symbol                             { S.AnnoType (T.Typedef $ snd $1) }
-         | tupType                            { S.AnnoType $1 }
-         | arrayType                          { S.AnnoType $1 }
-         | annoTupType                        { $1 }
-         | annoADTType                        { $1 }
 
 {
 parse :: MonadError Error m => FilePath -> String -> m S.AST

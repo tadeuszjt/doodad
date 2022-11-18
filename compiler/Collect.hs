@@ -383,7 +383,9 @@ collectCallMember exprType e symbol es = do
     let ksSameArgsLen = [ k | k@(KeyMember _ as _) <- ks, length as == length es ]
     let ksSameRecType = [ k | k@(KeyMember t _ _) <- ks, t == typeOf e ]
 
-    collectIfOneDef $ intersectMatches [ks, ksSameRetty, ksSameArgs, ksSameArgsLen, ksSameRecType]
+    let kss = [ks, ksSameRetty, ksSameArgs, ksSameArgsLen, ksSameRecType]
+    mapM_ collectIfOneDef kss
+    collectIfOneDef $ intersectMatches kss
     
     collectExpr e
     mapM_ collectExpr es
@@ -412,7 +414,9 @@ collectCall exprType symbol es = do
     let ksSameArgs    = [ k | k@(KeyFunc as _) <- ks, as == map typeOf es ]
     let ksSameArgsLen = [ k | k@(KeyFunc as _) <- ks, length as == length es ]
 
-    collectIfOneDef $ intersectMatches [ks, ksSameRetty, ksSameArgs, ksSameArgsLen]
+    let kss = [ks, ksSameRetty, ksSameArgs, ksSameArgsLen]
+    mapM_ collectIfOneDef kss
+    collectIfOneDef $ intersectMatches kss
 
     mapM_ collectExpr es
     where

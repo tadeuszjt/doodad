@@ -108,6 +108,7 @@ cmpTypeDef (S.Typedef pos symbol (S.AnnoADT xs))   = withPos pos $ adtTypeDef sy
 cmpTypeDef (S.Typedef pos symbol (S.AnnoType typ)) = withPos pos $ do
     case typ of
         t | isTuple t -> tupleTypeDef symbol (S.AnnoType t)
+        t | isTable t -> tableTypeDef symbol (S.AnnoType t)
         t             -> do
             let typdef = Typedef symbol
             define symbol (KeyFunc [] typdef) ObjConstructor
@@ -118,7 +119,13 @@ cmpTypeDef (S.Typedef pos symbol (S.AnnoType typ)) = withPos pos $ do
 
 cmpDataDef :: InsCmp CompileState m => S.Stmt -> m ()
 cmpDataDef (S.Data pos symbol typ) = withPos pos $ do
-    return ()
+    name <- myFresh (sym symbol)
+    initialiser <- valZero typ
+    opTyp <- opTypeOf typ
+    loc <- Ptr typ <$> global name opTyp (toCons $ valOp initialiser)
+    define symbol KeyVar (ObjVal loc)
+    addSymKeyDec symbol KeyVar name (DecVar opTyp)
+    addDeclared name
 
 
 cmpVarDef :: InsCmp CompileState m => S.Stmt -> m ()
@@ -408,12 +415,12 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
     _ -> error "stmt"
     where
         label :: InsCmp CompileState m => String -> m ()
-        label str = return ()
---            let pos = textPos stmt
---            name <- freshName $ mkBSS $ str ++ " " ++ show (textLine pos)
---            --printf (str ++ " " ++ show (Error.textLine pos) ++ "\n") []
---            br name
---            emitBlockStart name
+        label str = do
+            let pos = textPos stmt
+            name <- freshName $ mkBSS $ str ++ " " ++ show (textLine pos)
+            --printf (str ++ " " ++ show (Error.textLine pos) ++ "\n") []
+            br name
+            emitBlockStart name
 
 -- must return Val unless local variable
 cmpExpr :: InsCmp CompileState m =>  S.Expr -> m Value
@@ -566,7 +573,6 @@ cmpExpr (S.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck exp
         withCheck typ m = do
             val <- m
             isDataType <- isDataType (valType val)
-            assert (not isDataType) "Cannot use data type as expression"
             assert (valType val == typ) $ "Expression compiled to: " ++ show (valType val) ++ " instead of: " ++ show typ
             return val
             

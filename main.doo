@@ -10,19 +10,7 @@ import std/assert
 import_c stdlib.h
 import_c stdio.h
 
-
-data stuff i64
-
-
-fn (n i64) addOne()
-    n = n + 1
-
-fn (s string) printString() i64
-    print(s)
-    return len(s)
-
-fn func()
-    print("func")
+data strings Strings 
 
 fn main()
         let va = Vec2(1.0, 3.0)
@@ -35,15 +23,13 @@ fn main()
 
         let (f, n) = (-123:f64, 123)
 
-        print("n before addOne():", n)
-        n->addOne()
-        print("n after addOne(): ", n)
-
-        func()
-
         print(30:c::size_t)
 
-        let s = "string"
-        let x = s.printString()
-        print(x)
-        for [i] s; print(s[i])
+
+        let idx = strings.New()
+        let idx2 = strings.New("benis")
+        print(idx, idx2)
+        strings->Print(idx)
+        strings->Print(idx2)
+
+
