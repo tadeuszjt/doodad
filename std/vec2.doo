@@ -18,3 +18,5 @@ fn (v Vec2) normal() Vec2
     let l = v.length()
     return (v.x / l, v.y / l)
 
+fn (v Vec2) theta()
+    return atan2(v.y, v.x)

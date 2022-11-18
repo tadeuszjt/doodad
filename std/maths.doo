@@ -2,12 +2,15 @@ module maths
 
 import_c math.h
 import_c stdlib.h
+import_c_macro M_PI f64
 
-let MaxI64 = 9223372036854775807
+let pi = 3.14159
 
 fn sqrt(f f64); return c::sqrt(f)
 fn sin(f f64); return c::sin(f)
 fn cos(f f64); return c::cos(f)
+fn tan(f f64); return c::tan(f)
+fn atan2(y f64, x f64); return c::atan2(y, x)
 
 fn abs(n i64); return i64(c::abs(i32(n)))
 fn abs(f f64); return f64(c::fabs(f))

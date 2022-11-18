@@ -48,6 +48,7 @@ data Extern
 typeToCType :: Type -> String
 typeToCType typ = case typ of
     I64 -> "int"
+    F64 -> "double"
 
 
 macroToVar :: String -> String

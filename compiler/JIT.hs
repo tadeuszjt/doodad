@@ -121,7 +121,6 @@ jitAndRun defs session keepModule verbose = do
 
     withModuleKey (executionSession session) $ \modKey ->
         M.withModuleFromAST (context session) astmod $ \mod -> do
-            when verbose (BS.putStrLn =<< M.moduleLLVMAssembly mod)
             verify mod
 
             let pm = passManager session
@@ -130,6 +129,8 @@ jitAndRun defs session keepModule verbose = do
             when (isJust pm) $ do
                 when verbose (putStrLn "running optimisation passes...")
                 void $ runPassManager (fromJust pm) mod
+
+            when verbose (BS.putStrLn =<< M.moduleLLVMAssembly mod)
 
             addModule cl modKey mod
 

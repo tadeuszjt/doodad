@@ -145,6 +145,9 @@ symbol : ident                                { (tokPos $1, Sym (tokStr $1)) }
 mfnrec : {-empty-}                            { Nothing }
        | '(' param ')'                        { Just $2 }
 
+mFnTypArg : {-empty-}                         { Nothing }
+          | '[' ident ']'                     { Just $2 }
+
 stmtS : let pattern '=' expr                         { S.Assign (tokPos $1) $2 $4 }  
       | index '=' expr                               { S.Set (tokPos $2) $1 $3 }
       | call                                         { S.ExprStmt (snd $1) (fst $1) }
@@ -155,8 +158,8 @@ stmtS : let pattern '=' expr                         { S.Assign (tokPos $1) $2 $
       --| append_                                      { S.AppendStmt $1 }
       | data symbol type_                            { S.Data (tokPos $1) (snd $2) $3 }
 stmtB : If                                           { $1 }
-      | fn mfnrec fnName '(' params ')' type_ block  { S.FuncDef (tokPos $1) $2 ($3) $5 $7 $8 }
-      | fn mfnrec fnName '(' params ')' block        { S.FuncDef (tokPos $1) $2 ($3) $5 T.Void $7 }
+      | fn mFnTypArg mfnrec fnName '(' params ')' type_ block  { S.FuncDef (tokPos $1) $3 ($4) $6 $8 $9 }
+      | fn mFnTypArg mfnrec fnName '(' params ')' block        { S.FuncDef (tokPos $1) $3 ($4) $6 T.Void $8 }
       | while condition block                        { S.While (tokPos $1) $2 $3 }
       | for '[' ident ']' expr block                 { S.For (tokPos $1) (Sym $ tokStr $3) Nothing $5 Nothing $6 }
       | for '[' ident ']' expr '->' pattern block    { S.For (tokPos $1) (Sym $ tokStr $3) Nothing $5 (Just $7) $8 }

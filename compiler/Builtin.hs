@@ -115,6 +115,11 @@ valConvert typ val = do
         _ | isInt base   -> valConvertNumber typ val
         _ | isFloat base -> valConvertNumber typ val
         Char             -> valConvertNumber typ val
+        _ | baseVal == base -> case val of
+            Ptr _ loc -> return $ Ptr typ loc
+            Val _ op  -> return $ Val typ op
+            
+
         --Table [Char]     -> valString typ val
         _                -> fail ("valConvert " ++ show base)
 

@@ -16,12 +16,10 @@ data stuff i64
 
 fn (n i64) addOne()
     n = n + 1
-    return 4
 
 fn (s string) printString() i64
     print(s)
     return len(s)
-
 
 fn func()
     print("func")
@@ -29,7 +27,8 @@ fn func()
 fn main()
         let va = Vec2(1.0, 3.0)
         let vb = Vec2(9, 7)
-        print(vb.x, vb.y, vb.length(), vb.normal().length())
+        print(vb, vb.length(), vb.normal().length(), vb.theta())
+        print(va + vb)
 
         let rect = Rect((0, 0), (3, 4))
         print(maths::sqrt(34), rect.area(), rect.width(), rect.height())

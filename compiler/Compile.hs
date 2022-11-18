@@ -424,12 +424,12 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
     _ -> error "stmt"
     where
         label :: InsCmp CompileState m => String -> m ()
-        label str = do
-            let pos = textPos stmt
-            name <- freshName $ mkBSS $ str ++ " " ++ show (textLine pos)
-            --printf (str ++ " " ++ show (Error.textLine pos) ++ "\n") []
-            br name
-            emitBlockStart name
+        label str = return ()
+--            let pos = textPos stmt
+--            name <- freshName $ mkBSS $ str ++ " " ++ show (textLine pos)
+--            --printf (str ++ " " ++ show (Error.textLine pos) ++ "\n") []
+--            br name
+--            emitBlockStart name
 
 -- must return Val unless local variable
 cmpExpr :: InsCmp CompileState m =>  S.Expr -> m Value
@@ -489,7 +489,7 @@ cmpExpr (S.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck exp
         case obj of
             ObjConstructor  -> valConstruct exprType vals
             ObjFnOp op      -> Val exprType <$> call op [(o, []) | o <- map valOp vals]
-            ObjField i     -> adtConstructField symbol exprType vals
+            ObjField i      -> adtConstructField symbol exprType vals
     
     S.Len pos expr -> valLoad =<< do
         assertBaseType isInt exprType
