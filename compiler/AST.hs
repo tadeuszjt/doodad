@@ -56,11 +56,6 @@ data Param
     deriving (Eq)
 
 
-data Append
-    = AppendTable TextPos Append Expr
-    | AppendIndex Expr
-    deriving (Eq)
-
 data Pattern
     = PatLiteral   Expr
     | PatIgnore    TextPos
@@ -113,14 +108,13 @@ data Stmt
     = Assign      TextPos Pattern Expr
     | Set         TextPos Expr   Expr
     | Print       TextPos [Expr]
-    | ExprStmt    TextPos Expr
+    | ExprStmt    Expr
     | Return      TextPos (Maybe Expr)
     | Block       [Stmt]
     | If          TextPos Condition Stmt (Maybe Stmt)
     | While       TextPos Condition Stmt
     | FuncDef     TextPos (Maybe Param) String [Param] Type Stmt
     | Typedef     TextPos Symbol AnnoType
-    | AppendStmt  Append
     | Switch      TextPos Expr [(Pattern, Stmt)]
     | For         TextPos Symbol (Maybe Type) Expr (Maybe Pattern) Stmt
     | Data        TextPos Symbol Type
@@ -140,11 +134,6 @@ data AnnoType
     | AnnoADT   [AnnoADTField]
     deriving (Eq)
 
-
-instance TextPosition Append where
-    textPos append = case append of
-        AppendTable p _ _ -> p
-        AppendIndex i -> textPos i
 
 instance TextPosition Pattern where
     textPos pattern = case pattern of
@@ -190,6 +179,7 @@ instance TextPosition Expr where
         UnsafePtr  p _ -> p
         ADT        p _ -> p
         CallMember p _ _ _ -> p
+        Push       p _ _ -> p
 
 
 instance TextPosition Stmt where
@@ -197,14 +187,13 @@ instance TextPosition Stmt where
         Assign      p _ _ -> p
         Set         p _ _ -> p
         Print       p _ -> p
-        ExprStmt    p _ -> p
+        ExprStmt    e -> textPos e
         Return      p _ -> p
         Block       s -> textPos (head s)
         If          p _ _ _ -> p
         While       p _ _ -> p
         FuncDef     p _ _ _ _ _ -> p
         Typedef     p _ _ -> p
-        AppendStmt  a -> textPos a
         Switch      p _ _ -> p
         For         p _ _ _ _ _ -> p
         Data        p _ _ -> p
@@ -266,11 +255,6 @@ instance Show Pattern where
         PatAnnotated pat typ     -> show pat ++ ":" ++ show typ
         PatNull pos              -> "null"
 
-instance Show Append where
-    show append = case append of
-        AppendTable p a e -> show a ++ " <- " ++ show e
-        AppendIndex i -> show i
-
 
 instance Show Condition where
     show (CondExpr expr)      = show expr
@@ -303,6 +287,7 @@ instance Show Expr where
         Range pos expr mexpr1 mexpr2 -> show expr ++ "[" ++ maybe "" show mexpr1 ++ ".." ++ maybe "" show mexpr2 ++ "]"
         ADT pos expr                 -> brcStrs [show expr]
         CallMember pos expr symbol exprs -> show expr ++ "." ++ show symbol ++ tupStrs (map show exprs)
+        Push pos expr exprs              -> show expr ++ ".push" ++ tupStrs (map show exprs)
 
 
 -- every function must end on a newline and print pre before every line
@@ -335,7 +320,6 @@ prettyAST ast = do
             Set pos ind expr           -> putStrLn $ pre ++ show ind ++ " = " ++ show expr
             Print pos exprs            -> putStrLn $ pre ++ "print" ++ tupStrs (map show exprs)
             Return pos mexpr -> putStrLn $ pre ++ "return " ++ maybe "" show mexpr
-            AppendStmt app -> putStrLn $ pre ++ show app
  
             If pos cnd true mfalse -> do
                 putStrLn $ pre ++ "if " ++ show cnd
@@ -343,7 +327,7 @@ prettyAST ast = do
                 putStrLn $ pre ++ "else"
                 maybe (return ()) (prettyStmt (pre ++ "\t")) mfalse
 
-            ExprStmt pos callExpr -> putStrLn $ pre ++ show callExpr
+            ExprStmt callExpr -> putStrLn $ pre ++ show callExpr
                     
 
             Block stmts -> do

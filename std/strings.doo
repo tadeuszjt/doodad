@@ -11,13 +11,13 @@ data strings Strings
 fn (ss Strings) New(s string) StringKey
     let idx = ss.New()
     for [i] s
-        ss[idx] <- [s[i]]
+        ss[idx].push(s[i])
     return idx
 
 
 fn (ss Strings) New() StringKey
     let idx = len(ss)
-    ss <- [zero():String]
+    ss.push(zero():String)
     return idx
 
 
@@ -30,12 +30,12 @@ fn (ss Strings) Delete(key StringKey)
 
 fn (ss Strings) Append(idx StringKey, s string)
     for [i] s
-        ss[idx] <- [s[i]]
+        ss[idx].push(s[i])
 
 
 fn (ss Strings) Append(idx StringKey, idx2 StringKey)
     for [i] ss[idx2]
-        ss[idx] <- [ss[idx2][i]]
+        ss[idx].push(ss[idx2][i])
 
 
 fn (ss Strings) Print(idx StringKey)

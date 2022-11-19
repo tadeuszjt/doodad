@@ -34,10 +34,9 @@ instance Annotate Stmt where
         Block ss            -> Block <$> mapM annotate ss
         Return p me         -> Return p <$> maybe (return Nothing) (fmap Just . annotate) me
 
-        AppendStmt a        -> AppendStmt <$> annotate a
         Print p es          -> Print p <$> mapM annotate es
         Typedef p s a       -> return $ Typedef p s a
-        ExprStmt p e        -> ExprStmt p <$> annotate e
+        ExprStmt e        -> ExprStmt <$> annotate e
 
         Assign p pat e      -> do
             pat' <- annotate pat
@@ -110,15 +109,6 @@ instance Annotate Pattern where
             return $ PatAnnotated pat' typ
 
 
-
-instance Annotate Append where
-    annotate append = case append of
-        AppendTable p a e -> do
-            a' <- annotate a
-            AppendTable p a' <$> annotate e
-        AppendIndex e -> AppendIndex <$> annotate e
-            
-
 instance Annotate Expr where
     annotate (AExpr t e) = do
         AExpr t' e' <- annotate e
@@ -170,6 +160,11 @@ instance Annotate Expr where
             e' <- annotate e
             es' <- mapM annotate es
             return $ CallMember pos e' ident es'
+
+        Push pos e es -> do
+            e' <- annotate e
+            es' <- mapM annotate es
+            return $ Push pos e' es'
 
         _ -> error $ show expr
 

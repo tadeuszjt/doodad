@@ -216,8 +216,7 @@ collectStmt stmt = collectPos stmt $ case stmt of
     S.Print p exprs -> mapM_ collectExpr exprs
     S.Typedef _ _ _ -> return ()
     S.Block stmts -> mapM_ collectStmt stmts
-    S.AppendStmt app -> void (collectAppend app)
-    S.ExprStmt p e -> collectExpr e
+    S.ExprStmt e -> collectExpr e
 
     S.FuncDef _ mparam sym params retty blk -> do
         oldRetty <- gets curRetty
@@ -282,19 +281,6 @@ collectStmt stmt = collectPos stmt $ case stmt of
         
 
     _ -> error (show stmt)
-
-
--- return type of append result
-collectAppend :: BoM CollectState m => S.Append -> m Type
-collectAppend append = collectPos append $ case append of
-    S.AppendTable _ app expr -> do
-        t <- collectAppend app
-        collectEq t (typeOf expr)
-        collectExpr expr
-        return t
-    S.AppendIndex expr -> do
-        collectExpr expr
-        return $ typeOf expr
 
 
 -- collectPattern pattern <with this type of expression trying to match>
@@ -430,6 +416,11 @@ collectExpr (S.AExpr exprType expr) = collectPos expr $ case expr of
     S.Len _ e            -> collectDefault exprType I64 >> collectExpr e
     S.Float _ f          -> collectDefault exprType F64
     S.Zero _             -> collectDefault exprType (Tuple [])
+
+    S.Push _ e es        -> do
+        collectDefault exprType I64
+        collectExpr e
+        mapM_ collectExpr es
 
     S.Char _ c       -> do
         collectBase exprType Char

@@ -152,12 +152,10 @@ mFnTypArg : {-empty-}                         { Nothing }
 
 stmtS : let pattern '=' expr                         { S.Assign (tokPos $1) $2 $4 }  
       | index '=' expr                               { S.Set (tokPos $2) $1 $3 }
-      | call                                         { S.ExprStmt (snd $1) (fst $1) }
-      | symbol '->' ident '(' exprs ')'              { S.ExprStmt (tokPos $2) (S.CallMember (tokPos $4) (S.Ident (fst $1) (snd $1)) (Sym $ tokStr $3) $5) }
+      | index                                        { S.ExprStmt $1 }
       | type symbol annoType                         { S.Typedef (fst $2) (snd $2) $3 }
       | print '(' exprs ')'                          { S.Print (tokPos $1) $3 }
       | return mexpr                                 { S.Return (tokPos $1) $2 }
-      | append_                                      { S.AppendStmt $1 }
       | data symbol type_                            { S.Data (tokPos $1) (snd $2) $3 }
 stmtB : If                                           { $1 }
       | fn mFnTypArg mfnrec fnName '(' params ')' type_ block  { S.FuncDef (tokPos $1) $3 ($4) $6 $8 $9 }
@@ -182,13 +180,6 @@ patterns  : {- empty -}                       { [] }
           | patterns1                         { $1 }
 patterns1 : pattern                           { [$1] }
           | pattern ',' patterns1             { $1 : $3 }
-
-index  : symbol                               { S.Ident (fst $1) (snd $1) }
-       | index '[' expr ']'                   { S.Subscript (tokPos $2) $1 $3 }
-       | index '.' ident                      { S.Field (tokPos $2) $1 (tokStr $3) }
-
-append_ : append_ '<-' expr                   { S.AppendTable (tokPos $2) $1 $3 }
-        | index                               { S.AppendIndex $1 }
 
 fnName  : ident                               { tokStr $1 }
         | string                              { tokStr $1 }
@@ -248,6 +239,13 @@ mexpr : {-empty-}                             { Nothing }
       | expr                                  { Just $1 }
 
 call : symbol '(' exprs ')'                   { (S.Call (tokPos $2) (snd $1) $3, tokPos $2) }
+
+index  : symbol                               { S.Ident (fst $1) (snd $1) }
+       | index '[' expr ']'                   { S.Subscript (tokPos $2) $1 $3 }
+       | index '.' ident                      { S.Field (tokPos $2) $1 (tokStr $3) }
+       | index '.' ident '(' exprs ')'        { S.CallMember (tokPos $2) $1 (Sym $ tokStr $3) $5 }
+       | index '.' push '(' exprs ')'         { S.Push (tokPos $2) $1 $5 }
+       | call                                 { (fst $1) }
 
 expr   : literal                              { $1 }
        | infix                                { $1 }

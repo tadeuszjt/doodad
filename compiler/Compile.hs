@@ -274,15 +274,6 @@ cmpPrint (S.Print pos exprs) = trace "cmpPrint" $ do
         prints (v:vs) = valPrint ", " v >> prints vs
 
 
-cmpAppend :: InsCmp CompileState m => S.Append -> m Value
-cmpAppend append = withPos append $ case append of
-    S.AppendTable pos app expr -> do
-        loc <- cmpAppend app
-        tableAppend loc =<< cmpExpr expr
-        return loc
-    S.AppendIndex expr -> cmpExpr expr
-
-
 cmpStmt :: InsCmp CompileState m => S.Stmt -> m ()
 cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
     S.Print pos exprs   -> do
@@ -290,11 +281,8 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
         cmpPrint stmt
 
     S.Block stmts       -> mapM_ cmpStmt stmts
-    S.AppendStmt append -> do
-        label "append"
-        void $ cmpAppend append
 
-    S.ExprStmt pos expr       -> void $ cmpExpr expr
+    S.ExprStmt expr     -> void $ cmpExpr expr
 
     S.Assign pos pat expr -> trace ("assign " ++ show pat) $ do
         label "assign"
@@ -415,6 +403,13 @@ cmpExpr (S.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck exp
     S.Field pos expr sym      -> tupleField sym =<< cmpExpr expr
     S.Zero pos                 -> valZero exprType
     S.Null p                   -> adtNull exprType
+
+    S.Push pos expr [expr2] -> do
+        loc@(Ptr _ _) <- cmpExpr expr
+        val <- cmpExpr expr2
+        len <- tableLen loc
+        tableAppendElem loc val
+        valLoad len
 
     S.Int p n -> do
         base <- baseTypeOf exprType

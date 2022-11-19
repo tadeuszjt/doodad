@@ -134,7 +134,7 @@ instance Resolve Stmt where
 
             return $ FuncDef pos mparam' sym params' retty' blk'
 
-        ExprStmt pos callExpr -> ExprStmt pos <$> resolve callExpr
+        ExprStmt callExpr -> ExprStmt <$> resolve callExpr
 
         Block stmts -> do
             pushSymTab
@@ -182,8 +182,6 @@ instance Resolve Stmt where
 
             return $ AST.Typedef pos symbol anno'
 
-        AppendStmt append -> AppendStmt <$> resolve append
-        
         If pos condition stmt melse -> do
             pushSymTab
             condition' <- resolve condition
@@ -242,16 +240,6 @@ instance Resolve Condition where
             pat' <- resolve pat
             expr' <- resolve expr
             return $ CondMatch pat' expr'
-
-
-instance Resolve Append where
-    resolve append = withPos append $ case append of
-        AppendTable pos index expr -> do
-            index' <- resolve index
-            expr' <- resolve expr
-            return $ AppendTable pos index' expr'
-
-        AppendIndex expr -> AppendIndex <$> resolve expr
 
 
 instance Resolve Pattern where
@@ -335,6 +323,10 @@ instance Resolve Expr where
         AST.Tuple pos exprs -> AST.Tuple pos <$> mapM resolve exprs
         AST.Table pos exprss -> AST.Table pos <$> mapM (mapM resolve) exprss
         AST.String pos s -> return expr
+        Push pos expr exprs -> do
+            expr' <- resolve expr
+            exprs' <- mapM resolve exprs
+            return $ Push pos expr' exprs'
 
         Call pos symbol exprs -> do
             exprs' <- mapM resolve exprs

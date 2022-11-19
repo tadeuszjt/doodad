@@ -101,6 +101,7 @@ instance Apply S.Expr where
         S.UnsafePtr p e            -> S.UnsafePtr p (apply subs e)
         S.ADT p e                  -> S.ADT p (apply subs e)
         S.CallMember p e ident es  -> S.CallMember p (apply subs e) ident (map (apply subs) es)
+        S.Push p e es              -> S.Push p (apply subs e) (map (apply subs) es)
         _                          -> error $ show expr
 
 instance Apply S.Condition where
@@ -123,21 +124,15 @@ instance Apply S.Pattern where
         S.PatNull p            -> S.PatNull p
         _                    -> error $ show pattern
 
-instance Apply S.Append where
-    apply subs app = case app of
-        S.AppendTable p ap e -> S.AppendTable p (apply subs ap) (apply subs e)
-        S.AppendIndex e      -> S.AppendIndex (apply subs e)
-
 
 instance Apply S.Stmt where
     apply subs stmt = case stmt of
         S.Block stmts           -> S.Block $ map (apply subs) stmts
         S.Return pos mexpr      -> S.Return pos $ fmap (apply subs) mexpr
         S.Assign pos pat expr   -> S.Assign pos (apply subs pat) (apply subs expr)
-        S.AppendStmt app        -> S.AppendStmt (apply subs app)
         S.Set pos index e       -> S.Set pos (apply subs index) (apply subs e)
         S.While pos cnd blk     -> S.While pos (apply subs cnd) (apply subs blk)
-        S.ExprStmt pos e        -> S.ExprStmt pos (apply subs e)
+        S.ExprStmt e            -> S.ExprStmt (apply subs e)
         S.Print pos es          -> S.Print pos $ map (apply subs) es
 
         S.FuncDef pos mparam sym params retty block ->
