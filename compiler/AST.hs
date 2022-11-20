@@ -80,27 +80,25 @@ data Expr
     | Float      TextPos Double
     | Bool       TextPos Bool
     | Char       TextPos Char
-    | Null       TextPos 
     | String     TextPos String
     | Tuple      TextPos [Expr]
     | Table      TextPos [[Expr]]
+    | Call       TextPos Symbol [Expr]
+    | CallMember TextPos Expr Symbol [Expr]
+    | Null       TextPos 
     | Field      TextPos Expr String
     | Subscript  TextPos Expr Expr
     | TupleIndex TextPos Expr Word32
     | Ident      TextPos Symbol
-    | Call       TextPos Symbol [Expr]
     | Conv       TextPos Type [Expr]
     | Len        TextPos Expr
     | Push       TextPos Expr [Expr]
     | Pop        TextPos Expr [Expr]
-    | Copy       TextPos Expr
-    | Zero       TextPos
+    | Clear      TextPos Expr 
     | Prefix     TextPos Op Expr
     | Infix      TextPos Op Expr Expr
-    | Range      TextPos Expr (Maybe Expr) (Maybe Expr)
     | UnsafePtr  TextPos Expr
     | ADT        TextPos Expr
-    | CallMember TextPos Expr Symbol [Expr]
     deriving (Eq)
 
 
@@ -171,15 +169,14 @@ instance TextPosition Expr where
         Call       p _ _ -> p 
         Conv       p _ _ -> p
         Len        p _ -> p
-        Zero       p -> p
-        Copy       p _ -> p
         Prefix     p _ _ -> p
         Infix      p _ _ _ -> p
-        Range      p _ _ _ -> p
         UnsafePtr  p _ -> p
         ADT        p _ -> p
         CallMember p _ _ _ -> p
         Push       p _ _ -> p
+        Pop        p _ _ -> p
+        Clear      p _ -> p
 
 
 instance TextPosition Stmt where
@@ -279,15 +276,14 @@ instance Show Expr where
         Call pos symbol exprs       -> show symbol ++ tupStrs (map show exprs)
         Conv pos typ exprs          -> show typ ++ tupStrs (map show exprs)
         Len pos expr                -> "len(" ++ show expr ++ ")"
-        Zero pos                    -> "zero()"
-        Copy pos expr               -> "copy(" ++ show expr ++ ")"
         UnsafePtr pos expr          -> "unsafe_ptr(" ++ show expr ++ ")"
         Prefix pos op expr          -> show op ++ show expr
         Infix pos op expr1 expr2    -> show expr1 ++ " " ++ show op ++ " " ++ show expr2
-        Range pos expr mexpr1 mexpr2 -> show expr ++ "[" ++ maybe "" show mexpr1 ++ ".." ++ maybe "" show mexpr2 ++ "]"
         ADT pos expr                 -> brcStrs [show expr]
         CallMember pos expr symbol exprs -> show expr ++ "." ++ show symbol ++ tupStrs (map show exprs)
         Push pos expr exprs              -> show expr ++ ".push" ++ tupStrs (map show exprs)
+        Pop pos expr exprs               -> show expr ++ ".pop" ++ tupStrs (map show exprs)
+        Clear pos expr                   -> show expr ++ ".clear" ++ tupStrs []
 
 
 -- every function must end on a newline and print pre before every line

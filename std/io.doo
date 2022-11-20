@@ -5,3 +5,9 @@ import_c stdio.h
 
 fn getChar() char
     return char(c::getchar())
+
+
+fn putChar(c char)
+    c::putchar(i32(c))
+
+

@@ -1,5 +1,6 @@
 module strings
 import chars
+import io
 
 type StringKey i64
 type String [char]
@@ -9,34 +10,45 @@ data strings Strings
 
 
 fn (ss Strings) New(s string) StringKey
-    let idx = ss.New()
+    let key = ss.New()
     for [i] s
-        ss[idx].push(s[i])
-    return idx
+        ss[key].push(s[i])
+    return key
 
 
 fn (ss Strings) New() StringKey
-    let idx = len(ss)
-    ss.push(zero():String)
-    return idx
+    return ss.push()
 
 
 fn (ss Strings) Delete(key StringKey)
-    if key == len(ss) - 1
-        ss = ss[..len(ss) - 1]
-    else
-        ss[key] = ss[key][..1]
+    if key == len(ss) - 1; ss.pop()
+    else;                  ss[key].clear()
 
 
-fn (ss Strings) Append(idx StringKey, s string)
+fn (ss Strings) Append(key StringKey, c char)
+    ss[key].push(c)
+
+
+fn (ss Strings) Append(key StringKey, s string)
     for [i] s
-        ss[idx].push(s[i])
+        ss[key].push(s[i])
 
 
-fn (ss Strings) Append(idx StringKey, idx2 StringKey)
-    for [i] ss[idx2]
-        ss[idx].push(ss[idx2][i])
+fn (ss Strings) Append(key StringKey, key2 StringKey)
+    for [i] ss[key2]
+        ss[key].push(ss[key2][i])
 
 
-fn (ss Strings) Print(idx StringKey)
-    print(ss[idx])
+fn (ss Strings) Print(key StringKey)
+    print(ss[key])
+
+
+fn (ss Strings) GetStrLn()
+    let s = strings.New()
+    while true
+        switch getChar()
+            '\n'; return s
+            '\0'; return s
+            c; ss.Append(s, c)
+
+

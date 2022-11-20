@@ -120,11 +120,9 @@ instance Annotate Expr where
         Float p f -> return expr
         String p s -> return expr
         Bool p b -> return expr
-        Zero p -> return expr
         Null p -> return expr
 
         Conv p s es -> Conv p s <$> mapM annotate es
-        Copy p e -> Copy p <$> annotate e
         Len p e -> Len p <$> annotate e
         Tuple p es -> Tuple p <$> mapM annotate es
         Prefix p op e -> Prefix p op <$> annotate e
@@ -148,12 +146,6 @@ instance Annotate Expr where
             e' <- annotate e
             return $ TupleIndex p e' i
 
-        Range pos e me1 me2 -> do
-            e' <- annotate e
-            me1' <- maybe (return Nothing) (fmap Just . annotate) me1
-            me2' <- maybe (return Nothing) (fmap Just . annotate) me2
-            return $ Range pos e' me1' me2'
-
         AST.ADT pos e -> AST.ADT pos <$> annotate e
 
         CallMember pos e ident es -> do
@@ -165,6 +157,15 @@ instance Annotate Expr where
             e' <- annotate e
             es' <- mapM annotate es
             return $ Push pos e' es'
+
+        Pop pos e es -> do
+            e' <- annotate e
+            es' <- mapM annotate es
+            return $ Pop pos e' es'
+
+        Clear pos e -> do
+            e' <- annotate e
+            return $ Clear pos e'
 
         _ -> error $ show expr
 

@@ -32,7 +32,12 @@ fn main()
         strings.Append(idx2, " bongis")
         strings.Print(idx2)
         strings.Append(idx, idx2)
+        strings.Append(idx, ' ')
         strings.Append(idx, idx2)
+        strings.Append(idx, '.')
         strings.Print(idx)
 
+
+        let line = strings.GetStrLn()
+        strings.Print(line)
 

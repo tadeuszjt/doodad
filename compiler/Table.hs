@@ -233,3 +233,21 @@ tableAppend loc val = trace "tableAppend" $ do
         dst <- valPtrIdx row locLen 
         src <- tableRow i val
         valMemCpy dst src valLen
+
+
+tablePopElem :: InsCmp CompileState m => Value -> m Value
+tablePopElem tab = do
+    Table ts <- assertBaseType isTable (valType tab)
+    len <- tableLen tab
+    newLen <- valIntInfix S.Minus len =<< valInt (valType len) 1
+    tableSetLen tab newLen
+    valLoad =<< tableGetElem tab newLen
+
+
+tableClear :: InsCmp CompileState m => Value -> m ()
+tableClear tab = do
+    Table ts <- assertBaseType isTable (valType tab)
+    tableSetLen tab (valI64 0)
+
+
+

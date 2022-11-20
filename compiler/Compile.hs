@@ -396,12 +396,10 @@ cmpExpr (S.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck exp
     S.Bool pos b               -> valBool exprType b
     S.Char pos c               -> valChar exprType c
     S.Conv pos typ [expr]      -> valConvert typ =<< cmpExpr expr
-    S.Copy pos expr            -> valCopy =<< cmpExpr expr
     S.Tuple pos [expr]         -> cmpExpr expr
     S.Float p f                -> valFloat exprType f
     S.Prefix pos operator expr -> valPrefix operator =<< cmpExpr expr
     S.Field pos expr sym      -> tupleField sym =<< cmpExpr expr
-    S.Zero pos                 -> valZero exprType
     S.Null p                   -> adtNull exprType
 
     S.Push pos expr [expr2] -> do
@@ -410,6 +408,23 @@ cmpExpr (S.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck exp
         len <- tableLen loc
         tableAppendElem loc val
         valLoad len
+
+    S.Push pos expr [] -> do
+        loc@(Ptr _ _) <- cmpExpr expr
+        Table [t] <- assertBaseType isTable (valType loc)
+        len <- tableLen loc
+        tableAppendElem loc =<< valZero t
+        valConvertNumber exprType =<< valLoad len
+
+    S.Pop pos expr [] -> do
+        loc@(Ptr _ _) <- cmpExpr expr
+        tablePopElem loc
+
+    S.Clear pos expr -> do
+        assert (exprType == Void) "clear is a void expression"
+        tab <- cmpExpr expr
+        tableClear tab
+        return $ Val Void (valLoc tab)
 
     S.Int p n -> do
         base <- baseTypeOf exprType
@@ -480,15 +495,6 @@ cmpExpr (S.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck exp
     S.TupleIndex pos expr n -> do
         val <- cmpExpr expr
         tupleIdx (fromIntegral n) val
-
-    S.Range pos expr mexpr1 mexpr2 -> do
-        val <- cmpExpr expr
-        base <- baseTypeOf (valType val)
-        case base of
-            Table ts -> do
-                start <- maybe (valInt I64 0) cmpExpr mexpr1
-                end <- maybe (tableLen val) cmpExpr mexpr2
-                tableRange val start end
 
     S.Subscript pos expr idxExpr -> do
         val <- cmpExpr expr

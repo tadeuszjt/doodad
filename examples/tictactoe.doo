@@ -5,115 +5,11 @@ import ../std/strings
 import ../std/rand
 
 
-
-
 type Square { Empty() | Naught() | Cross() }
 
-fn string(sq Square)
-    switch sq
-        Empty();  return " "
-        Naught(); return "0"
-        Cross();  return "X"
-
-
-let board = zero():[3 [3 Square]]
-
-
-fn printBoard()
-    for [row] board
-        print(board[row])
-    print()
-
-
-fn playerMove() bool
-    putStrLn("Please enter <row> <column> to move")
-
-    let s = getStrLn()
-    if s == "\0"
-        return false
-
-    let (row:i64, l) = strings::read(s)
-    if l == 0
-        putStrLn("invalid string: " + s)
-        return false
-    s = s[l..]
-
-    let (col:i64, cl) = strings::read(s)
-    if cl == 0
-        putStrLn("invalid string: " + s)
-        return false
-
-    if row < 0 || row > len(board) || col < 0 || col > len(board[row])
-        putStrLn("invalid move: " + string(row) + " " + string(col))
-        return false
-    else if board[row][col] != Empty()
-        putStrLn("invalid move: " + string(row) + " " + string(col))
-        return false
-
-    putStrLn("moving: row " + string(row) + ", col " + string(col))
-    board[row][col] = Naught()
-    return true
-
-
-fn cpuMove()
-    let emptySquares = []
-    for [r] board
-        for [c] board[r]
-            if board[r][c] -> Empty()
-                emptySquares <- [(r, c)]
-
-    if emptySquares == []
-        return
-
-    for [i] emptySquares -> (r, c)
-        let brd = board
-        brd[r][c] = Cross()
-        if winner(brd) == Cross()
-            board[r][c] = Cross()
-            return
-
-    for [i] emptySquares -> (r, c)
-        let brd = board
-        brd[r][c] = Naught()
-        if winner(brd) == Naught()
-            board[r][c] = Cross()
-            return
-
-    let i = rand::I64() % len(emptySquares)
-    let (r, c) = emptySquares[i]
-    board[r][c] = Cross()
-
-
-fn winner(board [3[3 Square]]) Square
-    switch board
-        [[a, b, c], _, _] | a != Empty() && a == b && a == c; return a
-        [_, [a, b, c], _] | a != Empty() && a == b && a == c; return a
-        [_, _, [a, b, c]] | a != Empty() && a == b && a == c; return a
-
-        [[a, _, _], [b, _, _], [c, _, _]] | a != Empty() && a == b && a == c; return a
-        [[_, a, _], [_, b, _], [_, c, _]] | a != Empty() && a == b && a == c; return a
-        [[_, _, a], [_, _, b], [_, _, c]] | a != Empty() && a == b && a == c; return a
-    
-        [[a, _, _], [_, b, _], [_, _, c]] | a != Empty() && a == b && a == c; return a
-        [[_, _, a], [_, b, _], [c, _, _]] | a != Empty() && a == b && a == c; return a
-
-        _; return Empty()
 
 fn main()
     print("tictactoe")
-    printBoard()
-
-    let i = 0
-    while i < 9
-        let win = winner(board)
-        if win != Empty()
-            putStrLn("winner is: " + string(win))
-            return
-        
-        while !playerMove();
-        cpuMove()
-        printBoard()
-        i = i + 1
 
 
 

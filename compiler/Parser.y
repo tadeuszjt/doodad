@@ -85,6 +85,7 @@ import Symbol
     push       { Token _ Reserved "push" }
     pop        { Token _ Reserved "pop" }
     len        { Token _ Reserved "len" }
+    clear      { Token _ Reserved "clear" }
 
     import     { Token _ Import _ }
     import_c   { Token _ ImportC _ }
@@ -245,6 +246,8 @@ index  : symbol                               { S.Ident (fst $1) (snd $1) }
        | index '.' ident                      { S.Field (tokPos $2) $1 (tokStr $3) }
        | index '.' ident '(' exprs ')'        { S.CallMember (tokPos $2) $1 (Sym $ tokStr $3) $5 }
        | index '.' push '(' exprs ')'         { S.Push (tokPos $2) $1 $5 }
+       | index '.' pop '(' exprs ')'          { S.Pop (tokPos $2) $1 $5 }
+       | index '.' clear '(' ')'              { S.Clear (tokPos $2) $1 }
        | call                                 { (fst $1) }
 
 expr   : literal                              { $1 }
@@ -257,8 +260,6 @@ expr   : literal                              { $1 }
        | '[' 'I' exprsN 'D' ']'               { S.Table (tokPos $1) [$3] }
        | '(' expr ')'                         { $2 }
        | '(' expr ',' exprs1 ')'              { S.Tuple (tokPos $1) ($2:$4) }
-       | copy '(' expr ')'                    { S.Copy (tokPos $1) $3 }
-       | zero '(' ')'                         { S.Zero (tokPos $1) }
        | unsafe_ptr '(' expr ')'              { S.UnsafePtr (tokPos $1) $3 }
        | typeOrdinal '(' exprs ')'            { S.Conv (tokPos $2) $1 $3 }
        | null                                 { S.Null (tokPos $1) }
@@ -267,12 +268,12 @@ expr   : literal                              { $1 }
        | expr '.' ident                       { S.Field (tokPos $2) $1 (tokStr $3) }
        | expr '[' expr ']'                    { S.Subscript (tokPos $2) $1 $3 }
        | expr ':' type_                       { S.AExpr $3 $1 }
-       | expr '[' mexpr '..' mexpr ']'        { S.Range (tokPos $2) $1 $3 $5 }
        | '{' expr '}'                         { S.ADT (tokPos $1) $2 }
        | expr '.' ident '(' exprs ')'         { S.CallMember (tokPos $4) $1 (Sym $ tokStr $3) $5 }
        | expr '.' push '(' exprs ')'          { S.Push (tokPos $4) $1 $5 }
        | expr '.' pop '(' exprs ')'           { S.Pop (tokPos $4) $1 $5 }
        | expr '.' len '(' ')'                 { S.Len (tokPos $4) $1 }
+       | expr '.' clear '(' ')'               { S.Clear (tokPos $4) $1 }
        | len '(' expr ')'                     { S.Len (tokPos $1) $3 }
 
 tableRows : exprs1                             { [$1] }

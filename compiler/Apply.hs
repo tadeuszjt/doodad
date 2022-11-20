@@ -87,9 +87,7 @@ instance Apply S.Expr where
         S.Prefix pos op expr1      -> S.Prefix pos op (apply subs expr1)
         S.Call  pos sym exprs      -> S.Call pos sym $ map (apply subs) exprs
         S.Conv  pos t exprs        -> S.Conv pos (apply subs t) $ map (apply subs) exprs
-        S.Copy  pos e              -> S.Copy pos (apply subs e)
         S.Len   pos e              -> S.Len  pos (apply subs e)
-        S.Zero  pos                -> expr
         S.Bool  pos b              -> expr
         S.Subscript pos e1 e2      -> S.Subscript pos (apply subs e1) (apply subs e2)
         S.String pos s             -> expr
@@ -97,11 +95,12 @@ instance Apply S.Expr where
         S.Float pos f              -> expr
         S.Table pos ess            -> S.Table pos $ map (map (apply subs)) ess
         S.TupleIndex pos e i       -> S.TupleIndex pos (apply subs e) i
-        S.Range pos e me1 me2      -> S.Range pos (apply subs e) (fmap (apply subs) me1) (fmap (apply subs) me2)
         S.UnsafePtr p e            -> S.UnsafePtr p (apply subs e)
         S.ADT p e                  -> S.ADT p (apply subs e)
         S.CallMember p e ident es  -> S.CallMember p (apply subs e) ident (map (apply subs) es)
         S.Push p e es              -> S.Push p (apply subs e) (map (apply subs) es)
+        S.Pop p e es               -> S.Pop p (apply subs e) (map (apply subs) es)
+        S.Clear p e                -> S.Clear p (apply subs e)
         _                          -> error $ show expr
 
 instance Apply S.Condition where

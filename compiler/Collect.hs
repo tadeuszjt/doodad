@@ -20,7 +20,7 @@ import qualified Debug.Trace
 data Constraint
     = ConsEq Type Type
     | ConsBase   Type Type -- both types must have same base
-    | ConsElem   Type Type -- both types must have same base
+    | ConsElem   Type Type -- t1 is elem type of t2
     | ConsField Type Int Type 
     | ConsAdtMem Type Int Int Type
     deriving (Show, Eq, Ord)
@@ -411,16 +411,23 @@ collectExpr (S.AExpr exprType expr) = collectPos expr $ case expr of
     S.CallMember _ e s es -> collectCallMember exprType e s es
     S.Conv _ t [e]       -> collectEq exprType t >> collectExpr e
     S.Prefix _ op e      -> collectEq exprType (typeOf e) >> collectExpr e
-    S.Copy _ e           -> collectEq exprType (typeOf e) >> collectExpr e
     S.Int _ c            -> collectDefault exprType I64
     S.Len _ e            -> collectDefault exprType I64 >> collectExpr e
     S.Float _ f          -> collectDefault exprType F64
-    S.Zero _             -> collectDefault exprType (Tuple [])
 
     S.Push _ e es        -> do
         collectDefault exprType I64
         collectExpr e
         mapM_ collectExpr es
+
+    S.Pop _ e es        -> do
+        assert (es == []) "pop cannot have arguments"
+        collectElem exprType (typeOf e)
+        collectExpr e
+
+    S.Clear _ e        -> do
+        collectExpr e
+        collectEq exprType Void
 
     S.Char _ c       -> do
         collectBase exprType Char
@@ -491,21 +498,6 @@ collectExpr (S.AExpr exprType expr) = collectPos expr $ case expr of
     S.TupleIndex _ e i -> do
         collectField exprType (fromIntegral i) (typeOf e)
         collectExpr e
-
-    S.Range _ e me1 me2 -> do
-        collectEq exprType (typeOf e)
-        collectExpr e
-
-        when (isJust me1) $ do
-            collectDefault (typeOf $ fromJust me1) I64
-            collectExpr (fromJust me1)
-
-        when (isJust me2) $ do
-            collectDefault (typeOf $ fromJust me2) I64
-            collectExpr (fromJust me2)
-
-        when (isJust me1 && isJust me2) $
-            collectEq (typeOf $ fromJust me1) (typeOf $ fromJust me2)
 
     S.Null _ -> return ()
 

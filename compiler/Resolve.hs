@@ -315,7 +315,6 @@ instance Resolve Expr where
         Prefix pos op expr -> Prefix pos op <$> resolve expr
         AST.Char pos c -> return expr
         Len pos expr -> Len pos <$> resolve expr
-        Copy pos expr -> Copy pos <$> resolve expr
         AST.UnsafePtr pos expr -> AST.UnsafePtr pos <$> resolve expr
         AST.Int pos n -> return expr
         AST.Bool pos b -> return expr
@@ -327,6 +326,15 @@ instance Resolve Expr where
             expr' <- resolve expr
             exprs' <- mapM resolve exprs
             return $ Push pos expr' exprs'
+
+        Pop pos expr exprs -> do
+            expr' <- resolve expr
+            exprs' <- mapM resolve exprs
+            return $ Pop pos expr' exprs'
+
+        Clear pos expr -> do
+            expr' <- resolve expr
+            return $ Clear pos expr'
 
         Call pos symbol exprs -> do
             exprs' <- mapM resolve exprs
@@ -366,14 +374,6 @@ instance Resolve Expr where
         TupleIndex pos expr i -> do
             expr' <- resolve expr
             return $ TupleIndex pos expr' i
-
-        Range pos expr mexpr1 mexpr2 -> do
-            expr' <- resolve expr
-            mexpr1' <- maybe (return Nothing) (fmap Just . resolve) mexpr1
-            mexpr2' <- maybe (return Nothing) (fmap Just . resolve) mexpr2
-            return $ Range pos expr' mexpr1' mexpr2'
-
-        Zero pos -> return (Zero pos)
 
         Null pos -> return (Null pos)
 
