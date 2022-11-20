@@ -77,15 +77,6 @@ instance Annotate Stmt where
 
 
 
-instance Annotate Condition where
-    annotate condition = case condition of
-        CondExpr e -> CondExpr <$> annotate e
-        CondMatch p e -> do
-            p' <- annotate p
-            e' <- annotate e
-            return $ CondMatch p' e'
-
-
 instance Annotate Pattern where
     annotate pattern = case pattern of
         PatIgnore p         -> return $ PatIgnore p

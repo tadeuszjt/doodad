@@ -233,14 +233,6 @@ instance Resolve Stmt where
 --        _ -> return stmt
         _ -> fail $ show stmt
 
-instance Resolve Condition where
-    resolve condition = withPos condition $ case condition of
-        CondExpr expr -> CondExpr <$> resolve expr
-        CondMatch pat expr -> do
-            pat' <- resolve pat
-            expr' <- resolve expr
-            return $ CondMatch pat' expr'
-
 
 instance Resolve Pattern where
     resolve pattern = withPos pattern $ case pattern of

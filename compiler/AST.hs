@@ -11,8 +11,6 @@ import Symbol
 
 type ModuleName = String
 
-showPath path = concat (intersperse "/" path)
-
 data AST
     = AST
         { astModuleName :: Maybe ModuleName
@@ -22,7 +20,7 @@ data AST
     deriving (Eq)
 
 
-data Op
+data Operator
     = Plus
     | Minus
     | Times
@@ -69,11 +67,6 @@ data Pattern
     | PatNull      TextPos
     deriving (Eq)
 
-data Condition
-    = CondExpr Expr
-    | CondMatch Pattern Expr
-    deriving (Eq)
-
 data Expr
     = AExpr      Type  Expr
     | Int        TextPos Integer
@@ -95,10 +88,11 @@ data Expr
     | Push       TextPos Expr [Expr]
     | Pop        TextPos Expr [Expr]
     | Clear      TextPos Expr 
-    | Prefix     TextPos Op Expr
-    | Infix      TextPos Op Expr Expr
+    | Prefix     TextPos Operator Expr
+    | Infix      TextPos Operator Expr Expr
     | UnsafePtr  TextPos Expr
     | ADT        TextPos Expr
+    | Match      TextPos Expr Pattern
     deriving (Eq)
 
 
@@ -109,8 +103,8 @@ data Stmt
     | ExprStmt    Expr
     | Return      TextPos (Maybe Expr)
     | Block       [Stmt]
-    | If          TextPos Condition Stmt (Maybe Stmt)
-    | While       TextPos Condition Stmt
+    | If          TextPos Expr Stmt (Maybe Stmt)
+    | While       TextPos Expr Stmt
     | FuncDef     TextPos (Maybe Param) String [Param] Type Stmt
     | Typedef     TextPos Symbol AnnoType
     | Switch      TextPos Expr [(Pattern, Stmt)]
@@ -146,10 +140,6 @@ instance TextPosition Pattern where
         PatAnnotated pat _ -> textPos pat
         PatNull      p -> p
 
-instance TextPosition Condition where
-    textPos condition = case condition of
-        CondExpr e -> textPos e
-        
 
 instance TextPosition Expr where
     textPos expr = case expr of
@@ -211,7 +201,7 @@ instance Show Param where
     show (Param pos name typ)  = show name ++ " " ++ show typ
 
 
-instance Show Op where
+instance Show Operator where
     show op = case op of
         Plus   -> "+"
         Minus  -> "-"
@@ -251,11 +241,6 @@ instance Show Pattern where
         PatTypeField pos typ pat -> show typ ++ tupStrs [show pat]
         PatAnnotated pat typ     -> show pat ++ ":" ++ show typ
         PatNull pos              -> "null"
-
-
-instance Show Condition where
-    show (CondExpr expr)      = show expr
-    show (CondMatch pat expr) = show pat ++ " <- " ++ show expr
 
 
 instance Show Expr where

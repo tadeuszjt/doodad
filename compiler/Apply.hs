@@ -103,11 +103,6 @@ instance Apply S.Expr where
         S.Clear p e                -> S.Clear p (apply subs e)
         _                          -> error $ show expr
 
-instance Apply S.Condition where
-    apply subs cnd = case cnd of
-        S.CondExpr expr      -> S.CondExpr (apply subs expr)
-        S.CondMatch pat expr -> S.CondMatch (apply subs pat) (apply subs expr)
-        _               -> error $ show cnd
 
 instance Apply S.Pattern where
     apply subs pattern = case pattern of

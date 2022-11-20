@@ -187,7 +187,7 @@ valNot val = trace "valNot" $ do
     fmap (Val $ valType val) $ icmp P.EQ (bit 0) . valOp =<< valLoad val
 
 
-valPrefix :: InsCmp CompileState m => S.Op -> Value -> m Value
+valPrefix :: InsCmp CompileState m => S.Operator -> Value -> m Value
 valPrefix operator val = do
     Val typ op <- valLoad val
     base <- baseTypeOf typ
@@ -210,7 +210,7 @@ valPrefix operator val = do
                 Val typ <$> icmp P.EQ (valOp false) op
         
 
-valIntInfix :: InsCmp CompileState m => S.Op -> Value -> Value -> m Value
+valIntInfix :: InsCmp CompileState m => S.Operator -> Value -> Value -> m Value
 valIntInfix operator a b = do
     assert (valType a == valType b) "type mismatch"
     assertBaseType (\t -> isInt t || t == Char) (valType a)

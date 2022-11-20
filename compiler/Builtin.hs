@@ -168,7 +168,7 @@ valZero typ = trace ("valZero " ++ show  typ) $ do
         _ -> error ("valZero: " ++  show typ)
 
 
-valsInfix :: InsCmp CompileState m => S.Op -> Value -> Value -> m Value
+valsInfix :: InsCmp CompileState m => S.Operator -> Value -> Value -> m Value
 valsInfix operator a b = do
     assert (valType a == valType b) "type mismatch"
     base <- baseTypeOf (valType a)
@@ -191,19 +191,19 @@ valsInfix operator a b = do
             _                    -> fail $ "Operator " ++ show operator ++ " undefined for types " ++ show typ ++ " " ++ show (valType b)
 
     where 
-        nullInfix :: InsCmp CompileState m => S.Op -> m Value
+        nullInfix :: InsCmp CompileState m => S.Operator -> m Value
         nullInfix operator = case operator of
             S.EqEq -> valBool Bool True
             S.NotEq -> valBool Bool False
 
-        boolInfix :: InsCmp CompileState m => Type -> S.Op -> LL.Operand -> LL.Operand -> m Value
+        boolInfix :: InsCmp CompileState m => Type -> S.Operator -> LL.Operand -> LL.Operand -> m Value
         boolInfix typ operator opA opB = case operator of
             S.OrOr   -> Val typ <$> or opA opB
             S.AndAnd -> Val typ <$> and opA opB
             S.EqEq   -> Val typ <$> icmp P.EQ opA opB
             _        -> error ("bool infix: " ++ show operator)
         
-        floatInfix :: InsCmp CompileState m => Type -> S.Op -> LL.Operand -> LL.Operand -> m Value
+        floatInfix :: InsCmp CompileState m => Type -> S.Operator -> LL.Operand -> LL.Operand -> m Value
         floatInfix typ operator opA opB = case operator of
             S.Plus   -> Val typ <$> fadd opA opB
             S.Minus  -> Val typ <$> fsub opA opB
@@ -213,7 +213,7 @@ valsInfix operator a b = do
             _        -> error ("float infix: " ++ show operator)
 
 
-valAdtEnumInfix :: InsCmp CompileState m => S.Op -> Value -> Value -> m Value
+valAdtEnumInfix :: InsCmp CompileState m => S.Operator -> Value -> Value -> m Value
 valAdtEnumInfix operator a b = do
     assert (valType a == valType b) "type mismatch"
     assertBaseType isEnumADT (valType a)
@@ -224,7 +224,7 @@ valAdtEnumInfix operator a b = do
         S.EqEq  -> Val Bool <$> icmp P.EQ opA opB
 
 
-valAdtNormalInfix :: InsCmp CompileState m => S.Op -> Value -> Value -> m Value
+valAdtNormalInfix :: InsCmp CompileState m => S.Operator -> Value -> Value -> m Value
 valAdtNormalInfix operator a b = do
     assert (valType a == valType b) "type mismatch"
     base@(ADT fs) <- assertBaseType isNormalADT (valType a)
@@ -274,7 +274,7 @@ valAdtNormalInfix operator a b = do
             valLoad match
 
 
-valTupleInfix :: InsCmp CompileState m => S.Op -> Value -> Value -> m Value
+valTupleInfix :: InsCmp CompileState m => S.Operator -> Value -> Value -> m Value
 valTupleInfix operator a b = do
     assert (valType a == valType b) "type mismatch"
     Tuple ts <- assertBaseType isTuple (valType a)
@@ -291,7 +291,7 @@ valTupleInfix operator a b = do
             foldM (valsInfix S.AndAnd) true bs
                     
         
-valTableInfix :: InsCmp CompileState m => S.Op -> Value -> Value -> m Value
+valTableInfix :: InsCmp CompileState m => S.Operator -> Value -> Value -> m Value
 valTableInfix operator a b = do
     assert (valType a == valType b) "type mismatch"
     assertBaseType isTable (valType a)

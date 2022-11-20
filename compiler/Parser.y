@@ -204,8 +204,8 @@ block  : 'I' prog_ 'D'                        { S.Block $2 }
        | ';' stmtS 'N'                        { $2 }
        | ';' 'N'                              { S.Block [] }
 
-condition : expr                              { S.CondExpr $1 }
-          | expr '->' pattern                 { S.CondMatch $3 $1 }
+condition : expr                              { $1 }
+          | expr '->' pattern                 { S.Match (tokPos $2) $1 $3 }
 
 param   : ident type_                         { S.Param (tokPos $1) (Sym $ tokStr $1) $2 }
 params  : {- empty -}                         { [] }

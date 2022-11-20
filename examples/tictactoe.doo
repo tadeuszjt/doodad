@@ -5,11 +5,10 @@ import ../std/strings
 import ../std/rand
 
 
-type Square { Empty() | Naught() | Cross() }
-
+data board [3 [3 i64]]
 
 fn main()
-    print("tictactoe")
+    print(board)
 
 
 

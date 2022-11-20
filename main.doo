@@ -23,7 +23,6 @@ fn main()
 
         print(30:c::size_t)
 
-
         let idx = strings.New()
         let idx2 = strings.New("benis")
         print(idx, idx2)
@@ -37,7 +36,4 @@ fn main()
         strings.Append(idx, '.')
         strings.Print(idx)
 
-
-        let line = strings.GetStrLn()
-        strings.Print(line)
-
+        strings.Print(strings.GetStrLn())

@@ -240,8 +240,9 @@ collectStmt stmt = collectPos stmt $ case stmt of
                 collectEq (typeOf expr) retty
                 collectExpr expr
 
-    S.If _ cond blk melse -> do
-        collectCondition cond
+    S.If _ expr blk melse -> do
+        collectExpr expr
+        collectBase Bool (typeOf expr)
         collectStmt blk
         maybe (return ()) collectStmt melse
 
@@ -254,8 +255,9 @@ collectStmt stmt = collectPos stmt $ case stmt of
         collectExpr expr1
         collectExpr expr2
 
-    S.While _ cond blk -> do
-        collectCondition cond
+    S.While _ expr blk -> do
+        collectExpr expr
+        collectBase Bool (typeOf expr)
         collectStmt blk
 
     S.Switch p expr cases -> do
@@ -332,17 +334,6 @@ collectPattern pattern typ = collectPos pattern $ case pattern of
     _ -> error $ show pattern
 
 
-collectCondition :: BoM CollectState m => S.Condition -> m ()
-collectCondition cond = case cond of
-    S.CondExpr expr -> do
-        collectDefault (typeOf expr) Bool
-        collectBase (typeOf expr) Bool
-        collectExpr expr
-
-    S.CondMatch pat expr -> do
-        collectPattern pat (typeOf expr)
-        collectExpr expr
-        
 
 collectCallMember :: BoM CollectState m => Type -> S.Expr -> Symbol -> [S.Expr] -> m ()
 collectCallMember exprType e symbol es = do

@@ -243,7 +243,7 @@ cmpFuncDef (S.FuncDef pos mparam sym args retty blk) = trace "cmpFuncDef" $ with
 
 
 
-cmpInfix :: InsCmp CompileState m => Type -> S.Op -> Value -> Value -> m Value
+cmpInfix :: InsCmp CompileState m => Type -> S.Operator -> Value -> Value -> m Value
 cmpInfix typ op valA valB = do
     mobj <- lookm (Sym $ show op) $ KeyFunc [valType valA, valType valB] typ
     case mobj of
@@ -254,11 +254,11 @@ cmpInfix typ op valA valB = do
         Nothing -> valsInfix op valA valB
 
 
-cmpCondition :: InsCmp CompileState m => S.Condition -> m Value
-cmpCondition cnd = trace "cmpCondition" $ do
-    val <- case cnd of
-        S.CondExpr expr      -> cmpExpr expr
-        S.CondMatch pat expr -> cmpPattern pat =<< cmpExpr expr
+cmpCondition :: InsCmp CompileState m => S.Expr -> m Value
+cmpCondition expr = trace "cmpCondition" $ do
+    val <- case expr of
+        S.Match _ e pat -> cmpPattern pat =<< cmpExpr e
+        e               -> cmpExpr e
 
     assertBaseType (== Bool) (valType val)
     return val
