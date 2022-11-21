@@ -13,3 +13,9 @@ fn isSpace(c char) bool
 
 fn toUpper(c char) char
     return char(c::toupper(i32(c)))
+
+fn readDigit(c char) i64
+    if c >= '0' && c <= '9'
+        return i64(c - '0')
+    else
+        return 0

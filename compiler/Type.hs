@@ -21,7 +21,7 @@ data Type
     | Bool                   
     | Char                   
     | String
-    | KeyMap [Type]
+    | Sparse [Type]
     | Tuple [Type]           
     | Array Int Type         
     | Table [Type]         
@@ -68,7 +68,7 @@ instance Show Type where
         Bool          -> "bool"
         Char          -> "char"
         String        -> "string"
-        KeyMap ts     -> "keymap" ++ "[" ++ intercalate "; " (map show ts) ++ "]"
+        Sparse ts     -> "sparse" ++ "[" ++ intercalate "; " (map show ts) ++ "]"
         Tuple ts      -> "(" ++ intercalate ", " (map show ts) ++ ")"
         Array n t     -> "[" ++ show n ++ " " ++ show t ++ "]"
         ADT tss       -> "{" ++ intercalate " | " (map show tss) ++ "}"
@@ -90,6 +90,9 @@ isTuple _                = False
 
 isTable (Table _)        = True
 isTable _                = False
+
+isSparse (Sparse _)      = True
+isSparse _               = False
 
 isTypedef (Typedef _)    = True
 isTypedef _              = False
@@ -122,6 +125,6 @@ isTypeId _               = False
 isIntegral x             = isInt x || x == Char
 isBase x                 = isSimple x || isAggregate x
 isSimple x               = isInt x || isFloat x || x == Char || x == Bool || x == String
-isAggregate x            = isTuple x || isArray x || isTable x || isFunc x
+isAggregate x            = isTuple x || isArray x || isTable x || isFunc x || isSparse x
 
 

@@ -2,43 +2,44 @@ module strings
 import chars
 import io
 
-type StringKey i64
+type Key i64
 type String [char]
 type Strings [String]
 
 data strings Strings
 
 
-fn (ss Strings) New(s string) StringKey
+data strings2 sparse[String]
+
+
+fn (ss Strings) New(s string) Key
     let key = ss.New()
     for [i] s; ss[key].push(s[i])
     return key
 
 
-fn (ss Strings) New() StringKey
+fn (ss Strings) New() Key
     return ss.push()
 
 
-fn (ss Strings) Delete(key StringKey)
+fn (ss Strings) Delete(key Key)
     if key == len(ss) - 1; ss.pop()
     else;                  ss[key].clear()
 
 
-fn (ss Strings) Append(key StringKey, c char)
+fn (ss Strings) Append(key Key, c char)
     ss[key].push(c)
 
 
-fn (ss Strings) Append(key StringKey, s string)
-    for [i] s
-        ss[key].push(s[i])
+fn (ss Strings) Append(key Key, s string)
+    for [i] s; ss[key].push(s[i])
 
 
-fn (ss Strings) Append(key StringKey, key2 StringKey)
-    for [i] ss[key2]
-        ss[key].push(ss[key2][i])
+fn (ss Strings) Append(key Key, key2 Key)
+    for [i] ss[key2]; ss[key].push(ss[key2][i])
 
 
-fn (ss Strings) Print(key StringKey)
+fn (ss Strings) Print(key Key)
     print(ss[key])
 
 
@@ -51,3 +52,24 @@ fn (ss Strings) GetStrLn()
             c; ss.Append(s, c)
 
 
+fn (ss Strings) ReadI64(key Key) (i64, i64)
+    let i = 0
+    while i < len(ss[key]) && isSpace(ss[key][i])
+        i = i + 1
+
+    data digits [i64]
+    while i < len(ss[key]) && isDigit(ss[key][i])
+        digits.push(readDigit(ss[key][i]))
+        i = i + 1
+
+    let n = 0
+    let mul = 1
+    let j = len(digits) - 1
+    while j >= 0
+        n = n + digits[j]*mul
+        mul = mul * 10
+        j = j - 1
+
+    return (n, i)
+        
+    

@@ -148,6 +148,14 @@ valZero typ = trace ("valZero " ++ show  typ) $ do
             zptrs <- map (C.IntToPtr zi64 . LL.ptr) <$> mapM opTypeOf ts
             return $ Val typ $ struct namem False (zi64:zi64:zptrs)
 
+        Sparse ts         -> do
+            let zi64 = toCons (int64 0)
+            let zpi64 = C.IntToPtr zi64 (LL.ptr LL.i64)
+            zptrs <- map (C.IntToPtr zi64 . LL.ptr) <$> mapM opTypeOf ts
+            let stack = toCons $ struct Nothing False [zi64,zi64,zpi64]
+            let table = toCons $ struct Nothing False (zi64:zi64:zptrs)
+            return $ Val typ $ struct namem False [table, stack]
+
         ADT fs | isNormalADT base -> do
             im <- adtHasNull typ
             case im of
@@ -327,8 +335,8 @@ valTableInfix operator a b = do
 
             -- test that a[i] == b[i]
             emitBlockStart body
-            elmA <- tableGetElem a idx
-            elmB <- tableGetElem b idx
+            [elmA] <- tableGetElem a idx
+            [elmB] <- tableGetElem b idx
             elmEq <- valsInfix S.EqEq elmA elmB
             valStore eq elmEq
             valStore idx =<< valIntInfix S.Plus idx (valI64 1)

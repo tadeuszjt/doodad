@@ -41,15 +41,17 @@ tableTypeDef symbol (S.AnnoType typ) = trace "tableTypeDef" $ do
 tableLen :: InsCmp CompileState m => Value -> m Value
 tableLen tab = trace "tableLen" $ do
     Table _ <- assertBaseType isTable (valType tab)
-    op <- valOp <$> valLoad tab
-    Val I64 <$> extractValue op [0]
+    case tab of
+        Val _ op -> Val I64 <$> extractValue op [0]
+        Ptr _ loc -> valLoad =<< Ptr I64 <$> gep loc [int32 0, int32 0]
 
 
 tableCap :: InsCmp CompileState m => Value -> m Value
-tableCap tab = trace "tableCap" $ do
+tableCap tab = trace "tableLen" $ do
     Table _ <- assertBaseType isTable (valType tab)
-    op <- valOp <$> valLoad tab
-    Val I64 <$> extractValue op [1]
+    case tab of
+        Val _ op -> Val I64 <$> extractValue op [1]
+        Ptr _ loc -> valLoad =<< Ptr I64 <$> gep loc [int32 0, int32 1]
 
 
 tableSetLen :: InsCmp CompileState m => Value -> Value -> m ()
@@ -118,20 +120,25 @@ tableSetRow tab i row = trace "tableSetRow" $ do
     store pp 0 (valLoc row)
 
 
-tableGetElem :: InsCmp CompileState m => Value -> Value -> m Value
+tableGetElem :: InsCmp CompileState m => Value -> Value -> m [Value]
 tableGetElem tab idx = trace "tableGetElem" $ do
     Table ts <- assertBaseType isTable (valType tab)
-    case ts of
-        [t] -> do
-            row <- tableRow 0 tab
-            valPtrIdx row idx
-        ts  -> do
-            tup <- valLocal (Tuple ts)
-            forM_ (zip ts [0..]) $ \(t, i) -> do
-                row <- tableRow i tab
-                tupleSet tup i =<< valPtrIdx row idx
+    forM (zip ts [0..]) $ \(t, i) -> do
+        row <- tableRow i tab
+        valPtrIdx row idx
 
-            return tup
+
+tableSetRowElem :: InsCmp CompileState m => Value -> Int -> Value -> Value -> m ()
+tableSetRowElem tab row col val = trace "tableSetElem" $ do
+    Table ts <- assertBaseType isTable (valType tab)
+    assert (row >= 0 && row < length ts) "row out of range"
+    let t = ts !! row
+    assertBaseType (== t) (valType val)
+    assertBaseType (== I64) (valType col)
+
+    rowPtr <- tableRow row tab
+    ptr <- valPtrIdx rowPtr col
+    valStore ptr val
 
 
 tableSetElem :: InsCmp CompileState m => Value -> Value -> Value -> m ()
@@ -235,13 +242,13 @@ tableAppend loc val = trace "tableAppend" $ do
         valMemCpy dst src valLen
 
 
-tablePopElem :: InsCmp CompileState m => Value -> m Value
+tablePopElem :: InsCmp CompileState m => Value -> m [Value]
 tablePopElem tab = do
     Table ts <- assertBaseType isTable (valType tab)
     len <- tableLen tab
     newLen <- valIntInfix S.Minus len =<< valInt (valType len) 1
     tableSetLen tab newLen
-    valLoad =<< tableGetElem tab newLen
+    tableGetElem tab newLen
 
 
 tableClear :: InsCmp CompileState m => Value -> m ()

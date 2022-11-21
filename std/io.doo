@@ -11,3 +11,9 @@ fn putChar(c char)
     c::putchar(i32(c))
 
 
+fn putStr(s string)
+    for [i] s; putChar(s[i])
+
+fn putStrLn(s string)
+    for [i] s; putChar(s[i])
+    putChar('\n')

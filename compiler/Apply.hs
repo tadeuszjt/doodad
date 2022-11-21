@@ -21,7 +21,7 @@ substitute u x typ = case typ of
     F64             -> typ
     Char            -> typ
     String          -> typ
-    KeyMap ts       -> KeyMap $ map (substitute u x) ts
+    Sparse ts       -> Sparse $ map (substitute u x) ts
     Table ts        -> Table $ map (substitute u x) ts
     Tuple ts        -> Tuple $ map (substitute u x) ts
     Array n t       -> Array n (substitute u x t)

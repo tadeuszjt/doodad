@@ -297,7 +297,7 @@ instance Resolve Type where
         Type.Array n t      -> Type.Array n <$> resolve t
         Type.Typedef symbol -> Type.Typedef <$> look symbol KeyType
         Type.ADT fs         -> Type.ADT <$>  mapM resolve fs
-        Type.KeyMap ts      -> Type.KeyMap <$> mapM resolve ts
+        Type.Sparse ts      -> Type.Sparse <$> mapM resolve ts
 
         _ -> fail $ "resolve type: " ++ show typ
 

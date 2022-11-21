@@ -5,10 +5,38 @@ import ../std/strings
 import ../std/rand
 
 
-data board [3 [3 i64]]
+type Square { Empty() | Naught() | Cross() }
+
+
+data board [3 [3 Square]]
+
+
+fn printBoard()
+    for [i] board
+        putStr("[")
+        for [j] board[i]
+            switch board[i][j]
+                Empty();  putChar(' ')
+                Naught(); putChar('0')
+                Cross();  putChar('X')
+            if j < (len(board[i]) - 1)
+                putChar(',')
+        putStrLn("]")
+
+
+
+fn playerMove()
+    putStrLn("Make a move")
+    let line = strings.GetStrLn()
+
+    let (r, l) = strings.ReadI64(line)
+    print(r, l)
+
+    strings.Delete(line)
 
 fn main()
-    print(board)
+    printBoard()
+    playerMove()
 
 
 

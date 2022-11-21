@@ -73,6 +73,11 @@ opTypeOf typ = trace ("opTypOf " ++ show typ) $ case typ of
         ps <- map LL.ptr <$> mapM opTypeOf ts
         return $ LL.StructureType False (LL.i64:LL.i64:ps)
 
+    Sparse ts  -> do
+        stack <- opTypeOf (Table [I64])
+        table <- opTypeOf (Table ts)
+        return $ LL.StructureType False [table, stack]
+
     Typedef s -> do
         ObType t namem <- look s KeyType
         maybe (opTypeOf t) (return . LL.NamedTypeReference) namem

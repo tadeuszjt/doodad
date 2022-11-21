@@ -284,6 +284,11 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
 
     S.ExprStmt expr     -> void $ cmpExpr expr
 
+    S.Data pos symbol typ -> do
+        loc <- valLocal typ
+        valStore loc =<< valZero (valType loc)
+        define symbol KeyVar (ObjVal loc)
+
     S.Assign pos pat expr -> trace ("assign " ++ show pat) $ do
         label "assign"
         val <- cmpExpr expr
@@ -295,7 +300,13 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
     S.Set pos expr1 expr2 -> do
         label "set"
         loc@(Ptr _ _) <- cmpExpr expr1
-        valStore loc =<< cmpExpr expr2
+        base <- baseTypeOf (valType loc)
+        val <- cmpExpr expr2
+        case base of
+            _ | isSimple base -> valStore loc val
+            Table ts -> do 
+                tableClear loc
+                tableAppend loc val
 
     S.Return pos Nothing -> do
         label "return"
@@ -366,7 +377,9 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
         patMatch <- case mpat of
             Nothing -> valBool Bool True
             Just pat -> case base of
-                Table ts  -> cmpPattern pat =<< tableGetElem val idx
+                Table ts  -> do
+                    [v] <- tableGetElem val idx
+                    cmpPattern pat v
                 Array n t -> cmpPattern pat =<< arrayGetElem val idx
         condBr (valOp patMatch) body exit
         
@@ -380,7 +393,7 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
 
         emitBlockStart exit
 
-    _ -> error "stmt"
+    _ -> error (show stmt)
     where
         label :: InsCmp CompileState m => String -> m ()
         label str = do
@@ -403,22 +416,28 @@ cmpExpr (S.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck exp
     S.Null p                   -> adtNull exprType
 
     S.Push pos expr [expr2] -> do
-        loc@(Ptr _ _) <- cmpExpr expr
+        loc <- cmpExpr expr
         val <- cmpExpr expr2
         len <- tableLen loc
         tableAppendElem loc val
         valLoad len
 
     S.Push pos expr [] -> do
-        loc@(Ptr _ _) <- cmpExpr expr
-        Table [t] <- assertBaseType isTable (valType loc)
-        len <- tableLen loc
-        tableAppendElem loc =<< valZero t
-        valConvertNumber exprType =<< valLoad len
+        loc <- cmpExpr expr
+        base <- baseTypeOf (valType loc)
+        case base of
+            Table [t] -> do
+                len <- tableLen loc
+                tableAppendElem loc =<< valZero t
+                valConvertNumber exprType =<< valLoad len
+--            Sparse [t] -> do
+--                key <- sparseAppendElem loc =<< valZero t
+--                valLoad key
 
     S.Pop pos expr [] -> do
         loc@(Ptr _ _) <- cmpExpr expr
-        tablePopElem loc
+        [v] <- tablePopElem loc
+        return v
 
     S.Clear pos expr -> do
         assert (exprType == Void) "clear is a void expression"
@@ -501,7 +520,9 @@ cmpExpr (S.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck exp
         idx <- cmpExpr idxExpr
         base <- baseTypeOf (valType val)
         case base of
-            Table _   -> tableGetElem val idx
+            Table _   -> do
+                [v] <- tableGetElem val idx
+                return v
             Array _ _ -> arrayGetElem val idx
             String    -> valStringIdx val idx 
 
@@ -606,8 +627,9 @@ cmpPattern pattern val = trace "cmpPattern" $ withPos pattern $ case pattern of
                 lenEq <- valsInfix S.EqEq len (valI64 $ length pats)
 
                 assert (length ts == 1) "patterns don't support multiple rows (yet)"
-                bs <- forM (zip pats [0..]) $ \(p, i) ->
-                    cmpPattern p =<< tableGetElem val (valI64 i)
+                bs <- forM (zip pats [0..]) $ \(p, i) -> do
+                    [v] <- tableGetElem val (valI64 i)
+                    cmpPattern p v
 
                 true <- valBool (valType lenEq) True
                 foldM (valsInfix S.AndAnd) true (lenEq:bs)

@@ -99,7 +99,7 @@ import Symbol
     bool       { Token _ Reserved "bool" }
     char       { Token _ Reserved "char" }
     string     { Token _ Reserved "string" }
-    keymap     { Token _ Reserved "keymap" }
+    sparse     { Token _ Reserved "sparse" }
 
     intlit     { Token _ Int _ }
     floatlit   { Token _ Float _ }
@@ -330,6 +330,7 @@ typeAggregate : tableType                     { $1 }
               | arrayType                     { $1 }
               | tupType                       { $1 }
               | adtType                       { $1 }
+              | sparseType                    { $1 }
               | fn '(' argTypes ')' type_     { T.Func $3 $5 }
 
 
@@ -337,6 +338,7 @@ adtType : '{' adtFields '}'                   { T.ADT $2 }
 arrayType : '[' intlit type_ ']'              { T.Array (read $ tokStr $2) $3 }
 tableType : '[' rowTypes1 ']'                 { T.Table $2 }
 tupType : '(' tupFields ')'                   { T.Tuple $2 }
+sparseType : sparse '[' rowTypes1 ']'         { T.Sparse $3 }
 
 
 annoType : typeOrdinal                        { S.AnnoType $1 }
