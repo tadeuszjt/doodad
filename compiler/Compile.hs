@@ -48,6 +48,7 @@ import ADT
 import Array
 import Builtin
 import Symbol
+import Sparse
 
 
 compile :: BoM s m => [CompileState] -> S.AST ->  m ([LL.Definition], CompileState)
@@ -415,24 +416,23 @@ cmpExpr (S.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck exp
     S.Field pos expr sym      -> tupleField sym =<< cmpExpr expr
     S.Null p                   -> adtNull exprType
 
-    S.Push pos expr [expr2] -> do
-        loc <- cmpExpr expr
-        val <- cmpExpr expr2
-        len <- tableLen loc
-        tableAppendElem loc val
-        valLoad len
-
     S.Push pos expr [] -> do
         loc <- cmpExpr expr
         base <- baseTypeOf (valType loc)
         case base of
-            Table [t] -> do
+            Table ts -> do
                 len <- tableLen loc
-                tableAppendElem loc =<< valZero t
+                tableAppendColumn loc =<< mapM valZero ts
                 valConvertNumber exprType =<< valLoad len
---            Sparse [t] -> do
---                key <- sparseAppendElem loc =<< valZero t
---                valLoad key
+            Sparse ts -> do
+                key <- sparsePush loc =<< mapM valZero ts
+                valLoad key
+
+    S.Push pos expr exprs -> do
+        loc <- cmpExpr expr
+        len <- tableLen loc
+        tableAppendColumn loc =<< mapM cmpExpr exprs
+        valLoad len
 
     S.Pop pos expr [] -> do
         loc@(Ptr _ _) <- cmpExpr expr

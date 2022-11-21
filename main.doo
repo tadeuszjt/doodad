@@ -36,4 +36,7 @@ fn main()
         strings.Append(idx, '.')
         strings.Print(idx)
 
-        strings.Print(strings.GetStrLn())
+        let key = strings2.push()
+        let key2 = strings2.push()
+        print(key, key2)
+        

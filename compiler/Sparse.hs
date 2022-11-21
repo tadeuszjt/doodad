@@ -40,20 +40,30 @@ sparseStack val = do
         Ptr _ loc -> Ptr (Table [I64]) <$> gep loc [int32 0, int32 1]
 
 
---sparseAppendElem :: InsCmp CompileState m => Value -> Value -> m Value
---sparseAppendElem val elem = do
---    Sparse ts <- assertBaseType isSparse (valType val)
---    stack <- sparseStack val
---    stackLen <- tableLen stack
---    stackLenGTZero <- valIntInfix S.GT stackLen (valI64 0)
-----    if_ (valOp stackLenGTZero)
-----
---    where
---        popStackCase :: InsCmp CompileState m => Value -> m ()
---        popStackCase stack = do
---            idx <- tablePopElem stack
---            tableSetRowElem tab 
+sparsePush :: InsCmp CompileState m => Value -> [Value] -> m Value
+sparsePush val elems = do
+    Sparse ts <- assertBaseType isSparse (valType val)
+    assert (map valType elems == ts) "Elem types do not match"
+    stack <- sparseStack val
+    stackLen <- tableLen stack
+    stackLenGTZero <- valIntInfix S.GT stackLen (valI64 0)
+    ret <- valLocal I64
+    if_ (valOp stackLenGTZero) (popStackCase stack ret) (pushTableCase ret) 
+    return ret
+    where
+        popStackCase :: InsCmp CompileState m => Value -> Value -> m ()
+        popStackCase stack ret = do
+            [idx] <- tablePopElem stack
+            table <- sparseTable val
+            tableSetColumn table idx elems
+            valStore ret idx
             
+        pushTableCase :: InsCmp CompileState m => Value -> m ()
+        pushTableCase ret = do
+            table <- sparseTable val
+            len <- tableLen table
+            tableAppendColumn table elems
+            valStore ret len 
     
 
 

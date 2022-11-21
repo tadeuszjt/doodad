@@ -26,16 +26,7 @@ tableTypeDef :: InsCmp CompileState m => Symbol -> S.AnnoType -> m ()
 tableTypeDef symbol (S.AnnoType typ) = trace "tableTypeDef" $ do
     base@(Table ts) <- assertBaseType isTable typ
     name <- addTypeDef symbol =<< opTypeOf base
-    let typdef = Typedef symbol
-
---    define symbol (KeyFunc [] typdef) ObjConstructor
---    define symbol (KeyFunc [typ] typdef) ObjConstructor
---    define symbol (KeyFunc [typdef] typdef) ObjConstructor
     define symbol KeyType $ ObType typ (Just name)
-
---    when (length ts > 0) $
---        define symbol (KeyFunc ts typdef) ObjConstructor
---
 
 
 tableLen :: InsCmp CompileState m => Value -> m Value
@@ -103,13 +94,12 @@ tableRow i tab = do
     assert (i >= 0 && i < length ts) "Invalid table row index"
     case tab of
         Val _ op  -> do
-            retty <- LL.ptr <$> opTypeOf (ts !! i)
-            r <- emitInstr retty $ ExtractValue op [fromIntegral i + 2] []
-            return $ Ptr (ts !! i) r
-
+            pType <- LL.ptr <$> opTypeOf (ts !! i)
+            ptr <- emitInstr pType $ ExtractValue op [fromIntegral i + 2] []
+            return $ Ptr (ts !! i) ptr
         Ptr _ loc -> do
-            r <- gep loc [int32 0, int32 (fromIntegral i + 2)]
-            Ptr (ts !! i) <$> load r 0
+            pptr <- gep loc [int32 0, int32 (fromIntegral i + 2)]
+            Ptr (ts !! i) <$> load pptr 0
     
 
 tableSetRow :: InsCmp CompileState m => Value -> Int -> Value -> m ()
@@ -140,42 +130,6 @@ tableSetColumn tab idx vals = trace "tableSetElem" $ do
         valStore ptr (vals !! i)
 
 
-tableRange :: InsCmp CompileState m => Value -> Value -> Value -> m Value
-tableRange tab startArg endArg = trace "tableRange" $ do
-    Table ts <- baseTypeOf (valType tab)
-
-    assertBaseType isInt (valType startArg)
-    assertBaseType isInt (valType endArg)
-
-    len <- tableLen tab
-    cap <- tableCap tab
-
-    start <- valLocal (valType startArg)
-    end   <- valLocal (valType endArg)
-
-    startLT0 <- valIntInfix S.LT startArg (valI64 0)
-    valStore start =<< valSelect startLT0 (valI64 0) startArg
-
-    endGT <- valIntInfix S.GT endArg len
-    valStore end =<< valSelect endGT len endArg
-
-    startGT <- valIntInfix S.GT start len
-    valStore start =<< valSelect startGT len start
-
-    crossed <- valIntInfix S.GT start end
-    valStore end =<< valSelect crossed start end
-    
-    loc <- valLocal (valType tab)
-    tableSetLen loc =<< valIntInfix S.Minus end start
-    tableSetCap loc =<< valIntInfix S.Minus cap start
-
-    forM_ (zip ts [0..]) $ \(t, i) -> do
-        row <- tableRow i tab 
-        tableSetRow loc i =<< valPtrIdx row start
-
-    return loc
-
-
 tableGrow :: InsCmp CompileState m => Value -> Value -> m ()
 tableGrow tab newLen = trace "tableGrow" $ do
     Table ts <- assertBaseType isTable (valType tab)
@@ -197,16 +151,17 @@ tableGrow tab newLen = trace "tableGrow" $ do
             valStore tab newTab
 
 
-tableAppendElem :: InsCmp CompileState m => Value -> Value -> m ()
-tableAppendElem tab val = trace "tableAppendElem" $ do
-    Table [t] <- assertBaseType isTable (valType tab)
-    assert (valType val == t) "Types do not match."
+tableAppendColumn :: InsCmp CompileState m => Value -> [Value] -> m ()
+tableAppendColumn tab vals = trace "tableAppendElem" $ do
+    Table ts <- assertBaseType isTable (valType tab)
+    assert (map valType vals == ts) $ "Types do not match."
     
     len <- tableLen tab
     tableGrow tab =<< valIntInfix S.Plus len (valI64 1)
-    row <- tableRow 0 tab
-    ptr <- valPtrIdx row len
-    valStore ptr val
+    forM_ (zip vals [0..]) $ \(v, i) -> do
+        row <- tableRow i tab
+        ptr <- valPtrIdx row len
+        valStore ptr v
 
 
 tableAppend :: InsCmp CompileState m => Value -> Value -> m ()
@@ -243,4 +198,38 @@ tableClear tab = do
     tableSetLen tab (valI64 0)
 
 
+tableRange :: InsCmp CompileState m => Value -> Value -> Value -> m Value
+tableRange tab startArg endArg = trace "tableRange" $ do
+    Table ts <- baseTypeOf (valType tab)
+
+    assertBaseType isInt (valType startArg)
+    assertBaseType isInt (valType endArg)
+
+    len <- tableLen tab
+    cap <- tableCap tab
+
+    start <- valLocal (valType startArg)
+    end   <- valLocal (valType endArg)
+
+    startLT0 <- valIntInfix S.LT startArg (valI64 0)
+    valStore start =<< valSelect startLT0 (valI64 0) startArg
+
+    endGT <- valIntInfix S.GT endArg len
+    valStore end =<< valSelect endGT len endArg
+
+    startGT <- valIntInfix S.GT start len
+    valStore start =<< valSelect startGT len start
+
+    crossed <- valIntInfix S.GT start end
+    valStore end =<< valSelect crossed start end
+    
+    loc <- valLocal (valType tab)
+    tableSetLen loc =<< valIntInfix S.Minus end start
+    tableSetCap loc =<< valIntInfix S.Minus cap start
+
+    forM_ (zip ts [0..]) $ \(t, i) -> do
+        row <- tableRow i tab 
+        tableSetRow loc i =<< valPtrIdx row start
+
+    return loc
 
