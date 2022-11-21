@@ -335,8 +335,8 @@ valTableInfix operator a b = do
 
             -- test that a[i] == b[i]
             emitBlockStart body
-            [elmA] <- tableGetElem a idx
-            [elmB] <- tableGetElem b idx
+            [elmA] <- tableGetColumn a idx
+            [elmB] <- tableGetColumn b idx
             elmEq <- valsInfix S.EqEq elmA elmB
             valStore eq elmEq
             valStore idx =<< valIntInfix S.Plus idx (valI64 1)

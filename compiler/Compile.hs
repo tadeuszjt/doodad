@@ -378,7 +378,7 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
             Nothing -> valBool Bool True
             Just pat -> case base of
                 Table ts  -> do
-                    [v] <- tableGetElem val idx
+                    [v] <- tableGetColumn val idx
                     cmpPattern pat v
                 Array n t -> cmpPattern pat =<< arrayGetElem val idx
         condBr (valOp patMatch) body exit
@@ -521,7 +521,7 @@ cmpExpr (S.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck exp
         base <- baseTypeOf (valType val)
         case base of
             Table _   -> do
-                [v] <- tableGetElem val idx
+                [v] <- tableGetColumn val idx
                 return v
             Array _ _ -> arrayGetElem val idx
             String    -> valStringIdx val idx 
@@ -628,7 +628,7 @@ cmpPattern pattern val = trace "cmpPattern" $ withPos pattern $ case pattern of
 
                 assert (length ts == 1) "patterns don't support multiple rows (yet)"
                 bs <- forM (zip pats [0..]) $ \(p, i) -> do
-                    [v] <- tableGetElem val (valI64 i)
+                    [v] <- tableGetColumn val (valI64 i)
                     cmpPattern p v
 
                 true <- valBool (valType lenEq) True

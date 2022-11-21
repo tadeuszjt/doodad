@@ -120,38 +120,24 @@ tableSetRow tab i row = trace "tableSetRow" $ do
     store pp 0 (valLoc row)
 
 
-tableGetElem :: InsCmp CompileState m => Value -> Value -> m [Value]
-tableGetElem tab idx = trace "tableGetElem" $ do
+tableGetColumn :: InsCmp CompileState m => Value -> Value -> m [Value]
+tableGetColumn tab idx = trace "tableGetElem" $ do
     Table ts <- assertBaseType isTable (valType tab)
     forM (zip ts [0..]) $ \(t, i) -> do
         row <- tableRow i tab
         valPtrIdx row idx
 
 
-tableSetRowElem :: InsCmp CompileState m => Value -> Int -> Value -> Value -> m ()
-tableSetRowElem tab row col val = trace "tableSetElem" $ do
+tableSetColumn :: InsCmp CompileState m => Value -> Value -> [Value] -> m ()
+tableSetColumn tab idx vals = trace "tableSetElem" $ do
     Table ts <- assertBaseType isTable (valType tab)
-    assert (row >= 0 && row < length ts) "row out of range"
-    let t = ts !! row
-    assertBaseType (== t) (valType val)
-    assertBaseType (== I64) (valType col)
-
-    rowPtr <- tableRow row tab
-    ptr <- valPtrIdx rowPtr col
-    valStore ptr val
-
-
-tableSetElem :: InsCmp CompileState m => Value -> Value -> Value -> m ()
-tableSetElem tab idx tup = trace "tableSetElem" $ do
-    Table ts <- assertBaseType isTable (valType tab)
-    Tuple tts <- assertBaseType isTuple (valType tup)
+    assert (ts == map valType vals) "Elem types incorrect"
     idxType  <- assertBaseType isInt (valType idx)
-    assert (ts == tts) "tuple type does not match table column"
 
     forM_ (zip ts [0..]) $ \(t, i) -> do
         row <- tableRow i tab
         ptr <- valPtrIdx row idx
-        valStore ptr =<< tupleIdx i tup
+        valStore ptr (vals !! i)
 
 
 tableRange :: InsCmp CompileState m => Value -> Value -> Value -> m Value
@@ -248,7 +234,7 @@ tablePopElem tab = do
     len <- tableLen tab
     newLen <- valIntInfix S.Minus len =<< valInt (valType len) 1
     tableSetLen tab newLen
-    tableGetElem tab newLen
+    tableGetColumn tab newLen
 
 
 tableClear :: InsCmp CompileState m => Value -> m ()
