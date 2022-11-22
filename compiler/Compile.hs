@@ -436,7 +436,7 @@ cmpExpr (S.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck exp
 
     S.Pop pos expr [] -> do
         loc@(Ptr _ _) <- cmpExpr expr
-        [v] <- tablePopElem loc
+        [v] <- tablePop loc
         return v
 
     S.Clear pos expr -> do
@@ -525,6 +525,9 @@ cmpExpr (S.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck exp
                 return v
             Array _ _ -> arrayGetElem val idx
             String    -> valStringIdx val idx 
+            Sparse _  -> do
+                [v] <- sparseGetColumn val idx
+                return v
 
     S.Table pos exprss -> valLoad =<< do
         base <- baseTypeOf exprType

@@ -183,11 +183,11 @@ tableAppend loc val = trace "tableAppend" $ do
         valMemCpy dst src valLen
 
 
-tablePopElem :: InsCmp CompileState m => Value -> m [Value]
-tablePopElem tab = do
+tablePop :: InsCmp CompileState m => Value -> m [Value]
+tablePop tab = do
     Table ts <- assertBaseType isTable (valType tab)
     len <- tableLen tab
-    newLen <- valIntInfix S.Minus len =<< valInt (valType len) 1
+    newLen <- valIntInfix S.Minus len (valI64 1)
     tableSetLen tab newLen
     tableGetColumn tab newLen
 

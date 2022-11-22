@@ -54,6 +54,7 @@ unifyOne pos constraint = withPos pos $ case constraint of
         basem <- baseTypeOf t2
         case basem of
             Just (Table [t]) -> unifyOne pos (ConsEq t1 t)
+            Just (Sparse [t]) -> unifyOne pos (ConsEq t1 t)
             Just (Array n t) -> unifyOne pos (ConsEq t1 t)
             Just String      -> unifyOne pos (ConsEq t1 Char)
             _ -> return []

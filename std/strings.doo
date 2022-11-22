@@ -6,60 +6,26 @@ type Key i64
 type String [char]
 type Strings [String]
 
-data strings Strings
+
+data strings sparse[String]
 
 
-data strings2 sparse[String]
+fn (s String) Append(str string)
+    for [i] str; s.push(str[i])
 
 
-fn (ss Strings) New(s string) Key
-    let key = ss.New()
-    for [i] s; ss[key].push(s[i])
-    return key
+fn (s String) Print()
+    print(s)
 
 
-fn (ss Strings) New() Key
-    return ss.push()
-
-
-fn (ss Strings) Delete(key Key)
-    if key == len(ss) - 1; ss.pop()
-    else;                  ss[key].clear()
-
-
-fn (ss Strings) Append(key Key, c char)
-    ss[key].push(c)
-
-
-fn (ss Strings) Append(key Key, s string)
-    for [i] s; ss[key].push(s[i])
-
-
-fn (ss Strings) Append(key Key, key2 Key)
-    for [i] ss[key2]; ss[key].push(ss[key2][i])
-
-
-fn (ss Strings) Print(key Key)
-    print(ss[key])
-
-
-fn (ss Strings) GetStrLn()
-    let s = strings.New()
-    while true
-        switch getChar()
-            '\n'; return s
-            '\0'; return s
-            c; ss.Append(s, c)
-
-
-fn (ss Strings) ReadI64(key Key) (i64, i64)
+fn (s String) ReadI64() (i64, i64)
     let i = 0
-    while i < len(ss[key]) && isSpace(ss[key][i])
+    while i < len(s) && isSpace(s[i])
         i = i + 1
 
     data digits [i64]
-    while i < len(ss[key]) && isDigit(ss[key][i])
-        digits.push(readDigit(ss[key][i]))
+    while i < len(s) && isDigit(s[i])
+        digits.push(readDigit(s[i]))
         i = i + 1
 
     let n = 0

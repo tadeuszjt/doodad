@@ -53,7 +53,7 @@ sparsePush val elems = do
     where
         popStackCase :: InsCmp CompileState m => Value -> Value -> m ()
         popStackCase stack ret = do
-            [idx] <- tablePopElem stack
+            [idx] <- tablePop stack
             table <- sparseTable val
             tableSetColumn table idx elems
             valStore ret idx
@@ -66,5 +66,10 @@ sparsePush val elems = do
             valStore ret len 
     
 
+
+sparseGetColumn :: InsCmp CompileState m => Value -> Value -> m [Value]
+sparseGetColumn val idx = do
+    table <- sparseTable val
+    tableGetColumn table idx
 
 
