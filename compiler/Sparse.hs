@@ -21,6 +21,7 @@ import Typeof
 import Trace
 import Error
 import Table
+import Builtin
 
 
 
@@ -64,8 +65,26 @@ sparsePush val elems = do
             len <- tableLen table
             tableAppendColumn table elems
             valStore ret len 
-    
 
+
+sparseDelete :: InsCmp CompileState m => Value -> Value -> m ()
+sparseDelete val idx = do
+    Sparse ts <- assertBaseType isSparse (valType val)
+    table <- sparseTable val
+    ptrs <- tableGetColumn table idx
+    forM_ ptrs $ \ptr -> do
+        valStore ptr =<< valZero (valType ptr)
+
+    len <- tableLen table
+    idxIsEnd <- valIntInfix S.EqEq idx =<< valIntInfix S.Minus len (valI64 1)
+    if_ (valOp idxIsEnd) (void $ tablePop table) idxNotEndCase
+    where
+        idxNotEndCase :: InsCmp CompileState m => m ()
+        idxNotEndCase = do
+            stack <- sparseStack val
+            tableAppendColumn stack [idx]
+    
+    
 
 sparseGetColumn :: InsCmp CompileState m => Value -> Value -> m [Value]
 sparseGetColumn val idx = do

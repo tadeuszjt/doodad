@@ -158,6 +158,11 @@ instance Annotate Expr where
             e' <- annotate e
             return $ Clear pos e'
 
+        Delete pos expr1 expr2 -> do
+            expr1' <- annotate expr1
+            expr2' <- annotate expr2
+            return $ Delete pos expr1' expr2'
+
         _ -> error $ show expr
 
 

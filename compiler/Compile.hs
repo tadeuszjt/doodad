@@ -445,6 +445,18 @@ cmpExpr (S.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck exp
         tableClear tab
         return $ Val Void (valLoc tab)
 
+    S.Delete pos expr1 expr2 -> do
+        assert (exprType == Void) "delete returns void"
+        val <- cmpExpr expr1
+        arg <- cmpExpr expr2
+        base <- baseTypeOf (valType val)
+        case base of
+            Sparse ts -> sparseDelete val arg
+
+        return $ Val Void undefined
+                
+        
+
     S.Int p n -> do
         base <- baseTypeOf exprType
         case base of

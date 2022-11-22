@@ -93,6 +93,7 @@ data Expr
     | UnsafePtr  TextPos Expr
     | ADT        TextPos Expr
     | Match      TextPos Expr Pattern
+    | Delete     TextPos Expr Expr
     deriving (Eq)
 
 
@@ -167,6 +168,7 @@ instance TextPosition Expr where
         Push       p _ _ -> p
         Pop        p _ _ -> p
         Clear      p _ -> p
+        Delete     p _ _ -> p
 
 
 instance TextPosition Stmt where
@@ -269,6 +271,7 @@ instance Show Expr where
         Push pos expr exprs              -> show expr ++ ".push" ++ tupStrs (map show exprs)
         Pop pos expr exprs               -> show expr ++ ".pop" ++ tupStrs (map show exprs)
         Clear pos expr                   -> show expr ++ ".clear" ++ tupStrs []
+        Delete pos expr1 expr2           -> show expr1 ++ ".delete" ++ tupStrs [show expr2]
 
 
 -- every function must end on a newline and print pre before every line

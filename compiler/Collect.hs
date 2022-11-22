@@ -420,6 +420,11 @@ collectExpr (S.AExpr exprType expr) = collectPos expr $ case expr of
         collectExpr e
         collectEq exprType Void
 
+    S.Delete _ expr1 expr2 -> do
+        collectEq exprType Void
+        collectExpr expr1
+        collectExpr expr2
+
     S.Char _ c       -> do
         collectBase exprType Char
         collectDefault exprType Char

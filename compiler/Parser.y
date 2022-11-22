@@ -86,6 +86,7 @@ import Symbol
     pop        { Token _ Reserved "pop" }
     len        { Token _ Reserved "len" }
     clear      { Token _ Reserved "clear" }
+    delete     { Token _ Reserved "delete" }
 
     import     { Token _ Import _ }
     import_c   { Token _ ImportC _ }
@@ -248,6 +249,7 @@ index  : symbol                               { S.Ident (fst $1) (snd $1) }
        | index '.' push '(' exprs ')'         { S.Push (tokPos $2) $1 $5 }
        | index '.' pop '(' exprs ')'          { S.Pop (tokPos $2) $1 $5 }
        | index '.' clear '(' ')'              { S.Clear (tokPos $2) $1 }
+       | index '.' delete '(' expr ')'        { S.Delete (tokPos $2) $1 $5 }
        | call                                 { (fst $1) }
 
 expr   : literal                              { $1 }
@@ -346,6 +348,7 @@ annoType : typeOrdinal                        { S.AnnoType $1 }
          | tupType                            { S.AnnoType $1 }
          | arrayType                          { S.AnnoType $1 }
          | tableType                          { S.AnnoType $1 }
+         | sparseType                         { S.AnnoType $1 }
          | annoTupType                        { $1 }
          | annoADTType                        { $1 }
 

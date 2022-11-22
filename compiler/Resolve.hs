@@ -328,6 +328,11 @@ instance Resolve Expr where
             expr' <- resolve expr
             return $ Clear pos expr'
 
+        Delete pos expr1 expr2 -> do
+            expr1' <- resolve expr1
+            expr2' <- resolve expr2
+            return $ Delete pos expr1' expr2' 
+
         Call pos symbol exprs -> do
             exprs' <- mapM resolve exprs
             symbolm <- lookm symbol KeyFunc

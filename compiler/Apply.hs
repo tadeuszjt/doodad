@@ -101,6 +101,7 @@ instance Apply S.Expr where
         S.Push p e es              -> S.Push p (apply subs e) (map (apply subs) es)
         S.Pop p e es               -> S.Pop p (apply subs e) (map (apply subs) es)
         S.Clear p e                -> S.Clear p (apply subs e)
+        S.Delete p e1 e2           -> S.Delete p (apply subs e1) (apply subs e2)
         _                          -> error $ show expr
 
 
