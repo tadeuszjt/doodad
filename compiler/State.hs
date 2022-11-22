@@ -74,7 +74,7 @@ instance Show SymKey where
 
 data Object
     = ObjVal          Value
-    | ObType          Type   (Maybe LL.Name)
+    | ObType          Type
     | ObjFnOp         LL.Operand
     | ObjAdtTypeField Int
     | ObjConstructor 
@@ -87,7 +87,7 @@ instance Show Object where
         ObjVal (Val t o)    -> "Val " ++ show t
         ObjVal (Ptr t o)    -> "Ptr " ++ show t
         ObjVal val          -> "val"
-        ObType typ mn       -> show typ
+        ObType typ          -> show typ
         ObjFnOp op          -> "fn"
         ObjConstructor      -> "(..)"
         ObjField i         -> "." ++ show i
@@ -109,7 +109,7 @@ data CompileState
         , symTab        :: SymTab.SymTab Symbol SymKey Object
         , curModName    :: String
         , nameMap       :: Map.Map String Int
-        , typeMap       :: Map.Map Symbol (LL.Name, LL.Type)
+        , typeMap       :: Map.Map Type LL.Name
         }
 
 initCompileState imports modName
@@ -128,20 +128,7 @@ initCompileState imports modName
 mkBSS = BSS.toShort . BS.pack
 
 
-
-addTypeDef :: InsCmp CompileState m => Symbol -> LL.Type -> m LL.Name
-addTypeDef symbol opType = do
-    name <- myFresh (sym symbol)
-    typedef name (Just opType)
-
-    tm <- gets typeMap
-    assert (not $ Map.member symbol tm) "type already defined"
-    modify $ \s -> s { typeMap = Map.insert symbol (name, opType) (typeMap s) }
-    return name
-
-
-
-myFreshPrivate :: InsCmp CompileState m => String -> m LL.Name
+myFreshPrivate :: ModCmp CompileState m => String -> m LL.Name
 myFreshPrivate sym = do
     nameMap <- gets nameMap
     let n = maybe 0 (+1) (Map.lookup sym nameMap)
@@ -150,7 +137,7 @@ myFreshPrivate sym = do
         0 -> return $ LL.Name $ mkBSS ("." ++ sym)
         _ -> return $ LL.Name $ mkBSS ("." ++ sym ++ "." ++ show n)
 
-myFresh :: InsCmp CompileState m => String -> m LL.Name
+myFresh :: ModCmp CompileState m => String -> m LL.Name
 myFresh sym = do
     nameMap <- gets nameMap
     mod <- gets curModName

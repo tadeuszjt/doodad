@@ -20,14 +20,13 @@ import Symbol
 tupleTypeDef :: InsCmp CompileState m => Symbol -> S.AnnoType -> m ()
 tupleTypeDef symbol (S.AnnoType typ) = trace "tupleTypeDef" $ do
     base@(Tuple ts) <- assertBaseType isTuple typ
-    name <- addTypeDef symbol =<< opTypeOf base
 
     let typdef = Typedef symbol
 
     define symbol (KeyFunc [] typdef) ObjConstructor
     define symbol (KeyFunc [typ] typdef) ObjConstructor
     define symbol (KeyFunc [typdef] typdef) ObjConstructor
-    define symbol KeyType $ ObType typ (Just name)
+    define symbol KeyType $ ObType typ 
 
     when (length ts > 0) $
         define symbol (KeyFunc ts typdef) ObjConstructor
@@ -37,12 +36,11 @@ tupleTypeDef symbol (S.AnnoType typ) = trace "tupleTypeDef" $ do
 tupleTypeDef symbol (S.AnnoTuple xs) = trace "tupleTypeDef" $ do
     let typdef = Typedef symbol
     let tupTyp = Tuple (map snd xs)
-    name <- addTypeDef symbol =<< opTypeOf tupTyp
 
     define symbol (KeyFunc [] typdef) ObjConstructor
     define symbol (KeyFunc [tupTyp] typdef) ObjConstructor
     define symbol (KeyFunc [typdef] typdef) ObjConstructor
-    define symbol KeyType $ ObType tupTyp (Just name)
+    define symbol KeyType $ ObType tupTyp
 
     when (length xs > 0) $ do
         define symbol (KeyFunc (map snd xs) typdef) ObjConstructor

@@ -125,57 +125,6 @@ valConvert typ val = do
 
 
 
-valZero :: InsCmp CompileState m => Type -> m Value
-valZero typ = trace ("valZero " ++ show  typ) $ do
-    namem <- case typ of
-        Typedef symbol -> do
-            ObType t nm <- look symbol KeyType
-            return nm
-        _ -> return Nothing
-
-    base <- baseTypeOf typ
-    case base of
-        _ | isInt base     -> valInt typ 0
-        _ | isFloat base   -> valFloat typ 0.0
-        Bool               -> valBool typ False
-        Char               -> valChar typ '\0'
-        Array n t          -> Val typ . array . replicate n . toCons . valOp <$> valZero t
-        Tuple ts           -> Val typ . struct namem True . map (toCons . valOp) <$> mapM valZero ts
-        _ | isEnumADT base -> Val typ . valOp <$> valZero I64
-
-        Table ts         -> do
-            let zi64 = toCons (int64 0)
-            zptrs <- map (C.IntToPtr zi64 . LL.ptr) <$> mapM opTypeOf ts
-            return $ Val typ $ struct namem False (zi64:zi64:zptrs)
-
-        Sparse ts         -> do
-            let zi64 = toCons (int64 0)
-            let zpi64 = C.IntToPtr zi64 (LL.ptr LL.i64)
-            zptrs <- map (C.IntToPtr zi64 . LL.ptr) <$> mapM opTypeOf ts
-            let stack = toCons $ struct Nothing False [zi64,zi64,zpi64]
-            let table = toCons $ struct Nothing False (zi64:zi64:zptrs)
-            return $ Val typ $ struct namem False [table, stack]
-
-        ADT fs | isNormalADT base -> do
-            im <- adtHasNull typ
-            case im of
-                Just i -> do
-                    let ii64 = toCons (int64 $ fromIntegral i)
-                    let zi64 = toCons (int64 0)
-                    let zptr = C.IntToPtr zi64 (LL.ptr LL.void)
-                    return $ Val typ $ struct namem False [ii64, zptr]
-
-                Nothing -> do
-                    case head fs of
-                        FieldCtor [] -> do
-                            let zi64 = toCons (int64 0)
-                            let zptr = C.IntToPtr zi64 (LL.ptr LL.void)
-                            return $ Val typ $ struct namem False [zi64, zptr]
-
-                                
-        _ -> error ("valZero: " ++  show typ)
-
-
 valsInfix :: InsCmp CompileState m => S.Operator -> Value -> Value -> m Value
 valsInfix operator a b = do
     assert (valType a == valType b) "type mismatch"

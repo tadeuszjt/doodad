@@ -79,13 +79,7 @@ adtTypeDef symbol (S.AnnoADT xs) = trace "adtTypeDef" $ do
         S.ADTFieldType t           -> return $ FieldType t
         S.ADTFieldNull             -> return FieldNull
 
-    namem <- case ADT fs of
-        _ | isNormalADT (ADT fs) -> do
-            name <- addTypeDef symbol =<< opTypeOf (ADT fs)
-            return (Just name)
-        _ | otherwise -> return Nothing
-
-    define symbol KeyType $ ObType (ADT fs) namem
+    define symbol KeyType $ ObType (ADT fs)
 
     -- define member loopkups
     forM_ (zip xs [0..]) $ \(x, i) -> case x of

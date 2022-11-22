@@ -91,7 +91,7 @@ cmpExtern extern = catchError (cmpExtern' extern) $ \e -> return ()
 
             ExtTypeDef sym typ -> do
                 let symbol = SymQualified "c" sym
-                define symbol KeyType (ObType typ Nothing)
+                define symbol KeyType (ObType typ)
 
 
 compile :: BoM s m => [Extern] -> m CompileState
