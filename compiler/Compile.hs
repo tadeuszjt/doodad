@@ -62,10 +62,12 @@ compile imports ast = do
 
         cmp :: (MonadFail m, Monad m, MonadIO m) => ModuleCmpT CompileState m ()
         cmp = do
-            -- make type declarations for the types from all other modules
---            forM_ imports $ \imp -> do
---                forM_ (Map.elems $ typeMap imp) $ \(name, opType) -> do
---                    typedef name (Just opType)
+            typedef (mkName "String") $
+                Just (LL.StructureType False [LL.i64, LL.i64, LL.ptr LL.i8])
+            
+            forM_ imports $ \imp -> do
+                forM_ (Map.elems $ typeMap imp) $ \(name, opType) -> do
+                    typedef name (Just opType)
 
 
             mainOp <- func (LL.mkName "main")  [] LL.VoidType $ \_ -> do
@@ -113,7 +115,7 @@ cmpTypeDef (S.Typedef pos symbol (S.AnnoType typ)) = withPos pos $ do
             define symbol (KeyFunc [] typdef) ObjConstructor
             define symbol (KeyFunc [t] typdef) ObjConstructor
             define symbol (KeyFunc [typdef] typdef) ObjConstructor
-            define symbol KeyType (ObType t)
+            define symbol KeyType (ObType t Nothing)
                     
 
 cmpDataDef :: InsCmp CompileState m => S.Stmt -> m ()
@@ -665,7 +667,7 @@ cmpPattern pattern val = trace "cmpPattern" $ withPos pattern $ case pattern of
                 assert (length pats == 1)       "One pattern allowed for type field"
                 enumMatch <- valIntInfix S.EqEq (valI64 i) =<< adtEnum val
                 Ptr _ loc <- adtDeref val i 0
-                ObType t0 <- look symbol KeyType
+                ObType t0 _ <- look symbol KeyType
                 b <- cmpPattern (head pats) $ Ptr t0 loc
                 valLoad =<< valsInfix S.AndAnd enumMatch b
 
