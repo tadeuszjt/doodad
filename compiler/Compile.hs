@@ -308,6 +308,9 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
             Table ts -> do 
                 tableClear loc
                 tableAppend loc val
+            Array n t -> valStore loc val
+            _ | isEnumADT base -> valStore loc val
+            _ -> error (show base)
 
     S.Return pos Nothing -> do
         label "return"
@@ -413,8 +416,9 @@ cmpExpr (S.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck exp
     S.Tuple pos [expr]         -> cmpExpr expr
     S.Float p f                -> valFloat exprType f
     S.Prefix pos operator expr -> valPrefix operator =<< cmpExpr expr
-    S.Field pos expr sym      -> tupleField sym =<< cmpExpr expr
+    S.Field pos expr sym       -> tupleField sym =<< cmpExpr expr
     S.Null p                   -> adtNull exprType
+    S.Match pos expr pat       -> cmpPattern pat =<< cmpExpr expr
 
     S.Push pos expr [] -> do
         loc <- cmpExpr expr

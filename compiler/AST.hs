@@ -169,6 +169,7 @@ instance TextPosition Expr where
         Pop        p _ _ -> p
         Clear      p _ -> p
         Delete     p _ _ -> p
+        Match      p _ _ -> p
 
 
 instance TextPosition Stmt where
@@ -272,6 +273,7 @@ instance Show Expr where
         Pop pos expr exprs               -> show expr ++ ".pop" ++ tupStrs (map show exprs)
         Clear pos expr                   -> show expr ++ ".clear" ++ tupStrs []
         Delete pos expr1 expr2           -> show expr1 ++ ".delete" ++ tupStrs [show expr2]
+        Match pos expr1 expr2            -> show expr1 ++ " -> " ++ show expr2
 
 
 -- every function must end on a newline and print pre before every line

@@ -381,6 +381,11 @@ instance Resolve Expr where
             exprs' <- mapM resolve exprs
             return $ CallMember pos expr' ident exprs'
 
+        Match pos expr pat -> do
+            expr' <- resolve expr
+            pat' <- resolve pat
+            return $ Match pos expr' pat'
+
 
         --_ -> return expr
 

@@ -503,4 +503,9 @@ collectExpr (S.AExpr exprType expr) = collectPos expr $ case expr of
         collectExpr e
         return () -- TODO
 
+    S.Match _ e p -> do
+        collectPattern p (typeOf e)
+        collectExpr e
+        collectDefault exprType Bool
+
     _ -> error (show expr)

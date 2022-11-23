@@ -163,6 +163,11 @@ instance Annotate Expr where
             expr2' <- annotate expr2
             return $ Delete pos expr1' expr2'
 
+        Match pos expr pat -> do
+            expr' <- annotate expr
+            pat' <- annotate pat
+            return $ Match pos expr' pat'
+
         _ -> error $ show expr
 
 

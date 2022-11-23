@@ -46,6 +46,7 @@ isDataType typ = do
     base <- baseTypeOf typ
     case base of
         _ | isSimple base -> return False
+        _ | isEnumADT base -> return False
         Void              -> return False
         String            -> return False
         Tuple ts          -> any (== True) <$> mapM isDataType ts

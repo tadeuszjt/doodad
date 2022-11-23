@@ -24,19 +24,83 @@ fn printBoard()
         putStrLn("]")
 
 
-
-fn playerMove()
+type playerMoveReturn { Success() | Error() | Quit() }
+fn playerMove() playerMoveReturn
     putStrLn("Make a move")
-    let line = strings.GetStrLn()
 
-    let (r, l) = strings.ReadI64(line)
-    print(r, l)
+    data line String
+    line.GetStrLn()
+    if line.ReadChar(0) -> ('q', _)
+        return Quit()
 
-    strings.Delete(line)
+    let (row, n) = line.ReadI64(0)
+    let (col, n2) = line.ReadI64(n)
+
+    let noParse = n == 0 || n2 == 0
+    let rowInvalid = row < 0 || row >= len(board)
+    let colInvalid = col < 0 || col >= len(board[0])
+    if noParse || rowInvalid || colInvalid
+        print("invalid move")
+        return Error()
+
+    if board[row][col] != Empty()
+        print("board[row][col] is not empty")
+        return Error()
+
+    board[row][col] = Naught()
+    return Success()
+
+fn playerMoveLoop() playerMoveReturn
+    while true
+        switch playerMove()
+            Quit();    return Quit()
+            Success(); return Success()
+            Error();
+
+
+
+fn cpuMove()
+    return
+
+fn winner() Square
+    for [row] board
+        let same = true
+        for [col] board
+            same = same && board[row][col] == board[row][0]
+        if same; return board[row][0]
+
+    for [col] board[0]
+        let same = true
+        for [row] board
+            same = same && board[row][col] == board[0][col]
+        if same; return board[0][col]
+
+    if true
+        let (r, c) = (0, 0)
+        let same = true
+        while r < len(board) && c < len(board[0])
+            same = same && board[r][c] == board[0][0]
+            r = r + 1
+            c = c + 1
+        if same; return board[0][0]
+        
+    if true
+        let (r, c) = (len(board) - 1, 0)
+        let same = true
+        while r >= 0 && c < len(board[0])
+            same = same && board[r][c] == board[len(board)-1][0]
+            r = r - 1
+            c = c + 1
+        if same; return board[len(board)-1][0]
+
+    return Empty()
+
 
 fn main()
-    printBoard()
-    playerMove()
+    let res = playerMoveLoop()
+    if res == Quit()
+        return
 
+    printBoard()
 
 
