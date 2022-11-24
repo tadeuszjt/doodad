@@ -21,6 +21,7 @@ data Type
     | Bool                   
     | Char                   
     | String
+    | Range
     | Sparse [Type]
     | Tuple [Type]           
     | Array Int Type         
@@ -68,6 +69,7 @@ instance Show Type where
         Bool          -> "bool"
         Char          -> "char"
         String        -> "string"
+        Range         -> "[..]"
         Sparse ts     -> "sparse" ++ "[" ++ intercalate "; " (map show ts) ++ "]"
         Tuple ts      -> "(" ++ intercalate ", " (map show ts) ++ ")"
         Array n t     -> "[" ++ show n ++ " " ++ show t ++ "]"
@@ -78,53 +80,52 @@ instance Show Type where
         UnsafePtr t   -> "*" ++ show t
 
 
-isInt x                  = x `elem` [I8, I16, I32, I64]
+isInt x               = x `elem` [I8, I16, I32, I64]
 
-isFloat x                = x `elem` [F32, F64]
+isFloat x             = x `elem` [F32, F64]
 
-isArray (Array _ _)      = True
-isArray _                = False
+isArray (Array _ _)   = True
+isArray _             = False
 
-isTuple (Tuple _)        = True
-isTuple _                = False
+isTuple (Tuple _)     = True
+isTuple _             = False
 
-isTable (Table _)        = True
-isTable _                = False
+isTable (Table _)     = True
+isTable _             = False
 
-isSparse (Sparse _)      = True
-isSparse _               = False
+isSparse (Sparse _)   = True
+isSparse _            = False
 
-isTypedef (Typedef _)    = True
-isTypedef _              = False
+isTypedef (Typedef _) = True
+isTypedef _           = False
 
-isFunc (Func _ _)        = True
-isFunc _                 = False
+isFunc (Func _ _)     = True
+isFunc _              = False
 
-isADT (ADT _)            = True
-isADT _                  = False
+isADT (ADT _)         = True
+isADT _               = False
 
 isEmptyADT :: Type -> Bool
-isEmptyADT (ADT []) = True
-isEmptyADT _        = False
-
+isEmptyADT (ADT [])   = True
+isEmptyADT _          = False
 
 isPtrADT :: Type -> Bool
-isPtrADT (ADT [x]) = True
-isPtrADT _         = False
+isPtrADT (ADT [x])    = True
+isPtrADT _            = False
 
 isEnumADT :: Type -> Bool
-isEnumADT (ADT tss) = length tss > 0 && all (== FieldCtor []) tss
-isEnumADT _         = False
+isEnumADT (ADT tss)   = length tss > 0 && all (== FieldCtor []) tss
+isEnumADT _           = False
 
 isNormalADT :: Type -> Bool
-isNormalADT adt = isADT adt && (not $ isEmptyADT adt || isPtrADT adt || isEnumADT adt)
+isNormalADT adt       = isADT adt && (not $ isEmptyADT adt || isPtrADT adt || isEnumADT adt)
 
-isTypeId (Type _)        = True
-isTypeId _               = False
+isTypeId (Type _)     = True
+isTypeId _            = False
 
-isIntegral x             = isInt x || x == Char
-isBase x                 = isSimple x || isAggregate x
-isSimple x               = isInt x || isFloat x || x == Char || x == Bool || x == String
-isAggregate x            = isTuple x || isArray x || isTable x || isFunc x || isSparse x
+isIntegral x          = isInt x || x == Char
+isSimple x            = isInt x || isFloat x || x == Char || x == Bool || x == String || x == Range
+isAggregate x         = isTuple x || isArray x || isTable x || isFunc x || isSparse x
+isBase x              = isSimple x || isAggregate x
 
 

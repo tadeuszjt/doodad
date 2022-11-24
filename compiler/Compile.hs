@@ -352,14 +352,15 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
         let cases' = [(fmap valOp (cmpPattern pat val), cmpStmt stmt) | (pat, stmt) <- cases]
         switch_ $ cases' ++ [(return (bit 1), void trap)]
 
-    S.For _ symbol (Just typ) expr mpat blk -> do
+    S.For _ expr mpat blk -> do
         label "for"
-        idx <- valLocal typ
-        valStore idx =<< valZero typ
-        define symbol KeyVar (ObjVal idx) 
-
         val <- cmpExpr expr
         base <- baseTypeOf (valType val)
+
+        idx <- valLocal I64
+        valStore idx =<< valZero I64
+        when (base == Range) $ do
+            valStore idx =<< valRangeStart I64 val
 
         cond <- freshName "for_cond"
         body <- freshName "for_body"
@@ -368,31 +369,40 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
         exit <- freshName "for_exit"
 
         br cond
-        emitBlockStart cond
 
-        len <- case base of
-            Table ts  -> tableLen val
-            Array n t -> return $ valI64 n
-            String    -> valStringLen I64 val
-        ilt <- valsInfix S.LT idx len
+        -- check if index is still in range
+        emitBlockStart cond
+        end <- case base of
+            Range -> valRangeEnd I64 val
+            String -> valStringLen I64 val
+            Table ts -> tableLen val
+            Array n t -> return (valI64 n)
+            _ -> error (show base)
+        ilt <- valIntInfix S.LT idx end
         condBr (valOp ilt) patm exit
 
+        -- match pattern (if present)
         emitBlockStart patm
         patMatch <- case mpat of
             Nothing -> valBool Bool True
             Just pat -> case base of
-                Table ts  -> do
+                String -> cmpPattern pat =<< valStringIdx val idx
+                Table ts -> do
                     [v] <- tableGetColumn val idx
                     cmpPattern pat v
+                Range -> cmpPattern pat idx
                 Array n t -> cmpPattern pat =<< arrayGetElem val idx
+                _ -> error (show base)
         condBr (valOp patMatch) body exit
         
+        -- for loop body
         emitBlockStart body
         cmpStmt blk
         br incr
 
+        -- increment index
         emitBlockStart incr
-        valStore idx =<< valsInfix S.Plus idx =<< valInt typ 1
+        valStore idx =<< valIntInfix S.Plus idx =<< valInt I64 1
         br cond
 
         emitBlockStart exit
@@ -419,6 +429,21 @@ cmpExpr (S.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck exp
     S.Field pos expr sym       -> tupleField sym =<< cmpExpr expr
     S.Null p                   -> adtNull exprType
     S.Match pos expr pat       -> cmpPattern pat =<< cmpExpr expr
+
+    S.Range pos expr mexpr1 mexpr2 -> do
+        val <- cmpExpr expr
+        base <- baseTypeOf (valType val)
+        case base of
+            Array n t -> do
+                start <- maybe (return $ valI64 0) cmpExpr mexpr1
+                end <- maybe (return $ valI64 n) cmpExpr mexpr2
+                valRange exprType start end
+            Table ts -> do
+                len <- tableLen val
+                start <- maybe (return $ valI64 0) cmpExpr mexpr1
+                end <- maybe (return len) cmpExpr mexpr2
+                valRange exprType start end
+            _ -> error (show base)
 
     S.Push pos expr [] -> do
         loc <- cmpExpr expr

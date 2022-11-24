@@ -12,9 +12,9 @@ data board [3 [3 Square]]
 
 
 fn printBoard()
-    for [i] board
+    for board[..] -> i
         putStr("[")
-        for [j] board[i]
+        for board[i][..] -> j
             switch board[i][j]
                 Empty();  putChar(' ')
                 Naught(); putChar('0')
@@ -50,50 +50,46 @@ fn playerMove() playerMoveReturn
     board[row][col] = Naught()
     return Success()
 
-fn playerMoveLoop() playerMoveReturn
-    while true
-        switch playerMove()
-            Quit();    return Quit()
-            Success(); return Success()
-            Error();
-
 
 
 fn cpuMove()
     return
 
 fn winner() Square
-    for [row] board
+    for board -> row
         let same = true
-        for [col] board
-            same = same && board[row][col] == board[row][0]
-        if same; return board[row][0]
+        for row -> sq | same
+            same = sq == row[0]
+        if same; return row[0]
 
-    for [col] board[0]
+    for board[0][..] -> col
         let same = true
-        for [row] board
+        for board[..] -> row
             same = same && board[row][col] == board[0][col]
         if same; return board[0][col]
 
     if true
-        let (r, c) = (0, 0)
         let same = true
-        while r < len(board) && c < len(board[0])
-            same = same && board[r][c] == board[0][0]
-            r = r + 1
-            c = c + 1
+        for board[..] -> r
+            same = same && board[r][r] == board[0][0]
         if same; return board[0][0]
         
     if true
-        let (r, c) = (len(board) - 1, 0)
         let same = true
-        while r >= 0 && c < len(board[0])
-            same = same && board[r][c] == board[len(board)-1][0]
-            r = r - 1
-            c = c + 1
-        if same; return board[len(board)-1][0]
+        let end = len(board[0]) - 1
+        for board[..] -> r
+            same = same && board[r][r - end] == board[0][end]
+        if same; return board[end][0]
 
     return Empty()
+
+
+fn playerMoveLoop() playerMoveReturn
+    while true
+        switch playerMove()
+            Quit();    return Quit()
+            Success(); return Success()
+            Error();   return playerMoveLoop()
 
 
 fn main()

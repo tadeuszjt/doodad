@@ -214,15 +214,13 @@ instance Resolve Stmt where
                 return (pat', stmt')
             return $ Switch pos expr' cases'
         
-        For pos (Sym sym) Nothing expr mpattern blk -> do
+        For pos expr mpattern blk -> do
             pushSymTab
-            symbol <- genSymbol sym
-            define sym KeyVar symbol
             expr' <- resolve expr
             mpattern' <- maybe (return Nothing) (fmap Just . resolve) mpattern
             blk' <- resolve blk
             popSymTab
-            return $ For pos symbol Nothing expr' mpattern' blk'
+            return $ For pos expr' mpattern' blk'
 
         Data pos (Sym sym) typ -> do
             symbol <- genSymbol sym
@@ -385,6 +383,12 @@ instance Resolve Expr where
             expr' <- resolve expr
             pat' <- resolve pat
             return $ Match pos expr' pat'
+
+        AST.Range pos expr mexpr1 mexpr2 -> do
+            expr' <- resolve expr
+            mexpr1' <- maybe (return Nothing) (fmap Just . resolve) mexpr1
+            mexpr2' <- maybe (return Nothing) (fmap Just . resolve) mexpr2
+            return $ AST.Range pos expr' mexpr1' mexpr2'
 
 
         --_ -> return expr

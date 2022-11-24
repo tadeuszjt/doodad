@@ -66,12 +66,11 @@ instance Annotate Stmt where
                 return (pat', stmt')
             return $ Switch p e' cases'
 
-        For p symbol Nothing expr mcnd blk -> do
+        For p expr mcnd blk -> do
             expr' <- annotate expr
             blk' <- annotate blk
-            t <- genType
             mcnd' <- maybe (return Nothing) (fmap Just . annotate) mcnd
-            return $ For p symbol (Just t) expr' mcnd' blk'
+            return $ For p expr' mcnd' blk'
 
         Data p symbol typ -> do return $ Data p symbol typ
 
@@ -167,6 +166,12 @@ instance Annotate Expr where
             expr' <- annotate expr
             pat' <- annotate pat
             return $ Match pos expr' pat'
+
+        Range pos expr mexpr1 mexpr2 -> do
+            expr' <- annotate expr
+            mexpr1' <- maybe (return Nothing) (fmap Just . annotate) mexpr1
+            mexpr2' <- maybe (return Nothing) (fmap Just . annotate) mexpr2
+            return $ Range pos expr' mexpr1' mexpr2'
 
         _ -> error $ show expr
 

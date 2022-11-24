@@ -13,23 +13,17 @@ import qualified SymTab
 substitute :: Type -> Int -> Type -> Type
 substitute u x typ = case typ of
     Type i | i == x -> u
-    Type _          -> typ
-    Bool            -> typ
-    I64             -> typ
-    I32             -> typ
-    F32             -> typ
-    F64             -> typ
-    Char            -> typ
-    String          -> typ
-    Sparse ts       -> Sparse $ map (substitute u x) ts
-    Table ts        -> Table $ map (substitute u x) ts
-    Tuple ts        -> Tuple $ map (substitute u x) ts
-    Array n t       -> Array n (substitute u x t)
-    Void            -> typ
-    Typedef symbol  -> typ
-    ADT fs          -> ADT $ map subAdtField fs
-    UnsafePtr t     -> UnsafePtr (substitute u x t)
-    _               -> error (show typ)
+    Type _           -> typ
+    Void             -> typ
+    Typedef symbol   -> typ
+    _ | isSimple typ -> typ
+    Sparse ts        -> Sparse $ map (substitute u x) ts
+    Table ts         -> Table $ map (substitute u x) ts
+    Tuple ts         -> Tuple $ map (substitute u x) ts
+    Array n t        -> Array n (substitute u x t)
+    ADT fs           -> ADT $ map subAdtField fs
+    UnsafePtr t      -> UnsafePtr (substitute u x t)
+    _                -> error (show typ)
     where
         subAdtField :: AdtField -> AdtField
         subAdtField field = case field of
@@ -103,6 +97,7 @@ instance Apply S.Expr where
         S.Clear p e                -> S.Clear p (apply subs e)
         S.Delete p e1 e2           -> S.Delete p (apply subs e1) (apply subs e2)
         S.Match p e pat            -> S.Match p (apply subs e) (apply subs pat)
+        S.Range p e me1 me2        -> S.Range p (apply subs e) (fmap (apply subs) me1) (fmap (apply subs) me2)
         _                          -> error $ show expr
 
 
@@ -142,8 +137,8 @@ instance Apply S.Stmt where
         S.Switch pos expr cases ->
             S.Switch pos (apply subs expr) [(apply subs p, apply subs s) | (p, s) <- cases]
 
-        S.For pos symbol (Just t) expr mpat blk ->
-            S.For pos symbol (Just $ apply subs t) (apply subs expr) (fmap (apply subs) mpat) (apply subs blk)
+        S.For pos expr mpat blk ->
+            S.For pos (apply subs expr) (fmap (apply subs) mpat) (apply subs blk)
 
         S.Data pos symbol typ ->
             S.Data pos symbol (apply subs typ)

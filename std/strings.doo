@@ -9,11 +9,11 @@ data strings Strings
 
 
 fn (ss Strings) Append(k1 i64, k2 i64)
-    for [i] ss[k2]; ss[k1].push(ss[k2][i])
+    for ss[k2] -> c; ss[k1].push(c)
 
 
 fn (s String) Append(str string)
-    for [i] str; s.push(str[i])
+    for str -> c; s.push(c)
 
 
 fn (s String) PutStrLn()
@@ -31,7 +31,7 @@ fn (s String) GetStrLn()
 
 fn (s String) ReadChar(start i64) (char, i64)
     let i = start
-    while i < len(s) && isSpace(s[i])
+    for s[start..] -> j | isSpace(s[j])
         i = i + 1
 
     if i < len(s) && isAlpha(s[i])

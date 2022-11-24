@@ -163,8 +163,8 @@ stmtB : If                                           { $1 }
       | fn mFnTypArg mfnrec fnName '(' params ')' type_ block  { S.FuncDef (tokPos $1) $3 ($4) $6 $8 $9 }
       | fn mFnTypArg mfnrec fnName '(' params ')' block        { S.FuncDef (tokPos $1) $3 ($4) $6 T.Void $8 }
       | while condition block                        { S.While (tokPos $1) $2 $3 }
-      | for '[' ident ']' expr block                 { S.For (tokPos $1) (Sym $ tokStr $3) Nothing $5 Nothing $6 }
-      | for '[' ident ']' expr '->' pattern block    { S.For (tokPos $1) (Sym $ tokStr $3) Nothing $5 (Just $7) $8 }
+      | for expr block                        { S.For (tokPos $1) $2 Nothing $3 }
+      | for expr '->' pattern block           { S.For (tokPos $1) $2 (Just $4) $5 }
       | Switch                                       { $1 }
 
 pattern  : '_'                                { S.PatIgnore (tokPos $1) }
@@ -277,6 +277,7 @@ expr   : literal                              { $1 }
        | expr '.' len '(' ')'                 { S.Len (tokPos $4) $1 }
        | expr '.' clear '(' ')'               { S.Clear (tokPos $4) $1 }
        | len '(' expr ')'                     { S.Len (tokPos $1) $3 }
+       | expr '[' mexpr '..' mexpr ']'        { S.Range (tokPos $2) $1 $3 $5 }
 
 tableRows : exprs1                             { [$1] }
           | exprs1 ';' tableRows               { $1 : $3 }

@@ -12,8 +12,8 @@ fn putChar(c char)
 
 
 fn putStr(s string)
-    for [i] s; putChar(s[i])
+    for s -> c; putChar(c)
 
 fn putStrLn(s string)
-    for [i] s; putChar(s[i])
+    for s -> c; putChar(c)
     putChar('\n')

@@ -65,6 +65,32 @@ valFloat typ f = trace "valFloat" $ do
         F64 -> Val typ $ double f
 
 
+valRange :: InsCmp CompileState m => Type -> Value -> Value -> m Value
+valRange typ start end = do
+    assertBaseType (== Range) typ
+    range <- valLocal typ
+    startPtr <- gep (valLoc range) [int32 0, int32 0]
+    endPtr <- gep (valLoc range) [int32 0, int32 1]
+    store startPtr 0 . valOp =<< valConvertNumber I64 start
+    store endPtr 0   . valOp =<< valConvertNumber I64 end
+    return range
+
+
+valRangeStart :: InsCmp CompileState m => Type -> Value -> m Value
+valRangeStart typ val = do
+    assertBaseType (== Range) (valType val)
+    case val of
+        Ptr _ loc -> valConvertNumber typ . Ptr I64 =<< gep loc [int32 0, int32 0]
+        Val _ op  -> valConvertNumber typ . Val I64 =<< extractValue op [0]
+
+
+valRangeEnd :: InsCmp CompileState m => Type -> Value -> m Value
+valRangeEnd typ val = do
+    assertBaseType (== Range) (valType val)
+    case val of
+        Ptr _ loc -> valConvertNumber typ . Ptr I64 =<< gep loc [int32 0, int32 1]
+        Val _ op  -> valConvertNumber typ . Val I64 =<< extractValue op [1]
+
 
 valConvertNumber :: InsCmp CompileState m => Type -> Value -> m Value
 valConvertNumber typ val = do

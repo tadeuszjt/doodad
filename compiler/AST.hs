@@ -94,6 +94,7 @@ data Expr
     | ADT        TextPos Expr
     | Match      TextPos Expr Pattern
     | Delete     TextPos Expr Expr
+    | Range      TextPos Expr (Maybe Expr) (Maybe Expr)
     deriving (Eq)
 
 
@@ -109,7 +110,7 @@ data Stmt
     | FuncDef     TextPos (Maybe Param) String [Param] Type Stmt
     | Typedef     TextPos Symbol AnnoType
     | Switch      TextPos Expr [(Pattern, Stmt)]
-    | For         TextPos Symbol (Maybe Type) Expr (Maybe Pattern) Stmt
+    | For         TextPos Expr (Maybe Pattern) Stmt
     | Data        TextPos Symbol Type
     deriving (Eq, Show)
 
@@ -170,6 +171,7 @@ instance TextPosition Expr where
         Clear      p _ -> p
         Delete     p _ _ -> p
         Match      p _ _ -> p
+        Range      p _ _ _ -> p
 
 
 instance TextPosition Stmt where
@@ -185,7 +187,7 @@ instance TextPosition Stmt where
         FuncDef     p _ _ _ _ _ -> p
         Typedef     p _ _ -> p
         Switch      p _ _ -> p
-        For         p _ _ _ _ _ -> p
+        For         p _ _ _ -> p
         Data        p _ _ -> p
 
 tupStrs, arrStrs, brcStrs :: [String] -> String
@@ -274,6 +276,7 @@ instance Show Expr where
         Clear pos expr                   -> show expr ++ ".clear" ++ tupStrs []
         Delete pos expr1 expr2           -> show expr1 ++ ".delete" ++ tupStrs [show expr2]
         Match pos expr1 expr2            -> show expr1 ++ " -> " ++ show expr2
+        Range pos expr mexpr1 mexpr2     -> show expr ++ "[" ++ maybe "" show mexpr1 ++ ".." ++ maybe "" show mexpr2
 
 
 -- every function must end on a newline and print pre before every line
@@ -332,10 +335,10 @@ prettyAST ast = do
                     putStrLn $ pre ++ "\t" ++ show pat
                     prettyStmt (pre ++ "\t\t") stmt
 
-            For pos symbol _ expr mcnd blk -> do
-                let cndStr = maybe "" ((" | " ++) . show) mcnd
-                let exprStr = " " ++ show expr
-                putStrLn $ pre ++ "for " ++ "[" ++ show symbol ++ "]" ++ exprStr ++ cndStr
+            For pos expr mcnd blk -> do
+                let cndStr = maybe "" ((" -> " ++) . show) mcnd
+                let exprStr = "" ++ show expr
+                putStrLn $ pre ++ "for " ++ exprStr ++ cndStr
                 prettyStmt (pre ++ "\t") blk
 
             Data pos symbol typ -> do

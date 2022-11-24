@@ -266,9 +266,7 @@ collectStmt stmt = collectPos stmt $ case stmt of
             collectPattern pat (typeOf expr)
             collectStmt stmt
 
-    S.For p symbol (Just t) expr mpat blk -> do
-        define symbol KeyVar (ObjVar t)
-        collectDefault t I64
+    S.For p expr mpat blk -> do
         collectExpr expr
 
         when (isJust mpat) $ do
@@ -507,5 +505,18 @@ collectExpr (S.AExpr exprType expr) = collectPos expr $ case expr of
         collectPattern p (typeOf e)
         collectExpr e
         collectDefault exprType Bool
+
+    S.Range _ e me1 me2 -> do
+        collectDefault exprType Range
+        collectBase exprType Range
+        collectExpr e
+        when (isJust me1) $ do
+            collectExpr $ fromJust me1
+            collectDefault (typeOf $ fromJust me1) I64
+        when (isJust me2) $ do
+            collectExpr $ fromJust me2
+            collectDefault (typeOf $ fromJust me2) I64
+        when (isJust me1 && isJust me2) $ do
+            collectEq (typeOf $ fromJust me1) (typeOf $ fromJust me2)
 
     _ -> error (show expr)
