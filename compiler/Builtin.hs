@@ -181,28 +181,26 @@ valsInfix operator a b = do
     assert (valType a == valType b) "type mismatch"
     base <- baseTypeOf (valType a)
 
-    if base == Void then nullInfix operator
-    else do
-        Val typ opA  <- valLoad a
-        Val typB opB <- valLoad b
+    Val typ opA  <- valLoad a
+    Val typB opB <- valLoad b
 
-        case base of
-            Bool                 -> boolInfix typ operator opA opB
-            Char                 -> valIntInfix operator a b
-            Void                 -> nullInfix operator
-            _ | isInt base       -> valIntInfix operator a b
-            _ | isFloat base     -> floatInfix typ operator opA opB
-            _ | isTable base     -> valTableInfix operator a b
-            _ | isTuple base     -> valTupleInfix operator a b
-            _ | isNormalADT base -> valAdtNormalInfix operator a b
-            _ | isEnumADT base   -> valAdtEnumInfix operator a b
-            _                    -> fail $ "Operator " ++ show operator ++ " undefined for types " ++ show typ ++ " " ++ show (valType b)
+    case base of
+        Bool                 -> boolInfix typ operator opA opB
+        Char                 -> valIntInfix operator a b
+        --Void                 -> nullInfix operator
+        _ | isInt base       -> valIntInfix operator a b
+        _ | isFloat base     -> floatInfix typ operator opA opB
+        _ | isTable base     -> valTableInfix operator a b
+        _ | isTuple base     -> valTupleInfix operator a b
+        _ | isNormalADT base -> valAdtNormalInfix operator a b
+        _ | isEnumADT base   -> valAdtEnumInfix operator a b
+        _                    -> fail $ "Operator " ++ show operator ++ " undefined for types " ++ show typ ++ " " ++ show (valType b)
 
     where 
-        nullInfix :: InsCmp CompileState m => S.Operator -> m Value
-        nullInfix operator = case operator of
-            S.EqEq -> valBool Bool True
-            S.NotEq -> valBool Bool False
+--        nullInfix :: InsCmp CompileState m => S.Operator -> m Value
+--        nullInfix operator                  = case operator of
+--            S.EqEq -> valBool Bool True
+--            S.NotEq -> valBool Bool False
 
         boolInfix :: InsCmp CompileState m => Type -> S.Operator -> LL.Operand -> LL.Operand -> m Value
         boolInfix typ operator opA opB = case operator of

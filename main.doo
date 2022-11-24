@@ -11,32 +11,41 @@ import_c stdlib.h
 import_c stdio.h
 
 fn main()
+        print(30:c::size_t)
+
+        if 2 > 1 && 4 != 4
+            print("yes")
+
+
         let va = Vec2(1.0, 3.0)
         let vb = Vec2(9, 7)
         print(vb, vb.length(), vb.normal().length(), vb.theta())
         print(va + vb)
 
-        let rect = Rect((0, 0), (3, 4))
-        print(maths::sqrt(34), rect.area(), rect.width(), rect.height())
 
-        let (f, n) = (-123:f64, 123)
+        data d [4 i64]
+        let s = "benis"
+        for s[..]; print("b")
+        for d[..] -> i; print(i)
+        let r = [-5..7]
+        for r -> i
+            print(i)
 
-        print(30:c::size_t)
 
         let key1 = strings.push()
         let key2 = strings.push()
         strings[key1].Append("string1")
         strings[key2].Append("string2")
-        strings[key1].Print()
-        strings[key2].Print()
+        strings[key1].PutStrLn()
+        strings[key2].PutStrLn()
         strings.delete(key1)
-        strings[key1].Print()
-        strings[key2].Print()
+        strings[key1].PutStrLn()
+        strings[key2].PutStrLn()
         let key3 = strings.push()
 
         strings.Append(key3, key2)
         strings.Append(key3, key2)
-        strings[key3].Print()
+        strings[key3].PutStrLn()
 
         print(key1, key2, key3)
 

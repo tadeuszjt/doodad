@@ -12,15 +12,14 @@ data board [3 [3 Square]]
 
 
 fn printBoard()
-    for board[..] -> i
+    for board -> row
         putStr("[")
-        for board[i][..] -> j
-            switch board[i][j]
+        for row[..] -> r
+            switch row[r]
                 Empty();  putChar(' ')
                 Naught(); putChar('0')
                 Cross();  putChar('X')
-            if j < (len(board[i]) - 1)
-                putChar(',')
+            if r < (len(row) - 1); putChar(',')
         putStrLn("]")
 
 
@@ -28,10 +27,12 @@ type playerMoveReturn { Success() | Error() | Quit() }
 fn playerMove() playerMoveReturn
     putStrLn("Make a move")
 
+
     data line String
     line.GetStrLn()
     if line.ReadChar(0) -> ('q', _)
         return Quit()
+    print("got here")
 
     let (row, n) = line.ReadI64(0)
     let (col, n2) = line.ReadI64(n)
@@ -53,22 +54,29 @@ fn playerMove() playerMoveReturn
 
 
 fn cpuMove()
+    print("cpu moving")
+
+    for board[..] -> r
+        for board[r][..] -> c
+            return
+
+
     return
 
 fn winner() Square
     for board -> row
         let same = true
-        for row -> sq | same
-            same = sq == row[0]
-        if same; return row[0]
+        for row -> sq
+            same = same && sq == row[0]
+        if same && row[0] != Empty(); return row[0]
 
-    for board[0][..] -> col
+    for board[0][..] -> c
         let same = true
-        for board[..] -> row
-            same = same && board[row][col] == board[0][col]
-        if same; return board[0][col]
+        for board[..] -> r
+            same = same && board[r][c] == board[0][c]
+        if same && board[0][c] != Empty(); return board[0][c]
 
-    if true
+    if board[0][0] != Empty()
         let same = true
         for board[..] -> r
             same = same && board[r][r] == board[0][0]
@@ -78,8 +86,8 @@ fn winner() Square
         let same = true
         let end = len(board[0]) - 1
         for board[..] -> r
-            same = same && board[r][r - end] == board[0][end]
-        if same; return board[end][0]
+            same = same && board[r][end - r] == board[0][end]
+        if same && board[end][0] != Empty(); return board[end][0]
 
     return Empty()
 
@@ -93,10 +101,12 @@ fn playerMoveLoop() playerMoveReturn
 
 
 fn main()
-    let res = playerMoveLoop()
-    if res == Quit()
-        return
-
-    printBoard()
+    while winner() == Empty()
+        let res = playerMoveLoop()
+        if res == Quit()
+            return
+        printBoard()
+        cpuMove()
+        printBoard()
 
 

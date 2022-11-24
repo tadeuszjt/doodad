@@ -384,11 +384,11 @@ instance Resolve Expr where
             pat' <- resolve pat
             return $ Match pos expr' pat'
 
-        AST.Range pos expr mexpr1 mexpr2 -> do
-            expr' <- resolve expr
+        AST.Range pos mexpr mexpr1 mexpr2 -> do
+            mexpr' <- maybe (return Nothing) (fmap Just . resolve) mexpr
             mexpr1' <- maybe (return Nothing) (fmap Just . resolve) mexpr1
             mexpr2' <- maybe (return Nothing) (fmap Just . resolve) mexpr2
-            return $ AST.Range pos expr' mexpr1' mexpr2'
+            return $ AST.Range pos mexpr' mexpr1' mexpr2'
 
 
         --_ -> return expr

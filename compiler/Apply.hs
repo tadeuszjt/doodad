@@ -97,7 +97,7 @@ instance Apply S.Expr where
         S.Clear p e                -> S.Clear p (apply subs e)
         S.Delete p e1 e2           -> S.Delete p (apply subs e1) (apply subs e2)
         S.Match p e pat            -> S.Match p (apply subs e) (apply subs pat)
-        S.Range p e me1 me2        -> S.Range p (apply subs e) (fmap (apply subs) me1) (fmap (apply subs) me2)
+        S.Range p me me1 me2       -> S.Range p (fmap (apply subs) me) (fmap (apply subs) me1) (fmap (apply subs) me2)
         _                          -> error $ show expr
 
 

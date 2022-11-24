@@ -7,7 +7,6 @@ type Strings sparse[String]
 data strings Strings
 
 
-
 fn (ss Strings) Append(k1 i64, k2 i64)
     for ss[k2] -> c; ss[k1].push(c)
 
@@ -36,7 +35,8 @@ fn (s String) ReadChar(start i64) (char, i64)
 
     if i < len(s) && isAlpha(s[i])
           return (s[i], 1)
-    else; return ('\0', 0)
+
+    return ('\0', 0)
 
 
 fn (s String) ReadI64(start i64) (i64, i64)

@@ -19,6 +19,7 @@ import qualified LLVM.AST.Constant as C hiding (type')
 import qualified LLVM.AST.Type as LL
 import LLVM.IRBuilder.Module
 import LLVM.IRBuilder.Monad
+import LLVM.IRBuilder.Instruction
 import LLVM.Context
 import Foreign.Ptr
 
@@ -110,6 +111,7 @@ data CompileState
         , curModName    :: String
         , nameMap       :: Map.Map String Int
         , typeMap       :: Map.Map Symbol (LL.Name, LL.Type)
+        , stringMap     :: Map.Map String C.Constant
         }
 
 initCompileState imports modName
@@ -122,11 +124,23 @@ initCompileState imports modName
         , curModName    = modName
         , nameMap       = Map.empty
         , typeMap       = Map.empty
+        , stringMap     = Map.empty
         }
 
 
 mkBSS = BSS.toShort . BS.pack
 
+
+
+getStringPointer :: InsCmp CompileState m => String -> m LL.Operand
+getStringPointer str = do
+    resm <- Map.lookup str <$> gets stringMap
+    case resm of
+        Just loc -> return (LL.ConstantOperand loc)
+        Nothing  -> do
+            p <- globalStringPtr str =<< myFreshPrivate "str"
+            modify $ \s -> s { stringMap = Map.insert str p (stringMap s) }
+            return (LL.ConstantOperand p)
 
 
 addTypeDef :: InsCmp CompileState m => Symbol -> LL.Type -> m LL.Name

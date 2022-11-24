@@ -506,10 +506,11 @@ collectExpr (S.AExpr exprType expr) = collectPos expr $ case expr of
         collectExpr e
         collectDefault exprType Bool
 
-    S.Range _ e me1 me2 -> do
+    S.Range _ me me1 me2 -> do
         collectDefault exprType Range
         collectBase exprType Range
-        collectExpr e
+        when (isJust me) $ do
+            collectExpr $ fromJust me
         when (isJust me1) $ do
             collectExpr $ fromJust me1
             collectDefault (typeOf $ fromJust me1) I64

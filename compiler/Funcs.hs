@@ -46,15 +46,15 @@ trap = do
 printf :: InsCmp CompileState m => String -> [Operand] -> m Operand
 printf fmt args = do
     op <- ensureExtern (mkName "printf") [ptr i8] i32 True
-    fmtStr <- globalStringPtr fmt =<< myFreshPrivate "str"
-    call op [ (a, []) | a <- (cons fmtStr):args ]
+    fmtStr <- getStringPointer fmt
+    call op [ (a, []) | a <- (fmtStr):args ]
 
 
 snprintf :: InsCmp CompileState m => Operand -> Operand -> String -> [Operand] -> m Operand
 snprintf str siz fmt args = do
     op <- ensureExtern (mkName "snprintf") [ptr i8, i64, ptr i8] i32 True
-    fmtStr <- globalStringPtr fmt =<< myFreshPrivate "str"
-    call op [ (a, []) | a <- str:siz:(cons fmtStr):args ]
+    fmtStr <- getStringPointer fmt
+    call op [ (a, []) | a <- str:siz:(fmtStr):args ]
 
 
 putchar :: InsCmp CompileState m => Operand -> m Operand

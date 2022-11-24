@@ -167,11 +167,11 @@ instance Annotate Expr where
             pat' <- annotate pat
             return $ Match pos expr' pat'
 
-        Range pos expr mexpr1 mexpr2 -> do
-            expr' <- annotate expr
+        Range pos mexpr mexpr1 mexpr2 -> do
+            mexpr' <- maybe (return Nothing) (fmap Just . annotate) mexpr
             mexpr1' <- maybe (return Nothing) (fmap Just . annotate) mexpr1
             mexpr2' <- maybe (return Nothing) (fmap Just . annotate) mexpr2
-            return $ Range pos expr' mexpr1' mexpr2'
+            return $ Range pos mexpr' mexpr1' mexpr2'
 
         _ -> error $ show expr
 

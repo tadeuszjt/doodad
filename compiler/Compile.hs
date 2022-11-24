@@ -430,20 +430,21 @@ cmpExpr (S.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck exp
     S.Null p                   -> adtNull exprType
     S.Match pos expr pat       -> cmpPattern pat =<< cmpExpr expr
 
-    S.Range pos expr mexpr1 mexpr2 -> do
+    S.Range pos Nothing _ Nothing -> fail "Range expression must contain maximum"
+    S.Range pos Nothing mexpr1 (Just expr2) -> do
+        start <- maybe (return $ valI64 0) cmpExpr mexpr1
+        end <- cmpExpr expr2
+        valRange exprType start end
+    S.Range pos (Just expr) mexpr1 mexpr2 -> do
         val <- cmpExpr expr
         base <- baseTypeOf (valType val)
-        case base of
-            Array n t -> do
-                start <- maybe (return $ valI64 0) cmpExpr mexpr1
-                end <- maybe (return $ valI64 n) cmpExpr mexpr2
-                valRange exprType start end
-            Table ts -> do
-                len <- tableLen val
-                start <- maybe (return $ valI64 0) cmpExpr mexpr1
-                end <- maybe (return len) cmpExpr mexpr2
-                valRange exprType start end
-            _ -> error (show base)
+        start <- maybe (return $ valI64 0) cmpExpr mexpr1
+        end <- case base of
+            Array n t -> maybe (return $ valI64 n) cmpExpr mexpr2
+            Table ts  -> tableLen val
+            String    -> valStringLen I64 val
+            _         -> error (show base)
+        valRange exprType start end
 
     S.Push pos expr [] -> do
         loc <- cmpExpr expr
@@ -507,8 +508,8 @@ cmpExpr (S.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck exp
             
     S.String pos s -> do
         assertBaseType (== String) exprType
-        loc <- globalStringPtr s =<< myFreshPrivate "str"
-        return (Val exprType $ cons loc)
+        loc <- getStringPointer s
+        return (Val exprType loc)
 
     S.CallMember pos expr symbol exprs  -> do
         val <- cmpExpr expr

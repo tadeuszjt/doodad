@@ -94,7 +94,7 @@ data Expr
     | ADT        TextPos Expr
     | Match      TextPos Expr Pattern
     | Delete     TextPos Expr Expr
-    | Range      TextPos Expr (Maybe Expr) (Maybe Expr)
+    | Range      TextPos (Maybe Expr) (Maybe Expr) (Maybe Expr)
     deriving (Eq)
 
 
@@ -276,7 +276,7 @@ instance Show Expr where
         Clear pos expr                   -> show expr ++ ".clear" ++ tupStrs []
         Delete pos expr1 expr2           -> show expr1 ++ ".delete" ++ tupStrs [show expr2]
         Match pos expr1 expr2            -> show expr1 ++ " -> " ++ show expr2
-        Range pos expr mexpr1 mexpr2     -> show expr ++ "[" ++ maybe "" show mexpr1 ++ ".." ++ maybe "" show mexpr2
+        Range pos mexpr mexpr1 mexpr2    -> maybe "" show mexpr ++ "[" ++ maybe "" show mexpr1 ++ ".." ++ maybe "" show mexpr2 ++ "]"
 
 
 -- every function must end on a newline and print pre before every line
