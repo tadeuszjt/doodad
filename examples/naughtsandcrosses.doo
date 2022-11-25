@@ -1,0 +1,134 @@
+module naughtsandcrosses
+
+import ../std/io
+import ../std/strings
+import ../std/rand
+
+
+type Square { Empty() | Naught() | Cross() }
+
+
+data board [3 [3 Square]]
+
+
+fn printBoard()
+    for board -> row
+        putStr("[")
+        for row[..] -> r
+            switch row[r]
+                Empty();  putChar(' ')
+                Naught(); putChar('0')
+                Cross();  putChar('X')
+            if r < (len(row) - 1); putChar(',')
+        putStrLn("]")
+
+
+fn winner() Square
+    for board -> row
+        let same = true
+        for row -> sq
+            same = same && sq == row[0]
+        if same && row[0] != Empty(); return row[0]
+
+    for board[0][..] -> c
+        let same = true
+        for board[..] -> r
+            same = same && board[r][c] == board[0][c]
+        if same && board[0][c] != Empty(); return board[0][c]
+
+    if board[0][0] != Empty()
+        let same = true
+        for board[..] -> r
+            same = same && board[r][r] == board[0][0]
+        if same; return board[0][0]
+        
+    if true
+        let same = true
+        let end = len(board[0]) - 1
+        for board[..] -> r
+            same = same && board[r][end - r] == board[0][end]
+        if same && board[end][0] != Empty(); return board[end][0]
+
+    return Empty()
+
+
+fn full() bool
+    for board -> row
+        for row -> sq
+            if sq == Empty()
+                return false
+    return true
+
+
+type playerMoveReturn { Success() | Error() | Quit() }
+fn playerMove() playerMoveReturn
+    putStrLn("Make a move")
+
+    data line String
+    line.GetStrLn()
+    if line.ReadChar(0) -> ('q', _)
+        return Quit()
+
+    let (row, n) = line.ReadI64(0)
+    let (col, n2) = line.ReadI64(n)
+
+    let noParse = n == 0 || n2 == 0
+    if noParse || !board[..][row] || !board[row][..][col]
+        print("invalid move")
+        return Error()
+
+    if board[row][col] != Empty()
+        print("board[row][col] is not empty")
+        return Error()
+
+    board[row][col] = Naught()
+    return Success()
+
+
+fn cpuMove()
+    print("cpu moving")
+    if full()
+        return
+
+    data empty [(i64, i64)]
+    for board[..] -> r
+        for board[r][..] -> c
+            if board[r][c] == Empty()
+                empty.push((r, c))
+
+    for empty -> (r, c)
+        board[r][c] = Cross()
+        if winner() == Cross()
+            return
+        board[r][c] = Empty()
+
+    for empty -> (r, c)
+        board[r][c] = Naught()
+        if winner() == Naught()
+            board[r][c] = Cross()
+            return
+        board[r][c] = Empty()
+
+    let (r, c) = empty[rand::I64() % len(empty)]
+    board[r][c] = Cross()
+    return
+
+
+fn playerMoveLoop() playerMoveReturn
+    while true
+        switch playerMove()
+            Quit();    return Quit()
+            Success(); return Success()
+            Error();   return playerMoveLoop()
+
+
+fn main()
+    while !full() && winner() == Empty()
+        let res = playerMoveLoop()
+        if res == Quit()
+            return
+        printBoard()
+        cpuMove()
+        printBoard()
+
+

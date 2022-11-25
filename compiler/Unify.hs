@@ -60,6 +60,16 @@ unifyOne pos constraint = withPos pos $ case constraint of
             Just Range       -> unifyOne pos (ConsEq t1 I64)
             _ -> return []
 
+    ConsSubscript t1 t2 -> do
+        basem <- baseTypeOf t2
+        case basem of
+            Just (Table [t]) -> unifyOne pos (ConsEq t1 t)
+            Just (Sparse [t]) -> unifyOne pos (ConsEq t1 t)
+            Just (Array n t) -> unifyOne pos (ConsEq t1 t)
+            Just String      -> unifyOne pos (ConsEq t1 Char)
+            Just Range       -> unifyOne pos (ConsBase t1 Bool)
+            _ -> return []
+
     ConsBase t1 t2 -> do
         base1m <- baseTypeOf t1
         base2m <- baseTypeOf t2

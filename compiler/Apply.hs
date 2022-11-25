@@ -60,6 +60,7 @@ instance Apply Constraint where
     apply subs (ConsEq t1 t2)       = ConsEq (apply subs t1) (apply subs t2)
     apply subs (ConsBase   t1 t2)   = ConsBase   (apply subs t1) (apply subs t2)
     apply subs (ConsElem   t1 t2)   = ConsElem   (apply subs t1) (apply subs t2)
+    apply subs (ConsSubscript t1 t2)   = ConsSubscript   (apply subs t1) (apply subs t2)
     apply subs (ConsField t1 i t2) = ConsField (apply subs t1) i (apply subs t2)
     apply subs (ConsAdtMem t1 i j t2) = ConsAdtMem (apply subs t1) i j (apply subs t2)
 

@@ -23,7 +23,7 @@ import qualified LLVM.AST.Type as LL
 import qualified LLVM.AST.Constant as C
 import qualified LLVM.Internal.FFI.DataLayout as FFI
 import LLVM.AST.Global
-import LLVM.IRBuilder.Instruction       
+import LLVM.IRBuilder.Instruction as LL
 import LLVM.IRBuilder.Constant
 import LLVM.IRBuilder.Module
 import LLVM.IRBuilder.Monad
@@ -557,7 +557,7 @@ cmpExpr (S.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck exp
         val <- cmpExpr expr
         tupleIdx (fromIntegral n) val
 
-    S.Subscript pos expr idxExpr -> do
+    S.Subscript pos expr idxExpr -> withErrorPrefix "subscript: " $ do
         val <- cmpExpr expr
         idx <- cmpExpr idxExpr
         base <- baseTypeOf (valType val)
@@ -570,6 +570,14 @@ cmpExpr (S.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck exp
             Sparse _  -> do
                 [v] <- sparseGetColumn val idx
                 return v
+            Range -> do
+                start <- valRangeStart I64 val
+                end <- valRangeEnd I64 val
+                idxGtEqStart <- valIntInfix S.GTEq idx start
+                idxLtEnd <- valIntInfix S.LT idx end
+                assertBaseType (== Bool) exprType
+                Val exprType <$> LL.and (valOp idxLtEnd) (valOp idxGtEqStart)
+                
 
     S.Table pos exprss -> valLoad =<< do
         base <- baseTypeOf exprType

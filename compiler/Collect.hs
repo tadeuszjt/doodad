@@ -21,6 +21,7 @@ data Constraint
     = ConsEq Type Type
     | ConsBase   Type Type -- both types must have same base
     | ConsElem   Type Type -- t1 is elem type of t2
+    | ConsSubscript   Type Type -- t1 is elem type of t2
     | ConsField Type Int Type 
     | ConsAdtMem Type Int Int Type
     deriving (Show, Eq, Ord)
@@ -101,6 +102,10 @@ collectBase t1 t2 = do
 collectElem :: BoM CollectState m => Type -> Type -> m ()
 collectElem t1 t2 = do
     modify $ \s -> s { collected = (curPos s, ConsElem t1 t2) : (collected s) }
+
+collectSubscript :: BoM CollectState m => Type -> Type -> m ()
+collectSubscript t1 t2 = do
+    modify $ \s -> s { collected = (curPos s, ConsSubscript t1 t2) : (collected s) }
 
 collectEq :: BoM CollectState m => Type -> Type -> m ()
 collectEq t1 t2 = do
@@ -267,13 +272,12 @@ collectStmt stmt = collectPos stmt $ case stmt of
             collectStmt stmt
 
     S.For p expr mpat blk -> do
-        collectExpr expr
-
         when (isJust mpat) $ do
             gt <- genType
             collectElem gt (typeOf expr)
             collectPattern (fromJust mpat) gt
 
+        collectExpr expr
         collectStmt blk
 
     S.Data p symbol typ -> do
@@ -460,9 +464,10 @@ collectExpr (S.AExpr exprType expr) = collectPos expr $ case expr of
         collectExpr e2
 
     S.Subscript _ e1 e2 -> do
-        collectElem exprType (typeOf e1)
+        collectSubscript exprType (typeOf e1)
         collectExpr e1
         collectExpr e2
+        collectDefault (typeOf e2) I64
 
     S.Table _ [[]] -> collectDefault exprType (Table [Tuple []])
 
