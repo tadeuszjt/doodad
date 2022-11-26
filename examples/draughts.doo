@@ -1,0 +1,65 @@
+module draughts
+
+import ../std/io
+import ../std/strings
+
+
+type Square { Empty() | White() | Black() }
+type Board [8 [8 Square]]
+
+
+fn (b Board) Print()
+    putStrLn("   0 1 2 3 4 5 6 7")
+    for b[..] -> r
+        putChar("ABCDEFGH"[r])
+        putStr(" [")
+        let comma = b[r][..len(b[r])-1]
+        for b[r][..] -> c
+            switch b[r][c]
+                Empty(); putChar(' ')
+                White(); putChar('W')
+                Black(); putChar('B')
+            if comma[c]; putChar(',') 
+        putStrLn("]")
+
+
+fn (b Board) Initialise()
+    for b[..3] -> r
+        let c = 0
+        if r % 2 == 0; c = 1
+        while b[r][..][c]
+            b[r][c] = White()
+            c = c + 2
+
+    for b[len(b)-3..] -> r
+        let c = 0
+        if r % 2 == 0; c = 1
+        while b[r][..][c]
+            b[r][c] = Black()
+            c = c + 2
+
+
+fn playerMove()
+    data line String
+    line.GetStrLn()
+
+    let (row, n1) = line.ReadChar(0)
+    let (col, n2) = line.ReadI64(n1)
+
+    if n1 == 0 || n2 == 0
+        print("no parse")
+        return
+
+    print(row, col, n1, n2) 
+
+    return
+
+
+
+
+fn main()
+    data board Board
+    board.Initialise()
+    board.Print()
+    playerMove()
+    board.Print()
