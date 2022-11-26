@@ -29,31 +29,27 @@ fn (s String) GetStrLn()
 
 
 fn (s String) ReadChar(start i64) (char, i64)
-    let count = 0
-    let i = start
-    while i < len(s) && isSpace(s[i])
-        i = i + 1
-        count = count + 1
-
-    if i < len(s) && isAlpha(s[i])
-          return (s[i], count)
+    let spaceCount = 0
+    for s[start..] -> i | isSpace(s[i]) || isAlpha(s[i])
+        if isAlpha(s[i])
+            return (s[i], spaceCount + 1)
+        else; spaceCount = spaceCount + 1
 
     return ('\0', 0)
 
 
 fn (s String) ReadI64(start i64) (i64, i64)
-    let count = 0
-    let i = start
-    while i < len(s) && isSpace(s[i])
-        i = i + 1
-        count = count + 1
+    let spaceCount = 0
+    for s[start..] -> i | isSpace(s[i])
+        spaceCount = spaceCount + 1
 
     let n = 0
-    while i < len(s) && isDigit(s[i])
+    let digitCount = 0
+    for s[start+spaceCount..] -> i | isDigit(s[i])
         n = n*10 + i64(s[i] - '0')
-        i = i + 1
-        count = count + 1
+        digitCount = digitCount + 1
 
-    return (n, count)
+    if digitCount > 0; return (n, spaceCount + digitCount)
+    else;              return (0, 0)
         
     

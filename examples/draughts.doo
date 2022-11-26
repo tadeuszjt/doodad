@@ -46,14 +46,13 @@ fn playerMove()
     let (row, n1) = line.ReadChar(0)
     let (col, n2) = line.ReadI64(n1)
 
+    print(row, col)
+
     if n1 == 0 || n2 == 0
         print("no parse")
         return
 
-    print(row, col, n1, n2) 
-
     return
-
 
 
 
