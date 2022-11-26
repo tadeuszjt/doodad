@@ -6,6 +6,7 @@ import std/strings
 import std/io
 import std/rand
 import std/assert
+import std/chars
 
 import_c stdlib.h
 import_c stdio.h
@@ -13,24 +14,12 @@ import_c stdio.h
 fn main()
         print(30:c::size_t)
 
-        if 2 > 1 && 4 != 4
-            print("yes")
-
-
         let va = Vec2(1.0, 3.0)
         let vb = Vec2(9, 7)
         print(vb, vb.length(), vb.normal().length(), vb.theta())
         print(va + vb)
 
-
-        data d [4 i64]
-        let s = "benis"
-        for s[..]; print("b")
-        for d[..] -> i; print(i)
-        let r = [-5..7]
-        for r -> i
-            print(i)
-
+        print(chars::isAlpha('Z'), chars::isAlpha('{'))
 
         let key1 = strings.push()
         let key2 = strings.push()
@@ -42,11 +31,9 @@ fn main()
         strings[key1].PutStrLn()
         strings[key2].PutStrLn()
         let key3 = strings.push()
-
         strings.Append(key3, key2)
         strings.Append(key3, key2)
         strings[key3].PutStrLn()
-
         print(key1, key2, key3)
 
 

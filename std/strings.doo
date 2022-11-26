@@ -50,6 +50,6 @@ fn (s String) ReadI64(start i64) (i64, i64)
         digitCount = digitCount + 1
 
     if digitCount > 0; return (n, spaceCount + digitCount)
-    else;              return (0, 0)
+    return (0, 0)
         
     

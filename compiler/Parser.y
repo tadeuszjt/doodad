@@ -160,8 +160,8 @@ stmtS : let pattern '=' expr                         { S.Assign (tokPos $1) $2 $
       | return mexpr                                 { S.Return (tokPos $1) $2 }
       | data symbol type_                            { S.Data (tokPos $1) (snd $2) $3 }
 stmtB : If                                           { $1 }
-      | fn mFnTypArg mfnrec fnName '(' params ')' type_ block  { S.FuncDef (tokPos $1) $3 ($4) $6 $8 $9 }
-      | fn mFnTypArg mfnrec fnName '(' params ')' block        { S.FuncDef (tokPos $1) $3 ($4) $6 T.Void $8 }
+      | fn mFnTypArg mfnrec ident '(' params ')' type_ block  { S.FuncDef (tokPos $1) $3 (tokStr $4) $6 $8 $9 }
+      | fn mFnTypArg mfnrec ident '(' params ')' block        { S.FuncDef (tokPos $1) $3 (tokStr $4) $6 T.Void $8 }
       | while condition block                        { S.While (tokPos $1) $2 $3 }
       | for expr block                        { S.For (tokPos $1) $2 Nothing $3 }
       | for expr '->' pattern block           { S.For (tokPos $1) $2 (Just $4) $5 }
@@ -182,24 +182,6 @@ patterns  : {- empty -}                       { [] }
           | patterns1                         { $1 }
 patterns1 : pattern                           { [$1] }
           | pattern ',' patterns1             { $1 : $3 }
-
-fnName  : ident                               { tokStr $1 }
-        | string                              { tokStr $1 }
-        | '+'                                 { tokStr $1 }
-        | '-'                                 { tokStr $1 }
-        | '*'                                 { tokStr $1 }
-        | '/'                                 { tokStr $1 }
-        | '%'                                 { tokStr $1 }
-        | '<'                                 { tokStr $1 }
-        | '>'                                 { tokStr $1 }
-        | '='                                 { tokStr $1 }
-        | '!'                                 { tokStr $1 }
-        | '!='                                { tokStr $1 }
-        | '<='                                { tokStr $1 }
-        | '>='                                { tokStr $1 }
-        | '=='                                { tokStr $1 }
-        | '&&'                                { tokStr $1 }
-        | '||'                                { tokStr $1 }
 
 block  : 'I' prog_ 'D'                        { S.Block $2 }
        | ';' stmtS 'N'                        { $2 }

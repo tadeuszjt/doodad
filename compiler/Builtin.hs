@@ -286,6 +286,14 @@ valTupleInfix operator a b = do
     Tuple ts <- assertBaseType isTuple (valType a)
 
     case operator of
+        S.Plus -> do
+            tup <- valLocal (valType a)
+            bs <- forM (zip ts [0..]) $ \(t, i) -> do
+                elmA <- tupleIdx i a
+                elmB <- tupleIdx i b
+                tupleSet tup i =<< valsInfix S.Plus elmA elmB
+            return tup
+
         S.NotEq -> valNot =<< valTupleInfix S.EqEq a b
         S.EqEq -> do
             bs <- forM (zip ts [0..]) $ \(t, i) -> do
@@ -295,6 +303,7 @@ valTupleInfix operator a b = do
 
             true <- valBool Bool True
             foldM (valsInfix S.AndAnd) true bs
+        _ -> error (show operator)
                     
         
 valTableInfix :: InsCmp CompileState m => S.Operator -> Value -> Value -> m Value

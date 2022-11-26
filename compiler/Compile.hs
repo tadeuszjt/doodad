@@ -243,28 +243,6 @@ cmpFuncDef (S.FuncDef pos mparam sym args retty blk) = trace "cmpFuncDef" $ with
 
 
 
-
-cmpInfix :: InsCmp CompileState m => Type -> S.Operator -> Value -> Value -> m Value
-cmpInfix typ op valA valB = do
-    mobj <- lookm (Sym $ show op) $ KeyFunc [valType valA, valType valB] typ
-    case mobj of
-        Just (ObjFnOp op) -> do
-            opA <- valOp <$> valLoad valA
-            opB <- valOp <$> valLoad valB
-            Val typ <$> call op [(opA, []), (opB, [])]
-        Nothing -> valsInfix op valA valB
-
-
-cmpCondition :: InsCmp CompileState m => S.Expr -> m Value
-cmpCondition expr = trace "cmpCondition" $ do
-    val <- case expr of
-        S.Match _ e pat -> cmpPattern pat =<< cmpExpr e
-        e               -> cmpExpr e
-
-    assertBaseType (== Bool) (valType val)
-    return val
-
-
 cmpPrint :: InsCmp CompileState m => S.Stmt -> m ()
 cmpPrint (S.Print pos exprs) = trace "cmpPrint" $ do
     prints =<< mapM cmpExpr exprs
@@ -322,9 +300,9 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
         ret . valOp =<< valLoad =<< cmpExpr expr
         emitBlockStart =<< fresh
 
-    S.If pos cnd blk melse -> do
+    S.If pos expr blk melse -> do
         label "if"
-        val <- valLoad =<< cmpCondition cnd
+        val <- valLoad =<< cmpExpr expr
         assertBaseType (== Bool) (valType val)
         if_ (valOp val) (cmpStmt blk) $ maybe (return ()) cmpStmt melse
 
@@ -336,7 +314,8 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
 
         br cond
         emitBlockStart cond
-        val <- valLoad =<< cmpCondition cnd
+        val <- valLoad =<< cmpExpr cnd
+        assertBaseType (== Bool) (valType val)
         condBr (valOp val) body exit
         
         emitBlockStart body
@@ -498,7 +477,7 @@ cmpExpr (S.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck exp
     S.Infix pos op exprA exprB -> do
         valA <- cmpExpr exprA
         valB <- cmpExpr exprB
-        cmpInfix exprType op valA valB
+        valsInfix op valA valB
 
     S.Ident pos symbol -> do
         obj <- look symbol KeyVar
@@ -636,7 +615,7 @@ cmpExpr (S.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck exp
 cmpPattern :: InsCmp CompileState m => S.Pattern -> Value -> m Value
 cmpPattern pattern val = trace "cmpPattern" $ withPos pattern $ case pattern of
     S.PatIgnore _     -> valBool Bool True
-    S.PatLiteral expr -> cmpInfix Bool S.EqEq val =<< cmpExpr expr
+    S.PatLiteral expr -> valsInfix S.EqEq val =<< cmpExpr expr
 
     S.PatNull _ -> do
         base@(ADT fs) <- assertBaseType isADT (valType val)
