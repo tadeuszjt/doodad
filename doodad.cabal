@@ -62,7 +62,6 @@ executable doodad
         Type,
         Value,
         Lexer,
-        Construct,
         Typeof,
         Trace,
         Annotate,

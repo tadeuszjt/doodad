@@ -17,7 +17,6 @@ import Funcs
 import Table
 import Tuple
 import Type 
-import Construct
 import Typeof
 import Array
 import Builtin

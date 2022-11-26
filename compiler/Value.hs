@@ -32,6 +32,41 @@ import Trace
 import Error
 
 
+valZero :: InsCmp CompileState m => Type -> m Value
+valZero typ = trace ("valZero " ++ show  typ) $ do
+    namem <- case typ of
+        Typedef symbol -> do
+            ObType t nm <- look symbol KeyType
+            return nm
+        _ -> return Nothing
+
+    base <- baseTypeOf typ
+    case base of
+        _ | isInt base     -> valInt typ 0
+        _ | isFloat base   -> valFloat typ 0.0
+        Bool               -> valBool typ False
+        Char               -> valChar typ '\0'
+        Array n t          -> Val typ . array . replicate n . toCons . valOp <$> valZero t
+        Tuple ts           -> Val typ . struct namem False . map (toCons . valOp) <$> mapM valZero ts
+        _ | isEnumADT base -> Val typ . valOp <$> valZero I64
+
+        Table ts         -> do
+            let zi64 = toCons (int64 0)
+            zptrs <- map (C.IntToPtr zi64 . LL.ptr) <$> mapM opTypeOf ts
+            return $ Val typ $ struct namem False (zi64:zi64:zptrs)
+
+        Sparse ts         -> do
+            let zi64 = toCons (int64 0)
+            let zpi64 = C.IntToPtr zi64 (LL.ptr LL.i64)
+            zptrs <- map (C.IntToPtr zi64 . LL.ptr) <$> mapM opTypeOf ts
+            let stack = toCons $ struct Nothing False [zi64,zi64,zpi64]
+            let table = toCons $ struct Nothing False (zi64:zi64:zptrs)
+            return $ Val typ $ struct namem False [table, stack]
+                                
+        _ -> error ("valZero: " ++  show typ)
+
+
+
 valI64 :: Integral i => i -> Value
 valI64 n = Val I64 $ int64 (fromIntegral n)
 
@@ -51,18 +86,18 @@ valBool typ b = do
 valInt :: InsCmp CompileState m => Integral i => Type -> i -> m Value
 valInt typ n = trace "valInt" $ do
     base <- assertBaseType isInt typ
-    return $ case base of
-        I8  -> Val typ $ int8 (fromIntegral n)
-        I32 -> Val typ $ int32 (fromIntegral n)
-        I64 -> Val typ $ int64 (fromIntegral n)
+    return $ Val typ $ case base of
+        I8  -> int8 (fromIntegral n)
+        I32 -> int32 (fromIntegral n)
+        I64 -> int64 (fromIntegral n)
 
 
 valFloat :: InsCmp CompileState m => Type -> Double -> m Value
 valFloat typ f = trace "valFloat" $ do
     base <- assertBaseType isFloat typ
-    return $ case base of
-        F32 -> Val typ $ single (double2Float f)
-        F64 -> Val typ $ double f
+    return $ Val typ $ case base of
+        F32 -> single (double2Float f)
+        F64 -> double f
 
 
 valRange :: InsCmp CompileState m => Value -> Value -> m Value
@@ -90,6 +125,15 @@ valRangeEnd val = do
     case val of
         Ptr _ loc -> Ptr t <$> gep loc [int32 0, int32 1]
         Val _ op  -> Val t <$> extractValue op [1]
+
+
+valStringLen :: InsCmp CompileState m => Type -> Value -> m Value
+valStringLen typ val = do
+    assertBaseType (== I64) typ
+    assertBaseType (== String) (valType val)
+    op <- valOp <$> valLoad val
+    n <- strlen op
+    return $ Val typ n
 
 
 valConvertNumber :: InsCmp CompileState m => Type -> Value -> m Value
@@ -135,8 +179,6 @@ valConvertNumber typ val = do
         (F64, F64) -> return op
 
         (F64, F32) -> fpext op LL.double
-
-
 
 
 valLoad :: InsCmp s m => Value -> m Value
@@ -207,33 +249,21 @@ valMemCpy (Ptr dstTyp dst) (Ptr srcTyp src) len = trace "valMemCpy" $ do
     void $ memcpy pDstI8 pSrcI8 . valOp =<< valIntInfix S.Times len =<< sizeOf dstTyp
 
 
-valNot :: InsCmp CompileState m => Value -> m Value
-valNot val = trace "valNot" $ do
-    assertBaseType (== Bool) (valType val)
-    fmap (Val $ valType val) $ icmp P.EQ (bit 0) . valOp =<< valLoad val
-
-
 valPrefix :: InsCmp CompileState m => S.Operator -> Value -> m Value
 valPrefix operator val = do
     Val typ op <- valLoad val
     base <- baseTypeOf typ
-    case base of
+    Val typ <$> case base of
         _ | isInt base -> case operator of
-            S.Minus -> do
-                zero <- valInt typ 0
-                Val typ <$> sub (valOp zero) op
-
-            S.Plus -> return (Val typ op)
+            S.Plus -> return op
+            S.Minus -> valInt typ 0 >>= \zero -> sub (valOp zero) op
 
         _ | isFloat base -> case operator of
-            S.Minus -> do
-                zero <- valFloat typ 0
-                Val typ <$> fsub (valOp zero) op
+            S.Plus -> return op
+            S.Minus -> valFloat typ 0 >>= \zero -> fsub (valOp zero) op
 
         Bool -> case operator of
-            S.Not -> do
-                false <- valBool typ False
-                Val typ <$> icmp P.EQ (valOp false) op
+            S.Not -> icmp P.EQ op (bit 0)
         
 
 valIntInfix :: InsCmp CompileState m => S.Operator -> Value -> Value -> m Value
@@ -247,13 +277,13 @@ valIntInfix operator a b = do
         S.Minus  -> Val typ  <$> sub opA opB
         S.Times  -> Val typ  <$> mul opA opB
         S.Divide -> Val typ  <$> sdiv opA opB
+        S.Modulo -> Val typ  <$> srem opA opB
         S.GT     -> Val Bool <$> icmp P.SGT opA opB
         S.LT     -> Val Bool <$> icmp P.SLT opA opB
         S.GTEq   -> Val Bool <$> icmp P.SGE opA opB
         S.LTEq   -> Val Bool <$> icmp P.SLE opA opB
         S.EqEq   -> Val Bool <$> icmp P.EQ opA opB
         S.NotEq  -> Val Bool <$> icmp P.NE opA opB
-        S.Modulo -> Val typ  <$> srem opA opB
         _        -> error ("int infix: " ++ show operator)
     
         

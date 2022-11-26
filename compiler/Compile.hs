@@ -40,7 +40,6 @@ import Print
 import Funcs
 import Table
 import Tuple
-import Construct
 import Typeof
 import Trace
 import Interop
