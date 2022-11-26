@@ -65,31 +65,31 @@ valFloat typ f = trace "valFloat" $ do
         F64 -> Val typ $ double f
 
 
-valRange :: InsCmp CompileState m => Type -> Value -> Value -> m Value
-valRange typ start end = do
-    assertBaseType (== Range) typ
-    range <- valLocal typ
-    startPtr <- gep (valLoc range) [int32 0, int32 0]
-    endPtr <- gep (valLoc range) [int32 0, int32 1]
-    store startPtr 0 . valOp =<< valConvertNumber I64 start
-    store endPtr 0   . valOp =<< valConvertNumber I64 end
+valRange :: InsCmp CompileState m => Value -> Value -> m Value
+valRange start end = do
+    assert (valType start == valType end) "Range types do not match"
+    range <- valLocal $ Range (valType start)
+    startPtr <- valRangeStart range
+    endPtr <- valRangeEnd range
+    valStore startPtr start
+    valStore endPtr end
     return range
 
 
-valRangeStart :: InsCmp CompileState m => Type -> Value -> m Value
-valRangeStart typ val = do
-    assertBaseType (== Range) (valType val)
+valRangeStart :: InsCmp CompileState m => Value -> m Value
+valRangeStart val = do
+    Range t <- assertBaseType (isRange) (valType val)
     case val of
-        Ptr _ loc -> valConvertNumber typ . Ptr I64 =<< gep loc [int32 0, int32 0]
-        Val _ op  -> valConvertNumber typ . Val I64 =<< extractValue op [0]
+        Ptr _ loc -> Ptr t <$> gep loc [int32 0, int32 0]
+        Val _ op  -> Val t <$> extractValue op [0]
 
 
-valRangeEnd :: InsCmp CompileState m => Type -> Value -> m Value
-valRangeEnd typ val = do
-    assertBaseType (== Range) (valType val)
+valRangeEnd :: InsCmp CompileState m => Value -> m Value
+valRangeEnd val = do
+    Range t <- assertBaseType (isRange) (valType val)
     case val of
-        Ptr _ loc -> valConvertNumber typ . Ptr I64 =<< gep loc [int32 0, int32 1]
-        Val _ op  -> valConvertNumber typ . Val I64 =<< extractValue op [1]
+        Ptr _ loc -> Ptr t <$> gep loc [int32 0, int32 1]
+        Val _ op  -> Val t <$> extractValue op [1]
 
 
 valConvertNumber :: InsCmp CompileState m => Type -> Value -> m Value

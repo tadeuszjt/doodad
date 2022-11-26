@@ -21,7 +21,7 @@ data Type
     | Bool                   
     | Char                   
     | String
-    | Range
+    | Range Type
     | Sparse [Type]
     | Tuple [Type]           
     | Array Int Type         
@@ -69,7 +69,7 @@ instance Show Type where
         Bool          -> "bool"
         Char          -> "char"
         String        -> "string"
-        Range         -> "[..]"
+        Range t       -> "[..]" ++ show t
         Sparse ts     -> "sparse" ++ "[" ++ intercalate "; " (map show ts) ++ "]"
         Tuple ts      -> "(" ++ intercalate ", " (map show ts) ++ ")"
         Array n t     -> "[" ++ show n ++ " " ++ show t ++ "]"
@@ -83,6 +83,9 @@ instance Show Type where
 isInt x               = x `elem` [I8, I16, I32, I64]
 
 isFloat x             = x `elem` [F32, F64]
+
+isRange (Range _)     = True
+isRange _             = False
 
 isArray (Array _ _)   = True
 isArray _             = False
@@ -124,8 +127,8 @@ isTypeId (Type _)     = True
 isTypeId _            = False
 
 isIntegral x          = isInt x || x == Char
-isSimple x            = isInt x || isFloat x || x == Char || x == Bool || x == String || x == Range
-isAggregate x         = isTuple x || isArray x || isTable x || isFunc x || isSparse x
+isSimple x            = isInt x || isFloat x || x == Char || x == Bool || x == String
+isAggregate x         = isTuple x || isArray x || isTable x || isFunc x || isSparse x || isRange x
 isBase x              = isSimple x || isAggregate x
 
 

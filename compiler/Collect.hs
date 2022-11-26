@@ -246,8 +246,8 @@ collectStmt stmt = collectPos stmt $ case stmt of
                 collectExpr expr
 
     S.If _ expr blk melse -> do
-        collectExpr expr
         collectBase Bool (typeOf expr)
+        collectExpr expr
         collectStmt blk
         maybe (return ()) collectStmt melse
 
@@ -511,18 +511,17 @@ collectExpr (S.AExpr exprType expr) = collectPos expr $ case expr of
         collectExpr e
         collectDefault exprType Bool
 
-    S.Range _ me me1 me2 -> do
-        collectDefault exprType Range
-        collectBase exprType Range
-        when (isJust me) $ do
-            collectExpr $ fromJust me
+    S.Range _ (Just e) me1 me2 -> do
+        collectBase (Range I64) exprType
+        collectDefault (Range I64) exprType
+        collectExpr e
+
         when (isJust me1) $ do
-            collectExpr $ fromJust me1
-            collectDefault (typeOf $ fromJust me1) I64
+            collectEq (typeOf $ fromJust me1) I64
+            collectExpr (fromJust me1)
+
         when (isJust me2) $ do
-            collectExpr $ fromJust me2
-            collectDefault (typeOf $ fromJust me2) I64
-        when (isJust me1 && isJust me2) $ do
-            collectEq (typeOf $ fromJust me1) (typeOf $ fromJust me2)
+            collectEq (typeOf $ fromJust me2) I64
+            collectExpr (fromJust me2)
 
     _ -> error (show expr)

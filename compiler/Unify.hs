@@ -57,7 +57,7 @@ unifyOne pos constraint = withPos pos $ case constraint of
             Just (Sparse [t]) -> unifyOne pos (ConsEq t1 t)
             Just (Array n t) -> unifyOne pos (ConsEq t1 t)
             Just String      -> unifyOne pos (ConsEq t1 Char)
-            Just Range       -> unifyOne pos (ConsEq t1 I64)
+            Just (Range t)   -> unifyOne pos (ConsEq t1 t)
             _ -> return []
 
     ConsSubscript t1 t2 -> do
@@ -67,7 +67,7 @@ unifyOne pos constraint = withPos pos $ case constraint of
             Just (Sparse [t]) -> unifyOne pos (ConsEq t1 t)
             Just (Array n t) -> unifyOne pos (ConsEq t1 t)
             Just String      -> unifyOne pos (ConsEq t1 Char)
-            Just Range       -> unifyOne pos (ConsBase t1 Bool)
+            Just (Range t)   -> unifyOne pos (ConsEq t1 Bool)
             _ -> return []
 
     ConsBase t1 t2 -> do

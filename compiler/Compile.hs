@@ -359,8 +359,8 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
 
         idx <- valLocal I64
         valStore idx =<< valZero I64
-        when (base == Range) $ do
-            valStore idx =<< valRangeStart I64 val
+        when (isRange base) $ do
+            valStore idx =<< valRangeStart val
 
         cond <- freshName "for_cond"
         body <- freshName "for_body"
@@ -373,7 +373,7 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
         -- check if index is still in range
         emitBlockStart cond
         end <- case base of
-            Range -> valRangeEnd I64 val
+            Range I64 -> valRangeEnd val
             String -> valStringLen I64 val
             Table ts -> tableLen val
             Array n t -> return (valI64 n)
@@ -390,7 +390,7 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
                 Table ts -> do
                     [v] <- tableGetColumn val idx
                     cmpPattern pat v
-                Range -> cmpPattern pat idx
+                Range I64 -> cmpPattern pat idx
                 Array n t -> cmpPattern pat =<< arrayGetElem val idx
                 _ -> error (show base)
         condBr (valOp patMatch) body exit
@@ -434,7 +434,7 @@ cmpExpr (S.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck exp
     S.Range pos Nothing mexpr1 (Just expr2) -> do
         start <- maybe (return $ valI64 0) cmpExpr mexpr1
         end <- cmpExpr expr2
-        valRange exprType start end
+        valRange start end
     S.Range pos (Just expr) mexpr1 mexpr2 -> do
         val <- cmpExpr expr
         base <- baseTypeOf (valType val)
@@ -444,7 +444,7 @@ cmpExpr (S.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck exp
             Table ts  -> tableLen val
             String    -> valStringLen I64 val
             _         -> error (show base)
-        valRange exprType start end
+        valRange start end
 
     S.Push pos expr [] -> do
         loc <- cmpExpr expr
@@ -570,11 +570,11 @@ cmpExpr (S.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck exp
             Sparse _  -> do
                 [v] <- sparseGetColumn val idx
                 return v
-            Range -> do
-                start <- valRangeStart I64 val
-                end <- valRangeEnd I64 val
-                idxGtEqStart <- valIntInfix S.GTEq idx start
-                idxLtEnd <- valIntInfix S.LT idx end
+            Range t -> do
+                start <- valRangeStart val
+                end <- valRangeEnd val
+                idxGtEqStart <- valsInfix S.GTEq idx start
+                idxLtEnd <- valsInfix S.LT idx end
                 assertBaseType (== Bool) exprType
                 Val exprType <$> LL.and (valOp idxLtEnd) (valOp idxGtEqStart)
                 

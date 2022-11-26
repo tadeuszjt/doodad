@@ -51,6 +51,7 @@ isDataType typ = do
         String            -> return False
         Tuple ts          -> any (== True) <$> mapM isDataType ts
         Array n t         -> isDataType t
+        Range t           -> isDataType t
         _                 -> return True
 
 
@@ -67,7 +68,7 @@ opTypeOf typ = trace ("opTypOf " ++ show typ) $ case typ of
     Char      -> return LL.i8
     Bool      -> return LL.i1
     String    -> return $ LL.ptr LL.i8
-    Range     -> return $ LL.StructureType False [LL.i64, LL.i64]
+    Range t   -> LL.StructureType False <$> mapM opTypeOf [t, t]
     Tuple ts  -> LL.StructureType False <$> mapM opTypeOf ts
     Array n t -> LL.ArrayType (fromIntegral n) <$> opTypeOf t
 
