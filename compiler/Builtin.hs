@@ -33,17 +33,20 @@ import Symbol
 import Array
 
 
+-- Builtin contains functions that operate on Values which require the
+-- specialised Value functions such as Table, Array, Tuple etc. 
+
 valConstruct :: InsCmp CompileState m => Type -> [Value] -> m Value
-valConstruct typ []       = valZero typ
+valConstruct typ []       = mkZero typ
 valConstruct typ (a:b:xs) = tupleConstruct typ (a:b:xs)
 valConstruct typ [val']   = do
     val <- valLoad val'
     base <- baseTypeOf typ
 
     case base of
-        _ | isIntegral base || isFloat base -> valConvertNumber typ val
+        _ | isIntegral base || isFloat base -> mkConvertNumber typ val
         _ | isADT base                      -> do
-            mal <- valMalloc (valType val) (valI64 1)
+            mal <- valMalloc (valType val) (mkI64 1)
             valStore mal =<< valCopy val
             adtConstructFromPtr typ mal
 
@@ -78,9 +81,10 @@ valCopy val = trace "valCopy" $ do
 
         Tuple ts -> do
             loc <- valLocal (valType val)
-            forM_ (zip ts [0..]) $ \(t, i) ->
-                tupleSet loc i =<< valCopy =<< tupleIdx i val
-            valLoad loc
+            forM_ (zip ts [0..]) $ \(t, i) -> do
+                ptr <- ptrTupleIdx i loc
+                valStore ptr =<< valCopy =<< ptrTupleIdx i val
+            return loc
 
         _ -> fail $ "Can't handle copy: " ++ show (valType val)
 
@@ -91,9 +95,9 @@ valConvert typ val = do
     baseVal <- baseTypeOf (valType val)
 
     case base of
-        _ | isInt base   -> valConvertNumber typ val
-        _ | isFloat base -> valConvertNumber typ val
-        Char             -> valConvertNumber typ val
+        _ | isInt base   -> mkConvertNumber typ val
+        _ | isFloat base -> mkConvertNumber typ val
+        Char             -> mkConvertNumber typ val
         _ | baseVal == base -> case val of
             Ptr _ loc -> return $ Ptr typ loc
             Val _ op  -> return $ Val typ op
@@ -111,8 +115,8 @@ valsInfix operator a b = do
 
     case base of
         Bool                 -> boolInfix typ operator opA opB
-        Char                 -> valIntInfix operator a b
-        _ | isInt base       -> valIntInfix operator a b
+        Char                 -> mkIntInfix operator a b
+        _ | isInt base       -> mkIntInfix operator a b
         _ | isFloat base     -> floatInfix typ operator opA opB
         _ | isArray base     -> valArrayInfix operator a b
         _ | isTable base     -> valTableInfix operator a b
@@ -145,13 +149,13 @@ valArrayInfix operator a b = withErrorPrefix "array" $ do
     Array n t <- assertBaseType isArray (valType a)
 
     case operator of
-        S.Times -> do
+        _ | operator `elem` [S.Plus, S.Minus, S.Times, S.Divide, S.Modulo] -> do
             arr <- valLocal (valType a)
             forM_ [0..n] $ \i -> do
-                ptr <- arrayGetElemConst arr i
-                elmA <- arrayGetElemConst a i
-                elmB <- arrayGetElemConst b i
-                valStore ptr =<< valsInfix operator elmA elmB
+                pDst <- ptrArrayGetElemConst arr i
+                pA <- ptrArrayGetElemConst a i
+                pB <- ptrArrayGetElemConst b i
+                valStore pDst =<< valsInfix operator pA pB
             return arr
 
 
@@ -162,31 +166,23 @@ valTupleInfix operator a b = do
     Tuple ts <- assertBaseType isTuple (valType a)
 
     case operator of
-        S.Plus -> do
+        _ | operator `elem` [S.Plus, S.Minus, S.Times, S.Divide, S.Modulo] -> do
             tup <- valLocal (valType a)
             bs <- forM (zip ts [0..]) $ \(t, i) -> do
-                elmA <- tupleIdx i a
-                elmB <- tupleIdx i b
-                tupleSet tup i =<< valsInfix S.Plus elmA elmB
+                pA <- ptrTupleIdx i a
+                pB <- ptrTupleIdx i b
+                pDst <- ptrTupleIdx i tup
+                valStore pDst =<< valsInfix operator pA pB
             return tup
-
-        S.Times -> do
-            tup <- valLocal (valType a)
-            bs <- forM (zip ts [0..]) $ \(t, i) -> do
-                elmA <- tupleIdx i a
-                elmB <- tupleIdx i b
-                tupleSet tup i =<< valsInfix S.Times elmA elmB
-            return tup
-
 
         S.NotEq -> valPrefix S.Not =<< valTupleInfix S.EqEq a b
         S.EqEq -> do
             bs <- forM (zip ts [0..]) $ \(t, i) -> do
-                elmA <- tupleIdx i a
-                elmB <- tupleIdx i b
+                elmA <- ptrTupleIdx i a
+                elmB <- ptrTupleIdx i b
                 valsInfix S.EqEq elmA elmB
 
-            true <- valBool Bool True
+            true <- mkBool Bool True
             foldM (valsInfix S.AndAnd) true bs
         _ -> error (show operator)
                     
@@ -199,15 +195,15 @@ valTableInfix operator a b = do
 
     lenA <- tableLen a
     lenB <- tableLen b
-    lenEq <- valIntInfix S.EqEq lenA lenB
+    lenEq <- mkIntInfix S.EqEq lenA lenB
 
     case operator of
         S.NotEq -> valPrefix S.Not =<< valTableInfix S.EqEq a b
         S.EqEq  -> do
             eq <- valLocal Bool
             idx <- valLocal I64
-            valStore eq =<< valBool Bool False
-            valStore idx =<< valInt I64 0
+            valStore eq =<< mkBool Bool False
+            valStore idx (mkI64 0)
 
             exit <- freshName "eqeq_table_exit"
             start <- freshName "eqeq_table_start"
@@ -217,12 +213,12 @@ valTableInfix operator a b = do
             -- test that len(a) == len(b)
             condBr (valOp lenEq) start exit
             emitBlockStart start
-            valStore eq =<< valBool Bool True
+            valStore eq =<< mkBool Bool True
             br cond
 
             -- test that the idx < len
             emitBlockStart cond
-            idxLT <- valIntInfix S.LT idx lenA
+            idxLT <- mkIntInfix S.LT idx lenA
             condBr (valOp idxLT) body exit
 
             -- test that a[i] == b[i]
@@ -231,7 +227,7 @@ valTableInfix operator a b = do
             [elmB] <- tableGetColumn b idx
             elmEq <- valsInfix S.EqEq elmA elmB
             valStore eq elmEq
-            valStore idx =<< valIntInfix S.Plus idx (valI64 1)
+            valStore idx =<< mkIntInfix S.Plus idx (mkI64 1)
             condBr (valOp elmEq) cond exit
 
             emitBlockStart exit
@@ -259,18 +255,18 @@ valAdtNormalInfix operator a b = do
         S.EqEq -> do
             enA <- valLoad =<< adtEnum a
             enB <- valLoad =<< adtEnum b
-            enEq <- valIntInfix S.EqEq enA enB
+            enEq <- mkIntInfix S.EqEq enA enB
 
             -- if enum isn't matched, exit
             match <- valLocal Bool
-            valStore match =<< valBool Bool False
+            valStore match =<< mkBool Bool False
             start <- freshName "start"
             exit <- freshName "exit"
             condBr (valOp enEq) start exit
 
             -- enum matched, match args
             emitBlockStart start
-            valStore match =<< valBool Bool True
+            valStore match =<< mkBool Bool True
 
             -- select block based on enum
             caseNames <- replicateM (length fs) (freshName "case")
@@ -280,7 +276,7 @@ valAdtNormalInfix operator a b = do
                 emitBlockStart caseName
 
                 bs <- case fs !! i of
-                    FieldNull -> fmap (\a -> [a]) $ valBool Bool True
+                    FieldNull -> fmap (\a -> [a]) $ mkBool Bool True
                     FieldType t -> do
                         valA <- adtDeref a i 0
                         valB <- adtDeref b i 0
@@ -291,7 +287,7 @@ valAdtNormalInfix operator a b = do
                             valB <- adtDeref b i j
                             valsInfix S.EqEq valA valB
 
-                true <- valBool Bool True
+                true <- mkBool Bool True
                 valStore match =<< foldM (valsInfix S.EqEq) true bs
                 br exit
 

@@ -12,26 +12,16 @@ import Typeof
 import Value
 
 
-arrayGetElemConst :: (InsCmp CompileState m, Integral n) => Value -> n -> m Value
-arrayGetElemConst arr idx = do
+ptrArrayGetElemConst :: (InsCmp CompileState m, Integral n) => Value -> n -> m Value
+ptrArrayGetElemConst arr idx = do
     Array n t <- assertBaseType isArray (valType arr)
-    case arr of
-        Ptr _ loc -> Ptr t <$> gep loc [int32 0, int32 $ fromIntegral idx]
-        Val _ op  -> Val t <$> extractValue op [fromIntegral idx]
+    Ptr t <$> gep (valLoc arr) [int32 0, int32 $ fromIntegral idx]
 
 
-arrayGetElem :: InsCmp CompileState m => Value -> Value -> m Value
-arrayGetElem arr idx = do
+ptrArrayGetElem :: InsCmp CompileState m => Value -> Value -> m Value
+ptrArrayGetElem arr idx = do
     Array n t <- assertBaseType isArray (valType arr)
     assertBaseType isIntegral (valType idx)
     idxOp <- valOp <$> valLoad idx
-    case arr of
-        Ptr _ loc -> Ptr t <$> gep loc [int32 0, idxOp]
-        Val _ op  -> fail "can't get element of value array"
-
-
-arraySetElem :: InsCmp CompileState m => Value -> Value -> Value -> m ()
-arraySetElem arr idx elm = do
-    ptr <- arrayGetElem arr idx
-    valStore ptr elm
+    Ptr t <$> gep (valLoc arr) [int32 0, idxOp]
 

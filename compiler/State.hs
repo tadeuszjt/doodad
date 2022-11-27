@@ -39,6 +39,9 @@ data Value
     | ConstInt Integer
     deriving (Show, Eq)
 
+isPtr :: Value -> Bool
+isPtr (Ptr _ _) = True
+isPtr _         = False
 
 valOp :: Value -> LL.Operand
 valOp (Val _ op) = op

@@ -47,7 +47,7 @@ sparsePush val elems = do
     assert (map valType elems == ts) "Elem types do not match"
     stack <- sparseStack val
     stackLen <- tableLen stack
-    stackLenGTZero <- valIntInfix S.GT stackLen (valI64 0)
+    stackLenGTZero <- mkIntInfix S.GT stackLen (mkI64 0)
     ret <- valLocal I64
     if_ (valOp stackLenGTZero) (popStackCase stack ret) (pushTableCase ret) 
     return ret
@@ -73,10 +73,10 @@ sparseDelete val idx = do
     table <- sparseTable val
     ptrs <- tableGetColumn table idx
     forM_ ptrs $ \ptr -> do
-        valStore ptr =<< valZero (valType ptr)
+        valStore ptr =<< mkZero (valType ptr)
 
     len <- tableLen table
-    idxIsEnd <- valIntInfix S.EqEq idx =<< valIntInfix S.Minus len (valI64 1)
+    idxIsEnd <- mkIntInfix S.EqEq idx =<< mkIntInfix S.Minus len (mkI64 1)
     if_ (valOp idxIsEnd) (void $ tablePop table) idxNotEndCase
     where
         idxNotEndCase :: InsCmp CompileState m => m ()

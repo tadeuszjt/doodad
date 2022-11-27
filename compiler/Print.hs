@@ -40,7 +40,7 @@ valPrint append val = case valType val of
         printf "(" []
         forM_ (zip ts [0..]) $ \(t, i) -> do
             let app = if i < length ts - 1 then ", " else ""
-            valPrint app =<< tupleIdx i val
+            valPrint app =<< ptrTupleIdx i val
         void $ printf (")" ++ append) []
 
     String -> do
@@ -55,7 +55,7 @@ valPrint append val = case valType val of
     Table ts -> do
         printf "[" []
         len <- tableLen val
-        lenZero <- valsInfix S.EqEq len (valI64 0)
+        lenZero <- valsInfix S.EqEq len (mkI64 0)
 
         if_ (valOp lenZero)
             (void $ printf ("]" ++ append) [])
@@ -64,15 +64,15 @@ valPrint append val = case valType val of
     Array n t -> do
         printf "[" []
         forM_ [0..n-2] $ \i ->
-            valPrint ", " =<< arrayGetElemConst val i
-        valPrint ("]" ++ append) =<< arrayGetElemConst val (n-1)
+            valPrint ", " =<< ptrArrayGetElemConst val i
+        valPrint ("]" ++ append) =<< ptrArrayGetElemConst val (n-1)
 
     _ -> error ("print: " ++ show (valType val))
 
     where
         tablePrintHelper ts val len = forM_ [0..length ts - 1] $ \i -> do
             row <- tableRow i val
-            n <- valsInfix S.Minus len =<< valInt I64 1
+            n <- valsInfix S.Minus len (mkI64 1)
 
             for (valOp n) $ \j -> valPrint ", " =<< valPtrIdx row (Val I64 j)
             if i < length ts - 1

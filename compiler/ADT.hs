@@ -131,11 +131,10 @@ adtSetEnum adt@(Ptr _ loc) i = trace "adtSetEnum" $ do
         _ | isEmptyADT adtTyp  -> fail "ADT has no enum"
         --_ | isPtrADT adtTyp    -> fail "ADT has no enum"
         _ | isEnumADT adtTyp   -> do
-            Val I64 iop <- valInt I64 i
-            valStore adt (Val adtTyp iop)
+            valStore adt (Val adtTyp $ valOp $ mkI64 i)
         _ | isNormalADT adtTyp -> do
             en <- Ptr I64 <$> gep loc [int32 0, int32 0]
-            valStore en (valI64 i)
+            valStore en (mkI64 i)
 
 
 adtDeref :: InsCmp CompileState m => Value -> Int -> Int -> m Value
@@ -155,7 +154,7 @@ adtDeref adt i j = trace "adtDeref" $ do
                     assert (j < length ts) "invalid adt deref"
                     ptr <- adtPi8 adt
                     ptup <- bitcast ptr . LL.ptr =<< opTypeOf (Tuple ts)
-                    tupleIdx j (Ptr (Tuple ts) ptup)
+                    ptrTupleIdx j (Ptr (Tuple ts) ptup)
 
 
 
@@ -209,15 +208,16 @@ adtConstructField symbol typ vals = trace ("adtConstructField " ++ show symbol) 
                 FieldType t -> do
                     assert (length vals == 1) "Invalid ADT constructor arguments"
                     assert (map valType vals == [t]) "mismatch types"
-                    mal <- valMalloc t (valI64 1)
+                    mal <- valMalloc t (mkI64 1)
                     valStore mal (head vals)
                     adtSetPi8 adt =<< bitcast (valLoc mal) (LL.ptr LL.i8)
                 FieldCtor ts -> do
                     assert (length vals == length ts) "Invalid ADT constructor arguments"
                     assert (map valType vals == ts) "mismatch types"
-                    tup <- valMalloc (Tuple ts) (valI64 1)
+                    tup <- valMalloc (Tuple ts) (mkI64 1)
                     forM_ (zip vals [0..]) $ \(val, j) -> do
-                        tupleSet tup j val
+                        ptr <- ptrTupleIdx j tup
+                        valStore ptr val
                     adtSetPi8 adt =<< bitcast (valLoc tup) (LL.ptr LL.i8)
 
             return adt
