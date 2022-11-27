@@ -87,7 +87,7 @@ valTupleIdx i tup = do
 tupleConstruct :: InsCmp CompileState m => Type -> [Value] -> m Value
 tupleConstruct tupTyp vals = trace "tupleConstruct" $ do
     Tuple ts <- assertBaseType isTuple tupTyp
-    loc <- valLocal tupTyp
+    loc <- mkAlloca tupTyp
 
     case vals of
         --[]    -> valStore loc =<< valZero tupTyp

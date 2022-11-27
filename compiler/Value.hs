@@ -34,40 +34,6 @@ import Error
 
 -- Value contains the basic low-level operations for Value types.
 
-mkZero :: InsCmp CompileState m => Type -> m Value
-mkZero typ = trace ("mkZero " ++ show  typ) $ do
-    namem <- case typ of
-        Typedef symbol -> do
-            ObType t nm <- look symbol KeyType
-            return nm
-        _ -> return Nothing
-
-    base <- baseTypeOf typ
-    case base of
-        _ | isInt base     -> mkInt typ 0
-        _ | isFloat base   -> mkFloat typ 0.0
-        Bool               -> mkBool typ False
-        Char               -> mkChar typ '\0'
-        Array n t          -> Val typ . array . replicate n . toCons . valOp <$> mkZero t
-        Tuple ts           -> Val typ . struct namem False . map (toCons . valOp) <$> mapM mkZero ts
-        _ | isEnumADT base -> Val typ . valOp <$> mkZero I64
-
-        Table ts         -> do
-            let zi64 = toCons (int64 0)
-            zptrs <- map (C.IntToPtr zi64 . LL.ptr) <$> mapM opTypeOf ts
-            return $ Val typ $ struct namem False (zi64:zi64:zptrs)
-
-        Sparse ts         -> do
-            let zi64 = toCons (int64 0)
-            let zpi64 = C.IntToPtr zi64 (LL.ptr LL.i64)
-            zptrs <- map (C.IntToPtr zi64 . LL.ptr) <$> mapM opTypeOf ts
-            let stack = toCons $ struct Nothing False [zi64,zi64,zpi64]
-            let table = toCons $ struct Nothing False (zi64:zi64:zptrs)
-            return $ Val typ $ struct namem False [table, stack]
-                                
-        _ -> error ("mkZero: " ++  show typ)
-
-
 mkI64 :: Integral i => i -> Value
 mkI64 n = Val I64 $ int64 (fromIntegral n)
 
@@ -106,13 +72,40 @@ mkRange start end = do
     assert (valType start == valType end) "range types do not match"
     assertBaseType isSimple (valType start) -- simple types so valLoad is mk
 
-    range    <- valLocal $ Range (valType start)
+    range    <- mkAlloca $ Range (valType start)
     startDst <- ptrRangeStart range
     endDst   <- ptrRangeEnd range
 
     valStore startDst start
     valStore endDst end
     return range
+
+
+mkZero :: InsCmp CompileState m => Type -> m Value
+mkZero typ = trace ("mkZero " ++ show  typ) $ do
+    namem <- case typ of
+        Typedef symbol -> do
+            ObType t nm <- look symbol KeyType
+            return nm
+        _ -> return Nothing
+
+    base <- baseTypeOf typ
+    case base of
+        _ | isInt base     -> mkInt typ 0
+        _ | isFloat base   -> mkFloat typ 0.0
+        _ | isEnumADT base -> Val typ . valOp <$> mkZero I64
+        Bool      -> mkBool typ False
+        Char      -> mkChar typ '\0'
+        Array n t -> Val typ . array . replicate n . toCons . valOp <$> mkZero t
+        Tuple ts  -> Val typ . struct namem False . map (toCons . valOp) <$> mapM mkZero ts
+        Table ts  ->  Val typ . struct namem False . ([zi64, zi64] ++) <$> map (C.IntToPtr zi64 . LL.ptr) <$> mapM opTypeOf ts
+        Sparse ts -> do
+            table <- toCons . valOp <$> mkZero (Table ts)
+            stack <- toCons . valOp <$> mkZero (Table [I64])
+            return $ Val typ $ struct namem False [table, stack]
+        _ -> error ("mkZero: " ++  show typ)
+        where
+            zi64 = toCons (int64 0)
 
 
 ptrRangeStart :: InsCmp CompileState m => Value -> m Value
@@ -208,29 +201,29 @@ valSelect cnd true false = trace "valSelect" $ do
     Val (valType true) <$> select cndOp trueOp falseOp
 
 
-valLocal :: InsCmp CompileState m => Type -> m Value
-valLocal typ = trace ("valLocal " ++ show typ) $ do
+mkAlloca :: InsCmp CompileState m => Type -> m Value
+mkAlloca typ = trace ("mkAlloca " ++ show typ) $ do
     opTyp <- opTypeOf typ
     Ptr typ <$> alloca opTyp Nothing 0
     
 
-valMalloc :: InsCmp CompileState m => Type -> Value -> m Value
-valMalloc typ len = trace ("valMalloc " ++ show typ) $ do
+mkMalloc :: InsCmp CompileState m => Type -> Value -> m Value
+mkMalloc typ len = trace ("mkMalloc " ++ show typ) $ do
     lenTyp <- assertBaseType isInt (valType len)
     lenOp <- valOp <$> valLoad len
     pi8 <- malloc =<< mul lenOp . valOp =<< sizeOf typ
     fmap (Ptr typ) $ bitcast pi8 . LL.ptr =<< opTypeOf typ
 
 
-valPtrIdx :: InsCmp CompileState m => Value -> Value -> m Value
-valPtrIdx (Ptr typ loc) idx = trace ("valPtrIdx " ++ show typ) $ do
+ptrIdx :: InsCmp CompileState m => Value -> Value -> m Value
+ptrIdx (Ptr typ loc) idx = trace ("valPtrIdx " ++ show typ) $ do
     assertBaseType (== I64) (valType idx)
     op <- valOp <$> valLoad idx
     Ptr typ <$> gep loc [op]
 
 
-valStringIdx :: InsCmp CompileState m => Value -> Value -> m Value
-valStringIdx str idx = do
+mkStringIdx :: InsCmp CompileState m => Value -> Value -> m Value
+mkStringIdx str idx = do
     assertBaseType (== String) (valType str)
     assertBaseType isInt (valType idx)
     loc <- valOp <$> valLoad str
@@ -250,8 +243,8 @@ valMemCpy (Ptr dstTyp dst) (Ptr srcTyp src) len = trace "valMemCpy" $ do
     void $ memcpy pDstI8 pSrcI8 . valOp =<< mkIntInfix S.Times len =<< sizeOf dstTyp
 
 
-valPrefix :: InsCmp CompileState m => S.Operator -> Value -> m Value
-valPrefix operator val = do
+mkPrefix :: InsCmp CompileState m => S.Operator -> Value -> m Value
+mkPrefix operator val = do
     Val typ op <- valLoad val
     base <- baseTypeOf typ
     Val typ <$> case base of
@@ -288,3 +281,30 @@ mkIntInfix operator a b = do
         _        -> error ("int infix: " ++ show operator)
     
         
+mkFloatInfix :: InsCmp CompileState m => S.Operator -> Value -> Value -> m Value
+mkFloatInfix operator a b = do
+    assert (valType a == valType b) "Left side type does not match right side"
+    let typ = valType a
+    assertBaseType isFloat typ
+    opA <- valOp <$> valLoad a
+    opB <- valOp <$> valLoad b
+    case operator of
+        S.Plus   -> Val typ <$> fadd opA opB
+        S.Minus  -> Val typ <$> fsub opA opB
+        S.Times  -> Val typ <$> fmul opA opB
+        S.Divide -> Val typ <$> fdiv opA opB
+        S.EqEq   -> Val Bool <$> fcmp P.OEQ opA opB
+        _        -> error ("float infix: " ++ show operator)
+
+
+mkBoolInfix :: InsCmp CompileState m => S.Operator -> Value -> Value -> m Value
+mkBoolInfix operator a b = do
+    assert (valType a == valType b) "Left side type does not match right side"
+    let typ = valType a
+    opA <- valOp <$> valLoad a
+    opB <- valOp <$> valLoad b
+    case operator of
+        S.OrOr   -> Val typ <$> or opA opB
+        S.AndAnd -> Val typ <$> and opA opB
+        S.EqEq   -> Val typ <$> icmp P.EQ opA opB
+        _        -> error ("bool infix: " ++ show operator)

@@ -40,7 +40,7 @@ adtNull adtTyp = do
     im <- adtHasNull adtTyp
     assert (isJust im) "ADT does not have a null field"
 
-    adt <- valLocal adtTyp
+    adt <- mkAlloca adtTyp
     adtSetEnum adt (fromJust im)
     return adt
 
@@ -55,7 +55,7 @@ adtConstructFromPtr adtTyp loc@(Ptr _ _) = do
     case adtTyp of
         Typedef symbol -> do -- can lookup member
             ObjField i <- look symbol (KeyTypeField $ valType loc)
-            adt <- valLocal adtTyp
+            adt <- mkAlloca adtTyp
             adtSetEnum adt i
             adtSetPi8 adt =<< bitcast (valLoc loc) (LL.ptr LL.i8)
             return adt
@@ -63,7 +63,7 @@ adtConstructFromPtr adtTyp loc@(Ptr _ _) = do
         ADT fs -> do
             let is = elemIndices (FieldType $ valType loc) fs
             assert (length is == 1) "ADT doe not have unique type field"
-            adt <- valLocal adtTyp
+            adt <- mkAlloca adtTyp
             adtSetEnum adt (head is)
             adtSetPi8 adt =<< bitcast (valLoc loc) (LL.ptr LL.i8)
             return adt
@@ -195,26 +195,26 @@ adtConstructField symbol typ vals = trace ("adtConstructField " ++ show symbol) 
         _ | isEnumADT adtTyp   -> do
             ObjField i <- look symbol (KeyField typ)
             assert (length vals == 0) "Invalid ADT constructor arguments"
-            adt <- valLocal typ
+            adt <- mkAlloca typ
             adtSetEnum adt i
             return adt
 
 
         _ | isNormalADT adtTyp -> do
             ObjField i <- look symbol (KeyField typ)
-            adt <- valLocal typ
+            adt <- mkAlloca typ
             adtSetEnum adt i
             case fs !! i of
                 FieldType t -> do
                     assert (length vals == 1) "Invalid ADT constructor arguments"
                     assert (map valType vals == [t]) "mismatch types"
-                    mal <- valMalloc t (mkI64 1)
+                    mal <- mkMalloc t (mkI64 1)
                     valStore mal (head vals)
                     adtSetPi8 adt =<< bitcast (valLoc mal) (LL.ptr LL.i8)
                 FieldCtor ts -> do
                     assert (length vals == length ts) "Invalid ADT constructor arguments"
                     assert (map valType vals == ts) "mismatch types"
-                    tup <- valMalloc (Tuple ts) (mkI64 1)
+                    tup <- mkMalloc (Tuple ts) (mkI64 1)
                     forM_ (zip vals [0..]) $ \(val, j) -> do
                         ptr <- ptrTupleIdx j tup
                         valStore ptr val

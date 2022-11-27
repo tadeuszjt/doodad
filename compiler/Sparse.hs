@@ -48,7 +48,7 @@ sparsePush val elems = do
     stack <- sparseStack val
     stackLen <- tableLen stack
     stackLenGTZero <- mkIntInfix S.GT stackLen (mkI64 0)
-    ret <- valLocal I64
+    ret <- mkAlloca I64
     if_ (valOp stackLenGTZero) (popStackCase stack ret) (pushTableCase ret) 
     return ret
     where

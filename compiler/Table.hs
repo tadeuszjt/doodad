@@ -66,21 +66,21 @@ tableMake typ len = trace "tableMake" $ do
     Table ts <- assertBaseType isTable typ
     assertBaseType (==I64) (valType len)
     
-    tab <- valLocal typ
+    tab <- mkAlloca typ
     tableSetLen tab len
     tableSetCap tab len
 
-    siz <- valLocal I64
+    siz <- mkAlloca I64
     valStore siz (mkI64 0)
     idxs <- forM ts $ \t -> do
         idx <- valLoad siz
         valStore siz =<< mkIntInfix S.Plus siz =<< mkIntInfix S.Times len =<< sizeOf t
         return idx
 
-    mal <- valMalloc I8 siz
+    mal <- mkMalloc I8 siz
 
     forM_ (zip3 ts idxs [0..]) $ \(t, idx, i) -> do
-        ptr <- valPtrIdx mal idx
+        ptr <- ptrIdx mal idx
         ptr' <- fmap (Ptr t) $ bitcast (valLoc ptr) =<< fmap LL.ptr (opTypeOf t)
         tableSetRow tab i ptr'
 
@@ -115,7 +115,7 @@ tableGetColumn tab idx = trace "tableGetElem" $ do
     Table ts <- assertBaseType isTable (valType tab)
     forM (zip ts [0..]) $ \(t, i) -> do
         row <- tableRow i tab
-        valPtrIdx row idx
+        ptrIdx row idx
 
 
 tableSetColumn :: InsCmp CompileState m => Value -> Value -> [Value] -> m ()
@@ -126,7 +126,7 @@ tableSetColumn tab idx vals = trace "tableSetElem" $ do
 
     forM_ (zip ts [0..]) $ \(t, i) -> do
         row <- tableRow i tab
-        ptr <- valPtrIdx row idx
+        ptr <- ptrIdx row idx
         valStore ptr (vals !! i)
 
 
@@ -160,7 +160,7 @@ tableAppendColumn tab vals = trace "tableAppendElem" $ do
     tableGrow tab =<< mkIntInfix S.Plus len (mkI64 1)
     forM_ (zip vals [0..]) $ \(v, i) -> do
         row <- tableRow i tab
-        ptr <- valPtrIdx row len
+        ptr <- ptrIdx row len
         valStore ptr v
 
 
@@ -178,7 +178,7 @@ tableAppend loc val = trace "tableAppend" $ do
     -- copy b into loc
     forM_ (zip ts [0..]) $ \(t, i) -> do
         row <- tableRow i loc
-        dst <- valPtrIdx row locLen 
+        dst <- ptrIdx row locLen 
         src <- tableRow i val
         valMemCpy dst src valLen
 
@@ -208,8 +208,8 @@ tableRange tab startArg endArg = trace "tableRange" $ do
     len <- tableLen tab
     cap <- tableCap tab
 
-    start <- valLocal (valType startArg)
-    end   <- valLocal (valType endArg)
+    start <- mkAlloca (valType startArg)
+    end   <- mkAlloca (valType endArg)
 
     startLT0 <- mkIntInfix S.LT startArg (mkI64 0)
     valStore start =<< valSelect startLT0 (mkI64 0) startArg
@@ -223,13 +223,13 @@ tableRange tab startArg endArg = trace "tableRange" $ do
     crossed <- mkIntInfix S.GT start end
     valStore end =<< valSelect crossed start end
     
-    loc <- valLocal (valType tab)
+    loc <- mkAlloca (valType tab)
     tableSetLen loc =<< mkIntInfix S.Minus end start
     tableSetCap loc =<< mkIntInfix S.Minus cap start
 
     forM_ (zip ts [0..]) $ \(t, i) -> do
         row <- tableRow i tab 
-        tableSetRow loc i =<< valPtrIdx row start
+        tableSetRow loc i =<< ptrIdx row start
 
     return loc
 

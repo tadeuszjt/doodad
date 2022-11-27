@@ -214,7 +214,7 @@ cmpFuncDef (S.FuncDef pos mparam sym args retty blk) = trace "cmpFuncDef" $ with
             void $ InstrCmpT . IRBuilderT . lift $ func name (zip (paramOpTyp : argOpTypes)  (paramName :argNames)) returnOpType $ \argOps -> do
                 define paramSymbol KeyVar (ObjVal $ Ptr paramType $ head argOps)
                 forM_ (zip3 argTypes (tail argOps) argSymbols) $ \(typ, op, symbol) -> do
-                    loc <- valLocal typ
+                    loc <- mkAlloca typ
                     valStore loc (Val typ op)
                     define symbol KeyVar (ObjVal loc)
                 cmpFnBlock
@@ -225,7 +225,7 @@ cmpFuncDef (S.FuncDef pos mparam sym args retty blk) = trace "cmpFuncDef" $ with
             let Name nameStr = name
             void $ InstrCmpT . IRBuilderT . lift $ func name (zip argOpTypes argNames) returnOpType $ \argOps -> do
                 forM_ (zip3 argTypes argOps argSymbols) $ \(typ, op, symbol) -> do
-                    loc <- valLocal typ
+                    loc <- mkAlloca typ
                     valStore loc (Val typ op)
                     define symbol KeyVar (ObjVal loc)
                 cmpFnBlock
@@ -263,7 +263,7 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
     S.ExprStmt expr     -> void $ cmpExpr expr
 
     S.Data pos symbol typ -> do
-        loc <- valLocal typ
+        loc <- mkAlloca typ
         valStore loc =<< mkZero (valType loc)
         define symbol KeyVar (ObjVal loc)
 
@@ -334,7 +334,7 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
         val <- cmpExpr expr
         base <- baseTypeOf (valType val)
 
-        idx <- valLocal I64
+        idx <- mkAlloca I64
         valStore idx =<< mkZero I64
         when (isRange base) $ do
             valStore idx =<< ptrRangeStart val
@@ -363,7 +363,7 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
         patMatch <- case mpat of
             Nothing -> mkBool Bool True
             Just pat -> case base of
-                String -> cmpPattern pat =<< valStringIdx val idx
+                String -> cmpPattern pat =<< mkStringIdx val idx
                 Table ts -> do
                     [v] <- tableGetColumn val idx
                     cmpPattern pat v
@@ -399,10 +399,10 @@ cmpExpr :: InsCmp CompileState m =>  S.Expr -> m Value
 cmpExpr (S.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck exprType $ case expr of
     S.Bool pos b               -> mkBool exprType b
     S.Char pos c               -> mkChar exprType c
-    S.Conv pos typ [expr]      -> valConvert typ =<< cmpExpr expr
+    S.Conv pos typ [expr]      -> mkConvert typ =<< cmpExpr expr
     S.Tuple pos [expr]         -> cmpExpr expr
     S.Float p f                -> mkFloat exprType f
-    S.Prefix pos operator expr -> valPrefix operator =<< cmpExpr expr
+    S.Prefix pos operator expr -> mkPrefix operator =<< cmpExpr expr
     S.Field pos expr sym       -> valTupleField sym =<< cmpExpr expr
     S.Null p                   -> adtNull exprType
     S.Match pos expr pat       -> cmpPattern pat =<< cmpExpr expr
@@ -493,7 +493,7 @@ cmpExpr (S.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck exp
         -- TODO possible to cause incorrect logic?
         loc <- case val of
             Val _ op -> do 
-                local <- valLocal (valType val)
+                local <- mkAlloca (valType val)
                 valStore local val
                 return $ valLoc local
             Ptr _ loc -> return loc
@@ -506,7 +506,7 @@ cmpExpr (S.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck exp
         vals <- mapM valLoad =<< mapM cmpExpr exprs
         obj <- look symbol $ KeyFunc (map valType vals) exprType
         case obj of
-            ObjConstructor  -> valConstruct exprType vals
+            ObjConstructor  -> mkConstruct exprType vals
             ObjFnOp op      -> Val exprType <$> call op [(o, []) | o <- map valOp vals]
             ObjField i      -> adtConstructField symbol exprType vals
     
@@ -526,7 +526,7 @@ cmpExpr (S.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck exp
         assert (ts == map valType vals) $
             "Incorrect val types: " ++ show ts ++ ", " ++ show (map valType vals)
 
-        tup <- valLocal exprType
+        tup <- mkAlloca exprType
         forM_ (zip vals [0..]) $ \(v, i) -> do
             ptr <- ptrTupleIdx i tup
             valStore ptr v
@@ -545,7 +545,7 @@ cmpExpr (S.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck exp
                 [v] <- tableGetColumn val idx
                 return v
             Array _ _ -> ptrArrayGetElem val idx
-            String    -> valStringIdx val idx 
+            String    -> mkStringIdx val idx 
             Sparse _  -> do
                 [v] <- sparseGetColumn val idx
                 return v
@@ -564,7 +564,7 @@ cmpExpr (S.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck exp
             Array n t -> do
                 vals <- mapM cmpExpr exprs
                 assert (length vals == n) "Invalid array length"
-                arr <- valLocal exprType
+                arr <- mkAlloca exprType
                 forM_ (zip vals [0..]) $ \(val, i) -> do
                     ptr <- ptrArrayGetElemConst arr i
                     valStore ptr val
@@ -584,8 +584,8 @@ cmpExpr (S.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck exp
 
     S.ADT pos expr -> do
         val <- cmpExpr expr
-        mal <- valMalloc (valType val) (mkI64 1)
-        valStore mal =<< valCopy val
+        mal <- mkMalloc (valType val) (mkI64 1)
+        storeCopy mal val
         adtConstructFromPtr exprType mal
 
 
@@ -624,7 +624,7 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
 
     S.PatIdent _ symbol -> trace ("cmpPattern " ++ show pattern) $ do
         base <- baseTypeOf (valType val)
-        loc <- valLocal (valType val)
+        loc <- mkAlloca (valType val)
         valStore loc val
         define symbol KeyVar (ObjVal loc)
         mkBool Bool True

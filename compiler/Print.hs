@@ -25,11 +25,13 @@ import Builtin
 valPrint :: InsCmp CompileState m => String -> Value -> m ()
 valPrint append val = case valType val of
     t | isInt t   -> void . printf ("%ld" ++ append) . (:[]) . valOp =<< valLoad val
-    t | isFloat t -> void . printf ("%f" ++ append) . (:[]) . valOp =<< valConvert F64 val
+    t | isFloat t -> void . printf ("%f" ++ append) . (:[]) . valOp =<< mkConvert F64 val
     Char          -> void . printf ("%c" ++ append) . (:[]) . valOp =<< valLoad val
     Typedef s     -> do
         base <- baseTypeOf (Typedef s)
-        valPrint append =<< valConvert base val
+        case val of
+            Val _ op -> valPrint append (Val base op)
+            Ptr _ loc -> valPrint append (Ptr base loc)
 
     Bool -> do
         op <- valOp <$> valLoad val
@@ -74,7 +76,7 @@ valPrint append val = case valType val of
             row <- tableRow i val
             n <- valsInfix S.Minus len (mkI64 1)
 
-            for (valOp n) $ \j -> valPrint ", " =<< valPtrIdx row (Val I64 j)
+            for (valOp n) $ \j -> valPrint ", " =<< ptrIdx row (Val I64 j)
             if i < length ts - 1
-            then valPrint "; " =<< valPtrIdx row n
-            else valPrint ("]" ++ append) =<< valPtrIdx row n
+            then valPrint "; " =<< ptrIdx row n
+            else valPrint ("]" ++ append) =<< ptrIdx row n

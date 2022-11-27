@@ -36,111 +36,62 @@ import Array
 -- Builtin contains functions that operate on Values which require the
 -- specialised Value functions such as Table, Array, Tuple etc. 
 
-valConstruct :: InsCmp CompileState m => Type -> [Value] -> m Value
-valConstruct typ []       = mkZero typ
-valConstruct typ (a:b:xs) = tupleConstruct typ (a:b:xs)
-valConstruct typ [val']   = do
-    val <- valLoad val'
-    base <- baseTypeOf typ
-
-    case base of
-        _ | isIntegral base || isFloat base -> mkConvertNumber typ val
-        _ | isADT base                      -> do
-            mal <- valMalloc (valType val) (mkI64 1)
-            valStore mal =<< valCopy val
-            adtConstructFromPtr typ mal
-
-        _ -> do
-            assert (typ  == valType val) "mismatched types"
-            Val typ . valOp <$> valLoad val
-
 
 -- guarantees an equivalent value in a different memory location
-valCopy :: InsCmp CompileState m => Value -> m Value
-valCopy val = trace "valCopy" $ do
-    base <- baseTypeOf (valType val)
+storeCopy :: InsCmp CompileState m => Value -> Value -> m ()
+storeCopy ptr val = do
+    assert (isPtr ptr) "ptr isnt pointer"
+    base <- baseTypeOf (valType ptr)
+    baseVal <- baseTypeOf (valType val)
+    assert (base == baseVal) "ptr type does not match val type"
     case base of
-        _ | isSimple base -> valLoad val
-
-        Table ts -> do
-            len <- tableLen val
-            tab <- tableMake (valType val) len
-
-            forM_ (zip ts [0..]) $ \(t, i) -> do
-                baseT <- baseTypeOf t
-                valRow <- tableRow i val
-                tabRow <- tableRow i tab
-
-                if isSimple baseT
-                then valMemCpy tabRow valRow len
-                else for (valOp len) $ \op -> do
-                    ptr <- valPtrIdx tabRow (Val I64 op)
-                    valStore ptr =<< valCopy =<< valPtrIdx valRow (Val I64 op)
-
-            valLoad tab
-
-        Tuple ts -> do
-            loc <- valLocal (valType val)
-            forM_ (zip ts [0..]) $ \(t, i) -> do
-                ptr <- ptrTupleIdx i loc
-                valStore ptr =<< valCopy =<< ptrTupleIdx i val
-            return loc
-
-        _ -> fail $ "Can't handle copy: " ++ show (valType val)
+        _ | isSimple base -> valStore ptr val
+        _ -> fail (show base)
 
 
-valConvert :: InsCmp CompileState m => Type -> Value -> m Value
-valConvert typ val = do
+-- construct a value from arguments, Eg. i64(3.2), Vec2(12, 43)
+mkConstruct :: InsCmp CompileState m => Type -> [Value] -> m Value
+mkConstruct typ []       = mkZero typ
+mkConstruct typ (a:b:xs) = tupleConstruct typ (a:b:xs)
+mkConstruct typ [val]    = do
+    base <- baseTypeOf typ
+    case base of
+        _ | isIntegral base -> mkConvertNumber typ val
+        _ | isFloat base    -> mkConvertNumber typ val
+
+
+-- convert the value into a new value corresponding to the type
+mkConvert :: InsCmp CompileState m => Type -> Value -> m Value
+mkConvert typ val = do
     base <- baseTypeOf typ
     baseVal <- baseTypeOf (valType val)
-
     case base of
-        _ | isInt base   -> mkConvertNumber typ val
-        _ | isFloat base -> mkConvertNumber typ val
-        Char             -> mkConvertNumber typ val
-        _ | baseVal == base -> case val of
-            Ptr _ loc -> return $ Ptr typ loc
-            Val _ op  -> return $ Val typ op
-            
-        _                -> fail ("valConvert " ++ show base)
+        _ | isIntegral base -> mkConvertNumber typ val
+        _ | isFloat base    -> mkConvertNumber typ val
+        _ | baseVal == base -> do
+            ptr <- mkAlloca typ
+            storeCopy ptr val
+            return ptr
+        _ -> fail ("valConvert " ++ show base)
 
 
+-- any infix expression
 valsInfix :: InsCmp CompileState m => S.Operator -> Value -> Value -> m Value
 valsInfix operator a b = do
     assert (valType a == valType b) "type mismatch"
     base <- baseTypeOf (valType a)
-
-    Val typ opA  <- valLoad a
-    Val typB opB <- valLoad b
-
     case base of
-        Bool                 -> boolInfix typ operator opA opB
+        Bool                 -> mkBoolInfix operator a b
         Char                 -> mkIntInfix operator a b
+        _ | isEnumADT base   -> mkAdtEnumInfix operator a b
         _ | isInt base       -> mkIntInfix operator a b
-        _ | isFloat base     -> floatInfix typ operator opA opB
+        _ | isFloat base     -> mkFloatInfix operator a b
         _ | isArray base     -> valArrayInfix operator a b
         _ | isTable base     -> valTableInfix operator a b
         _ | isTuple base     -> valTupleInfix operator a b
         _ | isNormalADT base -> valAdtNormalInfix operator a b
-        _ | isEnumADT base   -> valAdtEnumInfix operator a b
-        _                    -> fail $ "Operator " ++ show operator ++ " undefined for types " ++ show typ ++ " " ++ show (valType b)
-
+        _                    -> fail $ "Operator " ++ show operator ++ " undefined for types " ++ show (valType a) ++ " " ++ show (valType b)
     where 
-        boolInfix :: InsCmp CompileState m => Type -> S.Operator -> LL.Operand -> LL.Operand -> m Value
-        boolInfix typ operator opA opB = case operator of
-            S.OrOr   -> Val typ <$> or opA opB
-            S.AndAnd -> Val typ <$> and opA opB
-            S.EqEq   -> Val typ <$> icmp P.EQ opA opB
-            _        -> error ("bool infix: " ++ show operator)
-        
-        floatInfix :: InsCmp CompileState m => Type -> S.Operator -> LL.Operand -> LL.Operand -> m Value
-        floatInfix typ operator opA opB = case operator of
-            S.Plus   -> Val typ <$> fadd opA opB
-            S.Minus  -> Val typ <$> fsub opA opB
-            S.Times  -> Val typ <$> fmul opA opB
-            S.Divide -> Val typ <$> fdiv opA opB
-            S.EqEq   -> Val Bool <$> fcmp P.OEQ opA opB
-            _        -> error ("float infix: " ++ show operator)
 
 
 valArrayInfix :: InsCmp CompileState m => S.Operator -> Value -> Value -> m Value
@@ -150,7 +101,7 @@ valArrayInfix operator a b = withErrorPrefix "array" $ do
 
     case operator of
         _ | operator `elem` [S.Plus, S.Minus, S.Times, S.Divide, S.Modulo] -> do
-            arr <- valLocal (valType a)
+            arr <- mkAlloca (valType a)
             forM_ [0..n] $ \i -> do
                 pDst <- ptrArrayGetElemConst arr i
                 pA <- ptrArrayGetElemConst a i
@@ -167,7 +118,7 @@ valTupleInfix operator a b = do
 
     case operator of
         _ | operator `elem` [S.Plus, S.Minus, S.Times, S.Divide, S.Modulo] -> do
-            tup <- valLocal (valType a)
+            tup <- mkAlloca (valType a)
             bs <- forM (zip ts [0..]) $ \(t, i) -> do
                 pA <- ptrTupleIdx i a
                 pB <- ptrTupleIdx i b
@@ -175,7 +126,7 @@ valTupleInfix operator a b = do
                 valStore pDst =<< valsInfix operator pA pB
             return tup
 
-        S.NotEq -> valPrefix S.Not =<< valTupleInfix S.EqEq a b
+        S.NotEq -> mkPrefix S.Not =<< valTupleInfix S.EqEq a b
         S.EqEq -> do
             bs <- forM (zip ts [0..]) $ \(t, i) -> do
                 elmA <- ptrTupleIdx i a
@@ -198,10 +149,10 @@ valTableInfix operator a b = do
     lenEq <- mkIntInfix S.EqEq lenA lenB
 
     case operator of
-        S.NotEq -> valPrefix S.Not =<< valTableInfix S.EqEq a b
+        S.NotEq -> mkPrefix S.Not =<< valTableInfix S.EqEq a b
         S.EqEq  -> do
-            eq <- valLocal Bool
-            idx <- valLocal I64
+            eq <- mkAlloca Bool
+            idx <- mkAlloca I64
             valStore eq =<< mkBool Bool False
             valStore idx (mkI64 0)
 
@@ -234,8 +185,8 @@ valTableInfix operator a b = do
             valLoad eq
 
 
-valAdtEnumInfix :: InsCmp CompileState m => S.Operator -> Value -> Value -> m Value
-valAdtEnumInfix operator a b = do
+mkAdtEnumInfix :: InsCmp CompileState m => S.Operator -> Value -> Value -> m Value
+mkAdtEnumInfix operator a b = do
     assert (valType a == valType b) "type mismatch"
     assertBaseType isEnumADT (valType a)
     opA <- valOp <$> valLoad a
@@ -251,14 +202,14 @@ valAdtNormalInfix operator a b = do
     base@(ADT fs) <- assertBaseType isNormalADT (valType a)
 
     case operator of
-        S.NotEq -> valPrefix S.Not =<< valAdtNormalInfix S.EqEq a b
+        S.NotEq -> mkPrefix S.Not =<< valAdtNormalInfix S.EqEq a b
         S.EqEq -> do
             enA <- valLoad =<< adtEnum a
             enB <- valLoad =<< adtEnum b
             enEq <- mkIntInfix S.EqEq enA enB
 
             -- if enum isn't matched, exit
-            match <- valLocal Bool
+            match <- mkAlloca Bool
             valStore match =<< mkBool Bool False
             start <- freshName "start"
             exit <- freshName "exit"
