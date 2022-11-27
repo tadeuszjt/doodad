@@ -310,7 +310,7 @@ instance Resolve Expr where
         AST.Bool pos b -> return expr
         Float pos f -> return expr
         AST.Tuple pos exprs -> AST.Tuple pos <$> mapM resolve exprs
-        AST.Table pos exprss -> AST.Table pos <$> mapM (mapM resolve) exprss
+        AST.Array pos exprs -> AST.Array pos <$> mapM resolve exprs
         AST.String pos s -> return expr
         Push pos expr exprs -> do
             expr' <- resolve expr

@@ -89,7 +89,7 @@ instance Apply S.Expr where
         S.String pos s             -> expr
         S.Field pos e s           -> S.Field pos (apply subs e) s
         S.Float pos f              -> expr
-        S.Table pos ess            -> S.Table pos $ map (map (apply subs)) ess
+        S.Array pos es             -> S.Array pos $ map (apply subs) es
         S.TupleIndex pos e i       -> S.TupleIndex pos (apply subs e) i
         S.UnsafePtr p e            -> S.UnsafePtr p (apply subs e)
         S.ADT p e                  -> S.ADT p (apply subs e)

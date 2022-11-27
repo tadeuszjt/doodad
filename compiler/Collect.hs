@@ -469,17 +469,13 @@ collectExpr (S.AExpr exprType expr) = collectPos expr $ case expr of
         collectExpr e2
         collectDefault (typeOf e2) I64
 
-    S.Table _ [[]] -> collectDefault exprType (Table [Tuple []])
-
-    S.Table _ [es] -> do
-        mapM_ (\e -> collectElem e exprType) (map typeOf es)
-        case es of
-            (x:xs) -> do
-                collectDefault exprType $ Table [typeOf x]
-                collectBase exprType $ Table [typeOf x]
-            _ -> return ()
+    S.Array _ [] -> return ()
+    S.Array _ es -> do
+        forM_ es        $ \e -> collectElem (typeOf e) exprType
+        forM_ (tail es) $ \e -> collectEq (typeOf e) (typeOf $ head es)
+        collectDefault exprType $ Array (length es) (typeOf $ head es)
+        collectBase exprType $ Array (length es) (typeOf $ head es)
         mapM_ collectExpr es
-
 
     S.Tuple _ es -> do
         collectBase exprType $ Tuple (map typeOf es)

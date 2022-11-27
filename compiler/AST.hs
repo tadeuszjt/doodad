@@ -75,7 +75,7 @@ data Expr
     | Char       TextPos Char
     | String     TextPos String
     | Tuple      TextPos [Expr]
-    | Table      TextPos [[Expr]]
+    | Array      TextPos [Expr]
     | Call       TextPos Symbol [Expr]
     | CallMember TextPos Expr Symbol [Expr]
     | Null       TextPos 
@@ -153,7 +153,7 @@ instance TextPosition Expr where
         Null       p -> p
         String     p _ -> p
         Tuple      p _ -> p
-        Table      p _ -> p
+        Array      p _ -> p
         Field     p _ _ -> p
         Subscript  p _ _ -> p
         TupleIndex p _ _ -> p
@@ -258,7 +258,7 @@ instance Show Expr where
         Null p                      -> "null"
         String pos s                -> show s
         Tuple pos exprs             -> tupStrs (map show exprs)
-        Table pos exprss            -> "[" ++  intercalate "; " (map (intercalate ", " . map show) exprss) ++ "]"
+        Array pos exprs            -> arrStrs (map show exprs)
         Field pos expr str         -> show expr ++ "." ++ str
         Subscript pos expr1 expr2   -> show expr1 ++ "[" ++ show expr2 ++ "]"
         TupleIndex pos expr n       -> show expr ++ "." ++ show n

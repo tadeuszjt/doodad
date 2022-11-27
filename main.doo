@@ -19,6 +19,12 @@ fn main()
         print(vb, vb.length(), vb.normal().length(), vb.theta())
         print(va + vb)
 
+
+        print()
+        print( (1, 2.3) * (4, 6.2) )
+        print( [1.0, 2.0, 3.0, 4.0, 5.0] * [3.2, 5.7, 3.7, -34.1, 43.0])
+        print()
+
         print(chars::isAlpha('Z'), chars::isAlpha('{'))
 
         let key1 = strings.push()

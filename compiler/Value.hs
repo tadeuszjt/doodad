@@ -66,7 +66,6 @@ valZero typ = trace ("valZero " ++ show  typ) $ do
         _ -> error ("valZero: " ++  show typ)
 
 
-
 valI64 :: Integral i => i -> Value
 valI64 n = Val I64 $ int64 (fromIntegral n)
 

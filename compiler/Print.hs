@@ -62,7 +62,7 @@ valPrint append val = case valType val of
             (tablePrintHelper ts val len)
 
     Array n t -> do
-        printf "[%d| " $ (:[]) $ valOp (valI64 n)
+        printf "[" []
         forM_ [0..n-2] $ \i ->
             valPrint ", " =<< arrayGetElemConst val i
         valPrint ("]" ++ append) =<< arrayGetElemConst val (n-1)

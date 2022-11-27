@@ -512,12 +512,12 @@ cmpExpr (S.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck exp
             ObjField i      -> adtConstructField symbol exprType vals
     
     S.Len pos expr -> valLoad =<< do
-        assertBaseType isInt exprType
+        assertBaseType isIntegral exprType
         val <- cmpExpr expr
         base <- baseTypeOf (valType val)
         case base of
             Table _   -> valConvertNumber exprType =<< tableLen val
-            Array n t -> valInt exprType n
+            Array n t -> valConvertNumber exprType =<< valInt I64 n
             String    -> valStringLen exprType val
             _       -> fail ("cannot take length of type " ++ show (valType val))
 
@@ -557,31 +557,18 @@ cmpExpr (S.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck exp
                 Val exprType <$> LL.and (valOp idxLtEnd) (valOp idxGtEqStart)
                 
 
-    S.Table pos exprss -> valLoad =<< do
+    S.Array pos exprs -> do
         base <- baseTypeOf exprType
         case base of
             Array n t -> do
-                assert (length exprss == 1) "Arrays cannot have multiple rows"
-                vals <- mapM cmpExpr (head exprss)
+                vals <- mapM cmpExpr exprs
                 assert (length vals == n) "Invalid array length"
                 arr <- valLocal exprType
                 forM_ (zip vals [0..]) $ \(val, i) -> do
                     arraySetElem arr (valI64 i) val
                 return arr
                 
-            Table ts -> do
-                valss <- mapM (mapM cmpExpr) exprss
-                tab <- tableMake exprType (valI64 $ length $ head valss)
-
-                forM (zip valss [0..]) $ \(vals, r) -> do
-                    assert (length vals == (length $ head valss)) "Mismatched row length"
-                    row <- tableRow r tab
-                    forM (zip vals [0..]) $ \(val, c) -> do
-                        ptr <- valPtrIdx row (valI64 c)
-                        valStore ptr val
-                return tab
-
-            _ -> fail $ "invalid table base type: " ++ show base
+            _ -> fail $ "invalid array base type: " ++ show base
 
     S.UnsafePtr pos expr -> do
         val <- cmpExpr expr

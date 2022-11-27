@@ -30,6 +30,7 @@ import Tuple
 import ADT
 import Funcs
 import Symbol
+import Array
 
 
 valConstruct :: InsCmp CompileState m => Type -> [Value] -> m Value
@@ -113,6 +114,7 @@ valsInfix operator a b = do
         Char                 -> valIntInfix operator a b
         _ | isInt base       -> valIntInfix operator a b
         _ | isFloat base     -> floatInfix typ operator opA opB
+        _ | isArray base     -> valArrayInfix operator a b
         _ | isTable base     -> valTableInfix operator a b
         _ | isTuple base     -> valTupleInfix operator a b
         _ | isNormalADT base -> valAdtNormalInfix operator a b
@@ -137,6 +139,23 @@ valsInfix operator a b = do
             _        -> error ("float infix: " ++ show operator)
 
 
+valArrayInfix :: InsCmp CompileState m => S.Operator -> Value -> Value -> m Value
+valArrayInfix operator a b = withErrorPrefix "array" $ do
+    assert (valType a == valType b) "infix type mismatch"
+    Array n t <- assertBaseType isArray (valType a)
+
+    case operator of
+        S.Times -> do
+            arr <- valLocal (valType a)
+            forM_ [0..n] $ \i -> do
+                ptr <- arrayGetElemConst arr i
+                elmA <- arrayGetElemConst a i
+                elmB <- arrayGetElemConst b i
+                valStore ptr =<< valsInfix operator elmA elmB
+            return arr
+
+
+
 valTupleInfix :: InsCmp CompileState m => S.Operator -> Value -> Value -> m Value
 valTupleInfix operator a b = do
     assert (valType a == valType b) "type mismatch"
@@ -150,6 +169,15 @@ valTupleInfix operator a b = do
                 elmB <- tupleIdx i b
                 tupleSet tup i =<< valsInfix S.Plus elmA elmB
             return tup
+
+        S.Times -> do
+            tup <- valLocal (valType a)
+            bs <- forM (zip ts [0..]) $ \(t, i) -> do
+                elmA <- tupleIdx i a
+                elmB <- tupleIdx i b
+                tupleSet tup i =<< valsInfix S.Times elmA elmB
+            return tup
+
 
         S.NotEq -> valPrefix S.Not =<< valTupleInfix S.EqEq a b
         S.EqEq -> do

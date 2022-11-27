@@ -116,7 +116,7 @@ instance Annotate Expr where
         Len p e -> Len p <$> annotate e
         Tuple p es -> Tuple p <$> mapM annotate es
         Prefix p op e -> Prefix p op <$> annotate e
-        Table p ess -> Table p <$> mapM (mapM annotate) ess
+        Array p es -> Array p <$> mapM annotate es
         Call p s es -> Call p s <$> mapM annotate es
         UnsafePtr p e -> UnsafePtr p <$> annotate e
 

@@ -239,9 +239,9 @@ expr   : literal                              { $1 }
        | prefix                               { $1 }
        | call                                 { (fst $1) }
        | symbol                               { S.Ident (fst $1) (snd $1) }
-       | '[' tableRows ']'                    { S.Table (tokPos $1) $2 }
-       | '[' ']'                              { S.Table (tokPos $1) [] }
-       | '[' 'I' exprsN 'D' ']'               { S.Table (tokPos $1) [$3] }
+       | '[' exprs1 ']'                       { S.Array (tokPos $1) $2 }
+       | '[' ']'                              { S.Array (tokPos $1) [] }
+       | '[' 'I' exprsN 'D' ']'               { S.Array (tokPos $1) $3 }
        | '(' expr ')'                         { $2 }
        | '(' expr ',' exprs1 ')'              { S.Tuple (tokPos $1) ($2:$4) }
        | unsafe_ptr '(' expr ')'              { S.UnsafePtr (tokPos $1) $3 }
