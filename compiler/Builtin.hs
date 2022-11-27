@@ -52,12 +52,24 @@ storeCopy ptr val = do
 -- construct a value from arguments, Eg. i64(3.2), Vec2(12, 43)
 mkConstruct :: InsCmp CompileState m => Type -> [Value] -> m Value
 mkConstruct typ []       = mkZero typ
-mkConstruct typ (a:b:xs) = tupleConstruct typ (a:b:xs)
+mkConstruct typ (a:b:xs) = mkTupleConstruct typ (a:b:xs)
 mkConstruct typ [val]    = do
     base <- baseTypeOf typ
     case base of
         _ | isIntegral base -> mkConvertNumber typ val
         _ | isFloat base    -> mkConvertNumber typ val
+
+
+-- constuct a tuple from the arguments. Eg. Vec2(1, 2)
+mkTupleConstruct :: InsCmp CompileState m => Type -> [Value] -> m Value
+mkTupleConstruct typ vals = trace "tupleConstruct" $ do
+    Tuple ts <- assertBaseType isTuple typ
+    tup <- mkAlloca typ
+    assert (length vals == length ts) "tuple length mismatch"
+    forM_ (zip vals [0..]) $ \(val, i) -> do
+        ptr <- ptrTupleIdx i tup
+        storeCopy ptr val
+    return tup
 
 
 -- convert the value into a new value corresponding to the type
@@ -76,8 +88,8 @@ mkConvert typ val = do
 
 
 -- any infix expression
-valsInfix :: InsCmp CompileState m => S.Operator -> Value -> Value -> m Value
-valsInfix operator a b = do
+mkInfix :: InsCmp CompileState m => S.Operator -> Value -> Value -> m Value
+mkInfix operator a b = do
     assert (valType a == valType b) "type mismatch"
     base <- baseTypeOf (valType a)
     case base of
@@ -86,16 +98,13 @@ valsInfix operator a b = do
         _ | isEnumADT base   -> mkAdtEnumInfix operator a b
         _ | isInt base       -> mkIntInfix operator a b
         _ | isFloat base     -> mkFloatInfix operator a b
-        _ | isArray base     -> valArrayInfix operator a b
-        _ | isTable base     -> valTableInfix operator a b
-        _ | isTuple base     -> valTupleInfix operator a b
-        _ | isNormalADT base -> valAdtNormalInfix operator a b
+        _ | isTuple base     -> mkTupleInfix operator a b
+        _ | isArray base     -> mkArrayInfix operator a b
         _                    -> fail $ "Operator " ++ show operator ++ " undefined for types " ++ show (valType a) ++ " " ++ show (valType b)
-    where 
 
 
-valArrayInfix :: InsCmp CompileState m => S.Operator -> Value -> Value -> m Value
-valArrayInfix operator a b = withErrorPrefix "array" $ do
+mkArrayInfix :: InsCmp CompileState m => S.Operator -> Value -> Value -> m Value
+mkArrayInfix operator a b = withErrorPrefix "array" $ do
     assert (valType a == valType b) "infix type mismatch"
     Array n t <- assertBaseType isArray (valType a)
 
@@ -104,37 +113,28 @@ valArrayInfix operator a b = withErrorPrefix "array" $ do
             arr <- mkAlloca (valType a)
             forM_ [0..n] $ \i -> do
                 pDst <- ptrArrayGetElemConst arr i
-                pA <- ptrArrayGetElemConst a i
-                pB <- ptrArrayGetElemConst b i
-                valStore pDst =<< valsInfix operator pA pB
+                pSrcA <- ptrArrayGetElemConst a i
+                pSrcB <- ptrArrayGetElemConst b i
+                -- TODO perhaps use valStore
+                storeCopy pDst =<< mkInfix operator pSrcA pSrcB
             return arr
 
 
-
-valTupleInfix :: InsCmp CompileState m => S.Operator -> Value -> Value -> m Value
-valTupleInfix operator a b = do
+mkTupleInfix :: InsCmp CompileState m => S.Operator -> Value -> Value -> m Value
+mkTupleInfix operator a b = do
     assert (valType a == valType b) "type mismatch"
     Tuple ts <- assertBaseType isTuple (valType a)
 
     case operator of
         _ | operator `elem` [S.Plus, S.Minus, S.Times, S.Divide, S.Modulo] -> do
             tup <- mkAlloca (valType a)
-            bs <- forM (zip ts [0..]) $ \(t, i) -> do
-                pA <- ptrTupleIdx i a
-                pB <- ptrTupleIdx i b
-                pDst <- ptrTupleIdx i tup
-                valStore pDst =<< valsInfix operator pA pB
+            forM (zip ts [0..]) $ \(t, i) -> do
+                pSrcA <- ptrTupleIdx i a
+                pSrcB <- ptrTupleIdx i b
+                pDst  <- ptrTupleIdx i tup
+                -- TODO perhaps use valStore
+                storeCopy pDst =<< mkInfix operator pSrcA pSrcB
             return tup
-
-        S.NotEq -> mkPrefix S.Not =<< valTupleInfix S.EqEq a b
-        S.EqEq -> do
-            bs <- forM (zip ts [0..]) $ \(t, i) -> do
-                elmA <- ptrTupleIdx i a
-                elmB <- ptrTupleIdx i b
-                valsInfix S.EqEq elmA elmB
-
-            true <- mkBool Bool True
-            foldM (valsInfix S.AndAnd) true bs
         _ -> error (show operator)
                     
         
@@ -176,7 +176,7 @@ valTableInfix operator a b = do
             emitBlockStart body
             [elmA] <- tableGetColumn a idx
             [elmB] <- tableGetColumn b idx
-            elmEq <- valsInfix S.EqEq elmA elmB
+            elmEq <- mkInfix S.EqEq elmA elmB
             valStore eq elmEq
             valStore idx =<< mkIntInfix S.Plus idx (mkI64 1)
             condBr (valOp elmEq) cond exit
@@ -231,15 +231,15 @@ valAdtNormalInfix operator a b = do
                     FieldType t -> do
                         valA <- adtDeref a i 0
                         valB <- adtDeref b i 0
-                        fmap (\a -> [a]) $ valsInfix S.EqEq valA valB
+                        fmap (\a -> [a]) $ mkInfix S.EqEq valA valB
                     FieldCtor ts -> do
                         forM (zip ts [0..]) $ \(t, j) -> do
                             valA <- adtDeref a i j
                             valB <- adtDeref b i j
-                            valsInfix S.EqEq valA valB
+                            mkInfix S.EqEq valA valB
 
                 true <- mkBool Bool True
-                valStore match =<< foldM (valsInfix S.EqEq) true bs
+                valStore match =<< foldM (mkInfix S.EqEq) true bs
                 br exit
 
             emitBlockStart exit

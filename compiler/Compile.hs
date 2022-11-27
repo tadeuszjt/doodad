@@ -475,7 +475,7 @@ cmpExpr (S.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck exp
     S.Infix pos op exprA exprB -> do
         valA <- cmpExpr exprA
         valB <- cmpExpr exprB
-        valsInfix op valA valB
+        mkInfix op valA valB
 
     S.Ident pos symbol -> do
         obj <- look symbol KeyVar
@@ -552,8 +552,8 @@ cmpExpr (S.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck exp
             Range t -> do
                 start <- ptrRangeStart val
                 end <- ptrRangeEnd val
-                idxGtEqStart <- valsInfix S.GTEq idx start
-                idxLtEnd <- valsInfix S.LT idx end
+                idxGtEqStart <- mkInfix S.GTEq idx start
+                idxLtEnd <- mkInfix S.LT idx end
                 assertBaseType (== Bool) exprType
                 Val exprType <$> LL.and (valOp idxLtEnd) (valOp idxGtEqStart)
                 
@@ -603,7 +603,7 @@ cmpExpr (S.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck exp
 cmpPattern :: InsCmp CompileState m => S.Pattern -> Value -> m Value
 cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pattern of
     S.PatIgnore _     -> mkBool Bool True
-    S.PatLiteral expr -> valsInfix S.EqEq val =<< cmpExpr expr
+    S.PatLiteral expr -> mkInfix S.EqEq val =<< cmpExpr expr
 
     S.PatNull _ -> do
         base@(ADT fs) <- assertBaseType isADT (valType val)
@@ -620,7 +620,7 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
         match <- cmpPattern pat =<< valLoad val
         guard <- cmpExpr expr
         assertBaseType (== Bool) (valType guard)
-        valsInfix S.AndAnd match guard
+        mkInfix S.AndAnd match guard
 
     S.PatIdent _ symbol -> trace ("cmpPattern " ++ show pattern) $ do
         base <- baseTypeOf (valType val)
@@ -637,14 +637,14 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
             cmpPattern p =<< valTupleIdx i val
 
         true <- mkBool Bool True
-        foldM (valsInfix S.AndAnd) true bs
+        foldM (mkInfix S.AndAnd) true bs
 
     S.PatArray _ pats -> do
         base <- baseTypeOf (valType val)
         case base of
             Table ts -> do
                 len   <- tableLen val
-                lenEq <- valsInfix S.EqEq len (mkI64 $ length pats)
+                lenEq <- mkInfix S.EqEq len (mkI64 $ length pats)
 
                 assert (length ts == 1) "patterns don't support multiple rows (yet)"
                 bs <- forM (zip pats [0..]) $ \(p, i) -> do
@@ -652,7 +652,7 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
                     cmpPattern p v
 
                 true <- mkBool (valType lenEq) True
-                foldM (valsInfix S.AndAnd) true (lenEq:bs)
+                foldM (mkInfix S.AndAnd) true (lenEq:bs)
 
             Array n t -> do
                 assert (n == length pats) "Invalid array pattern"
@@ -660,7 +660,7 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
                     cmpPattern p =<< ptrArrayGetElemConst val i
 
                 true <- mkBool Bool True
-                foldM (valsInfix S.AndAnd) true bs
+                foldM (mkInfix S.AndAnd) true bs
             
             _ -> fail "Invalid array pattern"
 
@@ -674,7 +674,7 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
                 Ptr _ loc <- adtDeref val i 0
                 ObType t0 _ <- look symbol KeyType
                 b <- cmpPattern (head pats) $ Ptr t0 loc
-                valLoad =<< valsInfix S.AndAnd enumMatch b
+                valLoad =<< mkInfix S.AndAnd enumMatch b
 
 
             ObjField i -> do
@@ -693,7 +693,7 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
                         bs <- forM (zip pats [0..]) $ \(pat, j) -> 
                             cmpPattern pat =<< adtDeref val i j
 
-                        valLoad =<< foldM (valsInfix S.AndAnd) enumMatch bs
+                        valLoad =<< foldM (mkInfix S.AndAnd) enumMatch bs
 
 
     S.PatTypeField _ typ pat -> do
@@ -711,4 +711,4 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
             _ | isNormalADT base -> do
                 enumMatch <- mkIntInfix S.EqEq (mkI64 i) =<< adtEnum val
                 b <- cmpPattern pat =<< adtDeref val i 0
-                valLoad =<< valsInfix S.AndAnd enumMatch b
+                valLoad =<< mkInfix S.AndAnd enumMatch b

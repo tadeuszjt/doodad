@@ -57,7 +57,7 @@ valPrint append val = case valType val of
     Table ts -> do
         printf "[" []
         len <- tableLen val
-        lenZero <- valsInfix S.EqEq len (mkI64 0)
+        lenZero <- mkInfix S.EqEq len (mkI64 0)
 
         if_ (valOp lenZero)
             (void $ printf ("]" ++ append) [])
@@ -74,7 +74,7 @@ valPrint append val = case valType val of
     where
         tablePrintHelper ts val len = forM_ [0..length ts - 1] $ \i -> do
             row <- tableRow i val
-            n <- valsInfix S.Minus len (mkI64 1)
+            n <- mkInfix S.Minus len (mkI64 1)
 
             for (valOp n) $ \j -> valPrint ", " =<< ptrIdx row (Val I64 j)
             if i < length ts - 1

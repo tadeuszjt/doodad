@@ -82,34 +82,3 @@ valTupleIdx i tup = do
     Val (ts !! i) <$> case tup of
         Val _ op  -> extractValue op [fromIntegral $ i]
         Ptr _ loc -> (flip load) 0 =<< gep loc [int32 0, int32 $ fromIntegral i]
-
-
-tupleConstruct :: InsCmp CompileState m => Type -> [Value] -> m Value
-tupleConstruct tupTyp vals = trace "tupleConstruct" $ do
-    Tuple ts <- assertBaseType isTuple tupTyp
-    loc <- mkAlloca tupTyp
-
-    case vals of
-        --[]    -> valStore loc =<< valZero tupTyp
-
-        [val] -> do
-            baseVal <- baseTypeOf (valType val)
-            baseTup <- baseTypeOf tupTyp
-            if baseVal == baseTup
-            then do -- contructing from another tuple
-                forM_ (zip ts [0..]) $ \(t, i) -> do
-                    ptr <- ptrTupleIdx i val
-                    valStore ptr val
-            else do
-                assert (length ts == 1) "Invalid tuple constructor"
-                ptr <- ptrTupleIdx 0 loc
-                valStore ptr val
-
-        vals -> do
-            assert (length vals == length ts) "Invalid number of args"
-            forM_ (zip ts [0..]) $ \(t, i) -> do
-                ptr <- ptrTupleIdx i loc
-                valStore ptr (vals !! i)
-
-    return loc
-
