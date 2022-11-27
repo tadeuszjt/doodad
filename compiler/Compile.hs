@@ -352,7 +352,7 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
         end <- case base of
             Range I64 -> ptrRangeEnd val
             String -> mkStringLen I64 val
-            Table ts -> tableLen val
+            Table ts -> mkTableLen val
             Array n t -> return (mkI64 n)
             _ -> error (show base)
         ilt <- mkIntInfix S.LT idx end
@@ -365,7 +365,7 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
             Just pat -> case base of
                 String -> cmpPattern pat =<< mkStringIdx val idx
                 Table ts -> do
-                    [v] <- tableGetColumn val idx
+                    [v] <- ptrsTableColumn val idx
                     cmpPattern pat v
                 Range I64 -> cmpPattern pat idx
                 Array n t -> cmpPattern pat =<< ptrArrayGetElem val idx
@@ -418,7 +418,7 @@ cmpExpr (S.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck exp
         start <- maybe (return $ mkI64 0) cmpExpr mexpr1
         end <- case base of
             Array n t -> maybe (return $ mkI64 n) cmpExpr mexpr2
-            Table ts  -> tableLen val
+            Table ts  -> mkTableLen val
             String    -> mkStringLen I64 val
             _         -> error (show base)
         mkRange start end
@@ -428,7 +428,7 @@ cmpExpr (S.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck exp
         base <- baseTypeOf (valType loc)
         case base of
             Table ts -> do
-                len <- tableLen loc
+                len <- mkTableLen loc
                 tableAppendColumn loc =<< mapM mkZero ts
                 mkConvertNumber exprType =<< valLoad len
             Sparse ts -> do
@@ -437,13 +437,13 @@ cmpExpr (S.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck exp
 
     S.Push pos expr exprs -> do
         loc <- cmpExpr expr
-        len <- tableLen loc
+        len <- mkTableLen loc
         tableAppendColumn loc =<< mapM cmpExpr exprs
         valLoad len
 
     S.Pop pos expr [] -> do
         loc@(Ptr _ _) <- cmpExpr expr
-        [v] <- tablePop loc
+        [v] <- mkTablePop loc
         return v
 
     S.Clear pos expr -> do
@@ -515,7 +515,7 @@ cmpExpr (S.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck exp
         val <- cmpExpr expr
         base <- baseTypeOf (valType val)
         case base of
-            Table _   -> mkConvertNumber exprType =<< tableLen val
+            Table _   -> mkConvertNumber exprType =<< mkTableLen val
             Array n t -> mkConvertNumber exprType (mkI64 n)
             String    -> mkStringLen exprType val
             _       -> fail ("cannot take length of type " ++ show (valType val))
@@ -542,7 +542,7 @@ cmpExpr (S.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck exp
         base <- baseTypeOf (valType val)
         case base of
             Table _   -> do
-                [v] <- tableGetColumn val idx
+                [v] <- ptrsTableColumn val idx
                 return v
             Array _ _ -> ptrArrayGetElem val idx
             String    -> mkStringIdx val idx 
@@ -643,12 +643,12 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
         base <- baseTypeOf (valType val)
         case base of
             Table ts -> do
-                len   <- tableLen val
+                len   <- mkTableLen val
                 lenEq <- mkInfix S.EqEq len (mkI64 $ length pats)
 
                 assert (length ts == 1) "patterns don't support multiple rows (yet)"
                 bs <- forM (zip pats [0..]) $ \(p, i) -> do
-                    [v] <- tableGetColumn val (mkI64 i)
+                    [v] <- ptrsTableColumn val (mkI64 i)
                     cmpPattern p v
 
                 true <- mkBool (valType lenEq) True

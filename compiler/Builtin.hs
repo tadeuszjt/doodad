@@ -115,8 +115,7 @@ mkArrayInfix operator a b = withErrorPrefix "array" $ do
                 pDst <- ptrArrayGetElemConst arr i
                 pSrcA <- ptrArrayGetElemConst a i
                 pSrcB <- ptrArrayGetElemConst b i
-                -- TODO perhaps use valStore
-                storeCopy pDst =<< mkInfix operator pSrcA pSrcB
+                valStore pDst =<< mkInfix operator pSrcA pSrcB
             return arr
 
 
@@ -132,8 +131,7 @@ mkTupleInfix operator a b = do
                 pSrcA <- ptrTupleIdx i a
                 pSrcB <- ptrTupleIdx i b
                 pDst  <- ptrTupleIdx i tup
-                -- TODO perhaps use valStore
-                storeCopy pDst =<< mkInfix operator pSrcA pSrcB
+                valStore pDst =<< mkInfix operator pSrcA pSrcB
             return tup
         _ -> error (show operator)
                     
@@ -144,8 +142,8 @@ valTableInfix operator a b = do
     assertBaseType isTable (valType a)
     let typ = valType a
 
-    lenA <- tableLen a
-    lenB <- tableLen b
+    lenA <- mkTableLen a
+    lenB <- mkTableLen b
     lenEq <- mkIntInfix S.EqEq lenA lenB
 
     case operator of
@@ -174,8 +172,8 @@ valTableInfix operator a b = do
 
             -- test that a[i] == b[i]
             emitBlockStart body
-            [elmA] <- tableGetColumn a idx
-            [elmB] <- tableGetColumn b idx
+            [elmA] <- ptrsTableColumn a idx
+            [elmB] <- ptrsTableColumn b idx
             elmEq <- mkInfix S.EqEq elmA elmB
             valStore eq elmEq
             valStore idx =<< mkIntInfix S.Plus idx (mkI64 1)

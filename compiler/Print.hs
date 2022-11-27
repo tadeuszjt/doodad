@@ -51,12 +51,12 @@ valPrint append val = case valType val of
 
     Table [Char] -> do
         row <- tableRow 0 val
-        len <- tableLen val
+        len <- mkTableLen val
         void $ printf ("%-.*s" ++ append) [valOp len, valLoc row]
 
     Table ts -> do
         printf "[" []
-        len <- tableLen val
+        len <- mkTableLen val
         lenZero <- mkInfix S.EqEq len (mkI64 0)
 
         if_ (valOp lenZero)

@@ -46,7 +46,7 @@ sparsePush val elems = do
     Sparse ts <- assertBaseType isSparse (valType val)
     assert (map valType elems == ts) "Elem types do not match"
     stack <- sparseStack val
-    stackLen <- tableLen stack
+    stackLen <- mkTableLen stack
     stackLenGTZero <- mkIntInfix S.GT stackLen (mkI64 0)
     ret <- mkAlloca I64
     if_ (valOp stackLenGTZero) (popStackCase stack ret) (pushTableCase ret) 
@@ -54,7 +54,7 @@ sparsePush val elems = do
     where
         popStackCase :: InsCmp CompileState m => Value -> Value -> m ()
         popStackCase stack ret = do
-            [idx] <- tablePop stack
+            [idx] <- mkTablePop stack
             table <- sparseTable val
             tableSetColumn table idx elems
             valStore ret idx
@@ -62,7 +62,7 @@ sparsePush val elems = do
         pushTableCase :: InsCmp CompileState m => Value -> m ()
         pushTableCase ret = do
             table <- sparseTable val
-            len <- tableLen table
+            len <- mkTableLen table
             tableAppendColumn table elems
             valStore ret len 
 
@@ -71,13 +71,13 @@ sparseDelete :: InsCmp CompileState m => Value -> Value -> m ()
 sparseDelete val idx = do
     Sparse ts <- assertBaseType isSparse (valType val)
     table <- sparseTable val
-    ptrs <- tableGetColumn table idx
+    ptrs <- ptrsTableColumn table idx
     forM_ ptrs $ \ptr -> do
         valStore ptr =<< mkZero (valType ptr)
 
-    len <- tableLen table
+    len <- mkTableLen table
     idxIsEnd <- mkIntInfix S.EqEq idx =<< mkIntInfix S.Minus len (mkI64 1)
-    if_ (valOp idxIsEnd) (void $ tablePop table) idxNotEndCase
+    if_ (valOp idxIsEnd) (void $ mkTablePop table) idxNotEndCase
     where
         idxNotEndCase :: InsCmp CompileState m => m ()
         idxNotEndCase = do
@@ -89,6 +89,6 @@ sparseDelete val idx = do
 sparseGetColumn :: InsCmp CompileState m => Value -> Value -> m [Value]
 sparseGetColumn val idx = do
     table <- sparseTable val
-    tableGetColumn table idx
+    ptrsTableColumn table idx
 
 
