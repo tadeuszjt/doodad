@@ -54,16 +54,19 @@ sparsePush val elems = do
     where
         popStackCase :: InsCmp CompileState m => Value -> Value -> m ()
         popStackCase stack ret = do
-            [idx] <- mkTablePop stack
+            [idx] <- valTablePop stack
             table <- sparseTable val
-            tableSetColumn table idx elems
+            column <- ptrsTableColumn table idx
+            forM_ (zip column elems) $ \(dst, elem) -> valStore dst elem
             valStore ret idx
             
         pushTableCase :: InsCmp CompileState m => Value -> m ()
         pushTableCase ret = do
             table <- sparseTable val
             len <- mkTableLen table
-            tableAppendColumn table elems
+            tableResize table =<< mkIntInfix S.Plus len (mkI64 1)
+            ptrs <- ptrsTableColumn table len
+            zipWithM_ valStore ptrs elems
             valStore ret len 
 
 
@@ -77,12 +80,15 @@ sparseDelete val idx = do
 
     len <- mkTableLen table
     idxIsEnd <- mkIntInfix S.EqEq idx =<< mkIntInfix S.Minus len (mkI64 1)
-    if_ (valOp idxIsEnd) (void $ mkTablePop table) idxNotEndCase
+    if_ (valOp idxIsEnd) (void $ valTablePop table) idxNotEndCase
     where
         idxNotEndCase :: InsCmp CompileState m => m ()
         idxNotEndCase = do
             stack <- sparseStack val
-            tableAppendColumn stack [idx]
+            len <- mkTableLen stack
+            tableResize stack =<< mkIntInfix S.Plus len (mkI64 1)
+            [ptr] <- ptrsTableColumn stack len
+            valStore ptr idx
     
     
 

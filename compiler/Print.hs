@@ -50,7 +50,7 @@ valPrint append val = case valType val of
         void $ printf ("%s" ++ append) [loc]
 
     Table [Char] -> do
-        row <- tableRow 0 val
+        row <- ptrTableRow 0 val
         len <- mkTableLen val
         void $ printf ("%-.*s" ++ append) [valOp len, valLoc row]
 
@@ -73,7 +73,7 @@ valPrint append val = case valType val of
 
     where
         tablePrintHelper ts val len = forM_ [0..length ts - 1] $ \i -> do
-            row <- tableRow i val
+            row <- ptrTableRow i val
             n <- mkInfix S.Minus len (mkI64 1)
 
             for (valOp n) $ \j -> valPrint ", " =<< ptrIdx row (Val I64 j)

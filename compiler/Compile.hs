@@ -277,16 +277,7 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
     S.Set pos expr1 expr2 -> do
         label "set"
         loc@(Ptr _ _) <- cmpExpr expr1
-        base <- baseTypeOf (valType loc)
-        val <- cmpExpr expr2
-        case base of
-            _ | isSimple base -> valStore loc val
-            Table ts -> do 
-                tableClear loc
-                tableAppend loc val
-            Array n t -> valStore loc val
-            _ | isEnumADT base -> valStore loc val
-            _ -> error (show base)
+        storeCopy loc =<< cmpExpr expr2
 
     S.Return pos Nothing -> do
         label "return"
@@ -429,28 +420,38 @@ cmpExpr (S.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck exp
         case base of
             Table ts -> do
                 len <- mkTableLen loc
-                tableAppendColumn loc =<< mapM mkZero ts
+                tableResize loc =<< mkIntInfix S.Plus len (mkI64 1)
+                ptrs <- ptrsTableColumn loc len
+                forM_ ptrs $ \ptr -> valStore ptr =<< mkZero (valType ptr)
                 mkConvertNumber exprType =<< valLoad len
             Sparse ts -> do
                 key <- sparsePush loc =<< mapM mkZero ts
                 valLoad key
 
     S.Push pos expr exprs -> do
-        loc <- cmpExpr expr
-        len <- mkTableLen loc
-        tableAppendColumn loc =<< mapM cmpExpr exprs
+        tab <- cmpExpr expr
+        Table ts <- assertBaseType isTable (valType tab)
+        vals <- mapM cmpExpr exprs
+        assert (map valType vals == ts) "mismatched argument types"
+
+        len <- mkTableLen tab
+        tableResize tab =<< mkIntInfix S.Plus len (mkI64 1)
+        ptrs <- ptrsTableColumn tab len
+        zipWithM_ storeCopy ptrs vals
         valLoad len
 
     S.Pop pos expr [] -> do
-        loc@(Ptr _ _) <- cmpExpr expr
-        [v] <- mkTablePop loc
-        return v
+        val <- cmpExpr expr
+        [v] <- valTablePop val
+        loc <- mkAlloca exprType
+        storeCopy loc v
+        return loc
 
     S.Clear pos expr -> do
         assert (exprType == Void) "clear is a void expression"
         tab <- cmpExpr expr
-        tableClear tab
-        return $ Val Void (valLoc tab)
+        tableResize tab (mkI64 0)
+        return $ Val Void undefined
 
     S.Delete pos expr1 expr2 -> do
         assert (exprType == Void) "delete returns void"

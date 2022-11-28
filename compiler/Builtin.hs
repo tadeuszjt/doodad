@@ -39,13 +39,15 @@ import Array
 
 -- guarantees an equivalent value in a different memory location
 storeCopy :: InsCmp CompileState m => Value -> Value -> m ()
-storeCopy ptr val = do
+storeCopy ptr val = withErrorPrefix "storeCopy: " $ do
     assert (isPtr ptr) "ptr isnt pointer"
     base <- baseTypeOf (valType ptr)
     baseVal <- baseTypeOf (valType val)
     assert (base == baseVal) "ptr type does not match val type"
     case base of
-        _ | isSimple base -> valStore ptr val
+        _ | isSimple base          -> valStore ptr val
+        _ | isEnumADT base         -> valStore ptr val
+        Tuple ts | all isSimple ts -> valStore ptr val
         _ -> fail (show base)
 
 
