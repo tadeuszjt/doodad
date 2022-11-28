@@ -39,20 +39,43 @@ fn (board Board) Initialise()
             c = c + 2
 
 
-fn playerMove()
+fn (board Board) playerMove()
     print("Enter move. Eg: E2 E4")
     data line String
     line.GetStrLn()
 
-    let (startRow, n1) = line.ReadChar(0)
-    let (startCol, n2) = line.ReadI64(n1)
-    let (endRow, n3)   = line.ReadChar(n1 + n2)
-    let (endCol, n4)   = line.ReadI64(n1 + n2 + n3)
+    let (startColChar, n1) = line.ReadChar(0)
+    let (startRow, n2)     = line.ReadI64(n1)
+    let (endColChar, n3)   = line.ReadChar(n1 + n2)
+    let (endRow, n4)       = line.ReadI64(n1 + n2 + n3)
     if n1 == 0 || n2 == 0 || n3 == 0 || n4 == 0
         print("invalid move")
         return
 
-    print(startRow, startCol, endRow, endCol)
+    let startCol = 0
+    if ['a'..'j'][startColChar]
+        startCol = i64(startColChar - 'a')
+    else if ['A'..'J'][startColChar]
+        startCol = i64(startColChar - 'A')
+    else
+        print("invalid col char")
+        return
+    
+    let endCol = 0
+    if ['a'..'j'][endColChar]
+        endCol = i64(endColChar - 'a')
+    else if ['A'..'J'][endColChar]
+        endCol = i64(endColChar - 'A')
+    else
+        print("invalid col char")
+        return
+
+    if board[startRow][startCol] == Black()
+        print("start is black")
+    else 
+        print("start isnt black")
+
+    print(startCol, startRow, endCol, endRow)
 
     return
 
@@ -61,5 +84,5 @@ fn main()
     data board Board
     board.Initialise()
     board.Print()
-    playerMove()
+    board.playerMove()
     board.Print()

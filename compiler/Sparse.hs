@@ -25,27 +25,25 @@ import Builtin
 
 
 
-sparseTable :: InsCmp CompileState m => Value -> m Value
-sparseTable val = do
+ptrSparseTable :: InsCmp CompileState m => Value -> m Value
+ptrSparseTable val = do
     Sparse ts <- assertBaseType isSparse (valType val)
-    case val of
-        Val _ op -> Val (Table ts) <$> extractValue op [0]
-        Ptr _ loc -> Ptr (Table ts) <$> gep loc [int32 0, int32 0]
+    assert (isPtr val) "val isnt pointer"
+    Ptr (Table ts) <$> gep (valLoc val) [int32 0, int32 0]
     
 
-sparseStack :: InsCmp CompileState m => Value -> m Value
-sparseStack val = do
+ptrSparseStack :: InsCmp CompileState m => Value -> m Value
+ptrSparseStack val = do
     Sparse ts <- assertBaseType isSparse (valType val)
-    case val of
-        Val _ op -> Val (Table [I64]) <$> extractValue op [1]
-        Ptr _ loc -> Ptr (Table [I64]) <$> gep loc [int32 0, int32 1]
+    assert (isPtr val) "val isnt pointer"
+    Ptr (Table [I64]) <$> gep (valLoc val) [int32 0, int32 1]
 
 
 sparsePush :: InsCmp CompileState m => Value -> [Value] -> m Value
 sparsePush val elems = do
     Sparse ts <- assertBaseType isSparse (valType val)
     assert (map valType elems == ts) "Elem types do not match"
-    stack <- sparseStack val
+    stack <- ptrSparseStack val
     stackLen <- mkTableLen stack
     stackLenGTZero <- mkIntInfix S.GT stackLen (mkI64 0)
     ret <- mkAlloca I64
@@ -55,14 +53,14 @@ sparsePush val elems = do
         popStackCase :: InsCmp CompileState m => Value -> Value -> m ()
         popStackCase stack ret = do
             [idx] <- valTablePop stack
-            table <- sparseTable val
+            table <- ptrSparseTable val
             column <- ptrsTableColumn table idx
             forM_ (zip column elems) $ \(dst, elem) -> valStore dst elem
             valStore ret idx
             
         pushTableCase :: InsCmp CompileState m => Value -> m ()
         pushTableCase ret = do
-            table <- sparseTable val
+            table <- ptrSparseTable val
             len <- mkTableLen table
             tableResize table =<< mkIntInfix S.Plus len (mkI64 1)
             ptrs <- ptrsTableColumn table len
@@ -73,7 +71,7 @@ sparsePush val elems = do
 sparseDelete :: InsCmp CompileState m => Value -> Value -> m ()
 sparseDelete val idx = do
     Sparse ts <- assertBaseType isSparse (valType val)
-    table <- sparseTable val
+    table <- ptrSparseTable val
     ptrs <- ptrsTableColumn table idx
     forM_ ptrs $ \ptr -> do
         valStore ptr =<< mkZero (valType ptr)
@@ -84,17 +82,9 @@ sparseDelete val idx = do
     where
         idxNotEndCase :: InsCmp CompileState m => m ()
         idxNotEndCase = do
-            stack <- sparseStack val
+            stack <- ptrSparseStack val
             len <- mkTableLen stack
             tableResize stack =<< mkIntInfix S.Plus len (mkI64 1)
             [ptr] <- ptrsTableColumn stack len
             valStore ptr idx
     
-    
-
-sparseGetColumn :: InsCmp CompileState m => Value -> Value -> m [Value]
-sparseGetColumn val idx = do
-    table <- sparseTable val
-    ptrsTableColumn table idx
-
-

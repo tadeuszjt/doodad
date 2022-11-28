@@ -548,7 +548,8 @@ cmpExpr (S.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck exp
             Array _ _ -> ptrArrayGetElem val idx
             String    -> mkStringIdx val idx 
             Sparse _  -> do
-                [v] <- sparseGetColumn val idx
+                table <- ptrSparseTable val
+                [v] <- ptrsTableColumn table idx
                 return v
             Range t -> do
                 start <- ptrRangeStart val

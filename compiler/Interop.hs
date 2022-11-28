@@ -129,13 +129,14 @@ directTypeToType cType = trace "directTypeToType" $ case cType of
     A.TyIntegral A.TyULLong -> return I64
     A.TyFloating A.TyFloat -> return F32
     A.TyFloating A.TyDouble -> return F64
-    A.TyFloating (A.TyFloatN _ _) -> fail ""
-    A.TyFloating A.TyLDouble -> fail ""
-    A.TyBuiltin _ -> fail ""
-    A.TyComp _ -> fail ""
+    A.TyFloating (A.TyFloatN _ _) -> fail (show cType)
+    A.TyFloating A.TyLDouble -> fail (show cType)
+    A.TyBuiltin _ -> fail (show cType)
+    A.TyComp _ -> fail (show cType)
     --A.TyEnum a -> error (show a)
     _ -> fail (show cType)
     _ -> error (show cType)
+
 
 aTypeToType :: BoM s m => A.Type -> m Type
 aTypeToType aType = trace "aTypeToType" $ case aType of
@@ -147,9 +148,10 @@ aTypeToType aType = trace "aTypeToType" $ case aType of
         t <- aTypeToType aTyp
         return $ UnsafePtr t
 
-    A.DirectType dType quals _ -> directTypeToType dType
+    A.DirectType dType quals _ -> do
+        catchError (directTypeToType dType) $ \e -> fail (show quals)
 
-    _ -> fail ""
+    _ -> fail (show aType)
 
 
 genExternsFromGlobs :: BoM [Extern] m => A.GlobalDecls -> m ()
@@ -168,7 +170,7 @@ genExternsFromGlobs globalDecls = trace "genExterns" $ do
         _ -> return ()
     where
         procTypeDef :: BoM [Extern] m => A.TypeDef -> m ()
-        procTypeDef typeDef = trace "procTypeDef" $ case typeDef of
+        procTypeDef typeDef = withErrorPrefix "procTypeDef " $ case typeDef of
             A.TypeDef (Ident sym _ _) aType attrs nodeInfo -> do
                 typ <- aTypeToType aType
                 modify $ \externs -> ExtTypeDef sym typ : externs
@@ -187,7 +189,7 @@ genExternsFromGlobs globalDecls = trace "genExterns" $ do
                     modify $ \externs -> ExtFunc sym paramTypes retty : externs
                     return ()
 
-                _ -> fail ""
+                _ -> fail (show varTyp)
 
                 _ -> error (show varTyp)
 
@@ -195,5 +197,5 @@ genExternsFromGlobs globalDecls = trace "genExterns" $ do
         procParamDecl (A.ParamDecl varDecl nodeInfo) = trace "procParamDecl" $ do
             let A.VarDecl varName attrs varTyp = varDecl
             aTypeToType varTyp
-        procParamDecl _ = fail ""
+        procParamDecl x = fail (show x)
     

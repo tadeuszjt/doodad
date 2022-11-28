@@ -126,11 +126,9 @@ tableResize :: InsCmp CompileState m => Value -> Value -> m ()
 tableResize tab newLen = trace "tableResize" $ do
     Table ts <- assertBaseType isTable (valType tab)
     assertBaseType isInt (valType newLen)
-
     bFull <- mkIntInfix S.GT newLen =<< mkTableCap tab
     if_ (valOp bFull) (fullCase ts) (return ())
     tableSetLen tab newLen
-
     where
         fullCase :: InsCmp CompileState m => [Type] -> m ()
         fullCase ts = do
@@ -139,5 +137,4 @@ tableResize tab newLen = trace "tableResize" $ do
                 newRow <- ptrTableRow i newTab
                 oldRow <- ptrTableRow i tab
                 valMemCpy newRow oldRow =<< mkTableLen tab
-
             valStore tab newTab

@@ -182,6 +182,7 @@ redefine :: BoM CompileState m => Symbol -> SymKey -> Object -> m ()
 redefine symbol key obj = trace "redefine" $ do
     modify $ \s -> s { symTab = SymTab.insert symbol key obj (symTab s) }
 
+
 define :: BoM CompileState m => Symbol -> SymKey -> Object -> m ()
 define symbol key obj = trace "define" $ do
     checkSymKeyUndef symbol key
