@@ -42,4 +42,10 @@ fn main()
         strings[key3].PutStrLn()
         print(key1, key2, key3)
 
+        let x = 1
+        let y = 2
+        print(x == 1 && y == 2, x == y)
+
+
+
 

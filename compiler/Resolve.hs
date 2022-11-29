@@ -124,15 +124,14 @@ instance Resolve AST where
 
 instance Resolve Stmt where
     resolve stmt = withPos stmt $ case stmt of
-        FuncDef pos mparam sym params retty blk -> do
+        FuncDef pos params sym args retty blk -> do
             pushSymTab
-            mparam' <- maybe (return Nothing) (fmap Just . resolve) mparam
             params' <- mapM resolve params
+            args' <- mapM resolve args
             retty' <- resolve retty
             blk' <- resolve blk
             popSymTab
-
-            return $ FuncDef pos mparam' sym params' retty' blk'
+            return $ FuncDef pos params' sym args' retty' blk'
 
         ExprStmt callExpr -> ExprStmt <$> resolve callExpr
 

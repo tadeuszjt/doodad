@@ -32,7 +32,7 @@ data SymKey
     = KeyVar
     | KeyType
     | KeyFunc [Type] Type
-    | KeyMember Type [Type] Type
+    | KeyMember [Type] [Type] Type
     | KeyField Type
     | KeyAdtField
     deriving (Show, Eq, Ord)
@@ -164,10 +164,10 @@ collectAST ast = do
 
     forM typedefs $ collectTypedef
 
-    forM funcdefs $ \(S.FuncDef pos mparam sym params retty _) -> collectPos pos $ do
-        case mparam of
-            Nothing    -> define (Sym sym) (KeyFunc   (map S.paramType params) retty) ObjFunc
-            Just param -> define (Sym sym) (KeyMember (S.paramType param) (map S.paramType params) retty) ObjFunc
+    forM funcdefs $ \(S.FuncDef pos params sym args retty _) -> collectPos pos $ do
+        case params of
+            [] -> define (Sym sym) (KeyFunc   (map S.paramType args) retty) ObjFunc
+            ps -> define (Sym sym) (KeyMember (map S.paramType ps) (map S.paramType args) retty) ObjFunc
 
     mapM_ collectStmt stmts''
     where
@@ -223,15 +223,14 @@ collectStmt stmt = collectPos stmt $ case stmt of
     S.Block stmts -> mapM_ collectStmt stmts
     S.ExprStmt e -> collectExpr e
 
-    S.FuncDef _ mparam sym params retty blk -> do
+    S.FuncDef _ params sym args retty blk -> do
         oldRetty <- gets curRetty
         modify $ \s -> s { curRetty = retty }
 
-        case mparam of
-            Nothing -> return ()
-            Just (S.Param _ symbol t) -> define symbol KeyVar (ObjVar t)
+        forM params $ \(S.Param _ symbol t) ->
+            define symbol KeyVar (ObjVar t)
 
-        forM_ params $ \(S.Param _ symbol t) ->
+        forM_ args $ \(S.Param _ symbol t) ->
             define symbol KeyVar (ObjVar t)
         collectStmt blk
         modify $ \s -> s { curRetty = oldRetty }
@@ -345,9 +344,9 @@ collectCallMember exprType e symbol es = do
     let ksSameRetty   = [ k | k@(KeyMember _ _ rt) <- ks, rt == exprType ]
     let ksSameArgs    = [ k | k@(KeyMember _ as _) <- ks, as == map typeOf es ]
     let ksSameArgsLen = [ k | k@(KeyMember _ as _) <- ks, length as == length es ]
-    let ksSameRecType = [ k | k@(KeyMember t _ _) <- ks, t == typeOf e ]
+    let ksSameParams  = [ k | k@(KeyMember ps _ _) <- ks, ps == [typeOf e] ]
 
-    let kss = [ks, ksSameRetty, ksSameArgs, ksSameArgsLen, ksSameRecType]
+    let kss = [ks, ksSameRetty, ksSameArgs, ksSameArgsLen, ksSameParams]
     mapM_ collectIfOneDef kss
     collectIfOneDef $ intersectMatches kss
     
@@ -355,10 +354,11 @@ collectCallMember exprType e symbol es = do
     mapM_ collectExpr es
     where
         collectIfOneDef :: BoM CollectState m => [SymKey] -> m ()
-        collectIfOneDef [KeyMember t as rt] = do
+        collectIfOneDef [KeyMember ps as rt] = do
             assert (length as == length es) "Invalid number of arguments"
+            assert (length ps == 1)         "TODO can only call member on one param"
             collectEq rt exprType
-            collectEq t (typeOf e)
+            collectEq (head ps) (typeOf e)
             zipWithM_ collectEq as (map typeOf es)
         collectIfOneDef _ = return ()
 

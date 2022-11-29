@@ -146,11 +146,8 @@ imports : {- empty -}                         { [] }
 symbol : ident                                { (tokPos $1, Sym (tokStr $1)) }
        | ident '::' ident                     { (tokPos $3, SymQualified (tokStr $1) (tokStr $3)) }
 
-mfnrec : {-empty-}                            { Nothing }
-       | '(' param ')'                        { Just $2 }
-
-mFnTypArg : {-empty-}                         { Nothing }
-          | '[' ident ']'                     { Just $2 }
+mfnrec : {-empty-}                            { [] }
+       | '{' params1 '}'                      { $2 }
 
 stmtS : let pattern '=' expr                         { S.Assign (tokPos $1) $2 $4 }  
       | index '=' expr                               { S.Set (tokPos $2) $1 $3 }
@@ -160,8 +157,8 @@ stmtS : let pattern '=' expr                         { S.Assign (tokPos $1) $2 $
       | return mexpr                                 { S.Return (tokPos $1) $2 }
       | data symbol type_                            { S.Data (tokPos $1) (snd $2) $3 }
 stmtB : If                                           { $1 }
-      | fn mFnTypArg mfnrec ident '(' params ')' type_ block  { S.FuncDef (tokPos $1) $3 (tokStr $4) $6 $8 $9 }
-      | fn mFnTypArg mfnrec ident '(' params ')' block        { S.FuncDef (tokPos $1) $3 (tokStr $4) $6 T.Void $8 }
+      | fn mfnrec ident '(' params ')' type_ block  { S.FuncDef (tokPos $1) $2 (tokStr $3) $5 $7 $8 }
+      | fn mfnrec ident '(' params ')' block        { S.FuncDef (tokPos $1) $2 (tokStr $3) $5 T.Void $7 }
       | while condition block                        { S.While (tokPos $1) $2 $3 }
       | for expr block                        { S.For (tokPos $1) $2 Nothing $3 }
       | for expr '->' pattern block           { S.For (tokPos $1) $2 (Just $4) $5 }

@@ -7,19 +7,19 @@ type Strings sparse[String]
 data strings Strings
 
 
-fn (ss Strings) Append(k1 i64, k2 i64)
+fn {ss Strings} Append(k1 i64, k2 i64)
     for ss[k2] -> c; ss[k1].push(c)
 
 
-fn (s String) Append(str string)
+fn {s String} Append(str string)
     for str -> c; s.push(c)
 
 
-fn (s String) PutStrLn()
+fn {s String} PutStrLn()
     print(s)
 
 
-fn (s String) GetStrLn()
+fn {s String} GetStrLn()
     s.clear()
     while true
         switch getChar()
@@ -28,7 +28,7 @@ fn (s String) GetStrLn()
             c; s.push(c)
 
 
-fn (s String) ReadChar(start i64) (char, i64)
+fn {s String} ReadChar(start i64) (char, i64)
     let spaceCount = 0
     for s[start..] -> i | isSpace(s[i]) || isAlpha(s[i])
         if isAlpha(s[i])
@@ -38,7 +38,7 @@ fn (s String) ReadChar(start i64) (char, i64)
     return ('\0', 0)
 
 
-fn (s String) ReadI64(start i64) (i64, i64)
+fn {s String} ReadI64(start i64) (i64, i64)
     let spaceCount = 0
     for s[start..] -> i | isSpace(s[i])
         spaceCount = spaceCount + 1

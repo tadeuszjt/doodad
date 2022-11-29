@@ -155,9 +155,9 @@ cmpVarDef (S.Assign pos (S.PatIdent p symbol) expr) = withPos pos $ do
 
 
 cmpFuncHdr :: InsCmp CompileState m => S.Stmt -> m ()
-cmpFuncHdr (S.FuncDef pos Nothing "main" [] Void blk) = return ()
+cmpFuncHdr (S.FuncDef pos _ "main" [] Void blk) = return ()
 cmpFuncHdr (S.FuncDef pos _ "main" _ _ _)             = withPos pos $ fail "invalid main func"
-cmpFuncHdr (S.FuncDef pos mparam sym args retty blk)  = trace "cmpFuncHdr" $ withPos pos $ do
+cmpFuncHdr (S.FuncDef pos params sym args retty blk)  = trace "cmpFuncHdr" $ withPos pos $ do
 
     forM_ args $ \(S.Param pos name typ) -> withPos pos $ do
         isDataType <- isDataType typ
@@ -170,8 +170,8 @@ cmpFuncHdr (S.FuncDef pos mparam sym args retty blk)  = trace "cmpFuncHdr" $ wit
     argOpTypes <- mapM opTypeOf argTypes
     returnOpType <- opTypeOf retty
 
-    case mparam of
-        Nothing -> do
+    case params of
+        [] -> do
             let op = fnOp name argOpTypes returnOpType False
             define (Sym sym) (KeyFunc argTypes retty) (ObjFnOp op) 
             --redefine (Sym sym) KeyVar $ ObjVal $ Val (Func argTypes retty) op
@@ -179,7 +179,7 @@ cmpFuncHdr (S.FuncDef pos mparam sym args retty blk)  = trace "cmpFuncHdr" $ wit
             addSymKeyDec (Sym sym) KeyVar name (DecFunc argOpTypes returnOpType)
             addDeclared name
 
-        Just param -> do
+        [param] -> do
             let paramType = S.paramType param
             paramOpTyp <- LL.ptr <$> opTypeOf paramType
             let op = fnOp name (paramOpTyp : argOpTypes) returnOpType False
@@ -189,20 +189,32 @@ cmpFuncHdr (S.FuncDef pos mparam sym args retty blk)  = trace "cmpFuncHdr" $ wit
 
 
 cmpFuncDef :: (MonadFail m, Monad m, MonadIO m) => S.Stmt -> InstrCmpT CompileState m ()
-cmpFuncDef (S.FuncDef pos mparam "main" args retty blk) = trace "cmpFuncDef" $ withPos pos $ do
-    assert (isNothing mparam) "main cannot be a member"
+cmpFuncDef (S.FuncDef pos params "main" args retty blk) = trace "cmpFuncDef" $ withPos pos $ do
+    assert (params == []) "main cannot be a member"
     assert (args == [])  "main cannot have argeters"
     assert (retty == Void) $ "main must return void: " ++ show retty
     cmpStmt blk
-cmpFuncDef (S.FuncDef pos mparam sym args retty blk) = trace "cmpFuncDef" $ withPos pos $ do
+cmpFuncDef (S.FuncDef pos params sym args retty blk) = trace "cmpFuncDef" $ withPos pos $ do
     returnOpType <- opTypeOf retty
     argOpTypes <- mapM (opTypeOf . S.paramType) args
     let argTypes = map S.paramType args
     let argSymbols = map S.paramName args
     let argNames = map (ParameterName . mkBSS . Symbol.sym) argSymbols
 
-    case mparam of
-        Just param -> do
+    case params of
+        [] -> do
+            ObjFnOp op <- look (Sym sym) (KeyFunc argTypes retty)
+
+            let LL.ConstantOperand (C.GlobalReference _ name) = op
+            let Name nameStr = name
+            void $ InstrCmpT . IRBuilderT . lift $ func name (zip argOpTypes argNames) returnOpType $ \argOps -> do
+                forM_ (zip3 argTypes argOps argSymbols) $ \(typ, op, symbol) -> do
+                    loc <- mkAlloca typ
+                    valStore loc (Val typ op)
+                    define symbol KeyVar (ObjVal loc)
+                cmpFnBlock
+
+        [param] -> do
             let paramType = S.paramType param
             let paramSymbol = S.paramName param
             paramOpTyp <- LL.ptr <$> opTypeOf paramType
@@ -214,17 +226,6 @@ cmpFuncDef (S.FuncDef pos mparam sym args retty blk) = trace "cmpFuncDef" $ with
             void $ InstrCmpT . IRBuilderT . lift $ func name (zip (paramOpTyp : argOpTypes)  (paramName :argNames)) returnOpType $ \argOps -> do
                 define paramSymbol KeyVar (ObjVal $ Ptr paramType $ head argOps)
                 forM_ (zip3 argTypes (tail argOps) argSymbols) $ \(typ, op, symbol) -> do
-                    loc <- mkAlloca typ
-                    valStore loc (Val typ op)
-                    define symbol KeyVar (ObjVal loc)
-                cmpFnBlock
-        Nothing -> do
-            ObjFnOp op <- look (Sym sym) (KeyFunc argTypes retty)
-
-            let LL.ConstantOperand (C.GlobalReference _ name) = op
-            let Name nameStr = name
-            void $ InstrCmpT . IRBuilderT . lift $ func name (zip argOpTypes argNames) returnOpType $ \argOps -> do
-                forM_ (zip3 argTypes argOps argSymbols) $ \(typ, op, symbol) -> do
                     loc <- mkAlloca typ
                     valStore loc (Val typ op)
                     define symbol KeyVar (ObjVal loc)

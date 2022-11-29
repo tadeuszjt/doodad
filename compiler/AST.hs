@@ -107,7 +107,7 @@ data Stmt
     | Block       [Stmt]
     | If          TextPos Expr Stmt (Maybe Stmt)
     | While       TextPos Expr Stmt
-    | FuncDef     TextPos (Maybe Param) String [Param] Type Stmt
+    | FuncDef     TextPos [Param] String [Param] Type Stmt
     | Typedef     TextPos Symbol AnnoType
     | Switch      TextPos Expr [(Pattern, Stmt)]
     | For         TextPos Expr (Maybe Pattern) Stmt
@@ -296,12 +296,12 @@ prettyAST ast = do
     where
         prettyStmt :: String -> Stmt -> IO ()
         prettyStmt pre stmt = case stmt of
-            FuncDef pos mparam sym params retty blk -> do
-                paramStr <- case mparam of
-                    Nothing            -> return ""
-                    Just (Param _ s t) -> return $ "(" ++ show s ++ " " ++ show t ++ ") "
+            FuncDef pos params sym args retty blk -> do
+                paramStr <- case params of
+                    [] -> return ""
+                    ps -> return $ tupStrs $ map show ps
                 
-                putStrLn $ pre ++ "fn " ++ paramStr ++ sym ++ tupStrs (map show params) ++ " " ++ if retty == Void then "" else show retty
+                putStrLn $ pre ++ "fn " ++ paramStr ++ sym ++ tupStrs (map show args) ++ " " ++ if retty == Void then "" else show retty
                 prettyStmt (pre ++ "\t") blk
                 putStrLn ""
 

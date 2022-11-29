@@ -55,7 +55,7 @@ instance Apply Collect.SymKey where
         KeyType       -> KeyType
         KeyFunc ts rt -> KeyFunc (map (apply subs) ts) (apply subs rt)
         KeyField t   -> KeyField (apply subs t)
-        KeyMember t ts rt -> KeyMember (apply subs t) (map (apply subs) ts) (apply subs rt)
+        KeyMember ps as rt -> KeyMember (map (apply subs) ps) (map (apply subs) as) (apply subs rt)
 
 instance Apply Constraint where
     apply subs (ConsEq t1 t2)       = ConsEq (apply subs t1) (apply subs t2)

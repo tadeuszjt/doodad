@@ -10,11 +10,11 @@ type Board  [8 [8 Square]]
 type Pos    (row i64, col i64)
 type Move   (start Pos, end Pos)
 
-fn (board Board) Contains(p Pos) bool
+fn {board Board} Contains(p Pos) bool
     return board[..][p.row] && board[p.row][..][p.col]
 
 
-fn (list [Move]) GetValidMoves(board Board)
+fn {list [Move]} GetValidMoves(board Board)
     data positions [Pos]
     for board[..] -> r
         for board[r][..] -> c
@@ -41,7 +41,7 @@ fn (list [Move]) GetValidMoves(board Board)
     return
 
 
-fn (board Board) Print()
+fn {board Board} Print()
     for board[..] -> r
         putChar('0' + board.len() - char(r))
         putStr(" [")
@@ -55,7 +55,7 @@ fn (board Board) Print()
     putStrLn("   A B C D E F G H")
 
 
-fn (board Board) Initialise()
+fn {board Board} Initialise()
     for board[..3] -> r
         let c = 0
         if r % 2 == 0; c = 1
@@ -71,7 +71,7 @@ fn (board Board) Initialise()
             c = c + 2
 
 
-fn (board Board) playerMove()
+fn {board Board} playerMove()
     print("Enter move. Eg: E2 E4")
     data line String
     line.GetStrLn()
