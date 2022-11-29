@@ -2,23 +2,55 @@ module draughts
 
 import ../std/io
 import ../std/strings
+import ../std/chars
 
 
 type Square { Empty() | White() | Black() }
-type Board [8 [8 Square]]
+type Board  [8 [8 Square]]
+type Pos    (row i64, col i64)
+type Move   (start Pos, end Pos)
+
+fn (board Board) Contains(p Pos) bool
+    return board[..][p.row] && board[p.row][..][p.col]
+
+
+fn (list [Move]) GetValidMoves(board Board)
+    data positions [Pos]
+    for board[..] -> r
+        for board[r][..] -> c
+            if board[r][c] != Empty()
+                positions.push(Pos(r, c))
+
+    data whitePositions [Pos]
+    for positions -> pos
+        if board[pos.row][pos.col] == White()
+            whitePositions.push(pos)
+
+    data whiteMoves [Move]
+    for whitePositions -> pos
+        let potentialMovesEmpty = [
+            Pos(pos.row + 1, pos.col + 1),
+            Pos(pos.row + 1, pos.col - 1)
+        ]
+        for potentialMovesEmpty -> pm
+            if board.Contains(pm)
+                if board[pm.row][pm.col] == Empty()
+                    whiteMoves.push((pos, pm))
+
+    print(whiteMoves)
+    return
 
 
 fn (board Board) Print()
     for board[..] -> r
-        putChar('0' + len(board) - char(r))
+        putChar('0' + board.len() - char(r))
         putStr(" [")
-        let comma = board[r][..len(board[r])-1]
         for board[r][..] -> c
             switch board[r][c]
                 Empty(); putChar(' ')
                 White(); putChar('W')
                 Black(); putChar('B')
-            if comma[c]; putChar(',') 
+            if [.. board[r].len() - 1][c]; putChar(',') 
         putStrLn("]")
     putStrLn("   A B C D E F G H")
 
@@ -31,7 +63,7 @@ fn (board Board) Initialise()
             board[r][c] = White()
             c = c + 2
 
-    for board[len(board)-3..] -> r
+    for board[board.len() - 3 .. ] -> r
         let c = 0
         if r % 2 == 0; c = 1
         while board[r][..][c]
@@ -52,31 +84,25 @@ fn (board Board) playerMove()
         print("invalid move")
         return
 
-    let startCol = 0
-    if ['a'..'j'][startColChar]
-        startCol = i64(startColChar - 'a')
-    else if ['A'..'J'][startColChar]
-        startCol = i64(startColChar - 'A')
-    else
-        print("invalid col char")
-        return
-    
-    let endCol = 0
-    if ['a'..'j'][endColChar]
-        endCol = i64(endColChar - 'a')
-    else if ['A'..'J'][endColChar]
-        endCol = i64(endColChar - 'A')
-    else
-        print("invalid col char")
-        return
+    let startCol = i64(chars::toLower(startColChar) - 'a')
+    let endCol   = i64(chars::toLower(endColChar) - 'a')
+
+    let start = Pos(startRow, startCol)
+    let end   = Pos(endRow, endCol)
+    if !board.Contains(start) || !board.Contains(end)
+        print("out of range", start, end)
+
 
     if board[startRow][startCol] == Black()
         print("start is black")
     else 
         print("start isnt black")
 
-    print(startCol, startRow, endCol, endRow)
 
+    data moves [Move]
+    moves.GetValidMoves(board)
+
+    print(startCol, startRow, endCol, endRow)
     return
 
 

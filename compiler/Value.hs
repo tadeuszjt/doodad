@@ -69,8 +69,9 @@ mkFloat typ f = trace "mkFloat" $ do
 
 mkRange :: InsCmp CompileState m => Value -> Value -> m Value
 mkRange start end = do
-    assert (valType start == valType end) "range types do not match"
-    assertBaseType isSimple (valType start) -- simple types so valLoad is mk
+    assert (valType start == valType end) $ "range types do not match"
+    isDataType <- isDataType (valType start)
+    assert (not isDataType) "simple types so valLoad is mk"
 
     range    <- mkAlloca $ Range (valType start)
     startDst <- ptrRangeStart range
@@ -79,6 +80,8 @@ mkRange start end = do
     valStore startDst start
     valStore endDst end
     return range
+
+
 
 
 mkZero :: InsCmp CompileState m => Type -> m Value
@@ -117,6 +120,21 @@ ptrRangeEnd val = do
     assert (isPtr val) "val isn't pointer"
     Range t <- assertBaseType (isRange) (valType val)
     Ptr t <$> gep (valLoc val) [int32 0, int32 1]
+
+
+mkRangeStart :: InsCmp CompileState m => Value -> m Value
+mkRangeStart val = do
+    Range t <- assertBaseType (isRange) (valType val)
+    Val t <$> case val of
+        Ptr _ loc -> (flip load) 0 =<< gep loc [int32 0, int32 0]
+        Val _ op  -> extractValue op [0]
+
+mkRangeEnd :: InsCmp CompileState m => Value -> m Value
+mkRangeEnd val = do
+    Range t <- assertBaseType (isRange) (valType val)
+    Val t <$> case val of
+        Ptr _ loc -> (flip load) 0 =<< gep loc [int32 0, int32 1]
+        Val _ op  -> extractValue op [1]
 
 
 mkStringLen :: InsCmp CompileState m => Type -> Value -> m Value
@@ -258,7 +276,7 @@ mkPrefix operator val = do
         
 
 mkIntInfix :: InsCmp CompileState m => S.Operator -> Value -> Value -> m Value
-mkIntInfix operator a b = do
+mkIntInfix operator a b = withErrorPrefix "int infix: " $ do
     assert (valType a == valType b) "type mismatch"
     assertBaseType (\t -> isInt t || t == Char) (valType a)
     Val typ opA <- valLoad a

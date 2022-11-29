@@ -317,6 +317,7 @@ typeAggregate : tableType                     { $1 }
               | tupType                       { $1 }
               | adtType                       { $1 }
               | sparseType                    { $1 }
+              | rangeType                     { $1 }
               | fn '(' argTypes ')' type_     { T.Func $3 $5 }
 
 
@@ -325,6 +326,7 @@ arrayType : '[' intlit type_ ']'              { T.Array (read $ tokStr $2) $3 }
 tableType : '[' rowTypes1 ']'                 { T.Table $2 }
 tupType : '(' tupFields ')'                   { T.Tuple $2 }
 sparseType : sparse '[' rowTypes1 ']'         { T.Sparse $3 }
+rangeType : '[' '..' ']' type_                { T.Range $4 }
 
 
 annoType : typeOrdinal                        { S.AnnoType $1 }

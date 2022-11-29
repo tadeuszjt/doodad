@@ -60,7 +60,6 @@ importToCStmt (S.ImportCMacro macro typ) =
     typeToCType typ ++ " " ++ macroToVar macro ++ " = " ++ macro ++ ";"
 
 
-
 cmpExtern :: InsCmp CompileState m => Extern -> m ()
 cmpExtern extern = catchError (cmpExtern' extern) $ \e -> return ()
     where
@@ -103,7 +102,6 @@ compile externs = do
         cmp = void $ func (LL.mkName ".__unused")  [] LL.VoidType $ \_ -> do
             mapM_ cmpExtern [ e | e@(ExtTypeDef _ _) <- externs ]
             mapM_ cmpExtern [ e | e@(ExtFunc _ _ _) <- externs ]
-
 
 
 analyseCTranslUnit :: BoM s m => CTranslUnit -> m (A.GlobalDecls, [CError])

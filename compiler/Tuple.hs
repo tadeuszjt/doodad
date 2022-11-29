@@ -68,7 +68,7 @@ valTupleField sym tup = trace "tupleField" $ do
 
 
 ptrTupleIdx :: InsCmp CompileState m => Int -> Value -> m Value
-ptrTupleIdx i tup = trace "tupleIndex" $ do
+ptrTupleIdx i tup = withErrorPrefix "tuple idx: " $ do
     Tuple ts <- assertBaseType isTuple (valType tup)
     assert (isPtr tup)               "tuple isnt pointer"
     assert (i >= 0 && i < length ts) "tuple index out of range"

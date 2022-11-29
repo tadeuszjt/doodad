@@ -328,7 +328,7 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
         idx <- mkAlloca I64
         valStore idx =<< mkZero I64
         when (isRange base) $ do
-            valStore idx =<< ptrRangeStart val
+            valStore idx =<< mkRangeStart val
 
         cond <- freshName "for_cond"
         body <- freshName "for_body"
@@ -341,7 +341,7 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
         -- check if index is still in range
         emitBlockStart cond
         end <- case base of
-            Range I64 -> ptrRangeEnd val
+            Range I64 -> mkRangeEnd val
             String -> mkStringLen I64 val
             Table ts -> mkTableLen val
             Array n t -> return (mkI64 n)
@@ -400,18 +400,42 @@ cmpExpr (S.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck exp
 
     S.Range pos Nothing _ Nothing -> fail "Range expression must contain maximum"
     S.Range pos Nothing mexpr1 (Just expr2) -> do
-        start <- maybe (return $ mkI64 0) cmpExpr mexpr1
         end <- cmpExpr expr2
+        start <- maybe (mkZero $ valType end) cmpExpr mexpr1
         mkRange start end
-    S.Range pos (Just expr) mexpr1 mexpr2 -> do
+    S.Range pos (Just expr) margStart margEnd -> do
         val <- cmpExpr expr
         base <- baseTypeOf (valType val)
-        start <- maybe (return $ mkI64 0) cmpExpr mexpr1
-        end <- case base of
-            Array n t -> maybe (return $ mkI64 n) cmpExpr mexpr2
-            Table ts  -> mkTableLen val
-            String    -> mkStringLen I64 val
-            _         -> error (show base)
+
+        -- default 0 because all types index 0
+        start <- case margStart of
+            Nothing -> case base of
+                Array n t -> return $ mkI64 0
+                Range t -> mkRangeStart val
+
+                _ -> error (show base)
+            Just argStart -> do
+                arg <- cmpExpr argStart
+                case base of
+                    Table ts -> mkMax arg =<< mkInt (valType arg) 0
+                    Array n t -> mkMax arg =<< mkInt (valType arg) 0
+                    Range t  -> mkMax arg =<< mkRangeStart val
+                    _ -> error (show base)
+
+        end <- case margEnd of
+            Nothing -> case base of
+                Table ts  -> mkTableLen val
+                Array n t -> return $ mkI64 n
+                Range t   -> mkRangeEnd val
+                _ -> error (show base)
+
+            Just argEnd -> do
+                arg <- cmpExpr argEnd
+                case base of
+                    Range t -> mkMin arg =<< mkRangeEnd val
+                    Array n t -> mkMin arg =<< mkInt (valType arg) n
+                    _ -> error (show base)
+
         mkRange start end
 
     S.Push pos expr [] -> do
@@ -472,6 +496,27 @@ cmpExpr (S.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck exp
             _ | isFloat base -> mkFloat exprType (fromIntegral n)
             _ | base == Char -> mkChar exprType (chr $ fromIntegral n)
             _ | otherwise    -> fail $ "invalid base type of: " ++ show base
+
+    S.Infix pos S.AndAnd exprA exprB -> do
+        assertBaseType (== Bool) exprType
+        exit <- freshName "infix_andand_exit"
+        right <- freshName "infix_andand_rhs"
+
+        b <- mkAlloca exprType
+        valStore b =<< mkBool exprType False
+
+        valA <- cmpExpr exprA
+        assertBaseType (== Bool) (valType valA)
+        aTrue <- valOp <$> valLoad valA
+        condBr aTrue right exit
+
+        emitBlockStart right
+        valStore b =<< cmpExpr exprB
+        br exit
+
+        emitBlockStart exit
+        valLoad b
+        
 
     S.Infix pos op exprA exprB -> do
         valA <- cmpExpr exprA
@@ -552,8 +597,8 @@ cmpExpr (S.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck exp
                 [v] <- ptrsTableColumn table idx
                 return v
             Range t -> do
-                start <- ptrRangeStart val
-                end <- ptrRangeEnd val
+                start <- mkRangeStart val
+                end <- mkRangeEnd val
                 idxGtEqStart <- mkInfix S.GTEq idx start
                 idxLtEnd <- mkInfix S.LT idx end
                 assertBaseType (== Bool) exprType

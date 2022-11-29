@@ -49,6 +49,11 @@ valPrint append val = case valType val of
         Val _ loc <- valLoad val
         void $ printf ("%s" ++ append) [loc]
 
+    Range t -> do
+        printf "[" []
+        valPrint ".."            =<< ptrRangeStart val
+        valPrint ("]" ++ append) =<< ptrRangeEnd val
+
     Table [Char] -> do
         row <- ptrTableRow 0 val
         len <- mkTableLen val

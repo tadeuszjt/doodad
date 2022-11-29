@@ -410,6 +410,7 @@ collectExpr (S.AExpr exprType expr) = collectPos expr $ case expr of
 
     S.Push _ e es        -> do
         collectDefault exprType I64
+        forM es $ \a -> collectElem (typeOf a) (typeOf e)
         collectExpr e
         mapM_ collectExpr es
 

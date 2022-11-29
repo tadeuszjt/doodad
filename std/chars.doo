@@ -4,12 +4,11 @@ import_c ctype.h
 
 fn isAlpha(c char) bool; return ['a'..'z'+1][c] || ['A'..'Z'+1][c]
 fn isDigit(c char) bool; return ['0'..'9'+1][c]
+fn toLower(c char) char; return char(c::tolower(i32(c)))
+fn toUpper(c char) char; return char(c::toupper(i32(c)))
 
 fn isSpace(c char) bool
     return c == ' ' || c == '\t' || c == '\n'
-
-fn toUpper(c char) char
-    return char(c::toupper(i32(c)))
 
 fn readDigit(c char) i64
     if c >= '0' && c <= '9'

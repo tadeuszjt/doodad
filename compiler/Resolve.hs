@@ -296,6 +296,7 @@ instance Resolve Type where
         Type.Typedef symbol -> Type.Typedef <$> look symbol KeyType
         Type.ADT fs         -> Type.ADT <$>  mapM resolve fs
         Type.Sparse ts      -> Type.Sparse <$> mapM resolve ts
+        Type.Range t        -> Type.Range <$> resolve t
 
         _ -> fail $ "resolve type: " ++ show typ
 

@@ -47,7 +47,12 @@ storeCopy ptr val = withErrorPrefix "storeCopy: " $ do
     case base of
         _ | isSimple base          -> valStore ptr val
         _ | isEnumADT base         -> valStore ptr val
-        Tuple ts | all isSimple ts -> valStore ptr val
+        Tuple ts -> do
+            bs <- mapM isDataType ts
+            assert (all (==False) bs) "no data types allowed"
+            valStore ptr val
+            
+
         _ -> fail (show base)
 
 
@@ -89,9 +94,34 @@ mkConvert typ val = do
         _ -> fail ("valConvert " ++ show base)
 
 
+
+mkMin :: InsCmp CompileState m => Value -> Value -> m Value
+mkMin a b = withErrorPrefix "min: " $ do
+    assert (valType a == valType b) "Left type does not match right type"
+    base <- baseTypeOf (valType a)
+    cnd <- mkInfix S.GT a b 
+    Val (valType a) <$> case base of
+        I64 -> do
+            valA <- valLoad a 
+            valB <- valLoad b
+            select (valOp cnd) (valOp valB) (valOp valA)
+
+
+mkMax :: InsCmp CompileState m => Value -> Value -> m Value
+mkMax a b = withErrorPrefix "min: " $ do
+    assert (valType a == valType b) "Left type does not match right type"
+    base <- baseTypeOf (valType a)
+    cnd <- mkInfix S.LT a b 
+    Val (valType a) <$> case base of
+        I64 -> do
+            valA <- valLoad a 
+            valB <- valLoad b
+            select (valOp cnd) (valOp valB) (valOp valA)
+
+
 -- any infix expression
 mkInfix :: InsCmp CompileState m => S.Operator -> Value -> Value -> m Value
-mkInfix operator a b = do
+mkInfix operator a b = withErrorPrefix "infix: " $ do
     assert (valType a == valType b) "type mismatch"
     base <- baseTypeOf (valType a)
     case base of
@@ -122,7 +152,7 @@ mkArrayInfix operator a b = withErrorPrefix "array" $ do
 
 
 mkTupleInfix :: InsCmp CompileState m => S.Operator -> Value -> Value -> m Value
-mkTupleInfix operator a b = do
+mkTupleInfix operator a b = withErrorPrefix "tuple infix: " $ do
     assert (valType a == valType b) "type mismatch"
     Tuple ts <- assertBaseType isTuple (valType a)
 
@@ -135,6 +165,31 @@ mkTupleInfix operator a b = do
                 pDst  <- ptrTupleIdx i tup
                 valStore pDst =<< mkInfix operator pSrcA pSrcB
             return tup
+
+        _ | operator `elem` [S.GTEq] -> do
+            deflt <- case operator of
+                S.GTEq -> return True
+            res <- mkAlloca Bool
+            valStore res =<< mkBool Bool deflt -- deflt if all equal
+
+            exit <- freshName "tuple_gt_exit"
+            cases <- (\xs -> xs ++ [exit]) <$> replicateM (length ts) (freshName "tuple_gt_case")
+            br (cases !! 0)
+
+            forM (zip ts [0..]) $ \(t, i) -> do
+                emitBlockStart (cases !! i)
+                pSrcA <- ptrTupleIdx i a
+                pSrcB <- ptrTupleIdx i b
+                equal <- mkInfix S.EqEq pSrcA pSrcB
+                cond <- freshName "tuple_gt_cond"
+                condBr (valOp equal) (cases !! (i + 1)) (cond)
+                emitBlockStart cond
+                valStore res =<< mkInfix operator pSrcA pSrcB
+                br exit
+
+            emitBlockStart exit
+            valLoad res
+
         _ -> error (show operator)
                     
         
