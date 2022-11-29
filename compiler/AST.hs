@@ -77,7 +77,7 @@ data Expr
     | Tuple      TextPos [Expr]
     | Array      TextPos [Expr]
     | Call       TextPos Symbol [Expr]
-    | CallMember TextPos Expr Symbol [Expr]
+    | CallMember TextPos [Expr] Symbol [Expr]
     | Null       TextPos 
     | Field      TextPos Expr String
     | Subscript  TextPos Expr Expr

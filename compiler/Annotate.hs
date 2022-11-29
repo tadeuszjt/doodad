@@ -138,10 +138,10 @@ instance Annotate Expr where
 
         AST.ADT pos e -> AST.ADT pos <$> annotate e
 
-        CallMember pos e ident es -> do
-            e' <- annotate e
+        CallMember pos ps ident es -> do
+            ps' <- mapM annotate ps
             es' <- mapM annotate es
-            return $ CallMember pos e' ident es'
+            return $ CallMember pos ps' ident es'
 
         Push pos e es -> do
             e' <- annotate e

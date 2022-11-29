@@ -62,7 +62,7 @@ data SymKey
     = KeyType
     | KeyVar
     | KeyFunc [Type] Type
-    | KeyMember Type [Type] Type
+    | KeyMember [Type] [Type] Type
     | KeyField Type
     | KeyTypeField Type
     deriving (Eq, Ord)

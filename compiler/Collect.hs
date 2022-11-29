@@ -336,30 +336,30 @@ collectPattern pattern typ = collectPos pattern $ case pattern of
 
 
 
-collectCallMember :: BoM CollectState m => Type -> S.Expr -> Symbol -> [S.Expr] -> m ()
-collectCallMember exprType e symbol es = do
+collectCallMember :: BoM CollectState m => Type -> [S.Expr] -> Symbol -> [S.Expr] -> m ()
+collectCallMember exprType ps symbol es = do
     kos <- lookSym symbol
     let ks = [ k | (k@(KeyMember _ _ _), ObjFunc) <- kos ]
 
     let ksSameRetty   = [ k | k@(KeyMember _ _ rt) <- ks, rt == exprType ]
-    let ksSameArgs    = [ k | k@(KeyMember _ as _) <- ks, as == map typeOf es ]
-    let ksSameArgsLen = [ k | k@(KeyMember _ as _) <- ks, length as == length es ]
-    let ksSameParams  = [ k | k@(KeyMember ps _ _) <- ks, ps == [typeOf e] ]
+    let ksSameArgs    = [ k | k@(KeyMember _ xs _) <- ks, xs == map typeOf es ]
+    let ksSameArgsLen = [ k | k@(KeyMember _ xs _) <- ks, length xs == length es ]
+    let ksSameParams  = [ k | k@(KeyMember xs _ _) <- ks, xs == map typeOf ps ]
 
     let kss = [ks, ksSameRetty, ksSameArgs, ksSameArgsLen, ksSameParams]
     mapM_ collectIfOneDef kss
     collectIfOneDef $ intersectMatches kss
     
-    collectExpr e
+    mapM_ collectExpr ps
     mapM_ collectExpr es
     where
         collectIfOneDef :: BoM CollectState m => [SymKey] -> m ()
-        collectIfOneDef [KeyMember ps as rt] = do
-            assert (length as == length es) "Invalid number of arguments"
-            assert (length ps == 1)         "TODO can only call member on one param"
-            collectEq rt exprType
-            collectEq (head ps) (typeOf e)
-            zipWithM_ collectEq as (map typeOf es)
+        collectIfOneDef [KeyMember xs ys z] = do
+            assert (length ys == length es) "Invalid number of arguments"
+            assert (length xs == length ps) "Invalid number of parameters"
+            collectEq z exprType
+            zipWithM_ collectEq xs (map typeOf ps)
+            zipWithM_ collectEq ys (map typeOf es)
         collectIfOneDef _ = return ()
 
         intersectMatches :: [[SymKey]] -> [SymKey]
@@ -401,7 +401,7 @@ collectCall exprType symbol es = do
 collectExpr :: BoM CollectState m => S.Expr -> m ()
 collectExpr (S.AExpr exprType expr) = collectPos expr $ case expr of
     S.Call _ s es        -> collectCall exprType s es
-    S.CallMember _ e s es -> collectCallMember exprType e s es
+    S.CallMember _ ps s es -> collectCallMember exprType ps s es
     S.Conv _ t [e]       -> collectEq exprType t >> collectExpr e
     S.Prefix _ op e      -> collectEq exprType (typeOf e) >> collectExpr e
     S.Int _ c            -> collectDefault exprType I64

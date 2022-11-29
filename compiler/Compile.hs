@@ -179,12 +179,12 @@ cmpFuncHdr (S.FuncDef pos params sym args retty blk)  = trace "cmpFuncHdr" $ wit
             addSymKeyDec (Sym sym) KeyVar name (DecFunc argOpTypes returnOpType)
             addDeclared name
 
-        [param] -> do
-            let paramType = S.paramType param
-            paramOpTyp <- LL.ptr <$> opTypeOf paramType
-            let op = fnOp name (paramOpTyp : argOpTypes) returnOpType False
-            define (Sym sym) (KeyMember paramType argTypes retty) (ObjFnOp op) 
-            addSymKeyDec (Sym sym) (KeyMember paramType argTypes retty) name (DecFunc (paramOpTyp : argOpTypes) returnOpType)
+        params -> do
+            let paramTypes = map S.paramType params
+            paramOpTypes <- map LL.ptr <$> mapM opTypeOf paramTypes
+            let op = fnOp name (paramOpTypes ++ argOpTypes) returnOpType False
+            define (Sym sym) (KeyMember paramTypes argTypes retty) (ObjFnOp op) 
+            addSymKeyDec (Sym sym) (KeyMember paramTypes argTypes retty) name (DecFunc (paramOpTypes ++ argOpTypes) returnOpType)
             addDeclared name
 
 
@@ -214,21 +214,24 @@ cmpFuncDef (S.FuncDef pos params sym args retty blk) = trace "cmpFuncDef" $ with
                     define symbol KeyVar (ObjVal loc)
                 cmpFnBlock
 
-        [param] -> do
-            let paramType = S.paramType param
-            let paramSymbol = S.paramName param
-            paramOpTyp <- LL.ptr <$> opTypeOf paramType
-            let paramName = ParameterName $ mkBSS $ Symbol.sym $ paramSymbol
-            ObjFnOp op <- look (Sym sym) (KeyMember paramType argTypes retty)
+        params -> do
+            let paramTypes   = map S.paramType params
+            let paramSymbols = map S.paramName params
+            paramOpTypes    <- map LL.ptr <$> mapM opTypeOf paramTypes
+            let paramNames   = map (ParameterName . mkBSS . Symbol.sym) paramSymbols
+            ObjFnOp op <- look (Sym sym) (KeyMember paramTypes argTypes retty)
 
             let LL.ConstantOperand (C.GlobalReference _ name) = op
             let Name nameStr = name
-            void $ InstrCmpT . IRBuilderT . lift $ func name (zip (paramOpTyp : argOpTypes)  (paramName :argNames)) returnOpType $ \argOps -> do
-                define paramSymbol KeyVar (ObjVal $ Ptr paramType $ head argOps)
-                forM_ (zip3 argTypes (tail argOps) argSymbols) $ \(typ, op, symbol) -> do
+            void $ InstrCmpT . IRBuilderT . lift $ func name (zip (paramOpTypes ++ argOpTypes)  (paramNames ++ argNames)) returnOpType $ \argOps -> do
+                forM_ (zip3 paramTypes paramSymbols argOps) $ \(typ, symbol, op) -> do
+                    define symbol KeyVar (ObjVal $ Ptr typ $ op)
+
+                forM_ (zip3 argTypes (drop (length params) argOps) argSymbols) $ \(typ, op, symbol) -> do
                     loc <- mkAlloca typ
                     valStore loc (Val typ op)
                     define symbol KeyVar (ObjVal loc)
+
                 cmpFnBlock
     where
         cmpFnBlock :: InsCmp CompileState m => m ()
@@ -535,19 +538,22 @@ cmpExpr (S.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck exp
         loc <- getStringPointer s
         return (Val exprType loc)
 
-    S.CallMember pos expr symbol exprs  -> do
-        val <- cmpExpr expr
-        -- TODO possible to cause incorrect logic?
-        loc <- case val of
+    S.CallMember pos params symbol args  -> do
+        ps <- mapM cmpExpr params
+        as <- mapM cmpExpr args
+
+        -- TODO this calls alloca on values...
+        psLocs <- forM ps $ \val -> case val of
             Val _ op -> do 
                 local <- mkAlloca (valType val)
                 valStore local val
                 return $ valLoc local
             Ptr _ loc -> return loc
-        vals <- mapM valLoad =<< mapM cmpExpr exprs
-        obj <- look symbol $ KeyMember (valType val) (map valType vals) exprType
+
+        asOps <- map valOp <$> mapM valLoad as
+        obj <- look symbol $ KeyMember (map valType ps) (map valType as) exprType
         case obj of
-            ObjFnOp op -> Val exprType <$> call op [(o, []) | o <- loc : map valOp vals]
+            ObjFnOp op -> Val exprType <$> call op [(o, []) | o <- psLocs ++ asOps]
 
     S.Call pos symbol exprs -> do
         vals <- mapM valLoad =<< mapM cmpExpr exprs

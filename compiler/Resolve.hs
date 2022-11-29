@@ -374,10 +374,10 @@ instance Resolve Expr where
 
         AST.ADT pos expr -> AST.ADT pos <$> resolve expr
 
-        CallMember pos expr ident exprs -> do
-            expr' <- resolve expr
+        CallMember pos params ident exprs -> do
+            params' <- mapM resolve params
             exprs' <- mapM resolve exprs
-            return $ CallMember pos expr' ident exprs'
+            return $ CallMember pos params' ident exprs'
 
         Match pos expr pat -> do
             expr' <- resolve expr

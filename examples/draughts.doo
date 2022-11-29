@@ -14,7 +14,7 @@ fn {board Board} Contains(p Pos) bool
     return board[..][p.row] && board[p.row][..][p.col]
 
 
-fn {list [Move]} GetValidMoves(board Board)
+fn {board Board, list [Move]} GetValidMoves()
     data positions [Pos]
     for board[..] -> r
         for board[r][..] -> c
@@ -37,7 +37,9 @@ fn {list [Move]} GetValidMoves(board Board)
                 if board[pm.row][pm.col] == Empty()
                     whiteMoves.push((pos, pm))
 
-    print(whiteMoves)
+    for whiteMoves -> move
+        list.push(move)
+
     return
 
 
@@ -100,8 +102,9 @@ fn {board Board} playerMove()
 
 
     data moves [Move]
-    moves.GetValidMoves(board)
+    {board, moves}.GetValidMoves()
 
+    print("moves: ", moves)
     print(startCol, startRow, endCol, endRow)
     return
 

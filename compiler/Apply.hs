@@ -93,7 +93,7 @@ instance Apply S.Expr where
         S.TupleIndex pos e i       -> S.TupleIndex pos (apply subs e) i
         S.UnsafePtr p e            -> S.UnsafePtr p (apply subs e)
         S.ADT p e                  -> S.ADT p (apply subs e)
-        S.CallMember p e ident es  -> S.CallMember p (apply subs e) ident (map (apply subs) es)
+        S.CallMember p ps ident es -> S.CallMember p (map (apply subs) ps) ident (map (apply subs) es)
         S.Push p e es              -> S.Push p (apply subs e) (map (apply subs) es)
         S.Pop p e es               -> S.Pop p (apply subs e) (map (apply subs) es)
         S.Clear p e                -> S.Clear p (apply subs e)
