@@ -80,9 +80,9 @@ cmpExtern extern = catchError (cmpExtern' extern) $ \e -> return ()
                 paramOpTypes <- mapM opTypeOf argTypes
                 returnOpType <- opTypeOf retty
 
-                addSymKeyDec symbol (KeyFunc argTypes retty) name (DecExtern paramOpTypes returnOpType False)
+                addSymKeyDec symbol (KeyFunc [] argTypes retty) name (DecExtern paramOpTypes returnOpType False)
                 let op = fnOp name paramOpTypes returnOpType False
-                define symbol (KeyFunc argTypes retty) (ObjFnOp op)
+                define symbol (KeyFunc [] argTypes retty) (ObjFnOp op)
 
             ExtConstInt sym integer -> do
                 let symbol = SymQualified "c" sym

@@ -90,7 +90,7 @@ adtTypeDef symbol (S.AnnoADT xs) = trace "adtTypeDef" $ do
     -- define member loopkups
     forM_ (zip xs [0..]) $ \(x, i) -> case x of
         S.ADTFieldMember s ts -> do
-            define s (KeyFunc ts typdef) (ObjField i)
+            define s (KeyFunc [] ts typdef) (ObjField i)
             define s (KeyField typdef) (ObjField i)
         S.ADTFieldType t@(Typedef s) -> do
             define s (KeyField typdef) (ObjAdtTypeField i)
@@ -100,10 +100,10 @@ adtTypeDef symbol (S.AnnoADT xs) = trace "adtTypeDef" $ do
         S.ADTFieldNull -> return ()
 
     -- define constructors
-    define symbol (KeyFunc [] typdef)       ObjConstructor 
-    define symbol (KeyFunc [typdef] typdef) ObjConstructor
+    define symbol (KeyFunc [] [] typdef)       ObjConstructor 
+    define symbol (KeyFunc [] [typdef] typdef) ObjConstructor
     forM_ xs $ \x -> case x of
-        S.ADTFieldType t -> define symbol (KeyFunc [t] typdef) ObjConstructor
+        S.ADTFieldType t -> define symbol (KeyFunc [] [t] typdef) ObjConstructor
         _ -> return ()
 
 

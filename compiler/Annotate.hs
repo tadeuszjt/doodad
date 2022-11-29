@@ -117,8 +117,12 @@ instance Annotate Expr where
         Tuple p es -> Tuple p <$> mapM annotate es
         Prefix p op e -> Prefix p op <$> annotate e
         Array p es -> Array p <$> mapM annotate es
-        Call p s es -> Call p s <$> mapM annotate es
         UnsafePtr p e -> UnsafePtr p <$> annotate e
+
+        Call pos ps ident es -> do
+            ps' <- mapM annotate ps
+            es' <- mapM annotate es
+            return $ Call pos ps' ident es'
 
         Infix p op e1 e2 -> do
             e1' <- annotate e1
@@ -137,11 +141,6 @@ instance Annotate Expr where
             return $ TupleIndex p e' i
 
         AST.ADT pos e -> AST.ADT pos <$> annotate e
-
-        CallMember pos ps ident es -> do
-            ps' <- mapM annotate ps
-            es' <- mapM annotate es
-            return $ CallMember pos ps' ident es'
 
         Push pos e es -> do
             e' <- annotate e

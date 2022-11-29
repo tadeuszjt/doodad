@@ -22,25 +22,54 @@ fn {board Board, list [Move]} GetValidMoves()
                 positions.push(Pos(r, c))
 
     data whitePositions [Pos]
+    data blackPositions [Pos]
     for positions -> pos
         if board[pos.row][pos.col] == White()
             whitePositions.push(pos)
+        if board[pos.row][pos.col] == Black()
+            blackPositions.push(pos)
 
     data whiteMoves [Move]
     for whitePositions -> pos
-        let potentialMovesEmpty = [
-            Pos(pos.row + 1, pos.col + 1),
-            Pos(pos.row + 1, pos.col - 1)
-        ]
+        data potentialMovesEmpty [2 Pos]
+        potentialMovesEmpty[0] = Pos(pos.row + 1, pos.col + 1)
+        potentialMovesEmpty[1] = Pos(pos.row + 1, pos.col - 1)
+
         for potentialMovesEmpty -> pm
-            if board.Contains(pm)
-                if board[pm.row][pm.col] == Empty()
+            if board.Contains(pm) && board[pm.row][pm.col] == Empty()
+                whiteMoves.push((pos, pm))
+
+        data potentialMovesTake [2 Pos]
+        potentialMovesTake[0] = Pos(pos.row + 2, pos.col + 2)
+        potentialMovesTake[1] = Pos(pos.row + 2, pos.col - 2)
+
+        for potentialMovesTake -> pm
+            if board.Contains(pm) && board[pm.row][pm.col] == Empty()
+                if board[(pm.row + pos.row) / 2][(pm.col + pos.col) / 2] == Black()
                     whiteMoves.push((pos, pm))
+
+    data blackMoves [Move]
+    for blackPositions -> pos
+        data potentialMovesEmpty [2 Pos]
+        potentialMovesEmpty[0] = Pos(pos.row - 1, pos.col + 1)
+        potentialMovesEmpty[1] = Pos(pos.row - 1, pos.col - 1)
+        for potentialMovesEmpty -> pm
+            if board.Contains(pm) && board[pm.row][pm.col] == Empty()
+                blackMoves.push((pos, pm))
+
+        data potentialMovesTake [2 Pos]
+        potentialMovesTake[0] = Pos(pos.row - 2, pos.col + 2)
+        potentialMovesTake[1] = Pos(pos.row - 2, pos.col - 2)
+        for potentialMovesTake -> pm
+            if board.Contains(pm) && board[pm.row][pm.col] == Empty()
+                if board[(pm.row + pos.row) / 2][(pm.col + pos.col) / 2] == White()
+                    blackMoves.push((pos, pm))
+
+    for blackMoves -> move
+        list.push(move)
 
     for whiteMoves -> move
         list.push(move)
-
-    return
 
 
 fn {board Board} Print()

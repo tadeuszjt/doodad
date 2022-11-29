@@ -76,8 +76,7 @@ data Expr
     | String     TextPos String
     | Tuple      TextPos [Expr]
     | Array      TextPos [Expr]
-    | Call       TextPos Symbol [Expr]
-    | CallMember TextPos [Expr] Symbol [Expr]
+    | Call       TextPos [Expr] Symbol [Expr]
     | Null       TextPos 
     | Field      TextPos Expr String
     | Subscript  TextPos Expr Expr
@@ -158,14 +157,13 @@ instance TextPosition Expr where
         Subscript  p _ _ -> p
         TupleIndex p _ _ -> p
         Ident      p _ -> p
-        Call       p _ _ -> p 
+        Call       p _ _ _ -> p 
         Conv       p _ _ -> p
         Len        p _ -> p
         Prefix     p _ _ -> p
         Infix      p _ _ _ -> p
         UnsafePtr  p _ -> p
         ADT        p _ -> p
-        CallMember p _ _ _ -> p
         Push       p _ _ -> p
         Pop        p _ _ -> p
         Clear      p _ -> p
@@ -263,14 +261,14 @@ instance Show Expr where
         Subscript pos expr1 expr2   -> show expr1 ++ "[" ++ show expr2 ++ "]"
         TupleIndex pos expr n       -> show expr ++ "." ++ show n
         Ident p s                   -> show s 
-        Call pos symbol exprs       -> show symbol ++ tupStrs (map show exprs)
         Conv pos typ exprs          -> show typ ++ tupStrs (map show exprs)
         Len pos expr                -> "len(" ++ show expr ++ ")"
         UnsafePtr pos expr          -> "unsafe_ptr(" ++ show expr ++ ")"
         Prefix pos op expr          -> show op ++ show expr
         Infix pos op expr1 expr2    -> show expr1 ++ " " ++ show op ++ " " ++ show expr2
         ADT pos expr                 -> brcStrs [show expr]
-        CallMember pos expr symbol exprs -> show expr ++ "." ++ show symbol ++ tupStrs (map show exprs)
+        Call pos [] symbol exprs     -> show symbol ++ tupStrs (map show exprs)
+        Call pos params symbol exprs -> brcStrs (map show params) ++ "." ++ show symbol ++ tupStrs (map show exprs)
         Push pos expr exprs              -> show expr ++ ".push" ++ tupStrs (map show exprs)
         Pop pos expr exprs               -> show expr ++ ".pop" ++ tupStrs (map show exprs)
         Clear pos expr                   -> show expr ++ ".clear" ++ tupStrs []

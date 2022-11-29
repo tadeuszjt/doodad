@@ -61,8 +61,7 @@ valType (Val typ _) = typ
 data SymKey
     = KeyType
     | KeyVar
-    | KeyFunc [Type] Type
-    | KeyMember [Type] [Type] Type
+    | KeyFunc [Type] [Type] Type
     | KeyField Type
     | KeyTypeField Type
     deriving (Eq, Ord)
@@ -70,8 +69,7 @@ data SymKey
 instance Show SymKey where
     show KeyType = "type"
     show KeyVar  = "var"
-    show (KeyMember t ts rt) = "fn(" ++ show t ++ ")(" ++ intercalate ", " (map show ts) ++ ")" ++ show rt
-    show (KeyFunc ts rt) = "fn(" ++ intercalate ", " (map show ts) ++ ")" ++ show rt
+    show (KeyFunc ps ts rt) = "fn" ++ S.brcStrs (map show ps) ++ " (" ++ intercalate ", " (map show ts) ++ ")" ++ show rt
     show (KeyField t) = show t ++ "."
     show (KeyTypeField typ) = show typ
 

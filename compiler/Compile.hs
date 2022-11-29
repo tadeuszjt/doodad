@@ -111,9 +111,9 @@ cmpTypeDef (S.Typedef pos symbol (S.AnnoType typ)) = withPos pos $ do
         t | isTable t -> tableTypeDef symbol (S.AnnoType t)
         t             -> do
             let typdef = Typedef symbol
-            define symbol (KeyFunc [] typdef) ObjConstructor
-            define symbol (KeyFunc [t] typdef) ObjConstructor
-            define symbol (KeyFunc [typdef] typdef) ObjConstructor
+            define symbol (KeyFunc [] [] typdef) ObjConstructor
+            define symbol (KeyFunc [] [t] typdef) ObjConstructor
+            define symbol (KeyFunc [] [typdef] typdef) ObjConstructor
             define symbol KeyType (ObType t Nothing)
                     
 
@@ -173,9 +173,9 @@ cmpFuncHdr (S.FuncDef pos params sym args retty blk)  = trace "cmpFuncHdr" $ wit
     case params of
         [] -> do
             let op = fnOp name argOpTypes returnOpType False
-            define (Sym sym) (KeyFunc argTypes retty) (ObjFnOp op) 
+            define (Sym sym) (KeyFunc [] argTypes retty) (ObjFnOp op) 
             --redefine (Sym sym) KeyVar $ ObjVal $ Val (Func argTypes retty) op
-            addSymKeyDec (Sym sym) (KeyFunc argTypes retty) name (DecFunc argOpTypes returnOpType)
+            addSymKeyDec (Sym sym) (KeyFunc [] argTypes retty) name (DecFunc argOpTypes returnOpType)
             addSymKeyDec (Sym sym) KeyVar name (DecFunc argOpTypes returnOpType)
             addDeclared name
 
@@ -183,8 +183,8 @@ cmpFuncHdr (S.FuncDef pos params sym args retty blk)  = trace "cmpFuncHdr" $ wit
             let paramTypes = map S.paramType params
             paramOpTypes <- map LL.ptr <$> mapM opTypeOf paramTypes
             let op = fnOp name (paramOpTypes ++ argOpTypes) returnOpType False
-            define (Sym sym) (KeyMember paramTypes argTypes retty) (ObjFnOp op) 
-            addSymKeyDec (Sym sym) (KeyMember paramTypes argTypes retty) name (DecFunc (paramOpTypes ++ argOpTypes) returnOpType)
+            define (Sym sym) (KeyFunc paramTypes argTypes retty) (ObjFnOp op) 
+            addSymKeyDec (Sym sym) (KeyFunc paramTypes argTypes retty) name (DecFunc (paramOpTypes ++ argOpTypes) returnOpType)
             addDeclared name
 
 
@@ -203,7 +203,7 @@ cmpFuncDef (S.FuncDef pos params sym args retty blk) = trace "cmpFuncDef" $ with
 
     case params of
         [] -> do
-            ObjFnOp op <- look (Sym sym) (KeyFunc argTypes retty)
+            ObjFnOp op <- look (Sym sym) (KeyFunc [] argTypes retty)
 
             let LL.ConstantOperand (C.GlobalReference _ name) = op
             let Name nameStr = name
@@ -219,7 +219,7 @@ cmpFuncDef (S.FuncDef pos params sym args retty blk) = trace "cmpFuncDef" $ with
             let paramSymbols = map S.paramName params
             paramOpTypes    <- map LL.ptr <$> mapM opTypeOf paramTypes
             let paramNames   = map (ParameterName . mkBSS . Symbol.sym) paramSymbols
-            ObjFnOp op <- look (Sym sym) (KeyMember paramTypes argTypes retty)
+            ObjFnOp op <- look (Sym sym) (KeyFunc paramTypes argTypes retty)
 
             let LL.ConstantOperand (C.GlobalReference _ name) = op
             let Name nameStr = name
@@ -538,7 +538,15 @@ cmpExpr (S.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck exp
         loc <- getStringPointer s
         return (Val exprType loc)
 
-    S.CallMember pos params symbol args  -> do
+    S.Call pos [] symbol exprs -> do
+        vals <- mapM valLoad =<< mapM cmpExpr exprs
+        obj <- look symbol $ KeyFunc [] (map valType vals) exprType
+        case obj of
+            ObjConstructor  -> mkConstruct exprType vals
+            ObjFnOp op      -> Val exprType <$> call op [(o, []) | o <- map valOp vals]
+            ObjField i      -> adtConstructField symbol exprType vals
+
+    S.Call pos params symbol args  -> do
         ps <- mapM cmpExpr params
         as <- mapM cmpExpr args
 
@@ -551,17 +559,9 @@ cmpExpr (S.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck exp
             Ptr _ loc -> return loc
 
         asOps <- map valOp <$> mapM valLoad as
-        obj <- look symbol $ KeyMember (map valType ps) (map valType as) exprType
+        obj <- look symbol $ KeyFunc (map valType ps) (map valType as) exprType
         case obj of
             ObjFnOp op -> Val exprType <$> call op [(o, []) | o <- psLocs ++ asOps]
-
-    S.Call pos symbol exprs -> do
-        vals <- mapM valLoad =<< mapM cmpExpr exprs
-        obj <- look symbol $ KeyFunc (map valType vals) exprType
-        case obj of
-            ObjConstructor  -> mkConstruct exprType vals
-            ObjFnOp op      -> Val exprType <$> call op [(o, []) | o <- map valOp vals]
-            ObjField i      -> adtConstructField symbol exprType vals
     
     S.Len pos expr -> valLoad =<< do
         assertBaseType isIntegral exprType

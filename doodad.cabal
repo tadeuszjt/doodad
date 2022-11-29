@@ -37,7 +37,8 @@ executable doodad
         array,
         directory,
         haskeline,
-        filepath
+        filepath,
+        exceptions
     build-tools:
         alex,
         happy

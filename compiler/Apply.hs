@@ -53,9 +53,8 @@ instance Apply Collect.SymKey where
     apply subs key = case key of
         KeyVar        -> KeyVar
         KeyType       -> KeyType
-        KeyFunc ts rt -> KeyFunc (map (apply subs) ts) (apply subs rt)
         KeyField t   -> KeyField (apply subs t)
-        KeyMember ps as rt -> KeyMember (map (apply subs) ps) (map (apply subs) as) (apply subs rt)
+        KeyFunc ps as rt -> KeyFunc (map (apply subs) ps) (map (apply subs) as) (apply subs rt)
 
 instance Apply Constraint where
     apply subs (ConsEq t1 t2)       = ConsEq (apply subs t1) (apply subs t2)
@@ -81,19 +80,18 @@ instance Apply S.Expr where
         S.Int   pos n              -> expr
         S.Null  pos                -> expr
         S.Prefix pos op expr1      -> S.Prefix pos op (apply subs expr1)
-        S.Call  pos sym exprs      -> S.Call pos sym $ map (apply subs) exprs
         S.Conv  pos t exprs        -> S.Conv pos (apply subs t) $ map (apply subs) exprs
         S.Len   pos e              -> S.Len  pos (apply subs e)
         S.Bool  pos b              -> expr
         S.Subscript pos e1 e2      -> S.Subscript pos (apply subs e1) (apply subs e2)
         S.String pos s             -> expr
-        S.Field pos e s           -> S.Field pos (apply subs e) s
+        S.Field pos e s            -> S.Field pos (apply subs e) s
         S.Float pos f              -> expr
         S.Array pos es             -> S.Array pos $ map (apply subs) es
         S.TupleIndex pos e i       -> S.TupleIndex pos (apply subs e) i
         S.UnsafePtr p e            -> S.UnsafePtr p (apply subs e)
         S.ADT p e                  -> S.ADT p (apply subs e)
-        S.CallMember p ps ident es -> S.CallMember p (map (apply subs) ps) ident (map (apply subs) es)
+        S.Call p ps ident es       -> S.Call p (map (apply subs) ps) ident (map (apply subs) es)
         S.Push p e es              -> S.Push p (apply subs e) (map (apply subs) es)
         S.Pop p e es               -> S.Pop p (apply subs e) (map (apply subs) es)
         S.Clear p e                -> S.Clear p (apply subs e)

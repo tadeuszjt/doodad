@@ -331,16 +331,21 @@ instance Resolve Expr where
             expr2' <- resolve expr2
             return $ Delete pos expr1' expr2' 
 
-        Call pos symbol exprs -> do
+        Call pos [] symbol exprs -> do
             exprs' <- mapM resolve exprs
             symbolm <- lookm symbol KeyFunc
             case symbolm of
-                Just symbol' -> return $ Call pos symbol' exprs'
+                Just symbol' -> return $ Call pos [] symbol' exprs'
                 Nothing -> do
                     symbolmm <- lookm symbol KeyType
                     case symbolmm of
                         Nothing ->      fail $ show symbol ++ " isn't defined"
-                        Just symbol' -> return $ Call pos symbol' exprs'
+                        Just symbol' -> return $ Call pos [] symbol' exprs'
+
+        Call pos params ident exprs -> do
+            params' <- mapM resolve params
+            exprs' <- mapM resolve exprs
+            return $ Call pos params' ident exprs'
 
         Infix pos op exprA exprB -> do
             exprA' <- resolve exprA
@@ -374,10 +379,6 @@ instance Resolve Expr where
 
         AST.ADT pos expr -> AST.ADT pos <$> resolve expr
 
-        CallMember pos params ident exprs -> do
-            params' <- mapM resolve params
-            exprs' <- mapM resolve exprs
-            return $ CallMember pos params' ident exprs'
 
         Match pos expr pat -> do
             expr' <- resolve expr

@@ -50,7 +50,6 @@ isDataType typ = do
         Void              -> return False
         String            -> return False
         Tuple ts          -> any (== True) <$> mapM isDataType ts
-        Array n t         -> isDataType t
         Range t           -> isDataType t
         _                 -> return True
 

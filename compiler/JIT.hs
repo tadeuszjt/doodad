@@ -5,6 +5,7 @@ module JIT where
 
 import           Control.Monad.Except     hiding (void)
 import           Control.Monad
+import           Control.Monad.Catch
 import qualified Data.ByteString.Char8    as BS
 import           Data.IORef
 import           Data.Maybe
@@ -125,12 +126,17 @@ jitAndRun defs session keepModule verbose = do
             let pm = passManager session
             let cl = compileLayer session
 
-            verify mod
+            verifyErr <- catchAll (verify mod >> return Nothing) $ \e ->
+                return (Just e)
+
             when (isJust pm) $ do
                 when verbose (putStrLn "running optimisation passes...")
                 void $ runPassManager (fromJust pm) mod
 
             when verbose (BS.putStrLn =<< M.moduleLLVMAssembly mod)
+            when (isJust verifyErr) $ do
+                putStrLn "Warning: verify threw exception: "
+                putStrLn $ show (fromJust verifyErr)
 
             addModule cl modKey mod
 

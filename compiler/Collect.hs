@@ -31,8 +31,7 @@ type SymTab = SymTab.SymTab Symbol SymKey Object
 data SymKey
     = KeyVar
     | KeyType
-    | KeyFunc [Type] Type
-    | KeyMember [Type] [Type] Type
+    | KeyFunc [Type] [Type] Type
     | KeyField Type
     | KeyAdtField
     deriving (Show, Eq, Ord)
@@ -153,7 +152,7 @@ collectCExterns :: BoM CollectState m => [Extern] -> m ()
 collectCExterns externs = do
     forM_ externs $ \extern -> case extern of
         ExtVar sym (S.AnnoType typ) -> define (SymQualified "c" sym) KeyVar (ObjVar typ)
-        ExtFunc sym argTypes retty  -> define (SymQualified "c" sym) (KeyFunc argTypes retty) ObjFunc
+        ExtFunc sym argTypes retty  -> define (SymQualified "c" sym) (KeyFunc [] argTypes retty) ObjFunc
         ExtConstInt sym n           -> define (SymQualified "c" sym) KeyVar (ObjVar I64)
         ExtTypeDef sym typ          -> define (SymQualified "c" sym) KeyType (ObjType typ)
 
@@ -165,9 +164,7 @@ collectAST ast = do
     forM typedefs $ collectTypedef
 
     forM funcdefs $ \(S.FuncDef pos params sym args retty _) -> collectPos pos $ do
-        case params of
-            [] -> define (Sym sym) (KeyFunc   (map S.paramType args) retty) ObjFunc
-            ps -> define (Sym sym) (KeyMember (map S.paramType ps) (map S.paramType args) retty) ObjFunc
+        define (Sym sym) (KeyFunc (map S.paramType params) (map S.paramType args) retty) ObjFunc
 
     mapM_ collectStmt stmts''
     where
@@ -185,26 +182,26 @@ collectTypedef (S.Typedef pos symbol annoTyp) = collectPos pos $ case annoTyp of
     S.AnnoType (Tuple ts) -> do
         let typedef = Typedef symbol
         define symbol KeyType (ObjType $ Tuple ts)
-        define symbol (KeyFunc ts typedef) ObjFunc
+        define symbol (KeyFunc [] ts typedef) ObjFunc
         
     S.AnnoType t   -> do
         let typedef = Typedef symbol
         define symbol KeyType (ObjType t)
-        define symbol (KeyFunc [t] typedef) ObjFunc
+        define symbol (KeyFunc [] [t] typedef) ObjFunc
 
     S.AnnoTuple xs   -> do
         let typedef = Typedef symbol
         let ts = map snd xs
         forM_ (zip xs [0..]) $ \((s, t), i) -> define (Sym s) (KeyField typedef) (ObjField i)
         define symbol KeyType $ ObjType $ Tuple (map snd xs)
-        define symbol (KeyFunc ts typedef) ObjFunc
+        define symbol (KeyFunc [] ts typedef) ObjFunc
 
     S.AnnoADT xs -> do
         let typedef = Typedef symbol
         fs <- forM (zip xs [0..]) $ \(x, i) -> case x of
             S.ADTFieldMember s ts -> do
                 define s KeyAdtField (ObjField i)
-                define s (KeyFunc ts typedef) ObjFunc
+                define s (KeyFunc [] ts typedef) ObjFunc
                 return (FieldCtor ts)
 
             S.ADTFieldType t -> return (FieldType t)
@@ -336,15 +333,15 @@ collectPattern pattern typ = collectPos pattern $ case pattern of
 
 
 
-collectCallMember :: BoM CollectState m => Type -> [S.Expr] -> Symbol -> [S.Expr] -> m ()
-collectCallMember exprType ps symbol es = do
+collectCall :: BoM CollectState m => Type -> [S.Expr] -> Symbol -> [S.Expr] -> m ()
+collectCall exprType ps symbol es = do
     kos <- lookSym symbol
-    let ks = [ k | (k@(KeyMember _ _ _), ObjFunc) <- kos ]
+    let ks = [ k | (k@(KeyFunc _ _ _), ObjFunc) <- kos ]
 
-    let ksSameRetty   = [ k | k@(KeyMember _ _ rt) <- ks, rt == exprType ]
-    let ksSameArgs    = [ k | k@(KeyMember _ xs _) <- ks, xs == map typeOf es ]
-    let ksSameArgsLen = [ k | k@(KeyMember _ xs _) <- ks, length xs == length es ]
-    let ksSameParams  = [ k | k@(KeyMember xs _ _) <- ks, xs == map typeOf ps ]
+    let ksSameRetty   = [ k | k@(KeyFunc _ _ rt) <- ks, rt == exprType ]
+    let ksSameArgs    = [ k | k@(KeyFunc _ xs _) <- ks, xs == map typeOf es ]
+    let ksSameArgsLen = [ k | k@(KeyFunc _ xs _) <- ks, length xs == length es ]
+    let ksSameParams  = [ k | k@(KeyFunc xs _ _) <- ks, xs == map typeOf ps ]
 
     let kss = [ks, ksSameRetty, ksSameArgs, ksSameArgsLen, ksSameParams]
     mapM_ collectIfOneDef kss
@@ -354,7 +351,7 @@ collectCallMember exprType ps symbol es = do
     mapM_ collectExpr es
     where
         collectIfOneDef :: BoM CollectState m => [SymKey] -> m ()
-        collectIfOneDef [KeyMember xs ys z] = do
+        collectIfOneDef [KeyFunc xs ys z] = do
             assert (length ys == length es) "Invalid number of arguments"
             assert (length xs == length ps) "Invalid number of parameters"
             collectEq z exprType
@@ -369,44 +366,14 @@ collectCallMember exprType ps symbol es = do
             ks2 -> intersect ks ks2
 
 
-collectCall :: BoM CollectState m => Type -> Symbol -> [S.Expr] -> m ()
-collectCall exprType symbol es = do
-    kos <- lookSym symbol
-    let ks = [ k | (k@(KeyFunc _ _), ObjFunc) <- kos ]
-
-    let ksSameRetty   = [ k | k@(KeyFunc _ rt) <- ks, rt == exprType ]
-    let ksSameArgs    = [ k | k@(KeyFunc as _) <- ks, as == map typeOf es ]
-    let ksSameArgsLen = [ k | k@(KeyFunc as _) <- ks, length as == length es ]
-
-    let kss = [ks, ksSameRetty, ksSameArgs, ksSameArgsLen]
-    mapM_ collectIfOneDef kss
-    collectIfOneDef $ intersectMatches kss
-
-    mapM_ collectExpr es
-    where
-        collectIfOneDef :: BoM CollectState m => [SymKey] -> m ()
-        collectIfOneDef [KeyFunc as rt] = do
-            assert (length as == length es) "Invalid number of arguments"
-            collectEq rt exprType
-            zipWithM_ collectEq as (map typeOf es)
-        collectIfOneDef _ = return ()
-            
-        intersectMatches :: [[SymKey]] -> [SymKey]
-        intersectMatches []       = []
-        intersectMatches (ks:kss) = case intersectMatches kss of
-            []  -> ks
-            ks2 -> intersect ks ks2
-
-
 collectExpr :: BoM CollectState m => S.Expr -> m ()
 collectExpr (S.AExpr exprType expr) = collectPos expr $ case expr of
-    S.Call _ s es        -> collectCall exprType s es
-    S.CallMember _ ps s es -> collectCallMember exprType ps s es
-    S.Conv _ t [e]       -> collectEq exprType t >> collectExpr e
-    S.Prefix _ op e      -> collectEq exprType (typeOf e) >> collectExpr e
-    S.Int _ c            -> collectDefault exprType I64
-    S.Len _ e            -> collectDefault exprType I64 >> collectExpr e
-    S.Float _ f          -> collectDefault exprType F64
+    S.Call _ ps s es -> collectCall exprType ps s es
+    S.Conv _ t [e]   -> collectEq exprType t >> collectExpr e
+    S.Prefix _ op e  -> collectEq exprType (typeOf e) >> collectExpr e
+    S.Int _ c        -> collectDefault exprType I64
+    S.Len _ e        -> collectDefault exprType I64 >> collectExpr e
+    S.Float _ f      -> collectDefault exprType F64
 
     S.Push _ e es        -> do
         collectDefault exprType I64
