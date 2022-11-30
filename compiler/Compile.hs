@@ -208,13 +208,9 @@ cmpFuncDef (S.FuncDef pos params sym args retty blk) = trace "cmpFuncDef" $ with
 
         cmpStmt blk
         hasTerm <- hasTerminator
-        if hasTerm
-        then return ()
-        else if retty == Void
-        then retVoid
-        else do
-            trap
-            unreachable
+        if hasTerm then return ()
+        else if retty == Void then retVoid
+        else trap >> unreachable
 
 
 cmpPrint :: InsCmp CompileState m => S.Stmt -> m ()

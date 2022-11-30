@@ -3,6 +3,7 @@ module draughts
 import ../std/io
 import ../std/strings
 import ../std/chars
+import ../std/rand
 
 
 type Square { Empty() | White() | Black() }
@@ -14,62 +15,47 @@ fn {board Board} Contains(p Pos) bool
     return board[..][p.row] && board[p.row][..][p.col]
 
 
-fn {board Board, list [Move]} GetValidMoves()
+fn {board Board, list [Move]} GetValidMoves(team Square)
     data positions [Pos]
     for board[..] -> r
         for board[r][..] -> c
-            if board[r][c] != Empty()
+            if board[r][c] == team
                 positions.push(Pos(r, c))
 
-    data whitePositions [Pos]
-    data blackPositions [Pos]
+    let rowAdvance = 0
+    switch team
+        White(); rowAdvance = 1
+        Black(); rowAdvance = -1
+
+    data moves [Move]
     for positions -> pos
-        if board[pos.row][pos.col] == White()
-            whitePositions.push(pos)
-        if board[pos.row][pos.col] == Black()
-            blackPositions.push(pos)
-
-    data whiteMoves [Move]
-    for whitePositions -> pos
         data potentialMovesEmpty [2 Pos]
-        potentialMovesEmpty[0] = Pos(pos.row + 1, pos.col + 1)
-        potentialMovesEmpty[1] = Pos(pos.row + 1, pos.col - 1)
+        potentialMovesEmpty[0] = Pos(pos.row + rowAdvance, pos.col + 1)
+        potentialMovesEmpty[1] = Pos(pos.row + rowAdvance, pos.col - 1)
 
         for potentialMovesEmpty -> pm
             if board.Contains(pm) && board[pm.row][pm.col] == Empty()
-                whiteMoves.push((pos, pm))
+                moves.push((pos, pm))
 
         data potentialMovesTake [2 Pos]
-        potentialMovesTake[0] = Pos(pos.row + 2, pos.col + 2)
-        potentialMovesTake[1] = Pos(pos.row + 2, pos.col - 2)
+        potentialMovesTake[0] = Pos(pos.row + rowAdvance*2, pos.col + 2)
+        potentialMovesTake[1] = Pos(pos.row + rowAdvance*2, pos.col - 2)
 
         for potentialMovesTake -> pm
             if board.Contains(pm) && board[pm.row][pm.col] == Empty()
-                if board[(pm.row + pos.row) / 2][(pm.col + pos.col) / 2] == Black()
-                    whiteMoves.push((pos, pm))
+                if board[(pm.row + pos.row) / 2][(pm.col + pos.col) / 2] -> sq | sq != Empty() && sq != team
+                    moves.push((pos, pm))
 
-    data blackMoves [Move]
-    for blackPositions -> pos
-        data potentialMovesEmpty [2 Pos]
-        potentialMovesEmpty[0] = Pos(pos.row - 1, pos.col + 1)
-        potentialMovesEmpty[1] = Pos(pos.row - 1, pos.col - 1)
-        for potentialMovesEmpty -> pm
-            if board.Contains(pm) && board[pm.row][pm.col] == Empty()
-                blackMoves.push((pos, pm))
-
-        data potentialMovesTake [2 Pos]
-        potentialMovesTake[0] = Pos(pos.row - 2, pos.col + 2)
-        potentialMovesTake[1] = Pos(pos.row - 2, pos.col - 2)
-        for potentialMovesTake -> pm
-            if board.Contains(pm) && board[pm.row][pm.col] == Empty()
-                if board[(pm.row + pos.row) / 2][(pm.col + pos.col) / 2] == White()
-                    blackMoves.push((pos, pm))
-
-    for blackMoves -> move
+    for moves -> move
         list.push(move)
 
-    for whiteMoves -> move
-        list.push(move)
+
+fn {board Board} MakeMove(move Move) bool
+    if !board.Contains(move.start) || !board.Contains(move.end)
+        return false
+    board[move.end.row][move.end.col] = board[move.start.row][move.start.col]
+    board[move.start.row][move.start.col] = Empty()
+    return true
 
 
 fn {board Board} Print()
@@ -130,10 +116,10 @@ fn {board Board} playerMove()
         print("start isnt black")
 
 
-    data moves [Move]
-    {board, moves}.GetValidMoves()
+    data whiteMoves [Move]
+    {board, whiteMoves}.GetValidMoves(White())
 
-    print("moves: ", moves)
+    print("moves: ", whiteMoves)
     print(startCol, startRow, endCol, endRow)
     return
 
@@ -142,5 +128,9 @@ fn main()
     data board Board
     board.Initialise()
     board.Print()
-    board.playerMove()
+
+    data whiteMoves [Move]
+    {board, whiteMoves}.GetValidMoves(White())
+    let idx = rand::I64() % whiteMoves.len()
+    board.MakeMove(whiteMoves[idx])
     board.Print()
