@@ -37,112 +37,124 @@ substitute u x typ = case typ of
 class Apply a where
     apply :: [(Int, Type)] -> a -> a
 
-
+instance Apply Type where
+    apply subs t = foldr (\(x, u) z -> substitute u x z) t subs
+    
 instance Apply Collect.SymTab where
     apply subs symTab =
         SymTab.mapKeys (apply subs) $ SymTab.map (apply subs) symTab
 
 instance Apply Collect.Object where
     apply subs object = case object of
-        ObjVar t    -> ObjVar (apply subs t)
-        ObjType t   -> ObjType (apply subs t)
-        ObjFunc     -> ObjFunc
+        ObjVar t   -> ObjVar (apply subs t)
+        ObjType t  -> ObjType (apply subs t)
+        ObjFunc    -> ObjFunc
         ObjField i -> ObjField i
 
 instance Apply Collect.SymKey where
     apply subs key = case key of
-        KeyVar        -> KeyVar
-        KeyType       -> KeyType
-        KeyField t   -> KeyField (apply subs t)
-        KeyFunc ps as rt -> KeyFunc (map (apply subs) ps) (map (apply subs) as) (apply subs rt)
+        KeyVar           -> KeyVar
+        KeyType          -> KeyType
+        KeyField t       -> KeyField (f t)
+        KeyFunc ps as rt -> KeyFunc (map f ps) (map f as) (f rt)
+        where
+            f :: Apply a => a -> a
+            f = apply subs
 
 instance Apply Constraint where
-    apply subs (ConsEq t1 t2)       = ConsEq (apply subs t1) (apply subs t2)
-    apply subs (ConsBase   t1 t2)   = ConsBase   (apply subs t1) (apply subs t2)
-    apply subs (ConsElem   t1 t2)   = ConsElem   (apply subs t1) (apply subs t2)
-    apply subs (ConsSubscript t1 t2)   = ConsSubscript   (apply subs t1) (apply subs t2)
-    apply subs (ConsField t1 i t2) = ConsField (apply subs t1) i (apply subs t2)
-    apply subs (ConsAdtMem t1 i j t2) = ConsAdtMem (apply subs t1) i j (apply subs t2)
+    apply subs constraint = case constraint of
+        ConsEq t1 t2         -> ConsEq (f t1) (f t2)
+        ConsBase t1 t2       -> ConsBase (f t1) (f t2)
+        ConsElem t1 t2       -> ConsElem (f t1) (f t2)
+        ConsSubscript t1 t2  -> ConsSubscript (f t1) (f t2)
+        ConsField t1 i t2    -> ConsField (f t1) i (f t2)
+        ConsAdtMem t1 i j t2 -> ConsAdtMem (f t1) i j (f t2)
+        where
+            f :: Apply a => a -> a
+            f = apply subs
 
-instance Apply Type where
-    apply subs t = foldr (\(x, u) z -> substitute u x z) t subs
-    
 instance Apply S.Param where
     apply subs (S.Param p n t) = S.Param p n (apply subs t)
 
 instance Apply S.Expr where
     apply subs expr = case expr of
-        S.AExpr t e                -> S.AExpr (apply subs t) (apply subs e)
-        S.Infix pos op expr1 expr2 -> S.Infix pos op (apply subs expr1) (apply subs expr2)
-        S.Tuple pos exprs          -> S.Tuple pos $ map (apply subs) exprs
-        S.Ident pos sym            -> expr
-        S.Char  pos c              -> expr
-        S.Int   pos n              -> expr
-        S.Null  pos                -> expr
-        S.Prefix pos op expr1      -> S.Prefix pos op (apply subs expr1)
-        S.Conv  pos t exprs        -> S.Conv pos (apply subs t) $ map (apply subs) exprs
-        S.Len   pos e              -> S.Len  pos (apply subs e)
-        S.Bool  pos b              -> expr
-        S.Subscript pos e1 e2      -> S.Subscript pos (apply subs e1) (apply subs e2)
-        S.String pos s             -> expr
-        S.Field pos e s            -> S.Field pos (apply subs e) s
-        S.Float pos f              -> expr
-        S.Array pos es             -> S.Array pos $ map (apply subs) es
-        S.TupleIndex pos e i       -> S.TupleIndex pos (apply subs e) i
-        S.UnsafePtr p e            -> S.UnsafePtr p (apply subs e)
-        S.ADT p e                  -> S.ADT p (apply subs e)
-        S.Call p ps ident es       -> S.Call p (map (apply subs) ps) ident (map (apply subs) es)
-        S.Push p e es              -> S.Push p (apply subs e) (map (apply subs) es)
-        S.Pop p e es               -> S.Pop p (apply subs e) (map (apply subs) es)
-        S.Clear p e                -> S.Clear p (apply subs e)
-        S.Delete p e1 e2           -> S.Delete p (apply subs e1) (apply subs e2)
-        S.Match p e pat            -> S.Match p (apply subs e) (apply subs pat)
-        S.Range p me me1 me2       -> S.Range p (fmap (apply subs) me) (fmap (apply subs) me1) (fmap (apply subs) me2)
-        _                          -> error $ show expr
+        S.AExpr t e           -> S.AExpr (f t) (f e)
+        S.Infix pos op e1 e2  -> S.Infix pos op (f e1) (f e2)
+        S.Tuple pos es        -> S.Tuple pos (map f es)
+        S.Ident pos sym       -> S.Ident pos sym
+        S.Char  pos c         -> S.Char pos c
+        S.Int   pos n         -> S.Int pos n
+        S.Null  pos           -> S.Null pos
+        S.Prefix pos op e1    -> S.Prefix pos op (f e1)
+        S.Conv  pos t es      -> S.Conv pos (f t) (map f es)
+        S.Len   pos e         -> S.Len  pos (f e)
+        S.Bool  pos b         -> S.Bool pos b
+        S.Subscript pos e1 e2 -> S.Subscript pos (f e1) (f e2)
+        S.String pos s        -> S.String pos s
+        S.Field pos e s       -> S.Field pos (f e) s
+        S.Float pos f         -> S.Float pos f
+        S.Array pos es        -> S.Array pos (map f es)
+        S.TupleIndex pos e i  -> S.TupleIndex pos (f e) i
+        S.UnsafePtr p e       -> S.UnsafePtr p (f e)
+        S.ADT p e             -> S.ADT p (f e)
+        S.Call p ps ident es  -> S.Call p (map f ps) ident (map f es)
+        S.Push p e es         -> S.Push p (f e) (map f es)
+        S.Pop p e es          -> S.Pop p (f e) (map f es)
+        S.Clear p e           -> S.Clear p (f e)
+        S.Delete p e1 e2      -> S.Delete p (f e1) (f e2)
+        S.Match p e pat       -> S.Match p (f e) (f pat)
+        S.Range p me me1 me2  -> S.Range p (fmap f me) (fmap f me1) (fmap f me2)
+        _                     -> error $ show expr
+        where
+            f :: Apply a => a -> a
+            f = apply subs
 
 
 instance Apply S.Pattern where
     apply subs pattern = case pattern of
-        S.PatIdent p s       -> pattern
-        S.PatLiteral e       -> S.PatLiteral (apply subs e)
-        S.PatGuarded p pat e -> S.PatGuarded p (apply subs pat) (apply subs e)
-        S.PatField p s pats  -> S.PatField p s $ map (apply subs) pats
-        S.PatTypeField p t pat -> S.PatTypeField p (apply subs t) (apply subs pat)
-        S.PatTuple p pats    -> S.PatTuple p $ map (apply subs) pats
-        S.PatIgnore p        -> S.PatIgnore p
-        S.PatArray p pats    -> S.PatArray p $ map (apply subs) pats
-        S.PatAnnotated pat typ -> S.PatAnnotated (apply subs pat) (apply subs typ)
+        S.PatIdent p s         -> S.PatIdent p s
+        S.PatLiteral e         -> S.PatLiteral (f e)
+        S.PatGuarded p pat e   -> S.PatGuarded p (f pat) (f e)
+        S.PatField p s pats    -> S.PatField p s $ map f pats
+        S.PatTypeField p t pat -> S.PatTypeField p (f t) (f pat)
+        S.PatTuple p pats      -> S.PatTuple p $ map f pats
+        S.PatIgnore p          -> S.PatIgnore p
+        S.PatArray p pats      -> S.PatArray p $ map f pats
+        S.PatAnnotated pat typ -> S.PatAnnotated (f pat) (f typ)
         S.PatNull p            -> S.PatNull p
-        _                    -> error $ show pattern
+        _                      -> error $ show pattern
+        where
+            f :: Apply a => a -> a
+            f = apply subs
 
 
 instance Apply S.Stmt where
     apply subs stmt = case stmt of
-        S.Block stmts           -> S.Block $ map (apply subs) stmts
-        S.Return pos mexpr      -> S.Return pos $ fmap (apply subs) mexpr
-        S.Assign pos pat expr   -> S.Assign pos (apply subs pat) (apply subs expr)
-        S.Set pos index e       -> S.Set pos (apply subs index) (apply subs e)
-        S.While pos cnd blk     -> S.While pos (apply subs cnd) (apply subs blk)
-        S.ExprStmt e            -> S.ExprStmt (apply subs e)
-        S.Print pos es          -> S.Print pos $ map (apply subs) es
+        S.Block stmts         -> S.Block $ map f stmts
+        S.Return pos mexpr    -> S.Return pos $ fmap f mexpr
+        S.Assign pos pat expr -> S.Assign pos (f pat) (f expr)
+        S.Set pos index e     -> S.Set pos (f index) (f e)
+        S.While pos cnd blk   -> S.While pos (f cnd) (f blk)
+        S.ExprStmt e          -> S.ExprStmt (f e)
+        S.Print pos es        -> S.Print pos $ map f es
+        S.Data pos symbol typ -> S.Data pos symbol (f typ)
 
         S.FuncDef pos mparam sym params retty block ->
-            S.FuncDef pos (fmap (apply subs) mparam) sym (map (apply subs) params) (apply subs retty) (apply subs block)
+            S.FuncDef pos (fmap f mparam) sym (map f params) (f retty) (f block)
 
         S.If pos cnd block melse ->
-            S.If pos (apply subs cnd) (apply subs block) $ fmap (apply subs) melse
+            S.If pos (f cnd) (f block) (fmap f melse)
 
         S.Typedef _ _ _ -> stmt -- leave this for now
         
         S.Switch pos expr cases ->
-            S.Switch pos (apply subs expr) [(apply subs p, apply subs s) | (p, s) <- cases]
+            S.Switch pos (f expr) [(f p, f s) | (p, s) <- cases]
 
         S.For pos expr mpat blk ->
-            S.For pos (apply subs expr) (fmap (apply subs) mpat) (apply subs blk)
-
-        S.Data pos symbol typ ->
-            S.Data pos symbol (apply subs typ)
+            S.For pos (f expr) (fmap f mpat) (f blk)
+        where
+            f :: Apply a => a -> a
+            f = apply subs
             
-
 instance Apply S.AST where
     apply subs ast = ast { S.astStmts = map (apply subs) (S.astStmts ast) }
