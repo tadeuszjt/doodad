@@ -89,7 +89,7 @@ fn {board Board} Initialise()
             c = c + 2
 
 
-fn {board Board} playerMove()
+fn {board Board, io Io} playerMove()
     print("Enter move. Eg: E2 E4")
     data line String
     {line, io}.GetStrLn()
@@ -126,6 +126,8 @@ fn {board Board} playerMove()
 
 
 fn main()
+    data io Io
+
     data board Board
     board.Initialise()
     {board, io}.Print()

@@ -8,8 +8,6 @@ import ../std/rand
 type Square { Empty() | Naught() | Cross() }
 type Board  [3 [3 Square]]
 
-data board Board
-
 
 fn {board Board, io Io} printBoard()
     for board -> row
@@ -23,7 +21,7 @@ fn {board Board, io Io} printBoard()
         io.putStrLn("]")
 
 
-fn winner() Square
+fn {board Board} winner() Square
     for board -> row
         let same = true
         for row -> sq
@@ -52,7 +50,7 @@ fn winner() Square
     return Empty()
 
 
-fn full() bool
+fn {board Board} full() bool
     for board -> row
         for row -> sq
             if sq == Empty()
@@ -61,7 +59,7 @@ fn full() bool
 
 
 type playerMoveReturn { Success() | Error() | Quit() }
-fn playerMove() playerMoveReturn
+fn {board Board, io Io} playerMove() playerMoveReturn
     io.putStrLn("Make a move")
 
     data line String
@@ -85,9 +83,9 @@ fn playerMove() playerMoveReturn
     return Success()
 
 
-fn cpuMove()
+fn {board Board} cpuMove()
     print("cpu moving")
-    if full()
+    if board.full()
         return
 
     data empty [(i64, i64)]
@@ -98,13 +96,13 @@ fn cpuMove()
 
     for empty -> (r, c)
         board[r][c] = Cross()
-        if winner() == Cross()
+        if board.winner() == Cross()
             return
         board[r][c] = Empty()
 
     for empty -> (r, c)
         board[r][c] = Naught()
-        if winner() == Naught()
+        if board.winner() == Naught()
             board[r][c] = Cross()
             return
         board[r][c] = Empty()
@@ -114,21 +112,24 @@ fn cpuMove()
     return
 
 
-fn playerMoveLoop() playerMoveReturn
+fn {board Board, io Io} playerMoveLoop() playerMoveReturn
     while true
-        switch playerMove()
+        switch {board, io}.playerMove()
             Quit();    return Quit()
             Success(); return Success()
-            Error();   return playerMoveLoop()
+            Error();   return {board, io}.playerMoveLoop()
 
 
 fn main()
-    while !full() && winner() == Empty()
-        let res = playerMoveLoop()
+    data io Io
+    data board Board
+
+    while !board.full() && board.winner() == Empty()
+        let res = {board, io}.playerMoveLoop()
         if res == Quit()
             return
         {board, io}.printBoard()
-        cpuMove()
+        {board}.cpuMove()
         {board, io}.printBoard()
 
 

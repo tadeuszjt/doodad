@@ -12,6 +12,8 @@ import_c stdlib.h
 import_c stdio.h
 
 fn main()
+        data strings Strings
+
         print(30:c::size_t)
 
         let va = Vec2(1.0, 3.0)

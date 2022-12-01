@@ -4,7 +4,6 @@ import io
 
 type String [char]
 type Strings sparse[String]
-data strings Strings
 
 
 fn {ss Strings} Append(k1 i64, k2 i64)

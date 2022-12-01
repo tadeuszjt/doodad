@@ -18,8 +18,7 @@ class Resolve a where
     resolve :: BoM ResolveState m => a -> m a
 
 data SymKey
-    = KeyVar
-    | KeyType
+    = KeyType
     | KeyFunc
     deriving (Show, Eq, Ord)
 
@@ -29,6 +28,7 @@ type SymTab = SymTab.SymTab String SymKey Symbol
 data ResolveState
     = ResolveState
         { symTab    :: SymTab
+        , symTabVar :: SymTab.SymTab String () Symbol
         , curRetty  :: Type
         , imports   :: Map.Map FilePath SymTab
         , modName   :: String
@@ -37,11 +37,19 @@ data ResolveState
 
 initResolveState imp modName = ResolveState
     { symTab     = SymTab.initSymTab
+    , symTabVar  = SymTab.initSymTab
     , curRetty   = Void
     , imports    = imp
     , modName    = modName
     , supply     = Map.empty
     }
+
+
+lookVar :: BoM ResolveState m => Symbol -> m Symbol
+lookVar (Sym sym) = do
+    lm <- SymTab.lookup sym () <$> gets symTabVar
+    assert (isJust lm) $ show sym ++ " isn't defined"
+    return $ fromJust lm
 
 
 look :: BoM ResolveState m => Symbol -> SymKey -> m Symbol
@@ -90,6 +98,11 @@ define sym key symbol = do
     when (isJust resm) $ fail $ sym ++ " already defined"
     modify $ \s -> s { symTab = SymTab.insert sym key symbol (symTab s) }
 
+defineVar :: BoM ResolveState m => String -> Symbol -> m ()
+defineVar sym symbol = do
+    resm <- gets $ SymTab.lookupHead sym () . symTabVar
+    when (isJust resm) $ fail $ sym ++ " already defined"
+    modify $ \s -> s { symTabVar = SymTab.insert sym () symbol (symTabVar s) }
 
 pushSymTab :: BoM ResolveState m => m ()
 pushSymTab = do
@@ -100,6 +113,14 @@ popSymTab :: BoM ResolveState m => m ()
 popSymTab = do
     modify $ \s -> s { symTab = SymTab.pop (symTab s) }
 
+pushSymTabVar :: BoM ResolveState m => m ()
+pushSymTabVar = do
+    modify $ \s -> s { symTabVar = SymTab.push (symTabVar s) }
+
+
+popSymTabVar :: BoM ResolveState m => m ()
+popSymTabVar = do
+    modify $ \s -> s { symTabVar = SymTab.pop (symTabVar s) }
 
 instance Resolve AST where
     resolve ast = do
@@ -125,20 +146,28 @@ instance Resolve AST where
 instance Resolve Stmt where
     resolve stmt = withPos stmt $ case stmt of
         FuncDef pos params sym args retty blk -> do
+            -- use a new symbol table for variables in every function
+            oldSymTabVar <- gets symTabVar
+            modify $ \s -> s { symTabVar = SymTab.initSymTab }
+
             pushSymTab
             params' <- mapM resolve params
             args' <- mapM resolve args
             retty' <- resolve retty
             blk' <- resolve blk
             popSymTab
+
+            modify $ \s -> s { symTabVar = oldSymTabVar }
             return $ FuncDef pos params' sym args' retty' blk'
 
         ExprStmt callExpr -> ExprStmt <$> resolve callExpr
 
         Block stmts -> do
             pushSymTab
+            pushSymTabVar
             stmts' <- mapM resolve stmts
             popSymTab
+            popSymTabVar
             return $ Block stmts'
 
         Return pos mexpr -> case mexpr of
@@ -183,17 +212,21 @@ instance Resolve Stmt where
 
         If pos condition stmt melse -> do
             pushSymTab
+            pushSymTabVar
             condition' <- resolve condition
             stmt' <- resolve stmt
             melse' <- maybe (return Nothing) (fmap Just . resolve) melse
             popSymTab
+            popSymTabVar
             return $ If pos condition' stmt' melse'
 
         While pos condition stmt -> do
             pushSymTab
+            pushSymTabVar
             condition' <- resolve condition
             stmt' <- resolve stmt
             popSymTab
+            popSymTabVar
             return $ While pos condition' stmt' 
 
         Set pos index expr -> do
@@ -207,23 +240,27 @@ instance Resolve Stmt where
             expr' <- resolve expr
             cases' <- forM cases $ \(pat, stmt) -> do
                 pushSymTab
+                pushSymTabVar
                 pat' <- resolve pat
                 stmt' <- resolve stmt
                 popSymTab
+                popSymTabVar
                 return (pat', stmt')
             return $ Switch pos expr' cases'
         
         For pos expr mpattern blk -> do
             pushSymTab
+            pushSymTabVar
             expr' <- resolve expr
             mpattern' <- maybe (return Nothing) (fmap Just . resolve) mpattern
             blk' <- resolve blk
             popSymTab
+            popSymTabVar
             return $ For pos expr' mpattern' blk'
 
         Data pos (Sym sym) typ -> do
             symbol <- genSymbol sym
-            define sym KeyVar symbol
+            defineVar sym symbol
             typ' <- resolve typ
             return $ Data pos symbol typ'
 
@@ -236,7 +273,7 @@ instance Resolve Pattern where
         PatIgnore pos -> return $ PatIgnore pos
         PatIdent pos (Sym sym) -> do
             symbol <- genSymbol sym
-            define sym KeyVar symbol
+            defineVar sym symbol
             return $ PatIdent pos symbol
 
         PatField pos symbol pats -> do
@@ -275,7 +312,7 @@ instance Resolve Param where
     resolve (Param pos (Sym sym) typ) = withPos pos $ do
         typ' <- resolve typ
         symbol <- genSymbol sym
-        define sym KeyVar symbol
+        defineVar sym symbol
         return $ Param pos symbol typ'
 
 
@@ -301,7 +338,7 @@ instance Resolve Type where
 
 instance Resolve Expr where
     resolve expr = withPos expr $ case expr of
-        Ident pos symbol      -> Ident pos <$> look symbol KeyVar
+        Ident pos symbol      -> Ident pos <$> lookVar symbol
         Prefix pos op expr -> Prefix pos op <$> resolve expr
         AST.Char pos c -> return expr
         Len pos expr -> Len pos <$> resolve expr
@@ -331,21 +368,18 @@ instance Resolve Expr where
             expr2' <- resolve expr2
             return $ Delete pos expr1' expr2' 
 
-        Call pos [] symbol exprs -> do
+        Call pos params symbol exprs -> do
             exprs' <- mapM resolve exprs
+            params' <- mapM resolve params
             symbolm <- lookm symbol KeyFunc
             case symbolm of
-                Just symbol' -> return $ Call pos [] symbol' exprs'
+                Just symbol' -> return $ Call pos params' symbol' exprs'
                 Nothing -> do
                     symbolmm <- lookm symbol KeyType
                     case symbolmm of
                         Nothing ->      fail $ show symbol ++ " isn't defined"
-                        Just symbol' -> return $ Call pos [] symbol' exprs'
+                        Just symbol' -> return $ Call pos params' symbol' exprs'
 
-        Call pos params ident exprs -> do
-            params' <- mapM resolve params
-            exprs' <- mapM resolve exprs
-            return $ Call pos params' ident exprs'
 
         Infix pos op exprA exprB -> do
             exprA' <- resolve exprA
