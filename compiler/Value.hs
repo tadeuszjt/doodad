@@ -22,7 +22,8 @@ import qualified LLVM.AST.Constant as C
 import qualified LLVM.AST.IntegerPredicate as P
 import qualified LLVM.AST.FloatingPointPredicate as P
 
-import qualified AST as S
+import qualified IR
+import qualified AST
 import Monad
 import State
 import Funcs
@@ -255,48 +256,48 @@ valMemCpy (Ptr dstTyp dst) (Ptr srcTyp src) len = trace "valMemCpy" $ do
     pDstI8 <- bitcast dst (LL.ptr LL.i8)
     pSrcI8 <- bitcast src (LL.ptr LL.i8)
 
-    void $ memcpy pDstI8 pSrcI8 . valOp =<< mkIntInfix S.Times len =<< sizeOf dstTyp
+    void $ memcpy pDstI8 pSrcI8 . valOp =<< mkIntInfix AST.Times len =<< sizeOf dstTyp
 
 
-mkPrefix :: InsCmp CompileState m => S.Operator -> Value -> m Value
+mkPrefix :: InsCmp CompileState m => AST.Operator -> Value -> m Value
 mkPrefix operator val = do
     Val typ op <- valLoad val
     base <- baseTypeOf typ
     Val typ <$> case base of
         _ | isInt base -> case operator of
-            S.Plus -> return op
-            S.Minus -> mkInt typ 0 >>= \zero -> sub (valOp zero) op
+            AST.Plus -> return op
+            AST.Minus -> mkInt typ 0 >>= \zero -> sub (valOp zero) op
 
         _ | isFloat base -> case operator of
-            S.Plus -> return op
-            S.Minus -> mkFloat typ 0 >>= \zero -> fsub (valOp zero) op
+            AST.Plus -> return op
+            AST.Minus -> mkFloat typ 0 >>= \zero -> fsub (valOp zero) op
 
         Bool -> case operator of
-            S.Not -> icmp P.EQ op (bit 0)
+            AST.Not -> icmp P.EQ op (bit 0)
         
 
-mkIntInfix :: InsCmp CompileState m => S.Operator -> Value -> Value -> m Value
+mkIntInfix :: InsCmp CompileState m => AST.Operator -> Value -> Value -> m Value
 mkIntInfix operator a b = withErrorPrefix "int infix: " $ do
     assert (valType a == valType b) "type mismatch"
     assertBaseType (\t -> isInt t || t == Char) (valType a)
     Val typ opA <- valLoad a
     Val _   opB <- valLoad b
     case operator of
-        S.Plus   -> Val typ  <$> add opA opB
-        S.Minus  -> Val typ  <$> sub opA opB
-        S.Times  -> Val typ  <$> mul opA opB
-        S.Divide -> Val typ  <$> sdiv opA opB
-        S.Modulo -> Val typ  <$> srem opA opB
-        S.GT     -> Val Bool <$> icmp P.SGT opA opB
-        S.LT     -> Val Bool <$> icmp P.SLT opA opB
-        S.GTEq   -> Val Bool <$> icmp P.SGE opA opB
-        S.LTEq   -> Val Bool <$> icmp P.SLE opA opB
-        S.EqEq   -> Val Bool <$> icmp P.EQ opA opB
-        S.NotEq  -> Val Bool <$> icmp P.NE opA opB
+        AST.Plus   -> Val typ  <$> add opA opB
+        AST.Minus  -> Val typ  <$> sub opA opB
+        AST.Times  -> Val typ  <$> mul opA opB
+        AST.Divide -> Val typ  <$> sdiv opA opB
+        AST.Modulo -> Val typ  <$> srem opA opB
+        AST.GT     -> Val Bool <$> icmp P.SGT opA opB
+        AST.LT     -> Val Bool <$> icmp P.SLT opA opB
+        AST.GTEq   -> Val Bool <$> icmp P.SGE opA opB
+        AST.LTEq   -> Val Bool <$> icmp P.SLE opA opB
+        AST.EqEq   -> Val Bool <$> icmp P.EQ opA opB
+        AST.NotEq  -> Val Bool <$> icmp P.NE opA opB
         _        -> error ("int infix: " ++ show operator)
     
         
-mkFloatInfix :: InsCmp CompileState m => S.Operator -> Value -> Value -> m Value
+mkFloatInfix :: InsCmp CompileState m => AST.Operator -> Value -> Value -> m Value
 mkFloatInfix operator a b = do
     assert (valType a == valType b) "Left side type does not match right side"
     let typ = valType a
@@ -304,22 +305,22 @@ mkFloatInfix operator a b = do
     opA <- valOp <$> valLoad a
     opB <- valOp <$> valLoad b
     case operator of
-        S.Plus   -> Val typ <$> fadd opA opB
-        S.Minus  -> Val typ <$> fsub opA opB
-        S.Times  -> Val typ <$> fmul opA opB
-        S.Divide -> Val typ <$> fdiv opA opB
-        S.EqEq   -> Val Bool <$> fcmp P.OEQ opA opB
+        AST.Plus   -> Val typ <$> fadd opA opB
+        AST.Minus  -> Val typ <$> fsub opA opB
+        AST.Times  -> Val typ <$> fmul opA opB
+        AST.Divide -> Val typ <$> fdiv opA opB
+        AST.EqEq   -> Val Bool <$> fcmp P.OEQ opA opB
         _        -> error ("float infix: " ++ show operator)
 
 
-mkBoolInfix :: InsCmp CompileState m => S.Operator -> Value -> Value -> m Value
+mkBoolInfix :: InsCmp CompileState m => AST.Operator -> Value -> Value -> m Value
 mkBoolInfix operator a b = do
     assert (valType a == valType b) "Left side type does not match right side"
     let typ = valType a
     opA <- valOp <$> valLoad a
     opB <- valOp <$> valLoad b
     case operator of
-        S.OrOr   -> Val typ <$> or opA opB
-        S.AndAnd -> Val typ <$> and opA opB
-        S.EqEq   -> Val typ <$> icmp P.EQ opA opB
+        AST.OrOr   -> Val typ <$> or opA opB
+        AST.AndAnd -> Val typ <$> and opA opB
+        AST.EqEq   -> Val typ <$> icmp P.EQ opA opB
         _        -> error ("bool infix: " ++ show operator)

@@ -11,6 +11,7 @@ type Board  [8 [8 Square]]
 type Pos    (row i64, col i64)
 type Move   (start Pos, end Pos)
 
+
 fn {board Board} Contains(p Pos) bool
     return board[..][p.row] && board[p.row][..][p.col]
 
@@ -110,12 +111,10 @@ fn {board Board, io Io} playerMove()
     if !board.Contains(start) || !board.Contains(end)
         print("out of range", start, end)
 
-
     if board[startRow][startCol] == Black()
         print("start is black")
     else 
         print("start isnt black")
-
 
     data whiteMoves [Move]
     {board, whiteMoves}.GetValidMoves(White())
@@ -127,13 +126,14 @@ fn {board Board, io Io} playerMove()
 
 fn main()
     data io Io
-
     data board Board
+
     board.Initialise()
     {board, io}.Print()
 
     data whiteMoves [Move]
     {board, whiteMoves}.GetValidMoves(White())
+
     let idx = rand::I64() % whiteMoves.len()
     board.MakeMove(whiteMoves[idx])
     {board, io}.Print()

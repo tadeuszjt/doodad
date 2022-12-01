@@ -1,0 +1,262 @@
+module IR where
+
+import Prelude hiding (LT, GT)
+import Data.Maybe
+import Data.Word
+import Data.List
+import Control.Monad
+import Type (Type, Type(Void))
+import Error
+import Symbol
+
+import qualified AST
+
+type ModuleName = String
+
+data IR
+    = IR
+        { irModuleName :: Maybe ModuleName
+        , irImports    :: [AST.Import]
+        , irStmts      :: [Stmt]
+        }
+    deriving (Eq)
+
+data Pattern
+    = PatLiteral   Expr
+    | PatIgnore    TextPos
+    | PatIdent     TextPos Symbol
+    | PatTuple     TextPos [Pattern]
+    | PatArray     TextPos [Pattern]
+    | PatGuarded   TextPos Pattern Expr
+    | PatField     TextPos Symbol [Pattern]
+    | PatTypeField TextPos Type Pattern
+    | PatAnnotated Pattern Type
+    | PatNull      TextPos
+    deriving (Eq)
+
+data Expr
+    = AExpr      Type  Expr
+    | Int        TextPos Integer
+    | Float      TextPos Double
+    | Bool       TextPos Bool
+    | Char       TextPos Char
+    | String     TextPos String
+    | Tuple      TextPos [Expr]
+    | Array      TextPos [Expr]
+    | Call       TextPos [Expr] Symbol [Expr]
+    | Null       TextPos 
+    | Field      TextPos Expr String
+    | Subscript  TextPos Expr Expr
+    | TupleIndex TextPos Expr Word32
+    | Ident      TextPos Symbol
+    | Conv       TextPos Type [Expr]
+    | Len        TextPos Expr
+    | Push       TextPos Expr [Expr]
+    | Pop        TextPos Expr [Expr]
+    | Clear      TextPos Expr 
+    | Prefix     TextPos AST.Operator Expr
+    | Infix      TextPos AST.Operator Expr Expr
+    | UnsafePtr  TextPos Expr
+    | ADT        TextPos Expr
+    | Match      TextPos Expr Pattern
+    | Delete     TextPos Expr Expr
+    | Range      TextPos (Maybe Expr) (Maybe Expr) (Maybe Expr)
+    deriving (Eq)
+
+
+data Stmt
+    = Assign      TextPos Pattern Expr
+    | Set         TextPos Expr   Expr
+    | Print       TextPos [Expr]
+    | ExprStmt    Expr
+    | Return      TextPos (Maybe Expr)
+    | Block       [Stmt]
+    | If          TextPos Expr Stmt (Maybe Stmt)
+    | While       TextPos Expr Stmt
+    | FuncDef     TextPos [AST.Param] String [AST.Param] Type Stmt
+    | Typedef     TextPos Symbol AST.AnnoType
+    | Switch      TextPos Expr [(Pattern, Stmt)]
+    | For         TextPos Expr (Maybe Pattern) Stmt
+    | Data        TextPos Symbol Type
+    deriving (Eq, Show)
+
+
+
+instance TextPosition Pattern where
+    textPos pattern = case pattern of
+        PatLiteral   e -> textPos e
+        PatIgnore    p -> p
+        PatIdent     p _ -> p
+        PatTuple     p _ -> p
+        PatArray     p _ -> p
+        PatGuarded   p _ _ -> p
+        PatField     p _ _ -> p
+        PatTypeField p _ _ -> p
+        PatAnnotated pat _ -> textPos pat
+        PatNull      p -> p
+
+
+instance TextPosition Expr where
+    textPos expr = case expr of
+        AExpr      t e -> textPos e
+        Int        p _ -> p
+        Float      p _ -> p
+        Bool       p _ -> p
+        Char       p _ -> p
+        Null       p -> p
+        String     p _ -> p
+        Tuple      p _ -> p
+        Array      p _ -> p
+        Field     p _ _ -> p
+        Subscript  p _ _ -> p
+        TupleIndex p _ _ -> p
+        Ident      p _ -> p
+        Call       p _ _ _ -> p 
+        Conv       p _ _ -> p
+        Len        p _ -> p
+        Prefix     p _ _ -> p
+        Infix      p _ _ _ -> p
+        UnsafePtr  p _ -> p
+        ADT        p _ -> p
+        Push       p _ _ -> p
+        Pop        p _ _ -> p
+        Clear      p _ -> p
+        Delete     p _ _ -> p
+        Match      p _ _ -> p
+        Range      p _ _ _ -> p
+
+
+instance TextPosition Stmt where
+    textPos stmt = case stmt of
+        Assign      p _ _ -> p
+        Set         p _ _ -> p
+        Print       p _ -> p
+        ExprStmt    e -> textPos e
+        Return      p _ -> p
+        Block       s -> textPos (head s)
+        If          p _ _ _ -> p
+        While       p _ _ -> p
+        FuncDef     p _ _ _ _ _ -> p
+        Typedef     p _ _ -> p
+        Switch      p _ _ -> p
+        For         p _ _ _ -> p
+        Data        p _ _ -> p
+
+tupStrs, arrStrs, brcStrs :: [String] -> String
+tupStrs strs = "(" ++ intercalate ", " strs ++ ")"
+arrStrs strs = "[" ++ intercalate ", " strs ++ "]"
+brcStrs strs = "{" ++ intercalate ", " strs ++ "}"
+
+
+instance Show Pattern where
+    show pat = case pat of
+        PatLiteral c             -> show c
+        PatIgnore pos            -> "_"
+        PatIdent pos symbol      -> show symbol
+        PatTuple pos ps          -> tupStrs (map show ps)
+        PatArray pos ps          -> arrStrs (map show ps)
+        PatGuarded pos pat expr  -> show pat ++ " | " ++ show expr
+        PatField pos symbol pats -> show symbol ++ tupStrs (map show pats)
+        PatTypeField pos typ pat -> show typ ++ tupStrs [show pat]
+        PatAnnotated pat typ     -> show pat ++ ":" ++ show typ
+        PatNull pos              -> "null"
+
+
+instance Show Expr where
+    show expr = case expr of
+        AExpr t e                   -> show e ++ ":" ++ show t
+        Int pos n                   -> show n
+        Float pos f                 -> show f
+        Bool pos b                  -> if b then "true" else "false"
+        Char pos c                  -> show c
+        Null p                      -> "null"
+        String pos s                -> show s
+        Tuple pos exprs             -> tupStrs (map show exprs)
+        Array pos exprs            -> arrStrs (map show exprs)
+        Field pos expr str         -> show expr ++ "." ++ str
+        Subscript pos expr1 expr2   -> show expr1 ++ "[" ++ show expr2 ++ "]"
+        TupleIndex pos expr n       -> show expr ++ "." ++ show n
+        Ident p s                   -> show s 
+        Conv pos typ exprs          -> show typ ++ tupStrs (map show exprs)
+        Len pos expr                -> "len(" ++ show expr ++ ")"
+        UnsafePtr pos expr          -> "unsafe_ptr(" ++ show expr ++ ")"
+        Prefix pos op expr          -> show op ++ show expr
+        Infix pos op expr1 expr2    -> show expr1 ++ " " ++ show op ++ " " ++ show expr2
+        ADT pos expr                 -> brcStrs [show expr]
+        Call pos [] symbol exprs     -> show symbol ++ tupStrs (map show exprs)
+        Call pos params symbol exprs -> brcStrs (map show params) ++ "." ++ show symbol ++ tupStrs (map show exprs)
+        Push pos expr exprs              -> show expr ++ ".push" ++ tupStrs (map show exprs)
+        Pop pos expr exprs               -> show expr ++ ".pop" ++ tupStrs (map show exprs)
+        Clear pos expr                   -> show expr ++ ".clear" ++ tupStrs []
+        Delete pos expr1 expr2           -> show expr1 ++ ".delete" ++ tupStrs [show expr2]
+        Match pos expr1 expr2            -> show expr1 ++ " -> " ++ show expr2
+        Range pos mexpr mexpr1 mexpr2    -> maybe "" show mexpr ++ "[" ++ maybe "" show mexpr1 ++ ".." ++ maybe "" show mexpr2 ++ "]"
+
+
+-- every function must end on a newline and print pre before every line
+prettyIR :: IR -> IO ()
+prettyIR ir = do
+    when (isJust $ irModuleName ir) $
+        putStrLn $ "module " ++ (fromJust $ irModuleName ir)
+
+    putStrLn ""
+
+    forM_ (irImports ir) $ \imp ->
+        putStrLn $ show imp
+
+    putStrLn ""
+
+    mapM_ (prettyStmt "") (irStmts ir)
+    where
+        prettyStmt :: String -> Stmt -> IO ()
+        prettyStmt pre stmt = case stmt of
+            FuncDef pos params sym args retty blk -> do
+                paramStr <- case params of
+                    [] -> return ""
+                    ps -> return $ tupStrs $ map show ps
+                
+                putStrLn $ pre ++ "fn " ++ paramStr ++ sym ++ tupStrs (map show args) ++ " " ++ if retty == Void then "" else show retty
+                prettyStmt (pre ++ "\t") blk
+                putStrLn ""
+
+            Assign pos pat expr        -> putStrLn $ pre ++ "let " ++ show pat ++ " = " ++ show expr
+            Set pos ind expr           -> putStrLn $ pre ++ show ind ++ " = " ++ show expr
+            Print pos exprs            -> putStrLn $ pre ++ "print" ++ tupStrs (map show exprs)
+            Return pos mexpr -> putStrLn $ pre ++ "return " ++ maybe "" show mexpr
+ 
+            If pos cnd true mfalse -> do
+                putStrLn $ pre ++ "if " ++ show cnd
+                prettyStmt (pre ++ "\t") true
+                putStrLn $ pre ++ "else"
+                maybe (return ()) (prettyStmt (pre ++ "\t")) mfalse
+
+            ExprStmt callExpr -> putStrLn $ pre ++ show callExpr
+                    
+
+            Block stmts -> do
+                mapM_ (prettyStmt pre) stmts
+
+            While pos cnd stmt -> do
+                putStrLn $ pre ++ "while " ++ show cnd
+                prettyStmt (pre ++ "\t") stmt
+
+            Typedef pos symbol anno -> do
+                putStrLn $ pre ++ "typedef " ++ show symbol ++ " " ++ show anno
+
+            Switch pos expr cases -> do
+                putStrLn $ pre ++ "switch " ++ show expr
+                forM_ cases $ \(pat, stmt) -> do
+                    putStrLn $ pre ++ "\t" ++ show pat
+                    prettyStmt (pre ++ "\t\t") stmt
+
+            For pos expr mcnd blk -> do
+                let cndStr = maybe "" ((" -> " ++) . show) mcnd
+                let exprStr = "" ++ show expr
+                putStrLn $ pre ++ "for " ++ exprStr ++ cndStr
+                prettyStmt (pre ++ "\t") blk
+
+            Data pos symbol typ -> do
+                putStrLn $ pre ++ "data " ++ show symbol ++ " " ++ show typ
+
+            _  -> error $ "invalid stmt: " ++ show stmt
+

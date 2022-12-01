@@ -10,7 +10,8 @@ import LLVM.IRBuilder.Module
 import LLVM.IRBuilder.Monad
 import LLVM.AST.Instruction
 
-import qualified AST as S
+import qualified AST
+import qualified IR
 import Monad
 import Value
 import State
@@ -45,7 +46,7 @@ sparsePush val elems = do
     assert (map valType elems == ts) "Elem types do not match"
     stack <- ptrSparseStack val
     stackLen <- mkTableLen stack
-    stackLenGTZero <- mkIntInfix S.GT stackLen (mkI64 0)
+    stackLenGTZero <- mkIntInfix AST.GT stackLen (mkI64 0)
     ret <- mkAlloca I64
     if_ (valOp stackLenGTZero) (popStackCase stack ret) (pushTableCase ret) 
     return ret
@@ -62,7 +63,7 @@ sparsePush val elems = do
         pushTableCase ret = do
             table <- ptrSparseTable val
             len <- mkTableLen table
-            tableResize table =<< mkIntInfix S.Plus len (mkI64 1)
+            tableResize table =<< mkIntInfix AST.Plus len (mkI64 1)
             ptrs <- ptrsTableColumn table len
             zipWithM_ valStore ptrs elems
             valStore ret len 
@@ -77,14 +78,14 @@ sparseDelete val idx = do
         valStore ptr =<< mkZero (valType ptr)
 
     len <- mkTableLen table
-    idxIsEnd <- mkIntInfix S.EqEq idx =<< mkIntInfix S.Minus len (mkI64 1)
+    idxIsEnd <- mkIntInfix AST.EqEq idx =<< mkIntInfix AST.Minus len (mkI64 1)
     if_ (valOp idxIsEnd) (void $ valTablePop table) idxNotEndCase
     where
         idxNotEndCase :: InsCmp CompileState m => m ()
         idxNotEndCase = do
             stack <- ptrSparseStack val
             len <- mkTableLen stack
-            tableResize stack =<< mkIntInfix S.Plus len (mkI64 1)
+            tableResize stack =<< mkIntInfix AST.Plus len (mkI64 1)
             [ptr] <- ptrsTableColumn stack len
             valStore ptr idx
     

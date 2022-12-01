@@ -9,7 +9,8 @@ import LLVM.IRBuilder.Constant
 import qualified LLVM.AST.Type as LL
 import qualified LLVM.AST.IntegerPredicate as P
 
-import qualified AST as S
+import qualified AST
+import qualified IR
 import Value
 import State
 import Monad
@@ -62,7 +63,7 @@ valPrint append val = case valType val of
     Table ts -> do
         printf "[" []
         len <- mkTableLen val
-        lenZero <- mkInfix S.EqEq len (mkI64 0)
+        lenZero <- mkInfix AST.EqEq len (mkI64 0)
 
         if_ (valOp lenZero)
             (void $ printf ("]" ++ append) [])
@@ -79,7 +80,7 @@ valPrint append val = case valType val of
     where
         tablePrintHelper ts val len = forM_ [0..length ts - 1] $ \i -> do
             row <- ptrTableRow i val
-            n <- mkInfix S.Minus len (mkI64 1)
+            n <- mkInfix AST.Minus len (mkI64 1)
 
             for (valOp n) $ \j -> valPrint ", " =<< ptrIdx row (Val I64 j)
             if i < length ts - 1

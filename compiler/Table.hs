@@ -10,7 +10,8 @@ import LLVM.IRBuilder.Module
 import LLVM.IRBuilder.Monad
 import LLVM.AST.Instruction
 
-import qualified AST as S
+import qualified AST
+import qualified IR
 import Monad
 import Value
 import State
@@ -22,8 +23,8 @@ import Trace
 import Error
 import Symbol
 
-tableTypeDef :: InsCmp CompileState m => Symbol -> S.AnnoType -> m ()
-tableTypeDef symbol (S.AnnoType typ) = trace "tableTypeDef" $ do
+tableTypeDef :: InsCmp CompileState m => Symbol -> AST.AnnoType -> m ()
+tableTypeDef symbol (AST.AnnoType typ) = trace "tableTypeDef" $ do
     base@(Table ts) <- assertBaseType isTable typ
     name <- addTypeDef symbol =<< opTypeOf base
     define symbol KeyType $ ObType typ (Just name)
@@ -59,7 +60,7 @@ mkTable typ len = do
     valStore siz (mkI64 0)
     idxs <- forM ts $ \t -> do
         idx <- valLoad siz
-        valStore siz =<< mkIntInfix S.Plus siz =<< mkIntInfix S.Times len =<< sizeOf t
+        valStore siz =<< mkIntInfix AST.Plus siz =<< mkIntInfix AST.Times len =<< sizeOf t
         return idx
 
     mal <- mkMalloc I8 siz
@@ -93,7 +94,7 @@ valTablePop :: InsCmp CompileState m => Value -> m [Value]
 valTablePop tab = do
     Table ts <- assertBaseType isTable (valType tab)
     len <- mkTableLen tab
-    newLen <- mkIntInfix S.Minus len (mkI64 1)
+    newLen <- mkIntInfix AST.Minus len (mkI64 1)
     tableSetLen tab newLen
     mapM valLoad =<< ptrsTableColumn tab newLen
 
@@ -126,13 +127,13 @@ tableResize :: InsCmp CompileState m => Value -> Value -> m ()
 tableResize tab newLen = trace "tableResize" $ do
     Table ts <- assertBaseType isTable (valType tab)
     assertBaseType isInt (valType newLen)
-    bFull <- mkIntInfix S.GT newLen =<< mkTableCap tab
+    bFull <- mkIntInfix AST.GT newLen =<< mkTableCap tab
     if_ (valOp bFull) (fullCase ts) (return ())
     tableSetLen tab newLen
     where
         fullCase :: InsCmp CompileState m => [Type] -> m ()
         fullCase ts = do
-            newTab <- mkTable (valType tab) =<< mkIntInfix S.Times newLen (mkI64 2)
+            newTab <- mkTable (valType tab) =<< mkIntInfix AST.Times newLen (mkI64 2)
             forM_ (zip ts [0..]) $ \(t, i) -> do
                 newRow <- ptrTableRow i newTab
                 oldRow <- ptrTableRow i tab

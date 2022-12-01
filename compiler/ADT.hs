@@ -11,7 +11,8 @@ import qualified LLVM.AST.Type as LL
 import LLVM.IRBuilder.Constant
 import LLVM.IRBuilder.Instruction
 
-import qualified AST as S
+import qualified AST
+import qualified IR
 import Value
 import Type
 import State
@@ -70,14 +71,14 @@ adtConstructFromPtr adtTyp loc@(Ptr _ _) = do
 
 
 
-adtTypeDef :: InsCmp CompileState m => Symbol -> S.AnnoType -> m ()
-adtTypeDef symbol (S.AnnoADT xs) = trace "adtTypeDef" $ do
+adtTypeDef :: InsCmp CompileState m => Symbol -> AST.AnnoType -> m ()
+adtTypeDef symbol (AST.AnnoADT xs) = trace "adtTypeDef" $ do
     let typdef = Typedef symbol
 
     fs <- forM xs $ \x -> case x of
-        S.ADTFieldMember symbol ts -> return $ FieldCtor ts
-        S.ADTFieldType t           -> return $ FieldType t
-        S.ADTFieldNull             -> return FieldNull
+        AST.ADTFieldMember symbol ts -> return $ FieldCtor ts
+        AST.ADTFieldType t           -> return $ FieldType t
+        AST.ADTFieldNull             -> return FieldNull
 
     namem <- case ADT fs of
         _ | isNormalADT (ADT fs) -> do
@@ -89,21 +90,21 @@ adtTypeDef symbol (S.AnnoADT xs) = trace "adtTypeDef" $ do
 
     -- define member loopkups
     forM_ (zip xs [0..]) $ \(x, i) -> case x of
-        S.ADTFieldMember s ts -> do
+        AST.ADTFieldMember s ts -> do
             define s (KeyFunc [] ts typdef) (ObjField i)
             define s (KeyField typdef) (ObjField i)
-        S.ADTFieldType t@(Typedef s) -> do
+        AST.ADTFieldType t@(Typedef s) -> do
             define s (KeyField typdef) (ObjAdtTypeField i)
             define symbol (KeyTypeField t) (ObjField i)
-        S.ADTFieldType t -> do
+        AST.ADTFieldType t -> do
             define symbol (KeyTypeField t) (ObjField i)
-        S.ADTFieldNull -> return ()
+        AST.ADTFieldNull -> return ()
 
     -- define constructors
     define symbol (KeyFunc [] [] typdef)       ObjConstructor 
     define symbol (KeyFunc [] [typdef] typdef) ObjConstructor
     forM_ xs $ \x -> case x of
-        S.ADTFieldType t -> define symbol (KeyFunc [] [t] typdef) ObjConstructor
+        AST.ADTFieldType t -> define symbol (KeyFunc [] [t] typdef) ObjConstructor
         _ -> return ()
 
 

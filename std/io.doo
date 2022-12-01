@@ -3,7 +3,6 @@ module io
 import_c stdio.h
 
 type Io ()
-data io Io
 
 fn {io Io} getChar() char
     return char(c::getchar())

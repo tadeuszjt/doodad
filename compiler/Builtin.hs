@@ -17,7 +17,8 @@ import LLVM.IRBuilder.Module
 import LLVM.IRBuilder.Monad
 import qualified LLVM.AST.Constant as C
 
-import qualified AST as S
+import qualified AST
+import qualified IR
 import Type
 import Value
 import State
@@ -99,7 +100,7 @@ mkMin :: InsCmp CompileState m => Value -> Value -> m Value
 mkMin a b = withErrorPrefix "min: " $ do
     assert (valType a == valType b) "Left type does not match right type"
     base <- baseTypeOf (valType a)
-    cnd <- mkInfix S.GT a b 
+    cnd <- mkInfix AST.GT a b 
     Val (valType a) <$> case base of
         I64 -> do
             valA <- valLoad a 
@@ -111,7 +112,7 @@ mkMax :: InsCmp CompileState m => Value -> Value -> m Value
 mkMax a b = withErrorPrefix "min: " $ do
     assert (valType a == valType b) "Left type does not match right type"
     base <- baseTypeOf (valType a)
-    cnd <- mkInfix S.LT a b 
+    cnd <- mkInfix AST.LT a b 
     Val (valType a) <$> case base of
         I64 -> do
             valA <- valLoad a 
@@ -120,7 +121,7 @@ mkMax a b = withErrorPrefix "min: " $ do
 
 
 -- any infix expression
-mkInfix :: InsCmp CompileState m => S.Operator -> Value -> Value -> m Value
+mkInfix :: InsCmp CompileState m => AST.Operator -> Value -> Value -> m Value
 mkInfix operator a b = withErrorPrefix "infix: " $ do
     assert (valType a == valType b) "type mismatch"
     base <- baseTypeOf (valType a)
@@ -135,13 +136,13 @@ mkInfix operator a b = withErrorPrefix "infix: " $ do
         _                    -> fail $ "Operator " ++ show operator ++ " undefined for types " ++ show (valType a) ++ " " ++ show (valType b)
 
 
-mkArrayInfix :: InsCmp CompileState m => S.Operator -> Value -> Value -> m Value
+mkArrayInfix :: InsCmp CompileState m => AST.Operator -> Value -> Value -> m Value
 mkArrayInfix operator a b = withErrorPrefix "array" $ do
     assert (valType a == valType b) "infix type mismatch"
     Array n t <- assertBaseType isArray (valType a)
 
     case operator of
-        _ | operator `elem` [S.Plus, S.Minus, S.Times, S.Divide, S.Modulo] -> do
+        _ | operator `elem` [AST.Plus, AST.Minus, AST.Times, AST.Divide, AST.Modulo] -> do
             arr <- mkAlloca (valType a)
             forM_ [0..n] $ \i -> do
                 pDst <- ptrArrayGetElemConst arr i
@@ -151,13 +152,13 @@ mkArrayInfix operator a b = withErrorPrefix "array" $ do
             return arr
 
 
-mkTupleInfix :: InsCmp CompileState m => S.Operator -> Value -> Value -> m Value
+mkTupleInfix :: InsCmp CompileState m => AST.Operator -> Value -> Value -> m Value
 mkTupleInfix operator a b = withErrorPrefix "tuple infix: " $ do
     assert (valType a == valType b) "type mismatch"
     Tuple ts <- assertBaseType isTuple (valType a)
 
     case operator of
-        _ | operator `elem` [S.Plus, S.Minus, S.Times, S.Divide, S.Modulo] -> do
+        _ | operator `elem` [AST.Plus, AST.Minus, AST.Times, AST.Divide, AST.Modulo] -> do
             tup <- mkAlloca (valType a)
             forM (zip ts [0..]) $ \(t, i) -> do
                 pSrcA <- ptrTupleIdx i a
@@ -166,9 +167,9 @@ mkTupleInfix operator a b = withErrorPrefix "tuple infix: " $ do
                 valStore pDst =<< mkInfix operator pSrcA pSrcB
             return tup
 
-        _ | operator `elem` [S.GTEq] -> do
+        _ | operator `elem` [AST.GTEq] -> do
             deflt <- case operator of
-                S.GTEq -> return True
+                AST.GTEq -> return True
             res <- mkAlloca Bool
             valStore res =<< mkBool Bool deflt -- deflt if all equal
 
@@ -180,7 +181,7 @@ mkTupleInfix operator a b = withErrorPrefix "tuple infix: " $ do
                 emitBlockStart (cases !! i)
                 pSrcA <- ptrTupleIdx i a
                 pSrcB <- ptrTupleIdx i b
-                equal <- mkInfix S.EqEq pSrcA pSrcB
+                equal <- mkInfix AST.EqEq pSrcA pSrcB
                 cond <- freshName "tuple_gt_cond"
                 condBr (valOp equal) (cases !! (i + 1)) (cond)
                 emitBlockStart cond
@@ -193,7 +194,7 @@ mkTupleInfix operator a b = withErrorPrefix "tuple infix: " $ do
         _ -> error (show operator)
                     
         
-valTableInfix :: InsCmp CompileState m => S.Operator -> Value -> Value -> m Value
+valTableInfix :: InsCmp CompileState m => AST.Operator -> Value -> Value -> m Value
 valTableInfix operator a b = do
     assert (valType a == valType b) "type mismatch"
     assertBaseType isTable (valType a)
@@ -201,11 +202,11 @@ valTableInfix operator a b = do
 
     lenA <- mkTableLen a
     lenB <- mkTableLen b
-    lenEq <- mkIntInfix S.EqEq lenA lenB
+    lenEq <- mkIntInfix AST.EqEq lenA lenB
 
     case operator of
-        S.NotEq -> mkPrefix S.Not =<< valTableInfix S.EqEq a b
-        S.EqEq  -> do
+        AST.NotEq -> mkPrefix AST.Not =<< valTableInfix AST.EqEq a b
+        AST.EqEq  -> do
             eq <- mkAlloca Bool
             idx <- mkAlloca I64
             valStore eq =<< mkBool Bool False
@@ -224,44 +225,44 @@ valTableInfix operator a b = do
 
             -- test that the idx < len
             emitBlockStart cond
-            idxLT <- mkIntInfix S.LT idx lenA
+            idxLT <- mkIntInfix AST.LT idx lenA
             condBr (valOp idxLT) body exit
 
             -- test that a[i] == b[i]
             emitBlockStart body
             [elmA] <- ptrsTableColumn a idx
             [elmB] <- ptrsTableColumn b idx
-            elmEq <- mkInfix S.EqEq elmA elmB
+            elmEq <- mkInfix AST.EqEq elmA elmB
             valStore eq elmEq
-            valStore idx =<< mkIntInfix S.Plus idx (mkI64 1)
+            valStore idx =<< mkIntInfix AST.Plus idx (mkI64 1)
             condBr (valOp elmEq) cond exit
 
             emitBlockStart exit
             valLoad eq
 
 
-mkAdtEnumInfix :: InsCmp CompileState m => S.Operator -> Value -> Value -> m Value
+mkAdtEnumInfix :: InsCmp CompileState m => AST.Operator -> Value -> Value -> m Value
 mkAdtEnumInfix operator a b = do
     assert (valType a == valType b) "type mismatch"
     assertBaseType isEnumADT (valType a)
     opA <- valOp <$> valLoad a
     opB <- valOp <$> valLoad b
     case operator of
-        S.NotEq -> Val Bool <$> icmp P.NE opA opB
-        S.EqEq  -> Val Bool <$> icmp P.EQ opA opB
+        AST.NotEq -> Val Bool <$> icmp P.NE opA opB
+        AST.EqEq  -> Val Bool <$> icmp P.EQ opA opB
 
 
-valAdtNormalInfix :: InsCmp CompileState m => S.Operator -> Value -> Value -> m Value
+valAdtNormalInfix :: InsCmp CompileState m => AST.Operator -> Value -> Value -> m Value
 valAdtNormalInfix operator a b = do
     assert (valType a == valType b) "type mismatch"
     base@(ADT fs) <- assertBaseType isNormalADT (valType a)
 
     case operator of
-        S.NotEq -> mkPrefix S.Not =<< valAdtNormalInfix S.EqEq a b
-        S.EqEq -> do
+        AST.NotEq -> mkPrefix AST.Not =<< valAdtNormalInfix AST.EqEq a b
+        AST.EqEq -> do
             enA <- valLoad =<< adtEnum a
             enB <- valLoad =<< adtEnum b
-            enEq <- mkIntInfix S.EqEq enA enB
+            enEq <- mkIntInfix AST.EqEq enA enB
 
             -- if enum isn't matched, exit
             match <- mkAlloca Bool
@@ -286,15 +287,15 @@ valAdtNormalInfix operator a b = do
                     FieldType t -> do
                         valA <- adtDeref a i 0
                         valB <- adtDeref b i 0
-                        fmap (\a -> [a]) $ mkInfix S.EqEq valA valB
+                        fmap (\a -> [a]) $ mkInfix AST.EqEq valA valB
                     FieldCtor ts -> do
                         forM (zip ts [0..]) $ \(t, j) -> do
                             valA <- adtDeref a i j
                             valB <- adtDeref b i j
-                            mkInfix S.EqEq valA valB
+                            mkInfix AST.EqEq valA valB
 
                 true <- mkBool Bool True
-                valStore match =<< foldM (mkInfix S.EqEq) true bs
+                valStore match =<< foldM (mkInfix AST.EqEq) true bs
                 br exit
 
             emitBlockStart exit

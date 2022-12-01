@@ -74,4 +74,6 @@ executable doodad
         Array,
         Builtin,
         Symbol,
-        Sparse
+        Sparse,
+        IR,
+        IRGen

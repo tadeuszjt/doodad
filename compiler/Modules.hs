@@ -32,6 +32,8 @@ import Infer
 import Collect as C
 import qualified Resolve as R
 import qualified SymTab
+import IRGen
+import qualified IR
 
 import Language.C
 import Language.C.System.GCC
@@ -210,10 +212,12 @@ runMod args pathsVisited modPath = do
 
             flat <- fmap fst $ withErrorPrefix "flatten: " $ runBoMTExcept initFlattenState (flattenAST ast)
             --assert (S.astModuleName flat == modName) "modName error"
+            -- turn flat into ir
+            (ir, _) <- withErrorPrefix "irgen: " $ runBoMTExcept initIRGenState (irGen ast)
 
             -- compile and run
             debug "compiling"
-            (defs, state) <- withErrorPrefix "compile: " $ Compile.compile (cState : imports) flat
+            (defs, state) <- withErrorPrefix "compile: " $ Compile.compile (cState : imports) ir
             when (printSymbols args) $ liftIO $ SymTab.prettySymTab (State.symTab state)
 
             debug "running"

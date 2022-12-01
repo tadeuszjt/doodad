@@ -7,7 +7,8 @@ import qualified LLVM.AST.Type as LL
 import LLVM.IRBuilder.Constant
 import LLVM.IRBuilder.Instruction
 
-import qualified AST as S
+import qualified AST
+import qualified IR
 import Type
 import State
 import Monad
@@ -18,8 +19,8 @@ import Error
 import Symbol
 
 
-tupleTypeDef :: InsCmp CompileState m => Symbol -> S.AnnoType -> m ()
-tupleTypeDef symbol (S.AnnoType typ) = trace "tupleTypeDef" $ do
+tupleTypeDef :: InsCmp CompileState m => Symbol -> AST.AnnoType -> m ()
+tupleTypeDef symbol (AST.AnnoType typ) = trace "tupleTypeDef" $ do
     base@(Tuple ts) <- assertBaseType isTuple typ
     name <- addTypeDef symbol =<< opTypeOf base
 
@@ -35,7 +36,7 @@ tupleTypeDef symbol (S.AnnoType typ) = trace "tupleTypeDef" $ do
 
 
 
-tupleTypeDef symbol (S.AnnoTuple xs) = trace "tupleTypeDef" $ do
+tupleTypeDef symbol (AST.AnnoTuple xs) = trace "tupleTypeDef" $ do
     let typdef = Typedef symbol
     let tupTyp = Tuple (map snd xs)
     name <- addTypeDef symbol =<< opTypeOf tupTyp
