@@ -19,10 +19,10 @@ fn {s String} PutStrLn()
     print(s)
 
 
-fn {s String} GetStrLn()
+fn {s String, io Io} GetStrLn()
     s.clear()
     while true
-        switch getChar()
+        switch io.getChar()
             '\n'; return
             '\0'; return
             c; s.push(c)

@@ -6,21 +6,21 @@ import ../std/rand
 
 
 type Square { Empty() | Naught() | Cross() }
+type Board  [3 [3 Square]]
+
+data board Board
 
 
-data board [3 [3 Square]]
-
-
-fn printBoard()
+fn {board Board, io Io} printBoard()
     for board -> row
-        putStr("[")
+        io.putStr("[")
         for row[..] -> r
             switch row[r]
-                Empty();  putChar(' ')
-                Naught(); putChar('0')
-                Cross();  putChar('X')
-            if r < (len(row) - 1); putChar(',')
-        putStrLn("]")
+                Empty();  io.putChar(' ')
+                Naught(); io.putChar('0')
+                Cross();  io.putChar('X')
+            if r < (len(row) - 1); io.putChar(',')
+        io.putStrLn("]")
 
 
 fn winner() Square
@@ -62,10 +62,10 @@ fn full() bool
 
 type playerMoveReturn { Success() | Error() | Quit() }
 fn playerMove() playerMoveReturn
-    putStrLn("Make a move")
+    io.putStrLn("Make a move")
 
     data line String
-    line.GetStrLn()
+    {line, io}.GetStrLn()
     if line.ReadChar(0) -> ('q', _)
         return Quit()
 
@@ -127,8 +127,8 @@ fn main()
         let res = playerMoveLoop()
         if res == Quit()
             return
-        printBoard()
+        {board, io}.printBoard()
         cpuMove()
-        printBoard()
+        {board, io}.printBoard()
 
 

@@ -52,24 +52,25 @@ fn {board Board, list [Move]} GetValidMoves(team Square)
 
 fn {board Board} MakeMove(move Move) bool
     if !board.Contains(move.start) || !board.Contains(move.end)
+        print("invalid move", move)
         return false
     board[move.end.row][move.end.col] = board[move.start.row][move.start.col]
     board[move.start.row][move.start.col] = Empty()
     return true
 
 
-fn {board Board} Print()
+fn {board Board, io Io} Print()
     for board[..] -> r
-        putChar('0' + board.len() - char(r))
-        putStr(" [")
+        io.putChar('0' + board.len() - char(r))
+        io.putStr(" [")
         for board[r][..] -> c
             switch board[r][c]
-                Empty(); putChar(' ')
-                White(); putChar('W')
-                Black(); putChar('B')
-            if [.. board[r].len() - 1][c]; putChar(',') 
-        putStrLn("]")
-    putStrLn("   A B C D E F G H")
+                Empty(); io.putChar(' ')
+                White(); io.putChar('W')
+                Black(); io.putChar('B')
+            if [.. board[r].len() - 1][c]; io.putChar(',') 
+        io.putStrLn("]")
+    io.putStrLn("   A B C D E F G H")
 
 
 fn {board Board} Initialise()
@@ -91,7 +92,7 @@ fn {board Board} Initialise()
 fn {board Board} playerMove()
     print("Enter move. Eg: E2 E4")
     data line String
-    line.GetStrLn()
+    {line, io}.GetStrLn()
 
     let (startColChar, n1) = line.ReadChar(0)
     let (startRow, n2)     = line.ReadI64(n1)
@@ -127,10 +128,13 @@ fn {board Board} playerMove()
 fn main()
     data board Board
     board.Initialise()
-    board.Print()
+    {board, io}.Print()
 
     data whiteMoves [Move]
     {board, whiteMoves}.GetValidMoves(White())
     let idx = rand::I64() % whiteMoves.len()
     board.MakeMove(whiteMoves[idx])
-    board.Print()
+    {board, io}.Print()
+
+
+

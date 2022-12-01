@@ -2,18 +2,21 @@ module io
 
 import_c stdio.h
 
+type Io ()
+data io Io
 
-fn getChar() char
+fn {io Io} getChar() char
     return char(c::getchar())
 
 
-fn putChar(c char)
+fn {io Io} putChar(c char)
     c::putchar(i32(c))
 
 
-fn putStr(s string)
-    for s -> c; putChar(c)
+fn {io Io} putStr(s string)
+    for s -> c; io.putChar(c)
 
-fn putStrLn(s string)
-    for s -> c; putChar(c)
-    putChar('\n')
+
+fn {io Io} putStrLn(s string)
+    for s -> c; io.putChar(c)
+    io.putChar('\n')
