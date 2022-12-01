@@ -51,7 +51,7 @@ data Param
         , paramName :: Symbol
         , paramType :: Type
         }
-    deriving (Eq)
+    deriving (Eq, Ord)
 
 
 data Pattern

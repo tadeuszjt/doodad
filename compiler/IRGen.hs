@@ -3,28 +3,54 @@
 module IRGen where
 
 import Control.Monad
+import Control.Monad.State
+import qualified Data.Map as Map
 
 import qualified AST
 import IR
 import Symbol
 import Monad
 import Error
+import Type
+
+
+prettyIrGenState :: IRGenState -> IO ()
+prettyIrGenState irGenState = do
+    putStrLn $ "module: " ++ moduleName irGenState
+    forM_ (Map.toList $ funcDefs irGenState) $ \((pts, sym, ats, rt), stmts) -> do
+        putStrLn $ "func: " ++ AST.brcStrs (map show pts) ++ " " ++ sym ++ AST.tupStrs (map show ats) ++ " " ++ show rt
+        forM_ stmts $ \stmt -> do
+            prettyStmt "\t" stmt
+
 
 
 class IRGen a b where
     irGen :: BoM IRGenState m => a -> m b
 
+
+
+type FuncKey = ([Type], String, [Type], Type)
+
+
 data IRGenState
     = IRGenState
-        { 
+        { moduleName :: String
+        , funcDefs :: Map.Map FuncKey [Stmt]
+        , currentFunc :: FuncKey
         }
 
-initIRGenState = IRGenState
-    { 
+
+initIRGenState moduleName = IRGenState
+    { moduleName = moduleName
+    , funcDefs = Map.empty
+    , currentFunc = ([], "", [], Void)
     }
+
 
 instance IRGen AST.AST IR where
     irGen ast = do
+        initialiseTopFuncDefs ast
+
         irStmts <- mapM irGen $ AST.astStmts ast
         return $ IR
             { irStmts = irStmts
@@ -33,14 +59,47 @@ instance IRGen AST.AST IR where
             }
 
 
+initialiseTopFuncDefs :: BoM IRGenState m => AST.AST -> m ()
+initialiseTopFuncDefs ast = do
+    let funcDefStmts = [ x | x@(AST.FuncDef _ _ _ _ _ _) <- AST.astStmts ast]
+    forM_ funcDefStmts $ \(AST.FuncDef _ params sym args retty _) -> do
+        let paramTypes = map AST.paramType params
+        let argTypes   = map AST.paramType args
+        let key        = (paramTypes, sym, argTypes, retty)
+        Nothing <- Map.lookup key <$> gets funcDefs
+        modify $ \s -> s { funcDefs = Map.insert key [] (funcDefs s) }
+
+    let mainKey = ([], "main.global", [], Void)
+    modify $ \s -> s { currentFunc = mainKey }
+    modify $ \s -> s { funcDefs = Map.insert mainKey [] (funcDefs s) }
+        
+
+emitStmt :: BoM IRGenState m => Stmt -> m ()
+emitStmt stmt = do
+    currentFunc <- gets currentFunc
+    resm <- Map.lookup currentFunc <$> gets funcDefs
+    case resm of
+        Nothing -> fail $ "Could not find: " ++ show currentFunc
+        Just res -> modify $ \s -> s { funcDefs = Map.insert currentFunc (res ++ [stmt]) (funcDefs s) }
+
+
+
 instance IRGen AST.Stmt Stmt where
     irGen stmt = case stmt of
         AST.FuncDef pos params sym args retty blk -> do
+            let paramTypes = map AST.paramType params
+            let argTypes   = map AST.paramType args
+            let key        = (paramTypes, sym, argTypes, retty)
+
+            oldCurrentFunc <- gets currentFunc
+            modify $ \s -> s { currentFunc = key }
             blk' <- irGen blk
+            modify $ \s -> s { currentFunc = oldCurrentFunc }
             return $ FuncDef pos params sym args retty blk'
 
         AST.ExprStmt expr -> do
-            ExprStmt <$> irGen expr
+            expr' <- irGen expr
+            return $ ExprStmt expr'
 
         AST.Block stmts -> do
             stmts' <- mapM irGen stmts
@@ -56,7 +115,7 @@ instance IRGen AST.Stmt Stmt where
             return $ Assign pos pat' expr'
         
         AST.Typedef pos symbol anno -> do
-            return $ Typedef pos symbol anno
+            return $ IR.Typedef pos symbol anno
 
         AST.If pos expr stmt melse -> do
             expr' <- irGen expr
@@ -102,15 +161,15 @@ instance IRGen AST.Expr Expr where
     irGen expr = case expr of
         AST.Ident pos symbol   -> return $ Ident pos symbol
         AST.Prefix pos op expr -> Prefix pos op <$> irGen expr
-        AST.Char pos c         -> return $ Char pos c
+        AST.Char pos c         -> return $ IR.Char pos c
         AST.Len pos expr       -> Len pos <$> irGen expr
-        AST.UnsafePtr pos expr -> UnsafePtr pos <$> irGen expr
+        AST.UnsafePtr pos expr -> IR.UnsafePtr pos <$> irGen expr
         AST.Int pos n          -> return $ Int pos n
-        AST.Bool pos b         -> return $ Bool pos b
+        AST.Bool pos b         -> return $ IR.Bool pos b
         AST.Float pos f        -> return $ Float pos f
-        AST.Tuple pos exprs    -> Tuple pos <$> mapM irGen exprs
-        AST.Array pos exprs    -> Array pos <$> mapM irGen exprs
-        AST.String pos s       -> return $ String pos s
+        AST.Tuple pos exprs    -> IR.Tuple pos <$> mapM irGen exprs
+        AST.Array pos exprs    -> IR.Array pos <$> mapM irGen exprs
+        AST.String pos s       -> return $ IR.String pos s
 
         AST.Push pos expr exprs -> do
             expr' <- irGen expr
@@ -164,7 +223,7 @@ instance IRGen AST.Expr Expr where
 
         AST.Null pos -> return (Null pos)
 
-        AST.ADT pos expr -> ADT pos <$> irGen expr
+        AST.ADT pos expr -> IR.ADT pos <$> irGen expr
 
         AST.Match pos expr pat -> do
             expr' <- irGen expr
@@ -175,7 +234,7 @@ instance IRGen AST.Expr Expr where
             mexpr' <- maybe (return Nothing) (fmap Just . irGen) mexpr
             mexpr1' <- maybe (return Nothing) (fmap Just . irGen) mexpr1
             mexpr2' <- maybe (return Nothing) (fmap Just . irGen) mexpr2
-            return $ Range pos mexpr' mexpr1' mexpr2'
+            return $ IR.Range pos mexpr' mexpr1' mexpr2'
 
         --_ -> return expr
 

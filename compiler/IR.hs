@@ -207,56 +207,56 @@ prettyIR ir = do
     putStrLn ""
 
     mapM_ (prettyStmt "") (irStmts ir)
-    where
-        prettyStmt :: String -> Stmt -> IO ()
-        prettyStmt pre stmt = case stmt of
-            FuncDef pos params sym args retty blk -> do
-                paramStr <- case params of
-                    [] -> return ""
-                    ps -> return $ tupStrs $ map show ps
-                
-                putStrLn $ pre ++ "fn " ++ paramStr ++ sym ++ tupStrs (map show args) ++ " " ++ if retty == Void then "" else show retty
-                prettyStmt (pre ++ "\t") blk
-                putStrLn ""
 
-            Assign pos pat expr        -> putStrLn $ pre ++ "let " ++ show pat ++ " = " ++ show expr
-            Set pos ind expr           -> putStrLn $ pre ++ show ind ++ " = " ++ show expr
-            Print pos exprs            -> putStrLn $ pre ++ "print" ++ tupStrs (map show exprs)
-            Return pos mexpr -> putStrLn $ pre ++ "return " ++ maybe "" show mexpr
- 
-            If pos cnd true mfalse -> do
-                putStrLn $ pre ++ "if " ++ show cnd
-                prettyStmt (pre ++ "\t") true
-                putStrLn $ pre ++ "else"
-                maybe (return ()) (prettyStmt (pre ++ "\t")) mfalse
+prettyStmt :: String -> Stmt -> IO ()
+prettyStmt pre stmt = case stmt of
+    FuncDef pos params sym args retty blk -> do
+        paramStr <- case params of
+            [] -> return ""
+            ps -> return $ tupStrs $ map show ps
+        
+        putStrLn $ pre ++ "fn " ++ paramStr ++ sym ++ tupStrs (map show args) ++ " " ++ if retty == Void then "" else show retty
+        prettyStmt (pre ++ "\t") blk
+        putStrLn ""
 
-            ExprStmt callExpr -> putStrLn $ pre ++ show callExpr
-                    
+    Assign pos pat expr        -> putStrLn $ pre ++ "let " ++ show pat ++ " = " ++ show expr
+    Set pos ind expr           -> putStrLn $ pre ++ show ind ++ " = " ++ show expr
+    Print pos exprs            -> putStrLn $ pre ++ "print" ++ tupStrs (map show exprs)
+    Return pos mexpr -> putStrLn $ pre ++ "return " ++ maybe "" show mexpr
 
-            Block stmts -> do
-                mapM_ (prettyStmt pre) stmts
+    If pos cnd true mfalse -> do
+        putStrLn $ pre ++ "if " ++ show cnd
+        prettyStmt (pre ++ "\t") true
+        putStrLn $ pre ++ "else"
+        maybe (return ()) (prettyStmt (pre ++ "\t")) mfalse
 
-            While pos cnd stmt -> do
-                putStrLn $ pre ++ "while " ++ show cnd
-                prettyStmt (pre ++ "\t") stmt
+    ExprStmt callExpr -> putStrLn $ pre ++ show callExpr
+            
 
-            Typedef pos symbol anno -> do
-                putStrLn $ pre ++ "typedef " ++ show symbol ++ " " ++ show anno
+    Block stmts -> do
+        mapM_ (prettyStmt pre) stmts
 
-            Switch pos expr cases -> do
-                putStrLn $ pre ++ "switch " ++ show expr
-                forM_ cases $ \(pat, stmt) -> do
-                    putStrLn $ pre ++ "\t" ++ show pat
-                    prettyStmt (pre ++ "\t\t") stmt
+    While pos cnd stmt -> do
+        putStrLn $ pre ++ "while " ++ show cnd
+        prettyStmt (pre ++ "\t") stmt
 
-            For pos expr mcnd blk -> do
-                let cndStr = maybe "" ((" -> " ++) . show) mcnd
-                let exprStr = "" ++ show expr
-                putStrLn $ pre ++ "for " ++ exprStr ++ cndStr
-                prettyStmt (pre ++ "\t") blk
+    Typedef pos symbol anno -> do
+        putStrLn $ pre ++ "typedef " ++ show symbol ++ " " ++ show anno
 
-            Data pos symbol typ -> do
-                putStrLn $ pre ++ "data " ++ show symbol ++ " " ++ show typ
+    Switch pos expr cases -> do
+        putStrLn $ pre ++ "switch " ++ show expr
+        forM_ cases $ \(pat, stmt) -> do
+            putStrLn $ pre ++ "\t" ++ show pat
+            prettyStmt (pre ++ "\t\t") stmt
 
-            _  -> error $ "invalid stmt: " ++ show stmt
+    For pos expr mcnd blk -> do
+        let cndStr = maybe "" ((" -> " ++) . show) mcnd
+        let exprStr = "" ++ show expr
+        putStrLn $ pre ++ "for " ++ exprStr ++ cndStr
+        prettyStmt (pre ++ "\t") blk
+
+    Data pos symbol typ -> do
+        putStrLn $ pre ++ "data " ++ show symbol ++ " " ++ show typ
+
+    _  -> error $ "invalid stmt: " ++ show stmt
 

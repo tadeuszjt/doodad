@@ -25,6 +25,7 @@ data SymKey
 
 type SymTab = SymTab.SymTab String SymKey Symbol
 
+
 data ResolveState
     = ResolveState
         { symTab    :: SymTab

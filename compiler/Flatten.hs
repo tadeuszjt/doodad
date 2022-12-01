@@ -14,6 +14,9 @@ import Monad
 import Error
 import Symbol
 
+-- Flatten:
+-- Check type defs for circles
+-- Rearrage AST to put typedefs before funcdefs
 
 
 -- check typedefs for circles
@@ -68,7 +71,6 @@ data FlattenState
     = FlattenState
         { varDefs    :: [S.Stmt]
         , funcDefs   :: [S.Stmt]
-        , externDefs :: [S.Stmt]
         , typedefs   :: [S.Stmt]
         , dataDefs   :: [S.Stmt]
         }
@@ -78,7 +80,6 @@ initFlattenState
     = FlattenState
         { varDefs    = []
         , funcDefs   = []
-        , externDefs = []
         , typedefs   = []
         , dataDefs   = []
         }
@@ -109,7 +110,6 @@ flattenAST ast = do
 
     modify $ \s -> s {
         funcDefs   = reverse (funcDefs s),
-        externDefs = reverse (externDefs s),
         varDefs    = reverse (varDefs s),
         typedefs   = reverse (typedefs s),
         dataDefs   = reverse (dataDefs s)
@@ -117,7 +117,7 @@ flattenAST ast = do
 
     s <- get
 
-    return $ ast { S.astStmts = typedefs s ++ externDefs s ++ dataDefs s ++ varDefs s ++ funcDefs s }
+    return $ ast { S.astStmts = typedefs s ++ dataDefs s ++ varDefs s ++ funcDefs s }
     where
         moduleName = maybe "main" id (S.astModuleName ast)
         
