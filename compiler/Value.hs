@@ -87,12 +87,7 @@ mkRange start end = do
 
 mkZero :: InsCmp CompileState m => Type -> m Value
 mkZero typ = trace ("mkZero " ++ show  typ) $ do
-    namem <- case typ of
-        Typedef symbol -> do
-            ObType t nm <- look symbol KeyType
-            return nm
-        _ -> return Nothing
-
+    namem <- return Nothing
     base <- baseTypeOf typ
     case base of
         _ | isEnumADT base -> Val typ . valOp <$> mkZero I64

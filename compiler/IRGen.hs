@@ -21,16 +21,13 @@ prettyIrGenState irGenState = do
     forM_ (Map.toList $ typeDefs irGenState) $ \(symbol, _) -> do
         putStrLn $ "type: " ++ show symbol
 
-
     when (isJust $ mainDef irGenState) $ do
         putStrLn $ "main: " ++ (show $ length $ funcStmts $ fromJust $ mainDef irGenState)
 
     forM_ (Map.toList $ funcDefs irGenState) $ \((pts, sym, ats, rt), body) -> do
         putStrLn $ "func: " ++ AST.brcStrs (map show pts) ++ " " ++ sym ++ AST.tupStrs (map show ats) ++ " " ++ show rt
-
         putStrLn $ "    params: " ++ AST.brcStrs (map show $ funcParams body)
         putStrLn $ "    args:   " ++ AST.tupStrs (map show $ funcArgs body)
-
         putStrLn ""
 
 
@@ -52,7 +49,7 @@ data StmtBlock = StmtBlock
 data IRGenState
     = IRGenState
         { moduleName :: String
-        , typeDefs :: Map.Map Symbol ()
+        , typeDefs :: Map.Map Symbol AST.AnnoType
         , funcDefs :: Map.Map FuncKey FuncBody
         , mainDef  :: Maybe FuncBody
         , currentFunc :: FuncKey
@@ -78,12 +75,11 @@ emitStmt stmt = do
 
 
 
-compile :: BoM IRGenState m => AST.AST -> m IR
+compile :: BoM IRGenState m => AST.AST -> m ()
 compile ast = do
     initialiseTopTypeDefs ast
     initialiseTopFuncDefs ast
     forM_ (AST.astStmts ast) $ \stmt -> compileStmt stmt
-    convertToIR ast
 
 
 initialiseTopFuncDefs :: BoM IRGenState m => AST.AST -> m ()
@@ -109,7 +105,7 @@ initialiseTopTypeDefs ast = do
     let typeDefStmts = [ x | x@(AST.Typedef _ _ _) <- AST.astStmts ast]
     forM_ typeDefStmts $ \(AST.Typedef _ symbol anno) -> do
         Nothing <- Map.lookup symbol <$> gets typeDefs
-        modify $ \s -> s { typeDefs = Map.insert symbol () (typeDefs s) }
+        modify $ \s -> s { typeDefs = Map.insert symbol anno (typeDefs s) }
 
 
 compileStmt :: BoM IRGenState m => AST.Stmt -> m ()
@@ -138,16 +134,6 @@ compileStmt stmt = case stmt of
 
     _ -> return ()
     
-
-
-convertToIR :: BoM IRGenState m => AST.AST -> m IR
-convertToIR ast = do
-    irStmts <- mapM convertToIrStmt $ AST.astStmts ast
-    return $ IR
-        { irStmts = irStmts
-        , irModuleName = AST.astModuleName ast
-        , irImports = AST.astImports ast
-        }
 
 
 convertToIrStmt :: Monad m => AST.Stmt -> m Stmt

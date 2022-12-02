@@ -127,8 +127,8 @@ import Symbol
 ---------------------------------------------------------------------------------------------------
 -- Header -----------------------------------------------------------------------------------------
 
-prog  : prog_                                 { S.AST Nothing [] $1 }
-      | module ident 'N' imports prog_        { S.AST (Just (tokStr $2)) $4 $5 }
+prog  : prog_                                 { S.AST "main" [] $1 }
+      | module ident 'N' imports prog_        { S.AST (tokStr $2) $4 $5 }
 prog_ : {-empty-}                             { [] }
       | stmtS                                 { [$1] }
       | stmtS 'N' prog_                       { $1 : $3 }

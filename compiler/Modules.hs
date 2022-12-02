@@ -105,7 +105,7 @@ getSpecificModuleFiles name []     = return []
 getSpecificModuleFiles name (f:fs) = do
     source <- liftIO (readFile f)
     ast <- parse f
-    if fromJust (S.astModuleName ast) == name then
+    if (S.astModuleName ast) == name then
         (f:) <$> getSpecificModuleFiles name fs
     else
         getSpecificModuleFiles name fs
@@ -213,13 +213,13 @@ runMod args pathsVisited modPath = do
             flat <- fmap fst $ withErrorPrefix "flatten: " $ runBoMTExcept initFlattenState (flattenAST ast)
             --assert (S.astModuleName flat == modName) "modName error"
             -- turn flat into ir
-            (ir, irGenState) <- withErrorPrefix "irgen: " $ runBoMTExcept (initIRGenState modName) (IRGen.compile ast)
+            (_, irGenState) <- withErrorPrefix "irgen: " $ runBoMTExcept (initIRGenState modName) (IRGen.compile ast)
             when (printIR args) $ do
                 liftIO $ prettyIrGenState irGenState
 
             -- compile and run
             debug "compiling"
-            (defs, state) <- withErrorPrefix "compile: " $ Compile.compile (cState : imports) ir irGenState
+            (defs, state) <- withErrorPrefix "compile: " $ Compile.compile (cState : imports) irGenState
             when (printSymbols args) $ liftIO $ SymTab.prettySymTab (State.symTab state)
 
             debug "running"

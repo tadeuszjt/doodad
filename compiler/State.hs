@@ -76,7 +76,7 @@ instance Show SymKey where
 
 data Object
     = ObjVal          Value
-    | ObType          Type   (Maybe LL.Name)
+    | ObType          Type
     | ObjFnOp         LL.Operand
     | ObjAdtTypeField Int
     | ObjConstructor 
@@ -89,7 +89,7 @@ instance Show Object where
         ObjVal (Val t o)    -> "Val " ++ show t
         ObjVal (Ptr t o)    -> "Ptr " ++ show t
         ObjVal val          -> "val"
-        ObType typ mn       -> show typ
+        ObType typ          -> show typ
         ObjFnOp op          -> "fn"
         ObjConstructor      -> "(..)"
         ObjField i         -> "." ++ show i
@@ -111,7 +111,6 @@ data CompileState
         , symTab        :: SymTab.SymTab Symbol SymKey Object
         , curModName    :: String
         , nameMap       :: Map.Map String Int
-        , typeMap       :: Map.Map Symbol (LL.Name, LL.Type)
         , stringMap     :: Map.Map String C.Constant
         }
 
@@ -124,7 +123,6 @@ initCompileState imports modName
         , symTab        = SymTab.initSymTab
         , curModName    = modName
         , nameMap       = Map.empty
-        , typeMap       = Map.empty
         , stringMap     = Map.empty
         }
 
@@ -142,18 +140,6 @@ getStringPointer str = do
             p <- globalStringPtr str =<< myFreshPrivate "str"
             modify $ \s -> s { stringMap = Map.insert str p (stringMap s) }
             return (LL.ConstantOperand p)
-
-
-addTypeDef :: InsCmp CompileState m => Symbol -> LL.Type -> m LL.Name
-addTypeDef symbol opType = do
-    name <- myFresh (sym symbol)
-    typedef name (Just opType)
-
-    tm <- gets typeMap
-    assert (not $ Map.member symbol tm) "type already defined"
-    modify $ \s -> s { typeMap = Map.insert symbol (name, opType) (typeMap s) }
-    return name
-
 
 
 myFreshPrivate :: InsCmp CompileState m => String -> m LL.Name

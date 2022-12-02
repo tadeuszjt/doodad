@@ -52,50 +52,34 @@ import Sparse
 import IRGen
 
 
-compile :: BoM s m => [CompileState] -> IR.IR -> IRGenState -> m ([LL.Definition], CompileState)
-compile imports ir irGenState = do
-    ((_, defs), state) <- runBoMTExcept (initCompileState imports modName) (runModuleCmpT emptyModuleBuilder cmp)
+compile :: BoM s m => [CompileState] -> IRGenState -> m ([LL.Definition], CompileState)
+compile imports irGenState = do
+    ((_, defs), state) <- runBoMTExcept (initCompileState imports $ moduleName irGenState) (runModuleCmpT emptyModuleBuilder cmp)
     return (defs, state)
     where
-        modName = case IR.irModuleName ir of
-            Nothing   -> "main"
-            Just name -> name
-
         cmp :: (MonadFail m, Monad m, MonadIO m) => ModuleCmpT CompileState m ()
         cmp = do
-            typedef (mkName "String") $
-                Just (LL.StructureType False [LL.i64, LL.i64, LL.ptr LL.i8])
-            
-            forM_ imports $ \imp -> do
-                forM_ (Map.elems $ typeMap imp) $ \(name, opType) -> do
-                    typedef name (Just opType)
-
             mainOp <- func (LL.mkName "main")  [] LL.VoidType $ \_ -> do
-                mapM_ cmpTypeDef   [ stmt | stmt@(IR.Typedef _ _ _) <- IR.irStmts ir ]
+                cmpTypeDefs irGenState
                 cmpFuncHdrs irGenState
                 cmpFuncBodies irGenState
 
-            func (LL.mkName $ modName ++ "..callMain")  [] LL.VoidType $ \_ -> do
+            func (LL.mkName $ (moduleName irGenState) ++ "..callMain")  [] LL.VoidType $ \_ -> do
                 boolName <- myFresh "bMainCalled"
                 bMainCalled <- global boolName LL.i1 $ toCons (bit 0)
                 b <- load bMainCalled 0
-
                 true  <- freshName "main_called_true"
                 exit  <- freshName "main_called_exit"
-
                 condBr b true exit
                 emitBlockStart true
                 retVoid
-
                 emitBlockStart exit
                 store bMainCalled 0 (bit 1)
-
                 forM_ (map curModName imports) $ \modName -> case modName of
                     "c" -> return ()
                     _ -> do
                         op <- extern (LL.mkName $ modName ++ "..callMain") [] LL.VoidType
                         void $ call op []
-
                 void $ call mainOp []
 
             return ()
@@ -135,7 +119,7 @@ cmpFuncBodies irGenState = do
         let paramNames   = map (ParameterName . mkBSS . Symbol.sym) paramSymbols
 
         returnOpType <- opTypeOf retty
-        argOpTypes   <- mapM (opTypeOf . AST.paramType) (funcArgs funcBody)
+        argOpTypes   <- mapM opTypeOf argTypes
         paramOpTypes <- map LL.ptr <$> mapM opTypeOf paramTypes
 
         ObjFnOp op <- look (Sym sym) (KeyFunc paramTypes argTypes retty)
@@ -150,29 +134,31 @@ cmpFuncBodies irGenState = do
                 valStore loc (Val typ op)
                 define symbol KeyVar (ObjVal loc)
 
-            case funcStmts funcBody of
-                [] -> fail $ "no stmts for:" ++ sym
-                [x] -> cmpStmt x
+            mapM_ cmpStmt (funcStmts funcBody)
             hasTerm <- hasTerminator
             if hasTerm then return ()
             else if retty == Void then retVoid
             else trap >> unreachable
 
 
+cmpTypeDefs :: InsCmp CompileState m => IRGenState -> m ()
+cmpTypeDefs irGenState = do
+    forM_ (Map.toList $ typeDefs irGenState) $ \(symbol, anno) ->
+        case anno of
+            AST.AnnoTuple xs -> tupleTypeDef symbol (AST.AnnoTuple xs)
+            AST.AnnoADT xs   -> adtTypeDef symbol (AST.AnnoADT xs)
+            AST.AnnoType typ -> do
+                case typ of
+                    t | isTuple t -> tupleTypeDef symbol (AST.AnnoType t)
+                    t | isTable t -> tableTypeDef symbol (AST.AnnoType t)
+                    t             -> do
+                        let typdef = Typedef symbol
+                        define symbol (KeyFunc [] [] typdef) ObjConstructor
+                        define symbol (KeyFunc [] [t] typdef) ObjConstructor
+                        define symbol (KeyFunc [] [typdef] typdef) ObjConstructor
+                        define symbol KeyType (ObType t)
 
-cmpTypeDef :: InsCmp CompileState m => IR.Stmt -> m ()
-cmpTypeDef (IR.Typedef pos symbol (AST.AnnoTuple xs)) = withPos pos $ tupleTypeDef symbol (AST.AnnoTuple xs)
-cmpTypeDef (IR.Typedef pos symbol (AST.AnnoADT xs))   = withPos pos $ adtTypeDef symbol (AST.AnnoADT xs)
-cmpTypeDef (IR.Typedef pos symbol (AST.AnnoType typ)) = withPos pos $ do
-    case typ of
-        t | isTuple t -> tupleTypeDef symbol (AST.AnnoType t)
-        t | isTable t -> tableTypeDef symbol (AST.AnnoType t)
-        t             -> do
-            let typdef = Typedef symbol
-            define symbol (KeyFunc [] [] typdef) ObjConstructor
-            define symbol (KeyFunc [] [t] typdef) ObjConstructor
-            define symbol (KeyFunc [] [typdef] typdef) ObjConstructor
-            define symbol KeyType (ObType t Nothing)
+
                     
 
 cmpDataDef :: InsCmp CompileState m => IR.Stmt -> m ()
@@ -280,8 +266,6 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
         br cond
         emitBlockStart exit
 
-    IR.Typedef _ _ _ -> cmpTypeDef stmt
-    
     IR.Switch _ expr cases -> do
         label "switch"
         val <- cmpExpr expr
@@ -690,7 +674,7 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
                 assert (length pats == 1)       "One pattern allowed for type field"
                 enumMatch <- mkIntInfix AST.EqEq (mkI64 i) =<< adtEnum val
                 Ptr _ loc <- adtDeref val i 0
-                ObType t0 _ <- look symbol KeyType
+                ObType t0 <- look symbol KeyType
                 b <- cmpPattern (head pats) $ Ptr t0 loc
                 valLoad =<< mkInfix AST.AndAnd enumMatch b
 

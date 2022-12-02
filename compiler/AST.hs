@@ -13,7 +13,7 @@ type ModuleName = String
 
 data AST
     = AST
-        { astModuleName :: Maybe ModuleName
+        { astModuleName :: ModuleName
         , astImports    :: [Import]
         , astStmts      :: [Stmt]
         }
@@ -280,8 +280,7 @@ instance Show Expr where
 -- every function must end on a newline and print pre before every line
 prettyAST :: AST -> IO ()
 prettyAST ast = do
-    when (isJust $ astModuleName ast) $
-        putStrLn $ "module " ++ (fromJust $ astModuleName ast)
+    putStrLn $ "module " ++ (astModuleName ast)
 
     putStrLn ""
 

@@ -113,8 +113,6 @@ flattenAST ast = do
 
     return $ ast { S.astStmts = typedefs s ++ funcDefs s }
     where
-        moduleName = maybe "main" id (S.astModuleName ast)
-        
         gatherTopStmt :: BoM FlattenState m => S.Stmt -> m ()
         gatherTopStmt stmt = withPos stmt $ case stmt of
             S.FuncDef _ _ _ _ _ _      -> modify $ \s -> s { funcDefs = stmt:(funcDefs s) }

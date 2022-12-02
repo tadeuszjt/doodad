@@ -26,8 +26,7 @@ import Symbol
 tableTypeDef :: InsCmp CompileState m => Symbol -> AST.AnnoType -> m ()
 tableTypeDef symbol (AST.AnnoType typ) = trace "tableTypeDef" $ do
     base@(Table ts) <- assertBaseType isTable typ
-    name <- addTypeDef symbol =<< opTypeOf base
-    define symbol KeyType $ ObType typ (Just name)
+    define symbol KeyType $ ObType typ 
 
 
 mkTableLen :: InsCmp CompileState m => Value -> m Value

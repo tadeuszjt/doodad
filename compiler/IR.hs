@@ -15,7 +15,7 @@ type ModuleName = String
 
 data IR
     = IR
-        { irModuleName :: Maybe ModuleName
+        { irModuleName :: ModuleName
         , irImports    :: [AST.Import]
         , irStmts      :: [Stmt]
         }
@@ -196,9 +196,7 @@ instance Show Expr where
 -- every function must end on a newline and print pre before every line
 prettyIR :: IR -> IO ()
 prettyIR ir = do
-    when (isJust $ irModuleName ir) $
-        putStrLn $ "module " ++ (fromJust $ irModuleName ir)
-
+    putStrLn $ "module " ++ (irModuleName ir)
     putStrLn ""
 
     forM_ (irImports ir) $ \imp ->
