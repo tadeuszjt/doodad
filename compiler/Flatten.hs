@@ -69,19 +69,15 @@ checkTypeDefs typedefs = do
 
 data FlattenState
     = FlattenState
-        { varDefs    :: [S.Stmt]
-        , funcDefs   :: [S.Stmt]
+        { funcDefs   :: [S.Stmt]
         , typedefs   :: [S.Stmt]
-        , dataDefs   :: [S.Stmt]
         }
 
 
 initFlattenState 
     = FlattenState
-        { varDefs    = []
-        , funcDefs   = []
+        { funcDefs   = []
         , typedefs   = []
-        , dataDefs   = []
         }
 
 
@@ -109,23 +105,19 @@ flattenAST ast = do
     checkTypeDefs [ stmt | stmt@(S.Typedef _ _ _) <- S.astStmts ast ]
 
     modify $ \s -> s {
-        funcDefs   = reverse (funcDefs s),
-        varDefs    = reverse (varDefs s),
-        typedefs   = reverse (typedefs s),
-        dataDefs   = reverse (dataDefs s)
+        funcDefs = reverse (funcDefs s),
+        typedefs = reverse (typedefs s)
         }
 
     s <- get
 
-    return $ ast { S.astStmts = typedefs s ++ dataDefs s ++ varDefs s ++ funcDefs s }
+    return $ ast { S.astStmts = typedefs s ++ funcDefs s }
     where
         moduleName = maybe "main" id (S.astModuleName ast)
         
         gatherTopStmt :: BoM FlattenState m => S.Stmt -> m ()
-        gatherTopStmt stmt = case stmt of
-            S.FuncDef _ _ _ _ _ _      -> modify $ \s -> s { funcDefs   = stmt:(funcDefs s) }
-            S.Assign _ _ _             -> modify $ \s -> s { varDefs    = stmt:(varDefs s) }
-            S.Typedef pos sym annoType -> modify $ \s -> s { typedefs   = stmt:(typedefs s) }
-            S.Data pos symbol typ      -> modify $ \s -> s { dataDefs   = stmt:(dataDefs s) }
+        gatherTopStmt stmt = withPos stmt $ case stmt of
+            S.FuncDef _ _ _ _ _ _      -> modify $ \s -> s { funcDefs = stmt:(funcDefs s) }
+            S.Typedef pos sym annoType -> modify $ \s -> s { typedefs = stmt:(typedefs s) }
             _ -> fail "invalid top-level statement"
 

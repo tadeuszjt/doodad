@@ -213,7 +213,7 @@ runMod args pathsVisited modPath = do
             flat <- fmap fst $ withErrorPrefix "flatten: " $ runBoMTExcept initFlattenState (flattenAST ast)
             --assert (S.astModuleName flat == modName) "modName error"
             -- turn flat into ir
-            (ir, irGenState) <- withErrorPrefix "irgen: " $ runBoMTExcept (initIRGenState modName) (irGen ast)
+            (ir, irGenState) <- withErrorPrefix "irgen: " $ runBoMTExcept (initIRGenState modName) (IRGen.compile ast)
             when (printIR args) $ do
                 liftIO $ prettyIrGenState irGenState
 

@@ -108,20 +108,14 @@ defineVar sym symbol = do
 pushSymTab :: BoM ResolveState m => m ()
 pushSymTab = do
     modify $ \s -> s { symTab = SymTab.push (symTab s) }
+    modify $ \s -> s { symTabVar = SymTab.push (symTabVar s) }
 
 
 popSymTab :: BoM ResolveState m => m ()
 popSymTab = do
     modify $ \s -> s { symTab = SymTab.pop (symTab s) }
-
-pushSymTabVar :: BoM ResolveState m => m ()
-pushSymTabVar = do
-    modify $ \s -> s { symTabVar = SymTab.push (symTabVar s) }
-
-
-popSymTabVar :: BoM ResolveState m => m ()
-popSymTabVar = do
     modify $ \s -> s { symTabVar = SymTab.pop (symTabVar s) }
+
 
 instance Resolve AST where
     resolve ast = do
@@ -165,10 +159,8 @@ instance Resolve Stmt where
 
         Block stmts -> do
             pushSymTab
-            pushSymTabVar
             stmts' <- mapM resolve stmts
             popSymTab
-            popSymTabVar
             return $ Block stmts'
 
         Return pos mexpr -> case mexpr of
@@ -213,21 +205,17 @@ instance Resolve Stmt where
 
         If pos condition stmt melse -> do
             pushSymTab
-            pushSymTabVar
             condition' <- resolve condition
             stmt' <- resolve stmt
             melse' <- maybe (return Nothing) (fmap Just . resolve) melse
             popSymTab
-            popSymTabVar
             return $ If pos condition' stmt' melse'
 
         While pos condition stmt -> do
             pushSymTab
-            pushSymTabVar
             condition' <- resolve condition
             stmt' <- resolve stmt
             popSymTab
-            popSymTabVar
             return $ While pos condition' stmt' 
 
         Set pos index expr -> do
@@ -241,22 +229,18 @@ instance Resolve Stmt where
             expr' <- resolve expr
             cases' <- forM cases $ \(pat, stmt) -> do
                 pushSymTab
-                pushSymTabVar
                 pat' <- resolve pat
                 stmt' <- resolve stmt
                 popSymTab
-                popSymTabVar
                 return (pat', stmt')
             return $ Switch pos expr' cases'
         
         For pos expr mpattern blk -> do
             pushSymTab
-            pushSymTabVar
             expr' <- resolve expr
             mpattern' <- maybe (return Nothing) (fmap Just . resolve) mpattern
             blk' <- resolve blk
             popSymTab
-            popSymTabVar
             return $ For pos expr' mpattern' blk'
 
         Data pos (Sym sym) typ -> do

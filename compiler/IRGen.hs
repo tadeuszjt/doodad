@@ -17,46 +17,69 @@ import Type
 prettyIrGenState :: IRGenState -> IO ()
 prettyIrGenState irGenState = do
     putStrLn $ "module: " ++ moduleName irGenState
-    forM_ (Map.toList $ funcDefs irGenState) $ \((pts, sym, ats, rt), stmts) -> do
+    forM_ (Map.toList $ typeDefs irGenState) $ \(symbol, _) -> do
+        putStrLn $ "type: " ++ show symbol
+
+    forM_ (Map.toList $ funcDefs irGenState) $ \((pts, sym, ats, rt), body) -> do
         putStrLn $ "func: " ++ AST.brcStrs (map show pts) ++ " " ++ sym ++ AST.tupStrs (map show ats) ++ " " ++ show rt
-        forM_ stmts $ \stmt -> do
-            prettyStmt "\t" stmt
+
+        putStrLn $ "    params: " ++ AST.brcStrs (map show $ funcParams body)
+        putStrLn $ "    args:   " ++ AST.tupStrs (map show $ funcArgs body)
+
+        putStrLn ""
 
 
-
-class IRGen a b where
-    irGen :: BoM IRGenState m => a -> m b
+--        forM_ (funcStmts body) $ \stmt -> do
+--            prettyStmt "\t" stmt
 
 
 
 type FuncKey = ([Type], String, [Type], Type)
+data FuncBody = FuncBody
+    { funcParams :: [AST.Param]
+    , funcArgs   :: [AST.Param]
+    , funcStmts  :: [Stmt]
+    }
+
+
+data StmtBlock = StmtBlock
+    { stmts :: [Stmt]
+    }
 
 
 data IRGenState
     = IRGenState
         { moduleName :: String
-        , funcDefs :: Map.Map FuncKey [Stmt]
+        , typeDefs :: Map.Map Symbol ()
+        , funcDefs :: Map.Map FuncKey FuncBody
         , currentFunc :: FuncKey
+        , blockStack :: [StmtBlock]
         }
 
 
 initIRGenState moduleName = IRGenState
     { moduleName = moduleName
+    , typeDefs = Map.empty
     , funcDefs = Map.empty
     , currentFunc = ([], "", [], Void)
+    , blockStack = []
     }
 
 
-instance IRGen AST.AST IR where
-    irGen ast = do
-        initialiseTopFuncDefs ast
+emitStmt :: BoM IRGenState m => Stmt -> m ()
+emitStmt stmt = do
+    stack <- gets blockStack
+    let block = head stack
+    modify $ \s -> s { blockStack = (block { stmts = stmts block ++ [stmt]}) : tail stack }
 
-        irStmts <- mapM irGen $ AST.astStmts ast
-        return $ IR
-            { irStmts = irStmts
-            , irModuleName = AST.astModuleName ast
-            , irImports = AST.astImports ast
-            }
+
+
+compile :: BoM IRGenState m => AST.AST -> m IR
+compile ast = do
+    initialiseTopTypeDefs ast
+    initialiseTopFuncDefs ast
+    forM_ (AST.astStmts ast) $ \stmt -> compileStmt stmt
+    convertToIR ast
 
 
 initialiseTopFuncDefs :: BoM IRGenState m => AST.AST -> m ()
@@ -67,210 +90,229 @@ initialiseTopFuncDefs ast = do
         let argTypes   = map AST.paramType args
         let key        = (paramTypes, sym, argTypes, retty)
         Nothing <- Map.lookup key <$> gets funcDefs
-        modify $ \s -> s { funcDefs = Map.insert key [] (funcDefs s) }
-
+        modify $ \s -> s { funcDefs = Map.insert key (FuncBody [] [] []) (funcDefs s) }
     let mainKey = ([], "main.global", [], Void)
     modify $ \s -> s { currentFunc = mainKey }
-    modify $ \s -> s { funcDefs = Map.insert mainKey [] (funcDefs s) }
+    modify $ \s -> s { funcDefs = Map.insert mainKey (FuncBody [] [] []) (funcDefs s) }
         
 
-emitStmt :: BoM IRGenState m => Stmt -> m ()
-emitStmt stmt = do
-    currentFunc <- gets currentFunc
-    resm <- Map.lookup currentFunc <$> gets funcDefs
-    case resm of
-        Nothing -> fail $ "Could not find: " ++ show currentFunc
-        Just res -> modify $ \s -> s { funcDefs = Map.insert currentFunc (res ++ [stmt]) (funcDefs s) }
+
+
+initialiseTopTypeDefs :: BoM IRGenState m => AST.AST -> m ()
+initialiseTopTypeDefs ast = do
+    let typeDefStmts = [ x | x@(AST.Typedef _ _ _) <- AST.astStmts ast]
+    forM_ typeDefStmts $ \(AST.Typedef _ symbol anno) -> do
+        Nothing <- Map.lookup symbol <$> gets typeDefs
+        modify $ \s -> s { typeDefs = Map.insert symbol () (typeDefs s) }
+
+
+compileStmt :: BoM IRGenState m => AST.Stmt -> m ()
+compileStmt stmt = case stmt of
+    AST.FuncDef pos params sym args retty blk -> do
+        let paramTypes = map AST.paramType params
+        let argTypes   = map AST.paramType args
+        let key        = (paramTypes, sym, argTypes, retty)
+
+        oldCurrentFunc <- gets currentFunc
+        modify $ \s -> s { currentFunc = key }
+
+        blk' <- convertToIrStmt blk
+        let funcBody = FuncBody {
+            funcParams = params,
+            funcArgs   = args,
+            funcStmts  = [blk']
+            }
+        modify $ \s -> s { funcDefs = Map.insert key funcBody (funcDefs s) }
+        modify $ \s -> s { currentFunc = oldCurrentFunc }
+
+        return ()
+
+    _ -> return ()
+    
+
+
+convertToIR :: BoM IRGenState m => AST.AST -> m IR
+convertToIR ast = do
+    irStmts <- mapM convertToIrStmt $ AST.astStmts ast
+    return $ IR
+        { irStmts = irStmts
+        , irModuleName = AST.astModuleName ast
+        , irImports = AST.astImports ast
+        }
+
+
+convertToIrStmt :: Monad m => AST.Stmt -> m Stmt
+convertToIrStmt stmt = case stmt of
+    AST.FuncDef pos params sym args retty blk -> do
+        blk' <- convertToIrStmt blk
+        return $ FuncDef pos params sym args retty blk'
+
+    AST.ExprStmt expr -> do
+        expr' <- convertToIrExpr expr
+        return $ ExprStmt expr'
+
+    AST.Block stmts -> do
+        stmts' <- mapM convertToIrStmt stmts
+        return $ Block stmts'
+
+    AST.Return pos mexpr -> do
+        mexpr' <- maybe (return Nothing) (fmap Just . convertToIrExpr) mexpr
+        return $ Return pos mexpr'
+
+    AST.Assign pos pat expr -> do
+        pat' <- convertToIrPattern pat
+        expr' <- convertToIrExpr expr
+        return $ Assign pos pat' expr'
+    
+    AST.Typedef pos symbol anno -> do
+        return $ IR.Typedef pos symbol anno
+
+    AST.If pos expr stmt melse -> do
+        expr' <- convertToIrExpr expr
+        stmt' <- convertToIrStmt stmt
+        melse' <- maybe (return Nothing) (fmap Just . convertToIrStmt) melse
+        return $ If pos expr' stmt' melse'
+
+    AST.While pos expr stmt -> do
+        expr' <- convertToIrExpr expr
+        stmt' <- convertToIrStmt stmt
+        return $ While pos expr' stmt'
+
+    AST.Set pos expr1 expr2 -> do
+        expr1' <- convertToIrExpr expr1
+        expr2' <- convertToIrExpr expr2
+        return $ Set pos expr1' expr2'
+
+    AST.Print pos exprs -> Print pos <$> mapM convertToIrExpr exprs
+
+    AST.Switch pos expr cases -> do
+        expr' <- convertToIrExpr expr
+        cases' <- forM cases $ \(pat, stmt) -> do
+            pat' <- convertToIrPattern pat
+            stmt' <- convertToIrStmt stmt
+            return (pat', stmt')
+        return $ Switch pos expr' cases'
+    
+    AST.For pos expr mpat blk -> do
+        expr' <- convertToIrExpr expr
+        mpat' <- maybe (return Nothing) (fmap Just . convertToIrPattern) mpat
+        blk' <- convertToIrStmt blk
+        return $ For pos expr' mpat' blk'
+
+    AST.Data pos symbol typ -> do
+        return $ Data pos symbol typ
 
 
 
-instance IRGen AST.Stmt Stmt where
-    irGen stmt = case stmt of
-        AST.FuncDef pos params sym args retty blk -> do
-            let paramTypes = map AST.paramType params
-            let argTypes   = map AST.paramType args
-            let key        = (paramTypes, sym, argTypes, retty)
+convertToIrExpr :: Monad m => AST.Expr -> m Expr
+convertToIrExpr expr = case expr of
+    AST.Ident pos symbol   -> return $ Ident pos symbol
+    AST.Prefix pos op expr -> Prefix pos op <$> convertToIrExpr expr
+    AST.Char pos c         -> return $ IR.Char pos c
+    AST.Len pos expr       -> Len pos <$> convertToIrExpr expr
+    AST.UnsafePtr pos expr -> IR.UnsafePtr pos <$> convertToIrExpr expr
+    AST.Int pos n          -> return $ Int pos n
+    AST.Bool pos b         -> return $ IR.Bool pos b
+    AST.Float pos f        -> return $ Float pos f
+    AST.Tuple pos exprs    -> IR.Tuple pos <$> mapM convertToIrExpr exprs
+    AST.Array pos exprs    -> IR.Array pos <$> mapM convertToIrExpr exprs
+    AST.String pos s       -> return $ IR.String pos s
 
-            oldCurrentFunc <- gets currentFunc
-            modify $ \s -> s { currentFunc = key }
-            blk' <- irGen blk
-            modify $ \s -> s { currentFunc = oldCurrentFunc }
-            return $ FuncDef pos params sym args retty blk'
+    AST.Push pos expr exprs -> do
+        expr' <- convertToIrExpr expr
+        exprs' <- mapM convertToIrExpr exprs
+        return $ Push pos expr' exprs'
 
-        AST.ExprStmt expr -> do
-            expr' <- irGen expr
-            return $ ExprStmt expr'
+    AST.Pop pos expr exprs -> do
+        expr' <- convertToIrExpr expr
+        exprs' <- mapM convertToIrExpr exprs
+        return $ Pop pos expr' exprs'
 
-        AST.Block stmts -> do
-            stmts' <- mapM irGen stmts
-            return $ Block stmts'
+    AST.Clear pos expr -> do
+        expr' <- convertToIrExpr expr
+        return $ Clear pos expr'
 
-        AST.Return pos mexpr -> do
-            mexpr' <- maybe (return Nothing) (fmap Just . irGen) mexpr
-            return $ Return pos mexpr'
+    AST.Delete pos expr1 expr2 -> do
+        expr1' <- convertToIrExpr expr1
+        expr2' <- convertToIrExpr expr2
+        return $ Delete pos expr1' expr2'
 
-        AST.Assign pos pat expr -> do
-            pat' <- irGen pat
-            expr' <- irGen expr
-            return $ Assign pos pat' expr'
-        
-        AST.Typedef pos symbol anno -> do
-            return $ IR.Typedef pos symbol anno
+    AST.Call pos params symbol exprs -> do
+        params' <- mapM convertToIrExpr params
+        exprs' <- mapM convertToIrExpr exprs
+        return $ Call pos params' symbol exprs'
 
-        AST.If pos expr stmt melse -> do
-            expr' <- irGen expr
-            stmt' <- irGen stmt
-            melse' <- maybe (return Nothing) (fmap Just . irGen) melse
-            return $ If pos expr' stmt' melse'
+    AST.Infix pos op expr1 expr2 -> do
+        expr1' <- convertToIrExpr expr1
+        expr2' <- convertToIrExpr expr2
+        return $ Infix pos op expr1' expr2'
 
-        AST.While pos expr stmt -> do
-            expr' <- irGen expr
-            stmt' <- irGen stmt
-            return $ While pos expr' stmt'
+    AST.Subscript pos expr1 expr2 -> do
+        expr1' <- convertToIrExpr expr1
+        expr2' <- convertToIrExpr expr2
+        return $ Subscript pos expr1' expr2'
 
-        AST.Set pos expr1 expr2 -> do
-            expr1' <- irGen expr1
-            expr2' <- irGen expr2
-            return $ Set pos expr1' expr2'
+    AST.Conv pos typ exprs -> do
+        exprs' <- mapM convertToIrExpr exprs
+        return $ Conv pos typ exprs'
 
-        AST.Print pos exprs -> Print pos <$> mapM irGen exprs
+    AST.Field pos expr sym -> do
+        expr' <- convertToIrExpr expr
+        return $ Field pos expr' sym
 
-        AST.Switch pos expr cases -> do
-            expr' <- irGen expr
-            cases' <- forM cases $ \(pat, stmt) -> do
-                pat' <- irGen pat
-                stmt' <- irGen stmt
-                return (pat', stmt')
-            return $ Switch pos expr' cases'
-        
-        AST.For pos expr mpat blk -> do
-            expr' <- irGen expr
-            mpat' <- maybe (return Nothing) (fmap Just . irGen) mpat
-            blk' <- irGen blk
-            return $ For pos expr' mpat' blk'
+    AST.AExpr typ expr -> do
+        expr' <- convertToIrExpr expr
+        return $ AExpr typ expr'
 
-        AST.Data pos symbol typ -> do
-            return $ Data pos symbol typ
+    AST.TupleIndex pos expr i -> do
+        expr' <- convertToIrExpr expr
+        return $ TupleIndex pos expr' i
 
---        _ -> return stmt
-        _ -> fail $ show stmt
+    AST.Null pos -> return (Null pos)
 
+    AST.ADT pos expr -> IR.ADT pos <$> convertToIrExpr expr
 
+    AST.Match pos expr pat -> do
+        expr' <- convertToIrExpr expr
+        pat' <- convertToIrPattern pat
+        return $ Match pos expr' pat'
 
-instance IRGen AST.Expr Expr where
-    irGen expr = case expr of
-        AST.Ident pos symbol   -> return $ Ident pos symbol
-        AST.Prefix pos op expr -> Prefix pos op <$> irGen expr
-        AST.Char pos c         -> return $ IR.Char pos c
-        AST.Len pos expr       -> Len pos <$> irGen expr
-        AST.UnsafePtr pos expr -> IR.UnsafePtr pos <$> irGen expr
-        AST.Int pos n          -> return $ Int pos n
-        AST.Bool pos b         -> return $ IR.Bool pos b
-        AST.Float pos f        -> return $ Float pos f
-        AST.Tuple pos exprs    -> IR.Tuple pos <$> mapM irGen exprs
-        AST.Array pos exprs    -> IR.Array pos <$> mapM irGen exprs
-        AST.String pos s       -> return $ IR.String pos s
-
-        AST.Push pos expr exprs -> do
-            expr' <- irGen expr
-            exprs' <- mapM irGen exprs
-            return $ Push pos expr' exprs'
-
-        AST.Pop pos expr exprs -> do
-            expr' <- irGen expr
-            exprs' <- mapM irGen exprs
-            return $ Pop pos expr' exprs'
-
-        AST.Clear pos expr -> do
-            expr' <- irGen expr
-            return $ Clear pos expr'
-
-        AST.Delete pos expr1 expr2 -> do
-            expr1' <- irGen expr1
-            expr2' <- irGen expr2
-            return $ Delete pos expr1' expr2'
-
-        AST.Call pos params symbol exprs -> do
-            params' <- mapM irGen params
-            exprs' <- mapM irGen exprs
-            return $ Call pos params' symbol exprs'
-
-        AST.Infix pos op expr1 expr2 -> do
-            expr1' <- irGen expr1
-            expr2' <- irGen expr2
-            return $ Infix pos op expr1' expr2'
-
-        AST.Subscript pos expr1 expr2 -> do
-            expr1' <- irGen expr1
-            expr2' <- irGen expr2
-            return $ Subscript pos expr1' expr2'
-
-        AST.Conv pos typ exprs -> do
-            exprs' <- mapM irGen exprs
-            return $ Conv pos typ exprs'
-
-        AST.Field pos expr sym -> do
-            expr' <- irGen expr
-            return $ Field pos expr' sym
-
-        AST.AExpr typ expr -> do
-            expr' <- irGen expr
-            return $ AExpr typ expr'
-
-        AST.TupleIndex pos expr i -> do
-            expr' <- irGen expr
-            return $ TupleIndex pos expr' i
-
-        AST.Null pos -> return (Null pos)
-
-        AST.ADT pos expr -> IR.ADT pos <$> irGen expr
-
-        AST.Match pos expr pat -> do
-            expr' <- irGen expr
-            pat' <- irGen pat
-            return $ Match pos expr' pat'
-
-        AST.Range pos mexpr mexpr1 mexpr2 -> do
-            mexpr' <- maybe (return Nothing) (fmap Just . irGen) mexpr
-            mexpr1' <- maybe (return Nothing) (fmap Just . irGen) mexpr1
-            mexpr2' <- maybe (return Nothing) (fmap Just . irGen) mexpr2
-            return $ IR.Range pos mexpr' mexpr1' mexpr2'
-
-        --_ -> return expr
-
-        _ -> fail $ "invalid expression: " ++ show expr
+    AST.Range pos mexpr mexpr1 mexpr2 -> do
+        mexpr' <- maybe (return Nothing) (fmap Just . convertToIrExpr) mexpr
+        mexpr1' <- maybe (return Nothing) (fmap Just . convertToIrExpr) mexpr1
+        mexpr2' <- maybe (return Nothing) (fmap Just . convertToIrExpr) mexpr2
+        return $ IR.Range pos mexpr' mexpr1' mexpr2'
 
 
-instance IRGen AST.Pattern Pattern where
-    irGen pattern = case pattern of
-        AST.PatIgnore pos -> return $ PatIgnore pos
-        AST.PatIdent pos symbol -> do
-            return $ PatIdent pos symbol
 
-        AST.PatField pos symbol pats -> do
-            pats' <- mapM irGen pats
-            return $ PatField pos symbol pats'
+convertToIrPattern :: Monad m => AST.Pattern -> m Pattern
+convertToIrPattern pattern = case pattern of
+    AST.PatIgnore pos -> return $ PatIgnore pos
+    AST.PatIdent pos symbol -> do
+        return $ PatIdent pos symbol
 
-        AST.PatTypeField pos typ pat -> do
-            pat' <- irGen pat
-            return $ PatTypeField pos typ pat'
+    AST.PatField pos symbol pats -> do
+        pats' <- mapM convertToIrPattern pats
+        return $ PatField pos symbol pats'
 
-        AST.PatTuple pos pats -> PatTuple pos <$> mapM irGen pats
+    AST.PatTypeField pos typ pat -> do
+        pat' <- convertToIrPattern pat
+        return $ PatTypeField pos typ pat'
 
-        AST.PatLiteral expr -> PatLiteral <$> irGen expr
+    AST.PatTuple pos pats -> PatTuple pos <$> mapM convertToIrPattern pats
 
-        AST.PatGuarded pos pat expr -> do
-            pat' <- irGen pat
-            expr' <- irGen expr
-            return $ PatGuarded pos pat' expr'
+    AST.PatLiteral expr -> PatLiteral <$> convertToIrExpr expr
 
-        AST.PatArray pos pats -> PatArray pos <$> mapM irGen pats
+    AST.PatGuarded pos pat expr -> do
+        pat' <- convertToIrPattern pat
+        expr' <- convertToIrExpr expr
+        return $ PatGuarded pos pat' expr'
 
-        AST.PatAnnotated pat typ -> do
-            pat' <- irGen pat
-            return $ PatAnnotated pat' typ
+    AST.PatArray pos pats -> PatArray pos <$> mapM convertToIrPattern pats
 
-        AST.PatNull pos -> return $ PatNull pos
+    AST.PatAnnotated pat typ -> do
+        pat' <- convertToIrPattern pat
+        return $ PatAnnotated pat' typ
 
-        _ -> error $ "invalid pattern: " ++ show pattern
+    AST.PatNull pos -> return $ PatNull pos
 

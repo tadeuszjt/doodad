@@ -4,7 +4,6 @@ import_c math.h
 import_c stdlib.h
 import_c_macro M_PI f64
 
-let pi = 3.14159
 
 fn sqrt(f f64); return c::sqrt(f)
 fn sin(f f64); return c::sin(f)
