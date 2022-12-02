@@ -2,6 +2,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 module IRGen where
 
+import Data.Maybe
 import Control.Monad
 import Control.Monad.State
 import qualified Data.Map as Map
@@ -20,6 +21,10 @@ prettyIrGenState irGenState = do
     forM_ (Map.toList $ typeDefs irGenState) $ \(symbol, _) -> do
         putStrLn $ "type: " ++ show symbol
 
+
+    when (isJust $ mainDef irGenState) $ do
+        putStrLn $ "main: " ++ (show $ length $ funcStmts $ fromJust $ mainDef irGenState)
+
     forM_ (Map.toList $ funcDefs irGenState) $ \((pts, sym, ats, rt), body) -> do
         putStrLn $ "func: " ++ AST.brcStrs (map show pts) ++ " " ++ sym ++ AST.tupStrs (map show ats) ++ " " ++ show rt
 
@@ -28,9 +33,6 @@ prettyIrGenState irGenState = do
 
         putStrLn ""
 
-
---        forM_ (funcStmts body) $ \stmt -> do
---            prettyStmt "\t" stmt
 
 
 
@@ -52,6 +54,7 @@ data IRGenState
         { moduleName :: String
         , typeDefs :: Map.Map Symbol ()
         , funcDefs :: Map.Map FuncKey FuncBody
+        , mainDef  :: Maybe FuncBody
         , currentFunc :: FuncKey
         , blockStack :: [StmtBlock]
         }
@@ -61,6 +64,7 @@ initIRGenState moduleName = IRGenState
     { moduleName = moduleName
     , typeDefs = Map.empty
     , funcDefs = Map.empty
+    , mainDef  = Nothing
     , currentFunc = ([], "", [], Void)
     , blockStack = []
     }
@@ -85,16 +89,18 @@ compile ast = do
 initialiseTopFuncDefs :: BoM IRGenState m => AST.AST -> m ()
 initialiseTopFuncDefs ast = do
     let funcDefStmts = [ x | x@(AST.FuncDef _ _ _ _ _ _) <- AST.astStmts ast]
-    forM_ funcDefStmts $ \(AST.FuncDef _ params sym args retty _) -> do
-        let paramTypes = map AST.paramType params
-        let argTypes   = map AST.paramType args
-        let key        = (paramTypes, sym, argTypes, retty)
-        Nothing <- Map.lookup key <$> gets funcDefs
-        modify $ \s -> s { funcDefs = Map.insert key (FuncBody [] [] []) (funcDefs s) }
-    let mainKey = ([], "main.global", [], Void)
-    modify $ \s -> s { currentFunc = mainKey }
-    modify $ \s -> s { funcDefs = Map.insert mainKey (FuncBody [] [] []) (funcDefs s) }
-        
+    forM_ funcDefStmts $ \(AST.FuncDef _ params sym args retty _) ->
+        case sym of
+            "main" -> do
+                Nothing <- gets mainDef
+                modify $ \s -> s { mainDef = Just (FuncBody [] [] []) }
+                
+            _ -> do
+                let paramTypes = map AST.paramType params
+                let argTypes   = map AST.paramType args
+                let key        = (paramTypes, sym, argTypes, retty)
+                Nothing <- Map.lookup key <$> gets funcDefs
+                modify $ \s -> s { funcDefs = Map.insert key (FuncBody [] [] []) (funcDefs s) }
 
 
 
@@ -122,7 +128,10 @@ compileStmt stmt = case stmt of
             funcArgs   = args,
             funcStmts  = [blk']
             }
-        modify $ \s -> s { funcDefs = Map.insert key funcBody (funcDefs s) }
+
+        case sym of 
+            "main" -> modify $ \s -> s { mainDef = Just funcBody }
+            _      -> modify $ \s -> s { funcDefs = Map.insert key funcBody (funcDefs s) }
         modify $ \s -> s { currentFunc = oldCurrentFunc }
 
         return ()

@@ -49,10 +49,11 @@ import Array
 import Builtin
 import Symbol
 import Sparse
+import IRGen
 
 
-compile :: BoM s m => [CompileState] -> IR.IR->  m ([LL.Definition], CompileState)
-compile imports ir = do
+compile :: BoM s m => [CompileState] -> IR.IR -> IRGenState -> m ([LL.Definition], CompileState)
+compile imports ir irGenState = do
     ((_, defs), state) <- runBoMTExcept (initCompileState imports modName) (runModuleCmpT emptyModuleBuilder cmp)
     return (defs, state)
     where
@@ -69,13 +70,10 @@ compile imports ir = do
                 forM_ (Map.elems $ typeMap imp) $ \(name, opType) -> do
                     typedef name (Just opType)
 
-
             mainOp <- func (LL.mkName "main")  [] LL.VoidType $ \_ -> do
                 mapM_ cmpTypeDef   [ stmt | stmt@(IR.Typedef _ _ _) <- IR.irStmts ir ]
-                mapM_ cmpFuncHdr   [ stmt | stmt@(IR.FuncDef _ _ _ _ _ _) <- IR.irStmts ir ]
-                mapM_ cmpDataDef   [ stmt | stmt@(IR.Data _ _ _) <- IR.irStmts ir ]
-                mapM_ cmpVarDef    [ stmt | stmt@(IR.Assign _ _ _) <- IR.irStmts ir ]
-                mapM_ cmpFuncDef   [ stmt | stmt@(IR.FuncDef _ _ _ _ _ _) <- IR.irStmts ir ]
+                cmpFuncHdrs irGenState
+                cmpFuncBodies irGenState
 
             func (LL.mkName $ modName ++ "..callMain")  [] LL.VoidType $ \_ -> do
                 boolName <- myFresh "bMainCalled"
@@ -101,6 +99,65 @@ compile imports ir = do
                 void $ call mainOp []
 
             return ()
+
+
+
+cmpFuncHdrs :: InsCmp CompileState m => IRGenState -> m ()
+cmpFuncHdrs irGenState = do
+    forM_ (Map.toList $ funcDefs irGenState) $ \((paramTypes, sym, argTypes, retty), funcBody) -> do
+        forM_ (funcArgs funcBody) $ \(AST.Param pos name typ) -> withPos pos $ do
+            isDataType <- isDataType typ
+            assert (not isDataType) "Cannot use a data type for an argument"
+
+        paramOpTypes <- map LL.ptr <$> mapM opTypeOf paramTypes
+        argOpTypes   <- mapM opTypeOf argTypes
+        returnOpType <- opTypeOf retty
+
+        name <- myFresh sym
+        let op = fnOp name (paramOpTypes ++ argOpTypes) returnOpType False
+        define (Sym sym) (KeyFunc paramTypes argTypes retty) (ObjFnOp op) 
+        addSymKeyDec (Sym sym) (KeyFunc paramTypes argTypes retty) name (DecFunc (paramOpTypes ++ argOpTypes) returnOpType)
+        addDeclared name
+
+
+cmpFuncBodies :: (MonadFail m, Monad m, MonadIO m) => IRGenState -> InstrCmpT CompileState m ()
+cmpFuncBodies irGenState = do
+    case mainDef irGenState of
+        Nothing   -> return ()
+        Just body -> mapM_ cmpStmt (funcStmts $ body)
+
+    forM_ (Map.toList $ funcDefs irGenState) $ \((paramTypes, sym, argTypes, retty), funcBody) -> do
+        let argTypes     = map AST.paramType (funcArgs funcBody)
+        let argSymbols   = map AST.paramName (funcArgs funcBody)
+        let argNames     = map (ParameterName . mkBSS . Symbol.sym) argSymbols
+        let paramTypes   = map AST.paramType (funcParams funcBody)
+        let paramSymbols = map AST.paramName (funcParams funcBody)
+        let paramNames   = map (ParameterName . mkBSS . Symbol.sym) paramSymbols
+
+        returnOpType <- opTypeOf retty
+        argOpTypes   <- mapM (opTypeOf . AST.paramType) (funcArgs funcBody)
+        paramOpTypes <- map LL.ptr <$> mapM opTypeOf paramTypes
+
+        ObjFnOp op <- look (Sym sym) (KeyFunc paramTypes argTypes retty)
+        let LL.ConstantOperand (C.GlobalReference _ name) = op
+
+        void $ InstrCmpT . IRBuilderT . lift $ func name (zip (paramOpTypes ++ argOpTypes)  (paramNames ++ argNames)) returnOpType $ \argOps -> do
+            forM_ (zip3 paramTypes paramSymbols argOps) $ \(typ, symbol, op) -> do
+                define symbol KeyVar (ObjVal $ Ptr typ $ op)
+
+            forM_ (zip3 argTypes (drop (length paramSymbols) argOps) argSymbols) $ \(typ, op, symbol) -> do
+                loc <- mkAlloca typ
+                valStore loc (Val typ op)
+                define symbol KeyVar (ObjVal loc)
+
+            case funcStmts funcBody of
+                [] -> fail $ "no stmts for:" ++ sym
+                [x] -> cmpStmt x
+            hasTerm <- hasTerminator
+            if hasTerm then return ()
+            else if retty == Void then retVoid
+            else trap >> unreachable
+
 
 
 cmpTypeDef :: InsCmp CompileState m => IR.Stmt -> m ()
@@ -151,67 +208,6 @@ cmpVarDef (IR.Assign pos (IR.PatIdent p symbol) expr) = withPos pos $ do
 
     addSymKeyDec symbol KeyVar name (DecVar opTyp)
     addDeclared name
-
-
-cmpFuncHdr :: InsCmp CompileState m => IR.Stmt -> m ()
-cmpFuncHdr (IR.FuncDef pos _ "main" [] Void blk) = return ()
-cmpFuncHdr (IR.FuncDef pos _ "main" _ _ _)             = withPos pos $ fail "invalid main func"
-cmpFuncHdr (IR.FuncDef pos params sym args retty blk)  = trace "cmpFuncHdr" $ withPos pos $ do
-    forM_ args $ \(AST.Param pos name typ) -> withPos pos $ do
-        isDataType <- isDataType typ
-        assert (not isDataType) "Cannot use a data type for an argument"
-    isDataType <- isDataType retty
-    assert (not isDataType) "Cannot return a data type"
-
-    let argTypes = map AST.paramType args
-    let paramTypes = map AST.paramType params
-
-    paramOpTypes <- map LL.ptr <$> mapM opTypeOf paramTypes
-    argOpTypes <- mapM opTypeOf argTypes
-    returnOpType <- opTypeOf retty
-
-    name <- myFresh sym
-    let op = fnOp name (paramOpTypes ++ argOpTypes) returnOpType False
-    define (Sym sym) (KeyFunc paramTypes argTypes retty) (ObjFnOp op) 
-    addSymKeyDec (Sym sym) (KeyFunc paramTypes argTypes retty) name (DecFunc (paramOpTypes ++ argOpTypes) returnOpType)
-    addDeclared name
-
-
-cmpFuncDef :: (MonadFail m, Monad m, MonadIO m) => IR.Stmt -> InstrCmpT CompileState m ()
-cmpFuncDef (IR.FuncDef pos params "main" args retty blk) = trace "cmpFuncDef" $ withPos pos $ do
-    assert (params == []) "main cannot be a member"
-    assert (args == [])  "main cannot have argeters"
-    assert (retty == Void) $ "main must return void: " ++ show retty
-    cmpStmt blk
-cmpFuncDef (IR.FuncDef pos params sym args retty blk) = trace "cmpFuncDef" $ withPos pos $ do
-    let argTypes     = map AST.paramType args
-    let argSymbols   = map AST.paramName args
-    let argNames     = map (ParameterName . mkBSS . Symbol.sym) argSymbols
-    let paramTypes   = map AST.paramType params
-    let paramSymbols = map AST.paramName params
-    let paramNames   = map (ParameterName . mkBSS . Symbol.sym) paramSymbols
-
-    returnOpType <- opTypeOf retty
-    argOpTypes   <- mapM (opTypeOf . AST.paramType) args
-    paramOpTypes <- map LL.ptr <$> mapM opTypeOf paramTypes
-
-    ObjFnOp op <- look (Sym sym) (KeyFunc paramTypes argTypes retty)
-    let LL.ConstantOperand (C.GlobalReference _ name) = op
-
-    void $ InstrCmpT . IRBuilderT . lift $ func name (zip (paramOpTypes ++ argOpTypes)  (paramNames ++ argNames)) returnOpType $ \argOps -> do
-        forM_ (zip3 paramTypes paramSymbols argOps) $ \(typ, symbol, op) -> do
-            define symbol KeyVar (ObjVal $ Ptr typ $ op)
-
-        forM_ (zip3 argTypes (drop (length params) argOps) argSymbols) $ \(typ, op, symbol) -> do
-            loc <- mkAlloca typ
-            valStore loc (Val typ op)
-            define symbol KeyVar (ObjVal loc)
-
-        cmpStmt blk
-        hasTerm <- hasTerminator
-        if hasTerm then return ()
-        else if retty == Void then retVoid
-        else trap >> unreachable
 
 
 cmpPrint :: InsCmp CompileState m => IR.Stmt -> m ()

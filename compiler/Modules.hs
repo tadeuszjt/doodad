@@ -219,7 +219,7 @@ runMod args pathsVisited modPath = do
 
             -- compile and run
             debug "compiling"
-            (defs, state) <- withErrorPrefix "compile: " $ Compile.compile (cState : imports) ir
+            (defs, state) <- withErrorPrefix "compile: " $ Compile.compile (cState : imports) ir irGenState
             when (printSymbols args) $ liftIO $ SymTab.prettySymTab (State.symTab state)
 
             debug "running"
