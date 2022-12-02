@@ -83,7 +83,7 @@ fn {board Board, io Io} playerMove() playerMoveReturn
     return Success()
 
 
-fn {board Board} cpuMove()
+fn {board Board, rand Rand} cpuMove()
     print("cpu moving")
     if board.full()
         return
@@ -107,7 +107,7 @@ fn {board Board} cpuMove()
             return
         board[r][c] = Empty()
 
-    let (r, c) = empty[rand::I64() % len(empty)]
+    let (r, c) = empty[rand.I64() % len(empty)]
     board[r][c] = Cross()
     return
 
@@ -123,13 +123,14 @@ fn {board Board, io Io} playerMoveLoop() playerMoveReturn
 fn main()
     data io Io
     data board Board
+    data rand Rand
 
     while !board.full() && board.winner() == Empty()
         let res = {board, io}.playerMoveLoop()
         if res == Quit()
             return
         {board, io}.printBoard()
-        {board}.cpuMove()
+        {board, rand}.cpuMove()
         {board, io}.printBoard()
 
 

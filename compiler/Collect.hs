@@ -195,6 +195,7 @@ collectTypedef (S.Typedef pos symbol annoTyp) = collectPos pos $ case annoTyp of
         forM_ (zip xs [0..]) $ \((s, t), i) -> define (Sym s) (KeyField typedef) (ObjField i)
         define symbol KeyType $ ObjType $ Tuple (map snd xs)
         define symbol (KeyFunc [] ts typedef) ObjFunc
+        define symbol (KeyFunc [] [] typedef) ObjFunc
 
     S.AnnoADT xs -> do
         let typedef = Typedef symbol

@@ -31,8 +31,6 @@ prettyIrGenState irGenState = do
         putStrLn ""
 
 
-
-
 type FuncKey = ([Type], String, [Type], Type)
 data FuncBody = FuncBody
     { funcParams :: [AST.Param]
@@ -58,12 +56,12 @@ data IRGenState
 
 
 initIRGenState moduleName = IRGenState
-    { moduleName = moduleName
-    , typeDefs = Map.empty
-    , funcDefs = Map.empty
-    , mainDef  = Nothing
+    { moduleName  = moduleName
+    , typeDefs    = Map.empty
+    , funcDefs    = Map.empty
+    , mainDef     = Nothing
     , currentFunc = ([], "", [], Void)
-    , blockStack = []
+    , blockStack  = []
     }
 
 
@@ -72,7 +70,6 @@ emitStmt stmt = do
     stack <- gets blockStack
     let block = head stack
     modify $ \s -> s { blockStack = (block { stmts = stmts block ++ [stmt]}) : tail stack }
-
 
 
 compile :: BoM IRGenState m => AST.AST -> m ()
@@ -97,7 +94,6 @@ initialiseTopFuncDefs ast = do
                 let key        = (paramTypes, sym, argTypes, retty)
                 Nothing <- Map.lookup key <$> gets funcDefs
                 modify $ \s -> s { funcDefs = Map.insert key (FuncBody [] [] []) (funcDefs s) }
-
 
 
 initialiseTopTypeDefs :: BoM IRGenState m => AST.AST -> m ()
@@ -129,8 +125,6 @@ compileStmt stmt = case stmt of
             "main" -> modify $ \s -> s { mainDef = Just funcBody }
             _      -> modify $ \s -> s { funcDefs = Map.insert key funcBody (funcDefs s) }
         modify $ \s -> s { currentFunc = oldCurrentFunc }
-
-        return ()
 
     _ -> return ()
     

@@ -167,6 +167,27 @@ mkTupleInfix operator a b = withErrorPrefix "tuple infix: " $ do
                 valStore pDst =<< mkInfix operator pSrcA pSrcB
             return tup
 
+        _ | operator `elem` [AST.EqEq] -> do
+            res <- mkAlloca Bool
+            valStore res =<< mkBool Bool True
+            exit <- freshName "tuple_gt_exit"
+            cases <- (\xs -> xs ++ [exit]) <$> replicateM (length ts) (freshName "tuple_gt_case")
+            br (cases !! 0)
+
+            forM (zip ts [0..]) $ \(t, i) -> do
+                emitBlockStart (cases !! i)
+                pSrcA <- ptrTupleIdx i a
+                pSrcB <- ptrTupleIdx i b
+                equal <- mkInfix AST.EqEq pSrcA pSrcB
+                cond <- freshName "tuple_eqeq_fail"
+                condBr (valOp equal) (cases !! (i + 1)) cond
+                emitBlockStart cond
+                valStore res =<< mkBool Bool False
+                br exit
+
+            emitBlockStart exit
+            valLoad res
+
         _ | operator `elem` [AST.GTEq] -> do
             deflt <- case operator of
                 AST.GTEq -> return True

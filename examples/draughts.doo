@@ -4,6 +4,7 @@ import ../std/io
 import ../std/strings
 import ../std/chars
 import ../std/rand
+import ../std/maths
 
 
 type Square { Empty() | White() | Black() }
@@ -57,12 +58,22 @@ fn {board Board} MakeMove(move Move) bool
         return false
     board[move.end.row][move.end.col] = board[move.start.row][move.start.col]
     board[move.start.row][move.start.col] = Empty()
+
+    let rowDist = abs(move.end.row - move.start.row)
+    let colDist = abs(move.end.col - move.start.col)
+    switch (rowDist, colDist)
+        (1, 1);
+        (2, 2); board[(move.start.row + move.end.row) / 2][(move.start.col + move.end.col) /2] = Empty()
+        _
+            print("MakeMove: invalid move", move)
+            return false
+
     return true
 
 
 fn {board Board, io Io} Print()
     for board[..] -> r
-        io.putChar('0' + board.len() - char(r))
+        io.putChar(char(r) + '0')
         io.putStr(" [")
         for board[r][..] -> c
             switch board[r][c]
@@ -90,7 +101,7 @@ fn {board Board} Initialise()
             c = c + 2
 
 
-fn {board Board, io Io} playerMove()
+fn {io Io} playerMove() Move
     print("Enter move. Eg: E2 E4")
     data line String
     {line, io}.GetStrLn()
@@ -100,43 +111,68 @@ fn {board Board, io Io} playerMove()
     let (endColChar, n3)   = line.ReadChar(n1 + n2)
     let (endRow, n4)       = line.ReadI64(n1 + n2 + n3)
     if n1 == 0 || n2 == 0 || n3 == 0 || n4 == 0
-        print("invalid move")
-        return
+        print("invalid parse")
+        return Move()
 
     let startCol = i64(chars::toLower(startColChar) - 'a')
     let endCol   = i64(chars::toLower(endColChar) - 'a')
+    let start    = Pos(startRow, startCol)
+    let end      = Pos(endRow, endCol)
+    return Move(start, end)
 
-    let start = Pos(startRow, startCol)
-    let end   = Pos(endRow, endCol)
-    if !board.Contains(start) || !board.Contains(end)
-        print("out of range", start, end)
 
-    if board[startRow][startCol] == Black()
-        print("start is black")
-    else 
-        print("start isnt black")
+fn {board Board, rand Rand} CpuMove(team Square) Move
+    data valid [Move]
+    {board, valid}.GetValidMoves(team)
 
-    data whiteMoves [Move]
-    {board, whiteMoves}.GetValidMoves(White())
+    if valid.len() == 0
+        print("CpuMove: no moves available")
+        return Move()
 
-    print("moves: ", whiteMoves)
-    print(startCol, startRow, endCol, endRow)
-    return
+    for valid -> move
+        if abs(move.end.row - move.start.row) == 2
+            return move
+
+    return valid[rand.I64() % valid.len()]
+
+
+fn {board Board, io Io} playerMoveLoop() (bool, Move)
+    while true
+        data valid [Move]
+        {board, valid}.GetValidMoves(Black())
+        let move = io.playerMove()
+
+        let moveIsValid = false
+        for valid -> m | !moveIsValid
+            if m == move; moveIsValid = true
+
+        if !moveIsValid
+            print("invalid move: ", move)
+        else; return (true, move)
+
 
 
 fn main()
     data io Io
     data board Board
+    data rand Rand
 
     board.Initialise()
     {board, io}.Print()
 
-    data whiteMoves [Move]
-    {board, whiteMoves}.GetValidMoves(White())
+    let loop = true
+    while loop
+        print()
+        print("cpu move: ")
+        let cpuMove = {board, rand}.CpuMove(White())
+        board.MakeMove(cpuMove)
+        {board, io}.Print()
 
-    let idx = rand::I64() % whiteMoves.len()
-    board.MakeMove(whiteMoves[idx])
-    {board, io}.Print()
+        let loop = true
+        print("player move: ")
+        let move = {board, io}.playerMoveLoop()
+        board.MakeMove(move)
+        {board, io}.Print()
 
 
 
