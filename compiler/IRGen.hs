@@ -22,8 +22,10 @@ import qualified Resolve
 prettyIrGenState :: IRGenState -> IO ()
 prettyIrGenState irGenState = do
     putStrLn $ "module: " ++ moduleName irGenState
-    forM_ (Map.toList $ typeDefs irGenState) $ \(symbol, _) -> do
-        putStrLn $ "type: " ++ show symbol
+    forM_ (Map.toList $ typeImports irGenState) $ \(symbol, anno) -> do
+        putStrLn $ "type import: " ++ show symbol ++ "\t" ++ show anno
+    forM_ (Map.toList $ typeDefs irGenState) $ \(symbol, anno) -> do
+        putStrLn $ "type: " ++ show symbol ++ "\t" ++ show anno
 
     forM_ (Map.toList $ externDefs irGenState) $ \(name, (pts, sym, ats, rt)) -> do
         putStrLn $ "extern: " ++ AST.brcStrs (map show pts) ++ " " ++ sym ++ AST.tupStrs (map show ats) ++ " " ++ show rt ++ " " ++ show name
@@ -56,12 +58,15 @@ data IRGenState
     = IRGenState
         { imports :: [IRGenState]
         , cExterns :: [Extern]
-        , moduleName :: String
-        , typeDefs :: Map.Map Symbol AST.AnnoType
-        , externDefs :: Map.Map Symbol FuncKey
-        , funcDefs :: Map.Map Symbol FuncBody
-        , funcMap :: Map.Map FuncKey Symbol
-        , mainDef  :: Maybe FuncBody
+
+        , moduleName  :: String
+        , typeImports :: Map.Map Symbol AST.AnnoType
+        , typeDefs    :: Map.Map Symbol AST.AnnoType
+        , externDefs  :: Map.Map Symbol FuncKey
+        , funcDefs    :: Map.Map Symbol FuncBody
+        , funcMap     :: Map.Map FuncKey Symbol
+        , mainDef     :: Maybe FuncBody
+
         , currentFunc :: FuncKey
         , blockStack :: [StmtBlock]
         }
@@ -71,6 +76,7 @@ initIRGenState moduleName imports cExterns = IRGenState
     { imports        = imports
     , cExterns       = cExterns
     , moduleName     = moduleName
+    , typeImports    = Map.empty
     , typeDefs       = Map.empty
     , externDefs     = Map.empty
     , funcDefs       = Map.empty
@@ -91,9 +97,20 @@ emitStmt stmt = do
 
 compile :: BoM IRGenState m => Resolve.ResolvedAst -> m ()
 compile ast = do
+    initialiseTypeImports
     initialiseTopTypeDefs (Resolve.typeDefs ast)
     initialiseTopFuncDefs (Resolve.funcDefs ast)
     forM_ (Resolve.typeDefs ast ++ Resolve.funcDefs ast) $ \stmt -> compileStmt stmt
+
+
+
+initialiseTypeImports :: BoM IRGenState m => m ()
+initialiseTypeImports = do
+    imports <- gets imports
+    forM_ imports $ \imprt -> do
+        forM_ (Map.toList $ typeDefs imprt) $ \(symbol, anno) -> do
+            modify $ \s -> s { typeImports = Map.insert symbol anno (typeImports s) }
+            
 
 
 initialiseTopFuncDefs :: BoM IRGenState m => [AST.Stmt] -> m ()
@@ -178,14 +195,14 @@ resolveFuncCall exprType (AST.Call pos params symbol args) = withPos pos $ do
             case catMaybes $ map (Map.lookup key . funcMap) imports of
                 [] -> return Nothing 
                 [x] -> return $ Just x
-                _    -> fail $ "multiple definitions for: " ++ show key
+                _   -> fail $ "multiple definitions for: " ++ show key
         
         findQualifiedImportedFuncDef :: BoM IRGenState m => String -> FuncKey -> m (Maybe Symbol)
         findQualifiedImportedFuncDef mod key = do
             imports <- gets imports
-            let impm = find ((mod ==) . moduleName) imports
-            assert (isJust impm) $ mod ++ " isn't imported"
-            return $ Map.lookup key (funcMap $ fromJust impm)
+            let importm = find ((mod ==) . moduleName) imports
+            assert (isJust importm) $ mod ++ " isn't imported"
+            return $ Map.lookup key (funcMap $ fromJust importm)
 
         findCExtern :: BoM IRGenState m => String -> m (Maybe ([Type], Type))
         findCExtern sym = do
@@ -198,7 +215,6 @@ resolveFuncCall exprType (AST.Call pos params symbol args) = withPos pos $ do
                 [x] -> return (Just x)
                 _   -> fail $ "multiple c extern definitions for: " ++ sym
                 
-
 
 
 compileStmt :: BoM IRGenState m => AST.Stmt -> m Stmt

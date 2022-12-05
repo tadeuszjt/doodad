@@ -173,7 +173,8 @@ cmpFuncBodies irGenState = do
 
 cmpTypeDefs :: InsCmp CompileState m => IRGenState -> m ()
 cmpTypeDefs irGenState = do
-    forM_ (Map.toList $ typeDefs irGenState) $ \(symbol, anno) ->
+    let list = Map.toList (typeImports irGenState) ++ Map.toList (typeDefs irGenState)
+    forM_ list $ \(symbol, anno) ->
         case anno of
             AST.AnnoADT xs   -> adtTypeDef symbol (AST.AnnoADT xs)
             AST.AnnoTuple xs -> do
