@@ -36,8 +36,8 @@ valPrint append val = case valType val of
 
     Bool -> do
         op <- valOp <$> valLoad val
-        str <- globalStringPtr "true\0false" =<< myFreshPrivate "str"
-        void . printf ("%s" ++ append) . (:[]) =<< gep (cons str) . (:[]) =<< select op (int64 0) (int64 5)
+        str <- getStringPointer "true\0false"
+        void . printf ("%s" ++ append) . (:[]) =<< gep str . (:[]) =<< select op (int64 0) (int64 5)
 
     Tuple ts -> do
         printf "(" []

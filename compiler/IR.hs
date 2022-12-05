@@ -11,15 +11,6 @@ import Symbol
 
 import qualified AST
 
-type ModuleName = String
-
-data IR
-    = IR
-        { irModuleName :: ModuleName
-        , irImports    :: [AST.Import]
-        , irStmts      :: [Stmt]
-        }
-    deriving (Eq)
 
 data Pattern
     = PatLiteral   Expr
@@ -192,19 +183,6 @@ instance Show Expr where
         Match pos expr1 expr2            -> show expr1 ++ " -> " ++ show expr2
         Range pos mexpr mexpr1 mexpr2    -> maybe "" show mexpr ++ "[" ++ maybe "" show mexpr1 ++ ".." ++ maybe "" show mexpr2 ++ "]"
 
-
--- every function must end on a newline and print pre before every line
-prettyIR :: IR -> IO ()
-prettyIR ir = do
-    putStrLn $ "module " ++ (irModuleName ir)
-    putStrLn ""
-
-    forM_ (irImports ir) $ \imp ->
-        putStrLn $ show imp
-
-    putStrLn ""
-
-    mapM_ (prettyStmt "") (irStmts ir)
 
 prettyStmt :: String -> Stmt -> IO ()
 prettyStmt pre stmt = case stmt of

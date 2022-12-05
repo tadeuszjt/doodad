@@ -52,11 +52,6 @@ import Sparse
 import IRGen
 
 
-fnSymbolToName :: Symbol -> LL.Name
-fnSymbolToName (SymResolved mod sym 0)     = mkName $ mod ++ "." ++ sym
-fnSymbolToName (SymResolved mod sym level) = mkName $ mod ++ "." ++ sym ++ "_" ++ show level
-fnSymbolToName (SymQualified "c" sym)      = mkName $ sym 
-
 
 fnHdrToOp :: ModCmp CompileState m => [Type] -> Symbol -> [Type] -> Type -> m LL.Operand
 fnHdrToOp paramTypes symbol argTypes returnType = do
@@ -67,9 +62,10 @@ fnHdrToOp paramTypes symbol argTypes returnType = do
     return $ fnOp name (paramOpTypes ++ argOpTypes) returnOpType False
 
 
+
 compile :: BoM s m => IRGenState -> m ([LL.Definition], CompileState)
 compile irGenState = do
-    ((_, defs), state) <- runBoMTExcept (initCompileState $ moduleName irGenState) (runModuleCmpT emptyModuleBuilder cmp)
+    ((_, defs), state) <- runBoMTExcept (initCompileState $ IRGen.moduleName irGenState) (runModuleCmpT emptyModuleBuilder cmp)
     return (defs, state)
     where
         cmp :: (MonadFail m, Monad m, MonadIO m) => ModuleCmpT CompileState m ()
@@ -81,7 +77,7 @@ compile irGenState = do
                 cmpFuncHdrs irGenState
                 cmpFuncBodies irGenState
 
-            void $ func (LL.mkName $ (moduleName irGenState) ++ "..callMain")  [] LL.VoidType $ \_ -> do
+            void $ func (LL.mkName $ (IRGen.moduleName irGenState) ++ "..callMain")  [] LL.VoidType $ \_ -> do
                 void $ call mainOp []
 
 
@@ -98,7 +94,7 @@ cmpTypeNames irGenState = do
 
         -- when the underlying type is a struct, replace with a type name
         when (isTuple typ || isTable typ || isSparse typ || isRange typ) $ do
-            name <- myFreshPrivate (sym symbol)
+            let name = mkNameFromSymbol symbol
             opType <- opTypeOf typ
             typedef name (Just opType)
             modify $ \s -> s { typeNameMap = Map.insert (Typedef symbol) name (typeNameMap s) }
@@ -132,7 +128,6 @@ cmpFuncHdrs irGenState = do
 
         let name = fnSymbolToName symbol
         define symbol KeyFunc ObjFn
-        addDeclared name
 
 
 cmpFuncBodies :: (MonadFail m, Monad m, MonadIO m) => IRGenState -> InstrCmpT CompileState m ()

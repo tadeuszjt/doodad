@@ -39,16 +39,14 @@ data ResolveState
     = ResolveState
         { symTab    :: SymTab
         , symTabVar :: SymTab.SymTab String () Symbol
-        , curRetty  :: Type
         , imports   :: Map.Map FilePath SymTab
         , modName   :: String
-        , supply    :: Map.Map (String, String) Int
+        , supply    :: Map.Map String Int
         }
 
 initResolveState imp modName = ResolveState
     { symTab     = SymTab.initSymTab
     , symTabVar  = SymTab.initSymTab
-    , curRetty   = Void
     , imports    = imp
     , modName    = modName
     , supply     = Map.empty
@@ -90,29 +88,25 @@ lookm symbol key = case symbol of
 genSymbol :: BoM ResolveState m => String -> m Symbol
 genSymbol sym = do  
     modName <- gets modName
-    im <- gets $ Map.lookup (modName, sym) . supply
-    i <- case im of
-        Nothing -> do
-            modify $ \s -> s { supply = Map.insert (modName, sym) 1 (supply s) }
-            return 0
-        Just i -> do
-            modify $ \s -> s { supply = Map.insert (modName, sym) (i + 1) (supply s) }
-            return i
-    let symbol = SymResolved modName sym i
+    im <- gets $ Map.lookup sym . supply
+    let n = maybe 1 (+1) im
+    modify $ \s -> s { supply = Map.insert sym n (supply s) }
+    let symbol = SymResolved modName sym n
     return symbol
         
 
 define :: BoM ResolveState m => String -> SymKey -> Symbol -> m ()
 define sym key symbol = do
     resm <- gets $ SymTab.lookupHead sym key . symTab
-    when (isJust resm) $ fail $ sym ++ " already defined"
+    assert (isNothing resm) $ sym ++ " already defined"
     modify $ \s -> s { symTab = SymTab.insert sym key symbol (symTab s) }
 
 defineVar :: BoM ResolveState m => String -> Symbol -> m ()
 defineVar sym symbol = do
     resm <- gets $ SymTab.lookupHead sym () . symTabVar
-    when (isJust resm) $ fail $ sym ++ " already defined"
+    assert (isNothing resm) $ sym ++ " already defined"
     modify $ \s -> s { symTabVar = SymTab.insert sym () symbol (symTabVar s) }
+
 
 pushSymTab :: BoM ResolveState m => m ()
 pushSymTab = do
@@ -124,7 +118,6 @@ popSymTab :: BoM ResolveState m => m ()
 popSymTab = do
     modify $ \s -> s { symTab = SymTab.pop (symTab s) }
     modify $ \s -> s { symTabVar = SymTab.pop (symTabVar s) }
-
 
 
 
@@ -214,11 +207,8 @@ instance Resolve Stmt where
                             define s KeyFunc s'
                             ts' <- mapM resolve ts
                             return $ ADTFieldMember s' ts'
-
                         ADTFieldType t -> ADTFieldType <$> resolve t
-
                         ADTFieldNull -> return ADTFieldNull
-
                     return $ AnnoADT xs'
 
                 _ -> fail $ "invalid anno: " ++ show anno
@@ -340,7 +330,6 @@ instance Resolve Type where
         Type.ADT fs         -> Type.ADT <$>  mapM resolve fs
         Type.Sparse ts      -> Type.Sparse <$> mapM resolve ts
         Type.Range t        -> Type.Range <$> resolve t
-
         _ -> fail $ "resolve type: " ++ show typ
 
 instance Resolve Expr where
@@ -378,15 +367,8 @@ instance Resolve Expr where
         Call pos params symbol exprs -> do
             exprs' <- mapM resolve exprs
             params' <- mapM resolve params
-            symbolm <- lookm symbol KeyFunc
-            case symbolm of
-                Just symbol' -> return $ Call pos params' symbol' exprs'
-                Nothing -> do
-                    symbolmm <- lookm symbol KeyType
-                    case symbolmm of
-                        Nothing ->      fail $ show symbol ++ " isn't defined"
-                        Just symbol' -> return $ Call pos params' symbol' exprs'
-
+            symbol' <- look symbol KeyFunc
+            return $ Call pos params' symbol' exprs'
 
         Infix pos op exprA exprB -> do
             exprA' <- resolve exprA
@@ -420,7 +402,6 @@ instance Resolve Expr where
 
         AST.ADT pos expr -> AST.ADT pos <$> resolve expr
 
-
         Match pos expr pat -> do
             expr' <- resolve expr
             pat' <- resolve pat
@@ -431,8 +412,5 @@ instance Resolve Expr where
             mexpr1' <- maybe (return Nothing) (fmap Just . resolve) mexpr1
             mexpr2' <- maybe (return Nothing) (fmap Just . resolve) mexpr2
             return $ AST.Range pos mexpr' mexpr1' mexpr2'
-
-
-        --_ -> return expr
 
         _ -> fail $ "invalid expression: " ++ show expr

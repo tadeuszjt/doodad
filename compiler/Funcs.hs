@@ -39,27 +39,27 @@ fnOp name argTypes retty isVarg =
 
 trap :: InsCmp CompileState m => m Operand
 trap = do
-    op <- ensureExtern (mkName "llvm.trap") [] VoidType False
+    op <- ensureExtern "llvm.trap" [] VoidType False
     call op []
 
 
 printf :: InsCmp CompileState m => String -> [Operand] -> m Operand
 printf fmt args = do
-    op <- ensureExtern (mkName "printf") [ptr i8] i32 True
+    op <- ensureExtern "printf" [ptr i8] i32 True
     fmtStr <- getStringPointer fmt
     call op [ (a, []) | a <- (fmtStr):args ]
 
 
 snprintf :: InsCmp CompileState m => Operand -> Operand -> String -> [Operand] -> m Operand
 snprintf str siz fmt args = do
-    op <- ensureExtern (mkName "snprintf") [ptr i8, i64, ptr i8] i32 True
+    op <- ensureExtern "snprintf" [ptr i8, i64, ptr i8] i32 True
     fmtStr <- getStringPointer fmt
     call op [ (a, []) | a <- str:siz:(fmtStr):args ]
 
 
 putchar :: InsCmp CompileState m => Operand -> m Operand
 putchar ch = do
-    op <- ensureExtern (mkName "putchar") [i32] VoidType False
+    op <- ensureExtern "putchar" [i32] VoidType False
     call op [(ch, [])]
 
 
@@ -86,7 +86,6 @@ strlen :: InsCmp CompileState m => Operand -> m Operand
 strlen str = do
     op <- ensureExtern "strlen" [ptr i8] i64 False
     call op [(str, [])]
-
 
 
 func :: Monad m => Name -> [(Type, ParameterName)] -> Type -> ([Operand] -> InstrCmpT s m ()) -> ModuleCmpT s m Operand

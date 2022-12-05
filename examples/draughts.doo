@@ -151,7 +151,6 @@ fn {board Board, io Io} playerMoveLoop() Move
         else; return move
 
 
-
 fn main()
     data io Io
     data board Board
