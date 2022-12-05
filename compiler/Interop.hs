@@ -69,7 +69,6 @@ cmpExtern extern = catchError (cmpExtern' extern) $ \e -> return ()
                 let symbol = SymQualified "c" sym
                 let name = mkName sym
                 opTyp <- opTypeOf typ
-                addSymKeyDec symbol KeyVar name (DecVar opTyp)
                 define symbol KeyVar $ ObjVal $ Ptr typ $ cons $ C.GlobalReference (LL.ptr opTyp) name
 
             ExtFunc sym argTypes retty -> do
@@ -80,8 +79,7 @@ cmpExtern extern = catchError (cmpExtern' extern) $ \e -> return ()
                 paramOpTypes <- mapM opTypeOf argTypes
                 returnOpType <- opTypeOf retty
 
-                addSymKeyDec symbol (KeyFunc [] argTypes retty) name (DecExtern paramOpTypes returnOpType False)
-                define symbol (KeyFunc [] argTypes retty) ObjFnOp
+                define symbol (KeyFunc [] argTypes retty) ObjFn
 
             ExtConstInt sym integer -> do
                 let symbol = SymQualified "c" sym

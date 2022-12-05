@@ -77,7 +77,7 @@ instance Show SymKey where
 data Object
     = ObjVal          Value
     | ObType          Type
-    | ObjFnOp         
+    | ObjFn         
     | ObjAdtTypeField Int
     | ObjConstructor 
     | ObjField       Int
@@ -90,14 +90,13 @@ instance Show Object where
         ObjVal (Ptr t o)    -> "Ptr " ++ show t
         ObjVal val          -> "val"
         ObType typ          -> show typ
-        ObjFnOp             -> "fn"
+        ObjFn             -> "fn"
         ObjConstructor      -> "(..)"
         ObjField i         -> "." ++ show i
 
 
 data Declaration
     = DecExtern [LL.Type] LL.Type Bool
-    | DecFunc   [LL.Type] LL.Type
     | DecVar    LL.Type
     deriving (Show)
 
@@ -190,12 +189,6 @@ addDeclared name = trace "addDeclared" $ do
     modify $ \s -> s { declared = Set.insert name (declared s) }
 
 
-addSymKeyDec :: BoM CompileState m => Symbol -> SymKey -> LL.Name -> Declaration -> m ()
-addSymKeyDec symbol key name dec = trace ("addSymKeyDec " ++ show symbol) $ do
-    modify $ \s -> s { decMap = Map.insert (symbol, key) name (decMap s) }
-    modify $ \s -> s { declarations = Map.insert name dec (declarations s) }
-
-
 addDeclaration :: BoM CompileState m => LL.Name -> Declaration -> m ()
 addDeclaration name dec = trace "addDeclaration" $ do
     modify $ \s -> s { declarations = Map.insert name dec (declarations s) }
@@ -203,7 +196,6 @@ addDeclaration name dec = trace "addDeclaration" $ do
 
 emitDec :: ModCmp CompileState m => LL.Name -> Declaration -> m ()
 emitDec name dec = trace "emitDec" $ case dec of
-    DecFunc argTypes retty          -> void $ extern name argTypes retty
     DecExtern argTypes retty False  -> void $ extern name argTypes retty
     DecExtern argTypes retty True   -> void $ externVarArgs name argTypes retty
     DecVar opTyp                    ->

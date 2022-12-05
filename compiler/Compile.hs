@@ -58,8 +58,8 @@ fnSymbolToName (SymResolved mod sym level) = mkName $ mod ++ "." ++ sym ++ "_" +
 fnSymbolToName (SymQualified "c" sym)      = mkName $ sym 
 
 
-fnToOp :: ModCmp CompileState m => [Type] -> Symbol -> [Type] -> Type -> m LL.Operand
-fnToOp paramTypes symbol argTypes returnType = do
+fnHdrToOp :: ModCmp CompileState m => [Type] -> Symbol -> [Type] -> Type -> m LL.Operand
+fnHdrToOp paramTypes symbol argTypes returnType = do
     paramOpTypes <- map LL.ptr <$> mapM opTypeOf paramTypes
     argOpTypes   <- mapM opTypeOf argTypes
     returnOpType <- opTypeOf returnType
@@ -77,6 +77,7 @@ compile imports irGenState = do
         cmp = do
             mainOp <- func (LL.mkName "main")  [] LL.VoidType $ \_ -> do
                 cmpTypeDefs irGenState
+                cmpDeclareExterns irGenState
                 cmpFuncHdrs irGenState
                 cmpFuncBodies irGenState
 
@@ -101,6 +102,16 @@ compile imports irGenState = do
             return ()
 
 
+cmpDeclareExterns :: InsCmp CompileState m => IRGenState -> m ()
+cmpDeclareExterns irGenState = do
+    forM_ (Map.toList $ externDefs irGenState) $
+        \(symbol, (paramTypes, sym, argTypes, returnType)) -> do
+            let name = fnSymbolToName symbol
+            paramOpTypes <- map LL.ptr <$> mapM opTypeOf paramTypes
+            argOpTypes   <- mapM opTypeOf argTypes
+            returnOpType <- opTypeOf returnType
+            extern name (paramOpTypes ++ argOpTypes) returnOpType
+
 
 cmpFuncHdrs :: InsCmp CompileState m => IRGenState -> m ()
 cmpFuncHdrs irGenState = do
@@ -117,8 +128,7 @@ cmpFuncHdrs irGenState = do
         returnOpType <- opTypeOf retty
 
         let name = fnSymbolToName symbol
-        define symbol (KeyFunc paramTypes argTypes retty) ObjFnOp
-        addSymKeyDec symbol (KeyFunc paramTypes argTypes retty) name (DecFunc (paramOpTypes ++ argOpTypes) returnOpType)
+        define symbol (KeyFunc paramTypes argTypes retty) ObjFn
         addDeclared name
 
 
@@ -141,8 +151,8 @@ cmpFuncBodies irGenState = do
         argOpTypes   <- mapM opTypeOf argTypes
         paramOpTypes <- map LL.ptr <$> mapM opTypeOf paramTypes
 
-        ObjFnOp <- look symbol (KeyFunc paramTypes argTypes retty)
-        op <- fnToOp paramTypes symbol argTypes retty
+        ObjFn <- look symbol (KeyFunc paramTypes argTypes retty)
+        op <- fnHdrToOp paramTypes symbol argTypes retty
         let LL.ConstantOperand (C.GlobalReference _ name) = op
 
         void $ InstrCmpT . IRBuilderT . lift $ func name (zip (paramOpTypes ++ argOpTypes)  (paramNames ++ argNames)) returnOpType $ \argOps -> do
@@ -188,7 +198,6 @@ cmpDataDef (IR.Data pos symbol typ) = withPos pos $ do
     opTyp <- opTypeOf typ
     loc <- Ptr typ <$> global name opTyp (toCons $ valOp initialiser)
     define symbol KeyVar (ObjVal loc)
-    addSymKeyDec symbol KeyVar name (DecVar opTyp)
     addDeclared name
 
 
@@ -212,7 +221,6 @@ cmpVarDef (IR.Assign pos (IR.PatIdent p symbol) expr) = withPos pos $ do
         valStore loc val
         define symbol KeyVar (ObjVal loc)
 
-    addSymKeyDec symbol KeyVar name (DecVar opTyp)
     addDeclared name
 
 
@@ -506,16 +514,6 @@ cmpExpr (IR.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck ex
         loc <- getStringPointer s
         return (Val exprType loc)
 
-    IR.Call pos [] symbol exprs -> do
-        vals <- mapM valLoad =<< mapM cmpExpr exprs
-        obj <- look symbol $ KeyFunc [] (map valType vals) exprType
-        case obj of
-            ObjConstructor  -> mkConstruct exprType vals
-            ObjFnOp         -> do
-                op <- fnToOp [] symbol (map valType vals) exprType
-                Val exprType <$> call op [(o, []) | o <- map valOp vals]
-            ObjField i      -> adtConstructField symbol exprType vals
-
     IR.Call pos params symbol args  -> do
         ps <- mapM cmpExpr params
         as <- mapM cmpExpr args
@@ -531,9 +529,11 @@ cmpExpr (IR.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck ex
         asOps <- map valOp <$> mapM valLoad as
         obj <- look symbol $ KeyFunc (map valType ps) (map valType as) exprType
         case obj of
-            ObjFnOp -> do
-                op <- fnToOp (map valType ps) symbol (map valType as) exprType
+            ObjFn -> do
+                op <- fnHdrToOp (map valType ps) symbol (map valType as) exprType
                 Val exprType <$> call op [(o, []) | o <- psLocs ++ asOps]
+            ObjConstructor  -> mkConstruct exprType as
+            ObjField i      -> adtConstructField symbol exprType as
     
     IR.Len pos expr -> valLoad =<< do
         assertBaseType isIntegral exprType
