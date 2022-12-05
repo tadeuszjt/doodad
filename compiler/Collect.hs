@@ -163,8 +163,8 @@ collectAST ast = do
 
     forM typedefs $ collectTypedef
 
-    forM funcdefs $ \(S.FuncDef pos params sym args retty _) -> collectPos pos $ do
-        define (Sym sym) (KeyFunc (map S.paramType params) (map S.paramType args) retty) ObjFunc
+    forM funcdefs $ \(S.FuncDef pos params symbol args retty _) -> collectPos pos $ do
+        define (Sym $ sym symbol) (KeyFunc (map S.paramType params) (map S.paramType args) retty) ObjFunc
 
     mapM_ collectStmt stmts''
     where

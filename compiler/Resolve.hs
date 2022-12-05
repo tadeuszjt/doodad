@@ -122,9 +122,9 @@ instance Resolve AST where
         let (typedefs, stmts'') = partition isTypedef (astStmts ast)
         let (funcdefs, stmts) = partition isFuncdef stmts''
 
-        forM funcdefs $ \(FuncDef pos mparam sym params retty blk) -> do
-            resm <- lookm (Sym sym) KeyFunc
-            when (isNothing resm) $ define sym KeyFunc (Sym sym)
+        forM funcdefs $ \(FuncDef pos mparam symbol params retty blk) -> do
+            resm <- lookm (Sym $ sym symbol) KeyFunc
+            when (isNothing resm) $ define (sym symbol) KeyFunc (Sym $ sym $ symbol)
 
         astStmts <- mapM resolve $ typedefs ++ stmts''
         return $ ast { astStmts = astStmts }
@@ -140,7 +140,7 @@ instance Resolve AST where
 
 instance Resolve Stmt where
     resolve stmt = withPos stmt $ case stmt of
-        FuncDef pos params sym args retty blk -> do
+        FuncDef pos params (Sym sym) args retty blk -> do
             -- use a new symbol table for variables in every function
             oldSymTabVar <- gets symTabVar
             modify $ \s -> s { symTabVar = SymTab.initSymTab }
@@ -153,7 +153,8 @@ instance Resolve Stmt where
             popSymTab
 
             modify $ \s -> s { symTabVar = oldSymTabVar }
-            return $ FuncDef pos params' sym args' retty' blk'
+            symbol' <- genSymbol sym
+            return $ FuncDef pos params' symbol' args' retty' blk'
 
         ExprStmt callExpr -> ExprStmt <$> resolve callExpr
 

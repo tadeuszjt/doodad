@@ -157,8 +157,8 @@ stmtS : let pattern '=' expr                         { S.Assign (tokPos $1) $2 $
       | return mexpr                                 { S.Return (tokPos $1) $2 }
       | data symbol type_                            { S.Data (tokPos $1) (snd $2) $3 }
 stmtB : If                                           { $1 }
-      | fn mfnrec ident '(' params ')' type_ block  { S.FuncDef (tokPos $1) $2 (tokStr $3) $5 $7 $8 }
-      | fn mfnrec ident '(' params ')' block        { S.FuncDef (tokPos $1) $2 (tokStr $3) $5 T.Void $7 }
+      | fn mfnrec ident '(' params ')' type_ block  { S.FuncDef (tokPos $1) $2 (Sym $ tokStr $3) $5 $7 $8 }
+      | fn mfnrec ident '(' params ')' block        { S.FuncDef (tokPos $1) $2 (Sym $ tokStr $3) $5 T.Void $7 }
       | while condition block                        { S.While (tokPos $1) $2 $3 }
       | for expr block                        { S.For (tokPos $1) $2 Nothing $3 }
       | for expr '->' pattern block           { S.For (tokPos $1) $2 (Just $4) $5 }

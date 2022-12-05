@@ -61,7 +61,6 @@ data IRGenState
         , externDefs :: Map.Map Symbol FuncKey
         , funcDefs :: Map.Map FuncKey FuncBody
         , funcSymbolMap :: Map.Map Symbol FuncKey
-        , funcNameSupply :: Map.Map String Int
         , mainDef  :: Maybe FuncBody
         , currentFunc :: FuncKey
         , blockStack :: [StmtBlock]
@@ -76,24 +75,10 @@ initIRGenState moduleName imports cExterns = IRGenState
     , externDefs     = Map.empty
     , funcDefs       = Map.empty
     , funcSymbolMap  = Map.empty
-    , funcNameSupply = Map.empty
     , mainDef        = Nothing
     , currentFunc    = ([], "", [], Void)
     , blockStack     = []
     }
-
-
-generateFuncUniqueName :: BoM IRGenState m => String -> m Symbol
-generateFuncUniqueName sym = do
-    result <- Map.lookup sym <$> gets funcNameSupply
-    moduleName <- gets moduleName
-    case result of
-        Nothing -> do
-            modify $ \s -> s { funcNameSupply = Map.insert sym 1 (funcNameSupply s) }
-            return $ SymResolved moduleName sym 0
-        Just x  -> do
-            modify $ \s -> s { funcNameSupply = Map.insert sym (x+1) (funcNameSupply s) }
-            return $ SymResolved moduleName sym x
 
 
 
@@ -114,8 +99,8 @@ compile ast = do
 initialiseTopFuncDefs :: BoM IRGenState m => AST.AST -> m ()
 initialiseTopFuncDefs ast = do
     let funcDefStmts = [ x | x@(AST.FuncDef _ _ _ _ _ _) <- AST.astStmts ast]
-    forM_ funcDefStmts $ \(AST.FuncDef _ params sym args retty _) ->
-        case sym of
+    forM_ funcDefStmts $ \(AST.FuncDef _ params symbol args retty _) ->
+        case sym symbol of
             "main" -> do
                 Nothing <- gets mainDef
                 modify $ \s -> s { mainDef = Just (FuncBody [] [] [] (Sym "main")) }
@@ -123,9 +108,8 @@ initialiseTopFuncDefs ast = do
             _ -> do
                 let paramTypes = map AST.paramType params
                 let argTypes   = map AST.paramType args
-                let key        = (paramTypes, sym, argTypes, retty)
+                let key        = (paramTypes, sym symbol, argTypes, retty)
                 Nothing <- Map.lookup key <$> gets funcDefs
-                symbol <- generateFuncUniqueName sym
                 modify $ \s -> s { funcDefs = Map.insert key (FuncBody [] [] [] symbol) (funcDefs s) }
 
 
@@ -223,31 +207,29 @@ resolveFuncCall exprType (AST.Call pos params symbol args) = do
 
 compileStmt :: BoM IRGenState m => AST.Stmt -> m Stmt
 compileStmt stmt = case stmt of
-    AST.FuncDef pos params sym args retty blk -> do
+    AST.FuncDef pos params symbol args retty blk -> do
         let paramTypes = map AST.paramType params
         let argTypes   = map AST.paramType args
-        let key        = (paramTypes, sym, argTypes, retty)
+        let key        = (paramTypes, sym symbol, argTypes, retty)
 
         oldCurrentFunc <- gets currentFunc
         modify $ \s -> s { currentFunc = key }
 
         blk' <- compileStmt blk
 
-        uniqueName <- funcUniqueName . (Map.! key) <$> gets funcDefs
-
-        modify $ \s -> s { funcSymbolMap = Map.insert uniqueName key (funcSymbolMap s) }
+        modify $ \s -> s { funcSymbolMap = Map.insert symbol key (funcSymbolMap s) }
         let funcBody = FuncBody {
             funcParams = params,
             funcArgs   = args,
             funcStmts  = [blk'],
-            funcUniqueName = uniqueName
+            funcUniqueName = symbol
             }
 
-        case sym of 
+        case sym symbol of 
             "main" -> modify $ \s -> s { mainDef = Just funcBody }
             _      -> modify $ \s -> s { funcDefs = Map.insert key funcBody (funcDefs s) }
         modify $ \s -> s { currentFunc = oldCurrentFunc }
-        return $ FuncDef pos params sym args retty blk'
+        return $ FuncDef pos params symbol args retty blk'
 
 
     AST.ExprStmt expr -> do
@@ -425,9 +407,9 @@ compilePattern pattern = case pattern of
 
 convertToIrStmt :: Monad m => AST.Stmt -> m Stmt
 convertToIrStmt stmt = case stmt of
-    AST.FuncDef pos params sym args retty blk -> do
+    AST.FuncDef pos params symbol args retty blk -> do
         blk' <- convertToIrStmt blk
-        return $ FuncDef pos params sym args retty blk'
+        return $ FuncDef pos params symbol args retty blk'
 
     AST.ExprStmt expr -> do
         expr' <- convertToIrExpr expr
