@@ -14,8 +14,6 @@ import_c stdio.h
 fn main()
         data strings Strings
 
-        print(30:c::size_t)
-
         let va = Vec2(1.0, 3.0)
         let vb = Vec2(9, 7)
         print(vb, vb.length(), vb.normal().length(), vb.theta())

@@ -2,6 +2,7 @@
 {-# LANGUAGE TupleSections #-}
 module Typeof where
 
+import qualified Data.Map as Map
 import Control.Monad.Trans
 import Control.Monad.State hiding (void)
 import GHC.Float
@@ -82,7 +83,8 @@ opTypeOf typ = trace ("opTypOf " ++ show typ) $ case typ of
 
     Typedef s -> do
         ObjType t <- look s KeyType
-        maybe (opTypeOf t) (return . LL.NamedTypeReference) Nothing
+        namem <- Map.lookup (Typedef s) <$> gets typeNameMap
+        maybe (opTypeOf t) (return . LL.NamedTypeReference) namem
 
     Func ts rt -> do
         rt' <- opTypeOf rt

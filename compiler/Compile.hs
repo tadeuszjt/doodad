@@ -67,7 +67,6 @@ fnHdrToOp paramTypes symbol argTypes returnType = do
     return $ fnOp name (paramOpTypes ++ argOpTypes) returnOpType False
 
 
-
 compile :: BoM s m => IRGenState -> m ([LL.Definition], CompileState)
 compile irGenState = do
     ((_, defs), state) <- runBoMTExcept (initCompileState $ moduleName irGenState) (runModuleCmpT emptyModuleBuilder cmp)
@@ -77,29 +76,32 @@ compile irGenState = do
         cmp = do
             mainOp <- func (LL.mkName "main")  [] LL.VoidType $ \_ -> do
                 cmpTypeDefs irGenState
+                cmpTypeNames irGenState
                 cmpDeclareExterns irGenState
                 cmpFuncHdrs irGenState
                 cmpFuncBodies irGenState
 
-            func (LL.mkName $ (moduleName irGenState) ++ "..callMain")  [] LL.VoidType $ \_ -> do
-                boolName <- myFresh "bMainCalled"
-                bMainCalled <- global boolName LL.i1 $ toCons (bit 0)
-                b <- load bMainCalled 0
-                true  <- freshName "main_called_true"
-                exit  <- freshName "main_called_exit"
-                condBr b true exit
-                emitBlockStart true
-                retVoid
-                emitBlockStart exit
-                store bMainCalled 0 (bit 1)
---                forM_ (map curModName imports) $ \modName -> case modName of
---                    "c" -> return ()
---                    _ -> do
---                        op <- extern (LL.mkName $ modName ++ "..callMain") [] LL.VoidType
---                        void $ call op []
+            void $ func (LL.mkName $ (moduleName irGenState) ++ "..callMain")  [] LL.VoidType $ \_ -> do
                 void $ call mainOp []
 
-            return ()
+
+
+cmpTypeNames :: InsCmp CompileState m => IRGenState -> m ()
+cmpTypeNames irGenState = do
+    let list = Map.toList (typeImports irGenState) ++ Map.toList (typeDefs irGenState)
+    forM_ list $ \(symbol, anno) -> do
+        typ <- return $ case anno of
+            AST.AnnoType typ -> typ
+            AST.AnnoTuple xs -> Tuple (map snd xs)
+            AST.AnnoADT xs   -> Void
+            _ -> error (show anno)
+
+        -- when the underlying type is a struct, replace with a type name
+        when (isTuple typ || isTable typ || isSparse typ || isRange typ) $ do
+            name <- myFreshPrivate (sym symbol)
+            opType <- opTypeOf typ
+            typedef name (Just opType)
+            modify $ \s -> s { typeNameMap = Map.insert (Typedef symbol) name (typeNameMap s) }
 
 
 cmpDeclareExterns :: InsCmp CompileState m => IRGenState -> m ()
@@ -180,6 +182,7 @@ cmpTypeDefs irGenState = do
             AST.AnnoADT xs   -> adtTypeDef symbol (AST.AnnoADT xs)
             AST.AnnoTuple xs -> do
                 define symbol KeyFunc ObjConstructor
+                define symbol KeyType (ObjType $ Tuple $ map snd xs)
                 forM_ (zip xs [0..]) $ \((s, t), i) -> do
                     define (Sym s) (KeyField $ Typedef symbol) (ObjField i)
             AST.AnnoType typ -> do

@@ -2,6 +2,7 @@
 {-# LANGUAGE TupleSections #-}
 module Value where
 
+import qualified Data.Map as Map
 import Prelude hiding (or, and)
 import GHC.Float
 import Data.Maybe
@@ -87,7 +88,7 @@ mkRange start end = do
 
 mkZero :: InsCmp CompileState m => Type -> m Value
 mkZero typ = trace ("mkZero " ++ show  typ) $ do
-    namem <- return Nothing
+    namem <- Map.lookup typ <$> gets typeNameMap
     base <- baseTypeOf typ
     case base of
         _ | isEnumADT base -> Val typ . valOp <$> mkZero I64

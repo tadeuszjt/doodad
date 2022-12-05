@@ -109,6 +109,7 @@ data CompileState
         , curModName    :: String
         , nameMap       :: Map.Map String Int
         , stringMap     :: Map.Map String C.Constant
+        , typeNameMap   :: Map.Map Type LL.Name
         }
 
 initCompileState modName
@@ -119,6 +120,7 @@ initCompileState modName
         , curModName    = modName
         , nameMap       = Map.empty
         , stringMap     = Map.empty
+        , typeNameMap   = Map.empty
         }
 
 
