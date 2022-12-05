@@ -53,6 +53,7 @@ data Modules
         { modMap  :: Map.Map FilePath CompileState
         , symTabMap :: Map.Map String C.SymTab
         , resolveSymTabMap :: Map.Map FilePath R.SymTab
+        , irGenModMap :: Map.Map FilePath IRGenState
         , session :: JIT.Session
         }
 
@@ -62,6 +63,7 @@ initModulesState session
         { modMap  = Map.empty
         , session = session
         , resolveSymTabMap = Map.empty
+        , irGenModMap = Map.empty
         , symTabMap = Map.empty
         }
 
@@ -213,7 +215,9 @@ runMod args pathsVisited modPath = do
             flat <- fmap fst $ withErrorPrefix "flatten: " $ runBoMTExcept initFlattenState (flattenAST ast)
             --assert (S.astModuleName flat == modName) "modName error"
             -- turn flat into ir
-            (_, irGenState) <- withErrorPrefix "irgen: " $ runBoMTExcept (initIRGenState modName) (IRGen.compile ast)
+            irGenImports <- Map.elems <$> gets irGenModMap
+            (_, irGenState) <- withErrorPrefix "irgen: " $ runBoMTExcept (initIRGenState modName irGenImports cExterns) (IRGen.compile ast)
+            modify $ \s -> s { irGenModMap = Map.insert path (irGenState) (irGenModMap s) }
             when (printIR args) $ do
                 liftIO $ prettyIrGenState irGenState
 

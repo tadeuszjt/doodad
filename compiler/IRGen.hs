@@ -2,10 +2,12 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 module IRGen where
 
+import Data.List
 import Data.Maybe
 import Control.Monad
 import Control.Monad.State
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 
 import qualified AST
 import IR
@@ -13,6 +15,7 @@ import Symbol
 import Monad
 import Error
 import Type
+import Interop
 
 
 prettyIrGenState :: IRGenState -> IO ()
@@ -20,6 +23,9 @@ prettyIrGenState irGenState = do
     putStrLn $ "module: " ++ moduleName irGenState
     forM_ (Map.toList $ typeDefs irGenState) $ \(symbol, _) -> do
         putStrLn $ "type: " ++ show symbol
+
+    forM_ (Set.toList $ externDefs irGenState) $ \(pts, sym, ats, rt) -> do
+        putStrLn $ "extern: " ++ AST.brcStrs (map show pts) ++ " " ++ sym ++ AST.tupStrs (map show ats) ++ " " ++ show rt
 
     when (isJust $ mainDef irGenState) $ do
         putStrLn $ "main: " ++ (show $ length $ funcStmts $ fromJust $ mainDef irGenState)
@@ -46,8 +52,11 @@ data StmtBlock = StmtBlock
 
 data IRGenState
     = IRGenState
-        { moduleName :: String
+        { imports :: [IRGenState]
+        , cExterns :: [Extern]
+        , moduleName :: String
         , typeDefs :: Map.Map Symbol AST.AnnoType
+        , externDefs :: Set.Set FuncKey
         , funcDefs :: Map.Map FuncKey FuncBody
         , mainDef  :: Maybe FuncBody
         , currentFunc :: FuncKey
@@ -55,9 +64,12 @@ data IRGenState
         }
 
 
-initIRGenState moduleName = IRGenState
-    { moduleName  = moduleName
+initIRGenState moduleName imports cExterns = IRGenState
+    { imports     = imports 
+    , cExterns    = cExterns
+    , moduleName  = moduleName
     , typeDefs    = Map.empty
+    , externDefs  = Set.empty
     , funcDefs    = Map.empty
     , mainDef     = Nothing
     , currentFunc = ([], "", [], Void)
@@ -104,6 +116,80 @@ initialiseTopTypeDefs ast = do
         modify $ \s -> s { typeDefs = Map.insert symbol anno (typeDefs s) }
 
 
+
+exprTypeOf :: AST.Expr -> Type
+exprTypeOf (AST.AExpr typ _) = typ
+
+
+
+-- add extern if needed
+resolveFuncCall :: BoM IRGenState m => Type -> AST.Expr -> m ()
+resolveFuncCall exprType (AST.Call pos params symbol args) = do
+    let paramTypes = map exprTypeOf params
+    let argTypes = map exprTypeOf args
+    curModName <- gets moduleName
+    imports <- gets imports
+    case symbol of
+        SymResolved _ _ _ -> return () -- ast constructor?
+        SymQualified "c" sym -> do
+            resm <- findCExtern sym
+            assert (isJust resm) $ "no c extern definition for: " ++ sym
+            let (ats, rt) = fromJust resm
+            assert (paramTypes == [] && ats == argTypes && rt == exprType) "c extern mismatch"
+            let key = ([], sym, ats, rt)
+            modify $ \s -> s { externDefs = Set.insert key (externDefs s) }
+
+        SymQualified mod sym | mod == curModName -> do
+            let key = (paramTypes, sym, argTypes, exprType)
+            resm <- findLocalFuncDef key
+            assert (isJust resm) $ "no definition for: " ++ show key
+
+        SymQualified mod sym -> do
+            let key = (paramTypes, sym, argTypes, exprType)
+            resm <- findQualifiedImportedFuncDef mod key
+            assert (isJust resm) $ "no definition for: " ++ show key
+            modify $ \s -> s { externDefs = Set.insert key (externDefs s) }
+
+        Sym sym -> do
+            let key = (paramTypes, sym, argTypes, exprType)
+            resm <- findLocalFuncDef key
+            when (isNothing resm) $ do
+                resultm <- findImportedFuncDef key
+                assert (isJust resultm) $ "no definition for: " ++ show key
+                modify $ \s -> s { externDefs = Set.insert key (externDefs s) }
+    where
+        findLocalFuncDef :: BoM IRGenState m => FuncKey -> m (Maybe FuncBody)
+        findLocalFuncDef key = Map.lookup key <$> gets funcDefs
+
+        findImportedFuncDef :: BoM IRGenState m => FuncKey -> m (Maybe FuncBody)
+        findImportedFuncDef key = do
+            imports <- gets imports
+            case catMaybes $ map (Map.lookup key . funcDefs) imports of
+                [] -> return Nothing 
+                [x] -> return $ Just x
+                _    -> fail $ "multiple definitions for: " ++ show key
+        
+        findQualifiedImportedFuncDef :: BoM IRGenState m => String -> FuncKey -> m (Maybe FuncBody)
+        findQualifiedImportedFuncDef mod key = do
+            imports <- gets imports
+            let impm = find ((mod ==) . moduleName) imports
+            assert (isJust impm) $ mod ++ " isn't imported"
+            return $ Map.lookup key (funcDefs $ fromJust impm)
+
+        findCExtern :: BoM IRGenState m => String -> m (Maybe ([Type], Type))
+        findCExtern sym = do
+            externs <- gets cExterns
+            ress <- fmap catMaybes $ forM externs $ \ext -> case ext of
+                ExtFunc s ats rt | s == sym -> return (Just (ats, rt))
+                _                           -> return Nothing
+            case ress of
+                [] -> return Nothing
+                [x] -> return (Just x)
+                _   -> fail $ "multiple c extern definitions for: " ++ sym
+                
+
+
+
 compileStmt :: BoM IRGenState m => AST.Stmt -> m ()
 compileStmt stmt = case stmt of
     AST.FuncDef pos params sym args retty blk -> do
@@ -114,6 +200,7 @@ compileStmt stmt = case stmt of
         oldCurrentFunc <- gets currentFunc
         modify $ \s -> s { currentFunc = key }
 
+        compileStmt blk
         blk' <- convertToIrStmt blk
         let funcBody = FuncBody {
             funcParams = params,
@@ -126,8 +213,178 @@ compileStmt stmt = case stmt of
             _      -> modify $ \s -> s { funcDefs = Map.insert key funcBody (funcDefs s) }
         modify $ \s -> s { currentFunc = oldCurrentFunc }
 
-    _ -> return ()
+
+    AST.ExprStmt expr -> do
+        expr' <- compileExpr expr
+        return ()
+
+    AST.Block stmts -> do
+        mapM compileStmt stmts
+        return ()
+
+    AST.Return pos mexpr -> do
+        mexpr' <- maybe (return Nothing) (fmap Just . compileExpr) mexpr
+        return ()
+
+    AST.Assign pos pat expr -> do
+        pat' <- compilePattern pat
+        expr' <- compileExpr expr
+        return ()
     
+    AST.Typedef pos symbol anno -> do
+        return ()
+
+    AST.If pos expr stmt melse -> do
+        expr' <- compileExpr expr
+        compileStmt stmt
+        maybe (return Nothing) (fmap Just . compileStmt) melse
+        return ()
+
+    AST.While pos expr stmt -> do
+        expr' <- compileExpr expr
+        compileStmt stmt
+        return ()
+
+    AST.Set pos expr1 expr2 -> do
+        expr1' <- compileExpr expr1
+        expr2' <- compileExpr expr2
+        return ()
+
+    AST.Print pos exprs -> do
+        mapM compileExpr exprs
+        return ()
+
+    AST.Switch pos expr cases -> do
+        expr' <- compileExpr expr
+        cases' <- forM cases $ \(pat, stmt) -> do
+            pat' <- compilePattern pat
+            compileStmt stmt
+            return pat'
+        return ()
+    
+    AST.For pos expr mpat blk -> do
+        expr' <- compileExpr expr
+        mpat' <- maybe (return Nothing) (fmap Just . compilePattern) mpat
+        compileStmt blk
+        return ()
+
+    AST.Data pos symbol typ -> do
+        return ()
+
+
+
+compileExpr :: BoM IRGenState m => AST.Expr -> m Expr
+compileExpr (AST.AExpr exprType expr) = AExpr exprType <$> case expr of
+    AST.Ident pos symbol   -> return $ Ident pos symbol
+    AST.Prefix pos op expr -> Prefix pos op <$> compileExpr expr
+    AST.Char pos c         -> return $ IR.Char pos c
+    AST.Len pos expr       -> Len pos <$> compileExpr expr
+    AST.UnsafePtr pos expr -> IR.UnsafePtr pos <$> compileExpr expr
+    AST.Int pos n          -> return $ Int pos n
+    AST.Bool pos b         -> return $ IR.Bool pos b
+    AST.Float pos f        -> return $ Float pos f
+    AST.Tuple pos exprs    -> IR.Tuple pos <$> mapM compileExpr exprs
+    AST.Array pos exprs    -> IR.Array pos <$> mapM compileExpr exprs
+    AST.String pos s       -> return $ IR.String pos s
+
+    AST.Push pos expr exprs -> do
+        expr' <- compileExpr expr
+        exprs' <- mapM compileExpr exprs
+        return $ Push pos expr' exprs'
+
+    AST.Pop pos expr exprs -> do
+        expr' <- compileExpr expr
+        exprs' <- mapM compileExpr exprs
+        return $ Pop pos expr' exprs'
+
+    AST.Clear pos expr -> do
+        expr' <- compileExpr expr
+        return $ Clear pos expr'
+
+    AST.Delete pos expr1 expr2 -> do
+        expr1' <- compileExpr expr1
+        expr2' <- compileExpr expr2
+        return $ Delete pos expr1' expr2'
+
+    AST.Call pos params symbol exprs -> do
+        params' <- mapM compileExpr params
+        exprs' <- mapM compileExpr exprs
+        resolveFuncCall exprType expr
+        return $ Call pos params' symbol exprs'
+
+    AST.Infix pos op expr1 expr2 -> do
+        expr1' <- compileExpr expr1
+        expr2' <- compileExpr expr2
+        return $ Infix pos op expr1' expr2'
+
+    AST.Subscript pos expr1 expr2 -> do
+        expr1' <- compileExpr expr1
+        expr2' <- compileExpr expr2
+        return $ Subscript pos expr1' expr2'
+
+    AST.Conv pos typ exprs -> do
+        exprs' <- mapM compileExpr exprs
+        return $ Conv pos typ exprs'
+
+    AST.Field pos expr sym -> do
+        expr' <- compileExpr expr
+        return $ Field pos expr' sym
+
+    AST.AExpr typ expr -> do
+        expr' <- compileExpr expr
+        return $ AExpr typ expr'
+
+    AST.TupleIndex pos expr i -> do
+        expr' <- compileExpr expr
+        return $ TupleIndex pos expr' i
+
+    AST.Null pos -> return (Null pos)
+
+    AST.ADT pos expr -> IR.ADT pos <$> compileExpr expr
+
+    AST.Match pos expr pat -> do
+        expr' <- compileExpr expr
+        pat' <- compilePattern pat
+        return $ Match pos expr' pat'
+
+    AST.Range pos mexpr mexpr1 mexpr2 -> do
+        mexpr' <- maybe (return Nothing) (fmap Just . compileExpr) mexpr
+        mexpr1' <- maybe (return Nothing) (fmap Just . compileExpr) mexpr1
+        mexpr2' <- maybe (return Nothing) (fmap Just . compileExpr) mexpr2
+        return $ IR.Range pos mexpr' mexpr1' mexpr2'
+
+
+
+compilePattern :: BoM IRGenState m => AST.Pattern -> m Pattern
+compilePattern pattern = case pattern of
+    AST.PatIgnore pos -> return $ PatIgnore pos
+    AST.PatIdent pos symbol -> do
+        return $ PatIdent pos symbol
+
+    AST.PatField pos symbol pats -> do
+        pats' <- mapM compilePattern pats
+        return $ PatField pos symbol pats'
+
+    AST.PatTypeField pos typ pat -> do
+        pat' <- compilePattern pat
+        return $ PatTypeField pos typ pat'
+
+    AST.PatTuple pos pats -> PatTuple pos <$> mapM compilePattern pats
+
+    AST.PatLiteral expr -> PatLiteral <$> compileExpr expr
+
+    AST.PatGuarded pos pat expr -> do
+        pat' <- compilePattern pat
+        expr' <- compileExpr expr
+        return $ PatGuarded pos pat' expr'
+
+    AST.PatArray pos pats -> PatArray pos <$> mapM compilePattern pats
+
+    AST.PatAnnotated pat typ -> do
+        pat' <- compilePattern pat
+        return $ PatAnnotated pat' typ
+
+    AST.PatNull pos -> return $ PatNull pos
 
 
 convertToIrStmt :: Monad m => AST.Stmt -> m Stmt

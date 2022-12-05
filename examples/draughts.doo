@@ -136,7 +136,7 @@ fn {board Board, rand Rand} CpuMove(team Square) Move
     return valid[rand.I64() % valid.len()]
 
 
-fn {board Board, io Io} playerMoveLoop() (bool, Move)
+fn {board Board, io Io} playerMoveLoop() Move
     while true
         data valid [Move]
         {board, valid}.GetValidMoves(Black())
@@ -144,11 +144,11 @@ fn {board Board, io Io} playerMoveLoop() (bool, Move)
 
         let moveIsValid = false
         for valid -> m | !moveIsValid
-            if m == move; moveIsValid = true
+            moveIsValid = m == move
 
         if !moveIsValid
             print("invalid move: ", move)
-        else; return (true, move)
+        else; return move
 
 
 
