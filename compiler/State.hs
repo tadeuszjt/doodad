@@ -104,7 +104,6 @@ data Declaration
 data CompileState
     = CompileState
         { imports       :: [CompileState]
-        , decMap        :: Map.Map (Symbol, SymKey) LL.Name
         , declarations  :: Map.Map LL.Name Declaration
         , declared      :: Set.Set LL.Name
         , symTab        :: SymTab.SymTab Symbol SymKey Object
@@ -116,7 +115,6 @@ data CompileState
 initCompileState imports modName
      = CompileState
         { imports       = imports
-        , decMap        = Map.empty
         , declarations  = Map.empty
         , declared      = Set.empty
         , symTab        = SymTab.initSymTab
@@ -213,30 +211,6 @@ ensureDec name = trace ("ensureDec " ++ show name) $ do
             _    -> fail $ "ensureDec: " ++ (show name)
 
 
-ensureSymKeyDec :: ModCmp CompileState m => Symbol -> SymKey -> m ()
-ensureSymKeyDec symbol key = trace ("ensureSymKeyDec " ++ show symbol) $ do
-    curMod <- gets curModName
-    nm <- gets $ Map.lookup (symbol, key) . decMap
-    case nm of
-        Just name -> ensureDec name
-        Nothing   -> do
-            states <- gets imports
-            rs <- fmap catMaybes $ forM states $ \state -> do
-                case Map.lookup (symbol, key) (decMap state) of
-                    Nothing   -> return Nothing
-                    Just name -> return $ Just (name, (declarations state) Map.! name)
-
-            case rs of
-                []            -> return ()
-                [(name, dec)] -> do
-                    declared <- gets $ Set.member name . declared
-                    when (not declared) $ do
-                        emitDec name dec
-                        addDeclared name
-                _             -> fail ("More than one declaration for: " ++ show symbol)
-
-
-
 ensureExtern :: ModCmp CompileState m => LL.Name -> [LL.Type] -> LL.Type -> Bool -> m LL.Operand
 ensureExtern name argTypes retty isVarg = trace "ensureExtern" $ do
     declared <- Set.member name <$> gets declared
@@ -250,7 +224,6 @@ ensureExtern name argTypes retty isVarg = trace "ensureExtern" $ do
 
 lookm :: ModCmp CompileState m => Symbol -> SymKey -> m (Maybe Object)
 lookm symbol key = do
-    ensureSymKeyDec symbol key
     im <- gets $ map symTab . imports
     st <- gets symTab
     return $ lookupSymKey symbol key st im

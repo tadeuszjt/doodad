@@ -188,9 +188,7 @@ cmpTypeDefs irGenState = do
                         define symbol (KeyFunc [] [typdef] typdef) ObjConstructor
                         define symbol KeyType (ObType t)
 
-
                     
-
 cmpDataDef :: InsCmp CompileState m => IR.Stmt -> m ()
 cmpDataDef (IR.Data pos symbol typ) = withPos pos $ do
     name <- myFresh (sym symbol)
