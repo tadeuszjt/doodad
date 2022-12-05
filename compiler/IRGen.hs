@@ -16,6 +16,7 @@ import Monad
 import Error
 import Type
 import Interop
+import qualified Resolve
 
 
 prettyIrGenState :: IRGenState -> IO ()
@@ -88,17 +89,16 @@ emitStmt stmt = do
     modify $ \s -> s { blockStack = (block { stmts = stmts block ++ [stmt]}) : tail stack }
 
 
-compile :: BoM IRGenState m => AST.AST -> m ()
+compile :: BoM IRGenState m => Resolve.ResolvedAst -> m ()
 compile ast = do
-    initialiseTopTypeDefs ast
-    initialiseTopFuncDefs ast
-    forM_ (AST.astStmts ast) $ \stmt -> compileStmt stmt
+    initialiseTopTypeDefs (Resolve.typeDefs ast)
+    initialiseTopFuncDefs (Resolve.funcDefs ast)
+    forM_ (Resolve.typeDefs ast ++ Resolve.funcDefs ast) $ \stmt -> compileStmt stmt
 
 
-initialiseTopFuncDefs :: BoM IRGenState m => AST.AST -> m ()
-initialiseTopFuncDefs ast = do
-    let funcDefStmts = [ x | x@(AST.FuncDef _ _ _ _ _ _) <- AST.astStmts ast]
-    forM_ funcDefStmts $ \(AST.FuncDef _ params symbol args retty _) ->
+initialiseTopFuncDefs :: BoM IRGenState m => [AST.Stmt] -> m ()
+initialiseTopFuncDefs stmts = do
+    forM_ stmts $ \(AST.FuncDef _ params symbol args retty _) ->
         case sym symbol of
             "main" -> do
                 Nothing <- gets mainDef
@@ -110,10 +110,9 @@ initialiseTopFuncDefs ast = do
                 modify $ \s -> s { funcDefs = Map.insert symbol (FuncBody params args retty []) (funcDefs s) }
 
 
-initialiseTopTypeDefs :: BoM IRGenState m => AST.AST -> m ()
-initialiseTopTypeDefs ast = do
-    let typeDefStmts = [ x | x@(AST.Typedef _ _ _) <- AST.astStmts ast]
-    forM_ typeDefStmts $ \(AST.Typedef _ symbol anno) -> do
+initialiseTopTypeDefs :: BoM IRGenState m => [AST.Stmt] -> m ()
+initialiseTopTypeDefs stmts = do
+    forM_ stmts $ \(AST.Typedef _ symbol anno) -> do
         Nothing <- Map.lookup symbol <$> gets typeDefs
         modify $ \s -> s { typeDefs = Map.insert symbol anno (typeDefs s) }
 

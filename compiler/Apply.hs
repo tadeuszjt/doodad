@@ -7,6 +7,7 @@ import qualified AST as S
 import Collect
 import qualified Data.Map as Map
 import qualified SymTab
+import qualified Resolve
 
 -- constraint:   (t1, t2) or (x, y)
 -- substitution: (id, t) or (x, u)
@@ -156,5 +157,6 @@ instance Apply S.Stmt where
             f :: Apply a => a -> a
             f = apply subs
             
-instance Apply S.AST where
-    apply subs ast = ast { S.astStmts = map (apply subs) (S.astStmts ast) }
+instance Apply Resolve.ResolvedAst where
+    apply subs ast = ast
+        { Resolve.funcDefs = map (apply subs) (Resolve.funcDefs ast) }

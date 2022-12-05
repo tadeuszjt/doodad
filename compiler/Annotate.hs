@@ -5,6 +5,7 @@ import AST
 import Monad
 import Control.Monad.State
 import qualified Type as T
+import Resolve
 
 
 class Annotate a where
@@ -14,6 +15,12 @@ class Annotate a where
 instance Annotate Param where
     annotate (Param pos name T.Void) = Param pos name <$> genType
     annotate (Param pos name typ)    = return (Param pos name typ)
+
+instance Annotate ResolvedAst where
+    annotate resolvedAst = do
+        typeDefs <- mapM annotate (typeDefs resolvedAst)
+        funcDefs <- mapM annotate (funcDefs resolvedAst)
+        return $ resolvedAst { typeDefs = typeDefs, funcDefs = funcDefs }
 
 instance Annotate AST where
     annotate ast = do

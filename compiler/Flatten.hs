@@ -66,27 +66,6 @@ checkTypeDefs typedefs = do
             _                 -> fail ("checkTypeCircles " ++ show typ)
 
 
-
-data FlattenState
-    = FlattenState
-        { funcDefs   :: [S.Stmt]
-        , typedefs   :: [S.Stmt]
-        }
-
-
-initFlattenState 
-    = FlattenState
-        { funcDefs   = []
-        , typedefs   = []
-        }
-
-
-flattenASTs :: BoM FlattenState m => [S.AST] -> m S.AST
-flattenASTs asts = do
-    ast <- combineASTs asts
-    flattenAST ast
-
-
 combineASTs :: BoM s m => [S.AST] -> m S.AST
 combineASTs asts = do
     let modNames = Set.toList $ Set.fromList $ map S.astModuleName asts
@@ -98,24 +77,3 @@ combineASTs asts = do
         S.astStmts      = concat (map S.astStmts asts)
         }
         
-
-flattenAST :: BoM FlattenState m => S.AST -> m S.AST
-flattenAST ast = do
-    mapM_ gatherTopStmt (S.astStmts ast)
-    checkTypeDefs [ stmt | stmt@(S.Typedef _ _ _) <- S.astStmts ast ]
-
-    modify $ \s -> s {
-        funcDefs = reverse (funcDefs s),
-        typedefs = reverse (typedefs s)
-        }
-
-    s <- get
-
-    return $ ast { S.astStmts = typedefs s ++ funcDefs s }
-    where
-        gatherTopStmt :: BoM FlattenState m => S.Stmt -> m ()
-        gatherTopStmt stmt = withPos stmt $ case stmt of
-            S.FuncDef _ _ _ _ _ _      -> modify $ \s -> s { funcDefs = stmt:(funcDefs s) }
-            S.Typedef pos sym annoType -> modify $ \s -> s { typedefs = stmt:(typedefs s) }
-            _ -> fail "invalid top-level statement"
-

@@ -14,6 +14,15 @@ import Error
 import Symbol
 
 
+data ResolvedAst
+    = ResolvedAst
+    { moduleName :: String
+    , typeDefs   :: [Stmt]
+    , funcDefs   :: [Stmt]
+    }
+    deriving (Eq)
+
+
 class Resolve a where
     resolve :: BoM ResolveState m => a -> m a
 
@@ -117,25 +126,37 @@ popSymTab = do
     modify $ \s -> s { symTabVar = SymTab.pop (symTabVar s) }
 
 
-instance Resolve AST where
-    resolve ast = do
-        let (typedefs, stmts'') = partition isTypedef (astStmts ast)
-        let (funcdefs, stmts) = partition isFuncdef stmts''
 
-        forM funcdefs $ \(FuncDef pos mparam symbol params retty blk) -> do
-            resm <- lookm (Sym $ sym symbol) KeyFunc
-            when (isNothing resm) $ define (sym symbol) KeyFunc (Sym $ sym $ symbol)
 
-        astStmts <- mapM resolve $ typedefs ++ stmts''
-        return $ ast { astStmts = astStmts }
-        where
-            isTypedef :: Stmt -> Bool
-            isTypedef (AST.Typedef _ _ _) = True
-            isTypedef _                   = False
+resolveAst :: BoM s m => AST -> Map.Map FilePath SymTab -> m (ResolvedAst, ResolveState)
+resolveAst ast imports = withErrorPrefix "resolve: " $
+        runBoMTExcept (initResolveState imports $ astModuleName ast) f
+    where
+        f :: BoM ResolveState m => m ResolvedAst
+        f = do
+            let (typedefs, stmts'') = partition isTypedef (astStmts ast)
+            let (funcdefs, stmts) = partition isFuncdef stmts''
+            assert (stmts == []) "only type defs and func defs allowed"
 
-            isFuncdef :: Stmt -> Bool
-            isFuncdef (FuncDef _ _ _ _ _ _) = True
-            isFuncdef _                     = False
+            forM_ funcdefs $ \(FuncDef pos mparam symbol params retty blk) -> do
+                resm <- lookm (Sym $ sym symbol) KeyFunc
+                when (isNothing resm) $ define (sym symbol) KeyFunc (Sym $ sym $ symbol)
+
+            typeDefs <- mapM resolve typedefs
+            funcDefs <- mapM resolve funcdefs
+            return $ ResolvedAst
+                { moduleName = astModuleName ast
+                , typeDefs   = typeDefs
+                , funcDefs   = funcDefs
+                }
+
+        isTypedef :: Stmt -> Bool
+        isTypedef (AST.Typedef _ _ _) = True
+        isTypedef _                   = False
+
+        isFuncdef :: Stmt -> Bool
+        isFuncdef (FuncDef _ _ _ _ _ _) = True
+        isFuncdef _                     = False
 
 
 instance Resolve Stmt where

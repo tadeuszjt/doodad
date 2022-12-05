@@ -193,28 +193,25 @@ runMod args pathsVisited modPath = do
 
 
             resSymTabMap <- gets resolveSymTabMap
-            (resolvedAST, resolveState) <- withErrorPrefix "resolve: " $
-                runBoMTExcept (R.initResolveState resSymTabMap modName) (R.resolve combinedAST)
+            (resolvedAST, resolveState) <- R.resolveAst combinedAST resSymTabMap
             modify $ \s -> s { resolveSymTabMap = Map.insert path (R.symTab resolveState) (resolveSymTabMap s) }
-            when (printAstResolved args) $ liftIO $ S.prettyAST resolvedAST
+            Flatten.checkTypeDefs (R.typeDefs resolvedAST)
+            --when (printAstResolved args) $ liftIO $ S.prettyAST resolvedAST
 
             -- run type inference on ast
             annotatedAST <- fmap fst $ withErrorPrefix "annotate: " $
                 runBoMTExcept 0 $ annotate resolvedAST
-            when (printAstAnnotated args) $ liftIO $ S.prettyAST annotatedAST
+            --when (printAstAnnotated args) $ liftIO $ S.prettyAST annotatedAST
             (astInferred, symTab) <- withErrorPrefix "infer: " $ do
                 stm <- gets symTabMap
                 infer annotatedAST cExterns stm modName (verbose args)
             
             let ast = astInferred
-            when (printFinalAst args) $ liftIO $ S.prettyAST ast
+            --when (printFinalAst args) $ liftIO $ Resolve.prettyAST ast
             --liftIO $ S.prettyAST ast
             --liftIO $ SymTab.prettySymTab symTab
 
-
-            flat <- fmap fst $ withErrorPrefix "flatten: " $ runBoMTExcept initFlattenState (flattenAST ast)
             --assert (S.astModuleName flat == modName) "modName error"
-            -- turn flat into ir
             irGenImports <- Map.elems <$> gets irGenModMap
             (_, irGenState) <- withErrorPrefix "irgen: " $ runBoMTExcept (initIRGenState modName irGenImports cExterns) (IRGen.compile ast)
             modify $ \s -> s { irGenModMap = Map.insert path (irGenState) (irGenModMap s) }
