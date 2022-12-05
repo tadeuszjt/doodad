@@ -68,9 +68,9 @@ fnHdrToOp paramTypes symbol argTypes returnType = do
 
 
 
-compile :: BoM s m => [CompileState] -> IRGenState -> m ([LL.Definition], CompileState)
-compile imports irGenState = do
-    ((_, defs), state) <- runBoMTExcept (initCompileState imports $ moduleName irGenState) (runModuleCmpT emptyModuleBuilder cmp)
+compile :: BoM s m => IRGenState -> m ([LL.Definition], CompileState)
+compile irGenState = do
+    ((_, defs), state) <- runBoMTExcept (initCompileState $ moduleName irGenState) (runModuleCmpT emptyModuleBuilder cmp)
     return (defs, state)
     where
         cmp :: (MonadFail m, Monad m, MonadIO m) => ModuleCmpT CompileState m ()
@@ -92,11 +92,11 @@ compile imports irGenState = do
                 retVoid
                 emitBlockStart exit
                 store bMainCalled 0 (bit 1)
-                forM_ (map curModName imports) $ \modName -> case modName of
-                    "c" -> return ()
-                    _ -> do
-                        op <- extern (LL.mkName $ modName ++ "..callMain") [] LL.VoidType
-                        void $ call op []
+--                forM_ (map curModName imports) $ \modName -> case modName of
+--                    "c" -> return ()
+--                    _ -> do
+--                        op <- extern (LL.mkName $ modName ++ "..callMain") [] LL.VoidType
+--                        void $ call op []
                 void $ call mainOp []
 
             return ()
@@ -111,6 +111,7 @@ cmpDeclareExterns irGenState = do
             argOpTypes   <- mapM opTypeOf argTypes
             returnOpType <- opTypeOf returnType
             extern name (paramOpTypes ++ argOpTypes) returnOpType
+            define symbol KeyFunc ObjFn
 
 
 cmpFuncHdrs :: InsCmp CompileState m => IRGenState -> m ()

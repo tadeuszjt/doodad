@@ -103,8 +103,7 @@ data Declaration
 
 data CompileState
     = CompileState
-        { imports       :: [CompileState]
-        , declarations  :: Map.Map LL.Name Declaration
+        { declarations  :: Map.Map LL.Name Declaration
         , declared      :: Set.Set LL.Name
         , symTab        :: SymTab.SymTab Symbol SymKey Object
         , curModName    :: String
@@ -112,10 +111,9 @@ data CompileState
         , stringMap     :: Map.Map String C.Constant
         }
 
-initCompileState imports modName
+initCompileState modName
      = CompileState
-        { imports       = imports
-        , declarations  = Map.empty
+        { declarations  = Map.empty
         , declared      = Set.empty
         , symTab        = SymTab.initSymTab
         , curModName    = modName
@@ -147,6 +145,7 @@ myFreshPrivate sym = do
     case n of
         0 -> return $ LL.Name $ mkBSS ("." ++ sym)
         _ -> return $ LL.Name $ mkBSS ("." ++ sym ++ "." ++ show n)
+
 
 myFresh :: InsCmp CompileState m => String -> m LL.Name
 myFresh sym = do
@@ -224,9 +223,8 @@ ensureExtern name argTypes retty isVarg = trace "ensureExtern" $ do
 
 lookm :: ModCmp CompileState m => Symbol -> SymKey -> m (Maybe Object)
 lookm symbol key = do
-    im <- gets $ map symTab . imports
     st <- gets symTab
-    return $ lookupSymKey symbol key st im
+    return $ lookupSymKey symbol key st []
 
 
 look :: ModCmp CompileState m => Symbol -> SymKey -> m Object
@@ -239,7 +237,6 @@ look symbol key = do
 
 lookSym :: ModCmp CompileState m => Symbol -> m [(SymKey, Object)]
 lookSym symbol = do
-    imports <- gets $ map symTab . imports
     symTab <- gets symTab
-    return $ lookupSym symbol symTab imports
+    return $ lookupSym symbol symTab []
 

@@ -44,15 +44,15 @@ import Language.C.Pretty
 import Language.C.Syntax.AST
 import Text.PrettyPrint
 
--- Modules are groups of .bo files with a module name header
--- lang/lexer.bo: lexer module
+-- Modules are groups of .doo files with a module name header
+-- lang/lexer.doo: lexer module
 
 
 data Modules
     = Modules
-        { modMap  :: Map.Map FilePath CompileState
-        , symTabMap :: Map.Map String C.SymTab
-        , resolveSymTabMap :: Map.Map FilePath R.SymTab
+        { compiled :: Set.Set FilePath
+        , symTabMap :: Map.Map String C.SymTab -- for infer
+        , resolveSymTabMap :: Map.Map FilePath R.SymTab -- for resolve
         , irGenModMap :: Map.Map FilePath IRGenState
         , session :: JIT.Session
         }
@@ -60,7 +60,7 @@ data Modules
 
 initModulesState session
     = Modules
-        { modMap  = Map.empty
+        { compiled = Set.empty
         , session = session
         , resolveSymTabMap = Map.empty
         , irGenModMap = Map.empty
@@ -131,15 +131,16 @@ parse file = do
         Right a -> return a
 
 
-runMod :: BoM Modules m => Args -> Set.Set FilePath -> FilePath -> m CompileState
+runMod :: BoM Modules m => Args -> Set.Set FilePath -> FilePath -> m ()
 runMod args pathsVisited modPath = do
     debug "running"
     path <- checkAndNormalisePath modPath
     assert (not $ Set.member path pathsVisited) ("importing \"" ++ path ++ "\" forms a cycle")
-    maybe (compilePath path) return =<< fmap (Map.lookup path) (gets modMap)
+    isCompiled <- Set.member path <$> gets compiled
+    when (not isCompiled) $ compilePath path
     where
         -- path will be in the form "dir1/dirn/modname"
-        compilePath :: BoM Modules m => FilePath -> m CompileState
+        compilePath :: BoM Modules m => FilePath -> m ()
         compilePath path = do
             let modName = takeFileName path
             let modDirectory = takeDirectory path
@@ -160,7 +161,7 @@ runMod args pathsVisited modPath = do
             assert (length importModNames == length (Set.fromList importModNames)) $
                 fail "import name collision"
             forM_ importPaths $ debug . ("importing: " ++)
-            imports <- mapM (runMod args (Set.insert path pathsVisited)) importPaths
+            mapM_ (runMod args (Set.insert path pathsVisited)) importPaths
 
 
             -- load C imports
@@ -220,7 +221,7 @@ runMod args pathsVisited modPath = do
 
             -- compile and run
             debug "compiling"
-            (defs, state) <- withErrorPrefix "compile: " $ Compile.compile (cState : imports) irGenState
+            (defs, state) <- withErrorPrefix "compile: " $ Compile.compile irGenState
             when (printSymbols args) $ liftIO $ SymTab.prettySymTab (State.symTab state)
 
             debug "running"
@@ -233,9 +234,8 @@ runMod args pathsVisited modPath = do
             else do
                 liftIO $ jitAndRun defs session True (printLLIR args) 
 
-            modify $ \s -> s { modMap = Map.insert path state (modMap s) }
+            modify $ \s -> s { compiled  = Set.insert path (compiled s) }
             modify $ \s -> s { symTabMap = Map.insert modName symTab (symTabMap s) }
-            return state
 
         debug str =
             if verbose args
