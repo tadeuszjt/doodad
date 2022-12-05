@@ -77,7 +77,7 @@ instance Show SymKey where
 data Object
     = ObjVal          Value
     | ObType          Type
-    | ObjFnOp         LL.Operand
+    | ObjFnOp         
     | ObjAdtTypeField Int
     | ObjConstructor 
     | ObjField       Int
@@ -90,7 +90,7 @@ instance Show Object where
         ObjVal (Ptr t o)    -> "Ptr " ++ show t
         ObjVal val          -> "val"
         ObType typ          -> show typ
-        ObjFnOp op          -> "fn"
+        ObjFnOp             -> "fn"
         ObjConstructor      -> "(..)"
         ObjField i         -> "." ++ show i
 
