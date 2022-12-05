@@ -15,8 +15,8 @@ instance Show Symbol where
     show (Sym s)                     = s
     show (SymQualified mod sym)      = mod ++ "::" ++ sym
     show (SymResolved mod sym level) = case level of
-        0 -> sym
-        n -> sym ++ "_" ++ show n
+        0 -> "_" ++ sym
+        n -> "_" ++ sym ++ "_" ++ show n
 
 
 lookupSym

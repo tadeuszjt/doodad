@@ -30,11 +30,10 @@ prettyIrGenState irGenState = do
     when (isJust $ mainDef irGenState) $ do
         putStrLn $ "main: " ++ (show $ length $ funcStmts $ fromJust $ mainDef irGenState)
 
-    forM_ (Map.toList $ funcDefs irGenState) $ \((pts, sym, ats, rt), body) -> do
-        putStrLn $ "func: " ++ AST.brcStrs (map show pts) ++ " " ++ sym ++ AST.tupStrs (map show ats) ++ " " ++ show rt
+    forM_ (Map.toList $ funcDefs irGenState) $ \(symbol, body) -> do
+        putStrLn $ "func: " ++ show symbol
         putStrLn $ "    params: " ++ AST.brcStrs (map show $ funcParams body)
         putStrLn $ "    args:   " ++ AST.tupStrs (map show $ funcArgs body)
-        putStrLn $ "    name:   " ++ show (funcUniqueName body)
         putStrLn ""
 
 
@@ -42,8 +41,8 @@ type FuncKey = ([Type], String, [Type], Type)
 data FuncBody = FuncBody
     { funcParams :: [AST.Param]
     , funcArgs   :: [AST.Param]
+    , funcRetty  :: Type
     , funcStmts  :: [Stmt]
-    , funcUniqueName :: Symbol
     }
 
 
@@ -59,8 +58,8 @@ data IRGenState
         , moduleName :: String
         , typeDefs :: Map.Map Symbol AST.AnnoType
         , externDefs :: Map.Map Symbol FuncKey
-        , funcDefs :: Map.Map FuncKey FuncBody
-        , funcSymbolMap :: Map.Map Symbol FuncKey
+        , funcDefs :: Map.Map Symbol FuncBody
+        , funcMap :: Map.Map FuncKey Symbol
         , mainDef  :: Maybe FuncBody
         , currentFunc :: FuncKey
         , blockStack :: [StmtBlock]
@@ -74,7 +73,7 @@ initIRGenState moduleName imports cExterns = IRGenState
     , typeDefs       = Map.empty
     , externDefs     = Map.empty
     , funcDefs       = Map.empty
-    , funcSymbolMap  = Map.empty
+    , funcMap        = Map.empty
     , mainDef        = Nothing
     , currentFunc    = ([], "", [], Void)
     , blockStack     = []
@@ -103,14 +102,12 @@ initialiseTopFuncDefs ast = do
         case sym symbol of
             "main" -> do
                 Nothing <- gets mainDef
-                modify $ \s -> s { mainDef = Just (FuncBody [] [] [] (Sym "main")) }
-                
+                modify $ \s -> s { mainDef = Just (FuncBody [] [] retty []) }
             _ -> do
-                let paramTypes = map AST.paramType params
-                let argTypes   = map AST.paramType args
-                let key        = (paramTypes, sym symbol, argTypes, retty)
-                Nothing <- Map.lookup key <$> gets funcDefs
-                modify $ \s -> s { funcDefs = Map.insert key (FuncBody [] [] [] symbol) (funcDefs s) }
+                Nothing <- Map.lookup symbol <$> gets funcDefs
+                let key = (map AST.paramType params, sym symbol, map AST.paramType args, retty)
+                modify $ \s -> s { funcMap = Map.insert  key symbol (funcMap s) }
+                modify $ \s -> s { funcDefs = Map.insert symbol (FuncBody params args retty []) (funcDefs s) }
 
 
 initialiseTopTypeDefs :: BoM IRGenState m => AST.AST -> m ()
@@ -129,7 +126,7 @@ exprTypeOf (AST.AExpr typ _) = typ
 
 -- add extern if needed
 resolveFuncCall :: BoM IRGenState m => Type -> AST.Expr -> m Symbol
-resolveFuncCall exprType (AST.Call pos params symbol args) = do
+resolveFuncCall exprType (AST.Call pos params symbol args) = withPos pos $ do
     let paramTypes = map exprTypeOf params
     let argTypes = map exprTypeOf args
     curModName <- gets moduleName
@@ -174,14 +171,14 @@ resolveFuncCall exprType (AST.Call pos params symbol args) = do
     where
         findLocalFuncDef :: BoM IRGenState m => FuncKey -> m (Maybe Symbol)
         findLocalFuncDef key = do
-            fmap funcUniqueName . Map.lookup key <$> gets funcDefs
+            Map.lookup key <$> gets funcMap
 
         findImportedFuncDef :: BoM IRGenState m => FuncKey -> m (Maybe Symbol)
         findImportedFuncDef key = do
             imports <- gets imports
-            case catMaybes $ map (Map.lookup key . funcDefs) imports of
+            case catMaybes $ map (Map.lookup key . funcMap) imports of
                 [] -> return Nothing 
-                [x] -> return $ Just (funcUniqueName x)
+                [x] -> return $ Just x
                 _    -> fail $ "multiple definitions for: " ++ show key
         
         findQualifiedImportedFuncDef :: BoM IRGenState m => String -> FuncKey -> m (Maybe Symbol)
@@ -189,7 +186,7 @@ resolveFuncCall exprType (AST.Call pos params symbol args) = do
             imports <- gets imports
             let impm = find ((mod ==) . moduleName) imports
             assert (isJust impm) $ mod ++ " isn't imported"
-            return $ fmap funcUniqueName $ Map.lookup key (funcDefs $ fromJust impm)
+            return $ Map.lookup key (funcMap $ fromJust impm)
 
         findCExtern :: BoM IRGenState m => String -> m (Maybe ([Type], Type))
         findCExtern sym = do
@@ -206,7 +203,7 @@ resolveFuncCall exprType (AST.Call pos params symbol args) = do
 
 
 compileStmt :: BoM IRGenState m => AST.Stmt -> m Stmt
-compileStmt stmt = case stmt of
+compileStmt stmt = withPos stmt $ case stmt of
     AST.FuncDef pos params symbol args retty blk -> do
         let paramTypes = map AST.paramType params
         let argTypes   = map AST.paramType args
@@ -217,17 +214,16 @@ compileStmt stmt = case stmt of
 
         blk' <- compileStmt blk
 
-        modify $ \s -> s { funcSymbolMap = Map.insert symbol key (funcSymbolMap s) }
         let funcBody = FuncBody {
             funcParams = params,
             funcArgs   = args,
-            funcStmts  = [blk'],
-            funcUniqueName = symbol
+            funcRetty  = retty,
+            funcStmts  = [blk']
             }
 
         case sym symbol of 
             "main" -> modify $ \s -> s { mainDef = Just funcBody }
-            _      -> modify $ \s -> s { funcDefs = Map.insert key funcBody (funcDefs s) }
+            _      -> modify $ \s -> s { funcDefs = Map.insert symbol funcBody (funcDefs s) }
         modify $ \s -> s { currentFunc = oldCurrentFunc }
         return $ FuncDef pos params symbol args retty blk'
 
@@ -292,7 +288,7 @@ compileStmt stmt = case stmt of
 
 
 compileExpr :: BoM IRGenState m => AST.Expr -> m Expr
-compileExpr (AST.AExpr exprType expr) = AExpr exprType <$> case expr of
+compileExpr (AST.AExpr exprType expr) = withPos expr $ AExpr exprType <$> case expr of
     AST.Ident pos symbol   -> return $ Ident pos symbol
     AST.Prefix pos op expr -> Prefix pos op <$> compileExpr expr
     AST.Char pos c         -> return $ IR.Char pos c

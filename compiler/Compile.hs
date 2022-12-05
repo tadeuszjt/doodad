@@ -88,17 +88,19 @@ compile imports irGenState = do
 
 cmpFuncHdrs :: InsCmp CompileState m => IRGenState -> m ()
 cmpFuncHdrs irGenState = do
-    forM_ (Map.toList $ funcDefs irGenState) $ \((paramTypes, sym, argTypes, retty), funcBody) -> do
+    forM_ (Map.toList $ funcDefs irGenState) $ \(symbol, funcBody) -> do
         forM_ (funcArgs funcBody) $ \(AST.Param pos name typ) -> withPos pos $ do
             isDataType <- isDataType typ
             assert (not isDataType) "Cannot use a data type for an argument"
 
+        let paramTypes = map AST.paramType (funcParams funcBody)
+        let argTypes = map AST.paramType (funcArgs funcBody)
+        let retty = funcRetty funcBody
         paramOpTypes <- map LL.ptr <$> mapM opTypeOf paramTypes
         argOpTypes   <- mapM opTypeOf argTypes
         returnOpType <- opTypeOf retty
 
-        name <- myFresh sym
-        let symbol = funcUniqueName funcBody
+        name <- myFresh (sym symbol)
         let op = fnOp name (paramOpTypes ++ argOpTypes) returnOpType False
         define symbol (KeyFunc paramTypes argTypes retty) (ObjFnOp op) 
         addSymKeyDec symbol (KeyFunc paramTypes argTypes retty) name (DecFunc (paramOpTypes ++ argOpTypes) returnOpType)
@@ -111,19 +113,19 @@ cmpFuncBodies irGenState = do
         Nothing   -> return ()
         Just body -> mapM_ cmpStmt (funcStmts $ body)
 
-    forM_ (Map.toList $ funcDefs irGenState) $ \((paramTypes, sym, argTypes, retty), funcBody) -> do
+    forM_ (Map.toList $ funcDefs irGenState) $ \(symbol, funcBody) -> do
         let argTypes     = map AST.paramType (funcArgs funcBody)
         let argSymbols   = map AST.paramName (funcArgs funcBody)
         let argNames     = map (ParameterName . mkBSS . Symbol.sym) argSymbols
         let paramTypes   = map AST.paramType (funcParams funcBody)
         let paramSymbols = map AST.paramName (funcParams funcBody)
         let paramNames   = map (ParameterName . mkBSS . Symbol.sym) paramSymbols
+        let retty        = funcRetty funcBody
 
         returnOpType <- opTypeOf retty
         argOpTypes   <- mapM opTypeOf argTypes
         paramOpTypes <- map LL.ptr <$> mapM opTypeOf paramTypes
 
-        let symbol = funcUniqueName funcBody
         ObjFnOp op <- look symbol (KeyFunc paramTypes argTypes retty)
         let LL.ConstantOperand (C.GlobalReference _ name) = op
 
