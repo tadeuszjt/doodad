@@ -24,8 +24,8 @@ prettyIrGenState irGenState = do
     forM_ (Map.toList $ typeDefs irGenState) $ \(symbol, _) -> do
         putStrLn $ "type: " ++ show symbol
 
-    forM_ (Set.toList $ externDefs irGenState) $ \(pts, sym, ats, rt) -> do
-        putStrLn $ "extern: " ++ AST.brcStrs (map show pts) ++ " " ++ sym ++ AST.tupStrs (map show ats) ++ " " ++ show rt
+    forM_ (Map.toList $ externDefs irGenState) $ \(name, (pts, sym, ats, rt)) -> do
+        putStrLn $ "extern: " ++ AST.brcStrs (map show pts) ++ " " ++ sym ++ AST.tupStrs (map show ats) ++ " " ++ show rt ++ " " ++ show name
 
     when (isJust $ mainDef irGenState) $ do
         putStrLn $ "main: " ++ (show $ length $ funcStmts $ fromJust $ mainDef irGenState)
@@ -34,6 +34,7 @@ prettyIrGenState irGenState = do
         putStrLn $ "func: " ++ AST.brcStrs (map show pts) ++ " " ++ sym ++ AST.tupStrs (map show ats) ++ " " ++ show rt
         putStrLn $ "    params: " ++ AST.brcStrs (map show $ funcParams body)
         putStrLn $ "    args:   " ++ AST.tupStrs (map show $ funcArgs body)
+        putStrLn $ "    name:   " ++ show (funcUniqueName body)
         putStrLn ""
 
 
@@ -42,6 +43,7 @@ data FuncBody = FuncBody
     { funcParams :: [AST.Param]
     , funcArgs   :: [AST.Param]
     , funcStmts  :: [Stmt]
+    , funcUniqueName :: Symbol
     }
 
 
@@ -56,8 +58,10 @@ data IRGenState
         , cExterns :: [Extern]
         , moduleName :: String
         , typeDefs :: Map.Map Symbol AST.AnnoType
-        , externDefs :: Set.Set FuncKey
+        , externDefs :: Map.Map Symbol FuncKey
         , funcDefs :: Map.Map FuncKey FuncBody
+        , funcSymbolMap :: Map.Map Symbol FuncKey
+        , funcNameSupply :: Map.Map String Int
         , mainDef  :: Maybe FuncBody
         , currentFunc :: FuncKey
         , blockStack :: [StmtBlock]
@@ -65,16 +69,32 @@ data IRGenState
 
 
 initIRGenState moduleName imports cExterns = IRGenState
-    { imports     = imports 
-    , cExterns    = cExterns
-    , moduleName  = moduleName
-    , typeDefs    = Map.empty
-    , externDefs  = Set.empty
-    , funcDefs    = Map.empty
-    , mainDef     = Nothing
-    , currentFunc = ([], "", [], Void)
-    , blockStack  = []
+    { imports        = imports
+    , cExterns       = cExterns
+    , moduleName     = moduleName
+    , typeDefs       = Map.empty
+    , externDefs     = Map.empty
+    , funcDefs       = Map.empty
+    , funcSymbolMap  = Map.empty
+    , funcNameSupply = Map.empty
+    , mainDef        = Nothing
+    , currentFunc    = ([], "", [], Void)
+    , blockStack     = []
     }
+
+
+generateFuncUniqueName :: BoM IRGenState m => String -> m Symbol
+generateFuncUniqueName sym = do
+    result <- Map.lookup sym <$> gets funcNameSupply
+    moduleName <- gets moduleName
+    case result of
+        Nothing -> do
+            modify $ \s -> s { funcNameSupply = Map.insert sym 1 (funcNameSupply s) }
+            return $ SymResolved moduleName sym 0
+        Just x  -> do
+            modify $ \s -> s { funcNameSupply = Map.insert sym (x+1) (funcNameSupply s) }
+            return $ SymResolved moduleName sym x
+
 
 
 emitStmt :: BoM IRGenState m => Stmt -> m ()
@@ -98,14 +118,15 @@ initialiseTopFuncDefs ast = do
         case sym of
             "main" -> do
                 Nothing <- gets mainDef
-                modify $ \s -> s { mainDef = Just (FuncBody [] [] []) }
+                modify $ \s -> s { mainDef = Just (FuncBody [] [] [] (Sym "main")) }
                 
             _ -> do
                 let paramTypes = map AST.paramType params
                 let argTypes   = map AST.paramType args
                 let key        = (paramTypes, sym, argTypes, retty)
                 Nothing <- Map.lookup key <$> gets funcDefs
-                modify $ \s -> s { funcDefs = Map.insert key (FuncBody [] [] []) (funcDefs s) }
+                symbol <- generateFuncUniqueName sym
+                modify $ \s -> s { funcDefs = Map.insert key (FuncBody [] [] [] symbol) (funcDefs s) }
 
 
 initialiseTopTypeDefs :: BoM IRGenState m => AST.AST -> m ()
@@ -123,58 +144,68 @@ exprTypeOf (AST.AExpr typ _) = typ
 
 
 -- add extern if needed
-resolveFuncCall :: BoM IRGenState m => Type -> AST.Expr -> m ()
+resolveFuncCall :: BoM IRGenState m => Type -> AST.Expr -> m Symbol
 resolveFuncCall exprType (AST.Call pos params symbol args) = do
     let paramTypes = map exprTypeOf params
     let argTypes = map exprTypeOf args
     curModName <- gets moduleName
     imports <- gets imports
     case symbol of
-        SymResolved _ _ _ -> return () -- ast constructor?
+        SymResolved _ _ _ -> return symbol
         SymQualified "c" sym -> do
             resm <- findCExtern sym
             assert (isJust resm) $ "no c extern definition for: " ++ sym
             let (ats, rt) = fromJust resm
             assert (paramTypes == [] && ats == argTypes && rt == exprType) "c extern mismatch"
             let key = ([], sym, ats, rt)
-            modify $ \s -> s { externDefs = Set.insert key (externDefs s) }
+            let symbol = SymQualified "c" sym
+            modify $ \s -> s { externDefs = Map.insert symbol key (externDefs s) }
+            return symbol
 
         SymQualified mod sym | mod == curModName -> do
             let key = (paramTypes, sym, argTypes, exprType)
             resm <- findLocalFuncDef key
             assert (isJust resm) $ "no definition for: " ++ show key
+            return $ fromJust resm
 
         SymQualified mod sym -> do
             let key = (paramTypes, sym, argTypes, exprType)
             resm <- findQualifiedImportedFuncDef mod key
             assert (isJust resm) $ "no definition for: " ++ show key
-            modify $ \s -> s { externDefs = Set.insert key (externDefs s) }
+            let symbol = fromJust resm
+            modify $ \s -> s { externDefs = Map.insert symbol key (externDefs s) }
+            return symbol
 
         Sym sym -> do
             let key = (paramTypes, sym, argTypes, exprType)
             resm <- findLocalFuncDef key
-            when (isNothing resm) $ do
-                resultm <- findImportedFuncDef key
-                assert (isJust resultm) $ "no definition for: " ++ show key
-                modify $ \s -> s { externDefs = Set.insert key (externDefs s) }
+            case resm of
+                Just symbol -> return symbol
+                Nothing -> do
+                    resultm <- findImportedFuncDef key
+                    assert (isJust resultm) $ "no definition for: " ++ show key
+                    let symbol = fromJust resultm
+                    modify $ \s -> s { externDefs = Map.insert symbol key (externDefs s) }
+                    return symbol
     where
-        findLocalFuncDef :: BoM IRGenState m => FuncKey -> m (Maybe FuncBody)
-        findLocalFuncDef key = Map.lookup key <$> gets funcDefs
+        findLocalFuncDef :: BoM IRGenState m => FuncKey -> m (Maybe Symbol)
+        findLocalFuncDef key = do
+            fmap funcUniqueName . Map.lookup key <$> gets funcDefs
 
-        findImportedFuncDef :: BoM IRGenState m => FuncKey -> m (Maybe FuncBody)
+        findImportedFuncDef :: BoM IRGenState m => FuncKey -> m (Maybe Symbol)
         findImportedFuncDef key = do
             imports <- gets imports
             case catMaybes $ map (Map.lookup key . funcDefs) imports of
                 [] -> return Nothing 
-                [x] -> return $ Just x
+                [x] -> return $ Just (funcUniqueName x)
                 _    -> fail $ "multiple definitions for: " ++ show key
         
-        findQualifiedImportedFuncDef :: BoM IRGenState m => String -> FuncKey -> m (Maybe FuncBody)
+        findQualifiedImportedFuncDef :: BoM IRGenState m => String -> FuncKey -> m (Maybe Symbol)
         findQualifiedImportedFuncDef mod key = do
             imports <- gets imports
             let impm = find ((mod ==) . moduleName) imports
             assert (isJust impm) $ mod ++ " isn't imported"
-            return $ Map.lookup key (funcDefs $ fromJust impm)
+            return $ fmap funcUniqueName $ Map.lookup key (funcDefs $ fromJust impm)
 
         findCExtern :: BoM IRGenState m => String -> m (Maybe ([Type], Type))
         findCExtern sym = do
@@ -190,7 +221,7 @@ resolveFuncCall exprType (AST.Call pos params symbol args) = do
 
 
 
-compileStmt :: BoM IRGenState m => AST.Stmt -> m ()
+compileStmt :: BoM IRGenState m => AST.Stmt -> m Stmt
 compileStmt stmt = case stmt of
     AST.FuncDef pos params sym args retty blk -> do
         let paramTypes = map AST.paramType params
@@ -200,76 +231,81 @@ compileStmt stmt = case stmt of
         oldCurrentFunc <- gets currentFunc
         modify $ \s -> s { currentFunc = key }
 
-        compileStmt blk
-        blk' <- convertToIrStmt blk
+        blk' <- compileStmt blk
+
+        uniqueName <- funcUniqueName . (Map.! key) <$> gets funcDefs
+
+        modify $ \s -> s { funcSymbolMap = Map.insert uniqueName key (funcSymbolMap s) }
         let funcBody = FuncBody {
             funcParams = params,
             funcArgs   = args,
-            funcStmts  = [blk']
+            funcStmts  = [blk'],
+            funcUniqueName = uniqueName
             }
 
         case sym of 
             "main" -> modify $ \s -> s { mainDef = Just funcBody }
             _      -> modify $ \s -> s { funcDefs = Map.insert key funcBody (funcDefs s) }
         modify $ \s -> s { currentFunc = oldCurrentFunc }
+        return $ FuncDef pos params sym args retty blk'
 
 
     AST.ExprStmt expr -> do
         expr' <- compileExpr expr
-        return ()
+        return $ ExprStmt expr'
 
     AST.Block stmts -> do
-        mapM compileStmt stmts
-        return ()
+        stmts' <- mapM compileStmt stmts
+        return $ Block stmts'
 
     AST.Return pos mexpr -> do
         mexpr' <- maybe (return Nothing) (fmap Just . compileExpr) mexpr
-        return ()
+        return $ Return pos mexpr'
 
     AST.Assign pos pat expr -> do
         pat' <- compilePattern pat
         expr' <- compileExpr expr
-        return ()
+        return $ Assign pos pat' expr'
     
     AST.Typedef pos symbol anno -> do
-        return ()
+        return $ IR.Typedef pos symbol anno
 
     AST.If pos expr stmt melse -> do
         expr' <- compileExpr expr
-        compileStmt stmt
-        maybe (return Nothing) (fmap Just . compileStmt) melse
-        return ()
+        stmt' <- compileStmt stmt
+        melse' <- maybe (return Nothing) (fmap Just . compileStmt) melse
+        return $ If pos expr' stmt' melse'
 
     AST.While pos expr stmt -> do
         expr' <- compileExpr expr
-        compileStmt stmt
-        return ()
+        stmt' <- compileStmt stmt
+        return $ While pos expr' stmt'
 
     AST.Set pos expr1 expr2 -> do
         expr1' <- compileExpr expr1
         expr2' <- compileExpr expr2
-        return ()
+        return $ Set pos expr1' expr2'
 
     AST.Print pos exprs -> do
-        mapM compileExpr exprs
-        return ()
+        exprs' <- mapM compileExpr exprs
+        return $ Print pos exprs'
 
     AST.Switch pos expr cases -> do
         expr' <- compileExpr expr
         cases' <- forM cases $ \(pat, stmt) -> do
             pat' <- compilePattern pat
-            compileStmt stmt
-            return pat'
-        return ()
+            stmt' <- compileStmt stmt
+            return (pat', stmt')
+        return $ Switch pos expr' cases'
     
     AST.For pos expr mpat blk -> do
         expr' <- compileExpr expr
         mpat' <- maybe (return Nothing) (fmap Just . compilePattern) mpat
-        compileStmt blk
-        return ()
+        blk' <- compileStmt blk
+        return $ For pos expr' mpat' blk'
 
     AST.Data pos symbol typ -> do
-        return ()
+        return $ Data pos symbol typ
 
 
 
@@ -309,8 +345,8 @@ compileExpr (AST.AExpr exprType expr) = AExpr exprType <$> case expr of
     AST.Call pos params symbol exprs -> do
         params' <- mapM compileExpr params
         exprs' <- mapM compileExpr exprs
-        resolveFuncCall exprType expr
-        return $ Call pos params' symbol exprs'
+        symbol' <- resolveFuncCall exprType expr
+        return $ Call pos params' symbol' exprs'
 
     AST.Infix pos op expr1 expr2 -> do
         expr1' <- compileExpr expr1

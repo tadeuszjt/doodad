@@ -160,6 +160,8 @@ fn main()
     board.Initialise()
     {board, io}.Print()
 
+    print(abs(-0.2))
+
     let loop = true
     while loop
         print()

@@ -98,9 +98,10 @@ cmpFuncHdrs irGenState = do
         returnOpType <- opTypeOf retty
 
         name <- myFresh sym
+        let symbol = funcUniqueName funcBody
         let op = fnOp name (paramOpTypes ++ argOpTypes) returnOpType False
-        define (Sym sym) (KeyFunc paramTypes argTypes retty) (ObjFnOp op) 
-        addSymKeyDec (Sym sym) (KeyFunc paramTypes argTypes retty) name (DecFunc (paramOpTypes ++ argOpTypes) returnOpType)
+        define symbol (KeyFunc paramTypes argTypes retty) (ObjFnOp op) 
+        addSymKeyDec symbol (KeyFunc paramTypes argTypes retty) name (DecFunc (paramOpTypes ++ argOpTypes) returnOpType)
         addDeclared name
 
 
@@ -122,7 +123,8 @@ cmpFuncBodies irGenState = do
         argOpTypes   <- mapM opTypeOf argTypes
         paramOpTypes <- map LL.ptr <$> mapM opTypeOf paramTypes
 
-        ObjFnOp op <- look (Sym sym) (KeyFunc paramTypes argTypes retty)
+        let symbol = funcUniqueName funcBody
+        ObjFnOp op <- look symbol (KeyFunc paramTypes argTypes retty)
         let LL.ConstantOperand (C.GlobalReference _ name) = op
 
         void $ InstrCmpT . IRBuilderT . lift $ func name (zip (paramOpTypes ++ argOpTypes)  (paramNames ++ argNames)) returnOpType $ \argOps -> do
