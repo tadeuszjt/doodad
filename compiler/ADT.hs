@@ -80,12 +80,12 @@ adtTypeDef symbol (AST.AnnoADT xs) = trace "adtTypeDef" $ do
         AST.ADTFieldType t           -> return $ FieldType t
         AST.ADTFieldNull             -> return FieldNull
 
-    define symbol KeyType $ ObType (ADT fs)
+    define symbol KeyType $ ObjType (ADT fs)
 
     -- define member loopkups
     forM_ (zip xs [0..]) $ \(x, i) -> case x of
         AST.ADTFieldMember s ts -> do
-            define s (KeyFunc [] ts typdef) (ObjField i)
+            define s KeyFunc (ObjField i)
             define s (KeyField typdef) (ObjField i)
         AST.ADTFieldType t@(Typedef s) -> do
             define s (KeyField typdef) (ObjAdtTypeField i)
@@ -95,11 +95,7 @@ adtTypeDef symbol (AST.AnnoADT xs) = trace "adtTypeDef" $ do
         AST.ADTFieldNull -> return ()
 
     -- define constructors
-    define symbol (KeyFunc [] [] typdef)       ObjConstructor 
-    define symbol (KeyFunc [] [typdef] typdef) ObjConstructor
-    forM_ xs $ \x -> case x of
-        AST.ADTFieldType t -> define symbol (KeyFunc [] [t] typdef) ObjConstructor
-        _ -> return ()
+    define symbol KeyFunc ObjConstructor 
 
 
 adtEnum :: InsCmp CompileState m => Value -> m Value

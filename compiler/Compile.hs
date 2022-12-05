@@ -121,14 +121,14 @@ cmpFuncHdrs irGenState = do
             assert (not isDataType) "Cannot use a data type for an argument"
 
         let paramTypes = map AST.paramType (funcParams funcBody)
-        let argTypes = map AST.paramType (funcArgs funcBody)
-        let retty = funcRetty funcBody
+        let argTypes   = map AST.paramType (funcArgs funcBody)
+        let retty      = funcRetty funcBody
         paramOpTypes <- map LL.ptr <$> mapM opTypeOf paramTypes
         argOpTypes   <- mapM opTypeOf argTypes
         returnOpType <- opTypeOf retty
 
         let name = fnSymbolToName symbol
-        define symbol (KeyFunc paramTypes argTypes retty) ObjFn
+        define symbol KeyFunc ObjFn
         addDeclared name
 
 
@@ -151,7 +151,7 @@ cmpFuncBodies irGenState = do
         argOpTypes   <- mapM opTypeOf argTypes
         paramOpTypes <- map LL.ptr <$> mapM opTypeOf paramTypes
 
-        ObjFn <- look symbol (KeyFunc paramTypes argTypes retty)
+        ObjFn <- look symbol KeyFunc
         op <- fnHdrToOp paramTypes symbol argTypes retty
         let LL.ConstantOperand (C.GlobalReference _ name) = op
 
@@ -175,53 +175,16 @@ cmpTypeDefs :: InsCmp CompileState m => IRGenState -> m ()
 cmpTypeDefs irGenState = do
     forM_ (Map.toList $ typeDefs irGenState) $ \(symbol, anno) ->
         case anno of
-            AST.AnnoTuple xs -> tupleTypeDef symbol (AST.AnnoTuple xs)
             AST.AnnoADT xs   -> adtTypeDef symbol (AST.AnnoADT xs)
+            AST.AnnoTuple xs -> do
+                define symbol KeyFunc ObjConstructor
+                forM_ (zip xs [0..]) $ \((s, t), i) -> do
+                    define (Sym s) (KeyField $ Typedef symbol) (ObjField i)
             AST.AnnoType typ -> do
-                case typ of
-                    t | isTuple t -> tupleTypeDef symbol (AST.AnnoType t)
-                    t | isTable t -> tableTypeDef symbol (AST.AnnoType t)
-                    t             -> do
-                        let typdef = Typedef symbol
-                        define symbol (KeyFunc [] [] typdef) ObjConstructor
-                        define symbol (KeyFunc [] [t] typdef) ObjConstructor
-                        define symbol (KeyFunc [] [typdef] typdef) ObjConstructor
-                        define symbol KeyType (ObType t)
+                define symbol KeyFunc ObjConstructor
+                define symbol KeyType (ObjType typ)
 
                     
-cmpDataDef :: InsCmp CompileState m => IR.Stmt -> m ()
-cmpDataDef (IR.Data pos symbol typ) = withPos pos $ do
-    name <- myFresh (sym symbol)
-    initialiser <- mkZero typ
-    opTyp <- opTypeOf typ
-    loc <- Ptr typ <$> global name opTyp (toCons $ valOp initialiser)
-    define symbol KeyVar (ObjVal loc)
-    addDeclared name
-
-
-cmpVarDef :: InsCmp CompileState m => IR.Stmt -> m ()
-cmpVarDef (IR.Assign pos (IR.PatIdent p symbol) expr) = withPos pos $ do
-    val <- cmpExpr expr
-    name <- myFresh (sym symbol)
-
-    let typ = valType val
-    isDataType <- isDataType typ
-    assert (not isDataType) "Cannot use a data type for a variable"
-    opTyp <- opTypeOf typ
-
-    if isCons (valOp val)
-    then do
-        loc <- Ptr typ <$> global name opTyp (toCons $ valOp val)
-        define symbol KeyVar (ObjVal loc)
-    else do
-        initialiser <- mkZero typ
-        loc <- Ptr typ <$> global name opTyp (toCons $ valOp initialiser)
-        valStore loc val
-        define symbol KeyVar (ObjVal loc)
-
-    addDeclared name
-
-
 cmpPrint :: InsCmp CompileState m => IR.Stmt -> m ()
 cmpPrint (IR.Print pos exprs) = trace "cmpPrint" $ do
     prints =<< mapM cmpExpr exprs
@@ -239,7 +202,6 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
         cmpPrint stmt
 
     IR.Block stmts       -> mapM_ cmpStmt stmts
-
     IR.ExprStmt expr     -> void $ cmpExpr expr
 
     IR.Data pos symbol typ -> do
@@ -462,11 +424,8 @@ cmpExpr (IR.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck ex
         base <- baseTypeOf (valType val)
         case base of
             Sparse ts -> sparseDelete val arg
-
         return $ Val Void undefined
                 
-        
-
     IR.Int p n -> do
         base <- baseTypeOf exprType
         case base of
@@ -495,7 +454,6 @@ cmpExpr (IR.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck ex
         emitBlockStart exit
         valLoad b
         
-
     IR.Infix pos op exprA exprB -> do
         valA <- cmpExpr exprA
         valB <- cmpExpr exprB
@@ -525,7 +483,7 @@ cmpExpr (IR.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck ex
             Ptr _ loc -> return loc
 
         asOps <- map valOp <$> mapM valLoad as
-        obj <- look symbol $ KeyFunc (map valType ps) (map valType as) exprType
+        obj <- look symbol KeyFunc
         case obj of
             ObjFn -> do
                 op <- fnHdrToOp (map valType ps) symbol (map valType as) exprType
@@ -581,7 +539,6 @@ cmpExpr (IR.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck ex
                 assertBaseType (== Bool) exprType
                 Val exprType <$> LL.and (valOp idxLtEnd) (valOp idxGtEqStart)
                 
-
     IR.Array pos exprs -> do
         base <- baseTypeOf exprType
         case base of
@@ -612,7 +569,6 @@ cmpExpr (IR.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck ex
         storeCopy mal val
         adtConstructFromPtr exprType mal
 
-
     _ -> fail ("invalid expression: " ++ show expr)
     where
         withCheck :: InsCmp CompileState m => Type -> m Value -> m Value
@@ -622,7 +578,6 @@ cmpExpr (IR.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck ex
             assert (valType val == typ) $ "Expression compiled to: " ++ show (valType val) ++ " instead of: " ++ show typ
             return val
             
-
 
 cmpPattern :: InsCmp CompileState m => IR.Pattern -> Value -> m Value
 cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pattern of
@@ -696,7 +651,7 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
                 assert (length pats == 1)       "One pattern allowed for type field"
                 enumMatch <- mkIntInfix AST.EqEq (mkI64 i) =<< adtEnum val
                 Ptr _ loc <- adtDeref val i 0
-                ObType t0 <- look symbol KeyType
+                ObjType t0 <- look symbol KeyType
                 b <- cmpPattern (head pats) $ Ptr t0 loc
                 valLoad =<< mkInfix AST.AndAnd enumMatch b
 

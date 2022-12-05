@@ -30,7 +30,7 @@ assertBaseType f typ = trace "assertBaseType" $ do
 
 baseTypeOf :: ModCmp CompileState m => Type -> m Type
 baseTypeOf typ = case typ of
-    Typedef sym -> trace ("baseTypeOf " ++ show sym) $ do ObType t <- look sym KeyType; baseTypeOf t
+    Typedef sym -> trace ("baseTypeOf " ++ show sym) $ do ObjType t <- look sym KeyType; baseTypeOf t
     _           -> return typ
 
 
@@ -81,7 +81,7 @@ opTypeOf typ = trace ("opTypOf " ++ show typ) $ case typ of
         return $ LL.StructureType False [table, stack]
 
     Typedef s -> do
-        ObType t <- look s KeyType
+        ObjType t <- look s KeyType
         maybe (opTypeOf t) (return . LL.NamedTypeReference) Nothing
 
     Func ts rt -> do

@@ -23,11 +23,6 @@ import Trace
 import Error
 import Symbol
 
-tableTypeDef :: InsCmp CompileState m => Symbol -> AST.AnnoType -> m ()
-tableTypeDef symbol (AST.AnnoType typ) = trace "tableTypeDef" $ do
-    base@(Table ts) <- assertBaseType isTable typ
-    define symbol KeyType $ ObType typ 
-
 
 mkTableLen :: InsCmp CompileState m => Value -> m Value
 mkTableLen tab = do

@@ -75,11 +75,9 @@ cmpExtern extern = catchError (cmpExtern' extern) $ \e -> return ()
                 let symbol = SymQualified "c" sym
                 checkSymUndef symbol
                 let name = LL.mkName sym
-
                 paramOpTypes <- mapM opTypeOf argTypes
                 returnOpType <- opTypeOf retty
-
-                define symbol (KeyFunc [] argTypes retty) ObjFn
+                define symbol KeyFunc ObjFn
 
             ExtConstInt sym integer -> do
                 let symbol = SymQualified "c" sym
@@ -87,7 +85,7 @@ cmpExtern extern = catchError (cmpExtern' extern) $ \e -> return ()
 
             ExtTypeDef sym typ -> do
                 let symbol = SymQualified "c" sym
-                define symbol KeyType (ObType typ)
+                define symbol KeyType (ObjType typ)
 
 
 compile :: BoM s m => [Extern] -> m CompileState

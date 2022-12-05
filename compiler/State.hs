@@ -61,22 +61,22 @@ valType (Val typ _) = typ
 data SymKey
     = KeyType
     | KeyVar
-    | KeyFunc [Type] [Type] Type
+    | KeyFunc
     | KeyField Type
     | KeyTypeField Type
     deriving (Eq, Ord)
 
 instance Show SymKey where
-    show KeyType = "type"
-    show KeyVar  = "var"
-    show (KeyFunc ps ts rt) = "fn" ++ S.brcStrs (map show ps) ++ " (" ++ intercalate ", " (map show ts) ++ ")" ++ show rt
-    show (KeyField t) = show t ++ "."
+    show KeyType            = "type"
+    show KeyVar             = "var"
+    show KeyFunc            = "fn"
+    show (KeyField t)       = show t ++ "."
     show (KeyTypeField typ) = show typ
 
 
 data Object
     = ObjVal          Value
-    | ObType          Type
+    | ObjType          Type
     | ObjFn         
     | ObjAdtTypeField Int
     | ObjConstructor 
@@ -89,7 +89,7 @@ instance Show Object where
         ObjVal (Val t o)    -> "Val " ++ show t
         ObjVal (Ptr t o)    -> "Ptr " ++ show t
         ObjVal val          -> "val"
-        ObType typ          -> show typ
+        ObjType typ          -> show typ
         ObjFn             -> "fn"
         ObjConstructor      -> "(..)"
         ObjField i         -> "." ++ show i
