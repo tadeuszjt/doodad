@@ -32,7 +32,6 @@ data IRGenState
         , irCExterns    :: [Extern]
 
         , irModuleName  :: String
-        , irTypeImports :: Map.Map Symbol AST.AnnoType
         , irTypeDefs    :: Map.Map Symbol AST.AnnoType
         , irExternDefs  :: Map.Map Symbol FuncKey
         , irFuncDefs    :: Map.Map Symbol FuncBody

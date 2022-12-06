@@ -84,8 +84,7 @@ compile irGenState = do
 
 cmpTypeNames :: InsCmp CompileState m => IRGenState -> m ()
 cmpTypeNames irGenState = do
-    let list = Map.toList (irTypeImports irGenState) ++ Map.toList (irTypeDefs irGenState)
-    forM_ list $ \(symbol, anno) -> do
+    forM_ (Map.toList $ irTypeDefs irGenState) $ \(symbol, anno) -> do
         typ <- return $ case anno of
             AST.AnnoType typ -> typ
             AST.AnnoTuple xs -> Tuple (map snd xs)
@@ -171,8 +170,7 @@ cmpFuncBodies irGenState = do
 
 cmpTypeDefs :: InsCmp CompileState m => IRGenState -> m ()
 cmpTypeDefs irGenState = do
-    let list = Map.toList (irTypeImports irGenState) ++ Map.toList (irTypeDefs irGenState)
-    forM_ list $ \(symbol, anno) ->
+    forM_ (Map.toList $ irTypeDefs irGenState) $ \(symbol, anno) ->
         case anno of
             AST.AnnoADT xs   -> adtTypeDef symbol (AST.AnnoADT xs)
             AST.AnnoTuple xs -> do

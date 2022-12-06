@@ -22,8 +22,6 @@ import States
 prettyIrGenState :: IRGenState -> IO ()
 prettyIrGenState irGenState = do
     putStrLn $ "module: " ++ irModuleName irGenState
-    forM_ (Map.toList $ irTypeImports irGenState) $ \(symbol, anno) -> do
-        putStrLn $ "type import: " ++ show symbol ++ "\t" ++ show anno
     forM_ (Map.toList $ irTypeDefs irGenState) $ \(symbol, anno) -> do
         putStrLn $ "type: " ++ show symbol ++ "\t" ++ show anno
 
@@ -44,7 +42,6 @@ initIRGenState moduleName imports cExterns = IRGenState
     { irImports        = imports
     , irCExterns       = cExterns
     , irModuleName     = moduleName
-    , irTypeImports    = Map.empty
     , irTypeDefs       = Map.empty
     , irExternDefs     = Map.empty
     , irFuncDefs       = Map.empty
@@ -68,8 +65,11 @@ initialiseTypeImports :: BoM IRGenState m => m ()
 initialiseTypeImports = do
     imports <- gets irImports
     forM_ imports $ \imprt -> do
-        forM_ (Map.toList $ irTypeDefs imprt) $ \(symbol, anno) -> do
-            modify $ \s -> s { irTypeImports = Map.insert symbol anno (irTypeImports s) }
+        forM_ (Map.elems $ irTypeMap imprt) $ \symbol -> do
+            let anno = irTypeDefs imprt Map.! symbol
+            isDefined <- Map.member symbol <$> gets irTypeDefs
+            assert (not isDefined) "type already defined"
+            modify $ \s -> s { irTypeDefs = Map.insert symbol anno (irTypeDefs s) }
             
 
 
