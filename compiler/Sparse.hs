@@ -11,7 +11,6 @@ import LLVM.IRBuilder.Monad
 import LLVM.AST.Instruction
 
 import qualified AST
-import qualified IR
 import Monad
 import Value
 import State

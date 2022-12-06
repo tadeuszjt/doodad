@@ -9,8 +9,7 @@ import Control.Monad.State
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
-import qualified AST
-import IR
+import AST
 import Symbol
 import Monad
 import Error
@@ -241,7 +240,7 @@ compileStmt stmt = withPos stmt $ case stmt of
         return $ Assign pos pat' expr'
     
     AST.Typedef pos symbol anno -> do
-        return $ IR.Typedef pos symbol anno
+        return $ AST.Typedef pos symbol anno
 
     AST.If pos expr stmt melse -> do
         expr' <- compileExpr expr
@@ -286,15 +285,15 @@ compileExpr :: BoM IRGenState m => AST.Expr -> m Expr
 compileExpr (AST.AExpr exprType expr) = withPos expr $ AExpr exprType <$> case expr of
     AST.Ident pos symbol   -> return $ Ident pos symbol
     AST.Prefix pos op expr -> Prefix pos op <$> compileExpr expr
-    AST.Char pos c         -> return $ IR.Char pos c
+    AST.Char pos c         -> return $ AST.Char pos c
     AST.Len pos expr       -> Len pos <$> compileExpr expr
-    AST.UnsafePtr pos expr -> IR.UnsafePtr pos <$> compileExpr expr
+    AST.UnsafePtr pos expr -> AST.UnsafePtr pos <$> compileExpr expr
     AST.Int pos n          -> return $ Int pos n
-    AST.Bool pos b         -> return $ IR.Bool pos b
+    AST.Bool pos b         -> return $ AST.Bool pos b
     AST.Float pos f        -> return $ Float pos f
-    AST.Tuple pos exprs    -> IR.Tuple pos <$> mapM compileExpr exprs
-    AST.Array pos exprs    -> IR.Array pos <$> mapM compileExpr exprs
-    AST.String pos s       -> return $ IR.String pos s
+    AST.Tuple pos exprs    -> AST.Tuple pos <$> mapM compileExpr exprs
+    AST.Array pos exprs    -> AST.Array pos <$> mapM compileExpr exprs
+    AST.String pos s       -> return $ AST.String pos s
 
     AST.Push pos expr exprs -> do
         expr' <- compileExpr expr
@@ -349,7 +348,7 @@ compileExpr (AST.AExpr exprType expr) = withPos expr $ AExpr exprType <$> case e
 
     AST.Null pos -> return (Null pos)
 
-    AST.ADT pos expr -> IR.ADT pos <$> compileExpr expr
+    AST.ADT pos expr -> AST.ADT pos <$> compileExpr expr
 
     AST.Match pos expr pat -> do
         expr' <- compileExpr expr
@@ -360,7 +359,7 @@ compileExpr (AST.AExpr exprType expr) = withPos expr $ AExpr exprType <$> case e
         mexpr' <- maybe (return Nothing) (fmap Just . compileExpr) mexpr
         mexpr1' <- maybe (return Nothing) (fmap Just . compileExpr) mexpr1
         mexpr2' <- maybe (return Nothing) (fmap Just . compileExpr) mexpr2
-        return $ IR.Range pos mexpr' mexpr1' mexpr2'
+        return $ AST.Range pos mexpr' mexpr1' mexpr2'
 
 
 

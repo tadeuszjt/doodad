@@ -75,6 +75,5 @@ executable doodad
         Builtin,
         Symbol,
         Sparse,
-        IR,
         IRGen,
         States

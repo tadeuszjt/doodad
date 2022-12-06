@@ -18,7 +18,6 @@ import LLVM.IRBuilder.Monad
 import qualified LLVM.AST.Constant as C
 
 import qualified AST
-import qualified IR
 import Type
 import Value
 import State

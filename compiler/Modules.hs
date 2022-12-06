@@ -33,8 +33,8 @@ import Collect as C
 import qualified Resolve as R
 import qualified SymTab
 import IRGen
-import qualified IR
 import States
+
 
 import Language.C
 import Language.C.System.GCC

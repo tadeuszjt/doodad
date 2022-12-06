@@ -12,7 +12,6 @@ import LLVM.IRBuilder.Constant
 import LLVM.IRBuilder.Instruction
 
 import qualified AST
-import qualified IR
 import Value
 import Type
 import State

@@ -23,7 +23,6 @@ import qualified LLVM.AST.Constant as C
 import qualified LLVM.AST.IntegerPredicate as P
 import qualified LLVM.AST.FloatingPointPredicate as P
 
-import qualified IR
 import qualified AST
 import Monad
 import State

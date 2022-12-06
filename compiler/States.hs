@@ -5,7 +5,6 @@ import AST
 import Symbol
 import Type
 import Interop
-import qualified IR
 
 
 data ResolvedAst
@@ -23,7 +22,7 @@ data FuncBody = FuncBody
     { funcParams :: [AST.Param]
     , funcArgs   :: [AST.Param]
     , funcRetty  :: Type
-    , funcStmts  :: [IR.Stmt]
+    , funcStmts  :: [AST.Stmt]
     }
 
 data IRGenState = IRGenState

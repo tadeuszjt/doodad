@@ -30,7 +30,6 @@ import LLVM.IRBuilder.Monad
 import LLVM.Context
 
 import qualified AST
-import qualified IR
 import qualified Flatten as F
 import Monad
 import Type
@@ -183,8 +182,8 @@ cmpTypeDefs irGenState = do
                 define symbol KeyType (ObjType typ)
 
                     
-cmpPrint :: InsCmp CompileState m => IR.Stmt -> m ()
-cmpPrint (IR.Print pos exprs) = trace "cmpPrint" $ do
+cmpPrint :: InsCmp CompileState m => AST.Stmt -> m ()
+cmpPrint (AST.Print pos exprs) = trace "cmpPrint" $ do
     prints =<< mapM cmpExpr exprs
     where
         prints :: InsCmp CompileState m => [Value] -> m ()
@@ -193,49 +192,49 @@ cmpPrint (IR.Print pos exprs) = trace "cmpPrint" $ do
         prints (v:vs) = valPrint ", " v >> prints vs
 
 
-cmpStmt :: InsCmp CompileState m => IR.Stmt -> m ()
+cmpStmt :: InsCmp CompileState m => AST.Stmt -> m ()
 cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
-    IR.Print pos exprs   -> do
+    AST.Print pos exprs   -> do
         label "print"
         cmpPrint stmt
 
-    IR.Block stmts       -> mapM_ cmpStmt stmts
-    IR.ExprStmt expr     -> void $ cmpExpr expr
+    AST.Block stmts       -> mapM_ cmpStmt stmts
+    AST.ExprStmt expr     -> void $ cmpExpr expr
 
-    IR.Data pos symbol typ -> do
+    AST.Data pos symbol typ -> do
         loc <- mkAlloca typ
         valStore loc =<< mkZero (valType loc)
         define symbol KeyVar (ObjVal loc)
 
-    IR.Assign pos pat expr -> withErrorPrefix "assign: " $ do
+    AST.Assign pos pat expr -> withErrorPrefix "assign: " $ do
         val <- cmpExpr expr
         isDataType <- isDataType (valType val)
         assert (not isDataType) "Cannot use a data type for a variable"
         matched <- valLoad =<< cmpPattern pat val
         if_ (valOp matched) (return ()) (void trap) 
 
-    IR.Set pos expr1 expr2 -> do
+    AST.Set pos expr1 expr2 -> do
         label "set"
         loc@(Ptr _ _) <- cmpExpr expr1
         storeCopy loc =<< cmpExpr expr2
 
-    IR.Return pos Nothing -> do
+    AST.Return pos Nothing -> do
         label "return"
         retVoid
         emitBlockStart =<< fresh
 
-    IR.Return pos (Just expr) -> do
+    AST.Return pos (Just expr) -> do
         label "return_expr"
         ret . valOp =<< valLoad =<< cmpExpr expr
         emitBlockStart =<< fresh
 
-    IR.If pos expr blk melse -> do
+    AST.If pos expr blk melse -> do
         label "if"
         val <- valLoad =<< cmpExpr expr
         assertBaseType (== Bool) (valType val)
         if_ (valOp val) (cmpStmt blk) $ maybe (return ()) cmpStmt melse
 
-    IR.While pos cnd blk -> do
+    AST.While pos cnd blk -> do
         label "while"
         cond <- freshName "while_cond"
         body <- freshName "while_body"
@@ -252,13 +251,13 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
         br cond
         emitBlockStart exit
 
-    IR.Switch _ expr cases -> do
+    AST.Switch _ expr cases -> do
         label "switch"
         val <- cmpExpr expr
         let cases' = [(fmap valOp (cmpPattern pat val), cmpStmt stmt) | (pat, stmt) <- cases]
         switch_ $ cases' ++ [(return (bit 1), void trap)]
 
-    IR.For _ expr mpat blk -> do
+    AST.For _ expr mpat blk -> do
         label "for"
         val <- cmpExpr expr
         base <- baseTypeOf (valType val)
@@ -324,24 +323,24 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
             emitBlockStart name
 
 -- must return Val unless local variable
-cmpExpr :: InsCmp CompileState m =>  IR.Expr -> m Value
-cmpExpr (IR.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck exprType $ case expr of
-    IR.Bool pos b               -> mkBool exprType b
-    IR.Char pos c               -> mkChar exprType c
-    IR.Conv pos typ [expr]      -> mkConvert typ =<< cmpExpr expr
-    IR.Tuple pos [expr]         -> cmpExpr expr
-    IR.Float p f                -> mkFloat exprType f
-    IR.Prefix pos operator expr -> mkPrefix operator =<< cmpExpr expr
-    IR.Field pos expr sym       -> valTupleField sym =<< cmpExpr expr
-    IR.Null p                   -> adtNull exprType
-    IR.Match pos expr pat       -> cmpPattern pat =<< cmpExpr expr
+cmpExpr :: InsCmp CompileState m =>  AST.Expr -> m Value
+cmpExpr (AST.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck exprType $ case expr of
+    AST.Bool pos b               -> mkBool exprType b
+    AST.Char pos c               -> mkChar exprType c
+    AST.Conv pos typ [expr]      -> mkConvert typ =<< cmpExpr expr
+    AST.Tuple pos [expr]         -> cmpExpr expr
+    AST.Float p f                -> mkFloat exprType f
+    AST.Prefix pos operator expr -> mkPrefix operator =<< cmpExpr expr
+    AST.Field pos expr sym       -> valTupleField sym =<< cmpExpr expr
+    AST.Null p                   -> adtNull exprType
+    AST.Match pos expr pat       -> cmpPattern pat =<< cmpExpr expr
 
-    IR.Range pos Nothing _ Nothing -> fail "Range expression must contain maximum"
-    IR.Range pos Nothing mexpr1 (Just expr2) -> do
+    AST.Range pos Nothing _ Nothing -> fail "Range expression must contain maximum"
+    AST.Range pos Nothing mexpr1 (Just expr2) -> do
         end <- cmpExpr expr2
         start <- maybe (mkZero $ valType end) cmpExpr mexpr1
         mkRange start end
-    IR.Range pos (Just expr) margStart margEnd -> do
+    AST.Range pos (Just expr) margStart margEnd -> do
         val <- cmpExpr expr
         base <- baseTypeOf (valType val)
 
@@ -376,7 +375,7 @@ cmpExpr (IR.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck ex
 
         mkRange start end
 
-    IR.Push pos expr [] -> do
+    AST.Push pos expr [] -> do
         loc <- cmpExpr expr
         base <- baseTypeOf (valType loc)
         case base of
@@ -390,7 +389,7 @@ cmpExpr (IR.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck ex
                 key <- sparsePush loc =<< mapM mkZero ts
                 valLoad key
 
-    IR.Push pos expr exprs -> do
+    AST.Push pos expr exprs -> do
         tab <- cmpExpr expr
         Table ts <- assertBaseType isTable (valType tab)
         vals <- mapM cmpExpr exprs
@@ -402,20 +401,20 @@ cmpExpr (IR.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck ex
         zipWithM_ storeCopy ptrs vals
         valLoad len
 
-    IR.Pop pos expr [] -> do
+    AST.Pop pos expr [] -> do
         val <- cmpExpr expr
         [v] <- valTablePop val
         loc <- mkAlloca exprType
         storeCopy loc v
         return loc
 
-    IR.Clear pos expr -> do
+    AST.Clear pos expr -> do
         assert (exprType == Void) "clear is a void expression"
         tab <- cmpExpr expr
         tableResize tab (mkI64 0)
         return $ Val Void undefined
 
-    IR.Delete pos expr1 expr2 -> do
+    AST.Delete pos expr1 expr2 -> do
         assert (exprType == Void) "delete returns void"
         val <- cmpExpr expr1
         arg <- cmpExpr expr2
@@ -424,7 +423,7 @@ cmpExpr (IR.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck ex
             Sparse ts -> sparseDelete val arg
         return $ Val Void undefined
                 
-    IR.Int p n -> do
+    AST.Int p n -> do
         base <- baseTypeOf exprType
         case base of
             _ | isInt base   -> mkInt exprType n
@@ -432,7 +431,7 @@ cmpExpr (IR.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck ex
             _ | base == Char -> mkChar exprType (chr $ fromIntegral n)
             _ | otherwise    -> fail $ "invalid base type of: " ++ show base
 
-    IR.Infix pos AST.AndAnd exprA exprB -> do
+    AST.Infix pos AST.AndAnd exprA exprB -> do
         assertBaseType (== Bool) exprType
         exit <- freshName "infix_andand_exit"
         right <- freshName "infix_andand_rhs"
@@ -452,23 +451,23 @@ cmpExpr (IR.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck ex
         emitBlockStart exit
         valLoad b
         
-    IR.Infix pos op exprA exprB -> do
+    AST.Infix pos op exprA exprB -> do
         valA <- cmpExpr exprA
         valB <- cmpExpr exprB
         mkInfix op valA valB
 
-    IR.Ident pos symbol -> do
+    AST.Ident pos symbol -> do
         obj <- look symbol KeyVar
         case obj of
             ObjVal (ConstInt n) -> return (mkI64 n)
             ObjVal loc -> return loc
             
-    IR.String pos s -> do
+    AST.String pos s -> do
         assertBaseType (== String) exprType
         loc <- getStringPointer s
         return (Val exprType loc)
 
-    IR.Call pos params symbol args  -> do
+    AST.Call pos params symbol args  -> do
         ps <- mapM cmpExpr params
         as <- mapM cmpExpr args
 
@@ -489,7 +488,7 @@ cmpExpr (IR.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck ex
             ObjConstructor  -> mkConstruct exprType as
             ObjField i      -> adtConstructField symbol exprType as
     
-    IR.Len pos expr -> valLoad =<< do
+    AST.Len pos expr -> valLoad =<< do
         assertBaseType isIntegral exprType
         val <- cmpExpr expr
         base <- baseTypeOf (valType val)
@@ -499,7 +498,7 @@ cmpExpr (IR.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck ex
             String    -> mkStringLen exprType val
             _       -> fail ("cannot take length of type " ++ show (valType val))
 
-    IR.Tuple pos exprs -> do
+    AST.Tuple pos exprs -> do
         Tuple ts <- assertBaseType isTuple exprType
         vals <- mapM cmpExpr exprs
         assert (ts == map valType vals) $
@@ -511,11 +510,11 @@ cmpExpr (IR.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck ex
             valStore ptr v
         return tup
 
-    IR.TupleIndex pos expr n -> do
+    AST.TupleIndex pos expr n -> do
         val <- cmpExpr expr
         ptrTupleIdx (fromIntegral n) val
 
-    IR.Subscript pos expr idxExpr -> withErrorPrefix "subscript: " $ do
+    AST.Subscript pos expr idxExpr -> withErrorPrefix "subscript: " $ do
         val <- cmpExpr expr
         idx <- cmpExpr idxExpr
         base <- baseTypeOf (valType val)
@@ -537,7 +536,7 @@ cmpExpr (IR.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck ex
                 assertBaseType (== Bool) exprType
                 Val exprType <$> LL.and (valOp idxLtEnd) (valOp idxGtEqStart)
                 
-    IR.Array pos exprs -> do
+    AST.Array pos exprs -> do
         base <- baseTypeOf exprType
         case base of
             Array n t -> do
@@ -551,7 +550,7 @@ cmpExpr (IR.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck ex
                 
             _ -> fail $ "invalid array base type: " ++ show base
 
-    IR.UnsafePtr pos expr -> do
+    AST.UnsafePtr pos expr -> do
         val <- cmpExpr expr
         let UnsafePtr t = exprType
         assertBaseType (== t) (valType val)
@@ -561,7 +560,7 @@ cmpExpr (IR.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck ex
                 Val _ _   -> fail $ "cannot take pointer of value"
             _ -> fail (show t)
 
-    IR.ADT pos expr -> do
+    AST.ADT pos expr -> do
         val <- cmpExpr expr
         mal <- mkMalloc (valType val) (mkI64 1)
         storeCopy mal val
@@ -577,36 +576,36 @@ cmpExpr (IR.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck ex
             return val
             
 
-cmpPattern :: InsCmp CompileState m => IR.Pattern -> Value -> m Value
+cmpPattern :: InsCmp CompileState m => AST.Pattern -> Value -> m Value
 cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pattern of
-    IR.PatIgnore _     -> mkBool Bool True
-    IR.PatLiteral expr -> mkInfix AST.EqEq val =<< cmpExpr expr
+    AST.PatIgnore _     -> mkBool Bool True
+    AST.PatLiteral expr -> mkInfix AST.EqEq val =<< cmpExpr expr
 
-    IR.PatNull _ -> do
+    AST.PatNull _ -> do
         base@(ADT fs) <- assertBaseType isADT (valType val)
         let is = elemIndices FieldNull fs
         assert (length is == 1) "ADT type does not have unique null field"
         let [i] = is
         mkIntInfix AST.EqEq (mkI64 i) =<< adtEnum val
 
-    IR.PatAnnotated pat typ -> do
+    AST.PatAnnotated pat typ -> do
         assert (valType val == typ) "pattern type mismatch"
         cmpPattern pat val
 
-    IR.PatGuarded _ pat expr -> do
+    AST.PatGuarded _ pat expr -> do
         match <- cmpPattern pat =<< valLoad val
         guard <- cmpExpr expr
         assertBaseType (== Bool) (valType guard)
         mkInfix AST.AndAnd match guard
 
-    IR.PatIdent _ symbol -> trace ("cmpPattern " ++ show pattern) $ do
+    AST.PatIdent _ symbol -> trace ("cmpPattern " ++ show pattern) $ do
         base <- baseTypeOf (valType val)
         loc <- mkAlloca (valType val)
         valStore loc val
         define symbol KeyVar (ObjVal loc)
         mkBool Bool True
 
-    IR.PatTuple _ pats -> do
+    AST.PatTuple _ pats -> do
         len <- tupleLength val
         assert (len == length pats) "incorrect tuple length"
 
@@ -616,7 +615,7 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
         true <- mkBool Bool True
         foldM (mkInfix AST.AndAnd) true bs
 
-    IR.PatArray _ pats -> do
+    AST.PatArray _ pats -> do
         base <- baseTypeOf (valType val)
         case base of
             Table ts -> do
@@ -641,7 +640,7 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
             
             _ -> fail "Invalid array pattern"
 
-    IR.PatField _ symbol pats -> do
+    AST.PatField _ symbol pats -> do
         base@(ADT fs) <- assertBaseType isADT (valType val)
         obj <- look symbol (KeyField $ valType val)
         case obj of
@@ -673,7 +672,7 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
                         valLoad =<< foldM (mkInfix AST.AndAnd) enumMatch bs
 
 
-    IR.PatTypeField _ typ pat -> do
+    AST.PatTypeField _ typ pat -> do
         base@(ADT fs) <- assertBaseType isADT (valType val)
         i <- case valType val of
             Typedef symbol -> do

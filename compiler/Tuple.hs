@@ -8,7 +8,6 @@ import LLVM.IRBuilder.Constant
 import LLVM.IRBuilder.Instruction
 
 import qualified AST
-import qualified IR
 import Type
 import State
 import Monad

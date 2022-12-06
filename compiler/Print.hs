@@ -10,7 +10,6 @@ import qualified LLVM.AST.Type as LL
 import qualified LLVM.AST.IntegerPredicate as P
 
 import qualified AST
-import qualified IR
 import Value
 import State
 import Monad
