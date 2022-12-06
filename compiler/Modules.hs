@@ -34,6 +34,7 @@ import qualified Resolve as R
 import qualified SymTab
 import IRGen
 import qualified IR
+import States
 
 import Language.C
 import Language.C.System.GCC
@@ -50,21 +51,17 @@ import Text.PrettyPrint
 
 data Modules
     = Modules
-        { compiled :: Set.Set FilePath
-        , symTabMap :: Map.Map String C.SymTab -- for infer
-        , resolveSymTabMap :: Map.Map FilePath R.SymTab -- for resolve
+        { symTabMap   :: Map.Map String C.SymTab -- for infer
         , irGenModMap :: Map.Map FilePath IRGenState
-        , session :: JIT.Session
+        , session     :: JIT.Session
         }
 
 
 initModulesState session
     = Modules
-        { compiled = Set.empty
-        , session = session
-        , resolveSymTabMap = Map.empty
+        { session     = session
         , irGenModMap = Map.empty
-        , symTabMap = Map.empty
+        , symTabMap   = Map.empty
         }
 
 
@@ -72,7 +69,6 @@ checkAndNormalisePath :: BoM s m => FilePath -> m FilePath
 checkAndNormalisePath path = do
     assert (isValid path) (show path ++ " invalid")
     processSplitPath (splitPath path)
-
     where
         processSplitPath :: BoM s m => [FilePath] -> m FilePath
         processSplitPath path = case path of
@@ -136,7 +132,7 @@ runMod args pathsVisited modPath = do
     debug "running"
     path <- checkAndNormalisePath modPath
     assert (not $ Set.member path pathsVisited) ("importing \"" ++ path ++ "\" forms a cycle")
-    isCompiled <- Set.member path <$> gets compiled
+    isCompiled <- Map.member path <$> gets irGenModMap
     when (not isCompiled) $ compilePath path
     where
         -- path will be in the form "dir1/dirn/modname"
@@ -154,7 +150,6 @@ runMod args pathsVisited modPath = do
             when (printAst args) $ liftIO $ S.prettyAST combinedAST
 
 
-            -- resolve imports into paths and check for collisions
             importPaths <- forM [fp | S.Import fp <- S.astImports combinedAST] $ \importPath ->
                 checkAndNormalisePath $ joinPath [modDirectory, importPath]
             let importModNames = map takeFileName importPaths
@@ -193,10 +188,9 @@ runMod args pathsVisited modPath = do
             --liftIO $ putStrLn $ render $ pretty globs
 
 
-            resSymTabMap <- gets resolveSymTabMap
-            (resolvedAST, resolveState) <- R.resolveAst combinedAST resSymTabMap
-            modify $ \s -> s { resolveSymTabMap = Map.insert path (R.symTab resolveState) (resolveSymTabMap s) }
-            Flatten.checkTypeDefs (R.typeDefs resolvedAST)
+            irGenImports <- forM importPaths $ \path -> (Map.! path) <$> gets irGenModMap
+            (resolvedAST, resolveState) <- R.resolveAst combinedAST irGenImports
+            Flatten.checkTypeDefs (typeDefs resolvedAST)
             --when (printAstResolved args) $ liftIO $ S.prettyAST resolvedAST
 
             -- run type inference on ast
@@ -213,7 +207,6 @@ runMod args pathsVisited modPath = do
             --liftIO $ SymTab.prettySymTab symTab
 
             --assert (S.astModuleName flat == modName) "modName error"
-            irGenImports <- Map.elems <$> gets irGenModMap
             (_, irGenState) <- withErrorPrefix "irgen: " $ runBoMTExcept (initIRGenState modName irGenImports cExterns) (IRGen.compile ast)
             modify $ \s -> s { irGenModMap = Map.insert path (irGenState) (irGenModMap s) }
             when (printIR args) $ do
@@ -234,7 +227,6 @@ runMod args pathsVisited modPath = do
             else do
                 liftIO $ jitAndRun defs session True (printLLIR args) 
 
-            modify $ \s -> s { compiled  = Set.insert path (compiled s) }
             modify $ \s -> s { symTabMap = Map.insert modName symTab (symTabMap s) }
 
         debug str =

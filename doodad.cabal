@@ -76,4 +76,5 @@ executable doodad
         Symbol,
         Sparse,
         IR,
-        IRGen
+        IRGen,
+        States

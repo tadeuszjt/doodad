@@ -16,17 +16,18 @@ import Apply
 import Unify
 import Collect
 import qualified Resolve
+import States
 
 
 -- Takes a resolved and annotated ast and inferes all types.
 infer ::
     BoM s m =>
-    Resolve.ResolvedAst ->
+    ResolvedAst ->
     [Extern] ->
     Map.Map String Collect.SymTab ->
     String ->
     Bool ->
-    m (Resolve.ResolvedAst, Collect.SymTab)
+    m (ResolvedAst, Collect.SymTab)
 infer ast externs imports modName verbose = do
     --liftIO $ putStrLn $ "infer: " ++ modName
     -- create C imports module
@@ -44,9 +45,9 @@ infer ast externs imports modName verbose = do
     where
         recursiveInfer ::
             BoM s m =>
-            Resolve.ResolvedAst ->
+            ResolvedAst ->
             Map.Map String Collect.SymTab ->
-            m (Resolve.ResolvedAst, Collect.SymTab, Int)
+            m (ResolvedAst, Collect.SymTab, Int)
         recursiveInfer ast imports = do
             -- run collect to get collect state containing type constraints
             (_, state) <- withErrorPrefix "collect: " $

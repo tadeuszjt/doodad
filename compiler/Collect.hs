@@ -14,6 +14,7 @@ import qualified SymTab
 import Interop
 import Symbol
 import qualified Resolve
+import States
 
 import qualified Debug.Trace
 
@@ -157,15 +158,15 @@ collectCExterns externs = do
         ExtConstInt sym n           -> define (SymQualified "c" sym) KeyVar (ObjVar I64)
         ExtTypeDef sym typ          -> define (SymQualified "c" sym) KeyType (ObjType typ)
 
-collectAST :: BoM CollectState m => Resolve.ResolvedAst -> m ()
+collectAST :: BoM CollectState m => ResolvedAst -> m ()
 collectAST ast = do
-    forM (Resolve.typeDefs ast) $ collectTypedef
+    forM (typeDefs ast) $ collectTypedef
 
-    forM (Resolve.funcDefs ast) $
+    forM (funcDefs ast) $
         \(S.FuncDef pos params symbol args retty _) -> collectPos pos $ do
             define (Sym $ sym symbol) (KeyFunc (map S.paramType params) (map S.paramType args) retty) ObjFunc
 
-    mapM_ collectStmt (Resolve.funcDefs ast)
+    mapM_ collectStmt (funcDefs ast)
     where
         isTypedef :: S.Stmt -> Bool
         isTypedef (S.Typedef _ _ _) = True

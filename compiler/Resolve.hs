@@ -12,15 +12,7 @@ import AST
 import Monad
 import Error
 import Symbol
-
-
-data ResolvedAst
-    = ResolvedAst
-    { moduleName :: String
-    , typeDefs   :: [Stmt]
-    , funcDefs   :: [Stmt]
-    }
-    deriving (Eq)
+import States
 
 
 class Resolve a where
@@ -39,15 +31,15 @@ data ResolveState
     = ResolveState
         { symTab    :: SymTab
         , symTabVar :: SymTab.SymTab String () Symbol
-        , imports   :: Map.Map FilePath SymTab
+        , imports :: [IRGenState]
         , modName   :: String
         , supply    :: Map.Map String Int
         }
 
-initResolveState imp modName = ResolveState
+initResolveState imports modName = ResolveState
     { symTab     = SymTab.initSymTab
     , symTabVar  = SymTab.initSymTab
-    , imports    = imp
+    , imports  = imports
     , modName    = modName
     , supply     = Map.empty
     }
@@ -70,17 +62,24 @@ look symbol key = do
 lookm :: BoM ResolveState m => Symbol -> SymKey -> m (Maybe Symbol)
 lookm symbol key = case symbol of
     Sym sym -> do
-        imports <- gets $ Map.elems . imports
-        symTab <- gets symTab
-        return $ lookupSymKey sym key symTab imports
+        resm <- SymTab.lookup sym key <$> gets symTab
+        case resm of
+            Just s -> return (Just s)
+            Nothing -> do
+                case key of
+                    KeyFunc -> return (Just symbol)
+                    KeyType -> do
+                        xs <- catMaybes . map (Map.lookup sym . irTypeMap) <$> gets imports
+                        case xs of
+                            [] -> fail $ "no type definitions for: " ++ sym
+                            [x] -> return (Just x)
 
     SymQualified mod sym -> do
         modName <- gets modName
         symTab <- gets symTab
-        imports <- gets $ Map.elems . imports
-        if mod == modName then  return $ lookupSymKey sym key symTab []
+        if mod == modName then  return $ SymTab.lookup sym key symTab
         else if mod == "c" then return (Just symbol)
-        else                    return $ lookupSymKey sym key symTab imports
+        else                    lookm (Sym sym) key
 
     _ -> fail $ show (symbol, key)
 
@@ -121,7 +120,7 @@ popSymTab = do
 
 
 
-resolveAst :: BoM s m => AST -> Map.Map FilePath SymTab -> m (ResolvedAst, ResolveState)
+resolveAst :: BoM s m => AST -> [IRGenState] -> m (ResolvedAst, ResolveState)
 resolveAst ast imports = withErrorPrefix "resolve: " $
         runBoMTExcept (initResolveState imports $ astModuleName ast) f
     where

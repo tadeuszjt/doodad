@@ -49,7 +49,7 @@ import Array
 import Builtin
 import Symbol
 import Sparse
-import IRGen
+import States
 
 
 
@@ -65,7 +65,7 @@ fnHdrToOp paramTypes symbol argTypes returnType = do
 
 compile :: BoM s m => IRGenState -> m ([LL.Definition], CompileState)
 compile irGenState = do
-    ((_, defs), state) <- runBoMTExcept (initCompileState $ IRGen.moduleName irGenState) (runModuleCmpT emptyModuleBuilder cmp)
+    ((_, defs), state) <- runBoMTExcept (initCompileState $ irModuleName irGenState) (runModuleCmpT emptyModuleBuilder cmp)
     return (defs, state)
     where
         cmp :: (MonadFail m, Monad m, MonadIO m) => ModuleCmpT CompileState m ()
@@ -77,14 +77,14 @@ compile irGenState = do
                 cmpFuncHdrs irGenState
                 cmpFuncBodies irGenState
 
-            void $ func (LL.mkName $ (IRGen.moduleName irGenState) ++ "..callMain")  [] LL.VoidType $ \_ -> do
+            void $ func (LL.mkName $ (irModuleName irGenState) ++ "..callMain")  [] LL.VoidType $ \_ -> do
                 void $ call mainOp []
 
 
 
 cmpTypeNames :: InsCmp CompileState m => IRGenState -> m ()
 cmpTypeNames irGenState = do
-    let list = Map.toList (typeImports irGenState) ++ Map.toList (typeDefs irGenState)
+    let list = Map.toList (irTypeImports irGenState) ++ Map.toList (irTypeDefs irGenState)
     forM_ list $ \(symbol, anno) -> do
         typ <- return $ case anno of
             AST.AnnoType typ -> typ
@@ -102,7 +102,7 @@ cmpTypeNames irGenState = do
 
 cmpDeclareExterns :: InsCmp CompileState m => IRGenState -> m ()
 cmpDeclareExterns irGenState = do
-    forM_ (Map.toList $ externDefs irGenState) $
+    forM_ (Map.toList $ irExternDefs irGenState) $
         \(symbol, (paramTypes, sym, argTypes, returnType)) -> do
             let name = fnSymbolToName symbol
             paramOpTypes <- map LL.ptr <$> mapM opTypeOf paramTypes
@@ -114,7 +114,7 @@ cmpDeclareExterns irGenState = do
 
 cmpFuncHdrs :: InsCmp CompileState m => IRGenState -> m ()
 cmpFuncHdrs irGenState = do
-    forM_ (Map.toList $ funcDefs irGenState) $ \(symbol, funcBody) -> do
+    forM_ (Map.toList $ irFuncDefs irGenState) $ \(symbol, funcBody) -> do
         forM_ (funcArgs funcBody) $ \(AST.Param pos name typ) -> withPos pos $ do
             isDataType <- isDataType typ
             assert (not isDataType) "Cannot use a data type for an argument"
@@ -132,11 +132,11 @@ cmpFuncHdrs irGenState = do
 
 cmpFuncBodies :: (MonadFail m, Monad m, MonadIO m) => IRGenState -> InstrCmpT CompileState m ()
 cmpFuncBodies irGenState = do
-    case mainDef irGenState of
+    case irMainDef irGenState of
         Nothing   -> return ()
         Just body -> mapM_ cmpStmt (funcStmts $ body)
 
-    forM_ (Map.toList $ funcDefs irGenState) $ \(symbol, funcBody) -> do
+    forM_ (Map.toList $ irFuncDefs irGenState) $ \(symbol, funcBody) -> do
         let argTypes     = map AST.paramType (funcArgs funcBody)
         let argSymbols   = map AST.paramName (funcArgs funcBody)
         let argNames     = map (ParameterName . mkBSS . Symbol.sym) argSymbols
@@ -171,7 +171,7 @@ cmpFuncBodies irGenState = do
 
 cmpTypeDefs :: InsCmp CompileState m => IRGenState -> m ()
 cmpTypeDefs irGenState = do
-    let list = Map.toList (typeImports irGenState) ++ Map.toList (typeDefs irGenState)
+    let list = Map.toList (irTypeImports irGenState) ++ Map.toList (irTypeDefs irGenState)
     forM_ list $ \(symbol, anno) ->
         case anno of
             AST.AnnoADT xs   -> adtTypeDef symbol (AST.AnnoADT xs)

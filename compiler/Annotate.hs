@@ -5,7 +5,7 @@ import AST
 import Monad
 import Control.Monad.State
 import qualified Type as T
-import Resolve
+import States
 
 
 class Annotate a where
