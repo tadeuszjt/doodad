@@ -29,19 +29,19 @@ type SymTab = SymTab.SymTab String SymKey Symbol
 
 data ResolveState
     = ResolveState
-        { symTab    :: SymTab
-        , symTabVar :: SymTab.SymTab String () Symbol
-        , imports :: [IRGenState]
-        , modName   :: String
-        , supply    :: Map.Map String Int
+        { symTab      :: SymTab
+        , symTabVar   :: SymTab.SymTab String () Symbol
+        , imports     :: [IRGenState]
+        , modName     :: String
+        , supply      :: Map.Map String Int
         }
 
-initResolveState imports modName = ResolveState
-    { symTab     = SymTab.initSymTab
-    , symTabVar  = SymTab.initSymTab
-    , imports  = imports
-    , modName    = modName
-    , supply     = Map.empty
+initResolveState imports modName typeImports = ResolveState
+    { symTab    = SymTab.initSymTab
+    , symTabVar = SymTab.initSymTab
+    , imports   = imports
+    , modName   = modName
+    , supply    = Map.empty
     }
 
 
@@ -120,9 +120,32 @@ popSymTab = do
 
 
 
+buildTypeImportMap :: BoM (Map.Map Symbol AnnoType) m => [IRGenState] -> m ()
+buildTypeImportMap imports = do
+    forM_ imports $ \imprt -> do
+        forM_ (Map.elems $ irTypeMap imprt) $ \symbol -> do
+            exists <- Map.member symbol <$> get
+            assert (not exists) $ "type symbol already imported: " ++ show symbol
+            modify $ Map.insert symbol $ irTypeDefs imprt Map.! symbol
+
+
+
+buildFuncImportMap :: BoM (Map.Map Symbol FuncKey) m => [IRGenState] -> m ()
+buildFuncImportMap imports = do
+    forM_ imports $ \imprt -> do
+        forM_ (Map.toList $ irFuncMap imprt) $ \(key, symbol) -> do
+            exists <- Map.member symbol <$> get
+            assert (not exists) $ "func symbol already imported: " ++ show symbol
+            modify $ Map.insert symbol key
+
+
+
+
+
+
 resolveAst :: BoM s m => AST -> [IRGenState] -> m (ResolvedAst, ResolveState)
-resolveAst ast imports = withErrorPrefix "resolve: " $
-        runBoMTExcept (initResolveState imports $ astModuleName ast) f
+resolveAst ast imports = withErrorPrefix "resolve: " $ do
+    runBoMTExcept (initResolveState imports (astModuleName ast) Map.empty) f
     where
         f :: BoM ResolveState m => m ResolvedAst
         f = do
@@ -134,10 +157,14 @@ resolveAst ast imports = withErrorPrefix "resolve: " $
                 resm <- lookm (Sym $ sym symbol) KeyFunc
                 when (isNothing resm) $ define (sym symbol) KeyFunc (Sym $ sym $ symbol)
 
+            (_, typeImportMap) <- runBoMTExcept Map.empty (buildTypeImportMap imports)
+            (_, funcImportMap) <- runBoMTExcept Map.empty (buildFuncImportMap imports)
             typeDefs <- mapM resolve typedefs
             funcDefs <- mapM resolve funcdefs
             return $ ResolvedAst
                 { moduleName = astModuleName ast
+                , typeImports = typeImportMap
+                , funcImports = funcImportMap
                 , typeDefs   = typeDefs
                 , funcDefs   = funcDefs
                 }

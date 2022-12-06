@@ -9,12 +9,13 @@ import Interop
 
 data ResolvedAst
     = ResolvedAst
-    { moduleName :: String
-    , typeDefs   :: [Stmt]
-    , funcDefs   :: [Stmt]
+    { moduleName  :: String
+    , typeImports :: Map.Map Symbol AnnoType
+    , funcImports :: Map.Map Symbol FuncKey
+    , typeDefs    :: [Stmt]
+    , funcDefs    :: [Stmt]
     }
     deriving (Eq)
-
 
 
 type FuncKey = ([Type], String, [Type], Type)
@@ -24,6 +25,7 @@ data FuncBody = FuncBody
     , funcRetty  :: Type
     , funcStmts  :: [AST.Stmt]
     }
+
 
 data IRGenState = IRGenState
     { irImports     :: [IRGenState]

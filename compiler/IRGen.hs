@@ -53,23 +53,12 @@ initIRGenState moduleName imports cExterns = IRGenState
 
 compile :: BoM IRGenState m => ResolvedAst -> m ()
 compile ast = do
-    initialiseTypeImports
+    modify $ \s -> s { irTypeDefs = typeImports ast }
+    modify $ \s -> s { irExternDefs = funcImports ast }
     initialiseTopTypeDefs (typeDefs ast)
     initialiseTopFuncDefs (funcDefs ast)
     forM_ (typeDefs ast ++ funcDefs ast) $ \stmt -> compileStmt stmt
 
-
-
-initialiseTypeImports :: BoM IRGenState m => m ()
-initialiseTypeImports = do
-    imports <- gets irImports
-    forM_ imports $ \imprt -> do
-        forM_ (Map.elems $ irTypeMap imprt) $ \symbol -> do
-            let anno = irTypeDefs imprt Map.! symbol
-            isDefined <- Map.member symbol <$> gets irTypeDefs
-            assert (not isDefined) "type already defined"
-            modify $ \s -> s { irTypeDefs = Map.insert symbol anno (irTypeDefs s) }
-            
 
 
 initialiseTopFuncDefs :: BoM IRGenState m => [AST.Stmt] -> m ()
@@ -118,6 +107,7 @@ resolveFuncCall exprType (AST.Call pos params symbol args) = withPos pos $ do
                 "c extern mismatch: " ++ show (paramTypes, argTypes, exprType, ats, rt)
             let key = ([], sym, ats, rt)
             let symbol = SymQualified "c" sym
+            -- TODO do this in resolve
             modify $ \s -> s { irExternDefs = Map.insert symbol key (irExternDefs s) }
             return symbol
 
@@ -132,7 +122,6 @@ resolveFuncCall exprType (AST.Call pos params symbol args) = withPos pos $ do
             resm <- findQualifiedImportedFuncDef mod key
             assert (isJust resm) $ "no definition for: " ++ show key
             let symbol = fromJust resm
-            modify $ \s -> s { irExternDefs = Map.insert symbol key (irExternDefs s) }
             return symbol
 
         Sym sym -> do
@@ -146,9 +135,7 @@ resolveFuncCall exprType (AST.Call pos params symbol args) = withPos pos $ do
                     funcresm <- findImportedFuncDef key
                     typeresm <- findImportedTypeDef sym
                     case (funcresm, typeresm) of
-                        (Just x, Nothing) -> do
-                            modify $ \s -> s { irExternDefs = Map.insert x key (irExternDefs s) }
-                            return x
+                        (Just x, Nothing) -> return x
                         (Nothing, Just x) -> return x
                         (Nothing, Nothing) -> fail "no def"
     where
