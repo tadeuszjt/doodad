@@ -198,8 +198,11 @@ runMod args pathsVisited modPath = do
                 runBoMTExcept 0 $ annotate resolvedAST
             --when (printAstAnnotated args) $ liftIO $ S.prettyAST annotatedAST
             (astInferred, symTab) <- withErrorPrefix "infer: " $ do
-                stm <- gets symTabMap
-                infer annotatedAST cExterns stm modName (verbose args)
+                imports <- gets symTabMap
+                assert (not $ Map.member "c" imports) "Module named c already imported"
+                cSymTab <- fmap (C.symTab . snd) $
+                    runBoMTExcept (initCollectState Map.empty "c") (collectCExterns cExterns)
+                infer annotatedAST (Map.insert "c" cSymTab imports) (verbose args)
             
             let ast = astInferred
             --when (printFinalAst args) $ liftIO $ Resolve.prettyAST ast

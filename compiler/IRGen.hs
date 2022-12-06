@@ -115,7 +115,8 @@ resolveFuncCall exprType (AST.Call pos params symbol args) = withPos pos $ do
             resm <- findCExtern sym
             assert (isJust resm) $ "no c extern definition for: " ++ sym
             let (ats, rt) = fromJust resm
-            assert (paramTypes == [] && ats == argTypes && rt == exprType) "c extern mismatch"
+            assert (paramTypes == [] && ats == argTypes && rt == exprType) $
+                "c extern mismatch: " ++ show (paramTypes, argTypes, exprType, ats, rt)
             let key = ([], sym, ats, rt)
             let symbol = SymQualified "c" sym
             modify $ \s -> s { irExternDefs = Map.insert symbol key (irExternDefs s) }

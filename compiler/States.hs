@@ -26,19 +26,17 @@ data FuncBody = FuncBody
     , funcStmts  :: [IR.Stmt]
     }
 
-data IRGenState
-    = IRGenState
-        { irImports     :: [IRGenState]
-        , irCExterns    :: [Extern]
+data IRGenState = IRGenState
+    { irImports     :: [IRGenState]
+    , irCExterns    :: [Extern]
+    , irCurrentFunc :: FuncKey
 
-        , irModuleName  :: String
-        , irTypeDefs    :: Map.Map Symbol AST.AnnoType
-        , irExternDefs  :: Map.Map Symbol FuncKey
-        , irFuncDefs    :: Map.Map Symbol FuncBody
-        , irFuncMap     :: Map.Map FuncKey Symbol
-        , irTypeMap     :: Map.Map String Symbol
-        , irMainDef     :: Maybe FuncBody
-
-        , irCurrentFunc :: FuncKey
-        }
+    , irModuleName  :: String                      -- name of module
+    , irTypeDefs    :: Map.Map Symbol AST.AnnoType -- all needed type definitions
+    , irExternDefs  :: Map.Map Symbol FuncKey      -- all needed func declarations
+    , irFuncDefs    :: Map.Map Symbol FuncBody     -- all needed func definitions
+    , irFuncMap     :: Map.Map FuncKey Symbol      -- symbol table for funcs defined by this module
+    , irTypeMap     :: Map.Map String Symbol       -- symbol table for types defined by this module
+    , irMainDef     :: Maybe FuncBody              -- optional main() definition
+    }
 

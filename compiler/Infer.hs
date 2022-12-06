@@ -20,76 +20,40 @@ import States
 
 
 -- Takes a resolved and annotated ast and inferes all types.
-infer ::
-    BoM s m =>
-    ResolvedAst ->
-    [Extern] ->
-    Map.Map String Collect.SymTab ->
-    String ->
-    Bool ->
-    m (ResolvedAst, Collect.SymTab)
-infer ast externs imports modName verbose = do
-    --liftIO $ putStrLn $ "infer: " ++ modName
-    -- create C imports module
-    assert (not $ Map.member "c" imports) "Module named c already imported"
-    cSymTab <- fmap (symTab . snd) $
-        runBoMTExcept (initCollectState Map.empty modName) (collectCExterns externs)
-
-    -- run recursive algorithm
-    (inferedAst, symTab, n) <- recursiveInfer ast (Map.insert "c" cSymTab imports)
-
-    when verbose $ liftIO $
-        putStrLn ("infered " ++ modName ++ " after " ++ show n ++ " iterations")
-
+infer :: BoM s m => ResolvedAst -> Map.Map String Collect.SymTab -> Bool -> m (ResolvedAst, Collect.SymTab)
+infer ast imports verbose = do
+    (inferedAst, symTab, n) <- recursiveInfer ast 
     return (inferedAst, symTab)
     where
-        recursiveInfer ::
-            BoM s m =>
-            ResolvedAst ->
-            Map.Map String Collect.SymTab ->
-            m (ResolvedAst, Collect.SymTab, Int)
-        recursiveInfer ast imports = do
+        recursiveInfer :: BoM s m => ResolvedAst -> m (ResolvedAst, Collect.SymTab, Int)
+        recursiveInfer ast = do
             -- run collect to get collect state containing type constraints
             (_, state) <- withErrorPrefix "collect: " $
-                runBoMTExcept (initCollectState imports modName) (collectAST ast)
-
---            liftIO $ putStrLn ""
---            liftIO $ SymTab.prettySymTab (symTab state)
+                runBoMTExcept (initCollectState imports $ moduleName ast) (collectAST ast)
             
             -- turn type constraints into substitutions using unify
-            let symTabs = (symTab state) : Map.elems (Collect.imports state)
+            let symTabs = (symTab state) : Map.elems imports
             let sos     = concat $ map (SymTab.lookupKey Collect.KeyType) symTabs
             let typeMap = Map.map (\(ObjType t) -> t) $ Map.fromList sos
             let constraints = Set.toList $ Set.fromList (collected state)
             (subs, _) <- runBoMTExcept typeMap (unify2 constraints)
 
-            --liftIO $ putStrLn $ modName ++ " constraints:"
-            --liftIO $ mapM_ (putStrLn . show) constraints
-            --liftIO $ putStrLn $ modName ++ " substitutions:"
-            --liftIO $ mapM_ (putStrLn . show) subs
-
             -- if the infered ast is the same as the last iteration, finish
             let subbedAst = apply subs ast
             if ast == subbedAst
             then do
-                --liftIO $ putStrLn $ "ast == subbedAst"
-                (defaults, _) <- runBoMTExcept typeMap $ unifyDefault $ map (\(p, c) -> (p, apply subs c)) (defaults state)
-                --liftIO $ putStrLn $ modName ++ " defaults:"
-                --liftIO $ mapM_ (putStrLn . show) defaults
-
+                (defaults, _) <- runBoMTExcept typeMap $ unifyDefault $
+                    map (\(p, c) -> (p, apply subs c)) (defaults state)
                 let defaultedAst = apply defaults subbedAst
                 let defaultedSymTab = apply defaults $ apply subs $ symTab state
 
                 if defaultedAst == subbedAst then do
-                    --liftIO $ putStrLn $ "defaultedAst == ast"
                     return (defaultedAst, defaultedSymTab, 1)
                 else do
-                    --liftIO $ putStrLn $ "defaultedAst != ast"
-                    (subbedAst', symTab, n) <- recursiveInfer defaultedAst imports
+                    (subbedAst', symTab, n) <- recursiveInfer defaultedAst 
                     return (subbedAst', symTab, n + 1)
             else do
-                --liftIO $ putStrLn $ "ast != subbedAst"
-                (subbedAst', symTab, n) <- recursiveInfer subbedAst imports
+                (subbedAst', symTab, n) <- recursiveInfer subbedAst
                 return (subbedAst', symTab, n + 1)
 
 
