@@ -138,27 +138,44 @@ resolveFuncCall exprType (AST.Call pos params symbol args) = withPos pos $ do
 
         Sym sym -> do
             let key = (paramTypes, sym, argTypes, exprType)
-            resm <- findLocalFuncDef key
-            case resm of
-                Just symbol -> return symbol
-                Nothing -> do
-                    resultm <- findImportedFuncDef key
-                    assert (isJust resultm) $ "no definition for: " ++ show key
-                    let symbol = fromJust resultm
-                    modify $ \s -> s { irExternDefs = Map.insert symbol key (irExternDefs s) }
-                    return symbol
+            funcresm <- findLocalFuncDef key
+            typeresm <- findLocalTypeDef sym
+            case (funcresm, typeresm) of
+                (Just x, Nothing) -> return x
+                (Nothing, Just x) -> return x
+                (Nothing, Nothing) -> do
+                    funcresm <- findImportedFuncDef key
+                    typeresm <- findImportedTypeDef sym
+                    case (funcresm, typeresm) of
+                        (Just x, Nothing) -> do
+                            modify $ \s -> s { irExternDefs = Map.insert x key (irExternDefs s) }
+                            return x
+                        (Nothing, Just x) -> return x
+                        (Nothing, Nothing) -> fail "no def"
     where
+        findLocalTypeDef :: BoM IRGenState m => String -> m (Maybe Symbol)
+        findLocalTypeDef sym = Map.lookup sym <$> gets irTypeMap
+
         findLocalFuncDef :: BoM IRGenState m => FuncKey -> m (Maybe Symbol)
-        findLocalFuncDef key = do
-            Map.lookup key <$> gets irFuncMap
+        findLocalFuncDef key@(pts, sym, ats, rt) = Map.lookup key <$> gets irFuncMap
 
         findImportedFuncDef :: BoM IRGenState m => FuncKey -> m (Maybe Symbol)
-        findImportedFuncDef key = do
+        findImportedFuncDef key@(pts, sym, ats, rt) = do
             imports <- gets irImports
-            case catMaybes $ map (Map.lookup key . irFuncMap) imports of
-                [] -> return Nothing 
-                [x] -> return $ Just x
-                _   -> fail $ "multiple definitions for: " ++ show key
+            let funcress = catMaybes $ map (Map.lookup key . irFuncMap) imports
+            case funcress of
+                [x] -> return (Just x)
+                []  -> return Nothing
+                _   -> fail $ "ambiguous function call: " ++ sym
+
+        findImportedTypeDef :: BoM IRGenState m => String -> m (Maybe Symbol)
+        findImportedTypeDef sym = do
+            imports <- gets irImports
+            let typeress = catMaybes $ map (Map.lookup sym . irTypeMap) imports
+            case typeress of
+                [x] -> return (Just x)
+                []  -> return Nothing
+                _   -> fail $ "ambiguous type: " ++ sym
         
         findQualifiedImportedFuncDef :: BoM IRGenState m => String -> FuncKey -> m (Maybe Symbol)
         findQualifiedImportedFuncDef mod key = do

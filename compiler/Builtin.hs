@@ -44,7 +44,8 @@ storeCopy ptr val = withErrorPrefix "storeCopy: " $ do
     assert (isPtr ptr) "ptr isnt pointer"
     base <- baseTypeOf (valType ptr)
     baseVal <- baseTypeOf (valType val)
-    assert (base == baseVal) "ptr type does not match val type"
+    assert (base == baseVal) $
+        "ptr type: " ++ show (valType ptr) ++ " does not match val type: " ++ show (valType val)
     case base of
         _ | isSimple base          -> valStore ptr val
         _ | isEnumADT base         -> valStore ptr val
