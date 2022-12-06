@@ -35,7 +35,7 @@ infer ast imports verbose = do
             let symTabs = (symTab state) : Map.elems imports
             let sos     = concat $ map (SymTab.lookupKey Collect.KeyType) symTabs
             let typeMap = Map.map (\(ObjType t) -> t) $ Map.fromList sos
-            let constraints = Set.toList $ Set.fromList (collected state)
+            let constraints = Map.toList (collected state)
             (subs, _) <- runBoMTExcept typeMap (unify2 constraints)
 
             -- if the infered ast is the same as the last iteration, finish
@@ -43,7 +43,7 @@ infer ast imports verbose = do
             if ast == subbedAst
             then do
                 (defaults, _) <- runBoMTExcept typeMap $ unifyDefault $
-                    map (\(p, c) -> (p, apply subs c)) (defaults state)
+                    Map.toList $ Map.mapKeys (apply subs) (defaults state)
                 let defaultedAst = apply defaults subbedAst
                 let defaultedSymTab = apply defaults $ apply subs $ symTab state
 

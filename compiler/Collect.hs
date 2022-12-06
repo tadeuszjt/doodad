@@ -4,6 +4,7 @@ module Collect where
 import Data.Maybe
 import Data.List
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 
 import qualified AST as S
 import Type
@@ -49,23 +50,23 @@ data CollectState
     = CollectState
         { symTab    :: SymTab
         , curRetty  :: Type
-        , collected :: [(TextPos, Constraint)]
-        , defaults  :: [(TextPos, Constraint)]
+        , collected :: Map.Map Constraint TextPos
+        , defaults  :: Map.Map Constraint TextPos
         , imports   :: Map.Map FilePath SymTab
         , curPos    :: TextPos
         , typeSupply :: Int
         , modName   :: String
         }
 
-initCollectState imp mod = CollectState
+initCollectState imports moduleName = CollectState
     { symTab     = SymTab.initSymTab
     , curRetty   = Void
-    , collected  = []
-    , defaults   = []
-    , imports    = imp
+    , collected  = Map.empty
+    , defaults   = Map.empty
+    , imports    = imports
     , curPos     = TextPos "" 0 0
     , typeSupply = 0
-    , modName    = mod
+    , modName    = moduleName
     }
 
 
@@ -86,35 +87,35 @@ collectPos t m = withPos t $ do
 
 collectAdtField :: BoM CollectState m => Type -> Int -> Int -> Type -> m () 
 collectAdtField t i j agg =
-    modify $ \s -> s { collected = (curPos s, ConsAdtMem t i j agg) : (collected s) }
+    modify $ \s -> s { collected = Map.insert (ConsAdtMem t i j agg) (curPos s) (collected s) }
 
 collectField :: BoM CollectState m => Type -> Int -> Type -> m () 
 collectField t i agg =
-    modify $ \s -> s { collected = (curPos s, ConsField t i agg) : (collected s) }
+    modify $ \s -> s { collected = Map.insert (ConsField t i agg) (curPos s) (collected s) }
 
 collect :: BoM CollectState m => Constraint -> m ()
 collect constraint = do
-    modify $ \s -> s { collected = (curPos s, constraint) : (collected s) }
+    modify $ \s -> s { collected = Map.insert (constraint) (curPos s) (collected s) }
 
 collectBase :: BoM CollectState m => Type -> Type -> m ()
 collectBase t1 t2 = do
-    modify $ \s -> s { collected = (curPos s, ConsBase t1 t2) : (collected s) }
+    modify $ \s -> s { collected = Map.insert (ConsBase t1 t2) (curPos s) (collected s) }
 
 collectElem :: BoM CollectState m => Type -> Type -> m ()
 collectElem t1 t2 = do
-    modify $ \s -> s { collected = (curPos s, ConsElem t1 t2) : (collected s) }
+    modify $ \s -> s { collected = Map.insert (ConsElem t1 t2) (curPos s) (collected s) }
 
 collectSubscript :: BoM CollectState m => Type -> Type -> m ()
 collectSubscript t1 t2 = do
-    modify $ \s -> s { collected = (curPos s, ConsSubscript t1 t2) : (collected s) }
+    modify $ \s -> s { collected = Map.insert (ConsSubscript t1 t2) (curPos s) (collected s) }
 
 collectEq :: BoM CollectState m => Type -> Type -> m ()
 collectEq t1 t2 = do
-    modify $ \s -> s { collected = (curPos s, ConsEq t1 t2) : (collected s) }
+    modify $ \s -> s { collected = Map.insert (ConsEq t1 t2) (curPos s) (collected s) }
 
 collectDefault :: BoM CollectState m => Type -> Type -> m ()
 collectDefault t1 t2 = do
-    modify $ \s -> s { defaults = (curPos s, ConsEq t1 t2) : (defaults s) }
+    modify $ \s -> s { defaults = Map.insert (ConsEq t1 t2) (curPos s) (defaults s) }
 
 
 typeOf :: S.Expr -> Type
@@ -140,7 +141,6 @@ lookSym symbol = do
     symTab <- gets symTab
     imports <- gets $ Map.elems . imports
     return $ lookupSym symbol symTab imports
-
 
 
 define :: BoM CollectState m => Symbol -> SymKey -> Object -> m ()
