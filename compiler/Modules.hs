@@ -178,15 +178,7 @@ runMod args pathsVisited modPath = do
             (globs, errs) <- analyseCTranslUnit cTranslUnit
             ((), cExterns) <- withErrorPrefix "interop compile" $
                 runBoMTExcept [] (Interop.genExternsFromGlobs globs)
-            --((), cExterns) <- runBoMTExcept [] (Interop.genExterns cTranslUnit)
-            --liftIO $ putStrLn $ render (pretty cTranslUnit)
-            --liftIO $ mapM_ (putStrLn . show) cExterns
-            cState <- Interop.compile cExterns
-            when (printCSymbols args) $ liftIO $ do
-                putStrLn $ "C Symbols imported by: " ++ modName 
-                SymTab.prettySymTab (State.symTab cState)
-            ((), cIrGenState) <- runBoMTExcept (initIRGenState "c" []) (mapM_ irGenExtern cExterns)
-            --liftIO $ putStrLn $ render $ pretty globs
+            ((), cIrGenState) <- runBoMTExcept (initIRGenState "c") (mapM_ irGenExtern cExterns)
 
 
             irGenImports <- forM importPaths $ \path -> (Map.! path) <$> gets irGenModMap
@@ -194,10 +186,8 @@ runMod args pathsVisited modPath = do
             Flatten.checkTypeDefs (typeDefs resolvedAST)
             when (printAstResolved args) $ liftIO $ prettyResolvedAst resolvedAST
 
-            -- run type inference on ast
             annotatedAST <- fmap fst $ withErrorPrefix "annotate: " $
                 runBoMTExcept 0 $ annotate resolvedAST
-            --when (printAstAnnotated args) $ liftIO $ S.prettyAST annotatedAST
             (astInferred, symTab) <- withErrorPrefix "infer: " $ do
                 imports <- gets symTabMap
                 assert (not $ Map.member "c" imports) "Module named c already imported"
@@ -206,12 +196,8 @@ runMod args pathsVisited modPath = do
                 infer annotatedAST (Map.insert "c" cSymTab imports) (verbose args)
             
             let ast = astInferred
-            --when (printFinalAst args) $ liftIO $ Resolve.prettyAST ast
-            --liftIO $ S.prettyAST ast
-            --liftIO $ SymTab.prettySymTab symTab
-
-            --assert (S.astModuleName flat == modName) "modName error"
-            (_, irGenState) <- withErrorPrefix "irgen: " $ runBoMTExcept (initIRGenState modName $ cIrGenState : irGenImports) (IRGen.compile ast)
+            (_, irGenState) <- withErrorPrefix "irgen: " $
+                runBoMTExcept (initIRGenState modName) (IRGen.compile ast)
             modify $ \s -> s { irGenModMap = Map.insert path (irGenState) (irGenModMap s) }
             when (printIR args) $ do
                 liftIO $ prettyIrGenState irGenState

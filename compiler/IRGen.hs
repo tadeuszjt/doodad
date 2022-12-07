@@ -37,9 +37,8 @@ prettyIrGenState irGenState = do
         putStrLn ""
 
 
-initIRGenState moduleName imports = IRGenState
-    { irImports        = imports
-    , irModuleName     = moduleName
+initIRGenState moduleName = IRGenState
+    { irModuleName     = moduleName
     , irTypeDefs       = Map.empty
     , irExternDefs     = Map.empty
     , irFuncDefs       = Map.empty
@@ -95,7 +94,6 @@ resolveFuncCall exprType (AST.Call pos params symbol args) = withPos pos $ do
     let paramTypes = map exprTypeOf params
     let argTypes = map exprTypeOf args
     curModName <- gets irModuleName
-    imports <- gets irImports
     case symbol of
         SymResolved _ _ _ -> return symbol
 
@@ -135,28 +133,27 @@ resolveFuncCall exprType (AST.Call pos params symbol args) = withPos pos $ do
 
         findImportedFuncDef :: BoM IRGenState m => FuncKey -> m (Maybe Symbol)
         findImportedFuncDef key@(pts, sym, ats, rt) = do
-            imports <- gets irImports
-            let funcress = catMaybes $ map (Map.lookup key . irFuncMap) imports
-            case funcress of
-                [x] -> return (Just x)
-                []  -> return Nothing
-                _   -> fail $ "ambiguous function call: " ++ sym
+            xs <- Map.toList . Map.filter (== key) <$> gets irExternDefs
+            case xs of
+                []              -> return (Nothing)
+                [(symbol, key)] -> return (Just symbol)
+                _               -> fail $ "ambiguous function call: " ++ sym
 
         findImportedTypeDef :: BoM IRGenState m => String -> m (Maybe Symbol)
         findImportedTypeDef sym = do
-            imports <- gets irImports
-            let typeress = catMaybes $ map (Map.lookup sym . irTypeMap) imports
-            case typeress of
-                [x] -> return (Just x)
-                []  -> return Nothing
-                _   -> fail $ "ambiguous type: " ++ sym
+            xs <- Map.toList . Map.filterWithKey (\k a -> Symbol.sym k == sym) <$> gets irTypeDefs
+            case xs of
+                []               -> return (Nothing)
+                [(symbol, anno)] -> return (Just symbol)
+                _                -> fail $ "ambiguous type: " ++ sym
         
         findQualifiedImportedFuncDef :: BoM IRGenState m => String -> FuncKey -> m (Maybe Symbol)
         findQualifiedImportedFuncDef mod key = do
-            imports <- gets irImports
-            let importm = find ((mod ==) . irModuleName) imports
-            assert (isJust importm) $ mod ++ " isn't imported"
-            return $ Map.lookup key (irFuncMap $ fromJust importm)
+            xs <- Map.toList . Map.filterWithKey (\k a -> Symbol.mod k == mod && a == key) <$> gets irExternDefs
+            case xs of
+                []              -> return (Nothing)
+                [(symbol, key)] -> return (Just symbol)
+                _               -> fail $ "ambiguous function call: " ++ show key
 
 
 compileStmt :: BoM IRGenState m => AST.Stmt -> m Stmt

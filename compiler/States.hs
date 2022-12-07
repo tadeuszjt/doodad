@@ -38,8 +38,7 @@ data FuncBody
 
 
 data IRGenState = IRGenState
-    { irImports     :: [IRGenState]
-    , irCurrentFunc :: FuncKey
+    { irCurrentFunc :: FuncKey
 
     , irModuleName  :: String                      -- name of module
     , irTypeDefs    :: Map.Map Symbol AST.AnnoType -- all needed type definitions
