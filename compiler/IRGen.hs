@@ -58,7 +58,6 @@ compile ast = do
     forM_ (typeDefs ast ++ funcDefs ast) $ \stmt -> compileStmt stmt
 
 
-
 initialiseTopFuncDefs :: BoM IRGenState m => [AST.Stmt] -> m ()
 initialiseTopFuncDefs stmts = do
     forM_ stmts $ \(AST.FuncDef _ params symbol args retty _) ->
@@ -82,38 +81,29 @@ initialiseTopTypeDefs stmts = do
         modify $ \s -> s { irTypeMap  = Map.insert (sym symbol) symbol (irTypeMap s) }
 
 
-
 exprTypeOf :: AST.Expr -> Type
 exprTypeOf (AST.AExpr typ _) = typ
-
 
 
 -- add extern if needed
 resolveFuncCall :: BoM IRGenState m => Type -> AST.Expr -> m Symbol
 resolveFuncCall exprType (AST.Call pos params symbol args) = withPos pos $ do
     let paramTypes = map exprTypeOf params
-    let argTypes = map exprTypeOf args
+    let argTypes   = map exprTypeOf args
+    let key        = (paramTypes, sym symbol, argTypes, exprType)
     curModName <- gets irModuleName
     case symbol of
         SymResolved _ _ _ -> return symbol
 
-        SymQualified mod sym | mod == curModName -> do
-            let key = (paramTypes, sym, argTypes, exprType)
-            resm <- findLocalFuncDef key
-            assert (isJust resm) $ "no definition for: " ++ show key
-            return $ fromJust resm
-
         SymQualified mod sym -> do
-            let key = (paramTypes, sym, argTypes, exprType)
-            resm <- findQualifiedImportedFuncDef mod key
+            resm <- findQualifiedFuncDef mod key
             assert (isJust resm) $ "no definition for: " ++ show key
             let symbol = fromJust resm
             return symbol
 
         Sym sym -> do
-            let key = (paramTypes, sym, argTypes, exprType)
-            funcresm <- findLocalFuncDef key
-            typeresm <- findLocalTypeDef sym
+            funcresm <- Map.lookup key <$> gets irFuncMap
+            typeresm <- Map.lookup sym <$> gets irTypeMap
             case (funcresm, typeresm) of
                 (Just x, Nothing) -> return x
                 (Nothing, Just x) -> return x
@@ -125,12 +115,6 @@ resolveFuncCall exprType (AST.Call pos params symbol args) = withPos pos $ do
                         (Nothing, Just x) -> return x
                         (Nothing, Nothing) -> fail "no def"
     where
-        findLocalTypeDef :: BoM IRGenState m => String -> m (Maybe Symbol)
-        findLocalTypeDef sym = Map.lookup sym <$> gets irTypeMap
-
-        findLocalFuncDef :: BoM IRGenState m => FuncKey -> m (Maybe Symbol)
-        findLocalFuncDef key@(pts, sym, ats, rt) = Map.lookup key <$> gets irFuncMap
-
         findImportedFuncDef :: BoM IRGenState m => FuncKey -> m (Maybe Symbol)
         findImportedFuncDef key@(pts, sym, ats, rt) = do
             xs <- Map.toList . Map.filter (== key) <$> gets irExternDefs
@@ -147,8 +131,8 @@ resolveFuncCall exprType (AST.Call pos params symbol args) = withPos pos $ do
                 [(symbol, anno)] -> return (Just symbol)
                 _                -> fail $ "ambiguous type: " ++ sym
         
-        findQualifiedImportedFuncDef :: BoM IRGenState m => String -> FuncKey -> m (Maybe Symbol)
-        findQualifiedImportedFuncDef mod key = do
+        findQualifiedFuncDef :: BoM IRGenState m => String -> FuncKey -> m (Maybe Symbol)
+        findQualifiedFuncDef mod key = do
             xs <- Map.toList . Map.filterWithKey (\k a -> Symbol.mod k == mod && a == key) <$> gets irExternDefs
             case xs of
                 []              -> return (Nothing)
@@ -320,7 +304,6 @@ compileExpr (AST.AExpr exprType expr) = withPos expr $ AExpr exprType <$> case e
         mexpr1' <- maybe (return Nothing) (fmap Just . compileExpr) mexpr1
         mexpr2' <- maybe (return Nothing) (fmap Just . compileExpr) mexpr2
         return $ AST.Range pos mexpr' mexpr1' mexpr2'
-
 
 
 compilePattern :: BoM IRGenState m => AST.Pattern -> m Pattern
