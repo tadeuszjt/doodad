@@ -1,6 +1,6 @@
 module SymTab where
 
-import Prelude hiding (lookup, map)
+import Prelude hiding (lookup, map, filter)
 import Control.Monad
 import qualified Data.Map as Map
 import           Data.Maybe
@@ -29,7 +29,6 @@ lookupKey :: (Ord s, Ord k) => k -> SymTab s k o -> [(s, o)]
 lookupKey key [] = []
 lookupKey key (s:ss) =
     Map.toList (Map.mapMaybe (Map.lookup key) s) ++ lookupKey key ss
-
 
 
 lookupHead :: (Ord s, Ord k) => s -> k -> SymTab s k o -> Maybe o

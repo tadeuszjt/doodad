@@ -51,8 +51,7 @@ import Text.PrettyPrint
 
 data Modules
     = Modules
-        { symTabMap   :: Map.Map String C.SymTab -- for infer
-        , irGenModMap :: Map.Map FilePath IRGenState
+        { irGenModMap :: Map.Map FilePath IRGenState
         , session     :: JIT.Session
         }
 
@@ -61,7 +60,6 @@ initModulesState session
     = Modules
         { session     = session
         , irGenModMap = Map.empty
-        , symTabMap   = Map.empty
         }
 
 
@@ -146,7 +144,6 @@ runMod args pathsVisited modPath = do
             assert (not $ null files) ("no files for: " ++ path)
             forM_ files $ debug . ("using file: " ++) 
             combinedAST <- combineASTs =<< mapM parse files
-
             when (printAst args) $ liftIO $ S.prettyAST combinedAST
 
 
@@ -157,7 +154,6 @@ runMod args pathsVisited modPath = do
                 fail "import name collision"
             forM_ importPaths $ debug . ("importing: " ++)
             mapM_ (runMod args (Set.insert path pathsVisited)) importPaths
-
 
             -- load C imports
             let cFilePaths =  [ fp | S.ImportC fp <- S.astImports combinedAST]
@@ -182,18 +178,13 @@ runMod args pathsVisited modPath = do
 
 
             irGenImports <- forM importPaths $ \path -> (Map.! path) <$> gets irGenModMap
-            (resolvedAST, resolveState) <- R.resolveAst combinedAST (cIrGenState : irGenImports)
+            (resolvedAST, _) <- R.resolveAst combinedAST (cIrGenState : irGenImports)
             Flatten.checkTypeDefs (typeDefs resolvedAST)
             when (printAstResolved args) $ liftIO $ prettyResolvedAst resolvedAST
 
             annotatedAST <- fmap fst $ withErrorPrefix "annotate: " $
                 runBoMTExcept 0 $ annotate resolvedAST
-            (astInferred, symTab) <- withErrorPrefix "infer: " $ do
-                imports <- gets symTabMap
-                assert (not $ Map.member "c" imports) "Module named c already imported"
-                cSymTab <- fmap (C.symTab . snd) $
-                    runBoMTExcept (initCollectState Map.empty "c") (collectCExterns cExterns)
-                infer annotatedAST (Map.insert "c" cSymTab imports) (verbose args)
+            astInferred <- withErrorPrefix "infer: " $ infer annotatedAST (verbose args)
             
             let ast = astInferred
             (_, irGenState) <- withErrorPrefix "irgen: " $
@@ -216,8 +207,6 @@ runMod args pathsVisited modPath = do
                 liftIO $ jitCompileToObject (printLLIR args) (joinPath [modDirectory', modName']) defs session
             else do
                 liftIO $ jitAndRun defs session True (printLLIR args) 
-
-            modify $ \s -> s { symTabMap = Map.insert modName symTab (symTabMap s) }
 
         debug str =
             if verbose args

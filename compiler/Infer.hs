@@ -20,19 +20,19 @@ import States
 
 
 -- Takes a resolved and annotated ast and inferes all types.
-infer :: BoM s m => ResolvedAst -> Map.Map String Collect.SymTab -> Bool -> m (ResolvedAst, Collect.SymTab)
-infer ast imports verbose = do
-    (inferedAst, symTab, n) <- recursiveInfer ast 
-    return (inferedAst, symTab)
+infer :: BoM s m => ResolvedAst -> Bool -> m ResolvedAst
+infer ast verbose = do
+    (inferedAst, n) <- recursiveInfer ast 
+    return inferedAst
     where
-        recursiveInfer :: BoM s m => ResolvedAst -> m (ResolvedAst, Collect.SymTab, Int)
+        recursiveInfer :: BoM s m => ResolvedAst -> m (ResolvedAst, Int)
         recursiveInfer ast = do
             -- run collect to get collect state containing type constraints
             (_, state) <- withErrorPrefix "collect: " $
-                runBoMTExcept (initCollectState imports $ moduleName ast) (collectAST ast)
+                runBoMTExcept initCollectState (collectAST ast)
             
             -- turn type constraints into substitutions using unify
-            let symTabs = (symTab state) : Map.elems imports
+            let symTabs = [symTab state]
             let sos     = concat $ map (SymTab.lookupKey Collect.KeyType) symTabs
             let typeMap = Map.map (\(ObjType t) -> t) $ Map.fromList sos
             let constraints = Map.toList (collected state)
@@ -48,12 +48,12 @@ infer ast imports verbose = do
                 let defaultedSymTab = apply defaults $ apply subs $ symTab state
 
                 if defaultedAst == subbedAst then do
-                    return (defaultedAst, defaultedSymTab, 1)
+                    return (defaultedAst, 1)
                 else do
-                    (subbedAst', symTab, n) <- recursiveInfer defaultedAst 
-                    return (subbedAst', symTab, n + 1)
+                    (subbedAst', n) <- recursiveInfer defaultedAst 
+                    return (subbedAst', n + 1)
             else do
-                (subbedAst', symTab, n) <- recursiveInfer subbedAst
-                return (subbedAst', symTab, n + 1)
+                (subbedAst', n) <- recursiveInfer subbedAst
+                return (subbedAst', n + 1)
 
 

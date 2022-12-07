@@ -52,21 +52,17 @@ data CollectState
         , curRetty  :: Type
         , collected :: Map.Map Constraint TextPos
         , defaults  :: Map.Map Constraint TextPos
-        , imports   :: Map.Map FilePath SymTab
         , curPos    :: TextPos
         , typeSupply :: Int
-        , modName   :: String
         }
 
-initCollectState imports moduleName = CollectState
+initCollectState = CollectState
     { symTab     = SymTab.initSymTab
     , curRetty   = Void
     , collected  = Map.empty
     , defaults   = Map.empty
-    , imports    = imports
     , curPos     = TextPos "" 0 0
     , typeSupply = 0
-    , modName    = moduleName
     }
 
 
@@ -131,16 +127,14 @@ look symbol key = do
 
 lookm :: BoM CollectState m => Symbol -> SymKey -> m (Maybe Object)
 lookm symbol key = do
-    imports <- gets $ Map.elems . imports
     symTab <- gets symTab
-    return $ lookupSymKey symbol key symTab imports
+    return $ lookupSymKey symbol key symTab []
 
 
 lookSym :: BoM CollectState m => Symbol -> m [(SymKey, Object)]
 lookSym symbol = do
     symTab <- gets symTab
-    imports <- gets $ Map.elems . imports
-    return $ lookupSym symbol symTab imports
+    return $ lookupSym symbol symTab []
 
 
 define :: BoM CollectState m => Symbol -> SymKey -> Object -> m ()
@@ -150,35 +144,26 @@ define symbol key obj = do
     modify $ \s -> s { symTab = SymTab.insert symbol key obj (symTab s) }
 
 
-collectCExterns :: BoM CollectState m => [Extern] -> m ()
-collectCExterns externs = do
-    forM_ externs $ \extern -> case extern of
-        ExtVar sym (S.AnnoType typ) -> define (SymQualified "c" sym) KeyVar (ObjVar typ)
-        ExtFunc sym argTypes retty  -> define (SymQualified "c" sym) (KeyFunc [] argTypes retty) ObjFunc
-        ExtConstInt sym n           -> define (SymQualified "c" sym) KeyVar (ObjVar I64)
-        ExtTypeDef sym typ          -> define (SymQualified "c" sym) KeyType (ObjType typ)
-
 collectAST :: BoM CollectState m => ResolvedAst -> m ()
 collectAST ast = do
-    forM (typeDefs ast) $ collectTypedef
+    forM (Map.toList $ typeImports ast) $ \(symbol, anno) ->
+        collectTypedef symbol anno
+
+    forM_ (typeDefs ast) $ \(S.Typedef pos symbol anno) -> collectPos pos $
+        collectTypedef symbol anno
+
+    forM (Map.toList $ funcImports ast) $ \(symbol, key@(ps, _, as, rt)) -> 
+        define symbol (KeyFunc ps as rt) ObjFunc
 
     forM (funcDefs ast) $
         \(S.FuncDef pos params symbol args retty _) -> collectPos pos $ do
             define (Sym $ sym symbol) (KeyFunc (map S.paramType params) (map S.paramType args) retty) ObjFunc
 
     mapM_ collectStmt (funcDefs ast)
-    where
-        isTypedef :: S.Stmt -> Bool
-        isTypedef (S.Typedef _ _ _) = True
-        isTypedef _                 = False
-
-        isFuncdef :: S.Stmt -> Bool
-        isFuncdef (S.FuncDef _ _ _ _ _ _) = True
-        isFuncdef _                       = False
 
 
-collectTypedef :: BoM CollectState m => S.Stmt -> m ()
-collectTypedef (S.Typedef pos symbol annoTyp) = collectPos pos $ case annoTyp of
+collectTypedef :: BoM CollectState m => Symbol -> S.AnnoType -> m ()
+collectTypedef symbol annoTyp = case annoTyp of
     S.AnnoType (Tuple ts) -> do
         let typedef = Typedef symbol
         define symbol KeyType (ObjType $ Tuple ts)
@@ -215,7 +200,7 @@ collectTypedef (S.Typedef pos symbol annoTyp) = collectPos pos $ case annoTyp of
 
 collectStmt :: BoM CollectState m => S.Stmt -> m ()
 collectStmt stmt = collectPos stmt $ case stmt of
-    S.Typedef _ _ _ -> collectTypedef stmt
+    S.Typedef _ symbol anno -> collectTypedef symbol anno
     S.Print p exprs -> mapM_ collectExpr exprs
     S.Typedef _ _ _ -> return ()
     S.Block stmts -> mapM_ collectStmt stmts
@@ -335,8 +320,24 @@ collectPattern pattern typ = collectPos pattern $ case pattern of
 
 
 collectCall :: BoM CollectState m => Type -> [S.Expr] -> Symbol -> [S.Expr] -> m ()
-collectCall exprType ps symbol es = do
-    kos <- lookSym symbol
+collectCall exprType ps symbol@(SymQualified "c" sym) es = do
+    [(KeyFunc pts ats rt, ObjFunc)] <- SymTab.lookupSym symbol <$> gets symTab
+    assert (length pts == length ps) "Invalid number of parameters"
+    assert (length ats == length es) "Invalid number of arguments"
+    collectEq rt exprType
+    zipWithM_ collectEq pts (map typeOf ps)
+    zipWithM_ collectEq ats (map typeOf es)
+    mapM_ collectExpr ps
+    mapM_ collectExpr es
+
+collectCall exprType ps symbol es = do -- can be resolved or sym
+    kos <- case symbol of
+        Sym sym -> do
+            mapSMapKo <- head <$> gets symTab
+            let maps = Map.elems $ Map.filterWithKey (\k v -> Symbol.sym k == sym) mapSMapKo
+            return $ Map.toList $ Map.unions maps
+        SymResolved _ _ _ -> SymTab.lookupSym symbol <$> gets symTab
+
     let ks = [ k | (k@(KeyFunc _ _ _), ObjFunc) <- kos ]
 
     let ksSameRetty   = [ k | k@(KeyFunc _ _ rt) <- ks, rt == exprType ]

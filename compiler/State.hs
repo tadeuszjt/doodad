@@ -184,7 +184,6 @@ lookm symbol key = SymTab.lookup symbol key <$> gets symTab
 look :: ModCmp CompileState m => Symbol -> SymKey -> m Object
 look symbol key = do
     resm <- lookm symbol key
-    assert (isJust resm) $ 
-        "no definition for: " ++ show symbol ++ " " ++ show key
+    assert (isJust resm) $ "no definition for: " ++ show symbol ++ " " ++ show key
     return (fromJust resm)
 
