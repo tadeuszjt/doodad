@@ -1,10 +1,18 @@
 module States where
 
+import Control.Monad
 import qualified Data.Map as Map
 import AST
 import Symbol
 import Type
-import Interop
+
+
+data Extern
+    = ExtFunc String [Type] Type
+    | ExtVar String AnnoType
+    | ExtConstInt String Integer
+    | ExtTypeDef String Type
+    deriving (Show, Eq)
 
 
 data ResolvedAst
@@ -19,17 +27,18 @@ data ResolvedAst
 
 
 type FuncKey = ([Type], String, [Type], Type)
-data FuncBody = FuncBody
-    { funcParams :: [AST.Param]
-    , funcArgs   :: [AST.Param]
-    , funcRetty  :: Type
-    , funcStmts  :: [AST.Stmt]
-    }
+data FuncBody
+    = FuncBodyEmpty
+    | FuncBody
+        { funcParams :: [AST.Param]
+        , funcArgs   :: [AST.Param]
+        , funcRetty  :: Type
+        , funcStmts  :: [AST.Stmt]
+        }
 
 
 data IRGenState = IRGenState
     { irImports     :: [IRGenState]
-    , irCExterns    :: [Extern]
     , irCurrentFunc :: FuncKey
 
     , irModuleName  :: String                      -- name of module
@@ -41,3 +50,13 @@ data IRGenState = IRGenState
     , irMainDef     :: Maybe FuncBody              -- optional main() definition
     }
 
+
+prettyResolvedAst :: ResolvedAst -> IO ()
+prettyResolvedAst ast = do
+    putStrLn $ "module: " ++ moduleName ast
+    forM_ (Map.toList $ typeImports ast) $ \(symbol, anno) -> 
+        putStrLn $ "type import: " ++ show symbol ++ " " ++ show anno
+    forM_ (Map.toList $ funcImports ast) $ \(symbol, key) -> 
+        putStrLn $ "func import: " ++ show symbol ++ " " ++ show key
+
+    putStrLn ""

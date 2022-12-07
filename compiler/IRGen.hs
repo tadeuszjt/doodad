@@ -37,9 +37,8 @@ prettyIrGenState irGenState = do
         putStrLn ""
 
 
-initIRGenState moduleName imports cExterns = IRGenState
+initIRGenState moduleName imports = IRGenState
     { irImports        = imports
-    , irCExterns       = cExterns
     , irModuleName     = moduleName
     , irTypeDefs       = Map.empty
     , irExternDefs     = Map.empty
@@ -99,17 +98,6 @@ resolveFuncCall exprType (AST.Call pos params symbol args) = withPos pos $ do
     imports <- gets irImports
     case symbol of
         SymResolved _ _ _ -> return symbol
-        SymQualified "c" sym -> do
-            resm <- findCExtern sym
-            assert (isJust resm) $ "no c extern definition for: " ++ sym
-            let (ats, rt) = fromJust resm
-            assert (paramTypes == [] && ats == argTypes && rt == exprType) $
-                "c extern mismatch: " ++ show (paramTypes, argTypes, exprType, ats, rt)
-            let key = ([], sym, ats, rt)
-            let symbol = SymQualified "c" sym
-            -- TODO do this in resolve
-            modify $ \s -> s { irExternDefs = Map.insert symbol key (irExternDefs s) }
-            return symbol
 
         SymQualified mod sym | mod == curModName -> do
             let key = (paramTypes, sym, argTypes, exprType)
@@ -169,18 +157,6 @@ resolveFuncCall exprType (AST.Call pos params symbol args) = withPos pos $ do
             let importm = find ((mod ==) . irModuleName) imports
             assert (isJust importm) $ mod ++ " isn't imported"
             return $ Map.lookup key (irFuncMap $ fromJust importm)
-
-        findCExtern :: BoM IRGenState m => String -> m (Maybe ([Type], Type))
-        findCExtern sym = do
-            externs <- gets irCExterns
-            ress <- fmap catMaybes $ forM externs $ \ext -> case ext of
-                ExtFunc s ats rt | s == sym -> return (Just (ats, rt))
-                _                           -> return Nothing
-            case ress of
-                [] -> return Nothing
-                [x] -> return (Just x)
-                _   -> fail $ "multiple c extern definitions for: " ++ sym
-                
 
 
 compileStmt :: BoM IRGenState m => AST.Stmt -> m Stmt

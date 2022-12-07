@@ -82,7 +82,7 @@ compile irGenState = do
 
 
 cmpTypeNames :: InsCmp CompileState m => IRGenState -> m ()
-cmpTypeNames irGenState = do
+cmpTypeNames irGenState = withErrorPrefix "cmpTypeNames" $ do
     forM_ (Map.toList $ irTypeDefs irGenState) $ \(symbol, anno) -> do
         typ <- return $ case anno of
             AST.AnnoType typ -> typ
@@ -99,15 +99,16 @@ cmpTypeNames irGenState = do
 
 
 cmpDeclareExterns :: InsCmp CompileState m => IRGenState -> m ()
-cmpDeclareExterns irGenState = do
+cmpDeclareExterns irGenState = withErrorPrefix "cmpDeclareExterns: " $ do
     forM_ (Map.toList $ irExternDefs irGenState) $
-        \(symbol, (paramTypes, sym, argTypes, returnType)) -> do
-            let name = fnSymbolToName symbol
-            paramOpTypes <- map LL.ptr <$> mapM opTypeOf paramTypes
-            argOpTypes   <- mapM opTypeOf argTypes
-            returnOpType <- opTypeOf returnType
-            extern name (paramOpTypes ++ argOpTypes) returnOpType
-            define symbol KeyFunc ObjFn
+        \(symbol, (paramTypes, sym, argTypes, returnType)) -> withErrorPrefix (sym ++ " ") $ do
+            (flip catchError) (\e -> return ()) $ do
+                let name = fnSymbolToName symbol
+                paramOpTypes <- map LL.ptr <$> mapM opTypeOf paramTypes
+                argOpTypes   <- mapM opTypeOf argTypes
+                returnOpType <- opTypeOf returnType
+                extern name (paramOpTypes ++ argOpTypes) returnOpType
+                define symbol KeyFunc ObjFn
 
 
 cmpFuncHdrs :: InsCmp CompileState m => IRGenState -> m ()

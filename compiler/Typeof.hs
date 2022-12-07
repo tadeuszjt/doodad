@@ -57,7 +57,7 @@ isDataType typ = do
 
 
 opTypeOf :: ModCmp CompileState m => Type -> m LL.Type
-opTypeOf typ = trace ("opTypOf " ++ show typ) $ case typ of
+opTypeOf typ = withErrorPrefix ("opTypOf " ++ show typ) $ case typ of
     Void      -> return LL.VoidType
     I8        -> return LL.i8
     I16       -> return LL.i16
@@ -97,9 +97,7 @@ opTypeOf typ = trace ("opTypOf " ++ show typ) $ case typ of
         | isEnumADT typ -> return $ LL.i64
         | isPtrADT typ -> error ""
 
-    UnsafePtr t -> case t of
-        Char -> LL.ptr <$> opTypeOf Char
-        _ -> fail $ show t
+    UnsafePtr t -> LL.ptr <$> opTypeOf t
 
     _         -> error (show typ) 
 

@@ -88,8 +88,8 @@ genSymbol :: BoM ResolveState m => String -> m Symbol
 genSymbol sym = do  
     modName <- gets modName
     im <- gets $ Map.lookup sym . supply
-    let n = maybe 1 (+1) im
-    modify $ \s -> s { supply = Map.insert sym n (supply s) }
+    let n = maybe 0 (id) im
+    modify $ \s -> s { supply = Map.insert sym (n + 1) (supply s) }
     let symbol = SymResolved modName sym n
     return symbol
         
@@ -119,7 +119,6 @@ popSymTab = do
     modify $ \s -> s { symTabVar = SymTab.pop (symTabVar s) }
 
 
-
 buildTypeImportMap :: BoM (Map.Map Symbol AnnoType) m => [IRGenState] -> m ()
 buildTypeImportMap imports = do
     forM_ imports $ \imprt -> do
@@ -129,7 +128,6 @@ buildTypeImportMap imports = do
             modify $ Map.insert symbol $ irTypeDefs imprt Map.! symbol
 
 
-
 buildFuncImportMap :: BoM (Map.Map Symbol FuncKey) m => [IRGenState] -> m ()
 buildFuncImportMap imports = do
     forM_ imports $ \imprt -> do
@@ -137,10 +135,6 @@ buildFuncImportMap imports = do
             exists <- Map.member symbol <$> get
             assert (not exists) $ "func symbol already imported: " ++ show symbol
             modify $ Map.insert symbol key
-
-
-
-
 
 
 resolveAst :: BoM s m => AST -> [IRGenState] -> m (ResolvedAst, ResolveState)

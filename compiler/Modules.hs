@@ -185,13 +185,14 @@ runMod args pathsVisited modPath = do
             when (printCSymbols args) $ liftIO $ do
                 putStrLn $ "C Symbols imported by: " ++ modName 
                 SymTab.prettySymTab (State.symTab cState)
+            ((), cIrGenState) <- runBoMTExcept (initIRGenState "c" []) (mapM_ irGenExtern cExterns)
             --liftIO $ putStrLn $ render $ pretty globs
 
 
             irGenImports <- forM importPaths $ \path -> (Map.! path) <$> gets irGenModMap
-            (resolvedAST, resolveState) <- R.resolveAst combinedAST irGenImports
+            (resolvedAST, resolveState) <- R.resolveAst combinedAST (cIrGenState : irGenImports)
             Flatten.checkTypeDefs (typeDefs resolvedAST)
-            --when (printAstResolved args) $ liftIO $ S.prettyAST resolvedAST
+            when (printAstResolved args) $ liftIO $ prettyResolvedAst resolvedAST
 
             -- run type inference on ast
             annotatedAST <- fmap fst $ withErrorPrefix "annotate: " $
@@ -210,7 +211,7 @@ runMod args pathsVisited modPath = do
             --liftIO $ SymTab.prettySymTab symTab
 
             --assert (S.astModuleName flat == modName) "modName error"
-            (_, irGenState) <- withErrorPrefix "irgen: " $ runBoMTExcept (initIRGenState modName irGenImports cExterns) (IRGen.compile ast)
+            (_, irGenState) <- withErrorPrefix "irgen: " $ runBoMTExcept (initIRGenState modName $ cIrGenState : irGenImports) (IRGen.compile ast)
             modify $ \s -> s { irGenModMap = Map.insert path (irGenState) (irGenModMap s) }
             when (printIR args) $ do
                 liftIO $ prettyIrGenState irGenState

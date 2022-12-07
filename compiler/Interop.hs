@@ -2,6 +2,7 @@
 -- Takes a C AST and generates the necessary definitions
 module Interop where
 
+import Data.Maybe
 import qualified Data.Map as Map
 import Control.Monad
 import Control.Monad.State
@@ -36,14 +37,7 @@ import Typeof
 import Value
 import Trace
 import Symbol
-
-data Extern
-    = ExtFunc String [Type] Type
-    | ExtVar String S.AnnoType
-    | ExtConstInt String Integer
-    | ExtTypeDef String Type
-    deriving (Show, Eq)
-
+import States
 
 typeToCType :: Type -> String
 typeToCType typ = case typ of
@@ -58,6 +52,23 @@ macroToVar macro = "c__" ++ macro
 importToCStmt :: S.Import -> String
 importToCStmt (S.ImportCMacro macro typ) =
     typeToCType typ ++ " " ++ macroToVar macro ++ " = " ++ macro ++ ";"
+
+
+irGenExtern :: BoM IRGenState m => Extern -> m ()
+irGenExtern extern = case extern of
+    ExtFunc sym argTypes retty -> do
+        let symbol = SymQualified "c" sym
+        let key    = ([], sym, argTypes, retty)
+        resm <- Map.lookup symbol <$> gets irFuncDefs
+        resm2 <- Map.lookup key <$> gets irFuncMap
+        when (isJust resm || isJust resm2) $ do
+            fail "c symbol already defined, todo -- allow redef?"
+        modify $ \s -> s { irFuncMap = Map.insert key symbol (irFuncMap s) }
+        modify $ \s -> s { irFuncDefs = Map.insert symbol FuncBodyEmpty (irFuncDefs s) }
+                
+    _ -> return () 
+
+
 
 
 cmpExtern :: InsCmp CompileState m => Extern -> m ()
