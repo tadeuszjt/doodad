@@ -120,21 +120,9 @@ typeOf (S.AExpr t _) = t
 
 look :: BoM CollectState m => Symbol -> SymKey -> m Object
 look symbol key = do
-    rm <- lookm symbol key
+    rm <- SymTab.lookup symbol key <$> gets symTab
     assert (isJust rm) $ show symbol ++ " " ++ show key ++ " undefined."
     return (fromJust rm)
-
-
-lookm :: BoM CollectState m => Symbol -> SymKey -> m (Maybe Object)
-lookm symbol key = do
-    symTab <- gets symTab
-    return $ lookupSymKey symbol key symTab []
-
-
-lookSym :: BoM CollectState m => Symbol -> m [(SymKey, Object)]
-lookSym symbol = do
-    symTab <- gets symTab
-    return $ lookupSym symbol symTab []
 
 
 define :: BoM CollectState m => Symbol -> SymKey -> Object -> m ()
@@ -157,7 +145,7 @@ collectAST ast = do
 
     forM (funcDefs ast) $
         \(S.FuncDef pos params symbol args retty _) -> collectPos pos $ do
-            define (Sym $ sym symbol) (KeyFunc (map S.paramType params) (map S.paramType args) retty) ObjFunc
+            define symbol (KeyFunc (map S.paramType params) (map S.paramType args) retty) ObjFunc
 
     mapM_ collectStmt (funcDefs ast)
 
@@ -265,7 +253,6 @@ collectStmt stmt = collectPos stmt $ case stmt of
     S.Data p symbol typ -> do
         define symbol KeyVar (ObjVar typ)
         
-
     _ -> error (show stmt)
 
 
@@ -284,7 +271,7 @@ collectPattern pattern typ = collectPos pattern $ case pattern of
         collectExpr expr
 
     S.PatField _ symbol pats -> do
-        resm <- lookm symbol KeyAdtField
+        resm <- SymTab.lookup symbol KeyAdtField <$> gets symTab
         case resm of
             Just (ObjField i) -> do
                 gts <- replicateM (length pats) genType
@@ -320,21 +307,15 @@ collectPattern pattern typ = collectPos pattern $ case pattern of
 
 
 collectCall :: BoM CollectState m => Type -> [S.Expr] -> Symbol -> [S.Expr] -> m ()
-collectCall exprType ps symbol@(SymQualified "c" sym) es = do
-    [(KeyFunc pts ats rt, ObjFunc)] <- SymTab.lookupSym symbol <$> gets symTab
-    assert (length pts == length ps) "Invalid number of parameters"
-    assert (length ats == length es) "Invalid number of arguments"
-    collectEq rt exprType
-    zipWithM_ collectEq pts (map typeOf ps)
-    zipWithM_ collectEq ats (map typeOf es)
-    mapM_ collectExpr ps
-    mapM_ collectExpr es
-
 collectCall exprType ps symbol es = do -- can be resolved or sym
     kos <- case symbol of
+        SymQualified mod sym -> do
+            let f = (\k v -> Symbol.sym k == sym && Symbol.mod k == mod)
+            maps <- Map.elems . Map.filterWithKey f . head <$> gets symTab
+            return $ Map.toList $ Map.unions maps
         Sym sym -> do
-            mapSMapKo <- head <$> gets symTab
-            let maps = Map.elems $ Map.filterWithKey (\k v -> Symbol.sym k == sym) mapSMapKo
+            let f = (\k v -> Symbol.sym k == sym)
+            maps <- Map.elems . Map.filterWithKey f . head <$> gets symTab
             return $ Map.toList $ Map.unions maps
         SymResolved _ _ _ -> SymTab.lookupSym symbol <$> gets symTab
 

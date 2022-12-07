@@ -160,13 +160,11 @@ runMod args pathsVisited modPath = do
             let cMacroStmts = [ Interop.importToCStmt imp  | imp@(S.ImportCMacro _ _) <- S.astImports combinedAST ]
             cTranslUnitEither <- liftIO $ withTempFile "." "cimports.h" $ \filePath handle -> do
                 hClose handle
-
                 writeFile filePath $ concat $
                     map (\p -> "#include \"" ++ p ++ "\"\n") cFilePaths ++
                     map (\p -> p ++ "\n") cMacroStmts
 
                 --putStrLn =<< readFile filePath
-
                 parseCFile (newGCC "gcc") Nothing [] filePath
             cTranslUnit <- case cTranslUnitEither of
                 Left (ParseError x) -> fail (show x)
@@ -186,12 +184,10 @@ runMod args pathsVisited modPath = do
                 runBoMTExcept 0 $ annotate resolvedAST
             astInferred <- withErrorPrefix "infer: " $ infer annotatedAST (verbose args)
             
-            let ast = astInferred
             (_, irGenState) <- withErrorPrefix "irgen: " $
-                runBoMTExcept (initIRGenState modName) (IRGen.compile ast)
+                runBoMTExcept (initIRGenState modName) (IRGen.compile astInferred)
             modify $ \s -> s { irGenModMap = Map.insert path (irGenState) (irGenModMap s) }
-            when (printIR args) $ do
-                liftIO $ prettyIrGenState irGenState
+            when (printIR args) $ liftIO $ prettyIrGenState irGenState
 
             -- compile and run
             debug "compiling"

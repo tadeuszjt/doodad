@@ -21,9 +21,7 @@ import States
 
 -- Takes a resolved and annotated ast and inferes all types.
 infer :: BoM s m => ResolvedAst -> Bool -> m ResolvedAst
-infer ast verbose = do
-    (inferedAst, n) <- recursiveInfer ast 
-    return inferedAst
+infer ast verbose = fst <$> recursiveInfer ast
     where
         recursiveInfer :: BoM s m => ResolvedAst -> m (ResolvedAst, Int)
         recursiveInfer ast = do
@@ -32,11 +30,9 @@ infer ast verbose = do
                 runBoMTExcept initCollectState (collectAST ast)
             
             -- turn type constraints into substitutions using unify
-            let symTabs = [symTab state]
-            let sos     = concat $ map (SymTab.lookupKey Collect.KeyType) symTabs
+            let sos     = SymTab.lookupKey Collect.KeyType (symTab state)
             let typeMap = Map.map (\(ObjType t) -> t) $ Map.fromList sos
-            let constraints = Map.toList (collected state)
-            (subs, _) <- runBoMTExcept typeMap (unify2 constraints)
+            (subs, _) <- runBoMTExcept typeMap (unify2 $ Map.toList $ collected state)
 
             -- if the infered ast is the same as the last iteration, finish
             let subbedAst = apply subs ast
@@ -55,5 +51,3 @@ infer ast verbose = do
             else do
                 (subbedAst', n) <- recursiveInfer subbedAst
                 return (subbedAst', n + 1)
-
-
