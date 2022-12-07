@@ -41,7 +41,6 @@ infer ast verbose = fst <$> recursiveInfer ast
                 (defaults, _) <- runBoMTExcept typeMap $ unifyDefault $
                     Map.toList $ Map.mapKeys (apply subs) (defaults state)
                 let defaultedAst = apply defaults subbedAst
-                let defaultedSymTab = apply defaults $ apply subs $ symTab state
 
                 if defaultedAst == subbedAst then do
                     return (defaultedAst, 1)

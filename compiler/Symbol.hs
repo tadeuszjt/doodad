@@ -18,29 +18,3 @@ instance Show Symbol where
         0 -> "_" ++ sym
         n -> "_" ++ sym ++ "_" ++ show n
 
-
-lookupSym
-    :: Ord k
-    => Symbol
-    -> SymTab.SymTab Symbol k o
-    -> [SymTab.SymTab Symbol k o]
-    -> [(k, o)]
-lookupSym symbol symTab imports =
-    SymTab.lookupSym symbol symTab ++ (concat $ map (SymTab.lookupSym symbol) imports)
-
-
-lookupSymKey
-    :: (Ord k, Ord s)
-    => s
-    -> k
-    -> SymTab.SymTab s k o
-    -> [SymTab.SymTab s k o]
-    -> Maybe o
-lookupSymKey symbol key symTab imports =
-    case SymTab.lookup symbol key symTab of
-        Just o -> Just o
-        Nothing -> case catMaybes (map (SymTab.lookup symbol key) imports) of
-            [] -> Nothing
-            [o] -> Just o
-            _ -> error "symbol ambiguous"
-

@@ -39,30 +39,13 @@ substitute u x typ = case typ of
 class Apply a where
     apply :: [(Int, Type)] -> a -> a
 
+            
+instance Apply ResolvedAst where
+    apply subs ast = ast { funcDefs = map (apply subs) (funcDefs ast) }
+
 instance Apply Type where
     apply subs t = foldr (\(x, u) z -> substitute u x z) t subs
     
-instance Apply Collect.SymTab where
-    apply subs symTab =
-        SymTab.mapKeys (apply subs) $ SymTab.map (apply subs) symTab
-
-instance Apply Collect.Object where
-    apply subs object = case object of
-        ObjVar t   -> ObjVar (apply subs t)
-        ObjType t  -> ObjType (apply subs t)
-        ObjFunc    -> ObjFunc
-        ObjField i -> ObjField i
-
-instance Apply Collect.SymKey where
-    apply subs key = case key of
-        KeyVar           -> KeyVar
-        KeyType          -> KeyType
-        KeyField t       -> KeyField (f t)
-        KeyFunc ps as rt -> KeyFunc (map f ps) (map f as) (f rt)
-        where
-            f :: Apply a => a -> a
-            f = apply subs
-
 instance Apply Constraint where
     apply subs constraint = case constraint of
         ConsEq t1 t2         -> ConsEq (f t1) (f t2)
@@ -157,7 +140,3 @@ instance Apply S.Stmt where
         where
             f :: Apply a => a -> a
             f = apply subs
-            
-instance Apply ResolvedAst where
-    apply subs ast = ast
-        { funcDefs = map (apply subs) (funcDefs ast) }

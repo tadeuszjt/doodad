@@ -69,47 +69,6 @@ irGenExtern extern = case extern of
     _ -> return () 
 
 
-
-
-cmpExtern :: InsCmp CompileState m => Extern -> m ()
-cmpExtern extern = catchError (cmpExtern' extern) $ \e -> return ()
-    where
-        cmpExtern' :: InsCmp CompileState m => Extern -> m ()
-        cmpExtern' extern = case extern of
-            ExtVar sym (S.AnnoType typ) -> do
-                let symbol = SymQualified "c" sym
-                let name = mkName sym
-                opTyp <- opTypeOf typ
-                define symbol KeyVar $ ObjVal $ Ptr typ $ cons $ C.GlobalReference (LL.ptr opTyp) name
-
-            ExtFunc sym argTypes retty -> do
-                let symbol = SymQualified "c" sym
-                checkSymUndef symbol
-                let name = LL.mkName sym
-                paramOpTypes <- mapM opTypeOf argTypes
-                returnOpType <- opTypeOf retty
-                define symbol KeyFunc ObjFn
-
-            ExtConstInt sym integer -> do
-                let symbol = SymQualified "c" sym
-                define symbol KeyVar (ObjVal (ConstInt integer))
-
-            ExtTypeDef sym typ -> do
-                let symbol = SymQualified "c" sym
-                define symbol KeyType (ObjType typ)
-
-
-compile :: BoM s m => [Extern] -> m CompileState
-compile externs = do
-    ((_, defs), state) <- runBoMTExcept (initCompileState "c") (runModuleCmpT emptyModuleBuilder cmp)
-    return state
-    where
-        cmp :: (MonadFail m, Monad m, MonadIO m) => ModuleCmpT CompileState m ()
-        cmp = void $ func (LL.mkName ".__unused")  [] LL.VoidType $ \_ -> do
-            mapM_ cmpExtern [ e | e@(ExtTypeDef _ _) <- externs ]
-            mapM_ cmpExtern [ e | e@(ExtFunc _ _ _) <- externs ]
-
-
 analyseCTranslUnit :: BoM s m => CTranslUnit -> m (A.GlobalDecls, [CError])
 analyseCTranslUnit ast =do
     case A.runTrav_ $ A.analyseAST ast of
