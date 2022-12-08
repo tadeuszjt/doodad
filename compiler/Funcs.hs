@@ -88,6 +88,12 @@ strlen str = do
     call op [(str, [])]
 
 
+strcmp :: InsCmp CompileState m => Operand -> Operand -> m Operand
+strcmp str1 str2 = do
+    op <- ensureExtern "strcmp" [ptr i8, ptr i8] i64 False
+    call op [(str1, []), (str2, [])]
+
+
 func :: Monad m => Name -> [(Type, ParameterName)] -> Type -> ([Operand] -> InstrCmpT s m ()) -> ModuleCmpT s m Operand
 func name argtys retty f = do
     let tys = map fst argtys

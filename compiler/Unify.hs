@@ -22,7 +22,11 @@ type TypeMap = Map.Map Symbol Type
 
 baseTypeOf :: BoM TypeMap m => Type -> m (Maybe Type)
 baseTypeOf typ = case typ of
-    Typedef symbol -> baseTypeOf =<< gets (Map.! symbol)
+    Typedef symbol -> do
+        resm <- gets $ Map.lookup symbol
+        assert (isJust resm) $ "Cannot find symbol: " ++ show symbol
+        baseTypeOf (fromJust resm)
+
     Type x         -> return Nothing
     t              -> return (Just t)
 

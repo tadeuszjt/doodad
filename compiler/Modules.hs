@@ -63,33 +63,6 @@ initModulesState session
         }
 
 
-checkAndNormalisePath :: BoM s m => FilePath -> m FilePath
-checkAndNormalisePath path = do
-    assert (isValid path) (show path ++ " invalid")
-    processSplitPath (splitPath path)
-    where
-        processSplitPath :: BoM s m => [FilePath] -> m FilePath
-        processSplitPath path = case path of
-            [x]          -> checkValidModuleName x >> return x
-            ("./":xs)    -> processSplitPath xs
-            (x:"../":xs) -> checkValidDirName x >> processSplitPath xs
-            (x:xs)       -> checkValidDirName x >> joinPath . (x:) . (:[]) <$> processSplitPath xs
-            xs           -> fail ("Cannot process: " ++ joinPath xs)
-
-        checkValidModuleName :: BoM s m => String -> m ()
-        checkValidModuleName name = do
-            assert (not $ null name) $ "Invalid module name"
-            assert (isAlpha $ head name) $ "Module name: " ++ name ++ " must have alpha as first char"
-            assert (all (== True) $ map isAlphaNum name) $ "Module name: " ++ name ++ " must be all alphanum"
-
-        checkValidDirName :: BoM s m => String -> m ()
-        checkValidDirName dirName = do
-            let name = dropTrailingPathSeparator dirName
-            assert (not $ null name) "Invalid directory name"
-            assert (isAlpha $ head name) $ "Directory name: " ++ name ++ " must have alpha as first char"
-            assert (all (== True) $ map isAlphaNum name) $ "Module name: " ++ name ++ " must be all alphanum"
-
-
 getDoodadFilesInDirectory :: BoM s m => FilePath -> m [FilePath]
 getDoodadFilesInDirectory dir = do
     list <- liftIO (listDirectory dir)
@@ -128,14 +101,15 @@ parse file = do
 runMod :: BoM Modules m => Args -> Set.Set FilePath -> FilePath -> m ()
 runMod args pathsVisited modPath = do
     debug "running"
-    path <- checkAndNormalisePath modPath
-    assert (not $ Set.member path pathsVisited) ("importing \"" ++ path ++ "\" forms a cycle")
-    isCompiled <- Map.member path <$> gets irGenModMap
-    when (not isCompiled) $ compilePath path
+    absolute <- liftIO $ canonicalizePath modPath
+    debug $ "absolute path: " ++ show absolute
+    isCompiled <- Map.member absolute <$> gets irGenModMap
+    when (not isCompiled) $ compilePath absolute
     where
         -- path will be in the form "dir1/dirn/modname"
         compilePath :: BoM Modules m => FilePath -> m ()
         compilePath path = do
+            debug "compilePath"
             let modName = takeFileName path
             let modDirectory = takeDirectory path
 
@@ -148,14 +122,14 @@ runMod args pathsVisited modPath = do
 
 
             importPaths <- forM [fp | S.Import fp <- S.astImports combinedAST] $ \importPath ->
-                checkAndNormalisePath $ joinPath [modDirectory, importPath]
+                liftIO $ canonicalizePath $ joinPath [modDirectory, importPath]
             let importModNames = map takeFileName importPaths
             assert (length importModNames == length (Set.fromList importModNames)) $
                 fail "import name collision"
             forM_ importPaths $ debug . ("importing: " ++)
             mapM_ (runMod args (Set.insert path pathsVisited)) importPaths
 
-            -- load C imports
+            debug "loading c imports"
             let cFilePaths =  [ fp | S.ImportC fp <- S.astImports combinedAST]
             let cMacroStmts = [ Interop.importToCStmt imp  | imp@(S.ImportCMacro _ _) <- S.astImports combinedAST ]
             cTranslUnitEither <- liftIO $ withTempFile "." "cimports.h" $ \filePath handle -> do
@@ -163,8 +137,6 @@ runMod args pathsVisited modPath = do
                 writeFile filePath $ concat $
                     map (\p -> "#include \"" ++ p ++ "\"\n") cFilePaths ++
                     map (\p -> p ++ "\n") cMacroStmts
-
-                --putStrLn =<< readFile filePath
                 parseCFile (newGCC "gcc") Nothing [] filePath
             cTranslUnit <- case cTranslUnitEither of
                 Left (ParseError x) -> fail (show x)
@@ -175,11 +147,16 @@ runMod args pathsVisited modPath = do
             ((), cIrGenState) <- runBoMTExcept (initIRGenState "c") (mapM_ irGenExtern cExterns)
 
 
-            irGenImports <- forM importPaths $ \path -> (Map.! path) <$> gets irGenModMap
+            debug "loading irGenImports"
+            irGenImports <- forM importPaths $ \path -> do
+                resm <- Map.lookup path <$> gets irGenModMap
+                assert (isJust resm) $ show path ++ " not in irGenModMap"
+                return $ fromJust resm
             (resolvedAST, _) <- R.resolveAst combinedAST (cIrGenState : irGenImports)
             Flatten.checkTypeDefs (typeDefs resolvedAST)
             when (printAstResolved args) $ liftIO $ prettyResolvedAst resolvedAST
 
+            debug "annotating ast"
             annotatedAST <- fmap fst $ withErrorPrefix "annotate: " $
                 runBoMTExcept 0 $ annotate resolvedAST
             astInferred <- withErrorPrefix "infer: " $ infer annotatedAST (verbose args)
@@ -187,6 +164,7 @@ runMod args pathsVisited modPath = do
             (_, irGenState) <- withErrorPrefix "irgen: " $
                 runBoMTExcept (initIRGenState modName) (IRGen.compile astInferred)
             modify $ \s -> s { irGenModMap = Map.insert path (irGenState) (irGenModMap s) }
+            debug "added to irGenModMap"
             when (printIR args) $ liftIO $ prettyIrGenState irGenState
 
             -- compile and run
@@ -206,6 +184,6 @@ runMod args pathsVisited modPath = do
 
         debug str =
             if verbose args
-            then liftIO $ putStrLn (modPath ++ " -> " ++ str)
+            then liftIO $ putStrLn (takeFileName modPath ++ " -> " ++ str)
             else return ()
 

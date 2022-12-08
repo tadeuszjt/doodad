@@ -128,12 +128,26 @@ mkInfix operator a b = withErrorPrefix "infix: " $ do
     case base of
         Bool                 -> mkBoolInfix operator a b
         Char                 -> mkIntInfix operator a b
+        String               -> mkStringInfix operator a b
         _ | isEnumADT base   -> mkAdtEnumInfix operator a b
         _ | isInt base       -> mkIntInfix operator a b
         _ | isFloat base     -> mkFloatInfix operator a b
         _ | isTuple base     -> mkTupleInfix operator a b
         _ | isArray base     -> mkArrayInfix operator a b
         _                    -> fail $ "Operator " ++ show operator ++ " undefined for types " ++ show (valType a) ++ " " ++ show (valType b)
+
+
+
+mkStringInfix :: InsCmp CompileState m => AST.Operator -> Value -> Value -> m Value
+mkStringInfix operator a b = do
+    assertBaseType (== String) (valType a)
+    assertBaseType (== String) (valType b)
+    case operator of
+        AST.EqEq -> do
+            locA <- valOp <$> valLoad a
+            locB <- valOp <$> valLoad b
+            i <- Val I64 <$> strcmp locA locB
+            mkIntInfix AST.EqEq i (mkI64 0)
 
 
 mkArrayInfix :: InsCmp CompileState m => AST.Operator -> Value -> Value -> m Value

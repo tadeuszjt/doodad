@@ -124,7 +124,9 @@ buildTypeImportMap imports = do
         forM_ (Map.elems $ irTypeMap imprt) $ \symbol -> do
             exists <- Map.member symbol <$> get
             assert (not exists) $ "type symbol already imported: " ++ show symbol
-            modify $ Map.insert symbol $ irTypeDefs imprt Map.! symbol
+            let resm = Map.lookup symbol (irTypeDefs imprt)
+            assert (isJust resm) "resm was Nothing"
+            modify $ Map.insert symbol (fromJust resm)
 
 
 buildFuncImportMap :: BoM (Map.Map Symbol FuncKey) m => [IRGenState] -> m ()

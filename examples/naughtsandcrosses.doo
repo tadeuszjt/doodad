@@ -58,14 +58,13 @@ fn {board Board} full() bool
     return true
 
 
-type playerMoveReturn { Success() | Error() | Quit() }
-fn {board Board, io Io} playerMove() playerMoveReturn
+fn {board Board, io Io} playerMove() string
     io.putStrLn("Make a move")
 
     data line String
     {line, io}.GetStrLn()
     if line.ReadChar(0) -> ('q', _)
-        return Quit()
+        return "quit"
 
     let (row, n) = line.ReadI64(0)
     let (col, n2) = line.ReadI64(n)
@@ -73,14 +72,14 @@ fn {board Board, io Io} playerMove() playerMoveReturn
     let noParse = n == 0 || n2 == 0
     if noParse || !board[..][row] || !board[row][..][col]
         print("invalid move")
-        return Error()
+        return "error"
 
     if board[row][col] != Empty()
         print("board[row][col] is not empty")
-        return Error()
+        return "error"
 
     board[row][col] = Naught()
-    return Success()
+    return "success"
 
 
 fn {board Board, rand Rand} cpuMove()
@@ -112,12 +111,11 @@ fn {board Board, rand Rand} cpuMove()
     return
 
 
-fn {board Board, io Io} playerMoveLoop() playerMoveReturn
-    while true
-        switch {board, io}.playerMove()
-            Quit();    return Quit()
-            Success(); return Success()
-            Error();   return {board, io}.playerMoveLoop()
+fn {board Board, io Io} playerMoveLoop() string
+    switch {board, io}.playerMove()
+        "quit";    return "quit"
+        "success"; return "success"
+        "error";   return {board, io}.playerMoveLoop()
 
 
 fn main()
@@ -126,9 +124,10 @@ fn main()
     data rand Rand
 
     while !board.full() && board.winner() == Empty()
-        let res = {board, io}.playerMoveLoop()
-        if res == Quit()
-            return
+        switch {board, io}.playerMoveLoop()
+            "quit"   ; return
+            "success";
+
         {board, io}.printBoard()
         {board, rand}.cpuMove()
         {board, io}.printBoard()
