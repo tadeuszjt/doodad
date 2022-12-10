@@ -129,6 +129,7 @@ mkInfix operator a b = withErrorPrefix "infix: " $ do
         Bool                 -> mkBoolInfix operator a b
         Char                 -> mkIntInfix operator a b
         String               -> mkStringInfix operator a b
+        _ | isRange base     -> mkRangeInfix operator a b
         _ | isEnumADT base   -> mkAdtEnumInfix operator a b
         _ | isInt base       -> mkIntInfix operator a b
         _ | isFloat base     -> mkFloatInfix operator a b
@@ -137,6 +138,21 @@ mkInfix operator a b = withErrorPrefix "infix: " $ do
         _                    -> fail $ "Operator " ++ show operator ++ " undefined for types " ++ show (valType a) ++ " " ++ show (valType b)
 
 
+
+mkRangeInfix :: InsCmp CompileState m => AST.Operator -> Value -> Value -> m Value
+mkRangeInfix operator a b = do
+    assertBaseType isRange (valType a)
+    assertBaseType isRange (valType b)
+    assert (valType a == valType b) "types do not match for range infix"
+    case operator of
+        AST.EqEq -> do
+            startA <- mkRangeStart a
+            startB <- mkRangeStart b
+            endA   <- mkRangeEnd a
+            endB   <- mkRangeEnd b
+            startEq <- mkInfix AST.EqEq startA startB
+            endEq   <- mkInfix AST.EqEq endA endB
+            mkBoolInfix AST.AndAnd startEq endEq
 
 mkStringInfix :: InsCmp CompileState m => AST.Operator -> Value -> Value -> m Value
 mkStringInfix operator a b = do

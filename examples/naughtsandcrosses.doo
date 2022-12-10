@@ -62,7 +62,7 @@ fn {board Board, io Io} playerMove() string
     io.putStrLn("Make a move")
 
     data line String
-    {line, io}.GetStrLn()
+    {io, line}.GetStrLn()
     if line.ReadChar(0) -> ('q', _)
         return "quit"
 

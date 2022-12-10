@@ -350,6 +350,8 @@ cmpExpr (AST.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck e
             Nothing -> case base of
                 Array n t -> return $ mkI64 0
                 Range t -> mkRangeStart val
+                Table ts -> return $ mkI64 0
+                String -> return $ mkI64 0
 
                 _ -> error (show base)
             Just argStart -> do
@@ -365,6 +367,7 @@ cmpExpr (AST.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck e
                 Table ts  -> mkTableLen val
                 Array n t -> return $ mkI64 n
                 Range t   -> mkRangeEnd val
+                String    -> mkStringLen I64 val
                 _ -> error (show base)
 
             Just argEnd -> do

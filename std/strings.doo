@@ -1,30 +1,25 @@
 module strings
 import chars
-import io
 
 type String [char]
-type Strings sparse[String]
 
 
-fn {ss Strings} Append(k1 i64, k2 i64)
-    for ss[k2] -> c; ss[k1].push(c)
+fn {s String} CompareEqual(s2 string) bool
+    if s.len() != s2.len(); return false
+    for s[..] -> i
+        if s[i] != s2[i]; return false
+    return true
 
 
 fn {s String} Append(str string)
     for str -> c; s.push(c)
 
 
-fn {s String} PutStrLn()
-    print(s)
+fn {s String} Read(start i64, c char) (char, i64)
+    if s[..][start] && s[start] == c
+        return (c, 1)
+    return ('\0', 0)
 
-
-fn {s String, io Io} GetStrLn()
-    s.clear()
-    while true
-        switch io.getChar()
-            '\n'; return
-            '\0'; return
-            c; s.push(c)
 
 
 fn {s String} ReadChar(start i64) (char, i64)

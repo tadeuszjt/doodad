@@ -9,3 +9,8 @@ import_c stdio.h
 fn assert(cnd bool)
     if !cnd
         c::abort()
+
+fn assert(cnd bool, s string)
+    if !cnd
+        print(s)
+        c::abort()

@@ -1,5 +1,6 @@
 module io
 
+import strings
 import_c stdio.h
 
 type Io ()
@@ -19,3 +20,12 @@ fn {io Io} putStr(s string)
 fn {io Io} putStrLn(s string)
     for s -> c; io.putChar(c)
     io.putChar('\n')
+
+
+fn {io Io, line String} GetStrLn() bool
+    while true
+        switch c::getchar()
+            x | x == -1; return false
+            x | x == i32('\n'); return true
+            x | x == i32('\0'); return true
+            c; line.push(char(c))

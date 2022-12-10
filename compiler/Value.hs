@@ -93,6 +93,7 @@ mkZero typ = trace ("mkZero " ++ show  typ) $ do
         _ | isEnumADT base -> Val typ . valOp <$> mkZero I64
         _ | isInt base     -> mkInt typ 0
         _ | isFloat base   -> mkFloat typ 0.0
+        String             -> Val String <$> getStringPointer ""
         Bool               -> mkBool typ False
         Char               -> mkChar typ '\0'
         Array n t          -> Val typ . array . replicate n . toCons . valOp <$> mkZero t

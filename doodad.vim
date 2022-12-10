@@ -7,7 +7,7 @@ syn keyword doodadTop module import import_c
 syn keyword doodadType i8 i16 i32 i64 f32 f64 bool char string sparse
 syn keyword doodadConst true false
 syn match   doodadInt '\<\d\+\>'
-syn match   doodadChar '\'.*\''
+syn match   doodadChar '\'.\''
 syn match   doodadSpecial '{'
 syn match   doodadSpecial '\}'
 syn match   doodadSpecial "->"
