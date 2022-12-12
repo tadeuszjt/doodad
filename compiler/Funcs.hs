@@ -43,6 +43,20 @@ trap = do
     call op []
 
 
+
+trapMsg :: InsCmp CompileState m => String -> m ()
+trapMsg s = do
+    ptr <- getStringPointer s
+    void $ puts ptr
+    void $ trap
+
+
+puts :: InsCmp CompileState m => Operand -> m Operand
+puts arg = do
+    op <- ensureExtern "puts" [ptr i8] i32 False
+    call op [(arg, [])]
+
+
 printf :: InsCmp CompileState m => String -> [Operand] -> m Operand
 printf fmt args = do
     op <- ensureExtern "printf" [ptr i8] i32 True

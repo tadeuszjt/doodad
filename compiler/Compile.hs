@@ -165,7 +165,7 @@ cmpFuncBodies irGenState = do
             hasTerm <- hasTerminator
             if hasTerm then return ()
             else if retty == Void then retVoid
-            else trap >> unreachable
+            else trapMsg "reached end of function" >> unreachable
 
 
 cmpTypeDefs :: InsCmp CompileState m => IRGenState -> m ()
@@ -212,7 +212,8 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
         isDataType <- isDataType (valType val)
         assert (not isDataType) "Cannot use a data type for a variable"
         matched <- valLoad =<< cmpPattern pat val
-        if_ (valOp matched) (return ()) (void trap) 
+        let trap = trapMsg ("pattern match failure at: " ++ show (textPos expr))
+        if_ (valOp matched) (return ()) trap
 
     AST.Set pos expr1 expr2 -> do
         label "set"
@@ -256,7 +257,8 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
         label "switch"
         val <- cmpExpr expr
         let cases' = [(fmap valOp (cmpPattern pat val), cmpStmt stmt) | (pat, stmt) <- cases]
-        switch_ $ cases' ++ [(return (bit 1), void trap)]
+        let trap   = trapMsg ("switch match failure at: " ++ show (textPos stmt))
+        switch_ $ cases' ++ [(return (bit 1), trap)]
 
     AST.For _ expr mpat blk -> do
         label "for"
@@ -352,6 +354,7 @@ cmpExpr (AST.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck e
                 Range t -> mkRangeStart val
                 Table ts -> return $ mkI64 0
                 String -> return $ mkI64 0
+                I64 -> return $ mkI64 0
 
                 _ -> error (show base)
             Just argStart -> do
@@ -368,6 +371,7 @@ cmpExpr (AST.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck e
                 Array n t -> return $ mkI64 n
                 Range t   -> mkRangeEnd val
                 String    -> mkStringLen I64 val
+                I64       -> fail "what"
                 _ -> error (show base)
 
             Just argEnd -> do

@@ -20,6 +20,21 @@ fn {s String} Read(start i64, c char) (char, i64)
         return (c, 1)
     return ('\0', 0)
 
+fn {s String} ReadString(word string, start i64) (string, i64)
+    let loop = true
+    for s[start..] -> i | loop
+        if (i + word.len()) > len(s)
+            return ("", 0)
+
+        let match = true
+        for word[..] -> j | match
+            if word[j] != s[i+j]
+                match = false
+
+        if match; return (word, (i - start) + len(word))
+        loop = isSpace(s[i])
+
+    return ("", 0)
 
 
 fn {s String} ReadChar(start i64) (char, i64)
