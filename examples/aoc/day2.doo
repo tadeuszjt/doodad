@@ -1,0 +1,48 @@
+module day2
+
+import ../../std/io
+import ../../std/strings
+
+fn main()
+    print("Advent of Code Day 2")
+    print("please input strategy guide...")
+
+    data io Io
+    data lines [3 (char, char)]
+
+    for lines[..] -> i
+        data line String
+        {io, line}.GetStrLn()
+        let (c1 | ['A'..'C'+1][c1], n1 | n1 > 0) = line.ReadChar(0)
+        let (c2 | ['X'..'Z'+1][c2], n2 | n2 > 0) = line.ReadChar(n1)
+        lines[i] = (c1, c2)
+
+    for lines[..] -> i
+        let s = ""
+        switch lines[i]
+            ('A', 'X'); s = "draw"
+            ('A', 'Y'); s = "2 wins"
+            ('A', 'Z'); s = "1 wins"
+            ('B', 'X'); s = "1 wins"
+            ('B', 'Y'); s = "draw"
+            ('B', 'Z'); s = "2 wins"
+            ('C', 'X'); s = "2 wins"
+            ('C', 'Y'); s = "1 wins"
+            ('C', 'Z'); s = "draw"
+
+        let winScore = 0
+        switch s
+            "1 wins"; winScore = 0
+            "draw";   winScore = 3
+            "2 wins"; winScore = 6
+
+        let shapeScore = 0
+        switch lines[i].1
+            'X'; shapeScore = 1
+            'Y'; shapeScore = 2
+            'Z'; shapeScore = 3
+
+        print(s, winScore + shapeScore)
+
+
+

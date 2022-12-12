@@ -31,17 +31,19 @@ fn {board Board, list [Move]} GetValidMoves(team Square)
 
     data moves [Move]
     for positions -> pos
-        data potentialMovesEmpty [2 Pos]
-        potentialMovesEmpty[0] = Pos(pos.row + rowAdvance, pos.col + 1)
-        potentialMovesEmpty[1] = Pos(pos.row + rowAdvance, pos.col - 1)
+        data potentialMovesEmpty [2 Pos] {
+            Pos(pos.row + rowAdvance, pos.col + 1),
+            Pos(pos.row + rowAdvance, pos.col - 1)
+        }
 
         for potentialMovesEmpty -> pm
             if board.Contains(pm) && board[pm.row][pm.col] == Empty()
                 moves.push((pos, pm))
 
-        data potentialMovesTake [2 Pos]
-        potentialMovesTake[0] = Pos(pos.row + rowAdvance*2, pos.col + 2)
-        potentialMovesTake[1] = Pos(pos.row + rowAdvance*2, pos.col - 2)
+        data potentialMovesTake [2 Pos] {
+            Pos(pos.row + rowAdvance*2, pos.col + 2),
+            Pos(pos.row + rowAdvance*2, pos.col - 2)
+        }
 
         for potentialMovesTake -> pm
             if board.Contains(pm) && board[pm.row][pm.col] == Empty()
@@ -104,7 +106,7 @@ fn {board Board} Initialise()
 fn {io Io} playerMove() Move
     print("Enter move. Eg: E2 E4")
     data line String
-    {line, io}.GetStrLn()
+    {io, line}.GetStrLn()
 
     let (startColChar, n1) = line.ReadChar(0)
     let (startRow, n2)     = line.ReadI64(n1)

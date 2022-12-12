@@ -68,32 +68,32 @@ data Pattern
     deriving (Eq)
 
 data Expr
-    = AExpr      Type  Expr
-    | Int        TextPos Integer
-    | Float      TextPos Double
-    | Bool       TextPos Bool
-    | Char       TextPos Char
-    | String     TextPos String
-    | Tuple      TextPos [Expr]
-    | Array      TextPos [Expr]
-    | Call       TextPos [Expr] Symbol [Expr]
-    | Null       TextPos 
-    | Field      TextPos Expr String
-    | Subscript  TextPos Expr Expr
-    | TupleIndex TextPos Expr Word32
-    | Ident      TextPos Symbol
-    | Conv       TextPos Type [Expr]
-    | Len        TextPos Expr
-    | Push       TextPos Expr [Expr]
-    | Pop        TextPos Expr [Expr]
-    | Clear      TextPos Expr 
-    | Prefix     TextPos Operator Expr
-    | Infix      TextPos Operator Expr Expr
-    | UnsafePtr  TextPos Expr
-    | ADT        TextPos Expr
-    | Match      TextPos Expr Pattern
-    | Delete     TextPos Expr Expr
-    | Range      TextPos (Maybe Expr) (Maybe Expr) (Maybe Expr)
+    = AExpr       Type  Expr
+    | Int         TextPos Integer
+    | Float       TextPos Double
+    | Bool        TextPos Bool
+    | Char        TextPos Char
+    | String      TextPos String
+    | Tuple       TextPos [Expr]
+    | Initialiser TextPos [Expr]
+    | Call        TextPos [Expr] Symbol [Expr]
+    | Null        TextPos 
+    | Field       TextPos Expr String
+    | Subscript   TextPos Expr Expr
+    | TupleIndex  TextPos Expr Word32
+    | Ident       TextPos Symbol
+    | Conv        TextPos Type [Expr]
+    | Len         TextPos Expr
+    | Push        TextPos Expr [Expr]
+    | Pop         TextPos Expr [Expr]
+    | Clear       TextPos Expr 
+    | Prefix      TextPos Operator Expr
+    | Infix       TextPos Operator Expr Expr
+    | UnsafePtr   TextPos Expr
+    | ADT         TextPos Expr
+    | Match       TextPos Expr Pattern
+    | Delete      TextPos Expr Expr
+    | Range       TextPos (Maybe Expr) (Maybe Expr) (Maybe Expr)
     deriving (Eq)
 
 
@@ -110,7 +110,7 @@ data Stmt
     | Typedef     TextPos Symbol AnnoType
     | Switch      TextPos Expr [(Pattern, Stmt)]
     | For         TextPos Expr (Maybe Pattern) Stmt
-    | Data        TextPos Symbol Type
+    | Data        TextPos Symbol Type (Maybe Expr)
     deriving (Eq, Show)
 
 
@@ -144,32 +144,32 @@ instance TextPosition Pattern where
 
 instance TextPosition Expr where
     textPos expr = case expr of
-        AExpr      t e -> textPos e
-        Int        p _ -> p
-        Float      p _ -> p
-        Bool       p _ -> p
-        Char       p _ -> p
-        Null       p -> p
-        String     p _ -> p
-        Tuple      p _ -> p
-        Array      p _ -> p
-        Field     p _ _ -> p
-        Subscript  p _ _ -> p
-        TupleIndex p _ _ -> p
-        Ident      p _ -> p
-        Call       p _ _ _ -> p 
-        Conv       p _ _ -> p
-        Len        p _ -> p
-        Prefix     p _ _ -> p
-        Infix      p _ _ _ -> p
-        UnsafePtr  p _ -> p
-        ADT        p _ -> p
-        Push       p _ _ -> p
-        Pop        p _ _ -> p
-        Clear      p _ -> p
-        Delete     p _ _ -> p
-        Match      p _ _ -> p
-        Range      p _ _ _ -> p
+        AExpr        t e -> textPos e
+        Int          p _ -> p
+        Float        p _ -> p
+        Bool         p _ -> p
+        Char         p _ -> p
+        Null         p -> p
+        String       p _ -> p
+        Tuple        p _ -> p
+        Initialiser  p _ -> p
+        Field        p _ _ -> p
+        Subscript    p _ _ -> p
+        TupleIndex   p _ _ -> p
+        Ident        p _ -> p
+        Call         p _ _ _ -> p 
+        Conv         p _ _ -> p
+        Len          p _ -> p
+        Prefix       p _ _ -> p
+        Infix        p _ _ _ -> p
+        UnsafePtr    p _ -> p
+        ADT          p _ -> p
+        Push         p _ _ -> p
+        Pop          p _ _ -> p
+        Clear        p _ -> p
+        Delete       p _ _ -> p
+        Match        p _ _ -> p
+        Range        p _ _ _ -> p
 
 
 instance TextPosition Stmt where
@@ -186,7 +186,7 @@ instance TextPosition Stmt where
         Typedef     p _ _ -> p
         Switch      p _ _ -> p
         For         p _ _ _ -> p
-        Data        p _ _ -> p
+        Data        p _ _ _ -> p
 
 tupStrs, arrStrs, brcStrs :: [String] -> String
 tupStrs strs = "(" ++ intercalate ", " strs ++ ")"
@@ -256,8 +256,8 @@ instance Show Expr where
         Null p                      -> "null"
         String pos s                -> show s
         Tuple pos exprs             -> tupStrs (map show exprs)
-        Array pos exprs            -> arrStrs (map show exprs)
-        Field pos expr str         -> show expr ++ "." ++ str
+        Initialiser pos exprs       -> arrStrs (map show exprs)
+        Field pos expr str          -> show expr ++ "." ++ str
         Subscript pos expr1 expr2   -> show expr1 ++ "[" ++ show expr2 ++ "]"
         TupleIndex pos expr n       -> show expr ++ "." ++ show n
         Ident p s                   -> show s 
@@ -338,8 +338,8 @@ prettyAST ast = do
                 putStrLn $ pre ++ "for " ++ exprStr ++ cndStr
                 prettyStmt (pre ++ "\t") blk
 
-            Data pos symbol typ -> do
-                putStrLn $ pre ++ "data " ++ show symbol ++ " " ++ show typ
+            Data pos symbol typ mexpr -> do
+                putStrLn $ pre ++ "data " ++ show symbol ++ " " ++ show typ ++ maybe "" ((" " ++) . show) mexpr
 
             _  -> error $ "invalid stmt: " ++ show stmt
 

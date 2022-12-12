@@ -1,0 +1,36 @@
+module day3
+
+fn main()
+    print("Advent of Code Day 3")
+
+    data rucksacks [6 string] {
+        "vJrwpWtwJgWrhcsFMMfFFhFp",
+        "jqHRNqRjqzjGDLGLrsFMfFZSrLrFZsSL",
+        "PmmdzqPrVvPwwTWBwg",
+        "wMqvLMZHhHMvwLHjbvcjnnSBnvTQFn",
+        "ttgJtRGJQctTZtZT",
+        "CrZsJsPPZsGzwwsLwLmpwMDw"
+    }
+
+    for rucksacks -> rucksack
+        data left [char]
+        data right [char]
+        data common [char]
+
+        for rucksack[..] -> j
+            if j < (rucksack.len() / 2)
+                left.push(rucksack[j])
+            else
+                right.push(rucksack[j])
+
+        for left -> lc
+            for right -> rc
+                if lc == rc
+                    let inSet = false
+                    for common -> cc | !inSet
+                        if cc == rc; inSet = true
+                    if !inSet; common.push(lc)
+
+        print(left, right, common)
+
+

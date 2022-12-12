@@ -1,0 +1,36 @@
+module day1 
+
+import ../../std/io
+import ../../std/strings
+
+
+fn main()
+    print("Advent of Code Day 1")
+
+    data io Io
+    data line String
+    data stack [i64]
+    data rucksacks [i64]
+
+    while true
+        line.clear()
+        let eof   = !{io, line}.GetStrLn()
+        let quit  = line.CompareEqual("q")
+        let empty = line.CompareEqual("")
+
+        if eof || quit
+            print(rucksacks)
+            return
+
+        if !empty
+            let (n, i) = line.ReadI64(0)
+            if (n == 0); print("parse error")
+            stack.push(n)
+        else
+            let x = 0
+            while stack.len() > 0
+                x = x + stack.pop()
+            rucksacks.push(x)
+                
+
+

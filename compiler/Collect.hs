@@ -250,8 +250,10 @@ collectStmt stmt = collectPos stmt $ case stmt of
         collectExpr expr
         collectStmt blk
 
-    S.Data p symbol typ -> do
+    S.Data p symbol typ mexpr -> do
         define symbol KeyVar (ObjVar typ)
+        maybe (return ()) (collectEq typ . typeOf) mexpr
+        maybe (return ()) collectExpr mexpr
         
     _ -> error (show stmt)
 
@@ -420,12 +422,11 @@ collectExpr (S.AExpr exprType expr) = collectPos expr $ case expr of
         collectExpr e2
         collectDefault (typeOf e2) I64
 
-    S.Array _ [] -> return ()
-    S.Array _ es -> do
+    S.Initialiser _ [] -> return ()
+    S.Initialiser _ es -> do
         forM_ es        $ \e -> collectElem (typeOf e) exprType
         forM_ (tail es) $ \e -> collectEq (typeOf e) (typeOf $ head es)
         collectDefault exprType $ Array (length es) (typeOf $ head es)
-        collectBase exprType $ Array (length es) (typeOf $ head es)
         mapM_ collectExpr es
 
     S.Tuple _ es -> do

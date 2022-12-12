@@ -79,7 +79,7 @@ instance Annotate Stmt where
             mcnd' <- maybe (return Nothing) (fmap Just . annotate) mcnd
             return $ For p expr' mcnd' blk'
 
-        Data p symbol typ -> do return $ Data p symbol typ
+        Data p symbol typ mexpr -> Data p symbol typ <$> maybe (return Nothing) (fmap Just . annotate) mexpr
 
 
 
@@ -123,7 +123,7 @@ instance Annotate Expr where
         Len p e -> Len p <$> annotate e
         Tuple p es -> Tuple p <$> mapM annotate es
         Prefix p op e -> Prefix p op <$> annotate e
-        Array p es -> Array p <$> mapM annotate es
+        Initialiser p es -> Initialiser p <$> mapM annotate es
         UnsafePtr p e -> UnsafePtr p <$> annotate e
 
         Call pos ps ident es -> do

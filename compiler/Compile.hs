@@ -202,9 +202,12 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
     AST.Block stmts       -> mapM_ cmpStmt stmts
     AST.ExprStmt expr     -> void $ cmpExpr expr
 
-    AST.Data pos symbol typ -> do
+    AST.Data pos symbol typ mexpr -> do
         loc <- mkAlloca typ
-        valStore loc =<< mkZero (valType loc)
+        init <- case mexpr of
+            Nothing -> mkZero typ
+            Just expr -> cmpExpr expr
+        valStore loc init
         define symbol KeyVar (ObjVal loc)
 
     AST.Assign pos pat expr -> withErrorPrefix "assign: " $ do
@@ -544,7 +547,7 @@ cmpExpr (AST.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck e
                 assertBaseType (== Bool) exprType
                 Val exprType <$> LL.and (valOp idxLtEnd) (valOp idxGtEqStart)
                 
-    AST.Array pos exprs -> do
+    AST.Initialiser pos exprs -> do
         base <- baseTypeOf exprType
         case base of
             Array n t -> do

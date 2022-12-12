@@ -220,24 +220,25 @@ compileStmt stmt = withPos stmt $ case stmt of
         blk' <- compileStmt blk
         return $ For pos expr' mpat' blk'
 
-    AST.Data pos symbol typ -> do
-        return $ Data pos symbol typ
+    AST.Data pos symbol typ mexpr -> do
+        mexpr' <- maybe (return Nothing) (fmap Just . compileExpr) mexpr
+        return $ Data pos symbol typ mexpr'
 
 
 
 compileExpr :: BoM IRGenState m => AST.Expr -> m Expr
 compileExpr (AST.AExpr exprType expr) = withPos expr $ AExpr exprType <$> case expr of
-    AST.Ident pos symbol   -> return $ Ident pos symbol
-    AST.Prefix pos op expr -> Prefix pos op <$> compileExpr expr
-    AST.Char pos c         -> return $ AST.Char pos c
-    AST.Len pos expr       -> Len pos <$> compileExpr expr
-    AST.UnsafePtr pos expr -> AST.UnsafePtr pos <$> compileExpr expr
-    AST.Int pos n          -> return $ Int pos n
-    AST.Bool pos b         -> return $ AST.Bool pos b
-    AST.Float pos f        -> return $ Float pos f
-    AST.Tuple pos exprs    -> AST.Tuple pos <$> mapM compileExpr exprs
-    AST.Array pos exprs    -> AST.Array pos <$> mapM compileExpr exprs
-    AST.String pos s       -> return $ AST.String pos s
+    AST.Ident pos symbol      -> return $ Ident pos symbol
+    AST.Prefix pos op expr    -> Prefix pos op <$> compileExpr expr
+    AST.Char pos c            -> return $ AST.Char pos c
+    AST.Len pos expr          -> Len pos <$> compileExpr expr
+    AST.UnsafePtr pos expr    -> AST.UnsafePtr pos <$> compileExpr expr
+    AST.Int pos n             -> return $ Int pos n
+    AST.Bool pos b            -> return $ AST.Bool pos b
+    AST.Float pos f           -> return $ Float pos f
+    AST.Tuple pos exprs       -> AST.Tuple pos <$> mapM compileExpr exprs
+    AST.Initialiser pos exprs -> AST.Initialiser pos <$> mapM compileExpr exprs
+    AST.String pos s          -> return $ AST.String pos s
 
     AST.Push pos expr exprs -> do
         expr' <- compileExpr expr

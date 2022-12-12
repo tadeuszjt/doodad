@@ -149,13 +149,21 @@ symbol : ident                                { (tokPos $1, Sym (tokStr $1)) }
 mfnrec : {-empty-}                            { [] }
        | '{' params1 '}'                      { $2 }
 
+
+initialiser : '{' exprs1 '}'                  { S.Initialiser (tokPos $1) $2 }
+            | '{' '}'                         { S.Initialiser (tokPos $1) [] }
+            | '{' 'I' exprsN 'D' '}'          { S.Initialiser (tokPos $1) $3 }
+
+minitialiser : initialiser                    { Just $1 }
+             | {-empty-}                      { Nothing }
+
 stmtS : let pattern '=' expr                         { S.Assign (tokPos $1) $2 $4 }  
       | index '=' expr                               { S.Set (tokPos $2) $1 $3 }
       | index                                        { S.ExprStmt $1 }
       | type symbol annoType                         { S.Typedef (fst $2) (snd $2) $3 }
       | print '(' exprs ')'                          { S.Print (tokPos $1) $3 }
       | return mexpr                                 { S.Return (tokPos $1) $2 }
-      | data symbol type_                            { S.Data (tokPos $1) (snd $2) $3 }
+      | data symbol type_ minitialiser               { S.Data (tokPos $1) (snd $2) $3 $4 }
 stmtB : If                                           { $1 }
       | fn mfnrec ident '(' params ')' type_ block  { S.FuncDef (tokPos $1) $2 (Sym $ tokStr $3) $5 $7 $8 }
       | fn mfnrec ident '(' params ')' block        { S.FuncDef (tokPos $1) $2 (Sym $ tokStr $3) $5 T.Void $7 }
@@ -237,9 +245,6 @@ expr   : literal                              { $1 }
        | prefix                               { $1 }
        | call                                 { (fst $1) }
        | symbol                               { S.Ident (fst $1) (snd $1) }
-       | '[' exprs1 ']'                       { S.Array (tokPos $1) $2 }
-       | '[' ']'                              { S.Array (tokPos $1) [] }
-       | '[' 'I' exprsN 'D' ']'               { S.Array (tokPos $1) $3 }
        | '(' expr ')'                         { $2 }
        | '(' expr ',' exprs1 ')'              { S.Tuple (tokPos $1) ($2:$4) }
        | unsafe_ptr '(' expr ')'              { S.UnsafePtr (tokPos $1) $3 }

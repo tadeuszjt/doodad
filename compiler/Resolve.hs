@@ -276,11 +276,12 @@ instance Resolve Stmt where
             popSymTab
             return $ For pos expr' mpattern' blk'
 
-        Data pos (Sym sym) typ -> do
+        Data pos (Sym sym) typ mexpr -> do
             symbol <- genSymbol sym
             defineVar sym symbol
             typ' <- resolve typ
-            return $ Data pos symbol typ'
+            mexpr' <- maybe (return Nothing) (fmap Just . resolve) mexpr
+            return $ Data pos symbol typ' mexpr'
 
 --        _ -> return stmt
         _ -> fail $ show stmt
@@ -364,7 +365,7 @@ instance Resolve Expr where
         AST.Bool pos b -> return expr
         Float pos f -> return expr
         AST.Tuple pos exprs -> AST.Tuple pos <$> mapM resolve exprs
-        AST.Array pos exprs -> AST.Array pos <$> mapM resolve exprs
+        AST.Initialiser pos exprs -> AST.Initialiser pos <$> mapM resolve exprs
         AST.String pos s -> return expr
         Push pos expr exprs -> do
             expr' <- resolve expr

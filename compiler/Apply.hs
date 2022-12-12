@@ -78,7 +78,7 @@ instance Apply S.Expr where
         S.String pos s        -> S.String pos s
         S.Field pos e s       -> S.Field pos (f e) s
         S.Float pos f         -> S.Float pos f
-        S.Array pos es        -> S.Array pos (map f es)
+        S.Initialiser pos es  -> S.Initialiser pos (map f es)
         S.TupleIndex pos e i  -> S.TupleIndex pos (f e) i
         S.UnsafePtr p e       -> S.UnsafePtr p (f e)
         S.ADT p e             -> S.ADT p (f e)
@@ -115,14 +115,14 @@ instance Apply S.Pattern where
 
 instance Apply S.Stmt where
     apply subs stmt = case stmt of
-        S.Block stmts         -> S.Block $ map f stmts
-        S.Return pos mexpr    -> S.Return pos $ fmap f mexpr
-        S.Assign pos pat expr -> S.Assign pos (f pat) (f expr)
-        S.Set pos index e     -> S.Set pos (f index) (f e)
-        S.While pos cnd blk   -> S.While pos (f cnd) (f blk)
-        S.ExprStmt e          -> S.ExprStmt (f e)
-        S.Print pos es        -> S.Print pos $ map f es
-        S.Data pos symbol typ -> S.Data pos symbol (f typ)
+        S.Block stmts               -> S.Block $ map f stmts
+        S.Return pos mexpr          -> S.Return pos $ fmap f mexpr
+        S.Assign pos pat expr       -> S.Assign pos (f pat) (f expr)
+        S.Set pos index e           -> S.Set pos (f index) (f e)
+        S.While pos cnd blk         -> S.While pos (f cnd) (f blk)
+        S.ExprStmt e                -> S.ExprStmt (f e)
+        S.Print pos es              -> S.Print pos $ map f es
+        S.Data pos symbol typ mexpr -> S.Data pos symbol (f typ) (fmap f mexpr)
 
         S.FuncDef pos mparam sym params retty block ->
             S.FuncDef pos (fmap f mparam) sym (map f params) (f retty) (f block)
