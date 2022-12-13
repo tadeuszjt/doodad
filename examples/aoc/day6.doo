@@ -1,0 +1,37 @@
+module day6
+
+fn main()
+    print("Advent of Code Day 6")
+
+    data streams [4 string] {
+        "bvwbjplbgvbhsrlpgdmjqwftvncz",
+        "nppdvjthqldpwncqszvftbrmjlhg",
+        "nznrnfrfntjfmvfwmzdfjlvtqnbhcprsg",
+        "zcfzfwzzqfrljwzlrfnpqdbhtmscgvjw"
+    }
+
+
+    for streams -> stream
+        let x = 0
+        let found = false
+
+        for stream[..len(stream)-4] -> i | !found
+            data fourChars [4 char] {
+                stream[i + 0],
+                stream[i + 1],
+                stream[i + 2],
+                stream[i + 3]
+            }
+
+            let different = true
+            for fourChars[..] -> j
+                for fourChars[..] -> k
+                    if j != k
+                        if fourChars[j] == fourChars[k]
+                            different = false
+
+            if different
+                found = true
+                x = i + 4
+
+        print(stream, x)

@@ -52,6 +52,13 @@ isDataType typ = do
         String            -> return False
         Tuple ts          -> any (== True) <$> mapM isDataType ts
         Range t           -> isDataType t
+        ADT xs            -> do
+            bs <- forM xs $ \x -> case x of
+                FieldNull -> return False
+                FieldType t -> isDataType t
+                FieldCtor ts -> any (== True) <$> mapM isDataType ts
+            return $ any (== True) bs
+
         _                 -> return True
 
 

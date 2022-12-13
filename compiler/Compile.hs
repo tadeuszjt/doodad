@@ -333,13 +333,26 @@ cmpExpr :: InsCmp CompileState m =>  AST.Expr -> m Value
 cmpExpr (AST.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck exprType $ case expr of
     AST.Bool pos b               -> mkBool exprType b
     AST.Char pos c               -> mkChar exprType c
-    AST.Conv pos typ [expr]      -> mkConvert typ =<< cmpExpr expr
     AST.Tuple pos [expr]         -> cmpExpr expr
     AST.Float p f                -> mkFloat exprType f
     AST.Prefix pos operator expr -> mkPrefix operator =<< cmpExpr expr
     AST.Field pos expr sym       -> valTupleField sym =<< cmpExpr expr
     AST.Null p                   -> adtNull exprType
     AST.Match pos expr pat       -> cmpPattern pat =<< cmpExpr expr
+
+    AST.Conv pos typ [expr]      -> do
+        val <- mkConvert typ =<< cmpExpr expr
+        base <- baseTypeOf exprType
+        case base of
+            _ | exprType == valType val -> return val -- char(3):char
+            ADT xs | FieldType typ `elem` xs -> do    -- char(3):{char | null}
+                loc <- mkMalloc typ (mkI64 1)
+                storeCopy loc val
+                adtConstructFromPtr exprType loc
+                
+
+            _ -> error (show base)
+
 
     AST.Range pos Nothing _ Nothing -> fail "Range expression must contain maximum"
     AST.Range pos Nothing mexpr1 (Just expr2) -> do
@@ -351,39 +364,22 @@ cmpExpr (AST.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck e
         base <- baseTypeOf (valType val)
 
         -- default 0 because all types index 0
+        startVal <- case base of
+            Range t -> mkRangeStart val
+            _       -> return $ mkI64 0
         start <- case margStart of
-            Nothing -> case base of
-                Array n t -> return $ mkI64 0
-                Range t -> mkRangeStart val
-                Table ts -> return $ mkI64 0
-                String -> return $ mkI64 0
-                I64 -> return $ mkI64 0
+            Nothing  -> return $ startVal
+            Just arg -> mkMax startVal =<< cmpExpr arg
 
-                _ -> error (show base)
-            Just argStart -> do
-                arg <- cmpExpr argStart
-                case base of
-                    Table ts -> mkMax arg =<< mkInt (valType arg) 0
-                    Array n t -> mkMax arg =<< mkInt (valType arg) 0
-                    Range t  -> mkMax arg =<< mkRangeStart val
-                    _ -> error (show base)
-
+        endVal <- case base of
+            Range t   -> mkRangeEnd val
+            Array n t -> return $ mkI64 n
+            String    -> mkStringLen I64 val
+            Table ts  -> mkTableLen val
         end <- case margEnd of
-            Nothing -> case base of
-                Table ts  -> mkTableLen val
-                Array n t -> return $ mkI64 n
-                Range t   -> mkRangeEnd val
-                String    -> mkStringLen I64 val
-                I64       -> fail "what"
-                _ -> error (show base)
-
-            Just argEnd -> do
-                arg <- cmpExpr argEnd
-                case base of
-                    Range t -> mkMin arg =<< mkRangeEnd val
-                    Array n t -> mkMin arg =<< mkInt (valType arg) n
-                    _ -> error (show base)
-
+            Nothing  -> return endVal
+            Just arg -> mkMin endVal =<< cmpExpr arg
+            
         mkRange start end
 
     AST.Push pos expr [] -> do
@@ -558,8 +554,8 @@ cmpExpr (AST.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck e
                     ptr <- ptrArrayGetElemConst arr i
                     valStore ptr val
                 return arr
-                
-            _ -> fail $ "invalid array base type: " ++ show base
+
+            _ -> fail $ "invalid initialiser base type: " ++ show base
 
     AST.UnsafePtr pos expr -> do
         val <- cmpExpr expr
@@ -592,31 +588,31 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
     AST.PatIgnore _     -> mkBool Bool True
     AST.PatLiteral expr -> mkInfix AST.EqEq val =<< cmpExpr expr
 
-    AST.PatNull _ -> do
+    AST.PatNull _ -> do -- null
         base@(ADT fs) <- assertBaseType isADT (valType val)
         let is = elemIndices FieldNull fs
         assert (length is == 1) "ADT type does not have unique null field"
         let [i] = is
         mkIntInfix AST.EqEq (mkI64 i) =<< adtEnum val
 
-    AST.PatAnnotated pat typ -> do
+    AST.PatAnnotated pat typ -> do -- a:i32
         assert (valType val == typ) "pattern type mismatch"
         cmpPattern pat val
 
-    AST.PatGuarded _ pat expr -> do
+    AST.PatGuarded _ pat expr -> do -- a | a > 0
         match <- cmpPattern pat =<< valLoad val
         guard <- cmpExpr expr
         assertBaseType (== Bool) (valType guard)
         mkInfix AST.AndAnd match guard
 
-    AST.PatIdent _ symbol -> trace ("cmpPattern " ++ show pattern) $ do
+    AST.PatIdent _ symbol -> trace ("cmpPattern " ++ show pattern) $ do -- a
         base <- baseTypeOf (valType val)
         loc <- mkAlloca (valType val)
         valStore loc val
         define symbol KeyVar (ObjVal loc)
         mkBool Bool True
 
-    AST.PatTuple _ pats -> do
+    AST.PatTuple _ pats -> do -- (a, b)
         len <- tupleLength val
         assert (len == length pats) "incorrect tuple length"
 
@@ -626,7 +622,7 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
         true <- mkBool Bool True
         foldM (mkInfix AST.AndAnd) true bs
 
-    AST.PatArray _ pats -> do
+    AST.PatArray _ pats -> do -- [a, b, c]
         base <- baseTypeOf (valType val)
         case base of
             Table ts -> do
@@ -651,7 +647,7 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
             
             _ -> fail "Invalid array pattern"
 
-    AST.PatField _ symbol pats -> do
+    AST.PatField _ symbol pats -> do -- symbol(a, b, c)
         base@(ADT fs) <- assertBaseType isADT (valType val)
         obj <- look symbol (KeyField $ valType val)
         case obj of
@@ -683,7 +679,7 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
                         valLoad =<< foldM (mkInfix AST.AndAnd) enumMatch bs
 
 
-    AST.PatTypeField _ typ pat -> do
+    AST.PatTypeField _ typ pat -> do -- char(c)
         base@(ADT fs) <- assertBaseType isADT (valType val)
         i <- case valType val of
             Typedef symbol -> do
@@ -696,6 +692,21 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
 
         case base of
             _ | isNormalADT base -> do
-                enumMatch <- mkIntInfix AST.EqEq (mkI64 i) =<< adtEnum val
-                b <- cmpPattern pat =<< adtDeref val i 0
-                valLoad =<< mkInfix AST.AndAnd enumMatch b
+                matched <- mkAlloca Bool
+                valStore matched =<< mkIntInfix AST.EqEq (mkI64 i) =<< adtEnum val
+                enumMatch <- valLoad matched
+
+                match <- freshName "adt_pat_match"
+                exit  <- freshName "adt_pat_exit"
+
+                condBr (valOp enumMatch) match exit
+                emitBlockStart match
+                valStore matched =<< cmpPattern pat =<< adtDeref val i 0
+                br exit
+
+                emitBlockStart exit
+                valLoad matched
+
+
+
+

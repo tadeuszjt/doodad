@@ -117,11 +117,11 @@ runMod args pathsVisited modPath = do
             files <- getSpecificModuleFiles modName =<< getDoodadFilesInDirectory modDirectory
             assert (not $ null files) ("no files for: " ++ path)
             forM_ files $ debug . ("using file: " ++) 
-            combinedAST <- combineASTs =<< mapM parse files
-            when (printAst args) $ liftIO $ S.prettyAST combinedAST
+            asts <- mapM parse files
+            --when (printAst args) $ liftIO $ S.prettyAST combinedAST
 
 
-            importPaths <- forM [fp | S.Import fp <- S.astImports combinedAST] $ \importPath ->
+            importPaths <- forM [fp | S.Import fp <- concat $ map S.astImports asts] $ \importPath ->
                 liftIO $ canonicalizePath $ joinPath [modDirectory, importPath]
             let importModNames = map takeFileName importPaths
             assert (length importModNames == length (Set.fromList importModNames)) $
@@ -130,8 +130,8 @@ runMod args pathsVisited modPath = do
             mapM_ (runMod args (Set.insert path pathsVisited)) importPaths
 
             debug "loading c imports"
-            let cFilePaths =  [ fp | S.ImportC fp <- S.astImports combinedAST]
-            let cMacroStmts = [ Interop.importToCStmt imp  | imp@(S.ImportCMacro _ _) <- S.astImports combinedAST ]
+            let cFilePaths =  [ fp | S.ImportC fp <- concat $ map S.astImports asts]
+            let cMacroStmts = [ Interop.importToCStmt imp  | imp@(S.ImportCMacro _ _) <- concat $ map S.astImports asts ]
             cTranslUnitEither <- liftIO $ withTempFile "." "cimports.h" $ \filePath handle -> do
                 hClose handle
                 writeFile filePath $ concat $
@@ -152,7 +152,7 @@ runMod args pathsVisited modPath = do
                 resm <- Map.lookup path <$> gets irGenModMap
                 assert (isJust resm) $ show path ++ " not in irGenModMap"
                 return $ fromJust resm
-            (resolvedAST, _) <- R.resolveAst combinedAST (cIrGenState : irGenImports)
+            (resolvedAST, _) <- R.resolveAsts asts (cIrGenState : irGenImports)
             Flatten.checkTypeDefs (typeDefs resolvedAST)
             when (printAstResolved args) $ liftIO $ prettyResolvedAst resolvedAST
 

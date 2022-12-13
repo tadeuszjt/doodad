@@ -64,16 +64,3 @@ checkTypeDefs typedefs = do
             T.Void            -> return ()
             t | T.isSimple t  -> return ()
             _                 -> fail ("checkTypeCircles " ++ show typ)
-
-
-combineASTs :: BoM s m => [S.AST] -> m S.AST
-combineASTs asts = do
-    let modNames = Set.toList $ Set.fromList $ map S.astModuleName asts
-    assert (length modNames == 1) ("differing module names in asts: " ++ show modNames)
-
-    return S.AST {
-        S.astModuleName = head modNames,
-        S.astImports    = Set.toList $ Set.fromList $ concat (map S.astImports asts),
-        S.astStmts      = concat (map S.astStmts asts)
-        }
-        

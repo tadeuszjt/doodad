@@ -138,15 +138,17 @@ buildFuncImportMap imports = do
             modify $ Map.insert symbol key
 
 
-resolveAst :: BoM s m => AST -> [IRGenState] -> m (ResolvedAst, ResolveState)
-resolveAst ast imports = withErrorPrefix "resolve: " $ do
-    runBoMTExcept (initResolveState imports (astModuleName ast) Map.empty) f
+resolveAsts :: BoM s m => [AST] -> [IRGenState] -> m (ResolvedAst, ResolveState)
+resolveAsts asts imports = withErrorPrefix "resolve: " $ do
+    runBoMTExcept (initResolveState imports (astModuleName $ head asts) Map.empty) f
     where
         f :: BoM ResolveState m => m ResolvedAst
         f = do
-            let (typedefs, stmts'') = partition isTypedef (astStmts ast)
-            let (funcdefs, stmts) = partition isFuncdef stmts''
-            assert (stmts == []) "only type defs and func defs allowed"
+            let moduleName = astModuleName $ head asts
+            assert (all (== moduleName) $ map astModuleName asts) "module name mismatch"
+            let typedefs = [ stmt | stmt@(AST.Typedef _ _ _) <- concat $ map astStmts asts ]
+            let funcdefs = [ stmt | stmt@(AST.FuncDef _ _ _ _ _ _) <- concat $ map astStmts asts ]
+            assert ((length typedefs + length funcdefs) == length (concat $ map astStmts asts)) "only typedefs and funcdefs allowed"
 
             forM_ funcdefs $ \(FuncDef pos mparam symbol params retty blk) -> do
                 resm <- lookm (Sym $ sym symbol) KeyFunc
@@ -157,20 +159,12 @@ resolveAst ast imports = withErrorPrefix "resolve: " $ do
             typeDefs <- mapM resolve typedefs
             funcDefs <- mapM resolve funcdefs
             return $ ResolvedAst
-                { moduleName = astModuleName ast
+                { moduleName = moduleName
                 , typeImports = typeImportMap
                 , funcImports = funcImportMap
                 , typeDefs   = typeDefs
                 , funcDefs   = funcDefs
                 }
-
-        isTypedef :: Stmt -> Bool
-        isTypedef (AST.Typedef _ _ _) = True
-        isTypedef _                   = False
-
-        isFuncdef :: Stmt -> Bool
-        isFuncdef (FuncDef _ _ _ _ _ _) = True
-        isFuncdef _                     = False
 
 
 instance Resolve Stmt where

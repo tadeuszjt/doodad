@@ -74,6 +74,7 @@ valPrint append val = case valType val of
             valPrint ", " =<< ptrArrayGetElemConst val i
         valPrint ("]" ++ append) =<< ptrArrayGetElemConst val (n-1)
 
+
     _ -> error ("print: " ++ show (valType val))
 
     where

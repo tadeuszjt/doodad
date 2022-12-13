@@ -354,11 +354,13 @@ collectCall exprType ps symbol es = do -- can be resolved or sym
 collectExpr :: BoM CollectState m => S.Expr -> m ()
 collectExpr (S.AExpr exprType expr) = collectPos expr $ case expr of
     S.Call _ ps s es -> collectCall exprType ps s es
-    S.Conv _ t [e]   -> collectEq exprType t >> collectExpr e
     S.Prefix _ op e  -> collectEq exprType (typeOf e) >> collectExpr e
     S.Int _ c        -> collectDefault exprType I64
     S.Len _ e        -> collectDefault exprType I64 >> collectExpr e
     S.Float _ f      -> collectDefault exprType F64
+
+    S.Conv _ t [e]   -> do
+        collectExpr e
 
     S.Push _ e es        -> do
         collectDefault exprType I64
