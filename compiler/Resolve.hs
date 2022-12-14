@@ -156,15 +156,47 @@ resolveAsts asts imports = withErrorPrefix "resolve: " $ do
 
             (_, typeImportMap) <- runBoMTExcept Map.empty (buildTypeImportMap imports)
             (_, funcImportMap) <- runBoMTExcept Map.empty (buildFuncImportMap imports)
-            typeDefs <- mapM resolve typedefs
+            typeDefsMap <- Map.fromList <$> mapM resolveTypeDef typedefs
             funcDefs <- mapM resolve funcdefs
+
             return $ ResolvedAst
                 { moduleName = moduleName
                 , typeImports = typeImportMap
                 , funcImports = funcImportMap
-                , typeDefs   = typeDefs
                 , funcDefs   = funcDefs
+                , typeDefsMap = typeDefsMap
                 }
+
+resolveTypeDef :: BoM ResolveState m => AST.Stmt -> m (Symbol, AST.AnnoType)
+resolveTypeDef (AST.Typedef pos (Sym sym) anno) = do
+    symbol <- genSymbol sym
+    define sym KeyType symbol
+    define sym KeyFunc symbol
+    anno' <- case anno of
+        AnnoType t -> AnnoType <$> resolve t
+
+        AnnoTuple xs -> do 
+            xs' <- forM xs $ \(s, t) -> do
+                t' <- resolve t
+                return (s, t')
+            return $ AnnoTuple xs'
+
+        AnnoADT xs -> do
+            xs' <- forM xs $ \x -> case x of
+                ADTFieldMember (Sym s) ts -> do
+                    s' <- genSymbol s
+                    define s KeyFunc s'
+                    ts' <- mapM resolve ts
+                    return $ ADTFieldMember s' ts'
+                ADTFieldType t -> ADTFieldType <$> resolve t
+                ADTFieldNull -> return ADTFieldNull
+            return $ AnnoADT xs'
+
+        _ -> fail $ "invalid anno: " ++ show anno
+
+    return (symbol, anno')
+
+
 
 
 instance Resolve Stmt where

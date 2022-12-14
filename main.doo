@@ -7,44 +7,15 @@ import std/io
 import std/rand
 import std/assert
 import std/chars
+import std/regex
 
 import_c stdlib.h
 import_c stdio.h
 
 fn main()
-        data strings Strings
-
-        let va = Vec2(1.0, 3.0)
-        let vb = Vec2(9, 7)
-        print(vb, vb.length(), vb.normal().length(), vb.theta())
-        print(va + vb)
-
-        print()
-        print( (1, 2.3) * (4, 6.2) )
-        print( [1.0, 2.0, 3.0, 4.0, 5.0] * [3.2, 5.7, 3.7, -34.1, 43.0] )
-        print( [1.0, 2.0, 3.0, 4.0, 5.0] / [3.2, 5.7, 3.7, -34.1, 43.0] )
-        print()
-
-        print(chars::isAlpha('Z'), chars::isAlpha('{'))
-
-        let key1 = strings.push()
-        let key2 = strings.push()
-        strings[key1].Append("string1")
-        strings[key2].Append("string2")
-        strings[key1].PutStrLn()
-        strings[key2].PutStrLn()
-        strings.delete(key1)
-        strings[key1].PutStrLn()
-        strings[key2].PutStrLn()
-        let key3 = strings.push()
-        strings.Append(key3, key2)
-        strings.Append(key3, key2)
-        strings[key3].PutStrLn()
-        print(key1, key2, key3)
-
-        let x = 1
-        let y = 2
-        print(x == 1 && y == 2, x == y)
+        data regexStr String "ab.*B.A"
+        data textStr String "doodad ab benis BDA"
+        print({regexStr, textStr}.match())
 
 
 

@@ -53,9 +53,9 @@ compile :: BoM IRGenState m => ResolvedAst -> m ()
 compile ast = do
     modify $ \s -> s { irTypeDefs = typeImports ast }
     modify $ \s -> s { irExternDefs = funcImports ast }
-    initialiseTopTypeDefs (typeDefs ast)
+    initialiseTopTypeDefs (typeDefsMap ast)
     initialiseTopFuncDefs (funcDefs ast)
-    forM_ (typeDefs ast ++ funcDefs ast) $ \stmt -> compileStmt stmt
+    forM_ (funcDefs ast) $ \stmt -> compileStmt stmt
 
 
 initialiseTopFuncDefs :: BoM IRGenState m => [AST.Stmt] -> m ()
@@ -72,9 +72,9 @@ initialiseTopFuncDefs stmts = do
                 modify $ \s -> s { irFuncDefs = Map.insert symbol (FuncBody params args retty []) (irFuncDefs s) }
 
 
-initialiseTopTypeDefs :: BoM IRGenState m => [AST.Stmt] -> m ()
-initialiseTopTypeDefs stmts = do
-    forM_ stmts $ \(AST.Typedef _ symbol anno) -> do
+initialiseTopTypeDefs :: BoM IRGenState m => Map.Map Symbol AST.AnnoType -> m ()
+initialiseTopTypeDefs typeDefsMap = do
+    forM_ (Map.toList typeDefsMap) $ \(symbol, anno) -> do
         Nothing <- Map.lookup symbol <$> gets irTypeDefs
         Nothing <- Map.lookup (sym symbol) <$> gets irTypeMap
         modify $ \s -> s { irTypeDefs = Map.insert symbol anno (irTypeDefs s) }

@@ -5,14 +5,14 @@ import_c stdlib.h
 import_c_macro M_PI f64
 
 
-fn sqrt(f f64); return c::sqrt(f)
-fn sin(f f64); return c::sin(f)
-fn cos(f f64); return c::cos(f)
-fn tan(f f64); return c::tan(f)
-fn atan2(y f64, x f64); return c::atan2(y, x)
+fn sqrt(f f64) f64; return c::sqrt(f)
+fn sin(f f64) f64; return c::sin(f)
+fn cos(f f64) f64; return c::cos(f)
+fn tan(f f64) f64; return c::tan(f)
+fn atan2(y f64, x f64) f64; return c::atan2(y, x)
 
-fn abs(n i64); return i64(c::abs(i32(n)))
-fn abs(f f64); return f64(c::fabs(f))
+fn abs(n i64) i64; return i64(c::abs(i32(n)))
+fn abs(f f64) f64; return f64(c::fabs(f))
 
 fn max(a f64, b f64) f64; return c::fmax(a, b)
 fn max(a i64, b i64) i64

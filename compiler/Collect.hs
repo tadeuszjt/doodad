@@ -137,7 +137,7 @@ collectAST ast = do
     forM (Map.toList $ typeImports ast) $ \(symbol, anno) ->
         collectTypedef symbol anno
 
-    forM_ (typeDefs ast) $ \(S.Typedef pos symbol anno) -> collectPos pos $
+    forM_ (Map.toList $ typeDefsMap ast) $ \(symbol, anno) -> 
         collectTypedef symbol anno
 
     forM (Map.toList $ funcImports ast) $ \(symbol, key@(ps, _, as, rt)) -> 
@@ -391,7 +391,6 @@ collectExpr (S.AExpr exprType expr) = collectPos expr $ case expr of
         collectDefault exprType Bool
 
     S.String _ s     -> do
-        collectBase exprType String
         collectDefault exprType String
 
     S.UnsafePtr _ e -> do

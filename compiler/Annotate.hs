@@ -1,6 +1,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 module Annotate where
 
+import qualified Data.Map as Map
 import AST
 import Monad
 import Control.Monad.State
@@ -18,9 +19,10 @@ instance Annotate Param where
 
 instance Annotate ResolvedAst where
     annotate resolvedAst = do
-        typeDefs <- mapM annotate (typeDefs resolvedAst)
         funcDefs <- mapM annotate (funcDefs resolvedAst)
-        return $ resolvedAst { typeDefs = typeDefs, funcDefs = funcDefs }
+        return $ resolvedAst
+            { funcDefs = funcDefs 
+            }
 
 instance Annotate AST where
     annotate ast = do

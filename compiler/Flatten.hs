@@ -20,27 +20,23 @@ import Symbol
 
 
 -- check typedefs for circles
-checkTypeDefs :: BoM s m => [S.Stmt] -> m ()
+checkTypeDefs :: BoM s m => Map.Map Symbol S.AnnoType -> m ()
 checkTypeDefs typedefs = do
     -- check multiple definitions
-    forM typedefs $ \(S.Typedef pos symbol anno) -> withPos pos $
-        case elemIndices symbol (map typedefSymbol typedefs) of
-            [x] -> return ()
-            _   -> fail $ "multiple definitions of " ++ show symbol
+    forM (Map.toList typedefs) $ \(symbol, anno) -> 
+        case Map.lookup symbol typedefs of
+            Just anno -> return ()
+            Nothing   -> fail $ "multiple definitions of " ++ show symbol
 
     -- check circles
-    mapM_ (checkCircles Set.empty) (map typedefSymbol typedefs)
+    mapM_ (checkCircles Set.empty) (Map.keys typedefs)
 
     where
-        typedefSymbol :: S.Stmt -> Symbol
-        typedefSymbol (S.Typedef _ symbol _) = symbol
-
         checkCircles :: BoM s m => Set.Set Symbol -> Symbol -> m ()
-        checkCircles visited symbol = case elemIndices symbol (map typedefSymbol typedefs) of
-            [] -> return ()
-            [idx] -> do
-                let S.Typedef pos _ anno = typedefs !! idx
-                withPos pos $ assert (not $ Set.member symbol visited) "Typedef has circles"
+        checkCircles visited symbol = case Map.lookup symbol typedefs of
+            Nothing -> return ()
+            Just anno -> do
+                assert (not $ Set.member symbol visited) "Typedef has circles"
                 checkAnnoCircles (Set.insert symbol visited) anno
         
         checkAnnoCircles :: BoM s m => Set.Set Symbol -> S.AnnoType -> m ()

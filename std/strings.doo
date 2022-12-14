@@ -4,20 +4,13 @@ import chars
 type String [char]
 
 
-
-fn main()
-    print("strings")
-
-    data str String
-    for "abc benis" -> c; str.push(c)
-
-    if str.At(1) -> char(c)
-        print(str, c)
-
-
 fn {s String} At(i i64) {null | char}
     if s[..][i]; return char(s[i])
     else;        return null
+
+
+fn {s String} Append(str string)
+    for str -> c; s.push(c)
 
 
 fn {s String} CompareEqual(s2 string) bool
@@ -25,10 +18,6 @@ fn {s String} CompareEqual(s2 string) bool
     for s[..] -> i
         if s[i] != s2[i]; return false
     return true
-
-
-fn {s String} Append(str string)
-    for str -> c; s.push(c)
 
 
 fn {s String} Read(c char, start i64) (char, i64)
@@ -43,7 +32,7 @@ fn {s String} Read(c char, start i64) (char, i64)
 fn {s String} ReadString(word string, start i64) (string, i64)
     let loop = true
     for s[start..] -> i | loop
-        if (i + word.len()) > len(s)
+        if (i + word.len()) > s.len()
             return ("", 0)
 
         let match = true
@@ -51,7 +40,7 @@ fn {s String} ReadString(word string, start i64) (string, i64)
             if word[j] != s[i+j]
                 match = false
 
-        if match; return (word, (i - start) + len(word))
+        if match; return (word, i - start + word.len())
         loop = isSpace(s[i])
 
     return ("", 0)

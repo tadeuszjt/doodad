@@ -118,7 +118,9 @@ runMod args pathsVisited modPath = do
             assert (not $ null files) ("no files for: " ++ path)
             forM_ files $ debug . ("using file: " ++) 
             asts <- mapM parse files
-            --when (printAst args) $ liftIO $ S.prettyAST combinedAST
+            when (printAst args) $ do
+                forM_ asts $ \ast ->
+                    liftIO $ S.prettyAST ast
 
 
             importPaths <- forM [fp | S.Import fp <- concat $ map S.astImports asts] $ \importPath ->
@@ -153,7 +155,7 @@ runMod args pathsVisited modPath = do
                 assert (isJust resm) $ show path ++ " not in irGenModMap"
                 return $ fromJust resm
             (resolvedAST, _) <- R.resolveAsts asts (cIrGenState : irGenImports)
-            Flatten.checkTypeDefs (typeDefs resolvedAST)
+            Flatten.checkTypeDefs (typeDefsMap resolvedAST)
             when (printAstResolved args) $ liftIO $ prettyResolvedAst resolvedAST
 
             debug "annotating ast"

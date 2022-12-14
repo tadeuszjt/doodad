@@ -349,9 +349,10 @@ cmpExpr (AST.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck e
                 loc <- mkMalloc typ (mkI64 1)
                 storeCopy loc val
                 adtConstructFromPtr exprType loc
+            _ -> fail $ "cannot convert to type: " ++ show exprType
                 
 
-            _ -> error (show base)
+            _ -> error $ show (base, typ)
 
 
     AST.Range pos Nothing _ Nothing -> fail "Range expression must contain maximum"
@@ -470,9 +471,18 @@ cmpExpr (AST.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck e
             ObjVal loc -> return loc
             
     AST.String pos s -> do
-        assertBaseType (== String) exprType
+        base <- baseTypeOf exprType
         loc <- getStringPointer s
-        return (Val exprType loc)
+        case base of
+            String -> do
+                return (Val exprType loc)
+            Table [Char] -> do
+                tab <- mkAlloca exprType
+                tableSetCap tab $ mkI64 (length s)
+                tableSetLen tab $ mkI64 (length s)
+                tableSetRow tab 0 $ Ptr Char loc
+                return tab
+                
 
     AST.Call pos params symbol args  -> do
         ps <- mapM cmpExpr params
@@ -692,14 +702,14 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
 
         case base of
             _ | isNormalADT base -> do
-                matched <- mkAlloca Bool
-                valStore matched =<< mkIntInfix AST.EqEq (mkI64 i) =<< adtEnum val
-                enumMatch <- valLoad matched
-
                 match <- freshName "adt_pat_match"
                 exit  <- freshName "adt_pat_exit"
 
+                matched <- mkAlloca Bool
+                valStore matched =<< mkBool Bool False
+                enumMatch <- mkIntInfix AST.EqEq (mkI64 i) =<< adtEnum val
                 condBr (valOp enumMatch) match exit
+
                 emitBlockStart match
                 valStore matched =<< cmpPattern pat =<< adtDeref val i 0
                 br exit

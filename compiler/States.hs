@@ -18,9 +18,9 @@ data Extern
 data ResolvedAst
     = ResolvedAst
     { moduleName  :: String
-    , typeImports :: Map.Map Symbol AnnoType
-    , funcImports :: Map.Map Symbol FuncKey
-    , typeDefs    :: [Stmt]
+    , typeImports :: Map.Map Symbol AnnoType -- imported types
+    , funcImports :: Map.Map Symbol FuncKey  -- imported funcs
+    , typeDefsMap :: Map.Map Symbol AnnoType -- defined types
     , funcDefs    :: [Stmt]
     }
     deriving (Eq)

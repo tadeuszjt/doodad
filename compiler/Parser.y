@@ -20,21 +20,13 @@ import Symbol
 %left      '==' '!='
 %left      '+' '-'
 %left      '*' '/' '%'
-%right     '..'
+%nonassoc  '<=' '>=' '<' '>'
 %right     '!'
-%left      '<-'
 %left      ':'
-%nonassoc  '->'
-%nonassoc  '.'
-%nonassoc  '::'
 %nonassoc  '!'
-%nonassoc  ','
-%nonassoc  '<' '>'
-%nonassoc  '<=' '>='
-%nonassoc  '(' ')'
-%nonassoc  '[' ']'
-%nonassoc  '{' '}'
 %nonassoc  '|'
+%nonassoc  '(' ')' '[' ']' '{' '}'
+%nonassoc  '.'
 
 
 
@@ -59,7 +51,6 @@ import Symbol
     '&&'       { Token _ ReservedOp "&&" }
     '||'       { Token _ ReservedOp "||" }
     '::'       { Token _ ReservedOp "::" }
-    '<-'       { Token _ ReservedOp "<-" }
     '->'       { Token _ ReservedOp "->" }
     '..'       { Token _ ReservedOp ".." }
 
@@ -153,6 +144,7 @@ mfnrec : {-empty-}                            { [] }
 initialiser : '{' exprs1 '}'                  { S.Initialiser (tokPos $1) $2 }
             | '{' '}'                         { S.Initialiser (tokPos $1) [] }
             | '{' 'I' exprsN 'D' '}'          { S.Initialiser (tokPos $1) $3 }
+            | strlit                          { S.String (tokPos $1) (tokStr $1) }
 
 minitialiser : initialiser                    { Just $1 }
              | {-empty-}                      { Nothing }
@@ -232,7 +224,7 @@ call : symbol '(' exprs ')'                   { (S.Call (tokPos $2) [] (snd $1) 
 index  : symbol                               { S.Ident (fst $1) (snd $1) }
        | index '[' expr ']'                   { S.Subscript (tokPos $2) $1 $3 }
        | index '.' ident                      { S.Field (tokPos $2) $1 (tokStr $3) }
-       | index '.' ident '(' exprs ')'        { S.Call (tokPos $2) [$1] (Sym $ tokStr $3) $5 }
+       | index '.' symbol '(' exprs ')'        { S.Call (tokPos $2) [$1] (snd $3) $5 }
        | '{' exprs1 '}' '.' ident '(' exprs ')' { S.Call (tokPos $4) $2 (Sym $ tokStr $5) $7 }
        | index '.' push '(' exprs ')'         { S.Push (tokPos $2) $1 $5 }
        | index '.' pop '(' exprs ')'          { S.Pop (tokPos $2) $1 $5 }
@@ -256,12 +248,12 @@ expr   : literal                              { $1 }
        | expr '[' expr ']'                    { S.Subscript (tokPos $2) $1 $3 }
        | expr ':' type_                       { S.AExpr $3 $1 }
        | expr '.' ident '(' exprs ')'         { S.Call (tokPos $4) [$1] (Sym $ tokStr $3) $5 }
-       | '{' exprs1 '}' '.' ident '(' exprs ')'  { S.Call (tokPos $6) $2 (Sym $ tokStr $5) $7 }
+       | '{' exprs1 '}' '.' symbol '(' exprs ')'  { S.Call (tokPos $6) $2 (snd $5) $7 }
        | expr '.' push '(' exprs ')'          { S.Push (tokPos $4) $1 $5 }
        | expr '.' pop '(' exprs ')'           { S.Pop (tokPos $4) $1 $5 }
-       | expr '.' len '(' ')'                 { S.Len (tokPos $4) $1 }
        | expr '.' clear '(' ')'               { S.Clear (tokPos $4) $1 }
        | len '(' expr ')'                     { S.Len (tokPos $1) $3 }
+       | expr '.' len '(' ')'                 { S.Len (tokPos $4) $1 }
        | expr '[' mexpr '..' mexpr ']'        { S.Range (tokPos $2) (Just $1) $3 $5 }
        | '[' mexpr '..' mexpr ']'             { S.Range (tokPos $1) Nothing $2 $4 }
 
