@@ -23,12 +23,9 @@ fn main()
     }
 
 
-
-
     for input -> line
         data str String
         for line -> c; str.push(c)
-
 
         let (_, n0 | n0 > 0) = str.Read('-', 0)
         print(n0)

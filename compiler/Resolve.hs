@@ -157,15 +157,42 @@ resolveAsts asts imports = withErrorPrefix "resolve: " $ do
             (_, typeImportMap) <- runBoMTExcept Map.empty (buildTypeImportMap imports)
             (_, funcImportMap) <- runBoMTExcept Map.empty (buildFuncImportMap imports)
             typeDefsMap <- Map.fromList <$> mapM resolveTypeDef typedefs
-            funcDefs <- mapM resolve funcdefs
+            funcDefsMap <- Map.fromList <$> mapM resolveFuncDef funcdefs
 
             return $ ResolvedAst
                 { moduleName = moduleName
                 , typeImports = typeImportMap
                 , funcImports = funcImportMap
-                , funcDefs   = funcDefs
+                , funcDefs   = funcDefsMap
                 , typeDefsMap = typeDefsMap
                 }
+
+
+
+resolveFuncDef :: BoM ResolveState m => AST.Stmt -> m (Symbol, FuncBody)
+resolveFuncDef (FuncDef pos params (Sym sym) args retty blk) = do
+    -- use a new symbol table for variables in every function
+    oldSymTabVar <- gets symTabVar
+    modify $ \s -> s { symTabVar = SymTab.initSymTab }
+
+    pushSymTab
+    params' <- mapM resolve params
+    args' <- mapM resolve args
+    retty' <- resolve retty
+    blk' <- resolve blk
+    popSymTab
+
+    modify $ \s -> s { symTabVar = oldSymTabVar }
+    symbol' <- genSymbol sym
+
+    let funcBody = FuncBody {
+        funcParams = params' ,
+        funcArgs   = args' ,
+        funcRetty  = retty' , 
+        funcStmts  = [blk']
+        }
+    return (symbol', funcBody)
+
 
 resolveTypeDef :: BoM ResolveState m => AST.Stmt -> m (Symbol, AST.AnnoType)
 resolveTypeDef (AST.Typedef pos (Sym sym) anno) = do
@@ -201,22 +228,6 @@ resolveTypeDef (AST.Typedef pos (Sym sym) anno) = do
 
 instance Resolve Stmt where
     resolve stmt = withPos stmt $ case stmt of
-        FuncDef pos params (Sym sym) args retty blk -> do
-            -- use a new symbol table for variables in every function
-            oldSymTabVar <- gets symTabVar
-            modify $ \s -> s { symTabVar = SymTab.initSymTab }
-
-            pushSymTab
-            params' <- mapM resolve params
-            args' <- mapM resolve args
-            retty' <- resolve retty
-            blk' <- resolve blk
-            popSymTab
-
-            modify $ \s -> s { symTabVar = oldSymTabVar }
-            symbol' <- genSymbol sym
-            return $ FuncDef pos params' symbol' args' retty' blk'
-
         ExprStmt callExpr -> ExprStmt <$> resolve callExpr
 
         Block stmts -> do
@@ -234,34 +245,6 @@ instance Resolve Stmt where
             pat' <- resolve pat
             return $ Assign pos pat' expr'
         
-        AST.Typedef pos (Sym sym) anno -> do
-            symbol <- genSymbol sym
-            define sym KeyType symbol
-            define sym KeyFunc symbol
-            anno' <- case anno of
-                AnnoType t -> AnnoType <$> resolve t
-
-                AnnoTuple xs -> do 
-                    xs' <- forM xs $ \(s, t) -> do
-                        t' <- resolve t
-                        return (s, t')
-                    return $ AnnoTuple xs'
-
-                AnnoADT xs -> do
-                    xs' <- forM xs $ \x -> case x of
-                        ADTFieldMember (Sym s) ts -> do
-                            s' <- genSymbol s
-                            define s KeyFunc s'
-                            ts' <- mapM resolve ts
-                            return $ ADTFieldMember s' ts'
-                        ADTFieldType t -> ADTFieldType <$> resolve t
-                        ADTFieldNull -> return ADTFieldNull
-                    return $ AnnoADT xs'
-
-                _ -> fail $ "invalid anno: " ++ show anno
-
-            return $ AST.Typedef pos symbol anno'
-
         If pos condition stmt melse -> do
             pushSymTab
             condition' <- resolve condition

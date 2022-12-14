@@ -24,6 +24,23 @@ instance Annotate ResolvedAst where
             { funcDefs = funcDefs 
             }
 
+instance Annotate FuncBody where
+    annotate funcBody = do
+        params' <- mapM annotate (funcParams funcBody)
+        args' <- mapM annotate (funcArgs funcBody)
+        stmts' <- mapM annotate (funcStmts funcBody)
+        retty' <- case (funcRetty funcBody) of
+            T.Void -> genType
+            t      -> return t
+        return $ FuncBody
+            { funcParams = params'
+            , funcArgs   = args'
+            , funcRetty  = retty'
+            , funcStmts  = stmts'
+            }
+        
+
+
 instance Annotate AST where
     annotate ast = do
         stmts <- mapM annotate (astStmts ast)
@@ -31,20 +48,10 @@ instance Annotate AST where
 
 instance Annotate Stmt where
     annotate stmt = case stmt of
-        FuncDef p ps s as rt b -> do
-            ps' <- mapM annotate ps
-            as' <- mapM annotate as
-            b' <- annotate b
-            rt' <- case rt of
-                T.Void -> genType
-                t      -> return t
-            return $ FuncDef p ps' s as' rt' b'
-
         Block ss            -> Block <$> mapM annotate ss
         Return p me         -> Return p <$> maybe (return Nothing) (fmap Just . annotate) me
 
         Print p es          -> Print p <$> mapM annotate es
-        Typedef p s a       -> return $ Typedef p s a
         ExprStmt e        -> ExprStmt <$> annotate e
 
         Assign p pat e      -> do

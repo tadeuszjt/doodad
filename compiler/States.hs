@@ -21,7 +21,7 @@ data ResolvedAst
     , typeImports :: Map.Map Symbol AnnoType -- imported types
     , funcImports :: Map.Map Symbol FuncKey  -- imported funcs
     , typeDefsMap :: Map.Map Symbol AnnoType -- defined types
-    , funcDefs    :: [Stmt]
+    , funcDefs    :: Map.Map Symbol FuncBody -- defined functions
     }
     deriving (Eq)
 
@@ -35,6 +35,7 @@ data FuncBody
         , funcRetty  :: Type
         , funcStmts  :: [AST.Stmt]
         }
+    deriving (Eq)
 
 
 data IRGenState = IRGenState

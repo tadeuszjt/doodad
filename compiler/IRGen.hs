@@ -55,21 +55,22 @@ compile ast = do
     modify $ \s -> s { irExternDefs = funcImports ast }
     initialiseTopTypeDefs (typeDefsMap ast)
     initialiseTopFuncDefs (funcDefs ast)
-    forM_ (funcDefs ast) $ \stmt -> compileStmt stmt
+    forM_ (Map.toList $ funcDefs ast) $ \(symbol, body) ->
+        compileFuncDef symbol body
 
 
-initialiseTopFuncDefs :: BoM IRGenState m => [AST.Stmt] -> m ()
-initialiseTopFuncDefs stmts = do
-    forM_ stmts $ \(AST.FuncDef _ params symbol args retty _) ->
+initialiseTopFuncDefs :: BoM IRGenState m => Map.Map Symbol FuncBody -> m ()
+initialiseTopFuncDefs funcDefs = do
+    forM_ (Map.toList funcDefs) $ \(symbol, funcBody) ->
         case sym symbol of
             "main" -> do
                 Nothing <- gets irMainDef
-                modify $ \s -> s { irMainDef = Just (FuncBody [] [] retty []) }
+                modify $ \s -> s { irMainDef = Just (FuncBody [] [] (funcRetty funcBody) []) }
             _ -> do
                 Nothing <- Map.lookup symbol <$> gets irFuncDefs
-                let key = (map AST.paramType params, sym symbol, map AST.paramType args, retty)
+                let key = (map AST.paramType (funcParams funcBody), sym symbol, map AST.paramType (funcArgs funcBody), (funcRetty funcBody))
                 modify $ \s -> s { irFuncMap = Map.insert  key symbol (irFuncMap s) }
-                modify $ \s -> s { irFuncDefs = Map.insert symbol (FuncBody params args retty []) (irFuncDefs s) }
+                modify $ \s -> s { irFuncDefs = Map.insert symbol (FuncBody (funcParams funcBody) (funcArgs funcBody) (funcRetty funcBody) []) (irFuncDefs s) }
 
 
 initialiseTopTypeDefs :: BoM IRGenState m => Map.Map Symbol AST.AnnoType -> m ()
@@ -79,6 +80,22 @@ initialiseTopTypeDefs typeDefsMap = do
         Nothing <- Map.lookup (sym symbol) <$> gets irTypeMap
         modify $ \s -> s { irTypeDefs = Map.insert symbol anno (irTypeDefs s) }
         modify $ \s -> s { irTypeMap  = Map.insert (sym symbol) symbol (irTypeMap s) }
+
+
+compileFuncDef :: BoM IRGenState m => Symbol -> FuncBody -> m ()
+compileFuncDef symbol body = do
+    let paramTypes = map AST.paramType (funcParams body)
+    let argTypes   = map AST.paramType (funcArgs body)
+    let key        = (paramTypes, sym symbol, argTypes, funcRetty body)
+
+    oldCurrentFunc <- gets irCurrentFunc
+    modify $ \s -> s { irCurrentFunc = key }
+    stmts' <- mapM compileStmt (funcStmts body)
+    let funcBody = body { funcStmts  = stmts' }
+    case sym symbol of 
+        "main" -> modify $ \s -> s { irMainDef = Just funcBody }
+        _      -> modify $ \s -> s { irFuncDefs = Map.insert symbol funcBody (irFuncDefs s) }
+    modify $ \s -> s { irCurrentFunc = oldCurrentFunc }
 
 
 exprTypeOf :: AST.Expr -> Type
@@ -142,28 +159,6 @@ resolveFuncCall exprType (AST.Call pos params symbol args) = withPos pos $ do
 
 compileStmt :: BoM IRGenState m => AST.Stmt -> m Stmt
 compileStmt stmt = withPos stmt $ case stmt of
-    AST.FuncDef pos params symbol args retty blk -> do
-        let paramTypes = map AST.paramType params
-        let argTypes   = map AST.paramType args
-        let key        = (paramTypes, sym symbol, argTypes, retty)
-
-        oldCurrentFunc <- gets irCurrentFunc
-        modify $ \s -> s { irCurrentFunc = key }
-
-        blk' <- compileStmt blk
-
-        let funcBody = FuncBody {
-            funcParams = params,
-            funcArgs   = args,
-            funcRetty  = retty,
-            funcStmts  = [blk']
-            }
-
-        case sym symbol of 
-            "main" -> modify $ \s -> s { irMainDef = Just funcBody }
-            _      -> modify $ \s -> s { irFuncDefs = Map.insert symbol funcBody (irFuncDefs s) }
-        modify $ \s -> s { irCurrentFunc = oldCurrentFunc }
-        return $ FuncDef pos params symbol args retty blk'
 
 
     AST.ExprStmt expr -> do

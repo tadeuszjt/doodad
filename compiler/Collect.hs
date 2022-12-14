@@ -143,11 +143,26 @@ collectAST ast = do
     forM (Map.toList $ funcImports ast) $ \(symbol, key@(ps, _, as, rt)) -> 
         define symbol (KeyFunc ps as rt) ObjFunc
 
-    forM (funcDefs ast) $
-        \(S.FuncDef pos params symbol args retty _) -> collectPos pos $ do
-            define symbol (KeyFunc (map S.paramType params) (map S.paramType args) retty) ObjFunc
+    forM (Map.toList $ funcDefs ast) $ \(symbol, body) ->
+        define symbol (KeyFunc (map S.paramType $ funcParams body) (map S.paramType $ funcArgs body) (funcRetty body)) ObjFunc
 
-    mapM_ collectStmt (funcDefs ast)
+    forM_ (Map.toList $ funcDefs ast) $ \(symbol, body) ->
+        collectFuncDef symbol body
+
+
+collectFuncDef :: BoM CollectState m => Symbol -> FuncBody -> m ()
+collectFuncDef symbol body = do
+    oldRetty <- gets curRetty
+    modify $ \s -> s { curRetty = funcRetty body }
+
+    forM (funcParams body) $ \(S.Param _ symbol t) ->
+        define symbol KeyVar (ObjVar t)
+
+    forM_ (funcArgs body) $ \(S.Param _ symbol t) ->
+        define symbol KeyVar (ObjVar t)
+    mapM_ collectStmt (funcStmts body)
+    modify $ \s -> s { curRetty = oldRetty }
+    collectDefault (funcRetty body) Void
 
 
 collectTypedef :: BoM CollectState m => Symbol -> S.AnnoType -> m ()
@@ -193,19 +208,6 @@ collectStmt stmt = collectPos stmt $ case stmt of
     S.Typedef _ _ _ -> return ()
     S.Block stmts -> mapM_ collectStmt stmts
     S.ExprStmt e -> collectExpr e
-
-    S.FuncDef _ params sym args retty blk -> do
-        oldRetty <- gets curRetty
-        modify $ \s -> s { curRetty = retty }
-
-        forM params $ \(S.Param _ symbol t) ->
-            define symbol KeyVar (ObjVar t)
-
-        forM_ args $ \(S.Param _ symbol t) ->
-            define symbol KeyVar (ObjVar t)
-        collectStmt blk
-        modify $ \s -> s { curRetty = oldRetty }
-        collectDefault retty Void
 
     S.Return _ mexpr -> do
         retty <- gets curRetty

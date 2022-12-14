@@ -41,7 +41,20 @@ class Apply a where
 
             
 instance Apply ResolvedAst where
-    apply subs ast = ast { funcDefs = map (apply subs) (funcDefs ast) }
+    apply subs ast = ast { funcDefs = Map.map (apply subs) (funcDefs ast) }
+
+
+instance Apply FuncBody where
+    apply subs body = FuncBody
+        { funcParams = map f (funcParams body)
+        , funcArgs   = map f (funcArgs body)
+        , funcRetty  = f (funcRetty body)
+        , funcStmts  = map f (funcStmts body)
+        }
+        where 
+            f :: Apply a => a -> a
+            f = apply subs
+    
 
 instance Apply Type where
     apply subs t = foldr (\(x, u) z -> substitute u x z) t subs
