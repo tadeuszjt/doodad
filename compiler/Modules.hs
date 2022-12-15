@@ -171,11 +171,11 @@ runMod args pathsVisited modPath = do
 
             -- compile and run
             debug "compiling"
-            (defs, state) <- withErrorPrefix "compile: " $ Compile.compile irGenState
+            session <- gets session
+            (defs, state) <- withErrorPrefix "compile: " $ Compile.compile irGenState session
             when (printSymbols args) $ liftIO $ SymTab.prettySymTab (State.symTab state)
 
             debug "running"
-            session <- gets session
             if compileObj args then do
                 let modDirectory' = joinPath [modDirectory, "build"]
                 let modName' = addExtension modName ".o"

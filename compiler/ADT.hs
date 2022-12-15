@@ -94,7 +94,7 @@ adtTypeDef symbol (AST.AnnoADT xs) = trace "adtTypeDef" $ do
         AST.ADTFieldNull -> return ()
 
     -- define constructors
-    define symbol KeyFunc ObjConstructor 
+    define symbol KeyFunc ObjCtor
 
 
 adtEnum :: InsCmp CompileState m => Value -> m Value

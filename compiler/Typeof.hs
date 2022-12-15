@@ -40,6 +40,12 @@ sizeOf typ = trace "sizeOf" $ do
     opType <- opTypeOf typ
     return $ Val I64 $ cons $ C.SExt (C.sizeof opType) (LL.IntegerType 64)
 
+sizeOfLL :: InsCmp CompileState m => LL.Type -> m Int
+sizeOfLL typ = do
+    context <- gets context
+    dataLayout <- gets dataLayout
+    n <- liftIO $ FFI.getTypeAllocSize dataLayout =<< runEncodeAST context (encodeM typ)
+    return (fromIntegral n)
 
 
 isDataType :: InsCmp CompileState m => Type -> m Bool
@@ -58,7 +64,6 @@ isDataType typ = do
                 FieldCtor ts -> any (== True) <$> mapM isDataType ts
             return $ any (== True) bs
         _                 -> return True
-
 
 
 opTypeOf :: ModCmp CompileState m => Type -> m LL.Type

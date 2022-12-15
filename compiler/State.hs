@@ -79,7 +79,7 @@ data Object
     | ObjType Type
     | ObjFn         
     | ObjAdtTypeField Int
-    | ObjConstructor 
+    | ObjCtor 
     | ObjField Int
     deriving ()
 
@@ -91,13 +91,15 @@ instance Show Object where
         ObjVal val       -> "val"
         ObjType typ      -> show typ
         ObjFn            -> "fn"
-        ObjConstructor   -> "(..)"
+        ObjCtor          -> "ctor"
         ObjField i       -> "." ++ show i
 
 
 data CompileState
     = CompileState
-        { declared    :: Set.Set LL.Name
+        { context     :: Context
+        , dataLayout  :: Ptr FFI.DataLayout
+        , declared    :: Set.Set LL.Name
         , symTab      :: SymTab.SymTab Symbol SymKey Object
         , moduleName  :: String
         , nameSupply  :: Map.Map String Int
@@ -105,9 +107,11 @@ data CompileState
         , typeNameMap :: Map.Map Type LL.Name
         }
 
-initCompileState modName
+initCompileState modName session 
      = CompileState
-        { declared    = Set.empty
+        { context     = JIT.context session
+        , dataLayout  = JIT.dataLayout session
+        , declared    = Set.empty
         , symTab      = SymTab.initSymTab
         , moduleName  = modName
         , nameSupply  = Map.empty

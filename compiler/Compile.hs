@@ -49,6 +49,7 @@ import Builtin
 import Symbol
 import Sparse
 import States
+import qualified JIT
 
 
 
@@ -62,9 +63,9 @@ fnHdrToOp paramTypes symbol argTypes returnType = do
 
 
 
-compile :: BoM s m => IRGenState -> m ([LL.Definition], CompileState)
-compile irGenState = do
-    ((_, defs), state) <- runBoMTExcept (initCompileState $ irModuleName irGenState) (runModuleCmpT emptyModuleBuilder cmp)
+compile :: BoM s m => IRGenState -> JIT.Session -> m ([LL.Definition], CompileState)
+compile irGenState session = do
+    ((_, defs), state) <- runBoMTExcept (initCompileState (irModuleName irGenState) session) (runModuleCmpT emptyModuleBuilder cmp)
     return (defs, state)
     where
         cmp :: (MonadFail m, Monad m, MonadIO m) => ModuleCmpT CompileState m ()
@@ -175,15 +176,15 @@ cmpTypeDefs irGenState = do
         case anno of
             AST.AnnoADT xs   -> adtTypeDef symbol (AST.AnnoADT xs)
             AST.AnnoTuple xs -> do
-                define symbol KeyFunc ObjConstructor
+                define symbol KeyFunc ObjCtor
                 define symbol KeyType (ObjType $ Tuple $ map snd xs)
                 forM_ (zip xs [0..]) $ \((s, t), i) -> do
                     define (Sym s) (KeyField $ Typedef symbol) (ObjField i)
             AST.AnnoType typ -> do
-                define symbol KeyFunc ObjConstructor
+                define symbol KeyFunc ObjCtor
                 define symbol KeyType (ObjType typ)
             AST.AnnoEnum ss -> do
-                define symbol KeyFunc ObjConstructor
+                define symbol KeyFunc ObjCtor
                 define symbol KeyType (ObjType Enum)
                 forM_ (zip ss [0..]) $ \(s, i) -> do
                     define s (KeyField $ Typedef symbol) (ObjField i)
@@ -510,8 +511,8 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
             ObjFn -> do
                 op <- fnHdrToOp (map valType ps) symbol (map valType as) exprType
                 Val exprType <$> call op [(o, []) | o <- psLocs ++ asOps]
-            ObjConstructor  -> mkConstruct exprType as
-            ObjField i      -> do
+            ObjCtor    -> mkConstruct exprType as
+            ObjField i -> do
                 base <- baseTypeOf exprType
                 case base of
                     ADT _ -> adtConstructField symbol exprType as

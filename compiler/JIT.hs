@@ -40,6 +40,7 @@ run fn = mkFun (castFunPtr fn :: FunPtr (IO ()))
 data Session
     = Session
         { context          :: Context
+        , dataLayout       :: Ptr FFI.DataLayout
         , executionSession :: ExecutionSession
         , compileLayer     :: IRCompileLayer ObjectLinkingLayer
         , passManager      :: Maybe PassManager
@@ -69,13 +70,15 @@ withSession optimise f = do
     withContext $ \ctx ->
         withExecutionSession $ \es ->
             withMyHostTargetMachine $ \tm -> do
-                withObjectLinkingLayer es (\_ -> head <$> readIORef resolvers) $ \oll ->
-                    withIRCompileLayer oll tm $ \cl ->
-                        withPassManager defaultCuratedPassSetSpec $ \pm ->
-                            withSymbolResolver es (myResolver cl) $ \psr -> do
-                                writeIORef resolvers [psr]
-                                loadLibraryPermanently Nothing
-                                f $ Session ctx es cl (if optimise then Just pm else Nothing) oll tm
+                dl <- getTargetMachineDataLayout tm
+                withFFIDataLayout dl $ \pdl -> 
+                    withObjectLinkingLayer es (\_ -> head <$> readIORef resolvers) $ \oll ->
+                        withIRCompileLayer oll tm $ \cl ->
+                            withPassManager defaultCuratedPassSetSpec $ \pm ->
+                                withSymbolResolver es (myResolver cl) $ \psr -> do
+                                    writeIORef resolvers [psr]
+                                    loadLibraryPermanently Nothing
+                                    f $ Session ctx pdl es cl (if optimise then Just pm else Nothing) oll tm
     where
         myResolver :: IRCompileLayer ObjectLinkingLayer -> SymbolResolver
         myResolver cl = SymbolResolver $ \mangled -> do
