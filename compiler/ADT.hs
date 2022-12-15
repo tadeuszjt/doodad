@@ -99,115 +99,70 @@ adtTypeDef symbol (AST.AnnoADT xs) = trace "adtTypeDef" $ do
 
 adtEnum :: InsCmp CompileState m => Value -> m Value
 adtEnum adt = trace "adtEnum" $ do
-    adtTyp@(ADT tss) <- assertBaseType isADT (valType adt)
-    case adtTyp of
-        _ | isEmptyADT adtTyp  -> fail "ADT has no enum"
-        --_ | isPtrADT adtTyp    -> fail "ADT has no enum"
-        --
-        _ | isEnumADT adtTyp   -> do
-            Val _ op <- valLoad adt
-            return $ Val I64 op
-
-        _ | isNormalADT adtTyp -> do
-            val <- valLoad adt
-            Val I64 <$> extractValue (valOp val) [0]
+    assertBaseType isADT (valType adt)
+    val <- valLoad adt
+    Val I64 <$> extractValue (valOp val) [0]
 
 
 adtSetEnum :: InsCmp CompileState m => Value -> Int -> m ()
 adtSetEnum adt@(Ptr _ loc) i = trace "adtSetEnum" $ do
     adtTyp@(ADT tss) <- assertBaseType isADT (valType adt)
     assert (i >= 0 && i < length tss) "invalid ADT enum"
-    case adtTyp of
-        _ | isEmptyADT adtTyp  -> fail "ADT has no enum"
-        --_ | isPtrADT adtTyp    -> fail "ADT has no enum"
-        _ | isEnumADT adtTyp   -> do
-            valStore adt (Val adtTyp $ valOp $ mkI64 i)
-        _ | isNormalADT adtTyp -> do
-            en <- Ptr I64 <$> gep loc [int32 0, int32 0]
-            valStore en (mkI64 i)
+    en <- Ptr I64 <$> gep loc [int32 0, int32 0]
+    valStore en (mkI64 i)
 
 
 adtDeref :: InsCmp CompileState m => Value -> Int -> Int -> m Value
 adtDeref adt i j = trace "adtDeref" $ do
-    base@(ADT fs) <- assertBaseType isADT (valType adt)
-    case base of
-        _ | isEnumADT base -> fail "Cannot deref enum ADT"
-        _ | isEmptyADT base -> fail "Cannot deref empty ADT"
-        _ | isNormalADT base -> do
+    ADT fs <- assertBaseType isADT (valType adt)
+    ptr <- adtPi8 adt
+    case fs !! i of
+        FieldNull -> fail "invalid adt deref"
+        FieldType t -> do -- ptr points directly to val
+            assert (j == 0) "invalid ADT deref"
+            fmap (Ptr t) . bitcast ptr . LL.ptr =<< opTypeOf t
+        FieldCtor ts -> do
+            assert (j < length ts) "invalid adt deref"
             ptr <- adtPi8 adt
-            case fs !! i of
-                FieldNull -> fail "invalid adt deref"
-                FieldType t -> do -- ptr points directly to val
-                    assert (j == 0) "invalid ADT deref"
-                    fmap (Ptr t) . bitcast ptr . LL.ptr =<< opTypeOf t
-                FieldCtor ts -> do
-                    assert (j < length ts) "invalid adt deref"
-                    ptr <- adtPi8 adt
-                    ptup <- bitcast ptr . LL.ptr =<< opTypeOf (Tuple ts)
-                    ptrTupleIdx j (Ptr (Tuple ts) ptup)
+            ptup <- bitcast ptr . LL.ptr =<< opTypeOf (Tuple ts)
+            ptrTupleIdx j (Ptr (Tuple ts) ptup)
 
 
-
-            
 adtPi8 :: InsCmp CompileState m => Value -> m LL.Operand
 adtPi8 adt = trace "adtPi8" $ do
     adtTyp@(ADT tss) <- assertBaseType isADT (valType adt)
     op <- valOp <$> valLoad adt
-    case adtTyp of
-        _ | isEmptyADT adtTyp -> fail "Empty ADT has no pointer"
-        _ | isEnumADT adtTyp  -> fail "Empty ADT has no pointer"
-        --_ | isPtrADT adtTyp   -> return op
-        _ | isNormalADT adtTyp -> extractValue op [1]
+    extractValue op [1]
 
 
 adtSetPi8 :: InsCmp CompileState m => Value -> LL.Operand -> m ()
 adtSetPi8 adt@(Ptr _ loc) pi8 = trace "adtSetPi8" $ do
-    adtTyp@(ADT tss) <- assertBaseType isADT (valType adt)
-    case adtTyp of
-        _ | isEmptyADT adtTyp  -> fail "Empty ADT has no pointer"
-        _ | isEnumADT adtTyp   -> fail "Empty ADT has no pointer"
-        --_ | isPtrADT adtTyp    -> store loc 0 pi8
-        _ | isNormalADT adtTyp -> do
-            ppi8 <- gep loc [int32 0, int32 1]
-            store ppi8 0 pi8
+    ADT tss <- assertBaseType isADT (valType adt)
+    ppi8 <- gep loc [int32 0, int32 1]
+    store ppi8 0 pi8
 
 
 -- Construct a specific ADT field, eg: TokSym("ident")
 adtConstructField :: InsCmp CompileState m => Symbol -> Type -> [Value] -> m Value
-adtConstructField symbol typ vals = trace ("adtConstructField " ++ show symbol) $ do
-    adtTyp@(ADT fs) <- assertBaseType isADT typ
+adtConstructField symbol typ vals = do
+    ADT fs <- assertBaseType isADT typ
+    ObjField i <- look symbol (KeyField typ)
+    adt <- mkAlloca typ
+    adtSetEnum adt i
+    case fs !! i of
+        FieldType t -> do
+            assert (length vals == 1) "Invalid ADT constructor arguments"
+            assert (map valType vals == [t]) "mismatch types"
+            mal <- mkMalloc t (mkI64 1)
+            valStore mal (head vals)
+            adtSetPi8 adt =<< bitcast (valLoc mal) (LL.ptr LL.i8)
+        FieldCtor ts -> do
+            assert (length vals == length ts) "Invalid ADT constructor arguments"
+            assert (map valType vals == ts) "mismatch types"
+            tup <- mkMalloc (Tuple ts) (mkI64 1)
+            forM_ (zip vals [0..]) $ \(val, j) -> do
+                ptr <- ptrTupleIdx j tup
+                valStore ptr val
+            adtSetPi8 adt =<< bitcast (valLoc tup) (LL.ptr LL.i8)
 
-    case adtTyp of
---        _ | isEmptyADT adtTyp  -> do
---            assert (length vals == 0) "Invalid ADT constructor arguments"
---            valZero typ
-
-        _ | isEnumADT adtTyp   -> do
-            ObjField i <- look symbol (KeyField typ)
-            assert (length vals == 0) "Invalid ADT constructor arguments"
-            adt <- mkAlloca typ
-            adtSetEnum adt i
-            return adt
-
-
-        _ | isNormalADT adtTyp -> do
-            ObjField i <- look symbol (KeyField typ)
-            adt <- mkAlloca typ
-            adtSetEnum adt i
-            case fs !! i of
-                FieldType t -> do
-                    assert (length vals == 1) "Invalid ADT constructor arguments"
-                    assert (map valType vals == [t]) "mismatch types"
-                    mal <- mkMalloc t (mkI64 1)
-                    valStore mal (head vals)
-                    adtSetPi8 adt =<< bitcast (valLoc mal) (LL.ptr LL.i8)
-                FieldCtor ts -> do
-                    assert (length vals == length ts) "Invalid ADT constructor arguments"
-                    assert (map valType vals == ts) "mismatch types"
-                    tup <- mkMalloc (Tuple ts) (mkI64 1)
-                    forM_ (zip vals [0..]) $ \(val, j) -> do
-                        ptr <- ptrTupleIdx j tup
-                        valStore ptr val
-                    adtSetPi8 adt =<< bitcast (valLoc tup) (LL.ptr LL.i8)
-
-            return adt
+    return adt

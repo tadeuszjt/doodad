@@ -166,38 +166,41 @@ collectFuncDef symbol body = do
 
 
 collectTypedef :: BoM CollectState m => Symbol -> S.AnnoType -> m ()
-collectTypedef symbol annoTyp = case annoTyp of
-    S.AnnoType (Tuple ts) -> do
-        let typedef = Typedef symbol
-        define symbol KeyType (ObjType $ Tuple ts)
-        define symbol (KeyFunc [] ts typedef) ObjFunc
-        
-    S.AnnoType t   -> do
-        let typedef = Typedef symbol
-        define symbol KeyType (ObjType t)
-        define symbol (KeyFunc [] [t] typedef) ObjFunc
+collectTypedef symbol annoTyp = do
+    let typedef = Typedef symbol
 
-    S.AnnoTuple xs   -> do
-        let typedef = Typedef symbol
-        let ts = map snd xs
-        forM_ (zip xs [0..]) $ \((s, t), i) -> define (Sym s) (KeyField typedef) (ObjField i)
-        define symbol KeyType $ ObjType $ Tuple (map snd xs)
-        define symbol (KeyFunc [] ts typedef) ObjFunc
-        define symbol (KeyFunc [] [] typedef) ObjFunc
+    case annoTyp of
+        S.AnnoType (Tuple ts) -> do
+            define symbol KeyType (ObjType $ Tuple ts)
+            define symbol (KeyFunc [] ts typedef) ObjFunc
+            
+        S.AnnoType t   -> do
+            define symbol KeyType (ObjType t)
+            define symbol (KeyFunc [] [t] typedef) ObjFunc
 
-    S.AnnoADT xs -> do
-        let typedef = Typedef symbol
-        fs <- forM (zip xs [0..]) $ \(x, i) -> case x of
-            S.ADTFieldMember s ts -> do
+        S.AnnoTuple xs   -> do
+            let ts = map snd xs
+            forM_ (zip xs [0..]) $ \((s, t), i) -> define (Sym s) (KeyField typedef) (ObjField i)
+            define symbol KeyType $ ObjType $ Tuple (map snd xs)
+            define symbol (KeyFunc [] ts typedef) ObjFunc
+            define symbol (KeyFunc [] [] typedef) ObjFunc
+
+        S.AnnoADT xs -> do
+            fs <- forM (zip xs [0..]) $ \(x, i) -> case x of
+                S.ADTFieldMember s ts -> do
+                    define s KeyAdtField (ObjField i)
+                    define s (KeyFunc [] ts typedef) ObjFunc
+                    return (FieldCtor ts)
+                S.ADTFieldType t -> return (FieldType t)
+                S.ADTFieldNull -> return FieldNull
+
+            define symbol KeyType $ ObjType (ADT fs)
+
+        S.AnnoEnum ss -> do
+            forM_ (zip ss [0..]) $ \(s, i) -> do
                 define s KeyAdtField (ObjField i)
-                define s (KeyFunc [] ts typedef) ObjFunc
-                return (FieldCtor ts)
-
-            S.ADTFieldType t -> return (FieldType t)
-
-            S.ADTFieldNull -> return FieldNull
-
-        define symbol KeyType $ ObjType (ADT fs)
+                define s (KeyFunc [] [] typedef) ObjFunc
+            define symbol KeyType $ ObjType Enum
 
 
 

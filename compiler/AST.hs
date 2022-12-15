@@ -125,6 +125,7 @@ data AnnoType
     = AnnoType  Type
     | AnnoTuple [(String, Type)]
     | AnnoADT   [AnnoADTField]
+    | AnnoEnum  [Symbol]
     deriving (Eq)
 
 
@@ -231,6 +232,17 @@ instance Show AnnoType where
         AnnoType t   -> show t
         AnnoTuple xs -> tupStrs $ map (\(s, t) -> show s ++ " " ++ show t) xs
         AnnoADT xs   -> brcStrs $ map show xs
+        AnnoEnum ss  -> brcStrs $ map show ss
+
+convertAnno :: AnnoType -> AnnoType
+convertAnno anno = case anno of
+    AnnoADT xs | all isEnumField xs -> AnnoEnum $ map (\(ADTFieldMember s []) -> s) xs
+    _ -> anno
+    where
+        isEnumField :: AnnoADTField -> Bool
+        isEnumField (ADTFieldMember _ []) = True
+        isEnumField _                     = False
+
 
 instance Show Pattern where
     show pat = case pat of

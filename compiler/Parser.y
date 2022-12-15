@@ -331,7 +331,7 @@ annoType : typeOrdinal                        { S.AnnoType $1 }
          | tableType                          { S.AnnoType $1 }
          | sparseType                         { S.AnnoType $1 }
          | annoTupType                        { $1 }
-         | annoADTType                        { $1 }
+         | annoADTType                        { S.convertAnno $1 }
 
 
 adtFields : {-empty-}                     { [] }

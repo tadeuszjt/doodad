@@ -47,7 +47,6 @@ storeCopy ptr val = withErrorPrefix "storeCopy: " $ do
         "ptr type: " ++ show (valType ptr) ++ " does not match val type: " ++ show (valType val)
     case base of
         _ | isSimple base          -> valStore ptr val
-        _ | isEnumADT base         -> valStore ptr val
         Tuple ts -> do
             bs <- mapM isDataType ts
             assert (all (==False) bs) "no data types allowed"
@@ -129,14 +128,25 @@ mkInfix operator a b = withErrorPrefix "infix: " $ do
         Bool                 -> mkBoolInfix operator a b
         Char                 -> mkIntInfix operator a b
         String               -> mkStringInfix operator a b
+        Enum                 -> mkEnumInfix operator a b
         _ | isRange base     -> mkRangeInfix operator a b
-        _ | isEnumADT base   -> mkAdtEnumInfix operator a b
         _ | isInt base       -> mkIntInfix operator a b
         _ | isFloat base     -> mkFloatInfix operator a b
         _ | isTuple base     -> mkTupleInfix operator a b
         _ | isArray base     -> mkArrayInfix operator a b
         _                    -> fail $ "Operator " ++ show operator ++ " undefined for types " ++ show (valType a) ++ " " ++ show (valType b)
 
+
+
+mkEnumInfix :: InsCmp CompileState m => AST.Operator -> Value -> Value -> m Value
+mkEnumInfix operator a b = do
+    assert (valType a == valType b) "type mismatch"
+    assertBaseType (== Enum) (valType a)
+    opA <- valOp <$> valLoad a
+    opB <- valOp <$> valLoad b
+    case operator of
+        AST.NotEq -> Val Bool <$> icmp P.NE opA opB
+        AST.EqEq  -> Val Bool <$> icmp P.EQ opA opB
 
 
 mkRangeInfix :: InsCmp CompileState m => AST.Operator -> Value -> Value -> m Value
@@ -292,22 +302,10 @@ valTableInfix operator a b = do
             valLoad eq
 
 
-mkAdtEnumInfix :: InsCmp CompileState m => AST.Operator -> Value -> Value -> m Value
-mkAdtEnumInfix operator a b = do
-    assert (valType a == valType b) "type mismatch"
-    assertBaseType isEnumADT (valType a)
-    opA <- valOp <$> valLoad a
-    opB <- valOp <$> valLoad b
-    case operator of
-        AST.NotEq -> Val Bool <$> icmp P.NE opA opB
-        AST.EqEq  -> Val Bool <$> icmp P.EQ opA opB
-
-
 valAdtNormalInfix :: InsCmp CompileState m => AST.Operator -> Value -> Value -> m Value
 valAdtNormalInfix operator a b = do
     assert (valType a == valType b) "type mismatch"
-    base@(ADT fs) <- assertBaseType isNormalADT (valType a)
-
+    ADT fs <- assertBaseType isADT (valType a)
     case operator of
         AST.NotEq -> mkPrefix AST.Not =<< valAdtNormalInfix AST.EqEq a b
         AST.EqEq -> do

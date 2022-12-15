@@ -59,6 +59,10 @@ mkInt typ n = trace "mkInt" $ do
         I32 -> int32 (fromIntegral n)
         I64 -> int64 (fromIntegral n)
 
+mkEnum :: InsCmp CompileState m => Integral i => Type -> i -> m Value
+mkEnum typ n = do
+    assertBaseType (== Enum) typ
+    return $ Val typ $ int64 (fromIntegral n)
 
 mkFloat :: InsCmp CompileState m => Type -> Double -> m Value
 mkFloat typ f = trace "mkFloat" $ do
@@ -90,9 +94,9 @@ mkZero typ = trace ("mkZero " ++ show  typ) $ do
     namem <- Map.lookup typ <$> gets typeNameMap
     base <- baseTypeOf typ
     case base of
-        _ | isEnumADT base -> Val typ . valOp <$> mkZero I64
         _ | isInt base     -> mkInt typ 0
         _ | isFloat base   -> mkFloat typ 0.0
+        Enum               -> mkEnum typ 0
         String             -> Val String <$> getStringPointer ""
         Bool               -> mkBool typ False
         Char               -> mkChar typ '\0'

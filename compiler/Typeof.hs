@@ -47,7 +47,6 @@ isDataType typ = do
     base <- baseTypeOf typ
     case base of
         _ | isSimple base -> return False
-        _ | isEnumADT base -> return False
         Void              -> return False
         String            -> return False
         Tuple ts          -> any (== True) <$> mapM isDataType ts
@@ -58,7 +57,6 @@ isDataType typ = do
                 FieldType t -> isDataType t
                 FieldCtor ts -> any (== True) <$> mapM isDataType ts
             return $ any (== True) bs
-
         _                 -> return True
 
 
@@ -75,9 +73,11 @@ opTypeOf typ = withErrorPrefix ("opTypOf " ++ show typ) $ case typ of
     Char      -> return LL.i8
     Bool      -> return LL.i1
     String    -> return $ LL.ptr LL.i8
+    Enum      -> return LL.i64
     Range t   -> LL.StructureType False <$> mapM opTypeOf [t, t]
     Tuple ts  -> LL.StructureType False <$> mapM opTypeOf ts
     Array n t -> LL.ArrayType (fromIntegral n) <$> opTypeOf t
+    ADT tss   -> return $ LL.StructureType False [LL.i64, LL.ptr LL.i8]
 
     Table ts  -> do
         ps <- map LL.ptr <$> mapM opTypeOf ts
@@ -98,11 +98,6 @@ opTypeOf typ = withErrorPrefix ("opTypOf " ++ show typ) $ case typ of
         ts' <- mapM opTypeOf ts
         return $ LL.ptr (LL.FunctionType rt' ts' False)
 
-    ADT tss
-        | isEmptyADT typ -> return $ LL.ptr LL.void
-        | isNormalADT typ -> return $ LL.StructureType False [LL.i64, LL.ptr LL.i8]
-        | isEnumADT typ -> return $ LL.i64
-        | isPtrADT typ -> error ""
 
     UnsafePtr t -> LL.ptr <$> opTypeOf t
 

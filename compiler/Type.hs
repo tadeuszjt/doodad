@@ -21,6 +21,7 @@ data Type
     | Bool                   
     | Char                   
     | String
+    | Enum
     | Range Type
     | Sparse [Type]
     | Tuple [Type]           
@@ -31,23 +32,6 @@ data Type
     | Typedef Symbol
     | UnsafePtr Type
     deriving (Eq, Ord)
-
-
-tableBuiltinMembers :: Type -> [(String, [Type], Type)]
-tableBuiltinMembers (Table ts) = [
-    ("push",  [], Void),
-    ("pop",   [], popRet),
-    ("len",   [], I64),
-    ("clear", [], Void),
-    ("push",  ts, Void)
-    ]
-    where
-        popRet = case ts of
-            [] -> Void
-            [t] -> t
-            ts -> Tuple ts
-
-
 
 
 instance Show AdtField where
@@ -69,6 +53,7 @@ instance Show Type where
         Bool          -> "bool"
         Char          -> "char"
         String        -> "string"
+        Enum          -> "enum"
         Range t       -> "[..]" ++ show t
         Sparse ts     -> "sparse" ++ "[" ++ intercalate "; " (map show ts) ++ "]"
         Tuple ts      -> "(" ++ intercalate ", " (map show ts) ++ ")"
@@ -108,26 +93,11 @@ isFunc _              = False
 isADT (ADT _)         = True
 isADT _               = False
 
-isEmptyADT :: Type -> Bool
-isEmptyADT (ADT [])   = True
-isEmptyADT _          = False
-
-isPtrADT :: Type -> Bool
-isPtrADT (ADT [x])    = True
-isPtrADT _            = False
-
-isEnumADT :: Type -> Bool
-isEnumADT (ADT tss)   = length tss > 0 && all (== FieldCtor []) tss
-isEnumADT _           = False
-
-isNormalADT :: Type -> Bool
-isNormalADT adt       = isADT adt && (not $ isEmptyADT adt || isPtrADT adt || isEnumADT adt)
-
 isTypeId (Type _)     = True
 isTypeId _            = False
 
-isIntegral x          = isInt x || x == Char
-isSimple x            = isInt x || isFloat x || x == Char || x == Bool || x == String
+isIntegral x          = isInt x || x == Char || x == Enum
+isSimple x            = isInt x || isFloat x || x == Char || x == Bool || x == String || x == Enum
 isAggregate x         = isTuple x || isArray x || isTable x || isFunc x || isSparse x || isRange x
 isBase x              = isSimple x || isAggregate x
 

@@ -219,6 +219,13 @@ resolveTypeDef (AST.Typedef pos (Sym sym) anno) = do
                 ADTFieldNull -> return ADTFieldNull
             return $ AnnoADT xs'
 
+        AnnoEnum ss -> do
+            ss' <- forM ss $ \(Sym s) -> do
+                s' <- genSymbol s
+                define s KeyFunc s'
+                return s'
+            return $ AnnoEnum ss'
+
         _ -> fail $ "invalid anno: " ++ show anno
 
     return (symbol, anno')

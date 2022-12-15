@@ -88,6 +88,7 @@ cmpTypeNames irGenState = withErrorPrefix "cmpTypeNames" $ do
             AST.AnnoType typ -> typ
             AST.AnnoTuple xs -> Tuple (map snd xs)
             AST.AnnoADT xs   -> Void
+            AST.AnnoEnum ss  -> Void
             _ -> error (show anno)
 
         -- when the underlying type is a struct, replace with a type name
@@ -181,6 +182,13 @@ cmpTypeDefs irGenState = do
             AST.AnnoType typ -> do
                 define symbol KeyFunc ObjConstructor
                 define symbol KeyType (ObjType typ)
+            AST.AnnoEnum ss -> do
+                define symbol KeyFunc ObjConstructor
+                define symbol KeyType (ObjType Enum)
+                forM_ (zip ss [0..]) $ \(s, i) -> do
+                    define s (KeyField $ Typedef symbol) (ObjField i)
+                    define s KeyFunc (ObjField i)
+                    
 
                     
 cmpPrint :: InsCmp CompileState m => AST.Stmt -> m ()
@@ -330,7 +338,7 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
 
 -- must return Val unless local variable
 cmpExpr :: InsCmp CompileState m =>  AST.Expr -> m Value
-cmpExpr (AST.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck exprType $ case expr of
+cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ withCheck exprType $ case expr of
     AST.Bool pos b               -> mkBool exprType b
     AST.Char pos c               -> mkChar exprType c
     AST.Tuple pos [expr]         -> cmpExpr expr
@@ -503,7 +511,12 @@ cmpExpr (AST.AExpr exprType expr) = trace "cmpExpr" $ withPos expr $ withCheck e
                 op <- fnHdrToOp (map valType ps) symbol (map valType as) exprType
                 Val exprType <$> call op [(o, []) | o <- psLocs ++ asOps]
             ObjConstructor  -> mkConstruct exprType as
-            ObjField i      -> adtConstructField symbol exprType as
+            ObjField i      -> do
+                base <- baseTypeOf exprType
+                case base of
+                    ADT _ -> adtConstructField symbol exprType as
+                    Enum  -> mkEnum exprType i
+
     
     AST.Len pos expr -> valLoad =<< do
         assertBaseType isIntegral exprType
@@ -658,28 +671,27 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
             _ -> fail "Invalid array pattern"
 
     AST.PatField _ symbol pats -> do -- symbol(a, b, c)
-        base@(ADT fs) <- assertBaseType isADT (valType val)
-        obj <- look symbol (KeyField $ valType val)
-        case obj of
-            ObjAdtTypeField i -> do
-                assert (length pats == 1)       "One pattern allowed for type field"
-                enumMatch <- mkIntInfix AST.EqEq (mkI64 i) =<< adtEnum val
-                Ptr _ loc <- adtDeref val i 0
-                ObjType t0 <- look symbol KeyType
-                b <- cmpPattern (head pats) $ Ptr t0 loc
-                valLoad =<< mkInfix AST.AndAnd enumMatch b
+        base <- baseTypeOf (valType val) 
+        case base of
+            Enum -> do
+                assert (pats == []) "enum pattern with args"
+                ObjField i <- look symbol (KeyField $ valType val)
+                mkInfix AST.EqEq val =<< mkEnum (valType val) i
 
+            ADT fs -> do
+                obj <- look symbol (KeyField $ valType val)
+                case obj of
+                    ObjAdtTypeField i -> do
+                        assert (length pats == 1)       "One pattern allowed for type field"
+                        enumMatch <- mkIntInfix AST.EqEq (mkI64 i) =<< adtEnum val
+                        Ptr _ loc <- adtDeref val i 0
+                        ObjType t0 <- look symbol KeyType
+                        b <- cmpPattern (head pats) $ Ptr t0 loc
+                        valLoad =<< mkInfix AST.AndAnd enumMatch b
 
-            ObjField i -> do
-                let FieldCtor ts = fs !! i
-                assert (length pats == length ts) "invalid ADT pattern"
-
-                case base of
-                    _ | isEnumADT base -> do
-                        assert (length pats == 0) "invalid ADT pattern"
-                        mkIntInfix AST.EqEq (mkI64 i) =<< adtEnum val
-
-                    _ | isNormalADT base -> do
+                    ObjField i -> do
+                        let FieldCtor ts = fs !! i
+                        assert (length pats == length ts) "invalid ADT pattern"
                         enumMatch <- mkIntInfix AST.EqEq (mkI64 i) =<< adtEnum val
                         -- can't be inside a block which may or may not happen
                         -- as cmpPattern may add variables to the symbol table
@@ -690,7 +702,7 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
 
 
     AST.PatTypeField _ typ pat -> do -- char(c)
-        base@(ADT fs) <- assertBaseType isADT (valType val)
+        ADT fs <- assertBaseType isADT (valType val)
         i <- case valType val of
             Typedef symbol -> do
                 ObjField i <- look symbol (KeyTypeField typ)
@@ -700,22 +712,20 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
                 assert (length is == 1) "ADT does not contain unique type field"
                 return (head is)
 
-        case base of
-            _ | isNormalADT base -> do
-                match <- freshName "adt_pat_match"
-                exit  <- freshName "adt_pat_exit"
+        match <- freshName "adt_pat_match"
+        exit  <- freshName "adt_pat_exit"
 
-                matched <- mkAlloca Bool
-                valStore matched =<< mkBool Bool False
-                enumMatch <- mkIntInfix AST.EqEq (mkI64 i) =<< adtEnum val
-                condBr (valOp enumMatch) match exit
+        matched <- mkAlloca Bool
+        valStore matched =<< mkBool Bool False
+        enumMatch <- mkIntInfix AST.EqEq (mkI64 i) =<< adtEnum val
+        condBr (valOp enumMatch) match exit
 
-                emitBlockStart match
-                valStore matched =<< cmpPattern pat =<< adtDeref val i 0
-                br exit
+        emitBlockStart match
+        valStore matched =<< cmpPattern pat =<< adtDeref val i 0
+        br exit
 
-                emitBlockStart exit
-                valLoad matched
+        emitBlockStart exit
+        valLoad matched
 
 
 
