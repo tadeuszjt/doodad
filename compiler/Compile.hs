@@ -110,7 +110,7 @@ cmpDeclareExterns irGenState = withErrorPrefix "cmpDeclareExterns: " $ do
                 argOpTypes   <- mapM opTypeOf argTypes
                 returnOpType <- opTypeOf returnType
                 extern name (paramOpTypes ++ argOpTypes) returnOpType
-                define symbol KeyFunc ObjFn
+                define symbol ObjFn
 
 
 cmpFuncHdrs :: InsCmp CompileState m => IRGenState -> m ()
@@ -128,7 +128,7 @@ cmpFuncHdrs irGenState = do
         returnOpType <- opTypeOf retty
 
         let name = fnSymbolToName symbol
-        define symbol KeyFunc ObjFn
+        define symbol ObjFn
 
 
 cmpFuncBodies :: (MonadFail m, Monad m, MonadIO m) => IRGenState -> InstrCmpT CompileState m ()
@@ -150,18 +150,18 @@ cmpFuncBodies irGenState = do
         argOpTypes   <- mapM opTypeOf argTypes
         paramOpTypes <- map LL.ptr <$> mapM opTypeOf paramTypes
 
-        ObjFn <- look symbol KeyFunc
+        ObjFn <- look symbol
         op <- fnHdrToOp paramTypes symbol argTypes retty
         let LL.ConstantOperand (C.GlobalReference _ name) = op
 
         void $ InstrCmpT . IRBuilderT . lift $ func name (zip (paramOpTypes ++ argOpTypes)  (paramNames ++ argNames)) returnOpType $ \argOps -> do
             forM_ (zip3 paramTypes paramSymbols argOps) $ \(typ, symbol, op) -> do
-                define symbol KeyVar (ObjVal $ Ptr typ $ op)
+                define symbol (ObjVal $ Ptr typ $ op)
 
             forM_ (zip3 argTypes (drop (length paramSymbols) argOps) argSymbols) $ \(typ, op, symbol) -> do
                 loc <- mkAlloca typ
                 valStore loc (Val typ op)
-                define symbol KeyVar (ObjVal loc)
+                define symbol (ObjVal loc)
 
             mapM_ cmpStmt (funcStmts funcBody)
             hasTerm <- hasTerminator
@@ -172,34 +172,24 @@ cmpFuncBodies irGenState = do
 
 cmpTypeDefs :: InsCmp CompileState m => IRGenState -> m ()
 cmpTypeDefs irGenState = do
-    forM_ (Map.toList $ irTypeDefs irGenState) $ \(symbol, anno) ->
-        case anno of
-            AST.AnnoADT xs   -> adtTypeDef symbol (AST.AnnoADT xs)
-            AST.AnnoTuple xs -> do
-                define symbol KeyFunc ObjCtor
-                define symbol KeyType (ObjType $ Tuple $ map snd xs)
-                forM_ (zip xs [0..]) $ \((s, t), i) -> do
-                    define s KeyField (ObjField i)
-            AST.AnnoType typ -> do
-                define symbol KeyFunc ObjCtor
-                define symbol KeyType (ObjType typ)
-            AST.AnnoEnum ss -> do
-                define symbol KeyFunc ObjCtor
-                define symbol KeyType (ObjType Enum)
-                forM_ (zip ss [0..]) $ \(s, i) -> do
-                    define s KeyField (ObjField i)
-                    define s KeyFunc (ObjField i)
-                    
-
-                    
-cmpPrint :: InsCmp CompileState m => AST.Stmt -> m ()
-cmpPrint (AST.Print pos exprs) = trace "cmpPrint" $ do
-    prints =<< mapM cmpExpr exprs
-    where
-        prints :: InsCmp CompileState m => [Value] -> m ()
-        prints []     = void $ printf "\n" []
-        prints [val]  = valPrint "\n" val
-        prints (v:vs) = valPrint ", " v >> prints vs
+    forM_ (Map.toList $ irTypeDefs irGenState) $ \(symbol, anno) -> case anno of
+        AST.AnnoType typ -> do define symbol (ObjType typ)
+        AST.AnnoTuple xs -> do
+            define symbol (ObjType $ Tuple $ map snd xs)
+            forM_ (zip xs [0..]) $ \((s, t), i) -> do
+                define s (ObjField i)
+        AST.AnnoEnum ss -> do
+            define symbol (ObjType Enum)
+            forM_ (zip ss [0..]) $ \(s, i) -> do
+                define s (ObjField i)
+        AST.AnnoADT xs -> do
+            fs <- forM (zip xs [0..]) $ \(x, i) -> case x of
+                AST.ADTFieldType t           -> return $ FieldType t
+                AST.ADTFieldNull             -> return FieldNull
+                AST.ADTFieldMember symbol ts -> do
+                    define symbol (ObjField i)
+                    return $ FieldCtor ts
+            define symbol $ ObjType (ADT fs)
 
 
 cmpStmt :: InsCmp CompileState m => AST.Stmt -> m ()
@@ -217,7 +207,7 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
             Nothing -> mkZero typ
             Just expr -> cmpExpr expr
         valStore loc init
-        define symbol KeyVar (ObjVal loc)
+        define symbol (ObjVal loc)
 
     AST.Assign pos pat expr -> withErrorPrefix "assign: " $ do
         val <- cmpExpr expr
@@ -353,16 +343,16 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
         val <- mkConvert typ =<< cmpExpr expr
         base <- baseTypeOf exprType
         case base of
-            _ | exprType == valType val -> return val -- char(3):char
+            _ | exprType == valType val -> do -- char(3):char
+                loc <- mkAlloca exprType
+                storeCopy loc val
+                return loc
             ADT xs | FieldType typ `elem` xs -> do    -- char(3):{char | null}
                 loc <- mkMalloc typ (mkI64 1)
                 storeCopy loc val
                 adtConstructFromPtr exprType loc
             _ -> fail $ "cannot convert to type: " ++ show exprType
-                
-
             _ -> error $ show (base, typ)
-
 
     AST.Range pos Nothing _ Nothing -> fail "Range expression must contain maximum"
     AST.Range pos Nothing mexpr1 (Just expr2) -> do
@@ -474,7 +464,7 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
         mkInfix op valA valB
 
     AST.Ident pos symbol -> do
-        obj <- look symbol KeyVar
+        obj <- look symbol
         case obj of
             ObjVal (ConstInt n) -> return (mkI64 n)
             ObjVal loc -> return loc
@@ -506,17 +496,18 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
             Ptr _ loc -> return loc
 
         asOps <- map valOp <$> mapM valLoad as
-        obj <- look symbol KeyFunc
+        obj <- look symbol
         case obj of
             ObjFn -> do
                 op <- fnHdrToOp (map valType ps) symbol (map valType as) exprType
                 Val exprType <$> call op [(o, []) | o <- psLocs ++ asOps]
-            ObjCtor    -> mkConstruct exprType as
+            ObjType _  -> mkConstruct exprType as
             ObjField i -> do
                 base <- baseTypeOf exprType
                 case base of
                     ADT _ -> adtConstructField symbol exprType as
                     Enum  -> mkEnum exprType i
+            _ -> error (show obj)
 
     
     AST.Len pos expr -> valLoad =<< do
@@ -633,7 +624,7 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
         base <- baseTypeOf (valType val)
         loc <- mkAlloca (valType val)
         valStore loc val
-        define symbol KeyVar (ObjVal loc)
+        define symbol (ObjVal loc)
         mkBool Bool True
 
     AST.PatTuple _ pats -> do -- (a, b)
@@ -676,17 +667,18 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
         case base of
             Enum -> do
                 assert (pats == []) "enum pattern with args"
-                ObjField i <- look symbol KeyField
+                ObjField i <- look symbol
                 mkInfix AST.EqEq val =<< mkEnum (valType val) i
 
             ADT fs -> do
-                obj <- look symbol KeyField
+                obj <- look symbol
                 case obj of
-                    ObjAdtTypeField i -> do
-                        assert (length pats == 1)       "One pattern allowed for type field"
+                    ObjType typ -> do
+                        i <- adtTypeField typ (valType val)
+                        assert (length pats == 1) "One pattern allowed for type field"
                         enumMatch <- mkIntInfix AST.EqEq (mkI64 i) =<< adtEnum val
                         Ptr _ loc <- adtDeref val i 0
-                        ObjType t0 <- look symbol KeyType
+                        ObjType t0 <- look symbol
                         b <- cmpPattern (head pats) $ Ptr t0 loc
                         valLoad =<< mkInfix AST.AndAnd enumMatch b
 
@@ -706,7 +698,7 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
         ADT fs <- assertBaseType isADT (valType val)
         i <- case valType val of
             Typedef symbol -> do
-                ObjField i <- look symbol (KeyTypeField typ)
+                ObjField i <- look symbol
                 return i
             _ -> do
                 let is = elemIndices (FieldType typ) fs
@@ -727,6 +719,16 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
 
         emitBlockStart exit
         valLoad matched
+
+                    
+cmpPrint :: InsCmp CompileState m => AST.Stmt -> m ()
+cmpPrint (AST.Print pos exprs) = trace "cmpPrint" $ do
+    prints =<< mapM cmpExpr exprs
+    where
+        prints :: InsCmp CompileState m => [Value] -> m ()
+        prints []     = void $ printf "\n" []
+        prints [val]  = valPrint "\n" val
+        prints (v:vs) = valPrint ", " v >> prints vs
 
 
 

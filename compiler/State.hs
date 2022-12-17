@@ -58,28 +58,10 @@ valType (Ptr typ _) = typ
 valType (Val typ _) = typ
 
 
-data SymKey
-    = KeyType
-    | KeyVar
-    | KeyFunc
-    | KeyField
-    | KeyTypeField Type
-    deriving (Eq, Ord)
-
-instance Show SymKey where
-    show KeyType            = "type"
-    show KeyVar             = "var"
-    show KeyFunc            = "fn"
-    show KeyField           = "field"
-    show (KeyTypeField typ) = show typ
-
-
 data Object
-    = ObjVal Value
+    = ObjFn         
+    | ObjVal Value
     | ObjType Type
-    | ObjFn         
-    | ObjAdtTypeField Int
-    | ObjCtor 
     | ObjField Int
     deriving ()
 
@@ -91,7 +73,6 @@ instance Show Object where
         ObjVal val       -> "val"
         ObjType typ      -> show typ
         ObjFn            -> "fn"
-        ObjCtor          -> "ctor"
         ObjField i       -> "." ++ show i
 
 
@@ -100,7 +81,7 @@ data CompileState
         { context     :: Context
         , dataLayout  :: Ptr FFI.DataLayout
         , declared    :: Set.Set LL.Name
-        , symTab      :: SymTab.SymTab Symbol SymKey Object
+        , objects     :: Map.Map Symbol Object
         , moduleName  :: String
         , nameSupply  :: Map.Map String Int
         , stringMap   :: Map.Map String C.Constant
@@ -112,7 +93,7 @@ initCompileState modName session
         { context     = JIT.context session
         , dataLayout  = JIT.dataLayout session
         , declared    = Set.empty
-        , symTab      = SymTab.initSymTab
+        , objects     = Map.empty
         , moduleName  = modName
         , nameSupply  = Map.empty
         , stringMap   = Map.empty
@@ -156,17 +137,11 @@ myFresh sym = do
         _ -> mod ++ "." ++ sym ++ "_" ++ show n
 
 
-define :: BoM CompileState m => Symbol -> SymKey -> Object -> m ()
-define symbol key obj = trace "define" $ do
-    res <- SymTab.lookupHead symbol key <$> gets symTab
-    assert (isNothing res) (show symbol ++ " " ++ show key ++ " already defined")
-    modify $ \s -> s { symTab = SymTab.insert symbol key obj (symTab s) }
-
-
-checkSymUndef :: BoM CompileState m => Symbol -> m ()
-checkSymUndef symbol = trace ("checkSymUndef " ++ show symbol) $ do
-    res <- SymTab.lookupSym symbol <$> gets symTab
-    assert (null res) (show symbol ++ " already defined")
+define :: BoM CompileState m => Symbol -> Object -> m ()
+define symbol obj = trace "define" $ do
+    res <- Map.lookup symbol <$> gets objects
+    assert (isNothing res) (show symbol ++ " already defined")
+    modify $ \s -> s { objects = Map.insert symbol obj (objects s) }
 
 
 ensureExtern :: ModCmp CompileState m => LL.Name -> [LL.Type] -> LL.Type -> Bool -> m LL.Operand
@@ -181,13 +156,13 @@ ensureExtern name argTypes retty isVarg = trace "ensureExtern" $ do
         C.GlobalReference (LL.ptr $ LL.FunctionType retty argTypes isVarg) name
 
 
-lookm :: ModCmp CompileState m => Symbol -> SymKey -> m (Maybe Object)
-lookm symbol key = SymTab.lookup symbol key <$> gets symTab
+lookm :: ModCmp CompileState m => Symbol -> m (Maybe Object)
+lookm symbol = Map.lookup symbol <$> gets objects
 
 
-look :: ModCmp CompileState m => Symbol -> SymKey -> m Object
-look symbol key = do
-    resm <- lookm symbol key
-    assert (isJust resm) $ "no definition for: " ++ show symbol ++ " " ++ show key
+look :: ModCmp CompileState m => Symbol -> m Object
+look symbol = do
+    resm <- lookm symbol
+    assert (isJust resm) $ "no definition for: " ++ show symbol
     return (fromJust resm)
 

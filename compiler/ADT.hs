@@ -45,6 +45,14 @@ adtNull adtTyp = do
     return adt
 
 
+
+adtTypeField :: InsCmp CompileState m => Type -> Type -> m Int
+adtTypeField typ adtType = do
+    ADT fs <- assertBaseType isADT adtType
+    assert (FieldType typ `elem` fs) $ "ADT does not contain type field: " ++ show typ
+    return $ fromJust $ elemIndex (FieldType typ) fs
+
+
 -- construct ADT from a value.
 -- E.g. SomeAdt(4:i64), SomeAdt must have i64 field
 -- This function will use the location, must be allocated beforehand.
@@ -54,7 +62,7 @@ adtConstructFromPtr adtTyp loc@(Ptr _ _) = do
 
     case adtTyp of
         Typedef symbol -> do -- can lookup member
-            ObjField i <- look symbol (KeyTypeField $ valType loc)
+            i <- adtTypeField (valType loc) (Typedef symbol)
             adt <- mkAlloca adtTyp
             adtSetEnum adt i
             adtSetPi8 adt =<< bitcast (valLoc loc) (LL.ptr LL.i8)
@@ -67,34 +75,6 @@ adtConstructFromPtr adtTyp loc@(Ptr _ _) = do
             adtSetEnum adt (head is)
             adtSetPi8 adt =<< bitcast (valLoc loc) (LL.ptr LL.i8)
             return adt
-
-
-
-adtTypeDef :: InsCmp CompileState m => Symbol -> AST.AnnoType -> m ()
-adtTypeDef symbol (AST.AnnoADT xs) = trace "adtTypeDef" $ do
-    let typdef = Typedef symbol
-
-    fs <- forM xs $ \x -> case x of
-        AST.ADTFieldMember symbol ts -> return $ FieldCtor ts
-        AST.ADTFieldType t           -> return $ FieldType t
-        AST.ADTFieldNull             -> return FieldNull
-
-    define symbol KeyType $ ObjType (ADT fs)
-
-    -- define member loopkups
-    forM_ (zip xs [0..]) $ \(x, i) -> case x of
-        AST.ADTFieldMember s ts -> do
-            define s KeyFunc (ObjField i)
-            define s KeyField (ObjField i)
-        AST.ADTFieldType t@(Typedef s) -> do
-            define s KeyField (ObjAdtTypeField i)
-            define symbol (KeyTypeField t) (ObjField i)
-        AST.ADTFieldType t -> do
-            define symbol (KeyTypeField t) (ObjField i)
-        AST.ADTFieldNull -> return ()
-
-    -- define constructors
-    define symbol KeyFunc ObjCtor
 
 
 adtEnum :: InsCmp CompileState m => Value -> m Value
@@ -146,7 +126,7 @@ adtSetPi8 adt@(Ptr _ loc) pi8 = trace "adtSetPi8" $ do
 adtConstructField :: InsCmp CompileState m => Symbol -> Type -> [Value] -> m Value
 adtConstructField symbol typ vals = do
     ADT fs <- assertBaseType isADT typ
-    ObjField i <- look symbol KeyField
+    ObjField i <- look symbol
     adt <- mkAlloca typ
     adtSetEnum adt i
     case fs !! i of

@@ -29,7 +29,7 @@ valTupleField symbol tup = trace "tupleField" $ do
     let typ = valType tup
     assert (isTypedef typ) "Cannot have member of raw tuple"
     assertBaseType isTuple typ
-    ObjField i <- look symbol KeyField
+    ObjField i <- look symbol
     valTupleIdx i tup
 
 

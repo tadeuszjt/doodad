@@ -173,7 +173,7 @@ runMod args pathsVisited modPath = do
             debug "compiling"
             session <- gets session
             (defs, state) <- withErrorPrefix "compile: " $ Compile.compile irGenState session
-            when (printSymbols args) $ liftIO $ SymTab.prettySymTab (State.symTab state)
+            --when (printSymbols args) $ liftIO $ SymTab.prettySymTab (State.symTab state)
 
             debug "running"
             if compileObj args then do
