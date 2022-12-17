@@ -155,7 +155,7 @@ runMod args pathsVisited modPath = do
                 assert (isJust resm) $ show path ++ " not in irGenModMap"
                 return $ fromJust resm
             (resolvedAST, _) <- R.resolveAsts asts (cIrGenState : irGenImports)
-            Flatten.checkTypeDefs (typeDefsMap resolvedAST)
+            Flatten.checkTypeDefs (typeDefs resolvedAST)
             when (printAstResolved args) $ liftIO $ prettyResolvedAst resolvedAST
 
             debug "annotating ast"

@@ -78,7 +78,7 @@ data Expr
     | Initialiser TextPos [Expr]
     | Call        TextPos [Expr] Symbol [Expr]
     | Null        TextPos 
-    | Field       TextPos Expr String
+    | Field       TextPos Expr Symbol
     | Subscript   TextPos Expr Expr
     | TupleIndex  TextPos Expr Word32
     | Ident       TextPos Symbol
@@ -123,7 +123,7 @@ data AnnoADTField
 
 data AnnoType
     = AnnoType  Type
-    | AnnoTuple [(String, Type)]
+    | AnnoTuple [(Symbol, Type)]
     | AnnoADT   [AnnoADTField]
     | AnnoEnum  [Symbol]
     deriving (Eq)
@@ -269,7 +269,7 @@ instance Show Expr where
         String pos s                -> show s
         Tuple pos exprs             -> tupStrs (map show exprs)
         Initialiser pos exprs       -> arrStrs (map show exprs)
-        Field pos expr str          -> show expr ++ "." ++ str
+        Field pos expr symbol       -> show expr ++ "." ++ show symbol
         Subscript pos expr1 expr2   -> show expr1 ++ "[" ++ show expr2 ++ "]"
         TupleIndex pos expr n       -> show expr ++ "." ++ show n
         Ident p s                   -> show s 

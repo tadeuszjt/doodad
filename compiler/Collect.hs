@@ -137,7 +137,7 @@ collectAST ast = do
     forM (Map.toList $ typeImports ast) $ \(symbol, anno) ->
         collectTypedef symbol anno
 
-    forM_ (Map.toList $ typeDefsMap ast) $ \(symbol, anno) -> 
+    forM_ (Map.toList $ typeDefs ast) $ \(symbol, anno) -> 
         collectTypedef symbol anno
 
     forM (Map.toList $ funcImports ast) $ \(symbol, key@(ps, _, as, rt)) -> 
@@ -180,7 +180,8 @@ collectTypedef symbol annoTyp = do
 
         S.AnnoTuple xs   -> do
             let ts = map snd xs
-            forM_ (zip xs [0..]) $ \((s, t), i) -> define (Sym s) (KeyField typedef) (ObjField i)
+            forM_ (zip xs [0..]) $ \((s, t), i) ->
+                define (Sym $ sym s) (KeyField typedef) (ObjField i)
             define symbol KeyType $ ObjType $ Tuple (map snd xs)
             define symbol (KeyFunc [] ts typedef) ObjFunc
             define symbol (KeyFunc [] [] typedef) ObjFunc
@@ -440,7 +441,7 @@ collectExpr (S.AExpr exprType expr) = collectPos expr $ case expr of
         collectDefault exprType $ Tuple (map typeOf es)
         mapM_ collectExpr es
 
-    S.Field _ e sym -> do
+    S.Field _ e (Sym sym) -> do
         case typeOf e of
             Type x         -> return ()
             Typedef symbol -> do

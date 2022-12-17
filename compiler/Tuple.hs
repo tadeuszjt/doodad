@@ -24,12 +24,12 @@ tupleLength val = trace "tupleLength" $ do
     return (length ts)
 
 
-valTupleField :: InsCmp CompileState m => String -> Value -> m Value
-valTupleField sym tup = trace "tupleField" $ do
+valTupleField :: InsCmp CompileState m => Symbol -> Value -> m Value
+valTupleField symbol tup = trace "tupleField" $ do
     let typ = valType tup
     assert (isTypedef typ) "Cannot have member of raw tuple"
     assertBaseType isTuple typ
-    ObjField i <- look (Sym sym) (KeyField typ)
+    ObjField i <- look symbol KeyField
     valTupleIdx i tup
 
 

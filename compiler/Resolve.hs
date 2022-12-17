@@ -15,6 +15,17 @@ import Symbol
 import States
 
 
+
+-- Symbol classes
+--
+-- Functions   fn   alpha
+-- Types       type beta
+-- Variables   .. = gamma
+-- Fields      obj.epsilon
+--
+-- Resolve cannot change function names and struct members
+
+
 class Resolve a where
     resolve :: BoM ResolveState m => a -> m a
 
@@ -156,15 +167,15 @@ resolveAsts asts imports = withErrorPrefix "resolve: " $ do
 
             (_, typeImportMap) <- runBoMTExcept Map.empty (buildTypeImportMap imports)
             (_, funcImportMap) <- runBoMTExcept Map.empty (buildFuncImportMap imports)
-            typeDefsMap <- Map.fromList <$> mapM resolveTypeDef typedefs
-            funcDefsMap <- Map.fromList <$> mapM resolveFuncDef funcdefs
+            typeDefs <- Map.fromList <$> mapM resolveTypeDef typedefs
+            funcDefs <- Map.fromList <$> mapM resolveFuncDef funcdefs
 
             return $ ResolvedAst
                 { moduleName = moduleName
                 , typeImports = typeImportMap
                 , funcImports = funcImportMap
-                , funcDefs   = funcDefsMap
-                , typeDefsMap = typeDefsMap
+                , funcDefs   = funcDefs
+                , typeDefs = typeDefs
                 }
 
 
@@ -203,9 +214,10 @@ resolveTypeDef (AST.Typedef pos (Sym sym) anno) = do
         AnnoType t -> AnnoType <$> resolve t
 
         AnnoTuple xs -> do 
-            xs' <- forM xs $ \(s, t) -> do
+            xs' <- forM xs $ \(Sym s, t) -> do
+                s' <- genSymbol s
                 t' <- resolve t
-                return (s, t')
+                return (s', t')
             return $ AnnoTuple xs'
 
         AnnoADT xs -> do

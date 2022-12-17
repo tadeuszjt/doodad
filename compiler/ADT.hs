@@ -85,9 +85,9 @@ adtTypeDef symbol (AST.AnnoADT xs) = trace "adtTypeDef" $ do
     forM_ (zip xs [0..]) $ \(x, i) -> case x of
         AST.ADTFieldMember s ts -> do
             define s KeyFunc (ObjField i)
-            define s (KeyField typdef) (ObjField i)
+            define s KeyField (ObjField i)
         AST.ADTFieldType t@(Typedef s) -> do
-            define s (KeyField typdef) (ObjAdtTypeField i)
+            define s KeyField (ObjAdtTypeField i)
             define symbol (KeyTypeField t) (ObjField i)
         AST.ADTFieldType t -> do
             define symbol (KeyTypeField t) (ObjField i)
@@ -146,7 +146,7 @@ adtSetPi8 adt@(Ptr _ loc) pi8 = trace "adtSetPi8" $ do
 adtConstructField :: InsCmp CompileState m => Symbol -> Type -> [Value] -> m Value
 adtConstructField symbol typ vals = do
     ADT fs <- assertBaseType isADT typ
-    ObjField i <- look symbol (KeyField typ)
+    ObjField i <- look symbol KeyField
     adt <- mkAlloca typ
     adtSetEnum adt i
     case fs !! i of

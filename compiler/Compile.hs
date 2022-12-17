@@ -179,7 +179,7 @@ cmpTypeDefs irGenState = do
                 define symbol KeyFunc ObjCtor
                 define symbol KeyType (ObjType $ Tuple $ map snd xs)
                 forM_ (zip xs [0..]) $ \((s, t), i) -> do
-                    define (Sym s) (KeyField $ Typedef symbol) (ObjField i)
+                    define s KeyField (ObjField i)
             AST.AnnoType typ -> do
                 define symbol KeyFunc ObjCtor
                 define symbol KeyType (ObjType typ)
@@ -187,7 +187,7 @@ cmpTypeDefs irGenState = do
                 define symbol KeyFunc ObjCtor
                 define symbol KeyType (ObjType Enum)
                 forM_ (zip ss [0..]) $ \(s, i) -> do
-                    define s (KeyField $ Typedef symbol) (ObjField i)
+                    define s KeyField (ObjField i)
                     define s KeyFunc (ObjField i)
                     
 
@@ -345,7 +345,7 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
     AST.Tuple pos [expr]         -> cmpExpr expr
     AST.Float p f                -> mkFloat exprType f
     AST.Prefix pos operator expr -> mkPrefix operator =<< cmpExpr expr
-    AST.Field pos expr sym       -> valTupleField sym =<< cmpExpr expr
+    AST.Field pos expr symbol    -> valTupleField symbol =<< cmpExpr expr
     AST.Null p                   -> adtNull exprType
     AST.Match pos expr pat       -> cmpPattern pat =<< cmpExpr expr
 
@@ -676,11 +676,11 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
         case base of
             Enum -> do
                 assert (pats == []) "enum pattern with args"
-                ObjField i <- look symbol (KeyField $ valType val)
+                ObjField i <- look symbol KeyField
                 mkInfix AST.EqEq val =<< mkEnum (valType val) i
 
             ADT fs -> do
-                obj <- look symbol (KeyField $ valType val)
+                obj <- look symbol KeyField
                 case obj of
                     ObjAdtTypeField i -> do
                         assert (length pats == 1)       "One pattern allowed for type field"

@@ -13,9 +13,12 @@ import_c stdlib.h
 import_c stdio.h
 
 fn main()
-        data regexStr String "ab.*B.A"
-        data textStr String "doodad ab benis BDA"
-        print({regexStr, textStr}.match())
+    let v = Vec2(1, 2)
+    print(v, v.x, v.y, v.length())
+
+    data regexStr String "ab.*B.A"
+    data textStr String "doodad ab benis BDA"
+    print({regexStr, textStr}.match())
 
 
 

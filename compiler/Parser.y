@@ -223,7 +223,7 @@ call : symbol '(' exprs ')'                   { (S.Call (tokPos $2) [] (snd $1) 
 
 index  : symbol                               { S.Ident (fst $1) (snd $1) }
        | index '[' expr ']'                   { S.Subscript (tokPos $2) $1 $3 }
-       | index '.' ident                      { S.Field (tokPos $2) $1 (tokStr $3) }
+       | index '.' ident                      { S.Field (tokPos $2) $1 (Sym $ tokStr $3) }
        | index '.' symbol '(' exprs ')'        { S.Call (tokPos $2) [$1] (snd $3) $5 }
        | '{' exprs1 '}' '.' ident '(' exprs ')' { S.Call (tokPos $4) $2 (Sym $ tokStr $5) $7 }
        | index '.' push '(' exprs ')'         { S.Push (tokPos $2) $1 $5 }
@@ -244,7 +244,7 @@ expr   : literal                              { $1 }
        | null                                 { S.Null (tokPos $1) }
        | ':' typeAggregate '(' exprs ')'      { S.Conv (tokPos $3) $2 $4 }
        | expr '.' intlit                      { S.TupleIndex (tokPos $2) $1 (read $ tokStr $3) }
-       | expr '.' ident                       { S.Field (tokPos $2) $1 (tokStr $3) }
+       | expr '.' ident                       { S.Field (tokPos $2) $1 (Sym $ tokStr $3) }
        | expr '[' expr ']'                    { S.Subscript (tokPos $2) $1 $3 }
        | expr ':' type_                       { S.AExpr $3 $1 }
        | expr '.' ident '(' exprs ')'         { S.Call (tokPos $4) [$1] (Sym $ tokStr $3) $5 }
@@ -355,7 +355,7 @@ argTypes1 : type_                             { [$1] }
 
 
 annoTupType : '(' annoTupFields ')'           { S.AnnoTuple $2 }
-annoTupField : ident type_                    { (tokStr $1, $2) }
+annoTupField : ident type_                    { (Sym (tokStr $1), $2) }
 annoTupFields : annoTupField                  { [$1] }
               | annoTupField ',' annoTupFields { $1 : $3 }
 

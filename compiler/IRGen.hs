@@ -39,6 +39,7 @@ prettyIrGenState irGenState = do
 
 initIRGenState moduleName = IRGenState
     { irModuleName     = moduleName
+    , irTupleFields    = Map.empty
     , irTypeDefs       = Map.empty
     , irExternDefs     = Map.empty
     , irFuncDefs       = Map.empty
@@ -53,7 +54,10 @@ compile :: BoM IRGenState m => ResolvedAst -> m ()
 compile ast = do
     modify $ \s -> s { irTypeDefs = typeImports ast }
     modify $ \s -> s { irExternDefs = funcImports ast }
-    initialiseTopTypeDefs (typeDefsMap ast)
+    initialiseTopTypeDefs (typeDefs ast)
+    initialiseTupleMembers $ Map.union (typeDefs ast) (typeImports ast)
+
+
     initialiseTopFuncDefs (funcDefs ast)
     forM_ (Map.toList $ funcDefs ast) $ \(symbol, body) ->
         compileFuncDef symbol body
@@ -74,12 +78,22 @@ initialiseTopFuncDefs funcDefs = do
 
 
 initialiseTopTypeDefs :: BoM IRGenState m => Map.Map Symbol AST.AnnoType -> m ()
-initialiseTopTypeDefs typeDefsMap = do
-    forM_ (Map.toList typeDefsMap) $ \(symbol, anno) -> do
+initialiseTopTypeDefs typeDefs = do
+    forM_ (Map.toList typeDefs) $ \(symbol, anno) -> do
         Nothing <- Map.lookup symbol <$> gets irTypeDefs
         Nothing <- Map.lookup (sym symbol) <$> gets irTypeMap
         modify $ \s -> s { irTypeDefs = Map.insert symbol anno (irTypeDefs s) }
         modify $ \s -> s { irTypeMap  = Map.insert (sym symbol) symbol (irTypeMap s) }
+
+
+initialiseTupleMembers :: BoM IRGenState m => Map.Map Symbol AST.AnnoType -> m ()
+initialiseTupleMembers typeDefs = do
+    forM_ (Map.toList typeDefs) $ \(symbol, anno) -> case anno of
+        AnnoTuple xs -> forM_ xs $ \(fieldSymbol, t) -> do
+            Nothing <- Map.lookup (symbol, sym fieldSymbol) <$> gets irTupleFields
+            modify $ \s -> s { irTupleFields = Map.insert (symbol, sym fieldSymbol) fieldSymbol (irTupleFields s) }
+        _ -> return ()
+
 
 
 compileFuncDef :: BoM IRGenState m => Symbol -> FuncBody -> m ()
@@ -159,8 +173,6 @@ resolveFuncCall exprType (AST.Call pos params symbol args) = withPos pos $ do
 
 compileStmt :: BoM IRGenState m => AST.Stmt -> m Stmt
 compileStmt stmt = withPos stmt $ case stmt of
-
-
     AST.ExprStmt expr -> do
         expr' <- compileExpr expr
         return $ ExprStmt expr'
@@ -178,9 +190,6 @@ compileStmt stmt = withPos stmt $ case stmt of
         expr' <- compileExpr expr
         return $ Assign pos pat' expr'
     
-    AST.Typedef pos symbol anno -> do
-        return $ AST.Typedef pos symbol anno
-
     AST.If pos expr stmt melse -> do
         expr' <- compileExpr expr
         stmt' <- compileStmt stmt
@@ -274,9 +283,11 @@ compileExpr (AST.AExpr exprType expr) = withPos expr $ AExpr exprType <$> case e
         exprs' <- mapM compileExpr exprs
         return $ Conv pos typ exprs'
 
-    AST.Field pos expr sym -> do
+    AST.Field pos expr (Sym sym) -> do
+        let Type.Typedef typeSymbol = exprTypeOf expr
+        Just symbol' <- Map.lookup (typeSymbol, sym) <$> gets irTupleFields
         expr' <- compileExpr expr
-        return $ Field pos expr' sym
+        return $ Field pos expr' symbol'
 
     AST.AExpr typ expr -> do
         expr' <- compileExpr expr

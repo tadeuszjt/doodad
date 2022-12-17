@@ -20,7 +20,7 @@ data ResolvedAst
     { moduleName  :: String
     , typeImports :: Map.Map Symbol AnnoType -- imported types
     , funcImports :: Map.Map Symbol FuncKey  -- imported funcs
-    , typeDefsMap :: Map.Map Symbol AnnoType -- defined types
+    , typeDefs    :: Map.Map Symbol AnnoType -- defined types
     , funcDefs    :: Map.Map Symbol FuncBody -- defined functions
     }
     deriving (Eq)
@@ -40,6 +40,7 @@ data FuncBody
 
 data IRGenState = IRGenState
     { irCurrentFunc :: FuncKey
+    , irTupleFields :: Map.Map (Symbol, String) Symbol
 
     , irModuleName  :: String                      -- name of module
     , irTypeDefs    :: Map.Map Symbol AST.AnnoType -- all needed type definitions

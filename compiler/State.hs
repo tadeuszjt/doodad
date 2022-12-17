@@ -62,7 +62,7 @@ data SymKey
     = KeyType
     | KeyVar
     | KeyFunc
-    | KeyField Type
+    | KeyField
     | KeyTypeField Type
     deriving (Eq, Ord)
 
@@ -70,7 +70,7 @@ instance Show SymKey where
     show KeyType            = "type"
     show KeyVar             = "var"
     show KeyFunc            = "fn"
-    show (KeyField t)       = show t ++ "."
+    show KeyField           = "field"
     show (KeyTypeField typ) = show typ
 
 
