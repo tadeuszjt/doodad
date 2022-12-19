@@ -140,6 +140,7 @@ buildTypeImportMap imports = do
             modify $ Map.insert symbol (fromJust resm)
 
 
+
 buildFuncImportMap :: BoM (Map.Map Symbol FuncKey) m => [IRGenState] -> m ()
 buildFuncImportMap imports = do
     forM_ imports $ \imprt -> do
@@ -147,6 +148,29 @@ buildFuncImportMap imports = do
             exists <- Map.member symbol <$> get
             assert (not exists) $ "func symbol already imported: " ++ show symbol
             modify $ Map.insert symbol key
+
+
+buildCtorImportMap :: BoM (Map.Map Symbol (Type, Int)) m => [IRGenState] -> m ()
+buildCtorImportMap imports = do
+    forM_ imports $ \imprt -> do
+        forM_ (Map.elems $ irTypeMap imprt) $ \symbol -> do
+            case (irTypeDefs imprt) Map.! symbol of
+                AnnoEnum xs -> forM_ (zip xs [0..]) $ \(x, i) ->
+                    modify $ Map.insert x (Type.Typedef symbol, i)
+                AnnoADT xs -> forM_ (zip xs [0..]) $ \(x, i) -> case x of
+                    ADTFieldMember s t -> modify $ Map.insert s (Type.Typedef symbol, i)
+                    _ -> return ()
+                _ -> return ()
+
+buildCtorMap :: BoM (Map.Map Symbol (Type, Int)) m => [(Symbol, AnnoType)] -> m ()
+buildCtorMap list = do
+    forM_ list $ \(symbol, anno) -> case anno of
+        AnnoEnum xs -> forM_ (zip xs [0..]) $ \(x, i) ->
+            modify $ Map.insert x (Type.Typedef symbol, i)
+        AnnoADT xs -> forM_ (zip xs [0..]) $ \(x, i) -> case x of
+            ADTFieldMember s t -> modify $ Map.insert s (Type.Typedef symbol, i)
+            _ -> return ()
+        _ -> return ()
 
 
 resolveAsts :: BoM s m => [AST] -> [IRGenState] -> m (ResolvedAst, ResolveState)
@@ -167,15 +191,21 @@ resolveAsts asts imports = withErrorPrefix "resolve: " $ do
 
             (_, typeImportMap) <- runBoMTExcept Map.empty (buildTypeImportMap imports)
             (_, funcImportMap) <- runBoMTExcept Map.empty (buildFuncImportMap imports)
-            typeDefs <- Map.fromList <$> mapM resolveTypeDef typedefs
-            funcDefs <- Map.fromList <$> mapM resolveFuncDef funcdefs
+            (_, ctorImportMap) <- runBoMTExcept Map.empty (buildCtorImportMap imports)
+
+            typeDefsList <- mapM resolveTypeDef typedefs
+            funcDefsMap <- Map.fromList <$> mapM resolveFuncDef funcdefs
+            (_, ctorMap) <- runBoMTExcept Map.empty (buildCtorMap typeDefsList)
+            typeDefsMap <- return (Map.fromList typeDefsList)
 
             return $ ResolvedAst
-                { moduleName = moduleName
+                { moduleName  = moduleName
                 , typeImports = typeImportMap
+                , ctorImports = ctorImportMap
                 , funcImports = funcImportMap
-                , funcDefs   = funcDefs
-                , typeDefs = typeDefs
+                , funcDefs    = funcDefsMap
+                , typeDefs    = typeDefsMap
+                , ctorDefs    = ctorMap
                 }
 
 

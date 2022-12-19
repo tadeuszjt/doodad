@@ -140,6 +140,12 @@ collectAST ast = do
     forM_ (Map.toList $ typeDefs ast) $ \(symbol, anno) -> 
         collectTypedef symbol anno
 
+    forM_ (Map.toList $ ctorImports ast) $ \(symbol, (t, i)) -> do
+        collectCtorDef symbol (t, i)
+
+    forM_ (Map.toList $ ctorDefs ast) $ \(symbol, (t, i)) -> do
+        collectCtorDef symbol (t, i)
+
     forM (Map.toList $ funcImports ast) $ \(symbol, key@(ps, _, as, rt)) -> 
         define symbol (KeyFunc ps as rt) ObjFunc
 
@@ -163,6 +169,12 @@ collectFuncDef symbol body = do
     mapM_ collectStmt (funcStmts body)
     modify $ \s -> s { curRetty = oldRetty }
     collectDefault (funcRetty body) Void
+
+
+collectCtorDef :: BoM CollectState m => Symbol -> (Type, Int) -> m ()
+collectCtorDef symbol (Typedef s, i) = do
+    ObjType ot <- look s KeyType -- check
+    define symbol KeyAdtField (ObjField i)
 
 
 collectTypedef :: BoM CollectState m => Symbol -> S.AnnoType -> m ()
@@ -189,7 +201,6 @@ collectTypedef symbol annoTyp = do
         S.AnnoADT xs -> do
             fs <- forM (zip xs [0..]) $ \(x, i) -> case x of
                 S.ADTFieldMember s ts -> do
-                    define s KeyAdtField (ObjField i)
                     define s (KeyFunc [] ts typedef) ObjFunc
                     return (FieldCtor ts)
                 S.ADTFieldType t -> return (FieldType t)
@@ -199,7 +210,6 @@ collectTypedef symbol annoTyp = do
 
         S.AnnoEnum ss -> do
             forM_ (zip ss [0..]) $ \(s, i) -> do
-                define s KeyAdtField (ObjField i)
                 define s (KeyFunc [] [] typedef) ObjFunc
             define symbol KeyType $ ObjType Enum
 
