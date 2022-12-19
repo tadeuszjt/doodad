@@ -72,7 +72,7 @@ initialiseTopFuncDefs funcDefs = do
                 Nothing <- gets irMainDef
                 modify $ \s -> s { irMainDef = Just (FuncBody [] [] (funcRetty funcBody) []) }
             _ -> do
-                Nothing <- Map.lookup symbol <$> gets irFuncDefs
+                False <- Map.member symbol <$> gets irFuncDefs
                 let key = (map AST.paramType (funcParams funcBody), sym symbol, map AST.paramType (funcArgs funcBody), (funcRetty funcBody))
                 modify $ \s -> s { irFuncMap = Map.insert  key symbol (irFuncMap s) }
                 modify $ \s -> s { irFuncDefs = Map.insert symbol (FuncBody (funcParams funcBody) (funcArgs funcBody) (funcRetty funcBody) []) (irFuncDefs s) }
@@ -81,8 +81,8 @@ initialiseTopFuncDefs funcDefs = do
 initialiseTopTypeDefs :: BoM IRGenState m => Map.Map Symbol Type -> m ()
 initialiseTopTypeDefs typeDefs = do
     forM_ (Map.toList typeDefs) $ \(symbol, typ) -> do
-        Nothing <- Map.lookup symbol <$> gets irTypeDefs
-        Nothing <- Map.lookup (sym symbol) <$> gets irTypeMap
+        False <- Map.member symbol <$> gets irTypeDefs
+        False <- Map.member (sym symbol) <$> gets irTypeMap
         modify $ \s -> s { irTypeDefs = Map.insert symbol typ (irTypeDefs s) }
         modify $ \s -> s { irTypeMap  = Map.insert (sym symbol) symbol (irTypeMap s) }
 
@@ -94,7 +94,6 @@ initialiseTupleMembers ctorDefs = do
         case typ of
             Type.Tuple ts -> modify $ \s -> s { irTupleFields = Map.insert (symbolType, sym symbol) symbol (irTupleFields s) }
             _-> return ()
-
 
 
 compileFuncDef :: BoM IRGenState m => Symbol -> FuncBody -> m ()

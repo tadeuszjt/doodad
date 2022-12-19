@@ -147,20 +147,15 @@ buildTypeImportMap :: BoM (Map.Map Symbol Type) m => [IRGenState] -> m ()
 buildTypeImportMap imports = do
     forM_ imports $ \imprt -> do
         forM_ (Map.elems $ irTypeMap imprt) $ \symbol -> do
-            exists <- Map.member symbol <$> get
-            assert (not exists) $ "type symbol already imported: " ++ show symbol
-            let resm = Map.lookup symbol (irTypeDefs imprt)
-            assert (isJust resm) "resm was Nothing"
-            modify $ Map.insert symbol (fromJust resm)
-
+            False <- Map.member symbol <$> get
+            modify $ Map.insert symbol $ irTypeDefs imprt Map.! symbol
 
 
 buildFuncImportMap :: BoM (Map.Map Symbol FuncKey) m => [IRGenState] -> m ()
 buildFuncImportMap imports = do
     forM_ imports $ \imprt -> do
         forM_ (Map.toList $ irFuncMap imprt) $ \(key, symbol) -> do
-            exists <- Map.member symbol <$> get
-            assert (not exists) $ "func symbol already imported: " ++ show symbol
+            False <- Map.member symbol <$> get
             modify $ Map.insert symbol key
 
 
@@ -205,7 +200,6 @@ resolveAsts asts imports = withErrorPrefix "resolve: " $ do
             (_, funcImportMap) <- runBoMTExcept Map.empty (buildFuncImportMap imports)
             (_, ctorImportMap) <- runBoMTExcept Map.empty (buildCtorImportMap imports)
 
-
             typeDefsMap <- Map.fromList <$> mapM resolveTypeDef typedefs
             funcDefsMap <- Map.fromList <$> mapM resolveFuncDef funcdefs
             (_, ctorMap) <- runBoMTExcept Map.empty (buildCtorMap $ Map.toList typeDefsMap)
@@ -216,7 +210,7 @@ resolveAsts asts imports = withErrorPrefix "resolve: " $ do
                 , ctorImports = ctorImportMap
                 , funcImports = funcImportMap
                 , funcDefs    = funcDefsMap
-                , typeDefs    = Map.map (annoToType) typeDefsMap
+                , typeDefs    = Map.map annoToType typeDefsMap
                 , ctorDefs    = ctorMap
                 }
 

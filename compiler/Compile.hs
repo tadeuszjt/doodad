@@ -62,7 +62,6 @@ fnHdrToOp paramTypes symbol argTypes returnType = do
     return $ fnOp name (paramOpTypes ++ argOpTypes) returnOpType False
 
 
-
 compile :: BoM s m => IRGenState -> JIT.Session -> m ([LL.Definition], CompileState)
 compile irGenState session = do
     ((_, defs), state) <- runBoMTExcept (initCompileState (irModuleName irGenState) session) (runModuleCmpT emptyModuleBuilder cmp)
@@ -71,8 +70,8 @@ compile irGenState session = do
         cmp :: (MonadFail m, Monad m, MonadIO m) => ModuleCmpT CompileState m ()
         cmp = do
             mainOp <- func (LL.mkName "main")  [] LL.VoidType $ \_ -> do
-                cmpCtorDefs irGenState
-                cmpTypeDefs irGenState
+                mapM_ (\(s, x) -> define s $ ObjField $ snd x) $ Map.toList $ irCtorDefs irGenState
+                mapM_ (\(s, x) -> define s $ ObjType x)        $ Map.toList $ irTypeDefs irGenState
                 cmpTypeNames irGenState
                 cmpDeclareExterns irGenState
                 cmpFuncHdrs irGenState
@@ -80,18 +79,6 @@ compile irGenState session = do
 
             void $ func (LL.mkName $ (irModuleName irGenState) ++ "..callMain")  [] LL.VoidType $ \_ -> do
                 void $ call mainOp []
-
-
-cmpCtorDefs :: InsCmp CompileState m => IRGenState -> m ()
-cmpCtorDefs irGenState = do
-    forM_ (Map.toList $ irCtorDefs irGenState) $ \(symbol, (t, i)) ->
-        define symbol (ObjField i)
-
-
-cmpTypeDefs :: InsCmp CompileState m => IRGenState -> m ()
-cmpTypeDefs irGenState = do
-    forM_ (Map.toList $ irTypeDefs irGenState) $ \(symbol, typ) ->
-        define symbol (ObjType typ)
 
 
 cmpTypeNames :: InsCmp CompileState m => IRGenState -> m ()
@@ -309,6 +296,7 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
             --printf (str ++ " " ++ show (Error.textLine pos) ++ "\n") []
             br name
             emitBlockStart name
+
 
 -- must return Val unless local variable
 cmpExpr :: InsCmp CompileState m =>  AST.Expr -> m Value
