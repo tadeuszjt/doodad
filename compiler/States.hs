@@ -48,6 +48,7 @@ data IRGenState = IRGenState
     , irTypeDefs    :: Map.Map Symbol AST.AnnoType -- all needed type definitions
     , irExternDefs  :: Map.Map Symbol FuncKey      -- all needed func declarations
     , irFuncDefs    :: Map.Map Symbol FuncBody     -- all needed func definitions
+    , irCtorDefs    :: Map.Map Symbol (Type, Int)  -- all needed ctor definitions
     , irFuncMap     :: Map.Map FuncKey Symbol      -- symbol table for funcs defined by this module
     , irTypeMap     :: Map.Map String Symbol       -- symbol table for types defined by this module
     , irMainDef     :: Maybe FuncBody              -- optional main() definition

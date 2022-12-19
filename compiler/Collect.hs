@@ -175,13 +175,21 @@ collectCtorDef :: BoM CollectState m => Symbol -> (Type, Int) -> m ()
 collectCtorDef symbol (Typedef s, i) = do
     ObjType ot <- look s KeyType -- check
     define symbol KeyAdtField (ObjField i)
+    case ot of
+        Enum -> define symbol (KeyFunc [] [] $ Typedef s) ObjFunc
+        ADT fs -> case fs !! i of
+            FieldCtor ts -> define symbol (KeyFunc [] ts $ Typedef s) ObjFunc
+            _            -> return ()
+        _ -> return ()
 
 
 collectTypedef :: BoM CollectState m => Symbol -> S.AnnoType -> m ()
 collectTypedef symbol annoTyp = do
     let typedef = Typedef symbol
-
     case annoTyp of
+        S.AnnoEnum ss -> do
+            define symbol KeyType (ObjType Enum)
+
         S.AnnoType (Tuple ts) -> do
             define symbol KeyType (ObjType $ Tuple ts)
             define symbol (KeyFunc [] ts typedef) ObjFunc
@@ -200,18 +208,10 @@ collectTypedef symbol annoTyp = do
 
         S.AnnoADT xs -> do
             fs <- forM (zip xs [0..]) $ \(x, i) -> case x of
-                S.ADTFieldMember s ts -> do
-                    define s (KeyFunc [] ts typedef) ObjFunc
-                    return (FieldCtor ts)
+                S.ADTFieldMember s ts -> return (FieldCtor ts)
                 S.ADTFieldType t -> return (FieldType t)
                 S.ADTFieldNull -> return FieldNull
-
             define symbol KeyType $ ObjType (ADT fs)
-
-        S.AnnoEnum ss -> do
-            forM_ (zip ss [0..]) $ \(s, i) -> do
-                define s (KeyFunc [] [] typedef) ObjFunc
-            define symbol KeyType $ ObjType Enum
 
 
 

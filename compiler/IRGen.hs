@@ -43,6 +43,7 @@ initIRGenState moduleName = IRGenState
     , irTypeDefs       = Map.empty
     , irExternDefs     = Map.empty
     , irFuncDefs       = Map.empty
+    , irCtorDefs       = Map.empty
     , irFuncMap        = Map.empty
     , irTypeMap        = Map.empty
     , irMainDef        = Nothing
@@ -54,6 +55,7 @@ compile :: BoM IRGenState m => ResolvedAst -> m ()
 compile ast = do
     modify $ \s -> s { irTypeDefs = typeImports ast }
     modify $ \s -> s { irExternDefs = funcImports ast }
+    modify $ \s -> s { irCtorDefs = Map.union (ctorImports ast) (ctorDefs ast) }
     initialiseTopTypeDefs (typeDefs ast)
     initialiseTupleMembers $ Map.union (typeDefs ast) (typeImports ast)
 

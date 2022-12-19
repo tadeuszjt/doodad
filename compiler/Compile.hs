@@ -71,6 +71,7 @@ compile irGenState session = do
         cmp :: (MonadFail m, Monad m, MonadIO m) => ModuleCmpT CompileState m ()
         cmp = do
             mainOp <- func (LL.mkName "main")  [] LL.VoidType $ \_ -> do
+                cmpCtorDefs irGenState
                 cmpTypeDefs irGenState
                 cmpTypeNames irGenState
                 cmpDeclareExterns irGenState
@@ -170,25 +171,26 @@ cmpFuncBodies irGenState = do
             else trapMsg "reached end of function" >> unreachable
 
 
+cmpCtorDefs :: InsCmp CompileState m => IRGenState -> m ()
+cmpCtorDefs irGenState = do
+    forM_ (Map.toList $ irCtorDefs irGenState) $ \(symbol, (t, i)) -> do
+        define symbol (ObjField i)
+
+
 cmpTypeDefs :: InsCmp CompileState m => IRGenState -> m ()
 cmpTypeDefs irGenState = do
     forM_ (Map.toList $ irTypeDefs irGenState) $ \(symbol, anno) -> case anno of
-        AST.AnnoType typ -> do define symbol (ObjType typ)
+        AST.AnnoType typ -> define symbol (ObjType typ)
+        AST.AnnoEnum ss -> define symbol (ObjType Enum)
         AST.AnnoTuple xs -> do
             define symbol (ObjType $ Tuple $ map snd xs)
             forM_ (zip xs [0..]) $ \((s, t), i) -> do
-                define s (ObjField i)
-        AST.AnnoEnum ss -> do
-            define symbol (ObjType Enum)
-            forM_ (zip ss [0..]) $ \(s, i) -> do
                 define s (ObjField i)
         AST.AnnoADT xs -> do
             fs <- forM (zip xs [0..]) $ \(x, i) -> case x of
                 AST.ADTFieldType t           -> return $ FieldType t
                 AST.ADTFieldNull             -> return FieldNull
-                AST.ADTFieldMember symbol ts -> do
-                    define symbol (ObjField i)
-                    return $ FieldCtor ts
+                AST.ADTFieldMember symbol ts -> return $ FieldCtor ts
             define symbol $ ObjType (ADT fs)
 
 
