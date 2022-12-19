@@ -143,7 +143,7 @@ annoToType anno = case anno of
             AST.ADTFieldMember symbol ts -> FieldCtor ts
 
 
-buildTypeImportMap :: BoM (Map.Map Symbol AnnoType) m => [IRGenState] -> m ()
+buildTypeImportMap :: BoM (Map.Map Symbol Type) m => [IRGenState] -> m ()
 buildTypeImportMap imports = do
     forM_ imports $ \imprt -> do
         forM_ (Map.elems $ irTypeMap imprt) $ \symbol -> do
@@ -151,7 +151,7 @@ buildTypeImportMap imports = do
             assert (not exists) $ "type symbol already imported: " ++ show symbol
             let resm = Map.lookup symbol (irTypeDefs imprt)
             assert (isJust resm) "resm was Nothing"
-            modify $ Map.insert symbol $ AnnoType (fromJust resm)
+            modify $ Map.insert symbol (fromJust resm)
 
 
 
@@ -216,7 +216,7 @@ resolveAsts asts imports = withErrorPrefix "resolve: " $ do
                 , ctorImports = ctorImportMap
                 , funcImports = funcImportMap
                 , funcDefs    = funcDefsMap
-                , typeDefs    = Map.map (AnnoType . annoToType) typeDefsMap
+                , typeDefs    = Map.map (annoToType) typeDefsMap
                 , ctorDefs    = ctorMap
                 }
 

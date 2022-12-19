@@ -8,8 +8,7 @@ import Control.Monad.State
 import qualified Data.Set as Set 
 import qualified Data.Map as Map 
 import Data.List
-import qualified AST as S
-import qualified Type as T
+import Type
 import Monad
 import Error
 import Symbol
@@ -20,7 +19,7 @@ import Symbol
 
 
 -- check typedefs for circles
-checkTypeDefs :: BoM s m => Map.Map Symbol S.AnnoType -> m ()
+checkTypeDefs :: BoM s m => Map.Map Symbol Type -> m ()
 checkTypeDefs typedefs = do
     -- check multiple definitions
     forM (Map.toList typedefs) $ \(symbol, anno) -> 
@@ -37,27 +36,20 @@ checkTypeDefs typedefs = do
             Nothing -> return ()
             Just anno -> do
                 assert (not $ Set.member symbol visited) "Typedef has circles"
-                checkAnnoCircles (Set.insert symbol visited) anno
+                checkTypeCircles (Set.insert symbol visited) anno
         
-        checkAnnoCircles :: BoM s m => Set.Set Symbol -> S.AnnoType -> m ()
-        checkAnnoCircles visited anno = case anno of
-            S.AnnoType t   -> checkTypeCircles visited t
-            S.AnnoTuple xs -> forM_ xs $ \(_, t) -> checkTypeCircles visited t
-            S.AnnoADT xs   -> return () -- no need to check circles
-            S.AnnoEnum ss  -> return ()
-
-        checkTypeCircles :: BoM s m => Set.Set Symbol -> T.Type -> m ()
+        checkTypeCircles :: BoM s m => Set.Set Symbol -> Type -> m ()
         checkTypeCircles visited typ = case typ of
-            T.Typedef symbol  -> checkCircles visited symbol
-            T.Tuple ts        -> mapM_ (checkTypeCircles visited) ts
-            T.Table ts        -> mapM_ (checkTypeCircles visited) ts
-            T.Sparse ts       -> mapM_ (checkTypeCircles visited) ts
-            T.ADT fs          -> do
+            Typedef symbol  -> checkCircles visited symbol
+            Tuple ts        -> mapM_ (checkTypeCircles visited) ts
+            Table ts        -> mapM_ (checkTypeCircles visited) ts
+            Sparse ts       -> mapM_ (checkTypeCircles visited) ts
+            ADT fs          -> do
                 forM_ fs $ \field -> case field of
-                    T.FieldNull -> return ()
-                    T.FieldType t -> checkTypeCircles visited t
-                    T.FieldCtor ts -> mapM_ (checkTypeCircles visited) ts
-            T.Array n t       -> checkTypeCircles visited t
-            T.Void            -> return ()
-            t | T.isSimple t  -> return ()
+                    FieldNull -> return ()
+                    FieldType t -> checkTypeCircles visited t
+                    FieldCtor ts -> mapM_ (checkTypeCircles visited) ts
+            Array n t       -> checkTypeCircles visited t
+            Void            -> return ()
+            t | isSimple t  -> return ()
             _                 -> fail ("checkTypeCircles " ++ show typ)

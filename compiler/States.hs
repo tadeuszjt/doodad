@@ -18,10 +18,10 @@ data Extern
 data ResolvedAst
     = ResolvedAst
     { moduleName  :: String
-    , typeImports :: Map.Map Symbol AnnoType -- imported types
+    , typeImports :: Map.Map Symbol Type -- imported types
     , ctorImports :: Map.Map Symbol (Type, Int)
     , funcImports :: Map.Map Symbol FuncKey  -- imported funcs
-    , typeDefs    :: Map.Map Symbol AnnoType -- defined types
+    , typeDefs    :: Map.Map Symbol Type -- defined types
     , ctorDefs    :: Map.Map Symbol (Type, Int)
     , funcDefs    :: Map.Map Symbol FuncBody -- defined functions
     }

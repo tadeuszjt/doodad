@@ -82,6 +82,17 @@ compile irGenState session = do
                 void $ call mainOp []
 
 
+cmpCtorDefs :: InsCmp CompileState m => IRGenState -> m ()
+cmpCtorDefs irGenState = do
+    forM_ (Map.toList $ irCtorDefs irGenState) $ \(symbol, (t, i)) ->
+        define symbol (ObjField i)
+
+
+cmpTypeDefs :: InsCmp CompileState m => IRGenState -> m ()
+cmpTypeDefs irGenState = do
+    forM_ (Map.toList $ irTypeDefs irGenState) $ \(symbol, typ) ->
+        define symbol (ObjType typ)
+
 
 cmpTypeNames :: InsCmp CompileState m => IRGenState -> m ()
 cmpTypeNames irGenState = withErrorPrefix "cmpTypeNames" $ do
@@ -131,14 +142,14 @@ cmpFuncBodies irGenState = do
         Nothing   -> return ()
         Just body -> mapM_ cmpStmt (funcStmts $ body)
 
-    forM_ (Map.toList $ irFuncDefs irGenState) $ \(symbol, funcBody) -> do
-        let argTypes     = map AST.paramType (funcArgs funcBody)
-        let argSymbols   = map AST.paramName (funcArgs funcBody)
+    forM_ (Map.toList $ irFuncDefs irGenState) $ \(symbol, body) -> do
+        let argTypes     = map AST.paramType (funcArgs body)
+        let argSymbols   = map AST.paramName (funcArgs body)
         let argNames     = map (ParameterName . mkBSS . Symbol.sym) argSymbols
-        let paramTypes   = map AST.paramType (funcParams funcBody)
-        let paramSymbols = map AST.paramName (funcParams funcBody)
+        let paramTypes   = map AST.paramType (funcParams body)
+        let paramSymbols = map AST.paramName (funcParams body)
         let paramNames   = map (ParameterName . mkBSS . Symbol.sym) paramSymbols
-        let retty        = funcRetty funcBody
+        let retty        = funcRetty body
 
         returnOpType <- opTypeOf retty
         argOpTypes   <- mapM opTypeOf argTypes
@@ -157,23 +168,11 @@ cmpFuncBodies irGenState = do
                 valStore loc (Val typ op)
                 define symbol (ObjVal loc)
 
-            mapM_ cmpStmt (funcStmts funcBody)
+            mapM_ cmpStmt (funcStmts body)
             hasTerm <- hasTerminator
             if hasTerm then return ()
             else if retty == Void then retVoid
             else trapMsg "reached end of function" >> unreachable
-
-
-cmpCtorDefs :: InsCmp CompileState m => IRGenState -> m ()
-cmpCtorDefs irGenState = do
-    forM_ (Map.toList $ irCtorDefs irGenState) $ \(symbol, (t, i)) -> do
-        define symbol (ObjField i)
-
-
-cmpTypeDefs :: InsCmp CompileState m => IRGenState -> m ()
-cmpTypeDefs irGenState = do
-    forM_ (Map.toList $ irTypeDefs irGenState) $ \(symbol, typ) ->
-        define symbol (ObjType typ)
 
 
 cmpStmt :: InsCmp CompileState m => AST.Stmt -> m ()

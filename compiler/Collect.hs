@@ -134,11 +134,11 @@ define symbol key obj = do
 
 collectAST :: BoM CollectState m => ResolvedAst -> m ()
 collectAST ast = do
-    forM (Map.toList $ typeImports ast) $ \(symbol, anno) ->
-        collectTypedef symbol anno
+    forM (Map.toList $ typeImports ast) $ \(symbol, typ) ->
+        collectTypedef symbol typ
 
-    forM (Map.toList $ typeDefs ast) $ \(symbol, anno) -> do
-        collectTypedef symbol anno
+    forM (Map.toList $ typeDefs ast) $ \(symbol, t) -> do
+        collectTypedef symbol t
 
     forM (Map.toList $ ctorImports ast) $ \(symbol, (t, i)) -> do
         collectCtorDef symbol (t, i)
@@ -185,22 +185,22 @@ collectCtorDef symbol (Typedef s@(SymResolved _ _ _), i) = withErrorPrefix "coll
         _ -> return ()
 
 
-collectTypedef :: BoM CollectState m => Symbol -> S.AnnoType -> m ()
-collectTypedef symbol annoTyp = do
+collectTypedef :: BoM CollectState m => Symbol -> Type -> m ()
+collectTypedef symbol typ = do
     let typedef = Typedef symbol
-    case annoTyp of
-        S.AnnoType (Tuple ts) -> do
+    case typ of
+        Tuple ts -> do
             define symbol KeyType (ObjType $ Tuple ts)
             define symbol (KeyFunc [] ts typedef) ObjFunc
 
-        S.AnnoType t   -> do
+        t-> do
             define symbol KeyType (ObjType t)
             define symbol (KeyFunc [] [t] typedef) ObjFunc
 
 
 collectStmt :: BoM CollectState m => S.Stmt -> m ()
 collectStmt stmt = collectPos stmt $ case stmt of
-    S.Typedef _ symbol anno -> collectTypedef symbol anno
+    --S.Typedef _ symbol anno -> collectTypedef symbol anno
     S.Print p exprs -> mapM_ collectExpr exprs
     S.Typedef _ _ _ -> return ()
     S.Block stmts -> mapM_ collectStmt stmts
