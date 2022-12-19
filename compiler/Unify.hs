@@ -101,7 +101,7 @@ unify2 constraints = do
     subs <- unify constraints
     reduced <- reduceSubs subs
 
-    let constraints' = map (\(c, p) -> (apply reduced c, p)) constraints
+    let constraints' = map (\(c, p) -> (applySubs reduced c, p)) constraints
     if constraints' == constraints then
         return reduced
     else do
@@ -113,7 +113,7 @@ unify2 constraints = do
         reduceSubs subs = do
             --liftIO $ putStrLn $ "reduceSubs"
             let subs' = Set.toList $ Set.fromList subs
-            let subs'' = map (\(i, t) -> (i, apply subs' t)) subs'
+            let subs'' = map (\(i, t) -> (i, applySubs subs' t)) subs'
             let subs''' = Set.toList $ Set.fromList subs''
             if subs''' == subs then
                 return subs'''
@@ -126,7 +126,7 @@ unify :: BoM TypeMap m => [(Constraint, TextPos)] -> m [(Int, Type)]
 unify []     = return []
 unify (x:xs) = do
     subs <- unify xs
-    s <- unifyOne (snd x) $ apply subs (fst x)
+    s <- unifyOne (snd x) $ applySubs subs (fst x)
     return (s ++ subs)
 
 
@@ -149,6 +149,6 @@ unifyDefault :: BoM TypeMap m => [(Constraint, TextPos)] -> m [(Int, Type)]
 unifyDefault []     = return []
 unifyDefault (x:xs) = do
     subs <- unifyDefault xs
-    s <- unifyOneDefault (snd x, apply subs (fst x))
+    s <- unifyOneDefault (snd x, applySubs subs (fst x))
     return (s ++ subs)
 

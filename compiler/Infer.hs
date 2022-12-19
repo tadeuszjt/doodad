@@ -35,12 +35,12 @@ infer ast verbose = fst <$> recursiveInfer ast
             (subs, _) <- runBoMTExcept typeMap (unify2 $ Map.toList $ collected state)
 
             -- if the infered ast is the same as the last iteration, finish
-            let subbedAst = apply subs ast
+            let subbedAst = applySubs subs ast
             if ast == subbedAst
             then do
                 (defaults, _) <- runBoMTExcept typeMap $ unifyDefault $
-                    Map.toList $ Map.mapKeys (apply subs) (defaults state)
-                let defaultedAst = apply defaults subbedAst
+                    Map.toList $ Map.mapKeys (applySubs subs) (defaults state)
+                let defaultedAst = applySubs defaults subbedAst
 
                 if defaultedAst == subbedAst then do
                     return (defaultedAst, 1)
