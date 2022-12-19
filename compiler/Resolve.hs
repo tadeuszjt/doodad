@@ -128,7 +128,18 @@ popSymTab = do
     modify $ \s -> s { symTab = SymTab.pop (symTab s) }
     modify $ \s -> s { symTabVar = SymTab.pop (symTabVar s) }
 
-
+--annoToType :: AnnoType -> Type
+--annoToType anno = case anno
+--    AnnoEnum ss -> Enum
+--    AnnoTuple xs -> Type.Tuple $ map snd xs
+--    AnnoADT  xs -> ADT $ map annoFieldToField xs
+--    where
+--        annoFieldToField :: AnnoADTField -> AdtField
+--        annoFieldToField field = case field of
+--            AST.ADTFieldType t           -> FieldType t
+--            AST.ADTFieldNull             -> FieldNull
+--            AST.ADTFieldMember symbol ts -> FieldCtor ts
+--
 buildTypeImportMap :: BoM (Map.Map Symbol AnnoType) m => [IRGenState] -> m ()
 buildTypeImportMap imports = do
     forM_ imports $ \imprt -> do
@@ -153,14 +164,10 @@ buildFuncImportMap imports = do
 buildCtorImportMap :: BoM (Map.Map Symbol (Type, Int)) m => [IRGenState] -> m ()
 buildCtorImportMap imports = do
     forM_ imports $ \imprt -> do
-        forM_ (Map.elems $ irTypeMap imprt) $ \symbol -> do
-            case (irTypeDefs imprt) Map.! symbol of
-                AnnoEnum xs -> forM_ (zip xs [0..]) $ \(x, i) ->
-                    modify $ Map.insert x (Type.Typedef symbol, i)
-                AnnoADT xs -> forM_ (zip xs [0..]) $ \(x, i) -> case x of
-                    ADTFieldMember s t -> modify $ Map.insert s (Type.Typedef symbol, i)
-                    _ -> return ()
-                _ -> return ()
+        forM_ (Map.toList $ irCtorDefs imprt) $ \(symbol, (t, i)) -> do
+            when (Symbol.mod symbol == irModuleName imprt) $ do
+                modify $ Map.insert symbol (t, i)
+
 
 buildCtorMap :: BoM (Map.Map Symbol (Type, Int)) m => [(Symbol, AnnoType)] -> m ()
 buildCtorMap list = do
@@ -170,6 +177,8 @@ buildCtorMap list = do
         AnnoADT xs -> forM_ (zip xs [0..]) $ \(x, i) -> case x of
             ADTFieldMember s t -> modify $ Map.insert s (Type.Typedef symbol, i)
             _ -> return ()
+        AnnoTuple xs -> forM_ (zip xs [0..]) $ \((s, t), i) -> 
+            modify $ Map.insert s (Type.Typedef symbol,  i)
         _ -> return ()
 
 
@@ -193,10 +202,22 @@ resolveAsts asts imports = withErrorPrefix "resolve: " $ do
             (_, funcImportMap) <- runBoMTExcept Map.empty (buildFuncImportMap imports)
             (_, ctorImportMap) <- runBoMTExcept Map.empty (buildCtorImportMap imports)
 
-            typeDefsList <- mapM resolveTypeDef typedefs
+
+            typeDefsMap <- Map.fromList <$> mapM resolveTypeDef typedefs
             funcDefsMap <- Map.fromList <$> mapM resolveFuncDef funcdefs
-            (_, ctorMap) <- runBoMTExcept Map.empty (buildCtorMap typeDefsList)
-            typeDefsMap <- return (Map.fromList typeDefsList)
+            (_, ctorMap) <- runBoMTExcept Map.empty (buildCtorMap $ Map.toList typeDefsMap)
+
+            typeDefs' <- fmap Map.fromList $ forM (Map.toList typeDefsMap) $ \(symbol, anno) ->
+                case anno of
+                    AnnoEnum ss -> return (symbol, AnnoType Enum)
+                    AnnoTuple xs -> return (symbol, AnnoType $ Type.Tuple $ map snd xs)
+                    AnnoADT  xs -> do
+                        fs <- forM xs $ \x -> case x of
+                            AST.ADTFieldType t           -> return $ FieldType t
+                            AST.ADTFieldNull             -> return FieldNull
+                            AST.ADTFieldMember symbol ts -> return $ FieldCtor ts
+                        return (symbol, AnnoType $ Type.ADT fs)
+                    _ -> return (symbol, anno)
 
             return $ ResolvedAst
                 { moduleName  = moduleName
@@ -204,7 +225,7 @@ resolveAsts asts imports = withErrorPrefix "resolve: " $ do
                 , ctorImports = ctorImportMap
                 , funcImports = funcImportMap
                 , funcDefs    = funcDefsMap
-                , typeDefs    = typeDefsMap
+                , typeDefs    = typeDefs'
                 , ctorDefs    = ctorMap
                 }
 

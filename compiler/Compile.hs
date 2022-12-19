@@ -181,17 +181,6 @@ cmpTypeDefs :: InsCmp CompileState m => IRGenState -> m ()
 cmpTypeDefs irGenState = do
     forM_ (Map.toList $ irTypeDefs irGenState) $ \(symbol, anno) -> case anno of
         AST.AnnoType typ -> define symbol (ObjType typ)
-        AST.AnnoEnum ss -> define symbol (ObjType Enum)
-        AST.AnnoTuple xs -> do
-            define symbol (ObjType $ Tuple $ map snd xs)
-            forM_ (zip xs [0..]) $ \((s, t), i) -> do
-                define s (ObjField i)
-        AST.AnnoADT xs -> do
-            fs <- forM (zip xs [0..]) $ \(x, i) -> case x of
-                AST.ADTFieldType t           -> return $ FieldType t
-                AST.ADTFieldNull             -> return FieldNull
-                AST.ADTFieldMember symbol ts -> return $ FieldCtor ts
-            define symbol $ ObjType (ADT fs)
 
 
 cmpStmt :: InsCmp CompileState m => AST.Stmt -> m ()
