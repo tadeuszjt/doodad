@@ -45,7 +45,7 @@ data IRGenState = IRGenState
     , irTupleFields :: Map.Map (Symbol, String) Symbol
 
     , irModuleName  :: String                      -- name of module
-    , irTypeDefs    :: Map.Map Symbol AST.AnnoType -- all needed type definitions
+    , irTypeDefs    :: Map.Map Symbol Type         -- all needed type definitions
     , irExternDefs  :: Map.Map Symbol FuncKey      -- all needed func declarations
     , irFuncDefs    :: Map.Map Symbol FuncBody     -- all needed func definitions
     , irCtorDefs    :: Map.Map Symbol (Type, Int)  -- all needed ctor definitions

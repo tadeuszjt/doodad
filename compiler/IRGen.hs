@@ -53,7 +53,7 @@ initIRGenState moduleName = IRGenState
 
 compile :: BoM IRGenState m => ResolvedAst -> m ()
 compile ast = do
-    modify $ \s -> s { irTypeDefs = typeImports ast }
+    modify $ \s -> s { irTypeDefs = Map.map (\(AnnoType t) -> t) (typeImports ast) }
     modify $ \s -> s { irExternDefs = funcImports ast }
     modify $ \s -> s { irCtorDefs = Map.union (ctorImports ast) (ctorDefs ast) }
     initialiseTopTypeDefs (typeDefs ast)
@@ -80,19 +80,19 @@ initialiseTopFuncDefs funcDefs = do
 
 initialiseTopTypeDefs :: BoM IRGenState m => Map.Map Symbol AST.AnnoType -> m ()
 initialiseTopTypeDefs typeDefs = do
-    forM_ (Map.toList typeDefs) $ \(symbol, anno) -> do
+    forM_ (Map.toList typeDefs) $ \(symbol, AnnoType typ) -> do
         Nothing <- Map.lookup symbol <$> gets irTypeDefs
         Nothing <- Map.lookup (sym symbol) <$> gets irTypeMap
-        modify $ \s -> s { irTypeDefs = Map.insert symbol anno (irTypeDefs s) }
+        modify $ \s -> s { irTypeDefs = Map.insert symbol typ (irTypeDefs s) }
         modify $ \s -> s { irTypeMap  = Map.insert (sym symbol) symbol (irTypeMap s) }
 
 
 initialiseTupleMembers :: BoM IRGenState m => Map.Map Symbol (Type, Int) -> m ()
 initialiseTupleMembers ctorDefs = do
     forM_ (Map.toList ctorDefs) $ \(symbol, (Type.Typedef symbolType, i)) -> do
-        Just anno <- Map.lookup symbolType <$> gets irTypeDefs
-        case anno of
-            AnnoType (Type.Tuple ts) -> modify $ \s -> s { irTupleFields = Map.insert (symbolType, sym symbol) symbol (irTupleFields s) }
+        Just typ <- Map.lookup symbolType <$> gets irTypeDefs
+        case typ of
+            Type.Tuple ts -> modify $ \s -> s { irTupleFields = Map.insert (symbolType, sym symbol) symbol (irTupleFields s) }
             _-> return ()
 
 

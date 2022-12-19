@@ -85,14 +85,7 @@ compile irGenState session = do
 
 cmpTypeNames :: InsCmp CompileState m => IRGenState -> m ()
 cmpTypeNames irGenState = withErrorPrefix "cmpTypeNames" $ do
-    forM_ (Map.toList $ irTypeDefs irGenState) $ \(symbol, anno) -> do
-        typ <- return $ case anno of
-            AST.AnnoType typ -> typ
-            AST.AnnoTuple xs -> Tuple (map snd xs)
-            AST.AnnoADT xs   -> Void
-            AST.AnnoEnum ss  -> Void
-            _ -> error (show anno)
-
+    forM_ (Map.toList $ irTypeDefs irGenState) $ \(symbol, typ) -> do
         -- when the underlying type is a struct, replace with a type name
         when (isTuple typ || isTable typ || isSparse typ || isRange typ) $ do
             let name = mkNameFromSymbol symbol
@@ -179,8 +172,8 @@ cmpCtorDefs irGenState = do
 
 cmpTypeDefs :: InsCmp CompileState m => IRGenState -> m ()
 cmpTypeDefs irGenState = do
-    forM_ (Map.toList $ irTypeDefs irGenState) $ \(symbol, anno) -> case anno of
-        AST.AnnoType typ -> define symbol (ObjType typ)
+    forM_ (Map.toList $ irTypeDefs irGenState) $ \(symbol, typ) ->
+        define symbol (ObjType typ)
 
 
 cmpStmt :: InsCmp CompileState m => AST.Stmt -> m ()

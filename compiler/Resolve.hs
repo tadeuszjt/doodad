@@ -128,18 +128,21 @@ popSymTab = do
     modify $ \s -> s { symTab = SymTab.pop (symTab s) }
     modify $ \s -> s { symTabVar = SymTab.pop (symTabVar s) }
 
---annoToType :: AnnoType -> Type
---annoToType anno = case anno
---    AnnoEnum ss -> Enum
---    AnnoTuple xs -> Type.Tuple $ map snd xs
---    AnnoADT  xs -> ADT $ map annoFieldToField xs
---    where
---        annoFieldToField :: AnnoADTField -> AdtField
---        annoFieldToField field = case field of
---            AST.ADTFieldType t           -> FieldType t
---            AST.ADTFieldNull             -> FieldNull
---            AST.ADTFieldMember symbol ts -> FieldCtor ts
---
+
+annoToType :: AnnoType -> Type
+annoToType anno = case anno of
+    AnnoEnum ss -> Enum
+    AnnoTuple xs -> Type.Tuple $ map snd xs
+    AnnoADT  xs -> Type.ADT $ map annoFieldToField xs
+    AnnoType t  -> t
+    where
+        annoFieldToField :: AnnoADTField -> AdtField
+        annoFieldToField field = case field of
+            AST.ADTFieldType t           -> FieldType t
+            AST.ADTFieldNull             -> FieldNull
+            AST.ADTFieldMember symbol ts -> FieldCtor ts
+
+
 buildTypeImportMap :: BoM (Map.Map Symbol AnnoType) m => [IRGenState] -> m ()
 buildTypeImportMap imports = do
     forM_ imports $ \imprt -> do
@@ -148,7 +151,7 @@ buildTypeImportMap imports = do
             assert (not exists) $ "type symbol already imported: " ++ show symbol
             let resm = Map.lookup symbol (irTypeDefs imprt)
             assert (isJust resm) "resm was Nothing"
-            modify $ Map.insert symbol (fromJust resm)
+            modify $ Map.insert symbol $ AnnoType (fromJust resm)
 
 
 
@@ -207,25 +210,13 @@ resolveAsts asts imports = withErrorPrefix "resolve: " $ do
             funcDefsMap <- Map.fromList <$> mapM resolveFuncDef funcdefs
             (_, ctorMap) <- runBoMTExcept Map.empty (buildCtorMap $ Map.toList typeDefsMap)
 
-            typeDefs' <- fmap Map.fromList $ forM (Map.toList typeDefsMap) $ \(symbol, anno) ->
-                case anno of
-                    AnnoEnum ss -> return (symbol, AnnoType Enum)
-                    AnnoTuple xs -> return (symbol, AnnoType $ Type.Tuple $ map snd xs)
-                    AnnoADT  xs -> do
-                        fs <- forM xs $ \x -> case x of
-                            AST.ADTFieldType t           -> return $ FieldType t
-                            AST.ADTFieldNull             -> return FieldNull
-                            AST.ADTFieldMember symbol ts -> return $ FieldCtor ts
-                        return (symbol, AnnoType $ Type.ADT fs)
-                    _ -> return (symbol, anno)
-
             return $ ResolvedAst
                 { moduleName  = moduleName
                 , typeImports = typeImportMap
                 , ctorImports = ctorImportMap
                 , funcImports = funcImportMap
                 , funcDefs    = funcDefsMap
-                , typeDefs    = typeDefs'
+                , typeDefs    = Map.map (AnnoType . annoToType) typeDefsMap
                 , ctorDefs    = ctorMap
                 }
 
