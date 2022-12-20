@@ -2,6 +2,8 @@
 {-# LANGUAGE TupleSections #-}
 module Typeof where
 
+import Data.Maybe
+import Data.List
 import qualified Data.Map as Map
 import Control.Monad.Trans
 import Control.Monad.State hiding (void)
@@ -40,7 +42,7 @@ sizeOf typ = trace "sizeOf" $ do
     opType <- opTypeOf typ
     return $ Val I64 $ cons $ C.SExt (C.sizeof opType) (LL.IntegerType 64)
 
-sizeOfLL :: InsCmp CompileState m => LL.Type -> m Int
+sizeOfLL :: ModCmp CompileState m => LL.Type -> m Int
 sizeOfLL typ = do
     context <- gets context
     dataLayout <- gets dataLayout
@@ -66,6 +68,7 @@ isDataType typ = do
         _                 -> return True
 
 
+
 opTypeOf :: ModCmp CompileState m => Type -> m LL.Type
 opTypeOf typ = withErrorPrefix ("opTypOf " ++ show typ) $ case typ of
     Void      -> return LL.VoidType
@@ -82,7 +85,15 @@ opTypeOf typ = withErrorPrefix ("opTypOf " ++ show typ) $ case typ of
     Range t   -> LL.StructureType False <$> mapM opTypeOf [t, t]
     Tuple ts  -> LL.StructureType False <$> mapM opTypeOf ts
     Array n t -> LL.ArrayType (fromIntegral n) <$> opTypeOf t
-    ADT tss   -> return $ LL.StructureType False [LL.i64, LL.ptr LL.i8]
+    ADT fs    -> do
+        types <- forM fs $ \f -> case f of
+            FieldNull -> return I8
+            FieldType t -> return t
+            FieldCtor ts -> return $ Tuple ts
+
+        sizes <- mapM sizeOfLL =<< mapM opTypeOf types
+        let maxi = fromJust $ elemIndex (maximum sizes) sizes
+        opTypeOf $ Tuple [I64, types !! maxi]
 
     Table ts  -> do
         ps <- map LL.ptr <$> mapM opTypeOf ts

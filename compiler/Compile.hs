@@ -298,7 +298,7 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
     AST.Float p f                -> mkFloat exprType f
     AST.Prefix pos operator expr -> mkPrefix operator =<< cmpExpr expr
     AST.Field pos expr symbol    -> valTupleField symbol =<< cmpExpr expr
-    AST.Null p                   -> adtNull exprType
+    AST.Null p                   -> mkAdtNull exprType
     AST.Match pos expr pat       -> cmpPattern pat =<< cmpExpr expr
 
     AST.Conv pos typ [expr]      -> do
@@ -310,9 +310,13 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
                 storeCopy loc val
                 return loc
             ADT xs | FieldType typ `elem` xs -> do    -- char(3):{char | null}
-                loc <- mkMalloc typ (mkI64 1)
-                storeCopy loc val
-                adtConstructFromPtr exprType loc
+                i <- adtTypeField exprType typ
+                adt <- mkAlloca exprType
+                adtSetEnum adt i
+                ptr <- ptrAdtField adt i
+                storeCopy ptr val
+                return adt
+
             _ -> fail $ "cannot convert to type: " ++ show exprType
             _ -> error $ show (base, typ)
 
@@ -467,7 +471,6 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
             ObjField i -> do
                 base <- baseTypeOf exprType
                 case base of
-                    ADT _ -> adtConstructField symbol exprType as
                     Enum  -> mkEnum exprType i
             _ -> error (show obj)
 
@@ -544,11 +547,6 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
                 Val _ _   -> fail $ "cannot take pointer of value"
             _ -> fail (show t)
 
-    AST.ADT pos expr -> do
-        val <- cmpExpr expr
-        mal <- mkMalloc (valType val) (mkI64 1)
-        storeCopy mal val
-        adtConstructFromPtr exprType mal
 
     _ -> fail ("invalid expression: " ++ show expr)
     where
@@ -570,7 +568,7 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
         let is = elemIndices FieldNull fs
         assert (length is == 1) "ADT type does not have unique null field"
         let [i] = is
-        mkIntInfix AST.EqEq (mkI64 i) =<< adtEnum val
+        mkIntInfix AST.EqEq (mkI64 i) =<< mkAdtEnum val
 
     AST.PatAnnotated pat typ -> do -- a:i32
         assert (valType val == typ) "pattern type mismatch"
@@ -635,11 +633,13 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
             ADT fs -> do
                 obj <- look symbol
                 case obj of
-                    ObjType typ -> do
-                        i <- adtTypeField typ (valType val)
+                    ObjType typ -> do -- Vec2(4, 3) : {Vec2 | null} 
+                        i <- adtTypeField (valType val) typ
                         assert (length pats == 1) "One pattern allowed for type field"
-                        enumMatch <- mkIntInfix AST.EqEq (mkI64 i) =<< adtEnum val
-                        Ptr _ loc <- adtDeref val i 0
+                        enumMatch <- mkIntInfix AST.EqEq (mkI64 i) =<< mkAdtEnum val
+                        adt <- mkAlloca (valType val)
+                        storeCopy adt val
+                        Ptr _ loc <- adtDeref adt i 0
                         ObjType t0 <- look symbol
                         b <- cmpPattern (head pats) $ Ptr t0 loc
                         valLoad =<< mkInfix AST.AndAnd enumMatch b
@@ -647,36 +647,33 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
                     ObjField i -> do
                         let FieldCtor ts = fs !! i
                         assert (length pats == length ts) "invalid ADT pattern"
-                        enumMatch <- mkIntInfix AST.EqEq (mkI64 i) =<< adtEnum val
+                        enumMatch <- mkIntInfix AST.EqEq (mkI64 i) =<< mkAdtEnum val
                         -- can't be inside a block which may or may not happen
                         -- as cmpPattern may add variables to the symbol table
-                        bs <- forM (zip pats [0..]) $ \(pat, j) -> 
-                            cmpPattern pat =<< adtDeref val i j
+                        adt <- mkAlloca (valType val)
+                        storeCopy adt val
+                        bs <- forM (zip pats [0..]) $ \(pat, j) -> do
+                            cmpPattern pat =<< adtDeref adt i j
 
                         valLoad =<< foldM (mkInfix AST.AndAnd) enumMatch bs
 
 
     AST.PatTypeField _ typ pat -> do -- char(c)
         ADT fs <- assertBaseType isADT (valType val)
-        i <- case valType val of
-            Typedef symbol -> do
-                ObjField i <- look symbol
-                return i
-            _ -> do
-                let is = elemIndices (FieldType typ) fs
-                assert (length is == 1) "ADT does not contain unique type field"
-                return (head is)
+        i <- adtTypeField (valType val) typ
 
         match <- freshName "adt_pat_match"
         exit  <- freshName "adt_pat_exit"
 
         matched <- mkAlloca Bool
         valStore matched =<< mkBool Bool False
-        enumMatch <- mkIntInfix AST.EqEq (mkI64 i) =<< adtEnum val
+        enumMatch <- mkIntInfix AST.EqEq (mkI64 i) =<< mkAdtEnum val
         condBr (valOp enumMatch) match exit
 
         emitBlockStart match
-        valStore matched =<< cmpPattern pat =<< adtDeref val i 0
+        adt <- mkAlloca (valType val)
+        storeCopy adt val
+        valStore matched =<< cmpPattern pat =<< adtDeref adt i 0
         br exit
 
         emitBlockStart exit

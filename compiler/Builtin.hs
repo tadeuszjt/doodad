@@ -46,10 +46,15 @@ storeCopy ptr val = withErrorPrefix "storeCopy: " $ do
     assert (base == baseVal) $
         "ptr type: " ++ show (valType ptr) ++ " does not match val type: " ++ show (valType val)
     case base of
-        _ | isSimple base          -> valStore ptr val
+        _ | isSimple base -> valStore ptr val
         Tuple ts -> do
             bs <- mapM isDataType ts
             assert (all (==False) bs) "no data types allowed"
+            valStore ptr val
+        ADT fs -> do
+            assertBaseType isADT (valType ptr)
+            isDataType <- isDataType (valType ptr)
+            assert (not isDataType) "ptr is data type"
             valStore ptr val
             
 
@@ -309,8 +314,8 @@ valAdtNormalInfix operator a b = do
     case operator of
         AST.NotEq -> mkPrefix AST.Not =<< valAdtNormalInfix AST.EqEq a b
         AST.EqEq -> do
-            enA <- valLoad =<< adtEnum a
-            enB <- valLoad =<< adtEnum b
+            enA <- mkAdtEnum a
+            enB <- mkAdtEnum b
             enEq <- mkIntInfix AST.EqEq enA enB
 
             -- if enum isn't matched, exit
