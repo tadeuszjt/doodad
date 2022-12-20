@@ -53,12 +53,12 @@ initIRGenState moduleName = IRGenState
 
 compile :: BoM IRGenState m => ResolvedAst -> m ()
 compile ast = do
-    modify $ \s -> s { irTypeDefs = typeImports ast }
+    modify $ \s -> s { irTypeDefs = Map.union (typeDefs ast) (typeImports ast) }
     modify $ \s -> s { irExternDefs = funcImports ast }
     modify $ \s -> s { irCtorDefs = Map.union (ctorImports ast) (ctorDefs ast) }
-    initialiseTopTypeDefs (typeDefs ast)
-    initialiseTupleMembers =<< gets irCtorDefs
+    modify $ \s -> s { irTypeMap  = Map.mapKeys sym $ Map.mapWithKey (\k a -> k) (typeDefs ast) }
 
+    initialiseTupleMembers =<< gets irCtorDefs
     initialiseTopFuncDefs (funcDefs ast)
     forM_ (Map.toList $ funcDefs ast) $ \(symbol, body) ->
         compileFuncDef symbol body
@@ -76,15 +76,6 @@ initialiseTopFuncDefs funcDefs = do
                 let key = (map AST.paramType (funcParams funcBody), sym symbol, map AST.paramType (funcArgs funcBody), (funcRetty funcBody))
                 modify $ \s -> s { irFuncMap = Map.insert  key symbol (irFuncMap s) }
                 modify $ \s -> s { irFuncDefs = Map.insert symbol (FuncBody (funcParams funcBody) (funcArgs funcBody) (funcRetty funcBody) []) (irFuncDefs s) }
-
-
-initialiseTopTypeDefs :: BoM IRGenState m => Map.Map Symbol Type -> m ()
-initialiseTopTypeDefs typeDefs = do
-    forM_ (Map.toList typeDefs) $ \(symbol, typ) -> do
-        False <- Map.member symbol <$> gets irTypeDefs
-        False <- Map.member (sym symbol) <$> gets irTypeMap
-        modify $ \s -> s { irTypeDefs = Map.insert symbol typ (irTypeDefs s) }
-        modify $ \s -> s { irTypeMap  = Map.insert (sym symbol) symbol (irTypeMap s) }
 
 
 initialiseTupleMembers :: BoM IRGenState m => Map.Map Symbol (Type, Int) -> m ()

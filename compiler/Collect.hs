@@ -188,14 +188,10 @@ collectCtorDef symbol (Typedef s@(SymResolved _ _ _), i) = withErrorPrefix "coll
 collectTypedef :: BoM CollectState m => Symbol -> Type -> m ()
 collectTypedef symbol typ = do
     let typedef = Typedef symbol
+    define symbol KeyType (ObjType typ)
     case typ of
-        Tuple ts -> do
-            define symbol KeyType (ObjType $ Tuple ts)
-            define symbol (KeyFunc [] ts typedef) ObjFunc
-
-        t-> do
-            define symbol KeyType (ObjType t)
-            define symbol (KeyFunc [] [t] typedef) ObjFunc
+        Tuple ts -> define symbol (KeyFunc [] ts typedef) ObjFunc
+        t        -> define symbol (KeyFunc [] [t] typedef) ObjFunc
 
 
 collectStmt :: BoM CollectState m => S.Stmt -> m ()
@@ -306,7 +302,6 @@ collectPattern pattern typ = collectPos pattern $ case pattern of
     _ -> error $ show pattern
 
 
-
 collectCall :: BoM CollectState m => Type -> [S.Expr] -> Symbol -> [S.Expr] -> m ()
 collectCall exprType ps symbol es = do -- can be resolved or sym
     kos <- case symbol of
@@ -357,6 +352,7 @@ collectExpr (S.AExpr exprType expr) = collectPos expr $ case expr of
     S.Int _ c        -> collectDefault exprType I64
     S.Len _ e        -> collectDefault exprType I64 >> collectExpr e
     S.Float _ f      -> collectDefault exprType F64
+    S.Null _         -> return ()
 
     S.Conv _ t [e]   -> do
         collectExpr e
@@ -445,8 +441,6 @@ collectExpr (S.AExpr exprType expr) = collectPos expr $ case expr of
     S.TupleIndex _ e i -> do
         collectField exprType (fromIntegral i) (typeOf e)
         collectExpr e
-
-    S.Null _ -> return ()
 
     S.AExpr _ _ -> fail "what"
 

@@ -40,7 +40,6 @@ instance Annotate FuncBody where
             }
         
 
-
 instance Annotate AST where
     annotate ast = do
         stmts <- mapM annotate (astStmts ast)
@@ -48,10 +47,9 @@ instance Annotate AST where
 
 instance Annotate Stmt where
     annotate stmt = case stmt of
-        Block ss            -> Block <$> mapM annotate ss
-        Return p me         -> Return p <$> maybe (return Nothing) (fmap Just . annotate) me
-
-        Print p es          -> Print p <$> mapM annotate es
+        Block ss          -> Block <$> mapM annotate ss
+        Return p me       -> Return p <$> maybe (return Nothing) (fmap Just . annotate) me
+        Print p es        -> Print p <$> mapM annotate es
         ExprStmt e        -> ExprStmt <$> annotate e
 
         Assign p pat e      -> do
@@ -65,9 +63,7 @@ instance Annotate Stmt where
         If p c b elm        -> do
             c' <- annotate c
             b' <- annotate b
-            elm' <- case elm of
-                Nothing -> return Nothing
-                Just st -> Just <$> annotate st
+            elm' <- maybe (return Nothing) (fmap Just . annotate) elm
             return $ If p c' b' elm'
 
         While p c b -> do
@@ -109,7 +105,6 @@ instance Annotate Pattern where
 
         PatTypeField p typ pat -> PatTypeField p typ <$> annotate pat
             
-
         PatAnnotated pat typ -> do
             pat' <- annotate pat
             return $ PatAnnotated pat' typ

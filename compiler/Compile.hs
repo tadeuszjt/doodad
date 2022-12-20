@@ -111,15 +111,6 @@ cmpFuncHdrs irGenState = do
         forM_ (funcArgs funcBody) $ \(AST.Param pos name typ) -> withPos pos $ do
             isDataType <- isDataType typ
             assert (not isDataType) "Cannot use a data type for an argument"
-
-        let paramTypes = map AST.paramType (funcParams funcBody)
-        let argTypes   = map AST.paramType (funcArgs funcBody)
-        let retty      = funcRetty funcBody
-        paramOpTypes <- map LL.ptr <$> mapM opTypeOf paramTypes
-        argOpTypes   <- mapM opTypeOf argTypes
-        returnOpType <- opTypeOf retty
-
-        let name = fnSymbolToName symbol
         define symbol ObjFn
 
 
