@@ -16,28 +16,33 @@ Doodad is an imperative programming language prioritising clean data representat
 
 3.) Build and install correct llvm version for llvm-hs
 
+    sudo apt-get install llvm-9-dev
+
 4.) Make sure clang is a high enough version
+
+    sudo apt-get install clang
 
 5.) Install bdwgc: https://github.com/ivmai/bdwgc
 
+    sudo apt-get install gc
   
 # Running
   JIT compile and run a module:
   
-    cabal run bolang -- main
-    cabal run bolang -- std/strings
+    cabal run doodad -- main
+    cabal run doodad -- std/strings
   
   Print LLVM IR textual representation:
   
-    cabal run bolang -- std/vec2 --print-llir
+    cabal run doodad -- std/vec2 --print-llir
     
   General verbose debug:
   
-    cabal run bolang -- -v main
+    cabal run doodad -- -v main
   
   Compile to object files instead of running using JIT compiler:
   
-    cabal run bolang -c main
+    cabal run doodad -c main
     
   Link and run object files using gcc:
   
