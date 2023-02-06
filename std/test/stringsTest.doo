@@ -1,0 +1,65 @@
+module stringsTest
+
+import ../strings
+
+fn testBuiltin()
+    data s1 String
+    data s2 String
+    let true = s1 == s2
+    s1.write("abStr987!.<?\n")
+    let false = s1 == s2
+    s2.write("abStr987!.<?\n")
+    let true = s1 == s2
+    s1.push(' ')
+    let false = s1 == s2
+    s1.push('_')
+    let false = s1 == s2
+
+
+fn testStringEqual()
+    data s String "12!.asjb"
+    let false = s.stringEqual("")
+    let true = s.stringEqual("12!.asjb")
+    let false = s.stringEqual("12!.Asjb")
+    let false = s.stringEqual("12!.asj")
+    let false = s.stringEqual("2!.asjb")
+    let true = s.stringEqual("12!.asjb")
+
+
+fn testFindChar()
+    data s String "abunch,of.chars!?!"
+    let (true, 0) = s.find('a')
+    let (false, 0) = s.find('x')
+    let (true, 6) = s.find(',')
+    let (true, 15) = s.find('!')
+
+
+fn testWrite()
+    data s String
+    s.write('a')
+    s.write(false)
+    s.write(0)
+    s.write(".str!")
+    s.write(-123)
+    let true = s.stringEqual("afalse0.str!-123")
+
+
+fn testRead()
+    data s String
+    let ('\0', 0) = s.read(0)
+    s.write("abc123!?.-945")
+    let ('a', 1) = s.read(0)
+    let (123, 3) = s.read(3)
+    let (0, 0) = s.read(6)
+    s.clear()
+    s.write("x   123!?.-945")
+    let (123, 6) = s.read(1)
+
+
+fn main()
+    testBuiltin()
+    testStringEqual()
+    testFindChar()
+    testWrite()
+    testRead()
+    print("stringsTest passed")

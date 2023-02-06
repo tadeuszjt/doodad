@@ -13,7 +13,7 @@ data Args = Args
     , printAstAnnotated :: Bool
     , printSymbols :: Bool
     , printCSymbols :: Bool
-    , printFinalAst :: Bool
+    , printAstFinal :: Bool
     , printIR :: Bool
     , modPaths    :: [String]
     }
@@ -31,7 +31,7 @@ initArgs = Args
     , printAstAnnotated = False
     , printSymbols = False
     , printCSymbols = False
-    , printFinalAst = False
+    , printAstFinal = False
     , printIR = False
     , modPaths  = []
     }
@@ -50,7 +50,7 @@ parseArgs args argStrs = case argStrs of
     ["--print-ast"] -> args { printAst = True }
     ["--print-ast-resolved"] -> args { printAstResolved = True }
     ["--print-ast-annotated"] -> args { printAstAnnotated = True }
-    ["--print-ast-final"] -> args { printFinalAst = True }
+    ["--print-ast-final"] -> args { printAstFinal = True }
     ["--print-symbols"] -> args { printSymbols = True }
     ["--print-ir"] -> args { printIR = True }
     ["-c"] -> args { compileObj = True }

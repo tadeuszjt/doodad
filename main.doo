@@ -1,25 +1,31 @@
 module main
-import std/vec2
-import std/maths
-import std/rect
-import std/strings
-import std/io
-import std/rand
-import std/assert
-import std/chars
-import std/regex
 
-import_c stdlib.h
-import_c stdio.h
+import std/io
+import std/strings
+
 
 fn main()
-    let v = Vec2(1, 2)
-    print(v, v.x, v.y, v.length())
+    data io Io
+    data line String
 
-    data regexStr String "ab.*B.A"
-    data textStr String "doodad ab benis BDA"
-    print({regexStr, textStr}.match())
+    let n = 0
 
+    while {io, line}.GetStrLn()
+        if {line}.FindChar('=') -> (true, _)
+            print(line)
 
+        else if {line}.FindChar(',') -> (true, i)
+            data line2 String
 
+            for [0..i] -> j; line2.push(line[j])
+            for " = " -> c; line2.push(c)
+            line2.writeI64(n)
+            for line[i..] -> j; line2.push(line[j])
+
+            print(line2)
+
+            n = n + 1
+
+        else
+            print(line)
 

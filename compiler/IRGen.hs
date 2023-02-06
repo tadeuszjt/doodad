@@ -135,7 +135,7 @@ resolveFuncCall exprType (AST.Call pos params symbol args) = withPos pos $ do
                     case (funcresm, typeresm) of
                         (Just x, Nothing) -> return x
                         (Nothing, Just x) -> return x
-                        (Nothing, Nothing) -> fail $ "no def for: " ++ sym
+                        (Nothing, Nothing) -> fail $ "no def for: " ++ sym ++ " " ++ show key
     where
         findImportedFuncDef :: BoM IRGenState m => FuncKey -> m (Maybe Symbol)
         findImportedFuncDef key@(pts, sym, ats, rt) = do

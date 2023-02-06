@@ -260,7 +260,9 @@ collectPattern pattern typ = collectPos pattern $ case pattern of
     S.PatIdent _ symbol -> do
         define symbol KeyVar (ObjVar typ)
 
-    S.PatLiteral expr -> collectEq typ (typeOf expr)
+    S.PatLiteral expr -> do 
+        collectEq typ (typeOf expr)
+        collectExpr expr
 
     S.PatGuarded _ pat expr -> do
         collectPattern pat typ

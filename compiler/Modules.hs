@@ -162,6 +162,7 @@ runMod args pathsVisited modPath = do
             annotatedAST <- fmap fst $ withErrorPrefix "annotate: " $
                 runBoMTExcept 0 $ annotate resolvedAST
             astInferred <- withErrorPrefix "infer: " $ infer annotatedAST (verbose args)
+            when (printAstFinal args) $ liftIO $ prettyResolvedAst astInferred
             
             (_, irGenState) <- withErrorPrefix "irgen: " $
                 runBoMTExcept (initIRGenState modName) (IRGen.compile astInferred)

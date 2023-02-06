@@ -23,6 +23,7 @@ fn {io Io} putStrLn(s string)
 
 
 fn {io Io, line String} GetStrLn() bool
+    line.clear()
     while true
         switch c::getchar()
             x | x == -1; return false

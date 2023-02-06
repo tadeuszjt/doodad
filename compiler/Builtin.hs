@@ -139,6 +139,7 @@ mkInfix operator a b = withErrorPrefix "infix: " $ do
         _ | isFloat base     -> mkFloatInfix operator a b
         _ | isTuple base     -> mkTupleInfix operator a b
         _ | isArray base     -> mkArrayInfix operator a b
+        _ | isTable base     -> mkTableInfix operator a b
         _                    -> fail $ "Operator " ++ show operator ++ " undefined for types " ++ show (valType a) ++ " " ++ show (valType b)
 
 
@@ -260,10 +261,10 @@ mkTupleInfix operator a b = withErrorPrefix "tuple infix: " $ do
         _ -> error (show operator)
                     
         
-valTableInfix :: InsCmp CompileState m => AST.Operator -> Value -> Value -> m Value
-valTableInfix operator a b = do
-    assert (valType a == valType b) "type mismatch"
+mkTableInfix :: InsCmp CompileState m => AST.Operator -> Value -> Value -> m Value
+mkTableInfix operator a b = do
     assertBaseType isTable (valType a)
+    assert (valType a == valType b) "type mismatch"
     let typ = valType a
 
     lenA <- mkTableLen a
@@ -271,12 +272,10 @@ valTableInfix operator a b = do
     lenEq <- mkIntInfix AST.EqEq lenA lenB
 
     case operator of
-        AST.NotEq -> mkPrefix AST.Not =<< valTableInfix AST.EqEq a b
+        AST.NotEq -> mkPrefix AST.Not =<< mkTableInfix AST.EqEq a b
         AST.EqEq  -> do
             eq <- mkAlloca Bool
-            idx <- mkAlloca I64
             valStore eq =<< mkBool Bool False
-            valStore idx (mkI64 0)
 
             exit <- freshName "eqeq_table_exit"
             start <- freshName "eqeq_table_start"
@@ -286,6 +285,8 @@ valTableInfix operator a b = do
             -- test that len(a) == len(b)
             condBr (valOp lenEq) start exit
             emitBlockStart start
+            idx <- mkAlloca I64
+            valStore idx (mkI64 0)
             valStore eq =<< mkBool Bool True
             br cond
 
