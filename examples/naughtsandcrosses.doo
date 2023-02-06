@@ -11,14 +11,14 @@ type Board  [3 [3 Square]]
 
 fn {board Board, io Io} printBoard()
     for board -> row
-        io.putStr("[")
+        io.write('[')
         for row[..] -> r
             switch row[r]
-                Empty();  io.putChar(' ')
-                Naught(); io.putChar('0')
-                Cross();  io.putChar('X')
-            if r < (len(row) - 1); io.putChar(',')
-        io.putStrLn("]")
+                Empty();  io.write(' ')
+                Naught(); io.write('0')
+                Cross();  io.write('X')
+            if r < (len(row) - 1); io.write(',')
+        io.writeLn("]")
 
 
 fn {board Board} winner() Square
@@ -59,15 +59,15 @@ fn {board Board} full() bool
 
 
 fn {board Board, io Io} playerMove() string
-    io.putStrLn("Make a move")
+    io.writeLn("Make a move")
 
     data line String
-    {io, line}.GetStrLn()
-    if line.ReadChar(0) -> ('q', _)
+    {io, line}.readLn()
+    if line.read(0) -> ('q', _:i64)
         return "quit"
 
-    let (row, n) = line.ReadI64(0)
-    let (col, n2) = line.ReadI64(n)
+    let (row:i64, n:i64) = line.read(0)
+    let (col:i64, n2:i64) = line.read(n)
 
     let noParse = n == 0 || n2 == 0
     if noParse || !board[..][row] || !board[row][..][col]

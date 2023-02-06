@@ -327,6 +327,9 @@ collectCall exprType ps symbol es = do -- can be resolved or sym
     let kss = [ks, ksSameRetty, ksSameArgs, ksSameArgsLen, ksSameParams]
     mapM_ collectIfOneDef kss
     collectIfOneDef $ intersectMatches kss
+
+    collectIfOneDef $ intersect ksSameArgs ksSameParams -- not sure about this
+
     
     mapM_ collectExpr ps
     mapM_ collectExpr es

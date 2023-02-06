@@ -274,6 +274,11 @@ mkPrefix operator val = do
 
         Bool -> case operator of
             AST.Not -> icmp P.EQ op (bit 0)
+
+        Char -> case operator of
+            AST.Minus -> mkChar typ '\0' >>= \zero -> sub (valOp zero) op
+
+        _ -> fail $ show base
         
 
 mkIntInfix :: InsCmp CompileState m => AST.Operator -> Value -> Value -> m Value
