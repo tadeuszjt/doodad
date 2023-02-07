@@ -3,8 +3,6 @@ module io
 import strings
 import_c stdio.h
 
-type Io ()
-
 
 fn {io Io} write(c char)
     c::putchar(i32(c))

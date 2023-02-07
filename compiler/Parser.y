@@ -92,6 +92,7 @@ import Symbol
     char       { Token _ Reserved "char" }
     string     { Token _ Reserved "string" }
     sparse     { Token _ Reserved "sparse" }
+    Io         { Token _ Reserved "Io" }
 
     intlit     { Token _ Int _ }
     floatlit   { Token _ Float _ }
@@ -306,6 +307,7 @@ typeOrdinal   : bool                          { T.Bool }
               | f64                           { T.F64 }
               | char                          { T.Char }
               | string                        { T.String }
+              | Io                            { T.Io }
 
 typeAggregate : tableType                     { $1 }
               | arrayType                     { $1 }

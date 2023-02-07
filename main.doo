@@ -4,28 +4,6 @@ import std/io
 import std/strings
 
 
-fn main()
-    data io Io
-    data line String
-
-    let n = 0
-
-    while {io, line}.GetStrLn()
-        if {line}.FindChar('=') -> (true, _)
-            print(line)
-
-        else if {line}.FindChar(',') -> (true, i)
-            data line2 String
-
-            for [0..i] -> j; line2.push(line[j])
-            for " = " -> c; line2.push(c)
-            line2.writeI64(n)
-            for line[i..] -> j; line2.push(line[j])
-
-            print(line2)
-
-            n = n + 1
-
-        else
-            print(line)
+fn {io Io} main()
+    io.writeLn("stuff")
 

@@ -71,19 +71,19 @@ fn {board Board, io Io} playerMove() string
 
     let noParse = n == 0 || n2 == 0
     if noParse || !board[..][row] || !board[row][..][col]
-        print("invalid move")
+        io.writeLn("invalid move")
         return "error"
 
     if board[row][col] != Empty()
-        print("board[row][col] is not empty")
+        io.writeLn("board[row][col] is not empty")
         return "error"
 
     board[row][col] = Naught()
     return "success"
 
 
-fn {board Board, rand Rand} cpuMove()
-    print("cpu moving")
+fn {io Io, board Board, rand Rand} cpuMove()
+    io.writeLn("cpu moving")
     if board.full()
         return
 
@@ -118,8 +118,7 @@ fn {board Board, io Io} playerMoveLoop() string
         "error";   return {board, io}.playerMoveLoop()
 
 
-fn main()
-    data io Io
+fn {io Io} main()
     data board Board
     data rand Rand
 
@@ -129,7 +128,7 @@ fn main()
             "success";
 
         {board, io}.printBoard()
-        {board, rand}.cpuMove()
+        {io, board, rand}.cpuMove()
         {board, io}.printBoard()
 
 

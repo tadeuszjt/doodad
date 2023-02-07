@@ -14,17 +14,10 @@ import Error
 import Symbol
 import States
 
-
-
--- Symbol classes
---
--- Functions   fn   alpha
--- Types       type beta
--- Variables   .. = gamma
--- Fields      obj.epsilon
---
--- Resolve cannot change function names and struct members
-
+-- Modoule 'Resolve' takes an AST and updates symbol names to be scope-agnostic. Eg. 'x' -> 'x_1'. This
+-- involves changing 'Sym' and 'SymQualified' objects into 'SymResolved' objects. However, functions names
+-- and tuple members will not be altered because the exact definiton of these symbols cannot be determined
+-- at this stage.
 
 class Resolve a where
     resolve :: BoM ResolveState m => a -> m a
@@ -408,6 +401,7 @@ instance Resolve AdtField where
 instance Resolve Type where 
     resolve typ = case typ of
         Void                -> return typ
+        Io                  -> return typ
         _ | isSimple typ    -> return typ
         Type.Table ts       -> Type.Table <$> mapM resolve ts
         Type.Tuple ts       -> Type.Tuple <$> mapM resolve ts

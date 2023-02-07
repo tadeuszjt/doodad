@@ -37,7 +37,7 @@ data FuncBody
         , funcRetty  :: Type
         , funcStmts  :: [AST.Stmt]
         }
-    deriving (Eq)
+    deriving (Eq, Show)
 
 
 data IRGenState = IRGenState

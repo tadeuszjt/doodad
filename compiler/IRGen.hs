@@ -70,12 +70,12 @@ initialiseTopFuncDefs funcDefs = do
         case sym symbol of
             "main" -> do
                 Nothing <- gets irMainDef
-                modify $ \s -> s { irMainDef = Just (FuncBody [] [] (funcRetty funcBody) []) }
+                modify $ \s -> s { irMainDef = Just (funcBody { funcStmts = [] }) }
             _ -> do
                 False <- Map.member symbol <$> gets irFuncDefs
                 let key = (map AST.paramType (funcParams funcBody), sym symbol, map AST.paramType (funcArgs funcBody), (funcRetty funcBody))
                 modify $ \s -> s { irFuncMap = Map.insert  key symbol (irFuncMap s) }
-                modify $ \s -> s { irFuncDefs = Map.insert symbol (FuncBody (funcParams funcBody) (funcArgs funcBody) (funcRetty funcBody) []) (irFuncDefs s) }
+                modify $ \s -> s { irFuncDefs = Map.insert symbol (funcBody { funcStmts = [] }) (irFuncDefs s) }
 
 
 initialiseTupleMembers :: BoM IRGenState m => Map.Map Symbol (Type, Int) -> m ()

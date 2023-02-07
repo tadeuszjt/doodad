@@ -118,7 +118,14 @@ cmpFuncBodies :: (MonadFail m, Monad m, MonadIO m) => IRGenState -> InstrCmpT Co
 cmpFuncBodies irGenState = do
     case irMainDef irGenState of
         Nothing   -> return ()
-        Just body -> mapM_ cmpStmt (funcStmts $ body)
+        Just body -> do 
+            let paramTypes  = map AST.paramType (funcParams body)
+            let paramSymbols = map AST.paramName (funcParams body)
+            case paramTypes of
+                [] -> return () -- please clean this up
+                [Io] -> define (head paramSymbols) (ObjVal $ Ptr Io $ cons $ C.IntToPtr (toCons $ int64 0) $ LL.ptr LL.i64)
+
+            mapM_ cmpStmt (funcStmts $ body)
 
     forM_ (Map.toList $ irFuncDefs irGenState) $ \(symbol, body) -> do
         let argTypes     = map AST.paramType (funcArgs body)
@@ -139,7 +146,7 @@ cmpFuncBodies irGenState = do
 
         void $ InstrCmpT . IRBuilderT . lift $ func name (zip (paramOpTypes ++ argOpTypes)  (paramNames ++ argNames)) returnOpType $ \argOps -> do
             forM_ (zip3 paramTypes paramSymbols argOps) $ \(typ, symbol, op) -> do
-                define symbol (ObjVal $ Ptr typ $ op)
+                define symbol (ObjVal $ Ptr typ op)
 
             forM_ (zip3 argTypes (drop (length paramSymbols) argOps) argSymbols) $ \(typ, op, symbol) -> do
                 loc <- mkAlloca typ
@@ -163,6 +170,9 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
     AST.ExprStmt expr     -> void $ cmpExpr expr
 
     AST.Data pos symbol typ mexpr -> do
+        base <- baseTypeOf typ
+        assert (base /= Io) "Cannot declare an Io object"
+
         loc <- mkAlloca typ
         init <- case mexpr of
             Nothing -> mkZero typ

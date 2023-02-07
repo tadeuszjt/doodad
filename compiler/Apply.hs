@@ -17,6 +17,7 @@ substitute u x typ = case typ of
     Type i | i == x -> u
     Type _           -> typ
     Void             -> typ
+    Io               -> typ
     Typedef symbol   -> typ
     _ | isSimple typ -> typ
     Range t          -> Range $ substitute u x t
