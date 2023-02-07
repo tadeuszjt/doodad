@@ -1,4 +1,4 @@
-module stringsTest
+module testStrings
 
 import ../strings
 
@@ -56,10 +56,10 @@ fn testRead()
     let (123, 6) = s.read(1)
 
 
-fn main()
+fn testStrings()
     testBuiltin()
     testStringEqual()
     testFindChar()
     testWrite()
     testRead()
-    print("stringsTest passed")
+    print("testStrings passed")

@@ -1,0 +1,9 @@
+module test
+
+import testStrings
+import testChars
+
+fn main()
+    testStrings()
+    testChars()
+    print("test passed")

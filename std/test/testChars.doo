@@ -1,0 +1,20 @@
+module testChars
+
+import ../chars
+
+fn testIsAlpha()
+    for [-128..65] -> c; let false = isAlpha(char(c))
+    for [65..91] -> c; let true = isAlpha(char(c))
+    for [91..97] -> c; let false = isAlpha(char(c))
+    for [97..123] -> c; let true = isAlpha(char(c))
+    for [123..127] -> c; let false = isAlpha(char(c))
+
+fn testIsDigit()
+    for [-128..48] -> c; let false = isDigit(char(c))
+    for [48..58] -> c; let true = isDigit(char(c))
+    for [58..127] -> c; let false = isDigit(char(c))
+
+fn testChars()
+    testIsAlpha()
+    testIsDigit()
+    print("testChars passed")

@@ -305,7 +305,7 @@ collectPattern pattern typ = collectPos pattern $ case pattern of
 
 
 collectCall :: BoM CollectState m => Type -> [S.Expr] -> Symbol -> [S.Expr] -> m ()
-collectCall exprType ps symbol es = do -- can be resolved or sym
+collectCall exprType rs symbol es = do -- can be resolved or sym
     kos <- case symbol of
         SymQualified mod sym -> do
             let f = (\k v -> Symbol.sym k == sym && Symbol.mod k == mod)
@@ -317,37 +317,43 @@ collectCall exprType ps symbol es = do -- can be resolved or sym
             return $ Map.toList $ Map.unions maps
         SymResolved _ _ _ -> SymTab.lookupSym symbol <$> gets symTab
 
-    let ks = [ k | (k@(KeyFunc _ _ _), ObjFunc) <- kos ]
-
-    let ksSameRetty   = [ k | k@(KeyFunc _ _ rt) <- ks, rt == exprType ]
-    let ksSameArgs    = [ k | k@(KeyFunc _ xs _) <- ks, xs == map typeOf es ]
-    let ksSameArgsLen = [ k | k@(KeyFunc _ xs _) <- ks, length xs == length es ]
-    let ksSameParams  = [ k | k@(KeyFunc xs _ _) <- ks, xs == map typeOf ps ]
-
-    let kss = [ks, ksSameRetty, ksSameArgs, ksSameArgsLen, ksSameParams]
-    mapM_ collectIfOneDef kss
-    collectIfOneDef $ intersectMatches kss
-
-    collectIfOneDef $ intersect ksSameArgs ksSameParams -- not sure about this
-
+    let ks = filter keyCouldMatch $ map fst kos
+    collectIfUnifiedType (map (\(KeyFunc ps _ _) -> ps) ks) (map typeOf rs)
+    collectIfUnifiedType (map (\(KeyFunc _ as _) -> as) ks) (map typeOf es)
+    collectIfUnifiedType (map (\(KeyFunc _ _ r) -> [r]) ks) [exprType]
+    collectIfOneDef ks
     
-    mapM_ collectExpr ps
+    mapM_ collectExpr rs
     mapM_ collectExpr es
     where
+        keyCouldMatch :: SymKey -> Bool
+        keyCouldMatch (KeyFunc ps as r)
+            | length ps /= length rs || length as /= length es = False
+            | otherwise = all (== True) $ zipWith typesCouldMatch (ps ++ as) $ map typeOf (rs ++ es)
+            where
+                typesCouldMatch :: Type -> Type -> Bool
+                typesCouldMatch (Type _) _ = True
+                typesCouldMatch _ (Type _) = True
+                typesCouldMatch a b        = a == b
+        keyCouldMatch _ = False
+
+        collectIfUnifiedType :: BoM CollectState m => [[Type]] -> [Type] -> m ()
+        collectIfUnifiedType [] types = return () 
+        collectIfUnifiedType typess types = do 
+            assert (all (== length types) $ map length typess) "lengths do not match"
+            forM_ [0..length types - 1] $ \i -> do 
+                let typesn = map (!! i) typess 
+                when (all (== head typesn) typesn) $ do 
+                    collectEq (head typesn) (types !! i)
+
         collectIfOneDef :: BoM CollectState m => [SymKey] -> m ()
         collectIfOneDef [KeyFunc xs ys z] = do
             assert (length ys == length es) "Invalid number of arguments"
-            assert (length xs == length ps) "Invalid number of parameters"
+            assert (length xs == length rs) "Invalid number of parameters"
             collectEq z exprType
-            zipWithM_ collectEq xs (map typeOf ps)
+            zipWithM_ collectEq xs (map typeOf rs)
             zipWithM_ collectEq ys (map typeOf es)
         collectIfOneDef _ = return ()
-
-        intersectMatches :: [[SymKey]] -> [SymKey]
-        intersectMatches []       = []
-        intersectMatches (ks:kss) = case intersectMatches kss of
-            []  -> ks
-            ks2 -> intersect ks ks2
 
 
 collectExpr :: BoM CollectState m => S.Expr -> m ()
