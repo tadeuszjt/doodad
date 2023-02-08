@@ -400,7 +400,7 @@ collectExpr (S.AExpr exprType expr) = collectPos expr $ case expr of
         collectDefault exprType String
 
     S.UnsafePtr _ e -> do
-        collectEq exprType (UnsafePtr (typeOf e))
+        collectEq exprType UnsafePtr
         collectExpr e
 
     S.Ident _ symbol -> do

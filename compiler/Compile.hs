@@ -96,6 +96,7 @@ cmpDeclareExterns :: InsCmp CompileState m => IRGenState -> m ()
 cmpDeclareExterns irGenState = withErrorPrefix "cmpDeclareExterns: " $ do
     forM_ (Map.toList $ irExternDefs irGenState) $
         \(symbol, (paramTypes, sym, argTypes, returnType)) -> withErrorPrefix (sym ++ " ") $ do
+            --liftIO $ putStrLn $ show sym
             (flip catchError) (\e -> return ()) $ do
                 let name = fnSymbolToName symbol
                 paramOpTypes <- map LL.ptr <$> mapM opTypeOf paramTypes
@@ -457,6 +458,7 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
                 tableSetLen tab $ mkI64 (length s)
                 tableSetRow tab 0 $ Ptr Char loc
                 return tab
+            _ -> fail (show base)
                 
 
     AST.Call pos params symbol args  -> do
@@ -549,13 +551,12 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
 
     AST.UnsafePtr pos expr -> do
         val <- cmpExpr expr
-        let UnsafePtr t = exprType
-        assertBaseType (== t) (valType val)
-        case t of
-            Char -> case val of
-                Ptr _ loc -> return $ Val (UnsafePtr t) loc
-                Val _ _   -> fail $ "cannot take pointer of value"
-            _ -> fail (show t)
+
+        let UnsafePtr = exprType
+        --assertBaseType (== t) (valType val)
+        base <- baseTypeOf (valType val)
+        case base of
+            String -> Val UnsafePtr . valOp <$> valLoad val
 
 
     _ -> fail ("invalid expression: " ++ show expr)

@@ -18,6 +18,18 @@ fn {s String} find(c char) (bool, i64)
     return (false, 0)
 
 
+fn {s String} find(str string) (bool, i64)
+    for s[..] -> i
+        let matched = 0
+        for s[i..] -> j | s[j] == str[matched]
+            matched = matched + 1
+
+        if matched == len(str)
+            return (true, i)
+
+    return (false, 0)
+
+
 fn {s String} write(c char)
     s.push(c)
 

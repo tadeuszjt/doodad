@@ -4,6 +4,25 @@ import strings
 import_c stdio.h
 
 
+type FileKey i64
+
+
+fn {io Io} openFile(fileName string) FileKey
+    let rwStr = "w"
+    let fnp = unsafe_ptr(fileName)
+    let rwp = unsafe_ptr(rwStr)
+
+    let fp = c::fopen(fnp, rwp)
+    return 1
+
+
+fn {io Io} closeFile(key FileKey)
+    return
+
+fn {io Io} write(key FileKey, s string)
+    io.write(s)
+
+
 fn {io Io} write(c char)
     c::putchar(i32(c))
 
@@ -12,6 +31,11 @@ fn {io Io} write(s string)
     for s -> c
         io.write(c)
 
+
+fn {io Io, line String} writeLn()
+    for line -> c
+        io.write(c)
+    io.write('\n')
 
 fn {io Io} writeLn(s string)
     io.write(s)

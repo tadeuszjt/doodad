@@ -26,12 +26,20 @@ fn testStringEqual()
     let true = s.stringEqual("12!.asjb")
 
 
-fn testFindChar()
-    data s String "abunch,of.chars!?!"
+fn testFind()
+    data s String "abunch,of.chars!?!\n"
     let (true, 0) = s.find('a')
     let (false, 0) = s.find('x')
     let (true, 6) = s.find(',')
-    let (true, 15) = s.find('!')
+    let (true, 18) = s.find('\n')
+    let (false, 0) = s.find(">")
+    let (true, 0) = s.find("")
+    let (false, 0) = s.find("abunch?")
+    let (true, 0) = s.find("abunch,")
+    let (false, 0) = s.find(",Of.")
+    let (true, 6) = s.find(",of.")
+    let (false, 0) = s.find("!?!?")
+    let (true, 15) = s.find("!?!\n")
 
 
 fn testWrite()
@@ -59,7 +67,7 @@ fn testRead()
 fn testStrings()
     testBuiltin()
     testStringEqual()
-    testFindChar()
+    testFind()
     testWrite()
     testRead()
     print("testStrings passed")

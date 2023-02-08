@@ -28,6 +28,9 @@ valPrint append val = withErrorPrefix "valPrint " $ case valType val of
     t | isInt t   -> void . printf ("%ld" ++ append) . (:[]) . valOp =<< valLoad val
     t | isFloat t -> void . printf ("%f" ++ append) . (:[]) . valOp =<< mkConvert F64 val
     Char          -> void . printf ("%c" ++ append) . (:[]) . valOp =<< valLoad val
+
+    UnsafePtr -> void . printf ("%p" ++ append) . (:[]) . valOp =<< valLoad val
+
     Typedef s     -> do
         base <- baseTypeOf (Typedef s)
         case val of

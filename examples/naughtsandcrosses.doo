@@ -66,8 +66,8 @@ fn {board Board, io Io} playerMove() string
     if line.read(0) -> ('q', _:i64)
         return "quit"
 
-    let (row:i64, n:i64) = line.read(0)
-    let (col:i64, n2:i64) = line.read(n)
+    let (row:i64, n) = line.read(0)
+    let (col:i64, n2) = line.read(n)
 
     let noParse = n == 0 || n2 == 0
     if noParse || !board[..][row] || !board[row][..][col]

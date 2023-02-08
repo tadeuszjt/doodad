@@ -57,7 +57,9 @@ isDataType typ = do
         Io                -> return True
         Void              -> return False
         String            -> return False
+        UnsafePtr         -> return False
         _ | isSimple base -> return False
+        Table ts          -> return True
         Tuple ts          -> any (== True) <$> mapM isDataType ts
         Range t           -> isDataType t
         ADT xs            -> do
@@ -66,7 +68,7 @@ isDataType typ = do
                 FieldType t -> isDataType t
                 FieldCtor ts -> any (== True) <$> mapM isDataType ts
             return $ any (== True) bs
-        _                 -> return True
+        _                 -> fail (show base)
 
 
 
@@ -116,8 +118,7 @@ opTypeOf typ = withErrorPrefix ("opTypOf " ++ show typ) $ case typ of
         ts' <- mapM opTypeOf ts
         return $ LL.ptr (LL.FunctionType rt' ts' False)
 
-
-    UnsafePtr t -> LL.ptr <$> opTypeOf t
+    UnsafePtr -> return $ LL.ptr LL.VoidType
 
     _         -> error (show typ) 
 

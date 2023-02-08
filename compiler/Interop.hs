@@ -108,8 +108,8 @@ aTypeToType aType = trace "aTypeToType" $ case aType of
         return $ Typedef (SymQualified "c" refSym)
 
     A.PtrType aTyp typeQuals [] -> do
-        t <- aTypeToType aTyp
-        return $ UnsafePtr t
+        --t <- aTypeToType aTyp
+        return $ UnsafePtr
 
     A.DirectType dType quals _ -> do
         catchError (directTypeToType dType) $ \e -> fail (show quals)
@@ -124,7 +124,7 @@ genExternsFromGlobs globalDecls = trace "genExterns" $ do
 
     forM_ (Map.toList $ A.gObjs globalDecls) $ \(ident, identDecl) -> case identDecl of
         A.FunctionDef (A.FunDef varDecl body _)  -> do
-            catchError (procFunVarDecl varDecl) $ \e -> return ()
+            catchError (procFunVarDecl varDecl) $ \e -> fail (show varDecl)
 --
         A.Declaration (A.Decl varDecl nodeInfo) -> do
             catchError (procFunVarDecl varDecl) $ \e -> return ()
@@ -134,6 +134,8 @@ genExternsFromGlobs globalDecls = trace "genExterns" $ do
     where
         procTypeDef :: BoM [Extern] m => A.TypeDef -> m ()
         procTypeDef typeDef = withErrorPrefix "procTypeDef " $ case typeDef of
+            A.TypeDef _ (A.DirectType (A.TyBuiltin A.TyVaList) _ _) _ _ -> return ()
+
             A.TypeDef (Ident sym _ _) aType attrs nodeInfo -> do
                 typ <- aTypeToType aType
                 modify $ \externs -> ExtTypeDef sym typ : externs

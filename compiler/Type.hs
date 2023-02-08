@@ -31,7 +31,7 @@ data Type
     | Func [Type] Type 
     | ADT [AdtField]
     | Typedef Symbol
-    | UnsafePtr Type
+    | UnsafePtr
     deriving (Eq, Ord)
 
 
@@ -64,7 +64,7 @@ instance Show Type where
         Table ts      -> "[" ++ intercalate "; " (map show ts) ++ "]"
         Func ts rt    -> "fn(" ++ intercalate ", " (map show ts) ++ ")" ++ show rt
         Typedef s     -> show s
-        UnsafePtr t   -> "*" ++ show t
+        UnsafePtr     -> "*"
 
 
 isInt x               = x `elem` [I8, I16, I32, I64]

@@ -26,7 +26,7 @@ substitute u x typ = case typ of
     Tuple ts         -> Tuple $ map (substitute u x) ts
     Array n t        -> Array n (substitute u x t)
     ADT fs           -> ADT $ map subAdtField fs
-    UnsafePtr t      -> UnsafePtr (substitute u x t)
+    UnsafePtr        -> UnsafePtr
     _                -> error (show typ)
     where
         subAdtField :: AdtField -> AdtField
