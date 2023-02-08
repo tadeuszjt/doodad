@@ -85,7 +85,7 @@ data Expr
     | Conv        TextPos Type [Expr]
     | Len         TextPos Expr
     | Push        TextPos Expr [Expr]
-    | Pop         TextPos Expr [Expr]
+    | Pop         TextPos Expr
     | Clear       TextPos Expr 
     | Prefix      TextPos Operator Expr
     | Infix       TextPos Operator Expr Expr
@@ -166,7 +166,7 @@ instance TextPosition Expr where
         UnsafePtr    p _ -> p
         ADT          p _ -> p
         Push         p _ _ -> p
-        Pop          p _ _ -> p
+        Pop          p _ -> p
         Clear        p _ -> p
         Delete       p _ _ -> p
         Match        p _ _ -> p
@@ -260,33 +260,33 @@ instance Show Pattern where
 
 instance Show Expr where
     show expr = case expr of
-        AExpr t e                   -> show e ++ ":" ++ show t
-        Int pos n                   -> show n
-        Float pos f                 -> show f
-        Bool pos b                  -> if b then "true" else "false"
-        Char pos c                  -> show c
-        Null p                      -> "null"
-        String pos s                -> show s
-        Tuple pos exprs             -> tupStrs (map show exprs)
-        Initialiser pos exprs       -> arrStrs (map show exprs)
-        Field pos expr symbol       -> show expr ++ "." ++ show symbol
-        Subscript pos expr1 expr2   -> show expr1 ++ "[" ++ show expr2 ++ "]"
-        TupleIndex pos expr n       -> show expr ++ "." ++ show n
-        Ident p s                   -> show s 
-        Conv pos typ exprs          -> show typ ++ tupStrs (map show exprs)
-        Len pos expr                -> "len(" ++ show expr ++ ")"
-        UnsafePtr pos expr          -> "unsafe_ptr(" ++ show expr ++ ")"
-        Prefix pos op expr          -> show op ++ show expr
-        Infix pos op expr1 expr2    -> show expr1 ++ " " ++ show op ++ " " ++ show expr2
-        ADT pos expr                 -> brcStrs [show expr]
-        Call pos [] symbol exprs     -> show symbol ++ tupStrs (map show exprs)
-        Call pos params symbol exprs -> brcStrs (map show params) ++ "." ++ show symbol ++ tupStrs (map show exprs)
-        Push pos expr exprs              -> show expr ++ ".push" ++ tupStrs (map show exprs)
-        Pop pos expr exprs               -> show expr ++ ".pop" ++ tupStrs (map show exprs)
-        Clear pos expr                   -> show expr ++ ".clear" ++ tupStrs []
-        Delete pos expr1 expr2           -> show expr1 ++ ".delete" ++ tupStrs [show expr2]
-        Match pos expr1 expr2            -> show expr1 ++ " -> " ++ show expr2
-        Range pos mexpr mexpr1 mexpr2    -> maybe "" show mexpr ++ "[" ++ maybe "" show mexpr1 ++ ".." ++ maybe "" show mexpr2 ++ "]"
+        AExpr t e                     -> show e ++ ":" ++ show t
+        Int pos n                     -> show n
+        Float pos f                   -> show f
+        Bool pos b                    -> if b then "true" else "false"
+        Char pos c                    -> show c
+        Null p                        -> "null"
+        String pos s                  -> show s
+        Tuple pos exprs               -> tupStrs (map show exprs)
+        Initialiser pos exprs         -> arrStrs (map show exprs)
+        Field pos expr symbol         -> show expr ++ "." ++ show symbol
+        Subscript pos expr1 expr2     -> show expr1 ++ "[" ++ show expr2 ++ "]"
+        TupleIndex pos expr n         -> show expr ++ "." ++ show n
+        Ident p s                     -> show s 
+        Conv pos typ exprs            -> show typ ++ tupStrs (map show exprs)
+        Len pos expr                  -> "len(" ++ show expr ++ ")"
+        UnsafePtr pos expr            -> "unsafe_ptr(" ++ show expr ++ ")"
+        Prefix pos op expr            -> show op ++ show expr
+        Infix pos op expr1 expr2      -> show expr1 ++ " " ++ show op ++ " " ++ show expr2
+        ADT pos expr                  -> brcStrs [show expr]
+        Call pos [] symbol exprs      -> show symbol ++ tupStrs (map show exprs)
+        Call pos params symbol exprs  -> brcStrs (map show params) ++ "." ++ show symbol ++ tupStrs (map show exprs)
+        Push pos expr exprs           -> show expr ++ ".push" ++ tupStrs (map show exprs)
+        Pop pos expr                  -> show expr ++ ".pop" ++ tupStrs []
+        Clear pos expr                -> show expr ++ ".clear" ++ tupStrs []
+        Delete pos expr1 expr2        -> show expr1 ++ ".delete" ++ tupStrs [show expr2]
+        Match pos expr1 expr2         -> show expr1 ++ " -> " ++ show expr2
+        Range pos mexpr mexpr1 mexpr2 -> maybe "" show mexpr ++ "[" ++ maybe "" show mexpr1 ++ ".." ++ maybe "" show mexpr2 ++ "]"
 
 
 -- every function must end on a newline and print pre before every line

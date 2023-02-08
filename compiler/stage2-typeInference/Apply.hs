@@ -97,7 +97,7 @@ instance Apply S.Expr where
         S.ADT p e             -> S.ADT p (applyF e)
         S.Call p ps ident es  -> S.Call p (map applyF ps) ident (map applyF es)
         S.Push p e es         -> S.Push p (applyF e) (map applyF es)
-        S.Pop p e es          -> S.Pop p (applyF e) (map applyF es)
+        S.Pop p e             -> S.Pop p (applyF e)
         S.Clear p e           -> S.Clear p (applyF e)
         S.Delete p e1 e2      -> S.Delete p (applyF e1) (applyF e2)
         S.Match p e pat       -> S.Match p (applyF e) (applyF pat)

@@ -14,10 +14,15 @@ import Error
 import Symbol
 import States
 
--- Modoule 'Resolve' takes an AST and updates symbol names to be scope-agnostic. Eg. 'x' -> 'x_1'. This
--- involves changing 'Sym' and 'SymQualified' objects into 'SymResolved' objects. However, functions names
--- and tuple members will not be altered because the exact definiton of these symbols cannot be determined
--- at this stage.
+-- Modoule 'Resolve':
+--
+-- 1.) Updates local symbols to be scope-agnostic: x -> x_0
+-- 2.) Updates imported symbols to contain module: x -> mod_x_0
+-- 3.) Replaces builtin function calls with specific: push -> builtin push
+--
+-- function calls and tuple members will not be changed because the exact definiton of these symbols cannot be 
+-- determined at this stage.
+
 
 class Resolve a where
     resolve :: BoM ResolveState m => a -> m a
@@ -276,6 +281,13 @@ resolveTypeDef (AST.Typedef pos (Sym sym) anno) = do
 
 instance Resolve Stmt where
     resolve stmt = withPos stmt $ case stmt of
+        ExprStmt (Call pos params (Sym "print") exprs) -> do
+            exprs' <- mapM resolve exprs
+            params' <- mapM resolve params
+            case (params', exprs') of
+                ([], es) -> return $ Print pos es
+                _        -> fail "incorrect print call"
+
         ExprStmt callExpr -> ExprStmt <$> resolve callExpr
 
         Block stmts -> do
@@ -312,8 +324,6 @@ instance Resolve Stmt where
             index' <- resolve index
             expr' <- resolve expr
             return $ Set pos index' expr'
-
-        Print pos exprs -> Print pos <$> mapM resolve exprs
 
         Switch pos expr cases -> do
             expr' <- resolve expr
@@ -417,32 +427,49 @@ instance Resolve Expr where
         Ident pos symbol      -> Ident pos <$> lookVar symbol
         Prefix pos op expr -> Prefix pos op <$> resolve expr
         AST.Char pos c -> return expr
-        Len pos expr -> Len pos <$> resolve expr
-        AST.UnsafePtr pos expr -> AST.UnsafePtr pos <$> resolve expr
         AST.Int pos n -> return expr
         AST.Bool pos b -> return expr
         Float pos f -> return expr
         AST.Tuple pos exprs -> AST.Tuple pos <$> mapM resolve exprs
         AST.Initialiser pos exprs -> AST.Initialiser pos <$> mapM resolve exprs
         AST.String pos s -> return expr
-        Push pos expr exprs -> do
-            expr' <- resolve expr
+
+        Call pos params (Sym "len") exprs -> do
             exprs' <- mapM resolve exprs
-            return $ Push pos expr' exprs'
+            params' <- mapM resolve params
+            case (params', exprs') of
+                ([p], []) -> return $ Len pos p
+                ([], [e]) -> return $ Len pos e
+                _         -> fail "incorrect len call"
 
-        Pop pos expr exprs -> do
-            expr' <- resolve expr
+        Call pos params (Sym "push") exprs -> do
             exprs' <- mapM resolve exprs
-            return $ Pop pos expr' exprs'
+            params' <- mapM resolve params
+            case (params', exprs') of
+                ([p], es) -> return $ Push pos p es
+                _         -> fail "incorrect push call"
 
-        Clear pos expr -> do
-            expr' <- resolve expr
-            return $ Clear pos expr'
+        Call pos params (Sym "pop") exprs -> do
+            exprs' <- mapM resolve exprs
+            params' <- mapM resolve params
+            case (params', exprs') of
+                ([p], []) -> return $ Pop pos p
+                _         -> fail "incorrect pop call"
 
-        Delete pos expr1 expr2 -> do
-            expr1' <- resolve expr1
-            expr2' <- resolve expr2
-            return $ Delete pos expr1' expr2' 
+        Call pos params (Sym "clear") exprs -> do
+            exprs' <- mapM resolve exprs
+            params' <- mapM resolve params
+            case (params', exprs') of
+                ([p], []) -> return $ Clear pos p
+                _         -> fail "incorrect clear call"
+
+        Call pos params (Sym "unsafe_ptr") exprs -> do
+            exprs' <- mapM resolve exprs
+            params' <- mapM resolve params
+            case (params', exprs') of
+                ([p], []) -> return $ Clear pos p
+                ([], [e]) -> return $ AST.UnsafePtr pos e
+                _         -> fail "incorrect unsage_ptr call"
 
         Call pos params symbol exprs -> do
             exprs' <- mapM resolve exprs

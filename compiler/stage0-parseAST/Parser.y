@@ -66,18 +66,9 @@ import Symbol
     true       { Token _ Reserved "true" }
     false      { Token _ Reserved "false" }
     module     { Token _ Reserved "module" }
-    copy       { Token _ Reserved "copy" }
     for        { Token _ Reserved "for" }
-    print      { Token _ Reserved "print" }
-    unsafe_ptr { Token _ Reserved "unsafe_ptr" }
-    zero       { Token _ Reserved "zero" }
     null       { Token _ Reserved "null" }
     data       { Token _ Reserved "data" }
-    push       { Token _ Reserved "push" }
-    pop        { Token _ Reserved "pop" }
-    len        { Token _ Reserved "len" }
-    clear      { Token _ Reserved "clear" }
-    delete     { Token _ Reserved "delete" }
 
     import     { Token _ Import _ }
     import_c   { Token _ ImportC _ }
@@ -154,15 +145,14 @@ stmtS : let pattern '=' expr                         { S.Assign (tokPos $1) $2 $
       | index '=' expr                               { S.Set (tokPos $2) $1 $3 }
       | index                                        { S.ExprStmt $1 }
       | type symbol annoType                         { S.Typedef (fst $2) (snd $2) $3 }
-      | print '(' exprs ')'                          { S.Print (tokPos $1) $3 }
       | return mexpr                                 { S.Return (tokPos $1) $2 }
       | data symbol type_ minitialiser               { S.Data (tokPos $1) (snd $2) $3 $4 }
 stmtB : If                                           { $1 }
-      | fn mfnrec ident '(' params ')' type_ block  { S.FuncDef (tokPos $1) $2 (Sym $ tokStr $3) $5 $7 $8 }
-      | fn mfnrec ident '(' params ')' block        { S.FuncDef (tokPos $1) $2 (Sym $ tokStr $3) $5 T.Void $7 }
+      | fn mfnrec ident '(' params ')' type_ block   { S.FuncDef (tokPos $1) $2 (Sym $ tokStr $3) $5 $7 $8 }
+      | fn mfnrec ident '(' params ')' block         { S.FuncDef (tokPos $1) $2 (Sym $ tokStr $3) $5 T.Void $7 }
       | while condition block                        { S.While (tokPos $1) $2 $3 }
-      | for expr block                        { S.For (tokPos $1) $2 Nothing $3 }
-      | for expr '->' pattern block           { S.For (tokPos $1) $2 (Just $4) $5 }
+      | for expr block                               { S.For (tokPos $1) $2 Nothing $3 }
+      | for expr '->' pattern block                  { S.For (tokPos $1) $2 (Just $4) $5 }
       | Switch                                       { $1 }
 
 pattern  : '_'                                { S.PatIgnore (tokPos $1) }
@@ -227,10 +217,6 @@ index  : symbol                               { S.Ident (fst $1) (snd $1) }
        | index '.' ident                      { S.Field (tokPos $2) $1 (Sym $ tokStr $3) }
        | index '.' symbol '(' exprs ')'        { S.Call (tokPos $2) [$1] (snd $3) $5 }
        | '{' exprs1 '}' '.' ident '(' exprs ')' { S.Call (tokPos $4) $2 (Sym $ tokStr $5) $7 }
-       | index '.' push '(' exprs ')'         { S.Push (tokPos $2) $1 $5 }
-       | index '.' pop '(' exprs ')'          { S.Pop (tokPos $2) $1 $5 }
-       | index '.' clear '(' ')'              { S.Clear (tokPos $2) $1 }
-       | index '.' delete '(' expr ')'        { S.Delete (tokPos $2) $1 $5 }
        | call                                 { (fst $1) }
 
 expr   : literal                              { $1 }
@@ -240,21 +226,15 @@ expr   : literal                              { $1 }
        | symbol                               { S.Ident (fst $1) (snd $1) }
        | '(' expr ')'                         { $2 }
        | '(' expr ',' exprs1 ')'              { S.Tuple (tokPos $1) ($2:$4) }
-       | unsafe_ptr '(' expr ')'              { S.UnsafePtr (tokPos $1) $3 }
        | typeOrdinal '(' exprs ')'            { S.Conv (tokPos $2) $1 $3 }
-       | null                                 { S.Null (tokPos $1) }
        | ':' typeAggregate '(' exprs ')'      { S.Conv (tokPos $3) $2 $4 }
+       | null                                 { S.Null (tokPos $1) }
        | expr '.' intlit                      { S.TupleIndex (tokPos $2) $1 (read $ tokStr $3) }
        | expr '.' ident                       { S.Field (tokPos $2) $1 (Sym $ tokStr $3) }
        | expr '[' expr ']'                    { S.Subscript (tokPos $2) $1 $3 }
        | expr ':' type_                       { S.AExpr $3 $1 }
        | expr '.' ident '(' exprs ')'         { S.Call (tokPos $4) [$1] (Sym $ tokStr $3) $5 }
-       | '{' exprs1 '}' '.' symbol '(' exprs ')'  { S.Call (tokPos $6) $2 (snd $5) $7 }
-       | expr '.' push '(' exprs ')'          { S.Push (tokPos $4) $1 $5 }
-       | expr '.' pop '(' exprs ')'           { S.Pop (tokPos $4) $1 $5 }
-       | expr '.' clear '(' ')'               { S.Clear (tokPos $4) $1 }
-       | len '(' expr ')'                     { S.Len (tokPos $1) $3 }
-       | expr '.' len '(' ')'                 { S.Len (tokPos $4) $1 }
+       | '{' exprs1 '}' '.' symbol '(' exprs ')' { S.Call (tokPos $6) $2 (snd $5) $7 }
        | expr '[' mexpr '..' mexpr ']'        { S.Range (tokPos $2) (Just $1) $3 $5 }
        | '[' mexpr '..' mexpr ']'             { S.Range (tokPos $1) Nothing $2 $4 }
 

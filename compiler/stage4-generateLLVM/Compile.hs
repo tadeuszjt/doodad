@@ -385,7 +385,7 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
         zipWithM_ storeCopy ptrs vals
         valLoad len
 
-    AST.Pop pos expr [] -> do
+    AST.Pop pos expr -> do
         val <- cmpExpr expr
         [v] <- valTablePop val
         loc <- mkAlloca exprType

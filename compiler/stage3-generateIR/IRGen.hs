@@ -240,10 +240,9 @@ compileExpr (AST.AExpr exprType expr) = withPos expr $ AExpr exprType <$> case e
         exprs' <- mapM compileExpr exprs
         return $ Push pos expr' exprs'
 
-    AST.Pop pos expr exprs -> do
+    AST.Pop pos expr -> do
         expr' <- compileExpr expr
-        exprs' <- mapM compileExpr exprs
-        return $ Pop pos expr' exprs'
+        return $ Pop pos expr'
 
     AST.Clear pos expr -> do
         expr' <- compileExpr expr

@@ -8,6 +8,8 @@ import Control.Monad.State
 import qualified Type as T
 import States
 
+-- 'Annotate takes an AST and annotates all expressions with a type variable using 'AExpr'.
+-- This is the first step of the Hindley-Milner type inference algorithm.
 
 class Annotate a where
     annotate :: BoM Int m => a -> m a
@@ -158,10 +160,9 @@ instance Annotate Expr where
             es' <- mapM annotate es
             return $ Push pos e' es'
 
-        Pop pos e es -> do
+        Pop pos e -> do
             e' <- annotate e
-            es' <- mapM annotate es
-            return $ Pop pos e' es'
+            return $ Pop pos e'
 
         Clear pos e -> do
             e' <- annotate e

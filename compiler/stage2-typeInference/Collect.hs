@@ -375,8 +375,7 @@ collectExpr (S.AExpr exprType expr) = collectPos expr $ case expr of
         collectExpr e
         mapM_ collectExpr es
 
-    S.Pop _ e es        -> do
-        assert (es == []) "pop cannot have arguments"
+    S.Pop _ e -> do
         collectElem exprType (typeOf e)
         collectExpr e
 
