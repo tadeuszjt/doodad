@@ -365,8 +365,9 @@ collectExpr (S.AExpr exprType expr) = collectPos expr $ case expr of
     S.Float _ f      -> collectDefault exprType F64
     S.Null _         -> return ()
 
-    S.Conv _ t [e]   -> do
+    S.Conv _ t [e]   -> do 
         collectExpr e
+        collectEq exprType t
 
     S.Push _ e es        -> do
         collectDefault exprType I64

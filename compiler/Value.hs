@@ -189,6 +189,8 @@ mkConvertNumber typ val = do
         (F64, F64) -> return op
 
         (F64, F32) -> fpext op LL.double
+        
+        (I64, UnsafePtr) -> ptrtoint op LL.i64
 
 
 valLoad :: InsCmp s m => Value -> m Value

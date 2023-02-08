@@ -556,7 +556,9 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
         --assertBaseType (== t) (valType val)
         base <- baseTypeOf (valType val)
         case base of
-            String -> Val UnsafePtr . valOp <$> valLoad val
+            String -> do
+                op <- valOp <$> valLoad val
+                Val UnsafePtr <$> bitcast op (LL.ptr LL.VoidType)
 
 
     _ -> fail ("invalid expression: " ++ show expr)

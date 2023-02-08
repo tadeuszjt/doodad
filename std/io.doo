@@ -6,15 +6,9 @@ import_c stdio.h
 
 type FileKey i64
 
-
 fn {io Io} openFile(fileName string) FileKey
-    let rwStr = "w"
-    let fnp = unsafe_ptr(fileName)
-    let rwp = unsafe_ptr(rwStr)
-
-    let fp = c::fopen(fnp, rwp)
-    return 1
-
+    let fp = c::fopen(unsafe_ptr(fileName), unsafe_ptr("w"))
+    return FileKey(i64(fp))
 
 fn {io Io} closeFile(key FileKey)
     return

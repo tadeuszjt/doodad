@@ -5,28 +5,9 @@ import std/strings
 
 
 fn {io Io} main()
-    data line String
+    let key = io.openFile("file.txt")
 
-    let num = 95
-
-    while {io, line}.readLn()
-        if line.find("<here>") -> (true, pos)
-            data newLine String 
-
-            for [0..pos] -> i
-                newLine.write(line[i])
-
-            newLine.write(num)
-            num = num + 1
-
-            for line[pos + 6..] -> i
-                newLine.write(line[i])
-            
-
-            {io, newLine}.writeLn()
-
-        else
-            {io, line}.writeLn()
+    print(key)
 
     
 
