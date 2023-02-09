@@ -434,48 +434,16 @@ instance Resolve Expr where
         AST.Initialiser pos exprs -> AST.Initialiser pos <$> mapM resolve exprs
         AST.String pos s -> return expr
 
-        Call pos params (Sym "len") exprs -> do
-            exprs' <- mapM resolve exprs
-            params' <- mapM resolve params
-            case (params', exprs') of
-                ([p], []) -> return $ Len pos p
-                ([], [e]) -> return $ Len pos e
-                _         -> fail "incorrect len call"
-
-        Call pos params (Sym "push") exprs -> do
-            exprs' <- mapM resolve exprs
-            params' <- mapM resolve params
-            case (params', exprs') of
-                ([p], es) -> return $ Push pos p es
-                _         -> fail "incorrect push call"
-
-        Call pos params (Sym "pop") exprs -> do
-            exprs' <- mapM resolve exprs
-            params' <- mapM resolve params
-            case (params', exprs') of
-                ([p], []) -> return $ Pop pos p
-                _         -> fail "incorrect pop call"
-
-        Call pos params (Sym "clear") exprs -> do
-            exprs' <- mapM resolve exprs
-            params' <- mapM resolve params
-            case (params', exprs') of
-                ([p], []) -> return $ Clear pos p
-                _         -> fail "incorrect clear call"
-
-        Call pos params (Sym "unsafe_ptr") exprs -> do
-            exprs' <- mapM resolve exprs
-            params' <- mapM resolve params
-            case (params', exprs') of
-                ([p], []) -> return $ Clear pos p
-                ([], [e]) -> return $ AST.UnsafePtr pos e
-                _         -> fail "incorrect unsage_ptr call"
 
         Call pos params symbol exprs -> do
             exprs' <- mapM resolve exprs
             params' <- mapM resolve params
-            symbol' <- look symbol KeyFunc
-            return $ Call pos params' symbol' exprs'
+            case symbol of
+                Sym s | s `elem` ["push", "pop", "len", "clear", "delete", "unsafe_ptr"] -> do 
+                    return $ Builtin pos params' s exprs'
+                _ -> do
+                    symbol' <- look symbol KeyFunc
+                    return $ Call pos params' symbol' exprs'
 
         Infix pos op exprA exprB -> do
             exprA' <- resolve exprA

@@ -226,8 +226,6 @@ compileExpr (AST.AExpr exprType expr) = withPos expr $ AExpr exprType <$> case e
     AST.Ident pos symbol      -> return $ Ident pos symbol
     AST.Prefix pos op expr    -> Prefix pos op <$> compileExpr expr
     AST.Char pos c            -> return $ AST.Char pos c
-    AST.Len pos expr          -> Len pos <$> compileExpr expr
-    AST.UnsafePtr pos expr    -> AST.UnsafePtr pos <$> compileExpr expr
     AST.Int pos n             -> return $ Int pos n
     AST.Bool pos b            -> return $ AST.Bool pos b
     AST.Float pos f           -> return $ Float pos f
@@ -235,23 +233,10 @@ compileExpr (AST.AExpr exprType expr) = withPos expr $ AExpr exprType <$> case e
     AST.Initialiser pos exprs -> AST.Initialiser pos <$> mapM compileExpr exprs
     AST.String pos s          -> return $ AST.String pos s
 
-    AST.Push pos expr exprs -> do
-        expr' <- compileExpr expr
+    AST.Builtin pos params sym exprs -> do
+        params' <- mapM compileExpr params
         exprs' <- mapM compileExpr exprs
-        return $ Push pos expr' exprs'
-
-    AST.Pop pos expr -> do
-        expr' <- compileExpr expr
-        return $ Pop pos expr'
-
-    AST.Clear pos expr -> do
-        expr' <- compileExpr expr
-        return $ Clear pos expr'
-
-    AST.Delete pos expr1 expr2 -> do
-        expr1' <- compileExpr expr1
-        expr2' <- compileExpr expr2
-        return $ Delete pos expr1' expr2'
+        return $ Builtin pos params' sym exprs'
 
     AST.Call pos params symbol exprs -> do
         params' <- mapM compileExpr params

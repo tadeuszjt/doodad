@@ -126,16 +126,19 @@ instance Annotate Expr where
         Null p -> return expr
 
         Conv p s es -> Conv p s <$> mapM annotate es
-        Len p e -> Len p <$> annotate e
         Tuple p es -> Tuple p <$> mapM annotate es
         Prefix p op e -> Prefix p op <$> annotate e
         Initialiser p es -> Initialiser p <$> mapM annotate es
-        UnsafePtr p e -> UnsafePtr p <$> annotate e
 
         Call pos ps ident es -> do
             ps' <- mapM annotate ps
             es' <- mapM annotate es
             return $ Call pos ps' ident es'
+
+        Builtin pos ps ident es -> do
+            ps' <- mapM annotate ps
+            es' <- mapM annotate es
+            return $ Builtin pos ps' ident es'
 
         Infix p op e1 e2 -> do
             e1' <- annotate e1
@@ -154,24 +157,6 @@ instance Annotate Expr where
             return $ TupleIndex p e' i
 
         AST.ADT pos e -> AST.ADT pos <$> annotate e
-
-        Push pos e es -> do
-            e' <- annotate e
-            es' <- mapM annotate es
-            return $ Push pos e' es'
-
-        Pop pos e -> do
-            e' <- annotate e
-            return $ Pop pos e'
-
-        Clear pos e -> do
-            e' <- annotate e
-            return $ Clear pos e'
-
-        Delete pos expr1 expr2 -> do
-            expr1' <- annotate expr1
-            expr2' <- annotate expr2
-            return $ Delete pos expr1' expr2'
 
         Match pos expr pat -> do
             expr' <- annotate expr

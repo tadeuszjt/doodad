@@ -359,7 +359,7 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
             
         mkRange start end
 
-    AST.Push pos expr [] -> do
+    AST.Builtin pos [expr] "push" [] -> do
         loc <- cmpExpr expr
         base <- baseTypeOf (valType loc)
         case base of
@@ -373,7 +373,7 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
                 key <- sparsePush loc =<< mapM mkZero ts
                 valLoad key
 
-    AST.Push pos expr exprs -> do
+    AST.Builtin pos [expr] "push" exprs -> do
         tab <- cmpExpr expr
         Table ts <- assertBaseType isTable (valType tab)
         vals <- mapM cmpExpr exprs
@@ -385,20 +385,20 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
         zipWithM_ storeCopy ptrs vals
         valLoad len
 
-    AST.Pop pos expr -> do
+    AST.Builtin pos [expr] "pop" [] -> do
         val <- cmpExpr expr
         [v] <- valTablePop val
         loc <- mkAlloca exprType
         storeCopy loc v
         return loc
 
-    AST.Clear pos expr -> do
+    AST.Builtin pos [expr] "clear" [] -> do
         assert (exprType == Void) "clear is a void expression"
         tab <- cmpExpr expr
         tableResize tab (mkI64 0)
         return $ Val Void undefined
 
-    AST.Delete pos expr1 expr2 -> do
+    AST.Builtin pos [expr1] "delete" [expr2] -> do
         assert (exprType == Void) "delete returns void"
         val <- cmpExpr expr1
         arg <- cmpExpr expr2
@@ -487,7 +487,7 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
             _ -> error (show obj)
 
     
-    AST.Len pos expr -> valLoad =<< do
+    AST.Builtin pos [expr] "len" [] -> valLoad =<< do
         assertBaseType isIntegral exprType
         val <- cmpExpr expr
         base <- baseTypeOf (valType val)
@@ -549,7 +549,7 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
 
             _ -> fail $ "invalid initialiser base type: " ++ show base
 
-    AST.UnsafePtr pos expr -> do
+    AST.Builtin pos [expr] "unsafe_ptr" [] -> do
         val <- cmpExpr expr
 
         let UnsafePtr = exprType

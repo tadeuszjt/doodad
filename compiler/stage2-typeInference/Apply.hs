@@ -85,7 +85,6 @@ instance Apply S.Expr where
         S.Null  pos           -> S.Null pos
         S.Prefix pos op e1    -> S.Prefix pos op (applyF e1)
         S.Conv  pos t es      -> S.Conv pos (applyF t) (map applyF es)
-        S.Len   pos e         -> S.Len  pos (applyF e)
         S.Bool  pos b         -> S.Bool pos b
         S.Subscript pos e1 e2 -> S.Subscript pos (applyF e1) (applyF e2)
         S.String pos s        -> S.String pos s
@@ -93,13 +92,9 @@ instance Apply S.Expr where
         S.Float pos f         -> S.Float pos f
         S.Initialiser pos es  -> S.Initialiser pos (map applyF es)
         S.TupleIndex pos e i  -> S.TupleIndex pos (applyF e) i
-        S.UnsafePtr p e       -> S.UnsafePtr p (applyF e)
         S.ADT p e             -> S.ADT p (applyF e)
         S.Call p ps ident es  -> S.Call p (map applyF ps) ident (map applyF es)
-        S.Push p e es         -> S.Push p (applyF e) (map applyF es)
-        S.Pop p e             -> S.Pop p (applyF e)
-        S.Clear p e           -> S.Clear p (applyF e)
-        S.Delete p e1 e2      -> S.Delete p (applyF e1) (applyF e2)
+        S.Builtin p ps ident es  -> S.Builtin p (map applyF ps) ident (map applyF es)
         S.Match p e pat       -> S.Match p (applyF e) (applyF pat)
         S.Range p me me1 me2  -> S.Range p (fmap applyF me) (fmap applyF me1) (fmap applyF me2)
         _                     -> error $ show expr

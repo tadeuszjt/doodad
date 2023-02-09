@@ -361,7 +361,7 @@ collectExpr (S.AExpr exprType expr) = collectPos expr $ case expr of
     S.Call _ ps s es -> collectCall exprType ps s es
     S.Prefix _ op e  -> collectEq exprType (typeOf e) >> collectExpr e
     S.Int _ c        -> collectDefault exprType I64
-    S.Len _ e        -> collectDefault exprType I64 >> collectExpr e
+    S.Builtin _ [e] "len" [] -> collectDefault exprType I64 >> collectExpr e
     S.Float _ f      -> collectDefault exprType F64
     S.Null _         -> return ()
 
@@ -369,24 +369,24 @@ collectExpr (S.AExpr exprType expr) = collectPos expr $ case expr of
         collectExpr e
         collectEq exprType t
 
-    S.Push _ e es        -> do
-        collectDefault exprType I64
-        forM es $ \a -> collectElem (typeOf a) (typeOf e)
-        collectExpr e
+    S.Builtin _ ps sym es -> do 
+        case sym of
+            "len" -> collectDefault exprType I64
+            "push" -> do
+                collectDefault exprType I64
+                assert (length ps == 1) "invalid number of parameters"
+                forM_ es $ \e -> collectElem (typeOf e) (typeOf $ head ps)
+            "pop" -> do
+                assert (length ps == 1) "invalid number of parameters"
+                collectElem exprType (typeOf $ head ps)
+
+            "delete" -> collectEq exprType Void
+            "clear" -> collectEq exprType Void
+            "unsafe_ptr" -> collectEq exprType UnsafePtr
+
+        mapM_ collectExpr ps
         mapM_ collectExpr es
 
-    S.Pop _ e -> do
-        collectElem exprType (typeOf e)
-        collectExpr e
-
-    S.Clear _ e        -> do
-        collectExpr e
-        collectEq exprType Void
-
-    S.Delete _ expr1 expr2 -> do
-        collectEq exprType Void
-        collectExpr expr1
-        collectExpr expr2
 
     S.Char _ c       -> do
         collectBase exprType Char
@@ -398,10 +398,6 @@ collectExpr (S.AExpr exprType expr) = collectPos expr $ case expr of
 
     S.String _ s     -> do
         collectDefault exprType String
-
-    S.UnsafePtr _ e -> do
-        collectEq exprType UnsafePtr
-        collectExpr e
 
     S.Ident _ symbol -> do
         ObjVar t <- look symbol KeyVar
