@@ -58,9 +58,10 @@ isDataType typ = do
         Void              -> return False
         String            -> return False
         UnsafePtr         -> return False
-        _ | isSimple base -> return False
         Table ts          -> return True
+        Sparse ts         -> return True
         Tuple ts          -> any (== True) <$> mapM isDataType ts
+        _ | isSimple base -> return False
         Range t           -> isDataType t
         ADT xs            -> do
             bs <- forM xs $ \x -> case x of
@@ -68,7 +69,7 @@ isDataType typ = do
                 FieldType t -> isDataType t
                 FieldCtor ts -> any (== True) <$> mapM isDataType ts
             return $ any (== True) bs
-        _                 -> fail (show base)
+        _                 -> fail $ "isDataType: " ++ show base
 
 
 

@@ -183,9 +183,7 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
 
     AST.Assign pos pat expr -> withErrorPrefix "assign: " $ do
         val <- cmpExpr expr
-        isDataType <- isDataType (valType val)
-        assert (not isDataType) "Cannot use a data type for a variable"
-        matched <- valLoad =<< cmpPattern pat val
+        matched <- cmpPattern pat val
         let trap = trapMsg ("pattern match failure at: " ++ show (textPos expr))
         if_ (valOp matched) (return ()) trap
 
@@ -373,17 +371,24 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
                 key <- sparsePush loc =<< mapM mkZero ts
                 valLoad key
 
-    AST.Builtin pos [expr] "push" exprs -> do
-        tab <- cmpExpr expr
-        Table ts <- assertBaseType isTable (valType tab)
-        vals <- mapM cmpExpr exprs
-        assert (map valType vals == ts) "mismatched argument types"
 
-        len <- mkTableLen tab
-        tableResize tab =<< mkIntInfix AST.Plus len (mkI64 1)
-        ptrs <- ptrsTableColumn tab len
-        zipWithM_ storeCopy ptrs vals
-        valLoad len
+    AST.Builtin pos [expr] "push" exprs -> do
+        loc <- cmpExpr expr
+        base <- baseTypeOf (valType loc)
+        case base of
+            Table ts -> do
+                vals <- mapM cmpExpr exprs
+                assert (map valType vals == ts) "mismatched argument types"
+                len <- mkTableLen loc
+                tableResize loc =<< mkIntInfix AST.Plus len (mkI64 1)
+                ptrs <- ptrsTableColumn loc len
+                zipWithM_ storeCopy ptrs vals
+                valLoad len
+
+            Sparse ts -> do
+                key <- sparsePush loc =<< mapM cmpExpr exprs
+                valLoad key
+
 
     AST.Builtin pos [expr] "pop" [] -> do
         val <- cmpExpr expr
@@ -566,7 +571,6 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
         withCheck :: InsCmp CompileState m => Type -> m Value -> m Value
         withCheck typ m = do
             val <- m
-            isDataType <- isDataType (valType val)
             assert (valType val == typ) $ "Expression compiled to: " ++ show (valType val) ++ " instead of: " ++ show typ
             return val
             
@@ -595,6 +599,8 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
 
     AST.PatIdent _ symbol -> trace ("cmpPattern " ++ show pattern) $ do -- a
         base <- baseTypeOf (valType val)
+        isDataType <- isDataType (valType val)
+        assert (not isDataType) "Cannot assign a data type to a normal variale"
         loc <- mkAlloca (valType val)
         valStore loc val
         define symbol (ObjVal loc)
@@ -613,6 +619,8 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
     AST.PatArray _ pats -> do -- [a, b, c]
         base <- baseTypeOf (valType val)
         case base of
+            Sparse ts -> cmpPattern pattern =<< ptrSparseTable val
+            
             Table ts -> do
                 len   <- mkTableLen val
                 lenEq <- mkInfix AST.EqEq len (mkI64 $ length pats)

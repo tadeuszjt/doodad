@@ -317,6 +317,8 @@ mkFloatInfix operator a b = do
         AST.Times  -> Val typ <$> fmul opA opB
         AST.Divide -> Val typ <$> fdiv opA opB
         AST.EqEq   -> Val Bool <$> fcmp P.OEQ opA opB
+        AST.GT     -> Val Bool <$> fcmp P.OGT opA opB
+        AST.LT     -> Val Bool <$> fcmp P.OLT opA opB
         _        -> error ("float infix: " ++ show operator)
 
 

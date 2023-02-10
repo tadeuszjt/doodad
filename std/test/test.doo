@@ -3,6 +3,7 @@ module test
 import ../io
 import ../chars
 import ../strings
+import ../maths
 import ../vec2
 import ../rect
 import ../assert
@@ -11,8 +12,12 @@ import ../rand
 
 import testStrings
 import testChars
+import testMaths
+import testSparse
 
 fn main()
     testStrings()
     testChars()
+    testMaths()
+    testSparse()
     print("test passed")
