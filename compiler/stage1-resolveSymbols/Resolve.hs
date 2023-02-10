@@ -411,7 +411,6 @@ instance Resolve AdtField where
 instance Resolve Type where 
     resolve typ = case typ of
         Void                -> return typ
-        Io                  -> return typ
         _ | isSimple typ    -> return typ
         Type.Table ts       -> Type.Table <$> mapM resolve ts
         Type.Tuple ts       -> Type.Tuple <$> mapM resolve ts

@@ -85,8 +85,9 @@ cmpTypeNames :: InsCmp CompileState m => IRGenState -> m ()
 cmpTypeNames irGenState = withErrorPrefix "cmpTypeNames" $ do
     forM_ (Map.toList $ irTypeDefs irGenState) $ \(symbol, typ) -> do
         -- when the underlying type is a struct, replace with a type name
-        when (isTuple typ || isTable typ || isSparse typ || isRange typ) $ do
+        when (isTuple typ || isTable typ || isSparse typ || isRange typ) $ (flip catchError) (\e -> return ()) $ do
             let name = mkNameFromSymbol symbol
+            -- TODO this will fail if in the wrong order
             opType <- opTypeOf typ
             typedef name (Just opType)
             modify $ \s -> s { typeNameMap = Map.insert (Typedef symbol) name (typeNameMap s) }
@@ -123,8 +124,11 @@ cmpFuncBodies irGenState = do
             let paramTypes  = map AST.paramType (funcParams body)
             let paramSymbols = map AST.paramName (funcParams body)
             case paramTypes of
-                [] -> return () -- please clean this up
-                [Io] -> define (head paramSymbols) (ObjVal $ Ptr Io $ cons $ C.IntToPtr (toCons $ int64 0) $ LL.ptr LL.i64)
+                [] -> return ()
+                [Typedef symbol] | sym symbol == "Io" -> do
+                    loc <- mkAlloca (Typedef symbol)
+                    valStore loc =<< mkZero (Typedef symbol)
+                    define (head paramSymbols) $ ObjVal loc
 
             mapM_ cmpStmt (funcStmts $ body)
 
@@ -172,8 +176,6 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
 
     AST.Data pos symbol typ mexpr -> do
         base <- baseTypeOf typ
-        assert (base /= Io) "Cannot declare an Io object"
-
         loc <- mkAlloca typ
         init <- case mexpr of
             Nothing -> mkZero typ
@@ -306,7 +308,7 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
     AST.Tuple pos [expr]         -> cmpExpr expr
     AST.Float p f                -> mkFloat exprType f
     AST.Prefix pos operator expr -> mkPrefix operator =<< cmpExpr expr
-    AST.Field pos expr symbol    -> valTupleField symbol =<< cmpExpr expr
+    AST.Field pos expr symbol    -> ptrTupleField symbol =<< cmpExpr expr
     AST.Null p                   -> mkAdtNull exprType
     AST.Match pos expr pat       -> cmpPattern pat =<< cmpExpr expr
 
@@ -361,12 +363,7 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
         loc <- cmpExpr expr
         base <- baseTypeOf (valType loc)
         case base of
-            Table ts -> do
-                len <- mkTableLen loc
-                tableResize loc =<< mkIntInfix AST.Plus len (mkI64 1)
-                ptrs <- ptrsTableColumn loc len
-                forM_ ptrs $ \ptr -> valStore ptr =<< mkZero (valType ptr)
-                mkConvertNumber exprType =<< valLoad len
+            Table ts -> mkTablePush loc []
             Sparse ts -> do
                 key <- sparsePush loc =<< mapM mkZero ts
                 valLoad key
@@ -392,7 +389,7 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
 
     AST.Builtin pos [expr] "pop" [] -> do
         val <- cmpExpr expr
-        [v] <- valTablePop val
+        [v] <- mkTablePop val
         loc <- mkAlloca exprType
         storeCopy loc v
         return loc
@@ -410,6 +407,7 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
         base <- baseTypeOf (valType val)
         case base of
             Sparse ts -> sparseDelete val arg
+            Table ts  -> tableDelete val arg
         return $ Val Void undefined
                 
     AST.Int p n -> do

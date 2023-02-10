@@ -83,7 +83,6 @@ import Symbol
     char       { Token _ Reserved "char" }
     string     { Token _ Reserved "string" }
     sparse     { Token _ Reserved "sparse" }
-    Io         { Token _ Reserved "Io" }
 
     intlit     { Token _ Int _ }
     floatlit   { Token _ Float _ }
@@ -292,7 +291,6 @@ typeOrdinal   : bool                          { T.Bool }
               | f64                           { T.F64 }
               | char                          { T.Char }
               | string                        { T.String }
-              | Io                            { T.Io }
 
 typeAggregate : tableType                     { $1 }
               | arrayType                     { $1 }
@@ -341,10 +339,15 @@ argTypes1 : type_                             { [$1] }
           | type_ ',' argTypes1               { $1:$3 }
 
 
-annoTupType : '(' annoTupFields ')'           { S.AnnoTuple $2 }
-annoTupField : ident type_                    { (Sym (tokStr $1), $2) }
-annoTupFields : annoTupField                  { [$1] }
-              | annoTupField ',' annoTupFields { $1 : $3 }
+annoTupType : '(' annoTupFields ')'                      { S.AnnoTuple $2 }
+annoTupField : ident type_                               { (Sym (tokStr $1), $2) }
+annoTupFields : annoTupFields1                           { $1 }
+              | 'I' annoTupFieldsLines 'D'               { $2 }
+annoTupFields1 : annoTupField                            { [$1] }
+               | annoTupField ',' annoTupFields1         { $1 : $3 }
+annoTupFieldsLines : annoTupField 'N'                    { [$1] }
+                   | annoTupField 'N' annoTupFieldsLines { $1 : $3 }
+
 
 annoADTType : '{' annoADTFields '}'           { S.AnnoADT $2 }
             | '{' 'I' annoADTFields 'D' '}'   { S.AnnoADT $3 }

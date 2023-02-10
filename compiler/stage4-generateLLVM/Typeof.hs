@@ -54,7 +54,6 @@ isDataType :: InsCmp CompileState m => Type -> m Bool
 isDataType typ = do
     base <- baseTypeOf typ
     case base of
-        Io                -> return True
         Void              -> return False
         String            -> return False
         UnsafePtr         -> return False
@@ -86,7 +85,6 @@ opTypeOf typ = withErrorPrefix ("opTypOf " ++ show typ) $ case typ of
     Bool      -> return LL.i1
     String    -> return $ LL.ptr LL.i8
     Enum      -> return LL.i64
-    Io        -> return LL.i64 -- no underlying type
     Range t   -> LL.StructureType False <$> mapM opTypeOf [t, t]
     Tuple ts  -> LL.StructureType False <$> mapM opTypeOf ts
     Array n t -> LL.ArrayType (fromIntegral n) <$> opTypeOf t

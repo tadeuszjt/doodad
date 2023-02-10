@@ -5,7 +5,9 @@ import std/strings
 
 
 fn {io Io} main()
-    return
+    io.openFile("file.txt")
+    io.closeFile("file.txt")
+    io.closeFile("file.txt")
 
     
 

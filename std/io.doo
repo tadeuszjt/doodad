@@ -3,17 +3,46 @@ module io
 import strings
 import_c stdio.h
 
-
 type FileKey i64
+type FilePtr i64
 
-fn {io Io} openFile(fileName string) FileKey
+type OpenFile (name String, ptr FilePtr)
+
+type Io (
+    openFiles [OpenFile]
+)
+
+
+fn {io Io} openFile(fileName string)
+    data fileNameStr String 
+    fileNameStr.write(fileName)
+
+    for io.openFiles[..] -> i
+        if io.openFiles[i].name == fileNameStr
+            print("openFile: file already open", fileNameStr)
+            return
+
+
     let fp = c::fopen(fileName.unsafe_ptr(), "a+".unsafe_ptr())
-    return FileKey(i64(fp))
+    let ptr = FilePtr(i64(fp))
+
+    let i = io.openFiles.push()
+    io.openFiles[i].name.write(fileName)
+    io.openFiles[i].ptr = ptr
 
 
-fn {io Io} closeFile(key FileKey)
-    let p = unsafe_ptr_from_int(key)
-    c::fclose(p)
+fn {io Io} closeFile(fileName string)
+    data fileNameStr String 
+    fileNameStr.write(fileName)
+
+    for io.openFiles[..] -> i
+        if io.openFiles[i].name == fileNameStr
+            c::fclose(unsafe_ptr_from_int(io.openFiles[i].ptr))
+            io.openFiles.delete(i)
+            return
+
+    print("closeFile: file not found:", fileName)
+
 
 
 fn {io Io} read() char

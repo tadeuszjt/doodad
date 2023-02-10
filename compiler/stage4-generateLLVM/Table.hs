@@ -83,14 +83,40 @@ ptrTableRow i tab = do
     
 
 
-valTablePop :: InsCmp CompileState m => Value -> m [Value]
-valTablePop tab = do
+mkTablePop :: InsCmp CompileState m => Value -> m [Value]
+mkTablePop tab = do
     Table ts <- assertBaseType isTable (valType tab)
     len <- mkTableLen tab
     newLen <- mkIntInfix AST.Minus len (mkI64 1)
     tableSetLen tab newLen
     mapM valLoad =<< ptrsTableColumn tab newLen
 
+
+
+mkTablePush :: InsCmp CompileState m => Value -> [Value] -> m Value
+mkTablePush tab [] = do 
+    len <- mkTableLen tab
+    tableResize tab =<< mkIntInfix AST.Plus len (mkI64 1)
+    ptrs <- ptrsTableColumn tab len
+    forM_ ptrs $ \ptr -> valStore ptr =<< mkZero (valType ptr)
+    return len
+
+
+tableDelete :: InsCmp CompileState m => Value -> Value -> m ()
+tableDelete tab idx = do
+    Table ts <- assertBaseType isTable (valType tab)
+    len <- mkTableLen tab
+    end <- mkIntInfix AST.Minus len (mkI64 1)
+    idxIsEnd <- mkIntInfix AST.EqEq idx end
+    if_ (valOp idxIsEnd) (return ()) (idxNotEndCase end)
+    void $ mkTablePop tab
+    where
+        idxNotEndCase :: InsCmp CompileState m => Value -> m ()
+        idxNotEndCase end = do
+            dst <- ptrsTableColumn tab idx
+            src <- ptrsTableColumn tab end
+            zipWithM_ valStore dst src
+    
 
 tableSetLen :: InsCmp CompileState m => Value -> Value -> m ()
 tableSetLen tab@(Ptr _ loc) len = trace "tableSetLen" $ do

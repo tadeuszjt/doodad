@@ -22,7 +22,6 @@ data Type
     | Char                   
     | String
     | Enum
-    | Io
     | Range Type
     | Sparse [Type]
     | Tuple [Type]           
@@ -55,7 +54,6 @@ instance Show Type where
         Char          -> "char"
         String        -> "string"
         Enum          -> "enum"
-        Io            -> "Io"
         Range t       -> "[..]" ++ show t
         Sparse ts     -> "sparse" ++ "[" ++ intercalate "; " (map show ts) ++ "]"
         Tuple ts      -> "(" ++ intercalate ", " (map show ts) ++ ")"

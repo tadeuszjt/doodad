@@ -1,0 +1,21 @@
+module testTable
+
+
+fn testTableDelete()
+    data table [i64] 
+    for [0..4] -> i; table.push(i)
+
+    let [0, 1, 2, 3] = table
+    table.delete(3)
+    let [0, 1, 2] = table
+    table.delete(0)
+    let [2, 1] = table
+    table.delete(1)
+    let [2] = table
+    table.delete(0)
+    let [] = table
+
+
+fn testTable()
+    testTableDelete()
+    print("testTable passed")

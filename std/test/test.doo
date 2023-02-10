@@ -14,10 +14,12 @@ import testStrings
 import testChars
 import testMaths
 import testSparse
+import testTable
 
 fn main()
     testStrings()
     testChars()
     testMaths()
     testSparse()
+    testTable()
     print("test passed")
