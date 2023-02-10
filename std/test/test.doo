@@ -1,5 +1,14 @@
 module test
 
+import ../io
+import ../chars
+import ../strings
+import ../vec2
+import ../rect
+import ../assert
+import ../rand
+
+
 import testStrings
 import testChars
 

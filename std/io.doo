@@ -7,18 +7,38 @@ import_c stdio.h
 type FileKey i64
 
 fn {io Io} openFile(fileName string) FileKey
-    let fp = c::fopen(unsafe_ptr(fileName), unsafe_ptr("w"))
+    let fp = c::fopen(fileName.unsafe_ptr(), "a+".unsafe_ptr())
     return FileKey(i64(fp))
 
-fn {io Io} closeFile(key FileKey)
-    return
 
-fn {io Io} write(key FileKey, s string)
-    io.write(s)
+fn {io Io} closeFile(key FileKey)
+    let p = unsafe_ptr_from_int(key)
+    c::fclose(p)
+
+
+fn {io Io} read() char
+    return char(c::getchar())
+
+
+fn {io Io} read(key FileKey) char
+    return char(fgetc(unsafe_ptr_from_int(key)))
+
+
+fn {io Io, line String} readLn(key FileKey) bool
+    while true
+        switch io.read(key):char
+            x | x == -1; return false
+            '\n'; return true
+            '\0'; return true
+            c;    line.write(c)
 
 
 fn {io Io} write(c char)
     c::putchar(i32(c))
+
+
+fn {io Io} write(key FileKey, c char)
+    c::fputc(i32(c), unsafe_ptr_from_int(key))
 
 
 fn {io Io} write(s string)
@@ -26,25 +46,29 @@ fn {io Io} write(s string)
         io.write(c)
 
 
+fn {io Io} write(key FileKey, s string)
+    io.write(s)
+
+
+fn {io Io, line String} writeLn(key FileKey)
+    for line -> c
+        io.write(key, c)
+    io.write(key, '\n')
+
+
 fn {io Io, line String} writeLn()
     for line -> c
         io.write(c)
     io.write('\n')
+
 
 fn {io Io} writeLn(s string)
     io.write(s)
     io.write('\n')
 
 
-fn {io Io} read() char
-    return char(c::getchar())
+fn {io Io} writeLn(key FileKey, s string)
+    io.write(key, s)
+    io.write(key, '\n')
 
 
-fn {io Io, line String} readLn() bool
-    line.clear()
-    while true
-        switch io.read():char
-            x | x == -1; return false
-            '\n'; return true
-            '\0'; return true
-            c;    line.write(c)

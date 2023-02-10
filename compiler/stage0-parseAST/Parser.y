@@ -155,21 +155,7 @@ stmtB : If                                           { $1 }
       | for expr '->' pattern block                  { S.For (tokPos $1) $2 (Just $4) $5 }
       | Switch                                       { $1 }
 
-pattern  : '_'                                { S.PatIgnore (tokPos $1) }
-         | literal                            { S.PatLiteral $1 }
-         | ident                              { S.PatIdent (tokPos $1) (Sym $ tokStr $1) }
-         | null                               { S.PatNull (tokPos $1) }
-         | '(' patterns ')'                   { S.PatTuple (tokPos $1) $2 }
-         | '[' patterns ']'                   { S.PatArray (tokPos $1) $2 }
-         | pattern '|' expr                   { S.PatGuarded (tokPos $2) $1 $3 }
-         | symbol '(' patterns ')'            { S.PatField (tokPos $2) (snd $1) $3 }
-         | typeOrdinal '(' pattern ')'        { S.PatTypeField (tokPos $2) $1 $3 }
-         | pattern ':' type_                  { S.PatAnnotated $1 $3 }
 
-patterns  : {- empty -}                       { [] }
-          | patterns1                         { $1 }
-patterns1 : pattern                           { [$1] }
-          | pattern ',' patterns1             { $1 : $3 }
 
 block  : 'I' prog_ 'D'                        { S.Block $2 }
        | ';' stmtS 'N'                        { $2 }
@@ -196,6 +182,26 @@ Switch : switch expr 'I' cases1 'D'           { S.Switch (tokPos $1) $2 $4 }
 cases1 : case                                 { [$1] }
       | case cases1                           { $1 : $2 }
 case : pattern block                          { ($1, $2) }
+
+---------------------------------------------------------------------------------------------------
+-- Patterns ---------------------------------------------------------------------------------------
+
+patterns  : {- empty -}                       { [] }
+          | patterns1                         { $1 }
+patterns1 : pattern                           { [$1] }
+          | pattern ',' patterns1             { $1 : $3 }
+
+pattern  : '_'                                { S.PatIgnore (tokPos $1) }
+         | literal                            { S.PatLiteral $1 }
+         | '-' intlit                         { S.PatLiteral (S.Int (tokPos $1) $ 0 - (read $ tokStr $2)) }
+         | ident                              { S.PatIdent (tokPos $1) (Sym $ tokStr $1) }
+         | null                               { S.PatNull (tokPos $1) }
+         | '(' patterns ')'                   { S.PatTuple (tokPos $1) $2 }
+         | '[' patterns ']'                   { S.PatArray (tokPos $1) $2 }
+         | pattern '|' expr                   { S.PatGuarded (tokPos $2) $1 $3 }
+         | symbol '(' patterns ')'            { S.PatField (tokPos $2) (snd $1) $3 }
+         | typeOrdinal '(' pattern ')'        { S.PatTypeField (tokPos $2) $1 $3 }
+         | pattern ':' type_                  { S.PatAnnotated $1 $3 }
 
 ---------------------------------------------------------------------------------------------------
 -- Expressions ------------------------------------------------------------------------------------
@@ -229,7 +235,6 @@ expr   : literal                              { $1 }
        | typeOrdinal '(' exprs ')'            { S.Conv (tokPos $2) $1 $3 }
        | ':' typeAggregate '(' exprs ')'      { S.Conv (tokPos $3) $2 $4 }
        | null                                 { S.Null (tokPos $1) }
-       | expr '.' intlit                      { S.TupleIndex (tokPos $2) $1 (read $ tokStr $3) }
        | expr '.' ident                       { S.Field (tokPos $2) $1 (Sym $ tokStr $3) }
        | expr '[' expr ']'                    { S.Subscript (tokPos $2) $1 $3 }
        | expr ':' type_                       { S.AExpr $3 $1 }

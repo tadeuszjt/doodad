@@ -268,10 +268,6 @@ compileExpr (AST.AExpr exprType expr) = withPos expr $ AExpr exprType <$> case e
         expr' <- compileExpr expr
         return $ AExpr typ expr'
 
-    AST.TupleIndex pos expr i -> do
-        expr' <- compileExpr expr
-        return $ TupleIndex pos expr' i
-
     AST.Null pos -> return (Null pos)
 
     AST.ADT pos expr -> AST.ADT pos <$> compileExpr expr

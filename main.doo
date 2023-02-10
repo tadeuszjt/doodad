@@ -5,9 +5,7 @@ import std/strings
 
 
 fn {io Io} main()
-    let key = io.openFile("file.txt")
-
-    print(key)
+    return
 
     
 

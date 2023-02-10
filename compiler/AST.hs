@@ -80,7 +80,6 @@ data Expr
     | Null        TextPos 
     | Field       TextPos Expr Symbol
     | Subscript   TextPos Expr Expr
-    | TupleIndex  TextPos Expr Word32
     | Ident       TextPos Symbol
     | Conv        TextPos Type [Expr]
     | Builtin     TextPos [Expr] String [Expr]
@@ -151,7 +150,6 @@ instance TextPosition Expr where
         Initialiser  p _ -> p
         Field        p _ _ -> p
         Subscript    p _ _ -> p
-        TupleIndex   p _ _ -> p
         Ident        p _ -> p
         Call         p _ _ _ -> p 
         Builtin      p _ _ _ -> p 
@@ -261,7 +259,6 @@ instance Show Expr where
         Initialiser pos exprs         -> arrStrs (map show exprs)
         Field pos expr symbol         -> show expr ++ "." ++ show symbol
         Subscript pos expr1 expr2     -> show expr1 ++ "[" ++ show expr2 ++ "]"
-        TupleIndex pos expr n         -> show expr ++ "." ++ show n
         Ident p s                     -> show s 
         Conv pos typ exprs            -> show typ ++ tupStrs (map show exprs)
         Prefix pos op expr            -> show op ++ show expr

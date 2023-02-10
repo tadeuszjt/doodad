@@ -509,10 +509,6 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
             valStore ptr v
         return tup
 
-    AST.TupleIndex pos expr n -> do
-        val <- cmpExpr expr
-        ptrTupleIdx (fromIntegral n) val
-
     AST.Subscript pos expr idxExpr -> withErrorPrefix "subscript: " $ do
         val <- cmpExpr expr
         idx <- cmpExpr idxExpr
@@ -560,6 +556,10 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
                 op <- valOp <$> valLoad val
                 Val UnsafePtr <$> bitcast op (LL.ptr LL.VoidType)
 
+    AST.Builtin pos [] "unsafe_ptr_from_int" [expr] -> do
+        val <- mkConvertNumber I64 =<< cmpExpr expr
+        assertBaseType (== UnsafePtr) exprType
+        Val exprType <$> inttoptr (valOp val) (LL.ptr LL.VoidType)
 
     _ -> fail ("invalid expression: " ++ show expr)
     where

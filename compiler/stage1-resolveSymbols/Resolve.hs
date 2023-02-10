@@ -439,7 +439,7 @@ instance Resolve Expr where
             exprs' <- mapM resolve exprs
             params' <- mapM resolve params
             case symbol of
-                Sym s | s `elem` ["push", "pop", "len", "clear", "delete", "unsafe_ptr"] -> do 
+                Sym s | s `elem` ["push", "pop", "len", "clear", "delete", "unsafe_ptr", "unsafe_ptr_from_int"] -> do 
                     return $ Builtin pos params' s exprs'
                 _ -> do
                     symbol' <- look symbol KeyFunc
@@ -468,10 +468,6 @@ instance Resolve Expr where
             typ' <- resolve typ
             expr' <- resolve expr
             return $ AExpr typ' expr'
-
-        TupleIndex pos expr i -> do
-            expr' <- resolve expr
-            return $ TupleIndex pos expr' i
 
         Null pos -> return (Null pos)
 

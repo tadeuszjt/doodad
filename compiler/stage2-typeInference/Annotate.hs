@@ -152,10 +152,6 @@ instance Annotate Expr where
             e' <- annotate e
             return $ Field p e' s
 
-        TupleIndex p e i -> do
-            e' <- annotate e
-            return $ TupleIndex p e' i
-
         AST.ADT pos e -> AST.ADT pos <$> annotate e
 
         Match pos expr pat -> do

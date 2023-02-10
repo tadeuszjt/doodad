@@ -361,7 +361,6 @@ collectExpr (S.AExpr exprType expr) = collectPos expr $ case expr of
     S.Call _ ps s es -> collectCall exprType ps s es
     S.Prefix _ op e  -> collectEq exprType (typeOf e) >> collectExpr e
     S.Int _ c        -> collectDefault exprType I64
-    S.Builtin _ [e] "len" [] -> collectDefault exprType I64 >> collectExpr e
     S.Float _ f      -> collectDefault exprType F64
     S.Null _         -> return ()
 
@@ -383,10 +382,10 @@ collectExpr (S.AExpr exprType expr) = collectPos expr $ case expr of
             "delete" -> collectEq exprType Void
             "clear" -> collectEq exprType Void
             "unsafe_ptr" -> collectEq exprType UnsafePtr
+            "unsafe_ptr_from_int" -> collectEq exprType UnsafePtr
 
         mapM_ collectExpr ps
         mapM_ collectExpr es
-
 
     S.Char _ c       -> do
         collectBase exprType Char
@@ -443,10 +442,6 @@ collectExpr (S.AExpr exprType expr) = collectPos expr $ case expr of
             Typedef symbol -> do
                 ObjField i  <- look (Sym sym) $ KeyField (typeOf e)
                 collectField exprType i (typeOf e)
-        collectExpr e
-
-    S.TupleIndex _ e i -> do
-        collectField exprType (fromIntegral i) (typeOf e)
         collectExpr e
 
     S.AExpr _ _ -> fail "what"
