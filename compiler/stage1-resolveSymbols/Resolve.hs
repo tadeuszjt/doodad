@@ -144,9 +144,7 @@ annoToType anno = case anno of
 buildTypeImportMap :: BoM (Map.Map Symbol Type) m => [IRGenState] -> m ()
 buildTypeImportMap imports = do
     forM_ imports $ \imprt -> do
-        forM_ (Map.elems $ irTypeMap imprt) $ \symbol -> do
-            False <- Map.member symbol <$> get
-            modify $ Map.insert symbol $ irTypeDefs imprt Map.! symbol
+        modify $ Map.union (irTypeDefs imprt)
 
 
 buildFuncImportMap :: BoM (Map.Map Symbol FuncKey) m => [IRGenState] -> m ()

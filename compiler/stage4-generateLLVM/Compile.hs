@@ -63,7 +63,7 @@ fnHdrToOp paramTypes symbol argTypes returnType = do
 
 
 compile :: BoM s m => IRGenState -> JIT.Session -> m ([LL.Definition], CompileState)
-compile irGenState session = do
+compile irGenState session = withErrorPrefix ((irModuleName irGenState) ++ ": ") $ do
     ((_, defs), state) <- runBoMTExcept (initCompileState (irModuleName irGenState) session) (runModuleCmpT emptyModuleBuilder cmp)
     return (defs, state)
     where
@@ -83,14 +83,33 @@ compile irGenState session = do
 
 cmpTypeNames :: InsCmp CompileState m => IRGenState -> m ()
 cmpTypeNames irGenState = withErrorPrefix "cmpTypeNames" $ do
-    forM_ (Map.toList $ irTypeDefs irGenState) $ \(symbol, typ) -> do
-        -- when the underlying type is a struct, replace with a type name
-        when (isTuple typ || isTable typ || isSparse typ || isRange typ) $ (flip catchError) (\e -> return ()) $ do
-            let name = mkNameFromSymbol symbol
-            -- TODO this will fail if in the wrong order
+    forM_ (Map.toList $ irTypeDefs irGenState) $ \(symbol, typ) ->
+        defineTypeName symbol typ
+    where 
+        defineTypeName :: InsCmp CompileState m => Symbol -> Type -> m ()
+        defineTypeName symbol typ = do 
+            case typ of
+                Table ts -> mapM_ verifyTypeName ts >> addDef symbol typ
+                Tuple ts -> mapM_ verifyTypeName ts >> addDef symbol typ
+                I64 -> return ()
+                _ -> error (show typ)
+
+        addDef :: InsCmp CompileState m => Symbol -> Type -> m ()
+        addDef symbol typ = do
+            let name = mkNameFromSymbol symbol 
             opType <- opTypeOf typ
             typedef name (Just opType)
             modify $ \s -> s { typeNameMap = Map.insert (Typedef symbol) name (typeNameMap s) }
+                
+
+        verifyTypeName :: InsCmp CompileState m => Type -> m ()
+        verifyTypeName typ = case typ of
+            Char -> return ()
+            F64 -> return ()
+            Table ts -> mapM_ verifyTypeName ts
+            Typedef s -> case Map.lookup s (irTypeDefs irGenState) of
+                Just t -> defineTypeName s t
+            _ -> error (show typ)
 
 
 cmpDeclareExterns :: InsCmp CompileState m => IRGenState -> m ()

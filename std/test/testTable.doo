@@ -1,6 +1,9 @@
 module testTable
 
 
+import ../strings
+
+
 fn testTableDelete()
     data table [i64] 
     for [0..4] -> i; table.push(i)
@@ -8,14 +11,27 @@ fn testTableDelete()
     let [0, 1, 2, 3] = table
     table.delete(3)
     let [0, 1, 2] = table
-    table.delete(0)
-    let [2, 1] = table
     table.delete(1)
+    let [0, 2] = table
+    table.delete(0)
     let [2] = table
     table.delete(0)
     let [] = table
 
 
+fn testTablePush()
+    data table [String]
+    let [] = table 
+    table.push()
+    let [""] = table 
+    table[0].write("asdf")
+    table.push()
+    let ["asdf", ""] = table
+    table.delete(0)
+    let [""] = table
+
+
 fn testTable()
     testTableDelete()
+    testTablePush()
     print("testTable passed")
