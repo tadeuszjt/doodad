@@ -307,7 +307,7 @@ compilePattern pattern = case pattern of
         expr' <- compileExpr expr
         return $ PatGuarded pos pat' expr'
 
-    AST.PatArray pos pats -> PatArray pos <$> mapM compilePattern pats
+    AST.PatArray pos patss -> PatArray pos <$> mapM (mapM compilePattern) patss
 
     AST.PatAnnotated pat typ -> do
         pat' <- compilePattern pat

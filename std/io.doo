@@ -4,45 +4,19 @@ import strings
 import_c stdio.h
 
 type FileKey i64
-type FilePtr i64
 
-type OpenFile (name String, ptr FilePtr)
-
-type Io (
-    openFiles [OpenFile]
-)
+type Io ()
 
 
-fn {io Io} openFile(fileName string)
-    data fileNameStr String 
-    fileNameStr.write(fileName)
-
-    for io.openFiles[..] -> i
-        if io.openFiles[i].name == fileNameStr
-            print("openFile: file already open", fileNameStr)
-            return
+fn {io Io} openFile(name string) FileKey
+    let fp = c::fopen(name.unsafe_ptr(), "a+".unsafe_ptr())
+    let key = FileKey(i64(fp))
+    print(key)
+    return key
 
 
-    let fp = c::fopen(fileName.unsafe_ptr(), "a+".unsafe_ptr())
-    let ptr = FilePtr(i64(fp))
-
-    let i = io.openFiles.push()
-    io.openFiles[i].name.write(fileName)
-    io.openFiles[i].ptr = ptr
-
-
-fn {io Io} closeFile(fileName string)
-    data fileNameStr String 
-    fileNameStr.write(fileName)
-
-    for io.openFiles[..] -> i
-        if io.openFiles[i].name == fileNameStr
-            c::fclose(unsafe_ptr_from_int(io.openFiles[i].ptr))
-            io.openFiles.delete(i)
-            return
-
-    print("closeFile: file not found:", fileName)
-
+fn {io Io} closeFile(key FileKey)
+    c::fclose(unsafe_ptr_from_int(key))
 
 
 fn {io Io} read() char
@@ -76,7 +50,7 @@ fn {io Io} write(s string)
 
 
 fn {io Io} write(key FileKey, s string)
-    io.write(s)
+    for s -> c; io.write(key, c)
 
 
 fn {io Io, line String} writeLn(key FileKey)

@@ -31,7 +31,15 @@ fn testTablePush()
     let [""] = table
 
 
+fn testTableTwoRows()
+    data table [i64; bool]
+    let 0 = table.push()
+    let 1 = table.push(1, true)
+    let [0, 1; false, true] = table
+
+
 fn testTable()
     testTableDelete()
     testTablePush()
+    testTableTwoRows()
     print("testTable passed")

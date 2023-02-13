@@ -46,9 +46,10 @@ trap = do
 
 trapMsg :: InsCmp CompileState m => String -> m ()
 trapMsg s = do
-    ptr <- getStringPointer s
-    void $ puts ptr
+    -- ptr <- getStringPointer s
+    --void $ puts ptr -- TODO, causes 'no main', rebuild internal c function calling?
     void $ trap
+    unreachable
 
 
 puts :: InsCmp CompileState m => Operand -> m Operand

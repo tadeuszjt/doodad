@@ -181,7 +181,9 @@ cmpFuncBodies irGenState = do
             hasTerm <- hasTerminator
             if hasTerm then return ()
             else if retty == Void then retVoid
-            else trapMsg "reached end of function" >> unreachable
+            else do 
+                trapMsg "reached end of function"
+                unreachable
 
 
 cmpStmt :: InsCmp CompileState m => AST.Stmt -> m ()
@@ -206,7 +208,8 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
         val <- cmpExpr expr
         matched <- cmpPattern pat val
         let trap = trapMsg ("pattern match failure at: " ++ show (textPos expr))
-        if_ (valOp matched) (return ()) trap
+        if_ (valOp matched) (return ()) (trap)
+        return ()
 
     AST.Set pos expr1 expr2 -> do
         label "set"
@@ -633,7 +636,7 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
         true <- mkBool Bool True
         foldM (mkInfix AST.AndAnd) true bs
 
-    AST.PatArray _ pats -> do -- [a, b, c]
+    AST.PatArray _ [pats] -> do -- [a, b, c]
         base <- baseTypeOf (valType val)
         case base of
             Sparse ts -> cmpPattern pattern =<< ptrSparseTable val
@@ -659,6 +662,41 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
                 foldM (mkInfix AST.AndAnd) true bs
             
             _ -> fail "Invalid array pattern"
+
+    AST.PatArray _ patss -> do 
+        base <- baseTypeOf (valType val)
+        case base of
+            Table ts -> do
+                assert (length patss == length ts) "Invalid number of rows"
+                let rowLen = length (head patss)
+                forM_ patss $ \pats -> do 
+                    assert (length pats == rowLen) "row length mismatch"
+                len   <- mkTableLen val
+                lenEq <- mkInfix AST.EqEq len (mkI64 rowLen)
+                matched <- mkAlloca Bool 
+                false <- mkBool Bool False
+                true <- mkBool Bool True
+                valStore matched false
+
+                exit <- freshName "exit"
+                cond <- freshName "cond"
+
+                condBr (valOp lenEq) cond exit
+
+                emitBlockStart cond
+                bs <- forM [0.. rowLen - 1] $ \i -> do
+                    ptrs <- ptrsTableColumn val (mkI64 i)
+                    let patc = map (!! i) patss
+                    bs <- forM (zip ptrs patc) $ \(ptr, pat) -> cmpPattern pat ptr
+                    foldM (mkInfix AST.AndAnd) true bs
+                valStore matched =<< foldM (mkInfix AST.AndAnd) true bs
+                br exit
+
+                emitBlockStart exit
+                valLoad matched
+
+
+            _ -> fail (show base)
 
     AST.PatField _ symbol pats -> do -- symbol(a, b, c)
         base <- baseTypeOf (valType val) 

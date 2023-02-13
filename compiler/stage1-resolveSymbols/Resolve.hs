@@ -379,7 +379,7 @@ instance Resolve Pattern where
             expr' <- resolve expr
             return $ PatGuarded pos pat' expr'
 
-        PatArray pos pats -> PatArray pos <$> mapM resolve pats
+        PatArray pos patss-> PatArray pos <$> mapM (mapM resolve) patss
 
         PatAnnotated pat typ -> do
             pat' <- resolve pat

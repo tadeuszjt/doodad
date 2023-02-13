@@ -189,6 +189,8 @@ patterns  : {- empty -}                       { [] }
           | patterns1                         { $1 }
 patterns1 : pattern                           { [$1] }
           | pattern ',' patterns1             { $1 : $3 }
+patternsSem : patterns                        { [$1] }
+           | patterns ';' patternsSem         { $1 : $3 }
 
 pattern  : '_'                                { S.PatIgnore (tokPos $1) }
          | literal                            { S.PatLiteral $1 }
@@ -196,7 +198,7 @@ pattern  : '_'                                { S.PatIgnore (tokPos $1) }
          | ident                              { S.PatIdent (tokPos $1) (Sym $ tokStr $1) }
          | null                               { S.PatNull (tokPos $1) }
          | '(' patterns ')'                   { S.PatTuple (tokPos $1) $2 }
-         | '[' patterns ']'                   { S.PatArray (tokPos $1) $2 }
+         | '[' patternsSem ']'                { S.PatArray (tokPos $1) $2 }
          | pattern '|' expr                   { S.PatGuarded (tokPos $2) $1 $3 }
          | symbol '(' patterns ')'            { S.PatField (tokPos $2) (snd $1) $3 }
          | typeOrdinal '(' pattern ')'        { S.PatTypeField (tokPos $2) $1 $3 }

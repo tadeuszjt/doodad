@@ -59,7 +59,7 @@ data Pattern
     | PatIgnore    TextPos
     | PatIdent     TextPos Symbol
     | PatTuple     TextPos [Pattern]
-    | PatArray     TextPos [Pattern]
+    | PatArray     TextPos [[Pattern]]
     | PatGuarded   TextPos Pattern Expr
     | PatField     TextPos Symbol [Pattern]
     | PatTypeField TextPos Type Pattern

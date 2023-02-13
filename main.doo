@@ -5,9 +5,13 @@ import std/strings
 
 
 fn {io Io} main()
-    io.openFile("file.txt")
-    io.closeFile("file.txt")
-    io.closeFile("file.txt")
+    let key = io.openFile("file.txt")
+    data line String 
+    {io, line}.readLn(key)
+    {io, line}.writeLn()
 
+
+
+    io.closeFile(key)
     
 

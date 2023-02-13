@@ -54,14 +54,20 @@ unifyOne pos constraint = withPos pos $ case constraint of
             Just (Tuple ts) -> unifyOne pos (ConsEq t $ ts !! i)
             _               -> return []
 
-    ConsElem t1 t2 -> do
-        basem <- baseTypeOf t2
+    ConsMember t1 i t2 -> do
+        basem <- baseTypeOf t1
         case basem of
-            Just (Table [t]) -> unifyOne pos (ConsEq t1 t)
-            Just (Sparse [t]) -> unifyOne pos (ConsEq t1 t)
-            Just (Array n t) -> unifyOne pos (ConsEq t1 t)
-            Just String      -> unifyOne pos (ConsEq t1 Char)
-            Just (Range t)   -> unifyOne pos (ConsEq t1 t)
+            Just (Table ts)  -> unifyOne pos (ConsEq t2 $ ts !! i)
+            Just (Sparse ts) -> unifyOne pos (ConsEq t2 $ ts !! i)
+            Just (Array n t) -> do 
+                assert (i == 0) "ConsMember: Invalid index"
+                unifyOne pos (ConsEq t2 t)
+            Just String      -> do 
+                assert (i == 0) "ConsMember: Invalid index"
+                unifyOne pos (ConsEq t2 Char)
+            Just (Range t)   -> do 
+                assert (i == 0) "ConsMember: Invalid index"
+                unifyOne pos (ConsEq t2 t)
             _ -> return []
 
     ConsSubscript t1 t2 -> do

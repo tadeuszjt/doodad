@@ -23,7 +23,7 @@ import qualified Debug.Trace
 data Constraint
     = ConsEq Type Type
     | ConsBase   Type Type -- both types must have same base
-    | ConsElem   Type Type -- t1 is elem type of t2
+    | ConsMember Type Int Type -- t2 is ith elem of t1
     | ConsSubscript   Type Type -- t1 is elem type of t2
     | ConsField Type Int Type 
     | ConsAdtMem Type Int Int Type
@@ -97,9 +97,9 @@ collectBase :: BoM CollectState m => Type -> Type -> m ()
 collectBase t1 t2 = do
     modify $ \s -> s { collected = Map.insert (ConsBase t1 t2) (curPos s) (collected s) }
 
-collectElem :: BoM CollectState m => Type -> Type -> m ()
-collectElem t1 t2 = do
-    modify $ \s -> s { collected = Map.insert (ConsElem t1 t2) (curPos s) (collected s) }
+collectMember :: BoM CollectState m => Type -> Int -> Type -> m ()
+collectMember t1 i t2 = do
+    modify $ \s -> s { collected = Map.insert (ConsMember t1 i t2) (curPos s) (collected s) }
 
 collectSubscript :: BoM CollectState m => Type -> Type -> m ()
 collectSubscript t1 t2 = do
@@ -239,7 +239,7 @@ collectStmt stmt = collectPos stmt $ case stmt of
     S.For p expr mpat blk -> do
         when (isJust mpat) $ do
             gt <- genType
-            collectElem gt (typeOf expr)
+            collectMember (typeOf expr) 0 gt
             collectPattern (fromJust mpat) gt
 
         collectExpr expr
@@ -290,10 +290,11 @@ collectPattern pattern typ = collectPos pattern $ case pattern of
         collectBase typ (Tuple gts)
         zipWithM_ collectPattern pats gts
 
-    S.PatArray _ pats -> do
-        gt <- genType
-        mapM_ (\p -> collectPattern p gt) pats
-        collectElem gt typ
+    S.PatArray _ patss -> do
+        forM_ (zip patss [0..]) $ \(pats, i) -> do
+            gt <- genType
+            mapM_ (\p -> collectPattern p gt) pats
+            collectMember typ i gt
 
     S.PatAnnotated pat t -> do
         collectEq t typ
@@ -373,11 +374,12 @@ collectExpr (S.AExpr exprType expr) = collectPos expr $ case expr of
             "len" -> collectDefault exprType I64
             "push" -> do
                 collectDefault exprType I64
-                assert (length ps == 1) "invalid number of parameters"
-                forM_ es $ \e -> collectElem (typeOf e) (typeOf $ head ps)
+                forM_ (zip es [0..]) $ \(e, i) ->
+                    collectMember (typeOf $ head ps) i (typeOf e)
+
             "pop" -> do
                 assert (length ps == 1) "invalid number of parameters"
-                collectElem exprType (typeOf $ head ps)
+                collectMember (typeOf $ head ps) 0 exprType
 
             "delete" -> collectEq exprType Void
             "clear" -> collectEq exprType Void
@@ -426,7 +428,7 @@ collectExpr (S.AExpr exprType expr) = collectPos expr $ case expr of
 
     S.Initialiser _ [] -> return ()
     S.Initialiser _ es -> do
-        forM_ es        $ \e -> collectElem (typeOf e) exprType
+        forM_ es        $ \e -> collectMember exprType 0 (typeOf e) -- TODO
         forM_ (tail es) $ \e -> collectEq (typeOf e) (typeOf $ head es)
         collectDefault exprType $ Array (length es) (typeOf $ head es)
         mapM_ collectExpr es
