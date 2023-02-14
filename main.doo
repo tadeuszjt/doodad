@@ -5,27 +5,9 @@ import std/strings
 
 
 fn {io Io} main()
-    let key    = {io, "/mnt/sleip/l1sw/app/ctrl/common/lte/dl/ctrl/LteDlCtrlEventId.hpp"}.openFile()
-    let outKey = {io, "out.hpp"}.openFile()
+    let outKey = {io, "compiler/Main.hs"}.openFile()
+    io.catFile(outKey)
 
-    let num = 5
-
-    data line string 
-    while {io, line}.readLn(key)
-        if {line, "<here>"}.find() -> (true, i)
-            data newLine string
-            for line[..i] -> j; newLine.push(line[j])
-            newLine.write(num)
-            num = num + 1
-            for line[i + 6..] -> j; newLine.push(line[j])
-
-            {io, newLine}.writeLn()
-        else
-            {io, line}.writeLn()
-
-        line.clear()
-
-    io.closeFile(key)
     io.closeFile(outKey)
 
 

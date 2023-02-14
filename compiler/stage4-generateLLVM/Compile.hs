@@ -83,6 +83,11 @@ compile irGenState session = withErrorPrefix ((irModuleName irGenState) ++ ": ")
 
 cmpTypeNames :: InsCmp CompileState m => IRGenState -> m ()
 cmpTypeNames irGenState = withErrorPrefix "cmpTypeNames" $ do
+    let name = mkName "string"
+    opType <- opTypeOf (Table [Char])
+    typedef name (Just opType)
+    modify $ \s -> s { typeNameMap = Map.insert (Table [Char]) name (typeNameMap s) }
+
     forM_ (Map.toList $ irTypeDefs irGenState) $ \(symbol, typ) ->
         defineTypeName symbol typ
     where 
@@ -317,11 +322,12 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
     where
         label :: InsCmp CompileState m => String -> m ()
         label str = do
-            let pos = textPos stmt
-            name <- freshName $ mkBSS $ str ++ " " ++ show (textLine pos)
-            --printf (str ++ " " ++ show (Error.textLine pos) ++ "\n") []
-            br name
-            emitBlockStart name
+            return ()
+--            let pos = textPos stmt
+--            name <- freshName $ mkBSS $ str ++ " " ++ show (textLine pos)
+--            --printf (str ++ " " ++ show (Error.textLine pos) ++ "\n") []
+--            br name
+--            emitBlockStart name
 
 
 -- must return Val unless local variable
@@ -543,6 +549,10 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
                 table <- ptrSparseTable val
                 [v] <- ptrsTableColumn table idx
                 return v
+            Map _ _ -> do 
+                error "here" 
+                
+
             Range t -> do
                 start <- mkRangeStart val
                 end <- mkRangeEnd val

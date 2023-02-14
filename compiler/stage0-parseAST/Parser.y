@@ -83,6 +83,7 @@ import Symbol
     char       { Token _ Reserved "char" }
     string     { Token _ Reserved "string" }
     sparse     { Token _ Reserved "sparse" }
+    map        { Token _ Reserved "map" }
 
     intlit     { Token _ Int _ }
     floatlit   { Token _ Float _ }
@@ -298,6 +299,7 @@ typeAggregate : tableType                     { $1 }
               | tupType                       { $1 }
               | adtType                       { $1 }
               | sparseType                    { $1 }
+              | mapType                       { $1 }
               | rangeType                     { $1 }
               | fn '(' argTypes ')' type_     { T.Func $3 $5 }
 
@@ -308,6 +310,9 @@ tableType : '[' rowTypes1 ']'                 { T.Table $2 }
           | string                            { T.Table [T.Char] }
 tupType : '(' tupFields ')'                   { T.Tuple $2 }
 sparseType : sparse '[' rowTypes1 ']'         { T.Sparse $3 }
+mapType : map '[' type_ ']' type_             { T.Map $3 $5 }
+
+
 rangeType : '[' '..' ']' type_                { T.Range $4 }
 
 

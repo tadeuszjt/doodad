@@ -23,6 +23,20 @@ fn {io Io} closeFile(key FileKey)
     io.delete(i64(key))
 
 
+fn {io Io} clearFile(key FileKey)
+    let ptr | ptr > 0 = io[key]
+    c::freopen(unsafe_ptr_from_int(0), "w\0".unsafe_ptr(), unsafe_ptr_from_int(ptr))
+    c::freopen(unsafe_ptr_from_int(0), "a+\0".unsafe_ptr(), unsafe_ptr_from_int(ptr))
+
+
+fn {io Io} catFile(key FileKey)
+    data line string
+    while {io, line}.readLn(key)
+        {io, line}.writeLn()
+        line.clear()
+    
+
+
 fn {io Io} read() char
     return char(c::getchar())
 

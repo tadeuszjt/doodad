@@ -23,6 +23,7 @@ data Type
     | Enum
     | Range Type
     | Sparse [Type]
+    | Map Type Type
     | Tuple [Type]           
     | Array Int Type         
     | Table [Type]         
@@ -54,6 +55,7 @@ instance Show Type where
         Enum          -> "enum"
         Range t       -> "[..]" ++ show t
         Sparse ts     -> "sparse" ++ "[" ++ intercalate "; " (map show ts) ++ "]"
+        Map tk tv     -> "map" ++ "[" ++ show tk ++ "]" ++ show tv
         Tuple ts      -> "(" ++ intercalate ", " (map show ts) ++ ")"
         Array n t     -> "[" ++ show n ++ " " ++ show t ++ "]"
         ADT tss       -> "{" ++ intercalate " | " (map show tss) ++ "}"
@@ -91,12 +93,15 @@ isFunc _              = False
 isADT (ADT _)         = True
 isADT _               = False
 
+isMap (Map _ _)       = True
+isMap _               = False
+
 isTypeId (Type _)     = True
 isTypeId _            = False
 
 isIntegral x          = isInt x || x == Char || x == Enum
 isSimple x            = isInt x || isFloat x || x == Char || x == Bool || x == Enum
-isAggregate x         = isTuple x || isArray x || isTable x || isFunc x || isSparse x || isRange x
+isAggregate x         = isTuple x || isArray x || isTable x || isFunc x || isSparse x || isRange x || isMap x
 isBase x              = isSimple x || isAggregate x
 
 

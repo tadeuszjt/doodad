@@ -8,6 +8,7 @@ import Control.Monad
 import LLVM.AST                   hiding (function, Module)
 import LLVM.AST.IntegerPredicate
 import LLVM.AST.Type              hiding (void, double)
+import LLVM.AST.Typed
 import LLVM.AST.Constant
 import LLVM.AST.Global
 import LLVM.IRBuilder.Constant
@@ -37,10 +38,12 @@ fnOp name argTypes retty isVarg =
     cons $ GlobalReference (ptr $ FunctionType retty argTypes isVarg) name
 
 
-trap :: InsCmp CompileState m => m Operand
+trap :: InsCmp CompileState m => m ()
 trap = do
     op <- ensureExtern "llvm.trap" [] VoidType False
     call op []
+    unreachable
+    emitBlockStart =<< fresh
 
 
 
@@ -49,7 +52,6 @@ trapMsg s = do
     -- ptr <- getStringPointer s
     --void $ puts ptr -- TODO, causes 'no main', rebuild internal c function calling?
     void $ trap
-    unreachable
 
 
 puts :: InsCmp CompileState m => Operand -> m Operand

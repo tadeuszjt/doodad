@@ -417,7 +417,11 @@ instance Resolve Type where
         Type.ADT fs         -> Type.ADT <$>  mapM resolve fs
         Type.Sparse ts      -> Type.Sparse <$> mapM resolve ts
         Type.Range t        -> Type.Range <$> resolve t
-        _ -> fail $ "resolve type: " ++ show typ
+        Type.Map tk tv      -> do 
+            tk' <- resolve tk
+            tv' <- resolve tv
+            return $ Type.Map tk' tv'
+        _ -> error $ "resolve type: " ++ show typ
 
 instance Resolve Expr where
     resolve expr = withPos expr $ case expr of

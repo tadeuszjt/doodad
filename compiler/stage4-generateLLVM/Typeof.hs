@@ -58,6 +58,7 @@ isDataType typ = do
         UnsafePtr         -> return False
         Table ts          -> return True
         Sparse ts         -> return True
+        Map tk tv         -> return True
         Tuple ts          -> any (== True) <$> mapM isDataType ts
         _ | isSimple base -> return False
         Range t           -> isDataType t
@@ -72,51 +73,60 @@ isDataType typ = do
 
 
 opTypeOf :: ModCmp CompileState m => Type -> m LL.Type
-opTypeOf typ = withErrorPrefix ("opTypOf " ++ show typ) $ case typ of
-    Void      -> return LL.VoidType
-    I8        -> return LL.i8
-    I16       -> return LL.i16
-    I32       -> return LL.i32
-    I64       -> return LL.i64
-    F32       -> return LL.float
-    F64       -> return LL.double
-    Char      -> return LL.i8
-    Bool      -> return LL.i1
-    Enum      -> return LL.i64
-    Range t   -> LL.StructureType False <$> mapM opTypeOf [t, t]
-    Tuple ts  -> LL.StructureType False <$> mapM opTypeOf ts
-    Array n t -> LL.ArrayType (fromIntegral n) <$> opTypeOf t
-    ADT fs    -> do
-        types <- forM fs $ \f -> case f of
-            FieldNull -> return I8
-            FieldType t -> return t
-            FieldCtor ts -> return $ Tuple ts
+opTypeOf typ = withErrorPrefix ("opTypOf " ++ show typ) $ do
+    namem <- Map.lookup typ <$> gets typeNameMap
+    case namem of
+        Just name -> return (LL.NamedTypeReference name)
+        Nothing -> case typ of
+            Void      -> return LL.VoidType
+            I8        -> return LL.i8
+            I16       -> return LL.i16
+            I32       -> return LL.i32
+            I64       -> return LL.i64
+            F32       -> return LL.float
+            F64       -> return LL.double
+            Char      -> return LL.i8
+            Bool      -> return LL.i1
+            Enum      -> return LL.i64
+            Range t   -> LL.StructureType False <$> mapM opTypeOf [t, t]
+            Tuple ts  -> LL.StructureType False <$> mapM opTypeOf ts
+            Array n t -> LL.ArrayType (fromIntegral n) <$> opTypeOf t
+            ADT fs    -> do
+                types <- forM fs $ \f -> case f of
+                    FieldNull -> return I8
+                    FieldType t -> return t
+                    FieldCtor ts -> return $ Tuple ts
 
-        sizes <- mapM sizeOfLL =<< mapM opTypeOf types
-        let maxi = fromJust $ elemIndex (maximum sizes) sizes
-        opTypeOf $ Tuple [I64, types !! maxi]
+                sizes <- mapM sizeOfLL =<< mapM opTypeOf types
+                let maxi = fromJust $ elemIndex (maximum sizes) sizes
+                opTypeOf $ Tuple [I64, types !! maxi]
 
-    Table ts  -> do
-        ps <- map LL.ptr <$> mapM opTypeOf ts
-        return $ LL.StructureType False (LL.i64:LL.i64:ps)
+            Table ts  -> do
+                ps <- map LL.ptr <$> mapM opTypeOf ts
+                return $ LL.StructureType False (LL.i64:LL.i64:ps)
 
-    Sparse ts  -> do
-        stack <- opTypeOf (Table [I64])
-        table <- opTypeOf (Table ts)
-        return $ LL.StructureType False [table, stack]
+            Sparse ts  -> do
+                stack <- opTypeOf (Table [I64])
+                table <- opTypeOf (Table ts)
+                return $ LL.StructureType False [table, stack]
 
-    Typedef s -> do
-        ObjType t <- look s
-        namem <- Map.lookup (Typedef s) <$> gets typeNameMap
-        maybe (opTypeOf t) (return . LL.NamedTypeReference) namem
+            Map tk tv -> do 
+                values <- opTypeOf (Sparse [tv])
+                keys   <- opTypeOf (Table [tk])
+                return $ LL.StructureType False [keys, values]
+                
 
-    Func ts rt -> do
-        rt' <- opTypeOf rt
-        ts' <- mapM opTypeOf ts
-        return $ LL.ptr (LL.FunctionType rt' ts' False)
+            Typedef s -> do
+                ObjType t <- look s
+                opTypeOf t
 
-    UnsafePtr -> return $ LL.ptr LL.VoidType
+            Func ts rt -> do
+                rt' <- opTypeOf rt
+                ts' <- mapM opTypeOf ts
+                return $ LL.ptr (LL.FunctionType rt' ts' False)
 
-    _         -> error (show typ) 
+            UnsafePtr -> return $ LL.ptr LL.VoidType
+
+            _         -> error (show typ) 
 
 
