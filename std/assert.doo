@@ -10,7 +10,7 @@ fn assert(cnd bool)
     if !cnd
         c::abort()
 
-fn assert(cnd bool, s string)
+fn {s string} assert(cnd bool)
     if !cnd
         print(s)
         c::abort()

@@ -1,49 +1,40 @@
 module strings
 import chars
 
-type String [char]
 
-
-fn {s String} stringEqual(s2 string) bool
-    if s.len() != s2.len(); return false
-    for s[..] -> i
-        if s[i] != s2[i]; return false
-    return true
-
-
-fn {s String} find(c char) (bool, i64)
+fn {s string} find(c char) (bool, i64)
     for s[..] -> i
         if c == s[i]
             return (true, i)
     return (false, 0)
 
 
-fn {s String} find(str string) (bool, i64)
+fn {s string, sub string} find() (bool, i64)
     for s[..] -> i
         let matched = 0
-        for s[i..] -> j | s[j] == str[matched]
+        for s[i..] -> j | matched < sub.len() && s[j] == sub[matched]
             matched = matched + 1
 
-        if matched == str.len()
+        if matched == sub.len()
             return (true, i)
 
     return (false, 0)
 
 
-fn {s String} write(c char)
+fn {s string} write(c char)
     s.push(c)
 
 
-fn {s String} write(b bool)
-    if b; s.write("true")
-    else; s.write("false")
+fn {s string} write(b bool)
+    if b; {s, "true"}.write()
+    else; {s, "false"}.write()
 
 
-fn {s String} write(str string)
-    for str -> c; s.push(c)
+fn {s string, s2 string} write()
+    for s2 -> c; s.push(c)
 
 
-fn {s String} write(n i64)
+fn {s string} write(n i64)
     if n == 0
         s.push('0')
         return
@@ -60,7 +51,7 @@ fn {s String} write(n i64)
         s.push('0' + char(digits.pop()))
 
 
-fn {s String} read(start i64) (char, i64)
+fn {s string} read(start i64) (char, i64)
     let spaceCount = 0
     for s[start..] -> i | isSpace(s[i]) || isAlpha(s[i])
         if isAlpha(s[i])
@@ -70,7 +61,7 @@ fn {s String} read(start i64) (char, i64)
     return ('\0', 0)
 
 
-fn {s String} read(start i64) (i64, i64)
+fn {s string} read(start i64) (i64, i64)
     let spaceCount = 0
     for s[start..] -> i | isSpace(s[i])
         spaceCount = spaceCount + 1

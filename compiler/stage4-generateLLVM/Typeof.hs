@@ -55,7 +55,6 @@ isDataType typ = do
     base <- baseTypeOf typ
     case base of
         Void              -> return False
-        String            -> return False
         UnsafePtr         -> return False
         Table ts          -> return True
         Sparse ts         -> return True
@@ -83,7 +82,6 @@ opTypeOf typ = withErrorPrefix ("opTypOf " ++ show typ) $ case typ of
     F64       -> return LL.double
     Char      -> return LL.i8
     Bool      -> return LL.i1
-    String    -> return $ LL.ptr LL.i8
     Enum      -> return LL.i64
     Range t   -> LL.StructureType False <$> mapM opTypeOf [t, t]
     Tuple ts  -> LL.StructureType False <$> mapM opTypeOf ts

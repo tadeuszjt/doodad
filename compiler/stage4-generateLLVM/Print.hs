@@ -49,10 +49,6 @@ valPrint append val = withErrorPrefix "valPrint " $ case valType val of
             valPrint app =<< valTupleIdx i val
         void $ printf (")" ++ append) []
 
-    String -> do
-        Val _ loc <- valLoad val
-        void $ printf ("%s" ++ append) [loc]
-
     Range t -> do
         printf "[" []
         valPrint ".."            =<< ptrRangeStart val

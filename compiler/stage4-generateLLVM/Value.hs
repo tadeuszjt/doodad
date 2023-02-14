@@ -97,7 +97,6 @@ mkZero typ = trace ("mkZero " ++ show  typ) $ do
         _ | isInt base     -> mkInt typ 0
         _ | isFloat base   -> mkFloat typ 0.0
         Enum               -> mkEnum typ 0
-        String             -> Val String <$> getStringPointer ""
         Bool               -> mkBool typ False
         Char               -> mkChar typ '\0'
         Array n t          -> Val typ . array . replicate n . toCons . valOp <$> mkZero t
@@ -136,14 +135,6 @@ mkRangeEnd val = do
     Val t <$> case val of
         Ptr _ loc -> (flip load) 0 =<< gep loc [int32 0, int32 1]
         Val _ op  -> extractValue op [1]
-
-
-mkStringLen :: InsCmp CompileState m => Type -> Value -> m Value
-mkStringLen typ val = do
-    assertBaseType (== I64) typ
-    assertBaseType (== String) (valType val)
-    op <- valOp <$> valLoad val
-    Val typ <$> strlen op
 
 
 mkConvertNumber :: InsCmp CompileState m => Type -> Value -> m Value
@@ -239,15 +230,6 @@ ptrIdx (Ptr typ loc) idx = trace ("valPtrIdx " ++ show typ) $ do
     op <- valOp <$> valLoad idx
     Ptr typ <$> gep loc [op]
 
-
-mkStringIdx :: InsCmp CompileState m => Value -> Value -> m Value
-mkStringIdx str idx = do
-    assertBaseType (== String) (valType str)
-    assertBaseType isInt (valType idx)
-    loc <- valOp <$> valLoad str
-    op <- valOp <$> valLoad idx
-    pi8 <- gep loc [op]
-    Val Char <$> load pi8 0
 
 
 valMemCpy :: InsCmp CompileState m => Value -> Value -> Value -> m ()

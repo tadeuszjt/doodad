@@ -62,9 +62,6 @@ unifyOne pos constraint = withPos pos $ case constraint of
             Just (Array n t) -> do 
                 assert (i == 0) "ConsMember: Invalid index"
                 unifyOne pos (ConsEq t2 t)
-            Just String      -> do 
-                assert (i == 0) "ConsMember: Invalid index"
-                unifyOne pos (ConsEq t2 Char)
             Just (Range t)   -> do 
                 assert (i == 0) "ConsMember: Invalid index"
                 unifyOne pos (ConsEq t2 t)
@@ -76,7 +73,6 @@ unifyOne pos constraint = withPos pos $ case constraint of
             Just (Table [t]) -> unifyOne pos (ConsEq t1 t)
             Just (Sparse [t]) -> unifyOne pos (ConsEq t1 t)
             Just (Array n t) -> unifyOne pos (ConsEq t1 t)
-            Just String      -> unifyOne pos (ConsEq t1 Char)
             Just (Range t)   -> unifyOne pos (ConsEq t1 Bool)
             _ -> return []
 

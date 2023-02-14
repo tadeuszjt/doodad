@@ -292,7 +292,6 @@ typeOrdinal   : bool                          { T.Bool }
               | f32                           { T.F32 }
               | f64                           { T.F64 }
               | char                          { T.Char }
-              | string                        { T.String }
 
 typeAggregate : tableType                     { $1 }
               | arrayType                     { $1 }
@@ -306,6 +305,7 @@ typeAggregate : tableType                     { $1 }
 adtType : '{' adtFields '}'                   { T.ADT $2 }
 arrayType : '[' intlit type_ ']'              { T.Array (read $ tokStr $2) $3 }
 tableType : '[' rowTypes1 ']'                 { T.Table $2 }
+          | string                            { T.Table [T.Char] }
 tupType : '(' tupFields ')'                   { T.Tuple $2 }
 sparseType : sparse '[' rowTypes1 ']'         { T.Sparse $3 }
 rangeType : '[' '..' ']' type_                { T.Range $4 }

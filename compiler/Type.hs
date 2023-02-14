@@ -20,7 +20,6 @@ data Type
     | F64                    
     | Bool                   
     | Char                   
-    | String
     | Enum
     | Range Type
     | Sparse [Type]
@@ -52,7 +51,6 @@ instance Show Type where
         F64           -> "f64"
         Bool          -> "bool"
         Char          -> "char"
-        String        -> "string"
         Enum          -> "enum"
         Range t       -> "[..]" ++ show t
         Sparse ts     -> "sparse" ++ "[" ++ intercalate "; " (map show ts) ++ "]"
@@ -97,7 +95,7 @@ isTypeId (Type _)     = True
 isTypeId _            = False
 
 isIntegral x          = isInt x || x == Char || x == Enum
-isSimple x            = isInt x || isFloat x || x == Char || x == Bool || x == String || x == Enum
+isSimple x            = isInt x || isFloat x || x == Char || x == Bool || x == Enum
 isAggregate x         = isTuple x || isArray x || isTable x || isFunc x || isSparse x || isRange x
 isBase x              = isSimple x || isAggregate x
 

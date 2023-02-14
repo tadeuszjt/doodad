@@ -20,11 +20,11 @@ fn testTableDelete()
 
 
 fn testTablePush()
-    data table [String]
+    data table [string]
     let [] = table 
     table.push()
     let [""] = table 
-    table[0].write("asdf")
+    {table[0], "asdf"}.write()
     table.push()
     let ["asdf", ""] = table
     table.delete(0)

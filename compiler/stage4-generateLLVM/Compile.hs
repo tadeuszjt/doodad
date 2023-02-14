@@ -91,6 +91,7 @@ cmpTypeNames irGenState = withErrorPrefix "cmpTypeNames" $ do
             case typ of
                 Table ts -> mapM_ verifyTypeName ts >> addDef symbol typ
                 Tuple ts -> mapM_ verifyTypeName ts >> addDef symbol typ
+                Sparse ts -> mapM_ verifyTypeName ts >> addDef symbol typ
                 I64 -> return ()
                 _ -> error (show typ)
 
@@ -106,7 +107,10 @@ cmpTypeNames irGenState = withErrorPrefix "cmpTypeNames" $ do
         verifyTypeName typ = case typ of
             Char -> return ()
             F64 -> return ()
+            Bool -> return ()
             Table ts -> mapM_ verifyTypeName ts
+            Sparse ts -> mapM_ verifyTypeName ts
+            Tuple ts -> mapM_ verifyTypeName ts
             Typedef s -> case Map.lookup s (irTypeDefs irGenState) of
                 Just t -> defineTypeName s t
             _ -> error (show typ)
@@ -278,7 +282,6 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
         emitBlockStart cond
         end <- case base of
             Range I64 -> mkRangeEnd val
-            String -> mkStringLen I64 val
             Table ts -> mkTableLen val
             Array n t -> return (mkI64 n)
             _ -> error (show base)
@@ -290,7 +293,6 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
         patMatch <- case mpat of
             Nothing -> mkBool Bool True
             Just pat -> case base of
-                String -> cmpPattern pat =<< mkStringIdx val idx
                 Table ts -> do
                     [v] <- ptrsTableColumn val idx
                     cmpPattern pat v
@@ -373,7 +375,6 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
         endVal <- case base of
             Range t   -> mkRangeEnd val
             Array n t -> return $ mkI64 n
-            String    -> mkStringLen I64 val
             Table ts  -> mkTableLen val
         end <- case margEnd of
             Nothing  -> return endVal
@@ -402,11 +403,9 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
                 tableResize loc =<< mkIntInfix AST.Plus len (mkI64 1)
                 ptrs <- ptrsTableColumn loc len
                 zipWithM_ storeCopy ptrs vals
-                valLoad len
+                mkConvertNumber exprType len
 
-            Sparse ts -> do
-                key <- sparsePush loc =<< mapM cmpExpr exprs
-                valLoad key
+            Sparse ts -> mkConvertNumber exprType =<< sparsePush loc =<< mapM cmpExpr exprs
 
 
     AST.Builtin pos [expr] "pop" [] -> do
@@ -473,15 +472,13 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
             
     AST.String pos s -> do
         base <- baseTypeOf exprType
-        loc <- getStringPointer s
+        ptr <- getStringPointer s
         case base of
-            String -> do
-                return (Val exprType loc)
             Table [Char] -> do
                 tab <- mkAlloca exprType
                 tableSetCap tab $ mkI64 (length s)
                 tableSetLen tab $ mkI64 (length s)
-                tableSetRow tab 0 $ Ptr Char loc
+                tableSetRow tab 0 $ Ptr Char ptr
                 return tab
             _ -> fail (show base)
                 
@@ -519,7 +516,6 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
         case base of
             Table _   -> mkConvertNumber exprType =<< mkTableLen val
             Array n t -> mkConvertNumber exprType (mkI64 n)
-            String    -> mkStringLen exprType val
             _       -> fail ("cannot take length of type " ++ show (valType val))
 
     AST.Tuple pos exprs -> do
@@ -543,7 +539,6 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
                 [v] <- ptrsTableColumn val idx
                 return v
             Array _ _ -> ptrArrayGetElem val idx
-            String    -> mkStringIdx val idx 
             Sparse _  -> do
                 table <- ptrSparseTable val
                 [v] <- ptrsTableColumn table idx
@@ -577,9 +572,11 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
         --assertBaseType (== t) (valType val)
         base <- baseTypeOf (valType val)
         case base of
-            String -> do
-                op <- valOp <$> valLoad val
-                Val UnsafePtr <$> bitcast op (LL.ptr LL.VoidType)
+            Table [Char] -> do
+                [loc] <- ptrsTableColumn val (mkI64 0)
+                Val UnsafePtr <$> bitcast (valLoc loc) (LL.ptr LL.VoidType)
+
+            _ -> error $ show base
 
     AST.Builtin pos [] "unsafe_ptr_from_int" [expr] -> do
         val <- mkConvertNumber I64 =<< cmpExpr expr

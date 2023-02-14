@@ -23,14 +23,14 @@ fn testSparseDelete()
 
 
 fn testSparseWithStrings()
-    data strings sparse[String]
+    data strings sparse[string]
     let 0 = strings.push()
     let 1 = strings.push()
     let 2 = strings.push()
     let ["", "", ""] = strings
-    strings[0].write("test0")
-    strings[1].write("t35t1")
-    strings[2].write("test2")
+    {strings[0], "test0"}.write()
+    {strings[1], "t35t1"}.write()
+    {strings[2], "test2"}.write()
     let ["test0", "t35t1", "test2"] = strings
     strings.delete(2)
     let ["test0", "t35t1"] = strings

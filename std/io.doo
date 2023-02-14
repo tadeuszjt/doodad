@@ -4,19 +4,23 @@ import strings
 import_c stdio.h
 
 type FileKey i64
+type FilePtr i64
 
-type Io ()
+
+type Io sparse[FilePtr]
 
 
-fn {io Io} openFile(name string) FileKey
-    let fp = c::fopen(name.unsafe_ptr(), "a+".unsafe_ptr())
-    let key = FileKey(i64(fp))
-    print(key)
-    return key
+fn {io Io, fileName string} openFile() FileKey 
+    fileName.push('\0')
+    let ptr | ptr > 0 = FilePtr(i64(fopen(fileName.unsafe_ptr(), "a+\0".unsafe_ptr())))
+    let '\0' = fileName.pop()
+    return io.push(ptr)
 
 
 fn {io Io} closeFile(key FileKey)
-    c::fclose(unsafe_ptr_from_int(key))
+    let ptr | ptr > 0 = io[key]
+    fclose(unsafe_ptr_from_int(ptr))
+    io.delete(i64(key))
 
 
 fn {io Io} read() char
@@ -24,10 +28,11 @@ fn {io Io} read() char
 
 
 fn {io Io} read(key FileKey) char
-    return char(fgetc(unsafe_ptr_from_int(key)))
+    let ptr | ptr > 0 = io[key]
+    return char(fgetc(unsafe_ptr_from_int(ptr)))
 
 
-fn {io Io, line String} readLn(key FileKey) bool
+fn {io Io, line string} readLn(key FileKey) bool
     while true
         switch io.read(key):char
             x | x == -1; return false
@@ -41,37 +46,38 @@ fn {io Io} write(c char)
 
 
 fn {io Io} write(key FileKey, c char)
-    c::fputc(i32(c), unsafe_ptr_from_int(key))
+    let ptr | ptr > 0 = io[key]
+    c::fputc(i32(c), unsafe_ptr_from_int(ptr))
 
 
-fn {io Io} write(s string)
+fn {io Io, s string} write()
     for s -> c
         io.write(c)
 
 
-fn {io Io} write(key FileKey, s string)
+fn {io Io, s string} write(key FileKey)
     for s -> c; io.write(key, c)
 
 
-fn {io Io, line String} writeLn(key FileKey)
+fn {io Io, line string} writeLn(key FileKey)
     for line -> c
         io.write(key, c)
     io.write(key, '\n')
 
 
-fn {io Io, line String} writeLn()
+fn {io Io, line string} writeLn()
     for line -> c
         io.write(c)
     io.write('\n')
 
 
-fn {io Io} writeLn(s string)
-    io.write(s)
+fn {io Io, s string} writeLn()
+    {io, s}.write()
     io.write('\n')
 
 
-fn {io Io} writeLn(key FileKey, s string)
-    io.write(key, s)
+fn {io Io, s string} writeLn(key FileKey)
+    {io, s}.write(key)
     io.write(key, '\n')
 
 

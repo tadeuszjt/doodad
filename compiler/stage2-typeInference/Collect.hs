@@ -373,6 +373,7 @@ collectExpr (S.AExpr exprType expr) = collectPos expr $ case expr of
         case sym of
             "len" -> collectDefault exprType I64
             "push" -> do
+                assert (length ps == 1) "invalid number of parameters"
                 collectDefault exprType I64
                 forM_ (zip es [0..]) $ \(e, i) ->
                     collectMember (typeOf $ head ps) i (typeOf e)
@@ -398,7 +399,7 @@ collectExpr (S.AExpr exprType expr) = collectPos expr $ case expr of
         collectDefault exprType Bool
 
     S.String _ s     -> do
-        collectDefault exprType String
+        collectDefault exprType $ Table [Char]
 
     S.Ident _ symbol -> do
         ObjVar t <- look symbol KeyVar
