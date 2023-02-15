@@ -30,54 +30,61 @@ mkTableLen tab = do
         Val _ op  -> extractValue op [0]
         Ptr _ loc -> (flip load) 0 =<< gep loc [int32 0, int32 0]
 
+tableLen :: InsCmp CompileState m => Pointer -> m Pointer
+tableLen table = do
+    Table _ <- baseTypeOf (typeof table)
+    Pointer I64 <$> gep (loc table) [int32 0, int32 0]
 
-mkTableCap :: InsCmp CompileState m => Value -> m Value
-mkTableCap tab = do
-    Table _ <- assertBaseType isTable (valType tab)
-    Val I64 <$> case tab of
-        Val _ op  -> extractValue op [1]
-        Ptr _ loc -> (flip load) 0 =<< gep loc [int32 0, int32 1]
+tableCap :: InsCmp CompileState m => Pointer -> m Pointer
+tableCap table = do
+    Table _ <- baseTypeOf (typeof table)
+    Pointer I64 <$> gep (loc table) [int32 0, int32 1]
 
 
 -- allocate a table with the specified type and length
 mkTable :: InsCmp CompileState m => Type -> Value -> m Value
-mkTable typ len = do
+mkTable typ initialLen = do
     Table ts <- assertBaseType isTable typ
-    assertBaseType (==I64) (valType len)
-    
-    tab <- mkAlloca typ
-    tableSetLen tab len
-    tableSetCap tab len
+    assertBaseType (==I64) (valType initialLen)
+    lenP <- mkAlloca I64
+    valStore lenP initialLen
 
-    siz <- mkAlloca I64
-    valStore siz (mkI64 0)
+    tab <- newVal typ
+    cap <- tableCap tab
+    len <- tableLen tab
+    storeBasic cap (Pointer I64 $ valLoc lenP)
+    storeBasic len (Pointer I64 $ valLoc lenP)
+
+    siz <- newI64 0
     idxs <- forM ts $ \t -> do
-        idx <- valLoad siz
-        valStore siz =<< mkIntInfix AST.Plus siz =<< mkIntInfix AST.Times len =<< sizeOf t
+        idx <- valLoad (Ptr I64 $ loc siz)
+        Val I64 op <- mkIntInfix AST.Plus (Ptr I64 $ loc siz) =<< mkIntInfix AST.Times initialLen =<< sizeOf t
+        store (loc siz) 0 op
         return idx
 
-    mal <- mkMalloc I8 siz
+    mal <- mkMalloc I8 (Ptr I64 $ loc siz)
     forM_ (zip3 ts idxs [0..]) $ \(t, idx, i) -> do
         Ptr _ pi8 <- ptrIdx mal idx
         ptr <- fmap (Ptr t) $ bitcast pi8 =<< LL.ptr <$> opTypeOf t
-        tableSetRow tab i ptr
+        tableSetRow (Ptr typ $ loc tab) i ptr
 
-    return tab
+    return (Ptr typ $ loc tab)
 
 
-ptrsTableColumn :: InsCmp CompileState m => Value -> Value -> m [Value]
-ptrsTableColumn tab idx = trace "tableGetElem" $ do
-    Table ts <- assertBaseType isTable (valType tab)
+tableColumn :: InsCmp CompileState m => Value -> Value -> m [Pointer]
+tableColumn tab idx = trace "tableGetElem" $ do
+    Table ts <- baseTypeOf (valType tab)
     forM (zip ts [0..]) $ \(t, i) -> do
-        row <- ptrTableRow i tab
-        ptrIdx row idx
+        row <- tableRow i tab
+        advancePointer row idx
 
 
-ptrTableRow :: InsCmp CompileState m => Int -> Value -> m Value
-ptrTableRow i tab = do
+
+tableRow :: InsCmp CompileState m => Int -> Value -> m Pointer
+tableRow i tab = do
     Table ts <- assertBaseType isTable (valType tab)
     assert (i >= 0 && i < length ts) "Invalid table row index"
-    Ptr (ts !! i) <$> case tab of
+    Pointer (ts !! i) <$> case tab of
         Ptr _ loc -> (flip load) 0 =<< gep loc [int32 0, int32 (fromIntegral i + 2)]
         Val _ op  -> extractValue op [fromIntegral i + 2]
     
@@ -89,7 +96,7 @@ mkTablePop tab = do
     len <- mkTableLen tab
     newLen <- mkIntInfix AST.Minus len (mkI64 1)
     tableSetLen tab newLen
-    mapM valLoad =<< ptrsTableColumn tab newLen
+    mapM (\(Pointer t p) -> valLoad (Ptr t p)) =<< tableColumn tab newLen
 
 
 
@@ -97,8 +104,8 @@ mkTablePush :: InsCmp CompileState m => Value -> [Value] -> m Value
 mkTablePush tab [] = do 
     len <- mkTableLen tab
     tableResize tab =<< mkIntInfix AST.Plus len (mkI64 1)
-    ptrs <- ptrsTableColumn tab len
-    forM_ ptrs $ \ptr -> valStore ptr =<< mkZero (valType ptr)
+    ptrs <- tableColumn tab len
+    forM_ ptrs $ \(Pointer pt po) -> valStore (Ptr pt po) =<< mkZero pt
     return len
 
 
@@ -113,9 +120,9 @@ tableDelete tab idx = do
     where
         idxNotEndCase :: InsCmp CompileState m => Value -> m ()
         idxNotEndCase end = do
-            dst <- ptrsTableColumn tab idx
-            src <- ptrsTableColumn tab end
-            zipWithM_ valStore dst src
+            dsts <- tableColumn tab idx
+            srcs <- tableColumn tab end
+            zipWithM_ storeBasic dsts srcs
     
 
 tableSetLen :: InsCmp CompileState m => Value -> Value -> m ()
@@ -124,14 +131,6 @@ tableSetLen tab@(Ptr _ loc) len = trace "tableSetLen" $ do
     assertBaseType (==I64) (valType len)
     l <- gep loc [int32 0, int32 0]
     store l 0 . valOp =<< valLoad len
-
-
-tableSetCap :: InsCmp CompileState m => Value -> Value -> m ()
-tableSetCap tab@(Ptr _ loc) cap = trace "tableSetCap" $ do
-    Table _ <- assertBaseType isTable (valType tab)
-    assertBaseType isInt (valType cap)
-    c <- gep loc [int32 0, int32 1]
-    store c 0 . valOp =<< valLoad cap
 
 
 tableSetRow :: InsCmp CompileState m => Value -> Int -> Value -> m ()
@@ -146,7 +145,8 @@ tableResize :: InsCmp CompileState m => Value -> Value -> m ()
 tableResize tab newLen = trace "tableResize" $ do
     Table ts <- assertBaseType isTable (valType tab)
     assertBaseType isInt (valType newLen)
-    bFull <- mkIntInfix AST.GT newLen =<< mkTableCap tab
+    Pointer I64 capP <- tableCap $ Pointer (valType tab) (valLoc tab)
+    bFull <- mkIntInfix AST.GT newLen (Ptr I64 capP)
     if_ (valOp bFull) (fullCase ts) (return ())
     tableSetLen tab newLen
     where
@@ -154,7 +154,7 @@ tableResize tab newLen = trace "tableResize" $ do
         fullCase ts = do
             newTab <- mkTable (valType tab) =<< mkIntInfix AST.Times newLen (mkI64 2)
             forM_ (zip ts [0..]) $ \(t, i) -> do
-                newRow <- ptrTableRow i newTab
-                oldRow <- ptrTableRow i tab
-                valMemCpy newRow oldRow =<< mkTableLen tab
+                (Pointer tn pn) <- tableRow i newTab
+                (Pointer to po) <- tableRow i tab
+                valMemCpy (Ptr tn pn) (Ptr to po) =<< mkTableLen tab
             valStore tab newTab

@@ -32,6 +32,9 @@ import Error
 import Trace
 import Symbol
 
+data Pointer
+    = Pointer { typeof :: Type, loc :: LL.Operand }
+    deriving (Show, Eq)
 
 data Value
     = Val Type LL.Operand

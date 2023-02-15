@@ -299,8 +299,8 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
             Nothing -> mkBool Bool True
             Just pat -> case base of
                 Table ts -> do
-                    [v] <- ptrsTableColumn val idx
-                    cmpPattern pat v
+                    [Pointer t p] <- tableColumn val idx
+                    cmpPattern pat (Ptr t p)
                 Range I64 -> cmpPattern pat idx
                 Array n t -> cmpPattern pat =<< ptrArrayGetElem val idx
                 _ -> error (show base)
@@ -407,8 +407,9 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
                 assert (map valType vals == ts) "mismatched argument types"
                 len <- mkTableLen loc
                 tableResize loc =<< mkIntInfix AST.Plus len (mkI64 1)
-                ptrs <- ptrsTableColumn loc len
-                zipWithM_ storeCopy ptrs vals
+                ptrs <- tableColumn loc len
+                forM_ (zip ptrs vals) $ \(Pointer t p, val) ->
+                    storeCopy (Ptr t p) val
                 mkConvertNumber exprType len
 
             Sparse ts -> mkConvertNumber exprType =<< sparsePush loc =<< mapM cmpExpr exprs
@@ -482,7 +483,9 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
         case base of
             Table [Char] -> do
                 tab <- mkAlloca exprType
-                tableSetCap tab $ mkI64 (length s)
+                cap <- tableCap (Pointer (valType tab) (valLoc tab))
+                storeBasic cap =<< newI64 (length s)
+
                 tableSetLen tab $ mkI64 (length s)
                 tableSetRow tab 0 $ Ptr Char ptr
                 return tab
@@ -542,13 +545,13 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
         base <- baseTypeOf (valType val)
         case base of
             Table _   -> do
-                [v] <- ptrsTableColumn val idx
-                return v
+                [Pointer t p] <- tableColumn val idx
+                return $ Ptr t p
             Array _ _ -> ptrArrayGetElem val idx
             Sparse _  -> do
                 table <- ptrSparseTable val
-                [v] <- ptrsTableColumn table idx
-                return v
+                [Pointer t p] <- tableColumn table idx
+                return $ Ptr t p
             Map _ _ -> do 
                 error "here" 
                 
@@ -583,8 +586,8 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
         base <- baseTypeOf (valType val)
         case base of
             Table [Char] -> do
-                [loc] <- ptrsTableColumn val (mkI64 0)
-                Val UnsafePtr <$> bitcast (valLoc loc) (LL.ptr LL.VoidType)
+                [Pointer _ p] <- tableColumn val (mkI64 0)
+                Val UnsafePtr <$> bitcast p (LL.ptr LL.VoidType)
 
             _ -> error $ show base
 
@@ -653,9 +656,9 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
                 lenEq <- mkInfix AST.EqEq len (mkI64 $ length pats)
 
                 assert (length ts == 1) "patterns don't support multiple rows (yet)"
-                bs <- forM (zip pats [0..]) $ \(p, i) -> do
-                    [v] <- ptrsTableColumn val (mkI64 i)
-                    cmpPattern p v
+                bs <- forM (zip pats [0..]) $ \(pat, i) -> do
+                    [Pointer t p] <- tableColumn val (mkI64 i)
+                    cmpPattern pat (Ptr t p)
 
                 true <- mkBool (valType lenEq) True
                 foldM (mkInfix AST.AndAnd) true (lenEq:bs)
@@ -692,9 +695,9 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
 
                 emitBlockStart cond
                 bs <- forM [0.. rowLen - 1] $ \i -> do
-                    ptrs <- ptrsTableColumn val (mkI64 i)
+                    ptrs <- tableColumn val (mkI64 i)
                     let patc = map (!! i) patss
-                    bs <- forM (zip ptrs patc) $ \(ptr, pat) -> cmpPattern pat ptr
+                    bs <- forM (zip ptrs patc) $ \(Pointer t p, pat) -> cmpPattern pat (Ptr t p)
                     foldM (mkInfix AST.AndAnd) true bs
                 valStore matched =<< foldM (mkInfix AST.AndAnd) true bs
                 br exit

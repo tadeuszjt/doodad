@@ -39,6 +39,13 @@ mkI64 :: Integral i => i -> Value
 mkI64 n = Val I64 $ int64 (fromIntegral n)
 
 
+newI64 :: (InsCmp CompileState m, Integral i) => i -> m Pointer
+newI64 n = do 
+    p <- alloca LL.i64 Nothing 0
+    store p 0 $ int64 (fromIntegral n)
+    return $ Pointer I64 p
+
+
 mkChar :: InsCmp CompileState m => Type -> Char -> m Value
 mkChar typ c = do
     assertBaseType (== Char) typ
@@ -190,6 +197,12 @@ valLoad (Val typ op)  = trace ("valLoad " ++ show typ) $ return (Val typ op)
 valLoad (Ptr typ loc) = trace ("valLoad " ++ show typ) $ Val typ <$> load loc 0
 
 
+storeBasic :: InsCmp CompileState m => Pointer -> Pointer -> m ()
+storeBasic dst src = do 
+    assert (typeof dst == typeof src) "storeBasic: type mismatch"
+    store (loc dst) 0 =<< load (loc src) 0
+
+
 valStore :: InsCmp CompileState m => Value -> Value -> m ()
 valStore (Ptr typ loc) val = trace "valStore" $ do
     base <- baseTypeOf typ
@@ -211,6 +224,15 @@ valSelect cnd true false = trace "valSelect" $ do
     Val (valType true) <$> select cndOp trueOp falseOp
 
 
+newVal :: InsCmp CompileState m => Type -> m Pointer 
+newVal typ = do 
+    opType <- opTypeOf typ 
+    p <- alloca opType Nothing 0 
+    Val _ z <- mkZero typ
+    store p 0 z
+    return $ Pointer typ p
+
+
 mkAlloca :: InsCmp CompileState m => Type -> m Value
 mkAlloca typ = trace ("mkAlloca " ++ show typ) $ do
     opTyp <- opTypeOf typ
@@ -223,6 +245,14 @@ mkMalloc typ len = trace ("mkMalloc " ++ show typ) $ do
     lenOp <- valOp <$> valLoad len
     pi8 <- malloc =<< mul lenOp . valOp =<< sizeOf typ
     fmap (Ptr typ) $ bitcast pi8 . LL.ptr =<< opTypeOf typ
+
+
+
+advancePointer :: InsCmp CompileState m => Pointer -> Value -> m Pointer
+advancePointer (Pointer t p) idx = do
+    I64 <- baseTypeOf (valType idx)
+    op <- valOp <$> valLoad idx
+    Pointer t <$> gep p [op]
 
 
 ptrIdx :: InsCmp CompileState m => Value -> Value -> m Value

@@ -285,9 +285,9 @@ mkTableInfix operator a b = do
 
             -- test that a[i] == b[i]
             emitBlockStart body
-            [elmA] <- ptrsTableColumn a idx
-            [elmB] <- ptrsTableColumn b idx
-            elmEq <- mkInfix AST.EqEq elmA elmB
+            [Pointer ta a] <- tableColumn a idx
+            [Pointer tb b] <- tableColumn b idx
+            elmEq <- mkInfix AST.EqEq (Ptr ta a) (Ptr tb b)
             valStore eq elmEq
             valStore idx =<< mkIntInfix AST.Plus idx (mkI64 1)
             condBr (valOp elmEq) cond exit
