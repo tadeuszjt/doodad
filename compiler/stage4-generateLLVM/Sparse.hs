@@ -44,7 +44,7 @@ sparsePush val elems = do
     Sparse ts <- assertBaseType isSparse (valType val)
     assert (map valType elems == ts) "Elem types do not match"
     stack <- ptrSparseStack val
-    stackLen <- mkTableLen stack
+    stackLen <- toVal =<< tableLen (toPointer stack)
     stackLenGTZero <- mkIntInfix AST.GT stackLen (mkI64 0)
     ret <- mkAlloca I64
     if_ (valOp stackLenGTZero) (popStackCase stack ret) (pushTableCase ret) 
@@ -61,7 +61,7 @@ sparsePush val elems = do
         pushTableCase :: InsCmp CompileState m => Value -> m ()
         pushTableCase ret = do
             table <- ptrSparseTable val
-            len <- mkTableLen table
+            len <- toVal =<< tableLen (toPointer table)
             tableResize table =<< mkIntInfix AST.Plus len (mkI64 1)
             ptrs <- tableColumn table len
             forM_ (zip ptrs elems) $ \(Pointer t p, e) ->
@@ -77,14 +77,14 @@ sparseDelete val idx = do
     forM_ ptrs $ \(Pointer t p) -> do
         valStore (Ptr t p) =<< mkZero t
 
-    len <- mkTableLen table
+    len <- toVal =<< tableLen (toPointer table)
     idxIsEnd <- mkIntInfix AST.EqEq idx =<< mkIntInfix AST.Minus len (mkI64 1)
     if_ (valOp idxIsEnd) (void $ mkTablePop table) idxNotEndCase
     where
         idxNotEndCase :: InsCmp CompileState m => m ()
         idxNotEndCase = do
             stack <- ptrSparseStack val
-            len <- mkTableLen stack
+            len <- toVal =<< tableLen (toPointer stack)
             tableResize stack =<< mkIntInfix AST.Plus len (mkI64 1)
             [Pointer t p] <- tableColumn stack len
             valStore (Ptr t p) idx

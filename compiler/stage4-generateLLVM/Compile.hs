@@ -287,7 +287,7 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
         emitBlockStart cond
         end <- case base of
             Range I64 -> mkRangeEnd val
-            Table ts -> mkTableLen val
+            Table ts -> toVal =<< tableLen (toPointer val)
             Array n t -> return (mkI64 n)
             _ -> error (show base)
         ilt <- mkIntInfix AST.LT idx end
@@ -296,7 +296,7 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
         -- match pattern (if present)
         emitBlockStart patm
         patMatch <- case mpat of
-            Nothing -> mkBool Bool True
+            Nothing -> toVal =<< newBool True
             Just pat -> case base of
                 Table ts -> do
                     [Pointer t p] <- tableColumn val idx
@@ -333,8 +333,8 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
 -- must return Val unless local variable
 cmpExpr :: InsCmp CompileState m =>  AST.Expr -> m Value
 cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ withCheck exprType $ case expr of
-    AST.Bool pos b               -> mkBool exprType b
-    AST.Char pos c               -> mkChar exprType c
+    AST.Bool pos b               -> toVal =<< toType exprType =<< newBool b
+    AST.Char pos c               -> toVal =<< toType exprType =<< newChar c
     AST.Tuple pos [expr]         -> cmpExpr expr
     AST.Float p f                -> mkFloat exprType f
     AST.Prefix pos operator expr -> mkPrefix operator =<< cmpExpr expr
@@ -381,7 +381,7 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
         endVal <- case base of
             Range t   -> mkRangeEnd val
             Array n t -> return $ mkI64 n
-            Table ts  -> mkTableLen val
+            Table ts  -> toVal =<< tableLen (toPointer val)
         end <- case margEnd of
             Nothing  -> return endVal
             Just arg -> mkMin endVal =<< cmpExpr arg
@@ -405,7 +405,7 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
             Table ts -> do
                 vals <- mapM cmpExpr exprs
                 assert (map valType vals == ts) "mismatched argument types"
-                len <- mkTableLen loc
+                len <- toVal =<< tableLen (toPointer loc)
                 tableResize loc =<< mkIntInfix AST.Plus len (mkI64 1)
                 ptrs <- tableColumn loc len
                 forM_ (zip ptrs vals) $ \(Pointer t p, val) ->
@@ -443,7 +443,7 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
         case base of
             _ | isInt base   -> mkInt exprType n
             _ | isFloat base -> mkFloat exprType (fromIntegral n)
-            _ | base == Char -> mkChar exprType (chr $ fromIntegral n)
+            _ | base == Char -> toVal =<< toType exprType =<< newChar (chr $ fromIntegral n)
             _ | otherwise    -> fail $ "invalid base type of: " ++ show base
 
     AST.Infix pos AST.AndAnd exprA exprB -> do
@@ -451,8 +451,7 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
         exit <- freshName "infix_andand_exit"
         right <- freshName "infix_andand_rhs"
 
-        b <- mkAlloca exprType
-        valStore b =<< mkBool exprType False
+        b <- newBool False
 
         valA <- cmpExpr exprA
         assertBaseType (== Bool) (valType valA)
@@ -460,11 +459,11 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
         condBr aTrue right exit
 
         emitBlockStart right
-        valStore b =<< cmpExpr exprB
+        valStore (fromPointer b) =<< cmpExpr exprB
         br exit
 
         emitBlockStart exit
-        valLoad b
+        toVal b
         
     AST.Infix pos op exprA exprB -> do
         valA <- cmpExpr exprA
@@ -523,7 +522,7 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
         val <- cmpExpr expr
         base <- baseTypeOf (valType val)
         case base of
-            Table _   -> mkConvertNumber exprType =<< mkTableLen val
+            Table _   -> mkConvertNumber exprType =<< toVal =<< tableLen (toPointer val)
             Array n t -> mkConvertNumber exprType (mkI64 n)
             _       -> fail ("cannot take length of type " ++ show (valType val))
 
@@ -607,7 +606,7 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
 
 cmpPattern :: InsCmp CompileState m => AST.Pattern -> Value -> m Value
 cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pattern of
-    AST.PatIgnore _     -> mkBool Bool True
+    AST.PatIgnore _     -> toVal =<< newBool True
     AST.PatLiteral expr -> mkInfix AST.EqEq val =<< cmpExpr expr
 
     AST.PatNull _ -> do -- null
@@ -634,7 +633,7 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
         loc <- mkAlloca (valType val)
         valStore loc val
         define symbol (ObjVal loc)
-        mkBool Bool True
+        toVal =<< newBool True
 
     AST.PatTuple _ pats -> do -- (a, b)
         len <- tupleLength val
@@ -643,8 +642,8 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
         bs <- forM (zip pats [0..]) $ \(p, i) ->
             cmpPattern p =<< valTupleIdx i val
 
-        true <- mkBool Bool True
-        foldM (mkInfix AST.AndAnd) true bs
+        true <- newBool True
+        foldM (mkInfix AST.AndAnd) (fromPointer true) bs
 
     AST.PatArray _ [pats] -> do -- [a, b, c]
         base <- baseTypeOf (valType val)
@@ -652,7 +651,7 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
             Sparse ts -> cmpPattern pattern =<< ptrSparseTable val
             
             Table ts -> do
-                len   <- mkTableLen val
+                len   <- toVal =<< tableLen (toPointer val)
                 lenEq <- mkInfix AST.EqEq len (mkI64 $ length pats)
 
                 assert (length ts == 1) "patterns don't support multiple rows (yet)"
@@ -660,16 +659,16 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
                     [Pointer t p] <- tableColumn val (mkI64 i)
                     cmpPattern pat (Ptr t p)
 
-                true <- mkBool (valType lenEq) True
-                foldM (mkInfix AST.AndAnd) true (lenEq:bs)
+                true <- toType (valType lenEq) =<< newBool True
+                foldM (mkInfix AST.AndAnd) (fromPointer true) (lenEq:bs)
 
             Array n t -> do
                 assert (n == length pats) "Invalid array pattern"
                 bs <- forM (zip pats [0..]) $ \(p, i) ->
                     cmpPattern p =<< ptrArrayGetElemConst val i
 
-                true <- mkBool Bool True
-                foldM (mkInfix AST.AndAnd) true bs
+                true <- newBool True
+                foldM (mkInfix AST.AndAnd) (fromPointer true) bs
             
             _ -> fail "Invalid array pattern"
 
@@ -681,12 +680,11 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
                 let rowLen = length (head patss)
                 forM_ patss $ \pats -> do 
                     assert (length pats == rowLen) "row length mismatch"
-                len   <- mkTableLen val
+                len   <- toVal =<< tableLen (toPointer val) 
                 lenEq <- mkInfix AST.EqEq len (mkI64 rowLen)
-                matched <- mkAlloca Bool 
-                false <- mkBool Bool False
-                true <- mkBool Bool True
-                valStore matched false
+
+                matched <- newBool False
+                true <- newBool True
 
                 exit <- freshName "exit"
                 cond <- freshName "cond"
@@ -698,12 +696,12 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
                     ptrs <- tableColumn val (mkI64 i)
                     let patc = map (!! i) patss
                     bs <- forM (zip ptrs patc) $ \(Pointer t p, pat) -> cmpPattern pat (Ptr t p)
-                    foldM (mkInfix AST.AndAnd) true bs
-                valStore matched =<< foldM (mkInfix AST.AndAnd) true bs
+                    foldM (mkInfix AST.AndAnd) (fromPointer true) bs
+                valStore (fromPointer matched) =<< foldM (mkInfix AST.AndAnd) (fromPointer true) bs
                 br exit
 
                 emitBlockStart exit
-                valLoad matched
+                toVal matched
 
 
             _ -> fail (show base)
@@ -752,7 +750,7 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
         exit  <- freshName "adt_pat_exit"
 
         matched <- mkAlloca Bool
-        valStore matched =<< mkBool Bool False
+        storeBasic (toPointer matched) =<< newBool False
         enumMatch <- mkIntInfix AST.EqEq (mkI64 i) =<< mkAdtEnum val
         condBr (valOp enumMatch) match exit
 

@@ -23,17 +23,11 @@ import Error
 import Symbol
 
 
-mkTableLen :: InsCmp CompileState m => Value -> m Value
-mkTableLen tab = do
-    Table _ <- assertBaseType isTable (valType tab)
-    Val I64 <$> case tab of
-        Val _ op  -> extractValue op [0]
-        Ptr _ loc -> (flip load) 0 =<< gep loc [int32 0, int32 0]
-
 tableLen :: InsCmp CompileState m => Pointer -> m Pointer
 tableLen table = do
     Table _ <- baseTypeOf (typeof table)
     Pointer I64 <$> gep (loc table) [int32 0, int32 0]
+
 
 tableCap :: InsCmp CompileState m => Pointer -> m Pointer
 tableCap table = do
@@ -93,7 +87,7 @@ tableRow i tab = do
 mkTablePop :: InsCmp CompileState m => Value -> m [Value]
 mkTablePop tab = do
     Table ts <- assertBaseType isTable (valType tab)
-    len <- mkTableLen tab
+    len <- toVal =<< tableLen (toPointer tab)
     newLen <- mkIntInfix AST.Minus len (mkI64 1)
     tableSetLen tab newLen
     mapM (\(Pointer t p) -> valLoad (Ptr t p)) =<< tableColumn tab newLen
@@ -102,7 +96,7 @@ mkTablePop tab = do
 
 mkTablePush :: InsCmp CompileState m => Value -> [Value] -> m Value
 mkTablePush tab [] = do 
-    len <- mkTableLen tab
+    len <- toVal =<< tableLen (toPointer tab)
     tableResize tab =<< mkIntInfix AST.Plus len (mkI64 1)
     ptrs <- tableColumn tab len
     forM_ ptrs $ \(Pointer pt po) -> valStore (Ptr pt po) =<< mkZero pt
@@ -112,7 +106,7 @@ mkTablePush tab [] = do
 tableDelete :: InsCmp CompileState m => Value -> Value -> m ()
 tableDelete tab idx = do
     Table ts <- assertBaseType isTable (valType tab)
-    len <- mkTableLen tab
+    len <- toVal =<< tableLen (toPointer tab)
     end <- mkIntInfix AST.Minus len (mkI64 1)
     idxIsEnd <- mkIntInfix AST.EqEq idx end
     if_ (valOp idxIsEnd) (return ()) (idxNotEndCase end)
@@ -156,5 +150,5 @@ tableResize tab newLen = trace "tableResize" $ do
             forM_ (zip ts [0..]) $ \(t, i) -> do
                 (Pointer tn pn) <- tableRow i newTab
                 (Pointer to po) <- tableRow i tab
-                valMemCpy (Ptr tn pn) (Ptr to po) =<< mkTableLen tab
+                valMemCpy (Ptr tn pn) (Ptr to po) =<< toVal =<< tableLen (toPointer tab)
             valStore tab newTab

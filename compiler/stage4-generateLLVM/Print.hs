@@ -62,7 +62,7 @@ valPrint append val = withErrorPrefix "valPrint " $ case valType val of
 
     Table ts -> do
         printf "[" []
-        len <- mkTableLen val
+        len <- fromPointer <$> tableLen (toPointer val)
         lenZero <- mkInfix AST.EqEq len (mkI64 0)
 
         if_ (valOp lenZero)

@@ -39,6 +39,26 @@ mkI64 :: Integral i => i -> Value
 mkI64 n = Val I64 $ int64 (fromIntegral n)
 
 
+
+toPointer (Ptr t p) = Pointer t p
+
+fromPointer (Pointer t p) = Ptr t p
+
+
+toVal :: InsCmp CompileState m => Pointer -> m Value 
+toVal (Pointer t loc) = do 
+    assertBaseType isSimple t
+    valLoad (Ptr t loc)
+
+
+toType :: InsCmp CompileState m => Type -> Pointer -> m Pointer
+toType typ ptr = do 
+    base <- baseTypeOf typ
+    basePtr <- baseTypeOf (typeof ptr)
+    assert (base == basePtr) "Incompatible types"
+    return $ Pointer typ (loc ptr)
+
+
 newI64 :: (InsCmp CompileState m, Integral i) => i -> m Pointer
 newI64 n = do 
     p <- alloca LL.i64 Nothing 0
@@ -46,16 +66,18 @@ newI64 n = do
     return $ Pointer I64 p
 
 
-mkChar :: InsCmp CompileState m => Type -> Char -> m Value
-mkChar typ c = do
-    assertBaseType (== Char) typ
-    return $ Val typ (int8 $ fromIntegral $ fromEnum c)
+newChar :: InsCmp CompileState m => Char -> m Pointer
+newChar c = do 
+    p <- alloca LL.i8 Nothing 0
+    store p 0 $ int8 (fromIntegral $ fromEnum c)
+    return $ Pointer Char p
 
 
-mkBool :: InsCmp CompileState m => Type -> Bool -> m Value
-mkBool typ b = do
-    assertBaseType (== Bool) typ
-    return $ Val typ (if b then bit 1 else bit 0)
+newBool :: InsCmp CompileState m => Bool -> m Pointer
+newBool b = do 
+    p <- alloca LL.i1 Nothing 0
+    store p 0 $ if b then bit 1 else bit 0
+    return $ Pointer Bool p
 
 
 mkInt :: InsCmp CompileState m => Integral i => Type -> i -> m Value
@@ -103,9 +125,9 @@ mkZero typ = trace ("mkZero " ++ show  typ) $ do
     case base of
         _ | isInt base     -> mkInt typ 0
         _ | isFloat base   -> mkFloat typ 0.0
-        Enum               -> mkEnum typ 0
-        Bool               -> mkBool typ False
-        Char               -> mkChar typ '\0'
+        Enum               -> return $ Val typ (int64 0)
+        Bool               -> return $ Val typ (bit 0)
+        Char               -> return $ Val typ (int8 0)
         Array n t          -> Val typ . array . replicate n . toCons . valOp <$> mkZero t
         Tuple ts           -> Val typ . struct namem False . map (toCons . valOp) <$> mapM mkZero ts
         Table ts           -> Val typ . struct namem False . ([zi64, zi64] ++) <$> map (C.IntToPtr zi64 . LL.ptr) <$> mapM opTypeOf ts
@@ -291,7 +313,7 @@ mkPrefix operator val = do
             AST.Not -> icmp P.EQ op (bit 0)
 
         Char -> case operator of
-            AST.Minus -> mkChar typ '\0' >>= \zero -> sub (valOp zero) op
+            AST.Minus -> sub (int8 0) op
 
         _ -> fail $ show base
         

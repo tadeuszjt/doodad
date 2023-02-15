@@ -202,8 +202,7 @@ mkTupleInfix operator a b = withErrorPrefix "tuple infix: " $ do
             return tup
 
         _ | operator `elem` [AST.EqEq] -> do
-            res <- mkAlloca Bool
-            valStore res =<< mkBool Bool True
+            res <- newBool True
             exit <- freshName "tuple_gt_exit"
             cases <- (\xs -> xs ++ [exit]) <$> replicateM (length ts) (freshName "tuple_gt_case")
             br (cases !! 0)
@@ -216,17 +215,16 @@ mkTupleInfix operator a b = withErrorPrefix "tuple infix: " $ do
                 cond <- freshName "tuple_eqeq_fail"
                 condBr (valOp equal) (cases !! (i + 1)) cond
                 emitBlockStart cond
-                valStore res =<< mkBool Bool False
+                storeBasic res =<< newBool False
                 br exit
 
             emitBlockStart exit
-            valLoad res
+            toVal res
 
         _ | operator `elem` [AST.GTEq] -> do
             deflt <- case operator of
                 AST.GTEq -> return True
-            res <- mkAlloca Bool
-            valStore res =<< mkBool Bool deflt -- deflt if all equal
+            res <- newBool deflt
 
             exit <- freshName "tuple_gt_exit"
             cases <- (\xs -> xs ++ [exit]) <$> replicateM (length ts) (freshName "tuple_gt_case")
@@ -240,11 +238,11 @@ mkTupleInfix operator a b = withErrorPrefix "tuple infix: " $ do
                 cond <- freshName "tuple_gt_cond"
                 condBr (valOp equal) (cases !! (i + 1)) (cond)
                 emitBlockStart cond
-                valStore res =<< mkInfix operator pSrcA pSrcB
+                valStore (fromPointer res) =<< mkInfix operator pSrcA pSrcB
                 br exit
 
             emitBlockStart exit
-            valLoad res
+            toVal res
 
         _ -> error (show operator)
                     
@@ -255,15 +253,14 @@ mkTableInfix operator a b = do
     assert (valType a == valType b) "type mismatch"
     let typ = valType a
 
-    lenA <- mkTableLen a
-    lenB <- mkTableLen b
+    lenA <- toVal =<< tableLen (toPointer a)
+    lenB <- toVal =<< tableLen (toPointer b)
     lenEq <- mkIntInfix AST.EqEq lenA lenB
 
     case operator of
         AST.NotEq -> mkPrefix AST.Not =<< mkTableInfix AST.EqEq a b
         AST.EqEq  -> do
-            eq <- mkAlloca Bool
-            valStore eq =<< mkBool Bool False
+            eq <- newBool False
 
             exit <- freshName "eqeq_table_exit"
             start <- freshName "eqeq_table_start"
@@ -275,7 +272,7 @@ mkTableInfix operator a b = do
             emitBlockStart start
             idx <- mkAlloca I64
             valStore idx (mkI64 0)
-            valStore eq =<< mkBool Bool True
+            storeBasic eq =<< newBool True
             br cond
 
             -- test that the idx < len
@@ -288,12 +285,12 @@ mkTableInfix operator a b = do
             [Pointer ta a] <- tableColumn a idx
             [Pointer tb b] <- tableColumn b idx
             elmEq <- mkInfix AST.EqEq (Ptr ta a) (Ptr tb b)
-            valStore eq elmEq
+            valStore (fromPointer eq) elmEq
             valStore idx =<< mkIntInfix AST.Plus idx (mkI64 1)
             condBr (valOp elmEq) cond exit
 
             emitBlockStart exit
-            valLoad eq
+            toVal eq
 
 
 valAdtNormalInfix :: InsCmp CompileState m => AST.Operator -> Value -> Value -> m Value
@@ -308,15 +305,14 @@ valAdtNormalInfix operator a b = do
             enEq <- mkIntInfix AST.EqEq enA enB
 
             -- if enum isn't matched, exit
-            match <- mkAlloca Bool
-            valStore match =<< mkBool Bool False
+            match <- newBool False
             start <- freshName "start"
             exit <- freshName "exit"
             condBr (valOp enEq) start exit
 
             -- enum matched, match args
             emitBlockStart start
-            valStore match =<< mkBool Bool True
+            storeBasic match =<< newBool True
 
             -- select block based on enum
             caseNames <- replicateM (length fs) (freshName "case")
@@ -326,7 +322,7 @@ valAdtNormalInfix operator a b = do
                 emitBlockStart caseName
 
                 bs <- case fs !! i of
-                    FieldNull -> fmap (\a -> [a]) $ mkBool Bool True
+                    FieldNull -> fmap (\a -> [a]) $ toVal =<< newBool True
                     FieldType t -> do
                         valA <- adtDeref a i 0
                         valB <- adtDeref b i 0
@@ -337,10 +333,10 @@ valAdtNormalInfix operator a b = do
                             valB <- adtDeref b i j
                             mkInfix AST.EqEq valA valB
 
-                true <- mkBool Bool True
-                valStore match =<< foldM (mkInfix AST.EqEq) true bs
+                true <- newBool True
+                valStore (fromPointer match) =<< foldM (mkInfix AST.EqEq) (fromPointer true) bs
                 br exit
 
             emitBlockStart exit
-            valLoad match
+            toVal match
 
