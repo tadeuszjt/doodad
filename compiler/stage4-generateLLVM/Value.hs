@@ -108,17 +108,17 @@ mkRange start end = do
     isDataType <- isDataType (typeof start)
     assert (not isDataType) "simple types so valLoad is mk"
 
-    range    <- mkAlloca $ Range (typeof start) -- LEAVE THIS ONE FOR NOW
-    startDst <- ptrRangeStart range
-    endDst   <- ptrRangeEnd range
+    range    <- newVal $ Range (typeof start) -- LEAVE THIS ONE FOR NOW
+    startDst <- rangeStart range
+    endDst   <- ptrRangeEnd (fromPointer range)
 
-    valStore startDst start
+    valStore (fromPointer startDst) start
     valStore endDst end
-    return range
+    return (fromPointer range)
 
 
 
-
+-- TODO, is this the cause of the struct packed/non-packed bug?
 mkZero :: InsCmp CompileState m => Type -> m Value
 mkZero typ = trace ("mkZero " ++ show  typ) $ do
     namem <- Map.lookup typ <$> gets typeNameMap
@@ -131,8 +131,9 @@ mkZero typ = trace ("mkZero " ++ show  typ) $ do
         Enum               -> return $ Val typ (int64 0)
         Bool               -> return $ Val typ (bit 0)
         Char               -> return $ Val typ (int8 0)
+        Range t            -> Val typ . struct namem False . map (toCons . valOp) <$> mapM mkZero [t, t]
         Array n t          -> Val typ . array . replicate n . toCons . valOp <$> mkZero t
-        Tuple ts           -> Val typ . struct namem False . map (toCons . valOp) <$> mapM mkZero ts
+        Tuple ts           -> Val typ . struct namem True . map (toCons . valOp) <$> mapM mkZero ts
         Table ts           -> Val typ . struct namem False . ([zi64, zi64] ++) <$> map (C.IntToPtr zi64 . LL.ptr) <$> mapM opTypeOf ts
         Sparse ts          -> Val typ . struct namem False . map (toCons . valOp) <$> mapM mkZero [Table ts, Table [I64]]
         Map tk tv          -> Val typ . struct namem False . map (toCons . valOp) <$> mapM mkZero [Table [tk], Sparse [tv]]
@@ -141,11 +142,10 @@ mkZero typ = trace ("mkZero " ++ show  typ) $ do
             zi64 = toCons (int64 0)
 
 
-ptrRangeStart :: InsCmp CompileState m => Value -> m Value
-ptrRangeStart val = do
-    assert (isPtr val) "val isn't pointer"
-    Range t <- assertBaseType (isRange) (typeof val)
-    Ptr t <$> gep (valLoc val) [int32 0, int32 0]
+rangeStart :: InsCmp CompileState m => Pointer -> m Pointer
+rangeStart range = do
+    Range t <- baseTypeOf (typeof range)
+    Pointer t <$> gep (loc range) [int32 0, int32 0]
 
 
 ptrRangeEnd :: InsCmp CompileState m => Value -> m Value
@@ -244,17 +244,6 @@ valStore (Ptr typ loc) val = trace "valStore" $ do
         Val t o -> store loc 0 o
 
 
-valSelect :: InsCmp CompileState m => Value -> Value -> Value -> m Value
-valSelect cnd true false = trace "valSelect" $ do
-    assertBaseType (==Bool) (typeof cnd)
-    assert (typeof true == typeof false) "incompatible types"
-
-    cndOp <- valOp <$> valLoad cnd
-    trueOp <- valOp <$> valLoad true
-    falseOp <- valOp <$> valLoad false
-    Val (typeof true) <$> select cndOp trueOp falseOp
-
-
 newVal :: InsCmp CompileState m => Type -> m Pointer 
 newVal typ = do 
     opType <- opTypeOf typ 
@@ -264,59 +253,47 @@ newVal typ = do
     return $ Pointer typ p
 
 
-mkAlloca :: InsCmp CompileState m => Type -> m Value
-mkAlloca typ = trace ("mkAlloca " ++ show typ) $ do
-    opTyp <- opTypeOf typ
-    Ptr typ <$> alloca opTyp Nothing 0
-    
-
-mkMalloc :: InsCmp CompileState m => Type -> Value -> m Value
-mkMalloc typ len = trace ("mkMalloc " ++ show typ) $ do
+pMalloc :: InsCmp CompileState m => Type -> Value2 -> m Pointer
+pMalloc typ len = trace ("mkMalloc " ++ show typ) $ do
     lenTyp <- assertBaseType isInt (typeof len)
-    lenOp <- valOp <$> valLoad len
-    pi8 <- malloc =<< mul lenOp . valOp =<< sizeOf typ
-    fmap (Ptr typ) $ bitcast pi8 . LL.ptr =<< opTypeOf typ
+    pi8 <- malloc =<< mul (op len) . valOp =<< sizeOf typ
+    fmap (Pointer typ) $ bitcast pi8 . LL.ptr =<< opTypeOf typ
 
 
-
-advancePointer :: InsCmp CompileState m => Pointer -> Value -> m Pointer
-advancePointer (Pointer t p) idx = do
+advancePointer :: InsCmp CompileState m => Pointer -> Value2 -> m Pointer
+advancePointer ptr idx = do
     I64 <- baseTypeOf (typeof idx)
-    op <- valOp <$> valLoad idx
-    Pointer t <$> gep p [op]
+    Pointer (typeof ptr) <$> gep (loc ptr) [op idx]
 
 
-
-memCpy :: InsCmp CompileState m => Pointer -> Pointer -> Pointer -> m ()
+memCpy :: InsCmp CompileState m => Pointer -> Pointer -> Value2 -> m ()
 memCpy (Pointer dstTyp dst) (Pointer srcTyp src) len = trace "valMemCpy" $ do
     True <- return (dstTyp == srcTyp)
     I64 <- baseTypeOf (typeof len)
 
     Val I64 siz <- sizeOf dstTyp
-    lop <- load (loc len) 0
     pDstI8 <- bitcast dst (LL.ptr LL.i8)
     pSrcI8 <- bitcast src (LL.ptr LL.i8)
-    void $ memcpy pDstI8 pSrcI8 =<< mul siz lop
+    void $ memcpy pDstI8 pSrcI8 =<< mul siz (op len)
 
 
-mkPrefix :: InsCmp CompileState m => AST.Operator -> Value -> m Value
-mkPrefix operator val = do
-    Val typ o <- valLoad val
-    base <- baseTypeOf typ
-    Val typ <$> case base of
+prefix :: InsCmp CompileState m => AST.Operator -> Value2 -> m Value2
+prefix operator val = do
+    base <- baseTypeOf (typeof val)
+    Value2 (typeof val) <$> case base of
         _ | isInt base -> case operator of
-            AST.Plus -> return o
-            AST.Minus -> mkZero typ >>= \zero -> op <$> (intInfix AST.Minus (toValue zero) . toValue =<< valLoad val)
+            AST.Plus -> return (op val)
+            AST.Minus -> mkZero (typeof val) >>= \zero -> op <$> (intInfix AST.Minus (toValue zero) val)
 
         _ | isFloat base -> case operator of
-            AST.Plus -> return o
-            AST.Minus -> newFloat typ 0 >>= toVal >>= \zero -> fsub (valOp zero) o
+            AST.Plus -> return (op val)
+            AST.Minus -> newFloat (typeof val) 0 >>= toVal >>= \zero -> fsub (valOp zero) (op val)
 
         Bool -> case operator of
-            AST.Not -> icmp P.EQ o (bit 0)
+            AST.Not -> icmp P.EQ (op val) (bit 0)
 
         Char -> case operator of
-            AST.Minus -> sub (int8 0) o
+            AST.Minus -> sub (int8 0) (op val)
 
         _ -> fail $ show base
         
@@ -340,21 +317,19 @@ intInfix operator a b = withErrorPrefix "int infix: " $ do
         _        -> error ("int infix: " ++ show operator)
     
         
-floatInfix :: InsCmp CompileState m => AST.Operator -> Value -> Value -> m Value2
+floatInfix :: InsCmp CompileState m => AST.Operator -> Value2 -> Value2 -> m Value2
 floatInfix operator a b = do
     assert (typeof a == typeof b) "Left side type does not match right side"
     let typ = typeof a
     assertBaseType isFloat typ
-    opA <- valOp <$> valLoad a
-    opB <- valOp <$> valLoad b
     case operator of
-        AST.Plus   -> Value2 typ <$> fadd opA opB
-        AST.Minus  -> Value2 typ <$> fsub opA opB
-        AST.Times  -> Value2 typ <$> fmul opA opB
-        AST.Divide -> Value2 typ <$> fdiv opA opB
-        AST.EqEq   -> Value2 Bool <$> fcmp P.OEQ opA opB
-        AST.GT     -> Value2 Bool <$> fcmp P.OGT opA opB
-        AST.LT     -> Value2 Bool <$> fcmp P.OLT opA opB
+        AST.Plus   -> Value2 typ <$> fadd (op a) (op b)
+        AST.Minus  -> Value2 typ <$> fsub (op a) (op b)
+        AST.Times  -> Value2 typ <$> fmul (op a) (op b)
+        AST.Divide -> Value2 typ <$> fdiv (op a) (op b)
+        AST.EqEq   -> Value2 Bool <$> fcmp P.OEQ (op a) (op b)
+        AST.GT     -> Value2 Bool <$> fcmp P.OGT (op a) (op b)
+        AST.LT     -> Value2 Bool <$> fcmp P.OLT (op a) (op b)
         _        -> error ("float infix: " ++ show operator)
 
 

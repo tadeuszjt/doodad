@@ -22,7 +22,7 @@ import qualified LLVM.AST as LL
 import qualified LLVM.AST.Type as LL
 import qualified LLVM.AST.Constant as C
 import qualified LLVM.Internal.FFI.DataLayout as FFI
-import LLVM.AST.Global
+import LLVM.AST.Global hiding (prefix)
 import LLVM.IRBuilder.Instruction as LL
 import LLVM.IRBuilder.Constant
 import LLVM.IRBuilder.Module
@@ -337,7 +337,7 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
     AST.Char pos c               -> toVal =<< toType exprType =<< newChar c
     AST.Tuple pos [expr]         -> cmpExpr expr
     AST.Float p f                -> toVal =<< newFloat exprType f
-    AST.Prefix pos operator expr -> mkPrefix operator =<< cmpExpr expr
+    AST.Prefix pos operator expr -> fromValue <$> (prefix operator . toValue =<< valLoad =<< cmpExpr expr)
     AST.Field pos expr symbol    -> ptrTupleField symbol =<< cmpExpr expr
     AST.Null p                   -> mkAdtNull exprType
     AST.Match pos expr pat       -> cmpPattern pat =<< cmpExpr expr
@@ -533,11 +533,11 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
         assert (ts == map typeof vals) $
             "Incorrect val types: " ++ show ts ++ ", " ++ show (map typeof vals)
 
-        tup <- mkAlloca exprType -- LEAVE THIS
+        tup <- newVal exprType
         forM_ (zip vals [0..]) $ \(v, i) -> do
-            ptr <- ptrTupleIdx i tup
+            ptr <- ptrTupleIdx i (fromPointer tup)
             valStore ptr v
-        return tup
+        return (fromPointer tup)
 
     AST.Subscript pos expr idxExpr -> withErrorPrefix "subscript: " $ do
         val <- cmpExpr expr

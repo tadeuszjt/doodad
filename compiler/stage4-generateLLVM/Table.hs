@@ -55,9 +55,9 @@ mkTable typ initialLen = do
         store (loc siz) 0 (op n)
         return (fromValue idx)
 
-    mal <- mkMalloc I8 (Ptr I64 $ loc siz)
+    mal <- pMalloc I8 =<< pload siz
     forM_ (zip3 ts idxs [0..]) $ \(t, idx, i) -> do
-        Pointer _ pi8 <- advancePointer (toPointer mal) idx
+        Pointer _ pi8 <- advancePointer mal . toValue =<< valLoad idx
         ptr <- fmap (Pointer t) $ bitcast pi8 =<< LL.ptr <$> opTypeOf t
         tableSetRow tab i ptr
 
@@ -69,7 +69,7 @@ tableColumn tab idx = trace "tableGetElem" $ do
     Table ts <- baseTypeOf (typeof tab)
     forM (zip ts [0..]) $ \(t, i) -> do
         row <- tableRow i tab
-        advancePointer row idx
+        advancePointer row . toValue =<< valLoad idx
 
 
 tableRow :: InsCmp CompileState m => Int -> Pointer -> m Pointer
@@ -146,5 +146,5 @@ tableResize tab newLen = trace "tableResize" $ do
             forM_ (zip ts [0..]) $ \(t, i) -> do
                 newRow <- tableRow i (toPointer newTab)
                 row <- tableRow i tab
-                memCpy newRow row =<< tableLen tab
+                memCpy newRow row =<< pload =<< tableLen tab
             valStore (fromPointer tab) newTab

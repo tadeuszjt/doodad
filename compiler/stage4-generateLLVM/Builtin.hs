@@ -10,7 +10,7 @@ import qualified LLVM.AST.FloatingPointPredicate as P
 import qualified LLVM.AST as LL
 import qualified LLVM.AST.Type as LL
 import LLVM.AST.Name
-import LLVM.AST.Global
+import LLVM.AST.Global hiding (prefix)
 import LLVM.IRBuilder.Instruction       
 import LLVM.IRBuilder.Constant
 import LLVM.IRBuilder.Module
@@ -142,7 +142,9 @@ mkInfix operator a b = withErrorPrefix "infix: " $ do
         _ | isInt base       -> do 
             av <- toValue <$> valLoad a
             fromValue <$> (intInfix operator av . toValue =<< valLoad b)
-        _ | isFloat base     -> fromValue <$> floatInfix operator a b
+        _ | isFloat base     -> do 
+            av <- toValue <$> valLoad a
+            fromValue <$> (floatInfix operator av . toValue =<< valLoad b)
         _ | isTuple base     -> mkTupleInfix operator a b
         _ | isArray base     -> mkArrayInfix operator a b
         _ | isTable base     -> mkTableInfix operator a b
@@ -265,7 +267,7 @@ mkTableInfix operator a b = do
     lenEq <- intInfix AST.EqEq lenA =<< pload lenB
 
     case operator of
-        AST.NotEq -> mkPrefix AST.Not =<< mkTableInfix AST.EqEq a b
+        AST.NotEq -> fromValue <$> (prefix AST.Not . toValue =<< mkTableInfix AST.EqEq a b)
         AST.EqEq  -> do
             eq <- newBool False
 
@@ -306,7 +308,7 @@ valAdtNormalInfix operator a b = do
     assert (typeof a == typeof b) "type mismatch"
     ADT fs <- assertBaseType isADT (typeof a)
     case operator of
-        AST.NotEq -> mkPrefix AST.Not =<< valAdtNormalInfix AST.EqEq a b
+        AST.NotEq -> fromValue <$> (prefix AST.Not . toValue =<< valAdtNormalInfix AST.EqEq a b)
         AST.EqEq -> do
             enA <- mkAdtEnum a
             enB <- mkAdtEnum b

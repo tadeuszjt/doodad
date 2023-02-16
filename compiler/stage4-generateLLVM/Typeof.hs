@@ -97,7 +97,7 @@ opTypeOf typ = withErrorPrefix ("opTypOf " ++ show typ) $ do
             Bool      -> return LL.i1
             Enum      -> return LL.i64
             Range t   -> LL.StructureType False <$> mapM opTypeOf [t, t]
-            Tuple ts  -> LL.StructureType False <$> mapM opTypeOf ts
+            Tuple ts  -> LL.StructureType True <$> mapM opTypeOf ts
             Array n t -> LL.ArrayType (fromIntegral n) <$> opTypeOf t
             ADT fs    -> do
                 types <- forM fs $ \f -> case f of

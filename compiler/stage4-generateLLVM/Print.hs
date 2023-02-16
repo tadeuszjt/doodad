@@ -51,7 +51,7 @@ valPrint append val = withErrorPrefix "valPrint " $ case typeof val of
 
     Range t -> do
         printf "[" []
-        valPrint ".."            =<< ptrRangeStart val
+        valPrint ".."            . fromPointer =<< rangeStart (toPointer val)
         valPrint ("]" ++ append) =<< ptrRangeEnd val
 
     Table [Char] -> do
@@ -83,7 +83,7 @@ valPrint append val = withErrorPrefix "valPrint " $ case typeof val of
             row@(Pointer t p) <- tableRow i (toPointer val)
             n <- mkInfix AST.Minus len =<< toVal =<< newI64 1
 
-            for (valOp n) $ \j -> valPrint ", " =<< fromPointer <$> advancePointer row (Val I64 j)
+            for (valOp n) $ \j -> valPrint ", " =<< fromPointer <$> advancePointer row (Value2 I64 j)
             if i < length ts - 1
-            then valPrint "; " =<< fromPointer <$> advancePointer row n
-            else valPrint ("]" ++ append) =<< fromPointer <$> advancePointer row n
+            then valPrint "; " =<< fromPointer <$> (advancePointer row . toValue =<< valLoad n)
+            else valPrint ("]" ++ append) =<< fromPointer <$> (advancePointer row . toValue =<< valLoad n)
