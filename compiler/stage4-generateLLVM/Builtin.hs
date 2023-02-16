@@ -41,10 +41,10 @@ import Array
 storeCopy :: InsCmp CompileState m => Value -> Value -> m ()
 storeCopy ptr val = withErrorPrefix "storeCopy: " $ do
     assert (isPtr ptr) "ptr isnt pointer"
-    base <- baseTypeOf (valType ptr)
-    baseVal <- baseTypeOf (valType val)
+    base <- baseTypeOf (typeof ptr)
+    baseVal <- baseTypeOf (typeof val)
     assert (base == baseVal) $
-        "ptr type: " ++ show (valType ptr) ++ " does not match val type: " ++ show (valType val)
+        "ptr type: " ++ show (typeof ptr) ++ " does not match val type: " ++ show (typeof val)
     case base of
         _ | isSimple base -> valStore ptr val
         Tuple ts -> do
@@ -52,8 +52,8 @@ storeCopy ptr val = withErrorPrefix "storeCopy: " $ do
             assert (all (==False) bs) "no data types allowed"
             valStore ptr val
         ADT fs -> do
-            assertBaseType isADT (valType ptr)
-            isDataType <- isDataType (valType ptr)
+            assertBaseType isADT (typeof ptr)
+            isDataType <- isDataType (typeof ptr)
             assert (not isDataType) "ptr is data type"
             valStore ptr val
             
@@ -88,7 +88,7 @@ mkTupleConstruct typ vals = trace "tupleConstruct" $ do
 mkConvert :: InsCmp CompileState m => Type -> Value -> m Value
 mkConvert typ val = do
     base <- baseTypeOf typ
-    baseVal <- baseTypeOf (valType val)
+    baseVal <- baseTypeOf (typeof val)
     case base of
         _ | isIntegral base -> mkConvertNumber typ val
         _ | isFloat base    -> mkConvertNumber typ val
@@ -102,10 +102,10 @@ mkConvert typ val = do
 
 mkMin :: InsCmp CompileState m => Value -> Value -> m Value
 mkMin a b = withErrorPrefix "min: " $ do
-    assert (valType a == valType b) "Left type does not match right type"
-    base <- baseTypeOf (valType a)
+    assert (typeof a == typeof b) "Left type does not match right type"
+    base <- baseTypeOf (typeof a)
     cnd <- mkInfix AST.GT a b 
-    Val (valType a) <$> case base of
+    Val (typeof a) <$> case base of
         I64 -> do
             valA <- valLoad a 
             valB <- valLoad b
@@ -114,10 +114,10 @@ mkMin a b = withErrorPrefix "min: " $ do
 
 mkMax :: InsCmp CompileState m => Value -> Value -> m Value
 mkMax a b = withErrorPrefix "min: " $ do
-    assert (valType a == valType b) "Left type does not match right type"
-    base <- baseTypeOf (valType a)
+    assert (typeof a == typeof b) "Left type does not match right type"
+    base <- baseTypeOf (typeof a)
     cnd <- mkInfix AST.LT a b 
-    Val (valType a) <$> case base of
+    Val (typeof a) <$> case base of
         I64 -> do
             valA <- valLoad a 
             valB <- valLoad b
@@ -127,12 +127,12 @@ mkMax a b = withErrorPrefix "min: " $ do
 -- any infix expression
 mkInfix :: InsCmp CompileState m => AST.Operator -> Value -> Value -> m Value
 mkInfix operator a b = withErrorPrefix "infix: " $ do
-    assert (valType a == valType b) "type mismatch"
-    base <- baseTypeOf (valType a)
+    assert (typeof a == typeof b) "type mismatch"
+    base <- baseTypeOf (typeof a)
     case base of
         Bool                 -> do 
-            ap <- newVal (valType a)
-            bp <- newVal (valType b)
+            ap <- newVal (typeof a)
+            bp <- newVal (typeof b)
             valStore (fromPointer ap) a
             valStore (fromPointer bp) b
             valLoad =<< fromPointer <$> boolInfix operator ap bp
@@ -144,14 +144,14 @@ mkInfix operator a b = withErrorPrefix "infix: " $ do
         _ | isTuple base     -> mkTupleInfix operator a b
         _ | isArray base     -> mkArrayInfix operator a b
         _ | isTable base     -> mkTableInfix operator a b
-        _                    -> fail $ "Operator " ++ show operator ++ " undefined for types " ++ show (valType a) ++ " " ++ show (valType b)
+        _                    -> fail $ "Operator " ++ show operator ++ " undefined for types " ++ show (typeof a) ++ " " ++ show (typeof b)
 
 
 
 mkEnumInfix :: InsCmp CompileState m => AST.Operator -> Value -> Value -> m Value
 mkEnumInfix operator a b = do
-    assert (valType a == valType b) "type mismatch"
-    assertBaseType (== Enum) (valType a)
+    assert (typeof a == typeof b) "type mismatch"
+    assertBaseType (== Enum) (typeof a)
     opA <- valOp <$> valLoad a
     opB <- valOp <$> valLoad b
     case operator of
@@ -161,9 +161,9 @@ mkEnumInfix operator a b = do
 
 mkRangeInfix :: InsCmp CompileState m => AST.Operator -> Value -> Value -> m Value
 mkRangeInfix operator a b = do
-    assertBaseType isRange (valType a)
-    assertBaseType isRange (valType b)
-    assert (valType a == valType b) "types do not match for range infix"
+    assertBaseType isRange (typeof a)
+    assertBaseType isRange (typeof b)
+    assert (typeof a == typeof b) "types do not match for range infix"
     case operator of
         AST.EqEq -> do
             startA <- mkRangeStart a
@@ -177,12 +177,12 @@ mkRangeInfix operator a b = do
 
 mkArrayInfix :: InsCmp CompileState m => AST.Operator -> Value -> Value -> m Value
 mkArrayInfix operator a b = withErrorPrefix "array" $ do
-    assert (valType a == valType b) "infix type mismatch"
-    Array n t <- assertBaseType isArray (valType a)
+    assert (typeof a == typeof b) "infix type mismatch"
+    Array n t <- assertBaseType isArray (typeof a)
 
     case operator of
         _ | operator `elem` [AST.Plus, AST.Minus, AST.Times, AST.Divide, AST.Modulo] -> do
-            arr <- newVal (valType a)
+            arr <- newVal (typeof a)
             forM_ [0..n] $ \i -> do
                 pDst <- ptrArrayGetElemConst (fromPointer arr) i
                 pSrcA <- ptrArrayGetElemConst a i
@@ -193,12 +193,12 @@ mkArrayInfix operator a b = withErrorPrefix "array" $ do
 
 mkTupleInfix :: InsCmp CompileState m => AST.Operator -> Value -> Value -> m Value
 mkTupleInfix operator a b = withErrorPrefix "tuple infix: " $ do
-    assert (valType a == valType b) "type mismatch"
-    Tuple ts <- assertBaseType isTuple (valType a)
+    assert (typeof a == typeof b) "type mismatch"
+    Tuple ts <- assertBaseType isTuple (typeof a)
 
     case operator of
         _ | operator `elem` [AST.Plus, AST.Minus, AST.Times, AST.Divide, AST.Modulo] -> do
-            tup <- newVal (valType a)
+            tup <- newVal (typeof a)
             forM (zip ts [0..]) $ \(t, i) -> do
                 pSrcA <- ptrTupleIdx i a
                 pSrcB <- ptrTupleIdx i b
@@ -254,9 +254,9 @@ mkTupleInfix operator a b = withErrorPrefix "tuple infix: " $ do
         
 mkTableInfix :: InsCmp CompileState m => AST.Operator -> Value -> Value -> m Value
 mkTableInfix operator a b = do
-    assertBaseType isTable (valType a)
-    assert (valType a == valType b) "type mismatch"
-    let typ = valType a
+    assertBaseType isTable (typeof a)
+    assert (typeof a == typeof b) "type mismatch"
+    let typ = typeof a
 
     lenA <- toVal =<< tableLen (toPointer a)
     lenB <- toVal =<< tableLen (toPointer b)
@@ -299,8 +299,8 @@ mkTableInfix operator a b = do
 
 valAdtNormalInfix :: InsCmp CompileState m => AST.Operator -> Value -> Value -> m Value
 valAdtNormalInfix operator a b = do
-    assert (valType a == valType b) "type mismatch"
-    ADT fs <- assertBaseType isADT (valType a)
+    assert (typeof a == typeof b) "type mismatch"
+    ADT fs <- assertBaseType isADT (typeof a)
     case operator of
         AST.NotEq -> mkPrefix AST.Not =<< valAdtNormalInfix AST.EqEq a b
         AST.EqEq -> do

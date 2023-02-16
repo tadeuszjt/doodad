@@ -24,7 +24,7 @@ import Error
 
 
 valPrint :: InsCmp CompileState m => String -> Value -> m ()
-valPrint append val = withErrorPrefix "valPrint " $ case valType val of
+valPrint append val = withErrorPrefix "valPrint " $ case typeof val of
     t | isInt t   -> void . printf ("%ld" ++ append) . (:[]) . valOp =<< valLoad val
     t | isFloat t -> void . printf ("%f" ++ append) . (:[]) . valOp =<< mkConvert F64 val
     Char          -> void . printf ("%c" ++ append) . (:[]) . valOp =<< valLoad val
@@ -56,7 +56,7 @@ valPrint append val = withErrorPrefix "valPrint " $ case valType val of
 
     Table [Char] -> do
         (Pointer t p) <- tableRow 0 (toPointer val)
-        (Pointer I64 lp) <- tableLen (Pointer (valType val) (valLoc val))
+        (Pointer I64 lp) <- tableLen (Pointer (typeof val) (valLoc val))
         lo <- load lp 0
         void $ printf ("%-.*s" ++ append) [lo, p]
 
@@ -76,7 +76,7 @@ valPrint append val = withErrorPrefix "valPrint " $ case valType val of
         valPrint ("]" ++ append) =<< ptrArrayGetElemConst val (n-1)
 
 
-    _ -> error ("print: " ++ show (valType val))
+    _ -> error ("print: " ++ show (typeof val))
 
     where
         tablePrintHelper ts val len = forM_ [0..length ts - 1] $ \i -> do

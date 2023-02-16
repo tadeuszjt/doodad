@@ -26,6 +26,6 @@ import Builtin
 
 ptrMapKeys :: InsCmp CompileState m => Value -> m Value
 ptrMapKeys map = do 
-    Map tk tv <- assertBaseType isMap (valType map)
+    Map tk tv <- assertBaseType isMap (typeof map)
     assert (isPtr map) "val isnt pointer"
     Ptr (Table [tk]) <$> gep (valLoc map) [int32 0, int32 0]

@@ -32,9 +32,19 @@ import Error
 import Trace
 import Symbol
 
-data Pointer
-    = Pointer { typeof :: Type, loc :: LL.Operand }
+
+data Value2 
+    = Value2 Type LL.Operand
     deriving (Show, Eq)
+
+data Pointer
+    = Pointer Type LL.Operand
+    deriving (Show, Eq)
+
+
+loc :: Pointer -> LL.Operand
+loc (Pointer _ l) = l
+
 
 data Value
     = Val Type LL.Operand
@@ -54,11 +64,6 @@ valOp (Ptr typ _) = error (show typ)
 valLoc :: Value -> LL.Operand
 valLoc (Ptr _ loc) = loc
 valLoc (Val typ _) = error (show typ)
-
-
-valType :: Value -> Type
-valType (Ptr typ _) = typ
-valType (Val typ _) = typ
 
 
 data Object

@@ -39,6 +39,9 @@ mkI64 :: Integral i => i -> Value
 mkI64 n = Val I64 $ int64 (fromIntegral n)
 
 
+toValue (Val t p) = Value2 t p
+
+fromValue (Value2 t p) = Val t p
 
 toPointer (Ptr t p) = Pointer t p
 
@@ -110,11 +113,11 @@ mkEnum typ n = do
 
 mkRange :: InsCmp CompileState m => Value -> Value -> m Value
 mkRange start end = do
-    assert (valType start == valType end) $ "range types do not match"
-    isDataType <- isDataType (valType start)
+    assert (typeof start == typeof end) $ "range types do not match"
+    isDataType <- isDataType (typeof start)
     assert (not isDataType) "simple types so valLoad is mk"
 
-    range    <- mkAlloca $ Range (valType start) -- LEAVE THIS ONE FOR NOW
+    range    <- mkAlloca $ Range (typeof start) -- LEAVE THIS ONE FOR NOW
     startDst <- ptrRangeStart range
     endDst   <- ptrRangeEnd range
 
@@ -149,27 +152,27 @@ mkZero typ = trace ("mkZero " ++ show  typ) $ do
 ptrRangeStart :: InsCmp CompileState m => Value -> m Value
 ptrRangeStart val = do
     assert (isPtr val) "val isn't pointer"
-    Range t <- assertBaseType (isRange) (valType val)
+    Range t <- assertBaseType (isRange) (typeof val)
     Ptr t <$> gep (valLoc val) [int32 0, int32 0]
 
 
 ptrRangeEnd :: InsCmp CompileState m => Value -> m Value
 ptrRangeEnd val = do
     assert (isPtr val) "val isn't pointer"
-    Range t <- assertBaseType (isRange) (valType val)
+    Range t <- assertBaseType (isRange) (typeof val)
     Ptr t <$> gep (valLoc val) [int32 0, int32 1]
 
 
 mkRangeStart :: InsCmp CompileState m => Value -> m Value
 mkRangeStart val = do
-    Range t <- assertBaseType (isRange) (valType val)
+    Range t <- assertBaseType (isRange) (typeof val)
     Val t <$> case val of
         Ptr _ loc -> (flip load) 0 =<< gep loc [int32 0, int32 0]
         Val _ op  -> extractValue op [0]
 
 mkRangeEnd :: InsCmp CompileState m => Value -> m Value
 mkRangeEnd val = do
-    Range t <- assertBaseType (isRange) (valType val)
+    Range t <- assertBaseType (isRange) (typeof val)
     Val t <$> case val of
         Ptr _ loc -> (flip load) 0 =<< gep loc [int32 0, int32 1]
         Val _ op  -> extractValue op [1]
@@ -179,7 +182,7 @@ mkConvertNumber :: InsCmp CompileState m => Type -> Value -> m Value
 mkConvertNumber typ val = do
     op <- valOp <$> valLoad val
     base <- baseTypeOf typ
-    baseVal <- baseTypeOf (valType val)
+    baseVal <- baseTypeOf (typeof val)
     fmap (Val typ) $ case (base, baseVal) of
         (I64,  I64) -> return op
         (I32,  I64) -> trunc op LL.i32
@@ -236,7 +239,7 @@ storeBasic dst src = do
 valStore :: InsCmp CompileState m => Value -> Value -> m ()
 valStore (Ptr typ loc) val = trace "valStore" $ do
     base <- baseTypeOf typ
-    valBase <- baseTypeOf (valType val)
+    valBase <- baseTypeOf (typeof val)
     assert (base == valBase) "types incompatible"
     case val of
         Ptr t l -> store loc 0 =<< load l 0
@@ -245,13 +248,13 @@ valStore (Ptr typ loc) val = trace "valStore" $ do
 
 valSelect :: InsCmp CompileState m => Value -> Value -> Value -> m Value
 valSelect cnd true false = trace "valSelect" $ do
-    assertBaseType (==Bool) (valType cnd)
-    assert (valType true == valType false) "incompatible types"
+    assertBaseType (==Bool) (typeof cnd)
+    assert (typeof true == typeof false) "incompatible types"
 
     cndOp <- valOp <$> valLoad cnd
     trueOp <- valOp <$> valLoad true
     falseOp <- valOp <$> valLoad false
-    Val (valType true) <$> select cndOp trueOp falseOp
+    Val (typeof true) <$> select cndOp trueOp falseOp
 
 
 newVal :: InsCmp CompileState m => Type -> m Pointer 
@@ -271,7 +274,7 @@ mkAlloca typ = trace ("mkAlloca " ++ show typ) $ do
 
 mkMalloc :: InsCmp CompileState m => Type -> Value -> m Value
 mkMalloc typ len = trace ("mkMalloc " ++ show typ) $ do
-    lenTyp <- assertBaseType isInt (valType len)
+    lenTyp <- assertBaseType isInt (typeof len)
     lenOp <- valOp <$> valLoad len
     pi8 <- malloc =<< mul lenOp . valOp =<< sizeOf typ
     fmap (Ptr typ) $ bitcast pi8 . LL.ptr =<< opTypeOf typ
@@ -280,7 +283,7 @@ mkMalloc typ len = trace ("mkMalloc " ++ show typ) $ do
 
 advancePointer :: InsCmp CompileState m => Pointer -> Value -> m Pointer
 advancePointer (Pointer t p) idx = do
-    I64 <- baseTypeOf (valType idx)
+    I64 <- baseTypeOf (typeof idx)
     op <- valOp <$> valLoad idx
     Pointer t <$> gep p [op]
 
@@ -322,8 +325,8 @@ mkPrefix operator val = do
 
 mkIntInfix :: InsCmp CompileState m => AST.Operator -> Value -> Value -> m Value
 mkIntInfix operator a b = withErrorPrefix "int infix: " $ do
-    assert (valType a == valType b) "type mismatch"
-    assertBaseType (\t -> isInt t || t == Char) (valType a)
+    assert (typeof a == typeof b) "type mismatch"
+    assertBaseType (\t -> isInt t || t == Char) (typeof a)
     Val typ opA <- valLoad a
     Val _   opB <- valLoad b
     case operator of
@@ -343,8 +346,8 @@ mkIntInfix operator a b = withErrorPrefix "int infix: " $ do
         
 mkFloatInfix :: InsCmp CompileState m => AST.Operator -> Value -> Value -> m Value
 mkFloatInfix operator a b = do
-    assert (valType a == valType b) "Left side type does not match right side"
-    let typ = valType a
+    assert (typeof a == typeof b) "Left side type does not match right side"
+    let typ = typeof a
     assertBaseType isFloat typ
     opA <- valOp <$> valLoad a
     opB <- valOp <$> valLoad b

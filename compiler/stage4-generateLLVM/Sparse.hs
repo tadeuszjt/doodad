@@ -40,7 +40,7 @@ sparseStack sparse = do
 sparsePush :: InsCmp CompileState m => Pointer -> [Value] -> m Value
 sparsePush sparse elems = do
     Sparse ts <- baseTypeOf (typeof sparse)
-    assert (map valType elems == ts) "Elem types do not match"
+    assert (map typeof elems == ts) "Elem types do not match"
     stack <- sparseStack sparse
     stackLen <- toVal =<< tableLen stack
     stackLenGTZero <- mkIntInfix AST.GT stackLen =<< toVal =<< newI64 0
@@ -69,7 +69,7 @@ sparsePush sparse elems = do
 
 sparseDelete :: InsCmp CompileState m => Value -> Value -> m ()
 sparseDelete val idx = do
-    Sparse ts <- assertBaseType isSparse (valType val)
+    Sparse ts <- assertBaseType isSparse (typeof val)
     table <- sparseTable (toPointer val)
     ptrs <- tableColumn table idx
     forM_ ptrs $ \ptr -> do

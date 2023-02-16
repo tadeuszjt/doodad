@@ -127,7 +127,7 @@ tableSetRow tab i row = trace "tableSetRow" $ do
 tableResize :: InsCmp CompileState m => Pointer -> Value -> m ()
 tableResize tab newLen = trace "tableResize" $ do
     Table ts <- baseTypeOf (typeof tab)
-    assertBaseType isInt (valType newLen)
+    assertBaseType isInt (typeof newLen)
     cap <- tableCap tab
     bFull <- mkIntInfix AST.GT newLen (fromPointer cap)
     if_ (valOp bFull) (fullCase ts) (return ())

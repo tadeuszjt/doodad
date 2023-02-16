@@ -14,14 +14,14 @@ import Value
 
 ptrArrayGetElemConst :: (InsCmp CompileState m, Integral n) => Value -> n -> m Value
 ptrArrayGetElemConst arr idx = do
-    Array n t <- assertBaseType isArray (valType arr)
+    Array n t <- assertBaseType isArray (typeof arr)
     Ptr t <$> gep (valLoc arr) [int32 0, int32 $ fromIntegral idx]
 
 
 ptrArrayGetElem :: InsCmp CompileState m => Value -> Value -> m Value
 ptrArrayGetElem arr idx = do
-    Array n t <- assertBaseType isArray (valType arr)
-    assertBaseType isIntegral (valType idx)
+    Array n t <- assertBaseType isArray (typeof arr)
+    assertBaseType isIntegral (typeof idx)
     idxOp <- valOp <$> valLoad idx
     Ptr t <$> gep (valLoc arr) [int32 0, idxOp]
 

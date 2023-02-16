@@ -43,14 +43,14 @@ adtTypeField adtType typ = do
 
 mkAdtEnum :: InsCmp CompileState m => Value -> m Value
 mkAdtEnum adt = do
-    assertBaseType isADT (valType adt)
+    assertBaseType isADT (typeof adt)
     val <- valLoad adt
     Val I64 <$> extractValue (valOp val) [0]
 
 
 adtSetEnum :: InsCmp CompileState m => Value -> Int -> m ()
 adtSetEnum adt i = do
-    ADT fs <- assertBaseType isADT (valType adt)
+    ADT fs <- assertBaseType isADT (typeof adt)
     assert (isPtr adt) "ADT must be a Ptr"
     assert (i >= 0 && i < length fs) "ADT enum value out of range"
     pi64 <- gep (valLoc adt) [int32 0, int32 0]
@@ -59,7 +59,7 @@ adtSetEnum adt i = do
 
 ptrAdtField :: InsCmp CompileState m => Value -> Int -> m Value
 ptrAdtField adt i = do
-    ADT fs <- assertBaseType isADT (valType adt)
+    ADT fs <- assertBaseType isADT (typeof adt)
     assert (isPtr adt) "ADT must be a Ptr"
     case fs !! i of
         FieldType typ -> do
@@ -70,7 +70,7 @@ ptrAdtField adt i = do
         
 adtDeref :: InsCmp CompileState m => Value -> Int -> Int -> m Value
 adtDeref adt i j = trace "adtDeref" $ do
-    ADT fs <- assertBaseType isADT (valType adt)
+    ADT fs <- assertBaseType isADT (typeof adt)
     case fs !! i of
         FieldNull -> fail "invalid adt deref"
         FieldType t -> do
