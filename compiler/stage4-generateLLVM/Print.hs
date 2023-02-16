@@ -55,7 +55,7 @@ valPrint append val = withErrorPrefix "valPrint " $ case valType val of
         valPrint ("]" ++ append) =<< ptrRangeEnd val
 
     Table [Char] -> do
-        (Pointer t p) <- tableRow 0 val
+        (Pointer t p) <- tableRow 0 (toPointer val)
         (Pointer I64 lp) <- tableLen (Pointer (valType val) (valLoc val))
         lo <- load lp 0
         void $ printf ("%-.*s" ++ append) [lo, p]
@@ -80,7 +80,7 @@ valPrint append val = withErrorPrefix "valPrint " $ case valType val of
 
     where
         tablePrintHelper ts val len = forM_ [0..length ts - 1] $ \i -> do
-            row@(Pointer t p) <- tableRow i val
+            row@(Pointer t p) <- tableRow i (toPointer val)
             n <- mkInfix AST.Minus len =<< toVal =<< newI64 1
 
             for (valOp n) $ \j -> valPrint ", " =<< fromPointer <$> advancePointer row (Val I64 j)

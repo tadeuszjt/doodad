@@ -390,9 +390,9 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
         loc <- cmpExpr expr
         base <- baseTypeOf (valType loc)
         case base of
-            Table ts -> mkTablePush loc []
+            Table ts -> mkTablePush (toPointer loc) []
             Sparse ts -> do
-                key <- sparsePush loc =<< mapM mkZero ts
+                key <- sparsePush (toPointer loc) =<< mapM mkZero ts
                 valLoad key
 
 
@@ -404,18 +404,18 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
                 vals <- mapM cmpExpr exprs
                 assert (map valType vals == ts) "mismatched argument types"
                 len <- toVal =<< tableLen (toPointer loc)
-                tableResize loc =<< mkIntInfix AST.Plus len =<< toVal =<< newI64 1
+                tableResize (toPointer loc) =<< mkIntInfix AST.Plus len =<< toVal =<< newI64 1
                 ptrs <- tableColumn (toPointer loc) len
                 forM_ (zip ptrs vals) $ \(Pointer t p, val) ->
                     storeCopy (Ptr t p) val
                 mkConvertNumber exprType len
 
-            Sparse ts -> mkConvertNumber exprType =<< sparsePush loc =<< mapM cmpExpr exprs
+            Sparse ts -> mkConvertNumber exprType =<< sparsePush (toPointer loc) =<< mapM cmpExpr exprs
 
 
     AST.Builtin pos [expr] "pop" [] -> do
         val <- cmpExpr expr
-        [v] <- mkTablePop val
+        [v] <- mkTablePop (toPointer val)
         loc <- newVal exprType
         storeCopy (fromPointer loc) v
         return (fromPointer loc)
@@ -423,7 +423,7 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
     AST.Builtin pos [expr] "clear" [] -> do
         assert (exprType == Void) "clear is a void expression"
         tab <- cmpExpr expr
-        tableResize tab =<< toVal =<< newI64 0
+        tableResize (toPointer tab) =<< toVal =<< newI64 0
         return $ Val Void undefined
 
     AST.Builtin pos [expr1] "delete" [expr2] -> do
@@ -433,7 +433,7 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
         base <- baseTypeOf (valType val)
         case base of
             Sparse ts -> sparseDelete val arg
-            Table ts  -> tableDelete val arg
+            Table ts  -> tableDelete (toPointer val) arg
         return $ Val Void undefined
                 
     AST.Int p n -> do
@@ -545,8 +545,8 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
                 return $ Ptr t p
             Array _ _ -> ptrArrayGetElem val idx
             Sparse _  -> do
-                table <- ptrSparseTable val
-                [Pointer t p] <- tableColumn (toPointer table) idx
+                table <- sparseTable (toPointer val)
+                [Pointer t p] <- tableColumn table idx
                 return $ Ptr t p
             Map _ _ -> do 
                 error "here" 
@@ -645,7 +645,7 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
     AST.PatArray _ [pats] -> do -- [a, b, c]
         base <- baseTypeOf (valType val)
         case base of
-            Sparse ts -> cmpPattern pattern =<< ptrSparseTable val
+            Sparse ts -> cmpPattern pattern . fromPointer =<< sparseTable (toPointer val) 
             
             Table ts -> do
                 len   <- toVal =<< tableLen (toPointer val)
