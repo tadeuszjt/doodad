@@ -76,12 +76,12 @@ mkConstruct typ [val]    = do
 mkTupleConstruct :: InsCmp CompileState m => Type -> [Value] -> m Value
 mkTupleConstruct typ vals = trace "tupleConstruct" $ do
     Tuple ts <- assertBaseType isTuple typ
-    tup <- mkAlloca typ
+    tup <- newVal typ
     assert (length vals == length ts) "tuple length mismatch"
     forM_ (zip vals [0..]) $ \(val, i) -> do
-        ptr <- ptrTupleIdx i tup
+        ptr <- ptrTupleIdx i (fromPointer tup)
         storeCopy ptr val
-    return tup
+    return (fromPointer tup)
 
 
 -- convert the value into a new value corresponding to the type
@@ -93,9 +93,9 @@ mkConvert typ val = do
         _ | isIntegral base -> mkConvertNumber typ val
         _ | isFloat base    -> mkConvertNumber typ val
         _ | baseVal == base -> do
-            ptr <- mkAlloca typ
-            storeCopy ptr val
-            return ptr
+            ptr <- newVal typ
+            storeCopy (fromPointer ptr) val
+            return (fromPointer ptr)
         _ -> fail ("valConvert " ++ show base)
 
 
@@ -177,13 +177,13 @@ mkArrayInfix operator a b = withErrorPrefix "array" $ do
 
     case operator of
         _ | operator `elem` [AST.Plus, AST.Minus, AST.Times, AST.Divide, AST.Modulo] -> do
-            arr <- mkAlloca (valType a)
+            arr <- newVal (valType a)
             forM_ [0..n] $ \i -> do
-                pDst <- ptrArrayGetElemConst arr i
+                pDst <- ptrArrayGetElemConst (fromPointer arr) i
                 pSrcA <- ptrArrayGetElemConst a i
                 pSrcB <- ptrArrayGetElemConst b i
                 valStore pDst =<< mkInfix operator pSrcA pSrcB
-            return arr
+            return (fromPointer arr)
 
 
 mkTupleInfix :: InsCmp CompileState m => AST.Operator -> Value -> Value -> m Value
@@ -193,13 +193,13 @@ mkTupleInfix operator a b = withErrorPrefix "tuple infix: " $ do
 
     case operator of
         _ | operator `elem` [AST.Plus, AST.Minus, AST.Times, AST.Divide, AST.Modulo] -> do
-            tup <- mkAlloca (valType a)
+            tup <- newVal (valType a)
             forM (zip ts [0..]) $ \(t, i) -> do
                 pSrcA <- ptrTupleIdx i a
                 pSrcB <- ptrTupleIdx i b
-                pDst  <- ptrTupleIdx i tup
+                pDst  <- ptrTupleIdx i (fromPointer tup)
                 valStore pDst =<< mkInfix operator pSrcA pSrcB
-            return tup
+            return (fromPointer tup)
 
         _ | operator `elem` [AST.EqEq] -> do
             res <- newBool True
@@ -270,23 +270,22 @@ mkTableInfix operator a b = do
             -- test that len(a) == len(b)
             condBr (valOp lenEq) start exit
             emitBlockStart start
-            idx <- mkAlloca I64
-            valStore idx (mkI64 0)
+            idx <- newI64 0
             storeBasic eq =<< newBool True
             br cond
 
             -- test that the idx < len
             emitBlockStart cond
-            idxLT <- mkIntInfix AST.LT idx lenA
+            idxLT <- mkIntInfix AST.LT (fromPointer idx) lenA
             condBr (valOp idxLT) body exit
 
             -- test that a[i] == b[i]
             emitBlockStart body
-            [Pointer ta a] <- tableColumn a idx
-            [Pointer tb b] <- tableColumn b idx
+            [Pointer ta a] <- tableColumn a (fromPointer idx)
+            [Pointer tb b] <- tableColumn b (fromPointer idx)
             elmEq <- mkInfix AST.EqEq (Ptr ta a) (Ptr tb b)
             valStore (fromPointer eq) elmEq
-            valStore idx =<< mkIntInfix AST.Plus idx (mkI64 1)
+            valStore (fromPointer idx) =<< mkIntInfix AST.Plus (fromPointer idx) =<< toVal =<< newI64 1
             condBr (valOp elmEq) cond exit
 
             emitBlockStart exit

@@ -40,14 +40,12 @@ mkTable :: InsCmp CompileState m => Type -> Value -> m Value
 mkTable typ initialLen = do
     Table ts <- assertBaseType isTable typ
     assertBaseType (==I64) (valType initialLen)
-    lenP <- mkAlloca I64
-    valStore lenP initialLen
 
     tab <- newVal typ
     cap <- tableCap tab
     len <- tableLen tab
-    storeBasic cap (Pointer I64 $ valLoc lenP)
-    storeBasic len (Pointer I64 $ valLoc lenP)
+    valStore (fromPointer cap) initialLen
+    valStore (fromPointer len) initialLen
 
     siz <- newI64 0
     idxs <- forM ts $ \t -> do
@@ -88,7 +86,7 @@ mkTablePop :: InsCmp CompileState m => Value -> m [Value]
 mkTablePop tab = do
     Table ts <- assertBaseType isTable (valType tab)
     len <- toVal =<< tableLen (toPointer tab)
-    newLen <- mkIntInfix AST.Minus len (mkI64 1)
+    newLen <- mkIntInfix AST.Minus len =<< toVal =<< newI64 1
     tableSetLen tab newLen
     mapM (\(Pointer t p) -> valLoad (Ptr t p)) =<< tableColumn tab newLen
 
@@ -97,7 +95,7 @@ mkTablePop tab = do
 mkTablePush :: InsCmp CompileState m => Value -> [Value] -> m Value
 mkTablePush tab [] = do 
     len <- toVal =<< tableLen (toPointer tab)
-    tableResize tab =<< mkIntInfix AST.Plus len (mkI64 1)
+    tableResize tab =<< mkIntInfix AST.Plus len =<< toVal =<< newI64 1
     ptrs <- tableColumn tab len
     forM_ ptrs $ \(Pointer pt po) -> valStore (Ptr pt po) =<< mkZero pt
     return len
@@ -107,7 +105,7 @@ tableDelete :: InsCmp CompileState m => Value -> Value -> m ()
 tableDelete tab idx = do
     Table ts <- assertBaseType isTable (valType tab)
     len <- toVal =<< tableLen (toPointer tab)
-    end <- mkIntInfix AST.Minus len (mkI64 1)
+    end <- mkIntInfix AST.Minus len =<< toVal =<< newI64 1
     idxIsEnd <- mkIntInfix AST.EqEq idx end
     if_ (valOp idxIsEnd) (return ()) (idxNotEndCase end)
     void $ mkTablePop tab
@@ -146,7 +144,7 @@ tableResize tab newLen = trace "tableResize" $ do
     where
         fullCase :: InsCmp CompileState m => [Type] -> m ()
         fullCase ts = do
-            newTab <- mkTable (valType tab) =<< mkIntInfix AST.Times newLen (mkI64 2)
+            newTab <- mkTable (valType tab) =<< mkIntInfix AST.Times newLen =<< toVal =<< newI64 2
             forM_ (zip ts [0..]) $ \(t, i) -> do
                 (Pointer tn pn) <- tableRow i newTab
                 (Pointer to po) <- tableRow i tab

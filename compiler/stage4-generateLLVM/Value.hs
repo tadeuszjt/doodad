@@ -80,6 +80,20 @@ newBool b = do
     return $ Pointer Bool p
 
 
+newFloat :: InsCmp CompileState m => Type -> Double -> m Pointer
+newFloat typ f = do 
+    base <- baseTypeOf typ 
+    case base of 
+        F64 -> do
+            p <- alloca LL.double Nothing 0
+            store p 0 $ double f
+            return $ Pointer typ p
+        F32 -> do
+            p <- alloca LL.float Nothing 0
+            store p 0 $ single (double2Float f)
+            return $ Pointer typ p
+
+
 mkInt :: InsCmp CompileState m => Integral i => Type -> i -> m Value
 mkInt typ n = trace "mkInt" $ do
     base <- assertBaseType isInt typ
@@ -92,13 +106,6 @@ mkEnum :: InsCmp CompileState m => Integral i => Type -> i -> m Value
 mkEnum typ n = do
     assertBaseType (== Enum) typ
     return $ Val typ $ int64 (fromIntegral n)
-
-mkFloat :: InsCmp CompileState m => Type -> Double -> m Value
-mkFloat typ f = trace "mkFloat" $ do
-    base <- assertBaseType isFloat typ
-    return $ Val typ $ case base of
-        F32 -> single (double2Float f)
-        F64 -> double f
 
 
 mkRange :: InsCmp CompileState m => Value -> Value -> m Value
@@ -124,7 +131,8 @@ mkZero typ = trace ("mkZero " ++ show  typ) $ do
     base <- baseTypeOf typ
     case base of
         _ | isInt base     -> mkInt typ 0
-        _ | isFloat base   -> mkFloat typ 0.0
+        F32                -> return $ Val typ (single 0.0)
+        F64                -> return $ Val typ (double 0.0)
         Enum               -> return $ Val typ (int64 0)
         Bool               -> return $ Val typ (bit 0)
         Char               -> return $ Val typ (int8 0)
@@ -307,7 +315,7 @@ mkPrefix operator val = do
 
         _ | isFloat base -> case operator of
             AST.Plus -> return op
-            AST.Minus -> mkFloat typ 0 >>= \zero -> fsub (valOp zero) op
+            AST.Minus -> newFloat typ 0 >>= toVal >>= \zero -> fsub (valOp zero) op
 
         Bool -> case operator of
             AST.Not -> icmp P.EQ op (bit 0)
