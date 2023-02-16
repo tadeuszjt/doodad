@@ -24,7 +24,6 @@ import Funcs
 import Trace
 import Error
 
-class Typeof a where typeof :: a -> Type
 instance Typeof Pointer where typeof (Pointer t _) = t
 instance Typeof Value2 where typeof (Value2 t _) = t
 instance Typeof Value where 

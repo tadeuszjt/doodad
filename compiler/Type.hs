@@ -3,6 +3,8 @@ module Type where
 import Data.List
 import Symbol
 
+class Typeof a where typeof :: a -> Type
+
 data AdtField
     = FieldNull
     | FieldType Type

@@ -114,8 +114,8 @@ collectDefault t1 t2 = do
     modify $ \s -> s { defaults = Map.insert (ConsEq t1 t2) (curPos s) (defaults s) }
 
 
-typeOf :: S.Expr -> Type
-typeOf (S.AExpr t _) = t
+instance Typeof S.Expr where 
+    typeof (S.AExpr t _) = t
 
 
 look :: BoM CollectState m => Symbol -> SymKey -> m Object
@@ -207,39 +207,39 @@ collectStmt stmt = collectPos stmt $ case stmt of
         case mexpr of
             Nothing -> collectEq Void retty
             Just expr -> do
-                collectEq (typeOf expr) retty
+                collectEq (typeof expr) retty
                 collectExpr expr
 
     S.If _ expr blk melse -> do
-        collectBase Bool (typeOf expr)
+        collectBase Bool (typeof expr)
         collectExpr expr
         collectStmt blk
         maybe (return ()) collectStmt melse
 
     S.Assign _ pattern expr -> do
-        collectPattern pattern (typeOf expr)
+        collectPattern pattern (typeof expr)
         collectExpr expr
 
     S.Set _ expr1 expr2 -> do
-        collectEq (typeOf expr1) (typeOf expr2)
+        collectEq (typeof expr1) (typeof expr2)
         collectExpr expr1
         collectExpr expr2
 
     S.While _ expr blk -> do
         collectExpr expr
-        collectBase Bool (typeOf expr)
+        collectBase Bool (typeof expr)
         collectStmt blk
 
     S.Switch p expr cases -> do
         collectExpr expr
         forM_ cases $ \(pat, stmt) -> do
-            collectPattern pat (typeOf expr)
+            collectPattern pat (typeof expr)
             collectStmt stmt
 
     S.For p expr mpat blk -> do
         when (isJust mpat) $ do
             gt <- genType
-            collectMember (typeOf expr) 0 gt
+            collectMember (typeof expr) 0 gt
             collectPattern (fromJust mpat) gt
 
         collectExpr expr
@@ -247,7 +247,7 @@ collectStmt stmt = collectPos stmt $ case stmt of
 
     S.Data p symbol typ mexpr -> do
         define symbol KeyVar (ObjVar typ)
-        maybe (return ()) (collectEq typ . typeOf) mexpr
+        maybe (return ()) (collectEq typ . typeof) mexpr
         maybe (return ()) collectExpr mexpr
         
     _ -> error (show stmt)
@@ -261,12 +261,12 @@ collectPattern pattern typ = collectPos pattern $ case pattern of
         define symbol KeyVar (ObjVar typ)
 
     S.PatLiteral expr -> do 
-        collectEq typ (typeOf expr)
+        collectEq typ (typeof expr)
         collectExpr expr
 
     S.PatGuarded _ pat expr -> do
         collectPattern pat typ
-        collectBase (typeOf expr) Bool
+        collectBase (typeof expr) Bool
         collectExpr expr
 
     S.PatField _ symbol pats -> do
@@ -319,8 +319,8 @@ collectCall exprType rs symbol es = do -- can be resolved or sym
         SymResolved _ _ _ -> SymTab.lookupSym symbol <$> gets symTab
 
     let ks = filter keyCouldMatch $ map fst kos
-    collectIfUnifiedType (map (\(KeyFunc ps _ _) -> ps) ks) (map typeOf rs)
-    collectIfUnifiedType (map (\(KeyFunc _ as _) -> as) ks) (map typeOf es)
+    collectIfUnifiedType (map (\(KeyFunc ps _ _) -> ps) ks) (map typeof rs)
+    collectIfUnifiedType (map (\(KeyFunc _ as _) -> as) ks) (map typeof es)
     collectIfUnifiedType (map (\(KeyFunc _ _ r) -> [r]) ks) [exprType]
     collectIfOneDef ks
     
@@ -330,7 +330,7 @@ collectCall exprType rs symbol es = do -- can be resolved or sym
         keyCouldMatch :: SymKey -> Bool
         keyCouldMatch (KeyFunc ps as r)
             | length ps /= length rs || length as /= length es = False
-            | otherwise = all (== True) $ zipWith typesCouldMatch (ps ++ as) $ map typeOf (rs ++ es)
+            | otherwise = all (== True) $ zipWith typesCouldMatch (ps ++ as) $ map typeof (rs ++ es)
             where
                 typesCouldMatch :: Type -> Type -> Bool
                 typesCouldMatch (Type _) _ = True
@@ -352,15 +352,15 @@ collectCall exprType rs symbol es = do -- can be resolved or sym
             assert (length ys == length es) "Invalid number of arguments"
             assert (length xs == length rs) "Invalid number of parameters"
             collectEq z exprType
-            zipWithM_ collectEq xs (map typeOf rs)
-            zipWithM_ collectEq ys (map typeOf es)
+            zipWithM_ collectEq xs (map typeof rs)
+            zipWithM_ collectEq ys (map typeof es)
         collectIfOneDef _ = return ()
 
 
 collectExpr :: BoM CollectState m => S.Expr -> m ()
 collectExpr (S.AExpr exprType expr) = collectPos expr $ case expr of
     S.Call _ ps s es -> collectCall exprType ps s es
-    S.Prefix _ op e  -> collectEq exprType (typeOf e) >> collectExpr e
+    S.Prefix _ op e  -> collectEq exprType (typeof e) >> collectExpr e
     S.Int _ c        -> collectDefault exprType I64
     S.Float _ f      -> collectDefault exprType F64
     S.Null _         -> return ()
@@ -376,11 +376,11 @@ collectExpr (S.AExpr exprType expr) = collectPos expr $ case expr of
                 assert (length ps == 1) "invalid number of parameters"
                 collectDefault exprType I64
                 forM_ (zip es [0..]) $ \(e, i) ->
-                    collectMember (typeOf $ head ps) i (typeOf e)
+                    collectMember (typeof $ head ps) i (typeof e)
 
             "pop" -> do
                 assert (length ps == 1) "invalid number of parameters"
-                collectMember (typeOf $ head ps) 0 exprType
+                collectMember (typeof $ head ps) 0 exprType
 
             "delete" -> collectEq exprType Void
             "clear" -> collectEq exprType Void
@@ -408,43 +408,43 @@ collectExpr (S.AExpr exprType expr) = collectPos expr $ case expr of
     S.Infix _ op e1 e2 -> do
         case op of
             _ | op `elem` [S.Plus, S.Minus, S.Times, S.Divide, S.Modulo] -> do
-                collectEq exprType (typeOf e1)
+                collectEq exprType (typeof e1)
             _ | op `elem` [S.LT, S.GT, S.LTEq, S.GTEq, S.EqEq, S.NotEq]  -> do
                 collectBase exprType Bool
                 collectDefault exprType Bool
             _ | op `elem` [S.AndAnd, S.OrOr] -> do
                 collectBase exprType Bool
-                collectEq exprType (typeOf e1)
+                collectEq exprType (typeof e1)
             _ -> return ()
                     
-        collectEq (typeOf e1) (typeOf e2)
+        collectEq (typeof e1) (typeof e2)
         collectExpr e1
         collectExpr e2
 
     S.Subscript _ e1 e2 -> do
-        collectSubscript exprType (typeOf e1)
+        collectSubscript exprType (typeof e1)
         collectExpr e1
         collectExpr e2
-        collectDefault (typeOf e2) I64
+        collectDefault (typeof e2) I64
 
     S.Initialiser _ [] -> return ()
     S.Initialiser _ es -> do
-        forM_ es        $ \e -> collectMember exprType 0 (typeOf e) -- TODO
-        forM_ (tail es) $ \e -> collectEq (typeOf e) (typeOf $ head es)
-        collectDefault exprType $ Array (length es) (typeOf $ head es)
+        forM_ es        $ \e -> collectMember exprType 0 (typeof e) -- TODO
+        forM_ (tail es) $ \e -> collectEq (typeof e) (typeof $ head es)
+        collectDefault exprType $ Array (length es) (typeof $ head es)
         mapM_ collectExpr es
 
     S.Tuple _ es -> do
-        collectBase exprType $ Tuple (map typeOf es)
-        collectDefault exprType $ Tuple (map typeOf es)
+        collectBase exprType $ Tuple (map typeof es)
+        collectDefault exprType $ Tuple (map typeof es)
         mapM_ collectExpr es
 
     S.Field _ e (Sym sym) -> do
-        case typeOf e of
+        case typeof e of
             Type x         -> return ()
             Typedef symbol -> do
-                ObjField i  <- look (Sym sym) $ KeyField (typeOf e)
-                collectField exprType i (typeOf e)
+                ObjField i  <- look (Sym sym) $ KeyField (typeof e)
+                collectField exprType i (typeof e)
         collectExpr e
 
     S.AExpr _ _ -> fail "what"
@@ -454,20 +454,20 @@ collectExpr (S.AExpr exprType expr) = collectPos expr $ case expr of
         return () -- TODO
 
     S.Match _ e p -> do
-        collectPattern p (typeOf e)
+        collectPattern p (typeof e)
         collectExpr e
         collectDefault exprType Bool
 
     S.Range _ Nothing me1 me2 -> do
         when (isJust me1 && isJust me2) $ do
-            collectEq (typeOf $ fromJust me1) (typeOf $ fromJust me2)
+            collectEq (typeof $ fromJust me1) (typeof $ fromJust me2)
         when (isJust me1) $ do
-            collectBase (Range $ typeOf $ fromJust me1) exprType
-            collectDefault (Range $ typeOf $ fromJust me1) exprType
+            collectBase (Range $ typeof $ fromJust me1) exprType
+            collectDefault (Range $ typeof $ fromJust me1) exprType
             collectExpr (fromJust me1)
         when (isJust me2) $ do
-            collectBase (Range $ typeOf $ fromJust me2) exprType
-            collectDefault (Range $ typeOf $ fromJust me2) exprType
+            collectBase (Range $ typeof $ fromJust me2) exprType
+            collectDefault (Range $ typeof $ fromJust me2) exprType
             collectExpr (fromJust me2)
 
     S.Range _ (Just e) me1 me2 -> do
@@ -476,11 +476,11 @@ collectExpr (S.AExpr exprType expr) = collectPos expr $ case expr of
         collectExpr e
 
         when (isJust me1) $ do
-            collectEq (typeOf $ fromJust me1) I64
+            collectEq (typeof $ fromJust me1) I64
             collectExpr (fromJust me1)
 
         when (isJust me2) $ do
-            collectEq (typeOf $ fromJust me2) I64
+            collectEq (typeof $ fromJust me2) I64
             collectExpr (fromJust me2)
 
     _ -> error (show expr)
