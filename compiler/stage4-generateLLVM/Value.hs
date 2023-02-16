@@ -96,25 +96,25 @@ newFloat typ f = do
             return $ Pointer typ p
 
 
-mkEnum :: InsCmp CompileState m => Integral i => Type -> i -> m Value
+mkEnum :: InsCmp CompileState m => Integral i => Type -> i -> m Value2
 mkEnum typ n = do
     assertBaseType (== Enum) typ
-    return $ Val typ $ int64 (fromIntegral n)
+    return $ Value2 typ $ int64 (fromIntegral n)
 
 
-mkRange :: InsCmp CompileState m => Value -> Value -> m Value
-mkRange start end = do
+newRange :: InsCmp CompileState m => Value -> Value -> m Pointer
+newRange start end = do
     assert (typeof start == typeof end) $ "range types do not match"
     isDataType <- isDataType (typeof start)
     assert (not isDataType) "simple types so valLoad is mk"
 
     range    <- newVal $ Range (typeof start) -- LEAVE THIS ONE FOR NOW
     startDst <- rangeStart range
-    endDst   <- ptrRangeEnd (fromPointer range)
+    endDst   <- rangeEnd range
 
     valStore (fromPointer startDst) start
-    valStore endDst end
-    return (fromPointer range)
+    valStore (fromPointer endDst) end
+    return range
 
 
 
@@ -133,7 +133,7 @@ mkZero typ = trace ("mkZero " ++ show  typ) $ do
         Char               -> return $ Val typ (int8 0)
         Range t            -> Val typ . struct namem False . map (toCons . valOp) <$> mapM mkZero [t, t]
         Array n t          -> Val typ . array . replicate n . toCons . valOp <$> mkZero t
-        Tuple ts           -> Val typ . struct namem True . map (toCons . valOp) <$> mapM mkZero ts
+        Tuple ts           -> Val typ . struct namem False . map (toCons . valOp) <$> mapM mkZero ts
         Table ts           -> Val typ . struct namem False . ([zi64, zi64] ++) <$> map (C.IntToPtr zi64 . LL.ptr) <$> mapM opTypeOf ts
         Sparse ts          -> Val typ . struct namem False . map (toCons . valOp) <$> mapM mkZero [Table ts, Table [I64]]
         Map tk tv          -> Val typ . struct namem False . map (toCons . valOp) <$> mapM mkZero [Table [tk], Sparse [tv]]
@@ -148,26 +148,11 @@ rangeStart range = do
     Pointer t <$> gep (loc range) [int32 0, int32 0]
 
 
-ptrRangeEnd :: InsCmp CompileState m => Value -> m Value
-ptrRangeEnd val = do
-    assert (isPtr val) "val isn't pointer"
-    Range t <- assertBaseType (isRange) (typeof val)
-    Ptr t <$> gep (valLoc val) [int32 0, int32 1]
+rangeEnd :: InsCmp CompileState m => Pointer -> m Pointer
+rangeEnd range = do
+    Range t <- baseTypeOf (typeof range)
+    Pointer t <$> gep (loc range) [int32 0, int32 1]
 
-
-mkRangeStart :: InsCmp CompileState m => Value -> m Value
-mkRangeStart val = do
-    Range t <- assertBaseType (isRange) (typeof val)
-    Val t <$> case val of
-        Ptr _ loc -> (flip load) 0 =<< gep loc [int32 0, int32 0]
-        Val _ op  -> extractValue op [0]
-
-mkRangeEnd :: InsCmp CompileState m => Value -> m Value
-mkRangeEnd val = do
-    Range t <- assertBaseType (isRange) (typeof val)
-    Val t <$> case val of
-        Ptr _ loc -> (flip load) 0 =<< gep loc [int32 0, int32 1]
-        Val _ op  -> extractValue op [1]
 
 
 pload :: InsCmp CompileState m => Pointer -> m Value2
@@ -248,8 +233,14 @@ newVal :: InsCmp CompileState m => Type -> m Pointer
 newVal typ = do 
     opType <- opTypeOf typ 
     p <- alloca opType Nothing 0 
-    Val _ z <- mkZero typ
-    store p 0 z
+    base <- baseTypeOf typ
+    case base of 
+        Tuple ts -> forM_ (zip ts [0..]) $ \(t, i) -> do 
+            pelm <- gep p [int32 0, int32 $ fromIntegral i]
+            storeBasic (Pointer t pelm) =<< newVal t
+        _ -> do
+            Val _ z <- mkZero typ
+            store p 0 z
     return $ Pointer typ p
 
 

@@ -137,7 +137,10 @@ mkInfix operator a b = withErrorPrefix "infix: " $ do
         Char                 -> do 
             av <- toValue <$> valLoad a
             fromValue <$> (intInfix operator av . toValue =<< valLoad b)
-        Enum                 -> mkEnumInfix operator a b
+        Enum                 -> do 
+            av <- toValue <$> valLoad a
+            bv <- toValue <$> valLoad b
+            fromValue <$> enumInfix operator av bv
         _ | isRange base     -> mkRangeInfix operator a b
         _ | isInt base       -> do 
             av <- toValue <$> valLoad a
@@ -152,15 +155,13 @@ mkInfix operator a b = withErrorPrefix "infix: " $ do
 
 
 
-mkEnumInfix :: InsCmp CompileState m => AST.Operator -> Value -> Value -> m Value
-mkEnumInfix operator a b = do
+enumInfix :: InsCmp CompileState m => AST.Operator -> Value2 -> Value2 -> m Value2
+enumInfix operator a b = do
     assert (typeof a == typeof b) "type mismatch"
-    assertBaseType (== Enum) (typeof a)
-    opA <- valOp <$> valLoad a
-    opB <- valOp <$> valLoad b
+    Enum <- baseTypeOf (typeof a)
     case operator of
-        AST.NotEq -> Val Bool <$> icmp P.NE opA opB
-        AST.EqEq  -> Val Bool <$> icmp P.EQ opA opB
+        AST.NotEq -> Value2 Bool <$> icmp P.NE (op a) (op b)
+        AST.EqEq  -> Value2 Bool <$> icmp P.EQ (op a) (op b)
 
 
 mkRangeInfix :: InsCmp CompileState m => AST.Operator -> Value -> Value -> m Value
@@ -170,10 +171,10 @@ mkRangeInfix operator a b = do
     assert (typeof a == typeof b) "types do not match for range infix"
     case operator of
         AST.EqEq -> do
-            startA <- mkRangeStart a
-            startB <- mkRangeStart b
-            endA   <- mkRangeEnd a
-            endB   <- mkRangeEnd b
+            startA <- fmap fromValue . pload =<< rangeStart (toPointer a)
+            startB <- fmap fromValue . pload =<< rangeStart (toPointer b)
+            endA   <- fmap fromValue . pload =<< rangeEnd (toPointer a)
+            endB   <- fmap fromValue . pload =<< rangeEnd (toPointer b)
             startEq <- mkInfix AST.EqEq startA startB
             endEq   <- mkInfix AST.EqEq endA endB
             Val Bool <$> and (valOp startEq) (valOp endEq)

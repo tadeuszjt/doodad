@@ -52,7 +52,7 @@ valPrint append val = withErrorPrefix "valPrint " $ case typeof val of
     Range t -> do
         printf "[" []
         valPrint ".."            . fromPointer =<< rangeStart (toPointer val)
-        valPrint ("]" ++ append) =<< ptrRangeEnd val
+        valPrint ("]" ++ append) . fromPointer =<< rangeEnd (toPointer val)
 
     Table [Char] -> do
         (Pointer t p) <- tableRow 0 (toPointer val)

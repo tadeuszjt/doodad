@@ -271,7 +271,7 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
 
         idx <- newI64 0
         when (isRange base) $ do
-            valStore (fromPointer idx) =<< mkRangeStart val
+            storeBasic idx =<< rangeStart (toPointer val)
 
         cond <- freshName "for_cond"
         body <- freshName "for_body"
@@ -284,7 +284,7 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
         -- check if index is still in range
         emitBlockStart cond
         end <- case base of
-            Range I64 -> mkRangeEnd val
+            Range I64 -> toVal =<< rangeEnd (toPointer val)
             Table ts -> toVal =<< tableLen (toPointer val)
             Array n t -> toVal =<< newI64 n
             _ -> error (show base)
@@ -365,28 +365,28 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
     AST.Range pos Nothing mexpr1 (Just expr2) -> do
         end <- cmpExpr expr2
         start <- maybe (mkZero $ typeof end) cmpExpr mexpr1
-        mkRange start end
+        fromPointer <$> newRange start end
     AST.Range pos (Just expr) margStart margEnd -> do
         val <- cmpExpr expr
         base <- baseTypeOf (typeof val)
 
         -- default 0 because all types index 0
         startVal <- case base of
-            Range t -> mkRangeStart val
+            Range t -> toVal =<< rangeStart (toPointer val)
             _       -> toVal =<< newI64 0
         start <- case margStart of
             Nothing  -> return $ startVal
             Just arg -> mkMax startVal =<< cmpExpr arg
 
         endVal <- case base of
-            Range t   -> mkRangeEnd val
+            Range t   -> toVal =<< rangeEnd (toPointer val)
             Array n t -> toVal =<< newI64 n
             Table ts  -> toVal =<< tableLen (toPointer val)
         end <- case margEnd of
             Nothing  -> return endVal
             Just arg -> mkMin endVal =<< cmpExpr arg
             
-        mkRange start end
+        fromPointer <$> newRange start end
 
     AST.Builtin pos [expr] "push" [] -> do
         loc <- cmpExpr expr
@@ -514,7 +514,7 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
             ObjField i -> do
                 base <- baseTypeOf exprType
                 case base of
-                    Enum  -> mkEnum exprType i
+                    Enum  -> fromValue <$> mkEnum exprType i
             _ -> error (show obj)
 
     
@@ -557,10 +557,10 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
                 
 
             Range t -> do
-                start <- mkRangeStart val
-                end <- mkRangeEnd val
-                idxGtEqStart <- mkInfix AST.GTEq idx start
-                idxLtEnd <- mkInfix AST.LT idx end
+                start <- rangeStart (toPointer val)
+                end <- rangeEnd (toPointer val)
+                idxGtEqStart <- mkInfix AST.GTEq idx . fromValue =<< pload start
+                idxLtEnd <- mkInfix AST.LT idx . fromValue =<< pload end
                 assertBaseType (== Bool) exprType
                 Val exprType <$> LL.and (valOp idxLtEnd) (valOp idxGtEqStart)
                 
@@ -714,7 +714,7 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
             Enum -> do
                 assert (pats == []) "enum pattern with args"
                 ObjField i <- look symbol
-                mkInfix AST.EqEq val =<< mkEnum (typeof val) i
+                mkInfix AST.EqEq val . fromValue =<< mkEnum (typeof val) i
 
             ADT fs -> do
                 obj <- look symbol
