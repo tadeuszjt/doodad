@@ -42,10 +42,10 @@ sparsePush sparse elems = do
     Sparse ts <- baseTypeOf (typeof sparse)
     assert (map typeof elems == ts) "Elem types do not match"
     stack <- sparseStack sparse
-    stackLen <- toVal =<< tableLen stack
-    stackLenGTZero <- mkIntInfix AST.GT stackLen =<< toVal =<< newI64 0
+    stackLen <- pload =<< tableLen stack
+    stackLenGTZero <- intInfix AST.GT stackLen =<< pload =<< newI64 0
     ret <- newI64 0 
-    if_ (valOp stackLenGTZero) (popStackCase stack ret) (pushTableCase ret) 
+    if_ (op stackLenGTZero) (popStackCase stack ret) (pushTableCase ret) 
     return (fromPointer ret)
     where
         popStackCase :: InsCmp CompileState m => Pointer -> Pointer -> m ()
@@ -59,12 +59,12 @@ sparsePush sparse elems = do
         pushTableCase :: InsCmp CompileState m => Pointer -> m ()
         pushTableCase ret = do
             table <- sparseTable sparse
-            len <- toVal =<< tableLen table
-            tableResize table =<< mkIntInfix AST.Plus len =<< toVal =<< newI64 1
-            ptrs <- tableColumn table len
+            len <- pload =<< tableLen table
+            tableResize table . fromValue =<< intInfix AST.Plus len =<< pload =<< newI64 1
+            ptrs <- tableColumn table (fromValue len) 
             forM_ (zip ptrs elems) $ \(Pointer t p, e) ->
                 valStore (Ptr t p) e
-            valStore (fromPointer ret) len 
+            valStore (fromPointer ret) (fromValue len)
 
 
 sparseDelete :: InsCmp CompileState m => Value -> Value -> m ()
@@ -75,15 +75,16 @@ sparseDelete val idx = do
     forM_ ptrs $ \ptr -> do
         storeBasic ptr =<< newVal (typeof ptr)
 
-    len <- toVal =<< tableLen table
-    idxIsEnd <- mkIntInfix AST.EqEq idx =<< mkIntInfix AST.Minus len =<< toVal =<< newI64 1
-    if_ (valOp idxIsEnd) (void $ mkTablePop $ table) idxNotEndCase
+    len <- pload =<< tableLen table
+    idxv <- toValue <$> valLoad idx
+    idxIsEnd <- intInfix AST.EqEq idxv =<< intInfix AST.Minus len =<< pload =<< newI64 1
+    if_ (op idxIsEnd) (void $ mkTablePop $ table) idxNotEndCase
     where
         idxNotEndCase :: InsCmp CompileState m => m ()
         idxNotEndCase = do
             stack <- sparseStack (toPointer val)
-            len <- toVal =<< tableLen stack
-            tableResize stack =<< mkIntInfix AST.Plus len =<< toVal =<< newI64 1
-            [Pointer t p] <- tableColumn stack len
+            len <- pload =<< tableLen stack
+            tableResize stack . fromValue =<< intInfix AST.Plus len =<< pload =<< newI64 1
+            [Pointer t p] <- tableColumn stack (fromValue len)
             valStore (Ptr t p) idx
     

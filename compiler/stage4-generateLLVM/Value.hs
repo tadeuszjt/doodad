@@ -301,77 +301,70 @@ memCpy (Pointer dstTyp dst) (Pointer srcTyp src) len = trace "valMemCpy" $ do
 
 mkPrefix :: InsCmp CompileState m => AST.Operator -> Value -> m Value
 mkPrefix operator val = do
-    Val typ op <- valLoad val
+    Val typ o <- valLoad val
     base <- baseTypeOf typ
     Val typ <$> case base of
         _ | isInt base -> case operator of
-            AST.Plus -> return op
-            AST.Minus -> mkZero typ >>= \zero -> valOp <$> mkIntInfix AST.Minus zero val
+            AST.Plus -> return o
+            AST.Minus -> mkZero typ >>= \zero -> op <$> (intInfix AST.Minus (toValue zero) . toValue =<< valLoad val)
 
         _ | isFloat base -> case operator of
-            AST.Plus -> return op
-            AST.Minus -> newFloat typ 0 >>= toVal >>= \zero -> fsub (valOp zero) op
+            AST.Plus -> return o
+            AST.Minus -> newFloat typ 0 >>= toVal >>= \zero -> fsub (valOp zero) o
 
         Bool -> case operator of
-            AST.Not -> icmp P.EQ op (bit 0)
+            AST.Not -> icmp P.EQ o (bit 0)
 
         Char -> case operator of
-            AST.Minus -> sub (int8 0) op
+            AST.Minus -> sub (int8 0) o
 
         _ -> fail $ show base
         
 
-mkIntInfix :: InsCmp CompileState m => AST.Operator -> Value -> Value -> m Value
-mkIntInfix operator a b = withErrorPrefix "int infix: " $ do
-    assert (typeof a == typeof b) "type mismatch"
+intInfix :: InsCmp CompileState m => AST.Operator -> Value2 -> Value2 -> m Value2
+intInfix operator a b = withErrorPrefix "int infix: " $ do
+    True <- return (typeof a == typeof b)
     assertBaseType (\t -> isInt t || t == Char) (typeof a)
-    Val typ opA <- valLoad a
-    Val _   opB <- valLoad b
     case operator of
-        AST.Plus   -> Val typ  <$> add opA opB
-        AST.Minus  -> Val typ  <$> sub opA opB
-        AST.Times  -> Val typ  <$> mul opA opB
-        AST.Divide -> Val typ  <$> sdiv opA opB
-        AST.Modulo -> Val typ  <$> srem opA opB
-        AST.GT     -> Val Bool <$> icmp P.SGT opA opB
-        AST.LT     -> Val Bool <$> icmp P.SLT opA opB
-        AST.GTEq   -> Val Bool <$> icmp P.SGE opA opB
-        AST.LTEq   -> Val Bool <$> icmp P.SLE opA opB
-        AST.EqEq   -> Val Bool <$> icmp P.EQ opA opB
-        AST.NotEq  -> Val Bool <$> icmp P.NE opA opB
+        AST.Plus   -> Value2 (typeof a) <$> add (op a) (op b)
+        AST.Minus  -> Value2 (typeof a) <$> sub (op a) (op b)
+        AST.Times  -> Value2 (typeof a) <$> mul (op a) (op b)
+        AST.Divide -> Value2 (typeof a) <$> sdiv (op a) (op b)
+        AST.Modulo -> Value2 (typeof a) <$> srem (op a) (op b)
+        AST.GT     -> Value2 Bool <$> icmp P.SGT (op a) (op b)
+        AST.LT     -> Value2 Bool <$> icmp P.SLT (op a) (op b)
+        AST.GTEq   -> Value2 Bool <$> icmp P.SGE (op a) (op b)
+        AST.LTEq   -> Value2 Bool <$> icmp P.SLE (op a) (op b)
+        AST.EqEq   -> Value2 Bool <$> icmp P.EQ (op a) (op b)
+        AST.NotEq  -> Value2 Bool <$> icmp P.NE (op a) (op b)
         _        -> error ("int infix: " ++ show operator)
     
         
-mkFloatInfix :: InsCmp CompileState m => AST.Operator -> Value -> Value -> m Value
-mkFloatInfix operator a b = do
+floatInfix :: InsCmp CompileState m => AST.Operator -> Value -> Value -> m Value2
+floatInfix operator a b = do
     assert (typeof a == typeof b) "Left side type does not match right side"
     let typ = typeof a
     assertBaseType isFloat typ
     opA <- valOp <$> valLoad a
     opB <- valOp <$> valLoad b
     case operator of
-        AST.Plus   -> Val typ <$> fadd opA opB
-        AST.Minus  -> Val typ <$> fsub opA opB
-        AST.Times  -> Val typ <$> fmul opA opB
-        AST.Divide -> Val typ <$> fdiv opA opB
-        AST.EqEq   -> Val Bool <$> fcmp P.OEQ opA opB
-        AST.GT     -> Val Bool <$> fcmp P.OGT opA opB
-        AST.LT     -> Val Bool <$> fcmp P.OLT opA opB
+        AST.Plus   -> Value2 typ <$> fadd opA opB
+        AST.Minus  -> Value2 typ <$> fsub opA opB
+        AST.Times  -> Value2 typ <$> fmul opA opB
+        AST.Divide -> Value2 typ <$> fdiv opA opB
+        AST.EqEq   -> Value2 Bool <$> fcmp P.OEQ opA opB
+        AST.GT     -> Value2 Bool <$> fcmp P.OGT opA opB
+        AST.LT     -> Value2 Bool <$> fcmp P.OLT opA opB
         _        -> error ("float infix: " ++ show operator)
 
 
-boolInfix :: InsCmp CompileState m => AST.Operator -> Pointer -> Pointer -> m Pointer
+boolInfix :: InsCmp CompileState m => AST.Operator -> Value2 -> Value2 -> m Value2
 boolInfix operator a b = do
     Bool <- baseTypeOf (typeof a)
     True <- return $ typeof a == typeof b
-
-    ret <- newVal Bool
-    opA <- load (loc a) 0
-    opB <- load (loc b) 0
     op <- case operator of
-        AST.OrOr   -> or opA opB
-        AST.AndAnd -> and opA opB
-        AST.EqEq   -> icmp P.EQ opA opB
+        AST.OrOr   -> or (op a) (op b)
+        AST.AndAnd -> and (op a) (op b)
+        AST.EqEq   -> icmp P.EQ (op a) (op b)
         _        -> error ("bool infix: " ++ show operator)
-    store (loc ret) 0 op
-    return ret
+    return $ Value2 Bool op

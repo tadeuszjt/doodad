@@ -49,10 +49,11 @@ mkTable typ initialLen = do
 
     siz <- newI64 0
     idxs <- forM ts $ \t -> do
-        idx <- valLoad (Ptr I64 $ loc siz)
-        Val I64 op <- mkIntInfix AST.Plus (Ptr I64 $ loc siz) =<< mkIntInfix AST.Times (fromPointer initialLen) =<< sizeOf t
-        store (loc siz) 0 op
-        return idx
+        idx <- pload siz
+        ilv <- pload initialLen
+        n <- intInfix AST.Plus idx =<< intInfix AST.Times ilv . toValue =<< sizeOf t
+        store (loc siz) 0 (op n)
+        return (fromValue idx)
 
     mal <- mkMalloc I8 (Ptr I64 $ loc siz)
     forM_ (zip3 ts idxs [0..]) $ \(t, idx, i) -> do
@@ -84,29 +85,30 @@ mkTablePop :: InsCmp CompileState m => Pointer -> m [Value]
 mkTablePop tab = do
     Table ts <- baseTypeOf (typeof tab)
     len <- tableLen tab
-    lenVal <- toVal len
-    newLen <- mkIntInfix AST.Minus lenVal =<< toVal =<< newI64 1
-    store (loc len) 0 (valOp newLen)
-    mapM (\(Pointer t p) -> valLoad (Ptr t p)) =<< tableColumn tab newLen
+    lenv <- pload len
+    newLen <- intInfix AST.Minus lenv =<< pload =<< newI64 1
+    store (loc len) 0 (op newLen)
+    mapM (\(Pointer t p) -> valLoad (Ptr t p)) =<< tableColumn tab (fromValue newLen)
 
 
 
 mkTablePush :: InsCmp CompileState m => Pointer -> [Pointer] -> m Value
 mkTablePush tab [] = do 
-    len <- toVal =<< tableLen tab
-    tableResize tab =<< mkIntInfix AST.Plus len =<< toVal =<< newI64 1
-    ptrs <- tableColumn tab len
+    len <- pload =<< tableLen tab
+    tableResize tab . fromValue =<< intInfix AST.Plus len =<< pload =<< newI64 1
+    ptrs <- tableColumn tab (fromValue len)
     forM_ ptrs $ \(Pointer pt po) -> valStore (Ptr pt po) =<< mkZero pt
-    return len
+    return (fromValue len)
 
 
 tableDelete :: InsCmp CompileState m => Pointer -> Value -> m ()
 tableDelete tab idx = do
     Table ts <- baseTypeOf (typeof tab)
-    len <- toVal =<< tableLen tab
-    end <- mkIntInfix AST.Minus len =<< toVal =<< newI64 1
-    idxIsEnd <- mkIntInfix AST.EqEq idx end
-    if_ (valOp idxIsEnd) (return ()) (idxNotEndCase end)
+    len <- pload =<< tableLen tab
+    end <- intInfix AST.Minus len =<< pload =<< newI64 1
+    idxv <- toValue <$> valLoad idx
+    idxIsEnd <- intInfix AST.EqEq idxv end
+    if_ (op idxIsEnd) (return ()) (idxNotEndCase $ fromValue end)
     void $ mkTablePop tab
     where
         idxNotEndCase :: InsCmp CompileState m => Value -> m ()
@@ -129,8 +131,9 @@ tableResize tab newLen = trace "tableResize" $ do
     Table ts <- baseTypeOf (typeof tab)
     assertBaseType isInt (typeof newLen)
     cap <- tableCap tab
-    bFull <- mkIntInfix AST.GT newLen (fromPointer cap)
-    if_ (valOp bFull) (fullCase ts) (return ())
+    newLenv <- toValue <$> valLoad newLen
+    bFull <- intInfix AST.GT newLenv =<< pload cap
+    if_ (op bFull) (fullCase ts) (return ())
 
     len <- tableLen tab
     store (loc len) 0 (valOp newLen)

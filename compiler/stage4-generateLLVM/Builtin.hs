@@ -131,16 +131,18 @@ mkInfix operator a b = withErrorPrefix "infix: " $ do
     base <- baseTypeOf (typeof a)
     case base of
         Bool                 -> do 
-            ap <- newVal (typeof a)
-            bp <- newVal (typeof b)
-            valStore (fromPointer ap) a
-            valStore (fromPointer bp) b
-            valLoad =<< fromPointer <$> boolInfix operator ap bp
-        Char                 -> mkIntInfix operator a b
+            av <- toValue <$> valLoad a
+            bv <- toValue <$> valLoad b
+            fromValue <$> boolInfix operator av bv
+        Char                 -> do 
+            av <- toValue <$> valLoad a
+            fromValue <$> (intInfix operator av . toValue =<< valLoad b)
         Enum                 -> mkEnumInfix operator a b
         _ | isRange base     -> mkRangeInfix operator a b
-        _ | isInt base       -> mkIntInfix operator a b
-        _ | isFloat base     -> mkFloatInfix operator a b
+        _ | isInt base       -> do 
+            av <- toValue <$> valLoad a
+            fromValue <$> (intInfix operator av . toValue =<< valLoad b)
+        _ | isFloat base     -> fromValue <$> floatInfix operator a b
         _ | isTuple base     -> mkTupleInfix operator a b
         _ | isArray base     -> mkArrayInfix operator a b
         _ | isTable base     -> mkTableInfix operator a b
@@ -258,9 +260,9 @@ mkTableInfix operator a b = do
     assert (typeof a == typeof b) "type mismatch"
     let typ = typeof a
 
-    lenA <- toVal =<< tableLen (toPointer a)
-    lenB <- toVal =<< tableLen (toPointer b)
-    lenEq <- mkIntInfix AST.EqEq lenA lenB
+    lenA <- pload =<< tableLen (toPointer a)
+    lenB <- tableLen (toPointer b)
+    lenEq <- intInfix AST.EqEq lenA =<< pload lenB
 
     case operator of
         AST.NotEq -> mkPrefix AST.Not =<< mkTableInfix AST.EqEq a b
@@ -273,7 +275,7 @@ mkTableInfix operator a b = do
             body <- freshName "eqeq_table_body"
 
             -- test that len(a) == len(b)
-            condBr (valOp lenEq) start exit
+            condBr (op lenEq) start exit
             emitBlockStart start
             idx <- newI64 0
             storeBasic eq =<< newBool True
@@ -281,8 +283,9 @@ mkTableInfix operator a b = do
 
             -- test that the idx < len
             emitBlockStart cond
-            idxLT <- mkIntInfix AST.LT (fromPointer idx) lenA
-            condBr (valOp idxLT) body exit
+            idxv0 <- pload idx
+            idxLT <- intInfix AST.LT idxv0 lenA
+            condBr (op idxLT) body exit
 
             -- test that a[i] == b[i]
             emitBlockStart body
@@ -290,7 +293,8 @@ mkTableInfix operator a b = do
             [columnB] <- tableColumn (toPointer b) (fromPointer idx)
             elmEq <- mkInfix AST.EqEq (fromPointer columnA) (fromPointer columnB)
             valStore (fromPointer eq) elmEq
-            valStore (fromPointer idx) =<< mkIntInfix AST.Plus (fromPointer idx) =<< toVal =<< newI64 1
+            idxv <- pload idx
+            valStore (fromPointer idx) . fromValue =<< intInfix AST.Plus idxv =<< pload =<< newI64 1
             condBr (valOp elmEq) cond exit
 
             emitBlockStart exit
@@ -306,13 +310,14 @@ valAdtNormalInfix operator a b = do
         AST.EqEq -> do
             enA <- mkAdtEnum a
             enB <- mkAdtEnum b
-            enEq <- mkIntInfix AST.EqEq enA enB
+            enAv <- toValue <$> valLoad enA
+            enEq <- intInfix AST.EqEq enAv . toValue =<< valLoad enB
 
             -- if enum isn't matched, exit
             match <- newBool False
             start <- freshName "start"
             exit <- freshName "exit"
-            condBr (valOp enEq) start exit
+            condBr (op enEq) start exit
 
             -- enum matched, match args
             emitBlockStart start

@@ -288,8 +288,9 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
             Table ts -> toVal =<< tableLen (toPointer val)
             Array n t -> toVal =<< newI64 n
             _ -> error (show base)
-        ilt <- mkIntInfix AST.LT (fromPointer idx) end
-        condBr (valOp ilt) patm exit
+        idxv0 <- pload idx
+        ilt <- intInfix AST.LT idxv0 . toValue =<< valLoad end
+        condBr (op ilt) patm exit
 
         -- match pattern (if present)
         emitBlockStart patm
@@ -311,7 +312,8 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
 
         -- increment index
         emitBlockStart incr
-        valStore (fromPointer idx) =<< mkIntInfix AST.Plus (fromPointer idx) =<< toVal =<< newI64 1
+        idxv <- pload idx
+        valStore (fromPointer idx) . fromValue =<< intInfix AST.Plus idxv =<< pload =<< newI64 1
         br cond
 
         emitBlockStart exit
@@ -404,7 +406,7 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
                 vals <- mapM cmpExpr exprs
                 assert (map typeof vals == ts) "mismatched argument types"
                 len <- pload =<< tableLen (toPointer loc)
-                tableResize (toPointer loc) =<< mkIntInfix AST.Plus (fromValue len) =<< toVal =<< newI64 1
+                tableResize (toPointer loc) . fromValue =<< intInfix AST.Plus len =<< pload =<< newI64 1
                 ptrs <- tableColumn (toPointer loc) (fromValue len)
                 forM_ (zip ptrs vals) $ \(Pointer t p, val) ->
                     storeCopy (Ptr t p) val
@@ -613,7 +615,8 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
         let is = elemIndices FieldNull fs
         assert (length is == 1) "ADT type does not have unique null field"
         let [i] = is
-        mkIntInfix AST.EqEq (mkI64 i) =<< mkAdtEnum val
+        iv <- pload =<< newI64 i
+        fmap fromValue $ intInfix AST.EqEq iv . toValue =<< mkAdtEnum val
 
     AST.PatAnnotated pat typ -> do -- a:i32
         assert (typeof val == typ) "pattern type mismatch"
@@ -719,18 +722,20 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
                     ObjType typ -> do -- Vec2(4, 3) : {Vec2 | null} 
                         i <- adtTypeField (typeof val) typ
                         assert (length pats == 1) "One pattern allowed for type field"
-                        enumMatch <- mkIntInfix AST.EqEq (mkI64 i) =<< mkAdtEnum val
+                        iv <- pload =<< newI64 i
+                        enumMatch <- intInfix AST.EqEq iv . toValue =<< mkAdtEnum val
                         adt <- newVal (typeof val)
                         storeCopy (fromPointer adt) val
                         Ptr _ loc <- adtDeref (fromPointer adt) i 0
                         ObjType t0 <- look symbol
                         b <- cmpPattern (head pats) $ Ptr t0 loc
-                        valLoad =<< mkInfix AST.AndAnd enumMatch b
+                        valLoad =<< mkInfix AST.AndAnd (fromValue enumMatch) b
 
                     ObjField i -> do
                         let FieldCtor ts = fs !! i
                         assert (length pats == length ts) "invalid ADT pattern"
-                        enumMatch <- mkIntInfix AST.EqEq (mkI64 i) =<< mkAdtEnum val
+                        iv <- pload =<< newI64 i
+                        enumMatch <- intInfix AST.EqEq iv . toValue =<< mkAdtEnum val
                         -- can't be inside a block which may or may not happen
                         -- as cmpPattern may add variables to the symbol table
                         adt <- newVal (typeof val)
@@ -738,7 +743,7 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
                         bs <- forM (zip pats [0..]) $ \(pat, j) -> do
                             cmpPattern pat =<< adtDeref (fromPointer adt) i j
 
-                        valLoad =<< foldM (mkInfix AST.AndAnd) enumMatch bs
+                        valLoad =<< foldM (mkInfix AST.AndAnd) (fromValue enumMatch) bs
 
 
     AST.PatTypeField _ typ pat -> do -- char(c)
@@ -749,8 +754,9 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
         exit  <- freshName "adt_pat_exit"
 
         matched <- newBool False 
-        enumMatch <- mkIntInfix AST.EqEq (mkI64 i) =<< mkAdtEnum val
-        condBr (valOp enumMatch) match exit
+        iv <- pload =<< newI64 i
+        enumMatch <- intInfix AST.EqEq iv . toValue =<< mkAdtEnum val
+        condBr (op enumMatch) match exit
 
         emitBlockStart match
         adt <- newVal (typeof val)
