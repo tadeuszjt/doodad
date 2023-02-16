@@ -46,6 +46,10 @@ loc :: Pointer -> LL.Operand
 loc (Pointer _ l) = l
 
 
+op :: Value2 -> LL.Operand
+op (Value2 _ o) = o
+
+
 data Value
     = Val Type LL.Operand
     | Ptr Type LL.Operand

@@ -68,8 +68,8 @@ mkConstruct typ (a:b:xs) = mkTupleConstruct typ (a:b:xs)
 mkConstruct typ [val]    = do
     base <- baseTypeOf typ
     case base of
-        _ | isIntegral base -> mkConvertNumber typ val
-        _ | isFloat base    -> mkConvertNumber typ val
+        _ | isIntegral base -> fmap fromValue $ convertNumber typ . toValue =<< valLoad val
+        _ | isFloat base    -> fmap fromValue $ convertNumber typ . toValue =<< valLoad val
 
 
 -- constuct a tuple from the arguments. Eg. Vec2(1, 2)
@@ -90,8 +90,8 @@ mkConvert typ val = do
     base <- baseTypeOf typ
     baseVal <- baseTypeOf (typeof val)
     case base of
-        _ | isIntegral base -> mkConvertNumber typ val
-        _ | isFloat base    -> mkConvertNumber typ val
+        _ | isIntegral base -> fmap fromValue $ convertNumber typ . toValue =<< valLoad val
+        _ | isFloat base    -> fmap fromValue $ convertNumber typ . toValue =<< valLoad val
         _ | baseVal == base -> do
             ptr <- newVal typ
             storeCopy (fromPointer ptr) val

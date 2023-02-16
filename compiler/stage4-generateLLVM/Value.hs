@@ -49,9 +49,8 @@ fromPointer (Pointer t p) = Ptr t p
 
 
 toVal :: InsCmp CompileState m => Pointer -> m Value 
-toVal (Pointer t loc) = do 
-    assertBaseType isSimple t
-    valLoad (Ptr t loc)
+toVal ptr = 
+    fromValue <$> pload ptr
 
 
 toType :: InsCmp CompileState m => Type -> Pointer -> m Pointer
@@ -97,14 +96,6 @@ newFloat typ f = do
             return $ Pointer typ p
 
 
-mkInt :: InsCmp CompileState m => Integral i => Type -> i -> m Value
-mkInt typ n = trace "mkInt" $ do
-    base <- assertBaseType isInt typ
-    return $ Val typ $ case base of
-        I8  -> int8 (fromIntegral n)
-        I32 -> int32 (fromIntegral n)
-        I64 -> int64 (fromIntegral n)
-
 mkEnum :: InsCmp CompileState m => Integral i => Type -> i -> m Value
 mkEnum typ n = do
     assertBaseType (== Enum) typ
@@ -133,7 +124,8 @@ mkZero typ = trace ("mkZero " ++ show  typ) $ do
     namem <- Map.lookup typ <$> gets typeNameMap
     base <- baseTypeOf typ
     case base of
-        _ | isInt base     -> mkInt typ 0
+        I64                -> return $ Val typ (int64 0)
+        I32                -> return $ Val typ (int32 0)
         F32                -> return $ Val typ (single 0.0)
         F64                -> return $ Val typ (double 0.0)
         Enum               -> return $ Val typ (int64 0)
@@ -178,12 +170,18 @@ mkRangeEnd val = do
         Val _ op  -> extractValue op [1]
 
 
-mkConvertNumber :: InsCmp CompileState m => Type -> Value -> m Value
-mkConvertNumber typ val = do
-    op <- valOp <$> valLoad val
+pload :: InsCmp CompileState m => Pointer -> m Value2
+pload ptr = do
+    assertBaseType isSimple (typeof ptr)
+    Value2 (typeof ptr) <$> load (loc ptr) 0
+
+
+convertNumber :: InsCmp CompileState m => Type -> Value2 -> m Value2
+convertNumber typ val = do
+    op <- return (op val)
     base <- baseTypeOf typ
     baseVal <- baseTypeOf (typeof val)
-    fmap (Val typ) $ case (base, baseVal) of
+    fmap (Value2 typ) $ case (base, baseVal) of
         (I64,  I64) -> return op
         (I32,  I64) -> trunc op LL.i32
         (I16,  I64) -> trunc op LL.i16
@@ -308,7 +306,7 @@ mkPrefix operator val = do
     Val typ <$> case base of
         _ | isInt base -> case operator of
             AST.Plus -> return op
-            AST.Minus -> mkInt typ 0 >>= \zero -> sub (valOp zero) op
+            AST.Minus -> mkZero typ >>= \zero -> valOp <$> mkIntInfix AST.Minus zero val
 
         _ | isFloat base -> case operator of
             AST.Plus -> return op

@@ -403,14 +403,16 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
             Table ts -> do
                 vals <- mapM cmpExpr exprs
                 assert (map typeof vals == ts) "mismatched argument types"
-                len <- toVal =<< tableLen (toPointer loc)
-                tableResize (toPointer loc) =<< mkIntInfix AST.Plus len =<< toVal =<< newI64 1
-                ptrs <- tableColumn (toPointer loc) len
+                len <- pload =<< tableLen (toPointer loc)
+                tableResize (toPointer loc) =<< mkIntInfix AST.Plus (fromValue len) =<< toVal =<< newI64 1
+                ptrs <- tableColumn (toPointer loc) (fromValue len)
                 forM_ (zip ptrs vals) $ \(Pointer t p, val) ->
                     storeCopy (Ptr t p) val
-                mkConvertNumber exprType len
+                fromValue <$> convertNumber exprType len
 
-            Sparse ts -> mkConvertNumber exprType =<< sparsePush (toPointer loc) =<< mapM cmpExpr exprs
+            Sparse ts -> do 
+                n <- valLoad =<< sparsePush (toPointer loc) =<< mapM cmpExpr exprs
+                fmap fromValue $ convertNumber exprType (toValue n)
 
 
     AST.Builtin pos [expr] "pop" [] -> do
@@ -439,7 +441,7 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
     AST.Int p n -> do
         base <- baseTypeOf exprType
         case base of
-            _ | isInt base   -> mkInt exprType n
+            _ | isInt base   -> fmap fromValue $ convertNumber exprType =<< pload =<< newI64 n
             _ | isFloat base -> toVal =<< newFloat exprType (fromIntegral n)
             _ | base == Char -> toVal =<< toType exprType =<< newChar (chr $ fromIntegral n)
             _ | otherwise    -> fail $ "invalid base type of: " ++ show base
@@ -519,8 +521,8 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
         val <- cmpExpr expr
         base <- baseTypeOf (typeof val)
         case base of
-            Table _   -> mkConvertNumber exprType =<< toVal =<< tableLen (toPointer val)
-            Array n t -> mkConvertNumber exprType =<< toVal =<< newI64 n
+            Table _   -> fmap fromValue $ convertNumber exprType =<< pload =<< tableLen (toPointer val)
+            Array n t -> fmap fromValue $ convertNumber exprType =<< pload =<< newI64 n
             _       -> fail ("cannot take length of type " ++ show (typeof val))
 
     AST.Tuple pos exprs -> do
@@ -588,9 +590,9 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
             _ -> error $ show base
 
     AST.Builtin pos [] "unsafe_ptr_from_int" [expr] -> do
-        val <- mkConvertNumber I64 =<< cmpExpr expr
+        val <- convertNumber I64 . toValue =<< valLoad =<< cmpExpr expr
         assertBaseType (== UnsafePtr) exprType
-        Val exprType <$> inttoptr (valOp val) (LL.ptr LL.VoidType)
+        Val exprType <$> inttoptr (op val) (LL.ptr LL.VoidType)
 
     _ -> fail ("invalid expression: " ++ show expr)
     where
