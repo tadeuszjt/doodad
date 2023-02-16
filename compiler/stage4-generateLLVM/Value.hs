@@ -286,15 +286,16 @@ advancePointer (Pointer t p) idx = do
 
 
 
-valMemCpy :: InsCmp CompileState m => Value -> Value -> Value -> m ()
-valMemCpy (Ptr dstTyp dst) (Ptr srcTyp src) len = trace "valMemCpy" $ do
-    assert (dstTyp == srcTyp) "Types do not match"
-    assertBaseType isInt (valType len)
+memCpy :: InsCmp CompileState m => Pointer -> Pointer -> Pointer -> m ()
+memCpy (Pointer dstTyp dst) (Pointer srcTyp src) len = trace "valMemCpy" $ do
+    True <- return (dstTyp == srcTyp)
+    I64 <- baseTypeOf (typeof len)
 
+    Val I64 siz <- sizeOf dstTyp
+    lop <- load (loc len) 0
     pDstI8 <- bitcast dst (LL.ptr LL.i8)
     pSrcI8 <- bitcast src (LL.ptr LL.i8)
-
-    void $ memcpy pDstI8 pSrcI8 . valOp =<< mkIntInfix AST.Times len =<< sizeOf dstTyp
+    void $ memcpy pDstI8 pSrcI8 =<< mul siz lop
 
 
 mkPrefix :: InsCmp CompileState m => AST.Operator -> Value -> m Value

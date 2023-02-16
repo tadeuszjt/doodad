@@ -297,7 +297,7 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
             Nothing -> toVal =<< newBool True
             Just pat -> case base of
                 Table ts -> do
-                    [Pointer t p] <- tableColumn val (fromPointer idx)
+                    [Pointer t p] <- tableColumn (toPointer val) (fromPointer idx)
                     cmpPattern pat (Ptr t p)
                 Range I64 -> cmpPattern pat (fromPointer idx)
                 Array n t -> cmpPattern pat =<< ptrArrayGetElem val (fromPointer idx)
@@ -405,7 +405,7 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
                 assert (map valType vals == ts) "mismatched argument types"
                 len <- toVal =<< tableLen (toPointer loc)
                 tableResize loc =<< mkIntInfix AST.Plus len =<< toVal =<< newI64 1
-                ptrs <- tableColumn loc len
+                ptrs <- tableColumn (toPointer loc) len
                 forM_ (zip ptrs vals) $ \(Pointer t p, val) ->
                     storeCopy (Ptr t p) val
                 mkConvertNumber exprType len
@@ -476,15 +476,14 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
             
     AST.String pos s -> do
         base <- baseTypeOf exprType
-        ptr <- getStringPointer s
         case base of
             Table [Char] -> do
                 tab <- newVal exprType
                 cap <- tableCap tab
+                len <- tableLen tab
                 storeBasic cap =<< newI64 (length s)
-
-                tableSetLen (fromPointer tab) =<< toVal =<< newI64 (length s)
-                tableSetRow (fromPointer tab) 0 $ Ptr Char ptr
+                storeBasic len =<< newI64 (length s)
+                tableSetRow tab 0 . Pointer Char =<< getStringPointer s
                 return (fromPointer tab)
             _ -> fail (show base)
                 
@@ -542,12 +541,12 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
         base <- baseTypeOf (valType val)
         case base of
             Table _   -> do
-                [Pointer t p] <- tableColumn val idx
+                [Pointer t p] <- tableColumn (toPointer val) idx
                 return $ Ptr t p
             Array _ _ -> ptrArrayGetElem val idx
             Sparse _  -> do
                 table <- ptrSparseTable val
-                [Pointer t p] <- tableColumn table idx
+                [Pointer t p] <- tableColumn (toPointer table) idx
                 return $ Ptr t p
             Map _ _ -> do 
                 error "here" 
@@ -583,7 +582,7 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
         base <- baseTypeOf (valType val)
         case base of
             Table [Char] -> do
-                [Pointer _ p] <- tableColumn val =<< toVal =<< newI64 0
+                [Pointer _ p] <- tableColumn (toPointer val) =<< toVal =<< newI64 0
                 Val UnsafePtr <$> bitcast p (LL.ptr LL.VoidType)
 
             _ -> error $ show base
@@ -654,7 +653,7 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
 
                 assert (length ts == 1) "patterns don't support multiple rows (yet)"
                 bs <- forM (zip pats [0..]) $ \(pat, i) -> do
-                    [Pointer t p] <- tableColumn val =<< toVal =<< newI64 i
+                    [Pointer t p] <- tableColumn (toPointer val) =<< toVal =<< newI64 i
                     cmpPattern pat (Ptr t p)
 
                 true <- toType (valType lenEq) =<< newBool True
@@ -691,7 +690,7 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
 
                 emitBlockStart cond
                 bs <- forM [0.. rowLen - 1] $ \i -> do
-                    ptrs <- tableColumn val =<< toVal =<< newI64 i
+                    ptrs <- tableColumn (toPointer val) =<< toVal =<< newI64 i
                     let patc = map (!! i) patss
                     bs <- forM (zip ptrs patc) $ \(Pointer t p, pat) -> cmpPattern pat (Ptr t p)
                     foldM (mkInfix AST.AndAnd) (fromPointer true) bs

@@ -54,7 +54,7 @@ sparsePush val elems = do
         popStackCase stack ret = do
             [idx] <- mkTablePop stack
             table <- ptrSparseTable val
-            column <- tableColumn table idx
+            column <- tableColumn (toPointer table) idx
             forM_ (zip column elems) $ \(Pointer t p, elem) -> valStore (Ptr t p) elem
             valStore (fromPointer ret) idx
             
@@ -63,7 +63,7 @@ sparsePush val elems = do
             table <- ptrSparseTable val
             len <- toVal =<< tableLen (toPointer table)
             tableResize table =<< mkIntInfix AST.Plus len =<< toVal =<< newI64 1
-            ptrs <- tableColumn table len
+            ptrs <- tableColumn (toPointer table) len
             forM_ (zip ptrs elems) $ \(Pointer t p, e) ->
                 valStore (Ptr t p) e
             valStore (fromPointer ret) len 
@@ -73,7 +73,7 @@ sparseDelete :: InsCmp CompileState m => Value -> Value -> m ()
 sparseDelete val idx = do
     Sparse ts <- assertBaseType isSparse (valType val)
     table <- ptrSparseTable val
-    ptrs <- tableColumn table idx
+    ptrs <- tableColumn (toPointer table) idx
     forM_ ptrs $ \ptr -> do
         storeBasic ptr =<< newVal (typeof ptr)
 
@@ -86,6 +86,6 @@ sparseDelete val idx = do
             stack <- ptrSparseStack val
             len <- toVal =<< tableLen (toPointer stack)
             tableResize stack =<< mkIntInfix AST.Plus len =<< toVal =<< newI64 1
-            [Pointer t p] <- tableColumn stack len
+            [Pointer t p] <- tableColumn (toPointer stack) len
             valStore (Ptr t p) idx
     
