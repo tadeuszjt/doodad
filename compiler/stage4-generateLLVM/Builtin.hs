@@ -130,7 +130,12 @@ mkInfix operator a b = withErrorPrefix "infix: " $ do
     assert (valType a == valType b) "type mismatch"
     base <- baseTypeOf (valType a)
     case base of
-        Bool                 -> mkBoolInfix operator a b
+        Bool                 -> do 
+            ap <- newVal (valType a)
+            bp <- newVal (valType b)
+            valStore (fromPointer ap) a
+            valStore (fromPointer bp) b
+            valLoad =<< fromPointer <$> boolInfix operator ap bp
         Char                 -> mkIntInfix operator a b
         Enum                 -> mkEnumInfix operator a b
         _ | isRange base     -> mkRangeInfix operator a b
@@ -167,7 +172,7 @@ mkRangeInfix operator a b = do
             endB   <- mkRangeEnd b
             startEq <- mkInfix AST.EqEq startA startB
             endEq   <- mkInfix AST.EqEq endA endB
-            mkBoolInfix AST.AndAnd startEq endEq
+            Val Bool <$> and (valOp startEq) (valOp endEq)
 
 
 mkArrayInfix :: InsCmp CompileState m => AST.Operator -> Value -> Value -> m Value

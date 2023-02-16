@@ -479,13 +479,13 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
         ptr <- getStringPointer s
         case base of
             Table [Char] -> do
-                tab <- mkAlloca exprType
-                cap <- tableCap (Pointer (valType tab) (valLoc tab))
+                tab <- newVal exprType
+                cap <- tableCap tab
                 storeBasic cap =<< newI64 (length s)
 
-                tableSetLen tab =<< toVal =<< newI64 (length s)
-                tableSetRow tab 0 $ Ptr Char ptr
-                return tab
+                tableSetLen (fromPointer tab) =<< toVal =<< newI64 (length s)
+                tableSetRow (fromPointer tab) 0 $ Ptr Char ptr
+                return (fromPointer tab)
             _ -> fail (show base)
                 
 
@@ -496,9 +496,9 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
         -- TODO this calls alloca on values...
         psLocs <- forM ps $ \val -> case val of
             Val _ op -> do 
-                local <- mkAlloca (valType val)
-                valStore local val
-                return $ valLoc local
+                local <- newVal (valType val)
+                valStore (fromPointer local) val
+                return $ loc local
             Ptr _ loc -> return loc
 
         asOps <- map valOp <$> mapM valLoad as
@@ -530,7 +530,7 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
         assert (ts == map valType vals) $
             "Incorrect val types: " ++ show ts ++ ", " ++ show (map valType vals)
 
-        tup <- mkAlloca exprType
+        tup <- mkAlloca exprType -- LEAVE THIS
         forM_ (zip vals [0..]) $ \(v, i) -> do
             ptr <- ptrTupleIdx i tup
             valStore ptr v
@@ -567,11 +567,11 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
             Array n t -> do
                 vals <- mapM cmpExpr exprs
                 assert (length vals == n) "Invalid array length"
-                arr <- mkAlloca exprType
+                arr <- newVal exprType
                 forM_ (zip vals [0..]) $ \(val, i) -> do
-                    ptr <- ptrArrayGetElemConst arr i
+                    ptr <- ptrArrayGetElemConst (fromPointer arr) i
                     valStore ptr val
-                return arr
+                return (fromPointer arr)
 
             _ -> fail $ "invalid initialiser base type: " ++ show base
 
@@ -628,9 +628,9 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
         base <- baseTypeOf (valType val)
         isDataType <- isDataType (valType val)
         assert (not isDataType) "Cannot assign a data type to a normal variale"
-        loc <- mkAlloca (valType val)
-        valStore loc val
-        define symbol (ObjVal loc)
+        loc <- newVal (valType val)
+        valStore (fromPointer loc) val
+        define symbol (ObjVal $ fromPointer loc)
         toVal =<< newBool True
 
     AST.PatTuple _ pats -> do -- (a, b)
@@ -719,9 +719,9 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
                         i <- adtTypeField (valType val) typ
                         assert (length pats == 1) "One pattern allowed for type field"
                         enumMatch <- mkIntInfix AST.EqEq (mkI64 i) =<< mkAdtEnum val
-                        adt <- mkAlloca (valType val)
-                        storeCopy adt val
-                        Ptr _ loc <- adtDeref adt i 0
+                        adt <- newVal (valType val)
+                        storeCopy (fromPointer adt) val
+                        Ptr _ loc <- adtDeref (fromPointer adt) i 0
                         ObjType t0 <- look symbol
                         b <- cmpPattern (head pats) $ Ptr t0 loc
                         valLoad =<< mkInfix AST.AndAnd enumMatch b
@@ -732,10 +732,10 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
                         enumMatch <- mkIntInfix AST.EqEq (mkI64 i) =<< mkAdtEnum val
                         -- can't be inside a block which may or may not happen
                         -- as cmpPattern may add variables to the symbol table
-                        adt <- mkAlloca (valType val)
-                        storeCopy adt val
+                        adt <- newVal (valType val)
+                        storeCopy (fromPointer adt) val
                         bs <- forM (zip pats [0..]) $ \(pat, j) -> do
-                            cmpPattern pat =<< adtDeref adt i j
+                            cmpPattern pat =<< adtDeref (fromPointer adt) i j
 
                         valLoad =<< foldM (mkInfix AST.AndAnd) enumMatch bs
 
@@ -747,19 +747,18 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
         match <- freshName "adt_pat_match"
         exit  <- freshName "adt_pat_exit"
 
-        matched <- mkAlloca Bool
-        storeBasic (toPointer matched) =<< newBool False
+        matched <- newBool False 
         enumMatch <- mkIntInfix AST.EqEq (mkI64 i) =<< mkAdtEnum val
         condBr (valOp enumMatch) match exit
 
         emitBlockStart match
-        adt <- mkAlloca (valType val)
-        storeCopy adt val
-        valStore matched =<< cmpPattern pat =<< adtDeref adt i 0
+        adt <- newVal (valType val)
+        storeCopy (fromPointer adt) val
+        valStore (fromPointer matched) =<< cmpPattern pat =<< adtDeref (fromPointer adt) i 0
         br exit
 
         emitBlockStart exit
-        valLoad matched
+        toVal matched
 
                     
 cmpPrint :: InsCmp CompileState m => AST.Stmt -> m ()

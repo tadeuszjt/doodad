@@ -1,0 +1,8 @@
+module testMap
+
+fn testMapInit()
+    data m map[i64]bool
+
+fn testMap()
+    testMapInit()
+    print("testMap passed")

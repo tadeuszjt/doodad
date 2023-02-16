@@ -56,7 +56,7 @@ mkTable typ initialLen = do
 
     mal <- mkMalloc I8 (Ptr I64 $ loc siz)
     forM_ (zip3 ts idxs [0..]) $ \(t, idx, i) -> do
-        Ptr _ pi8 <- ptrIdx mal idx
+        Pointer _ pi8 <- advancePointer (toPointer mal) idx
         ptr <- fmap (Ptr t) $ bitcast pi8 =<< LL.ptr <$> opTypeOf t
         tableSetRow (Ptr typ $ loc tab) i ptr
 

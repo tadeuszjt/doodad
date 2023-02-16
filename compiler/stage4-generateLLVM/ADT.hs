@@ -28,9 +28,9 @@ mkAdtNull :: InsCmp CompileState m => Type -> m Value
 mkAdtNull typ = do
     ADT fs <- assertBaseType isADT typ
     assert (elem FieldNull fs) "ADT does not have a null field"
-    adt <- mkAlloca typ
-    adtSetEnum adt $ fromJust $ elemIndex FieldNull fs
-    return adt
+    adt <- newVal typ
+    adtSetEnum (fromPointer adt) $ fromJust $ elemIndex FieldNull fs
+    return (fromPointer adt)
 
 
 

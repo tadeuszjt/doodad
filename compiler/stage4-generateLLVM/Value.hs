@@ -114,7 +114,7 @@ mkRange start end = do
     isDataType <- isDataType (valType start)
     assert (not isDataType) "simple types so valLoad is mk"
 
-    range    <- mkAlloca $ Range (valType start)
+    range    <- mkAlloca $ Range (valType start) -- LEAVE THIS ONE FOR NOW
     startDst <- ptrRangeStart range
     endDst   <- ptrRangeEnd range
 
@@ -285,13 +285,6 @@ advancePointer (Pointer t p) idx = do
     Pointer t <$> gep p [op]
 
 
-ptrIdx :: InsCmp CompileState m => Value -> Value -> m Value
-ptrIdx (Ptr typ loc) idx = trace ("valPtrIdx " ++ show typ) $ do
-    assertBaseType (== I64) (valType idx)
-    op <- valOp <$> valLoad idx
-    Ptr typ <$> gep loc [op]
-
-
 
 valMemCpy :: InsCmp CompileState m => Value -> Value -> Value -> m ()
 valMemCpy (Ptr dstTyp dst) (Ptr srcTyp src) len = trace "valMemCpy" $ do
@@ -365,14 +358,18 @@ mkFloatInfix operator a b = do
         _        -> error ("float infix: " ++ show operator)
 
 
-mkBoolInfix :: InsCmp CompileState m => AST.Operator -> Value -> Value -> m Value
-mkBoolInfix operator a b = do
-    assert (valType a == valType b) "Left side type does not match right side"
-    let typ = valType a
-    opA <- valOp <$> valLoad a
-    opB <- valOp <$> valLoad b
-    case operator of
-        AST.OrOr   -> Val typ <$> or opA opB
-        AST.AndAnd -> Val typ <$> and opA opB
-        AST.EqEq   -> Val typ <$> icmp P.EQ opA opB
+boolInfix :: InsCmp CompileState m => AST.Operator -> Pointer -> Pointer -> m Pointer
+boolInfix operator a b = do
+    Bool <- baseTypeOf (typeof a)
+    True <- return $ typeof a == typeof b
+
+    ret <- newVal Bool
+    opA <- load (loc a) 0
+    opB <- load (loc b) 0
+    op <- case operator of
+        AST.OrOr   -> or opA opB
+        AST.AndAnd -> and opA opB
+        AST.EqEq   -> icmp P.EQ opA opB
         _        -> error ("bool infix: " ++ show operator)
+    store (loc ret) 0 op
+    return ret
