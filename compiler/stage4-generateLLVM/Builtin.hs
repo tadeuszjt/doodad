@@ -38,26 +38,23 @@ import Array
 
 
 -- guarantees an equivalent value in a different memory location
-storeCopy :: InsCmp CompileState m => Value -> Value -> m ()
+storeCopy :: InsCmp CompileState m => Pointer -> Value -> m ()
 storeCopy ptr val = withErrorPrefix "storeCopy: " $ do
-    assert (isPtr ptr) "ptr isnt pointer"
     base <- baseTypeOf (typeof ptr)
     baseVal <- baseTypeOf (typeof val)
     assert (base == baseVal) $
         "ptr type: " ++ show (typeof ptr) ++ " does not match val type: " ++ show (typeof val)
     case base of
-        _ | isSimple base -> valStore ptr val
+        _ | isSimple base -> valStore (fromPointer ptr) val
         Tuple ts -> do
             bs <- mapM isDataType ts
             assert (all (==False) bs) "no data types allowed"
-            valStore ptr val
+            valStore (fromPointer ptr) val
         ADT fs -> do
             assertBaseType isADT (typeof ptr)
             isDataType <- isDataType (typeof ptr)
             assert (not isDataType) "ptr is data type"
-            valStore ptr val
-            
-
+            valStore (fromPointer ptr) val
         _ -> fail (show base)
 
 
@@ -80,24 +77,25 @@ mkTupleConstruct typ vals = trace "tupleConstruct" $ do
     assert (length vals == length ts) "tuple length mismatch"
     forM_ (zip vals [0..]) $ \(val, i) -> do
         ptr <- tupleIdx i tup
-        storeCopy (fromPointer ptr) val
+        storeCopy ptr val
     return (fromPointer tup)
 
 
 -- convert the value into a new value corresponding to the type
-mkConvert :: InsCmp CompileState m => Type -> Value -> m Value
-mkConvert typ val = do
+newConvert :: InsCmp CompileState m => Type -> Value -> m Pointer
+newConvert typ val = do
     base <- baseTypeOf typ
     baseVal <- baseTypeOf (typeof val)
+    ptr <- newVal typ
     case base of
-        _ | isIntegral base -> fmap fromValue $ convertNumber typ . toValue =<< valLoad val
-        _ | isFloat base    -> fmap fromValue $ convertNumber typ . toValue =<< valLoad val
+        _ | isIntegral base -> do 
+            storeBasicVal ptr =<< convertNumber typ . toValue =<< valLoad val
+        _ | isFloat base    -> do 
+            storeBasicVal ptr =<< convertNumber typ . toValue =<< valLoad val
         _ | baseVal == base -> do
-            ptr <- newVal typ
-            storeCopy (fromPointer ptr) val
-            return (fromPointer ptr)
+            storeCopy ptr val
         _ -> fail ("valConvert " ++ show base)
-
+    return ptr
 
 
 mkMin :: InsCmp CompileState m => Value -> Value -> m Value
@@ -127,7 +125,7 @@ mkMax a b = withErrorPrefix "min: " $ do
 -- any infix expression
 mkInfix :: InsCmp CompileState m => AST.Operator -> Value -> Value -> m Value
 mkInfix operator a b = withErrorPrefix "infix: " $ do
-    assert (typeof a == typeof b) "type mismatch"
+    assert (typeof a == typeof b) $ "type mismatch: " ++ show (typeof a, typeof b)
     base <- baseTypeOf (typeof a)
     case base of
         Bool                 -> do 

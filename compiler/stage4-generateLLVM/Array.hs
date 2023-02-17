@@ -18,10 +18,9 @@ ptrArrayGetElemConst arr idx = do
     Ptr t <$> gep (valLoc arr) [int32 0, int32 $ fromIntegral idx]
 
 
-ptrArrayGetElem :: InsCmp CompileState m => Value -> Value -> m Value
-ptrArrayGetElem arr idx = do
-    Array n t <- assertBaseType isArray (typeof arr)
+arrayGetElem :: InsCmp CompileState m => Pointer -> Value2 -> m Pointer
+arrayGetElem arr idx = do
+    Array n t <- baseTypeOf (typeof arr)
     assertBaseType isIntegral (typeof idx)
-    idxOp <- valOp <$> valLoad idx
-    Ptr t <$> gep (valLoc arr) [int32 0, idxOp]
+    Pointer t <$> gep (loc arr) [int32 0, op idx]
 

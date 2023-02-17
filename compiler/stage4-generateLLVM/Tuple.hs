@@ -39,10 +39,8 @@ tupleIdx i tuple = withErrorPrefix "tuple idx: " $ do
     Pointer (ts !! i) <$> gep (loc tuple) [int32 0, int32 $ fromIntegral i]
 
 
-valTupleIdx :: InsCmp CompileState m => Int -> Value -> m Value
+valTupleIdx :: InsCmp CompileState m => Int -> Value2 -> m Value2
 valTupleIdx i tup = do
-    Tuple ts <- assertBaseType isTuple (typeof tup)
+    Tuple ts <- baseTypeOf (typeof tup)
     assert (i >= 0 && i < length ts) "tuple index out of range"
-    Val (ts !! i) <$> case tup of
-        Val _ op  -> extractValue op [fromIntegral $ i]
-        Ptr _ loc -> (flip load) 0 =<< gep loc [int32 0, int32 $ fromIntegral i]
+    Value2 (ts !! i) <$> extractValue (op tup) [fromIntegral i]

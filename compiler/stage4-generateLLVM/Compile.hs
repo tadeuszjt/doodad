@@ -221,8 +221,8 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
 
     AST.Set pos expr1 expr2 -> do
         label "set"
-        loc@(Ptr _ _) <- cmpExpr expr1
-        storeCopy loc =<< cmpExpr expr2
+        loc <- cmpExpr expr1
+        storeCopy (toPointer loc) =<< cmpExpr expr2
 
     AST.Return pos Nothing -> do
         label "return"
@@ -301,7 +301,7 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
                     [Pointer t p] <- tableColumn (toPointer val) =<< pload idx
                     cmpPattern pat (Ptr t p)
                 Range I64 -> cmpPattern pat (fromPointer idx)
-                Array n t -> cmpPattern pat =<< ptrArrayGetElem val (fromPointer idx)
+                Array n t -> cmpPattern pat . fromPointer =<< arrayGetElem (toPointer val) =<< pload idx
                 _ -> error (show base)
         condBr (valOp patMatch) body exit
         
@@ -343,19 +343,19 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
     AST.Match pos expr pat       -> cmpPattern pat =<< cmpExpr expr
 
     AST.Conv pos typ [expr]      -> do
-        val <- mkConvert typ =<< cmpExpr expr
+        val <- newConvert typ =<< cmpExpr expr
         base <- baseTypeOf exprType
         case base of
             _ | exprType == typeof val -> do -- char(3):char
                 loc <- newVal exprType
-                storeCopy (fromPointer loc) val
+                storeCopy loc (fromPointer val)
                 return (fromPointer loc)
             ADT xs | FieldType typ `elem` xs -> do    -- char(3):{char | null}
                 i <- adtTypeField exprType typ
                 adt <- newVal exprType
                 adtSetEnum (fromPointer adt) i
                 ptr <- ptrAdtField (fromPointer adt) i
-                storeCopy ptr val
+                storeCopy (toPointer ptr) (fromPointer val)
                 return (fromPointer adt)
 
             _ -> fail $ "cannot convert to type: " ++ show exprType
@@ -406,8 +406,7 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
                 len <- pload =<< tableLen (toPointer loc)
                 tableResize (toPointer loc) =<< intInfix AST.Plus len =<< pload =<< newI64 1
                 ptrs <- tableColumn (toPointer loc) len
-                forM_ (zip ptrs vals) $ \(Pointer t p, val) ->
-                    storeCopy (Ptr t p) val
+                zipWithM_ storeCopy ptrs vals
                 fromValue <$> convertNumber exprType len
 
             Sparse ts -> do 
@@ -419,7 +418,7 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
         val <- cmpExpr expr
         [v] <- mkTablePop (toPointer val)
         loc <- newVal exprType
-        storeCopy (fromPointer loc) v
+        storeCopy loc v
         return (fromPointer loc)
 
     AST.Builtin pos [expr] "clear" [] -> do
@@ -539,17 +538,15 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
 
     AST.Subscript pos expr idxExpr -> withErrorPrefix "subscript: " $ do
         val <- cmpExpr expr
-        idx <- cmpExpr idxExpr
+        idx <- toValue <$> (valLoad =<< cmpExpr idxExpr)
         base <- baseTypeOf (typeof val)
         case base of
-            Table _   -> do
-                [Pointer t p] <- tableColumn (toPointer val) . toValue =<< valLoad idx
-                return $ Ptr t p
-            Array _ _ -> ptrArrayGetElem val idx
+            Table _   -> (\[x] -> fromPointer x) <$> tableColumn (toPointer val) idx
+            Array _ _ -> fromPointer <$> arrayGetElem (toPointer val) idx
             Sparse _  -> do
                 table <- sparseTable (toPointer val)
-                [Pointer t p] <- tableColumn table . toValue =<< valLoad idx
-                return $ Ptr t p
+                [ptr] <- tableColumn table idx
+                return $ fromPointer ptr
             Map _ _ -> do 
                 error "here" 
                 
@@ -557,8 +554,8 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
             Range t -> do
                 start <- rangeStart (toPointer val)
                 end <- rangeEnd (toPointer val)
-                idxGtEqStart <- mkInfix AST.GTEq idx . fromValue =<< pload start
-                idxLtEnd <- mkInfix AST.LT idx . fromValue =<< pload end
+                idxGtEqStart <- mkInfix AST.GTEq (fromValue idx) . fromValue =<< pload start
+                idxLtEnd <- mkInfix AST.LT (fromValue idx) . fromValue =<< pload end
                 assertBaseType (== Bool) exprType
                 Val exprType <$> LL.and (valOp idxLtEnd) (valOp idxGtEqStart)
                 
@@ -577,15 +574,14 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
             _ -> fail $ "invalid initialiser base type: " ++ show base
 
     AST.Builtin pos [expr] "unsafe_ptr" [] -> do
-        val <- cmpExpr expr
-
+        val <- toPointer <$> cmpExpr expr
         let UnsafePtr = exprType
         --assertBaseType (== t) (typeof val)
         base <- baseTypeOf (typeof val)
         case base of
             Table [Char] -> do
-                [Pointer _ p] <- tableColumn (toPointer val) =<< pload =<< newI64 0
-                Val UnsafePtr <$> bitcast p (LL.ptr LL.VoidType)
+                [elm] <- tableColumn val =<< pload =<< newI64 0
+                Val UnsafePtr <$> bitcast (loc elm) (LL.ptr LL.VoidType)
 
             _ -> error $ show base
 
@@ -631,7 +627,7 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
         isDataType <- isDataType (typeof val)
         assert (not isDataType) "Cannot assign a data type to a normal variale"
         loc <- newVal (typeof val)
-        valStore (fromPointer loc) val
+        storeBasicVal loc . toValue =<< valLoad val
         define symbol (ObjVal $ fromPointer loc)
         toVal =<< newBool True
 
@@ -640,7 +636,7 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
         assert (len == length pats) "incorrect tuple length"
 
         bs <- forM (zip pats [0..]) $ \(p, i) ->
-            cmpPattern p =<< valTupleIdx i val
+            cmpPattern p . fromValue =<< valTupleIdx i . toValue =<< valLoad val
 
         true <- newBool True
         foldM (mkInfix AST.AndAnd) (fromPointer true) bs
@@ -723,7 +719,7 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
                         iv <- pload =<< newI64 i
                         enumMatch <- intInfix AST.EqEq iv . toValue =<< mkAdtEnum val
                         adt <- newVal (typeof val)
-                        storeCopy (fromPointer adt) val
+                        storeCopy adt val
                         Ptr _ loc <- adtDeref (fromPointer adt) i 0
                         ObjType t0 <- look symbol
                         b <- cmpPattern (head pats) $ Ptr t0 loc
@@ -737,7 +733,7 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
                         -- can't be inside a block which may or may not happen
                         -- as cmpPattern may add variables to the symbol table
                         adt <- newVal (typeof val)
-                        storeCopy (fromPointer adt) val
+                        storeCopy adt val
                         bs <- forM (zip pats [0..]) $ \(pat, j) -> do
                             cmpPattern pat =<< adtDeref (fromPointer adt) i j
 
@@ -758,7 +754,7 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
 
         emitBlockStart match
         adt <- newVal (typeof val)
-        storeCopy (fromPointer adt) val
+        storeCopy adt val
         valStore (fromPointer matched) =<< cmpPattern pat =<< adtDeref (fromPointer adt) i 0
         br exit
 

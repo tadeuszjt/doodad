@@ -26,7 +26,7 @@ import Error
 valPrint :: InsCmp CompileState m => String -> Value -> m ()
 valPrint append val = withErrorPrefix "valPrint " $ case typeof val of
     t | isInt t   -> void . printf ("%ld" ++ append) . (:[]) . valOp =<< valLoad val
-    t | isFloat t -> void . printf ("%f" ++ append) . (:[]) . valOp =<< mkConvert F64 val
+    t | isFloat t -> void . printf ("%f" ++ append) . (:[]) . op =<< pload =<< newConvert F64 val
     Char          -> void . printf ("%c" ++ append) . (:[]) . valOp =<< valLoad val
 
     UnsafePtr -> void . printf ("%p" ++ append) . (:[]) . valOp =<< valLoad val
@@ -46,7 +46,7 @@ valPrint append val = withErrorPrefix "valPrint " $ case typeof val of
         printf "(" []
         forM_ (zip ts [0..]) $ \(t, i) -> do
             let app = if i < length ts - 1 then ", " else ""
-            valPrint app =<< valTupleIdx i val
+            valPrint app . fromValue =<< valTupleIdx i . toValue =<< valLoad val
         void $ printf (")" ++ append) []
 
     Range t -> do
