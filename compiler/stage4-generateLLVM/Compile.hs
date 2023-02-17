@@ -267,7 +267,7 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
     AST.For _ expr mpat blk -> do
         label "for"
         val <- cmpExpr expr
-        base <- baseTypeOf (typeof val)
+        base <- baseTypeOf val
 
         idx <- newI64 0
         when (isRange base) $ do
@@ -371,7 +371,7 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
         fromPointer <$> newRange start end
     AST.Range pos (Just expr) margStart margEnd -> do
         val <- cmpExpr expr
-        base <- baseTypeOf (typeof val)
+        base <- baseTypeOf val
 
         -- default 0 because all types index 0
         startVal <- case base of
@@ -393,7 +393,7 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
 
     AST.Builtin pos [expr] "push" [] -> do
         loc <- cmpExpr expr
-        base <- baseTypeOf (typeof loc)
+        base <- baseTypeOf loc
         val <- newVal exprType
         case base of
             Table ts  -> storeBasicVal val =<< tablePush (toPointer loc) []
@@ -402,7 +402,7 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
 
     AST.Builtin pos [expr] "push" exprs -> do
         loc <- cmpExpr expr
-        base <- baseTypeOf (typeof loc)
+        base <- baseTypeOf loc
         val <- newVal exprType
         case base of
             Table ts -> do
@@ -437,7 +437,7 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
         assert (exprType == Void) "delete returns void"
         val <- cmpExpr expr1
         arg <- cmpExpr expr2
-        base <- baseTypeOf (typeof val)
+        base <- baseTypeOf val
         case base of
             Sparse ts -> sparseDelete (toPointer val) . toValue =<< valLoad arg
             Table ts  -> tableDelete (toPointer val) . toValue =<< valLoad arg
@@ -527,7 +527,7 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
     AST.Builtin pos [expr] "len" [] -> valLoad =<< do
         assertBaseType isIntegral exprType
         val <- cmpExpr expr
-        base <- baseTypeOf (typeof val)
+        base <- baseTypeOf val
         case base of
             Table _   -> fmap fromValue $ convertNumber exprType =<< pload =<< tableLen (toPointer val)
             Array n t -> fmap fromValue $ convertNumber exprType =<< pload =<< newI64 n
@@ -548,7 +548,7 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
     AST.Subscript pos expr idxExpr -> withErrorPrefix "subscript: " $ do
         val <- cmpExpr expr
         idx <- toValue <$> (valLoad =<< cmpExpr idxExpr)
-        base <- baseTypeOf (typeof val)
+        base <- baseTypeOf val
         case base of
             Table _   -> (\[x] -> fromPointer x) <$> tableColumn (toPointer val) idx
             Array _ _ -> fromPointer <$> arrayGetElem (toPointer val) idx
@@ -586,7 +586,7 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
         val <- toPointer <$> cmpExpr expr
         let UnsafePtr = exprType
         --assertBaseType (== t) (typeof val)
-        base <- baseTypeOf (typeof val)
+        base <- baseTypeOf val
         case base of
             Table [Char] -> do
                 [elm] <- tableColumn val =<< pload =<< newI64 0
@@ -632,7 +632,7 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
         mkInfix AST.AndAnd match guard
 
     AST.PatIdent _ symbol -> trace ("cmpPattern " ++ show pattern) $ do -- a
-        base <- baseTypeOf (typeof val)
+        base <- baseTypeOf val
         isDataType <- isDataType (typeof val)
         assert (not isDataType) "Cannot assign a data type to a normal variale"
         loc <- newVal (typeof val)
@@ -651,7 +651,7 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
         foldM (mkInfix AST.AndAnd) (fromPointer true) bs
 
     AST.PatArray _ [pats] -> do -- [a, b, c]
-        base <- baseTypeOf (typeof val)
+        base <- baseTypeOf val
         case base of
             Sparse ts -> cmpPattern pattern . fromPointer =<< sparseTable (toPointer val) 
             
@@ -678,7 +678,7 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
             _ -> fail "Invalid array pattern"
 
     AST.PatArray _ patss -> do 
-        base <- baseTypeOf (typeof val)
+        base <- baseTypeOf val
         case base of
             Table ts -> do
                 assert (length patss == length ts) "Invalid number of rows"
@@ -712,7 +712,7 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
             _ -> fail (show base)
 
     AST.PatField _ symbol pats -> do -- symbol(a, b, c)
-        base <- baseTypeOf (typeof val) 
+        base <- baseTypeOf val 
         case base of
             Enum -> do
                 assert (pats == []) "enum pattern with args"

@@ -39,10 +39,10 @@ assertBaseType f typ = trace "assertBaseType" $ do
     return base
 
 
-baseTypeOf :: ModCmp CompileState m => Type -> m Type
-baseTypeOf typ = case typ of
+baseTypeOf :: (ModCmp CompileState m, Typeof x) => x -> m Type
+baseTypeOf x = case typeof x of
     Typedef sym -> trace ("baseTypeOf " ++ show sym) $ do ObjType t <- look sym; baseTypeOf t
-    _           -> return typ
+    _           -> return (typeof x)
 
 
 sizeOf :: InsCmp CompileState m => Type -> m Value

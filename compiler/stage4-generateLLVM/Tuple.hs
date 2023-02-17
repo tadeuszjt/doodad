@@ -20,27 +20,27 @@ import Symbol
 
 tupleLength :: InsCmp CompileState m => Value2 -> m Int
 tupleLength tuple = trace "tupleLength" $ do
-    Tuple ts <- baseTypeOf (typeof tuple)
+    Tuple ts <- baseTypeOf tuple
     return (length ts)
 
 
 tupleField :: InsCmp CompileState m => Symbol -> Pointer -> m Pointer
 tupleField symbol tuple = trace "tupleField" $ do
     assert (isTypedef $ typeof tuple) "Cannot have member of raw tuple"
-    Tuple ts <- baseTypeOf (typeof tuple)
+    Tuple ts <- baseTypeOf tuple
     ObjField i <- look symbol
     tupleIdx i tuple
 
 
 tupleIdx :: InsCmp CompileState m => Int -> Pointer -> m Pointer
 tupleIdx i tuple = withErrorPrefix "tuple idx: " $ do
-    Tuple ts <- baseTypeOf (typeof tuple)
+    Tuple ts <- baseTypeOf tuple
     assert (i >= 0 && i < length ts) "tuple index out of range"
     Pointer (ts !! i) <$> gep (loc tuple) [int32 0, int32 $ fromIntegral i]
 
 
 valTupleIdx :: InsCmp CompileState m => Int -> Value2 -> m Value2
 valTupleIdx i tup = do
-    Tuple ts <- baseTypeOf (typeof tup)
+    Tuple ts <- baseTypeOf tup
     assert (i >= 0 && i < length ts) "tuple index out of range"
     Value2 (ts !! i) <$> extractValue (op tup) [fromIntegral i]

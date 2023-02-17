@@ -40,8 +40,8 @@ import Array
 -- guarantees an equivalent value in a different memory location
 storeCopy :: InsCmp CompileState m => Pointer -> Pointer -> m ()
 storeCopy dst src = withErrorPrefix "storeCopy: " $ do
-    baseDst <- baseTypeOf (typeof dst)
-    baseSrc <- baseTypeOf (typeof src)
+    baseDst <- baseTypeOf dst
+    baseSrc <- baseTypeOf src
     True <- return $ baseDst == baseSrc
     case baseDst of
         _ | isSimple baseDst -> storeBasic dst src
@@ -50,8 +50,8 @@ storeCopy dst src = withErrorPrefix "storeCopy: " $ do
 
 storeCopyVal :: InsCmp CompileState m => Pointer -> Value2 -> m ()
 storeCopyVal dst src = withErrorPrefix "storeCopy: " $ do
-    baseDst <- baseTypeOf (typeof dst)
-    baseSrc <- baseTypeOf (typeof src)
+    baseDst <- baseTypeOf dst
+    baseSrc <- baseTypeOf src
     True <- return $ baseDst == baseSrc
     case baseDst of
         _ | isSimple baseDst -> storeBasicVal dst src
@@ -74,7 +74,7 @@ construct typ args = do
 newConvert :: InsCmp CompileState m => Type -> Value -> m Pointer
 newConvert typ val = do
     base <- baseTypeOf typ
-    baseVal <- baseTypeOf (typeof val)
+    baseVal <- baseTypeOf val
     ptr <- newVal typ
     case base of
         _ | isIntegral base -> storeBasicVal ptr =<< convertNumber typ . toValue =<< valLoad val
@@ -87,7 +87,7 @@ newConvert typ val = do
 min :: InsCmp CompileState m => Value -> Value -> m Pointer
 min a b = withErrorPrefix "min: " $ do
     True <- return $ typeof a == typeof b
-    base <- baseTypeOf (typeof a)
+    base <- baseTypeOf a
     cnd <- mkInfix AST.GT a b 
     val <- newVal (typeof a)
     case base of
@@ -101,7 +101,7 @@ min a b = withErrorPrefix "min: " $ do
 max :: InsCmp CompileState m => Value -> Value -> m Pointer
 max a b = withErrorPrefix "min: " $ do
     True <- return $ typeof a == typeof b
-    base <- baseTypeOf (typeof a)
+    base <- baseTypeOf a
     cnd <- mkInfix AST.LT a b 
     val <- newVal (typeof a)
     case base of
@@ -116,7 +116,7 @@ max a b = withErrorPrefix "min: " $ do
 mkInfix :: InsCmp CompileState m => AST.Operator -> Value -> Value -> m Value
 mkInfix operator a b = withErrorPrefix "infix: " $ do
     assert (typeof a == typeof b) $ "type mismatch: " ++ show (typeof a, typeof b)
-    base <- baseTypeOf (typeof a)
+    base <- baseTypeOf a
     case base of
         Bool                 -> do 
             av <- toValue <$> valLoad a
@@ -129,7 +129,7 @@ mkInfix operator a b = withErrorPrefix "infix: " $ do
             av <- toValue <$> valLoad a
             bv <- toValue <$> valLoad b
             fromValue <$> enumInfix operator av bv
-        _ | isRange base     -> mkRangeInfix operator a b
+        _ | isRange base     -> toVal =<< rangeInfix operator (toPointer a) (toPointer b)
         _ | isInt base       -> do 
             av <- toValue <$> valLoad a
             fromValue <$> (intInfix operator av . toValue =<< valLoad b)
@@ -146,26 +146,28 @@ mkInfix operator a b = withErrorPrefix "infix: " $ do
 enumInfix :: InsCmp CompileState m => AST.Operator -> Value2 -> Value2 -> m Value2
 enumInfix operator a b = do
     assert (typeof a == typeof b) "type mismatch"
-    Enum <- baseTypeOf (typeof a)
+    Enum <- baseTypeOf a
     case operator of
         AST.NotEq -> Value2 Bool <$> icmp P.NE (op a) (op b)
         AST.EqEq  -> Value2 Bool <$> icmp P.EQ (op a) (op b)
 
 
-mkRangeInfix :: InsCmp CompileState m => AST.Operator -> Value -> Value -> m Value
-mkRangeInfix operator a b = do
-    assertBaseType isRange (typeof a)
-    assertBaseType isRange (typeof b)
-    assert (typeof a == typeof b) "types do not match for range infix"
+rangeInfix :: InsCmp CompileState m => AST.Operator -> Pointer -> Pointer -> m Pointer
+rangeInfix operator a b = do
+    Range t <- baseTypeOf a
+    True    <- return $ typeof a == typeof b
     case operator of
         AST.EqEq -> do
-            startA <- fmap fromValue . pload =<< rangeStart (toPointer a)
-            startB <- fmap fromValue . pload =<< rangeStart (toPointer b)
-            endA   <- fmap fromValue . pload =<< rangeEnd (toPointer a)
-            endB   <- fmap fromValue . pload =<< rangeEnd (toPointer b)
-            startEq <- mkInfix AST.EqEq startA startB
-            endEq   <- mkInfix AST.EqEq endA endB
-            Val Bool <$> and (valOp startEq) (valOp endEq)
+            val <- newVal Bool
+            startA <- rangeStart a
+            startB <- rangeStart b
+            endA   <- rangeEnd a
+            endB   <- rangeEnd b
+            startEq <- mkInfix AST.EqEq (fromPointer startA) (fromPointer startB)
+            endEq   <- mkInfix AST.EqEq (fromPointer endA) (fromPointer endB)
+            storeBasicVal val =<< Value2 Bool <$> and (valOp startEq) (valOp endEq)
+            return val
+
 
 
 mkArrayInfix :: InsCmp CompileState m => AST.Operator -> Value -> Value -> m Value

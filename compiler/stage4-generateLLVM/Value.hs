@@ -56,7 +56,7 @@ toVal ptr =
 toType :: InsCmp CompileState m => Type -> Pointer -> m Pointer
 toType typ ptr = do 
     base <- baseTypeOf typ
-    basePtr <- baseTypeOf (typeof ptr)
+    basePtr <- baseTypeOf ptr
     assert (base == basePtr) "Incompatible types"
     return $ Pointer typ (loc ptr)
 
@@ -145,13 +145,13 @@ mkZero typ = trace ("mkZero " ++ show  typ) $ do
 
 rangeStart :: InsCmp CompileState m => Pointer -> m Pointer
 rangeStart range = do
-    Range t <- baseTypeOf (typeof range)
+    Range t <- baseTypeOf range
     Pointer t <$> gep (loc range) [int32 0, int32 0]
 
 
 rangeEnd :: InsCmp CompileState m => Pointer -> m Pointer
 rangeEnd range = do
-    Range t <- baseTypeOf (typeof range)
+    Range t <- baseTypeOf range
     Pointer t <$> gep (loc range) [int32 0, int32 1]
 
 
@@ -166,7 +166,7 @@ convertNumber :: InsCmp CompileState m => Type -> Value2 -> m Value2
 convertNumber typ val = do
     op <- return (op val)
     base <- baseTypeOf typ
-    baseVal <- baseTypeOf (typeof val)
+    baseVal <- baseTypeOf val
     fmap (Value2 typ) $ case (base, baseVal) of
         (I64,  I64) -> return op
         (I32,  I64) -> trunc op LL.i32
@@ -227,7 +227,7 @@ storeBasicVal dst src = do
 valStore :: InsCmp CompileState m => Value -> Value -> m ()
 valStore (Ptr typ loc) val = trace "valStore" $ do
     base <- baseTypeOf typ
-    valBase <- baseTypeOf (typeof val)
+    valBase <- baseTypeOf val
     assert (base == valBase) "types incompatible"
     case val of
         Ptr t l -> store loc 0 =<< load l 0
@@ -258,14 +258,14 @@ pMalloc typ len = trace ("mkMalloc " ++ show typ) $ do
 
 advancePointer :: InsCmp CompileState m => Pointer -> Value2 -> m Pointer
 advancePointer ptr idx = do
-    I64 <- baseTypeOf (typeof idx)
+    I64 <- baseTypeOf idx
     Pointer (typeof ptr) <$> gep (loc ptr) [op idx]
 
 
 memCpy :: InsCmp CompileState m => Pointer -> Pointer -> Value2 -> m ()
 memCpy (Pointer dstTyp dst) (Pointer srcTyp src) len = trace "valMemCpy" $ do
     True <- return (dstTyp == srcTyp)
-    I64 <- baseTypeOf (typeof len)
+    I64 <- baseTypeOf len
 
     Val I64 siz <- sizeOf dstTyp
     pDstI8 <- bitcast dst (LL.ptr LL.i8)
@@ -275,7 +275,7 @@ memCpy (Pointer dstTyp dst) (Pointer srcTyp src) len = trace "valMemCpy" $ do
 
 prefix :: InsCmp CompileState m => AST.Operator -> Value2 -> m Value2
 prefix operator val = do
-    base <- baseTypeOf (typeof val)
+    base <- baseTypeOf val
     Value2 (typeof val) <$> case base of
         _ | isInt base -> case operator of
             AST.Plus -> return (op val)
@@ -331,7 +331,7 @@ floatInfix operator a b = do
 
 boolInfix :: InsCmp CompileState m => AST.Operator -> Value2 -> Value2 -> m Value2
 boolInfix operator a b = do
-    Bool <- baseTypeOf (typeof a)
+    Bool <- baseTypeOf a
     True <- return $ typeof a == typeof b
     op <- case operator of
         AST.OrOr   -> or (op a) (op b)

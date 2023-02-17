@@ -4,6 +4,8 @@ import Data.List
 import Symbol
 
 class Typeof a where typeof :: a -> Type
+instance Typeof Type where 
+    typeof typ = typ
 
 data AdtField
     = FieldNull

@@ -25,13 +25,13 @@ import Symbol
 
 tableLen :: InsCmp CompileState m => Pointer -> m Pointer
 tableLen table = do
-    Table _ <- baseTypeOf (typeof table)
+    Table _ <- baseTypeOf table
     Pointer I64 <$> gep (loc table) [int32 0, int32 0]
 
 
 tableCap :: InsCmp CompileState m => Pointer -> m Pointer
 tableCap table = do
-    Table _ <- baseTypeOf (typeof table)
+    Table _ <- baseTypeOf table
     Pointer I64 <$> gep (loc table) [int32 0, int32 1]
 
 
@@ -39,7 +39,7 @@ tableCap table = do
 newTable :: InsCmp CompileState m => Type -> Value2 -> m Pointer
 newTable typ initialLen = do
     Table ts <- baseTypeOf typ
-    I64 <- baseTypeOf (typeof initialLen)
+    I64 <- baseTypeOf initialLen
 
     tab <- newVal typ
     cap <- tableCap tab
@@ -64,7 +64,7 @@ newTable typ initialLen = do
 
 tableColumn :: InsCmp CompileState m => Pointer -> Value2 -> m [Pointer]
 tableColumn tab idx = trace "tableGetElem" $ do
-    Table ts <- baseTypeOf (typeof tab)
+    Table ts <- baseTypeOf tab
     forM (zip ts [0..]) $ \(t, i) -> do
         row <- tableRow i tab
         advancePointer row idx
@@ -72,7 +72,7 @@ tableColumn tab idx = trace "tableGetElem" $ do
 
 tableRow :: InsCmp CompileState m => Int -> Pointer -> m Pointer
 tableRow i tab = do
-    Table ts <- baseTypeOf (typeof tab)
+    Table ts <- baseTypeOf tab
     assert (i >= 0 && i < length ts) "Invalid table row index"
     Pointer (ts !! i) <$> do 
         (flip load) 0 =<< gep (loc tab) [int32 0, int32 (fromIntegral i + 2)]
@@ -81,7 +81,7 @@ tableRow i tab = do
 
 mkTablePop :: InsCmp CompileState m => Pointer -> m [Value]
 mkTablePop tab = do
-    Table ts <- baseTypeOf (typeof tab)
+    Table ts <- baseTypeOf tab
     len <- tableLen tab
     lenv <- pload len
     newLen <- intInfix AST.Minus lenv =<< pload =<< newI64 1
@@ -101,7 +101,7 @@ tablePush tab [] = do
 
 tableDelete :: InsCmp CompileState m => Pointer -> Value2 -> m ()
 tableDelete tab idx = do
-    Table ts <- baseTypeOf (typeof tab)
+    Table ts <- baseTypeOf tab
     len <- pload =<< tableLen tab
     end <- intInfix AST.Minus len =<< pload =<< newI64 1
     idxIsEnd <- intInfix AST.EqEq idx end
@@ -117,7 +117,7 @@ tableDelete tab idx = do
 
 tableSetRow :: InsCmp CompileState m => Pointer -> Int -> Pointer -> m ()
 tableSetRow tab i row = trace "tableSetRow" $ do
-    Table ts <- baseTypeOf (typeof tab)
+    Table ts <- baseTypeOf tab
     assert (typeof row == ts !! i) "Types do not match"
     pp <- gep (loc tab) [int32 0, int32 (fromIntegral i+2)]
     store pp 0 (loc row)
@@ -125,7 +125,7 @@ tableSetRow tab i row = trace "tableSetRow" $ do
 
 tableResize :: InsCmp CompileState m => Pointer -> Value2 -> m ()
 tableResize tab newLen = trace "tableResize" $ do
-    Table ts <- baseTypeOf (typeof tab)
+    Table ts <- baseTypeOf tab
     assertBaseType isInt (typeof newLen)
     cap <- tableCap tab
     bFull <- intInfix AST.GT newLen =<< pload cap

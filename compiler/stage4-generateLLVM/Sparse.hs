@@ -27,19 +27,19 @@ import Builtin
 
 sparseTable :: InsCmp CompileState m => Pointer -> m Pointer
 sparseTable sparse = do
-    Sparse ts <- baseTypeOf (typeof sparse)
+    Sparse ts <- baseTypeOf sparse
     Pointer (Table ts) <$> gep (loc sparse) [int32 0, int32 0]
     
 
 sparseStack :: InsCmp CompileState m => Pointer -> m Pointer
 sparseStack sparse = do
-    Sparse ts <- baseTypeOf (typeof sparse)
+    Sparse ts <- baseTypeOf sparse
     Pointer (Table [I64]) <$> gep (loc sparse) [int32 0, int32 1]
 
 
 sparsePush :: InsCmp CompileState m => Pointer -> [Value] -> m Value2
 sparsePush sparse elems = do
-    Sparse ts <- baseTypeOf (typeof sparse)
+    Sparse ts <- baseTypeOf sparse
     assert (map typeof elems == ts) "Elem types do not match"
     stack <- sparseStack sparse
     stackLen <- pload =<< tableLen stack
@@ -69,7 +69,7 @@ sparsePush sparse elems = do
 
 sparseDelete :: InsCmp CompileState m => Pointer -> Value2 -> m ()
 sparseDelete sparse idx = do
-    Sparse ts <- baseTypeOf (typeof sparse)
+    Sparse ts <- baseTypeOf sparse
     table <- sparseTable sparse
     ptrs <- tableColumn table idx
     forM_ ptrs $ \ptr -> do
