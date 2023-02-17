@@ -79,8 +79,8 @@ mkTupleConstruct typ vals = trace "tupleConstruct" $ do
     tup <- newVal typ
     assert (length vals == length ts) "tuple length mismatch"
     forM_ (zip vals [0..]) $ \(val, i) -> do
-        ptr <- ptrTupleIdx i (fromPointer tup)
-        storeCopy ptr val
+        ptr <- tupleIdx i tup
+        storeCopy (fromPointer ptr) val
     return (fromPointer tup)
 
 
@@ -205,10 +205,10 @@ mkTupleInfix operator a b = withErrorPrefix "tuple infix: " $ do
         _ | operator `elem` [AST.Plus, AST.Minus, AST.Times, AST.Divide, AST.Modulo] -> do
             tup <- newVal (typeof a)
             forM (zip ts [0..]) $ \(t, i) -> do
-                pSrcA <- ptrTupleIdx i a
-                pSrcB <- ptrTupleIdx i b
-                pDst  <- ptrTupleIdx i (fromPointer tup)
-                valStore pDst =<< mkInfix operator pSrcA pSrcB
+                pSrcA <- tupleIdx i (toPointer a)
+                pSrcB <- tupleIdx i (toPointer b)
+                pDst  <- tupleIdx i tup
+                valStore (fromPointer pDst) =<< mkInfix operator (fromPointer pSrcA) (fromPointer pSrcB)
             return (fromPointer tup)
 
         _ | operator `elem` [AST.EqEq] -> do
@@ -219,9 +219,9 @@ mkTupleInfix operator a b = withErrorPrefix "tuple infix: " $ do
 
             forM (zip ts [0..]) $ \(t, i) -> do
                 emitBlockStart (cases !! i)
-                pSrcA <- ptrTupleIdx i a
-                pSrcB <- ptrTupleIdx i b
-                equal <- mkInfix AST.EqEq pSrcA pSrcB
+                valA <- pload =<< tupleIdx i (toPointer a)
+                valA <- pload =<< tupleIdx i (toPointer b)
+                equal <- mkInfix AST.EqEq (fromValue valA) (fromValue valA)
                 cond <- freshName "tuple_eqeq_fail"
                 condBr (valOp equal) (cases !! (i + 1)) cond
                 emitBlockStart cond
@@ -242,13 +242,13 @@ mkTupleInfix operator a b = withErrorPrefix "tuple infix: " $ do
 
             forM (zip ts [0..]) $ \(t, i) -> do
                 emitBlockStart (cases !! i)
-                pSrcA <- ptrTupleIdx i a
-                pSrcB <- ptrTupleIdx i b
-                equal <- mkInfix AST.EqEq pSrcA pSrcB
+                valA <- pload =<< tupleIdx i (toPointer a)
+                valB <- pload =<< tupleIdx i (toPointer b)
+                equal <- mkInfix AST.EqEq (fromValue valA) (fromValue valB)
                 cond <- freshName "tuple_gt_cond"
                 condBr (valOp equal) (cases !! (i + 1)) (cond)
                 emitBlockStart cond
-                valStore (fromPointer res) =<< mkInfix operator pSrcA pSrcB
+                valStore (fromPointer res) =<< mkInfix operator (fromValue valA) (fromValue valA)
                 br exit
 
             emitBlockStart exit
@@ -292,8 +292,8 @@ mkTableInfix operator a b = do
 
             -- test that a[i] == b[i]
             emitBlockStart body
-            [columnA] <- tableColumn (toPointer a) (fromPointer idx)
-            [columnB] <- tableColumn (toPointer b) (fromPointer idx)
+            [columnA] <- tableColumn (toPointer a) =<< pload idx
+            [columnB] <- tableColumn (toPointer b) =<< pload idx
             elmEq <- mkInfix AST.EqEq (fromPointer columnA) (fromPointer columnB)
             valStore (fromPointer eq) elmEq
             idxv <- pload idx

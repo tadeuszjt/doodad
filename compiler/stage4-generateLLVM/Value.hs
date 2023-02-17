@@ -102,7 +102,7 @@ mkEnum typ n = do
     return $ Value2 typ $ int64 (fromIntegral n)
 
 
-newRange :: InsCmp CompileState m => Value -> Value -> m Pointer
+newRange :: InsCmp CompileState m => Value2 -> Value2 -> m Pointer
 newRange start end = do
     assert (typeof start == typeof end) $ "range types do not match"
     isDataType <- isDataType (typeof start)
@@ -112,8 +112,8 @@ newRange start end = do
     startDst <- rangeStart range
     endDst   <- rangeEnd range
 
-    valStore (fromPointer startDst) start
-    valStore (fromPointer endDst) end
+    storeBasicVal startDst start
+    storeBasicVal endDst end
     return range
 
 
@@ -218,6 +218,10 @@ storeBasic dst src = do
     assert (typeof dst == typeof src) "storeBasic: type mismatch"
     store (loc dst) 0 =<< load (loc src) 0
 
+storeBasicVal :: InsCmp CompileState m => Pointer -> Value2 -> m ()
+storeBasicVal dst src = do 
+    assert (typeof dst == typeof src) "storeBasic: type mismatch"
+    store (loc dst) 0 (op src) 
 
 valStore :: InsCmp CompileState m => Value -> Value -> m ()
 valStore (Ptr typ loc) val = trace "valStore" $ do

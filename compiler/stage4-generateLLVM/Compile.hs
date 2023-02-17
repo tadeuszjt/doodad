@@ -284,12 +284,12 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
         -- check if index is still in range
         emitBlockStart cond
         end <- case base of
-            Range I64 -> toVal =<< rangeEnd (toPointer val)
-            Table ts -> toVal =<< tableLen (toPointer val)
-            Array n t -> toVal =<< newI64 n
+            Range I64 -> rangeEnd (toPointer val)
+            Table ts -> tableLen (toPointer val)
+            Array n t -> newI64 n
             _ -> error (show base)
         idxv0 <- pload idx
-        ilt <- intInfix AST.LT idxv0 . toValue =<< valLoad end
+        ilt <- intInfix AST.LT idxv0 =<< pload end
         condBr (op ilt) patm exit
 
         -- match pattern (if present)
@@ -298,7 +298,7 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
             Nothing -> toVal =<< newBool True
             Just pat -> case base of
                 Table ts -> do
-                    [Pointer t p] <- tableColumn (toPointer val) (fromPointer idx)
+                    [Pointer t p] <- tableColumn (toPointer val) =<< pload idx
                     cmpPattern pat (Ptr t p)
                 Range I64 -> cmpPattern pat (fromPointer idx)
                 Array n t -> cmpPattern pat =<< ptrArrayGetElem val (fromPointer idx)
@@ -338,7 +338,7 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
     AST.Tuple pos [expr]         -> cmpExpr expr
     AST.Float p f                -> toVal =<< newFloat exprType f
     AST.Prefix pos operator expr -> fromValue <$> (prefix operator . toValue =<< valLoad =<< cmpExpr expr)
-    AST.Field pos expr symbol    -> ptrTupleField symbol =<< cmpExpr expr
+    AST.Field pos expr symbol    -> fromPointer <$> (tupleField symbol . toPointer =<< cmpExpr expr)
     AST.Null p                   -> mkAdtNull exprType
     AST.Match pos expr pat       -> cmpPattern pat =<< cmpExpr expr
 
@@ -363,8 +363,8 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
 
     AST.Range pos Nothing _ Nothing -> fail "Range expression must contain maximum"
     AST.Range pos Nothing mexpr1 (Just expr2) -> do
-        end <- cmpExpr expr2
-        start <- maybe (mkZero $ typeof end) cmpExpr mexpr1
+        end <- toValue <$> (valLoad =<< cmpExpr expr2)
+        start <- toValue <$> (valLoad =<< maybe (mkZero $ typeof end) cmpExpr mexpr1)
         fromPointer <$> newRange start end
     AST.Range pos (Just expr) margStart margEnd -> do
         val <- cmpExpr expr
@@ -375,16 +375,16 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
             Range t -> toVal =<< rangeStart (toPointer val)
             _       -> toVal =<< newI64 0
         start <- case margStart of
-            Nothing  -> return $ startVal
-            Just arg -> mkMax startVal =<< cmpExpr arg
+            Nothing  -> toValue <$> valLoad startVal
+            Just arg -> toValue <$> (valLoad =<< mkMax startVal =<< cmpExpr arg)
 
         endVal <- case base of
             Range t   -> toVal =<< rangeEnd (toPointer val)
             Array n t -> toVal =<< newI64 n
             Table ts  -> toVal =<< tableLen (toPointer val)
         end <- case margEnd of
-            Nothing  -> return endVal
-            Just arg -> mkMin endVal =<< cmpExpr arg
+            Nothing  -> toValue <$> valLoad endVal
+            Just arg -> toValue <$> (valLoad =<< mkMin endVal =<< cmpExpr arg)
             
         fromPointer <$> newRange start end
 
@@ -392,10 +392,8 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
         loc <- cmpExpr expr
         base <- baseTypeOf (typeof loc)
         case base of
-            Table ts -> mkTablePush (toPointer loc) []
-            Sparse ts -> do
-                key <- sparsePush (toPointer loc) =<< mapM mkZero ts
-                valLoad key
+            Table ts  -> fromValue <$> tablePush (toPointer loc) []
+            Sparse ts -> fromValue <$> (sparsePush (toPointer loc) =<< mapM mkZero ts)
 
 
     AST.Builtin pos [expr] "push" exprs -> do
@@ -406,15 +404,15 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
                 vals <- mapM cmpExpr exprs
                 assert (map typeof vals == ts) "mismatched argument types"
                 len <- pload =<< tableLen (toPointer loc)
-                tableResize (toPointer loc) . fromValue =<< intInfix AST.Plus len =<< pload =<< newI64 1
-                ptrs <- tableColumn (toPointer loc) (fromValue len)
+                tableResize (toPointer loc) =<< intInfix AST.Plus len =<< pload =<< newI64 1
+                ptrs <- tableColumn (toPointer loc) len
                 forM_ (zip ptrs vals) $ \(Pointer t p, val) ->
                     storeCopy (Ptr t p) val
                 fromValue <$> convertNumber exprType len
 
             Sparse ts -> do 
-                n <- valLoad =<< sparsePush (toPointer loc) =<< mapM cmpExpr exprs
-                fmap fromValue $ convertNumber exprType (toValue n)
+                n <- sparsePush (toPointer loc) =<< mapM cmpExpr exprs
+                fmap fromValue $ convertNumber exprType n
 
 
     AST.Builtin pos [expr] "pop" [] -> do
@@ -427,7 +425,7 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
     AST.Builtin pos [expr] "clear" [] -> do
         assert (exprType == Void) "clear is a void expression"
         tab <- cmpExpr expr
-        tableResize (toPointer tab) =<< toVal =<< newI64 0
+        tableResize (toPointer tab) =<< pload =<< newI64 0
         return $ Val Void undefined
 
     AST.Builtin pos [expr1] "delete" [expr2] -> do
@@ -436,8 +434,8 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
         arg <- cmpExpr expr2
         base <- baseTypeOf (typeof val)
         case base of
-            Sparse ts -> sparseDelete val arg
-            Table ts  -> tableDelete (toPointer val) arg
+            Sparse ts -> sparseDelete (toPointer val) . toValue =<< valLoad arg
+            Table ts  -> tableDelete (toPointer val) . toValue =<< valLoad arg
         return $ Val Void undefined
                 
     AST.Int p n -> do
@@ -535,8 +533,8 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
 
         tup <- newVal exprType
         forM_ (zip vals [0..]) $ \(v, i) -> do
-            ptr <- ptrTupleIdx i (fromPointer tup)
-            valStore ptr v
+            ptr <- tupleIdx i tup
+            valStore (fromPointer ptr) v
         return (fromPointer tup)
 
     AST.Subscript pos expr idxExpr -> withErrorPrefix "subscript: " $ do
@@ -545,12 +543,12 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
         base <- baseTypeOf (typeof val)
         case base of
             Table _   -> do
-                [Pointer t p] <- tableColumn (toPointer val) idx
+                [Pointer t p] <- tableColumn (toPointer val) . toValue =<< valLoad idx
                 return $ Ptr t p
             Array _ _ -> ptrArrayGetElem val idx
             Sparse _  -> do
                 table <- sparseTable (toPointer val)
-                [Pointer t p] <- tableColumn table idx
+                [Pointer t p] <- tableColumn table . toValue =<< valLoad idx
                 return $ Ptr t p
             Map _ _ -> do 
                 error "here" 
@@ -586,7 +584,7 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
         base <- baseTypeOf (typeof val)
         case base of
             Table [Char] -> do
-                [Pointer _ p] <- tableColumn (toPointer val) =<< toVal =<< newI64 0
+                [Pointer _ p] <- tableColumn (toPointer val) =<< pload =<< newI64 0
                 Val UnsafePtr <$> bitcast p (LL.ptr LL.VoidType)
 
             _ -> error $ show base
@@ -638,7 +636,7 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
         toVal =<< newBool True
 
     AST.PatTuple _ pats -> do -- (a, b)
-        len <- tupleLength val
+        len <- tupleLength . toValue =<< valLoad val
         assert (len == length pats) "incorrect tuple length"
 
         bs <- forM (zip pats [0..]) $ \(p, i) ->
@@ -658,7 +656,7 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
 
                 assert (length ts == 1) "patterns don't support multiple rows (yet)"
                 bs <- forM (zip pats [0..]) $ \(pat, i) -> do
-                    [Pointer t p] <- tableColumn (toPointer val) =<< toVal =<< newI64 i
+                    [Pointer t p] <- tableColumn (toPointer val) =<< pload =<< newI64 i
                     cmpPattern pat (Ptr t p)
 
                 true <- toType (typeof lenEq) =<< newBool True
@@ -695,7 +693,7 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
 
                 emitBlockStart cond
                 bs <- forM [0.. rowLen - 1] $ \i -> do
-                    ptrs <- tableColumn (toPointer val) =<< toVal =<< newI64 i
+                    ptrs <- tableColumn (toPointer val) =<< pload =<< newI64 i
                     let patc = map (!! i) patss
                     bs <- forM (zip ptrs patc) $ \(Pointer t p, pat) -> cmpPattern pat (Ptr t p)
                     foldM (mkInfix AST.AndAnd) (fromPointer true) bs

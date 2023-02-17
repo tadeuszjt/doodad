@@ -37,7 +37,7 @@ sparseStack sparse = do
     Pointer (Table [I64]) <$> gep (loc sparse) [int32 0, int32 1]
 
 
-sparsePush :: InsCmp CompileState m => Pointer -> [Value] -> m Value
+sparsePush :: InsCmp CompileState m => Pointer -> [Value] -> m Value2
 sparsePush sparse elems = do
     Sparse ts <- baseTypeOf (typeof sparse)
     assert (map typeof elems == ts) "Elem types do not match"
@@ -46,13 +46,13 @@ sparsePush sparse elems = do
     stackLenGTZero <- intInfix AST.GT stackLen =<< pload =<< newI64 0
     ret <- newI64 0 
     if_ (op stackLenGTZero) (popStackCase stack ret) (pushTableCase ret) 
-    return (fromPointer ret)
+    pload ret
     where
         popStackCase :: InsCmp CompileState m => Pointer -> Pointer -> m ()
         popStackCase stack ret = do
             [idx] <- mkTablePop stack
             table <- sparseTable sparse
-            column <- tableColumn table idx
+            column <- tableColumn table . toValue =<< valLoad idx
             forM_ (zip column elems) $ \(Pointer t p, elem) -> valStore (Ptr t p) elem
             valStore (fromPointer ret) idx
             
@@ -60,31 +60,30 @@ sparsePush sparse elems = do
         pushTableCase ret = do
             table <- sparseTable sparse
             len <- pload =<< tableLen table
-            tableResize table . fromValue =<< intInfix AST.Plus len =<< pload =<< newI64 1
-            ptrs <- tableColumn table (fromValue len) 
+            tableResize table =<< intInfix AST.Plus len =<< pload =<< newI64 1
+            ptrs <- tableColumn table len 
             forM_ (zip ptrs elems) $ \(Pointer t p, e) ->
                 valStore (Ptr t p) e
             valStore (fromPointer ret) (fromValue len)
 
 
-sparseDelete :: InsCmp CompileState m => Value -> Value -> m ()
-sparseDelete val idx = do
-    Sparse ts <- assertBaseType isSparse (typeof val)
-    table <- sparseTable (toPointer val)
+sparseDelete :: InsCmp CompileState m => Pointer -> Value2 -> m ()
+sparseDelete sparse idx = do
+    Sparse ts <- baseTypeOf (typeof sparse)
+    table <- sparseTable sparse
     ptrs <- tableColumn table idx
     forM_ ptrs $ \ptr -> do
         storeBasic ptr =<< newVal (typeof ptr)
 
     len <- pload =<< tableLen table
-    idxv <- toValue <$> valLoad idx
-    idxIsEnd <- intInfix AST.EqEq idxv =<< intInfix AST.Minus len =<< pload =<< newI64 1
+    idxIsEnd <- intInfix AST.EqEq idx =<< intInfix AST.Minus len =<< pload =<< newI64 1
     if_ (op idxIsEnd) (void $ mkTablePop $ table) idxNotEndCase
     where
         idxNotEndCase :: InsCmp CompileState m => m ()
         idxNotEndCase = do
-            stack <- sparseStack (toPointer val)
+            stack <- sparseStack sparse
             len <- pload =<< tableLen stack
-            tableResize stack . fromValue =<< intInfix AST.Plus len =<< pload =<< newI64 1
-            [Pointer t p] <- tableColumn stack (fromValue len)
-            valStore (Ptr t p) idx
+            tableResize stack =<< intInfix AST.Plus len =<< pload =<< newI64 1
+            [elm] <- tableColumn stack len
+            storeBasicVal elm idx
     

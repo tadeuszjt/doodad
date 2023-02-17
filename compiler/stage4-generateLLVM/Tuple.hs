@@ -18,27 +18,25 @@ import Error
 import Symbol
 
 
-tupleLength :: InsCmp CompileState m => Value -> m Int
-tupleLength val = trace "tupleLength" $ do
-    Tuple ts <- assertBaseType isTuple (typeof val)
+tupleLength :: InsCmp CompileState m => Value2 -> m Int
+tupleLength tuple = trace "tupleLength" $ do
+    Tuple ts <- baseTypeOf (typeof tuple)
     return (length ts)
 
 
-ptrTupleField :: InsCmp CompileState m => Symbol -> Value -> m Value
-ptrTupleField symbol tup = trace "tupleField" $ do
-    let typ = typeof tup
-    assert (isTypedef typ) "Cannot have member of raw tuple"
-    assertBaseType isTuple typ
+tupleField :: InsCmp CompileState m => Symbol -> Pointer -> m Pointer
+tupleField symbol tuple = trace "tupleField" $ do
+    assert (isTypedef $ typeof tuple) "Cannot have member of raw tuple"
+    Tuple ts <- baseTypeOf (typeof tuple)
     ObjField i <- look symbol
-    ptrTupleIdx i tup
+    tupleIdx i tuple
 
 
-ptrTupleIdx :: InsCmp CompileState m => Int -> Value -> m Value
-ptrTupleIdx i tup = withErrorPrefix "tuple idx: " $ do
-    Tuple ts <- assertBaseType isTuple (typeof tup)
-    assert (isPtr tup)               "tuple isnt pointer"
+tupleIdx :: InsCmp CompileState m => Int -> Pointer -> m Pointer
+tupleIdx i tuple = withErrorPrefix "tuple idx: " $ do
+    Tuple ts <- baseTypeOf (typeof tuple)
     assert (i >= 0 && i < length ts) "tuple index out of range"
-    Ptr (ts !! i) <$> gep (valLoc tup) [int32 0, int32 $ fromIntegral i]
+    Pointer (ts !! i) <$> gep (loc tuple) [int32 0, int32 $ fromIntegral i]
 
 
 valTupleIdx :: InsCmp CompileState m => Int -> Value -> m Value
