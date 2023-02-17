@@ -5,9 +5,6 @@ import std/strings
 
 
 fn {io Io} main()
-    let outKey = {io, "compiler/Main.hs"}.openFile()
-    io.catFile(outKey)
-
-    io.closeFile(outKey)
+    return
 
 

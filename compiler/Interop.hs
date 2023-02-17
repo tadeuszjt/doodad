@@ -145,7 +145,7 @@ genExternsFromGlobs globalDecls = trace "genExterns" $ do
 
         procFunVarDecl :: BoM [Extern] m => A.VarDecl -> m ()
         procFunVarDecl (A.VarDecl varName declAttrs varTyp) = trace "procFunVarDecl" $ do
-            let A.VarName (Ident sym _ _) Nothing = varName
+            let A.VarName (Ident sym _ _) _ = varName
             case varTyp of
                 A.FunctionType (A.FunType funRetty paramDecls False) [] -> do
                     retty <- aTypeToType funRetty

@@ -2,12 +2,19 @@ module io
 
 import strings
 import_c stdio.h
+import_c unistd.h
+import_c strings.h
+import_c memory.h
 
 type FileKey i64
 type FilePtr i64
 
 
 type Io sparse[FilePtr]
+
+
+fn {io Io, str string} getCurrentDirectory()
+    let ptr | ptr > 0 = FilePtr(i64(getwd(unsafe_ptr_from_int(0))))
 
 
 fn {io Io, fileName string} openFile() FileKey 

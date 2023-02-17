@@ -38,47 +38,36 @@ import Array
 
 
 -- guarantees an equivalent value in a different memory location
-storeCopy :: InsCmp CompileState m => Pointer -> Value -> m ()
-storeCopy ptr val = withErrorPrefix "storeCopy: " $ do
-    base <- baseTypeOf (typeof ptr)
-    baseVal <- baseTypeOf (typeof val)
-    assert (base == baseVal) $
-        "ptr type: " ++ show (typeof ptr) ++ " does not match val type: " ++ show (typeof val)
-    case base of
-        _ | isSimple base -> valStore (fromPointer ptr) val
-        Tuple ts -> do
-            bs <- mapM isDataType ts
-            assert (all (==False) bs) "no data types allowed"
-            valStore (fromPointer ptr) val
-        ADT fs -> do
-            assertBaseType isADT (typeof ptr)
-            isDataType <- isDataType (typeof ptr)
-            assert (not isDataType) "ptr is data type"
-            valStore (fromPointer ptr) val
-        _ -> fail (show base)
+storeCopy :: InsCmp CompileState m => Pointer -> Pointer -> m ()
+storeCopy dst src = withErrorPrefix "storeCopy: " $ do
+    baseDst <- baseTypeOf (typeof dst)
+    baseSrc <- baseTypeOf (typeof src)
+    True <- return $ baseDst == baseSrc
+    case baseDst of
+        _ | isSimple baseDst -> storeBasic dst src
+        _ -> fail (show baseDst)
+
+
+storeCopyVal :: InsCmp CompileState m => Pointer -> Value2 -> m ()
+storeCopyVal dst src = withErrorPrefix "storeCopy: " $ do
+    baseDst <- baseTypeOf (typeof dst)
+    baseSrc <- baseTypeOf (typeof src)
+    True <- return $ baseDst == baseSrc
+    case baseDst of
+        _ | isSimple baseDst -> storeBasicVal dst src
+        _ -> fail (show baseDst)
 
 
 -- construct a value from arguments, Eg. i64(3.2), Vec2(12, 43)
-mkConstruct :: InsCmp CompileState m => Type -> [Value] -> m Value
-mkConstruct typ []       = mkZero typ
-mkConstruct typ (a:b:xs) = mkTupleConstruct typ (a:b:xs)
-mkConstruct typ [val]    = do
+construct :: InsCmp CompileState m => Type -> [Pointer] -> m Pointer
+construct typ args = do 
+    val <- newVal typ
     base <- baseTypeOf typ
-    case base of
-        _ | isIntegral base -> fmap fromValue $ convertNumber typ . toValue =<< valLoad val
-        _ | isFloat base    -> fmap fromValue $ convertNumber typ . toValue =<< valLoad val
-
-
--- constuct a tuple from the arguments. Eg. Vec2(1, 2)
-mkTupleConstruct :: InsCmp CompileState m => Type -> [Value] -> m Value
-mkTupleConstruct typ vals = trace "tupleConstruct" $ do
-    Tuple ts <- assertBaseType isTuple typ
-    tup <- newVal typ
-    assert (length vals == length ts) "tuple length mismatch"
-    forM_ (zip vals [0..]) $ \(val, i) -> do
-        ptr <- tupleIdx i tup
-        storeCopy ptr val
-    return (fromPointer tup)
+    case args of 
+        [] -> return () 
+        [v] | isIntegral base -> storeBasicVal val =<< convertNumber typ =<< pload v
+        [v] | isFloat base    -> storeBasicVal val =<< convertNumber typ =<< pload v
+    return val
 
 
 -- convert the value into a new value corresponding to the type
@@ -88,38 +77,39 @@ newConvert typ val = do
     baseVal <- baseTypeOf (typeof val)
     ptr <- newVal typ
     case base of
-        _ | isIntegral base -> do 
-            storeBasicVal ptr =<< convertNumber typ . toValue =<< valLoad val
-        _ | isFloat base    -> do 
-            storeBasicVal ptr =<< convertNumber typ . toValue =<< valLoad val
-        _ | baseVal == base -> do
-            storeCopy ptr val
+        _ | isIntegral base -> storeBasicVal ptr =<< convertNumber typ . toValue =<< valLoad val
+        _ | isFloat base    -> storeBasicVal ptr =<< convertNumber typ . toValue =<< valLoad val
+        _ | baseVal == base -> storeCopy ptr (toPointer val)
         _ -> fail ("valConvert " ++ show base)
     return ptr
 
 
-mkMin :: InsCmp CompileState m => Value -> Value -> m Value
-mkMin a b = withErrorPrefix "min: " $ do
-    assert (typeof a == typeof b) "Left type does not match right type"
+min :: InsCmp CompileState m => Value -> Value -> m Pointer
+min a b = withErrorPrefix "min: " $ do
+    True <- return $ typeof a == typeof b
     base <- baseTypeOf (typeof a)
     cnd <- mkInfix AST.GT a b 
-    Val (typeof a) <$> case base of
+    val <- newVal (typeof a)
+    case base of
         I64 -> do
             valA <- valLoad a 
             valB <- valLoad b
-            select (valOp cnd) (valOp valB) (valOp valA)
+            store (loc val) 0 =<< select (valOp cnd) (valOp valB) (valOp valA)
+    return val
 
 
-mkMax :: InsCmp CompileState m => Value -> Value -> m Value
-mkMax a b = withErrorPrefix "min: " $ do
-    assert (typeof a == typeof b) "Left type does not match right type"
+max :: InsCmp CompileState m => Value -> Value -> m Pointer
+max a b = withErrorPrefix "min: " $ do
+    True <- return $ typeof a == typeof b
     base <- baseTypeOf (typeof a)
     cnd <- mkInfix AST.LT a b 
-    Val (typeof a) <$> case base of
+    val <- newVal (typeof a)
+    case base of
         I64 -> do
             valA <- valLoad a 
             valB <- valLoad b
-            select (valOp cnd) (valOp valB) (valOp valA)
+            store (loc val) 0 =<< select (valOp cnd) (valOp valB) (valOp valA)
+    return val
 
 
 -- any infix expression

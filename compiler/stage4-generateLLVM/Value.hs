@@ -137,6 +137,7 @@ mkZero typ = trace ("mkZero " ++ show  typ) $ do
         Table ts           -> Val typ . struct namem False . ([zi64, zi64] ++) <$> map (C.IntToPtr zi64 . LL.ptr) <$> mapM opTypeOf ts
         Sparse ts          -> Val typ . struct namem False . map (toCons . valOp) <$> mapM mkZero [Table ts, Table [I64]]
         Map tk tv          -> Val typ . struct namem False . map (toCons . valOp) <$> mapM mkZero [Table [tk], Sparse [tv]]
+        --UnsafePtr          -> return $ Val typ $ cons $ C.IntToPtr zi64 (LL.ptr LL.VoidType)
         _ -> error ("mkZero: " ++  show typ)
         where
             zi64 = toCons (int64 0)
