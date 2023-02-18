@@ -47,13 +47,13 @@ newTable typ initialLen = do
     storeBasicVal cap initialLen
     storeBasicVal len initialLen
 
-    siz <- newI64 0
+    size <- newI64 0
     idxs <- forM ts $ \t -> do
-        idx <- pload siz
-        storeBasicVal siz =<< intInfix AST.Plus idx =<< intInfix AST.Times initialLen . toValue =<< sizeOf t
+        idx <- pload size
+        storeBasicVal size =<< intInfix AST.Plus idx =<< intInfix AST.Times initialLen =<< sizeOf t
         return idx
 
-    mal <- pMalloc I8 =<< pload siz
+    mal <- pMalloc I8 =<< pload size
     forM_ (zip3 ts idxs [0..]) $ \(t, idx, i) -> do
         Pointer _ pi8 <- advancePointer mal idx
         ptr <- fmap (Pointer t) $ bitcast pi8 =<< LL.ptr <$> opTypeOf t
@@ -79,34 +79,25 @@ tableRow i tab = do
     
 
 
-mkTablePop :: InsCmp CompileState m => Pointer -> m [Value]
-mkTablePop tab = do
-    Table ts <- baseTypeOf tab
-    len <- tableLen tab
-    lenv <- pload len
-    newLen <- intInfix AST.Minus lenv =<< pload =<< newI64 1
-    store (loc len) 0 (op newLen)
-    mapM (\(Pointer t p) -> valLoad (Ptr t p)) =<< tableColumn tab newLen
-
-
 
 tablePush :: InsCmp CompileState m => Pointer -> [Pointer] -> m Value2
 tablePush tab [] = do 
     len <- pload =<< tableLen tab
     tableResize tab =<< intInfix AST.Plus len =<< pload =<< newI64 1
     ptrs <- tableColumn tab len
-    forM_ ptrs $ \(Pointer pt po) -> valStore (Ptr pt po) =<< mkZero pt
+    forM_ ptrs $ \ptr -> storeBasicVal ptr =<< mkZero (typeof ptr)
     return len
 
 
 tableDelete :: InsCmp CompileState m => Pointer -> Value2 -> m ()
 tableDelete tab idx = do
     Table ts <- baseTypeOf tab
-    len <- pload =<< tableLen tab
-    end <- intInfix AST.Minus len =<< pload =<< newI64 1
+    len <- tableLen tab
+    lenv <- pload len
+    end <- intInfix AST.Minus lenv =<< pload =<< newI64 1
     idxIsEnd <- intInfix AST.EqEq idx end
     if_ (op idxIsEnd) (return ()) (idxNotEndCase end)
-    void $ mkTablePop tab
+    storeBasicVal len end
     where
         idxNotEndCase :: InsCmp CompileState m => Value2 -> m ()
         idxNotEndCase end = do

@@ -31,6 +31,7 @@ import ADT
 import Funcs
 import Symbol
 import Array
+import Sparse
 
 
 -- Builtin contains functions that operate on Values which require the
@@ -45,7 +46,29 @@ storeCopy dst src = withErrorPrefix "storeCopy: " $ do
     True <- return $ baseDst == baseSrc
     case baseDst of
         _ | isSimple baseDst -> storeBasic dst src
+        Table ts -> do 
+            len <- pload =<< tableLen src
+            tableResize dst len
+            for (op len) $ \n -> do 
+                columnDst <- tableColumn dst (Value2 I64 n)
+                columnSrc <- tableColumn src (Value2 I64 n)
+                zipWithM_ storeCopy columnDst columnSrc
+
         _ -> fail (show baseDst)
+
+
+tablePop :: InsCmp CompileState m => Pointer -> m [Pointer]
+tablePop tab = do
+    Table ts <- baseTypeOf tab
+    len <- tableLen tab
+    lenv <- pload len
+    newLen <- intInfix AST.Minus lenv =<< pload =<< newI64 1
+    storeBasicVal len newLen
+    ptrs <- tableColumn tab newLen
+    forM ptrs $ \ptr -> do 
+        val <- newVal (typeof ptr)
+        storeCopy val ptr
+        return val
 
 
 storeCopyVal :: InsCmp CompileState m => Pointer -> Value2 -> m ()
@@ -57,6 +80,33 @@ storeCopyVal dst src = withErrorPrefix "storeCopy: " $ do
         _ | isSimple baseDst -> storeBasicVal dst src
         _ -> fail (show baseDst)
 
+sparsePush :: InsCmp CompileState m => Pointer -> [Pointer] -> m Value2
+sparsePush sparse elems = do
+    Sparse ts <- baseTypeOf sparse
+    assert (map typeof elems == ts) "Elem types do not match"
+    stack <- sparseStack sparse
+    stackLen <- pload =<< tableLen stack
+    stackLenGTZero <- intInfix AST.GT stackLen =<< pload =<< newI64 0
+    ret <- newI64 0 
+    if_ (op stackLenGTZero) (popStackCase stack ret) (pushTableCase ret) 
+    pload ret
+    where
+        popStackCase :: InsCmp CompileState m => Pointer -> Pointer -> m ()
+        popStackCase stack ret = do
+            [idx] <- tablePop stack
+            table <- sparseTable sparse
+            column <- tableColumn table =<< pload idx
+            zipWithM_ storeCopy column elems 
+            storeBasic ret idx
+            
+        pushTableCase :: InsCmp CompileState m => Pointer -> m ()
+        pushTableCase ret = do
+            table <- sparseTable sparse
+            len <- pload =<< tableLen table
+            tableResize table =<< intInfix AST.Plus len =<< pload =<< newI64 1
+            column <- tableColumn table len 
+            zipWithM_ storeCopy column elems 
+            valStore (fromPointer ret) (fromValue len)
 
 -- construct a value from arguments, Eg. i64(3.2), Vec2(12, 43)
 construct :: InsCmp CompileState m => Type -> [Pointer] -> m Pointer

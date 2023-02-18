@@ -45,10 +45,10 @@ baseTypeOf x = case typeof x of
     _           -> return (typeof x)
 
 
-sizeOf :: InsCmp CompileState m => Type -> m Value
+sizeOf :: InsCmp CompileState m => Type -> m Value2
 sizeOf typ = trace "sizeOf" $ do
     opType <- opTypeOf typ
-    return $ Val I64 $ cons $ C.SExt (C.sizeof opType) (LL.IntegerType 64)
+    return $ Value2 I64 $ cons $ C.SExt (C.sizeof opType) (LL.IntegerType 64)
 
 sizeOfLL :: ModCmp CompileState m => LL.Type -> m Int
 sizeOfLL typ = do

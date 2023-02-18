@@ -119,25 +119,25 @@ newRange start end = do
 
 
 -- TODO, is this the cause of the struct packed/non-packed bug?
-mkZero :: InsCmp CompileState m => Type -> m Value
+mkZero :: InsCmp CompileState m => Type -> m Value2
 mkZero typ = trace ("mkZero " ++ show  typ) $ do
     namem <- Map.lookup typ <$> gets typeNameMap
     base <- baseTypeOf typ
     case base of
-        I64                -> return $ Val typ (int64 0)
-        I32                -> return $ Val typ (int32 0)
-        F32                -> return $ Val typ (single 0.0)
-        F64                -> return $ Val typ (double 0.0)
-        Enum               -> return $ Val typ (int64 0)
-        Bool               -> return $ Val typ (bit 0)
-        Char               -> return $ Val typ (int8 0)
-        Range t            -> Val typ . struct namem False . map (toCons . valOp) <$> mapM mkZero [t, t]
-        Array n t          -> Val typ . array . replicate n . toCons . valOp <$> mkZero t
-        Tuple ts           -> Val typ . struct namem False . map (toCons . valOp) <$> mapM mkZero ts
-        Table ts           -> Val typ . struct namem False . ([zi64, zi64] ++) <$> map (C.IntToPtr zi64 . LL.ptr) <$> mapM opTypeOf ts
-        Sparse ts          -> Val typ . struct namem False . map (toCons . valOp) <$> mapM mkZero [Table ts, Table [I64]]
-        Map tk tv          -> Val typ . struct namem False . map (toCons . valOp) <$> mapM mkZero [Table [tk], Sparse [tv]]
-        UnsafePtr          -> return $ Val typ $ cons $ C.IntToPtr zi64 (LL.ptr LL.VoidType)
+        I64                -> return $ Value2 typ (int64 0)
+        I32                -> return $ Value2 typ (int32 0)
+        F32                -> return $ Value2 typ (single 0.0)
+        F64                -> return $ Value2 typ (double 0.0)
+        Enum               -> return $ Value2 typ (int64 0)
+        Bool               -> return $ Value2 typ (bit 0)
+        Char               -> return $ Value2 typ (int8 0)
+        Range t            -> Value2 typ . struct namem False . map (toCons . op) <$> mapM mkZero [t, t]
+        Array n t          -> Value2 typ . array . replicate n . toCons . op <$> mkZero t
+        Tuple ts           -> Value2 typ . struct namem False . map (toCons . op) <$> mapM mkZero ts
+        Table ts           -> Value2 typ . struct namem False . ([zi64, zi64] ++) <$> map (C.IntToPtr zi64 . LL.ptr) <$> mapM opTypeOf ts
+        Sparse ts          -> Value2 typ . struct namem False . map (toCons . op) <$> mapM mkZero [Table ts, Table [I64]]
+        Map tk tv          -> Value2 typ . struct namem False . map (toCons . op) <$> mapM mkZero [Table [tk], Sparse [tv]]
+        UnsafePtr          -> return $ Value2 typ $ cons $ C.IntToPtr zi64 (LL.ptr LL.VoidType)
         _ -> fail ("mkZero: " ++  show typ)
         where
             zi64 = toCons (int64 0)
@@ -242,16 +242,14 @@ newVal typ = do
         Tuple ts -> forM_ (zip ts [0..]) $ \(t, i) -> do 
             pelm <- gep p [int32 0, int32 $ fromIntegral i]
             storeBasic (Pointer t pelm) =<< newVal t
-        _ -> do
-            Val _ z <- mkZero typ
-            store p 0 z
+        _ -> store p 0 . op =<< mkZero typ
     return $ Pointer typ p
 
 
 pMalloc :: InsCmp CompileState m => Type -> Value2 -> m Pointer
 pMalloc typ len = trace ("mkMalloc " ++ show typ) $ do
     lenTyp <- assertBaseType isInt (typeof len)
-    pi8 <- malloc =<< mul (op len) . valOp =<< sizeOf typ
+    pi8 <- malloc =<< mul (op len) . op =<< sizeOf typ
     fmap (Pointer typ) $ bitcast pi8 . LL.ptr =<< opTypeOf typ
 
 
@@ -266,10 +264,10 @@ memCpy (Pointer dstTyp dst) (Pointer srcTyp src) len = trace "valMemCpy" $ do
     True <- return (dstTyp == srcTyp)
     I64 <- baseTypeOf len
 
-    Val I64 siz <- sizeOf dstTyp
+    size <- sizeOf dstTyp
     pDstI8 <- bitcast dst (LL.ptr LL.i8)
     pSrcI8 <- bitcast src (LL.ptr LL.i8)
-    void $ memcpy pDstI8 pSrcI8 =<< mul siz (op len)
+    void $ memcpy pDstI8 pSrcI8 =<< mul (op size) (op len)
 
 
 prefix :: InsCmp CompileState m => AST.Operator -> Value2 -> m Value2
@@ -278,7 +276,7 @@ prefix operator val = do
     Value2 (typeof val) <$> case base of
         _ | isInt base -> case operator of
             AST.Plus -> return (op val)
-            AST.Minus -> mkZero (typeof val) >>= \zero -> op <$> (intInfix AST.Minus (toValue zero) val)
+            AST.Minus -> mkZero (typeof val) >>= \zero -> op <$> (intInfix AST.Minus zero val)
 
         _ | isFloat base -> case operator of
             AST.Plus -> return (op val)

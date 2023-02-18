@@ -397,7 +397,7 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
         val <- newVal exprType
         case base of
             Table ts  -> storeBasicVal val =<< tablePush loc []
-            Sparse ts -> storeBasicVal val =<< sparsePush loc =<< mapM mkZero ts
+            Sparse ts -> storeBasicVal val =<< sparsePush loc =<< mapM newVal ts
         return (val)
 
     AST.Builtin pos [expr] "push" exprs -> do
@@ -415,17 +415,15 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
                 storeBasicVal val =<< convertNumber exprType len
 
             Sparse ts -> do 
-                n <- sparsePush loc . map fromPointer =<< mapM cmpExpr exprs
+                n <- sparsePush loc =<< mapM cmpExpr exprs
                 storeBasicVal val =<< convertNumber exprType n
         return (val)
 
 
     AST.Builtin pos [expr] "pop" [] -> do
         val <- cmpExpr expr
-        [v] <- mkTablePop val
-        loc <- newVal exprType
-        storeCopyVal loc . toValue =<< valLoad v
-        return (loc)
+        [v] <- tablePop val
+        return v
 
     AST.Builtin pos [expr] "clear" [] -> do
         assert (exprType == Void) "clear is a void expression"
