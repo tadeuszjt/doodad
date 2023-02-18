@@ -150,7 +150,7 @@ collectAST ast = do
         define symbol (KeyFunc ps as rt) ObjFunc
 
     forM (Map.toList $ funcDefs ast) $ \(symbol, body) ->
-        define symbol (KeyFunc (map S.paramType $ funcParams body) (map S.paramType $ funcArgs body) (funcRetty body)) ObjFunc
+        define symbol (KeyFunc (map typeof $ funcParams body) (map typeof $ funcArgs body) (funcRetty body)) ObjFunc
 
     forM_ (Map.toList $ funcDefs ast) $ \(symbol, body) ->
         collectFuncDef symbol body

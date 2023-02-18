@@ -72,7 +72,7 @@ valLoc (Val typ _) = error (show typ)
 
 data Object
     = ObjFn         
-    | ObjVal Value
+    | ObjVal Pointer
     | ObjType Type
     | ObjField Int
     deriving ()
@@ -80,8 +80,7 @@ data Object
 
 instance Show Object where
     show object = case object of
-        ObjVal (Val t o) -> "Val " ++ show t
-        ObjVal (Ptr t o) -> "Ptr " ++ show t
+        ObjVal (Pointer t o) -> "Ptr " ++ show t
         ObjVal val       -> "val"
         ObjType typ      -> show typ
         ObjFn            -> "fn"

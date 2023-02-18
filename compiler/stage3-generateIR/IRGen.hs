@@ -73,7 +73,7 @@ initialiseTopFuncDefs funcDefs = do
                 modify $ \s -> s { irMainDef = Just (funcBody { funcStmts = [] }) }
             _ -> do
                 False <- Map.member symbol <$> gets irFuncDefs
-                let key = (map AST.paramType (funcParams funcBody), sym symbol, map AST.paramType (funcArgs funcBody), (funcRetty funcBody))
+                let key = (map typeof (funcParams funcBody), sym symbol, map typeof (funcArgs funcBody), (funcRetty funcBody))
                 modify $ \s -> s { irFuncMap = Map.insert  key symbol (irFuncMap s) }
                 modify $ \s -> s { irFuncDefs = Map.insert symbol (funcBody { funcStmts = [] }) (irFuncDefs s) }
 
@@ -89,8 +89,8 @@ initialiseTupleMembers ctorDefs = do
 
 compileFuncDef :: BoM IRGenState m => Symbol -> FuncBody -> m ()
 compileFuncDef symbol body = do
-    let paramTypes = map AST.paramType (funcParams body)
-    let argTypes   = map AST.paramType (funcArgs body)
+    let paramTypes = map typeof (funcParams body)
+    let argTypes   = map typeof (funcArgs body)
     let key        = (paramTypes, sym symbol, argTypes, funcRetty body)
 
     oldCurrentFunc <- gets irCurrentFunc

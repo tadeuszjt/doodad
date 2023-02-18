@@ -137,8 +137,8 @@ mkZero typ = trace ("mkZero " ++ show  typ) $ do
         Table ts           -> Val typ . struct namem False . ([zi64, zi64] ++) <$> map (C.IntToPtr zi64 . LL.ptr) <$> mapM opTypeOf ts
         Sparse ts          -> Val typ . struct namem False . map (toCons . valOp) <$> mapM mkZero [Table ts, Table [I64]]
         Map tk tv          -> Val typ . struct namem False . map (toCons . valOp) <$> mapM mkZero [Table [tk], Sparse [tv]]
-        --UnsafePtr          -> return $ Val typ $ cons $ C.IntToPtr zi64 (LL.ptr LL.VoidType)
-        _ -> error ("mkZero: " ++  show typ)
+        UnsafePtr          -> return $ Val typ $ cons $ C.IntToPtr zi64 (LL.ptr LL.VoidType)
+        _ -> fail ("mkZero: " ++  show typ)
         where
             zi64 = toCons (int64 0)
 
@@ -158,7 +158,6 @@ rangeEnd range = do
 
 pload :: InsCmp CompileState m => Pointer -> m Value2
 pload ptr = do
-    assertBaseType isSimple (typeof ptr)
     Value2 (typeof ptr) <$> load (loc ptr) 0
 
 

@@ -5,7 +5,7 @@ import Data.Maybe
 import Data.Word
 import Data.List
 import Control.Monad
-import Type (Type, Type(Void))
+import Type (Type, Type(Void), Typeof, typeof)
 import Error
 import Symbol
 
@@ -49,9 +49,11 @@ data Param
     = Param
         { paramPos  :: TextPos
         , paramName :: Symbol
-        , paramType :: Type
+        , paramType__ :: Type
         }
     deriving (Eq, Ord)
+
+instance Type.Typeof Param where typeof (Param pos name typ) = typ
 
 
 data Pattern
@@ -309,7 +311,6 @@ prettyAST ast = do
 
             ExprStmt callExpr -> putStrLn $ pre ++ show callExpr
                     
-
             Block stmts -> do
                 mapM_ (prettyStmt pre) stmts
 
