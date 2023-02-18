@@ -379,7 +379,7 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
             _       -> toVal =<< newI64 0
         start <- case margStart of
             Nothing  -> toValue <$> valLoad startVal
-            Just arg -> pload =<< Builtin.max startVal . fromPointer =<< cmpExpr arg
+            Just arg -> pload =<< Builtin.max startVal =<< cmpExpr arg
 
         endVal <- case base of
             Range t   -> toVal =<< rangeEnd val
@@ -387,7 +387,7 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
             Table ts  -> toVal =<< tableLen val
         end <- case margEnd of
             Nothing  -> toValue <$> valLoad endVal
-            Just arg -> pload =<< Builtin.min endVal . fromPointer =<< cmpExpr arg
+            Just arg -> pload =<< Builtin.min endVal =<< cmpExpr arg
             
         newRange start end
 
@@ -473,7 +473,7 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
     AST.Infix pos op exprA exprB -> do
         valA <- cmpExpr exprA
         valB <- cmpExpr exprB
-        res <- toValue <$> (valLoad =<< mkInfix op (fromPointer valA) (fromPointer valB))
+        res <- toValue <$> (valLoad =<< mkInfix op (fromPointer valA) valB)
         result <- newVal exprType
         storeBasicVal result res 
         return result
@@ -623,7 +623,7 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
 cmpPattern :: InsCmp CompileState m => AST.Pattern -> Value -> m Value2
 cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pattern of
     AST.PatIgnore _     -> pload =<< newBool True
-    AST.PatLiteral expr -> toValue <$> (valLoad =<< mkInfix AST.EqEq val . fromPointer =<< cmpExpr expr)
+    AST.PatLiteral expr -> toValue <$> (valLoad =<< mkInfix AST.EqEq val =<< cmpExpr expr)
 
     AST.PatNull _ -> do -- null
         base@(ADT fs) <- assertBaseType isADT (typeof val)
