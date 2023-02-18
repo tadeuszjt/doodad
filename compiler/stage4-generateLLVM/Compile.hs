@@ -561,12 +561,10 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
                 
 
             Range t -> do
-                start <- rangeStart (toPointer val)
-                end <- rangeEnd (toPointer val)
-                idxGtEqStart <- mkInfix AST.GTEq (fromValue idx) . fromValue =<< pload start
-                idxLtEnd <- mkInfix AST.LT (fromValue idx) . fromValue =<< pload end
+                idxGtEqStart <- intInfix AST.GTEq idx =<< pload =<< rangeStart (toPointer val)
+                idxLtEnd <- intInfix AST.LT idx =<< pload =<< rangeEnd (toPointer val)
                 assertBaseType (== Bool) exprType
-                Val exprType <$> LL.and (valOp idxLtEnd) (valOp idxGtEqStart)
+                Val exprType <$> LL.and (op idxLtEnd) (op idxGtEqStart)
                 
     AST.Initialiser pos exprs -> do
         base <- baseTypeOf exprType
@@ -626,10 +624,10 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
         cmpPattern pat val
 
     AST.PatGuarded _ pat expr -> do -- a | a > 0
-        match <- cmpPattern pat =<< valLoad val
-        guard <- cmpExpr expr
+        match <- toValue <$> (valLoad =<< cmpPattern pat =<< valLoad val)
+        guard <- toValue <$> (valLoad =<< cmpExpr expr)
         assertBaseType (== Bool) (typeof guard)
-        mkInfix AST.AndAnd match guard
+        fromValue <$> (boolInfix AST.AndAnd match guard)
 
     AST.PatIdent _ symbol -> trace ("cmpPattern " ++ show pattern) $ do -- a
         base <- baseTypeOf val
@@ -645,10 +643,10 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
         assert (len == length pats) "incorrect tuple length"
 
         bs <- forM (zip pats [0..]) $ \(p, i) ->
-            cmpPattern p . fromValue =<< valTupleIdx i . toValue =<< valLoad val
+            toValue <$> (valLoad =<< cmpPattern p . fromValue =<< valTupleIdx i . toValue =<< valLoad val)
 
-        true <- newBool True
-        foldM (mkInfix AST.AndAnd) (fromPointer true) bs
+        true <- pload =<< newBool True
+        fromValue <$> (foldM (boolInfix AST.AndAnd) true bs)
 
     AST.PatArray _ [pats] -> do -- [a, b, c]
         base <- baseTypeOf val
@@ -656,24 +654,24 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
             Sparse ts -> cmpPattern pattern . fromPointer =<< sparseTable (toPointer val) 
             
             Table ts -> do
-                len   <- toVal =<< tableLen (toPointer val)
-                lenEq <- mkInfix AST.EqEq len =<< toVal =<< newI64 (length pats)
+                len   <- pload =<< tableLen (toPointer val)
+                lenEq <- intInfix AST.EqEq len =<< pload =<< newI64 (length pats)
 
                 assert (length ts == 1) "patterns don't support multiple rows (yet)"
                 bs <- forM (zip pats [0..]) $ \(pat, i) -> do
                     [Pointer t p] <- tableColumn (toPointer val) =<< pload =<< newI64 i
-                    cmpPattern pat (Ptr t p)
+                    toValue <$> (valLoad =<< cmpPattern pat (Ptr t p))
 
-                true <- toType (typeof lenEq) =<< newBool True
-                foldM (mkInfix AST.AndAnd) (fromPointer true) (lenEq:bs)
+                true <- pload =<< toType (typeof lenEq) =<< newBool True
+                fromValue <$> (foldM (boolInfix AST.AndAnd) true (lenEq:bs))
 
             Array n t -> do
                 assert (n == length pats) "Invalid array pattern"
                 bs <- forM (zip pats [0..]) $ \(p, i) ->
-                    cmpPattern p =<< ptrArrayGetElemConst val i
+                    toValue <$> (valLoad =<< cmpPattern p =<< ptrArrayGetElemConst val i)
 
-                true <- newBool True
-                foldM (mkInfix AST.AndAnd) (fromPointer true) bs
+                true <- pload =<< newBool True
+                fromValue <$> (foldM (boolInfix AST.AndAnd) true bs)
             
             _ -> fail "Invalid array pattern"
 
@@ -686,23 +684,24 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
                 forM_ patss $ \pats -> do 
                     assert (length pats == rowLen) "row length mismatch"
                 len   <- toVal =<< tableLen (toPointer val) 
-                lenEq <- mkInfix AST.EqEq len =<< toVal =<< newI64 rowLen
+                lenEq <- intInfix AST.EqEq len =<< pload =<< newI64 rowLen
 
                 matched <- newBool False
-                true <- newBool True
+                true <- pload =<< newBool True
 
                 exit <- freshName "exit"
                 cond <- freshName "cond"
 
-                condBr (valOp lenEq) cond exit
+                condBr (op lenEq) cond exit
 
                 emitBlockStart cond
                 bs <- forM [0.. rowLen - 1] $ \i -> do
                     ptrs <- tableColumn (toPointer val) =<< pload =<< newI64 i
                     let patc = map (!! i) patss
-                    bs <- forM (zip ptrs patc) $ \(Pointer t p, pat) -> cmpPattern pat (Ptr t p)
-                    foldM (mkInfix AST.AndAnd) (fromPointer true) bs
-                valStore (fromPointer matched) =<< foldM (mkInfix AST.AndAnd) (fromPointer true) bs
+                    bs <- forM (zip ptrs patc) $ \(Pointer t p, pat) -> do 
+                        toValue <$> (valLoad =<< cmpPattern pat (Ptr t p))
+                    foldM (boolInfix AST.AndAnd) true bs
+                storeBasicVal matched =<< foldM (boolInfix AST.AndAnd) true bs
                 br exit
 
                 emitBlockStart exit
@@ -717,7 +716,8 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
             Enum -> do
                 assert (pats == []) "enum pattern with args"
                 ObjField i <- look symbol
-                mkInfix AST.EqEq val . fromValue =<< mkEnum (typeof val) i
+                v <- toValue <$> valLoad val
+                fromValue <$> (enumInfix AST.EqEq v =<< mkEnum (typeof val) i)
 
             ADT fs -> do
                 obj <- look symbol
@@ -732,7 +732,7 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
                         Ptr _ loc <- adtDeref (fromPointer adt) i 0
                         ObjType t0 <- look symbol
                         b <- cmpPattern (head pats) $ Ptr t0 loc
-                        valLoad =<< mkInfix AST.AndAnd (fromValue enumMatch) b
+                        fromValue <$> (boolInfix AST.AndAnd enumMatch . toValue =<< valLoad b)
 
                     ObjField i -> do
                         let FieldCtor ts = fs !! i
@@ -744,9 +744,9 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
                         adt <- newVal (typeof val)
                         storeCopyVal adt (toValue val)
                         bs <- forM (zip pats [0..]) $ \(pat, j) -> do
-                            cmpPattern pat =<< adtDeref (fromPointer adt) i j
+                            toValue <$> (valLoad =<< cmpPattern pat =<< adtDeref (fromPointer adt) i j)
 
-                        valLoad =<< foldM (mkInfix AST.AndAnd) (fromValue enumMatch) bs
+                        fromValue <$> foldM (boolInfix AST.AndAnd) enumMatch bs
 
 
     AST.PatTypeField _ typ pat -> do -- char(c)
