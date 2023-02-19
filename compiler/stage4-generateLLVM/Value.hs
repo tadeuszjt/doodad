@@ -35,10 +35,6 @@ import Error
 
 -- Value contains the basic low-level operations for Value types.
 
-mkI64 :: Integral i => i -> Value
-mkI64 n = Val I64 $ int64 (fromIntegral n)
-
-
 toValue (Val t p) = Value2 t p
 
 fromValue (Value2 t p) = Val t p
@@ -66,6 +62,10 @@ newI64 n = do
     p <- alloca LL.i64 Nothing 0
     store p 0 $ int64 (fromIntegral n)
     return $ Pointer I64 p
+
+
+mkI64 :: Integral i => i -> Value2
+mkI64 n = Value2 I64 $ int64 (fromIntegral n)
 
 
 newChar :: InsCmp CompileState m => Char -> m Pointer

@@ -70,8 +70,8 @@ valPrint append val = withErrorPrefix "valPrint " $ case typeof val of
     Array n t -> do
         printf "[" []
         forM_ [0..n-2] $ \i ->
-            valPrint ", " =<< arrayGetElem val =<< pload =<< newI64 i
-        valPrint ("]" ++ append) =<< arrayGetElem val =<< pload =<< newI64 (n-1)
+            valPrint ", " =<< arrayGetElem val (mkI64 i)
+        valPrint ("]" ++ append) =<< arrayGetElem val (mkI64 $ n-1)
 
 
     _ -> error ("print: " ++ show (typeof val))

@@ -13,10 +13,6 @@ type FilePtr i64
 type Io sparse[FilePtr]
 
 
-fn {io Io, str string} getCurrentDirectory()
-    let ptr | ptr > 0 = FilePtr(i64(getwd(unsafe_ptr_from_int(0))))
-
-
 fn {io Io, fileName string} openFile() FileKey 
     fileName.push('\0')
     let ptr | ptr > 0 = FilePtr(i64(fopen(fileName.unsafe_ptr(), "a+\0".unsafe_ptr())))

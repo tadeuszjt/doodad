@@ -44,14 +44,14 @@ sparseDelete sparse idx = do
         storeBasic ptr =<< newVal (typeof ptr)
 
     len <- pload =<< tableLen table
-    idxIsEnd <- intInfix AST.EqEq idx =<< intInfix AST.Minus len =<< pload =<< newI64 1
+    idxIsEnd <- intInfix AST.EqEq idx =<< intInfix AST.Minus len (mkI64 1)
     if_ (op idxIsEnd) (tableShrink table) idxNotEndCase
     where
         idxNotEndCase :: InsCmp CompileState m => m ()
         idxNotEndCase = do
             stack <- sparseStack sparse
             len <- pload =<< tableLen stack
-            tableResize stack =<< intInfix AST.Plus len =<< pload =<< newI64 1
+            tableResize stack =<< intInfix AST.Plus len (mkI64 1)
             [elm] <- tableColumn stack len
             storeBasicVal elm idx
 
@@ -59,6 +59,6 @@ sparseDelete sparse idx = do
         tableShrink table = do 
             len <- tableLen table 
             lenv <- pload len
-            newLen <- intInfix AST.Minus lenv =<< pload =<< newI64 1
+            newLen <- intInfix AST.Minus lenv (mkI64 1)
             storeBasicVal len newLen
     

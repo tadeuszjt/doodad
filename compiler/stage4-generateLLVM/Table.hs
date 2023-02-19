@@ -79,11 +79,10 @@ tableRow i tab = do
     
 
 
-
-tablePush :: InsCmp CompileState m => Pointer -> [Pointer] -> m Value2
-tablePush tab [] = do 
+tablePush :: InsCmp CompileState m => Pointer -> m Value2
+tablePush tab = do 
     len <- pload =<< tableLen tab
-    tableResize tab =<< intInfix AST.Plus len =<< pload =<< newI64 1
+    tableResize tab =<< intInfix AST.Plus len (mkI64 1)
     ptrs <- tableColumn tab len
     forM_ ptrs $ \ptr -> storeBasicVal ptr =<< mkZero (typeof ptr)
     return len
@@ -94,17 +93,18 @@ tableDelete tab idx = do
     Table ts <- baseTypeOf tab
     len <- tableLen tab
     lenv <- pload len
-    end <- intInfix AST.Minus lenv =<< pload =<< newI64 1
-    idxIsEnd <- intInfix AST.EqEq idx end
-    if_ (op idxIsEnd) (return ()) (idxNotEndCase end)
+    end <- intInfix AST.Minus lenv (mkI64 1)
+
+    -- swap len idx
+    dsts <- tableColumn tab idx
+    srcs <- tableColumn tab end
+    zipWithM_ storeBasic dsts srcs
+
+    -- reduce size
     storeBasicVal len end
-    where
-        idxNotEndCase :: InsCmp CompileState m => Value2 -> m ()
-        idxNotEndCase end = do
-            dsts <- tableColumn tab idx
-            srcs <- tableColumn tab end
-            zipWithM_ storeBasic dsts srcs
-    
+
+
+
 
 tableSetRow :: InsCmp CompileState m => Pointer -> Int -> Pointer -> m ()
 tableSetRow tab i row = trace "tableSetRow" $ do

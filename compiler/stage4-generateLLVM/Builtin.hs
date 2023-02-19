@@ -70,7 +70,7 @@ tablePop tab = do
     Table ts <- baseTypeOf tab
     len <- tableLen tab
     lenv <- pload len
-    newLen <- intInfix AST.Minus lenv =<< pload =<< newI64 1
+    newLen <- intInfix AST.Minus lenv (mkI64 1)
     storeBasicVal len newLen
     ptrs <- tableColumn tab newLen
     forM ptrs $ \ptr -> do 
@@ -109,7 +109,7 @@ mapIndex map key = do
 mapPush :: InsCmp CompileState m => Pointer -> Pointer -> m Pointer
 mapPush map key = do
     Map tk tv <- baseTypeOf map
-    idx <- tablePush (Pointer (Table [tk, tv]) (loc map)) []
+    idx <- tablePush (Pointer (Table [tk, tv]) (loc map))
     [pk, pv] <- tableColumn (Pointer (Table [tk, tv]) (loc map)) idx
     storeCopy pk key
     return pv
@@ -140,8 +140,7 @@ mapFind map key = do
     condBr (op eq) exit incr
 
     emitBlockStart incr
-    idxv <- pload idx
-    storeCopyVal idx =<< intInfix AST.Plus idxv =<< pload =<< newI64 1
+    storeCopyVal idx =<< intInfix AST.Plus (mkI64 1) =<< pload idx
     br cond
 
     emitBlockStart exit
@@ -166,7 +165,7 @@ sparsePush sparse elems = do
     assert (map typeof elems == ts) "Elem types do not match"
     stack <- sparseStack sparse
     stackLen <- pload =<< tableLen stack
-    stackLenGTZero <- intInfix AST.GT stackLen =<< pload =<< newI64 0
+    stackLenGTZero <- intInfix AST.GT stackLen (mkI64 0)
     ret <- newI64 0 
     if_ (op stackLenGTZero) (popStackCase stack ret) (pushTableCase ret) 
     pload ret
@@ -183,7 +182,7 @@ sparsePush sparse elems = do
         pushTableCase ret = do
             table <- sparseTable sparse
             len <- pload =<< tableLen table
-            tableResize table =<< intInfix AST.Plus len =<< pload =<< newI64 1
+            tableResize table =<< intInfix AST.Plus len (mkI64 1)
             column <- tableColumn table len 
             zipWithM_ storeCopy column elems 
             valStore (fromPointer ret) (fromValue len)
@@ -323,9 +322,9 @@ arrayInfix operator a b = do
         _ | operator `elem` [AST.Plus, AST.Minus, AST.Times, AST.Divide, AST.Modulo] -> do
             arr <- newVal (typeof a)
             forM_ [0..n] $ \i -> do
-                pDst <- arrayGetElem arr =<< pload =<< newI64 i
-                pSrcA <- arrayGetElem a =<< pload =<< newI64 i
-                pSrcB <- arrayGetElem b =<< pload =<< newI64 i
+                pDst <- arrayGetElem arr (mkI64 i)
+                pSrcA <- arrayGetElem a (mkI64 i)
+                pSrcB <- arrayGetElem b (mkI64 i)
                 storeCopy pDst =<< newInfix operator pSrcA pSrcB
             return arr
 
@@ -435,7 +434,7 @@ tableInfix operator a b = do
             elmEq <- pload =<< newInfix AST.EqEq columnA columnB
             storeCopyVal eq elmEq
             idxv <- pload idx
-            valStore (fromPointer idx) . fromValue =<< intInfix AST.Plus idxv =<< pload =<< newI64 1
+            valStore (fromPointer idx) . fromValue =<< intInfix AST.Plus idxv (mkI64 1)
             condBr (op elmEq) cond exit
 
             emitBlockStart exit
