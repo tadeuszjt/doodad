@@ -62,7 +62,7 @@ valPrint append val = withErrorPrefix "valPrint " $ case typeof val of
 
     Table ts -> do
         printf "[" []
-        len <- fromPointer <$> tableLen (toPointer val)
+        len <- tableLen (toPointer val)
         lenZero <- mkInfix AST.EqEq len =<< newI64 0
 
         if_ (valOp lenZero)
@@ -79,6 +79,7 @@ valPrint append val = withErrorPrefix "valPrint " $ case typeof val of
     _ -> error ("print: " ++ show (typeof val))
 
     where
+        tablePrintHelper :: InsCmp CompileState m => [Type] -> Value -> Pointer -> m ()
         tablePrintHelper ts val len = forM_ [0..length ts - 1] $ \i -> do
             row@(Pointer t p) <- tableRow i (toPointer val)
             n <- mkInfix AST.Minus len =<< newI64 1

@@ -375,18 +375,18 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
 
         -- default 0 because all types index 0
         startVal <- case base of
-            Range t -> toVal =<< rangeStart val
-            _       -> toVal =<< newI64 0
+            Range t -> rangeStart val
+            _       -> newI64 0
         start <- case margStart of
-            Nothing  -> toValue <$> valLoad startVal
+            Nothing  -> pload startVal
             Just arg -> pload =<< Builtin.max startVal =<< cmpExpr arg
 
         endVal <- case base of
-            Range t   -> toVal =<< rangeEnd val
-            Array n t -> toVal =<< newI64 n
-            Table ts  -> toVal =<< tableLen val
+            Range t   -> rangeEnd val
+            Array n t -> newI64 n
+            Table ts  -> tableLen val
         end <- case margEnd of
-            Nothing  -> toValue <$> valLoad endVal
+            Nothing  -> pload endVal
             Just arg -> pload =<< Builtin.min endVal =<< cmpExpr arg
             
         newRange start end
@@ -473,7 +473,7 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
     AST.Infix pos op exprA exprB -> do
         valA <- cmpExpr exprA
         valB <- cmpExpr exprB
-        res <- toValue <$> (valLoad =<< mkInfix op (fromPointer valA) valB)
+        res <- toValue <$> (valLoad =<< mkInfix op valA valB)
         result <- newVal exprType
         storeBasicVal result res 
         return result
@@ -623,7 +623,10 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
 cmpPattern :: InsCmp CompileState m => AST.Pattern -> Value -> m Value2
 cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pattern of
     AST.PatIgnore _     -> pload =<< newBool True
-    AST.PatLiteral expr -> toValue <$> (valLoad =<< mkInfix AST.EqEq val =<< cmpExpr expr)
+    AST.PatLiteral expr -> do 
+        ptr <- newVal (typeof val)
+        valStore (fromPointer ptr) val
+        toValue <$> (valLoad =<< mkInfix AST.EqEq ptr =<< cmpExpr expr)
 
     AST.PatNull _ -> do -- null
         base@(ADT fs) <- assertBaseType isADT (typeof val)
