@@ -220,7 +220,7 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
     AST.Set pos expr1 expr2 -> do
         label "set"
         loc <- cmpExpr expr1
-        storeCopyVal loc =<< pload =<< cmpExpr expr2
+        storeCopy loc =<< cmpExpr expr2
 
     AST.Return pos Nothing -> withErrorPrefix "return: " $ do
         label "return"
@@ -342,7 +342,7 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
         return b
     AST.Prefix pos operator expr -> do 
         val <- newVal exprType
-        storeBasicVal val =<< prefix operator =<< pload =<< cmpExpr expr
+        storeBasicVal val =<< prefix operator =<< cmpExpr expr
         return val
 
     AST.Conv pos typ [expr]      -> do
@@ -473,7 +473,7 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
     AST.Infix pos op exprA exprB -> do
         valA <- cmpExpr exprA
         valB <- cmpExpr exprB
-        res <- toValue <$> (valLoad =<< mkInfix op valA valB)
+        res <- pload =<< newInfix op valA valB
         result <- newVal exprType
         storeBasicVal result res 
         return result
@@ -552,22 +552,23 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
 
     AST.Subscript pos expr idxExpr -> withErrorPrefix "subscript: " $ do
         val <- cmpExpr expr
-        idx <- pload =<< cmpExpr idxExpr
+        idx <- cmpExpr idxExpr
         base <- baseTypeOf val
         case base of
-            Table _   -> (\[x] -> x) <$> tableColumn val idx
-            Array _ _ -> arrayGetElem val idx
+            Table _   -> (\[x] -> x) <$> (tableColumn val =<< pload idx)
+            Array _ _ -> arrayGetElem val =<< pload idx
             Sparse _  -> do
                 table <- sparseTable val
-                [ptr] <- tableColumn table idx
+                [ptr] <- tableColumn table =<< pload idx
                 return $ ptr
             Map _ _ -> do 
-                error "here" 
+                mapIndex val idx
                 
 
             Range t -> do
-                idxGtEqStart <- intInfix AST.GTEq idx =<< pload =<< rangeStart val
-                idxLtEnd <- intInfix AST.LT idx =<< pload =<< rangeEnd val
+                idxv <- pload idx
+                idxGtEqStart <- intInfix AST.GTEq idxv =<< pload =<< rangeStart val
+                idxLtEnd <- intInfix AST.LT idxv =<< pload =<< rangeEnd val
                 assertBaseType (== Bool) exprType
                 val <- Value2 exprType <$> LL.and (op idxLtEnd) (op idxGtEqStart)
                 result <- newVal exprType 
@@ -623,8 +624,7 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
 cmpPattern :: InsCmp CompileState m => AST.Pattern -> Pointer -> m Value2
 cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pattern of
     AST.PatIgnore _     -> pload =<< newBool True
-    AST.PatLiteral expr -> do 
-        toValue <$> (valLoad =<< mkInfix AST.EqEq val =<< cmpExpr expr)
+    AST.PatLiteral expr -> pload =<< newInfix AST.EqEq val =<< cmpExpr expr
 
     AST.PatNull _ -> do -- null
         base@(ADT fs) <- assertBaseType isADT (typeof val)

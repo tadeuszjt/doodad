@@ -136,7 +136,7 @@ mkZero typ = trace ("mkZero " ++ show  typ) $ do
         Tuple ts           -> Value2 typ . struct namem False . map (toCons . op) <$> mapM mkZero ts
         Table ts           -> Value2 typ . struct namem False . ([zi64, zi64] ++) <$> map (C.IntToPtr zi64 . LL.ptr) <$> mapM opTypeOf ts
         Sparse ts          -> Value2 typ . struct namem False . map (toCons . op) <$> mapM mkZero [Table ts, Table [I64]]
-        Map tk tv          -> Value2 typ . struct namem False . map (toCons . op) <$> mapM mkZero [Table [tk], Sparse [tv]]
+        Map tk tv          -> Value2 typ . op <$> mkZero (Table [tk, tv])
         UnsafePtr          -> return $ Value2 typ $ cons $ C.IntToPtr zi64 (LL.ptr LL.VoidType)
         _ -> fail ("mkZero: " ++  show typ)
         where
@@ -270,23 +270,26 @@ memCpy (Pointer dstTyp dst) (Pointer srcTyp src) len = trace "valMemCpy" $ do
     void $ memcpy pDstI8 pSrcI8 =<< mul (op size) (op len)
 
 
-prefix :: InsCmp CompileState m => AST.Operator -> Value2 -> m Value2
+prefix :: InsCmp CompileState m => AST.Operator -> Pointer -> m Value2
 prefix operator val = do
     base <- baseTypeOf val
     Value2 (typeof val) <$> case base of
         _ | isInt base -> case operator of
-            AST.Plus -> return (op val)
-            AST.Minus -> mkZero (typeof val) >>= \zero -> op <$> (intInfix AST.Minus zero val)
+            AST.Plus -> op <$> pload val
+            AST.Minus -> mkZero (typeof val) >>= \zero -> op <$> (intInfix AST.Minus zero =<< pload val)
 
         _ | isFloat base -> case operator of
-            AST.Plus -> return (op val)
-            AST.Minus -> newFloat (typeof val) 0 >>= toVal >>= \zero -> fsub (valOp zero) (op val)
+            AST.Plus -> op <$> pload val
+            AST.Minus -> do 
+                newFloat (typeof val) 0 >>= toVal >>= \zero -> fsub (valOp zero) . op =<< pload val
 
         Bool -> case operator of
-            AST.Not -> icmp P.EQ (op val) (bit 0)
+            AST.Not -> do 
+                o <- op <$> pload val
+                icmp P.EQ o (bit 0)
 
         Char -> case operator of
-            AST.Minus -> sub (int8 0) (op val)
+            AST.Minus -> sub (int8 0) . op =<< pload val
 
         _ -> fail $ show base
         

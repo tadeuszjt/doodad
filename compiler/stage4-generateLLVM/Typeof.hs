@@ -96,6 +96,7 @@ opTypeOf typ = withErrorPrefix ("opTypOf " ++ show typ) $ do
             Char      -> return LL.i8
             Bool      -> return LL.i1
             Enum      -> return LL.i64
+            Map tk tv -> opTypeOf (Table [tk, tv])
             Range t   -> LL.StructureType False <$> mapM opTypeOf [t, t]
             Tuple ts  -> LL.StructureType False <$> mapM opTypeOf ts
             Array n t -> LL.ArrayType (fromIntegral n) <$> opTypeOf t
@@ -118,10 +119,6 @@ opTypeOf typ = withErrorPrefix ("opTypOf " ++ show typ) $ do
                 table <- opTypeOf (Table ts)
                 return $ LL.StructureType False [table, stack]
 
-            Map tk tv -> do 
-                values <- opTypeOf (Sparse [tv])
-                keys   <- opTypeOf (Table [tk])
-                return $ LL.StructureType False [keys, values]
                 
 
             Typedef s -> do

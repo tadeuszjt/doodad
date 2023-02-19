@@ -21,11 +21,27 @@ import Typeof
 import Trace
 import Error
 import Table
-import Builtin
 
 
-ptrMapKeys :: InsCmp CompileState m => Value -> m Value
-ptrMapKeys map = do 
-    Map tk tv <- assertBaseType isMap (typeof map)
-    assert (isPtr map) "val isnt pointer"
-    Ptr (Table [tk]) <$> gep (valLoc map) [int32 0, int32 0]
+mapKeys :: InsCmp CompileState m => Pointer -> m Pointer
+mapKeys map = do 
+    Map tk tv <- baseTypeOf map
+    tableRow 0 $ Pointer (Table [tk, tv]) (loc map)
+
+
+mapValues :: InsCmp CompileState m => Pointer -> m Pointer
+mapValues map = do 
+    Map tk tv <- baseTypeOf map
+    tableRow 1 $ Pointer (Table [tk, tv]) (loc map)
+
+
+mapLen :: InsCmp CompileState m => Pointer -> m Pointer 
+mapLen map = do 
+    Map tk tv <- baseTypeOf map
+    tableLen $ Pointer (Table [tk, tv]) (loc map)
+
+    
+
+
+
+    

@@ -86,6 +86,12 @@ memset p v size = do
     d <- bitcast p (ptr i8)
     call op [(d, []), (v, []), (size, [])]
 
+memcmp :: InsCmp CompileState m => Operand -> Operand -> Operand -> m Operand
+memcmp a b size = do
+    ap <- bitcast a (ptr i8)
+    bp <- bitcast b (ptr i8)
+    op <- ensureExtern "memcmp" [ptr i8, ptr i8, i64] (i64) False
+    call op [(ap, []), (bp, []), (size, [])]
 
 malloc :: InsCmp CompileState m => Operand -> m Operand
 malloc size = do

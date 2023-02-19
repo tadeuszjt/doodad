@@ -32,6 +32,7 @@ import Funcs
 import Symbol
 import Array
 import Sparse
+import Map
 
 
 -- Builtin contains functions that operate on Values which require the
@@ -46,6 +47,7 @@ storeCopy dst src = withErrorPrefix "storeCopy: " $ do
     True <- return $ baseDst == baseSrc
     case baseDst of
         _ | isSimple baseDst -> storeBasic dst src
+
         Table ts -> do 
             len <- pload =<< tableLen src
             tableResize dst len
@@ -53,6 +55,12 @@ storeCopy dst src = withErrorPrefix "storeCopy: " $ do
                 columnDst <- tableColumn dst (Value2 I64 n)
                 columnSrc <- tableColumn src (Value2 I64 n)
                 zipWithM_ storeCopy columnDst columnSrc
+
+        Tuple ts -> do 
+            forM_ [0..length ts - 1] $ \i -> do 
+                dstElem <- tupleIdx i dst
+                srcElem <- tupleIdx i src
+                storeCopy dstElem srcElem
 
         _ -> fail (show baseDst)
 
@@ -71,8 +79,80 @@ tablePop tab = do
         return val
 
 
+mapIndex :: InsCmp CompileState m => Pointer -> Pointer -> m Pointer 
+mapIndex map key = do 
+    Map tk tv <- baseTypeOf map
+    foundCase <- freshName "mapIndex_found"
+    notFoundCase <- freshName "mapIndex_not_found"
+    exit <- freshName "mapIndex_exit"
+
+    opType <- opTypeOf tv
+    ptr <- alloca (LL.ptr opType) Nothing 0
+    (found, foundIdx) <- mapFind map key
+    condBr (op found) foundCase notFoundCase
+
+    emitBlockStart foundCase
+    row <- mapValues map
+    elm <- advancePointer row foundIdx
+    store ptr 0 (loc elm)
+    br exit
+
+    emitBlockStart notFoundCase
+    vp <- mapPush map key
+    store ptr 0 (loc vp)
+    br exit
+
+    emitBlockStart exit
+    Pointer tv <$> load ptr 0
+
+
+mapPush :: InsCmp CompileState m => Pointer -> Pointer -> m Pointer
+mapPush map key = do
+    Map tk tv <- baseTypeOf map
+    idx <- tablePush (Pointer (Table [tk, tv]) (loc map)) []
+    [pk, pv] <- tableColumn (Pointer (Table [tk, tv]) (loc map)) idx
+    storeCopy pk key
+    return pv
+
+
+mapFind :: InsCmp CompileState m => Pointer -> Pointer -> m (Value2, Value2) --found, idx
+mapFind map key = do
+    Map tk tv <- baseTypeOf map
+    exit <- freshName "mapFind_exit"
+    cond <- freshName "mapFind_cond"
+    eqeq <- freshName "mapFind_EqEq"
+    incr <- freshName "mapFind_incr"
+
+    len <- pload =<< mapLen map
+    idx <- newI64 0
+    keys <- mapKeys map -- keyPtr
+    found <- newBool False
+    br cond
+
+    emitBlockStart cond
+    idxLT <- intInfix AST.GT len =<< pload idx
+    condBr (op idxLT) eqeq exit
+
+    emitBlockStart eqeq
+    elm <- advancePointer keys =<< pload idx
+    eq <- pload =<< newInfix AST.EqEq elm key
+    storeCopyVal found eq
+    condBr (op eq) exit incr
+
+    emitBlockStart incr
+    idxv <- pload idx
+    storeCopyVal idx =<< intInfix AST.Plus idxv =<< pload =<< newI64 1
+    br cond
+
+    emitBlockStart exit
+    f <- pload found
+    i <- pload idx 
+    return (f, i)
+
+
+
 storeCopyVal :: InsCmp CompileState m => Pointer -> Value2 -> m ()
-storeCopyVal dst src = withErrorPrefix "storeCopy: " $ do
+storeCopyVal dst src = do
     baseDst <- baseTypeOf dst
     baseSrc <- baseTypeOf src
     True <- return $ baseDst == baseSrc
@@ -138,13 +218,13 @@ min :: InsCmp CompileState m => Pointer -> Pointer -> m Pointer
 min a b = withErrorPrefix "min: " $ do
     True <- return $ typeof a == typeof b
     base <- baseTypeOf a
-    cnd <- mkInfix AST.GT a b 
+    cnd <- pload =<< newInfix AST.GT a b 
     val <- newVal (typeof a)
     case base of
         I64 -> do
             valA <- pload a 
             valB <- pload b
-            store (loc val) 0 =<< select (valOp cnd) (op valB) (op valA)
+            store (loc val) 0 =<< select (op cnd) (op valB) (op valA)
     return val
 
 
@@ -152,42 +232,57 @@ max :: InsCmp CompileState m => Pointer -> Pointer -> m Pointer
 max a b = withErrorPrefix "min: " $ do
     True <- return $ typeof a == typeof b
     base <- baseTypeOf a
-    cnd <- mkInfix AST.LT a b 
+    cnd <- pload =<< newInfix AST.LT a b 
     val <- newVal (typeof a)
     case base of
         I64 -> do
             valA <- pload a 
             valB <- pload b
-            store (loc val) 0 =<< select (valOp cnd) (op valB) (op valA)
+            store (loc val) 0 =<< select (op cnd) (op valB) (op valA)
     return val
 
 
 -- any infix expression
-mkInfix :: InsCmp CompileState m => AST.Operator -> Pointer -> Pointer -> m Value
-mkInfix operator a b = withErrorPrefix "infix: " $ do
+newInfix :: InsCmp CompileState m => AST.Operator -> Pointer -> Pointer -> m Pointer
+newInfix operator a b = withErrorPrefix "infix: " $ do
     assert (typeof a == typeof b) $ "type mismatch: " ++ show (typeof a, typeof b)
     base <- baseTypeOf a
     case base of
         Bool                 -> do 
             av <- pload a
-            fromValue <$> (boolInfix operator av =<< pload b)
+            res <- boolInfix operator av =<< pload b
+            ret <- newVal (typeof res)
+            storeCopyVal ret res 
+            return ret
         Char                 -> do 
             av <- pload a
-            fromValue <$> (intInfix operator av =<< pload b)
-        Enum                 -> do 
+            res <- intInfix operator av =<< pload b
+            ret <- newVal (typeof res)
+            storeCopyVal ret res 
+            return ret
+        Enum -> do 
             av <- pload a
             bv <- pload b
-            fromValue <$> enumInfix operator av bv
-        _ | isRange base     -> toVal =<< rangeInfix operator a b
+            res <- enumInfix operator av bv
+            ret <- newVal (typeof res)
+            storeCopyVal ret res 
+            return ret
+        _ | isRange base     -> rangeInfix operator a b
         _ | isInt base       -> do 
             av <- pload a
-            fromValue <$> (intInfix operator av =<< pload b)
+            res <- intInfix operator av =<< pload b
+            ret <- newVal (typeof res)
+            storeCopyVal ret res 
+            return ret
         _ | isFloat base     -> do 
             av <- pload a
-            fromValue <$> (floatInfix operator av =<< pload b)
-        _ | isTuple base     -> mkTupleInfix operator (fromPointer a) (fromPointer b)
-        _ | isArray base     -> mkArrayInfix operator a b
-        _ | isTable base     -> mkTableInfix operator (fromPointer a) (fromPointer b)
+            res <- floatInfix operator av =<< pload b
+            ret <- newVal (typeof res)
+            storeCopyVal ret res 
+            return ret
+        _ | isTuple base     -> tupleInfix operator a b
+        _ | isArray base     -> arrayInfix operator a b
+        _ | isTable base     -> tableInfix operator a b
         _                    -> fail $ "Operator " ++ show operator ++ " undefined for types " ++ show (typeof a) ++ " " ++ show (typeof b)
 
 
@@ -212,15 +307,15 @@ rangeInfix operator a b = do
             startB <- rangeStart b
             endA   <- rangeEnd a
             endB   <- rangeEnd b
-            startEq <- mkInfix AST.EqEq startA startB
-            endEq   <- mkInfix AST.EqEq endA endB
-            storeBasicVal val =<< Value2 Bool <$> and (valOp startEq) (valOp endEq)
+            startEq <- pload =<< newInfix AST.EqEq startA startB
+            endEq   <- pload =<< newInfix AST.EqEq endA endB
+            storeBasicVal val =<< Value2 Bool <$> and (op startEq) (op endEq)
             return val
 
 
 
-mkArrayInfix :: InsCmp CompileState m => AST.Operator -> Pointer -> Pointer -> m Value
-mkArrayInfix operator a b = withErrorPrefix "array" $ do
+arrayInfix :: InsCmp CompileState m => AST.Operator -> Pointer -> Pointer -> m Pointer
+arrayInfix operator a b = do
     assert (typeof a == typeof b) "infix type mismatch"
     Array n t <- assertBaseType isArray (typeof a)
 
@@ -231,12 +326,12 @@ mkArrayInfix operator a b = withErrorPrefix "array" $ do
                 pDst <- arrayGetElem arr =<< pload =<< newI64 i
                 pSrcA <- arrayGetElem a =<< pload =<< newI64 i
                 pSrcB <- arrayGetElem b =<< pload =<< newI64 i
-                storeCopy pDst . toPointer =<< mkInfix operator pSrcA pSrcB
-            return (fromPointer arr)
+                storeCopy pDst =<< newInfix operator pSrcA pSrcB
+            return arr
 
 
-mkTupleInfix :: InsCmp CompileState m => AST.Operator -> Value -> Value -> m Value
-mkTupleInfix operator a b = withErrorPrefix "tuple infix: " $ do
+tupleInfix :: InsCmp CompileState m => AST.Operator -> Pointer -> Pointer -> m Pointer
+tupleInfix operator a b = withErrorPrefix "tuple infix: " $ do
     assert (typeof a == typeof b) "type mismatch"
     Tuple ts <- assertBaseType isTuple (typeof a)
 
@@ -244,11 +339,11 @@ mkTupleInfix operator a b = withErrorPrefix "tuple infix: " $ do
         _ | operator `elem` [AST.Plus, AST.Minus, AST.Times, AST.Divide, AST.Modulo] -> do
             tup <- newVal (typeof a)
             forM (zip ts [0..]) $ \(t, i) -> do
-                pSrcA <- tupleIdx i (toPointer a)
-                pSrcB <- tupleIdx i (toPointer b)
+                pSrcA <- tupleIdx i a
+                pSrcB <- tupleIdx i b
                 pDst  <- tupleIdx i tup
-                valStore (fromPointer pDst) =<< mkInfix operator pSrcA pSrcB
-            return (fromPointer tup)
+                storeCopy pDst =<< newInfix operator pSrcA pSrcB
+            return tup
 
         _ | operator `elem` [AST.EqEq] -> do
             res <- newBool True
@@ -258,17 +353,17 @@ mkTupleInfix operator a b = withErrorPrefix "tuple infix: " $ do
 
             forM (zip ts [0..]) $ \(t, i) -> do
                 emitBlockStart (cases !! i)
-                valA <- tupleIdx i (toPointer a)
-                valB <- tupleIdx i (toPointer b)
-                equal <- mkInfix AST.EqEq valA valB
+                valA <- tupleIdx i a
+                valB <- tupleIdx i b
+                equal <- pload =<< newInfix AST.EqEq valA valB
                 cond <- freshName "tuple_eqeq_fail"
-                condBr (valOp equal) (cases !! (i + 1)) cond
+                condBr (op equal) (cases !! (i + 1)) cond
                 emitBlockStart cond
                 storeBasic res =<< newBool False
                 br exit
 
             emitBlockStart exit
-            toVal res
+            return res
 
         _ | operator `elem` [AST.GTEq] -> do
             deflt <- case operator of
@@ -281,33 +376,37 @@ mkTupleInfix operator a b = withErrorPrefix "tuple infix: " $ do
 
             forM (zip ts [0..]) $ \(t, i) -> do
                 emitBlockStart (cases !! i)
-                valA <- tupleIdx i (toPointer a)
-                valB <- tupleIdx i (toPointer b)
-                equal <- mkInfix AST.EqEq valA valB
+                valA <- tupleIdx i a
+                valB <- tupleIdx i b
+                equal <- pload =<< newInfix AST.EqEq valA valB
                 cond <- freshName "tuple_gt_cond"
-                condBr (valOp equal) (cases !! (i + 1)) (cond)
+                condBr (op equal) (cases !! (i + 1)) (cond)
                 emitBlockStart cond
-                valStore (fromPointer res) =<< mkInfix operator valA valB
+                storeCopy res =<< newInfix operator valA valB
                 br exit
 
             emitBlockStart exit
-            toVal res
+            return res
 
         _ -> error (show operator)
                     
         
-mkTableInfix :: InsCmp CompileState m => AST.Operator -> Value -> Value -> m Value
-mkTableInfix operator a b = do
-    assertBaseType isTable (typeof a)
+tableInfix :: InsCmp CompileState m => AST.Operator -> Pointer -> Pointer -> m Pointer
+tableInfix operator a b = do
+    Table ts <- baseTypeOf (typeof a)
     assert (typeof a == typeof b) "type mismatch"
-    let typ = typeof a
 
-    lenA <- pload =<< tableLen (toPointer a)
-    lenB <- tableLen (toPointer b)
+    lenA <- pload =<< tableLen a
+    lenB <- tableLen b
     lenEq <- intInfix AST.EqEq lenA =<< pload lenB
 
     case operator of
-        AST.NotEq -> fromValue <$> (prefix AST.Not . toValue =<< mkTableInfix AST.EqEq a b)
+        AST.NotEq -> do 
+            res <- prefix AST.Not =<< tableInfix AST.EqEq a b
+            ret <- newVal (typeof res) 
+            storeCopyVal ret res 
+            return ret
+
         AST.EqEq  -> do
             eq <- newBool False
 
@@ -331,16 +430,16 @@ mkTableInfix operator a b = do
 
             -- test that a[i] == b[i]
             emitBlockStart body
-            [columnA] <- tableColumn (toPointer a) =<< pload idx
-            [columnB] <- tableColumn (toPointer b) =<< pload idx
-            elmEq <- mkInfix AST.EqEq columnA columnB
-            valStore (fromPointer eq) elmEq
+            [columnA] <- tableColumn a =<< pload idx
+            [columnB] <- tableColumn b =<< pload idx
+            elmEq <- pload =<< newInfix AST.EqEq columnA columnB
+            storeCopyVal eq elmEq
             idxv <- pload idx
             valStore (fromPointer idx) . fromValue =<< intInfix AST.Plus idxv =<< pload =<< newI64 1
-            condBr (valOp elmEq) cond exit
+            condBr (op elmEq) cond exit
 
             emitBlockStart exit
-            toVal eq
+            return eq
 
 
 valAdtNormalInfix :: InsCmp CompileState m => AST.Operator -> Value -> Value -> m Value
@@ -348,7 +447,7 @@ valAdtNormalInfix operator a b = do
     assert (typeof a == typeof b) "type mismatch"
     ADT fs <- assertBaseType isADT (typeof a)
     case operator of
-        AST.NotEq -> fromValue <$> (prefix AST.Not . toValue =<< valAdtNormalInfix AST.EqEq a b)
+        --AST.NotEq -> fromValue <$> (prefix AST.Not . toValue =<< valAdtNormalInfix AST.EqEq a b)
         AST.EqEq -> do
             enA <- adtEnum a
             enB <- adtEnum b
@@ -380,7 +479,7 @@ valAdtNormalInfix operator a b = do
                         valAp <- newVal (typeof valA)
                         valStore (fromPointer valBp) valB
                         valStore (fromPointer valAp) valA
-                        fmap (\a -> [a]) $ toValue <$> mkInfix AST.EqEq valAp valBp
+                        fmap (\a -> [a]) $ pload =<< newInfix AST.EqEq valAp valBp
                     FieldCtor ts -> do
                         forM (zip ts [0..]) $ \(t, j) -> do
                             valA <- adtDeref a i j
@@ -389,7 +488,7 @@ valAdtNormalInfix operator a b = do
                             valAp <- newVal (typeof valA)
                             valStore (fromPointer valBp) valB
                             valStore (fromPointer valAp) valA
-                            toValue <$> mkInfix AST.EqEq valAp valBp
+                            pload =<< newInfix AST.EqEq valAp valBp
 
                 true <- pload =<< newBool True
                 storeBasicVal match =<< foldM (boolInfix AST.EqEq) true bs

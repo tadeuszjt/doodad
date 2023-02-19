@@ -2,6 +2,19 @@ module testMap
 
 fn testMapInit()
     data m map[i64]bool
+    m[1] = true
+    let false = m[0]
+    let true = m[1]
+
+
+fn testMapWithString() 
+    data m map[string](i64, bool)
+    m["benis"] = (34, true)
+    let (0, false) = m["bongis"]
+    let (34, true) = m["benis"]
+    let (0, false) = m["."]
+    m["benis"] = (35, true)
+    let (35, true) = m["benis"]
 
 fn testMap()
     testMapInit()
