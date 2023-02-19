@@ -396,7 +396,7 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
         case base of
             Table ts  -> storeBasicVal val =<< tablePush loc
             Sparse ts -> storeBasicVal val =<< sparsePush loc =<< mapM newVal ts
-        return (val)
+        return val
 
     AST.Builtin pos [expr] "push" exprs -> do
         loc <- cmpExpr expr
@@ -415,7 +415,7 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
             Sparse ts -> do 
                 n <- sparsePush loc =<< mapM cmpExpr exprs
                 storeBasicVal val =<< convertNumber exprType n
-        return (val)
+        return val
 
 
     AST.Builtin pos [expr] "pop" [] -> do
@@ -455,39 +455,35 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
             _ | isFloat base -> storeBasic val =<< newFloat exprType (fromIntegral n)
             _ | base == Char -> storeBasic val =<< toType exprType =<< newChar (chr $ fromIntegral n)
             _ | otherwise    -> fail $ "invalid base type of: " ++ show base
-        return (val)
+        return val
 
     AST.Infix pos AST.AndAnd exprA exprB -> do
         assertBaseType (== Bool) exprType
         exit <- freshName "infix_andand_exit"
         right <- freshName "infix_andand_rhs"
 
-        b <- newBool False
+        result <- newBool False
 
-        valA <- cmpExpr exprA
+        valA <- pload =<< cmpExpr exprA
         assertBaseType (== Bool) (typeof valA)
-        aTrue <- op <$> pload valA
-        condBr aTrue right exit
+        condBr (op valA) right exit
 
         emitBlockStart right
-        storeBasic b =<< cmpExpr exprB
+        storeCopy result =<< cmpExpr exprB
         br exit
 
         emitBlockStart exit
-        return (b)
+        return result
         
     AST.Infix pos op exprA exprB -> do
         valA <- cmpExpr exprA
         valB <- cmpExpr exprB
-        res <- pload =<< newInfix op valA valB
-        result <- newVal exprType
-        storeBasicVal result res 
-        return result
+        newInfix op valA valB
 
     AST.Ident pos symbol -> do
         obj <- look symbol
         case obj of
-            ObjVal loc -> return (loc)
+            ObjVal loc -> return loc
             
     AST.String pos s -> do
         base <- baseTypeOf exprType
@@ -499,7 +495,7 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
                 storeBasicVal cap (mkI64 $ length s)
                 storeBasicVal len (mkI64 $ length s)
                 tableSetRow tab 0 . Pointer Char =<< getStringPointer s
-                return (tab)
+                return tab
             _ -> fail (show base)
                 
 
@@ -514,11 +510,10 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
         asOps <- map op <$> mapM pload as
         obj <- look symbol
         val <- case obj of
+            ObjType _  -> pload =<< construct exprType as
             ObjFn -> do
                 op <- fnHdrToOp (map typeof ps) symbol (map typeof as) exprType
                 Value exprType <$> call op [(o, []) | o <- psLocs ++ asOps]
-            ObjType _  -> do 
-                pload =<< construct exprType as
             ObjField i -> do
                 base <- baseTypeOf exprType
                 case base of
@@ -554,7 +549,7 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
         forM_ (zip vals [0..]) $ \(v, i) -> do
             ptr <- tupleIdx i tup
             storeBasic ptr v
-        return (tup)
+        return tup
 
     AST.Subscript pos expr idxExpr -> withErrorPrefix "subscript: " $ do
         val <- cmpExpr expr
@@ -563,23 +558,17 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
         case base of
             Table _   -> (\[x] -> x) <$> (tableColumn val =<< pload idx)
             Array _ _ -> arrayGetElem val =<< pload idx
+            Map _ _ -> mapIndex val idx
             Sparse _  -> do
                 table <- sparseTable val
                 [ptr] <- tableColumn table =<< pload idx
                 return $ ptr
-            Map _ _ -> do 
-                mapIndex val idx
                 
-
             Range t -> do
-                idxv <- pload idx
-                idxGtEqStart <- intInfix AST.GTEq idxv =<< pload =<< rangeStart val
-                idxLtEnd <- intInfix AST.LT idxv =<< pload =<< rangeEnd val
                 assertBaseType (== Bool) exprType
-                val <- Value exprType <$> LL.and (op idxLtEnd) (op idxGtEqStart)
-                result <- newVal exprType 
-                storeBasicVal result val 
-                return result
+                idxGtEqStart <- newInfix AST.GTEq idx =<< rangeStart val
+                idxLtEnd     <- newInfix AST.LT idx =<< rangeEnd val
+                newInfix AST.AndAnd idxLtEnd idxGtEqStart
                 
     AST.Initialiser pos exprs -> do
         base <- baseTypeOf exprType
@@ -629,7 +618,7 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
 
 cmpPattern :: InsCmp CompileState m => AST.Pattern -> Pointer -> m Value
 cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pattern of
-    AST.PatIgnore _     -> pload =<< newBool True
+    AST.PatIgnore _     -> return (mkBool True)
     AST.PatLiteral expr -> pload =<< newInfix AST.EqEq val =<< cmpExpr expr
 
     AST.PatNull _ -> do -- null
@@ -656,17 +645,14 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
         loc <- newVal (typeof val)
         storeBasicVal loc =<< pload val
         define symbol (ObjVal loc)
-        pload =<< newBool True
+        return $ mkBool True
 
     AST.PatTuple _ pats -> do -- (a, b)
         len <- tupleLength =<< pload val
         assert (len == length pats) "incorrect tuple length"
-
         bs <- forM (zip pats [0..]) $ \(p, i) ->
             cmpPattern p =<< tupleIdx i val
-
-        true <- pload =<< newBool True
-        foldM (boolInfix AST.AndAnd) true bs
+        foldM (boolInfix AST.AndAnd) (mkBool True) bs
 
     AST.PatArray _ [pats] -> do -- [a, b, c]
         base <- baseTypeOf val
@@ -676,22 +662,29 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
             Table ts -> do
                 len   <- pload =<< tableLen val
                 lenEq <- intInfix AST.EqEq len (mkI64 $ length pats)
+                eq    <- newBool False
 
+                start <- freshName "patArray_start"
+                exit <- freshName "patArray_exit"
+
+                condBr (op lenEq) start exit
+
+                emitBlockStart start
                 assert (length ts == 1) "patterns don't support multiple rows (yet)"
                 bs <- forM (zip pats [0..]) $ \(pat, i) -> do
                     [elm] <- tableColumn val (mkI64 i)
                     cmpPattern pat elm
+                storeCopyVal eq =<< foldM (boolInfix AST.AndAnd) (mkBool True) (lenEq:bs)
+                br exit
 
-                true <- pload =<< toType (typeof lenEq) =<< newBool True
-                foldM (boolInfix AST.AndAnd) true (lenEq:bs)
+                emitBlockStart exit 
+                pload eq
 
             Array n t -> do
                 assert (n == length pats) "Invalid array pattern"
                 bs <- forM (zip pats [0..]) $ \(p, i) ->
                     cmpPattern p =<< arrayGetElem val (mkI64 i)
-
-                true <- pload =<< newBool True
-                foldM (boolInfix AST.AndAnd) true bs
+                foldM (boolInfix AST.AndAnd) (mkBool True) bs
             
             _ -> fail "Invalid array pattern"
 
@@ -707,7 +700,6 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
                 lenEq <- intInfix AST.EqEq len (mkI64 rowLen)
 
                 matched <- newBool False
-                true <- pload =<< newBool True
 
                 exit <- freshName "exit"
                 cond <- freshName "cond"
@@ -719,8 +711,8 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
                     ptrs <- tableColumn val (mkI64 i)
                     let patc = map (!! i) patss
                     bs <- zipWithM cmpPattern patc ptrs
-                    foldM (boolInfix AST.AndAnd) true bs
-                storeBasicVal matched =<< foldM (boolInfix AST.AndAnd) true bs
+                    foldM (boolInfix AST.AndAnd) (mkBool True) bs
+                storeBasicVal matched =<< foldM (boolInfix AST.AndAnd) (mkBool True) bs
                 br exit
 
                 emitBlockStart exit
@@ -794,7 +786,3 @@ cmpPrint (AST.Print pos exprs) = trace "cmpPrint" $ do
         prints []     = void $ printf "\n" []
         prints [val]  = valPrint "\n" val
         prints (v:vs) = valPrint ", " v >> prints vs
-
-
-
-

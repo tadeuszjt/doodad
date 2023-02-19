@@ -159,6 +159,7 @@ storeCopyVal dst src = do
         _ | isSimple baseDst -> storeBasicVal dst src
         _ -> fail (show baseDst)
 
+
 sparsePush :: InsCmp CompileState m => Pointer -> [Pointer] -> m Value
 sparsePush sparse elems = do
     Sparse ts <- baseTypeOf sparse
@@ -186,6 +187,7 @@ sparsePush sparse elems = do
             column <- tableColumn table len 
             zipWithM_ storeCopy column elems 
             storeCopyVal ret len
+
 
 -- construct a value from arguments, Eg. i64(3.2), Vec2(12, 43)
 construct :: InsCmp CompileState m => Type -> [Pointer] -> m Pointer
@@ -243,28 +245,44 @@ prefix operator val = do
 min :: InsCmp CompileState m => Pointer -> Pointer -> m Pointer
 min a b = withErrorPrefix "min: " $ do
     True <- return $ typeof a == typeof b
-    base <- baseTypeOf a
     cnd <- pload =<< newInfix AST.GT a b 
     val <- newVal (typeof a)
-    case base of
-        I64 -> do
-            valA <- pload a 
-            valB <- pload b
-            store (loc val) 0 =<< select (op cnd) (op valB) (op valA)
+    right <- freshName "right"
+    left <- freshName "left"
+    exit <- freshName "exit"
+
+    condBr (op cnd) right left
+    emitBlockStart right
+    storeCopy val b
+    br exit
+
+    emitBlockStart left
+    storeCopy val a
+    br exit
+
+    emitBlockStart exit
     return val
 
 
 max :: InsCmp CompileState m => Pointer -> Pointer -> m Pointer
 max a b = withErrorPrefix "min: " $ do
     True <- return $ typeof a == typeof b
-    base <- baseTypeOf a
-    cnd <- pload =<< newInfix AST.LT a b 
+    cnd <- pload =<< newInfix AST.GT a b 
     val <- newVal (typeof a)
-    case base of
-        I64 -> do
-            valA <- pload a 
-            valB <- pload b
-            store (loc val) 0 =<< select (op cnd) (op valB) (op valA)
+    right <- freshName "right"
+    left <- freshName "left"
+    exit <- freshName "exit"
+
+    condBr (op cnd) left right
+    emitBlockStart right
+    storeCopy val b
+    br exit
+
+    emitBlockStart left
+    storeCopy val a
+    br exit
+    
+    emitBlockStart exit
     return val
 
 
@@ -483,7 +501,7 @@ valAdtNormalInfix operator a b = do
 
             -- enum matched, match args
             emitBlockStart start
-            storeBasic match =<< newBool True
+            storeCopyVal match (mkBool True)
 
             -- select block based on enum
             caseNames <- replicateM (length fs) (freshName "case")
@@ -493,7 +511,7 @@ valAdtNormalInfix operator a b = do
                 emitBlockStart caseName
 
                 bs <- case fs !! i of
-                    FieldNull -> fmap (\a -> [a]) $ pload =<< newBool True
+                    FieldNull -> return []
                     FieldType t -> do
                         valA <- adtDeref a i 0
                         valB <- adtDeref b i 0
@@ -504,8 +522,7 @@ valAdtNormalInfix operator a b = do
                             valB <- adtDeref b i j
                             pload =<< newInfix AST.EqEq valA valB
 
-                true <- pload =<< newBool True
-                storeBasicVal match =<< foldM (boolInfix AST.EqEq) true bs
+                storeBasicVal match =<< foldM (boolInfix AST.EqEq) (mkBool True) bs
                 br exit
 
             emitBlockStart exit

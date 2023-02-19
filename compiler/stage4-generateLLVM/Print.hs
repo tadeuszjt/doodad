@@ -53,15 +53,14 @@ valPrint append val = withErrorPrefix "valPrint " $ case typeof val of
         valPrint ("]" ++ append) =<< rangeEnd val
 
     Table [Char] -> do
-        (Pointer t p) <- tableRow 0 val
-        (Pointer I64 lp) <- tableLen val
-        lo <- load lp 0
-        void $ printf ("%-.*s" ++ append) [lo, p]
+        row <- tableRow 0 val
+        len <- pload =<< tableLen val
+        void $ printf ("%-.*s" ++ append) [op len, loc row]
 
     Table ts -> do
         printf "[" []
         len <- tableLen val
-        lenZero <- pload =<< newInfix AST.EqEq len =<< newI64 0
+        lenZero <- intInfix AST.EqEq (mkI64 0) =<< pload len
 
         if_ (op lenZero)
             (void $ printf ("]" ++ append) [])
@@ -72,7 +71,6 @@ valPrint append val = withErrorPrefix "valPrint " $ case typeof val of
         forM_ [0..n-2] $ \i ->
             valPrint ", " =<< arrayGetElem val (mkI64 i)
         valPrint ("]" ++ append) =<< arrayGetElem val (mkI64 $ n-1)
-
 
     _ -> error ("print: " ++ show (typeof val))
 

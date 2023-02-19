@@ -65,8 +65,10 @@ newBool b = do
     store p 0 $ if b then bit 1 else bit 0
     return $ Pointer Bool p
 
+
 mkBool :: Bool -> Value
 mkBool b = Value Bool (bit $ if b then 1 else 0)
+
 
 newFloat :: InsCmp CompileState m => Type -> Double -> m Pointer
 newFloat typ f = do 
@@ -110,20 +112,20 @@ mkZero typ = trace ("mkZero " ++ show  typ) $ do
     namem <- Map.lookup typ <$> gets typeNameMap
     base <- baseTypeOf typ
     case base of
-        I64                -> return $ Value typ (int64 0)
-        I32                -> return $ Value typ (int32 0)
-        F32                -> return $ Value typ (single 0.0)
-        F64                -> return $ Value typ (double 0.0)
-        Enum               -> return $ Value typ (int64 0)
-        Bool               -> return $ Value typ (bit 0)
-        Char               -> return $ Value typ (int8 0)
-        Range t            -> Value typ . struct namem False . map (toCons . op) <$> mapM mkZero [t, t]
-        Array n t          -> Value typ . array . replicate n . toCons . op <$> mkZero t
-        Tuple ts           -> Value typ . struct namem False . map (toCons . op) <$> mapM mkZero ts
-        Table ts           -> Value typ . struct namem False . ([zi64, zi64] ++) <$> map (C.IntToPtr zi64 . LL.ptr) <$> mapM opTypeOf ts
-        Sparse ts          -> Value typ . struct namem False . map (toCons . op) <$> mapM mkZero [Table ts, Table [I64]]
-        Map tk tv          -> Value typ . op <$> mkZero (Table [tk, tv])
-        UnsafePtr          -> return $ Value typ $ cons $ C.IntToPtr zi64 (LL.ptr LL.VoidType)
+        I64       -> return $ Value typ (int64 0)
+        I32       -> return $ Value typ (int32 0)
+        F32       -> return $ Value typ (single 0.0)
+        F64       -> return $ Value typ (double 0.0)
+        Enum      -> return $ Value typ (int64 0)
+        Bool      -> return $ Value typ (bit 0)
+        Char      -> return $ Value typ (int8 0)
+        Range t   -> Value typ . struct namem False . map (toCons . op) <$> mapM mkZero [t, t]
+        Array n t -> Value typ . array . replicate n . toCons . op <$> mkZero t
+        Tuple ts  -> Value typ . struct namem False . map (toCons . op) <$> mapM mkZero ts
+        Table ts  -> Value typ . struct namem False . ([zi64, zi64] ++) <$> map (C.IntToPtr zi64 . LL.ptr) <$> mapM opTypeOf ts
+        Sparse ts -> Value typ . struct namem False . map (toCons . op) <$> mapM mkZero [Table ts, Table [I64]]
+        Map tk tv -> Value typ . op <$> mkZero (Table [tk, tv])
+        UnsafePtr -> return $ Value typ $ cons $ C.IntToPtr zi64 (LL.ptr LL.VoidType)
         _ -> fail ("mkZero: " ++  show typ)
         where
             zi64 = toCons (int64 0)
