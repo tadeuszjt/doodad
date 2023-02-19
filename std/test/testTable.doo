@@ -38,8 +38,25 @@ fn testTableTwoRows()
     let [0, 1; false, true] = table
 
 
+fn testTableEqEq()
+    data table0 [bool; i64]
+    data table1 [bool; i64]
+    let true = table0 == table1
+    table0.push(true, 2)
+    let false = table0 == table1
+    table1.push(true, 2)
+    let true = table0 == table1
+    table0.push(false, 3)
+    table1.push(false, 4)
+    let false = table0 == table1
+    table0.pop()
+    table0.push(false, 4)
+    let true = table0 == table1
+
+
 fn testTable()
     testTableDelete()
     testTablePush()
     testTableTwoRows()
+    testTableEqEq()
     print("testTable passed")

@@ -24,6 +24,7 @@ data Constraint
     = ConsEq Type Type
     | ConsBase   Type Type -- both types must have same base
     | ConsMember Type Int Type -- t2 is ith elem of t1
+    | ConsElem Type Type -- t2 is elem of t1
     | ConsSubscript   Type Type -- t1 is elem type of t2
     | ConsField Type Int Type 
     | ConsAdtMem Type Int Int Type
@@ -100,6 +101,10 @@ collectBase t1 t2 = do
 collectMember :: BoM CollectState m => Type -> Int -> Type -> m ()
 collectMember t1 i t2 = do
     modify $ \s -> s { collected = Map.insert (ConsMember t1 i t2) (curPos s) (collected s) }
+
+collectElem :: BoM CollectState m => Type -> Type -> m ()
+collectElem t1 t2 = do
+    modify $ \s -> s { collected = Map.insert (ConsElem t1 t2) (curPos s) (collected s) }
 
 collectSubscript :: BoM CollectState m => Type -> Type -> m ()
 collectSubscript t1 t2 = do
@@ -380,7 +385,7 @@ collectExpr (S.AExpr exprType expr) = collectPos expr $ case expr of
 
             "pop" -> do
                 assert (length ps == 1) "invalid number of parameters"
-                collectMember (typeof $ head ps) 0 exprType
+                collectElem (typeof $ head ps) exprType
 
             "delete" -> collectEq exprType Void
             "clear" -> collectEq exprType Void

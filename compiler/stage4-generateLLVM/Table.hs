@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE FlexibleContexts #-}
 module Table where
 
@@ -104,8 +105,6 @@ tableDelete tab idx = do
     storeBasicVal len end
 
 
-
-
 tableSetRow :: InsCmp CompileState m => Pointer -> Int -> Pointer -> m ()
 tableSetRow tab i row = trace "tableSetRow" $ do
     Table ts <- baseTypeOf tab
@@ -115,22 +114,27 @@ tableSetRow tab i row = trace "tableSetRow" $ do
 
 
 tableResize :: InsCmp CompileState m => Pointer -> Value2 -> m ()
-tableResize tab newLen = trace "tableResize" $ do
+tableResize tab newLen = do
+    exit <- freshName "tableResize_exit"
+    needsResize <- freshName "tableResize_realloc_mem"
+
     Table ts <- baseTypeOf tab
-    assertBaseType isInt (typeof newLen)
+    I64      <- baseTypeOf newLen
+
     cap <- tableCap tab
-    bFull <- intInfix AST.GT newLen =<< pload cap
-    if_ (op bFull) (fullCase ts) (return ())
     len <- tableLen tab
+
+    full <- intInfix AST.GT newLen =<< pload cap
+    condBr (op full) needsResize exit
+
+    emitBlockStart needsResize -- TODO this needs to clear elems
+    newTab <- newTable (typeof tab) =<< intInfix AST.Times newLen (mkI64 2)
+    forM_ (zip ts [0..]) $ \(t, i) -> do
+        newRow <- tableRow i newTab
+        row <- tableRow i tab
+        memCpy newRow row =<< pload len
+    storeBasic tab newTab
+    br exit
+
+    emitBlockStart exit
     storeBasicVal len newLen
-    where
-        fullCase :: InsCmp CompileState m => [Type] -> m ()
-        fullCase ts = do
-            nl <- newI64 0
-            store (loc nl) 0 =<< mul (int64 2) (op newLen)
-            newTab <- newTable (typeof tab) =<< pload nl
-            forM_ (zip ts [0..]) $ \(t, i) -> do
-                newRow <- tableRow i newTab
-                row <- tableRow i tab
-                memCpy newRow row =<< pload =<< tableLen tab
-            storeBasic tab newTab

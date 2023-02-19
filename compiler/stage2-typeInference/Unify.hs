@@ -65,7 +65,15 @@ unifyOne pos constraint = withPos pos $ case constraint of
             Just (Range t)   -> do 
                 assert (i == 0) "ConsMember: Invalid index"
                 unifyOne pos (ConsEq t2 t)
-            _ -> return []
+            Nothing -> return []
+
+    ConsElem t1 t2 -> do
+        basem <- baseTypeOf t1
+        case basem of
+            Just (Table [t])  -> unifyOne pos (ConsEq t2 $ t)
+            Just (Table ts)  -> unifyOne pos (ConsEq t2 $ Tuple ts)
+            Nothing -> return []
+            _ -> error (show basem)
 
     ConsSubscript t1 t2 -> do
         basem <- baseTypeOf t2

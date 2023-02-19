@@ -64,6 +64,7 @@ instance Apply Constraint where
         ConsEq t1 t2         -> ConsEq (applyF t1) (applyF t2)
         ConsBase t1 t2       -> ConsBase (applyF t1) (applyF t2)
         ConsMember t1 i t2   -> ConsMember (applyF t1) i (applyF t2)
+        ConsElem t1 t2       -> ConsElem (applyF t1) (applyF t2)
         ConsSubscript t1 t2  -> ConsSubscript (applyF t1) (applyF t2)
         ConsField t1 i t2    -> ConsField (applyF t1) i (applyF t2)
         ConsAdtMem t1 i j t2 -> ConsAdtMem (applyF t1) i j (applyF t2)

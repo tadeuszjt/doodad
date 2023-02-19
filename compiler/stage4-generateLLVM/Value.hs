@@ -81,6 +81,8 @@ newBool b = do
     store p 0 $ if b then bit 1 else bit 0
     return $ Pointer Bool p
 
+mkBool :: Bool -> Value2
+mkBool b = Value2 Bool (bit $ if b then 1 else 0)
 
 newFloat :: InsCmp CompileState m => Type -> Double -> m Pointer
 newFloat typ f = do 
@@ -208,29 +210,16 @@ convertNumber typ val = do
         (I64, UnsafePtr) -> ptrtoint op LL.i64
 
 
-valLoad :: InsCmp s m => Value -> m Value
-valLoad (Val typ op)  = trace ("valLoad " ++ show typ) $ return (Val typ op)
-valLoad (Ptr typ loc) = trace ("valLoad " ++ show typ) $ Val typ <$> load loc 0
-
-
 storeBasic :: InsCmp CompileState m => Pointer -> Pointer -> m ()
 storeBasic dst src = do 
     assert (typeof dst == typeof src) "storeBasic: type mismatch"
     store (loc dst) 0 =<< load (loc src) 0
 
+
 storeBasicVal :: InsCmp CompileState m => Pointer -> Value2 -> m ()
 storeBasicVal dst src = do 
     assert (typeof dst == typeof src) "storeBasic: type mismatch"
     store (loc dst) 0 (op src) 
-
-valStore :: InsCmp CompileState m => Value -> Value -> m ()
-valStore (Ptr typ loc) val = trace "valStore" $ do
-    base <- baseTypeOf typ
-    valBase <- baseTypeOf val
-    assert (base == valBase) "types incompatible"
-    case val of
-        Ptr t l -> store loc 0 =<< load l 0
-        Val t o -> store loc 0 o
 
 
 newVal :: InsCmp CompileState m => Type -> m Pointer 
@@ -268,31 +257,6 @@ memCpy (Pointer dstTyp dst) (Pointer srcTyp src) len = trace "valMemCpy" $ do
     pDstI8 <- bitcast dst (LL.ptr LL.i8)
     pSrcI8 <- bitcast src (LL.ptr LL.i8)
     void $ memcpy pDstI8 pSrcI8 =<< mul (op size) (op len)
-
-
-prefix :: InsCmp CompileState m => AST.Operator -> Pointer -> m Value2
-prefix operator val = do
-    base <- baseTypeOf val
-    Value2 (typeof val) <$> case base of
-        _ | isInt base -> case operator of
-            AST.Plus -> op <$> pload val
-            AST.Minus -> mkZero (typeof val) >>= \zero -> op <$> (intInfix AST.Minus zero =<< pload val)
-
-        _ | isFloat base -> case operator of
-            AST.Plus -> op <$> pload val
-            AST.Minus -> do 
-                newFloat (typeof val) 0 >>= toVal >>= \zero -> fsub (valOp zero) . op =<< pload val
-
-        Bool -> case operator of
-            AST.Not -> do 
-                o <- op <$> pload val
-                icmp P.EQ o (bit 0)
-
-        Char -> case operator of
-            AST.Minus -> sub (int8 0) . op =<< pload val
-
-        _ -> fail $ show base
-        
 
 intInfix :: InsCmp CompileState m => AST.Operator -> Value2 -> Value2 -> m Value2
 intInfix operator a b = withErrorPrefix "int infix: " $ do

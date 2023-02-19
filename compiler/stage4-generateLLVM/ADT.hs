@@ -40,11 +40,10 @@ adtTypeField adtType typ = do
     return $ fromJust $ elemIndex (FieldType typ) fs
 
 
-adtEnum :: InsCmp CompileState m => Value -> m Value2
+adtEnum :: InsCmp CompileState m => Value2 -> m Value2
 adtEnum adt = do
     assertBaseType isADT (typeof adt)
-    val <- valLoad adt
-    Value2 I64 <$> extractValue (valOp val) [0]
+    Value2 I64 <$> extractValue (op adt) [0]
 
 
 adtSetEnum :: InsCmp CompileState m => Value -> Int -> m ()
@@ -56,23 +55,23 @@ adtSetEnum adt i = do
     store pi64 0 (int64 $ fromIntegral i)
 
 
-ptrAdtField :: InsCmp CompileState m => Value -> Int -> m Value
-ptrAdtField adt i = do
+adtField :: InsCmp CompileState m => Value -> Int -> m Pointer
+adtField adt i = do
     ADT fs <- assertBaseType isADT (typeof adt)
     assert (isPtr adt) "ADT must be a Ptr"
     case fs !! i of
         FieldType typ -> do
             pField <- gep (valLoc adt) [int32 0, int32 1]
             pType <- bitcast pField . LL.ptr =<< opTypeOf typ
-            return $ Ptr typ pType
+            return $ Pointer typ pType
             
         
-adtDeref :: InsCmp CompileState m => Value -> Int -> Int -> m Value
+adtDeref :: InsCmp CompileState m => Value -> Int -> Int -> m Pointer
 adtDeref adt i j = trace "adtDeref" $ do
     ADT fs <- assertBaseType isADT (typeof adt)
     case fs !! i of
         FieldNull -> fail "invalid adt deref"
         FieldType t -> do
             assert (j == 0) "invalid ADT deref"
-            ptrAdtField adt i
+            adtField adt i
 
