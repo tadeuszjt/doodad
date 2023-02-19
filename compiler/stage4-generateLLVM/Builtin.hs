@@ -186,7 +186,7 @@ mkInfix operator a b = withErrorPrefix "infix: " $ do
             av <- pload a
             fromValue <$> (floatInfix operator av =<< pload b)
         _ | isTuple base     -> mkTupleInfix operator (fromPointer a) (fromPointer b)
-        _ | isArray base     -> mkArrayInfix operator (fromPointer a) (fromPointer b)
+        _ | isArray base     -> mkArrayInfix operator a b
         _ | isTable base     -> mkTableInfix operator (fromPointer a) (fromPointer b)
         _                    -> fail $ "Operator " ++ show operator ++ " undefined for types " ++ show (typeof a) ++ " " ++ show (typeof b)
 
@@ -219,7 +219,7 @@ rangeInfix operator a b = do
 
 
 
-mkArrayInfix :: InsCmp CompileState m => AST.Operator -> Value -> Value -> m Value
+mkArrayInfix :: InsCmp CompileState m => AST.Operator -> Pointer -> Pointer -> m Value
 mkArrayInfix operator a b = withErrorPrefix "array" $ do
     assert (typeof a == typeof b) "infix type mismatch"
     Array n t <- assertBaseType isArray (typeof a)
@@ -228,10 +228,10 @@ mkArrayInfix operator a b = withErrorPrefix "array" $ do
         _ | operator `elem` [AST.Plus, AST.Minus, AST.Times, AST.Divide, AST.Modulo] -> do
             arr <- newVal (typeof a)
             forM_ [0..n] $ \i -> do
-                pDst <- ptrArrayGetElemConst (fromPointer arr) i
-                pSrcA <- ptrArrayGetElemConst a i
-                pSrcB <- ptrArrayGetElemConst b i
-                valStore pDst =<< mkInfix operator (toPointer pSrcA) (toPointer pSrcB)
+                pDst <- arrayGetElem arr =<< pload =<< newI64 i
+                pSrcA <- arrayGetElem a =<< pload =<< newI64 i
+                pSrcB <- arrayGetElem b =<< pload =<< newI64 i
+                storeCopy pDst . toPointer =<< mkInfix operator pSrcA pSrcB
             return (fromPointer arr)
 
 

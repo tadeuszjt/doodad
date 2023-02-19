@@ -212,7 +212,7 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
 
     AST.Assign pos pat expr -> withErrorPrefix "assign: " $ do
         val <- cmpExpr expr
-        matched <- cmpPattern pat (fromPointer val)
+        matched <- cmpPattern pat val
         let trap = trapMsg ("pattern match failure at: " ++ show (textPos expr))
         if_ (op matched) (return ()) (trap)
         return ()
@@ -258,7 +258,7 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
     AST.Switch _ expr cases -> do
         label "switch"
         val <- cmpExpr expr
-        let cases' = [(fmap op (cmpPattern pat $ fromPointer val), cmpStmt stmt) | (pat, stmt) <- cases]
+        let cases' = [(fmap op (cmpPattern pat val), cmpStmt stmt) | (pat, stmt) <- cases]
         let trap   = trapMsg ("switch match failure at: " ++ show (textPos stmt))
         switch_ $ cases' ++ [(return (bit 1), trap)]
 
@@ -296,10 +296,10 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
             Nothing -> toVal =<< newBool True
             Just pat -> case base of
                 Table ts -> do
-                    [Pointer t p] <- tableColumn val =<< pload idx
-                    fromValue <$> cmpPattern pat (Ptr t p)
-                Range I64 -> fromValue <$> (cmpPattern pat (fromPointer idx))
-                Array n t -> fromValue <$> (cmpPattern pat . fromPointer =<< arrayGetElem val =<< pload idx)
+                    [elm] <- tableColumn val =<< pload idx
+                    fromValue <$> cmpPattern pat elm
+                Range I64 -> fromValue <$> (cmpPattern pat idx)
+                Array n t -> fromValue <$> (cmpPattern pat =<< arrayGetElem val =<< pload idx)
                 _ -> error (show base)
         condBr (valOp patMatch) body exit
         
@@ -338,7 +338,7 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
     --AST.Null p                   -> mkAdtNull exprType
     AST.Match pos expr pat       -> do 
         b <- newVal exprType
-        storeBasicVal b =<< cmpPattern pat . fromPointer =<< cmpExpr expr
+        storeBasicVal b =<< cmpPattern pat =<< cmpExpr expr
         return b
     AST.Prefix pos operator expr -> do 
         val <- newVal exprType
@@ -582,8 +582,8 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
                 assert (length vals == n) "Invalid array length"
                 arr <- newVal exprType
                 forM_ (zip vals [0..]) $ \(val, i) -> do
-                    ptr <- ptrArrayGetElemConst (fromPointer arr) i
-                    storeBasic (toPointer ptr) val
+                    ptr <- arrayGetElem arr =<< pload =<< newI64 i
+                    storeBasic ptr val
                 return (arr)
 
             _ -> fail $ "invalid initialiser base type: " ++ show base
@@ -620,13 +620,11 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
             return val
             
 
-cmpPattern :: InsCmp CompileState m => AST.Pattern -> Value -> m Value2
+cmpPattern :: InsCmp CompileState m => AST.Pattern -> Pointer -> m Value2
 cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pattern of
     AST.PatIgnore _     -> pload =<< newBool True
     AST.PatLiteral expr -> do 
-        ptr <- newVal (typeof val)
-        valStore (fromPointer ptr) val
-        toValue <$> (valLoad =<< mkInfix AST.EqEq ptr =<< cmpExpr expr)
+        toValue <$> (valLoad =<< mkInfix AST.EqEq val =<< cmpExpr expr)
 
     AST.PatNull _ -> do -- null
         base@(ADT fs) <- assertBaseType isADT (typeof val)
@@ -634,14 +632,14 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
         assert (length is == 1) "ADT type does not have unique null field"
         let [i] = is
         iv <- pload =<< newI64 i
-        intInfix AST.EqEq iv =<< adtEnum val
+        intInfix AST.EqEq iv =<< adtEnum (fromPointer val)
 
     AST.PatAnnotated pat typ -> do -- a:i32
         assert (typeof val == typ) "pattern type mismatch"
         cmpPattern pat val
 
     AST.PatGuarded _ pat expr -> do -- a | a > 0
-        match <- cmpPattern pat =<< valLoad val
+        match <- cmpPattern pat val
         guard <- cmpExpr expr
         assertBaseType (== Bool) (typeof guard)
         boolInfix AST.AndAnd match =<< pload guard
@@ -651,16 +649,16 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
         isDataType <- isDataType (typeof val)
         assert (not isDataType) "Cannot assign a data type to a normal variale"
         loc <- newVal (typeof val)
-        storeBasicVal loc . toValue =<< valLoad val
+        storeBasicVal loc =<< pload val
         define symbol (ObjVal loc)
         pload =<< newBool True
 
     AST.PatTuple _ pats -> do -- (a, b)
-        len <- tupleLength . toValue =<< valLoad val
+        len <- tupleLength =<< pload val
         assert (len == length pats) "incorrect tuple length"
 
         bs <- forM (zip pats [0..]) $ \(p, i) ->
-            cmpPattern p . fromValue =<< valTupleIdx i . toValue =<< valLoad val
+            cmpPattern p =<< tupleIdx i val
 
         true <- pload =<< newBool True
         foldM (boolInfix AST.AndAnd) true bs
@@ -668,16 +666,16 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
     AST.PatArray _ [pats] -> do -- [a, b, c]
         base <- baseTypeOf val
         case base of
-            Sparse ts -> cmpPattern pattern . fromPointer =<< sparseTable (toPointer val) 
+            Sparse ts -> cmpPattern pattern =<< sparseTable val 
             
             Table ts -> do
-                len   <- pload =<< tableLen (toPointer val)
+                len   <- pload =<< tableLen val
                 lenEq <- intInfix AST.EqEq len =<< pload =<< newI64 (length pats)
 
                 assert (length ts == 1) "patterns don't support multiple rows (yet)"
                 bs <- forM (zip pats [0..]) $ \(pat, i) -> do
-                    [Pointer t p] <- tableColumn (toPointer val) =<< pload =<< newI64 i
-                    cmpPattern pat (Ptr t p)
+                    [elm] <- tableColumn val =<< pload =<< newI64 i
+                    cmpPattern pat elm
 
                 true <- pload =<< toType (typeof lenEq) =<< newBool True
                 foldM (boolInfix AST.AndAnd) true (lenEq:bs)
@@ -685,7 +683,7 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
             Array n t -> do
                 assert (n == length pats) "Invalid array pattern"
                 bs <- forM (zip pats [0..]) $ \(p, i) ->
-                    cmpPattern p =<< ptrArrayGetElemConst val i
+                    cmpPattern p =<< arrayGetElem val =<< pload =<< newI64 i
 
                 true <- pload =<< newBool True
                 foldM (boolInfix AST.AndAnd) true bs
@@ -700,7 +698,7 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
                 let rowLen = length (head patss)
                 forM_ patss $ \pats -> do 
                     assert (length pats == rowLen) "row length mismatch"
-                len   <- pload =<< tableLen (toPointer val) 
+                len   <- pload =<< tableLen val 
                 lenEq <- intInfix AST.EqEq len =<< pload =<< newI64 rowLen
 
                 matched <- newBool False
@@ -713,10 +711,9 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
 
                 emitBlockStart cond
                 bs <- forM [0.. rowLen - 1] $ \i -> do
-                    ptrs <- tableColumn (toPointer val) =<< pload =<< newI64 i
+                    ptrs <- tableColumn val =<< pload =<< newI64 i
                     let patc = map (!! i) patss
-                    bs <- forM (zip ptrs patc) $ \(Pointer t p, pat) -> do 
-                        cmpPattern pat (Ptr t p)
+                    bs <- zipWithM cmpPattern patc ptrs
                     foldM (boolInfix AST.AndAnd) true bs
                 storeBasicVal matched =<< foldM (boolInfix AST.AndAnd) true bs
                 br exit
@@ -733,7 +730,7 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
             Enum -> do
                 assert (pats == []) "enum pattern with args"
                 ObjField i <- look symbol
-                v <- toValue <$> valLoad val
+                v <- pload val
                 enumInfix AST.EqEq v =<< mkEnum (typeof val) i
 
             ADT fs -> do
@@ -743,25 +740,25 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
                         i <- adtTypeField (typeof val) typ
                         assert (length pats == 1) "One pattern allowed for type field"
                         iv <- pload =<< newI64 i
-                        enumMatch <- intInfix AST.EqEq iv =<< adtEnum val
+                        enumMatch <- intInfix AST.EqEq iv =<< adtEnum (fromPointer val)
                         adt <- newVal (typeof val)
-                        storeCopyVal adt (toValue val)
+                        storeCopy adt val
                         Ptr _ loc <- adtDeref (fromPointer adt) i 0
                         ObjType t0 <- look symbol
-                        b <- cmpPattern (head pats) $ Ptr t0 loc
+                        b <- cmpPattern (head pats) $ Pointer t0 loc
                         boolInfix AST.AndAnd enumMatch b
 
                     ObjField i -> do
                         let FieldCtor ts = fs !! i
                         assert (length pats == length ts) "invalid ADT pattern"
                         iv <- pload =<< newI64 i
-                        enumMatch <- intInfix AST.EqEq iv =<< adtEnum val
+                        enumMatch <- intInfix AST.EqEq iv =<< adtEnum (fromPointer val)
                         -- can't be inside a block which may or may not happen
                         -- as cmpPattern may add variables to the symbol table
                         adt <- newVal (typeof val)
-                        storeCopyVal adt (toValue val)
+                        storeCopy adt val
                         bs <- forM (zip pats [0..]) $ \(pat, j) -> do
-                            cmpPattern pat =<< adtDeref (fromPointer adt) i j
+                            cmpPattern pat . toPointer =<< adtDeref (fromPointer adt) i j
 
                         foldM (boolInfix AST.AndAnd) enumMatch bs
 
@@ -775,13 +772,13 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
 
         matched <- newBool False 
         iv <- pload =<< newI64 i
-        enumMatch <- intInfix AST.EqEq iv =<< adtEnum val
+        enumMatch <- intInfix AST.EqEq iv =<< adtEnum (fromPointer val)
         condBr (op enumMatch) match exit
 
         emitBlockStart match
         adt <- newVal (typeof val)
-        storeCopyVal adt (toValue val)
-        storeBasicVal matched =<< cmpPattern pat =<< adtDeref (fromPointer adt) i 0
+        storeCopy adt val
+        storeBasicVal matched =<< cmpPattern pat . toPointer =<< adtDeref (fromPointer adt) i 0
         br exit
 
         emitBlockStart exit
