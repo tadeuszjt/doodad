@@ -346,7 +346,7 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
         return val
 
     AST.Conv pos typ [expr]      -> do
-        val <- newConvert typ . fromPointer =<< cmpExpr expr
+        val <- newConvert typ =<< cmpExpr expr
         base <- baseTypeOf exprType
         case base of
             _ | exprType == typeof val -> do -- char(3):char
@@ -634,7 +634,7 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
         assert (length is == 1) "ADT type does not have unique null field"
         let [i] = is
         iv <- pload =<< newI64 i
-        intInfix AST.EqEq iv . toValue =<< mkAdtEnum val
+        intInfix AST.EqEq iv =<< adtEnum val
 
     AST.PatAnnotated pat typ -> do -- a:i32
         assert (typeof val == typ) "pattern type mismatch"
@@ -743,7 +743,7 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
                         i <- adtTypeField (typeof val) typ
                         assert (length pats == 1) "One pattern allowed for type field"
                         iv <- pload =<< newI64 i
-                        enumMatch <- intInfix AST.EqEq iv . toValue =<< mkAdtEnum val
+                        enumMatch <- intInfix AST.EqEq iv =<< adtEnum val
                         adt <- newVal (typeof val)
                         storeCopyVal adt (toValue val)
                         Ptr _ loc <- adtDeref (fromPointer adt) i 0
@@ -755,7 +755,7 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
                         let FieldCtor ts = fs !! i
                         assert (length pats == length ts) "invalid ADT pattern"
                         iv <- pload =<< newI64 i
-                        enumMatch <- intInfix AST.EqEq iv . toValue =<< mkAdtEnum val
+                        enumMatch <- intInfix AST.EqEq iv =<< adtEnum val
                         -- can't be inside a block which may or may not happen
                         -- as cmpPattern may add variables to the symbol table
                         adt <- newVal (typeof val)
@@ -775,7 +775,7 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
 
         matched <- newBool False 
         iv <- pload =<< newI64 i
-        enumMatch <- intInfix AST.EqEq iv . toValue =<< mkAdtEnum val
+        enumMatch <- intInfix AST.EqEq iv =<< adtEnum val
         condBr (op enumMatch) match exit
 
         emitBlockStart match
@@ -790,9 +790,9 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
                     
 cmpPrint :: InsCmp CompileState m => AST.Stmt -> m ()
 cmpPrint (AST.Print pos exprs) = trace "cmpPrint" $ do
-    prints . map fromPointer =<< mapM cmpExpr exprs
+    prints =<< mapM cmpExpr exprs
     where
-        prints :: InsCmp CompileState m => [Value] -> m ()
+        prints :: InsCmp CompileState m => [Pointer] -> m ()
         prints []     = void $ printf "\n" []
         prints [val]  = valPrint "\n" val
         prints (v:vs) = valPrint ", " v >> prints vs

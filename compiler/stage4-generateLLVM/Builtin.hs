@@ -121,15 +121,15 @@ construct typ args = do
 
 
 -- convert the value into a new value corresponding to the type
-newConvert :: InsCmp CompileState m => Type -> Value -> m Pointer
+newConvert :: InsCmp CompileState m => Type -> Pointer -> m Pointer
 newConvert typ val = do
     base <- baseTypeOf typ
     baseVal <- baseTypeOf val
     ptr <- newVal typ
     case base of
-        _ | isIntegral base -> storeBasicVal ptr =<< convertNumber typ . toValue =<< valLoad val
-        _ | isFloat base    -> storeBasicVal ptr =<< convertNumber typ . toValue =<< valLoad val
-        _ | baseVal == base -> storeCopy ptr (toPointer val)
+        _ | isIntegral base -> storeBasicVal ptr =<< convertNumber typ =<< pload val
+        _ | isFloat base    -> storeBasicVal ptr =<< convertNumber typ =<< pload val
+        _ | baseVal == base -> storeCopy ptr val
         _ -> fail ("valConvert " ++ show base)
     return ptr
 
@@ -350,10 +350,9 @@ valAdtNormalInfix operator a b = do
     case operator of
         AST.NotEq -> fromValue <$> (prefix AST.Not . toValue =<< valAdtNormalInfix AST.EqEq a b)
         AST.EqEq -> do
-            enA <- mkAdtEnum a
-            enB <- mkAdtEnum b
-            enAv <- toValue <$> valLoad enA
-            enEq <- intInfix AST.EqEq enAv . toValue =<< valLoad enB
+            enA <- adtEnum a
+            enB <- adtEnum b
+            enEq <- intInfix AST.EqEq enA enB
 
             -- if enum isn't matched, exit
             match <- newBool False
@@ -367,7 +366,7 @@ valAdtNormalInfix operator a b = do
 
             -- select block based on enum
             caseNames <- replicateM (length fs) (freshName "case")
-            switch (valOp enA) exit $ zip (map (toCons . int64) [0..]) caseNames
+            switch (op enA) exit $ zip (map (toCons . int64) [0..]) caseNames
 
             forM_ (zip caseNames [0..]) $ \(caseName, i) -> do
                 emitBlockStart caseName

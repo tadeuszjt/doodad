@@ -24,14 +24,13 @@ import Error
 import Symbol
 
 
-mkAdtNull :: InsCmp CompileState m => Type -> m Value
-mkAdtNull typ = do
-    ADT fs <- assertBaseType isADT typ
+adtNull :: InsCmp CompileState m => Type -> m Pointer
+adtNull typ = do
+    ADT fs <- baseTypeOf typ
     assert (elem FieldNull fs) "ADT does not have a null field"
     adt <- newVal typ
     adtSetEnum (fromPointer adt) $ fromJust $ elemIndex FieldNull fs
-    return (fromPointer adt)
-
+    return adt
 
 
 adtTypeField :: InsCmp CompileState m => Type -> Type -> m Int
@@ -41,11 +40,11 @@ adtTypeField adtType typ = do
     return $ fromJust $ elemIndex (FieldType typ) fs
 
 
-mkAdtEnum :: InsCmp CompileState m => Value -> m Value
-mkAdtEnum adt = do
+adtEnum :: InsCmp CompileState m => Value -> m Value2
+adtEnum adt = do
     assertBaseType isADT (typeof adt)
     val <- valLoad adt
-    Val I64 <$> extractValue (valOp val) [0]
+    Value2 I64 <$> extractValue (valOp val) [0]
 
 
 adtSetEnum :: InsCmp CompileState m => Value -> Int -> m ()

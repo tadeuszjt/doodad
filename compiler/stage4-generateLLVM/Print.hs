@@ -23,22 +23,20 @@ import Builtin
 import Error
 
 
-valPrint :: InsCmp CompileState m => String -> Value -> m ()
+valPrint :: InsCmp CompileState m => String -> Pointer -> m ()
 valPrint append val = withErrorPrefix "valPrint " $ case typeof val of
-    t | isInt t   -> void . printf ("%ld" ++ append) . (:[]) . valOp =<< valLoad val
+    t | isInt t   -> void . printf ("%ld" ++ append) . (:[]) . op =<< pload val
     t | isFloat t -> void . printf ("%f" ++ append) . (:[]) . op =<< pload =<< newConvert F64 val
-    Char          -> void . printf ("%c" ++ append) . (:[]) . valOp =<< valLoad val
+    Char          -> void . printf ("%c" ++ append) . (:[]) . op =<< pload val
 
-    UnsafePtr -> void . printf ("%p" ++ append) . (:[]) . valOp =<< valLoad val
+    UnsafePtr -> void . printf ("%p" ++ append) . (:[]) . op =<< pload val
 
     Typedef s     -> do
         base <- baseTypeOf (Typedef s)
-        case val of
-            Val _ op -> valPrint append (Val base op)
-            Ptr _ loc -> valPrint append (Ptr base loc)
+        valPrint append =<< toType base val
 
     Bool -> do
-        op <- valOp <$> valLoad val
+        op <- op <$> pload val
         str <- getStringPointer "true\0false"
         void . printf ("%s" ++ append) . (:[]) =<< gep str . (:[]) =<< select op (int64 0) (int64 5)
 
@@ -46,34 +44,34 @@ valPrint append val = withErrorPrefix "valPrint " $ case typeof val of
         printf "(" []
         forM_ (zip ts [0..]) $ \(t, i) -> do
             let app = if i < length ts - 1 then ", " else ""
-            valPrint app . fromValue =<< valTupleIdx i . toValue =<< valLoad val
+            valPrint app =<< tupleIdx i val
         void $ printf (")" ++ append) []
 
     Range t -> do
         printf "[" []
-        valPrint ".."            . fromPointer =<< rangeStart (toPointer val)
-        valPrint ("]" ++ append) . fromPointer =<< rangeEnd (toPointer val)
+        valPrint ".."            =<< rangeStart val
+        valPrint ("]" ++ append) =<< rangeEnd val
 
     Table [Char] -> do
-        (Pointer t p) <- tableRow 0 (toPointer val)
-        (Pointer I64 lp) <- tableLen (Pointer (typeof val) (valLoc val))
+        (Pointer t p) <- tableRow 0 val
+        (Pointer I64 lp) <- tableLen val
         lo <- load lp 0
         void $ printf ("%-.*s" ++ append) [lo, p]
 
     Table ts -> do
         printf "[" []
-        len <- tableLen (toPointer val)
+        len <- tableLen val
         lenZero <- mkInfix AST.EqEq len =<< newI64 0
 
         if_ (valOp lenZero)
             (void $ printf ("]" ++ append) [])
-            (tablePrintHelper ts val len)
+            (tablePrintHelper ts (fromPointer val) len)
 
     Array n t -> do
         printf "[" []
         forM_ [0..n-2] $ \i ->
-            valPrint ", " =<< ptrArrayGetElemConst val i
-        valPrint ("]" ++ append) =<< ptrArrayGetElemConst val (n-1)
+            valPrint ", " . toPointer =<< ptrArrayGetElemConst (fromPointer val) i
+        valPrint ("]" ++ append) . toPointer =<< ptrArrayGetElemConst (fromPointer val) (n-1)
 
 
     _ -> error ("print: " ++ show (typeof val))
@@ -84,7 +82,7 @@ valPrint append val = withErrorPrefix "valPrint " $ case typeof val of
             row@(Pointer t p) <- tableRow i (toPointer val)
             n <- mkInfix AST.Minus len =<< newI64 1
 
-            for (valOp n) $ \j -> valPrint ", " =<< fromPointer <$> advancePointer row (Value2 I64 j)
+            for (valOp n) $ \j -> valPrint ", " =<< advancePointer row (Value2 I64 j)
             if i < length ts - 1
-            then valPrint "; " =<< fromPointer <$> (advancePointer row . toValue =<< valLoad n)
-            else valPrint ("]" ++ append) =<< fromPointer <$> (advancePointer row . toValue =<< valLoad n)
+            then valPrint "; " =<< advancePointer row . toValue =<< valLoad n
+            else valPrint ("]" ++ append) =<< advancePointer row . toValue =<< valLoad n
