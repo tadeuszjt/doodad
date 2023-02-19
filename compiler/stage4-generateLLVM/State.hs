@@ -33,8 +33,8 @@ import Trace
 import Symbol
 
 
-data Value2 
-    = Value2 Type LL.Operand
+data Value 
+    = Value Type LL.Operand
     deriving (Show, Eq)
 
 data Pointer
@@ -46,28 +46,8 @@ loc :: Pointer -> LL.Operand
 loc (Pointer _ l) = l
 
 
-op :: Value2 -> LL.Operand
-op (Value2 _ o) = o
-
-
-data Value
-    = Val Type LL.Operand
-    | Ptr Type LL.Operand
-    | ConstInt Integer
-    deriving (Show, Eq)
-
-isPtr :: Value -> Bool
-isPtr (Ptr _ _) = True
-isPtr _         = False
-
-valOp :: Value -> LL.Operand
-valOp (Val _ op) = op
-valOp (Ptr typ _) = error (show typ)
-
-
-valLoc :: Value -> LL.Operand
-valLoc (Ptr _ loc) = loc
-valLoc (Val typ _) = error (show typ)
+op :: Value -> LL.Operand
+op (Value _ o) = o
 
 
 data Object

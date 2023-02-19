@@ -29,7 +29,7 @@ adtNull typ = do
     ADT fs <- baseTypeOf typ
     assert (elem FieldNull fs) "ADT does not have a null field"
     adt <- newVal typ
-    adtSetEnum (fromPointer adt) $ fromJust $ elemIndex FieldNull fs
+    adtSetEnum adt $ fromJust $ elemIndex FieldNull fs
     return adt
 
 
@@ -40,35 +40,33 @@ adtTypeField adtType typ = do
     return $ fromJust $ elemIndex (FieldType typ) fs
 
 
-adtEnum :: InsCmp CompileState m => Value2 -> m Value2
+adtEnum :: InsCmp CompileState m => Value -> m Value
 adtEnum adt = do
     assertBaseType isADT (typeof adt)
-    Value2 I64 <$> extractValue (op adt) [0]
+    Value I64 <$> extractValue (op adt) [0]
 
 
-adtSetEnum :: InsCmp CompileState m => Value -> Int -> m ()
+adtSetEnum :: InsCmp CompileState m => Pointer -> Int -> m ()
 adtSetEnum adt i = do
-    ADT fs <- assertBaseType isADT (typeof adt)
-    assert (isPtr adt) "ADT must be a Ptr"
+    ADT fs <- baseTypeOf adt
     assert (i >= 0 && i < length fs) "ADT enum value out of range"
-    pi64 <- gep (valLoc adt) [int32 0, int32 0]
+    pi64 <- gep (loc adt) [int32 0, int32 0]
     store pi64 0 (int64 $ fromIntegral i)
 
 
-adtField :: InsCmp CompileState m => Value -> Int -> m Pointer
+adtField :: InsCmp CompileState m => Pointer -> Int -> m Pointer
 adtField adt i = do
-    ADT fs <- assertBaseType isADT (typeof adt)
-    assert (isPtr adt) "ADT must be a Ptr"
+    ADT fs <- baseTypeOf adt
     case fs !! i of
         FieldType typ -> do
-            pField <- gep (valLoc adt) [int32 0, int32 1]
+            pField <- gep (loc adt) [int32 0, int32 1]
             pType <- bitcast pField . LL.ptr =<< opTypeOf typ
             return $ Pointer typ pType
             
         
-adtDeref :: InsCmp CompileState m => Value -> Int -> Int -> m Pointer
+adtDeref :: InsCmp CompileState m => Pointer -> Int -> Int -> m Pointer
 adtDeref adt i j = trace "adtDeref" $ do
-    ADT fs <- assertBaseType isADT (typeof adt)
+    ADT fs <- baseTypeOf adt
     case fs !! i of
         FieldNull -> fail "invalid adt deref"
         FieldType t -> do

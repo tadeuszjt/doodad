@@ -182,7 +182,7 @@ cmpFuncBodies irGenState = do
 
             forM_ (zip3 argTypes (drop (length paramSymbols) argOps) argSymbols) $ \(typ, op, symbol) -> do
                 loc <- newVal typ
-                storeBasicVal loc (Value2 typ op)
+                storeBasicVal loc (Value typ op)
                 define symbol (ObjVal loc)
 
             mapM_ cmpStmt (funcStmts body)
@@ -354,8 +354,8 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
             ADT xs | FieldType typ `elem` xs -> do    -- char(3):{char | null}
                 i <- adtTypeField exprType typ
                 adt <- newVal exprType
-                adtSetEnum (fromPointer adt) i
-                ptr <- adtField (fromPointer adt) i
+                adtSetEnum adt i
+                ptr <- adtField adt i
                 storeCopy ptr val
                 return adt
 
@@ -516,7 +516,7 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
         val <- case obj of
             ObjFn -> do
                 op <- fnHdrToOp (map typeof ps) symbol (map typeof as) exprType
-                Value2 exprType <$> call op [(o, []) | o <- psLocs ++ asOps]
+                Value exprType <$> call op [(o, []) | o <- psLocs ++ asOps]
             ObjType _  -> do 
                 pload =<< construct exprType as
             ObjField i -> do
@@ -576,7 +576,7 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
                 idxGtEqStart <- intInfix AST.GTEq idxv =<< pload =<< rangeStart val
                 idxLtEnd <- intInfix AST.LT idxv =<< pload =<< rangeEnd val
                 assertBaseType (== Bool) exprType
-                val <- Value2 exprType <$> LL.and (op idxLtEnd) (op idxGtEqStart)
+                val <- Value exprType <$> LL.and (op idxLtEnd) (op idxGtEqStart)
                 result <- newVal exprType 
                 storeBasicVal result val 
                 return result
@@ -603,7 +603,7 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
         case base of
             Table [Char] -> do
                 [elm] <- tableColumn val (mkI64 0)
-                val <- Value2 UnsafePtr <$> bitcast (loc elm) (LL.ptr LL.VoidType)
+                val <- Value UnsafePtr <$> bitcast (loc elm) (LL.ptr LL.VoidType)
                 result <- newVal exprType
                 storeBasicVal result val 
                 return result
@@ -613,7 +613,7 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
     AST.Builtin pos [] "unsafe_ptr_from_int" [expr] -> do
         val <- convertNumber I64 =<< pload =<< cmpExpr expr
         assertBaseType (== UnsafePtr) exprType
-        val <- Value2 exprType <$> inttoptr (op val) (LL.ptr LL.VoidType)
+        val <- Value exprType <$> inttoptr (op val) (LL.ptr LL.VoidType)
         result <- newVal exprType
         storeBasicVal result val 
         return result
@@ -627,7 +627,7 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
             return val
             
 
-cmpPattern :: InsCmp CompileState m => AST.Pattern -> Pointer -> m Value2
+cmpPattern :: InsCmp CompileState m => AST.Pattern -> Pointer -> m Value
 cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pattern of
     AST.PatIgnore _     -> pload =<< newBool True
     AST.PatLiteral expr -> pload =<< newInfix AST.EqEq val =<< cmpExpr expr
@@ -748,7 +748,7 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
                         adt <- newVal (typeof val)
                         storeCopy adt val
                         ObjType t0 <- look symbol
-                        b <- cmpPattern (head pats) . Pointer t0 . loc =<< adtDeref (fromPointer adt) i 0
+                        b <- cmpPattern (head pats) . Pointer t0 . loc =<< adtDeref adt i 0
                         boolInfix AST.AndAnd enumMatch b
 
                     ObjField i -> do
@@ -760,7 +760,7 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
                         adt <- newVal (typeof val)
                         storeCopy adt val
                         bs <- forM (zip pats [0..]) $ \(pat, j) -> do
-                            cmpPattern pat =<< adtDeref (fromPointer adt) i j
+                            cmpPattern pat =<< adtDeref adt i j
 
                         foldM (boolInfix AST.AndAnd) enumMatch bs
 
@@ -779,7 +779,7 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
         emitBlockStart match
         adt <- newVal (typeof val)
         storeCopy adt val
-        storeBasicVal matched =<< cmpPattern pat =<< adtDeref (fromPointer adt) i 0
+        storeBasicVal matched =<< cmpPattern pat =<< adtDeref adt i 0
         br exit
 
         emitBlockStart exit

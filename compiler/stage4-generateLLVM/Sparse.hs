@@ -35,7 +35,7 @@ sparseStack sparse = do
     Pointer (Table [I64]) <$> gep (loc sparse) [int32 0, int32 1]
 
 
-sparseDelete :: InsCmp CompileState m => Pointer -> Value2 -> m ()
+sparseDelete :: InsCmp CompileState m => Pointer -> Value -> m ()
 sparseDelete sparse idx = do
     Sparse ts <- baseTypeOf sparse
     table <- sparseTable sparse

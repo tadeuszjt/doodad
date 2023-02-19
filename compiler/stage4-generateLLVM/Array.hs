@@ -12,7 +12,7 @@ import Typeof
 import Value
 
 
-arrayGetElem :: InsCmp CompileState m => Pointer -> Value2 -> m Pointer
+arrayGetElem :: InsCmp CompileState m => Pointer -> Value -> m Pointer
 arrayGetElem arr idx = do
     Array n t <- baseTypeOf (typeof arr)
     assertBaseType isIntegral (typeof idx)

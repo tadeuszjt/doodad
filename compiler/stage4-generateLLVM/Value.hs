@@ -33,22 +33,6 @@ import Trace
 import Error
 
 
--- Value contains the basic low-level operations for Value types.
-
-toValue (Val t p) = Value2 t p
-
-fromValue (Value2 t p) = Val t p
-
-toPointer (Ptr t p) = Pointer t p
-
-fromPointer (Pointer t p) = Ptr t p
-
-
-toVal :: InsCmp CompileState m => Pointer -> m Value 
-toVal ptr = 
-    fromValue <$> pload ptr
-
-
 toType :: InsCmp CompileState m => Type -> Pointer -> m Pointer
 toType typ ptr = do 
     base <- baseTypeOf typ
@@ -64,8 +48,8 @@ newI64 n = do
     return $ Pointer I64 p
 
 
-mkI64 :: Integral i => i -> Value2
-mkI64 n = Value2 I64 $ int64 (fromIntegral n)
+mkI64 :: Integral i => i -> Value
+mkI64 n = Value I64 $ int64 (fromIntegral n)
 
 
 newChar :: InsCmp CompileState m => Char -> m Pointer
@@ -81,8 +65,8 @@ newBool b = do
     store p 0 $ if b then bit 1 else bit 0
     return $ Pointer Bool p
 
-mkBool :: Bool -> Value2
-mkBool b = Value2 Bool (bit $ if b then 1 else 0)
+mkBool :: Bool -> Value
+mkBool b = Value Bool (bit $ if b then 1 else 0)
 
 newFloat :: InsCmp CompileState m => Type -> Double -> m Pointer
 newFloat typ f = do 
@@ -98,13 +82,13 @@ newFloat typ f = do
             return $ Pointer typ p
 
 
-mkEnum :: InsCmp CompileState m => Integral i => Type -> i -> m Value2
+mkEnum :: InsCmp CompileState m => Integral i => Type -> i -> m Value
 mkEnum typ n = do
     assertBaseType (== Enum) typ
-    return $ Value2 typ $ int64 (fromIntegral n)
+    return $ Value typ $ int64 (fromIntegral n)
 
 
-newRange :: InsCmp CompileState m => Value2 -> Value2 -> m Pointer
+newRange :: InsCmp CompileState m => Value -> Value -> m Pointer
 newRange start end = do
     assert (typeof start == typeof end) $ "range types do not match"
     isDataType <- isDataType (typeof start)
@@ -121,25 +105,25 @@ newRange start end = do
 
 
 -- TODO, is this the cause of the struct packed/non-packed bug?
-mkZero :: InsCmp CompileState m => Type -> m Value2
+mkZero :: InsCmp CompileState m => Type -> m Value
 mkZero typ = trace ("mkZero " ++ show  typ) $ do
     namem <- Map.lookup typ <$> gets typeNameMap
     base <- baseTypeOf typ
     case base of
-        I64                -> return $ Value2 typ (int64 0)
-        I32                -> return $ Value2 typ (int32 0)
-        F32                -> return $ Value2 typ (single 0.0)
-        F64                -> return $ Value2 typ (double 0.0)
-        Enum               -> return $ Value2 typ (int64 0)
-        Bool               -> return $ Value2 typ (bit 0)
-        Char               -> return $ Value2 typ (int8 0)
-        Range t            -> Value2 typ . struct namem False . map (toCons . op) <$> mapM mkZero [t, t]
-        Array n t          -> Value2 typ . array . replicate n . toCons . op <$> mkZero t
-        Tuple ts           -> Value2 typ . struct namem False . map (toCons . op) <$> mapM mkZero ts
-        Table ts           -> Value2 typ . struct namem False . ([zi64, zi64] ++) <$> map (C.IntToPtr zi64 . LL.ptr) <$> mapM opTypeOf ts
-        Sparse ts          -> Value2 typ . struct namem False . map (toCons . op) <$> mapM mkZero [Table ts, Table [I64]]
-        Map tk tv          -> Value2 typ . op <$> mkZero (Table [tk, tv])
-        UnsafePtr          -> return $ Value2 typ $ cons $ C.IntToPtr zi64 (LL.ptr LL.VoidType)
+        I64                -> return $ Value typ (int64 0)
+        I32                -> return $ Value typ (int32 0)
+        F32                -> return $ Value typ (single 0.0)
+        F64                -> return $ Value typ (double 0.0)
+        Enum               -> return $ Value typ (int64 0)
+        Bool               -> return $ Value typ (bit 0)
+        Char               -> return $ Value typ (int8 0)
+        Range t            -> Value typ . struct namem False . map (toCons . op) <$> mapM mkZero [t, t]
+        Array n t          -> Value typ . array . replicate n . toCons . op <$> mkZero t
+        Tuple ts           -> Value typ . struct namem False . map (toCons . op) <$> mapM mkZero ts
+        Table ts           -> Value typ . struct namem False . ([zi64, zi64] ++) <$> map (C.IntToPtr zi64 . LL.ptr) <$> mapM opTypeOf ts
+        Sparse ts          -> Value typ . struct namem False . map (toCons . op) <$> mapM mkZero [Table ts, Table [I64]]
+        Map tk tv          -> Value typ . op <$> mkZero (Table [tk, tv])
+        UnsafePtr          -> return $ Value typ $ cons $ C.IntToPtr zi64 (LL.ptr LL.VoidType)
         _ -> fail ("mkZero: " ++  show typ)
         where
             zi64 = toCons (int64 0)
@@ -158,17 +142,17 @@ rangeEnd range = do
 
 
 
-pload :: InsCmp CompileState m => Pointer -> m Value2
+pload :: InsCmp CompileState m => Pointer -> m Value
 pload ptr = do
-    Value2 (typeof ptr) <$> load (loc ptr) 0
+    Value (typeof ptr) <$> load (loc ptr) 0
 
 
-convertNumber :: InsCmp CompileState m => Type -> Value2 -> m Value2
+convertNumber :: InsCmp CompileState m => Type -> Value -> m Value
 convertNumber typ val = do
     op <- return (op val)
     base <- baseTypeOf typ
     baseVal <- baseTypeOf val
-    fmap (Value2 typ) $ case (base, baseVal) of
+    fmap (Value typ) $ case (base, baseVal) of
         (I64,  I64) -> return op
         (I32,  I64) -> trunc op LL.i32
         (I16,  I64) -> trunc op LL.i16
@@ -216,7 +200,7 @@ storeBasic dst src = do
     store (loc dst) 0 =<< load (loc src) 0
 
 
-storeBasicVal :: InsCmp CompileState m => Pointer -> Value2 -> m ()
+storeBasicVal :: InsCmp CompileState m => Pointer -> Value -> m ()
 storeBasicVal dst src = do 
     assert (typeof dst == typeof src) "storeBasic: type mismatch"
     store (loc dst) 0 (op src) 
@@ -235,20 +219,20 @@ newVal typ = do
     return $ Pointer typ p
 
 
-pMalloc :: InsCmp CompileState m => Type -> Value2 -> m Pointer
+pMalloc :: InsCmp CompileState m => Type -> Value -> m Pointer
 pMalloc typ len = trace ("mkMalloc " ++ show typ) $ do
     lenTyp <- assertBaseType isInt (typeof len)
     pi8 <- malloc =<< mul (op len) . op =<< sizeOf typ
     fmap (Pointer typ) $ bitcast pi8 . LL.ptr =<< opTypeOf typ
 
 
-advancePointer :: InsCmp CompileState m => Pointer -> Value2 -> m Pointer
+advancePointer :: InsCmp CompileState m => Pointer -> Value -> m Pointer
 advancePointer ptr idx = do
     I64 <- baseTypeOf idx
     Pointer (typeof ptr) <$> gep (loc ptr) [op idx]
 
 
-memCpy :: InsCmp CompileState m => Pointer -> Pointer -> Value2 -> m ()
+memCpy :: InsCmp CompileState m => Pointer -> Pointer -> Value -> m ()
 memCpy (Pointer dstTyp dst) (Pointer srcTyp src) len = trace "valMemCpy" $ do
     True <- return (dstTyp == srcTyp)
     I64 <- baseTypeOf len
@@ -258,42 +242,42 @@ memCpy (Pointer dstTyp dst) (Pointer srcTyp src) len = trace "valMemCpy" $ do
     pSrcI8 <- bitcast src (LL.ptr LL.i8)
     void $ memcpy pDstI8 pSrcI8 =<< mul (op size) (op len)
 
-intInfix :: InsCmp CompileState m => AST.Operator -> Value2 -> Value2 -> m Value2
+intInfix :: InsCmp CompileState m => AST.Operator -> Value -> Value -> m Value
 intInfix operator a b = withErrorPrefix "int infix: " $ do
     True <- return (typeof a == typeof b)
     assertBaseType (\t -> isInt t || t == Char) (typeof a)
     case operator of
-        AST.Plus   -> Value2 (typeof a) <$> add (op a) (op b)
-        AST.Minus  -> Value2 (typeof a) <$> sub (op a) (op b)
-        AST.Times  -> Value2 (typeof a) <$> mul (op a) (op b)
-        AST.Divide -> Value2 (typeof a) <$> sdiv (op a) (op b)
-        AST.Modulo -> Value2 (typeof a) <$> srem (op a) (op b)
-        AST.GT     -> Value2 Bool <$> icmp P.SGT (op a) (op b)
-        AST.LT     -> Value2 Bool <$> icmp P.SLT (op a) (op b)
-        AST.GTEq   -> Value2 Bool <$> icmp P.SGE (op a) (op b)
-        AST.LTEq   -> Value2 Bool <$> icmp P.SLE (op a) (op b)
-        AST.EqEq   -> Value2 Bool <$> icmp P.EQ (op a) (op b)
-        AST.NotEq  -> Value2 Bool <$> icmp P.NE (op a) (op b)
+        AST.Plus   -> Value (typeof a) <$> add (op a) (op b)
+        AST.Minus  -> Value (typeof a) <$> sub (op a) (op b)
+        AST.Times  -> Value (typeof a) <$> mul (op a) (op b)
+        AST.Divide -> Value (typeof a) <$> sdiv (op a) (op b)
+        AST.Modulo -> Value (typeof a) <$> srem (op a) (op b)
+        AST.GT     -> Value Bool <$> icmp P.SGT (op a) (op b)
+        AST.LT     -> Value Bool <$> icmp P.SLT (op a) (op b)
+        AST.GTEq   -> Value Bool <$> icmp P.SGE (op a) (op b)
+        AST.LTEq   -> Value Bool <$> icmp P.SLE (op a) (op b)
+        AST.EqEq   -> Value Bool <$> icmp P.EQ (op a) (op b)
+        AST.NotEq  -> Value Bool <$> icmp P.NE (op a) (op b)
         _        -> error ("int infix: " ++ show operator)
     
         
-floatInfix :: InsCmp CompileState m => AST.Operator -> Value2 -> Value2 -> m Value2
+floatInfix :: InsCmp CompileState m => AST.Operator -> Value -> Value -> m Value
 floatInfix operator a b = do
     assert (typeof a == typeof b) "Left side type does not match right side"
     let typ = typeof a
     assertBaseType isFloat typ
     case operator of
-        AST.Plus   -> Value2 typ <$> fadd (op a) (op b)
-        AST.Minus  -> Value2 typ <$> fsub (op a) (op b)
-        AST.Times  -> Value2 typ <$> fmul (op a) (op b)
-        AST.Divide -> Value2 typ <$> fdiv (op a) (op b)
-        AST.EqEq   -> Value2 Bool <$> fcmp P.OEQ (op a) (op b)
-        AST.GT     -> Value2 Bool <$> fcmp P.OGT (op a) (op b)
-        AST.LT     -> Value2 Bool <$> fcmp P.OLT (op a) (op b)
+        AST.Plus   -> Value typ <$> fadd (op a) (op b)
+        AST.Minus  -> Value typ <$> fsub (op a) (op b)
+        AST.Times  -> Value typ <$> fmul (op a) (op b)
+        AST.Divide -> Value typ <$> fdiv (op a) (op b)
+        AST.EqEq   -> Value Bool <$> fcmp P.OEQ (op a) (op b)
+        AST.GT     -> Value Bool <$> fcmp P.OGT (op a) (op b)
+        AST.LT     -> Value Bool <$> fcmp P.OLT (op a) (op b)
         _        -> error ("float infix: " ++ show operator)
 
 
-boolInfix :: InsCmp CompileState m => AST.Operator -> Value2 -> Value2 -> m Value2
+boolInfix :: InsCmp CompileState m => AST.Operator -> Value -> Value -> m Value
 boolInfix operator a b = do
     Bool <- baseTypeOf a
     True <- return $ typeof a == typeof b
@@ -302,4 +286,4 @@ boolInfix operator a b = do
         AST.AndAnd -> and (op a) (op b)
         AST.EqEq   -> icmp P.EQ (op a) (op b)
         _        -> error ("bool infix: " ++ show operator)
-    return $ Value2 Bool op
+    return $ Value Bool op

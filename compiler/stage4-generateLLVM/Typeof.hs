@@ -25,12 +25,7 @@ import Trace
 import Error
 
 instance Typeof Pointer where typeof (Pointer t _) = t
-instance Typeof Value2 where typeof (Value2 t _) = t
-instance Typeof Value where 
-    typeof (Val t _) = t
-    typeof (Ptr t _) = t
-
-
+instance Typeof Value where typeof (Value t _) = t
 
 assertBaseType :: InsCmp CompileState m => (Type -> Bool) -> Type -> m Type
 assertBaseType f typ = trace "assertBaseType" $ do
@@ -45,10 +40,10 @@ baseTypeOf x = case typeof x of
     _           -> return (typeof x)
 
 
-sizeOf :: InsCmp CompileState m => Type -> m Value2
+sizeOf :: InsCmp CompileState m => Type -> m Value
 sizeOf typ = trace "sizeOf" $ do
     opType <- opTypeOf typ
-    return $ Value2 I64 $ cons $ C.SExt (C.sizeof opType) (LL.IntegerType 64)
+    return $ Value I64 $ cons $ C.SExt (C.sizeof opType) (LL.IntegerType 64)
 
 sizeOfLL :: ModCmp CompileState m => LL.Type -> m Int
 sizeOfLL typ = do

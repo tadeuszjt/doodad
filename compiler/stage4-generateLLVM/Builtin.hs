@@ -52,8 +52,8 @@ storeCopy dst src = withErrorPrefix "storeCopy: " $ do
             len <- pload =<< tableLen src
             tableResize dst len
             for (op len) $ \n -> do 
-                columnDst <- tableColumn dst (Value2 I64 n)
-                columnSrc <- tableColumn src (Value2 I64 n)
+                columnDst <- tableColumn dst (Value I64 n)
+                columnSrc <- tableColumn src (Value I64 n)
                 zipWithM_ storeCopy columnDst columnSrc
 
         Tuple ts -> do 
@@ -115,7 +115,7 @@ mapPush map key = do
     return pv
 
 
-mapFind :: InsCmp CompileState m => Pointer -> Pointer -> m (Value2, Value2) --found, idx
+mapFind :: InsCmp CompileState m => Pointer -> Pointer -> m (Value, Value) --found, idx
 mapFind map key = do
     Map tk tv <- baseTypeOf map
     exit <- freshName "mapFind_exit"
@@ -150,7 +150,7 @@ mapFind map key = do
 
 
 
-storeCopyVal :: InsCmp CompileState m => Pointer -> Value2 -> m ()
+storeCopyVal :: InsCmp CompileState m => Pointer -> Value -> m ()
 storeCopyVal dst src = do
     baseDst <- baseTypeOf dst
     baseSrc <- baseTypeOf src
@@ -159,7 +159,7 @@ storeCopyVal dst src = do
         _ | isSimple baseDst -> storeBasicVal dst src
         _ -> fail (show baseDst)
 
-sparsePush :: InsCmp CompileState m => Pointer -> [Pointer] -> m Value2
+sparsePush :: InsCmp CompileState m => Pointer -> [Pointer] -> m Value
 sparsePush sparse elems = do
     Sparse ts <- baseTypeOf sparse
     assert (map typeof elems == ts) "Elem types do not match"
@@ -214,10 +214,10 @@ newConvert typ val = do
 
 
 
-prefix :: InsCmp CompileState m => AST.Operator -> Pointer -> m Value2
+prefix :: InsCmp CompileState m => AST.Operator -> Pointer -> m Value
 prefix operator val = do
     base <- baseTypeOf val
-    Value2 (typeof val) <$> case base of
+    Value (typeof val) <$> case base of
         _ | isInt base -> case operator of
             AST.Plus -> op <$> pload val
             AST.Minus -> do
@@ -227,7 +227,7 @@ prefix operator val = do
         _ | isFloat base -> case operator of
             AST.Plus -> op <$> pload val
             AST.Minus -> do 
-                newFloat (typeof val) 0 >>= toVal >>= \zero -> fsub (valOp zero) . op =<< pload val
+                newFloat (typeof val) 0 >>= pload >>= \zero -> fsub (op zero) . op =<< pload val
 
         Bool -> case operator of
             AST.Not -> do 
@@ -313,13 +313,13 @@ newInfix operator a b = withErrorPrefix "infix: " $ do
 
 
 
-enumInfix :: InsCmp CompileState m => AST.Operator -> Value2 -> Value2 -> m Value2
+enumInfix :: InsCmp CompileState m => AST.Operator -> Value -> Value -> m Value
 enumInfix operator a b = do
     assert (typeof a == typeof b) "type mismatch"
     Enum <- baseTypeOf a
     case operator of
-        AST.NotEq -> Value2 Bool <$> icmp P.NE (op a) (op b)
-        AST.EqEq  -> Value2 Bool <$> icmp P.EQ (op a) (op b)
+        AST.NotEq -> Value Bool <$> icmp P.NE (op a) (op b)
+        AST.EqEq  -> Value Bool <$> icmp P.EQ (op a) (op b)
 
 
 rangeInfix :: InsCmp CompileState m => AST.Operator -> Pointer -> Pointer -> m Pointer
@@ -495,13 +495,13 @@ valAdtNormalInfix operator a b = do
                 bs <- case fs !! i of
                     FieldNull -> fmap (\a -> [a]) $ pload =<< newBool True
                     FieldType t -> do
-                        valA <- adtDeref (fromPointer a) i 0
-                        valB <- adtDeref (fromPointer b) i 0
+                        valA <- adtDeref a i 0
+                        valB <- adtDeref b i 0
                         fmap (\a -> [a]) $ pload =<< newInfix AST.EqEq valA valB
                     FieldCtor ts -> do
                         forM (zip ts [0..]) $ \(t, j) -> do
-                            valA <- adtDeref (fromPointer a) i j
-                            valB <- adtDeref (fromPointer b) i j
+                            valA <- adtDeref a i j
+                            valB <- adtDeref b i j
                             pload =<< newInfix AST.EqEq valA valB
 
                 true <- pload =<< newBool True
@@ -509,5 +509,5 @@ valAdtNormalInfix operator a b = do
                 br exit
 
             emitBlockStart exit
-            toVal match
+            pload match
 

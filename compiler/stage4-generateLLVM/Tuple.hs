@@ -18,7 +18,7 @@ import Error
 import Symbol
 
 
-tupleLength :: InsCmp CompileState m => Value2 -> m Int
+tupleLength :: InsCmp CompileState m => Value -> m Int
 tupleLength tuple = trace "tupleLength" $ do
     Tuple ts <- baseTypeOf tuple
     return (length ts)
@@ -39,8 +39,8 @@ tupleIdx i tuple = withErrorPrefix "tuple idx: " $ do
     Pointer (ts !! i) <$> gep (loc tuple) [int32 0, int32 $ fromIntegral i]
 
 
-valTupleIdx :: InsCmp CompileState m => Int -> Value2 -> m Value2
+valTupleIdx :: InsCmp CompileState m => Int -> Value -> m Value
 valTupleIdx i tup = do
     Tuple ts <- baseTypeOf tup
     assert (i >= 0 && i < length ts) "tuple index out of range"
-    Value2 (ts !! i) <$> extractValue (op tup) [fromIntegral i]
+    Value (ts !! i) <$> extractValue (op tup) [fromIntegral i]

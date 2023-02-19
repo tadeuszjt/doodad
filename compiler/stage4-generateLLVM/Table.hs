@@ -37,7 +37,7 @@ tableCap table = do
 
 
 -- allocate a table with the specified type and length
-newTable :: InsCmp CompileState m => Type -> Value2 -> m Pointer
+newTable :: InsCmp CompileState m => Type -> Value -> m Pointer
 newTable typ initialLen = do
     Table ts <- baseTypeOf typ
     I64 <- baseTypeOf initialLen
@@ -63,7 +63,7 @@ newTable typ initialLen = do
     return tab
 
 
-tableColumn :: InsCmp CompileState m => Pointer -> Value2 -> m [Pointer]
+tableColumn :: InsCmp CompileState m => Pointer -> Value -> m [Pointer]
 tableColumn tab idx = trace "tableGetElem" $ do
     Table ts <- baseTypeOf tab
     forM (zip ts [0..]) $ \(t, i) -> do
@@ -80,7 +80,7 @@ tableRow i tab = do
     
 
 
-tablePush :: InsCmp CompileState m => Pointer -> m Value2
+tablePush :: InsCmp CompileState m => Pointer -> m Value
 tablePush tab = do 
     len <- pload =<< tableLen tab
     tableResize tab =<< intInfix AST.Plus len (mkI64 1)
@@ -89,7 +89,7 @@ tablePush tab = do
     return len
 
 
-tableDelete :: InsCmp CompileState m => Pointer -> Value2 -> m ()
+tableDelete :: InsCmp CompileState m => Pointer -> Value -> m ()
 tableDelete tab idx = do
     Table ts <- baseTypeOf tab
     len <- tableLen tab
@@ -113,7 +113,7 @@ tableSetRow tab i row = trace "tableSetRow" $ do
     store pp 0 (loc row)
 
 
-tableResize :: InsCmp CompileState m => Pointer -> Value2 -> m ()
+tableResize :: InsCmp CompileState m => Pointer -> Value -> m ()
 tableResize tab newLen = do
     exit <- freshName "tableResize_exit"
     needsResize <- freshName "tableResize_realloc_mem"
