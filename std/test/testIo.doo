@@ -1,0 +1,21 @@
+module testIo 
+
+import ../io
+
+
+fn { io Io} testFiles()
+    let key | key == 0 = {io, "std/test/temp"}.openFile()
+    io.clearFile(key)
+    {io, "test_line"}.writeLn(key)
+    io.closeFile(key)
+
+    key = {io, "std/test/temp"}.openFile()
+    data line string 
+    {io, line}.readLn(key)
+    let "test_line" = line
+    io.closeFile(key)
+
+
+fn {io Io} testIo() 
+    io.testFiles()
+    print("testIo passed")

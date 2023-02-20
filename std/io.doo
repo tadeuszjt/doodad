@@ -86,15 +86,3 @@ fn {io Io, line string} writeLn()
     for line -> c
         io.write(c)
     io.write('\n')
-
-
-fn {io Io, s string} writeLn()
-    {io, s}.write()
-    io.write('\n')
-
-
-fn {io Io, s string} writeLn(key FileKey)
-    {io, s}.write(key)
-    io.write(key, '\n')
-
-

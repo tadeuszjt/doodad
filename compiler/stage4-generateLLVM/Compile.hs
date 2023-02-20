@@ -97,7 +97,9 @@ cmpTypeNames irGenState = withErrorPrefix "cmpTypeNames" $ do
                 Table ts -> mapM_ verifyTypeName ts >> addDef symbol typ
                 Tuple ts -> mapM_ verifyTypeName ts >> addDef symbol typ
                 Sparse ts -> mapM_ verifyTypeName ts >> addDef symbol typ
+                Enum -> return ()
                 I64 -> return ()
+                ADT _ -> return ()
                 _ -> error (show typ)
 
         addDef :: InsCmp CompileState m => Symbol -> Type -> m ()
@@ -177,6 +179,8 @@ cmpFuncBodies irGenState = do
         let LL.ConstantOperand (C.GlobalReference _ name) = op
 
         void $ InstrCmpT . IRBuilderT . lift $ func name (zip (paramOpTypes ++ argOpTypes)  (paramNames ++ argNames)) returnOpType $ \argOps -> do
+            emitBlockStart =<< fresh
+
             forM_ (zip3 paramTypes paramSymbols argOps) $ \(typ, symbol, op) -> do
                 define symbol (ObjVal $ Pointer typ op)
 
@@ -184,6 +188,7 @@ cmpFuncBodies irGenState = do
                 loc <- newVal typ
                 storeBasicVal loc (Value typ op)
                 define symbol (ObjVal loc)
+
 
             mapM_ cmpStmt (funcStmts body)
             hasTerm <- hasTerminator
@@ -199,6 +204,8 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
     AST.Print pos exprs   -> do
         label "print"
         cmpPrint stmt
+
+    AST.Typedef pos symbol anno -> return ()
 
     AST.Block stmts   -> mapM_ cmpStmt stmts
     AST.ExprStmt expr -> withErrorPrefix "exprStmt: " $ void $ cmpExpr expr

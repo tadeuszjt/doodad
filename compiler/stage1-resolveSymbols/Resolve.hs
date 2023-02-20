@@ -2,6 +2,7 @@
 module Resolve where
 
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 import Control.Monad.State
 import Data.Maybe
 import Data.List
@@ -39,17 +40,21 @@ data ResolveState
     = ResolveState
         { symTab      :: SymTab
         , symTabVar   :: SymTab.SymTab String () Symbol
+        , funcKeys    :: Set.Set FuncKey
         , imports     :: [IRGenState]
         , modName     :: String
         , supply      :: Map.Map String Int
+        , typeDefsMap :: Map.Map Symbol AnnoType
         }
 
 initResolveState imports modName typeImports = ResolveState
     { symTab    = SymTab.initSymTab
     , symTabVar = SymTab.initSymTab
+    , funcKeys  = Set.empty
     , imports   = imports
     , modName   = modName
     , supply    = Map.empty
+    , typeDefsMap = Map.empty
     }
 
 
@@ -188,7 +193,11 @@ resolveAsts asts imports = withErrorPrefix "resolve: " $ do
             let funcdefs = [ stmt | stmt@(AST.FuncDef _ _ _ _ _ _) <- concat $ map astStmts asts ]
             assert ((length typedefs + length funcdefs) == length (concat $ map astStmts asts)) "only typedefs and funcdefs allowed"
 
-            forM_ funcdefs $ \(FuncDef pos mparam symbol params retty blk) -> do
+            forM_ funcdefs $ \(FuncDef pos params symbol args retty blk) -> withPos pos $ do
+                let funckey = (map typeof params, sym symbol, map typeof args, retty)
+                mb <- Set.member funckey <$> gets funcKeys
+                assert (not mb) $ sym symbol ++ " already defined"
+                modify $ \s -> s { funcKeys = Set.insert funckey (funcKeys s) }
                 resm <- lookm (Sym $ sym symbol) KeyFunc
                 when (isNothing resm) $ define (sym symbol) KeyFunc (Sym $ sym $ symbol)
 
@@ -196,9 +205,10 @@ resolveAsts asts imports = withErrorPrefix "resolve: " $ do
             (_, funcImportMap) <- runBoMTExcept Map.empty (buildFuncImportMap imports)
             (_, ctorImportMap) <- runBoMTExcept Map.empty (buildCtorImportMap imports)
 
-            typeDefsMap <- Map.fromList <$> mapM resolveTypeDef typedefs
+            mapM resolveTypeDef typedefs
             funcDefsMap <- Map.fromList <$> mapM resolveFuncDef funcdefs
-            (_, ctorMap) <- runBoMTExcept Map.empty (buildCtorMap $ Map.toList typeDefsMap)
+            tdm <- gets typeDefsMap
+            (_, ctorMap) <- runBoMTExcept Map.empty (buildCtorMap $ Map.toList tdm)
 
             return $ ResolvedAst
                 { moduleName  = moduleName
@@ -206,14 +216,14 @@ resolveAsts asts imports = withErrorPrefix "resolve: " $ do
                 , ctorImports = ctorImportMap
                 , funcImports = funcImportMap
                 , funcDefs    = funcDefsMap
-                , typeDefs    = Map.map annoToType typeDefsMap
+                , typeDefs    = Map.map annoToType tdm
                 , ctorDefs    = ctorMap
                 }
 
 
 
 resolveFuncDef :: BoM ResolveState m => AST.Stmt -> m (Symbol, FuncBody)
-resolveFuncDef (FuncDef pos params (Sym sym) args retty blk) = do
+resolveFuncDef (FuncDef pos params (Sym sym) args retty blk) = withPos pos $ do
     -- use a new symbol table for variables in every function
     oldSymTabVar <- gets symTabVar
     modify $ \s -> s { symTabVar = SymTab.initSymTab }
@@ -237,7 +247,7 @@ resolveFuncDef (FuncDef pos params (Sym sym) args retty blk) = do
     return (symbol', funcBody)
 
 
-resolveTypeDef :: BoM ResolveState m => AST.Stmt -> m (Symbol, AST.AnnoType)
+resolveTypeDef :: BoM ResolveState m => AST.Stmt -> m ()
 resolveTypeDef (AST.Typedef pos (Sym sym) anno) = do
     symbol <- genSymbol sym
     define sym KeyType symbol
@@ -272,9 +282,7 @@ resolveTypeDef (AST.Typedef pos (Sym sym) anno) = do
 
         _ -> fail $ "invalid anno: " ++ show anno
 
-    return (symbol, anno')
-
-
+    modify $ \s -> s { typeDefsMap = Map.insert symbol anno' (typeDefsMap s) }
 
 
 instance Resolve Stmt where
@@ -287,6 +295,10 @@ instance Resolve Stmt where
                 _        -> fail "incorrect print call"
 
         ExprStmt callExpr -> ExprStmt <$> resolve callExpr
+
+        AST.Typedef pos symbol anno -> do 
+            resolveTypeDef stmt
+            return $ AST.Typedef pos symbol anno
 
         Block stmts -> do
             pushSymTab
@@ -349,7 +361,7 @@ instance Resolve Stmt where
             return $ Data pos symbol typ' mexpr'
 
 --        _ -> return stmt
-        _ -> fail $ show stmt
+        _ -> fail $ "stmt: " ++ show stmt
 
 
 instance Resolve Pattern where

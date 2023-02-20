@@ -1,0 +1,21 @@
+module testAdt 
+
+
+fn testEnum()
+    type Type { Enum0() | Enum1() | Enum2() }
+    let x = Enum1()
+    switch x 
+        Enum0(); let true = false
+        Enum1(); let true = true
+        Enum2(); let true = false
+
+
+fn testTypes() 
+    type Type { i64 | bool | f32 } 
+
+
+
+fn testAdt()
+    testEnum()
+    testTypes()
+    print("testAdt passed")

@@ -211,14 +211,18 @@ storeBasicVal dst src = do
 newVal :: InsCmp CompileState m => Type -> m Pointer 
 newVal typ = do 
     opType <- opTypeOf typ 
-    p <- alloca opType Nothing 0 
+    val <- Pointer typ <$> alloca opType Nothing 0 
     base <- baseTypeOf typ
     case base of 
         Tuple ts -> forM_ (zip ts [0..]) $ \(t, i) -> do 
-            pelm <- gep p [int32 0, int32 $ fromIntegral i]
+            pelm <- gep (loc val) [int32 0, int32 $ fromIntegral i]
             storeBasic (Pointer t pelm) =<< newVal t
-        _ -> store p 0 . op =<< mkZero typ
-    return $ Pointer typ p
+
+        ADT fs -> do 
+            return ()
+
+        _ -> store (loc val) 0 . op =<< mkZero typ
+    return val
 
 
 pMalloc :: InsCmp CompileState m => Type -> Value -> m Pointer

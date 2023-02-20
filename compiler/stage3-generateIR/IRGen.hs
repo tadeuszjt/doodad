@@ -168,6 +168,9 @@ compileStmt stmt = withPos stmt $ case stmt of
         expr' <- compileExpr expr
         return $ ExprStmt expr'
 
+    AST.Typedef pos symbol anno -> do
+        return $ AST.Typedef pos symbol anno
+
     AST.Block stmts -> do
         stmts' <- mapM compileStmt stmts
         return $ Block stmts'

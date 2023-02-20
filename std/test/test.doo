@@ -17,8 +17,10 @@ import testSparse
 import testTable
 import testTuple
 import testMap
+import testIo
+import testAdt
 
-fn main()
+fn {io Io} main()
     testStrings()
     testChars()
     testMaths()
@@ -26,4 +28,6 @@ fn main()
     testTuple()
     testTable()
     testMap()
+    io.testIo()
+    testAdt()
     print("test passed")
