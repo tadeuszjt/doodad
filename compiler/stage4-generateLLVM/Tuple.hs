@@ -26,7 +26,7 @@ tupleLength tuple = trace "tupleLength" $ do
 
 tupleField :: InsCmp CompileState m => Symbol -> Pointer -> m Pointer
 tupleField symbol tuple = trace "tupleField" $ do
-    assert (isTypedef $ typeof tuple) "Cannot have member of raw tuple"
+    Typedef _ <- return $ typeof tuple
     Tuple ts <- baseTypeOf tuple
     ObjField i <- look symbol
     tupleIdx i tuple

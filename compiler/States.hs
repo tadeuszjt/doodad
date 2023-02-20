@@ -58,9 +58,17 @@ data IRGenState = IRGenState
 prettyResolvedAst :: ResolvedAst -> IO ()
 prettyResolvedAst ast = do
     putStrLn $ "module: " ++ moduleName ast
-    forM_ (Map.toList $ typeImports ast) $ \(symbol, anno) -> 
-        putStrLn $ "type import: " ++ show symbol ++ " " ++ show anno
-    forM_ (Map.toList $ funcImports ast) $ \(symbol, key) -> 
-        putStrLn $ "func import: " ++ show symbol ++ " " ++ show key
+
+    forM_ (Map.toList $ typeDefs ast) $ \(symbol, typ) -> 
+        prettyStmt "" (AST.Typedef undefined symbol $ AnnoType typ)
+
+    forM_ (Map.toList $ funcDefs ast) $ \(symbol, body) -> 
+        prettyStmt "" $
+            FuncDef undefined (funcParams body) symbol (funcArgs body) (funcRetty body) (AST.Block $ funcStmts body)
+
+--    forM_ (Map.toList $ typeImports ast) $ \(symbol, anno) -> 
+--        putStrLn $ "type import: " ++ show symbol ++ " " ++ show anno
+--    forM_ (Map.toList $ funcImports ast) $ \(symbol, key) -> 
+--        putStrLn $ "func import: " ++ show symbol ++ " " ++ show key
 
     putStrLn ""

@@ -27,13 +27,6 @@ import Error
 instance Typeof Pointer where typeof (Pointer t _) = t
 instance Typeof Value where typeof (Value t _) = t
 
-assertBaseType :: InsCmp CompileState m => (Type -> Bool) -> Type -> m Type
-assertBaseType f typ = trace "assertBaseType" $ do
-    base <- baseTypeOf typ
-    assert (f base) ("Invalid base type of: " ++ show typ)
-    return base
-
-
 baseTypeOf :: (ModCmp CompileState m, Typeof x) => x -> m Type
 baseTypeOf x = case typeof x of
     Typedef sym -> trace ("baseTypeOf " ++ show sym) $ do ObjType t <- look sym; baseTypeOf t

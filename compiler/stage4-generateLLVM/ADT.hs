@@ -35,14 +35,14 @@ adtNull typ = do
 
 adtTypeField :: InsCmp CompileState m => Type -> Type -> m Int
 adtTypeField adtType typ = do
-    ADT fs <- assertBaseType isADT adtType
+    ADT fs <- baseTypeOf adtType
     assert (FieldType typ `elem` fs) $ "ADT does not contain type field: " ++ show typ
     return $ fromJust $ elemIndex (FieldType typ) fs
 
 
 adtEnum :: InsCmp CompileState m => Value -> m Value
 adtEnum adt = do
-    assertBaseType isADT (typeof adt)
+    ADT fs <- baseTypeOf adt
     Value I64 <$> extractValue (op adt) [0]
 
 

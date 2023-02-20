@@ -311,7 +311,7 @@ newInfix operator a b = withErrorPrefix "infix: " $ do
             ret <- newVal (typeof res)
             storeCopyVal ret res 
             return ret
-        _ | isRange base     -> rangeInfix operator a b
+        Range _ -> rangeInfix operator a b
         _ | isInt base       -> do 
             av <- pload a
             res <- intInfix operator av =<< pload b
@@ -324,9 +324,9 @@ newInfix operator a b = withErrorPrefix "infix: " $ do
             ret <- newVal (typeof res)
             storeCopyVal ret res 
             return ret
-        _ | isTuple base     -> tupleInfix operator a b
-        _ | isArray base     -> arrayInfix operator a b
-        _ | isTable base     -> tableInfix operator a b
+        Tuple _ -> tupleInfix operator a b
+        Array _ _ -> arrayInfix operator a b
+        Table _ -> tableInfix operator a b
         _                    -> fail $ "Operator " ++ show operator ++ " undefined for types " ++ show (typeof a) ++ " " ++ show (typeof b)
 
 
@@ -358,7 +358,7 @@ rangeInfix operator a b = do
 arrayInfix :: InsCmp CompileState m => AST.Operator -> Pointer -> Pointer -> m Pointer
 arrayInfix operator a b = do
     assert (typeof a == typeof b) "infix type mismatch"
-    Array n t <- assertBaseType isArray (typeof a)
+    Array n t <- baseTypeOf a
 
     case operator of
         _ | operator `elem` [AST.Plus, AST.Minus, AST.Times, AST.Divide, AST.Modulo] -> do
@@ -374,7 +374,7 @@ arrayInfix operator a b = do
 tupleInfix :: InsCmp CompileState m => AST.Operator -> Pointer -> Pointer -> m Pointer
 tupleInfix operator a b = withErrorPrefix "tuple infix: " $ do
     assert (typeof a == typeof b) "type mismatch"
-    Tuple ts <- assertBaseType isTuple (typeof a)
+    Tuple ts <- baseTypeOf a
 
     case operator of
         _ | operator `elem` [AST.Plus, AST.Minus, AST.Times, AST.Divide, AST.Modulo] -> do
@@ -434,7 +434,7 @@ tupleInfix operator a b = withErrorPrefix "tuple infix: " $ do
         
 tableInfix :: InsCmp CompileState m => AST.Operator -> Pointer -> Pointer -> m Pointer
 tableInfix operator a b = do
-    Table ts <- baseTypeOf (typeof a)
+    Table ts <- baseTypeOf a
     assert (typeof a == typeof b) "type mismatch"
 
     lenA <- pload =<< tableLen a
@@ -485,7 +485,7 @@ tableInfix operator a b = do
 valAdtNormalInfix :: InsCmp CompileState m => AST.Operator -> Pointer -> Pointer -> m Value
 valAdtNormalInfix operator a b = do
     assert (typeof a == typeof b) "type mismatch"
-    ADT fs <- assertBaseType isADT (typeof a)
+    ADT fs <- baseTypeOf a
     case operator of
         --AST.NotEq -> fromValue <$> (prefix AST.Not . toValue =<< valAdtNormalInfix AST.EqEq a b)
         AST.EqEq -> do

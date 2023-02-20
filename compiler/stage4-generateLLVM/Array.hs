@@ -14,7 +14,7 @@ import Value
 
 arrayGetElem :: InsCmp CompileState m => Pointer -> Value -> m Pointer
 arrayGetElem arr idx = do
-    Array n t <- baseTypeOf (typeof arr)
-    assertBaseType isIntegral (typeof idx)
+    Array n t <- baseTypeOf arr
+    I64 <- baseTypeOf idx
     Pointer t <$> gep (loc arr) [int32 0, op idx]
 

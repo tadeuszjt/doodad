@@ -86,7 +86,7 @@ newFloat typ f = do
 
 mkEnum :: InsCmp CompileState m => Integral i => Type -> i -> m Value
 mkEnum typ n = do
-    assertBaseType (== Enum) typ
+    Enum <- baseTypeOf typ
     return $ Value typ $ int64 (fromIntegral n)
 
 
@@ -227,7 +227,7 @@ newVal typ = do
 
 pMalloc :: InsCmp CompileState m => Type -> Value -> m Pointer
 pMalloc typ len = trace ("mkMalloc " ++ show typ) $ do
-    lenTyp <- assertBaseType isInt (typeof len)
+    I64 <- baseTypeOf len
     pi8 <- malloc =<< mul (op len) . op =<< sizeOf typ
     fmap (Pointer typ) $ bitcast pi8 . LL.ptr =<< opTypeOf typ
 
@@ -251,7 +251,8 @@ memCpy (Pointer dstTyp dst) (Pointer srcTyp src) len = trace "valMemCpy" $ do
 intInfix :: InsCmp CompileState m => AST.Operator -> Value -> Value -> m Value
 intInfix operator a b = withErrorPrefix "int infix: " $ do
     True <- return (typeof a == typeof b)
-    assertBaseType (\t -> isInt t || t == Char) (typeof a)
+    base <- baseTypeOf (typeof a)
+    assert (isInt base || base == Char) "invalid base type"
     case operator of
         AST.Plus   -> Value (typeof a) <$> add (op a) (op b)
         AST.Minus  -> Value (typeof a) <$> sub (op a) (op b)
@@ -270,13 +271,13 @@ intInfix operator a b = withErrorPrefix "int infix: " $ do
 floatInfix :: InsCmp CompileState m => AST.Operator -> Value -> Value -> m Value
 floatInfix operator a b = do
     assert (typeof a == typeof b) "Left side type does not match right side"
-    let typ = typeof a
-    assertBaseType isFloat typ
+    base <- baseTypeOf (typeof a)
+    assert (isFloat base) "Invalid base type"
     case operator of
-        AST.Plus   -> Value typ <$> fadd (op a) (op b)
-        AST.Minus  -> Value typ <$> fsub (op a) (op b)
-        AST.Times  -> Value typ <$> fmul (op a) (op b)
-        AST.Divide -> Value typ <$> fdiv (op a) (op b)
+        AST.Plus   -> Value (typeof a) <$> fadd (op a) (op b)
+        AST.Minus  -> Value (typeof a) <$> fsub (op a) (op b)
+        AST.Times  -> Value (typeof a) <$> fmul (op a) (op b)
+        AST.Divide -> Value (typeof a) <$> fdiv (op a) (op b)
         AST.EqEq   -> Value Bool <$> fcmp P.OEQ (op a) (op b)
         AST.GT     -> Value Bool <$> fcmp P.OGT (op a) (op b)
         AST.LT     -> Value Bool <$> fcmp P.OLT (op a) (op b)
