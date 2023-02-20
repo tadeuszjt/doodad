@@ -17,8 +17,8 @@ fn {board Board, io Io} printBoard()
                 Empty();  io.write(' ')
                 Naught(); io.write('0')
                 Cross();  io.write('X')
-            if r < (len(row) - 1); io.write(',')
-        io.writeLn("]")
+            if r < (row.len() - 1); io.write(',')
+        {io, "]"}.writeLn()
 
 
 fn {board Board} winner() Square
@@ -42,7 +42,7 @@ fn {board Board} winner() Square
         
     if true
         let same = true
-        let end = len(board[0]) - 1
+        let end = board[0].len() - 1
         for board[..] -> r
             same = same && board[r][end - r] == board[0][end]
         if same && board[end][0] != Empty(); return board[end][0]
@@ -58,32 +58,33 @@ fn {board Board} full() bool
     return true
 
 
-fn {board Board, io Io} playerMove() string
-    io.writeLn("Make a move")
+type playerMoveReturn { Error() | Success() | Quit() }
+fn {board Board, io Io} playerMove() playerMoveReturn
+    {io, "Make a move"}.writeLn()
 
-    data line String
+    data line string
     {io, line}.readLn()
     if line.read(0) -> ('q', _:i64)
-        return "quit"
+        return Quit()
 
     let (row:i64, n) = line.read(0)
     let (col:i64, n2) = line.read(n)
 
     let noParse = n == 0 || n2 == 0
     if noParse || !board[..][row] || !board[row][..][col]
-        io.writeLn("invalid move")
-        return "error"
+        {io, "invalid move"}.writeLn()
+        return Error()
 
     if board[row][col] != Empty()
-        io.writeLn("board[row][col] is not empty")
-        return "error"
+        {io, "board[row][col] is not empty"}.writeLn()
+        return Error()
 
     board[row][col] = Naught()
-    return "success"
+    return Success()
 
 
 fn {io Io, board Board, rand Rand} cpuMove()
-    io.writeLn("cpu moving")
+    {io, "cpu moving"}.writeLn()
     if board.full()
         return
 
@@ -106,16 +107,16 @@ fn {io Io, board Board, rand Rand} cpuMove()
             return
         board[r][c] = Empty()
 
-    let (r, c) = empty[rand.I64() % len(empty)]
+    let (r, c) = empty[rand.I64() % empty.len()]
     board[r][c] = Cross()
     return
 
 
-fn {board Board, io Io} playerMoveLoop() string
+fn {board Board, io Io} playerMoveLoop() playerMoveReturn
     switch {board, io}.playerMove()
-        "quit";    return "quit"
-        "success"; return "success"
-        "error";   return {board, io}.playerMoveLoop()
+        Quit();    return Quit()
+        Success(); return Success()
+        Error();   return {board, io}.playerMoveLoop()
 
 
 fn {io Io} main()
@@ -124,8 +125,8 @@ fn {io Io} main()
 
     while !board.full() && board.winner() == Empty()
         switch {board, io}.playerMoveLoop()
-            "quit"   ; return
-            "success";
+            Quit()   ; return
+            Success();
 
         {board, io}.printBoard()
         {io, board, rand}.cpuMove()

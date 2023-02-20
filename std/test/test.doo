@@ -20,6 +20,9 @@ import testMap
 import testIo
 import testAdt
 
+
+import ../../examples/naughtsandcrosses
+
 fn {io Io} main()
     testStrings()
     testChars()

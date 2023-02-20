@@ -55,6 +55,7 @@ isDataType typ = do
         Table ts          -> return True
         Sparse ts         -> return True
         Map tk tv         -> return True
+        Array n t         -> return False
         Tuple ts          -> any (== True) <$> mapM isDataType ts
         _ | isSimple base -> return False
         Range t           -> isDataType t
@@ -64,7 +65,7 @@ isDataType typ = do
                 FieldType t -> isDataType t
                 FieldCtor ts -> any (== True) <$> mapM isDataType ts
             return $ any (== True) bs
-        _                 -> fail $ "isDataType: " ++ show base
+        _                 -> error $ "isDataType: " ++ show base
 
 
 

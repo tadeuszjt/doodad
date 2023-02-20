@@ -97,9 +97,7 @@ cmpTypeNames irGenState = withErrorPrefix "cmpTypeNames" $ do
                 Table ts -> mapM_ verifyTypeName ts >> addDef symbol typ
                 Tuple ts -> mapM_ verifyTypeName ts >> addDef symbol typ
                 Sparse ts -> mapM_ verifyTypeName ts >> addDef symbol typ
-                Enum -> return ()
-                I64 -> return ()
-                ADT _ -> return ()
+                _ -> return ()
                 _ -> error (show typ)
 
         addDef :: InsCmp CompileState m => Symbol -> Type -> m ()
@@ -417,8 +415,8 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
                 len <- pload =<< tableLen loc
                 tableResize loc =<< intInfix AST.Plus len (mkI64 1)
                 ptrs <- tableColumn loc len
-                zipWithM_ storeCopyVal ptrs =<< mapM pload vals
-                storeBasicVal val =<< convertNumber exprType len
+                zipWithM_ storeCopy ptrs vals
+                storeCopyVal val =<< convertNumber exprType len
 
             Sparse ts -> do 
                 n <- sparsePush loc =<< mapM cmpExpr exprs

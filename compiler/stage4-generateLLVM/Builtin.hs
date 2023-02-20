@@ -62,7 +62,19 @@ storeCopy dst src = withErrorPrefix "storeCopy: " $ do
                 srcElem <- tupleIdx i src
                 storeCopy dstElem srcElem
 
-        _ -> fail (show baseDst)
+        _ -> error (show baseDst)
+
+
+
+storeCopyVal :: InsCmp CompileState m => Pointer -> Value -> m ()
+storeCopyVal dst src = do
+    baseDst <- baseTypeOf dst
+    baseSrc <- baseTypeOf src
+    True <- return $ baseDst == baseSrc
+    case baseDst of
+        _ | isSimple baseDst -> storeBasicVal dst src
+        _ -> error (show baseDst)
+
 
 
 tablePop :: InsCmp CompileState m => Pointer -> m [Pointer]
@@ -147,17 +159,6 @@ mapFind map key = do
     f <- pload found
     i <- pload idx 
     return (f, i)
-
-
-
-storeCopyVal :: InsCmp CompileState m => Pointer -> Value -> m ()
-storeCopyVal dst src = do
-    baseDst <- baseTypeOf dst
-    baseSrc <- baseTypeOf src
-    True <- return $ baseDst == baseSrc
-    case baseDst of
-        _ | isSimple baseDst -> storeBasicVal dst src
-        _ -> fail (show baseDst)
 
 
 sparsePush :: InsCmp CompileState m => Pointer -> [Pointer] -> m Value
