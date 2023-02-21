@@ -76,7 +76,7 @@ data CompileState
         , moduleName  :: String
         , nameSupply  :: Map.Map String Int
         , stringMap   :: Map.Map String C.Constant
-        , typeNameMap :: Map.Map Type LL.Name
+        , typeNameMap :: Map.Map Type LL.Type
         }
 
 initCompileState modName session 

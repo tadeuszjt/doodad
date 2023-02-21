@@ -28,8 +28,16 @@ fn testOneArg()
         Arg(n) ; let 4:IntType = n
 
 
+fn testTwoArgs() 
+    type A { bool | (i64, f64) }
+    type B { Args(A, bool) }
+
+    let x = Args(A(true), false)
+
+
 fn testAdt()
     testEnum()
     testTypes()
     testOneArg()
+    testTwoArgs()
     print("testAdt passed")

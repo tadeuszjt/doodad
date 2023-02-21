@@ -83,10 +83,9 @@ compile irGenState session = do
 
 cmpTypeNames :: InsCmp CompileState m => IRGenState -> m ()
 cmpTypeNames irGenState = withErrorPrefix "cmpTypeNames" $ do
-    let name = mkName "string"
     opType <- opTypeOf (Table [Char])
-    typedef name (Just opType)
-    modify $ \s -> s { typeNameMap = Map.insert (Table [Char]) name (typeNameMap s) }
+    llType <- typedef "string" (Just opType)
+    modify $ \s -> s { typeNameMap = Map.insert (Table [Char]) llType (typeNameMap s) }
 
     forM_ (Map.toList $ irTypeDefs irGenState) $ \(symbol, typ) ->
         defineTypeName symbol typ
@@ -94,24 +93,30 @@ cmpTypeNames irGenState = withErrorPrefix "cmpTypeNames" $ do
         defineTypeName :: InsCmp CompileState m => Symbol -> Type -> m ()
         defineTypeName symbol typ = do 
             case typ of
+                I64 -> return ()
+                I32 -> return ()
+                Enum -> return ()
+                Table [Char] -> return ()
                 Table ts -> mapM_ verifyTypeName ts >> addDef symbol typ
                 Tuple ts -> mapM_ verifyTypeName ts >> addDef symbol typ
                 Sparse ts -> mapM_ verifyTypeName ts >> addDef symbol typ
                 ADT fs -> do 
-                    forM_ fs $ \f -> case f of 
-                        FieldType t -> verifyTypeName t
-                        FieldCtor ts -> mapM_ verifyTypeName ts
-                    addDef symbol typ
+                    return ()
+--                    forM fs $ \f -> case f of 
+--                        FieldType t -> verifyTypeName t
+--                        FieldCtor ts -> mapM_ verifyTypeName ts
+--                    addDef symbol typ
 
-                _ -> return ()
                 _ -> error (show typ)
 
         addDef :: InsCmp CompileState m => Symbol -> Type -> m ()
         addDef symbol typ = do
-            let name = mkNameFromSymbol symbol 
-            opType <- opTypeOf typ
-            typedef name (Just opType)
-            modify $ \s -> s { typeNameMap = Map.insert (Typedef symbol) name (typeNameMap s) }
+            resm <- Map.lookup (Typedef symbol) <$> gets typeNameMap
+            when (isNothing resm) $ do
+                let name = mkNameFromSymbol symbol
+                opType <- opTypeOf typ
+                llType <- typedef name (Just opType)
+                modify $ \s -> s { typeNameMap = Map.insert (Typedef symbol) llType (typeNameMap s) }
                 
 
         verifyTypeName :: InsCmp CompileState m => Type -> m ()
@@ -536,13 +541,14 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
                         adt <- newVal exprType 
                         adtSetEnum adt i
                         case fs !! i of 
-                            FieldCtor [] -> return ()
                             FieldNull    -> return ()
-                            _ -> do
+                            FieldCtor ts -> do
                                 assert (ps == []) "Invalid constructor"
-                                let [a] = as
-                                p <- adtField adt i
-                                storeCopy p a
+                                assert (ts == map typeof as) "Invalid constructor"
+                                tupPtr <- adtField adt i
+                                forM_ (zip as [0..]) $ \(a, i) -> do 
+                                    tupMember <- tupleIdx i tupPtr
+                                    storeCopy tupMember a
                         pload adt
                     _ -> error (show base)
             _ -> error (show obj)
@@ -765,7 +771,7 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
                         adt <- newVal (typeof val)
                         storeCopy adt val
                         ObjType t0 <- look symbol
-                        b <- cmpPattern (head pats) . Pointer t0 . loc =<< adtDeref adt i 0
+                        b <- cmpPattern (head pats) . Pointer t0 . loc =<< adtField adt i
                         boolInfix AST.AndAnd enumMatch b
 
                     ObjField i -> do
@@ -775,14 +781,14 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
                         -- can't be inside a block which may or may not happen
                         -- as cmpPattern may add variables to the symbol table
                         bs <- forM (zip pats [0..]) $ \(pat, j) -> do
-                            cmpPattern pat =<< adtDeref val i j
+                            cmpPattern pat =<< tupleIdx j =<< adtField val i
 
                         foldM (boolInfix AST.AndAnd) enumMatch bs
 
 
     AST.PatTypeField _ typ pat -> do -- char(c)
         i <- adtTypeField (typeof val) typ
-        matched <- cmpPattern pat =<< adtDeref val i 0 -- TODO this is unsafe because enum not checked
+        matched <- cmpPattern pat =<< adtField val i -- TODO this is unsafe because enum not checked
         enumMatch <- intInfix AST.EqEq (mkI64 i) =<< adtEnum =<< pload val
         boolInfix AST.AndAnd matched enumMatch
 

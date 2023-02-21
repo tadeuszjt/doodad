@@ -164,20 +164,12 @@ resolveFuncCall exprType (AST.Call pos params symbol args) = withPos pos $ do
 
 compileStmt :: BoM IRGenState m => AST.Stmt -> m Stmt
 compileStmt stmt = withPos stmt $ case stmt of
-    AST.ExprStmt expr -> do
-        expr' <- compileExpr expr
-        return $ ExprStmt expr'
+    AST.Block stmts      -> Block <$> mapM compileStmt stmts
+    AST.ExprStmt expr    -> ExprStmt <$> compileExpr expr
+    AST.Return pos mexpr -> Return pos <$> maybe (return Nothing) (fmap Just . compileExpr) mexpr
 
     AST.Typedef pos symbol anno -> do
         return $ AST.Typedef pos symbol anno
-
-    AST.Block stmts -> do
-        stmts' <- mapM compileStmt stmts
-        return $ Block stmts'
-
-    AST.Return pos mexpr -> do
-        mexpr' <- maybe (return Nothing) (fmap Just . compileExpr) mexpr
-        return $ Return pos mexpr'
 
     AST.Assign pos pat expr -> do
         pat' <- compilePattern pat
@@ -221,7 +213,6 @@ compileStmt stmt = withPos stmt $ case stmt of
     AST.Data pos symbol typ mexpr -> do
         mexpr' <- maybe (return Nothing) (fmap Just . compileExpr) mexpr
         return $ Data pos symbol typ mexpr'
-
 
 
 compileExpr :: BoM IRGenState m => AST.Expr -> m Expr

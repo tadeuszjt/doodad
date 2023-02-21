@@ -109,7 +109,8 @@ newRange start end = do
 -- TODO, is this the cause of the struct packed/non-packed bug?
 mkZero :: InsCmp CompileState m => Type -> m Value
 mkZero typ = trace ("mkZero " ++ show  typ) $ do
-    namem <- Map.lookup typ <$> gets typeNameMap
+    llTypeM <- Map.lookup typ <$> gets typeNameMap
+    let namem = fmap (\(LL.NamedTypeReference name) -> name) llTypeM
     base <- baseTypeOf typ
     case base of
         I64       -> return $ Value typ (int64 0)

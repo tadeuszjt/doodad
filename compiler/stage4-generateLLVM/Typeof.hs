@@ -71,9 +71,9 @@ isDataType typ = do
 
 opTypeOf :: ModCmp CompileState m => Type -> m LL.Type
 opTypeOf typ = withErrorPrefix ("opTypOf " ++ show typ) $ do
-    namem <- Map.lookup typ <$> gets typeNameMap
-    case namem of
-        Just name -> return (LL.NamedTypeReference name)
+    llTypeM <- Map.lookup typ <$> gets typeNameMap
+    case llTypeM of
+        Just llType -> return llType
         Nothing -> case typ of
             Void      -> return LL.VoidType
             I8        -> return LL.i8
@@ -107,9 +107,7 @@ opTypeOf typ = withErrorPrefix ("opTypOf " ++ show typ) $ do
                 stack <- opTypeOf (Table [I64])
                 table <- opTypeOf (Table ts)
                 return $ LL.StructureType False [table, stack]
-
                 
-
             Typedef s -> do
                 ObjType t <- look s
                 opTypeOf t

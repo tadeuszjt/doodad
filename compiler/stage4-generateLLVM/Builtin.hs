@@ -491,12 +491,12 @@ tableInfix operator a b = do
             return eq
 
 
-valAdtNormalInfix :: InsCmp CompileState m => AST.Operator -> Pointer -> Pointer -> m Value
-valAdtNormalInfix operator a b = do
+adtNormalInfix :: InsCmp CompileState m => AST.Operator -> Pointer -> Pointer -> m Value
+adtNormalInfix operator a b = do
     assert (typeof a == typeof b) "type mismatch"
     ADT fs <- baseTypeOf a
     case operator of
-        --AST.NotEq -> fromValue <$> (prefix AST.Not . toValue =<< valAdtNormalInfix AST.EqEq a b)
+        --AST.NotEq -> fromValue <$> (prefix AST.Not . toValue =<< adtNormalInfix AST.EqEq a b)
         AST.EqEq -> do
             enA <- adtEnum =<< pload a
             enB <- adtEnum =<< pload b
@@ -519,19 +519,18 @@ valAdtNormalInfix operator a b = do
             forM_ (zip caseNames [0..]) $ \(caseName, i) -> do
                 emitBlockStart caseName
 
-                bs <- case fs !! i of
-                    FieldNull -> return []
+                b <- case fs !! i of
+                    FieldNull -> return (mkBool True)
                     FieldType t -> do
-                        valA <- adtDeref a i 0
-                        valB <- adtDeref b i 0
-                        fmap (\a -> [a]) $ pload =<< newInfix AST.EqEq valA valB
+                        valA <- adtField a i
+                        valB <- adtField b i
+                        pload =<< newInfix AST.EqEq valA valB
                     FieldCtor ts -> do
-                        forM (zip ts [0..]) $ \(t, j) -> do
-                            valA <- adtDeref a i j
-                            valB <- adtDeref b i j
-                            pload =<< newInfix AST.EqEq valA valB
+                        valA <- adtField a i
+                        valB <- adtField b i
+                        pload =<< newInfix AST.EqEq valA valB
 
-                storeBasicVal match =<< foldM (boolInfix AST.EqEq) (mkBool True) bs
+                storeBasicVal match b
                 br exit
 
             emitBlockStart exit

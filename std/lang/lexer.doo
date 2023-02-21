@@ -1,6 +1,7 @@
 module lexer 
 
 import ../io
+import ../strings
 import ../chars
 
 
@@ -23,22 +24,13 @@ fn {s string} lexDigit() (char, i64)
     return ('\0', 0)
 
 
-fn {s string, ident string} lexIdent() i64
-    if s.lexAlpha() -> (c, i | i > 0)
-        ident.push(c)
-        let z = i
-        for s[i..] -> j | s[j] -> c | isAlpha(c) || isDigit(c)
-            ident.push(c)
-            z = z + 1
-        return z
-    return 0
 
 
 type StrKey i64
 type Lexeme { LexNull() | LexIdent(StrKey) | LexInt(i64) }
 
 
-fn {ss sparse[string]} lexIdent2(k StrKey) (Lexeme, i64)
+fn {ss sparse[string]} lexIdent(k StrKey) (Lexeme, i64)
     if ss[k].lexAlpha() -> (c, i) | i > 0
         let identKey = ss.push()
         ss[identKey].push(c)
@@ -48,6 +40,13 @@ fn {ss sparse[string]} lexIdent2(k StrKey) (Lexeme, i64)
 
         return (LexIdent(identKey), i + ss[identKey].len() - 1)
 
+    return (LexNull(), 0)
+
+
+
+fn {ss sparse[string]} lexInt(start i64, k StrKey) (Lexeme, i64)
+    if ss[k].read(start) -> (d:i64, j) | j > 0
+        return (LexInt(d), j)
     return (LexNull(), 0)
 
 
@@ -63,9 +62,9 @@ fn {io Io} main()
 
     data strings sparse[string]
     let key = strings.push()
-    strings[key] = "  b134 43"
+    strings[key] = "  134 43"
 
-    switch strings.lexIdent2(key)
-        (LexIdent(identKey), n); print(strings[identKey], n)
-        (LexNull(), n)         ; print("null")
+    switch strings.lexInt(key)
+        (LexInt(d), n); print(d, n)
+        (LexNull(), n); print("null")
 
