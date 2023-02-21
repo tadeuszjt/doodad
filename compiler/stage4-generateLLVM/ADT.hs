@@ -62,6 +62,11 @@ adtField adt i = do
             pField <- gep (loc adt) [int32 0, int32 1]
             pType <- bitcast pField . LL.ptr =<< opTypeOf typ
             return $ Pointer typ pType
+        FieldCtor [t] -> do
+            pField <- gep (loc adt) [int32 0, int32 1]
+            pType <- bitcast pField . LL.ptr =<< opTypeOf t
+            return $ Pointer t pType
+        _ -> error $ "adtField: " ++ show (fs !! i)
             
         
 adtDeref :: InsCmp CompileState m => Pointer -> Int -> Int -> m Pointer
@@ -70,6 +75,9 @@ adtDeref adt i j = trace "adtDeref" $ do
     case fs !! i of
         FieldNull -> fail "invalid adt deref"
         FieldType t -> do
+            assert (j == 0) "invalid ADT deref"
+            adtField adt i
+        FieldCtor [t] -> do
             assert (j == 0) "invalid ADT deref"
             adtField adt i
 

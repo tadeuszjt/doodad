@@ -12,6 +12,12 @@ fn testEnum()
 
 fn testTypes() 
     type Type { i64 | bool | f32 } 
+    let i = Type(3)
+    switch i 
+        i64(n); let 3 = n
+    switch Type(false) 
+        bool(false);
+
 
 
 

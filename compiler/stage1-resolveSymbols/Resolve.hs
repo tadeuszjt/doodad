@@ -84,14 +84,18 @@ lookm symbol key = case symbol of
                     KeyType -> do
                         xs <- catMaybes . map (Map.lookup sym . irTypeMap) <$> gets imports
                         case xs of
-                            [] -> fail $ "no type definitions for: " ++ sym
+                            [] -> return Nothing
                             [x] -> return (Just x)
+
 
     SymQualified mod sym -> do
         modName <- gets modName
-        symTab <- gets symTab
-        if mod == modName then  return $ SymTab.lookup sym key symTab
-        else if mod == "c" then return (Just symbol)
+        if mod == modName then 
+            SymTab.lookup sym key <$> gets symTab
+        else if mod == "c" then do
+            case key of
+                KeyFunc -> return (Just symbol)
+                _       -> return Nothing
         else                    lookm (Sym sym) key
 
     _ -> fail $ show (symbol, key)
@@ -455,8 +459,15 @@ instance Resolve Expr where
                 Sym s | s `elem` ["push", "pop", "len", "clear", "delete", "unsafe_ptr", "unsafe_ptr_from_int"] -> do 
                     return $ Builtin pos params' s exprs'
                 _ -> do
-                    symbol' <- look symbol KeyFunc
-                    return $ Call pos params' symbol' exprs'
+                    resm <- lookm symbol KeyType
+                    case resm of 
+                        Just symbol' -> do
+                            assert (params == []) "Convert cannot have params"
+                            return $ Conv pos (Type.Typedef symbol') exprs'
+                        Nothing -> do
+                            symbol' <- look symbol KeyFunc
+                            return $ Call pos params' symbol' exprs'
+
 
         Infix pos op exprA exprB -> do
             exprA' <- resolve exprA

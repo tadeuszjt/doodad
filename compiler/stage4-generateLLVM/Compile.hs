@@ -401,7 +401,7 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
         val <- newVal exprType
         case base of
             Table ts  -> storeBasicVal val =<< tablePush loc
-            Sparse ts -> storeBasicVal val =<< sparsePush loc =<< mapM newVal ts
+            Sparse ts -> storeCopyVal val =<< convertNumber (typeof val) =<< sparsePush loc =<< mapM newVal ts
         return val
 
     AST.Builtin pos [expr] "push" exprs -> do
@@ -524,6 +524,17 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
                 base <- baseTypeOf exprType
                 case base of
                     Enum  -> mkEnum exprType i
+                    ADT fs -> do 
+                        adt <- newVal exprType 
+                        adtSetEnum adt i
+                        case fs !! i of 
+                            FieldCtor [] -> return ()
+                            FieldNull    -> return ()
+                            _ -> do
+                                p <- adtField adt i
+                                storeBasicVal p =<< mkZero (typeof p) 
+                        pload adt
+                    _ -> error (show base)
             _ -> error (show obj)
         case exprType of 
             Void -> return $ Pointer Void undefined
@@ -638,16 +649,13 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
 
     AST.PatGuarded _ pat expr -> do -- a | a > 0
         match <- cmpPattern pat val
-        guard <- cmpExpr expr
-        Bool <- baseTypeOf guard
-        boolInfix AST.AndAnd match =<< pload guard
+        boolInfix AST.AndAnd match =<< pload =<< cmpExpr expr
 
     AST.PatIdent _ symbol -> trace ("cmpPattern " ++ show pattern) $ do -- a
         base <- baseTypeOf val
-        isDataType <- isDataType (typeof val)
-        assert (not isDataType) "Cannot assign a data type to a normal variale"
+        False <- isDataType (typeof val)
         loc <- newVal (typeof val)
-        storeBasicVal loc =<< pload val
+        storeCopy loc val
         define symbol (ObjVal loc)
         return $ mkBool True
 
@@ -762,24 +770,10 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
 
 
     AST.PatTypeField _ typ pat -> do -- char(c)
-        ADT fs <- baseTypeOf val
         i <- adtTypeField (typeof val) typ
-
-        match <- freshName "adt_pat_match"
-        exit  <- freshName "adt_pat_exit"
-
-        matched <- newBool False 
+        matched <- cmpPattern pat =<< adtDeref val i 0 -- TODO this is unsafe because enum not checked
         enumMatch <- intInfix AST.EqEq (mkI64 i) =<< adtEnum =<< pload val
-        condBr (op enumMatch) match exit
-
-        emitBlockStart match
-        adt <- newVal (typeof val)
-        storeCopy adt val
-        storeBasicVal matched =<< cmpPattern pat =<< adtDeref adt i 0
-        br exit
-
-        emitBlockStart exit
-        pload matched
+        boolInfix AST.AndAnd matched enumMatch
 
                     
 cmpPrint :: InsCmp CompileState m => AST.Stmt -> m ()

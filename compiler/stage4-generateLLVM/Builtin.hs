@@ -62,6 +62,8 @@ storeCopy dst src = withErrorPrefix "storeCopy: " $ do
                 srcElem <- tupleIdx i src
                 storeCopy dstElem srcElem
 
+        ADT fs -> storeBasic dst src
+
         _ -> error (show baseDst)
 
 
@@ -212,6 +214,12 @@ newConvert typ val = do
         _ | isIntegral base -> storeBasicVal ptr =<< convertNumber typ =<< pload val
         _ | isFloat base    -> storeBasicVal ptr =<< convertNumber typ =<< pload val
         _ | baseVal == base -> storeCopy ptr val
+        ADT fs -> do
+            i <- adtTypeField typ (typeof val)
+            adtSetEnum ptr i
+            p <- adtField ptr i
+            storeCopy p val
+
         _ -> fail ("valConvert " ++ show base)
     return ptr
 
