@@ -443,6 +443,7 @@ instance Resolve Expr where
     resolve expr = withPos expr $ case expr of
         Ident pos symbol      -> Ident pos <$> lookVar symbol
         Prefix pos op expr -> Prefix pos op <$> resolve expr
+        AST.ADT pos expr -> AST.ADT pos <$> resolve expr
         AST.Char pos c -> return expr
         AST.Int pos n -> return expr
         AST.Bool pos b -> return expr
@@ -494,8 +495,6 @@ instance Resolve Expr where
             return $ AExpr typ' expr'
 
         Null pos -> return (Null pos)
-
-        AST.ADT pos expr -> AST.ADT pos <$> resolve expr
 
         Match pos expr pat -> do
             expr' <- resolve expr

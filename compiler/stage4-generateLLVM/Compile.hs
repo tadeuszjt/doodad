@@ -531,8 +531,10 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
                             FieldCtor [] -> return ()
                             FieldNull    -> return ()
                             _ -> do
+                                assert (ps == []) "Invalid constructor"
+                                let [a] = as
                                 p <- adtField adt i
-                                storeBasicVal p =<< mkZero (typeof p) 
+                                storeCopy p a
                         pload adt
                     _ -> error (show base)
             _ -> error (show obj)
@@ -761,10 +763,8 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
                         enumMatch <- intInfix AST.EqEq (mkI64 i) =<< adtEnum =<< pload val
                         -- can't be inside a block which may or may not happen
                         -- as cmpPattern may add variables to the symbol table
-                        adt <- newVal (typeof val)
-                        storeCopy adt val
                         bs <- forM (zip pats [0..]) $ \(pat, j) -> do
-                            cmpPattern pat =<< adtDeref adt i j
+                            cmpPattern pat =<< adtDeref val i j
 
                         foldM (boolInfix AST.AndAnd) enumMatch bs
 

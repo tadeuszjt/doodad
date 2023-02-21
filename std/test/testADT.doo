@@ -19,9 +19,17 @@ fn testTypes()
         bool(false);
 
 
+fn testOneArg()
+    type IntType i32
+    type Type { Enum0() | Arg(IntType) }
+    let x = Arg(4)
+    switch x
+        Enum0(); let true = false 
+        Arg(n) ; let 4:IntType = n
 
 
 fn testAdt()
     testEnum()
     testTypes()
+    testOneArg()
     print("testAdt passed")
