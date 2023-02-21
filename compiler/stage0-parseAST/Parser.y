@@ -27,6 +27,7 @@ import Symbol
 %nonassoc  '|'
 %nonassoc  '(' ')' '[' ']' '{' '}'
 %nonassoc  '.'
+%nonassoc  '->'
 
 
 
@@ -200,7 +201,8 @@ pattern  : '_'                                { S.PatIgnore (tokPos $1) }
          | null                               { S.PatNull (tokPos $1) }
          | '(' patterns ')'                   { S.PatTuple (tokPos $1) $2 }
          | '[' patternsSem ']'                { S.PatArray (tokPos $1) $2 }
-         | pattern '|' expr                   { S.PatGuarded (tokPos $2) $1 $3 }
+         | pattern '|' expr                   { S.PatGuarded (tokPos $2) $1 $3 Nothing }
+         | pattern '|' expr '->' pattern      { S.PatGuarded (tokPos $2) $1 $3 (Just $5) }
          | symbol '(' patterns ')'            { S.PatField (tokPos $2) (snd $1) $3 }
          | typeOrdinal '(' pattern ')'        { S.PatTypeField (tokPos $2) $1 $3 }
          | pattern ':' type_                  { S.PatAnnotated $1 $3 }

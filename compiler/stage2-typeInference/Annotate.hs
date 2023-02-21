@@ -101,9 +101,10 @@ instance Annotate Pattern where
         PatArray p patss    -> PatArray p <$> mapM (mapM annotate) patss
         PatNull p           -> return $ PatNull p
 
-        PatGuarded p pat e -> do
+        PatGuarded p pat e mpat -> do
             pat' <- annotate pat
-            PatGuarded p pat' <$> annotate e
+            e' <- annotate e
+            PatGuarded p pat' e' <$> maybe (return Nothing) (fmap Just . annotate) mpat
 
         PatField p symbol pats -> PatField p symbol <$> mapM annotate pats
 

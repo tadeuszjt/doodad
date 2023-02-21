@@ -390,10 +390,11 @@ instance Resolve Pattern where
 
         PatLiteral expr -> PatLiteral <$> resolve expr
 
-        PatGuarded pos pat expr -> do
+        PatGuarded pos pat expr mpat -> do
             pat' <- resolve pat
             expr' <- resolve expr
-            return $ PatGuarded pos pat' expr'
+            mpat' <- maybe (return Nothing) (fmap Just . resolve) mpat
+            return $ PatGuarded pos pat' expr' mpat'
 
         PatArray pos patss-> PatArray pos <$> mapM (mapM resolve) patss
 

@@ -53,9 +53,9 @@ fn {s string} write(n i64)
 
 fn {s string} read(start i64) (char, i64)
     let spaceCount = 0
-    for s[start..] -> i | isSpace(s[i]) || isAlpha(s[i])
-        if isAlpha(s[i])
-            return (s[i], spaceCount + 1)
+    for s[start..] -> i | s[i] -> c | isSpace(c) || isAlpha(c)
+        if isAlpha(c)
+            return (c, spaceCount + 1)
         else; spaceCount = spaceCount + 1
 
     return ('\0', 0)

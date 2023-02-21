@@ -62,7 +62,7 @@ data Pattern
     | PatIdent     TextPos Symbol
     | PatTuple     TextPos [Pattern]
     | PatArray     TextPos [[Pattern]]
-    | PatGuarded   TextPos Pattern Expr
+    | PatGuarded   TextPos Pattern Expr (Maybe Pattern)
     | PatField     TextPos Symbol [Pattern]
     | PatTypeField TextPos Type Pattern
     | PatAnnotated Pattern Type
@@ -132,7 +132,7 @@ instance TextPosition Pattern where
         PatIdent     p _ -> p
         PatTuple     p _ -> p
         PatArray     p _ -> p
-        PatGuarded   p _ _ -> p
+        PatGuarded   p _ _ _ -> p
         PatField     p _ _ -> p
         PatTypeField p _ _ -> p
         PatAnnotated pat _ -> textPos pat
@@ -241,7 +241,7 @@ instance Show Pattern where
         PatIdent pos symbol      -> show symbol
         PatTuple pos ps          -> tupStrs (map show ps)
         PatArray pos ps          -> arrStrs (map show ps)
-        PatGuarded pos pat expr  -> show pat ++ " | " ++ show expr
+        PatGuarded pos pat expr mpat -> show pat ++ " | " ++ show expr ++ maybe "" (\p -> " -> "  ++ show p) mpat
         PatField pos symbol pats -> show symbol ++ tupStrs (map show pats)
         PatTypeField pos typ pat -> show typ ++ tupStrs [show pat]
         PatAnnotated pat typ     -> show pat ++ ":" ++ show typ

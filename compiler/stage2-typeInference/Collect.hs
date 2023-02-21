@@ -269,9 +269,11 @@ collectPattern pattern typ = collectPos pattern $ case pattern of
         collectEq typ (typeof expr)
         collectExpr expr
 
-    S.PatGuarded _ pat expr -> do
+    S.PatGuarded _ pat expr mpat -> do
         collectPattern pat typ
-        collectBase (typeof expr) Bool
+        case mpat of
+            Nothing -> collectBase (typeof expr) Bool
+            Just p -> collectPattern p (typeof expr)
         collectExpr expr
 
     S.PatField _ symbol pats -> do

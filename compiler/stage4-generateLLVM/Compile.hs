@@ -83,10 +83,10 @@ compile irGenState session = do
 
 cmpTypeNames :: InsCmp CompileState m => IRGenState -> m ()
 cmpTypeNames irGenState = withErrorPrefix "cmpTypeNames" $ do
---    let name = mkName "string"
---    opType <- opTypeOf (Table [Char])
---    typedef name (Just opType)
---    modify $ \s -> s { typeNameMap = Map.insert (Table [Char]) name (typeNameMap s) }
+    let name = mkName "string"
+    opType <- opTypeOf (Table [Char])
+    typedef name (Just opType)
+    modify $ \s -> s { typeNameMap = Map.insert (Table [Char]) name (typeNameMap s) }
 
     forM_ (Map.toList $ irTypeDefs irGenState) $ \(symbol, typ) ->
         defineTypeName symbol typ
@@ -97,6 +97,12 @@ cmpTypeNames irGenState = withErrorPrefix "cmpTypeNames" $ do
                 Table ts -> mapM_ verifyTypeName ts >> addDef symbol typ
                 Tuple ts -> mapM_ verifyTypeName ts >> addDef symbol typ
                 Sparse ts -> mapM_ verifyTypeName ts >> addDef symbol typ
+                ADT fs -> do 
+                    forM_ fs $ \f -> case f of 
+                        FieldType t -> verifyTypeName t
+                        FieldCtor ts -> mapM_ verifyTypeName ts
+                    addDef symbol typ
+
                 _ -> return ()
                 _ -> error (show typ)
 
@@ -112,7 +118,9 @@ cmpTypeNames irGenState = withErrorPrefix "cmpTypeNames" $ do
         verifyTypeName typ = case typ of
             Char -> return ()
             F64 -> return ()
+            F32 -> return ()
             Bool -> return ()
+            I64 -> return ()
             Table ts -> mapM_ verifyTypeName ts
             Sparse ts -> mapM_ verifyTypeName ts
             Tuple ts -> mapM_ verifyTypeName ts
@@ -649,9 +657,12 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
         assert (typeof val == typ) "pattern type mismatch"
         cmpPattern pat val
 
-    AST.PatGuarded _ pat expr -> do -- a | a > 0
+    AST.PatGuarded _ pat expr mpat -> do -- a | a > 0
         match <- cmpPattern pat val
-        boolInfix AST.AndAnd match =<< pload =<< cmpExpr expr
+        guard <- case mpat of 
+            Nothing -> pload =<< cmpExpr expr
+            Just pat -> cmpPattern pat =<< cmpExpr expr
+        boolInfix AST.AndAnd match guard
 
     AST.PatIdent _ symbol -> trace ("cmpPattern " ++ show pattern) $ do -- a
         base <- baseTypeOf val
