@@ -197,32 +197,25 @@ construct :: InsCmp CompileState m => Type -> [Pointer] -> m Pointer
 construct typ args = do 
     val <- newVal typ
     base <- baseTypeOf typ
-    case args of 
-        [] -> return () 
-        [v] | isIntegral base -> storeBasicVal val =<< convertNumber typ =<< pload v
-        [v] | isFloat base    -> storeBasicVal val =<< convertNumber typ =<< pload v
+    case (args, base) of 
+        ([], _) -> return () 
+        ([v], base) | isIntegral base -> storeBasicVal val =<< convertNumber typ =<< pload v
+        ([v], base) | isFloat base    -> storeBasicVal val =<< convertNumber typ =<< pload v
+        ([v], ADT fs) -> do
+            i <- adtTypeField typ (typeof v)
+            adtSetEnum val i
+            p <- adtField val i
+            storeCopy p v
+        
+        (vs, Tuple ts) -> do
+            assert (map typeof vs == ts) "invalid constructor"
+            forM_ (zip vs [0..]) $ \(v, i) -> do
+                ptr <- tupleIdx i val
+                storeCopy ptr v
+
+
+        _ -> error $ show (args, base)
     return val
-
-
--- convert the value into a new value corresponding to the type
-newConvert :: InsCmp CompileState m => Type -> Pointer -> m Pointer
-newConvert typ val = do
-    base <- baseTypeOf typ
-    baseVal <- baseTypeOf val
-    ptr <- newVal typ
-    case base of
-        _ | isIntegral base -> storeBasicVal ptr =<< convertNumber typ =<< pload val
-        _ | isFloat base    -> storeBasicVal ptr =<< convertNumber typ =<< pload val
-        _ | baseVal == base -> storeCopy ptr val
-        ADT fs -> do
-            i <- adtTypeField typ (typeof val)
-            adtSetEnum ptr i
-            p <- adtField ptr i
-            storeCopy p val
-
-        _ -> fail ("valConvert " ++ show base)
-    return ptr
-
 
 
 prefix :: InsCmp CompileState m => AST.Operator -> Pointer -> m Value

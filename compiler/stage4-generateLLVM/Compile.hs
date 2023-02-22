@@ -98,8 +98,10 @@ cmpTypeNames irGenState = withErrorPrefix "cmpTypeNames" $ do
                 Enum -> return ()
                 Table [Char] -> return ()
                 Table ts -> mapM_ verifyTypeName ts >> addDef symbol typ
-                Tuple ts -> mapM_ verifyTypeName ts >> addDef symbol typ
                 Sparse ts -> mapM_ verifyTypeName ts >> addDef symbol typ
+
+                _ -> return ()
+                Tuple ts -> mapM_ verifyTypeName ts >> addDef symbol typ
                 ADT fs -> do 
                     return ()
 --                    forM fs $ \f -> case f of 
@@ -352,7 +354,8 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
     AST.Tuple pos [expr]         -> cmpExpr expr
     AST.Float p f                -> newFloat exprType f
     AST.Field pos expr symbol    -> (tupleField symbol =<< cmpExpr expr)
-    --AST.Null p                   -> mkAdtNull exprType
+    AST.Null p                   -> adtNull exprType
+    AST.Conv pos typ exprs      -> construct typ =<< mapM cmpExpr exprs
     AST.Match pos expr pat       -> do 
         b <- newVal exprType
         storeBasicVal b =<< cmpPattern pat =<< cmpExpr expr
@@ -362,24 +365,6 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
         storeBasicVal val =<< prefix operator =<< cmpExpr expr
         return val
 
-    AST.Conv pos typ [expr]      -> do
-        val <- newConvert typ =<< cmpExpr expr
-        base <- baseTypeOf exprType
-        case base of
-            _ | exprType == typeof val -> do -- char(3):char
-                loc <- newVal exprType
-                storeCopy loc val
-                return loc
-            ADT xs | FieldType typ `elem` xs -> do    -- char(3):{char | null}
-                i <- adtTypeField exprType typ
-                adt <- newVal exprType
-                adtSetEnum adt i
-                ptr <- adtField adt i
-                storeCopy ptr val
-                return adt
-
-            _ -> fail $ "cannot convert to type: " ++ show exprType
-            _ -> error $ show (base, typ)
 
     AST.Range pos Nothing _ Nothing -> fail "Range expression must contain maximum"
     AST.Range pos Nothing mexpr1 (Just expr2) -> do
@@ -559,6 +544,8 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
                 storeBasicVal result val 
                 return result
 
+
+    AST.Builtin pos [] "conv" [expr] -> construct exprType =<< mapM cmpExpr [expr]
     
     AST.Builtin pos [expr] "len" [] -> do
         val <- cmpExpr expr
@@ -764,15 +751,22 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
             ADT fs -> do
                 obj <- look symbol
                 case obj of
-                    ObjType typ -> do -- Vec2(4, 3) : {Vec2 | null} 
-                        i <- adtTypeField (typeof val) typ
-                        assert (length pats == 1) "One pattern allowed for type field"
+                    ObjType _ -> do -- Vec2(4, 3) : {Vec2 | null} 
+                        i <- adtTypeField (typeof val) (Typedef symbol)
                         enumMatch <- intInfix AST.EqEq (mkI64 i) =<< adtEnum =<< pload val
-                        adt <- newVal (typeof val)
-                        storeCopy adt val
-                        ObjType t0 <- look symbol
-                        b <- cmpPattern (head pats) . Pointer t0 . loc =<< adtField adt i
-                        boolInfix AST.AndAnd enumMatch b
+                        field <- adtField val i -- tuple or type
+
+                        match <- case pats of 
+                            [pat] -> cmpPattern pat field
+                            pats -> do 
+                                Tuple ts <- baseTypeOf field
+                                assert (length ts == length pats) "invalid field"
+                                bs <- forM (zip pats [0..]) $ \(pat, j) -> do 
+                                    cmpPattern pat =<< tupleIdx j field
+                                foldM (boolInfix AST.AndAnd) (mkBool True) bs
+                                
+
+                        boolInfix AST.AndAnd enumMatch match
 
                     ObjField i -> do
                         let FieldCtor ts = fs !! i
@@ -787,6 +781,7 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
 
 
     AST.PatTypeField _ typ pat -> do -- char(c)
+        ADT fs <- baseTypeOf val
         i <- adtTypeField (typeof val) typ
         matched <- cmpPattern pat =<< adtField val i -- TODO this is unsafe because enum not checked
         enumMatch <- intInfix AST.EqEq (mkI64 i) =<< adtEnum =<< pload val

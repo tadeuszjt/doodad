@@ -4,8 +4,8 @@ syn keyword doodadFunc fn
 syn keyword doodadDef let type data
 syn keyword doodadLoop for while
 syn keyword doodadTop module import import_c
-syn keyword doodadType i8 i16 i32 i64 f32 f64 bool char string sparse
-syn keyword doodadConst true false
+syn keyword doodadType i8 i16 i32 i64 f32 f64 bool char string sparse conv
+syn keyword doodadConst true false null
 syn match   doodadInt '\<\d\+\>'
 syn match   doodadChar '\'.\''
 syn match   doodadSpecial '{'

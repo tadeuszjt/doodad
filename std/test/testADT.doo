@@ -35,9 +35,25 @@ fn testTwoArgs()
     let x = Args(A(true), false)
 
 
+fn testNull() 
+    let x = conv('x'):{ null | char }
+    switch x 
+        null; let true = false
+        char(c); let 'x' = c
+
+
+fn testTuples() 
+    type Lexeme { LexNull() | LexInt(i64) }
+    type LexResult (Lexeme, i64)
+    let x =  conv(LexResult(LexNull(), 12)):{ null | LexResult }
+    switch x 
+        LexResult(LexNull(), 12);
+
+
 fn testAdt()
     testEnum()
     testTypes()
     testOneArg()
     testTwoArgs()
+    testTuples()
     print("testAdt passed")

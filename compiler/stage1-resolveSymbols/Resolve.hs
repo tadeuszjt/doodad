@@ -458,7 +458,7 @@ instance Resolve Expr where
             exprs' <- mapM resolve exprs
             params' <- mapM resolve params
             case symbol of
-                Sym s | s `elem` ["push", "pop", "len", "clear", "delete", "unsafe_ptr", "unsafe_ptr_from_int"] -> do 
+                Sym s | s `elem` ["push", "pop", "len", "clear", "delete", "unsafe_ptr", "unsafe_ptr_from_int", "conv"] -> do 
                     return $ Builtin pos params' s exprs'
                 _ -> do
                     resm <- lookm symbol KeyType

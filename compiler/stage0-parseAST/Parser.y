@@ -237,7 +237,6 @@ expr   : literal                              { $1 }
        | '(' expr ')'                         { $2 }
        | '(' expr ',' exprs1 ')'              { S.Tuple (tokPos $1) ($2:$4) }
        | typeOrdinal '(' exprs ')'            { S.Conv (tokPos $2) $1 $3 }
-       | ':' typeAggregate '(' exprs ')'      { S.Conv (tokPos $3) $2 $4 }
        | null                                 { S.Null (tokPos $1) }
        | expr '.' ident                       { S.Field (tokPos $2) $1 (Sym $ tokStr $3) }
        | expr '[' expr ']'                    { S.Subscript (tokPos $2) $1 $3 }

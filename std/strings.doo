@@ -2,23 +2,23 @@ module strings
 import chars
 
 
-fn {s string} find(c char) (bool, i64)
+fn {s string} find(c char) {null | i64}
     for s[..] -> i
         if c == s[i]
-            return (true, i)
-    return (false, 0)
+            return conv(i)
+    return null
 
 
-fn {s string, sub string} find() (bool, i64)
+fn {s string, sub string} find() {null | i64}
     for s[..] -> i
         let matched = 0
         for s[i..] -> j | matched < sub.len() && s[j] == sub[matched]
             matched = matched + 1
 
         if matched == sub.len()
-            return (true, i)
+            return conv(i)
 
-    return (false, 0)
+    return null
 
 
 fn {s string} write(c char)

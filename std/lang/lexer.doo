@@ -5,66 +5,70 @@ import ../strings
 import ../chars
 
 
-
-fn {s string} lexAlpha() (char, i64)
-    let i = 0
-    for s -> c | isSpace(c)
-        i = i + 1
-    if s[..][i] && isAlpha(s[i])
-        return (s[i], i + 1)
-    return ('\0', 0)
-
-
-fn {s string} lexDigit() (char, i64)
-    let i = 0
-    for s -> c | isSpace(c)
-        i = i + 1
-    if s[..][i] && isDigit(s[i])
-        return (s[i], i + 1)
-    return ('\0', 0)
-
-
-
-
 type StrKey i64
-type Lexeme { LexNull() | LexIdent(StrKey) | LexInt(i64) }
+type Lexeme { LexIdent(StrKey) | LexInt(i64) }
+type LexResult (Lexeme, i64)
+
+fn {s string} lexDigit(start i64) {char | null}
+    for s[start..] -> i | isDigit(s[i]) 
+        return conv(s[i])
+    return null
 
 
-fn {ss sparse[string]} lexIdent(k StrKey) (Lexeme, i64)
-    if ss[k].lexAlpha() -> (c, i) | i > 0
-        let identKey = ss.push()
-        ss[identKey].push(c)
-
-        for ss[k][i..] -> j | ss[k][j] -> c | isAlpha(c) || isDigit(c)
-            ss[identKey].push(c)
-
-        return (LexIdent(identKey), i + ss[identKey].len() - 1)
-
-    return (LexNull(), 0)
+fn {s string} lexAlpha(start i64) {char | null}
+    for s[start..] -> i | isAlpha(s[i]) 
+        return conv(s[i])
+    return null
 
 
+fn {s string} lexChar(start i64, c char) {char | null}
+    for s[start..] -> i | s[i] == c
+        return conv(s[i])
+    return null
 
-fn {ss sparse[string]} lexInt(start i64, k StrKey) (Lexeme, i64)
-    if ss[k].read(start) -> (d:i64, j) | j > 0
-        return (LexInt(d), j)
-    return (LexNull(), 0)
 
+fn {s string} lexSpace(start i64) {char | null}
+    for s[start..] -> i | isSpace(s[i])
+        return conv(s[i])
+    return null
+
+
+
+fn {s string} lexSpaces(start i64) i64
+    let count = 0
+    for s[start..] -> i | s.lexSpace(i) -> char(_)
+        count = count + 1
+    return count
+
+
+fn {ss sparse[string]} lexIdent(start i64, key StrKey) { LexResult | null }
+    let count = ss[key].lexSpaces(start)
+
+    if ss[key].lexAlpha(start + count) -> char(c)
+        count = count + 1
+        let id = ss.push()
+        ss[id].push(c)
+
+        while true 
+            if ss[key].lexAlpha(start + count) -> char(c) 
+                count = count + 1
+                ss[id].push(c)
+            else if ss[key].lexDigit(start + count) -> char(c)
+                count = count + 1
+                ss[id].push(c)
+            else
+                return conv( LexResult(LexIdent(id), count) )
+
+    return null
+    
 
 fn {io Io} main() 
-    let file = {io, "main.doo"}.openFile()
-    
-    data line string
-    while {io, line}.readLn(file)
-        {io, line}.writeLn()
-        line.clear()
-
-    io.closeFile(file)
-
     data strings sparse[string]
-    let key = strings.push()
-    strings[key] = "  134 43"
 
-    switch strings.lexInt(key)
-        (LexInt(d), n); print(d, n)
-        (LexNull(), n); print("null")
+    let k = strings.push()
+    strings[k] = "  asd134"
+
+    if strings.lexIdent(0, k) -> LexResult(lexeme, n)
+        switch lexeme
+            LexIdent(l); print(strings[l], n)
 

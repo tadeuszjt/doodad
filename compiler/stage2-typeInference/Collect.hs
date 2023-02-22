@@ -284,9 +284,14 @@ collectPattern pattern typ = collectPos pattern $ case pattern of
                 zipWithM_ collectPattern pats gts
                 forM_ (zip gts [0..]) $ \(t, j) -> collectAdtField t i j typ
             Nothing -> do
-                ObjType t <- look symbol KeyType
-                assert (length pats == 1) "One pattern needed for type field"
-                collectPattern (head pats) t
+                ObjType base <- look symbol KeyType
+                case pats of 
+                    [pat] -> collectPattern pat base
+                    pats -> do 
+                        gts <- replicateM (length pats) genType
+                        collectBase base (Tuple gts)
+                        zipWithM_ collectPattern pats gts
+
 
     S.PatTypeField _ t pat -> do
         collectPattern pat t
@@ -372,12 +377,15 @@ collectExpr (S.AExpr exprType expr) = collectPos expr $ case expr of
     S.Float _ f      -> collectDefault exprType F64
     S.Null _         -> return ()
 
-    S.Conv _ t [e]   -> do 
-        collectExpr e
+    S.Conv _ t es   -> do 
         collectEq exprType t
+        mapM_ collectExpr es
 
     S.Builtin _ ps sym es -> do 
         case sym of
+            "conv" -> do 
+                assert (length ps == 0) "invalid conv"
+                assert (length es == 1) "invalid conv"
             "len" -> collectDefault exprType I64
             "push" -> do
                 assert (length ps == 1) "invalid number of parameters"
