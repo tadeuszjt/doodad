@@ -71,6 +71,12 @@ fn {io Io} write(c char)
     c::putchar(i32(c))
 
 
+fn {io Io} write(i i64) 
+    data s string
+    s.write(i) 
+    {io, s}.write()
+
+
 fn {io Io} write(key FileKey, c char)
     let ptr | ptr > 0 = io[key]
     c::fputc(i32(c), unsafe_ptr_from_int(ptr))

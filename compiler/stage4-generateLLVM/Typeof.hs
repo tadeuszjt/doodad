@@ -93,6 +93,7 @@ opTypeOf typ = withErrorPrefix ("opTypOf " ++ show typ) $ do
                 types <- forM fs $ \f -> case f of
                     FieldNull -> return I8
                     FieldType t -> return t
+                    FieldCtor [t] -> return t
                     FieldCtor ts -> return $ Tuple ts
 
                 sizes <- mapM sizeOfLL =<< mapM opTypeOf types

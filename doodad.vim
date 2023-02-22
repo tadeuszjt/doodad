@@ -1,7 +1,7 @@
 syn keyword doodadKeyword push pop len clear print return 
 syn keyword doodadConditional if else switch
-syn keyword doodadFunc fn
-syn keyword doodadDef let type data
+syn keyword doodadFunc fn type
+syn keyword doodadDef let data
 syn keyword doodadLoop for while
 syn keyword doodadTop module import import_c
 syn keyword doodadType i8 i16 i32 i64 f32 f64 bool char string sparse conv

@@ -525,10 +525,14 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
                     ADT fs -> do 
                         adt <- newVal exprType 
                         adtSetEnum adt i
+                        assert (ps == []) "Invalid constructor"
                         case fs !! i of 
                             FieldNull    -> return ()
+                            FieldCtor [t] -> do
+                                assert ([t] == map typeof as) "Invalid constructor"
+                                ptr <- adtField adt i
+                                storeCopy ptr (head as)
                             FieldCtor ts -> do
-                                assert (ps == []) "Invalid constructor"
                                 assert (ts == map typeof as) "Invalid constructor"
                                 tupPtr <- adtField adt i
                                 forM_ (zip as [0..]) $ \(a, i) -> do 
@@ -750,34 +754,24 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
 
             ADT fs -> do
                 obj <- look symbol
-                case obj of
-                    ObjType _ -> do -- Vec2(4, 3) : {Vec2 | null} 
-                        i <- adtTypeField (typeof val) (Typedef symbol)
-                        enumMatch <- intInfix AST.EqEq (mkI64 i) =<< adtEnum =<< pload val
-                        field <- adtField val i -- tuple or type
+                i <- case obj of 
+                    ObjType _  -> adtTypeField (typeof val) (Typedef symbol)
+                    ObjField i -> return i
+                field <- adtField val i -- tuple or type
+                enumMatch <- intInfix AST.EqEq (mkI64 i) =<< adtEnum =<< pload val
 
-                        match <- case pats of 
-                            [pat] -> cmpPattern pat field
-                            pats -> do 
-                                Tuple ts <- baseTypeOf field
-                                assert (length ts == length pats) "invalid field"
-                                bs <- forM (zip pats [0..]) $ \(pat, j) -> do 
-                                    cmpPattern pat =<< tupleIdx j field
-                                foldM (boolInfix AST.AndAnd) (mkBool True) bs
-                                
+                matchs <- case pats of 
+                    [pat] -> fmap (:[]) $ cmpPattern pat field
+                    pats -> do 
+                        ts <- case obj of
+                            ObjType _ -> baseTypeOf field >>= \(Tuple ts) -> return ts
+                            ObjField _ -> return $ let FieldCtor ts = fs !! i in ts
 
-                        boolInfix AST.AndAnd enumMatch match
-
-                    ObjField i -> do
-                        let FieldCtor ts = fs !! i
                         assert (length pats == length ts) "invalid ADT pattern"
-                        enumMatch <- intInfix AST.EqEq (mkI64 i) =<< adtEnum =<< pload val
-                        -- can't be inside a block which may or may not happen
-                        -- as cmpPattern may add variables to the symbol table
-                        bs <- forM (zip pats [0..]) $ \(pat, j) -> do
-                            cmpPattern pat =<< tupleIdx j =<< adtField val i
+                        forM (zip pats [0..]) $ \(pat, j) -> 
+                            cmpPattern pat =<< tupleIdx j field
 
-                        foldM (boolInfix AST.AndAnd) enumMatch bs
+                foldM (boolInfix AST.AndAnd) enumMatch matchs
 
 
     AST.PatTypeField _ typ pat -> do -- char(c)

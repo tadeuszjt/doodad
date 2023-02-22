@@ -41,7 +41,20 @@ fn {s string} lexSpaces(start i64) i64
     return count
 
 
-fn {ss sparse[string]} lexIdent(start i64, key StrKey) { LexResult | null }
+fn {ss sparse[string]} lexInt(start i64, key StrKey) {LexResult | null}
+    let count = ss[key].lexSpaces(start)
+    let n = 0
+
+    while ss[key].lexDigit(start + count) -> char(c)
+        n = n * 10
+        n = n + i64(c - '0')
+        count = count + 1
+
+    if count == 0; return null
+    else;          return conv( LexResult(LexInt(n), count) )
+        
+
+fn {ss sparse[string]} lexIdent(start i64, key StrKey) {LexResult | null}
     let count = ss[key].lexSpaces(start)
 
     if ss[key].lexAlpha(start + count) -> char(c)
@@ -50,25 +63,40 @@ fn {ss sparse[string]} lexIdent(start i64, key StrKey) { LexResult | null }
         ss[id].push(c)
 
         while true 
-            if ss[key].lexAlpha(start + count) -> char(c) 
-                count = count + 1
-                ss[id].push(c)
-            else if ss[key].lexDigit(start + count) -> char(c)
-                count = count + 1
-                ss[id].push(c)
-            else
-                return conv( LexResult(LexIdent(id), count) )
+            if      ss[key].lexAlpha(start + count) -> char(c); ss[id].push(c)
+            else if ss[key].lexDigit(start + count) -> char(c); ss[id].push(c)
+            else;   return conv( LexResult(LexIdent(id), count) )
+            count = count + 1
 
+    return null
+
+
+
+fn {ss sparse[string]} lex(start i64, key StrKey) {LexResult | null}
+    if ss.lexIdent(start, key) -> LexResult(a, b); return conv ( LexResult(a, b) )
+    if ss.lexInt(start, key)   -> LexResult(a, b); return conv ( LexResult(a, b) )
     return null
     
 
+fn {io Io, ss sparse[string]} writeLexeme(lexeme Lexeme)
+    switch lexeme 
+        LexInt(n)   ; io.write(n)
+        LexIdent(id); {io, ss[id]}.write()
+
+
 fn {io Io} main() 
-    data strings sparse[string]
+    data ss sparse[string]
 
-    let k = strings.push()
-    strings[k] = "  asd134"
+    let k = ss.push()
+    ss[k] = "  asdjsad134  313"
 
-    if strings.lexIdent(0, k) -> LexResult(lexeme, n)
-        switch lexeme
-            LexIdent(l); print(strings[l], n)
+    let start = 0
+    while ss.lex(start, k) -> LexResult(lexeme, num)
+        io.write(' ')
+        {io, ss}.writeLexeme(lexeme)
+        start = start + num
+
+    io.write('\n')
+
+
 

@@ -62,6 +62,10 @@ adtField adt i = do
             pField <- gep (loc adt) [int32 0, int32 1]
             pType <- bitcast pField . LL.ptr =<< opTypeOf typ
             return $ Pointer typ pType
+        FieldCtor [t] -> do
+            pField <- gep (loc adt) [int32 0, int32 1]
+            pType <- bitcast pField . LL.ptr =<< opTypeOf t
+            return $ Pointer t pType
         FieldCtor ts -> do
             pField <- gep (loc adt) [int32 0, int32 1]
             pType <- bitcast pField . LL.ptr =<< opTypeOf (Tuple ts)
