@@ -2,6 +2,14 @@ module strings
 import chars
 
 
+fn {s string, sub string} isPrefix() bool
+    let count = 0
+    for sub[..] -> i | s[..][i] | s[i] == sub[i]
+        count = count + 1
+
+    return count == sub.len()
+    
+
 fn {s string} find(c char) {null | i64}
     for s[..] -> i
         if c == s[i]

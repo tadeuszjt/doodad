@@ -2,7 +2,7 @@ module testStrings
 
 import ../strings
 
-fn testBuiltin()
+fn testStringBuiltin()
     data s1 string
     data s2 string
     let true = s1 == s2
@@ -55,7 +55,7 @@ fn testRead()
 
 
 fn testStrings()
-    testBuiltin()
+    testStringBuiltin()
     testFind()
     testWrite()
     testRead()

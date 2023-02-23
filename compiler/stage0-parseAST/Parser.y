@@ -363,10 +363,11 @@ annoADTType : '{' annoADTFields '}'           { S.AnnoADT $2 }
 annoADTField : ident '(' argTypes ')'         { S.ADTFieldMember (Sym (tokStr $1)) $3 }
              | type_                          { S.ADTFieldType $1 }
              | null                           { S.ADTFieldNull }
+
 annoADTFields : annoADTField                  { [$1] }
-annoADTFields : annoADTField 'N'              { [$1] }
+              | annoADTField 'N'              { [$1] }
               | annoADTField '|' annoADTFields { $1 : $3 }
-              | annoADTField '|' 'N' annoADTFields { $1 : $4 }
+              | annoADTField 'N' annoADTFields { $1 : $3 }
 
 rowTypes1     : type_                         { [$1] }
               | type_ ';' rowTypes1           { $1 : $3 }

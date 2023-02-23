@@ -84,10 +84,12 @@ newFloat typ f = do
             return $ Pointer typ p
 
 
-mkEnum :: InsCmp CompileState m => Integral i => Type -> i -> m Value
-mkEnum typ n = do
+newEnum :: InsCmp CompileState m => Integral i => Type -> i -> m Pointer
+newEnum typ n = do
     Enum <- baseTypeOf typ
-    return $ Value typ $ int64 (fromIntegral n)
+    val <- newVal typ
+    store (loc val) 0 $ int64 (fromIntegral n)
+    return val
 
 
 newRange :: InsCmp CompileState m => Value -> Value -> m Pointer
@@ -163,6 +165,8 @@ convertNumber typ val = do
         (Char, I64) -> trunc op LL.i8
         (F64,  I64) -> sitofp op LL.double
         (F32,  I64) -> sitofp op LL.float
+
+        (I64, Enum) -> return op
 
         (I64,  I32) -> sext op LL.i64
         (I32,  I32) -> return op

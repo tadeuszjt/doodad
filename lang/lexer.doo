@@ -1,0 +1,168 @@
+module lexer 
+
+import ../std/io
+import ../std/strings
+import ../std/chars
+
+
+type StrKey i64
+type Strings sparse[string]
+
+type Keyword {
+    KeywordFn()
+    KeywordFor() 
+    KeywordLet() 
+    KeywordConv() 
+    KeywordNull() 
+    KeywordType()
+    KeywordImport()
+    KeywordModule()
+    KeywordReturn()
+    KeywordTrue()
+    KeywordFalse()
+}
+
+type Lexeme { LexChar(char) | LexIdent(StrKey) | LexInt(i64) | LexKeyword(Keyword) | LexSym(char) }
+type LexResult { LexSuccess(Lexeme, i64) | null }
+
+
+fn {ss Strings} lexDigit(start i64, s StrKey) {char | null}
+    for ss[s][start..] -> i | ss[s][i] -> c | isDigit(c) 
+        return conv(c)
+    return null
+
+
+fn {ss Strings} lexAlpha(start i64, s StrKey) {char | null}
+    for ss[s][start..] -> i | ss[s][i] -> c | isAlpha(c) 
+        return conv(c)
+    return null
+
+
+fn {ss Strings} lexChar(start i64, s StrKey, x char) {char | null}
+    for ss[s][start..] -> i | ss[s][i] -> c | x == c
+        return conv(c)
+    return null
+
+
+fn {ss Strings} lexSpace(start i64, s StrKey) {char | null}
+    for ss[s][start..] -> i | ss[s][i] -> c | isSpace(c)
+        return conv(c)
+    return null
+
+
+fn {ss Strings} lexSpaces(start i64, s StrKey) i64
+    let count = 0
+    for ss[s][start..] -> i | ss.lexSpace(i, s) -> char(_)
+        count = count + 1
+    return count
+
+
+fn {ss Strings} lexSym(start i64, key StrKey) LexResult
+    let count = ss.lexSpaces(start, key)
+    if ss[key][..][start + count] 
+        let c = ss[key][start + count]
+        switch c
+            '/'; return LexSuccess(LexSym(c), count + 1)
+            '{'; return LexSuccess(LexSym(c), count + 1)
+            '}'; return LexSuccess(LexSym(c), count + 1)
+            '('; return LexSuccess(LexSym(c), count + 1)
+            ')'; return LexSuccess(LexSym(c), count + 1)
+            _; return null
+
+    return null
+
+
+fn {ss Strings} lexInt(start i64, key StrKey) LexResult
+    let spaceCount = ss.lexSpaces(start, key)
+    let n = 0
+
+    let count = spaceCount
+    while ss.lexDigit(start + count, key) -> char(c)
+        n = n * 10
+        n = n + i64(c - '0')
+        count = count + 1
+
+    if count == spaceCount; return null
+    else;          return LexSuccess(LexInt(n), count)
+        
+
+fn {ss Strings} lexIdent(start i64, key StrKey) LexResult
+    let count = ss.lexSpaces(start, key)
+
+    if ss.lexAlpha(start + count, key) -> char(c)
+        count = count + 1
+        let id = ss.push()
+        ss[id].push(c)
+
+        while true 
+            if      ss.lexAlpha(start + count, key) -> char(c); ss[id].push(c)
+            else if ss.lexDigit(start + count, key) -> char(c); ss[id].push(c)
+            else;   return LexSuccess(LexIdent(id), count)
+            count = count + 1
+
+    return null
+
+
+fn {ss Strings} lexKeyword(start i64, key StrKey) LexResult
+    let count = ss.lexSpaces(start, key)
+
+    type Pair (str string, kw Keyword)
+    data pairs [Pair]
+    pairs.push(("for",    KeywordFor()))
+    pairs.push(("let",    KeywordLet()))
+    pairs.push(("fn",     KeywordFn()))
+    pairs.push(("null",   KeywordNull()))
+    pairs.push(("conv",   KeywordConv()))
+    pairs.push(("import", KeywordImport()))
+    pairs.push(("module", KeywordModule()))
+    pairs.push(("type",   KeywordType()))
+    pairs.push(("true",   KeywordTrue()))
+    pairs.push(("false",  KeywordFalse()))
+
+    for pairs[..] -> i
+        if {ss[key], pairs[i].str}.find() -> i64(num) | num == (start + count)
+            return LexSuccess(LexKeyword(pairs[i].kw), count + pairs[i].str.len())
+
+    return null
+
+
+fn {ss Strings} lex(start i64, key StrKey) LexResult
+    if ss.lexKeyword(start, key) -> LexSuccess(a, b); return LexSuccess(a, b)
+    if ss.lexIdent(start, key)   -> LexSuccess(a, b); return LexSuccess(a, b)
+    if ss.lexInt(start, key)     -> LexSuccess(a, b); return LexSuccess(a, b)
+    if ss.lexSym(start, key)     -> LexSuccess(a, b); return LexSuccess(a, b)
+    return null
+    
+
+fn {io Io, ss Strings} writeLexeme(lexeme Lexeme)
+    switch lexeme 
+        LexInt(n)   ;   io.write(n)
+        LexIdent(id);   {io, ss[id]}.write()
+        LexSym(c)   ;   io.write(c)
+        LexKeyword(kw)
+            {io, "keyword: "}.write()
+            io.write(i64(kw))
+        _; print("invalid lexeme")
+
+
+fn {io Io} main() 
+    let file = {io, "main.doo"}.openFile()
+
+    data strings Strings
+    let key = strings.push()
+
+    while io.read(file) -> char(c)
+        strings[key].push(c)
+
+    print(strings[key])
+
+    let idx = 0
+    while strings.lex(idx, key) -> LexSuccess(lexeme, num)
+        {io, strings}.writeLexeme(lexeme)
+        io.write('\n')
+        idx = idx + num
+
+
+
+
+

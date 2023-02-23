@@ -40,31 +40,35 @@ fn {io Io} catFile(key FileKey)
     
 
 
-fn {io Io} read() char
-    return char(c::getchar())
+fn {io Io} read() {char | null}
+    switch char(c::getchar())
+        x | x == -1; return null 
+        c;           return conv(c)
 
 
-fn {io Io} read(key FileKey) char
+fn {io Io} read(key FileKey) {char | null}
     let ptr | ptr > 0 = io[key]
-    return char(fgetc(unsafe_ptr_from_int(ptr)))
+    switch conv(fgetc(unsafe_ptr_from_int(ptr))):char
+        x | x == -1; return null
+        c;           return conv(c)
 
 
 fn {io Io, line string} readLn(key FileKey) bool
     while true
-        switch io.read(key):char
-            x | x == -1; return false
-            '\n'; return true
-            '\0'; return true
-            c;    line.write(c)
+        switch io.read(key)
+            null;       return false
+            char('\n'); return true
+            char('\0'); return true
+            char(c);    line.write(c)
 
 
 fn {io Io, line string} readLn() bool
     while true
-        switch io.read():char
-            x | x == -1; return false
-            '\n'; return true
-            '\0'; return true
-            c;    line.write(c)
+        switch io.read()
+            null; return false
+            char('\n'); return true
+            char('\0'); return true
+            char(c);    line.write(c)
 
 
 fn {io Io} write(c char)

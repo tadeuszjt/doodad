@@ -460,6 +460,7 @@ collectExpr (S.AExpr exprType expr) = collectPos expr $ case expr of
             Typedef symbol -> do
                 ObjField i  <- look (Sym sym) $ KeyField (typeof e)
                 collectField exprType i (typeof e)
+            _ -> fail "invalid field access"
         collectExpr e
 
     S.AExpr _ _ -> fail "what"

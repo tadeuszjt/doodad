@@ -1,0 +1,17 @@
+module testBuiltin 
+
+
+fn {s string} stringReentry()
+    let "astring" = s
+    s[2] = '!'
+    let "as!ring" = s
+
+
+fn testStringOverlap() 
+    for [0..5] 
+        {"astring"}.stringReentry()
+
+
+fn testBuiltin() 
+    testStringOverlap()
+    print("testBuiltin passed")

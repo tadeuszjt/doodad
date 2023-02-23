@@ -1,0 +1,60 @@
+module testLexer 
+
+import lexer
+
+
+fn testLexAlpha()
+    data strings Strings 
+    let key = strings.push()
+    strings[key] = "  testString123 "
+
+    let null = strings.lexAlpha(0, key)
+    let char('t') = strings.lexAlpha(2, key)
+    let char('e') = strings.lexAlpha(3, key)
+
+    strings[key] = ""
+    let null = strings.lexAlpha(2, key)
+
+
+fn testLexInt()
+    data strings Strings 
+    let key = strings.push()
+    strings[key] = "  testString123    45 "
+    
+    let null                       = strings.lexInt(-1, key)
+    let null                       = strings.lexInt(0, key)
+    let LexSuccess(LexInt(123), 3) = strings.lexInt(12, key)
+    let null                       = strings.lexInt(6, key)
+    let LexSuccess(LexInt(45), 6)  = strings.lexInt(15, key)
+    let null                       = strings.lexInt(33, key)
+
+
+fn testLexIdent()
+    data strings Strings 
+    let key = strings.push()
+    strings[key] = "  testString123    45 "
+    
+    let null                        = strings.lexIdent(-1, key)
+    let LexSuccess(LexIdent(1), 15) = strings.lexIdent(0, key)
+    let LexSuccess(LexIdent(2), 10) = strings.lexIdent(5, key)
+    let null                        = strings.lexIdent(15, key)
+    let null                        = strings.lexIdent(25, key)
+
+
+fn testLexKeyword() 
+    data strings Strings 
+    let key = strings.push()
+    strings[key] = "for St13  let45 module "
+
+    let LexSuccess(LexKeyword(KeyWordFor), 3) = strings.lexKeyword(0, key)
+    let null                                  = strings.lexKeyword(1, key)
+    let LexSuccess(LexKeyword(KeyWordLet), 5) = strings.lexKeyword(8, key)
+    let null                                  = strings.lexKeyword(3, key)
+    let LexSuccess(LexKeyword(KeyWordModule), 7) = strings.lexKeyword(15, key)
+
+fn main() 
+    testLexAlpha()
+    testLexInt()
+    testLexIdent()
+    testLexKeyword()
+    print("testLexer passed")

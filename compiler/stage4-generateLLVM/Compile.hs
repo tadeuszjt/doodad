@@ -387,6 +387,7 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
             Range t   -> rangeEnd val
             Array n t -> newI64 n
             Table ts  -> tableLen val
+            _ -> error (show base)
         end <- case margEnd of
             Nothing  -> pload endVal
             Just arg -> pload =<< Builtin.min endVal =<< cmpExpr arg
@@ -499,7 +500,10 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
                 storeBasicVal cap (mkI64 $ length s)
                 storeBasicVal len (mkI64 $ length s)
                 tableSetRow tab 0 . Pointer Char =<< getStringPointer s
-                return tab
+
+                tab2 <- newVal exprType
+                storeCopy tab2 tab
+                return tab2
             _ -> fail (show base)
                 
 
@@ -507,21 +511,22 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
         ps <- mapM cmpExpr params
         as <- mapM cmpExpr args
 
-        -- TODO this calls alloca on values...
-        psLocs <- forM ps $ \val -> case val of
-            Pointer _ loc -> return loc
-
         asOps <- map op <$> mapM pload as
         obj <- look symbol
         val <- case obj of
-            ObjType _  -> pload =<< construct exprType as
             ObjFn -> do
                 op <- fnHdrToOp (map typeof ps) symbol (map typeof as) exprType
-                Value exprType <$> call op [(o, []) | o <- psLocs ++ asOps]
+                v <- Value exprType <$> call op [(o, []) | o <- (map loc ps) ++ asOps]
+                case exprType of 
+                    Void -> return $ Pointer Void undefined
+                    _ -> do
+                        loc <- newVal exprType
+                        storeBasicVal loc v
+                        return loc
             ObjField i -> do
                 base <- baseTypeOf exprType
                 case base of
-                    Enum  -> mkEnum exprType i
+                    Enum  -> newEnum exprType i
                     ADT fs -> do 
                         adt <- newVal exprType 
                         adtSetEnum adt i
@@ -538,15 +543,13 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
                                 forM_ (zip as [0..]) $ \(a, i) -> do 
                                     tupMember <- tupleIdx i tupPtr
                                     storeCopy tupMember a
-                        pload adt
+                        return adt
                     _ -> error (show base)
             _ -> error (show obj)
+
         case exprType of 
             Void -> return $ Pointer Void undefined
-            _ -> do 
-                result <- newVal exprType 
-                storeBasicVal result val 
-                return result
+            _    -> return val
 
 
     AST.Builtin pos [] "conv" [expr] -> construct exprType =<< mapM cmpExpr [expr]
@@ -750,7 +753,7 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
                 assert (pats == []) "enum pattern with args"
                 ObjField i <- look symbol
                 v <- pload val
-                enumInfix AST.EqEq v =<< mkEnum (typeof val) i
+                enumInfix AST.EqEq v =<< pload =<< newEnum (typeof val) i
 
             ADT fs -> do
                 obj <- look symbol
@@ -758,7 +761,6 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
                     ObjType _  -> adtTypeField (typeof val) (Typedef symbol)
                     ObjField i -> return i
                 field <- adtField val i -- tuple or type
-                enumMatch <- intInfix AST.EqEq (mkI64 i) =<< adtEnum =<< pload val
 
                 matchs <- case pats of 
                     [pat] -> fmap (:[]) $ cmpPattern pat field
@@ -771,6 +773,7 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
                         forM (zip pats [0..]) $ \(pat, j) -> 
                             cmpPattern pat =<< tupleIdx j field
 
+                enumMatch <- intInfix AST.EqEq (mkI64 i) =<< adtEnum =<< pload val
                 foldM (boolInfix AST.AndAnd) enumMatch matchs
 
 

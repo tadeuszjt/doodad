@@ -24,6 +24,9 @@ prettyIrGenState irGenState = do
     forM_ (Map.toList $ irTypeDefs irGenState) $ \(symbol, anno) -> do
         putStrLn $ "type: " ++ show symbol ++ "\t" ++ show anno
 
+    forM_ (Map.toList $ irCtorDefs irGenState) $ \(symbol, (t, i)) -> do
+        putStrLn $ "ctor: " ++ show symbol ++ "\t" ++ show t
+
     forM_ (Map.toList $ irExternDefs irGenState) $ \(name, (pts, sym, ats, rt)) -> do
         putStrLn $ "extern: " ++ AST.brcStrs (map show pts) ++ " " ++ sym ++ AST.tupStrs (map show ats) ++ " " ++ show rt ++ " " ++ show name
 
@@ -46,6 +49,7 @@ initIRGenState moduleName = IRGenState
     , irCtorDefs       = Map.empty
     , irFuncMap        = Map.empty
     , irTypeMap        = Map.empty
+    , irCtorMap        = Map.empty
     , irMainDef        = Nothing
     , irCurrentFunc    = ([], "", [], Void)
     }
@@ -57,6 +61,7 @@ compile ast = do
     modify $ \s -> s { irExternDefs = funcImports ast }
     modify $ \s -> s { irCtorDefs = Map.union (ctorImports ast) (ctorDefs ast) }
     modify $ \s -> s { irTypeMap  = Map.mapKeys sym $ Map.mapWithKey (\k a -> k) (typeDefs ast) }
+    modify $ \s -> s { irCtorMap  = Map.mapKeys sym $ Map.mapWithKey (\k a -> k) (ctorDefs ast) }
 
     initialiseTupleMembers =<< gets irCtorDefs
     initialiseTopFuncDefs (funcDefs ast)
@@ -115,7 +120,8 @@ resolveFuncCall exprType (AST.Call pos params symbol args) = withPos pos $ do
     let key        = (paramTypes, sym symbol, argTypes, exprType)
     curModName <- gets irModuleName
     case symbol of
-        SymResolved _ _ _ -> return symbol
+        SymResolved _ _ _ -> do 
+            return symbol
 
         SymQualified mod sym -> do
             resm <- findQualifiedFuncDef mod key

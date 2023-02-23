@@ -72,6 +72,7 @@ look symbol key = do
     return $ fromJust lm
 
 
+-- TODO absolutely broken shite
 lookm :: BoM ResolveState m => Symbol -> SymKey -> m (Maybe Symbol)
 lookm symbol key = case symbol of
     Sym sym -> do
@@ -80,7 +81,11 @@ lookm symbol key = case symbol of
             Just s -> return (Just s)
             Nothing -> do
                 case key of
-                    KeyFunc -> return (Just symbol)
+                    KeyFunc -> do 
+                        xs <- catMaybes . map (Map.lookup sym . irCtorMap) <$> gets imports
+                        case xs of 
+                            [x] -> return (Just x)
+                            [] -> return (Just symbol) -- Maybe remove this
                     KeyType -> do
                         xs <- catMaybes . map (Map.lookup sym . irTypeMap) <$> gets imports
                         case xs of

@@ -18,12 +18,12 @@ data Extern
 data ResolvedAst
     = ResolvedAst
     { moduleName  :: String
-    , typeImports :: Map.Map Symbol Type -- imported types
-    , ctorImports :: Map.Map Symbol (Type, Int)
-    , funcImports :: Map.Map Symbol FuncKey  -- imported funcs
-    , typeDefs    :: Map.Map Symbol Type -- defined types
-    , ctorDefs    :: Map.Map Symbol (Type, Int)
-    , funcDefs    :: Map.Map Symbol FuncBody -- defined functions
+    , typeImports :: Map.Map Symbol Type        -- imported types
+    , ctorImports :: Map.Map Symbol (Type, Int) -- imported ctors
+    , funcImports :: Map.Map Symbol FuncKey     -- imported funcs
+    , typeDefs    :: Map.Map Symbol Type        -- defined types
+    , ctorDefs    :: Map.Map Symbol (Type, Int) -- defined ctors
+    , funcDefs    :: Map.Map Symbol FuncBody    -- defined functions
     }
     deriving (Eq)
 
@@ -51,6 +51,7 @@ data IRGenState = IRGenState
     , irCtorDefs    :: Map.Map Symbol (Type, Int)  -- all needed ctor definitions
     , irFuncMap     :: Map.Map FuncKey Symbol      -- symbol table for funcs defined by this module
     , irTypeMap     :: Map.Map String Symbol       -- symbol table for types defined by this module
+    , irCtorMap     :: Map.Map String Symbol       -- symbol table for ctors defined by this module
     , irMainDef     :: Maybe FuncBody              -- optional main() definition
     }
 

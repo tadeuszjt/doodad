@@ -19,6 +19,7 @@ import testTuple
 import testMap
 import testIo
 import testAdt
+import testBuiltin
 
 
 fn {io Io} main()
@@ -31,4 +32,5 @@ fn {io Io} main()
     testMap()
     io.testIo()
     testAdt()
+    testBuiltin()
     print("test passed")
