@@ -637,12 +637,55 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
             val <- m
             assert (typeof val == typ) $ "Expression compiled to: " ++ show (typeof val) ++ " instead of: " ++ show typ
             return val
+
+
+
+cmpPatTuple :: InsCmp CompileState m => [AST.Pattern] -> Pointer -> m () -> m ()
+cmpPatTuple pats tup mMatched = do 
+    len <- tupleLength =<< pload tup
+    assert (len == length pats) "incorrect tuple length"
+    matchField len 0
+    where 
+        matchField len i
+            | i == len  = mMatched
+            | otherwise = do
+                matched <- cmpPattern (pats !! i) =<< tupleIdx i tup
+                when_ (op matched) $ matchField len (i + 1)
+
+
+
+cmpPatArray :: InsCmp CompileState m => [[AST.Pattern]] -> Pointer -> m () -> m ()
+cmpPatArray patss val mMatched = do
+    Table ts <- baseTypeOf val
+    assert (length patss == length ts) "Invalid number of rows"
+    forM_ (zip ts [0..]) $ \(t, i) -> do
+        assert (length (patss !! i) == length (head patss)) "row length mismatch"
+
+    lenMatch <- intInfix AST.EqEq (mkI64 $ length $ head patss) =<< pload =<< tableLen val
+    when_ (op lenMatch) $ matchRows 0 mMatched
+    where 
+        matchRows r mMatched 
+            | r == length patss = mMatched
+            | otherwise = do 
+                row <- tableRow r val
+                matchTableRow (patss !! r) row 0 $ matchRows (r + 1) mMatched
+
+        matchTableRow pats row c mMatched
+            | c == length pats = mMatched
+            | otherwise = do
+                matched <- cmpPattern (pats !! c) =<< advancePointer row (mkI64 c)
+                when_ (op matched) $ matchTableRow pats row (c + 1) mMatched
+
             
 
 cmpPattern :: InsCmp CompileState m => AST.Pattern -> Pointer -> m Value
 cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pattern of
     AST.PatIgnore _     -> return (mkBool True)
     AST.PatLiteral expr -> pload =<< newInfix AST.EqEq val =<< cmpExpr expr
+    AST.PatTuple _ pats -> do 
+        b <- newBool False
+        cmpPatTuple pats val $ storeCopyVal b (mkBool True)
+        pload b 
 
     AST.PatNull _ -> do -- null
         base@(ADT fs) <- baseTypeOf val
@@ -670,62 +713,14 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
         define symbol (ObjVal loc)
         return $ mkBool True
 
-    AST.PatTuple _ pats -> do -- (a, b)
-        len <- tupleLength =<< pload val
-        assert (len == length pats) "incorrect tuple length"
-        bs <- forM (zip pats [0..]) $ \(p, i) ->
-            cmpPattern p =<< tupleIdx i val
-        foldM (boolInfix AST.AndAnd) (mkBool True) bs
-
-    AST.PatArray _ [pats] -> do -- [a, b, c]
-        base <- baseTypeOf val
-        case base of
-            Sparse ts -> cmpPattern pattern =<< sparseTable val 
-            
-            Table ts -> do
-                len   <- pload =<< tableLen val
-                lenEq <- intInfix AST.EqEq len (mkI64 $ length pats)
-                eq    <- newBool False
-
-                when_ (op lenEq) $ do
-                    assert (length ts == 1) "patterns don't support multiple rows (yet)"
-                    bs <- forM (zip pats [0..]) $ \(pat, i) -> do
-                        [elm] <- tableColumn val (mkI64 i)
-                        cmpPattern pat elm
-                    storeCopyVal eq =<< foldM (boolInfix AST.AndAnd) (mkBool True) (lenEq:bs)
-
-                pload eq
-
-            Array n t -> do
-                assert (n == length pats) "Invalid array pattern"
-                bs <- forM (zip pats [0..]) $ \(p, i) ->
-                    cmpPattern p =<< arrayGetElem val (mkI64 i)
-                foldM (boolInfix AST.AndAnd) (mkBool True) bs
-            
-            _ -> fail "Invalid array pattern"
-
     AST.PatArray _ patss -> do 
         base <- baseTypeOf val
         case base of
-            Table ts -> do
-                assert (length patss == length ts) "Invalid number of rows"
-                let rowLen = length (head patss)
-                forM_ patss $ \pats -> do 
-                    assert (length pats == rowLen) "row length mismatch"
-                len   <- pload =<< tableLen val 
-                lenEq <- intInfix AST.EqEq len (mkI64 rowLen)
-
-                matched <- newBool False
-
-                when_ (op lenEq) $ do
-                    bs <- forM [0.. rowLen - 1] $ \i -> do
-                        ptrs <- tableColumn val (mkI64 i)
-                        let patc = map (!! i) patss
-                        bs <- zipWithM cmpPattern patc ptrs
-                        foldM (boolInfix AST.AndAnd) (mkBool True) bs
-                    storeBasicVal matched =<< foldM (boolInfix AST.AndAnd) (mkBool True) bs
-
-                pload matched
+            Sparse ts -> cmpPattern pattern =<< sparseTable val
+            Table ts -> do 
+                b <- newBool False
+                cmpPatArray patss val $ storeCopyVal b (mkBool True)
+                pload b
 
             _ -> fail (show base)
 
