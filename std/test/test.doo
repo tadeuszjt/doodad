@@ -22,7 +22,7 @@ import testAdt
 import testBuiltin
 
 
-fn {io Io} main()
+fn {io Io} testStd()
     testStrings()
     testChars()
     testMaths()

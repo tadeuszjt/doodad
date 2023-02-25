@@ -178,6 +178,20 @@ if_ cnd trueIns falseIns = trace "if_" $ do
     emitBlockStart exit
 
 
+when_ :: InsCmp s m => Operand -> m () -> m ()
+when_ cnd trueIns = do 
+    true  <- freshName "when_true"
+    exit  <- freshName "when_exit"
+
+    condBr cnd true exit
+
+    emitBlockStart true 
+    trueIns
+    br exit 
+
+    emitBlockStart exit
+
+
 switch_ :: InsCmp s m => [(m Operand, m ())] -> m ()
 switch_ cases = do
     exitName <- freshName "switch_exit"

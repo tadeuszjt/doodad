@@ -115,9 +115,6 @@ tableSetRow tab i row = trace "tableSetRow" $ do
 
 tableResize :: InsCmp CompileState m => Pointer -> Value -> m ()
 tableResize tab newLen = do
-    exit <- freshName "tableResize_exit"
-    needsResize <- freshName "tableResize_realloc_mem"
-
     Table ts <- baseTypeOf tab
     I64      <- baseTypeOf newLen
 
@@ -125,16 +122,12 @@ tableResize tab newLen = do
     len <- tableLen tab
 
     full <- intInfix AST.GT newLen =<< pload cap
-    condBr (op full) needsResize exit
+    when_ (op full) $ do
+        newTab <- newTable (typeof tab) =<< intInfix AST.Times newLen (mkI64 2)
+        forM_ (zip ts [0..]) $ \(t, i) -> do
+            newRow <- tableRow i newTab
+            row <- tableRow i tab
+            memCpy newRow row =<< pload len
+        storeBasic tab newTab
 
-    emitBlockStart needsResize -- TODO this needs to clear elems
-    newTab <- newTable (typeof tab) =<< intInfix AST.Times newLen (mkI64 2)
-    forM_ (zip ts [0..]) $ \(t, i) -> do
-        newRow <- tableRow i newTab
-        row <- tableRow i tab
-        memCpy newRow row =<< pload len
-    storeBasic tab newTab
-    br exit
-
-    emitBlockStart exit
     storeBasicVal len newLen

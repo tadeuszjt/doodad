@@ -1,0 +1,10 @@
+module testMain 
+
+import std/io
+import lang/testLexer
+import std/test/test
+
+
+fn {io Io} main() 
+    testLexer()
+    io.testStd()

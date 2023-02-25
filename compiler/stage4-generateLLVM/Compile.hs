@@ -299,7 +299,6 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
         cond <- freshName "for_cond"
         body <- freshName "for_body"
         patm <- freshName "for_patm"
-        incr <- freshName "for_incr"
         exit <- freshName "for_exit"
 
         br cond
@@ -330,10 +329,6 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
         -- for loop body
         emitBlockStart body
         cmpStmt blk
-        br incr
-
-        -- increment index
-        emitBlockStart incr
         increment idx
         br cond
 
@@ -472,20 +467,14 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
 
     AST.Infix pos AST.AndAnd exprA exprB -> do
         Bool <- baseTypeOf exprType
-        exit <- freshName "infix_andand_exit"
-        right <- freshName "infix_andand_rhs"
 
         result <- newBool False
-
         valA <- pload =<< cmpExpr exprA
         Bool <- baseTypeOf valA
-        condBr (op valA) right exit
 
-        emitBlockStart right
-        storeCopy result =<< cmpExpr exprB
-        br exit
+        when_ (op valA) $ do
+            storeCopy result =<< cmpExpr exprB
 
-        emitBlockStart exit
         return result
         
     AST.Infix pos op exprA exprB -> do
@@ -698,20 +687,13 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
                 lenEq <- intInfix AST.EqEq len (mkI64 $ length pats)
                 eq    <- newBool False
 
-                start <- freshName "patArray_start"
-                exit <- freshName "patArray_exit"
+                when_ (op lenEq) $ do
+                    assert (length ts == 1) "patterns don't support multiple rows (yet)"
+                    bs <- forM (zip pats [0..]) $ \(pat, i) -> do
+                        [elm] <- tableColumn val (mkI64 i)
+                        cmpPattern pat elm
+                    storeCopyVal eq =<< foldM (boolInfix AST.AndAnd) (mkBool True) (lenEq:bs)
 
-                condBr (op lenEq) start exit
-
-                emitBlockStart start
-                assert (length ts == 1) "patterns don't support multiple rows (yet)"
-                bs <- forM (zip pats [0..]) $ \(pat, i) -> do
-                    [elm] <- tableColumn val (mkI64 i)
-                    cmpPattern pat elm
-                storeCopyVal eq =<< foldM (boolInfix AST.AndAnd) (mkBool True) (lenEq:bs)
-                br exit
-
-                emitBlockStart exit 
                 pload eq
 
             Array n t -> do
@@ -735,23 +717,15 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
 
                 matched <- newBool False
 
-                exit <- freshName "exit"
-                cond <- freshName "cond"
+                when_ (op lenEq) $ do
+                    bs <- forM [0.. rowLen - 1] $ \i -> do
+                        ptrs <- tableColumn val (mkI64 i)
+                        let patc = map (!! i) patss
+                        bs <- zipWithM cmpPattern patc ptrs
+                        foldM (boolInfix AST.AndAnd) (mkBool True) bs
+                    storeBasicVal matched =<< foldM (boolInfix AST.AndAnd) (mkBool True) bs
 
-                condBr (op lenEq) cond exit
-
-                emitBlockStart cond
-                bs <- forM [0.. rowLen - 1] $ \i -> do
-                    ptrs <- tableColumn val (mkI64 i)
-                    let patc = map (!! i) patss
-                    bs <- zipWithM cmpPattern patc ptrs
-                    foldM (boolInfix AST.AndAnd) (mkBool True) bs
-                storeBasicVal matched =<< foldM (boolInfix AST.AndAnd) (mkBool True) bs
-                br exit
-
-                emitBlockStart exit
                 pload matched
-
 
             _ -> fail (show base)
 
