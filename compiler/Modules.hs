@@ -180,8 +180,12 @@ runMod args pathsVisited modPath = do
             if compileObj args then do
                 let modDirectory' = joinPath [modDirectory, "build"]
                 let modName' = addExtension modName ".o"
-                liftIO $ createDirectoryIfMissing True modDirectory'
-                liftIO $ jitCompileToObject (printLLIR args) (joinPath [modDirectory', modName']) defs session
+                buildDir <- liftIO $ canonicalizePath $ "build"
+                let fileDir = joinPath [buildDir, modName']
+                liftIO $ putStrLn $ show fileDir
+
+                liftIO $ createDirectoryIfMissing True buildDir
+                liftIO $ jitCompileToObject (printLLIR args) fileDir defs session
             else do
                 liftIO $ jitAndRun defs session True (printLLIR args) 
 

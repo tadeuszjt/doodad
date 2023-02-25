@@ -51,10 +51,19 @@ storeCopy dst src = withErrorPrefix "storeCopy: " $ do
         Table ts -> do 
             len <- pload =<< tableLen src
             tableResize dst len
-            for (op len) $ \n -> do 
-                columnDst <- tableColumn dst (Value I64 n)
-                columnSrc <- tableColumn src (Value I64 n)
-                zipWithM_ storeCopy columnDst columnSrc
+
+            forM_ (zip ts [0..]) $ \(t, i) -> do 
+                srcRow <- tableRow i src
+                dstRow <- tableRow i dst
+                base <- baseTypeOf t
+                isDataType <- isDataType t
+                if isDataType then do
+                    for (op len) $ \n -> do 
+                        srcElem <- advancePointer srcRow (Value I64 n)
+                        dstElem <- advancePointer srcRow (Value I64 n)
+                        storeCopy dstElem srcElem
+                else do 
+                    memCpy dstRow srcRow len
 
         Tuple ts -> do 
             forM_ [0..length ts - 1] $ \i -> do 

@@ -213,12 +213,11 @@ cmpFuncBodies irGenState = do
                 unreachable
 
 
-trapBranch :: InsCmp CompileState m => LL.Operand -> m () -> m ()
-trapBranch cnd continue = do
+trapBranch :: InsCmp CompileState m => LL.Name -> LL.Operand -> m () -> m ()
+trapBranch endName cnd continue = do
     b <- icmp P.EQ cnd (bit 0)
-    when_ b trap
+    when_ b $ br endName
     continue
-
 
 
 cmpStmt :: InsCmp CompileState m => AST.Stmt -> m ()
@@ -240,7 +239,15 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
 
     AST.Assign pos pat expr -> withErrorPrefix "assign: " $ do
         val <- cmpExpr expr
-        cmpPattern pat val trapBranch $ return ()
+        name <- freshName "trap" 
+        exit <- freshName "exit" 
+        cmpPattern pat val (trapBranch name) $ return ()
+
+        br exit
+        emitBlockStart name 
+        trap 
+        unreachable
+        emitBlockStart exit
 
     AST.Set pos expr1 expr2 -> do
         label "set"

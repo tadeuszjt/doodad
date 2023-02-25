@@ -6,20 +6,6 @@ import ../std/chars
 
 type Idx i64
 
-type Type {
-    TypeI64()
-    TypeI32()
-    TypeI16()
-    TypeI8()
-    TypeF64()
-    TypeF32()
-    TypeBool()
-    TypeChar()
-    TypeSparse()
-    TypeMap()
-    TypeString()
-}
-
 
 type Lexeme { 
     LexChar(char)
@@ -28,7 +14,6 @@ type Lexeme {
     LexKeyword(Idx)
     LexSym(char)
     LexDoubleSym(char, char) 
-    LexType(Type)
     LexNewline(Idx)
     LexCharLit(char)
     LexStringLit(Idx)
@@ -311,7 +296,7 @@ fn {io Io, s Stack} writeLexeme(lexeme Lexeme)
         _; print("<unknown lexeme>")
 
 
-fn {io Io} main() 
+fn {io Io} lexerMain() 
     let file = {io, "lang/lexer.doo"}.openFile()
 
     data stack Stack 

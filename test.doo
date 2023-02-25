@@ -1,12 +1,14 @@
 module testMain 
 
 import std/io
+import lang/lexer
 import lang/testLexer
 import lang/test/testLang
 import std/test/test
 
 
 fn {io Io} main() 
+    io.lexerMain()
     testLexer()
     io.testStd()
     testLang()

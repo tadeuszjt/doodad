@@ -93,8 +93,7 @@ tableDelete :: InsCmp CompileState m => Pointer -> Value -> m ()
 tableDelete tab idx = do
     Table ts <- baseTypeOf tab
     len <- tableLen tab
-    lenv <- pload len
-    end <- intInfix AST.Minus lenv (mkI64 1)
+    end <- intInfix AST.Plus (mkI64 $ -1) =<< pload len
 
     -- swap len idx
     dsts <- tableColumn tab idx

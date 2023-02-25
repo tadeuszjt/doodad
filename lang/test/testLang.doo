@@ -1,0 +1,15 @@
+module testLang
+
+
+fn testPatArrayMatch()
+    data table [i64; bool]
+    table.push(1, true)
+    table.push(2, false)
+
+    let [1, 2; true, false] = table
+    if table -> [1, 2, _; true, false, _]; let true = false
+
+
+fn testLang()
+    testPatArrayMatch()
+    print("testLang passed")
