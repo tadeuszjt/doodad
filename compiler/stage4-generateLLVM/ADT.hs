@@ -33,6 +33,13 @@ adtNull typ = do
     return adt
 
 
+adtNullField :: InsCmp CompileState m => Type -> m Int
+adtNullField adtType = do 
+    ADT fs <- baseTypeOf adtType
+    assert (FieldNull `elem` fs) $ "ADT does not contain null"
+    return $ fromJust $ elemIndex FieldNull fs
+
+
 adtTypeField :: InsCmp CompileState m => Type -> Type -> m Int
 adtTypeField adtType typ = do
     ADT fs <- baseTypeOf adtType

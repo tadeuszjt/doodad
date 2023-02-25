@@ -688,10 +688,7 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
         pload b 
 
     AST.PatNull _ -> do -- null
-        base@(ADT fs) <- baseTypeOf val
-        let is = elemIndices FieldNull fs
-        assert (length is == 1) "ADT type does not have unique null field"
-        let [i] = is
+        i <- adtNullField (typeof val)
         intInfix AST.EqEq (mkI64 i) =<< adtEnum =<< pload val
 
     AST.PatAnnotated pat typ -> do -- a:i32
@@ -699,11 +696,15 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
         cmpPattern pat val
 
     AST.PatGuarded _ pat expr mpat -> do -- a | a > 0
+        matched <- newBool False
+
         match <- cmpPattern pat val
-        guard <- case mpat of 
-            Nothing -> pload =<< cmpExpr expr
-            Just pat -> cmpPattern pat =<< cmpExpr expr
-        boolInfix AST.AndAnd match guard
+        when_ (op match) $ do
+            case mpat of 
+                Nothing -> storeCopy matched =<< cmpExpr expr
+                Just pat -> storeCopyVal matched =<< cmpPattern pat =<< cmpExpr expr
+
+        pload matched
 
     AST.PatIdent _ symbol -> trace ("cmpPattern " ++ show pattern) $ do -- a
         base <- baseTypeOf val
@@ -734,33 +735,42 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
                 enumInfix AST.EqEq v =<< pload =<< newEnum (typeof val) i
 
             ADT fs -> do
+                matched <- newBool False 
+
                 obj <- look symbol
                 i <- case obj of 
                     ObjType _  -> adtTypeField (typeof val) (Typedef symbol)
                     ObjField i -> return i
-                field <- adtField val i -- tuple or type
-
-                matchs <- case pats of 
-                    [pat] -> fmap (:[]) $ cmpPattern pat field
-                    pats -> do 
-                        ts <- case obj of
-                            ObjType _ -> baseTypeOf field >>= \(Tuple ts) -> return ts
-                            ObjField _ -> return $ let FieldCtor ts = fs !! i in ts
-
-                        assert (length pats == length ts) "invalid ADT pattern"
-                        forM (zip pats [0..]) $ \(pat, j) -> 
-                            cmpPattern pat =<< tupleIdx j field
-
                 enumMatch <- intInfix AST.EqEq (mkI64 i) =<< adtEnum =<< pload val
-                foldM (boolInfix AST.AndAnd) enumMatch matchs
+
+                when_ (op enumMatch) $ do
+                    field <- adtField val i -- tuple or type
+
+                    matchs <- case pats of 
+                        [pat] -> fmap (:[]) $ cmpPattern pat field
+                        pats -> do 
+                            ts <- case obj of
+                                ObjType _ -> baseTypeOf field >>= \(Tuple ts) -> return ts
+                                ObjField _ -> return $ let FieldCtor ts = fs !! i in ts
+
+                            assert (length pats == length ts) "invalid ADT pattern"
+                            forM (zip pats [0..]) $ \(pat, j) -> 
+                                cmpPattern pat =<< tupleIdx j field
+
+                    storeCopyVal matched =<< foldM (boolInfix AST.AndAnd) (mkBool True) matchs
+
+                pload matched
 
 
     AST.PatTypeField _ typ pat -> do -- char(c)
-        ADT fs <- baseTypeOf val
+        matched <- newBool False
+
         i <- adtTypeField (typeof val) typ
-        matched <- cmpPattern pat =<< adtField val i -- TODO this is unsafe because enum not checked
         enumMatch <- intInfix AST.EqEq (mkI64 i) =<< adtEnum =<< pload val
-        boolInfix AST.AndAnd matched enumMatch
+        when_ (op enumMatch) $ do
+            storeCopyVal matched =<< cmpPattern pat =<< adtField val i
+
+        pload matched
 
                     
 cmpPrint :: InsCmp CompileState m => AST.Stmt -> m ()
