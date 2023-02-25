@@ -215,7 +215,7 @@ exprs  : {- empty -}                          { [] }
 exprs1 : expr                                 { [$1] }
        | expr ',' exprs1                      { $1 : $3 }
 exprsN : expr 'N'                             { [$1] } 
-       | expr ',' 'N' exprsN                  { $1 : $4 }
+       | expr 'N' exprsN                      { $1 : $3 }
 
 mexpr : {-empty-}                             { Nothing }
       | expr                                  { Just $1 }

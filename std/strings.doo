@@ -2,6 +2,12 @@ module strings
 import chars
 
 
+
+fn {s string} At(i i64) {null | char}
+    if s[..][i]; return conv (s[i])
+    else;        return null
+
+
 fn {s string, sub string} isPrefix() bool
     let count = 0
     for sub[..] -> i | s[..][i] | s[i] == sub[i]

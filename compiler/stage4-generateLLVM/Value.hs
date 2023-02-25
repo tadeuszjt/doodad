@@ -70,6 +70,13 @@ mkBool :: Bool -> Value
 mkBool b = Value Bool (bit $ if b then 1 else 0)
 
 
+increment :: InsCmp CompileState m => Pointer -> m ()
+increment val = do 
+    base <- baseTypeOf val 
+    case base of 
+        I64 -> store (loc val) 0 =<< add (int64 1) =<< load (loc val) 0
+
+
 newFloat :: InsCmp CompileState m => Type -> Double -> m Pointer
 newFloat typ f = do 
     base <- baseTypeOf typ 

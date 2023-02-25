@@ -474,7 +474,10 @@ collectExpr (S.AExpr exprType expr) = collectPos expr $ case expr of
         collectExpr e
         collectDefault exprType Bool
 
-    S.Range _ Nothing me1 me2 -> do
+    S.Range _ me me1 me2 -> do
+        when (isJust me) $ do
+            collectExpr (fromJust me)
+
         when (isJust me1 && isJust me2) $ do
             collectEq (typeof $ fromJust me1) (typeof $ fromJust me2)
         when (isJust me1) $ do
@@ -485,18 +488,8 @@ collectExpr (S.AExpr exprType expr) = collectPos expr $ case expr of
             collectBase (Range $ typeof $ fromJust me2) exprType
             collectDefault (Range $ typeof $ fromJust me2) exprType
             collectExpr (fromJust me2)
+        when (isNothing me1 && isNothing me2) $ do
+            collectDefault (Range I64) exprType
 
-    S.Range _ (Just e) me1 me2 -> do
-        collectBase (Range I64) exprType
-        collectDefault (Range I64) exprType
-        collectExpr e
-
-        when (isJust me1) $ do
-            collectEq (typeof $ fromJust me1) I64
-            collectExpr (fromJust me1)
-
-        when (isJust me2) $ do
-            collectEq (typeof $ fromJust me2) I64
-            collectExpr (fromJust me2)
 
     _ -> error (show expr)

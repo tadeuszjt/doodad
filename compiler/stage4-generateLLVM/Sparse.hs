@@ -23,6 +23,15 @@ import Error
 import Table
 
 
+
+sparseLen :: InsCmp CompileState m => Pointer -> m Value 
+sparseLen val = do 
+    tabLen <- pload =<< tableLen =<< sparseTable val
+    stkLen <- pload =<< tableLen =<< sparseStack val
+    intInfix AST.Minus tabLen stkLen
+
+
+
 sparseTable :: InsCmp CompileState m => Pointer -> m Pointer
 sparseTable sparse = do
     Sparse ts <- baseTypeOf sparse

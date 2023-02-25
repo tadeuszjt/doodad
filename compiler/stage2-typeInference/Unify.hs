@@ -102,6 +102,7 @@ unifyOne pos constraint = withPos pos $ case constraint of
             | length tsa /= length tsb  -> fail "length"
             | otherwise                 -> unify $ zipWith (\a b -> (ConsEq a b, pos)) tsa tsb
         --(UnsafePtr ta, UnsafePtr tb)    -> unifyOne pos (ConsEq ta tb)
+        (Range a, Range b)              -> unifyOne pos $ ConsEq a b
         _                               -> fail $ "cannot unify " ++ show t1 ++ " with " ++ show t2
 
 

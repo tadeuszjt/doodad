@@ -72,7 +72,7 @@ compile irGenState session = do
             mainOp <- func (LL.mkName "main")  [] LL.VoidType $ \_ -> do
                 mapM_ (\(s, x) -> define s $ ObjField $ snd x) $ Map.toList $ irCtorDefs irGenState
                 mapM_ (\(s, x) -> define s $ ObjType x)        $ Map.toList $ irTypeDefs irGenState
-                cmpTypeNames irGenState
+                --cmpTypeNames irGenState
                 cmpDeclareExterns irGenState
                 cmpFuncHdrs irGenState
                 cmpFuncBodies irGenState
@@ -287,9 +287,13 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
         val <- cmpExpr expr
         base <- baseTypeOf val
 
-        idx <- newI64 0
+        idxType <- case base of 
+            Range t -> return t
+            _       -> return I64
+
+        idx <- newVal idxType
         case base of
-            Range _ -> storeBasic idx =<< rangeStart val
+            Range _ -> storeCopy idx =<< rangeStart val
             _       -> return ()
 
         cond <- freshName "for_cond"
@@ -303,7 +307,7 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
         -- check if index is still in range
         emitBlockStart cond
         end <- case base of
-            Range I64 -> rangeEnd val
+            Range t -> rangeEnd val
             Table ts -> tableLen val
             Array n t -> newI64 n
             _ -> error (show base)
@@ -316,10 +320,10 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
             Nothing -> return (mkBool True)
             Just pat -> case base of
                 Table ts -> do
-                    [elm] <- tableColumn val =<< pload idx
+                    [elm] <- tableColumn val =<< pload =<< toType I64 idx
                     cmpPattern pat elm
-                Range I64 -> cmpPattern pat idx
-                Array n t -> cmpPattern pat =<< arrayGetElem val =<< pload idx
+                Range t -> cmpPattern pat idx
+                Array n t -> cmpPattern pat =<< arrayGetElem val =<< pload =<< toType I64 idx
                 _ -> error (show base)
         condBr (op patMatch) body exit
         
@@ -330,7 +334,7 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
 
         -- increment index
         emitBlockStart incr
-        storeCopyVal idx =<< intInfix AST.Plus (mkI64 1) =<< pload idx
+        increment idx
         br cond
 
         emitBlockStart exit
@@ -381,7 +385,9 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
             _       -> newI64 0
         start <- case margStart of
             Nothing  -> pload startVal
-            Just arg -> pload =<< Builtin.max startVal =<< cmpExpr arg
+            Just arg -> do 
+                arg' <- cmpExpr arg
+                pload =<< Builtin.max arg' =<< toType (typeof arg') startVal
 
         endVal <- case base of
             Range t   -> rangeEnd val
@@ -390,7 +396,9 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
             _ -> error (show base)
         end <- case margEnd of
             Nothing  -> pload endVal
-            Just arg -> pload =<< Builtin.min endVal =<< cmpExpr arg
+            Just arg -> do 
+                arg' <- cmpExpr arg
+                pload =<< Builtin.min arg' =<< toType (typeof arg') endVal
             
         newRange start end
 
@@ -399,7 +407,7 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
         base <- baseTypeOf loc
         val <- newVal exprType
         case base of
-            Table ts  -> storeBasicVal val =<< tablePush loc
+            Table ts  -> storeCopyVal val =<< convertNumber (typeof val) =<< tablePush loc
             Sparse ts -> storeCopyVal val =<< convertNumber (typeof val) =<< sparsePush loc =<< mapM newVal ts
         return val
 
@@ -560,6 +568,7 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
         v <- case base of
             Table _   -> convertNumber exprType =<< pload =<< tableLen val
             Array n t -> convertNumber exprType (mkI64 n)
+            Sparse ts -> convertNumber exprType =<< sparseLen val
             _       -> fail ("cannot take length of type " ++ show (typeof val))
         result <- newVal exprType 
         storeBasicVal result v 
@@ -592,8 +601,8 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
                 
             Range t -> do
                 Bool <- baseTypeOf exprType
-                idxGtEqStart <- newInfix AST.GTEq idx =<< rangeStart val
-                idxLtEnd     <- newInfix AST.LT idx =<< rangeEnd val
+                idxGtEqStart <- newInfix AST.GTEq idx =<< toType (typeof idx) =<< rangeStart val
+                idxLtEnd     <- newInfix AST.LT idx =<< toType (typeof idx) =<< rangeEnd val
                 newInfix AST.AndAnd idxLtEnd idxGtEqStart
                 
     AST.Initialiser pos exprs -> do

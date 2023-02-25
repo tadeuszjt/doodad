@@ -4,57 +4,107 @@ import lexer
 
 
 fn testLexAlpha()
-    data strings Strings 
-    let key = strings.push()
-    strings[key] = "  testString123 "
-
-    let null = strings.lexAlpha(0, key)
-    let char('t') = strings.lexAlpha(2, key)
-    let char('e') = strings.lexAlpha(3, key)
-
-    strings[key] = ""
-    let null = strings.lexAlpha(2, key)
+    data s Stack "  testString123 "
+    let null = s.lexAlpha(0)
+    let Success(LexChar('t'), 3) = s.lexAlpha(2)
+    let null = s.lexAlpha(16)
 
 
 fn testLexInt()
-    data strings Strings 
-    let key = strings.push()
-    strings[key] = "  testString123    45 "
-    
-    let null                       = strings.lexInt(-1, key)
-    let null                       = strings.lexInt(0, key)
-    let LexSuccess(LexInt(123), 3) = strings.lexInt(12, key)
-    let null                       = strings.lexInt(6, key)
-    let LexSuccess(LexInt(45), 6)  = strings.lexInt(15, key)
-    let null                       = strings.lexInt(33, key)
+    data s Stack "test2 123"
+    let null = s.lexInt(0)
+    let Success(LexInt(2), 5) = s.lexInt(4)
 
 
 fn testLexIdent()
-    data strings Strings 
-    let key = strings.push()
-    strings[key] = "  testString123    45 "
-    
-    let null                        = strings.lexIdent(-1, key)
-    let LexSuccess(LexIdent(1), 15) = strings.lexIdent(0, key)
-    let LexSuccess(LexIdent(2), 10) = strings.lexIdent(5, key)
-    let null                        = strings.lexIdent(15, key)
-    let null                        = strings.lexIdent(25, key)
+    data s Stack " test2 123"
+    let null = s.lexIdent(0)
+    let Success(LexIdent(n), 6)  = s.lexIdent(1)
+
+    data result string
+    {s, result}.read(n)
+    let "test2" = result
 
 
-fn testLexKeyword() 
-    data strings Strings 
-    let key = strings.push()
-    strings[key] = "for St13  let45 module "
+fn testLexKeyword()
+    data s Stack " return 2 for123"
 
-    let LexSuccess(LexKeyword(KeyWordFor), 3) = strings.lexKeyword(0, key)
-    let null                                  = strings.lexKeyword(1, key)
-    let LexSuccess(LexKeyword(KeyWordLet), 5) = strings.lexKeyword(8, key)
-    let null                                  = strings.lexKeyword(3, key)
-    let LexSuccess(LexKeyword(KeyWordModule), 7) = strings.lexKeyword(15, key)
+    let null = s.lexKeyword(0)
+    let Success(LexKeyword(id), 7) = s.lexKeyword(1)
+    let null = s.lexKeyword(10)
+
+    data result string
+    {s, result}.read(id)
+    let "return" = result
+
+
+fn testSkipSpaces()
+    data s Stack "  return\t35"
+    let 2 = s.skipSpaces(0)
+    let 2 = s.skipSpaces(2)
+    let 9 = s.skipSpaces(8)
+    let 11 = s.skipSpaces(11)
+
+
+fn testLexSym()
+    data s Stack " /ret?urn+35- % "
+    let null = s.lexSym(0)
+    let Success(LexSym('/'), 2) = s.lexSym(1)
+    let null = s.lexSym(4)
+    let Success(LexSym('+'), 10) = s.lexSym(9)
+
+
+fn testLexDoubleSym() 
+    data s Stack " ->ret..urn+35 ->% "
+
+    let null = s.lexDoubleSym(0)
+    let Success(LexDoubleSym('-', '>'), 3) = s.lexDoubleSym(1)
+    let null = s.lexDoubleSym(7)
+    let null = s.lexDoubleSym(5)
+    let Success(LexDoubleSym('.', '.'), 8) = s.lexDoubleSym(6)
+
+
+fn testLexNewline()
+    data s Stack "stuff \n  moreStuff\n\t\t"
+    let null = s.lexNewline(0)
+    let Success(LexNewline(id0), 9)  = s.lexNewline(6)
+    let null = s.lexNewline(7)
+    let Success(LexNewline(id1), 21)  = s.lexNewline(18)
+
+    data result string 
+    {s, result}.read(id0)
+    let "\n  " = result
+    result.clear()
+    {s, result}.read(id1)
+    let "\n\t\t" = result
+
+
+
+fn testLexCharLit()
+    data s Stack "stuff '\\n' more'\\0'na'j'df"
+    let null = s.lexCharLit(0)
+    let Success(LexCharLit('\n'), 10) = s.lexCharLit(6)
+    let null = s.lexCharLit(14)
+    let Success(LexCharLit('\0'), 19) = s.lexCharLit(15)
+    let null = s.lexCharLit(16)
+    let Success(LexCharLit('j'), 24) = s.lexCharLit(21)
+
+
+fn testLexStringLit()
+    data s Stack "stuff\"astri ng123\"\t more"
+    let null = s.lexStringLit(0)
+    let Success(_, _) = s.lexStringLit(5)
+
 
 fn main() 
     testLexAlpha()
     testLexInt()
     testLexIdent()
     testLexKeyword()
+    testSkipSpaces()
+    testLexSym()
+    testLexDoubleSym()
+    testLexNewline()
+    testLexCharLit()
+    testLexStringLit()
     print("testLexer passed")

@@ -4,165 +4,294 @@ import ../std/io
 import ../std/strings
 import ../std/chars
 
+type Idx i64
 
-type StrKey i64
-type Strings sparse[string]
-
-type Keyword {
-    KeywordFn()
-    KeywordFor() 
-    KeywordLet() 
-    KeywordConv() 
-    KeywordNull() 
-    KeywordType()
-    KeywordImport()
-    KeywordModule()
-    KeywordReturn()
-    KeywordTrue()
-    KeywordFalse()
+type Type {
+    TypeI64()
+    TypeI32()
+    TypeI16()
+    TypeI8()
+    TypeF64()
+    TypeF32()
+    TypeBool()
+    TypeChar()
+    TypeSparse()
+    TypeMap()
+    TypeString()
 }
 
-type Lexeme { LexChar(char) | LexIdent(StrKey) | LexInt(i64) | LexKeyword(Keyword) | LexSym(char) }
-type LexResult { LexSuccess(Lexeme, i64) | null }
+
+type Lexeme { 
+    LexChar(char)
+    LexIdent(Idx)
+    LexInt(i64)
+    LexKeyword(Idx)
+    LexSym(char)
+    LexDoubleSym(char, char) 
+    LexType(Type)
+    LexNewline(Idx)
+    LexCharLit(char)
+    LexStringLit(Idx)
+}
 
 
-fn {ss Strings} lexDigit(start i64, s StrKey) {char | null}
-    for ss[s][start..] -> i | ss[s][i] -> c | isDigit(c) 
-        return conv(c)
+type LexResult { LexSuccess(Lexeme, Idx) | null }
+type Result { null | Success(Lexeme, Idx) }
+type Stack string
+
+
+fn {s Stack} at(idx Idx) {null | char}
+    if s[..][idx] && s[idx] != '\0'
+        return conv(s[idx])
     return null
 
 
-fn {ss Strings} lexAlpha(start i64, s StrKey) {char | null}
-    for ss[s][start..] -> i | ss[s][i] -> c | isAlpha(c) 
-        return conv(c)
+fn {s Stack, str string} read(idx Idx)
+    while s.at(idx) -> char(c)
+        str.push(c)
+        idx = idx + 1
+
+
+fn {s Stack} popString() 
+    while s.at(s.len() - 1) -> char(c)
+        s.pop()
+
+
+fn {s Stack} lexChar(idx Idx, x char) Result
+    if s.at(idx) -> char(c) | c == x
+        return Success(LexChar(c), idx + 1)
     return null
 
 
-fn {ss Strings} lexChar(start i64, s StrKey, x char) {char | null}
-    for ss[s][start..] -> i | ss[s][i] -> c | x == c
-        return conv(c)
+fn {s Stack} lexAlpha(idx Idx) Result
+    if s.at(idx) -> char(c) | isAlpha(c)
+        return Success(LexChar(c), idx + 1)
+    return null
+
+fn {s Stack} lexSpace(idx Idx) Result
+    if s.at(idx) -> char(c) | c == ' ' || c == '\t'
+        return Success(LexChar(c), idx + 1)
+    return null
+
+fn {s Stack} lexDigit(idx Idx) Result
+    if s.at(idx) -> char(c) | isDigit(c)
+        return Success(LexChar(c), idx + 1)
     return null
 
 
-fn {ss Strings} lexSpace(start i64, s StrKey) {char | null}
-    for ss[s][start..] -> i | ss[s][i] -> c | isSpace(c)
-        return conv(c)
-    return null
+fn {s Stack} skipSpaces(idx Idx) Idx
+    while s.lexSpace(idx) -> Success(_, end)
+        idx = end
+    return idx
 
 
-fn {ss Strings} lexSpaces(start i64, s StrKey) i64
+fn {s Stack} lexInt(idx Idx) Result 
     let count = 0
-    for ss[s][start..] -> i | ss.lexSpace(i, s) -> char(_)
-        count = count + 1
-    return count
-
-
-fn {ss Strings} lexSym(start i64, key StrKey) LexResult
-    let count = ss.lexSpaces(start, key)
-    if ss[key][..][start + count] 
-        let c = ss[key][start + count]
-        switch c
-            '/'; return LexSuccess(LexSym(c), count + 1)
-            '{'; return LexSuccess(LexSym(c), count + 1)
-            '}'; return LexSuccess(LexSym(c), count + 1)
-            '('; return LexSuccess(LexSym(c), count + 1)
-            ')'; return LexSuccess(LexSym(c), count + 1)
-            _; return null
-
-    return null
-
-
-fn {ss Strings} lexInt(start i64, key StrKey) LexResult
-    let spaceCount = ss.lexSpaces(start, key)
     let n = 0
-
-    let count = spaceCount
-    while ss.lexDigit(start + count, key) -> char(c)
+    while s.at(idx + count) -> char(c) | isDigit(c)
         n = n * 10
         n = n + i64(c - '0')
         count = count + 1
 
-    if count == spaceCount; return null
-    else;          return LexSuccess(LexInt(n), count)
+    if count > 0; return Success(LexInt(n), idx + count)
+    else;         return null
+
+
+fn {s Stack} lexIdent(idx Idx) Result
+    if s.lexAlpha(idx) -> null; return null
+    s.push('\0')
+    let id = s.len()
+
+    while true
+        if s.lexAlpha(idx) -> Success(LexChar(c), end) 
+            s.push(c)
+            idx = end
+        else if s.lexDigit(idx) -> Success(LexChar(c), end)
+            s.push(c)
+            idx = end
+        else; return Success(LexIdent(id), idx)
+
+
+fn {s Stack} lexKeyword(idx Idx) Result
+    if s.lexIdent(idx) -> Success(LexIdent(id), end)
+        data ident string 
+        {s, ident}.read(id)
+
+        let match = true
+        switch ident 
+            "for";
+            "let";
+            "fn";
+            "null";
+            "conv";
+            "import";
+            "module";
+            "type";
+            "true";
+            "false";
+            "return";
+            "if";
+            "else";
+            _; match = false
+
+        if match; return Success(LexKeyword(id), end)
+        else    ; s.popString()
+
+    return null
+
+
+fn {s Stack} lexSym(idx Idx) Result
+    data syms string "+-*/%<>[]{}().,;|="
+    if s.at(idx) -> char(c)
+        for syms -> sym 
+            if sym == c; return Success(LexSym(c), idx + 1)
+    return null
+
+
+fn {s Stack} lexDoubleSym(idx Idx) Result
+    data str string
+    if s.at(idx)     -> char(c); str.push(c)
+    if s.at(idx + 1) -> char(c); str.push(c)
+    switch str
+        "=="; return Success(LexDoubleSym('=', '='), idx + 2)
+        "!="; return Success(LexDoubleSym('!', '='), idx + 2)
+        ">="; return Success(LexDoubleSym('>', '='), idx + 2)
+        "<="; return Success(LexDoubleSym('<', '='), idx + 2)
+        "||"; return Success(LexDoubleSym('|', '|'), idx + 2)
+        "&&"; return Success(LexDoubleSym('&', '&'), idx + 2)
+        ".."; return Success(LexDoubleSym('.', '.'), idx + 2)
+        "->"; return Success(LexDoubleSym('-', '>'), idx + 2)
+        "::"; return Success(LexDoubleSym(':', ':'), idx + 2)
+        _;    return null
+
+
+fn {s Stack} lexCharLit(idx Idx) Result
+    data chars4 string
+    for s[idx..idx + 4] -> i | s.at(Idx(i)) -> char(c)
+        chars4.push(c)
+
+    switch chars4
+        "'\\n'"; return Success(LexCharLit('\n'), idx + 4)
+        "'\\t'"; return Success(LexCharLit('\t'), idx + 4)
+        "'\\0'"; return Success(LexCharLit('\0'), idx + 4)
+        _;
+
+    chars4.pop()
+    switch chars4
+        ['\'', c, '\'']; return Success(LexCharLit(c), idx + 3)
+        _;
+
+    return null
+
+
+fn {s Stack} lexStringLitChar(idx Idx) Result
+    if s.lexAlpha(idx) -> Success(a, b); return Success(a, b)
+    if s.lexDigit(idx) -> Success(a, b); return Success(a, b)
+    if s.lexSpace(idx) -> Success(a, b); return Success(a, b)
+
+
+
+fn {s Stack} lexStringLit(idx Idx) Result 
+    if s.at(idx) -> char('"')
+        idx = idx + 1
+
+        print("here")
+
+        data chars string
+
+        print("now")
+        if s.at(idx) -> char('"')
+            idx = idx + 1
+            s.push('\0')
+            let id = s.len()
+            for chars -> c; s.push(c)
+            return Success(LexStringLit(id), idx)
+
+    return null
+
+
+
+fn {s Stack} lexNewline(idx Idx) Result
+    if s.at(idx) -> char('\n')
+        s.push('\0')
+        let id = s.push('\n')
+        idx = idx + 1 
         
+        while s.at(idx) -> char(c) | c == ' ' || c == '\t'
+            s.push(c)
+            idx = idx + 1
 
-fn {ss Strings} lexIdent(start i64, key StrKey) LexResult
-    let count = ss.lexSpaces(start, key)
-
-    if ss.lexAlpha(start + count, key) -> char(c)
-        count = count + 1
-        let id = ss.push()
-        ss[id].push(c)
-
-        while true 
-            if      ss.lexAlpha(start + count, key) -> char(c); ss[id].push(c)
-            else if ss.lexDigit(start + count, key) -> char(c); ss[id].push(c)
-            else;   return LexSuccess(LexIdent(id), count)
-            count = count + 1
-
+        return Success(LexNewline(id), idx)
     return null
 
 
-fn {ss Strings} lexKeyword(start i64, key StrKey) LexResult
-    let count = ss.lexSpaces(start, key)
-
-    type Pair (str string, kw Keyword)
-    data pairs [Pair]
-    pairs.push(("for",    KeywordFor()))
-    pairs.push(("let",    KeywordLet()))
-    pairs.push(("fn",     KeywordFn()))
-    pairs.push(("null",   KeywordNull()))
-    pairs.push(("conv",   KeywordConv()))
-    pairs.push(("import", KeywordImport()))
-    pairs.push(("module", KeywordModule()))
-    pairs.push(("type",   KeywordType()))
-    pairs.push(("true",   KeywordTrue()))
-    pairs.push(("false",  KeywordFalse()))
-
-    for pairs[..] -> i
-        if {ss[key], pairs[i].str}.find() -> i64(num) | num == (start + count)
-            return LexSuccess(LexKeyword(pairs[i].kw), count + pairs[i].str.len())
-
+fn {s Stack} lex(idx Idx) Result
+    idx = s.skipSpaces(idx)
+    if s.lexNewline(idx)   -> Success(l, end); return Success(l, end)
+    if s.lexKeyword(idx)   -> Success(l, end); return Success(l, end)
+    if s.lexIdent(idx)     -> Success(l, end); return Success(l, end)
+    if s.lexInt(idx)       -> Success(l, end); return Success(l, end)
+    if s.lexDoubleSym(idx) -> Success(l, end); return Success(l, end)
+    if s.lexSym(idx)       -> Success(l, end); return Success(l, end)
+    if s.lexCharLit(idx)   -> Success(l, end); return Success(l, end)
     return null
 
 
-fn {ss Strings} lex(start i64, key StrKey) LexResult
-    if ss.lexKeyword(start, key) -> LexSuccess(a, b); return LexSuccess(a, b)
-    if ss.lexIdent(start, key)   -> LexSuccess(a, b); return LexSuccess(a, b)
-    if ss.lexInt(start, key)     -> LexSuccess(a, b); return LexSuccess(a, b)
-    if ss.lexSym(start, key)     -> LexSuccess(a, b); return LexSuccess(a, b)
-    return null
-    
-
-fn {io Io, ss Strings} writeLexeme(lexeme Lexeme)
+fn {io Io, s Stack} writeLexeme(lexeme Lexeme)
     switch lexeme 
-        LexInt(n)   ;   io.write(n)
-        LexIdent(id);   {io, ss[id]}.write()
-        LexSym(c)   ;   io.write(c)
-        LexKeyword(kw)
-            {io, "keyword: "}.write()
-            io.write(i64(kw))
-        _; print("invalid lexeme")
+        LexChar(c)
+            {io, "chr: "}.write()
+            io.write(c)
+        LexSym(c)
+            {io, "sym: "}.write()
+            io.write(c)
+        LexInt(n)
+            {io, "int: "}.write()
+            io.write(n)
+        LexDoubleSym(a, b)
+            {io, "sym: "}.write()
+            io.write(a)
+            io.write(b)
+        LexIdent(id)
+            {io, "idt: "}.write()
+            while s.at(id) -> char(c)
+                io.write(c)
+                id = id + 1
+        LexKeyword(id)
+            {io, "kwd: "}.write()
+            while s.at(id) -> char(c)
+                io.write(c)
+                id = id + 1
+        LexNewline(id)
+            {io, "nln: "}.write()
+            while s.at(id) -> char(c)
+                switch c
+                    '\n'; io.write('n')
+                    '\t'; io.write('t')
+                    ' '; io.write('s')
+                id = id + 1
+        LexCharLit(c)
+            {io, "lit: "}.write()
+            switch c
+                ' '; io.write('s')
+                '\t'; io.write('t')
+                '\n'; io.write('n')
+                '\0'; io.write('0')
+                _; io.write(c)
+        _; print("<unknown lexeme>")
 
 
-fn {io Io} main() 
-    let file = {io, "main.doo"}.openFile()
+fn {io Io} main2() 
+    let file = {io, "lang/lexer.doo"}.openFile()
 
-    data strings Strings
-    let key = strings.push()
+    data stack Stack 
 
     while io.read(file) -> char(c)
-        strings[key].push(c)
+        stack.push(c)
 
-    print(strings[key])
 
     let idx = 0
-    while strings.lex(idx, key) -> LexSuccess(lexeme, num)
-        {io, strings}.writeLexeme(lexeme)
+    while stack.lex(idx) -> Success(lexeme, end)
+        {io, stack}.writeLexeme(lexeme)
         io.write('\n')
-        idx = idx + num
-
-
-
-
-
+        idx = end

@@ -154,7 +154,7 @@ mapFind map key = do
     condBr (op eq) exit incr
 
     emitBlockStart incr
-    storeCopyVal idx =<< intInfix AST.Plus (mkI64 1) =<< pload idx
+    increment idx
     br cond
 
     emitBlockStart exit
@@ -267,8 +267,8 @@ min a b = withErrorPrefix "min: " $ do
 
 
 max :: InsCmp CompileState m => Pointer -> Pointer -> m Pointer
-max a b = withErrorPrefix "min: " $ do
-    True <- return $ typeof a == typeof b
+max a b = withErrorPrefix "max: " $ do
+    assert (typeof a == typeof b) $ show (typeof a) ++ " != " ++ show (typeof b)
     cnd <- pload =<< newInfix AST.GT a b 
     val <- newVal (typeof a)
     right <- freshName "right"
@@ -477,7 +477,7 @@ tableInfix operator a b = do
             eqs <- mapM pload =<< zipWithM (newInfix AST.EqEq) columnA columnB
             elemEq <- foldM (boolInfix AST.AndAnd) (mkBool True) eqs
             storeCopyVal eq elemEq
-            storeCopyVal idx =<< intInfix AST.Plus (mkI64 1) =<< pload idx
+            increment idx
             condBr (op elemEq) cond exit
 
             emitBlockStart exit

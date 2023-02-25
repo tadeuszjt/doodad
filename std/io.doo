@@ -39,7 +39,6 @@ fn {io Io} catFile(key FileKey)
         line.clear()
     
 
-
 fn {io Io} read() {char | null}
     switch char(c::getchar())
         x | x == -1; return null 
