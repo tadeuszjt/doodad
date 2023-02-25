@@ -68,10 +68,12 @@ fn {s Stack} lexAlpha(idx Idx) Result
         return Success(LexChar(c), idx + 1)
     return null
 
+
 fn {s Stack} lexSpace(idx Idx) Result
     if s.at(idx) -> char(c) | c == ' ' || c == '\t'
         return Success(LexChar(c), idx + 1)
     return null
+
 
 fn {s Stack} lexDigit(idx Idx) Result
     if s.at(idx) -> char(c) | isDigit(c)
@@ -140,8 +142,16 @@ fn {s Stack} lexKeyword(idx Idx) Result
     return null
 
 
+fn {s Stack} lexGraphic(idx Idx) Result
+    data syms string "-/<>[]{}().,;:|=!@#$%^&*()_+ "
+    if s.at(idx) -> char(c)
+        for syms -> sym 
+            if sym == c; return Success(LexChar(c), idx + 1)
+    return null
+
+
 fn {s Stack} lexSym(idx Idx) Result
-    data syms string "+-*/%<>[]{}().,;|="
+    data syms string "+-*/%<>[]{}().,;:|=_"
     if s.at(idx) -> char(c)
         for syms -> sym 
             if sym == c; return Success(LexSym(c), idx + 1)
@@ -165,41 +175,56 @@ fn {s Stack} lexDoubleSym(idx Idx) Result
         _;    return null
 
 
+fn {s Stack} lexEscaped(idx Idx) Result 
+    data chars2 [char] 
+    if s.at(idx) -> char(c); chars2.push(c)
+    if s.at(idx + 1) -> char(c); chars2.push(c)
+
+    switch chars2
+        ['\\', 'n']; return Success(LexChar('\n'), idx + 2)
+        ['\\', 't']; return Success(LexChar('\t'), idx + 2)
+        ['\\', '0']; return Success(LexChar('\0'), idx + 2)
+        ['\\', '\'']; return Success(LexChar('\''), idx + 2)
+        ['\\', '\\']; return Success(LexChar('\\'), idx + 2)
+        _; return null
+
+
 fn {s Stack} lexCharLit(idx Idx) Result
-    data chars4 string
-    for s[idx..idx + 4] -> i | s.at(Idx(i)) -> char(c)
-        chars4.push(c)
+    if s.at(idx) -> char('\'')
+        idx = idx + 1
+        let result = null
+        if s.lexEscaped(idx)      -> Success(x, y); result = Success(x, y)
+        else if s.lexAlpha(idx)   -> Success(x, y); result = Success(x, y)
+        else if s.lexDigit(idx)   -> Success(x, y); result = Success(x, y)
+        else if s.lexGraphic(idx) -> Success(x, y); result = Success(x, y)
+        else if s.at(idx) -> char('"'); result = Success(LexChar('"'), idx + 1)
 
-    switch chars4
-        "'\\n'"; return Success(LexCharLit('\n'), idx + 4)
-        "'\\t'"; return Success(LexCharLit('\t'), idx + 4)
-        "'\\0'"; return Success(LexCharLit('\0'), idx + 4)
-        _;
-
-    chars4.pop()
-    switch chars4
-        ['\'', c, '\'']; return Success(LexCharLit(c), idx + 3)
-        _;
+        if result -> Success(LexChar(c), end)
+            idx = end
+            if s.at(idx) -> char('\'')
+                return Success(LexCharLit(c), idx + 1)
 
     return null
 
 
 fn {s Stack} lexStringLitChar(idx Idx) Result
-    if s.lexAlpha(idx) -> Success(a, b); return Success(a, b)
-    if s.lexDigit(idx) -> Success(a, b); return Success(a, b)
-    if s.lexSpace(idx) -> Success(a, b); return Success(a, b)
-
+    if s.lexEscaped(idx) -> Success(a, b); return Success(a, b)
+    if s.lexAlpha(idx)   -> Success(a, b); return Success(a, b)
+    if s.lexDigit(idx)   -> Success(a, b); return Success(a, b)
+    if s.lexSpace(idx)   -> Success(a, b); return Success(a, b)
+    if s.lexGraphic(idx) -> Success(a, b); return Success(a, b)
+    return null
 
 
 fn {s Stack} lexStringLit(idx Idx) Result 
     if s.at(idx) -> char('"')
         idx = idx + 1
 
-        print("here")
-
         data chars string
+        while s.lexStringLitChar(idx) -> Success(LexChar(c), end)
+            chars.push(c)
+            idx = end
 
-        print("now")
         if s.at(idx) -> char('"')
             idx = idx + 1
             s.push('\0')
@@ -208,7 +233,6 @@ fn {s Stack} lexStringLit(idx Idx) Result
             return Success(LexStringLit(id), idx)
 
     return null
-
 
 
 fn {s Stack} lexNewline(idx Idx) Result
@@ -228,6 +252,7 @@ fn {s Stack} lexNewline(idx Idx) Result
 fn {s Stack} lex(idx Idx) Result
     idx = s.skipSpaces(idx)
     if s.lexNewline(idx)   -> Success(l, end); return Success(l, end)
+    if s.lexStringLit(idx) -> Success(l, end); return Success(l, end)
     if s.lexKeyword(idx)   -> Success(l, end); return Success(l, end)
     if s.lexIdent(idx)     -> Success(l, end); return Success(l, end)
     if s.lexInt(idx)       -> Success(l, end); return Success(l, end)
@@ -278,10 +303,15 @@ fn {io Io, s Stack} writeLexeme(lexeme Lexeme)
                 '\n'; io.write('n')
                 '\0'; io.write('0')
                 _; io.write(c)
+        LexStringLit(id)
+            {io, "str: "}.write()
+            while s.at(id) -> char(c)
+                io.write(c)
+                id = id + 1
         _; print("<unknown lexeme>")
 
 
-fn {io Io} main2() 
+fn {io Io} main() 
     let file = {io, "lang/lexer.doo"}.openFile()
 
     data stack Stack 

@@ -228,7 +228,6 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
         cmpPrint stmt
 
     AST.Typedef pos symbol anno -> return ()
-
     AST.Block stmts   -> mapM_ cmpStmt stmts
     AST.ExprStmt expr -> withErrorPrefix "exprStmt: " $ void $ cmpExpr expr
 

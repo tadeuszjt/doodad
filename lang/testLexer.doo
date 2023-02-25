@@ -3,6 +3,11 @@ module testLexer
 import lexer
 
 
+fn {s Stack, str string} checkStr(id Idx)
+    data result string 
+    {s, result}.read(id)
+    let true = str == result
+
 fn testLexAlpha()
     data s Stack "  testString123 "
     let null = s.lexAlpha(0)
@@ -71,12 +76,8 @@ fn testLexNewline()
     let null = s.lexNewline(7)
     let Success(LexNewline(id1), 21)  = s.lexNewline(18)
 
-    data result string 
-    {s, result}.read(id0)
-    let "\n  " = result
-    result.clear()
-    {s, result}.read(id1)
-    let "\n\t\t" = result
+    {s, "\n  "}.checkStr(id0)
+    {s, "\n\t\t"}.checkStr(id1)
 
 
 
@@ -91,9 +92,21 @@ fn testLexCharLit()
 
 
 fn testLexStringLit()
-    data s Stack "stuff\"astri ng123\"\t more"
+    data s Stack "s\"str+ 123\"\t more"
     let null = s.lexStringLit(0)
-    let Success(_, _) = s.lexStringLit(5)
+    let Success(LexStringLit(id0), _) = s.lexStringLit(1)
+    let null = s.lexStringLit(6)
+
+    {s, "str+ 123"}.checkStr(id0)
+
+
+fn testLexEscaped()
+    data s Stack "s\\n+ 13\\\\more"
+    let null = s.lexEscaped(0)
+    let Success(LexChar('\n'), 3) = s.lexEscaped(1)
+    let null = s.lexEscaped(2)
+    let Success(LexChar('\\'), 9) = s.lexEscaped(7)
+    let null = s.lexEscaped(6)
 
 
 fn testLexer() 
@@ -106,4 +119,6 @@ fn testLexer()
     testLexDoubleSym()
     testLexNewline()
     testLexCharLit()
+    testLexStringLit()
+    testLexEscaped()
     print("testLexer passed")
