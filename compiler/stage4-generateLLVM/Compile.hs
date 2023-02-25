@@ -24,6 +24,7 @@ import qualified LLVM.AST.Constant as C
 import qualified LLVM.Internal.FFI.DataLayout as FFI
 import LLVM.AST.Global hiding (prefix)
 import LLVM.IRBuilder.Instruction as LL
+import qualified LLVM.AST.IntegerPredicate as P
 import LLVM.IRBuilder.Constant
 import LLVM.IRBuilder.Module
 import LLVM.IRBuilder.Monad
@@ -212,6 +213,14 @@ cmpFuncBodies irGenState = do
                 unreachable
 
 
+trapBranch :: InsCmp CompileState m => LL.Operand -> m () -> m ()
+trapBranch cnd continue = do
+    b <- icmp P.EQ cnd (bit 0)
+    when_ b trap
+    continue
+
+
+
 cmpStmt :: InsCmp CompileState m => AST.Stmt -> m ()
 cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
     AST.Print pos exprs   -> do
@@ -232,10 +241,7 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
 
     AST.Assign pos pat expr -> withErrorPrefix "assign: " $ do
         val <- cmpExpr expr
-        matched <- cmpPattern pat val
-        let trap = trapMsg ("pattern match failure at: " ++ show (textPos expr))
-        if_ (op matched) (return ()) (trap)
-        return ()
+        cmpPattern pat val trapBranch $ return ()
 
     AST.Set pos expr1 expr2 -> do
         label "set"
@@ -252,11 +258,43 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
         ret . op =<< pload =<< cmpExpr expr
         emitBlockStart =<< fresh
 
+    AST.If pos (AST.AExpr _ (AST.Match _ expr pat)) blk melse -> do
+        val <- cmpExpr expr
+        yes <- newBool True
+        cmpPattern pat val when_ $ do
+            storeCopyVal yes (mkBool False) 
+            cmpStmt blk
+
+        when (isJust melse) $ do
+            y <- pload yes
+            when_ (op y) $ cmpStmt (fromJust melse)
+
     AST.If pos expr blk melse -> do
         label "if"
         val <- pload =<< cmpExpr expr
         Bool <- baseTypeOf val
         if_ (op val) (cmpStmt blk) $ maybe (return ()) cmpStmt melse
+
+
+    AST.While pos (AST.AExpr _ (AST.Match _ expr pat)) blk -> do
+        label "while"
+        cond <- freshName "while_cond"
+        exit <- freshName "while_exit"
+
+        br cond
+        emitBlockStart cond
+
+        b <- newVal Bool
+        val <- cmpExpr expr
+        cmpPattern pat val when_ $ do
+            cmpStmt blk
+            storeCopyVal b (mkBool True)
+        b' <- pload b
+        condBr (op b') cond exit
+        
+        emitBlockStart exit
+
+
 
     AST.While pos cnd blk -> do
         label "while"
@@ -278,7 +316,7 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
     AST.Switch _ expr cases -> do
         label "switch"
         val <- cmpExpr expr
-        let cases' = [(fmap op (cmpPattern pat val), cmpStmt stmt) | (pat, stmt) <- cases]
+        let cases' = [(fmap op (switchHelper pat val stmt), return ()) | (pat, stmt) <- cases]
         let trap   = trapMsg ("switch match failure at: " ++ show (textPos stmt))
         switch_ $ cases' ++ [(return (bit 1), trap)]
 
@@ -298,7 +336,6 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
 
         cond <- freshName "for_cond"
         body <- freshName "for_body"
-        patm <- freshName "for_patm"
         exit <- freshName "for_exit"
 
         br cond
@@ -311,31 +348,46 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
             Array n t -> newI64 n
             _ -> error (show base)
         ilt <- pload =<< newInfix AST.LT idx end
-        condBr (op ilt) patm exit
+        condBr (op ilt) body exit
 
-        -- match pattern (if present)
-        emitBlockStart patm
-        patMatch <- case mpat of
-            Nothing -> return (mkBool True)
-            Just pat -> case base of
-                Table ts -> do
-                    [elm] <- tableColumn val =<< pload =<< toType I64 idx
-                    cmpPattern pat elm
-                Range t -> cmpPattern pat idx
-                Array n t -> cmpPattern pat =<< arrayGetElem val =<< pload =<< toType I64 idx
-                _ -> error (show base)
-        condBr (op patMatch) body exit
-        
+
         -- for loop body
         emitBlockStart body
-        cmpStmt blk
+        patMatched <- newBool False
+
+        case mpat of
+            Nothing -> do 
+                cmpStmt blk
+                storeCopyVal patMatched (mkBool True)
+            Just pat -> do 
+                patVal <- case base of
+                    Table ts -> do
+                        [elm] <- tableColumn val =<< pload =<< toType I64 idx
+                        return elm
+                    Range t   ->  return idx
+                    Array n t -> arrayGetElem val =<< pload =<< toType I64 idx
+                    _ -> error (show base)
+
+                cmpPattern pat patVal when_ $ do 
+                    cmpStmt blk
+                    storeCopyVal patMatched (mkBool True)
+
         increment idx
-        br cond
+        b <- pload patMatched
+        condBr (op b) cond exit
 
         emitBlockStart exit
 
     _ -> error (show stmt)
     where
+        switchHelper p v stmt = do
+            matched <- newBool False
+            cmpPattern p v when_ $ do 
+                cmpStmt stmt
+                storeCopyVal matched (mkBool True)
+            pload matched
+
+
         label :: InsCmp CompileState m => String -> m ()
         label str = do
             return ()
@@ -355,10 +407,6 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
     AST.Field pos expr symbol    -> (tupleField symbol =<< cmpExpr expr)
     AST.Null p                   -> adtNull exprType
     AST.Conv pos typ exprs      -> construct typ =<< mapM cmpExpr exprs
-    AST.Match pos expr pat       -> do 
-        b <- newVal exprType
-        storeBasicVal b =<< cmpPattern pat =<< cmpExpr expr
-        return b
     AST.Prefix pos operator expr -> do 
         val <- newVal exprType
         storeBasicVal val =<< prefix operator =<< cmpExpr expr
@@ -640,8 +688,10 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
 
 
 
-cmpPatTuple :: InsCmp CompileState m => [AST.Pattern] -> Pointer -> m () -> m ()
-cmpPatTuple pats tup mMatched = do 
+
+
+cmpPatTuple :: InsCmp CompileState m => [AST.Pattern] -> Pointer -> (LL.Operand -> m () -> m ()) -> m () -> m ()
+cmpPatTuple pats tup branch mMatched = do 
     len <- tupleLength =<< pload tup
     assert (len == length pats) "incorrect tuple length"
     matchField len 0
@@ -649,13 +699,13 @@ cmpPatTuple pats tup mMatched = do
         matchField len i
             | i == len  = mMatched
             | otherwise = do
-                matched <- cmpPattern (pats !! i) =<< tupleIdx i tup
-                when_ (op matched) $ matchField len (i + 1)
+                ptr <- tupleIdx i tup
+                cmpPattern (pats !! i) ptr branch $ matchField len (i + 1)
 
 
 
-cmpPatArray :: InsCmp CompileState m => [[AST.Pattern]] -> Pointer -> m () -> m ()
-cmpPatArray patss val mMatched = do
+cmpPatArray :: InsCmp CompileState m => [[AST.Pattern]] -> Pointer -> (LL.Operand -> m () -> m ()) -> m () -> m ()
+cmpPatArray patss val branch mMatched = do
     Table ts <- baseTypeOf val
     assert (length patss == length ts) "Invalid number of rows"
     forM_ (zip ts [0..]) $ \(t, i) -> do
@@ -673,38 +723,78 @@ cmpPatArray patss val mMatched = do
         matchTableRow pats row c mMatched
             | c == length pats = mMatched
             | otherwise = do
-                matched <- cmpPattern (pats !! c) =<< advancePointer row (mkI64 c)
-                when_ (op matched) $ matchTableRow pats row (c + 1) mMatched
+                ptr <- advancePointer row (mkI64 c)
+                cmpPattern (pats !! c) ptr branch $ matchTableRow pats row (c + 1) mMatched
 
-            
 
-cmpPattern :: InsCmp CompileState m => AST.Pattern -> Pointer -> m Value
-cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pattern of
-    AST.PatIgnore _     -> return (mkBool True)
-    AST.PatLiteral expr -> pload =<< newInfix AST.EqEq val =<< cmpExpr expr
-    AST.PatTuple _ pats -> do 
-        b <- newBool False
-        cmpPatTuple pats val $ storeCopyVal b (mkBool True)
-        pload b 
+cmpPatAdtField :: InsCmp CompileState m => Symbol -> [AST.Pattern] -> Pointer -> (LL.Operand -> m () -> m()) -> m () -> m ()
+cmpPatAdtField symbol pats val branch mMatched = do
+    ADT fs <- baseTypeOf val
+    obj <- look symbol
+    i <- case obj of 
+        ObjType _  -> adtTypeField (typeof val) (Typedef symbol)
+        ObjField i -> return i
+
+    enumMatch <- intInfix AST.EqEq (mkI64 i) =<< adtEnum =<< pload val
+    branch (op enumMatch) $ do
+        field <- adtField val i -- tuple or type
+        case pats of 
+            [pat] -> cmpPattern pat field branch mMatched
+            pats -> do 
+                ts <- case obj of
+                    ObjType _ -> baseTypeOf field >>= \(Tuple ts) -> return ts
+                    ObjField _ -> return $ let FieldCtor ts = fs !! i in ts
+                assert (length pats == length ts) "invalid ADT pattern"
+                matchArg 0 field
+    where 
+        matchArg j field
+            | j == length pats = mMatched
+            | otherwise = do 
+                arg <- tupleIdx j field
+                cmpPattern (pats !! j) arg branch $ matchArg (j + 1) field
+
+
+cmpPatField :: InsCmp CompileState m => Symbol -> [AST.Pattern] -> Pointer -> (LL.Operand -> m () -> m()) -> m () -> m ()
+cmpPatField symbol pats val branch mMatched = do
+    base <- baseTypeOf val 
+    case base of
+        ADT fs -> cmpPatAdtField symbol pats val branch mMatched
+        Enum -> do
+            assert (pats == []) "enum pattern with args"
+            ObjField i <- look symbol
+            enumMatched <- intInfix AST.EqEq (mkI64 i) =<< adtEnum =<< pload val
+            branch (op enumMatched) mMatched
+
+
+cmpPattern :: InsCmp CompileState m => AST.Pattern -> Pointer -> (LL.Operand -> m () -> m ()) -> m () -> m ()
+cmpPattern pattern val branch mMatched = withErrorPrefix "pattern: " $ withPos pattern $ case pattern of
+    AST.PatIgnore _     -> mMatched
+    AST.PatTuple _ pats -> cmpPatTuple pats val branch $ mMatched
+
+    AST.PatLiteral expr -> do 
+        eq <- pload =<< newInfix AST.EqEq val =<< cmpExpr expr
+        branch (op eq) mMatched
+
 
     AST.PatNull _ -> do -- null
         i <- adtNullField (typeof val)
-        intInfix AST.EqEq (mkI64 i) =<< adtEnum =<< pload val
+        enumMatch <- intInfix AST.EqEq (mkI64 i) =<< adtEnum =<< pload val
+        branch (op enumMatch) mMatched
 
     AST.PatAnnotated pat typ -> do -- a:i32
         assert (typeof val == typ) "pattern type mismatch"
-        cmpPattern pat val
+        cmpPattern pat val branch mMatched
 
     AST.PatGuarded _ pat expr mpat -> do -- a | a > 0
-        matched <- newBool False
-
-        match <- cmpPattern pat val
-        when_ (op match) $ do
+        cmpPattern pat val branch $ do
             case mpat of 
-                Nothing -> storeCopy matched =<< cmpExpr expr
-                Just pat -> storeCopyVal matched =<< cmpPattern pat =<< cmpExpr expr
+                Nothing -> do 
+                    b <- pload =<< cmpExpr expr
+                    branch (op b) mMatched
 
-        pload matched
+                Just pat -> do 
+                    v <- cmpExpr expr
+                    cmpPattern pat v branch mMatched
 
     AST.PatIdent _ symbol -> trace ("cmpPattern " ++ show pattern) $ do -- a
         base <- baseTypeOf val
@@ -712,65 +802,27 @@ cmpPattern pattern val = withErrorPrefix "pattern: " $ withPos pattern $ case pa
         loc <- newVal (typeof val)
         storeCopy loc val
         define symbol (ObjVal loc)
-        return $ mkBool True
+        mMatched
 
     AST.PatArray _ patss -> do 
         base <- baseTypeOf val
         case base of
-            Sparse ts -> cmpPattern pattern =<< sparseTable val
-            Table ts -> do 
-                b <- newBool False
-                cmpPatArray patss val $ storeCopyVal b (mkBool True)
-                pload b
+            Sparse ts -> do 
+                tab <- sparseTable val
+                cmpPattern pattern tab branch mMatched
+            Table ts -> cmpPatArray patss val branch mMatched
 
             _ -> fail (show base)
 
-    AST.PatField _ symbol pats -> do -- symbol(a, b, c)
-        base <- baseTypeOf val 
-        case base of
-            Enum -> do
-                assert (pats == []) "enum pattern with args"
-                ObjField i <- look symbol
-                v <- pload val
-                enumInfix AST.EqEq v =<< pload =<< newEnum (typeof val) i
-
-            ADT fs -> do
-                matched <- newBool False 
-
-                obj <- look symbol
-                i <- case obj of 
-                    ObjType _  -> adtTypeField (typeof val) (Typedef symbol)
-                    ObjField i -> return i
-                enumMatch <- intInfix AST.EqEq (mkI64 i) =<< adtEnum =<< pload val
-
-                when_ (op enumMatch) $ do
-                    field <- adtField val i -- tuple or type
-
-                    matchs <- case pats of 
-                        [pat] -> fmap (:[]) $ cmpPattern pat field
-                        pats -> do 
-                            ts <- case obj of
-                                ObjType _ -> baseTypeOf field >>= \(Tuple ts) -> return ts
-                                ObjField _ -> return $ let FieldCtor ts = fs !! i in ts
-
-                            assert (length pats == length ts) "invalid ADT pattern"
-                            forM (zip pats [0..]) $ \(pat, j) -> 
-                                cmpPattern pat =<< tupleIdx j field
-
-                    storeCopyVal matched =<< foldM (boolInfix AST.AndAnd) (mkBool True) matchs
-
-                pload matched
+    AST.PatField _ symbol pats -> cmpPatField symbol pats val branch mMatched
 
 
     AST.PatTypeField _ typ pat -> do -- char(c)
-        matched <- newBool False
-
         i <- adtTypeField (typeof val) typ
         enumMatch <- intInfix AST.EqEq (mkI64 i) =<< adtEnum =<< pload val
-        when_ (op enumMatch) $ do
-            storeCopyVal matched =<< cmpPattern pat =<< adtField val i
-
-        pload matched
+        branch (op enumMatch) $ do
+            field <- adtField val i
+            cmpPattern pat field branch mMatched
 
                     
 cmpPrint :: InsCmp CompileState m => AST.Stmt -> m ()

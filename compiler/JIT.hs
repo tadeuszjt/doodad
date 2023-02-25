@@ -129,12 +129,12 @@ jitAndRun defs session keepModule verbose = do
             let pm = passManager session
             let cl = compileLayer session
 
-            verifyErr <- catchAll (verify mod >> return Nothing) $ \e ->
-                return (Just e)
-
             when (isJust pm) $ do
                 when verbose (putStrLn "running optimisation passes...")
                 void $ runPassManager (fromJust pm) mod
+
+            verifyErr <- catchAll (verify mod >> return Nothing) $ \e ->
+                return (Just e)
 
             when verbose (BS.putStrLn =<< M.moduleLLVMAssembly mod)
             when (isJust verifyErr) $ do

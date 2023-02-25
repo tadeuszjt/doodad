@@ -49,8 +49,10 @@ adtTypeField adtType typ = do
 
 adtEnum :: InsCmp CompileState m => Value -> m Value
 adtEnum adt = do
-    ADT fs <- baseTypeOf adt
-    Value I64 <$> extractValue (op adt) [0]
+    base <- baseTypeOf adt 
+    case base of
+        Enum   -> return $ Value I64 (op adt)
+        ADT fs -> Value I64 <$> extractValue (op adt) [0]
 
 
 adtSetEnum :: InsCmp CompileState m => Pointer -> Int -> m ()
