@@ -370,8 +370,16 @@ arrayInfix :: InsCmp CompileState m => AST.Operator -> Pointer -> Pointer -> m P
 arrayInfix operator a b = do
     assert (typeof a == typeof b) "infix type mismatch"
     Array n t <- baseTypeOf a
+    isDataType <- isDataType t
 
     case operator of
+        AST.EqEq | not isDataType -> do 
+            pA <- arrayGetElem a (mkI64 0)
+            pB <- arrayGetElem b (mkI64 0)
+            result <- newVal Bool
+            storeCopyVal result =<< intInfix AST.EqEq (mkI64 0) =<< memCmp pA pB (mkI64 n)
+            return result
+
         _ | operator `elem` [AST.Plus, AST.Minus, AST.Times, AST.Divide, AST.Modulo] -> do
             arr <- newVal (typeof a)
             forM_ [0..n] $ \i -> do
@@ -446,11 +454,18 @@ tupleInfix operator a b = withErrorPrefix "tuple infix: " $ do
 tableInfix :: InsCmp CompileState m => AST.Operator -> Pointer -> Pointer -> m Pointer
 tableInfix operator a b = do
     Table ts <- baseTypeOf a
+    noneDataType <- all (== False) <$> mapM isDataType ts
+
     assert (typeof a == typeof b) "type mismatch"
 
     lenA <- pload =<< tableLen a
     lenB <- tableLen b
     lenEq <- intInfix AST.EqEq lenA =<< pload lenB
+    exit <- freshName "eqeq_table_exit"
+    start <- freshName "eqeq_table_start"
+    cond <- freshName "eqeq_table_cond"
+    body <- freshName "eqeq_table_body"
+
 
     case operator of
         AST.NotEq -> do 
@@ -462,32 +477,38 @@ tableInfix operator a b = do
         AST.EqEq  -> do
             eq <- newBool False
 
-            exit <- freshName "eqeq_table_exit"
-            start <- freshName "eqeq_table_start"
-            cond <- freshName "eqeq_table_cond"
-            body <- freshName "eqeq_table_body"
-
             -- test that len(a) == len(b)
             condBr (op lenEq) start exit
-            emitBlockStart start
-            idx <- newI64 0
-            storeCopyVal eq (mkBool True)
-            br cond
 
-            -- test that the idx < len
-            emitBlockStart cond
-            idxLT <- intInfix AST.GT lenA =<< pload idx
-            condBr (op idxLT) body exit
+            case noneDataType of 
+                True -> do
+                    emitBlockStart start
 
-            -- test that a[i] == b[i]
-            emitBlockStart body
-            columnA <- tableColumn a =<< pload idx
-            columnB <- tableColumn b =<< pload idx
-            eqs <- mapM pload =<< zipWithM (newInfix AST.EqEq) columnA columnB
-            elemEq <- foldM (boolInfix AST.AndAnd) (mkBool True) eqs
-            storeCopyVal eq elemEq
-            increment idx
-            condBr (op elemEq) cond exit
+                    bs <- forM (zip ts [0..]) $ \(t, i) -> do
+                        rowA <- tableRow i a
+                        rowB <- tableRow i b
+                        intInfix AST.EqEq (mkI64 0) =<< memCmp rowA rowB lenA
+                    storeCopyVal eq =<< foldM (boolInfix AST.AndAnd) (mkBool True) bs
+                    br exit
+                False -> do
+                    emitBlockStart start
+                    idx <- newI64 0
+                    br cond
+
+                    -- test that the idx < len
+                    emitBlockStart cond
+                    idxLT <- intInfix AST.GT lenA =<< pload idx
+                    condBr (op idxLT) body exit
+
+                    -- test that a[i] == b[i]
+                    emitBlockStart body
+                    columnA <- tableColumn a =<< pload idx
+                    columnB <- tableColumn b =<< pload idx
+                    eqs <- mapM pload =<< zipWithM (newInfix AST.EqEq) columnA columnB
+                    elemEq <- foldM (boolInfix AST.AndAnd) (mkBool True) eqs
+                    storeCopyVal eq elemEq
+                    increment idx
+                    condBr (op elemEq) cond exit
 
             emitBlockStart exit
             return eq

@@ -8,7 +8,7 @@ import std/test/test
 
 
 fn {io Io} main() 
-    io.lexerMain()
-    testLexer()
-    io.testStd()
-    testLang()
+    for [..1]
+        testLexer()
+        io.testStd()
+        testLang()

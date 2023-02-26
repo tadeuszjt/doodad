@@ -249,6 +249,15 @@ advancePointer ptr idx = do
     I64 <- baseTypeOf idx
     Pointer (typeof ptr) <$> gep (loc ptr) [op idx]
 
+memCmp :: InsCmp CompileState m => Pointer -> Pointer -> Value -> m Value 
+memCmp (Pointer dstTyp dst) (Pointer srcTyp src) len = do
+    True <- return (dstTyp == srcTyp)
+    I64 <- baseTypeOf len
+
+    size <- sizeOf dstTyp
+    pDstI8 <- bitcast dst (LL.ptr LL.i8)
+    pSrcI8 <- bitcast src (LL.ptr LL.i8)
+    fmap (Value I64) $ memcmp pDstI8 pSrcI8 =<< mul (op size) (op len)
 
 memCpy :: InsCmp CompileState m => Pointer -> Pointer -> Value -> m ()
 memCpy (Pointer dstTyp dst) (Pointer srcTyp src) len = trace "valMemCpy" $ do

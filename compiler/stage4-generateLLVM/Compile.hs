@@ -16,7 +16,7 @@ import Control.Monad.IO.Class
 import Control.Monad.Fail hiding (fail)
 import Control.Monad.Except hiding (void, fail)
 import Foreign.Ptr
-
+ 
 import LLVM.AST.Name hiding (Func)
 import qualified LLVM.AST as LL
 import qualified LLVM.AST.Type as LL
@@ -555,7 +555,15 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
                 tab2 <- newVal exprType
                 storeCopy tab2 tab
                 return tab2
-            _ -> fail (show base)
+
+            Array n Char -> do
+                arr <- newVal exprType
+                src <- Pointer Char <$> getStringPointer s
+                dst <- arrayGetElem arr (mkI64 0)
+                memCpy dst src (mkI64 $ length s)
+                return arr
+
+            _ -> fail ("AST.String: " ++ show base)
                 
 
     AST.Call pos params symbol args  -> withErrorPrefix "call: " $ do
@@ -817,6 +825,15 @@ cmpPattern pattern val branch mMatched = withErrorPrefix "pattern: " $ withPos p
                 tab <- sparseTable val
                 cmpPattern pattern tab branch mMatched
             Table ts -> cmpPatArray patss val branch mMatched
+            Array n t -> do 
+                tab <- newVal (Table [t])
+                len <- tableLen tab
+                cap <- tableCap tab
+                storeCopyVal len (mkI64 n)
+                storeCopyVal cap (mkI64 n)
+                tableSetRow tab 0 =<< arrayGetElem val (mkI64 0)
+                cmpPatArray patss tab branch mMatched
+
 
             _ -> fail (show base)
 
