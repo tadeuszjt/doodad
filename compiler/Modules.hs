@@ -106,10 +106,23 @@ parse args file = do
     if useNewLexer args then do
         when (verbose args) $
             liftIO $ putStrLn $ "running new lexer for: " ++ file
-        tokens <- lexFile file
+        newTokens <- lexFile file
+
         when (printTokens args) $ do
-            liftIO $ mapM_ (putStrLn . show) tokens
-        parseTokens =<< lexFile file
+            liftIO $ mapM_ (putStrLn . show) newTokens
+
+        source <- liftIO (readFile file)
+        oldTokens <- case L.alexScanner file source of
+            Left errStr -> throwError (ErrorStr errStr)
+            Right tokens -> return tokens
+
+        forM_ (zip oldTokens newTokens) $ \(oldTok@(L.Token _ ta sa), newTok@(L.Token _ tb sb)) -> do
+            when ((ta, sa) /= (tb, sb)) $ do
+                liftIO $ putStrLn $ "token mismatch: " ++ show oldTok ++ "  " ++ show newTok
+
+        parseTokens newTokens
+
+
     else do
         source <- liftIO (readFile file)
         case L.alexScanner file source of

@@ -270,19 +270,20 @@ fn {s Stack} lexStringLit(idx Idx) Result
 
 
 fn {s Stack} lexNewline(idx Idx) Result
-    if s.at(idx) -> char('\n')
-        while s.at(idx) -> char('\n')
-            idx = idx + 1
-        
-        s.push('\0')
-        let id = s.len()
-        
-        while s.lexSpace(idx) -> Success(LexChar(c), end)
-            s.push(c)
-            idx = end
+    data chars string 
+    while s.at(idx) -> char(c) | c == ' ' || c == '\t' || c == '\n'
+        idx = idx + 1
+        chars.push(c)
 
-        return Success(LexNewline(id), idx)
-    return null
+    let lastNPos = -1
+    for chars[..] -> i | chars.len() - i - 1 -> j | lastNPos == -1
+        if chars[j] == '\n'; lastNPos = j
+    if lastNPos == -1; return null
+
+    s.push('\0')
+    let id = s.len()
+    for chars[lastNPos + 1..] -> i; s.push(chars[i])
+    return Success(LexNewline(id), idx)
 
 
 fn {s Stack} lex(idx Idx) Result
@@ -394,13 +395,16 @@ fn {io Io} main()
                 indentStack[indentStack.push()] = indent
 
             else 
+                io.writeTextPos(idx, column)
+                {io, " ind: N"}.writeLn()
                 while indent != indentStack[indentStack.len() - 1]
-                    io.writeTextPos(idx, column)
-                    {io, " ind: D"}.writeLn()
                     if indentStack.len() == 1
                         {io, "INDENT ERRROR"}.writeLn()
                         return
-                    else; indentStack.pop()
+
+                    indentStack.pop()
+                    io.writeTextPos(idx, column)
+                    {io, " ind: D"}.writeLn()
 
         else
             io.writeTextPos(idx, column)
