@@ -19,6 +19,8 @@ import qualified Parser as P
 import qualified Lexer as L
 import qualified SymTab
 import Resolve
+import LexemeReader
+
 
 main :: IO ()
 main = do
@@ -37,7 +39,7 @@ main = do
                     Right (r, _) -> mapM_ (putStrLn . show) r
     else if astOnly parsedArgs then
         forM_ (modPaths parsedArgs) $ \path -> do
-            res <- runBoMT () (parse path)
+            res <- runBoMT () $ parse parsedArgs path
             case res of
                 Left err     -> printError err 
                 Right (ast, _) -> prettyAST ast

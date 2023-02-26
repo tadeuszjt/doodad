@@ -42,15 +42,6 @@ fn testLexKeyword()
     {s, result}.read(id)
     let "return" = result
 
-
-fn testSkipSpaces()
-    data s Stack "  return\t35"
-    let 2 = s.skipSpaces(0)
-    let 2 = s.skipSpaces(2)
-    let 9 = s.skipSpaces(8)
-    let 11 = s.skipSpaces(11)
-
-
 fn testLexSym()
     data s Stack " /ret?urn+35- % "
     let null = s.lexSym(0)
@@ -76,8 +67,8 @@ fn testLexNewline()
     let null = s.lexNewline(7)
     let Success(LexNewline(id1), 21)  = s.lexNewline(18)
 
-    {s, "\n  "}.checkStr(id0)
-    {s, "\n\t\t"}.checkStr(id1)
+    {s, "  "}.checkStr(id0)
+    {s, "\t\t"}.checkStr(id1)
 
 
 
@@ -96,7 +87,6 @@ fn testLexStringLit()
     let null = s.lexStringLit(0)
     let Success(LexStringLit(id0), _) = s.lexStringLit(1)
     let null = s.lexStringLit(6)
-
     {s, "str+ 123"}.checkStr(id0)
 
 
@@ -109,16 +99,25 @@ fn testLexEscaped()
     let null = s.lexEscaped(6)
 
 
+fn testLexImport()
+    data s Stack " import ../someDir/someFile; someNonsense"
+    let null = s.lexImport(0)
+    let Success(LexImport(id), 27) = s.lexImport(1)
+    let null = s.lexImport(2)
+    {s, "../someDir/someFile"}.checkStr(id)
+
+
 fn testLexer() 
     testLexAlpha()
     testLexInt()
     testLexIdent()
     testLexKeyword()
-    testSkipSpaces()
     testLexSym()
-    testLexDoubleSym()
+    testLexDoubleSym() 
     testLexNewline()
     testLexCharLit()
     testLexStringLit()
     testLexEscaped()
+    testLexImport()
     print("testLexer passed")
+

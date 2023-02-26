@@ -216,7 +216,7 @@ cmpFuncBodies irGenState = do
 trapBranch :: InsCmp CompileState m => LL.Name -> LL.Operand -> m () -> m ()
 trapBranch endName cnd continue = do
     b <- icmp P.EQ cnd (bit 0)
-    when_ b $ br endName
+    when_ b $ trap
     continue
 
 

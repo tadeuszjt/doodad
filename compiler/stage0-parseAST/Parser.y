@@ -36,24 +36,24 @@ import Symbol
     'D'        { Token _ Dedent _ }
     'N'        { Token _ NewLine _ }
 
-    '+'        { Token _ ReservedOp "+" }
-    '-'        { Token _ ReservedOp "-" }
-    '*'        { Token _ ReservedOp "*" }
-    '/'        { Token _ ReservedOp "/" }
-    '%'        { Token _ ReservedOp "%" }
-    '<'        { Token _ ReservedOp "<" }
-    '>'        { Token _ ReservedOp ">" }
-    '='        { Token _ ReservedOp "=" }
-    '!'        { Token _ ReservedOp "!" }
-    '!='       { Token _ ReservedOp "!=" }
-    '<='       { Token _ ReservedOp "<=" }
-    '>='       { Token _ ReservedOp ">=" }
-    '=='       { Token _ ReservedOp "==" }
-    '&&'       { Token _ ReservedOp "&&" }
-    '||'       { Token _ ReservedOp "||" }
-    '::'       { Token _ ReservedOp "::" }
-    '->'       { Token _ ReservedOp "->" }
-    '..'       { Token _ ReservedOp ".." }
+    '+'        { Token _ TokSym "+" }
+    '-'        { Token _ TokSym "-" }
+    '*'        { Token _ TokSym "*" }
+    '/'        { Token _ TokSym "/" }
+    '%'        { Token _ TokSym "%" }
+    '<'        { Token _ TokSym "<" }
+    '>'        { Token _ TokSym ">" }
+    '='        { Token _ TokSym "=" }
+    '!'        { Token _ TokSym "!" }
+    '!='       { Token _ TokSym "!=" }
+    '<='       { Token _ TokSym "<=" }
+    '>='       { Token _ TokSym ">=" }
+    '=='       { Token _ TokSym "==" }
+    '&&'       { Token _ TokSym "&&" }
+    '||'       { Token _ TokSym "||" }
+    '::'       { Token _ TokSym "::" }
+    '->'       { Token _ TokSym "->" }
+    '..'       { Token _ TokSym ".." }
 
     fn         { Token _ Reserved "fn" }
     extern     { Token _ Reserved "extern" }

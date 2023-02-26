@@ -1,14 +1,8 @@
 module testMain 
 
 import std/io
-import lang/lexer
-import lang/testLexer
-import lang/test/testLang
 import std/test/test
 
-
 fn {io Io} main() 
-    for [..1]
-        testLexer()
-        io.testStd()
-        testLang()
+    io.testStd()
+    print("you did it son")

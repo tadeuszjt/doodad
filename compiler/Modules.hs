@@ -15,6 +15,7 @@ import Data.Maybe
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
+import LexemeReader
 import qualified AST as S
 import qualified Parser as P
 import qualified Lexer as L
@@ -69,33 +70,37 @@ getDoodadFilesInDirectory dir = do
     return [ dir ++ "/" ++ f | f <- list, isSuffixOf ".doo" f ]
 
 
-getSpecificModuleFiles :: BoM s m => String -> [FilePath] -> m [FilePath]
-getSpecificModuleFiles name []     = return []
-getSpecificModuleFiles name (f:fs) = do
+getSpecificModuleFiles :: BoM s m => Args -> String -> [FilePath] -> m [FilePath]
+getSpecificModuleFiles args name []     = return []
+getSpecificModuleFiles args name (f:fs) = do
     source <- liftIO (readFile f)
-    ast <- parse f
+    ast <- parse args f
     if (S.astModuleName ast) == name then
-        (f:) <$> getSpecificModuleFiles name fs
+        (f:) <$> getSpecificModuleFiles args name fs
     else
-        getSpecificModuleFiles name fs
+        getSpecificModuleFiles args name fs
 
 
-lexFile :: BoM s m => FilePath -> m [L.Token]
-lexFile file = do
-    source <- liftIO (readFile file)
-    case L.alexScanner file source of
-        Left  errStr -> throwError (ErrorStr errStr)
-        Right tokens -> return tokens
+parseTokens :: BoM s m => [L.Token] -> m S.AST
+parseTokens tokens = case (P.parseTokens tokens) 0 of
+    P.ParseFail pos -> throwError (ErrorPos pos "parse error")
+    P.ParseOk ast   -> return ast 
 
 
 -- parse a file into an AST.
 -- Throw an error on failure.
-parse :: BoM s m => FilePath -> m S.AST
-parse file = do
-    source <- liftIO (readFile file)
-    case P.parse file source of
-        Left e  -> throwError e
-        Right a -> return a
+parse :: BoM s m => Args -> FilePath -> m S.AST
+parse args file = do
+    if useNewLexer args then do
+        tokens <- lexFile file
+        when (printTokens args) $ do
+            liftIO $ mapM_ (putStrLn . show) tokens
+        parseTokens =<< lexFile file
+    else do
+        source <- liftIO (readFile file)
+        case P.parse file source of
+            Left e  -> throwError e
+            Right a -> return a
 
 
 runMod :: BoM Modules m => Args -> Set.Set FilePath -> FilePath -> m ()
@@ -114,10 +119,10 @@ runMod args pathsVisited modPath = do
             let modDirectory = takeDirectory path
 
             -- get files and create combined AST
-            files <- getSpecificModuleFiles modName =<< getDoodadFilesInDirectory modDirectory
+            files <- getSpecificModuleFiles args modName =<< getDoodadFilesInDirectory modDirectory
             assert (not $ null files) ("no files for: " ++ path)
             forM_ files $ debug . ("using file: " ++) 
-            asts <- mapM parse files
+            asts <- mapM (parse args) files
             when (printAst args) $ do
                 forM_ asts $ \ast ->
                     liftIO $ S.prettyAST ast

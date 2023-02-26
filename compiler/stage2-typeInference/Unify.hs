@@ -66,6 +66,7 @@ unifyOne pos constraint = withPos pos $ case constraint of
                 assert (i == 0) "ConsMember: Invalid index"
                 unifyOne pos (ConsEq t2 t)
             Nothing -> return []
+            _ -> error (show basem)
 
     ConsElem t1 t2 -> do
         basem <- baseTypeOf t1

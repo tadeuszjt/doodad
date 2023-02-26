@@ -41,7 +41,7 @@ tokens :-
     [$tab $white]* "//" .*                          ;
     $symbol                                         { mkT TokSym }
     @reserved                                       { mkT Reserved }
-    @reservedOp                                     { mkT ReservedOp }
+    @reservedOp                                     { mkT TokSym }
     import_c_macro                                  { mkT ImportCMacro }
     import_c [$tab $white]+ @string*                { mkT ImportC }
     import [$tab $white]+ @string*                  { mkT Import }
@@ -171,7 +171,6 @@ instance Show Token where
 data TokenType
     = TokSym
     | Reserved
-    | ReservedOp
     | Ident
     | Int
     | Float

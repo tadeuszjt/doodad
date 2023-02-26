@@ -8,6 +8,7 @@ data Args = Args
     , printLLIR   :: Bool
     , printCImports :: Bool
     , compileObj  :: Bool
+    , printTokens :: Bool
     , printAst    :: Bool
     , printAstResolved :: Bool
     , printAstAnnotated :: Bool
@@ -15,6 +16,7 @@ data Args = Args
     , printCSymbols :: Bool
     , printAstFinal :: Bool
     , printIR :: Bool
+    , useNewLexer :: Bool
     , modPaths    :: [String]
     }
 
@@ -25,6 +27,7 @@ initArgs = Args
     , lexOnly   = False
     , printLLIR = False
     , compileObj = False
+    , printTokens = False
     , printCImports = False
     , printAst = False
     , printAstResolved = False
@@ -33,6 +36,7 @@ initArgs = Args
     , printCSymbols = False
     , printAstFinal = False
     , printIR = False
+    , useNewLexer = False
     , modPaths  = []
     }
 
@@ -45,6 +49,7 @@ parseArgs args argStrs = case argStrs of
     ["-l"] -> args { lexOnly   = True }
     ["--verbose"] -> args { verbose   = True }
     ["--print-llir"] -> args { printLLIR = True }
+    ["--print-tokens"] -> args { printTokens = True }
     ["--print-c"] -> args { printCImports = True }
     ["--print-c-symbols"] -> args { printCSymbols = True }
     ["--print-ast"] -> args { printAst = True }
@@ -53,6 +58,7 @@ parseArgs args argStrs = case argStrs of
     ["--print-ast-final"] -> args { printAstFinal = True }
     ["--print-symbols"] -> args { printSymbols = True }
     ["--print-ir"] -> args { printIR = True }
+    ["--use-new-lexer"] -> args { useNewLexer = True }
     ["-c"] -> args { compileObj = True }
     [str]  -> args { modPaths  = (modPaths args) ++ [str] }
     (a:as) -> parseArgs (parseArgs args [a]) as

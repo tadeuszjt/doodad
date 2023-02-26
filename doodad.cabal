@@ -45,7 +45,8 @@ executable doodad
         directory,
         haskeline,
         filepath,
-        exceptions
+        exceptions,
+        process
     build-tools:
         alex,
         happy
@@ -84,4 +85,5 @@ executable doodad
         Sparse,
         IRGen,
         States,
-        Map
+        Map,
+        LexemeReader
