@@ -70,12 +70,24 @@ getDoodadFilesInDirectory dir = do
     return [ dir ++ "/" ++ f | f <- list, isSuffixOf ".doo" f ]
 
 
+
+checkModuleName :: BoM s m => FilePath -> m (Maybe String)
+checkModuleName filePath = do 
+    src <- liftIO (readFile filePath) 
+    let start = dropWhile isSpace src
+    let modStr = takeWhile isAlpha start
+    let nameStr = takeWhile (\c -> isAlpha c || isDigit c) $ dropWhile isSpace $ dropWhile isAlpha start
+    case modStr of 
+        "module" -> return (Just nameStr)
+        _ -> return Nothing
+
+
 getSpecificModuleFiles :: BoM s m => Args -> String -> [FilePath] -> m [FilePath]
 getSpecificModuleFiles args name []     = return []
 getSpecificModuleFiles args name (f:fs) = do
     source <- liftIO (readFile f)
-    ast <- parse args f
-    if (S.astModuleName ast) == name then
+    namem <- checkModuleName f
+    if namem == (Just name) then
         (f:) <$> getSpecificModuleFiles args name fs
     else
         getSpecificModuleFiles args name fs
@@ -92,15 +104,20 @@ parseTokens tokens = case (P.parseTokens tokens) 0 of
 parse :: BoM s m => Args -> FilePath -> m S.AST
 parse args file = do
     if useNewLexer args then do
+        when (verbose args) $
+            liftIO $ putStrLn $ "running new lexer for: " ++ file
         tokens <- lexFile file
         when (printTokens args) $ do
             liftIO $ mapM_ (putStrLn . show) tokens
         parseTokens =<< lexFile file
     else do
         source <- liftIO (readFile file)
-        case P.parse file source of
-            Left e  -> throwError e
-            Right a -> return a
+        case L.alexScanner file source of
+            Left errStr -> throwError (ErrorStr errStr)
+            Right tokens -> do
+                when (printTokens args) $ do
+                    liftIO $ mapM_ (putStrLn . show) tokens
+                parseTokens tokens
 
 
 runMod :: BoM Modules m => Args -> Set.Set FilePath -> FilePath -> m ()

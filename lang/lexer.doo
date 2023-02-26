@@ -154,18 +154,20 @@ fn {s Stack} lexKeyword(idx Idx) Result
 
         let match = true
         switch ident 
-            "for";
-            "let";
             "fn";
-            "null";
-            "conv";
-            "module";
             "type";
-            "true";
-            "false";
-            "return";
             "if";
             "else";
+            "let";
+            "while";
+            "return";
+            "switch";
+            "true";
+            "false";
+            "module";
+            "for";
+            "null";
+            "data";
             _; match = false
 
         if match; return Success(LexKeyword(id), end)

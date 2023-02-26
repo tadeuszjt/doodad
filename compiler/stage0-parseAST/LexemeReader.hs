@@ -41,7 +41,7 @@ lexFile filePath = do
     tokens <- mapM makeToken =<< mapM parseLineText =<< (liftIO $ lines <$> readFile tempPath)
     liftIO $ removeFile tempPath
 
-    return tokens
+    return (tokens ++ [L.Token (TextPos "" 0 0) L.EOF ""])
 
     where 
         parseLineText :: BoM s m => String -> m (Int, Int, String, String)
@@ -63,7 +63,7 @@ lexFile filePath = do
                 "imp" -> return $ L.Token pos L.Import rest
                 "idt" -> return $ L.Token pos L.Ident rest
                 "sym" -> return $ L.Token pos L.TokSym rest
-                "chr" -> return $ L.Token pos L.Char (read rest)
+                "chr" -> return $ L.Token pos L.Char "A"
                 "int" -> return $ L.Token pos L.Int rest
                 "str" -> return $ L.Token pos L.String rest
                 "ind" -> case rest of 
