@@ -2,7 +2,6 @@ module rand
 
 import         maths
 import_c       stdlib.h
-import_c_macro RAND_MAX i64
 
 type Rand ()
 

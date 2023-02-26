@@ -328,6 +328,8 @@ instance Resolve Stmt where
             pushSymTab
             condition' <- resolve condition
             stmt' <- resolve stmt
+            popSymTab
+            pushSymTab
             melse' <- maybe (return Nothing) (fmap Just . resolve) melse
             popSymTab
             return $ If pos condition' stmt' melse'

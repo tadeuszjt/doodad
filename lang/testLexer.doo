@@ -107,6 +107,10 @@ fn testLexImport()
     {s, "../someDir/someFile"}.checkStr(id)
 
 
+fn testLexFunnyString()
+    data s Stack "\"abStr98.<?\""
+    let Success(x, y) = s.lexStringLit(0)
+
 fn testLexer() 
     testLexAlpha()
     testLexInt()
@@ -119,5 +123,6 @@ fn testLexer()
     testLexStringLit()
     testLexEscaped()
     testLexImport()
+    testLexFunnyString()
     print("testLexer passed")
 

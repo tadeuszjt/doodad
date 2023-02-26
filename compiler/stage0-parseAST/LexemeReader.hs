@@ -61,16 +61,18 @@ lexFile filePath = do
                 "kwd" -> return $ L.Token pos L.Reserved rest
                 "typ" -> return $ L.Token pos L.Reserved rest
                 "imp" -> return $ L.Token pos L.Import rest
+                "imc" -> return $ L.Token pos L.ImportC rest
                 "idt" -> return $ L.Token pos L.Ident rest
                 "sym" -> return $ L.Token pos L.TokSym rest
-                "chr" -> return $ L.Token pos L.Char "A"
+                "chr" -> return $ L.Token pos L.Char rest
                 "int" -> return $ L.Token pos L.Int rest
+                "flt" -> return $ L.Token pos L.Float rest
                 "str" -> return $ L.Token pos L.String rest
                 "ind" -> case rest of 
                     "I" -> return $ L.Token pos L.Indent ""
                     "N" -> return $ L.Token pos L.NewLine ""
                     "D" -> return $ L.Token pos L.Dedent ""
-                _ -> error (show code)
+                _ -> error (show code ++ " " ++ show rest ++ show filePath)
 
 
 --

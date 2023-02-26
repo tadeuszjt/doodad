@@ -2,7 +2,9 @@ module testMain
 
 import std/io
 import std/test/test
+import lang/testLexer
 
 fn {io Io} main() 
     io.testStd()
+    testLexer()
     print("you did it son")

@@ -11,6 +11,7 @@ type Lexeme {
     LexChar(char)
     LexIdent(Idx)
     LexInt(i64)
+    LexFloat(Idx)
     LexKeyword(Idx)
     LexType(Idx)
     LexSym(char)
@@ -19,6 +20,7 @@ type Lexeme {
     LexCharLit(char)
     LexStringLit(Idx)
     LexImport(Idx)
+    LexImportC(Idx)
 }
 
 
@@ -67,6 +69,32 @@ fn {s Stack} lexDigit(idx Idx) Result
     return null
 
 
+fn {s Stack} lexFloat(idx Idx) Result
+    data frontChars string 
+    while s.at(idx) -> char(c) | isDigit(c) 
+        idx = idx + 1
+        frontChars.push(c)
+    if frontChars == ""; return null
+
+    if s.at(idx) -> char('.')
+        idx = idx + 1
+    else; return null
+
+    data backChars string
+    while s.at(idx) -> char(c) | isDigit(c) 
+        idx = idx + 1
+        backChars.push(c)
+    if backChars == ""; return null
+
+    s.push('\0')
+    let id = s.len() 
+    for frontChars -> c; s.push(c)
+    s.push('.')
+    for backChars -> c; s.push(c)
+    return Success(LexFloat(id), idx)
+            
+
+
 fn {s Stack} lexInt(idx Idx) Result 
     let count = 0
     let n = 0
@@ -91,6 +119,9 @@ fn {s Stack} lexIdent(idx Idx) Result
         else if s.lexDigit(idx) -> Success(LexChar(c), end)
             s.push(c)
             idx = end
+        else if s.at(idx) -> char('_')
+            s.push('_')
+            idx = idx + 1
         else; return Success(LexIdent(id), idx)
 
 
@@ -102,20 +133,25 @@ fn {s Stack} lexImport(idx Idx) Result
     data importStr string
     {s, importStr}.read(id)
     s.popString()
-    if importStr != "import"
-        return null
+
+    switch importStr
+        "import";
+        "import_c";
+        _; return null
 
     s.push('\0')
     let retId = s.len()
 
-    while s.at(idx) -> char(c) | isSpace(c) 
+    while s.at(idx) -> char(c) | c == ' ' || c == '\t'
         idx = idx + 1
 
     while s.at(idx) -> char(c) | c != '\n' && c != ';'
         s.push(c)
         idx = idx + 1
 
-    return Success(LexImport(retId), idx)
+    switch importStr
+        "import";   return Success(LexImport(retId), idx)
+        "import_c"; return Success(LexImportC(retId), idx)
 
 
     
@@ -135,7 +171,6 @@ fn {s Stack} lexType(idx Idx) Result
             "f64";
             "bool";
             "char";
-            "unsafe_ptr";
             "string";
             "sparse";
             "map";
@@ -177,7 +212,7 @@ fn {s Stack} lexKeyword(idx Idx) Result
 
 
 fn {s Stack} lexGraphic(idx Idx) Result
-    data syms string "-/<>[]{}().,;:|=!@#$%^&*()_+ "
+    data syms string "-/<>[]{}().,;:|=!?@#$%^&*()_+ "
     if s.at(idx) -> char(c)
         for syms -> sym 
             if sym == c; return Success(LexChar(c), idx + 1)
@@ -185,7 +220,7 @@ fn {s Stack} lexGraphic(idx Idx) Result
 
 
 fn {s Stack} lexSym(idx Idx) Result
-    data syms string "+-*/%<>[]{}().,;:|=_"
+    data syms string "+-*/%<>[]{}().,;:|=_!"
     if s.at(idx) -> char(c)
         for syms -> sym 
             if sym == c; return Success(LexSym(c), idx + 1)
@@ -259,7 +294,18 @@ fn {s Stack} lexStringLit(idx Idx) Result
         let id = s.len()
 
         while s.lexStringLitChar(idx) -> Success(LexChar(c), end)
-            s.push(c)
+            switch c 
+                '\n'
+                    s.push('\\')
+                    s.push('n')
+                '\t'
+                    s.push('\\')
+                    s.push('t')
+                '\0'
+                    s.push('\\')
+                    s.push('0')
+                _
+                    s.push(c)
             idx = end
 
         if s.at(idx) -> char('"')
@@ -294,6 +340,7 @@ fn {s Stack} lex(idx Idx) Result
     if s.lexImport(idx)    -> Success(l, end); return Success(l, end)
     if s.lexKeyword(idx)   -> Success(l, end); return Success(l, end)
     if s.lexIdent(idx)     -> Success(l, end); return Success(l, end)
+    if s.lexFloat(idx)     -> Success(l, end); return Success(l, end)
     if s.lexInt(idx)       -> Success(l, end); return Success(l, end)
     if s.lexDoubleSym(idx) -> Success(l, end); return Success(l, end)
     if s.lexSym(idx)       -> Success(l, end); return Success(l, end)
@@ -312,12 +359,22 @@ fn {io Io, s Stack} writeLexeme(lexeme Lexeme)
         LexInt(n)
             {io, "int: "}.write()
             io.write(n)
+        LexFloat(id)
+            {io, "flt: "}.write()
+            while s.at(id) -> char(c)
+                io.write(c)
+                id = id + 1
         LexDoubleSym(a, b)
             {io, "sym: "}.write()
             io.write(a)
             io.write(b)
         LexImport(id)
-            {io, "imp: "}.write()
+            {io, "imp: import "}.write()
+            while s.at(id) -> char(c)
+                io.write(c)
+                id = id + 1
+        LexImportC(id)
+            {io, "imc: import_c "}.write()
             while s.at(id) -> char(c)
                 io.write(c)
                 id = id + 1
@@ -346,12 +403,26 @@ fn {io Io, s Stack} writeLexeme(lexeme Lexeme)
                 id = id + 1
         LexCharLit(c)
             {io, "chr: "}.write()
+            io.write('\'')
             switch c
-                ' '; io.write('s')
-                '\t'; io.write('t')
-                '\n'; io.write('n')
-                '\0'; io.write('0')
+                ' ';  io.write(' ')
+                '\t'
+                    io.write('\\')
+                    io.write('t')
+                '\n'
+                    io.write('\\')
+                    io.write('n')
+                '\0'
+                    io.write('\\')
+                    io.write('0')
+                '\''
+                    io.write('\\')
+                    io.write('\'')
+                '\\'
+                    io.write('\\')
+                    io.write('\\')
                 _; io.write(c)
+            io.write('\'')
         LexStringLit(id)
             {io, "str: "}.write()
             while s.at(id) -> char(c)
@@ -383,6 +454,7 @@ fn {io Io} main()
             if c == '\n'; column = column + 1
 
         if lexeme -> LexNewline(id)
+
             data indent string 
             {stack, indent}.read(id)
 
@@ -406,6 +478,7 @@ fn {io Io} main()
                     io.writeTextPos(idx, column)
                     {io, " ind: D"}.writeLn()
 
+
         else
             io.writeTextPos(idx, column)
             io.write(' ')
@@ -415,8 +488,7 @@ fn {io Io} main()
         idx = end
 
     if stack.at(idx) -> char(c) 
-        print("lex error at: ", idx)
-
+        print("lex error at ", column)
 
 
 
