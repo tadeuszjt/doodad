@@ -403,6 +403,15 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
 --            br name
 --            emitBlockStart name
 
+readString :: String -> String
+readString str = case str of
+    ('\\' : '\\' : ss) -> '\\' : (readString ss)
+    ('\\' : 'n' : ss) -> '\n' : (readString ss)
+    ('\\' : 't' : ss) -> '\t' : (readString ss)
+    ('\\' : '0' : ss) -> '\0' : (readString ss)
+    ('\\' : '"' : ss) -> '"' : (readString ss)
+    (s:ss)            -> s : (readString ss)
+    []                ->  []
 
 cmpExpr :: InsCmp CompileState m =>  AST.Expr -> m Pointer
 cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ withCheck exprType $ case expr of
@@ -542,15 +551,16 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
             ObjVal loc -> return loc
             
     AST.String pos s -> do
+        let s' = readString s -- replaces \n with actual newline char
         base <- baseTypeOf exprType
         case base of
             Table [Char] -> do
                 tab <- newVal exprType
                 cap <- tableCap tab
                 len <- tableLen tab
-                storeBasicVal cap (mkI64 $ length s)
-                storeBasicVal len (mkI64 $ length s)
-                tableSetRow tab 0 . Pointer Char =<< getStringPointer s
+                storeBasicVal cap (mkI64 $ length s')
+                storeBasicVal len (mkI64 $ length s')
+                tableSetRow tab 0 . Pointer Char =<< getStringPointer s'
 
                 tab2 <- newVal exprType
                 storeCopy tab2 tab
@@ -558,9 +568,9 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
 
             Array n Char -> do
                 arr <- newVal exprType
-                src <- Pointer Char <$> getStringPointer s
+                src <- Pointer Char <$> getStringPointer s'
                 dst <- arrayGetElem arr (mkI64 0)
-                memCpy dst src (mkI64 $ length s)
+                memCpy dst src (mkI64 $ length s')
                 return arr
 
             _ -> fail ("AST.String: " ++ show base)

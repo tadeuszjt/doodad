@@ -56,19 +56,9 @@ mkT :: TokenType -> AlexInput -> Int -> Alex (AlexPosn, TokenType, String)
 mkT typ (p, _, _, s) len = case typ of
     Import -> return (p, Import, removeImport (take len s))
     ImportC -> return (p, ImportC, removeImport (take len s))
-    String -> return (p, String, readString $ drop 1 $ take (len-1) s)
+    String -> return (p, String, drop 1 $ take (len-1) s)
     _      -> return (p, typ, take len s)
     where
-        readString :: String -> String
-        readString str = case str of
-            ('\\' : '\\' : ss) -> '\\' : (readString ss)
-            ('\\' : 'n' : ss) -> '\n' : (readString ss)
-            ('\\' : 't' : ss) -> '\t' : (readString ss)
-            ('\\' : '0' : ss) -> '\0' : (readString ss)
-            ('\\' : '"' : ss) -> '"' : (readString ss)
-            (s:ss)            -> s : (readString ss)
-            []                ->  []
-
         removeImport :: String -> String 
         removeImport str = 
             dropWhile isSpace importDropped

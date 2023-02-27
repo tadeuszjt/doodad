@@ -249,12 +249,10 @@ fn {s Stack} lexEscaped(idx Idx) Result
     data chars2 [2 char] 
     if s.at(idx)     -> char(c); chars2[0] = c
     if s.at(idx + 1) -> char(c); chars2[1] = c
-
     switch chars2
         ['\\', 'n']; return Success(LexChar('\n'), idx + 2)
         ['\\', 't']; return Success(LexChar('\t'), idx + 2)
         ['\\', '0']; return Success(LexChar('\0'), idx + 2)
-        ['\\', '\'']; return Success(LexChar('\''), idx + 2)
         ['\\', '\\']; return Success(LexChar('\\'), idx + 2)
         _; return null
 
@@ -264,6 +262,8 @@ fn {s Stack} lexCharLit(idx Idx) Result
         idx = idx + 1
         let result = null
         if s.lexEscaped(idx)      -> Success(x, y); result = Success(x, y)
+        else if (s.at(idx), s.at(idx+1)) -> (char('\\'), char('\''))
+            result = Success(LexChar('\''), idx + 2)
         else if s.lexAlpha(idx)   -> Success(x, y); result = Success(x, y)
         else if s.lexDigit(idx)   -> Success(x, y); result = Success(x, y)
         else if s.lexGraphic(idx) -> Success(x, y); result = Success(x, y)
@@ -278,6 +278,9 @@ fn {s Stack} lexCharLit(idx Idx) Result
 
 
 fn {s Stack} lexStringLitChar(idx Idx) Result
+    if s.at(idx) -> char('\''); return Success(LexChar('\''), idx + 1)
+    if (s.at(idx), s.at(idx+1)) -> (char('\\'), char('"'))
+        return Success(LexChar('"'), idx + 2)
     if s.lexEscaped(idx) -> Success(a, b); return Success(a, b)
     if s.lexAlpha(idx)   -> Success(a, b); return Success(a, b)
     if s.lexDigit(idx)   -> Success(a, b); return Success(a, b)
@@ -304,6 +307,12 @@ fn {s Stack} lexStringLit(idx Idx) Result
                 '\0'
                     s.push('\\')
                     s.push('0')
+                '"'
+                    s.push('\\')
+                    s.push('"')
+                '\\'
+                    s.push('\\')
+                    s.push('\\')
                 _
                     s.push(c)
             idx = end

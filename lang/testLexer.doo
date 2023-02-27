@@ -111,6 +111,10 @@ fn testLexFunnyString()
     data s Stack "\"abStr98.<?\""
     let Success(x, y) = s.lexStringLit(0)
 
+
+    data s2 Stack "\"stuff '\\n' more'\\0'na'j'df\""
+    let Success(_, _) = s2.lexStringLit(0)
+
 fn testLexer() 
     testLexAlpha()
     testLexInt()
