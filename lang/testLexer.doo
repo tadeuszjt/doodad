@@ -8,12 +8,6 @@ fn {s Stack, str string} checkStr(id Idx)
     {s, result}.read(id)
     let true = str == result
 
-fn testLexAlpha()
-    data s Stack "  testString123 "
-    let null = s.lexAlpha(0)
-    let Success(LexChar('t'), 3) = s.lexAlpha(2)
-    let null = s.lexAlpha(16)
-
 
 fn testLexInt()
     data s Stack "test2 123"
@@ -116,7 +110,6 @@ fn testLexFunnyString()
     let Success(_, _) = s2.lexStringLit(0)
 
 fn testLexer() 
-    testLexAlpha()
     testLexInt()
     testLexIdent()
     testLexKeyword()

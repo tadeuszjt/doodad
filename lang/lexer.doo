@@ -45,52 +45,27 @@ fn {s Stack} popString()
         s.pop()
 
 
-fn {s Stack} lexChar(idx Idx, x char) Result
-    if s.at(idx) -> char(c) | c == x
-        return Success(LexChar(c), idx + 1)
-    return null
-
-
-fn {s Stack} lexAlpha(idx Idx) Result
-    if s.at(idx) -> char(c) | isAlpha(c)
-        return Success(LexChar(c), idx + 1)
-    return null
-
-
-fn {s Stack} lexSpace(idx Idx) Result
-    if s.at(idx) -> char(c) | c == ' ' || c == '\t'
-        return Success(LexChar(c), idx + 1)
-    return null
-
-
-fn {s Stack} lexDigit(idx Idx) Result
-    if s.at(idx) -> char(c) | isDigit(c)
-        return Success(LexChar(c), idx + 1)
-    return null
-
-
 fn {s Stack} lexFloat(idx Idx) Result
-    data frontChars string 
+    data chars string 
     while s.at(idx) -> char(c) | isDigit(c) 
         idx = idx + 1
-        frontChars.push(c)
-    if frontChars == ""; return null
+        chars.push(c)
+    if chars == ""; return null
 
     if s.at(idx) -> char('.')
         idx = idx + 1
+        chars.push('.')
     else; return null
 
-    data backChars string
+    let hasDigits = false
     while s.at(idx) -> char(c) | isDigit(c) 
         idx = idx + 1
-        backChars.push(c)
-    if backChars == ""; return null
+        chars.push(c)
+        hasDigits = true
+    if !hasDigits; return null
 
-    s.push('\0')
-    let id = s.len() 
-    for frontChars -> c; s.push(c)
-    s.push('.')
-    for backChars -> c; s.push(c)
+    let id = s.push('\0') + 1
+    for chars -> c; s.push(c)
     return Success(LexFloat(id), idx)
             
 
@@ -99,8 +74,7 @@ fn {s Stack} lexInt(idx Idx) Result
     let count = 0
     let n = 0
     while s.at(idx + count) -> char(c) | isDigit(c)
-        n = n * 10
-        n = n + i64(c - '0')
+        n = n*10 + i64(c - '0')
         count = count + 1
 
     if count > 0; return Success(LexInt(n), idx + count)
@@ -108,21 +82,14 @@ fn {s Stack} lexInt(idx Idx) Result
 
 
 fn {s Stack} lexIdent(idx Idx) Result
-    if s.lexAlpha(idx) -> null; return null
-    s.push('\0')
-    let id = s.len()
+    if s.at(idx) -> char(c) | isAlpha(c)
+        let id = s.push('\0') + 1
 
-    while true
-        if s.lexAlpha(idx) -> Success(LexChar(c), end) 
-            s.push(c)
-            idx = end
-        else if s.lexDigit(idx) -> Success(LexChar(c), end)
-            s.push(c)
-            idx = end
-        else if s.at(idx) -> char('_')
-            s.push('_')
+        while s.at(idx) -> char(c) | isAlpha(c) || isDigit(c) || c == '_'
             idx = idx + 1
-        else; return Success(LexIdent(id), idx)
+            s.push(c)
+        return Success(LexIdent(id), idx)
+    return null
 
 
 fn {s Stack} lexImport(idx Idx) Result
@@ -139,8 +106,7 @@ fn {s Stack} lexImport(idx Idx) Result
         "import_c";
         _; return null
 
-    s.push('\0')
-    let retId = s.len()
+    let retId = s.push('\0') + 1
 
     while s.at(idx) -> char(c) | c == ' ' || c == '\t'
         idx = idx + 1
@@ -153,8 +119,6 @@ fn {s Stack} lexImport(idx Idx) Result
         "import";   return Success(LexImport(retId), idx)
         "import_c"; return Success(LexImportC(retId), idx)
 
-
-    
 
 fn {s Stack} lexType(idx Idx) Result
     if s.lexIdent(idx) -> Success(LexIdent(id), end) 
@@ -246,14 +210,11 @@ fn {s Stack} lexDoubleSym(idx Idx) Result
 
 
 fn {s Stack} lexEscaped(idx Idx) Result 
-    data chars2 [2 char] 
-    if s.at(idx)     -> char(c); chars2[0] = c
-    if s.at(idx + 1) -> char(c); chars2[1] = c
-    switch chars2
-        ['\\', 'n']; return Success(LexChar('\n'), idx + 2)
-        ['\\', 't']; return Success(LexChar('\t'), idx + 2)
-        ['\\', '0']; return Success(LexChar('\0'), idx + 2)
-        ['\\', '\\']; return Success(LexChar('\\'), idx + 2)
+    switch (s.at(idx), s.at(idx + 1))
+        (char('\\'), char('n'));  return Success(LexChar('\n'), idx + 2)
+        (char('\\'), char('t'));  return Success(LexChar('\t'), idx + 2)
+        (char('\\'), char('0'));  return Success(LexChar('\0'), idx + 2)
+        (char('\\'), char('\\')); return Success(LexChar('\\'), idx + 2)
         _; return null
 
 
@@ -261,13 +222,12 @@ fn {s Stack} lexCharLit(idx Idx) Result
     if s.at(idx) -> char('\'')
         idx = idx + 1
         let result = null
-        if s.lexEscaped(idx)      -> Success(x, y); result = Success(x, y)
+        if s.lexEscaped(idx)             -> Success(x, y); result = Success(x, y)
         else if (s.at(idx), s.at(idx+1)) -> (char('\\'), char('\''))
             result = Success(LexChar('\''), idx + 2)
-        else if s.lexAlpha(idx)   -> Success(x, y); result = Success(x, y)
-        else if s.lexDigit(idx)   -> Success(x, y); result = Success(x, y)
-        else if s.lexGraphic(idx) -> Success(x, y); result = Success(x, y)
-        else if s.at(idx) -> char('"'); result = Success(LexChar('"'), idx + 1)
+        else if s.at(idx)                -> char(c) | isAlpha(c) || isDigit(c) || c == '"'
+            result = Success(LexChar(c), idx + 1)
+        else if s.lexGraphic(idx)        -> Success(x, y); result = Success(x, y)
 
         if result -> Success(LexChar(c), end)
             idx = end
@@ -278,13 +238,12 @@ fn {s Stack} lexCharLit(idx Idx) Result
 
 
 fn {s Stack} lexStringLitChar(idx Idx) Result
-    if s.at(idx) -> char('\''); return Success(LexChar('\''), idx + 1)
     if (s.at(idx), s.at(idx+1)) -> (char('\\'), char('"'))
         return Success(LexChar('"'), idx + 2)
     if s.lexEscaped(idx) -> Success(a, b); return Success(a, b)
-    if s.lexAlpha(idx)   -> Success(a, b); return Success(a, b)
-    if s.lexDigit(idx)   -> Success(a, b); return Success(a, b)
-    if s.lexSpace(idx)   -> Success(a, b); return Success(a, b)
+
+    if s.at(idx) -> char(c) | isAlpha(c) || isDigit(c) || c == '\'' || c == ' ' || c == '\t'
+        return Success(LexChar(c), idx + 1)
     if s.lexGraphic(idx) -> Success(a, b); return Success(a, b)
     return null
 
@@ -293,8 +252,7 @@ fn {s Stack} lexStringLit(idx Idx) Result
     if s.at(idx) -> char('"')
         idx = idx + 1
 
-        s.push('\0')
-        let id = s.len()
+        let id = s.push('\0') + 1
 
         while s.lexStringLitChar(idx) -> Success(LexChar(c), end)
             switch c 
@@ -335,14 +293,13 @@ fn {s Stack} lexNewline(idx Idx) Result
         if chars[j] == '\n'; lastNPos = j
     if lastNPos == -1; return null
 
-    s.push('\0')
-    let id = s.len()
+    let id = s.push('\0') + 1
     for chars[lastNPos + 1..] -> i; s.push(chars[i])
     return Success(LexNewline(id), idx)
 
 
 fn {s Stack} lex(idx Idx) Result
-    while s.lexSpace(idx)  -> Success(_, end); idx = end
+    while s.at(idx) -> char(c) | c == ' ' || c == '\t'; idx = idx + 1
     if s.lexNewline(idx)   -> Success(l, end); return Success(l, end)
     if s.lexStringLit(idx) -> Success(l, end); return Success(l, end)
     if s.lexType(idx)      -> Success(l, end); return Success(l, end)
@@ -414,7 +371,6 @@ fn {io Io, s Stack} writeLexeme(lexeme Lexeme)
             {io, "chr: "}.write()
             io.write('\'')
             switch c
-                ' ';  io.write(' ')
                 '\t'
                     io.write('\\')
                     io.write('t')
@@ -462,21 +418,18 @@ fn {io Io} main()
             let char(c) = stack.at(i)
             if c == '\n'; column = column + 1
 
+        io.writeTextPos(idx, column)
         if lexeme -> LexNewline(id)
 
             data indent string 
             {stack, indent}.read(id)
 
             if indent == indentStack[indentStack.len() - 1]
-                io.writeTextPos(idx, column)
                 {io, " ind: N"}.writeLn()
             else if {indent, indentStack[indentStack.len() - 1]}.isPrefix()
-                io.writeTextPos(idx, column)
                 {io, " ind: I"}.writeLn()
                 indentStack[indentStack.push()] = indent
-
             else 
-                io.writeTextPos(idx, column)
                 {io, " ind: N"}.writeLn()
                 while indent != indentStack[indentStack.len() - 1]
                     if indentStack.len() == 1
@@ -489,7 +442,6 @@ fn {io Io} main()
 
 
         else
-            io.writeTextPos(idx, column)
             io.write(' ')
             {io, stack}.writeLexeme(lexeme)
             io.write('\n')
