@@ -8,6 +8,7 @@ module Lexer
     )
 where
 
+import Data.Char
 import Data.List
 import Data.Maybe
 
@@ -41,7 +42,6 @@ tokens :-
     $symbol                                         { mkT TokSym }
     @reserved                                       { mkT Reserved }
     @reservedOp                                     { mkT TokSym }
-    import_c_macro                                  { mkT ImportCMacro }
     import_c [$tab $white]+ @string*                { mkT ImportC }
     import [$tab $white]+ @string*                  { mkT Import }
     [\_]* $alpha [$alpha $digit \_]*                { mkT Ident }
@@ -54,6 +54,8 @@ tokens :-
 
 mkT :: TokenType -> AlexInput -> Int -> Alex (AlexPosn, TokenType, String)
 mkT typ (p, _, _, s) len = case typ of
+    Import -> return (p, Import, removeImport (take len s))
+    ImportC -> return (p, ImportC, removeImport (take len s))
     String -> return (p, String, readString $ drop 1 $ take (len-1) s)
     _      -> return (p, typ, take len s)
     where
@@ -66,6 +68,12 @@ mkT typ (p, _, _, s) len = case typ of
             ('\\' : '"' : ss) -> '"' : (readString ss)
             (s:ss)            -> s : (readString ss)
             []                ->  []
+
+        removeImport :: String -> String 
+        removeImport str = 
+            dropWhile isSpace importDropped
+            where
+                importDropped = dropWhile (`elem` "import_c") str
 
 
 mkIndentT :: AlexInput -> Int -> Alex (AlexPosn, TokenType, String)
