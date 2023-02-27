@@ -71,8 +71,8 @@ getDoodadFilesInDirectory dir = do
 
 
 
-checkModuleName :: BoM s m => FilePath -> m (Maybe String)
-checkModuleName filePath = do 
+readModuleName :: BoM s m => FilePath -> m (Maybe String)
+readModuleName filePath = do 
     src <- liftIO (readFile filePath) 
     let start = dropWhile isSpace src
     let modStr = takeWhile isAlpha start
@@ -86,7 +86,7 @@ getSpecificModuleFiles :: BoM s m => Args -> String -> [FilePath] -> m [FilePath
 getSpecificModuleFiles args name []     = return []
 getSpecificModuleFiles args name (f:fs) = do
     source <- liftIO (readFile f)
-    namem <- checkModuleName f
+    namem <- readModuleName f
     if namem == (Just name) then
         (f:) <$> getSpecificModuleFiles args name fs
     else
@@ -103,27 +103,7 @@ parseTokens tokens = case (P.parseTokens tokens) 0 of
 -- Throw an error on failure.
 parse :: BoM s m => Args -> FilePath -> m S.AST
 parse args file = do
-    if useNewLexer args then do
-        when (verbose args) $
-            liftIO $ putStrLn $ "running new lexer for: " ++ file
-        newTokens <- lexFile file
-
-        when (printTokens args) $ do
-            liftIO $ mapM_ (putStrLn . show) newTokens
-
-        source <- liftIO (readFile file)
-        oldTokens <- case L.alexScanner file source of
-            Left errStr -> throwError (ErrorStr errStr)
-            Right tokens -> return tokens
-
-        forM_ (zip oldTokens newTokens) $ \(oldTok@(L.Token _ ta sa), newTok@(L.Token _ tb sb)) -> do
-            when ((ta, sa) /= (tb, sb)) $ do
-                liftIO $ putStrLn $ "token mismatch: " ++ show oldTok ++ "  " ++ show newTok
-
-        parseTokens newTokens
-
-
-    else do
+    if useOldLexer args then do
         source <- liftIO (readFile file)
         case L.alexScanner file source of
             Left errStr -> throwError (ErrorStr errStr)
@@ -131,6 +111,19 @@ parse args file = do
                 when (printTokens args) $ do
                     liftIO $ mapM_ (putStrLn . show) tokens
                 parseTokens tokens
+
+    else do
+        newTokens <- lexFile file
+        when (printTokens args) $ do
+            liftIO $ mapM_ (putStrLn . show) newTokens
+        source <- liftIO (readFile file)
+        oldTokens <- case L.alexScanner file source of
+            Left errStr -> throwError (ErrorStr errStr)
+            Right tokens -> return tokens
+        forM_ (zip oldTokens newTokens) $ \(oldTok@(L.Token _ ta sa), newTok@(L.Token _ tb sb)) -> do
+            when ((ta, sa) /= (tb, sb)) $ do
+                liftIO $ putStrLn $ "token mismatch: " ++ show oldTok ++ "  " ++ show newTok
+        parseTokens newTokens
 
 
 runMod :: BoM Modules m => Args -> Set.Set FilePath -> FilePath -> m ()

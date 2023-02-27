@@ -16,7 +16,7 @@ data Args = Args
     , printCSymbols :: Bool
     , printAstFinal :: Bool
     , printIR :: Bool
-    , useNewLexer :: Bool
+    , useOldLexer :: Bool
     , modPaths    :: [String]
     }
 
@@ -36,7 +36,7 @@ initArgs = Args
     , printCSymbols = False
     , printAstFinal = False
     , printIR = False
-    , useNewLexer = False
+    , useOldLexer = False
     , modPaths  = []
     }
 
@@ -58,7 +58,7 @@ parseArgs args argStrs = case argStrs of
     ["--print-ast-final"] -> args { printAstFinal = True }
     ["--print-symbols"] -> args { printSymbols = True }
     ["--print-ir"] -> args { printIR = True }
-    ["--use-new-lexer"] -> args { useNewLexer = True }
+    ["--use-old-lexer"] -> args { useOldLexer = True }
     ["-c"] -> args { compileObj = True }
     [str]  -> args { modPaths  = (modPaths args) ++ [str] }
     (a:as) -> parseArgs (parseArgs args [a]) as

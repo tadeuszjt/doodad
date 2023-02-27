@@ -39,6 +39,10 @@ fn {s Stack, str string} read(idx Idx)
         str.push(c)
         idx = idx + 1
 
+fn {io Io, s Stack} write(idx Idx)
+    while s.at(idx) -> char(c) 
+        io.write(c)
+        idx = idx + 1
 
 fn {s Stack} popString() 
     while s.at(s.len() - 1) -> char(c)
@@ -251,33 +255,23 @@ fn {s Stack} lexStringLitChar(idx Idx) Result
 fn {s Stack} lexStringLit(idx Idx) Result 
     if s.at(idx) -> char('"')
         idx = idx + 1
-
         let id = s.push('\0') + 1
 
         while s.lexStringLitChar(idx) -> Success(LexChar(c), end)
+            data str string
             switch c 
-                '\n'
-                    s.push('\\')
-                    s.push('n')
-                '\t'
-                    s.push('\\')
-                    s.push('t')
-                '\0'
-                    s.push('\\')
-                    s.push('0')
-                '"'
-                    s.push('\\')
-                    s.push('"')
-                '\\'
-                    s.push('\\')
-                    s.push('\\')
-                _
-                    s.push(c)
+                '\n'; str = "\\n"
+                '\t'; str = "\\t"
+                '\0'; str = "\\0"
+                '"';  str = "\\\""
+                '\\'; str = "\\\\"
+                _; str.push(c)
+            for str -> c; s.push(c)
             idx = end
 
         if s.at(idx) -> char('"')
             return Success(LexStringLit(id), idx + 1)
-        else; s.popString()
+        s.popString()
 
     return null
 
@@ -327,38 +321,40 @@ fn {io Io, s Stack} writeLexeme(lexeme Lexeme)
             io.write(n)
         LexFloat(id)
             {io, "flt: "}.write()
-            while s.at(id) -> char(c)
-                io.write(c)
-                id = id + 1
+            {io, s}.write(id)
         LexDoubleSym(a, b)
             {io, "sym: "}.write()
             io.write(a)
             io.write(b)
         LexImport(id)
             {io, "imp: "}.write()
-            while s.at(id) -> char(c)
-                io.write(c)
-                id = id + 1
+            {io, s}.write(id)
         LexImportC(id)
             {io, "imc: "}.write()
-            while s.at(id) -> char(c)
-                io.write(c)
-                id = id + 1
+            {io, s}.write(id)
         LexIdent(id)
             {io, "idt: "}.write()
-            while s.at(id) -> char(c)
-                io.write(c)
-                id = id + 1
+            {io, s}.write(id)
         LexKeyword(id)
             {io, "kwd: "}.write()
-            while s.at(id) -> char(c)
-                io.write(c)
-                id = id + 1
+            {io, s}.write(id)
         LexType(id)
             {io, "typ: "}.write()
-            while s.at(id) -> char(c)
-                io.write(c)
-                id = id + 1
+            {io, s}.write(id)
+        LexStringLit(id)
+            {io, "str: "}.write()
+            {io, s}.write(id)
+        LexCharLit(c)
+            {io, "chr: "}.write()
+            io.write('\'')
+            switch c
+                '\t'; {io, "\\t"}.write()
+                '\0'; {io, "\\0"}.write()
+                '\n'; {io, "\\n"}.write()
+                '\''; {io, "\\'"}.write()
+                '\\'; {io, "\\\\"}.write()
+                _;     io.write(c)
+            io.write('\'')
         LexNewline(id)
             {io, "nln: "}.write()
             while s.at(id) -> char(c)
@@ -366,32 +362,6 @@ fn {io Io, s Stack} writeLexeme(lexeme Lexeme)
                     '\n'; io.write('n')
                     '\t'; io.write('t')
                     ' '; io.write('s')
-                id = id + 1
-        LexCharLit(c)
-            {io, "chr: "}.write()
-            io.write('\'')
-            switch c
-                '\t'
-                    io.write('\\')
-                    io.write('t')
-                '\n'
-                    io.write('\\')
-                    io.write('n')
-                '\0'
-                    io.write('\\')
-                    io.write('0')
-                '\''
-                    io.write('\\')
-                    io.write('\'')
-                '\\'
-                    io.write('\\')
-                    io.write('\\')
-                _; io.write(c)
-            io.write('\'')
-        LexStringLit(id)
-            {io, "str: "}.write()
-            while s.at(id) -> char(c)
-                io.write(c)
                 id = id + 1
         _; print("<unknown lexeme>")
 
@@ -419,11 +389,10 @@ fn {io Io} main()
     while stack.lex(idx) -> Success(lexeme, end)
         for [idx .. end] -> i
             let char(c) = stack.at(i)
+            column = column + 1
             if c == '\n'
                 line = line + 1
                 column = 0
-            else
-                column = column + 1
 
         io.writeTextPos(idx, line, column)
         if lexeme -> LexNewline(id)
