@@ -44,19 +44,22 @@ lexFile filePath = do
     return tokens
 
     where 
-        parseLineText :: BoM s m => String -> m (Int, Int, String, String)
+        parseLineText :: BoM s m => String -> m (Int, Int, Int, String, String)
         parseLineText line = do 
-            let int = (read $ takeWhile isDigit line) :: Int
-            let textLine = (read $ takeWhile isDigit $ drop 1 $ dropWhile (/= ':') line) :: Int
-            let rest = drop 1 $ dropWhile (not . isSpace) (dropWhile isDigit line)
-            let code = takeWhile (/= ':') rest
-            let rest' = drop 2 $ dropWhile (/= ':') rest
-            return (int, textLine, code, rest')
+            let pos = (read $ takeWhile isDigit line) :: Int
+            let lineLine = drop 1 $ dropWhile (/= ':') line
+            let lineNum = (read $ takeWhile isDigit lineLine) :: Int 
+            let colLine = drop 1 $ dropWhile (/= ':') lineLine
+            let col = (read $ takeWhile isDigit colLine) :: Int 
+
+            let code = takeWhile (/= ':') $ drop 1 $ dropWhile (/= '\t') line 
+            let rest = drop 2 $ dropWhile (/= ':') $ drop 1 $ dropWhile (/= '\t') line 
+            return (pos, lineNum, col, code, rest)
 
 
-        makeToken :: BoM s m => (Int, Int, String, String) -> m L.Token
-        makeToken (textIdx, textLine, code, rest) = do
-            let pos = TextPos filePath textLine 0
+        makeToken :: BoM s m => (Int, Int, Int, String, String) -> m L.Token
+        makeToken (textIdx, textLine, textCol, code, rest) = do
+            let pos = TextPos filePath textLine textCol
             case code of 
                 "kwd" -> return $ L.Token pos L.Reserved rest
                 "typ" -> return $ L.Token pos L.Reserved rest

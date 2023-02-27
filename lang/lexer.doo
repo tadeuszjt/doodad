@@ -397,8 +397,10 @@ fn {io Io, s Stack} writeLexeme(lexeme Lexeme)
 
 
 
-fn {io Io} writeTextPos(idx Idx, column i64)
+fn {io Io} writeTextPos(idx Idx, line i64, column i64)
     io.write(i64(idx))
+    io.write(':')
+    io.write(line)
     io.write(':')
     io.write(column)
 
@@ -412,37 +414,40 @@ fn {io Io} main()
     indentStack.push()
 
     let idx = 0
-    let column = 1
+    let line = 1
+    let column = 0
     while stack.lex(idx) -> Success(lexeme, end)
         for [idx .. end] -> i
             let char(c) = stack.at(i)
-            if c == '\n'; column = column + 1
+            if c == '\n'
+                line = line + 1
+                column = 0
+            else
+                column = column + 1
 
-        io.writeTextPos(idx, column)
+        io.writeTextPos(idx, line, column)
         if lexeme -> LexNewline(id)
-
             data indent string 
             {stack, indent}.read(id)
 
             if indent == indentStack[indentStack.len() - 1]
-                {io, " ind: N"}.writeLn()
+                {io, "\tind: N"}.writeLn()
             else if {indent, indentStack[indentStack.len() - 1]}.isPrefix()
-                {io, " ind: I"}.writeLn()
+                {io, "\tind: I"}.writeLn()
                 indentStack[indentStack.push()] = indent
             else 
-                {io, " ind: N"}.writeLn()
+                {io, "\tind: N"}.writeLn()
                 while indent != indentStack[indentStack.len() - 1]
                     if indentStack.len() == 1
-                        {io, "INDENT ERRROR"}.writeLn()
+                        {io, "\tINDENT ERRROR"}.writeLn()
                         return
 
                     indentStack.pop()
-                    io.writeTextPos(idx, column)
-                    {io, " ind: D"}.writeLn()
-
+                    io.writeTextPos(idx, line, column)
+                    {io, "\tind: D"}.writeLn()
 
         else
-            io.write(' ')
+            io.write('\t')
             {io, stack}.writeLexeme(lexeme)
             io.write('\n')
 
