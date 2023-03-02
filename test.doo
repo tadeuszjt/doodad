@@ -2,7 +2,7 @@ module testMain
 
 import std/io
 import std/test/test
-import lang/testLexer
+import lang/test/testLexer
 
 fn {io Io} main() 
     io.testStd()

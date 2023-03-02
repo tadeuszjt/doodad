@@ -132,8 +132,7 @@ mfnrec : {-empty-}                            { [] }
        | '{' params1 '}'                      { $2 }
 
 
-initialiser : '{' exprs1 '}'                  { S.Initialiser (tokPos $1) $2 }
-            | '{' '}'                         { S.Initialiser (tokPos $1) [] }
+initialiser : '{' exprs '}'                   { S.Initialiser (tokPos $1) $2 }
             | '{' 'I' exprsN 'D' '}'          { S.Initialiser (tokPos $1) $3 }
             | strlit                          { S.String (tokPos $1) (tokStr $1) }
 

@@ -35,7 +35,7 @@ lexFile filePath = do
     -- create temp file, fill with result of lexer
     (tempPath, tempHandle) <- liftIO $ openTempFile "." "temp"
     liftIO $ hClose tempHandle
-    liftIO $ system $ "cat " ++ filePath ++ " | ./lexer >  " ++ tempPath
+    liftIO $ system $ "cat " ++ filePath ++ " | ./bin/lexer >  " ++ tempPath
 
     -- read temp file and delete
     tokens <- mapM makeToken =<< mapM parseLineText =<< (liftIO $ lines <$> readFile tempPath)

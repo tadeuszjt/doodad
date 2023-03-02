@@ -668,9 +668,17 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
                 
     AST.Initialiser pos exprs -> do
         base <- baseTypeOf exprType
+        vals <- mapM cmpExpr exprs
         case base of
+            Table [t] -> do
+                table <- newTable exprType (mkI64 $ length vals)
+                forM_ (zip vals [0..]) $ \(val, i) -> do
+                    [ptr] <- tableColumn table (mkI64 i)
+                    storeCopy ptr val
+                return table
+
+
             Array n t -> do
-                vals <- mapM cmpExpr exprs
                 assert (length vals == n) "Invalid array length"
                 arr <- newVal exprType
                 forM_ (zip vals [0..]) $ \(val, i) -> do

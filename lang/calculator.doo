@@ -1,0 +1,108 @@
+module calculator
+
+import ../std/chars
+import ../std/io
+
+
+type Token { i64 | char }
+type Result { null | Success(i64, i64) }
+type LexResult { null | LexSuccess(Token, i64) }
+
+
+fn {s string} at(idx i64) { null | char }
+    if s[..][idx]
+        return conv(s[idx])
+    return null
+
+
+fn {ts [Token]} at(idx i64) { null | Token }
+    if ts[..][idx]
+        return conv(ts[idx])
+    return null
+
+
+fn {s string} lexInt(idx i64) LexResult
+    if s.at(idx) -> char(c) | isDigit(c)
+        let n = 0
+        while s.at(idx) -> char(c) | isDigit(c)
+            n = n*10 + i64(c - '0')
+            idx = idx + 1
+
+        return LexSuccess(conv(n), idx)
+    return null
+
+
+fn {s string} lexSym(idx i64) LexResult
+    if s.at(idx) -> char(c) | c == '+' || c == '*' || c == '(' || c == ')'
+        return LexSuccess(conv(c), idx + 1)
+    return null
+
+
+fn {s string} lex(idx i64) LexResult
+    while s.at(idx) -> char(c) | isSpace(c); idx = idx + 1
+    if s.lexInt(idx) -> LexSuccess(a, b); return LexSuccess(a, b)
+    if s.lexSym(idx) -> LexSuccess(a, b); return LexSuccess(a, b)
+    return null
+
+
+fn {ts [Token]} F(idx i64) Result
+    if ts.at(idx) -> Token(char('('))
+        if ts.E(idx + 1) -> Success(n, idx2)
+            if ts.at(idx2) -> Token(char(')'))
+                return Success(n, idx2 + 1)
+
+    if ts.at(idx) -> Token(i64(n))
+        return Success(n, idx + 1)
+    return null
+
+
+fn {ts [Token]} T(idx i64) Result
+    if ts.F(idx) -> Success(n, idx2)
+        if ts.at(idx2) -> Token(char('*'))
+            if ts.T(idx2 + 1) -> Success(n2, idx3)
+                return Success(n * n2, idx3)
+    if ts.F(idx) -> Success(n, idx2)
+        return Success(n, idx2)
+    return null
+
+
+fn {ts [Token]} E(idx i64) Result
+    if ts.T(idx) -> Success(n, idx2)
+        if ts.at(idx2) -> Token(char('+'))
+            if ts.E(idx2 + 1) -> Success(n2, idx3)
+                return Success(n + n2, idx3)
+    if ts.T(idx) -> Success(n, idx2)
+        return Success(n, idx2)
+    return null
+
+
+fn {ts [Token]} S(idx i64) Result
+    if ts.E(idx) -> Success(n, idxn) | idxn == ts.len()
+        return Success(n, idxn)
+    return null
+
+
+fn {io Io} main()
+    data tokens [Token]
+
+    data line string 
+    while {io, line}.readLn()
+        data tokens [Token]
+
+        let idx = 0
+        while line.lex(idx) -> LexSuccess(a, end)
+            idx = end
+            tokens.push(a)
+
+        if idx != line.len(); print("invalid lex")
+        else
+            if tokens.S(0) -> Success(n, _)
+                print(n)
+
+        line.clear()
+    
+
+
+
+
+    print("calculator")

@@ -1,6 +1,6 @@
 module testLexer 
 
-import lexer
+import ../lexer
 
 
 fn {s Stack, str string} checkStr(id Idx)
@@ -109,7 +109,7 @@ fn testLexFunnyString()
     data s2 Stack "\"stuff '\\n' more'\\0'na'j'df\""
     let Success(_, _) = s2.lexStringLit(0)
 
-fn testLexer() 
+fn main() 
     testLexInt()
     testLexIdent()
     testLexKeyword()
