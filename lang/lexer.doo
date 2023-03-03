@@ -76,7 +76,6 @@ fn {s Stack} lexFloat(idx Idx) Result
     return Success(LexFloat(id), idx)
             
 
-
 fn {s Stack} lexInt(idx Idx) Result 
     let start = idx
     let n = 0

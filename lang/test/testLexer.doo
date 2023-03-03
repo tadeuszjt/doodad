@@ -63,7 +63,20 @@ fn testLexNewline()
 
     {s, "  "}.checkStr(id0)
     {s, "\t\t"}.checkStr(id1)
+// not working?
 
+//    another comment // more comments
+fn testLexComment() // comment
+    data s Stack "blargh\n//comment  stuff\t \nmore"
+    let null = s.lexComment(0)
+    let null = s.lexComment(6)
+    let Success(LexComment(), 25) = s.lexComment(7)
+    let null = s.lexComment(8)
+
+
+fn testLexNewlineWithComment()
+    data s Stack "   \t\t\n//comment\n\t\n\t"
+    let Success(LexNewline(id), 19) = s.lexNewline(0)
 
 
 fn testLexCharLit()
@@ -121,5 +134,7 @@ fn main()
     testLexEscaped()
     testLexImport()
     testLexFunnyString()
+    testLexNewlineWithComment()
+    testLexComment()
     print("testLexer passed")
 

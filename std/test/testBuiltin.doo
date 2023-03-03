@@ -12,6 +12,21 @@ fn testStringOverlap()
         {"astring"}.stringReentry()
 
 
+fn testAdtEqEq()
+    type T { Enum() | Cons1(i64, bool) }
+    let a = Enum()
+    let b = Cons1(1, true)
+    let false = a == b
+    a = Cons1(1, true)
+    let true = a == b
+    a = Cons1(2, true)
+    let false = a == b
+    a = Enum()
+    b = Enum()
+    let true = a == b
+
+
 fn testBuiltin() 
     testStringOverlap()
+    testAdtEqEq()
     print("testBuiltin passed")

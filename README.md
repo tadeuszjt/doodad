@@ -1,8 +1,30 @@
 # Doodad
-Imperative language compiler written in Haskell targeting LLVM. See 'examples'.
+Imperative language compiler written in Haskell targeting LLVM.
 
 # Introduction
-Doodad is an imperative programming language prioritising clean data representation and 'data-oriented' language abstractions.
+Doodad is a language built for writing 'data-oriented' programs with a specific set of limitations
+imposed on language features to prevent the programmer from writing anything other than logic errors.
+There is a distinction between types that contain heap-allocated members and those which are statically-sized
+which leads to a style of programming that is fast in terms of CPU cache and has elegant control logic.
+
+What is in this language:
+    Pattern matching.
+    Type inference.
+    Indentation specific syntax.
+    For-loops with ranges.
+    Abstract data types.
+    Automatic heap allocation/deallocation
+    Arrays, tuples, ints, floats, chars etc.
+    Dynamically-sized tables, vectors and sparse arrays.
+    Function reciever lists.
+
+What is not in this language:
+    Pointers.
+    Accesses outside of function scope.
+    The abilty to write memory, reference or theading bugs.
+    the keywords 'break' and 'continue'.
+    Garbage collection.
+
 
 # Installation
 1.) Install ghc
@@ -27,10 +49,15 @@ Doodad is an imperative programming language prioritising clean data representat
     sudo apt-get install gc
   
 # Running
-  JIT compile and run a module:
+
+  Run make to bootstrap language components:
+
+    make
+    make test
+
+  Compile and run a module:
   
     cabal run doodad -- main
-    cabal run doodad -- std/strings
   
   Print LLVM IR textual representation:
   
@@ -46,7 +73,7 @@ Doodad is an imperative programming language prioritising clean data representat
     
   Link and run object files using gcc:
   
-    gcc -lm -lgc build/* std/build/* lang/build/* -o main
+    gcc -lm -lgc build/* -o main
     ./main
 
 # Philosphies (WIP)

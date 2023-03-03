@@ -116,13 +116,13 @@ parse args file = do
         newTokens <- lexFile file
         when (printTokens args) $ do
             liftIO $ mapM_ (putStrLn . show) newTokens
-        source <- liftIO (readFile file)
-        oldTokens <- case L.alexScanner file source of
-            Left errStr -> throwError (ErrorStr errStr)
-            Right tokens -> return tokens
-        forM_ (zip oldTokens newTokens) $ \(oldTok@(L.Token _ ta sa), newTok@(L.Token _ tb sb)) -> do
-            when ((ta, sa) /= (tb, sb)) $ do
-                liftIO $ putStrLn $ "token mismatch: " ++ show oldTok ++ "  " ++ show newTok
+--        source <- liftIO (readFile file)
+--        oldTokens <- case L.alexScanner file source of
+--            Left errStr -> throwError (ErrorStr errStr)
+--            Right tokens -> return tokens
+--        forM_ (zip oldTokens newTokens) $ \(oldTok@(L.Token _ ta sa), newTok@(L.Token _ tb sb)) -> do
+--            when ((ta, sa) /= (tb, sb)) $ do
+--                liftIO $ putStrLn $ "token mismatch: " ++ show oldTok ++ "  " ++ show newTok
         parseTokens newTokens
 
 

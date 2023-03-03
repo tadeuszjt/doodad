@@ -303,6 +303,10 @@ newInfix operator a b = withErrorPrefix "infix: " $ do
     assert (typeof a == typeof b) $ "type mismatch: " ++ show (typeof a, typeof b)
     base <- baseTypeOf a
     case base of
+        ADT _ -> adtInfix operator a b
+        Tuple _ -> tupleInfix operator a b
+        Array _ _ -> arrayInfix operator a b
+        Table _ -> tableInfix operator a b
         Bool                 -> do 
             av <- pload a
             res <- boolInfix operator av =<< pload b
@@ -335,11 +339,7 @@ newInfix operator a b = withErrorPrefix "infix: " $ do
             ret <- newVal (typeof res)
             storeCopyVal ret res 
             return ret
-        Tuple _ -> tupleInfix operator a b
-        Array _ _ -> arrayInfix operator a b
-        Table _ -> tableInfix operator a b
         _                    -> fail $ "Operator " ++ show operator ++ " undefined for types " ++ show (typeof a) ++ " " ++ show (typeof b)
-
 
 
 enumInfix :: InsCmp CompileState m => AST.Operator -> Value -> Value -> m Value
@@ -514,8 +514,8 @@ tableInfix operator a b = do
             return eq
 
 
-adtNormalInfix :: InsCmp CompileState m => AST.Operator -> Pointer -> Pointer -> m Value
-adtNormalInfix operator a b = do
+adtInfix :: InsCmp CompileState m => AST.Operator -> Pointer -> Pointer -> m Pointer
+adtInfix operator a b = do
     assert (typeof a == typeof b) "type mismatch"
     ADT fs <- baseTypeOf a
     case operator of
@@ -557,5 +557,5 @@ adtNormalInfix operator a b = do
                 br exit
 
             emitBlockStart exit
-            pload match
+            return match
 

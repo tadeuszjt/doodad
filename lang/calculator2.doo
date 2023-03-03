@@ -3,8 +3,32 @@ module calculator2
 import ../std/chars
 import ../std/io
 
-type Token { TokInt(i64) | TokSym(char) }
-type LexResult { null | LexSuccess(Token, i64) }
+type Item {
+    EOF()
+    Epsilon()
+    E()
+    E_()
+    T()
+    T_()
+    F()
+    TokInt(i64)
+    TokSym(char)
+}
+
+type LexResult { null | LexSuccess(Item, i64) }
+
+
+fn printItem(item Item)
+    switch item
+        EOF(); print("EOF")
+        Epsilon(); print("Epsilon")
+        E(); print("E")
+        E_(); print("E_")
+        T(); print("T")
+        T_(); print("T_")
+        F(); print("F")
+        TokInt(n); print("TokInt", n)
+        TokSym(c); print("TokSym", c)
 
 
 fn {s string} at(idx i64) { null | char }
@@ -12,10 +36,10 @@ fn {s string} at(idx i64) { null | char }
         return conv(s[idx])
     return null
 
-fn {ts [Token]} at(idx i64) { null | Token }
+fn {ts [Item]} at(idx i64) Item 
     if ts[..][idx]
-        return conv(ts[idx])
-    return null
+        return ts[idx]
+    return EOF()
 
 fn {s string} lexInt(idx i64) LexResult
     if s.at(idx) -> char(c) | isDigit(c)
@@ -38,105 +62,130 @@ fn {s string} lex(idx i64) LexResult
     if s.lexSym(idx) -> LexSuccess(a, b); return LexSuccess(a, b)
     return null
 
-fn {s string, tokens [Token]} lexString() bool
+fn {s string, tokens [Item]} lexString() bool
     let idx = 0
     while s.lex(idx) -> LexSuccess(token, end)
         idx = end
         tokens.push(token)
     return idx == s.len()
 
-type Item {
-    EOF()
-    Epsilon()
-    E()
-    E_()
-    T()
-    T_()
-    F()
-    Token
-}
 
-type Stack [Item]
-type Result { null | Success() }
-
-fn {s Stack} pushDerivation(item Item, lookAhead {null | Token}) bool
+fn {s [Item]} pushDerivation(item Item, lookAhead Item) bool
     switch (item, lookAhead)
-        (EOF(), null);
-        (E(), Token(TokSym('(')))
+        (EOF(), EOF());
+        (E(), TokSym('('))
             s.push(E_())
             s.push(T())
-        (E(), Token(TokInt(n)))
+        (E(), TokInt(n))
             s.push(E_())
             s.push(T())
-        (E_(), Token(TokSym('+')))
+        (E_(), TokSym('+'))
             s.push(E_())
             s.push(T())
-            s.push(conv(TokSym('+')))
-        (E_(), Token(TokSym(')')))
+            s.push(TokSym('+'))
+        (E_(), TokSym(')'))
             s.push(Epsilon())
-        (E_(), null)
+        (E_(), EOF())
             s.push(Epsilon())
-        (T(), Token(TokSym('(')))
+        (T(), TokSym('('))
             s.push(T_())
             s.push(F())
-        (T(), Token(TokInt(n)))
+        (T(), TokInt(n))
             s.push(T_())
             s.push(F())
-        (T_(), Token(TokSym('+')))
+        (T_(), TokSym('+'))
             s.push(Epsilon())
-        (T_(), Token(TokSym('*')))
+        (T_(), TokSym('*'))
             s.push(T_())
             s.push(F())
-            s.push(conv(TokSym('*')))
-        (T_(), Token(TokSym(')')))
+            s.push(TokSym('*'))
+        (T_(), TokSym(')'))
             s.push(Epsilon())
-        (T_(), null)
+        (T_(), EOF())
             s.push(Epsilon())
-        (F(), Token(TokSym('(')))
-            s.push(conv(TokSym(')')))
+        (F(), TokSym('('))
+            s.push(TokSym(')'))
             s.push(E())
-            s.push(conv(TokSym('(')))
-        _; return false
+            s.push(TokSym('('))
+        (F(), TokInt(n))
+            s.push(TokInt(n))
+        _
+            print("pushDerivation failed")
+            return false
     return true
 
 
-fn printItem(item Item)
+fn isNonTerminal(item Item) bool 
     switch item
-        EOF(); print("EOF")
-        Epsilon(); print("Epsilon")
-        E(); print("E")
-        E_(); print("E_")
-        T(); print("T")
-        T_(); print("T_")
-        F(); print("F")
+        E(); return true
+        E_(); return true
+        T(); return true
+        T_(); return true
+        F(); return true
+        _; return false
+
+
+fn isTerminal(item Item) bool
+    switch item
+        TokSym(_); return true
+        TokInt(_); return true
+        _; return false
+
+
+type Result { Success() | Fail() | Finished() }
+fn {tokens [Item]} parseTokens() Result
+    data stack [Item]
+    stack.push(EOF())
+    stack.push(E())
+    let tokenCursor = 0
+
+    while stack.len() > 0
+        let item = stack.pop()
+        print("popped item: ")
+        printItem(item)
+
+        if item == EOF()
+            print("EOF on stack: finished")
+            return Finished()
+
+        else if item == Epsilon()
+            print("epsilon, do nothing.")
+
+        else if isNonTerminal(item)
+            let lookahead = tokens.at(tokenCursor)
+            print("lookahead: ")
+            printItem(lookahead)
+            let success = stack.pushDerivation(item, lookahead)
+
+            print("pushed derivation. new stack: ")
+            for stack -> item; printItem(item)
+            if !success
+                return Fail()
+
+        else if isTerminal(item)
+            if tokens[tokenCursor] == item
+                print("matched terminal:")
+                printItem(item)
+                tokenCursor = tokenCursor + 1
+            else; return Fail()
+
+        print("")
+
+    return Fail()
 
 
 fn {io Io} main()
+    print("calculator2")
+
     data line string
     while {io, line}.readLn()
-        data tokens [Token]
-        let cursor = 0
-        if {line, tokens}.lexString()
-            data stack Stack
-            stack.push(EOF())
-            stack.push(E())
+        data tokens [Item]
+        {line, tokens}.lexString()
 
-            while stack.len() > 0
-                switch stack.pop() 
-                    Token(TokSym(sym))
-                        if tokens.at(cursor) -> Token(TokSym(s2)) | sym == s2
-                            cursor = cursor + 1
-                            print("did it")
-                    Token(TokInt(n))
-                        print("did not did it")
-                    item
-                        printItem(item)
-                        stack.pushDerivation(item, tokens.at(cursor))
-
-        else
-            print("lex failure")
+        switch tokens.parseTokens()
+            Success(); print("yarg")
+            Fail();   print("argh")
+            Finished; print("blarg.")
 
         line.clear()
-        
-
-    print("calculator2")
+            
