@@ -6,12 +6,12 @@ import ../std/strings
 import lexer
 
 fn {io Io} main() 
-    data stack Stack 
+    data stack Strings 
     while io.read() -> char(c)
         stack.push(c)
 
-    data indentStack [string]
-    indentStack.push()
+    data indentStrings [string]
+    indentStrings.push()
 
     let idx = 0
     let line = 1
@@ -30,19 +30,19 @@ fn {io Io} main()
             {stack, indent}.read(id)
 
             io.writeTextPos(idx, line, column)
-            if indent == indentStack[indentStack.len() - 1]
+            if indent == indentStrings[indentStrings.len() - 1]
                 {io, "\tind: N"}.writeLn()
-            else if {indent, indentStack[indentStack.len() - 1]}.isPrefix()
+            else if {indent, indentStrings[indentStrings.len() - 1]}.isPrefix()
                 {io, "\tind: I"}.writeLn()
-                indentStack[indentStack.push()] = indent
+                indentStrings[indentStrings.push()] = indent
             else 
                 {io, "\tind: N"}.writeLn()
-                while indent != indentStack[indentStack.len() - 1]
-                    if indentStack.len() == 1
+                while indent != indentStrings[indentStrings.len() - 1]
+                    if indentStrings.len() == 1
                         {io, "\tINDENT ERRROR"}.writeLn()
                         return
 
-                    indentStack.pop()
+                    indentStrings.pop()
                     io.writeTextPos(idx, line, column)
                     {io, "\tind: D"}.writeLn()
         else

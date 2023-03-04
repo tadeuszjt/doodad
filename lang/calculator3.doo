@@ -1,0 +1,236 @@
+module calculator3
+
+import ../std/chars
+import ../std/io
+import ../std/assert
+
+
+// Grammar:
+// E' : E
+//
+// E : E + T
+//   | T
+//
+// T : T * F
+//   | F
+//
+// F : number
+
+
+// LR Parsing Table:
+// 
+//  | Action          | Goto
+//  |_________________|___________
+//  | + | * | num | $ | E | T | F    
+// _|___|___|_____|___|___|___|___
+// 0|   |   |s4   |   |1  |2  |3
+// 1|s5 |   |     |acc|   |   |
+// 2|r2 |s7 |     |r2 |   |   |
+// 3|r4 |r4 |     |r4 |   |   |
+// 4|r5 |r5 |     |r5 |   |   |
+// 5|   |   |s4   |   |   |6  |3
+// 6|r1 |s7 |     |r1 |   |   |
+// 7|   |   |s4   |   |   |   |8
+// 8|r3 |r3 |     |r3 |   |   | 
+
+
+
+type Token {
+    TokInt(i64)
+    TokSym(char)
+    TokEnd()
+}
+
+type Rule {
+    E_(i64)
+    E(i64)
+    T(i64)
+    F(i64)
+}
+
+type Cell {
+    Accept()
+    Shift(i64)
+    Reduce(i64)
+    Goto(i64)
+}
+
+type State i64
+
+type Item {
+    Token
+    State
+    Rule
+}
+
+type LexResult { null | LexSuccess(Token, i64) }
+
+
+
+fn lookupCell(state State, thing {Rule | Token}) Cell
+    switch (state, thing)
+        (0:State, Token(TokInt(_)))  ; return Shift(4)
+        (1:State, Token(TokSym('+'))); return Shift(5)
+        (1:State, Token(TokEnd()))   ; return Accept()
+        (2:State, Token(TokSym('+'))); return Reduce(2)
+        (2:State, Token(TokSym('*'))); return Shift(7)
+        (2:State, Token(TokEnd()))   ; return Reduce(2)
+        (3:State, Token(TokSym('+'))); return Reduce(4)
+        (3:State, Token(TokSym('*'))); return Reduce(4)
+        (3:State, Token(TokEnd()))   ; return Reduce(4)
+        (4:State, Token(TokSym('+'))); return Reduce(5)
+        (4:State, Token(TokSym('*'))); return Reduce(5)
+        (4:State, Token(TokEnd()))   ; return Reduce(5)
+        (5:State, Token(TokInt(_)))  ; return Shift(4)
+        (6:State, Token(TokSym('+'))); return Reduce(1)
+        (6:State, Token(TokSym('*'))); return Shift(7)
+        (6:State, Token(TokEnd()))   ; return Reduce(1)
+        (7:State, Token(TokInt(_)))  ; return Shift(4)
+        (8:State, Token(TokSym('+'))); return Reduce(3)
+        (8:State, Token(TokSym('*'))); return Reduce(3)
+        (8:State, Token(TokEnd()))   ; return Reduce(3)
+        (0:State, Rule(E(_)))        ; return Goto(1)
+        (0:State, Rule(T(_)))        ; return Goto(2)
+        (0:State, Rule(F(_)))        ; return Goto(3)
+        (5:State, Rule(T(_)))        ; return Goto(6)
+        (5:State, Rule(F(_)))        ; return Goto(3)
+        (7:State, Rule(F(_)))        ; return Goto(8)
+        _; {"lookupCell: no matching cell"}.assert(false)
+
+
+fn {stack [Item]} reduce(production i64)
+    switch production
+        5 // F : number
+            let State(_)         = stack.pop()
+            let Token(TokInt(n)) = stack.pop()
+            stack.push(conv(F(n)))
+        4 // T : F
+            let State(_)  = stack.pop()
+            let Rule(F(n)) = stack.pop()
+            stack.push(conv(T(n)))
+        2 // E : T
+            let State(_)  = stack.pop()
+            let Rule(T(n)) = stack.pop()
+            stack.push(conv(E(n)))
+        3 // T : T * F
+            let State(_)           = stack.pop()
+            let Rule(F(nf))        = stack.pop()
+            let State(_)           = stack.pop()
+            let Token(TokSym('*')) = stack.pop()
+            let State(_)           = stack.pop()
+            let Rule(T(nt))        = stack.pop()
+            stack.push(conv(T(nf * nt)))
+        1 // E : E + T
+            let State(_)           = stack.pop()
+            let Rule(T(nt))        = stack.pop()
+            let State(_)           = stack.pop()
+            let Token(TokSym('+')) = stack.pop()
+            let State(_)           = stack.pop()
+            let Rule(E(ne))        = stack.pop()
+            stack.push(conv(E(nt + ne)))
+        n
+            print(n)
+            {"invalid reduce"}.assert(false)
+
+
+fn {stack [Item]} printStack()
+    for stack -> item
+        switch item
+            State(n); print("state", n)
+            Token(TokInt(n)); print("int:", n)
+            Token(TokSym(c)); print("sym:", c)
+            Rule(F(n)); print("F", n)
+            Rule(T(n)); print("T", n)
+            Rule(E(n)); print("E", n)
+            Rule(E_(n)); print("E_", n)
+            _; print("unknown")
+
+
+fn {tokens [Token]} at(idx i64) Token
+    if idx == tokens.len(); return TokEnd()
+    else if idx < tokens.len(); return tokens[idx]
+    let true = false
+    print("tokens.at error")
+    return TokEnd()
+
+
+fn {io Io} main()
+    print("calculator3")
+
+    data line string "10 + 2 * 3 + 4"
+    data tokens [Token]
+    {line, tokens}.lexString()
+
+    data stack [Item]
+    stack.push(conv(State(0)))
+    let tokenCursor = 0
+
+    for [0..100]
+        let cell = Accept()
+        let token = tokens.at(tokenCursor)
+        switch stack[stack.len() - 1]
+            State(state); cell = lookupCell(state, conv(token))
+            Rule(rule)
+                let State(state) = stack[stack.len() - 2]
+                cell = lookupCell(state, conv(rule))
+
+
+        switch cell
+            Shift(state) // Push token onto stack, increase tokenCursor, push next state
+                print("-- shifting", state)
+                stack.push(conv(tokens[tokenCursor]))
+                stack.push(conv(State(state)))
+                tokenCursor = tokenCursor + 1
+
+            Reduce(production) // pop state, replace RHS of production with LHS
+                stack.reduce(production)
+                print("-- reducing", production)
+
+            Goto(state) // push next state
+                print("-- goto", state)
+                stack.push(conv(State(state)))
+
+            Accept()
+                let TokEnd() = token
+                print("-- accept")
+                return
+
+            _; {"invalid cell"}.assert(false)
+
+        stack.printStack()
+
+
+
+fn {s string} at(idx i64) { null | char }
+    if s[..][idx]
+        return conv(s[idx])
+    return null
+
+fn {s string} lexInt(idx i64) LexResult
+    if s.at(idx) -> char(c) | isDigit(c)
+        let n = 0
+        while s.at(idx) -> char(c) | isDigit(c)
+            n = n*10 + i64(c - '0')
+            idx = idx + 1
+
+        return LexSuccess(TokInt(n), idx)
+    return null
+
+fn {s string} lexSym(idx i64) LexResult
+    if s.at(idx) -> char(c) | c == '+' || c == '*' || c == '(' || c == ')'
+        return LexSuccess(TokSym(c), idx + 1)
+    return null
+
+fn {s string} lex(idx i64) LexResult
+    while s.at(idx) -> char(c) | isSpace(c); idx = idx + 1
+    if s.lexInt(idx) -> LexSuccess(a, b); return LexSuccess(a, b)
+    if s.lexSym(idx) -> LexSuccess(a, b); return LexSuccess(a, b)
+    return null
+
+fn {s string, tokens [Token]} lexString() bool
+    let idx = 0
+    while s.lex(idx) -> LexSuccess(token, end)
+        idx = end
+        tokens.push(token)
+    return idx == s.len()
+

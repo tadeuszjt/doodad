@@ -26,33 +26,33 @@ type Lexeme {
 
 
 type Result { null | Success(Lexeme, Idx) }
-type Stack string
+type Strings string
 
 
-fn {s Stack} at(idx Idx) {null | char}
+fn {s Strings} at(idx Idx) {null | char}
     if s[..][idx] && s[idx] != '\0'
         return conv(s[idx])
     return null
 
 
-fn {s Stack, str string} read(idx Idx)
+fn {s Strings, str string} read(idx Idx)
     while s.at(idx) -> char(c)
         str.push(c)
         idx = idx + 1
 
 
-fn {io Io, s Stack} write(idx Idx)
+fn {io Io, s Strings} write(idx Idx)
     while s.at(idx) -> char(c) 
         io.write(c)
         idx = idx + 1
 
 
-fn {s Stack} popString() 
+fn {s Strings} popString() 
     while s.at(s.len() - 1) -> char(c)
         s.pop()
 
 
-fn {s Stack} lexFloat(idx Idx) Result
+fn {s Strings} lexFloat(idx Idx) Result
     data chars string 
     while s.at(idx) -> char(c) | isDigit(c) 
         idx = idx + 1
@@ -76,7 +76,7 @@ fn {s Stack} lexFloat(idx Idx) Result
     return Success(LexFloat(id), idx)
             
 
-fn {s Stack} lexInt(idx Idx) Result 
+fn {s Strings} lexInt(idx Idx) Result 
     let start = idx
     let n = 0
     while s.at(idx) -> char(c) | isDigit(c)
@@ -88,7 +88,7 @@ fn {s Stack} lexInt(idx Idx) Result
     return null
 
 
-fn {s Stack} lexIdent(idx Idx) Result
+fn {s Strings} lexIdent(idx Idx) Result
     if s.at(idx) -> char(c) | isAlpha(c)
         let id = s.push('\0') + 1
 
@@ -99,7 +99,7 @@ fn {s Stack} lexIdent(idx Idx) Result
     return null
 
 
-fn {s Stack} lexComment(idx Idx) Result
+fn {s Strings} lexComment(idx Idx) Result
     if s.at(idx) -> char('/') 
         idx = idx + 1
         if s.at(idx) -> char('/')
@@ -110,7 +110,7 @@ fn {s Stack} lexComment(idx Idx) Result
     return null
 
 
-fn {s Stack} lexImport(idx Idx) Result
+fn {s Strings} lexImport(idx Idx) Result
     if s.lexIdent(idx) -> null; return null
     let Success(LexIdent(id), end) = s.lexIdent(idx)
     idx = end
@@ -138,7 +138,7 @@ fn {s Stack} lexImport(idx Idx) Result
         "import_c"; return Success(LexImportC(retId), idx)
 
 
-fn {s Stack} lexType(idx Idx) Result
+fn {s Strings} lexType(idx Idx) Result
     if s.lexIdent(idx) -> Success(LexIdent(id), end) 
         data ident string 
         {s, ident}.read(id) 
@@ -164,7 +164,7 @@ fn {s Stack} lexType(idx Idx) Result
     return null
 
 
-fn {s Stack} lexKeyword(idx Idx) Result
+fn {s Strings} lexKeyword(idx Idx) Result
     if s.lexIdent(idx) -> Success(LexIdent(id), end)
         data ident string 
         {s, ident}.read(id)
@@ -177,7 +177,7 @@ fn {s Stack} lexKeyword(idx Idx) Result
     return null
 
 
-fn {s Stack} lexGraphic(idx Idx) Result
+fn {s Strings} lexGraphic(idx Idx) Result
     data syms string "-/<>[]{}().,;:|=!?@#$%^&*()_+ "
     if s.at(idx) -> char(c)
         for syms -> sym 
@@ -185,7 +185,7 @@ fn {s Stack} lexGraphic(idx Idx) Result
     return null
 
 
-fn {s Stack} lexSym(idx Idx) Result
+fn {s Strings} lexSym(idx Idx) Result
     data syms string "+-*/%<>[]{}().,;:|=_!"
     if s.at(idx) -> char(c)
         for syms -> sym 
@@ -193,7 +193,7 @@ fn {s Stack} lexSym(idx Idx) Result
     return null
 
 
-fn {s Stack} lexDoubleSym(idx Idx) Result
+fn {s Strings} lexDoubleSym(idx Idx) Result
     data chars2 [2 char]
     if s.at(idx)     -> char(c); chars2[0] = c
     if s.at(idx + 1) -> char(c); chars2[1] = c
@@ -211,7 +211,7 @@ fn {s Stack} lexDoubleSym(idx Idx) Result
     return Success(LexDoubleSym(chars2[0], chars2[1]), idx + 2)
 
 
-fn {s Stack} lexEscaped(idx Idx) Result 
+fn {s Strings} lexEscaped(idx Idx) Result 
     switch (s.at(idx), s.at(idx + 1))
         (char('\\'), char('n'));  return Success(LexChar('\n'), idx + 2)
         (char('\\'), char('t'));  return Success(LexChar('\t'), idx + 2)
@@ -220,7 +220,7 @@ fn {s Stack} lexEscaped(idx Idx) Result
         _; return null
 
 
-fn {s Stack} lexCharLit(idx Idx) Result
+fn {s Strings} lexCharLit(idx Idx) Result
     if s.at(idx) -> char('\'')
         idx = idx + 1
         let result = null
@@ -239,7 +239,7 @@ fn {s Stack} lexCharLit(idx Idx) Result
     return null
 
 
-fn {s Stack} lexStringLitChar(idx Idx) Result
+fn {s Strings} lexStringLitChar(idx Idx) Result
     if (s.at(idx), s.at(idx+1)) -> (char('\\'), char('"'))
         return Success(LexChar('"'), idx + 2)
     if s.lexEscaped(idx) -> Success(a, b); return Success(a, b)
@@ -250,7 +250,7 @@ fn {s Stack} lexStringLitChar(idx Idx) Result
     return null
 
 
-fn {s Stack} lexStringLit(idx Idx) Result 
+fn {s Strings} lexStringLit(idx Idx) Result 
     if s.at(idx) -> char('"')
         idx = idx + 1
         let id = s.push('\0') + 1
@@ -274,7 +274,7 @@ fn {s Stack} lexStringLit(idx Idx) Result
     return null
 
 
-fn {s Stack} lexNewline(idx Idx) Result
+fn {s Strings} lexNewline(idx Idx) Result
     data chars string 
 
     let loop = true
@@ -297,7 +297,7 @@ fn {s Stack} lexNewline(idx Idx) Result
     return Success(LexNewline(id), idx)
 
 
-fn {s Stack} lex(idx Idx) Result
+fn {s Strings} lex(idx Idx) Result
     while s.at(idx) -> char(c) | c == ' ' || c == '\t'; idx = idx + 1
     if s.lexNewline(idx)   -> Success(l, end); return Success(l, end)
     if s.lexStringLit(idx) -> Success(l, end); return Success(l, end)
@@ -313,7 +313,7 @@ fn {s Stack} lex(idx Idx) Result
     return null
 
 
-fn {io Io, s Stack} writeLexeme(lexeme Lexeme)
+fn {io Io, s Strings} writeLexeme(lexeme Lexeme)
     switch lexeme 
         LexChar(c)
             {io, "chr: "}.write()

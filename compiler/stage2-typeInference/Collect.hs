@@ -286,7 +286,7 @@ collectPattern pattern typ = collectPos pattern $ case pattern of
             Nothing -> do
                 ObjType base <- look symbol KeyType
                 case pats of 
-                    [pat] -> collectPattern pat base
+                    [pat] -> collectPattern pat (Typedef symbol)
                     pats -> do 
                         gts <- replicateM (length pats) genType
                         collectBase base (Tuple gts)
@@ -298,7 +298,6 @@ collectPattern pattern typ = collectPos pattern $ case pattern of
 
     S.PatTuple _ pats -> do
         gts <- replicateM (length pats) genType
-        collectDefault typ (Tuple gts)
         collectBase typ (Tuple gts)
         zipWithM_ collectPattern pats gts
 

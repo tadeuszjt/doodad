@@ -213,23 +213,21 @@ exprs1 : expr                                 { [$1] }
        | expr ',' exprs1                      { $1 : $3 }
 exprsN : expr 'N'                             { [$1] } 
        | expr 'N' exprsN                      { $1 : $3 }
-
 mexpr : {-empty-}                             { Nothing }
       | expr                                  { Just $1 }
 
-call : symbol '(' exprs ')'                   { (S.Call (tokPos $2) [] (snd $1) $3, tokPos $2) }
-
+call : symbol '(' exprs ')'                   { S.Call (tokPos $2) [] (snd $1) $3 }
+     | '{' exprs1 '}' '.' ident '(' exprs ')' { S.Call (tokPos $4) $2 (Sym $ tokStr $5) $7 }
 index  : symbol                               { S.Ident (fst $1) (snd $1) }
        | index '[' expr ']'                   { S.Subscript (tokPos $2) $1 $3 }
        | index '.' ident                      { S.Field (tokPos $2) $1 (Sym $ tokStr $3) }
        | index '.' symbol '(' exprs ')'        { S.Call (tokPos $2) [$1] (snd $3) $5 }
-       | '{' exprs1 '}' '.' ident '(' exprs ')' { S.Call (tokPos $4) $2 (Sym $ tokStr $5) $7 }
-       | call                                 { (fst $1) }
+       | call                                 { $1 }
 
 expr   : literal                              { $1 }
        | infix                                { $1 }
        | prefix                               { $1 }
-       | call                                 { (fst $1) }
+       | call                                 { $1 }
        | symbol                               { S.Ident (fst $1) (snd $1) }
        | '(' expr ')'                         { $2 }
        | '(' expr ',' exprs1 ')'              { S.Tuple (tokPos $1) ($2:$4) }
@@ -239,7 +237,6 @@ expr   : literal                              { $1 }
        | expr '[' expr ']'                    { S.Subscript (tokPos $2) $1 $3 }
        | expr ':' type_                       { S.AExpr $3 $1 }
        | expr '.' ident '(' exprs ')'         { S.Call (tokPos $4) [$1] (Sym $ tokStr $3) $5 }
-       | '{' exprs1 '}' '.' symbol '(' exprs ')' { S.Call (tokPos $6) $2 (snd $5) $7 }
        | expr '[' mexpr '..' mexpr ']'        { S.Range (tokPos $2) (Just $1) $3 $5 }
        | '[' mexpr '..' mexpr ']'             { S.Range (tokPos $1) Nothing $2 $4 }
 

@@ -3,20 +3,20 @@ module testLexer
 import ../lexer
 
 
-fn {s Stack, str string} checkStr(id Idx)
+fn {s Strings, str string} checkStr(id Idx)
     data result string 
     {s, result}.read(id)
     let true = str == result
 
 
 fn testLexInt()
-    data s Stack "test2 123"
+    data s Strings "test2 123"
     let null = s.lexInt(0)
     let Success(LexInt(2), 5) = s.lexInt(4)
 
 
 fn testLexIdent()
-    data s Stack " test2 123"
+    data s Strings " test2 123"
     let null = s.lexIdent(0)
     let Success(LexIdent(n), 6)  = s.lexIdent(1)
 
@@ -26,7 +26,7 @@ fn testLexIdent()
 
 
 fn testLexKeyword()
-    data s Stack " return 2 for123"
+    data s Strings " return 2 for123"
 
     let null = s.lexKeyword(0)
     let Success(LexKeyword(id), 7) = s.lexKeyword(1)
@@ -37,7 +37,7 @@ fn testLexKeyword()
     let "return" = result
 
 fn testLexSym()
-    data s Stack " /ret?urn+35- % "
+    data s Strings " /ret?urn+35- % "
     let null = s.lexSym(0)
     let Success(LexSym('/'), 2) = s.lexSym(1)
     let null = s.lexSym(4)
@@ -45,7 +45,7 @@ fn testLexSym()
 
 
 fn testLexDoubleSym() 
-    data s Stack " ->ret..urn+35 ->% "
+    data s Strings " ->ret..urn+35 ->% "
 
     let null = s.lexDoubleSym(0)
     let Success(LexDoubleSym('-', '>'), 3) = s.lexDoubleSym(1)
@@ -55,7 +55,7 @@ fn testLexDoubleSym()
 
 
 fn testLexNewline()
-    data s Stack "stuff \n  moreStuff\n\t\t"
+    data s Strings "stuff \n  moreStuff\n\t\t"
     let null = s.lexNewline(0)
     let Success(LexNewline(id0), 9)  = s.lexNewline(6)
     let null = s.lexNewline(7)
@@ -67,7 +67,7 @@ fn testLexNewline()
 
 //    another comment // more comments
 fn testLexComment() // comment
-    data s Stack "blargh\n//comment  stuff\t \nmore"
+    data s Strings "blargh\n//comment  stuff\t \nmore"
     let null = s.lexComment(0)
     let null = s.lexComment(6)
     let Success(LexComment(), 25) = s.lexComment(7)
@@ -75,12 +75,12 @@ fn testLexComment() // comment
 
 
 fn testLexNewlineWithComment()
-    data s Stack "   \t\t\n//comment\n\t\n\t"
+    data s Strings "   \t\t\n//comment\n\t\n\t"
     let Success(LexNewline(id), 19) = s.lexNewline(0)
 
 
 fn testLexCharLit()
-    data s Stack "stuff '\\n' more'\\0'na'j'df"
+    data s Strings "stuff '\\n' more'\\0'na'j'df"
     let null = s.lexCharLit(0)
     let Success(LexCharLit('\n'), 10) = s.lexCharLit(6)
     let null = s.lexCharLit(14)
@@ -90,7 +90,7 @@ fn testLexCharLit()
 
 
 fn testLexStringLit()
-    data s Stack "s\"str+ 123\"\t more"
+    data s Strings "s\"str+ 123\"\t more"
     let null = s.lexStringLit(0)
     let Success(LexStringLit(id0), _) = s.lexStringLit(1)
     let null = s.lexStringLit(6)
@@ -98,7 +98,7 @@ fn testLexStringLit()
 
 
 fn testLexEscaped()
-    data s Stack "s\\n+ 13\\\\more"
+    data s Strings "s\\n+ 13\\\\more"
     let null = s.lexEscaped(0)
     let Success(LexChar('\n'), 3) = s.lexEscaped(1)
     let null = s.lexEscaped(2)
@@ -107,7 +107,7 @@ fn testLexEscaped()
 
 
 fn testLexImport()
-    data s Stack " import ../someDir/someFile; someNonsense"
+    data s Strings " import ../someDir/someFile; someNonsense"
     let null = s.lexImport(0)
     let Success(LexImport(id), 27) = s.lexImport(1)
     let null = s.lexImport(2)
@@ -115,11 +115,11 @@ fn testLexImport()
 
 
 fn testLexFunnyString()
-    data s Stack "\"abStr98.<?\""
+    data s Strings "\"abStr98.<?\""
     let Success(x, y) = s.lexStringLit(0)
 
 
-    data s2 Stack "\"stuff '\\n' more'\\0'na'j'df\""
+    data s2 Strings "\"stuff '\\n' more'\\0'na'j'df\""
     let Success(_, _) = s2.lexStringLit(0)
 
 fn main() 
