@@ -8,27 +8,41 @@ import System.Directory
 import System.IO.Temp
 import System.Cmd
 import Control.Monad.IO.Class
-import Lexer as L
 
 import Error
 import Monad
 
---
---data Token
---    = Token
---        { tokPosn :: TextPos
---        , tokType :: TokenType
---        , tokStr  :: String
---        }
---    deriving (Eq)
---
---
---instance Show Token where
---    show (Token p t s) = show t ++ ": " ++ s
---
+data Token
+    = Token
+        { tokPosn :: TextPos
+        , tokType :: TokenType
+        , tokStr  :: String
+        }
+    deriving (Eq)
 
 
-lexFile :: BoM s m => FilePath -> m [L.Token]
+instance Show Token where
+    show (Token p t s) = show t ++ ": " ++ s
+
+data TokenType
+    = TokSym
+    | Reserved
+    | Ident
+    | Int
+    | Float
+    | Char
+    | String
+    | Indent
+    | NewLine
+    | Import
+    | ImportC
+    | ImportCMacro
+    | Dedent
+    | EOF
+    deriving (Show, Eq)
+ 
+
+lexFile :: BoM s m => FilePath -> m [Token]
 lexFile filePath = do 
     src <- liftIO $ lines <$> readFile filePath
 
@@ -57,42 +71,22 @@ lexFile filePath = do
             return (pos, lineNum, col, code, rest)
 
 
-        makeToken :: BoM s m => (Int, Int, Int, String, String) -> m L.Token
+        makeToken :: BoM s m => (Int, Int, Int, String, String) -> m Token
         makeToken (textIdx, textLine, textCol, code, rest) = do
             let pos = TextPos filePath textLine textCol
             case code of 
-                "kwd" -> return $ L.Token pos L.Reserved rest
-                "typ" -> return $ L.Token pos L.Reserved rest
-                "imp" -> return $ L.Token pos L.Import rest
-                "imc" -> return $ L.Token pos L.ImportC rest
-                "idt" -> return $ L.Token pos L.Ident rest
-                "sym" -> return $ L.Token pos L.TokSym rest
-                "chr" -> return $ L.Token pos L.Char rest
-                "int" -> return $ L.Token pos L.Int rest
-                "flt" -> return $ L.Token pos L.Float rest
-                "str" -> return $ L.Token pos L.String rest
+                "kwd" -> return $ Token pos Reserved rest
+                "typ" -> return $ Token pos Reserved rest
+                "imp" -> return $ Token pos Import rest
+                "imc" -> return $ Token pos ImportC rest
+                "idt" -> return $ Token pos LexemeReader.Ident rest
+                "sym" -> return $ Token pos TokSym rest
+                "chr" -> return $ Token pos LexemeReader.Char rest
+                "int" -> return $ Token pos Int rest
+                "flt" -> return $ Token pos Float rest
+                "str" -> return $ Token pos LexemeReader.String rest
                 "ind" -> case rest of 
-                    "I" -> return $ L.Token pos L.Indent ""
-                    "N" -> return $ L.Token pos L.NewLine ""
-                    "D" -> return $ L.Token pos L.Dedent ""
+                    "I" -> return $ Token pos Indent ""
+                    "N" -> return $ Token pos NewLine ""
+                    "D" -> return $ Token pos Dedent ""
                 _ -> error (show code ++ " " ++ show rest ++ show filePath)
-
-
---
---data TokenType
---    = TokSym
---    | Reserved
---    | ReservedOp
---    | Ident
---    | Int
---    | Float
---    | Char
---    | String
---    | Indent
---    | NewLine
---    | Import
---    | ImportC
---    | ImportCMacro
---    | Dedent
---    | EOF
---    deriving (Show, Eq)

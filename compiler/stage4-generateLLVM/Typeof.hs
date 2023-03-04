@@ -118,7 +118,7 @@ opTypeOf typ = withErrorPrefix ("opTypOf " ++ show typ) $ do
                 ts' <- mapM opTypeOf ts
                 return $ LL.ptr (LL.FunctionType rt' ts' False)
 
-            UnsafePtr -> return $ LL.ptr LL.VoidType
+            UnsafePtr -> return $ LL.ptr LL.i8
 
             _         -> error (show typ) 
 

@@ -16,7 +16,6 @@ import Monad
 import Args
 import AST
 import qualified Parser as P
-import qualified Lexer as L
 import qualified SymTab
 import Resolve
 import LexemeReader

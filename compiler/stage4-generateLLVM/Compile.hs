@@ -695,7 +695,7 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
         case base of
             Table [Char] -> do
                 [elm] <- tableColumn val (mkI64 0)
-                val <- Value UnsafePtr <$> bitcast (loc elm) (LL.ptr LL.VoidType)
+                val <- Value UnsafePtr <$> bitcast (loc elm) (LL.ptr LL.i8)
                 result <- newVal exprType
                 storeBasicVal result val 
                 return result
@@ -705,7 +705,7 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
     AST.Builtin pos [] "unsafe_ptr_from_int" [expr] -> do
         val <- convertNumber I64 =<< pload =<< cmpExpr expr
         UnsafePtr <- baseTypeOf exprType
-        val <- Value exprType <$> inttoptr (op val) (LL.ptr LL.VoidType)
+        val <- Value exprType <$> inttoptr (op val) (LL.ptr LL.i8)
         result <- newVal exprType
         storeBasicVal result val 
         return result

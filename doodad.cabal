@@ -48,7 +48,6 @@ executable doodad
         exceptions,
         process
     build-tools:
-        alex,
         happy
     other-modules:
         AST,
@@ -70,7 +69,6 @@ executable doodad
         Tuple,
         Type,
         Value,
-        Lexer,
         Typeof,
         Trace,
         Annotate,

@@ -298,6 +298,7 @@ collectPattern pattern typ = collectPos pattern $ case pattern of
 
     S.PatTuple _ pats -> do
         gts <- replicateM (length pats) genType
+        collectDefault typ (Tuple gts)
         collectBase typ (Tuple gts)
         zipWithM_ collectPattern pats gts
 

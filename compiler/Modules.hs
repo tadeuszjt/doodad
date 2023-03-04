@@ -18,7 +18,6 @@ import qualified Data.Set as Set
 import LexemeReader
 import qualified AST as S
 import qualified Parser as P
-import qualified Lexer as L
 import Flatten
 import Monad
 import Error
@@ -93,37 +92,14 @@ getSpecificModuleFiles args name (f:fs) = do
         getSpecificModuleFiles args name fs
 
 
-parseTokens :: BoM s m => [L.Token] -> m S.AST
-parseTokens tokens = case (P.parseTokens tokens) 0 of
-    P.ParseFail pos -> throwError (ErrorPos pos "parse error")
-    P.ParseOk ast   -> return ast 
-
-
 -- parse a file into an AST.
 -- Throw an error on failure.
 parse :: BoM s m => Args -> FilePath -> m S.AST
 parse args file = do
-    if useOldLexer args then do
-        source <- liftIO (readFile file)
-        case L.alexScanner file source of
-            Left errStr -> throwError (ErrorStr errStr)
-            Right tokens -> do
-                when (printTokens args) $ do
-                    liftIO $ mapM_ (putStrLn . show) tokens
-                parseTokens tokens
-
-    else do
-        newTokens <- lexFile file
-        when (printTokens args) $ do
-            liftIO $ mapM_ (putStrLn . show) newTokens
---        source <- liftIO (readFile file)
---        oldTokens <- case L.alexScanner file source of
---            Left errStr -> throwError (ErrorStr errStr)
---            Right tokens -> return tokens
---        forM_ (zip oldTokens newTokens) $ \(oldTok@(L.Token _ ta sa), newTok@(L.Token _ tb sb)) -> do
---            when ((ta, sa) /= (tb, sb)) $ do
---                liftIO $ putStrLn $ "token mismatch: " ++ show oldTok ++ "  " ++ show newTok
-        parseTokens newTokens
+    newTokens <- lexFile file
+    when (printTokens args) $ do
+        liftIO $ mapM_ (putStrLn . show) newTokens
+    P.parse newTokens
 
 
 runMod :: BoM Modules m => Args -> Set.Set FilePath -> FilePath -> m ()

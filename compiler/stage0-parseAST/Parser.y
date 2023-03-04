@@ -1,7 +1,7 @@
 {
 {-# LANGUAGE FlexibleContexts #-}
 module Parser where
-import Lexer
+import LexemeReader
 import Error
 import Control.Monad.Except hiding (void, fail)
 import Data.Char
@@ -366,13 +366,11 @@ annoADTFields : annoADTField                  { [$1] }
 rowTypes1     : type_                         { [$1] }
               | type_ ';' rowTypes1           { $1 : $3 }
 {
-parse :: MonadError Error m => FilePath -> String -> m S.AST
-parse filePath source = do
-    case alexScanner filePath source of
-        Left  errStr -> throwError (ErrorStr errStr)
-        Right tokens -> case (parseTokens tokens) 0 of
-            ParseFail pos -> throwError (ErrorPos pos "parse error")
-            ParseOk ast   -> return ast 
+parse :: MonadError Error m => [Token] -> m S.AST
+parse tokens = do
+    case (parseTokens tokens) 0 of
+        ParseFail pos -> throwError (ErrorPos pos "parse error")
+        ParseOk ast   -> return ast 
 
 
 data ParseResult a
