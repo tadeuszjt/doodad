@@ -120,7 +120,7 @@ data AnnoADTField
 
 data AnnoType
     = AnnoType  Type
-    | AnnoTuple [(Symbol, Type)]
+    | AnnoTuple [Param]
     | AnnoADT   [AnnoADTField]
     | AnnoEnum  [Symbol]
     deriving (Eq)
@@ -222,7 +222,7 @@ instance Show AnnoADTField where
 instance Show AnnoType where
     show annoType = case annoType of
         AnnoType t   -> show t
-        AnnoTuple xs -> tupStrs $ map (\(s, t) -> show s ++ " " ++ show t) xs
+        AnnoTuple ps -> tupStrs $ map show ps
         AnnoADT xs   -> brcStrs $ map show xs
         AnnoEnum ss  -> brcStrs $ map show ss
 

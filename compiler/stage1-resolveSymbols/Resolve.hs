@@ -144,7 +144,7 @@ popSymTab = do
 annoToType :: AnnoType -> Type
 annoToType anno = case anno of
     AnnoEnum ss -> Enum
-    AnnoTuple xs -> Type.Tuple $ map snd xs
+    AnnoTuple xs -> Type.Tuple $ map (\(Param _ s t) -> t) xs
     AnnoADT  xs -> Type.ADT $ map annoFieldToField xs
     AnnoType t  -> t
     where
@@ -185,7 +185,7 @@ buildCtorMap list = do
         AnnoADT xs -> forM_ (zip xs [0..]) $ \(x, i) -> case x of
             ADTFieldMember s t -> modify $ Map.insert s (Type.Typedef symbol, i)
             _ -> return ()
-        AnnoTuple xs -> forM_ (zip xs [0..]) $ \((s, t), i) -> 
+        AnnoTuple xs -> forM_ (zip xs [0..]) $ \(Param _ s t, i) -> 
             modify $ Map.insert s (Type.Typedef symbol,  i)
         _ -> return ()
 
@@ -264,12 +264,7 @@ resolveTypeDef (AST.Typedef pos (Sym sym) anno) = do
     anno' <- case anno of
         AnnoType t -> AnnoType <$> resolve t
 
-        AnnoTuple xs -> do 
-            xs' <- forM xs $ \(Sym s, t) -> do
-                s' <- genSymbol s
-                t' <- resolve t
-                return (s', t')
-            return $ AnnoTuple xs'
+        AnnoTuple ps -> AnnoTuple <$> mapM resolve ps
 
         AnnoADT xs -> do
             xs' <- forM xs $ \x -> case x of

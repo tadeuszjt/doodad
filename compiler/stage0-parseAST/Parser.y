@@ -56,7 +56,6 @@ import Symbol
     '..'       { Token _ TokSym ".." }
 
     fn         { Token _ Reserved "fn" }
-    extern     { Token _ Reserved "extern" }
     type       { Token _ Reserved "type" }
     if         { Token _ Reserved "if" }
     else       { Token _ Reserved "else" }
@@ -70,7 +69,6 @@ import Symbol
     for        { Token _ Reserved "for" }
     null       { Token _ Reserved "null" }
     data       { Token _ Reserved "data" }
-
     import     { Token _ Import _ }
     import_c   { Token _ ImportC _ }
 
@@ -85,10 +83,10 @@ import Symbol
     sparse     { Token _ Reserved "sparse" }
     map        { Token _ Reserved "map" }
 
-    intlit     { Token _ Int _ }
-    floatlit   { Token _ Float _ }
-    charlit    { Token _ Char _ }
-    strlit     { Token _ String _ }
+    int_c      { Token _ Int _ }
+    float_c    { Token _ Float _ }
+    char_c     { Token _ Char _ }
+    string_c   { Token _ String _ }
     ident      { Token _ Ident _ }
 
     '('        { Token _ TokSym "(" }
@@ -103,267 +101,239 @@ import Symbol
     ';'        { Token _ TokSym ";" }
     ':'        { Token _ TokSym ":" }
     '_'        { Token _ TokSym "_" }
-
-
 %%
 
 ---------------------------------------------------------------------------------------------------
 -- Header -----------------------------------------------------------------------------------------
 
-prog  : prog_                                 { S.AST "main" [] $1 }
-      | module ident 'N' imports prog_        { S.AST (tokStr $2) $4 $5 }
-prog_ : {-empty-}                             { [] }
-      | stmtS                                 { [$1] }
-      | stmtS 'N' prog_                       { $1 : $3 }
-      | stmtB prog_                           { $1 : $2 }
+prog  : stmts                               { S.AST "main" [] $1 }
+      | header stmts                        { S.AST (tokStr $ fst $1) (snd $1) $2 }
+stmts : {-empty-}                           { [] }
+      | line 'N' stmts                      { $1 : $3 }
+      | block stmts                         { $1 : $2 }
 
-imports : {- empty -}                         { [] }
-        | import 'N' imports                  { S.Import  (tokStr $1) : $3 }
-        | import_c 'N' imports                { S.ImportC (tokStr $1) : $3 }
+header : module ident 'N' imports           { ($2, $4) }
+imports : {- empty -}                       { [] }
+        | import 'N' imports                { S.Import  (tokStr $1) : $3 }
+        | import_c 'N' imports              { S.ImportC (tokStr $1) : $3 }
 
 
 ---------------------------------------------------------------------------------------------------
 -- Statements -------------------------------------------------------------------------------------
 
-symbol : ident                                { (tokPos $1, Sym (tokStr $1)) }
-       | ident '::' ident                     { (tokPos $3, SymQualified (tokStr $1) (tokStr $3)) }
+symbol : ident                              { (tokPos $1, Sym (tokStr $1)) }
+       | ident '::' ident                   { (tokPos $3, SymQualified (tokStr $1) (tokStr $3)) }
 
-mfnrec : {-empty-}                            { [] }
-       | '{' params1 '}'                      { $2 }
-
-
-initialiser : '{' exprs '}'                   { S.Initialiser (tokPos $1) $2 }
-            | '{' 'I' exprsN 'D' '}'          { S.Initialiser (tokPos $1) $3 }
-            | strlit                          { S.String (tokPos $1) (tokStr $1) }
-
-minitialiser : initialiser                    { Just $1 }
-             | {-empty-}                      { Nothing }
-
-stmtS : let pattern '=' expr                         { S.Assign (tokPos $1) $2 $4 }  
-      | index '=' expr                               { S.Set (tokPos $2) $1 $3 }
-      | index                                        { S.ExprStmt $1 }
-      | type symbol annoType                         { S.Typedef (fst $2) (snd $2) $3 }
-      | return mexpr                                 { S.Return (tokPos $1) $2 }
-      | data symbol type_ minitialiser               { S.Data (tokPos $1) (snd $2) $3 $4 }
-stmtB : If                                           { $1 }
-      | fn mfnrec ident '(' params ')' type_ block   { S.FuncDef (tokPos $1) $2 (Sym $ tokStr $3) $5 $7 $8 }
-      | fn mfnrec ident '(' params ')' block         { S.FuncDef (tokPos $1) $2 (Sym $ tokStr $3) $5 T.Void $7 }
-      | while condition block                        { S.While (tokPos $1) $2 $3 }
-      | for expr block                               { S.For (tokPos $1) $2 Nothing $3 }
-      | for expr '->' pattern block                  { S.For (tokPos $1) $2 (Just $4) $5 }
-      | Switch                                       { $1 }
+mfnrec : {-empty-}                          { [] }
+       | '{' paramsA '}'                    { $2 }
 
 
+initialiser : '{' exprsA '}'                { S.Initialiser (tokPos $1) $2 }
+            | string_c                      { S.String (tokPos $1) (tokStr $1) }
+minitialiser : initialiser                  { Just $1 }
+             | {-empty-}                    { Nothing }
 
-block  : 'I' prog_ 'D'                        { S.Block $2 }
-       | ';' stmtS 'N'                        { $2 }
-       | ';' 'N'                              { S.Block [] }
+line : let pattern '=' expr                         { S.Assign (tokPos $1) $2 $4 }  
+     | index '=' expr                               { S.Set (tokPos $2) $1 $3 }
+     | index                                        { S.ExprStmt $1 }
+     | type symbol anno_t                           { S.Typedef (fst $2) (snd $2) $3 }
+     | return mexpr                                 { S.Return (tokPos $1) $2 }
+     | data symbol type_ minitialiser               { S.Data (tokPos $1) (snd $2) $3 $4 }
+block : if_                                         { $1 }
+      | fn mfnrec ident '(' paramsA ')' mtype scope { S.FuncDef (tokPos $1) $2 (Sym $ tokStr $3) $5 (case $7 of Just t -> t; Nothing -> T.Void) $8 }
+      | while condition scope                       { S.While (tokPos $1) $2 $3 }
+      | for expr scope                              { S.For (tokPos $1) $2 Nothing $3 }
+      | for expr '->' pattern scope                 { S.For (tokPos $1) $2 (Just $4) $5 }
+      | switch_                                     { $1 }
 
-condition : expr                              { $1 }
-          | expr '->' pattern                 { S.Match (tokPos $2) $1 $3 }
+scope  : 'I' stmts 'D'                      { S.Block $2 }
+       | ';' line 'N'                       { $2 }
+       | ';' 'N'                            { S.Block [] }
 
-param   : ident type_                         { S.Param (tokPos $1) (Sym $ tokStr $1) $2 }
-params  : {- empty -}                         { [] }
-        | params1                             { $1 }
-params1 : param                               { [$1] }
-        | param ',' params1                   { $1 : $3 }
-
-If    : if condition block else_              { S.If (tokPos $1) $2 $3 $4 }
-      | if condition 'N' else_                { S.If (tokPos $1) $2 (S.Block []) $4 }
-else_ : else block                            { Just $2 }
-      | else If                               { Just $2 }
-      | {-empty-}                             { Nothing }
+condition : expr                            { $1 }
+          | expr '->' pattern               { S.Match (tokPos $2) $1 $3 }
 
 
-Switch : switch expr 'I' cases1 'D'           { S.Switch (tokPos $1) $2 $4 }
-       | switch expr                          { S.Switch (tokPos $1) $2 [] }
-cases1 : case                                 { [$1] }
-      | case cases1                           { $1 : $2 }
-case : pattern block                          { ($1, $2) }
+param   : ident type_                       { S.Param (tokPos $1) (Sym $ tokStr $ $1) $2 }
+params  : {- empty -}                       { [] }
+        | params1                           { $1 }
+params1 : param                             { [$1] }
+        | param ',' params1                 { $1 : $3 }
+paramsN : param 'N'                         { [$1] } 
+        | param 'N' paramsN                 { $1 : $3 }
+paramsA : params                            { $1 }
+        | 'I' paramsN 'D'                   { $2 }
+
+
+if_   : if condition scope else_            { S.If (tokPos $1) $2 $3 $4 }
+      | if condition 'N' else_              { S.If (tokPos $1) $2 (S.Block []) $4 }
+else_ : else scope                          { Just $2 }
+      | else if_                            { Just $2 }
+      | {-empty-}                           { Nothing }
+
+
+switch_ : switch expr 'I' cases1 'D'        { S.Switch (tokPos $1) $2 $4 }
+       | switch expr                        { S.Switch (tokPos $1) $2 [] }
+cases1 : case                               { [$1] }
+      | case cases1                         { $1 : $2 }
+case : pattern scope                        { ($1, $2) }
 
 ---------------------------------------------------------------------------------------------------
 -- Patterns ---------------------------------------------------------------------------------------
 
-patterns  : {- empty -}                       { [] }
-          | patterns1                         { $1 }
-patterns1 : pattern                           { [$1] }
-          | pattern ',' patterns1             { $1 : $3 }
-patternsSem : patterns                        { [$1] }
-           | patterns ';' patternsSem         { $1 : $3 }
+patterns  : {- empty -}                     { [] }
+          | patterns1                       { $1 }
+patterns1 : pattern                         { [$1] }
+          | pattern ',' patterns1           { $1 : $3 }
+patternsSem : patterns                      { [$1] }
+           | patterns ';' patternsSem       { $1 : $3 }
 
-pattern  : '_'                                { S.PatIgnore (tokPos $1) }
-         | literal                            { S.PatLiteral $1 }
-         | '-' intlit                         { S.PatLiteral (S.Int (tokPos $1) $ 0 - (read $ tokStr $2)) }
-         | ident                              { S.PatIdent (tokPos $1) (Sym $ tokStr $1) }
-         | null                               { S.PatNull (tokPos $1) }
-         | '(' patterns ')'                   { S.PatTuple (tokPos $1) $2 }
-         | '[' patternsSem ']'                { S.PatArray (tokPos $1) $2 }
-         | pattern '|' expr                   { S.PatGuarded (tokPos $2) $1 $3 Nothing }
-         | pattern '|' expr '->' pattern      { S.PatGuarded (tokPos $2) $1 $3 (Just $5) }
-         | symbol '(' patterns ')'            { S.PatField (tokPos $2) (snd $1) $3 }
-         | typeOrdinal '(' pattern ')'        { S.PatTypeField (tokPos $2) $1 $3 }
-         | pattern ':' type_                  { S.PatAnnotated $1 $3 }
+pattern  : '_'                              { S.PatIgnore (tokPos $1) }
+         | literal                          { S.PatLiteral $1 }
+         | '-' int_c                        { S.PatLiteral (S.Int (tokPos $1) $ 0 - (read $ tokStr $2)) }
+         | ident                            { S.PatIdent (tokPos $1) (Sym $ tokStr $1) }
+         | null                             { S.PatNull (tokPos $1) }
+         | '(' patterns ')'                 { S.PatTuple (tokPos $1) $2 }
+         | '[' patternsSem ']'              { S.PatArray (tokPos $1) $2 }
+         | pattern '|' expr                 { S.PatGuarded (tokPos $2) $1 $3 Nothing }
+         | pattern '|' expr '->' pattern    { S.PatGuarded (tokPos $2) $1 $3 (Just $5) }
+         | symbol '(' patterns ')'          { S.PatField (tokPos $2) (snd $1) $3 }
+         | ordinal_t '(' pattern ')'        { S.PatTypeField (tokPos $2) $1 $3 }
+         | pattern ':' type_                { S.PatAnnotated $1 $3 }
 
 ---------------------------------------------------------------------------------------------------
 -- Expressions ------------------------------------------------------------------------------------
 
-exprs  : {- empty -}                          { [] }
-       | exprs1                               { $1 }
-exprs1 : expr                                 { [$1] }
-       | expr ',' exprs1                      { $1 : $3 }
-exprsN : expr 'N'                             { [$1] } 
-       | expr 'N' exprsN                      { $1 : $3 }
-mexpr : {-empty-}                             { Nothing }
-      | expr                                  { Just $1 }
+exprs  : {- empty -}                        { [] }
+       | exprs1                             { $1 }
+exprs1 : expr                               { [$1] }
+       | expr ',' exprs1                    { $1 : $3 }
+exprsN : expr 'N'                           { [$1] } 
+       | expr 'N' exprsN                    { $1 : $3 }
+mexpr  : {-empty-}                          { Nothing }
+       | expr                               { Just $1 }
+exprsA : exprs                              { $1 }
+       | 'I' exprsN 'D'                     { $2 }
 
-call : symbol '(' exprs ')'                   { S.Call (tokPos $2) [] (snd $1) $3 }
-     | '{' exprs1 '}' '.' ident '(' exprs ')' { S.Call (tokPos $4) $2 (Sym $ tokStr $5) $7 }
-index  : symbol                               { S.Ident (fst $1) (snd $1) }
-       | index '[' expr ']'                   { S.Subscript (tokPos $2) $1 $3 }
-       | index '.' ident                      { S.Field (tokPos $2) $1 (Sym $ tokStr $3) }
-       | index '.' symbol '(' exprs ')'        { S.Call (tokPos $2) [$1] (snd $3) $5 }
-       | call                                 { $1 }
+call : symbol '(' exprsA ')'                   { S.Call (tokPos $2) [] (snd $1) $3 }
+     | '{' exprsA '}' '.' ident '(' exprsA ')' { S.Call (tokPos $4) $2 (Sym $ tokStr $5) $7 }
 
-expr   : literal                              { $1 }
-       | infix                                { $1 }
-       | prefix                               { $1 }
-       | call                                 { $1 }
-       | symbol                               { S.Ident (fst $1) (snd $1) }
-       | '(' expr ')'                         { $2 }
-       | '(' expr ',' exprs1 ')'              { S.Tuple (tokPos $1) ($2:$4) }
-       | typeOrdinal '(' exprs ')'            { S.Conv (tokPos $2) $1 $3 }
-       | null                                 { S.Null (tokPos $1) }
-       | expr '.' ident                       { S.Field (tokPos $2) $1 (Sym $ tokStr $3) }
-       | expr '[' expr ']'                    { S.Subscript (tokPos $2) $1 $3 }
-       | expr ':' type_                       { S.AExpr $3 $1 }
-       | expr '.' ident '(' exprs ')'         { S.Call (tokPos $4) [$1] (Sym $ tokStr $3) $5 }
-       | expr '[' mexpr '..' mexpr ']'        { S.Range (tokPos $2) (Just $1) $3 $5 }
-       | '[' mexpr '..' mexpr ']'             { S.Range (tokPos $1) Nothing $2 $4 }
-       | '[' exprs ']'                        { S.Array (tokPos $1) $2 }
-       | '[' 'I' exprsN 'D' ']'               { S.Array (tokPos $1) $3 }
+index  : symbol                             { S.Ident (fst $1) (snd $1) }
+       | index '[' expr ']'                 { S.Subscript (tokPos $2) $1 $3 }
+       | index '.' ident                    { S.Field (tokPos $2) $1 (Sym $ tokStr $3) }
+       | index '.' symbol '(' exprsA ')'    { S.Call (tokPos $2) [$1] (snd $3) $5 }
+       | call                               { $1 }
 
+expr   : literal                            { $1 }
+       | infix                              { $1 }
+       | prefix                             { $1 }
+       | call                               { $1 }
+       | symbol                             { S.Ident (fst $1) (snd $1) }
+       | '(' exprsA ')'                     { case $2 of [x] -> x; xs -> S.Tuple (tokPos $1) xs }
+       | ordinal_t '(' exprsA ')'           { S.Conv (tokPos $2) $1 $3 }
+       | null                               { S.Null (tokPos $1) }
+       | expr '.' ident                     { S.Field (tokPos $2) $1 (Sym $ tokStr $3) }
+       | expr '[' expr ']'                  { S.Subscript (tokPos $2) $1 $3 }
+       | expr ':' type_                     { S.AExpr $3 $1 }
+       | expr '.' ident '(' exprsA ')'      { S.Call (tokPos $4) [$1] (Sym $ tokStr $3) $5 }
+       | expr '[' mexpr '..' mexpr ']'      { S.Range (tokPos $2) (Just $1) $3 $5 }
+       | '[' mexpr '..' mexpr ']'           { S.Range (tokPos $1) Nothing $2 $4 }
+       | '[' exprsA ']'                     { S.Array (tokPos $1) $2 }
 
-literal : intlit                              { S.Int (tokPos $1) (read $ tokStr $1) }
-        | floatlit                            { S.Float (tokPos $1) (read $ tokStr $1) }
-        | charlit                             { S.Char (tokPos $1) (read $ tokStr $1) }
-        | strlit                              { S.String (tokPos $1) (tokStr $1) }
-        | true                                { S.Bool (tokPos $1) True }
-        | false                               { S.Bool (tokPos $1) False }
+literal : int_c                             { S.Int (tokPos $1) (read $ tokStr $1) }
+        | float_c                           { S.Float (tokPos $1) (read $ tokStr $1) }
+        | char_c                            { S.Char (tokPos $1) (read $ tokStr $1) }
+        | string_c                          { S.String (tokPos $1) (tokStr $1) }
+        | true                              { S.Bool (tokPos $1) True }
+        | false                             { S.Bool (tokPos $1) False }
 
-infix : expr '+' expr                         { S.Infix (tokPos $2) S.Plus $1 $3 }
-      | expr '-' expr                         { S.Infix (tokPos $2) S.Minus $1 $3 }
-      | expr '*' expr                         { S.Infix (tokPos $2) S.Times $1 $3 }
-      | expr '/' expr                         { S.Infix (tokPos $2) S.Divide $1 $3 }
-      | expr '%' expr                         { S.Infix (tokPos $2) S.Modulo $1 $3 }
-      | expr '<' expr                         { S.Infix (tokPos $2) S.LT $1 $3 }
-      | expr '>' expr                         { S.Infix (tokPos $2) S.GT $1 $3 }
-      | expr '<=' expr                        { S.Infix (tokPos $2) S.LTEq $1 $3 }
-      | expr '>=' expr                        { S.Infix (tokPos $2) S.GTEq $1 $3 }
-      | expr '==' expr                        { S.Infix (tokPos $2) S.EqEq $1 $3 }
-      | expr '&&' expr                        { S.Infix (tokPos $2) S.AndAnd $1 $3 }
-      | expr '||' expr                        { S.Infix (tokPos $2) S.OrOr $1 $3 }
-      | expr '!=' expr                        { S.Infix (tokPos $2) S.NotEq $1 $3 }
+infix : expr '+' expr                       { S.Infix (tokPos $2) S.Plus $1 $3 }
+      | expr '-' expr                       { S.Infix (tokPos $2) S.Minus $1 $3 }
+      | expr '*' expr                       { S.Infix (tokPos $2) S.Times $1 $3 }
+      | expr '/' expr                       { S.Infix (tokPos $2) S.Divide $1 $3 }
+      | expr '%' expr                       { S.Infix (tokPos $2) S.Modulo $1 $3 }
+      | expr '<' expr                       { S.Infix (tokPos $2) S.LT $1 $3 }
+      | expr '>' expr                       { S.Infix (tokPos $2) S.GT $1 $3 }
+      | expr '<=' expr                      { S.Infix (tokPos $2) S.LTEq $1 $3 }
+      | expr '>=' expr                      { S.Infix (tokPos $2) S.GTEq $1 $3 }
+      | expr '==' expr                      { S.Infix (tokPos $2) S.EqEq $1 $3 }
+      | expr '&&' expr                      { S.Infix (tokPos $2) S.AndAnd $1 $3 }
+      | expr '||' expr                      { S.Infix (tokPos $2) S.OrOr $1 $3 }
+      | expr '!=' expr                      { S.Infix (tokPos $2) S.NotEq $1 $3 }
 
-
-prefix : '-' expr                             { S.Prefix (tokPos $1) S.Minus $2 }
-       | '+' expr                             { S.Prefix (tokPos $1) S.Plus $2 }
-       | '!' expr                             { S.Prefix (tokPos $1) S.Not $2 }
-
+prefix : '-' expr                           { S.Prefix (tokPos $1) S.Minus $2 }
+       | '+' expr                           { S.Prefix (tokPos $1) S.Plus $2 }
+       | '!' expr                           { S.Prefix (tokPos $1) S.Not $2 }
 
 ---------------------------------------------------------------------------------------------------
 -- Types ------------------------------------------------------------------------------------------
-mtype  : {-empty-}                            { Nothing }
-       | type_                                { Just $1 }
+mtype  : {-empty-}                          { Nothing }
+       | type_                              { Just $1 }
+types  : {-empty-}                          { [] }
+       | types1                             { $1 }
+types1 : type_                              { [$1] }
+       | type_ ',' types1                   { $1 : $3 }
+types1_ : type_                             { [$1] }
+        | type_ ';' types1_                 { $1 : $3 }
+    
+type_         : symbol                      { T.Typedef (snd $1) }
+              | ordinal_t                   { $1 }
+              | aggregate_t                 { $1 }
+
+ordinal_t   : bool                          { T.Bool }
+              | i16                         { T.I16 }
+              | i32                         { T.I32 }
+              | i64                         { T.I64 }
+              | f32                         { T.F32 }
+              | f64                         { T.F64 }
+              | char                        { T.Char }
+
+aggregate_t : table_t                       { $1 }
+              | array_t                     { $1 }
+              | tup_t                       { $1 }
+              | adt_t                       { $1 }
+              | sparse_t                    { $1 }
+              | map_t                       { $1 }
+              | range_t                     { $1 }
+              | fn '(' types ')' type_      { T.Func $3 $5 }
 
 
-type_         : symbol                        { T.Typedef (snd $1) }
-              | typeOrdinal                   { $1 }
-              | typeAggregate                 { $1 }
+adt_t    : '{' adtFields '}'                { T.ADT $2 }
+array_t  : '[' int_c type_ ']'              { T.Array (read $ tokStr $2) $3 }
+table_t  : '[' types1_ ']'                  { T.Table $2 }
+         | string                           { T.Table [T.Char] }
+tup_t    : '(' types ')'                    { T.Tuple $2 }
+sparse_t : sparse '[' types1_ ']'           { T.Sparse $3 }
+map_t    : map '[' type_ ']' type_          { T.Map $3 $5 }
+range_t  : '[' '..' ']' type_               { T.Range $4 }
 
-typeOrdinal   : bool                          { T.Bool }
-              | i16                           { T.I16 }
-              | i32                           { T.I32 }
-              | i64                           { T.I64 }
-              | f32                           { T.F32 }
-              | f64                           { T.F64 }
-              | char                          { T.Char }
-
-typeAggregate : tableType                     { $1 }
-              | arrayType                     { $1 }
-              | tupType                       { $1 }
-              | adtType                       { $1 }
-              | sparseType                    { $1 }
-              | mapType                       { $1 }
-              | rangeType                     { $1 }
-              | fn '(' argTypes ')' type_     { T.Func $3 $5 }
+anno_t   : ordinal_t                        { S.AnnoType $1 }
+         | symbol                           { S.AnnoType (T.Typedef $ snd $1) }
+         | '(' types1 ')'                   { S.AnnoType (T.Tuple $2) }
+         | '(' paramsA ')'                  { S.AnnoTuple $2 }
+         | array_t                          { S.AnnoType $1 }
+         | table_t                          { S.AnnoType $1 }
+         | sparse_t                         { S.AnnoType $1 }
+         | '{' ADTFieldsA '}'               { S.AnnoADT $2 }
 
 
-adtType : '{' adtFields '}'                   { T.ADT $2 }
-arrayType : '[' intlit type_ ']'              { T.Array (read $ tokStr $2) $3 }
-tableType : '[' rowTypes1 ']'                 { T.Table $2 }
-          | string                            { T.Table [T.Char] }
-tupType : '(' tupFields ')'                   { T.Tuple $2 }
-sparseType : sparse '[' rowTypes1 ']'         { T.Sparse $3 }
-mapType : map '[' type_ ']' type_             { T.Map $3 $5 }
+adtFields : {-empty-}                       { [] }
+          | adtFields1                      { $1 }
+adtFields1 : adtField                       { [$1] }
+           | adtField '|' adtFields1        { $1 : $3 }
+adtField : type_                            { T.FieldType $1 }
+         | null                             { T.FieldNull }
 
 
-rangeType : '[' '..' ']' type_                { T.Range $4 }
-
-
-annoType : typeOrdinal                        { S.AnnoType $1 }
-         | symbol                             { S.AnnoType (T.Typedef $ snd $1) }
-         | tupType                            { S.AnnoType $1 }
-         | arrayType                          { S.AnnoType $1 }
-         | tableType                          { S.AnnoType $1 }
-         | sparseType                         { S.AnnoType $1 }
-         | annoTupType                        { $1 }
-         | annoADTType                        { S.convertAnno $1 }
-
-
-adtFields : {-empty-}                     { [] }
-          | adtFields1                    { $1 }
-adtFields1 : adtField                     { [$1] }
-           | adtField '|' adtFields1      { $1 : $3 }
-adtField : type_                          { T.FieldType $1 }
-         | null                           { T.FieldNull }
-
-
-tupFields : {-empty -}                    { [] }
-          | tupFields1                    { $1 }
-tupFields1 : type_                        { [$1] }
-           | type_ ',' tupFields1         { $1 : $3 }
-
-
-argTypes  : {-empty -}                        { [] }
-          | argTypes1                         { $1 }
-argTypes1 : type_                             { [$1] }
-          | type_ ',' argTypes1               { $1:$3 }
-
-
-annoTupType : '(' annoTupFields ')'                      { S.AnnoTuple $2 }
-annoTupField : ident type_                               { (Sym (tokStr $1), $2) }
-annoTupFields : annoTupFields1                           { $1 }
-              | 'I' annoTupFieldsLines 'D'               { $2 }
-annoTupFields1 : annoTupField                            { [$1] }
-               | annoTupField ',' annoTupFields1         { $1 : $3 }
-annoTupFieldsLines : annoTupField 'N'                    { [$1] }
-                   | annoTupField 'N' annoTupFieldsLines { $1 : $3 }
-
-
-annoADTType : '{' annoADTFields '}'           { S.AnnoADT $2 }
-            | '{' 'I' annoADTFields 'D' '}'   { S.AnnoADT $3 }
-            | '{' '}'                         { S.AnnoADT [] }
-annoADTField : ident '(' argTypes ')'         { S.ADTFieldMember (Sym (tokStr $1)) $3 }
-             | type_                          { S.ADTFieldType $1 }
-             | null                           { S.ADTFieldNull }
-
-annoADTFields : annoADTField                  { [$1] }
-              | annoADTField 'N'              { [$1] }
-              | annoADTField '|' annoADTFields { $1 : $3 }
-              | annoADTField 'N' annoADTFields { $1 : $3 }
-
-rowTypes1     : type_                         { [$1] }
-              | type_ ';' rowTypes1           { $1 : $3 }
+ADTFieldsA : ADTFields1                     { $1 }
+           | 'I' ADTFieldsN 'D'             { $2 }
+ADTFieldsN : ADTField 'N'                   { [$1] }
+           | ADTField 'N' ADTFieldsN        { $1 : $3 }
+ADTFields1 : ADTField                       { [$1] }
+           | ADTField '|' ADTFields1        { $1 : $3 }
+ADTField : ident '(' types ')'              { S.ADTFieldMember (Sym (tokStr $1)) $3 }
+         | type_                            { S.ADTFieldType $1 }
+         | null                             { S.ADTFieldNull }
 {
 parse :: MonadError Error m => [Token] -> m S.AST
 parse tokens = do
