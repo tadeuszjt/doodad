@@ -1,0 +1,315 @@
+%left      '||'
+%left      '&&'
+%left      '==' '!='
+%left      '+' '-'
+%left      '*' '/' '%'
+%nonassoc  '<=' '>=' '<' '>'
+%right     '!'
+%left      ':'
+%nonassoc  '!'
+%nonassoc  '|'
+%nonassoc  '(' ')' '[' ']' '{' '}'
+%nonassoc  '.'
+%nonassoc  '->'
+
+%%
+
+prog  : prog_                                 
+      | module ident 'N' imports prog_       
+      ;
+prog_ :                              
+      | stmtS                                
+      | stmtS 'N' prog_                     
+      | stmtB prog_                        
+      ;
+
+imports :              
+        | import 'N' imports     
+        | import_c 'N' imports  
+        ;
+
+
+
+symbol : ident                                
+       | ident '::' ident                     
+       ;
+
+mfnrec :                             
+       | '{' params1 '}'                      
+       ;
+
+
+initialiser : '{' exprs '}'                   
+            | '{' 'I' exprsN 'D' '}'          
+            | strlit                          
+            ;
+
+minitialiser : initialiser                    
+             |                       
+             ;
+
+stmtS : let pattern '=' expr                         
+      | index '=' expr                               
+      | index                                        
+      | type symbol annoType                         
+      | return mexpr                                 
+      | data symbol type_ minitialiser               
+      ;
+stmtB : If                                           
+      | fn mfnrec ident '(' params ')' type_ block   
+      | fn mfnrec ident '(' params ')' block         
+      | while condition block                        
+      | for expr block                               
+      | for expr '->' pattern block                  
+      | Switch                                       
+      ;
+
+
+
+block  : 'I' prog_ 'D'                        
+       | ';' stmtS 'N'                        
+       | ';' 'N'                              
+       ;
+
+condition : expr                              
+          | expr '->' pattern                 
+          ;
+
+param   : ident type_                         ;
+params  :                          
+        | params1                             
+        ;
+params1 : param                               
+        | param ',' params1                   
+        ;
+
+If    : if condition block else_              
+      | if condition 'N' else_                
+      ;
+else_ : else block                            
+      | else If                               
+      |                              
+      ;
+
+
+Switch : switch expr 'I' cases1 'D'           
+       | switch expr                          
+       ;
+cases1 : case                                 
+      | case cases1                           
+      ;
+case : pattern block                          ;
+
+
+patterns  :                        
+          | patterns1                         
+          ;
+patterns1 : pattern                           
+          | pattern ',' patterns1             
+          ;
+patternsSem : patterns                        
+           | patterns ';' patternsSem         
+           ;
+
+pattern  : '_'                                
+         | literal                            
+         | '-' intlit                         
+         | ident                              
+         | null                               
+         | '(' patterns ')'                   
+         | '[' patternsSem ']'                
+         | pattern '|' expr                   
+         | pattern '|' expr '->' pattern      
+         | symbol '(' patterns ')'            
+         | typeOrdinal '(' pattern ')'        
+         | pattern ':' type_                  
+         ;
+
+
+exprs  :                           
+       | exprs1                               
+       ;
+exprs1 : expr                                 
+       | expr ',' exprs1                      
+       ;
+exprsN : expr 'N'                             
+       | expr 'N' exprsN                      
+       ;
+mexpr :                              
+      | expr                                  
+      ;
+
+call : symbol '(' exprs ')'                   
+     | '{' exprs1 '}' '.' ident '(' exprs ')' 
+     ;
+index  : symbol                               
+       | index '[' expr ']'                   
+       | index '.' ident                      
+       | index '.' symbol '(' exprs ')'        
+       | call                                 
+       ;
+
+expr   : literal                              
+       | infix                                
+       | prefix                               
+       | call                                 
+       | symbol                               
+       | '(' expr ')'                         
+       | '(' expr ',' exprs1 ')'              
+       | typeOrdinal '(' exprs ')'            
+       | null                                 
+       | expr '.' ident                       
+       | expr '[' expr ']'                    
+       | expr ':' type_                       
+       | expr '.' ident '(' exprs ')'         
+       | expr '[' mexpr '..' mexpr ']'        
+       | '[' mexpr '..' mexpr ']'             
+       | '[' exprs ']'                        
+       | '[' 'I' exprsN 'D' ']'               
+       ;
+
+
+literal : intlit                              
+        | floatlit                            
+        | charlit                             
+        | strlit                              
+        | true                                
+        | false                               
+        ;
+
+infix : expr '+' expr                         
+      | expr '-' expr                         
+      | expr '*' expr                         
+      | expr '/' expr                         
+      | expr '%' expr                         
+      | expr '<' expr                         
+      | expr '>' expr                         
+      | expr '<=' expr                        
+      | expr '>=' expr                        
+      | expr '==' expr                        
+      | expr '&&' expr                        
+      | expr '||' expr                        
+      | expr '!=' expr                        
+      ;
+
+
+prefix : '-' expr                             
+       | '+' expr                             
+       | '!' expr                             
+       ;
+
+
+mtype  :                             
+       | type_                                
+       ;
+
+
+type_         : symbol                        
+              | typeOrdinal                   
+              | typeAggregate                 
+              ;
+
+typeOrdinal   : bool                          
+              | i16                           
+              | i32                           
+              | i64                           
+              | f32                           
+              | f64                           
+              | char                          
+              ;
+
+typeAggregate : tableType                     
+              | arrayType                     
+              | tupType                       
+              | adtType                       
+              | sparseType                    
+              | mapType                       
+              | rangeType                     
+              | fn '(' argTypes ')' type_     
+              ;
+
+
+adtType : '{' adtFields '}'                   ;
+arrayType : '[' intlit type_ ']'              ;
+tableType : '[' rowTypes1 ']'
+          | string                            
+          ;
+tupType : '(' tupFields ')'                   ;
+sparseType : sparse '[' rowTypes1 ']'         ;
+mapType : map '[' type_ ']' type_             ;
+
+
+rangeType : '[' '..' ']' type_                ;
+
+
+annoType : typeOrdinal                        
+         | symbol                             
+         | tupType                            
+         | arrayType                          
+         | tableType                          
+         | sparseType                         
+         | annoTupType                        
+         | annoADTType                        
+         ;
+
+
+adtFields :                      
+          | adtFields1                    
+          ;
+adtFields1 : adtField                     
+           | adtField '|' adtFields1      
+           ;
+adtField : type_                          
+         | null                           
+         ;
+
+
+tupFields :                     
+          | tupFields1                    
+          ;
+tupFields1 : type_                        
+           | type_ ',' tupFields1         
+           ;
+
+
+argTypes  :                         
+          | argTypes1                         
+          ;
+argTypes1 : type_                             
+          | type_ ',' argTypes1               
+          ;
+
+
+annoTupType : '(' annoTupFields ')'                      
+            ;
+annoTupField : ident type_                               
+             ;
+annoTupFields : annoTupFields1                           
+              | 'I' annoTupFieldsLines 'D'               
+              ;
+annoTupFields1 : annoTupField                            
+               | annoTupField ',' annoTupFields1         
+               ;
+annoTupFieldsLines : annoTupField 'N'                    
+                   | annoTupField 'N' annoTupFieldsLines 
+                   ;
+
+
+annoADTType : '{' annoADTFields '}'           
+            | '{' 'I' annoADTFields 'D' '}'   
+            | '{' '}'                         
+            ;
+annoADTField : ident '(' argTypes ')'         
+             | type_                          
+             | null                           
+             ;
+
+annoADTFields : annoADTField                  
+              | annoADTField 'N'              
+              | annoADTField '|' annoADTFields 
+              | annoADTField 'N' annoADTFields 
+              ;
+
+rowTypes1     : type_                         
+              | type_ ';' rowTypes1           
+              ;

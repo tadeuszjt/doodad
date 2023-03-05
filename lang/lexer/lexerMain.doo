@@ -1,7 +1,7 @@
 module lexerMain
 
-import ../std/io
-import ../std/strings
+import ../../std/io
+import ../../std/strings
 
 import lexer
 

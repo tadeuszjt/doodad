@@ -1,6 +1,6 @@
 test: lexer
 	cabal run doodad -- std/test/test
-	cabal run doodad -- lang/test/testLexer
+	cabal run doodad -- lang/lexer/test/testLexer
 	cabal run doodad -- lang/test/testLang
 
 lexer: bin/lexer
@@ -14,8 +14,8 @@ bin/lexer: bootstrap
 	gcc -no-pie -s bootstrap/lexer/*.s -o bin/lexer -lgc -lm
 	rm bootstrap/lexer/*.s
 
-new_lexer: bin/lexer lang/lexerMain.doo lang/lexer.doo
-	cabal run doodad -- lang/lexerMain -c 
+new_lexer: bin/lexer lang/lexer/
+	cabal run doodad -- lang/lexer/lexerMain -c 
 	gcc build/*.o -o bin/lexer -lgc -lm
 
 fullReset:

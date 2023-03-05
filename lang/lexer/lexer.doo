@@ -1,8 +1,8 @@
 module lexer 
 
-import ../std/io
-import ../std/strings
-import ../std/chars
+import ../../std/io
+import ../../std/strings
+import ../../std/chars
 
 type Idx i64
 
