@@ -3,7 +3,7 @@ import chars
 
 
 
-fn {s string} At(i i64) {null | char}
+fn {s string} at(i i64) {null | char}
     if s[..][i]; return conv (s[i])
     else;        return null
 
@@ -65,14 +65,14 @@ fn {s string} write(n i64)
         s.push('0' + char(digits.pop()))
 
 
-fn {s string} read(start i64) (char, i64)
+fn {s string} read(start i64, x char) i64
     let spaceCount = 0
-    for s[start..] -> i | s[i] -> c | isSpace(c) || isAlpha(c)
-        if isAlpha(c)
-            return (c, spaceCount + 1)
-        else; spaceCount = spaceCount + 1
+    for s[start..] -> i | s[i] -> c | isSpace(c)
+        spaceCount = spaceCount + 1
 
-    return ('\0', 0)
+    for s[start + spaceCount..] -> i | s[i] -> c | c == x
+        return start + spaceCount + 1
+    return 0
 
 
 fn {s string} read(start i64) (i64, i64)
@@ -86,7 +86,7 @@ fn {s string} read(start i64) (i64, i64)
         n = n*10 + i64(s[i] - '0')
         digitCount = digitCount + 1
 
-    if digitCount > 0; return (n, spaceCount + digitCount)
+    if digitCount > 0; return (n, start + spaceCount + digitCount)
     return (0, 0)
         
     

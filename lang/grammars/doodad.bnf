@@ -12,304 +12,275 @@
 %nonassoc  '.'
 %nonassoc  '->'
 
+
 %%
 
-prog  : prog_                                 
-      | module ident 'N' imports prog_       
+prog  : stmts                               
+      | header stmts                        
       ;
-prog_ :                              
-      | stmtS                                
-      | stmtS 'N' prog_                     
-      | stmtB prog_                        
+stmts :                            
+      | line 'N' stmts                      
+      | block stmts                         
       ;
 
-imports :              
-        | import 'N' imports     
-        | import_c 'N' imports  
+header : module ident 'N' imports ;
+imports :                        
+        | import 'N' imports                
+        | import_c 'N' imports              
         ;
 
 
-
-symbol : ident                                
-       | ident '::' ident                     
+symbol : ident                              
+       | ident '::' ident                   
        ;
 
-mfnrec :                             
-       | '{' params1 '}'                      
+mfnrec :                           
+       | '{' paramsA '}'                    
        ;
 
 
-initialiser : '{' exprs '}'                   
-            | '{' 'I' exprsN 'D' '}'          
-            | strlit                          
+initialiser : '{' exprsA '}'                
+            | string_c                      
             ;
-
-minitialiser : initialiser                    
-             |                       
+minitialiser : initialiser                  
+             |                     
              ;
 
-stmtS : let pattern '=' expr                         
-      | index '=' expr                               
-      | index                                        
-      | type symbol annoType                         
-      | return mexpr                                 
-      | data symbol type_ minitialiser               
-      ;
-stmtB : If                                           
-      | fn mfnrec ident '(' params ')' type_ block   
-      | fn mfnrec ident '(' params ')' block         
-      | while condition block                        
-      | for expr block                               
-      | for expr '->' pattern block                  
-      | Switch                                       
-      ;
-
-
-
-block  : 'I' prog_ 'D'                        
-       | ';' stmtS 'N'                        
-       | ';' 'N'                              
-       ;
-
-condition : expr                              
-          | expr '->' pattern                 
-          ;
-
-param   : ident type_                         ;
-params  :                          
-        | params1                             
-        ;
-params1 : param                               
-        | param ',' params1                   
-        ;
-
-If    : if condition block else_              
-      | if condition 'N' else_                
-      ;
-else_ : else block                            
-      | else If                               
-      |                              
-      ;
-
-
-Switch : switch expr 'I' cases1 'D'           
-       | switch expr                          
-       ;
-cases1 : case                                 
-      | case cases1                           
-      ;
-case : pattern block                          ;
-
-
-patterns  :                        
-          | patterns1                         
-          ;
-patterns1 : pattern                           
-          | pattern ',' patterns1             
-          ;
-patternsSem : patterns                        
-           | patterns ';' patternsSem         
-           ;
-
-pattern  : '_'                                
-         | literal                            
-         | '-' intlit                         
-         | ident                              
-         | null                               
-         | '(' patterns ')'                   
-         | '[' patternsSem ']'                
-         | pattern '|' expr                   
-         | pattern '|' expr '->' pattern      
-         | symbol '(' patterns ')'            
-         | typeOrdinal '(' pattern ')'        
-         | pattern ':' type_                  
-         ;
-
-
-exprs  :                           
-       | exprs1                               
-       ;
-exprs1 : expr                                 
-       | expr ',' exprs1                      
-       ;
-exprsN : expr 'N'                             
-       | expr 'N' exprsN                      
-       ;
-mexpr :                              
-      | expr                                  
-      ;
-
-call : symbol '(' exprs ')'                   
-     | '{' exprs1 '}' '.' ident '(' exprs ')' 
+line : let pattern '=' expr                         
+     | index '=' expr                               
+     | index                                        
+     | type symbol anno_t                           
+     | return mexpr                                 
+     | data symbol type_ minitialiser               
      ;
-index  : symbol                               
-       | index '[' expr ']'                   
-       | index '.' ident                      
-       | index '.' symbol '(' exprs ')'        
-       | call                                 
+block : if_                                         
+      | fn mfnrec ident '(' paramsA ')' mtype scope 
+      | while condition scope                       
+      | for expr scope                              
+      | for expr '->' pattern scope                 
+      | switch_                                     
+      ;
+
+scope  : 'I' stmts 'D'                      
+       | ';' line 'N'                       
+       | ';' 'N'                            
        ;
 
-expr   : literal                              
-       | infix                                
-       | prefix                               
-       | call                                 
-       | symbol                               
-       | '(' expr ')'                         
-       | '(' expr ',' exprs1 ')'              
-       | typeOrdinal '(' exprs ')'            
-       | null                                 
-       | expr '.' ident                       
-       | expr '[' expr ']'                    
-       | expr ':' type_                       
-       | expr '.' ident '(' exprs ')'         
-       | expr '[' mexpr '..' mexpr ']'        
-       | '[' mexpr '..' mexpr ']'             
-       | '[' exprs ']'                        
-       | '[' 'I' exprsN 'D' ']'               
-       ;
+condition : expr                            
+          | expr '->' pattern               
+          ;
 
 
-literal : intlit                              
-        | floatlit                            
-        | charlit                             
-        | strlit                              
-        | true                                
-        | false                               
+param   : ident type_                       ;
+params  :                        
+        | params1                           
+        ;
+params1 : param                             
+        | param ',' params1                 
+        ;
+paramsN : param 'N'                         
+        | param 'N' paramsN                 
+        ;
+paramsA : params                            
+        | 'I' paramsN 'D'                   
         ;
 
-infix : expr '+' expr                         
-      | expr '-' expr                         
-      | expr '*' expr                         
-      | expr '/' expr                         
-      | expr '%' expr                         
-      | expr '<' expr                         
-      | expr '>' expr                         
-      | expr '<=' expr                        
-      | expr '>=' expr                        
-      | expr '==' expr                        
-      | expr '&&' expr                        
-      | expr '||' expr                        
-      | expr '!=' expr                        
+
+if_   : if condition scope else_            
+      | if condition 'N' else_              
+      ;
+else_ : else scope                          
+      | else if_                            
+      |                            
       ;
 
 
-prefix : '-' expr                             
-       | '+' expr                             
-       | '!' expr                             
+switch_ : switch expr 'I' cases1 'D'        
+       | switch expr                        
        ;
+cases1 : case                               
+      | case cases1                         
+      ;
+case : pattern scope                        ;
 
 
-mtype  :                             
-       | type_                                
-       ;
-
-
-type_         : symbol                        
-              | typeOrdinal                   
-              | typeAggregate                 
-              ;
-
-typeOrdinal   : bool                          
-              | i16                           
-              | i32                           
-              | i64                           
-              | f32                           
-              | f64                           
-              | char                          
-              ;
-
-typeAggregate : tableType                     
-              | arrayType                     
-              | tupType                       
-              | adtType                       
-              | sparseType                    
-              | mapType                       
-              | rangeType                     
-              | fn '(' argTypes ')' type_     
-              ;
-
-
-adtType : '{' adtFields '}'                   ;
-arrayType : '[' intlit type_ ']'              ;
-tableType : '[' rowTypes1 ']'
-          | string                            
+patterns  :                      
+          | patterns1                       
           ;
-tupType : '(' tupFields ')'                   ;
-sparseType : sparse '[' rowTypes1 ']'         ;
-mapType : map '[' type_ ']' type_             ;
+patterns1 : pattern                         
+          | pattern ',' patterns1           
+          ;
+patternsSem : patterns                      
+           | patterns ';' patternsSem       
+           ;
 
-
-rangeType : '[' '..' ']' type_                ;
-
-
-annoType : typeOrdinal                        
-         | symbol                             
-         | tupType                            
-         | arrayType                          
-         | tableType                          
-         | sparseType                         
-         | annoTupType                        
-         | annoADTType                        
+pattern  : '_'                              
+         | literal                          
+         | '-' int_c                        
+         | ident                            
+         | null                             
+         | '(' patterns ')'                 
+         | '[' patternsSem ']'              
+         | pattern '|' expr                 
+         | pattern '|' expr '->' pattern    
+         | symbol '(' patterns ')'          
+         | ordinal_t '(' pattern ')'        
+         | pattern ':' type_                
          ;
 
 
-adtFields :                      
-          | adtFields1                    
-          ;
-adtFields1 : adtField                     
-           | adtField '|' adtFields1      
-           ;
-adtField : type_                          
-         | null                           
+exprs  :                         
+       | exprs1                             
+       ;
+exprs1 : expr                               
+       | expr ',' exprs1                    
+       ;
+exprsN : expr 'N'                           
+       | expr 'N' exprsN                    
+       ;
+mexpr  :                           
+       | expr                               
+       ;
+exprsA : exprs                              
+       | 'I' exprsN 'D'                     
+       ;
+
+call : symbol '(' exprsA ')'                   
+     | '{' exprsA '}' '.' ident '(' exprsA ')' 
+     ;
+
+index  : symbol                             
+       | index '[' expr ']'                 
+       | index '.' ident                    
+       | index '.' symbol '(' exprsA ')'    
+       | call                               
+       ;
+
+expr   : literal                            
+       | infix                              
+       | prefix                             
+       | call                               
+       | symbol                             
+       | '(' exprsA ')'                     
+       | ordinal_t '(' exprsA ')'           
+       | null                               
+       | expr '.' ident                     
+       | expr '[' expr ']'                  
+       | expr ':' type_                     
+       | expr '.' ident '(' exprsA ')'      
+       | expr '[' mexpr '..' mexpr ']'      
+       | '[' mexpr '..' mexpr ']'           
+       | '[' exprsA ']'                     
+       ;
+
+literal : int_c                             
+        | float_c                           
+        | char_c                            
+        | string_c                          
+        | true                              
+        | false                             
+        ;
+
+infix : expr '+' expr                       
+      | expr '-' expr                       
+      | expr '*' expr                       
+      | expr '/' expr                       
+      | expr '%' expr                       
+      | expr '<' expr                       
+      | expr '>' expr                       
+      | expr '<=' expr                      
+      | expr '>=' expr                      
+      | expr '==' expr                      
+      | expr '&&' expr                      
+      | expr '||' expr                      
+      | expr '!=' expr                      
+      ;
+
+prefix : '-' expr                           
+       | '+' expr                           
+       | '!' expr                           
+       ;
+
+mtype  :                           
+       | type_                              
+       ;
+types  :                           
+       | types1                             
+       ;
+types1 : type_                              
+       | type_ ',' types1                   
+       ;
+types1_ : type_                             
+        | type_ ';' types1_                 
+        ;
+    
+type_         : symbol                      
+              | ordinal_t                   
+              | aggregate_t                 
+              ;
+
+ordinal_t   : bool                          
+              | i16                         
+              | i32                         
+              | i64                         
+              | f32                         
+              | f64                         
+              | char                        
+              ;
+
+aggregate_t : table_t                       
+              | array_t                     
+              | tup_t                       
+              | adt_t                       
+              | sparse_t                    
+              | map_t                       
+              | range_t                     
+              | fn '(' types ')' type_      
+              ;
+
+
+adt_t    : '{' adtFields '}'                ;
+array_t  : '[' int_c type_ ']'              ;
+table_t  : '[' types1_ ']'                  
+         | string                           
+         ;
+tup_t    : '(' types ')'                    ;
+sparse_t : sparse '[' types1_ ']'           ;
+map_t    : map '[' type_ ']' type_          ;
+range_t  : '[' '..' ']' type_               ;
+
+anno_t   : ordinal_t                        
+         | symbol                           
+         | '(' types1 ')'                   
+         | '(' paramsA ')'                  
+         | array_t                          
+         | table_t                          
+         | sparse_t                         
+         | '{' ADTFieldsA '}'               
          ;
 
 
-tupFields :                     
-          | tupFields1                    
+adtFields :                        
+          | adtFields1                      
           ;
-tupFields1 : type_                        
-           | type_ ',' tupFields1         
+adtFields1 : adtField                       
+           | adtField '|' adtFields1        
            ;
+adtField : type_                            
+         | null                             
+         ;
 
 
-argTypes  :                         
-          | argTypes1                         
-          ;
-argTypes1 : type_                             
-          | type_ ',' argTypes1               
-          ;
-
-
-annoTupType : '(' annoTupFields ')'                      
-            ;
-annoTupField : ident type_                               
-             ;
-annoTupFields : annoTupFields1                           
-              | 'I' annoTupFieldsLines 'D'               
-              ;
-annoTupFields1 : annoTupField                            
-               | annoTupField ',' annoTupFields1         
-               ;
-annoTupFieldsLines : annoTupField 'N'                    
-                   | annoTupField 'N' annoTupFieldsLines 
-                   ;
-
-
-annoADTType : '{' annoADTFields '}'           
-            | '{' 'I' annoADTFields 'D' '}'   
-            | '{' '}'                         
-            ;
-annoADTField : ident '(' argTypes ')'         
-             | type_                          
-             | null                           
-             ;
-
-annoADTFields : annoADTField                  
-              | annoADTField 'N'              
-              | annoADTField '|' annoADTFields 
-              | annoADTField 'N' annoADTFields 
-              ;
-
-rowTypes1     : type_                         
-              | type_ ';' rowTypes1           
-              ;
+ADTFieldsA : ADTFields1                     
+           | 'I' ADTFieldsN 'D'             
+           ;
+ADTFieldsN : ADTField 'N'                   
+           | ADTField 'N' ADTFieldsN        
+           ;
+ADTFields1 : ADTField                       
+           | ADTField '|' ADTFields1        
+           ;
+ADTField : ident '(' types ')'              
+         | type_                            
+         | null                             
+         ;

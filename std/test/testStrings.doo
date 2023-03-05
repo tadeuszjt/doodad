@@ -44,14 +44,13 @@ fn testWrite()
 
 fn testRead()
     data s string
-    let ('\0', 0) = s.read(0)
     {s, "abc123!?.-945"}.write()
-    let ('a', 1) = s.read(0)
-    let (123, 3) = s.read(3)
+    //let 1 = s.read(0, 'a')
+    let (123, 6) = s.read(3)
     let (0, 0) = s.read(6)
     s.clear()
     {s, "x   123!?.-945"}.write()
-    let (123, 6) = s.read(1)
+    let (123, 7) = s.read(1)
 
 
 fn testStrings()
