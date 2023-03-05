@@ -215,6 +215,15 @@ collectStmt stmt = collectPos stmt $ case stmt of
                 collectEq (typeof expr) retty
                 collectExpr expr
 
+    S.FuncDef p ps s as rt blk -> do
+        return ()
+--        collectFuncDef s $ FuncBody
+--            { funcParams = ps
+--            , funcArgs = as
+--            , funcRetty = rt
+--            , funcStmts = [blk]
+--            }
+
     S.If _ expr blk melse -> do
         collectBase Bool (typeof expr)
         collectExpr expr

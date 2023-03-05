@@ -45,6 +45,7 @@ data ResolveState
         , modName     :: String
         , supply      :: Map.Map String Int
         , typeDefsMap :: Map.Map Symbol AnnoType
+        , smallFuncDefs :: Map.Map Symbol FuncBody
         }
 
 initResolveState imports modName typeImports = ResolveState
@@ -55,6 +56,7 @@ initResolveState imports modName typeImports = ResolveState
     , modName   = modName
     , supply    = Map.empty
     , typeDefsMap = Map.empty
+    , smallFuncDefs = Map.empty
     }
 
 
@@ -216,6 +218,7 @@ resolveAsts asts imports = withErrorPrefix "resolve: " $ do
 
             mapM resolveTypeDef typedefs
             funcDefsMap <- Map.fromList <$> mapM resolveFuncDef funcdefs
+            smallFuncs <- gets smallFuncDefs
             tdm <- gets typeDefsMap
             (_, ctorMap) <- runBoMTExcept Map.empty (buildCtorMap $ Map.toList tdm)
 
@@ -224,7 +227,7 @@ resolveAsts asts imports = withErrorPrefix "resolve: " $ do
                 , typeImports = typeImportMap
                 , ctorImports = ctorImportMap
                 , funcImports = funcImportMap
-                , funcDefs    = funcDefsMap
+                , funcDefs    = Map.union funcDefsMap smallFuncs
                 , typeDefs    = Map.map annoToType tdm
                 , ctorDefs    = ctorMap
                 }
@@ -366,8 +369,10 @@ instance Resolve Stmt where
             mexpr' <- maybe (return Nothing) (fmap Just . resolve) mexpr
             return $ Data pos symbol typ' mexpr'
 
---        _ -> return stmt
-        _ -> fail $ "stmt: " ++ show stmt
+        FuncDef pos params (Sym sym) args retty blk -> do
+            (symbol', body) <- resolveFuncDef (FuncDef pos params (Sym sym) args retty blk)
+            modify $ \s -> s { smallFuncDefs = Map.insert symbol' body (smallFuncDefs s) }
+            return $ FuncDef pos (funcParams body) symbol' (funcArgs body) (funcRetty body) (head $ funcStmts body)
 
 
 instance Resolve Pattern where

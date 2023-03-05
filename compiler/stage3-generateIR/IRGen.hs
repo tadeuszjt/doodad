@@ -174,6 +174,9 @@ compileStmt stmt = withPos stmt $ case stmt of
     AST.ExprStmt expr    -> ExprStmt <$> compileExpr expr
     AST.Return pos mexpr -> Return pos <$> maybe (return Nothing) (fmap Just . compileExpr) mexpr
 
+    AST.FuncDef pos params symbol args retty blk -> do
+        return stmt
+
     AST.Typedef pos symbol anno -> do
         return $ AST.Typedef pos symbol anno
 

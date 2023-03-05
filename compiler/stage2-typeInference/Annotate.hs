@@ -54,6 +54,12 @@ instance Annotate Stmt where
         Print p es        -> Print p <$> mapM annotate es
         ExprStmt e        -> ExprStmt <$> annotate e
 
+        FuncDef p ps s as rt blk -> do
+            ps' <- mapM annotate ps
+            as' <- mapM annotate as
+            blk' <- annotate blk
+            return $ FuncDef p ps' s as' rt blk'
+
         Assign p pat e      -> do
             pat' <- annotate pat
             Assign p pat' <$> annotate e

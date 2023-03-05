@@ -230,6 +230,8 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
     AST.Block stmts   -> mapM_ cmpStmt stmts
     AST.ExprStmt expr -> withErrorPrefix "exprStmt: " $ void $ cmpExpr expr
 
+    AST.FuncDef pos params symbol args retty block -> return ()
+
     AST.Data pos symbol typ mexpr -> do
         loc <- newVal typ
         case mexpr of

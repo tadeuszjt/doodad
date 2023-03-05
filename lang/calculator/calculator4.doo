@@ -106,72 +106,58 @@ fn lookupCell(state i64, item Item) Cell
 
     return array[state][col]
 
+
 fn {stack [Item]} reduce(production i64)
+    fn {stack [Item]} getItem() Item
+        let State(_) = stack.pop()
+        return stack.pop()
+
     switch production
         1 // E -> E '+' T
-            let State(_)    = stack.pop()
-            let T(n1)       = stack.pop()
-            let State(_)    = stack.pop()
-            let TokSym('+') = stack.pop()
-            let State(_)    = stack.pop()
-            let E(n2)       = stack.pop()
+            let T(n1)       = stack.getItem()
+            let TokSym('+') = stack.getItem()
+            let E(n2)       = stack.getItem()
             stack.push(E(n2 + n1))
 
         2 // E -> E '-' T
-            let State(_)    = stack.pop()
-            let T(n1)       = stack.pop()
-            let State(_)    = stack.pop()
-            let TokSym('-') = stack.pop()
-            let State(_)    = stack.pop()
-            let E(n2)       = stack.pop()
+            let T(n1)       = stack.getItem()
+            let TokSym('-') = stack.getItem()
+            let E(n2)       = stack.getItem()
             stack.push(E(n2 - n1))
 
         3 // E -> T
-            let State(_)    = stack.pop()
-            let T(n1)       = stack.pop()
+            let T(n1)       = stack.getItem()
             stack.push(E(n1))
 
         4 // T -> T '*' D
-            let State(_)    = stack.pop()
-            let D(n1)       = stack.pop()
-            let State(_)    = stack.pop()
-            let TokSym('*') = stack.pop()
-            let State(_)    = stack.pop()
-            let T(n2)       = stack.pop()
+            let D(n1)       = stack.getItem()
+            let TokSym('*') = stack.getItem()
+            let T(n2)       = stack.getItem()
             stack.push(T(n2 * n1))
 
         5 // T -> D
-            let State(_)    = stack.pop()
-            let D(n1)       = stack.pop()
+            let D(n1)       = stack.getItem()
             stack.push(T(n1))
 
         6 // D -> D '/' F
-            let State(_)    = stack.pop()
-            let F(n1)       = stack.pop()
-            let State(_)    = stack.pop()
-            let TokSym('/') = stack.pop()
-            let State(_)    = stack.pop()
-            let D(n2)       = stack.pop()
+            let F(n1)       = stack.getItem()
+            let TokSym('/') = stack.getItem()
+            let D(n2)       = stack.getItem()
             print("BLAKG", n2, n1)
             stack.push(D(n2 / n1))
 
         7 // D -> F
-            let State(_)    = stack.pop()
-            let F(n1)       = stack.pop()
+            let F(n1)       = stack.getItem()
             stack.push(D(n1))
 
         8 // F -> NUMBER
-            let State(_)    = stack.pop()
-            let TokInt(n)   = stack.pop()
+            let TokInt(n)   = stack.getItem()
             stack.push(F(n))
 
         9 // F -> '(' E ')'
-            let State(_)    = stack.pop()
-            let TokSym(')') = stack.pop()
-            let State(_)    = stack.pop()
-            let E(n)        = stack.pop()
-            let State(_)    = stack.pop()
-            let TokSym('(') = stack.pop()
+            let TokSym(')') = stack.getItem()
+            let E(n)        = stack.getItem()
+            let TokSym('(') = stack.getItem()
             stack.push(F(n))
 
 
