@@ -97,6 +97,7 @@ instance Apply S.Expr where
         S.Builtin p ps ident es  -> S.Builtin p (map applyF ps) ident (map applyF es)
         S.Match p e pat       -> S.Match p (applyF e) (applyF pat)
         S.Range p me me1 me2  -> S.Range p (fmap applyF me) (fmap applyF me1) (fmap applyF me2)
+        S.Array p es          -> S.Array p (map applyF es)
         _                     -> error $ show expr
         where
             applyF :: Apply a => a -> a

@@ -168,6 +168,9 @@ instance Annotate Expr where
             mexpr2' <- maybe (return Nothing) (fmap Just . annotate) mexpr2
             return $ Range pos mexpr' mexpr1' mexpr2'
 
+        Array pos exprs -> do
+            Array pos <$> mapM annotate exprs
+
         _ -> error $ show expr
 
 

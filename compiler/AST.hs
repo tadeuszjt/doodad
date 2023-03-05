@@ -90,6 +90,7 @@ data Expr
     | ADT         TextPos Expr
     | Match       TextPos Expr Pattern
     | Range       TextPos (Maybe Expr) (Maybe Expr) (Maybe Expr)
+    | Array       TextPos [Expr]
     deriving (Eq)
 
 
@@ -161,6 +162,7 @@ instance TextPosition Expr where
         ADT          p _ -> p
         Match        p _ _ -> p
         Range        p _ _ _ -> p
+        Array        p _ -> p
 
 
 instance TextPosition Stmt where
@@ -271,6 +273,7 @@ instance Show Expr where
         Builtin pos params sym exprs  -> brcStrs (map show params) ++ "." ++ sym ++ tupStrs (map show exprs)
         Match pos expr1 expr2         -> show expr1 ++ " -> " ++ show expr2
         Range pos mexpr mexpr1 mexpr2 -> maybe "" show mexpr ++ "[" ++ maybe "" show mexpr1 ++ ".." ++ maybe "" show mexpr2 ++ "]"
+        Array pos exprs               -> arrStrs (map show exprs)
 
 
 -- every function must end on a newline and print pre before every line

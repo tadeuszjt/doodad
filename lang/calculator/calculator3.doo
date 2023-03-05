@@ -1,8 +1,8 @@
 module calculator3
 
-import ../std/chars
-import ../std/io
-import ../std/assert
+import ../../std/chars
+import ../../std/io
+import ../../std/assert
 
 
 // Grammar:

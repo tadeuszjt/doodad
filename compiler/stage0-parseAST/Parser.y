@@ -239,9 +239,8 @@ expr   : literal                              { $1 }
        | expr '.' ident '(' exprs ')'         { S.Call (tokPos $4) [$1] (Sym $ tokStr $3) $5 }
        | expr '[' mexpr '..' mexpr ']'        { S.Range (tokPos $2) (Just $1) $3 $5 }
        | '[' mexpr '..' mexpr ']'             { S.Range (tokPos $1) Nothing $2 $4 }
-
-tableRows : exprs1                             { [$1] }
-          | exprs1 ';' tableRows               { $1 : $3 }
+       | '[' exprs ']'                        { S.Array (tokPos $1) $2 }
+       | '[' 'I' exprsN 'D' ']'               { S.Array (tokPos $1) $3 }
 
 
 literal : intlit                              { S.Int (tokPos $1) (read $ tokStr $1) }

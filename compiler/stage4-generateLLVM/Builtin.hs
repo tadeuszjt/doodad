@@ -73,6 +73,12 @@ storeCopy dst src = withErrorPrefix "storeCopy: " $ do
 
         ADT fs -> storeBasic dst src
 
+        Array n t -> do
+            forM_ [0..n-1] $ \i -> do
+                pDst <- arrayGetElem dst (mkI64 i)
+                pSrc <- arrayGetElem src (mkI64 i)
+                storeCopy pDst pSrc
+
         _ -> error (show baseDst)
 
 

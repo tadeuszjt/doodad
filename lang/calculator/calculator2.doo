@@ -1,7 +1,7 @@
 module calculator2
 
-import ../std/chars
-import ../std/io
+import ../../std/chars
+import ../../std/io
 
 type Item {
     EOF()

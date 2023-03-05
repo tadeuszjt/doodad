@@ -427,6 +427,21 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
         storeBasicVal val =<< prefix operator =<< cmpExpr expr
         return val
 
+    AST.Array pos exprs -> do
+        base <- baseTypeOf exprType
+        case base of
+            Array n t -> do
+                assert (n == length exprs) "invalid array length"
+                vals <- mapM cmpExpr exprs
+                array <- newValNonZero exprType
+                forM_ (zip vals [0..]) $ \(val, i) -> do
+                    loc <- arrayGetElem array (mkI64 i)
+                    storeCopy loc val
+                return array
+
+            _ -> error (show base)
+
+
 
     AST.Range pos Nothing _ Nothing -> fail "Range expression must contain maximum"
     AST.Range pos Nothing mexpr1 (Just expr2) -> do
@@ -831,7 +846,7 @@ cmpPattern pattern val branch mMatched = withErrorPrefix "pattern: " $ withPos p
     AST.PatIdent _ symbol -> trace ("cmpPattern " ++ show pattern) $ do -- a
         base <- baseTypeOf val
         False <- isDataType (typeof val)
-        loc <- newVal (typeof val)
+        loc <- newValNonZero (typeof val)
         storeCopy loc val
         define symbol (ObjVal loc)
         mMatched

@@ -136,7 +136,7 @@ mkZero typ = trace ("mkZero " ++ show  typ) $ do
         Sparse ts -> Value typ . struct namem False . map (toCons . op) <$> mapM mkZero [Table ts, Table [I64]]
         Map tk tv -> Value typ . op <$> mkZero (Table [tk, tv])
         UnsafePtr -> return $ Value typ $ cons $ C.IntToPtr zi64 (LL.ptr LL.i8)
-        _ -> fail ("mkZero: " ++  show typ)
+        _ -> fail ("mkZero: " ++  show typ ++ " " ++ show base)
         where
             zi64 = toCons (int64 0)
 
@@ -219,6 +219,10 @@ storeBasicVal dst src = do
     assert (typeof dst == typeof src) "storeBasic: type mismatch"
     store (loc dst) 0 (op src) 
 
+newValNonZero :: InsCmp CompileState m => Type -> m Pointer 
+newValNonZero typ = do 
+    opType <- opTypeOf typ 
+    Pointer typ <$> alloca opType Nothing 0 
 
 newVal :: InsCmp CompileState m => Type -> m Pointer 
 newVal typ = do 

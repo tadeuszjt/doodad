@@ -515,4 +515,7 @@ instance Resolve Expr where
             mexpr2' <- maybe (return Nothing) (fmap Just . resolve) mexpr2
             return $ AST.Range pos mexpr' mexpr1' mexpr2'
 
+        AST.Array pos exprs -> do
+            AST.Array pos <$> mapM resolve exprs
+
         _ -> fail $ "invalid expression: " ++ show expr

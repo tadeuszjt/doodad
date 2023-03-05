@@ -1,7 +1,7 @@
 module calculator
 
-import ../std/chars
-import ../std/io
+import ../../std/chars
+import ../../std/io
 
 
 type Token { i64 | char }

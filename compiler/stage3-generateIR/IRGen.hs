@@ -232,6 +232,7 @@ compileExpr (AST.AExpr exprType expr) = withPos expr $ AExpr exprType <$> case e
     AST.Tuple pos exprs       -> AST.Tuple pos <$> mapM compileExpr exprs
     AST.Initialiser pos exprs -> AST.Initialiser pos <$> mapM compileExpr exprs
     AST.String pos s          -> return $ AST.String pos s
+    AST.Array pos exprs       -> AST.Array pos <$> mapM compileExpr exprs
 
     AST.Builtin pos params sym exprs -> do
         params' <- mapM compileExpr params

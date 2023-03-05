@@ -10,6 +10,15 @@ fn testPatArrayMatch()
     if table -> [1, 2, _; true, false, _]; let true = false
 
 
-fn testLang()
+fn testExprArray()
+    let array = [1, 2, 3, 4]
+    let 3 = array[2]
+    let [1, 2, 3, 4] = array
+    array[1] = 6
+    let [1, 6, 3, 4] = array
+
+
+fn main()
     testPatArrayMatch()
+    testExprArray()
     print("testLang passed")
