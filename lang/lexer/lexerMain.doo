@@ -54,7 +54,7 @@ fn {io Io} main()
         idx = end
 
     if stack.at(idx) -> char(c) 
-        print("lex error at ", column)
+        io.write("lex error at: ", column)
 
 
 
