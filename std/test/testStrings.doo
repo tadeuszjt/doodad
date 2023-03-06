@@ -1,14 +1,15 @@
 module testStrings
 
 import ../strings
+import ../io
 
 fn testStringBuiltin()
     data s1 string
     data s2 string
     let true = s1 == s2
-    {s1, "abStr987!.<?\n"}.write()
+    {s1, "abStr987!.<?\n"}.writeString()
     let false = s1 == s2
-    {s2, "abStr987!.<?\n"}.write()
+    {s2, "abStr987!.<?\n"}.writeString()
     let true = s1 == s2
     s1.push(' ')
     let false = s1 == s2
@@ -34,28 +35,28 @@ fn testFind()
 
 fn testWrite()
     data s string
-    s.write('a')
-    s.write(false)
-    s.write(0)
-    {s, ".str!"}.write()
-    s.write(-123)
+    s.writeChar('a')
+    s.writeBool(false)
+    s.writeI64(0)
+    {s, ".str!"}.writeString()
+    s.writeI64(-123)
     let true = s == "afalse0.str!-123"
 
 
 fn testRead()
     data s string
-    {s, "abc123!?.-945"}.write()
+    {s, "abc123!?.-945"}.writeString()
     //let 1 = s.read(0, 'a')
     let (123, 6) = s.read(3)
     let (0, 0) = s.read(6)
     s.clear()
-    {s, "x   123!?.-945"}.write()
+    {s, "x   123!?.-945"}.writeString()
     let (123, 7) = s.read(1)
 
 
-fn testStrings()
+fn {io Io} testStrings()
     testStringBuiltin()
     testFind()
     testWrite()
     testRead()
-    print("testStrings passed")
+    io.write("testStrings passed\n")

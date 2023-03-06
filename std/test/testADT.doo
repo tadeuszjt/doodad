@@ -1,5 +1,7 @@
 module testAdt 
 
+import ../io
+
 
 fn testEnum()
     type Type { Enum0() | Enum1() | Enum2() }
@@ -50,10 +52,10 @@ fn testTuples()
         LexResult(LexNull(), 12);
 
 
-fn testAdt()
+fn {io Io} testAdt()
     testEnum()
     testTypes()
     testOneArg()
     testTwoArgs()
     testTuples()
-    print("testAdt passed")
+    io.write("testAdt passed\n")

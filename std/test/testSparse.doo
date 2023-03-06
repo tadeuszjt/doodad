@@ -1,6 +1,7 @@
 module testSparse
 
 import ../strings
+import ../io
 
 
 fn testSparsePush()
@@ -28,9 +29,9 @@ fn testSparseWithStrings()
     let 1 = strings.push()
     let 2 = strings.push()
     let ["", "", ""] = strings
-    {strings[0], "test0"}.write()
-    {strings[1], "t35t1"}.write()
-    {strings[2], "test2"}.write()
+    {strings[0], "test0"}.writeString()
+    {strings[1], "t35t1"}.writeString()
+    {strings[2], "test2"}.writeString()
     let ["test0", "t35t1", "test2"] = strings
     strings.delete(2)
     let ["test0", "t35t1"] = strings
@@ -44,8 +45,8 @@ fn testSparseWithStrings()
     let 0 = strings.push()
 
 
-fn testSparse()
+fn {io Io} testSparse()
     testSparsePush()
     testSparseDelete()
     testSparseWithStrings()
-    print("testSparse passed")
+    io.write("testSparse passed\n")

@@ -222,10 +222,6 @@ trapBranch endName cnd continue = do
 
 cmpStmt :: InsCmp CompileState m => AST.Stmt -> m ()
 cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
-    AST.Print pos exprs   -> do
-        label "print"
-        cmpPrint stmt
-
     AST.Typedef pos symbol anno -> return ()
     AST.Block stmts   -> mapM_ cmpStmt stmts
     AST.ExprStmt expr -> withErrorPrefix "exprStmt: " $ void $ cmpExpr expr
@@ -476,6 +472,21 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
                 pload =<< Builtin.min arg' =<< toType (typeof arg') endVal
             
         newRange start end
+
+    AST.Builtin pos [expr] "read" [] -> do
+        base <- baseTypeOf exprType
+        case base of
+            I64 -> error ""
+
+    AST.Builtin pos [expr] "write" exprs -> do
+        vals <- mapM cmpExpr exprs
+        val <- cmpExpr expr
+        base <- baseTypeOf val
+        case (typeof val) of
+            Typedef symbol | sym symbol == "Io" -> mapM_ (valPrint "") vals
+
+        newI64 0
+
 
     AST.Builtin pos [expr] "push" [] -> do
         loc <- cmpExpr expr
@@ -881,13 +892,3 @@ cmpPattern pattern val branch mMatched = withErrorPrefix "pattern: " $ withPos p
         branch (op enumMatch) $ do
             field <- adtField val i
             cmpPattern pat field branch mMatched
-
-                    
-cmpPrint :: InsCmp CompileState m => AST.Stmt -> m ()
-cmpPrint (AST.Print pos exprs) = trace "cmpPrint" $ do
-    prints =<< mapM cmpExpr exprs
-    where
-        prints :: InsCmp CompileState m => [Pointer] -> m ()
-        prints []     = void $ printf "\n" []
-        prints [val]  = valPrint "\n" val
-        prints (v:vs) = valPrint ", " v >> prints vs

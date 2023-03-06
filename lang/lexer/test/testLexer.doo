@@ -1,6 +1,7 @@
 module testLexer 
 
 import ../lexer
+import ../../../std/io
 
 
 fn {s Strings, str string} checkStr(id Idx)
@@ -122,7 +123,7 @@ fn testLexFunnyString()
     data s2 Strings "\"stuff '\\n' more'\\0'na'j'df\""
     let Success(_, _) = s2.lexStringLit(0)
 
-fn main() 
+fn {io Io} main() 
     testLexInt()
     testLexIdent()
     testLexKeyword()
@@ -136,5 +137,5 @@ fn main()
     testLexFunnyString()
     testLexNewlineWithComment()
     testLexComment()
-    print("testLexer passed")
+    io.write("testLexer passed\n")
 

@@ -51,7 +51,6 @@ instance Annotate Stmt where
     annotate stmt = case stmt of
         Block ss          -> Block <$> mapM annotate ss
         Return p me       -> Return p <$> maybe (return Nothing) (fmap Just . annotate) me
-        Print p es        -> Print p <$> mapM annotate es
         ExprStmt e        -> ExprStmt <$> annotate e
 
         FuncDef p ps s as rt blk -> do

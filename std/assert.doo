@@ -12,5 +12,4 @@ fn assert(cnd bool)
 
 fn {s string} assert(cnd bool)
     if !cnd
-        print(s)
         c::abort()

@@ -18,4 +18,4 @@ fn { io Io} testFiles()
 
 fn {io Io} testIo() 
     io.testFiles()
-    print("testIo passed")
+    io.write("testIo passed\n")

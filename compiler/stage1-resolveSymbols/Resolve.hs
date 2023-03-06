@@ -294,13 +294,6 @@ resolveTypeDef (AST.Typedef pos (Sym sym) anno) = do
 
 instance Resolve Stmt where
     resolve stmt = withPos stmt $ case stmt of
-        ExprStmt (Call pos params (Sym "print") exprs) -> do
-            exprs' <- mapM resolve exprs
-            params' <- mapM resolve params
-            case (params', exprs') of
-                ([], es) -> return $ Print pos es
-                _        -> fail "incorrect print call"
-
         ExprStmt callExpr -> ExprStmt <$> resolve callExpr
 
         AST.Typedef pos symbol anno -> do 
@@ -465,7 +458,7 @@ instance Resolve Expr where
             exprs' <- mapM resolve exprs
             params' <- mapM resolve params
             case symbol of
-                Sym s | s `elem` ["push", "pop", "len", "clear", "delete", "unsafe_ptr", "unsafe_ptr_from_int", "conv"] -> do 
+                Sym s | s `elem` ["write", "push", "pop", "len", "clear", "delete", "unsafe_ptr", "unsafe_ptr_from_int", "conv"] -> do 
                     return $ Builtin pos params' s exprs'
                 _ -> do
                     resm <- lookm symbol KeyType

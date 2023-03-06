@@ -201,10 +201,6 @@ compileStmt stmt = withPos stmt $ case stmt of
         expr2' <- compileExpr expr2
         return $ Set pos expr1' expr2'
 
-    AST.Print pos exprs -> do
-        exprs' <- mapM compileExpr exprs
-        return $ Print pos exprs'
-
     AST.Switch pos expr cases -> do
         expr' <- compileExpr expr
         cases' <- forM cases $ \(pat, stmt) -> do

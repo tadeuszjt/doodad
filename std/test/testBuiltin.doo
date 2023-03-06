@@ -1,5 +1,7 @@
 module testBuiltin 
 
+import ../io
+
 
 fn {s string} stringReentry()
     let "astring" = s
@@ -26,7 +28,7 @@ fn testAdtEqEq()
     let true = a == b
 
 
-fn testBuiltin() 
+fn {io Io} testBuiltin() 
     testStringOverlap()
     testAdtEqEq()
-    print("testBuiltin passed")
+    io.write("testBuiltin passed\n")

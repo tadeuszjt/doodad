@@ -130,7 +130,6 @@ instance Apply S.Stmt where
         S.Set pos index e           -> S.Set pos (applyF index) (applyF e)
         S.While pos cnd blk         -> S.While pos (applyF cnd) (applyF blk)
         S.ExprStmt e                -> S.ExprStmt (applyF e)
-        S.Print pos es              -> S.Print pos $ map applyF es
         S.Data pos symbol typ mexpr -> S.Data pos symbol (applyF typ) (fmap applyF mexpr)
 
         S.FuncDef pos mparam sym params retty block ->

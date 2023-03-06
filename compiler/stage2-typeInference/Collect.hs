@@ -202,7 +202,6 @@ collectTypedef symbol typ = do
 collectStmt :: BoM CollectState m => S.Stmt -> m ()
 collectStmt stmt = collectPos stmt $ case stmt of
     --S.Typedef _ symbol anno -> collectTypedef symbol anno
-    S.Print p exprs -> mapM_ collectExpr exprs
     S.Typedef _ _ _ -> return ()
     S.Block stmts -> mapM_ collectStmt stmts
     S.ExprStmt e -> collectExpr e
@@ -392,6 +391,12 @@ collectExpr (S.AExpr exprType expr) = collectPos expr $ case expr of
 
     S.Builtin _ ps sym es -> do 
         case sym of
+            "read" -> do
+                assert (length ps == 1) "invalid read"
+                assert (length es == 0) "invalid read"
+            "write" -> do
+                assert (length ps == 1) "invalid write"
+                collectDefault exprType I64
             "conv" -> do 
                 assert (length ps == 0) "invalid conv"
                 assert (length es == 1) "invalid conv"

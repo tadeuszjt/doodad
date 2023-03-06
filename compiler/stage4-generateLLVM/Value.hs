@@ -129,6 +129,18 @@ mkZero typ = trace ("mkZero " ++ show  typ) $ do
         Enum      -> return $ Value typ (int64 0)
         Bool      -> return $ Value typ (bit 0)
         Char      -> return $ Value typ (int8 0)
+        ADT fs    -> do
+            types <- forM fs $ \f -> case f of
+                FieldNull -> return I8
+                FieldType t -> return t
+                FieldCtor [t] -> return t
+                FieldCtor ts -> return $ Tuple ts
+
+            sizes <- mapM sizeOfLL =<< mapM opTypeOf types
+            let maxi = fromJust $ elemIndex (maximum sizes) sizes
+            Value t op <- mkZero $ Tuple [I64, types !! maxi]
+            return $ Value typ op
+
         Range t   -> Value typ . struct namem False . map (toCons . op) <$> mapM mkZero [t, t]
         Array n t -> Value typ . array . replicate n . toCons . op <$> mkZero t
         Tuple ts  -> Value typ . struct namem False . map (toCons . op) <$> mapM mkZero ts

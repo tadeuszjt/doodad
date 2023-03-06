@@ -1,0 +1,79 @@
+module qbegen
+
+import ../../std/io
+
+
+type StrId i64
+type BodyId i64
+
+
+type Type {
+    Long()
+    Word()
+    Half()
+    Byte()
+    Single()
+    Double()
+}
+
+type Name {
+    Local(i64)
+    Global(i64)
+    Aggregate(i64)
+}
+
+type FuncDef (
+    name StrId
+    body BodyId
+)
+
+type StmtCall ()
+
+type Stmt {
+    StmtCall
+    StmtAdd(Name, Name, Name)
+}
+
+type Terminator {
+    Ret(Name)
+    Hlt()
+}
+
+type Block (
+    blockName       StrId
+    blockStmts      [Stmt]
+    blockTerminator Terminator
+)
+
+type Body [Block]
+
+fn {io Io} writeName(name Name)
+    switch name
+        Local(id)
+            io.write('%')
+            io.write(id)
+
+
+fn {io Io} writeTerminator(terminator Terminator)
+    switch terminator
+        Ret(name) io.print("fmt %s", stuff)
+
+            {io, "ret "}.write()
+            io.writeName(name)
+
+
+fn {io Io, strings sparse[string]} writeStmt(stmt Stmt)
+    switch stmt
+        StmtAdd(n1, n2, n3)
+            io.writeName(n1)
+            {io, " =w add "}.write()
+            io.writeName(n2)
+            {io, ", "}.write()
+            io.writeName(n3)
+            {io, ""}.writeLn()
+
+
+
+fn {io Io} main()
+    data strings sparse[string]
+

@@ -1,5 +1,7 @@
 module testMap
 
+import ../io
+
 fn testMapInit()
     data m map[i64]bool
     m[1] = true
@@ -16,6 +18,6 @@ fn testMapWithString()
     m["benis"] = (35, true)
     let (35, true) = m["benis"]
 
-fn testMap()
+fn {io Io} testMap()
     testMapInit()
-    print("testMap passed")
+    io.write("testMap passed\n")

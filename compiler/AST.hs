@@ -97,7 +97,6 @@ data Expr
 data Stmt
     = Assign      TextPos Pattern Expr
     | Set         TextPos Expr   Expr
-    | Print       TextPos [Expr]
     | ExprStmt    Expr
     | Return      TextPos (Maybe Expr)
     | Block       [Stmt]
@@ -169,7 +168,6 @@ instance TextPosition Stmt where
     textPos stmt = case stmt of
         Assign      p _ _ -> p
         Set         p _ _ -> p
-        Print       p _ -> p
         ExprStmt    e -> textPos e
         Return      p _ -> p
         Block       s -> textPos (head s)
@@ -304,7 +302,6 @@ prettyStmt pre stmt = case stmt of
 
     Assign pos pat expr        -> putStrLn $ pre ++ "let " ++ show pat ++ " = " ++ show expr
     Set pos ind expr           -> putStrLn $ pre ++ show ind ++ " = " ++ show expr
-    Print pos exprs            -> putStrLn $ pre ++ "print" ++ tupStrs (map show exprs)
     Return pos mexpr -> putStrLn $ pre ++ "return " ++ maybe "" show mexpr
 
     If pos cnd true mfalse -> do

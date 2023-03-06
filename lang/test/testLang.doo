@@ -1,5 +1,7 @@
 module testLang
 
+import ../../std/io
+
 
 fn testPatArrayMatch()
     data table [i64; bool]
@@ -18,7 +20,12 @@ fn testExprArray()
     let [1, 6, 3, 4] = array
 
 
-fn main()
+fn testWriteI64()
+    data s string
+
+
+fn {io Io} main()
     testPatArrayMatch()
     testExprArray()
-    print("testLang passed")
+    testWriteI64()
+    io.write("testLang passed\n")

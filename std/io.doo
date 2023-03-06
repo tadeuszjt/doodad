@@ -58,7 +58,7 @@ fn {io Io, line string} readLn(key FileKey) bool
             null;       return false
             char('\n'); return true
             char('\0'); return true
-            char(c);    line.write(c)
+            char(c);    line.writeChar(c)
 
 
 fn {io Io, line string} readLn() bool
@@ -67,39 +67,28 @@ fn {io Io, line string} readLn() bool
             null; return false
             char('\n'); return true
             char('\0'); return true
-            char(c);    line.write(c)
+            char(c);    line.writeChar(c)
 
 
-fn {io Io} write(c char)
-    c::putchar(i32(c))
-
-
-fn {io Io} write(i i64) i64
-    data s string
-    s.write(i) 
-    {io, s}.write()
-    return s.len()
-
-
-fn {io Io} write(key FileKey, c char)
+fn {io Io} writeChar(key FileKey, c char)
     let ptr | ptr > 0 = io[key]
     c::fputc(i32(c), unsafe_ptr_from_int(ptr))
 
 
-fn {io Io, s string} write() i64
+fn {io Io, s string} writeString() i64
     for s -> c
         io.write(c)
     return s.len()
 
 
 fn {io Io, s string} write(key FileKey)
-    for s -> c; io.write(key, c)
+    for s -> c; io.writeChar(key, c)
 
 
 fn {io Io, line string} writeLn(key FileKey)
     for line -> c
-        io.write(key, c)
-    io.write(key, '\n')
+        io.writeChar(key, c)
+    io.writeChar(key, '\n')
 
 
 fn {io Io, line string} writeLn()

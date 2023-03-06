@@ -2,6 +2,7 @@ module testTable
 
 
 import ../strings
+import ../io
 
 
 fn testTableDelete()
@@ -24,7 +25,7 @@ fn testTablePush()
     let [] = table 
     table.push()
     let [""] = table 
-    {table[0], "asdf"}.write()
+    {table[0], "asdf"}.writeString()
     table.push()
     let ["asdf", ""] = table
     table.delete(0)
@@ -54,9 +55,9 @@ fn testTableEqEq()
     let true = table0 == table1
 
 
-fn testTable()
+fn {io Io} testTable()
     testTableDelete()
     testTablePush()
     testTableTwoRows()
     testTableEqEq()
-    print("testTable passed")
+    io.write("testTable passed\n")

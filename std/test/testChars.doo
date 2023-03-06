@@ -1,6 +1,7 @@
 module testChars
 
 import ../chars
+import ../io
 
 fn testIsAlpha()
     for [-128..65] -> c; let false = isAlpha(char(c))
@@ -14,7 +15,7 @@ fn testIsDigit()
     for [48..58] -> c; let true = isDigit(char(c))
     for [58..127] -> c; let false = isDigit(char(c))
 
-fn testChars()
+fn {io Io} testChars()
     testIsAlpha()
     testIsDigit()
-    print("testChars passed")
+    io.write("testChars passed\n")

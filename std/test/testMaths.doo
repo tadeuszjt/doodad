@@ -1,6 +1,7 @@
 module testMaths
 
 import ../maths
+import ../io
 
 fn floatsEqual(a f64, b f64) bool
     let error = 0.00000001
@@ -15,7 +16,7 @@ fn testSqrt()
     let true = floatsEqual(0.70710678, maths::sqrt(0.5))
 
 
-fn testMaths()
+fn {io Io} testMaths()
     testSqrt()
-    print("testMaths passed")
+    io.write("testMaths passed\n")
 

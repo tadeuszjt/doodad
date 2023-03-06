@@ -35,20 +35,20 @@ fn {s string, sub string} find() {null | i64}
     return null
 
 
-fn {s string} write(c char)
+fn {s string} writeChar(c char)
     s.push(c)
 
 
-fn {s string} write(b bool)
-    if b; {s, "true"}.write()
-    else; {s, "false"}.write()
+fn {s string} writeBool(b bool)
+    if b; {s, "true"}.writeString()
+    else; {s, "false"}.writeString()
 
 
-fn {s string, s2 string} write()
+fn {s string, s2 string} writeString()
     for s2 -> c; s.push(c)
 
 
-fn {s string} write(n i64)
+fn {s string} writeI64(n i64)
     if n == 0
         s.push('0')
         return
