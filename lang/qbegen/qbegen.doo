@@ -46,18 +46,12 @@ fn {io Io} writeBaseType(typ Type)
         Double(); io.write('d')
 
 
-fn {io Io, types Types} writeType(typ Type)
+fn {io Io} writeType(typ Type)
     switch typ
         Long(); io.write('l')
         Word(); io.write('w')
         Single(); io.write('s')
         Double(); io.write('d')
-        StructId(id)
-            io.write('{')
-            for types.structTypes[id] -> t
-                {io, types}.writeType(t)
-                io.write(", ")
-            io.write('}')
 
 
 fn {io Io} writeName(name Name)
@@ -77,7 +71,7 @@ fn {io Io} writeTerminator(terminator Terminator)
     io.write('\n')
 
 
-fn {io Io, types Types} writeStmt(stmt Stmt)
+fn {io Io} writeStmt(stmt Stmt)
     io.write('\t')
     switch stmt
         StmtAdd(n1, t1, n2, n3)
@@ -115,7 +109,7 @@ fn {io Io} writeFuncEnd()
 
 fn {io Io, types Types} writeTypeDef(typ Type)
     io.write("type :fourFLoats = ")
-    {io, types}.writeType(typ)
+    io.writeType(typ)
     io.write('\n')
 
 
@@ -128,8 +122,6 @@ fn {io Io} main()
     types.structTypes[structId].push()
     types.structTypes[structId].push()
     types.structTypes[structId].push()
-
-    {io, types}.writeTypeDef(StructId(structId))
 
     io.writeFuncStart(Word())
     io.writeBlock(Block(0))
