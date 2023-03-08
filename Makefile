@@ -19,18 +19,23 @@ new_lexer: bin/lexer lang/lexer/ clean
 	gcc build/*.o -o bin/lexer -lgc -lm
 
 
-
 clean:
 	rm -f build/*.o
 
 
 qbe_test: clean
 	cabal run doodad -- lang/qbegen/qbegen -c
+	rm -f lang/qbegen/qbe_test.ssa
+	rm -f lang/qbegen/qbe_test.o
+	rm -f lang/qbegen/qbe_test.s
+	rm -f bin/qbe_test
 	gcc build/*.o -o bin/qbegen -lgc -lm
-	./bin/qbegen
-
-
-
+	(./bin/qbegen > lang/qbegen/qbe_test.ssa || true)
+	cat lang/qbegen/qbe_test.ssa
+	qbe lang/qbegen/qbe_test.ssa > lang/qbegen/qbe_test.s
+	gcc -c lang/qbegen/qbe_test.s -o lang/qbegen/qbe_test.o
+	gcc lang/qbegen/qbe_test.o -o bin/qbe_test
+	./bin/qbe_test
 
 
 full_reset:
