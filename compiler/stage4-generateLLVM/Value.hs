@@ -129,6 +129,7 @@ mkZero typ = trace ("mkZero " ++ show  typ) $ do
         Enum      -> return $ Value typ (int64 0)
         Bool      -> return $ Value typ (bit 0)
         Char      -> return $ Value typ (int8 0)
+        Key _     -> return $ Value typ (int64 0)
         ADT fs    -> do
             types <- forM fs $ \f -> case f of
                 FieldNull -> return I8
@@ -184,6 +185,7 @@ convertNumber typ val = do
         (Char, I64) -> trunc op LL.i8
         (F64,  I64) -> sitofp op LL.double
         (F32,  I64) -> sitofp op LL.float
+        (Key _, I64) -> return op
 
         (I64, Enum) -> return op
 
@@ -218,6 +220,8 @@ convertNumber typ val = do
         (F64, F32) -> fpext op LL.double
         
         (I64, UnsafePtr) -> ptrtoint op LL.i64
+
+        _ -> error $ show (base, baseVal)
 
 
 storeBasic :: InsCmp CompileState m => Pointer -> Pointer -> m ()
@@ -262,7 +266,11 @@ pMalloc typ len = trace ("mkMalloc " ++ show typ) $ do
 
 advancePointer :: InsCmp CompileState m => Pointer -> Value -> m Pointer
 advancePointer ptr idx = do
-    I64 <- baseTypeOf idx
+    baseIdx <- baseTypeOf idx 
+    case baseIdx of
+        I64 -> return ()
+        Key _ -> return ()
+
     Pointer (typeof ptr) <$> gep (loc ptr) [op idx]
 
 memCmp :: InsCmp CompileState m => Pointer -> Pointer -> Value -> m Value 
@@ -284,6 +292,22 @@ memCpy (Pointer dstTyp dst) (Pointer srcTyp src) len = trace "valMemCpy" $ do
     pDstI8 <- bitcast dst (LL.ptr LL.i8)
     pSrcI8 <- bitcast src (LL.ptr LL.i8)
     void $ memcpy pDstI8 pSrcI8 =<< mul (op size) (op len)
+
+
+keyInfix :: InsCmp CompileState m => AST.Operator -> Value -> Value -> m Value
+keyInfix operator a b = do
+    True <- return (typeof a == typeof b)
+    Key _ <- baseTypeOf (typeof a)
+    case operator of
+        AST.GT     -> Value Bool <$> icmp P.SGT (op a) (op b)
+        AST.LT     -> Value Bool <$> icmp P.SLT (op a) (op b)
+        AST.GTEq   -> Value Bool <$> icmp P.SGE (op a) (op b)
+        AST.LTEq   -> Value Bool <$> icmp P.SLE (op a) (op b)
+        AST.EqEq   -> Value Bool <$> icmp P.EQ (op a) (op b)
+        AST.NotEq  -> Value Bool <$> icmp P.NE (op a) (op b)
+        _        -> error ("key infix: " ++ show operator)
+
+
 
 intInfix :: InsCmp CompileState m => AST.Operator -> Value -> Value -> m Value
 intInfix operator a b = withErrorPrefix "int infix: " $ do

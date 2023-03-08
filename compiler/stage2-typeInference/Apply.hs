@@ -19,6 +19,7 @@ substitute u x typ = case typ of
     Void             -> typ
     Typedef symbol   -> typ
     _ | isSimple typ -> typ
+    Key t            -> Key $ substitute u x t
     Range t          -> Range $ substitute u x t
     Map tk tv        -> Map (substitute u x tk) (substitute u x tv)
     Sparse ts        -> Sparse $ map (substitute u x) ts

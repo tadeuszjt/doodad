@@ -56,6 +56,7 @@ isDataType typ = do
         Sparse ts         -> return True
         Map tk tv         -> return True
         Array n t         -> return False
+        Key t             -> return False
         Tuple ts          -> any (== True) <$> mapM isDataType ts
         _ | isSimple base -> return False
         Range t           -> isDataType t
@@ -85,6 +86,7 @@ opTypeOf typ = withErrorPrefix ("opTypOf " ++ show typ) $ do
             Char      -> return LL.i8
             Bool      -> return LL.i1
             Enum      -> return LL.i64
+            Key _     -> return LL.i64
             Map tk tv -> opTypeOf (Table [tk, tv])
             Range t   -> LL.StructureType False <$> mapM opTypeOf [t, t]
             Tuple ts  -> LL.StructureType False <$> mapM opTypeOf ts

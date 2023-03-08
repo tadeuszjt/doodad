@@ -48,6 +48,8 @@ storeCopy dst src = withErrorPrefix "storeCopy: " $ do
     case baseDst of
         _ | isSimple baseDst -> storeBasic dst src
 
+        Key t -> storeBasic dst src
+
         Table ts -> do 
             len <- pload =<< tableLen src
             tableResize dst len
@@ -90,6 +92,7 @@ storeCopyVal dst src = do
     True <- return $ baseDst == baseSrc
     case baseDst of
         _ | isSimple baseDst -> storeBasicVal dst src
+        Key _ -> storeBasicVal dst src
         _ -> error (show baseDst)
 
 
@@ -322,6 +325,12 @@ newInfix operator a b = withErrorPrefix "infix: " $ do
         Char                 -> do 
             av <- pload a
             res <- intInfix operator av =<< pload b
+            ret <- newVal (typeof res)
+            storeCopyVal ret res 
+            return ret
+        Key _                 -> do 
+            av <- pload a
+            res <- keyInfix operator av =<< pload b
             ret <- newVal (typeof res)
             storeCopyVal ret res 
             return ret

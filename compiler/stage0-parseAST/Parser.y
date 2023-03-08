@@ -45,6 +45,7 @@ import Symbol
     '>'        { Token _ TokSym ">" }
     '='        { Token _ TokSym "=" }
     '!'        { Token _ TokSym "!" }
+    '@'        { Token _ TokSym "@" }
     '!='       { Token _ TokSym "!=" }
     '<='       { Token _ TokSym "<=" }
     '>='       { Token _ TokSym ">=" }
@@ -281,12 +282,13 @@ type_         : symbol                      { T.Typedef (snd $1) }
               | aggregate_t                 { $1 }
 
 ordinal_t   : bool                          { T.Bool }
-              | i16                         { T.I16 }
-              | i32                         { T.I32 }
-              | i64                         { T.I64 }
-              | f32                         { T.F32 }
-              | f64                         { T.F64 }
-              | char                        { T.Char }
+            | i16                           { T.I16 }
+            | i32                           { T.I32 }
+            | i64                           { T.I64 }
+            | f32                           { T.F32 }
+            | f64                           { T.F64 }
+            | char                          { T.Char }
+            | '@' type_                     { T.Key $2 }
 
 aggregate_t : table_t                       { $1 }
               | array_t                     { $1 }

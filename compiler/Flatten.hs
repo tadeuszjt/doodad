@@ -51,5 +51,6 @@ checkTypeDefs typedefs = do
                     FieldCtor ts -> mapM_ (checkTypeCircles visited) ts
             Array n t       -> checkTypeCircles visited t
             Void            -> return ()
+            Key t           -> return ()
             t | isSimple t  -> return ()
             _                 -> fail ("checkTypeCircles " ++ show typ)

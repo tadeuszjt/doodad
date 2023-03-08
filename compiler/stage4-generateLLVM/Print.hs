@@ -35,6 +35,11 @@ valPrint append val = withErrorPrefix "valPrint " $ case typeof val of
         base <- baseTypeOf (Typedef s)
         valPrint append =<< toType base val
 
+    Key t -> do
+        o <- op <$> pload val
+        printf ("@%d" ++ append) [o]
+        return ()
+
     Bool -> do
         op <- op <$> pload val
         str <- getStringPointer "true\0false"

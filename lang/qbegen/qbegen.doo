@@ -2,14 +2,11 @@ module qbegen
 
 import ../../std/io
 
-type StrId i64
-type BodyId i64
-
 type Name {
-    Local(i64)
+    Local(@string)
     Global(i64)
     Aggregate(i64)
-    Block(i64)
+    Block(@string)
 }
 
 type Type {
@@ -19,20 +16,13 @@ type Type {
     Double()
     Named(i64)
     Opaque(i64)
-    StructId(i64)
-    ArrayId(i64)
+    Struct(@[Type])
 }
-
-type Types (
-    structTypes sparse[[Type]]
-    arrayTypes  sparse[(i64, Type)]
-)
-
 
 type Stmt {
     StmtAdd(Name, Type, Name, Name)
     StmtCopy(Name, Type, i64)
-    StmtCallVoid(StrId)
+    StmtCallVoid(@string)
 }
 
 type Terminator {
@@ -50,19 +40,19 @@ fn {io Io} writeType(typ Type)
         Double(); io.write('d')
 
 
-fn {io Io} writeName(name Name)
+fn {io Io, strings sparse[string]} writeName(name Name)
     switch name
-        Local(id); io.write("%l", id)
-        Global(id); io.write("$g", id)
-        Block(id); io.write("@b", id)
+        Local(key); io.write("%", strings[key])
+        Global(key); io.write("$", strings[key])
+        Block(key); io.write("@", strings[key])
 
 
-fn {io Io} writeTerminator(terminator Terminator)
+fn {io Io, strings sparse[string]} writeTerminator(terminator Terminator)
     io.write('\t')
     switch terminator
         Ret(name)
             io.write("ret ")
-            io.writeName(name)
+            {io, strings}.writeName(name)
         RetVoid(); io.write("ret")
     io.write('\n')
 
@@ -71,15 +61,15 @@ fn {io Io, strings sparse[string]} writeStmt(stmt Stmt)
     io.write('\t')
     switch stmt
         StmtAdd(n1, t1, n2, n3)
-            io.writeName(n1)
+            {io, strings}.writeName(n1)
             io.write(" =")
             io.writeType(t1)
             io.write(" add ")
-            io.writeName(n2)
+            {io, strings}.writeName(n2)
             io.write(", ")
-            io.writeName(n3)
+            {io, strings}.writeName(n3)
         StmtCopy(name, typ, int)
-            io.writeName(name)
+            {io, strings}.writeName(name)
             io.write(" =")
             io.writeType(typ)
             io.write(" copy ", int)
@@ -90,9 +80,9 @@ fn {io Io, strings sparse[string]} writeStmt(stmt Stmt)
     io.write('\n')
 
 
-fn {io Io} writeBlock(name Name)
+fn {io Io, strings sparse[string]} writeBlock(name Name)
     let Block(_) = name
-    io.writeName(name)
+    {io, strings}.writeName(name)
     io.write('\n')
 
 
@@ -107,7 +97,7 @@ fn {io Io} writeFuncEnd()
     io.write("}\n")
 
 
-fn {io Io, types Types} writeTypeDef(typ Type)
+fn {io Io} writeTypeDef(typ Type)
     io.write("type :fourFLoats = ")
     io.writeType(typ)
     io.write('\n')
@@ -115,28 +105,25 @@ fn {io Io, types Types} writeTypeDef(typ Type)
 
 fn {io Io} main()
     data strings sparse[string]
-    let putcharId = strings.push()
-    strings[putcharId] = "putchar"
-
-    data types Types
-    let structId = types.structTypes.push()
-    for [0..3]; types.structTypes[structId].push()
+    let putcharId = strings.push("putchar")
+    let blockId   = Block(strings.push("start"))
+    let local0    = Local(strings.push("a"))
+    let local1    = Local(strings.push("b"))
+    let local2    = Local(strings.push("c"))
+    let local5    = Local(strings.push("x"))
 
     io.writeFuncStart(Word())
-    io.writeBlock(Block(0))
+    {io, strings}.writeBlock(blockId)
 
-    {io, strings}.writeStmt(StmtCopy(Local(0), Word(), 1))
-    {io, strings}.writeStmt(StmtCopy(Local(1), Word(), 2))
-    {io, strings}.writeStmt(StmtAdd(Local(2), Word(), Local(0), Local(1)))
-    {io, strings}.writeStmt(StmtCallVoid(putcharId))
-    {io, strings}.writeStmt(StmtCallVoid(putcharId))
-    {io, strings}.writeStmt(StmtCallVoid(putcharId))
+    {io, strings}.writeStmt(StmtCopy(local0, Word(), 1))
+    {io, strings}.writeStmt(StmtCopy(local1, Word(), 2))
+    {io, strings}.writeStmt(StmtAdd(local2, Word(), local0, local1))
     {io, strings}.writeStmt(StmtCallVoid(putcharId))
     {io, strings}.writeStmt(StmtCallVoid(putcharId))
     {io, strings}.writeStmt(StmtCallVoid(putcharId))
 
-    {io, strings}.writeStmt(StmtCopy(Local(5), Word(), 0))
-    io.writeTerminator(Ret(Local(5)))
+    {io, strings}.writeStmt(StmtCopy(local5, Word(), 0))
+    {io, strings}.writeTerminator(Ret(local5))
     io.writeFuncEnd()
 
 

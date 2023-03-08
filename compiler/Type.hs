@@ -25,6 +25,7 @@ data Type
     | Bool                   
     | Char                   
     | Enum
+    | Key Type
     | Range Type
     | Sparse [Type]
     | Map Type Type
@@ -56,6 +57,7 @@ instance Show Type where
         Bool          -> "bool"
         Char          -> "char"
         Enum          -> "enum"
+        Key t         -> '@' : show t
         Range t       -> "[..]" ++ show t
         Sparse ts     -> "sparse" ++ "[" ++ intercalate "; " (map show ts) ++ "]"
         Map tk tv     -> "map" ++ "[" ++ show tk ++ "]" ++ show tv

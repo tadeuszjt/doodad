@@ -24,8 +24,15 @@ fn testWriteI64()
     data s string
 
 
+fn {io Io} testKeys()
+    data strings sparse[string]
+    let 0:@string = strings.push()
+    let 1:@string = strings.push()
+
+
 fn {io Io} main()
     testPatArrayMatch()
     testExprArray()
     testWriteI64()
+    io.testKeys()
     io.write("testLang passed\n")

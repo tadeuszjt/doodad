@@ -491,7 +491,7 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
     AST.Builtin pos [expr] "push" [] -> do
         loc <- cmpExpr expr
         base <- baseTypeOf loc
-        val <- newVal exprType
+        val <- newValNonZero exprType
         case base of
             Table ts  -> storeCopyVal val =<< convertNumber (typeof val) =<< tablePush loc
             Sparse ts -> storeCopyVal val =<< convertNumber (typeof val) =<< sparsePush loc =<< mapM newVal ts
@@ -548,11 +548,12 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
                 
     AST.Int p n -> do
         base <- baseTypeOf exprType
-        val <- newVal exprType
+        val <- newValNonZero exprType
         case base of
             _ | isInt base   -> storeBasicVal val =<< convertNumber exprType (mkI64 n)
             _ | isFloat base -> storeBasic val =<< newFloat exprType (fromIntegral n)
             _ | base == Char -> storeBasic val =<< toType exprType =<< newChar (chr $ fromIntegral n)
+            Key _            -> storeBasicVal val =<< convertNumber exprType (mkI64 n)
             _ | otherwise    -> fail $ "invalid base type of: " ++ show base
         return val
 
@@ -856,7 +857,7 @@ cmpPattern pattern val branch mMatched = withErrorPrefix "pattern: " $ withPos p
                     v <- cmpExpr expr
                     cmpPattern pat v branch mMatched
 
-    AST.PatIdent _ symbol -> trace ("cmpPattern " ++ show pattern) $ do -- a
+    AST.PatIdent _ symbol -> withErrorPrefix ("cmpPattern " ++ show pattern) $ do -- a
         base <- baseTypeOf val
         False <- isDataType (typeof val)
         loc <- newValNonZero (typeof val)

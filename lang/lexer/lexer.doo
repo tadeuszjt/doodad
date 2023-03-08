@@ -185,7 +185,7 @@ fn {s Strings} lexGraphic(idx Idx) Result
 
 
 fn {s Strings} lexSym(idx Idx) Result
-    data syms string "+-*/%<>[]{}().,;:|=_!"
+    data syms string "+-*/%<>[]{}().,;:|=_!@"
     if s.at(idx) -> char(c)
         for syms -> sym 
             if sym == c; return Success(LexSym(c), idx + 1)
