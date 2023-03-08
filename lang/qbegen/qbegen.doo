@@ -4,7 +4,7 @@ import ../../std/io
 
 type Name {
     Local(@string)
-    Global(i64)
+    Global(@string)
     Aggregate(i64)
     Block(@string)
 }
@@ -14,22 +14,34 @@ type Type {
     Word()
     Single()
     Double()
+    SignedByte()
     Named(i64)
     Opaque(i64)
     Struct(@[Type])
 }
 
+type Value {
+    Name
+    Const(i64)
+}
+
 type Stmt {
     StmtAdd(Name, Type, Name, Name)
     StmtCopy(Name, Type, i64)
-    StmtCallVoid(@string)
+    StmtCallVoid(@string, Type, Value)
 }
 
 type Terminator {
-    Ret(Name)
+    Ret(Value)
     RetVoid()
     Hlt()
 }
+
+
+fn {io Io, strings sparse[string]} writeValue(value Value)
+    switch value
+        Name(name); {io, strings}.writeName(name)
+        Const(n)  ; io.write(n)
 
 
 fn {io Io} writeType(typ Type)
@@ -38,6 +50,7 @@ fn {io Io} writeType(typ Type)
         Word(); io.write('w')
         Single(); io.write('s')
         Double(); io.write('d')
+        SignedByte(); io.write("sb")
 
 
 fn {io Io, strings sparse[string]} writeName(name Name)
@@ -50,9 +63,9 @@ fn {io Io, strings sparse[string]} writeName(name Name)
 fn {io Io, strings sparse[string]} writeTerminator(terminator Terminator)
     io.write('\t')
     switch terminator
-        Ret(name)
+        Ret(value)
             io.write("ret ")
-            {io, strings}.writeName(name)
+            {io, strings}.writeValue(value)
         RetVoid(); io.write("ret")
     io.write('\n')
 
@@ -73,10 +86,14 @@ fn {io Io, strings sparse[string]} writeStmt(stmt Stmt)
             io.write(" =")
             io.writeType(typ)
             io.write(" copy ", int)
-        StmtCallVoid(nameId)
+        StmtCallVoid(nameId, typ, value)
             io.write("call $")
             io.write(strings[nameId])
-            io.write("(sb 42)")
+            io.write('(')
+            io.writeType(typ)
+            io.write(' ')
+            {io, strings}.writeValue(value)
+            io.write(')')
     io.write('\n')
 
 
@@ -103,6 +120,16 @@ fn {io Io} writeTypeDef(typ Type)
     io.write('\n')
 
 
+fn {io Io, strings sparse[string], name string, args [(Type, Value)]} writeCall()
+    io.write("\tcall $", name, '(')
+    for args -> (t, v)
+        io.writeType(t)
+        io.write(' ')
+        {io, strings}.writeValue(v)
+        io.write(',')
+    io.write(")\n")
+
+
 fn {io Io} main()
     data strings sparse[string]
     let putcharId = strings.push("putchar")
@@ -110,20 +137,24 @@ fn {io Io} main()
     let local0    = Local(strings.push("a"))
     let local1    = Local(strings.push("b"))
     let local2    = Local(strings.push("c"))
-    let local5    = Local(strings.push("x"))
 
     io.writeFuncStart(Word())
     {io, strings}.writeBlock(blockId)
 
-    {io, strings}.writeStmt(StmtCopy(local0, Word(), 1))
-    {io, strings}.writeStmt(StmtCopy(local1, Word(), 2))
-    {io, strings}.writeStmt(StmtAdd(local2, Word(), local0, local1))
-    {io, strings}.writeStmt(StmtCallVoid(putcharId))
-    {io, strings}.writeStmt(StmtCallVoid(putcharId))
-    {io, strings}.writeStmt(StmtCallVoid(putcharId))
+    data args [(Type, Value)]
+    args.push((SignedByte(), Const(43)))
+    {io, strings, "putchar", args}.writeCall()
 
-    {io, strings}.writeStmt(StmtCopy(local5, Word(), 0))
-    {io, strings}.writeTerminator(Ret(local5))
+    for [
+        StmtCopy(local0, Word(), 40)
+        StmtCopy(local1, Word(), 2)
+        StmtAdd(local2, Word(), local0, local1)
+        StmtCallVoid(putcharId, SignedByte(), Value(local2))
+        StmtCallVoid(putcharId, SignedByte(), Const(42))
+        StmtCallVoid(putcharId, Word(), Const(43))
+    ] -> stmt; {io, strings}.writeStmt(stmt)
+
+    {io, strings}.writeTerminator(Ret(Const(0)))
     io.writeFuncEnd()
 
 

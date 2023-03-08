@@ -91,12 +91,10 @@ newFloat typ f = do
             return $ Pointer typ p
 
 
-newEnum :: InsCmp CompileState m => Integral i => Type -> i -> m Pointer
-newEnum typ n = do
+mkEnum :: InsCmp CompileState m => Integral i => Type -> i -> m Value
+mkEnum typ n = do
     Enum <- baseTypeOf typ
-    val <- newVal typ
-    store (loc val) 0 $ int64 (fromIntegral n)
-    return val
+    return $ Value typ (int64 $ fromIntegral n)
 
 
 newRange :: InsCmp CompileState m => Value -> Value -> m Pointer

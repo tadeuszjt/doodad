@@ -622,11 +622,11 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
                         storeBasicVal loc v
                         return loc
             ObjField i -> do
+                adt <- newVal exprType
                 base <- baseTypeOf exprType
                 case base of
-                    Enum  -> newEnum exprType i
+                    Enum  -> storeCopyVal adt =<< mkEnum exprType i
                     ADT fs -> do 
-                        adt <- newVal exprType 
                         adtSetEnum adt i
                         assert (ps == []) "Invalid constructor"
                         case fs !! i of 
@@ -641,8 +641,8 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
                                 forM_ (zip as [0..]) $ \(a, i) -> do 
                                     tupMember <- tupleIdx i tupPtr
                                     storeCopy tupMember a
-                        return adt
                     _ -> error (show base)
+                return adt
             _ -> error (show obj)
 
         case exprType of 
@@ -825,6 +825,7 @@ cmpPatField symbol pats val branch mMatched = do
             ObjField i <- look symbol
             enumMatched <- intInfix AST.EqEq (mkI64 i) =<< adtEnum =<< pload val
             branch (op enumMatched) mMatched
+        _ -> fail "invalid type"
 
 
 cmpPattern :: InsCmp CompileState m => AST.Pattern -> Pointer -> (LL.Operand -> m () -> m ()) -> m () -> m ()

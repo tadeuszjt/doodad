@@ -341,7 +341,11 @@ newInfix operator a b = withErrorPrefix "infix: " $ do
             ret <- newVal (typeof res)
             storeCopyVal ret res 
             return ret
-        Range _ -> rangeInfix operator a b
+        Range _ -> do 
+            res <- rangeInfix operator a b
+            ret <- newVal (typeof res)
+            storeCopyVal ret res 
+            return ret
         _ | isInt base       -> do 
             av <- pload a
             res <- intInfix operator av =<< pload b
@@ -366,19 +370,17 @@ enumInfix operator a b = do
         AST.EqEq  -> Value Bool <$> icmp P.EQ (op a) (op b)
 
 
-rangeInfix :: InsCmp CompileState m => AST.Operator -> Pointer -> Pointer -> m Pointer
+rangeInfix :: InsCmp CompileState m => AST.Operator -> Pointer -> Pointer -> m Value
 rangeInfix operator a b = do
     Range t <- baseTypeOf a
     True    <- return $ typeof a == typeof b
     case operator of
         AST.EqEq -> do
-            val <- newVal Bool
             startA <- rangeStart a
             endA   <- rangeEnd a
             startEq <- pload =<< newInfix AST.EqEq startA =<< rangeStart b
             endEq   <- pload =<< newInfix AST.EqEq endA =<< rangeEnd b
-            storeCopyVal val =<< boolInfix AST.AndAnd startEq endEq
-            return val
+            boolInfix AST.AndAnd startEq endEq
 
 
 arrayInfix :: InsCmp CompileState m => AST.Operator -> Pointer -> Pointer -> m Pointer
