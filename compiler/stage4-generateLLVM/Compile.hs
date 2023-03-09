@@ -285,11 +285,13 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
         cond <- freshName "while_cond"
         exit <- freshName "while_exit"
 
+        val <- newVal (typeof expr)
+
         br cond
         emitBlockStart cond
 
         b <- newVal Bool
-        val <- cmpExpr expr
+        storeExpr val expr
         cmpPattern pat val when_ $ do
             cmpStmt blk
             storeCopyVal b (mkBool True)
@@ -308,9 +310,10 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
 
         br cond
         emitBlockStart cond
-        val <- pload =<< cmpExpr cnd
+        val <- cmpExpr cnd
         Bool <- baseTypeOf val
-        condBr (op val) body exit
+        b <- pload val
+        condBr (op b) body exit
         
         emitBlockStart body
         cmpStmt blk
@@ -351,7 +354,8 @@ cmpStmt stmt = trace "cmpStmt" $ withPos stmt $ case stmt of
             Table ts -> tableLen val
             Array n t -> newI64 n
             _ -> error (show base)
-        ilt <- pload =<< newInfix AST.LT idx end
+        idxv <- pload idx
+        ilt <- intInfix AST.LT idxv =<< pload end
         condBr (op ilt) body exit
 
 
@@ -411,8 +415,62 @@ readString str = case str of
     (s:ss)            -> s : (readString ss)
     []                ->  []
 
+
+instance Typeof AST.Expr where
+    typeof (AST.AExpr typ expr) = typ
+
+
+storeExpr :: InsCmp CompileState m => Pointer -> AST.Expr -> m ()
+storeExpr location (AST.AExpr exprType expr) = case expr of
+    AST.Call pos params symbol args  -> withErrorPrefix "call: " $ do
+        ps <- mapM cmpExpr params
+        as <- mapM cmpExpr args
+
+        asOps <- map op <$> mapM pload as
+        obj <- look symbol
+        case obj of
+            ObjFn -> do
+                op <- fnHdrToOp (map typeof ps) symbol (map typeof as) exprType
+                v <- Value exprType <$> call op [(o, []) | o <- (map loc ps) ++ asOps]
+                storeBasicVal location v
+
+            ObjField i -> do
+                base <- baseTypeOf exprType
+                case base of
+                    Enum  -> storeCopyVal location =<< mkEnum exprType i
+                    ADT fs -> do 
+                        adtSetEnum location i
+                        assert (ps == []) "Invalid constructor"
+                        case fs !! i of 
+                            FieldNull    -> return ()
+                            FieldCtor [t] -> do
+                                assert ([t] == map typeof as) "Invalid constructor"
+                                ptr <- adtField location i
+                                storeCopy ptr (head as)
+                            FieldCtor ts -> do
+                                assert (ts == map typeof as) "Invalid constructor"
+                                tupPtr <- adtField location i
+                                forM_ (zip as [0..]) $ \(a, i) -> do 
+                                    tupMember <- tupleIdx i tupPtr
+                                    storeCopy tupMember a
+                    _ -> error (show base)
+
+            _ -> error (show obj)
+
+    AST.Infix pos AST.AndAnd exprA exprB -> do
+        storeCopyVal location (mkBool False)
+
+        Bool <- baseTypeOf exprType
+
+        valA <- pload =<< cmpExpr exprA
+        Bool <- baseTypeOf valA
+        when_ (op valA) $ storeCopy location =<< cmpExpr exprB
+
+    _ -> error (show expr)
+
+
 cmpExpr :: InsCmp CompileState m =>  AST.Expr -> m Pointer
-cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ withCheck exprType $ case expr of
+cmpExpr expr_@(AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ withCheck exprType $ case expr of
     AST.Bool pos b               -> (toType exprType =<< newBool b)
     AST.Char pos c               -> (toType exprType =<< newChar c)
     AST.Tuple pos [expr]         -> cmpExpr expr
@@ -622,7 +680,7 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
 
         asOps <- map op <$> mapM pload as
         obj <- look symbol
-        val <- case obj of
+        case obj of
             ObjFn -> do
                 op <- fnHdrToOp (map typeof ps) symbol (map typeof as) exprType
                 v <- Value exprType <$> call op [(o, []) | o <- (map loc ps) ++ asOps]
@@ -634,31 +692,10 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
                         return loc
             ObjField i -> do
                 adt <- newVal exprType
-                base <- baseTypeOf exprType
-                case base of
-                    Enum  -> storeCopyVal adt =<< mkEnum exprType i
-                    ADT fs -> do 
-                        adtSetEnum adt i
-                        assert (ps == []) "Invalid constructor"
-                        case fs !! i of 
-                            FieldNull    -> return ()
-                            FieldCtor [t] -> do
-                                assert ([t] == map typeof as) "Invalid constructor"
-                                ptr <- adtField adt i
-                                storeCopy ptr (head as)
-                            FieldCtor ts -> do
-                                assert (ts == map typeof as) "Invalid constructor"
-                                tupPtr <- adtField adt i
-                                forM_ (zip as [0..]) $ \(a, i) -> do 
-                                    tupMember <- tupleIdx i tupPtr
-                                    storeCopy tupMember a
-                    _ -> error (show base)
+                storeExpr adt expr_
                 return adt
-            _ -> error (show obj)
 
-        case exprType of 
-            Void -> return $ Pointer Void undefined
-            _    -> return val
+            _ -> error (show obj)
 
 
     AST.Builtin pos [] "conv" [expr] -> construct exprType =<< mapM cmpExpr [expr]

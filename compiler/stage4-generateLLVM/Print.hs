@@ -69,7 +69,7 @@ valPrint append val = withErrorPrefix "valPrint " $ case typeof val of
 
         if_ (op lenZero)
             (void $ printf ("]" ++ append) [])
-            (tablePrintHelper ts val len)
+            (tablePrintHelper ts val =<< pload len)
 
     Array n t -> do
         printf "[" []
@@ -80,10 +80,10 @@ valPrint append val = withErrorPrefix "valPrint " $ case typeof val of
     _ -> error ("print: " ++ show (typeof val))
 
     where
-        tablePrintHelper :: InsCmp CompileState m => [Type] -> Pointer -> Pointer -> m ()
+        tablePrintHelper :: InsCmp CompileState m => [Type] -> Pointer -> Value -> m ()
         tablePrintHelper ts val len = forM_ [0..length ts - 1] $ \i -> do
             row@(Pointer t p) <- tableRow i val
-            n <- pload =<< newInfix AST.Minus len =<< newI64 1
+            n <- intInfix AST.Minus len (mkI64 1)
 
             for (op n) $ \j -> valPrint ", " =<< advancePointer row (Value I64 j)
             if i < length ts - 1

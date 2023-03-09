@@ -1,3 +1,8 @@
+bench: lexer
+	cabal run doodad -- std/test/test --print-llir | wc -l              # 4647
+	cabal run doodad -- lang/lexer/test/testLexer --print-llir | wc -l  # 5599
+	cabal run doodad -- lang/test/testLang --print-llir | wc -l         # 1392
+
 test: lexer
 	cabal run doodad -- std/test/test
 	cabal run doodad -- lang/lexer/test/testLexer
