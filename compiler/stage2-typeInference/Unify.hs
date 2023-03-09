@@ -71,8 +71,9 @@ unifyOne pos constraint = withPos pos $ case constraint of
     ConsElem t1 t2 -> do
         basem <- baseTypeOf t1
         case basem of
-            Just (Table [t])  -> unifyOne pos (ConsEq t2 $ t)
+            Just (Table [t])  -> unifyOne pos (ConsEq t2 t)
             Just (Table ts)  -> unifyOne pos (ConsEq t2 $ Tuple ts)
+            Just (Array n t) -> unifyOne pos (ConsEq t2 t)
             Nothing -> return []
             _ -> error (show basem)
 

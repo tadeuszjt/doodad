@@ -28,7 +28,7 @@ type Value {
 type Stmt {
     StmtAdd(Name, Type, Name, Name)
     StmtCopy(Name, Type, i64)
-    StmtCallVoid(@string, Type, Value)
+    StmtCallVoid(@string, @[(Type, Value)])
 }
 
 type Terminator {
@@ -70,7 +70,7 @@ fn {io Io, strings sparse[string]} writeTerminator(terminator Terminator)
     io.write('\n')
 
 
-fn {io Io, strings sparse[string]} writeStmt(stmt Stmt)
+fn {io Io, strings sparse[string], args sparse[[(Type, Value)]]} writeStmt(stmt Stmt)
     io.write('\t')
     switch stmt
         StmtAdd(n1, t1, n2, n3)
@@ -86,13 +86,15 @@ fn {io Io, strings sparse[string]} writeStmt(stmt Stmt)
             io.write(" =")
             io.writeType(typ)
             io.write(" copy ", int)
-        StmtCallVoid(nameId, typ, value)
+        StmtCallVoid(nameId, argsId)
             io.write("call $")
             io.write(strings[nameId])
             io.write('(')
-            io.writeType(typ)
-            io.write(' ')
-            {io, strings}.writeValue(value)
+            for args[argsId] -> (t, v)
+                io.writeType(t)
+                io.write(' ')
+                {io, strings}.writeValue(v)
+                io.write(", ")
             io.write(')')
     io.write('\n')
 
@@ -120,16 +122,6 @@ fn {io Io} writeTypeDef(typ Type)
     io.write('\n')
 
 
-fn {io Io, strings sparse[string], name string, args [(Type, Value)]} writeCall()
-    io.write("\tcall $", name, '(')
-    for args -> (t, v)
-        io.writeType(t)
-        io.write(' ')
-        {io, strings}.writeValue(v)
-        io.write(',')
-    io.write(")\n")
-
-
 fn {io Io} main()
     data strings sparse[string]
     let putcharId = strings.push("putchar")
@@ -141,18 +133,15 @@ fn {io Io} main()
     io.writeFuncStart(Word())
     {io, strings}.writeBlock(blockId)
 
-    data args [(Type, Value)]
-    args.push((SignedByte(), Const(43)))
-    {io, strings, "putchar", args}.writeCall()
+    data args sparse[[(Type, Value)]]
+    let argsId = args.push( [(SignedByte(), Const(44))] )
 
     for [
         StmtCopy(local0, Word(), 40)
         StmtCopy(local1, Word(), 2)
         StmtAdd(local2, Word(), local0, local1)
-        StmtCallVoid(putcharId, SignedByte(), Value(local2))
-        StmtCallVoid(putcharId, SignedByte(), Const(42))
-        StmtCallVoid(putcharId, Word(), Const(43))
-    ] -> stmt; {io, strings}.writeStmt(stmt)
+        StmtCallVoid(putcharId, argsId)
+    ] -> stmt; {io, strings, args}.writeStmt(stmt)
 
     {io, strings}.writeTerminator(Ret(Const(0)))
     io.writeFuncEnd()

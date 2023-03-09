@@ -506,12 +506,11 @@ collectExpr (S.AExpr exprType expr) = collectPos expr $ case expr of
             collectDefault (Range I64) exprType
 
     S.Array _ es -> do
-        forM_ es $ \e -> collectEq (typeof e) (typeof $ head es)
-        case es of
-            [] -> return ()
-            es -> do 
-                collectBase exprType $ Array (length es) (typeof $ head es)
-                collectDefault exprType $ Array (length es) (typeof $ head es)
+        forM_ es $ \e -> do 
+            collectElem exprType (typeof e)
+            collectEq (typeof e) (typeof $ head es)
+
+        collectDefault exprType $ Array (length es) (typeof $ head es)
 
         mapM_ collectExpr es
 
