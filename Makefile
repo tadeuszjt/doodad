@@ -3,10 +3,12 @@ bench: lexer
 	cabal run doodad -- lang/lexer/test/testLexer --print-llir | wc -l  # 5599
 	cabal run doodad -- lang/test/testLang --print-llir | wc -l         # 1392
 
+
 test: lexer
 	cabal run doodad -- std/test/test
 	cabal run doodad -- lang/lexer/test/testLexer
 	cabal run doodad -- lang/test/testLang
+
 
 lexer: bin/lexer
 bin/lexer: bootstrap
@@ -18,6 +20,7 @@ bin/lexer: bootstrap
 	/usr/lib/llvm-9/bin/llc bootstrap/lexer/lexerMain.ll
 	gcc -no-pie -s bootstrap/lexer/*.s -o bin/lexer -lgc -lm
 	rm bootstrap/lexer/*.s
+
 
 new_lexer: bin/lexer lang/lexer/ clean
 	cabal run doodad -- lang/lexer/lexerMain -c 

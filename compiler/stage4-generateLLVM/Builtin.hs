@@ -47,7 +47,7 @@ storeCopy dst src = withErrorPrefix "storeCopy: " $ do
     True <- return $ baseDst == baseSrc
     case baseDst of
         _ | isSimple baseDst -> storeBasic dst src
-
+        Range t -> storeBasic dst src
         Key t -> storeBasic dst src
 
         Table ts -> do 
@@ -158,7 +158,7 @@ mapFind map key = do
     len <- pload =<< mapLen map
     idx <- newI64 0
     keys <- mapKeys map -- keyPtr
-    found <- newBool False
+    found <- newVal Bool
     br cond
 
     emitBlockStart cond
@@ -249,7 +249,7 @@ prefix operator val = do
         _ | isFloat base -> case operator of
             AST.Plus -> op <$> pload val
             AST.Minus -> do 
-                newFloat (typeof val) 0 >>= pload >>= \zero -> fsub (op zero) . op =<< pload val
+                mkFloat (typeof val) 0 >>= \zero -> fsub (op zero) . op =<< pload val
 
         Bool -> case operator of
             AST.Not -> do 

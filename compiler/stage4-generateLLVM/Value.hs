@@ -41,6 +41,14 @@ toType typ ptr = do
     return $ Pointer typ (loc ptr)
 
 
+toTypeVal :: InsCmp CompileState m => Type -> Value -> m Value
+toTypeVal typ val = do 
+    base <- baseTypeOf typ
+    baseVal <- baseTypeOf val
+    assert (base == baseVal) "Incompatible types"
+    return $ Value typ (op val)
+
+
 newI64 :: (InsCmp CompileState m, Integral i) => i -> m Pointer
 newI64 n = do 
     p <- alloca LL.i64 Nothing 0
@@ -52,11 +60,8 @@ mkI64 :: Integral i => i -> Value
 mkI64 n = Value I64 $ int64 (fromIntegral n)
 
 
-newChar :: InsCmp CompileState m => Char -> m Pointer
-newChar c = do 
-    p <- alloca LL.i8 Nothing 0
-    store p 0 $ int8 (fromIntegral $ fromEnum c)
-    return $ Pointer Char p
+mkChar :: Char -> Value
+mkChar c = Value Char $ int8 (fromIntegral $ fromEnum c)
 
 
 newBool :: InsCmp CompileState m => Bool -> m Pointer
@@ -77,18 +82,12 @@ increment val = do
         I64 -> store (loc val) 0 =<< add (int64 1) =<< load (loc val) 0
 
 
-newFloat :: InsCmp CompileState m => Type -> Double -> m Pointer
-newFloat typ f = do 
+mkFloat :: InsCmp CompileState m => Type -> Double -> m Value
+mkFloat typ f = do 
     base <- baseTypeOf typ 
     case base of 
-        F64 -> do
-            p <- alloca LL.double Nothing 0
-            store p 0 $ double f
-            return $ Pointer typ p
-        F32 -> do
-            p <- alloca LL.float Nothing 0
-            store p 0 $ single (double2Float f)
-            return $ Pointer typ p
+        F64 -> return $ Value typ (double f)
+        F32 -> return $ Value typ (single $ double2Float f)
 
 
 mkEnum :: InsCmp CompileState m => Integral i => Type -> i -> m Value
