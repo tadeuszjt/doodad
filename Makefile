@@ -20,6 +20,7 @@ bin/lexer: bootstrap
 	/usr/lib/llvm-9/bin/llc bootstrap/lexer/lexerMain.ll
 	gcc -no-pie -s bootstrap/lexer/*.s -o bin/lexer -lgc -lm
 	rm bootstrap/lexer/*.s
+	make new_lexer
 
 
 new_lexer: bin/lexer lang/lexer/ clean

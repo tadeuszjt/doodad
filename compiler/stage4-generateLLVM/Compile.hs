@@ -460,7 +460,7 @@ storeExpr location expr_@(AST.AExpr exprType expr) = do
                     baseExpr <- baseTypeOf exprType
                     case baseExpr of 
                         Key _ -> return ()
-                        _     -> fail "return type must be a key"
+                        _     -> return () -- fail "return type must be a key"
 
         AST.Range pos Nothing _ Nothing -> fail "Range expression must contain maximum"
         AST.Range pos Nothing mexpr1 (Just expr2) -> do
@@ -597,6 +597,11 @@ storeExpr location expr_@(AST.AExpr exprType expr) = do
             UnsafePtr <- baseTypeOf exprType
             storeBasicVal location =<< Value exprType <$> inttoptr (op val) (LL.ptr LL.i8)
 
+        AST.Infix pos op exprA exprB -> do
+            valA <- cmpExpr exprA
+            valB <- cmpExpr exprB
+            storeInfix location op valA valB
+
         _ -> storeCopy location =<< cmpExpr expr_
         _ -> error (show expr)
 
@@ -646,11 +651,6 @@ cmpExpr expr_@(AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos exp
         when_ (op valA) $ storeExpr result exprB
         return result
         
-    AST.Infix pos op exprA exprB -> do
-        valA <- cmpExpr exprA
-        valB <- cmpExpr exprB
-        newInfix op valA valB
-
     AST.Ident pos symbol -> do
         obj <- look symbol
         case obj of
@@ -698,9 +698,13 @@ cmpExpr expr_@(AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos exp
                 
             Range t -> do
                 Bool <- baseTypeOf exprType
-                idxGtEqStart <- newInfix AST.GTEq idx =<< toType (typeof idx) =<< rangeStart val
-                idxLtEnd     <- newInfix AST.LT idx =<< toType (typeof idx) =<< rangeEnd val
-                newInfix AST.AndAnd idxLtEnd idxGtEqStart
+                idxGtEqStart <- newVal exprType
+                idxLtEnd <- newVal exprType
+
+                storeInfix idxGtEqStart AST.GTEq idx =<< toType (typeof idx) =<< rangeStart val
+                storeInfix idxLtEnd     AST.LT idx =<< toType (typeof idx) =<< rangeEnd val
+                storeInfix idxLtEnd AST.AndAnd idxLtEnd idxGtEqStart
+                return idxLtEnd
                 
     AST.Initialiser pos exprs -> do
         base <- baseTypeOf exprType
@@ -819,8 +823,10 @@ cmpPattern pattern val branch mMatched = withErrorPrefix "pattern: " $ withPos p
     AST.PatTuple _ pats -> cmpPatTuple pats val branch $ mMatched
 
     AST.PatLiteral expr -> do 
-        eq <- pload =<< newInfix AST.EqEq val =<< cmpExpr expr
-        branch (op eq) mMatched
+        eq <- newVal Bool
+        storeInfix eq AST.EqEq val =<< cmpExpr expr
+        eq' <- pload eq
+        branch (op eq') mMatched
 
 
     AST.PatNull _ -> do -- null
