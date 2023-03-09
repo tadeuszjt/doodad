@@ -6,33 +6,31 @@ import_c unistd.h
 import_c strings.h
 import_c memory.h
 
-type FileKey i64
 type FilePtr i64
-
 
 type Io sparse[FilePtr]
 
 
-fn {io Io, fileName string} openFile() FileKey 
+fn {io Io, fileName string} openFile() @FilePtr 
     fileName.push('\0')
     let ptr | ptr > 0 = FilePtr(i64(fopen(fileName.unsafe_ptr(), "a+\0".unsafe_ptr())))
     let '\0' = fileName.pop()
     return io.push(ptr)
 
 
-fn {io Io} closeFile(key FileKey)
+fn {io Io} closeFile(key @FilePtr)
     let ptr | ptr > 0 = io[key]
     fclose(unsafe_ptr_from_int(ptr))
     io.delete(i64(key))
 
 
-fn {io Io} clearFile(key FileKey)
+fn {io Io} clearFile(key @FilePtr)
     let ptr | ptr > 0 = io[key]
     c::freopen(unsafe_ptr_from_int(0), "w\0".unsafe_ptr(), unsafe_ptr_from_int(ptr))
     c::freopen(unsafe_ptr_from_int(0), "a+\0".unsafe_ptr(), unsafe_ptr_from_int(ptr))
 
 
-fn {io Io} catFile(key FileKey)
+fn {io Io} catFile(key @FilePtr)
     data line string
     while {io, line}.readLn(key)
         {io, line}.writeLn()
@@ -45,14 +43,14 @@ fn {io Io} read() {char | null}
         c;           return conv(c)
 
 
-fn {io Io} read(key FileKey) {char | null}
+fn {io Io} read(key @FilePtr) {char | null}
     let ptr | ptr > 0 = io[key]
     switch conv(fgetc(unsafe_ptr_from_int(ptr))):char
         x | x == -1; return null
         c;           return conv(c)
 
 
-fn {io Io, line string} readLn(key FileKey) bool
+fn {io Io, line string} readLn(key @FilePtr) bool
     while true
         switch io.read(key)
             null;       return false
@@ -70,16 +68,16 @@ fn {io Io, line string} readLn() bool
             char(c);    line.writeChar(c)
 
 
-fn {io Io} writeChar(key FileKey, c char)
+fn {io Io} writeChar(key @FilePtr, c char)
     let ptr | ptr > 0 = io[key]
     c::fputc(i32(c), unsafe_ptr_from_int(ptr))
 
 
-fn {io Io, s string} write(key FileKey)
+fn {io Io, s string} write(key @FilePtr)
     for s -> c; io.writeChar(key, c)
 
 
-fn {io Io, line string} writeLn(key FileKey)
+fn {io Io, line string} writeLn(key @FilePtr)
     for line -> c
         io.writeChar(key, c)
     io.writeChar(key, '\n')

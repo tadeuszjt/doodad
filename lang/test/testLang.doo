@@ -26,8 +26,13 @@ fn testWriteI64()
 
 fn {io Io} testKeys()
     data strings sparse[string]
-    let 0:@string = strings.push()
-    let 1:@string = strings.push()
+    let key1:@string = strings.push("string1")
+    let key2:@string = strings.push("string2")
+
+    let "string1" = strings[key1]
+    let "string2" = strings[key2]
+    strings.delete(key1)
+    let "" = strings[key1]
 
 
 fn {io Io} main()

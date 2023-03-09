@@ -6,20 +6,20 @@ import ../io
 
 fn testSparsePush()
     data ints sparse[i64]
-    let 0 = ints.push(4)
-    let 1 = ints.push(5)
-    let 2 = ints.push(6)
+    let 0:@i64 = ints.push(4)
+    let 1:@i64 = ints.push(5)
+    let 2:@i64 = ints.push(6)
     let [4, 5, 6] = ints
 
 
 fn testSparseDelete()
     data ints sparse[i64]
-    let 0 = ints.push(4)
-    let 1 = ints.push(5)
+    let 0:@i64 = ints.push(4)
+    let 1:@i64 = ints.push(5)
     let [4, 5] = ints
     ints.delete(0)
     let [0, 5] = ints
-    let 0 = ints.push(6)
+    let 0:@i64 = ints.push(6)
     let [6, 5] = ints 
 
 

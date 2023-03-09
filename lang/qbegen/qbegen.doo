@@ -14,6 +14,7 @@ type Type {
     Word()
     Single()
     Double()
+    Byte()
     SignedByte()
     Named(i64)
     Opaque(i64)
@@ -27,7 +28,7 @@ type Value {
 
 type Stmt {
     StmtAdd(Name, Type, Name, Name)
-    StmtCopy(Name, Type, i64)
+    StmtCopy(Name, Type, Value)
     StmtCallVoid(@string, @[(Type, Value)])
 }
 
@@ -51,6 +52,7 @@ fn {io Io} writeType(typ Type)
         Single(); io.write('s')
         Double(); io.write('d')
         SignedByte(); io.write("sb")
+        Byte(); io.write('b')
 
 
 fn {io Io, strings sparse[string]} writeName(name Name)
@@ -70,7 +72,11 @@ fn {io Io, strings sparse[string]} writeTerminator(terminator Terminator)
     io.write('\n')
 
 
-fn {io Io, strings sparse[string], args sparse[[(Type, Value)]]} writeStmt(stmt Stmt)
+fn {
+    io      Io
+    strings sparse[string]
+    args    sparse[[(Type, Value)]]
+} writeStmt(stmt Stmt)
     io.write('\t')
     switch stmt
         StmtAdd(n1, t1, n2, n3)
@@ -81,11 +87,12 @@ fn {io Io, strings sparse[string], args sparse[[(Type, Value)]]} writeStmt(stmt 
             {io, strings}.writeName(n2)
             io.write(", ")
             {io, strings}.writeName(n3)
-        StmtCopy(name, typ, int)
+        StmtCopy(name, typ, value)
             {io, strings}.writeName(name)
             io.write(" =")
             io.writeType(typ)
-            io.write(" copy ", int)
+            io.write(" copy ")
+            {io, strings}.writeValue(value)
         StmtCallVoid(nameId, argsId)
             io.write("call $")
             io.write(strings[nameId])
@@ -124,6 +131,8 @@ fn {io Io} writeTypeDef(typ Type)
 
 fn {io Io} main()
     data strings sparse[string]
+    data args    sparse[[(Type, Value)]]
+
     let putcharId = strings.push("putchar")
     let blockId   = Block(strings.push("start"))
     let local0    = Local(strings.push("a"))
@@ -133,13 +142,10 @@ fn {io Io} main()
     io.writeFuncStart(Word())
     {io, strings}.writeBlock(blockId)
 
-    data args sparse[[(Type, Value)]]
-    let argsId = args.push( [(SignedByte(), Const(44))] )
+    let argsId = args.push( [(SignedByte(), Value(local0))] )
 
     for [
-        StmtCopy(local0, Word(), 40)
-        StmtCopy(local1, Word(), 2)
-        StmtAdd(local2, Word(), local0, local1)
+        StmtCopy(local0, Word(), Const(40))
         StmtCallVoid(putcharId, argsId)
     ] -> stmt; {io, strings, args}.writeStmt(stmt)
 

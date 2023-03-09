@@ -521,6 +521,10 @@ cmpExpr (AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos expr $ wi
             Sparse ts -> do 
                 n <- sparsePush loc =<< mapM cmpExpr exprs
                 storeBasicVal val =<< convertNumber exprType n
+                baseExpr <- baseTypeOf exprType
+                case baseExpr of 
+                    Key _ -> return ()
+                    _     -> fail "return type must be a key"
         return val
 
 

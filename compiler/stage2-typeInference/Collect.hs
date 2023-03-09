@@ -28,6 +28,7 @@ data Constraint
     | ConsSubscript   Type Type -- t1 is elem type of t2
     | ConsField Type Int Type 
     | ConsAdtMem Type Int Int Type
+    | ConsKey Type Type -- t2 is key type of t1
     deriving (Show, Eq, Ord)
 
 type SymTab = SymTab.SymTab Symbol SymKey Object
@@ -109,6 +110,10 @@ collectElem t1 t2 = do
 collectSubscript :: BoM CollectState m => Type -> Type -> m ()
 collectSubscript t1 t2 = do
     modify $ \s -> s { collected = Map.insert (ConsSubscript t1 t2) (curPos s) (collected s) }
+
+collectKey :: BoM CollectState m => Type -> Type -> m ()
+collectKey t1 t2 = do
+    modify $ \s -> s { collected = Map.insert (ConsKey t1 t2) (curPos s) (collected s) }
 
 collectEq :: BoM CollectState m => Type -> Type -> m ()
 collectEq t1 t2 = do

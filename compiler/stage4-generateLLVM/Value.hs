@@ -184,6 +184,7 @@ convertNumber typ val = do
         (F64,  I64) -> sitofp op LL.double
         (F32,  I64) -> sitofp op LL.float
         (Key _, I64) -> return op
+        (I64, Key _) -> return op
 
         (I64, Enum) -> return op
 
