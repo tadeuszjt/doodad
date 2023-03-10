@@ -451,7 +451,7 @@ storeExpr location expr_@(AST.AExpr exprType expr) = do
             base <- baseTypeOf val
             case base of
                 Table ts  -> storeCopyVal location =<< convertNumber exprType =<< tablePush val
-                Sparse ts -> storeSparsePush location val =<< mapM newVal ts
+                Sparse ts -> storeCopyVal location =<< convertNumber exprType =<< sparsePush val =<< mapM newVal ts
 
         AST.Builtin pos [expr] "push" exprs -> do
             loc <- cmpExpr expr
@@ -465,7 +465,8 @@ storeExpr location expr_@(AST.AExpr exprType expr) = do
                     storeCopyVal location =<< convertNumber exprType len
 
                 Sparse ts -> do 
-                    storeSparsePush location loc =<< mapM cmpExpr exprs
+                    n <- sparsePush loc =<< mapM cmpExpr exprs
+                    storeBasicVal location =<< convertNumber exprType n
                     baseExpr <- baseTypeOf exprType
                     case baseExpr of 
                         Key _ -> return ()
@@ -620,12 +621,19 @@ storeExpr location expr_@(AST.AExpr exprType expr) = do
 
         AST.Builtin pos [expr] "pop" [] -> do
             table <- cmpExpr expr
-            base <- baseTypeOf expr
+            base <- baseTypeOf table
             case base of
-                Table [t] -> storeTablePop [location] table
-                Table ts  -> do 
-                    ptrs <- forM (zip ts [0..]) $ \(_, i) -> tupleIdx i location
-                    storeTablePop ptrs table
+                Table [t] -> do
+                    val <- newVal t
+                    storeTablePop [val] table
+                    storeCopy location val
+
+                Table ts -> do
+                    vals <- mapM newVal ts
+                    storeTablePop vals table -- TODO bug here
+                    forM_ (zip vals [0..]) $ \(v, i) -> do 
+                        ptr <- tupleIdx i location
+                        storeCopy ptr v
 
         _ -> storeCopy location =<< cmpExpr expr_
         _ -> error (show expr)
