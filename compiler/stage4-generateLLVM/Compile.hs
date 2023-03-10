@@ -451,7 +451,7 @@ storeExpr location expr_@(AST.AExpr exprType expr) = do
             base <- baseTypeOf val
             case base of
                 Table ts  -> storeCopyVal location =<< convertNumber exprType =<< tablePush val
-                Sparse ts -> storeCopyVal location =<< convertNumber exprType =<< sparsePush val =<< mapM newVal ts
+                Sparse ts -> storeSparsePush location val =<< mapM newVal ts
 
         AST.Builtin pos [expr] "push" exprs -> do
             loc <- cmpExpr expr
@@ -465,8 +465,7 @@ storeExpr location expr_@(AST.AExpr exprType expr) = do
                     storeCopyVal location =<< convertNumber exprType len
 
                 Sparse ts -> do 
-                    n <- sparsePush loc =<< mapM cmpExpr exprs
-                    storeBasicVal location =<< convertNumber exprType n
+                    storeSparsePush location loc =<< mapM cmpExpr exprs
                     baseExpr <- baseTypeOf exprType
                     case baseExpr of 
                         Key _ -> return ()
@@ -494,7 +493,7 @@ storeExpr location expr_@(AST.AExpr exprType expr) = do
                 Nothing  -> storeCopy locStart startVal
                 Just arg -> do 
                     arg' <- cmpExpr arg
-                    storeCopy locStart =<< Builtin.max arg' =<< toType (typeof arg') startVal
+                    storeMax locStart arg' =<< toType (typeof arg') startVal
 
             endVal <- case base of
                 Range t   -> rangeEnd val
@@ -505,7 +504,7 @@ storeExpr location expr_@(AST.AExpr exprType expr) = do
                 Nothing  -> storeCopy locEnd endVal
                 Just arg -> do 
                     arg' <- cmpExpr arg
-                    storeCopy locEnd =<< Builtin.min arg' =<< toType (typeof arg') endVal
+                    storeMin locEnd arg' =<< toType (typeof arg') endVal
 
         AST.Tuple pos exprs -> do
             Tuple ts <- baseTypeOf exprType
@@ -621,14 +620,12 @@ storeExpr location expr_@(AST.AExpr exprType expr) = do
 
         AST.Builtin pos [expr] "pop" [] -> do
             table <- cmpExpr expr
-            vals <- tablePop table
-            case vals of 
-                []  -> error ""
-                [v] -> storeCopy location v
-                vs  -> do 
-                    forM_ (zip vs [0..]) $ \(v, i) -> do 
-                        ptr <- tupleIdx i location
-                        storeCopy ptr v
+            base <- baseTypeOf expr
+            case base of
+                Table [t] -> storeTablePop [location] table
+                Table ts  -> do 
+                    ptrs <- forM (zip ts [0..]) $ \(_, i) -> tupleIdx i location
+                    storeTablePop ptrs table
 
         _ -> storeCopy location =<< cmpExpr expr_
         _ -> error (show expr)

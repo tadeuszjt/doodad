@@ -96,19 +96,15 @@ storeCopyVal dst src = do
         _ -> error (show baseDst)
 
 
-
-tablePop :: InsCmp CompileState m => Pointer -> m [Pointer]
-tablePop tab = do
+storeTablePop :: InsCmp CompileState m => [Pointer] -> Pointer -> m ()
+storeTablePop locations tab = do
     Table ts <- baseTypeOf tab
     len <- tableLen tab
-    lenv <- pload len
-    newLen <- intInfix AST.Minus lenv (mkI64 1)
+    newLen <- intInfix AST.Plus (mkI64 (-1)) =<< pload len
     storeBasicVal len newLen
     ptrs <- tableColumn tab newLen
-    forM ptrs $ \ptr -> do 
-        val <- newVal (typeof ptr)
-        storeCopy val ptr
-        return val
+    assert (length ptrs == length locations) "invalid number of locations"
+    zipWithM_ storeCopy locations ptrs
 
 
 mapIndex :: InsCmp CompileState m => Pointer -> Pointer -> m Pointer 
@@ -181,33 +177,32 @@ mapFind map key = do
     return (f, i)
 
 
-sparsePush :: InsCmp CompileState m => Pointer -> [Pointer] -> m Value
-sparsePush sparse elems = do
+storeSparsePush :: InsCmp CompileState m => Pointer -> Pointer -> [Pointer] -> m ()
+storeSparsePush keyLoc sparse elems = do
     Sparse ts <- baseTypeOf sparse
     assert (map typeof elems == ts) "Elem types do not match"
     stack <- sparseStack sparse
     stackLen <- pload =<< tableLen stack
     stackLenGTZero <- intInfix AST.GT stackLen (mkI64 0)
-    ret <- newI64 0 
-    if_ (op stackLenGTZero) (popStackCase stack ret) (pushTableCase ret) 
-    pload ret
+    if_ (op stackLenGTZero) (popStackCase stack) (pushTableCase) 
     where
-        popStackCase :: InsCmp CompileState m => Pointer -> Pointer -> m ()
-        popStackCase stack ret = do
-            [idx] <- tablePop stack
+        popStackCase :: InsCmp CompileState m => Pointer -> m ()
+        popStackCase stack = do
+            idx <- newVal I64
+            storeTablePop [idx] stack
             table <- sparseTable sparse
             column <- tableColumn table =<< pload idx
             zipWithM_ storeCopy column elems 
-            storeBasic ret idx
+            storeCopyVal keyLoc =<< convertNumber (typeof keyLoc) =<< pload idx
             
-        pushTableCase :: InsCmp CompileState m => Pointer -> m ()
-        pushTableCase ret = do
+        pushTableCase :: InsCmp CompileState m => m ()
+        pushTableCase = do
             table <- sparseTable sparse
             len <- pload =<< tableLen table
             tableResize table =<< intInfix AST.Plus len (mkI64 1)
             column <- tableColumn table len 
             zipWithM_ storeCopy column elems 
-            storeCopyVal ret len
+            storeCopyVal keyLoc =<< convertNumber (typeof keyLoc) len
 
 
 -- construct a value from arguments, Eg. i64(3.2), Vec2(12, 43)
@@ -215,7 +210,7 @@ storeConstruct :: InsCmp CompileState m => Pointer -> [Pointer] -> m ()
 storeConstruct location args = do 
     base <- baseTypeOf location
     case (args, base) of 
-        ([], _) -> return () 
+        ([], _)                       -> storeCopyVal location =<< mkZero (typeof location)
         ([v], base) | isIntegral base -> storeBasicVal location =<< convertNumber (typeof location) =<< pload v
         ([v], base) | isFloat base    -> storeBasicVal location =<< convertNumber (typeof location) =<< pload v
         ([v], ADT fs) -> do
@@ -260,12 +255,13 @@ prefix operator val = do
         _ -> fail $ show base
         
 
-min :: InsCmp CompileState m => Pointer -> Pointer -> m Pointer
-min a b = withErrorPrefix "min: " $ do
+storeMin :: InsCmp CompileState m => Pointer -> Pointer -> Pointer -> m ()
+storeMin location a b = withErrorPrefix "min: " $ do
+    assert (typeof location == typeof a) "invalid min"
     True <- return $ typeof a == typeof b
     cnd <- newVal Bool
     storeInfix cnd AST.GT a b
-    val <- newVal (typeof a)
+
     right <- freshName "right"
     left <- freshName "left"
     exit <- freshName "exit"
@@ -273,23 +269,22 @@ min a b = withErrorPrefix "min: " $ do
     c <- pload cnd
     condBr (op c) right left
     emitBlockStart right
-    storeCopy val b
+    storeCopy location b
     br exit
 
     emitBlockStart left
-    storeCopy val a
+    storeCopy location a
     br exit
 
     emitBlockStart exit
-    return val
 
 
-max :: InsCmp CompileState m => Pointer -> Pointer -> m Pointer
-max a b = withErrorPrefix "max: " $ do
+storeMax :: InsCmp CompileState m => Pointer -> Pointer -> Pointer -> m ()
+storeMax location a b = withErrorPrefix "max: " $ do
+    assert (typeof location == typeof a) "invalid max"
     assert (typeof a == typeof b) $ show (typeof a) ++ " != " ++ show (typeof b)
     cnd <- newVal Bool
     storeInfix cnd AST.GT a b
-    val <- newVal (typeof a)
     right <- freshName "right"
     left <- freshName "left"
     exit <- freshName "exit"
@@ -297,15 +292,14 @@ max a b = withErrorPrefix "max: " $ do
     c <- pload cnd
     condBr (op c) left right
     emitBlockStart right
-    storeCopy val b
+    storeCopy location b
     br exit
 
     emitBlockStart left
-    storeCopy val a
+    storeCopy location a
     br exit
     
     emitBlockStart exit
-    return val
 
 
 storeInfix :: InsCmp CompileState m => Pointer -> AST.Operator -> Pointer -> Pointer -> m ()
@@ -444,70 +438,6 @@ storeTupleInfix location operator a b = withErrorPrefix "tuple infix: " $ do
 
         _ -> error (show operator)
 
-tupleInfix :: InsCmp CompileState m => AST.Operator -> Pointer -> Pointer -> m Pointer
-tupleInfix operator a b = withErrorPrefix "tuple infix: " $ do
-    assert (typeof a == typeof b) "type mismatch"
-    Tuple ts <- baseTypeOf a
-
-    case operator of
-        _ | operator `elem` [AST.Plus, AST.Minus, AST.Times, AST.Divide, AST.Modulo] -> do
-            tup <- newVal (typeof a)
-            forM (zip ts [0..]) $ \(t, i) -> do
-                pSrcA <- tupleIdx i a
-                pSrcB <- tupleIdx i b
-                pDst  <- tupleIdx i tup
-                storeInfix pDst operator pSrcA pSrcB
-            return tup
-
-        _ | operator `elem` [AST.EqEq] -> do
-            res <- newBool True
-            exit <- freshName "tuple_gt_exit"
-            cases <- (\xs -> xs ++ [exit]) <$> replicateM (length ts) (freshName "tuple_gt_case")
-            br (cases !! 0)
-
-            forM (zip ts [0..]) $ \(t, i) -> do
-                emitBlockStart (cases !! i)
-                valA <- tupleIdx i a
-                valB <- tupleIdx i b
-                equal <- newVal Bool
-                storeInfix equal AST.EqEq valA valB
-                cond <- freshName "tuple_eqeq_fail"
-                eq <- pload equal
-                condBr (op eq) (cases !! (i + 1)) cond
-                emitBlockStart cond
-                storeCopyVal res (mkBool False)
-                br exit
-
-            emitBlockStart exit
-            return res
-
-        _ | operator `elem` [AST.GTEq] -> do
-            deflt <- case operator of
-                AST.GTEq -> return True
-            res <- newBool deflt
-
-            exit <- freshName "tuple_gt_exit"
-            cases <- (\xs -> xs ++ [exit]) <$> replicateM (length ts) (freshName "tuple_gt_case")
-            br (cases !! 0)
-
-            forM (zip ts [0..]) $ \(t, i) -> do
-                emitBlockStart (cases !! i)
-                valA <- tupleIdx i a
-                valB <- tupleIdx i b
-                equal <- newVal Bool
-                storeInfix equal AST.EqEq valA valB
-                cond <- freshName "tuple_gt_cond"
-                eq <- pload equal
-                condBr (op eq) (cases !! (i + 1)) (cond)
-                emitBlockStart cond
-                storeInfix res operator valA valB
-                br exit
-
-            emitBlockStart exit
-            return res
-
-        _ -> error (show operator)
-                    
         
 storeTableInfix :: InsCmp CompileState m => Pointer -> AST.Operator -> Pointer -> Pointer -> m ()
 storeTableInfix location operator a b = do
