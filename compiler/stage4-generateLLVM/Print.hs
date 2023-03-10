@@ -26,7 +26,7 @@ import Error
 valPrint :: InsCmp CompileState m => String -> Pointer -> m ()
 valPrint append val = withErrorPrefix "valPrint " $ case typeof val of
     t | isInt t   -> void . printf ("%ld" ++ append) . (:[]) . op =<< pload val
-    t | isFloat t -> void . printf ("%f" ++ append) . (:[]) . op =<< pload =<< construct F64 [val]
+    t | isFloat t -> void . printf ("%f" ++ append) . (:[]) . op =<< convertNumber F64 =<< pload val
     Char          -> void . printf ("%c" ++ append) . (:[]) . op =<< pload val
 
     UnsafePtr -> void . printf ("%p" ++ append) . (:[]) . op =<< pload val

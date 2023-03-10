@@ -211,29 +211,26 @@ sparsePush sparse elems = do
 
 
 -- construct a value from arguments, Eg. i64(3.2), Vec2(12, 43)
-construct :: InsCmp CompileState m => Type -> [Pointer] -> m Pointer
-construct typ args = do 
-    val <- newVal typ
-    base <- baseTypeOf typ
+storeConstruct :: InsCmp CompileState m => Pointer -> [Pointer] -> m ()
+storeConstruct location args = do 
+    base <- baseTypeOf location
     case (args, base) of 
         ([], _) -> return () 
-        ([v], base) | isIntegral base -> storeBasicVal val =<< convertNumber typ =<< pload v
-        ([v], base) | isFloat base    -> storeBasicVal val =<< convertNumber typ =<< pload v
+        ([v], base) | isIntegral base -> storeBasicVal location =<< convertNumber (typeof location) =<< pload v
+        ([v], base) | isFloat base    -> storeBasicVal location =<< convertNumber (typeof location) =<< pload v
         ([v], ADT fs) -> do
-            i <- adtTypeField typ (typeof v)
-            adtSetEnum val i
-            p <- adtField val i
+            i <- adtTypeField (typeof location) (typeof v)
+            adtSetEnum location i
+            p <- adtField location i
             storeCopy p v
         
         (vs, Tuple ts) -> do
             assert (map typeof vs == ts) "invalid constructor"
             forM_ (zip vs [0..]) $ \(v, i) -> do
-                ptr <- tupleIdx i val
+                ptr <- tupleIdx i location
                 storeCopy ptr v
 
-
         _ -> error $ show (args, base)
-    return val
 
 
 prefix :: InsCmp CompileState m => AST.Operator -> Pointer -> m Value
