@@ -143,7 +143,6 @@ fn {stack [Item]} reduce(production i64)
             let F(n1)       = stack.getItem()
             let TokSym('/') = stack.getItem()
             let D(n2)       = stack.getItem()
-            print("BLAKG", n2, n1)
             stack.push(D(n2 / n1))
 
         7 // D -> F
@@ -161,16 +160,16 @@ fn {stack [Item]} reduce(production i64)
             stack.push(F(n))
 
 
-fn {stack [Item]} printStack()
+fn {io Io, stack [Item]} printStack()
     for stack -> item
         switch item
-            TokSym(c); print(c)
-            TokInt(n); print(n)
-            E(n); print("E", n)
-            F(n); print("F", n)
-            D(n); print("D", n)
-            T(n); print("T", n)
-            State(n); print("state:", n)
+            TokSym(c); io.write(c)
+            TokInt(n); io.write(n)
+            E(n); io.write("E", n)
+            F(n); io.write("F", n)
+            D(n); io.write("D", n)
+            T(n); io.write("T", n)
+            State(n); io.write("state:", n)
 
 
 fn isRule(item Item) bool
@@ -184,7 +183,7 @@ fn isRule(item Item) bool
 
 
 fn {io Io} main()
-    print("calculator4")
+    io.write("calculator4")
 
     data line string "10 + 2 - 3 - 3"
     data tokens [Item]
@@ -215,27 +214,27 @@ fn {io Io} main()
 
         switch lookupCell(state, item)
             Shift(state) // Push token onto stack, increase tokenCursor, push next state
-                print("-- shifting", state)
+                io.write("-- shifting\n", state)
                 stack.push(tokens[tokenCursor])
                 stack.push(State(state))
                 tokenCursor = tokenCursor + 1
 
             Reduce(production) // pop state, replace RHS of production with LHS
-                print("-- reducing", production)
+                io.write("-- reducing\n", production)
                 stack.reduce(production)
 
             Goto(state) // push next state
-                print("-- goto", state)
+                io.write("-- goto\n", state)
                 stack.push(State(state))
 
             Accept()
-                print("-- accept")
+                io.write("-- accept\n")
                 let TokEnd() = token
                 return
 
             _; {"invalid cell"}.assert(false)
 
-        stack.printStack()
+        {io, stack}.printStack()
 
 
 
@@ -245,7 +244,6 @@ fn {tokens [Item]} at(idx i64) Item
     if idx == tokens.len(); return TokEnd()
     else if idx < tokens.len(); return tokens[idx]
     let true = false
-    print("tokens.at error")
     return TokEnd()
 
 fn {s string} at(idx i64) { null | char }

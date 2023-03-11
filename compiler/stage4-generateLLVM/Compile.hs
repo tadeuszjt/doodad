@@ -487,25 +487,20 @@ storeExpr location expr_@(AST.AExpr exprType expr) = do
             locEnd   <- rangeEnd   location
 
             -- default 0 because all types index 0
-            startVal <- case base of
-                Range t -> rangeStart val
-                _       -> newI64 0
-            case margStart of
-                Nothing  -> storeCopy locStart startVal
-                Just arg -> do 
-                    arg' <- cmpExpr arg
-                    storeMax locStart arg' =<< toType (typeof arg') startVal
+            case base of
+                Range t -> storeCopy locStart =<< rangeStart val
+                _       -> storeCopyVal locStart (mkI64 0)
+            when (isJust margStart) $ do
+                arg' <- cmpExpr (fromJust margStart)
+                storeMax locStart arg' locStart
 
-            endVal <- case base of
-                Range t   -> rangeEnd val
-                Array n t -> newI64 n
-                Table ts  -> tableLen val
-                _ -> error (show base)
-            case margEnd of
-                Nothing  -> storeCopy locEnd endVal
-                Just arg -> do 
-                    arg' <- cmpExpr arg
-                    storeMin locEnd arg' =<< toType (typeof arg') endVal
+            case base of
+                Range t   -> storeCopy locEnd =<< rangeEnd val
+                Array n t -> storeCopyVal locEnd (mkI64 n)
+                Table ts  -> storeCopy locEnd =<< tableLen val
+            when (isJust margEnd) $ do
+                arg' <- cmpExpr (fromJust margEnd)
+                storeMin locEnd arg' locEnd
 
         AST.Tuple pos exprs -> do
             Tuple ts <- baseTypeOf exprType
@@ -515,14 +510,13 @@ storeExpr location expr_@(AST.AExpr exprType expr) = do
                 storeExpr ptr expr
 
         AST.Call pos params symbol args  -> withErrorPrefix "call: " $ do
-            ps <- mapM cmpExpr params
-            as <- mapM cmpExpr args
-
-            asOps <- map op <$> mapM pload as
             obj <- look symbol
             case obj of
                 ObjFn -> do
-                    op <- fnHdrToOp (map typeof ps) symbol (map typeof as) exprType
+                    ps <- mapM cmpExpr params
+                    as <- mapM cmpExpr args
+                    asOps <- map op <$> mapM pload as
+                    op <- fnHdrToOp (map typeof params) symbol (map typeof args) exprType
                     v <- Value exprType <$> call op [(o, []) | o <- (map loc ps) ++ asOps]
                     storeBasicVal location v
 
@@ -532,19 +526,17 @@ storeExpr location expr_@(AST.AExpr exprType expr) = do
                         Enum  -> storeCopyVal location =<< mkEnum exprType i
                         ADT fs -> do 
                             adtSetEnum location i
-                            assert (ps == []) "Invalid constructor"
+                            assert (params == []) "Invalid constructor"
+                            field <- adtField location i
                             case fs !! i of 
-                                FieldNull    -> return ()
                                 FieldCtor [t] -> do
-                                    assert ([t] == map typeof as) "Invalid constructor"
-                                    ptr <- adtField location i
-                                    storeCopy ptr (head as)
+                                    assert ([t] == map typeof args) "Invalid constructor"
+                                    storeExpr field (head args)
                                 FieldCtor ts -> do
-                                    assert (ts == map typeof as) "Invalid constructor"
-                                    tupPtr <- adtField location i
-                                    forM_ (zip as [0..]) $ \(a, i) -> do 
-                                        tupMember <- tupleIdx i tupPtr
-                                        storeCopy tupMember a
+                                    assert (ts == map typeof args) "Invalid constructor"
+                                    forM_ (zip args [0..]) $ \(arg, i) -> do 
+                                        ptr <- tupleIdx i field
+                                        storeExpr ptr arg
                         _ -> error (show base)
 
                 _ -> error (show obj)
@@ -635,6 +627,24 @@ storeExpr location expr_@(AST.AExpr exprType expr) = do
                         ptr <- tupleIdx i location
                         storeCopy ptr v
 
+        AST.Initialiser pos exprs -> do
+            base <- baseTypeOf exprType
+            case base of
+                Table [t] -> do
+                    table <- newTable exprType (mkI64 $ length exprs)
+                    forM_ (zip exprs [0..]) $ \(expr, i) -> do
+                        [ptr] <- tableColumn table (mkI64 i)
+                        storeExpr ptr expr
+                    storeBasic location table
+
+                Array n t -> do
+                    assert (length exprs == n) "Invalid array length"
+                    forM_ (zip exprs [0..]) $ \(expr, i) -> do
+                        ptr <- arrayGetElem location (mkI64 i)
+                        storeExpr ptr expr
+
+                _ -> fail $ "invalid initialiser base type: " ++ show base
+
         _ -> storeCopy location =<< cmpExpr expr_
         _ -> error (show expr)
 
@@ -684,7 +694,7 @@ cmpExpr expr_@(AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos exp
             Sparse _  -> do
                 table <- sparseTable val
                 [ptr] <- tableColumn table =<< pload idx
-                return $ ptr
+                return ptr
                 
             Range t -> do
                 Bool <- baseTypeOf exprType
@@ -696,25 +706,6 @@ cmpExpr expr_@(AST.AExpr exprType expr) = withErrorPrefix "expr: " $ withPos exp
                 storeInfix idxLtEnd AST.AndAnd idxLtEnd idxGtEqStart
                 return idxLtEnd
                 
-    AST.Initialiser pos exprs -> do
-        base <- baseTypeOf exprType
-        case base of
-            Table [t] -> do
-                table <- newTable exprType (mkI64 $ length exprs)
-                forM_ (zip exprs [0..]) $ \(expr, i) -> do
-                    [ptr] <- tableColumn table (mkI64 i)
-                    storeExpr ptr expr
-                return table
-
-            Array n t -> do
-                assert (length exprs == n) "Invalid array length"
-                arr <- newVal exprType
-                forM_ (zip exprs [0..]) $ \(expr, i) -> do
-                    ptr <- arrayGetElem arr (mkI64 i)
-                    storeExpr ptr expr
-                return arr
-
-            _ -> fail $ "invalid initialiser base type: " ++ show base
 
     _ -> do
         val <- newValNonZero exprType
