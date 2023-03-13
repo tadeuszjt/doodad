@@ -23,11 +23,12 @@ stmts :
       | block stmts                         
       ;
 
-header : module ident 'N' imports ;
+header : module ident 'N' imports           ;
 imports :                        
         | import 'N' imports                
         | import_c 'N' imports              
         ;
+
 
 
 symbol : ident                              
@@ -220,13 +221,14 @@ type_         : symbol
               ;
 
 ordinal_t   : bool                          
-              | i16                         
-              | i32                         
-              | i64                         
-              | f32                         
-              | f64                         
-              | char                        
-              ;
+            | i16                           
+            | i32                           
+            | i64                           
+            | f32                           
+            | f64                           
+            | char                          
+            | '@' type_                     
+            ;
 
 aggregate_t : table_t                       
               | array_t                     
@@ -244,10 +246,11 @@ array_t  : '[' int_c type_ ']'              ;
 table_t  : '[' types1_ ']'                  
          | string                           
          ;
-tup_t    : '(' types ')'                    ;
-sparse_t : sparse '[' types1_ ']'           ;
-map_t    : map '[' type_ ']' type_          ;
-range_t  : '[' '..' ']' type_               ;
+tup_t    : '(' types ')';                   
+sparse_t : sparse '[' types1_ ']';          
+map_t    : map '[' type_ ']' type_ ;
+range_t  : '[' '..' ']' type_ ;
+
 
 anno_t   : ordinal_t                        
          | symbol                           

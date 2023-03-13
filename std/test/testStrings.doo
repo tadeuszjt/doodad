@@ -7,9 +7,9 @@ fn testStringBuiltin()
     data s1 string
     data s2 string
     let true = s1 == s2
-    {s1, "abStr987!.<?\n"}.writeString()
+    s1 = "abStr987!.<?\n"
     let false = s1 == s2
-    {s2, "abStr987!.<?\n"}.writeString()
+    s2 = "abStr987!.<?\n"
     let true = s1 == s2
     s1.push(' ')
     let false = s1 == s2
@@ -43,20 +43,24 @@ fn testWrite()
     let true = s == "afalse0.str!-123"
 
 
-fn testRead()
+fn {io Io} testRead()
     data s string
-    {s, "abc123!?.-945"}.writeString()
+    s = "abc123!?.-945"
     //let 1 = s.read(0, 'a')
     let (123, 6) = s.read(3)
     let (0, 0) = s.read(6)
     s.clear()
-    {s, "x   123!?.-945"}.writeString()
+    s = "x   123!?.-945"
     let (123, 7) = s.read(1)
+
+    s.clear()
+    s = "  0$"
+    let (0:i64, 3) = s.read(0)
 
 
 fn {io Io} testStrings()
     testStringBuiltin()
     testFind()
     testWrite()
-    testRead()
+    io.testRead()
     io.write("testStrings passed\n")

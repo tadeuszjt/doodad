@@ -9,6 +9,8 @@ test: lexer
 	cabal run doodad -- lang/lexer/test/testLexer
 	cabal run doodad -- lang/test/testLang
 
+parser: lexer
+	cat lang/parser/doodad.table | cabal run doodad -- lang/parser/parser
 
 lexer: bin/lexer
 bin/lexer: bootstrap
