@@ -63,7 +63,7 @@ resolveFuncCall exprType (AST.Call pos params symbol args) = withPos pos $ do
                         (Nothing, Just x) -> return x
                         (Nothing, Nothing) -> fail $ "no def for: " ++ sym ++ " " ++ show key
     where
-        findFuncDef :: BoM ResolvedAst m => FuncKey -> m [Symbol]
+        findFuncDef :: BoM ResolvedAst m => FuncKey -> m (Maybe Symbol)
         findFuncDef key = checkOne =<< Map.filterWithKey (\symbol body -> funcKeyFromBody (sym symbol) body == key) <$> gets funcDefs
 
         findTypeDef :: BoM ResolvedAst m => String -> m (Maybe Symbol)
@@ -79,7 +79,7 @@ resolveFuncCall exprType (AST.Call pos params symbol args) = withPos pos $ do
         findQualifiedFuncDef mod key = checkOne =<< Map.filterWithKey (\s k -> Symbol.mod s == mod && k == key) <$> gets funcImports
 
         checkOne :: BoM s m => Map.Map Symbol b -> m (Maybe Symbol)
-        checkOne mp = case map.keys mp of
+        checkOne mp = case Map.keys mp of
             [] -> return Nothing
             [symbol] -> return (Just symbol)
             _ -> fail $ "Ambiguous symbol: " ++ show symbol

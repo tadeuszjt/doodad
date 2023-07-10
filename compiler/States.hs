@@ -27,6 +27,16 @@ data ResolvedAst
     }
     deriving (Eq)
 
+initResolvedAst moduleName = ResolvedAst
+    { moduleName = moduleName
+    , typeImports = Map.empty
+    , ctorImports  = Map.empty
+    , funcImports  = Map.empty
+    , typeDefs     = Map.empty
+    , ctorDefs     = Map.empty
+    , funcDefs    = Map.empty
+    }
+
 
 type FuncKey = ([Type], String, [Type], Type)
 data FuncBody

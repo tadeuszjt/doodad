@@ -52,7 +52,7 @@ import Text.PrettyPrint
 
 data Modules
     = Modules
-        { irGenModMap :: Map.Map FilePath IRGenState
+        { moduleMap   :: Map.Map FilePath ResolvedAst
         , session     :: JIT.Session
         }
 
@@ -60,7 +60,7 @@ data Modules
 initModulesState session
     = Modules
         { session     = session
-        , irGenModMap = Map.empty
+        , moduleMap   = Map.empty
         }
 
 
@@ -108,7 +108,7 @@ runMod args pathsVisited modPath = do
     debug "running"
     absolute <- liftIO $ canonicalizePath modPath
     debug $ "absolute path: " ++ show absolute
-    isCompiled <- Map.member absolute <$> gets irGenModMap
+    isCompiled <- Map.member absolute <$> gets moduleMap
     when (not isCompiled) $ compilePath absolute
     where
         -- path will be in the form "dir1/dirn/modname"
@@ -151,15 +151,15 @@ runMod args pathsVisited modPath = do
             (globs, errs) <- analyseCTranslUnit cTranslUnit
             ((), cExterns) <- withErrorPrefix "interop compile" $
                 runBoMTExcept [] (Interop.genExternsFromGlobs globs)
-            ((), cIrGenState) <- runBoMTExcept (initIRGenState "c") (mapM_ irGenExtern cExterns)
+            ((), cResolvedAst) <- runBoMTExcept (initResolvedAst "c") (mapM_ astGenExtern cExterns)
 
 
             debug "loading irGenImports"
-            irGenImports <- forM importPaths $ \path -> do
-                resm <- Map.lookup path <$> gets irGenModMap
-                assert (isJust resm) $ show path ++ " not in irGenModMap"
+            astImports <- forM importPaths $ \path -> do
+                resm <- Map.lookup path <$> gets moduleMap
+                assert (isJust resm) $ show path ++ " not in module map"
                 return $ fromJust resm
-            (resolvedAST, _) <- R.resolveAsts asts (cIrGenState : irGenImports)
+            (resolvedAST, _) <- R.resolveAsts asts (cResolvedAst : astImports) 
             Flatten.checkTypeDefs (typeDefs resolvedAST)
             when (printAstResolved args) $ liftIO $ prettyResolvedAst resolvedAST
 
@@ -172,12 +172,11 @@ runMod args pathsVisited modPath = do
 
             debug "resolve2"
             ((), resolved2) <- withErrorPrefix "resolve2: " $ runBoMTExcept astInferred Resolve2.compile
+            modify $ \s -> s { moduleMap = Map.insert path (resolved2) (moduleMap s) }
 
             
             (_, irGenState) <- withErrorPrefix "irgen: " $
                 runBoMTExcept (initIRGenState modName) (IRGen.compile resolved2)
-            modify $ \s -> s { irGenModMap = Map.insert path (irGenState) (irGenModMap s) }
-            debug "added to irGenModMap"
             when (printIR args) $ liftIO $ prettyIrGenState irGenState
 
             -- compile and run

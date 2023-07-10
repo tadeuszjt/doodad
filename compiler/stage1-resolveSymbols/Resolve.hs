@@ -41,7 +41,7 @@ data ResolveState
         { symTab      :: SymTab
         , symTabVar   :: SymTab.SymTab String () Symbol
         , funcKeys    :: Set.Set FuncKey
-        , imports     :: [IRGenState]
+        , imports     :: [ResolvedAst]
         , modName     :: String
         , supply      :: Map.Map String Int
         , typeDefsMap :: Map.Map Symbol AnnoType
@@ -84,12 +84,12 @@ lookm symbol key = case symbol of
             Nothing -> do
                 case key of
                     KeyFunc -> do 
-                        xs <- catMaybes . map (Map.lookup sym . irCtorMap) <$> gets imports
+                        xs <- concat . map (Map.keys . Map.filterWithKey (\s _ -> Symbol.sym s == sym) . ctorDefs) <$> gets imports
                         case xs of 
                             [x] -> return (Just x)
                             [] -> return (Just symbol) -- Maybe remove this
                     KeyType -> do
-                        xs <- catMaybes . map (Map.lookup sym . irTypeMap) <$> gets imports
+                        xs <- concat . map (Map.keys . Map.filterWithKey (\s _ -> Symbol.sym s == sym) . typeDefs) <$> gets imports
                         case xs of
                             [] -> return Nothing
                             [x] -> return (Just x)
@@ -157,27 +157,24 @@ annoToType anno = case anno of
             AST.ADTFieldMember symbol ts -> FieldCtor ts
 
 
-buildTypeImportMap :: BoM (Map.Map Symbol Type) m => [IRGenState] -> m ()
+buildTypeImportMap :: BoM (Map.Map Symbol Type) m => [ResolvedAst] -> m ()
 buildTypeImportMap imports = do
     forM_ imports $ \imprt -> do
-        modify $ Map.union (irTypeDefs imprt)
+        modify $ Map.union (typeDefs imprt)
 
-
-buildFuncImportMap :: BoM (Map.Map Symbol FuncKey) m => [IRGenState] -> m ()
+buildFuncImportMap :: BoM (Map.Map Symbol FuncKey) m => [ResolvedAst] -> m ()
 buildFuncImportMap imports = do
     forM_ imports $ \imprt -> do
-        forM_ (Map.toList $ irFuncMap imprt) $ \(key, symbol) -> do
+        forM_ (Map.toList $ funcDefs imprt) $ \(symbol, body) -> do
             False <- Map.member symbol <$> get
-            modify $ Map.insert symbol key
+            modify $ Map.insert symbol (funcKeyFromBody (sym symbol) body)
 
-
-buildCtorImportMap :: BoM (Map.Map Symbol (Type, Int)) m => [IRGenState] -> m ()
+buildCtorImportMap :: BoM (Map.Map Symbol (Type, Int)) m => [ResolvedAst] -> m ()
 buildCtorImportMap imports = do
     forM_ imports $ \imprt -> do
-        forM_ (Map.toList $ irCtorDefs imprt) $ \(symbol, (t, i)) -> do
-            when (Symbol.mod symbol == irModuleName imprt) $ do
+        forM_ (Map.toList $ ctorDefs imprt) $ \(symbol, (t, i)) -> do
+            when (Symbol.mod symbol == moduleName imprt) $ do
                 modify $ Map.insert symbol (t, i)
-
 
 buildCtorMap :: BoM (Map.Map Symbol (Type, Int)) m => [(Symbol, AnnoType)] -> m ()
 buildCtorMap list = do
@@ -192,7 +189,7 @@ buildCtorMap list = do
         _ -> return ()
 
 
-resolveAsts :: BoM s m => [AST] -> [IRGenState] -> m (ResolvedAst, ResolveState)
+resolveAsts :: BoM s m => [AST] -> [ResolvedAst] -> m (ResolvedAst, ResolveState)
 resolveAsts asts imports = withErrorPrefix "resolve: " $ do
     runBoMTExcept (initResolveState imports (astModuleName $ head asts) Map.empty) f
     where

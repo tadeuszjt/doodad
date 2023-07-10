@@ -54,17 +54,23 @@ importToCStmt (S.ImportCMacro macro typ) =
     typeToCType typ ++ " " ++ macroToVar macro ++ " = " ++ macro ++ ";"
 
 
-irGenExtern :: BoM IRGenState m => Extern -> m ()
-irGenExtern extern = case extern of
+astGenExtern :: BoM ResolvedAst m => Extern -> m ()
+astGenExtern extern = case extern of
     ExtFunc sym argTypes retty -> do
         let symbol = SymQualified "c" sym
         let key    = ([], sym, argTypes, retty)
-        resm <- Map.lookup symbol <$> gets irFuncDefs
-        resm2 <- Map.lookup key <$> gets irFuncMap
-        when (isJust resm || isJust resm2) $ do
+        resm <- Map.lookup symbol <$> gets funcDefs
+        when (isJust resm) $ do
             fail "c symbol already defined, todo -- allow redef?"
-        modify $ \s -> s { irFuncMap = Map.insert key symbol (irFuncMap s) }
-        modify $ \s -> s { irFuncDefs = Map.insert symbol FuncBodyEmpty (irFuncDefs s) }
+
+        let body = FuncBody { 
+            funcParams = [],
+            funcArgs   = map (\t -> S.Param undefined undefined t) argTypes,
+            funcRetty  = retty,
+            funcStmts  = []
+        }
+
+        modify $ \s -> s { funcDefs = Map.insert symbol body (funcDefs s) }
                 
     _ -> return () 
 
