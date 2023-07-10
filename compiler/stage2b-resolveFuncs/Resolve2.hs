@@ -22,24 +22,15 @@ compile :: BoM ResolvedAst m => m ()
 compile = do
     funcDefs <- gets funcDefs
     funcDefs' <- fmap Map.fromList $ forM (Map.toList funcDefs) $ \(symbol, body) -> do
-        body' <- compileFuncDef symbol body
+        body' <- compileFuncDef body
         return (symbol, body')
-
     modify $ \s -> s { funcDefs = funcDefs' }
 
 
-compileFuncDef :: BoM ResolvedAst m => Symbol -> FuncBody -> m FuncBody
-compileFuncDef symbol body = do
-    let paramTypes = map typeof (funcParams body)
-    let argTypes   = map typeof (funcArgs body)
-    let key        = (paramTypes, sym symbol, argTypes, funcRetty body)
-
+compileFuncDef :: BoM ResolvedAst m => FuncBody -> m FuncBody
+compileFuncDef body = do
     stmts' <- mapM compileStmt (funcStmts body)
     return body { funcStmts  = stmts' }
-
---    case sym symbol of 
---        "main" -> modify $ \s -> s { irMainDef = Just funcBody }
---        _      -> modify $ \s -> s { irFuncDefs = Map.insert symbol funcBody (irFuncDefs s) }
 
 
 exprTypeOf :: AST.Expr -> Type
@@ -49,18 +40,14 @@ exprTypeOf (AST.AExpr typ _) = typ
 -- add extern if needed
 resolveFuncCall :: BoM ResolvedAst m => Type -> AST.Expr -> m Symbol
 resolveFuncCall exprType (AST.Call pos params symbol args) = withPos pos $ do
-    let paramTypes = map exprTypeOf params
-    let argTypes   = map exprTypeOf args
-    let key        = (paramTypes, sym symbol, argTypes, exprType)
-    curModName <- gets moduleName
+    let key = (map exprTypeOf params, sym symbol, map exprTypeOf args, exprType)
     case symbol of
         SymResolved _ _ _ -> return symbol
 
         SymQualified mod sym -> do
             resm <- findQualifiedFuncDef mod key
             assert (isJust resm) $ "no definition for: " ++ show key
-            let symbol = fromJust resm
-            return symbol
+            return (fromJust resm)
 
         Sym sym -> do
             funcresm <- findFuncDef key
@@ -76,45 +63,26 @@ resolveFuncCall exprType (AST.Call pos params symbol args) = withPos pos $ do
                         (Nothing, Just x) -> return x
                         (Nothing, Nothing) -> fail $ "no def for: " ++ sym ++ " " ++ show key
     where
-        findFuncDef :: BoM ResolvedAst m => FuncKey -> m (Maybe Symbol)
-        findFuncDef key = do
-            xs <- Map.toList . Map.filterWithKey (\symbol body -> funcKeyFromBody (sym symbol) body == key) <$> gets funcDefs
-            case xs of
-                []              -> return (Nothing)
-                [(symbol, key)] -> return (Just symbol)
-                _               -> fail $ "ambiguous function call: " ++ show key
+        findFuncDef :: BoM ResolvedAst m => FuncKey -> m [Symbol]
+        findFuncDef key = checkOne =<< Map.filterWithKey (\symbol body -> funcKeyFromBody (sym symbol) body == key) <$> gets funcDefs
 
         findTypeDef :: BoM ResolvedAst m => String -> m (Maybe Symbol)
-        findTypeDef sym = do
-            xs <- Map.toList . Map.filterWithKey (\s t -> Symbol.sym s == sym) <$> gets typeDefs
-            case xs of
-                []               -> return (Nothing)
-                [(symbol, anno)] -> return (Just symbol)
-                _                -> fail $ "ambiguous type: " ++ sym
+        findTypeDef sym = checkOne =<< Map.filterWithKey (\s t -> Symbol.sym s == sym) <$> gets typeDefs
 
         findImportedFuncDef :: BoM ResolvedAst m => FuncKey -> m (Maybe Symbol)
-        findImportedFuncDef key = do
-            xs <- Map.toList . Map.filter (== key) <$> gets funcImports
-            case xs of
-                []              -> return (Nothing)
-                [(symbol, key)] -> return (Just symbol)
-                _               -> fail $ "ambiguous function call: " ++ show key
+        findImportedFuncDef key = checkOne =<< Map.filter (== key) <$> gets funcImports
 
         findImportedTypeDef :: BoM ResolvedAst m => String -> m (Maybe Symbol)
-        findImportedTypeDef sym = do
-            xs <- Map.toList . Map.filterWithKey (\s t -> Symbol.sym s == sym) <$> gets typeImports
-            case xs of
-                []               -> return (Nothing)
-                [(symbol, anno)] -> return (Just symbol)
-                _                -> fail $ "ambiguous type: " ++ sym
+        findImportedTypeDef sym = checkOne =<< Map.filterWithKey (\s t -> Symbol.sym s == sym) <$> gets typeImports
 
         findQualifiedFuncDef :: BoM ResolvedAst m => String -> FuncKey -> m (Maybe Symbol)
-        findQualifiedFuncDef mod key = do
-            xs <- Map.toList . Map.filterWithKey (\s k -> Symbol.mod s == mod && k == key) <$> gets funcImports
-            case xs of
-                []              -> return (Nothing)
-                [(symbol, key)] -> return (Just symbol)
-                _               -> fail $ "ambiguous function call: " ++ show key
+        findQualifiedFuncDef mod key = checkOne =<< Map.filterWithKey (\s k -> Symbol.mod s == mod && k == key) <$> gets funcImports
+
+        checkOne :: BoM s m => Map.Map Symbol b -> m (Maybe Symbol)
+        checkOne mp = case map.keys mp of
+            [] -> return Nothing
+            [symbol] -> return (Just symbol)
+            _ -> fail $ "Ambiguous symbol: " ++ show symbol
 
 
 compileStmt :: BoM ResolvedAst m => AST.Stmt -> m Stmt
@@ -122,12 +90,8 @@ compileStmt stmt = withPos stmt $ case stmt of
     AST.Block stmts      -> Block <$> mapM compileStmt stmts
     AST.ExprStmt expr    -> ExprStmt <$> compileExpr expr
     AST.Return pos mexpr -> Return pos <$> maybe (return Nothing) (fmap Just . compileExpr) mexpr
-
-    AST.FuncDef pos params symbol args retty blk -> do
-        return stmt
-
-    AST.Typedef pos symbol anno -> do
-        return $ AST.Typedef pos symbol anno
+    AST.FuncDef pos params symbol args retty blk -> return stmt
+    AST.Typedef pos symbol anno -> return $ AST.Typedef pos symbol anno
 
     AST.Assign pos pat expr -> do
         pat' <- compilePattern pat
@@ -229,7 +193,6 @@ compileExpr (AST.AExpr exprType expr) = withPos expr $ AExpr exprType <$> case e
     AST.Conv pos typ exprs -> do
         exprs' <- mapM compileExpr exprs
         return $ Conv pos typ exprs'
-
 
     AST.AExpr typ expr -> do
         expr' <- compileExpr expr
