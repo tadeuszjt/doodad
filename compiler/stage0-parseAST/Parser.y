@@ -1,7 +1,7 @@
 {
 {-# LANGUAGE FlexibleContexts #-}
 module Parser where
-import LexemeReader
+import Token
 import Error
 import Control.Monad.Except hiding (void, fail)
 import Data.Char

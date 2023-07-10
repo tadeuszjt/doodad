@@ -46,7 +46,6 @@ fn testWrite()
 fn {io Io} testRead()
     data s string
     s = "abc123!?.-945"
-    //let 1 = s.read(0, 'a')
     let (123, 6) = s.read(3)
     let (0, 0) = s.read(6)
     s.clear()

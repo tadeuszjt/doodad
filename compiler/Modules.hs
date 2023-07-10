@@ -15,7 +15,7 @@ import Data.Maybe
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
-import LexemeReader
+import Lexer
 import qualified AST as S
 import qualified Parser as P
 import Flatten

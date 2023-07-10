@@ -3,7 +3,6 @@ module testLexer
 import ../lexer
 import ../../../std/io
 
-
 fn {s Strings, str string} checkStr(id Idx)
     data result string 
     {s, result}.read(id)
@@ -64,10 +63,8 @@ fn testLexNewline()
 
     {s, "  "}.checkStr(id0)
     {s, "\t\t"}.checkStr(id1)
-// not working?
 
-//    another comment // more comments
-fn testLexComment() // comment
+fn testLexComment()
     data s Strings "blargh\n//comment  stuff\t \nmore"
     let null = s.lexComment(0)
     let null = s.lexComment(6)

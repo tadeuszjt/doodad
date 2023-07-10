@@ -18,7 +18,7 @@ import AST
 import qualified Parser as P
 import qualified SymTab
 import Resolve
-import LexemeReader
+import Lexer
 
 
 main :: IO ()

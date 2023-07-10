@@ -48,7 +48,8 @@ executable doodad
         exceptions,
         process
     build-tools:
-        happy
+        happy,
+        alex
     other-modules:
         AST,
         Args,
@@ -84,4 +85,5 @@ executable doodad
         IRGen,
         States,
         Map,
-        LexemeReader
+        Lexer,
+        Token
