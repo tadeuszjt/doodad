@@ -1,0 +1,6456 @@
+Grammar
+
+    0 $accept: prog $end
+
+    1 prog: stmts
+    2     | header stmts
+
+    3 stmts: %empty
+    4      | line Newline stmts
+    5      | block stmts
+
+    6 header: module ident Newline imports
+
+    7 imports: %empty
+    8        | import Newline imports
+    9        | import_c Newline imports
+
+   10 symbol: ident
+   11       | ident DoubleColon ident
+
+   12 mfnrec: %empty
+   13       | '{' paramsA '}'
+
+   14 initialiser: '{' exprsA '}'
+   15            | string_c
+
+   16 minitialiser: initialiser
+   17             | %empty
+
+   18 line: let pattern '=' expr
+   19     | index '=' expr
+   20     | index
+   21     | type symbol anno_t
+   22     | return mexpr
+   23     | data symbol type_ minitialiser
+
+   24 block: if_
+   25      | fn mfnrec ident '(' paramsA ')' mtype scope
+   26      | while condition scope
+   27      | for expr scope
+   28      | for expr RArrow pattern scope
+   29      | switch_
+
+   30 scope: Indent stmts Dedent
+   31      | ';' line Newline
+   32      | ';' Newline
+
+   33 condition: expr
+   34          | expr RArrow pattern
+
+   35 param: ident type_
+
+   36 params: %empty
+   37       | params1
+
+   38 params1: param
+   39        | param ',' params1
+
+   40 paramsN: param Newline
+   41        | param Newline paramsN
+
+   42 paramsA: params
+   43        | Indent paramsN Dedent
+
+   44 if_: if condition scope else_
+   45    | if condition Newline else_
+
+   46 else_: else scope
+   47      | else if_
+   48      | %empty
+
+   49 switch_: switch expr Indent cases1 Dedent
+   50        | switch expr
+
+   51 cases1: case
+   52       | case cases1
+
+   53 case: pattern scope
+
+   54 patterns: %empty
+   55         | patterns1
+
+   56 patterns1: pattern
+   57          | pattern ',' patterns1
+
+   58 patternsSem: patterns
+   59            | patterns ';' patternsSem
+
+   60 pattern: '_'
+   61        | literal
+   62        | '-' int_c
+   63        | ident
+   64        | null
+   65        | '(' patterns ')'
+   66        | '[' patternsSem ']'
+   67        | pattern '|' expr
+   68        | pattern '|' expr RArrow pattern
+   69        | symbol '(' patterns ')'
+   70        | ordinal_t '(' pattern ')'
+   71        | pattern ':' type_
+
+   72 exprs: %empty
+   73      | exprs1
+
+   74 exprs1: expr
+   75       | expr ',' exprs1
+
+   76 exprsN: expr Newline
+   77       | expr Newline exprsN
+
+   78 mexpr: %empty
+   79      | expr
+
+   80 exprsA: exprs
+   81       | Indent exprsN Dedent
+
+   82 call: symbol '(' exprsA ')'
+   83     | '{' exprsA '}' '.' ident '(' exprsA ')'
+
+   84 index: symbol
+   85      | index '[' expr ']'
+   86      | index '.' ident
+   87      | index '.' symbol '(' exprsA ')'
+   88      | call
+
+   89 expr: literal
+   90     | infix
+   91     | prefix
+   92     | call
+   93     | symbol
+   94     | '(' exprsA ')'
+   95     | ordinal_t '(' exprsA ')'
+   96     | null
+   97     | expr '.' ident
+   98     | expr '[' expr ']'
+   99     | expr ':' type_
+  100     | expr '.' ident '(' exprsA ')'
+  101     | expr '[' mexpr DoubleDot mexpr ']'
+  102     | '[' mexpr DoubleDot mexpr ']'
+  103     | '[' exprsA ']'
+
+  104 literal: int_c
+  105        | float_c
+  106        | char_c
+  107        | string_c
+  108        | true
+  109        | false
+
+  110 infix: expr '+' expr
+  111      | expr '-' expr
+  112      | expr '*' expr
+  113      | expr '/' expr
+  114      | expr '%' expr
+  115      | expr '<' expr
+  116      | expr '>' expr
+  117      | expr LtEq expr
+  118      | expr GtEq expr
+  119      | expr EqEq expr
+  120      | expr AndAnd expr
+  121      | expr OrOr expr
+  122      | expr NotEq expr
+
+  123 prefix: '-' expr
+  124       | '+' expr
+  125       | '!' expr
+
+  126 mtype: %empty
+  127      | type_
+
+  128 types: %empty
+  129      | types1
+
+  130 types1: type_
+  131       | type_ ',' types1
+
+  132 types1_: type_
+  133        | type_ ';' types1_
+
+  134 type_: symbol
+  135      | ordinal_t
+  136      | aggregate_t
+
+  137 ordinal_t: bool
+  138          | i16
+  139          | i32
+  140          | i64
+  141          | f32
+  142          | f64
+  143          | char
+  144          | '@' type_
+
+  145 aggregate_t: table_t
+  146            | array_t
+  147            | tup_t
+  148            | adt_t
+  149            | sparse_t
+  150            | map_t
+  151            | range_t
+  152            | fn '(' types ')' type_
+
+  153 adt_t: '{' adtFields '}'
+
+  154 array_t: '[' int_c type_ ']'
+
+  155 table_t: '[' types1_ ']'
+  156        | string
+
+  157 tup_t: '(' types ')'
+
+  158 sparse_t: sparse '[' types1_ ']'
+
+  159 map_t: map '[' type_ ']' type_
+
+  160 range_t: '[' DoubleDot ']' type_
+
+  161 anno_t: ordinal_t
+  162       | symbol
+  163       | '(' types1 ')'
+  164       | '(' paramsA ')'
+  165       | array_t
+  166       | table_t
+  167       | sparse_t
+  168       | '{' ADTFieldsA '}'
+
+  169 adtFields: %empty
+  170          | adtFields1
+
+  171 adtFields1: adtField
+  172           | adtField '|' adtFields1
+
+  173 adtField: type_
+  174         | null
+
+  175 ADTFieldsA: ADTFields1
+  176           | Indent ADTFieldsN Dedent
+
+  177 ADTFieldsN: ADTField Newline
+  178           | ADTField Newline ADTFieldsN
+
+  179 ADTFields1: ADTField
+  180           | ADTField '|' ADTFields1
+
+  181 ADTField: ident '(' types ')'
+  182         | type_
+  183         | null
+
+
+Terminals, with rules where they appear
+
+    $end (0) 0
+    '!' (33) 125
+    '%' (37) 114
+    '(' (40) 25 65 69 70 82 83 87 94 95 100 152 157 163 164 181
+    ')' (41) 25 65 69 70 82 83 87 94 95 100 152 157 163 164 181
+    '*' (42) 112
+    '+' (43) 110 124
+    ',' (44) 39 57 75 131
+    '-' (45) 62 111 123
+    '.' (46) 83 86 87 97 100
+    '/' (47) 113
+    ':' (58) 71 99
+    ';' (59) 31 32 59 133
+    '<' (60) 115
+    '=' (61) 18 19
+    '>' (62) 116
+    '@' (64) 144
+    '[' (91) 66 85 98 101 102 103 154 155 158 159 160
+    ']' (93) 66 85 98 101 102 103 154 155 158 159 160
+    '_' (95) 60
+    '{' (123) 13 14 83 153 168
+    '|' (124) 67 68 172 180
+    '}' (125) 13 14 83 153 168
+    error (256)
+    Indent (258) 30 43 49 81 176
+    Dedent (259) 30 43 49 81 176
+    Newline (260) 4 6 8 9 31 32 40 41 45 76 77 177 178
+    NotEq (261) 122
+    LtEq (262) 117
+    GtEq (263) 118
+    EqEq (264) 119
+    AndAnd (265) 120
+    OrOr (266) 121
+    DoubleColon (267) 11
+    RArrow (268) 28 34 68
+    DoubleDot (269) 101 102 160
+    fn (270) 25 152
+    type (271) 21
+    if (272) 44 45
+    else (273) 46 47
+    let (274) 18
+    while (275) 26
+    return (276) 22
+    switch (277) 49 50
+    true (278) 108
+    false (279) 109
+    module (280) 6
+    for (281) 27 28
+    null (282) 64 96 174 183
+    data (283) 23
+    import (284) 8
+    import_c (285) 9
+    i16 (286) 138
+    i32 (287) 139
+    i64 (288) 140
+    f32 (289) 141
+    f64 (290) 142
+    bool (291) 137
+    char (292) 143
+    string (293) 156
+    sparse (294) 158
+    map (295) 159
+    int_c (296) 62 104 154
+    float_c (297) 105
+    char_c (298) 106
+    string_c (299) 15 107
+    ident (300) 6 10 11 25 35 63 83 86 97 100 181
+
+
+Nonterminals, with rules where they appear
+
+    $accept (68)
+        on left: 0
+    prog (69)
+        on left: 1 2
+        on right: 0
+    stmts (70)
+        on left: 3 4 5
+        on right: 1 2 4 5 30
+    header (71)
+        on left: 6
+        on right: 2
+    imports (72)
+        on left: 7 8 9
+        on right: 6 8 9
+    symbol (73)
+        on left: 10 11
+        on right: 21 23 69 82 84 87 93 134 162
+    mfnrec (74)
+        on left: 12 13
+        on right: 25
+    initialiser (75)
+        on left: 14 15
+        on right: 16
+    minitialiser (76)
+        on left: 16 17
+        on right: 23
+    line (77)
+        on left: 18 19 20 21 22 23
+        on right: 4 31
+    block (78)
+        on left: 24 25 26 27 28 29
+        on right: 5
+    scope (79)
+        on left: 30 31 32
+        on right: 25 26 27 28 44 46 53
+    condition (80)
+        on left: 33 34
+        on right: 26 44 45
+    param (81)
+        on left: 35
+        on right: 38 39 40 41
+    params (82)
+        on left: 36 37
+        on right: 42
+    params1 (83)
+        on left: 38 39
+        on right: 37 39
+    paramsN (84)
+        on left: 40 41
+        on right: 41 43
+    paramsA (85)
+        on left: 42 43
+        on right: 13 25 164
+    if_ (86)
+        on left: 44 45
+        on right: 24 47
+    else_ (87)
+        on left: 46 47 48
+        on right: 44 45
+    switch_ (88)
+        on left: 49 50
+        on right: 29
+    cases1 (89)
+        on left: 51 52
+        on right: 49 52
+    case (90)
+        on left: 53
+        on right: 51 52
+    patterns (91)
+        on left: 54 55
+        on right: 58 59 65 69
+    patterns1 (92)
+        on left: 56 57
+        on right: 55 57
+    patternsSem (93)
+        on left: 58 59
+        on right: 59 66
+    pattern (94)
+        on left: 60 61 62 63 64 65 66 67 68 69 70 71
+        on right: 18 28 34 53 56 57 67 68 70 71
+    exprs (95)
+        on left: 72 73
+        on right: 80
+    exprs1 (96)
+        on left: 74 75
+        on right: 73 75
+    exprsN (97)
+        on left: 76 77
+        on right: 77 81
+    mexpr (98)
+        on left: 78 79
+        on right: 22 101 102
+    exprsA (99)
+        on left: 80 81
+        on right: 14 82 83 87 94 95 100 103
+    call (100)
+        on left: 82 83
+        on right: 88 92
+    index (101)
+        on left: 84 85 86 87 88
+        on right: 19 20 85 86 87
+    expr (102)
+        on left: 89 90 91 92 93 94 95 96 97 98 99 100 101 102 103
+        on right: 18 19 27 28 33 34 49 50 67 68 74 75 76 77 79 85 97 98 99 100 101 110 111 112 113 114 115 116 117 118 119 120 121 122 123 124 125
+    literal (103)
+        on left: 104 105 106 107 108 109
+        on right: 61 89
+    infix (104)
+        on left: 110 111 112 113 114 115 116 117 118 119 120 121 122
+        on right: 90
+    prefix (105)
+        on left: 123 124 125
+        on right: 91
+    mtype (106)
+        on left: 126 127
+        on right: 25
+    types (107)
+        on left: 128 129
+        on right: 152 157 181
+    types1 (108)
+        on left: 130 131
+        on right: 129 131 163
+    types1_ (109)
+        on left: 132 133
+        on right: 133 155 158
+    type_ (110)
+        on left: 134 135 136
+        on right: 23 35 71 99 127 130 131 132 133 144 152 154 159 160 173 182
+    ordinal_t (111)
+        on left: 137 138 139 140 141 142 143 144
+        on right: 70 95 135 161
+    aggregate_t (112)
+        on left: 145 146 147 148 149 150 151 152
+        on right: 136
+    adt_t (113)
+        on left: 153
+        on right: 148
+    array_t (114)
+        on left: 154
+        on right: 146 165
+    table_t (115)
+        on left: 155 156
+        on right: 145 166
+    tup_t (116)
+        on left: 157
+        on right: 147
+    sparse_t (117)
+        on left: 158
+        on right: 149 167
+    map_t (118)
+        on left: 159
+        on right: 150
+    range_t (119)
+        on left: 160
+        on right: 151
+    anno_t (120)
+        on left: 161 162 163 164 165 166 167 168
+        on right: 21
+    adtFields (121)
+        on left: 169 170
+        on right: 153
+    adtFields1 (122)
+        on left: 171 172
+        on right: 170 172
+    adtField (123)
+        on left: 173 174
+        on right: 171 172
+    ADTFieldsA (124)
+        on left: 175 176
+        on right: 168
+    ADTFieldsN (125)
+        on left: 177 178
+        on right: 176 178
+    ADTFields1 (126)
+        on left: 179 180
+        on right: 175 180
+    ADTField (127)
+        on left: 181 182 183
+        on right: 177 178 179 180
+
+
+State 0
+
+    0 $accept: • prog $end
+
+    fn      shift, and go to state 1
+    type    shift, and go to state 2
+    if      shift, and go to state 3
+    let     shift, and go to state 4
+    while   shift, and go to state 5
+    return  shift, and go to state 6
+    switch  shift, and go to state 7
+    module  shift, and go to state 8
+    for     shift, and go to state 9
+    data    shift, and go to state 10
+    ident   shift, and go to state 11
+    '{'     shift, and go to state 12
+
+    $default  reduce using rule 3 (stmts)
+
+    prog     go to state 13
+    stmts    go to state 14
+    header   go to state 15
+    symbol   go to state 16
+    line     go to state 17
+    block    go to state 18
+    if_      go to state 19
+    switch_  go to state 20
+    call     go to state 21
+    index    go to state 22
+
+
+State 1
+
+   25 block: fn • mfnrec ident '(' paramsA ')' mtype scope
+
+    '{'  shift, and go to state 23
+
+    $default  reduce using rule 12 (mfnrec)
+
+    mfnrec  go to state 24
+
+
+State 2
+
+   21 line: type • symbol anno_t
+
+    ident  shift, and go to state 11
+
+    symbol  go to state 25
+
+
+State 3
+
+   44 if_: if • condition scope else_
+   45    | if • condition Newline else_
+
+    '+'       shift, and go to state 26
+    '-'       shift, and go to state 27
+    '!'       shift, and go to state 28
+    '@'       shift, and go to state 29
+    true      shift, and go to state 30
+    false     shift, and go to state 31
+    null      shift, and go to state 32
+    i16       shift, and go to state 33
+    i32       shift, and go to state 34
+    i64       shift, and go to state 35
+    f32       shift, and go to state 36
+    f64       shift, and go to state 37
+    bool      shift, and go to state 38
+    char      shift, and go to state 39
+    int_c     shift, and go to state 40
+    float_c   shift, and go to state 41
+    char_c    shift, and go to state 42
+    string_c  shift, and go to state 43
+    ident     shift, and go to state 11
+    '('       shift, and go to state 44
+    '{'       shift, and go to state 12
+    '['       shift, and go to state 45
+
+    symbol     go to state 46
+    condition  go to state 47
+    call       go to state 48
+    expr       go to state 49
+    literal    go to state 50
+    infix      go to state 51
+    prefix     go to state 52
+    ordinal_t  go to state 53
+
+
+State 4
+
+   18 line: let • pattern '=' expr
+
+    '-'       shift, and go to state 54
+    '@'       shift, and go to state 29
+    true      shift, and go to state 30
+    false     shift, and go to state 31
+    null      shift, and go to state 55
+    i16       shift, and go to state 33
+    i32       shift, and go to state 34
+    i64       shift, and go to state 35
+    f32       shift, and go to state 36
+    f64       shift, and go to state 37
+    bool      shift, and go to state 38
+    char      shift, and go to state 39
+    int_c     shift, and go to state 40
+    float_c   shift, and go to state 41
+    char_c    shift, and go to state 42
+    string_c  shift, and go to state 43
+    ident     shift, and go to state 56
+    '('       shift, and go to state 57
+    '['       shift, and go to state 58
+    '_'       shift, and go to state 59
+
+    symbol     go to state 60
+    pattern    go to state 61
+    literal    go to state 62
+    ordinal_t  go to state 63
+
+
+State 5
+
+   26 block: while • condition scope
+
+    '+'       shift, and go to state 26
+    '-'       shift, and go to state 27
+    '!'       shift, and go to state 28
+    '@'       shift, and go to state 29
+    true      shift, and go to state 30
+    false     shift, and go to state 31
+    null      shift, and go to state 32
+    i16       shift, and go to state 33
+    i32       shift, and go to state 34
+    i64       shift, and go to state 35
+    f32       shift, and go to state 36
+    f64       shift, and go to state 37
+    bool      shift, and go to state 38
+    char      shift, and go to state 39
+    int_c     shift, and go to state 40
+    float_c   shift, and go to state 41
+    char_c    shift, and go to state 42
+    string_c  shift, and go to state 43
+    ident     shift, and go to state 11
+    '('       shift, and go to state 44
+    '{'       shift, and go to state 12
+    '['       shift, and go to state 45
+
+    symbol     go to state 46
+    condition  go to state 64
+    call       go to state 48
+    expr       go to state 49
+    literal    go to state 50
+    infix      go to state 51
+    prefix     go to state 52
+    ordinal_t  go to state 53
+
+
+State 6
+
+   22 line: return • mexpr
+
+    '+'       shift, and go to state 26
+    '-'       shift, and go to state 27
+    '!'       shift, and go to state 28
+    '@'       shift, and go to state 29
+    true      shift, and go to state 30
+    false     shift, and go to state 31
+    null      shift, and go to state 32
+    i16       shift, and go to state 33
+    i32       shift, and go to state 34
+    i64       shift, and go to state 35
+    f32       shift, and go to state 36
+    f64       shift, and go to state 37
+    bool      shift, and go to state 38
+    char      shift, and go to state 39
+    int_c     shift, and go to state 40
+    float_c   shift, and go to state 41
+    char_c    shift, and go to state 42
+    string_c  shift, and go to state 43
+    ident     shift, and go to state 11
+    '('       shift, and go to state 44
+    '{'       shift, and go to state 12
+    '['       shift, and go to state 45
+
+    $default  reduce using rule 78 (mexpr)
+
+    symbol     go to state 46
+    mexpr      go to state 65
+    call       go to state 48
+    expr       go to state 66
+    literal    go to state 50
+    infix      go to state 51
+    prefix     go to state 52
+    ordinal_t  go to state 53
+
+
+State 7
+
+   49 switch_: switch • expr Indent cases1 Dedent
+   50        | switch • expr
+
+    '+'       shift, and go to state 26
+    '-'       shift, and go to state 27
+    '!'       shift, and go to state 28
+    '@'       shift, and go to state 29
+    true      shift, and go to state 30
+    false     shift, and go to state 31
+    null      shift, and go to state 32
+    i16       shift, and go to state 33
+    i32       shift, and go to state 34
+    i64       shift, and go to state 35
+    f32       shift, and go to state 36
+    f64       shift, and go to state 37
+    bool      shift, and go to state 38
+    char      shift, and go to state 39
+    int_c     shift, and go to state 40
+    float_c   shift, and go to state 41
+    char_c    shift, and go to state 42
+    string_c  shift, and go to state 43
+    ident     shift, and go to state 11
+    '('       shift, and go to state 44
+    '{'       shift, and go to state 12
+    '['       shift, and go to state 45
+
+    symbol     go to state 46
+    call       go to state 48
+    expr       go to state 67
+    literal    go to state 50
+    infix      go to state 51
+    prefix     go to state 52
+    ordinal_t  go to state 53
+
+
+State 8
+
+    6 header: module • ident Newline imports
+
+    ident  shift, and go to state 68
+
+
+State 9
+
+   27 block: for • expr scope
+   28      | for • expr RArrow pattern scope
+
+    '+'       shift, and go to state 26
+    '-'       shift, and go to state 27
+    '!'       shift, and go to state 28
+    '@'       shift, and go to state 29
+    true      shift, and go to state 30
+    false     shift, and go to state 31
+    null      shift, and go to state 32
+    i16       shift, and go to state 33
+    i32       shift, and go to state 34
+    i64       shift, and go to state 35
+    f32       shift, and go to state 36
+    f64       shift, and go to state 37
+    bool      shift, and go to state 38
+    char      shift, and go to state 39
+    int_c     shift, and go to state 40
+    float_c   shift, and go to state 41
+    char_c    shift, and go to state 42
+    string_c  shift, and go to state 43
+    ident     shift, and go to state 11
+    '('       shift, and go to state 44
+    '{'       shift, and go to state 12
+    '['       shift, and go to state 45
+
+    symbol     go to state 46
+    call       go to state 48
+    expr       go to state 69
+    literal    go to state 50
+    infix      go to state 51
+    prefix     go to state 52
+    ordinal_t  go to state 53
+
+
+State 10
+
+   23 line: data • symbol type_ minitialiser
+
+    ident  shift, and go to state 11
+
+    symbol  go to state 70
+
+
+State 11
+
+   10 symbol: ident •
+   11       | ident • DoubleColon ident
+
+    DoubleColon  shift, and go to state 71
+
+    $default  reduce using rule 10 (symbol)
+
+
+State 12
+
+   83 call: '{' • exprsA '}' '.' ident '(' exprsA ')'
+
+    Indent    shift, and go to state 72
+    '+'       shift, and go to state 26
+    '-'       shift, and go to state 27
+    '!'       shift, and go to state 28
+    '@'       shift, and go to state 29
+    true      shift, and go to state 30
+    false     shift, and go to state 31
+    null      shift, and go to state 32
+    i16       shift, and go to state 33
+    i32       shift, and go to state 34
+    i64       shift, and go to state 35
+    f32       shift, and go to state 36
+    f64       shift, and go to state 37
+    bool      shift, and go to state 38
+    char      shift, and go to state 39
+    int_c     shift, and go to state 40
+    float_c   shift, and go to state 41
+    char_c    shift, and go to state 42
+    string_c  shift, and go to state 43
+    ident     shift, and go to state 11
+    '('       shift, and go to state 44
+    '{'       shift, and go to state 12
+    '['       shift, and go to state 45
+
+    $default  reduce using rule 72 (exprs)
+
+    symbol     go to state 46
+    exprs      go to state 73
+    exprs1     go to state 74
+    exprsA     go to state 75
+    call       go to state 48
+    expr       go to state 76
+    literal    go to state 50
+    infix      go to state 51
+    prefix     go to state 52
+    ordinal_t  go to state 53
+
+
+State 13
+
+    0 $accept: prog • $end
+
+    $end  shift, and go to state 77
+
+
+State 14
+
+    1 prog: stmts •
+
+    $default  reduce using rule 1 (prog)
+
+
+State 15
+
+    2 prog: header • stmts
+
+    fn      shift, and go to state 1
+    type    shift, and go to state 2
+    if      shift, and go to state 3
+    let     shift, and go to state 4
+    while   shift, and go to state 5
+    return  shift, and go to state 6
+    switch  shift, and go to state 7
+    for     shift, and go to state 9
+    data    shift, and go to state 10
+    ident   shift, and go to state 11
+    '{'     shift, and go to state 12
+
+    $default  reduce using rule 3 (stmts)
+
+    stmts    go to state 78
+    symbol   go to state 16
+    line     go to state 17
+    block    go to state 18
+    if_      go to state 19
+    switch_  go to state 20
+    call     go to state 21
+    index    go to state 22
+
+
+State 16
+
+   82 call: symbol • '(' exprsA ')'
+   84 index: symbol •
+
+    '('  shift, and go to state 79
+
+    $default  reduce using rule 84 (index)
+
+
+State 17
+
+    4 stmts: line • Newline stmts
+
+    Newline  shift, and go to state 80
+
+
+State 18
+
+    5 stmts: block • stmts
+
+    fn      shift, and go to state 1
+    type    shift, and go to state 2
+    if      shift, and go to state 3
+    let     shift, and go to state 4
+    while   shift, and go to state 5
+    return  shift, and go to state 6
+    switch  shift, and go to state 7
+    for     shift, and go to state 9
+    data    shift, and go to state 10
+    ident   shift, and go to state 11
+    '{'     shift, and go to state 12
+
+    $default  reduce using rule 3 (stmts)
+
+    stmts    go to state 81
+    symbol   go to state 16
+    line     go to state 17
+    block    go to state 18
+    if_      go to state 19
+    switch_  go to state 20
+    call     go to state 21
+    index    go to state 22
+
+
+State 19
+
+   24 block: if_ •
+
+    $default  reduce using rule 24 (block)
+
+
+State 20
+
+   29 block: switch_ •
+
+    $default  reduce using rule 29 (block)
+
+
+State 21
+
+   88 index: call •
+
+    $default  reduce using rule 88 (index)
+
+
+State 22
+
+   19 line: index • '=' expr
+   20     | index •
+   85 index: index • '[' expr ']'
+   86      | index • '.' ident
+   87      | index • '.' symbol '(' exprsA ')'
+
+    '='  shift, and go to state 82
+    '['  shift, and go to state 83
+    '.'  shift, and go to state 84
+
+    $default  reduce using rule 20 (line)
+
+
+State 23
+
+   13 mfnrec: '{' • paramsA '}'
+
+    Indent  shift, and go to state 85
+    ident   shift, and go to state 86
+
+    $default  reduce using rule 36 (params)
+
+    param    go to state 87
+    params   go to state 88
+    params1  go to state 89
+    paramsA  go to state 90
+
+
+State 24
+
+   25 block: fn mfnrec • ident '(' paramsA ')' mtype scope
+
+    ident  shift, and go to state 91
+
+
+State 25
+
+   21 line: type symbol • anno_t
+
+    '@'     shift, and go to state 29
+    i16     shift, and go to state 33
+    i32     shift, and go to state 34
+    i64     shift, and go to state 35
+    f32     shift, and go to state 36
+    f64     shift, and go to state 37
+    bool    shift, and go to state 38
+    char    shift, and go to state 39
+    string  shift, and go to state 92
+    sparse  shift, and go to state 93
+    ident   shift, and go to state 11
+    '('     shift, and go to state 94
+    '{'     shift, and go to state 95
+    '['     shift, and go to state 96
+
+    symbol     go to state 97
+    ordinal_t  go to state 98
+    array_t    go to state 99
+    table_t    go to state 100
+    sparse_t   go to state 101
+    anno_t     go to state 102
+
+
+State 26
+
+  124 prefix: '+' • expr
+
+    '+'       shift, and go to state 26
+    '-'       shift, and go to state 27
+    '!'       shift, and go to state 28
+    '@'       shift, and go to state 29
+    true      shift, and go to state 30
+    false     shift, and go to state 31
+    null      shift, and go to state 32
+    i16       shift, and go to state 33
+    i32       shift, and go to state 34
+    i64       shift, and go to state 35
+    f32       shift, and go to state 36
+    f64       shift, and go to state 37
+    bool      shift, and go to state 38
+    char      shift, and go to state 39
+    int_c     shift, and go to state 40
+    float_c   shift, and go to state 41
+    char_c    shift, and go to state 42
+    string_c  shift, and go to state 43
+    ident     shift, and go to state 11
+    '('       shift, and go to state 44
+    '{'       shift, and go to state 12
+    '['       shift, and go to state 45
+
+    symbol     go to state 46
+    call       go to state 48
+    expr       go to state 103
+    literal    go to state 50
+    infix      go to state 51
+    prefix     go to state 52
+    ordinal_t  go to state 53
+
+
+State 27
+
+  123 prefix: '-' • expr
+
+    '+'       shift, and go to state 26
+    '-'       shift, and go to state 27
+    '!'       shift, and go to state 28
+    '@'       shift, and go to state 29
+    true      shift, and go to state 30
+    false     shift, and go to state 31
+    null      shift, and go to state 32
+    i16       shift, and go to state 33
+    i32       shift, and go to state 34
+    i64       shift, and go to state 35
+    f32       shift, and go to state 36
+    f64       shift, and go to state 37
+    bool      shift, and go to state 38
+    char      shift, and go to state 39
+    int_c     shift, and go to state 40
+    float_c   shift, and go to state 41
+    char_c    shift, and go to state 42
+    string_c  shift, and go to state 43
+    ident     shift, and go to state 11
+    '('       shift, and go to state 44
+    '{'       shift, and go to state 12
+    '['       shift, and go to state 45
+
+    symbol     go to state 46
+    call       go to state 48
+    expr       go to state 104
+    literal    go to state 50
+    infix      go to state 51
+    prefix     go to state 52
+    ordinal_t  go to state 53
+
+
+State 28
+
+  125 prefix: '!' • expr
+
+    '+'       shift, and go to state 26
+    '-'       shift, and go to state 27
+    '!'       shift, and go to state 28
+    '@'       shift, and go to state 29
+    true      shift, and go to state 30
+    false     shift, and go to state 31
+    null      shift, and go to state 32
+    i16       shift, and go to state 33
+    i32       shift, and go to state 34
+    i64       shift, and go to state 35
+    f32       shift, and go to state 36
+    f64       shift, and go to state 37
+    bool      shift, and go to state 38
+    char      shift, and go to state 39
+    int_c     shift, and go to state 40
+    float_c   shift, and go to state 41
+    char_c    shift, and go to state 42
+    string_c  shift, and go to state 43
+    ident     shift, and go to state 11
+    '('       shift, and go to state 44
+    '{'       shift, and go to state 12
+    '['       shift, and go to state 45
+
+    symbol     go to state 46
+    call       go to state 48
+    expr       go to state 105
+    literal    go to state 50
+    infix      go to state 51
+    prefix     go to state 52
+    ordinal_t  go to state 53
+
+
+State 29
+
+  144 ordinal_t: '@' • type_
+
+    '@'     shift, and go to state 29
+    fn      shift, and go to state 106
+    i16     shift, and go to state 33
+    i32     shift, and go to state 34
+    i64     shift, and go to state 35
+    f32     shift, and go to state 36
+    f64     shift, and go to state 37
+    bool    shift, and go to state 38
+    char    shift, and go to state 39
+    string  shift, and go to state 92
+    sparse  shift, and go to state 93
+    map     shift, and go to state 107
+    ident   shift, and go to state 11
+    '('     shift, and go to state 108
+    '{'     shift, and go to state 109
+    '['     shift, and go to state 110
+
+    symbol       go to state 111
+    type_        go to state 112
+    ordinal_t    go to state 113
+    aggregate_t  go to state 114
+    adt_t        go to state 115
+    array_t      go to state 116
+    table_t      go to state 117
+    tup_t        go to state 118
+    sparse_t     go to state 119
+    map_t        go to state 120
+    range_t      go to state 121
+
+
+State 30
+
+  108 literal: true •
+
+    $default  reduce using rule 108 (literal)
+
+
+State 31
+
+  109 literal: false •
+
+    $default  reduce using rule 109 (literal)
+
+
+State 32
+
+   96 expr: null •
+
+    $default  reduce using rule 96 (expr)
+
+
+State 33
+
+  138 ordinal_t: i16 •
+
+    $default  reduce using rule 138 (ordinal_t)
+
+
+State 34
+
+  139 ordinal_t: i32 •
+
+    $default  reduce using rule 139 (ordinal_t)
+
+
+State 35
+
+  140 ordinal_t: i64 •
+
+    $default  reduce using rule 140 (ordinal_t)
+
+
+State 36
+
+  141 ordinal_t: f32 •
+
+    $default  reduce using rule 141 (ordinal_t)
+
+
+State 37
+
+  142 ordinal_t: f64 •
+
+    $default  reduce using rule 142 (ordinal_t)
+
+
+State 38
+
+  137 ordinal_t: bool •
+
+    $default  reduce using rule 137 (ordinal_t)
+
+
+State 39
+
+  143 ordinal_t: char •
+
+    $default  reduce using rule 143 (ordinal_t)
+
+
+State 40
+
+  104 literal: int_c •
+
+    $default  reduce using rule 104 (literal)
+
+
+State 41
+
+  105 literal: float_c •
+
+    $default  reduce using rule 105 (literal)
+
+
+State 42
+
+  106 literal: char_c •
+
+    $default  reduce using rule 106 (literal)
+
+
+State 43
+
+  107 literal: string_c •
+
+    $default  reduce using rule 107 (literal)
+
+
+State 44
+
+   94 expr: '(' • exprsA ')'
+
+    Indent    shift, and go to state 72
+    '+'       shift, and go to state 26
+    '-'       shift, and go to state 27
+    '!'       shift, and go to state 28
+    '@'       shift, and go to state 29
+    true      shift, and go to state 30
+    false     shift, and go to state 31
+    null      shift, and go to state 32
+    i16       shift, and go to state 33
+    i32       shift, and go to state 34
+    i64       shift, and go to state 35
+    f32       shift, and go to state 36
+    f64       shift, and go to state 37
+    bool      shift, and go to state 38
+    char      shift, and go to state 39
+    int_c     shift, and go to state 40
+    float_c   shift, and go to state 41
+    char_c    shift, and go to state 42
+    string_c  shift, and go to state 43
+    ident     shift, and go to state 11
+    '('       shift, and go to state 44
+    '{'       shift, and go to state 12
+    '['       shift, and go to state 45
+
+    $default  reduce using rule 72 (exprs)
+
+    symbol     go to state 46
+    exprs      go to state 73
+    exprs1     go to state 74
+    exprsA     go to state 122
+    call       go to state 48
+    expr       go to state 76
+    literal    go to state 50
+    infix      go to state 51
+    prefix     go to state 52
+    ordinal_t  go to state 53
+
+
+State 45
+
+  102 expr: '[' • mexpr DoubleDot mexpr ']'
+  103     | '[' • exprsA ']'
+
+    Indent    shift, and go to state 72
+    '+'       shift, and go to state 26
+    '-'       shift, and go to state 27
+    '!'       shift, and go to state 28
+    '@'       shift, and go to state 29
+    true      shift, and go to state 30
+    false     shift, and go to state 31
+    null      shift, and go to state 32
+    i16       shift, and go to state 33
+    i32       shift, and go to state 34
+    i64       shift, and go to state 35
+    f32       shift, and go to state 36
+    f64       shift, and go to state 37
+    bool      shift, and go to state 38
+    char      shift, and go to state 39
+    int_c     shift, and go to state 40
+    float_c   shift, and go to state 41
+    char_c    shift, and go to state 42
+    string_c  shift, and go to state 43
+    ident     shift, and go to state 11
+    '('       shift, and go to state 44
+    '{'       shift, and go to state 12
+    '['       shift, and go to state 45
+
+    DoubleDot  reduce using rule 78 (mexpr)
+    $default   reduce using rule 72 (exprs)
+
+    symbol     go to state 46
+    exprs      go to state 73
+    exprs1     go to state 74
+    mexpr      go to state 123
+    exprsA     go to state 124
+    call       go to state 48
+    expr       go to state 125
+    literal    go to state 50
+    infix      go to state 51
+    prefix     go to state 52
+    ordinal_t  go to state 53
+
+
+State 46
+
+   82 call: symbol • '(' exprsA ')'
+   93 expr: symbol •
+
+    '('  shift, and go to state 79
+
+    $default  reduce using rule 93 (expr)
+
+
+State 47
+
+   44 if_: if condition • scope else_
+   45    | if condition • Newline else_
+
+    Indent   shift, and go to state 126
+    Newline  shift, and go to state 127
+    ';'      shift, and go to state 128
+
+    scope  go to state 129
+
+
+State 48
+
+   92 expr: call •
+
+    $default  reduce using rule 92 (expr)
+
+
+State 49
+
+   33 condition: expr •
+   34          | expr • RArrow pattern
+   97 expr: expr • '.' ident
+   98     | expr • '[' expr ']'
+   99     | expr • ':' type_
+  100     | expr • '.' ident '(' exprsA ')'
+  101     | expr • '[' mexpr DoubleDot mexpr ']'
+  110 infix: expr • '+' expr
+  111      | expr • '-' expr
+  112      | expr • '*' expr
+  113      | expr • '/' expr
+  114      | expr • '%' expr
+  115      | expr • '<' expr
+  116      | expr • '>' expr
+  117      | expr • LtEq expr
+  118      | expr • GtEq expr
+  119      | expr • EqEq expr
+  120      | expr • AndAnd expr
+  121      | expr • OrOr expr
+  122      | expr • NotEq expr
+
+    '+'     shift, and go to state 130
+    '-'     shift, and go to state 131
+    '*'     shift, and go to state 132
+    '/'     shift, and go to state 133
+    '%'     shift, and go to state 134
+    '<'     shift, and go to state 135
+    '>'     shift, and go to state 136
+    NotEq   shift, and go to state 137
+    LtEq    shift, and go to state 138
+    GtEq    shift, and go to state 139
+    EqEq    shift, and go to state 140
+    AndAnd  shift, and go to state 141
+    OrOr    shift, and go to state 142
+    RArrow  shift, and go to state 143
+    '['     shift, and go to state 144
+    '.'     shift, and go to state 145
+    ':'     shift, and go to state 146
+
+    $default  reduce using rule 33 (condition)
+
+
+State 50
+
+   89 expr: literal •
+
+    $default  reduce using rule 89 (expr)
+
+
+State 51
+
+   90 expr: infix •
+
+    $default  reduce using rule 90 (expr)
+
+
+State 52
+
+   91 expr: prefix •
+
+    $default  reduce using rule 91 (expr)
+
+
+State 53
+
+   95 expr: ordinal_t • '(' exprsA ')'
+
+    '('  shift, and go to state 147
+
+
+State 54
+
+   62 pattern: '-' • int_c
+
+    int_c  shift, and go to state 148
+
+
+State 55
+
+   64 pattern: null •
+
+    $default  reduce using rule 64 (pattern)
+
+
+State 56
+
+   10 symbol: ident •
+   11       | ident • DoubleColon ident
+   63 pattern: ident •
+
+    DoubleColon  shift, and go to state 71
+
+    '('       reduce using rule 10 (symbol)
+    $default  reduce using rule 63 (pattern)
+
+
+State 57
+
+   65 pattern: '(' • patterns ')'
+
+    '-'       shift, and go to state 54
+    '@'       shift, and go to state 29
+    true      shift, and go to state 30
+    false     shift, and go to state 31
+    null      shift, and go to state 55
+    i16       shift, and go to state 33
+    i32       shift, and go to state 34
+    i64       shift, and go to state 35
+    f32       shift, and go to state 36
+    f64       shift, and go to state 37
+    bool      shift, and go to state 38
+    char      shift, and go to state 39
+    int_c     shift, and go to state 40
+    float_c   shift, and go to state 41
+    char_c    shift, and go to state 42
+    string_c  shift, and go to state 43
+    ident     shift, and go to state 56
+    '('       shift, and go to state 57
+    '['       shift, and go to state 58
+    '_'       shift, and go to state 59
+
+    $default  reduce using rule 54 (patterns)
+
+    symbol     go to state 60
+    patterns   go to state 149
+    patterns1  go to state 150
+    pattern    go to state 151
+    literal    go to state 62
+    ordinal_t  go to state 63
+
+
+State 58
+
+   66 pattern: '[' • patternsSem ']'
+
+    '-'       shift, and go to state 54
+    '@'       shift, and go to state 29
+    true      shift, and go to state 30
+    false     shift, and go to state 31
+    null      shift, and go to state 55
+    i16       shift, and go to state 33
+    i32       shift, and go to state 34
+    i64       shift, and go to state 35
+    f32       shift, and go to state 36
+    f64       shift, and go to state 37
+    bool      shift, and go to state 38
+    char      shift, and go to state 39
+    int_c     shift, and go to state 40
+    float_c   shift, and go to state 41
+    char_c    shift, and go to state 42
+    string_c  shift, and go to state 43
+    ident     shift, and go to state 56
+    '('       shift, and go to state 57
+    '['       shift, and go to state 58
+    '_'       shift, and go to state 59
+
+    $default  reduce using rule 54 (patterns)
+
+    symbol       go to state 60
+    patterns     go to state 152
+    patterns1    go to state 150
+    patternsSem  go to state 153
+    pattern      go to state 151
+    literal      go to state 62
+    ordinal_t    go to state 63
+
+
+State 59
+
+   60 pattern: '_' •
+
+    $default  reduce using rule 60 (pattern)
+
+
+State 60
+
+   69 pattern: symbol • '(' patterns ')'
+
+    '('  shift, and go to state 154
+
+
+State 61
+
+   18 line: let pattern • '=' expr
+   67 pattern: pattern • '|' expr
+   68        | pattern • '|' expr RArrow pattern
+   71        | pattern • ':' type_
+
+    '='  shift, and go to state 155
+    '|'  shift, and go to state 156
+    ':'  shift, and go to state 157
+
+
+State 62
+
+   61 pattern: literal •
+
+    $default  reduce using rule 61 (pattern)
+
+
+State 63
+
+   70 pattern: ordinal_t • '(' pattern ')'
+
+    '('  shift, and go to state 158
+
+
+State 64
+
+   26 block: while condition • scope
+
+    Indent  shift, and go to state 126
+    ';'     shift, and go to state 128
+
+    scope  go to state 159
+
+
+State 65
+
+   22 line: return mexpr •
+
+    $default  reduce using rule 22 (line)
+
+
+State 66
+
+   79 mexpr: expr •
+   97 expr: expr • '.' ident
+   98     | expr • '[' expr ']'
+   99     | expr • ':' type_
+  100     | expr • '.' ident '(' exprsA ')'
+  101     | expr • '[' mexpr DoubleDot mexpr ']'
+  110 infix: expr • '+' expr
+  111      | expr • '-' expr
+  112      | expr • '*' expr
+  113      | expr • '/' expr
+  114      | expr • '%' expr
+  115      | expr • '<' expr
+  116      | expr • '>' expr
+  117      | expr • LtEq expr
+  118      | expr • GtEq expr
+  119      | expr • EqEq expr
+  120      | expr • AndAnd expr
+  121      | expr • OrOr expr
+  122      | expr • NotEq expr
+
+    '+'     shift, and go to state 130
+    '-'     shift, and go to state 131
+    '*'     shift, and go to state 132
+    '/'     shift, and go to state 133
+    '%'     shift, and go to state 134
+    '<'     shift, and go to state 135
+    '>'     shift, and go to state 136
+    NotEq   shift, and go to state 137
+    LtEq    shift, and go to state 138
+    GtEq    shift, and go to state 139
+    EqEq    shift, and go to state 140
+    AndAnd  shift, and go to state 141
+    OrOr    shift, and go to state 142
+    '['     shift, and go to state 144
+    '.'     shift, and go to state 145
+    ':'     shift, and go to state 146
+
+    $default  reduce using rule 79 (mexpr)
+
+
+State 67
+
+   49 switch_: switch expr • Indent cases1 Dedent
+   50        | switch expr •
+   97 expr: expr • '.' ident
+   98     | expr • '[' expr ']'
+   99     | expr • ':' type_
+  100     | expr • '.' ident '(' exprsA ')'
+  101     | expr • '[' mexpr DoubleDot mexpr ']'
+  110 infix: expr • '+' expr
+  111      | expr • '-' expr
+  112      | expr • '*' expr
+  113      | expr • '/' expr
+  114      | expr • '%' expr
+  115      | expr • '<' expr
+  116      | expr • '>' expr
+  117      | expr • LtEq expr
+  118      | expr • GtEq expr
+  119      | expr • EqEq expr
+  120      | expr • AndAnd expr
+  121      | expr • OrOr expr
+  122      | expr • NotEq expr
+
+    Indent  shift, and go to state 160
+    '+'     shift, and go to state 130
+    '-'     shift, and go to state 131
+    '*'     shift, and go to state 132
+    '/'     shift, and go to state 133
+    '%'     shift, and go to state 134
+    '<'     shift, and go to state 135
+    '>'     shift, and go to state 136
+    NotEq   shift, and go to state 137
+    LtEq    shift, and go to state 138
+    GtEq    shift, and go to state 139
+    EqEq    shift, and go to state 140
+    AndAnd  shift, and go to state 141
+    OrOr    shift, and go to state 142
+    '['     shift, and go to state 144
+    '.'     shift, and go to state 145
+    ':'     shift, and go to state 146
+
+    $default  reduce using rule 50 (switch_)
+
+
+State 68
+
+    6 header: module ident • Newline imports
+
+    Newline  shift, and go to state 161
+
+
+State 69
+
+   27 block: for expr • scope
+   28      | for expr • RArrow pattern scope
+   97 expr: expr • '.' ident
+   98     | expr • '[' expr ']'
+   99     | expr • ':' type_
+  100     | expr • '.' ident '(' exprsA ')'
+  101     | expr • '[' mexpr DoubleDot mexpr ']'
+  110 infix: expr • '+' expr
+  111      | expr • '-' expr
+  112      | expr • '*' expr
+  113      | expr • '/' expr
+  114      | expr • '%' expr
+  115      | expr • '<' expr
+  116      | expr • '>' expr
+  117      | expr • LtEq expr
+  118      | expr • GtEq expr
+  119      | expr • EqEq expr
+  120      | expr • AndAnd expr
+  121      | expr • OrOr expr
+  122      | expr • NotEq expr
+
+    Indent  shift, and go to state 126
+    '+'     shift, and go to state 130
+    '-'     shift, and go to state 131
+    '*'     shift, and go to state 132
+    '/'     shift, and go to state 133
+    '%'     shift, and go to state 134
+    '<'     shift, and go to state 135
+    '>'     shift, and go to state 136
+    NotEq   shift, and go to state 137
+    LtEq    shift, and go to state 138
+    GtEq    shift, and go to state 139
+    EqEq    shift, and go to state 140
+    AndAnd  shift, and go to state 141
+    OrOr    shift, and go to state 142
+    RArrow  shift, and go to state 162
+    '['     shift, and go to state 144
+    '.'     shift, and go to state 145
+    ';'     shift, and go to state 128
+    ':'     shift, and go to state 146
+
+    scope  go to state 163
+
+
+State 70
+
+   23 line: data symbol • type_ minitialiser
+
+    '@'     shift, and go to state 29
+    fn      shift, and go to state 106
+    i16     shift, and go to state 33
+    i32     shift, and go to state 34
+    i64     shift, and go to state 35
+    f32     shift, and go to state 36
+    f64     shift, and go to state 37
+    bool    shift, and go to state 38
+    char    shift, and go to state 39
+    string  shift, and go to state 92
+    sparse  shift, and go to state 93
+    map     shift, and go to state 107
+    ident   shift, and go to state 11
+    '('     shift, and go to state 108
+    '{'     shift, and go to state 109
+    '['     shift, and go to state 110
+
+    symbol       go to state 111
+    type_        go to state 164
+    ordinal_t    go to state 113
+    aggregate_t  go to state 114
+    adt_t        go to state 115
+    array_t      go to state 116
+    table_t      go to state 117
+    tup_t        go to state 118
+    sparse_t     go to state 119
+    map_t        go to state 120
+    range_t      go to state 121
+
+
+State 71
+
+   11 symbol: ident DoubleColon • ident
+
+    ident  shift, and go to state 165
+
+
+State 72
+
+   81 exprsA: Indent • exprsN Dedent
+
+    '+'       shift, and go to state 26
+    '-'       shift, and go to state 27
+    '!'       shift, and go to state 28
+    '@'       shift, and go to state 29
+    true      shift, and go to state 30
+    false     shift, and go to state 31
+    null      shift, and go to state 32
+    i16       shift, and go to state 33
+    i32       shift, and go to state 34
+    i64       shift, and go to state 35
+    f32       shift, and go to state 36
+    f64       shift, and go to state 37
+    bool      shift, and go to state 38
+    char      shift, and go to state 39
+    int_c     shift, and go to state 40
+    float_c   shift, and go to state 41
+    char_c    shift, and go to state 42
+    string_c  shift, and go to state 43
+    ident     shift, and go to state 11
+    '('       shift, and go to state 44
+    '{'       shift, and go to state 12
+    '['       shift, and go to state 45
+
+    symbol     go to state 46
+    exprsN     go to state 166
+    call       go to state 48
+    expr       go to state 167
+    literal    go to state 50
+    infix      go to state 51
+    prefix     go to state 52
+    ordinal_t  go to state 53
+
+
+State 73
+
+   80 exprsA: exprs •
+
+    $default  reduce using rule 80 (exprsA)
+
+
+State 74
+
+   73 exprs: exprs1 •
+
+    $default  reduce using rule 73 (exprs)
+
+
+State 75
+
+   83 call: '{' exprsA • '}' '.' ident '(' exprsA ')'
+
+    '}'  shift, and go to state 168
+
+
+State 76
+
+   74 exprs1: expr •
+   75       | expr • ',' exprs1
+   97 expr: expr • '.' ident
+   98     | expr • '[' expr ']'
+   99     | expr • ':' type_
+  100     | expr • '.' ident '(' exprsA ')'
+  101     | expr • '[' mexpr DoubleDot mexpr ']'
+  110 infix: expr • '+' expr
+  111      | expr • '-' expr
+  112      | expr • '*' expr
+  113      | expr • '/' expr
+  114      | expr • '%' expr
+  115      | expr • '<' expr
+  116      | expr • '>' expr
+  117      | expr • LtEq expr
+  118      | expr • GtEq expr
+  119      | expr • EqEq expr
+  120      | expr • AndAnd expr
+  121      | expr • OrOr expr
+  122      | expr • NotEq expr
+
+    '+'     shift, and go to state 130
+    '-'     shift, and go to state 131
+    '*'     shift, and go to state 132
+    '/'     shift, and go to state 133
+    '%'     shift, and go to state 134
+    '<'     shift, and go to state 135
+    '>'     shift, and go to state 136
+    NotEq   shift, and go to state 137
+    LtEq    shift, and go to state 138
+    GtEq    shift, and go to state 139
+    EqEq    shift, and go to state 140
+    AndAnd  shift, and go to state 141
+    OrOr    shift, and go to state 142
+    '['     shift, and go to state 144
+    ','     shift, and go to state 169
+    '.'     shift, and go to state 145
+    ':'     shift, and go to state 146
+
+    $default  reduce using rule 74 (exprs1)
+
+
+State 77
+
+    0 $accept: prog $end •
+
+    $default  accept
+
+
+State 78
+
+    2 prog: header stmts •
+
+    $default  reduce using rule 2 (prog)
+
+
+State 79
+
+   82 call: symbol '(' • exprsA ')'
+
+    Indent    shift, and go to state 72
+    '+'       shift, and go to state 26
+    '-'       shift, and go to state 27
+    '!'       shift, and go to state 28
+    '@'       shift, and go to state 29
+    true      shift, and go to state 30
+    false     shift, and go to state 31
+    null      shift, and go to state 32
+    i16       shift, and go to state 33
+    i32       shift, and go to state 34
+    i64       shift, and go to state 35
+    f32       shift, and go to state 36
+    f64       shift, and go to state 37
+    bool      shift, and go to state 38
+    char      shift, and go to state 39
+    int_c     shift, and go to state 40
+    float_c   shift, and go to state 41
+    char_c    shift, and go to state 42
+    string_c  shift, and go to state 43
+    ident     shift, and go to state 11
+    '('       shift, and go to state 44
+    '{'       shift, and go to state 12
+    '['       shift, and go to state 45
+
+    $default  reduce using rule 72 (exprs)
+
+    symbol     go to state 46
+    exprs      go to state 73
+    exprs1     go to state 74
+    exprsA     go to state 170
+    call       go to state 48
+    expr       go to state 76
+    literal    go to state 50
+    infix      go to state 51
+    prefix     go to state 52
+    ordinal_t  go to state 53
+
+
+State 80
+
+    4 stmts: line Newline • stmts
+
+    fn      shift, and go to state 1
+    type    shift, and go to state 2
+    if      shift, and go to state 3
+    let     shift, and go to state 4
+    while   shift, and go to state 5
+    return  shift, and go to state 6
+    switch  shift, and go to state 7
+    for     shift, and go to state 9
+    data    shift, and go to state 10
+    ident   shift, and go to state 11
+    '{'     shift, and go to state 12
+
+    $default  reduce using rule 3 (stmts)
+
+    stmts    go to state 171
+    symbol   go to state 16
+    line     go to state 17
+    block    go to state 18
+    if_      go to state 19
+    switch_  go to state 20
+    call     go to state 21
+    index    go to state 22
+
+
+State 81
+
+    5 stmts: block stmts •
+
+    $default  reduce using rule 5 (stmts)
+
+
+State 82
+
+   19 line: index '=' • expr
+
+    '+'       shift, and go to state 26
+    '-'       shift, and go to state 27
+    '!'       shift, and go to state 28
+    '@'       shift, and go to state 29
+    true      shift, and go to state 30
+    false     shift, and go to state 31
+    null      shift, and go to state 32
+    i16       shift, and go to state 33
+    i32       shift, and go to state 34
+    i64       shift, and go to state 35
+    f32       shift, and go to state 36
+    f64       shift, and go to state 37
+    bool      shift, and go to state 38
+    char      shift, and go to state 39
+    int_c     shift, and go to state 40
+    float_c   shift, and go to state 41
+    char_c    shift, and go to state 42
+    string_c  shift, and go to state 43
+    ident     shift, and go to state 11
+    '('       shift, and go to state 44
+    '{'       shift, and go to state 12
+    '['       shift, and go to state 45
+
+    symbol     go to state 46
+    call       go to state 48
+    expr       go to state 172
+    literal    go to state 50
+    infix      go to state 51
+    prefix     go to state 52
+    ordinal_t  go to state 53
+
+
+State 83
+
+   85 index: index '[' • expr ']'
+
+    '+'       shift, and go to state 26
+    '-'       shift, and go to state 27
+    '!'       shift, and go to state 28
+    '@'       shift, and go to state 29
+    true      shift, and go to state 30
+    false     shift, and go to state 31
+    null      shift, and go to state 32
+    i16       shift, and go to state 33
+    i32       shift, and go to state 34
+    i64       shift, and go to state 35
+    f32       shift, and go to state 36
+    f64       shift, and go to state 37
+    bool      shift, and go to state 38
+    char      shift, and go to state 39
+    int_c     shift, and go to state 40
+    float_c   shift, and go to state 41
+    char_c    shift, and go to state 42
+    string_c  shift, and go to state 43
+    ident     shift, and go to state 11
+    '('       shift, and go to state 44
+    '{'       shift, and go to state 12
+    '['       shift, and go to state 45
+
+    symbol     go to state 46
+    call       go to state 48
+    expr       go to state 173
+    literal    go to state 50
+    infix      go to state 51
+    prefix     go to state 52
+    ordinal_t  go to state 53
+
+
+State 84
+
+   86 index: index '.' • ident
+   87      | index '.' • symbol '(' exprsA ')'
+
+    ident  shift, and go to state 174
+
+    symbol  go to state 175
+
+
+State 85
+
+   43 paramsA: Indent • paramsN Dedent
+
+    ident  shift, and go to state 86
+
+    param    go to state 176
+    paramsN  go to state 177
+
+
+State 86
+
+   35 param: ident • type_
+
+    '@'     shift, and go to state 29
+    fn      shift, and go to state 106
+    i16     shift, and go to state 33
+    i32     shift, and go to state 34
+    i64     shift, and go to state 35
+    f32     shift, and go to state 36
+    f64     shift, and go to state 37
+    bool    shift, and go to state 38
+    char    shift, and go to state 39
+    string  shift, and go to state 92
+    sparse  shift, and go to state 93
+    map     shift, and go to state 107
+    ident   shift, and go to state 11
+    '('     shift, and go to state 108
+    '{'     shift, and go to state 109
+    '['     shift, and go to state 110
+
+    symbol       go to state 111
+    type_        go to state 178
+    ordinal_t    go to state 113
+    aggregate_t  go to state 114
+    adt_t        go to state 115
+    array_t      go to state 116
+    table_t      go to state 117
+    tup_t        go to state 118
+    sparse_t     go to state 119
+    map_t        go to state 120
+    range_t      go to state 121
+
+
+State 87
+
+   38 params1: param •
+   39        | param • ',' params1
+
+    ','  shift, and go to state 179
+
+    $default  reduce using rule 38 (params1)
+
+
+State 88
+
+   42 paramsA: params •
+
+    $default  reduce using rule 42 (paramsA)
+
+
+State 89
+
+   37 params: params1 •
+
+    $default  reduce using rule 37 (params)
+
+
+State 90
+
+   13 mfnrec: '{' paramsA • '}'
+
+    '}'  shift, and go to state 180
+
+
+State 91
+
+   25 block: fn mfnrec ident • '(' paramsA ')' mtype scope
+
+    '('  shift, and go to state 181
+
+
+State 92
+
+  156 table_t: string •
+
+    $default  reduce using rule 156 (table_t)
+
+
+State 93
+
+  158 sparse_t: sparse • '[' types1_ ']'
+
+    '['  shift, and go to state 182
+
+
+State 94
+
+  163 anno_t: '(' • types1 ')'
+  164       | '(' • paramsA ')'
+
+    Indent  shift, and go to state 85
+    '@'     shift, and go to state 29
+    fn      shift, and go to state 106
+    i16     shift, and go to state 33
+    i32     shift, and go to state 34
+    i64     shift, and go to state 35
+    f32     shift, and go to state 36
+    f64     shift, and go to state 37
+    bool    shift, and go to state 38
+    char    shift, and go to state 39
+    string  shift, and go to state 92
+    sparse  shift, and go to state 93
+    map     shift, and go to state 107
+    ident   shift, and go to state 183
+    '('     shift, and go to state 108
+    '{'     shift, and go to state 109
+    '['     shift, and go to state 110
+
+    $default  reduce using rule 36 (params)
+
+    symbol       go to state 111
+    param        go to state 87
+    params       go to state 88
+    params1      go to state 89
+    paramsA      go to state 184
+    types1       go to state 185
+    type_        go to state 186
+    ordinal_t    go to state 113
+    aggregate_t  go to state 114
+    adt_t        go to state 115
+    array_t      go to state 116
+    table_t      go to state 117
+    tup_t        go to state 118
+    sparse_t     go to state 119
+    map_t        go to state 120
+    range_t      go to state 121
+
+
+State 95
+
+  168 anno_t: '{' • ADTFieldsA '}'
+
+    Indent  shift, and go to state 187
+    '@'     shift, and go to state 29
+    fn      shift, and go to state 106
+    null    shift, and go to state 188
+    i16     shift, and go to state 33
+    i32     shift, and go to state 34
+    i64     shift, and go to state 35
+    f32     shift, and go to state 36
+    f64     shift, and go to state 37
+    bool    shift, and go to state 38
+    char    shift, and go to state 39
+    string  shift, and go to state 92
+    sparse  shift, and go to state 93
+    map     shift, and go to state 107
+    ident   shift, and go to state 189
+    '('     shift, and go to state 108
+    '{'     shift, and go to state 109
+    '['     shift, and go to state 110
+
+    symbol       go to state 111
+    type_        go to state 190
+    ordinal_t    go to state 113
+    aggregate_t  go to state 114
+    adt_t        go to state 115
+    array_t      go to state 116
+    table_t      go to state 117
+    tup_t        go to state 118
+    sparse_t     go to state 119
+    map_t        go to state 120
+    range_t      go to state 121
+    ADTFieldsA   go to state 191
+    ADTFields1   go to state 192
+    ADTField     go to state 193
+
+
+State 96
+
+  154 array_t: '[' • int_c type_ ']'
+  155 table_t: '[' • types1_ ']'
+
+    '@'     shift, and go to state 29
+    fn      shift, and go to state 106
+    i16     shift, and go to state 33
+    i32     shift, and go to state 34
+    i64     shift, and go to state 35
+    f32     shift, and go to state 36
+    f64     shift, and go to state 37
+    bool    shift, and go to state 38
+    char    shift, and go to state 39
+    string  shift, and go to state 92
+    sparse  shift, and go to state 93
+    map     shift, and go to state 107
+    int_c   shift, and go to state 194
+    ident   shift, and go to state 11
+    '('     shift, and go to state 108
+    '{'     shift, and go to state 109
+    '['     shift, and go to state 110
+
+    symbol       go to state 111
+    types1_      go to state 195
+    type_        go to state 196
+    ordinal_t    go to state 113
+    aggregate_t  go to state 114
+    adt_t        go to state 115
+    array_t      go to state 116
+    table_t      go to state 117
+    tup_t        go to state 118
+    sparse_t     go to state 119
+    map_t        go to state 120
+    range_t      go to state 121
+
+
+State 97
+
+  162 anno_t: symbol •
+
+    $default  reduce using rule 162 (anno_t)
+
+
+State 98
+
+  161 anno_t: ordinal_t •
+
+    $default  reduce using rule 161 (anno_t)
+
+
+State 99
+
+  165 anno_t: array_t •
+
+    $default  reduce using rule 165 (anno_t)
+
+
+State 100
+
+  166 anno_t: table_t •
+
+    $default  reduce using rule 166 (anno_t)
+
+
+State 101
+
+  167 anno_t: sparse_t •
+
+    $default  reduce using rule 167 (anno_t)
+
+
+State 102
+
+   21 line: type symbol anno_t •
+
+    $default  reduce using rule 21 (line)
+
+
+State 103
+
+   97 expr: expr • '.' ident
+   98     | expr • '[' expr ']'
+   99     | expr • ':' type_
+  100     | expr • '.' ident '(' exprsA ')'
+  101     | expr • '[' mexpr DoubleDot mexpr ']'
+  110 infix: expr • '+' expr
+  111      | expr • '-' expr
+  112      | expr • '*' expr
+  113      | expr • '/' expr
+  114      | expr • '%' expr
+  115      | expr • '<' expr
+  116      | expr • '>' expr
+  117      | expr • LtEq expr
+  118      | expr • GtEq expr
+  119      | expr • EqEq expr
+  120      | expr • AndAnd expr
+  121      | expr • OrOr expr
+  122      | expr • NotEq expr
+  124 prefix: '+' expr •
+
+    '*'   shift, and go to state 132
+    '/'   shift, and go to state 133
+    '%'   shift, and go to state 134
+    '<'   shift, and go to state 135
+    '>'   shift, and go to state 136
+    LtEq  shift, and go to state 138
+    GtEq  shift, and go to state 139
+    '['   shift, and go to state 144
+    '.'   shift, and go to state 145
+    ':'   shift, and go to state 146
+
+    $default  reduce using rule 124 (prefix)
+
+
+State 104
+
+   97 expr: expr • '.' ident
+   98     | expr • '[' expr ']'
+   99     | expr • ':' type_
+  100     | expr • '.' ident '(' exprsA ')'
+  101     | expr • '[' mexpr DoubleDot mexpr ']'
+  110 infix: expr • '+' expr
+  111      | expr • '-' expr
+  112      | expr • '*' expr
+  113      | expr • '/' expr
+  114      | expr • '%' expr
+  115      | expr • '<' expr
+  116      | expr • '>' expr
+  117      | expr • LtEq expr
+  118      | expr • GtEq expr
+  119      | expr • EqEq expr
+  120      | expr • AndAnd expr
+  121      | expr • OrOr expr
+  122      | expr • NotEq expr
+  123 prefix: '-' expr •
+
+    '*'   shift, and go to state 132
+    '/'   shift, and go to state 133
+    '%'   shift, and go to state 134
+    '<'   shift, and go to state 135
+    '>'   shift, and go to state 136
+    LtEq  shift, and go to state 138
+    GtEq  shift, and go to state 139
+    '['   shift, and go to state 144
+    '.'   shift, and go to state 145
+    ':'   shift, and go to state 146
+
+    $default  reduce using rule 123 (prefix)
+
+
+State 105
+
+   97 expr: expr • '.' ident
+   98     | expr • '[' expr ']'
+   99     | expr • ':' type_
+  100     | expr • '.' ident '(' exprsA ')'
+  101     | expr • '[' mexpr DoubleDot mexpr ']'
+  110 infix: expr • '+' expr
+  111      | expr • '-' expr
+  112      | expr • '*' expr
+  113      | expr • '/' expr
+  114      | expr • '%' expr
+  115      | expr • '<' expr
+  116      | expr • '>' expr
+  117      | expr • LtEq expr
+  118      | expr • GtEq expr
+  119      | expr • EqEq expr
+  120      | expr • AndAnd expr
+  121      | expr • OrOr expr
+  122      | expr • NotEq expr
+  125 prefix: '!' expr •
+
+    '['  shift, and go to state 144
+    '.'  shift, and go to state 145
+
+    $default  reduce using rule 125 (prefix)
+
+
+State 106
+
+  152 aggregate_t: fn • '(' types ')' type_
+
+    '('  shift, and go to state 197
+
+
+State 107
+
+  159 map_t: map • '[' type_ ']' type_
+
+    '['  shift, and go to state 198
+
+
+State 108
+
+  157 tup_t: '(' • types ')'
+
+    '@'     shift, and go to state 29
+    fn      shift, and go to state 106
+    i16     shift, and go to state 33
+    i32     shift, and go to state 34
+    i64     shift, and go to state 35
+    f32     shift, and go to state 36
+    f64     shift, and go to state 37
+    bool    shift, and go to state 38
+    char    shift, and go to state 39
+    string  shift, and go to state 92
+    sparse  shift, and go to state 93
+    map     shift, and go to state 107
+    ident   shift, and go to state 11
+    '('     shift, and go to state 108
+    '{'     shift, and go to state 109
+    '['     shift, and go to state 110
+
+    $default  reduce using rule 128 (types)
+
+    symbol       go to state 111
+    types        go to state 199
+    types1       go to state 200
+    type_        go to state 186
+    ordinal_t    go to state 113
+    aggregate_t  go to state 114
+    adt_t        go to state 115
+    array_t      go to state 116
+    table_t      go to state 117
+    tup_t        go to state 118
+    sparse_t     go to state 119
+    map_t        go to state 120
+    range_t      go to state 121
+
+
+State 109
+
+  153 adt_t: '{' • adtFields '}'
+
+    '@'     shift, and go to state 29
+    fn      shift, and go to state 106
+    null    shift, and go to state 201
+    i16     shift, and go to state 33
+    i32     shift, and go to state 34
+    i64     shift, and go to state 35
+    f32     shift, and go to state 36
+    f64     shift, and go to state 37
+    bool    shift, and go to state 38
+    char    shift, and go to state 39
+    string  shift, and go to state 92
+    sparse  shift, and go to state 93
+    map     shift, and go to state 107
+    ident   shift, and go to state 11
+    '('     shift, and go to state 108
+    '{'     shift, and go to state 109
+    '['     shift, and go to state 110
+
+    $default  reduce using rule 169 (adtFields)
+
+    symbol       go to state 111
+    type_        go to state 202
+    ordinal_t    go to state 113
+    aggregate_t  go to state 114
+    adt_t        go to state 115
+    array_t      go to state 116
+    table_t      go to state 117
+    tup_t        go to state 118
+    sparse_t     go to state 119
+    map_t        go to state 120
+    range_t      go to state 121
+    adtFields    go to state 203
+    adtFields1   go to state 204
+    adtField     go to state 205
+
+
+State 110
+
+  154 array_t: '[' • int_c type_ ']'
+  155 table_t: '[' • types1_ ']'
+  160 range_t: '[' • DoubleDot ']' type_
+
+    '@'        shift, and go to state 29
+    DoubleDot  shift, and go to state 206
+    fn         shift, and go to state 106
+    i16        shift, and go to state 33
+    i32        shift, and go to state 34
+    i64        shift, and go to state 35
+    f32        shift, and go to state 36
+    f64        shift, and go to state 37
+    bool       shift, and go to state 38
+    char       shift, and go to state 39
+    string     shift, and go to state 92
+    sparse     shift, and go to state 93
+    map        shift, and go to state 107
+    int_c      shift, and go to state 194
+    ident      shift, and go to state 11
+    '('        shift, and go to state 108
+    '{'        shift, and go to state 109
+    '['        shift, and go to state 110
+
+    symbol       go to state 111
+    types1_      go to state 195
+    type_        go to state 196
+    ordinal_t    go to state 113
+    aggregate_t  go to state 114
+    adt_t        go to state 115
+    array_t      go to state 116
+    table_t      go to state 117
+    tup_t        go to state 118
+    sparse_t     go to state 119
+    map_t        go to state 120
+    range_t      go to state 121
+
+
+State 111
+
+  134 type_: symbol •
+
+    $default  reduce using rule 134 (type_)
+
+
+State 112
+
+  144 ordinal_t: '@' type_ •
+
+    $default  reduce using rule 144 (ordinal_t)
+
+
+State 113
+
+  135 type_: ordinal_t •
+
+    $default  reduce using rule 135 (type_)
+
+
+State 114
+
+  136 type_: aggregate_t •
+
+    $default  reduce using rule 136 (type_)
+
+
+State 115
+
+  148 aggregate_t: adt_t •
+
+    $default  reduce using rule 148 (aggregate_t)
+
+
+State 116
+
+  146 aggregate_t: array_t •
+
+    $default  reduce using rule 146 (aggregate_t)
+
+
+State 117
+
+  145 aggregate_t: table_t •
+
+    $default  reduce using rule 145 (aggregate_t)
+
+
+State 118
+
+  147 aggregate_t: tup_t •
+
+    $default  reduce using rule 147 (aggregate_t)
+
+
+State 119
+
+  149 aggregate_t: sparse_t •
+
+    $default  reduce using rule 149 (aggregate_t)
+
+
+State 120
+
+  150 aggregate_t: map_t •
+
+    $default  reduce using rule 150 (aggregate_t)
+
+
+State 121
+
+  151 aggregate_t: range_t •
+
+    $default  reduce using rule 151 (aggregate_t)
+
+
+State 122
+
+   94 expr: '(' exprsA • ')'
+
+    ')'  shift, and go to state 207
+
+
+State 123
+
+  102 expr: '[' mexpr • DoubleDot mexpr ']'
+
+    DoubleDot  shift, and go to state 208
+
+
+State 124
+
+  103 expr: '[' exprsA • ']'
+
+    ']'  shift, and go to state 209
+
+
+State 125
+
+   74 exprs1: expr •
+   75       | expr • ',' exprs1
+   79 mexpr: expr •
+   97 expr: expr • '.' ident
+   98     | expr • '[' expr ']'
+   99     | expr • ':' type_
+  100     | expr • '.' ident '(' exprsA ')'
+  101     | expr • '[' mexpr DoubleDot mexpr ']'
+  110 infix: expr • '+' expr
+  111      | expr • '-' expr
+  112      | expr • '*' expr
+  113      | expr • '/' expr
+  114      | expr • '%' expr
+  115      | expr • '<' expr
+  116      | expr • '>' expr
+  117      | expr • LtEq expr
+  118      | expr • GtEq expr
+  119      | expr • EqEq expr
+  120      | expr • AndAnd expr
+  121      | expr • OrOr expr
+  122      | expr • NotEq expr
+
+    '+'     shift, and go to state 130
+    '-'     shift, and go to state 131
+    '*'     shift, and go to state 132
+    '/'     shift, and go to state 133
+    '%'     shift, and go to state 134
+    '<'     shift, and go to state 135
+    '>'     shift, and go to state 136
+    NotEq   shift, and go to state 137
+    LtEq    shift, and go to state 138
+    GtEq    shift, and go to state 139
+    EqEq    shift, and go to state 140
+    AndAnd  shift, and go to state 141
+    OrOr    shift, and go to state 142
+    '['     shift, and go to state 144
+    ','     shift, and go to state 169
+    '.'     shift, and go to state 145
+    ':'     shift, and go to state 146
+
+    DoubleDot  reduce using rule 79 (mexpr)
+    $default   reduce using rule 74 (exprs1)
+
+
+State 126
+
+   30 scope: Indent • stmts Dedent
+
+    fn      shift, and go to state 1
+    type    shift, and go to state 2
+    if      shift, and go to state 3
+    let     shift, and go to state 4
+    while   shift, and go to state 5
+    return  shift, and go to state 6
+    switch  shift, and go to state 7
+    for     shift, and go to state 9
+    data    shift, and go to state 10
+    ident   shift, and go to state 11
+    '{'     shift, and go to state 12
+
+    $default  reduce using rule 3 (stmts)
+
+    stmts    go to state 210
+    symbol   go to state 16
+    line     go to state 17
+    block    go to state 18
+    if_      go to state 19
+    switch_  go to state 20
+    call     go to state 21
+    index    go to state 22
+
+
+State 127
+
+   45 if_: if condition Newline • else_
+
+    else  shift, and go to state 211
+
+    $default  reduce using rule 48 (else_)
+
+    else_  go to state 212
+
+
+State 128
+
+   31 scope: ';' • line Newline
+   32      | ';' • Newline
+
+    Newline  shift, and go to state 213
+    type     shift, and go to state 2
+    let      shift, and go to state 4
+    return   shift, and go to state 6
+    data     shift, and go to state 10
+    ident    shift, and go to state 11
+    '{'      shift, and go to state 12
+
+    symbol  go to state 16
+    line    go to state 214
+    call    go to state 21
+    index   go to state 22
+
+
+State 129
+
+   44 if_: if condition scope • else_
+
+    else  shift, and go to state 211
+
+    $default  reduce using rule 48 (else_)
+
+    else_  go to state 215
+
+
+State 130
+
+  110 infix: expr '+' • expr
+
+    '+'       shift, and go to state 26
+    '-'       shift, and go to state 27
+    '!'       shift, and go to state 28
+    '@'       shift, and go to state 29
+    true      shift, and go to state 30
+    false     shift, and go to state 31
+    null      shift, and go to state 32
+    i16       shift, and go to state 33
+    i32       shift, and go to state 34
+    i64       shift, and go to state 35
+    f32       shift, and go to state 36
+    f64       shift, and go to state 37
+    bool      shift, and go to state 38
+    char      shift, and go to state 39
+    int_c     shift, and go to state 40
+    float_c   shift, and go to state 41
+    char_c    shift, and go to state 42
+    string_c  shift, and go to state 43
+    ident     shift, and go to state 11
+    '('       shift, and go to state 44
+    '{'       shift, and go to state 12
+    '['       shift, and go to state 45
+
+    symbol     go to state 46
+    call       go to state 48
+    expr       go to state 216
+    literal    go to state 50
+    infix      go to state 51
+    prefix     go to state 52
+    ordinal_t  go to state 53
+
+
+State 131
+
+  111 infix: expr '-' • expr
+
+    '+'       shift, and go to state 26
+    '-'       shift, and go to state 27
+    '!'       shift, and go to state 28
+    '@'       shift, and go to state 29
+    true      shift, and go to state 30
+    false     shift, and go to state 31
+    null      shift, and go to state 32
+    i16       shift, and go to state 33
+    i32       shift, and go to state 34
+    i64       shift, and go to state 35
+    f32       shift, and go to state 36
+    f64       shift, and go to state 37
+    bool      shift, and go to state 38
+    char      shift, and go to state 39
+    int_c     shift, and go to state 40
+    float_c   shift, and go to state 41
+    char_c    shift, and go to state 42
+    string_c  shift, and go to state 43
+    ident     shift, and go to state 11
+    '('       shift, and go to state 44
+    '{'       shift, and go to state 12
+    '['       shift, and go to state 45
+
+    symbol     go to state 46
+    call       go to state 48
+    expr       go to state 217
+    literal    go to state 50
+    infix      go to state 51
+    prefix     go to state 52
+    ordinal_t  go to state 53
+
+
+State 132
+
+  112 infix: expr '*' • expr
+
+    '+'       shift, and go to state 26
+    '-'       shift, and go to state 27
+    '!'       shift, and go to state 28
+    '@'       shift, and go to state 29
+    true      shift, and go to state 30
+    false     shift, and go to state 31
+    null      shift, and go to state 32
+    i16       shift, and go to state 33
+    i32       shift, and go to state 34
+    i64       shift, and go to state 35
+    f32       shift, and go to state 36
+    f64       shift, and go to state 37
+    bool      shift, and go to state 38
+    char      shift, and go to state 39
+    int_c     shift, and go to state 40
+    float_c   shift, and go to state 41
+    char_c    shift, and go to state 42
+    string_c  shift, and go to state 43
+    ident     shift, and go to state 11
+    '('       shift, and go to state 44
+    '{'       shift, and go to state 12
+    '['       shift, and go to state 45
+
+    symbol     go to state 46
+    call       go to state 48
+    expr       go to state 218
+    literal    go to state 50
+    infix      go to state 51
+    prefix     go to state 52
+    ordinal_t  go to state 53
+
+
+State 133
+
+  113 infix: expr '/' • expr
+
+    '+'       shift, and go to state 26
+    '-'       shift, and go to state 27
+    '!'       shift, and go to state 28
+    '@'       shift, and go to state 29
+    true      shift, and go to state 30
+    false     shift, and go to state 31
+    null      shift, and go to state 32
+    i16       shift, and go to state 33
+    i32       shift, and go to state 34
+    i64       shift, and go to state 35
+    f32       shift, and go to state 36
+    f64       shift, and go to state 37
+    bool      shift, and go to state 38
+    char      shift, and go to state 39
+    int_c     shift, and go to state 40
+    float_c   shift, and go to state 41
+    char_c    shift, and go to state 42
+    string_c  shift, and go to state 43
+    ident     shift, and go to state 11
+    '('       shift, and go to state 44
+    '{'       shift, and go to state 12
+    '['       shift, and go to state 45
+
+    symbol     go to state 46
+    call       go to state 48
+    expr       go to state 219
+    literal    go to state 50
+    infix      go to state 51
+    prefix     go to state 52
+    ordinal_t  go to state 53
+
+
+State 134
+
+  114 infix: expr '%' • expr
+
+    '+'       shift, and go to state 26
+    '-'       shift, and go to state 27
+    '!'       shift, and go to state 28
+    '@'       shift, and go to state 29
+    true      shift, and go to state 30
+    false     shift, and go to state 31
+    null      shift, and go to state 32
+    i16       shift, and go to state 33
+    i32       shift, and go to state 34
+    i64       shift, and go to state 35
+    f32       shift, and go to state 36
+    f64       shift, and go to state 37
+    bool      shift, and go to state 38
+    char      shift, and go to state 39
+    int_c     shift, and go to state 40
+    float_c   shift, and go to state 41
+    char_c    shift, and go to state 42
+    string_c  shift, and go to state 43
+    ident     shift, and go to state 11
+    '('       shift, and go to state 44
+    '{'       shift, and go to state 12
+    '['       shift, and go to state 45
+
+    symbol     go to state 46
+    call       go to state 48
+    expr       go to state 220
+    literal    go to state 50
+    infix      go to state 51
+    prefix     go to state 52
+    ordinal_t  go to state 53
+
+
+State 135
+
+  115 infix: expr '<' • expr
+
+    '+'       shift, and go to state 26
+    '-'       shift, and go to state 27
+    '!'       shift, and go to state 28
+    '@'       shift, and go to state 29
+    true      shift, and go to state 30
+    false     shift, and go to state 31
+    null      shift, and go to state 32
+    i16       shift, and go to state 33
+    i32       shift, and go to state 34
+    i64       shift, and go to state 35
+    f32       shift, and go to state 36
+    f64       shift, and go to state 37
+    bool      shift, and go to state 38
+    char      shift, and go to state 39
+    int_c     shift, and go to state 40
+    float_c   shift, and go to state 41
+    char_c    shift, and go to state 42
+    string_c  shift, and go to state 43
+    ident     shift, and go to state 11
+    '('       shift, and go to state 44
+    '{'       shift, and go to state 12
+    '['       shift, and go to state 45
+
+    symbol     go to state 46
+    call       go to state 48
+    expr       go to state 221
+    literal    go to state 50
+    infix      go to state 51
+    prefix     go to state 52
+    ordinal_t  go to state 53
+
+
+State 136
+
+  116 infix: expr '>' • expr
+
+    '+'       shift, and go to state 26
+    '-'       shift, and go to state 27
+    '!'       shift, and go to state 28
+    '@'       shift, and go to state 29
+    true      shift, and go to state 30
+    false     shift, and go to state 31
+    null      shift, and go to state 32
+    i16       shift, and go to state 33
+    i32       shift, and go to state 34
+    i64       shift, and go to state 35
+    f32       shift, and go to state 36
+    f64       shift, and go to state 37
+    bool      shift, and go to state 38
+    char      shift, and go to state 39
+    int_c     shift, and go to state 40
+    float_c   shift, and go to state 41
+    char_c    shift, and go to state 42
+    string_c  shift, and go to state 43
+    ident     shift, and go to state 11
+    '('       shift, and go to state 44
+    '{'       shift, and go to state 12
+    '['       shift, and go to state 45
+
+    symbol     go to state 46
+    call       go to state 48
+    expr       go to state 222
+    literal    go to state 50
+    infix      go to state 51
+    prefix     go to state 52
+    ordinal_t  go to state 53
+
+
+State 137
+
+  122 infix: expr NotEq • expr
+
+    '+'       shift, and go to state 26
+    '-'       shift, and go to state 27
+    '!'       shift, and go to state 28
+    '@'       shift, and go to state 29
+    true      shift, and go to state 30
+    false     shift, and go to state 31
+    null      shift, and go to state 32
+    i16       shift, and go to state 33
+    i32       shift, and go to state 34
+    i64       shift, and go to state 35
+    f32       shift, and go to state 36
+    f64       shift, and go to state 37
+    bool      shift, and go to state 38
+    char      shift, and go to state 39
+    int_c     shift, and go to state 40
+    float_c   shift, and go to state 41
+    char_c    shift, and go to state 42
+    string_c  shift, and go to state 43
+    ident     shift, and go to state 11
+    '('       shift, and go to state 44
+    '{'       shift, and go to state 12
+    '['       shift, and go to state 45
+
+    symbol     go to state 46
+    call       go to state 48
+    expr       go to state 223
+    literal    go to state 50
+    infix      go to state 51
+    prefix     go to state 52
+    ordinal_t  go to state 53
+
+
+State 138
+
+  117 infix: expr LtEq • expr
+
+    '+'       shift, and go to state 26
+    '-'       shift, and go to state 27
+    '!'       shift, and go to state 28
+    '@'       shift, and go to state 29
+    true      shift, and go to state 30
+    false     shift, and go to state 31
+    null      shift, and go to state 32
+    i16       shift, and go to state 33
+    i32       shift, and go to state 34
+    i64       shift, and go to state 35
+    f32       shift, and go to state 36
+    f64       shift, and go to state 37
+    bool      shift, and go to state 38
+    char      shift, and go to state 39
+    int_c     shift, and go to state 40
+    float_c   shift, and go to state 41
+    char_c    shift, and go to state 42
+    string_c  shift, and go to state 43
+    ident     shift, and go to state 11
+    '('       shift, and go to state 44
+    '{'       shift, and go to state 12
+    '['       shift, and go to state 45
+
+    symbol     go to state 46
+    call       go to state 48
+    expr       go to state 224
+    literal    go to state 50
+    infix      go to state 51
+    prefix     go to state 52
+    ordinal_t  go to state 53
+
+
+State 139
+
+  118 infix: expr GtEq • expr
+
+    '+'       shift, and go to state 26
+    '-'       shift, and go to state 27
+    '!'       shift, and go to state 28
+    '@'       shift, and go to state 29
+    true      shift, and go to state 30
+    false     shift, and go to state 31
+    null      shift, and go to state 32
+    i16       shift, and go to state 33
+    i32       shift, and go to state 34
+    i64       shift, and go to state 35
+    f32       shift, and go to state 36
+    f64       shift, and go to state 37
+    bool      shift, and go to state 38
+    char      shift, and go to state 39
+    int_c     shift, and go to state 40
+    float_c   shift, and go to state 41
+    char_c    shift, and go to state 42
+    string_c  shift, and go to state 43
+    ident     shift, and go to state 11
+    '('       shift, and go to state 44
+    '{'       shift, and go to state 12
+    '['       shift, and go to state 45
+
+    symbol     go to state 46
+    call       go to state 48
+    expr       go to state 225
+    literal    go to state 50
+    infix      go to state 51
+    prefix     go to state 52
+    ordinal_t  go to state 53
+
+
+State 140
+
+  119 infix: expr EqEq • expr
+
+    '+'       shift, and go to state 26
+    '-'       shift, and go to state 27
+    '!'       shift, and go to state 28
+    '@'       shift, and go to state 29
+    true      shift, and go to state 30
+    false     shift, and go to state 31
+    null      shift, and go to state 32
+    i16       shift, and go to state 33
+    i32       shift, and go to state 34
+    i64       shift, and go to state 35
+    f32       shift, and go to state 36
+    f64       shift, and go to state 37
+    bool      shift, and go to state 38
+    char      shift, and go to state 39
+    int_c     shift, and go to state 40
+    float_c   shift, and go to state 41
+    char_c    shift, and go to state 42
+    string_c  shift, and go to state 43
+    ident     shift, and go to state 11
+    '('       shift, and go to state 44
+    '{'       shift, and go to state 12
+    '['       shift, and go to state 45
+
+    symbol     go to state 46
+    call       go to state 48
+    expr       go to state 226
+    literal    go to state 50
+    infix      go to state 51
+    prefix     go to state 52
+    ordinal_t  go to state 53
+
+
+State 141
+
+  120 infix: expr AndAnd • expr
+
+    '+'       shift, and go to state 26
+    '-'       shift, and go to state 27
+    '!'       shift, and go to state 28
+    '@'       shift, and go to state 29
+    true      shift, and go to state 30
+    false     shift, and go to state 31
+    null      shift, and go to state 32
+    i16       shift, and go to state 33
+    i32       shift, and go to state 34
+    i64       shift, and go to state 35
+    f32       shift, and go to state 36
+    f64       shift, and go to state 37
+    bool      shift, and go to state 38
+    char      shift, and go to state 39
+    int_c     shift, and go to state 40
+    float_c   shift, and go to state 41
+    char_c    shift, and go to state 42
+    string_c  shift, and go to state 43
+    ident     shift, and go to state 11
+    '('       shift, and go to state 44
+    '{'       shift, and go to state 12
+    '['       shift, and go to state 45
+
+    symbol     go to state 46
+    call       go to state 48
+    expr       go to state 227
+    literal    go to state 50
+    infix      go to state 51
+    prefix     go to state 52
+    ordinal_t  go to state 53
+
+
+State 142
+
+  121 infix: expr OrOr • expr
+
+    '+'       shift, and go to state 26
+    '-'       shift, and go to state 27
+    '!'       shift, and go to state 28
+    '@'       shift, and go to state 29
+    true      shift, and go to state 30
+    false     shift, and go to state 31
+    null      shift, and go to state 32
+    i16       shift, and go to state 33
+    i32       shift, and go to state 34
+    i64       shift, and go to state 35
+    f32       shift, and go to state 36
+    f64       shift, and go to state 37
+    bool      shift, and go to state 38
+    char      shift, and go to state 39
+    int_c     shift, and go to state 40
+    float_c   shift, and go to state 41
+    char_c    shift, and go to state 42
+    string_c  shift, and go to state 43
+    ident     shift, and go to state 11
+    '('       shift, and go to state 44
+    '{'       shift, and go to state 12
+    '['       shift, and go to state 45
+
+    symbol     go to state 46
+    call       go to state 48
+    expr       go to state 228
+    literal    go to state 50
+    infix      go to state 51
+    prefix     go to state 52
+    ordinal_t  go to state 53
+
+
+State 143
+
+   34 condition: expr RArrow • pattern
+
+    '-'       shift, and go to state 54
+    '@'       shift, and go to state 29
+    true      shift, and go to state 30
+    false     shift, and go to state 31
+    null      shift, and go to state 55
+    i16       shift, and go to state 33
+    i32       shift, and go to state 34
+    i64       shift, and go to state 35
+    f32       shift, and go to state 36
+    f64       shift, and go to state 37
+    bool      shift, and go to state 38
+    char      shift, and go to state 39
+    int_c     shift, and go to state 40
+    float_c   shift, and go to state 41
+    char_c    shift, and go to state 42
+    string_c  shift, and go to state 43
+    ident     shift, and go to state 56
+    '('       shift, and go to state 57
+    '['       shift, and go to state 58
+    '_'       shift, and go to state 59
+
+    symbol     go to state 60
+    pattern    go to state 229
+    literal    go to state 62
+    ordinal_t  go to state 63
+
+
+State 144
+
+   98 expr: expr '[' • expr ']'
+  101     | expr '[' • mexpr DoubleDot mexpr ']'
+
+    '+'       shift, and go to state 26
+    '-'       shift, and go to state 27
+    '!'       shift, and go to state 28
+    '@'       shift, and go to state 29
+    true      shift, and go to state 30
+    false     shift, and go to state 31
+    null      shift, and go to state 32
+    i16       shift, and go to state 33
+    i32       shift, and go to state 34
+    i64       shift, and go to state 35
+    f32       shift, and go to state 36
+    f64       shift, and go to state 37
+    bool      shift, and go to state 38
+    char      shift, and go to state 39
+    int_c     shift, and go to state 40
+    float_c   shift, and go to state 41
+    char_c    shift, and go to state 42
+    string_c  shift, and go to state 43
+    ident     shift, and go to state 11
+    '('       shift, and go to state 44
+    '{'       shift, and go to state 12
+    '['       shift, and go to state 45
+
+    $default  reduce using rule 78 (mexpr)
+
+    symbol     go to state 46
+    mexpr      go to state 230
+    call       go to state 48
+    expr       go to state 231
+    literal    go to state 50
+    infix      go to state 51
+    prefix     go to state 52
+    ordinal_t  go to state 53
+
+
+State 145
+
+   97 expr: expr '.' • ident
+  100     | expr '.' • ident '(' exprsA ')'
+
+    ident  shift, and go to state 232
+
+
+State 146
+
+   99 expr: expr ':' • type_
+
+    '@'     shift, and go to state 29
+    fn      shift, and go to state 106
+    i16     shift, and go to state 33
+    i32     shift, and go to state 34
+    i64     shift, and go to state 35
+    f32     shift, and go to state 36
+    f64     shift, and go to state 37
+    bool    shift, and go to state 38
+    char    shift, and go to state 39
+    string  shift, and go to state 92
+    sparse  shift, and go to state 93
+    map     shift, and go to state 107
+    ident   shift, and go to state 11
+    '('     shift, and go to state 108
+    '{'     shift, and go to state 109
+    '['     shift, and go to state 110
+
+    symbol       go to state 111
+    type_        go to state 233
+    ordinal_t    go to state 113
+    aggregate_t  go to state 114
+    adt_t        go to state 115
+    array_t      go to state 116
+    table_t      go to state 117
+    tup_t        go to state 118
+    sparse_t     go to state 119
+    map_t        go to state 120
+    range_t      go to state 121
+
+
+State 147
+
+   95 expr: ordinal_t '(' • exprsA ')'
+
+    Indent    shift, and go to state 72
+    '+'       shift, and go to state 26
+    '-'       shift, and go to state 27
+    '!'       shift, and go to state 28
+    '@'       shift, and go to state 29
+    true      shift, and go to state 30
+    false     shift, and go to state 31
+    null      shift, and go to state 32
+    i16       shift, and go to state 33
+    i32       shift, and go to state 34
+    i64       shift, and go to state 35
+    f32       shift, and go to state 36
+    f64       shift, and go to state 37
+    bool      shift, and go to state 38
+    char      shift, and go to state 39
+    int_c     shift, and go to state 40
+    float_c   shift, and go to state 41
+    char_c    shift, and go to state 42
+    string_c  shift, and go to state 43
+    ident     shift, and go to state 11
+    '('       shift, and go to state 44
+    '{'       shift, and go to state 12
+    '['       shift, and go to state 45
+
+    $default  reduce using rule 72 (exprs)
+
+    symbol     go to state 46
+    exprs      go to state 73
+    exprs1     go to state 74
+    exprsA     go to state 234
+    call       go to state 48
+    expr       go to state 76
+    literal    go to state 50
+    infix      go to state 51
+    prefix     go to state 52
+    ordinal_t  go to state 53
+
+
+State 148
+
+   62 pattern: '-' int_c •
+
+    $default  reduce using rule 62 (pattern)
+
+
+State 149
+
+   65 pattern: '(' patterns • ')'
+
+    ')'  shift, and go to state 235
+
+
+State 150
+
+   55 patterns: patterns1 •
+
+    $default  reduce using rule 55 (patterns)
+
+
+State 151
+
+   56 patterns1: pattern •
+   57          | pattern • ',' patterns1
+   67 pattern: pattern • '|' expr
+   68        | pattern • '|' expr RArrow pattern
+   71        | pattern • ':' type_
+
+    '|'  shift, and go to state 156
+    ','  shift, and go to state 236
+    ':'  shift, and go to state 157
+
+    $default  reduce using rule 56 (patterns1)
+
+
+State 152
+
+   58 patternsSem: patterns •
+   59            | patterns • ';' patternsSem
+
+    ';'  shift, and go to state 237
+
+    $default  reduce using rule 58 (patternsSem)
+
+
+State 153
+
+   66 pattern: '[' patternsSem • ']'
+
+    ']'  shift, and go to state 238
+
+
+State 154
+
+   69 pattern: symbol '(' • patterns ')'
+
+    '-'       shift, and go to state 54
+    '@'       shift, and go to state 29
+    true      shift, and go to state 30
+    false     shift, and go to state 31
+    null      shift, and go to state 55
+    i16       shift, and go to state 33
+    i32       shift, and go to state 34
+    i64       shift, and go to state 35
+    f32       shift, and go to state 36
+    f64       shift, and go to state 37
+    bool      shift, and go to state 38
+    char      shift, and go to state 39
+    int_c     shift, and go to state 40
+    float_c   shift, and go to state 41
+    char_c    shift, and go to state 42
+    string_c  shift, and go to state 43
+    ident     shift, and go to state 56
+    '('       shift, and go to state 57
+    '['       shift, and go to state 58
+    '_'       shift, and go to state 59
+
+    $default  reduce using rule 54 (patterns)
+
+    symbol     go to state 60
+    patterns   go to state 239
+    patterns1  go to state 150
+    pattern    go to state 151
+    literal    go to state 62
+    ordinal_t  go to state 63
+
+
+State 155
+
+   18 line: let pattern '=' • expr
+
+    '+'       shift, and go to state 26
+    '-'       shift, and go to state 27
+    '!'       shift, and go to state 28
+    '@'       shift, and go to state 29
+    true      shift, and go to state 30
+    false     shift, and go to state 31
+    null      shift, and go to state 32
+    i16       shift, and go to state 33
+    i32       shift, and go to state 34
+    i64       shift, and go to state 35
+    f32       shift, and go to state 36
+    f64       shift, and go to state 37
+    bool      shift, and go to state 38
+    char      shift, and go to state 39
+    int_c     shift, and go to state 40
+    float_c   shift, and go to state 41
+    char_c    shift, and go to state 42
+    string_c  shift, and go to state 43
+    ident     shift, and go to state 11
+    '('       shift, and go to state 44
+    '{'       shift, and go to state 12
+    '['       shift, and go to state 45
+
+    symbol     go to state 46
+    call       go to state 48
+    expr       go to state 240
+    literal    go to state 50
+    infix      go to state 51
+    prefix     go to state 52
+    ordinal_t  go to state 53
+
+
+State 156
+
+   67 pattern: pattern '|' • expr
+   68        | pattern '|' • expr RArrow pattern
+
+    '+'       shift, and go to state 26
+    '-'       shift, and go to state 27
+    '!'       shift, and go to state 28
+    '@'       shift, and go to state 29
+    true      shift, and go to state 30
+    false     shift, and go to state 31
+    null      shift, and go to state 32
+    i16       shift, and go to state 33
+    i32       shift, and go to state 34
+    i64       shift, and go to state 35
+    f32       shift, and go to state 36
+    f64       shift, and go to state 37
+    bool      shift, and go to state 38
+    char      shift, and go to state 39
+    int_c     shift, and go to state 40
+    float_c   shift, and go to state 41
+    char_c    shift, and go to state 42
+    string_c  shift, and go to state 43
+    ident     shift, and go to state 11
+    '('       shift, and go to state 44
+    '{'       shift, and go to state 12
+    '['       shift, and go to state 45
+
+    symbol     go to state 46
+    call       go to state 48
+    expr       go to state 241
+    literal    go to state 50
+    infix      go to state 51
+    prefix     go to state 52
+    ordinal_t  go to state 53
+
+
+State 157
+
+   71 pattern: pattern ':' • type_
+
+    '@'     shift, and go to state 29
+    fn      shift, and go to state 106
+    i16     shift, and go to state 33
+    i32     shift, and go to state 34
+    i64     shift, and go to state 35
+    f32     shift, and go to state 36
+    f64     shift, and go to state 37
+    bool    shift, and go to state 38
+    char    shift, and go to state 39
+    string  shift, and go to state 92
+    sparse  shift, and go to state 93
+    map     shift, and go to state 107
+    ident   shift, and go to state 11
+    '('     shift, and go to state 108
+    '{'     shift, and go to state 109
+    '['     shift, and go to state 110
+
+    symbol       go to state 111
+    type_        go to state 242
+    ordinal_t    go to state 113
+    aggregate_t  go to state 114
+    adt_t        go to state 115
+    array_t      go to state 116
+    table_t      go to state 117
+    tup_t        go to state 118
+    sparse_t     go to state 119
+    map_t        go to state 120
+    range_t      go to state 121
+
+
+State 158
+
+   70 pattern: ordinal_t '(' • pattern ')'
+
+    '-'       shift, and go to state 54
+    '@'       shift, and go to state 29
+    true      shift, and go to state 30
+    false     shift, and go to state 31
+    null      shift, and go to state 55
+    i16       shift, and go to state 33
+    i32       shift, and go to state 34
+    i64       shift, and go to state 35
+    f32       shift, and go to state 36
+    f64       shift, and go to state 37
+    bool      shift, and go to state 38
+    char      shift, and go to state 39
+    int_c     shift, and go to state 40
+    float_c   shift, and go to state 41
+    char_c    shift, and go to state 42
+    string_c  shift, and go to state 43
+    ident     shift, and go to state 56
+    '('       shift, and go to state 57
+    '['       shift, and go to state 58
+    '_'       shift, and go to state 59
+
+    symbol     go to state 60
+    pattern    go to state 243
+    literal    go to state 62
+    ordinal_t  go to state 63
+
+
+State 159
+
+   26 block: while condition scope •
+
+    $default  reduce using rule 26 (block)
+
+
+State 160
+
+   49 switch_: switch expr Indent • cases1 Dedent
+
+    '-'       shift, and go to state 54
+    '@'       shift, and go to state 29
+    true      shift, and go to state 30
+    false     shift, and go to state 31
+    null      shift, and go to state 55
+    i16       shift, and go to state 33
+    i32       shift, and go to state 34
+    i64       shift, and go to state 35
+    f32       shift, and go to state 36
+    f64       shift, and go to state 37
+    bool      shift, and go to state 38
+    char      shift, and go to state 39
+    int_c     shift, and go to state 40
+    float_c   shift, and go to state 41
+    char_c    shift, and go to state 42
+    string_c  shift, and go to state 43
+    ident     shift, and go to state 56
+    '('       shift, and go to state 57
+    '['       shift, and go to state 58
+    '_'       shift, and go to state 59
+
+    symbol     go to state 60
+    cases1     go to state 244
+    case       go to state 245
+    pattern    go to state 246
+    literal    go to state 62
+    ordinal_t  go to state 63
+
+
+State 161
+
+    6 header: module ident Newline • imports
+
+    import    shift, and go to state 247
+    import_c  shift, and go to state 248
+
+    $default  reduce using rule 7 (imports)
+
+    imports  go to state 249
+
+
+State 162
+
+   28 block: for expr RArrow • pattern scope
+
+    '-'       shift, and go to state 54
+    '@'       shift, and go to state 29
+    true      shift, and go to state 30
+    false     shift, and go to state 31
+    null      shift, and go to state 55
+    i16       shift, and go to state 33
+    i32       shift, and go to state 34
+    i64       shift, and go to state 35
+    f32       shift, and go to state 36
+    f64       shift, and go to state 37
+    bool      shift, and go to state 38
+    char      shift, and go to state 39
+    int_c     shift, and go to state 40
+    float_c   shift, and go to state 41
+    char_c    shift, and go to state 42
+    string_c  shift, and go to state 43
+    ident     shift, and go to state 56
+    '('       shift, and go to state 57
+    '['       shift, and go to state 58
+    '_'       shift, and go to state 59
+
+    symbol     go to state 60
+    pattern    go to state 250
+    literal    go to state 62
+    ordinal_t  go to state 63
+
+
+State 163
+
+   27 block: for expr scope •
+
+    $default  reduce using rule 27 (block)
+
+
+State 164
+
+   23 line: data symbol type_ • minitialiser
+
+    string_c  shift, and go to state 251
+    '{'       shift, and go to state 252
+
+    $default  reduce using rule 17 (minitialiser)
+
+    initialiser   go to state 253
+    minitialiser  go to state 254
+
+
+State 165
+
+   11 symbol: ident DoubleColon ident •
+
+    $default  reduce using rule 11 (symbol)
+
+
+State 166
+
+   81 exprsA: Indent exprsN • Dedent
+
+    Dedent  shift, and go to state 255
+
+
+State 167
+
+   76 exprsN: expr • Newline
+   77       | expr • Newline exprsN
+   97 expr: expr • '.' ident
+   98     | expr • '[' expr ']'
+   99     | expr • ':' type_
+  100     | expr • '.' ident '(' exprsA ')'
+  101     | expr • '[' mexpr DoubleDot mexpr ']'
+  110 infix: expr • '+' expr
+  111      | expr • '-' expr
+  112      | expr • '*' expr
+  113      | expr • '/' expr
+  114      | expr • '%' expr
+  115      | expr • '<' expr
+  116      | expr • '>' expr
+  117      | expr • LtEq expr
+  118      | expr • GtEq expr
+  119      | expr • EqEq expr
+  120      | expr • AndAnd expr
+  121      | expr • OrOr expr
+  122      | expr • NotEq expr
+
+    Newline  shift, and go to state 256
+    '+'      shift, and go to state 130
+    '-'      shift, and go to state 131
+    '*'      shift, and go to state 132
+    '/'      shift, and go to state 133
+    '%'      shift, and go to state 134
+    '<'      shift, and go to state 135
+    '>'      shift, and go to state 136
+    NotEq    shift, and go to state 137
+    LtEq     shift, and go to state 138
+    GtEq     shift, and go to state 139
+    EqEq     shift, and go to state 140
+    AndAnd   shift, and go to state 141
+    OrOr     shift, and go to state 142
+    '['      shift, and go to state 144
+    '.'      shift, and go to state 145
+    ':'      shift, and go to state 146
+
+
+State 168
+
+   83 call: '{' exprsA '}' • '.' ident '(' exprsA ')'
+
+    '.'  shift, and go to state 257
+
+
+State 169
+
+   75 exprs1: expr ',' • exprs1
+
+    '+'       shift, and go to state 26
+    '-'       shift, and go to state 27
+    '!'       shift, and go to state 28
+    '@'       shift, and go to state 29
+    true      shift, and go to state 30
+    false     shift, and go to state 31
+    null      shift, and go to state 32
+    i16       shift, and go to state 33
+    i32       shift, and go to state 34
+    i64       shift, and go to state 35
+    f32       shift, and go to state 36
+    f64       shift, and go to state 37
+    bool      shift, and go to state 38
+    char      shift, and go to state 39
+    int_c     shift, and go to state 40
+    float_c   shift, and go to state 41
+    char_c    shift, and go to state 42
+    string_c  shift, and go to state 43
+    ident     shift, and go to state 11
+    '('       shift, and go to state 44
+    '{'       shift, and go to state 12
+    '['       shift, and go to state 45
+
+    symbol     go to state 46
+    exprs1     go to state 258
+    call       go to state 48
+    expr       go to state 76
+    literal    go to state 50
+    infix      go to state 51
+    prefix     go to state 52
+    ordinal_t  go to state 53
+
+
+State 170
+
+   82 call: symbol '(' exprsA • ')'
+
+    ')'  shift, and go to state 259
+
+
+State 171
+
+    4 stmts: line Newline stmts •
+
+    $default  reduce using rule 4 (stmts)
+
+
+State 172
+
+   19 line: index '=' expr •
+   97 expr: expr • '.' ident
+   98     | expr • '[' expr ']'
+   99     | expr • ':' type_
+  100     | expr • '.' ident '(' exprsA ')'
+  101     | expr • '[' mexpr DoubleDot mexpr ']'
+  110 infix: expr • '+' expr
+  111      | expr • '-' expr
+  112      | expr • '*' expr
+  113      | expr • '/' expr
+  114      | expr • '%' expr
+  115      | expr • '<' expr
+  116      | expr • '>' expr
+  117      | expr • LtEq expr
+  118      | expr • GtEq expr
+  119      | expr • EqEq expr
+  120      | expr • AndAnd expr
+  121      | expr • OrOr expr
+  122      | expr • NotEq expr
+
+    '+'     shift, and go to state 130
+    '-'     shift, and go to state 131
+    '*'     shift, and go to state 132
+    '/'     shift, and go to state 133
+    '%'     shift, and go to state 134
+    '<'     shift, and go to state 135
+    '>'     shift, and go to state 136
+    NotEq   shift, and go to state 137
+    LtEq    shift, and go to state 138
+    GtEq    shift, and go to state 139
+    EqEq    shift, and go to state 140
+    AndAnd  shift, and go to state 141
+    OrOr    shift, and go to state 142
+    '['     shift, and go to state 144
+    '.'     shift, and go to state 145
+    ':'     shift, and go to state 146
+
+    $default  reduce using rule 19 (line)
+
+
+State 173
+
+   85 index: index '[' expr • ']'
+   97 expr: expr • '.' ident
+   98     | expr • '[' expr ']'
+   99     | expr • ':' type_
+  100     | expr • '.' ident '(' exprsA ')'
+  101     | expr • '[' mexpr DoubleDot mexpr ']'
+  110 infix: expr • '+' expr
+  111      | expr • '-' expr
+  112      | expr • '*' expr
+  113      | expr • '/' expr
+  114      | expr • '%' expr
+  115      | expr • '<' expr
+  116      | expr • '>' expr
+  117      | expr • LtEq expr
+  118      | expr • GtEq expr
+  119      | expr • EqEq expr
+  120      | expr • AndAnd expr
+  121      | expr • OrOr expr
+  122      | expr • NotEq expr
+
+    '+'     shift, and go to state 130
+    '-'     shift, and go to state 131
+    '*'     shift, and go to state 132
+    '/'     shift, and go to state 133
+    '%'     shift, and go to state 134
+    '<'     shift, and go to state 135
+    '>'     shift, and go to state 136
+    NotEq   shift, and go to state 137
+    LtEq    shift, and go to state 138
+    GtEq    shift, and go to state 139
+    EqEq    shift, and go to state 140
+    AndAnd  shift, and go to state 141
+    OrOr    shift, and go to state 142
+    '['     shift, and go to state 144
+    ']'     shift, and go to state 260
+    '.'     shift, and go to state 145
+    ':'     shift, and go to state 146
+
+
+State 174
+
+   10 symbol: ident •
+   11       | ident • DoubleColon ident
+   86 index: index '.' ident •
+
+    DoubleColon  shift, and go to state 71
+
+    '('       reduce using rule 10 (symbol)
+    $default  reduce using rule 86 (index)
+
+
+State 175
+
+   87 index: index '.' symbol • '(' exprsA ')'
+
+    '('  shift, and go to state 261
+
+
+State 176
+
+   40 paramsN: param • Newline
+   41        | param • Newline paramsN
+
+    Newline  shift, and go to state 262
+
+
+State 177
+
+   43 paramsA: Indent paramsN • Dedent
+
+    Dedent  shift, and go to state 263
+
+
+State 178
+
+   35 param: ident type_ •
+
+    $default  reduce using rule 35 (param)
+
+
+State 179
+
+   39 params1: param ',' • params1
+
+    ident  shift, and go to state 86
+
+    param    go to state 87
+    params1  go to state 264
+
+
+State 180
+
+   13 mfnrec: '{' paramsA '}' •
+
+    $default  reduce using rule 13 (mfnrec)
+
+
+State 181
+
+   25 block: fn mfnrec ident '(' • paramsA ')' mtype scope
+
+    Indent  shift, and go to state 85
+    ident   shift, and go to state 86
+
+    $default  reduce using rule 36 (params)
+
+    param    go to state 87
+    params   go to state 88
+    params1  go to state 89
+    paramsA  go to state 265
+
+
+State 182
+
+  158 sparse_t: sparse '[' • types1_ ']'
+
+    '@'     shift, and go to state 29
+    fn      shift, and go to state 106
+    i16     shift, and go to state 33
+    i32     shift, and go to state 34
+    i64     shift, and go to state 35
+    f32     shift, and go to state 36
+    f64     shift, and go to state 37
+    bool    shift, and go to state 38
+    char    shift, and go to state 39
+    string  shift, and go to state 92
+    sparse  shift, and go to state 93
+    map     shift, and go to state 107
+    ident   shift, and go to state 11
+    '('     shift, and go to state 108
+    '{'     shift, and go to state 109
+    '['     shift, and go to state 110
+
+    symbol       go to state 111
+    types1_      go to state 266
+    type_        go to state 196
+    ordinal_t    go to state 113
+    aggregate_t  go to state 114
+    adt_t        go to state 115
+    array_t      go to state 116
+    table_t      go to state 117
+    tup_t        go to state 118
+    sparse_t     go to state 119
+    map_t        go to state 120
+    range_t      go to state 121
+
+
+State 183
+
+   10 symbol: ident •
+   11       | ident • DoubleColon ident
+   35 param: ident • type_
+
+    '@'          shift, and go to state 29
+    DoubleColon  shift, and go to state 71
+    fn           shift, and go to state 106
+    i16          shift, and go to state 33
+    i32          shift, and go to state 34
+    i64          shift, and go to state 35
+    f32          shift, and go to state 36
+    f64          shift, and go to state 37
+    bool         shift, and go to state 38
+    char         shift, and go to state 39
+    string       shift, and go to state 92
+    sparse       shift, and go to state 93
+    map          shift, and go to state 107
+    ident        shift, and go to state 11
+    '('          shift, and go to state 108
+    '{'          shift, and go to state 109
+    '['          shift, and go to state 110
+
+    $default  reduce using rule 10 (symbol)
+
+    symbol       go to state 111
+    type_        go to state 178
+    ordinal_t    go to state 113
+    aggregate_t  go to state 114
+    adt_t        go to state 115
+    array_t      go to state 116
+    table_t      go to state 117
+    tup_t        go to state 118
+    sparse_t     go to state 119
+    map_t        go to state 120
+    range_t      go to state 121
+
+
+State 184
+
+  164 anno_t: '(' paramsA • ')'
+
+    ')'  shift, and go to state 267
+
+
+State 185
+
+  163 anno_t: '(' types1 • ')'
+
+    ')'  shift, and go to state 268
+
+
+State 186
+
+  130 types1: type_ •
+  131       | type_ • ',' types1
+
+    ','  shift, and go to state 269
+
+    $default  reduce using rule 130 (types1)
+
+
+State 187
+
+  176 ADTFieldsA: Indent • ADTFieldsN Dedent
+
+    '@'     shift, and go to state 29
+    fn      shift, and go to state 106
+    null    shift, and go to state 188
+    i16     shift, and go to state 33
+    i32     shift, and go to state 34
+    i64     shift, and go to state 35
+    f32     shift, and go to state 36
+    f64     shift, and go to state 37
+    bool    shift, and go to state 38
+    char    shift, and go to state 39
+    string  shift, and go to state 92
+    sparse  shift, and go to state 93
+    map     shift, and go to state 107
+    ident   shift, and go to state 189
+    '('     shift, and go to state 108
+    '{'     shift, and go to state 109
+    '['     shift, and go to state 110
+
+    symbol       go to state 111
+    type_        go to state 190
+    ordinal_t    go to state 113
+    aggregate_t  go to state 114
+    adt_t        go to state 115
+    array_t      go to state 116
+    table_t      go to state 117
+    tup_t        go to state 118
+    sparse_t     go to state 119
+    map_t        go to state 120
+    range_t      go to state 121
+    ADTFieldsN   go to state 270
+    ADTField     go to state 271
+
+
+State 188
+
+  183 ADTField: null •
+
+    $default  reduce using rule 183 (ADTField)
+
+
+State 189
+
+   10 symbol: ident •
+   11       | ident • DoubleColon ident
+  181 ADTField: ident • '(' types ')'
+
+    DoubleColon  shift, and go to state 71
+    '('          shift, and go to state 272
+
+    $default  reduce using rule 10 (symbol)
+
+
+State 190
+
+  182 ADTField: type_ •
+
+    $default  reduce using rule 182 (ADTField)
+
+
+State 191
+
+  168 anno_t: '{' ADTFieldsA • '}'
+
+    '}'  shift, and go to state 273
+
+
+State 192
+
+  175 ADTFieldsA: ADTFields1 •
+
+    $default  reduce using rule 175 (ADTFieldsA)
+
+
+State 193
+
+  179 ADTFields1: ADTField •
+  180           | ADTField • '|' ADTFields1
+
+    '|'  shift, and go to state 274
+
+    $default  reduce using rule 179 (ADTFields1)
+
+
+State 194
+
+  154 array_t: '[' int_c • type_ ']'
+
+    '@'     shift, and go to state 29
+    fn      shift, and go to state 106
+    i16     shift, and go to state 33
+    i32     shift, and go to state 34
+    i64     shift, and go to state 35
+    f32     shift, and go to state 36
+    f64     shift, and go to state 37
+    bool    shift, and go to state 38
+    char    shift, and go to state 39
+    string  shift, and go to state 92
+    sparse  shift, and go to state 93
+    map     shift, and go to state 107
+    ident   shift, and go to state 11
+    '('     shift, and go to state 108
+    '{'     shift, and go to state 109
+    '['     shift, and go to state 110
+
+    symbol       go to state 111
+    type_        go to state 275
+    ordinal_t    go to state 113
+    aggregate_t  go to state 114
+    adt_t        go to state 115
+    array_t      go to state 116
+    table_t      go to state 117
+    tup_t        go to state 118
+    sparse_t     go to state 119
+    map_t        go to state 120
+    range_t      go to state 121
+
+
+State 195
+
+  155 table_t: '[' types1_ • ']'
+
+    ']'  shift, and go to state 276
+
+
+State 196
+
+  132 types1_: type_ •
+  133        | type_ • ';' types1_
+
+    ';'  shift, and go to state 277
+
+    $default  reduce using rule 132 (types1_)
+
+
+State 197
+
+  152 aggregate_t: fn '(' • types ')' type_
+
+    '@'     shift, and go to state 29
+    fn      shift, and go to state 106
+    i16     shift, and go to state 33
+    i32     shift, and go to state 34
+    i64     shift, and go to state 35
+    f32     shift, and go to state 36
+    f64     shift, and go to state 37
+    bool    shift, and go to state 38
+    char    shift, and go to state 39
+    string  shift, and go to state 92
+    sparse  shift, and go to state 93
+    map     shift, and go to state 107
+    ident   shift, and go to state 11
+    '('     shift, and go to state 108
+    '{'     shift, and go to state 109
+    '['     shift, and go to state 110
+
+    $default  reduce using rule 128 (types)
+
+    symbol       go to state 111
+    types        go to state 278
+    types1       go to state 200
+    type_        go to state 186
+    ordinal_t    go to state 113
+    aggregate_t  go to state 114
+    adt_t        go to state 115
+    array_t      go to state 116
+    table_t      go to state 117
+    tup_t        go to state 118
+    sparse_t     go to state 119
+    map_t        go to state 120
+    range_t      go to state 121
+
+
+State 198
+
+  159 map_t: map '[' • type_ ']' type_
+
+    '@'     shift, and go to state 29
+    fn      shift, and go to state 106
+    i16     shift, and go to state 33
+    i32     shift, and go to state 34
+    i64     shift, and go to state 35
+    f32     shift, and go to state 36
+    f64     shift, and go to state 37
+    bool    shift, and go to state 38
+    char    shift, and go to state 39
+    string  shift, and go to state 92
+    sparse  shift, and go to state 93
+    map     shift, and go to state 107
+    ident   shift, and go to state 11
+    '('     shift, and go to state 108
+    '{'     shift, and go to state 109
+    '['     shift, and go to state 110
+
+    symbol       go to state 111
+    type_        go to state 279
+    ordinal_t    go to state 113
+    aggregate_t  go to state 114
+    adt_t        go to state 115
+    array_t      go to state 116
+    table_t      go to state 117
+    tup_t        go to state 118
+    sparse_t     go to state 119
+    map_t        go to state 120
+    range_t      go to state 121
+
+
+State 199
+
+  157 tup_t: '(' types • ')'
+
+    ')'  shift, and go to state 280
+
+
+State 200
+
+  129 types: types1 •
+
+    $default  reduce using rule 129 (types)
+
+
+State 201
+
+  174 adtField: null •
+
+    $default  reduce using rule 174 (adtField)
+
+
+State 202
+
+  173 adtField: type_ •
+
+    $default  reduce using rule 173 (adtField)
+
+
+State 203
+
+  153 adt_t: '{' adtFields • '}'
+
+    '}'  shift, and go to state 281
+
+
+State 204
+
+  170 adtFields: adtFields1 •
+
+    $default  reduce using rule 170 (adtFields)
+
+
+State 205
+
+  171 adtFields1: adtField •
+  172           | adtField • '|' adtFields1
+
+    '|'  shift, and go to state 282
+
+    $default  reduce using rule 171 (adtFields1)
+
+
+State 206
+
+  160 range_t: '[' DoubleDot • ']' type_
+
+    ']'  shift, and go to state 283
+
+
+State 207
+
+   94 expr: '(' exprsA ')' •
+
+    $default  reduce using rule 94 (expr)
+
+
+State 208
+
+  102 expr: '[' mexpr DoubleDot • mexpr ']'
+
+    '+'       shift, and go to state 26
+    '-'       shift, and go to state 27
+    '!'       shift, and go to state 28
+    '@'       shift, and go to state 29
+    true      shift, and go to state 30
+    false     shift, and go to state 31
+    null      shift, and go to state 32
+    i16       shift, and go to state 33
+    i32       shift, and go to state 34
+    i64       shift, and go to state 35
+    f32       shift, and go to state 36
+    f64       shift, and go to state 37
+    bool      shift, and go to state 38
+    char      shift, and go to state 39
+    int_c     shift, and go to state 40
+    float_c   shift, and go to state 41
+    char_c    shift, and go to state 42
+    string_c  shift, and go to state 43
+    ident     shift, and go to state 11
+    '('       shift, and go to state 44
+    '{'       shift, and go to state 12
+    '['       shift, and go to state 45
+
+    $default  reduce using rule 78 (mexpr)
+
+    symbol     go to state 46
+    mexpr      go to state 284
+    call       go to state 48
+    expr       go to state 66
+    literal    go to state 50
+    infix      go to state 51
+    prefix     go to state 52
+    ordinal_t  go to state 53
+
+
+State 209
+
+  103 expr: '[' exprsA ']' •
+
+    $default  reduce using rule 103 (expr)
+
+
+State 210
+
+   30 scope: Indent stmts • Dedent
+
+    Dedent  shift, and go to state 285
+
+
+State 211
+
+   46 else_: else • scope
+   47      | else • if_
+
+    Indent  shift, and go to state 126
+    if      shift, and go to state 3
+    ';'     shift, and go to state 128
+
+    scope  go to state 286
+    if_    go to state 287
+
+
+State 212
+
+   45 if_: if condition Newline else_ •
+
+    $default  reduce using rule 45 (if_)
+
+
+State 213
+
+   32 scope: ';' Newline •
+
+    $default  reduce using rule 32 (scope)
+
+
+State 214
+
+   31 scope: ';' line • Newline
+
+    Newline  shift, and go to state 288
+
+
+State 215
+
+   44 if_: if condition scope else_ •
+
+    $default  reduce using rule 44 (if_)
+
+
+State 216
+
+   97 expr: expr • '.' ident
+   98     | expr • '[' expr ']'
+   99     | expr • ':' type_
+  100     | expr • '.' ident '(' exprsA ')'
+  101     | expr • '[' mexpr DoubleDot mexpr ']'
+  110 infix: expr • '+' expr
+  110      | expr '+' expr •
+  111      | expr • '-' expr
+  112      | expr • '*' expr
+  113      | expr • '/' expr
+  114      | expr • '%' expr
+  115      | expr • '<' expr
+  116      | expr • '>' expr
+  117      | expr • LtEq expr
+  118      | expr • GtEq expr
+  119      | expr • EqEq expr
+  120      | expr • AndAnd expr
+  121      | expr • OrOr expr
+  122      | expr • NotEq expr
+
+    '*'   shift, and go to state 132
+    '/'   shift, and go to state 133
+    '%'   shift, and go to state 134
+    '<'   shift, and go to state 135
+    '>'   shift, and go to state 136
+    LtEq  shift, and go to state 138
+    GtEq  shift, and go to state 139
+    '['   shift, and go to state 144
+    '.'   shift, and go to state 145
+    ':'   shift, and go to state 146
+
+    $default  reduce using rule 110 (infix)
+
+
+State 217
+
+   97 expr: expr • '.' ident
+   98     | expr • '[' expr ']'
+   99     | expr • ':' type_
+  100     | expr • '.' ident '(' exprsA ')'
+  101     | expr • '[' mexpr DoubleDot mexpr ']'
+  110 infix: expr • '+' expr
+  111      | expr • '-' expr
+  111      | expr '-' expr •
+  112      | expr • '*' expr
+  113      | expr • '/' expr
+  114      | expr • '%' expr
+  115      | expr • '<' expr
+  116      | expr • '>' expr
+  117      | expr • LtEq expr
+  118      | expr • GtEq expr
+  119      | expr • EqEq expr
+  120      | expr • AndAnd expr
+  121      | expr • OrOr expr
+  122      | expr • NotEq expr
+
+    '*'   shift, and go to state 132
+    '/'   shift, and go to state 133
+    '%'   shift, and go to state 134
+    '<'   shift, and go to state 135
+    '>'   shift, and go to state 136
+    LtEq  shift, and go to state 138
+    GtEq  shift, and go to state 139
+    '['   shift, and go to state 144
+    '.'   shift, and go to state 145
+    ':'   shift, and go to state 146
+
+    $default  reduce using rule 111 (infix)
+
+
+State 218
+
+   97 expr: expr • '.' ident
+   98     | expr • '[' expr ']'
+   99     | expr • ':' type_
+  100     | expr • '.' ident '(' exprsA ')'
+  101     | expr • '[' mexpr DoubleDot mexpr ']'
+  110 infix: expr • '+' expr
+  111      | expr • '-' expr
+  112      | expr • '*' expr
+  112      | expr '*' expr •
+  113      | expr • '/' expr
+  114      | expr • '%' expr
+  115      | expr • '<' expr
+  116      | expr • '>' expr
+  117      | expr • LtEq expr
+  118      | expr • GtEq expr
+  119      | expr • EqEq expr
+  120      | expr • AndAnd expr
+  121      | expr • OrOr expr
+  122      | expr • NotEq expr
+
+    '<'   shift, and go to state 135
+    '>'   shift, and go to state 136
+    LtEq  shift, and go to state 138
+    GtEq  shift, and go to state 139
+    '['   shift, and go to state 144
+    '.'   shift, and go to state 145
+    ':'   shift, and go to state 146
+
+    $default  reduce using rule 112 (infix)
+
+
+State 219
+
+   97 expr: expr • '.' ident
+   98     | expr • '[' expr ']'
+   99     | expr • ':' type_
+  100     | expr • '.' ident '(' exprsA ')'
+  101     | expr • '[' mexpr DoubleDot mexpr ']'
+  110 infix: expr • '+' expr
+  111      | expr • '-' expr
+  112      | expr • '*' expr
+  113      | expr • '/' expr
+  113      | expr '/' expr •
+  114      | expr • '%' expr
+  115      | expr • '<' expr
+  116      | expr • '>' expr
+  117      | expr • LtEq expr
+  118      | expr • GtEq expr
+  119      | expr • EqEq expr
+  120      | expr • AndAnd expr
+  121      | expr • OrOr expr
+  122      | expr • NotEq expr
+
+    '<'   shift, and go to state 135
+    '>'   shift, and go to state 136
+    LtEq  shift, and go to state 138
+    GtEq  shift, and go to state 139
+    '['   shift, and go to state 144
+    '.'   shift, and go to state 145
+    ':'   shift, and go to state 146
+
+    $default  reduce using rule 113 (infix)
+
+
+State 220
+
+   97 expr: expr • '.' ident
+   98     | expr • '[' expr ']'
+   99     | expr • ':' type_
+  100     | expr • '.' ident '(' exprsA ')'
+  101     | expr • '[' mexpr DoubleDot mexpr ']'
+  110 infix: expr • '+' expr
+  111      | expr • '-' expr
+  112      | expr • '*' expr
+  113      | expr • '/' expr
+  114      | expr • '%' expr
+  114      | expr '%' expr •
+  115      | expr • '<' expr
+  116      | expr • '>' expr
+  117      | expr • LtEq expr
+  118      | expr • GtEq expr
+  119      | expr • EqEq expr
+  120      | expr • AndAnd expr
+  121      | expr • OrOr expr
+  122      | expr • NotEq expr
+
+    '<'   shift, and go to state 135
+    '>'   shift, and go to state 136
+    LtEq  shift, and go to state 138
+    GtEq  shift, and go to state 139
+    '['   shift, and go to state 144
+    '.'   shift, and go to state 145
+    ':'   shift, and go to state 146
+
+    $default  reduce using rule 114 (infix)
+
+
+State 221
+
+   97 expr: expr • '.' ident
+   98     | expr • '[' expr ']'
+   99     | expr • ':' type_
+  100     | expr • '.' ident '(' exprsA ')'
+  101     | expr • '[' mexpr DoubleDot mexpr ']'
+  110 infix: expr • '+' expr
+  111      | expr • '-' expr
+  112      | expr • '*' expr
+  113      | expr • '/' expr
+  114      | expr • '%' expr
+  115      | expr • '<' expr
+  115      | expr '<' expr •
+  116      | expr • '>' expr
+  117      | expr • LtEq expr
+  118      | expr • GtEq expr
+  119      | expr • EqEq expr
+  120      | expr • AndAnd expr
+  121      | expr • OrOr expr
+  122      | expr • NotEq expr
+
+    '['  shift, and go to state 144
+    '.'  shift, and go to state 145
+    ':'  shift, and go to state 146
+
+    '<'   error (nonassociative)
+    '>'   error (nonassociative)
+    LtEq  error (nonassociative)
+    GtEq  error (nonassociative)
+
+    $default  reduce using rule 115 (infix)
+
+
+State 222
+
+   97 expr: expr • '.' ident
+   98     | expr • '[' expr ']'
+   99     | expr • ':' type_
+  100     | expr • '.' ident '(' exprsA ')'
+  101     | expr • '[' mexpr DoubleDot mexpr ']'
+  110 infix: expr • '+' expr
+  111      | expr • '-' expr
+  112      | expr • '*' expr
+  113      | expr • '/' expr
+  114      | expr • '%' expr
+  115      | expr • '<' expr
+  116      | expr • '>' expr
+  116      | expr '>' expr •
+  117      | expr • LtEq expr
+  118      | expr • GtEq expr
+  119      | expr • EqEq expr
+  120      | expr • AndAnd expr
+  121      | expr • OrOr expr
+  122      | expr • NotEq expr
+
+    '['  shift, and go to state 144
+    '.'  shift, and go to state 145
+    ':'  shift, and go to state 146
+
+    '<'   error (nonassociative)
+    '>'   error (nonassociative)
+    LtEq  error (nonassociative)
+    GtEq  error (nonassociative)
+
+    $default  reduce using rule 116 (infix)
+
+
+State 223
+
+   97 expr: expr • '.' ident
+   98     | expr • '[' expr ']'
+   99     | expr • ':' type_
+  100     | expr • '.' ident '(' exprsA ')'
+  101     | expr • '[' mexpr DoubleDot mexpr ']'
+  110 infix: expr • '+' expr
+  111      | expr • '-' expr
+  112      | expr • '*' expr
+  113      | expr • '/' expr
+  114      | expr • '%' expr
+  115      | expr • '<' expr
+  116      | expr • '>' expr
+  117      | expr • LtEq expr
+  118      | expr • GtEq expr
+  119      | expr • EqEq expr
+  120      | expr • AndAnd expr
+  121      | expr • OrOr expr
+  122      | expr • NotEq expr
+  122      | expr NotEq expr •
+
+    '+'   shift, and go to state 130
+    '-'   shift, and go to state 131
+    '*'   shift, and go to state 132
+    '/'   shift, and go to state 133
+    '%'   shift, and go to state 134
+    '<'   shift, and go to state 135
+    '>'   shift, and go to state 136
+    LtEq  shift, and go to state 138
+    GtEq  shift, and go to state 139
+    '['   shift, and go to state 144
+    '.'   shift, and go to state 145
+    ':'   shift, and go to state 146
+
+    $default  reduce using rule 122 (infix)
+
+
+State 224
+
+   97 expr: expr • '.' ident
+   98     | expr • '[' expr ']'
+   99     | expr • ':' type_
+  100     | expr • '.' ident '(' exprsA ')'
+  101     | expr • '[' mexpr DoubleDot mexpr ']'
+  110 infix: expr • '+' expr
+  111      | expr • '-' expr
+  112      | expr • '*' expr
+  113      | expr • '/' expr
+  114      | expr • '%' expr
+  115      | expr • '<' expr
+  116      | expr • '>' expr
+  117      | expr • LtEq expr
+  117      | expr LtEq expr •
+  118      | expr • GtEq expr
+  119      | expr • EqEq expr
+  120      | expr • AndAnd expr
+  121      | expr • OrOr expr
+  122      | expr • NotEq expr
+
+    '['  shift, and go to state 144
+    '.'  shift, and go to state 145
+    ':'  shift, and go to state 146
+
+    '<'   error (nonassociative)
+    '>'   error (nonassociative)
+    LtEq  error (nonassociative)
+    GtEq  error (nonassociative)
+
+    $default  reduce using rule 117 (infix)
+
+
+State 225
+
+   97 expr: expr • '.' ident
+   98     | expr • '[' expr ']'
+   99     | expr • ':' type_
+  100     | expr • '.' ident '(' exprsA ')'
+  101     | expr • '[' mexpr DoubleDot mexpr ']'
+  110 infix: expr • '+' expr
+  111      | expr • '-' expr
+  112      | expr • '*' expr
+  113      | expr • '/' expr
+  114      | expr • '%' expr
+  115      | expr • '<' expr
+  116      | expr • '>' expr
+  117      | expr • LtEq expr
+  118      | expr • GtEq expr
+  118      | expr GtEq expr •
+  119      | expr • EqEq expr
+  120      | expr • AndAnd expr
+  121      | expr • OrOr expr
+  122      | expr • NotEq expr
+
+    '['  shift, and go to state 144
+    '.'  shift, and go to state 145
+    ':'  shift, and go to state 146
+
+    '<'   error (nonassociative)
+    '>'   error (nonassociative)
+    LtEq  error (nonassociative)
+    GtEq  error (nonassociative)
+
+    $default  reduce using rule 118 (infix)
+
+
+State 226
+
+   97 expr: expr • '.' ident
+   98     | expr • '[' expr ']'
+   99     | expr • ':' type_
+  100     | expr • '.' ident '(' exprsA ')'
+  101     | expr • '[' mexpr DoubleDot mexpr ']'
+  110 infix: expr • '+' expr
+  111      | expr • '-' expr
+  112      | expr • '*' expr
+  113      | expr • '/' expr
+  114      | expr • '%' expr
+  115      | expr • '<' expr
+  116      | expr • '>' expr
+  117      | expr • LtEq expr
+  118      | expr • GtEq expr
+  119      | expr • EqEq expr
+  119      | expr EqEq expr •
+  120      | expr • AndAnd expr
+  121      | expr • OrOr expr
+  122      | expr • NotEq expr
+
+    '+'   shift, and go to state 130
+    '-'   shift, and go to state 131
+    '*'   shift, and go to state 132
+    '/'   shift, and go to state 133
+    '%'   shift, and go to state 134
+    '<'   shift, and go to state 135
+    '>'   shift, and go to state 136
+    LtEq  shift, and go to state 138
+    GtEq  shift, and go to state 139
+    '['   shift, and go to state 144
+    '.'   shift, and go to state 145
+    ':'   shift, and go to state 146
+
+    $default  reduce using rule 119 (infix)
+
+
+State 227
+
+   97 expr: expr • '.' ident
+   98     | expr • '[' expr ']'
+   99     | expr • ':' type_
+  100     | expr • '.' ident '(' exprsA ')'
+  101     | expr • '[' mexpr DoubleDot mexpr ']'
+  110 infix: expr • '+' expr
+  111      | expr • '-' expr
+  112      | expr • '*' expr
+  113      | expr • '/' expr
+  114      | expr • '%' expr
+  115      | expr • '<' expr
+  116      | expr • '>' expr
+  117      | expr • LtEq expr
+  118      | expr • GtEq expr
+  119      | expr • EqEq expr
+  120      | expr • AndAnd expr
+  120      | expr AndAnd expr •
+  121      | expr • OrOr expr
+  122      | expr • NotEq expr
+
+    '+'    shift, and go to state 130
+    '-'    shift, and go to state 131
+    '*'    shift, and go to state 132
+    '/'    shift, and go to state 133
+    '%'    shift, and go to state 134
+    '<'    shift, and go to state 135
+    '>'    shift, and go to state 136
+    NotEq  shift, and go to state 137
+    LtEq   shift, and go to state 138
+    GtEq   shift, and go to state 139
+    EqEq   shift, and go to state 140
+    '['    shift, and go to state 144
+    '.'    shift, and go to state 145
+    ':'    shift, and go to state 146
+
+    $default  reduce using rule 120 (infix)
+
+
+State 228
+
+   97 expr: expr • '.' ident
+   98     | expr • '[' expr ']'
+   99     | expr • ':' type_
+  100     | expr • '.' ident '(' exprsA ')'
+  101     | expr • '[' mexpr DoubleDot mexpr ']'
+  110 infix: expr • '+' expr
+  111      | expr • '-' expr
+  112      | expr • '*' expr
+  113      | expr • '/' expr
+  114      | expr • '%' expr
+  115      | expr • '<' expr
+  116      | expr • '>' expr
+  117      | expr • LtEq expr
+  118      | expr • GtEq expr
+  119      | expr • EqEq expr
+  120      | expr • AndAnd expr
+  121      | expr • OrOr expr
+  121      | expr OrOr expr •
+  122      | expr • NotEq expr
+
+    '+'     shift, and go to state 130
+    '-'     shift, and go to state 131
+    '*'     shift, and go to state 132
+    '/'     shift, and go to state 133
+    '%'     shift, and go to state 134
+    '<'     shift, and go to state 135
+    '>'     shift, and go to state 136
+    NotEq   shift, and go to state 137
+    LtEq    shift, and go to state 138
+    GtEq    shift, and go to state 139
+    EqEq    shift, and go to state 140
+    AndAnd  shift, and go to state 141
+    '['     shift, and go to state 144
+    '.'     shift, and go to state 145
+    ':'     shift, and go to state 146
+
+    $default  reduce using rule 121 (infix)
+
+
+State 229
+
+   34 condition: expr RArrow pattern •
+   67 pattern: pattern • '|' expr
+   68        | pattern • '|' expr RArrow pattern
+   71        | pattern • ':' type_
+
+    '|'  shift, and go to state 156
+    ':'  shift, and go to state 157
+
+    $default  reduce using rule 34 (condition)
+
+
+State 230
+
+  101 expr: expr '[' mexpr • DoubleDot mexpr ']'
+
+    DoubleDot  shift, and go to state 289
+
+
+State 231
+
+   79 mexpr: expr •
+   97 expr: expr • '.' ident
+   98     | expr • '[' expr ']'
+   98     | expr '[' expr • ']'
+   99     | expr • ':' type_
+  100     | expr • '.' ident '(' exprsA ')'
+  101     | expr • '[' mexpr DoubleDot mexpr ']'
+  110 infix: expr • '+' expr
+  111      | expr • '-' expr
+  112      | expr • '*' expr
+  113      | expr • '/' expr
+  114      | expr • '%' expr
+  115      | expr • '<' expr
+  116      | expr • '>' expr
+  117      | expr • LtEq expr
+  118      | expr • GtEq expr
+  119      | expr • EqEq expr
+  120      | expr • AndAnd expr
+  121      | expr • OrOr expr
+  122      | expr • NotEq expr
+
+    '+'     shift, and go to state 130
+    '-'     shift, and go to state 131
+    '*'     shift, and go to state 132
+    '/'     shift, and go to state 133
+    '%'     shift, and go to state 134
+    '<'     shift, and go to state 135
+    '>'     shift, and go to state 136
+    NotEq   shift, and go to state 137
+    LtEq    shift, and go to state 138
+    GtEq    shift, and go to state 139
+    EqEq    shift, and go to state 140
+    AndAnd  shift, and go to state 141
+    OrOr    shift, and go to state 142
+    '['     shift, and go to state 144
+    ']'     shift, and go to state 290
+    '.'     shift, and go to state 145
+    ':'     shift, and go to state 146
+
+    $default  reduce using rule 79 (mexpr)
+
+
+State 232
+
+   97 expr: expr '.' ident •
+  100     | expr '.' ident • '(' exprsA ')'
+
+    '('  shift, and go to state 291
+
+    $default  reduce using rule 97 (expr)
+
+
+State 233
+
+   99 expr: expr ':' type_ •
+
+    $default  reduce using rule 99 (expr)
+
+
+State 234
+
+   95 expr: ordinal_t '(' exprsA • ')'
+
+    ')'  shift, and go to state 292
+
+
+State 235
+
+   65 pattern: '(' patterns ')' •
+
+    $default  reduce using rule 65 (pattern)
+
+
+State 236
+
+   57 patterns1: pattern ',' • patterns1
+
+    '-'       shift, and go to state 54
+    '@'       shift, and go to state 29
+    true      shift, and go to state 30
+    false     shift, and go to state 31
+    null      shift, and go to state 55
+    i16       shift, and go to state 33
+    i32       shift, and go to state 34
+    i64       shift, and go to state 35
+    f32       shift, and go to state 36
+    f64       shift, and go to state 37
+    bool      shift, and go to state 38
+    char      shift, and go to state 39
+    int_c     shift, and go to state 40
+    float_c   shift, and go to state 41
+    char_c    shift, and go to state 42
+    string_c  shift, and go to state 43
+    ident     shift, and go to state 56
+    '('       shift, and go to state 57
+    '['       shift, and go to state 58
+    '_'       shift, and go to state 59
+
+    symbol     go to state 60
+    patterns1  go to state 293
+    pattern    go to state 151
+    literal    go to state 62
+    ordinal_t  go to state 63
+
+
+State 237
+
+   59 patternsSem: patterns ';' • patternsSem
+
+    '-'       shift, and go to state 54
+    '@'       shift, and go to state 29
+    true      shift, and go to state 30
+    false     shift, and go to state 31
+    null      shift, and go to state 55
+    i16       shift, and go to state 33
+    i32       shift, and go to state 34
+    i64       shift, and go to state 35
+    f32       shift, and go to state 36
+    f64       shift, and go to state 37
+    bool      shift, and go to state 38
+    char      shift, and go to state 39
+    int_c     shift, and go to state 40
+    float_c   shift, and go to state 41
+    char_c    shift, and go to state 42
+    string_c  shift, and go to state 43
+    ident     shift, and go to state 56
+    '('       shift, and go to state 57
+    '['       shift, and go to state 58
+    '_'       shift, and go to state 59
+
+    $default  reduce using rule 54 (patterns)
+
+    symbol       go to state 60
+    patterns     go to state 152
+    patterns1    go to state 150
+    patternsSem  go to state 294
+    pattern      go to state 151
+    literal      go to state 62
+    ordinal_t    go to state 63
+
+
+State 238
+
+   66 pattern: '[' patternsSem ']' •
+
+    $default  reduce using rule 66 (pattern)
+
+
+State 239
+
+   69 pattern: symbol '(' patterns • ')'
+
+    ')'  shift, and go to state 295
+
+
+State 240
+
+   18 line: let pattern '=' expr •
+   97 expr: expr • '.' ident
+   98     | expr • '[' expr ']'
+   99     | expr • ':' type_
+  100     | expr • '.' ident '(' exprsA ')'
+  101     | expr • '[' mexpr DoubleDot mexpr ']'
+  110 infix: expr • '+' expr
+  111      | expr • '-' expr
+  112      | expr • '*' expr
+  113      | expr • '/' expr
+  114      | expr • '%' expr
+  115      | expr • '<' expr
+  116      | expr • '>' expr
+  117      | expr • LtEq expr
+  118      | expr • GtEq expr
+  119      | expr • EqEq expr
+  120      | expr • AndAnd expr
+  121      | expr • OrOr expr
+  122      | expr • NotEq expr
+
+    '+'     shift, and go to state 130
+    '-'     shift, and go to state 131
+    '*'     shift, and go to state 132
+    '/'     shift, and go to state 133
+    '%'     shift, and go to state 134
+    '<'     shift, and go to state 135
+    '>'     shift, and go to state 136
+    NotEq   shift, and go to state 137
+    LtEq    shift, and go to state 138
+    GtEq    shift, and go to state 139
+    EqEq    shift, and go to state 140
+    AndAnd  shift, and go to state 141
+    OrOr    shift, and go to state 142
+    '['     shift, and go to state 144
+    '.'     shift, and go to state 145
+    ':'     shift, and go to state 146
+
+    $default  reduce using rule 18 (line)
+
+
+State 241
+
+   67 pattern: pattern '|' expr •
+   68        | pattern '|' expr • RArrow pattern
+   97 expr: expr • '.' ident
+   98     | expr • '[' expr ']'
+   99     | expr • ':' type_
+  100     | expr • '.' ident '(' exprsA ')'
+  101     | expr • '[' mexpr DoubleDot mexpr ']'
+  110 infix: expr • '+' expr
+  111      | expr • '-' expr
+  112      | expr • '*' expr
+  113      | expr • '/' expr
+  114      | expr • '%' expr
+  115      | expr • '<' expr
+  116      | expr • '>' expr
+  117      | expr • LtEq expr
+  118      | expr • GtEq expr
+  119      | expr • EqEq expr
+  120      | expr • AndAnd expr
+  121      | expr • OrOr expr
+  122      | expr • NotEq expr
+
+    '+'     shift, and go to state 130
+    '-'     shift, and go to state 131
+    '*'     shift, and go to state 132
+    '/'     shift, and go to state 133
+    '%'     shift, and go to state 134
+    '<'     shift, and go to state 135
+    '>'     shift, and go to state 136
+    NotEq   shift, and go to state 137
+    LtEq    shift, and go to state 138
+    GtEq    shift, and go to state 139
+    EqEq    shift, and go to state 140
+    AndAnd  shift, and go to state 141
+    OrOr    shift, and go to state 142
+    RArrow  shift, and go to state 296
+    '['     shift, and go to state 144
+    '.'     shift, and go to state 145
+
+    $default  reduce using rule 67 (pattern)
+
+
+State 242
+
+   71 pattern: pattern ':' type_ •
+
+    $default  reduce using rule 71 (pattern)
+
+
+State 243
+
+   67 pattern: pattern • '|' expr
+   68        | pattern • '|' expr RArrow pattern
+   70        | ordinal_t '(' pattern • ')'
+   71        | pattern • ':' type_
+
+    ')'  shift, and go to state 297
+    '|'  shift, and go to state 156
+    ':'  shift, and go to state 157
+
+
+State 244
+
+   49 switch_: switch expr Indent cases1 • Dedent
+
+    Dedent  shift, and go to state 298
+
+
+State 245
+
+   51 cases1: case •
+   52       | case • cases1
+
+    '-'       shift, and go to state 54
+    '@'       shift, and go to state 29
+    true      shift, and go to state 30
+    false     shift, and go to state 31
+    null      shift, and go to state 55
+    i16       shift, and go to state 33
+    i32       shift, and go to state 34
+    i64       shift, and go to state 35
+    f32       shift, and go to state 36
+    f64       shift, and go to state 37
+    bool      shift, and go to state 38
+    char      shift, and go to state 39
+    int_c     shift, and go to state 40
+    float_c   shift, and go to state 41
+    char_c    shift, and go to state 42
+    string_c  shift, and go to state 43
+    ident     shift, and go to state 56
+    '('       shift, and go to state 57
+    '['       shift, and go to state 58
+    '_'       shift, and go to state 59
+
+    $default  reduce using rule 51 (cases1)
+
+    symbol     go to state 60
+    cases1     go to state 299
+    case       go to state 245
+    pattern    go to state 246
+    literal    go to state 62
+    ordinal_t  go to state 63
+
+
+State 246
+
+   53 case: pattern • scope
+   67 pattern: pattern • '|' expr
+   68        | pattern • '|' expr RArrow pattern
+   71        | pattern • ':' type_
+
+    Indent  shift, and go to state 126
+    '|'     shift, and go to state 156
+    ';'     shift, and go to state 128
+    ':'     shift, and go to state 157
+
+    scope  go to state 300
+
+
+State 247
+
+    8 imports: import • Newline imports
+
+    Newline  shift, and go to state 301
+
+
+State 248
+
+    9 imports: import_c • Newline imports
+
+    Newline  shift, and go to state 302
+
+
+State 249
+
+    6 header: module ident Newline imports •
+
+    $default  reduce using rule 6 (header)
+
+
+State 250
+
+   28 block: for expr RArrow pattern • scope
+   67 pattern: pattern • '|' expr
+   68        | pattern • '|' expr RArrow pattern
+   71        | pattern • ':' type_
+
+    Indent  shift, and go to state 126
+    '|'     shift, and go to state 156
+    ';'     shift, and go to state 128
+    ':'     shift, and go to state 157
+
+    scope  go to state 303
+
+
+State 251
+
+   15 initialiser: string_c •
+
+    $default  reduce using rule 15 (initialiser)
+
+
+State 252
+
+   14 initialiser: '{' • exprsA '}'
+
+    Indent    shift, and go to state 72
+    '+'       shift, and go to state 26
+    '-'       shift, and go to state 27
+    '!'       shift, and go to state 28
+    '@'       shift, and go to state 29
+    true      shift, and go to state 30
+    false     shift, and go to state 31
+    null      shift, and go to state 32
+    i16       shift, and go to state 33
+    i32       shift, and go to state 34
+    i64       shift, and go to state 35
+    f32       shift, and go to state 36
+    f64       shift, and go to state 37
+    bool      shift, and go to state 38
+    char      shift, and go to state 39
+    int_c     shift, and go to state 40
+    float_c   shift, and go to state 41
+    char_c    shift, and go to state 42
+    string_c  shift, and go to state 43
+    ident     shift, and go to state 11
+    '('       shift, and go to state 44
+    '{'       shift, and go to state 12
+    '['       shift, and go to state 45
+
+    $default  reduce using rule 72 (exprs)
+
+    symbol     go to state 46
+    exprs      go to state 73
+    exprs1     go to state 74
+    exprsA     go to state 304
+    call       go to state 48
+    expr       go to state 76
+    literal    go to state 50
+    infix      go to state 51
+    prefix     go to state 52
+    ordinal_t  go to state 53
+
+
+State 253
+
+   16 minitialiser: initialiser •
+
+    $default  reduce using rule 16 (minitialiser)
+
+
+State 254
+
+   23 line: data symbol type_ minitialiser •
+
+    $default  reduce using rule 23 (line)
+
+
+State 255
+
+   81 exprsA: Indent exprsN Dedent •
+
+    $default  reduce using rule 81 (exprsA)
+
+
+State 256
+
+   76 exprsN: expr Newline •
+   77       | expr Newline • exprsN
+
+    '+'       shift, and go to state 26
+    '-'       shift, and go to state 27
+    '!'       shift, and go to state 28
+    '@'       shift, and go to state 29
+    true      shift, and go to state 30
+    false     shift, and go to state 31
+    null      shift, and go to state 32
+    i16       shift, and go to state 33
+    i32       shift, and go to state 34
+    i64       shift, and go to state 35
+    f32       shift, and go to state 36
+    f64       shift, and go to state 37
+    bool      shift, and go to state 38
+    char      shift, and go to state 39
+    int_c     shift, and go to state 40
+    float_c   shift, and go to state 41
+    char_c    shift, and go to state 42
+    string_c  shift, and go to state 43
+    ident     shift, and go to state 11
+    '('       shift, and go to state 44
+    '{'       shift, and go to state 12
+    '['       shift, and go to state 45
+
+    $default  reduce using rule 76 (exprsN)
+
+    symbol     go to state 46
+    exprsN     go to state 305
+    call       go to state 48
+    expr       go to state 167
+    literal    go to state 50
+    infix      go to state 51
+    prefix     go to state 52
+    ordinal_t  go to state 53
+
+
+State 257
+
+   83 call: '{' exprsA '}' '.' • ident '(' exprsA ')'
+
+    ident  shift, and go to state 306
+
+
+State 258
+
+   75 exprs1: expr ',' exprs1 •
+
+    $default  reduce using rule 75 (exprs1)
+
+
+State 259
+
+   82 call: symbol '(' exprsA ')' •
+
+    $default  reduce using rule 82 (call)
+
+
+State 260
+
+   85 index: index '[' expr ']' •
+
+    $default  reduce using rule 85 (index)
+
+
+State 261
+
+   87 index: index '.' symbol '(' • exprsA ')'
+
+    Indent    shift, and go to state 72
+    '+'       shift, and go to state 26
+    '-'       shift, and go to state 27
+    '!'       shift, and go to state 28
+    '@'       shift, and go to state 29
+    true      shift, and go to state 30
+    false     shift, and go to state 31
+    null      shift, and go to state 32
+    i16       shift, and go to state 33
+    i32       shift, and go to state 34
+    i64       shift, and go to state 35
+    f32       shift, and go to state 36
+    f64       shift, and go to state 37
+    bool      shift, and go to state 38
+    char      shift, and go to state 39
+    int_c     shift, and go to state 40
+    float_c   shift, and go to state 41
+    char_c    shift, and go to state 42
+    string_c  shift, and go to state 43
+    ident     shift, and go to state 11
+    '('       shift, and go to state 44
+    '{'       shift, and go to state 12
+    '['       shift, and go to state 45
+
+    $default  reduce using rule 72 (exprs)
+
+    symbol     go to state 46
+    exprs      go to state 73
+    exprs1     go to state 74
+    exprsA     go to state 307
+    call       go to state 48
+    expr       go to state 76
+    literal    go to state 50
+    infix      go to state 51
+    prefix     go to state 52
+    ordinal_t  go to state 53
+
+
+State 262
+
+   40 paramsN: param Newline •
+   41        | param Newline • paramsN
+
+    ident  shift, and go to state 86
+
+    $default  reduce using rule 40 (paramsN)
+
+    param    go to state 176
+    paramsN  go to state 308
+
+
+State 263
+
+   43 paramsA: Indent paramsN Dedent •
+
+    $default  reduce using rule 43 (paramsA)
+
+
+State 264
+
+   39 params1: param ',' params1 •
+
+    $default  reduce using rule 39 (params1)
+
+
+State 265
+
+   25 block: fn mfnrec ident '(' paramsA • ')' mtype scope
+
+    ')'  shift, and go to state 309
+
+
+State 266
+
+  158 sparse_t: sparse '[' types1_ • ']'
+
+    ']'  shift, and go to state 310
+
+
+State 267
+
+  164 anno_t: '(' paramsA ')' •
+
+    $default  reduce using rule 164 (anno_t)
+
+
+State 268
+
+  163 anno_t: '(' types1 ')' •
+
+    $default  reduce using rule 163 (anno_t)
+
+
+State 269
+
+  131 types1: type_ ',' • types1
+
+    '@'     shift, and go to state 29
+    fn      shift, and go to state 106
+    i16     shift, and go to state 33
+    i32     shift, and go to state 34
+    i64     shift, and go to state 35
+    f32     shift, and go to state 36
+    f64     shift, and go to state 37
+    bool    shift, and go to state 38
+    char    shift, and go to state 39
+    string  shift, and go to state 92
+    sparse  shift, and go to state 93
+    map     shift, and go to state 107
+    ident   shift, and go to state 11
+    '('     shift, and go to state 108
+    '{'     shift, and go to state 109
+    '['     shift, and go to state 110
+
+    symbol       go to state 111
+    types1       go to state 311
+    type_        go to state 186
+    ordinal_t    go to state 113
+    aggregate_t  go to state 114
+    adt_t        go to state 115
+    array_t      go to state 116
+    table_t      go to state 117
+    tup_t        go to state 118
+    sparse_t     go to state 119
+    map_t        go to state 120
+    range_t      go to state 121
+
+
+State 270
+
+  176 ADTFieldsA: Indent ADTFieldsN • Dedent
+
+    Dedent  shift, and go to state 312
+
+
+State 271
+
+  177 ADTFieldsN: ADTField • Newline
+  178           | ADTField • Newline ADTFieldsN
+
+    Newline  shift, and go to state 313
+
+
+State 272
+
+  181 ADTField: ident '(' • types ')'
+
+    '@'     shift, and go to state 29
+    fn      shift, and go to state 106
+    i16     shift, and go to state 33
+    i32     shift, and go to state 34
+    i64     shift, and go to state 35
+    f32     shift, and go to state 36
+    f64     shift, and go to state 37
+    bool    shift, and go to state 38
+    char    shift, and go to state 39
+    string  shift, and go to state 92
+    sparse  shift, and go to state 93
+    map     shift, and go to state 107
+    ident   shift, and go to state 11
+    '('     shift, and go to state 108
+    '{'     shift, and go to state 109
+    '['     shift, and go to state 110
+
+    $default  reduce using rule 128 (types)
+
+    symbol       go to state 111
+    types        go to state 314
+    types1       go to state 200
+    type_        go to state 186
+    ordinal_t    go to state 113
+    aggregate_t  go to state 114
+    adt_t        go to state 115
+    array_t      go to state 116
+    table_t      go to state 117
+    tup_t        go to state 118
+    sparse_t     go to state 119
+    map_t        go to state 120
+    range_t      go to state 121
+
+
+State 273
+
+  168 anno_t: '{' ADTFieldsA '}' •
+
+    $default  reduce using rule 168 (anno_t)
+
+
+State 274
+
+  180 ADTFields1: ADTField '|' • ADTFields1
+
+    '@'     shift, and go to state 29
+    fn      shift, and go to state 106
+    null    shift, and go to state 188
+    i16     shift, and go to state 33
+    i32     shift, and go to state 34
+    i64     shift, and go to state 35
+    f32     shift, and go to state 36
+    f64     shift, and go to state 37
+    bool    shift, and go to state 38
+    char    shift, and go to state 39
+    string  shift, and go to state 92
+    sparse  shift, and go to state 93
+    map     shift, and go to state 107
+    ident   shift, and go to state 189
+    '('     shift, and go to state 108
+    '{'     shift, and go to state 109
+    '['     shift, and go to state 110
+
+    symbol       go to state 111
+    type_        go to state 190
+    ordinal_t    go to state 113
+    aggregate_t  go to state 114
+    adt_t        go to state 115
+    array_t      go to state 116
+    table_t      go to state 117
+    tup_t        go to state 118
+    sparse_t     go to state 119
+    map_t        go to state 120
+    range_t      go to state 121
+    ADTFields1   go to state 315
+    ADTField     go to state 193
+
+
+State 275
+
+  154 array_t: '[' int_c type_ • ']'
+
+    ']'  shift, and go to state 316
+
+
+State 276
+
+  155 table_t: '[' types1_ ']' •
+
+    $default  reduce using rule 155 (table_t)
+
+
+State 277
+
+  133 types1_: type_ ';' • types1_
+
+    '@'     shift, and go to state 29
+    fn      shift, and go to state 106
+    i16     shift, and go to state 33
+    i32     shift, and go to state 34
+    i64     shift, and go to state 35
+    f32     shift, and go to state 36
+    f64     shift, and go to state 37
+    bool    shift, and go to state 38
+    char    shift, and go to state 39
+    string  shift, and go to state 92
+    sparse  shift, and go to state 93
+    map     shift, and go to state 107
+    ident   shift, and go to state 11
+    '('     shift, and go to state 108
+    '{'     shift, and go to state 109
+    '['     shift, and go to state 110
+
+    symbol       go to state 111
+    types1_      go to state 317
+    type_        go to state 196
+    ordinal_t    go to state 113
+    aggregate_t  go to state 114
+    adt_t        go to state 115
+    array_t      go to state 116
+    table_t      go to state 117
+    tup_t        go to state 118
+    sparse_t     go to state 119
+    map_t        go to state 120
+    range_t      go to state 121
+
+
+State 278
+
+  152 aggregate_t: fn '(' types • ')' type_
+
+    ')'  shift, and go to state 318
+
+
+State 279
+
+  159 map_t: map '[' type_ • ']' type_
+
+    ']'  shift, and go to state 319
+
+
+State 280
+
+  157 tup_t: '(' types ')' •
+
+    $default  reduce using rule 157 (tup_t)
+
+
+State 281
+
+  153 adt_t: '{' adtFields '}' •
+
+    $default  reduce using rule 153 (adt_t)
+
+
+State 282
+
+  172 adtFields1: adtField '|' • adtFields1
+
+    '@'     shift, and go to state 29
+    fn      shift, and go to state 106
+    null    shift, and go to state 201
+    i16     shift, and go to state 33
+    i32     shift, and go to state 34
+    i64     shift, and go to state 35
+    f32     shift, and go to state 36
+    f64     shift, and go to state 37
+    bool    shift, and go to state 38
+    char    shift, and go to state 39
+    string  shift, and go to state 92
+    sparse  shift, and go to state 93
+    map     shift, and go to state 107
+    ident   shift, and go to state 11
+    '('     shift, and go to state 108
+    '{'     shift, and go to state 109
+    '['     shift, and go to state 110
+
+    symbol       go to state 111
+    type_        go to state 202
+    ordinal_t    go to state 113
+    aggregate_t  go to state 114
+    adt_t        go to state 115
+    array_t      go to state 116
+    table_t      go to state 117
+    tup_t        go to state 118
+    sparse_t     go to state 119
+    map_t        go to state 120
+    range_t      go to state 121
+    adtFields1   go to state 320
+    adtField     go to state 205
+
+
+State 283
+
+  160 range_t: '[' DoubleDot ']' • type_
+
+    '@'     shift, and go to state 29
+    fn      shift, and go to state 106
+    i16     shift, and go to state 33
+    i32     shift, and go to state 34
+    i64     shift, and go to state 35
+    f32     shift, and go to state 36
+    f64     shift, and go to state 37
+    bool    shift, and go to state 38
+    char    shift, and go to state 39
+    string  shift, and go to state 92
+    sparse  shift, and go to state 93
+    map     shift, and go to state 107
+    ident   shift, and go to state 11
+    '('     shift, and go to state 108
+    '{'     shift, and go to state 109
+    '['     shift, and go to state 110
+
+    symbol       go to state 111
+    type_        go to state 321
+    ordinal_t    go to state 113
+    aggregate_t  go to state 114
+    adt_t        go to state 115
+    array_t      go to state 116
+    table_t      go to state 117
+    tup_t        go to state 118
+    sparse_t     go to state 119
+    map_t        go to state 120
+    range_t      go to state 121
+
+
+State 284
+
+  102 expr: '[' mexpr DoubleDot mexpr • ']'
+
+    ']'  shift, and go to state 322
+
+
+State 285
+
+   30 scope: Indent stmts Dedent •
+
+    $default  reduce using rule 30 (scope)
+
+
+State 286
+
+   46 else_: else scope •
+
+    $default  reduce using rule 46 (else_)
+
+
+State 287
+
+   47 else_: else if_ •
+
+    $default  reduce using rule 47 (else_)
+
+
+State 288
+
+   31 scope: ';' line Newline •
+
+    $default  reduce using rule 31 (scope)
+
+
+State 289
+
+  101 expr: expr '[' mexpr DoubleDot • mexpr ']'
+
+    '+'       shift, and go to state 26
+    '-'       shift, and go to state 27
+    '!'       shift, and go to state 28
+    '@'       shift, and go to state 29
+    true      shift, and go to state 30
+    false     shift, and go to state 31
+    null      shift, and go to state 32
+    i16       shift, and go to state 33
+    i32       shift, and go to state 34
+    i64       shift, and go to state 35
+    f32       shift, and go to state 36
+    f64       shift, and go to state 37
+    bool      shift, and go to state 38
+    char      shift, and go to state 39
+    int_c     shift, and go to state 40
+    float_c   shift, and go to state 41
+    char_c    shift, and go to state 42
+    string_c  shift, and go to state 43
+    ident     shift, and go to state 11
+    '('       shift, and go to state 44
+    '{'       shift, and go to state 12
+    '['       shift, and go to state 45
+
+    $default  reduce using rule 78 (mexpr)
+
+    symbol     go to state 46
+    mexpr      go to state 323
+    call       go to state 48
+    expr       go to state 66
+    literal    go to state 50
+    infix      go to state 51
+    prefix     go to state 52
+    ordinal_t  go to state 53
+
+
+State 290
+
+   98 expr: expr '[' expr ']' •
+
+    $default  reduce using rule 98 (expr)
+
+
+State 291
+
+  100 expr: expr '.' ident '(' • exprsA ')'
+
+    Indent    shift, and go to state 72
+    '+'       shift, and go to state 26
+    '-'       shift, and go to state 27
+    '!'       shift, and go to state 28
+    '@'       shift, and go to state 29
+    true      shift, and go to state 30
+    false     shift, and go to state 31
+    null      shift, and go to state 32
+    i16       shift, and go to state 33
+    i32       shift, and go to state 34
+    i64       shift, and go to state 35
+    f32       shift, and go to state 36
+    f64       shift, and go to state 37
+    bool      shift, and go to state 38
+    char      shift, and go to state 39
+    int_c     shift, and go to state 40
+    float_c   shift, and go to state 41
+    char_c    shift, and go to state 42
+    string_c  shift, and go to state 43
+    ident     shift, and go to state 11
+    '('       shift, and go to state 44
+    '{'       shift, and go to state 12
+    '['       shift, and go to state 45
+
+    $default  reduce using rule 72 (exprs)
+
+    symbol     go to state 46
+    exprs      go to state 73
+    exprs1     go to state 74
+    exprsA     go to state 324
+    call       go to state 48
+    expr       go to state 76
+    literal    go to state 50
+    infix      go to state 51
+    prefix     go to state 52
+    ordinal_t  go to state 53
+
+
+State 292
+
+   95 expr: ordinal_t '(' exprsA ')' •
+
+    $default  reduce using rule 95 (expr)
+
+
+State 293
+
+   57 patterns1: pattern ',' patterns1 •
+
+    $default  reduce using rule 57 (patterns1)
+
+
+State 294
+
+   59 patternsSem: patterns ';' patternsSem •
+
+    $default  reduce using rule 59 (patternsSem)
+
+
+State 295
+
+   69 pattern: symbol '(' patterns ')' •
+
+    $default  reduce using rule 69 (pattern)
+
+
+State 296
+
+   68 pattern: pattern '|' expr RArrow • pattern
+
+    '-'       shift, and go to state 54
+    '@'       shift, and go to state 29
+    true      shift, and go to state 30
+    false     shift, and go to state 31
+    null      shift, and go to state 55
+    i16       shift, and go to state 33
+    i32       shift, and go to state 34
+    i64       shift, and go to state 35
+    f32       shift, and go to state 36
+    f64       shift, and go to state 37
+    bool      shift, and go to state 38
+    char      shift, and go to state 39
+    int_c     shift, and go to state 40
+    float_c   shift, and go to state 41
+    char_c    shift, and go to state 42
+    string_c  shift, and go to state 43
+    ident     shift, and go to state 56
+    '('       shift, and go to state 57
+    '['       shift, and go to state 58
+    '_'       shift, and go to state 59
+
+    symbol     go to state 60
+    pattern    go to state 325
+    literal    go to state 62
+    ordinal_t  go to state 63
+
+
+State 297
+
+   70 pattern: ordinal_t '(' pattern ')' •
+
+    $default  reduce using rule 70 (pattern)
+
+
+State 298
+
+   49 switch_: switch expr Indent cases1 Dedent •
+
+    $default  reduce using rule 49 (switch_)
+
+
+State 299
+
+   52 cases1: case cases1 •
+
+    $default  reduce using rule 52 (cases1)
+
+
+State 300
+
+   53 case: pattern scope •
+
+    $default  reduce using rule 53 (case)
+
+
+State 301
+
+    8 imports: import Newline • imports
+
+    import    shift, and go to state 247
+    import_c  shift, and go to state 248
+
+    $default  reduce using rule 7 (imports)
+
+    imports  go to state 326
+
+
+State 302
+
+    9 imports: import_c Newline • imports
+
+    import    shift, and go to state 247
+    import_c  shift, and go to state 248
+
+    $default  reduce using rule 7 (imports)
+
+    imports  go to state 327
+
+
+State 303
+
+   28 block: for expr RArrow pattern scope •
+
+    $default  reduce using rule 28 (block)
+
+
+State 304
+
+   14 initialiser: '{' exprsA • '}'
+
+    '}'  shift, and go to state 328
+
+
+State 305
+
+   77 exprsN: expr Newline exprsN •
+
+    $default  reduce using rule 77 (exprsN)
+
+
+State 306
+
+   83 call: '{' exprsA '}' '.' ident • '(' exprsA ')'
+
+    '('  shift, and go to state 329
+
+
+State 307
+
+   87 index: index '.' symbol '(' exprsA • ')'
+
+    ')'  shift, and go to state 330
+
+
+State 308
+
+   41 paramsN: param Newline paramsN •
+
+    $default  reduce using rule 41 (paramsN)
+
+
+State 309
+
+   25 block: fn mfnrec ident '(' paramsA ')' • mtype scope
+
+    '@'     shift, and go to state 29
+    fn      shift, and go to state 106
+    i16     shift, and go to state 33
+    i32     shift, and go to state 34
+    i64     shift, and go to state 35
+    f32     shift, and go to state 36
+    f64     shift, and go to state 37
+    bool    shift, and go to state 38
+    char    shift, and go to state 39
+    string  shift, and go to state 92
+    sparse  shift, and go to state 93
+    map     shift, and go to state 107
+    ident   shift, and go to state 11
+    '('     shift, and go to state 108
+    '{'     shift, and go to state 109
+    '['     shift, and go to state 110
+
+    $default  reduce using rule 126 (mtype)
+
+    symbol       go to state 111
+    mtype        go to state 331
+    type_        go to state 332
+    ordinal_t    go to state 113
+    aggregate_t  go to state 114
+    adt_t        go to state 115
+    array_t      go to state 116
+    table_t      go to state 117
+    tup_t        go to state 118
+    sparse_t     go to state 119
+    map_t        go to state 120
+    range_t      go to state 121
+
+
+State 310
+
+  158 sparse_t: sparse '[' types1_ ']' •
+
+    $default  reduce using rule 158 (sparse_t)
+
+
+State 311
+
+  131 types1: type_ ',' types1 •
+
+    $default  reduce using rule 131 (types1)
+
+
+State 312
+
+  176 ADTFieldsA: Indent ADTFieldsN Dedent •
+
+    $default  reduce using rule 176 (ADTFieldsA)
+
+
+State 313
+
+  177 ADTFieldsN: ADTField Newline •
+  178           | ADTField Newline • ADTFieldsN
+
+    '@'     shift, and go to state 29
+    fn      shift, and go to state 106
+    null    shift, and go to state 188
+    i16     shift, and go to state 33
+    i32     shift, and go to state 34
+    i64     shift, and go to state 35
+    f32     shift, and go to state 36
+    f64     shift, and go to state 37
+    bool    shift, and go to state 38
+    char    shift, and go to state 39
+    string  shift, and go to state 92
+    sparse  shift, and go to state 93
+    map     shift, and go to state 107
+    ident   shift, and go to state 189
+    '('     shift, and go to state 108
+    '{'     shift, and go to state 109
+    '['     shift, and go to state 110
+
+    $default  reduce using rule 177 (ADTFieldsN)
+
+    symbol       go to state 111
+    type_        go to state 190
+    ordinal_t    go to state 113
+    aggregate_t  go to state 114
+    adt_t        go to state 115
+    array_t      go to state 116
+    table_t      go to state 117
+    tup_t        go to state 118
+    sparse_t     go to state 119
+    map_t        go to state 120
+    range_t      go to state 121
+    ADTFieldsN   go to state 333
+    ADTField     go to state 271
+
+
+State 314
+
+  181 ADTField: ident '(' types • ')'
+
+    ')'  shift, and go to state 334
+
+
+State 315
+
+  180 ADTFields1: ADTField '|' ADTFields1 •
+
+    $default  reduce using rule 180 (ADTFields1)
+
+
+State 316
+
+  154 array_t: '[' int_c type_ ']' •
+
+    $default  reduce using rule 154 (array_t)
+
+
+State 317
+
+  133 types1_: type_ ';' types1_ •
+
+    $default  reduce using rule 133 (types1_)
+
+
+State 318
+
+  152 aggregate_t: fn '(' types ')' • type_
+
+    '@'     shift, and go to state 29
+    fn      shift, and go to state 106
+    i16     shift, and go to state 33
+    i32     shift, and go to state 34
+    i64     shift, and go to state 35
+    f32     shift, and go to state 36
+    f64     shift, and go to state 37
+    bool    shift, and go to state 38
+    char    shift, and go to state 39
+    string  shift, and go to state 92
+    sparse  shift, and go to state 93
+    map     shift, and go to state 107
+    ident   shift, and go to state 11
+    '('     shift, and go to state 108
+    '{'     shift, and go to state 109
+    '['     shift, and go to state 110
+
+    symbol       go to state 111
+    type_        go to state 335
+    ordinal_t    go to state 113
+    aggregate_t  go to state 114
+    adt_t        go to state 115
+    array_t      go to state 116
+    table_t      go to state 117
+    tup_t        go to state 118
+    sparse_t     go to state 119
+    map_t        go to state 120
+    range_t      go to state 121
+
+
+State 319
+
+  159 map_t: map '[' type_ ']' • type_
+
+    '@'     shift, and go to state 29
+    fn      shift, and go to state 106
+    i16     shift, and go to state 33
+    i32     shift, and go to state 34
+    i64     shift, and go to state 35
+    f32     shift, and go to state 36
+    f64     shift, and go to state 37
+    bool    shift, and go to state 38
+    char    shift, and go to state 39
+    string  shift, and go to state 92
+    sparse  shift, and go to state 93
+    map     shift, and go to state 107
+    ident   shift, and go to state 11
+    '('     shift, and go to state 108
+    '{'     shift, and go to state 109
+    '['     shift, and go to state 110
+
+    symbol       go to state 111
+    type_        go to state 336
+    ordinal_t    go to state 113
+    aggregate_t  go to state 114
+    adt_t        go to state 115
+    array_t      go to state 116
+    table_t      go to state 117
+    tup_t        go to state 118
+    sparse_t     go to state 119
+    map_t        go to state 120
+    range_t      go to state 121
+
+
+State 320
+
+  172 adtFields1: adtField '|' adtFields1 •
+
+    $default  reduce using rule 172 (adtFields1)
+
+
+State 321
+
+  160 range_t: '[' DoubleDot ']' type_ •
+
+    $default  reduce using rule 160 (range_t)
+
+
+State 322
+
+  102 expr: '[' mexpr DoubleDot mexpr ']' •
+
+    $default  reduce using rule 102 (expr)
+
+
+State 323
+
+  101 expr: expr '[' mexpr DoubleDot mexpr • ']'
+
+    ']'  shift, and go to state 337
+
+
+State 324
+
+  100 expr: expr '.' ident '(' exprsA • ')'
+
+    ')'  shift, and go to state 338
+
+
+State 325
+
+   67 pattern: pattern • '|' expr
+   68        | pattern • '|' expr RArrow pattern
+   68        | pattern '|' expr RArrow pattern •
+   71        | pattern • ':' type_
+
+    $default  reduce using rule 68 (pattern)
+
+
+State 326
+
+    8 imports: import Newline imports •
+
+    $default  reduce using rule 8 (imports)
+
+
+State 327
+
+    9 imports: import_c Newline imports •
+
+    $default  reduce using rule 9 (imports)
+
+
+State 328
+
+   14 initialiser: '{' exprsA '}' •
+
+    $default  reduce using rule 14 (initialiser)
+
+
+State 329
+
+   83 call: '{' exprsA '}' '.' ident '(' • exprsA ')'
+
+    Indent    shift, and go to state 72
+    '+'       shift, and go to state 26
+    '-'       shift, and go to state 27
+    '!'       shift, and go to state 28
+    '@'       shift, and go to state 29
+    true      shift, and go to state 30
+    false     shift, and go to state 31
+    null      shift, and go to state 32
+    i16       shift, and go to state 33
+    i32       shift, and go to state 34
+    i64       shift, and go to state 35
+    f32       shift, and go to state 36
+    f64       shift, and go to state 37
+    bool      shift, and go to state 38
+    char      shift, and go to state 39
+    int_c     shift, and go to state 40
+    float_c   shift, and go to state 41
+    char_c    shift, and go to state 42
+    string_c  shift, and go to state 43
+    ident     shift, and go to state 11
+    '('       shift, and go to state 44
+    '{'       shift, and go to state 12
+    '['       shift, and go to state 45
+
+    $default  reduce using rule 72 (exprs)
+
+    symbol     go to state 46
+    exprs      go to state 73
+    exprs1     go to state 74
+    exprsA     go to state 339
+    call       go to state 48
+    expr       go to state 76
+    literal    go to state 50
+    infix      go to state 51
+    prefix     go to state 52
+    ordinal_t  go to state 53
+
+
+State 330
+
+   87 index: index '.' symbol '(' exprsA ')' •
+
+    $default  reduce using rule 87 (index)
+
+
+State 331
+
+   25 block: fn mfnrec ident '(' paramsA ')' mtype • scope
+
+    Indent  shift, and go to state 126
+    ';'     shift, and go to state 128
+
+    scope  go to state 340
+
+
+State 332
+
+  127 mtype: type_ •
+
+    $default  reduce using rule 127 (mtype)
+
+
+State 333
+
+  178 ADTFieldsN: ADTField Newline ADTFieldsN •
+
+    $default  reduce using rule 178 (ADTFieldsN)
+
+
+State 334
+
+  181 ADTField: ident '(' types ')' •
+
+    $default  reduce using rule 181 (ADTField)
+
+
+State 335
+
+  152 aggregate_t: fn '(' types ')' type_ •
+
+    $default  reduce using rule 152 (aggregate_t)
+
+
+State 336
+
+  159 map_t: map '[' type_ ']' type_ •
+
+    $default  reduce using rule 159 (map_t)
+
+
+State 337
+
+  101 expr: expr '[' mexpr DoubleDot mexpr ']' •
+
+    $default  reduce using rule 101 (expr)
+
+
+State 338
+
+  100 expr: expr '.' ident '(' exprsA ')' •
+
+    $default  reduce using rule 100 (expr)
+
+
+State 339
+
+   83 call: '{' exprsA '}' '.' ident '(' exprsA • ')'
+
+    ')'  shift, and go to state 341
+
+
+State 340
+
+   25 block: fn mfnrec ident '(' paramsA ')' mtype scope •
+
+    $default  reduce using rule 25 (block)
+
+
+State 341
+
+   83 call: '{' exprsA '}' '.' ident '(' exprsA ')' •
+
+    $default  reduce using rule 83 (call)

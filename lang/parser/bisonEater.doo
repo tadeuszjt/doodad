@@ -1,0 +1,83 @@
+module bisonEater
+
+import ../../std/io
+import ../../std/strings
+import ../../std/chars
+
+
+fn {s string, out string} lexIdent(start i64) i64
+    while s.at(start) -> char(c) | isSpace(c)
+        start = start + 1
+
+    if s.at(start) -> char(c) | isAlpha(c)
+    else; return 0
+
+    let end = start
+    for s[start..] -> i | isAlpha(s[i]) || s[i] == '_' || isDigit(s[i])
+        out.push(s[i])
+        end = end + 1
+
+    return end
+
+
+fn {s string} lexCharLit(start i64) (char, i64)
+    let ch = '\0'
+    while s.at(start) -> char(c) | isSpace(c)
+        start = start + 1
+
+    if s.at(start) -> char('\'')
+    else; return (ch, 0)
+    start = start + 1
+
+    if s.at(start) -> char(c); ch = c
+    else; return (ch, 0)
+    start = start + 1
+
+    if s.at(start) -> char('\'')
+    else; return (ch, 0)
+    start = start + 1
+
+    return (ch, start)
+
+
+fn {io Io} main()
+    data terminals [string]
+    data nonterminals [string]
+
+    data line string
+    while {io, line}.readLn()
+        if line == "Terminals, with rules where they appear"
+            // pass the empty line
+            line.clear()
+            {io, line}.readLn()
+            let "" = line
+
+            while {io, line}.readLn() -> true | line != ""
+                data s2 string
+                if {line, s2}.lexIdent(0) -> end | end > 0
+                    terminals.push(s2)
+                line.clear()
+        else if line == "Nonterminals, with rules where they appear"
+            // pass the empty line
+            line.clear()
+            {io, line}.readLn()
+            let "" = line
+
+            while {io, line}.readLn() -> true | line != ""
+                nonterminals[nonterminals.push()] = line
+                line.clear()
+
+        line.clear()
+
+    io.write("module parser\n")
+    io.write("type Item {\n")
+    io.write("\tEnd()\n")
+
+    let charWritten = false
+
+    for terminals[..] -> i; io.write("\tT", terminals[i], "()\n")
+
+    io.write("}\n")
+
+    io.write("fn {io Io} main()\n")
+    io.write("\tio.write(\"parser\")\n")

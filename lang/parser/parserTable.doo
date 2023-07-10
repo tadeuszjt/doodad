@@ -1,0 +1,96 @@
+module parser
+
+
+import ../../std/io
+import ../../std/strings
+import ../../std/chars
+
+
+
+fn {line string} readSpacesThenComma(start i64) i64
+    let spaceCount = 0
+    for line[start..] -> i | isSpace(line[i])
+        spaceCount = spaceCount + 1
+    return line.read(start + spaceCount, ',')
+
+fn {line string} readReduceThenComma(start i64) (i64, i64)
+    if line.read(start, 'r') -> n | n > start
+        let (num, n2 | n2 > n) = line.read(n)
+        let n3 | n3 > n2 = line.read(n2, ',')
+        return (num, n3)
+    return (0, 0)
+
+fn {line string} readShiftThenComma(start i64) (i64, i64)
+    if line.read(start, 's') -> n | n > start
+        let (num, n2 | n2 > n) = line.read(n)
+        let n3 | n3 > n2 = line.read(n2, ',')
+        return (num, n3)
+    return (0, 0)
+
+
+fn {line string} readNumThenComma(start i64) (i64, i64)
+    if line.read(start) -> (num, end) | end > start
+        let end2 | end2 > end = line.read(end, ',')
+        return (num, end2)
+    return (0, 0)
+
+fn {line string} readAccThenComma(start i64) i64
+    let spaceCount = 0
+    for line[start..] -> i | isSpace(line[i])
+        spaceCount = spaceCount + 1
+
+    if line.at(start + spaceCount) -> char('a')
+        let char('a') = line.at(start + spaceCount + 0)
+        let char('c') = line.at(start + spaceCount + 1)
+        let char('c') = line.at(start + spaceCount + 2)
+
+        for line[start + spaceCount + 3..] -> i | isSpace(line[i])
+            spaceCount = spaceCount + 1
+        let char(',') = line.at(start + spaceCount + 3)
+        
+        return start + spaceCount + 4
+
+    return 0
+
+type Cell {
+    Empty()
+    Shift(i64)
+    Reduce(i64)
+    Goto(i64)
+    Accept()
+}
+
+
+fn {line string} readCell(start i64) (Cell, i64)
+    if line.readSpacesThenComma(start) -> end | end > start
+        return (Empty(), end)
+    else if line.readAccThenComma(start) -> end | end > start
+        return (Accept(), end)
+    else if line.readReduceThenComma(start) -> (num, end) | end > start
+        return (Reduce(num), end)
+    else if line.readShiftThenComma(start) -> (num, end) | end > start
+        return (Shift(num), end)
+    else if line.readNumThenComma(start) -> (num, end) | end > start
+        return (Goto(num), end)
+    return (Empty(), 0)
+
+
+fn {io Io, cells [[Cell]]} fillTable()
+    cells.clear()
+    data line string
+    while {io, line}.readLn() -> true | line != "<begin>"
+        line.clear()
+
+    line.clear()
+    while {io, line}.readLn()
+        let (row:i64, end | end > 0) = line.read(0)
+        let end2 | end2 > end        = line.read(end, ',')
+
+        let idx = end2
+        let cellsId = cells.push()
+
+        while line.readCell(idx) -> (cell, end | end > idx)
+            cells[cellsId].push(cell)
+            idx = end
+
+        line.clear()
