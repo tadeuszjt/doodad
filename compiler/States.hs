@@ -39,12 +39,12 @@ data FuncBody
         }
     deriving (Eq, Show)
 
+funcKeyFromBody :: String -> FuncBody -> FuncKey
+funcKeyFromBody sym body = (map typeof (funcParams body), sym, map typeof (funcArgs body), funcRetty body)
+
 
 data IRGenState = IRGenState
-    { irCurrentFunc :: FuncKey
-    , irTupleFields :: Map.Map (Symbol, String) Symbol
-
-    , irModuleName  :: String                      -- name of module
+    { irModuleName  :: String                      -- name of module
     , irTypeDefs    :: Map.Map Symbol Type         -- all needed type definitions
     , irExternDefs  :: Map.Map Symbol FuncKey      -- all needed func declarations
     , irFuncDefs    :: Map.Map Symbol FuncBody     -- all needed func definitions

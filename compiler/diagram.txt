@@ -1,0 +1,36 @@
+
+           ----------------
+           | Imports      |
+ .---------| [IRGenState] |
+ |         ----------------
+ |
+ |                         --------------
+ |                         |  Stage 0   |
+ |                 File -> | Lex, Parse |-> AST 
+ |                         --------------
+ |
+ |         ----------------------
+ |  AST -> |  Stage 1           | -> Resolved AST (main_x_0)
+ --------> | Resolve Variables  |
+           ----------------------
+  
+  
+                       ----------------------
+     Resolved AST ---> |  Stage 2           | -> Resolved AST (main_x_0:i64)
+                       | Type Inference     |
+                       ----------------------
+                        
+                       ----------------------
+     Resolved AST ---> |  Stage 2_b         | -> Resolved AST (main_x_0:i64)
+                       | Resolve Funcs      |
+                       ----------------------
+
+                       ----------------------
+     Resolved AST ---> |  Stage 3           | -> IRGenState
+                       | IR Gen (Funcs only)|
+                       ----------------------
+
+                       ----------------------
+     IRGenState -----> |  Stage 4           | -> [Definition]
+                       | LLVM Generation    |
+                       ----------------------

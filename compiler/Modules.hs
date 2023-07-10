@@ -34,6 +34,7 @@ import qualified Resolve as R
 import qualified SymTab
 import IRGen
 import States
+import Resolve2
 
 
 import Language.C
@@ -167,9 +168,14 @@ runMod args pathsVisited modPath = do
                 runBoMTExcept 0 $ annotate resolvedAST
             astInferred <- withErrorPrefix "infer: " $ infer annotatedAST (verbose args)
             when (printAstFinal args) $ liftIO $ prettyResolvedAst astInferred
+
+
+            debug "resolve2"
+            ((), resolved2) <- withErrorPrefix "resolve2: " $ runBoMTExcept astInferred Resolve2.compile
+
             
             (_, irGenState) <- withErrorPrefix "irgen: " $
-                runBoMTExcept (initIRGenState modName) (IRGen.compile astInferred)
+                runBoMTExcept (initIRGenState modName) (IRGen.compile resolved2)
             modify $ \s -> s { irGenModMap = Map.insert path (irGenState) (irGenModMap s) }
             debug "added to irGenModMap"
             when (printIR args) $ liftIO $ prettyIrGenState irGenState
