@@ -35,6 +35,7 @@ import qualified SymTab
 import IRGen
 import States
 import Resolve2
+import CGenerate
 
 
 import Language.C

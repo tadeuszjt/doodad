@@ -28,6 +28,7 @@ executable doodad
         compiler/stage2-typeInference,
         compiler/stage2b-resolveFuncs,
         compiler/stage3-generateIR,
+        compiler/stage3-generateC,
         compiler/stage4-generateLLVM
     default-language:  Haskell2010
     extra-libraries:   gc, m
@@ -88,4 +89,6 @@ executable doodad
         Map,
         Lexer,
         Token,
-        Resolve2
+        Resolve2,
+        CGenerate,
+        CPretty
