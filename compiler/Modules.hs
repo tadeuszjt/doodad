@@ -35,6 +35,8 @@ import qualified SymTab
 import IRGen
 import States
 import Resolve2
+import CBuilder
+import CPretty
 import CGenerate
 
 
@@ -174,6 +176,14 @@ runMod args pathsVisited modPath = do
             debug "resolve2"
             ((), resolved2) <- withErrorPrefix "resolve2: " $ runBoMTExcept astInferred Resolve2.compile
             modify $ \s -> s { moduleMap = Map.insert path (resolved2) (moduleMap s) }
+
+
+
+
+            -- test CBuilder
+            ((), cBuilderState) <- runBoMTExcept (initCBuilderState modName) (generate resolved2)
+            _ <- runBoMTExcept 0 (cPretty cBuilderState)
+
 
             
             (_, irGenState) <- withErrorPrefix "irgen: " $

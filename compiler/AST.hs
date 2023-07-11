@@ -49,7 +49,7 @@ data Param
     = Param
         { paramPos  :: TextPos
         , paramName :: Symbol
-        , paramType__ :: Type
+        , paramType :: Type
         }
     deriving (Eq, Ord)
 

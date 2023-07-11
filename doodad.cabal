@@ -90,5 +90,6 @@ executable doodad
         Lexer,
         Token,
         Resolve2,
-        CGenerate,
-        CPretty
+        CBuilder,
+        CPretty,
+        CGenerate
