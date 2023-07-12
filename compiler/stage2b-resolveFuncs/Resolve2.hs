@@ -14,7 +14,6 @@ import Symbol
 import Monad
 import Error
 import Type
-import Interop
 import States
 
 

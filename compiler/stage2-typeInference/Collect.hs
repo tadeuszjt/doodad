@@ -12,7 +12,6 @@ import Monad
 import Error
 import Control.Monad.State
 import qualified SymTab
-import Interop
 import Symbol
 import qualified Resolve
 import States

@@ -21,33 +21,18 @@ import qualified Parser as P
 import Flatten
 import Monad
 import Error
-import JIT
-import Compile
-import State
 import Args
 import AST
 import Annotate
-import Interop
 import Infer
 import Collect as C
 import qualified Resolve as R
 import qualified SymTab
-import IRGen
 import States
 import Resolve2
 import CBuilder as C
 import CPretty as C
 import CGenerate as C
-
-
-import Language.C
-import Language.C.System.GCC
-import Language.C.Parser
-import Language.C.Data.InputStream
-import Language.C.Data.Position
-import Language.C.Pretty
-import Language.C.Syntax.AST
-import Text.PrettyPrint
 
 -- Modules are groups of .doo files with a module name header
 -- lang/lexer.doo: lexer module
@@ -56,14 +41,12 @@ import Text.PrettyPrint
 data Modules
     = Modules
         { moduleMap   :: Map.Map FilePath ResolvedAst
-        , session     :: JIT.Session
         }
 
 
-initModulesState session
+initModulesState 
     = Modules
-        { session     = session
-        , moduleMap   = Map.empty
+        { moduleMap   = Map.empty
         }
 
 
@@ -139,30 +122,12 @@ runMod args pathsVisited modPath = do
             forM_ importPaths $ debug . ("importing: " ++)
             mapM_ (runMod args (Set.insert path pathsVisited)) importPaths
 
-            debug "loading c imports"
-            let cFilePaths =  [ fp | S.ImportC fp <- concat $ map S.astImports asts]
-            let cMacroStmts = [ Interop.importToCStmt imp  | imp@(S.ImportCMacro _ _) <- concat $ map S.astImports asts ]
-            cTranslUnitEither <- liftIO $ withTempFile "." "cimports.h" $ \filePath handle -> do
-                hClose handle
-                writeFile filePath $ concat $
-                    map (\p -> "#include \"" ++ p ++ "\"\n") cFilePaths ++
-                    map (\p -> p ++ "\n") cMacroStmts
-                parseCFile (newGCC "gcc") Nothing [] filePath
-            cTranslUnit <- case cTranslUnitEither of
-                Left (ParseError x) -> fail (show x)
-                Right cTranslUnit   -> return cTranslUnit
-            (globs, errs) <- analyseCTranslUnit cTranslUnit
-            ((), cExterns) <- withErrorPrefix "interop compile" $
-                runBoMTExcept [] (Interop.genExternsFromGlobs globs)
-            ((), cResolvedAst) <- runBoMTExcept (initResolvedAst "c") (mapM_ astGenExtern cExterns)
-
-
             debug "loading irGenImports"
             astImports <- forM importPaths $ \path -> do
                 resm <- Map.lookup path <$> gets moduleMap
                 assert (isJust resm) $ show path ++ " not in module map"
                 return $ fromJust resm
-            (resolvedAST, _) <- R.resolveAsts asts (cResolvedAst : astImports) 
+            (resolvedAST, _) <- R.resolveAsts asts astImports
             Flatten.checkTypeDefs (typeDefs resolvedAST)
             when (printAstResolved args) $ liftIO $ prettyResolvedAst resolvedAST
 
@@ -177,9 +142,6 @@ runMod args pathsVisited modPath = do
             ((), resolved2) <- withErrorPrefix "resolve2: " $ runBoMTExcept astInferred Resolve2.compile
             modify $ \s -> s { moduleMap = Map.insert path (resolved2) (moduleMap s) }
 
-
-
-
             -- test CBuilder
             buildDir <- liftIO $ canonicalizePath $ "build"
             liftIO $ createDirectoryIfMissing True buildDir
@@ -189,29 +151,7 @@ runMod args pathsVisited modPath = do
             _ <- runBoMTExcept (initCPrettyState stdout cBuilderState) cPretty
             --liftIO $ hClose cHandle
 
-            
-            (_, irGenState) <- withErrorPrefix "irgen: " $
-                runBoMTExcept (initIRGenState modName) (IRGen.compile resolved2)
-            when (printIR args) $ liftIO $ prettyIrGenState irGenState
-
-            -- compile and run
-            debug "compiling"
-            session <- gets session
-            (defs, state) <- withErrorPrefix "compile: " $ Compile.compile irGenState session
-            --when (printSymbols args) $ liftIO $ SymTab.prettySymTab (State.symTab state)
-
-            debug "running"
-            if compileObj args then do
-                let modDirectory' = joinPath [modDirectory, "build"]
-                let modName' = addExtension modName ".o"
-                buildDir <- liftIO $ canonicalizePath $ "build"
-                let fileDir = joinPath [buildDir, modName']
-                liftIO $ putStrLn $ show fileDir
-
-                liftIO $ createDirectoryIfMissing True buildDir
-                liftIO $ jitCompileToObject (printLLIR args) fileDir defs session
-            else do
-                liftIO $ jitAndRun defs session True (printLLIR args) 
+            return ()
 
         debug str =
             if verbose args

@@ -11,7 +11,6 @@ import AST
 import Args
 import Monad
 import Error
-import Interop
 import Apply
 import Unify
 import Collect

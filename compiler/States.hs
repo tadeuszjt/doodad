@@ -7,14 +7,6 @@ import Symbol
 import Type
 
 
-data Extern
-    = ExtFunc String [Type] Type
-    | ExtVar String AnnoType
-    | ExtConstInt String Integer
-    | ExtTypeDef String Type
-    deriving (Show, Eq)
-
-
 data ResolvedAst
     = ResolvedAst
     { moduleName  :: String
@@ -51,19 +43,6 @@ data FuncBody
 
 funcKeyFromBody :: String -> FuncBody -> FuncKey
 funcKeyFromBody sym body = (map typeof (funcParams body), sym, map typeof (funcArgs body), funcRetty body)
-
-
-data IRGenState = IRGenState
-    { irModuleName  :: String                      -- name of module
-    , irTypeDefs    :: Map.Map Symbol Type         -- all needed type definitions
-    , irExternDefs  :: Map.Map Symbol FuncKey      -- all needed func declarations
-    , irFuncDefs    :: Map.Map Symbol FuncBody     -- all needed func definitions
-    , irCtorDefs    :: Map.Map Symbol (Type, Int)  -- all needed ctor definitions
-    , irFuncMap     :: Map.Map FuncKey Symbol      -- symbol table for funcs defined by this module
-    , irTypeMap     :: Map.Map String Symbol       -- symbol table for types defined by this module
-    , irCtorMap     :: Map.Map String Symbol       -- symbol table for ctors defined by this module
-    , irMainDef     :: Maybe FuncBody              -- optional main() definition
-    }
 
 
 prettyResolvedAst :: ResolvedAst -> IO ()

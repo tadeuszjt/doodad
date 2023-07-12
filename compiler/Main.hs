@@ -9,7 +9,6 @@ import Control.Monad.Except
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
-import JIT
 import Error
 import Modules
 import Monad
@@ -27,15 +26,13 @@ main = do
     let parsedArgs = parseArgs initArgs args
     if args == [] then do
         putStrLn "==== Bolang REPL ===="
---        withSession True $ \session -> do
 --            runInputT defaultSettings (repl session $ initInferState Map.empty)
     else if lexOnly parsedArgs then do
-        withSession (optimise parsedArgs) $ \session -> do
-            forM_ (modPaths parsedArgs) $ \path -> do
-                res <- runBoMT (initModulesState session) (lexFile path)
-                case res of
-                    Left err     -> printError err 
-                    Right (r, _) -> mapM_ (putStrLn . show) r
+        forM_ (modPaths parsedArgs) $ \path -> do
+            res <- runBoMT (initModulesState) (lexFile path)
+            case res of
+                Left err     -> printError err 
+                Right (r, _) -> mapM_ (putStrLn . show) r
     else if astOnly parsedArgs then
         forM_ (modPaths parsedArgs) $ \path -> do
             res <- runBoMT () $ parse parsedArgs path
@@ -44,12 +41,11 @@ main = do
                 Right (ast, _) -> prettyAST ast
 
     else do
-        withSession (optimise parsedArgs) $ \session -> do
-            forM_ (modPaths parsedArgs) $ \path -> do
-                res <- runBoMT (initModulesState session) $ runMod parsedArgs Set.empty path
-                case res of
-                    Left err -> printError err 
-                    Right _  -> return ()
+        forM_ (modPaths parsedArgs) $ \path -> do
+            res <- runBoMT (initModulesState) $ runMod parsedArgs Set.empty path
+            case res of
+                Left err -> printError err 
+                Right _  -> return ()
 
 
 --repl :: Session -> InferState -> InputT IO ()
