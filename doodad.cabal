@@ -92,4 +92,5 @@ executable doodad
         Resolve2,
         CBuilder,
         CPretty,
-        CGenerate
+        CGenerate,
+        CAst

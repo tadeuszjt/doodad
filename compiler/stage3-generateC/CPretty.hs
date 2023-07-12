@@ -98,4 +98,28 @@ cPrettyElem elem = case elem of
     return@(Return expr) -> do
         printLn $ "return " ++ show expr ++ ";"
 
+    assign@(Assign typ str expr) -> do
+        printLn $ show typ ++ " " ++ str ++ " = " ++ show expr ++ ";"
+
+    if_@(If _ _) -> do
+        printLn $ "if (" ++ show (ifExpr if_) ++ ") {"
+        pushIndent
+        forM_ (ifStmts if_) $ \id -> do
+            elem <- (Map.! id) . elements <$> gets builder
+            cPrettyElem elem
+        popIndent
+        printLn "}"
+
+    els@(Else _) -> do
+        printLn $ "else {"
+        pushIndent
+        forM_ (elseStmts els) $ \id -> do
+            elem <- (Map.! id) . elements <$> gets builder
+            cPrettyElem elem
+        popIndent
+        printLn "}"
+
+    exprStmt@(ExprStmt expr) -> do
+        printLn $ show expr ++ ";"
+
     _ -> error "cPrettyElem"

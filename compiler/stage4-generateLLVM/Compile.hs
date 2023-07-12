@@ -645,8 +645,8 @@ storeExpr location expr_@(AST.AExpr exprType expr) = do
 
                 _ -> fail $ "invalid initialiser base type: " ++ show base
 
-        _ -> storeCopy location =<< cmpExpr expr_
         _ -> error (show expr)
+        _ -> storeCopy location =<< cmpExpr expr_
 
 
 cmpExpr :: InsCmp CompileState m =>  AST.Expr -> m Pointer

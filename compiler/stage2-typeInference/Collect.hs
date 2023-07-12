@@ -420,6 +420,7 @@ collectExpr (S.AExpr exprType expr) = collectPos expr $ case expr of
             "clear" -> collectEq exprType Void
             "unsafe_ptr" -> collectEq exprType UnsafePtr
             "unsafe_ptr_from_int" -> collectEq exprType UnsafePtr
+            "print" -> collectEq exprType Void
 
         mapM_ collectExpr ps
         mapM_ collectExpr es

@@ -9,10 +9,19 @@ import Monad
 import Symbol
 import States
 import CBuilder as C
+import CAst as C
 import Control.Monad.State
 import Type
 import AST as S
 import Error
+
+
+data Value
+    = Value { valType :: Type.Type, valExpr :: C.Expression }
+    deriving (Show, Eq)
+
+instance Typeof Value where
+    typeof (Value t _) = t
 
 
 cParamOf :: S.Param -> C.Param
@@ -42,9 +51,8 @@ cTypeOf typ = case typ of
             FieldCtor ts -> Type.Tuple ts
         
 
-
-getSymbolsFromMap :: Monad m => Map.Map Symbol Type.Type -> m [Symbol]
-getSymbolsFromMap typedefs = do
+getSymbolsOrderedByDependencies :: Monad m => Map.Map Symbol Type.Type -> m [Symbol]
+getSymbolsOrderedByDependencies typedefs = do
     fmap (removeDuplicates . concat) . forM (Map.toList typedefs) $ \(s, t) -> do
         symbols <- getSymbols t
         return (symbols ++ [s])
@@ -83,12 +91,11 @@ getSymbolsFromMap typedefs = do
             | otherwise = x : deleteAll a xs
 
 
+
 generate :: BoM C.BuilderState m => ResolvedAst -> m ()
 generate ast = do
-    -- problem is, we have a bunch of typedefs : (Symbol, Type)
-    -- we want to define them in an order which prevents unknown symbols
     let typedefs = Map.union (typeImports ast) (typeDefs ast)
-    orderedSymbols <- getSymbolsFromMap typedefs
+    orderedSymbols <- getSymbolsOrderedByDependencies typedefs
     forM_ orderedSymbols $ \symbol -> do
         when (Map.member symbol typedefs) $ do
             void $ newTypedef (cTypeOf $ typedefs Map.! symbol) (show symbol)
@@ -103,6 +110,7 @@ generate ast = do
         generateFunc symbol func
 
 
+
 generateFunc :: BoM C.BuilderState m => Symbol -> FuncBody -> m ()
 generateFunc symbol body = do
     let args = map cParamOf (States.funcArgs body)
@@ -110,7 +118,6 @@ generateFunc symbol body = do
     let rettyType = cTypeOf (States.funcRetty body)
     setCurrentId =<< newFunction rettyType (show symbol) (params ++ args)
     mapM_ generateStmt (States.funcStmts body)
-        
 
 
 generateStmt :: BoM C.BuilderState m => S.Stmt -> m ()
@@ -119,17 +126,57 @@ generateStmt stmt = withPos stmt $ case stmt of
         --append =<< newElement . C.Return =<< generateExpr expr
         return ()
 
-    _ -> return ()
+    S.Block stmts -> mapM_ generateStmt stmts
+
+    S.Assign _ pattern expr -> do
+        val <- generateExpr expr
+        matched <- generatePattern pattern val
+        return ()
+
+    S.If _ expr blk melse -> do
+        val <- generateExpr expr
+        ifID <- newElement $ C.If { ifExpr = valExpr val, ifStmts = [] }
+        append ifID
+        withCurID ifID $ generateStmt blk
+        when (isJust melse) $ do
+            elseID <- newElement $ C.Else { elseStmts = [] }
+            append elseID
+            withCurID elseID $ generateStmt (fromJust melse)
+
+    S.ExprStmt (AExpr _ (S.Builtin _ [] "print" exprs)) -> do
+        vals <- mapM generateExpr exprs
+        forM_ vals $ \val -> do
+            case valType val of
+                Type.Bool -> do
+                    trueCallId <- newElement $ C.ExprStmt $ C.Call "puts" [C.String "true"]
+                    falseCallId <- newElement $ C.ExprStmt $ C.Call "puts" [C.String "false"]
+                    ifId <- newElement $ C.If { ifExpr = valExpr val, ifStmts = [trueCallId] }
+                    elseId <- newElement $ C.Else { elseStmts = [falseCallId] }
+                    append ifId
+                    append elseId
+
+    _ -> error (show stmt)
 
 
-generateExpr :: BoM C.BuilderState m => Expr -> m C.Expression
+generatePattern :: BoM C.BuilderState m => Pattern -> Value -> m C.Expression
+generatePattern pattern val = do
+    case pattern of
+        PatIdent _ str -> do 
+            append =<< newElement (C.Assign (cTypeOf (typeof val)) (show str) (valExpr val))
+
+            return (C.Bool True)
+
+
+generateExpr :: BoM C.BuilderState m => Expr -> m Value
 generateExpr (AExpr typ expr) = withPos expr $ case expr of
-    S.Bool _ b -> return $ C.Bool b
-    S.Infix _ op a b -> do
-        ca <- generateExpr a
-        cb <- generateExpr b
-        cop <- case op of
-            S.OrOr -> return C.OrOr
-        return $ C.Infix cop ca cb
+    S.Bool _ b -> return $ Value typ (C.Bool b)
+
+    S.Ident _ symbol -> return $ Value typ (C.Ident $ show symbol)
+--    S.Infix _ op a b -> do
+--        ca <- generateExpr a
+--        cb <- generateExpr b
+--        cop <- case op of
+--            S.OrOr -> return C.OrOr
+--        return $ Value typ (C.Infix cop ca cb)
 
     _ -> error (show expr)
