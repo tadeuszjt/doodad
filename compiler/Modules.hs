@@ -35,9 +35,9 @@ import qualified SymTab
 import IRGen
 import States
 import Resolve2
-import CBuilder
-import CPretty
-import CGenerate
+import CBuilder as C
+import CPretty as C
+import CGenerate as C
 
 
 import Language.C
@@ -185,8 +185,8 @@ runMod args pathsVisited modPath = do
             liftIO $ createDirectoryIfMissing True buildDir
             let cFilePath = joinPath [buildDir, modName ++ ".c"]
             --cHandle <- liftIO $ openFile cFilePath WriteMode
-            ((), cBuilderState) <- runBoMTExcept (initCBuilderState modName) (generate resolved2)
-            _ <- runBoMTExcept (initCPrettyState stdout) (cPretty cBuilderState)
+            ((), cBuilderState) <- runBoMTExcept (C.initBuilderState modName) (generate resolved2)
+            _ <- runBoMTExcept (initCPrettyState stdout cBuilderState) cPretty
             --liftIO $ hClose cHandle
 
             

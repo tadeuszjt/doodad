@@ -12,14 +12,14 @@ data ID =
     deriving (Show, Eq, Ord)
 
 
-data CParam
-    = CParam { cName :: String, cType :: CType }
+data Param
+    = Param { cName :: String, cType :: Type }
     deriving (Eq)
 
-instance Show CParam where
-    show (CParam name typ) = show typ ++ " " ++ name
+instance Show Param where
+    show (Param name typ) = show typ ++ " " ++ name
 
-data CType
+data Type
     = Cint
     | Cfloat
     | Cdouble
@@ -31,15 +31,15 @@ data CType
     | Cuint32_t
     | Cbool
     | Cchar
-    | Cstruct [CParam]
-    | Cunion [CParam]
+    | Cstruct [Param]
+    | Cunion [Param]
     | Cvoid
     | Ctypedef String
-    | Cpointer CType
+    | Cpointer Type
     deriving (Eq)
 
 
-instance Show CType where
+instance Show Type where
     show Cint = "int"
     show Cfloat = "float"
     show Cdouble = "double"
@@ -61,81 +61,120 @@ data Element
     | For { forBody :: [ID] }
     | Extern
         { extName :: String
-        , extRetty :: CType
-        , extArgs :: [CType]
+        , extRetty :: Type
+        , extArgs :: [Type]
         }
     | Func
         { funcBody :: [ID]
         , funcName :: String
-        , funcArgs :: [CParam]
-        , funcRetty :: CType
+        , funcArgs :: [Param]
+        , funcRetty :: Type
         }
     | Typedef
         { typedefName :: String
-        , typedefType :: CType
+        , typedefType :: Type
         }
+    | Return Expression
+ 
+
+data Operator
+    = OrOr
+    deriving (Eq)
+
+instance Show Operator where
+    show OrOr = "||"
+
+data Expression
+    = Ident String
+    | Bool Bool
+    | Infix Operator Expression Expression
+    deriving (Eq)
+
+instance Show Expression where
+    show (Ident s) = s
+    show (Bool b) = if b then "true" else "false"
 
 
-data CBuilderState
-    = CBuilderState
+
+
+data BuilderState
+    = BuilderState
     { elements :: Map.Map ID Element
-    , curElement :: ID
+    , currentID :: ID
     , idSupply :: Int
     , moduleName :: String
     }
 
-initCBuilderState moduleName = CBuilderState
-    { elements = Map.singleton (ID 0) (Global [])
-    , curElement = ID 0
+
+globalID = ID 0
+
+initBuilderState moduleName = BuilderState
+    { elements = Map.singleton globalID (Global [])
+    , currentID = globalID
     , idSupply = 1
     , moduleName = moduleName
     }
 
 
-freshId :: BoM CBuilderState m => m ID
+freshId :: BoM BuilderState m => m ID
 freshId = do
     supply <- gets idSupply
     modify $ \s -> s { idSupply = supply + 1 }
     return (ID supply)
 
+withCurID :: BoM BuilderState m => ID -> m () -> m ()
+withCurID id f = do
+    curId <- gets currentID
+    setCurrentId id
+    f
+    setCurrentId curId
 
-addElement :: BoM CBuilderState m => ID -> Element -> m ()
-addElement id elem = modify $ \s -> s { elements = Map.insert id elem (elements s) }
+setCurrentId :: BoM BuilderState m => ID -> m ()
+setCurrentId id = do
+    modify $ \s -> s { currentID = id }
 
-modifyElement :: BoM CBuilderState m => ID -> (Element -> m Element) -> m ()
+
+append :: BoM BuilderState m => ID -> m ()
+append id = do
+    curId <- gets currentID
+    curElem <- (Map.! curId) <$> gets elements
+
+    elem' <- case curElem of
+        global@(Global _) -> return $ global { globalBody = globalBody global ++ [id] }
+        func@(Func _ _ _ _) -> return $ func { funcBody = funcBody func ++ [id] }
+
+    modify $ \s -> s { elements = Map.insert curId elem' (elements s) }
+
+
+newElement :: BoM BuilderState m => Element -> m ID
+newElement elem = do
+    id <- freshId
+    modify $ \s -> s { elements = Map.insert id elem (elements s) }
+    return id
+
+modifyElement :: BoM BuilderState m => ID -> (Element -> m Element) -> m ()
 modifyElement id f = do
     elem' <- f =<< (Map.! id) <$> gets elements
     modify $ \s -> s { elements = Map.insert id elem' (elements s) }
 
-addToGlobal :: BoM CBuilderState m => ID -> m ()
-addToGlobal id = do
-    modifyElement (ID 0) (\global -> return $ global { globalBody = globalBody global ++ [id] })
-
-setCurElement :: BoM CBuilderState m => ID -> m ()
-setCurElement id = do
-    modify $ \s -> s { curElement = id }
 
 
-newExtern :: BoM CBuilderState m => String -> CType -> [CType] -> m ()
+newExtern :: BoM BuilderState m => String -> Type -> [Type] -> m ()
 newExtern name retty args = do
-    id <- freshId
-    addToGlobal id
-    addElement id (Extern { extName = name, extRetty = retty, extArgs = args })
+    id <- newElement (Extern { extName = name, extRetty = retty, extArgs = args })
+    withCurID globalID (append id)
 
 
-newTypedef :: BoM CBuilderState m => CType -> String -> m ID
+newTypedef :: BoM BuilderState m => Type -> String -> m ID
 newTypedef typ name = do
-    id <- freshId
-    addElement id (Typedef { typedefName = name, typedefType = typ })
-    addToGlobal id
+    id <- newElement (Typedef { typedefName = name, typedefType = typ })
+    withCurID globalID (append id)
     return id
 
 -- creates function, appends to global
 -- sets current element to function
-newFunction :: BoM CBuilderState m => CType -> String -> [CParam] -> m ID 
+newFunction :: BoM BuilderState m => Type -> String -> [Param] -> m ID 
 newFunction retty name args = do
-    id <- freshId
-    addElement id (Func { funcName = name, funcBody = [], funcRetty = retty, funcArgs = args })
-    addToGlobal id
-    setCurElement id
+    id <- newElement (Func { funcName = name, funcBody = [], funcRetty = retty, funcArgs = args })
+    withCurID globalID (append id)
     return id
