@@ -45,7 +45,8 @@ printLn s = do
 printIndent :: BoM CPrettyState m => m ()
 printIndent = do
     level <- gets indent
-    void $ replicateM level $ liftIO $ putStr "\t"
+    handle <- gets fileHandle
+    void $ replicateM level $ liftIO $ hPutStr handle "    "
 
 pushIndent :: BoM CPrettyState m => m ()
 pushIndent = modify $ \s -> s { indent = indent s + 1 }
@@ -58,7 +59,8 @@ cPretty :: BoM CPrettyState m => m ()
 cPretty = do
     modName <- moduleName <$> gets builder
     printLn $ "/* Doodad Module: " ++ modName ++ " */"
-    printLn "#include <math.h>"
+    printLn "#include <stdio.h>"
+    printLn "#include <assert.h>"
     printLn "#include <stdint.h>"
     printLn "#include <stdbool.h>"
     printLn "#include <gc.h>"
@@ -122,4 +124,25 @@ cPrettyElem elem = case elem of
     exprStmt@(ExprStmt expr) -> do
         printLn $ show expr ++ ";"
 
-    _ -> error "cPrettyElem"
+    switch@(Switch _ _) -> do
+        printLn $ "switch(" ++ show (switchExpr switch) ++ ") {"
+        pushIndent
+        forM_ (switchBody switch) $ \id -> do
+            elem <- (Map.! id) . elements <$> gets builder
+            cPrettyElem elem
+        popIndent
+        printLn "}"
+
+    cas@(Case _ _) -> do
+        printLn $ "case " ++ show (caseExpr cas) ++ ": {"
+        pushIndent
+        forM_ (caseBody cas) $ \id -> do
+            elem <- (Map.! id) . elements <$> gets builder
+            cPrettyElem elem
+        popIndent
+        printLn "}"
+
+    Break -> printLn "break;"
+
+
+    _ -> error (show elem) 

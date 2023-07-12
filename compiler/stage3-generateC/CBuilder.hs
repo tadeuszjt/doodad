@@ -31,6 +31,7 @@ data Element
         , typedefType :: Type
         }
     | Return Expression
+    | Break
     | Assign Type String Expression
     | If
         { ifExpr :: Expression
@@ -40,6 +41,15 @@ data Element
         { elseStmts :: [ID]
         }
     | ExprStmt Expression
+    | Switch
+        { switchExpr :: Expression
+        , switchBody :: [ID]
+        }
+    | Case
+        { caseExpr :: Expression
+        , caseBody :: [ID]
+        }
+    deriving (Show)
  
 
 data BuilderState
@@ -67,12 +77,13 @@ freshId = do
     modify $ \s -> s { idSupply = supply + 1 }
     return (ID supply)
 
-withCurID :: BoM BuilderState m => ID -> m () -> m ()
+withCurID :: BoM BuilderState m => ID -> m a -> m a
 withCurID id f = do
     curId <- gets currentID
     setCurrentId id
-    f
+    a <- f
     setCurrentId curId
+    return a
 
 setCurrentId :: BoM BuilderState m => ID -> m ()
 setCurrentId id = do
@@ -89,6 +100,8 @@ append id = do
         func@(Func _ _ _ _) -> return $ func { funcBody = funcBody func ++ [id] }
         if_@(If _ _) -> return $ if_ { ifStmts = ifStmts if_ ++ [id] }
         els@(Else _) -> return $ els { elseStmts = elseStmts els ++ [id] }
+        switch@(Switch _ _) -> return $ switch { switchBody = switchBody switch ++ [id] }
+        cas@(Case _ _) -> return $ cas { caseBody = caseBody cas ++ [id] }
 
     modify $ \s -> s { elements = Map.insert curId elem' (elements s) }
 

@@ -46,23 +46,40 @@ instance Show Type where
 
 data Operator
     = OrOr
+    | Plus
+    | Times
+    | Minus
+    | Divide
+    | LTEq
+    | EqEq
     deriving (Eq)
 
 instance Show Operator where
     show OrOr = "||"
+    show Plus = "+"
+    show Times = "*"
+    show Minus = "-"
+    show Divide = "/"
+    show LTEq = "<="
+    show EqEq = "=="
 
 data Expression
     = Ident String
     | Bool Bool
+    | Int Integer
     | Infix Operator Expression Expression
     | String String
     | Call String [Expression]
+    | CndExpr Expression Expression Expression
     deriving (Eq)
 
 instance Show Expression where
     show (Ident s) = s
     show (Bool b) = if b then "true" else "false"
+    show (Int n) = show n
     show (String s) = show s
     show (Call name exprs) = name ++ "(" ++ intercalate ", " (map show exprs) ++ ")"
+    show (CndExpr c a b) = show c ++ " ? " ++ show a ++ " : " ++ show b
+    show (Infix op a b) = "(" ++ show a ++ " " ++ show op ++ " " ++ show b ++ ")"
 
 
