@@ -181,9 +181,13 @@ runMod args pathsVisited modPath = do
 
 
             -- test CBuilder
+            buildDir <- liftIO $ canonicalizePath $ "build"
+            liftIO $ createDirectoryIfMissing True buildDir
+            let cFilePath = joinPath [buildDir, modName ++ ".c"]
+            --cHandle <- liftIO $ openFile cFilePath WriteMode
             ((), cBuilderState) <- runBoMTExcept (initCBuilderState modName) (generate resolved2)
-            _ <- runBoMTExcept 0 (cPretty cBuilderState)
-
+            _ <- runBoMTExcept (initCPrettyState stdout) (cPretty cBuilderState)
+            --liftIO $ hClose cHandle
 
             
             (_, irGenState) <- withErrorPrefix "irgen: " $

@@ -12,6 +12,13 @@ data ID =
     deriving (Show, Eq, Ord)
 
 
+data CParam
+    = CParam { cName :: String, cType :: CType }
+    deriving (Eq)
+
+instance Show CParam where
+    show (CParam name typ) = show typ ++ " " ++ name
+
 data CType
     = Cint
     | Cfloat
@@ -24,8 +31,8 @@ data CType
     | Cuint32_t
     | Cbool
     | Cchar
-    | Cstruct [CType]
-    | Cunion [CType]
+    | Cstruct [CParam]
+    | Cunion [CParam]
     | Cvoid
     | Ctypedef String
     | Cpointer CType
@@ -46,7 +53,7 @@ instance Show CType where
     show (Cunion ts) = "union { " ++ concat (map (\t -> show t ++ "; ") ts) ++ "}"
     show Cvoid = "void"
     show (Ctypedef s) = s
-    show (Cpointer t) = "*" ++ show t
+    show (Cpointer t) = show t ++ "*"
 
 
 data Element
@@ -60,7 +67,7 @@ data Element
     | Func
         { funcBody :: [ID]
         , funcName :: String
-        , funcArgs :: [CType]
+        , funcArgs :: [CParam]
         , funcRetty :: CType
         }
     | Typedef
@@ -123,10 +130,9 @@ newTypedef typ name = do
     addToGlobal id
     return id
 
-
 -- creates function, appends to global
 -- sets current element to function
-newFunction :: BoM CBuilderState m => CType -> String -> [CType] -> m ID 
+newFunction :: BoM CBuilderState m => CType -> String -> [CParam] -> m ID 
 newFunction retty name args = do
     id <- freshId
     addElement id (Func { funcName = name, funcBody = [], funcRetty = retty, funcArgs = args })

@@ -161,6 +161,7 @@ buildTypeImportMap :: BoM (Map.Map Symbol Type) m => [ResolvedAst] -> m ()
 buildTypeImportMap imports = do
     forM_ imports $ \imprt -> do
         modify $ Map.union (typeDefs imprt)
+        modify $ Map.union (typeImports imprt)
 
 buildFuncImportMap :: BoM (Map.Map Symbol FuncKey) m => [ResolvedAst] -> m ()
 buildFuncImportMap imports = do
