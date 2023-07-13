@@ -11,7 +11,6 @@ import Control.Monad.Except
 import Control.Monad.Trans
 import Control.Monad.Identity
 
-
 import Error
 
 
@@ -33,8 +32,7 @@ runBoMTExcept state bomt = do
         Right r -> return r
 
 
-class (MonadState s m, MonadFail m, MonadIO m, MonadError Error m)     => BoM s m
-
+class (MonadState s m, MonadFail m, MonadIO m, MonadError Error m) => BoM s m
 
 instance (MonadFail m, MonadIO m) => BoM s (BoMT s m)
 

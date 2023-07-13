@@ -144,5 +144,8 @@ cPrettyElem elem = case elem of
 
     Break -> printLn "break;"
 
+    Set str expr -> do
+        printLn $ str ++ " = " ++ show expr ++ ";"
+
 
     _ -> error (show elem) 

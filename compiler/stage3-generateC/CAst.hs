@@ -4,7 +4,7 @@ import Data.List
 
 data Param
     = Param { cName :: String, cType :: Type }
-    deriving (Eq)
+    deriving (Eq, Ord)
 
 instance Show Param where
     show (Param name typ) = show typ ++ " " ++ name
@@ -26,7 +26,7 @@ data Type
     | Cvoid
     | Ctypedef String
     | Cpointer Type
-    deriving (Eq)
+    deriving (Eq, Ord)
 
 instance Show Type where
     show Cint = "int"
@@ -71,6 +71,9 @@ data Expression
     | String String
     | Call String [Expression]
     | CndExpr Expression Expression Expression
+    | Initialiser [Expression]
+    | Char Char
+    | Member Expression String
     deriving (Eq)
 
 instance Show Expression where
@@ -81,5 +84,8 @@ instance Show Expression where
     show (Call name exprs) = name ++ "(" ++ intercalate ", " (map show exprs) ++ ")"
     show (CndExpr c a b) = show c ++ " ? " ++ show a ++ " : " ++ show b
     show (Infix op a b) = "(" ++ show a ++ " " ++ show op ++ " " ++ show b ++ ")"
+    show (Initialiser es) = "{" ++ intercalate ", " (map show es) ++ "}"
+    show (Char c) = show c
+    show (Member a b) = show a ++ "." ++ b
 
 

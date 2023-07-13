@@ -3,9 +3,9 @@ module CBuilder where
 
 import qualified Data.Map as Map
 
-import Monad
 import CAst
 import Control.Monad.State
+
 
 
 data ID =
@@ -33,6 +33,7 @@ data Element
     | Return Expression
     | Break
     | Assign Type String Expression
+    | Set String Expression
     | If
         { ifExpr :: Expression
         , ifStmts :: [ID]
@@ -61,6 +62,10 @@ data BuilderState
     }
 
 
+class (Monad m) => MonadBuilder m where
+    liftBuilderState :: State BuilderState a -> m a
+
+
 globalID = ID 0
 
 initBuilderState moduleName = BuilderState
@@ -71,29 +76,29 @@ initBuilderState moduleName = BuilderState
     }
 
 
-freshId :: BoM BuilderState m => m ID
+freshId :: MonadBuilder m => m ID
 freshId = do
-    supply <- gets idSupply
-    modify $ \s -> s { idSupply = supply + 1 }
+    supply <- liftBuilderState $ gets idSupply
+    liftBuilderState $ modify $ \s -> s { idSupply = supply + 1 }
     return (ID supply)
 
-withCurID :: BoM BuilderState m => ID -> m a -> m a
+withCurID :: MonadBuilder m => ID -> m a -> m a
 withCurID id f = do
-    curId <- gets currentID
+    curId <- liftBuilderState $ gets currentID
     setCurrentId id
     a <- f
     setCurrentId curId
     return a
 
-setCurrentId :: BoM BuilderState m => ID -> m ()
+setCurrentId :: MonadBuilder m => ID -> m ()
 setCurrentId id = do
-    modify $ \s -> s { currentID = id }
+    liftBuilderState $ modify $ \s -> s { currentID = id }
 
 
-append :: BoM BuilderState m => ID -> m ()
+append :: MonadBuilder m => ID -> m ()
 append id = do
-    curId <- gets currentID
-    curElem <- (Map.! curId) <$> gets elements
+    curId <- liftBuilderState $ gets currentID
+    curElem <- (Map.! curId) <$> liftBuilderState (gets elements)
 
     elem' <- case curElem of
         global@(Global _) -> return $ global { globalBody = globalBody global ++ [id] }
@@ -103,30 +108,30 @@ append id = do
         switch@(Switch _ _) -> return $ switch { switchBody = switchBody switch ++ [id] }
         cas@(Case _ _) -> return $ cas { caseBody = caseBody cas ++ [id] }
 
-    modify $ \s -> s { elements = Map.insert curId elem' (elements s) }
+    liftBuilderState $ modify $ \s -> s { elements = Map.insert curId elem' (elements s) }
 
 
-newElement :: BoM BuilderState m => Element -> m ID
+newElement :: MonadBuilder m => Element -> m ID
 newElement elem = do
     id <- freshId
-    modify $ \s -> s { elements = Map.insert id elem (elements s) }
+    liftBuilderState $ modify $ \s -> s { elements = Map.insert id elem (elements s) }
     return id
 
 
-modifyElement :: BoM BuilderState m => ID -> (Element -> m Element) -> m ()
+modifyElement :: MonadBuilder m => ID -> (Element -> m Element) -> m ()
 modifyElement id f = do
-    elem' <- f =<< (Map.! id) <$> gets elements
-    modify $ \s -> s { elements = Map.insert id elem' (elements s) }
+    elem' <- f =<< (Map.! id) <$> liftBuilderState (gets elements)
+    liftBuilderState $ modify $ \s -> s { elements = Map.insert id elem' (elements s) }
 
 
 
-newExtern :: BoM BuilderState m => String -> Type -> [Type] -> m ()
+newExtern :: MonadBuilder m => String -> Type -> [Type] -> m ()
 newExtern name retty args = do
     id <- newElement (Extern { extName = name, extRetty = retty, extArgs = args })
     withCurID globalID (append id)
 
 
-newTypedef :: BoM BuilderState m => Type -> String -> m ID
+newTypedef :: MonadBuilder m => Type -> String -> m ID
 newTypedef typ name = do
     id <- newElement (Typedef { typedefName = name, typedefType = typ })
     withCurID globalID (append id)
@@ -134,8 +139,6 @@ newTypedef typ name = do
 
 -- creates function, appends to global
 -- sets current element to function
-newFunction :: BoM BuilderState m => Type -> String -> [Param] -> m ID 
+newFunction :: MonadBuilder m => Type -> String -> [Param] -> m ID 
 newFunction retty name args = do
-    id <- newElement (Func { funcName = name, funcBody = [], funcRetty = retty, funcArgs = args })
-    withCurID globalID (append id)
-    return id
+    newElement (Func { funcName = name, funcBody = [], funcRetty = retty, funcArgs = args })

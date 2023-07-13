@@ -39,7 +39,7 @@ executable doodad
         directory,
         haskeline,
         filepath,
-        exceptions,
+        exceptions
     build-tools:
         happy,
         alex

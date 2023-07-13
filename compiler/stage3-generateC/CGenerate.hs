@@ -1,5 +1,12 @@
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+
 module CGenerate where
+
+import Control.Monad.State
+import Control.Monad.Except
+import Control.Monad.Identity
 
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -16,6 +23,67 @@ import AST as S
 import Error
 
 
+data GenerateState
+    = GenerateState
+        { tuples :: Map.Map C.Type String
+        , supply :: Map.Map String Int
+        }
+
+
+initGenerateState
+    = GenerateState
+        { tuples = Map.empty
+        , supply = Map.empty
+        }
+
+class (MonadBuilder m, MonadFail m, MonadState GenerateState m) => MonadGenerate m
+
+
+newtype GenerateT m a = GenerateT { unGenerateT :: StateT GenerateState (StateT BuilderState m) a }
+    deriving (Functor, Applicative, Monad, MonadState GenerateState, MonadGenerate)
+
+
+instance Monad m => MonadBuilder (GenerateT m) where
+    --liftBuilderState :: State BuilderState a -> m a
+    liftBuilderState (StateT s) = GenerateT $ lift $ StateT $ pure . runIdentity . s
+
+instance MonadTrans GenerateT where
+    lift = GenerateT . lift . lift 
+
+instance Monad m => MonadFail (GenerateT m) where
+    fail = error
+
+
+runGenerateT :: Monad m => GenerateState -> BuilderState -> GenerateT m a -> m ((a, GenerateState), BuilderState)
+runGenerateT generateState builderState generateT =
+    runStateT (runStateT (unGenerateT generateT) generateState) builderState
+
+
+
+freshName :: MonadGenerate m => String -> m String
+freshName suggestion = do
+    nm <- Map.lookup suggestion <$> gets supply
+    n <- case nm of
+        Nothing -> return 0
+        Just x  -> return x
+    modify $ \s -> s { supply = Map.insert suggestion (n + 1) (supply s) }
+    case n of
+        0 -> return suggestion
+        n -> return $ suggestion ++ show n
+
+
+getStruct :: MonadGenerate m => C.Type -> m C.Type
+getStruct typ = do
+    sm <- Map.lookup typ <$> gets tuples
+    case sm of
+        Just s -> return $ Ctypedef s
+        Nothing -> do
+            name <- freshName "tuple"
+            newTypedef typ name
+            modify $ \s -> s { tuples = Map.insert typ name (tuples s) }
+            return $ Ctypedef name
+            
+
 data Value
     = Value { valType :: Type.Type, valExpr :: C.Expression }
     deriving (Show, Eq)
@@ -24,24 +92,30 @@ instance Typeof Value where
     typeof (Value t _) = t
 
 
-cParamOf :: S.Param -> C.Param
-cParamOf param = C.Param { C.cName = show (paramName param), C.cType = cTypeOf (paramType param) }
 
-cTypeOf :: Type.Type -> C.Type
+cParamOf :: MonadGenerate m => S.Param -> m C.Param
+cParamOf param = do
+    ctype <- cTypeOf (paramType param)
+    return $ C.Param { C.cName = show (paramName param), C.cType = ctype }
+
+cTypeOf :: MonadGenerate m => Type.Type -> m C.Type
 cTypeOf typ = case typ of
-    I64 -> Cint64_t
-    I32 -> Cint32_t
-    I8 -> Cint8_t
-    F64 -> Cdouble
-    F32 -> Cfloat
-    Type.Bool -> Cbool
-    Type.Char -> Cchar
-    Type.ADT fs -> Cstruct [C.Param "en" Cint64_t, C.Param "" $ Cunion $ zipWith (\a b -> C.Param ("m" ++ show a) b) [0..] (map (cTypeOf . fieldType) fs)]
-    Type.Tuple ts -> Cstruct $ zipWith (\a b -> C.Param ("m" ++ show a) b) [0..] (map cTypeOf ts)
-    Void -> Cvoid
-    Type.Typedef s -> Ctypedef (show s)
-    Table ts -> Cstruct (C.Param "len" Cint64_t : zipWith (\a b -> C.Param ("m" ++ show a) b) [0..] (map (Cpointer . cTypeOf) ts))
-    Sparse ts -> Cstruct [C.Param "elems" (cTypeOf (Table ts)), C.Param "free" (cTypeOf (Table [I64]))]
+    I64 -> return $ Cint64_t
+    I32 -> return $ Cint32_t
+    I8 ->  return $ Cint8_t
+    F64 -> return $ Cdouble
+    F32 -> return $ Cfloat
+    Void -> return Cvoid
+    Type.Bool -> return $ Cbool
+    Type.Char -> return $ Cchar
+    Type.Typedef s -> return $ Ctypedef (show s)
+    Type.Tuple ts -> do
+        cts <- mapM cTypeOf ts
+        raw <- return $ Cstruct $ zipWith (\a b -> C.Param ("m" ++ show a) b) [0..] cts
+        getStruct raw
+
+    --Table ts -> Cstruct (C.Param "len" Cint64_t : zipWith (\a b -> C.Param ("m" ++ show a) b) [0..] (map (Cpointer . cTypeOf) ts))
+    --Sparse ts -> Cstruct [C.Param "elems" (cTypeOf (Table ts)), C.Param "free" (cTypeOf (Table [I64]))]
     _ -> error (show typ)
     where
         fieldType f = case f of
@@ -92,18 +166,22 @@ getSymbolsOrderedByDependencies typedefs = do
 
 
 
-generate :: BoM C.BuilderState m => ResolvedAst -> m ()
+generate :: MonadGenerate m => ResolvedAst -> m ()
 generate ast = do
     let typedefs = Map.union (typeImports ast) (typeDefs ast)
     orderedSymbols <- getSymbolsOrderedByDependencies typedefs
     forM_ orderedSymbols $ \symbol -> do
         when (Map.member symbol typedefs) $ do
-            void $ newTypedef (cTypeOf $ typedefs Map.! symbol) (show symbol)
+            ctype <- cTypeOf (typedefs Map.! symbol)
+            void $ newTypedef ctype (show symbol)
             
     -- generate imported function externs
     forM_ (Map.toList $ funcImports ast) $ \(symbol, funcKey@(pts, s, ats, rt)) -> case symbol of
         SymResolved _ _ _ -> do
-            newExtern (show symbol) (cTypeOf rt) (map (Cpointer . cTypeOf) pts ++ map cTypeOf ats)
+            crt <- cTypeOf rt
+            cpts <- map Cpointer <$> mapM cTypeOf pts
+            cats <- mapM cTypeOf ats
+            newExtern (show symbol) crt (cpts ++ cats)
         _ -> return ()
 
     forM_ (Map.toList $ funcDefs ast) $ \(symbol, func) -> do
@@ -111,17 +189,42 @@ generate ast = do
 
 
 
-generateFunc :: BoM C.BuilderState m => Symbol -> FuncBody -> m ()
+generateFunc :: MonadGenerate m => Symbol -> FuncBody -> m ()
 generateFunc symbol body = do
-    let args = map cParamOf (States.funcArgs body)
-    let params = map (\(C.Param n t) -> C.Param n (Cpointer t)) $ map cParamOf (States.funcParams body)
-    let rettyType = cTypeOf (States.funcRetty body)
-    setCurrentId =<< newFunction rettyType (show symbol) (params ++ args)
-    mapM_ generateStmt (States.funcStmts body)
+    args <- mapM cParamOf (States.funcArgs body)
+    params <- map (\(C.Param n t) -> C.Param n (Cpointer t)) <$> mapM cParamOf (States.funcParams body)
+    rettyType <- cTypeOf (States.funcRetty body)
+    id <- newFunction rettyType (show symbol) (params ++ args)
+    withCurID id $ mapM_ generateStmt (States.funcStmts body)
+    withCurID globalID $ append id
 
 
-generateStmt :: BoM C.BuilderState m => S.Stmt -> m ()
-generateStmt stmt = withPos stmt $ case stmt of
+
+generatePrint :: MonadGenerate m => String -> Value -> m ()
+generatePrint app val = case valType val of
+    Type.Bool -> do
+        id <- newElement $ C.ExprStmt $ C.Call "printf" [
+            C.String ("%s" ++ app),
+            C.CndExpr (valExpr val) (C.String "true") (C.String "false")
+            ]
+        append id
+
+    Type.I64 -> do
+        id <- newElement $ C.ExprStmt $ C.Call "printf" [
+            C.String ("%d" ++ app), valExpr val
+            ]
+        append id
+
+    Type.Tuple ts -> do
+        append =<< newElement (C.ExprStmt $ C.Call "putchar" [C.Char '('])
+        forM_ (zip ts [0..]) $ \(t, i) -> do
+            let end = i == length ts - 1
+            generatePrint (if end then "" else ", ") $ Value t $ C.Member (valExpr val) ("m" ++ show i)
+        append =<< newElement (C.ExprStmt $ C.Call "printf" [C.String (")" ++ app)])
+
+
+generateStmt :: MonadGenerate m => S.Stmt -> m ()
+generateStmt stmt = case stmt of
     S.Return _ (Just expr) -> do
         append =<< newElement . C.Return . valExpr =<< generateExpr expr
 
@@ -166,28 +269,21 @@ generateStmt stmt = withPos stmt $ case stmt of
         vals <- mapM generateExpr exprs
         forM_ (zip vals [0..]) $ \(val, i) -> do
             let end = i == length vals - 1
-            case valType val of
-                Type.Bool -> do
-                    id <- newElement $ C.ExprStmt $ C.Call "printf" [
-                        C.String (if end then "%s\n" else "%s, "),
-                        C.CndExpr (valExpr val) (C.String "true") (C.String "false")
-                        ]
-                    append id
+            generatePrint (if end then "\n" else ", ") val
 
-                Type.I64 -> do
-                    id <- newElement $ C.ExprStmt $ C.Call "printf" [
-                        C.String (if end then "%d\n" else "%d, "), valExpr val
-                        ]
-                    append id
+    S.Set _ (S.AExpr typ (S.Ident _ symbol)) expr -> do
+        val <- generateExpr expr
+        append =<< newElement (C.Set (show symbol) (valExpr val))
 
     _ -> error (show stmt)
 
 
-generatePattern :: BoM C.BuilderState m => Pattern -> Value -> m C.Expression
+generatePattern :: MonadGenerate m => Pattern -> Value -> m C.Expression
 generatePattern pattern val = do
     case pattern of
         PatIdent _ str -> do 
-            append =<< newElement (C.Assign (cTypeOf (typeof val)) (show str) (valExpr val))
+            cType <- cTypeOf (typeof val)
+            append =<< newElement (C.Assign cType (show str) (valExpr val))
             return (C.Bool True)
 
         PatLiteral expr -> do
@@ -195,8 +291,9 @@ generatePattern pattern val = do
             valExpr <$> generateInfix S.EqEq v val
 
 
-generateExpr :: BoM C.BuilderState m => Expr -> m Value
-generateExpr (AExpr typ expr) = withPos expr $ case expr of
+
+generateExpr :: MonadGenerate m => Expr -> m Value
+generateExpr (AExpr typ expr) = case expr of
     S.Bool _ b -> return $ Value typ (C.Bool b)
 
     S.Int _ n -> return $ Value typ (C.Int n)
@@ -212,10 +309,18 @@ generateExpr (AExpr typ expr) = withPos expr $ case expr of
         vals <- mapM generateExpr args
         return $ Value typ $ C.Call (show symbol) (map valExpr vals)
 
+    S.Tuple _ exprs -> do
+        vals <- mapM generateExpr exprs
+        cType <- cTypeOf typ
+        name <- freshName "tuple"
+        id <- newElement $ C.Assign cType name (C.Initialiser $ map valExpr vals)
+        append id
+        return $ Value typ $ C.Ident name
+
     _ -> error (show expr)
 
 
-generateInfix :: BoM C.BuilderState m => S.Operator -> Value -> Value -> m Value
+generateInfix :: MonadGenerate m => S.Operator -> Value -> Value -> m Value
 generateInfix op a b = do
     assert (typeof a == typeof b) "infix types do not match"
     case typeof a of

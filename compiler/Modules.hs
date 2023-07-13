@@ -147,9 +147,13 @@ runMod args pathsVisited modPath = do
             liftIO $ createDirectoryIfMissing True buildDir
             let cFilePath = joinPath [buildDir, modName ++ ".c"]
             cHandle <- liftIO $ openFile cFilePath WriteMode
-            ((), cBuilderState) <- runBoMTExcept (C.initBuilderState modName) (generate resolved2)
+            (((), cGenerateState), cBuilderState) <- runGenerateT (C.initGenerateState) (C.initBuilderState modName) (generate resolved2)
             _ <- runBoMTExcept (initCPrettyState cHandle cBuilderState) cPretty
             liftIO $ hClose cHandle
+
+            liftIO $ putStrLn $ "printing tuples"
+            forM_ (Map.toList $ tuples cGenerateState) $ \(typ, str) -> do
+                liftIO $ putStrLn $ show (typ, str)
 
             return ()
 
