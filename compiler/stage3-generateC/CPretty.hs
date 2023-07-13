@@ -59,11 +59,7 @@ cPretty :: BoM CPrettyState m => m ()
 cPretty = do
     modName <- moduleName <$> gets builder
     printLn $ "/* Doodad Module: " ++ modName ++ " */"
-    printLn "#include <stdio.h>"
-    printLn "#include <assert.h>"
-    printLn "#include <stdint.h>"
-    printLn "#include <stdbool.h>"
-    printLn "#include <gc.h>"
+    printLn "#include \"doodad.h\""
 
     elems <- elements <$> gets builder
     let global = elems Map.! (ID 0)
@@ -79,9 +75,7 @@ cPrettyElem elem = case elem of
         printLn ""
         printLn $ show (funcRetty func) ++ " " ++ funcName func ++ "(" ++ intercalate ", " (map show $ funcArgs func) ++ ") {"
         pushIndent
-        forM_ (funcBody func) $ \id -> do
-            elem <- (Map.! id) . elements <$> gets builder
-            cPrettyElem elem
+        printElems (funcBody func)
         popIndent
         printLn $ "}"
 
@@ -106,18 +100,14 @@ cPrettyElem elem = case elem of
     if_@(If _ _) -> do
         printLn $ "if (" ++ show (ifExpr if_) ++ ") {"
         pushIndent
-        forM_ (ifStmts if_) $ \id -> do
-            elem <- (Map.! id) . elements <$> gets builder
-            cPrettyElem elem
+        printElems (ifStmts if_)
         popIndent
         printLn "}"
 
     els@(Else _) -> do
         printLn $ "else {"
         pushIndent
-        forM_ (elseStmts els) $ \id -> do
-            elem <- (Map.! id) . elements <$> gets builder
-            cPrettyElem elem
+        printElems (elseStmts els)
         popIndent
         printLn "}"
 
@@ -127,18 +117,14 @@ cPrettyElem elem = case elem of
     switch@(Switch _ _) -> do
         printLn $ "switch(" ++ show (switchExpr switch) ++ ") {"
         pushIndent
-        forM_ (switchBody switch) $ \id -> do
-            elem <- (Map.! id) . elements <$> gets builder
-            cPrettyElem elem
+        printElems (switchBody switch)
         popIndent
         printLn "}"
 
     cas@(Case _ _) -> do
         printLn $ "case " ++ show (caseExpr cas) ++ ": {"
         pushIndent
-        forM_ (caseBody cas) $ \id -> do
-            elem <- (Map.! id) . elements <$> gets builder
-            cPrettyElem elem
+        printElems (caseBody cas)
         popIndent
         printLn "}"
 
@@ -147,5 +133,19 @@ cPrettyElem elem = case elem of
     Set str expr -> do
         printLn $ str ++ " = " ++ show expr ++ ";"
 
+    for@(For _ _ _ _) -> do
+        printLn ""
+        printLn $ "for (" ++ maybe "" show (forInit for) ++ "; " ++ maybe "" show (forCnd for) ++ "; " ++ maybe "" show (forPost for) ++ ") {"
+        pushIndent
+        printElems (forBody for)
+        popIndent
+        printLn "}"
+
 
     _ -> error (show elem) 
+    where 
+        printElems :: BoM CPrettyState m => [ID] -> m ()
+        printElems ids = do
+            forM_ ids $ \id -> do
+                elem <- (Map.! id) . elements <$> gets builder
+                cPrettyElem elem

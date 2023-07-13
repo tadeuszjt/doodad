@@ -1,5 +1,7 @@
 module CAst where
 
+import Prelude hiding (LT, GT)
+
 import Data.List
 
 data Param
@@ -50,8 +52,11 @@ data Operator
     | Times
     | Minus
     | Divide
+    | LT
     | LTEq
+    | GTEq
     | EqEq
+    | Modulo
     deriving (Eq)
 
 instance Show Operator where
@@ -60,13 +65,17 @@ instance Show Operator where
     show Times = "*"
     show Minus = "-"
     show Divide = "/"
+    show LT = "<"
     show LTEq = "<="
+    show GTEq = ">="
     show EqEq = "=="
+    show Modulo = "%"
 
 data Expression
     = Ident String
     | Bool Bool
     | Int Integer
+    | Float Double
     | Infix Operator Expression Expression
     | String String
     | Call String [Expression]
@@ -74,12 +83,15 @@ data Expression
     | Initialiser [Expression]
     | Char Char
     | Member Expression String
+    | Increment Expression
+    | Subscript Expression Expression
     deriving (Eq)
 
 instance Show Expression where
     show (Ident s) = s
     show (Bool b) = if b then "true" else "false"
     show (Int n) = show n
+    show (Float f) = show f
     show (String s) = show s
     show (Call name exprs) = name ++ "(" ++ intercalate ", " (map show exprs) ++ ")"
     show (CndExpr c a b) = show c ++ " ? " ++ show a ++ " : " ++ show b
@@ -87,5 +99,7 @@ instance Show Expression where
     show (Initialiser es) = "{" ++ intercalate ", " (map show es) ++ "}"
     show (Char c) = show c
     show (Member a b) = show a ++ "." ++ b
+    show (Increment e) = show e ++ "++"
+    show (Subscript e1 e2) = show e1 ++ "[" ++ show e2 ++ "]"
 
 

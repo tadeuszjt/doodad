@@ -14,7 +14,12 @@ data ID =
 
 data Element
     = Global { globalBody :: [ID] }
-    | For { forBody :: [ID] }
+    | For
+        { forInit :: Maybe Expression
+        , forCnd :: Maybe Expression
+        , forPost :: Maybe Expression
+        , forBody :: [ID]
+        }
     | Extern
         { extName :: String
         , extRetty :: Type
@@ -107,6 +112,7 @@ append id = do
         els@(Else _) -> return $ els { elseStmts = elseStmts els ++ [id] }
         switch@(Switch _ _) -> return $ switch { switchBody = switchBody switch ++ [id] }
         cas@(Case _ _) -> return $ cas { caseBody = caseBody cas ++ [id] }
+        for@(For _ _ _ _) -> return $ for { forBody = forBody for ++ [id] }
 
     liftBuilderState $ modify $ \s -> s { elements = Map.insert curId elem' (elements s) }
 

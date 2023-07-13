@@ -93,6 +93,9 @@ data Expr
     | Array       TextPos [Expr]
     deriving (Eq)
 
+instance Typeof Expr where
+    typeof (AExpr t e) = t
+    typeof _ = error "can only take typeof AExpr"
 
 data Stmt
     = Assign      TextPos Pattern Expr

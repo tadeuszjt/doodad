@@ -25,6 +25,7 @@ data Type
     | Bool                   
     | Char                   
     | Enum
+    | String
     | Key Type
     | Range Type
     | Sparse [Type]
@@ -57,6 +58,7 @@ instance Show Type where
         Bool          -> "bool"
         Char          -> "char"
         Enum          -> "enum"
+        String        -> "string"
         Key t         -> '@' : show t
         Range t       -> "[..]" ++ show t
         Sparse ts     -> "sparse" ++ "[" ++ intercalate "; " (map show ts) ++ "]"
@@ -64,7 +66,6 @@ instance Show Type where
         Tuple ts      -> "(" ++ intercalate ", " (map show ts) ++ ")"
         Array n t     -> "[" ++ show n ++ " " ++ show t ++ "]"
         ADT tss       -> "{" ++ intercalate " | " (map show tss) ++ "}"
-        Table [Char]  -> "string"
         Table ts      -> "[" ++ intercalate "; " (map show ts) ++ "]"
         Func ts rt    -> "fn(" ++ intercalate ", " (map show ts) ++ ")" ++ show rt
         Typedef s     -> show s
@@ -73,6 +74,6 @@ instance Show Type where
 isInt x      = x `elem` [I8, I16, I32, I64]
 isFloat x    = x `elem` [F32, F64]
 isIntegral x = isInt x || x == Char || x == Enum
-isSimple x   = isInt x || isFloat x || x == Char || x == Bool || x == Enum
+isSimple x   = isInt x || isFloat x || x == Char || x == Bool || x == Enum || x == String
 
 

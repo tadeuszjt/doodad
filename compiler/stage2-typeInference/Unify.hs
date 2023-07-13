@@ -65,6 +65,8 @@ unifyOne pos constraint = withPos pos $ case constraint of
             Just (Range t)   -> do 
                 assert (i == 0) "ConsMember: Invalid index"
                 unifyOne pos (ConsEq t2 t)
+            Just String -> do
+                unifyOne pos (ConsEq t2 Char)
             Nothing -> return []
             _ -> error (show basem)
 

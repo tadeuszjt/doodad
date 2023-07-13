@@ -68,8 +68,7 @@ freshName suggestion = do
         Just x  -> return x
     modify $ \s -> s { supply = Map.insert suggestion (n + 1) (supply s) }
     case n of
-        0 -> return suggestion
-        n -> return $ suggestion ++ show n
+        n -> return $ suggestion ++ "__" ++ show n
 
 
 getStruct :: MonadGenerate m => C.Type -> m C.Type
@@ -78,7 +77,7 @@ getStruct typ = do
     case sm of
         Just s -> return $ Ctypedef s
         Nothing -> do
-            name <- freshName "tuple"
+            name <- freshName "struct"
             newTypedef typ name
             modify $ \s -> s { tuples = Map.insert typ name (tuples s) }
             return $ Ctypedef name
@@ -109,13 +108,16 @@ cTypeOf typ = case typ of
     Type.Bool -> return $ Cbool
     Type.Char -> return $ Cchar
     Type.Typedef s -> return $ Ctypedef (show s)
+    Type.String -> return $ Cpointer Cchar
     Type.Tuple ts -> do
         cts <- mapM cTypeOf ts
         raw <- return $ Cstruct $ zipWith (\a b -> C.Param ("m" ++ show a) b) [0..] cts
         getStruct raw
+    Type.Range t -> do
+        ct <- cTypeOf t
+        raw <- return $ Cstruct [C.Param "min" ct, C.Param "max" ct]
+        getStruct raw
 
-    --Table ts -> Cstruct (C.Param "len" Cint64_t : zipWith (\a b -> C.Param ("m" ++ show a) b) [0..] (map (Cpointer . cTypeOf) ts))
-    --Sparse ts -> Cstruct [C.Param "elems" (cTypeOf (Table ts)), C.Param "free" (cTypeOf (Table [I64]))]
     _ -> error (show typ)
     where
         fieldType f = case f of
@@ -215,12 +217,32 @@ generatePrint app val = case valType val of
             ]
         append id
 
+    Type.F64 -> do
+        id <- newElement $ C.ExprStmt $ C.Call "printf" [
+            C.String ("%f" ++ app), valExpr val
+            ]
+        append id
+
     Type.Tuple ts -> do
         append =<< newElement (C.ExprStmt $ C.Call "putchar" [C.Char '('])
         forM_ (zip ts [0..]) $ \(t, i) -> do
             let end = i == length ts - 1
             generatePrint (if end then "" else ", ") $ Value t $ C.Member (valExpr val) ("m" ++ show i)
         append =<< newElement (C.ExprStmt $ C.Call "printf" [C.String (")" ++ app)])
+
+    Type.String -> do
+        id <- newElement $ C.ExprStmt $ C.Call "printf" [
+            C.String ("%s" ++ app), valExpr val
+            ]
+        append id
+
+    Type.Char -> do
+        id <- newElement $ C.ExprStmt $ C.Call "printf" [
+            C.String ("%c" ++ app), valExpr val
+            ]
+        append id
+
+    _ -> error (show $ valType val)
 
 
 generateStmt :: MonadGenerate m => S.Stmt -> m ()
@@ -264,6 +286,10 @@ generateStmt stmt = case stmt of
 
         append switchId
 
+    S.ExprStmt (AExpr Void (S.Call _ [] symbol exprs)) -> do
+        vals <- mapM generateExpr exprs
+        append =<< newElement (C.ExprStmt $ C.Call (show symbol) (map valExpr vals))
+
 
     S.ExprStmt (AExpr _ (S.Builtin _ [] "print" exprs)) -> do
         vals <- mapM generateExpr exprs
@@ -274,6 +300,66 @@ generateStmt stmt = case stmt of
     S.Set _ (S.AExpr typ (S.Ident _ symbol)) expr -> do
         val <- generateExpr expr
         append =<< newElement (C.Set (show symbol) (valExpr val))
+
+    S.For _ expr mpat stmt -> do
+        idxType <- case typeof expr of
+            Type.Range I64 -> cTypeOf I64
+            Type.String    -> cTypeOf I64
+
+        idxName <- freshName "index"
+        append =<< newElement (C.Assign idxType idxName $ C.Int 0)
+
+        firstName <- freshName "isFirst"
+        append =<< newElement (C.Assign Cbool firstName $ C.Bool True)
+
+
+        id <- newElement $ C.For Nothing Nothing (Just $ C.Increment (C.Ident idxName)) []
+        append id
+        withCurID id $ do
+            val <- generateExpr expr
+            -- special preable for ranges
+            case typeof expr of
+                Type.Range I64 -> do
+                    setIdxId   <- newElement $ C.Set idxName (C.Member (valExpr val) "min")
+                    setFirstId <- newElement $ C.Set firstName (C.Bool False)
+                    append =<< newElement (C.If
+                        { ifExpr = C.Ident firstName
+                        , ifStmts = [setFirstId, setIdxId]
+                        })
+
+                Type.String -> return ()
+
+                    
+
+            -- check that index is still in range
+            case typeof expr of
+                Type.Range I64 -> do
+                    breakId <- newElement C.Break
+                    ifId <- newElement $ C.If
+                        { ifExpr = C.Infix C.GTEq (C.Ident idxName) (C.Member (valExpr val) "max")
+                        , ifStmts = [breakId]
+                        }
+                    append ifId
+                Type.String -> do
+                    breakId <- newElement C.Break
+                    ifId <- newElement $ C.If
+                        { ifExpr = C.Infix C.GTEq (C.Ident idxName) (C.Call "strlen" [valExpr val])
+                        , ifStmts = [breakId]
+                        }
+                    append ifId
+                    
+
+            -- check that pattern matches
+            patMatches <- case mpat of
+                Nothing -> return (C.Bool True)
+                Just pat -> case typeof expr of
+                    Type.Range I64 -> generatePattern pat (Value I64 $ C.Ident idxName)
+                    Type.String    -> generatePattern pat (Value Type.Char $ C.Subscript (valExpr val) (C.Ident idxName))
+            ifId <- newElement (C.If { ifExpr = patMatches , ifStmts = [] })
+            append ifId
+            withCurID ifId $ generateStmt stmt
+            breakId <- newElement C.Break
+            append =<< newElement (C.Else { elseStmts = [breakId] })
 
     _ -> error (show stmt)
 
@@ -290,6 +376,19 @@ generatePattern pattern val = do
             v <- generateExpr expr
             valExpr <$> generateInfix S.EqEq v val
 
+        PatIgnore _ -> return (C.Bool True)
+
+        PatGuarded _ pat expr Nothing -> do -- TODO
+            b <- generatePattern pat val
+            match <- freshName "match"
+            append =<< newElement (C.Assign Cbool match b)
+            ifId <- newElement $ C.If { ifExpr = b, ifStmts = [] }
+            withCurID ifId $ do
+                v <- generateExpr expr
+                append =<< newElement (C.Set match (valExpr v))
+            append ifId
+            return (C.Ident match)
+
 
 
 generateExpr :: MonadGenerate m => Expr -> m Value
@@ -297,6 +396,8 @@ generateExpr (AExpr typ expr) = case expr of
     S.Bool _ b -> return $ Value typ (C.Bool b)
 
     S.Int _ n -> return $ Value typ (C.Int n)
+
+    S.Float _ f -> return $ Value typ (C.Float f)
 
     S.Ident _ symbol -> return $ Value typ (C.Ident $ show symbol)
 
@@ -317,6 +418,19 @@ generateExpr (AExpr typ expr) = case expr of
         append id
         return $ Value typ $ C.Ident name
 
+    S.Range _ Nothing (Just expr1) (Just expr2) -> do
+        val1 <- generateExpr expr1
+        val2 <- generateExpr expr2
+        assert (typeof val1 == typeof val2) "type mismatch"
+        ctype <- cTypeOf typ
+        name <- freshName "range"
+        id <- newElement $ C.Assign ctype name (C.Initialiser [valExpr val1, valExpr val2])
+        append id
+        return $ Value typ $ C.Ident name
+
+    S.String _ s -> do
+        return $ Value typ $ C.String s
+
     _ -> error (show expr)
 
 
@@ -330,6 +444,10 @@ generateInfix op a b = do
             S.LTEq ->  C.Infix C.LTEq (valExpr a) (valExpr b)
             S.EqEq ->  C.Infix C.EqEq (valExpr a) (valExpr b)
             S.Minus -> C.Infix C.Minus (valExpr a) (valExpr b)
+            S.Modulo -> C.Infix C.Modulo (valExpr a) (valExpr b)
             _ -> error (show op)
+
+        Type.String -> case op of
+            S.Plus -> return $ Value (typeof a) (C.Call "doodad_string_plus" [valExpr a, valExpr b])
 
 

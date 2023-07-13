@@ -123,10 +123,6 @@ collectDefault t1 t2 = do
     modify $ \s -> s { defaults = Map.insert (ConsEq t1 t2) (curPos s) (defaults s) }
 
 
-instance Typeof S.Expr where 
-    typeof (S.AExpr t _) = t
-
-
 look :: BoM CollectState m => Symbol -> SymKey -> m Object
 look symbol key = do
     rm <- SymTab.lookup symbol key <$> gets symTab
@@ -433,7 +429,7 @@ collectExpr (S.AExpr exprType expr) = collectPos expr $ case expr of
         collectDefault exprType Bool
 
     S.String _ s     -> do
-        collectDefault exprType $ Table [Char]
+        collectDefault exprType $ String
 
     S.Ident _ symbol -> do
         ObjVar t <- look symbol KeyVar

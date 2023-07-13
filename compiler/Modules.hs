@@ -151,9 +151,9 @@ runMod args pathsVisited modPath = do
             _ <- runBoMTExcept (initCPrettyState cHandle cBuilderState) cPretty
             liftIO $ hClose cHandle
 
-            liftIO $ putStrLn $ "printing tuples"
-            forM_ (Map.toList $ tuples cGenerateState) $ \(typ, str) -> do
-                liftIO $ putStrLn $ show (typ, str)
+--            liftIO $ putStrLn $ "printing tuples"
+--            forM_ (Map.toList $ tuples cGenerateState) $ \(typ, str) -> do
+--                liftIO $ putStrLn $ show (typ, str)
 
             return ()
 
