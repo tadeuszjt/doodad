@@ -38,7 +38,7 @@ data Element
     | Return Expression
     | Break
     | Assign Type String Expression
-    | Set String Expression
+    | Set Expression Expression
     | If
         { ifExpr :: Expression
         , ifStmts :: [ID]

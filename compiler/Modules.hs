@@ -134,13 +134,14 @@ runMod args pathsVisited modPath = do
             debug "annotating ast"
             annotatedAST <- fmap fst $ withErrorPrefix "annotate: " $
                 runBoMTExcept 0 $ annotate resolvedAST
+            when (printAstAnnotated args) $ liftIO $ prettyResolvedAst annotatedAST
             astInferred <- withErrorPrefix "infer: " $ infer annotatedAST (verbose args)
-            when (printAstFinal args) $ liftIO $ prettyResolvedAst astInferred
 
 
             debug "resolve2"
             ((), resolved2) <- withErrorPrefix "resolve2: " $ runBoMTExcept astInferred Resolve2.compile
             modify $ \s -> s { moduleMap = Map.insert path (resolved2) (moduleMap s) }
+            when (printAstFinal args) $ liftIO $ prettyResolvedAst resolved2
 
             -- test CBuilder
             buildDir <- liftIO $ canonicalizePath $ "build"

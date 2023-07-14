@@ -24,7 +24,6 @@ data Type
     | F64                    
     | Bool                   
     | Char                   
-    | Enum
     | String
     | Key Type
     | Range Type
@@ -57,7 +56,6 @@ instance Show Type where
         F64           -> "f64"
         Bool          -> "bool"
         Char          -> "char"
-        Enum          -> "enum"
         String        -> "string"
         Key t         -> '@' : show t
         Range t       -> "[..]" ++ show t
@@ -73,7 +71,7 @@ instance Show Type where
 
 isInt x      = x `elem` [I8, I16, I32, I64]
 isFloat x    = x `elem` [F32, F64]
-isIntegral x = isInt x || x == Char || x == Enum
-isSimple x   = isInt x || isFloat x || x == Char || x == Bool || x == Enum || x == String
+isIntegral x = isInt x || x == Char
+isSimple x   = isInt x || isFloat x || x == Char || x == Bool || x == String
 
 

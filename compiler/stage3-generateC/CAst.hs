@@ -9,7 +9,15 @@ data Param
     deriving (Eq, Ord)
 
 instance Show Param where
-    show (Param name typ) = show typ ++ " " ++ name
+    show (Param name typ) = arrStrPre typ ++ " " ++ name ++ arrStrPost typ
+        where
+            arrStrPost typ = case typ of
+                Carray n t -> "[" ++ show n ++ "]"
+                _          -> ""
+
+            arrStrPre typ = case typ of
+                Carray n t -> arrStrPre t
+                _          -> show typ
 
 data Type
     = Cint
@@ -28,6 +36,7 @@ data Type
     | Cvoid
     | Ctypedef String
     | Cpointer Type
+    | Carray Int Type
     deriving (Eq, Ord)
 
 instance Show Type where
@@ -45,6 +54,7 @@ instance Show Type where
     show Cvoid = "void"
     show (Ctypedef s) = s
     show (Cpointer t) = show t ++ "*"
+    show (Carray n t) = show t ++ "[" ++ show n ++ "]"
 
 data Operator
     = OrOr

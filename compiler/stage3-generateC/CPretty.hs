@@ -130,8 +130,8 @@ cPrettyElem elem = case elem of
 
     Break -> printLn "break;"
 
-    Set str expr -> do
-        printLn $ str ++ " = " ++ show expr ++ ";"
+    Set expr1 expr2 -> do
+        printLn $ show expr1 ++ " = " ++ show expr2 ++ ";"
 
     for@(For _ _ _ _) -> do
         printLn ""

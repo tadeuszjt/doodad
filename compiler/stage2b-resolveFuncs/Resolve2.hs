@@ -177,7 +177,14 @@ compileExpr (AST.AExpr exprType expr) = withPos expr $ AExpr exprType <$> case e
         params' <- mapM compileExpr params
         exprs' <- mapM compileExpr exprs
         symbol' <- resolveFuncCall exprType expr
-        return $ Call pos params' symbol' exprs'
+
+        isLocalCtor <- Map.member symbol' <$> gets ctorDefs
+        isImportedCtor <- Map.member symbol' <$> gets ctorImports
+        if isLocalCtor || isImportedCtor then do
+            assert (params' == []) "constructor cannot have params"
+            return $ Construct pos symbol' exprs'
+        else do
+            return $ Call pos params' symbol' exprs'
 
     AST.Infix pos op expr1 expr2 -> do
         expr1' <- compileExpr expr1

@@ -1,4 +1,4 @@
-module naughtsandcrosses
+module naughtsandcrossesOld
 
 import ../std/io
 import ../std/strings

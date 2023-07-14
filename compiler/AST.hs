@@ -79,6 +79,7 @@ data Expr
     | Tuple       TextPos [Expr]
     | Initialiser TextPos [Expr]
     | Call        TextPos [Expr] Symbol [Expr]
+    | Construct   TextPos Symbol [Expr]
     | Null        TextPos 
     | Field       TextPos Expr Symbol
     | Subscript   TextPos Expr Expr
@@ -124,7 +125,6 @@ data AnnoType
     = AnnoType  Type
     | AnnoTuple [Param]
     | AnnoADT   [AnnoADTField]
-    | AnnoEnum  [Symbol]
     deriving (Eq)
 
 
@@ -225,16 +225,6 @@ instance Show AnnoType where
         AnnoType t   -> show t
         AnnoTuple ps -> tupStrs $ map show ps
         AnnoADT xs   -> brcStrs $ map show xs
-        AnnoEnum ss  -> brcStrs $ map show ss
-
-convertAnno :: AnnoType -> AnnoType
-convertAnno anno = case anno of
-    AnnoADT xs | all isEnumField xs -> AnnoEnum $ map (\(ADTFieldMember s []) -> s) xs
-    _ -> anno
-    where
-        isEnumField :: AnnoADTField -> Bool
-        isEnumField (ADTFieldMember _ []) = True
-        isEnumField _                     = False
 
 
 instance Show Pattern where
@@ -253,7 +243,7 @@ instance Show Pattern where
 
 instance Show Expr where
     show expr = case expr of
-        AExpr t e                     -> show e ++ ":" ++ show t
+        AExpr t e                     -> show e ++ ":" ++ show t 
         Int pos n                     -> show n
         Float pos f                   -> show f
         Bool pos b                    -> if b then "true" else "false"
@@ -275,6 +265,7 @@ instance Show Expr where
         Match pos expr1 expr2         -> show expr1 ++ " -> " ++ show expr2
         Range pos mexpr mexpr1 mexpr2 -> maybe "" show mexpr ++ "[" ++ maybe "" show mexpr1 ++ ".." ++ maybe "" show mexpr2 ++ "]"
         Array pos exprs               -> arrStrs (map show exprs)
+        Construct pos symbol exprs    -> show symbol ++ tupStrs (map show exprs)
 
 
 -- every function must end on a newline and print pre before every line

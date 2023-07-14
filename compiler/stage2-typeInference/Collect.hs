@@ -182,7 +182,6 @@ collectCtorDef symbol (Typedef s@(SymResolved _ _ _), i) = withErrorPrefix "coll
     define symbol KeyAdtField (ObjField i)
     case ot of
         Tuple ts -> define (Sym $ sym symbol) (KeyField $ Typedef s) (ObjField i)
-        Enum     -> define symbol (KeyFunc [] [] $ Typedef s) ObjFunc
         ADT fs   -> case fs !! i of
             FieldCtor ts -> define symbol (KeyFunc [] ts $ Typedef s) ObjFunc
             _            -> return ()
