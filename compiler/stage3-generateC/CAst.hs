@@ -67,6 +67,7 @@ data Operator
     | GTEq
     | EqEq
     | Modulo
+    | AndAnd
     deriving (Eq)
 
 instance Show Operator where
@@ -80,6 +81,7 @@ instance Show Operator where
     show GTEq = ">="
     show EqEq = "=="
     show Modulo = "%"
+    show AndAnd = "&&"
 
 data Expression
     = Ident String
@@ -93,8 +95,11 @@ data Expression
     | Initialiser [Expression]
     | Char Char
     | Member Expression String
+    | PMember Expression String
     | Increment Expression
     | Subscript Expression Expression
+    | Deref Expression
+    | Address Expression
     deriving (Eq)
 
 instance Show Expression where
@@ -109,7 +114,10 @@ instance Show Expression where
     show (Initialiser es) = "{" ++ intercalate ", " (map show es) ++ "}"
     show (Char c) = show c
     show (Member a b) = show a ++ "." ++ b
+    show (PMember a b) = show a ++ "->" ++ b
     show (Increment e) = show e ++ "++"
     show (Subscript e1 e2) = show e1 ++ "[" ++ show e2 ++ "]"
+    show (Deref e) = "(*" ++ show e ++ ")"
+    show (Address e) = "&(" ++ show e ++ ")"
 
 

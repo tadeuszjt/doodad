@@ -117,6 +117,20 @@ append id = do
     liftBuilderState $ modify $ \s -> s { elements = Map.insert curId elem' (elements s) }
 
 
+appendIf :: MonadBuilder m => Expression -> m ID
+appendIf cnd = do
+    id <- newElement $ If { ifExpr = cnd, ifStmts = [] }
+    append id
+    return id
+
+
+appendPrintf :: MonadBuilder m => String -> [Expression] -> m ID
+appendPrintf fmt exprs = do
+    id <- newElement $ ExprStmt $ Call "printf" (String fmt : exprs)
+    append id
+    return id
+
+
 newElement :: MonadBuilder m => Element -> m ID
 newElement elem = do
     id <- freshId

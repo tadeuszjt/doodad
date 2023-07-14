@@ -22,6 +22,25 @@ import Type
 import AST as S
 import Error
 
+data Object
+    = Pointer Type.Type C.Expression
+    | Value   Type.Type C.Expression
+    deriving (Show, Eq)
+
+instance Typeof Object where
+    typeof (Value t _) = t
+    typeof (Pointer t _) = t
+
+valueExpr :: Object -> C.Expression
+valueExpr object = case object of
+    Pointer t e -> C.Deref (e)
+    Value t e -> e
+
+pointerExpr :: Object -> C.Expression
+pointerExpr obj = case obj of
+    Pointer t e -> e
+    Value t e   -> C.Address e
+
 
 data GenerateState
     = GenerateState
@@ -29,6 +48,7 @@ data GenerateState
         , supply :: Map.Map String Int
         , ctors  :: Map.Map Symbol (Type.Type, Int)
         , typedefs :: Map.Map Symbol Type.Type
+        , symTab :: Map.Map String Object
         }
 
 initGenerateState
@@ -37,6 +57,7 @@ initGenerateState
         , supply = Map.empty
         , ctors  = Map.empty
         , typedefs = Map.empty
+        , symTab = Map.empty
         }
 
 
@@ -53,6 +74,20 @@ instance MonadTrans GenerateT where
 
 instance Monad m => MonadFail (GenerateT m) where
     fail = error
+
+
+
+define :: MonadGenerate m => String -> Object -> m ()
+define str obj = do
+    isDefined <- Map.member str <$> gets symTab
+    assert (not isDefined) $ str ++ " already defined"
+    modify $ \s -> s { symTab = Map.insert str obj (symTab s) }
+
+
+look :: MonadGenerate m => String -> m Object
+look str = (Map.! str) <$> gets symTab
+
+
 
 runGenerateT :: Monad m => GenerateState -> BuilderState -> GenerateT m a -> m ((a, GenerateState), BuilderState)
 runGenerateT generateState builderState generateT =
@@ -80,25 +115,15 @@ getTypedef typ = do
 baseTypeOf :: (MonadGenerate m, Typeof a) => a -> m Type.Type
 baseTypeOf a = case typeof a of
     Type.Typedef s -> baseTypeOf . (Map.! s) =<< gets typedefs
-    Type.ADT fs -> return (typeof a)
+    _ -> return (typeof a)
     _ -> error (show $ typeof a)
-        
-
-
-
-data Value
-    = Value { valType :: Type.Type, valExpr :: C.Expression }
-    deriving (Show, Eq)
-
-instance Typeof Value where
-    typeof (Value t _) = t
-
 
 
 cParamOf :: MonadGenerate m => S.Param -> m C.Param
 cParamOf param = do
     ctype <- cTypeOf (paramType param)
     return $ C.Param { C.cName = show (paramName param), C.cType = ctype }
+
 
 cTypeOf :: MonadGenerate m => Type.Type -> m C.Type
 cTypeOf typ = case typ of
@@ -200,6 +225,14 @@ generate ast = do
             newExtern (show symbol) crt (cpts ++ cats)
         _ -> return ()
 
+    -- generate function headers
+    
+    forM_ (Map.toList $ funcDefs ast) $ \(symbol, func) -> do
+        crt <- cTypeOf (States.funcRetty func)
+        cpts <- map Cpointer <$> mapM cTypeOf (map paramType $ States.funcParams func)
+        cats <- mapM cTypeOf (map paramType $ States.funcArgs func)
+        newExtern (show symbol) crt (cpts ++ cats)
+
     forM_ (Map.toList $ funcDefs ast) $ \(symbol, func) -> do
         generateFunc symbol func
 
@@ -210,59 +243,47 @@ generateFunc symbol body = do
     args <- mapM cParamOf (States.funcArgs body)
     params <- map (\(C.Param n t) -> C.Param n (Cpointer t)) <$> mapM cParamOf (States.funcParams body)
     rettyType <- cTypeOf (States.funcRetty body)
+
+    forM_ (States.funcParams body) $ \param -> do
+        ctyp <- cTypeOf (paramType param)
+        name <- return $ show (S.paramName param)
+        define name $ Pointer (S.paramType param) (C.Ident name)
+
+    forM_ (States.funcArgs body) $ \arg -> do
+        ctyp <- cTypeOf (paramType arg)
+        name <- return $ show (S.paramName arg)
+        define name $ Value (S.paramType arg) (C.Ident name)
+
     id <- newFunction rettyType (show symbol) (params ++ args)
     withCurID id $ mapM_ generateStmt (States.funcStmts body)
     withCurID globalID $ append id
 
 
 
-generatePrint :: MonadGenerate m => String -> Value -> m ()
-generatePrint app val = case valType val of
-    Type.Bool -> do
-        id <- newElement $ C.ExprStmt $ C.Call "printf" [
-            C.String ("%s" ++ app),
-            C.CndExpr (valExpr val) (C.String "true") (C.String "false")
-            ]
-        append id
+generatePrint :: MonadGenerate m => String -> Object -> m ()
+generatePrint app val = case typeof val of
+    Type.I64 ->    void $ appendPrintf ("%d" ++ app) [valueExpr val]
+    Type.F64 ->    void $ appendPrintf ("%f" ++ app) [valueExpr val]
+    Type.String -> void $ appendPrintf ("%s" ++ app) [valueExpr val]
+    Type.Char ->   void $ appendPrintf ("%c" ++ app) [valueExpr val]
 
-    Type.I64 -> do
-        id <- newElement $ C.ExprStmt $ C.Call "printf" [
-            C.String ("%d" ++ app), valExpr val
-            ]
-        append id
-
-    Type.F64 -> do
-        id <- newElement $ C.ExprStmt $ C.Call "printf" [
-            C.String ("%f" ++ app), valExpr val
-            ]
-        append id
+    Type.Bool -> void $ appendPrintf ("%s" ++ app) $
+        [C.CndExpr (valueExpr val) (C.String "true") (C.String "false")]
 
     Type.Tuple ts -> do
         append =<< newElement (C.ExprStmt $ C.Call "putchar" [C.Char '('])
         forM_ (zip ts [0..]) $ \(t, i) -> do
             let end = i == length ts - 1
-            generatePrint (if end then "" else ", ") $ Value t $ C.Member (valExpr val) ("m" ++ show i)
-        append =<< newElement (C.ExprStmt $ C.Call "printf" [C.String (")" ++ app)])
+            generatePrint (if end then "" else ", ") =<< generateTupleIndex val i
+        void $ appendPrintf (")" ++ app) []
 
-    Type.String -> do
-        id <- newElement $ C.ExprStmt $ C.Call "printf" [
-            C.String ("%s" ++ app), valExpr val
-            ]
-        append id
-
-    Type.Char -> do
-        id <- newElement $ C.ExprStmt $ C.Call "printf" [
-            C.String ("%c" ++ app), valExpr val
-            ]
-        append id
-
-    _ -> error (show $ valType val)
+    _ -> error (show $ typeof val)
 
 
 generateStmt :: MonadGenerate m => S.Stmt -> m ()
 generateStmt stmt = case stmt of
     S.Return _ (Just expr) -> do
-        append =<< newElement . C.Return . valExpr =<< generateExpr expr
+        append =<< newElement . C.Return . valueExpr =<< generateExpr expr
 
     S.Block stmts -> mapM_ generateStmt stmts
 
@@ -273,8 +294,7 @@ generateStmt stmt = case stmt of
 
     S.If _ expr blk melse -> do
         val <- generateExpr expr
-        ifID <- newElement $ C.If { ifExpr = valExpr val, ifStmts = [] }
-        append ifID
+        ifID <- appendIf (valueExpr val)
         withCurID ifID $ generateStmt blk
         when (isJust melse) $ do
             elseID <- newElement $ C.Else { elseStmts = [] }
@@ -289,21 +309,20 @@ generateStmt stmt = case stmt of
         withCurID switchId $ append caseId
 
         forM_ cases $ \(pattern, stmt) -> do
-            b <- withCurID caseId $ generatePattern pattern val
-            ifId <- newElement $ C.If { ifExpr = b, ifStmts = [] }
+            ifId <- withCurID caseId $ appendIf =<< withCurID caseId (generatePattern pattern val)
             withCurID ifId $ do
                 generateStmt stmt
                 append =<< newElement C.Break
-            withCurID caseId $ append ifId
 
         withCurID caseId $ append =<< newElement (C.ExprStmt (C.Call "assert" [C.Int 0]))
 
         append switchId
 
-    S.ExprStmt (AExpr Void (S.Call _ [] symbol exprs)) -> do
-        vals <- mapM generateExpr exprs
-        append =<< newElement (C.ExprStmt $ C.Call (show symbol) (map valExpr vals))
-
+    S.ExprStmt (AExpr Void (S.Call _ exprs1 symbol exprs2)) -> do
+        objs1 <- mapM generateExpr exprs1
+        objs2 <- mapM generateExpr exprs2
+        append =<< newElement (C.ExprStmt $
+            C.Call (show symbol) (map pointerExpr objs1 ++ map valueExpr objs2))
 
     S.ExprStmt (AExpr _ (S.Builtin _ [] "print" exprs)) -> do
         vals <- mapM generateExpr exprs
@@ -314,7 +333,7 @@ generateStmt stmt = case stmt of
     S.Set _ expr1 expr2 -> do
         val1 <- generateExpr expr1
         val2 <- generateExpr expr2
-        append =<< newElement (C.Set (valExpr val1) (valExpr val2))
+        append =<< newElement (C.Set (valueExpr val1) (valueExpr val2))
 
     S.For _ expr mpat stmt -> do
         idxType <- case typeof expr of
@@ -335,40 +354,30 @@ generateStmt stmt = case stmt of
             -- special preable for ranges
             case typeof expr of
                 Type.Range I64 -> do
-                    setIdxId   <- newElement $ C.Set (C.Ident idxName) (C.Member (valExpr val) "min")
+                    setIdxId   <- newElement $ C.Set (C.Ident idxName) (C.Member (valueExpr val) "min")
                     setFirstId <- newElement $ C.Set (C.Ident firstName) (C.Bool False)
-                    append =<< newElement (C.If
-                        { ifExpr = C.Ident firstName
-                        , ifStmts = [setFirstId, setIdxId]
-                        })
+                    ifID <- appendIf (C.Ident firstName)
+                    withCurID ifID $ append setFirstId >> append setIdxId
 
                 Type.String -> return ()
 
             -- check that index is still in range
             case typeof expr of
                 Type.Range I64 -> do
-                    breakId <- newElement C.Break
-                    ifId <- newElement $ C.If
-                        { ifExpr = C.Infix C.GTEq (C.Ident idxName) (C.Member (valExpr val) "max")
-                        , ifStmts = [breakId]
-                        }
-                    append ifId
+                    ifId <- appendIf $ C.Infix C.GTEq (C.Ident idxName) (C.Member (valueExpr val) "max")
+                    withCurID ifId $ append =<< newElement C.Break
                 Type.String -> do
-                    breakId <- newElement C.Break
-                    ifId <- newElement $ C.If
-                        { ifExpr = C.Infix C.GTEq (C.Ident idxName) (C.Call "strlen" [valExpr val])
-                        , ifStmts = [breakId]
-                        }
-                    append ifId
+                    ifId <- appendIf $
+                        C.Infix C.GTEq (C.Ident idxName) (C.Call "strlen" [valueExpr val])
+                    withCurID ifId $ append =<< newElement C.Break
                     
             -- check that pattern matches
             patMatches <- case mpat of
                 Nothing -> return (C.Bool True)
                 Just pat -> case typeof expr of
                     Type.Range I64 -> generatePattern pat (Value I64 $ C.Ident idxName)
-                    Type.String    -> generatePattern pat (Value Type.Char $ C.Subscript (valExpr val) (C.Ident idxName))
-            ifId <- newElement (C.If { ifExpr = patMatches , ifStmts = [] })
-            append ifId
+                    Type.String    -> generatePattern pat (Value Type.Char $ C.Subscript (valueExpr val) (C.Ident idxName))
+            ifId <- appendIf patMatches
             withCurID ifId $ generateStmt stmt
             breakId <- newElement C.Break
             append =<< newElement (C.Else { elseStmts = [breakId] })
@@ -376,29 +385,48 @@ generateStmt stmt = case stmt of
     _ -> error (show stmt)
 
 
-generatePattern :: MonadGenerate m => Pattern -> Value -> m C.Expression
+generateTupleIndex :: MonadGenerate m => Object -> Int -> m Object
+generateTupleIndex obj i = do
+    base@(Type.Tuple ts) <- baseTypeOf obj
+    case obj of
+        Value _ e   -> return $ Value (ts !! i) (C.Member e $ "m" ++ show i)
+        Pointer _ e -> return $ Value (ts !! i) (C.PMember e $ "m" ++ show i)
+
+
+generatePattern :: MonadGenerate m => Pattern -> Object -> m C.Expression
 generatePattern pattern val = do
     case pattern of
-        PatIdent _ str -> do 
+        PatIgnore _ -> return (C.Bool True)
+
+        PatIdent _ symbol -> do 
+            let name = show symbol
+            define name (Value (typeof val) $ C.Ident name)
             cType <- cTypeOf (typeof val)
-            append =<< newElement (C.Assign cType (show str) (valExpr val))
+            append =<< newElement (C.Assign cType (show symbol) (valueExpr val))
             return (C.Bool True)
 
         PatLiteral expr -> do
             v <- generateExpr expr
-            valExpr <$> generateInfix S.EqEq v val
+            valueExpr <$> generateInfix S.EqEq v val
 
-        PatIgnore _ -> return (C.Bool True)
+        PatTuple _ pats -> do
+            base@(Type.Tuple ts) <- baseTypeOf val
+            assert (length ts == length pats) "length mismatch"
+            bs <- forM (zip pats [0..]) $ \(pat, i) -> do
+                generatePattern pat =<< generateTupleIndex val i
+
+            name <- freshName "match"
+            append =<< newElement (C.Assign Cbool name $ foldr1 (C.Infix C.AndAnd) bs)
+            return $ C.Ident name
 
         PatGuarded _ pat expr Nothing -> do -- TODO
             b <- generatePattern pat val
             match <- freshName "match"
             append =<< newElement (C.Assign Cbool match b)
-            ifId <- newElement $ C.If { ifExpr = b, ifStmts = [] }
+            ifId <- appendIf b
             withCurID ifId $ do
                 v <- generateExpr expr
-                append =<< newElement (C.Set (C.Ident match) (valExpr v))
-            append ifId
+                append =<< newElement (C.Set (C.Ident match) (valueExpr v))
             return (C.Ident match)
 
         PatField _ symbol exprs -> do -- either a typedef or an ADT field, both members of ADT
@@ -413,13 +441,13 @@ generatePattern pattern val = do
                     (typ', i) <- (Map.! symbol) <$> gets ctors
                     match <- freshName "match"
                     append =<< newElement (C.Assign Cbool match $
-                        C.Infix C.EqEq (C.Int $ fromIntegral i) (C.Member (valExpr val) "en"))
+                        C.Infix C.EqEq (C.Int $ fromIntegral i) (C.Member (valueExpr val) "en"))
 
                     return (C.Ident match)
 
 
 
-generateExpr :: MonadGenerate m => Expr -> m Value
+generateExpr :: MonadGenerate m => Expr -> m Object
 generateExpr (AExpr typ expr) = case expr of
     S.Bool _ b -> return $ Value typ (C.Bool b)
 
@@ -427,37 +455,36 @@ generateExpr (AExpr typ expr) = case expr of
 
     S.Float _ f -> return $ Value typ (C.Float f)
 
-    S.Ident _ symbol -> return $ Value typ (C.Ident $ show symbol)
+    S.Ident _ symbol -> look (show symbol)
 
     S.Infix _ op a b -> do
         valA <- generateExpr a
         valB <- generateExpr b
         generateInfix op valA valB
 
-    S.Call _ [] symbol args -> do
-        vals <- mapM generateExpr args
-        return $ Value typ $ C.Call (show symbol) (map valExpr vals)
+--    S.Call _ [] symbol args -> do
+--        vals <- mapM generateExpr args
+--        return $ ObjValue $ Value typ $ C.Call (show symbol) (map valExpr vals)
 
     S.Tuple _ exprs -> do
         vals <- mapM generateExpr exprs
         cType <- cTypeOf typ
         name <- freshName "tuple"
-        id <- newElement $ C.Assign cType name (C.Initialiser $ map valExpr vals)
+        id <- newElement $ C.Assign cType name (C.Initialiser $ map valueExpr vals)
         append id
         return $ Value typ $ C.Ident name
 
-    S.Range _ Nothing (Just expr1) (Just expr2) -> do
-        val1 <- generateExpr expr1
-        val2 <- generateExpr expr2
-        assert (typeof val1 == typeof val2) "type mismatch"
-        ctype <- cTypeOf typ
-        name <- freshName "range"
-        id <- newElement $ C.Assign ctype name (C.Initialiser [valExpr val1, valExpr val2])
-        append id
-        return $ Value typ $ C.Ident name
+--    S.Range _ Nothing (Just expr1) (Just expr2) -> do
+--        val1 <- generateExpr expr1
+--        val2 <- generateExpr expr2
+--        assert (typeof val1 == typeof val2) "type mismatch"
+--        ctype <- cTypeOf typ
+--        name <- freshName "range"
+--        id <- newElement $ C.Assign ctype name (C.Initialiser [valExpr val1, valExpr val2])
+--        append id
+--        return $ ObjValue $ Value typ $ C.Ident name
 
-    S.String _ s -> do
-        return $ Value typ $ C.String s
+    S.String _ s -> return $ Value typ $ C.String s
 
     S.Construct _ symbol exprs -> do
         base <- baseTypeOf typ
@@ -484,29 +511,29 @@ generateExpr (AExpr typ expr) = case expr of
         append =<< newElement (C.Assign ctyp name (C.Initialiser [C.Int 0]))
         return $ Value typ (C.Ident name)
 
-    S.Subscript _ expr1 expr2 -> do
-        val1 <- generateExpr expr1
-        val2 <- generateExpr expr2
-        return $ Value typ $ C.Subscript (C.Member (valExpr val1) "arr") (valExpr val2)
+--    S.Subscript _ expr1 expr2 -> do
+--        val1 <- generateExpr expr1
+--        val2 <- generateExpr expr2
+--        return $ ObjValue $ Value typ $ C.Subscript (C.Member (valExpr val1) "arr") (valExpr val2)
 
     _ -> error (show expr)
 generateExpr x = error (show x)
 
 
-generateInfix :: MonadGenerate m => S.Operator -> Value -> Value -> m Value
+generateInfix :: MonadGenerate m => S.Operator -> Object -> Object -> m Object
 generateInfix op a b = do
     assert (typeof a == typeof b) "infix types do not match"
     case typeof a of
         Type.I64 -> return $ Value (typeof a) $ case op of
-            S.Plus ->  C.Infix C.Plus (valExpr a) (valExpr b) 
-            S.Times -> C.Infix C.Times (valExpr a) (valExpr b) 
-            S.LTEq ->  C.Infix C.LTEq (valExpr a) (valExpr b)
-            S.EqEq ->  C.Infix C.EqEq (valExpr a) (valExpr b)
-            S.Minus -> C.Infix C.Minus (valExpr a) (valExpr b)
-            S.Modulo -> C.Infix C.Modulo (valExpr a) (valExpr b)
+            S.Plus ->  C.Infix C.Plus (valueExpr a) (valueExpr b) 
+            S.Times -> C.Infix C.Times (valueExpr a) (valueExpr b) 
+            S.LTEq ->  C.Infix C.LTEq (valueExpr a) (valueExpr b)
+            S.EqEq ->  C.Infix C.EqEq (valueExpr a) (valueExpr b)
+            S.Minus -> C.Infix C.Minus (valueExpr a) (valueExpr b)
+            S.Modulo -> C.Infix C.Modulo (valueExpr a) (valueExpr b)
             _ -> error (show op)
 
         Type.String -> case op of
-            S.Plus -> return $ Value (typeof a) (C.Call "doodad_string_plus" [valExpr a, valExpr b])
+            S.Plus -> return $ Value (typeof a) (C.Call "doodad_string_plus" [valueExpr a, valueExpr b])
 
 
