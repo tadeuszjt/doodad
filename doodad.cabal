@@ -21,6 +21,8 @@ extra-source-files: CHANGELOG.md
 
 executable doodad
     main-is:           Main.hs
+    c-sources: compiler/stage0-parseAST/lexer.c
+    extra-source-files: compiler/stage0-parseAST/lexer.h
     hs-source-dirs:
         compiler,
         compiler/stage0-parseAST,
@@ -41,8 +43,7 @@ executable doodad
         filepath,
         exceptions
     build-tools:
-        happy,
-        alex
+        happy
     other-modules:
         AST,
         Args,

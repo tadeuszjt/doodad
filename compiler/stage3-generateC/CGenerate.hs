@@ -377,10 +377,10 @@ generateStmt stmt = case stmt of
                 Just pat -> case typeof expr of
                     Type.Range I64 -> generatePattern pat (Value I64 $ C.Ident idxName)
                     Type.String    -> generatePattern pat (Value Type.Char $ C.Subscript (valueExpr val) (C.Ident idxName))
-            ifId <- appendIf patMatches
-            withCurID ifId $ generateStmt stmt
-            breakId <- newElement C.Break
-            append =<< newElement (C.Else { elseStmts = [breakId] })
+
+            ifId <- appendIf (C.Not patMatches)
+            withCurID ifId $ append =<< newElement C.Break
+            generateStmt stmt
 
     _ -> error (show stmt)
 
@@ -448,7 +448,7 @@ generatePattern pattern val = do
 
 
 generateExpr :: MonadGenerate m => Expr -> m Object
-generateExpr (AExpr typ expr) = case expr of
+generateExpr (AExpr typ expr) = withTypeCheck $ case expr of
     S.Bool _ b -> return $ Value typ (C.Bool b)
 
     S.Int _ n -> return $ Value typ (C.Int n)
@@ -462,9 +462,10 @@ generateExpr (AExpr typ expr) = case expr of
         valB <- generateExpr b
         generateInfix op valA valB
 
---    S.Call _ [] symbol args -> do
---        vals <- mapM generateExpr args
---        return $ ObjValue $ Value typ $ C.Call (show symbol) (map valExpr vals)
+    S.Call _ exprs1 symbol exprs2 -> do
+        objs1 <- mapM generateExpr exprs1
+        objs2 <- mapM generateExpr exprs2
+        return $ Value typ $ C.Call (show symbol) (map pointerExpr objs1 ++ map valueExpr objs2)
 
     S.Tuple _ exprs -> do
         vals <- mapM generateExpr exprs
@@ -474,15 +475,34 @@ generateExpr (AExpr typ expr) = case expr of
         append id
         return $ Value typ $ C.Ident name
 
---    S.Range _ Nothing (Just expr1) (Just expr2) -> do
---        val1 <- generateExpr expr1
---        val2 <- generateExpr expr2
---        assert (typeof val1 == typeof val2) "type mismatch"
---        ctype <- cTypeOf typ
---        name <- freshName "range"
---        id <- newElement $ C.Assign ctype name (C.Initialiser [valExpr val1, valExpr val2])
---        append id
---        return $ ObjValue $ Value typ $ C.Ident name
+    S.Range _ (Just expr) mexpr1 mexpr2 -> do
+        val <- generateExpr expr
+        base <- baseTypeOf val
+        case base of
+            Type.Array n t -> do
+                start <- case mexpr1 of
+                    Nothing -> return $ Value Type.I64 $ C.Int 0
+
+                end <- case mexpr2 of
+                    Nothing -> return $ Value Type.I64 $ C.Int (fromIntegral n)
+
+                ctype <- cTypeOf typ
+                name <- freshName "range"
+                id <- newElement $
+                    C.Assign ctype name (C.Initialiser [valueExpr start, valueExpr end])
+                append id
+                return $ Value typ $ C.Ident name
+
+
+    S.Range _ Nothing (Just expr1) (Just expr2) -> do
+        val1 <- generateExpr expr1
+        val2 <- generateExpr expr2
+        assert (typeof val1 == typeof val2) "type mismatch"
+        ctype <- cTypeOf typ
+        name <- freshName "range"
+        id <- newElement $ C.Assign ctype name (C.Initialiser [valueExpr val1, valueExpr val2])
+        append id
+        return $ Value typ $ C.Ident name
 
     S.String _ s -> return $ Value typ $ C.String s
 
@@ -511,13 +531,23 @@ generateExpr (AExpr typ expr) = case expr of
         append =<< newElement (C.Assign ctyp name (C.Initialiser [C.Int 0]))
         return $ Value typ (C.Ident name)
 
---    S.Subscript _ expr1 expr2 -> do
---        val1 <- generateExpr expr1
---        val2 <- generateExpr expr2
---        return $ ObjValue $ Value typ $ C.Subscript (C.Member (valExpr val1) "arr") (valExpr val2)
+    S.Subscript _ expr1 expr2 -> do
+        val1 <- generateExpr expr1
+        val2 <- generateExpr expr2
+        base <- baseTypeOf val1
+        case base of
+            Type.Array n t -> do
+                return $ Value typ $ C.Subscript (C.Member (valueExpr val1) "arr") (valueExpr val2)
 
     _ -> error (show expr)
-generateExpr x = error (show x)
+    where
+        withTypeCheck :: MonadGenerate m => m Object -> m Object
+        withTypeCheck f = do
+            r <- f
+            assert (typeof r == typ) "generateExpr returned a different type"
+            return r
+            
+
 
 
 generateInfix :: MonadGenerate m => S.Operator -> Object -> Object -> m Object

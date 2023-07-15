@@ -15,7 +15,7 @@ import Data.Maybe
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
-import Lexer
+--import Lexer
 import qualified AST as S
 import qualified Parser as P
 import Flatten
@@ -33,6 +33,7 @@ import Resolve2
 import CBuilder as C
 import CPretty as C
 import CGenerate as C
+import Lexer
 
 -- Modules are groups of .doo files with a module name header
 -- lang/lexer.doo: lexer module
@@ -83,7 +84,7 @@ getSpecificModuleFiles args name (f:fs) = do
 -- Throw an error on failure.
 parse :: BoM s m => Args -> FilePath -> m S.AST
 parse args file = do
-    newTokens <- lexFile file
+    newTokens <- liftIO $ lexFile file
     when (printTokens args) $ do
         liftIO $ mapM_ (putStrLn . show) newTokens
     P.parse newTokens
@@ -108,6 +109,8 @@ runMod args pathsVisited modPath = do
             files <- getSpecificModuleFiles args modName =<< getDoodadFilesInDirectory modDirectory
             assert (not $ null files) ("no files for: " ++ path)
             forM_ files $ debug . ("using file: " ++) 
+
+
             asts <- mapM (parse args) files
             when (printAst args) $ do
                 forM_ asts $ \ast ->

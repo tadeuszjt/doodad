@@ -100,6 +100,7 @@ data Expression
     | Subscript Expression Expression
     | Deref Expression
     | Address Expression
+    | Not Expression
     deriving (Eq)
 
 instance Show Expression where
@@ -119,5 +120,6 @@ instance Show Expression where
     show (Subscript e1 e2) = show e1 ++ "[" ++ show e2 ++ "]"
     show (Deref e) = "(*" ++ show e ++ ")"
     show (Address e) = "&(" ++ show e ++ ")"
+    show (Not e) = "!" ++ show e
 
 

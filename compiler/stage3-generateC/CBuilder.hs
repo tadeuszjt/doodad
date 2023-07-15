@@ -123,6 +123,11 @@ appendIf cnd = do
     append id
     return id
 
+appendElse :: MonadBuilder m => m ID
+appendElse = do
+    id <- newElement $ Else { elseStmts = [] }
+    append id
+    return id
 
 appendPrintf :: MonadBuilder m => String -> [Expression] -> m ID
 appendPrintf fmt exprs = do
