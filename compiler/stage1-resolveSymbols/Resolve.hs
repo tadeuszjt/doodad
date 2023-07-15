@@ -6,6 +6,7 @@ import qualified Data.Set as Set
 import Control.Monad.State
 import Data.Maybe
 import Data.List
+import Data.Char
 
 import qualified SymTab
 import Type
@@ -354,6 +355,20 @@ instance Resolve Stmt where
             (symbol', body) <- resolveFuncDef (FuncDef pos params (Sym sym) args retty blk)
             modify $ \s -> s { smallFuncDefs = Map.insert symbol' body (smallFuncDefs s) }
             return $ FuncDef pos (funcParams body) symbol' (funcArgs body) (funcRetty body) (head $ funcStmts body)
+
+        EmbedC pos str -> EmbedC pos <$> processCEmbed str
+        where
+            processCEmbed :: BoM ResolveState m => String -> m String
+            processCEmbed ('$':xs) = do
+                let ident = takeWhile (\c -> isAlpha c || isDigit c || c == '_') xs
+                assert (length ident > 0) "invalid ident"
+                assert (isAlpha $ ident !! 0) "invalid ident"
+                let rest = drop (length ident) xs
+
+                symbol <- lookVar (Sym ident)
+                (show symbol ++) <$> processCEmbed rest
+            processCEmbed (x:xs) = (x:) <$> processCEmbed xs
+            processCEmbed [] = return ""
 
 
 instance Resolve Pattern where

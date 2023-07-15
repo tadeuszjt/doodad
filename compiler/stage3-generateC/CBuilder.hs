@@ -14,6 +14,7 @@ data ID =
 
 data Element
     = Global { globalBody :: [ID] }
+    | Embed String
     | For
         { forInit :: Maybe Expression
         , forCnd :: Maybe Expression

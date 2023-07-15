@@ -20,9 +20,24 @@ typedef enum {
     STATE_SYMBOL,
     STATE_COMMENT,
     STATE_CHAR_LITERAL,
-    STATE_STRING_LITERAL
+    STATE_STRING_LITERAL,
+    STATE_IMPORT,
+    STATE_C_EMBED
 } State;
 static State state = STATE_INIT;
+
+/* ---------------C-EMBED--------------------
+ * Count of braces                         */
+static int braceCount = 0;
+
+void pushBrace() {
+    braceCount++;
+}
+
+bool popBrace() {
+    assert(braceCount > 0);
+    braceCount--;
+}
 
 
 /* ---------------STACK----------------------
@@ -108,6 +123,8 @@ void init() {
 
     indentStackLen = 1;
     memset(indentStack, 0, sizeof(indentStack));
+
+    braceCount = 0;
 }
 
 
@@ -207,12 +224,12 @@ bool lex() { // returns false for EOF
             state = STATE_STRING_LITERAL;
         } else if (c == ' ' || c == '\t') {
             // do nothing
+        } else if (c == '$') {
+            state = STATE_C_EMBED;
         } else if (c == EOF) {
             return false;
         } else {
-            fprintf(fpOut, "ERROR: ");
-            putchar(c);
-            return false;
+            assert(0);
         }
         break;
 
@@ -221,16 +238,32 @@ bool lex() { // returns false for EOF
             stackPush(c);
         } else {
             // print ident
-            if (isKeyword(stack)) {
-                fprintf(fpOut, "keyword: %s\n", stack);
+            if (strcmp(stack, "import") == 0) {
+                assert(c == ' ');
+                stackClear();
+                state = STATE_IMPORT;
             } else {
-                fprintf(fpOut, "ident: %s\n", stack);
-            }
-            stackClear();
+                if (isKeyword(stack)) {
+                    fprintf(fpOut, "keyword: %s\n", stack);
+                } else {
+                    fprintf(fpOut, "ident: %s\n", stack);
+                }
+                stackClear();
 
-            state = STATE_INIT;
-            ungetc(c, fpIn);
+                state = STATE_INIT;
+                ungetc(c, fpIn);
+            }
         } 
+        break;
+
+    case STATE_IMPORT:
+        if (c == '\n') {
+            fprintf(fpOut, "import: %s\n", stack);
+            stackClear();
+            state = STATE_INIT;
+        } else {
+            stackPush(c);
+        }
         break;
 
     case STATE_NUMBER:
@@ -323,6 +356,30 @@ bool lex() { // returns false for EOF
             stackClear();
             state = STATE_INIT;
             ungetc(c, fpIn);
+        }
+        break;
+
+    case STATE_C_EMBED:
+        if (c == '{') {
+            pushBrace();
+            stackPush(c);
+        } else if (c == '}') {
+            popBrace();
+            stackPush(c);
+            if (braceCount == 0) {
+                // replace newlines with ascii 31
+                for (int i = 0; stack[i] != '\0'; i++) {
+                    if (stack[i] == '\n') {
+                        stack[i] = 31;
+                    }
+                }
+
+                fprintf(fpOut, "embed_c: %s\n", stack);
+                stackClear();
+                state = STATE_INIT;
+            }
+        } else {
+            stackPush(c);
         }
         break;
             

@@ -90,6 +90,8 @@ import Symbol
     string_c   { Token _ String _ }
     ident      { Token _ Ident _ }
 
+    embed_c    { Token _ EmbedC _ }
+
     '('        { Token _ TokSym "(" }
     ')'        { Token _ TokSym ")" }
     '{'        { Token _ TokSym "{" }
@@ -140,6 +142,7 @@ line : let pattern '=' expr                         { S.Assign (tokPos $1) $2 $4
      | type symbol anno_t                           { S.Typedef (fst $2) (snd $2) $3 }
      | return mexpr                                 { S.Return (tokPos $1) $2 }
      | data symbol type_ minitialiser               { S.Data (tokPos $1) (snd $2) $3 $4 }
+     | embed_c                                      { S.EmbedC (tokPos $1) (tokStr $1) }
 block : if_                                         { $1 }
       | fn mfnrec ident '(' paramsA ')' mtype scope { S.FuncDef (tokPos $1) $2 (Sym $ tokStr $3) $5 (case $7 of Just t -> t; Nothing -> T.Void) $8 }
       | while condition scope                       { S.While (tokPos $1) $2 $3 }

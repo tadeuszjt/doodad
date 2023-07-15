@@ -49,6 +49,7 @@ instance Annotate AST where
 
 instance Annotate Stmt where
     annotate stmt = case stmt of
+        EmbedC p s        -> return (EmbedC p s)
         Block ss          -> Block <$> mapM annotate ss
         Return p me       -> Return p <$> maybe (return Nothing) (fmap Just . annotate) me
         ExprStmt e        -> ExprStmt <$> annotate e

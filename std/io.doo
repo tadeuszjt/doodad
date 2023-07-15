@@ -1,90 +1,9 @@
 module io
 
-import strings
-import_c stdio.h
-import_c unistd.h
-import_c strings.h
-import_c memory.h
+type Io ()
 
-type FilePtr i64
-type FileKey i64
+fn {io Io} putStrLn(s string)
+    ${ printf("%s\n", $s); }
 
-type Io sparse[FilePtr]
-
-
-fn {io Io, fileName string} openFile() FileKey 
-    fileName.push('\0')
-    let ptr | ptr > 0 = FilePtr(i64(fopen(fileName.unsafe_ptr(), "a+\0".unsafe_ptr())))
-    let '\0' = fileName.pop()
-    return conv(io.push(ptr))
-
-
-fn {io Io} closeFile(key FileKey)
-    let ptr | ptr > 0 = io[key]
-    fclose(unsafe_ptr_from_int(ptr))
-    io.delete(i64(key))
-
-
-fn {io Io} clearFile(key FileKey)
-    let ptr | ptr > 0 = io[key]
-    c::freopen(unsafe_ptr_from_int(0), "w\0".unsafe_ptr(), unsafe_ptr_from_int(ptr))
-    c::freopen(unsafe_ptr_from_int(0), "a+\0".unsafe_ptr(), unsafe_ptr_from_int(ptr))
-
-
-fn {io Io} catFile(key FileKey)
-    data line string
-    while {io, line}.readLn(key)
-        {io, line}.writeLn()
-        line.clear()
-    
-
-fn {io Io} read() {char | null}
-    switch char(c::getchar())
-        x | x == -1; return null 
-        c;           return conv(c)
-
-
-fn {io Io} read(key FileKey) {char | null}
-    let ptr | ptr > 0 = io[key]
-    switch conv(fgetc(unsafe_ptr_from_int(ptr))):char
-        x | x == -1; return null
-        c;           return conv(c)
-
-
-fn {io Io, line string} readLn(key FileKey) bool
-    while true
-        switch io.read(key)
-            null;       return false
-            char('\n'); return true
-            char('\0'); return true
-            char(c);    line.writeChar(c)
-
-
-fn {io Io, line string} readLn() bool
-    while true
-        switch io.read()
-            null; return false
-            char('\n'); return true
-            char('\0'); return true
-            char(c);    line.writeChar(c)
-
-
-fn {io Io} writeChar(key FileKey, c char)
-    let ptr | ptr > 0 = io[key]
-    c::fputc(i32(c), unsafe_ptr_from_int(ptr))
-
-
-fn {io Io, s string} write(key FileKey)
-    for s -> c; io.writeChar(key, c)
-
-
-fn {io Io, line string} writeLn(key FileKey)
-    for line -> c
-        io.writeChar(key, c)
-    io.writeChar(key, '\n')
-
-
-fn {io Io, line string} writeLn()
-    for line -> c
-        io.write(c)
-    io.write('\n')
+fn {io Io} putStr(s string)
+    ${ printf("%s", $s); }

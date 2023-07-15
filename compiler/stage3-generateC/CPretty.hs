@@ -141,6 +141,9 @@ cPrettyElem elem = case elem of
         popIndent
         printLn "}"
 
+    cembed@(Embed str) -> do
+        forM_ (lines str) $ \line -> do
+            printLn line
 
     _ -> error (show elem) 
     where 

@@ -28,5 +28,6 @@ data TokenType
     | ImportC
     | ImportCMacro
     | Dedent
+    | EmbedC
     | EOF
     deriving (Show, Eq)

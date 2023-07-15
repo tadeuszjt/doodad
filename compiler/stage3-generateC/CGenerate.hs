@@ -4,10 +4,10 @@
 
 module CGenerate where
 
+import Data.Char
 import Control.Monad.State
 import Control.Monad.Except
 import Control.Monad.Identity
-
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Data.Maybe
@@ -282,6 +282,9 @@ generatePrint app val = case typeof val of
 
 generateStmt :: MonadGenerate m => S.Stmt -> m ()
 generateStmt stmt = case stmt of
+    S.EmbedC _ str -> do
+        append =<< newElement (C.Embed str)
+
     S.Return _ (Just expr) -> do
         append =<< newElement . C.Return . valueExpr =<< generateExpr expr
 
@@ -383,6 +386,7 @@ generateStmt stmt = case stmt of
             generateStmt stmt
 
     _ -> error (show stmt)
+
 
 
 generateTupleIndex :: MonadGenerate m => Object -> Int -> m Object

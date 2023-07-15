@@ -204,6 +204,7 @@ collectStmt stmt = collectPos stmt $ case stmt of
     S.Typedef _ _ _ -> return ()
     S.Block stmts -> mapM_ collectStmt stmts
     S.ExprStmt e -> collectExpr e
+    S.EmbedC p s -> return ()
 
     S.Return _ mexpr -> do
         retty <- gets curRetty

@@ -125,6 +125,7 @@ instance Apply S.Pattern where
 
 instance Apply S.Stmt where
     apply f stmt = case stmt of
+        S.EmbedC pos s              -> S.EmbedC pos s
         S.Block stmts               -> S.Block $ map applyF stmts
         S.Return pos mexpr          -> S.Return pos $ fmap applyF mexpr
         S.Assign pos pat expr       -> S.Assign pos (applyF pat) (applyF expr)
