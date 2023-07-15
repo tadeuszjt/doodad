@@ -1,7 +1,6 @@
 module rect
 
 import vec2
-import strings
 
 type Rect (min Vec2, max Vec2)
 

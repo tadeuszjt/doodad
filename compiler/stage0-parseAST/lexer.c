@@ -329,16 +329,16 @@ bool lex() { // returns false for EOF
         } else if (stackLen == 2) { // 'c'
             assert(c == '\'');
 
-            fprintf(fpOut, "char: %c\n", stack[1]);
+            fprintf(fpOut, "char: '%c'\n", stack[1]);
             stackClear();
             state = STATE_INIT;
         } else if (stackLen == 3) { // '\n'
             switch (stack[2]) {
-                case 'n': fprintf(fpOut, "char: \\n\n"); break;
-                case 't': fprintf(fpOut, "char: \\t\n"); break;
-                case '0': fprintf(fpOut, "char: \\0\n"); break;
-                case '\'': fprintf(fpOut, "char: '\n"); break;
-                case '\\': fprintf(fpOut, "char: \\\n"); break;
+                case 'n': fprintf(fpOut, "char: '\\n'\n"); break;
+                case 't': fprintf(fpOut, "char: '\\t'\n"); break;
+                case '0': fprintf(fpOut, "char: '\\0'\n"); break;
+                case '\'': fprintf(fpOut, "char: '\\''\n"); break;
+                case '\\': fprintf(fpOut, "char: '\\\\'\n"); break;
                 default: assert(0); break;
             }
             stackClear();

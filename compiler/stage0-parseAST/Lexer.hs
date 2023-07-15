@@ -7,6 +7,7 @@ import Control.Monad
 import System.FilePath
 import System.IO.Temp
 import System.IO
+import System.Directory
 import Token
 import Error
 
@@ -29,6 +30,7 @@ lexFile filename = do
     cLexFile filename temp
     --putStrLn =<< readFile temp
     lines <- lines <$> readFile temp
+    removeFile temp
 
     let pos = TextPos filename 0 0
 
@@ -49,6 +51,8 @@ lexFile filename = do
             return $ Token pos Int (fromJust $ stripPrefix "number: " line)
         _ | isPrefixOf "string: " line -> do
             return $ Token pos String (fromJust $ stripPrefix "string: " line)
+        _ | isPrefixOf "char: " line -> do
+            return $ Token pos Char (fromJust $ stripPrefix "char: " line)
         _ | isPrefixOf "import: " line -> do
             return $ Token pos Import (fromJust $ stripPrefix "import: " line)
         _ | isPrefixOf "embed_c: " line -> do

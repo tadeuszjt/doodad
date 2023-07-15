@@ -339,9 +339,11 @@ generateStmt stmt = case stmt of
         append =<< newElement (C.Set (valueExpr val1) (valueExpr val2))
 
     S.For _ expr mpat stmt -> do
-        idxType <- case typeof expr of
+        base <- baseTypeOf expr
+        idxType <- case base of
             Type.Range I64 -> cTypeOf I64
             Type.String    -> cTypeOf I64
+            Type.Array _ _ -> cTypeOf I64
 
         idxName <- freshName "index"
         append =<< newElement (C.Assign idxType idxName $ C.Int 0)
@@ -355,7 +357,7 @@ generateStmt stmt = case stmt of
         withCurID id $ do
             val <- generateExpr expr
             -- special preable for ranges
-            case typeof expr of
+            case base of
                 Type.Range I64 -> do
                     setIdxId   <- newElement $ C.Set (C.Ident idxName) (C.Member (valueExpr val) "min")
                     setFirstId <- newElement $ C.Set (C.Ident firstName) (C.Bool False)
@@ -363,23 +365,31 @@ generateStmt stmt = case stmt of
                     withCurID ifID $ append setFirstId >> append setIdxId
 
                 Type.String -> return ()
+                Type.Array _ _ -> return ()
 
             -- check that index is still in range
-            case typeof expr of
+            case base of
                 Type.Range I64 -> do
-                    ifId <- appendIf $ C.Infix C.GTEq (C.Ident idxName) (C.Member (valueExpr val) "max")
+                    ifId <- appendIf $
+                        C.Infix C.GTEq (C.Ident idxName) (C.Member (valueExpr val) "max")
                     withCurID ifId $ append =<< newElement C.Break
                 Type.String -> do
                     ifId <- appendIf $
                         C.Infix C.GTEq (C.Ident idxName) (C.Call "strlen" [valueExpr val])
                     withCurID ifId $ append =<< newElement C.Break
+                Type.Array n t -> do
+                    ifId <- appendIf $
+                        C.Infix C.GTEq (C.Ident idxName) (C.Int $ fromIntegral n)
+                    withCurID ifId $ append =<< newElement C.Break
+
                     
             -- check that pattern matches
             patMatches <- case mpat of
                 Nothing -> return (C.Bool True)
-                Just pat -> case typeof expr of
+                Just pat -> case base of
                     Type.Range I64 -> generatePattern pat (Value I64 $ C.Ident idxName)
                     Type.String    -> generatePattern pat (Value Type.Char $ C.Subscript (valueExpr val) (C.Ident idxName))
+                    Type.Array n t -> generatePattern pat (Value t $ C.Subscript (C.Member (valueExpr val) "arr") (C.Ident idxName))
 
             ifId <- appendIf (C.Not patMatches)
             withCurID ifId $ append =<< newElement C.Break
@@ -454,12 +464,11 @@ generatePattern pattern val = do
 generateExpr :: MonadGenerate m => Expr -> m Object
 generateExpr (AExpr typ expr) = withTypeCheck $ case expr of
     S.Bool _ b -> return $ Value typ (C.Bool b)
-
     S.Int _ n -> return $ Value typ (C.Int n)
-
     S.Float _ f -> return $ Value typ (C.Float f)
-
     S.Ident _ symbol -> look (show symbol)
+    S.String _ s -> return $ Value typ $ C.String s
+    S.Char _ c -> return $ Value typ $ C.Char c
 
     S.Infix _ op a b -> do
         valA <- generateExpr a
@@ -478,6 +487,12 @@ generateExpr (AExpr typ expr) = withTypeCheck $ case expr of
         id <- newElement $ C.Assign cType name (C.Initialiser $ map valueExpr vals)
         append id
         return $ Value typ $ C.Ident name
+
+    S.Builtin _ [] "len" [expr] -> do
+        val <- generateExpr expr
+        base <- baseTypeOf val
+        case base of
+            Type.Array n t -> return $ Value typ $ C.Int (fromIntegral n)
 
     S.Range _ (Just expr) mexpr1 mexpr2 -> do
         val <- generateExpr expr
@@ -507,8 +522,6 @@ generateExpr (AExpr typ expr) = withTypeCheck $ case expr of
         id <- newElement $ C.Assign ctype name (C.Initialiser [valueExpr val1, valueExpr val2])
         append id
         return $ Value typ $ C.Ident name
-
-    S.String _ s -> return $ Value typ $ C.String s
 
     S.Construct _ symbol exprs -> do
         base <- baseTypeOf typ
@@ -548,7 +561,8 @@ generateExpr (AExpr typ expr) = withTypeCheck $ case expr of
         withTypeCheck :: MonadGenerate m => m Object -> m Object
         withTypeCheck f = do
             r <- f
-            assert (typeof r == typ) "generateExpr returned a different type"
+            assert (typeof r == typ) $ 
+                "generateExpr returned: " ++ show r ++ " but checked " ++ show typ
             return r
             
 
@@ -558,16 +572,19 @@ generateInfix :: MonadGenerate m => S.Operator -> Object -> Object -> m Object
 generateInfix op a b = do
     assert (typeof a == typeof b) "infix types do not match"
     case typeof a of
-        Type.I64 -> return $ Value (typeof a) $ case op of
-            S.Plus ->  C.Infix C.Plus (valueExpr a) (valueExpr b) 
-            S.Times -> C.Infix C.Times (valueExpr a) (valueExpr b) 
-            S.LTEq ->  C.Infix C.LTEq (valueExpr a) (valueExpr b)
-            S.EqEq ->  C.Infix C.EqEq (valueExpr a) (valueExpr b)
-            S.Minus -> C.Infix C.Minus (valueExpr a) (valueExpr b)
-            S.Modulo -> C.Infix C.Modulo (valueExpr a) (valueExpr b)
+        Type.I64 -> return $ case op of
+            S.Plus ->   Value (typeof a) $ C.Infix C.Plus (valueExpr a) (valueExpr b) 
+            S.Times ->  Value (typeof a) $ C.Infix C.Times (valueExpr a) (valueExpr b) 
+            S.Minus ->  Value (typeof a) $ C.Infix C.Minus (valueExpr a) (valueExpr b)
+            S.Modulo -> Value (typeof a) $ C.Infix C.Modulo (valueExpr a) (valueExpr b)
+            S.LT ->     Value Type.Bool $ C.Infix C.LT (valueExpr a) (valueExpr b)
+            S.LTEq ->   Value Type.Bool $ C.Infix C.LTEq (valueExpr a) (valueExpr b)
+            S.EqEq ->   Value Type.Bool $ C.Infix C.EqEq (valueExpr a) (valueExpr b)
             _ -> error (show op)
 
         Type.String -> case op of
             S.Plus -> return $ Value (typeof a) (C.Call "doodad_string_plus" [valueExpr a, valueExpr b])
+
+        _ -> error $ show (typeof a)
 
 

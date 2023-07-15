@@ -1,0 +1,36 @@
+module ox
+
+import std/io
+
+type Square { Empty() | Naught() | Cross() }
+
+type Board [3 [3 Square]]
+
+fn String(sq Square)
+    switch sq
+        Empty(); return " "
+        Naught(); return "O"
+        Cross(); return "X"
+
+fn {io Io} printBoard(b Board)
+    for b -> row
+        io.putChar('[')
+        for row[..] -> col
+            let comma = ""
+            if col < (len(b[row]) - 1); comma = ", "
+            io.putStr(String(row[col]) + comma)
+        io.putStrLn("]")
+
+
+
+fn {io Io} main()
+    let board = Board()
+
+    board[1][1] = Cross()
+
+    io.printBoard(board)
+
+
+    let s = io.getStrLn()
+
+    print("ox", String(board[0][1]), s)

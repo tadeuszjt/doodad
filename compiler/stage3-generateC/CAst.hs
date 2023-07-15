@@ -90,10 +90,10 @@ data Expression
     | Float Double
     | Infix Operator Expression Expression
     | String String
+    | Char Char
     | Call String [Expression]
     | CndExpr Expression Expression Expression
     | Initialiser [Expression]
-    | Char Char
     | Member Expression String
     | PMember Expression String
     | Increment Expression
@@ -113,7 +113,6 @@ instance Show Expression where
     show (CndExpr c a b) = show c ++ " ? " ++ show a ++ " : " ++ show b
     show (Infix op a b) = "(" ++ show a ++ " " ++ show op ++ " " ++ show b ++ ")"
     show (Initialiser es) = "{" ++ intercalate ", " (map show es) ++ "}"
-    show (Char c) = show c
     show (Member a b) = show a ++ "." ++ b
     show (PMember a b) = show a ++ "->" ++ b
     show (Increment e) = show e ++ "++"
@@ -121,5 +120,6 @@ instance Show Expression where
     show (Deref e) = "(*" ++ show e ++ ")"
     show (Address e) = "&(" ++ show e ++ ")"
     show (Not e) = "!" ++ show e
+    show (Char c) = show c
 
 
