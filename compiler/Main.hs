@@ -43,27 +43,7 @@ main = do
 
     else do
         forM_ (modPaths parsedArgs) $ \path -> do
-            res <- runBoMT (initModulesState) $ runMod parsedArgs Set.empty path
+            res <- runBoMT undefined $ runMod parsedArgs path
             case res of
                 Left err -> printError err 
                 Right _  -> return ()
-
-
---repl :: Session -> InferState -> InputT IO ()
---repl session state = do
---    minput <- handleInterrupt (return $ Just "Ctrl-C exit") $ getInputLine "8===D "
---    case minput of
---        Nothing   -> return ()
---        Just "q"  -> return ()
---        Just line -> do
---            res <- runExceptT $ P.parse 0 line
---            case res of
---                Left e -> liftIO (printError e)
---                Right (AST _ _ [stmt]) -> do
---                    res <- liftIO $ runBoMT state (do { s' <- infStmt stmt; infResolve; return s' })
---                    case res of
---                        Left e -> liftIO $ printError e
---                        Right (stmt', state') -> do
---                            outputStrLn $ show stmt'
---                            liftIO $ prettyInferState state'
---                            repl session state'

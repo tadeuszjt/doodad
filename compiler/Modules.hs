@@ -1,6 +1,8 @@
 {-# LANGUAGE FlexibleContexts #-}
 module Modules where
 
+import System.Process
+import System.Exit
 import System.FilePath
 import System.IO
 import System.IO.Temp
@@ -41,13 +43,15 @@ import Lexer
 
 data Modules
     = Modules
-        { moduleMap   :: Map.Map FilePath ResolvedAst
+        { moduleMap :: Map.Map FilePath ResolvedAst
+        , cFileMap  :: Map.Map FilePath FilePath
         }
 
 
 initModulesState 
     = Modules
-        { moduleMap   = Map.empty
+        { moduleMap = Map.empty
+        , cFileMap  = Map.empty
         }
 
 
@@ -90,8 +94,24 @@ parse args file = do
     P.parse newTokens
 
 
-runMod :: BoM Modules m => Args -> Set.Set FilePath -> FilePath -> m ()
-runMod args pathsVisited modPath = do
+runMod :: BoM s m => Args -> FilePath -> m ()
+runMod args modPath = do
+    ((), state) <- runBoMTExcept (initModulesState) $ runMod' args Set.empty modPath
+    let cFiles = Map.elems (cFileMap state) ++ ["include/doodad.c"] ++ ["include/main.c"]
+    let binFile = takeFileName modPath
+
+    exitCode <- liftIO $ rawSystem "gcc" $ ["-I", "include"] ++ cFiles ++ ["-lgc", "-o", binFile]
+    case exitCode of
+        ExitSuccess -> return ()
+        ExitFailure s -> fail $ "gcc failed: " ++ (show s)
+
+    forM_ (Map.toList $ cFileMap state) $ \(_, cFile) -> do
+        liftIO $ removeFile cFile
+
+
+
+runMod' :: BoM Modules m => Args -> Set.Set FilePath -> FilePath -> m ()
+runMod' args pathsVisited modPath = do
     debug "running"
     absolute <- liftIO $ canonicalizePath modPath
     debug $ "absolute path: " ++ show absolute
@@ -123,7 +143,7 @@ runMod args pathsVisited modPath = do
             assert (length importModNames == length (Set.fromList importModNames)) $
                 fail "import name collision"
             forM_ importPaths $ debug . ("importing: " ++)
-            mapM_ (runMod args (Set.insert path pathsVisited)) importPaths
+            mapM_ (runMod' args (Set.insert path pathsVisited)) importPaths
 
             debug "loading irGenImports"
             astImports <- forM importPaths $ \path -> do
@@ -146,18 +166,18 @@ runMod args pathsVisited modPath = do
             modify $ \s -> s { moduleMap = Map.insert path (resolved2) (moduleMap s) }
             when (printAstFinal args) $ liftIO $ prettyResolvedAst resolved2
 
-            -- test CBuilder
+            -- create 'build' directory
             buildDir <- liftIO $ canonicalizePath $ "build"
             liftIO $ createDirectoryIfMissing True buildDir
-            let cFilePath = joinPath [buildDir, modName ++ ".c"]
+
+            cFilePath <- liftIO $ writeSystemTempFile (modName ++ ".c") ""
+            modify $ \s -> s { cFileMap = Map.insert path cFilePath (cFileMap s) }
+
+            liftIO $ putStrLn $ "writing: " ++ cFilePath
             cHandle <- liftIO $ openFile cFilePath WriteMode
-            (((), cGenerateState), cBuilderState) <- runGenerateT (C.initGenerateState) (C.initBuilderState modName) (generate resolved2)
+            (_, cBuilderState) <- runGenerateT (C.initGenerateState) (C.initBuilderState modName) (generate resolved2)
             _ <- runBoMTExcept (initCPrettyState cHandle cBuilderState) cPretty
             liftIO $ hClose cHandle
-
---            liftIO $ putStrLn $ "printing tuples"
---            forM_ (Map.toList $ tuples cGenerateState) $ \(typ, str) -> do
---                liftIO $ putStrLn $ show (typ, str)
 
             return ()
 

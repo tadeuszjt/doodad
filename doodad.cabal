@@ -41,7 +41,8 @@ executable doodad
         directory,
         haskeline,
         filepath,
-        exceptions
+        exceptions,
+        process
     build-tools:
         happy
     other-modules:

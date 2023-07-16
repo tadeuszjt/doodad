@@ -55,7 +55,7 @@ fn {io Io} main()
     board[1][2] = Cross()
     io.boardPrint(board)
     print(String(boardWinner(board)))
-    board[1][1] = Empty() 1
+    board[1][1] = Empty()
     io.boardPrint(board)
     print(String(boardWinner(board)))
     board[0][2] = Cross()
