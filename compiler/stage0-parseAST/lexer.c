@@ -3,11 +3,28 @@
 #include <assert.h>
 #include <ctype.h>
 #include <string.h>
+#include <stdarg.h>
 
 /* ---------------IO-----------------------
  * Set correct file pointer                */
 FILE *fpIn = NULL;
 FILE *fpOut = NULL;
+int currentLine = 0;
+
+void printToken(const char *fmt, ...) {
+    va_list args;
+    va_start(args, fmt);
+    fprintf(fpOut, "%d:%d:", currentLine, 0);
+    vfprintf(fpOut, fmt, args);
+    va_end(args);
+}
+
+void ungetChar(char c) {
+    if (c == '\n') {
+        currentLine--;
+    }
+    ungetc(c, fpIn);
+}
 
 
 /* ---------------STATES--------------------
@@ -82,12 +99,12 @@ void indent(const char *spaces) {
     }
 
     if (lenSpaces == lenEntry) { // same indent
-        fprintf(fpOut, "newline:\n");
+        printToken("newline:\n");
     } else if (lenSpaces > lenEntry) { // greater indent
-        fprintf(fpOut, "indent:\n");
+        printToken("indent:\n");
         strcpy(indentStack[indentStackLen++], spaces);
     } else if (lenSpaces < lenEntry) { // lesser indent
-        fprintf(fpOut, "newline:\n");
+        printToken("newline:\n");
 
         for (;;) {
             assert(indentStackLen > 0);
@@ -98,7 +115,7 @@ void indent(const char *spaces) {
             }
 
             if (lenSpaces < lenEntry) {
-                fprintf(fpOut, "dedent:\n");
+                printToken("dedent:\n");
                 indentStackLen--;
             } else if (lenSpaces == lenEntry) {
                 break;
@@ -116,6 +133,7 @@ void indent(const char *spaces) {
 void init() {
     fpIn = stdin;
     fpOut = stdout;
+    currentLine = 0;
     state = STATE_INIT;
 
     stackLen = 0;
@@ -202,6 +220,9 @@ bool isKeyword(char *s) {
 
 bool lex() { // returns false for EOF
     char c = fgetc(fpIn);
+    if (c == '\n') {
+        currentLine++;
+    }
 
     switch (state) {
     case STATE_INIT:
@@ -244,21 +265,21 @@ bool lex() { // returns false for EOF
                 state = STATE_IMPORT;
             } else {
                 if (isKeyword(stack)) {
-                    fprintf(fpOut, "keyword: %s\n", stack);
+                    printToken("keyword: %s\n", stack);
                 } else {
-                    fprintf(fpOut, "ident: %s\n", stack);
+                    printToken("ident: %s\n", stack);
                 }
                 stackClear();
 
                 state = STATE_INIT;
-                ungetc(c, fpIn);
+                ungetChar(c);
             }
         } 
         break;
 
     case STATE_IMPORT:
         if (c == '\n') {
-            fprintf(fpOut, "import: %s\n", stack);
+            printToken("import: %s\n", stack);
             stackClear();
             state = STATE_INIT;
         } else {
@@ -270,11 +291,11 @@ bool lex() { // returns false for EOF
         if (isdigit(c) || c == '.') {
             stackPush(c);
         } else {
-            fprintf(fpOut, "number: %s\n", stack);
+            printToken("number: %s\n", stack);
             stackClear();
 
             state = STATE_INIT;
-            ungetc(c, fpIn);
+            ungetChar(c);
         }
         break;
 
@@ -284,10 +305,10 @@ bool lex() { // returns false for EOF
             state = STATE_COMMENT;
         } else {
             if (!isDoubleSymbol(stack)) {
-                ungetc(stackPop(), fpIn);
+                ungetChar(stackPop());
             }
 
-            fprintf(fpOut, "symbol: %s\n", stack);
+            printToken("symbol: %s\n", stack);
             stackClear();
             state = STATE_INIT;
         }
@@ -306,7 +327,7 @@ bool lex() { // returns false for EOF
         if (c == '"' && stackLen > 0 && stack[stackLen - 1] == '\\') {
             stackPush(c);
         } else if (c == '"') {
-            fprintf(fpOut, "string: %s\n", stack);
+            printToken("string: %s\n", stack);
             stackClear();
             state = STATE_INIT;
         } else {
@@ -328,16 +349,16 @@ bool lex() { // returns false for EOF
         } else if (stackLen == 2) { // 'c'
             assert(c == '\'');
 
-            fprintf(fpOut, "char: '%c'\n", stack[1]);
+            printToken("char: '%c'\n", stack[1]);
             stackClear();
             state = STATE_INIT;
         } else if (stackLen == 3) { // '\n'
             switch (stack[2]) {
-                case 'n': fprintf(fpOut, "char: '\\n'\n"); break;
-                case 't': fprintf(fpOut, "char: '\\t'\n"); break;
-                case '0': fprintf(fpOut, "char: '\\0'\n"); break;
-                case '\'': fprintf(fpOut, "char: '\\''\n"); break;
-                case '\\': fprintf(fpOut, "char: '\\\\'\n"); break;
+                case 'n': printToken("char: '\\n'\n"); break;
+                case 't': printToken("char: '\\t'\n"); break;
+                case '0': printToken("char: '\\0'\n"); break;
+                case '\'': printToken("char: '\\''\n"); break;
+                case '\\': printToken("char: '\\\\'\n"); break;
                 default: assert(0); break;
             }
             stackClear();
@@ -354,7 +375,7 @@ bool lex() { // returns false for EOF
             indent(strrchr(stack, '\n') + 1); // advance to character after last newline
             stackClear();
             state = STATE_INIT;
-            ungetc(c, fpIn);
+            ungetChar(c);
         }
         break;
 
@@ -373,7 +394,7 @@ bool lex() { // returns false for EOF
                     }
                 }
 
-                fprintf(fpOut, "embed_c: %s\n", stack);
+                printToken("embed_c: %s\n", stack);
                 stackClear();
                 state = STATE_INIT;
             }

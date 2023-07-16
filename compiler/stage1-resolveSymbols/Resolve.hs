@@ -454,7 +454,6 @@ instance Resolve Expr where
         AST.Bool pos b -> return expr
         Float pos f -> return expr
         AST.Tuple pos exprs -> AST.Tuple pos <$> mapM resolve exprs
-        AST.Initialiser pos exprs -> AST.Initialiser pos <$> mapM resolve exprs
         AST.String pos s -> return expr
 
 

@@ -122,4 +122,53 @@ instance Show Expression where
     show (Not e) = "!" ++ show e
     show (Char c) = show c
 
+data ID =
+    ID Int
+    deriving (Show, Eq, Ord)
 
+data Element
+    = Global { globalBody :: [ID] }
+    | Embed String
+    | For
+        { forInit :: Maybe Expression
+        , forCnd :: Maybe Expression
+        , forPost :: Maybe Expression
+        , forBody :: [ID]
+        }
+    | Extern
+        { extName :: String
+        , extRetty :: Type
+        , extArgs :: [Type]
+        }
+    | Func
+        { funcBody :: [ID]
+        , funcName :: String
+        , funcArgs :: [Param]
+        , funcRetty :: Type
+        }
+    | Typedef
+        { typedefName :: String
+        , typedefType :: Type
+        }
+    | Return Expression
+    | Break
+    | Assign Type String Expression
+    | Set Expression Expression
+    | If
+        { ifExpr :: Expression
+        , ifStmts :: [ID]
+        }
+    | Else
+        { elseStmts :: [ID]
+        }
+    | ExprStmt Expression
+    | Switch
+        { switchExpr :: Expression
+        , switchBody :: [ID]
+        }
+    | Case
+        { caseExpr :: Expression
+        , caseBody :: [ID]
+        }
+    deriving (Show)
+ 

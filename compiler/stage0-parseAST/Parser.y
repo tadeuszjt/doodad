@@ -71,7 +71,6 @@ import Symbol
     null       { Token _ Reserved "null" }
     data       { Token _ Reserved "data" }
     import     { Token _ Import _ }
-    import_c   { Token _ ImportC _ }
 
     i16        { Token _ Reserved "i16" }
     i32        { Token _ Reserved "i32" }
@@ -118,7 +117,6 @@ stmts : {-empty-}                           { [] }
 header : module ident 'N' imports           { ($2, $4) }
 imports : {- empty -}                       { [] }
         | import 'N' imports                { S.Import  (tokStr $1) : $3 }
-        | import_c 'N' imports              { S.ImportC (tokStr $1) : $3 }
 
 
 ---------------------------------------------------------------------------------------------------
@@ -131,17 +129,11 @@ mfnrec : {-empty-}                          { [] }
        | '{' paramsA '}'                    { $2 }
 
 
-initialiser : '{' exprsA '}'                { S.Initialiser (tokPos $1) $2 }
-            | string_c                      { S.String (tokPos $1) (tokStr $1) }
-minitialiser : initialiser                  { Just $1 }
-             | {-empty-}                    { Nothing }
-
 line : let pattern '=' expr                         { S.Assign (tokPos $1) $2 $4 }  
      | index '=' expr                               { S.Set (tokPos $2) $1 $3 }
      | index                                        { S.ExprStmt $1 }
      | type symbol anno_t                           { S.Typedef (fst $2) (snd $2) $3 }
      | return mexpr                                 { S.Return (tokPos $1) $2 }
-     | data symbol type_ minitialiser               { S.Data (tokPos $1) (snd $2) $3 $4 }
      | embed_c                                      { S.EmbedC (tokPos $1) (tokStr $1) }
 block : if_                                         { $1 }
       | fn mfnrec ident '(' paramsA ')' mtype scope { S.FuncDef (tokPos $1) $2 (Sym $ tokStr $3) $5 (case $7 of Just t -> t; Nothing -> T.Void) $8 }

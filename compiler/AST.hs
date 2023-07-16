@@ -40,8 +40,6 @@ data Operator
 
 data Import
     = Import FilePath
-    | ImportC FilePath
-    | ImportCMacro String Type
     deriving (Eq, Ord)
 
 
@@ -77,7 +75,6 @@ data Expr
     | Char        TextPos Char
     | String      TextPos String
     | Tuple       TextPos [Expr]
-    | Initialiser TextPos [Expr]
     | Call        TextPos [Expr] Symbol [Expr]
     | Construct   TextPos Symbol [Expr]
     | Null        TextPos 
@@ -153,7 +150,6 @@ instance TextPosition Expr where
         Null         p -> p
         String       p _ -> p
         Tuple        p _ -> p
-        Initialiser  p _ -> p
         Field        p _ _ -> p
         Subscript    p _ _ -> p
         Ident        p _ -> p
@@ -192,8 +188,6 @@ brcStrs strs = "{" ++ intercalate ", " strs ++ "}"
 
 instance Show Import where
     show (Import path) = "import " ++ path
-    show (ImportC path) = "import_c " ++ path
-    show (ImportCMacro macro typ) = "import_c_macro " ++ macro ++ " " ++ show typ
 
 instance Show Param where
     show (Param pos name Void) = show name
@@ -253,7 +247,6 @@ instance Show Expr where
         Null p                        -> "null"
         String pos s                  -> show s
         Tuple pos exprs               -> tupStrs (map show exprs)
-        Initialiser pos exprs         -> arrStrs (map show exprs)
         Field pos expr symbol         -> show expr ++ "." ++ show symbol
         Subscript pos expr1 expr2     -> show expr1 ++ "[" ++ show expr2 ++ "]"
         Ident p s                     -> show s 
@@ -262,6 +255,7 @@ instance Show Expr where
         Infix pos op expr1 expr2      -> show expr1 ++ " " ++ show op ++ " " ++ show expr2
         ADT pos expr                  -> brcStrs [show expr]
         Call pos [] symbol exprs      -> show symbol ++ tupStrs (map show exprs)
+        Call pos [param] symbol exprs -> show param ++ "." ++ show symbol ++ tupStrs (map show exprs)
         Call pos params symbol exprs  -> brcStrs (map show params) ++ "." ++ show symbol ++ tupStrs (map show exprs)
         Builtin pos params sym exprs  -> brcStrs (map show params) ++ "." ++ sym ++ tupStrs (map show exprs)
         Match pos expr1 expr2         -> show expr1 ++ " -> " ++ show expr2

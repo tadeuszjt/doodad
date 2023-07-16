@@ -1,5 +1,5 @@
 module Lexer where
-
+import Data.Maybe
 import Data.List
 import Data.Maybe
 import Data.Char
@@ -10,6 +10,7 @@ import System.IO
 import System.Directory
 import Token
 import Error
+import Text.Read (readMaybe)
 
 import Foreign.C.String
 
@@ -32,35 +33,44 @@ lexFile filename = do
     lines <- lines <$> readFile temp
     removeFile temp
 
-    let pos = TextPos filename 0 0
 
-    tokens <- forM lines $ \line -> case line of
-        _ | isPrefixOf "ident: " line -> do
-            return $ Token pos Ident (fromJust $ stripPrefix "ident: " line)
-        _ | isPrefixOf "keyword: " line -> do
-            return $ Token pos Reserved (fromJust $ stripPrefix "keyword: " line)
-        _ | isPrefixOf "newline:" line -> do
-            return $ Token pos NewLine ""
-        _ | isPrefixOf "indent:" line -> do
-            return $ Token pos Indent ""
-        _ | isPrefixOf "dedent:" line -> do
-            return $ Token pos Dedent ""
-        _ | isPrefixOf "symbol: " line -> do
-            return $ Token pos TokSym (fromJust $ stripPrefix "symbol: " line)
-        _ | isPrefixOf "number: " line -> do
-            return $ Token pos Int (fromJust $ stripPrefix "number: " line)
-        _ | isPrefixOf "string: " line -> do
-            return $ Token pos String (fromJust $ stripPrefix "string: " line)
-        _ | isPrefixOf "char: " line -> do
-            return $ Token pos Char (fromJust $ stripPrefix "char: " line)
-        _ | isPrefixOf "import: " line -> do
-            return $ Token pos Import (fromJust $ stripPrefix "import: " line)
-        _ | isPrefixOf "embed_c: " line -> do
-            return $ Token pos EmbedC (fromJust $ stripPrefix "embed_c: " $ replace31 line)
-        _ -> error line
+    tokens <- forM lines $ \line' -> do
+        let (lineStr, rest1) = span (/= ':') line'
+        let (colStr,  rest2) = span (/= ':') $ drop 1 rest1
+        let line = drop 1 rest2
+        let pos = TextPos filename (readInt lineStr) (readInt colStr)
+
+        case line of
+            l | isPrefixOf "ident: " l -> do
+                return $ Token pos Ident (fromJust $ stripPrefix "ident: " l)
+            l | isPrefixOf "keyword: " l -> do
+                return $ Token pos Reserved (fromJust $ stripPrefix "keyword: " l)
+            l | isPrefixOf "newline:" l -> do
+                return $ Token pos NewLine ""
+            l | isPrefixOf "indent:" l -> do
+                return $ Token pos Indent ""
+            l | isPrefixOf "dedent:" l -> do
+                return $ Token pos Dedent ""
+            l | isPrefixOf "symbol: " l -> do
+                return $ Token pos TokSym (fromJust $ stripPrefix "symbol: " l)
+            l | isPrefixOf "number: " l -> do
+                return $ Token pos Int (fromJust $ stripPrefix "number: " l)
+            l | isPrefixOf "string: " l -> do
+                return $ Token pos String (fromJust $ stripPrefix "string: " l)
+            l | isPrefixOf "char: " l -> do
+                return $ Token pos Char (fromJust $ stripPrefix "char: " l)
+            l | isPrefixOf "import: " l -> do
+                return $ Token pos Import (fromJust $ stripPrefix "import: " l)
+            l | isPrefixOf "embed_c: " l -> do
+                return $ Token pos EmbedC (fromJust $ stripPrefix "embed_c: " $ replace31 l)
+            l -> error l
 
     return tokens 
     where
+        readInt :: String -> Int
+        readInt = read
+
+
         replace31 :: String -> String
         replace31 (x : xs)
             | ord x == 31 = '\n' : (replace31 xs)

@@ -92,7 +92,6 @@ instance Apply S.Expr where
         S.String pos s        -> S.String pos s
         S.Field pos e s       -> S.Field pos (applyF e) s
         S.Float pos f         -> S.Float pos f
-        S.Initialiser pos es  -> S.Initialiser pos (map applyF es)
         S.ADT p e             -> S.ADT p (applyF e)
         S.Call p ps ident es  -> S.Call p (map applyF ps) ident (map applyF es)
         S.Builtin p ps ident es  -> S.Builtin p (map applyF ps) ident (map applyF es)

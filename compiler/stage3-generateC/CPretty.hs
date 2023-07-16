@@ -11,6 +11,7 @@ import System.IO hiding (print)
 
 import Monad
 import CBuilder
+import CAst
 
 
 data CPrettyState

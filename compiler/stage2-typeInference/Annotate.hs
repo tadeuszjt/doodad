@@ -137,7 +137,6 @@ instance Annotate Expr where
         Conv p s es -> Conv p s <$> mapM annotate es
         Tuple p es -> Tuple p <$> mapM annotate es
         Prefix p op e -> Prefix p op <$> annotate e
-        Initialiser p es -> Initialiser p <$> mapM annotate es
 
         Call pos ps ident es -> do
             ps' <- mapM annotate ps
