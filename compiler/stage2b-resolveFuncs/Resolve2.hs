@@ -168,6 +168,9 @@ compileExpr (AST.AExpr exprType expr) = withPos expr $ AExpr exprType <$> case e
     AST.String pos s          -> return $ AST.String pos s
     AST.Array pos exprs       -> AST.Array pos <$> mapM compileExpr exprs
 
+    AST.Builtin pos [] "conv" exprs -> do
+        return $ Conv pos exprType exprs
+
     AST.Builtin pos params sym exprs -> do
         params' <- mapM compileExpr params
         exprs' <- mapM compileExpr exprs
@@ -244,7 +247,7 @@ compilePattern pattern = case pattern of
         mpat' <- maybe (return Nothing) (fmap Just . compilePattern) mpat
         return $ PatGuarded pos pat' expr' mpat'
 
-    AST.PatArray pos patss -> PatArray pos <$> mapM (mapM compilePattern) patss
+    AST.PatArray pos pats -> PatArray pos <$> mapM compilePattern pats
 
     AST.PatAnnotated pat typ -> do
         pat' <- compilePattern pat

@@ -88,7 +88,7 @@ getSpecificModuleFiles args name (f:fs) = do
 -- Throw an error on failure.
 parse :: BoM s m => Args -> FilePath -> m S.AST
 parse args file = do
-    newTokens <- liftIO $ lexFile file
+    newTokens <- liftIO $ lexFile (printTokens args) file
     when (printTokens args) $ do
         liftIO $ mapM_ (putStrLn . show) newTokens
     P.parse newTokens
@@ -96,7 +96,7 @@ parse args file = do
 
 runMod :: BoM s m => Args -> FilePath -> m ()
 runMod args modPath = do
-    ((), state) <- runBoMTExcept (initModulesState) $ runMod' args Set.empty modPath
+    ((), state) <- runBoMTExcept (initModulesState) $ runMod' args modPath
     let cFiles = Map.elems (cFileMap state) ++ ["include/doodad.c"] ++ ["include/main.c"]
     let binFile = takeFileName modPath
 
@@ -110,8 +110,8 @@ runMod args modPath = do
 
 
 
-runMod' :: BoM Modules m => Args -> Set.Set FilePath -> FilePath -> m ()
-runMod' args pathsVisited modPath = do
+runMod' :: BoM Modules m => Args -> FilePath -> m ()
+runMod' args modPath = do
     debug "running"
     absolute <- liftIO $ canonicalizePath modPath
     debug $ "absolute path: " ++ show absolute
@@ -143,7 +143,7 @@ runMod' args pathsVisited modPath = do
             assert (length importModNames == length (Set.fromList importModNames)) $
                 fail "import name collision"
             forM_ importPaths $ debug . ("importing: " ++)
-            mapM_ (runMod' args (Set.insert path pathsVisited)) importPaths
+            mapM_ (runMod' args) importPaths
 
             debug "loading irGenImports"
             astImports <- forM importPaths $ \path -> do

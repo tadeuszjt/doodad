@@ -4,6 +4,7 @@
 
 module CGenerate where
 
+import Data.List
 import Data.Char
 import Control.Monad.State
 import Control.Monad.Except
@@ -439,6 +440,19 @@ generatePattern pattern val = do
     case pattern of
         PatIgnore _ -> return (C.Bool True)
 
+        PatArray _ pats -> do   
+            base <- baseTypeOf val
+            case base of
+                Type.Array n t -> do -- TODO cheating
+                    assert (n == length pats) "invalid number of patterns"
+                    bs <- forM (zip pats [0..]) $ \(pat, i) -> do
+                        generatePattern pat $
+                            Value t (C.Subscript (C.Member (valueExpr val) "arr") (C.Int $ fromIntegral i))
+                    name <- freshName "match"
+                    appendElem (C.Assign Cbool name $ foldr1 (C.Infix C.AndAnd) bs)
+                    return $ C.Ident name
+
+
         PatIdent _ symbol -> do 
             let name = show symbol
             define name (Value (typeof val) $ C.Ident name)
@@ -456,9 +470,13 @@ generatePattern pattern val = do
             bs <- forM (zip pats [0..]) $ \(pat, i) -> do
                 generatePattern pat =<< generateTupleIndex val i
 
+            -- TODO cheating
             name <- freshName "match"
             appendElem (C.Assign Cbool name $ foldr1 (C.Infix C.AndAnd) bs)
             return $ C.Ident name
+
+        PatArray _ [pats] -> do
+            error (show pats)
 
         PatGuarded _ pat expr Nothing -> do -- TODO
             b <- generatePattern pat val
@@ -497,6 +515,17 @@ generateExpr (AExpr typ expr) = withTypeCheck $ case expr of
     S.String _ s -> return $ Value typ $ C.String s
     S.Char _ c -> return $ Value typ $ C.Char c
 
+    S.Null _ -> do
+        base <- baseTypeOf typ
+        case base of
+            Type.ADT fs -> do
+                assert (Type.FieldNull `elem` fs) "ADT type does not have a null"
+                let i = fromJust $ elemIndex Type.FieldNull fs
+                ctyp <- cTypeOf typ
+                name <- freshName "adt"
+                appendElem $ C.Assign ctyp name $ C.Initialiser [C.Int $ fromIntegral i]
+                return $ Value typ $ C.Ident name
+
     S.Infix _ op a b -> do
         valA <- generateExpr a
         valB <- generateExpr b
@@ -520,6 +549,45 @@ generateExpr (AExpr typ expr) = withTypeCheck $ case expr of
         case base of
             Type.Array n t -> return $ Value typ $ C.Int (fromIntegral n)
 
+    S.Conv _ t [expr] -> do
+        val <- generateExpr expr
+        base <- baseTypeOf t
+        case base of
+            Type.ADT fs -> do
+                assert ((Type.FieldType $ typeof val) `elem` fs) "invalid conversion to ADT"
+                let i = fromJust $ elemIndex (Type.FieldType $ typeof val) fs
+                name <- freshName "adt"
+                ctyp <- cTypeOf t
+                appendElem $ C.Assign ctyp name (C.Initialiser [
+                    C.Int (fromIntegral i),
+                    valueExpr val
+                    ])
+                return $ Value t $ C.Ident name
+
+            Type.I64 -> do
+                baseVal <- baseTypeOf val
+                case baseVal of
+                    Type.Char -> return $ Value t (valueExpr val)
+                    _ -> error (show baseVal)
+
+        
+
+    S.Array _ exprs -> do
+        base <- baseTypeOf typ
+        case base of
+            Type.Array n t -> do
+                assert (n == length exprs) "incorrect array length"
+                vals <- mapM generateExpr exprs
+                name <- freshName "array"
+                ctyp <- cTypeOf typ
+                appendElem $ C.Assign ctyp name (C.Initialiser $ map valueExpr vals)
+                return $ Value typ $ C.Ident name
+
+
+    S.Match _ expr pattern -> do
+        val <- generateExpr expr
+        Value typ <$> generatePattern pattern val
+
     S.Range _ (Just expr) mexpr1 mexpr2 -> do
         val <- generateExpr expr
         base <- baseTypeOf val
@@ -536,7 +604,6 @@ generateExpr (AExpr typ expr) = withTypeCheck $ case expr of
                 id <- appendElem $
                     C.Assign ctype name (C.Initialiser [valueExpr start, valueExpr end])
                 return $ Value typ $ C.Ident name
-
 
     S.Range _ Nothing (Just expr1) (Just expr2) -> do
         val1 <- generateExpr expr1
@@ -579,6 +646,9 @@ generateExpr (AExpr typ expr) = withTypeCheck $ case expr of
         case base of
             Type.Array n t -> do
                 return $ Value typ $ C.Subscript (C.Member (valueExpr val1) "arr") (valueExpr val2)
+            Type.String -> do
+                return $ Value typ $ C.Subscript (valueExpr val1) (valueExpr val2)
+            _ -> error (show base)
 
     _ -> error (show expr)
     where

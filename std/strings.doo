@@ -1,0 +1,22 @@
+module strings
+
+
+fn isDigit(c char) bool
+    let r = false
+    ${ $r = isdigit($c); }
+    return r
+
+fn readI64(s string) {null | i64}
+    let numDigits = 0
+    for s -> c | isDigit(c)
+        numDigits = numDigits + 1
+
+    if numDigits == 0
+        return null
+
+    let x = 0
+    for [0 ..numDigits] -> i
+        x = x*10 + i64(s[numDigits - i - 1])
+
+    return conv(x)
+

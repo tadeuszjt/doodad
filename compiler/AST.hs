@@ -59,7 +59,7 @@ data Pattern
     | PatIgnore    TextPos
     | PatIdent     TextPos Symbol
     | PatTuple     TextPos [Pattern]
-    | PatArray     TextPos [[Pattern]]
+    | PatArray     TextPos [Pattern]
     | PatGuarded   TextPos Pattern Expr (Maybe Pattern)
     | PatField     TextPos Symbol [Pattern]
     | PatTypeField TextPos Type Pattern
@@ -257,6 +257,7 @@ instance Show Expr where
         Call pos [] symbol exprs      -> show symbol ++ tupStrs (map show exprs)
         Call pos [param] symbol exprs -> show param ++ "." ++ show symbol ++ tupStrs (map show exprs)
         Call pos params symbol exprs  -> brcStrs (map show params) ++ "." ++ show symbol ++ tupStrs (map show exprs)
+        Builtin pos [] sym exprs      -> sym ++ tupStrs (map show exprs)
         Builtin pos params sym exprs  -> brcStrs (map show params) ++ "." ++ sym ++ tupStrs (map show exprs)
         Match pos expr1 expr2         -> show expr1 ++ " -> " ++ show expr2
         Range pos mexpr mexpr1 mexpr2 -> maybe "" show mexpr ++ "[" ++ maybe "" show mexpr1 ++ ".." ++ maybe "" show mexpr2 ++ "]"
@@ -326,6 +327,9 @@ prettyStmt pre stmt = case stmt of
 
     Data pos symbol typ mexpr -> do
         putStrLn $ pre ++ "data " ++ show symbol ++ " " ++ show typ ++ maybe "" ((" " ++) . show) mexpr
+
+    EmbedC pos str -> do
+        putStrLn $ "${ " ++ show str ++ "}"
 
     _  -> error $ "invalid stmt: " ++ show stmt
 

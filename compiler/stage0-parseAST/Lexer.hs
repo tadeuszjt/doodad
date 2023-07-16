@@ -24,12 +24,12 @@ cLexFile filename filenameOut = do
         withCString filenameOut $ \c_filenameOut -> c_lexFile c_filename c_filenameOut
 
 
-lexFile :: String -> IO [Token]
-lexFile filename = do
+lexFile :: Bool -> String -> IO [Token]
+lexFile printTokens filename = do
     temp <- writeSystemTempFile (takeFileName filename) ""
     
     cLexFile filename temp
-    --putStrLn =<< readFile temp
+    when printTokens $ putStrLn =<< readFile temp
     lines <- lines <$> readFile temp
     removeFile temp
 
@@ -68,7 +68,9 @@ lexFile filename = do
     return tokens 
     where
         readInt :: String -> Int
-        readInt = read
+        readInt s = case readMaybe s of
+            Nothing -> error "here"
+            Just x  -> x
 
 
         replace31 :: String -> String

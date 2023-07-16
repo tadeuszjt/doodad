@@ -310,11 +310,10 @@ collectPattern pattern typ = collectPos pattern $ case pattern of
         collectBase typ (Tuple gts)
         zipWithM_ collectPattern pats gts
 
-    S.PatArray _ patss -> do
-        forM_ (zip patss [0..]) $ \(pats, i) -> do
-            gt <- genType
-            mapM_ (\p -> collectPattern p gt) pats
-            collectMember typ i gt
+    S.PatArray _ pats -> do
+        gt <- genType
+        mapM_ (\p -> collectPattern p gt) pats
+        collectMember typ 0 gt
 
     S.PatAnnotated pat t -> do
         collectEq t typ

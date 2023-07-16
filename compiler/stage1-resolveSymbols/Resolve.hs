@@ -399,7 +399,7 @@ instance Resolve Pattern where
             mpat' <- maybe (return Nothing) (fmap Just . resolve) mpat
             return $ PatGuarded pos pat' expr' mpat'
 
-        PatArray pos patss-> PatArray pos <$> mapM (mapM resolve) patss
+        PatArray pos pats-> PatArray pos <$> mapM resolve pats
 
         PatAnnotated pat typ -> do
             pat' <- resolve pat

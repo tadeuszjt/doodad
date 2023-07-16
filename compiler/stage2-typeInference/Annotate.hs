@@ -104,7 +104,7 @@ instance Annotate Pattern where
         PatIdent p s        -> return $ PatIdent p s
         PatLiteral e        -> PatLiteral <$> annotate e
         PatTuple p pats     -> PatTuple p <$> mapM annotate pats
-        PatArray p patss    -> PatArray p <$> mapM (mapM annotate) patss
+        PatArray p pats     -> PatArray p <$> mapM annotate pats
         PatNull p           -> return $ PatNull p
 
         PatGuarded p pat e mpat -> do

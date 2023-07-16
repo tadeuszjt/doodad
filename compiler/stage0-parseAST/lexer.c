@@ -9,7 +9,7 @@
  * Set correct file pointer                */
 FILE *fpIn = NULL;
 FILE *fpOut = NULL;
-int currentLine = 0;
+int currentLine = 1;
 
 void printToken(const char *fmt, ...) {
     va_list args;
@@ -133,7 +133,7 @@ void indent(const char *spaces) {
 void init() {
     fpIn = stdin;
     fpOut = stdout;
-    currentLine = 0;
+    currentLine = 1;
     state = STATE_INIT;
 
     stackLen = 0;
@@ -204,7 +204,6 @@ bool isKeyword(char *s) {
         "data",
         "let",
         "null",
-        "conv",
         "true",
         "false",
         "type",
@@ -281,6 +280,7 @@ bool lex() { // returns false for EOF
         if (c == '\n') {
             printToken("import: %s\n", stack);
             stackClear();
+            ungetChar(c);
             state = STATE_INIT;
         } else {
             stackPush(c);
@@ -289,6 +289,7 @@ bool lex() { // returns false for EOF
 
     case STATE_NUMBER:
         if (isdigit(c) || c == '.') {
+            assert (strchr(stack, '.') == NULL);
             stackPush(c);
         } else {
             printToken("number: %s\n", stack);

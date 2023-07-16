@@ -113,7 +113,7 @@ instance Apply S.Pattern where
         S.PatTypeField p t pat -> S.PatTypeField p (applyF t) (applyF pat)
         S.PatTuple p pats      -> S.PatTuple p $ map applyF pats
         S.PatIgnore p          -> S.PatIgnore p
-        S.PatArray p patss     -> S.PatArray p $ map (map applyF) patss
+        S.PatArray p pats      -> S.PatArray p $ map applyF pats
         S.PatAnnotated pat typ -> S.PatAnnotated (applyF pat) (applyF typ)
         S.PatNull p            -> S.PatNull p
         _                      -> error $ show pattern

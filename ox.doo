@@ -1,6 +1,8 @@
 module ox
 
+
 import std/io
+import std/strings
 
 type Square { Empty() | Naught() | Cross() }
 
@@ -12,6 +14,7 @@ fn String(sq Square)
         Naught(); return "O"
         Cross(); return "X"
 
+
 fn {io Io} boardPrint(b Board)
     for b -> row
         io.putChar('[')
@@ -22,7 +25,7 @@ fn {io Io} boardPrint(b Board)
         io.putStrLn("]")
 
 
-fn boardWinner(b Board) Square
+fn winner(b Board) Square
     // check for horizontal lines
     for b -> row
         let match = true
@@ -39,6 +42,12 @@ fn boardWinner(b Board) Square
         if match && b[0][col] != Empty()
             return b[0][col]
 
+    // check diagonals
+    if b -> [ [a, _, _], [_, b, _], [_, _, c] ] | a == b && b == c
+        return a
+    if b -> [ [_, _, a], [_, b, _], [c, _, _] ] | a == b && b == c
+        return a
+
     return Empty()
 
 
@@ -48,20 +57,6 @@ fn boardEmpty(b Board) bool
 
 
 fn {io Io} main()
-    let board = Board()
-
-    board[1][0] = Cross()
-    board[1][1] = Cross()
-    board[1][2] = Cross()
-    io.boardPrint(board)
-    print(String(boardWinner(board)))
-    board[1][1] = Empty()
-    io.boardPrint(board)
-    print(String(boardWinner(board)))
-    board[0][2] = Cross()
-    board[2][2] = Cross()
-    io.boardPrint(board)
-    print(String(boardWinner(board)))
-
-    let s = io.getStrLn()
-    print("ox", String(board[0][1]), s, boardEmpty(board), boardEmpty(Board()))
+    io.putStrLn("please move: <row> <col>")
+    let input = io.getStrLn()
+    print(input)
