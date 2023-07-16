@@ -12,7 +12,7 @@ fn String(sq Square)
         Naught(); return "O"
         Cross(); return "X"
 
-fn {io Io} printBoard(b Board)
+fn {io Io} boardPrint(b Board)
     for b -> row
         io.putChar('[')
         for row[..] -> col
@@ -22,15 +22,46 @@ fn {io Io} printBoard(b Board)
         io.putStrLn("]")
 
 
+fn boardWinner(b Board) Square
+    // check for horizontal lines
+    for b -> row
+        let match = true
+        for row -> sq
+            if sq != row[0]; match = false
+        if match && row[0] != Empty()
+            return row[0]
+
+    // check for vertical lines
+    for b[0][..] -> col
+        let match = true
+        for b[..] -> row
+            if b[row][col] != b[0][col]; match = false
+        if match && b[0][col] != Empty()
+            return b[0][col]
+
+    return Empty()
+
+
+
+fn boardEmpty(b Board) bool
+    return b == Board()
+
 
 fn {io Io} main()
     let board = Board()
 
+    board[1][0] = Cross()
     board[1][1] = Cross()
-
-    io.printBoard(board)
-
+    board[1][2] = Cross()
+    io.boardPrint(board)
+    print(String(boardWinner(board)))
+    board[1][1] = Empty()
+    io.boardPrint(board)
+    print(String(boardWinner(board)))
+    board[0][2] = Cross()
+    board[2][2] = Cross()
+    io.boardPrint(board)
+    print(String(boardWinner(board)))
 
     let s = io.getStrLn()
-
-    print("ox", String(board[0][1]), s)
+    print("ox", String(board[0][1]), s, boardEmpty(board), boardEmpty(Board()))

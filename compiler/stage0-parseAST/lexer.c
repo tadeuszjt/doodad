@@ -141,7 +141,7 @@ bool issymbol(char c) {
 }
 
 bool isDoubleSymbol(char *s) {
-    char *doubles[] = { "&&", "||", "..", "::", "==", "->", NULL };
+    char *doubles[] = { "&&", "||", "..", "::", "==", "!=", "->", NULL };
     for (int i = 0; doubles[i] != NULL; i++) {
         if (strcmp(s, doubles[i]) == 0) {
             return true;
@@ -295,7 +295,6 @@ bool lex() { // returns false for EOF
 
     case STATE_COMMENT:
         if (c == '\n') {
-            fprintf(fpOut, "comment: %s\n", stack);
             stackClear();
             state = STATE_INIT;
         } else {

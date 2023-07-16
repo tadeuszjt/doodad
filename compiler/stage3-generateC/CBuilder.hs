@@ -117,6 +117,11 @@ append id = do
 
     liftBuilderState $ modify $ \s -> s { elements = Map.insert curId elem' (elements s) }
 
+appendElem :: MonadBuilder m => Element -> m ID
+appendElem elem = do
+    id <- newElement elem
+    append id
+    return id
 
 appendIf :: MonadBuilder m => Expression -> m ID
 appendIf cnd = do

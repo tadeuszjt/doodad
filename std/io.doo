@@ -22,9 +22,13 @@ fn {io Io} getStrLn() string
     ${
         char buffer[1024];
         char *ret = fgets(buffer, sizeof(buffer), stdin);
+        int len = strlen(buffer);
         if (ret == NULL) {
             $eof = true;
         } else {
+            if (buffer[len-1] == '\n') {
+                buffer[len-1] = '\0';
+            }
             $s = doodad_string_copy(buffer);
         }
     }
