@@ -183,12 +183,14 @@ runMod' args modPath = do
             (_, cBuilderState) <- runGenerateT (C.initGenerateState) (C.initBuilderState modName) (generate resolved2)
 
             -- optimise
-            (_, cBuilderStateOptimised) <- runBoMTExcept
-                cBuilderState
-                O.optimise
-           
-            
-            _ <- runBoMTExcept (initCPrettyState cHandle cBuilderStateOptimised) cPretty
+            if Args.optimise args then do
+                (_, cBuilderStateOptimised) <- runBoMTExcept
+                    cBuilderState
+                    (replicateM_ 4 O.optimise)
+                void $ runBoMTExcept (initCPrettyState cHandle cBuilderStateOptimised) cPretty
+            else do
+                void $ runBoMTExcept (initCPrettyState cHandle cBuilderState) cPretty
+
             liftIO $ hClose cHandle
 
             return ()
