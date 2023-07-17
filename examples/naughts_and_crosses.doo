@@ -1,8 +1,7 @@
 module ox
 
-
-import std/io
-import std/strings
+import ../std/io
+import ../std/strings
 
 type Square { Empty() | Naught() | Cross() }
 
@@ -68,7 +67,7 @@ fn {io Io} getPlayerInput() PlayerInput
                 return Move(row, col)
 
     io.putStrLn("invalid input")
-    io.getPlayerInput()
+    return io.getPlayerInput()
 
 
 fn {io Io} main()

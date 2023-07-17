@@ -27,7 +27,6 @@ optimise = do
     forM_ elems $ \(id, elem) -> case elem of
         -- empty switch
         Switch expr [] -> do modifyElem id $ \_ -> return $ ExprStmt expr
-
         Assign a b expr -> do modifyElem id $ \_ -> Assign a b <$> optimiseExpr expr
 
         If expr stmts -> do
@@ -48,7 +47,6 @@ optimise = do
         func@(Func _ _ _ _) -> do
             stmts' <- optimiseStmts (funcBody func)
             modifyElem id $ \_ -> return $ func { funcBody = stmts' }
-
 
         _ -> return ()
         
@@ -81,9 +79,11 @@ optimiseStmtPairs (x:y:xs) = do
     case (ex, ey) of
         (If _ _, Else _)               -> (x:) <$> optimiseStmtPairs (y:xs)
         (If (Bool False) _, _)         -> optimiseStmtPairs (y:xs)
-        (If e [], _) | exprNoEffects e -> optimiseStmtPairs (y:xs)
-        (Return _, Break)              -> optimiseStmtPairs (x:xs)
-        (ReturnVoid, Break)            -> optimiseStmtPairs (x:xs)
+
+        (If e [], _) | exprNoEffects e           -> optimiseStmtPairs (y:xs)
+        (Return _, elem) | elemDeleteable elem   -> optimiseStmtPairs (x:xs)
+        (ReturnVoid, elem) | elemDeleteable elem -> optimiseStmtPairs (x:xs)
+        (Break, elem) | elemDeleteable elem      -> optimiseStmtPairs (x:xs)
 
         _ -> (x:) <$> optimiseStmtPairs (y:xs)
 
@@ -93,7 +93,16 @@ optimiseExpr :: BoM BuilderState m => Expression -> m Expression
 optimiseExpr expr = case expr of
     Not (Bool b)               -> return (Bool $ not b)
     Infix AndAnd (Bool True) e -> return e
+    Infix AndAnd e (Bool True) -> return e
     _ -> return expr
+
+
+elemDeleteable :: Element -> Bool
+elemDeleteable elem = case elem of
+    Label _      -> False
+    Break        -> True
+    (ExprStmt _) -> True
+    _ -> True
 
 
 exprNoEffects :: Expression -> Bool

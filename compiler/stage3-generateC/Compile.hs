@@ -70,7 +70,10 @@ generateFunc symbol body = do
         define name $ Value (S.paramType arg) (C.Ident name)
 
     id <- newFunction rettyType (show symbol) (params ++ args)
-    withCurID id $ mapM_ generateStmt (States.funcStmts body)
+    withCurID id $ do
+        mapM_ generateStmt (States.funcStmts body)
+        when (States.funcRetty body /= Type.Void) $ -- check to ensure function has return
+            void $ appendElem $ C.ExprStmt $ C.Call "assert" [C.Bool False]
     withCurID globalID $ append id
 
 
@@ -99,12 +102,8 @@ generateStmt :: MonadGenerate m => S.Stmt -> m ()
 generateStmt stmt = case stmt of
     S.EmbedC _ str -> do void $ appendElem (C.Embed str)
     S.Block stmts -> mapM_ generateStmt stmts
-
-    S.Return _ Nothing -> do
-        void $ appendElem (C.ReturnVoid)
-
-    S.Return _ (Just expr) -> do
-        void $ appendElem . C.Return . valueExpr =<< generateExpr expr
+    S.Return _ Nothing -> do void $ appendElem (C.ReturnVoid)
+    S.Return _ (Just expr) -> do void $ appendElem . C.Return . valueExpr =<< generateExpr expr
 
     S.Assign _ pattern expr -> do
         val <- generateExpr expr
@@ -138,7 +137,6 @@ generateStmt stmt = case stmt of
                 appendElem C.Break
 
         withCurID caseId $ appendElem (C.ExprStmt (C.Call "assert" [C.Int 0]))
-
         append switchId
 
     S.ExprStmt (AExpr _ (S.Call _ exprs1 symbol exprs2)) -> do
@@ -243,7 +241,7 @@ generateReentrantExpr obj = case obj of
     Value _ (C.Int _) -> return obj
     Value _ (C.Float _) -> return obj
     Value _ (C.Bool _) -> return obj
-    Value _ (C.String "") -> return obj
+    Value _ (C.String s) | length s <= 16 -> return obj
     Value _ (C.Subscript _ _) -> return obj
     Value _ (C.Member _ _) -> return obj
     Pointer _ (C.Ident _) -> return obj

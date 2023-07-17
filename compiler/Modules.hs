@@ -186,7 +186,7 @@ runMod' args modPath = do
             if Args.optimise args then do
                 (_, cBuilderStateOptimised) <- runBoMTExcept
                     cBuilderState
-                    (replicateM_ 4 O.optimise)
+                    (replicateM_ 3 O.optimise)
                 void $ runBoMTExcept (initCPrettyState cHandle cBuilderStateOptimised) cPretty
             else do
                 void $ runBoMTExcept (initCPrettyState cHandle cBuilderState) cPretty
