@@ -100,6 +100,10 @@ runMod args modPath = do
     let cFiles = Map.elems (cFileMap state) ++ ["include/doodad.c"] ++ ["include/main.c"]
     let binFile = takeFileName modPath
 
+    when (printC args) $ do
+        forM_ (reverse cFiles) $ \file -> do
+            liftIO $ putStrLn =<< readFile file
+
     exitCode <- liftIO $ rawSystem "gcc" $ ["-I", "include"] ++ cFiles ++ ["-lgc", "-o", binFile]
     case exitCode of
         ExitSuccess -> return ()

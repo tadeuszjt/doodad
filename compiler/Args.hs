@@ -11,6 +11,7 @@ data Args = Args
     , printAstAnnotated :: Bool
     , printSymbols :: Bool
     , printAstFinal :: Bool
+    , printC        :: Bool
     , modPaths    :: [String]
     }
 
@@ -25,6 +26,7 @@ initArgs = Args
     , printAstAnnotated = False
     , printSymbols = False
     , printAstFinal = False
+    , printC = False
     , modPaths  = []
     }
 
@@ -42,6 +44,7 @@ parseArgs args argStrs = case argStrs of
     ["--print-ast-annotated"] -> args { printAstAnnotated = True }
     ["--print-ast-final"] -> args { printAstFinal = True }
     ["--print-symbols"] -> args { printSymbols = True }
+    ["--print-c"] -> args { printC = True }
     [str]  -> args { modPaths  = (modPaths args) ++ [str] }
     (a:as) -> parseArgs (parseArgs args [a]) as
 

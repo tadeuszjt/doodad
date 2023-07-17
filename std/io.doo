@@ -16,7 +16,7 @@ fn {io Io} getChar() char
     ${ $c = getchar(); }
     return c
 
-fn {io Io} getStrLn() string
+fn {io Io} getStrLn() {null | string}
     let eof = false
     let s = ""
     ${
@@ -32,4 +32,5 @@ fn {io Io} getStrLn() string
             $s = doodad_string_copy(buffer);
         }
     }
-    return s
+    if eof; return null
+    return conv(s)

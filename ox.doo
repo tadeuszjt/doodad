@@ -20,7 +20,7 @@ fn {io Io} boardPrint(b Board)
         io.putChar('[')
         for row[..] -> col
             let comma = ""
-            if col < (len(b[row]) - 1); comma = ", "
+            if col < (len(row) - 1); comma = ", "
             io.putStr(String(row[col]) + comma)
         io.putStrLn("]")
 
@@ -56,7 +56,32 @@ fn boardEmpty(b Board) bool
     return b == Board()
 
 
+type PlayerInput { Move(i64, i64) | Quit() }
+fn {io Io} getPlayerInput() PlayerInput
+    io.putStrLn("Please enter move: <row> <col>")
+    
+    let line = ""
+    switch io.getStrLn()
+        null; return Quit()
+        string(s); line = s
+
+    if readI64(line) -> (i64(row), rest)
+        if readI64(rest) -> (i64(col), _)
+            return Move(row, col)
+
+    io.putStrLn("invalid input")
+    io.getPlayerInput()
+
+
 fn {io Io} main()
-    io.putStrLn("please move: <row> <col>")
-    let input = io.getStrLn()
-    print(input)
+    let board = Board()
+
+    while winner(board) == Empty()
+        switch io.getPlayerInput()
+            Quit(); return
+            Move(row, col)
+                print("moving", row, col)
+                board[row][col] = Naught()
+
+        io.boardPrint(board)
+

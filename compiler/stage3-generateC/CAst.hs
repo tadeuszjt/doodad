@@ -151,9 +151,12 @@ data Element
         , typedefType :: Type
         }
     | Return Expression
+    | ReturnVoid
     | Break
     | Assign Type String Expression
     | Set Expression Expression
+    | Goto String
+    | Label String
     | If
         { ifExpr :: Expression
         , ifStmts :: [ID]

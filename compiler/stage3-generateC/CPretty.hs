@@ -95,6 +95,9 @@ cPrettyElem elem = case elem of
     return@(Return expr) -> do
         printLn $ "return " ++ show expr ++ ";"
 
+    returnVoid@(ReturnVoid) -> do
+        printLn $ "return;"
+
     assign@(Assign typ str expr) -> do
         printLn $ show typ ++ " " ++ str ++ " = " ++ show expr ++ ";"
 
@@ -145,6 +148,12 @@ cPrettyElem elem = case elem of
     cembed@(Embed str) -> do
         forM_ (lines str) $ \line -> do
             printLn line
+
+    goto@(Goto str) -> do
+        printLn $ "goto " ++ str ++ ";"
+
+    label@(Label str) -> do
+        printLn $ str ++ ":;"
 
     _ -> error (show elem) 
     where 

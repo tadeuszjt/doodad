@@ -81,15 +81,15 @@ appendIf cnd = do
 
 appendElse :: MonadBuilder m => m ID
 appendElse = do
-    id <- newElement $ Else { elseStmts = [] }
-    append id
-    return id
+    appendElem $ Else { elseStmts = [] }
 
 appendPrintf :: MonadBuilder m => String -> [Expression] -> m ID
 appendPrintf fmt exprs = do
-    id <- newElement $ ExprStmt $ Call "printf" (String fmt : exprs)
-    append id
-    return id
+    appendElem $ ExprStmt $ Call "printf" (String fmt : exprs)
+
+appendAssign :: MonadBuilder m => Type -> String -> Expression -> m ID
+appendAssign ctyp name expr = do
+    appendElem $ Assign ctyp name expr
 
 
 newElement :: MonadBuilder m => Element -> m ID

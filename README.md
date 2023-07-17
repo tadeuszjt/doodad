@@ -103,7 +103,7 @@ involves reading the positions of every person in the crowd. Because the positio
 in the person class, they have to be accessed individually by the render function and the memory
 is non-contiguous which leads to many cache-misses.
 
-In doodad, table types are provided for this perpose which layout the data in adjacent rows:
+In doodad, table types are provided for this purpose which layout the data in adjacent rows:
     
     data crowd [name string; i64 age; position Postion]
 

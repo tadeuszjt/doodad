@@ -281,6 +281,7 @@ ordinal_t   : bool                          { T.Bool }
             | f32                           { T.F32 }
             | f64                           { T.F64 }
             | char                          { T.Char }
+            | string                        { T.String }
             | '@' type_                     { T.Key $2 }
 
 aggregate_t : table_t                       { $1 }
@@ -296,7 +297,6 @@ aggregate_t : table_t                       { $1 }
 adt_t    : '{' adtFields '}'                { T.ADT $2 }
 array_t  : '[' int_c type_ ']'              { T.Array (read $ tokStr $2) $3 }
 table_t  : '[' types1_ ']'                  { T.Table $2 }
-         | string                           { T.String }
 tup_t    : '(' types ')'                    { T.Tuple $2 }
 sparse_t : sparse '[' types1_ ']'           { T.Sparse $3 }
 map_t    : map '[' type_ ']' type_          { T.Map $3 $5 }
