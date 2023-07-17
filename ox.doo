@@ -52,10 +52,6 @@ fn winner(b Board) Square
 
 
 
-fn boardEmpty(b Board) bool
-    return b == Board()
-
-
 type PlayerInput { Move(i64, i64) | Quit() }
 fn {io Io} getPlayerInput() PlayerInput
     io.putStrLn("Please enter move: <row> <col>")
@@ -67,7 +63,9 @@ fn {io Io} getPlayerInput() PlayerInput
 
     if readI64(line) -> (i64(row), rest)
         if readI64(rest) -> (i64(col), _)
-            return Move(row, col)
+            if row < 0 || row >= 3 || col < 0 || col >= 3
+            else
+                return Move(row, col)
 
     io.putStrLn("invalid input")
     io.getPlayerInput()

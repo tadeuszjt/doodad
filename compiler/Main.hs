@@ -1,5 +1,6 @@
 module Main where
 
+import System.Exit
 import System.Environment
 import System.IO
 import System.Console.Haskeline
@@ -24,17 +25,7 @@ main :: IO ()
 main = do
     args <- getArgs
     let parsedArgs = parseArgs initArgs args
-    if args == [] then do
-        putStrLn "==== Bolang REPL ===="
---            runInputT defaultSettings (repl session $ initInferState Map.empty)
-    else if lexOnly parsedArgs then do
-        error "TODO"
---        forM_ (modPaths parsedArgs) $ \path -> do
---            res <- runBoMT (initModulesState) (lexFile path)
---            case res of
---                Left err     -> printError err 
---                Right (r, _) -> mapM_ (putStrLn . show) r
-    else if astOnly parsedArgs then
+    if astOnly parsedArgs then
         forM_ (modPaths parsedArgs) $ \path -> do
             res <- runBoMT () $ parse parsedArgs path
             case res of
@@ -45,5 +36,5 @@ main = do
         forM_ (modPaths parsedArgs) $ \path -> do
             res <- runBoMT undefined $ runMod parsedArgs path
             case res of
-                Left err -> printError err 
+                Left err -> printError err >> exitFailure
                 Right _  -> return ()

@@ -70,4 +70,6 @@ executable doodad
         CBuilder,
         CPretty,
         CGenerate,
-        CAst
+        CAst,
+        Compile,
+        COptimise

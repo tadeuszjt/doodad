@@ -17,7 +17,6 @@ import Data.Maybe
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
---import Lexer
 import qualified AST as S
 import qualified Parser as P
 import Flatten
@@ -36,6 +35,8 @@ import CBuilder as C
 import CPretty as C
 import CGenerate as C
 import Lexer
+import Compile as C
+import COptimise as O
 
 -- Modules are groups of .doo files with a module name header
 -- lang/lexer.doo: lexer module
@@ -180,7 +181,14 @@ runMod' args modPath = do
             liftIO $ putStrLn $ "writing: " ++ cFilePath
             cHandle <- liftIO $ openFile cFilePath WriteMode
             (_, cBuilderState) <- runGenerateT (C.initGenerateState) (C.initBuilderState modName) (generate resolved2)
-            _ <- runBoMTExcept (initCPrettyState cHandle cBuilderState) cPretty
+
+            -- optimise
+            (_, cBuilderStateOptimised) <- runBoMTExcept
+                cBuilderState
+                O.optimise
+           
+            
+            _ <- runBoMTExcept (initCPrettyState cHandle cBuilderStateOptimised) cPretty
             liftIO $ hClose cHandle
 
             return ()
