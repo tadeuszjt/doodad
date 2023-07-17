@@ -98,7 +98,7 @@ parse args file = do
 runMod :: BoM s m => Args -> FilePath -> m ()
 runMod args modPath = do
     ((), state) <- runBoMTExcept (initModulesState) $ runMod' args modPath
-    let cFiles = Map.elems (cFileMap state) ++ ["include/doodad.c"] ++ ["include/main.c"]
+    let cFiles = Map.elems (cFileMap state) ++ ["include/doodad.c"]
     let binFile = takeFileName modPath
 
     when (printC args) $ do
@@ -182,14 +182,16 @@ runMod' args modPath = do
             cHandle <- liftIO $ openFile cFilePath WriteMode
             (_, cBuilderState) <- runGenerateT (C.initGenerateState) (C.initBuilderState modName) (generate resolved2)
 
+
             -- optimise
+            let includePaths = [fp | S.CInclude fp <- concat $ map S.astImports asts]
             if Args.optimise args then do
                 (_, cBuilderStateOptimised) <- runBoMTExcept
                     cBuilderState
                     (replicateM_ 3 O.optimise)
-                void $ runBoMTExcept (initCPrettyState cHandle cBuilderStateOptimised) cPretty
+                void $ runBoMTExcept (initCPrettyState cHandle cBuilderStateOptimised) (cPretty includePaths)
             else do
-                void $ runBoMTExcept (initCPrettyState cHandle cBuilderState) cPretty
+                void $ runBoMTExcept (initCPrettyState cHandle cBuilderState) (cPretty includePaths)
 
             liftIO $ hClose cHandle
 

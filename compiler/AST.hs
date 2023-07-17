@@ -40,6 +40,7 @@ data Operator
 
 data Import
     = Import FilePath
+    | CInclude String
     deriving (Eq, Ord)
 
 

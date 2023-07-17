@@ -50,6 +50,13 @@ generate ast = do
 
     forM_ (Map.toList $ funcDefs ast) $ \(symbol, func) -> do
         generateFunc symbol func
+        when (sym symbol == "main") $ do
+            generateFunc (Sym "main") $ FuncBody
+                { States.funcArgs = []
+                , States.funcParams = []
+                , States.funcRetty = Type.Void
+                , States.funcStmts = [S.ExprStmt $ S.AExpr Type.Void $ S.Call undefined [] symbol []]
+                }
 
 
 
@@ -242,8 +249,8 @@ generateReentrantExpr obj = case obj of
     Value _ (C.Float _) -> return obj
     Value _ (C.Bool _) -> return obj
     Value _ (C.String s) | length s <= 16 -> return obj
-    Value _ (C.Subscript _ _) -> return obj
-    Value _ (C.Member _ _) -> return obj
+    Value _ (C.Subscript e1 e2) -> return obj
+    Value _ (C.Member e1 e2) -> return obj
     Pointer _ (C.Ident _) -> return obj
     Value t expr -> do
         name <- freshName $ case expr of

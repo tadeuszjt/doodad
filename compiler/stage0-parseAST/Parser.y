@@ -71,6 +71,7 @@ import Symbol
     null       { Token _ Reserved "null" }
     data       { Token _ Reserved "data" }
     import     { Token _ Import _ }
+    include    { Token _ CInclude _ }
 
     i16        { Token _ Reserved "i16" }
     i32        { Token _ Reserved "i32" }
@@ -116,7 +117,8 @@ stmts : {-empty-}                           { [] }
 
 header : module ident 'N' imports           { ($2, $4) }
 imports : {- empty -}                       { [] }
-        | import 'N' imports                { S.Import  (tokStr $1) : $3 }
+        | import 'N' imports                { S.Import   (tokStr $1) : $3 }
+        | include 'N' imports               { S.CInclude (tokStr $1) : $3 }
 
 
 ---------------------------------------------------------------------------------------------------

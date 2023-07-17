@@ -183,8 +183,9 @@ bool isValidCharLiteral(char c) {
 
 bool isKeyword(char *s) {
     char *keywords[] = {
-        "import",
         "module",
+        "import",
+        "include",
         "for",
         "while",
         "if",
@@ -258,9 +259,10 @@ bool lex() { // returns false for EOF
             stackPush(c);
         } else {
             // print ident
-            if (strcmp(stack, "import") == 0) {
+            if (strcmp(stack, "import") == 0 || strcmp(stack, "include") == 0) {
                 assert(c == ' ');
-                stackClear();
+                stackPush(':');
+                stackPush(' ');
                 state = STATE_IMPORT;
             } else {
                 if (isKeyword(stack)) {
@@ -278,7 +280,7 @@ bool lex() { // returns false for EOF
 
     case STATE_IMPORT:
         if (c == '\n') {
-            printToken("import: %s\n", stack);
+            printToken("%s\n", stack);
             stackClear();
             ungetChar(c);
             state = STATE_INIT;

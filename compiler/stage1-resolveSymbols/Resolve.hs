@@ -196,9 +196,13 @@ resolveAsts asts imports = withErrorPrefix "resolve: " $ do
         f = do
             let moduleName = astModuleName $ head asts
             assert (all (== moduleName) $ map astModuleName asts) "module name mismatch"
+
             let typedefs = [ stmt | stmt@(AST.Typedef _ _ _) <- concat $ map astStmts asts ]
             let funcdefs = [ stmt | stmt@(AST.FuncDef _ _ _ _ _ _) <- concat $ map astStmts asts ]
-            assert ((length typedefs + length funcdefs) == length (concat $ map astStmts asts)) "only typedefs and funcdefs allowed"
+            forM_ (concat $ map astStmts asts) $ \stmt -> withPos stmt $ case stmt of
+                (AST.Typedef _ _ _) -> return ()
+                (AST.FuncDef _ _ _ _ _ _) -> return ()
+                _ -> fail "invalid top-level statement"
 
             forM_ funcdefs $ \(FuncDef pos params symbol args retty blk) -> withPos pos $ do
                 let funckey = (map typeof params, sym symbol, map typeof args, retty)

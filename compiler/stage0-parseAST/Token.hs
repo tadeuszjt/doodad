@@ -25,9 +25,8 @@ data TokenType
     | Indent
     | NewLine
     | Import
-    | ImportC
-    | ImportCMacro
     | Dedent
     | EmbedC
+    | CInclude
     | EOF
     deriving (Show, Eq)

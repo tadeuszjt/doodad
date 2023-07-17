@@ -56,11 +56,13 @@ popIndent :: BoM CPrettyState m => m ()
 popIndent = modify $ \s -> s { indent = (indent s - 1) }
 
 
-cPretty :: BoM CPrettyState m => m ()
-cPretty = do
+cPretty :: BoM CPrettyState m => [String] -> m ()
+cPretty includePaths = do
     modName <- moduleName <$> gets builder
     printLn $ "/* Doodad Module: " ++ modName ++ " */"
     printLn "#include \"doodad.h\""
+
+    forM_ includePaths $ \includePath -> printLn $ "#include " ++ includePath
 
     elems <- elements <$> gets builder
     let global = elems Map.! (ID 0)
