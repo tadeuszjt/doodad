@@ -133,44 +133,43 @@ getTableAppendFunc typ = do
             withCurID globalID $ append funcId
 
             withCurID funcId $ do
+                let tableIdent = C.Ident tableName
                 ifId <- appendIf $ C.Infix C.GTEq
-                    (C.PMember (C.Ident tableName) "len")
-                    (C.PMember (C.Ident tableName) "cap")
+                    (C.PMember (tableIdent) "len")
+                    (C.PMember (tableIdent) "cap")
                 withCurID ifId $ do
                     ifCap0Id <- appendIf $ C.Infix C.EqEq
-                        (C.PMember (C.Ident tableName) "cap")
+                        (C.PMember tableIdent "cap")
                         (C.Int 0)
                     withCurID ifCap0Id $ do
-                        appendElem $ C.Set (C.PMember (C.Ident tableName) "cap") (C.Int 8)
+                        appendElem $ C.Set (C.PMember tableIdent "cap") (C.Int 8)
                     elseCap0Id <- appendElem $ C.Else []
                     withCurID elseCap0Id $ do
-                        appendElem $ C.Set (C.PMember (C.Ident tableName) "cap") $
-                            C.Infix C.Times (C.PMember (C.Ident tableName) "cap") (C.Int 2)
+                        appendElem $ C.Set (C.PMember tableIdent "cap") $
+                            C.Infix C.Times (C.PMember tableIdent "cap") (C.Int 2)
                     memName <- freshName "mem"
                     appendElem $ C.Assign (Cpointer Cvoid) memName $
                         C.Call "GC_malloc"
-                            [ C.Infix C.Times (C.PMember (C.Ident tableName) "cap") $
-                                C.Sizeof (C.Deref $ C.PMember (C.Ident tableName) "r0")
+                            [ C.Infix C.Times (C.PMember tableIdent "cap") $
+                                C.Sizeof (C.Deref $ C.PMember tableIdent "r0")
                             ]
                     appendElem $ C.ExprStmt $ C.Call "memcpy"
                         [ C.Ident memName
-                        , C.PMember (C.Ident tableName) "r0"
-                        , C.Infix C.Times (C.PMember (C.Ident tableName) "len")
-                            (C.Sizeof (C.Deref $ C.PMember (C.Ident tableName) "r0"))
+                        , C.PMember tableIdent "r0"
+                        , C.Infix C.Times (C.PMember tableIdent "len")
+                            (C.Sizeof (C.Deref $ C.PMember tableIdent "r0"))
                         ]
-                    appendElem $ C.Set (C.PMember (C.Ident tableName) "r0") (C.Ident memName)
+                    appendElem $ C.Set (C.PMember tableIdent "r0") (C.Ident memName)
                     return ()
 
                 -- TODO deep copy
                 appendElem $ C.Set
-                    (C.Subscript (C.PMember (C.Ident tableName) "r0") (C.Increment $ C.PMember (C.Ident tableName) "len"))
+                    (C.Subscript
+                        (C.PMember tableIdent "r0")
+                        (C.Increment $ C.PMember (C.Ident tableName) "len"))
                     (C.Deref $ C.Ident elemName)
 
-
-
-
-
-                return () -- TODO
+                return ()
 
             modify $ \s -> s { tableAppendFuncs = Map.insert typ funcName (tableAppendFuncs s) }
             return funcName

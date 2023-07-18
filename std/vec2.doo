@@ -1,16 +1,5 @@
 module vec2
 
-import strings
-import maths
 
 type Vec2 (x f64, y f64)
 
-fn {v Vec2} length()
-    return sqrt(v.x*v.x + v.y*v.y)
-
-fn {v Vec2} normal() Vec2
-    let l = v.length()
-    return (v.x / l, v.y / l)
-
-fn {v Vec2} theta()
-    return atan2(v.y, v.x)

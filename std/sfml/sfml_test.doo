@@ -1,17 +1,17 @@
 module sfmlTest
 
-include <SFML/Graphics.h>
-
 import ../std/sfml/sfml
 import ../std/colours
 
 
 fn main()
     print("sfml")
+
+    data vertices [Vertex]
+
     let w = Window()
     w.create()
 
-    data vertices [Vertex]
     vertices += [
         Vertex(Vec2f(200, 50), Red(), Vec2f(0, 0))
         Vertex(Vec2f(100, 250), Green(), Vec2f(0, 0))
@@ -24,7 +24,7 @@ fn main()
                 Closed(); w.close()
                 None();
 
-        w.clearWindow(Green())
+        w.clearWindow(White())
         {w, vertices}.drawPrimitives()
         w.display()
 
