@@ -74,6 +74,8 @@ import Symbol
     include    { Token _ CInclude _ }
     link       { Token _ CLink _ }
 
+    u8         { Token _ Reserved "u8" }
+    i8         { Token _ Reserved "i8" }
     i16        { Token _ Reserved "i16" }
     i32        { Token _ Reserved "i32" }
     i64        { Token _ Reserved "i64" }
@@ -137,6 +139,7 @@ line : let pattern '=' expr                         { S.Assign (tokPos $1) $2 $4
      | index '=' expr                               { S.Set (tokPos $2) $1 $3 }
      | index                                        { S.ExprStmt $1 }
      | type symbol anno_t                           { S.Typedef (fst $2) (snd $2) $3 }
+     | data symbol type_ mexpr                      { S.Data (tokPos $1) (snd $2) $3 $4 }
      | return mexpr                                 { S.Return (tokPos $1) $2 }
      | embed_c                                      { S.EmbedC (tokPos $1) (tokStr $1) }
 block : if_                                         { $1 }
@@ -279,6 +282,8 @@ type_         : symbol                      { T.Typedef (snd $1) }
               | aggregate_t                 { $1 }
 
 ordinal_t   : bool                          { T.Bool }
+            | u8                            { T.U8 }
+            | i8                            { T.I8 }
             | i16                           { T.I16 }
             | i32                           { T.I32 }
             | i64                           { T.I64 }

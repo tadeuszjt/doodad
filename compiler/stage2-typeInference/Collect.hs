@@ -154,7 +154,7 @@ collectAST ast = do
     forM (Map.toList $ funcImports ast) $ \(symbol, key@(ps, _, as, rt)) -> 
         define symbol (KeyFunc ps as rt) ObjFunc
 
-    forM (Map.toList $ funcDefs ast) $ \(symbol, body) ->
+    forM (Map.toList $ funcDefs ast) $ \(symbol, body) -> do
         define symbol (KeyFunc (map typeof $ funcParams body) (map typeof $ funcArgs body) (funcRetty body)) ObjFunc
 
     forM_ (Map.toList $ funcDefs ast) $ \(symbol, body) ->
@@ -336,6 +336,8 @@ collectCall exprType rs symbol es = do -- can be resolved or sym
             maps <- Map.elems . Map.filterWithKey f . head <$> gets symTab
             return $ Map.toList $ Map.unions maps
         SymResolved _ _ _ -> SymTab.lookupSym symbol <$> gets symTab
+
+    assert (kos /= []) $ "no keys for: " ++ show symbol
 
     let ks = filter keyCouldMatch $ map fst kos
     collectIfUnifiedType (map (\(KeyFunc ps _ _) -> ps) ks) (map typeof rs)

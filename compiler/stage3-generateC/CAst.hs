@@ -27,6 +27,7 @@ data Type
     | Cint32_t
     | Cint16_t
     | Cint8_t
+    | Cuint8_t
     | Cuint64_t
     | Cuint32_t
     | Cbool
@@ -44,6 +45,7 @@ instance Show Type where
     show Cfloat = "float"
     show Cdouble = "double"
     show Cint8_t = "int8_t"
+    show Cuint8_t = "uint8_t"
     show Cint16_t = "int16_t"
     show Cint32_t = "int32_t"
     show Cint64_t = "int64_t"

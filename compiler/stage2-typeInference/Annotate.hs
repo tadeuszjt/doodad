@@ -31,9 +31,7 @@ instance Annotate FuncBody where
         params' <- mapM annotate (funcParams funcBody)
         args' <- mapM annotate (funcArgs funcBody)
         stmts' <- mapM annotate (funcStmts funcBody)
-        retty' <- case (funcRetty funcBody) of
-            T.Void -> genType
-            t      -> return t
+        retty' <- return (funcRetty funcBody)
         return $ FuncBody
             { funcParams = params'
             , funcArgs   = args'

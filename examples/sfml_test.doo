@@ -1,0 +1,44 @@
+module sfmlTest
+
+include <SFML/Graphics.h>
+
+import ../std/sfml/sfml
+import ../std/colours
+
+fn {x [Vertex]} append(n Vertex)
+    ${
+        if ($x->cap == 0) {
+            assert($x->len == 0);
+            $x->cap = 8;
+            $x->r0 = GC_malloc(sizeof(*$x->r0) * $x->cap);
+        } else if ($x->len >= $x->cap) {
+            assert($x->len == $x->cap);
+            $x->cap *= 2;
+            void *mem = GC_malloc(sizeof(*$x->r0) * $x->cap);
+            memcpy(mem, $x->r0, sizeof(*$x->r0) * $x->len);
+        }
+        $x->r0[$x->len++] = $n;
+    }
+
+
+fn main()
+    print("sfml")
+    let w = Window()
+    w.create()
+
+    data vertices [Vertex]
+    vertices.append(Vertex(Vec2f(200, 50), Red(), Vec2f(0, 0)))
+    vertices.append(Vertex(Vec2f(100, 250), Red(), Vec2f(0, 0)))
+    vertices.append(Vertex(Vec2f(300, 250), Red(), Vec2f(0, 0)))
+
+    while w.isOpen()
+        while w.pollEvent() -> Event(event)
+            switch event
+                Closed(); w.close()
+                None();
+
+        w.clearWindow(Green())
+        {w, vertices}.drawPrimitives()
+        w.display()
+
+    w.destroy()

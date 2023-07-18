@@ -97,13 +97,13 @@ freshName suggestion = do
     modify $ \s -> s { supply = Map.insert suggestion (n + 1) (supply s) }
     return $ suggestion ++ show n
 
-getTypedef :: MonadGenerate m => C.Type -> m C.Type
-getTypedef typ = do
+getTypedef :: MonadGenerate m => String -> C.Type -> m C.Type
+getTypedef suggestion typ = do
     sm <- Map.lookup typ <$> gets tuples
     case sm of
         Just s -> return $ Ctypedef s
         Nothing -> do
-            name <- freshName "struct"
+            name <- freshName suggestion
             newTypedef typ name
             modify $ \s -> s { tuples = Map.insert typ name (tuples s) }
             return $ Ctypedef name
@@ -125,6 +125,7 @@ cTypeOf a = case typeof a of
     I64 -> return $ Cint64_t
     I32 -> return $ Cint32_t
     I8 ->  return $ Cint8_t
+    U8 ->  return $ Cuint8_t
     F64 -> return $ Cdouble
     F32 -> return $ Cfloat
     Void -> return Cvoid
@@ -134,17 +135,21 @@ cTypeOf a = case typeof a of
     Type.String -> return $ Cpointer Cchar
     Type.Array n t -> do
         arr <- Carray n <$> cTypeOf t
-        getTypedef $ Cstruct [C.Param "arr" arr]
+        getTypedef "array" $ Cstruct [C.Param "arr" arr]
     Type.Tuple ts -> do
         cts <- mapM cTypeOf ts
-        getTypedef $ Cstruct $ zipWith (\a b -> C.Param ("m" ++ show a) b) [0..] cts
+        getTypedef "tuple" $ Cstruct $ zipWith (\a b -> C.Param ("m" ++ show a) b) [0..] cts
     Type.Range t -> do
         ct <- cTypeOf t
-        getTypedef $ Cstruct [C.Param "min" ct, C.Param "max" ct]
+        getTypedef "range" $ Cstruct [C.Param "min" ct, C.Param "max" ct]
     Type.ADT fs -> do
         cts <- mapM cTypeOf (map fieldType fs)
-        getTypedef $ Cstruct [C.Param "en" Cint64_t, C.Param "" $
+        getTypedef "adt" $ Cstruct [C.Param "en" Cint64_t, C.Param "" $
             Cunion $ map (\(ct, i) -> C.Param ("u" ++ show i) ct) (zip cts [0..])]
+    Type.Table ts -> do
+        cts <- mapM cTypeOf ts
+        let pts = zipWith (\ct i -> C.Param ("r" ++ show i) (Cpointer ct)) cts [0..]
+        getTypedef "table" $ Cstruct (C.Param "len" Cint64_t:C.Param "cap" Cint64_t:pts)
 
     _ -> error (show $ typeof a)
     where
@@ -168,6 +173,7 @@ getSymbolsOrderedByDependencies typedefs = do
             Table ts  -> concat <$> mapM getSymbols ts
             Sparse ts  -> concat <$> mapM getSymbols ts
             Type.Array n t -> getSymbols t
+            U8  -> return []
             I64 -> return []
             I32 -> return []
             F64 -> return []

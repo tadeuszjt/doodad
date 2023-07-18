@@ -1,0 +1,75 @@
+module sfml
+
+import ../colours
+
+include <SFML/Graphics.h>
+link csfml-graphics
+link csfml-window
+link csfml-system
+
+
+type Vec2f (x f32, y f32)
+
+type Vertex (position Vec2f, colour Colour, texCoords Vec2f)
+
+type Window i64
+
+type Event {
+    None()
+    Closed()
+}
+
+
+fn {w Window} create()
+    ${
+        sfVideoMode mode = {640, 480, 32};
+        sfRenderWindow *window = sfRenderWindow_create(mode, "benis", sfClose, NULL);
+        assert(window != NULL);
+        *$w = (int64_t)(window);
+    }
+
+fn {w Window} close()
+    ${ sfRenderWindow_close((sfRenderWindow*)(*$w)); }
+
+fn {w Window} destroy()
+    ${ sfRenderWindow_close((sfRenderWindow*)(*$w)); }
+
+fn {w Window} clearWindow(colour Colour)
+    ${
+        sfColor color = {$colour.m0, $colour.m1, $colour.m2, $colour.m3};
+        sfRenderWindow_clear((sfRenderWindow*)(*$w), color);
+    }
+
+fn {w Window} display()
+    ${ sfRenderWindow_display((sfRenderWindow*)(*$w)); }
+
+fn {w Window} isOpen() bool
+    let isOpen = false
+    ${ $isOpen = sfRenderWindow_isOpen((sfRenderWindow*)(*$w)); }
+    return isOpen
+
+
+fn {w Window} pollEvent() { null | Event }
+    let continue = false
+    let event = None()
+    ${
+        sfEvent event;
+        $continue = sfRenderWindow_pollEvent((sfRenderWindow*)(*$w), &event);
+        if (event.type == sfEvtClosed) {
+            $event.en = 1;
+        }
+    }
+    if continue
+        return conv(event)
+    return null
+
+fn {w Window, vertices [Vertex]} drawPrimitives()
+    ${
+        sfRenderWindow_drawPrimitives(
+            (sfRenderWindow*)*$w,
+            (const sfVertex *)$vertices->r0,
+            $vertices->len,
+            sfTriangles,
+            NULL
+        );
+    }

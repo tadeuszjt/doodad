@@ -118,6 +118,12 @@ generateStmt stmt = case stmt of
         appendElem $ C.ExprStmt $ C.Call "assert" [matched]
         return ()
 
+    S.Data _ symbol typ Nothing -> do
+        ctyp <- cTypeOf typ
+        appendAssign ctyp (show symbol) (C.Initialiser [C.Int 0])
+        define (show symbol) $ Value typ $ C.Ident (show symbol)
+        
+
     S.If _ expr blk melse -> do
         val <- generateExpr expr
         ifID <- appendIf (valueExpr val)
@@ -584,10 +590,13 @@ generateExpr (AExpr typ expr_) = withTypeCheck $ case expr_ of
 
             _ -> error (show typ)
 
-    S.Conv pos typ [] -> do -- construct 0
+    S.Conv pos typ exprs -> do -- construct 0
+        vals <- mapM generateExpr exprs
         name <- freshName "zero"
         ctyp <- cTypeOf typ
-        appendAssign ctyp name (C.Initialiser [C.Int 0])
+        case vals of
+            [] -> appendAssign ctyp name (C.Initialiser [C.Int 0])
+            _  -> appendAssign ctyp name (C.Initialiser $ map valueExpr vals)
         return $ Value typ (C.Ident name)
 
     S.Subscript _ expr1 expr2 -> do
@@ -599,6 +608,8 @@ generateExpr (AExpr typ expr_) = withTypeCheck $ case expr_ of
                 return $ Value typ $ C.Subscript (C.Member (valueExpr val1) "arr") (valueExpr val2)
             Type.String -> do
                 return $ Value typ $ C.Subscript (valueExpr val1) (valueExpr val2)
+            Type.Table [t] -> do
+                return $ Value typ $ C.Subscript (C.Member (valueExpr val1) "r0") (valueExpr val2)
             _ -> error (show base)
 
     _ -> error (show expr_)

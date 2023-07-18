@@ -16,6 +16,7 @@ data AdtField
 data Type
     = Type Int
     | Void
+    | U8
     | I8                     
     | I16                    
     | I32                    
@@ -48,6 +49,7 @@ instance Show Type where
     show t = case t of
         Type id       -> "t" ++ show id
         Void          -> "void"
+        U8            -> "u8"
         I8            -> "i8"
         I16           -> "i16"
         I32           -> "i32"
@@ -69,7 +71,7 @@ instance Show Type where
         Typedef s     -> show s
         UnsafePtr     -> "*"
 
-isInt x      = x `elem` [I8, I16, I32, I64]
+isInt x      = x `elem` [U8, I8, I16, I32, I64]
 isFloat x    = x `elem` [F32, F64]
 isIntegral x = isInt x || x == Char
 isSimple x   = isInt x || isFloat x || x == Char || x == Bool || x == String

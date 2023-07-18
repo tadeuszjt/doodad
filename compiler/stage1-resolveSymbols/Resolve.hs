@@ -468,12 +468,11 @@ instance Resolve Expr where
         AST.Tuple pos exprs -> AST.Tuple pos <$> mapM resolve exprs
         AST.String pos s -> return expr
 
-
         Call pos params symbol exprs -> do
             exprs' <- mapM resolve exprs
             params' <- mapM resolve params
             case symbol of
-                Sym s | s `elem` ["write", "push", "pop", "len", "clear", "delete", "unsafe_ptr", "unsafe_ptr_from_int", "conv", "print"] -> do 
+                Sym s | s `elem` ["len", "conv", "print"] -> do 
                     return $ Builtin pos params' s exprs'
                 _ -> do
                     resm <- lookm symbol KeyType

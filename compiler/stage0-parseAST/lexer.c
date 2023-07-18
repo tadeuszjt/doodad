@@ -200,6 +200,7 @@ bool isKeyword(char *s) {
         "i32",
         "i16",
         "i8",
+        "u8",
         "f64",
         "f32",
         "char",
