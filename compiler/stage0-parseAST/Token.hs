@@ -28,5 +28,6 @@ data TokenType
     | Dedent
     | EmbedC
     | CInclude
+    | CLink
     | EOF
     deriving (Show, Eq)

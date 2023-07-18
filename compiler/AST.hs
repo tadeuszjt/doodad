@@ -41,6 +41,7 @@ data Operator
 data Import
     = Import FilePath
     | CInclude String
+    | CLink String
     deriving (Eq, Ord)
 
 

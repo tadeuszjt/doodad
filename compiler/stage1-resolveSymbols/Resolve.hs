@@ -222,8 +222,12 @@ resolveAsts asts imports = withErrorPrefix "resolve: " $ do
             tdm <- gets typeDefsMap
             (_, ctorMap) <- runBoMTExcept Map.empty (buildCtorMap $ Map.toList tdm)
 
+            let includes = Set.toList $ Set.fromList [ s | inc@(CInclude s) <- concat $ map astImports asts ]
+            let links    = Set.toList $ Set.fromList [ s | link@(CLink s) <- concat $ map astImports asts ]
             return $ ResolvedAst
                 { moduleName  = moduleName
+                , includes    = includes
+                , links       = links
                 , typeImports = typeImportMap
                 , ctorImports = ctorImportMap
                 , funcImports = funcImportMap
@@ -383,10 +387,14 @@ instance Resolve Pattern where
             defineVar sym symbol
             return $ PatIdent pos symbol
 
-        PatField pos symbol pats -> do
+        PatField pos symbol pats -> do -- it's KeyFunc for ctors, KeyType for other
             pats' <- mapM resolve pats
-            symbol' <- look symbol KeyFunc -- TODO bit of a hack
-            return $ PatField pos symbol' pats' -- TODO
+            mtype <- lookm symbol KeyType
+            case mtype of
+                Just symbol' -> return $ PatField pos symbol' pats'
+                Nothing -> do
+                    symbol' <- look symbol KeyFunc
+                    return $ PatField pos symbol' pats'
 
         PatTypeField pos typ pat -> do
             pat' <- resolve pat

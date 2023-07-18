@@ -10,6 +10,8 @@ import Type
 data ResolvedAst
     = ResolvedAst
     { moduleName  :: String
+    , includes    :: [String]
+    , links       :: [String]
     , typeImports :: Map.Map Symbol Type        -- imported types
     , ctorImports :: Map.Map Symbol (Type, Int) -- imported ctors
     , funcImports :: Map.Map Symbol FuncKey     -- imported funcs
@@ -21,6 +23,8 @@ data ResolvedAst
 
 initResolvedAst moduleName = ResolvedAst
     { moduleName = moduleName
+    , includes = []
+    , links = []
     , typeImports = Map.empty
     , ctorImports  = Map.empty
     , funcImports  = Map.empty

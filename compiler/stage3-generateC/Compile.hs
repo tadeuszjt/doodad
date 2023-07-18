@@ -354,27 +354,41 @@ generatePattern pattern val = do
 
         PatField _ symbol pats -> do -- either a typedef or an ADT field, both members of ADT
             base@(Type.ADT fs) <- baseTypeOf val
-
             isCtor <- Map.member symbol <$> gets ctors
             isTypedef <- Map.member symbol <$> gets typedefs
 
-            case (isCtor, isTypedef) of
+            endLabel <- freshName "skipMatch"
+            match <- freshName "match"
+
+            i <- case (isCtor, isTypedef) of
                 (True, False) -> do
                     (typ', i) <- (Map.! symbol) <$> gets ctors
                     assert (typ' == typeof val) "invalid ctor type"
                     let FieldCtor ts = fs !! i
                     assert (length pats == length ts) "invalid number of args"
+                    return i
 
-                    endLabel <- freshName "skipMatch"
-                    match <- freshName "match"
+                (False, True) -> do
+                    let typ = Type.Typedef symbol
+                    i <- case elemIndex (FieldType typ) fs of
+                        Just x -> return x
+                        Nothing -> fail "type not in ADT"
 
-                    appendAssign Cbool match . C.Infix C.EqEq (C.Int $ fromIntegral i) . valueExpr
-                        =<< generateAdtEnum val
-                    ifId <- appendIf (C.Not $ C.Ident match)
-                    withCurID ifId $ do
-                        appendElem $ C.Goto endLabel
+                    assert (length pats == 1) "invalid number of args"
+                    return i
 
-                    appendElem $ C.Set (C.Ident match) (C.Bool False)
+            appendAssign Cbool match . C.Infix C.EqEq (C.Int $ fromIntegral i) . valueExpr
+                =<< generateAdtEnum val
+            ifId <- appendIf (C.Not $ C.Ident match)
+            withCurID ifId $ do
+                appendElem $ C.Goto endLabel
+
+            appendElem $ C.Set (C.Ident match) (C.Bool False)
+
+            case (isCtor, isTypedef) of
+                (True, False) -> do
+                    let FieldCtor ts = fs !! i
+                    assert (length pats == length ts) "invalid number of args"
 
                     forM_ (zip3 pats ts [0..]) $ \(pat, t, j) -> do
                         patMatch <- generatePattern pat $ Value t $
@@ -383,9 +397,20 @@ generatePattern pattern val = do
                         withCurID ifId $ do
                             appendElem $ C.Goto endLabel
 
-                    appendElem $ C.Set (C.Ident match) (C.Bool True)
-                    appendElem $ C.Label endLabel
-                    return (C.Ident match)
+                (False, True) -> do
+                    assert (length pats == 1) "invalid number of args"
+                    let typ = Type.Typedef symbol
+                    let pat = head pats
+
+                    patMatch <- generatePattern pat $ Value typ $
+                        C.Member (valueExpr val) ("u" ++ show i)
+                    ifId <- appendIf (C.Not patMatch)
+                    withCurID ifId $ do
+                        void $ appendElem $ C.Goto endLabel
+
+            appendElem $ C.Set (C.Ident match) (C.Bool True)
+            appendElem $ C.Label endLabel
+            return (C.Ident match)
 
         PatNull _ -> do
             base@(Type.ADT fs) <- baseTypeOf val
@@ -607,6 +632,8 @@ generateInfix op a b = do
         Type.Bool -> return $ case op of
             S.AndAnd -> Value (typeof a) $ C.Infix C.AndAnd (valueExpr a) (valueExpr b)
             S.OrOr   -> Value (typeof a) $ C.Infix C.OrOr (valueExpr a) (valueExpr b)
+            S.EqEq   -> Value (typeof a) $ C.Infix C.EqEq (valueExpr a) (valueExpr b)
+            _ -> error (show op)
 
         Type.Char -> return $ case op of
             S.EqEq -> Value Type.Bool $ C.Infix (C.EqEq) (valueExpr a) (valueExpr b)

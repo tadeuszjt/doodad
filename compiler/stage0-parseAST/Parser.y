@@ -72,6 +72,7 @@ import Symbol
     data       { Token _ Reserved "data" }
     import     { Token _ Import _ }
     include    { Token _ CInclude _ }
+    link       { Token _ CLink _ }
 
     i16        { Token _ Reserved "i16" }
     i32        { Token _ Reserved "i32" }
@@ -119,6 +120,7 @@ header : module ident 'N' imports           { ($2, $4) }
 imports : {- empty -}                       { [] }
         | import 'N' imports                { S.Import   (tokStr $1) : $3 }
         | include 'N' imports               { S.CInclude (tokStr $1) : $3 }
+        | link 'N' imports                  { S.CLink (tokStr $1) : $3 }
 
 
 ---------------------------------------------------------------------------------------------------

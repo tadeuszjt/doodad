@@ -63,6 +63,8 @@ lexFile printTokens filename = do
                 return $ Token pos Import (fromJust $ stripPrefix "import: " l)
             l | isPrefixOf "include: " l -> do
                 return $ Token pos CInclude (fromJust $ stripPrefix "include: " l)
+            l | isPrefixOf "link: " l -> do
+                return $ Token pos CLink (fromJust $ stripPrefix "link: " l)
             l | isPrefixOf "embed_c: " l -> do
                 return $ Token pos EmbedC (fromJust $ stripPrefix "embed_c: " $ replace31 l)
             l -> error l

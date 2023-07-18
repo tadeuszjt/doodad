@@ -95,17 +95,22 @@ parse args file = do
     P.parse newTokens
 
 
-runMod :: BoM s m => Args -> FilePath -> m ()
-runMod args modPath = do
-    ((), state) <- runBoMTExcept (initModulesState) $ runMod' args modPath
+buildModule :: BoM s m => Args -> FilePath -> m ()
+buildModule args modPath = do
+    ((), state) <- runBoMTExcept (initModulesState) $ buildModule' args modPath
     let cFiles = Map.elems (cFileMap state) ++ ["include/doodad.c"]
     let binFile = takeFileName modPath
+    let linkPaths = Set.toList $ Set.fromList $ concat (map links $ Map.elems $ moduleMap state)
+
+    forM_ linkPaths $ \path -> do
+        liftIO $ putStrLn $ "linking '" ++ path ++ "'"
 
     when (printC args) $ do
         forM_ (reverse cFiles) $ \file -> do
             liftIO $ putStrLn =<< readFile file
 
-    exitCode <- liftIO $ rawSystem "gcc" $ ["-I", "include"] ++ cFiles ++ ["-lgc", "-o", binFile]
+    exitCode <- liftIO $ rawSystem "gcc" $
+        ["-I", "include"] ++ cFiles ++ ["-lgc"] ++ map ("-l" ++) linkPaths ++ ["-o", binFile]
     case exitCode of
         ExitSuccess -> return ()
         ExitFailure s -> fail $ "gcc failed: " ++ (show s)
@@ -115,8 +120,8 @@ runMod args modPath = do
 
 
 
-runMod' :: BoM Modules m => Args -> FilePath -> m ()
-runMod' args modPath = do
+buildModule' :: BoM Modules m => Args -> FilePath -> m ()
+buildModule' args modPath = do
     debug "running"
     absolute <- liftIO $ canonicalizePath modPath
     debug $ "absolute path: " ++ show absolute
@@ -148,7 +153,7 @@ runMod' args modPath = do
             assert (length importModNames == length (Set.fromList importModNames)) $
                 fail "import name collision"
             forM_ importPaths $ debug . ("importing: " ++)
-            mapM_ (runMod' args) importPaths
+            mapM_ (buildModule' args) importPaths
 
             debug "loading irGenImports"
             astImports <- forM importPaths $ \path -> do
@@ -184,7 +189,7 @@ runMod' args modPath = do
 
 
             -- optimise
-            let includePaths = [fp | S.CInclude fp <- concat $ map S.astImports asts]
+            let includePaths = includes resolved2
             if Args.optimise args then do
                 (_, cBuilderStateOptimised) <- runBoMTExcept
                     cBuilderState

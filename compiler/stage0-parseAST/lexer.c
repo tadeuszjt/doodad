@@ -186,6 +186,7 @@ bool isKeyword(char *s) {
         "module",
         "import",
         "include",
+        "link",
         "for",
         "while",
         "if",
@@ -259,7 +260,7 @@ bool lex() { // returns false for EOF
             stackPush(c);
         } else {
             // print ident
-            if (strcmp(stack, "import") == 0 || strcmp(stack, "include") == 0) {
+            if (strcmp(stack, "import") == 0 || strcmp(stack, "include") == 0 || strcmp(stack, "link") == 0) {
                 assert(c == ' ');
                 stackPush(':');
                 stackPush(' ');
