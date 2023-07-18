@@ -35,6 +35,7 @@ data Operator
     | AndAnd
     | NotEq
     | Not
+    | PlusEq
     deriving (Eq, Ord)
 
 
@@ -100,6 +101,7 @@ instance Typeof Expr where
 data Stmt
     = Assign      TextPos Pattern Expr
     | Set         TextPos Expr   Expr
+    | SetOp       TextPos Operator Expr   Expr
     | ExprStmt    Expr
     | Return      TextPos (Maybe Expr)
     | Block       [Stmt]
@@ -181,6 +183,7 @@ instance TextPosition Stmt where
         For         p _ _ _ -> p
         Data        p _ _ _ -> p
         EmbedC      p _ -> p
+        SetOp       p _ _ _ -> p
 
 tupStrs, arrStrs, brcStrs :: [String] -> String
 tupStrs strs = "(" ++ intercalate ", " strs ++ ")"
@@ -212,6 +215,7 @@ instance Show Operator where
         AndAnd -> "&&"
         NotEq  -> "!="
         Not    -> "!"
+        PlusEq -> "+="
 
 instance Show AnnoADTField where
     show annoAdtField = case annoAdtField of

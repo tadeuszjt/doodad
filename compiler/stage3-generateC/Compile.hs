@@ -169,6 +169,24 @@ generateStmt stmt = case stmt of
         val2 <- generateExpr expr2
         void $ appendElem $ C.Set (valueExpr val1) (valueExpr val2)
 
+    S.SetOp _ op expr1 (S.AExpr t2 expr2) -> do
+        val1 <- generateExpr expr1
+        assert (typeof val1 == t2) "types do not match"
+        base <- baseTypeOf val1
+        case base of
+            Table [t] -> case op of
+                S.PlusEq -> case expr2 of
+                    S.Array _ es -> do
+                        appendFuncName <- getTableAppendFunc (typeof val1)
+                        forM_ es $ \e -> do
+                            val2 <- generateExpr e
+                            assert (typeof val2 == t) "types do not match"
+                            appendElem $ C.ExprStmt $
+                                C.Call appendFuncName [C.Address (valueExpr val1), C.Address (valueExpr val2)]
+                    
+                
+            _ -> error (show base)
+
     S.While _ expr stmt -> do
         id <- appendElem $ C.For Nothing Nothing Nothing []
         withCurID id $ do

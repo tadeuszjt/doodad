@@ -103,6 +103,7 @@ data Expression
     | Deref Expression
     | Address Expression
     | Not Expression
+    | Sizeof Expression
     deriving (Eq)
 
 instance Show Expression where
@@ -123,6 +124,7 @@ instance Show Expression where
     show (Address e) = "&(" ++ show e ++ ")"
     show (Not e) = "!" ++ show e
     show (Char c) = show c
+    show (Sizeof e) = "sizeof(" ++ show e ++ ")"
 
 data ID =
     ID Int

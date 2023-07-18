@@ -238,6 +238,11 @@ collectStmt stmt = collectPos stmt $ case stmt of
         collectExpr expr1
         collectExpr expr2
 
+    S.SetOp _ op expr1 expr2 -> do
+        collectEq (typeof expr1) (typeof expr2)
+        collectExpr expr1
+        collectExpr expr2
+
     S.While _ expr blk -> do
         collectExpr expr
         collectBase Bool (typeof expr)

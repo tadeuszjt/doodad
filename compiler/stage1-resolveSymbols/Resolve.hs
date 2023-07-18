@@ -334,6 +334,11 @@ instance Resolve Stmt where
             expr' <- resolve expr
             return $ Set pos index' expr'
 
+        SetOp pos op index expr -> do
+            index' <- resolve index
+            expr' <- resolve expr
+            return $ SetOp pos op index' expr'
+
         Switch pos expr cases -> do
             expr' <- resolve expr
             cases' <- forM cases $ \(pat, stmt) -> do

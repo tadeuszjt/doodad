@@ -114,6 +114,11 @@ compileStmt stmt = withPos stmt $ case stmt of
         expr2' <- compileExpr expr2
         return $ Set pos expr1' expr2'
 
+    AST.SetOp pos op expr1 expr2 -> do
+        expr1' <- compileExpr expr1
+        expr2' <- compileExpr expr2
+        return $ SetOp pos op expr1' expr2'
+
     AST.Switch pos expr cases -> do
         expr' <- compileExpr expr
         cases' <- forM cases $ \(pat, stmt) -> do

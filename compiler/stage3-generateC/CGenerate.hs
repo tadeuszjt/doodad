@@ -50,6 +50,7 @@ data GenerateState
         , ctors  :: Map.Map Symbol (Type.Type, Int)
         , typedefs :: Map.Map Symbol Type.Type
         , symTab :: Map.Map String Object
+        , tableAppendFuncs :: Map.Map Type.Type String
         }
 
 initGenerateState
@@ -59,6 +60,7 @@ initGenerateState
         , ctors  = Map.empty
         , typedefs = Map.empty
         , symTab = Map.empty
+        , tableAppendFuncs = Map.empty
         }
 
 
@@ -107,6 +109,72 @@ getTypedef suggestion typ = do
             newTypedef typ name
             modify $ \s -> s { tuples = Map.insert typ name (tuples s) }
             return $ Ctypedef name
+
+
+getTableAppendFunc :: MonadGenerate m => Type.Type -> m String
+getTableAppendFunc typ = do
+    base@(Table _) <- baseTypeOf typ
+    fm <- Map.lookup typ <$> gets tableAppendFuncs
+    case fm of
+        Just s -> return s
+        Nothing -> do
+            funcName <- freshName "doodad_table_append"
+            tableName <- freshName "table"
+            elemName <- freshName "elem"
+            ctyp <- cTypeOf typ
+
+            celemTyp <- case base of
+                Table [t] -> cTypeOf t
+
+            funcId <- newFunction Cvoid funcName
+                [ C.Param tableName $ Cpointer ctyp
+                , C.Param elemName $ Cpointer celemTyp
+                ]
+            withCurID globalID $ append funcId
+
+            withCurID funcId $ do
+                ifId <- appendIf $ C.Infix C.GTEq
+                    (C.PMember (C.Ident tableName) "len")
+                    (C.PMember (C.Ident tableName) "cap")
+                withCurID ifId $ do
+                    ifCap0Id <- appendIf $ C.Infix C.EqEq
+                        (C.PMember (C.Ident tableName) "cap")
+                        (C.Int 0)
+                    withCurID ifCap0Id $ do
+                        appendElem $ C.Set (C.PMember (C.Ident tableName) "cap") (C.Int 8)
+                    elseCap0Id <- appendElem $ C.Else []
+                    withCurID elseCap0Id $ do
+                        appendElem $ C.Set (C.PMember (C.Ident tableName) "cap") $
+                            C.Infix C.Times (C.PMember (C.Ident tableName) "cap") (C.Int 2)
+                    memName <- freshName "mem"
+                    appendElem $ C.Assign (Cpointer Cvoid) memName $
+                        C.Call "GC_malloc"
+                            [ C.Infix C.Times (C.PMember (C.Ident tableName) "cap") $
+                                C.Sizeof (C.Deref $ C.PMember (C.Ident tableName) "r0")
+                            ]
+                    appendElem $ C.ExprStmt $ C.Call "memcpy"
+                        [ C.Ident memName
+                        , C.PMember (C.Ident tableName) "r0"
+                        , C.Infix C.Times (C.PMember (C.Ident tableName) "len")
+                            (C.Sizeof (C.Deref $ C.PMember (C.Ident tableName) "r0"))
+                        ]
+                    appendElem $ C.Set (C.PMember (C.Ident tableName) "r0") (C.Ident memName)
+                    return ()
+
+                -- TODO deep copy
+                appendElem $ C.Set
+                    (C.Subscript (C.PMember (C.Ident tableName) "r0") (C.Increment $ C.PMember (C.Ident tableName) "len"))
+                    (C.Deref $ C.Ident elemName)
+
+
+
+
+
+                return () -- TODO
+
+            modify $ \s -> s { tableAppendFuncs = Map.insert typ funcName (tableAppendFuncs s) }
+            return funcName
+
             
 baseTypeOf :: (MonadGenerate m, Typeof a) => a -> m Type.Type
 baseTypeOf a = case typeof a of

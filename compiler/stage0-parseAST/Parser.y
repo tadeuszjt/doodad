@@ -55,6 +55,7 @@ import Symbol
     '::'       { Token _ TokSym "::" }
     '->'       { Token _ TokSym "->" }
     '..'       { Token _ TokSym ".." }
+    '+='       { Token _ TokSym "+=" }
 
     fn         { Token _ Reserved "fn" }
     type       { Token _ Reserved "type" }
@@ -137,6 +138,7 @@ mfnrec : {-empty-}                          { [] }
 
 line : let pattern '=' expr                         { S.Assign (tokPos $1) $2 $4 }  
      | index '=' expr                               { S.Set (tokPos $2) $1 $3 }
+     | index '+=' expr                              { S.SetOp (tokPos $2) S.PlusEq $1 $3 }
      | index                                        { S.ExprStmt $1 }
      | type symbol anno_t                           { S.Typedef (fst $2) (snd $2) $3 }
      | data symbol type_ mexpr                      { S.Data (tokPos $1) (snd $2) $3 $4 }
