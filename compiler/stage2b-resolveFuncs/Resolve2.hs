@@ -32,14 +32,10 @@ compileFuncDef body = do
     return body { funcStmts  = stmts' }
 
 
-exprTypeOf :: AST.Expr -> Type
-exprTypeOf (AST.AExpr typ _) = typ
-
-
 -- add extern if needed
 resolveFuncCall :: BoM ResolvedAst m => Type -> AST.Expr -> m Symbol
 resolveFuncCall exprType (AST.Call pos params symbol args) = withPos pos $ do
-    let key = (map exprTypeOf params, sym symbol, map exprTypeOf args, exprType)
+    let key = (map typeof params, sym symbol, map typeof args, exprType)
     case symbol of
         SymResolved _ _ _ -> return symbol
 
@@ -109,11 +105,6 @@ compileStmt stmt = withPos stmt $ case stmt of
         stmt' <- compileStmt stmt
         return $ While pos expr' stmt'
 
-    AST.Set pos expr1 expr2 -> do
-        expr1' <- compileExpr expr1
-        expr2' <- compileExpr expr2
-        return $ Set pos expr1' expr2'
-
     AST.SetOp pos op expr1 expr2 -> do
         expr1' <- compileExpr expr1
         expr2' <- compileExpr expr2
@@ -154,7 +145,7 @@ resolveFieldAccess (AST.Field pos expr (Sym sym)) = do
                 return $ Field pos expr' symbol
         where
             tupTypeMatches :: (Type, Int) -> Bool
-            tupTypeMatches (t, _) = t == exprTypeOf expr
+            tupTypeMatches (t, _) = t == typeof expr
 
             fieldSymMatches :: Symbol -> Bool
             fieldSymMatches symbol = Symbol.sym symbol == sym

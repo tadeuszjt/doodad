@@ -28,11 +28,14 @@ fn {w Window} create()
         *$w = (int64_t)(window);
     }
 
+
 fn {w Window} close()
     ${ sfRenderWindow_close((sfRenderWindow*)(*$w)); }
 
+
 fn {w Window} destroy()
     ${ sfRenderWindow_close((sfRenderWindow*)(*$w)); }
+
 
 fn {w Window} clearWindow(colour Colour)
     ${
@@ -40,8 +43,10 @@ fn {w Window} clearWindow(colour Colour)
         sfRenderWindow_clear((sfRenderWindow*)(*$w), color);
     }
 
+
 fn {w Window} display()
     ${ sfRenderWindow_display((sfRenderWindow*)(*$w)); }
+
 
 fn {w Window} isOpen() bool
     let isOpen = false
@@ -62,6 +67,7 @@ fn {w Window} pollEvent() { null | Event }
     if continue
         return conv(event)
     return null
+
 
 fn {w Window, vertices [Vertex]} drawPrimitives()
     ${

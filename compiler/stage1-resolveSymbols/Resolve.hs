@@ -20,7 +20,7 @@ import States
 --
 -- 1.) Updates local symbols to be scope-agnostic: x -> x_0
 -- 2.) Updates imported symbols to contain module: x -> mod_x_0
--- 3.) Replaces builtin function calls with specific: push -> builtin push
+-- 3.) Replaces builtin function calls with specific: len -> builtin len
 --
 -- function calls and tuple members will not be changed because the exact definiton of these symbols cannot be 
 -- determined at this stage.
@@ -32,6 +32,7 @@ class Resolve a where
 data SymKey
     = KeyType
     | KeyFunc
+    | KeyVar
     deriving (Show, Eq, Ord)
 
 
@@ -40,32 +41,24 @@ type SymTab = SymTab.SymTab String SymKey Symbol
 data ResolveState
     = ResolveState
         { symTab      :: SymTab
-        , symTabVar   :: SymTab.SymTab String () Symbol
         , funcKeys    :: Set.Set FuncKey
         , imports     :: [ResolvedAst]
         , modName     :: String
         , supply      :: Map.Map String Int
         , typeDefsMap :: Map.Map Symbol AnnoType
-        , smallFuncDefs :: Map.Map Symbol FuncBody
+        , localFuncDefs :: Map.Map Symbol FuncBody
         }
 
 initResolveState imports modName typeImports = ResolveState
     { symTab    = SymTab.initSymTab
-    , symTabVar = SymTab.initSymTab
     , funcKeys  = Set.empty
     , imports   = imports
     , modName   = modName
     , supply    = Map.empty
     , typeDefsMap = Map.empty
-    , smallFuncDefs = Map.empty
+    , localFuncDefs = Map.empty
     }
 
-
-lookVar :: BoM ResolveState m => Symbol -> m Symbol
-lookVar (Sym sym) = do
-    lm <- SymTab.lookup sym () <$> gets symTabVar
-    assert (isJust lm) $ show sym ++ " isn't defined"
-    return $ fromJust lm
 
 
 look :: BoM ResolveState m => Symbol -> SymKey -> m Symbol
@@ -95,16 +88,10 @@ lookm symbol key = case symbol of
                             [] -> return Nothing
                             [x] -> return (Just x)
 
-
     SymQualified mod sym -> do
         modName <- gets modName
-        if mod == modName then 
-            SymTab.lookup sym key <$> gets symTab
-        else if mod == "c" then do
-            case key of
-                KeyFunc -> return (Just symbol)
-                _       -> return Nothing
-        else                    lookm (Sym sym) key
+        if mod == modName then SymTab.lookup sym key <$> gets symTab
+        else lookm (Sym sym) key
 
     _ -> fail $ show (symbol, key)
 
@@ -121,27 +108,19 @@ genSymbol sym = do
 
 define :: BoM ResolveState m => String -> SymKey -> Symbol -> m ()
 define sym key symbol = do
-    resm <- gets $ SymTab.lookupHead sym key . symTab -- TODO search imports
+    resm <- gets $ SymTab.lookupHead sym key . symTab
     assert (isNothing resm) $ sym ++ " already defined"
     modify $ \s -> s { symTab = SymTab.insert sym key symbol (symTab s) }
-
-defineVar :: BoM ResolveState m => String -> Symbol -> m ()
-defineVar sym symbol = do
-    resm <- gets $ SymTab.lookupHead sym () . symTabVar
-    assert (isNothing resm) $ sym ++ " already defined"
-    modify $ \s -> s { symTabVar = SymTab.insert sym () symbol (symTabVar s) }
 
 
 pushSymTab :: BoM ResolveState m => m ()
 pushSymTab = do
     modify $ \s -> s { symTab = SymTab.push (symTab s) }
-    modify $ \s -> s { symTabVar = SymTab.push (symTabVar s) }
 
 
 popSymTab :: BoM ResolveState m => m ()
 popSymTab = do
     modify $ \s -> s { symTab = SymTab.pop (symTab s) }
-    modify $ \s -> s { symTabVar = SymTab.pop (symTabVar s) }
 
 
 annoToType :: AnnoType -> Type
@@ -223,7 +202,7 @@ resolveAsts asts imports = withErrorPrefix "resolve: " $ do
 
             mapM resolveTypeDef typedefs
             funcDefsMap <- Map.fromList <$> mapM resolveFuncDef funcdefs
-            smallFuncs <- gets smallFuncDefs
+            localFuncs <- gets localFuncDefs
             tdm <- gets typeDefsMap
             (_, ctorMap) <- runBoMTExcept Map.empty (buildCtorMap $ Map.toList tdm)
 
@@ -236,7 +215,7 @@ resolveAsts asts imports = withErrorPrefix "resolve: " $ do
                 , typeImports = typeImportMap
                 , ctorImports = ctorImportMap
                 , funcImports = funcImportMap
-                , funcDefs    = Map.union funcDefsMap smallFuncs
+                , funcDefs    = Map.union funcDefsMap localFuncs
                 , typeDefs    = Map.map annoToType tdm
                 , ctorDefs    = ctorMap
                 }
@@ -245,10 +224,6 @@ resolveAsts asts imports = withErrorPrefix "resolve: " $ do
 
 resolveFuncDef :: BoM ResolveState m => AST.Stmt -> m (Symbol, FuncBody)
 resolveFuncDef (FuncDef pos params (Sym sym) args retty blk) = withPos pos $ do
-    -- use a new symbol table for variables in every function
-    oldSymTabVar <- gets symTabVar
-    modify $ \s -> s { symTabVar = SymTab.initSymTab }
-
     pushSymTab
     params' <- mapM resolve params
     args' <- mapM resolve args
@@ -256,9 +231,7 @@ resolveFuncDef (FuncDef pos params (Sym sym) args retty blk) = withPos pos $ do
     blk' <- resolve blk
     popSymTab
 
-    modify $ \s -> s { symTabVar = oldSymTabVar }
     symbol' <- genSymbol sym
-
     let funcBody = FuncBody {
         funcParams = params' ,
         funcArgs   = args' ,
@@ -275,9 +248,7 @@ resolveTypeDef (AST.Typedef pos (Sym sym) anno) = do
     define sym KeyFunc symbol
     anno' <- case anno of
         AnnoType t -> AnnoType <$> resolve t
-
         AnnoTuple ps -> AnnoTuple <$> mapM resolve ps
-
         AnnoTable xs -> AnnoTable <$> mapM resolve xs
 
         AnnoADT xs -> do
@@ -336,11 +307,6 @@ instance Resolve Stmt where
             popSymTab
             return $ While pos condition' stmt' 
 
-        Set pos index expr -> do
-            index' <- resolve index
-            expr' <- resolve expr
-            return $ Set pos index' expr'
-
         SetOp pos op index expr -> do
             index' <- resolve index
             expr' <- resolve expr
@@ -366,14 +332,14 @@ instance Resolve Stmt where
 
         Data pos (Sym sym) typ mexpr -> do
             symbol <- genSymbol sym
-            defineVar sym symbol
+            define sym KeyVar symbol
             typ' <- resolve typ
             mexpr' <- maybe (return Nothing) (fmap Just . resolve) mexpr
             return $ Data pos symbol typ' mexpr'
 
         FuncDef pos params (Sym sym) args retty blk -> do
             (symbol', body) <- resolveFuncDef (FuncDef pos params (Sym sym) args retty blk)
-            modify $ \s -> s { smallFuncDefs = Map.insert symbol' body (smallFuncDefs s) }
+            modify $ \s -> s { localFuncDefs = Map.insert symbol' body (localFuncDefs s) }
             return $ FuncDef pos (funcParams body) symbol' (funcArgs body) (funcRetty body) (head $ funcStmts body)
 
         EmbedC pos str -> EmbedC pos <$> processCEmbed str
@@ -385,7 +351,7 @@ instance Resolve Stmt where
                 assert (isAlpha $ ident !! 0) "invalid ident"
                 let rest = drop (length ident) xs
 
-                symbol <- lookVar (Sym ident)
+                symbol <- look (Sym ident) KeyVar
                 (show symbol ++) <$> processCEmbed rest
             processCEmbed (x:xs) = (x:) <$> processCEmbed xs
             processCEmbed [] = return ""
@@ -396,7 +362,7 @@ instance Resolve Pattern where
         PatIgnore pos -> return $ PatIgnore pos
         PatIdent pos (Sym sym) -> do
             symbol <- genSymbol sym
-            defineVar sym symbol
+            define sym KeyVar symbol
             return $ PatIdent pos symbol
 
         PatField pos symbol pats -> do -- it's KeyFunc for ctors, KeyType for other
@@ -440,7 +406,7 @@ instance Resolve Param where
     resolve (Param pos (Sym sym) typ) = withPos pos $ do
         typ' <- resolve typ
         symbol <- genSymbol sym
-        defineVar sym symbol
+        define sym KeyVar symbol
         return $ Param pos symbol typ'
 
 
@@ -470,7 +436,7 @@ instance Resolve Type where
 
 instance Resolve Expr where
     resolve expr = withPos expr $ case expr of
-        Ident pos symbol      -> Ident pos <$> lookVar symbol
+        Ident pos symbol      -> Ident pos <$> look symbol KeyVar
         Prefix pos op expr -> Prefix pos op <$> resolve expr
         AST.ADT pos expr -> AST.ADT pos <$> resolve expr
         AST.Char pos c -> return expr

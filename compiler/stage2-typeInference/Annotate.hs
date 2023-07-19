@@ -62,10 +62,6 @@ instance Annotate Stmt where
             pat' <- annotate pat
             Assign p pat' <$> annotate e
 
-        Set p index e -> do
-            index' <- annotate index
-            Set p index' <$> annotate e
-
         SetOp p op index e -> do
             index' <- annotate index
             SetOp p op index' <$> annotate e

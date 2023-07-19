@@ -137,7 +137,7 @@ mfnrec : {-empty-}                          { [] }
 
 
 line : let pattern '=' expr                         { S.Assign (tokPos $1) $2 $4 }  
-     | index '=' expr                               { S.Set (tokPos $2) $1 $3 }
+     | index '=' expr                               { S.SetOp (tokPos $2) S.Eq $1 $3 }
      | index '+=' expr                              { S.SetOp (tokPos $2) S.PlusEq $1 $3 }
      | index                                        { S.ExprStmt $1 }
      | type symbol anno_t                           { S.Typedef (fst $2) (snd $2) $3 }

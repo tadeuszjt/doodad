@@ -164,7 +164,7 @@ generateStmt stmt = case stmt of
             let end = i == length vals - 1
             generatePrint (if end then "\n" else ", ") val
 
-    S.Set _ expr1 expr2 -> do
+    S.SetOp _ S.Eq expr1 expr2 -> do
         val1 <- generateExpr expr1
         val2 <- generateExpr expr2
         void $ appendElem $ C.Set (valueExpr val1) (valueExpr val2)

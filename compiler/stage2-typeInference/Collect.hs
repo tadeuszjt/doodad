@@ -233,11 +233,6 @@ collectStmt stmt = collectPos stmt $ case stmt of
         collectPattern pattern (typeof expr)
         collectExpr expr
 
-    S.Set _ expr1 expr2 -> do
-        collectEq (typeof expr1) (typeof expr2)
-        collectExpr expr1
-        collectExpr expr2
-
     S.SetOp _ op expr1 expr2 -> do
         collectEq (typeof expr1) (typeof expr2)
         collectExpr expr1
@@ -443,7 +438,7 @@ collectExpr (S.AExpr exprType expr) = collectPos expr $ case expr of
         collectDefault (typeof e2) I64
 
     S.Tuple _ es -> do
-        --collectBase exprType $ Tuple (map typeof es) TODO tuples can now be tables?!
+        collectBase exprType $ Tuple (map typeof es)
         collectDefault exprType $ Tuple (map typeof es)
         mapM_ collectExpr es
 

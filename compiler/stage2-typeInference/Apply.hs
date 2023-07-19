@@ -128,7 +128,6 @@ instance Apply S.Stmt where
         S.Block stmts               -> S.Block $ map applyF stmts
         S.Return pos mexpr          -> S.Return pos $ fmap applyF mexpr
         S.Assign pos pat expr       -> S.Assign pos (applyF pat) (applyF expr)
-        S.Set pos index e           -> S.Set pos (applyF index) (applyF e)
         S.SetOp pos op index e      -> S.SetOp pos op (applyF index) (applyF e)
         S.While pos cnd blk         -> S.While pos (applyF cnd) (applyF blk)
         S.ExprStmt e                -> S.ExprStmt (applyF e)

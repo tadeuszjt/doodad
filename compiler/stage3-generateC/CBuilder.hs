@@ -118,8 +118,6 @@ newTypedef typ name = do
     withCurID globalID (append id)
     return id
 
--- creates function, appends to global
--- sets current element to function
 newFunction :: MonadBuilder m => Type -> String -> [Param] -> m ID 
 newFunction retty name args = do
     newElement (Func { funcName = name, funcBody = [], funcRetty = retty, funcArgs = args })
