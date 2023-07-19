@@ -5,6 +5,7 @@
 #include <assert.h>
 #include <string.h>
 #include <ctype.h>
+#include <stdarg.h>
 
 char *doodad_string_plus(char *a, char *b);
 bool doodad_string_eqeq(char *a, char *b);

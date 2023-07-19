@@ -168,6 +168,8 @@ paramsN : param 'N'                         { [$1] }
         | param 'N' paramsN                 { $1 : $3 }
 paramsA : params                            { $1 }
         | 'I' paramsN 'D'                   { $2 }
+paramsSem1 : param                          { [$1] }
+           | param ';' paramsSem1           { $1 : $3 }
 
 
 if_   : if condition scope else_            { S.If (tokPos $1) $2 $3 $4 }
@@ -317,6 +319,7 @@ anno_t   : ordinal_t                        { S.AnnoType $1 }
          | symbol                           { S.AnnoType (T.Typedef $ snd $1) }
          | '(' types1 ')'                   { S.AnnoType (T.Tuple $2) }
          | '(' paramsA ')'                  { S.AnnoTuple $2 }
+         | '[' paramsSem1 ']'               { S.AnnoTable $2 }
          | array_t                          { S.AnnoType $1 }
          | table_t                          { S.AnnoType $1 }
          | sparse_t                         { S.AnnoType $1 }

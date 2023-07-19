@@ -6,9 +6,11 @@ import Data.List
 
 data Param
     = Param { cName :: String, cType :: Type }
+    | Variadic
     deriving (Eq, Ord)
 
 instance Show Param where
+    show Variadic         = "..."
     show (Param name typ) = arrStrPre typ ++ " " ++ name ++ arrStrPost typ
         where
             arrStrPost typ = case typ of

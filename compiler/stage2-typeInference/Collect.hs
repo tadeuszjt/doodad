@@ -397,32 +397,11 @@ collectExpr (S.AExpr exprType expr) = collectPos expr $ case expr of
 
     S.Builtin _ ps sym es -> do 
         case sym of
-            "read" -> do
-                assert (length ps == 1) "invalid read"
-                assert (length es == 0) "invalid read"
-            "write" -> do
-                assert (length ps == 1) "invalid write"
-                collectDefault exprType I64
             "conv" -> do 
                 assert (length ps == 0) "invalid conv"
                 assert (length es == 1) "invalid conv"
             "len" -> collectDefault exprType I64
-            "push" -> do
-                assert (length ps == 1) "invalid number of parameters"
-                collectDefault exprType I64
-                forM_ (zip es [0..]) $ \(e, i) ->
-                    collectMember (typeof $ head ps) i (typeof e)
-
-            "pop" -> do
-                assert (length ps == 1) "invalid number of parameters"
-                collectElem (typeof $ head ps) exprType
-
-            "delete" -> collectEq exprType Void
-            "clear" -> collectEq exprType Void
-            "unsafe_ptr" -> collectEq exprType UnsafePtr
-            "unsafe_ptr_from_int" -> collectEq exprType UnsafePtr
             "print" -> collectEq exprType Void
-
         mapM_ collectExpr ps
         mapM_ collectExpr es
 
@@ -464,7 +443,7 @@ collectExpr (S.AExpr exprType expr) = collectPos expr $ case expr of
         collectDefault (typeof e2) I64
 
     S.Tuple _ es -> do
-        collectBase exprType $ Tuple (map typeof es)
+        --collectBase exprType $ Tuple (map typeof es) TODO tuples can now be tables?!
         collectDefault exprType $ Tuple (map typeof es)
         mapM_ collectExpr es
 

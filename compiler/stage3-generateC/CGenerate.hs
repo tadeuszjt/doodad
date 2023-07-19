@@ -64,10 +64,10 @@ initGenerateState
         }
 
 
-class (MonadBuilder m, MonadFail m, MonadState GenerateState m) => MonadGenerate m
+class (MonadBuilder m, MonadFail m, MonadState GenerateState m, MonadIO m) => MonadGenerate m
 
 newtype GenerateT m a = GenerateT { unGenerateT :: StateT GenerateState (StateT BuilderState m) a }
-    deriving (Functor, Applicative, Monad, MonadState GenerateState, MonadGenerate)
+    deriving (Functor, Applicative, Monad, MonadState GenerateState, MonadGenerate, MonadIO)
 
 instance Monad m => MonadBuilder (GenerateT m) where
     liftBuilderState (StateT s) = GenerateT $ lift $ StateT $ pure . runIdentity . s
@@ -227,15 +227,17 @@ cTypeOf a = case typeof a of
             FieldCtor ts -> Type.Tuple ts
         
 
-getSymbolsOrderedByDependencies :: Monad m => Map.Map Symbol Type.Type -> m [Symbol]
+getSymbolsOrderedByDependencies :: MonadGenerate m => Map.Map Symbol Type.Type -> m [Symbol]
 getSymbolsOrderedByDependencies typedefs = do
     fmap (removeDuplicates . concat) . forM (Map.toList typedefs) $ \(s, t) -> do
         symbols <- getSymbols t
         return (symbols ++ [s])
     where
-        getSymbols :: Monad m => Type.Type -> m [Symbol]
+        getSymbols :: MonadGenerate m => Type.Type -> m [Symbol]
         getSymbols typ = case typ of
-            Type.Typedef s -> return [s]
+            Type.Typedef s -> do
+                symbols <- getSymbols (typedefs Map.! s)
+                return $ symbols ++ [s]
             Type.Tuple ts  -> concat <$> mapM getSymbols ts
             Table ts  -> concat <$> mapM getSymbols ts
             Sparse ts  -> concat <$> mapM getSymbols ts
@@ -249,7 +251,7 @@ getSymbolsOrderedByDependencies typedefs = do
             Type.Bool -> return []
             _ -> error (show typ)
 
-        getSymbolsField :: Monad m => AdtField -> m [Symbol]
+        getSymbolsField :: MonadGenerate m => AdtField -> m [Symbol]
         getSymbolsField field = case field of
             FieldNull -> return []
             FieldType t -> getSymbols t

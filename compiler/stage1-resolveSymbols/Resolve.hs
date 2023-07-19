@@ -121,7 +121,7 @@ genSymbol sym = do
 
 define :: BoM ResolveState m => String -> SymKey -> Symbol -> m ()
 define sym key symbol = do
-    resm <- gets $ SymTab.lookupHead sym key . symTab
+    resm <- gets $ SymTab.lookupHead sym key . symTab -- TODO search imports
     assert (isNothing resm) $ sym ++ " already defined"
     modify $ \s -> s { symTab = SymTab.insert sym key symbol (symTab s) }
 
@@ -146,9 +146,10 @@ popSymTab = do
 
 annoToType :: AnnoType -> Type
 annoToType anno = case anno of
-    AnnoTuple xs -> Type.Tuple $ map (\(Param _ s t) -> t) xs
+    AnnoTuple xs -> Type.Tuple $ map paramType xs
     AnnoADT  xs -> Type.ADT $ map annoFieldToField xs
     AnnoType t  -> t
+    AnnoTable xs -> Type.Table $ map paramType xs
     where
         annoFieldToField :: AnnoADTField -> AdtField
         annoFieldToField field = case field of
@@ -185,7 +186,11 @@ buildCtorMap list = do
             _ -> return ()
         AnnoTuple xs -> forM_ (zip xs [0..]) $ \(Param _ s t, i) -> 
             modify $ Map.insert s (Type.Typedef symbol,  i)
-        _ -> return ()
+        AnnoTable xs -> forM_ (zip xs [0..]) $ \(Param _ s t, i) -> 
+            modify $ Map.insert s (Type.Typedef symbol,  i)
+        AnnoType t -> return ()
+        _ -> error (show anno)
+
 
 
 resolveAsts :: BoM s m => [AST] -> [ResolvedAst] -> m (ResolvedAst, ResolveState)
@@ -272,6 +277,8 @@ resolveTypeDef (AST.Typedef pos (Sym sym) anno) = do
         AnnoType t -> AnnoType <$> resolve t
 
         AnnoTuple ps -> AnnoTuple <$> mapM resolve ps
+
+        AnnoTable xs -> AnnoTable <$> mapM resolve xs
 
         AnnoADT xs -> do
             xs' <- forM xs $ \x -> case x of

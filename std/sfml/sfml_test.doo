@@ -1,7 +1,7 @@
 module sfmlTest
 
-import ../std/sfml/sfml
-import ../std/colours
+import sfml
+import ../colours
 
 
 fn main()

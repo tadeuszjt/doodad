@@ -183,6 +183,11 @@ generateStmt stmt = case stmt of
                             assert (typeof val2 == t) "types do not match"
                             appendElem $ C.ExprStmt $
                                 C.Call appendFuncName [C.Address (valueExpr val1), C.Address (valueExpr val2)]
+
+            Table ts -> case op of
+                S.PlusEq -> case expr2 of
+                    S.Tuple _ es -> do
+                        error "don't know"
                     
                 
             _ -> error (show base)
@@ -520,6 +525,7 @@ generateExpr (AExpr typ expr_) = withTypeCheck $ case expr_ of
         case base of
             Type.Array n t -> return $ Value typ $ C.Int (fromIntegral n)
             Type.String    -> return $ Value typ $ C.Call "strlen" [valueExpr val]
+            Type.Table ts  -> return $ Value typ $ C.Member (valueExpr val) "len"
 
     S.Conv _ t [expr] -> do
         val <- generateExpr expr
