@@ -23,23 +23,17 @@ import Type
 import AST as S
 import Error
 
-data Object
-    = Pointer Type.Type C.Expression
-    | Value   Type.Type C.Expression
+data Value
+    = Value { valType :: Type.Type, valExpr :: C.Expression }
     deriving (Show, Eq)
 
-instance Typeof Object where
+instance Typeof Value where
     typeof (Value t _) = t
-    typeof (Pointer t _) = t
 
-valueExpr :: Object -> C.Expression
-valueExpr object = case object of
-    Pointer t e -> C.Deref (e)
-    Value t e -> e
 
-pointerExpr :: Object -> C.Expression
-pointerExpr obj = case obj of
-    Pointer t e -> e
+ptrExpr :: Value -> C.Expression
+ptrExpr obj = case obj of
+    Value t (C.Deref e) -> e
     Value t e   -> C.Address e
 
 
@@ -49,7 +43,7 @@ data GenerateState
         , supply :: Map.Map String Int
         , ctors  :: Map.Map Symbol (Type.Type, Int)
         , typedefs :: Map.Map Symbol Type.Type
-        , symTab :: Map.Map String Object
+        , symTab :: Map.Map String Value
         , tableAppendFuncs :: Map.Map Type.Type String
         }
 
@@ -83,13 +77,13 @@ runGenerateT generateState builderState generateT =
     runStateT (runStateT (unGenerateT generateT) generateState) builderState
 
 
-define :: MonadGenerate m => String -> Object -> m ()
+define :: MonadGenerate m => String -> Value -> m ()
 define str obj = do
     isDefined <- Map.member str <$> gets symTab
     assert (not isDefined) $ str ++ " already defined"
     modify $ \s -> s { symTab = Map.insert str obj (symTab s) }
 
-look :: MonadGenerate m => String -> m Object
+look :: MonadGenerate m => String -> m Value
 look str = (Map.! str) <$> gets symTab
 
 freshName :: MonadGenerate m => String -> m String
