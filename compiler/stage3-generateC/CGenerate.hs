@@ -86,12 +86,160 @@ define str obj = do
 look :: MonadGenerate m => String -> m Value
 look str = (Map.! str) <$> gets symTab
 
+
 freshName :: MonadGenerate m => String -> m String
 freshName suggestion = do
     nm <- Map.lookup suggestion <$> gets supply
     let n = maybe 0 id nm
     modify $ \s -> s { supply = Map.insert suggestion (n + 1) (supply s) }
     return $ suggestion ++ show n
+
+true :: Value
+true = Value Type.Bool (C.Bool True)
+
+false :: Value
+false = Value Type.Bool (C.Bool False)
+
+
+i64 :: Int -> Value
+i64 n = Value I64 (C.Int $ fromIntegral n)
+
+not_ :: Value -> Value
+not_ (Value typ expr) = Value typ (C.Not expr)
+
+
+assignI64 :: MonadGenerate m => String -> Int -> m Value
+assignI64 suggestion n = do
+    name <- freshName suggestion
+    appendElem $ C.Assign Cint64_t name (C.Int $ fromIntegral n)
+    return $ Value I64 $ C.Ident name
+
+assignBool :: MonadGenerate m => String -> Bool -> m Value
+assignBool suggestion b = do
+    name <- freshName suggestion
+    appendElem $ C.Assign Cbool name (C.Bool b)
+    return $ Value Type.Bool $ C.Ident name
+
+assign :: MonadGenerate m => String -> Value -> m Value
+assign suggestion val = do
+    name <- freshName suggestion
+    ctyp <- cTypeOf (typeof val)
+    appendElem $ C.Assign ctyp name (valExpr val)
+    return $ Value (typeof val) $ C.Ident name
+
+
+if_ :: MonadGenerate m => Value -> m a -> m a
+if_ cnd f = do
+    base@(Type.Bool) <- baseTypeOf cnd
+    id <- appendIf (valExpr cnd)
+    withCurID id f
+
+
+call :: MonadGenerate m => String -> [Value] -> m () 
+call name args = do
+    void $ appendElem $ C.ExprStmt $ C.Call name (map valExpr args)
+
+
+callWithParams :: MonadGenerate m => [Value] -> String -> [Value] -> m ()
+callWithParams params name args = do
+    void $ appendElem $ C.ExprStmt $ C.Call name (map ptrExpr params ++ map valExpr args)
+
+
+
+set :: MonadGenerate m => Value -> Value -> m ()
+set a b = do
+    assert (typeof a == typeof b) "set: types don't match"
+    base <- baseTypeOf a
+    void $ case base of
+        Type.Bool -> appendElem $ C.Set (valExpr a) (valExpr b)
+        Type.ADT fs -> appendElem $ C.Set (valExpr a) (valExpr b)
+        Type.String -> appendElem $ C.Set (valExpr a) (valExpr b)
+        Type.Char   -> appendElem $ C.Set (valExpr a) (valExpr b)
+        Type.I64   -> appendElem $ C.Set (valExpr a) (valExpr b)
+        _ -> error (show base)
+
+
+adtEnum :: MonadGenerate m => Value -> m Value
+adtEnum obj = do
+    base@(Type.ADT fs) <- baseTypeOf obj
+    return $ Value I64 $ C.Member (valExpr obj) "en"
+
+
+member :: MonadGenerate m => Int -> Value -> m Value
+member i val = do
+    base <- baseTypeOf val
+    case base of
+        Type.Tuple ts -> return $ Value (ts !! i) $ C.Member (valExpr val) ("m" ++ show i)
+        Type.ADT fs   -> case fs !! i of
+            FieldNull -> fail "no val for null field"
+            FieldType t -> return $ Value t $ C.Member (valExpr val) ("u" ++ show i)
+            FieldCtor [] -> fail "no val for empty ctor"
+            FieldCtor [t] -> return $ Value t $ C.Member (valExpr val) ("u" ++ show i)
+            FieldCtor ts -> return $ Value (Type.Tuple ts) $ C.Member (valExpr val) ("u" ++ show i)
+
+
+subscript :: MonadGenerate m => Value -> Value -> m Value
+subscript val idx = do
+    base <- baseTypeOf val
+    baseIdx <- baseTypeOf idx
+    assert (isInt baseIdx) "idx type isn't integer"
+    case base of
+        Type.Array n t -> return $ Value t $ C.Subscript (C.Member (valExpr val) "arr") (valExpr idx)
+        Type.String -> return $ Value Type.Char $ C.Subscript (valExpr val) (valExpr idx)
+        Type.Table [t] -> return $ Value t $ C.Subscript (C.Member (valExpr val) "r0") (valExpr idx)
+
+            
+baseTypeOf :: (MonadGenerate m, Typeof a) => a -> m Type.Type
+baseTypeOf a = case typeof a of
+    Type.Typedef s -> baseTypeOf . (Map.! s) =<< gets typedefs
+    _ -> return (typeof a)
+    _ -> error (show $ typeof a)
+
+
+cParamOf :: MonadGenerate m => S.Param -> m C.Param
+cParamOf param = do
+    ctype <- cTypeOf (paramType param)
+    return $ C.Param { C.cName = show (paramName param), C.cType = ctype }
+
+
+cTypeOf :: (MonadGenerate m, Typeof a) => a -> m C.Type
+cTypeOf a = case typeof a of
+    I64 -> return $ Cint64_t
+    I32 -> return $ Cint32_t
+    I8 ->  return $ Cint8_t
+    U8 ->  return $ Cuint8_t
+    F64 -> return $ Cdouble
+    F32 -> return $ Cfloat
+    Void -> return Cvoid
+    Type.Bool -> return $ Cbool
+    Type.Char -> return $ Cchar
+    Type.Typedef s -> return $ Ctypedef (show s)
+    Type.String -> return $ Cpointer Cchar
+    Type.Array n t -> do
+        arr <- Carray n <$> cTypeOf t
+        getTypedef "array" $ Cstruct [C.Param "arr" arr]
+    Type.Tuple ts -> do
+        cts <- mapM cTypeOf ts
+        getTypedef "tuple" $ Cstruct $ zipWith (\a b -> C.Param ("m" ++ show a) b) [0..] cts
+    Type.Range t -> do
+        ct <- cTypeOf t
+        getTypedef "range" $ Cstruct [C.Param "min" ct, C.Param "max" ct]
+    Type.ADT fs -> do
+        cts <- mapM cTypeOf (map fieldType fs)
+        getTypedef "adt" $ Cstruct [C.Param "en" Cint64_t, C.Param "" $
+            Cunion $ map (\(ct, i) -> C.Param ("u" ++ show i) ct) (zip cts [0..])]
+    Type.Table ts -> do
+        cts <- mapM cTypeOf ts
+        let pts = zipWith (\ct i -> C.Param ("r" ++ show i) (Cpointer ct)) cts [0..]
+        getTypedef "table" $ Cstruct (C.Param "len" Cint64_t:C.Param "cap" Cint64_t:pts)
+
+    _ -> error (show $ typeof a)
+    where
+        fieldType f = case f of
+            FieldNull -> I8
+            FieldType t -> t
+            FieldCtor [t] -> t
+            FieldCtor ts -> Type.Tuple ts
 
 getTypedef :: MonadGenerate m => String -> C.Type -> m C.Type
 getTypedef suggestion typ = do
@@ -168,100 +316,6 @@ getTableAppendFunc typ = do
             modify $ \s -> s { tableAppendFuncs = Map.insert typ funcName (tableAppendFuncs s) }
             return funcName
 
-            
-baseTypeOf :: (MonadGenerate m, Typeof a) => a -> m Type.Type
-baseTypeOf a = case typeof a of
-    Type.Typedef s -> baseTypeOf . (Map.! s) =<< gets typedefs
-    _ -> return (typeof a)
-    _ -> error (show $ typeof a)
-
-
-cParamOf :: MonadGenerate m => S.Param -> m C.Param
-cParamOf param = do
-    ctype <- cTypeOf (paramType param)
-    return $ C.Param { C.cName = show (paramName param), C.cType = ctype }
-
-cTypeOf :: (MonadGenerate m, Typeof a) => a -> m C.Type
-cTypeOf a = case typeof a of
-    I64 -> return $ Cint64_t
-    I32 -> return $ Cint32_t
-    I8 ->  return $ Cint8_t
-    U8 ->  return $ Cuint8_t
-    F64 -> return $ Cdouble
-    F32 -> return $ Cfloat
-    Void -> return Cvoid
-    Type.Bool -> return $ Cbool
-    Type.Char -> return $ Cchar
-    Type.Typedef s -> return $ Ctypedef (show s)
-    Type.String -> return $ Cpointer Cchar
-    Type.Array n t -> do
-        arr <- Carray n <$> cTypeOf t
-        getTypedef "array" $ Cstruct [C.Param "arr" arr]
-    Type.Tuple ts -> do
-        cts <- mapM cTypeOf ts
-        getTypedef "tuple" $ Cstruct $ zipWith (\a b -> C.Param ("m" ++ show a) b) [0..] cts
-    Type.Range t -> do
-        ct <- cTypeOf t
-        getTypedef "range" $ Cstruct [C.Param "min" ct, C.Param "max" ct]
-    Type.ADT fs -> do
-        cts <- mapM cTypeOf (map fieldType fs)
-        getTypedef "adt" $ Cstruct [C.Param "en" Cint64_t, C.Param "" $
-            Cunion $ map (\(ct, i) -> C.Param ("u" ++ show i) ct) (zip cts [0..])]
-    Type.Table ts -> do
-        cts <- mapM cTypeOf ts
-        let pts = zipWith (\ct i -> C.Param ("r" ++ show i) (Cpointer ct)) cts [0..]
-        getTypedef "table" $ Cstruct (C.Param "len" Cint64_t:C.Param "cap" Cint64_t:pts)
-
-    _ -> error (show $ typeof a)
-    where
-        fieldType f = case f of
-            FieldNull -> I8
-            FieldType t -> t
-            FieldCtor [t] -> t
-            FieldCtor ts -> Type.Tuple ts
         
-
-getSymbolsOrderedByDependencies :: MonadGenerate m => Map.Map Symbol Type.Type -> m [Symbol]
-getSymbolsOrderedByDependencies typedefs = do
-    fmap (removeDuplicates . concat) . forM (Map.toList typedefs) $ \(s, t) -> do
-        symbols <- getSymbols t
-        return (symbols ++ [s])
-    where
-        getSymbols :: MonadGenerate m => Type.Type -> m [Symbol]
-        getSymbols typ = case typ of
-            Type.Typedef s -> do
-                symbols <- getSymbols (typedefs Map.! s)
-                return $ symbols ++ [s]
-            Type.Tuple ts  -> concat <$> mapM getSymbols ts
-            Table ts  -> concat <$> mapM getSymbols ts
-            Sparse ts  -> concat <$> mapM getSymbols ts
-            Type.Array n t -> getSymbols t
-            U8  -> return []
-            I64 -> return []
-            I32 -> return []
-            F64 -> return []
-            F32 -> return []
-            Type.ADT fs -> concat <$> mapM getSymbolsField fs
-            Type.Bool -> return []
-            _ -> error (show typ)
-
-        getSymbolsField :: MonadGenerate m => AdtField -> m [Symbol]
-        getSymbolsField field = case field of
-            FieldNull -> return []
-            FieldType t -> getSymbols t
-            FieldCtor ts -> concat <$> mapM getSymbols ts
-            _ -> error (show field)
-        
-        removeDuplicates :: Eq a => [a] -> [a]
-        removeDuplicates [] = []
-        removeDuplicates (x:xs)
-            | elem x xs = x:removeDuplicates (deleteAll x xs)
-            | otherwise = x:removeDuplicates xs
-
-        deleteAll :: Eq a => a -> [a] -> [a]
-        deleteAll a [] = []
-        deleteAll a (x:xs)
-            | a == x    = deleteAll a xs
-            | otherwise = x : deleteAll a xs
 
 

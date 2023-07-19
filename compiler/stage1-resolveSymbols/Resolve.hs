@@ -70,6 +70,8 @@ look symbol key = do
 
 -- TODO absolutely broken shite
 lookm :: BoM ResolveState m => Symbol -> SymKey -> m (Maybe Symbol)
+lookm (Sym sym) KeyVar = do
+    SymTab.lookup sym KeyVar <$> gets symTab
 lookm symbol key = case symbol of
     Sym sym -> do
         resm <- SymTab.lookup sym key <$> gets symTab

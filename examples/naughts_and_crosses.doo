@@ -7,7 +7,7 @@ type Square { Empty() | Naught() | Cross() }
 
 type Board [3 [3 Square]]
 
-fn String(sq Square)
+fn String(sq Square) string
     switch sq
         Empty(); return " "
         Naught(); return "O"

@@ -1,0 +1,118 @@
+module langTest
+
+import ../std/io
+
+
+fn assert(b bool)
+    ${ assert($b); }
+
+
+fn testNothing()
+    return
+
+fn test1Eq2()
+    let x = 1
+    let y = 2
+    assert(x != y)
+    assert(x == x)
+
+
+fn testTuplePattern()
+    let x = (1, false, (3, "true"))
+    let (_, false, (y, "true")) = x
+    assert(y == 3)
+
+
+// TODO test inside func block
+type enum { Enum0() | Enum1() | Enum2() }
+fn testEnumAdt()
+    let x = Enum1()
+    switch x
+        Enum0(); assert(false)
+        Enum2(); assert(false)
+        Enum1(); assert(true)
+        _; assert(false)
+
+fn testOneRow()
+    data x [i64]
+    x += [1, 2, 3, 4]
+    assert(len(x) == 4)
+    assert(x[0] == 1)
+    assert(x[3] == 4)
+    x += [34]
+    assert(len(x) == 5)
+    assert(x[4] == 34)
+
+fn testForString()
+    let s = "benisbongisb"
+    let count = 0
+    for s -> c
+        if c == 'b'; count = count + 1
+    assert(count == 3)
+
+fn testInfix()
+    let x = 10
+    let y = 3
+    assert((x + y) == 13)
+    assert((x * y) == 30)
+    assert((x - y) == 7)
+
+
+fn testIf()
+    data x [i64]
+    x += [0, 0, 0, 0]
+    if (1 == 1)
+        x[1] = 2
+        if (x[1] == 3)
+            x[3] = 4
+        else
+            x[2] = 3
+    else
+        x[0] = 1
+    assert(x[0] == 0)
+    assert(x[1] == 2)
+    assert(x[2] == 3)
+    assert(x[3] == 0)
+
+
+type Type string
+type ADT { Ctor0(i64, bool, string) | null | Type | Ctor1() | char }
+fn testADT()
+    // TODO leave it untyped?
+    let x = null:ADT
+    switch x
+        Ctor0(a, b, c); assert(false)
+        null; assert(true)
+
+    x = Ctor0(1, true, "benis")
+    switch x
+        null;                    assert(false)
+        Ctor1();                 assert(false)
+        Ctor0(1, _, "beni");     assert(false)
+        Ctor0(_, true, "benis"); assert(true)
+
+    x = conv('b')
+    switch x
+        char('c'); assert(false)
+        char(x) | x == 'b'; assert(true)
+        Type(s); assert(false)
+
+    x = conv(Type("bongis"))
+    switch x
+        Type("benis"); assert(false)
+        Type("bongis"); assert(true)
+
+
+
+
+fn {io Io} main()
+    testNothing()
+    test1Eq2()
+    testTuplePattern()
+    testEnumAdt()
+    testOneRow()
+    testForString()
+    testInfix()
+    testIf()
+    testADT()
+    io.putStrLn("finished")

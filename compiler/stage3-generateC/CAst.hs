@@ -70,6 +70,7 @@ data Operator
     | LTEq
     | GTEq
     | EqEq
+    | NotEq
     | Modulo
     | AndAnd
     deriving (Eq)
@@ -84,6 +85,7 @@ instance Show Operator where
     show LTEq = "<="
     show GTEq = ">="
     show EqEq = "=="
+    show NotEq = "!="
     show Modulo = "%"
     show AndAnd = "&&"
 

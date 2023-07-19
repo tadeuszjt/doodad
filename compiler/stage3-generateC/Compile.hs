@@ -17,64 +17,76 @@ import Symbol
 import Error
 
 
-arrSubscript :: Value -> Value -> Expression
-arrSubscript val idx = C.Subscript (C.Member (valExpr val) "arr") (valExpr idx)
 
-true :: Value
-true = Value Type.Bool (C.Bool True)
+getSymbolsOrderedByDependencies :: Monad m => Map.Map Symbol Type.Type -> m [Symbol]
+getSymbolsOrderedByDependencies typedefs = do
+    fmap (removeDuplicates . concat) . forM (Map.toList typedefs) $ \(s, t) -> do
+        symbols <- getSymbols t
+        return (symbols ++ [s])
+    where
+        getSymbols :: Monad m => Type.Type -> m [Symbol]
+        getSymbols typ = case typ of
+            x | isSimple x -> return []
+            Type.Typedef s -> do
+                symbols <- getSymbols (typedefs Map.! s)
+                return $ symbols ++ [s]
+            Type.Tuple ts  -> concat <$> mapM getSymbols ts
+            Table ts  -> concat <$> mapM getSymbols ts
+            Sparse ts  -> concat <$> mapM getSymbols ts
+            Type.Array n t -> getSymbols t
+            Type.ADT fs -> concat <$> mapM getSymbolsField fs
+            _ -> error (show typ)
 
-false :: Value
-false = Value Type.Bool (C.Bool False)
+        getSymbolsField :: Monad m => AdtField -> m [Symbol]
+        getSymbolsField field = case field of
+            FieldNull -> return []
+            FieldType t -> getSymbols t
+            FieldCtor ts -> concat <$> mapM getSymbols ts
+            _ -> error (show field)
+        
+        removeDuplicates :: Eq a => [a] -> [a]
+        removeDuplicates [] = []
+        removeDuplicates (x:xs)
+            | elem x xs = x:removeDuplicates (deleteAll x xs)
+            | otherwise = x:removeDuplicates xs
 
-
-i64 :: Int -> Value
-i64 n = Value I64 (C.Int $ fromIntegral n)
-
-not_ :: Value -> Value
-not_ (Value typ expr) = Value typ (C.Not expr)
-
-
-assignI64 :: MonadGenerate m => String -> Int -> m Value
-assignI64 suggestion n = do
-    name <- freshName suggestion
-    appendElem $ C.Assign Cint64_t name (C.Int $ fromIntegral n)
-    return $ Value I64 $ C.Ident name
-
-assignBool :: MonadGenerate m => String -> Bool -> m Value
-assignBool suggestion b = do
-    name <- freshName suggestion
-    appendElem $ C.Assign Cbool name (C.Bool b)
-    return $ Value Type.Bool $ C.Ident name
-
-assign :: MonadGenerate m => String -> Value -> m Value
-assign suggestion val = do
-    name <- freshName suggestion
-    ctyp <- cTypeOf (typeof val)
-    appendElem $ C.Assign ctyp name (valExpr val)
-    return $ Value (typeof val) $ C.Ident name
-
-
-if_ :: MonadGenerate m => Value -> m a -> m a
-if_ cnd f = do
-    base@(Type.Bool) <- baseTypeOf cnd
-    id <- appendIf (valExpr cnd)
-    withCurID id f
-
-
-call :: MonadGenerate m => String -> [Value] -> m () 
-call name args = do
-    void $ appendElem $ C.ExprStmt $ C.Call name (map valExpr args)
+        deleteAll :: Eq a => a -> [a] -> [a]
+        deleteAll a [] = []
+        deleteAll a (x:xs)
+            | a == x    = deleteAll a xs
+            | otherwise = x : deleteAll a xs
 
 
 
-set :: MonadGenerate m => Value -> Value -> m ()
-set a b = do
-    assert (typeof a == typeof b) "set: types don't match"
-    base <- baseTypeOf a
-    void $ case base of
-        Type.Bool -> appendElem $ C.Set (valExpr a) (valExpr b)
-        _ -> error (show base)
+generateAdtInit :: MonadGenerate m => Type.Type -> Value -> m Value
+generateAdtInit typ val = do
+    base@(Type.ADT fs) <- baseTypeOf typ
+    let field = Type.FieldType (typeof val)
+    assert (field `elem` fs) "TODO"
+    let i = fromJust $ elemIndex field fs
+    adt <- assign "adt" $ Value typ $ C.Initialiser [C.Int $ fromIntegral i]
+    un <- member i adt
+    set un val
+    return adt
 
+generateAdtEqual :: MonadGenerate m => Value -> Value -> m Value
+generateAdtEqual a b = do
+    assert (typeof a == typeof b) "types aren't equal"
+    base@(Type.ADT fs) <- baseTypeOf a
+
+    enA <- adtEnum a
+    enB <- adtEnum b
+    eq <- assign "adtEq" =<< generateInfix S.EqEq enA enB
+    
+    if_ eq $ do
+        switchId <- appendElem $ C.Switch (valExpr enA) []
+        withCurID switchId $ do
+            forM_ (zip fs [0..]) $ \(field, i) -> case field of
+                FieldNull -> return ()
+                FieldCtor [] -> return ()
+                -- set eq to false if we have a field to check
+
+    return eq
 
 generate :: MonadGenerate m => ResolvedAst -> m ()
 generate ast = do
@@ -110,13 +122,14 @@ generate ast = do
     forM_ (Map.toList $ funcDefs ast) $ \(symbol, func) -> do
         generateFunc symbol func
         when (sym symbol == "main") $ do
-            generateFunc (Sym "main") $ FuncBody
-                { States.funcArgs = []
-                , States.funcParams = []
-                , States.funcRetty = Type.Void
-                , States.funcStmts = [S.ExprStmt $ S.AExpr Type.Void $ S.Call undefined [] symbol []]
-                }
-
+            let typedef = Type.Typedef (SymResolved "io" "Io" 0)
+            id <- newFunction Cvoid "main" []
+            withCurID id $ case (States.funcParams func, States.funcArgs func) of
+                ([], []) -> call (show symbol) []
+                ([p], []) | typeof p == typedef -> do -- main with io
+                    io <- assign "io" $ Value typedef (C.Initialiser [])
+                    callWithParams [io] (show symbol) []
+            withCurID globalID (append id)
 
 
 generateFunc :: MonadGenerate m => Symbol -> FuncBody -> m ()
@@ -158,7 +171,7 @@ generatePrint app val = case typeof val of
         call "putchar" [Value Type.Char $ C.Char '(']
         forM_ (zip ts [0..]) $ \(t, i) -> do
             let end = i == length ts - 1
-            generatePrint (if end then "" else ", ") =<< generateTupleIndex val i
+            generatePrint (if end then "" else ", ") =<< member i val
         void $ appendPrintf (")" ++ app) []
 
     _ -> error (show $ typeof val)
@@ -227,7 +240,7 @@ generateStmt stmt = case stmt of
                     S.Array _ es -> do
                         appendFuncName <- getTableAppendFunc (typeof val1)
                         forM_ es $ \e -> do
-                            val2 <- generateExpr e
+                            val2 <- assign "val" =<< generateExpr e
                             assert (typeof val2 == t) "types do not match"
                             appendElem $ C.ExprStmt $ C.Call appendFuncName [ptrExpr val1, ptrExpr val2]
 
@@ -284,8 +297,8 @@ generateStmt stmt = case stmt of
                 Nothing -> return true
                 Just pat -> case base of
                     Type.Range I64 -> generatePattern pat idx
-                    Type.String    -> generatePattern pat (Value Type.Char $ C.Subscript (valExpr val) (valExpr idx))
-                    Type.Array n t -> generatePattern pat (Value t $ arrSubscript val idx)
+                    Type.String    -> generatePattern pat =<< subscript val idx
+                    Type.Array n t -> generatePattern pat =<< subscript val idx
 
             if_ (not_ patMatches) $ appendElem C.Break
             generateStmt stmt
@@ -293,12 +306,6 @@ generateStmt stmt = case stmt of
     _ -> error (show stmt)
 
 
-
-generateTupleIndex :: MonadGenerate m => Value -> Int -> m Value
-generateTupleIndex obj i = do
-    base@(Type.Tuple ts) <- baseTypeOf obj
-    case obj of
-        Value _ e   -> return $ Value (ts !! i) (C.Member e $ "m" ++ show i)
 
 
 -- creates an expression which may be used multiple times without side-effects
@@ -322,40 +329,6 @@ generateReentrantExpr obj = case obj of
         return $ Value t $ C.Ident name
 
 
-generateAdtEnum :: MonadGenerate m => Value -> m Value
-generateAdtEnum obj = do
-    base@(Type.ADT fs) <- baseTypeOf obj
-    return $ Value I64 $ C.Member (valExpr obj) "en"
-
-generateAdtInit :: MonadGenerate m => Type.Type -> Value -> m Value
-generateAdtInit typ val = do
-    base@(Type.ADT fs) <- baseTypeOf typ
-    let field = Type.FieldType (typeof val)
-    assert (field `elem` fs) "TODO"
-    let i = fromJust $ elemIndex field fs
-    adt <- assign "adt" $ Value typ $ C.Initialiser [C.Int $ fromIntegral i]
-    appendElem $ C.Set (C.Member (valExpr adt) ("u" ++ show i)) (valExpr val)
-    return adt
-
-generateAdtEqual :: MonadGenerate m => Value -> Value -> m Value
-generateAdtEqual a b = do
-    assert (typeof a == typeof b) "types aren't equal"
-    base@(Type.ADT fs) <- baseTypeOf a
-
-    enA <- generateAdtEnum a
-    enB <- generateAdtEnum b
-    eq <- assign "adtEq" =<< generateInfix S.EqEq enA enB
-    
-    if_ eq $ do
-        switchId <- appendElem $ C.Switch (valExpr enA) []
-        withCurID switchId $ do
-            forM_ (zip fs [0..]) $ \(field, i) -> case field of
-                FieldNull -> return ()
-                FieldCtor [] -> return ()
-                -- set eq to false if we have a field to check
-
-    return eq
-
 
 generatePattern :: MonadGenerate m => Pattern -> Value -> m Value
 generatePattern pattern val = do
@@ -368,7 +341,7 @@ generatePattern pattern val = do
                 Type.Array n t -> do -- TODO cheating
                     assert (n == length pats) "invalid number of patterns"
                     bs <- forM (zip pats [0..]) $ \(pat, i) -> do
-                        generatePattern pat $ Value t $ arrSubscript val (Value I64 $ C.Int $ fromIntegral i)
+                        generatePattern pat =<< subscript val (i64 i)
                     assign "match" $ Value Type.Bool (foldr1 (C.Infix C.AndAnd) $ map valExpr bs)
 
         PatIdent _ symbol -> do 
@@ -384,7 +357,7 @@ generatePattern pattern val = do
             base@(Type.Tuple ts) <- baseTypeOf val
             assert (length ts == length pats) "length mismatch"
             bs <- forM (zip pats [0..]) $ \(pat, i) -> do
-                generatePattern pat =<< generateTupleIndex val i
+                generatePattern pat =<< member i val
 
             -- TODO cheating
             assign "match" (Value Type.Bool (foldr1 (C.Infix C.AndAnd) $ map valExpr bs))
@@ -421,7 +394,7 @@ generatePattern pattern val = do
                     assert (length pats == 1) "invalid number of args"
                     return i
 
-            match <- assign "match" =<< generateInfix S.EqEq (i64 i) =<< generateAdtEnum val
+            match <- assign "match" =<< generateInfix S.EqEq (i64 i) =<< adtEnum val
             if_ (not_ match) $ appendElem $ C.Goto endLabel
             set match false
 
@@ -430,19 +403,21 @@ generatePattern pattern val = do
                     let FieldCtor ts = fs !! i
                     assert (length pats == length ts) "invalid number of args"
 
-                    forM_ (zip3 pats ts [0..]) $ \(pat, t, j) -> do
-                        patMatch <- generatePattern pat $ Value t $
-                            C.Member (C.Member (valExpr val) ("u" ++ show i)) ("m" ++ show j)
-                        if_ (not_ patMatch) $ appendElem (C.Goto endLabel)
+                    case ts of
+                        [] -> return ()
+                        [t] -> do
+                            patMatch <- generatePattern (head pats) =<< member i val
+                            if_ (not_ patMatch) $ void $ appendElem (C.Goto endLabel)
+                        ts -> do
+                            forM_ (zip pats [0..]) $ \(pat, j) -> do
+                                patMatch <- generatePattern pat =<< member j =<< member i val
+                                if_ (not_ patMatch) $ void $ appendElem (C.Goto endLabel)
 
                 (False, True) -> do
                     assert (length pats == 1) "invalid number of args"
-                    let typ = Type.Typedef symbol
-                    let pat = head pats
-
-                    patMatch <- generatePattern pat $ Value typ $
-                        C.Member (valExpr val) ("u" ++ show i)
+                    patMatch <- generatePattern (head pats) =<< member i val
                     if_ (not_ patMatch) $ void $ appendElem (C.Goto endLabel)
+
 
             set match true
             appendElem $ C.Label endLabel
@@ -452,7 +427,7 @@ generatePattern pattern val = do
             base@(Type.ADT fs) <- baseTypeOf val
             assert (Type.FieldNull `elem` fs) "ADT does not have a null field"
             let i = fromJust $ elemIndex Type.FieldNull fs
-            assign "matchNull" =<< generateInfix S.EqEq (i64 i) =<< generateAdtEnum val
+            assign "matchNull" =<< generateInfix S.EqEq (i64 i) =<< adtEnum val
 
         PatTypeField _ typ pat -> do
             base@(Type.ADT fs) <- baseTypeOf val
@@ -462,10 +437,10 @@ generatePattern pattern val = do
             let i = fromJust $ elemIndex field fs
             skip <- freshName "matchSkip"
 
-            match <- assign "matchNull" =<< generateInfix S.EqEq (i64 i) =<< generateAdtEnum val
+            match <- assign "matchNull" =<< generateInfix S.EqEq (i64 i) =<< adtEnum val
             if_ (not_ match) $ appendElem (C.Goto skip)
 
-            b <- generatePattern pat $ Value typ $ C.Member (valExpr val) ("u" ++ show i)
+            b <- generatePattern pat =<< member i val
             set match b
             appendElem $ C.Label skip
             return match
@@ -491,6 +466,7 @@ generateExpr (AExpr typ expr_) = withTypeCheck $ case expr_ of
                 assert (Type.FieldNull `elem` fs) "ADT type does not have a null"
                 let i = fromJust $ elemIndex Type.FieldNull fs
                 assign "adt" $ Value typ $ C.Initialiser [C.Int $ fromIntegral i]
+            _ -> error (show base)
 
     S.Prefix _ op a -> do
         val <- generateExpr a
@@ -537,6 +513,8 @@ generateExpr (AExpr typ expr_) = withTypeCheck $ case expr_ of
                 baseVal <- baseTypeOf val
                 case baseVal of
                     Type.Char -> return $ Value t $ C.Call "doodad_string_char" [valExpr val]
+                    Type.String -> return $ Value t (valExpr val)
+                    _ -> error (show baseVal)
 
             _ -> error (show base)
 
@@ -555,10 +533,10 @@ generateExpr (AExpr typ expr_) = withTypeCheck $ case expr_ of
         case base of
             Type.Array n t -> do
                 start <- case mexpr1 of
-                    Nothing -> return $ Value Type.I64 $ C.Int 0
+                    Nothing -> return (i64 0) 
 
                 end <- case mexpr2 of
-                    Nothing -> return $ Value Type.I64 $ C.Int (fromIntegral n)
+                    Nothing -> return (i64 n)
 
                 ctype <- cTypeOf typ
                 name <- freshName "range"
@@ -586,10 +564,9 @@ generateExpr (AExpr typ expr_) = withTypeCheck $ case expr_ of
                         assert (length vals == length ts) "invalid constructor"
 
                         adt <- assign "adt" $ Value typ (C.Initialiser [C.Int $ fromIntegral i]) -- TODO
-                        forM_ (zip vals [0..]) $ \(val, j) -> do
-                            appendElem $ C.Set
-                                (C.Member (C.Member (valExpr adt) ("u" ++ show i)) ("m" ++ show j))
-                                (valExpr val)
+                        forM_ (zip vals [0..]) $ \(v, j) -> do
+                            m <- member j =<< member i adt
+                            set m v
                         return adt
 
                     _ -> error (show $ fs !! i)
@@ -605,22 +582,14 @@ generateExpr (AExpr typ expr_) = withTypeCheck $ case expr_ of
     S.Subscript _ expr1 expr2 -> do
         val1 <- generateExpr expr1
         val2 <- generateExpr expr2
-        base <- baseTypeOf val1
-        case base of
-            Type.Array n t -> do return $ Value typ $ arrSubscript val1 val2
-            Type.String -> do
-                return $ Value typ $ C.Subscript (valExpr val1) (valExpr val2)
-            Type.Table [t] -> do
-                return $ Value typ $ C.Subscript (C.Member (valExpr val1) "r0") (valExpr val2)
-            _ -> error (show base)
+        subscript val1 =<< generateExpr expr2
 
-    _ -> error (show expr_)
     where
         withTypeCheck :: MonadGenerate m => m Value -> m Value
         withTypeCheck f = do
             r <- generateReentrantExpr =<< f
             assert (typeof r == typ) $ 
-                "generateExpr returned: " ++ show r ++ " but checked " ++ show typ
+                "generateExpr returned: " ++ show r ++ " but checked " ++ show typ ++ " for " ++ show expr_
             return r
             
 
@@ -628,7 +597,7 @@ generateExpr (AExpr typ expr_) = withTypeCheck $ case expr_ of
 
 generateInfix :: MonadGenerate m => S.Operator -> Value -> Value -> m Value
 generateInfix op a b = do
-    assert (typeof a == typeof b) "infix types do not match"
+    assert (typeof a == typeof b) $ "infix type mismatch: " ++ show (typeof a) ++ ", " ++ show (typeof b)
     base <- baseTypeOf a
     case base of
         Type.I64 -> return $ case op of
@@ -640,6 +609,7 @@ generateInfix op a b = do
             S.LTEq ->   Value Type.Bool $ C.Infix C.LTEq (valExpr a) (valExpr b)
             S.EqEq ->   Value Type.Bool $ C.Infix C.EqEq (valExpr a) (valExpr b)
             S.GTEq ->   Value Type.Bool $ C.Infix C.EqEq (valExpr a) (valExpr b)
+            S.NotEq ->  Value Type.Bool $ C.Infix C.NotEq (valExpr a) (valExpr b)
             _ -> error (show op)
 
         Type.Bool -> return $ case op of
@@ -668,8 +638,8 @@ generateInfix op a b = do
                     (Just (C.Increment $ valExpr idx))
                     []
                 withCurID forId $ do
-                    let elemA = Value t $ arrSubscript a idx
-                    let elemB = Value t $ arrSubscript b idx
+                    elemA <- subscript a idx
+                    elemB <- subscript b idx
                     b <- generateInfix S.EqEq elemA elemB
                     if_ (not_ b) $ do
                         set eq false
