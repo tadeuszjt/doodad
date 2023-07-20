@@ -106,10 +106,24 @@ fn testOneRow()
 
 fn testTwoRows()
     data x [i64; bool; string]
-    x += ( [1, 2], [true, false], ["benis", "bongis"] )
+    x += (
+        [1,       2]
+        [true,    false]
+        ["benis", "bongis"]
+    )
     switch x[0]
         (1, true, "benis"); assert(true)
     assert (len(x) == 2)
+
+
+fn testSubTable()
+    data x [bool; [i64]]
+    x += (
+        [true, false]
+        [ [1, 2], [3, 4] ]
+    )
+
+    let (false, [3, 4]) = x[1]
 
 
 fn {io Io} main()
@@ -123,4 +137,5 @@ fn {io Io} main()
     testADT()
     testOneRow()
     testTwoRows()
+    testSubTable()
     io.putStrLn("finished")

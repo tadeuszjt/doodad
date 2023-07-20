@@ -159,6 +159,13 @@ set a b = do
         _ -> error (show base)
 
 
+len :: MonadGenerate m => Value -> m Value
+len val = do
+    base <- baseTypeOf val
+    case base of
+        Table ts -> return $ Value I64 $ C.Member (valExpr val) "len"
+
+
 adtEnum :: MonadGenerate m => Value -> m Value
 adtEnum obj = do
     base@(Type.ADT fs) <- baseTypeOf obj

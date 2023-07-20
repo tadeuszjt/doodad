@@ -325,15 +325,29 @@ generatePattern :: MonadGenerate m => Pattern -> Value -> m Value
 generatePattern pattern val = do
     case pattern of
         PatIgnore _ -> return true
+        PatLiteral expr -> generateInfix S.EqEq val =<< generateExpr expr
 
         PatArray _ pats -> do   
             base <- baseTypeOf val
+            endLabel <- freshName "end"
+            match <- assign "match" false
+
+            -- check len
             case base of
-                Type.Array n t -> do -- TODO cheating
+                Type.Array n t -> do --[1, 2, 3]:[3 i64]
                     assert (n == length pats) "invalid number of patterns"
-                    bs <- forM (zip pats [0..]) $ \(pat, i) -> do
-                        generatePattern pat =<< subscript val (i64 i)
-                    assign "match" $ Value Type.Bool (foldr1 (C.Infix C.AndAnd) $ map valExpr bs)
+                Type.Table [t] -> do -- [1, 2, 3]:[i64]
+                    lenNotEq <- generateInfix S.NotEq (i64 $ length pats) =<< len val
+                    if_ lenNotEq $ void $ appendElem $ C.Goto endLabel
+
+            forM_ (zip pats [0..]) $ \(pat, i) -> do
+                b <- generatePattern pat =<< subscript val (i64 i)
+                if_ (not_ b) $ appendElem $ C.Goto endLabel
+                        
+            set match true
+            appendElem $ C.Label endLabel
+            return match
+
 
         PatIdent _ symbol -> do 
             let name = show symbol
@@ -342,19 +356,19 @@ generatePattern pattern val = do
             appendAssign cType (show symbol) (valExpr val)
             return true
 
-        PatLiteral expr -> generateInfix S.EqEq val =<< generateExpr expr
-
         PatTuple _ pats -> do
             base@(Type.Tuple ts) <- baseTypeOf val
-            assert (length ts == length pats) "length mismatch"
-            bs <- forM (zip pats [0..]) $ \(pat, i) -> do
-                generatePattern pat =<< member i val
+            endLabel <- freshName "end"
+            match <- assign "match" false
 
-            -- TODO cheating
-            assign "match" (Value Type.Bool (foldr1 (C.Infix C.AndAnd) $ map valExpr bs))
+            forM_ (zip pats [0..]) $ \(pat, i) -> do
+                b <- generatePattern pat =<< member i val
+                if_ (not_ b) $ appendElem $ C.Goto endLabel
+                        
+            set match true
+            appendElem $ C.Label endLabel
+            return match
 
-        PatArray _ [pats] -> do
-            error (show pats)
 
         PatGuarded _ pat expr Nothing -> do -- TODO
             match <- assign "match" =<< generatePattern pat val
@@ -408,7 +422,6 @@ generatePattern pattern val = do
                     patMatch <- generatePattern (head pats) =<< member i val
                     if_ (not_ patMatch) $ void $ appendElem (C.Goto endLabel)
 
-
             set match true
             appendElem $ C.Label endLabel
             return match
@@ -448,6 +461,7 @@ generateExpr (AExpr typ expr_) = withTypeCheck $ case expr_ of
     S.String _ s -> return $ Value typ $ C.String s
     S.Char _ c -> return $ Value typ $ C.Char c
     S.Match _ expr pattern -> generatePattern pattern =<< generateExpr expr
+    S.Builtin _ [] "len" [expr] -> len =<< generateExpr expr
 
     S.Null _ -> do
         base <- baseTypeOf typ
@@ -490,20 +504,12 @@ generateExpr (AExpr typ expr_) = withTypeCheck $ case expr_ of
                     ([ C.Member (valExpr $ head vals) "len"
                     , C.Member (valExpr $ head vals) "cap"] ++ ptrs))
 
-
                 return table
 
 
 
             _ -> assign "tuple" $ Value typ (C.Initialiser $ map valExpr vals)
 
-    S.Builtin _ [] "len" [expr] -> do
-        val <- generateExpr expr
-        base <- baseTypeOf val
-        case base of
-            Type.Array n t -> return $ Value typ $ C.Int (fromIntegral n)
-            Type.String    -> return $ Value typ $ C.Call "strlen" [valExpr val]
-            Type.Table ts  -> return $ Value typ $ C.Member (valExpr val) "len"
 
     S.Conv _ t [expr] -> do
         val <- generateExpr expr
