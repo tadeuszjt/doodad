@@ -160,6 +160,7 @@ fn testTupleInfix()
     assert((x + y) == (-3, "benis"))
     assert( (1, "benis") == (1, "benis") )
     assert( (1, "be!is") != (1, "benis") )
+    // comment at end of function
 
 
 fn {io Io} main()

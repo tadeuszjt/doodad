@@ -328,6 +328,7 @@ bool lex() { // returns false for EOF
     case STATE_COMMENT:
         if (c == '\n') {
             stackClear();
+            ungetChar(c);
             state = STATE_INIT;
         } else {
             stackPush(c);
@@ -380,13 +381,29 @@ bool lex() { // returns false for EOF
         break;
 
     case STATE_NEWLINE:
-        if (c == '\n' || c == ' ' || c == '\t') {
-            stackPush(c);
+        /* newline needs to be able to skip comments, otherwise multiple newline tokens get
+         * genereted. */
+        if (stack[stackLen - 1] == '/') {
+            if (c == '/') {
+                stackPop();
+                stackPush('#');
+            } else {
+                assert(false); // would not expect a different character after first /
+            }
+        } else if (stack[stackLen - 1] == '#') { // # means comment mode started
+            if (c == '\n') {
+                stackPop();
+                ungetChar(c);
+            }
         } else {
-            indent(strrchr(stack, '\n') + 1); // advance to character after last newline
-            stackClear();
-            state = STATE_INIT;
-            ungetChar(c);
+            if (c == '\n' || c == ' ' || c == '\t' || c == '/') {
+                stackPush(c);
+            } else {
+                indent(strrchr(stack, '\n') + 1); // advance to character after last newline
+                stackClear();
+                state = STATE_INIT;
+                ungetChar(c);
+            }
         }
         break;
 

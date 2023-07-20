@@ -523,8 +523,6 @@ generateExpr (AExpr typ expr_) = withTypeCheck $ case expr_ of
 
                 return table
 
-
-
             _ -> assign "tuple" $ Value typ (C.Initialiser $ map valExpr vals)
 
 
@@ -548,6 +546,7 @@ generateExpr (AExpr typ expr_) = withTypeCheck $ case expr_ of
             Type.F32 -> do
                 case baseVal of
                     Type.F64 -> return $ Value t $ C.Cast Cfloat (valExpr val)
+                    Type.I64 -> return $ Value t $ C.Cast Cfloat (valExpr val)
 
             _ -> error (show base)
 

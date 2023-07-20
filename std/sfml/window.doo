@@ -10,6 +10,8 @@ link csfml-system
 
 type Vec2f (x f32, y f32)
 
+type Rectf (min Vec2f, max Vec2f)
+
 type Vertex (position Vec2f, colour Colour, texCoords Vec2f)
 
 type Window i64
@@ -23,7 +25,7 @@ type Event {
 fn {w Window} create()
     ${
         sfVideoMode mode = {640, 480, 32};
-        sfRenderWindow *window = sfRenderWindow_create(mode, "benis", sfClose, NULL);
+        sfRenderWindow *window = sfRenderWindow_create(mode, "benis", sfClose | sfResize, NULL);
         assert(window != NULL);
         *$w = (int64_t)(window);
     }
@@ -35,6 +37,17 @@ fn {w Window} close()
 
 fn {w Window} destroy()
     ${ sfRenderWindow_close((sfRenderWindow*)(*$w)); }
+
+
+fn {w Window} getSize() (i64, i64)
+    let x = 0
+    let y = 0
+    ${
+        sfVector2u vec = sfRenderWindow_getSize((sfRenderWindow*)(*$w));
+        $x = vec.x;
+        $y = vec.y;
+    }
+    return (x, y)
 
 
 fn {w Window} clearWindow(colour Colour)
@@ -89,4 +102,13 @@ fn {w Window, vertices [[3 Vertex]]} drawPrimitives()
             sfTriangles,
             NULL
         );
+    }
+
+
+fn {w Window} setViewFromRect(rect Rectf)
+    let (l, t, r, b) = (rect.min.x, rect.min.y, rect.max.x, rect.max.y)
+    ${
+        sfFloatRect rect = {$l, $t, $r, $b};
+        sfView *view = sfView_createFromRect(rect);
+        sfRenderWindow_setView((sfRenderWindow*)(*$w), view);
     }
