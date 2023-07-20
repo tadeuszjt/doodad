@@ -236,34 +236,11 @@ generateStmt stmt = case stmt of
         assert (typeof val1 == t2) "types do not match"
         base <- baseTypeOf val1
         case base of
-            Table [t] -> case op of
-                S.PlusEq -> case expr2 of
-                    S.Array _ es -> do
-                        appendFuncName <- getTableAppendFunc (typeof val1)
-                        forM_ es $ \e -> do
-                            val2 <- assign "val" =<< generateExpr e
-                            assert (typeof val2 == t) "types do not match"
-                            appendElem $ C.ExprStmt $ C.Call
-                                appendFuncName
-                                ([ C.Address (valExpr val1), C.Int 1, C.Address $ valExpr val2])
-
-            Table ts -> case op of -- x += ( t0, t1 .. tn )
-                S.PlusEq -> case expr2 of
-                    S.Tuple _ es -> do
-                        appendFuncName <- getTableAppendFunc (typeof val1)
-                        assert (length ts == length es) "es ts"
-                        forM_ (zip3 ts es [0..]) $ \(t, e, row) -> do
-                            assert (typeof e == Table [t]) "table row types"
-
-                        vals <- mapM generateExpr es
-                        ptrs <- forM (zip vals [0..]) $ \(v, row) -> do
-                            return $ C.Member (valExpr v) "r0"
-                        appendElem $ C.ExprStmt $ C.Call
-                            appendFuncName
-                            ([ C.Address (valExpr (val1)) , C.Member (valExpr $ vals !! 0) "len" ] ++ ptrs)
-                        return ()
-                    
-                
+            Table ts -> case op of
+                S.PlusEq -> do
+                    appendFuncName <- getTableAppendFunc (typeof val1)
+                    val2 <- generateExpr (S.AExpr t2 expr2)
+                    callWithParams [val1, val2] appendFuncName []
             _ -> error (show base)
 
     S.While _ expr stmt -> do
@@ -500,7 +477,25 @@ generateExpr (AExpr typ expr_) = withTypeCheck $ case expr_ of
 
     S.Tuple _ exprs -> do
         vals <- mapM generateExpr exprs
-        assign "tuple" $ Value typ (C.Initialiser $ map valExpr vals)
+        base <- baseTypeOf typ
+        case base of
+            Type.Table ts -> do
+                assert (length ts == length exprs) "invalid table type"
+                ptrs <- forM (zip ts exprs) $ \(t, e) -> do
+                    v <- generateExpr e
+                    b <- baseTypeOf v
+                    assert (b == Table [t]) "invalid row type"
+                    return $ C.Member (valExpr v) "r0"
+                table <- assign "table" $ Value typ (C.Initialiser
+                    ([ C.Member (valExpr $ head vals) "len"
+                    , C.Member (valExpr $ head vals) "cap"] ++ ptrs))
+
+
+                return table
+
+
+
+            _ -> assign "tuple" $ Value typ (C.Initialiser $ map valExpr vals)
 
     S.Builtin _ [] "len" [expr] -> do
         val <- generateExpr expr

@@ -33,16 +33,6 @@ fn testEnumAdt()
         Enum1(); assert(true)
         _; assert(false)
 
-fn testOneRow()
-    data x [i64]
-    x += [1, 2, 3, 4]
-    assert(len(x) == 4)
-    assert(x[0] == 1)
-    assert(x[3] == 4)
-    x += [34]
-    assert(len(x) == 5)
-    assert(x[4] == 34)
-
 fn testForString()
     let s = "benisbongisb"
     let count = 0
@@ -103,13 +93,23 @@ fn testADT()
         Type("bongis"); assert(true)
 
 
-fn twoRows()
+fn testOneRow()
+    data x [i64]
+    x += [1, 2, 3, 4]
+    assert(x[0] == 1)
+    assert(x[3] == 4)
+    assert(len(x) == 4)
+    x += [5, 6]
+    assert(len(x) == 6)
+    assert(x[5] == 6)
+
+
+fn testTwoRows()
     data x [i64; bool; string]
     x += ( [1, 2], [true, false], ["benis", "bongis"] )
     switch x[0]
         (1, true, "benis"); assert(true)
-    assert (len(x) == 3)
-
+    assert (len(x) == 2)
 
 
 fn {io Io} main()
@@ -117,9 +117,10 @@ fn {io Io} main()
     test1Eq2()
     testTuplePattern()
     testEnumAdt()
-    testOneRow()
     testForString()
     testInfix()
     testIf()
     testADT()
+    testOneRow()
+    testTwoRows()
     io.putStrLn("finished")

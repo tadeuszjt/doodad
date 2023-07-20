@@ -265,66 +265,49 @@ getTableAppendFunc typ = do
         Just s -> return s
         Nothing -> do -- append multiple tables
             funcName <- freshName "doodad_table_append"
-            let elemNames = map (\i -> "row" ++ show i) [0..length ts - 1]
-
-            tableParam <- C.Param "table" . Cpointer <$> cTypeOf typ
-            tableParam2 <- C.Param "table" . Cpointer <$> cTypeOf typ
-            elemParams <- forM (zip elemNames ts) $ \(name, t) -> do
-                ctyp <- cTypeOf t
-                return $ C.Param name $ Cpointer ctyp
-            let lenParam = C.Param "len" Cint64_t
+            aParam <- C.Param "a" . Cpointer <$> cTypeOf typ
+            bParam <- C.Param "b" . Cpointer <$> cTypeOf typ
 
             -- create new function
-            funcId <- newFunction Cvoid funcName (tableParam : lenParam : elemParams)
+            funcId <- newFunction Cvoid funcName [aParam, bParam]
             withCurID globalID $ append funcId
             withCurID funcId $ do
-                let table = Value typ (C.Deref $ C.Ident "table")
-                let len = Value I64 (C.Ident "len")
-                let newLen = (C.Infix C.Plus (valExpr len) (C.Member (valExpr table) "len"))
-                realloc <- assign "needsRealloc" $ Value Type.Bool $
-                    C.Infix C.GTEq newLen (C.Member (valExpr table) "cap")
-                if_ realloc $ do
-                    appendElem $ C.Set
-                        (C.Member (valExpr table) "cap") 
-                        (C.Infix C.Times newLen (C.Int 2))
+                let a = C.Ident "a"
+                let b = C.Ident "b"
+                let len = C.PMember a "len"
+                let len2 = C.PMember b "len" 
+                let newLen = (C.Infix C.Plus len len2)
+                let cap = C.PMember a "cap"
+                
+                -- realloc if needed
+                if_ (Value Type.Bool $ C.Infix C.GTEq newLen cap) $ do
+                    appendElem $ C.Set cap (C.Infix C.Times newLen (C.Int 2))
                     forM_ (zip ts [0..]) $ \(t, row) -> do
                         appendElem $ C.Assign
                             (Cpointer Cvoid)
                             ("mem" ++ show row)
-                            (C.Call "GC_malloc" [C.Infix
-                                C.Times
-                                (C.Sizeof $ C.Deref $ C.Ident $ "row" ++ show row)
-                                (C.Member (valExpr table) "cap")])
+                            (C.Call "GC_malloc" [C.Infix C.Times cap (C.Sizeof $ C.Deref $ C.PMember a $ "r" ++ show row)])
                     forM_ (zip ts [0..]) $ \(t, row) -> do
                         appendElem $ C.ExprStmt $ C.Call "memcpy"
                             [ C.Ident ("mem" ++ show row)
-                            , C.Member (valExpr table) ("r" ++ show row)
-                            , C.Infix
-                                C.Times
-                                (C.Sizeof $ C.Deref $ C.Ident $ "row" ++ show row)
-                                (C.Member (valExpr table) "len")]
+                            , C.PMember a ("r" ++ show row)
+                            , C.Infix C.Times len (C.Sizeof $ C.Deref $ C.PMember a $ "r" ++ show row)]
                     forM_ (zip ts [0..]) $ \(t, row) -> do
-                        appendElem $ C.Set
-                            (C.Member (valExpr table) ("r" ++ show row))
-                            (C.Ident $ "mem" ++ show row)
+                        appendElem $ C.Set (C.PMember a ("r" ++ show row)) (C.Ident $ "mem" ++ show row)
 
+                -- append elements TODO use deep copy
                 idx <- assign "idx" (i64 0)
                 forId <- appendElem $ C.For
                     Nothing
-                    (Just $ C.Infix C.LT (valExpr idx) (valExpr len))
+                    (Just $ C.Infix C.LT (valExpr idx) len2)
                     (Just $ C.Increment $ valExpr idx)
                     []
-                -- TODO use deep copy
                 withCurID forId $ do
                     forM_ (zip ts [0..]) $ \(t, row) -> do
                         appendElem $ C.Set
-                            (C.Subscript (C.Member (valExpr table) $ "r" ++ show row) (C.Member (valExpr table) "len"))
-                            (C.Subscript (C.Ident $ "row" ++ show row) (valExpr idx))
-                    appendElem $ C.ExprStmt $ C.Increment $ C.Member (valExpr table) "len"
+                            (C.Subscript (C.PMember a $ "r" ++ show row) (C.PMember a "len"))
+                            (C.Subscript (C.PMember b $ "r" ++ show row) (valExpr idx))
+                    void $ appendElem $ C.ExprStmt $ C.Increment $ C.PMember a "len"
                     
-                    return ()
-
-                return ()
-
             modify $ \s -> s { tableAppendFuncs = Map.insert typ funcName (tableAppendFuncs s) }
             return funcName
