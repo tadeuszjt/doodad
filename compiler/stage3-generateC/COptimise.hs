@@ -21,7 +21,6 @@ modifyElem id f = do
 
 optimise :: BoM BuilderState m => m ()
 optimise = do
-    liftIO $ putStrLn "running optimisation pass..."
     elems <- Map.toList <$> gets elements
 
     forM_ elems $ \(id, elem) -> case elem of

@@ -216,9 +216,9 @@ generateStmt stmt = case stmt of
 
 
     S.ExprStmt (AExpr _ (S.Call _ exprs1 symbol exprs2)) -> do
-        objs1 <- mapM generateExpr exprs1
-        objs2 <- mapM generateExpr exprs2
-        void $ appendElem $ C.ExprStmt $ C.Call (show symbol) (map ptrExpr objs1 ++ map valExpr objs2)
+        params <- mapM generateExpr exprs1
+        args <- mapM generateExpr exprs2
+        callWithParams params (show symbol) args
 
     S.ExprStmt (AExpr _ (S.Builtin _ [] "print" exprs)) -> do
         vals <- mapM generateExpr exprs
@@ -229,6 +229,7 @@ generateStmt stmt = case stmt of
     S.SetOp _ S.Eq expr1 expr2 -> do
         val1 <- generateExpr expr1
         set val1 =<< generateExpr expr2
+
 
     S.SetOp _ op expr1 (S.AExpr t2 expr2) -> do
         val1 <- generateExpr expr1
@@ -242,12 +243,25 @@ generateStmt stmt = case stmt of
                         forM_ es $ \e -> do
                             val2 <- assign "val" =<< generateExpr e
                             assert (typeof val2 == t) "types do not match"
-                            appendElem $ C.ExprStmt $ C.Call appendFuncName [ptrExpr val1, ptrExpr val2]
+                            appendElem $ C.ExprStmt $ C.Call
+                                appendFuncName
+                                ([ C.Address (valExpr val1), C.Int 1, C.Address $ valExpr val2])
 
-            Table ts -> case op of
+            Table ts -> case op of -- x += ( t0, t1 .. tn )
                 S.PlusEq -> case expr2 of
                     S.Tuple _ es -> do
-                        error "don't know"
+                        appendFuncName <- getTableAppendFunc (typeof val1)
+                        assert (length ts == length es) "es ts"
+                        forM_ (zip3 ts es [0..]) $ \(t, e, row) -> do
+                            assert (typeof e == Table [t]) "table row types"
+
+                        vals <- mapM generateExpr es
+                        ptrs <- forM (zip vals [0..]) $ \(v, row) -> do
+                            return $ C.Member (valExpr v) "r0"
+                        appendElem $ C.ExprStmt $ C.Call
+                            appendFuncName
+                            ([ C.Address (valExpr (val1)) , C.Member (valExpr $ vals !! 0) "len" ] ++ ptrs)
+                        return ()
                     
                 
             _ -> error (show base)
@@ -402,7 +416,6 @@ generatePattern pattern val = do
                 (True, False) -> do
                     let FieldCtor ts = fs !! i
                     assert (length pats == length ts) "invalid number of args"
-
                     case ts of
                         [] -> return ()
                         [t] -> do
@@ -525,6 +538,16 @@ generateExpr (AExpr typ expr_) = withTypeCheck $ case expr_ of
                 assert (n == length exprs) "incorrect array length"
                 vals <- mapM generateExpr exprs
                 assign "array" $ Value typ (C.Initialiser $ map valExpr vals)
+
+            Type.Table [t] -> do
+                vals <- mapM generateExpr exprs
+                let len = length vals
+                array <- assign "tabMem" $ Value (Type.Array len t) $
+                    (C.Initialiser $ map valExpr vals)
+                assign "table" $ Value typ $
+                    C.Initialiser [C.Int (fromIntegral len), C.Int (fromIntegral len), C.Member (valExpr array) "arr"]
+
+
 
 
     S.Range _ (Just expr) mexpr1 mexpr2 -> do

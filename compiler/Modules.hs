@@ -191,6 +191,8 @@ buildModule' args modPath = do
             -- optimise
             let includePaths = includes resolved2
             if Args.optimise args then do
+                let level = 3
+                liftIO $ putStrLn $ "running " ++ show level ++ " optimisation passes..."
                 (_, cBuilderStateOptimised) <- runBoMTExcept
                     cBuilderState
                     (replicateM_ 3 O.optimise)

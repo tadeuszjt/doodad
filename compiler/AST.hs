@@ -300,6 +300,10 @@ prettyStmt pre stmt = case stmt of
         putStrLn ""
 
     Assign pos pat expr        -> putStrLn $ pre ++ "let " ++ show pat ++ " = " ++ show expr
+
+    SetOp _ op expr1 expr2 -> putStrLn $ pre ++ (show expr1) ++ " " ++ show op ++ " " ++ show expr2
+
+
     Return pos mexpr -> putStrLn $ pre ++ "return " ++ maybe "" show mexpr
 
     If pos cnd true mfalse -> do

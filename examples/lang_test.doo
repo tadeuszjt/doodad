@@ -103,6 +103,13 @@ fn testADT()
         Type("bongis"); assert(true)
 
 
+fn twoRows()
+    data x [i64; bool; string]
+    x += ( [1, 2], [true, false], ["benis", "bongis"] )
+    switch x[0]
+        (1, true, "benis"); assert(true)
+    assert (len(x) == 3)
+
 
 
 fn {io Io} main()

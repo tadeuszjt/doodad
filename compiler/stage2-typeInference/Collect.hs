@@ -233,6 +233,24 @@ collectStmt stmt = collectPos stmt $ case stmt of
         collectPattern pattern (typeof expr)
         collectExpr expr
 
+    -- only tables use +=, must be table
+    S.SetOp _ S.PlusEq expr1 expr2@(S.AExpr t2 (S.Tuple _ es)) -> do
+        case es of
+            [] -> fail "what"
+            [e] -> do
+                collectEq (typeof expr1) (typeof expr2)
+                collectExpr expr1
+                collectExpr expr2
+            es -> do
+                gts <- replicateM (length es) genType
+                collectBase (typeof expr1) $ Table gts
+                forM_ (zip es gts) $ \(e, t) -> do
+                    collectEq (typeof e) $ Table [t]
+                    collectExpr e
+                collectExpr expr1
+                collectEq (typeof expr2) (typeof expr1)
+        
+
     S.SetOp _ op expr1 expr2 -> do
         collectEq (typeof expr1) (typeof expr2)
         collectExpr expr1
