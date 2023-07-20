@@ -1,7 +1,6 @@
 module CAst where
 
 import Prelude hiding (LT, GT)
-
 import Data.List
 
 data Param
@@ -97,6 +96,7 @@ data Expression
     | Int Integer
     | Float Double
     | Infix Operator Expression Expression
+    | Prefix Operator Expression
     | String String
     | Char Char
     | Call String [Expression]
@@ -122,6 +122,7 @@ instance Show Expression where
     show (Call name exprs) = name ++ "(" ++ intercalate ", " (map show exprs) ++ ")"
     show (CndExpr c a b) = show c ++ " ? " ++ show a ++ " : " ++ show b
     show (Infix op a b) = "(" ++ show a ++ " " ++ show op ++ " " ++ show b ++ ")"
+    show (Prefix op a) = "(" ++ show op ++ " " ++ show a ++ ")"
     show (Initialiser es) = "{" ++ intercalate ", " (map show es) ++ "}"
     show (Member a b) = show a ++ "." ++ b
     show (PMember a b) = show a ++ "->" ++ b

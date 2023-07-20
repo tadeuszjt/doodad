@@ -127,7 +127,7 @@ generate ast = do
             withCurID id $ case (States.funcParams func, States.funcArgs func) of
                 ([], []) -> call (show symbol) []
                 ([p], []) | typeof p == typedef -> do -- main with io
-                    io <- assign "io" $ Value typedef (C.Initialiser [])
+                    io <- initialiser typedef []
                     callWithParams [io] (show symbol) []
             withCurID globalID (append id)
 
@@ -254,8 +254,8 @@ generateStmt stmt = case stmt of
 
     S.For _ expr mpat stmt -> do
         base <- baseTypeOf expr
-        idx <- assignI64 "idx" 0
-        first <- assignBool "first" True
+        idx <- assign "idx" (i64 0)
+        first <- assign "first" true
 
         id <- appendElem $ C.For Nothing Nothing (Just $ C.Increment (valExpr idx)) []
         withCurID id $ do
@@ -313,6 +313,7 @@ generateReentrantExpr (Value typ expr) = Value typ <$> reentrantExpr expr
             C.Deref e -> C.Deref <$> reentrantExpr e
             C.Address e -> C.Address <$> reentrantExpr e
             C.Cast t e -> C.Cast t <$> reentrantExpr e
+            C.Prefix op e -> C.Prefix op <$> reentrantExpr e
             C.Infix op e1 e2 -> do
                 e1' <- reentrantExpr e1
                 e2' <- reentrantExpr e2
@@ -337,7 +338,7 @@ generatePattern pattern val = do
 
         PatArray _ pats -> do   
             base <- baseTypeOf val
-            endLabel <- freshName "end"
+            endLabel <- fresh "end"
             match <- assign "match" false
 
             -- check len
@@ -366,7 +367,7 @@ generatePattern pattern val = do
 
         PatTuple _ pats -> do
             base@(Type.Tuple ts) <- baseTypeOf val
-            endLabel <- freshName "end"
+            endLabel <- fresh "end"
             match <- assign "match" false
 
             forM_ (zip pats [0..]) $ \(pat, i) -> do
@@ -376,7 +377,6 @@ generatePattern pattern val = do
             set match true
             appendElem $ C.Label endLabel
             return match
-
 
         PatGuarded _ pat expr Nothing -> do -- TODO
             match <- assign "match" =<< generatePattern pat val
@@ -388,7 +388,7 @@ generatePattern pattern val = do
             isCtor <- Map.member symbol <$> gets ctors
             isTypedef <- Map.member symbol <$> gets typedefs
 
-            endLabel <- freshName "skipMatch"
+            endLabel <- fresh "skipMatch"
 
             i <- case (isCtor, isTypedef) of
                 (True, False) -> do
@@ -446,13 +446,12 @@ generatePattern pattern val = do
             assert (field `elem` fs) "ADT does not have a type field"
 
             let i = fromJust $ elemIndex field fs
-            skip <- freshName "matchSkip"
+            skip <- fresh "matchSkip"
 
             match <- assign "matchNull" =<< generateInfix S.EqEq (i64 i) =<< adtEnum val
             if_ (not_ match) $ appendElem (C.Goto skip)
 
-            b <- generatePattern pat =<< member i val
-            set match b
+            set match =<< generatePattern pat =<< member i val
             appendElem $ C.Label skip
             return match
 
@@ -488,6 +487,8 @@ generateExpr (AExpr typ expr_) = withTypeCheck $ case expr_ of
                 S.Not -> return (not_ val)
             Type.I64 -> case op of
                 S.Minus -> generateInfix S.Minus (i64 0) val
+            Type.F32 -> case op of
+                S.Minus -> return $ Value (typeof val) $ C.Prefix C.Minus (valExpr val)
 
     S.Infix _ op a b -> do
         valA <- generateExpr a
@@ -510,6 +511,7 @@ generateExpr (AExpr typ expr_) = withTypeCheck $ case expr_ of
         vals <- mapM generateExpr exprs
         base <- baseTypeOf typ
         case base of
+            Type.Tuple ts -> initialiser typ vals -- TODO
             Type.Table ts -> do
                 assert (length ts == length exprs) "invalid table type"
                 ptrs <- forM (zip ts exprs) $ \(t, e) -> do
@@ -517,13 +519,10 @@ generateExpr (AExpr typ expr_) = withTypeCheck $ case expr_ of
                     b <- baseTypeOf v
                     assert (b == Table [t]) "invalid row type"
                     return $ C.Member (valExpr v) "r0"
-                table <- assign "table" $ Value typ (C.Initialiser
+
+                assign "table" $ Value typ (C.Initialiser
                     ([ C.Member (valExpr $ head vals) "len"
                     , C.Member (valExpr $ head vals) "cap"] ++ ptrs))
-
-                return table
-
-            _ -> assign "tuple" $ Value typ (C.Initialiser $ map valExpr vals)
 
 
     S.Conv _ t [expr] -> do
@@ -549,6 +548,7 @@ generateExpr (AExpr typ expr_) = withTypeCheck $ case expr_ of
                     Type.I64 -> return $ Value t $ C.Cast Cfloat (valExpr val)
 
             _ -> error (show base)
+    S.Conv _ _ es -> initialiser typ =<< mapM generateExpr es -- TODO
 
     S.Array _ exprs -> do
         base <- baseTypeOf typ
@@ -556,20 +556,18 @@ generateExpr (AExpr typ expr_) = withTypeCheck $ case expr_ of
             Type.Array n t -> do
                 assert (n == length exprs) "incorrect array length"
                 vals <- mapM generateExpr exprs
-                assign "array" $ Value typ (C.Initialiser $ map valExpr vals)
+                initialiser typ vals
 
             Type.Table [t] -> do
                 vals <- mapM generateExpr exprs
                 let len = length vals
-                array <- assign "tabMem" $ Value (Type.Array len t) $
-                    (C.Initialiser $ map valExpr vals)
+                array <- initialiser (Type.Array len t) vals
                 assign "table" $ Value typ $
                     C.Initialiser [C.Int (fromIntegral len), C.Int (fromIntegral len), C.Member (valExpr array) "arr"]
 
     S.Range _ (Just expr) mexpr1 mexpr2 -> do
         val <- generateExpr expr
         base <- baseTypeOf val
-
         start <- case base of
             Type.Array n t -> case mexpr1 of
                 Nothing -> return (i64 0)
@@ -580,15 +578,13 @@ generateExpr (AExpr typ expr_) = withTypeCheck $ case expr_ of
                 Nothing -> return (i64 n)
             Type.Table ts -> case mexpr2 of
                 Nothing -> len val
-
-        assign "range" $ Value typ (C.Initialiser [valExpr start, valExpr end])
-
+        initialiser typ [start, end]
 
     S.Range _ Nothing (Just expr1) (Just expr2) -> do
         val1 <- generateExpr expr1
         val2 <- generateExpr expr2
         assert (typeof val1 == typeof val2) "type mismatch"
-        assign "range" $ Value typ (C.Initialiser [valExpr val1, valExpr val2])
+        initialiser typ [val1, val2]
 
     S.Construct _ symbol exprs -> do
         base <- baseTypeOf typ
@@ -613,16 +609,10 @@ generateExpr (AExpr typ expr_) = withTypeCheck $ case expr_ of
 
             _ -> error (show typ)
 
-    S.Conv pos typ exprs -> do -- construct 0
-        vals <- mapM generateExpr exprs
-        case vals of
-            [] -> assign "zero" $ Value typ $ (C.Initialiser [C.Int 0])
-            _  -> assign "ctor" $ Value typ $ (C.Initialiser $ map valExpr vals)
-
     S.Subscript _ expr1 expr2 -> do
         val1 <- generateExpr expr1
         val2 <- generateExpr expr2
-        subscript val1 =<< generateExpr expr2
+        subscript val1 val2
 
     _ -> error (show expr_)
     where
@@ -634,37 +624,24 @@ generateExpr (AExpr typ expr_) = withTypeCheck $ case expr_ of
             return r
             
 
-
-
 generateInfix :: MonadGenerate m => S.Operator -> Value -> Value -> m Value
 generateInfix op a b = do
     assert (typeof a == typeof b) $ "infix type mismatch: " ++ show (typeof a) ++ ", " ++ show (typeof b)
     base <- baseTypeOf a
     case base of
-        Type.F64 -> return $ case op of
-            S.Plus ->   Value (typeof a) $ C.Infix C.Plus (valExpr a) (valExpr b) 
-            S.Times ->  Value (typeof a) $ C.Infix C.Times (valExpr a) (valExpr b) 
-            S.Minus ->  Value (typeof a) $ C.Infix C.Minus (valExpr a) (valExpr b)
-            S.Modulo -> Value (typeof a) $ C.Infix C.Modulo (valExpr a) (valExpr b)
-            S.LT ->     Value Type.Bool $ C.Infix C.LT (valExpr a) (valExpr b)
-            S.GT ->     Value Type.Bool $ C.Infix C.GT (valExpr a) (valExpr b)
-            S.LTEq ->   Value Type.Bool $ C.Infix C.LTEq (valExpr a) (valExpr b)
-            S.EqEq ->   Value Type.Bool $ C.Infix C.EqEq (valExpr a) (valExpr b)
-            S.GTEq ->   Value Type.Bool $ C.Infix C.EqEq (valExpr a) (valExpr b)
-            S.NotEq ->  Value Type.Bool $ C.Infix C.NotEq (valExpr a) (valExpr b)
-            _ -> error (show op)
-
-        Type.I64 -> return $ case op of
-            S.Plus ->   Value (typeof a) $ C.Infix C.Plus (valExpr a) (valExpr b) 
-            S.Times ->  Value (typeof a) $ C.Infix C.Times (valExpr a) (valExpr b) 
-            S.Minus ->  Value (typeof a) $ C.Infix C.Minus (valExpr a) (valExpr b)
-            S.Modulo -> Value (typeof a) $ C.Infix C.Modulo (valExpr a) (valExpr b)
-            S.LT ->     Value Type.Bool $ C.Infix C.LT (valExpr a) (valExpr b)
-            S.LTEq ->   Value Type.Bool $ C.Infix C.LTEq (valExpr a) (valExpr b)
-            S.EqEq ->   Value Type.Bool $ C.Infix C.EqEq (valExpr a) (valExpr b)
-            S.GTEq ->   Value Type.Bool $ C.Infix C.EqEq (valExpr a) (valExpr b)
-            S.NotEq ->  Value Type.Bool $ C.Infix C.NotEq (valExpr a) (valExpr b)
-            _ -> error (show op)
+        _ | base `elem` [Type.I8, Type.I16, Type.I32, Type.I64, Type.U8, Type.F32, Type.F64] ->
+            return $ case op of
+                S.Plus ->   Value (typeof a) $ C.Infix C.Plus (valExpr a) (valExpr b) 
+                S.Times ->  Value (typeof a) $ C.Infix C.Times (valExpr a) (valExpr b) 
+                S.Minus ->  Value (typeof a) $ C.Infix C.Minus (valExpr a) (valExpr b)
+                S.Modulo -> Value (typeof a) $ C.Infix C.Modulo (valExpr a) (valExpr b)
+                S.LT ->     Value Type.Bool $ C.Infix C.LT (valExpr a) (valExpr b)
+                S.GT ->     Value Type.Bool $ C.Infix C.GT (valExpr a) (valExpr b)
+                S.LTEq ->   Value Type.Bool $ C.Infix C.LTEq (valExpr a) (valExpr b)
+                S.EqEq ->   Value Type.Bool $ C.Infix C.EqEq (valExpr a) (valExpr b)
+                S.GTEq ->   Value Type.Bool $ C.Infix C.EqEq (valExpr a) (valExpr b)
+                S.NotEq ->  Value Type.Bool $ C.Infix C.NotEq (valExpr a) (valExpr b)
+                _ -> error (show op)
 
         Type.Bool -> return $ case op of
             S.AndAnd -> Value (typeof a) $ C.Infix C.AndAnd (valExpr a) (valExpr b)
@@ -682,8 +659,9 @@ generateInfix op a b = do
             _ -> error (show op)
 
         Type.Tuple ts -> case op of
+            S.NotEq -> not_ <$> generateInfix S.EqEq a b
             S.EqEq -> do
-                end <- freshName "end" 
+                end <- fresh "end" 
                 eq <- assign "eq" false
                 forM_ (zip ts [0..]) $ \(t, i) -> do
                     ma <- member i a
@@ -693,29 +671,18 @@ generateInfix op a b = do
                 set eq true
                 appendElem $ C.Label end
                 return eq
-            S.NotEq -> do
-                end <- freshName "end" 
-                eq <- assign "eq" false
-                forM_ (zip ts [0..]) $ \(t, i) -> do
-                    ma <- member i a
-                    mb <- member i b
-                    b <- generateInfix S.EqEq ma mb
-                    if_ (not_ b) $ appendElem $ C.Goto end
-                set eq true
-                appendElem $ C.Label end
-                return (not_ eq)
 
             S.Plus -> do
                 vals <- forM (zip ts [0..]) $ \(t, i) -> do
                     ma <- member i a
                     mb <- member i b
                     generateInfix op ma mb
-                assign "infix" $ Value (Type.Tuple $ map typeof vals) $ C.Initialiser (map valExpr vals)
+                initialiser (typeof a) vals
 
         Type.Array n t -> case op of
             S.EqEq -> do
-                idx <- assignI64 "idx" 0
-                eq <- assignBool "eq" True
+                idx <- assign "idx" (i64 0)
+                eq <- assign "eq" true
 
                 forId <- appendElem $ C.For
                     Nothing

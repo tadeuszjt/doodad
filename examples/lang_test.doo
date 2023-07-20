@@ -163,6 +163,14 @@ fn testTupleInfix()
     // comment at end of function
 
 
+type Tuple (f32, string)
+fn testTypedInfix()
+    let x = Tuple()
+    x = x + (3, "benis")
+    assert(x == (3, "benis"))
+    assert(x != (3, "b!nis"))
+
+
 fn {io Io} main()
     testNothing()
     test1Eq2()
@@ -179,4 +187,5 @@ fn {io Io} main()
     testParamsChange()
     testFloats()
     testTupleInfix()
+    testTypedInfix()
     io.putStrLn("finished")

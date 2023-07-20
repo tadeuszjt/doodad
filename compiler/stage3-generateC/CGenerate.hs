@@ -87,8 +87,8 @@ look :: MonadGenerate m => String -> m Value
 look str = (Map.! str) <$> gets symTab
 
 
-freshName :: MonadGenerate m => String -> m String
-freshName suggestion = do
+fresh :: MonadGenerate m => String -> m String
+fresh suggestion = do
     nm <- Map.lookup suggestion <$> gets supply
     let n = maybe 0 id nm
     modify $ \s -> s { supply = Map.insert suggestion (n + 1) (supply s) }
@@ -108,21 +108,9 @@ not_ :: Value -> Value
 not_ (Value typ expr) = Value typ (C.Not expr)
 
 
-assignI64 :: MonadGenerate m => String -> Int -> m Value
-assignI64 suggestion n = do
-    name <- freshName suggestion
-    appendElem $ C.Assign Cint64_t name (C.Int $ fromIntegral n)
-    return $ Value I64 $ C.Ident name
-
-assignBool :: MonadGenerate m => String -> Bool -> m Value
-assignBool suggestion b = do
-    name <- freshName suggestion
-    appendElem $ C.Assign Cbool name (C.Bool b)
-    return $ Value Type.Bool $ C.Ident name
-
 assign :: MonadGenerate m => String -> Value -> m Value
 assign suggestion val = do
-    name <- freshName suggestion
+    name <- fresh suggestion
     ctyp <- cTypeOf (typeof val)
     appendElem $ C.Assign ctyp name (valExpr val)
     return $ Value (typeof val) $ C.Ident name
@@ -151,13 +139,9 @@ set a b = do
     assert (typeof a == typeof b) "set: types don't match"
     base <- baseTypeOf a
     void $ case base of
-        Type.Bool -> appendElem $ C.Set (valExpr a) (valExpr b)
+        _ | isSimple base -> appendElem $ C.Set (valExpr a) (valExpr b)
         Type.ADT fs -> appendElem $ C.Set (valExpr a) (valExpr b)
-        Type.String -> appendElem $ C.Set (valExpr a) (valExpr b)
-        Type.Char   -> appendElem $ C.Set (valExpr a) (valExpr b)
-        Type.I64   -> appendElem $ C.Set (valExpr a) (valExpr b)
-        Type.F32   -> appendElem $ C.Set (valExpr a) (valExpr b)
-        Type.F64   -> appendElem $ C.Set (valExpr a) (valExpr b)
+        Type.Tuple ts | all isSimple ts -> appendElem $ C.Set (valExpr a) (valExpr b)
         _ -> error (show base)
 
 
@@ -191,6 +175,27 @@ member i val = do
             FieldCtor [] -> fail "no val for empty ctor"
             FieldCtor [t] -> return $ Value t $ C.Member (valExpr val) ("u" ++ show i)
             FieldCtor ts -> return $ Value (Type.Tuple ts) $ C.Member (valExpr val) ("u" ++ show i)
+
+
+initialiser :: MonadGenerate m => Type.Type -> [Value] -> m Value
+initialiser typ [] = do
+    base <- baseTypeOf typ
+    case base of
+        Type.Tuple [] -> assign "zero" $ Value typ $ C.Initialiser []
+        _             -> assign "zero" $ Value typ $ C.Initialiser [C.Int 0]
+initialiser typ vals = do
+    base <- baseTypeOf typ
+    case base of
+        Type.Tuple ts -> do
+            assert (length ts == length vals) "initialiser length"
+            assign "tuple" $ Value typ $ C.Initialiser (map valExpr vals)
+        Type.Array n t -> do
+            assert (length vals == n) "initialiser length"
+            assign "array" $ Value typ $ C.Initialiser (map valExpr vals)
+        Type.Range t -> do
+            assert (map typeof vals == [t, t]) "initialiser types"
+            assign "range" $ Value typ $ C.Initialiser (map valExpr vals)
+        _ -> error (show base)
 
 
 subscript :: MonadGenerate m => Value -> Value -> m Value
@@ -266,7 +271,7 @@ getTypedef suggestion typ = do
     case sm of
         Just s -> return $ Ctypedef s
         Nothing -> do
-            name <- freshName suggestion
+            name <- fresh suggestion
             newTypedef typ name
             modify $ \s -> s { tuples = Map.insert typ name (tuples s) }
             return $ Ctypedef name
@@ -279,7 +284,7 @@ getTableAppendFunc typ = do
     case fm of
         Just s -> return s
         Nothing -> do -- append multiple tables
-            funcName <- freshName "doodad_table_append"
+            funcName <- fresh "doodad_table_append"
             aParam <- C.Param "a" . Cpointer <$> cTypeOf typ
             bParam <- C.Param "b" . Cpointer <$> cTypeOf typ
 

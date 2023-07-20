@@ -9,6 +9,12 @@ char *doodad_string_alloc(size_t len) {
 }
 
 char *doodad_string_plus(char *a, char *b) {
+    if (a == NULL) {
+        return b;
+    } else if (b == NULL) { 
+        return a;
+    }
+
     int64_t length = strlen(a) + strlen(b);
     if (length == 0) {
         return NULL;
