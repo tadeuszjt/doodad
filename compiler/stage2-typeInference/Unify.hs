@@ -52,6 +52,7 @@ unifyOne pos constraint = withPos pos $ case constraint of
         basem <- baseTypeOf agg
         case basem of
             Just (Tuple ts) -> unifyOne pos (ConsEq t $ ts !! i)
+            Just (Table ts) -> unifyOne pos (ConsEq t $ Table [ts !! i])
             _               -> return []
 
     ConsMember t1 i t2 -> do

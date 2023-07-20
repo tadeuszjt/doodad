@@ -26,20 +26,20 @@ optimise = do
     forM_ elems $ \(id, elem) -> case elem of
         -- empty switch
         Switch expr [] -> do modifyElem id $ \_ -> return $ ExprStmt expr
-        Assign a b expr -> do modifyElem id $ \_ -> Assign a b <$> optimiseExpr expr
+        Assign a b expr -> do modifyElem id $ \_ -> return $ Assign a b (optimiseExpr expr)
 
         If expr stmts -> do
-            expr' <- optimiseExpr expr
+            expr' <- return $ optimiseExpr expr
             stmts' <- optimiseStmts stmts
             modifyElem id $ \_ -> return $ If expr' stmts'
 
         For mpre mcnd mpost stmts -> do
-            mpre' <- maybe (return Nothing) (fmap Just . optimiseExpr) mpre
+            mpre' <- return $ maybe (Nothing) (Just . optimiseExpr) mpre
             stmts' <- optimiseStmts stmts
             modifyElem id $ \_ -> return $ For mpre' mcnd mpost stmts'
 
         Case expr stmts -> do
-            expr' <- optimiseExpr expr
+            expr' <- return $ optimiseExpr expr
             stmts' <- optimiseStmts stmts
             modifyElem id $ \_ -> return $ Case expr' stmts'
         
@@ -88,12 +88,31 @@ optimiseStmtPairs (x:y:xs) = do
 
 
 
-optimiseExpr :: BoM BuilderState m => Expression -> m Expression
+optimiseExpr :: Expression -> Expression
 optimiseExpr expr = case expr of
-    Not (Bool b)               -> return (Bool $ not b)
-    Infix AndAnd (Bool True) e -> return e
-    Infix AndAnd e (Bool True) -> return e
-    _ -> return expr
+    Not (Bool b)               -> (Bool $ not b)
+    Not (Not e)                -> optimiseExpr e
+    Not (Infix EqEq e1 e2)     -> optimiseExpr (Infix NotEq e1 e2)
+    Infix AndAnd (Bool True) e -> optimiseExpr e
+    Infix AndAnd e (Bool True) -> optimiseExpr e
+    Infix EqEq e (Bool True)   -> optimiseExpr e
+    Infix EqEq (Bool True) e   -> optimiseExpr e
+    Infix EqEq e (Bool False)  -> optimiseExpr $ Not e
+    Infix EqEq (Bool False) e  -> optimiseExpr $ Not e
+
+    Infix NotEq e (Bool True)  -> optimiseExpr (Not e)
+    Infix NotEq (Bool True) e  -> optimiseExpr (Not e)
+    Infix NotEq e (Bool False) -> optimiseExpr e
+    Infix NotEq (Bool False) e -> optimiseExpr e
+    Address (Deref e)          -> optimiseExpr e
+    Deref (Address e)          -> optimiseExpr e
+    Member (Deref e) str       -> PMember (optimiseExpr e) str
+    PMember (Address e) str    -> Member (optimiseExpr e) str
+
+    Not e -> Not (optimiseExpr e)
+    Infix op e1 e2 -> Infix op (optimiseExpr e1) (optimiseExpr e2)
+
+    _ -> expr
 
 
 elemDeleteable :: Element -> Bool

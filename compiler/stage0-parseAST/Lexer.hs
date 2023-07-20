@@ -53,8 +53,10 @@ lexFile printTokens filename = do
                 return $ Token pos Dedent ""
             l | isPrefixOf "symbol: " l -> do
                 return $ Token pos TokSym (fromJust $ stripPrefix "symbol: " l)
-            l | isPrefixOf "number: " l -> do
-                return $ Token pos Int (fromJust $ stripPrefix "number: " l)
+            l | isPrefixOf "integer: " l -> do
+                return $ Token pos Int (fromJust $ stripPrefix "integer: " l)
+            l | isPrefixOf "float: " l -> do
+                return $ Token pos Float (fromJust $ stripPrefix "float: " l)
             l | isPrefixOf "string: " l -> do
                 return $ Token pos String (fromJust $ stripPrefix "string: " l)
             l | isPrefixOf "char: " l -> do

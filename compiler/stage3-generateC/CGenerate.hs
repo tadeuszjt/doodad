@@ -156,6 +156,8 @@ set a b = do
         Type.String -> appendElem $ C.Set (valExpr a) (valExpr b)
         Type.Char   -> appendElem $ C.Set (valExpr a) (valExpr b)
         Type.I64   -> appendElem $ C.Set (valExpr a) (valExpr b)
+        Type.F32   -> appendElem $ C.Set (valExpr a) (valExpr b)
+        Type.F64   -> appendElem $ C.Set (valExpr a) (valExpr b)
         _ -> error (show base)
 
 
@@ -163,7 +165,9 @@ len :: MonadGenerate m => Value -> m Value
 len val = do
     base <- baseTypeOf val
     case base of
-        Table ts -> return $ Value I64 $ C.Member (valExpr val) "len"
+        Table ts    -> return $ Value I64 $ C.Member (valExpr val) "len"
+        Type.String -> return $ Value I64 $ C.Call "strlen" [valExpr val]
+        _ -> error (show base)
 
 
 adtEnum :: MonadGenerate m => Value -> m Value
@@ -176,6 +180,10 @@ member :: MonadGenerate m => Int -> Value -> m Value
 member i val = do
     base <- baseTypeOf val
     case base of
+        Type.Table ts -> assign "row" $ Value (Type.Table [ts !! i]) $ C.Initialiser
+            [ C.Member (valExpr val) "len"
+            , C.Member (valExpr val) "cap"
+            , C.Member (valExpr val) ("r" ++ show i)]
         Type.Tuple ts -> return $ Value (ts !! i) $ C.Member (valExpr val) ("m" ++ show i)
         Type.ADT fs   -> case fs !! i of
             FieldNull -> fail "no val for null field"

@@ -79,3 +79,14 @@ fn {w Window, vertices [Vertex]} drawPrimitives()
             NULL
         );
     }
+
+fn {w Window, vertices [[3 Vertex]]} drawPrimitives()
+    ${
+        sfRenderWindow_drawPrimitives(
+            (sfRenderWindow*)*$w,
+            (const sfVertex *)$vertices->r0,
+            $vertices->len * 3,
+            sfTriangles,
+            NULL
+        );
+    }

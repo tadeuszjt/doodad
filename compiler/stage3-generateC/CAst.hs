@@ -67,6 +67,7 @@ data Operator
     | Minus
     | Divide
     | LT
+    | GT
     | LTEq
     | GTEq
     | EqEq
@@ -82,6 +83,7 @@ instance Show Operator where
     show Minus = "-"
     show Divide = "/"
     show LT = "<"
+    show GT = ">"
     show LTEq = "<="
     show GTEq = ">="
     show EqEq = "=="
@@ -108,6 +110,7 @@ data Expression
     | Address Expression
     | Not Expression
     | Sizeof Expression
+    | Cast Type Expression
     deriving (Eq)
 
 instance Show Expression where
@@ -129,6 +132,7 @@ instance Show Expression where
     show (Not e) = "!" ++ show e
     show (Char c) = show c
     show (Sizeof e) = "sizeof(" ++ show e ++ ")"
+    show (Cast t e) = "(" ++ show t ++ ")(" ++ show e ++ ")"
 
 data ID =
     ID Int

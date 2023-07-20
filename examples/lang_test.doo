@@ -122,8 +122,44 @@ fn testSubTable()
         [true, false]
         [ [1, 2], [3, 4] ]
     )
-
     let (false, [3, 4]) = x[1]
+
+
+type Table [nums i64; bools bool]
+fn testNamedTableArgs()
+    data x Table
+    x += (
+        [1, 2, 3]
+        [true, false, true]
+    )
+
+    let sum = 0
+    for x.nums -> num
+        sum = sum + num
+
+    let [true, false, true] = x.bools
+    assert(sum == 6)
+
+fn testParamsChange()
+    let x = 2
+    fn {x i64} addOne()
+        x = x + 1
+    x.addOne()
+    assert(x == 3)
+
+
+fn testFloats()
+    let x = 0.1
+    x = x + 0.01
+    assert(x > 0.105 && x < 0.112)
+
+
+fn testTupleInfix()
+    let x = (1, "be")
+    let y = (-4, "nis")
+    assert((x + y) == (-3, "benis"))
+    assert( (1, "benis") == (1, "benis") )
+    assert( (1, "be!is") != (1, "benis") )
 
 
 fn {io Io} main()
@@ -138,4 +174,8 @@ fn {io Io} main()
     testOneRow()
     testTwoRows()
     testSubTable()
+    testNamedTableArgs()
+    testParamsChange()
+    testFloats()
+    testTupleInfix()
     io.putStrLn("finished")

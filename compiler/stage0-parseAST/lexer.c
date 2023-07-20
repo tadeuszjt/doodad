@@ -293,10 +293,16 @@ bool lex() { // returns false for EOF
 
     case STATE_NUMBER:
         if (isdigit(c) || c == '.') {
-            assert (strchr(stack, '.') == NULL);
+            if (c == '.') {
+                assert (strchr(stack, '.') == NULL);
+            }
             stackPush(c);
         } else {
-            printToken("number: %s\n", stack);
+            if (strchr(stack, '.') == NULL) {
+                printToken("integer: %s\n", stack);
+            } else {
+                printToken("float: %s\n", stack);
+            }
             stackClear();
 
             state = STATE_INIT;
