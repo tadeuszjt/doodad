@@ -164,11 +164,8 @@ buildModule' args modPath = do
             Flatten.checkTypeDefs (typeDefs resolvedAST)
             when (printAstResolved args) $ liftIO $ prettyResolvedAst resolvedAST
 
-            debug "annotating ast"
-            annotatedAST <- fmap fst $ withErrorPrefix "annotate: " $
-                runBoMTExcept 0 $ annotate resolvedAST
-            when (printAstAnnotated args) $ liftIO $ prettyResolvedAst annotatedAST
-            astInferred <- withErrorPrefix "infer: " $ infer annotatedAST (verbose args)
+            astInferred <- withErrorPrefix "infer: " $ infer resolvedAST (verbose args)
+            when (printAstInferred args) $ liftIO $ prettyResolvedAst astInferred
 
 
             debug "resolve2"

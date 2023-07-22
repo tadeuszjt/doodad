@@ -16,17 +16,20 @@ import Unify
 import Collect
 import qualified Resolve
 import States
+import Annotate
 
 
 -- Takes a resolved and annotated ast and inferes all types.
 infer :: BoM s m => ResolvedAst -> Bool -> m ResolvedAst
-infer ast verbose = fst <$> recursiveInfer ast
+infer resolvedAST verbose = do 
+    (ast, count) <- withErrorPrefix "annotate: " $ runBoMTExcept 0 $ annotate resolvedAST
+    fst <$> recursiveInfer count ast
     where
-        recursiveInfer :: BoM s m => ResolvedAst -> m (ResolvedAst, Int)
-        recursiveInfer ast = do
+        recursiveInfer :: BoM s m => Int -> ResolvedAst -> m (ResolvedAst, Int)
+        recursiveInfer count ast = do
             -- run collect to get collect state containing type constraints
             (_, state) <- withErrorPrefix "collect: " $
-                runBoMTExcept initCollectState (collectAST ast)
+                runBoMTExcept (initCollectState count) (collectAST ast)
             
             -- turn type constraints into substitutions using unify
             let sos     = SymTab.lookupKey Collect.KeyType (symTab state)
@@ -44,8 +47,8 @@ infer ast verbose = fst <$> recursiveInfer ast
                 if defaultedAst == subbedAst then do
                     return (defaultedAst, 1)
                 else do
-                    (subbedAst', n) <- recursiveInfer defaultedAst 
+                    (subbedAst', n) <- recursiveInfer count defaultedAst 
                     return (subbedAst', n + 1)
             else do
-                (subbedAst', n) <- recursiveInfer subbedAst
+                (subbedAst', n) <- recursiveInfer count subbedAst
                 return (subbedAst', n + 1)

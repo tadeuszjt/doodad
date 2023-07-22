@@ -226,6 +226,18 @@ fn testTableSetElems()
     let ["benis", "bongis!"] = x.name
 
 
+fn testLexerTwoDots()
+    let x = [0..3]
+
+
+fn testConst()
+    const c = (1, 2, [1, 3])
+    let x:(i64, f32, [f64]) = c
+    let (_, _, nums):(i8, f64, [i32]) = c
+    assert(nums[1] == 3)
+    assert(nums[0] == 1)
+
+
 
 fn {io Io} main()
     testNothing()
@@ -249,4 +261,6 @@ fn {io Io} main()
     testTupleMembers()
     testSubFunction()
     testTableSetElems()
+    testLexerTwoDots()
+    testConst()
     io.putStrLn("finished")

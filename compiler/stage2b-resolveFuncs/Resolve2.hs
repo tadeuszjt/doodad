@@ -88,6 +88,7 @@ compileStmt stmt = withPos stmt $ case stmt of
     AST.Return pos mexpr -> Return pos <$> maybe (return Nothing) (fmap Just . compileExpr) mexpr
     AST.Typedef pos symbol anno -> return $ AST.Typedef pos symbol anno
     AST.FuncDef pos params symbol args retty blk -> return stmt
+    AST.Const pos symbol expr -> return stmt
 
     AST.Assign pos pat expr -> do
         pat' <- compilePattern pat

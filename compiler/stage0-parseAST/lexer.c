@@ -187,6 +187,7 @@ bool isKeyword(char *s) {
         "import",
         "include",
         "link",
+        "const",
         "for",
         "while",
         "if",
@@ -292,10 +293,18 @@ bool lex() { // returns false for EOF
         break;
 
     case STATE_NUMBER:
-        if (isdigit(c) || c == '.') {
-            if (c == '.') {
-                assert (strchr(stack, '.') == NULL);
+        if (c == '.' && stack[stackLen - 1] == '.') { // .. symbol
+            stackPop();
+            if (strchr(stack, '.') == NULL) {
+                printToken("integer: %s\n", stack);
+            } else {
+                printToken("float: %s\n", stack);
             }
+            printToken("symbol: ..\n");
+            stackClear();
+            state = STATE_INIT;
+
+        } else if (isdigit(c) || c == '.') {
             stackPush(c);
         } else {
             if (strchr(stack, '.') == NULL) {

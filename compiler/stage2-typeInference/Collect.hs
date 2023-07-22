@@ -15,6 +15,7 @@ import qualified SymTab
 import Symbol
 import qualified Resolve
 import States
+import Annotate hiding (genType)
 
 import qualified Debug.Trace
 
@@ -45,6 +46,7 @@ data Object
     | ObjType Type
     | ObjFunc 
     | ObjField Int
+    | ObjConst S.Expr
     deriving (Show, Eq)
 
 data CollectState
@@ -57,21 +59,21 @@ data CollectState
         , typeSupply :: Int
         }
 
-initCollectState = CollectState
+initCollectState annotateCount = CollectState
     { symTab     = SymTab.initSymTab
     , curRetty   = Void
     , collected  = Map.empty
     , defaults   = Map.empty
     , curPos     = TextPos "" 0 0
-    , typeSupply = 0
+    , typeSupply = annotateCount
     }
 
 
 genType :: BoM CollectState m => m Type
 genType = do
     i <- gets typeSupply
-    modify $ \s -> s { typeSupply = i - 1 }
-    return $ Type (i - 1)
+    modify $ \s -> s { typeSupply = i + 1 }
+    return $ Type i
 
 
 collectPos :: (BoM CollectState m, TextPosition t) => t -> m a -> m a
@@ -151,6 +153,9 @@ collectAST ast = do
     forM (Map.toList $ ctorDefs ast) $ \(symbol, (t, i)) -> do
         collectCtorDef symbol (t, i)
 
+    forM (Map.toList $ constDefs ast) $ \(symbol, expr) -> do
+        define symbol KeyVar (ObjConst expr)
+
     forM (Map.toList $ funcImports ast) $ \(symbol, key@(ps, _, as, rt)) -> 
         define symbol (KeyFunc ps as rt) ObjFunc
 
@@ -206,6 +211,8 @@ collectStmt stmt = collectPos stmt $ case stmt of
     S.Block stmts -> mapM_ collectStmt stmts
     S.ExprStmt e -> collectExpr e
     S.EmbedC p s -> return ()
+    S.Const _ symbol expr -> do
+        define symbol KeyVar (ObjConst expr)
 
     S.Return _ mexpr -> do
         retty <- gets curRetty
@@ -358,6 +365,7 @@ collectCall exprType rs symbol es = do -- can be resolved or sym
     assert (kos /= []) $ "no keys for: " ++ show symbol
 
     let ks = filter keyCouldMatch $ map fst kos
+    collectIfOneDef (map fst kos)
     collectIfUnifiedType (map (\(KeyFunc ps _ _) -> ps) ks) (map typeof rs)
     collectIfUnifiedType (map (\(KeyFunc _ as _) -> as) ks) (map typeof es)
     collectIfUnifiedType (map (\(KeyFunc _ _ r) -> [r]) ks) [exprType]
@@ -430,8 +438,17 @@ collectExpr (S.AExpr exprType expr) = collectPos expr $ case expr of
         collectDefault exprType $ String
 
     S.Ident _ symbol -> do
-        ObjVar t <- look symbol KeyVar
-        collectEq t exprType
+        obj <- look symbol KeyVar
+        case obj of
+            ObjVar t -> collectEq t exprType
+            ObjConst e -> do -- special!
+                return ()
+--                count <- gets typeSupply
+--                (e', count') <- runBoMTExcept count (annotate e)
+--                modify $ \s -> s { typeSupply = count' }
+--                collectEq (typeof e') exprType
+--                collectExpr e'
+                
 
     S.Infix _ op e1 e2 -> do
         case op of

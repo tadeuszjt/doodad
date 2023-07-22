@@ -51,6 +51,7 @@ instance Annotate Stmt where
         Block ss          -> Block <$> mapM annotate ss
         Return p me       -> Return p <$> maybe (return Nothing) (fmap Just . annotate) me
         ExprStmt e        -> ExprStmt <$> annotate e
+        Const p s e       -> return $ Const p s e -- don't annotate consts
 
         FuncDef p ps s as rt blk -> do
             ps' <- mapM annotate ps
@@ -186,4 +187,4 @@ genType :: BoM Int m => m T.Type
 genType = do
     i <- get
     put (i + 1)
-    return (T.Type $ i + 1)
+    return (T.Type $ i)

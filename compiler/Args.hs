@@ -9,6 +9,7 @@ data Args = Args
     , printAst    :: Bool
     , printAstResolved :: Bool
     , printAstAnnotated :: Bool
+    , printAstInferred :: Bool
     , printSymbols :: Bool
     , printAstFinal :: Bool
     , printC        :: Bool
@@ -24,6 +25,7 @@ initArgs = Args
     , printAst = False
     , printAstResolved = False
     , printAstAnnotated = False
+    , printAstInferred = False
     , printSymbols = False
     , printAstFinal = False
     , printC = False
@@ -42,6 +44,7 @@ parseArgs args argStrs = case argStrs of
     ["--print-ast"] -> args { printAst = True }
     ["--print-ast-resolved"] -> args { printAstResolved = True }
     ["--print-ast-annotated"] -> args { printAstAnnotated = True }
+    ["--print-ast-inferred"] -> args { printAstInferred = True }
     ["--print-ast-final"] -> args { printAstFinal = True }
     ["--print-symbols"] -> args { printSymbols = True }
     ["--print-c"] -> args { printC = True }

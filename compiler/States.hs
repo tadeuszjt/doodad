@@ -15,6 +15,7 @@ data ResolvedAst
     , typeImports :: Map.Map Symbol Type        -- imported types
     , ctorImports :: Map.Map Symbol (Type, Int) -- imported ctors
     , funcImports :: Map.Map Symbol FuncKey     -- imported funcs
+    , constDefs   :: Map.Map Symbol Expr        -- defined consts
     , typeDefs    :: Map.Map Symbol Type        -- defined types
     , ctorDefs    :: Map.Map Symbol (Type, Int) -- defined ctors
     , funcDefs    :: Map.Map Symbol FuncBody    -- defined functions
@@ -28,6 +29,7 @@ initResolvedAst moduleName = ResolvedAst
     , typeImports = Map.empty
     , ctorImports  = Map.empty
     , funcImports  = Map.empty
+    , constDefs    = Map.empty
     , typeDefs     = Map.empty
     , ctorDefs     = Map.empty
     , funcDefs    = Map.empty

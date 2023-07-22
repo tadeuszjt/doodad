@@ -132,6 +132,7 @@ instance Apply S.Stmt where
         S.While pos cnd blk         -> S.While pos (applyF cnd) (applyF blk)
         S.ExprStmt e                -> S.ExprStmt (applyF e)
         S.Data pos symbol typ mexpr -> S.Data pos symbol (applyF typ) (fmap applyF mexpr)
+        S.Const pos symbol expr     -> S.Const pos symbol expr
 
         S.FuncDef pos mparam sym params retty block ->
             S.FuncDef pos (fmap applyF mparam) sym (map applyF params) (applyF retty) (applyF block)

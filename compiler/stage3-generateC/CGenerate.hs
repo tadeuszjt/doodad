@@ -25,6 +25,7 @@ import Error
 
 data Value
     = Value { valType :: Type.Type, valExpr :: C.Expression }
+    | Const S.Expr
     deriving (Show, Eq)
 
 instance Typeof Value where
@@ -84,7 +85,10 @@ define str obj = do
     modify $ \s -> s { symTab = Map.insert str obj (symTab s) }
 
 look :: MonadGenerate m => String -> m Value
-look str = (Map.! str) <$> gets symTab
+look str = do
+    resm <- Map.lookup str <$> gets symTab
+    when (isNothing resm) $ fail $ str ++ " isn't defined"
+    return (fromJust resm)
 
 
 fresh :: MonadGenerate m => String -> m String

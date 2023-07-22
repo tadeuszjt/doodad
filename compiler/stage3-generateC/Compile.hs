@@ -101,6 +101,9 @@ generate ast = do
         when (Map.member symbol typedefs) $ do
             ctype <- cTypeOf (typedefs Map.! symbol)
             void $ newTypedef ctype (show symbol)
+
+    forM_ (Map.toList $ constDefs ast) $ \(symbol, expr) -> do
+        define (show symbol) (CGenerate.Const expr)
             
     -- generate imported function externs
     forM_ (Map.toList $ funcImports ast) $ \(symbol, funcKey@(pts, s, ats, rt)) -> case symbol of
@@ -161,6 +164,7 @@ generatePrint :: MonadGenerate m => String -> Value -> m ()
 generatePrint app val = case typeof val of
     Type.I64 ->    void $ appendPrintf ("%d" ++ app) [valExpr val]
     Type.F64 ->    void $ appendPrintf ("%f" ++ app) [valExpr val]
+    Type.F32 ->    void $ appendPrintf ("%f" ++ app) [valExpr val]
     Type.String -> void $ appendPrintf ("%s" ++ app) [valExpr val]
     Type.Char ->   void $ appendPrintf ("%c" ++ app) [valExpr val]
 
@@ -173,6 +177,10 @@ generatePrint app val = case typeof val of
             let end = i == length ts - 1
             generatePrint (if end then "" else ", ") =<< member i val
         void $ appendPrintf (")" ++ app) []
+
+    Type.Typedef s -> do
+        base <- baseTypeOf val
+        generatePrint app $ Value base (valExpr val)
 
     _ -> error (show $ typeof val)
 
@@ -205,6 +213,8 @@ generateStmt stmt = case stmt of
     S.Return _ (Just expr) -> void $ appendElem . C.Return . valExpr =<< generateExpr expr
     S.FuncDef _ _ _ _ _ _ -> return ()
     S.Typedef _ _ _ -> return ()
+    S.Const _ symbol expr -> do
+        define (show symbol) $ CGenerate.Const expr
 
     S.Assign _ pattern expr -> do
         matched <- generatePattern pattern =<< generateExpr expr
@@ -338,6 +348,7 @@ generateStmt stmt = case stmt of
 -- TODO rewrite for expressions
 -- creates an expression which may be used multiple times without side-effects
 generateReentrantExpr :: MonadGenerate m => Value -> m Value
+generateReentrantExpr (CGenerate.Const expr) = return (CGenerate.Const expr)
 generateReentrantExpr (Value typ expr) = Value typ <$> reentrantExpr expr
     where
         reentrantExpr :: MonadGenerate m => C.Expression -> m C.Expression
@@ -374,6 +385,7 @@ generatePattern pattern val = do
     case pattern of
         PatIgnore _ -> return true
         PatLiteral expr -> generateInfix S.EqEq val =<< generateExpr expr
+        PatAnnotated pat typ -> generatePattern pat val
 
         PatArray _ pats -> do   
             base <- baseTypeOf val
@@ -497,17 +509,35 @@ generatePattern pattern val = do
         _ -> error (show pattern)
 
 
+annotateExprWith :: MonadGenerate m => Type.Type -> S.Expr -> m S.Expr
+annotateExprWith typ expr = do
+    base <- baseTypeOf typ
+    fmap (AExpr typ) $ case expr of
+        S.Int _ _ -> return expr
+        S.Array pos es -> case base of
+                Type.Table [t] -> S.Array pos <$> mapM (annotateExprWith t) es
+        S.Tuple pos es -> case base of
+            Type.Tuple ts -> S.Tuple pos <$> zipWithM annotateExprWith ts es
+        
+        _ -> error (show expr)
+
+
 -- generateExpr should return a 're-enter-able' expression, eg 1, not func()
 generateExpr :: MonadGenerate m => Expr -> m Value
 generateExpr (AExpr typ expr_) = withTypeCheck $ case expr_ of
     S.Bool _ b -> return $ Value typ (C.Bool b)
     S.Int _ n -> return $ Value typ (C.Int n)
     S.Float _ f -> return $ Value typ (C.Float f)
-    S.Ident _ symbol -> look (show symbol)
     S.String _ s -> return $ Value typ $ C.String s
     S.Char _ c -> return $ Value typ $ C.Char c
     S.Match _ expr pattern -> generatePattern pattern =<< generateExpr expr
     S.Builtin _ [] "len" [expr] -> len =<< generateExpr expr
+
+    S.Ident _ symbol -> do
+        obj <- look (show symbol)
+        case obj of
+            Value _ _ -> return obj
+            CGenerate.Const e -> generateExpr =<< annotateExprWith typ e
 
     S.Null _ -> do
         base <- baseTypeOf typ

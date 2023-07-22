@@ -183,10 +183,17 @@ resolveAsts asts imports = withErrorPrefix "resolve: " $ do
 
             let typedefs = [ stmt | stmt@(AST.Typedef _ _ _) <- concat $ map astStmts asts ]
             let funcdefs = [ stmt | stmt@(AST.FuncDef _ _ _ _ _ _) <- concat $ map astStmts asts ]
+            let consts   = [ stmt | stmt@(AST.Const _ _ _) <- concat $ map astStmts asts ]
             forM_ (concat $ map astStmts asts) $ \stmt -> withPos stmt $ case stmt of
                 (AST.Typedef _ _ _) -> return ()
                 (AST.FuncDef _ _ _ _ _ _) -> return ()
+                (AST.Const _ _ _) -> return ()
                 _ -> fail "invalid top-level statement"
+
+            constDefsList <- forM consts $ \(AST.Const pos (Sym sym) expr) -> withPos pos $ do
+                symbol' <- genSymbol sym
+                define sym KeyVar symbol'
+                return (symbol', expr)
 
             forM_ funcdefs $ \(FuncDef pos params symbol args retty blk) -> withPos pos $ do
                 let funckey = (map typeof params, sym symbol, map typeof args, retty)
@@ -215,6 +222,7 @@ resolveAsts asts imports = withErrorPrefix "resolve: " $ do
                 , typeImports = typeImportMap
                 , ctorImports = ctorImportMap
                 , funcImports = funcImportMap
+                , constDefs   = Map.fromList constDefsList
                 , funcDefs    = Map.union funcDefsMap localFuncs
                 , typeDefs    = Map.map annoToType tdm
                 , ctorDefs    = ctorMap
@@ -284,6 +292,11 @@ instance Resolve Stmt where
         AST.Typedef pos symbol anno -> do 
             resolveTypeDef stmt
             return $ AST.Typedef pos symbol anno
+
+        Const pos (Sym s) expr -> do
+            symbol' <- genSymbol s
+            define s KeyVar symbol'
+            Const pos symbol' <$> resolve expr
 
         Block stmts -> do
             pushSymTab

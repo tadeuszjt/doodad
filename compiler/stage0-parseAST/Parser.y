@@ -58,6 +58,7 @@ import Symbol
     '+='       { Token _ TokSym "+=" }
 
     fn         { Token _ Reserved "fn" }
+    const      { Token _ Reserved "const" }
     type       { Token _ Reserved "type" }
     if         { Token _ Reserved "if" }
     else       { Token _ Reserved "else" }
@@ -144,6 +145,7 @@ line : let pattern '=' expr                         { S.Assign (tokPos $1) $2 $4
      | data symbol type_ mexpr                      { S.Data (tokPos $1) (snd $2) $3 $4 }
      | return mexpr                                 { S.Return (tokPos $1) $2 }
      | embed_c                                      { S.EmbedC (tokPos $1) (tokStr $1) }
+     | const symbol '=' expr                        { S.Const (tokPos $1) (snd $2) $4 }
 block : if_                                         { $1 }
       | fn mfnrec ident '(' paramsA ')' mtype scope { S.FuncDef (tokPos $1) $2 (Sym $ tokStr $3) $5 (case $7 of Just t -> t; Nothing -> T.Void) $8 }
       | while condition scope                       { S.While (tokPos $1) $2 $3 }
