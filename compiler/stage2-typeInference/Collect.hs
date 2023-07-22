@@ -250,7 +250,6 @@ collectStmt stmt = collectPos stmt $ case stmt of
                     collectExpr e
                 collectExpr expr1
                 collectEq (typeof expr2) (typeof expr1)
-        
 
     S.SetOp _ op expr1 expr2 -> do
         collectEq (typeof expr1) (typeof expr2)

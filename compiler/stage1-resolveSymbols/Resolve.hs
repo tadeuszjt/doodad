@@ -25,7 +25,6 @@ import States
 -- function calls and tuple members will not be changed because the exact definiton of these symbols cannot be 
 -- determined at this stage.
 
-
 class Resolve a where
     resolve :: BoM ResolveState m => a -> m a
 
@@ -70,8 +69,7 @@ look symbol key = do
 
 -- TODO absolutely broken shite
 lookm :: BoM ResolveState m => Symbol -> SymKey -> m (Maybe Symbol)
-lookm (Sym sym) KeyVar = do
-    SymTab.lookup sym KeyVar <$> gets symTab
+lookm (Sym sym) KeyVar = SymTab.lookup sym KeyVar <$> gets symTab
 lookm symbol key = case symbol of
     Sym sym -> do
         resm <- SymTab.lookup sym key <$> gets symTab
@@ -243,6 +241,7 @@ resolveFuncDef (FuncDef pos params (Sym sym) args retty blk) = withPos pos $ do
     return (symbol', funcBody)
 
 
+-- modifies the typedef and inserts it into typeDefsMap
 resolveTypeDef :: BoM ResolveState m => AST.Stmt -> m ()
 resolveTypeDef (AST.Typedef pos (Sym sym) anno) = do
     symbol <- genSymbol sym
@@ -250,8 +249,17 @@ resolveTypeDef (AST.Typedef pos (Sym sym) anno) = do
     define sym KeyFunc symbol
     anno' <- case anno of
         AnnoType t -> AnnoType <$> resolve t
-        AnnoTuple ps -> AnnoTuple <$> mapM resolve ps
-        AnnoTable xs -> AnnoTable <$> mapM resolve xs
+        AnnoTuple ps -> do 
+            ps' <- forM ps $ \(AST.Param pos (Sym s) t) -> do
+                s' <- genSymbol s
+                AST.Param pos s' <$> resolve t
+            return $ AnnoTuple ps'
+
+        AnnoTable ps -> do
+            ps' <- forM ps $ \(AST.Param pos (Sym s) t) -> do
+                s' <- genSymbol s
+                AST.Param pos s' <$> resolve t
+            return $ AnnoTable ps'
 
         AnnoADT xs -> do
             xs' <- forM xs $ \x -> case x of
@@ -418,6 +426,7 @@ instance Resolve AdtField where
         FieldType t -> FieldType <$> resolve t
         FieldCtor ts -> FieldCtor <$> mapM resolve ts
 
+-- replaces Typedef sym with Typedef symbol
 instance Resolve Type where 
     resolve typ = case typ of
         Void                -> return typ

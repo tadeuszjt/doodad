@@ -177,6 +177,26 @@ generatePrint app val = case typeof val of
     _ -> error (show $ typeof val)
 
 
+
+generateIndex :: MonadGenerate m => S.Expr -> m [Value]
+generateIndex expr_@(S.AExpr t expr__) = case expr__ of
+    S.Ident _ _ -> (:[]) <$> generateExpr expr_
+    S.Field _ _ _ -> (:[]) <$> generateExpr expr_
+    S.Subscript _ expr idx -> do
+        [val] <- generateIndex expr
+        base <- baseTypeOf expr
+        case base of
+            Table [t] -> fmap (:[]) $ subscript val =<< generateExpr idx
+            Table ts -> do
+                idx <- generateExpr idx
+                forM (zip ts [0..]) $ \(t, i) -> do
+                    m <- member i val
+                    subscript m idx
+
+            _ -> error (show base)
+    _ -> error (show expr__)
+
+
 generateStmt :: MonadGenerate m => S.Stmt -> m ()
 generateStmt stmt = case stmt of
     S.EmbedC _ str -> void $ appendElem (C.Embed str)
@@ -184,6 +204,7 @@ generateStmt stmt = case stmt of
     S.Return _ Nothing -> void $ appendElem (C.ReturnVoid)
     S.Return _ (Just expr) -> void $ appendElem . C.Return . valExpr =<< generateExpr expr
     S.FuncDef _ _ _ _ _ _ -> return ()
+    S.Typedef _ _ _ -> return ()
 
     S.Assign _ pattern expr -> do
         matched <- generatePattern pattern =<< generateExpr expr
@@ -193,6 +214,7 @@ generateStmt stmt = case stmt of
         ctyp <- cTypeOf typ
         appendAssign ctyp (show symbol) (C.Initialiser [C.Int 0])
         define (show symbol) $ Value typ $ C.Ident (show symbol)
+
         
 
     S.If _ expr blk melse -> do
@@ -227,21 +249,39 @@ generateStmt stmt = case stmt of
             let end = i == length vals - 1
             generatePrint (if end then "\n" else ", ") val
 
-    S.SetOp _ S.Eq expr1 expr2 -> do
-        val1 <- generateExpr expr1
-        set val1 =<< generateExpr expr2
+    S.SetOp _ S.Eq index expr -> do
+        indexes <- generateIndex index
+        val <- generateExpr expr
+        base <- baseTypeOf val
+        case base of
+            _ | isSimple base -> do
+                let [i] = indexes
+                set i val
+            Type.ADT _ -> do
+                let [i] = indexes
+                set i val
+
+            Type.Tuple ts -> case indexes of
+                [] -> error "here"
+                [ind] -> set ind val
+                indexes -> do
+                    assert (ts == map typeof indexes) $ "mismatch" ++ show indexes
+                    forM_ (zip indexes [0..]) $ \(ind, i) -> do
+                        set ind =<< member i val 
 
 
-    S.SetOp _ op expr1 (S.AExpr t2 expr2) -> do
+            _ -> error (show base)
+
+
+    S.SetOp _ S.PlusEq expr1 (S.AExpr t2 expr2) -> do
         val1 <- generateExpr expr1
         assert (typeof val1 == t2) "types do not match"
         base <- baseTypeOf val1
         case base of
-            Table ts -> case op of
-                S.PlusEq -> do
-                    appendFuncName <- getTableAppendFunc (typeof val1)
-                    val2 <- generateExpr (S.AExpr t2 expr2)
-                    callWithParams [val1, val2] appendFuncName []
+            Table ts -> do
+                appendFuncName <- getTableAppendFunc (typeof val1)
+                val2 <- generateExpr (S.AExpr t2 expr2)
+                callWithParams [val1, val2] appendFuncName []
             _ -> error (show base)
 
     S.While _ expr stmt -> do
@@ -279,7 +319,6 @@ generateStmt stmt = case stmt of
                 Type.Table ts  -> generateInfix S.GTEq idx =<< len val
             if_ idxGtEq (appendElem C.Break)
 
-                    
             -- check that pattern matches
             patMatches <- case mpat of
                 Nothing -> return true
@@ -683,13 +722,7 @@ generateInfix op a b = do
             S.EqEq -> do
                 idx <- assign "idx" (i64 0)
                 eq <- assign "eq" true
-
-                forId <- appendElem $ C.For
-                    Nothing
-                    (Just (C.Infix C.LT (valExpr idx) (C.Int $ fromIntegral n)))
-                    (Just (C.Increment $ valExpr idx))
-                    []
-                withCurID forId $ do
+                for (i64 n) $ \idx -> do
                     elemA <- subscript a idx
                     elemB <- subscript b idx
                     b <- generateInfix S.EqEq elemA elemB

@@ -23,7 +23,6 @@ fn testTuplePattern()
     assert(y == 3)
 
 
-// TODO test inside func block
 type enum { Enum0() | Enum1() | Enum2() }
 fn testEnumAdt()
     let x = Enum1()
@@ -171,6 +170,63 @@ fn testTypedInfix()
     assert(x != (3, "b!nis"))
 
 
+fn testTableReferencing()
+    data a [[i64]]
+    data b [[i64]]
+    a += [ [1], [2, 1] ]
+    b += a
+    b[1][1] = 3
+    let [ [1], [2, 3] ] = b
+    let [ [1], [2, 1] ] = a
+
+
+type MyTuple (nums [i64], bools [bool])
+fn testTupleReferencing()
+    data a MyTuple
+    data b MyTuple
+
+    a.nums += [1, 2, 3, 4]
+    a.bools += [false, true]
+
+    b = a
+    b.nums[1] = 5
+    b.bools[1] = false
+    let ([1, 2, 3, 4], [false, true]) = a
+    let ([1, 5, 3, 4], [false, false]) = b
+
+
+type Tuple2 ( num i64, str string )
+fn testTupleMembers()
+    let x = Tuple2(1, "benis")
+    let 1 = x.num
+    type Tuple2 ( num i64, str string, b bool )
+    let y = Tuple2(2, "bongis", false)
+    let false = y.b
+    let 2 = y.num
+    let 1 = x.num
+
+
+fn testSubFunction()
+    let x = 2
+    fn {a i64} testSomething(b bool)
+        //x = 3 // not allowed 
+        a = a + 1
+
+    x.testSomething(true)
+    let 3 = x
+
+
+fn testTableSetElems()
+    type Table [nums [i64]; name string]
+    data x Table
+    x += ( [ [1, 2], [3] ], ["benis", "bongis"] )
+    x[1] = ( [3, 4], "bongis!")
+    let [1, 2] = x.nums[0]
+    let [3, 4] = x.nums[1]
+    let ["benis", "bongis!"] = x.name
+
+
+
 fn {io Io} main()
     testNothing()
     test1Eq2()
@@ -188,4 +244,9 @@ fn {io Io} main()
     testFloats()
     testTupleInfix()
     testTypedInfix()
+    testTableReferencing()
+    testTupleReferencing()
+    testTupleMembers()
+    testSubFunction()
+    testTableSetElems()
     io.putStrLn("finished")

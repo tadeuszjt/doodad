@@ -86,8 +86,8 @@ compileStmt stmt = withPos stmt $ case stmt of
     AST.Block stmts      -> Block <$> mapM compileStmt stmts
     AST.ExprStmt expr    -> ExprStmt <$> compileExpr expr
     AST.Return pos mexpr -> Return pos <$> maybe (return Nothing) (fmap Just . compileExpr) mexpr
-    AST.FuncDef pos params symbol args retty blk -> return stmt
     AST.Typedef pos symbol anno -> return $ AST.Typedef pos symbol anno
+    AST.FuncDef pos params symbol args retty blk -> return stmt
 
     AST.Assign pos pat expr -> do
         pat' <- compilePattern pat

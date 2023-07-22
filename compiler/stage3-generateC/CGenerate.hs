@@ -133,15 +133,54 @@ callWithParams params name args = do
     void $ appendElem $ C.ExprStmt $ C.Call name (map ptrExpr params ++ map valExpr args)
 
 
+for :: MonadGenerate m => Value -> (Value -> m a) -> m a
+for len f = do
+    base@(I64) <- baseTypeOf len
+    idx <- assign "idx" (i64 0)
+    id <- appendElem $ C.For
+        Nothing
+        (Just $ C.Infix C.LT (valExpr idx) (valExpr len))
+        (Just $ C.Increment $ valExpr idx)
+        []
+    withCurID id (f idx)
+
+
 
 set :: MonadGenerate m => Value -> Value -> m ()
 set a b = do
     assert (typeof a == typeof b) "set: types don't match"
     base <- baseTypeOf a
     void $ case base of
-        _ | isSimple base -> appendElem $ C.Set (valExpr a) (valExpr b)
-        Type.ADT fs -> appendElem $ C.Set (valExpr a) (valExpr b)
-        Type.Tuple ts | all isSimple ts -> appendElem $ C.Set (valExpr a) (valExpr b)
+        _ | isSimple base               -> void $ appendElem $ C.Set (valExpr a) (valExpr b)
+        Type.ADT fs                     -> void $ appendElem $ C.Set (valExpr a) (valExpr b)
+        Type.Tuple ts | all isSimple ts -> void $ appendElem $ C.Set (valExpr a) (valExpr b)
+        Type.Tuple ts -> do
+            forM_ (zip ts [0..]) $ \(t, i) -> do
+                ma <- member i a
+                mb <- member i b
+                set ma mb
+        Type.Table ts -> do
+            let cap = C.Member (valExpr a) "cap"
+            let len = C.Member (valExpr a) "len"
+            appendElem $ C.Set len (C.Member (valExpr b) "len")
+            appendElem $ C.Set cap (C.Member (valExpr b) "len")
+            forM_ (zip ts [0..]) $ \(t, i) -> do
+                let size = C.Sizeof $ C.Deref $ C.Member (valExpr a) ("r" ++ show i)
+                appendElem $ C.Set -- a.rn = GC_malloc(sizeof(*a.rn) * a.cap
+                    (C.Member (valExpr a) ("r" ++ show i))
+                    (C.Call "GC_malloc" [C.Infix C.Times size cap])
+                
+                for (Value I64 len) $ \idx -> set
+                    (Value t $ C.Subscript (C.Member (valExpr a) ("r" ++ show i)) $ valExpr idx)
+                    (Value t $ C.Subscript (C.Member (valExpr b) ("r" ++ show i)) $ valExpr idx)
+
+        Type.Array n t -> do
+            for (i64 n) $ \idx -> do
+                sa <- subscript a idx
+                sb <- subscript b idx
+                set sa sb
+
+
         _ -> error (show base)
 
 
@@ -315,18 +354,11 @@ getTableAppendFunc typ = do
                     forM_ (zip ts [0..]) $ \(t, row) -> do
                         appendElem $ C.Set (C.PMember a ("r" ++ show row)) (C.Ident $ "mem" ++ show row)
 
-                -- append elements TODO use deep copy
-                idx <- assign "idx" (i64 0)
-                forId <- appendElem $ C.For
-                    Nothing
-                    (Just $ C.Infix C.LT (valExpr idx) len2)
-                    (Just $ C.Increment $ valExpr idx)
-                    []
-                withCurID forId $ do
+                for (Value I64 len2) $ \idx -> do
                     forM_ (zip ts [0..]) $ \(t, row) -> do
-                        appendElem $ C.Set
-                            (C.Subscript (C.PMember a $ "r" ++ show row) (C.PMember a "len"))
-                            (C.Subscript (C.PMember b $ "r" ++ show row) (valExpr idx))
+                        set
+                            (Value t $ C.Subscript (C.PMember a $ "r" ++ show row) (C.PMember a "len"))
+                            (Value t $ C.Subscript (C.PMember b $ "r" ++ show row) (valExpr idx))
                     void $ appendElem $ C.ExprStmt $ C.Increment $ C.PMember a "len"
                     
             modify $ \s -> s { tableAppendFuncs = Map.insert typ funcName (tableAppendFuncs s) }
