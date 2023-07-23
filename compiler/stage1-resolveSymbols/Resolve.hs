@@ -182,11 +182,11 @@ resolveAsts asts imports = withErrorPrefix "resolve: " $ do
             assert (all (== moduleName) $ map astModuleName asts) "module name mismatch"
 
             let typedefs = [ stmt | stmt@(AST.Typedef _ _ _) <- concat $ map astStmts asts ]
-            let funcdefs = [ stmt | stmt@(AST.FuncDef _ _ _ _ _ _) <- concat $ map astStmts asts ]
+            let funcdefs = [ stmt | stmt@(AST.FuncDef _ _ _ _ _ _ _) <- concat $ map astStmts asts ]
             let consts   = [ stmt | stmt@(AST.Const _ _ _) <- concat $ map astStmts asts ]
             forM_ (concat $ map astStmts asts) $ \stmt -> withPos stmt $ case stmt of
                 (AST.Typedef _ _ _) -> return ()
-                (AST.FuncDef _ _ _ _ _ _) -> return ()
+                (AST.FuncDef _ _ _ _ _ _ _) -> return ()
                 (AST.Const _ _ _) -> return ()
                 _ -> fail "invalid top-level statement"
 
@@ -195,7 +195,7 @@ resolveAsts asts imports = withErrorPrefix "resolve: " $ do
                 define sym KeyVar symbol'
                 return (symbol', expr)
 
-            forM_ funcdefs $ \(FuncDef pos params symbol args retty blk) -> withPos pos $ do
+            forM_ funcdefs $ \(FuncDef pos generics params symbol args retty blk) -> withPos pos $ do
                 let funckey = (map typeof params, sym symbol, map typeof args, retty)
                 mb <- Set.member funckey <$> gets funcKeys
                 assert (not mb) $ sym symbol ++ " already defined"
@@ -229,10 +229,17 @@ resolveAsts asts imports = withErrorPrefix "resolve: " $ do
                 }
 
 
+instance Resolve Symbol where
+    resolve (Sym sym) = genSymbol sym
+
 
 resolveFuncDef :: BoM ResolveState m => AST.Stmt -> m (Symbol, FuncBody)
-resolveFuncDef (FuncDef pos params (Sym sym) args retty blk) = withPos pos $ do
+resolveFuncDef (FuncDef pos generics params (Sym sym) args retty blk) = withPos pos $ do
     pushSymTab
+    generics' <- forM generics $ \(Param pos (Sym sym) Void) -> do
+        symbol <- genSymbol sym
+        define sym KeyType symbol
+        return $ Param pos (Sym "") $ Type.Typedef symbol
     params' <- mapM resolve params
     args' <- mapM resolve args
     retty' <- resolve retty
@@ -241,10 +248,11 @@ resolveFuncDef (FuncDef pos params (Sym sym) args retty blk) = withPos pos $ do
 
     symbol' <- genSymbol sym
     let funcBody = FuncBody {
+        funcGenerics = generics',
         funcParams = params' ,
         funcArgs   = args' ,
         funcRetty  = retty' , 
-        funcStmts  = [blk']
+        funcStmt   = blk'
         }
     return (symbol', funcBody)
 
@@ -288,6 +296,18 @@ resolveTypeDef (AST.Typedef pos (Sym sym) anno) = do
 instance Resolve Stmt where
     resolve stmt = withPos stmt $ case stmt of
         ExprStmt callExpr -> ExprStmt <$> resolve callExpr
+        FuncDef pos generics params (Sym sym) args retty blk -> do
+            (symbol', body) <- resolveFuncDef stmt
+            modify $ \s -> s { localFuncDefs = Map.insert symbol' body (localFuncDefs s) }
+            return $ FuncDef
+                pos
+                (funcGenerics body)
+                (funcParams body)
+                symbol'
+                (funcArgs body)
+                (funcRetty body)
+                (funcStmt body)
+
 
         AST.Typedef pos symbol anno -> do 
             resolveTypeDef stmt
@@ -359,11 +379,6 @@ instance Resolve Stmt where
             typ' <- resolve typ
             mexpr' <- maybe (return Nothing) (fmap Just . resolve) mexpr
             return $ Data pos symbol typ' mexpr'
-
-        FuncDef pos params (Sym sym) args retty blk -> do
-            (symbol', body) <- resolveFuncDef (FuncDef pos params (Sym sym) args retty blk)
-            modify $ \s -> s { localFuncDefs = Map.insert symbol' body (localFuncDefs s) }
-            return $ FuncDef pos (funcParams body) symbol' (funcArgs body) (funcRetty body) (head $ funcStmts body)
 
         EmbedC pos str -> EmbedC pos <$> processCEmbed str
         where

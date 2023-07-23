@@ -107,7 +107,7 @@ data Stmt
     | Block       [Stmt]
     | If          TextPos Expr Stmt (Maybe Stmt)
     | While       TextPos Expr Stmt
-    | FuncDef     TextPos [Param] Symbol [Param] Type Stmt
+    | FuncDef     TextPos [Param] [Param] Symbol [Param] Type Stmt
     | Typedef     TextPos Symbol AnnoType
     | Switch      TextPos Expr [(Pattern, Stmt)]
     | For         TextPos Expr (Maybe Pattern) Stmt
@@ -178,7 +178,7 @@ instance TextPosition Stmt where
         Block       s -> textPos (head s)
         If          p _ _ _ -> p
         While       p _ _ -> p
-        FuncDef     p _ _ _ _ _ -> p
+        FuncDef     p _ _ _ _ _ _ -> p
         Typedef     p _ _ -> p
         Switch      p _ _ -> p
         For         p _ _ _ -> p
@@ -292,21 +292,29 @@ prettyAST ast = do
 
 prettyStmt :: String -> Stmt -> IO ()
 prettyStmt pre stmt = case stmt of
-    FuncDef pos params symbol args retty blk -> do
+    FuncDef pos generics params symbol args retty blk -> do
+        genericsStr <- case generics of
+            [] -> return ""
+            gs -> return $ arrStrs $ map show gs
         paramStr <- case params of
             [] -> return ""
             ps -> return $ brcStrs $ map show ps
         
-        putStrLn $ pre ++ "fn " ++ paramStr ++ show symbol ++ tupStrs (map show args) ++ " " ++ if retty == Void then "" else show retty
+        putStrLn $ pre
+            ++ "fn "
+            ++ genericsStr
+            ++ paramStr
+            ++ show symbol
+            ++ tupStrs (map show args)
+            ++ " "
+            ++ if retty == Void then "" else show retty
         prettyStmt (pre ++ "\t") blk
         putStrLn ""
 
-    Assign pos pat expr        -> putStrLn $ pre ++ "let " ++ show pat ++ " = " ++ show expr
-
+    Assign pos pat expr    -> putStrLn $ pre ++ "let " ++ show pat ++ " = " ++ show expr
     SetOp _ op expr1 expr2 -> putStrLn $ pre ++ (show expr1) ++ " " ++ show op ++ " " ++ show expr2
-
-
-    Return pos mexpr -> putStrLn $ pre ++ "return " ++ maybe "" show mexpr
+    Return pos mexpr       -> putStrLn $ pre ++ "return " ++ maybe "" show mexpr
+    Const _ symbol expr    -> putStrLn $ pre ++ "const " ++ show symbol ++ " = " ++ show expr
 
     If pos cnd true mfalse -> do
         putStrLn $ pre ++ "if " ++ show cnd

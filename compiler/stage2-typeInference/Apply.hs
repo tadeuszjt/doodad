@@ -48,10 +48,11 @@ instance Apply ASTResolved where
 
 instance Apply FuncBody where
     apply f body = FuncBody
-        { funcParams = map (apply f) (funcParams body)
+        { funcGenerics = map (apply f) (funcGenerics body)
+        , funcParams = map (apply f) (funcParams body)
         , funcArgs   = map (apply f) (funcArgs body)
         , funcRetty  = (apply f) (funcRetty body)
-        , funcStmts  = map (apply f) (funcStmts body)
+        , funcStmt   = (apply f) (funcStmt body)
         }
 
 instance Apply Type where
@@ -131,8 +132,8 @@ instance Apply S.Stmt where
         S.Data pos symbol typ mexpr -> S.Data pos symbol (applyF typ) (fmap applyF mexpr)
         S.Const pos symbol expr     -> S.Const pos symbol expr
 
-        S.FuncDef pos mparam sym params retty block ->
-            S.FuncDef pos (fmap applyF mparam) sym (map applyF params) (applyF retty) (applyF block)
+        S.FuncDef pos generics params sym args retty block ->
+            S.FuncDef pos generics (map applyF params) sym (map applyF args) (applyF retty) (applyF block)
 
         S.If pos cnd block melse ->
             S.If pos (applyF cnd) (applyF block) (fmap applyF melse)

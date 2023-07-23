@@ -12,6 +12,7 @@ syn match   doodadSpecial '{'
 syn match   doodadSpecial '\}'
 syn match   doodadSpecial "->"
 syn match   doodadString  '\".*\"'
+syn match   doodadComment '//.*'
 
 
 
@@ -27,3 +28,4 @@ hi def link doodadString String
 hi def link doodadConst Constant
 hi def link doodadDef Identifier
 hi def link doodadSpecial Special
+hi def link doodadComment Comment

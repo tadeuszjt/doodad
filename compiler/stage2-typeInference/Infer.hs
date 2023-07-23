@@ -20,12 +20,12 @@ import Annotate
 
 
 -- Takes a resolved and annotated ast and inferes all types.
-infer :: BoM s m => ASTResolved -> Bool -> m ASTResolved
+infer :: BoM s m => ASTResolved -> Bool -> m (ASTResolved, Int)
 infer resolvedAST verbose = do 
     (ast, typeSupplyCount) <- withErrorPrefix "annotate: " $ runBoMTExcept 0 $ annotate resolvedAST
     runBoMUntilSameResult ast $ \ast' -> do 
-        inferred <- runBoMUntilSameResult ast' (inferTypes typeSupplyCount)
-        defaulted <- runBoMUntilSameResult inferred (inferDefaults typeSupplyCount)
+        (inferred, _)  <- runBoMUntilSameResult ast' (inferTypes typeSupplyCount)
+        (defaulted, _) <- runBoMUntilSameResult inferred (inferDefaults typeSupplyCount)
         return defaulted
     where
         inferTypes :: BoM s m => Int -> ASTResolved -> m ASTResolved

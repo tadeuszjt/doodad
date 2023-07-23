@@ -42,10 +42,11 @@ type FuncKey = ([Type], String, [Type], Type)
 data FuncBody
     = FuncBodyEmpty
     | FuncBody
-        { funcParams :: [AST.Param]
-        , funcArgs   :: [AST.Param]
-        , funcRetty  :: Type
-        , funcStmts  :: [AST.Stmt]
+        { funcGenerics :: [AST.Param]
+        , funcParams   :: [AST.Param]
+        , funcArgs     :: [AST.Param]
+        , funcRetty    :: Type
+        , funcStmt     :: AST.Stmt
         }
     deriving (Eq, Show)
 
@@ -66,7 +67,13 @@ prettyASTResolved ast = do
         prettyStmt "" (AST.Typedef undefined symbol $ AnnoType typ)
 
     forM_ (Map.toList $ funcDefs ast) $ \(symbol, body) -> 
-        prettyStmt "" $
-            FuncDef undefined (funcParams body) symbol (funcArgs body) (funcRetty body) (AST.Block $ funcStmts body)
+        prettyStmt "" $ FuncDef
+            undefined
+            (funcGenerics body)
+            (funcParams body)
+            symbol
+            (funcArgs body)
+            (funcRetty body)
+            (funcStmt body)
 
     putStrLn ""

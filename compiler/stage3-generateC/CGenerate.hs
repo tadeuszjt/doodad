@@ -258,7 +258,10 @@ subscript val idx = do
             
 baseTypeOf :: (MonadGenerate m, Typeof a) => a -> m Type.Type
 baseTypeOf a = case typeof a of
-    Type.Typedef s -> baseTypeOf . (Map.! s) =<< gets typedefs
+    Type.Typedef s -> do
+        resm <- Map.lookup s <$> gets typedefs
+        when (isNothing resm) $ fail $ "baseTypeOf: " ++ show (typeof a)
+        baseTypeOf (fromJust resm)
     _ -> return (typeof a)
     _ -> error (show $ typeof a)
 

@@ -116,22 +116,24 @@ generate ast = do
     -- generate function headers
     
     forM_ (Map.toList $ funcDefs ast) $ \(symbol, func) -> do
-        crt <- cTypeOf (ASTResolved.funcRetty func)
-        cpts <- map Cpointer <$> mapM cTypeOf (map paramType $ ASTResolved.funcParams func)
-        cats <- mapM cTypeOf (map paramType $ ASTResolved.funcArgs func)
-        newExtern (show symbol) crt (cpts ++ cats)
+        when (ASTResolved.funcGenerics func == []) $ do
+            crt <- cTypeOf (ASTResolved.funcRetty func)
+            cpts <- map Cpointer <$> mapM cTypeOf (map paramType $ ASTResolved.funcParams func)
+            cats <- mapM cTypeOf (map paramType $ ASTResolved.funcArgs func)
+            newExtern (show symbol) crt (cpts ++ cats)
 
     forM_ (Map.toList $ funcDefs ast) $ \(symbol, func) -> do
-        generateFunc symbol func
-        when (sym symbol == "main") $ do
-            let typedef = Type.Typedef (SymResolved "io" "Io" 0)
-            id <- newFunction Cvoid "main" []
-            withCurID id $ case (ASTResolved.funcParams func, ASTResolved.funcArgs func) of
-                ([], []) -> call (show symbol) []
-                ([p], []) | typeof p == typedef -> do -- main with io
-                    io <- initialiser typedef []
-                    callWithParams [io] (show symbol) []
-            withCurID globalID (append id)
+        when (ASTResolved.funcGenerics func == []) $ do
+            generateFunc symbol func
+            when (sym symbol == "main") $ do
+                let typedef = Type.Typedef (SymResolved "io" "Io" 0)
+                id <- newFunction Cvoid "main" []
+                withCurID id $ case (ASTResolved.funcParams func, ASTResolved.funcArgs func) of
+                    ([], []) -> call (show symbol) []
+                    ([p], []) | typeof p == typedef -> do -- main with io
+                        io <- initialiser typedef []
+                        callWithParams [io] (show symbol) []
+                withCurID globalID (append id)
 
 
 generateFunc :: MonadGenerate m => Symbol -> FuncBody -> m ()
@@ -152,7 +154,7 @@ generateFunc symbol body = do
 
     id <- newFunction rettyType (show symbol) (params ++ args)
     withCurID id $ do
-        mapM_ generateStmt (ASTResolved.funcStmts body)
+        generateStmt (ASTResolved.funcStmt body)
         when (ASTResolved.funcRetty body /= Type.Void) $ -- check to ensure function has return
             call "assert" [false]
     withCurID globalID $ append id
@@ -210,7 +212,7 @@ generateStmt stmt = case stmt of
     S.Block stmts -> mapM_ generateStmt stmts
     S.Return _ Nothing -> void $ appendElem (C.ReturnVoid)
     S.Return _ (Just expr) -> void $ appendElem . C.Return . valExpr =<< generateExpr expr
-    S.FuncDef _ _ _ _ _ _ -> return ()
+    S.FuncDef _ _ _ _ _ _ _ -> return ()
     S.Typedef _ _ _ -> return ()
     S.Const _ symbol expr -> do
         define (show symbol) $ CGenerate.Const expr
@@ -344,7 +346,6 @@ generateStmt stmt = case stmt of
 
 
 
--- TODO rewrite for expressions
 -- creates an expression which may be used multiple times without side-effects
 generateReentrantExpr :: MonadGenerate m => Value -> m Value
 generateReentrantExpr (CGenerate.Const expr) = return (CGenerate.Const expr)

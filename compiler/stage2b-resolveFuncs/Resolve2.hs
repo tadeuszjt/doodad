@@ -28,8 +28,8 @@ compile = do
 
 compileFuncDef :: BoM ASTResolved m => FuncBody -> m FuncBody
 compileFuncDef body = do
-    stmts' <- mapM compileStmt (funcStmts body)
-    return body { funcStmts  = stmts' }
+    stmt' <- compileStmt (funcStmt body)
+    return body { funcStmt  = stmt' }
 
 
 -- add extern if needed
@@ -87,7 +87,7 @@ compileStmt stmt = withPos stmt $ case stmt of
     AST.ExprStmt expr    -> ExprStmt <$> compileExpr expr
     AST.Return pos mexpr -> Return pos <$> maybe (return Nothing) (fmap Just . compileExpr) mexpr
     AST.Typedef pos symbol anno -> return $ AST.Typedef pos symbol anno
-    AST.FuncDef pos params symbol args retty blk -> return stmt
+    AST.FuncDef pos generics params symbol args retty blk -> return stmt
     AST.Const pos symbol expr -> return stmt
 
     AST.Assign pos pat expr -> do

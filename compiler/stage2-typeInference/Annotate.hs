@@ -28,15 +28,17 @@ instance Annotate ASTResolved where
 
 instance Annotate FuncBody where
     annotate funcBody = do
+        generics' <-  mapM annotate (funcGenerics funcBody)
         params' <- mapM annotate (funcParams funcBody)
         args' <- mapM annotate (funcArgs funcBody)
-        stmts' <- mapM annotate (funcStmts funcBody)
+        stmt' <- annotate (funcStmt funcBody)
         retty' <- return (funcRetty funcBody)
         return $ FuncBody
-            { funcParams = params'
+            { funcGenerics = generics'
+            , funcParams = params'
             , funcArgs   = args'
             , funcRetty  = retty'
-            , funcStmts  = stmts'
+            , funcStmt   = stmt'
             }
         
 
@@ -53,11 +55,12 @@ instance Annotate Stmt where
         ExprStmt e        -> ExprStmt <$> annotate e
         Const p s e       -> return $ Const p s e -- don't annotate consts
 
-        FuncDef p ps s as rt blk -> do
+        FuncDef p gs ps s as rt blk -> do
+            gs' <- mapM annotate gs
             ps' <- mapM annotate ps
             as' <- mapM annotate as
             blk' <- annotate blk
-            return $ FuncDef p ps' s as' rt blk'
+            return $ FuncDef p gs' ps' s as' rt blk'
 
         Assign p pat e      -> do
             pat' <- annotate pat

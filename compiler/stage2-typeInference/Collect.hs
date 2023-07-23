@@ -176,7 +176,7 @@ collectFuncDef symbol body = do
 
     forM_ (funcArgs body) $ \(S.Param _ symbol t) ->
         define symbol KeyVar (ObjVar t)
-    mapM_ collectStmt (funcStmts body)
+    collectStmt (funcStmt body)
     modify $ \s -> s { curRetty = oldRetty }
     collectDefault (funcRetty body) Void
 
@@ -222,7 +222,7 @@ collectStmt stmt = collectPos stmt $ case stmt of
                 collectEq (typeof expr) retty
                 collectExpr expr
 
-    S.FuncDef p ps s as rt blk -> do
+    S.FuncDef p gs ps s as rt blk -> do
         return ()
 --        collectFuncDef s $ FuncBody
 --            { funcParams = ps

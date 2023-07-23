@@ -166,7 +166,8 @@ buildModule' args modPath = do
 
 
             -- infer ast types
-            astInferred <- withErrorPrefix "infer: " $ infer astResolved (verbose args)
+            (astInferred, inferCount) <- withErrorPrefix "infer: " $ infer astResolved (verbose args)
+            liftIO $ putStrLn $ "ran:       " ++ show inferCount ++ " type inference passes"
             when (printAstInferred args) $ liftIO $ prettyASTResolved astInferred
 
 
@@ -187,7 +188,7 @@ buildModule' args modPath = do
             finalBuilderState <- if Args.optimise args then do
                 (((), n), cBuilderStateOptimised) <- runBoMTExcept cBuilderState $ do
                     runBoMUntilSameState O.optimise
-                liftIO $ putStrLn $ "ran:       " ++ show n ++ " optimisation passes."
+                liftIO $ putStrLn $ "ran:       " ++ show n ++ " optimisation passes"
                 return cBuilderStateOptimised
             else return cBuilderState
 

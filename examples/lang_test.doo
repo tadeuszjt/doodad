@@ -238,10 +238,11 @@ fn testConst()
     assert(nums[0] == 1)
 
 
+fn [T] func(a T, b T) T
+    return a + b
 
 fn testGenerics()
     return
-
 
 
 fn {io Io} main()

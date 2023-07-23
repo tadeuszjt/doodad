@@ -32,11 +32,16 @@ runBoMTExcept state bomt = do
         Right r -> return r
 
 
-runBoMUntilSameResult :: Eq a => BoM s m => a -> (a -> m a) -> m a
-runBoMUntilSameResult a f = do
-    a' <- f a
-    if a == a' then return a
-    else runBoMUntilSameResult a' f
+runBoMUntilSameResult :: Eq a => BoM s m => a -> (a -> m a) -> m (a, Int)
+runBoMUntilSameResult a f = runBoMUntilSameResult' 1 a f
+    where
+        runBoMUntilSameResult' :: Eq a => BoM s m => Int -> a -> (a -> m a) -> m (a, Int)
+        runBoMUntilSameResult' n a f = do
+            a' <- f a
+            if a == a' then return (a, n)
+            else runBoMUntilSameResult' (n + 1) a' f
+
+
 
 runBoMUntilSameState :: Eq s => BoM s m => m a -> m (a, Int)
 runBoMUntilSameState f = runBoMUntilSameState' 1 f
