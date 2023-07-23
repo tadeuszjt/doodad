@@ -27,7 +27,6 @@ baseTypeOf typ = case typ of
         resm <- gets $ Map.lookup symbol
         assert (isJust resm) $ "Cannot find symbol: " ++ show symbol
         baseTypeOf (fromJust resm)
-
     Type x         -> return Nothing
     t              -> return (Just t)
 

@@ -16,6 +16,7 @@ data BuilderState
     , idSupply :: Int
     , moduleName :: String
     }
+    deriving (Eq)
 
 
 class (Monad m) => MonadBuilder m where

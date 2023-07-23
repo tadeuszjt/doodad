@@ -19,20 +19,13 @@ import ASTResolved
 import Annotate
 
 
-runUntilNoChange :: Eq a => BoM s m => a -> (a -> m a) -> m a
-runUntilNoChange a f = do
-    a' <- f a
-    if a == a' then return a
-    else runUntilNoChange a' f
-
-
 -- Takes a resolved and annotated ast and inferes all types.
 infer :: BoM s m => ASTResolved -> Bool -> m ASTResolved
 infer resolvedAST verbose = do 
     (ast, typeSupplyCount) <- withErrorPrefix "annotate: " $ runBoMTExcept 0 $ annotate resolvedAST
-    runUntilNoChange ast $ \ast' -> do 
-        inferred <- runUntilNoChange ast' (inferTypes typeSupplyCount)
-        defaulted <- runUntilNoChange inferred (inferDefaults typeSupplyCount)
+    runBoMUntilSameResult ast $ \ast' -> do 
+        inferred <- runBoMUntilSameResult ast' (inferTypes typeSupplyCount)
+        defaulted <- runBoMUntilSameResult inferred (inferDefaults typeSupplyCount)
         return defaulted
     where
         inferTypes :: BoM s m => Int -> ASTResolved -> m ASTResolved

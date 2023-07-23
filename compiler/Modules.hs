@@ -115,6 +115,8 @@ buildModule args modPath = do
         ExitSuccess -> return ()
         ExitFailure s -> fail $ "gcc failed: " ++ (show s)
 
+    liftIO $ putStrLn $ "wrote bin: " ++ binFile
+
     forM_ (Map.toList $ cFileMap state) $ \(_, cFile) -> do
         liftIO $ removeFile cFile
 
@@ -122,87 +124,78 @@ buildModule args modPath = do
 
 buildModule' :: BoM Modules m => Args -> FilePath -> m ()
 buildModule' args modPath = do
-    debug "running"
     absolute <- liftIO $ canonicalizePath modPath
-    debug $ "absolute path: " ++ show absolute
     isCompiled <- Map.member absolute <$> gets moduleMap
     when (not isCompiled) $ compilePath absolute
     where
         -- path will be in the form "dir1/dirn/modname"
         compilePath :: BoM Modules m => FilePath -> m ()
         compilePath path = do
-            debug "compilePath"
             let modName = takeFileName path
             let modDirectory = takeDirectory path
 
             -- get files and create combined AST
             files <- getSpecificModuleFiles args modName =<< getDoodadFilesInDirectory modDirectory
             assert (not $ null files) ("no files for: " ++ path)
-            forM_ files $ debug . ("using file: " ++) 
-
-
             asts <- mapM (parse args) files
             when (printAst args) $ do
                 forM_ asts $ \ast ->
                     liftIO $ S.prettyAST ast
 
-
+            -- read imports and compile imported modules first
             importPaths <- forM [fp | S.Import fp <- concat $ map S.astImports asts] $ \importPath ->
                 liftIO $ canonicalizePath $ joinPath [modDirectory, importPath]
             let importModNames = map takeFileName importPaths
             assert (length importModNames == length (Set.fromList importModNames)) $
                 fail "import name collision"
-            forM_ importPaths $ debug . ("importing: " ++)
             mapM_ (buildModule' args) importPaths
 
-            debug "loading irGenImports"
+
+            -- compile this module
+            liftIO $ putStrLn $ "compiling: " ++ path
+
+
+            -- unify asts and resolve symbols
             astImports <- forM importPaths $ \path -> do
                 resm <- Map.lookup path <$> gets moduleMap
                 assert (isJust resm) $ show path ++ " not in module map"
                 return $ fromJust resm
-            (resolvedAST, _) <- R.resolveAsts asts astImports
-            Flatten.checkTypeDefs (typeDefs resolvedAST)
-            when (printAstResolved args) $ liftIO $ prettyASTResolved resolvedAST
+            astResolved <- fmap fst $ R.resolveAsts asts astImports
+            Flatten.checkTypeDefs (typeDefs astResolved)
+            when (printAstResolved args) $ liftIO $ prettyASTResolved astResolved
 
-            astInferred <- withErrorPrefix "infer: " $ infer resolvedAST (verbose args)
+
+            -- infer ast types
+            astInferred <- withErrorPrefix "infer: " $ infer astResolved (verbose args)
             when (printAstInferred args) $ liftIO $ prettyASTResolved astInferred
 
 
-            debug "resolve2"
-            ((), resolved2) <- withErrorPrefix "resolve2: " $ runBoMTExcept astInferred Resolve2.compile
-            modify $ \s -> s { moduleMap = Map.insert path (resolved2) (moduleMap s) }
-            when (printAstFinal args) $ liftIO $ prettyASTResolved resolved2
+            -- resolve missing functions etc
+            astFinal <- fmap snd $ withErrorPrefix "resolve2: " $
+                runBoMTExcept astInferred Resolve2.compile
+            modify $ \s -> s { moduleMap = Map.insert path astFinal (moduleMap s) }
+            when (printAstFinal args)    $ liftIO $ prettyASTResolved astFinal
 
-            -- create 'build' directory
-            buildDir <- liftIO $ canonicalizePath $ "build"
-            liftIO $ createDirectoryIfMissing True buildDir
 
+            -- build C ast from final ast
+            cBuilderState <- fmap snd $ runGenerateT
+                (C.initGenerateState) (C.initBuilderState modName) (generate astFinal)
+
+
+            -- optimise C builder state
+            let includePaths = includes astFinal
+            finalBuilderState <- if Args.optimise args then do
+                (((), n), cBuilderStateOptimised) <- runBoMTExcept cBuilderState $ do
+                    runBoMUntilSameState O.optimise
+                liftIO $ putStrLn $ "ran:       " ++ show n ++ " optimisation passes."
+                return cBuilderStateOptimised
+            else return cBuilderState
+
+
+            -- write builder state to C file
             cFilePath <- liftIO $ writeSystemTempFile (modName ++ ".c") ""
             modify $ \s -> s { cFileMap = Map.insert path cFilePath (cFileMap s) }
-
-            liftIO $ putStrLn $ "writing: " ++ cFilePath
             cHandle <- liftIO $ openFile cFilePath WriteMode
-            (_, cBuilderState) <- runGenerateT (C.initGenerateState) (C.initBuilderState modName) (generate resolved2)
-
-
-            -- optimise
-            let includePaths = includes resolved2
-            if Args.optimise args then do
-                let level = 3
-                liftIO $ putStrLn $ "running " ++ show level ++ " optimisation passes..."
-                (_, cBuilderStateOptimised) <- runBoMTExcept
-                    cBuilderState
-                    (replicateM_ 3 O.optimise)
-                void $ runBoMTExcept (initCPrettyState cHandle cBuilderStateOptimised) (cPretty includePaths)
-            else do
-                void $ runBoMTExcept (initCPrettyState cHandle cBuilderState) (cPretty includePaths)
-
-            liftIO $ hClose cHandle
-
-            return ()
-
-        debug str =
-            if verbose args
-            then liftIO $ putStrLn (takeFileName modPath ++ " -> " ++ str)
-            else return ()
-
+            void $ runBoMTExcept (initCPrettyState cHandle finalBuilderState) (cPretty includePaths)
+            void $ liftIO $ hClose cHandle
+            liftIO $ putStrLn $ "wrote:     " ++ cFilePath

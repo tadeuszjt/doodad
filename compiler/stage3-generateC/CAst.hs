@@ -186,5 +186,5 @@ data Element
         { caseExpr :: Expression
         , caseBody :: [ID]
         }
-    deriving (Show)
+    deriving (Show, Eq)
  
