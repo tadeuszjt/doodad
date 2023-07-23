@@ -8,7 +8,7 @@ import Collect
 import qualified Data.Map as Map
 import qualified SymTab
 import qualified Resolve
-import States
+import ASTResolved
 
 -- constraint:   (t1, t2) or (x, y)
 -- substitution: (id, t) or (x, u)
@@ -45,7 +45,7 @@ class Apply a where
     apply :: (Type -> Type) -> a -> a
 
             
-instance Apply ResolvedAst where
+instance Apply ASTResolved where
     apply f ast = ast { funcDefs = Map.map (apply f) (funcDefs ast) }
 
 

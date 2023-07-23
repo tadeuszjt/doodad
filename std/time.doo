@@ -1,0 +1,18 @@
+module time
+
+include <time.h>
+
+fn sleepNs(n i64)
+    ${
+        struct timespec wait_time = {0};
+        wait_time.tv_nsec = $n;
+        nanosleep(&wait_time, NULL);
+    }
+
+fn sleepMs(n i64)
+    ${
+        struct timespec wait_time = {0};
+        wait_time.tv_sec = $n / 1000;
+        wait_time.tv_nsec = ($n % 1000) * 1000000;
+        nanosleep(&wait_time, NULL);
+    }

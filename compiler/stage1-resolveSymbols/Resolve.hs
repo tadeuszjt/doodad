@@ -14,7 +14,7 @@ import AST
 import Monad
 import Error
 import Symbol
-import States
+import ASTResolved
 
 -- Modoule 'Resolve':
 --
@@ -41,7 +41,7 @@ data ResolveState
     = ResolveState
         { symTab      :: SymTab
         , funcKeys    :: Set.Set FuncKey
-        , imports     :: [ResolvedAst]
+        , imports     :: [ASTResolved]
         , modName     :: String
         , supply      :: Map.Map String Int
         , typeDefsMap :: Map.Map Symbol AnnoType
@@ -137,20 +137,20 @@ annoToType anno = case anno of
             AST.ADTFieldMember symbol ts -> FieldCtor ts
 
 
-buildTypeImportMap :: BoM (Map.Map Symbol Type) m => [ResolvedAst] -> m ()
+buildTypeImportMap :: BoM (Map.Map Symbol Type) m => [ASTResolved] -> m ()
 buildTypeImportMap imports = do
     forM_ imports $ \imprt -> do
         modify $ Map.union (typeDefs imprt)
         modify $ Map.union (typeImports imprt)
 
-buildFuncImportMap :: BoM (Map.Map Symbol FuncKey) m => [ResolvedAst] -> m ()
+buildFuncImportMap :: BoM (Map.Map Symbol FuncKey) m => [ASTResolved] -> m ()
 buildFuncImportMap imports = do
     forM_ imports $ \imprt -> do
         forM_ (Map.toList $ funcDefs imprt) $ \(symbol, body) -> do
             False <- Map.member symbol <$> get
             modify $ Map.insert symbol (funcKeyFromBody (sym symbol) body)
 
-buildCtorImportMap :: BoM (Map.Map Symbol (Type, Int)) m => [ResolvedAst] -> m ()
+buildCtorImportMap :: BoM (Map.Map Symbol (Type, Int)) m => [ASTResolved] -> m ()
 buildCtorImportMap imports = do
     forM_ imports $ \imprt -> do
         forM_ (Map.toList $ ctorDefs imprt) $ \(symbol, (t, i)) -> do
@@ -172,11 +172,11 @@ buildCtorMap list = do
 
 
 
-resolveAsts :: BoM s m => [AST] -> [ResolvedAst] -> m (ResolvedAst, ResolveState)
+resolveAsts :: BoM s m => [AST] -> [ASTResolved] -> m (ASTResolved, ResolveState)
 resolveAsts asts imports = withErrorPrefix "resolve: " $ do
     runBoMTExcept (initResolveState imports (astModuleName $ head asts) Map.empty) f
     where
-        f :: BoM ResolveState m => m ResolvedAst
+        f :: BoM ResolveState m => m ASTResolved
         f = do
             let moduleName = astModuleName $ head asts
             assert (all (== moduleName) $ map astModuleName asts) "module name mismatch"
@@ -213,9 +213,9 @@ resolveAsts asts imports = withErrorPrefix "resolve: " $ do
             tdm <- gets typeDefsMap
             (_, ctorMap) <- runBoMTExcept Map.empty (buildCtorMap $ Map.toList tdm)
 
-            let includes = Set.toList $ Set.fromList [ s | inc@(CInclude s) <- concat $ map astImports asts ]
-            let links    = Set.toList $ Set.fromList [ s | link@(CLink s) <- concat $ map astImports asts ]
-            return $ ResolvedAst
+            let includes = Set.fromList [ s | inc@(CInclude s) <- concat $ map astImports asts ]
+            let links    = Set.fromList [ s | link@(CLink s) <- concat $ map astImports asts ]
+            return $ ASTResolved
                 { moduleName  = moduleName
                 , includes    = includes
                 , links       = links

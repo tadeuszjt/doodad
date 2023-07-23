@@ -63,7 +63,9 @@ printError err = case err of
         let path = textFile pos
         file <- try (readFile path) :: IO (Either SomeException String)
         case file of
-            Left e    -> putStrLn ("Failed to print error, couldn't read path: " ++ path)
+            Left e    -> do
+                putStrLn ("Error: couldn't read path: " ++ show path)
+                putStrLn str
             Right src -> printMsg src pos str
     where
         printMsg :: String -> TextPos -> String -> IO ()

@@ -239,6 +239,11 @@ fn testConst()
 
 
 
+fn testGenerics()
+    return
+
+
+
 fn {io Io} main()
     testNothing()
     test1Eq2()
@@ -263,4 +268,5 @@ fn {io Io} main()
     testTableSetElems()
     testLexerTwoDots()
     testConst()
+    testGenerics()
     io.putStrLn("finished")

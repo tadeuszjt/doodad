@@ -15,7 +15,7 @@ import Data.Maybe
 
 import Monad
 import Symbol
-import States
+import ASTResolved
 import CBuilder as C
 import CAst as C
 import Control.Monad.State

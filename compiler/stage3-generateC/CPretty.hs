@@ -4,6 +4,7 @@ module CPretty where
 import Prelude hiding (print)
 import Data.List
 import qualified Data.Map as Map 
+import qualified Data.Set as Set
 import Control.Monad
 import Control.Monad.State
 import Control.Monad.IO.Class
@@ -56,7 +57,7 @@ popIndent :: BoM CPrettyState m => m ()
 popIndent = modify $ \s -> s { indent = (indent s - 1) }
 
 
-cPretty :: BoM CPrettyState m => [String] -> m ()
+cPretty :: BoM CPrettyState m => Set.Set String -> m ()
 cPretty includePaths = do
     modName <- moduleName <$> gets builder
     printLn $ "/* Doodad Module: " ++ modName ++ " */"

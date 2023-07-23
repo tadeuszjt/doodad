@@ -14,10 +14,10 @@ import Symbol
 import Monad
 import Error
 import Type
-import States
+import ASTResolved
 
 
-compile :: BoM ResolvedAst m => m ()
+compile :: BoM ASTResolved m => m ()
 compile = do
     funcDefs <- gets funcDefs
     funcDefs' <- fmap Map.fromList $ forM (Map.toList funcDefs) $ \(symbol, body) -> do
@@ -26,14 +26,14 @@ compile = do
     modify $ \s -> s { funcDefs = funcDefs' }
 
 
-compileFuncDef :: BoM ResolvedAst m => FuncBody -> m FuncBody
+compileFuncDef :: BoM ASTResolved m => FuncBody -> m FuncBody
 compileFuncDef body = do
     stmts' <- mapM compileStmt (funcStmts body)
     return body { funcStmts  = stmts' }
 
 
 -- add extern if needed
-resolveFuncCall :: BoM ResolvedAst m => Type -> AST.Expr -> m Symbol
+resolveFuncCall :: BoM ASTResolved m => Type -> AST.Expr -> m Symbol
 resolveFuncCall exprType (AST.Call pos params symbol args) = withPos pos $ do
     let key = (map typeof params, sym symbol, map typeof args, exprType)
     case symbol of
@@ -58,19 +58,19 @@ resolveFuncCall exprType (AST.Call pos params symbol args) = withPos pos $ do
                         (Nothing, Just x) -> return x
                         (Nothing, Nothing) -> fail $ "no def for: " ++ sym ++ " " ++ show key
     where
-        findFuncDef :: BoM ResolvedAst m => FuncKey -> m (Maybe Symbol)
+        findFuncDef :: BoM ASTResolved m => FuncKey -> m (Maybe Symbol)
         findFuncDef key = checkOne =<< Map.filterWithKey (\symbol body -> funcKeyFromBody (sym symbol) body == key) <$> gets funcDefs
 
-        findTypeDef :: BoM ResolvedAst m => String -> m (Maybe Symbol)
+        findTypeDef :: BoM ASTResolved m => String -> m (Maybe Symbol)
         findTypeDef sym = checkOne =<< Map.filterWithKey (\s t -> Symbol.sym s == sym) <$> gets typeDefs
 
-        findImportedFuncDef :: BoM ResolvedAst m => FuncKey -> m (Maybe Symbol)
+        findImportedFuncDef :: BoM ASTResolved m => FuncKey -> m (Maybe Symbol)
         findImportedFuncDef key = checkOne =<< Map.filter (== key) <$> gets funcImports
 
-        findImportedTypeDef :: BoM ResolvedAst m => String -> m (Maybe Symbol)
+        findImportedTypeDef :: BoM ASTResolved m => String -> m (Maybe Symbol)
         findImportedTypeDef sym = checkOne =<< Map.filterWithKey (\s t -> Symbol.sym s == sym) <$> gets typeImports
 
-        findQualifiedFuncDef :: BoM ResolvedAst m => String -> FuncKey -> m (Maybe Symbol)
+        findQualifiedFuncDef :: BoM ASTResolved m => String -> FuncKey -> m (Maybe Symbol)
         findQualifiedFuncDef mod key = checkOne =<< Map.filterWithKey (\s k -> Symbol.mod s == mod && k == key) <$> gets funcImports
 
         checkOne :: BoM s m => Map.Map Symbol b -> m (Maybe Symbol)
@@ -80,7 +80,7 @@ resolveFuncCall exprType (AST.Call pos params symbol args) = withPos pos $ do
             _ -> fail $ "Ambiguous symbol: " ++ show symbol
 
 
-compileStmt :: BoM ResolvedAst m => AST.Stmt -> m Stmt
+compileStmt :: BoM ASTResolved m => AST.Stmt -> m Stmt
 compileStmt stmt = withPos stmt $ case stmt of
     AST.EmbedC pos s     -> return (AST.EmbedC pos s)
     AST.Block stmts      -> Block <$> mapM compileStmt stmts
@@ -130,7 +130,7 @@ compileStmt stmt = withPos stmt $ case stmt of
         return $ Data pos symbol typ mexpr'
 
 
-resolveFieldAccess :: BoM ResolvedAst m => AST.Expr -> m Expr
+resolveFieldAccess :: BoM ASTResolved m => AST.Expr -> m Expr
 resolveFieldAccess (AST.Field pos expr (Sym sym)) = do
         -- (tup:typeSymbol).x:i64
         -- find mod_x_n
@@ -152,7 +152,7 @@ resolveFieldAccess (AST.Field pos expr (Sym sym)) = do
             fieldSymMatches symbol = Symbol.sym symbol == sym
 
 
-compileExpr :: BoM ResolvedAst m => AST.Expr -> m Expr
+compileExpr :: BoM ASTResolved m => AST.Expr -> m Expr
 compileExpr (AST.AExpr exprType expr) = withPos expr $ AExpr exprType <$> case expr of
     AST.Field pos _ _         -> resolveFieldAccess expr
     AST.Ident pos symbol      -> return $ Ident pos symbol
@@ -220,7 +220,7 @@ compileExpr (AST.AExpr exprType expr) = withPos expr $ AExpr exprType <$> case e
         return $ AST.Range pos mexpr' mexpr1' mexpr2'
 
 
-compilePattern :: BoM ResolvedAst m => AST.Pattern -> m Pattern
+compilePattern :: BoM ASTResolved m => AST.Pattern -> m Pattern
 compilePattern pattern = case pattern of
     AST.PatIgnore pos -> return $ PatIgnore pos
     AST.PatIdent pos symbol -> do

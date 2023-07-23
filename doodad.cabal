@@ -63,7 +63,7 @@ executable doodad
         Resolve,
         Infer,
         Symbol,
-        States,
+        ASTResolved,
         Lexer,
         Token,
         Resolve2,

@@ -15,40 +15,51 @@ import Apply
 import Unify
 import Collect
 import qualified Resolve
-import States
+import ASTResolved
 import Annotate
 
 
+runUntilNoChange :: Eq a => BoM s m => a -> (a -> m a) -> m a
+runUntilNoChange a f = do
+    a' <- f a
+    if a == a' then return a
+    else runUntilNoChange a' f
+
+
 -- Takes a resolved and annotated ast and inferes all types.
-infer :: BoM s m => ResolvedAst -> Bool -> m ResolvedAst
+infer :: BoM s m => ASTResolved -> Bool -> m ASTResolved
 infer resolvedAST verbose = do 
-    (ast, count) <- withErrorPrefix "annotate: " $ runBoMTExcept 0 $ annotate resolvedAST
-    fst <$> recursiveInfer count ast
+    (ast, typeSupplyCount) <- withErrorPrefix "annotate: " $ runBoMTExcept 0 $ annotate resolvedAST
+    runUntilNoChange ast $ \ast' -> do 
+        inferred <- runUntilNoChange ast' (inferTypes typeSupplyCount)
+        defaulted <- runUntilNoChange inferred (inferDefaults typeSupplyCount)
+        return defaulted
     where
-        recursiveInfer :: BoM s m => Int -> ResolvedAst -> m (ResolvedAst, Int)
-        recursiveInfer count ast = do
-            -- run collect to get collect state containing type constraints
-            (_, state) <- withErrorPrefix "collect: " $
-                runBoMTExcept (initCollectState count) (collectAST ast)
-            
+        inferTypes :: BoM s m => Int -> ASTResolved -> m ASTResolved
+        inferTypes typeSupplyCount ast = do
+            --liftIO $ putStrLn "inferTypes"
+            collectState <- fmap snd $ withErrorPrefix "collect: " $
+                runBoMTExcept (initCollectState typeSupplyCount) (collectAST ast)
+
             -- turn type constraints into substitutions using unify
-            let sos     = SymTab.lookupKey Collect.KeyType (symTab state)
+            let sos     = SymTab.lookupKey Collect.KeyType (symTab collectState)
             let typeMap = Map.map (\(ObjType t) -> t) $ Map.fromList sos
-            (subs, _) <- runBoMTExcept typeMap (unify2 $ Map.toList $ collected state)
+            subs <- fmap fst $ runBoMTExcept typeMap (unify $ Map.toList $ collected collectState)
 
-            -- if the infered ast is the same as the last iteration, finish
-            let subbedAst = applySubs subs ast
-            if ast == subbedAst
-            then do
-                (defaults, _) <- runBoMTExcept typeMap $ unifyDefault $
-                    Map.toList $ Map.mapKeys (applySubs subs) (defaults state)
-                let defaultedAst = applySubs defaults subbedAst
+            -- apply substitutions to ast
+            return (applySubs subs ast)
 
-                if defaultedAst == subbedAst then do
-                    return (defaultedAst, 1)
-                else do
-                    (subbedAst', n) <- recursiveInfer count defaultedAst 
-                    return (subbedAst', n + 1)
-            else do
-                (subbedAst', n) <- recursiveInfer count subbedAst
-                return (subbedAst', n + 1)
+
+        inferDefaults :: BoM s m => Int -> ASTResolved -> m ASTResolved
+        inferDefaults typeSupplyCount ast = do
+            --liftIO $ putStrLn "inferDefaults"
+            collectState <- fmap snd $ withErrorPrefix "collect: " $
+                runBoMTExcept (initCollectState typeSupplyCount) (collectAST ast)
+
+            -- turn type constraints into substitutions using unify
+            let sos     = SymTab.lookupKey Collect.KeyType (symTab collectState)
+            let typeMap = Map.map (\(ObjType t) -> t) $ Map.fromList sos
+            subs <- fmap fst $ runBoMTExcept typeMap (unifyDefault $ Map.toList $ defaults collectState)
+
+            -- apply substitutions to ast
+            return (applySubs subs ast)

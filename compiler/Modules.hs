@@ -29,7 +29,7 @@ import Infer
 import Collect as C
 import qualified Resolve as R
 import qualified SymTab
-import States
+import ASTResolved
 import Resolve2
 import CBuilder as C
 import CPretty as C
@@ -44,7 +44,7 @@ import COptimise as O
 
 data Modules
     = Modules
-        { moduleMap :: Map.Map FilePath ResolvedAst
+        { moduleMap :: Map.Map FilePath ASTResolved
         , cFileMap  :: Map.Map FilePath FilePath
         }
 
@@ -100,7 +100,7 @@ buildModule args modPath = do
     ((), state) <- runBoMTExcept (initModulesState) $ buildModule' args modPath
     let cFiles = Map.elems (cFileMap state) ++ ["include/doodad.c"]
     let binFile = takeFileName modPath
-    let linkPaths = Set.toList $ Set.fromList $ concat (map links $ Map.elems $ moduleMap state)
+    let linkPaths = Set.toList $ Set.unions (map links $ Map.elems $ moduleMap state)
 
     forM_ linkPaths $ \path -> do
         liftIO $ putStrLn $ "linking '" ++ path ++ "'"
@@ -162,16 +162,16 @@ buildModule' args modPath = do
                 return $ fromJust resm
             (resolvedAST, _) <- R.resolveAsts asts astImports
             Flatten.checkTypeDefs (typeDefs resolvedAST)
-            when (printAstResolved args) $ liftIO $ prettyResolvedAst resolvedAST
+            when (printAstResolved args) $ liftIO $ prettyASTResolved resolvedAST
 
             astInferred <- withErrorPrefix "infer: " $ infer resolvedAST (verbose args)
-            when (printAstInferred args) $ liftIO $ prettyResolvedAst astInferred
+            when (printAstInferred args) $ liftIO $ prettyASTResolved astInferred
 
 
             debug "resolve2"
             ((), resolved2) <- withErrorPrefix "resolve2: " $ runBoMTExcept astInferred Resolve2.compile
             modify $ \s -> s { moduleMap = Map.insert path (resolved2) (moduleMap s) }
-            when (printAstFinal args) $ liftIO $ prettyResolvedAst resolved2
+            when (printAstFinal args) $ liftIO $ prettyASTResolved resolved2
 
             -- create 'build' directory
             buildDir <- liftIO $ canonicalizePath $ "build"

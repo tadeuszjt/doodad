@@ -6,7 +6,7 @@ import AST
 import Monad
 import Control.Monad.State
 import qualified Type as T
-import States
+import ASTResolved
 
 -- 'Annotate takes an AST and annotates all expressions with a type variable using 'AExpr'.
 -- This is the first step of the Hindley-Milner type inference algorithm.
@@ -19,7 +19,7 @@ instance Annotate Param where
     annotate (Param pos name T.Void) = Param pos name <$> genType
     annotate (Param pos name typ)    = return (Param pos name typ)
 
-instance Annotate ResolvedAst where
+instance Annotate ASTResolved where
     annotate resolvedAst = do
         funcDefs <- mapM annotate (funcDefs resolvedAst)
         return $ resolvedAst

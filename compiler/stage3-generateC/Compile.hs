@@ -12,7 +12,7 @@ import CBuilder as C
 import CGenerate
 import AST as S
 import Type as Type
-import States
+import ASTResolved
 import Symbol
 import Error
 
@@ -88,7 +88,7 @@ generateAdtEqual a b = do
 
     return eq
 
-generate :: MonadGenerate m => ResolvedAst -> m ()
+generate :: MonadGenerate m => ASTResolved -> m ()
 generate ast = do
     let typedefs = Map.union (typeImports ast) (typeDefs ast)
 
@@ -117,9 +117,9 @@ generate ast = do
     -- generate function headers
     
     forM_ (Map.toList $ funcDefs ast) $ \(symbol, func) -> do
-        crt <- cTypeOf (States.funcRetty func)
-        cpts <- map Cpointer <$> mapM cTypeOf (map paramType $ States.funcParams func)
-        cats <- mapM cTypeOf (map paramType $ States.funcArgs func)
+        crt <- cTypeOf (ASTResolved.funcRetty func)
+        cpts <- map Cpointer <$> mapM cTypeOf (map paramType $ ASTResolved.funcParams func)
+        cats <- mapM cTypeOf (map paramType $ ASTResolved.funcArgs func)
         newExtern (show symbol) crt (cpts ++ cats)
 
     forM_ (Map.toList $ funcDefs ast) $ \(symbol, func) -> do
@@ -127,7 +127,7 @@ generate ast = do
         when (sym symbol == "main") $ do
             let typedef = Type.Typedef (SymResolved "io" "Io" 0)
             id <- newFunction Cvoid "main" []
-            withCurID id $ case (States.funcParams func, States.funcArgs func) of
+            withCurID id $ case (ASTResolved.funcParams func, ASTResolved.funcArgs func) of
                 ([], []) -> call (show symbol) []
                 ([p], []) | typeof p == typedef -> do -- main with io
                     io <- initialiser typedef []
@@ -137,24 +137,24 @@ generate ast = do
 
 generateFunc :: MonadGenerate m => Symbol -> FuncBody -> m ()
 generateFunc symbol body = do
-    args <- mapM cParamOf (States.funcArgs body)
-    params <- map (\(C.Param n t) -> C.Param n (Cpointer t)) <$> mapM cParamOf (States.funcParams body)
-    rettyType <- cTypeOf (States.funcRetty body)
+    args <- mapM cParamOf (ASTResolved.funcArgs body)
+    params <- map (\(C.Param n t) -> C.Param n (Cpointer t)) <$> mapM cParamOf (ASTResolved.funcParams body)
+    rettyType <- cTypeOf (ASTResolved.funcRetty body)
 
-    forM_ (States.funcParams body) $ \param -> do
+    forM_ (ASTResolved.funcParams body) $ \param -> do
         ctyp <- cTypeOf (paramType param)
         name <- return $ show (S.paramName param)
         define name $ Value (S.paramType param) (C.Deref $ C.Ident name)
 
-    forM_ (States.funcArgs body) $ \arg -> do
+    forM_ (ASTResolved.funcArgs body) $ \arg -> do
         ctyp <- cTypeOf (paramType arg)
         name <- return $ show (S.paramName arg)
         define name $ Value (S.paramType arg) (C.Ident name)
 
     id <- newFunction rettyType (show symbol) (params ++ args)
     withCurID id $ do
-        mapM_ generateStmt (States.funcStmts body)
-        when (States.funcRetty body /= Type.Void) $ -- check to ensure function has return
+        mapM_ generateStmt (ASTResolved.funcStmts body)
+        when (ASTResolved.funcRetty body /= Type.Void) $ -- check to ensure function has return
             call "assert" [false]
     withCurID globalID $ append id
 

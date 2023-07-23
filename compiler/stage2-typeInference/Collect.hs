@@ -14,7 +14,7 @@ import Control.Monad.State
 import qualified SymTab
 import Symbol
 import qualified Resolve
-import States
+import ASTResolved
 import Annotate hiding (genType)
 
 import qualified Debug.Trace
@@ -139,7 +139,7 @@ define symbol key obj = do
     modify $ \s -> s { symTab = SymTab.insert symbol key obj (symTab s) }
 
 
-collectAST :: BoM CollectState m => ResolvedAst -> m ()
+collectAST :: BoM CollectState m => ASTResolved -> m ()
 collectAST ast = do
     forM (Map.toList $ typeImports ast) $ \(symbol, typ) -> do
         collectTypedef symbol typ
