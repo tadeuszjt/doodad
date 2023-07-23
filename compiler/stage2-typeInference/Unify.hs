@@ -38,7 +38,7 @@ unifyOne pos constraint = case constraint of
         basem <- baseTypeOf agg
         case basem of
             Just (ADT fs) -> do
-                assert (i < length fs)        "Invalid ADT member"
+                assert (i < length fs) "Invalid ADT member"
                 case fs !! i of
                     FieldNull -> fail "Invalid ADT member"
                     FieldType ft -> do
@@ -60,7 +60,6 @@ unifyOne pos constraint = case constraint of
         basem <- baseTypeOf t1
         case basem of
             Just (Table ts)  -> unifyOne pos (ConsEq t2 $ ts !! i)
-            Just (Sparse ts) -> unifyOne pos (ConsEq t2 $ ts !! i)
             Just (Array n t) -> do 
                 assert (i == 0) "ConsMember: Invalid index"
                 unifyOne pos (ConsEq t2 t)
@@ -75,7 +74,7 @@ unifyOne pos constraint = case constraint of
     ConsElem t1 t2 -> do
         basem <- baseTypeOf t1
         case basem of
-            Just (Table [t])  -> unifyOne pos (ConsEq t2 t)
+            Just (Table [t]) -> unifyOne pos (ConsEq t2 t)
             Just (Table ts)  -> unifyOne pos (ConsEq t2 $ Tuple ts)
             Just (Array n t) -> unifyOne pos (ConsEq t2 t)
             Nothing -> return []
@@ -84,12 +83,11 @@ unifyOne pos constraint = case constraint of
     ConsSubscript t1 t2 -> do
         basem <- baseTypeOf t2
         case basem of
-            Just (Table [t]) -> unifyOne pos (ConsEq t1 t)
-            Just (Table ts)  -> unifyOne pos (ConsEq t1 $ Tuple ts)
-            Just (Sparse [t]) -> unifyOne pos (ConsEq t1 t)
-            Just (Array n t) -> unifyOne pos (ConsEq t1 t)
-            Just (Range t)   -> unifyOne pos (ConsEq t1 Bool)
-            Just String      -> unifyOne pos (ConsEq t1 Char)
+            Just (Table [t])  -> unifyOne pos (ConsEq t1 t)
+            Just (Table ts)   -> unifyOne pos (ConsEq t1 $ Tuple ts)
+            Just (Array n t)  -> unifyOne pos (ConsEq t1 t)
+            Just (Range t)    -> unifyOne pos (ConsEq t1 Bool)
+            Just String       -> unifyOne pos (ConsEq t1 Char)
             _ -> return []
 
     ConsBase t1 t2 -> do

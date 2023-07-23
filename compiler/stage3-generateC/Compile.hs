@@ -32,7 +32,6 @@ getSymbolsOrderedByDependencies typedefs = do
                 return $ symbols ++ [s]
             Type.Tuple ts  -> concat <$> mapM getSymbols ts
             Table ts  -> concat <$> mapM getSymbols ts
-            Sparse ts  -> concat <$> mapM getSymbols ts
             Type.Array n t -> getSymbols t
             Type.ADT fs -> concat <$> mapM getSymbolsField fs
             _ -> error (show typ)

@@ -450,12 +450,7 @@ instance Resolve Type where
         Type.Array n t      -> Type.Array n <$> resolve t
         Type.Typedef symbol -> Type.Typedef <$> look symbol KeyType
         Type.ADT fs         -> Type.ADT <$>  mapM resolve fs
-        Type.Sparse ts      -> Type.Sparse <$> mapM resolve ts
         Type.Range t        -> Type.Range <$> resolve t
-        Type.Map tk tv      -> do 
-            tk' <- resolve tk
-            tv' <- resolve tv
-            return $ Type.Map tk' tv'
         _ -> error $ "resolve type: " ++ show typ
 
 instance Resolve Expr where

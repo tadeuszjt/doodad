@@ -21,13 +21,10 @@ substitute u x typ = case typ of
     _ | isSimple typ -> typ
     Key t            -> Key $ substitute u x t
     Range t          -> Range $ substitute u x t
-    Map tk tv        -> Map (substitute u x tk) (substitute u x tv)
-    Sparse ts        -> Sparse $ map (substitute u x) ts
     Table ts         -> Table $ map (substitute u x) ts
     Tuple ts         -> Tuple $ map (substitute u x) ts
     Array n t        -> Array n (substitute u x t)
     ADT fs           -> ADT $ map subAdtField fs
-    UnsafePtr        -> UnsafePtr
     _                -> error (show typ)
     where
         subAdtField :: AdtField -> AdtField

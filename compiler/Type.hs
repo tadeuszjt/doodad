@@ -28,15 +28,12 @@ data Type
     | String
     | Key Type
     | Range Type
-    | Sparse [Type]
-    | Map Type Type
     | Tuple [Type]           
     | Array Int Type         
     | Table [Type]         
     | Func [Type] Type 
     | ADT [AdtField]
     | Typedef Symbol
-    | UnsafePtr
     deriving (Eq, Ord)
 
 instance Show AdtField where
@@ -61,15 +58,12 @@ instance Show Type where
         String        -> "string"
         Key t         -> '@' : show t
         Range t       -> "[..]" ++ show t
-        Sparse ts     -> "sparse" ++ "[" ++ intercalate "; " (map show ts) ++ "]"
-        Map tk tv     -> "map" ++ "[" ++ show tk ++ "]" ++ show tv
         Tuple ts      -> "(" ++ intercalate ", " (map show ts) ++ ")"
         Array n t     -> "[" ++ show n ++ " " ++ show t ++ "]"
         ADT tss       -> "{" ++ intercalate " | " (map show tss) ++ "}"
         Table ts      -> "[" ++ intercalate "; " (map show ts) ++ "]"
         Func ts rt    -> "fn(" ++ intercalate ", " (map show ts) ++ ")" ++ show rt
         Typedef s     -> show s
-        UnsafePtr     -> "*"
 
 isInt x      = x `elem` [U8, I8, I16, I32, I64]
 isFloat x    = x `elem` [F32, F64]
