@@ -46,6 +46,7 @@ data ResolveState
         , supply      :: Map.Map String Int
         , typeDefsMap :: Map.Map Symbol AnnoType
         , localFuncDefs :: Map.Map Symbol FuncBody
+        , generics    :: Set.Set Symbol
         }
 
 initResolveState imports modName typeImports = ResolveState
@@ -56,6 +57,7 @@ initResolveState imports modName typeImports = ResolveState
     , supply    = Map.empty
     , typeDefsMap = Map.empty
     , localFuncDefs = Map.empty
+    , generics = Set.empty
     }
 
 
@@ -234,12 +236,13 @@ instance Resolve Symbol where
 
 
 resolveFuncDef :: BoM ResolveState m => AST.Stmt -> m (Symbol, FuncBody)
-resolveFuncDef (FuncDef pos generics params (Sym sym) args retty blk) = withPos pos $ do
+resolveFuncDef (FuncDef pos gs params (Sym sym) args retty blk) = withPos pos $ do
     pushSymTab
-    generics' <- forM generics $ \(Param pos (Sym sym) Void) -> do
+    generics' <- forM gs $ \(Param pos (Sym sym) Void) -> do
         symbol <- genSymbol sym
         define sym KeyType symbol
-        return $ Param pos (Sym "") $ Type.Typedef symbol
+        modify $ \s -> s { generics = Set.insert symbol (generics s) }
+        return $ Param pos (Sym "") $ Type.Generic symbol
     params' <- mapM resolve params
     args' <- mapM resolve args
     retty' <- resolve retty
@@ -463,7 +466,12 @@ instance Resolve Type where
         Type.Key t          -> Type.Key <$> resolve t
         Type.Tuple ts       -> Type.Tuple <$> mapM resolve ts
         Type.Array n t      -> Type.Array n <$> resolve t
-        Type.Typedef symbol -> Type.Typedef <$> look symbol KeyType
+        Type.Typedef symbol -> do
+            symbol' <- look symbol KeyType
+            isGeneric <- Set.member symbol' <$> gets generics
+            case isGeneric of
+                True -> return $ Generic symbol'
+                False -> return $ Type.Typedef symbol'
         Type.ADT fs         -> Type.ADT <$>  mapM resolve fs
         Type.Range t        -> Type.Range <$> resolve t
         _ -> error $ "resolve type: " ++ show typ

@@ -4,7 +4,7 @@ module Apply where
 
 import Type
 import qualified AST as S
-import Collect
+import Constraint
 import qualified Data.Map as Map
 import qualified SymTab
 import qualified Resolve
@@ -12,20 +12,22 @@ import ASTResolved
 
 -- constraint:   (t1, t2) or (x, y)
 -- substitution: (id, t) or (x, u)
-substitute :: Type -> Int -> Type -> Type
+substitute :: Type -> Type -> Type -> Type
 substitute u x typ = case typ of
-    Type i | i == x -> u
-    Type _           -> typ
-    Void             -> typ
-    Typedef symbol   -> typ
-    _ | isSimple typ -> typ
-    Key t            -> Key $ substitute u x t
-    Range t          -> Range $ substitute u x t
-    Table ts         -> Table $ map (substitute u x) ts
-    Tuple ts         -> Tuple $ map (substitute u x) ts
-    Array n t        -> Array n (substitute u x t)
-    ADT fs           -> ADT $ map subAdtField fs
-    _                -> error (show typ)
+    Type _ | typ == x    -> u
+    Generic _ | typ == x -> u
+    Type _               -> typ
+    Generic _            -> typ
+    Void                 -> typ
+    Typedef symbol       -> typ
+    _ | isSimple typ     -> typ
+    Key t                -> Key $ substitute u x t
+    Range t              -> Range $ substitute u x t
+    Table ts             -> Table $ map (substitute u x) ts
+    Tuple ts             -> Tuple $ map (substitute u x) ts
+    Array n t            -> Array n (substitute u x t)
+    ADT fs               -> ADT $ map subAdtField fs
+    _                    -> error (show typ)
     where
         subAdtField :: AdtField -> AdtField
         subAdtField field = case field of
@@ -34,7 +36,7 @@ substitute u x typ = case typ of
             FieldCtor ts -> FieldCtor $ map (substitute u x) ts
 
 
-applySubs :: Apply a => [(Int, Type)] -> a -> a
+applySubs :: Apply a => [(Type, Type)] -> a -> a
 applySubs subs a = apply (\t -> foldr (\(x, u) z -> substitute u x z) t subs) a
 
 -- Apply represents taking a function and applying it to all types in an object.

@@ -34,6 +34,7 @@ data Type
     | Func [Type] Type 
     | ADT [AdtField]
     | Typedef Symbol
+    | Generic Symbol
     deriving (Eq, Ord)
 
 instance Show AdtField where
@@ -64,6 +65,7 @@ instance Show Type where
         Table ts      -> "[" ++ intercalate "; " (map show ts) ++ "]"
         Func ts rt    -> "fn(" ++ intercalate ", " (map show ts) ++ ")" ++ show rt
         Typedef s     -> show s
+        Generic s     -> "G" ++ show s
 
 isInt x      = x `elem` [U8, I8, I16, I32, I64]
 isFloat x    = x `elem` [F32, F64]

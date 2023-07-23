@@ -72,4 +72,5 @@ executable doodad
         CGenerate,
         CAst,
         Compile,
-        COptimise
+        COptimise,
+        Constraint

@@ -8,6 +8,7 @@ import qualified Data.Set as Set
 
 import qualified AST as S
 import Type
+import Constraint
 import Monad
 import Error
 import Control.Monad.State
@@ -16,20 +17,10 @@ import Symbol
 import qualified Resolve
 import ASTResolved
 import Annotate hiding (genType)
+import Unify
 
 import qualified Debug.Trace
 
--- constraints obtained from sub-expressions must be to the left
-data Constraint
-    = ConsEq Type Type
-    | ConsBase   Type Type -- both types must have same base
-    | ConsMember Type Int Type -- t2 is ith elem of t1
-    | ConsElem Type Type -- t2 is elem of t1
-    | ConsSubscript   Type Type -- t1 is elem type of t2
-    | ConsField Type Int Type 
-    | ConsAdtMem Type Int Int Type
-    | ConsKey Type Type -- t2 is key type of t1
-    deriving (Show, Eq, Ord)
 
 type SymTab = SymTab.SymTab Symbol SymKey Object
 
@@ -178,7 +169,7 @@ collectFuncDef symbol body = do
         define symbol KeyVar (ObjVar t)
     collectStmt (funcStmt body)
     modify $ \s -> s { curRetty = oldRetty }
-    collectDefault (funcRetty body) Void
+    --collectDefault (funcRetty body) Void
 
 
 collectCtorDef :: BoM CollectState m => Symbol -> (Type, Int) -> m ()
@@ -382,8 +373,17 @@ collectCall exprType rs symbol es = do -- can be resolved or sym
                 typesCouldMatch :: Type -> Type -> Bool
                 typesCouldMatch (Type _) _ = True
                 typesCouldMatch _ (Type _) = True
+                typesCouldMatch (Generic _) _ = True
+                typesCouldMatch _ (Generic _) = True
                 typesCouldMatch a b        = a == b
         keyCouldMatch _ = False
+
+        -- special collectEq that ignores generics
+        collectEq' :: BoM CollectState m => Type -> Type -> m ()
+        collectEq' t1 t2 = case (t1, t2) of
+            (Generic _, _) -> return ()
+            (_, Generic _) -> return ()
+            _              -> collectEq t1 t2
 
         collectIfUnifiedType :: BoM CollectState m => [[Type]] -> [Type] -> m ()
         collectIfUnifiedType [] types = return () 
@@ -392,16 +392,44 @@ collectCall exprType rs symbol es = do -- can be resolved or sym
             forM_ [0..length types - 1] $ \i -> do 
                 let typesn = map (!! i) typess 
                 when (all (== head typesn) typesn) $ do 
-                    collectEq (head typesn) (types !! i)
+                    collectEq' (head typesn) (types !! i)
 
         collectIfOneDef :: BoM CollectState m => [SymKey] -> m ()
         collectIfOneDef [KeyFunc xs ys z] = do
             assert (length ys == length es) "Invalid number of arguments"
             assert (length xs == length rs) "Invalid number of parameters"
-            collectEq z exprType
-            zipWithM_ collectEq xs (map typeof rs)
-            zipWithM_ collectEq ys (map typeof es)
+
+            --key' <- changeGenericFunc (KeyFunc xs ys z)
+
+
+            collectEq' z exprType
+            zipWithM_ collectEq' xs (map typeof rs)
+            zipWithM_ collectEq' ys (map typeof es)
         collectIfOneDef _ = return ()
+
+
+        changeGenericFunc :: BoM CollectState m => SymKey -> m SymKey
+        changeGenericFunc (KeyFunc xs ys z) = do
+            assert (length ys == length es) "Invalid number of arguments"
+            assert (length xs == length rs) "Invalid number of parameters"
+            -- need to choose types for generics
+            ysConstraints <- fmap concat $ forM (zip es ys) $ \(e, y) -> case y of
+                Generic s -> return [(ConsEq (typeof e) (Generic s), textPos e)]
+                _         -> return []
+            xsConstraints <- fmap concat $ forM (zip rs xs) $ \(r, x) -> case x of
+                Generic s -> return [(ConsEq (typeof r) (Generic s), textPos r)]
+                _         -> return []
+            zConstraints <- case z of
+                Generic s -> return [(ConsEq z (Generic s), undefined)]
+                _         -> return []
+
+            subs <- runBoMTExcept Map.empty $ unify (ysConstraints ++ xsConstraints ++ zConstraints)
+            liftIO $ putStrLn (show subs)
+
+            return undefined
+
+
+            
 
 
 collectExpr :: BoM CollectState m => S.Expr -> m ()

@@ -16,7 +16,7 @@ class Annotate a where
 
 
 instance Annotate Param where
-    annotate (Param pos name T.Void) = Param pos name <$> genType
+    --annotate (Param pos name T.Void) = Param pos name <$> genType
     annotate (Param pos name typ)    = return (Param pos name typ)
 
 instance Annotate ASTResolved where
