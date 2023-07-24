@@ -318,7 +318,6 @@ aggregate_t : table_t                       { $1 }
               | tup_t                       { $1 }
               | adt_t                       { $1 }
               | range_t                     { $1 }
-              | fn '(' types ')' type_      { T.Func $3 $5 }
 
 
 adt_t    : '{' adtFields '}'                { T.ADT $2 }

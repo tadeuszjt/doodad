@@ -228,6 +228,7 @@ resolveAsts asts imports = withErrorPrefix "resolve: " $ do
                 , funcDefs    = Map.union funcDefsMap localFuncs
                 , typeDefs    = Map.map annoToType tdm
                 , ctorDefs    = ctorMap
+                , genericDefs = Map.empty
                 }
 
 

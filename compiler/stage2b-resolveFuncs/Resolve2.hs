@@ -21,15 +21,13 @@ compile :: BoM ASTResolved m => m ()
 compile = do
     funcDefs <- gets funcDefs
     funcDefs' <- fmap Map.fromList $ forM (Map.toList funcDefs) $ \(symbol, body) -> do
-        body' <- compileFuncDef body
+        body' <- do
+            stmt' <- compileStmt (funcStmt body)
+            return body { funcStmt = stmt' }
         return (symbol, body')
     modify $ \s -> s { funcDefs = funcDefs' }
 
 
-compileFuncDef :: BoM ASTResolved m => FuncBody -> m FuncBody
-compileFuncDef body = do
-    stmt' <- compileStmt (funcStmt body)
-    return body { funcStmt  = stmt' }
 
 
 -- add extern if needed
@@ -60,6 +58,14 @@ resolveFuncCall exprType (AST.Call pos params symbol args) = withPos pos $ do
     where
         findFuncDef :: BoM ASTResolved m => FuncKey -> m (Maybe Symbol)
         findFuncDef key = checkOne =<< Map.filterWithKey (\symbol body -> funcKeyFromBody (sym symbol) body == key) <$> gets funcDefs
+--        findFuncDef :: BoM ASTResolved m => FuncKey -> m (Maybe Symbol)
+--        findFuncDef key = checkOne =<< Map.filterWithKey (\symbol body -> funcKeysCouldMatch (funcKeyFromBody (sym symbol) body) key) <$> gets funcDefs
+--            where
+--                funcKeysCouldMatch :: FuncKey -> FuncKey -> Bool
+--                funcKeysCouldMatch (aps, asymbol, aas, art) (bps, bsymbol, bas, brt)
+--                    | length aps /= length bps || length aas /= length bas = False
+--                    | otherwise = all (== True) $ zipWith typesCouldMatch (aps ++ aas ++ [art]) (bps ++ bas ++ [brt])
+
 
         findTypeDef :: BoM ASTResolved m => String -> m (Maybe Symbol)
         findTypeDef sym = checkOne =<< Map.filterWithKey (\s t -> Symbol.sym s == sym) <$> gets typeDefs

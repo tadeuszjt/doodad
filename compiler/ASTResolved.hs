@@ -20,6 +20,7 @@ data ASTResolved
         , typeDefs    :: Map.Map Symbol Type        -- defined types
         , ctorDefs    :: Map.Map Symbol (Type, Int) -- defined ctors
         , funcDefs    :: Map.Map Symbol FuncBody    -- defined functions
+        , genericDefs :: Map.Map FuncKey FuncBody   -- generic instantiations
         }
     deriving (Eq)
 
@@ -35,6 +36,7 @@ initASTResolved moduleName = ASTResolved
     , typeDefs    = Map.empty
     , ctorDefs    = Map.empty
     , funcDefs    = Map.empty
+    , genericDefs = Map.empty
     }
 
 

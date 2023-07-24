@@ -18,6 +18,7 @@ import qualified Resolve
 import ASTResolved
 import Annotate hiding (genType)
 import Unify
+import Apply
 
 import qualified Debug.Trace
 
@@ -341,93 +342,63 @@ collectPattern pattern typ = collectPos pattern $ case pattern of
 
 
 collectCall :: BoM CollectState m => Type -> [S.Expr] -> Symbol -> [S.Expr] -> m ()
-collectCall exprType rs symbol es = do -- can be resolved or sym
-    kos <- case symbol of
+collectCall rt ps symbol es = do -- can be resolved or sym
+    keys <- filter keyCouldMatch . map packKey . filter sameArgLengths . filter isKeyFunc <$> case symbol of
         SymQualified mod sym -> do
             let f = (\k v -> Symbol.sym k == sym && Symbol.mod k == mod)
-            maps <- Map.elems . Map.filterWithKey f . head <$> gets symTab
-            return $ Map.toList $ Map.unions maps
+            Map.keys . Map.unions . Map.elems . Map.filterWithKey f . head <$> gets symTab
         Sym sym -> do
             let f = (\k v -> Symbol.sym k == sym)
-            maps <- Map.elems . Map.filterWithKey f . head <$> gets symTab
-            return $ Map.toList $ Map.unions maps
-        SymResolved _ _ _ -> SymTab.lookupSym symbol <$> gets symTab
+            Map.keys . Map.unions . Map.elems . Map.filterWithKey f . head <$> gets symTab
+        SymResolved _ _ _ -> fmap (map fst) $ SymTab.lookupSym symbol <$> gets symTab
+    assert (keys /= []) $ "no keys for: " ++ show symbol
 
-    assert (kos /= []) $ "no keys for: " ++ show symbol
-
-    let ks = filter keyCouldMatch $ map fst kos
-    collectIfOneDef (map fst kos)
-    collectIfUnifiedType (map (\(KeyFunc ps _ _) -> ps) ks) (map typeof rs)
-    collectIfUnifiedType (map (\(KeyFunc _ as _) -> as) ks) (map typeof es)
-    collectIfUnifiedType (map (\(KeyFunc _ _ r) -> [r]) ks) [exprType]
-    collectIfOneDef ks
-    
-    mapM_ collectExpr rs
+    collectIfOneDef keys
+    --collectIfUnifiedType packedKeys keys
+    mapM_ collectExpr ps
     mapM_ collectExpr es
     where
-        keyCouldMatch :: SymKey -> Bool
-        keyCouldMatch (KeyFunc ps as r)
-            | length ps /= length rs || length as /= length es = False
-            | otherwise = all (== True) $ zipWith typesCouldMatch (ps ++ as) $ map typeof (rs ++ es)
-            where
-                typesCouldMatch :: Type -> Type -> Bool
-                typesCouldMatch (Type _) _ = True
-                typesCouldMatch _ (Type _) = True
-                typesCouldMatch (Generic _) _ = True
-                typesCouldMatch _ (Generic _) = True
-                typesCouldMatch a b        = a == b
-        keyCouldMatch _ = False
+        packedExpr = (map typeof ps ++ map typeof es ++ [rt])
 
-        -- special collectEq that ignores generics
-        collectEq' :: BoM CollectState m => Type -> Type -> m ()
-        collectEq' t1 t2 = case (t1, t2) of
-            (Generic _, _) -> return ()
-            (_, Generic _) -> return ()
-            _              -> collectEq t1 t2
+        packKey :: SymKey -> [Type]
+        packKey (KeyFunc ps as rt) = ps ++ as ++ [rt]
 
-        collectIfUnifiedType :: BoM CollectState m => [[Type]] -> [Type] -> m ()
-        collectIfUnifiedType [] types = return () 
-        collectIfUnifiedType typess types = do 
-            assert (all (== length types) $ map length typess) "lengths do not match"
-            forM_ [0..length types - 1] $ \i -> do 
-                let typesn = map (!! i) typess 
-                when (all (== head typesn) typesn) $ do 
-                    collectEq' (head typesn) (types !! i)
+        isKeyFunc :: SymKey -> Bool
+        isKeyFunc (KeyFunc _ _ _) = True
+        isKeyFunc _ = False
 
-        collectIfOneDef :: BoM CollectState m => [SymKey] -> m ()
-        collectIfOneDef [KeyFunc xs ys z] = do
-            assert (length ys == length es) "Invalid number of arguments"
-            assert (length xs == length rs) "Invalid number of parameters"
-
-            --key' <- changeGenericFunc (KeyFunc xs ys z)
+        sameArgLengths :: SymKey -> Bool
+        sameArgLengths (KeyFunc ps as rt) =
+            length ps == length ps && length as == length es
 
 
-            collectEq' z exprType
-            zipWithM_ collectEq' xs (map typeof rs)
-            zipWithM_ collectEq' ys (map typeof es)
-        collectIfOneDef _ = return ()
+        collectIfOneDef :: BoM CollectState m => [[Type]] -> m ()
+        collectIfOneDef [ts] = zipWithM_ collectEq packedExpr =<< replaceGenerics ts
+        collectIfOneDef _    = return ()
 
 
-        changeGenericFunc :: BoM CollectState m => SymKey -> m SymKey
-        changeGenericFunc (KeyFunc xs ys z) = do
-            assert (length ys == length es) "Invalid number of arguments"
-            assert (length xs == length rs) "Invalid number of parameters"
-            -- need to choose types for generics
-            ysConstraints <- fmap concat $ forM (zip es ys) $ \(e, y) -> case y of
-                Generic s -> return [(ConsEq (typeof e) (Generic s), textPos e)]
-                _         -> return []
-            xsConstraints <- fmap concat $ forM (zip rs xs) $ \(r, x) -> case x of
-                Generic s -> return [(ConsEq (typeof r) (Generic s), textPos r)]
-                _         -> return []
-            zConstraints <- case z of
-                Generic s -> return [(ConsEq z (Generic s), undefined)]
-                _         -> return []
+        keyCouldMatch :: [Type] -> Bool
+        keyCouldMatch ts = all (== True) $ zipWith typesCouldMatch ts packedExpr
 
-            subs <- runBoMTExcept Map.empty $ unify (ysConstraints ++ xsConstraints ++ zConstraints)
-            liftIO $ putStrLn (show subs)
+        -- TODO, what if we have sub-generic types? BROKEN
+--        collectIfUnifiedType :: BoM CollectState m => [[Type]] -> [Type] -> m ()
+--        collectIfUnifiedType [] types = return () 
+--        collectIfUnifiedType typess types = do 
+--            assert (all (== length types) $ map length typess) "lengths do not match"
+--            forM_ [0..length types - 1] $ \i -> do 
+--                let typesn = map (!! i) typess 
+--                when (all (== head typesn) typesn) $ do 
+--                    collectEq' (head typesn) (types !! i)
 
-            return undefined
 
+        -- replaces generics with type variables
+        replaceGenerics :: BoM CollectState m => [Type] -> m [Type]
+        replaceGenerics ts = do
+            setOfGenerics <- return $ Set.fromList $ concat $ map findGenerics ts
+            substitutions <- forM (Set.toList setOfGenerics) $ \g -> do
+                gt <- genType
+                return (g, gt)
+            return $ map (applySubs substitutions) ts
 
             
 

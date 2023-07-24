@@ -31,7 +31,6 @@ data Type
     | Tuple [Type]           
     | Array Int Type         
     | Table [Type]         
-    | Func [Type] Type 
     | ADT [AdtField]
     | Typedef Symbol
     | Generic Symbol
@@ -63,7 +62,6 @@ instance Show Type where
         Array n t     -> "[" ++ show n ++ " " ++ show t ++ "]"
         ADT tss       -> "{" ++ intercalate " | " (map show tss) ++ "}"
         Table ts      -> "[" ++ intercalate "; " (map show ts) ++ "]"
-        Func ts rt    -> "fn(" ++ intercalate ", " (map show ts) ++ ")" ++ show rt
         Typedef s     -> show s
         Generic s     -> "G" ++ show s
 
@@ -73,3 +71,30 @@ isIntegral x = isInt x || x == Char
 isSimple x   = isInt x || isFloat x || x == Char || x == Bool || x == String
 
 
+typesCouldMatch :: Type -> Type -> Bool
+typesCouldMatch a b = case (a, b) of
+    (Type _, _)            -> True
+    (_, Type _)            -> True
+    (Generic _, _)         -> True
+    (_, Generic _)         -> True
+    (Void, Void)           -> True
+    (Typedef _, Typedef _) -> a == b
+    _ | isSimple a         -> a == b
+    (Table as, Table bs)   -> length as == length bs && (all (== True) $ zipWith typesCouldMatch as bs)
+    _                      -> error (show (a, b))
+
+
+-- returns all Generics in a type
+findGenerics :: Type -> [Type]
+findGenerics typ = case typ of
+    Generic s -> [typ]
+    Tuple ts  -> concat $ map findGenerics ts
+    Table ts  -> concat $ map findGenerics ts
+    t | isSimple t -> []
+    Type.Typedef s -> []
+    Void -> []
+    _ -> error (show typ)
+
+
+hasGenerics :: Type -> Bool
+hasGenerics typ = findGenerics typ /= []
