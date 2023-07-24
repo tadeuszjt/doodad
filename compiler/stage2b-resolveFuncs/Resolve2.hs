@@ -15,18 +15,49 @@ import Monad
 import Error
 import Type
 import ASTResolved
+import Apply
 
 
 compile :: BoM ASTResolved m => m ()
 compile = do
     funcDefs <- gets funcDefs
-    funcDefs' <- fmap Map.fromList $ forM (Map.toList funcDefs) $ \(symbol, body) -> do
-        body' <- do
-            stmt' <- compileStmt (funcStmt body)
-            return body { funcStmt = stmt' }
-        return (symbol, body')
-    modify $ \s -> s { funcDefs = funcDefs' }
+    forM_ (Map.toList funcDefs) $ \(symbol, body) -> do
+        stmt' <- compileStmt (funcStmt body)
+        body' <- return body { funcStmt = stmt' }
+        modify $ \s -> s { funcDefs = Map.insert symbol body' (ASTResolved.funcDefs s) }
 
+
+
+genSymbol :: BoM ASTResolved m => String -> m Symbol
+genSymbol sym = do  
+    modName <- gets moduleName
+    im <- gets $ Map.lookup sym . symSupply
+    let n = maybe 0 (id) im
+    modify $ \s -> s { symSupply = Map.insert sym (n + 1) (symSupply s) }
+    let symbol = SymResolved modName sym n
+    return symbol
+
+
+
+getSubsFromTypes :: BoM s m => Type -> Type -> m [(Type, Type)]
+getSubsFromTypes t1 t2 = case (t1, t2) of
+    (Void, Void) -> return []
+    (I64, I64) -> return []
+    (Type.Bool, Type.Bool) -> return []
+    (Table ts1, Table ts2) -> concat <$> zipWithM getSubsFromTypes ts1 ts2
+    (_, Generic _)         -> return [(t2, t1)]
+    _ -> error $ show (t1, t2)
+
+
+getSubsFromGeneric :: BoM s m => FuncKey -> FuncBody -> m [(Type, Type)]
+getSubsFromGeneric callKey@(ps, symbol, as, rt) funcBody = do
+    subsPs <- fmap concat $ forM (zip ps $ map typeof $ funcParams funcBody) $ \(p, bp) -> do
+        getSubsFromTypes p bp
+    subsAs <- fmap concat $ forM (zip as $ map typeof $ funcArgs funcBody) $ \(a, ba) -> do
+        getSubsFromTypes a ba
+    subsRt <- getSubsFromTypes rt (funcRetty funcBody)
+    return $ Set.toList $ Set.fromList $ subsPs ++ subsAs ++ subsRt
+    
 
 
 
@@ -46,7 +77,17 @@ resolveFuncCall exprType (AST.Call pos params symbol args) = withPos pos $ do
             funcresm <- findFuncDef key
             typeresm <- findTypeDef sym
             case (funcresm, typeresm) of
-                (Just x, Nothing) -> return x
+                (Just x, Nothing) -> do
+                    funcBody <- (Map.! x) <$> gets funcDefs
+                    subs <- getSubsFromGeneric key funcBody
+                    if (subs /= []) then do -- function is generic
+                        liftIO $ putStrLn (show symbol)
+                        funcBody' <- return $ applySubs subs funcBody
+                        symbol' <- genSymbol sym
+                        modify $ \s -> s { funcDefs = Map.insert symbol' funcBody' { funcGenerics = [] } (funcDefs s) }
+                        return symbol'
+                    else do
+                        return x
                 (Nothing, Just x) -> return x
                 (Nothing, Nothing) -> do
                     funcresm <- findImportedFuncDef key
@@ -56,15 +97,19 @@ resolveFuncCall exprType (AST.Call pos params symbol args) = withPos pos $ do
                         (Nothing, Just x) -> return x
                         (Nothing, Nothing) -> fail $ "no def for: " ++ sym ++ " " ++ show key
     where
-        findFuncDef :: BoM ASTResolved m => FuncKey -> m (Maybe Symbol)
-        findFuncDef key = checkOne =<< Map.filterWithKey (\symbol body -> funcKeyFromBody (sym symbol) body == key) <$> gets funcDefs
 --        findFuncDef :: BoM ASTResolved m => FuncKey -> m (Maybe Symbol)
---        findFuncDef key = checkOne =<< Map.filterWithKey (\symbol body -> funcKeysCouldMatch (funcKeyFromBody (sym symbol) body) key) <$> gets funcDefs
---            where
---                funcKeysCouldMatch :: FuncKey -> FuncKey -> Bool
---                funcKeysCouldMatch (aps, asymbol, aas, art) (bps, bsymbol, bas, brt)
---                    | length aps /= length bps || length aas /= length bas = False
---                    | otherwise = all (== True) $ zipWith typesCouldMatch (aps ++ aas ++ [art]) (bps ++ bas ++ [brt])
+--        findFuncDef key = checkOne =<< Map.filterWithKey (\symbol body -> funcKeyFromBody (sym symbol) body == key) <$> gets funcDefs
+
+        findFuncDef :: BoM ASTResolved m => FuncKey -> m (Maybe Symbol)
+        findFuncDef key = checkOne =<< Map.filterWithKey
+            (\symbol body -> funcKeysCouldMatch (funcKeyFromBody (sym symbol) body) key) <$> gets funcDefs
+            where
+                funcKeysCouldMatch :: FuncKey -> FuncKey -> Bool
+                funcKeysCouldMatch (aps, asymbol, aas, art) (bps, bsymbol, bas, brt)
+                    | length aps /= length bps || length aas /= length bas = False
+                    | asymbol /= bsymbol = False
+                    | otherwise = all (== True) $
+                        zipWith typesCouldMatch (aps ++ aas ++ [art]) (bps ++ bas ++ [brt])
 
 
         findTypeDef :: BoM ASTResolved m => String -> m (Maybe Symbol)

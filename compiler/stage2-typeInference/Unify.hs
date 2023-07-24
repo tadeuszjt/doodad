@@ -133,6 +133,7 @@ unifyDefault :: BoM TypeMap m => [(Constraint, TextPos)] -> m [(Type, Type)]
 unifyDefault []     = return []
 unifyDefault (x:xs) = do
     subs <- unifyDefault xs
+    -- ignore errors in default mode
     s <- catchError (unifyOne (snd x) (applySubs subs (fst x))) (\_ -> return []) 
     return (removeGenericSubs s ++ subs)
 

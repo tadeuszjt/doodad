@@ -217,6 +217,7 @@ resolveAsts asts imports = withErrorPrefix "resolve: " $ do
 
             let includes = Set.fromList [ s | inc@(CInclude s) <- concat $ map astImports asts ]
             let links    = Set.fromList [ s | link@(CLink s) <- concat $ map astImports asts ]
+            supply <- gets supply
             return $ ASTResolved
                 { moduleName  = moduleName
                 , includes    = includes
@@ -228,7 +229,7 @@ resolveAsts asts imports = withErrorPrefix "resolve: " $ do
                 , funcDefs    = Map.union funcDefsMap localFuncs
                 , typeDefs    = Map.map annoToType tdm
                 , ctorDefs    = ctorMap
-                , genericDefs = Map.empty
+                , symSupply   = supply
                 }
 
 

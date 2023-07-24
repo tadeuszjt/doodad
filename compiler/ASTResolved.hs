@@ -20,24 +20,9 @@ data ASTResolved
         , typeDefs    :: Map.Map Symbol Type        -- defined types
         , ctorDefs    :: Map.Map Symbol (Type, Int) -- defined ctors
         , funcDefs    :: Map.Map Symbol FuncBody    -- defined functions
-        , genericDefs :: Map.Map FuncKey FuncBody   -- generic instantiations
+        , symSupply   :: Map.Map String Int         -- type supply from resovle
         }
     deriving (Eq)
-
-
-initASTResolved moduleName = ASTResolved
-    { moduleName  = moduleName
-    , includes    = Set.empty
-    , links       = Set.empty
-    , typeImports = Map.empty
-    , ctorImports = Map.empty
-    , funcImports = Map.empty
-    , constDefs   = Map.empty
-    , typeDefs    = Map.empty
-    , ctorDefs    = Map.empty
-    , funcDefs    = Map.empty
-    , genericDefs = Map.empty
-    }
 
 
 type FuncKey = ([Type], String, [Type], Type)

@@ -43,11 +43,11 @@ data Object
 
 data CollectState
     = CollectState
-        { symTab    :: SymTab
-        , curRetty  :: Type
-        , collected :: Map.Map Constraint TextPos
-        , defaults  :: Map.Map Constraint TextPos
-        , curPos    :: TextPos
+        { symTab     :: SymTab
+        , curRetty   :: Type
+        , collected  :: Map.Map Constraint TextPos
+        , defaults   :: Map.Map Constraint TextPos
+        , curPos     :: TextPos
         , typeSupply :: Int
         }
 
@@ -198,13 +198,12 @@ collectTypedef symbol typ = do
 
 collectStmt :: BoM CollectState m => S.Stmt -> m ()
 collectStmt stmt = collectPos stmt $ case stmt of
-    --S.Typedef _ symbol anno -> collectTypedef symbol anno
     S.Typedef _ _ _ -> return ()
+    S.FuncDef _ _ _ _ _ _ _ -> return ()
+    S.EmbedC _ _ -> return ()
     S.Block stmts -> mapM_ collectStmt stmts
     S.ExprStmt e -> collectExpr e
-    S.EmbedC p s -> return ()
-    S.Const _ symbol expr -> do
-        define symbol KeyVar (ObjConst expr)
+    S.Const _ symbol expr -> define symbol KeyVar (ObjConst expr)
 
     S.Return _ mexpr -> do
         retty <- gets curRetty
@@ -213,15 +212,6 @@ collectStmt stmt = collectPos stmt $ case stmt of
             Just expr -> do
                 collectEq (typeof expr) retty
                 collectExpr expr
-
-    S.FuncDef p gs ps s as rt blk -> do
-        return ()
---        collectFuncDef s $ FuncBody
---            { funcParams = ps
---            , funcArgs = as
---            , funcRetty = rt
---            , funcStmts = [blk]
---            }
 
     S.If _ expr blk melse -> do
         collectBase Bool (typeof expr)
