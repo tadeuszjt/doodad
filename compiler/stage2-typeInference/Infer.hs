@@ -17,6 +17,7 @@ import Collect
 import qualified Resolve
 import ASTResolved
 import Annotate
+import Resolve2
 
 
 -- Takes a resolved and annotated ast and inferes all types.

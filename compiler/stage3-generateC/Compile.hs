@@ -89,11 +89,11 @@ generateAdtEqual a b = do
 
 generate :: MonadGenerate m => ASTResolved -> m ()
 generate ast = do
-    let typedefs = Map.union (typeImports ast) (typeDefs ast)
+    let typedefs = typeDefs ast
 
     -- copy ctors
-    modify $ \s -> s { ctors = Map.union (ctorDefs ast) (ctorImports ast) }
-    modify $ \s -> s { typedefs = Map.union (typeDefs ast) (typeImports ast) }
+    modify $ \s -> s { ctors = ctorDefs ast }
+    modify $ \s -> s { typedefs = typeDefs ast }
 
     orderedSymbols <- getSymbolsOrderedByDependencies typedefs
     forM_ orderedSymbols $ \symbol -> do

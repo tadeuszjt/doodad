@@ -50,14 +50,14 @@ data ResolveState
         }
 
 initResolveState imports modName typeImports = ResolveState
-    { symTab    = SymTab.initSymTab
-    , funcKeys  = Set.empty
-    , imports   = imports
-    , modName   = modName
-    , supply    = Map.empty
-    , typeDefsMap = Map.empty
+    { symTab        = SymTab.initSymTab
+    , funcKeys      = Set.empty
+    , imports       = imports
+    , modName       = modName
+    , supply        = Map.empty
+    , typeDefsMap   = Map.empty
     , localFuncDefs = Map.empty
-    , generics = Set.empty
+    , generics      = Set.empty
     }
 
 
@@ -143,7 +143,6 @@ buildTypeImportMap :: BoM (Map.Map Symbol Type) m => [ASTResolved] -> m ()
 buildTypeImportMap imports = do
     forM_ imports $ \imprt -> do
         modify $ Map.union (typeDefs imprt)
-        modify $ Map.union (typeImports imprt)
 
 buildFuncImportMap :: BoM (Map.Map Symbol FuncKey) m => [ASTResolved] -> m ()
 buildFuncImportMap imports = do
@@ -222,13 +221,11 @@ resolveAsts asts imports = withErrorPrefix "resolve: " $ do
                 { moduleName  = moduleName
                 , includes    = includes
                 , links       = links
-                , typeImports = typeImportMap
-                , ctorImports = ctorImportMap
                 , funcImports = funcImportMap
                 , constDefs   = Map.fromList constDefsList
                 , funcDefs    = Map.union funcDefsMap localFuncs
-                , typeDefs    = Map.map annoToType tdm
-                , ctorDefs    = ctorMap
+                , typeDefs    = Map.union typeImportMap (Map.map annoToType tdm)
+                , ctorDefs    = Map.union ctorImportMap ctorMap
                 , symSupply   = supply
                 }
 

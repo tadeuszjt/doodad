@@ -239,9 +239,10 @@ fn testConst()
 
 
 fn [T] func(a T, b T) T
-    return a + b
+    return a + b + 4
 
 fn testGenerics()
+    assert(func(1, 2) == 7)
     return
 
 

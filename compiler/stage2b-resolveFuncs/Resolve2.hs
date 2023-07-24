@@ -22,9 +22,10 @@ compile :: BoM ASTResolved m => m ()
 compile = do
     funcDefs <- gets funcDefs
     forM_ (Map.toList funcDefs) $ \(symbol, body) -> do
-        stmt' <- compileStmt (funcStmt body)
-        body' <- return body { funcStmt = stmt' }
-        modify $ \s -> s { funcDefs = Map.insert symbol body' (ASTResolved.funcDefs s) }
+        when (funcGenerics body == []) $ do -- skip generic functions
+            stmt' <- compileStmt (funcStmt body)
+            body' <- return body { funcStmt = stmt' }
+            modify $ \s -> s { funcDefs = Map.insert symbol body' (ASTResolved.funcDefs s) }
 
 
 
@@ -81,7 +82,6 @@ resolveFuncCall exprType (AST.Call pos params symbol args) = withPos pos $ do
                     funcBody <- (Map.! x) <$> gets funcDefs
                     subs <- getSubsFromGeneric key funcBody
                     if (subs /= []) then do -- function is generic
-                        liftIO $ putStrLn (show symbol)
                         funcBody' <- return $ applySubs subs funcBody
                         symbol' <- genSymbol sym
                         modify $ \s -> s { funcDefs = Map.insert symbol' funcBody' { funcGenerics = [] } (funcDefs s) }
@@ -91,11 +91,9 @@ resolveFuncCall exprType (AST.Call pos params symbol args) = withPos pos $ do
                 (Nothing, Just x) -> return x
                 (Nothing, Nothing) -> do
                     funcresm <- findImportedFuncDef key
-                    typeresm <- findImportedTypeDef sym
-                    case (funcresm, typeresm) of
-                        (Just x, Nothing) -> return x
-                        (Nothing, Just x) -> return x
-                        (Nothing, Nothing) -> fail $ "no def for: " ++ sym ++ " " ++ show key
+                    case funcresm of
+                        Just x -> return x
+                        Nothing -> fail $ "no def for: " ++ sym ++ " " ++ show key
     where
 --        findFuncDef :: BoM ASTResolved m => FuncKey -> m (Maybe Symbol)
 --        findFuncDef key = checkOne =<< Map.filterWithKey (\symbol body -> funcKeyFromBody (sym symbol) body == key) <$> gets funcDefs
@@ -117,9 +115,6 @@ resolveFuncCall exprType (AST.Call pos params symbol args) = withPos pos $ do
 
         findImportedFuncDef :: BoM ASTResolved m => FuncKey -> m (Maybe Symbol)
         findImportedFuncDef key = checkOne =<< Map.filter (== key) <$> gets funcImports
-
-        findImportedTypeDef :: BoM ASTResolved m => String -> m (Maybe Symbol)
-        findImportedTypeDef sym = checkOne =<< Map.filterWithKey (\s t -> Symbol.sym s == sym) <$> gets typeImports
 
         findQualifiedFuncDef :: BoM ASTResolved m => String -> FuncKey -> m (Maybe Symbol)
         findQualifiedFuncDef mod key = checkOne =<< Map.filterWithKey (\s k -> Symbol.mod s == mod && k == key) <$> gets funcImports
@@ -185,13 +180,12 @@ resolveFieldAccess :: BoM ASTResolved m => AST.Expr -> m Expr
 resolveFieldAccess (AST.Field pos expr (Sym sym)) = do
         -- (tup:typeSymbol).x:i64
         -- find mod_x_n
-        ctorDefs <- gets ctorDefs
-        ctorImports <- gets ctorImports
-        let ctors = Map.union ctorDefs ctorImports
-        let res = Map.toList $ Map.filterWithKey (\k a -> tupTypeMatches a && fieldSymMatches k) (Map.union ctorDefs ctorImports)
+        ctors <- gets ctorDefs
+        res <- Map.toList . Map.filterWithKey (\k a -> tupTypeMatches a && fieldSymMatches k)
+            <$> gets ctorDefs
         case res of
-            [] -> fail "No ctor found"
-            (a:b:xs) -> fail "ambiguous"
+            []            -> fail "No ctor found"
+            (a:b:xs)      -> fail "ambiguous"
             [(symbol, _)] -> do
                 expr' <- compileExpr expr
                 return $ Field pos expr' symbol
@@ -229,9 +223,8 @@ compileExpr (AST.AExpr exprType expr) = withPos expr $ AExpr exprType <$> case e
         exprs' <- mapM compileExpr exprs
         symbol' <- resolveFuncCall exprType expr
 
-        isLocalCtor <- Map.member symbol' <$> gets ctorDefs
-        isImportedCtor <- Map.member symbol' <$> gets ctorImports
-        if isLocalCtor || isImportedCtor then do
+        isCtor <- Map.member symbol' <$> gets ctorDefs
+        if isCtor then do
             assert (params' == []) "constructor cannot have params"
             return $ Construct pos symbol' exprs'
         else do

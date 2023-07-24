@@ -133,14 +133,8 @@ define symbol key obj = do
 
 collectAST :: BoM CollectState m => ASTResolved -> m ()
 collectAST ast = do
-    forM (Map.toList $ typeImports ast) $ \(symbol, typ) -> do
-        collectTypedef symbol typ
-
     forM (Map.toList $ typeDefs ast) $ \(symbol, t) -> do
         collectTypedef symbol t
-
-    forM (Map.toList $ ctorImports ast) $ \(symbol, (t, i)) -> do
-        collectCtorDef symbol (t, i)
 
     forM (Map.toList $ ctorDefs ast) $ \(symbol, (t, i)) -> do
         collectCtorDef symbol (t, i)
