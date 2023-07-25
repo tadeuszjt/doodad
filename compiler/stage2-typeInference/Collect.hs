@@ -194,7 +194,7 @@ collectTypedef symbol typ = do
 
 collectStmt :: BoM CollectState m => S.Stmt -> m ()
 collectStmt stmt = collectPos stmt $ case stmt of
-    S.Typedef _ _ _ -> return ()
+    S.Typedef _ _ _ _ -> return ()
     S.FuncDef _ _ _ _ _ _ _ -> return ()
     S.EmbedC _ _ -> return ()
     S.Block stmts -> mapM_ collectStmt stmts

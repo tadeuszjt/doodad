@@ -27,6 +27,7 @@ getSymbolsOrderedByDependencies typedefs = do
         getSymbols :: Monad m => Type.Type -> m [Symbol]
         getSymbols typ = case typ of
             x | isSimple x -> return []
+            Generic s -> return []
             Type.Typedef s -> do
                 symbols <- getSymbols (typedefs Map.! s)
                 return $ symbols ++ [s]
@@ -95,11 +96,14 @@ generate ast = do
     modify $ \s -> s { ctors = ctorDefs ast }
     modify $ \s -> s { typedefs = typeDefs ast }
 
+    -- define non-generic types
     orderedSymbols <- getSymbolsOrderedByDependencies typedefs
     forM_ orderedSymbols $ \symbol -> do
         when (Map.member symbol typedefs) $ do
-            ctype <- cTypeOf (typedefs Map.! symbol)
-            void $ newTypedef ctype (show symbol)
+            let typ = typedefs Map.! symbol
+            when (findGenerics typ == []) $ do
+                ctype <- cTypeOf (typedefs Map.! symbol)
+                void $ newTypedef ctype (show symbol)
 
     forM_ (Map.toList $ constDefs ast) $ \(symbol, expr) -> do
         define (show symbol) (CGenerate.Const expr)
@@ -213,7 +217,7 @@ generateStmt stmt = case stmt of
     S.Return _ Nothing -> void $ appendElem (C.ReturnVoid)
     S.Return _ (Just expr) -> void $ appendElem . C.Return . valExpr =<< generateExpr expr
     S.FuncDef _ _ _ _ _ _ _ -> return ()
-    S.Typedef _ _ _ -> return ()
+    S.Typedef _ [] _ _ -> return ()
     S.Const _ symbol expr -> do
         define (show symbol) $ CGenerate.Const expr
 

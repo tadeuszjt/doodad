@@ -146,9 +146,9 @@ compileStmt stmt = withPos stmt $ case stmt of
     AST.Block stmts      -> Block <$> mapM compileStmt stmts
     AST.ExprStmt expr    -> ExprStmt <$> compileExpr expr
     AST.Return pos mexpr -> Return pos <$> maybe (return Nothing) (fmap Just . compileExpr) mexpr
-    AST.Typedef pos symbol anno -> return $ AST.Typedef pos symbol anno
     AST.FuncDef pos generics params symbol args retty blk -> return stmt
     AST.Const pos symbol expr -> return stmt
+    AST.Typedef pos generics symbol anno -> return $ AST.Typedef pos generics symbol anno
 
     AST.Assign pos pat expr -> do
         pat' <- compilePattern pat

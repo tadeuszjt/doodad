@@ -33,6 +33,7 @@ checkTypeDefs typedefs = do
             Void            -> return ()
             Key t           -> return ()
             t | isSimple t  -> return ()
+            Generic symbol  -> return () -- TODO
             Typedef symbol  -> checkCircles visited symbol
             Tuple ts        -> mapM_ (checkTypeCircles visited) ts
             Table ts        -> mapM_ (checkTypeCircles visited) ts

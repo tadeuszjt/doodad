@@ -180,14 +180,14 @@ resolveAsts asts imports = withErrorPrefix "resolve: " $ do
             let moduleName = astModuleName $ head asts
             let includes   = [ s | inc@(CInclude s) <- concat $ map astImports asts ]
             let links      = [ s | link@(CLink s) <- concat $ map astImports asts ]
-            let typedefs   = [ stmt | stmt@(AST.Typedef _ _ _) <- concat $ map astStmts asts ]
+            let typedefs   = [ stmt | stmt@(AST.Typedef _ _ _ _) <- concat $ map astStmts asts ]
             let funcdefs   = [ stmt | stmt@(AST.FuncDef _ _ _ _ _ _ _) <- concat $ map astStmts asts ]
             let consts     = [ stmt | stmt@(AST.Const _ _ _) <- concat $ map astStmts asts ]
 
             -- check validity
             assert (all (== moduleName) $ map astModuleName asts) "module name mismatch"
             forM_ (concat $ map astStmts asts) $ \stmt -> withPos stmt $ case stmt of
-                (AST.Typedef _ _ _) -> return ()
+                (AST.Typedef _ _ _ _) -> return ()
                 (AST.FuncDef _ _ _ _ _ _ _) -> return ()
                 (AST.Const _ _ _) -> return ()
                 _ -> fail "invalid top-level statement"
@@ -238,11 +238,11 @@ resolveAsts asts imports = withErrorPrefix "resolve: " $ do
 resolveFuncDef :: BoM ResolveState m => AST.Stmt -> m Symbol
 resolveFuncDef (FuncDef pos gs params (Sym sym) args retty blk) = withPos pos $ do
     pushSymTab
-    generics' <- forM gs $ \(Param pos (Sym sym) Void) -> do
+    generics' <- forM gs $ \(Sym sym) -> do
         symbol <- genSymbol sym
         define sym KeyType symbol
         modify $ \s -> s { generics = Set.insert symbol (generics s) }
-        return $ Param pos (Sym "") $ Type.Generic symbol
+        return symbol
     params' <- mapM resolve params
     args' <- mapM resolve args
     retty' <- resolve retty
@@ -263,10 +263,16 @@ resolveFuncDef (FuncDef pos gs params (Sym sym) args retty blk) = withPos pos $ 
 
 -- modifies the typedef and inserts it into typeDefsMap
 resolveTypeDef :: BoM ResolveState m => AST.Stmt -> m ()
-resolveTypeDef (AST.Typedef pos (Sym sym) anno) = do
+resolveTypeDef (AST.Typedef pos gs (Sym sym) anno) = do
     symbol <- genSymbol sym
     define sym KeyType symbol
     define sym KeyFunc symbol
+
+    forM_ gs $ \(Sym sym) -> do
+        symbol <- genSymbol sym
+        define sym KeyType symbol
+        modify $ \s -> s { generics = Set.insert symbol (generics s) }
+
     anno' <- case anno of
         AnnoType t -> AnnoType <$> resolve t
         AnnoTuple ps -> do 
@@ -315,9 +321,9 @@ instance Resolve Stmt where
                 (funcStmt body)
 
 
-        AST.Typedef pos symbol anno -> do 
+        AST.Typedef pos [] symbol anno -> do 
             resolveTypeDef stmt
-            return $ AST.Typedef pos symbol anno
+            return $ AST.Typedef pos [] symbol anno
 
         Const pos (Sym s) expr -> do
             symbol' <- genSymbol s

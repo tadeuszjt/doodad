@@ -28,13 +28,12 @@ instance Annotate ASTResolved where
 
 instance Annotate FuncBody where
     annotate funcBody = do
-        generics' <-  mapM annotate (funcGenerics funcBody)
         params' <- mapM annotate (funcParams funcBody)
         args' <- mapM annotate (funcArgs funcBody)
         stmt' <- annotate (funcStmt funcBody)
         retty' <- return (funcRetty funcBody)
         return $ FuncBody
-            { funcGenerics = generics'
+            { funcGenerics = (funcGenerics funcBody)
             , funcParams = params'
             , funcArgs   = args'
             , funcRetty  = retty'
@@ -56,11 +55,10 @@ instance Annotate Stmt where
         Const p s e       -> return $ Const p s e -- don't annotate consts
 
         FuncDef p gs ps s as rt blk -> do
-            gs' <- mapM annotate gs
             ps' <- mapM annotate ps
             as' <- mapM annotate as
             blk' <- annotate blk
-            return $ FuncDef p gs' ps' s as' rt blk'
+            return $ FuncDef p gs ps' s as' rt blk'
 
         Assign p pat e      -> do
             pat' <- annotate pat
@@ -70,7 +68,8 @@ instance Annotate Stmt where
             index' <- annotate index
             SetOp p op index' <$> annotate e
 
-        AST.Typedef pos symbol anno -> return $ AST.Typedef pos symbol anno -- has no expressions
+        AST.Typedef pos generics symbol anno ->
+            return $ AST.Typedef pos generics symbol anno -- has no expressions
 
         If p c b elm        -> do
             c' <- annotate c

@@ -27,7 +27,7 @@ type FuncKey = ([Type], String, [Type], Type)
 data FuncBody
     = FuncBodyEmpty
     | FuncBody
-        { funcGenerics :: [AST.Param]
+        { funcGenerics :: [Symbol]
         , funcParams   :: [AST.Param]
         , funcArgs     :: [AST.Param]
         , funcRetty    :: Type
@@ -49,7 +49,7 @@ prettyASTResolved ast = do
         prettyStmt "" $ AST.Const undefined symbol expr
 
     forM_ (Map.toList $ typeDefs ast) $ \(symbol, typ) -> 
-        prettyStmt "" (AST.Typedef undefined symbol $ AnnoType typ)
+        prettyStmt "" (AST.Typedef undefined [] symbol $ AnnoType typ)
 
     forM_ (Map.toList $ funcDefs ast) $ \(symbol, body) -> 
         prettyStmt "" $ FuncDef

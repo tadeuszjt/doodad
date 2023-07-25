@@ -50,7 +50,7 @@ instance Apply ASTResolved where
 
 instance Apply FuncBody where
     apply f body = FuncBody
-        { funcGenerics = map (apply f) (funcGenerics body)
+        { funcGenerics = funcGenerics body
         , funcParams = map (apply f) (funcParams body)
         , funcArgs   = map (apply f) (funcArgs body)
         , funcRetty  = (apply f) (funcRetty body)
@@ -140,7 +140,7 @@ instance Apply S.Stmt where
         S.If pos cnd block melse ->
             S.If pos (applyF cnd) (applyF block) (fmap applyF melse)
 
-        S.Typedef _ _ _ -> stmt -- leave this for now
+        S.Typedef _ _ _ _ -> stmt -- leave this for now
         
         S.Switch pos expr cases ->
             S.Switch pos (applyF expr) [(applyF p, applyF s) | (p, s) <- cases]

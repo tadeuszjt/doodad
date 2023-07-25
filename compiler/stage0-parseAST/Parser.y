@@ -147,7 +147,7 @@ line : let pattern '=' expr                         { S.Assign (tokPos $1) $2 $4
      | index '=' expr                               { S.SetOp (tokPos $2) S.Eq $1 $3 }
      | index '+=' expr                              { S.SetOp (tokPos $2) S.PlusEq $1 $3 }
      | index                                        { S.ExprStmt $1 }
-     | type symbol anno_t                           { S.Typedef (fst $2) (snd $2) $3 }
+     | type mfngen symbol anno_t                    { S.Typedef (fst $3) (map snd $2) (snd $3) $4 }
      | data symbol type_ mexpr                      { S.Data (tokPos $1) (snd $2) $3 $4 }
      | return mexpr                                 { S.Return (tokPos $1) $2 }
      | embed_c                                      { S.EmbedC (tokPos $1) (tokStr $1) }
@@ -156,7 +156,7 @@ block : if_                                         { $1 }
       | fn mfngen mfnrec ident '(' paramsA ')' mtype scope {
             S.FuncDef
                 (tokPos $1)
-                (map (\s -> S.Param (fst s) (snd s) T.Void) $2)
+                (map snd $2)
                 $3
                 (Sym $ tokStr $4)
                 $6

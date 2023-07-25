@@ -108,6 +108,7 @@ findGenerics typ = case typ of
         findGenericsField field = case field of
             FieldNull -> []
             FieldType t -> findGenerics t
+            FieldCtor ts -> concat $ map findGenerics ts
             _ -> error (show field)
 
 
