@@ -55,7 +55,8 @@ data Param
         }
     deriving (Eq, Ord)
 
-instance Type.Typeof Param where typeof (Param pos name typ) = typ
+instance Type.Typeof Param where
+    typeof (Param pos name typ) = typ
 
 
 data Pattern
@@ -89,7 +90,6 @@ data Expr
     | Builtin     TextPos [Expr] String [Expr]
     | Prefix      TextPos Operator Expr
     | Infix       TextPos Operator Expr Expr
-    | ADT         TextPos Expr
     | Match       TextPos Expr Pattern
     | Range       TextPos (Maybe Expr) (Maybe Expr) (Maybe Expr)
     | Array       TextPos [Expr]
@@ -164,7 +164,6 @@ instance TextPosition Expr where
         Conv         p _ _ -> p
         Prefix       p _ _ -> p
         Infix        p _ _ _ -> p
-        ADT          p _ -> p
         Match        p _ _ -> p
         Range        p _ _ _ -> p
         Array        p _ -> p
@@ -263,7 +262,6 @@ instance Show Expr where
         Conv pos typ exprs            -> show typ ++ tupStrs (map show exprs)
         Prefix pos op expr            -> show op ++ show expr
         Infix pos op expr1 expr2      -> show expr1 ++ " " ++ show op ++ " " ++ show expr2
-        ADT pos expr                  -> brcStrs [show expr]
         Call pos [] symbol exprs      -> show symbol ++ tupStrs (map show exprs)
         Call pos [param] symbol exprs -> show param ++ "." ++ show symbol ++ tupStrs (map show exprs)
         Call pos params symbol exprs  -> brcStrs (map show params) ++ "." ++ show symbol ++ tupStrs (map show exprs)

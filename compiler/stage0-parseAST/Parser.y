@@ -140,7 +140,7 @@ mfnrec : {-empty-}                          { [] }
        | '{' paramsA '}'                    { $2 }
 
 mfngen : {-empty-}                          { [] }
-       | '[' symbols1 ']'                   { $2 }
+       | '(' symbols1 ')'                   { $2 }
 
 
 line : let pattern '=' expr                         { S.Assign (tokPos $1) $2 $4 }  
@@ -184,8 +184,6 @@ paramsN : param 'N'                         { [$1] }
         | param 'N' paramsN                 { $1 : $3 }
 paramsA : params                            { $1 }
         | 'I' paramsN 'D'                   { $2 }
-paramsSem1 : param                          { [$1] }
-           | param ';' paramsSem1           { $1 : $3 }
 
 
 if_   : if condition scope else_            { S.If (tokPos $1) $2 $3 $4 }
@@ -294,8 +292,6 @@ types  : {-empty-}                          { [] }
        | types1                             { $1 }
 types1 : type_                              { [$1] }
        | type_ ',' types1                   { $1 : $3 }
-types1_ : type_                             { [$1] }
-        | type_ ';' types1_                 { $1 : $3 }
     
 type_         : symbol                      { T.Typedef (snd $1) }
               | ordinal_t                   { $1 }
@@ -322,7 +318,7 @@ aggregate_t : table_t                       { $1 }
 
 adt_t    : '{' adtFields '}'                { T.ADT $2 }
 array_t  : '[' int_c type_ ']'              { T.Array (read $ tokStr $2) $3 }
-table_t  : '[' types1_ ']'                  { T.Table $2 }
+table_t  : '[' types1 ']'                   { T.Table $2 }
 tup_t    : '(' types ')'                    { T.Tuple $2 }
 range_t  : '[' '..' ']' type_               { T.Range $4 }
 
@@ -330,7 +326,7 @@ anno_t   : ordinal_t                        { S.AnnoType $1 }
          | symbol                           { S.AnnoType (T.Typedef $ snd $1) }
          | '(' types1 ')'                   { S.AnnoType (T.Tuple $2) }
          | '(' paramsA ')'                  { S.AnnoTuple $2 }
-         | '[' paramsSem1 ']'               { S.AnnoTable $2 }
+         | '[' params1 ']'                  { S.AnnoTable $2 }
          | array_t                          { S.AnnoType $1 }
          | table_t                          { S.AnnoType $1 }
          | '{' ADTFieldsA '}'               { S.AnnoADT $2 }

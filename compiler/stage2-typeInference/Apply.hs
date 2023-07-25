@@ -78,27 +78,27 @@ instance Apply S.Param where
 
 instance Apply S.Expr where
     apply f expr = case expr of
-        S.AExpr t e           -> S.AExpr (applyF t) (applyF e)
-        S.Infix pos op e1 e2  -> S.Infix pos op (applyF e1) (applyF e2)
-        S.Tuple pos es        -> S.Tuple pos (map applyF es)
-        S.Ident pos sym       -> S.Ident pos sym
-        S.Char  pos c         -> S.Char pos c
-        S.Int   pos n         -> S.Int pos n
-        S.Null  pos           -> S.Null pos
-        S.Prefix pos op e1    -> S.Prefix pos op (applyF e1)
-        S.Conv  pos t es      -> S.Conv pos (applyF t) (map applyF es)
-        S.Bool  pos b         -> S.Bool pos b
-        S.Subscript pos e1 e2 -> S.Subscript pos (applyF e1) (applyF e2)
-        S.String pos s        -> S.String pos s
-        S.Field pos e s       -> S.Field pos (applyF e) s
-        S.Float pos f         -> S.Float pos f
-        S.ADT p e             -> S.ADT p (applyF e)
-        S.Call p ps ident es  -> S.Call p (map applyF ps) ident (map applyF es)
-        S.Builtin p ps ident es  -> S.Builtin p (map applyF ps) ident (map applyF es)
-        S.Match p e pat       -> S.Match p (applyF e) (applyF pat)
-        S.Range p me me1 me2  -> S.Range p (fmap applyF me) (fmap applyF me1) (fmap applyF me2)
-        S.Array p es          -> S.Array p (map applyF es)
-        _                     -> error $ show expr
+        S.AExpr t e             -> S.AExpr (applyF t) (applyF e)
+        S.Infix pos op e1 e2    -> S.Infix pos op (applyF e1) (applyF e2)
+        S.Tuple pos es          -> S.Tuple pos (map applyF es)
+        S.Ident pos sym         -> S.Ident pos sym
+        S.Char  pos c           -> S.Char pos c
+        S.Int   pos n           -> S.Int pos n
+        S.Null  pos             -> S.Null pos
+        S.Prefix pos op e1      -> S.Prefix pos op (applyF e1)
+        S.Conv  pos t es        -> S.Conv pos (applyF t) (map applyF es)
+        S.Construct pos s es    -> S.Construct pos s (map applyF es)
+        S.Bool  pos b           -> S.Bool pos b
+        S.Subscript pos e1 e2   -> S.Subscript pos (applyF e1) (applyF e2)
+        S.String pos s          -> S.String pos s
+        S.Field pos e s         -> S.Field pos (applyF e) s
+        S.Float pos f           -> S.Float pos f
+        S.Call p ps ident es    -> S.Call p (map applyF ps) ident (map applyF es)
+        S.Builtin p ps ident es -> S.Builtin p (map applyF ps) ident (map applyF es)
+        S.Match p e pat         -> S.Match p (applyF e) (applyF pat)
+        S.Range p me me1 me2    -> S.Range p (fmap applyF me) (fmap applyF me1) (fmap applyF me2)
+        S.Array p es            -> S.Array p (map applyF es)
+        _                       -> error $ show expr
         where
             applyF :: Apply a => a -> a
             applyF = apply f
@@ -106,17 +106,17 @@ instance Apply S.Expr where
 
 instance Apply S.Pattern where
     apply f pattern = case pattern of
-        S.PatIdent p s         -> S.PatIdent p s
-        S.PatLiteral e         -> S.PatLiteral (applyF e)
+        S.PatIdent p s            -> S.PatIdent p s
+        S.PatLiteral e            -> S.PatLiteral (applyF e)
         S.PatGuarded p pat e mpat -> S.PatGuarded p (applyF pat) (applyF e) (fmap applyF mpat)
-        S.PatField p s pats    -> S.PatField p s $ map applyF pats
-        S.PatTypeField p t pat -> S.PatTypeField p (applyF t) (applyF pat)
-        S.PatTuple p pats      -> S.PatTuple p $ map applyF pats
-        S.PatIgnore p          -> S.PatIgnore p
-        S.PatArray p pats      -> S.PatArray p $ map applyF pats
-        S.PatAnnotated pat typ -> S.PatAnnotated (applyF pat) (applyF typ)
-        S.PatNull p            -> S.PatNull p
-        _                      -> error $ show pattern
+        S.PatField p s pats       -> S.PatField p s $ map applyF pats
+        S.PatTypeField p t pat    -> S.PatTypeField p (applyF t) (applyF pat)
+        S.PatTuple p pats         -> S.PatTuple p $ map applyF pats
+        S.PatIgnore p             -> S.PatIgnore p
+        S.PatArray p pats         -> S.PatArray p $ map applyF pats
+        S.PatAnnotated pat typ    -> S.PatAnnotated (applyF pat) (applyF typ)
+        S.PatNull p               -> S.PatNull p
+        _                         -> error $ show pattern
         where
             applyF :: Apply a => a -> a
             applyF = apply f

@@ -81,7 +81,14 @@ typesCouldMatch a b = case (a, b) of
     (Typedef _, Typedef _) -> a == b
     _ | isSimple a         -> a == b
     (Table as, Table bs)   -> length as == length bs && (all (== True) $ zipWith typesCouldMatch as bs)
+    (ADT afs, ADT bfs)     -> length afs == length bfs && (all (== True) $ zipWith fieldsCouldMatch afs bfs)
     _                      -> error (show (a, b))
+    where
+        fieldsCouldMatch :: AdtField -> AdtField -> Bool
+        fieldsCouldMatch fa fb = case (fa, fb) of
+            (FieldNull, FieldNull) -> True
+            (FieldType a, FieldType b) -> typesCouldMatch a b
+            _ -> error $ show (fa, fb)
 
 
 -- returns all Generics in a type
@@ -90,10 +97,18 @@ findGenerics typ = case typ of
     Generic s -> [typ]
     Tuple ts  -> concat $ map findGenerics ts
     Table ts  -> concat $ map findGenerics ts
+    ADT fs -> concat $ map findGenericsField fs
     t | isSimple t -> []
     Type.Typedef s -> []
     Void -> []
+    Type _ -> []
     _ -> error (show typ)
+    where
+        findGenericsField :: AdtField -> [Type]
+        findGenericsField field = case field of
+            FieldNull -> []
+            FieldType t -> findGenerics t
+            _ -> error (show field)
 
 
 hasGenerics :: Type -> Bool

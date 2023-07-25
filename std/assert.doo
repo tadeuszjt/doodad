@@ -1,0 +1,6 @@
+module assert
+
+include <assert.h>
+
+fn assert(cnd bool)
+    ${ assert($cnd); }

@@ -30,7 +30,6 @@ import Collect as C
 import qualified Resolve as R
 import qualified SymTab
 import ASTResolved
-import Resolve2
 import CBuilder as C
 import CPretty as C
 import CGenerate as C
@@ -164,18 +163,11 @@ buildModule' args modPath = do
             Flatten.checkTypeDefs (typeDefs astResolved)
             when (printAstResolved args) $ liftIO $ prettyASTResolved astResolved
 
-
             -- infer ast types
-            (astInferred, inferCount) <- withErrorPrefix "infer: " $ infer astResolved (verbose args)
+            (astFinal, inferCount) <- withErrorPrefix "infer: " $ infer astResolved (verbose args)
             liftIO $ putStrLn $ "ran:       " ++ show inferCount ++ " type inference passes"
-            when (printAstInferred args) $ liftIO $ prettyASTResolved astInferred
-
-
-            -- resolve missing functions etc
-            astFinal <- fmap snd $ withErrorPrefix "resolve2: " $
-                runBoMTExcept astInferred Resolve2.compile
-            modify $ \s -> s { moduleMap = Map.insert path astFinal (moduleMap s) }
             when (printAstFinal args)    $ liftIO $ prettyASTResolved astFinal
+            modify $ \s -> s { moduleMap = Map.insert path astFinal (moduleMap s) }
 
 
             -- build C ast from final ast

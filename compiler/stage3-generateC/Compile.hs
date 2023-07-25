@@ -633,6 +633,7 @@ generateExpr (AExpr typ expr_) = withTypeCheck $ case expr_ of
                 array <- initialiser (Type.Array len t) vals
                 assign "table" $ Value typ $
                     C.Initialiser [C.Int (fromIntegral len), C.Int (fromIntegral len), C.Member (valExpr array) "arr"]
+            _ -> error (show base)
 
     S.Range _ (Just expr) mexpr1 mexpr2 -> do
         val <- generateExpr expr

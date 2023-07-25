@@ -104,7 +104,7 @@ fn testOneRow()
 
 
 fn testTwoRows()
-    data x [i64; bool; string]
+    data x [i64, bool, string]
     x += (
         [1,       2]
         [true,    false]
@@ -116,7 +116,7 @@ fn testTwoRows()
 
 
 fn testSubTable()
-    data x [bool; [i64]]
+    data x [bool, [i64]]
     x += (
         [true, false]
         [ [1, 2], [3, 4] ]
@@ -124,7 +124,7 @@ fn testSubTable()
     let (false, [3, 4]) = x[1]
 
 
-type Table [nums i64; bools bool]
+type Table [nums i64, bools bool]
 fn testNamedTableArgs()
     data x Table
     x += (
@@ -217,7 +217,7 @@ fn testSubFunction()
 
 
 fn testTableSetElems()
-    type Table [nums [i64]; name string]
+    type Table [nums [i64], name string]
     data x Table
     x += ( [ [1, 2], [3] ], ["benis", "bongis"] )
     x[1] = ( [3, 4], "bongis!")
@@ -238,11 +238,14 @@ fn testConst()
     assert(nums[0] == 1)
 
 
-fn [T] func(a T, b T) T
-    return a + b + 4
+fn(R) func2(x R) R
+    return x * 3
+
+fn(T) func(a T, b T) T
+    return a + func2(b) + 4
 
 fn testGenerics()
-    assert(func(1, 2) == 7)
+    assert(func(1, 2) == 11)
     return
 
 

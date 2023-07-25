@@ -40,24 +40,22 @@ type SymTab = SymTab.SymTab String SymKey Symbol
 data ResolveState
     = ResolveState
         { symTab      :: SymTab
-        , funcKeys    :: Set.Set FuncKey
         , imports     :: [ASTResolved]
         , modName     :: String
         , supply      :: Map.Map String Int
         , typeDefsMap :: Map.Map Symbol AnnoType
-        , localFuncDefs :: Map.Map Symbol FuncBody
         , generics    :: Set.Set Symbol
+        , funcDefsMap :: Map.Map Symbol FuncBody
         }
 
 initResolveState imports modName typeImports = ResolveState
     { symTab        = SymTab.initSymTab
-    , funcKeys      = Set.empty
     , imports       = imports
     , modName       = modName
     , supply        = Map.empty
     , typeDefsMap   = Map.empty
-    , localFuncDefs = Map.empty
     , generics      = Set.empty
+    , funcDefsMap   = Map.empty
     }
 
 
@@ -180,61 +178,64 @@ resolveAsts asts imports = withErrorPrefix "resolve: " $ do
         f :: BoM ResolveState m => m ASTResolved
         f = do
             let moduleName = astModuleName $ head asts
-            assert (all (== moduleName) $ map astModuleName asts) "module name mismatch"
+            let includes   = [ s | inc@(CInclude s) <- concat $ map astImports asts ]
+            let links      = [ s | link@(CLink s) <- concat $ map astImports asts ]
+            let typedefs   = [ stmt | stmt@(AST.Typedef _ _ _) <- concat $ map astStmts asts ]
+            let funcdefs   = [ stmt | stmt@(AST.FuncDef _ _ _ _ _ _ _) <- concat $ map astStmts asts ]
+            let consts     = [ stmt | stmt@(AST.Const _ _ _) <- concat $ map astStmts asts ]
 
-            let typedefs = [ stmt | stmt@(AST.Typedef _ _ _) <- concat $ map astStmts asts ]
-            let funcdefs = [ stmt | stmt@(AST.FuncDef _ _ _ _ _ _ _) <- concat $ map astStmts asts ]
-            let consts   = [ stmt | stmt@(AST.Const _ _ _) <- concat $ map astStmts asts ]
+            -- check validity
+            assert (all (== moduleName) $ map astModuleName asts) "module name mismatch"
             forM_ (concat $ map astStmts asts) $ \stmt -> withPos stmt $ case stmt of
                 (AST.Typedef _ _ _) -> return ()
                 (AST.FuncDef _ _ _ _ _ _ _) -> return ()
                 (AST.Const _ _ _) -> return ()
                 _ -> fail "invalid top-level statement"
 
+            -- define constants
             constDefsList <- forM consts $ \(AST.Const pos (Sym sym) expr) -> withPos pos $ do
                 symbol' <- genSymbol sym
                 define sym KeyVar symbol'
                 return (symbol', expr)
 
+            -- define func headers
             forM_ funcdefs $ \(FuncDef pos generics params symbol args retty blk) -> withPos pos $ do
                 let funckey = (map typeof params, sym symbol, map typeof args, retty)
-                mb <- Set.member funckey <$> gets funcKeys
-                assert (not mb) $ sym symbol ++ " already defined"
-                modify $ \s -> s { funcKeys = Set.insert funckey (funcKeys s) }
                 resm <- lookm (Sym $ sym symbol) KeyFunc
                 when (isNothing resm) $ define (sym symbol) KeyFunc (Sym $ sym $ symbol)
 
+            -- get imports
             (_, typeImportMap) <- runBoMTExcept Map.empty (buildTypeImportMap imports)
             (_, funcImportMap) <- runBoMTExcept Map.empty (buildFuncImportMap imports)
             (_, ctorImportMap) <- runBoMTExcept Map.empty (buildCtorImportMap imports)
 
             mapM resolveTypeDef typedefs
-            funcDefsMap <- Map.fromList <$> mapM resolveFuncDef funcdefs
-            localFuncs <- gets localFuncDefs
-            tdm <- gets typeDefsMap
-            (_, ctorMap) <- runBoMTExcept Map.empty (buildCtorMap $ Map.toList tdm)
+            mapM_ resolveFuncDef funcdefs
 
-            let includes = Set.fromList [ s | inc@(CInclude s) <- concat $ map astImports asts ]
-            let links    = Set.fromList [ s | link@(CLink s) <- concat $ map astImports asts ]
+
+            typeDefs <- gets typeDefsMap
+            funcDefs <- gets funcDefsMap
+            (_, ctorMap) <- runBoMTExcept Map.empty (buildCtorMap $ Map.toList typeDefs)
+
+
+
             supply <- gets supply
             return $ ASTResolved
                 { moduleName  = moduleName
-                , includes    = includes
-                , links       = links
+                , includes    = Set.fromList includes
+                , links       = Set.fromList links
                 , funcImports = funcImportMap
                 , constDefs   = Map.fromList constDefsList
-                , funcDefs    = Map.union funcDefsMap localFuncs
-                , typeDefs    = Map.union typeImportMap (Map.map annoToType tdm)
+                , funcDefs    = funcDefs
+                , typeDefs    = Map.union typeImportMap (Map.map annoToType typeDefs)
                 , ctorDefs    = Map.union ctorImportMap ctorMap
                 , symSupply   = supply
                 }
 
 
-instance Resolve Symbol where
-    resolve (Sym sym) = genSymbol sym
 
-
-resolveFuncDef :: BoM ResolveState m => AST.Stmt -> m (Symbol, FuncBody)
+-- defines in funcDefsMap
+resolveFuncDef :: BoM ResolveState m => AST.Stmt -> m Symbol
 resolveFuncDef (FuncDef pos gs params (Sym sym) args retty blk) = withPos pos $ do
     pushSymTab
     generics' <- forM gs $ \(Param pos (Sym sym) Void) -> do
@@ -251,12 +252,13 @@ resolveFuncDef (FuncDef pos gs params (Sym sym) args retty blk) = withPos pos $ 
     symbol' <- genSymbol sym
     let funcBody = FuncBody {
         funcGenerics = generics',
-        funcParams = params' ,
-        funcArgs   = args' ,
-        funcRetty  = retty' , 
+        funcParams = params',
+        funcArgs   = args',
+        funcRetty  = retty',
         funcStmt   = blk'
         }
-    return (symbol', funcBody)
+    modify $ \s -> s { funcDefsMap = Map.insert symbol' funcBody (funcDefsMap s) }
+    return symbol'
 
 
 -- modifies the typedef and inserts it into typeDefsMap
@@ -298,9 +300,11 @@ resolveTypeDef (AST.Typedef pos (Sym sym) anno) = do
 instance Resolve Stmt where
     resolve stmt = withPos stmt $ case stmt of
         ExprStmt callExpr -> ExprStmt <$> resolve callExpr
+        EmbedC pos str -> EmbedC pos <$> processCEmbed str
+
         FuncDef pos generics params (Sym sym) args retty blk -> do
-            (symbol', body) <- resolveFuncDef stmt
-            modify $ \s -> s { localFuncDefs = Map.insert symbol' body (localFuncDefs s) }
+            symbol' <- resolveFuncDef stmt
+            body <- (Map.! symbol') <$> gets funcDefsMap
             return $ FuncDef
                 pos
                 (funcGenerics body)
@@ -381,8 +385,6 @@ instance Resolve Stmt where
             typ' <- resolve typ
             mexpr' <- maybe (return Nothing) (fmap Just . resolve) mexpr
             return $ Data pos symbol typ' mexpr'
-
-        EmbedC pos str -> EmbedC pos <$> processCEmbed str
         where
             processCEmbed :: BoM ResolveState m => String -> m String
             processCEmbed ('$':xs) = do
@@ -399,7 +401,12 @@ instance Resolve Stmt where
 
 instance Resolve Pattern where
     resolve pattern = withPos pattern $ case pattern of
-        PatIgnore pos -> return $ PatIgnore pos
+        PatIgnore pos     -> return $ PatIgnore pos
+        PatNull pos       -> return $ PatNull pos
+        PatTuple pos pats -> PatTuple pos <$> mapM resolve pats
+        PatLiteral expr   -> PatLiteral <$> resolve expr
+        PatArray pos pats -> PatArray pos <$> mapM resolve pats
+
         PatIdent pos (Sym sym) -> do
             symbol <- genSymbol sym
             define sym KeyVar symbol
@@ -419,27 +426,18 @@ instance Resolve Pattern where
             typ' <- resolve typ
             return $ PatTypeField pos typ' pat'
 
-        PatTuple pos pats -> PatTuple pos <$> mapM resolve pats
-
-        PatLiteral expr -> PatLiteral <$> resolve expr
-
         PatGuarded pos pat expr mpat -> do
             pat' <- resolve pat
             expr' <- resolve expr
             mpat' <- maybe (return Nothing) (fmap Just . resolve) mpat
             return $ PatGuarded pos pat' expr' mpat'
 
-        PatArray pos pats-> PatArray pos <$> mapM resolve pats
-
         PatAnnotated pat typ -> do
             pat' <- resolve pat
             typ' <- resolve typ
             return $ PatAnnotated pat' typ'
 
-        PatNull pos -> return $ PatNull pos
-
         _ -> error $ "invalid pattern: " ++ show pattern
-
 
 
 instance Resolve Param where
@@ -456,6 +454,7 @@ instance Resolve AdtField where
         FieldType t -> FieldType <$> resolve t
         FieldCtor ts -> FieldCtor <$> mapM resolve ts
 
+
 -- replaces Typedef sym with Typedef symbol
 instance Resolve Type where 
     resolve typ = case typ of
@@ -465,7 +464,7 @@ instance Resolve Type where
         Type.Key t          -> Type.Key <$> resolve t
         Type.Tuple ts       -> Type.Tuple <$> mapM resolve ts
         Type.Array n t      -> Type.Array n <$> resolve t
-        Type.Typedef symbol -> do
+        Type.Typedef symbol -> do -- generics are parsed as Typedef, replace.
             symbol' <- look symbol KeyType
             isGeneric <- Set.member symbol' <$> gets generics
             case isGeneric of
@@ -479,13 +478,14 @@ instance Resolve Expr where
     resolve expr = withPos expr $ case expr of
         Ident pos symbol      -> Ident pos <$> look symbol KeyVar
         Prefix pos op expr -> Prefix pos op <$> resolve expr
-        AST.ADT pos expr -> AST.ADT pos <$> resolve expr
         AST.Char pos c -> return expr
         AST.Int pos n -> return expr
         AST.Bool pos b -> return expr
         Float pos f -> return expr
         AST.Tuple pos exprs -> AST.Tuple pos <$> mapM resolve exprs
+        AST.Array pos exprs -> AST.Array pos <$> mapM resolve exprs
         AST.String pos s -> return expr
+        Null pos -> return (Null pos)
 
         Call pos params symbol exprs -> do
             exprs' <- mapM resolve exprs
@@ -528,8 +528,6 @@ instance Resolve Expr where
             expr' <- resolve expr
             return $ AExpr typ' expr'
 
-        Null pos -> return (Null pos)
-
         Match pos expr pat -> do
             expr' <- resolve expr
             pat' <- resolve pat
@@ -540,8 +538,5 @@ instance Resolve Expr where
             mexpr1' <- maybe (return Nothing) (fmap Just . resolve) mexpr1
             mexpr2' <- maybe (return Nothing) (fmap Just . resolve) mexpr2
             return $ AST.Range pos mexpr' mexpr1' mexpr2'
-
-        AST.Array pos exprs -> do
-            AST.Array pos <$> mapM resolve exprs
 
         _ -> fail $ "invalid expression: " ++ show expr

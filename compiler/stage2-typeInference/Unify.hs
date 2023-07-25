@@ -121,19 +121,11 @@ unify (x:xs) = do
     return (s ++ subs)
 
 
-removeGenericSubs :: [(Type, Type)] -> [(Type, Type)]
-removeGenericSubs subs = case subs of
-    (Generic _, _):xs -> removeGenericSubs xs
-    (_, Generic _):xs -> removeGenericSubs xs
-    (x:xs)            -> x : removeGenericSubs xs
-    []                -> []
-
-
 unifyDefault :: BoM TypeMap m => [(Constraint, TextPos)] -> m [(Type, Type)]
 unifyDefault []     = return []
 unifyDefault (x:xs) = do
     subs <- unifyDefault xs
     -- ignore errors in default mode
     s <- catchError (unifyOne (snd x) (applySubs subs (fst x))) (\_ -> return []) 
-    return (removeGenericSubs s ++ subs)
+    return (s ++ subs)
 

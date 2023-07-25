@@ -1,6 +1,6 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-module Resolve2 where
+module CleanUp where
 
 import Data.List
 import Data.Maybe
@@ -18,6 +18,12 @@ import ASTResolved
 import Apply
 
 
+-- Resolves function calls
+-- Creates generic instantiations
+-- Resolves tuple/table field symbols
+-- Turns ctor function call into Contructors
+
+
 compile :: BoM ASTResolved m => m ()
 compile = do
     funcDefs <- gets funcDefs
@@ -26,7 +32,6 @@ compile = do
             stmt' <- compileStmt (funcStmt body)
             body' <- return body { funcStmt = stmt' }
             modify $ \s -> s { funcDefs = Map.insert symbol body' (ASTResolved.funcDefs s) }
-
 
 
 genSymbol :: BoM ASTResolved m => String -> m Symbol
@@ -39,15 +44,23 @@ genSymbol sym = do
     return symbol
 
 
-
+--- TODO doesn't check list lengths
 getSubsFromTypes :: BoM s m => Type -> Type -> m [(Type, Type)]
 getSubsFromTypes t1 t2 = case (t1, t2) of
     (Void, Void) -> return []
     (I64, I64) -> return []
+    (Type.String, Type.String) -> return []
     (Type.Bool, Type.Bool) -> return []
     (Table ts1, Table ts2) -> concat <$> zipWithM getSubsFromTypes ts1 ts2
     (_, Generic _)         -> return [(t2, t1)]
+    (ADT fs1, ADT fs2)     -> concat <$> zipWithM getSubsFromFields fs1 fs2
     _ -> error $ show (t1, t2)
+    where
+        getSubsFromFields :: BoM s m => AdtField -> AdtField -> m [(Type, Type)]
+        getSubsFromFields field1 field2 = case (field1, field2) of
+            (FieldNull, FieldNull) -> return []
+            (FieldType t1, FieldType t2) -> getSubsFromTypes t1 t2
+            _ -> error $ show (field1, field2)
 
 
 getSubsFromGeneric :: BoM s m => FuncKey -> FuncBody -> m [(Type, Type)]
@@ -59,8 +72,6 @@ getSubsFromGeneric callKey@(ps, symbol, as, rt) funcBody = do
     subsRt <- getSubsFromTypes rt (funcRetty funcBody)
     return $ Set.toList $ Set.fromList $ subsPs ++ subsAs ++ subsRt
     
-
-
 
 -- add extern if needed
 resolveFuncCall :: BoM ASTResolved m => Type -> AST.Expr -> m Symbol
@@ -95,11 +106,8 @@ resolveFuncCall exprType (AST.Call pos params symbol args) = withPos pos $ do
                         Just x -> return x
                         Nothing -> fail $ "no def for: " ++ sym ++ " " ++ show key
     where
---        findFuncDef :: BoM ASTResolved m => FuncKey -> m (Maybe Symbol)
---        findFuncDef key = checkOne =<< Map.filterWithKey (\symbol body -> funcKeyFromBody (sym symbol) body == key) <$> gets funcDefs
-
         findFuncDef :: BoM ASTResolved m => FuncKey -> m (Maybe Symbol)
-        findFuncDef key = checkOne =<< Map.filterWithKey
+        findFuncDef key = useLast =<< Map.filterWithKey
             (\symbol body -> funcKeysCouldMatch (funcKeyFromBody (sym symbol) body) key) <$> gets funcDefs
             where
                 funcKeysCouldMatch :: FuncKey -> FuncKey -> Bool
@@ -118,6 +126,12 @@ resolveFuncCall exprType (AST.Call pos params symbol args) = withPos pos $ do
 
         findQualifiedFuncDef :: BoM ASTResolved m => String -> FuncKey -> m (Maybe Symbol)
         findQualifiedFuncDef mod key = checkOne =<< Map.filterWithKey (\s k -> Symbol.mod s == mod && k == key) <$> gets funcImports
+
+        -- TODO this is very unsafe, prioritise non-generic?
+        useLast :: BoM s m => Map.Map Symbol b -> m (Maybe Symbol)
+        useLast mp = case Map.keys mp of
+            [] -> return Nothing
+            xs -> return (Just $ last xs)
 
         checkOne :: BoM s m => Map.Map Symbol b -> m (Maybe Symbol)
         checkOne mp = case Map.keys mp of
@@ -199,7 +213,6 @@ resolveFieldAccess (AST.Field pos expr (Sym sym)) = do
 
 compileExpr :: BoM ASTResolved m => AST.Expr -> m Expr
 compileExpr (AST.AExpr exprType expr) = withPos expr $ AExpr exprType <$> case expr of
-    AST.Field pos _ _         -> resolveFieldAccess expr
     AST.Ident pos symbol      -> return $ Ident pos symbol
     AST.Prefix pos op expr    -> Prefix pos op <$> compileExpr expr
     AST.Char pos c            -> return $ AST.Char pos c
@@ -209,6 +222,13 @@ compileExpr (AST.AExpr exprType expr) = withPos expr $ AExpr exprType <$> case e
     AST.Tuple pos exprs       -> AST.Tuple pos <$> mapM compileExpr exprs
     AST.String pos s          -> return $ AST.String pos s
     AST.Array pos exprs       -> AST.Array pos <$> mapM compileExpr exprs
+
+
+    AST.Field pos e symbol -> case symbol of
+        Sym _ -> resolveFieldAccess expr
+        SymResolved _ _ _ -> do
+            e' <- compileExpr e
+            return $ Field pos e' symbol
 
     AST.Builtin pos [] "conv" exprs -> do
         return $ Conv pos exprType exprs
@@ -244,13 +264,15 @@ compileExpr (AST.AExpr exprType expr) = withPos expr $ AExpr exprType <$> case e
         exprs' <- mapM compileExpr exprs
         return $ Conv pos typ exprs'
 
+    AST.Construct pos symbol@(SymResolved _ _ _) exprs -> do
+        exprs' <- mapM compileExpr exprs
+        return $ Construct pos symbol exprs'
+
     AST.AExpr typ expr -> do
         expr' <- compileExpr expr
         return $ AExpr typ expr'
 
     AST.Null pos -> return (Null pos)
-
-    AST.ADT pos expr -> AST.ADT pos <$> compileExpr expr
 
     AST.Match pos expr pat -> do
         expr' <- compileExpr expr

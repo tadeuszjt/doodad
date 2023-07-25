@@ -154,6 +154,7 @@ collectAST ast = do
 
 collectFuncDef :: BoM CollectState m => Symbol -> FuncBody -> m ()
 collectFuncDef symbol body = do
+    modify $ \s -> s { symTab = SymTab.push (symTab s) }
     oldRetty <- gets curRetty
     modify $ \s -> s { curRetty = funcRetty body }
 
@@ -165,6 +166,7 @@ collectFuncDef symbol body = do
     collectStmt (funcStmt body)
     modify $ \s -> s { curRetty = oldRetty }
     --collectDefault (funcRetty body) Void
+    modify $ \s -> s { symTab = SymTab.pop (symTab s) }
 
 
 collectCtorDef :: BoM CollectState m => Symbol -> (Type, Int) -> m ()
@@ -253,7 +255,7 @@ collectStmt stmt = collectPos stmt $ case stmt of
     S.For p expr mpat blk -> do
         when (isJust mpat) $ do
             gt <- genType
-            collectMember (typeof expr) 0 gt
+            collectSubscript (typeof expr) gt
             collectPattern (fromJust mpat) gt
 
         collectExpr expr
@@ -330,10 +332,10 @@ collectCall rt ps symbol es = do -- can be resolved or sym
     keys <- filter keyCouldMatch . map packKey . filter sameArgLengths . filter isKeyFunc <$> case symbol of
         SymQualified mod sym -> do
             let f = (\k v -> Symbol.sym k == sym && Symbol.mod k == mod)
-            Map.keys . Map.unions . Map.elems . Map.filterWithKey f . head <$> gets symTab
+            Map.keys . Map.unions . Map.elems . Map.filterWithKey f . last <$> gets symTab
         Sym sym -> do
             let f = (\k v -> Symbol.sym k == sym)
-            Map.keys . Map.unions . Map.elems . Map.filterWithKey f . head <$> gets symTab
+            Map.keys . Map.unions . Map.elems . Map.filterWithKey f . last <$> gets symTab
         SymResolved _ _ _ -> fmap (map fst) $ SymTab.lookupSym symbol <$> gets symTab
     assert (keys /= []) $ "no keys for: " ++ show symbol
 
@@ -397,6 +399,9 @@ collectExpr (S.AExpr exprType expr) = collectPos expr $ case expr of
 
     S.Conv _ t es   -> do 
         collectEq exprType t
+        mapM_ collectExpr es
+
+    S.Construct _ _ es -> do
         mapM_ collectExpr es
 
     S.Builtin _ ps sym es -> do 
@@ -469,11 +474,12 @@ collectExpr (S.AExpr exprType expr) = collectPos expr $ case expr of
             _ -> fail "invalid field access"
         collectExpr e
 
-    S.AExpr _ _ -> fail "what"
-
-    S.ADT _ e -> do
+    S.Field _ e symbol@(SymResolved _ _ _) -> do
+        ObjField i  <- look (Sym $ Symbol.sym symbol) $ KeyField (typeof e)
+        collectField exprType i (typeof e)
         collectExpr e
-        return () -- TODO
+
+    S.AExpr _ _ -> fail "what"
 
     S.Match _ e p -> do
         collectPattern p (typeof e)

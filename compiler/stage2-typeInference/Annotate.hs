@@ -162,8 +162,6 @@ instance Annotate Expr where
             e' <- annotate e
             return $ Field p e' s
 
-        AST.ADT pos e -> AST.ADT pos <$> annotate e
-
         Match pos expr pat -> do
             expr' <- annotate expr
             pat' <- annotate pat
