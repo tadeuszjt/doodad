@@ -192,6 +192,9 @@ resolveAsts asts imports = withErrorPrefix "resolve: " $ do
                 (AST.Const _ _ _) -> return ()
                 _ -> fail "invalid top-level statement"
 
+
+            -- define type headers
+
             -- define constants
             constDefsList <- forM consts $ \(AST.Const pos (Sym sym) expr) -> withPos pos $ do
                 symbol' <- genSymbol sym

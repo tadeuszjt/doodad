@@ -401,7 +401,7 @@ collectExpr (S.AExpr exprType expr) = collectPos expr $ case expr of
         collectEq exprType t
         mapM_ collectExpr es
 
-    S.Construct _ _ es -> do
+    S.Construct _ symbol es -> do
         mapM_ collectExpr es
 
     S.Builtin _ ps sym es -> do 

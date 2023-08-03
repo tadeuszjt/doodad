@@ -14,8 +14,6 @@ import Error
 import Symbol
 
 -- Flatten:
--- Check type defs for circles
-
 -- check typedefs for circles
 checkTypeDefs :: BoM s m => Map.Map Symbol Type -> m ()
 checkTypeDefs typedefs = do

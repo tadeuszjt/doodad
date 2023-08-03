@@ -49,7 +49,9 @@ getSubsFromTypes :: BoM s m => Type -> Type -> m [(Type, Type)]
 getSubsFromTypes t1 t2 = case (t1, t2) of
     (Void, Void) -> return []
     (I64, I64) -> return []
+    (Type.Char, Type.Char) -> return []
     (Type.String, Type.String) -> return []
+    (Type.Typedef s1, Type.Typedef s2) -> return []
     (Type.Bool, Type.Bool) -> return []
     (Table ts1, Table ts2) -> concat <$> zipWithM getSubsFromTypes ts1 ts2
     (_, Generic _)         -> return [(t2, t1)]

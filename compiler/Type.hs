@@ -82,6 +82,7 @@ typesCouldMatch a b = case (a, b) of
     _ | isSimple a         -> a == b
     (Table as, Table bs)   -> length as == length bs && (all (== True) $ zipWith typesCouldMatch as bs)
     (ADT afs, ADT bfs)     -> length afs == length bfs && (all (== True) $ zipWith fieldsCouldMatch afs bfs)
+    (Tuple as, Tuple bs)   -> length as == length bs && (all (== True) $ zipWith typesCouldMatch as bs)
     _                      -> error (show (a, b))
     where
         fieldsCouldMatch :: AdtField -> AdtField -> Bool

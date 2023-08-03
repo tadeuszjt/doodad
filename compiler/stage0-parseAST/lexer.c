@@ -169,7 +169,7 @@ bool isDoubleSymbol(char *s) {
 }
 
 bool isValidCharLiteral(char c) {
-    if (isalpha(c) || isdigit(c)) {
+    if (isalpha(c) || isdigit(c) || c == ' ') {
         return true;
     }
     char *chars = "!@#$%^&*()_+-={}[]:;\"<>?.,/|";

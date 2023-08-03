@@ -218,6 +218,7 @@ member i val = do
             FieldCtor [] -> fail "no val for empty ctor"
             FieldCtor [t] -> return $ Value t $ C.Member (valExpr val) ("u" ++ show i)
             FieldCtor ts -> return $ Value (Type.Tuple ts) $ C.Member (valExpr val) ("u" ++ show i)
+        _ -> error (show base)
 
 
 initialiser :: MonadGenerate m => Type.Type -> [Value] -> m Value

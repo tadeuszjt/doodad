@@ -1,0 +1,236 @@
+module lexer
+
+import ../../std/io
+import ../../std/strings
+import ../../std/assert
+
+type Token {
+    Ident(string)
+    Keyword(string)
+    Integer(i64)
+    Newline(string)
+    Symbol(string)
+    Char(string)
+    String(string)
+    CEmbed(string)
+}
+
+type Result { null | Success(Token, string) }
+
+
+fn lexIdent(str string) Result
+    if str.at(0) -> char(c) | isAlpha(c)
+        let idx = 0
+        while str.at(idx) -> char(c) | isAlpha(c) || isDigit(c) || c == '_'
+            idx = idx + 1
+        return Success(Ident(take(str, idx)), drop(str, idx))
+    return null
+
+
+fn lexKeyword(str string) Result
+    let keywords = [
+        "module"
+        "import"
+        "type"
+        "conv"
+        "len"
+        "fn"
+        "for"
+        "if"
+        "else"
+        "switch"
+        "while"
+        "return"
+        "let"
+        "null"
+        "string"
+        "bool"
+        "i8"
+        "i16"
+        "i32"
+        "i64"
+        "u8"
+    ]
+    if lexIdent(str) -> Success(Ident(ident), rest)
+        for keywords -> keyword
+            if keyword == ident
+                return Success(Keyword(ident), rest)
+    return null
+
+
+fn lexSymbol(str string) Result
+    let symbols = [ "..", "->", "==", "!=", "<=", ">=", "||", "&&", "::"]
+    let singles = "[]{}()<>|.,=+-*/%_:;"
+    for symbols -> symbol
+        if take(str, len(symbol)) == symbol
+            return Success(Symbol(symbol), drop(str, len(symbol)))
+    for singles -> symbol
+        if str.at(0) -> char(c) | c == symbol
+            return Success(Symbol(string(c)), drop(str, 1))
+    return null
+
+
+fn lexInteger(str string) Result
+    if str.at(0) -> char(c) | isDigit(c)
+        let idx = 0
+        while str.at(idx) -> char(c) | isDigit(c)
+            idx = idx + 1
+        let (i64(n), _) = readI64(take(str, idx))
+        return Success(Integer(n), drop(str, idx))
+    return null
+
+
+fn lexNewline(str string) Result
+    if str.at(0) -> char('\n')
+        let idx = 0
+        while str.at(idx) -> char(c) | c == '\n' || c == '\t' || c == ' '
+            idx = idx + 1
+
+        let spaces = take(str, idx)
+        let lastNewline = -1
+        for spaces[..] -> i
+            if spaces[i] == '\n'; lastNewline = i
+        assert(lastNewline > -1)
+
+        return Success(
+            Newline(drop(spaces, lastNewline))
+            drop(str, idx)
+        )
+    return null
+
+
+fn lexCEmbed(str string) Result
+    if str.at(0) -> char('$') | str.at(1) -> char('{')
+    else; return null 
+
+    str = drop(str, 1)
+    
+    let idx = 1
+    let level = 1
+    while str.at(idx) -> char(c) | level > 0
+        switch c
+            '{'; level = level + 1
+            '}'; level = level - 1
+            _;
+        idx = idx + 1
+    if level != 0
+        return null
+
+    data result [char]
+    for take(str, idx) -> c
+        switch c
+            '\n'; result += [char(31)]
+            _   ; result += [c]
+
+    return Success(
+        CEmbed(string(result))
+        drop(str, idx)
+    )
+
+
+
+
+fn lexCharLiteral(str string) Result
+    if take(str, 4) -> ['\'', '\\', c, '\'']
+        switch c
+            'n'; return Success(Char(take(str, 4)), drop(str, 4))
+            't'; return Success(Char(take(str, 4)), drop(str, 4))
+            '0'; return Success(Char(take(str, 4)), drop(str, 4))
+            '\\'; return Success(Char(take(str, 4)), drop(str, 4))
+            '\''; return Success(Char(take(str, 4)), drop(str, 4))
+            _;
+
+    switch take(str, 3)
+        ['\'', '\'', '\''];
+        ['\'', c, '\'']; return Success(Char(take(str, 3)), drop(str, 3))
+        _;
+        
+    return null
+
+fn lexStringLiteral(str string) Result
+    if str.at(0) -> char('"')
+        let idx = 1
+        while str.at(idx) -> char(c) | c != '"' && c != '\n'
+            idx = idx + 1
+
+        switch str.at(idx)
+            null;               return null
+            char(c) | c != '"'; return null
+            _;
+
+        return Success(
+            String(take(str, idx + 1))
+            drop(str, idx + 1)
+        )
+    
+    return null
+
+    
+
+fn lex(str string) Result
+    // skip spaces
+    while str.at(0) -> char(c) | c == ' ' || c == '\t'
+        str = drop(str, 1)
+
+    if lexNewline(str)       -> Success(token, rest); return Success(token, rest)
+    if lexCharLiteral(str)   -> Success(token, rest); return Success(token, rest)
+    if lexStringLiteral(str) -> Success(token, rest); return Success(token, rest)
+    if lexInteger(str)       -> Success(token, rest); return Success(token, rest)
+    if lexKeyword(str)       -> Success(token, rest); return Success(token, rest)
+    if lexIdent(str)         -> Success(token, rest); return Success(token, rest)
+    if lexSymbol(str)        -> Success(token, rest); return Success(token, rest)
+    if lexCEmbed(str)        -> Success(token, rest); return Success(token, rest)
+    return null
+
+
+fn(Table) {t Table} pop()
+    ${
+        $t->len--;
+    }
+        
+
+
+fn {io Io, stack [string]} indent(s string)
+    assert(len(stack) > 0)
+    let entry = stack[len(stack) - 1]
+    let minLen = len(entry)
+    if len(s) < minLen
+        minLen = len(s)
+    assert(take(s, minLen) == take(entry, minLen)) // current indent is valid
+
+    if s == entry
+        io.putStrLn("newline:")
+    else if len(s) > len(entry) // greater indent
+        stack += [s]
+        io.putStrLn("indent:")
+    else if len(entry) > len(s) // lesser indent
+        io.putStrLn("newline:")
+
+        while len(entry) > len(s) // dedent loop
+            io.putStrLn("dedent:")
+            stack.pop()
+            assert(len(stack) > 0)
+            entry = stack[len(stack) - 1]
+
+        assert(s == entry)
+
+
+fn {io Io} main()
+    let str = io.readFile("lang/lexer/lexer.doo")
+
+    data indentStack [string]
+    indentStack += [""]
+
+    while lex(str) -> Success(token, rest)
+        switch token
+            Ident(s);   io.putStrLn("ident: " + s)
+            Keyword(s); io.putStrLn("keyword: " + s)
+            Integer(n); io.putStrLn("integer: " + string(n))
+            Symbol(s);  io.putStrLn("symbol: " + s)
+            Char(s);    io.putStrLn("char: " + s)
+            String(s);  io.putStrLn("string: " + s)
+            Newline(s); {io, indentStack}.indent(s)
+            CEmbed(s);  io.putStrLn("cembed: " + s)
+
+        str = rest
+

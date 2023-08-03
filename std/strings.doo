@@ -1,14 +1,28 @@
 module strings
 
+fn isAlpha(c char) bool
+    let r = false
+    ${ $r = isalpha($c); }
+    return r
+
+
 fn isDigit(c char) bool
     let r = false
     ${ $r = isdigit($c); }
     return r
 
+
 fn isSpace(c char) bool
     let r = false
     ${ $r = isspace($c); }
     return r
+
+
+fn isPrefix(pre string, str string) bool
+    if len(pre) > len(str); return false
+    for pre[..] -> i
+        if str[i] != pre[i]; return false
+    return true
 
 
 fn {s string} at(idx i64) {null | char}

@@ -205,6 +205,7 @@ generateIndex expr_@(S.AExpr t expr__) = case expr__ of
                 forM (zip ts [0..]) $ \(t, i) -> do
                     m <- member i val
                     subscript m idx
+            Type.String -> fail "cannot index string"
 
             _ -> error (show base)
     _ -> error (show expr__)
@@ -252,6 +253,9 @@ generateStmt stmt = case stmt of
                     appendElem C.Break
             call "assert" [false]
 
+--    S.ExprStmt (AExpr _ (S.Call _ [] (SymResolved "assert" "assert" 0) exprs)) -> do
+--        void $ appendPrintf "%s\n" [C.String $ show $ textPos stmt]
+--        call "assert" [false]
 
     S.ExprStmt (AExpr _ (S.Call _ exprs1 symbol exprs2)) -> do
         params <- mapM generateExpr exprs1
@@ -403,6 +407,9 @@ generatePattern pattern val = do
                 Type.Table [t] -> do -- [1, 2, 3]:[i64]
                     lenNotEq <- generateInfix S.NotEq (i64 $ length pats) =<< len val
                     if_ lenNotEq $ void $ appendElem $ C.Goto endLabel
+                Type.String -> do -- ['a', 'b', 'c']:string
+                    lenNotEq <- generateInfix S.NotEq (i64 $ length pats) =<< len val
+                    if_ lenNotEq $ void $ appendElem $ C.Goto endLabel
 
             forM_ (zip pats [0..]) $ \(pat, i) -> do
                 b <- generatePattern pat =<< subscript val (i64 i)
@@ -433,9 +440,18 @@ generatePattern pattern val = do
             appendElem $ C.Label endLabel
             return match
 
-        PatGuarded _ pat expr Nothing -> do -- TODO
+        PatGuarded _ pat expr Nothing -> do
             match <- assign "match" =<< generatePattern pat val
             if_ match $ set match =<< generateExpr expr
+            return match
+
+        PatGuarded _ pat expr (Just pat2) -> do
+            endLabel <- fresh "end"
+            match <- assign "match" =<< generatePattern pat val
+            if_ (not_ match) $
+                appendElem $ C.Goto endLabel
+            set match =<< generatePattern pat2 =<< generateExpr expr
+            appendElem $ C.Label endLabel
             return match
 
         PatField _ symbol pats -> do -- either a typedef or an ADT field, both members of ADT
@@ -612,13 +628,22 @@ generateExpr (AExpr typ expr_) = withTypeCheck $ case expr_ of
             Type.String -> do
                 case baseVal of
                     Type.Char -> return $ Value t $ C.Call "doodad_string_char" [valExpr val]
+                    Type.I64 -> return $ Value t $ C.Call "doodad_string_i64" [valExpr val]
                     Type.String -> return $ Value t (valExpr val)
+                    Type.Table [Type.Char] -> do
+                        return $ Value t $ C.Call "doodad_string_copy" [C.Member (valExpr val) "r0"]
+
                     _ -> error (show baseVal)
 
             Type.F32 -> do
                 case baseVal of
                     Type.F64 -> return $ Value t $ C.Cast Cfloat (valExpr val)
                     Type.I64 -> return $ Value t $ C.Cast Cfloat (valExpr val)
+
+            Type.Char -> do
+                case baseVal of
+                    Type.I64 -> return $ Value t $ C.Cast Cchar (valExpr val)
+
 
             _ -> error (show base)
     S.Conv _ _ es -> initialiser typ =<< mapM generateExpr es -- TODO
@@ -647,11 +672,17 @@ generateExpr (AExpr typ expr_) = withTypeCheck $ case expr_ of
                 Nothing -> return (i64 0)
             Type.Table ts -> case mexpr1 of
                 Nothing -> return (i64 0)
+            Type.String -> case mexpr1 of
+                Nothing -> return (i64 0)
+            _ -> error (show base)
         end <- case base of
             Type.Array n t -> case mexpr2 of
                 Nothing -> return (i64 n)
             Type.Table ts -> case mexpr2 of
                 Nothing -> len val
+            Type.String -> case mexpr1 of
+                Nothing -> len val
+            _ -> error (show base)
         initialiser typ [start, end]
 
     S.Range _ Nothing (Just expr1) (Just expr2) -> do
@@ -670,9 +701,14 @@ generateExpr (AExpr typ expr_) = withTypeCheck $ case expr_ of
             Type.ADT fs -> do
                 assert (i < length fs) "invalid index"
                 case fs !! i of
+                    FieldCtor [t] -> do
+                        assert (length vals == 1) "invalid constructor"
+                        adt <- assign "adt" $ Value typ (C.Initialiser [C.Int $ fromIntegral i]) -- TODO
+                        m <- member i adt
+                        set m (head vals)
+                        return adt
                     FieldCtor ts -> do
                         assert (length vals == length ts) "invalid constructor"
-
                         adt <- assign "adt" $ Value typ (C.Initialiser [C.Int $ fromIntegral i]) -- TODO
                         forM_ (zip vals [0..]) $ \(v, j) -> do
                             m <- member j =<< member i adt
@@ -713,7 +749,7 @@ generateInfix op a b = do
                 S.GT ->     Value Type.Bool $ C.Infix C.GT (valExpr a) (valExpr b)
                 S.LTEq ->   Value Type.Bool $ C.Infix C.LTEq (valExpr a) (valExpr b)
                 S.EqEq ->   Value Type.Bool $ C.Infix C.EqEq (valExpr a) (valExpr b)
-                S.GTEq ->   Value Type.Bool $ C.Infix C.EqEq (valExpr a) (valExpr b)
+                S.GTEq ->   Value Type.Bool $ C.Infix C.GTEq (valExpr a) (valExpr b)
                 S.NotEq ->  Value Type.Bool $ C.Infix C.NotEq (valExpr a) (valExpr b)
                 _ -> error (show op)
 
@@ -725,6 +761,7 @@ generateInfix op a b = do
 
         Type.Char -> return $ case op of
             S.EqEq -> Value Type.Bool $ C.Infix (C.EqEq) (valExpr a) (valExpr b)
+            S.NotEq -> Value Type.Bool $ C.Infix (C.NotEq) (valExpr a) (valExpr b)
             o -> error (show o)
 
         Type.String -> case op of

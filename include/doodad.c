@@ -5,6 +5,7 @@
 char *doodad_string_alloc(size_t len) {
     char *str = GC_malloc(len + 1);
     str[0] = '\0';
+    str[len] = '\0';
     return str;
 }
 
@@ -47,4 +48,43 @@ char *doodad_string_char(char c) {
     s[0] = c;
     s[1] = '\0';
     return s;
+}
+
+char *doodad_string_i64(int64_t n) {
+    if (n == 0) {
+        return doodad_string_char('0');
+    }
+
+    bool minus = false;
+    if (n < 0) {
+        n = -n;
+        minus = true;
+    }
+
+    // get digits
+    char buf[1024] = {0};
+    int idx = 0;
+    while (n > 0) {
+        buf[idx++] = '0' + (n % 10);
+        n /= 10;
+    }
+
+    // reverse digits
+    for (int i = 0; i < idx; i++) {
+        char c = buf[idx - 1 - i];
+        buf[idx - 1 - i] = buf[i];
+        buf[i] = c;
+    }
+
+    int len = idx;
+    if (minus) {
+        char *s = doodad_string_alloc(len + 1);
+        s[0] = '-';
+        memcpy(s + 1, buf, len);
+        return s;
+    } else {
+        char *s = doodad_string_alloc(len);
+        memcpy(s, buf, len);
+        return s;
+    }
 }

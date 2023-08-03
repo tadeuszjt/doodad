@@ -131,6 +131,7 @@ instance Show Expression where
     show (Deref e) = "(*" ++ show e ++ ")"
     show (Address e) = "&(" ++ show e ++ ")"
     show (Not e) = "!" ++ show e
+    show (Char '\0') = "'\\0'"
     show (Char c) = show c
     show (Sizeof e) = "sizeof(" ++ show e ++ ")"
     show (Cast t e) = "(" ++ show t ++ ")(" ++ show e ++ ")"

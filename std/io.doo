@@ -1,20 +1,38 @@
 module io
 
-type Io ()
+type FileKey i64
+type FilePtr i64
+
+
+type Io (
+    keySupply FileKey
+)
+
+
+fn {io Io} openFile(filename string) FileKey
+    let key = io.keySupply
+    io.keySupply = io.keySupply + 1
+    return key
+
+
 
 fn {io Io} putStrLn(s string)
     ${ printf("%s\n", $s); }
 
+
 fn {io Io} putStr(s string)
     ${ printf("%s", $s); }
 
+
 fn {io Io} putChar(c char)
     ${ putchar($c); }
+
 
 fn {io Io} getChar() char
     let c = char()
     ${ $c = getchar(); }
     return c
+
 
 fn {io Io} getStrLn() {null | string}
     let eof = false
@@ -34,3 +52,22 @@ fn {io Io} getStrLn() {null | string}
     }
     if eof; return null
     return conv(s)
+
+
+fn {io Io} readFile(filename string) string
+    let contents = ""
+    ${
+        FILE *fp = fopen($filename, "r");
+        assert(fp != NULL);
+
+        fseek(fp, 0, SEEK_END);
+        int64_t fileSize = ftell(fp);
+        fseek(fp, 0, SEEK_SET);
+
+        char *str = doodad_string_alloc(fileSize);
+        fread(str, 1, fileSize, fp);
+
+        fclose(fp);
+        $contents = str;
+    }
+    return contents
