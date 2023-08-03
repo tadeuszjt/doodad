@@ -54,6 +54,7 @@ getSubsFromTypes t1 t2 = case (t1, t2) of
     (Type.Typedef s1, Type.Typedef s2) -> return []
     (Type.Bool, Type.Bool) -> return []
     (Table ts1, Table ts2) -> concat <$> zipWithM getSubsFromTypes ts1 ts2
+    (Type.Tuple ts1, Type.Tuple ts2) -> concat <$> zipWithM getSubsFromTypes ts1 ts2
     (_, Generic _)         -> return [(t2, t1)]
     (ADT fs1, ADT fs2)     -> concat <$> zipWithM getSubsFromFields fs1 fs2
     _ -> error $ show (t1, t2)
@@ -200,7 +201,9 @@ resolveFieldAccess (AST.Field pos expr (Sym sym)) = do
         res <- Map.toList . Map.filterWithKey (\k a -> tupTypeMatches a && fieldSymMatches k)
             <$> gets ctorDefs
         case res of
-            []            -> fail "No ctor found"
+            []            -> do
+                expr' <- compileExpr expr
+                return $ Field pos expr' (Sym sym)
             (a:b:xs)      -> fail "ambiguous"
             [(symbol, _)] -> do
                 expr' <- compileExpr expr

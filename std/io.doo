@@ -1,19 +1,67 @@
 module io
 
+import assert
+
 type FileKey i64
 type FilePtr i64
 
 
+type Files [keys FileKey, ptrs FilePtr]
+
 type Io (
     keySupply FileKey
+    files Files
 )
 
+fn {t Files} delete(idx i64)
+    assert(idx >= 0 && idx < len(t))
+    t[idx] = t[len(t) - 1]
+    ${ $t->len--; }
 
-fn {io Io} openFile(filename string) FileKey
+
+fn {io Io} newKey() FileKey
     let key = io.keySupply
     io.keySupply = io.keySupply + 1
     return key
 
+
+fn {io Io} openFile(filename string) FileKey
+    let key = io.newKey()
+    let ptr = 0
+    ${
+        FILE *fp = fopen($filename, "w+");
+        assert(fp != NULL);
+        $ptr = (int64_t)(fp);
+    }
+
+    io.files += ([key], [ptr])
+    return key
+
+
+fn {io Io} closeFile(key FileKey)
+    for io.files[..] -> i
+        if io.files.keys[i] == key
+            let ptr = io.files.ptrs[i]
+            ${ fclose((FILE*)$ptr); }
+            io.files.delete(i)
+            return
+    assert(false)
+
+
+fn {io Io} fPutStr(key FileKey, s string)
+    for io.files -> (k, p)
+        if k == key
+            ${ fprintf((FILE*)$p, "%s", $s); }
+            return
+    assert(false)
+
+
+fn {io Io} fPutStrLn(key FileKey, s string)
+    for io.files -> (k, p)
+        if k == key
+            ${ fprintf((FILE*)$p, "%s\n", $s); }
+            return
+    assert(false)
 
 
 fn {io Io} putStrLn(s string)
@@ -64,10 +112,8 @@ fn {io Io} readFile(filename string) string
         int64_t fileSize = ftell(fp);
         fseek(fp, 0, SEEK_SET);
 
-        char *str = doodad_string_alloc(fileSize);
-        fread(str, 1, fileSize, fp);
-
+        $contents = doodad_string_alloc(fileSize);
+        fread($contents, 1, fileSize, fp);
         fclose(fp);
-        $contents = str;
     }
     return contents

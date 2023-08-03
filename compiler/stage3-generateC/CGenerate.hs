@@ -15,8 +15,8 @@ import Data.Maybe
 
 import Monad
 import Symbol
-import ASTResolved
-import CBuilder as C
+import ASTResolved hiding (moduleName)
+import CBuilder as C hiding (moduleName)
 import CAst as C
 import Control.Monad.State
 import Type
@@ -40,7 +40,8 @@ ptrExpr obj = case obj of
 
 data GenerateState
     = GenerateState
-        { tuples :: Map.Map C.Type String
+        { moduleName :: String
+        , tuples :: Map.Map C.Type String
         , supply :: Map.Map String Int
         , ctors  :: Map.Map Symbol (Type.Type, Int)
         , typedefs :: Map.Map Symbol Type.Type
@@ -48,9 +49,10 @@ data GenerateState
         , tableAppendFuncs :: Map.Map Type.Type String
         }
 
-initGenerateState
+initGenerateState modName
     = GenerateState
-        { tuples = Map.empty
+        { moduleName = modName
+        , tuples = Map.empty
         , supply = Map.empty
         , ctors  = Map.empty
         , typedefs = Map.empty
@@ -331,7 +333,8 @@ getTableAppendFunc typ = do
     case fm of
         Just s -> return s
         Nothing -> do -- append multiple tables
-            funcName <- fresh "doodad_table_append"
+            modName <- gets moduleName
+            funcName <- fresh $ modName ++ "_table_append"
             aParam <- C.Param "a" . Cpointer <$> cTypeOf typ
             bParam <- C.Param "b" . Cpointer <$> cTypeOf typ
 

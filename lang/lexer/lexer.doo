@@ -18,6 +18,10 @@ type Token {
 type Result { null | Success(Token, string) }
 
 
+
+fn assert(cnd bool)
+    ${ assert($cnd); }
+
 fn lexIdent(str string) Result
     if str.at(0) -> char(c) | isAlpha(c)
         let idx = 0
@@ -147,6 +151,7 @@ fn lexCharLiteral(str string) Result
         
     return null
 
+
 fn lexStringLiteral(str string) Result
     if str.at(0) -> char('"')
         let idx = 1
@@ -190,7 +195,7 @@ fn(Table) {t Table} pop()
         
 
 
-fn {io Io, stack [string]} indent(s string)
+fn {io Io, stack [string]} indent(key FileKey, s string)
     assert(len(stack) > 0)
     let entry = stack[len(stack) - 1]
     let minLen = len(entry)
@@ -199,15 +204,15 @@ fn {io Io, stack [string]} indent(s string)
     assert(take(s, minLen) == take(entry, minLen)) // current indent is valid
 
     if s == entry
-        io.putStrLn("newline:")
+        io.fPutStrLn(key, "newline:")
     else if len(s) > len(entry) // greater indent
         stack += [s]
-        io.putStrLn("indent:")
+        io.fPutStrLn(key, "indent:")
     else if len(entry) > len(s) // lesser indent
-        io.putStrLn("newline:")
+        io.fPutStrLn(key, "newline:")
 
         while len(entry) > len(s) // dedent loop
-            io.putStrLn("dedent:")
+            io.fPutStrLn(key, "dedent:")
             stack.pop()
             assert(len(stack) > 0)
             entry = stack[len(stack) - 1]
@@ -215,22 +220,27 @@ fn {io Io, stack [string]} indent(s string)
         assert(s == entry)
 
 
-fn {io Io} main()
-    let str = io.readFile("lang/lexer/lexer.doo")
+fn lexFile(fileNameIn string, fileNameOut string)
+    data io Io
+
+    let key = io.openFile(fileNameOut)
+    let str = io.readFile(fileNameIn)
 
     data indentStack [string]
     indentStack += [""]
 
     while lex(str) -> Success(token, rest)
         switch token
-            Ident(s);   io.putStrLn("ident: " + s)
-            Keyword(s); io.putStrLn("keyword: " + s)
-            Integer(n); io.putStrLn("integer: " + string(n))
-            Symbol(s);  io.putStrLn("symbol: " + s)
-            Char(s);    io.putStrLn("char: " + s)
-            String(s);  io.putStrLn("string: " + s)
-            Newline(s); {io, indentStack}.indent(s)
-            CEmbed(s);  io.putStrLn("cembed: " + s)
+            Ident(s);   io.fPutStrLn(key, "ident: " + s)
+            Keyword(s); io.fPutStrLn(key, "keyword: " + s)
+            Integer(n); io.fPutStrLn(key, "integer: " + string(n))
+            Symbol(s);  io.fPutStrLn(key, "symbol: " + s)
+            Char(s);    io.fPutStrLn(key, "char: " + s)
+            String(s);  io.fPutStrLn(key, "string: " + s)
+            Newline(s); {io, indentStack}.indent(key, s)
+            CEmbed(s);  io.fPutStrLn(key, "cembed: " + s)
 
         str = rest
+
+    io.closeFile(key)
 
