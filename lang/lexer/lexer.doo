@@ -4,40 +4,93 @@ import ../../std/io
 import ../../std/strings
 import ../../std/assert
 
-type Token {
-    Ident(string)
-    Keyword(string)
-    Integer(i64)
-    Newline(string)
-    Symbol(string)
-    Char(string)
-    String(string)
-    CEmbed(string)
-}
+type Pos (row i64, col i64)
 
-type Result { null | Success(Token, string) }
+type PosString (s string, pos Pos)
 
+fn Drop(str PosString, num i64) PosString
+    while str.s.at(0) -> char(c) | num > 0
+        if c == '\n'
+            str.pos.col = 0
+            str.pos.row = str.pos.row + 1
+        else
+            str.pos.col = str.pos.col + 1
+        ${ $str.m0++; }
+        num = num - 1
+    return str
 
+fn Take(str PosString, num i64) PosString
+    str.s = take(str.s, num)
+    return str
 
-fn assert(cnd bool)
-    ${ assert($cnd); }
-
-fn lexIdent(str string) Result
-    if str.at(0) -> char(c) | isAlpha(c)
-        let idx = 0
-        while str.at(idx) -> char(c) | isAlpha(c) || isDigit(c) || c == '_'
-            idx = idx + 1
-        return Success(Ident(take(str, idx)), drop(str, idx))
+fn {str PosString} At(idx i64) { null | char }
+    if idx >= 0 && idx < len(str.s)
+        return conv(str.s[idx])
     return null
 
 
-fn lexKeyword(str string) Result
+type Token {
+    Ident(PosString)
+    Keyword(PosString)
+    Integer(PosString)
+    Floating(PosString)
+    Newline(PosString)
+    Symbol(PosString)
+    Char(PosString)
+    String(PosString)
+    CEmbed(PosString)
+    Import(PosString)
+    Include(PosString)
+}
+
+type Result { null | Success(Token, PosString) }
+
+
+fn lexIdent(str PosString) Result
+    if str.At(0) -> char(c) | isAlpha(c)
+        let idx = 0
+        while str.At(idx) -> char(c) | isAlpha(c) || isDigit(c) || c == '_'
+            idx = idx + 1
+        return Success(
+            Ident(Take(str, idx))
+            Drop(str, idx)
+        )
+    return null
+
+
+fn lexImport(str PosString) Result
+    if lexIdent(str) -> Success(Ident(ps), rest) | (ps:PosString).s == "import"
+        str = rest
+    else; return null
+
+    let idx = 0
+    while str.At(idx) -> char(c) | c != '\n'
+        idx = idx + 1
+
+    return Success(
+        Import(Take(str, idx))
+        Drop(str, idx)
+    )
+
+fn lexInclude(str PosString) Result
+    if lexIdent(str) -> Success(Ident(ps), rest) | (ps:PosString).s == "include"
+        str = rest
+    else; return null
+
+    let idx = 0
+    while str.At(idx) -> char(c) | c != '\n'
+        idx = idx + 1
+
+    return Success(
+        Include(Take(str, idx))
+        Drop(str, idx)
+    )
+
+
+fn lexKeyword(str PosString) Result
     let keywords = [
         "module"
-        "import"
         "type"
-        "conv"
-        "len"
         "fn"
         "for"
         "if"
@@ -45,73 +98,97 @@ fn lexKeyword(str string) Result
         "switch"
         "while"
         "return"
+        "data"
+        "const"
         "let"
         "null"
+        "true"
+        "false"
         "string"
         "bool"
+        "char"
         "i8"
         "i16"
         "i32"
         "i64"
         "u8"
+        "f32"
+        "f64"
     ]
-    if lexIdent(str) -> Success(Ident(ident), rest)
+    if lexIdent(str) -> Success(Ident(ps), rest)
         for keywords -> keyword
-            if keyword == ident
-                return Success(Keyword(ident), rest)
+            if keyword == ps.s
+                return Success(Keyword(ps), rest)
     return null
 
 
-fn lexSymbol(str string) Result
-    let symbols = [ "..", "->", "==", "!=", "<=", ">=", "||", "&&", "::"]
-    let singles = "[]{}()<>|.,=+-*/%_:;"
+fn lexSymbol(str PosString) Result
+    let symbols = [ "..", "->", "==", "!=", "<=", ">=", "+=", "||", "&&", "::"]
+    let singles = "[]{}()<>|.,=+-*/%_:;!"
     for symbols -> symbol
-        if take(str, len(symbol)) == symbol
-            return Success(Symbol(symbol), drop(str, len(symbol)))
+        let x = Take(str, len(symbol))
+        if x.s == symbol
+            return Success(Symbol(x), Drop(str, len(symbol)))
     for singles -> symbol
-        if str.at(0) -> char(c) | c == symbol
-            return Success(Symbol(string(c)), drop(str, 1))
+        if str.At(0) -> char(c) | c == symbol
+            return Success(Symbol(Take(str, 1)), Drop(str, 1))
     return null
 
 
-fn lexInteger(str string) Result
-    if str.at(0) -> char(c) | isDigit(c)
+fn lexInteger(str PosString) Result
+    if str.At(0) -> char(c) | isDigit(c)
         let idx = 0
-        while str.at(idx) -> char(c) | isDigit(c)
+        while str.At(idx) -> char(c) | isDigit(c)
             idx = idx + 1
-        let (i64(n), _) = readI64(take(str, idx))
-        return Success(Integer(n), drop(str, idx))
+        return Success(Integer(Take(str, idx)), Drop(str, idx))
     return null
 
 
-fn lexNewline(str string) Result
-    if str.at(0) -> char('\n')
+fn lexFloating(str PosString) Result
+    if str.At(0) -> char(c) | isDigit(c)
+    else; return null
+
+    let idx = 0
+    let dot = false
+    while str.At(idx) -> char(c) | isDigit(c) || c == '.' && !dot
+        idx = idx + 1
+        if c == '.'; dot = true
+    if str.At(idx) -> char('.'); return null
+
+    if dot
+        return Success(Floating(Take(str, idx)), Drop(str, idx))
+    return null
+
+
+
+fn lexNewline(str PosString) Result
+    if str.At(0) -> char('\n')
         let idx = 0
-        while str.at(idx) -> char(c) | c == '\n' || c == '\t' || c == ' '
+        while str.At(idx) -> char(c) | c == '\n' || c == '\t' || c == ' '
             idx = idx + 1
 
-        let spaces = take(str, idx)
+        let spaces = Take(str, idx)
         let lastNewline = -1
-        for spaces[..] -> i
-            if spaces[i] == '\n'; lastNewline = i
+        for spaces.s[..] -> i
+            if spaces.s[i] == '\n'; lastNewline = i
         assert(lastNewline > -1)
 
         return Success(
-            Newline(drop(spaces, lastNewline))
-            drop(str, idx)
+            Newline(Drop(spaces, lastNewline + 1))
+            Drop(str, idx)
         )
     return null
 
 
-fn lexCEmbed(str string) Result
-    if str.at(0) -> char('$') | str.at(1) -> char('{')
+fn lexCEmbed(str PosString) Result
+    if str.At(0) -> char('$') | str.At(1) -> char('{')
     else; return null 
 
-    str = drop(str, 1)
+    str = Drop(str, 1)
     
     let idx = 1
     let level = 1
-    while str.at(idx) -> char(c) | level > 0
+    while str.At(idx) -> char(c) | level > 0
         switch c
             '{'; level = level + 1
             '}'; level = level - 1
@@ -121,65 +198,70 @@ fn lexCEmbed(str string) Result
         return null
 
     data result [char]
-    for take(str, idx) -> c
+    for Take(str, idx).s -> c
         switch c
             '\n'; result += [char(31)]
             _   ; result += [c]
 
+    let str2 = str
+    str2.s = string(result)
+
     return Success(
-        CEmbed(string(result))
-        drop(str, idx)
+        CEmbed(str2)
+        Drop(str, idx)
     )
 
 
 
 
-fn lexCharLiteral(str string) Result
-    if take(str, 4) -> ['\'', '\\', c, '\'']
+fn lexCharLiteral(str PosString) Result
+    if Take(str, 4).s -> ['\'', '\\', c, '\'']
         switch c
-            'n'; return Success(Char(take(str, 4)), drop(str, 4))
-            't'; return Success(Char(take(str, 4)), drop(str, 4))
-            '0'; return Success(Char(take(str, 4)), drop(str, 4))
-            '\\'; return Success(Char(take(str, 4)), drop(str, 4))
-            '\''; return Success(Char(take(str, 4)), drop(str, 4))
+            'n'; return Success(Char(Take(str, 4)), Drop(str, 4))
+            't'; return Success(Char(Take(str, 4)), Drop(str, 4))
+            '0'; return Success(Char(Take(str, 4)), Drop(str, 4))
+            '\\'; return Success(Char(Take(str, 4)), Drop(str, 4))
+            '\''; return Success(Char(Take(str, 4)), Drop(str, 4))
             _;
 
-    switch take(str, 3)
+    switch Take(str, 3).s
         ['\'', '\'', '\''];
-        ['\'', c, '\'']; return Success(Char(take(str, 3)), drop(str, 3))
+        ['\'', c, '\'']; return Success(Char(Take(str, 3)), Drop(str, 3))
         _;
         
     return null
 
 
-fn lexStringLiteral(str string) Result
-    if str.at(0) -> char('"')
+fn lexStringLiteral(str PosString) Result
+    if str.At(0) -> char('"')
         let idx = 1
-        while str.at(idx) -> char(c) | c != '"' && c != '\n'
+        while str.At(idx) -> char(c) | c != '"' && c != '\n'
             idx = idx + 1
 
-        switch str.at(idx)
+        switch str.At(idx)
             null;               return null
             char(c) | c != '"'; return null
             _;
 
         return Success(
-            String(take(str, idx + 1))
-            drop(str, idx + 1)
+            String(Drop(Take(str, idx), 1))
+            Drop(str, idx + 1)
         )
     
     return null
 
     
 
-fn lex(str string) Result
-    // skip spaces
-    while str.at(0) -> char(c) | c == ' ' || c == '\t'
-        str = drop(str, 1)
+fn lex(str PosString) Result
+    while str.At(0) -> char(c) | c == ' ' || c == '\t'
+        str = Drop(str, 1)
 
     if lexNewline(str)       -> Success(token, rest); return Success(token, rest)
+    if lexImport(str)        -> Success(token, rest); return Success(token, rest)
+    if lexInclude(str)       -> Success(token, rest); return Success(token, rest)
     if lexCharLiteral(str)   -> Success(token, rest); return Success(token, rest)
     if lexStringLiteral(str) -> Success(token, rest); return Success(token, rest)
+    if lexFloating(str)      -> Success(token, rest); return Success(token, rest)
     if lexInteger(str)       -> Success(token, rest); return Success(token, rest)
     if lexKeyword(str)       -> Success(token, rest); return Success(token, rest)
     if lexIdent(str)         -> Success(token, rest); return Success(token, rest)
@@ -201,18 +283,18 @@ fn {io Io, stack [string]} indent(key FileKey, s string)
     let minLen = len(entry)
     if len(s) < minLen
         minLen = len(s)
-    assert(take(s, minLen) == take(entry, minLen)) // current indent is valid
+    assert(take(s, minLen) == take(entry, minLen))
 
     if s == entry
-        io.fPutStrLn(key, "newline:")
-    else if len(s) > len(entry) // greater indent
+        io.fPutStrLn(key, "0:0:newline:")
+    else if len(s) > len(entry)
         stack += [s]
-        io.fPutStrLn(key, "indent:")
-    else if len(entry) > len(s) // lesser indent
-        io.fPutStrLn(key, "newline:")
+        io.fPutStrLn(key, "0:0:indent:")
+    else if len(entry) > len(s)
+        io.fPutStrLn(key, "0:0:newline:")
 
-        while len(entry) > len(s) // dedent loop
-            io.fPutStrLn(key, "dedent:")
+        while len(entry) > len(s)
+            io.fPutStrLn(key, "0:0:dedent:")
             stack.pop()
             assert(len(stack) > 0)
             entry = stack[len(stack) - 1]
@@ -224,23 +306,30 @@ fn lexFile(fileNameIn string, fileNameOut string)
     data io Io
 
     let key = io.openFile(fileNameOut)
-    let str = io.readFile(fileNameIn)
+
+    let str = PosString()
+    str.s = io.readFile(fileNameIn)
 
     data indentStack [string]
     indentStack += [""]
 
     while lex(str) -> Success(token, rest)
         switch token
-            Ident(s);   io.fPutStrLn(key, "ident: " + s)
-            Keyword(s); io.fPutStrLn(key, "keyword: " + s)
-            Integer(n); io.fPutStrLn(key, "integer: " + string(n))
-            Symbol(s);  io.fPutStrLn(key, "symbol: " + s)
-            Char(s);    io.fPutStrLn(key, "char: " + s)
-            String(s);  io.fPutStrLn(key, "string: " + s)
-            Newline(s); {io, indentStack}.indent(key, s)
-            CEmbed(s);  io.fPutStrLn(key, "cembed: " + s)
+            Ident(s);   io.fPutStrLn(key, string(s.pos.row) + ":" + string(s.pos.col) + ":ident: " + s.s)
+            Keyword(s); io.fPutStrLn(key, string(s.pos.row) + ":" + string(s.pos.col) + ":keyword: " + s.s)
+            Integer(s); io.fPutStrLn(key, string(s.pos.row) + ":" + string(s.pos.col) + ":integer: " + s.s)
+            Floating(s); io.fPutStrLn(key, string(s.pos.row) + ":" + string(s.pos.col) + ":floating: " + s.s)
+            Symbol(s);  io.fPutStrLn(key, string(s.pos.row) + ":" + string(s.pos.col) + ":symbol: " + s.s)
+            Char(s);    io.fPutStrLn(key, string(s.pos.row) + ":" + string(s.pos.col) + ":char: " + s.s)
+            String(s);  io.fPutStrLn(key, string(s.pos.row) + ":" + string(s.pos.col) + ":string: " + s.s)
+            Newline(s); {io, indentStack}.indent(key, s.s)
+            CEmbed(s);  io.fPutStrLn(key, string(s.pos.row) + ":" + string(s.pos.col) + ":cembed: " + s.s)
+            Import(s);  io.fPutStrLn(key, string(s.pos.row) + ":" + string(s.pos.col) + ":import: " + s.s)
+            Include(s); io.fPutStrLn(key, string(s.pos.row) + ":" + string(s.pos.col) + ":include: " + s.s)
 
         str = rest
 
     io.closeFile(key)
 
+fn main()
+    lexFile("lang/lexer/lexer.doo", "lexerOut")

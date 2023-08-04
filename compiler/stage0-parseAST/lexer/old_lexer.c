@@ -431,7 +431,7 @@ bool lex() { // returns false for EOF
                     }
                 }
 
-                printToken("embed_c: %s\n", stack);
+                printToken("cembed: %s\n", stack);
                 stackClear();
                 state = STATE_INIT;
             }

@@ -32,7 +32,7 @@ baseTypeOf typ = case typ of
 
 
 unifyOne :: BoM TypeMap m => TextPos -> Constraint -> m [(Type, Type)]
-unifyOne pos constraint = case constraint of
+unifyOne pos constraint = withPos pos $ case constraint of
     ConsEq t1 t2 -> case (t1, t2) of
         _ | t1 == t2                    -> return []
         (Type x, t)                     -> return [(Type x, t)]
@@ -73,6 +73,7 @@ unifyOne pos constraint = case constraint of
     ConsMember t1 i t2 -> do
         basem <- baseTypeOf t1
         case basem of
+            Just (Tuple ts)  -> unifyOne pos (ConsEq t2 $ ts !! i)
             Just (Table ts)  -> unifyOne pos (ConsEq t2 $ ts !! i)
             Just (Array n t) -> do 
                 assert (i == 0) "ConsMember: Invalid index"

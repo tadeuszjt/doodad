@@ -67,7 +67,6 @@ fn testIf()
 type Type string
 type ADT { Ctor0(i64, bool, string) | null | Type | Ctor1() | char }
 fn testADT()
-    // TODO leave it untyped?
     let x = null:ADT
     switch x
         Ctor0(a, b, c); assert(false)
@@ -159,7 +158,6 @@ fn testTupleInfix()
     assert((x + y) == (-3, "benis"))
     assert( (1, "benis") == (1, "benis") )
     assert( (1, "be!is") != (1, "benis") )
-    // comment at end of function
 
 
 type Tuple (f32, string)
@@ -209,7 +207,6 @@ fn testTupleMembers()
 fn testSubFunction()
     let x = 2
     fn {a i64} testSomething(b bool)
-        //x = 3 // not allowed 
         a = a + 1
 
     x.testSomething(true)

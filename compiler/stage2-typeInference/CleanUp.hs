@@ -57,6 +57,7 @@ getSubsFromTypes t1 t2 = case (t1, t2) of
     (Type.Tuple ts1, Type.Tuple ts2) -> concat <$> zipWithM getSubsFromTypes ts1 ts2
     (_, Generic _)         -> return [(t2, t1)]
     (ADT fs1, ADT fs2)     -> concat <$> zipWithM getSubsFromFields fs1 fs2
+    (Type _, _) -> return []
     _ -> error $ show (t1, t2)
     where
         getSubsFromFields :: BoM s m => AdtField -> AdtField -> m [(Type, Type)]

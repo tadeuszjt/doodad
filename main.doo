@@ -1,63 +1,22 @@
 module main
 
-import std/sfml/sfml
-import std/colours
-import std/vec2
-import std/time
-import std/rand
+import std/strings
 
-const size = (640, 480)
+type PosString (row i64, col i64, s string)
+
+fn drop(str PosString, num i64) PosString
+    while str.s.at(0) -> char(c) | num > 0
+        if c == '\n'
+            str.col = 0
+            str.row = str.row + 1
+        else
+            str.col = str.col + 1
+        ${ $str.m2++; }
+        num = num - 1
+    return str
 
 
-type Blobs [positions Vec2f; velocities Vec2f; vertices [3 Vertex]]
-
-
-fn {rand Rand} randVec2f(v Vec2f) Vec2f
-    return Vec2f(rand.F32(0, v.x), rand.F32(0, v.y))
-
-
-fn {b Blobs, rand Rand} addBlob(v Vec2f)
-    b += (
-        [ v ]
-        [ rand.randVec2f(Vec2f(0.4, 0.4)) ]
-        [ [
-            Vertex(Vec2f(), Red(),   Vec2f())
-            Vertex(Vec2f(), Green(), Vec2f())
-            Vertex(Vec2f(), Blue(),  Vec2f())
-        ] ]
-    )
-
-fn {b Blobs} updateVertices()
-    for b[..] -> i
-        b.positions[i] = b.positions[i] + b.velocities[i]
-        b.vertices[i][0].position = b.positions[i] + (-2, -2)
-        b.vertices[i][1].position = b.positions[i] + (2, 0)
-        b.vertices[i][2].position = b.positions[i] + (-2, 2)
 
 fn main()
-    print("blobs")
-    data rand Rand
-    data blobs Blobs
-
-    for [0..100000]
-        {blobs, rand}.addBlob(rand.randVec2f(size))
-    
-    let w = Window()
-    w.create()
-
-    while w.isOpen()
-        while w.pollEvent() -> Event(event)
-            switch event
-                Closed(); w.close()
-                None();
-
-        let (sizeX, sizeY) = w.getSize()
-        w.setViewFromRect(Rectf(Vec2f(), Vec2f(f32(sizeX), f32(sizeY))))
-
-        w.clearWindow(White())
-        blobs.updateVertices()
-        {w, blobs.vertices}.drawPrimitives()
-        w.display()
-        sleepMs(16)
-
-    w.destroy()
+    let ps = PosString(0, 0, "a string" + string('\n') + "more string")
+    print(drop(ps, 9))

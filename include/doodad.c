@@ -70,10 +70,10 @@ char *doodad_string_i64(int64_t n) {
     }
 
     // reverse digits
-    for (int i = 0; i < idx; i++) {
-        char c = buf[idx - 1 - i];
-        buf[idx - 1 - i] = buf[i];
-        buf[i] = c;
+    for (int i = 0, j = (strlen(buf) - 1); i < j; i++, j--) {
+        char c = buf[i];
+        buf[i] = buf[j];
+        buf[j] = c;
     }
 
     int len = idx;

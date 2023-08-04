@@ -14,7 +14,7 @@ import Text.Read (readMaybe)
 
 import Foreign.C.String
 
-foreign import ccall "lexer.h lexFile"
+foreign import ccall "lexer.h lexer_lexFile"
     c_lexFile :: CString -> CString -> IO ()
 
 
@@ -55,20 +55,20 @@ lexFile printTokens filename = do
                 return $ Token pos TokSym (fromJust $ stripPrefix "symbol: " l)
             l | isPrefixOf "integer: " l -> do
                 return $ Token pos Int (fromJust $ stripPrefix "integer: " l)
-            l | isPrefixOf "float: " l -> do
-                return $ Token pos Float (fromJust $ stripPrefix "float: " l)
+            l | isPrefixOf "floating: " l -> do
+                return $ Token pos Float (fromJust $ stripPrefix "floating: " l)
             l | isPrefixOf "string: " l -> do
                 return $ Token pos String (fromJust $ stripPrefix "string: " l)
             l | isPrefixOf "char: " l -> do
                 return $ Token pos Char (fromJust $ stripPrefix "char: " l)
             l | isPrefixOf "import: " l -> do
-                return $ Token pos Import (fromJust $ stripPrefix "import: " l)
+                return $ Token pos Import (dropWhile isSpace $ fromJust $ stripPrefix "import: " l)
             l | isPrefixOf "include: " l -> do
                 return $ Token pos CInclude (fromJust $ stripPrefix "include: " l)
             l | isPrefixOf "link: " l -> do
                 return $ Token pos CLink (fromJust $ stripPrefix "link: " l)
-            l | isPrefixOf "embed_c: " l -> do
-                return $ Token pos EmbedC (fromJust $ stripPrefix "embed_c: " $ replace31 l)
+            l | isPrefixOf "cembed: " l -> do
+                return $ Token pos EmbedC (fromJust $ stripPrefix "cembed: " $ replace31 l)
             l -> error l
 
     return tokens 

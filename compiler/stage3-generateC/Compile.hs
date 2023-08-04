@@ -578,6 +578,7 @@ generateExpr (AExpr typ expr_) = withTypeCheck $ case expr_ of
                 S.Minus -> generateInfix S.Minus (i64 0) val
             Type.F32 -> case op of
                 S.Minus -> return $ Value (typeof val) $ C.Prefix C.Minus (valExpr val)
+            _ -> error (show base) 
 
     S.Infix _ op a b -> do
         valA <- generateExpr a
@@ -760,6 +761,7 @@ generateInfix op a b = do
             _ -> error (show op)
 
         Type.Char -> return $ case op of
+            S.Minus ->  Value (typeof a) $ C.Infix C.Minus (valExpr a) (valExpr b)
             S.EqEq -> Value Type.Bool $ C.Infix (C.EqEq) (valExpr a) (valExpr b)
             S.NotEq -> Value Type.Bool $ C.Infix (C.NotEq) (valExpr a) (valExpr b)
             o -> error (show o)
