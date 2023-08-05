@@ -41,6 +41,7 @@ type Token {
     CEmbed(PosString)
     Import(PosString)
     Include(PosString)
+    Comment()
 }
 
 type Result { null | Success(Token, PosString) }
@@ -72,6 +73,7 @@ fn lexImport(str PosString) Result
         Drop(str, idx)
     )
 
+
 fn lexInclude(str PosString) Result
     if lexIdent(str) -> Success(Ident(ps), rest) | (ps:PosString).s == "include"
         str = rest
@@ -85,6 +87,14 @@ fn lexInclude(str PosString) Result
         Include(Take(str, idx))
         Drop(str, idx)
     )
+
+
+fn lexComment(str PosString) Result
+    if str.At(0) -> char('/') | str.At(1) -> char('/')
+        while str.At(0) -> char(c) | c != '\n'
+            str = Drop(str, 1)
+        return Success(Comment(), str)
+    return null
 
 
 fn lexKeyword(str PosString) Result
@@ -162,22 +172,41 @@ fn lexFloating(str PosString) Result
 
 
 fn lexNewline(str PosString) Result
-    if str.At(0) -> char('\n')
-        let idx = 0
-        while str.At(idx) -> char(c) | c == '\n' || c == '\t' || c == ' '
+    fn lexComment(str PosString, idx i64) {null | i64}
+        if str.At(idx) -> char('/') | str.At(idx + 1) -> char('/')
+            idx = idx + 2
+        else; return null
+        while str.At(idx) -> char(c) | c != '\n'
             idx = idx + 1
+        return conv(idx)
 
-        let spaces = Take(str, idx)
-        let lastNewline = -1
-        for spaces.s[..] -> i
-            if spaces.s[i] == '\n'; lastNewline = i
-        assert(lastNewline > -1)
+    fn lexSpaceChar(str PosString, idx i64) {null | i64}
+        if str.At(idx) -> char(c) | c == '\n' || c == '\t' || c == ' '
+            return conv(idx + 1)
+        return null
 
-        return Success(
-            Newline(Drop(spaces, lastNewline + 1))
-            Drop(str, idx)
-        )
-    return null
+    fn lex(str PosString, idx i64) {null | i64}
+        if lexComment(str, idx) -> i64(i); return conv(i)
+        if lexSpaceChar(str, idx) -> i64(i); return conv(i)
+        return null
+
+    if str.At(0) -> char('\n')
+    else; return null
+
+    let idx = 0
+    while lex(str, idx) -> i64(i)
+        idx = i
+
+    let spaces = Take(str, idx)
+    let lastNewline = -1
+    for spaces.s[..] -> i
+        if spaces.s[i] == '\n'; lastNewline = i
+    assert(lastNewline > -1)
+
+    return Success(
+        Newline(Drop(spaces, lastNewline + 1))
+        Drop(str, idx)
+    )
 
 
 fn lexCEmbed(str PosString) Result
@@ -235,7 +264,7 @@ fn lexCharLiteral(str PosString) Result
 fn lexStringLiteral(str PosString) Result
     if str.At(0) -> char('"')
         let idx = 1
-        while str.At(idx) -> char(c) | c != '"' && c != '\n'
+        while str.At(idx) -> char(c) | c != '"' && c != '\n' // comment
             idx = idx + 1
 
         switch str.At(idx)
@@ -265,6 +294,7 @@ fn lex(str PosString) Result
     if lexInteger(str)       -> Success(token, rest); return Success(token, rest)
     if lexKeyword(str)       -> Success(token, rest); return Success(token, rest)
     if lexIdent(str)         -> Success(token, rest); return Success(token, rest)
+    if lexComment(str)       -> Success(token, rest); return Success(token, rest)
     if lexSymbol(str)        -> Success(token, rest); return Success(token, rest)
     if lexCEmbed(str)        -> Success(token, rest); return Success(token, rest)
     return null
@@ -277,29 +307,34 @@ fn(Table) {t Table} pop()
         
 
 
-fn {io Io, stack [string]} indent(key FileKey, s string)
+fn {io Io, stack [string]} indent(key FileKey, str PosString)
     assert(len(stack) > 0)
     let entry = stack[len(stack) - 1]
     let minLen = len(entry)
-    if len(s) < minLen
-        minLen = len(s)
-    assert(take(s, minLen) == take(entry, minLen))
+    if len(str.s) < minLen
+        minLen = len(str.s)
+    assert(take(str.s, minLen) == take(entry, minLen))
 
-    if s == entry
-        io.fPutStrLn(key, "0:0:newline:")
-    else if len(s) > len(entry)
-        stack += [s]
-        io.fPutStrLn(key, "0:0:indent:")
-    else if len(entry) > len(s)
-        io.fPutStrLn(key, "0:0:newline:")
+    let posStr = string(str.pos.row) + ":" + string(str.pos.col) + ":"
 
-        while len(entry) > len(s)
-            io.fPutStrLn(key, "0:0:dedent:")
+    if str.s == entry
+        io.fPutStrLn(key, posStr + "newline:")
+    else if len(str.s) > len(entry)
+        stack += [str.s]
+        io.fPutStrLn(key, posStr + "indent:")
+    else if len(entry) > len(str.s)
+        io.fPutStrLn(key, posStr + "newline:")
+
+        while len(entry) > len(str.s)
+            io.fPutStrLn(key, posStr + "dedent:")
             stack.pop()
             assert(len(stack) > 0)
             entry = stack[len(stack) - 1]
 
-        assert(s == entry)
+        assert(str.s == entry)
+
+
+// comment here
 
 
 fn lexFile(fileNameIn string, fileNameOut string)
@@ -322,10 +357,11 @@ fn lexFile(fileNameIn string, fileNameOut string)
             Symbol(s);  io.fPutStrLn(key, string(s.pos.row) + ":" + string(s.pos.col) + ":symbol: " + s.s)
             Char(s);    io.fPutStrLn(key, string(s.pos.row) + ":" + string(s.pos.col) + ":char: " + s.s)
             String(s);  io.fPutStrLn(key, string(s.pos.row) + ":" + string(s.pos.col) + ":string: " + s.s)
-            Newline(s); {io, indentStack}.indent(key, s.s)
+            Newline(s); {io, indentStack}.indent(key, s)
             CEmbed(s);  io.fPutStrLn(key, string(s.pos.row) + ":" + string(s.pos.col) + ":cembed: " + s.s)
             Import(s);  io.fPutStrLn(key, string(s.pos.row) + ":" + string(s.pos.col) + ":import: " + s.s)
             Include(s); io.fPutStrLn(key, string(s.pos.row) + ":" + string(s.pos.col) + ":include: " + s.s)
+            Comment(); 
 
         str = rest
 

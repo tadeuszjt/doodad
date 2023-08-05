@@ -222,9 +222,11 @@ fn testTableSetElems()
     let [3, 4] = x.nums[1]
     let ["benis", "bongis!"] = x.name
 
+// more comment
+     // more comment
 
 fn testLexerTwoDots()
-    let x = [0..3]
+    let x = [0..3] // a comment
 
 
 fn testConst()
