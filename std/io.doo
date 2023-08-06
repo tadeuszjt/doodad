@@ -5,7 +5,6 @@ import assert
 type FileKey i64
 type FilePtr i64
 
-
 type Files [keys FileKey, ptrs FilePtr]
 
 type Io (

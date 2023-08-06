@@ -139,28 +139,24 @@ symbols1 : symbol               { [$1] }
 mfnrec : {-empty-}                          { [] }
        | '{' paramsA '}'                    { $2 }
 
-mfngen : {-empty-}                          { [] }
-       | '(' symbols1 ')'                   { $2 }
-
 
 line : let pattern '=' expr                         { S.Assign (tokPos $1) $2 $4 }  
      | index '=' expr                               { S.SetOp (tokPos $2) S.Eq $1 $3 }
      | index '+=' expr                              { S.SetOp (tokPos $2) S.PlusEq $1 $3 }
      | index                                        { S.ExprStmt $1 }
-     | type mfngen symbol anno_t                    { S.Typedef (fst $3) (map snd $2) (snd $3) $4 }
+     | type symbol anno_t                           { S.Typedef (fst $2) (snd $2) $3 }
      | data symbol type_ mexpr                      { S.Data (tokPos $1) (snd $2) $3 $4 }
      | return mexpr                                 { S.Return (tokPos $1) $2 }
      | embed_c                                      { S.EmbedC (tokPos $1) (tokStr $1) }
      | const symbol '=' expr                        { S.Const (tokPos $1) (snd $2) $4 }
 block : if_                                         { $1 }
-      | fn mfngen mfnrec ident '(' paramsA ')' mtype scope {
+      | fn mfnrec ident '(' paramsA ')' mtype scope {
             S.FuncDef
                 (tokPos $1)
-                (map snd $2)
-                $3
-                (Sym $ tokStr $4)
-                $6
-                (case $8 of Just t -> t; Nothing -> T.Void) $9
+                $2
+                (Sym $ tokStr $3)
+                $5
+                (case $7 of Just t -> t; Nothing -> T.Void) $8
         }
       | while condition scope                       { S.While (tokPos $1) $2 $3 }
       | for expr scope                              { S.For (tokPos $1) $2 Nothing $3 }

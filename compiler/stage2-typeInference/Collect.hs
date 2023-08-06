@@ -194,8 +194,8 @@ collectTypedef symbol typ = do
 
 collectStmt :: BoM CollectState m => S.Stmt -> m ()
 collectStmt stmt = collectPos stmt $ case stmt of
-    S.Typedef _ _ _ _ -> return ()
-    S.FuncDef _ _ _ _ _ _ _ -> return ()
+    S.Typedef _ _ _ -> return ()
+    S.FuncDef _ _ _ _ _ _ -> return ()
     S.EmbedC _ _ -> return ()
     S.Block stmts -> mapM_ collectStmt stmts
     S.ExprStmt e -> collectExpr e
@@ -359,7 +359,7 @@ collectCall rt ps symbol es = do -- can be resolved or sym
 
 
         collectIfOneDef :: BoM CollectState m => [[Type]] -> m ()
-        collectIfOneDef [ts] = zipWithM_ collectEq packedExpr =<< replaceGenerics ts
+        collectIfOneDef [ts] = zipWithM_ collectEq packedExpr ts
         collectIfOneDef _    = return ()
 
 
@@ -377,14 +377,14 @@ collectCall rt ps symbol es = do -- can be resolved or sym
 --                    collectEq' (head typesn) (types !! i)
 
 
-        -- replaces generics with type variables
-        replaceGenerics :: BoM CollectState m => [Type] -> m [Type]
-        replaceGenerics ts = do
-            setOfGenerics <- return $ Set.fromList $ concat $ map findGenerics ts
-            substitutions <- forM (Set.toList setOfGenerics) $ \g -> do
-                gt <- genType
-                return (g, gt)
-            return $ map (applySubs substitutions) ts
+--        -- replaces generics with type variables
+--        replaceGenerics :: BoM CollectState m => [Type] -> m [Type]
+--        replaceGenerics ts = do
+--            setOfGenerics <- return $ Set.fromList $ concat $ map findGenerics ts
+--            substitutions <- forM (Set.toList setOfGenerics) $ \g -> do
+--                gt <- genType
+--                return (g, gt)
+--            return $ map (applySubs substitutions) ts
 
             
 

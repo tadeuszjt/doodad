@@ -28,10 +28,9 @@ compile :: BoM ASTResolved m => m ()
 compile = do
     funcDefs <- gets funcDefs
     forM_ (Map.toList funcDefs) $ \(symbol, body) -> do
-        when (funcGenerics body == []) $ do -- skip generic functions
-            stmt' <- compileStmt (funcStmt body)
-            body' <- return body { funcStmt = stmt' }
-            modify $ \s -> s { funcDefs = Map.insert symbol body' (ASTResolved.funcDefs s) }
+        stmt' <- compileStmt (funcStmt body)
+        body' <- return body { funcStmt = stmt' }
+        modify $ \s -> s { funcDefs = Map.insert symbol body' (ASTResolved.funcDefs s) }
 
 
 genSymbol :: BoM ASTResolved m => String -> m Symbol
@@ -55,7 +54,6 @@ getSubsFromTypes t1 t2 = case (t1, t2) of
     (Type.Bool, Type.Bool) -> return []
     (Table ts1, Table ts2) -> concat <$> zipWithM getSubsFromTypes ts1 ts2
     (Type.Tuple ts1, Type.Tuple ts2) -> concat <$> zipWithM getSubsFromTypes ts1 ts2
-    (_, Generic _)         -> return [(t2, t1)]
     (ADT fs1, ADT fs2)     -> concat <$> zipWithM getSubsFromFields fs1 fs2
     (Type _, _) -> return []
     _ -> error $ show (t1, t2)
@@ -99,7 +97,7 @@ resolveFuncCall exprType (AST.Call pos params symbol args) = withPos pos $ do
                     if (subs /= []) then do -- function is generic
                         funcBody' <- return $ applySubs subs funcBody
                         symbol' <- genSymbol sym
-                        modify $ \s -> s { funcDefs = Map.insert symbol' funcBody' { funcGenerics = [] } (funcDefs s) }
+                        modify $ \s -> s { funcDefs = Map.insert symbol' funcBody' (funcDefs s) }
                         return symbol'
                     else do
                         return x
@@ -150,9 +148,9 @@ compileStmt stmt = withPos stmt $ case stmt of
     AST.Block stmts      -> Block <$> mapM compileStmt stmts
     AST.ExprStmt expr    -> ExprStmt <$> compileExpr expr
     AST.Return pos mexpr -> Return pos <$> maybe (return Nothing) (fmap Just . compileExpr) mexpr
-    AST.FuncDef pos generics params symbol args retty blk -> return stmt
+    AST.FuncDef pos params symbol args retty blk -> return stmt
     AST.Const pos symbol expr -> return stmt
-    AST.Typedef pos generics symbol anno -> return $ AST.Typedef pos generics symbol anno
+    AST.Typedef pos symbol anno -> return $ AST.Typedef pos symbol anno
 
     AST.Assign pos pat expr -> do
         pat' <- compilePattern pat

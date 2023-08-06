@@ -37,8 +37,6 @@ unifyOne pos constraint = withPos pos $ case constraint of
         _ | t1 == t2                    -> return []
         (Type x, t)                     -> return [(Type x, t)]
         (t, Type x)                     -> return [(Type x, t)]
-        (Generic s, t)                  -> return [(Generic s, t)]
-        (t, Generic s)                  -> return [(Generic s, t)]
         (Table tsa, Table tsb)
             | length tsa /= length tsb  -> fail "length"
             | otherwise                 -> unify $ zipWith (\a b -> (ConsEq a b, pos)) tsa tsb

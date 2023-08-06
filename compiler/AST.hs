@@ -107,8 +107,8 @@ data Stmt
     | Block       [Stmt]
     | If          TextPos Expr Stmt (Maybe Stmt)
     | While       TextPos Expr Stmt
-    | FuncDef     TextPos [Symbol] [Param] Symbol [Param] Type Stmt
-    | Typedef     TextPos [Symbol] Symbol AnnoType
+    | FuncDef     TextPos [Param] Symbol [Param] Type Stmt
+    | Typedef     TextPos Symbol AnnoType
     | Switch      TextPos Expr [(Pattern, Stmt)]
     | For         TextPos Expr (Maybe Pattern) Stmt
     | Data        TextPos Symbol Type (Maybe Expr)
@@ -177,8 +177,8 @@ instance TextPosition Stmt where
         Block       s -> textPos (head s)
         If          p _ _ _ -> p
         While       p _ _ -> p
-        FuncDef     p _ _ _ _ _ _ -> p
-        Typedef     p _ _ _ -> p
+        FuncDef     p _ _ _ _ _ -> p
+        Typedef     p _ _ -> p
         Switch      p _ _ -> p
         For         p _ _ _ -> p
         Data        p _ _ _ -> p
@@ -290,17 +290,12 @@ prettyAST ast = do
 
 prettyStmt :: String -> Stmt -> IO ()
 prettyStmt pre stmt = case stmt of
-    FuncDef pos generics params symbol args retty blk -> do
-        genericsStr <- case generics of
-            [] -> return ""
-            gs -> return $ arrStrs $ map show gs
+    FuncDef pos params symbol args retty blk -> do
         paramStr <- case params of
             [] -> return ""
             ps -> return $ brcStrs $ map show ps
-        
         putStrLn $ pre
             ++ "fn "
-            ++ genericsStr
             ++ paramStr
             ++ show symbol
             ++ tupStrs (map show args)
@@ -329,8 +324,8 @@ prettyStmt pre stmt = case stmt of
         putStrLn $ pre ++ "while " ++ show cnd
         prettyStmt (pre ++ "\t") stmt
 
-    Typedef pos generics symbol anno -> do
-        putStrLn $ pre ++ "type" ++ tupStrs (map show generics) ++ " " ++ show symbol ++ " " ++ show anno
+    Typedef pos symbol anno -> do
+        putStrLn $ pre ++ "type " ++ show symbol ++ " " ++ show anno
 
     Switch pos expr cases -> do
         putStrLn $ pre ++ "switch " ++ show expr

@@ -300,7 +300,8 @@ fn lex(str PosString) Result
     return null
 
 
-fn(Table) {t Table} pop()
+
+fn {t [string]} pop()
     ${
         $t->len--;
     }

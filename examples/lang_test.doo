@@ -237,17 +237,6 @@ fn testConst()
     assert(nums[0] == 1)
 
 
-fn(R) func2(x R) R
-    return x * 3
-
-fn(T) func(a T, b T) T
-    return a + func2(b) + 4
-
-fn testGenerics()
-    assert(func(1, 2) == 11)
-    return
-
-
 fn {io Io} main()
     testNothing()
     test1Eq2()
@@ -272,5 +261,4 @@ fn {io Io} main()
     testTableSetElems()
     testLexerTwoDots()
     testConst()
-    testGenerics()
     io.putStrLn("finished")

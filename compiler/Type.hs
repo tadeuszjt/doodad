@@ -33,7 +33,6 @@ data Type
     | Table [Type]         
     | ADT [AdtField]
     | Typedef Symbol
-    | Generic Symbol
     deriving (Eq, Ord)
 
 instance Show AdtField where
@@ -63,7 +62,6 @@ instance Show Type where
         ADT tss       -> "{" ++ intercalate " | " (map show tss) ++ "}"
         Table ts      -> "[" ++ intercalate "; " (map show ts) ++ "]"
         Typedef s     -> show s
-        Generic s     -> "G" ++ show s
 
 isInt x      = x `elem` [U8, I8, I16, I32, I64]
 isFloat x    = x `elem` [F32, F64]
@@ -75,8 +73,6 @@ typesCouldMatch :: Type -> Type -> Bool
 typesCouldMatch a b = case (a, b) of
     (Type _, _)            -> True
     (_, Type _)            -> True
-    (Generic _, _)         -> True
-    (_, Generic _)         -> True
     (Void, Void)           -> True
     (Typedef _, Typedef _) -> a == b
     _ | isSimple a         -> a == b
@@ -91,27 +87,3 @@ typesCouldMatch a b = case (a, b) of
             (FieldType a, FieldType b) -> typesCouldMatch a b
             _ -> error $ show (fa, fb)
 
-
--- returns all Generics in a type
-findGenerics :: Type -> [Type]
-findGenerics typ = case typ of
-    Generic s -> [typ]
-    Tuple ts  -> concat $ map findGenerics ts
-    Table ts  -> concat $ map findGenerics ts
-    ADT fs -> concat $ map findGenericsField fs
-    t | isSimple t -> []
-    Type.Typedef s -> []
-    Void -> []
-    Type _ -> []
-    _ -> error (show typ)
-    where
-        findGenericsField :: AdtField -> [Type]
-        findGenericsField field = case field of
-            FieldNull -> []
-            FieldType t -> findGenerics t
-            FieldCtor ts -> concat $ map findGenerics ts
-            _ -> error (show field)
-
-
-hasGenerics :: Type -> Bool
-hasGenerics typ = findGenerics typ /= []

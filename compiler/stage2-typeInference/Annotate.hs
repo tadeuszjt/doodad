@@ -33,8 +33,7 @@ instance Annotate FuncBody where
         stmt' <- annotate (funcStmt funcBody)
         retty' <- return (funcRetty funcBody)
         return $ FuncBody
-            { funcGenerics = (funcGenerics funcBody)
-            , funcParams = params'
+            { funcParams = params'
             , funcArgs   = args'
             , funcRetty  = retty'
             , funcStmt   = stmt'
@@ -54,11 +53,11 @@ instance Annotate Stmt where
         ExprStmt e        -> ExprStmt <$> annotate e
         Const p s e       -> return $ Const p s e -- don't annotate consts
 
-        FuncDef p gs ps s as rt blk -> do
+        FuncDef p ps s as rt blk -> do
             ps' <- mapM annotate ps
             as' <- mapM annotate as
             blk' <- annotate blk
-            return $ FuncDef p gs ps' s as' rt blk'
+            return $ FuncDef p ps' s as' rt blk'
 
         Assign p pat e      -> do
             pat' <- annotate pat
@@ -68,8 +67,8 @@ instance Annotate Stmt where
             index' <- annotate index
             SetOp p op index' <$> annotate e
 
-        AST.Typedef pos generics symbol anno ->
-            return $ AST.Typedef pos generics symbol anno -- has no expressions
+        AST.Typedef pos symbol anno ->
+            return $ AST.Typedef pos symbol anno -- has no expressions
 
         If p c b elm        -> do
             c' <- annotate c
