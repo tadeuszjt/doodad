@@ -1,22 +1,15 @@
 module main
 
-import std/strings
 
-type PosString (row i64, col i64, s string)
-
-fn drop(str PosString, num i64) PosString
-    while str.s.at(0) -> char(c) | num > 0
-        if c == '\n'
-            str.col = 0
-            str.row = str.row + 1
-        else
-            str.col = str.col + 1
-        ${ $str.m2++; }
-        num = num - 1
-    return str
-
+fn {t table} pop()
+    ${ t.len--; } 
 
 
 fn main()
-    let ps = PosString(0, 0, "a string" + string('\n') + "more string")
-    print(drop(ps, 9))
+    data t [i64]
+    t += [1, 2, 3]
+
+    t.pop()
+
+    
+    print("main") 

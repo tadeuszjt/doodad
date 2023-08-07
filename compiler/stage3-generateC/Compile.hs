@@ -18,6 +18,15 @@ import Error
 
 
 
+getShapesFromFuncDef :: [S.Param] -> [S.Param] -> Type.Type -> [Type.Type]
+getShapesFromFuncDef params args retty =
+    concat (map (findShapes . S.paramType) params) ++
+    concat (map (findShapes . S.paramType) args) ++
+    findShapes retty
+
+
+
+
 getSymbolsOrderedByDependencies :: Monad m => Map.Map Symbol Type.Type -> m [Symbol]
 getSymbolsOrderedByDependencies typedefs = do
     fmap (removeDuplicates . concat) . forM (Map.toList typedefs) $ \(s, t) -> do
@@ -116,24 +125,25 @@ generate ast = do
         _ -> return ()
 
     -- generate function headers
-    
     forM_ (Map.toList $ funcDefs ast) $ \(symbol, func) -> do
-        crt <- cTypeOf (ASTResolved.funcRetty func)
-        cpts <- map Cpointer <$> mapM cTypeOf (map paramType $ ASTResolved.funcParams func)
-        cats <- mapM cTypeOf (map paramType $ ASTResolved.funcArgs func)
-        newExtern (show symbol) crt (cpts ++ cats)
+        when (getShapesFromFuncDef (ASTResolved.funcParams func) (ASTResolved.funcArgs func) (ASTResolved.funcRetty func) == []) $ do
+            crt <- cTypeOf (ASTResolved.funcRetty func)
+            cpts <- map Cpointer <$> mapM cTypeOf (map paramType $ ASTResolved.funcParams func)
+            cats <- mapM cTypeOf (map paramType $ ASTResolved.funcArgs func)
+            newExtern (show symbol) crt (cpts ++ cats)
 
     forM_ (Map.toList $ funcDefs ast) $ \(symbol, func) -> do
-        generateFunc symbol func
-        when (sym symbol == "main") $ do
-            let typedef = Type.Typedef (SymResolved "io" "Io" 0)
-            id <- newFunction Cvoid "main" []
-            withCurID id $ case (ASTResolved.funcParams func, ASTResolved.funcArgs func) of
-                ([], []) -> call (show symbol) []
-                ([p], []) | typeof p == typedef -> do -- main with io
-                    io <- initialiser typedef []
-                    callWithParams [io] (show symbol) []
-            withCurID globalID (append id)
+        when (getShapesFromFuncDef (ASTResolved.funcParams func) (ASTResolved.funcArgs func) (ASTResolved.funcRetty func) == []) $ do
+            generateFunc symbol func
+            when (sym symbol == "main") $ do
+                let typedef = Type.Typedef (SymResolved "io" "Io" 0)
+                id <- newFunction Cvoid "main" []
+                withCurID id $ case (ASTResolved.funcParams func, ASTResolved.funcArgs func) of
+                    ([], []) -> call (show symbol) []
+                    ([p], []) | typeof p == typedef -> do -- main with io
+                        io <- initialiser typedef []
+                        callWithParams [io] (show symbol) []
+                withCurID globalID (append id)
 
 
 generateFunc :: MonadGenerate m => Symbol -> FuncBody -> m ()
@@ -208,7 +218,7 @@ generateIndex expr_@(S.AExpr t expr__) = case expr__ of
 
 
 generateStmt :: MonadGenerate m => S.Stmt -> m ()
-generateStmt stmt = case stmt of
+generateStmt stmt = withPos stmt $ case stmt of
     S.EmbedC _ str -> void $ appendElem (C.Embed str)
     S.Block stmts -> mapM_ generateStmt stmts
     S.Return _ Nothing -> void $ appendElem (C.ReturnVoid)
@@ -540,14 +550,17 @@ annotateExprWith typ expr = do
 
 -- generateExpr should return a 're-enter-able' expression, eg 1, not func()
 generateExpr :: MonadGenerate m => Expr -> m Value
-generateExpr (AExpr typ expr_) = withTypeCheck $ case expr_ of
+generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
     S.Bool _ b -> return $ Value typ (C.Bool b)
     S.Int _ n -> return $ Value typ (C.Int n)
     S.Float _ f -> return $ Value typ (C.Float f)
     S.String _ s -> return $ Value typ $ C.String s
     S.Char _ c -> return $ Value typ $ C.Char c
     S.Match _ expr pattern -> generatePattern pattern =<< generateExpr expr
-    S.Builtin _ [] "len" [expr] -> len =<< generateExpr expr
+    S.Builtin _ params "len" exprs -> do 
+        assert (params == []) "len cannot have params"
+        assert (length exprs == 1) "len needs one argument"
+        len =<< generateExpr (head exprs)
 
     S.Ident _ symbol -> do
         obj <- look (show symbol)
@@ -742,6 +755,7 @@ generateInfix op a b = do
                 S.Times ->  Value (typeof a) $ C.Infix C.Times (valExpr a) (valExpr b) 
                 S.Minus ->  Value (typeof a) $ C.Infix C.Minus (valExpr a) (valExpr b)
                 S.Modulo -> Value (typeof a) $ C.Infix C.Modulo (valExpr a) (valExpr b)
+                S.Divide -> Value (typeof a) $ C.Infix C.Divide (valExpr a) (valExpr b)
                 S.LT ->     Value Type.Bool $ C.Infix C.LT (valExpr a) (valExpr b)
                 S.GT ->     Value Type.Bool $ C.Infix C.GT (valExpr a) (valExpr b)
                 S.LTEq ->   Value Type.Bool $ C.Infix C.LTEq (valExpr a) (valExpr b)

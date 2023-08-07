@@ -171,8 +171,12 @@ buildModule' args modPath = do
 
 
             -- build C ast from final ast
-            cBuilderState <- fmap snd $ runGenerateT
+            res <- runGenerateT
                 (C.initGenerateState modName) (C.initBuilderState modName) (generate astFinal)
+            cBuilderState <- case res of
+                Right x -> return (snd x)
+                Left e -> throwError e
+
 
 
             -- optimise C builder state

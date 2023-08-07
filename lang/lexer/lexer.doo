@@ -124,6 +124,8 @@ fn lexKeyword(str PosString) Result
         "u8"
         "f32"
         "f64"
+        "table"
+        "integer"
     ]
     if lexIdent(str) -> Success(Ident(ps), rest)
         for keywords -> keyword
@@ -335,9 +337,6 @@ fn {io Io, stack [string]} indent(key FileKey, str PosString)
         assert(str.s == entry)
 
 
-// comment here
-
-
 fn lexFile(fileNameIn string, fileNameOut string)
     data io Io
 
@@ -367,6 +366,3 @@ fn lexFile(fileNameIn string, fileNameOut string)
         str = rest
 
     io.closeFile(key)
-
-fn main()
-    lexFile("lang/lexer/lexer.doo", "lexerOut")

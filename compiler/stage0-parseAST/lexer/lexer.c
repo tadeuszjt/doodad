@@ -84,8 +84,7 @@ extern lexer_Result lexer_lexNewline(lexer_PosString);
 extern adt4 lexer_lexSpaceChar(lexer_PosString, int64_t);
 extern lexer_Result lexer_lexStringLiteral(lexer_PosString);
 extern lexer_Result lexer_lexSymbol(lexer_PosString);
-extern void lexer_main();
-extern void lexer_pop_1(table1*);
+extern void lexer_pop(table1*);
 
 adt3 lexer_At(lexer_PosString* lexer_str_2, int64_t lexer_idx) {
     int64_t call0 = strlen((*lexer_str_2).m0);
@@ -202,7 +201,7 @@ void lexer_indent(io_Io* lexer_io, table1* lexer_stack, io_FileKey lexer_key, le
                     }
                     char* call24 = doodad_string_plus(lexer_posStr, "dedent:");
                     io_fPutStrLn(lexer_io, lexer_key, call24);
-                    lexer_pop_1(lexer_stack);
+                    lexer_pop(lexer_stack);
                     assert_assert(((*lexer_stack).len > 0));
                     lexer_entry = (*lexer_stack).r0[((*lexer_stack).len - 1)];
                 }
@@ -1408,10 +1407,10 @@ lexer_Result lexer_lexInteger(lexer_PosString lexer_str_9) {
     return adt61;
 }
 
-typedef struct { char* arr[25]; } array7;
+typedef struct { char* arr[27]; } array7;
 
 lexer_Result lexer_lexKeyword(lexer_PosString lexer_str_7) {
-    array7 array6 = {"module", "type", "fn", "for", "if", "else", "switch", "while", "return", "data", "const", "let", "null", "true", "false", "string", "bool", "char", "i8", "i16", "i32", "i64", "u8", "f32", "f64"};
+    array7 array6 = {"module", "type", "fn", "for", "if", "else", "switch", "while", "return", "data", "const", "let", "null", "true", "false", "string", "bool", "char", "i8", "i16", "i32", "i64", "u8", "f32", "f64", "table", "integer"};
     array7 lexer_keywords = array6;
     lexer_Result call163 = lexer_lexIdent(lexer_str_7);
     bool match50 = (1 == call163.en);
@@ -1438,7 +1437,7 @@ lexer_Result lexer_lexKeyword(lexer_PosString lexer_str_7) {
         bool first1 = true;
         
         for (; ; idx3++) {
-            if ((idx3 >= 25)) {
+            if ((idx3 >= 27)) {
                 break;
             }
             char* lexer_keyword = lexer_keywords.arr[idx3];
@@ -1689,7 +1688,7 @@ lexer_Result lexer_lexSymbol(lexer_PosString lexer_str_8) {
     return adt79;
 }
 
-void lexer_pop_1(table1* lexer_t) {
+void lexer_pop(table1* lexer_t) {
     {
             lexer_t->len--;
         }

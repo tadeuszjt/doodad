@@ -11,7 +11,7 @@ syn match   doodadChar '\'.\''
 syn match   doodadSpecial '{'
 syn match   doodadSpecial '\}'
 syn match   doodadSpecial "->"
-syn match   doodadString  '\".*\"'
+syn match   doodadString  '\"[^"]*\"'
 syn match   doodadComment '//.*'
 
 

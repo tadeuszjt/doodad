@@ -86,8 +86,8 @@ import Symbol
     bool       { Token _ Reserved "bool" }
     char       { Token _ Reserved "char" }
     string     { Token _ Reserved "string" }
-    sparse     { Token _ Reserved "sparse" }
-    map        { Token _ Reserved "map" }
+    table      { Token _ Reserved "table" }
+    integer    { Token _ Reserved "integer" }
 
     int_c      { Token _ Int _ }
     float_c    { Token _ Float _ }
@@ -292,6 +292,7 @@ types1 : type_                              { [$1] }
 type_         : symbol                      { T.Typedef (snd $1) }
               | ordinal_t                   { $1 }
               | aggregate_t                 { $1 }
+              | shape_t                     { $1 }
 
 ordinal_t   : bool                          { T.Bool }
             | u8                            { T.U8 }
@@ -310,6 +311,9 @@ aggregate_t : table_t                       { $1 }
               | tup_t                       { $1 }
               | adt_t                       { $1 }
               | range_t                     { $1 }
+
+shape_t : table { T.ShapeTable }
+        | integer { T.ShapeInteger }
 
 
 adt_t    : '{' adtFields '}'                { T.ADT $2 }

@@ -61,23 +61,23 @@ initGenerateState modName
         }
 
 
-class (MonadBuilder m, MonadFail m, MonadState GenerateState m, MonadIO m) => MonadGenerate m
+class (MonadBuilder m, MonadFail m, MonadState GenerateState m, MonadIO m, MonadError Error m) => MonadGenerate m
 
-newtype GenerateT m a = GenerateT { unGenerateT :: StateT GenerateState (StateT BuilderState m) a }
-    deriving (Functor, Applicative, Monad, MonadState GenerateState, MonadGenerate, MonadIO)
+newtype GenerateT m a = GenerateT { unGenerateT :: StateT GenerateState (StateT BuilderState (ExceptT Error m)) a }
+    deriving (Functor, Applicative, Monad, MonadState GenerateState, MonadGenerate, MonadIO, MonadError Error)
 
 instance Monad m => MonadBuilder (GenerateT m) where
     liftBuilderState (StateT s) = GenerateT $ lift $ StateT $ pure . runIdentity . s
 
 instance MonadTrans GenerateT where
-    lift = GenerateT . lift . lift 
+    lift = GenerateT . lift . lift . ExceptT . (fmap Right)
 
 instance Monad m => MonadFail (GenerateT m) where
-    fail = error
+    fail s = throwError (ErrorStr s)
 
-runGenerateT :: Monad m => GenerateState -> BuilderState -> GenerateT m a -> m ((a, GenerateState), BuilderState)
+runGenerateT :: Monad m => GenerateState -> BuilderState -> GenerateT m a -> m (Either Error ((a, GenerateState), BuilderState))
 runGenerateT generateState builderState generateT =
-    runStateT (runStateT (unGenerateT generateT) generateState) builderState
+    runExceptT $ runStateT (runStateT (unGenerateT generateT) generateState) builderState
 
 
 define :: MonadGenerate m => String -> Value -> m ()
@@ -257,6 +257,11 @@ subscript val idx = do
             elems <- forM (zip ts [0..]) $ \(t, i) -> do
                 return $ C.Subscript (C.Member (valExpr val) ("r" ++ show i)) (valExpr idx)
             assign "subscr" $ Value (Type.Tuple ts) $ C.Initialiser elems
+        Type.Range I64 -> return $ Value Type.Bool $ C.Infix
+            C.AndAnd
+            (C.Infix C.GTEq (valExpr idx) (C.Member (valExpr val) "min"))
+            (C.Infix C.LT (valExpr idx) (C.Member (valExpr val) "max"))
+        _ -> error (show base)
 
             
 baseTypeOf :: (MonadGenerate m, Typeof a) => a -> m Type.Type
