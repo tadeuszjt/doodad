@@ -106,7 +106,7 @@ instance Apply S.Pattern where
     apply f pattern = case pattern of
         S.PatIdent p s            -> S.PatIdent p s
         S.PatLiteral e            -> S.PatLiteral (applyF e)
-        S.PatGuarded p pat e mpat -> S.PatGuarded p (applyF pat) (applyF e) (fmap applyF mpat)
+        S.PatGuarded p pat e      -> S.PatGuarded p (applyF pat) (applyF e)
         S.PatField p s pats       -> S.PatField p s $ map applyF pats
         S.PatTypeField p t pat    -> S.PatTypeField p (applyF t) (applyF pat)
         S.PatTuple p pats         -> S.PatTuple p $ map applyF pats

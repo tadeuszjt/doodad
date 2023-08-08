@@ -2,7 +2,12 @@ module main
 
 
 fn {t table} pop()
-    ${ t.len--; } 
+    ${ assert($t->len > 0); }
+    ${ $t->len--; } 
+
+fn {t table} delete(idx i64)
+    t[idx] = t[len(t) - 1]
+    ${ $t->len--; } 
 
 
 fn main()

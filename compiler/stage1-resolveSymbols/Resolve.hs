@@ -21,6 +21,7 @@ import ASTResolved
 -- 1.) Updates local symbols to be scope-agnostic: x -> x_0
 -- 2.) Updates imported symbols to contain module: x -> mod_x_0
 -- 3.) Replaces builtin function calls with specific: len -> builtin len
+-- 4.) Replaces PatField with PatTypeField when symbol is a type
 --
 -- function calls and tuple members will not be changed because the exact definiton of these symbols cannot be 
 -- determined at this stage.
@@ -413,7 +414,9 @@ instance Resolve Pattern where
             pats' <- mapM resolve pats
             mtype <- lookm symbol KeyType
             case mtype of
-                Just symbol' -> return $ PatField pos symbol' pats'
+                Just symbol' -> do
+                    unless (length pats == 1) $ error "TODO - make it handle more"
+                    return $ PatTypeField pos (Type.Typedef symbol') (head pats')
                 Nothing -> do
                     symbol' <- look symbol KeyFunc
                     return $ PatField pos symbol' pats'
@@ -423,11 +426,10 @@ instance Resolve Pattern where
             typ' <- resolve typ
             return $ PatTypeField pos typ' pat'
 
-        PatGuarded pos pat expr mpat -> do
+        PatGuarded pos pat expr -> do
             pat' <- resolve pat
             expr' <- resolve expr
-            mpat' <- maybe (return Nothing) (fmap Just . resolve) mpat
-            return $ PatGuarded pos pat' expr' mpat'
+            return $ PatGuarded pos pat' expr'
 
         PatAnnotated pat typ -> do
             pat' <- resolve pat

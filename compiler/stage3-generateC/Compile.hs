@@ -446,66 +446,39 @@ generatePattern pattern val = do
             appendElem $ C.Label endLabel
             return match
 
-        PatGuarded _ pat expr Nothing -> do
+        PatGuarded _ pat expr -> do
             match <- assign "match" =<< generatePattern pat val
             if_ match $ set match =<< generateExpr expr
-            return match
-
-        PatGuarded _ pat expr (Just pat2) -> do
-            endLabel <- fresh "end"
-            match <- assign "match" =<< generatePattern pat val
-            if_ (not_ match) $
-                appendElem $ C.Goto endLabel
-            set match =<< generatePattern pat2 =<< generateExpr expr
-            appendElem $ C.Label endLabel
             return match
 
         PatField _ symbol pats -> do -- either a typedef or an ADT field, both members of ADT
             base@(Type.ADT fs) <- baseTypeOf val
             isCtor <- Map.member symbol <$> gets ctors
             isTypedef <- Map.member symbol <$> gets typedefs
+            assert (isCtor && not isTypedef) "PatField is only for ctors"
 
             endLabel <- fresh "skipMatch"
 
-            i <- case (isCtor, isTypedef) of
-                (True, False) -> do
-                    (typ', i) <- (Map.! symbol) <$> gets ctors
-                    assert (typ' == typeof val) "invalid ctor type"
-                    let FieldCtor ts = fs !! i
-                    assert (length pats == length ts) "invalid number of args"
-                    return i
-
-                (False, True) -> do
-                    let typ = Type.Typedef symbol
-                    i <- case elemIndex (FieldType typ) fs of
-                        Just x -> return x
-                        Nothing -> fail "type not in ADT"
-
-                    assert (length pats == 1) "invalid number of args"
-                    return i
+            (typ', i) <- (Map.! symbol) <$> gets ctors
+            assert (typ' == typeof val) "invalid ctor type"
+            let FieldCtor ts = fs !! i
+            assert (length pats == length ts) "invalid number of args"
 
             match <- assign "match" =<< generateInfix S.EqEq (i64 i) =<< adtEnum val
             if_ (not_ match) $ appendElem $ C.Goto endLabel
             set match false
 
-            case (isCtor, isTypedef) of
-                (True, False) -> do
-                    let FieldCtor ts = fs !! i
-                    assert (length pats == length ts) "invalid number of args"
-                    case ts of
-                        [] -> return ()
-                        [t] -> do
-                            patMatch <- generatePattern (head pats) =<< member i val
-                            if_ (not_ patMatch) $ void $ appendElem (C.Goto endLabel)
-                        ts -> do
-                            forM_ (zip pats [0..]) $ \(pat, j) -> do
-                                patMatch <- generatePattern pat =<< member j =<< member i val
-                                if_ (not_ patMatch) $ void $ appendElem (C.Goto endLabel)
-
-                (False, True) -> do
-                    assert (length pats == 1) "invalid number of args"
+            let FieldCtor ts = fs !! i
+            assert (length pats == length ts) "invalid number of args"
+            case ts of
+                [] -> return ()
+                [t] -> do
                     patMatch <- generatePattern (head pats) =<< member i val
                     if_ (not_ patMatch) $ void $ appendElem (C.Goto endLabel)
+                ts -> do
+                    forM_ (zip pats [0..]) $ \(pat, j) -> do
+                        patMatch <- generatePattern pat =<< member j =<< member i val
+                        if_ (not_ patMatch) $ void $ appendElem (C.Goto endLabel)
 
             set match true
             appendElem $ C.Label endLabel

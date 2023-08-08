@@ -210,8 +210,8 @@ pattern  : '_'                              { S.PatIgnore (tokPos $1) }
          | null                             { S.PatNull (tokPos $1) }
          | '(' patterns ')'                 { S.PatTuple (tokPos $1) $2 }
          | '[' patterns ']'                 { S.PatArray (tokPos $1) $2 }
-         | pattern '|' expr                 { S.PatGuarded (tokPos $2) $1 $3 Nothing }
-         | pattern '|' expr '->' pattern    { S.PatGuarded (tokPos $2) $1 $3 (Just $5) }
+         | pattern '|' expr                 { S.PatGuarded (tokPos $2) $1 $3 }
+         | pattern '|' expr '->' pattern    { S.PatGuarded (tokPos $2) $1 (S.Match (tokPos $4) $3 $5) }
          | symbol '(' patterns ')'          { S.PatField (tokPos $2) (snd $1) $3 }
          | ordinal_t '(' pattern ')'        { S.PatTypeField (tokPos $2) $1 $3 }
          | pattern ':' type_                { S.PatAnnotated $1 $3 }
@@ -308,7 +308,7 @@ ordinal_t   : bool                          { T.Bool }
 
 aggregate_t : table_t                       { $1 }
               | array_t                     { $1 }
-              | tup_t                       { $1 }
+              | tuple_t                       { $1 }
               | adt_t                       { $1 }
               | range_t                     { $1 }
 
@@ -319,7 +319,7 @@ shape_t : table { T.ShapeTable }
 adt_t    : '{' adtFields '}'                { T.ADT $2 }
 array_t  : '[' int_c type_ ']'              { T.Array (read $ tokStr $2) $3 }
 table_t  : '[' types1 ']'                   { T.Table $2 }
-tup_t    : '(' types ')'                    { T.Tuple $2 }
+tuple_t    : '(' types ')'                    { T.Tuple $2 }
 range_t  : '[' '..' ']' type_               { T.Range $4 }
 
 anno_t   : ordinal_t                        { S.AnnoType $1 }

@@ -308,11 +308,10 @@ compilePattern pattern = case pattern of
 
     AST.PatLiteral expr -> PatLiteral <$> compileExpr expr
 
-    AST.PatGuarded pos pat expr mpat -> do
+    AST.PatGuarded pos pat expr -> do
         pat' <- compilePattern pat
         expr' <- compileExpr expr
-        mpat' <- maybe (return Nothing) (fmap Just . compilePattern) mpat
-        return $ PatGuarded pos pat' expr' mpat'
+        return $ PatGuarded pos pat' expr'
 
     AST.PatArray pos pats -> PatArray pos <$> mapM compilePattern pats
 

@@ -280,29 +280,15 @@ collectPattern pattern typ = collectPos pattern $ case pattern of
         collectEq typ (typeof expr)
         collectExpr expr
 
-    S.PatGuarded _ pat expr mpat -> do
+    S.PatGuarded _ pat expr -> do
         collectPattern pat typ
-        case mpat of
-            Nothing -> collectBase (typeof expr) Bool
-            Just p -> collectPattern p (typeof expr)
         collectExpr expr
 
     S.PatField _ symbol pats -> do
-        resm <- SymTab.lookup symbol KeyAdtField <$> gets symTab
-        case resm of
-            Just (ObjField i) -> do
-                gts <- replicateM (length pats) genType
-                zipWithM_ collectPattern pats gts
-                forM_ (zip gts [0..]) $ \(t, j) -> collectAdtField t i j typ
-            Nothing -> do
-                ObjType base <- look symbol KeyType
-                case pats of 
-                    [pat] -> collectPattern pat (Typedef symbol)
-                    pats -> do 
-                        gts <- replicateM (length pats) genType
-                        collectBase base (Tuple gts)
-                        zipWithM_ collectPattern pats gts
-
+        Just (ObjField i) <- SymTab.lookup symbol KeyAdtField <$> gets symTab
+        gts <- replicateM (length pats) genType
+        zipWithM_ collectPattern pats gts
+        forM_ (zip gts [0..]) $ \(t, j) -> collectAdtField t i j typ
 
     S.PatTypeField _ t pat -> do
         collectPattern pat t

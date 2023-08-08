@@ -83,6 +83,9 @@ typesCouldMatch a b = case (a, b) of
     (ADT afs, ADT bfs)     -> length afs == length bfs && (all (== True) $ zipWith fieldsCouldMatch afs bfs)
     (Tuple as, Tuple bs)   -> length as == length bs && (all (== True) $ zipWith typesCouldMatch as bs)
 
+    (ShapeTable, Table _)  -> True
+    (Table _, ShapeTable)  -> True
+
     (_, _) -> False -- TODO
     _                      -> error (show (a, b))
     where
