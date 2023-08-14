@@ -46,6 +46,7 @@ import Symbol
     '='        { Token _ TokSym "=" }
     '!'        { Token _ TokSym "!" }
     '@'        { Token _ TokSym "@" }
+    '~'        { Token _ TokSym "~" }
     '!='       { Token _ TokSym "!=" }
     '<='       { Token _ TokSym "<=" }
     '>='       { Token _ TokSym ">=" }
@@ -213,7 +214,7 @@ pattern  : '_'                              { S.PatIgnore (tokPos $1) }
          | pattern '|' expr                 { S.PatGuarded (tokPos $2) $1 $3 }
          | pattern '|' expr '->' pattern    { S.PatGuarded (tokPos $2) $1 (S.Match (tokPos $4) $3 $5) }
          | symbol '(' patterns ')'          { S.PatField (tokPos $2) (snd $1) $3 }
-         | ordinal_t '(' pattern ')'        { S.PatTypeField (tokPos $2) $1 $3 }
+         | '*' type_ '(' pattern ')'        { S.PatTypeField (tokPos $3) $2 $4 }
          | pattern ':' type_                { S.PatAnnotated $1 $3 }
 
 ---------------------------------------------------------------------------------------------------

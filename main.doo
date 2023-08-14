@@ -1,20 +1,11 @@
 module main
 
 
-fn {t table} pop()
-    ${ assert($t->len > 0); }
-    ${ $t->len--; } 
+//fn {s string} at(idx i64) {char}
 
-fn {t table} delete(idx i64)
-    t[idx] = t[len(t) - 1]
-    ${ $t->len--; } 
 
 
 fn main()
-    data t [i64]
-    t += [1, 2, 3]
-
-    t.pop()
-
-    
-    print("main") 
+    data x [i64]
+    x += [2]
+    print("hello") 

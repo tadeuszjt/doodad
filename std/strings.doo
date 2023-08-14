@@ -59,18 +59,18 @@ fn take(s string, n i64) string
 fn readI64(s string) ({null | i64}, string)
     let fail = (null, s)
 
-    while s.at(0) -> char(c) | isSpace(c)
+    while s.at(0) -> *char(c) | isSpace(c)
         s = drop(s, 1)
 
     let isMinus = false
-    if s.at(0) -> char('-')
+    if s.at(0) -> *char('-')
         isMinus = true
         s = drop(s, 1)
 
     let hasDigits = false
     let x = 0
     data digits [char]
-    while s.at(0) -> char(c) | isDigit(c)
+    while s.at(0) -> *char(c) | isDigit(c)
         hasDigits = true
         digits += [c]
         s = drop(s, 1)

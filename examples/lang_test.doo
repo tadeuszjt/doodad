@@ -81,8 +81,8 @@ fn testADT()
 
     x = conv('b')
     switch x
-        char('c'); assert(false)
-        char(x) | x == 'b'; assert(true)
+        *char('c'); assert(false)
+        *char(x) | x == 'b'; assert(true)
         Type(s); assert(false)
 
     x = conv(Type("bongis"))
