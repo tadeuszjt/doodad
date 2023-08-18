@@ -164,7 +164,8 @@ buildModule' args modPath = do
             when (printAstResolved args) $ liftIO $ prettyASTResolved astResolved
 
             -- infer ast types
-            (astFinal, inferCount) <- withErrorPrefix "infer: " $ infer astResolved (verbose args)
+            (astFinal, inferCount) <- withErrorPrefix "infer: " $
+                infer astResolved (printAstAnnotated args) (verbose args)
             liftIO $ putStrLn $ "ran:       " ++ show inferCount ++ " type inference passes"
             when (printAstFinal args)    $ liftIO $ prettyASTResolved astFinal
             modify $ \s -> s { moduleMap = Map.insert path astFinal (moduleMap s) }

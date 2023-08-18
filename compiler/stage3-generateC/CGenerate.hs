@@ -194,8 +194,9 @@ len :: MonadGenerate m => Value -> m Value
 len val = do
     base <- baseTypeOf val
     case base of
-        Table ts    -> return $ Value I64 $ C.Member (valExpr val) "len"
-        Type.String -> return $ Value I64 $ C.Call "strlen" [valExpr val]
+        Table ts       -> return $ Value I64 $ C.Member (valExpr val) "len"
+        Type.String    -> return $ Value I64 $ C.Call "strlen" [valExpr val]
+        Type.Array n t -> return $ Value I64 $ C.Int (fromIntegral n)
         _ -> error (show base)
 
 

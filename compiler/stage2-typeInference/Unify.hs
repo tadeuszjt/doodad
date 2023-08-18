@@ -94,13 +94,12 @@ unifyOne pos constraint = withPos pos $ case constraint of
             _ -> error (show basem)
 
     ConsSubscript t1 t2 -> do
-        basem <- baseTypeOf t2
+        basem <- baseTypeOf t1
         case basem of
-            Just (Table [t])  -> unifyOne pos (ConsEq t1 t)
-            Just (Table ts)   -> unifyOne pos (ConsEq t1 $ Tuple ts)
-            Just (Array n t)  -> unifyOne pos (ConsEq t1 t)
-            Just (Range t)    -> unifyOne pos (ConsEq t1 Bool)
-            Just String       -> unifyOne pos (ConsEq t1 Char)
+            Just (Table [t])  -> unifyOne pos (ConsEq t2 t)
+            Just (Table ts)   -> unifyOne pos (ConsEq t2 $ Tuple ts)
+            Just (Array n t)  -> unifyOne pos (ConsEq t2 t)
+            Just String       -> unifyOne pos (ConsEq t2 Char)
             _ -> return []
 
     ConsBase t1 t2 -> do

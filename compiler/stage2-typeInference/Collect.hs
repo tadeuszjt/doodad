@@ -441,7 +441,7 @@ collectExpr (S.AExpr exprType expr) = collectPos expr $ case expr of
         collectExpr e2
 
     S.Subscript _ e1 e2 -> do
-        collectSubscript exprType (typeof e1)
+        collectSubscript (typeof e1) exprType
         collectExpr e1
         collectExpr e2
         collectDefault (typeof e2) I64

@@ -3,7 +3,7 @@ module ox
 import ../std/io
 import ../std/strings
 
-type Square { Empty() | Naught() | Cross() }
+type Square (Empty() | Naught() | Cross())
 
 type Board [3 [3 Square]]
 
@@ -51,17 +51,17 @@ fn winner(b Board) Square
 
 
 
-type PlayerInput { Move(i64, i64) | Quit() }
+type PlayerInput (Move(i64, i64) | Quit())
 fn {io Io} getPlayerInput() PlayerInput
     io.putStrLn("Please enter move: <row> <col>")
     
     let line = ""
     switch io.getStrLn()
         null; return Quit()
-        string(s); line = s
+        *string(s); line = s
 
-    if readI64(line) -> (i64(row), rest)
-        if readI64(rest) -> (i64(col), _)
+    if readI64(line) -> (*i64(row), rest)
+        if readI64(rest) -> (*i64(col), _)
             if row < 0 || row >= 3 || col < 0 || col >= 3
             else
                 return Move(row, col)

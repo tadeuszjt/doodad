@@ -1,31 +1,9 @@
 module main
 
 
-(null | char)
-{null | char | string}
+type Board [3 [3 bool]]
 
-
-fn {s string} at(idx i64) (null | char)
-    if idx < 0 || idx >= len(s)
-        return null
-    ${ return &(*s)[$idx]; }
-
-
-fn {c char} increment()
-    c = c + 1
-
-
-
-
-
-fn main()
-    let s = "string"
-
-    let x = 'a'
-
-
-    if s.at(3) -> :char{c}
-        x = c
-        c.increment()
-
-
+fn boardPrint(b Board)
+    for b -> row
+        for row[..] -> col
+            return

@@ -205,6 +205,7 @@ generateIndex expr_@(S.AExpr t expr__) = case expr__ of
         [val] <- generateIndex expr
         base <- baseTypeOf expr
         case base of
+            Type.Array n t -> fmap (:[]) $ subscript val =<< generateExpr idx
             Table [t] -> fmap (:[]) $ subscript val =<< generateExpr idx
             Table ts -> do
                 idx <- generateExpr idx
@@ -212,6 +213,7 @@ generateIndex expr_@(S.AExpr t expr__) = case expr__ of
                     m <- member i val
                     subscript m idx
             Type.String -> fail "cannot index string"
+
 
             _ -> error (show base)
     _ -> error (show expr__)

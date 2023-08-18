@@ -25,9 +25,13 @@ instance Eq RunReturn where -- simple class to use for runBoMUntilSameResult
 
 
 -- Takes a resolved and annotated ast and inferes all types.
-infer :: BoM s m => ASTResolved -> Bool -> m (ASTResolved, Int)
-infer resolvedAST verbose = do 
+infer :: BoM s m => ASTResolved -> Bool -> Bool -> m (ASTResolved, Int)
+infer resolvedAST printAnnotated verbose = do 
     (ast, typeSupplyCount) <- withErrorPrefix "annotate: " $ runBoMTExcept 0 $ annotate resolvedAST
+    when printAnnotated $ do
+        liftIO $ putStrLn "annotated ast:"
+        liftIO $ prettyASTResolved ast
+
     runBoMUntilSameResult ast $ \ast' -> do 
         (RunReturn inferred typeSupplyCount', _)  <- runBoMUntilSameResult (RunReturn ast' typeSupplyCount) inferTypes
         (RunReturn defaulted _, _) <- runBoMUntilSameResult (RunReturn inferred typeSupplyCount') inferDefaults
@@ -43,7 +47,6 @@ infer resolvedAST verbose = do
             let sos     = SymTab.lookupKey Collect.KeyType (symTab collectState)
             let typeMap = Map.map (\(ObjType t) -> t) $ Map.fromList sos
             subs <- fmap fst $ runBoMTExcept typeMap (unify $ Map.toList $ collected collectState)
-            --return $ (applySubs subs ast)
             ast' <- fmap snd $ runBoMTExcept (applySubs subs ast) CleanUp.compile
             return $ RunReturn ast' (typeSupply collectState)
 
