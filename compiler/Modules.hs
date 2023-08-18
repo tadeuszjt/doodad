@@ -116,8 +116,8 @@ buildModule args modPath = do
 
     liftIO $ putStrLn $ "wrote bin: " ++ binFile
 
-    forM_ (Map.toList $ cFileMap state) $ \(_, cFile) -> do
-        liftIO $ removeFile cFile
+--    forM_ (Map.toList $ cFileMap state) $ \(_, cFile) -> do
+--        liftIO $ removeFile cFile
 
 
 

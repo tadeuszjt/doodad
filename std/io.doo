@@ -7,10 +7,7 @@ type FilePtr i64
 
 type Files [keys FileKey, ptrs FilePtr]
 
-type Io (
-    keySupply FileKey
-    files Files
-)
+type Io ( keySupply FileKey, files Files)
 
 fn {t Files} delete(idx i64)
     assert(idx >= 0 && idx < len(t))
@@ -81,7 +78,7 @@ fn {io Io} getChar() char
     return c
 
 
-fn {io Io} getStrLn() {null | string}
+fn {io Io} getStrLn() (null | string)
     let eof = false
     let s = ""
     ${

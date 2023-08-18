@@ -25,7 +25,7 @@ fn isPrefix(pre string, str string) bool
     return true
 
 
-fn {s string} at(idx i64) {null | char}
+fn {s string} at(idx i64) (null | char)
     if idx >= 0 && idx < len(s)
         return conv(s[idx])
     return null
@@ -56,7 +56,7 @@ fn take(s string, n i64) string
     return r
 
 
-fn readI64(s string) ({null | i64}, string)
+fn readI64(s string) (null | i64, string)
     let fail = (null, s)
 
     while s.at(0) -> *char(c) | isSpace(c)

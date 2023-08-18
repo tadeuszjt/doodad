@@ -84,6 +84,7 @@ extern lexer_Result lexer_lexNewline(lexer_PosString);
 extern adt4 lexer_lexSpaceChar(lexer_PosString, int64_t);
 extern lexer_Result lexer_lexStringLiteral(lexer_PosString);
 extern lexer_Result lexer_lexSymbol(lexer_PosString);
+extern void lexer_main();
 extern void lexer_pop(table1*);
 
 adt3 lexer_At(lexer_PosString* lexer_str_2, int64_t lexer_idx) {
@@ -501,18 +502,16 @@ lexer_Result lexer_lexCEmbed(lexer_PosString lexer_str_15) {
     matchNull4 = (call42.u1 == '$');
     matchSkip4:;
     bool match14 = matchNull4;
-    if (!match14) {
-        goto end0;
+    if (match14) {
+        adt3 call43 = lexer_At(&(lexer_str_15), 1);
+        bool matchNull5 = (1 == call43.en);
+        if (!matchNull5) {
+            goto matchSkip5;
+        }
+        matchNull5 = (call43.u1 == '{');
+        matchSkip5:;
+        match14 = matchNull5;
     }
-    adt3 call43 = lexer_At(&(lexer_str_15), 1);
-    bool matchNull5 = (1 == call43.en);
-    if (!matchNull5) {
-        goto matchSkip5;
-    }
-    matchNull5 = (call43.u1 == '{');
-    matchSkip5:;
-    match14 = matchNull5;
-    end0:;
     if (match14) {
     }
     else {
@@ -611,20 +610,20 @@ lexer_Result lexer_lexCharLiteral(lexer_PosString lexer_str_16) {
     lexer_PosString call49 = lexer_Take(lexer_str_16, 4);
     bool match16 = false;
     if ((4 != strlen(call49.m0))) {
-        goto end1;
+        goto end0;
     }
     if ((call49.m0[0] != '\'')) {
-        goto end1;
+        goto end0;
     }
     if ((call49.m0[1] != '\\')) {
-        goto end1;
+        goto end0;
     }
     char lexer_c_15 = call49.m0[2];
     if ((call49.m0[3] != '\'')) {
-        goto end1;
+        goto end0;
     }
     match16 = true;
-    end1:;
+    end0:;
     if (match16) {
         char switchExpr2 = lexer_c_15;
         switch(0) {
@@ -702,35 +701,35 @@ lexer_Result lexer_lexCharLiteral(lexer_PosString lexer_str_16) {
         case 0: {
             bool match17 = false;
             if ((3 != strlen(switchExpr3))) {
-                goto end2;
+                goto end1;
             }
             if ((switchExpr3[0] != '\'')) {
-                goto end2;
+                goto end1;
             }
             if ((switchExpr3[1] != '\'')) {
-                goto end2;
+                goto end1;
             }
             if ((switchExpr3[2] != '\'')) {
-                goto end2;
+                goto end1;
             }
             match17 = true;
-            end2:;
+            end1:;
             if (match17) {
                 break;
             }
             bool match18 = false;
             if ((3 != strlen(switchExpr3))) {
-                goto end3;
+                goto end2;
             }
             if ((switchExpr3[0] != '\'')) {
-                goto end3;
+                goto end2;
             }
             char lexer_c_16 = switchExpr3[1];
             if ((switchExpr3[2] != '\'')) {
-                goto end3;
+                goto end2;
             }
             match18 = true;
-            end3:;
+            end2:;
             if (match18) {
                 lexer_PosString call61 = lexer_Take(lexer_str_16, 3);
                 lexer_Token adt37 = {6};
@@ -762,18 +761,16 @@ lexer_Result lexer_lexComment(lexer_PosString lexer_str_6) {
     matchNull7 = (call63.u1 == '/');
     matchSkip7:;
     bool match19 = matchNull7;
-    if (!match19) {
-        goto end4;
+    if (match19) {
+        adt3 call64 = lexer_At(&(lexer_str_6), 1);
+        bool matchNull8 = (1 == call64.en);
+        if (!matchNull8) {
+            goto matchSkip8;
+        }
+        matchNull8 = (call64.u1 == '/');
+        matchSkip8:;
+        match19 = matchNull8;
     }
-    adt3 call64 = lexer_At(&(lexer_str_6), 1);
-    bool matchNull8 = (1 == call64.en);
-    if (!matchNull8) {
-        goto matchSkip8;
-    }
-    matchNull8 = (call64.u1 == '/');
-    matchSkip8:;
-    match19 = matchNull8;
-    end4:;
     if (match19) {
         
         for (; ; ) {
@@ -816,18 +813,16 @@ adt4 lexer_lexComment_1(lexer_PosString lexer_str_12, int64_t lexer_idx_6) {
     matchNull10 = (call67.u1 == '/');
     matchSkip10:;
     bool match21 = matchNull10;
-    if (!match21) {
-        goto end5;
+    if (match21) {
+        adt3 call68 = lexer_At(&(lexer_str_12), (lexer_idx_6 + 1));
+        bool matchNull11 = (1 == call68.en);
+        if (!matchNull11) {
+            goto matchSkip11;
+        }
+        matchNull11 = (call68.u1 == '/');
+        matchSkip11:;
+        match21 = matchNull11;
     }
-    adt3 call68 = lexer_At(&(lexer_str_12), (lexer_idx_6 + 1));
-    bool matchNull11 = (1 == call68.en);
-    if (!matchNull11) {
-        goto matchSkip11;
-    }
-    matchNull11 = (call68.u1 == '/');
-    matchSkip11:;
-    match21 = matchNull11;
-    end5:;
     if (match21) {
         lexer_idx_6 = (lexer_idx_6 + 2);
     }
@@ -863,10 +858,10 @@ void lexer_lexFile(char* lexer_fileNameIn, char* lexer_fileNameOut) {
     io_Io lexer_io_1 = {0};
     io_FileKey call70 = io_openFile(&(lexer_io_1), lexer_fileNameOut);
     io_FileKey lexer_key_1 = call70;
-    lexer_PosString zero0 = {0};
-    lexer_PosString lexer_str_20 = zero0;
     char* call71 = io_readFile(&(lexer_io_1), lexer_fileNameIn);
-    lexer_str_20.m0 = call71;
+    lexer_Pos tuple6 = {1, 1};
+    lexer_PosString tuple7 = {call71, tuple6};
+    lexer_PosString lexer_str_20 = tuple7;
     table1 lexer_indentStack = {0};
     array1 array5 = {""};
     table1 table6 = {1, 1, array5.arr};
@@ -1687,6 +1682,7 @@ lexer_Result lexer_lexSymbol(lexer_PosString lexer_str_8) {
     lexer_Result adt79 = {0};
     return adt79;
 }
+
 
 void lexer_pop(table1* lexer_t) {
     {

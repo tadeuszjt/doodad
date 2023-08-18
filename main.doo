@@ -1,11 +1,31 @@
 module main
 
 
-//fn {s string} at(idx i64) {char}
+(null | char)
+{null | char | string}
+
+
+fn {s string} at(idx i64) (null | char)
+    if idx < 0 || idx >= len(s)
+        return null
+    ${ return &(*s)[$idx]; }
+
+
+fn {c char} increment()
+    c = c + 1
+
+
 
 
 
 fn main()
-    data x [i64]
-    x += [2]
-    print("hello") 
+    let s = "string"
+
+    let x = 'a'
+
+
+    if s.at(3) -> :char{c}
+        x = c
+        c.increment()
+
+
