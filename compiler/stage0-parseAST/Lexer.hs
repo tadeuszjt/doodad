@@ -69,7 +69,7 @@ lexFile printTokens filename = do
                 return $ Token pos CLink (fromJust $ stripPrefix "link: " l)
             l | isPrefixOf "cembed: " l -> do
                 return $ Token pos EmbedC (fromJust $ stripPrefix "cembed: " $ replace31 l)
-            l -> error l
+            l -> error ("line is: " ++ l)
 
     return tokens 
     where

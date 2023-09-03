@@ -16,10 +16,7 @@ type Vertex (position Vec2f, colour Colour, texCoords Vec2f)
 
 type Window i64
 
-type Event {
-    None()
-    Closed()
-}
+type Event ( None() | Closed() )
 
 
 fn {w Window} create()
@@ -67,7 +64,7 @@ fn {w Window} isOpen() bool
     return isOpen
 
 
-fn {w Window} pollEvent() { null | Event }
+fn {w Window} pollEvent() (null | Event)
     let continue = false
     let event = None()
     ${

@@ -45,26 +45,8 @@ import ../../std/strings
 // └────┴─────┴─────┴─────┴─────┴─────┴─────┴────────┴─────┴────┴────┴────┴────┘
 
 
-type Cell {
-    Accept()
-    Shift(i64)
-    Reduce(i64)
-    Goto(i64)
-    Empty()
-}
-
-
-type Item {
-    TokInt(i64)
-    TokSym(char)
-    TokEnd()
-    State(i64)
-    E_(i64)
-    E(i64)
-    T(i64)
-    D(i64)
-    F(i64)
-}
+type Cell ( Accept() | Shift i64  | Reduce i64  | Goto i64 | Empty())
+type Item ( TokInt i64  | TokSym char  | TokEnd() | State i64  | E_ i64  | E i64  | T i64  | D i64  | F i64)
 
 fn lookupCell(state i64, item Item) Cell
     let array = [
@@ -239,7 +221,7 @@ fn {io Io} main()
 
 
 
-type LexResult { null | LexSuccess(Item, i64) }
+type LexResult (LexFail () | LexSuccess(Item, i64))
 
 fn {tokens [Item]} at(idx i64) Item
     if idx == len(tokens); return TokEnd()
@@ -247,31 +229,31 @@ fn {tokens [Item]} at(idx i64) Item
     let true = false
     return TokEnd()
 
-fn {s string} at(idx i64) { null | char }
-    if s[..][idx]
+fn {s string} at(idx i64) (null | char)
+    if idx >= 0 && idx < len(s)
         return conv(s[idx])
     return null
 
 fn lexInt(s string, idx i64) LexResult
-    if s.at(idx) -> char(c) | isDigit(c)
+    if s.at(idx) -> *char(c) | isDigit(c)
         let n = 0
-        while s.at(idx) -> char(c) | isDigit(c)
+        while s.at(idx) -> *char(c) | isDigit(c)
             n = n*10 + i64(c - '0')
             idx = idx + 1
 
         return LexSuccess(TokInt(n), idx)
-    return null
+    return LexFail()
 
 fn lexSym(s string, idx i64) LexResult
-    if s.at(idx) -> char(c) | c == '+' || c == '-' || c == '*' || c == '/' || c == '(' || c == ')'
+    if s.at(idx) -> *char(c) | c == '+' || c == '-' || c == '*' || c == '/' || c == '(' || c == ')'
         return LexSuccess(TokSym(c), idx + 1)
-    return null
+    return LexFail()
 
 fn lex(s string, idx i64) LexResult
-    while s.at(idx) -> char(c) | isSpace(c); idx = idx + 1
+    while s.at(idx) -> *char(c) | isSpace(c); idx = idx + 1
     if lexInt(s, idx) -> LexSuccess(a, b); return LexSuccess(a, b)
     if lexSym(s, idx) -> LexSuccess(a, b); return LexSuccess(a, b)
-    return null
+    return LexFail()
 
 fn {tokens [Item]} lexString(s string) bool
     let idx = 0

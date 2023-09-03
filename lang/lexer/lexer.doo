@@ -29,7 +29,7 @@ fn {str PosString} At(idx i64) (null | char)
     return null
 
 
-type Token ( Ident PosString  | Keyword PosString  | Integer PosString  | Floating PosString  | Newline PosString  | Symbol PosString  | Char PosString  | String PosString  | CEmbed PosString  | Import PosString  | Include PosString  | Comment () )
+type Token ( Ident PosString  | Keyword PosString  | Integer PosString  | Floating PosString  | Newline PosString  | Symbol PosString  | Char PosString  | String PosString  | CEmbed PosString  | Import PosString  | Include PosString | Link PosString | Comment () )
 
 type Result ( Fail() | Success (Token, PosString) )
 
@@ -72,6 +72,20 @@ fn lexInclude(str PosString) Result
 
     return Success(
         Include(Take(str, idx))
+        Drop(str, idx)
+    )
+
+fn lexLink(str PosString) Result
+    if lexIdent(str) -> Success(Ident(ps), rest) | (ps:PosString).s == "link"
+        str = rest
+    else; return Fail()
+
+    let idx = 0
+    while str.At(idx) -> *char(c) | c != '\n'
+        idx = idx + 1
+
+    return Success(
+        Link(Take(str, idx))
         Drop(str, idx)
     )
 
@@ -277,6 +291,7 @@ fn lex(str PosString) Result
     if lexNewline(str)       -> Success(token, rest); return Success(token, rest)
     if lexImport(str)        -> Success(token, rest); return Success(token, rest)
     if lexInclude(str)       -> Success(token, rest); return Success(token, rest)
+    if lexLink(str)          -> Success(token, rest); return Success(token, rest)
     if lexCharLiteral(str)   -> Success(token, rest); return Success(token, rest)
     if lexStringLiteral(str) -> Success(token, rest); return Success(token, rest)
     if lexFloating(str)      -> Success(token, rest); return Success(token, rest)
@@ -336,17 +351,18 @@ fn lexFile(fileNameIn string, fileNameOut string)
 
     while lex(str) -> Success(token, rest)
         switch token
-            Ident(s);   io.fPutStrLn(key, string(s.pos.row) + ":" + string(s.pos.col) + ":ident: " + s.s)
-            Keyword(s); io.fPutStrLn(key, string(s.pos.row) + ":" + string(s.pos.col) + ":keyword: " + s.s)
-            Integer(s); io.fPutStrLn(key, string(s.pos.row) + ":" + string(s.pos.col) + ":integer: " + s.s)
+            Ident(s);    io.fPutStrLn(key, string(s.pos.row) + ":" + string(s.pos.col) + ":ident: " + s.s)
+            Keyword(s);  io.fPutStrLn(key, string(s.pos.row) + ":" + string(s.pos.col) + ":keyword: " + s.s)
+            Integer(s);  io.fPutStrLn(key, string(s.pos.row) + ":" + string(s.pos.col) + ":integer: " + s.s)
             Floating(s); io.fPutStrLn(key, string(s.pos.row) + ":" + string(s.pos.col) + ":floating: " + s.s)
-            Symbol(s);  io.fPutStrLn(key, string(s.pos.row) + ":" + string(s.pos.col) + ":symbol: " + s.s)
-            Char(s);    io.fPutStrLn(key, string(s.pos.row) + ":" + string(s.pos.col) + ":char: " + s.s)
-            String(s);  io.fPutStrLn(key, string(s.pos.row) + ":" + string(s.pos.col) + ":string: " + s.s)
-            Newline(s); {io, indentStack}.indent(key, s)
-            CEmbed(s);  io.fPutStrLn(key, string(s.pos.row) + ":" + string(s.pos.col) + ":cembed: " + s.s)
-            Import(s);  io.fPutStrLn(key, string(s.pos.row) + ":" + string(s.pos.col) + ":import: " + s.s)
-            Include(s); io.fPutStrLn(key, string(s.pos.row) + ":" + string(s.pos.col) + ":include: " + s.s)
+            Symbol(s);   io.fPutStrLn(key, string(s.pos.row) + ":" + string(s.pos.col) + ":symbol: " + s.s)
+            Char(s);     io.fPutStrLn(key, string(s.pos.row) + ":" + string(s.pos.col) + ":char: " + s.s)
+            String(s);   io.fPutStrLn(key, string(s.pos.row) + ":" + string(s.pos.col) + ":string: " + s.s)
+            CEmbed(s);   io.fPutStrLn(key, string(s.pos.row) + ":" + string(s.pos.col) + ":cembed: " + s.s)
+            Import(s);   io.fPutStrLn(key, string(s.pos.row) + ":" + string(s.pos.col) + ":import: " + s.s)
+            Link(s);     io.fPutStrLn(key, string(s.pos.row) + ":" + string(s.pos.col) + ":link:"     + s.s)
+            Include(s);  io.fPutStrLn(key, string(s.pos.row) + ":" + string(s.pos.col) + ":include: " + s.s)
+            Newline(s);  {io, indentStack}.indent(key, s)
             Comment(); 
 
         str = rest

@@ -108,6 +108,7 @@ findShapes typ = case typ of
     ShapeTable -> [typ]
     Tuple ts -> concat $ map findShapes ts
     Table ts -> concat $ map findShapes ts
+    Array n t -> findShapes t
     _ -> error (show typ)
     where
         findFieldShapes :: AdtField -> [Type]
