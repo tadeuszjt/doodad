@@ -181,9 +181,12 @@ params2 : param  ',' params1                 { $1 : $3 }
 
 paramL  : ident type_                       { S.Param (tokPos $1) (Sym $ tokStr $ $1) $2 }
         | ident null                        { S.Param (tokPos $1) (Sym $ tokStr $ $1) T.Void }
-paramsL1 : paramL                           { [$1] }
-         | paramL  '|' paramsL1             { $1 : $3 }
-paramsL2 : paramL  '|' paramsL1             { $1 : $3 }
+
+paramL_ : paramL { $1 }
+         | paramL 'N' {$1}
+paramsL1 : paramL_                          { [$1] }
+         | paramL_ '|' paramsL1             { $1 : $3 }
+paramsL2 : paramL_ '|' paramsL1             { $1 : $3 }
 
 paramsN : param 'N'                         { [$1] } 
         | param 'N' paramsN                 { $1 : $3 }
@@ -336,10 +339,10 @@ shape_t : table { T.ShapeTable }
         | integer { T.ShapeInteger }
 
 
-adt_t    : '(' adtFields2 ')'                      { T.ADT $2 }
+adt_t    : '(' adtField '|' adtFields1 ')'         { T.ADT ($2:$4) }
 array_t  : '[' int_c uncovered_t ']'               { T.Array (read $ tokStr $2) $3 }
 table_t  : '[' uncovered_ts1 ']'                   { T.Table $2 }
-tuple_t  : '(' uncovered_ts2 ')'                   { T.Tuple $2 }
+tuple_t  : '(' uncovered_ts1 ')'                   { T.Tuple $2 }
          | '(' ')'                                 { T.Tuple [] }
 range_t  : '[' '..' ']' type_                      { T.Range $4 }
 
@@ -348,6 +351,7 @@ anno_t   : ordinal_t                        { S.AnnoType $1 }
          | '(' uncovered_ts1 ')'            { S.AnnoType (T.Tuple $2) }
          | '(' params2 ')'                  { S.AnnoTuple $2 }
          | '(' paramsL2 ')'                 { S.AnnoADT (map paramToAdtField $2) }
+         | '(' 'I' paramsL2 'D' ')'         { S.AnnoADT (map paramToAdtField $3) }
          | '[' params1 ']'                  { S.AnnoTable $2 }
          | array_t                          { S.AnnoType $1 }
          | table_t                          { S.AnnoType $1 }
@@ -355,6 +359,8 @@ anno_t   : ordinal_t                        { S.AnnoType $1 }
 
 adtFields1 : adtField                       { [$1] }
            | adtField '|' adtFields1        { $1 : $3 }
+
+
 adtFields2 : adtField '|' adtFields1        { $1 : $3 }
 adtField : type_                            { T.FieldType $1 }
          | null                             { T.FieldNull }

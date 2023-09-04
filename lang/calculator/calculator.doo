@@ -45,8 +45,25 @@ import ../../std/strings
 // └────┴─────┴─────┴─────┴─────┴─────┴─────┴────────┴─────┴────┴────┴────┴────┘
 
 
-type Cell ( Accept() | Shift i64  | Reduce i64  | Goto i64 | Empty())
-type Item ( TokInt i64  | TokSym char  | TokEnd() | State i64  | E_ i64  | E i64  | T i64  | D i64  | F i64)
+type Cell (
+    Accept()
+    | Shift(i64)
+    | Reduce(i64)
+    | Goto(i64)
+    | Empty()
+)
+
+type Item (
+    TokInt(i64)
+    | TokSym(char)
+    | TokEnd()
+    | State(i64)
+    | E_(i64)
+    | E(i64)
+    | T(i64)
+    | D(i64)
+    | F(i64)
+)
 
 fn lookupCell(state i64, item Item) Cell
     let array = [
