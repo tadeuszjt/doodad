@@ -13,9 +13,9 @@ fn main()
     w.create()
 
     vertices += [
-        Vertex(Vec2f(200, 50), Red(), Vec2f(0, 0))
-        Vertex(Vec2f(100, 250), Green(), Vec2f(0, 0))
-        Vertex(Vec2f(300, 250), Blue(), Vec2f(0, 0))
+        ((200, 50),  Red(),   (0, 0))
+        ((100, 250), Green(), (0, 0))
+        ((300, 250), Blue(),  (0, 0))
     ]
 
     while w.isOpen()

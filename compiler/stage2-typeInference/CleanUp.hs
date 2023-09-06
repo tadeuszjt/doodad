@@ -111,20 +111,20 @@ resolveFuncCall exprType (AST.Call pos params symbol args) = withPos pos $ do
         findFuncDef :: BoM ASTResolved m => FuncKey -> m (Maybe Symbol)
         findFuncDef key = useLast =<< Map.filterWithKey
             (\symbol body -> funcKeysCouldMatch (funcKeyFromBody (sym symbol) body) key) <$> gets funcDefs
-            where
-                funcKeysCouldMatch :: FuncKey -> FuncKey -> Bool
-                funcKeysCouldMatch (aps, asymbol, aas, art) (bps, bsymbol, bas, brt)
-                    | length aps /= length bps || length aas /= length bas = False
-                    | asymbol /= bsymbol = False
-                    | otherwise = all (== True) $
-                        zipWith typesCouldMatch (aps ++ aas ++ [art]) (bps ++ bas ++ [brt])
+
+        funcKeysCouldMatch :: FuncKey -> FuncKey -> Bool
+        funcKeysCouldMatch (aps, asymbol, aas, art) (bps, bsymbol, bas, brt)
+            | length aps /= length bps || length aas /= length bas = False
+            | asymbol /= bsymbol = False
+            | otherwise = all (== True) $
+                zipWith typesCouldMatch (aps ++ aas ++ [art]) (bps ++ bas ++ [brt])
 
 
         findTypeDef :: BoM ASTResolved m => String -> m (Maybe Symbol)
         findTypeDef sym = checkOne =<< Map.filterWithKey (\s t -> Symbol.sym s == sym) <$> gets typeDefs
 
         findImportedFuncDef :: BoM ASTResolved m => FuncKey -> m (Maybe Symbol)
-        findImportedFuncDef key = checkOne =<< Map.filter (== key) <$> gets funcImports
+        findImportedFuncDef key = checkOne =<< Map.filter (funcKeysCouldMatch key) <$> gets funcImports
 
         findQualifiedFuncDef :: BoM ASTResolved m => String -> FuncKey -> m (Maybe Symbol)
         findQualifiedFuncDef mod key = checkOne =<< Map.filterWithKey (\s k -> Symbol.mod s == mod && k == key) <$> gets funcImports

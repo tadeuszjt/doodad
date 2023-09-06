@@ -29,9 +29,23 @@ fn {str PosString} At(idx i64) (null | char)
     return null
 
 
-type Token ( Ident PosString  | Keyword PosString  | Integer PosString  | Floating PosString  | Newline PosString  | Symbol PosString  | Char PosString  | String PosString  | CEmbed PosString  | Import PosString  | Include PosString | Link PosString | Comment () )
+type Token (
+    Ident(PosString)
+    | Keyword(PosString)
+    | Integer(PosString)
+    | Floating(PosString)
+    | Newline(PosString)
+    | Symbol(PosString)
+    | Char(PosString)
+    | String(PosString)
+    | CEmbed(PosString)
+    | Import(PosString)
+    | Include(PosString)
+    | Link(PosString)
+    | Comment()
+)
 
-type Result ( Fail() | Success (Token, PosString) )
+type Result ( Fail() | Success(Token, PosString) )
 
 
 fn lexIdent(str PosString) Result

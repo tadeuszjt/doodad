@@ -38,7 +38,7 @@ executable doodad
     default-language:  Haskell2010
     extra-libraries:   m, gc
     build-depends:
-        base         >= 4.0.0.0,
+        base,
         temporary,
         containers,
         mtl,

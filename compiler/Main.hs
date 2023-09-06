@@ -3,12 +3,8 @@ module Main where
 import System.Exit
 import System.Environment
 import System.IO
-import System.Console.Haskeline
 import Control.Monad
-import Control.Monad.Trans
 import Control.Monad.Except
-import qualified Data.Map as Map
-import qualified Data.Set as Set
 
 import Error
 import Modules
