@@ -78,4 +78,5 @@ executable doodad
         CAst,
         Compile,
         COptimise,
-        Constraint
+        Constraint,
+        DeAnnotate

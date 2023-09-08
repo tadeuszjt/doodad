@@ -17,45 +17,40 @@ import Collect
 import qualified Resolve
 import ASTResolved
 import Annotate
+import DeAnnotate
 import CleanUp
-
-data RunReturn = RunReturn ASTResolved Int
-instance Eq RunReturn where -- simple class to use for runBoMUntilSameResult
-    (RunReturn ast1 n1) == (RunReturn ast2 n2) = ast1 == ast2
-
+import Type
 
 -- Takes a resolved and annotated ast and inferes all types.
 infer :: BoM s m => ASTResolved -> Bool -> Bool -> m (ASTResolved, Int)
-infer resolvedAST printAnnotated verbose = do 
-    (ast, typeSupplyCount) <- withErrorPrefix "annotate: " $ runBoMTExcept 0 $ annotate resolvedAST
-    when printAnnotated $ do
-        liftIO $ putStrLn "annotated ast:"
-        liftIO $ prettyASTResolved ast
-
+infer ast printAnnotated verbose = do 
     runBoMUntilSameResult ast $ \ast' -> do 
-        (RunReturn inferred typeSupplyCount', _)  <- runBoMUntilSameResult (RunReturn ast' typeSupplyCount) inferTypes
-        (RunReturn defaulted _, _) <- runBoMUntilSameResult (RunReturn inferred typeSupplyCount') inferDefaults
+        (inferred, _) <- runBoMUntilSameResult ast' inferTypes
+        (defaulted, _) <- runBoMUntilSameResult inferred inferDefaults
         return defaulted
     where
-        inferTypes :: BoM s m => RunReturn -> m RunReturn
-        inferTypes (RunReturn ast typeSupplyCount) = do
-            --liftIO $ putStrLn "inferTypes"
+        inferTypes :: BoM s m => ASTResolved -> m ASTResolved
+        inferTypes ast = do
+            (annotated, typeSupplyCount) <- withErrorPrefix "annotate: " $
+                runBoMTExcept 0 $ annotate ast
             collectState <- fmap snd $ withErrorPrefix "collect: " $
-                runBoMTExcept (initCollectState typeSupplyCount) (collectAST ast)
+                runBoMTExcept (initCollectState typeSupplyCount) (collectAST annotated)
 
             -- turn type constraints into substitutions using unify
             let sos     = SymTab.lookupKey Collect.KeyType (symTab collectState)
             let typeMap = Map.map (\(ObjType t) -> t) $ Map.fromList sos
             subs <- fmap fst $ runBoMTExcept typeMap (unify $ Map.toList $ collected collectState)
-            ast' <- fmap snd $ runBoMTExcept (applySubs subs ast) CleanUp.compile
-            return $ RunReturn ast' (typeSupply collectState)
+            ast' <- fmap snd $ runBoMTExcept (applySubs subs annotated) CleanUp.compile
+            ast'' <- fmap fst $ runBoMTExcept () $ deAnnotate ast'
+            return ast''
 
 
-        inferDefaults :: BoM s m => RunReturn -> m RunReturn
-        inferDefaults (RunReturn ast typeSupplyCount) = do
-            --liftIO $ putStrLn "inferDefaults"
+        inferDefaults :: BoM s m => ASTResolved -> m ASTResolved
+        inferDefaults ast = do
+            (annotated, typeSupplyCount) <- withErrorPrefix "annotate: " $
+                runBoMTExcept 0 $ annotate ast
             collectState <- fmap snd $ withErrorPrefix "collect: " $
-                runBoMTExcept (initCollectState typeSupplyCount) (collectAST ast)
+                runBoMTExcept (initCollectState typeSupplyCount) (collectAST annotated)
 
             -- turn type constraints into substitutions using unify
             let sos     = SymTab.lookupKey Collect.KeyType (symTab collectState)
@@ -63,5 +58,6 @@ infer resolvedAST printAnnotated verbose = do
             subs <- fmap fst $ runBoMTExcept typeMap (unifyDefault $ Map.toList $ defaults collectState)
 
             -- apply substitutions to ast
-            ast' <- fmap snd $ runBoMTExcept (applySubs subs ast) CleanUp.compile
-            return $ RunReturn ast' (typeSupply collectState)
+            ast' <- fmap snd $ runBoMTExcept (applySubs subs annotated) CleanUp.compile
+            ast'' <- fmap fst $ runBoMTExcept () $ deAnnotate ast'
+            return ast''

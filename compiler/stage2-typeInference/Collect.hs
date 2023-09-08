@@ -372,8 +372,6 @@ collectCall rt ps symbol es = do -- can be resolved or sym
 --                return (g, gt)
 --            return $ map (applySubs substitutions) ts
 
-            
-
 
 collectExpr :: BoM CollectState m => S.Expr -> m ()
 collectExpr (S.AExpr exprType expr) = collectPos expr $ case expr of
@@ -497,6 +495,5 @@ collectExpr (S.AExpr exprType expr) = collectPos expr $ case expr of
         collectDefault exprType $ Array (length es) (typeof $ head es)
 
         mapM_ collectExpr es
-
 
     _ -> error (show expr)

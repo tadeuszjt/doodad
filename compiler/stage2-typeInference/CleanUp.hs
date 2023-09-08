@@ -288,6 +288,7 @@ compileExpr (AST.AExpr exprType expr) = withPos expr $ AExpr exprType <$> case e
         mexpr1' <- maybe (return Nothing) (fmap Just . compileExpr) mexpr1
         mexpr2' <- maybe (return Nothing) (fmap Just . compileExpr) mexpr2
         return $ AST.Range pos mexpr' mexpr1' mexpr2'
+compileExpr expr = withPos expr $ fail "what"
 
 
 compilePattern :: BoM ASTResolved m => AST.Pattern -> m Pattern
