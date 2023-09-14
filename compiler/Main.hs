@@ -30,7 +30,7 @@ main = do
 
     else do
         forM_ (modPaths parsedArgs) $ \path -> do
-            res <- runBoMT undefined $ buildModule parsedArgs path
+            res <- runBoMT undefined $ buildBinaryFromModule parsedArgs path
             case res of
                 Left err -> printError err >> exitFailure
                 Right _  -> return ()

@@ -1,6 +1,6 @@
 module io
 
-import assert
+import ./assert
 
 type FileKey i64
 type FilePtr i64
