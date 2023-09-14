@@ -363,19 +363,21 @@ fn lexFile(fileNameIn string, fileNameOut string)
     data indentStack [string]
     indentStack += [""]
 
+    let printPos = string(s.pos.row) + ":" + string(s.pos.col)
+
     while lex(str) -> Success(token, rest)
         switch token
-            Ident(s);    io.fPutStrLn(key, string(s.pos.row) + ":" + string(s.pos.col) + ":ident: " + s.s)
-            Keyword(s);  io.fPutStrLn(key, string(s.pos.row) + ":" + string(s.pos.col) + ":keyword: " + s.s)
-            Integer(s);  io.fPutStrLn(key, string(s.pos.row) + ":" + string(s.pos.col) + ":integer: " + s.s)
-            Floating(s); io.fPutStrLn(key, string(s.pos.row) + ":" + string(s.pos.col) + ":floating: " + s.s)
-            Symbol(s);   io.fPutStrLn(key, string(s.pos.row) + ":" + string(s.pos.col) + ":symbol: " + s.s)
-            Char(s);     io.fPutStrLn(key, string(s.pos.row) + ":" + string(s.pos.col) + ":char: " + s.s)
-            String(s);   io.fPutStrLn(key, string(s.pos.row) + ":" + string(s.pos.col) + ":string: " + s.s)
-            CEmbed(s);   io.fPutStrLn(key, string(s.pos.row) + ":" + string(s.pos.col) + ":cembed: " + s.s)
-            Import(s);   io.fPutStrLn(key, string(s.pos.row) + ":" + string(s.pos.col) + ":import: " + s.s)
-            Link(s);     io.fPutStrLn(key, string(s.pos.row) + ":" + string(s.pos.col) + ":link:"     + s.s)
-            Include(s);  io.fPutStrLn(key, string(s.pos.row) + ":" + string(s.pos.col) + ":include: " + s.s)
+            Ident(s);    io.fPutStrLn(key, printPos + ":ident: " + s.s)
+            Keyword(s);  io.fPutStrLn(key, printPos + ":keyword: " + s.s)
+            Integer(s);  io.fPutStrLn(key, printPos + ":integer: " + s.s)
+            Floating(s); io.fPutStrLn(key, printPos + ":floating: " + s.s)
+            Symbol(s);   io.fPutStrLn(key, printPos + ":symbol: " + s.s)
+            Char(s);     io.fPutStrLn(key, printPos + ":char: " + s.s)
+            String(s);   io.fPutStrLn(key, printPos + ":string: " + s.s)
+            CEmbed(s);   io.fPutStrLn(key, printPos + ":cembed: " + s.s)
+            Import(s);   io.fPutStrLn(key, printPos + ":import: " + s.s)
+            Link(s);     io.fPutStrLn(key, printPos + ":link:"     + s.s)
+            Include(s);  io.fPutStrLn(key, printPos + ":include: " + s.s)
             Newline(s);  {io, indentStack}.indent(key, s)
             Comment(); 
 

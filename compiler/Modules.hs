@@ -45,13 +45,15 @@ data Modules
     = Modules
         { moduleMap :: Map.Map FilePath ASTResolved
         , cFileMap  :: Map.Map FilePath FilePath
+        , doodadPath :: FilePath
         }
 
 
-initModulesState 
+initModulesState doodadPath
     = Modules
         { moduleMap = Map.empty
         , cFileMap  = Map.empty
+        , doodadPath = doodadPath
         }
 
 
@@ -96,9 +98,13 @@ parse args file = do
 
 buildModule :: BoM s m => Args -> FilePath -> m ()
 buildModule args modPath = do
-    ((), state) <- runBoMTExcept (initModulesState) $ buildModule' args modPath
-    let cFiles = Map.elems (cFileMap state) ++ ["include/doodad.c"]
-    let binFile = takeFileName modPath
+    doodadPath <- liftIO $ getEnv "DOODAD_PATH"
+    state <- fmap snd $ runBoMTExcept (initModulesState doodadPath) (buildModule' args modPath)
+
+    let hDoodad   = joinPath [doodadPath, "include"]
+    let cDoodad   = joinPath [doodadPath, "include/doodad.c"]
+    let cFiles    = cDoodad : Map.elems (cFileMap state)
+    let binFile   = takeFileName modPath
     let linkPaths = Set.toList $ Set.unions (map links $ Map.elems $ moduleMap state)
 
     forM_ linkPaths $ \path -> do
@@ -109,21 +115,25 @@ buildModule args modPath = do
             liftIO $ putStrLn =<< readFile file
 
     exitCode <- liftIO $ rawSystem "gcc" $
-        ["-I", "include"] ++ cFiles ++ ["-lgc"] ++ map ("-l" ++) linkPaths ++ ["-o", binFile]
+        ["-I", hDoodad] ++ cFiles ++ ["-lgc"] ++ map ("-l" ++) linkPaths ++ ["-o", binFile]
     case exitCode of
         ExitSuccess -> return ()
         ExitFailure s -> fail $ "gcc failed: " ++ (show s)
 
     liftIO $ putStrLn $ "wrote bin: " ++ binFile
 
---    forM_ (Map.toList $ cFileMap state) $ \(_, cFile) -> do
---        liftIO $ removeFile cFile
+    forM_ (Map.toList $ cFileMap state) $ \(_, cFile) -> do
+        liftIO $ removeFile cFile
 
 
 
 buildModule' :: BoM Modules m => Args -> FilePath -> m ()
 buildModule' args modPath = do
-    absolute <- liftIO $ canonicalizePath modPath
+    doodadPath <- gets doodadPath
+    let relative = isPrefixOf "../" modPath || isPrefixOf "./" modPath
+    let modPath' = if relative then modPath else joinPath [doodadPath, modPath]
+    absolute <- liftIO $ canonicalizePath modPath'
+
     isCompiled <- Map.member absolute <$> gets moduleMap
     when (not isCompiled) $ compilePath absolute
     where
@@ -137,17 +147,21 @@ buildModule' args modPath = do
             files <- getSpecificModuleFiles args modName =<< getDoodadFilesInDirectory modDirectory
             assert (not $ null files) ("no files for: " ++ path)
             asts <- mapM (parse args) files
-            when (printAst args) $ do
-                forM_ asts $ \ast ->
-                    liftIO $ S.prettyAST ast
+            when (printAst args) $ mapM_ (liftIO . S.prettyAST) asts
 
             -- read imports and compile imported modules first
-            importPaths <- forM [fp | S.Import fp <- concat $ map S.astImports asts] $ \importPath ->
-                liftIO $ canonicalizePath $ joinPath [modDirectory, importPath]
+            doodadPath <- gets doodadPath
+            importPaths <- forM [fp | S.Import fp <- concat $ map S.astImports asts] $ \importPath -> do
+                liftIO $ putStrLn $ "importPath: " ++ importPath
+                let relative = isPrefixOf "../" importPath || isPrefixOf "./" importPath
+                let importPath' = joinPath (if relative then [modDirectory, importPath] else [doodadPath, importPath])
+                liftIO $ canonicalizePath importPath'
+
             let importModNames = map takeFileName importPaths
             assert (length importModNames == length (Set.fromList importModNames)) $
                 fail "import name collision"
-            mapM_ (buildModule' args) importPaths
+            forM_ importPaths $ \importPath -> do
+                buildModule' args importPath
 
 
             -- compile this module
