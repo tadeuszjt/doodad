@@ -19,7 +19,6 @@ substitute u x typ = case typ of
     Void                 -> typ
     Typedef symbol       -> typ
     _ | isSimple typ     -> typ
-    ShapeTable           -> typ
     Key t                -> Key $ substitute u x t
     Range t              -> Range $ substitute u x t
     Table ts             -> Table $ map (substitute u x) ts

@@ -33,8 +33,7 @@ data Type
     | Table [Type]         
     | ADT [AdtField]
     | Typedef Symbol
-    | ShapeTable
-    | ShapeInteger
+    | TypeApply Symbol [Type]
     deriving (Eq, Ord)
 
 instance Show AdtField where
@@ -64,7 +63,6 @@ instance Show Type where
         ADT tss       -> "{" ++ intercalate " | " (map show tss) ++ "}"
         Table ts      -> "[" ++ intercalate "; " (map show ts) ++ "]"
         Typedef s     -> show s
-        ShapeTable    -> "table"
 
 isInt x      = x `elem` [U8, I8, I16, I32, I64]
 isFloat x    = x `elem` [F32, F64]
@@ -83,9 +81,6 @@ typesCouldMatch a b = case (a, b) of
     (ADT afs, ADT bfs)     -> length afs == length bfs && (all (== True) $ zipWith fieldsCouldMatch afs bfs)
     (Tuple as, Tuple bs)   -> length as == length bs && (all (== True) $ zipWith typesCouldMatch as bs)
 
-    (ShapeTable, Table _)  -> True
-    (Table _, ShapeTable)  -> True
-
     (_, _) -> False -- TODO
     _                      -> error (show (a, b))
     where
@@ -94,25 +89,3 @@ typesCouldMatch a b = case (a, b) of
             (FieldNull, FieldNull) -> True
             (FieldType a, FieldType b) -> typesCouldMatch a b
             _ -> error $ show (fa, fb)
-
-
-findShapes :: Type -> [Type]
-findShapes typ = case typ of
-    I64 -> []
-    Char -> []
-    String -> []
-    Void -> []
-    Bool -> []
-    ADT fs -> concat $ map findFieldShapes fs
-    Typedef s -> []
-    ShapeTable -> [typ]
-    Tuple ts -> concat $ map findShapes ts
-    Table ts -> concat $ map findShapes ts
-    Array n t -> findShapes t
-    _ -> error (show typ)
-    where
-        findFieldShapes :: AdtField -> [Type]
-        findFieldShapes f = case f of
-            FieldNull -> []
-            FieldType t -> findShapes t
-            _ -> error (show f)

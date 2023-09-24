@@ -2,5 +2,5 @@ module assert
 
 include <assert.h>
 
-fn assert(cnd bool)
+fn assert(cnd:bool)
     ${ assert($cnd); }

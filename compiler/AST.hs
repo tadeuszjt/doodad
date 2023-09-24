@@ -194,10 +194,12 @@ brcStrs strs = "{" ++ intercalate ", " strs ++ "}"
 
 instance Show Import where
     show (Import path) = "import " ++ path
+    show (CInclude path) = "#include " ++ path
+    show (CLink path) = "link " ++ path
 
 instance Show Param where
     show (Param pos name Void) = show name
-    show (Param pos name typ)  = show name ++ " " ++ show typ
+    show (Param pos name typ)  = show name ++ ":" ++ show typ
 
 
 instance Show Operator where
@@ -241,7 +243,7 @@ instance Show Pattern where
         PatArray pos ps          -> arrStrs (map show ps)
         PatGuarded pos pat expr  -> show pat ++ " | " ++ show expr
         PatField pos symbol pats -> show symbol ++ tupStrs (map show pats)
-        PatTypeField pos typ pat -> show typ ++ tupStrs [show pat]
+        PatTypeField pos typ pat -> show pat ++ arrStrs [show typ]
         PatAnnotated pat typ     -> show pat ++ ":" ++ show typ
         PatNull pos              -> "null"
 
@@ -267,7 +269,7 @@ instance Show Expr where
         Call pos params symbol exprs  -> brcStrs (map show params) ++ "." ++ show symbol ++ tupStrs (map show exprs)
         Builtin pos [] sym exprs      -> sym ++ tupStrs (map show exprs)
         Builtin pos params sym exprs  -> brcStrs (map show params) ++ "." ++ sym ++ tupStrs (map show exprs)
-        Match pos expr1 expr2         -> show expr1 ++ " -> " ++ show expr2
+        Match pos expr1 expr2         -> "(" ++ show expr1 ++ " -> " ++ show expr2 ++ ")"
         Range pos mexpr mexpr1 mexpr2 -> maybe "" show mexpr ++ "[" ++ maybe "" show mexpr1 ++ ".." ++ maybe "" show mexpr2 ++ "]"
         Array pos exprs               -> arrStrs (map show exprs)
         Construct pos symbol exprs    -> show symbol ++ tupStrs (map show exprs)

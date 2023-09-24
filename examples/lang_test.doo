@@ -3,7 +3,7 @@ module langTest
 import ../std/io
 
 
-fn assert(b bool)
+fn assert(b:bool)
     ${ assert($b); }
 
 
@@ -23,7 +23,7 @@ fn testTuplePattern()
     assert(y == 3)
 
 
-type enum (Enum0() | Enum1() | Enum2())
+type enum (Enum0:() | Enum1:() | Enum2:())
 fn testEnumAdt()
     let x = Enum1()
     switch x
@@ -64,7 +64,7 @@ fn testIf()
     assert(x[3] == 0)
 
 
-type ADT (Ctor0(i64, bool, string) | Ctor1())
+type ADT (Ctor0:(i64, bool, string) | Ctor1:())
 fn testADT()
     let x = Ctor0(1, true, "benis")
     switch x
@@ -105,7 +105,7 @@ fn testSubTable()
     let (false, [3, 4]) = x[1]
 
 
-type Table [nums i64, bools bool]
+type Table [nums:i64, bools:bool]
 fn testNamedTableArgs()
     data x Table
     x += (
@@ -122,7 +122,7 @@ fn testNamedTableArgs()
 
 fn testParamsChange()
     let x = 2
-    fn {x i64} addOne()
+    fn {x:i64} addOne()
         x = x + 1
     x.addOne()
     assert(x == 3)
@@ -160,7 +160,7 @@ fn testTableReferencing()
     let [ [1], [2, 1] ] = a
 
 
-type MyTuple (nums [i64], bools [bool])
+type MyTuple (nums:[i64], bools:[bool])
 fn testTupleReferencing()
     data a MyTuple
     data b MyTuple
@@ -175,11 +175,11 @@ fn testTupleReferencing()
     let ([1, 5, 3, 4], [false, false]) = b
 
 
-type Tuple2 ( num i64, str string )
+type Tuple2 (num:i64, str:string )
 fn testTupleMembers()
     let x = Tuple2(1, "benis")
     let 1 = x.num
-    type Tuple2 ( num i64, str string, b bool )
+    type Tuple2 ( num:i64, str:string, b:bool )
     let y = Tuple2(2, "bongis", false)
     let false = y.b
     let 2 = y.num
@@ -188,7 +188,7 @@ fn testTupleMembers()
 
 fn testSubFunction()
     let x = 2
-    fn {a i64} testSomething(b bool)
+    fn {a:i64} testSomething(b:bool)
         a = a + 1
 
     x.testSomething(true)
@@ -196,7 +196,7 @@ fn testSubFunction()
 
 
 fn testTableSetElems()
-    type Table [nums [i64], name string]
+    type Table [nums:[i64], name:string]
     data x Table
     x += ( [ [1, 2], [3] ], ["benis", "bongis"] )
     x[1] = ( [3, 4], "bongis!")
@@ -219,7 +219,7 @@ fn testConst()
     assert(nums[0] == 1)
 
 
-fn {io Io} main()
+fn {io:Io} main()
     testNothing()
     test1Eq2()
     testTuplePattern()

@@ -1,5 +1,13 @@
 module main
 
+fn {s:string} first() (null | char)
+    if len(s) > 0
+        return conv(s[0])
+    return null
+
 
 fn main()
+    let s = "string"
+    if s.first() -> '/'[char] | s.first() -> 'x'[char]
+        print("test")
     print("test")

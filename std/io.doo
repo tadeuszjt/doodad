@@ -5,23 +5,23 @@ import ./assert
 type FileKey i64
 type FilePtr i64
 
-type Files [keys FileKey, ptrs FilePtr]
+type Files [keys:FileKey, ptrs:FilePtr]
 
-type Io ( keySupply FileKey, files Files)
+type Io ( keySupply:FileKey, files:Files)
 
-fn {t Files} delete(idx i64)
+fn {t:Files} delete(idx:i64)
     assert(idx >= 0 && idx < len(t))
     t[idx] = t[len(t) - 1]
     ${ $t->len--; }
 
 
-fn {io Io} newKey() FileKey
+fn {io:Io} newKey() FileKey
     let key = io.keySupply
     io.keySupply = io.keySupply + 1
     return key
 
 
-fn {io Io} openFile(filename string) FileKey
+fn {io:Io} openFile(filename:string) FileKey
     let key = io.newKey()
     let ptr = 0
     ${
@@ -34,7 +34,7 @@ fn {io Io} openFile(filename string) FileKey
     return key
 
 
-fn {io Io} closeFile(key FileKey)
+fn {io:Io} closeFile(key:FileKey)
     for io.files[..] -> i
         if io.files.keys[i] == key
             let ptr = io.files.ptrs[i]
@@ -44,7 +44,7 @@ fn {io Io} closeFile(key FileKey)
     assert(false)
 
 
-fn {io Io} fPutStr(key FileKey, s string)
+fn {io:Io} fPutStr(key:FileKey, s:string)
     for io.files -> (k, p)
         if k == key
             ${ fprintf((FILE*)$p, "%s", $s); }
@@ -52,7 +52,7 @@ fn {io Io} fPutStr(key FileKey, s string)
     assert(false)
 
 
-fn {io Io} fPutStrLn(key FileKey, s string)
+fn {io:Io} fPutStrLn(key:FileKey, s:string)
     for io.files -> (k, p)
         if k == key
             ${ fprintf((FILE*)$p, "%s\n", $s); }
@@ -60,25 +60,25 @@ fn {io Io} fPutStrLn(key FileKey, s string)
     assert(false)
 
 
-fn {io Io} putStrLn(s string)
+fn {io:Io} putStrLn(s:string)
     ${ printf("%s\n", $s); }
 
 
-fn {io Io} putStr(s string)
+fn {io:Io} putStr(s:string)
     ${ printf("%s", $s); }
 
 
-fn {io Io} putChar(c char)
+fn {io:Io} putChar(c:char)
     ${ putchar($c); }
 
 
-fn {io Io} getChar() char
+fn {io:Io} getChar() char
     let c = char()
     ${ $c = getchar(); }
     return c
 
 
-fn {io Io} getStrLn() (null | string)
+fn {io:Io} getStrLn() (null | string)
     let eof = false
     let s = ""
     ${
@@ -98,7 +98,7 @@ fn {io Io} getStrLn() (null | string)
     return conv(s)
 
 
-fn {io Io} readFile(filename string) string
+fn {io:Io} readFile(filename:string) string
     let contents = ""
     ${
         FILE *fp = fopen($filename, "r");

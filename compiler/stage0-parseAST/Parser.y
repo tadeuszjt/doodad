@@ -24,10 +24,10 @@ import Symbol
 %right     '!'
 %left      ':'
 %nonassoc  '!'
-%nonassoc  '|'
-%nonassoc  '(' ')' '[' ']' '{' '}'
-%nonassoc  '.'
 %nonassoc  '->'
+%nonassoc  '(' ')' '[' ']' '{' '}'
+%nonassoc  '|'
+%nonassoc  '.'
 
 
 
@@ -146,7 +146,8 @@ line : let pattern '=' expr                         { S.Assign (tokPos $1) $2 $4
      | index '+=' expr                              { S.SetOp (tokPos $2) S.PlusEq $1 $3 }
      | index                                        { S.ExprStmt $1 }
      | type symbol anno_t                           { S.Typedef (fst $2) (snd $2) $3 }
-     | data symbol type_ mexpr                      { S.Data (tokPos $1) (snd $2) $3 $4 }
+     | data symbol type_                            { S.Data (tokPos $1) (snd $2) $3 Nothing }
+     --| data symbol type_ '=' mexpr                      { S.Data (tokPos $1) (snd $2) $3 $4 }
      | return mexpr                                 { S.Return (tokPos $1) $2 }
      | embed_c                                      { S.EmbedC (tokPos $1) (tokStr $1) }
      | const symbol '=' expr                        { S.Const (tokPos $1) (snd $2) $4 }
@@ -172,15 +173,15 @@ condition : expr                            { $1 }
           | expr '->' pattern               { S.Match (tokPos $2) $1 $3 }
 
 
-param   : ident type_                       { S.Param (tokPos $1) (Sym $ tokStr $ $1) $2 }
+param   : ident ':' type_                   { S.Param (tokPos $1) (Sym $ tokStr $ $1) $3 }
 params  : {- empty -}                       { [] }
         | params1                           { $1 }
 params1 : param                             { [$1] }
         | param ',' params1                 { $1 : $3 }
-params2 : param  ',' params1                 { $1 : $3 }
+params2 : param  ',' params1                { $1 : $3 }
 
-paramL  : ident type_                       { S.Param (tokPos $1) (Sym $ tokStr $ $1) $2 }
-        | ident null                        { S.Param (tokPos $1) (Sym $ tokStr $ $1) T.Void }
+paramL  : ident ':' type_                   { S.Param (tokPos $1) (Sym $ tokStr $ $1) $3 }
+        | ident ':' null                    { S.Param (tokPos $1) (Sym $ tokStr $ $1) T.Void }
 
 paramL_ : paramL { $1 }
          | paramL 'N' {$1}
@@ -225,7 +226,7 @@ pattern  : '_'                              { S.PatIgnore (tokPos $1) }
          | pattern '|' expr                 { S.PatGuarded (tokPos $2) $1 $3 }
          | pattern '|' expr '->' pattern    { S.PatGuarded (tokPos $2) $1 (S.Match (tokPos $4) $3 $5) }
          | symbol '(' patterns ')'          { S.PatField (tokPos $2) (snd $1) $3 }
-         | '*' type_ '(' pattern ')'        { S.PatTypeField (tokPos $3) $2 $4 }
+         | pattern '[' type_ ']'            { S.PatTypeField (tokPos $2) $3 $1 }
          | pattern ':' type_                { S.PatAnnotated $1 $3 }
 
 ---------------------------------------------------------------------------------------------------
@@ -302,14 +303,13 @@ types1 : type_                              { [$1] }
 type_         : symbol                      { T.Typedef (snd $1) }
               | ordinal_t                   { $1 }
               | aggregate_t                 { $1 }
-              | shape_t                     { $1 }
+              | symbol '(' types1 ')'       { T.TypeApply (snd $1) $3 }
 
 uncovered_t : symbol { T.Typedef (snd $1) }
             | ordinal_t { $1 }
             | array_t   { $1 }
             | table_t   { $1 }
             | range_t   { $1 }
-            | shape_t   { $1 }
             | tuple_t   { $1 }
             | adtFields2 { T.ADT $1 }
 
@@ -327,22 +327,18 @@ ordinal_t   : bool                          { T.Bool }
             | f64                           { T.F64 }
             | char                          { T.Char }
             | string                        { T.String }
-            | '@' type_                     { T.Key $2 }
 
 aggregate_t : table_t                       { $1 }
-              | array_t                     { $1 }
-              | tuple_t                     { $1 }
-              | adt_t                       { $1 }
-              | range_t                     { $1 }
-
-shape_t : table { T.ShapeTable }
-        | integer { T.ShapeInteger }
+            | array_t                     { $1 }
+            | tuple_t                     { $1 }
+            | adt_t                       { $1 }
+            | range_t                     { $1 }
 
 
 adt_t    : '(' adtField '|' adtFields1 ')'         { T.ADT ($2:$4) }
 array_t  : '[' int_c uncovered_t ']'               { T.Array (read $ tokStr $2) $3 }
 table_t  : '[' uncovered_ts1 ']'                   { T.Table $2 }
-tuple_t  : '(' uncovered_ts1 ')'                   { T.Tuple $2 }
+tuple_t  : '(' uncovered_ts2 ')'                   { T.Tuple $2 }
          | '(' ')'                                 { T.Tuple [] }
 range_t  : '[' '..' ']' type_                      { T.Range $4 }
 

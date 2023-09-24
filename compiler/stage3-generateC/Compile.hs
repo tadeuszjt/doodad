@@ -18,15 +18,6 @@ import Error
 
 
 
-getShapesFromFuncDef :: [S.Param] -> [S.Param] -> Type.Type -> [Type.Type]
-getShapesFromFuncDef params args retty =
-    concat (map (findShapes . S.paramType) params) ++
-    concat (map (findShapes . S.paramType) args) ++
-    findShapes retty
-
-
-
-
 getSymbolsOrderedByDependencies :: Monad m => Map.Map Symbol Type.Type -> m [Symbol]
 getSymbolsOrderedByDependencies typedefs = do
     fmap (removeDuplicates . concat) . forM (Map.toList typedefs) $ \(s, t) -> do
@@ -126,24 +117,22 @@ generate ast = do
 
     -- generate function headers
     forM_ (Map.toList $ funcDefs ast) $ \(symbol, func) -> do
-        when (getShapesFromFuncDef (ASTResolved.funcParams func) (ASTResolved.funcArgs func) (ASTResolved.funcRetty func) == []) $ do
-            crt <- cTypeOf (ASTResolved.funcRetty func)
-            cpts <- map Cpointer <$> mapM cTypeOf (map paramType $ ASTResolved.funcParams func)
-            cats <- mapM cTypeOf (map paramType $ ASTResolved.funcArgs func)
-            newExtern (show symbol) crt (cpts ++ cats)
+        crt <- cTypeOf (ASTResolved.funcRetty func)
+        cpts <- map Cpointer <$> mapM cTypeOf (map paramType $ ASTResolved.funcParams func)
+        cats <- mapM cTypeOf (map paramType $ ASTResolved.funcArgs func)
+        newExtern (show symbol) crt (cpts ++ cats)
 
     forM_ (Map.toList $ funcDefs ast) $ \(symbol, func) -> do
-        when (getShapesFromFuncDef (ASTResolved.funcParams func) (ASTResolved.funcArgs func) (ASTResolved.funcRetty func) == []) $ do
-            generateFunc symbol func
-            when (sym symbol == "main") $ do
-                let typedef = Type.Typedef (SymResolved "io" "Io" 0)
-                id <- newFunction Cvoid "main" []
-                withCurID id $ case (ASTResolved.funcParams func, ASTResolved.funcArgs func) of
-                    ([], []) -> call (show symbol) []
-                    ([p], []) | typeof p == typedef -> do -- main with io
-                        io <- initialiser typedef []
-                        callWithParams [io] (show symbol) []
-                withCurID globalID (append id)
+        generateFunc symbol func
+        when (sym symbol == "main") $ do
+            let typedef = Type.Typedef (SymResolved "io" "Io" 0)
+            id <- newFunction Cvoid "main" []
+            withCurID id $ case (ASTResolved.funcParams func, ASTResolved.funcArgs func) of
+                ([], []) -> call (show symbol) []
+                ([p], []) | typeof p == typedef -> do -- main with io
+                    io <- initialiser typedef []
+                    callWithParams [io] (show symbol) []
+            withCurID globalID (append id)
 
 
 generateFunc :: MonadGenerate m => Symbol -> FuncBody -> m ()
