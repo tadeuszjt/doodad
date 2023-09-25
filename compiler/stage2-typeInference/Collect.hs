@@ -174,7 +174,10 @@ collectFuncDef symbol body = do
 
 collectCtorDef :: BoM CollectState m => Symbol -> Symbol -> Int -> m ()
 collectCtorDef symbol s@(SymResolved _ _ _) i = withErrorPrefix "collectCtorDef" $ do
-    ObjType ot <- look s KeyType -- check
+    res <- look s KeyType -- check
+    ot <- case res of
+        ObjType t       -> return t 
+        ObjTypeFunc _ t -> return t
 
     case ot of
         Tuple ts -> define (Sym $ sym symbol) (KeyField s) (ObjField i)

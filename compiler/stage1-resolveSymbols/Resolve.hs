@@ -230,9 +230,10 @@ resolveAsts asts imports = withErrorPrefix "resolve: " $ do
             typeDefs <- gets typeDefsMap
             typeFuncs <- gets typeFuncsMap
             funcDefs <- gets funcDefsMap
-            (_, ctorMap) <- runBoMTExcept Map.empty (buildCtorMap $ Map.toList typeDefs)
 
-
+            -- combine the typeDefs and typeFuncs map to build the ctorMap
+            ctorMap <- fmap snd $ runBoMTExcept Map.empty $ 
+                buildCtorMap $ Map.toList $ Map.union typeDefs (Map.map snd typeFuncs)
 
             supply <- gets supply
             return $ ASTResolved
