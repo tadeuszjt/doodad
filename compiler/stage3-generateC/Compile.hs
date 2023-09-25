@@ -91,9 +91,10 @@ generate :: MonadGenerate m => ASTResolved -> m ()
 generate ast = do
     let typedefs = typeDefs ast
 
-    -- copy ctors
+    -- copy members from resolved ast
     modify $ \s -> s { ctors = ctorDefs ast }
     modify $ \s -> s { typedefs = typeDefs ast }
+    modify $ \s -> s { typefuncs = typeFuncs ast } 
 
     -- define non-generic types
     orderedSymbols <- getSymbolsOrderedByDependencies typedefs
@@ -586,6 +587,7 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
                 assign "table" $ Value typ (C.Initialiser
                     ([ C.Member (valExpr $ head vals) "len"
                     , C.Member (valExpr $ head vals) "cap"] ++ ptrs))
+            _ -> error (show base)
 
 
     S.Conv _ t [expr] -> do

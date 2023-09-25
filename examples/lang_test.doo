@@ -218,6 +218,17 @@ fn testConst()
     assert(nums[1] == 3)
     assert(nums[0] == 1)
 
+fn testTypeFunction()
+    type[T] Box T
+    let box1 = (2):Box(i64)
+
+    type[T] Box2 (T, T)
+    let box2 = (2, 3):Box2(i64)
+    let box3 = (2, 3):Box2(f64)
+
+    let(x:i64, y) = box2
+    let(a:f64, b) = box3
+
 
 fn {io:Io} main()
     testNothing()
@@ -243,4 +254,5 @@ fn {io:Io} main()
     testTableSetElems()
     testLexerTwoDots()
     testConst()
+    testTypeFunction()
     io.putStrLn("finished")

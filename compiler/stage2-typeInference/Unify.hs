@@ -16,22 +16,36 @@ import Monad
 import Error
 import Apply
 import Symbol
+import Collect
 
 
-type TypeMap = Map.Map Symbol Type
+data UnifyState
+    = UnifyState
+        { typeMap      :: Map.Map Symbol Collect.Object
+        }
 
 
-baseTypeOf :: BoM TypeMap m => Type -> m (Maybe Type)
+baseTypeOf :: BoM UnifyState m => Type -> m (Maybe Type)
 baseTypeOf typ = case typ of
     Typedef symbol -> do
-        resm <- gets $ Map.lookup symbol
-        assert (isJust resm) $ "Cannot find symbol: " ++ show symbol
-        baseTypeOf (fromJust resm)
-    Type x         -> return Nothing
-    t              -> return (Just t)
+        resm <- gets $ Map.lookup symbol . typeMap
+        case resm of
+            Nothing                -> fail $ "Cannot find symbol: " ++ show symbol
+            Just (ObjTypeFunc _ _) -> fail $ "symbol is type function: " ++ show symbol
+            Just (ObjType t)       -> baseTypeOf t
+    TypeApply symbol ts -> do
+        resm <- gets $ Map.lookup symbol . typeMap
+        case resm of
+            Nothing                 -> fail $ "Cannot find symbol: " ++ show symbol
+            Just (ObjType _)        -> fail $ "symbol is type, not function: " ++ show symbol
+            Just (ObjTypeFunc ss t) -> do
+                assert (length ts == length ss) "invalid type function args"
+                baseTypeOf $ applyTypeFunction (Map.fromList $ zip ss ts) t
+    Type x -> return Nothing
+    t      -> return (Just t)
 
 
-unifyOne :: BoM TypeMap m => TextPos -> Constraint -> m [(Type, Type)]
+unifyOne :: BoM UnifyState m => TextPos -> Constraint -> m [(Type, Type)]
 unifyOne pos constraint = withPos pos $ case constraint of
     ConsEq t1 t2 -> case (t1, t2) of
         _ | t1 == t2                    -> return []
@@ -111,7 +125,7 @@ unifyOne pos constraint = withPos pos $ case constraint of
 
 
 
-unify :: BoM TypeMap m => [(Constraint, TextPos)] -> m [(Type, Type)]
+unify :: BoM UnifyState m => [(Constraint, TextPos)] -> m [(Type, Type)]
 unify []     = return []
 unify (x:xs) = do
     subs <- unify xs
@@ -119,7 +133,7 @@ unify (x:xs) = do
     return (s ++ subs)
 
 
-unifyDefault :: BoM TypeMap m => [(Constraint, TextPos)] -> m [(Type, Type)]
+unifyDefault :: BoM UnifyState m => [(Constraint, TextPos)] -> m [(Type, Type)]
 unifyDefault []     = return []
 unifyDefault (x:xs) = do
     subs <- unifyDefault xs

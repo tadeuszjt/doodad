@@ -45,6 +45,7 @@ data GenerateState
         , supply :: Map.Map String Int
         , ctors  :: Map.Map Symbol (Type.Type, Int)
         , typedefs :: Map.Map Symbol Type.Type
+        , typefuncs :: Map.Map Symbol ([Symbol], Type.Type)
         , symTab :: Map.Map String Value
         , tableAppendFuncs :: Map.Map Type.Type String
         }
@@ -56,6 +57,7 @@ initGenerateState modName
         , supply = Map.empty
         , ctors  = Map.empty
         , typedefs = Map.empty
+        , typefuncs = Map.empty
         , symTab = Map.empty
         , tableAppendFuncs = Map.empty
         }
@@ -271,6 +273,15 @@ baseTypeOf a = case typeof a of
         resm <- Map.lookup s <$> gets typedefs
         when (isNothing resm) $ fail $ "baseTypeOf: " ++ show (typeof a)
         baseTypeOf (fromJust resm)
+
+    Type.TypeApply symbol ts -> do
+        resm <- Map.lookup symbol <$> gets typefuncs
+        case resm of
+            Nothing             -> fail $ "baseTypeOf: " ++ show (typeof a)
+            Just (symbols, typ) -> do
+                assert (length ts == length symbols) "Invalid type function arguments"
+                baseTypeOf $ applyTypeFunction (Map.fromList $ zip symbols ts) typ
+        
     _ -> return (typeof a)
     _ -> error (show $ typeof a)
 
@@ -312,6 +323,13 @@ cTypeOf a = case typeof a of
         let pts = zipWith (\ct i -> C.Param ("r" ++ show i) (Cpointer ct)) cts [0..]
         getTypedef "table" $ Cstruct (C.Param "len" Cint64_t:C.Param "cap" Cint64_t:pts)
 
+    Type.TypeApply symbol ts -> do
+        typeFuncs <- gets typefuncs
+        let (ss, t) = typeFuncs Map.! symbol
+        assert(length ts == length ss) "invalid number of type arguments"
+        let t' = Type.applyTypeFunction (Map.fromList $ zip ss ts) t
+        getTypedef (Symbol.sym symbol) =<< cTypeOf t'
+
     _ -> error (show $ typeof a)
     where
         fieldType f = case f of
@@ -319,6 +337,8 @@ cTypeOf a = case typeof a of
             FieldType t -> t
             FieldCtor [t] -> t
             FieldCtor ts -> Type.Tuple ts
+
+
 
 getTypedef :: MonadGenerate m => String -> C.Type -> m C.Type
 getTypedef suggestion typ = do

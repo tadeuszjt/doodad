@@ -40,13 +40,14 @@ type SymTab = SymTab.SymTab String SymKey Symbol
 
 data ResolveState
     = ResolveState
-        { symTab      :: SymTab
-        , imports     :: [ASTResolved]
-        , modName     :: String
-        , supply      :: Map.Map String Int
-        , typeDefsMap :: Map.Map Symbol AnnoType
-        , generics    :: Set.Set Symbol
-        , funcDefsMap :: Map.Map Symbol FuncBody
+        { symTab       :: SymTab
+        , imports      :: [ASTResolved]
+        , modName      :: String
+        , supply       :: Map.Map String Int
+        , typeDefsMap  :: Map.Map Symbol AnnoType
+        , generics     :: Set.Set Symbol
+        , funcDefsMap  :: Map.Map Symbol FuncBody
+        , typeFuncsMap :: Map.Map Symbol ([Symbol], AnnoType)
         }
 
 initResolveState imports modName typeImports = ResolveState
@@ -57,6 +58,7 @@ initResolveState imports modName typeImports = ResolveState
     , typeDefsMap   = Map.empty
     , generics      = Set.empty
     , funcDefsMap   = Map.empty
+    , typeFuncsMap  = Map.empty
     }
 
 
@@ -114,13 +116,13 @@ define sym key symbol = do
     modify $ \s -> s { symTab = SymTab.insert sym key symbol (symTab s) }
 
 
-pushSymTab :: BoM ResolveState m => m ()
-pushSymTab = do
+pushSymbolTable :: BoM ResolveState m => m ()
+pushSymbolTable = do
     modify $ \s -> s { symTab = SymTab.push (symTab s) }
 
 
-popSymTab :: BoM ResolveState m => m ()
-popSymTab = do
+popSymbolTable :: BoM ResolveState m => m ()
+popSymbolTable = do
     modify $ \s -> s { symTab = SymTab.pop (symTab s) }
 
 
@@ -142,6 +144,11 @@ buildTypeImportMap :: BoM (Map.Map Symbol Type) m => [ASTResolved] -> m ()
 buildTypeImportMap imports = do
     forM_ imports $ \imprt -> do
         modify $ Map.union (typeDefs imprt)
+
+buildTypeFuncImportMap :: BoM (Map.Map Symbol ([Symbol], Type)) m => [ASTResolved] -> m ()
+buildTypeFuncImportMap imports = do
+    forM_ imports $ \imprt -> do
+        modify $ Map.union (typeFuncs imprt)
 
 buildFuncImportMap :: BoM (Map.Map Symbol FuncKey) m => [ASTResolved] -> m ()
 buildFuncImportMap imports = do
@@ -182,6 +189,7 @@ resolveAsts asts imports = withErrorPrefix "resolve: " $ do
             let includes   = [ s | inc@(CInclude s) <- concat $ map astImports asts ]
             let links      = [ s | link@(CLink s) <- concat $ map astImports asts ]
             let typedefs   = [ stmt | stmt@(AST.Typedef _ _ _) <- concat $ map astStmts asts ]
+            let typedef2s  = [ stmt | stmt@(AST.Typedef2 _ _ _ _) <- concat $ map astStmts asts ]
             let funcdefs   = [ stmt | stmt@(AST.FuncDef _ _ _ _ _ _) <- concat $ map astStmts asts ]
             let consts     = [ stmt | stmt@(AST.Const _ _ _) <- concat $ map astStmts asts ]
 
@@ -209,15 +217,18 @@ resolveAsts asts imports = withErrorPrefix "resolve: " $ do
                 when (isNothing resm) $ define (sym symbol) KeyFunc (Sym $ sym $ symbol)
 
             -- get imports
-            (_, typeImportMap) <- runBoMTExcept Map.empty (buildTypeImportMap imports)
-            (_, funcImportMap) <- runBoMTExcept Map.empty (buildFuncImportMap imports)
-            (_, ctorImportMap) <- runBoMTExcept Map.empty (buildCtorImportMap imports)
+            (_, typeImportMap)     <- runBoMTExcept Map.empty (buildTypeImportMap imports)
+            (_, typeFuncImportMap) <- runBoMTExcept Map.empty (buildTypeFuncImportMap imports)
+            (_, funcImportMap)     <- runBoMTExcept Map.empty (buildFuncImportMap imports)
+            (_, ctorImportMap)     <- runBoMTExcept Map.empty (buildCtorImportMap imports)
 
             mapM resolveTypeDef typedefs
+            mapM resolveTypeDef2 typedef2s
             mapM_ resolveFuncDef funcdefs
 
 
             typeDefs <- gets typeDefsMap
+            typeFuncs <- gets typeFuncsMap
             funcDefs <- gets funcDefsMap
             (_, ctorMap) <- runBoMTExcept Map.empty (buildCtorMap $ Map.toList typeDefs)
 
@@ -232,6 +243,7 @@ resolveAsts asts imports = withErrorPrefix "resolve: " $ do
                 , constDefs   = Map.fromList constDefsList
                 , funcDefs    = funcDefs
                 , typeDefs    = Map.union typeImportMap (Map.map annoToType typeDefs)
+                , typeFuncs   = Map.union typeFuncImportMap (Map.map (\(x, y) -> (x, annoToType y)) typeFuncs)
                 , ctorDefs    = Map.union ctorImportMap ctorMap
                 , symSupply   = supply
                 }
@@ -241,12 +253,12 @@ resolveAsts asts imports = withErrorPrefix "resolve: " $ do
 -- defines in funcDefsMap
 resolveFuncDef :: BoM ResolveState m => AST.Stmt -> m Symbol
 resolveFuncDef (FuncDef pos params (Sym sym) args retty blk) = withPos pos $ do
-    pushSymTab
+    pushSymbolTable
     params' <- mapM resolve params
     args' <- mapM resolve args
     retty' <- resolve retty
     blk' <- resolve blk
-    popSymTab
+    popSymbolTable
 
     symbol' <- genSymbol sym
     let funcBody = FuncBody {
@@ -284,7 +296,6 @@ resolveTypeDef (AST.Typedef pos (Sym sym) anno) = do
             xs' <- forM xs $ \x -> case x of
                 ADTFieldMember (Sym s) ts -> do
                     s' <- genSymbol s
-                    define s KeyFunc s'
                     ts' <- mapM resolve ts
                     return $ ADTFieldMember s' ts'
                 ADTFieldType t -> ADTFieldType <$> resolve t
@@ -293,7 +304,70 @@ resolveTypeDef (AST.Typedef pos (Sym sym) anno) = do
 
         _ -> fail $ "invalid anno: " ++ show anno
 
+    extraSpecialKeyFuncDefiningFunction anno'
+
     modify $ \s -> s { typeDefsMap = Map.insert symbol anno' (typeDefsMap s) }
+
+    where
+        -- This is the strange case of the ADTFieldMember getting defined with a KeyFunc. Needs Tidying
+        extraSpecialKeyFuncDefiningFunction :: BoM ResolveState m => AST.AnnoType -> m ()
+        extraSpecialKeyFuncDefiningFunction anno' = case anno' of
+            AnnoADT xs -> forM_ xs $ \x -> case x of
+                ADTFieldMember symbol' ts' -> do
+                    define (Symbol.sym symbol') KeyFunc symbol'
+                _ -> return ()
+            _ -> return ()
+
+
+-- modifies the typedef function and inserts it into typeFuncsMap
+resolveTypeDef2 :: BoM ResolveState m => AST.Stmt -> m ()
+resolveTypeDef2 (AST.Typedef2 pos args (Sym sym) anno) = do
+    symbol <- genSymbol sym
+    define sym KeyType symbol
+    define sym KeyFunc symbol
+
+    -- Here we push the symbol table in order to temporarily define the type arguments as typedefs
+    pushSymbolTable
+    argSymbols <- forM args $ \arg -> do
+        argSymbol <- genSymbol arg
+        define arg KeyType argSymbol
+        return argSymbol
+
+    anno' <- case anno of
+        AnnoType t -> AnnoType <$> resolve t
+        AnnoTuple ps -> do 
+            ps' <- forM ps $ \(AST.Param pos (Sym s) t) -> do
+                s' <- genSymbol s
+                AST.Param pos s' <$> resolve t
+            return $ AnnoTuple ps'
+
+        AnnoTable ps -> do
+            ps' <- forM ps $ \(AST.Param pos (Sym s) t) -> do
+                s' <- genSymbol s
+                AST.Param pos s' <$> resolve t
+            return $ AnnoTable ps'
+
+        AnnoADT xs -> do
+            xs' <- forM xs $ \x -> case x of
+                ADTFieldMember (Sym s) ts -> do
+                    s' <- genSymbol s
+                    ts' <- mapM resolve ts
+                    return $ ADTFieldMember s' ts'
+                ADTFieldType t -> ADTFieldType <$> resolve t
+                ADTFieldNull -> return ADTFieldNull
+            return $ AnnoADT xs'
+    popSymbolTable
+
+    extraSpecialKeyFuncDefiningFunction anno'
+    modify $ \s -> s { typeFuncsMap = Map.insert symbol (argSymbols, anno') (typeFuncsMap s) }
+    where
+        extraSpecialKeyFuncDefiningFunction :: BoM ResolveState m => AST.AnnoType -> m ()
+        extraSpecialKeyFuncDefiningFunction anno' = case anno' of
+            AnnoADT xs -> forM_ xs $ \x -> case x of
+                ADTFieldMember symbol' ts' -> do
+                    define (Symbol.sym symbol') KeyFunc symbol'
+                _ -> return ()
+            _ -> return ()
 
 
 instance Resolve Stmt where
@@ -312,10 +386,13 @@ instance Resolve Stmt where
                 (funcRetty body)
                 (funcStmt body)
 
+        AST.Typedef2 pos args symbol anno -> do
+            resolveTypeDef2 stmt
+            return $ AST.Typedef pos symbol anno -- essentially discarded
 
         AST.Typedef pos symbol anno -> do 
             resolveTypeDef stmt
-            return $ AST.Typedef pos symbol anno
+            return $ AST.Typedef pos symbol anno -- essentially discarded
 
         Const pos (Sym s) expr -> do
             symbol' <- genSymbol s
@@ -323,9 +400,9 @@ instance Resolve Stmt where
             Const pos symbol' <$> resolve expr
 
         Block stmts -> do
-            pushSymTab
+            pushSymbolTable
             stmts' <- mapM resolve stmts
-            popSymTab
+            popSymbolTable
             return $ Block stmts'
 
         Return pos mexpr -> case mexpr of
@@ -338,20 +415,20 @@ instance Resolve Stmt where
             return $ Assign pos pat' expr'
         
         If pos condition stmt melse -> do
-            pushSymTab
+            pushSymbolTable
             condition' <- resolve condition
             stmt' <- resolve stmt
-            popSymTab
-            pushSymTab
+            popSymbolTable
+            pushSymbolTable
             melse' <- maybe (return Nothing) (fmap Just . resolve) melse
-            popSymTab
+            popSymbolTable
             return $ If pos condition' stmt' melse'
 
         While pos condition stmt -> do
-            pushSymTab
+            pushSymbolTable
             condition' <- resolve condition
             stmt' <- resolve stmt
-            popSymTab
+            popSymbolTable
             return $ While pos condition' stmt' 
 
         SetOp pos op index expr -> do
@@ -362,19 +439,19 @@ instance Resolve Stmt where
         Switch pos expr cases -> do
             expr' <- resolve expr
             cases' <- forM cases $ \(pat, stmt) -> do
-                pushSymTab
+                pushSymbolTable
                 pat' <- resolve pat
                 stmt' <- resolve stmt
-                popSymTab
+                popSymbolTable
                 return (pat', stmt')
             return $ Switch pos expr' cases'
         
         For pos expr mpattern blk -> do
-            pushSymTab
+            pushSymbolTable
             expr' <- resolve expr
             mpattern' <- maybe (return Nothing) (fmap Just . resolve) mpattern
             blk' <- resolve blk
-            popSymTab
+            popSymbolTable
             return $ For pos expr' mpattern' blk'
 
         Data pos (Sym sym) typ mexpr -> do
@@ -468,6 +545,10 @@ instance Resolve Type where
             return $ Type.Typedef symbol'
         Type.ADT fs         -> Type.ADT <$>  mapM resolve fs
         Type.Range t        -> Type.Range <$> resolve t
+        Type.TypeApply s ts -> do
+            symbol' <- look s KeyType
+            ts' <- mapM resolve ts
+            return $ Type.TypeApply symbol' ts'
         _ -> error $ "resolve type: " ++ show typ
 
 instance Resolve Expr where

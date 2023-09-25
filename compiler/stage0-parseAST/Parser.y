@@ -131,6 +131,9 @@ imports : {- empty -}                       { [] }
 ---------------------------------------------------------------------------------------------------
 -- Statements -------------------------------------------------------------------------------------
 
+idents1 : ident             { [tokStr $1] }
+        | ident ',' idents1 { (tokStr $1):($3) }
+
 symbol : ident                              { (tokPos $1, Sym (tokStr $1)) }
        | ident '::' ident                   { (tokPos $3, SymQualified (tokStr $1) (tokStr $3)) }
 
@@ -140,14 +143,13 @@ symbols1 : symbol               { [$1] }
 mfnrec : {-empty-}                          { [] }
        | '{' paramsA '}'                    { $2 }
 
-
 line : let pattern '=' expr                         { S.Assign (tokPos $1) $2 $4 }  
      | index '=' expr                               { S.SetOp (tokPos $2) S.Eq $1 $3 }
      | index '+=' expr                              { S.SetOp (tokPos $2) S.PlusEq $1 $3 }
      | index                                        { S.ExprStmt $1 }
      | type symbol anno_t                           { S.Typedef (fst $2) (snd $2) $3 }
+     | type '[' idents1 ']' symbol anno_t           { S.Typedef2 (fst $5) $3 (snd $5) $6 }
      | data symbol type_                            { S.Data (tokPos $1) (snd $2) $3 Nothing }
-     --| data symbol type_ '=' mexpr                      { S.Data (tokPos $1) (snd $2) $3 $4 }
      | return mexpr                                 { S.Return (tokPos $1) $2 }
      | embed_c                                      { S.EmbedC (tokPos $1) (tokStr $1) }
      | const symbol '=' expr                        { S.Const (tokPos $1) (snd $2) $4 }

@@ -17,7 +17,6 @@ import Symbol
 import qualified Resolve
 import ASTResolved
 import Annotate hiding (genType)
-import Unify
 import Apply
 
 import qualified Debug.Trace
@@ -36,6 +35,7 @@ data SymKey
 data Object
     = ObjVar Type
     | ObjType Type
+    | ObjTypeFunc [Symbol] Type
     | ObjFunc 
     | ObjField Int
     | ObjConst S.Expr
@@ -136,6 +136,9 @@ collectAST ast = do
     forM (Map.toList $ typeDefs ast) $ \(symbol, t) -> do
         collectTypedef symbol t
 
+    forM (Map.toList $ typeFuncs ast) $ \(symbol, (ss, t)) -> do
+        collectTypeFunc symbol ss t
+
     forM (Map.toList $ ctorDefs ast) $ \(symbol, (t, i)) -> do
         collectCtorDef symbol (t, i)
 
@@ -191,6 +194,14 @@ collectTypedef symbol typ = do
         Tuple ts -> define symbol (KeyFunc [] ts typedef) ObjFunc
         t        -> define symbol (KeyFunc [] [t] typedef) ObjFunc
 
+collectTypeFunc :: BoM CollectState m => Symbol -> [Symbol] -> Type -> m ()
+collectTypeFunc symbol ss typ = do
+    let typedef = Typedef symbol
+    define symbol KeyType (ObjTypeFunc ss typ)
+-- TODO do i need this
+--    case typ of
+--        Tuple ts -> define symbol (KeyFunc [] ts typedef) ObjFunc
+--        t        -> define symbol (KeyFunc [] [t] typedef) ObjFunc
 
 collectStmt :: BoM CollectState m => S.Stmt -> m ()
 collectStmt stmt = collectPos stmt $ case stmt of
