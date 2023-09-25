@@ -157,23 +157,23 @@ buildFuncImportMap imports = do
             False <- Map.member symbol <$> get
             modify $ Map.insert symbol (funcKeyFromBody (sym symbol) body)
 
-buildCtorImportMap :: BoM (Map.Map Symbol (Type, Int)) m => [ASTResolved] -> m ()
+buildCtorImportMap :: BoM (Map.Map Symbol (Symbol, Int)) m => [ASTResolved] -> m ()
 buildCtorImportMap imports = do
     forM_ imports $ \imprt -> do
-        forM_ (Map.toList $ ctorDefs imprt) $ \(symbol, (t, i)) -> do
+        forM_ (Map.toList $ ctorDefs imprt) $ \(symbol, (typeSymbol, i)) -> do
             when (Symbol.mod symbol == moduleName imprt) $ do
-                modify $ Map.insert symbol (t, i)
+                modify $ Map.insert symbol (typeSymbol, i)
 
-buildCtorMap :: BoM (Map.Map Symbol (Type, Int)) m => [(Symbol, AnnoType)] -> m ()
+buildCtorMap :: BoM (Map.Map Symbol (Symbol, Int)) m => [(Symbol, AnnoType)] -> m ()
 buildCtorMap list = do
     forM_ list $ \(symbol, anno) -> case anno of
         AnnoADT xs -> forM_ (zip xs [0..]) $ \(x, i) -> case x of
-            ADTFieldMember s t -> modify $ Map.insert s (Type.Typedef symbol, i)
+            ADTFieldMember s t -> modify $ Map.insert s (symbol, i)
             _ -> return ()
         AnnoTuple xs -> forM_ (zip xs [0..]) $ \(Param _ s t, i) -> 
-            modify $ Map.insert s (Type.Typedef symbol,  i)
+            modify $ Map.insert s (symbol,  i)
         AnnoTable xs -> forM_ (zip xs [0..]) $ \(Param _ s t, i) -> 
-            modify $ Map.insert s (Type.Typedef symbol,  i)
+            modify $ Map.insert s (symbol,  i)
         AnnoType t -> return ()
         _ -> error (show anno)
 

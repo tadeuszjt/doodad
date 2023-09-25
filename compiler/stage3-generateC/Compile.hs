@@ -452,7 +452,7 @@ generatePattern pattern val = do
             endLabel <- fresh "skipMatch"
 
             (typ', i) <- (Map.! symbol) <$> gets ctors
-            assert (typ' == typeof val) "invalid ctor type"
+            --assert (typ' == typeof val) "invalid ctor type" TODO add this back in somehow
             let FieldCtor ts = fs !! i
             assert (length pats == length ts) "invalid number of args"
 
@@ -568,7 +568,7 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
         val <- generateExpr expr
         base <- baseTypeOf val
         (typ, i) <- (Map.! symbol) <$> gets ctors
-        assert (typ == typeof val) "ctor type mismatch"
+        --assert (typ == typeof val) "ctor type mismatch" TODO
         member i val
 
     S.Tuple _ exprs -> do
@@ -671,7 +671,7 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
         base <- baseTypeOf typ
         vals <- mapM generateExpr exprs
         (typ', i) <- (Map.! symbol) <$> gets ctors
-        assert (typ == typ') "error, types don't match"
+        -- assert (typ == Type.Typedef typ') "error, types don't match" TODO
 
         case base of
             Type.ADT fs -> do

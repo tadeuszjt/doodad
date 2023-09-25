@@ -229,6 +229,11 @@ fn testTypeFunction()
     let(x:i64, y) = box2
     let(a:f64, b) = box3
 
+fn testTypeFunctionMembers()
+    type[T] Vec2(x:T, y:T)
+    let vec = (1, 2):Vec2(i32)
+    let 2:i32 = vec.y
+
 
 fn {io:Io} main()
     testNothing()
@@ -255,4 +260,5 @@ fn {io:Io} main()
     testLexerTwoDots()
     testConst()
     testTypeFunction()
+    testTypeFunctionMembers()
     io.putStrLn("finished")

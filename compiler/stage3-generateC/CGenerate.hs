@@ -43,7 +43,7 @@ data GenerateState
         { moduleName :: String
         , tuples :: Map.Map C.Type String
         , supply :: Map.Map String Int
-        , ctors  :: Map.Map Symbol (Type.Type, Int)
+        , ctors  :: Map.Map Symbol (Symbol, Int)
         , typedefs :: Map.Map Symbol Type.Type
         , typefuncs :: Map.Map Symbol ([Symbol], Type.Type)
         , symTab :: Map.Map String Value

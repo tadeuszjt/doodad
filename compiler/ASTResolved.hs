@@ -16,7 +16,7 @@ data ASTResolved
         , constDefs   :: Map.Map Symbol Expr             -- defined consts
         , typeDefs    :: Map.Map Symbol Type             -- defined types
         , typeFuncs   :: Map.Map Symbol ([Symbol], Type) -- defined type functions
-        , ctorDefs    :: Map.Map Symbol (Type, Int)      -- defined ctors
+        , ctorDefs    :: Map.Map Symbol (Symbol, Int)    -- defined ctors
         , funcImports :: Map.Map Symbol FuncKey          -- imported funcs
         , funcDefs    :: Map.Map Symbol FuncBody         -- defined functions
         , symSupply   :: Map.Map String Int              -- type supply from resovle

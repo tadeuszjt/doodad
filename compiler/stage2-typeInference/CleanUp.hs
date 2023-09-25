@@ -197,22 +197,26 @@ resolveFieldAccess (AST.Field pos expr (Sym sym)) = do
         -- (tup:typeSymbol).x:i64
         -- find mod_x_n
         ctors <- gets ctorDefs
-        res <- Map.toList . Map.filterWithKey (\k a -> tupTypeMatches a && fieldSymMatches k)
-            <$> gets ctorDefs
+        res <- fmap catMaybes $ forM (Map.toList ctors) $ \(symbol, (typeSymbol, i)) -> do
+            exprTypeSymbolm <- case typeof expr of
+                Type.Typedef s -> return (Just s)
+                Type.TypeApply s _ -> return (Just s)
+                _ -> return Nothing
+            case exprTypeSymbolm of
+                Nothing -> return Nothing
+                Just exprTypeSymbol -> do
+                    if Symbol.sym symbol == sym && exprTypeSymbol == typeSymbol then
+                        return $ Just symbol
+                    else return Nothing
+
         case res of
-            []            -> do
+            [] -> do
                 expr' <- compileExpr expr
                 return $ Field pos expr' (Sym sym)
             (a:b:xs)      -> fail "ambiguous"
-            [(symbol, _)] -> do
+            [symbol] -> do
                 expr' <- compileExpr expr
                 return $ Field pos expr' symbol
-        where
-            tupTypeMatches :: (Type, Int) -> Bool
-            tupTypeMatches (t, _) = t == typeof expr
-
-            fieldSymMatches :: Symbol -> Bool
-            fieldSymMatches symbol = Symbol.sym symbol == sym
 
 
 compileExpr :: BoM ASTResolved m => AST.Expr -> m Expr

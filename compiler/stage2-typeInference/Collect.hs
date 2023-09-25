@@ -28,7 +28,7 @@ data SymKey
     = KeyVar
     | KeyType
     | KeyFunc [Type] [Type] Type
-    | KeyField Type
+    | KeyField Symbol -- Field belonging to (Typedef Symbol)
     | KeyAdtField
     deriving (Show, Eq, Ord)
 
@@ -139,8 +139,8 @@ collectAST ast = do
     forM (Map.toList $ typeFuncs ast) $ \(symbol, (ss, t)) -> do
         collectTypeFunc symbol ss t
 
-    forM (Map.toList $ ctorDefs ast) $ \(symbol, (t, i)) -> do
-        collectCtorDef symbol (t, i)
+    forM (Map.toList $ ctorDefs ast) $ \(symbol, (typeDefSymbol, i)) -> do
+        collectCtorDef symbol typeDefSymbol i
 
     forM (Map.toList $ constDefs ast) $ \(symbol, expr) -> do
         define symbol KeyVar (ObjConst expr)
@@ -172,15 +172,17 @@ collectFuncDef symbol body = do
     modify $ \s -> s { symTab = SymTab.pop (symTab s) }
 
 
-collectCtorDef :: BoM CollectState m => Symbol -> (Type, Int) -> m ()
-collectCtorDef symbol (Typedef s@(SymResolved _ _ _), i) = withErrorPrefix "collectCtorDef" $ do
+collectCtorDef :: BoM CollectState m => Symbol -> Symbol -> Int -> m ()
+collectCtorDef symbol s@(SymResolved _ _ _) i = withErrorPrefix "collectCtorDef" $ do
     ObjType ot <- look s KeyType -- check
-    define symbol KeyAdtField (ObjField i)
+
     case ot of
-        Tuple ts -> define (Sym $ sym symbol) (KeyField $ Typedef s) (ObjField i)
-        Table ts -> define (Sym $ sym symbol) (KeyField $ Typedef s) (ObjField i)
+        Tuple ts -> define (Sym $ sym symbol) (KeyField s) (ObjField i)
+        Table ts -> define (Sym $ sym symbol) (KeyField s) (ObjField i)
         ADT fs   -> case fs !! i of
-            FieldCtor ts -> define symbol (KeyFunc [] ts $ Typedef s) ObjFunc
+            FieldCtor ts -> do
+                define symbol (KeyFunc [] ts $ Typedef s) ObjFunc
+                define symbol KeyAdtField (ObjField i)
             _            -> return ()
             
         _ -> return ()
@@ -464,13 +466,16 @@ collectExpr (S.AExpr exprType expr) = collectPos expr $ case expr of
         case typeof e of
             Type x         -> return ()
             Typedef symbol -> do
-                ObjField i  <- look (Sym sym) $ KeyField (typeof e)
+                ObjField i  <- look (Sym sym) . KeyField =<< getTypeSymbol (typeof e)
+                collectField exprType i (typeof e)
+            TypeApply symbol _ -> do
+                ObjField i  <- look (Sym sym) . KeyField =<< getTypeSymbol (typeof e)
                 collectField exprType i (typeof e)
             _ -> fail "invalid field access"
         collectExpr e
 
     S.Field _ e symbol@(SymResolved _ _ _) -> do
-        ObjField i  <- look (Sym $ Symbol.sym symbol) $ KeyField (typeof e)
+        ObjField i  <- look (Sym $ Symbol.sym symbol) . KeyField =<< getTypeSymbol (typeof e)
         collectField exprType i (typeof e)
         collectExpr e
 
