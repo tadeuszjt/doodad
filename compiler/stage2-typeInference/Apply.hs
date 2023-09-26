@@ -14,7 +14,8 @@ import ASTResolved
 -- substitution: (id, t) or (x, u)
 substitute :: Type -> Type -> Type -> Type
 substitute u x typ = case typ of
-    Type _ | typ == x    -> u
+    _ | typ == x         -> u  -- this one replaces regardless of type
+    --Type _ | typ == x    -> u
     Type _               -> typ
     Void                 -> typ
     _ | isSimple typ     -> typ

@@ -27,7 +27,6 @@ type SymTab = SymTab.SymTab Symbol SymKey Object
 data SymKey
     = KeyVar
     | KeyType
-    | KeyFunc [Type] [Type] Type
     | KeyFuncGeneric [Symbol] [Type] [Type] Type
     | KeyField Symbol -- Field belonging to (Typedef Symbol)
     | KeyAdtField
@@ -143,13 +142,13 @@ collectAST ast = do
         define symbol KeyVar (ObjConst expr)
 
     forM (Map.toList $ funcImports ast) $ \(symbol, key@(ps, _, as, rt)) -> 
-        define symbol (KeyFunc ps as rt) ObjFunc
+        define symbol (KeyFuncGeneric [] ps as rt) ObjFunc
 
     forM (Map.toList $ funcDefsGeneric ast) $ \(symbol, body) -> do
-        define symbol (KeyFunc (map typeof $ funcParams body) (map typeof $ funcArgs body) (funcRetty body)) ObjFunc
+        define symbol (KeyFuncGeneric (funcTypeArgs body) (map typeof $ funcParams body) (map typeof $ funcArgs body) (funcRetty body)) ObjFunc
 
     forM (Map.toList $ funcDefs ast) $ \(symbol, body) -> do
-        define symbol (KeyFunc (map typeof $ funcParams body) (map typeof $ funcArgs body) (funcRetty body)) ObjFunc
+        define symbol (KeyFuncGeneric [] (map typeof $ funcParams body) (map typeof $ funcArgs body) (funcRetty body)) ObjFunc
 
     forM_ (Map.toList $ funcDefs ast) $ \(symbol, body) ->
         collectFuncDef symbol body
@@ -180,7 +179,7 @@ collectCtorDef symbol s@(SymResolved _ _ _) i = withErrorPrefix "collectCtorDef"
         Table ts -> define (Sym $ sym symbol) (KeyField s) (ObjField i)
         ADT fs   -> case fs !! i of
             FieldCtor ts -> do
-                define symbol (KeyFunc [] ts $ TypeApply s []) ObjFunc -- TODO add generic
+                define symbol (KeyFuncGeneric [] [] ts $ TypeApply s []) ObjFunc -- TODO add generic
                 define symbol KeyAdtField (ObjField i)
             _            -> return ()
             
@@ -192,8 +191,8 @@ collectTypedef symbol typ = do
     let typedef = TypeApply symbol []
     define symbol KeyType (ObjTypeFunc [] typ)
     case typ of
-        Tuple ts -> define symbol (KeyFunc [] ts typedef) ObjFunc
-        t        -> define symbol (KeyFunc [] [t] typedef) ObjFunc
+        Tuple ts -> define symbol (KeyFuncGeneric [] [] ts typedef) ObjFunc
+        t        -> define symbol (KeyFuncGeneric [] [] [t] typedef) ObjFunc
 
 collectTypeFunc :: BoM CollectState m => Symbol -> [Symbol] -> Type -> m ()
 collectTypeFunc symbol ss typ = do
@@ -327,7 +326,16 @@ collectPattern pattern typ = collectPos pattern $ case pattern of
 
 collectCall :: BoM CollectState m => Type -> [S.Expr] -> Symbol -> [S.Expr] -> m ()
 collectCall exprType params symbol args = do -- can be resolved or sym
-    keys <- filter keyCouldMatch <$> getKeysWithMatchingSymbol symbol
+    keysWithSameSymbol <- getKeysWithMatchingSymbol symbol
+    keysWithReplacedGenerics <- fmap catMaybes $ forM keysWithSameSymbol $ \key -> case key of
+        KeyFuncGeneric [] _ _ _ -> return $ Just key
+        KeyFuncGeneric _ _ _ _ -> Just <$> replaceGenericsInFuncKey key
+        _ -> return Nothing
+
+    when (Symbol.sym symbol == "add") $ do
+        liftIO $ putStrLn $ "here: " ++ show keysWithReplacedGenerics
+
+    let keys = filter keyCouldMatch keysWithReplacedGenerics
     assert (keys /= []) $ "no keys for: " ++ show symbol
 
     collectIfOneDef keys
@@ -347,7 +355,7 @@ collectCall exprType params symbol args = do -- can be resolved or sym
 
 
         keyCouldMatch :: SymKey -> Bool
-        keyCouldMatch key@(KeyFunc tparams tas tr) =
+        keyCouldMatch key@(KeyFuncGeneric [] tparams tas tr) =
             sameArgLengths key
             && all (== True) (zipWith typesCouldMatch tparams $ map typeof params)
             && all (== True) (zipWith typesCouldMatch tas $ map typeof args)
@@ -355,42 +363,41 @@ collectCall exprType params symbol args = do -- can be resolved or sym
         keyCouldMatch _ = False
 
 
---        replaceKeyGeneric :: SymKey -> SymKey
---        replaceKeyGeneric (KeyFunc paramTypes argTypes returnType) = (KeyFunc paramTypes argTypes returnType)
---        replaceKeyGeneric (KeyGeneric typeArgs paramTypes argTypes returnType) =
---            KeyFunc (
-
-
         sameArgLengths :: SymKey -> Bool
-        sameArgLengths (KeyFunc ps as rt)          = length ps == length params && length as == length args
-        sameArgLengths (KeyFuncGeneric _ ps as rt) = length ps == length params && length as == length args
+        sameArgLengths (KeyFuncGeneric _ ps as rt) =
+            length ps == length params && length as == length args
 
         collectIfOneDef :: BoM CollectState m => [SymKey] -> m ()
-        collectIfOneDef [KeyFunc tparams tas rt] = do
+        collectIfOneDef [KeyFuncGeneric [] tparams tas rt] = do
             zipWithM_ collectEq tparams (map typeof params)
             zipWithM_ collectEq tas (map typeof args)
             collectEq exprType rt
         collectIfOneDef _                    = return ()
 
-        -- TODO, what if we have sub-generic types? BROKEN
---        collectIfUnifiedType :: BoM CollectState m => [[Type]] -> [Type] -> m ()
---        collectIfUnifiedType [] types = return () 
---        collectIfUnifiedType typess types = do 
---            assert (all (== length types) $ map length typess) "lengths do not match"
---            forM_ [0..length types - 1] $ \i -> do 
---                let typesn = map (!! i) typess 
---                when (all (== head typesn) typesn) $ do 
---                    collectEq' (head typesn) (types !! i)
+        -- turns a generic func key into one with the generics replaced with type variables.
+        replaceGenericsInFuncKey :: BoM CollectState m => SymKey -> m SymKey
+        replaceGenericsInFuncKey (KeyFuncGeneric typeArgs paramTypes argTypes retType) = do
+            ts <- replaceGenerics typeArgs $ paramTypes ++ argTypes ++ [retType]
+            let (ps, ts')  = (take (length paramTypes) ts, drop (length paramTypes) ts)
+            let (as, ts'') = (take (length argTypes) ts', drop (length argTypes) ts') 
+            let [rt]       = take 1 ts''
+            return $ KeyFuncGeneric [] ps as rt
 
-
---        -- replaces generics with type variables
---        replaceGenerics :: BoM CollectState m => [Type] -> m [Type]
---        replaceGenerics ts = do
---            setOfGenerics <- return $ Set.fromList $ concat $ map findGenerics ts
---            substitutions <- forM (Set.toList setOfGenerics) $ \g -> do
---                gt <- genType
---                return (g, gt)
---            return $ map (applySubs substitutions) ts
+        -- replaces generics with type variables
+        replaceGenerics :: BoM CollectState m => [Symbol] -> [Type] -> m [Type]
+        replaceGenerics typeArgs ts = do
+            setOfGenerics <- return $ Set.fromList $ concat $ map (findGenerics typeArgs) ts
+            substitutions <- forM (Set.toList setOfGenerics) $ \g -> do
+                gt <- genType
+                return (g, gt)
+            liftIO $ putStrLn $ "replaceGenerics: " ++ show substitutions
+            return $ map (applySubs substitutions) ts
+            where
+                findGenerics :: [Symbol] -> Type -> [Type]
+                findGenerics typeArgs typ = case typ of
+                    TypeApply s [] -> if s `elem` typeArgs then [typ] else []
+                    TypeApply s _  -> if s `elem` typeArgs then error "Can't do this" else []
+                    _ -> error $ show typ
 
 
 collectExpr :: BoM CollectState m => S.Expr -> m ()
