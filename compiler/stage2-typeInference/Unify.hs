@@ -30,7 +30,7 @@ baseTypeOf typ = case typ of
     TypeApply symbol ts -> do
         resm <- gets $ Map.lookup symbol . typeMap
         case resm of
-            Nothing                 -> fail $ "Cannot find symbol: " ++ show symbol
+            Nothing                 -> return Nothing
             Just (ObjTypeFunc ss t) -> do
                 assert (length ts == length ss) "invalid type function args"
                 baseTypeOf $ applyTypeFunction (Map.fromList $ zip ss ts) t

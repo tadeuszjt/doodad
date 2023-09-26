@@ -59,6 +59,12 @@ instance Annotate Stmt where
             blk' <- annotate blk
             return $ FuncDef p ps' s as' rt blk'
 
+        FuncDef2 p tas ps s as rt blk -> do
+            ps' <- mapM annotate ps
+            as' <- mapM annotate as
+            blk' <- annotate blk
+            return $ FuncDef2 p tas ps' s as' rt blk'
+
         Assign p pat e      -> do
             pat' <- annotate pat
             Assign p pat' <$> annotate e

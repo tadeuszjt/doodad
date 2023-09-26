@@ -108,6 +108,7 @@ data Stmt
     | If          TextPos Expr Stmt (Maybe Stmt)
     | While       TextPos Expr Stmt
     | FuncDef     TextPos [Param] Symbol [Param] Type Stmt
+    | FuncDef2    TextPos [Symbol] [Param] Symbol [Param] Type Stmt
     | Typedef     TextPos [String] Symbol AnnoType
     | Switch      TextPos Expr [(Pattern, Stmt)]
     | For         TextPos Expr (Maybe Pattern) Stmt
@@ -167,6 +168,8 @@ instance TextPosition Expr where
         Match        p _ _ -> p
         Range        p _ _ _ -> p
         Array        p _ -> p
+        Construct    p _ _ -> p
+        _ -> error (show expr)
 
 
 instance TextPosition Stmt where

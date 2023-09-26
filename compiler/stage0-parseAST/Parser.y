@@ -162,6 +162,15 @@ block : if_                                         { $1 }
                 $5
                 (case $7 of Just t -> t; Nothing -> T.Void) $8
         }
+      | fn '[' idents1 ']' mfnrec ident '(' paramsA ')' mtype scope {
+            S.FuncDef2
+                (tokPos $1)
+                (map Symbol.Sym $3)
+                $5
+                (Sym $ tokStr $6)
+                $8
+                (case $10 of Just t -> t; Nothing -> T.Void) $11
+        }
       | while condition scope                       { S.While (tokPos $1) $2 $3 }
       | for expr scope                              { S.For (tokPos $1) $2 Nothing $3 }
       | for expr '->' pattern scope                 { S.For (tokPos $1) $2 (Just $4) $5 }

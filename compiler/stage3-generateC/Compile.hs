@@ -608,7 +608,6 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
                 case baseVal of
                     Type.I64 -> return $ Value t $ C.Cast Cchar (valExpr val)
 
-
             _ -> error (show base)
     S.Conv _ _ es -> initialiser typ =<< mapM generateExpr es -- TODO
 

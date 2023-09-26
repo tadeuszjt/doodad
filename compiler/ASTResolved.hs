@@ -18,6 +18,7 @@ data ASTResolved
         , ctorDefs    :: Map.Map Symbol (Symbol, Int)    -- defined ctors
         , funcImports :: Map.Map Symbol FuncKey          -- imported funcs
         , funcDefs    :: Map.Map Symbol FuncBody         -- defined functions
+        , funcDefsGeneric :: Map.Map Symbol FuncBody 
         , symSupply   :: Map.Map String Int              -- type supply from resovle
         }
     deriving (Eq)
@@ -32,8 +33,14 @@ data FuncBody
         , funcRetty    :: Type
         , funcStmt     :: AST.Stmt
         }
+    | FuncBody2
+        { funcTypeArgs :: [Symbol]
+        , funcParams   :: [AST.Param]
+        , funcArgs     :: [AST.Param]
+        , funcRetty    :: Type
+        , funcStmt     :: AST.Stmt
+        }
     deriving (Eq, Show)
-
 
 funcKeyFromBody :: String -> FuncBody -> FuncKey
 funcKeyFromBody sym body =

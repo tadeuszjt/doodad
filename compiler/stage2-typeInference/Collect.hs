@@ -28,6 +28,7 @@ data SymKey
     = KeyVar
     | KeyType
     | KeyFunc [Type] [Type] Type
+    | KeyFuncGeneric [Symbol] [Type] [Type] Type
     | KeyField Symbol -- Field belonging to (Typedef Symbol)
     | KeyAdtField
     deriving (Show, Eq, Ord)
@@ -144,6 +145,9 @@ collectAST ast = do
     forM (Map.toList $ funcImports ast) $ \(symbol, key@(ps, _, as, rt)) -> 
         define symbol (KeyFunc ps as rt) ObjFunc
 
+    forM (Map.toList $ funcDefsGeneric ast) $ \(symbol, body) -> do
+        define symbol (KeyFunc (map typeof $ funcParams body) (map typeof $ funcArgs body) (funcRetty body)) ObjFunc
+
     forM (Map.toList $ funcDefs ast) $ \(symbol, body) -> do
         define symbol (KeyFunc (map typeof $ funcParams body) (map typeof $ funcArgs body) (funcRetty body)) ObjFunc
 
@@ -170,16 +174,13 @@ collectFuncDef symbol body = do
 
 collectCtorDef :: BoM CollectState m => Symbol -> Symbol -> Int -> m ()
 collectCtorDef symbol s@(SymResolved _ _ _) i = withErrorPrefix "collectCtorDef" $ do
-    res <- look s KeyType -- check
-    ot <- case res of
-        ObjTypeFunc _ t -> return t
-
-    case ot of
+    ObjTypeFunc typeArgs typ <- look s KeyType -- check
+    case typ of
         Tuple ts -> define (Sym $ sym symbol) (KeyField s) (ObjField i)
         Table ts -> define (Sym $ sym symbol) (KeyField s) (ObjField i)
         ADT fs   -> case fs !! i of
             FieldCtor ts -> do
-                define symbol (KeyFunc [] ts $ TypeApply s []) ObjFunc
+                define symbol (KeyFunc [] ts $ TypeApply s []) ObjFunc -- TODO add generic
                 define symbol KeyAdtField (ObjField i)
             _            -> return ()
             
@@ -206,6 +207,7 @@ collectStmt :: BoM CollectState m => S.Stmt -> m ()
 collectStmt stmt = collectPos stmt $ case stmt of
     S.Typedef _ _ _ _ -> return ()
     S.FuncDef _ _ _ _ _ _ -> return ()
+    S.FuncDef2 _ _ _ _ _ _ _ -> return ()
     S.EmbedC _ _ -> return ()
     S.Block stmts -> mapM_ collectStmt stmts
     S.ExprStmt e -> collectExpr e
@@ -324,43 +326,51 @@ collectPattern pattern typ = collectPos pattern $ case pattern of
 
 
 collectCall :: BoM CollectState m => Type -> [S.Expr] -> Symbol -> [S.Expr] -> m ()
-collectCall rt ps symbol es = do -- can be resolved or sym
-    keys <- filter keyCouldMatch . map packKey . filter sameArgLengths . filter isKeyFunc <$> case symbol of
-        SymQualified mod sym -> do
-            let f = (\k v -> Symbol.sym k == sym && Symbol.mod k == mod)
-            Map.keys . Map.unions . Map.elems . Map.filterWithKey f . last <$> gets symTab
-        Sym sym -> do
-            let f = (\k v -> Symbol.sym k == sym)
-            Map.keys . Map.unions . Map.elems . Map.filterWithKey f . last <$> gets symTab
-        SymResolved _ _ _ -> fmap (map fst) $ SymTab.lookupSym symbol <$> gets symTab
+collectCall exprType params symbol args = do -- can be resolved or sym
+    keys <- filter keyCouldMatch <$> getKeysWithMatchingSymbol symbol
     assert (keys /= []) $ "no keys for: " ++ show symbol
 
     collectIfOneDef keys
     --collectIfUnifiedType packedKeys keys
-    mapM_ collectExpr ps
-    mapM_ collectExpr es
+    mapM_ collectExpr params
+    mapM_ collectExpr args
     where
-        packedExpr = (map typeof ps ++ map typeof es ++ [rt])
+        getKeysWithMatchingSymbol :: BoM CollectState m => Symbol -> m [SymKey]
+        getKeysWithMatchingSymbol symbol = case symbol of
+            SymResolved _ _ _ -> fmap (map fst) $ SymTab.lookupSym symbol <$> gets symTab
+            SymQualified mod sym -> do
+                let isMatch = (\k v -> Symbol.sym k == sym && Symbol.mod k == mod)
+                Map.keys . Map.unions . Map.elems . Map.filterWithKey isMatch . last <$> gets symTab
+            Sym sym -> do
+                let isMatch = (\k v -> Symbol.sym k == sym)
+                Map.keys . Map.unions . Map.elems . Map.filterWithKey isMatch . last <$> gets symTab
 
-        packKey :: SymKey -> [Type]
-        packKey (KeyFunc ps as rt) = ps ++ as ++ [rt]
 
-        isKeyFunc :: SymKey -> Bool
-        isKeyFunc (KeyFunc _ _ _) = True
-        isKeyFunc _ = False
+        keyCouldMatch :: SymKey -> Bool
+        keyCouldMatch key@(KeyFunc tparams tas tr) =
+            sameArgLengths key
+            && all (== True) (zipWith typesCouldMatch tparams $ map typeof params)
+            && all (== True) (zipWith typesCouldMatch tas $ map typeof args)
+            && typesCouldMatch exprType tr 
+        keyCouldMatch _ = False
+
+
+--        replaceKeyGeneric :: SymKey -> SymKey
+--        replaceKeyGeneric (KeyFunc paramTypes argTypes returnType) = (KeyFunc paramTypes argTypes returnType)
+--        replaceKeyGeneric (KeyGeneric typeArgs paramTypes argTypes returnType) =
+--            KeyFunc (
+
 
         sameArgLengths :: SymKey -> Bool
-        sameArgLengths (KeyFunc ps as rt) =
-            length ps == length ps && length as == length es
+        sameArgLengths (KeyFunc ps as rt)          = length ps == length params && length as == length args
+        sameArgLengths (KeyFuncGeneric _ ps as rt) = length ps == length params && length as == length args
 
-
-        collectIfOneDef :: BoM CollectState m => [[Type]] -> m ()
-        collectIfOneDef [ts] = zipWithM_ collectEq packedExpr ts
-        collectIfOneDef _    = return ()
-
-
-        keyCouldMatch :: [Type] -> Bool
-        keyCouldMatch ts = all (== True) $ zipWith typesCouldMatch ts packedExpr
+        collectIfOneDef :: BoM CollectState m => [SymKey] -> m ()
+        collectIfOneDef [KeyFunc tparams tas rt] = do
+            zipWithM_ collectEq tparams (map typeof params)
+            zipWithM_ collectEq tas (map typeof args)
+            collectEq exprType rt
+        collectIfOneDef _                    = return ()
 
         -- TODO, what if we have sub-generic types? BROKEN
 --        collectIfUnifiedType :: BoM CollectState m => [[Type]] -> [Type] -> m ()
@@ -402,7 +412,6 @@ collectExpr (S.AExpr exprType expr) = collectPos expr $ case expr of
         case sym of
             "conv" -> do 
                 assert (length ps == 0) "invalid conv"
-                assert (length es == 1) "invalid conv"
             "len" -> collectDefault exprType I64
             "print" -> collectEq exprType Void
         mapM_ collectExpr ps

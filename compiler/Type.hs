@@ -61,7 +61,7 @@ instance Show Type where
         Range t       -> "[..]" ++ show t
         Tuple ts      -> "(" ++ intercalate ", " (map show ts) ++ ")"
         Array n t     -> "[" ++ show n ++ " " ++ show t ++ "]"
-        ADT tss       -> "{" ++ intercalate " | " (map show tss) ++ "}"
+        ADT tss       -> "(" ++ intercalate " | " (map show tss) ++ ")"
         Table ts      -> "[" ++ intercalate "; " (map show ts) ++ "]"
         TypeApply s ts -> show s ++ "(" ++ intercalate ", " (map show ts) ++ ")"
 
@@ -77,21 +77,22 @@ getTypeSymbol typ = case typ of
     _ -> fail $ "no symbol for type: " ++ show typ
 
 
--- Takes arguments in the form of a Map which is used to replace all the matching Typedefs.
+-- Replace the matching symbols with a the types specificed in the argument map.
 applyTypeFunction :: Map.Map Symbol Type.Type -> Type.Type -> Type.Type
 applyTypeFunction argMap typ = case typ of
-    TypeApply s [] -> if Map.member s argMap then argMap Map.! s else typ
-    Tuple ts       -> Type.Tuple $ map (applyTypeFunction argMap) ts
-    Table ts       -> Type.Table $ map (applyTypeFunction argMap) ts
-    ADT fs         -> ADT $ map applyTypeFunctionAdtField fs
-    TypeApply _ _  -> error "here"
+    TypeApply s []   -> if Map.member s argMap then argMap Map.! s else typ
+    Tuple ts         -> Type.Tuple $ map (applyTypeFunction argMap) ts
+    Table ts         -> Type.Table $ map (applyTypeFunction argMap) ts
+    ADT fs           -> ADT $ map applyTypeFunctionAdtField fs
+    TypeApply _ _    -> error "here"
     _ | isSimple typ -> typ
-    _              -> error $ "applyTypeFunction: " ++ show typ
+    _                -> error $ "applyTypeFunction: " ++ show typ
     where
         applyTypeFunctionAdtField :: AdtField -> AdtField
         applyTypeFunctionAdtField field = case field of
-            FieldType t -> FieldType $ applyTypeFunction argMap t
+            FieldType t  -> FieldType $ applyTypeFunction argMap t
             FieldCtor ts -> FieldCtor $ map (applyTypeFunction argMap) ts
+            FieldNull    -> FieldNull
             _ -> error $ show field
 
 
@@ -105,9 +106,15 @@ typesCouldMatch a b = case (a, b) of
         && length ats == length bts
         && (all (== True) $ zipWith typesCouldMatch ats bts)
     _ | isSimple a         -> a == b
-    (Table as, Table bs)   -> length as == length bs && (all (== True) $ zipWith typesCouldMatch as bs)
-    (ADT afs, ADT bfs)     -> length afs == length bfs && (all (== True) $ zipWith fieldsCouldMatch afs bfs)
-    (Tuple as, Tuple bs)   -> length as == length bs && (all (== True) $ zipWith typesCouldMatch as bs)
+    (Table as, Table bs)   ->
+        length as == length bs
+        && (all (== True) $ zipWith typesCouldMatch as bs)
+    (ADT afs, ADT bfs)     ->
+        length afs == length bfs
+        && (all (== True) $ zipWith fieldsCouldMatch afs bfs)
+    (Tuple as, Tuple bs)   ->
+        length as == length bs
+        && (all (== True) $ zipWith typesCouldMatch as bs)
 
     (_, _) -> False -- TODO
     _                      -> error (show (a, b))

@@ -134,6 +134,9 @@ instance Apply S.Stmt where
         S.FuncDef pos params sym args retty block ->
             S.FuncDef pos (map applyF params) sym (map applyF args) (applyF retty) (applyF block)
 
+        S.FuncDef2 pos typeArgs params sym args retty block ->
+            S.FuncDef pos (map applyF params) sym (map applyF args) (applyF retty) (applyF block)
+
         S.If pos cnd block melse ->
             S.If pos (applyF cnd) (applyF block) (fmap applyF melse)
 

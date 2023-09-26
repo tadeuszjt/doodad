@@ -274,7 +274,7 @@ baseTypeOf a = case typeof a of
         case resm of
             Nothing             -> fail $ "baseTypeOf: " ++ show (typeof a)
             Just (symbols, typ) -> do
-                assert (length ts == length symbols) "Invalid type function arguments"
+                assert (length ts == length symbols) $ "Invalid type function arguments: " ++ show ts
                 baseTypeOf $ applyTypeFunction (Map.fromList $ zip symbols ts) typ
         
     _ -> return (typeof a)

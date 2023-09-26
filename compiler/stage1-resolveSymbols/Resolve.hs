@@ -46,6 +46,7 @@ data ResolveState
         , supply       :: Map.Map String Int
         , generics     :: Set.Set Symbol
         , funcDefsMap  :: Map.Map Symbol FuncBody
+        , funcDefsGenericMap  :: Map.Map Symbol FuncBody
         , typeFuncsMap :: Map.Map Symbol ([Symbol], AnnoType)
         }
 
@@ -56,6 +57,7 @@ initResolveState imports modName typeImports = ResolveState
     , supply        = Map.empty
     , generics      = Set.empty
     , funcDefsMap   = Map.empty
+    , funcDefsGenericMap   = Map.empty
     , typeFuncsMap  = Map.empty
     }
 
@@ -219,6 +221,7 @@ resolveAsts asts imports = withErrorPrefix "resolve: " $ do
 
             typeFuncs <- gets typeFuncsMap
             funcDefs <- gets funcDefsMap
+            funcDefsGeneric <- gets funcDefsGenericMap
 
             -- combine the typeDefs and typeFuncs map to build the ctorMap
             ctorMap <- fmap snd $ runBoMTExcept Map.empty $ 
@@ -232,6 +235,7 @@ resolveAsts asts imports = withErrorPrefix "resolve: " $ do
                 , funcImports = funcImportMap
                 , constDefs   = Map.fromList constDefsList
                 , funcDefs    = funcDefs
+                , funcDefsGeneric = funcDefsGeneric
                 , typeFuncs   = Map.union typeFuncImportMap (Map.map (\(x, y) -> (x, annoToType y)) typeFuncs)
                 , ctorDefs    = Map.union ctorImportMap ctorMap
                 , symSupply   = supply
@@ -257,6 +261,26 @@ resolveFuncDef (FuncDef pos params (Sym sym) args retty blk) = withPos pos $ do
         funcStmt   = blk'
         }
     modify $ \s -> s { funcDefsMap = Map.insert symbol' funcBody (funcDefsMap s) }
+    return symbol'
+resolveFuncDef (FuncDef2 pos typeArgs params (Sym sym) args retty blk) = withPos pos $ do
+    pushSymbolTable
+    typeSymbols <- mapM (\(Sym s) -> genSymbol s) typeArgs
+    forM_ typeSymbols $ \symbol -> define (Symbol.sym symbol) KeyType symbol
+    params' <- mapM resolve params
+    args' <- mapM resolve args
+    retty' <- resolve retty
+    blk' <- resolve blk
+    popSymbolTable
+
+    symbol' <- genSymbol sym
+    let funcBody = FuncBody2 {
+        funcTypeArgs = typeSymbols,
+        funcParams   = params',
+        funcArgs     = args',
+        funcRetty    = retty',
+        funcStmt     = blk'
+        }
+    modify $ \s -> s { funcDefsGenericMap = Map.insert symbol' funcBody (funcDefsGenericMap s) }
     return symbol'
 
 
@@ -315,6 +339,18 @@ instance Resolve Stmt where
     resolve stmt = withPos stmt $ case stmt of
         ExprStmt callExpr -> ExprStmt <$> resolve callExpr
         EmbedC pos str -> EmbedC pos <$> processCEmbed str
+
+        FuncDef2 pos typeArgs params (Sym sym) args retty blk -> do
+            symbol' <- resolveFuncDef stmt
+            body <- (Map.! symbol') <$> gets funcDefsGenericMap
+            return $ FuncDef2
+                pos
+                (funcTypeArgs body)
+                (funcParams body)
+                symbol'
+                (funcArgs body)
+                (funcRetty body)
+                (funcStmt body)
 
         FuncDef pos params (Sym sym) args retty blk -> do
             symbol' <- resolveFuncDef stmt

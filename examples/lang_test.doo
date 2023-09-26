@@ -235,6 +235,14 @@ fn testTypeFunctionMembers()
     let 2:i32 = vec.y
     let 1:i32 = vec.x
 
+    type[T] Maybe (Nothing:null | Just:T)
+    //let x = Just(1):Maybe(i32)
+
+
+fn testGenericFunction()
+    fn[T] add(a:T, b:T) T; return a + b
+    //let 2:i64 = add(1:i64, 1)
+
 
 fn {io:Io} main()
     testNothing()
@@ -262,4 +270,5 @@ fn {io:Io} main()
     testConst()
     testTypeFunction()
     testTypeFunctionMembers()
+    testGenericFunction()
     io.putStrLn("finished")
