@@ -147,8 +147,8 @@ line : let pattern '=' expr                         { S.Assign (tokPos $1) $2 $4
      | index '=' expr                               { S.SetOp (tokPos $2) S.Eq $1 $3 }
      | index '+=' expr                              { S.SetOp (tokPos $2) S.PlusEq $1 $3 }
      | index                                        { S.ExprStmt $1 }
-     | type symbol anno_t                           { S.Typedef (fst $2) (snd $2) $3 }
-     | type '[' idents1 ']' symbol anno_t           { S.Typedef2 (fst $5) $3 (snd $5) $6 }
+     | type symbol anno_t                           { S.Typedef (fst $2) [] (snd $2) $3 }
+     | type '[' idents1 ']' symbol anno_t           { S.Typedef (fst $5) $3 (snd $5) $6 }
      | data symbol type_                            { S.Data (tokPos $1) (snd $2) $3 Nothing }
      | return mexpr                                 { S.Return (tokPos $1) $2 }
      | embed_c                                      { S.EmbedC (tokPos $1) (tokStr $1) }
@@ -302,12 +302,12 @@ mtype  : {-empty-}                          { Nothing }
 types1 : type_                              { [$1] }
        | type_ ',' types1                   { $1 : $3 }
     
-type_         : symbol                      { T.Typedef (snd $1) }
+type_         : symbol                      { T.TypeApply (snd $1) [] }
               | ordinal_t                   { $1 }
               | aggregate_t                 { $1 }
               | symbol '(' types1 ')'       { T.TypeApply (snd $1) $3 }
 
-uncovered_t : symbol { T.Typedef (snd $1) }
+uncovered_t : symbol { T.TypeApply (snd $1) [] }
             | ordinal_t { $1 }
             | array_t   { $1 }
             | table_t   { $1 }
@@ -345,7 +345,7 @@ tuple_t  : '(' uncovered_ts2 ')'                   { T.Tuple $2 }
 range_t  : '[' '..' ']' type_                      { T.Range $4 }
 
 anno_t   : ordinal_t                        { S.AnnoType $1 }
-         | symbol                           { S.AnnoType (T.Typedef $ snd $1) }
+         | symbol                           { S.AnnoType (T.TypeApply (snd $1) []) }
          | '(' uncovered_ts1 ')'            { S.AnnoType (T.Tuple $2) }
          | '(' params2 ')'                  { S.AnnoTuple $2 }
          | '(' paramsL2 ')'                 { S.AnnoADT (map paramToAdtField $2) }

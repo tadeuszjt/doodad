@@ -67,8 +67,8 @@ instance DeAnnotate Stmt where
             index' <- deAnnotate index
             SetOp p op index' <$> deAnnotate e
 
-        AST.Typedef pos symbol anno ->
-            return $ AST.Typedef pos symbol anno -- has no expressions
+        AST.Typedef pos args symbol anno ->
+            return $ AST.Typedef pos args symbol anno -- has no expressions
 
         If p c b elm        -> do
             c' <- deAnnotate c
@@ -184,7 +184,6 @@ hasTypeVars :: T.Type -> Bool
 hasTypeVars typ = case typ of
     T.Type _         -> True
     T.Void           -> False
-    T.Typedef _      -> False
     t | T.isSimple t -> False
     T.ADT fs         -> any (== True) (map fHasTypeVars fs)
     T.Table ts       -> any (== True) (map hasTypeVars ts)

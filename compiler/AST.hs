@@ -108,8 +108,7 @@ data Stmt
     | If          TextPos Expr Stmt (Maybe Stmt)
     | While       TextPos Expr Stmt
     | FuncDef     TextPos [Param] Symbol [Param] Type Stmt
-    | Typedef     TextPos Symbol AnnoType
-    | Typedef2    TextPos [String] Symbol AnnoType
+    | Typedef     TextPos [String] Symbol AnnoType
     | Switch      TextPos Expr [(Pattern, Stmt)]
     | For         TextPos Expr (Maybe Pattern) Stmt
     | Data        TextPos Symbol Type (Maybe Expr)
@@ -179,14 +178,13 @@ instance TextPosition Stmt where
         If          p _ _ _ -> p
         While       p _ _ -> p
         FuncDef     p _ _ _ _ _ -> p
-        Typedef     p _ _ -> p
+        Typedef     p _ _ _ -> p
         Switch      p _ _ -> p
         For         p _ _ _ -> p
         Data        p _ _ _ -> p
         EmbedC      p _ -> p
         SetOp       p _ _ _ -> p
         Const       p _ _ -> p
-        Typedef2    p _ _ _ -> p
 
 tupStrs, arrStrs, brcStrs :: [String] -> String
 tupStrs strs = "(" ++ intercalate ", " strs ++ ")"
@@ -328,10 +326,7 @@ prettyStmt pre stmt = case stmt of
         putStrLn $ pre ++ "while " ++ show cnd
         prettyStmt (pre ++ "\t") stmt
 
-    Typedef pos symbol anno -> do
-        putStrLn $ pre ++ "type " ++ show symbol ++ " " ++ show anno
-
-    Typedef2 pos args symbol anno -> do
+    Typedef pos args symbol anno -> do
         putStrLn $ pre ++ "type[" ++ intercalate ", " args ++ "] " ++ show symbol ++ " " ++ show anno
 
     Switch pos expr cases -> do

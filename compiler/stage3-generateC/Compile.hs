@@ -27,9 +27,9 @@ getSymbolsOrderedByDependencies typedefs = do
         getSymbols :: Monad m => Type.Type -> m [Symbol]
         getSymbols typ = case typ of
             x | isSimple x -> return []
-            Type.Typedef s -> do
-                symbols <- getSymbols (typedefs Map.! s)
-                return $ symbols ++ [s]
+            Type.TypeApply symbol ts -> do
+                tsSymbols <- concat <$> mapM getSymbols ts
+                return $ symbol : tsSymbols
             Type.Tuple ts  -> concat <$> mapM getSymbols ts
             Table ts  -> concat <$> mapM getSymbols ts
             Type.Array n t -> getSymbols t
@@ -89,20 +89,9 @@ generateAdtEqual a b = do
 
 generate :: MonadGenerate m => ASTResolved -> m ()
 generate ast = do
-    let typedefs = typeDefs ast
-
     -- copy members from resolved ast
     modify $ \s -> s { ctors = ctorDefs ast }
-    modify $ \s -> s { typedefs = typeDefs ast }
     modify $ \s -> s { typefuncs = typeFuncs ast } 
-
-    -- define non-generic types
-    orderedSymbols <- getSymbolsOrderedByDependencies typedefs
-    forM_ orderedSymbols $ \symbol -> do
-        when (Map.member symbol typedefs) $ do
-            let typ = typedefs Map.! symbol
-            ctype <- cTypeOf (typedefs Map.! symbol)
-            void $ newTypedef ctype (show symbol)
 
     forM_ (Map.toList $ constDefs ast) $ \(symbol, expr) -> do
         define (show symbol) (CGenerate.Const expr)
@@ -123,10 +112,11 @@ generate ast = do
         cats <- mapM cTypeOf (map paramType $ ASTResolved.funcArgs func)
         newExtern (show symbol) crt (cpts ++ cats)
 
+    -- generate functions, main is a special case
     forM_ (Map.toList $ funcDefs ast) $ \(symbol, func) -> do
         generateFunc symbol func
         when (sym symbol == "main") $ do
-            let typedef = Type.Typedef (SymResolved "io" "Io" 0)
+            let typedef = Type.TypeApply (SymResolved "io" "Io" 0) []
             id <- newFunction Cvoid "main" []
             withCurID id $ case (ASTResolved.funcParams func, ASTResolved.funcArgs func) of
                 ([], []) -> call (show symbol) []
@@ -179,7 +169,7 @@ generatePrint app val = case typeof val of
             generatePrint (if end then "" else ", ") =<< member i val
         void $ appendPrintf (")" ++ app) []
 
-    Type.Typedef s -> do
+    Type.TypeApply s ts -> do
         base <- baseTypeOf val
         generatePrint app $ Value base (valExpr val)
 
@@ -216,7 +206,7 @@ generateStmt stmt = withPos stmt $ case stmt of
     S.Return _ Nothing -> void $ appendElem (C.ReturnVoid)
     S.Return _ (Just expr) -> void $ appendElem . C.Return . valExpr =<< generateExpr expr
     S.FuncDef _ _ _ _ _ _ -> return ()
-    S.Typedef _ _ _ -> return ()
+    S.Typedef _ _ _ _ -> return ()
     S.Const _ symbol expr -> do
         define (show symbol) $ CGenerate.Const expr
 
@@ -228,8 +218,6 @@ generateStmt stmt = withPos stmt $ case stmt of
         ctyp <- cTypeOf typ
         appendAssign ctyp (show symbol) (C.Initialiser [C.Int 0])
         define (show symbol) $ Value typ $ C.Ident (show symbol)
-
-        
 
     S.If _ expr blk melse -> do
         val <- generateExpr expr

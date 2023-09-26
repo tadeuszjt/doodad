@@ -17,7 +17,6 @@ substitute u x typ = case typ of
     Type _ | typ == x    -> u
     Type _               -> typ
     Void                 -> typ
-    Typedef symbol       -> typ
     _ | isSimple typ     -> typ
     Key t                -> Key $ substitute u x t
     Range t              -> Range $ substitute u x t
@@ -138,7 +137,7 @@ instance Apply S.Stmt where
         S.If pos cnd block melse ->
             S.If pos (applyF cnd) (applyF block) (fmap applyF melse)
 
-        S.Typedef _ _ _ -> stmt -- leave this for now
+        S.Typedef _ _ _ _ -> stmt -- leave this for now
         
         S.Switch pos expr cases ->
             S.Switch pos (applyF expr) [(applyF p, applyF s) | (p, s) <- cases]

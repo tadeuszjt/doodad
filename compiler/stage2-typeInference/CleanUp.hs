@@ -50,12 +50,12 @@ getSubsFromTypes t1 t2 = case (t1, t2) of
     (I64, I64) -> return []
     (Type.Char, Type.Char) -> return []
     (Type.String, Type.String) -> return []
-    (Type.Typedef s1, Type.Typedef s2) -> return []
     (Type.Bool, Type.Bool) -> return []
     (Table ts1, Table ts2) -> concat <$> zipWithM getSubsFromTypes ts1 ts2
     (Type.Tuple ts1, Type.Tuple ts2) -> concat <$> zipWithM getSubsFromTypes ts1 ts2
     (ADT fs1, ADT fs2)     -> concat <$> zipWithM getSubsFromFields fs1 fs2
     (Type _, _) -> return []
+    (TypeApply s1 ts1, TypeApply s2 ts2) -> error ""
     _ -> error $ show (t1, t2)
     where
         getSubsFromFields :: BoM s m => AdtField -> AdtField -> m [(Type, Type)]
@@ -89,18 +89,18 @@ resolveFuncCall exprType (AST.Call pos params symbol args) = withPos pos $ do
 
         Sym sym -> do
             funcresm <- findFuncDef key
-            typeresm <- findTypeDef sym
+            typeresm <- findTypeFunc sym
             case (funcresm, typeresm) of
                 (Just x, Nothing) -> do
                     funcBody <- (Map.! x) <$> gets funcDefs
-                    subs <- getSubsFromGeneric key funcBody
-                    if (subs /= []) then do -- function is generic
-                        funcBody' <- return $ applySubs subs funcBody
-                        symbol' <- genSymbol sym
-                        modify $ \s -> s { funcDefs = Map.insert symbol' funcBody' (funcDefs s) }
-                        return symbol'
-                    else do
-                        return x
+                    --subs <- getSubsFromGeneric key funcBody
+--                    if (subs /= []) then do -- function is generic
+--                        funcBody' <- return $ applySubs subs funcBody
+--                        symbol' <- genSymbol sym
+--                        modify $ \s -> s { funcDefs = Map.insert symbol' funcBody' (funcDefs s) }
+--                        return symbol'
+--                    else do
+                    return x
                 (Nothing, Just x) -> return x
                 (Nothing, Nothing) -> do
                     funcresm <- findImportedFuncDef key
@@ -120,8 +120,8 @@ resolveFuncCall exprType (AST.Call pos params symbol args) = withPos pos $ do
                 zipWith typesCouldMatch (aps ++ aas ++ [art]) (bps ++ bas ++ [brt])
 
 
-        findTypeDef :: BoM ASTResolved m => String -> m (Maybe Symbol)
-        findTypeDef sym = checkOne =<< Map.filterWithKey (\s t -> Symbol.sym s == sym) <$> gets typeDefs
+        findTypeFunc :: BoM ASTResolved m => String -> m (Maybe Symbol)
+        findTypeFunc sym = checkOne =<< Map.filterWithKey (\s t -> Symbol.sym s == sym) <$> gets typeFuncs
 
         findImportedFuncDef :: BoM ASTResolved m => FuncKey -> m (Maybe Symbol)
         findImportedFuncDef key = checkOne =<< Map.filter (funcKeysCouldMatch key) <$> gets funcImports
@@ -150,7 +150,7 @@ compileStmt stmt = withPos stmt $ case stmt of
     AST.Return pos mexpr -> Return pos <$> maybe (return Nothing) (fmap Just . compileExpr) mexpr
     AST.FuncDef pos params symbol args retty blk -> return stmt
     AST.Const pos symbol expr -> return stmt
-    AST.Typedef pos symbol anno -> return $ AST.Typedef pos symbol anno
+    AST.Typedef pos args symbol anno -> return $ AST.Typedef pos args symbol anno
 
     AST.Assign pos pat expr -> do
         pat' <- compilePattern pat
@@ -199,7 +199,6 @@ resolveFieldAccess (AST.Field pos expr (Sym sym)) = do
         ctors <- gets ctorDefs
         res <- fmap catMaybes $ forM (Map.toList ctors) $ \(symbol, (typeSymbol, i)) -> do
             exprTypeSymbolm <- case typeof expr of
-                Type.Typedef s -> return (Just s)
                 Type.TypeApply s _ -> return (Just s)
                 _ -> return Nothing
             case exprTypeSymbolm of

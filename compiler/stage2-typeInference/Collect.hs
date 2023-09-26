@@ -34,7 +34,6 @@ data SymKey
 
 data Object
     = ObjVar Type
-    | ObjType Type
     | ObjTypeFunc [Symbol] Type
     | ObjFunc 
     | ObjField Int
@@ -133,9 +132,6 @@ define symbol key obj = do
 
 collectAST :: BoM CollectState m => ASTResolved -> m ()
 collectAST ast = do
-    forM (Map.toList $ typeDefs ast) $ \(symbol, t) -> do
-        collectTypedef symbol t
-
     forM (Map.toList $ typeFuncs ast) $ \(symbol, (ss, t)) -> do
         collectTypeFunc symbol ss t
 
@@ -176,7 +172,6 @@ collectCtorDef :: BoM CollectState m => Symbol -> Symbol -> Int -> m ()
 collectCtorDef symbol s@(SymResolved _ _ _) i = withErrorPrefix "collectCtorDef" $ do
     res <- look s KeyType -- check
     ot <- case res of
-        ObjType t       -> return t 
         ObjTypeFunc _ t -> return t
 
     case ot of
@@ -184,7 +179,7 @@ collectCtorDef symbol s@(SymResolved _ _ _) i = withErrorPrefix "collectCtorDef"
         Table ts -> define (Sym $ sym symbol) (KeyField s) (ObjField i)
         ADT fs   -> case fs !! i of
             FieldCtor ts -> do
-                define symbol (KeyFunc [] ts $ Typedef s) ObjFunc
+                define symbol (KeyFunc [] ts $ TypeApply s []) ObjFunc
                 define symbol KeyAdtField (ObjField i)
             _            -> return ()
             
@@ -193,15 +188,14 @@ collectCtorDef symbol s@(SymResolved _ _ _) i = withErrorPrefix "collectCtorDef"
 
 collectTypedef :: BoM CollectState m => Symbol -> Type -> m ()
 collectTypedef symbol typ = do
-    let typedef = Typedef symbol
-    define symbol KeyType (ObjType typ)
+    let typedef = TypeApply symbol []
+    define symbol KeyType (ObjTypeFunc [] typ)
     case typ of
         Tuple ts -> define symbol (KeyFunc [] ts typedef) ObjFunc
         t        -> define symbol (KeyFunc [] [t] typedef) ObjFunc
 
 collectTypeFunc :: BoM CollectState m => Symbol -> [Symbol] -> Type -> m ()
 collectTypeFunc symbol ss typ = do
-    let typedef = Typedef symbol
     define symbol KeyType (ObjTypeFunc ss typ)
 -- TODO do i need this
 --    case typ of
@@ -210,7 +204,7 @@ collectTypeFunc symbol ss typ = do
 
 collectStmt :: BoM CollectState m => S.Stmt -> m ()
 collectStmt stmt = collectPos stmt $ case stmt of
-    S.Typedef _ _ _ -> return ()
+    S.Typedef _ _ _ _ -> return ()
     S.FuncDef _ _ _ _ _ _ -> return ()
     S.EmbedC _ _ -> return ()
     S.Block stmts -> mapM_ collectStmt stmts
@@ -468,9 +462,6 @@ collectExpr (S.AExpr exprType expr) = collectPos expr $ case expr of
     S.Field _ e (Sym sym) -> do
         case typeof e of
             Type x         -> return ()
-            Typedef symbol -> do
-                ObjField i  <- look (Sym sym) . KeyField =<< getTypeSymbol (typeof e)
-                collectField exprType i (typeof e)
             TypeApply symbol _ -> do
                 ObjField i  <- look (Sym sym) . KeyField =<< getTypeSymbol (typeof e)
                 collectField exprType i (typeof e)

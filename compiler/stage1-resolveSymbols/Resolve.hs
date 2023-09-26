@@ -44,7 +44,6 @@ data ResolveState
         , imports      :: [ASTResolved]
         , modName      :: String
         , supply       :: Map.Map String Int
-        , typeDefsMap  :: Map.Map Symbol AnnoType
         , generics     :: Set.Set Symbol
         , funcDefsMap  :: Map.Map Symbol FuncBody
         , typeFuncsMap :: Map.Map Symbol ([Symbol], AnnoType)
@@ -55,7 +54,6 @@ initResolveState imports modName typeImports = ResolveState
     , imports       = imports
     , modName       = modName
     , supply        = Map.empty
-    , typeDefsMap   = Map.empty
     , generics      = Set.empty
     , funcDefsMap   = Map.empty
     , typeFuncsMap  = Map.empty
@@ -86,7 +84,7 @@ lookm symbol key = case symbol of
                             [x] -> return (Just x)
                             [] -> return (Just symbol) -- Maybe remove this
                     KeyType -> do
-                        xs <- concat . map (Map.keys . Map.filterWithKey (\s _ -> Symbol.sym s == sym) . typeDefs) <$> gets imports
+                        xs <- concat . map (Map.keys . Map.filterWithKey (\s _ -> Symbol.sym s == sym) . typeFuncs) <$> gets imports
                         case xs of
                             [] -> return Nothing
                             [x] -> return (Just x)
@@ -140,11 +138,6 @@ annoToType anno = case anno of
             AST.ADTFieldMember symbol ts -> FieldCtor ts
 
 
-buildTypeImportMap :: BoM (Map.Map Symbol Type) m => [ASTResolved] -> m ()
-buildTypeImportMap imports = do
-    forM_ imports $ \imprt -> do
-        modify $ Map.union (typeDefs imprt)
-
 buildTypeFuncImportMap :: BoM (Map.Map Symbol ([Symbol], Type)) m => [ASTResolved] -> m ()
 buildTypeFuncImportMap imports = do
     forM_ imports $ \imprt -> do
@@ -188,15 +181,14 @@ resolveAsts asts imports = withErrorPrefix "resolve: " $ do
             let moduleName = astModuleName $ head asts
             let includes   = [ s | inc@(CInclude s) <- concat $ map astImports asts ]
             let links      = [ s | link@(CLink s) <- concat $ map astImports asts ]
-            let typedefs   = [ stmt | stmt@(AST.Typedef _ _ _) <- concat $ map astStmts asts ]
-            let typedef2s  = [ stmt | stmt@(AST.Typedef2 _ _ _ _) <- concat $ map astStmts asts ]
+            let typedefs   = [ stmt | stmt@(AST.Typedef _ _ _ _) <- concat $ map astStmts asts ]
             let funcdefs   = [ stmt | stmt@(AST.FuncDef _ _ _ _ _ _) <- concat $ map astStmts asts ]
             let consts     = [ stmt | stmt@(AST.Const _ _ _) <- concat $ map astStmts asts ]
 
             -- check validity
             assert (all (== moduleName) $ map astModuleName asts) "module name mismatch"
             forM_ (concat $ map astStmts asts) $ \stmt -> withPos stmt $ case stmt of
-                (AST.Typedef _ _ _) -> return ()
+                (AST.Typedef _ _ _ _) -> return ()
                 (AST.FuncDef _ _ _ _ _ _) -> return ()
                 (AST.Const _ _ _) -> return ()
                 _ -> fail "invalid top-level statement"
@@ -217,23 +209,20 @@ resolveAsts asts imports = withErrorPrefix "resolve: " $ do
                 when (isNothing resm) $ define (sym symbol) KeyFunc (Sym $ sym $ symbol)
 
             -- get imports
-            (_, typeImportMap)     <- runBoMTExcept Map.empty (buildTypeImportMap imports)
             (_, typeFuncImportMap) <- runBoMTExcept Map.empty (buildTypeFuncImportMap imports)
             (_, funcImportMap)     <- runBoMTExcept Map.empty (buildFuncImportMap imports)
             (_, ctorImportMap)     <- runBoMTExcept Map.empty (buildCtorImportMap imports)
 
-            mapM resolveTypeDef typedefs
-            mapM resolveTypeDef2 typedef2s
+            mapM resolveTypeDef2 typedefs
             mapM_ resolveFuncDef funcdefs
 
 
-            typeDefs <- gets typeDefsMap
             typeFuncs <- gets typeFuncsMap
             funcDefs <- gets funcDefsMap
 
             -- combine the typeDefs and typeFuncs map to build the ctorMap
             ctorMap <- fmap snd $ runBoMTExcept Map.empty $ 
-                buildCtorMap $ Map.toList $ Map.union typeDefs (Map.map snd typeFuncs)
+                buildCtorMap $ Map.toList $ Map.map snd typeFuncs
 
             supply <- gets supply
             return $ ASTResolved
@@ -243,7 +232,6 @@ resolveAsts asts imports = withErrorPrefix "resolve: " $ do
                 , funcImports = funcImportMap
                 , constDefs   = Map.fromList constDefsList
                 , funcDefs    = funcDefs
-                , typeDefs    = Map.union typeImportMap (Map.map annoToType typeDefs)
                 , typeFuncs   = Map.union typeFuncImportMap (Map.map (\(x, y) -> (x, annoToType y)) typeFuncs)
                 , ctorDefs    = Map.union ctorImportMap ctorMap
                 , symSupply   = supply
@@ -272,57 +260,9 @@ resolveFuncDef (FuncDef pos params (Sym sym) args retty blk) = withPos pos $ do
     return symbol'
 
 
--- modifies the typedef and inserts it into typeDefsMap
-resolveTypeDef :: BoM ResolveState m => AST.Stmt -> m ()
-resolveTypeDef (AST.Typedef pos (Sym sym) anno) = do
-    symbol <- genSymbol sym
-    define sym KeyType symbol
-    define sym KeyFunc symbol
-
-    anno' <- case anno of
-        AnnoType t -> AnnoType <$> resolve t
-        AnnoTuple ps -> do 
-            ps' <- forM ps $ \(AST.Param pos (Sym s) t) -> do
-                s' <- genSymbol s
-                AST.Param pos s' <$> resolve t
-            return $ AnnoTuple ps'
-
-        AnnoTable ps -> do
-            ps' <- forM ps $ \(AST.Param pos (Sym s) t) -> do
-                s' <- genSymbol s
-                AST.Param pos s' <$> resolve t
-            return $ AnnoTable ps'
-
-        AnnoADT xs -> do
-            xs' <- forM xs $ \x -> case x of
-                ADTFieldMember (Sym s) ts -> do
-                    s' <- genSymbol s
-                    ts' <- mapM resolve ts
-                    return $ ADTFieldMember s' ts'
-                ADTFieldType t -> ADTFieldType <$> resolve t
-                ADTFieldNull -> return ADTFieldNull
-            return $ AnnoADT xs'
-
-        _ -> fail $ "invalid anno: " ++ show anno
-
-    extraSpecialKeyFuncDefiningFunction anno'
-
-    modify $ \s -> s { typeDefsMap = Map.insert symbol anno' (typeDefsMap s) }
-
-    where
-        -- This is the strange case of the ADTFieldMember getting defined with a KeyFunc. Needs Tidying
-        extraSpecialKeyFuncDefiningFunction :: BoM ResolveState m => AST.AnnoType -> m ()
-        extraSpecialKeyFuncDefiningFunction anno' = case anno' of
-            AnnoADT xs -> forM_ xs $ \x -> case x of
-                ADTFieldMember symbol' ts' -> do
-                    define (Symbol.sym symbol') KeyFunc symbol'
-                _ -> return ()
-            _ -> return ()
-
-
 -- modifies the typedef function and inserts it into typeFuncsMap
 resolveTypeDef2 :: BoM ResolveState m => AST.Stmt -> m ()
-resolveTypeDef2 (AST.Typedef2 pos args (Sym sym) anno) = do
+resolveTypeDef2 (AST.Typedef pos args (Sym sym) anno) = do
     symbol <- genSymbol sym
     define sym KeyType symbol
     define sym KeyFunc symbol
@@ -387,13 +327,9 @@ instance Resolve Stmt where
                 (funcRetty body)
                 (funcStmt body)
 
-        AST.Typedef2 pos args symbol anno -> do
+        AST.Typedef pos args symbol anno -> do
             resolveTypeDef2 stmt
-            return $ AST.Typedef pos symbol anno -- essentially discarded
-
-        AST.Typedef pos symbol anno -> do 
-            resolveTypeDef stmt
-            return $ AST.Typedef pos symbol anno -- essentially discarded
+            return $ AST.Typedef pos args symbol anno -- essentially discarded
 
         Const pos (Sym s) expr -> do
             symbol' <- genSymbol s
@@ -494,7 +430,7 @@ instance Resolve Pattern where
             case mtype of
                 Just symbol' -> do
                     unless (length pats == 1) $ error "TODO - make it handle more"
-                    return $ PatTypeField pos (Type.Typedef symbol') (head pats')
+                    return $ PatTypeField pos (Type.TypeApply symbol' []) (head pats')
                 Nothing -> do
                     symbol' <- look symbol KeyFunc
                     return $ PatField pos symbol' pats'
@@ -541,9 +477,6 @@ instance Resolve Type where
         Type.Key t          -> Type.Key <$> resolve t
         Type.Tuple ts       -> Type.Tuple <$> mapM resolve ts
         Type.Array n t      -> Type.Array n <$> resolve t
-        Type.Typedef symbol -> do -- generics are parsed as Typedef, replace.
-            symbol' <- look symbol KeyType
-            return $ Type.Typedef symbol'
         Type.ADT fs         -> Type.ADT <$>  mapM resolve fs
         Type.Range t        -> Type.Range <$> resolve t
         Type.TypeApply s ts -> do
@@ -576,7 +509,7 @@ instance Resolve Expr where
                     case resm of 
                         Just symbol' -> do
                             assert (params == []) "Convert cannot have params"
-                            return $ Conv pos (Type.Typedef symbol') exprs'
+                            return $ Conv pos (Type.TypeApply symbol' []) exprs'
                         Nothing -> do
                             symbol' <- look symbol KeyFunc
                             return $ Call pos params' symbol' exprs'

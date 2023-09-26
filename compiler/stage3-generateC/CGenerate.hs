@@ -269,11 +269,6 @@ subscript val idx = do
             
 baseTypeOf :: (MonadGenerate m, Typeof a) => a -> m Type.Type
 baseTypeOf a = case typeof a of
-    Type.Typedef s -> do
-        resm <- Map.lookup s <$> gets typedefs
-        when (isNothing resm) $ fail $ "baseTypeOf: " ++ show (typeof a)
-        baseTypeOf (fromJust resm)
-
     Type.TypeApply symbol ts -> do
         resm <- Map.lookup symbol <$> gets typefuncs
         case resm of
@@ -303,7 +298,6 @@ cTypeOf a = case typeof a of
     Void -> return Cvoid
     Type.Bool -> return $ Cbool
     Type.Char -> return $ Cchar
-    Type.Typedef s -> return $ Ctypedef (show s)
     Type.String -> return $ Cpointer Cchar
     Type.Array n t -> do
         arr <- Carray n <$> cTypeOf t

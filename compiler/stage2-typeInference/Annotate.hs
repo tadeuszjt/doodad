@@ -67,8 +67,8 @@ instance Annotate Stmt where
             index' <- annotate index
             SetOp p op index' <$> annotate e
 
-        AST.Typedef pos symbol anno ->
-            return $ AST.Typedef pos symbol anno -- has no expressions
+        AST.Typedef pos args symbol anno ->
+            return $ AST.Typedef pos args symbol anno -- has no expressions
 
         If p c b elm        -> do
             c' <- annotate c

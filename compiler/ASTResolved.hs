@@ -14,7 +14,6 @@ data ASTResolved
         , includes    :: Set.Set String                  -- c header includes
         , links       :: Set.Set String                  -- linked libraries
         , constDefs   :: Map.Map Symbol Expr             -- defined consts
-        , typeDefs    :: Map.Map Symbol Type             -- defined types
         , typeFuncs   :: Map.Map Symbol ([Symbol], Type) -- defined type functions
         , ctorDefs    :: Map.Map Symbol (Symbol, Int)    -- defined ctors
         , funcImports :: Map.Map Symbol FuncKey          -- imported funcs
@@ -48,11 +47,8 @@ prettyASTResolved ast = do
     forM_ (Map.toList $ constDefs ast) $ \(symbol, expr) ->
         prettyStmt "" $ AST.Const undefined symbol expr
 
-    forM_ (Map.toList $ typeDefs ast) $ \(symbol, typ) -> 
-        prettyStmt "" (AST.Typedef undefined symbol $ AnnoType typ)
-
     forM_ (Map.toList $ typeFuncs ast) $ \(symbol, (args, typ)) -> 
-        prettyStmt "" (AST.Typedef2 undefined (map Symbol.sym args) symbol $ AnnoType typ)
+        prettyStmt "" (AST.Typedef undefined (map Symbol.sym args) symbol $ AnnoType typ)
 
     forM_ (Map.toList $ funcDefs ast) $ \(symbol, body) -> 
         prettyStmt "" $ FuncDef

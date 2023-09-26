@@ -162,7 +162,7 @@ buildModule args modPath = do
             assert (isJust resm) $ show importPath ++ " not in module map"
             return $ fromJust resm
         astResolved <- fmap fst $ R.resolveAsts asts astImports
-        Flatten.checkTypeDefs (typeDefs astResolved)
+        --Flatten.checkTypeDefs (typeDefs astResolved)
         when (printAstResolved args) $ liftIO $ prettyASTResolved astResolved
 
         -- infer ast types

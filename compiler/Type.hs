@@ -14,6 +14,7 @@ data AdtField
     | FieldCtor [Type]
     deriving (Eq, Ord)
 
+
 data Type
     = Type Int
     | Void
@@ -33,7 +34,6 @@ data Type
     | Array Int Type         
     | Table [Type]         
     | ADT [AdtField]
-    | Typedef Symbol
     | TypeApply Symbol [Type]
     deriving (Eq, Ord)
 
@@ -63,7 +63,6 @@ instance Show Type where
         Array n t     -> "[" ++ show n ++ " " ++ show t ++ "]"
         ADT tss       -> "{" ++ intercalate " | " (map show tss) ++ "}"
         Table ts      -> "[" ++ intercalate "; " (map show ts) ++ "]"
-        Typedef s     -> show s
         TypeApply s ts -> show s ++ "(" ++ intercalate ", " (map show ts) ++ ")"
 
 isInt x      = x `elem` [U8, I8, I16, I32, I64]
@@ -74,7 +73,6 @@ isSimple x   = isInt x || isFloat x || x == Char || x == Bool || x == String
 
 getTypeSymbol :: MonadFail m => Type -> m Symbol
 getTypeSymbol typ = case typ of
-    Typedef symbol     -> return symbol
     TypeApply symbol _ -> return symbol
     _ -> fail $ "no symbol for type: " ++ show typ
 
@@ -82,9 +80,19 @@ getTypeSymbol typ = case typ of
 -- Takes arguments in the form of a Map which is used to replace all the matching Typedefs.
 applyTypeFunction :: Map.Map Symbol Type.Type -> Type.Type -> Type.Type
 applyTypeFunction argMap typ = case typ of
-    Type.Typedef s -> if Map.member s argMap then argMap Map.! s else typ
-    Type.Tuple ts  -> Type.Tuple $ map (applyTypeFunction argMap) ts
-    _ -> error $ "applyTypeFunction: " ++ show typ
+    TypeApply s [] -> if Map.member s argMap then argMap Map.! s else typ
+    Tuple ts       -> Type.Tuple $ map (applyTypeFunction argMap) ts
+    Table ts       -> Type.Table $ map (applyTypeFunction argMap) ts
+    ADT fs         -> ADT $ map applyTypeFunctionAdtField fs
+    TypeApply _ _  -> error "here"
+    _ | isSimple typ -> typ
+    _              -> error $ "applyTypeFunction: " ++ show typ
+    where
+        applyTypeFunctionAdtField :: AdtField -> AdtField
+        applyTypeFunctionAdtField field = case field of
+            FieldType t -> FieldType $ applyTypeFunction argMap t
+            FieldCtor ts -> FieldCtor $ map (applyTypeFunction argMap) ts
+            _ -> error $ show field
 
 
 typesCouldMatch :: Type -> Type -> Bool
@@ -92,7 +100,10 @@ typesCouldMatch a b = case (a, b) of
     (Type _, _)            -> True
     (_, Type _)            -> True
     (Void, Void)           -> True
-    (Typedef _, Typedef _) -> a == b
+    (TypeApply sa ats, TypeApply sb bts) ->
+        sa == sb
+        && length ats == length bts
+        && (all (== True) $ zipWith typesCouldMatch ats bts)
     _ | isSimple a         -> a == b
     (Table as, Table bs)   -> length as == length bs && (all (== True) $ zipWith typesCouldMatch as bs)
     (ADT afs, ADT bfs)     -> length afs == length bfs && (all (== True) $ zipWith fieldsCouldMatch afs bfs)

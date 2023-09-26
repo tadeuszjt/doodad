@@ -27,17 +27,10 @@ data UnifyState
 
 baseTypeOf :: BoM UnifyState m => Type -> m (Maybe Type)
 baseTypeOf typ = case typ of
-    Typedef symbol -> do
-        resm <- gets $ Map.lookup symbol . typeMap
-        case resm of
-            Nothing                -> fail $ "Cannot find symbol: " ++ show symbol
-            Just (ObjTypeFunc _ _) -> fail $ "symbol is type function: " ++ show symbol
-            Just (ObjType t)       -> baseTypeOf t
     TypeApply symbol ts -> do
         resm <- gets $ Map.lookup symbol . typeMap
         case resm of
             Nothing                 -> fail $ "Cannot find symbol: " ++ show symbol
-            Just (ObjType _)        -> fail $ "symbol is type, not function: " ++ show symbol
             Just (ObjTypeFunc ss t) -> do
                 assert (length ts == length ss) "invalid type function args"
                 baseTypeOf $ applyTypeFunction (Map.fromList $ zip ss ts) t
