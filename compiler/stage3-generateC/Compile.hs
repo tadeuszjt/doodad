@@ -97,11 +97,11 @@ generate ast = do
         define (show symbol) (CGenerate.Const expr)
             
     -- generate imported function externs
-    forM_ (Map.toList $ funcImports ast) $ \(symbol, funcKey@(pts, s, ats, rt)) -> case symbol of
+    forM_ (Map.toList $ funcImports ast) $ \(symbol, body) -> case symbol of
         SymResolved _ _ _ -> do
-            crt <- cTypeOf rt
-            cpts <- map Cpointer <$> mapM cTypeOf pts
-            cats <- mapM cTypeOf ats
+            crt <- cTypeOf (ASTResolved.funcRetty body)
+            cpts <- map Cpointer <$> mapM cTypeOf (ASTResolved.funcParams body)
+            cats <- mapM cTypeOf (ASTResolved.funcArgs body)
             newExtern (show symbol) crt (cpts ++ cats)
         _ -> return ()
 

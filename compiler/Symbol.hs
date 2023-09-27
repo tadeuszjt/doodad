@@ -18,3 +18,11 @@ instance Show Symbol where
         0 -> mod ++ "_" ++ sym
         n -> mod ++ "_" ++ sym ++ "_" ++ show n
 
+symbolsCouldMatch :: Symbol -> Symbol -> Bool
+symbolsCouldMatch a@(SymResolved _ _ _)  b@(SymResolved _ _ _) = a == b
+symbolsCouldMatch a@(SymResolved _ _ _)  b@(SymQualified _ _)  = Symbol.mod a == Symbol.mod b && sym a == sym b
+symbolsCouldMatch a@(SymQualified _ _) b@(SymResolved _ _ _)   = Symbol.mod a == Symbol.mod b && sym a == sym b
+symbolsCouldMatch a@(SymQualified _ _)   b@(Sym _)             = Symbol.sym a == Symbol.sym b
+symbolsCouldMatch a@(Sym _)              b@(SymQualified _ _)  = Symbol.sym a == Symbol.sym b
+symbolsCouldMatch a@(SymResolved _ _ _)  b@(Sym _)             = Symbol.sym a == Symbol.sym b
+symbolsCouldMatch a@(Sym _)              b@(SymResolved _ _ _) = Symbol.sym a == Symbol.sym b

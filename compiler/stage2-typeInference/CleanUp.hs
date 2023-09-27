@@ -16,6 +16,7 @@ import Error
 import Type
 import ASTResolved
 import Apply
+import FunctionFinder
 
 
 -- Resolves function calls
@@ -78,68 +79,10 @@ getSubsFromGeneric callKey@(ps, symbol, as, rt) funcBody = do
 -- add extern if needed
 resolveFuncCall :: BoM ASTResolved m => Type -> AST.Expr -> m Symbol
 resolveFuncCall exprType (AST.Call pos params symbol args) = withPos pos $ do
-    let key = (map typeof params, sym symbol, map typeof args, exprType)
-    case symbol of
-        SymResolved _ _ _ -> return symbol
-
-        SymQualified mod sym -> do
-            resm <- findQualifiedFuncDef mod key
-            assert (isJust resm) $ "no definition for: " ++ show key
-            return (fromJust resm)
-
-        Sym sym -> do
-            funcresm <- findFuncDef key
-            typeresm <- findTypeFunc sym
-            case (funcresm, typeresm) of
-                (Just x, Nothing) -> do
-                    funcBody <- (Map.! x) <$> gets funcDefs
-                    --subs <- getSubsFromGeneric key funcBody
---                    if (subs /= []) then do -- function is generic
---                        funcBody' <- return $ applySubs subs funcBody
---                        symbol' <- genSymbol sym
---                        modify $ \s -> s { funcDefs = Map.insert symbol' funcBody' (funcDefs s) }
---                        return symbol'
---                    else do
-                    return x
-                (Nothing, Just x) -> return x
-                (Nothing, Nothing) -> do
-                    funcresm <- findImportedFuncDef key
-                    case funcresm of
-                        Just x -> return x
-                        Nothing -> fail $ "no def for: " ++ sym ++ " " ++ show key
-    where
-        findFuncDef :: BoM ASTResolved m => FuncKey -> m (Maybe Symbol)
-        findFuncDef key = useLast =<< Map.filterWithKey
-            (\symbol body -> funcKeysCouldMatch (funcKeyFromBody (sym symbol) body) key) <$> gets funcDefs
-
-        funcKeysCouldMatch :: FuncKey -> FuncKey -> Bool
-        funcKeysCouldMatch (aps, asymbol, aas, art) (bps, bsymbol, bas, brt)
-            | length aps /= length bps || length aas /= length bas = False
-            | asymbol /= bsymbol = False
-            | otherwise = all (== True) $
-                zipWith typesCouldMatch (aps ++ aas ++ [art]) (bps ++ bas ++ [brt])
-
-
-        findTypeFunc :: BoM ASTResolved m => String -> m (Maybe Symbol)
-        findTypeFunc sym = checkOne =<< Map.filterWithKey (\s t -> Symbol.sym s == sym) <$> gets typeFuncs
-
-        findImportedFuncDef :: BoM ASTResolved m => FuncKey -> m (Maybe Symbol)
-        findImportedFuncDef key = checkOne =<< Map.filter (funcKeysCouldMatch key) <$> gets funcImports
-
-        findQualifiedFuncDef :: BoM ASTResolved m => String -> FuncKey -> m (Maybe Symbol)
-        findQualifiedFuncDef mod key = checkOne =<< Map.filterWithKey (\s k -> Symbol.mod s == mod && k == key) <$> gets funcImports
-
-        -- TODO this is very unsafe, prioritise non-generic?
-        useLast :: BoM s m => Map.Map Symbol b -> m (Maybe Symbol)
-        useLast mp = case Map.keys mp of
-            [] -> return Nothing
-            xs -> return (Just $ last xs)
-
-        checkOne :: BoM s m => Map.Map Symbol b -> m (Maybe Symbol)
-        checkOne mp = case Map.keys mp of
-            [] -> return Nothing
-            [symbol] -> return (Just symbol)
-            _ -> fail $ "Ambiguous symbol: " ++ show symbol
+    let key = (map typeof params, symbol, map typeof args, exprType)
+    symbols <- findCandidates key =<< get
+    case symbols of
+        [x] -> return x
 
 
 compileStmt :: BoM ASTResolved m => AST.Stmt -> m Stmt

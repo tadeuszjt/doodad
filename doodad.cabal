@@ -79,4 +79,5 @@ executable doodad
         Compile,
         COptimise,
         Constraint,
-        DeAnnotate
+        DeAnnotate,
+        FunctionFinder

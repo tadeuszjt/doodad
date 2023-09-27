@@ -102,7 +102,7 @@ typesCouldMatch a b = case (a, b) of
     (_, Type _)            -> True
     (Void, Void)           -> True
     (TypeApply sa ats, TypeApply sb bts) ->
-        sa == sb
+        symbolsCouldMatch sa sb
         && length ats == length bts
         && (all (== True) $ zipWith typesCouldMatch ats bts)
     _ | isSimple a         -> a == b

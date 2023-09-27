@@ -16,7 +16,7 @@ data ASTResolved
         , constDefs   :: Map.Map Symbol Expr             -- defined consts
         , typeFuncs   :: Map.Map Symbol ([Symbol], Type) -- defined type functions
         , ctorDefs    :: Map.Map Symbol (Symbol, Int)    -- defined ctors
-        , funcImports :: Map.Map Symbol FuncKey          -- imported funcs
+        , funcImports :: Map.Map Symbol FuncBody          -- imported funcs
         , funcDefs    :: Map.Map Symbol FuncBody         -- defined functions
         , funcDefsGeneric :: Map.Map Symbol FuncBody 
         , symSupply   :: Map.Map String Int              -- type supply from resovle
@@ -24,7 +24,7 @@ data ASTResolved
     deriving (Eq)
 
 
-type FuncKey = ([Type], String, [Type], Type)
+type FuncKey = ([Type], Symbol, [Type], Type) -- used to find functions
 data FuncBody
     = FuncBodyEmpty
     | FuncBody
@@ -42,9 +42,20 @@ data FuncBody
         }
     deriving (Eq, Show)
 
-funcKeyFromBody :: String -> FuncBody -> FuncKey
-funcKeyFromBody sym body =
-    (map typeof (funcParams body), sym, map typeof (funcArgs body), funcRetty body)
+
+funcKeyFromBody :: Symbol -> FuncBody -> FuncKey
+funcKeyFromBody symbol body =
+    (map typeof (funcParams body), symbol, map typeof (funcArgs body), funcRetty body)
+
+
+funcKeysCouldMatch :: FuncKey -> FuncKey -> Bool
+funcKeysCouldMatch (aParamTypes, aSymbol, aArgTypes, aRetty) (bParamTypes, bSymbol, bArgTypes, bRetty)
+    | length aParamTypes /= length bParamTypes || length aArgTypes /= length bArgTypes = False
+    | not $ symbolsCouldMatch aSymbol bSymbol                                          = False
+    | not $ all (== True) $ zipWith typesCouldMatch aParamTypes bParamTypes            = False
+    | not $ all (== True) $ zipWith typesCouldMatch aArgTypes bArgTypes                = False
+    | not $ typesCouldMatch aRetty bRetty                                              = False
+    | otherwise = True
 
 
 prettyASTResolved :: ASTResolved -> IO ()

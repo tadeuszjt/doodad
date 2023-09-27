@@ -145,12 +145,12 @@ buildTypeFuncImportMap imports = do
     forM_ imports $ \imprt -> do
         modify $ Map.union (typeFuncs imprt)
 
-buildFuncImportMap :: BoM (Map.Map Symbol FuncKey) m => [ASTResolved] -> m ()
+buildFuncImportMap :: BoM (Map.Map Symbol FuncBody) m => [ASTResolved] -> m ()
 buildFuncImportMap imports = do
     forM_ imports $ \imprt -> do
         forM_ (Map.toList $ funcDefs imprt) $ \(symbol, body) -> do
             False <- Map.member symbol <$> get
-            modify $ Map.insert symbol (funcKeyFromBody (sym symbol) body)
+            modify $ Map.insert symbol body
 
 buildCtorImportMap :: BoM (Map.Map Symbol (Symbol, Int)) m => [ASTResolved] -> m ()
 buildCtorImportMap imports = do
