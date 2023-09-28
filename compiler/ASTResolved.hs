@@ -69,6 +69,7 @@ prettyASTResolved ast = do
     forM_ (Map.toList $ funcDefs ast) $ \(symbol, body) -> 
         prettyStmt "" $ FuncDef
             undefined
+            (funcTypeArgs body)
             (funcParams body)
             symbol
             (funcArgs body)

@@ -182,16 +182,14 @@ resolveAsts asts imports = withErrorPrefix "resolve: " $ do
             let includes   = [ s | inc@(CInclude s) <- concat $ map astImports asts ]
             let links      = [ s | link@(CLink s) <- concat $ map astImports asts ]
             let typedefs   = [ stmt | stmt@(AST.Typedef _ _ _ _) <- concat $ map astStmts asts ]
-            let funcdefs   = [ stmt | stmt@(AST.FuncDef _ _ _ _ _ _) <- concat $ map astStmts asts ]
-            let funcdefs2  = [ stmt | stmt@(AST.FuncDef2 _ _ _ _ _ _ _) <- concat $ map astStmts asts ]
+            let funcdefs   = [ stmt | stmt@(AST.FuncDef _ _ _ _ _ _ _) <- concat $ map astStmts asts ]
             let consts     = [ stmt | stmt@(AST.Const _ _ _) <- concat $ map astStmts asts ]
 
             -- check validity
             assert (all (== moduleName) $ map astModuleName asts) "module name mismatch"
             forM_ (concat $ map astStmts asts) $ \stmt -> withPos stmt $ case stmt of
                 (AST.Typedef _ _ _ _) -> return ()
-                (AST.FuncDef _ _ _ _ _ _) -> return ()
-                (AST.FuncDef2 _ _ _ _ _ _ _) -> return ()
+                (AST.FuncDef _ _ _ _ _ _ _) -> return ()
                 (AST.Const _ _ _) -> return ()
                 _ -> fail "invalid top-level statement"
 
@@ -205,10 +203,11 @@ resolveAsts asts imports = withErrorPrefix "resolve: " $ do
                 return (symbol', expr)
 
             -- define func headers
-            forM_ funcdefs $ \(FuncDef pos params symbol args retty blk) -> withPos pos $ do
-                let funckey = (map typeof params, sym symbol, map typeof args, retty)
-                resm <- lookm (Sym $ sym symbol) KeyFunc
-                when (isNothing resm) $ define (sym symbol) KeyFunc (Sym $ sym $ symbol)
+            forM_ funcdefs $ \(FuncDef pos typeArgs params symbol args retty blk) -> withPos pos $ do
+                when (typeArgs == []) $ do
+                    let funckey = (map typeof params, sym symbol, map typeof args, retty)
+                    resm <- lookm (Sym $ sym symbol) KeyFunc
+                    when (isNothing resm) $ define (sym symbol) KeyFunc (Sym $ sym $ symbol)
 
             -- get imports
             (_, typeFuncImportMap) <- runBoMTExcept Map.empty (buildTypeFuncImportMap imports)
@@ -216,18 +215,14 @@ resolveAsts asts imports = withErrorPrefix "resolve: " $ do
             (_, ctorImportMap)     <- runBoMTExcept Map.empty (buildCtorImportMap imports)
 
             mapM resolveTypeDef2 typedefs
-            mapM_ resolveFuncDef funcdefs2
             mapM_ resolveFuncDef funcdefs
-
 
             typeFuncs <- gets typeFuncsMap
             funcDefs <- gets funcDefsMap
 
-
             -- combine the typeDefs and typeFuncs map to build the ctorMap
             ctorMap <- fmap snd $ runBoMTExcept Map.empty $ 
                 buildCtorMap $ Map.toList $ Map.map snd typeFuncs
-
 
             supply <- gets supply
             return $ ASTResolved
@@ -246,27 +241,7 @@ resolveAsts asts imports = withErrorPrefix "resolve: " $ do
 
 -- defines in funcDefsMap
 resolveFuncDef :: BoM ResolveState m => AST.Stmt -> m Symbol
-resolveFuncDef (FuncDef pos params (Sym sym) args retty blk) = withPos pos $ do
-    pushSymbolTable
-    params' <- mapM resolve params
-    args' <- mapM resolve args
-    retty' <- resolve retty
-    blk' <- resolve blk
-    popSymbolTable
-
-    symbol' <- genSymbol sym
-    let funcBody = FuncBody {
-        funcTypeArgs = [],
-        funcParams = params',
-        funcArgs   = args',
-        funcRetty  = retty',
-        funcStmt   = blk'
-        }
-    modify $ \s -> s { funcDefsMap = Map.insert symbol' funcBody (funcDefsMap s) }
-    return symbol'
-
-
-resolveFuncDef (FuncDef2 pos typeArgs params (Sym sym) args retty blk) = withPos pos $ do
+resolveFuncDef (FuncDef pos typeArgs params (Sym sym) args retty blk) = withPos pos $ do
     pushSymbolTable
     typeSymbols <- mapM (\(Sym s) -> genSymbol s) typeArgs
     forM_ typeSymbols $ \symbol -> define (Symbol.sym symbol) KeyType symbol
@@ -344,26 +319,13 @@ instance Resolve Stmt where
         ExprStmt callExpr -> ExprStmt <$> resolve callExpr
         EmbedC pos str -> EmbedC pos <$> processCEmbed str
 
-        FuncDef2 pos typeArgs params (Sym sym) args retty blk -> do
+        FuncDef pos typeArgs params (Sym sym) args retty blk -> do
             symbol' <- resolveFuncDef stmt
             isInMap <- (Map.member symbol') <$> gets funcDefsMap
-            body <- mapGet symbol' =<< gets funcDefsMap
-            return $ FuncDef2
-                pos
-                (funcTypeArgs body)
-                (funcParams body)
-                symbol'
-                (funcArgs body)
-                (funcRetty body)
-                (funcStmt body)
-
-        FuncDef pos params (Sym sym) args retty blk -> do
-            symbol' <- resolveFuncDef stmt
-            isInMap <- (Map.member symbol') <$> gets funcDefsMap
-            assert (isInMap) $ show symbol' ++ " not a member of funcDefsMap"
             body <- mapGet symbol' =<< gets funcDefsMap
             return $ FuncDef
                 pos
+                (funcTypeArgs body)
                 (funcParams body)
                 symbol'
                 (funcArgs body)

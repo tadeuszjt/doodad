@@ -53,17 +53,11 @@ instance Annotate Stmt where
         ExprStmt e        -> ExprStmt <$> annotate e
         Const p s e       -> return $ Const p s e -- don't annotate consts
 
-        FuncDef p ps s as rt blk -> do
+        FuncDef p tas ps s as rt blk -> do
             ps' <- mapM annotate ps
             as' <- mapM annotate as
             blk' <- annotate blk
-            return $ FuncDef p ps' s as' rt blk'
-
-        FuncDef2 p tas ps s as rt blk -> do
-            ps' <- mapM annotate ps
-            as' <- mapM annotate as
-            blk' <- annotate blk
-            return $ FuncDef2 p tas ps' s as' rt blk'
+            return $ FuncDef p tas ps' s as' rt blk'
 
         Assign p pat e      -> do
             pat' <- annotate pat

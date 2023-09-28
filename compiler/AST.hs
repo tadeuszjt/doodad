@@ -107,8 +107,7 @@ data Stmt
     | Block       [Stmt]
     | If          TextPos Expr Stmt (Maybe Stmt)
     | While       TextPos Expr Stmt
-    | FuncDef     TextPos [Param] Symbol [Param] Type Stmt
-    | FuncDef2    TextPos [Symbol] [Param] Symbol [Param] Type Stmt
+    | FuncDef     TextPos [Symbol] [Param] Symbol [Param] Type Stmt
     | Typedef     TextPos [String] Symbol AnnoType
     | Switch      TextPos Expr [(Pattern, Stmt)]
     | For         TextPos Expr (Maybe Pattern) Stmt
@@ -180,7 +179,7 @@ instance TextPosition Stmt where
         Block       s -> textPos (head s)
         If          p _ _ _ -> p
         While       p _ _ -> p
-        FuncDef     p _ _ _ _ _ -> p
+        FuncDef     p _ _ _ _ _ _ -> p
         Typedef     p _ _ _ -> p
         Switch      p _ _ -> p
         For         p _ _ _ -> p
@@ -188,7 +187,6 @@ instance TextPosition Stmt where
         EmbedC      p _ -> p
         SetOp       p _ _ _ -> p
         Const       p _ _ -> p
-        FuncDef2    p _ _ _ _ _ _ -> p
         _ -> error (show stmt)
 
 tupStrs, arrStrs, brcStrs :: [String] -> String
@@ -297,12 +295,16 @@ prettyAST ast = do
 
 prettyStmt :: String -> Stmt -> IO ()
 prettyStmt pre stmt = case stmt of
-    FuncDef pos params symbol args retty blk -> do
+    FuncDef pos typeArgs params symbol args retty blk -> do
+        typeArgsStr <- case typeArgs of
+            [] -> return ""
+            as -> return $ arrStrs $ map show as
         paramStr <- case params of
             [] -> return ""
             ps -> return $ brcStrs $ map show ps
         putStrLn $ pre
-            ++ "fn "
+            ++ "fn"
+            ++ typeArgsStr ++ " "
             ++ paramStr
             ++ show symbol
             ++ tupStrs (map show args)

@@ -53,11 +53,11 @@ instance DeAnnotate Stmt where
         ExprStmt e        -> ExprStmt <$> deAnnotate e
         Const p s e       -> return $ Const p s e -- don't deAnnotate consts
 
-        FuncDef p ps s as rt blk -> do
+        FuncDef p tas ps s as rt blk -> do
             ps' <- mapM deAnnotate ps
             as' <- mapM deAnnotate as
             blk' <- deAnnotate blk
-            return $ FuncDef p ps' s as' rt blk'
+            return $ FuncDef p tas ps' s as' rt blk'
 
         Assign p pat e      -> do
             pat' <- deAnnotate pat

@@ -132,11 +132,8 @@ instance Apply S.Stmt where
         S.Data pos symbol typ mexpr -> S.Data pos symbol (applyF typ) (fmap applyF mexpr)
         S.Const pos symbol expr     -> S.Const pos symbol expr
 
-        S.FuncDef pos params sym args retty block ->
-            S.FuncDef pos (map applyF params) sym (map applyF args) (applyF retty) (applyF block)
-
-        S.FuncDef2 pos typeArgs params sym args retty block ->
-            S.FuncDef pos (map applyF params) sym (map applyF args) (applyF retty) (applyF block)
+        S.FuncDef pos typeArgs params sym args retty block ->
+            S.FuncDef pos typeArgs (map applyF params) sym (map applyF args) (applyF retty) (applyF block)
 
         S.If pos cnd block melse ->
             S.If pos (applyF cnd) (applyF block) (fmap applyF melse)

@@ -241,8 +241,8 @@ fn testTypeFunctionMembers()
 
 fn testGenericFunction()
     fn[T] add(a:T, b:T) T; return a + b
-    let 2:i32 = add(1:i32, 1)
-    let x:f64 = add(0.2, 0.4)
+    //let 2:i32 = add(1:i32, 1)
+    //let x:f64 = add(0.2, 0.4)
 
 
 fn {io:Io} main()

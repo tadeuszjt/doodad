@@ -211,7 +211,7 @@ generateStmt stmt = withPos stmt $ case stmt of
     S.Block stmts -> mapM_ generateStmt stmts
     S.Return _ Nothing -> void $ appendElem (C.ReturnVoid)
     S.Return _ (Just expr) -> void $ appendElem . C.Return . valExpr =<< generateExpr expr
-    S.FuncDef _ _ _ _ _ _ -> return ()
+    S.FuncDef _ _ _ _ _ _ _ -> return ()
     S.Typedef _ _ _ _ -> return ()
     S.Const _ symbol expr -> do
         define (show symbol) $ CGenerate.Const expr
