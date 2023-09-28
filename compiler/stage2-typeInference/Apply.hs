@@ -48,7 +48,7 @@ instance Apply ASTResolved where
 
 
 instance Apply FuncBody where
-    apply f body = FuncBody
+    apply f body = body
         { funcParams = map (apply f) (funcParams body)
         , funcArgs   = map (apply f) (funcArgs body)
         , funcRetty  = (apply f) (funcRetty body)

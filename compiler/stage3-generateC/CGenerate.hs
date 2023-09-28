@@ -318,8 +318,7 @@ cTypeOf a = case typeof a of
         getTypedef "table" $ Cstruct (C.Param "len" Cint64_t:C.Param "cap" Cint64_t:pts)
 
     Type.TypeApply symbol ts -> do
-        typeFuncs <- gets typefuncs
-        let (ss, t) = typeFuncs Map.! symbol
+        (ss, t) <- mapGet symbol =<< gets typefuncs
         assert(length ts == length ss) "invalid number of type arguments"
         let t' = Type.applyTypeFunction (Map.fromList $ zip ss ts) t
         getTypedef (Symbol.sym symbol) =<< cTypeOf t'

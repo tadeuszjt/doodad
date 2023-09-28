@@ -3,6 +3,7 @@ module main
 type[T] Maybe     (null | T)
 type[X, Y] Either (X | Y)
 
+
 fn[T] {o:Maybe(T)} isNull() bool
     switch o
         null; return true
@@ -13,6 +14,7 @@ fn main()
     let x = conv(3):Maybe(i64)
     let y = conv(3.2):Either(string, f64)
     let z = conv((1, true, "3")):Maybe((i64, bool, string))
+
 
     switch x
         null; print("null")

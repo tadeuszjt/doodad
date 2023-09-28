@@ -56,6 +56,13 @@ assert :: MonadFail m => Bool -> String -> m ()
 assert b s = when (not b) (fail s)
 
 
+mapGet :: (MonadFail m, Ord k, Show k) => k -> Map.Map k v -> m v
+mapGet key map = do
+    case Map.lookup key map of
+        Nothing -> fail $ show key ++ " is not a member of map"
+        Just x  -> return x
+
+
 printError :: Error -> IO ()
 printError err = case err of
     ErrorStr str           -> putStrLn ("error: " ++ str)

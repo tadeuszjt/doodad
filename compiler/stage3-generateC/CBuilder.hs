@@ -5,6 +5,7 @@ import qualified Data.Map as Map
 
 import CAst
 import Control.Monad.State
+import Error
 
 
 
@@ -19,7 +20,7 @@ data BuilderState
     deriving (Eq)
 
 
-class (Monad m) => MonadBuilder m where
+class (Monad m, MonadFail m) => MonadBuilder m where
     liftBuilderState :: State BuilderState a -> m a
 
 
@@ -55,7 +56,7 @@ setCurrentId id = do
 append :: MonadBuilder m => ID -> m ()
 append id = do
     curId <- liftBuilderState $ gets currentID
-    curElem <- (Map.! curId) <$> liftBuilderState (gets elements)
+    curElem <- mapGet curId =<< liftBuilderState (gets elements)
 
     elem' <- case curElem of
         global@(Global _) -> return $ global { globalBody = globalBody global ++ [id] }
@@ -102,7 +103,7 @@ newElement elem = do
 
 modifyElement :: MonadBuilder m => ID -> (Element -> m Element) -> m ()
 modifyElement id f = do
-    elem' <- f =<< (Map.! id) <$> liftBuilderState (gets elements)
+    elem' <- f =<< mapGet id =<< liftBuilderState (gets elements)
     liftBuilderState $ modify $ \s -> s { elements = Map.insert id elem' (elements s) }
 
 

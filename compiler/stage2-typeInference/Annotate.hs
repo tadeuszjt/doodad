@@ -32,7 +32,7 @@ instance Annotate FuncBody where
         args' <- mapM annotate (funcArgs funcBody)
         stmt' <- annotate (funcStmt funcBody)
         retty' <- return (funcRetty funcBody)
-        return $ FuncBody
+        return $ funcBody
             { funcParams = params'
             , funcArgs   = args'
             , funcRetty  = retty'

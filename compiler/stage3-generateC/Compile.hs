@@ -88,7 +88,7 @@ generateAdtEqual a b = do
     return eq
 
 generate :: MonadGenerate m => ASTResolved -> m ()
-generate ast = do
+generate ast = withErrorPrefix "generic" $ do
     -- copy members from resolved ast
     modify $ \s -> s { ctors = ctorDefs ast }
     modify $ \s -> s { typefuncs = typeFuncs ast } 
@@ -97,33 +97,39 @@ generate ast = do
         define (show symbol) (CGenerate.Const expr)
             
     -- generate imported function externs
-    forM_ (Map.toList $ funcImports ast) $ \(symbol, body) -> case symbol of
-        SymResolved _ _ _ -> do
-            crt <- cTypeOf (ASTResolved.funcRetty body)
-            cpts <- map Cpointer <$> mapM cTypeOf (ASTResolved.funcParams body)
-            cats <- mapM cTypeOf (ASTResolved.funcArgs body)
-            newExtern (show symbol) crt (cpts ++ cats)
-        _ -> return ()
+    forM_ (Map.toList $ funcImports ast) $ \(symbol, body) -> do
+        if not (isGenericBody body) then case symbol of
+            SymResolved _ _ _ -> do
+                crt <- cTypeOf (ASTResolved.funcRetty body)
+                cpts <- map Cpointer <$> mapM cTypeOf (ASTResolved.funcParams body)
+                cats <- mapM cTypeOf (ASTResolved.funcArgs body)
+                newExtern (show symbol) crt (cpts ++ cats)
+            _ -> return ()
+        else return ()
 
     -- generate function headers
     forM_ (Map.toList $ funcDefs ast) $ \(symbol, func) -> do
-        crt <- cTypeOf (ASTResolved.funcRetty func)
-        cpts <- map Cpointer <$> mapM cTypeOf (map paramType $ ASTResolved.funcParams func)
-        cats <- mapM cTypeOf (map paramType $ ASTResolved.funcArgs func)
-        newExtern (show symbol) crt (cpts ++ cats)
+        if not (isGenericBody func) then do
+            crt <- cTypeOf (ASTResolved.funcRetty func)
+            cpts <- map Cpointer <$> mapM cTypeOf (map paramType $ ASTResolved.funcParams func)
+            cats <- mapM cTypeOf (map paramType $ ASTResolved.funcArgs func)
+            newExtern (show symbol) crt (cpts ++ cats)
+        else return ()
 
     -- generate functions, main is a special case
     forM_ (Map.toList $ funcDefs ast) $ \(symbol, func) -> do
-        generateFunc symbol func
-        when (sym symbol == "main") $ do
-            let typedef = Type.TypeApply (SymResolved "io" "Io" 0) []
-            id <- newFunction Cvoid "main" []
-            withCurID id $ case (ASTResolved.funcParams func, ASTResolved.funcArgs func) of
-                ([], []) -> call (show symbol) []
-                ([p], []) | typeof p == typedef -> do -- main with io
-                    io <- initialiser typedef []
-                    callWithParams [io] (show symbol) []
-            withCurID globalID (append id)
+        if not (isGenericBody func) then do
+            generateFunc symbol func
+            when (sym symbol == "main") $ do
+                let typedef = Type.TypeApply (SymResolved "io" "Io" 0) []
+                id <- newFunction Cvoid "main" []
+                withCurID id $ case (ASTResolved.funcParams func, ASTResolved.funcArgs func) of
+                    ([], []) -> call (show symbol) []
+                    ([p], []) | typeof p == typedef -> do -- main with io
+                        io <- initialiser typedef []
+                        callWithParams [io] (show symbol) []
+                withCurID globalID (append id)
+        else return ()
 
 
 generateFunc :: MonadGenerate m => Symbol -> FuncBody -> m ()
@@ -439,7 +445,7 @@ generatePattern pattern val = withPos pattern $ do
 
             endLabel <- fresh "skipMatch"
 
-            (typ', i) <- (Map.! symbol) <$> gets ctors
+            (typ', i) <- mapGet symbol =<< gets ctors
             --assert (typ' == typeof val) "invalid ctor type" TODO add this back in somehow
             let FieldCtor ts = fs !! i
             assert (length pats == length ts) "invalid number of args"
@@ -555,7 +561,7 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
     S.Field _ expr symbol -> do 
         val <- generateExpr expr
         base <- baseTypeOf val
-        (typ, i) <- (Map.! symbol) <$> gets ctors
+        (typ, i) <- mapGet symbol =<< gets ctors
         --assert (typ == typeof val) "ctor type mismatch" TODO
         member i val
 
@@ -657,7 +663,7 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
     S.Construct _ symbol exprs -> do
         base <- baseTypeOf typ
         vals <- mapM generateExpr exprs
-        (typ', i) <- (Map.! symbol) <$> gets ctors
+        (typ', i) <- mapGet symbol =<< gets ctors
         -- assert (typ == Type.Typedef typ') "error, types don't match" TODO
 
         case base of

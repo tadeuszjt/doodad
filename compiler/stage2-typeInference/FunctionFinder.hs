@@ -28,16 +28,21 @@ findCandidates callKey@(paramTypes, symbol, argTypes, returnType) ast = do
 
 findFunctionCandidates :: MonadFail m => FuncKey -> ASTResolved -> m [Symbol]
 findFunctionCandidates callKey@(paramTypes, symbol, argTypes, returnType) ast = do
-    funcDefsGenericReplaced <- fmap Map.fromList $ forM (Map.toList $ funcDefsGeneric ast) $ \(symbol, body) -> do
+    let funcDefsGeneric    = Map.filter isGenericBody (funcDefs ast)
+    let funcDefsNonGeneric = Map.filter (not . isGenericBody) (funcDefs ast)
+
+    funcDefsGenericReplaced <- fmap Map.fromList $ forM (Map.toList funcDefsGeneric) $ \(symbol, body) -> do
         key' <- replaceGenericsInFuncKey (funcTypeArgs body) (funcKeyFromBody symbol body)
         return (symbol, key')
 
     let resGeneric = Map.filterWithKey (\k v -> funcKeysCouldMatch v callKey) funcDefsGenericReplaced
-    let allMaps = Map.unions [funcImports ast, funcDefs ast]
+    let allMaps = Map.unions [funcImports ast, funcDefsNonGeneric]
     let res     = Map.filterWithKey (\k v -> funcKeysCouldMatch (funcKeyFromBody k v) callKey) allMaps
     let res'    = Map.mapWithKey (\k v -> funcKeyFromBody k v) res
 
     return $ Map.keys $ Map.union resGeneric res'
+
+    where
 
 
 findTypeCandidates :: MonadFail m => FuncKey -> ASTResolved -> m [Symbol]

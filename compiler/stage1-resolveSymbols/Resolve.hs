@@ -46,7 +46,6 @@ data ResolveState
         , supply       :: Map.Map String Int
         , generics     :: Set.Set Symbol
         , funcDefsMap  :: Map.Map Symbol FuncBody
-        , funcDefsGenericMap  :: Map.Map Symbol FuncBody
         , typeFuncsMap :: Map.Map Symbol ([Symbol], AnnoType)
         }
 
@@ -57,7 +56,6 @@ initResolveState imports modName typeImports = ResolveState
     , supply        = Map.empty
     , generics      = Set.empty
     , funcDefsMap   = Map.empty
-    , funcDefsGenericMap   = Map.empty
     , typeFuncsMap  = Map.empty
     }
 
@@ -185,6 +183,7 @@ resolveAsts asts imports = withErrorPrefix "resolve: " $ do
             let links      = [ s | link@(CLink s) <- concat $ map astImports asts ]
             let typedefs   = [ stmt | stmt@(AST.Typedef _ _ _ _) <- concat $ map astStmts asts ]
             let funcdefs   = [ stmt | stmt@(AST.FuncDef _ _ _ _ _ _) <- concat $ map astStmts asts ]
+            let funcdefs2  = [ stmt | stmt@(AST.FuncDef2 _ _ _ _ _ _ _) <- concat $ map astStmts asts ]
             let consts     = [ stmt | stmt@(AST.Const _ _ _) <- concat $ map astStmts asts ]
 
             -- check validity
@@ -217,16 +216,18 @@ resolveAsts asts imports = withErrorPrefix "resolve: " $ do
             (_, ctorImportMap)     <- runBoMTExcept Map.empty (buildCtorImportMap imports)
 
             mapM resolveTypeDef2 typedefs
+            mapM_ resolveFuncDef funcdefs2
             mapM_ resolveFuncDef funcdefs
 
 
             typeFuncs <- gets typeFuncsMap
             funcDefs <- gets funcDefsMap
-            funcDefsGeneric <- gets funcDefsGenericMap
+
 
             -- combine the typeDefs and typeFuncs map to build the ctorMap
             ctorMap <- fmap snd $ runBoMTExcept Map.empty $ 
                 buildCtorMap $ Map.toList $ Map.map snd typeFuncs
+
 
             supply <- gets supply
             return $ ASTResolved
@@ -236,7 +237,6 @@ resolveAsts asts imports = withErrorPrefix "resolve: " $ do
                 , funcImports = funcImportMap
                 , constDefs   = Map.fromList constDefsList
                 , funcDefs    = funcDefs
-                , funcDefsGeneric = funcDefsGeneric
                 , typeFuncs   = Map.union typeFuncImportMap (Map.map (\(x, y) -> (x, annoToType y)) typeFuncs)
                 , ctorDefs    = Map.union ctorImportMap ctorMap
                 , symSupply   = supply
@@ -256,6 +256,7 @@ resolveFuncDef (FuncDef pos params (Sym sym) args retty blk) = withPos pos $ do
 
     symbol' <- genSymbol sym
     let funcBody = FuncBody {
+        funcTypeArgs = [],
         funcParams = params',
         funcArgs   = args',
         funcRetty  = retty',
@@ -263,6 +264,8 @@ resolveFuncDef (FuncDef pos params (Sym sym) args retty blk) = withPos pos $ do
         }
     modify $ \s -> s { funcDefsMap = Map.insert symbol' funcBody (funcDefsMap s) }
     return symbol'
+
+
 resolveFuncDef (FuncDef2 pos typeArgs params (Sym sym) args retty blk) = withPos pos $ do
     pushSymbolTable
     typeSymbols <- mapM (\(Sym s) -> genSymbol s) typeArgs
@@ -274,14 +277,14 @@ resolveFuncDef (FuncDef2 pos typeArgs params (Sym sym) args retty blk) = withPos
     popSymbolTable
 
     symbol' <- genSymbol sym
-    let funcBody = FuncBody2 {
+    let funcBody = FuncBody {
         funcTypeArgs = typeSymbols,
         funcParams   = params',
         funcArgs     = args',
         funcRetty    = retty',
         funcStmt     = blk'
         }
-    modify $ \s -> s { funcDefsGenericMap = Map.insert symbol' funcBody (funcDefsGenericMap s) }
+    modify $ \s -> s { funcDefsMap = Map.insert symbol' funcBody (funcDefsMap s) }
     return symbol'
 
 
@@ -343,7 +346,8 @@ instance Resolve Stmt where
 
         FuncDef2 pos typeArgs params (Sym sym) args retty blk -> do
             symbol' <- resolveFuncDef stmt
-            body <- (Map.! symbol') <$> gets funcDefsGenericMap
+            isInMap <- (Map.member symbol') <$> gets funcDefsMap
+            body <- mapGet symbol' =<< gets funcDefsMap
             return $ FuncDef2
                 pos
                 (funcTypeArgs body)
@@ -355,7 +359,9 @@ instance Resolve Stmt where
 
         FuncDef pos params (Sym sym) args retty blk -> do
             symbol' <- resolveFuncDef stmt
-            body <- (Map.! symbol') <$> gets funcDefsMap
+            isInMap <- (Map.member symbol') <$> gets funcDefsMap
+            assert (isInMap) $ show symbol' ++ " not a member of funcDefsMap"
+            body <- mapGet symbol' =<< gets funcDefsMap
             return $ FuncDef
                 pos
                 (funcParams body)

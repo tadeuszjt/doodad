@@ -32,7 +32,7 @@ instance DeAnnotate FuncBody where
         args' <- mapM deAnnotate (funcArgs funcBody)
         stmt' <- deAnnotate (funcStmt funcBody)
         retty' <- return (funcRetty funcBody)
-        return $ FuncBody
+        return $ funcBody
             { funcParams = params'
             , funcArgs   = args'
             , funcRetty  = retty'

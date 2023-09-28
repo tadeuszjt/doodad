@@ -148,11 +148,8 @@ collectAST ast = do
         let key@(ps, _, as, rt) = funcKeyFromBody symbol body
         define symbol (KeyFunc [] ps as rt) ObjFunc
 
-    forM (Map.toList $ funcDefsGeneric ast) $ \(symbol, body) -> do
+    forM (Map.toList $ funcDefs ast) $ \(symbol, body) -> 
         define symbol (KeyFunc (funcTypeArgs body) (map typeof $ funcParams body) (map typeof $ funcArgs body) (funcRetty body)) ObjFunc
-
-    forM (Map.toList $ funcDefs ast) $ \(symbol, body) -> do
-        define symbol (KeyFunc [] (map typeof $ funcParams body) (map typeof $ funcArgs body) (funcRetty body)) ObjFunc
 
     forM_ (Map.toList $ funcDefs ast) $ \(symbol, body) ->
         collectFuncDef symbol body
@@ -334,7 +331,6 @@ collectCall exprType params symbol args = do -- can be resolved or sym
     astResolved <- gets astResolved
     --candidates <- mapM (\s -> getKeyFromSymbol s astResolved) =<< findCandidates callKey astResolved
     --liftIO $ putStrLn $ show candidates
-
 
     keysWithSameSymbol <- getKeysWithMatchingSymbol symbol
     keysWithReplacedGenerics <- fmap catMaybes $ forM keysWithSameSymbol $ \key -> case key of
