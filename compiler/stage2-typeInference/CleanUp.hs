@@ -81,8 +81,10 @@ resolveFuncCall :: BoM ASTResolved m => Type -> AST.Expr -> m Symbol
 resolveFuncCall exprType (AST.Call pos params symbol args) = withPos pos $ do
     let key = (map typeof params, symbol, map typeof args, exprType)
     symbols <- findCandidates key =<< get
-    case symbols of
+    symbol <- case symbols of
         [x] -> return x
+    return symbol
+
 
 
 compileStmt :: BoM ASTResolved m => AST.Stmt -> m Stmt

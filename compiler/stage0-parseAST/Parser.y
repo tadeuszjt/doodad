@@ -237,7 +237,7 @@ pattern  : '_'                              { S.PatIgnore (tokPos $1) }
          | pattern '|' expr                 { S.PatGuarded (tokPos $2) $1 $3 }
          | pattern '|' expr '->' pattern    { S.PatGuarded (tokPos $2) $1 (S.Match (tokPos $4) $3 $5) }
          | symbol '(' patterns ')'          { S.PatField (tokPos $2) (snd $1) $3 }
-         | pattern '[' type_ ']'            { S.PatTypeField (tokPos $2) $3 $1 }
+         | '.' type_ '[' pattern ']'        { S.PatTypeField (tokPos $1) $2 $4 }
          | pattern ':' type_                { S.PatAnnotated $1 $3 }
 
 ---------------------------------------------------------------------------------------------------
@@ -355,7 +355,8 @@ range_t  : '[' '..' ']' type_                      { T.Range $4 }
 
 anno_t   : ordinal_t                        { S.AnnoType $1 }
          | symbol                           { S.AnnoType (T.TypeApply (snd $1) []) }
-         | '(' uncovered_ts1 ')'            { S.AnnoType (T.Tuple $2) }
+         | '(' uncovered_ts2 ')'            { S.AnnoType (T.Tuple $2) }
+         | '(' uncovered_t ')'              { S.AnnoType $2 }
          | '(' params2 ')'                  { S.AnnoTuple $2 }
          | '(' paramsL2 ')'                 { S.AnnoADT (map paramToAdtField $2) }
          | '(' 'I' paramsL2 'D' ')'         { S.AnnoADT (map paramToAdtField $3) }

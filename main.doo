@@ -1,13 +1,28 @@
 module main
 
-fn {s:string} first() (null | char)
-    if len(s) > 0
-        return conv(s[0])
-    return null
+type[T] Maybe     (null | T)
+type[X, Y] Either (X | Y)
+
+fn[T] {o:Maybe(T)} isNull() bool
+    switch o
+        null; return true
+        _   ; return false
 
 
 fn main()
-    let s = "string"
-    if s.first() -> '/'[char] | s.first() -> 'x'[char]
-        print("test")
+    let x = conv(3):Maybe(i64)
+    let y = conv(3.2):Either(string, f64)
+    let z = conv((1, true, "3")):Maybe((i64, bool, string))
+
+    switch x
+        null; print("null")
+        .i64[n]; print(n)
+
+    switch y
+        .f64[n]; print("f64", n)
+
+    if z -> .(i64, bool, string)[t]
+        print(t)
+    z = null
+
     print("test")

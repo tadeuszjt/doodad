@@ -59,7 +59,7 @@ instance Show Type where
         String        -> "string"
         Key t         -> '@' : show t
         Range t       -> "[..]" ++ show t
-        Tuple ts      -> "(" ++ intercalate ", " (map show ts) ++ ")"
+        Tuple ts      -> "tuple(" ++ intercalate ", " (map show ts) ++ ")"
         Array n t     -> "[" ++ show n ++ " " ++ show t ++ "]"
         ADT tss       -> "(" ++ intercalate " | " (map show tss) ++ ")"
         Table ts      -> "[" ++ intercalate "; " (map show ts) ++ "]"

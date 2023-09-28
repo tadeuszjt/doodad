@@ -192,6 +192,7 @@ resolveAsts asts imports = withErrorPrefix "resolve: " $ do
             forM_ (concat $ map astStmts asts) $ \stmt -> withPos stmt $ case stmt of
                 (AST.Typedef _ _ _ _) -> return ()
                 (AST.FuncDef _ _ _ _ _ _) -> return ()
+                (AST.FuncDef2 _ _ _ _ _ _ _) -> return ()
                 (AST.Const _ _ _) -> return ()
                 _ -> fail "invalid top-level statement"
 

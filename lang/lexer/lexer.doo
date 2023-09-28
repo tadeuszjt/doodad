@@ -9,7 +9,7 @@ type Pos (row:i64, col:i64)
 type PosString (s:string, pos:Pos)
 
 fn Drop(str:PosString, num:i64) PosString
-    while str.s.at(0) -> c[char] | num > 0
+    while str.s.at(0) -> .char[c] | num > 0
         if c == '\n'
             str.pos.col = 0
             str.pos.row = str.pos.row + 1
@@ -49,9 +49,9 @@ type Result ( Fail:() | Success:(Token, PosString, PosString) )
 
 
 fn lexIdent(str:PosString) Result
-    if str.At(0) -> c[char] | isAlpha(c)
+    if str.At(0) -> .char[c] | isAlpha(c)
         let idx = 0
-        while str.At(idx) -> c[char] | isAlpha(c) || isDigit(c) || c == '_'
+        while str.At(idx) -> .char[c] | isAlpha(c) || isDigit(c) || c == '_'
             idx = idx + 1
         return Success(Ident(), Take(str, idx), Drop(str, idx))
     return Fail()
@@ -63,7 +63,7 @@ fn lexImport(str:PosString) Result
     else; return Fail()
 
     let idx = 0
-    while str.At(idx) -> c[char] | c != '\n'
+    while str.At(idx) -> .char[c] | c != '\n'
         idx = idx + 1
 
     return Success(Import(), Take(str, idx), Drop(str, idx))
@@ -75,7 +75,7 @@ fn lexInclude(str:PosString) Result
     else; return Fail()
 
     let idx = 0
-    while str.At(idx) -> c[char] | c != '\n'
+    while str.At(idx) -> .char[c] | c != '\n'
         idx = idx + 1
 
     return Success(Include(), Take(str, idx), Drop(str, idx))
@@ -87,15 +87,15 @@ fn lexLink(str:PosString) Result
     else; return Fail()
 
     let idx = 0
-    while str.At(idx) -> c[char] | c != '\n'
+    while str.At(idx) -> .char[c] | c != '\n'
         idx = idx + 1
 
     return Success(Link(), Take(str, idx), Drop(str, idx))
 
 
 fn lexComment(str:PosString) Result
-    if str.At(0) -> '/'[char] | str.At(1) -> c[char] | c == '/'
-        while str.At(0) -> c[char] | c != '\n'
+    if str.At(0) -> .char['/'] | str.At(1) -> .char[c] | c == '/'
+        while str.At(0) -> .char[c] | c != '\n'
             str = Drop(str, 1)
         return Success(Comment(), Take(str, 0), str)
     return Fail()
@@ -146,30 +146,30 @@ fn lexSymbol(str:PosString) Result
         if x.s == symbol
             return Success(Symbol(), x, Drop(str, len(symbol)))
     for singles -> symbol
-        if str.At(0) -> c[char] | c == symbol
+        if str.At(0) -> .char[c] | c == symbol
             return Success(Symbol(), Take(str, 1), Drop(str, 1))
     return Fail()
 
 
 fn lexInteger(str:PosString) Result
-    if str.At(0) -> c[char] | isDigit(c)
+    if str.At(0) -> .char[c] | isDigit(c)
         let idx = 0
-        while str.At(idx) -> c[char] | isDigit(c)
+        while str.At(idx) -> .char[c] | isDigit(c)
             idx = idx + 1
         return Success(Integer(), Take(str, idx), Drop(str, idx))
     return Fail()
 
 
 fn lexFloating(str:PosString) Result
-    if str.At(0) -> c[char] | isDigit(c)
+    if str.At(0) -> .char[c] | isDigit(c)
     else; return Fail()
 
     let idx = 0
     let dot = false
-    while str.At(idx) -> c[char] | isDigit(c) || c == '.' && !dot
+    while str.At(idx) -> .char[c] | isDigit(c) || c == '.' && !dot
         idx = idx + 1
         if c == '.'; dot = true
-    if str.At(idx) -> '.'[char]; return Fail()
+    if str.At(idx) -> .char['.']; return Fail()
 
     if dot
         return Success(Floating(), Take(str, idx), Drop(str, idx))
@@ -182,25 +182,25 @@ fn lexNewline(str:PosString) Result
 //        if str.At(idx) -> '/'[char] | str.At(idx + 1) -> '/'[char]
 //            idx = idx + 2
 //        else; return null
-        while str.At(idx) -> c[char] | c != '\n'
+        while str.At(idx) -> .char[c] | c != '\n'
             idx = idx + 1
         return conv(idx)
 
     fn lexSpaceChar(str:PosString, idx:i64) (null | i64)
-        if str.At(idx) -> c[char] | c == '\n' || c == '\t' || c == ' '
+        if str.At(idx) -> .char[c] | c == '\n' || c == '\t' || c == ' '
             return conv(idx + 1)
         return null
 
     fn lex(str:PosString, idx:i64) (null | i64)
-        if lexComment(str, idx) -> i[i64]; return conv(i)
-        if lexSpaceChar(str, idx) -> i[i64]; return conv(i)
+        if lexComment(str, idx) -> .i64[i]; return conv(i)
+        if lexSpaceChar(str, idx) -> .i64[i]; return conv(i)
         return null
 
-    if str.At(0) -> '\n'[char]
+    if str.At(0) -> .char['\n']
     else; return Fail()
 
     let idx = 0
-    while lex(str, idx) -> i[i64]
+    while lex(str, idx) -> .i64[i]
         idx = i
 
     let spaces = Take(str, idx)
@@ -213,14 +213,14 @@ fn lexNewline(str:PosString) Result
 
 
 fn lexCEmbed(str:PosString) Result
-    if str.At(0) -> '$'[char] | str.At(1) -> '{'[char]
+    if str.At(0) -> .char['$'] | str.At(1) -> .char['{']
     else; return Fail() 
 
     str = Drop(str, 1)
     
     let idx = 1
     let level = 1
-    while str.At(idx) -> c[char] | level > 0
+    while str.At(idx) -> .char[c] | level > 0
         switch c
             '{'; level = level + 1
             '}'; level = level - 1
@@ -262,14 +262,14 @@ fn lexCharLiteral(str:PosString) Result
 
 
 fn lexStringLiteral(str:PosString) Result
-    if str.At(0) -> '"'[char]
+    if str.At(0) -> .char['"']
         let idx = 1
-        while str.At(idx) -> c[char] | c != '"' && c != '\n' // comment
+        while str.At(idx) -> .char[c] | c != '"' && c != '\n' // comment
             idx = idx + 1
 
         switch str.At(idx)
             null;               return Fail()
-            c[char] | c != '"'; return Fail()
+            .char[c] | c != '"'; return Fail()
             _;
 
         return Success(String(), Drop(Take(str, idx), 1), Drop(str, idx + 1))
@@ -279,7 +279,7 @@ fn lexStringLiteral(str:PosString) Result
     
 
 fn lex(str:PosString) Result
-    while str.At(0) -> c[char] | c == ' ' || c == '\t'
+    while str.At(0) -> .char[c] | c == ' ' || c == '\t'
         str = Drop(str, 1)
 
     if lexNewline(str)       -> Success(token, tstr, rest); return Success(token, tstr, rest)

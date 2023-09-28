@@ -188,6 +188,8 @@ instance TextPosition Stmt where
         EmbedC      p _ -> p
         SetOp       p _ _ _ -> p
         Const       p _ _ -> p
+        FuncDef2    p _ _ _ _ _ _ -> p
+        _ -> error (show stmt)
 
 tupStrs, arrStrs, brcStrs :: [String] -> String
 tupStrs strs = "(" ++ intercalate ", " strs ++ ")"

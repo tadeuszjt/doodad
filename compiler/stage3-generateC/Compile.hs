@@ -375,7 +375,7 @@ generateReentrantExpr (Value typ expr) = Value typ <$> reentrantExpr expr
 
 
 generatePattern :: MonadGenerate m => Pattern -> Value -> m Value
-generatePattern pattern val = do
+generatePattern pattern val = withPos pattern $ do
     case pattern of
         PatIgnore _ -> return true
         PatLiteral expr -> generateInfix S.EqEq val =<< generateExpr expr
@@ -473,7 +473,7 @@ generatePattern pattern val = do
         PatTypeField _ typ pat -> do
             base@(Type.ADT fs) <- baseTypeOf val
             let field = Type.FieldType typ
-            assert (field `elem` fs) "ADT does not have a type field"
+            assert (field `elem` fs) $ "ADT does not have type field: " ++ show field
 
             let i = fromJust $ elemIndex field fs
             skip <- fresh "matchSkip"

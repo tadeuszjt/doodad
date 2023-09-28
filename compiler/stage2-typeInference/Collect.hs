@@ -18,6 +18,7 @@ import qualified Resolve
 import ASTResolved
 import Annotate hiding (genType)
 import Apply
+import FunctionFinder
 
 import qualified Debug.Trace
 
@@ -48,15 +49,17 @@ data CollectState
         , defaults   :: Map.Map Constraint TextPos
         , curPos     :: TextPos
         , typeSupply :: Int
+        , astResolved :: ASTResolved
         }
 
-initCollectState annotateCount = CollectState
+initCollectState annotateCount ast = CollectState
     { symTab     = SymTab.initSymTab
     , curRetty   = Void
     , collected  = Map.empty
     , defaults   = Map.empty
     , curPos     = TextPos "" 0 0
     , typeSupply = annotateCount
+    , astResolved = ast
     }
 
 
@@ -327,6 +330,12 @@ collectPattern pattern typ = collectPos pattern $ case pattern of
 
 collectCall :: BoM CollectState m => Type -> [S.Expr] -> Symbol -> [S.Expr] -> m ()
 collectCall exprType params symbol args = do -- can be resolved or sym
+    let callKey = (map typeof params, symbol, map typeof args, exprType)
+    astResolved <- gets astResolved
+    --candidates <- mapM (\s -> getKeyFromSymbol s astResolved) =<< findCandidates callKey astResolved
+    --liftIO $ putStrLn $ show candidates
+
+
     keysWithSameSymbol <- getKeysWithMatchingSymbol symbol
     keysWithReplacedGenerics <- fmap catMaybes $ forM keysWithSameSymbol $ \key -> case key of
         KeyFunc [] _ _ _ -> return $ Just key
