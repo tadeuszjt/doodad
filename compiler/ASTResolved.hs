@@ -70,13 +70,13 @@ funcKeyFromBody symbol body =
     (map typeof (funcParams body), symbol, map typeof (funcArgs body), funcRetty body)
 
 
-funcKeysCouldMatch :: FuncKey -> FuncKey -> Bool
-funcKeysCouldMatch (aParamTypes, aSymbol, aArgTypes, aRetty) (bParamTypes, bSymbol, bArgTypes, bRetty)
+funcKeysCouldMatch :: [Symbol] -> FuncKey -> FuncKey -> Bool
+funcKeysCouldMatch typeArgs (aParamTypes, aSymbol, aArgTypes, aRetty) (bParamTypes, bSymbol, bArgTypes, bRetty)
     | length aParamTypes /= length bParamTypes || length aArgTypes /= length bArgTypes = False
     | not $ symbolsCouldMatch aSymbol bSymbol                                          = False
-    | not $ all (== True) $ zipWith typesCouldMatch aParamTypes bParamTypes            = False
-    | not $ all (== True) $ zipWith typesCouldMatch aArgTypes bArgTypes                = False
-    | not $ typesCouldMatch aRetty bRetty                                              = False
+    | not $ all (== True) $ zipWith (typesCouldMatch typeArgs) aParamTypes bParamTypes = False
+    | not $ all (== True) $ zipWith (typesCouldMatch typeArgs) aArgTypes bArgTypes     = False
+    | not $ typesCouldMatch typeArgs aRetty bRetty                                     = False
     | otherwise = True
 
 

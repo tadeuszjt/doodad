@@ -353,11 +353,11 @@ collectCall exprType params symbol args = do -- can be resolved or sym
 
 
         keyCouldMatch :: SymKey -> Bool
-        keyCouldMatch key@(KeyFunc [] tparams tas tr) =
+        keyCouldMatch key@(KeyFunc typeVars tparams tas tr) =
             sameArgLengths key
-            && all (== True) (zipWith typesCouldMatch tparams $ map typeof params)
-            && all (== True) (zipWith typesCouldMatch tas $ map typeof args)
-            && typesCouldMatch exprType tr 
+            && all (== True) (zipWith (typesCouldMatch typeVars) tparams $ map typeof params)
+            && all (== True) (zipWith (typesCouldMatch typeVars) tas $ map typeof args)
+            && typesCouldMatch typeVars exprType tr 
         keyCouldMatch _ = False
 
 

@@ -16,12 +16,13 @@ import Monad
 import Error
 import Apply
 import Symbol
-import Collect
 
+
+data TypeFunc = TypeFunc [Symbol] Type
 
 data UnifyState
     = UnifyState
-        { typeMap      :: Map.Map Symbol Collect.Object
+        { typeMap :: Map.Map Symbol TypeFunc
         }
 
 
@@ -31,7 +32,7 @@ baseTypeOf typ = case typ of
         resm <- gets $ Map.lookup symbol . typeMap
         case resm of
             Nothing                 -> return Nothing
-            Just (ObjTypeFunc ss t) -> do
+            Just (TypeFunc ss t) -> do
                 assert (length ts == length ss) "invalid type function args"
                 baseTypeOf $ applyTypeFunction (Map.fromList $ zip ss ts) t
     Type x -> return Nothing

@@ -71,7 +71,7 @@ isIntegral x = isInt x || x == Char
 isSimple x   = isInt x || isFloat x || x == Char || x == Bool || x == String
 
 
-getTypeSymbol :: MonadFail m => Type -> m Symbol
+getTypeSymbol :: MonadFail m => Type ->  m Symbol
 getTypeSymbol typ = case typ of
     TypeApply symbol _ -> return symbol
     _ -> fail $ "no symbol for type: " ++ show typ
@@ -96,25 +96,29 @@ applyTypeFunction argMap typ = case typ of
             _ -> error $ show field
 
 
-typesCouldMatch :: Type -> Type -> Bool
-typesCouldMatch a b = case (a, b) of
+typesCouldMatch :: [Symbol] -> Type -> Type -> Bool
+typesCouldMatch typeVars a b = case (a, b) of
     (Type _, _)            -> True
     (_, Type _)            -> True
+    (TypeApply s1 [], TypeApply s2 []) | s1 `elem` typeVars && s2 `elem` typeVars -> s1 == s2
+    (TypeApply s [], _) | s `elem` typeVars -> True
+    (_, TypeApply s []) | s `elem` typeVars -> True
+
     (Void, Void)           -> True
     (TypeApply sa ats, TypeApply sb bts) ->
         symbolsCouldMatch sa sb
         && length ats == length bts
-        && (all (== True) $ zipWith typesCouldMatch ats bts)
+        && (all (== True) $ zipWith (typesCouldMatch typeVars) ats bts)
     _ | isSimple a         -> a == b
     (Table as, Table bs)   ->
         length as == length bs
-        && (all (== True) $ zipWith typesCouldMatch as bs)
+        && (all (== True) $ zipWith (typesCouldMatch typeVars) as bs)
     (ADT afs, ADT bfs)     ->
         length afs == length bfs
         && (all (== True) $ zipWith fieldsCouldMatch afs bfs)
     (Tuple as, Tuple bs)   ->
         length as == length bs
-        && (all (== True) $ zipWith typesCouldMatch as bs)
+        && (all (== True) $ zipWith (typesCouldMatch typeVars) as bs)
 
     (_, _) -> False -- TODO
     _                      -> error (show (a, b))
@@ -122,5 +126,5 @@ typesCouldMatch a b = case (a, b) of
         fieldsCouldMatch :: AdtField -> AdtField -> Bool
         fieldsCouldMatch fa fb = case (fa, fb) of
             (FieldNull, FieldNull) -> True
-            (FieldType a, FieldType b) -> typesCouldMatch a b
+            (FieldType a, FieldType b) -> typesCouldMatch typeVars a b
             _ -> error $ show (fa, fb)

@@ -38,7 +38,7 @@ infer ast printAnnotated verbose = do
 
             -- turn type constraints into substitutions using unify
             let sos        = SymTab.lookupKey Collect.KeyType (symTab collectState)
-            let unifyState = UnifyState { typeMap = Map.fromList sos }
+            let unifyState = UnifyState { typeMap = Map.map (\(ObjTypeFunc ss t) -> TypeFunc ss t) (Map.fromList sos) }
 
             subs <- fmap fst $ runBoMTExcept unifyState (unify $ Map.toList $ collected collectState)
             ast' <- fmap snd $ runBoMTExcept (applySubs subs annotated) CleanUp.compile
@@ -55,7 +55,7 @@ infer ast printAnnotated verbose = do
 
             -- turn type constraints into substitutions using unify
             let sos        = SymTab.lookupKey Collect.KeyType (symTab collectState)
-            let unifyState = UnifyState { typeMap = Map.fromList sos }
+            let unifyState = UnifyState { typeMap = Map.map (\(ObjTypeFunc ss t) -> TypeFunc ss t) (Map.fromList sos) }
 
             subs <- fmap fst $ runBoMTExcept unifyState (unifyDefault $ Map.toList $ defaults collectState)
 
