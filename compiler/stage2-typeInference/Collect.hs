@@ -49,17 +49,15 @@ data CollectState
         , defaults   :: Map.Map Constraint TextPos
         , curPos     :: TextPos
         , typeSupply :: Int
-        , astResolved :: ASTResolved
         }
 
-initCollectState annotateCount ast = CollectState
+initCollectState annotateCount = CollectState
     { symTab     = SymTab.initSymTab
     , curRetty   = Void
     , collected  = Map.empty
     , defaults   = Map.empty
     , curPos     = TextPos "" 0 0
     , typeSupply = annotateCount
-    , astResolved = ast
     }
 
 
@@ -144,9 +142,8 @@ collectAST ast = do
     forM (Map.toList $ constDefs ast) $ \(symbol, expr) -> do
         define symbol KeyVar (ObjConst expr)
 
-    forM (Map.toList $ funcImports ast) $ \(symbol, body) -> do
-        let key@(ps, _, as, rt) = funcKeyFromBody symbol body
-        define symbol (KeyFunc [] ps as rt) ObjFunc
+    forM (Map.toList $ funcImports ast) $ \(symbol, body) -> 
+        define symbol (KeyFunc (funcTypeArgs body) (map typeof $ funcParams body) (map typeof $ funcArgs body) (funcRetty body)) ObjFunc
 
     forM (Map.toList $ funcDefs ast) $ \(symbol, body) -> 
         define symbol (KeyFunc (funcTypeArgs body) (map typeof $ funcParams body) (map typeof $ funcArgs body) (funcRetty body)) ObjFunc
@@ -327,14 +324,13 @@ collectPattern pattern typ = collectPos pattern $ case pattern of
 collectCall :: BoM CollectState m => Type -> [S.Expr] -> Symbol -> [S.Expr] -> m ()
 collectCall exprType params symbol args = do -- can be resolved or sym
     let callKey = (map typeof params, symbol, map typeof args, exprType)
-    astResolved <- gets astResolved
-    --candidates <- mapM (\s -> getKeyFromSymbol s astResolved) =<< findCandidates callKey astResolved
-    --liftIO $ putStrLn $ show candidates
 
     keysWithSameSymbol <- getKeysWithMatchingSymbol symbol
     keysWithReplacedGenerics <- fmap catMaybes $ forM keysWithSameSymbol $ \key -> case key of
         KeyFunc [] _ _ _ -> return $ Just key
-        KeyFunc _ _ _ _ -> Just <$> replaceGenericsInFuncKey key
+        KeyFunc typeArgs p a r -> do
+            keyReplaced@(p', _, a', r') <- replaceGenericsInFuncKeyWithCall typeArgs (p, symbol, a, r) callKey
+            return $ Just $ KeyFunc [] p' a' r'
         _ -> return Nothing
 
     let keys = filter keyCouldMatch keysWithReplacedGenerics
@@ -376,29 +372,6 @@ collectCall exprType params symbol args = do -- can be resolved or sym
             collectEq exprType rt
         collectIfOneDef _                    = return ()
 
-        -- turns a generic func key into one with the generics replaced with type variables.
-        replaceGenericsInFuncKey :: BoM CollectState m => SymKey -> m SymKey
-        replaceGenericsInFuncKey (KeyFunc typeArgs paramTypes argTypes retType) = do
-            ts <- replaceGenerics typeArgs $ paramTypes ++ argTypes ++ [retType]
-            let (ps, ts')  = (take (length paramTypes) ts, drop (length paramTypes) ts)
-            let (as, ts'') = (take (length argTypes) ts', drop (length argTypes) ts') 
-            let [rt]       = take 1 ts''
-            return $ KeyFunc [] ps as rt
-
-        -- replaces generics with type variables
-        replaceGenerics :: BoM CollectState m => [Symbol] -> [Type] -> m [Type]
-        replaceGenerics typeArgs ts = do
-            setOfGenerics <- return $ Set.fromList $ concat $ map (findGenerics typeArgs) ts
-            substitutions <- forM (Set.toList setOfGenerics) $ \g -> do
-                gt <- genType
-                return (g, gt)
-            return $ map (applySubs substitutions) ts
-            where
-                findGenerics :: [Symbol] -> Type -> [Type]
-                findGenerics typeArgs typ = case typ of
-                    TypeApply s [] -> if s `elem` typeArgs then [typ] else []
-                    TypeApply s _  -> if s `elem` typeArgs then error "Can't do this" else []
-                    _ -> error $ show typ
 
 
 collectExpr :: BoM CollectState m => S.Expr -> m ()

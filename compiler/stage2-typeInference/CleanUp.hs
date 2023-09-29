@@ -44,47 +44,24 @@ genSymbol sym = do
     return symbol
 
 
---- TODO doesn't check list lengths
-getSubsFromTypes :: BoM s m => Type -> Type -> m [(Type, Type)]
-getSubsFromTypes t1 t2 = case (t1, t2) of
-    (Void, Void) -> return []
-    (I64, I64) -> return []
-    (Type.Char, Type.Char) -> return []
-    (Type.String, Type.String) -> return []
-    (Type.Bool, Type.Bool) -> return []
-    (Table ts1, Table ts2) -> concat <$> zipWithM getSubsFromTypes ts1 ts2
-    (Type.Tuple ts1, Type.Tuple ts2) -> concat <$> zipWithM getSubsFromTypes ts1 ts2
-    (ADT fs1, ADT fs2)     -> concat <$> zipWithM getSubsFromFields fs1 fs2
-    (Type _, _) -> return []
-    (TypeApply s1 ts1, TypeApply s2 ts2) -> error ""
-    _ -> error $ show (t1, t2)
-    where
-        getSubsFromFields :: BoM s m => AdtField -> AdtField -> m [(Type, Type)]
-        getSubsFromFields field1 field2 = case (field1, field2) of
-            (FieldNull, FieldNull) -> return []
-            (FieldType t1, FieldType t2) -> getSubsFromTypes t1 t2
-            _ -> error $ show (field1, field2)
-
-
-getSubsFromGeneric :: BoM s m => FuncKey -> FuncBody -> m [(Type, Type)]
-getSubsFromGeneric callKey@(ps, symbol, as, rt) funcBody = do
-    subsPs <- fmap concat $ forM (zip ps $ map typeof $ funcParams funcBody) $ \(p, bp) -> do
-        getSubsFromTypes p bp
-    subsAs <- fmap concat $ forM (zip as $ map typeof $ funcArgs funcBody) $ \(a, ba) -> do
-        getSubsFromTypes a ba
-    subsRt <- getSubsFromTypes rt (funcRetty funcBody)
-    return $ Set.toList $ Set.fromList $ subsPs ++ subsAs ++ subsRt
-    
-
 -- add extern if needed
 resolveFuncCall :: BoM ASTResolved m => Type -> AST.Expr -> m Symbol
 resolveFuncCall exprType (AST.Call pos params symbol args) = withPos pos $ do
-    let key = (map typeof params, symbol, map typeof args, exprType)
-    symbols <- findCandidates key =<< get
-    symbol <- case symbols of
+    let callKey = (map typeof params, symbol, map typeof args, exprType)
+    ast <- get
+    symbols <- findCandidates callKey ast
+    symbol' <- case symbols of
         [x] -> return x
-    return symbol
 
+    when (isGenericFunction symbol' ast) $ do
+        let typeArgs = getFunctionTypeArgs symbol' ast
+        let funcKey  = getFunctionKey symbol' ast
+        keyReplaced@(p, s, a, r) <- replaceGenericsInFuncKeyWithCall typeArgs funcKey callKey
+        isDefined <- findFunctionCandidates (p, Symbol.Sym (Symbol.sym s), a, r) ast
+
+        liftIO $ putStrLn $ show symbol' ++ ": key replaced: " ++ show keyReplaced ++ ": isDefind: " ++ show isDefined
+
+    return symbol'
 
 
 compileStmt :: BoM ASTResolved m => AST.Stmt -> m Stmt

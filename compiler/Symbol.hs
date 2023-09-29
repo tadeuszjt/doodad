@@ -26,3 +26,4 @@ symbolsCouldMatch a@(SymQualified _ _)   b@(Sym _)             = Symbol.sym a ==
 symbolsCouldMatch a@(Sym _)              b@(SymQualified _ _)  = Symbol.sym a == Symbol.sym b
 symbolsCouldMatch a@(SymResolved _ _ _)  b@(Sym _)             = Symbol.sym a == Symbol.sym b
 symbolsCouldMatch a@(Sym _)              b@(SymResolved _ _ _) = Symbol.sym a == Symbol.sym b
+symbolsCouldMatch a@(Sym _)              b@(Sym _)             = Symbol.sym a == Symbol.sym b

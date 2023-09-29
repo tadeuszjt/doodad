@@ -34,7 +34,7 @@ infer ast printAnnotated verbose = do
             (annotated, typeSupplyCount) <- withErrorPrefix "annotate: " $
                 runBoMTExcept 0 $ annotate ast
             collectState <- fmap snd $ withErrorPrefix "collect: " $
-                runBoMTExcept (initCollectState typeSupplyCount annotated) (collectAST annotated)
+                runBoMTExcept (initCollectState typeSupplyCount) (collectAST annotated)
 
             -- turn type constraints into substitutions using unify
             let sos        = SymTab.lookupKey Collect.KeyType (symTab collectState)
@@ -51,7 +51,7 @@ infer ast printAnnotated verbose = do
             (annotated, typeSupplyCount) <- withErrorPrefix "annotate: " $
                 runBoMTExcept 0 $ annotate ast
             collectState <- fmap snd $ withErrorPrefix "collect: " $
-                runBoMTExcept (initCollectState typeSupplyCount annotated) (collectAST annotated)
+                runBoMTExcept (initCollectState typeSupplyCount) (collectAST annotated)
 
             -- turn type constraints into substitutions using unify
             let sos        = SymTab.lookupKey Collect.KeyType (symTab collectState)

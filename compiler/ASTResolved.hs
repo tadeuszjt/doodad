@@ -41,6 +41,30 @@ isGenericBody (FuncBody [] _ _ _ _) = False
 isGenericBody _                     = True
 
 
+isGenericFunction :: Symbol -> ASTResolved -> Bool
+isGenericFunction symbol ast = if Map.member symbol (funcDefs ast) then
+        isGenericBody (funcDefs ast Map.! symbol)
+    else if Map.member symbol (funcImports ast) then
+        isGenericBody (funcImports ast Map.! symbol)
+    else False
+
+
+getFunctionTypeArgs :: Symbol -> ASTResolved -> [Symbol]
+getFunctionTypeArgs symbol ast = if Map.member symbol (funcDefs ast) then
+        let body = funcDefs ast Map.! symbol in funcTypeArgs body
+    else if Map.member symbol (funcImports ast) then
+        let body = funcImports ast Map.! symbol in funcTypeArgs body
+    else error "symbol is not function"
+
+
+getFunctionKey :: Symbol -> ASTResolved -> FuncKey
+getFunctionKey symbol ast = if Map.member symbol (funcDefs ast) then
+        let body = funcDefs ast Map.! symbol in funcKeyFromBody symbol body
+    else if Map.member symbol (funcImports ast) then
+        let body = funcImports ast Map.! symbol in funcKeyFromBody symbol body
+    else error "symbol is not function"
+
+
 funcKeyFromBody :: Symbol -> FuncBody -> FuncKey
 funcKeyFromBody symbol body =
     (map typeof (funcParams body), symbol, map typeof (funcArgs body), funcRetty body)

@@ -9,6 +9,7 @@ import ASTResolved
 import Symbol
 import Type
 import Apply
+import Error
 
 --        , ctorDefs    :: Map.Map Symbol (Symbol, Int)    -- defined ctors
 --        , funcImports :: Map.Map Symbol FuncBody          -- imported funcs
@@ -17,7 +18,6 @@ import Apply
 
 --        , typeFuncs   :: Map.Map Symbol ([Symbol], Type) -- defined type functions
 --        , ctorDefs    :: Map.Map Symbol (Symbol, Int)    -- defined ctors
-
 findCandidates :: MonadFail m => FuncKey -> ASTResolved -> m [Symbol]
 findCandidates callKey@(paramTypes, symbol, argTypes, returnType) ast = do
     funcSymbols <- findFunctionCandidates callKey ast
@@ -57,7 +57,34 @@ findCtorCandidates callKey@(paramTypes, symbol, argTypes, returnType) ast = do
     return $ Map.keys res
 
 
--- turns a generic func key into one with the generics replaced with type variables.
+replaceGenericsInFuncKeyWithCall :: MonadFail m => [Symbol] -> FuncKey -> FuncKey -> m FuncKey
+replaceGenericsInFuncKeyWithCall typeArgs funcKey callKey = do
+    funcKeyWithTypeVars <- replaceGenericsInFuncKey typeArgs funcKey
+    assert (funcKeysCouldMatch funcKeyWithTypeVars callKey) "funcKeys cannot match"
+    subs <- getSubsFromFuncKeys typeArgs funcKey callKey
+    return $ applySubs subs funcKey
+
+
+
+getSubsFromFuncKeys :: MonadFail m => [Symbol] -> FuncKey -> FuncKey -> m [(Type, Type)]
+getSubsFromFuncKeys typeArgs keyToReplace key = do
+    let (paramTypes1, symbol1, argTypes1, retty1) = keyToReplace
+    let (paramTypes2, symbol2, argTypes2, retty2) = key
+    paramTypesSubs <- fmap concat $ zipWithM (getSubsFromTypes typeArgs) paramTypes1 paramTypes2
+    argTypesSubs <- fmap concat $ zipWithM (getSubsFromTypes typeArgs) argTypes1 argTypes2
+    rettySubs <- getSubsFromTypes typeArgs retty1 retty2
+    return $ paramTypesSubs ++ argTypesSubs ++ rettySubs
+
+
+-- get substitutions for one type with generics to another: (T, i64) ? (bool, i64) -> [(T, bool)]
+getSubsFromTypes :: MonadFail m => [Symbol] -> Type -> Type -> m [(Type, Type)]
+getSubsFromTypes typeArgs typeToReplace typ = case (typeToReplace, typ) of
+    (TypeApply s [], _) | s `elem` typeArgs -> return [(typeToReplace, typ)]
+    _ -> error $ show (typeToReplace, typ)
+
+
+-- Replace generics in a funcKey with type variables:
+-- ([T], symbol, [(Y, Y)], i64) -> ([Type -1], symbol, [(Type -2, Type -2)], i64)
 replaceGenericsInFuncKey :: Monad m => [Symbol] -> FuncKey -> m FuncKey
 replaceGenericsInFuncKey typeArgs (paramTypes, symbol, argTypes, retType) = do
     ts <- replaceGenerics typeArgs $ paramTypes ++ argTypes ++ [retType]
@@ -67,7 +94,7 @@ replaceGenericsInFuncKey typeArgs (paramTypes, symbol, argTypes, retType) = do
     return $ (ps, symbol, as, rt)
 
 
--- replaces generics with type variables
+-- replaces generics with type variables: (T, i64) -> (Type -1, i64)
 replaceGenerics :: Monad m => [Symbol] -> [Type] -> m [Type]
 replaceGenerics typeArgs ts = do
     setOfGenerics <- return $ Set.fromList $ concat $ map (findGenerics typeArgs) ts

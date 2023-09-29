@@ -55,6 +55,11 @@ instance Apply FuncBody where
         , funcStmt   = (apply f) (funcStmt body)
         }
 
+instance Apply FuncKey where
+    apply f (paramTypes, symbol, argTypes, retty) =
+        (map (apply f) paramTypes, symbol, map (apply f) argTypes, apply f retty)
+
+
 instance Apply Type where
     apply f t = (f t)
     
