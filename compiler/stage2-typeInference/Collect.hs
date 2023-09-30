@@ -28,7 +28,7 @@ type SymTab = SymTab.SymTab Symbol SymKey Object
 data SymKey
     = KeyVar
     | KeyType
-    | KeyFunc [Symbol] [Type] [Type] Type
+    | KeyFunc FuncHeader
     | KeyField Symbol -- Field belonging to (Typedef Symbol)
     | KeyAdtField
     deriving (Show, Eq, Ord)
@@ -143,10 +143,10 @@ collectAST ast = do
         define symbol KeyVar (ObjConst expr)
 
     forM (Map.toList $ funcImports ast) $ \(symbol, body) -> 
-        define symbol (KeyFunc (funcTypeArgs body) (map typeof $ funcParams body) (map typeof $ funcArgs body) (funcRetty body)) ObjFunc
+        define symbol (KeyFunc $ funcHeaderFromBody symbol body) ObjFunc
 
     forM (Map.toList $ funcDefs ast) $ \(symbol, body) -> 
-        define symbol (KeyFunc (funcTypeArgs body) (map typeof $ funcParams body) (map typeof $ funcArgs body) (funcRetty body)) ObjFunc
+        define symbol (KeyFunc $ funcHeaderFromBody symbol body) ObjFunc
 
     forM_ (Map.toList $ funcDefs ast) $ \(symbol, body) ->
         collectFuncDef symbol body
@@ -177,7 +177,7 @@ collectCtorDef symbol s@(SymResolved _ _ _) i = withErrorPrefix "collectCtorDef"
         Table ts -> define (Sym $ sym symbol) (KeyField s) (ObjField i)
         ADT fs   -> case fs !! i of
             FieldCtor ts -> do
-                define symbol (KeyFunc [] [] ts $ TypeApply s []) ObjFunc -- TODO add generic
+                define symbol (KeyFunc $ FuncHeader [] [] symbol ts $ TypeApply s []) ObjFunc -- TODO add generic
                 define symbol KeyAdtField (ObjField i)
             _            -> return ()
             
@@ -189,8 +189,8 @@ collectTypedef symbol typ = do
     let typedef = TypeApply symbol []
     define symbol KeyType (ObjTypeFunc [] typ)
     case typ of
-        Tuple ts -> define symbol (KeyFunc [] [] ts typedef) ObjFunc
-        t        -> define symbol (KeyFunc [] [] [t] typedef) ObjFunc
+        Tuple ts -> define symbol (KeyFunc $ FuncHeader [] [] symbol ts typedef) ObjFunc
+        t        -> define symbol (KeyFunc $ FuncHeader [] [] symbol [t] typedef) ObjFunc
 
 collectTypeFunc :: BoM CollectState m => Symbol -> [Symbol] -> Type -> m ()
 collectTypeFunc symbol ss typ = do
@@ -323,14 +323,12 @@ collectPattern pattern typ = collectPos pattern $ case pattern of
 
 collectCall :: BoM CollectState m => Type -> [S.Expr] -> Symbol -> [S.Expr] -> m ()
 collectCall exprType params symbol args = do -- can be resolved or sym
-    let callKey = (map typeof params, symbol, map typeof args, exprType)
-
     keysWithSameSymbol <- getKeysWithMatchingSymbol symbol
     keysWithReplacedGenerics <- fmap catMaybes $ forM keysWithSameSymbol $ \key -> case key of
-        KeyFunc [] _ _ _ -> return $ Just key
-        KeyFunc typeArgs p a r -> do
-            keyReplaced@(p', _, a', r') <- replaceGenericsInFuncKeyWithCall typeArgs (p, symbol, a, r) callKey
-            return $ Just $ KeyFunc [] p' a' r'
+        KeyFunc header | typeArgs header == [] -> return $ Just key
+        KeyFunc header -> do
+            headerReplaced <- replaceGenericsInFuncHeaderWithCall header callHeader
+            return $ Just (KeyFunc headerReplaced)
         _ -> return Nothing
 
     let keys = filter keyCouldMatch keysWithReplacedGenerics
@@ -341,6 +339,8 @@ collectCall exprType params symbol args = do -- can be resolved or sym
     mapM_ collectExpr params
     mapM_ collectExpr args
     where
+        callHeader = FuncHeader [] (map typeof params) symbol (map typeof args) exprType
+
         getKeysWithMatchingSymbol :: BoM CollectState m => Symbol -> m [SymKey]
         getKeysWithMatchingSymbol symbol = case symbol of
             SymResolved _ _ _ -> fmap (map fst) $ SymTab.lookupSym symbol <$> gets symTab
@@ -353,23 +353,15 @@ collectCall exprType params symbol args = do -- can be resolved or sym
 
 
         keyCouldMatch :: SymKey -> Bool
-        keyCouldMatch key@(KeyFunc typeVars tparams tas tr) =
-            sameArgLengths key
-            && all (== True) (zipWith (typesCouldMatch typeVars) tparams $ map typeof params)
-            && all (== True) (zipWith (typesCouldMatch typeVars) tas $ map typeof args)
-            && typesCouldMatch typeVars exprType tr 
+        keyCouldMatch key@(KeyFunc header) = funcHeadersCouldMatch header callHeader
         keyCouldMatch _ = False
 
 
-        sameArgLengths :: SymKey -> Bool
-        sameArgLengths (KeyFunc _ ps as rt) =
-            length ps == length params && length as == length args
-
         collectIfOneDef :: BoM CollectState m => [SymKey] -> m ()
-        collectIfOneDef [KeyFunc [] tparams tas rt] = do
-            zipWithM_ collectEq tparams (map typeof params)
-            zipWithM_ collectEq tas (map typeof args)
-            collectEq exprType rt
+        collectIfOneDef [KeyFunc header] = do
+            zipWithM_ collectEq (paramTypes header) (map typeof params)
+            zipWithM_ collectEq (argTypes header) (map typeof args)
+            collectEq (returnType header) exprType 
         collectIfOneDef _                    = return ()
 
 

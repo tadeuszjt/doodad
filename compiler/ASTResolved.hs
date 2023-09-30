@@ -1,5 +1,7 @@
 module ASTResolved where
 
+import Data.List
+
 import Control.Monad
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -23,7 +25,16 @@ data ASTResolved
     deriving (Eq)
 
 
-type FuncKey = ([Type], Symbol, [Type], Type) -- used to find functions
+data FuncHeader = FuncHeader
+    { typeArgs   :: [Symbol]
+    , paramTypes :: [Type]
+    , symbol     :: Symbol
+    , argTypes   :: [Type]
+    , returnType :: Type
+    }
+    deriving (Eq, Ord)
+
+
 data FuncBody
     = FuncBodyEmpty
     | FuncBody
@@ -34,6 +45,21 @@ data FuncBody
         , funcStmt     :: AST.Stmt
         }
     deriving (Eq, Show)
+
+
+instance Show FuncHeader where
+    show header =
+        "fn" ++ typeArgsStr ++ " " ++ paramsStr ++ " " ++ (show $ symbol header) ++ paramsStr ++ " " ++ show (returnType header)
+        where
+            typeArgsStr = case typeArgs header of
+                [] -> ""
+                ss -> "[" ++ intercalate ", " (map show ss) ++ "]"
+            paramsStr = case paramTypes header of
+                [] -> ""
+                ts -> "{" ++ intercalate ", " (map show ts) ++ "}"
+            argsStr = case argTypes header of
+                [] -> ""
+                ts -> "(" ++ intercalate ", " (map show ts) ++ ")"
 
 
 isGenericBody :: FuncBody -> Bool
@@ -57,27 +83,34 @@ getFunctionTypeArgs symbol ast = if Map.member symbol (funcDefs ast) then
     else error "symbol is not function"
 
 
-getFunctionKey :: Symbol -> ASTResolved -> FuncKey
-getFunctionKey symbol ast = if Map.member symbol (funcDefs ast) then
-        let body = funcDefs ast Map.! symbol in funcKeyFromBody symbol body
+getFunctionHeader :: Symbol -> ASTResolved -> FuncHeader
+getFunctionHeader symbol ast = if Map.member symbol (funcDefs ast) then
+        let body = funcDefs ast Map.! symbol in funcHeaderFromBody symbol body
     else if Map.member symbol (funcImports ast) then
-        let body = funcImports ast Map.! symbol in funcKeyFromBody symbol body
+        let body = funcImports ast Map.! symbol in funcHeaderFromBody symbol body
     else error "symbol is not function"
 
 
-funcKeyFromBody :: Symbol -> FuncBody -> FuncKey
-funcKeyFromBody symbol body =
-    (map typeof (funcParams body), symbol, map typeof (funcArgs body), funcRetty body)
+funcHeaderFromBody :: Symbol -> FuncBody -> FuncHeader
+funcHeaderFromBody symbol body =
+    FuncHeader {
+        typeArgs = funcTypeArgs body,
+        paramTypes = map typeof (funcParams body),
+        symbol = symbol,
+        argTypes = map typeof (funcArgs body),
+        returnType = funcRetty body
+        }
 
 
-funcKeysCouldMatch :: [Symbol] -> FuncKey -> FuncKey -> Bool
-funcKeysCouldMatch typeArgs (aParamTypes, aSymbol, aArgTypes, aRetty) (bParamTypes, bSymbol, bArgTypes, bRetty)
-    | length aParamTypes /= length bParamTypes || length aArgTypes /= length bArgTypes = False
-    | not $ symbolsCouldMatch aSymbol bSymbol                                          = False
-    | not $ all (== True) $ zipWith (typesCouldMatch typeArgs) aParamTypes bParamTypes = False
-    | not $ all (== True) $ zipWith (typesCouldMatch typeArgs) aArgTypes bArgTypes     = False
-    | not $ typesCouldMatch typeArgs aRetty bRetty                                     = False
+funcHeadersCouldMatch :: FuncHeader -> FuncHeader -> Bool
+funcHeadersCouldMatch a b
+    | length (paramTypes a) /= length (paramTypes b) || length (argTypes a) /= length (argTypes b)             = False
+    | not $ symbolsCouldMatch (symbol a) (symbol b)                                                            = False
+    | not $ all (== True) $ zipWith (typesCouldMatch $ typeArgs a ++ typeArgs b) (paramTypes a) (paramTypes b) = False
+    | not $ all (== True) $ zipWith (typesCouldMatch $ typeArgs a ++ typeArgs b) (paramTypes a) (paramTypes b) = False
+    | not $ typesCouldMatch (typeArgs a ++ typeArgs b) (returnType a) (returnType b)                           = False
     | otherwise = True
+
 
 
 prettyASTResolved :: ASTResolved -> IO ()

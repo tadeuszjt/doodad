@@ -55,9 +55,15 @@ instance Apply FuncBody where
         , funcStmt   = (apply f) (funcStmt body)
         }
 
-instance Apply FuncKey where
-    apply f (paramTypes, symbol, argTypes, retty) =
-        (map (apply f) paramTypes, symbol, map (apply f) argTypes, apply f retty)
+instance Apply FuncHeader where
+    apply f header = FuncHeader {
+        typeArgs = typeArgs header ,
+        paramTypes = map (apply f) (paramTypes header),
+        symbol = symbol header,
+        argTypes = map (apply f) (argTypes header),
+        returnType = apply f (returnType header)
+        }
+       
 
 
 instance Apply Type where

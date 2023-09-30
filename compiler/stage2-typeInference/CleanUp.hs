@@ -47,19 +47,17 @@ genSymbol sym = do
 -- add extern if needed
 resolveFuncCall :: BoM ASTResolved m => Type -> AST.Expr -> m Symbol
 resolveFuncCall exprType (AST.Call pos params symbol args) = withPos pos $ do
-    let callKey = (map typeof params, symbol, map typeof args, exprType)
+    let callHeader = FuncHeader [] (map typeof params) symbol (map typeof args) exprType
     ast <- get
-    symbols <- findCandidates callKey ast
+    symbols <- findCandidates callHeader ast
     symbol' <- case symbols of
         [x] -> return x
 
     when (isGenericFunction symbol' ast) $ do
-        let typeArgs = getFunctionTypeArgs symbol' ast
-        let funcKey  = getFunctionKey symbol' ast
-        keyReplaced@(p, s, a, r) <- replaceGenericsInFuncKeyWithCall typeArgs funcKey callKey
-        isDefined <- findFunctionCandidates (p, Symbol.Sym (Symbol.sym s), a, r) ast
-
-        liftIO $ putStrLn $ show symbol' ++ ": key replaced: " ++ show keyReplaced ++ ": isDefind: " ++ show isDefined
+        let funcHeader  = getFunctionHeader symbol' ast
+        headerReplaced <- replaceGenericsInFuncHeaderWithCall funcHeader callHeader
+        isDefined <- findFunctionCandidates (headerReplaced { symbol = Symbol.Sym (Symbol.sym $ ASTResolved.symbol headerReplaced) }) ast 
+        liftIO $ putStrLn $ show symbol' ++ ": key replaced: " ++ show headerReplaced ++ ": isDefind: " ++ show isDefined
 
     return symbol'
 
