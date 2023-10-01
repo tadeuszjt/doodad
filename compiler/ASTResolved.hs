@@ -49,7 +49,7 @@ data FuncBody
 
 instance Show FuncHeader where
     show header =
-        "fn" ++ typeArgsStr ++ " " ++ paramsStr ++ " " ++ (show $ symbol header) ++ paramsStr ++ " " ++ show (returnType header)
+        "fn" ++ typeArgsStr ++ " " ++ paramsStr ++ " " ++ (show $ symbol header) ++ argsStr ++ " " ++ show (returnType header)
         where
             typeArgsStr = case typeArgs header of
                 [] -> ""
@@ -58,7 +58,7 @@ instance Show FuncHeader where
                 [] -> ""
                 ts -> "{" ++ intercalate ", " (map show ts) ++ "}"
             argsStr = case argTypes header of
-                [] -> ""
+                [] -> "()"
                 ts -> "(" ++ intercalate ", " (map show ts) ++ ")"
 
 
@@ -91,6 +91,14 @@ getFunctionHeader symbol ast = if Map.member symbol (funcDefs ast) then
     else error "symbol is not function"
 
 
+getFunctionBody :: Symbol -> ASTResolved -> FuncBody
+getFunctionBody symbol ast = if Map.member symbol (funcDefs ast) then
+        funcDefs ast Map.! symbol
+    else if Map.member symbol (funcImports ast) then
+        funcImports ast Map.! symbol
+    else error "symbol is not function"
+
+
 funcHeaderFromBody :: Symbol -> FuncBody -> FuncHeader
 funcHeaderFromBody symbol body =
     FuncHeader {
@@ -112,6 +120,33 @@ funcHeadersCouldMatch a b
     | otherwise = True
 
 
+funcHeaderFullyResolved :: FuncHeader -> Bool
+funcHeaderFullyResolved header =
+    typeArgs header == []
+    && all (== True) (map typeFullyResolved $ paramTypes header)
+    && all (== True) (map typeFullyResolved $ argTypes header)
+    && typeFullyResolved (returnType header)
+    where
+        typeFullyResolved :: Type -> Bool
+        typeFullyResolved typ = case typ of
+            _ | isSimple typ -> True
+            Type.Tuple ts -> all (== True) (map typeFullyResolved ts)
+            Type _ -> False
+            _ -> error $ "typeFullyResolved: " ++ show typ
+
+
+
+prettyFuncBody :: Symbol -> FuncBody -> IO ()
+prettyFuncBody symbol body =
+    prettyStmt "" $ FuncDef
+        undefined
+        (funcTypeArgs body)
+        (funcParams body)
+        symbol
+        (funcArgs body)
+        (funcRetty body)
+        (funcStmt body)
+
 
 prettyASTResolved :: ASTResolved -> IO ()
 prettyASTResolved ast = do
@@ -122,15 +157,6 @@ prettyASTResolved ast = do
 
     forM_ (Map.toList $ typeFuncs ast) $ \(symbol, (args, typ)) -> 
         prettyStmt "" (AST.Typedef undefined (map Symbol.sym args) symbol $ AnnoType typ)
-
-    forM_ (Map.toList $ funcDefs ast) $ \(symbol, body) -> 
-        prettyStmt "" $ FuncDef
-            undefined
-            (funcTypeArgs body)
-            (funcParams body)
-            symbol
-            (funcArgs body)
-            (funcRetty body)
-            (funcStmt body)
+    forM_ (Map.toList $ funcDefs ast) $ \(symbol, body) -> prettyFuncBody symbol body
 
     putStrLn ""

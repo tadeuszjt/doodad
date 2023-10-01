@@ -22,6 +22,7 @@ import Control.Monad.State
 import Type
 import AST as S
 import Error
+import qualified SymTab
 
 data Value
     = Value { valType :: Type.Type, valExpr :: C.Expression }
@@ -46,7 +47,7 @@ data GenerateState
         , ctors  :: Map.Map Symbol (Symbol, Int)
         , typedefs :: Map.Map Symbol Type.Type
         , typefuncs :: Map.Map Symbol ([Symbol], Type.Type)
-        , symTab :: Map.Map String Value
+        , symTab :: SymTab.SymTab String () Value
         , tableAppendFuncs :: Map.Map Type.Type String
         }
 
@@ -58,7 +59,7 @@ initGenerateState modName
         , ctors  = Map.empty
         , typedefs = Map.empty
         , typefuncs = Map.empty
-        , symTab = Map.empty
+        , symTab = SymTab.initSymTab
         , tableAppendFuncs = Map.empty
         }
 
@@ -82,15 +83,23 @@ runGenerateT generateState builderState generateT =
     runExceptT $ runStateT (runStateT (unGenerateT generateT) generateState) builderState
 
 
+pushSymTab :: MonadGenerate m => m ()
+pushSymTab = modify $ \s -> s { symTab = SymTab.push (symTab s) }
+
+
+popSymTab :: MonadGenerate m => m ()
+popSymTab = modify $ \s -> s { symTab = SymTab.pop (symTab s) }
+
+
 define :: MonadGenerate m => String -> Value -> m ()
-define str obj = do
-    isDefined <- Map.member str <$> gets symTab
-    assert (not isDefined) $ str ++ " already defined"
-    modify $ \s -> s { symTab = Map.insert str obj (symTab s) }
+define str obj = withErrorPrefix "CGenerate: " $ do
+    resm <- SymTab.lookup str () <$> gets symTab
+    assert (isNothing resm) $ str ++ " already defined"
+    modify $ \s -> s { symTab = SymTab.insert str () obj (symTab s) }
 
 look :: MonadGenerate m => String -> m Value
 look str = do
-    resm <- Map.lookup str <$> gets symTab
+    resm <- SymTab.lookup str () <$> gets symTab
     when (isNothing resm) $ fail $ str ++ " isn't defined"
     return (fromJust resm)
 

@@ -1,30 +1,20 @@
 module main
 
-type[T] Maybe     (null | T)
-type[X, Y] Either (X | Y)
+type[T] Maybe (null | T)
 
-
-fn[T] {o:Maybe(T)} isNull() bool
-    switch o
+fn[T] {m:Maybe(T)} isNull() bool
+    switch m
         null; return true
         _   ; return false
 
 
 fn main()
-    let x = conv(3):Maybe(i64)
-    let y = conv(3.2):Either(string, f64)
-    let z = conv((1, true, "3")):Maybe((i64, bool, string))
+    let x = conv(4):Maybe(i64)
+
+    print(x.isNull())
 
 
-    switch x
-        null; print("null")
-        .i64[n]; print(n)
+    print("main")
 
-    switch y
-        .f64[n]; print("f64", n)
 
-    if z -> .(i64, bool, string)[t]
-        print(t)
-    z = null
 
-    print("test")

@@ -50,16 +50,31 @@ resolveFuncCall exprType (AST.Call pos params symbol args) = withPos pos $ do
     let callHeader = FuncHeader [] (map typeof params) symbol (map typeof args) exprType
     ast <- get
     symbols <- findCandidates callHeader ast
-    symbol' <- case symbols of
-        [x] -> return x
+    case symbols of
+        [] -> error $ "no candidates for:" ++ show callHeader
+        [symbol'] -> do
+            if (isGenericFunction symbol' ast) then do
+                let header  = getFunctionHeader symbol' ast
+                let body    = getFunctionBody symbol' ast
+                let sym     = Symbol.sym (ASTResolved.symbol header)
+                headerReplaced <- replaceGenericsInFuncHeaderWithCall header callHeader
 
-    when (isGenericFunction symbol' ast) $ do
-        let funcHeader  = getFunctionHeader symbol' ast
-        headerReplaced <- replaceGenericsInFuncHeaderWithCall funcHeader callHeader
-        isDefined <- findFunctionCandidates (headerReplaced { symbol = Symbol.Sym (Symbol.sym $ ASTResolved.symbol headerReplaced) }) ast 
-        liftIO $ putStrLn $ show symbol' ++ ": key replaced: " ++ show headerReplaced ++ ": isDefind: " ++ show isDefined
+                if funcHeaderFullyResolved headerReplaced then do
+                    exacts <- findExactFunction (headerReplaced { symbol = Symbol.Sym sym }) ast 
+                    case exacts of 
+                        [] -> do -- define specific type case
+                            symbol'' <- genSymbol sym
+                            body' <- replaceGenericsInFuncBodyWithCall body callHeader
 
-    return symbol'
+                            --liftIO $ prettyFuncBody symbol'' body'
+                            modify $ \s -> s { funcDefs = Map.insert symbol'' body' (funcDefs ast) }
+                            --liftIO $ putStrLn $ "added new function: " ++ show symbol''
+                            return symbol''
+                        [symbol''] -> return symbol''
+                else return symbol'
+            else do
+                return symbol'
+        _ -> return symbol
 
 
 compileStmt :: BoM ASTResolved m => AST.Stmt -> m Stmt

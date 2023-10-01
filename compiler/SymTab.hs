@@ -14,7 +14,9 @@ initSymTab        = [Map.empty]
 lookup :: (Ord s, Ord k) => s -> k -> SymTab s k o -> Maybe o
 lookup sym key []     = Nothing
 lookup sym key (s:ss) = case Map.lookup sym s of
-    Just km -> Map.lookup key km
+    Just km -> case Map.lookup key km of
+        Nothing -> lookup sym key ss
+        Just o  -> Just o
     Nothing -> lookup sym key ss
 
 

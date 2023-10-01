@@ -157,12 +157,8 @@ collectFuncDef symbol body = do
     modify $ \s -> s { symTab = SymTab.push (symTab s) }
     oldRetty <- gets curRetty
     modify $ \s -> s { curRetty = funcRetty body }
-
-    forM (funcParams body) $ \(S.Param _ symbol t) ->
-        define symbol KeyVar (ObjVar t)
-
-    forM_ (funcArgs body) $ \(S.Param _ symbol t) ->
-        define symbol KeyVar (ObjVar t)
+    forM (funcParams body) $ \(S.Param _ symbol t) -> define symbol KeyVar (ObjVar t)
+    forM_ (funcArgs body) $ \(S.Param _ symbol t) -> define symbol KeyVar (ObjVar t)
     collectStmt (funcStmt body)
     modify $ \s -> s { curRetty = oldRetty }
     --collectDefault (funcRetty body) Void
@@ -328,6 +324,7 @@ collectCall exprType params symbol args = do -- can be resolved or sym
         KeyFunc header | typeArgs header == [] -> return $ Just key
         KeyFunc header -> do
             headerReplaced <- replaceGenericsInFuncHeaderWithCall header callHeader
+            liftIO $ putStrLn $ show headerReplaced
             return $ Just (KeyFunc headerReplaced)
         _ -> return Nothing
 

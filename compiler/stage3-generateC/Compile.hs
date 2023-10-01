@@ -138,6 +138,7 @@ generateFunc symbol body = do
     params <- map (\(C.Param n t) -> C.Param n (Cpointer t)) <$> mapM cParamOf (ASTResolved.funcParams body)
     rettyType <- cTypeOf (ASTResolved.funcRetty body)
 
+    pushSymTab
     forM_ (ASTResolved.funcParams body) $ \param -> do
         ctyp <- cTypeOf (paramType param)
         name <- return $ show (S.paramName param)
@@ -153,6 +154,7 @@ generateFunc symbol body = do
         generateStmt (ASTResolved.funcStmt body)
         when (ASTResolved.funcRetty body /= Type.Void) $ -- check to ensure function has return
             call "assert" [false]
+    popSymTab
     withCurID globalID $ append id
 
 

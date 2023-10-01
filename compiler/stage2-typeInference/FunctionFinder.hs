@@ -29,6 +29,15 @@ findFunctionCandidates callHeader ast = do
             True -> return $ Just $ symbol
             False -> return Nothing
 
+-- does not allow generic functions
+findExactFunction :: Monad m => FuncHeader -> ASTResolved -> m [Symbol]
+findExactFunction callHeader ast = do
+    fmap catMaybes $ forM (Map.toList $ Map.union (funcDefs ast) (funcImports ast)) $ \(symbol, body) -> case funcTypeArgs body of
+        [] -> case funcHeadersCouldMatch (funcHeaderFromBody symbol body) callHeader of
+            True -> return $ Just $ symbol
+            False -> return Nothing
+        _ -> return Nothing
+
 
 findTypeCandidates :: MonadFail m => FuncHeader -> ASTResolved -> m [Symbol]
 findTypeCandidates callHeader ast = do
@@ -52,6 +61,16 @@ replaceGenericsInFuncHeaderWithCall header callHeader = do
     return $ (applySubs subs header) { typeArgs = [] } 
 
 
+replaceGenericsInFuncBodyWithCall :: BoM s m => FuncBody -> FuncHeader -> m FuncBody
+replaceGenericsInFuncBodyWithCall body callHeader = do
+    let header = funcHeaderFromBody (symbol callHeader) body
+    assert (typeArgs callHeader == []) "Call header cannot have type args"
+    assert (funcHeadersCouldMatch callHeader header) "headers must be matchable"
+    constraints <- getConstraintsFromFuncHeaders header callHeader
+    subs <- unify (typeArgs header) constraints
+    return $ (applySubs subs body) { funcTypeArgs = [] } 
+
+
 unifyOne :: MonadFail m => [Symbol] -> Constraint -> m [(Type, Type)]
 unifyOne typeVars constraint = case constraint of
     ConsEq t1 t2 -> case (t1, t2) of
@@ -60,6 +79,9 @@ unifyOne typeVars constraint = case constraint of
         (_, TypeApply s []) | s `elem` typeVars -> return [(t2, t1)]
         (Type _, _)                             -> return [(t1, t2)]
         (_, Type _)                             -> return [(t2, t1)]
+        (Tuple ts1, Tuple ts2) | length ts1 == length ts2 -> fmap concat $
+            zipWithM (\x y -> unifyOne typeVars $ ConsEq x y) ts1 ts2
+        _ -> error $ show (t1, t2)
 
 
 unify :: MonadFail m => [Symbol] -> [Constraint] -> m [(Type, Type)]
@@ -90,4 +112,9 @@ getConstraintsFromFuncHeaders headerToReplace header = do
 getConstraintsFromTypes :: MonadFail m => [Symbol] -> Type -> Type -> m [Constraint]
 getConstraintsFromTypes typeArgs typeToReplace typ = case (typeToReplace, typ) of
     (TypeApply s [], _) | s `elem` typeArgs -> return [ConsEq typeToReplace typ]
+    (TypeApply s ts, _) | s `elem` typeArgs -> error "don't know"
+    (TypeApply s ts, Type _) -> return []
+
+    (t, Type x) | isSimple t -> return [(ConsEq (Type x) t)]
+
     _ -> error $ show (typeToReplace, typ)
