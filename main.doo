@@ -1,5 +1,7 @@
 module main
 
+import std/assert
+
 type[T] Maybe (null | T)
 
 fn[T] {m:Maybe(T)} isNull() bool
@@ -7,11 +9,15 @@ fn[T] {m:Maybe(T)} isNull() bool
         null; return true
         _   ; return false
 
+fn[T] {m:Maybe(T)} fromJust() T
+    switch m
+        null; assert(false)
+        .T[x]; return x
+
 
 fn main()
     let x = conv(4):Maybe(i64)
-
-    print(x.isNull())
+    print(x.isNull(), x.fromJust())
 
 
     print("main")

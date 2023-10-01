@@ -120,21 +120,6 @@ funcHeadersCouldMatch a b
     | otherwise = True
 
 
-funcHeaderFullyResolved :: FuncHeader -> Bool
-funcHeaderFullyResolved header =
-    typeArgs header == []
-    && all (== True) (map typeFullyResolved $ paramTypes header)
-    && all (== True) (map typeFullyResolved $ argTypes header)
-    && typeFullyResolved (returnType header)
-    where
-        typeFullyResolved :: Type -> Bool
-        typeFullyResolved typ = case typ of
-            _ | isSimple typ -> True
-            Type.Tuple ts -> all (== True) (map typeFullyResolved ts)
-            Type _ -> False
-            _ -> error $ "typeFullyResolved: " ++ show typ
-
-
 
 prettyFuncBody :: Symbol -> FuncBody -> IO ()
 prettyFuncBody symbol body =

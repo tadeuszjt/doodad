@@ -77,6 +77,16 @@ getTypeSymbol typ = case typ of
     _ -> fail $ "no symbol for type: " ++ show typ
 
 
+findGenerics :: [Symbol] -> Type -> [Type]
+findGenerics typeArgs typ = case typ of
+    TypeApply s [] | s `elem` typeArgs -> [typ]
+    TypeApply s ts | s `elem` typeArgs -> error "generic applied to arguments"
+    TypeApply s ts -> concat $ map (findGenerics typeArgs) ts
+    t | isSimple t -> []
+    Type _ -> []
+    _ -> error $ show typ
+
+
 -- Replace the matching symbols with a the types specificed in the argument map.
 applyTypeFunction :: Map.Map Symbol Type.Type -> Type.Type -> Type.Type
 applyTypeFunction argMap typ = case typ of

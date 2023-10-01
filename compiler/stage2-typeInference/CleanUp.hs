@@ -59,16 +59,13 @@ resolveFuncCall exprType (AST.Call pos params symbol args) = withPos pos $ do
                 let sym     = Symbol.sym (ASTResolved.symbol header)
                 headerReplaced <- replaceGenericsInFuncHeaderWithCall header callHeader
 
-                if funcHeaderFullyResolved headerReplaced then do
-                    exacts <- findExactFunction (headerReplaced { symbol = Symbol.Sym sym }) ast 
+                if isJust headerReplaced && funcHeaderFullyResolved (fromJust headerReplaced) then do
+                    exacts <- findExactFunction ((fromJust headerReplaced) { symbol = Symbol.Sym sym }) ast 
                     case exacts of 
                         [] -> do -- define specific type case
                             symbol'' <- genSymbol sym
                             body' <- replaceGenericsInFuncBodyWithCall body callHeader
-
-                            --liftIO $ prettyFuncBody symbol'' body'
                             modify $ \s -> s { funcDefs = Map.insert symbol'' body' (funcDefs ast) }
-                            --liftIO $ putStrLn $ "added new function: " ++ show symbol''
                             return symbol''
                         [symbol''] -> return symbol''
                 else return symbol'

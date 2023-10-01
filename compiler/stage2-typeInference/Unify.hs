@@ -52,6 +52,12 @@ unifyOne pos constraint = withPos pos $ case constraint of
             | length tsa /= length tsb  -> fail "length"
             | otherwise                 -> unify $ zipWith (\a b -> (ConsEq a b, pos)) tsa tsb
         (Range a, Range b)              -> unifyOne pos $ ConsEq a b
+        (TypeApply s1 ts1, TypeApply s2 ts2) -> do
+            assert (s1 == s2) "type symbols should match"
+            assert (length ts1 == length ts2) "type arg lengths should match"
+            fmap concat $ zipWithM (\a b -> unifyOne pos $ ConsEq a b) ts1 ts2
+
+
         _                               -> fail $ "cannot unify " ++ show t1 ++ " with " ++ show t2
 
     ConsAdtMem t i j agg -> do

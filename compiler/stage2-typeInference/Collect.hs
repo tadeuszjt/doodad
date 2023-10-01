@@ -324,12 +324,12 @@ collectCall exprType params symbol args = do -- can be resolved or sym
         KeyFunc header | typeArgs header == [] -> return $ Just key
         KeyFunc header -> do
             headerReplaced <- replaceGenericsInFuncHeaderWithCall header callHeader
-            liftIO $ putStrLn $ show headerReplaced
-            return $ Just (KeyFunc headerReplaced)
+            return $ fmap KeyFunc headerReplaced
+
         _ -> return Nothing
 
     let keys = filter keyCouldMatch keysWithReplacedGenerics
-    assert (keys /= []) $ "no keys for: " ++ show symbol
+    --assert (keys /= []) $ "no keys for: " ++ show symbol
 
     collectIfOneDef keys
     --collectIfUnifiedType packedKeys keys

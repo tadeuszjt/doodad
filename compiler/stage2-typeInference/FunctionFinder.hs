@@ -6,6 +6,8 @@ import qualified Data.Set as Set
 import Control.Monad
 
 import Control.Monad.Fail
+import Control.Monad.IO.Class
+
 import ASTResolved
 import Symbol
 import Type
@@ -51,14 +53,44 @@ findCtorCandidates callHeader ast = do
     return $ Map.keys res
 
 
+funcHeaderHasGenerics :: [Symbol] -> FuncHeader -> Bool
+funcHeaderHasGenerics typeArgs header =
+    paramGenerics /= [] || argGenerics /= [] || rettyGenerics /= []
+    where
+        paramGenerics = concat $ map (findGenerics typeArgs) (paramTypes header)
+        argGenerics   = concat $ map (findGenerics typeArgs) (argTypes header)
+        rettyGenerics = findGenerics typeArgs (returnType header)
+
+
+funcHeaderFullyResolved :: FuncHeader -> Bool
+funcHeaderFullyResolved header =
+    typeArgs header == []
+    && all (== True) (map typeFullyResolved $ paramTypes header)
+    && all (== True) (map typeFullyResolved $ argTypes header)
+    && typeFullyResolved (returnType header)
+    where
+        typeFullyResolved :: Type -> Bool
+        typeFullyResolved typ = case typ of
+            TypeApply s _ | s `elem` (typeArgs header) -> False
+            TypeApply s ts -> all (== True) (map typeFullyResolved ts)
+            _ | isSimple typ -> True
+            Type.Tuple ts -> all (== True) (map typeFullyResolved ts)
+            Type _ -> False
+            _ -> error $ "typeFullyResolved: " ++ show typ
+
+
+
 -- using a modified version of unify to replace generic type variables in function keys
-replaceGenericsInFuncHeaderWithCall :: BoM s m => FuncHeader -> FuncHeader -> m FuncHeader
+replaceGenericsInFuncHeaderWithCall :: BoM s m => FuncHeader -> FuncHeader -> m (Maybe FuncHeader) 
 replaceGenericsInFuncHeaderWithCall header callHeader = do
     assert (typeArgs callHeader == []) "Call header cannot have type args"
     assert (funcHeadersCouldMatch header callHeader) "headers cannot match"
     constraints <- getConstraintsFromFuncHeaders header callHeader
+
     subs <- unify (typeArgs header) constraints
-    return $ (applySubs subs header) { typeArgs = [] } 
+    let header' = (applySubs subs header) { typeArgs = [] } 
+    if funcHeaderHasGenerics (typeArgs header) header' then return Nothing
+    else return $ Just header'
 
 
 replaceGenericsInFuncBodyWithCall :: BoM s m => FuncBody -> FuncHeader -> m FuncBody
@@ -114,6 +146,11 @@ getConstraintsFromTypes typeArgs typeToReplace typ = case (typeToReplace, typ) o
     (TypeApply s [], _) | s `elem` typeArgs -> return [ConsEq typeToReplace typ]
     (TypeApply s ts, _) | s `elem` typeArgs -> error "don't know"
     (TypeApply s ts, Type _) -> return []
+
+    (TypeApply s1 ts1, TypeApply s2 ts2) -> do
+        assert (s1 == s2) "types should match"
+        assert (length ts1 == length ts2) "types should be applied to same number of args"
+        fmap concat $ zipWithM (getConstraintsFromTypes typeArgs) ts1 ts2
 
     (t, Type x) | isSimple t -> return [(ConsEq (Type x) t)]
 
