@@ -1,0 +1,3 @@
+module maybe
+
+type[T] Maybe (null | T)
