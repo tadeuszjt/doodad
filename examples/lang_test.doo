@@ -1,6 +1,7 @@
 module langTest
 
 import ../std/io
+import ../std/map
 
 
 fn assert(b:bool)
@@ -248,6 +249,16 @@ fn testGenericFunction()
     let (4, "24") = add( (1, "2"), (3, "4") )
 
     
+fn testMap()
+    data m Map( (i64, string), i8 )
+
+    m.insert( (3, "benis"), 1 )
+    m.insert( (4, "benis"), 2 )
+    m.insert( (3, "ben!s"), 3 )
+
+    let .i8[1] = m.find((3, "benis"))
+    let null   = m.find((3, "Benis"))
+    let .i8[3] = m.find((3, "ben!s"))
 
 
 fn {io:Io} main()
@@ -277,4 +288,5 @@ fn {io:Io} main()
     testTypeFunction()
     testTypeFunctionMembers()
     testGenericFunction()
+    testMap()
     io.putStrLn("finished")

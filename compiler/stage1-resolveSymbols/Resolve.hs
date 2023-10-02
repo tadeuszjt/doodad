@@ -84,7 +84,7 @@ lookm symbol key = case symbol of
                             [x] -> return (Just x)
                             [] -> return (Just symbol) -- Maybe remove this
                     KeyType -> do
-                        xs <- concat . map (Map.keys . Map.filterWithKey (\s _ -> Symbol.sym s == sym) . typeFuncs) <$> gets imports
+                        xs <- Set.toList . Set.fromList . concat . map (Map.keys . Map.filterWithKey (\s _ -> Symbol.sym s == sym) . typeFuncs) <$> gets imports
                         case xs of
                             [] -> return Nothing
                             [x] -> return (Just x)

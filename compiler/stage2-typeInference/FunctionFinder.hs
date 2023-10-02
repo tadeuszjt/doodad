@@ -76,6 +76,7 @@ funcHeaderFullyResolved header =
             _ | isSimple typ -> True
             Type.Tuple ts -> all (== True) (map typeFullyResolved ts)
             Type _ -> False
+            Void -> True
             _ -> error $ "typeFullyResolved: " ++ show typ
 
 
@@ -153,5 +154,6 @@ getConstraintsFromTypes typeArgs typeToReplace typ = case (typeToReplace, typ) o
         fmap concat $ zipWithM (getConstraintsFromTypes typeArgs) ts1 ts2
 
     (t, Type x) | isSimple t -> return [(ConsEq (Type x) t)]
+    (Void, _) -> return [(ConsEq typeToReplace typ)]
 
     _ -> error $ show (typeToReplace, typ)

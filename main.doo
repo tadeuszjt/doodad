@@ -1,26 +1,22 @@
 module main
 
 import std/assert
-
-type[T] Maybe (null | T)
-
-fn[T] {m:Maybe(T)} isNull() bool
-    switch m
-        null; return true
-        _   ; return false
-
-fn[T] {m:Maybe(T)} fromJust() T
-    switch m
-        null; assert(false)
-        .T[x]; return x
+import std/maybe
+import std/map
 
 
 fn main()
-    let x = conv(4):Maybe(i64)
-    print(x.isNull(), x.fromJust())
+    data m Map(i64, string)
+    m.insert(4, "bongis")
+    m.insert(3, "benis")
+    m.insert(4, "bongiss")
 
+    switch m.find(4)
+        null;       print("null")
+        .string[s]; print(s)
 
-    print("main")
+    for m -> elem
+        print(elem)
 
 
 

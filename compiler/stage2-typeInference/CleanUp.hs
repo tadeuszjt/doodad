@@ -50,28 +50,36 @@ resolveFuncCall exprType (AST.Call pos params symbol args) = withPos pos $ do
     let callHeader = FuncHeader [] (map typeof params) symbol (map typeof args) exprType
     ast <- get
     symbols <- findCandidates callHeader ast
-    case symbols of
-        [] -> error $ "no candidates for:" ++ show callHeader
-        [symbol'] -> do
-            if (isGenericFunction symbol' ast) then do
-                let header  = getFunctionHeader symbol' ast
-                let body    = getFunctionBody symbol' ast
-                let sym     = Symbol.sym (ASTResolved.symbol header)
-                headerReplaced <- replaceGenericsInFuncHeaderWithCall header callHeader
+    exacts <- findExactFunction callHeader ast
 
-                if isJust headerReplaced && funcHeaderFullyResolved (fromJust headerReplaced) then do
-                    exacts <- findExactFunction ((fromJust headerReplaced) { symbol = Symbol.Sym sym }) ast 
-                    case exacts of 
-                        [] -> do -- define specific type case
-                            symbol'' <- genSymbol sym
-                            body' <- replaceGenericsInFuncBodyWithCall body callHeader
-                            modify $ \s -> s { funcDefs = Map.insert symbol'' body' (funcDefs ast) }
-                            return symbol''
-                        [symbol''] -> return symbol''
-                else return symbol'
-            else do
-                return symbol'
-        _ -> return symbol
+    if exacts /= [] then do
+        assert (length exacts == 1) "cannot have multiple exact matches"
+        return $ head exacts
+    else do -- TODO this part could be neater
+        case symbols of
+            [] -> error $ "no candidates for:" ++ show callHeader
+            [symbol'] -> do
+                if (isGenericFunction symbol' ast) then do
+                    let header  = getFunctionHeader symbol' ast
+                    let body    = getFunctionBody symbol' ast
+                    let sym     = Symbol.sym (ASTResolved.symbol header)
+                    headerReplaced <- replaceGenericsInFuncHeaderWithCall header callHeader
+
+                    if isJust headerReplaced && funcHeaderFullyResolved (fromJust headerReplaced) then do
+                        exacts <- findExactFunction ((fromJust headerReplaced) { symbol = Symbol.Sym sym }) ast 
+                        case exacts of 
+                            [] -> do -- define specific type case
+                                symbol'' <- genSymbol sym
+                                body' <- replaceGenericsInFuncBodyWithCall body callHeader
+                                modify $ \s -> s { funcDefs = Map.insert symbol'' body' (funcDefs ast) }
+                                return symbol''
+                            [symbol''] -> return symbol''
+                    else return symbol'
+                else do
+                    return symbol'
+            _ -> do
+
+                return symbol
 
 
 compileStmt :: BoM ASTResolved m => AST.Stmt -> m Stmt

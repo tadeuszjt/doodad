@@ -436,8 +436,12 @@ generatePattern pattern val = withPos pattern $ do
 
         PatGuarded _ pat expr -> do
             match <- assign "match" =<< generatePattern pat val
-            if_ match $ set match =<< generateExpr expr
+            endLabel <- fresh "end"
+            if_ (not_ match) $ appendElem $ C.Goto endLabel
+            set match =<< generateExpr expr
+            appendElem $ C.Label endLabel
             return match
+
 
         PatField _ symbol pats -> do -- either a typedef or an ADT field, both members of ADT
             base@(Type.ADT fs) <- baseTypeOf val
