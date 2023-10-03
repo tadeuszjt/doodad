@@ -1,23 +1,7 @@
 module main
 
-import std/assert
-import std/maybe
-import std/map
-
-import std/sparse
-
 fn main()
-    data m Map(i64, string)
-    m.insert(4, "bongis")
-    m.insert(3, "benis")
-    m.insert(4, "bongiss")
-
-    switch m.find(4)
-        null;       print("null")
-        .string[s]; print(s)
-
-    for m -> elem
-        print(elem)
+    print("benis")
 
 
 

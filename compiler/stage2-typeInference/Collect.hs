@@ -169,24 +169,25 @@ collectCtorDef :: BoM CollectState m => Symbol -> Symbol -> Int -> m ()
 collectCtorDef symbol s@(SymResolved _ _ _) i = withErrorPrefix "collectCtorDef" $ do
     ObjTypeFunc typeArgs typ <- look s KeyType -- check
     case typ of
-        Tuple ts -> define (Sym $ sym symbol) (KeyField s) (ObjField i)
-        Table ts -> define (Sym $ sym symbol) (KeyField s) (ObjField i)
-        ADT fs   -> case fs !! i of
-            FieldCtor ts -> do
-                define symbol (KeyFunc $ FuncHeader [] [] symbol ts $ TypeApply s []) ObjFunc -- TODO add generic
-                define symbol KeyAdtField (ObjField i)
-            _            -> return ()
+--        Tuple ts -> define (Sym $ sym symbol) (KeyField s) (ObjField i)
+--        Table ts -> define (Sym $ sym symbol) (KeyField s) (ObjField i)
+--        ADT fs   -> case fs !! i of
+--            FieldCtor ts -> do
+--                define symbol (KeyFunc $ FuncHeader [] [] symbol ts $ TypeApply s []) ObjFunc -- TODO add generic
+--                define symbol KeyAdtField (ObjField i)
+--            _            -> return ()
             
         _ -> return ()
 
 
 collectTypedef :: BoM CollectState m => Symbol -> Type -> m ()
 collectTypedef symbol typ = do
-    let typedef = TypeApply symbol []
-    define symbol KeyType (ObjTypeFunc [] typ)
-    case typ of
-        Tuple ts -> define symbol (KeyFunc $ FuncHeader [] [] symbol ts typedef) ObjFunc
-        t        -> define symbol (KeyFunc $ FuncHeader [] [] symbol [t] typedef) ObjFunc
+    error ""
+--    let typedef = TypeApply symbol []
+--    define symbol KeyType (ObjTypeFunc [] typ)
+--    case typ of
+----        Tuple ts -> define symbol (KeyFunc $ FuncHeader [] [] symbol ts typedef) ObjFunc
+--        t        -> define symbol (KeyFunc $ FuncHeader [] [] symbol [t] typedef) ObjFunc
 
 collectTypeFunc :: BoM CollectState m => Symbol -> [Symbol] -> Type -> m ()
 collectTypeFunc symbol ss typ = do
@@ -231,14 +232,14 @@ collectStmt stmt = collectPos stmt $ case stmt of
                 collectEq (typeof expr1) (typeof expr2)
                 collectExpr expr1
                 collectExpr expr2
-            es -> do
-                gts <- replicateM (length es) genType
-                collectBase (typeof expr1) $ Table gts
-                forM_ (zip es gts) $ \(e, t) -> do
-                    collectEq (typeof e) $ Table [t]
-                    collectExpr e
-                collectExpr expr1
-                collectEq (typeof expr2) (typeof expr1)
+--            es -> do
+--                gts <- replicateM (length es) genType
+--                collectBase (typeof expr1) $ Table gts
+--                forM_ (zip es gts) $ \(e, t) -> do
+--                    collectEq (typeof e) $ Table [t]
+--                    collectExpr e
+--                collectExpr expr1
+--                collectEq (typeof expr2) (typeof expr1)
 
     S.SetOp _ op expr1 expr2 -> do
         collectEq (typeof expr1) (typeof expr2)
@@ -297,11 +298,11 @@ collectPattern pattern typ = collectPos pattern $ case pattern of
     S.PatTypeField _ t pat -> do
         collectPattern pat t
 
-    S.PatTuple _ pats -> do
-        gts <- replicateM (length pats) genType
-        collectDefault typ (Tuple gts)
-        collectBase typ (Tuple gts)
-        zipWithM_ collectPattern pats gts
+--    S.PatTuple _ pats -> do
+--        gts <- replicateM (length pats) genType
+--        collectDefault typ (Tuple gts)
+--        collectBase typ (Tuple gts)
+--        zipWithM_ collectPattern pats gts
 
     S.PatArray _ pats -> do
         gt <- genType
@@ -433,17 +434,17 @@ collectExpr (S.AExpr exprType expr) = collectPos expr $ case expr of
         collectExpr e2
         collectDefault (typeof e2) I64
 
-    S.Tuple _ es -> do
-        collectBase exprType $ Tuple (map typeof es)
-        collectDefault exprType $ Tuple (map typeof es)
-        mapM_ collectExpr es
+--    S.Tuple _ es -> do
+--        collectBase exprType $ Tuple (map typeof es)
+--        collectDefault exprType $ Tuple (map typeof es)
+--        mapM_ collectExpr es
 
     S.Field _ e (Sym sym) -> do
         case typeof e of
             Type x         -> return ()
-            TypeApply symbol _ -> do
-                ObjField i  <- look (Sym sym) . KeyField =<< getTypeSymbol (typeof e)
-                collectField exprType i (typeof e)
+--            TypeApply symbol _ -> do
+--                ObjField i  <- look (Sym sym) . KeyField =<< getTypeSymbol (typeof e)
+--                collectField exprType i (typeof e)
             _ -> fail "invalid field access"
         collectExpr e
 
@@ -459,30 +460,30 @@ collectExpr (S.AExpr exprType expr) = collectPos expr $ case expr of
         collectExpr e
         collectDefault exprType Bool
 
-    S.Range _ me me1 me2 -> do
-        when (isJust me) $ do
-            collectExpr (fromJust me)
+--    S.Range _ me me1 me2 -> do
+--        when (isJust me) $ do
+--            collectExpr (fromJust me)
+--
+--        when (isJust me1 && isJust me2) $ do
+--            collectEq (typeof $ fromJust me1) (typeof $ fromJust me2)
+--        when (isJust me1) $ do
+--            collectBase (Range $ typeof $ fromJust me1) exprType
+--            collectDefault (Range $ typeof $ fromJust me1) exprType
+--            collectExpr (fromJust me1)
+--        when (isJust me2) $ do
+--            collectBase (Range $ typeof $ fromJust me2) exprType
+--            collectDefault (Range $ typeof $ fromJust me2) exprType
+--            collectExpr (fromJust me2)
+--        when (isNothing me1 && isNothing me2) $ do
+--            collectDefault (Range I64) exprType
 
-        when (isJust me1 && isJust me2) $ do
-            collectEq (typeof $ fromJust me1) (typeof $ fromJust me2)
-        when (isJust me1) $ do
-            collectBase (Range $ typeof $ fromJust me1) exprType
-            collectDefault (Range $ typeof $ fromJust me1) exprType
-            collectExpr (fromJust me1)
-        when (isJust me2) $ do
-            collectBase (Range $ typeof $ fromJust me2) exprType
-            collectDefault (Range $ typeof $ fromJust me2) exprType
-            collectExpr (fromJust me2)
-        when (isNothing me1 && isNothing me2) $ do
-            collectDefault (Range I64) exprType
-
-    S.Array _ es -> do
-        forM_ es $ \e -> do 
-            collectElem exprType (typeof e)
-            collectEq (typeof e) (typeof $ head es)
-
-        collectDefault exprType $ Array (length es) (typeof $ head es)
-
-        mapM_ collectExpr es
+--    S.Array _ es -> do
+--        forM_ es $ \e -> do 
+--            collectElem exprType (typeof e)
+--            collectEq (typeof e) (typeof $ head es)
+--
+--        collectDefault exprType $ Array (length es) (typeof $ head es)
+--
+--        mapM_ collectExpr es
 
     _ -> error (show expr)

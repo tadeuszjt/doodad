@@ -29,17 +29,17 @@ checkTypeDefs typedefs = do
         checkTypeCircles :: BoM s m => Set.Set Symbol -> Type -> m ()
         checkTypeCircles visited typ = case typ of
             Void            -> return ()
-            Key t           -> return ()
+--            Key t           -> return ()
             t | isSimple t  -> return ()
-            TypeApply symbol ts -> do
-                checkCircles visited symbol
-                mapM_ (checkTypeCircles visited) ts
-            Tuple ts        -> mapM_ (checkTypeCircles visited) ts
-            Table ts        -> mapM_ (checkTypeCircles visited) ts
-            Array n t       -> checkTypeCircles visited t
-            ADT fs          -> do
-                forM_ fs $ \field -> case field of
-                    FieldNull    -> return ()
-                    FieldType t  -> checkTypeCircles visited t
-                    FieldCtor ts -> mapM_ (checkTypeCircles visited) ts
+--            TypeApply symbol ts -> do
+--                checkCircles visited symbol
+--                mapM_ (checkTypeCircles visited) ts
+--            Tuple ts        -> mapM_ (checkTypeCircles visited) ts
+--            Table ts        -> mapM_ (checkTypeCircles visited) ts
+--            Array n t       -> checkTypeCircles visited t
+--            ADT fs          -> do
+--                forM_ fs $ \field -> case field of
+--                    FieldNull    -> return ()
+--                    FieldType t  -> checkTypeCircles visited t
+--                    FieldCtor ts -> mapM_ (checkTypeCircles visited) ts
             _                 -> fail ("checkTypeCircles " ++ show typ)

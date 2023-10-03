@@ -306,18 +306,18 @@ mtype  : {-empty-}                          { Nothing }
 types1 : type_                              { [$1] }
        | type_ ',' types1                   { $1 : $3 }
     
-type_         : symbol                      { T.TypeApply (snd $1) [] }
-              | ordinal_t                   { $1 }
-              | aggregate_t                 { $1 }
-              | symbol '(' types1 ')'       { T.TypeApply (snd $1) $3 }
+type_         --: symbol                      { T.TypeApply (snd $1) [] }
+              : ordinal_t                   { $1 }
+              --| aggregate_t                 { $1 }
+              --| symbol '(' types1 ')'       { T.TypeApply (snd $1) $3 }
 
-uncovered_t : symbol { T.TypeApply (snd $1) [] }
-            | ordinal_t { $1 }
-            | array_t   { $1 }
-            | table_t   { $1 }
-            | range_t   { $1 }
-            | tuple_t   { $1 }
-            | adtFields2 { T.ADT $1 }
+uncovered_t --: symbol { T.TypeApply (snd $1) [] }
+            : ordinal_t { $1 }
+            --| array_t   { $1 }
+            --| table_t   { $1 }
+            --| range_t   { $1 }
+            --| tuple_t   { $1 }
+            --| adtFields2 { T.ADT $1 }
 
 uncovered_ts1 : uncovered_t                    { [$1] }
               | uncovered_t  ',' uncovered_ts1 { $1 : $3 }
@@ -334,30 +334,30 @@ ordinal_t   : bool                          { T.Bool }
             | char                          { T.Char }
             | string                        { T.String }
 
-aggregate_t : table_t                       { $1 }
-            | array_t                     { $1 }
-            | tuple_t                     { $1 }
-            | adt_t                       { $1 }
-            | range_t                     { $1 }
+--aggregate_t : table_t                       { $1 }
+--            | array_t                     { $1 }
+--            | tuple_t                     { $1 }
+--            | adt_t                       { $1 }
+--            | range_t                     { $1 }
 
 
-adt_t    : '(' adtField '|' adtFields1 ')'         { T.ADT ($2:$4) }
-array_t  : '[' int_c uncovered_t ']'               { T.Array (read $ tokStr $2) $3 }
-table_t  : '[' uncovered_ts1 ']'                   { T.Table $2 }
-tuple_t  : '(' uncovered_ts2 ')'                   { T.Tuple $2 }
-         | '(' ')'                                 { T.Tuple [] }
-range_t  : '[' '..' ']' type_                      { T.Range $4 }
+--adt_t    : '(' adtField '|' adtFields1 ')'         { T.ADT ($2:$4) }
+--array_t  : '[' int_c uncovered_t ']'               { T.Array (read $ tokStr $2) $3 }
+--table_t  : '[' uncovered_ts1 ']'                   { T.Table $2 }
+--tuple_t  : '(' uncovered_ts2 ')'                   { T.Tuple $2 }
+--         | '(' ')'                                 { T.Tuple [] }
+--range_t  : '[' '..' ']' type_                      { T.Range $4 }
 
 anno_t   : ordinal_t                        { S.AnnoType $1 }
-         | symbol                           { S.AnnoType (T.TypeApply (snd $1) []) }
-         | '(' uncovered_ts2 ')'            { S.AnnoType (T.Tuple $2) }
-         | '(' uncovered_t ')'              { S.AnnoType $2 }
-         | '(' params2 ')'                  { S.AnnoTuple $2 }
-         | '(' paramsL2 ')'                 { S.AnnoADT (map paramToAdtField $2) }
-         | '(' 'I' paramsL2 'D' ')'         { S.AnnoADT (map paramToAdtField $3) }
-         | '[' params1 ']'                  { S.AnnoTable $2 }
-         | array_t                          { S.AnnoType $1 }
-         | table_t                          { S.AnnoType $1 }
+         --| symbol                           { S.AnnoType (T.TypeApply (snd $1) []) }
+         --| '(' uncovered_ts2 ')'            { S.AnnoType (T.Tuple $2) }
+         --| '(' uncovered_t ')'              { S.AnnoType $2 }
+         --| '(' params2 ')'                  { S.AnnoTuple $2 }
+         --| '(' paramsL2 ')'                 { S.AnnoADT (map paramToAdtField $2) }
+         --| '(' 'I' paramsL2 'D' ')'         { S.AnnoADT (map paramToAdtField $3) }
+         --| '[' params1 ']'                  { S.AnnoTable $2 }
+         --| array_t                          { S.AnnoType $1 }
+         --| table_t                          { S.AnnoType $1 }
 
 
 adtFields1 : adtField                       { [$1] }
@@ -372,8 +372,8 @@ adtField : type_                            { T.FieldType $1 }
 
 paramToAdtField :: S.Param -> S.AnnoADTField
 paramToAdtField (S.Param pos symbol typ) = case typ of
-    T.Tuple [] -> S.ADTFieldMember symbol []
-    T.Tuple ts -> S.ADTFieldMember symbol ts
+--    T.Tuple [] -> S.ADTFieldMember symbol []
+--    T.Tuple ts -> S.ADTFieldMember symbol ts
     t          -> S.ADTFieldMember symbol [t]
 
 

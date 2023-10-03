@@ -169,33 +169,33 @@ set a b = do
     base <- baseTypeOf a
     void $ case base of
         _ | isSimple base               -> void $ appendElem $ C.Set (valExpr a) (valExpr b)
-        Type.ADT fs                     -> void $ appendElem $ C.Set (valExpr a) (valExpr b)
-        Type.Tuple ts | all isSimple ts -> void $ appendElem $ C.Set (valExpr a) (valExpr b)
-        Type.Tuple ts -> do
-            forM_ (zip ts [0..]) $ \(t, i) -> do
-                ma <- member i a
-                mb <- member i b
-                set ma mb
-        Type.Table ts -> do
-            let cap = C.Member (valExpr a) "cap"
-            let len = C.Member (valExpr a) "len"
-            appendElem $ C.Set len (C.Member (valExpr b) "len")
-            appendElem $ C.Set cap (C.Member (valExpr b) "len")
-            forM_ (zip ts [0..]) $ \(t, i) -> do
-                let size = C.Sizeof $ C.Deref $ C.Member (valExpr a) ("r" ++ show i)
-                appendElem $ C.Set -- a.rn = GC_malloc(sizeof(*a.rn) * a.cap
-                    (C.Member (valExpr a) ("r" ++ show i))
-                    (C.Call "GC_malloc" [C.Infix C.Times size cap])
-                
-                for (Value I64 len) $ \idx -> set
-                    (Value t $ C.Subscript (C.Member (valExpr a) ("r" ++ show i)) $ valExpr idx)
-                    (Value t $ C.Subscript (C.Member (valExpr b) ("r" ++ show i)) $ valExpr idx)
-
-        Type.Array n t -> do
-            for (i64 n) $ \idx -> do
-                sa <- subscript a idx
-                sb <- subscript b idx
-                set sa sb
+--        Type.ADT fs                     -> void $ appendElem $ C.Set (valExpr a) (valExpr b)
+--        Type.Tuple ts | all isSimple ts -> void $ appendElem $ C.Set (valExpr a) (valExpr b)
+--        Type.Tuple ts -> do
+--            forM_ (zip ts [0..]) $ \(t, i) -> do
+--                ma <- member i a
+--                mb <- member i b
+--                set ma mb
+--        Type.Table ts -> do
+--            let cap = C.Member (valExpr a) "cap"
+--            let len = C.Member (valExpr a) "len"
+--            appendElem $ C.Set len (C.Member (valExpr b) "len")
+--            appendElem $ C.Set cap (C.Member (valExpr b) "len")
+--            forM_ (zip ts [0..]) $ \(t, i) -> do
+--                let size = C.Sizeof $ C.Deref $ C.Member (valExpr a) ("r" ++ show i)
+--                appendElem $ C.Set -- a.rn = GC_malloc(sizeof(*a.rn) * a.cap
+--                    (C.Member (valExpr a) ("r" ++ show i))
+--                    (C.Call "GC_malloc" [C.Infix C.Times size cap])
+--                
+--                for (Value I64 len) $ \idx -> set
+--                    (Value t $ C.Subscript (C.Member (valExpr a) ("r" ++ show i)) $ valExpr idx)
+--                    (Value t $ C.Subscript (C.Member (valExpr b) ("r" ++ show i)) $ valExpr idx)
+--
+--        Type.Array n t -> do
+--            for (i64 n) $ \idx -> do
+--                sa <- subscript a idx
+--                sb <- subscript b idx
+--                set sa sb
 
 
         _ -> error (show base)
@@ -205,33 +205,34 @@ len :: MonadGenerate m => Value -> m Value
 len val = do
     base <- baseTypeOf val
     case base of
-        Table ts       -> return $ Value I64 $ C.Member (valExpr val) "len"
+--        Table ts       -> return $ Value I64 $ C.Member (valExpr val) "len"
         Type.String    -> return $ Value I64 $ C.Call "strlen" [valExpr val]
-        Type.Array n t -> return $ Value I64 $ C.Int (fromIntegral n)
+--        Type.Array n t -> return $ Value I64 $ C.Int (fromIntegral n)
         _ -> error (show base)
 
 
 adtEnum :: MonadGenerate m => Value -> m Value
 adtEnum obj = do
-    base@(Type.ADT fs) <- baseTypeOf obj
-    return $ Value I64 $ C.Member (valExpr obj) "en"
+    error ""
+--    base@(Type.ADT fs) <- baseTypeOf obj
+--    return $ Value I64 $ C.Member (valExpr obj) "en"
 
 
 member :: MonadGenerate m => Int -> Value -> m Value
 member i val = do
     base <- baseTypeOf val
     case base of
-        Type.Table ts -> assign "row" $ Value (Type.Table [ts !! i]) $ C.Initialiser
-            [ C.Member (valExpr val) "len"
-            , C.Member (valExpr val) "cap"
-            , C.Member (valExpr val) ("r" ++ show i)]
-        Type.Tuple ts -> return $ Value (ts !! i) $ C.Member (valExpr val) ("m" ++ show i)
-        Type.ADT fs   -> case fs !! i of
-            FieldNull -> fail "no val for null field"
-            FieldType t -> return $ Value t $ C.Member (valExpr val) ("u" ++ show i)
-            FieldCtor [] -> fail "no val for empty ctor"
-            FieldCtor [t] -> return $ Value t $ C.Member (valExpr val) ("u" ++ show i)
-            FieldCtor ts -> return $ Value (Type.Tuple ts) $ C.Member (valExpr val) ("u" ++ show i)
+--        Type.Table ts -> assign "row" $ Value (Type.Table [ts !! i]) $ C.Initialiser
+--            [ C.Member (valExpr val) "len"
+--            , C.Member (valExpr val) "cap"
+--            , C.Member (valExpr val) ("r" ++ show i)]
+--        Type.Tuple ts -> return $ Value (ts !! i) $ C.Member (valExpr val) ("m" ++ show i)
+--        Type.ADT fs   -> case fs !! i of
+--            FieldNull -> fail "no val for null field"
+--            FieldType t -> return $ Value t $ C.Member (valExpr val) ("u" ++ show i)
+--            FieldCtor [] -> fail "no val for empty ctor"
+--            FieldCtor [t] -> return $ Value t $ C.Member (valExpr val) ("u" ++ show i)
+--            FieldCtor ts -> return $ Value (Type.Tuple ts) $ C.Member (valExpr val) ("u" ++ show i)
         _ -> error (show base)
 
 
@@ -239,20 +240,20 @@ initialiser :: MonadGenerate m => Type.Type -> [Value] -> m Value
 initialiser typ [] = do
     base <- baseTypeOf typ
     case base of
-        Type.Tuple [] -> assign "zero" $ Value typ $ C.Initialiser []
+--        Type.Tuple [] -> assign "zero" $ Value typ $ C.Initialiser []
         _             -> assign "zero" $ Value typ $ C.Initialiser [C.Int 0]
 initialiser typ vals = do
     base <- baseTypeOf typ
     case base of
-        Type.Tuple ts -> do
-            assert (length ts == length vals) "initialiser length"
-            assign "tuple" $ Value typ $ C.Initialiser (map valExpr vals)
-        Type.Array n t -> do
-            assert (length vals == n) "initialiser length"
-            assign "array" $ Value typ $ C.Initialiser (map valExpr vals)
-        Type.Range t -> do
-            assert (map typeof vals == [t, t]) "initialiser types"
-            assign "range" $ Value typ $ C.Initialiser (map valExpr vals)
+--        Type.Tuple ts -> do
+--            assert (length ts == length vals) "initialiser length"
+--            assign "tuple" $ Value typ $ C.Initialiser (map valExpr vals)
+--        Type.Array n t -> do
+--            assert (length vals == n) "initialiser length"
+--            assign "array" $ Value typ $ C.Initialiser (map valExpr vals)
+--        Type.Range t -> do
+--            assert (map typeof vals == [t, t]) "initialiser types"
+--            assign "range" $ Value typ $ C.Initialiser (map valExpr vals)
         _ -> error (show base)
 
 
@@ -262,29 +263,29 @@ subscript val idx = do
     baseIdx <- baseTypeOf idx
     assert (isInt baseIdx) "idx type isn't integer"
     case base of
-        Type.Array n t -> return $ Value t $ C.Subscript (C.Member (valExpr val) "arr") (valExpr idx)
-        Type.String -> return $ Value Type.Char $ C.Subscript (valExpr val) (valExpr idx)
-        Type.Table [t] -> return $ Value t $ C.Subscript (C.Member (valExpr val) "r0") (valExpr idx)
-        Type.Table ts -> do
-            elems <- forM (zip ts [0..]) $ \(t, i) -> do
-                return $ C.Subscript (C.Member (valExpr val) ("r" ++ show i)) (valExpr idx)
-            assign "subscr" $ Value (Type.Tuple ts) $ C.Initialiser elems
-        Type.Range I64 -> return $ Value Type.Bool $ C.Infix
-            C.AndAnd
-            (C.Infix C.GTEq (valExpr idx) (C.Member (valExpr val) "min"))
-            (C.Infix C.LT (valExpr idx) (C.Member (valExpr val) "max"))
+--        Type.Array n t -> return $ Value t $ C.Subscript (C.Member (valExpr val) "arr") (valExpr idx)
+--        Type.String -> return $ Value Type.Char $ C.Subscript (valExpr val) (valExpr idx)
+--        Type.Table [t] -> return $ Value t $ C.Subscript (C.Member (valExpr val) "r0") (valExpr idx)
+--        Type.Table ts -> do
+--            elems <- forM (zip ts [0..]) $ \(t, i) -> do
+--                return $ C.Subscript (C.Member (valExpr val) ("r" ++ show i)) (valExpr idx)
+--            assign "subscr" $ Value (Type.Tuple ts) $ C.Initialiser elems
+--        Type.Range I64 -> return $ Value Type.Bool $ C.Infix
+--            C.AndAnd
+--            (C.Infix C.GTEq (valExpr idx) (C.Member (valExpr val) "min"))
+--            (C.Infix C.LT (valExpr idx) (C.Member (valExpr val) "max"))
         _ -> error (show base)
 
             
 baseTypeOf :: (MonadGenerate m, Typeof a) => a -> m Type.Type
 baseTypeOf a = case typeof a of
-    Type.TypeApply symbol ts -> do
-        resm <- Map.lookup symbol <$> gets typefuncs
-        case resm of
-            Nothing             -> fail $ "baseTypeOf: " ++ show (typeof a)
-            Just (symbols, typ) -> do
-                assert (length ts == length symbols) $ "Invalid type function arguments: " ++ show ts
-                baseTypeOf $ applyTypeFunction (Map.fromList $ zip symbols ts) typ
+--    Type.TypeApply symbol ts -> do
+--        resm <- Map.lookup symbol <$> gets typefuncs
+--        case resm of
+--            Nothing             -> fail $ "baseTypeOf: " ++ show (typeof a)
+--            Just (symbols, typ) -> do
+--                assert (length ts == length symbols) $ "Invalid type function arguments: " ++ show ts
+--                baseTypeOf $ applyTypeFunction (Map.fromList $ zip symbols ts) typ
         
     _ -> return (typeof a)
     _ -> error (show $ typeof a)
@@ -308,29 +309,29 @@ cTypeOf a = case typeof a of
     Type.Bool -> return $ Cbool
     Type.Char -> return $ Cchar
     Type.String -> return $ Cpointer Cchar
-    Type.Array n t -> do
-        arr <- Carray n <$> cTypeOf t
-        getTypedef "array" $ Cstruct [C.Param "arr" arr]
-    Type.Tuple ts -> do
-        cts <- mapM cTypeOf ts
-        getTypedef "tuple" $ Cstruct $ zipWith (\a b -> C.Param ("m" ++ show a) b) [0..] cts
-    Type.Range t -> do
-        ct <- cTypeOf t
-        getTypedef "range" $ Cstruct [C.Param "min" ct, C.Param "max" ct]
-    Type.ADT fs -> do
-        cts <- mapM cTypeOf (map fieldType fs)
-        getTypedef "adt" $ Cstruct [C.Param "en" Cint64_t, C.Param "" $
-            Cunion $ map (\(ct, i) -> C.Param ("u" ++ show i) ct) (zip cts [0..])]
-    Type.Table ts -> do
-        cts <- mapM cTypeOf ts
-        let pts = zipWith (\ct i -> C.Param ("r" ++ show i) (Cpointer ct)) cts [0..]
-        getTypedef "table" $ Cstruct (C.Param "len" Cint64_t:C.Param "cap" Cint64_t:pts)
-
-    Type.TypeApply symbol ts -> do
-        (ss, t) <- mapGet symbol =<< gets typefuncs
-        assert(length ts == length ss) "invalid number of type arguments"
-        let t' = Type.applyTypeFunction (Map.fromList $ zip ss ts) t
-        getTypedef (Symbol.sym symbol) =<< cTypeOf t'
+--    Type.Array n t -> do
+--        arr <- Carray n <$> cTypeOf t
+--        getTypedef "array" $ Cstruct [C.Param "arr" arr]
+--    Type.Tuple ts -> do
+--        cts <- mapM cTypeOf ts
+--        getTypedef "tuple" $ Cstruct $ zipWith (\a b -> C.Param ("m" ++ show a) b) [0..] cts
+--    Type.Range t -> do
+--        ct <- cTypeOf t
+--        getTypedef "range" $ Cstruct [C.Param "min" ct, C.Param "max" ct]
+--    Type.ADT fs -> do
+--        cts <- mapM cTypeOf (map fieldType fs)
+--        getTypedef "adt" $ Cstruct [C.Param "en" Cint64_t, C.Param "" $
+--            Cunion $ map (\(ct, i) -> C.Param ("u" ++ show i) ct) (zip cts [0..])]
+--    Type.Table ts -> do
+--        cts <- mapM cTypeOf ts
+--        let pts = zipWith (\ct i -> C.Param ("r" ++ show i) (Cpointer ct)) cts [0..]
+--        getTypedef "table" $ Cstruct (C.Param "len" Cint64_t:C.Param "cap" Cint64_t:pts)
+--
+--    Type.TypeApply symbol ts -> do
+--        (ss, t) <- mapGet symbol =<< gets typefuncs
+--        assert(length ts == length ss) "invalid number of type arguments"
+--        let t' = Type.applyTypeFunction (Map.fromList $ zip ss ts) t
+--        getTypedef (Symbol.sym symbol) =<< cTypeOf t'
 
     _ -> error (show $ typeof a)
     where
@@ -338,7 +339,7 @@ cTypeOf a = case typeof a of
             FieldNull -> I8
             FieldType t -> t
             FieldCtor [t] -> t
-            FieldCtor ts -> Type.Tuple ts
+--            FieldCtor ts -> Type.Tuple ts
 
 
 
@@ -356,49 +357,50 @@ getTypedef suggestion typ = do
 
 getTableAppendFunc :: MonadGenerate m => Type.Type -> m String
 getTableAppendFunc typ = do
-    base@(Table ts) <- baseTypeOf typ
-    fm <- Map.lookup typ <$> gets tableAppendFuncs
-    case fm of
-        Just s -> return s
-        Nothing -> do -- append multiple tables
-            modName <- gets moduleName
-            funcName <- fresh $ modName ++ "_table_append"
-            aParam <- C.Param "a" . Cpointer <$> cTypeOf typ
-            bParam <- C.Param "b" . Cpointer <$> cTypeOf typ
-
-            -- create new function
-            funcId <- newFunction Cvoid funcName [aParam, bParam]
-            withCurID globalID $ append funcId
-            withCurID funcId $ do
-                let a = C.Ident "a"
-                let b = C.Ident "b"
-                let len = C.PMember a "len"
-                let len2 = C.PMember b "len" 
-                let newLen = (C.Infix C.Plus len len2)
-                let cap = C.PMember a "cap"
-                
-                -- realloc if needed
-                if_ (Value Type.Bool $ C.Infix C.GTEq newLen cap) $ do
-                    appendElem $ C.Set cap (C.Infix C.Times newLen (C.Int 2))
-                    forM_ (zip ts [0..]) $ \(t, row) -> do
-                        appendElem $ C.Assign
-                            (Cpointer Cvoid)
-                            ("mem" ++ show row)
-                            (C.Call "GC_malloc" [C.Infix C.Times cap (C.Sizeof $ C.Deref $ C.PMember a $ "r" ++ show row)])
-                    forM_ (zip ts [0..]) $ \(t, row) -> do
-                        appendElem $ C.ExprStmt $ C.Call "memcpy"
-                            [ C.Ident ("mem" ++ show row)
-                            , C.PMember a ("r" ++ show row)
-                            , C.Infix C.Times len (C.Sizeof $ C.Deref $ C.PMember a $ "r" ++ show row)]
-                    forM_ (zip ts [0..]) $ \(t, row) -> do
-                        appendElem $ C.Set (C.PMember a ("r" ++ show row)) (C.Ident $ "mem" ++ show row)
-
-                for (Value I64 len2) $ \idx -> do
-                    forM_ (zip ts [0..]) $ \(t, row) -> do
-                        set
-                            (Value t $ C.Subscript (C.PMember a $ "r" ++ show row) (C.PMember a "len"))
-                            (Value t $ C.Subscript (C.PMember b $ "r" ++ show row) (valExpr idx))
-                    void $ appendElem $ C.ExprStmt $ C.Increment $ C.PMember a "len"
-                    
-            modify $ \s -> s { tableAppendFuncs = Map.insert typ funcName (tableAppendFuncs s) }
-            return funcName
+    error ""
+--    base@(Table ts) <- baseTypeOf typ
+--    fm <- Map.lookup typ <$> gets tableAppendFuncs
+--    case fm of
+--        Just s -> return s
+--        Nothing -> do -- append multiple tables
+--            modName <- gets moduleName
+--            funcName <- fresh $ modName ++ "_table_append"
+--            aParam <- C.Param "a" . Cpointer <$> cTypeOf typ
+--            bParam <- C.Param "b" . Cpointer <$> cTypeOf typ
+--
+--            -- create new function
+--            funcId <- newFunction Cvoid funcName [aParam, bParam]
+--            withCurID globalID $ append funcId
+--            withCurID funcId $ do
+--                let a = C.Ident "a"
+--                let b = C.Ident "b"
+--                let len = C.PMember a "len"
+--                let len2 = C.PMember b "len" 
+--                let newLen = (C.Infix C.Plus len len2)
+--                let cap = C.PMember a "cap"
+--                
+--                -- realloc if needed
+--                if_ (Value Type.Bool $ C.Infix C.GTEq newLen cap) $ do
+--                    appendElem $ C.Set cap (C.Infix C.Times newLen (C.Int 2))
+--                    forM_ (zip ts [0..]) $ \(t, row) -> do
+--                        appendElem $ C.Assign
+--                            (Cpointer Cvoid)
+--                            ("mem" ++ show row)
+--                            (C.Call "GC_malloc" [C.Infix C.Times cap (C.Sizeof $ C.Deref $ C.PMember a $ "r" ++ show row)])
+--                    forM_ (zip ts [0..]) $ \(t, row) -> do
+--                        appendElem $ C.ExprStmt $ C.Call "memcpy"
+--                            [ C.Ident ("mem" ++ show row)
+--                            , C.PMember a ("r" ++ show row)
+--                            , C.Infix C.Times len (C.Sizeof $ C.Deref $ C.PMember a $ "r" ++ show row)]
+--                    forM_ (zip ts [0..]) $ \(t, row) -> do
+--                        appendElem $ C.Set (C.PMember a ("r" ++ show row)) (C.Ident $ "mem" ++ show row)
+--
+--                for (Value I64 len2) $ \idx -> do
+--                    forM_ (zip ts [0..]) $ \(t, row) -> do
+--                        set
+--                            (Value t $ C.Subscript (C.PMember a $ "r" ++ show row) (C.PMember a "len"))
+--                            (Value t $ C.Subscript (C.PMember b $ "r" ++ show row) (valExpr idx))
+--                    void $ appendElem $ C.ExprStmt $ C.Increment $ C.PMember a "len"
+--                    
+--            modify $ \s -> s { tableAppendFuncs = Map.insert typ funcName (tableAppendFuncs s) }
+--            return funcName

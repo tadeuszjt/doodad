@@ -126,10 +126,10 @@ popSymbolTable = do
 
 annoToType :: AnnoType -> Type
 annoToType anno = case anno of
-    AnnoTuple xs -> Type.Tuple $ map paramType xs
-    AnnoADT  xs -> Type.ADT $ map annoFieldToField xs
+--    AnnoTuple xs -> Type.Tuple $ map paramType xs
+--    AnnoADT  xs -> Type.ADT $ map annoFieldToField xs
     AnnoType t  -> t
-    AnnoTable xs -> Type.Table $ map paramType xs
+--    AnnoTable xs -> Type.Table $ map paramType xs
     where
         annoFieldToField :: AnnoADTField -> AdtField
         annoFieldToField field = case field of
@@ -433,9 +433,9 @@ instance Resolve Pattern where
             pats' <- mapM resolve pats
             mtype <- lookm symbol KeyType
             case mtype of
-                Just symbol' -> do
-                    unless (length pats == 1) $ error "TODO - make it handle more"
-                    return $ PatTypeField pos (Type.TypeApply symbol' []) (head pats')
+--                Just symbol' -> do
+--                    unless (length pats == 1) $ error "TODO - make it handle more"
+--                    return $ PatTypeField pos (Type.TypeApply symbol' []) (head pats')
                 Nothing -> do
                     symbol' <- look symbol KeyFunc
                     return $ PatField pos symbol' pats'
@@ -478,16 +478,16 @@ instance Resolve Type where
     resolve typ = case typ of
         Void                -> return typ
         _ | isSimple typ    -> return typ
-        Type.Table ts       -> Type.Table <$> mapM resolve ts
-        Type.Key t          -> Type.Key <$> resolve t
-        Type.Tuple ts       -> Type.Tuple <$> mapM resolve ts
-        Type.Array n t      -> Type.Array n <$> resolve t
-        Type.ADT fs         -> Type.ADT <$>  mapM resolve fs
-        Type.Range t        -> Type.Range <$> resolve t
-        Type.TypeApply s ts -> do
-            symbol' <- look s KeyType
-            ts' <- mapM resolve ts
-            return $ Type.TypeApply symbol' ts'
+--        Type.Table ts       -> Type.Table <$> mapM resolve ts
+--        Type.Key t          -> Type.Key <$> resolve t
+--        Type.Tuple ts       -> Type.Tuple <$> mapM resolve ts
+--        Type.Array n t      -> Type.Array n <$> resolve t
+--        Type.ADT fs         -> Type.ADT <$>  mapM resolve fs
+--        Type.Range t        -> Type.Range <$> resolve t
+--        Type.TypeApply s ts -> do
+--            symbol' <- look s KeyType
+--            ts' <- mapM resolve ts
+--            return $ Type.TypeApply symbol' ts'
         _ -> error $ "resolve type: " ++ show typ
 
 instance Resolve Expr where
@@ -509,15 +509,15 @@ instance Resolve Expr where
             case symbol of
                 Sym s | s `elem` ["len", "conv", "print"] -> do 
                     return $ Builtin pos params' s exprs'
-                _ -> do
-                    resm <- lookm symbol KeyType
-                    case resm of 
-                        Just symbol' -> do
-                            assert (params == []) "Convert cannot have params"
-                            return $ Conv pos (Type.TypeApply symbol' []) exprs'
-                        Nothing -> do
-                            symbol' <- look symbol KeyFunc
-                            return $ Call pos params' symbol' exprs'
+--                _ -> do
+--                    resm <- lookm symbol KeyType
+--                    case resm of 
+--                        Just symbol' -> do
+--                            assert (params == []) "Convert cannot have params"
+--                            return $ Conv pos (Type.TypeApply symbol' []) exprs'
+--                        Nothing -> do
+--                            symbol' <- look symbol KeyFunc
+--                            return $ Call pos params' symbol' exprs'
 
 
         Infix pos op exprA exprB -> do

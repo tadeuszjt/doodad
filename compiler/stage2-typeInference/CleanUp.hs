@@ -139,7 +139,7 @@ resolveFieldAccess (AST.Field pos expr (Sym sym)) = do
         ctors <- gets ctorDefs
         res <- fmap catMaybes $ forM (Map.toList ctors) $ \(symbol, (typeSymbol, i)) -> do
             exprTypeSymbolm <- case typeof expr of
-                Type.TypeApply s _ -> return (Just s)
+--                Type.TypeApply s _ -> return (Just s)
                 _ -> return Nothing
             case exprTypeSymbolm of
                 Nothing -> return Nothing

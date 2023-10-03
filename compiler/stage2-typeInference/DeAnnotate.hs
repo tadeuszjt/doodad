@@ -185,12 +185,12 @@ hasTypeVars typ = case typ of
     T.Type _         -> True
     T.Void           -> False
     t | T.isSimple t -> False
-    T.ADT fs         -> any (== True) (map fHasTypeVars fs)
-    T.Table ts       -> any (== True) (map hasTypeVars ts)
-    T.Tuple ts       -> any (== True) (map hasTypeVars ts)
-    T.Range t        -> hasTypeVars t
-    T.Array n t      -> hasTypeVars t
-    T.TypeApply s ts -> any (== True) (map hasTypeVars ts)
+--    T.ADT fs         -> any (== True) (map fHasTypeVars fs)
+--    T.Table ts       -> any (== True) (map hasTypeVars ts)
+--    T.Tuple ts       -> any (== True) (map hasTypeVars ts)
+--    T.Range t        -> hasTypeVars t
+--    T.Array n t      -> hasTypeVars t
+--    T.TypeApply s ts -> any (== True) (map hasTypeVars ts)
     _ -> error (show typ)
     where
         fHasTypeVars :: T.AdtField -> Bool
