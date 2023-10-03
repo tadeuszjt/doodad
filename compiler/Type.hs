@@ -84,6 +84,7 @@ findGenerics typeArgs typ = case typ of
     TypeApply s ts -> concat $ map (findGenerics typeArgs) ts
     t | isSimple t -> []
     Tuple ts -> concat $ map (findGenerics typeArgs) ts
+    Table ts -> concat $ map (findGenerics typeArgs) ts
     Void -> []
     Type _ -> []
     _ -> error $ show typ
