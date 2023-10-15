@@ -180,10 +180,10 @@ generatePrint app val = case typeof val of
             let end = i == length ts - 1
             generatePrint (if end then "" else ", ") =<< member i val
         void $ appendPrintf (")" ++ app) []
---
---    Type.TypeApply s ts -> do
---        base <- baseTypeOf val
---        generatePrint app $ Value base (valExpr val)
+
+    Type.TypeApply s t -> do
+        base <- baseTypeOf val
+        generatePrint app $ Value base (valExpr val)
 
     _ -> error (show $ typeof val)
 
@@ -278,14 +278,14 @@ generateStmt stmt = withPos stmt $ case stmt of
 --                let [i] = indexes
 --                set i val
 --
---            Type.Tuple ts -> case indexes of
---                [] -> error "here"
---                [ind] -> set ind val
---                indexes -> do
---                    assert (ts == map typeof indexes) $ "mismatch" ++ show indexes
---                    forM_ (zip indexes [0..]) $ \(ind, i) -> do
---                        set ind =<< member i val 
-
+            Type.Tuple t -> case indexes of
+                [] -> error "here"
+                [ind] -> set ind val
+                indexes -> do
+                    Record ts <- baseTypeOf t
+                    assert (ts == map typeof indexes) $ "mismatch" ++ show indexes
+                    forM_ (zip indexes [0..]) $ \(ind, i) -> do
+                        set ind =<< member i val 
 
             _ -> error (show base)
 
@@ -425,18 +425,18 @@ generatePattern pattern val = withPos pattern $ do
             appendAssign cType (show symbol) (valExpr val)
             return true
 
---        PatTuple _ pats -> do
---            base@(Type.Tuple ts) <- baseTypeOf val
---            endLabel <- fresh "end"
---            match <- assign "match" false
---
---            forM_ (zip pats [0..]) $ \(pat, i) -> do
---                b <- generatePattern pat =<< member i val
---                if_ (not_ b) $ appendElem $ C.Goto endLabel
---                        
---            set match true
---            appendElem $ C.Label endLabel
---            return match
+        PatTuple _ pats -> do
+            base@(Type.Tuple t) <- baseTypeOf val
+            endLabel <- fresh "end"
+            match <- assign "match" false
+
+            forM_ (zip pats [0..]) $ \(pat, i) -> do
+                b <- generatePattern pat =<< member i val
+                if_ (not_ b) $ appendElem $ C.Goto endLabel
+                        
+            set match true
+            appendElem $ C.Label endLabel
+            return match
 
         PatGuarded _ pat expr -> do
             match <- assign "match" =<< generatePattern pat val

@@ -35,7 +35,7 @@ data SymKey
 
 data Object
     = ObjVar Type
-    | ObjTypeFunc [Symbol] Type
+    | ObjTypeFunc Symbol Type
     | ObjFunc 
     | ObjField Int
     | ObjConst S.Expr
@@ -133,8 +133,8 @@ define symbol key obj = do
 
 collectAST :: BoM CollectState m => ASTResolved -> m ()
 collectAST ast = do
-    forM (Map.toList $ typeFuncs ast) $ \(symbol, (ss, t)) -> do
-        collectTypeFunc symbol ss t
+    forM (Map.toList $ typeFuncs ast) $ \(symbol, (argSymbol, typ)) -> do
+        collectTypeFunc symbol argSymbol typ
 
     forM (Map.toList $ ctorDefs ast) $ \(symbol, (typeDefSymbol, i)) -> do
         collectCtorDef symbol typeDefSymbol i
@@ -189,9 +189,9 @@ collectTypedef symbol typ = do
 ----        Tuple ts -> define symbol (KeyFunc $ FuncHeader [] [] symbol ts typedef) ObjFunc
 --        t        -> define symbol (KeyFunc $ FuncHeader [] [] symbol [t] typedef) ObjFunc
 
-collectTypeFunc :: BoM CollectState m => Symbol -> [Symbol] -> Type -> m ()
-collectTypeFunc symbol ss typ = do
-    define symbol KeyType (ObjTypeFunc ss typ)
+collectTypeFunc :: BoM CollectState m => Symbol -> Symbol -> Type -> m ()
+collectTypeFunc symbol argSymbol typ = do
+    define symbol KeyType (ObjTypeFunc argSymbol typ)
 -- TODO do i need this
 --    case typ of
 --        Tuple ts -> define symbol (KeyFunc [] ts typedef) ObjFunc
@@ -298,11 +298,11 @@ collectPattern pattern typ = collectPos pattern $ case pattern of
     S.PatTypeField _ t pat -> do
         collectPattern pat t
 
---    S.PatTuple _ pats -> do
---        gts <- replicateM (length pats) genType
---        collectDefault typ (Tuple gts)
---        collectBase typ (Tuple gts)
---        zipWithM_ collectPattern pats gts
+    S.PatTuple _ pats -> do
+        gts <- replicateM (length pats) genType
+        collectDefault typ (Tuple $ Record gts)
+        collect $ ConsTuple typ gts
+        zipWithM_ collectPattern pats gts
 
     S.PatArray _ pats -> do
         gt <- genType

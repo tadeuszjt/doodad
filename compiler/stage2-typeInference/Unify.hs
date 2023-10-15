@@ -18,16 +18,16 @@ import Apply
 import Symbol
 
 
-type UnifyState = Map.Map Symbol ([Symbol], Type)
+type UnifyState = Map.Map Symbol (Symbol, Type)
 
 
 baseTypeOf :: BoM UnifyState m => Type -> m (Maybe Type)
 baseTypeOf typ = case typ of
-    TypeApply symbol t -> do
+    TypeApply symbol argType -> do
         resm <- gets $ Map.lookup symbol
         case resm of
-            Nothing       -> return Nothing
-            Just ([], tf) -> baseTypeOf tf
+            Nothing             -> return Nothing
+            Just (argSymbol, t) -> baseTypeOf $ applyTypeFunction argSymbol argType t
 
                 --assert (length ts == length ss) "invalid type function args"
                 --assert (length ss == 1) "TODO"

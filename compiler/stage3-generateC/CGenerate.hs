@@ -46,7 +46,7 @@ data GenerateState
         , supply :: Map.Map String Int
         , ctors  :: Map.Map Symbol (Symbol, Int)
         , typedefs :: Map.Map Symbol Type.Type
-        , typefuncs :: Map.Map Symbol ([Symbol], Type.Type)
+        , typefuncs :: Map.Map Symbol (Symbol, Type.Type)
         , symTab :: SymTab.SymTab String () Value
         , tableAppendFuncs :: Map.Map Type.Type String
         }
@@ -171,11 +171,12 @@ set a b = do
         _ | isSimple base               -> void $ appendElem $ C.Set (valExpr a) (valExpr b)
 --        Type.ADT fs                     -> void $ appendElem $ C.Set (valExpr a) (valExpr b)
 --        Type.Tuple ts | all isSimple ts -> void $ appendElem $ C.Set (valExpr a) (valExpr b)
---        Type.Tuple ts -> do
---            forM_ (zip ts [0..]) $ \(t, i) -> do
---                ma <- member i a
---                mb <- member i b
---                set ma mb
+        Type.Tuple t -> do
+            Record ts <- baseTypeOf t
+            forM_ (zip ts [0..]) $ \(t, i) -> do
+                ma <- member i a
+                mb <- member i b
+                set ma mb
 --        Type.Table ts -> do
 --            let cap = C.Member (valExpr a) "cap"
 --            let len = C.Member (valExpr a) "len"
@@ -291,10 +292,8 @@ baseTypeOf a = case typeof a of
     Type.TypeApply symbol t -> do
         resm <- Map.lookup symbol <$> gets typefuncs
         case resm of
-            Nothing        -> fail $ "baseTypeOf: " ++ show (typeof a)
-            Just ([], typ) -> do
-                assert (t == Type.Record []) "should be empty record"
-                baseTypeOf typ
+            Nothing               -> fail $ "baseTypeOf: " ++ show (typeof a)
+            Just (argSymbol, typ) -> baseTypeOf $ applyTypeFunction argSymbol t typ
 
 --            Just (symbols, typ) -> do
 --                assert (length ts == length symbols) $ "Invalid type function arguments: " ++ show ts
@@ -322,13 +321,16 @@ cTypeOf a = case typeof a of
     Type.Bool -> return $ Cbool
     Type.Char -> return $ Cchar
     Type.String -> return $ Cpointer Cchar
---    Type.Array n t -> do
---        arr <- Carray n <$> cTypeOf t
---        getTypedef "array" $ Cstruct [C.Param "arr" arr]
+    Type.TypeApply symbol argType -> do
+        (argSymbol, typ) <- mapGet symbol =<< gets typefuncs
+        getTypedef (Symbol.sym symbol) =<< cTypeOf (Type.applyTypeFunction argSymbol argType typ)
     Type.Tuple t -> do
         Record ts <- baseTypeOf t
         cts <- mapM cTypeOf ts
         getTypedef "tuple" $ Cstruct $ zipWith (\a b -> C.Param ("m" ++ show a) b) [0..] cts
+--    Type.Array n t -> do
+--        arr <- Carray n <$> cTypeOf t
+--        getTypedef "array" $ Cstruct [C.Param "arr" arr]
 
 --    Type.Range t -> do
 --        ct <- cTypeOf t
@@ -342,11 +344,6 @@ cTypeOf a = case typeof a of
 --        let pts = zipWith (\ct i -> C.Param ("r" ++ show i) (Cpointer ct)) cts [0..]
 --        getTypedef "table" $ Cstruct (C.Param "len" Cint64_t:C.Param "cap" Cint64_t:pts)
 --
---    Type.TypeApply symbol ts -> do
---        (ss, t) <- mapGet symbol =<< gets typefuncs
---        assert(length ts == length ss) "invalid number of type arguments"
---        let t' = Type.applyTypeFunction (Map.fromList $ zip ss ts) t
---        getTypedef (Symbol.sym symbol) =<< cTypeOf t'
 
     _ -> error (show $ typeof a)
     where

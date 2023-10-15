@@ -71,9 +71,9 @@ funcHeaderFullyResolved header =
     where
         typeFullyResolved :: Type -> Bool
         typeFullyResolved typ = case typ of
---            TypeApply s _ | s `elem` (typeArgs header) -> False
---            TypeApply s ts -> all (== True) (map typeFullyResolved ts)
---            _ | isSimple typ -> True
+            TypeApply s (Record []) | s `elem` (typeArgs header) -> False
+            TypeApply s t -> typeFullyResolved t
+            _ | isSimple typ -> True
 --            Type.Tuple ts -> all (== True) (map typeFullyResolved ts)
             Type _ -> False
             Void -> True
@@ -109,7 +109,7 @@ unifyOne :: MonadFail m => [Symbol] -> Constraint -> m [(Type, Type)]
 unifyOne typeVars constraint = case constraint of
     ConsEq t1 t2 -> case (t1, t2) of
         _ | t1 == t2                            -> return []
---        (TypeApply s [], _) | s `elem` typeVars -> return [(t1, t2)]
+        (TypeApply s (Record []), _) | s `elem` typeVars -> return [(t1, t2)]
 --        (_, TypeApply s []) | s `elem` typeVars -> return [(t2, t1)]
         (Type _, _)                             -> return [(t1, t2)]
         (_, Type _)                             -> return [(t2, t1)]
@@ -145,14 +145,13 @@ getConstraintsFromFuncHeaders headerToReplace header = do
 
 getConstraintsFromTypes :: MonadFail m => [Symbol] -> Type -> Type -> m [Constraint]
 getConstraintsFromTypes typeArgs typeToReplace typ = case (typeToReplace, typ) of
---    (TypeApply s [], _) | s `elem` typeArgs -> return [ConsEq typeToReplace typ]
---    (TypeApply s ts, _) | s `elem` typeArgs -> error "don't know"
---    (TypeApply s ts, Type _) -> return []
+    (TypeApply s (Record []), _) | s `elem` typeArgs -> return [ConsEq typeToReplace typ]
+    (TypeApply s _, _) | s `elem` typeArgs -> error "don't know"
+    (TypeApply s _, Type _) -> return []
 
---    (TypeApply s1 ts1, TypeApply s2 ts2) -> do
---        assert (s1 == s2) "types should match"
---        assert (length ts1 == length ts2) "types should be applied to same number of args"
---        fmap concat $ zipWithM (getConstraintsFromTypes typeArgs) ts1 ts2
+    (TypeApply s1 t1, TypeApply s2 t2) -> do
+        assert (s1 == s2) "types should match"
+        getConstraintsFromTypes typeArgs t1 t2
 
     (t, Type x) -> return [(ConsEq (Type x) t)]
     (Type x, t) -> return [(ConsEq (Type x) t)]

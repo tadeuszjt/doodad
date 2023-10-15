@@ -57,7 +57,10 @@ resolveFuncCall exprType (AST.Call pos params symbol args) = withPos pos $ do
         return $ head exacts
     else do -- TODO this part could be neater
         case symbols of
-            [] -> error $ "no candidates for:" ++ show callHeader
+            [] -> do
+                liftIO $ do
+                    prettyASTResolved ast
+                error $ "no candidates for:" ++ show callHeader
             [symbol'] -> do
                 if (isGenericFunction symbol' ast) then do
                     let header  = getFunctionHeader symbol' ast

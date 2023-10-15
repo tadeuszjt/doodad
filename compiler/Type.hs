@@ -55,7 +55,7 @@ instance Show Type where
         String        -> "string"
         Record ts     -> "{" ++ intercalate ", " (map show ts) ++ "}"
         Tuple t       -> "tuple[" ++ show t ++ "]"
-        TypeApply s (Record []) -> show s
+        TypeApply s t -> show s ++ "[" ++ show t ++ "]"
 --        Key t         -> '@' : show t
 --        Range t       -> "[..]" ++ show t
 --        Tuple ts      -> "tuple(" ++ intercalate ", " (map show ts) ++ ")"
@@ -78,10 +78,10 @@ getTypeSymbol typ = case typ of
 
 findGenerics :: [Symbol] -> Type -> [Type]
 findGenerics typeArgs typ = case typ of
---    TypeApply s [] | s `elem` typeArgs -> [typ]
---    TypeApply s ts | s `elem` typeArgs -> error "generic applied to arguments"
---    TypeApply s ts -> concat $ map (findGenerics typeArgs) ts
     t | isSimple t -> []
+    TypeApply s (Record []) | s `elem` typeArgs -> [typ]
+    TypeApply s t | s `elem` typeArgs -> error "generic applied to arguments"
+    TypeApply s t -> findGenerics typeArgs t
 --    Tuple ts -> concat $ map (findGenerics typeArgs) ts
 --    Table ts -> concat $ map (findGenerics typeArgs) ts
     Void -> []
@@ -90,16 +90,17 @@ findGenerics typeArgs typ = case typ of
 
 
 -- Replace the matching symbols with a the types specificed in the argument map.
+-- [T -> i64]  T -> i64
+-- [T -> M]    T[i64] -> M[i64]
 applyTypeFunction :: Symbol -> Type -> Type -> Type
 applyTypeFunction argSymbol argType typ = case typ of
     TypeApply s (Record []) -> if s == argSymbol then argType else typ
- --   TypeApply s []   -> if Map.member s argMap then argMap Map.! s else typ
---    Tuple ts         -> Type.Tuple $ map (applyTypeFunction argMap) ts
---    Table ts         -> Type.Table $ map (applyTypeFunction argMap) ts
---    ADT fs           -> ADT $ map applyTypeFunctionAdtField fs
---    TypeApply _ _    -> error "here"
-    _ | isSimple typ -> typ
-    _                -> error $ "applyTypeFunction: " ++ show typ
+    TypeApply s t | s == argSymbol -> case argType of
+        TypeApply s2 (Record []) -> TypeApply s2 t
+    Record ts               -> Record $ map (applyTypeFunction argSymbol argType) ts
+    Tuple t                 -> Tuple $ applyTypeFunction argSymbol argType t
+    _ | isSimple typ        -> typ
+    _                       -> error $ "applyTypeFunction: " ++ show typ
     where
 --        applyTypeFunctionAdtField :: AdtField -> AdtField
 --        applyTypeFunctionAdtField field = case field of
@@ -109,32 +110,26 @@ applyTypeFunction argSymbol argType typ = case typ of
 --            _ -> error $ show field
 
 
+-- Types could match:
+--
+-- t0 - anything 
+-- t1 - t1
+-- [T] T - anything
+-- [T] T[something] - anything[something]
 typesCouldMatch :: [Symbol] -> Type -> Type -> Bool
 typesCouldMatch typeVars a b = case (a, b) of
-    (Type _, _)            -> True
-    (_, Type _)            -> True
---    (TypeApply s1 [], TypeApply s2 []) | s1 `elem` typeVars && s2 `elem` typeVars -> s1 == s2
---    (TypeApply s [], _) | s `elem` typeVars -> True
---    (_, TypeApply s []) | s `elem` typeVars -> True
-
-    (Void, Void)           -> True
---    (TypeApply sa ats, TypeApply sb bts) ->
---        symbolsCouldMatch sa sb
---        && length ats == length bts
---        && (all (== True) $ zipWith (typesCouldMatch typeVars) ats bts)
---    _ | isSimple a         -> a == b
---    (Table as, Table bs)   ->
---        length as == length bs
---        && (all (== True) $ zipWith (typesCouldMatch typeVars) as bs)
---    (ADT afs, ADT bfs)     ->
---        length afs == length bfs
---        && (all (== True) $ zipWith fieldsCouldMatch afs bfs)
---    (Tuple as, Tuple bs)   ->
---        length as == length bs
---        && (all (== True) $ zipWith (typesCouldMatch typeVars) as bs)
-
-    (_, _) -> False -- TODO
-    _                      -> error (show (a, b))
+    (Type _, _)                                    -> True
+    (_, Type _)                                    -> True
+    (TypeApply s (Record []), _)
+        | s `elem` typeVars                        -> True
+    (_, TypeApply s (Record []))
+        | s `elem` typeVars                        -> True
+    (TypeApply s1 t1, TypeApply s2 t2)
+        | s1 `elem` typeVars || s2 `elem` typeVars -> typesCouldMatch typeVars t1 t2
+    (TypeApply s1 t1, TypeApply s2 t2)             -> symbolsCouldMatch s1 s2 && typesCouldMatch typeVars t1 t2
+    (Void, Void)                                   -> True
+    _ | isSimple a                                 -> a == b
+    _                                              -> error (show (a, b))
     where
         fieldsCouldMatch :: AdtField -> AdtField -> Bool
         fieldsCouldMatch fa fb = case (fa, fb) of

@@ -150,8 +150,8 @@ line : let pattern '=' expr                         { S.Assign (tokPos $1) $2 $4
      | index '=' expr                               { S.SetOp (tokPos $2) S.Eq $1 $3 }
      | index '+=' expr                              { S.SetOp (tokPos $2) S.PlusEq $1 $3 }
      | index                                        { S.ExprStmt $1 }
-     | type symbol anno_t                           { S.Typedef (fst $2) [] (snd $2) $3 }
-     | type '[' idents1 ']' symbol anno_t           { S.Typedef (fst $5) $3 (snd $5) $6 }
+     | type symbol anno_t                           { S.Typedef (fst $2) Nothing (snd $2) $3 }
+     | type '[' ident ']' symbol anno_t             { S.Typedef (fst $5) (Just $ Sym $ tokStr $3) (snd $5) $6 }
      | data symbol type_                            { S.Data (tokPos $1) (snd $2) $3 Nothing }
      | return mexpr                                 { S.Return (tokPos $1) $2 }
      | embed_c                                      { S.EmbedC (tokPos $1) (tokStr $1) }
@@ -308,6 +308,7 @@ types1 : type_                              { [$1] }
     
 type_         : ordinal_t                   { $1 }
               | symbol                      { T.TypeApply (snd $1) (T.Record []) }
+              | symbol '(' type_ ')'        { T.TypeApply (snd $1) $3 }
               | record_t                    { $1 }
               | tuple_t                     { $1 }
 
@@ -331,6 +332,7 @@ tuple_t  : tuple '[' type_ ']'              { T.Tuple $3 }
 
 anno_t   : ordinal_t                        { S.AnnoType $1 }
          | record_t                         { S.AnnoType $1 }
+         | tuple_t                          { S.AnnoType $1 }
 
 
 adtFields1 : adtField                       { [$1] }

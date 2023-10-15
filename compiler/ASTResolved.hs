@@ -13,14 +13,14 @@ import Type
 data ASTResolved
     = ASTResolved
         { moduleName      :: String
-        , includes        :: Set.Set String                  -- c header includes
-        , links           :: Set.Set String                  -- linked libraries
-        , constDefs       :: Map.Map Symbol Expr             -- defined consts
-        , typeFuncs       :: Map.Map Symbol ([Symbol], Type) -- defined type functions
-        , ctorDefs        :: Map.Map Symbol (Symbol, Int)    -- defined ctors
-        , funcImports     :: Map.Map Symbol FuncBody         -- imported funcs
-        , funcDefs        :: Map.Map Symbol FuncBody         -- defined functions
-        , symSupply       :: Map.Map String Int              -- type supply from resovle
+        , includes        :: Set.Set String                -- c header includes
+        , links           :: Set.Set String                -- linked libraries
+        , constDefs       :: Map.Map Symbol Expr           -- defined consts
+        , typeFuncs       :: Map.Map Symbol (Symbol, Type) -- defined type functions
+        , ctorDefs        :: Map.Map Symbol (Symbol, Int)  -- defined ctors
+        , funcImports     :: Map.Map Symbol FuncBody       -- imported funcs
+        , funcDefs        :: Map.Map Symbol FuncBody       -- defined functions
+        , symSupply       :: Map.Map String Int            -- type supply from resovle
         }
     deriving (Eq)
 
@@ -140,8 +140,9 @@ prettyASTResolved ast = do
     forM_ (Map.toList $ constDefs ast) $ \(symbol, expr) ->
         prettyStmt "" $ AST.Const undefined symbol expr
 
-    forM_ (Map.toList $ typeFuncs ast) $ \(symbol, (args, typ)) -> 
-        prettyStmt "" (AST.Typedef undefined (map Symbol.sym args) symbol $ AnnoType typ)
+    forM_ (Map.toList $ typeFuncs ast) $ \(symbol, (arg, typ)) ->
+        prettyStmt "" (AST.Typedef undefined (Just arg) symbol $ AnnoType typ)
+
     forM_ (Map.toList $ funcDefs ast) $ \(symbol, body) -> prettyFuncBody symbol body
 
     putStrLn ""
