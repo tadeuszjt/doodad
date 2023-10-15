@@ -15,7 +15,6 @@ data AdtField
     deriving (Eq, Ord)
 
 
-
 data Type
     = Type Int
     | Void
@@ -29,13 +28,9 @@ data Type
     | Bool                   
     | Char                   
     | String
---    | Key Type
---    | Range Type
---    | Tuple [Type]           
---    | Array Int Type         
---    | Table [Type]         
---    | ADT [AdtField]
---    | TypeApply Symbol [Type]
+    | Record [Type]
+    | Tuple Type
+    | TypeApply Symbol Type
     deriving (Eq, Ord)
 
 instance Show AdtField where
@@ -58,6 +53,9 @@ instance Show Type where
         Bool          -> "bool"
         Char          -> "char"
         String        -> "string"
+        Record ts     -> "{" ++ intercalate ", " (map show ts) ++ "}"
+        Tuple t       -> "tuple[" ++ show t ++ "]"
+        TypeApply s (Record []) -> show s
 --        Key t         -> '@' : show t
 --        Range t       -> "[..]" ++ show t
 --        Tuple ts      -> "tuple(" ++ intercalate ", " (map show ts) ++ ")"
@@ -92,8 +90,9 @@ findGenerics typeArgs typ = case typ of
 
 
 -- Replace the matching symbols with a the types specificed in the argument map.
-applyTypeFunction :: Map.Map Symbol Type.Type -> Type.Type -> Type.Type
-applyTypeFunction argMap typ = case typ of
+applyTypeFunction :: Symbol -> Type -> Type -> Type
+applyTypeFunction argSymbol argType typ = case typ of
+    TypeApply s (Record []) -> if s == argSymbol then argType else typ
  --   TypeApply s []   -> if Map.member s argMap then argMap Map.! s else typ
 --    Tuple ts         -> Type.Tuple $ map (applyTypeFunction argMap) ts
 --    Table ts         -> Type.Table $ map (applyTypeFunction argMap) ts
@@ -102,12 +101,12 @@ applyTypeFunction argMap typ = case typ of
     _ | isSimple typ -> typ
     _                -> error $ "applyTypeFunction: " ++ show typ
     where
-        applyTypeFunctionAdtField :: AdtField -> AdtField
-        applyTypeFunctionAdtField field = case field of
-            FieldType t  -> FieldType $ applyTypeFunction argMap t
-            FieldCtor ts -> FieldCtor $ map (applyTypeFunction argMap) ts
-            FieldNull    -> FieldNull
-            _ -> error $ show field
+--        applyTypeFunctionAdtField :: AdtField -> AdtField
+--        applyTypeFunctionAdtField field = case field of
+--            FieldType t  -> FieldType $ applyTypeFunction argMap t
+--            FieldCtor ts -> FieldCtor $ map (applyTypeFunction argMap) ts
+--            FieldNull    -> FieldNull
+--            _ -> error $ show field
 
 
 typesCouldMatch :: [Symbol] -> Type -> Type -> Bool

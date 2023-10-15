@@ -19,6 +19,9 @@ substitute u x typ = case typ of
     Type _               -> typ
     Void                 -> typ
     _ | isSimple typ     -> typ
+    Tuple t              -> Tuple $ substitute u x t
+    TypeApply s t        -> TypeApply s $ substitute u x t
+    Record ts            -> Record $ map (substitute u x) ts
 --    Key t                -> Key $ substitute u x t
 --    Range t              -> Range $ substitute u x t
 --    Table ts             -> Table $ map (substitute u x) ts
@@ -78,6 +81,7 @@ instance Apply Constraint where
         ConsSubscript t1 t2  -> ConsSubscript (applyF t1) (applyF t2)
         ConsField t1 i t2    -> ConsField (applyF t1) i (applyF t2)
         ConsAdtMem t1 i j t2 -> ConsAdtMem (applyF t1) i j (applyF t2)
+        ConsTuple t1 ts      -> ConsTuple (applyF t1) (map applyF ts)
         where
             applyF :: Apply a => a -> a
             applyF = apply f

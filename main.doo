@@ -1,7 +1,12 @@
 module main
 
+
+type Person {string, i32}
+
+
 fn main()
-    print("benis")
+    let t = ("benis", 12):tuple[Person]
+    print(t)
 
 
 

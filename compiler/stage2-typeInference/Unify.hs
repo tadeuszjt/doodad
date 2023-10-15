@@ -28,23 +28,39 @@ data UnifyState
 
 baseTypeOf :: BoM UnifyState m => Type -> m (Maybe Type)
 baseTypeOf typ = case typ of
---    TypeApply symbol ts -> do
---        resm <- gets $ Map.lookup symbol . typeMap
---        case resm of
---            Nothing                 -> return Nothing
---            Just (TypeFunc ss t) -> do
---                assert (length ts == length ss) "invalid type function args"
---                baseTypeOf $ applyTypeFunction (Map.fromList $ zip ss ts) t
+    TypeApply symbol t -> do
+        resm <- gets $ Map.lookup symbol . typeMap
+        case resm of
+            Nothing               -> return Nothing
+            Just (TypeFunc [] tf) -> baseTypeOf tf
+
+                --assert (length ts == length ss) "invalid type function args"
+                --assert (length ss == 1) "TODO"
+                --baseTypeOf $ applyTypeFunction (head ss) t tf
     Type x -> return Nothing
     t      -> return (Just t)
 
 
 unifyOne :: BoM UnifyState m => TextPos -> Constraint -> m [(Type, Type)]
 unifyOne pos constraint = withPos pos $ case constraint of
+    ConsTuple t ts -> do
+        basem <- baseTypeOf t
+        case basem of
+            Nothing -> return []
+            Just (Tuple tt) -> case ts of
+                [] -> error ""
+                [_] -> error ""
+                _ -> unifyOne pos $ ConsBase tt (Record ts)
+            
+
+
     ConsEq t1 t2 -> case (t1, t2) of
         _ | t1 == t2                    -> return []
         (Type x, t)                     -> return [(Type x, t)]
         (t, Type x)                     -> return [(Type x, t)]
+        (Record ts1, Record ts2) -> do
+            assert (length ts1 == length ts2) "record length mismatch"
+            unify $ zipWith (\a b -> (ConsEq a b, pos)) ts1 ts2
 --        (Table tsa, Table tsb)
 --            | length tsa /= length tsb  -> fail "length"
 --            | otherwise                 -> unify $ zipWith (\a b -> (ConsEq a b, pos)) tsa tsb

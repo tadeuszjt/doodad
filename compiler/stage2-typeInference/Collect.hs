@@ -434,10 +434,11 @@ collectExpr (S.AExpr exprType expr) = collectPos expr $ case expr of
         collectExpr e2
         collectDefault (typeof e2) I64
 
---    S.Tuple _ es -> do
---        collectBase exprType $ Tuple (map typeof es)
+    S.Tuple _ es -> do
+        collect $ ConsTuple exprType (map typeof es)
+--        collectBase exprType $ Tuple $ Record (map typeof es)
 --        collectDefault exprType $ Tuple (map typeof es)
---        mapM_ collectExpr es
+        mapM_ collectExpr es
 
     S.Field _ e (Sym sym) -> do
         case typeof e of

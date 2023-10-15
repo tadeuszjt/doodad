@@ -1454,7 +1454,7 @@ lexer_Result lexer_lexInteger(lexer_PosString lexer_str_10) {
 typedef struct { char* arr[27]; } array7;
 
 lexer_Result lexer_lexKeyword(lexer_PosString lexer_str_8) {
-    array7 array6 = {"module", "type", "fn", "for", "if", "else", "switch", "while", "return", "data", "const", "let", "null", "true", "false", "string", "bool", "char", "i8", "i16", "i32", "i64", "u8", "f32", "f64", "table", "integer"};
+    array7 array6 = {"module", "type", "fn", "for", "if", "else", "switch", "while", "return", "data", "const", "let", "null", "true", "false", "string", "bool", "char", "i8", "i16", "i32", "i64", "u8", "f32", "f64", "table", "tuple"};
     array7 lexer_keywords = array6;
     lexer_Result call170 = lexer_lexIdent(lexer_str_8);
     bool match52 = (1 == call170.en);

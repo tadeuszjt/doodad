@@ -478,16 +478,18 @@ instance Resolve Type where
     resolve typ = case typ of
         Void                -> return typ
         _ | isSimple typ    -> return typ
+        Record ts           -> Type.Record <$> mapM resolve ts
+        Type.Tuple t        -> Type.Tuple <$> resolve t
+        Type.TypeApply s t -> do
+            symbol' <- look s KeyType
+            t' <- resolve t
+            return $ Type.TypeApply symbol' t'
 --        Type.Table ts       -> Type.Table <$> mapM resolve ts
 --        Type.Key t          -> Type.Key <$> resolve t
 --        Type.Tuple ts       -> Type.Tuple <$> mapM resolve ts
 --        Type.Array n t      -> Type.Array n <$> resolve t
 --        Type.ADT fs         -> Type.ADT <$>  mapM resolve fs
 --        Type.Range t        -> Type.Range <$> resolve t
---        Type.TypeApply s ts -> do
---            symbol' <- look s KeyType
---            ts' <- mapM resolve ts
---            return $ Type.TypeApply symbol' ts'
         _ -> error $ "resolve type: " ++ show typ
 
 instance Resolve Expr where

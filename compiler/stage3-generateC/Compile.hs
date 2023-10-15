@@ -164,6 +164,7 @@ generateFunc symbol body = do
 generatePrint :: MonadGenerate m => String -> Value -> m ()
 generatePrint app val = case typeof val of
     Type.I64 ->    void $ appendPrintf ("%d" ++ app) [valExpr val]
+    Type.I32 ->    void $ appendPrintf ("%d" ++ app) [valExpr val]
     Type.F64 ->    void $ appendPrintf ("%f" ++ app) [valExpr val]
     Type.F32 ->    void $ appendPrintf ("%f" ++ app) [valExpr val]
     Type.String -> void $ appendPrintf ("%s" ++ app) [valExpr val]
@@ -172,12 +173,13 @@ generatePrint app val = case typeof val of
     Type.Bool -> void $ appendPrintf ("%s" ++ app) $
         [C.CndExpr (valExpr val) (C.String "true") (C.String "false")]
 
---    Type.Tuple ts -> do
---        call "putchar" [Value Type.Char $ C.Char '(']
---        forM_ (zip ts [0..]) $ \(t, i) -> do
---            let end = i == length ts - 1
---            generatePrint (if end then "" else ", ") =<< member i val
---        void $ appendPrintf (")" ++ app) []
+    Type.Tuple t -> do
+        Record ts <- baseTypeOf t
+        call "putchar" [Value Type.Char $ C.Char '(']
+        forM_ (zip ts [0..]) $ \(t, i) -> do
+            let end = i == length ts - 1
+            generatePrint (if end then "" else ", ") =<< member i val
+        void $ appendPrintf (")" ++ app) []
 --
 --    Type.TypeApply s ts -> do
 --        base <- baseTypeOf val
@@ -577,6 +579,7 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
         vals <- mapM generateExpr exprs
         base <- baseTypeOf typ
         case base of
+            Type.Tuple t -> initialiser typ vals -- TODO
 --            Type.Tuple ts -> initialiser typ vals -- TODO
 --            Type.Table ts -> do
 --                assert (length ts == length exprs) "invalid table type"

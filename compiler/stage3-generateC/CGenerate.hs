@@ -226,7 +226,9 @@ member i val = do
 --            [ C.Member (valExpr val) "len"
 --            , C.Member (valExpr val) "cap"
 --            , C.Member (valExpr val) ("r" ++ show i)]
---        Type.Tuple ts -> return $ Value (ts !! i) $ C.Member (valExpr val) ("m" ++ show i)
+        Type.Tuple t -> do
+            Type.Record ts <- baseTypeOf t
+            return $ Value (ts !! i) $ C.Member (valExpr val) ("m" ++ show i)
 --        Type.ADT fs   -> case fs !! i of
 --            FieldNull -> fail "no val for null field"
 --            FieldType t -> return $ Value t $ C.Member (valExpr val) ("u" ++ show i)
@@ -245,6 +247,13 @@ initialiser typ [] = do
 initialiser typ vals = do
     base <- baseTypeOf typ
     case base of
+        Type.Tuple t -> do
+            baseT <- baseTypeOf t
+            case baseT of
+                Record ts -> do
+                    assert (length ts == length vals) "initialiser length"
+                    assign "tuple" $ Value typ $ C.Initialiser (map valExpr vals)
+
 --        Type.Tuple ts -> do
 --            assert (length ts == length vals) "initialiser length"
 --            assign "tuple" $ Value typ $ C.Initialiser (map valExpr vals)
@@ -279,10 +288,14 @@ subscript val idx = do
             
 baseTypeOf :: (MonadGenerate m, Typeof a) => a -> m Type.Type
 baseTypeOf a = case typeof a of
---    Type.TypeApply symbol ts -> do
---        resm <- Map.lookup symbol <$> gets typefuncs
---        case resm of
---            Nothing             -> fail $ "baseTypeOf: " ++ show (typeof a)
+    Type.TypeApply symbol t -> do
+        resm <- Map.lookup symbol <$> gets typefuncs
+        case resm of
+            Nothing        -> fail $ "baseTypeOf: " ++ show (typeof a)
+            Just ([], typ) -> do
+                assert (t == Type.Record []) "should be empty record"
+                baseTypeOf typ
+
 --            Just (symbols, typ) -> do
 --                assert (length ts == length symbols) $ "Invalid type function arguments: " ++ show ts
 --                baseTypeOf $ applyTypeFunction (Map.fromList $ zip symbols ts) typ
@@ -312,9 +325,11 @@ cTypeOf a = case typeof a of
 --    Type.Array n t -> do
 --        arr <- Carray n <$> cTypeOf t
 --        getTypedef "array" $ Cstruct [C.Param "arr" arr]
---    Type.Tuple ts -> do
---        cts <- mapM cTypeOf ts
---        getTypedef "tuple" $ Cstruct $ zipWith (\a b -> C.Param ("m" ++ show a) b) [0..] cts
+    Type.Tuple t -> do
+        Record ts <- baseTypeOf t
+        cts <- mapM cTypeOf ts
+        getTypedef "tuple" $ Cstruct $ zipWith (\a b -> C.Param ("m" ++ show a) b) [0..] cts
+
 --    Type.Range t -> do
 --        ct <- cTypeOf t
 --        getTypedef "range" $ Cstruct [C.Param "min" ct, C.Param "max" ct]
