@@ -326,6 +326,7 @@ ordinal_t   : bool                          { T.Bool }
 
 record_t  : '{' types1 '}'                  { T.Record $2 }
 tuple_t  : tuple '[' type_ ']'              { T.Tuple $3 }
+         | '(' ')' type_                    { T.Tuple $3 }
 
 
 anno_t   : ordinal_t                        { S.AnnoType $1 }

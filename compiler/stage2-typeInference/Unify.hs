@@ -18,21 +18,16 @@ import Apply
 import Symbol
 
 
-data TypeFunc = TypeFunc [Symbol] Type
-
-data UnifyState
-    = UnifyState
-        { typeMap :: Map.Map Symbol TypeFunc
-        }
+type UnifyState = Map.Map Symbol ([Symbol], Type)
 
 
 baseTypeOf :: BoM UnifyState m => Type -> m (Maybe Type)
 baseTypeOf typ = case typ of
     TypeApply symbol t -> do
-        resm <- gets $ Map.lookup symbol . typeMap
+        resm <- gets $ Map.lookup symbol
         case resm of
-            Nothing               -> return Nothing
-            Just (TypeFunc [] tf) -> baseTypeOf tf
+            Nothing       -> return Nothing
+            Just ([], tf) -> baseTypeOf tf
 
                 --assert (length ts == length ss) "invalid type function args"
                 --assert (length ss == 1) "TODO"
@@ -52,7 +47,6 @@ unifyOne pos constraint = withPos pos $ case constraint of
                 [_] -> error ""
                 _ -> unifyOne pos $ ConsBase tt (Record ts)
             
-
 
     ConsEq t1 t2 -> case (t1, t2) of
         _ | t1 == t2                    -> return []

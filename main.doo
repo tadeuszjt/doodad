@@ -4,9 +4,13 @@ module main
 type Person {string, i32}
 
 
+[]{i64, string, bool}
+(){[]i64, bool}
+
 fn main()
-    let t = ("benis", 12):tuple[Person]
-    print(t)
+    let t = ("benis", 12):()Person
+    let t2 = ("bongis", true):(){string, bool}
+    print(t, t2)
 
 
 
