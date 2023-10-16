@@ -156,9 +156,9 @@ instance DeAnnotate Expr where
                     e1' <- deAnnotate e1
                     Infix p op e1' <$> deAnnotate e2
 
-                Subscript p e1 e2 -> do
+                Subscript p e1 me2 -> do
                     e1' <- deAnnotate e1
-                    Subscript p e1' <$> deAnnotate e2
+                    Subscript p e1' <$> maybe (return Nothing) (fmap Just . deAnnotate) me2
 
                 Field p e s -> do
                     e' <- deAnnotate e

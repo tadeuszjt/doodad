@@ -29,9 +29,10 @@ compile :: BoM ASTResolved m => m ()
 compile = do
     funcDefs <- gets funcDefs
     forM_ (Map.toList funcDefs) $ \(symbol, body) -> do
-        stmt' <- compileStmt (funcStmt body)
-        body' <- return body { funcStmt = stmt' }
-        modify $ \s -> s { funcDefs = Map.insert symbol body' (ASTResolved.funcDefs s) }
+        when (funcTypeArgs body == []) $ do
+            stmt' <- compileStmt (funcStmt body)
+            body' <- return body { funcStmt = stmt' }
+            modify $ \s -> s { funcDefs = Map.insert symbol body' (ASTResolved.funcDefs s) }
 
 
 genSymbol :: BoM ASTResolved m => String -> m Symbol
@@ -49,7 +50,11 @@ resolveFuncCall :: BoM ASTResolved m => Type -> AST.Expr -> m Symbol
 resolveFuncCall exprType (AST.Call pos params symbol args) = withPos pos $ do
     let callHeader = FuncHeader [] (map typeof params) symbol (map typeof args) exprType
     ast <- get
-    symbols <- findCandidates callHeader ast
+
+    symbols <- case symbol of
+        SymResolved _ _ _ -> return [symbol] -- already resolved
+        _                 -> findCandidates callHeader ast
+
     exacts <- findExactFunction callHeader ast
 
     if exacts /= [] then do
@@ -206,9 +211,9 @@ compileExpr (AST.AExpr exprType expr) = withPos expr $ AExpr exprType <$> case e
         expr2' <- compileExpr expr2
         return $ Infix pos op expr1' expr2'
 
-    AST.Subscript pos expr1 expr2 -> do
+    AST.Subscript pos expr1 mexpr2 -> do
         expr1' <- compileExpr expr1
-        expr2' <- compileExpr expr2
+        expr2' <- maybe (return Nothing) (fmap Just . compileExpr) mexpr2
         return $ Subscript pos expr1' expr2'
 
     AST.Conv pos typ exprs -> do

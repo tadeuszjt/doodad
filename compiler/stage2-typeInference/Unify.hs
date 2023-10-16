@@ -124,7 +124,12 @@ unifyOne pos constraint = withPos pos $ case constraint of
 --            Just (Table [t])  -> unifyOne pos (ConsEq t2 t)
 --            Just (Table ts)   -> unifyOne pos (ConsEq t2 $ Tuple ts)
 --            Just (Array n t)  -> unifyOne pos (ConsEq t2 t)
-            Just String       -> unifyOne pos (ConsEq t2 Char)
+            Just String    -> unifyOne pos (ConsEq t2 Char)
+            Just (Table t) -> unifyOne pos (ConsEq t2 t)
+            Just (Tuple t) -> unifyOne pos (ConsEq t2 t)
+
+            Nothing -> return []
+            _ -> error (show basem)
             _ -> return []
 
     ConsBase t1 t2 -> do

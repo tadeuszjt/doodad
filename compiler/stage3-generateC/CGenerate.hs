@@ -177,6 +177,10 @@ set a b = do
                 ma <- member i a
                 mb <- member i b
                 set ma mb
+
+        Type.Record ts -> do
+            forM_ (zip ts [0..]) $ \(t, i) -> do
+               void $ appendElem $ C.Set (C.Deref $ C.Member (valExpr a) ("m" ++ show i)) (C.Deref $ C.Member (valExpr b) ("m" ++ show i))
 --        Type.Table ts -> do
 --            let cap = C.Member (valExpr a) "cap"
 --            let len = C.Member (valExpr a) "len"
@@ -255,6 +259,10 @@ initialiser typ vals = do
                     assert (length ts == length vals) "initialiser length"
                     assign "tuple" $ Value typ $ C.Initialiser (map valExpr vals)
 
+        Type.Record ts -> do
+            assert (length ts == length vals) "initialiser length"
+            assign "record" $ Value typ $ C.Initialiser $ map (C.Address . valExpr) vals
+
 --        Type.Tuple ts -> do
 --            assert (length ts == length vals) "initialiser length"
 --            assign "tuple" $ Value typ $ C.Initialiser (map valExpr vals)
@@ -276,10 +284,13 @@ subscript val idx = do
 --        Type.Array n t -> return $ Value t $ C.Subscript (C.Member (valExpr val) "arr") (valExpr idx)
 --        Type.String -> return $ Value Type.Char $ C.Subscript (valExpr val) (valExpr idx)
 --        Type.Table [t] -> return $ Value t $ C.Subscript (C.Member (valExpr val) "r0") (valExpr idx)
---        Type.Table ts -> do
---            elems <- forM (zip ts [0..]) $ \(t, i) -> do
---                return $ C.Subscript (C.Member (valExpr val) ("r" ++ show i)) (valExpr idx)
---            assign "subscr" $ Value (Type.Tuple ts) $ C.Initialiser elems
+        Type.Table t -> do
+            baseT <- baseTypeOf t
+            case baseT of
+                Record ts -> do
+                    elems <- forM (zip ts [0..]) $ \(t, i) -> do
+                        return $ C.Address $ C.Subscript (C.Member (valExpr val) ("r" ++ show i)) (valExpr idx)
+                    assign "record" $ Value t $ C.Initialiser elems
 --        Type.Range I64 -> return $ Value Type.Bool $ C.Infix
 --            C.AndAnd
 --            (C.Infix C.GTEq (valExpr idx) (C.Member (valExpr val) "min"))
@@ -339,6 +350,9 @@ cTypeOf a = case typeof a of
         cts <- mapM cTypeOf ts
         let pts = zipWith (\ct i -> C.Param ("r" ++ show i) (Cpointer ct)) cts [0..]
         getTypedef "table" $ Cstruct (C.Param "len" Cint64_t:C.Param "cap" Cint64_t:pts)
+    Type.Record ts -> do
+        cts <- mapM cTypeOf ts
+        getTypedef "record" $ Cstruct $ zipWith (\ct i -> C.Param ("m" ++ show i) (Cpointer ct)) cts [0..]
 --    Type.Array n t -> do
 --        arr <- Carray n <$> cTypeOf t
 --        getTypedef "array" $ Cstruct [C.Param "arr" arr]

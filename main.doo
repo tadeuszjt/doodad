@@ -16,11 +16,12 @@ fn[T] {t:[]T} length() i64
 
 
 
-fn[T] {t:[]T} append(elem:()T)
+fn[T] {t:[]T} push(elem:()T)
     t++
-    t[t.lenght() - 1] = 
+    t[t.length() - 1] = elem[]
 
-    elem[] [] // the record accessor?
+fn[T] {t:[]T} pop()
+    ${ $t->len--; }
 
 
 fn main()
@@ -33,9 +34,13 @@ fn main()
 
     data tab []Person
 
-    tab.append(t)
+    tab.push(t)
+    tab.push(t)
+    tab.pop()
+    tab.pop()
+    tab.push(("hello", 11))
 
-    print(t, t2, v, tab.length())
+    print(t, t2, v, tab.length(), tab[0])
 
 
 

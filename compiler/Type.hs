@@ -42,22 +42,23 @@ instance Show AdtField where
 
 instance Show Type where
     show t = case t of
-        Type id       -> "t" ++ show id
-        Void          -> "void"
-        U8            -> "u8"
-        I8            -> "i8"
-        I16           -> "i16"
-        I32           -> "i32"
-        I64           -> "i64"
-        F32           -> "f32"
-        F64           -> "f64"
-        Bool          -> "bool"
-        Char          -> "char"
-        String        -> "string"
-        Record ts     -> "{" ++ intercalate ", " (map show ts) ++ "}"
-        Tuple t       -> "tuple(" ++ show t ++ ")"
-        Table t       -> "table(" ++ show t ++ ")"
-        TypeApply s t -> show s ++ "[" ++ show t ++ "]"
+        Type id                 -> "t" ++ show id
+        Void                    -> "void"
+        U8                      -> "u8"
+        I8                      -> "i8"
+        I16                     -> "i16"
+        I32                     -> "i32"
+        I64                     -> "i64"
+        F32                     -> "f32"
+        F64                     -> "f64"
+        Bool                    -> "bool"
+        Char                    -> "char"
+        String                  -> "string"
+        Record ts               -> "{" ++ intercalate ", " (map show ts) ++ "}"
+        Tuple t                 -> "()" ++ show t
+        Table t                 -> "[]" ++ show t
+        TypeApply s (Record []) -> show s
+        TypeApply s t           -> show s ++ "(" ++ show t ++ ")"
 --        Key t         -> '@' : show t
 --        Range t       -> "[..]" ++ show t
 --        Tuple ts      -> "tuple(" ++ intercalate ", " (map show ts) ++ ")"

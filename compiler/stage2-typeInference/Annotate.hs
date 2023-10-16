@@ -154,9 +154,9 @@ instance Annotate Expr where
             e1' <- annotate e1
             Infix p op e1' <$> annotate e2
 
-        Subscript p e1 e2 -> do
+        Subscript p e1 me2 -> do
             e1' <- annotate e1
-            Subscript p e1' <$> annotate e2
+            Subscript p e1' <$> maybe (return Nothing) (fmap Just . annotate) me2
 
         Field p e s -> do
             e' <- annotate e

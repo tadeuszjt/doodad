@@ -90,7 +90,7 @@ generateAdtEqual a b = do
 --    return eq
 
 generate :: MonadGenerate m => ASTResolved -> m ()
-generate ast = withErrorPrefix "generic" $ do
+generate ast = withErrorPrefix "generate: " $ do
     -- copy members from resolved ast
     modify $ \s -> s { ctors = ctorDefs ast }
     modify $ \s -> s { typefuncs = typeFuncs ast } 
@@ -185,16 +185,24 @@ generatePrint app val = case typeof val of
         base <- baseTypeOf val
         generatePrint app $ Value base (valExpr val)
 
+    Type.Record ts -> do
+        call "putchar" [Value Type.Char $ C.Char '{']
+        forM_ (zip ts [0..]) $ \(t, i) -> do
+            let end = i == length ts - 1
+            generatePrint (if end then "" else ", ") $ Value t $ C.Deref (C.Member (valExpr val) ("m" ++ show i))
+        void $ appendPrintf ("}" ++ app) []
+
     _ -> error (show $ typeof val)
 
 
 
-generateIndex :: MonadGenerate m => S.Expr -> m [Value]
+generateIndex :: MonadGenerate m => S.Expr -> m Value
 generateIndex expr_@(S.AExpr t expr__) = case expr__ of
-    S.Ident _ _ -> (:[]) <$> generateExpr expr_
-    S.Field _ _ _ -> (:[]) <$> generateExpr expr_
-    S.Subscript _ expr idx -> do
-        [val] <- generateIndex expr
+    S.Ident _ _ -> generateExpr expr_
+    S.Field _ _ _ -> generateExpr expr_
+
+    S.Subscript _ expr midx -> do
+        val <- generateIndex expr
         base <- baseTypeOf expr
         case base of
 --            Type.Array n t -> fmap (:[]) $ subscript val =<< generateExpr idx
@@ -205,10 +213,19 @@ generateIndex expr_@(S.AExpr t expr__) = case expr__ of
 --                    m <- member i val
 --                    subscript m idx
             Type.String -> fail "cannot index string"
+            Type.Table typ -> do
+                assert (isJust midx) "table access must have an integer argument"
+                idx <- generateExpr (fromJust midx)
+                baseT <- baseTypeOf typ
+                case baseT of
+                    Record ts -> do
+                        initialiser typ $ zipWith (\t i -> Value t $ C.Subscript (C.Member (valExpr val) ("r" ++ show i)) (valExpr idx)) ts [0..]
+                        
 
 
             _ -> error (show base)
     _ -> error (show expr__)
+generateIndex e = error (show e)
 
 
 generateStmt :: MonadGenerate m => S.Stmt -> m ()
@@ -275,28 +292,8 @@ generateStmt stmt = withPos stmt $ case stmt of
             generatePrint (if end then "\n" else ", ") val
 
     S.SetOp _ S.Eq index expr -> do
-        indexes <- generateIndex index
-        val <- generateExpr expr
-        base <- baseTypeOf val
-        case base of
-            _ | isSimple base -> do
-                let [i] = indexes
-                set i val
---            Type.ADT _ -> do
---                let [i] = indexes
---                set i val
---
-            Type.Tuple t -> case indexes of
-                [] -> error "here"
-                [ind] -> set ind val
-                indexes -> do
-                    Record ts <- baseTypeOf t
-                    assert (ts == map typeof indexes) $ "mismatch" ++ show indexes
-                    forM_ (zip indexes [0..]) $ \(ind, i) -> do
-                        set ind =<< member i val 
-
-            _ -> error (show base)
-
+        idx <- generateIndex index
+        set idx =<< generateExpr expr
 
     S.SetOp _ S.PlusEq expr1 (S.AExpr t2 expr2) -> do
         val1 <- generateExpr expr1
@@ -707,10 +704,22 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
 
             _ -> error (show typ)
 
-    S.Subscript _ expr1 expr2 -> do
+    S.Subscript _ expr1 (Just expr2) -> do
         val1 <- generateExpr expr1
         val2 <- generateExpr expr2
         subscript val1 val2
+
+    S.Subscript _ expr Nothing -> do -- tuple
+        val <- generateExpr expr
+        base <- baseTypeOf val
+        case base of
+            Type.Tuple t -> do
+                baseT <- baseTypeOf t
+                case baseT of
+                    Record ts -> do
+                        assign "record" $ Value t $ C.Initialiser $ zipWith (\t i -> C.Address $ C.Member (valExpr val) ("m" ++ show i)) ts [0..]
+
+            _ -> error (show base)
 
     _ -> error (show expr_)
     where

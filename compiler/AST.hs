@@ -84,7 +84,7 @@ data Expr
     | Construct   TextPos Symbol [Expr]
     | Null        TextPos 
     | Field       TextPos Expr Symbol
-    | Subscript   TextPos Expr Expr
+    | Subscript   TextPos Expr (Maybe Expr)
     | Ident       TextPos Symbol
     | Conv        TextPos Type [Expr]
     | Builtin     TextPos [Expr] String [Expr]
@@ -296,8 +296,7 @@ prettyAST ast = do
 
 prettyStmt :: String -> Stmt -> IO ()
 prettyStmt pre stmt = case stmt of
-    Increment pos expr -> do
-        error "here"
+    Increment pos expr -> putStrLn $ pre ++ show expr ++ "++"
     FuncDef pos typeArgs params symbol args retty blk -> do
         typeArgsStr <- case typeArgs of
             [] -> return ""

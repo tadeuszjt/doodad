@@ -524,9 +524,9 @@ instance Resolve Expr where
             exprB' <- resolve exprB
             return $ Infix pos op exprA' exprB'
 
-        Subscript pos e1 e2 -> do
+        Subscript pos e1 me2 -> do
             e1' <- resolve e1
-            e2' <- resolve e2
+            e2' <- maybe (return Nothing) (fmap Just . resolve) me2
             return $ Subscript pos e1' e2'
 
         Conv pos typ exprs -> do

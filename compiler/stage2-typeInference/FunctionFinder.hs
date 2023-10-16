@@ -17,12 +17,13 @@ import Error
 import Constraint
 import Monad
 
-findCandidates :: MonadFail m => FuncHeader -> ASTResolved -> m [Symbol]
+findCandidates :: (MonadIO m, MonadFail m) => FuncHeader -> ASTResolved -> m [Symbol]
 findCandidates callHeader ast = do
     funcSymbols <- findFunctionCandidates callHeader ast
     typeSymbols <- findTypeCandidates callHeader ast
     ctorSymbols <- findCtorCandidates callHeader ast
-    return $ Set.toList $ Set.fromList $ concat $ [funcSymbols, typeSymbols, ctorSymbols]
+    let candidates = Set.toList $ Set.fromList $ concat $ [funcSymbols, typeSymbols, ctorSymbols]
+    return candidates
 
 
 findFunctionCandidates :: MonadFail m => FuncHeader -> ASTResolved -> m [Symbol]
@@ -166,6 +167,8 @@ getConstraintsFromTypes typeArgs typeToReplace typ = case (typeToReplace, typ) o
     (Tuple t1, Tuple t2) -> getConstraintsFromTypes typeArgs t1 t2
 
     (Void, Void) -> return []
+
+    (a, b) | isSimple a && isSimple b -> return []
 
     (Tuple _, I64) -> fail "invalid types"
 

@@ -103,7 +103,7 @@ instance Apply S.Expr where
         S.Conv  pos t es        -> S.Conv pos (applyF t) (map applyF es)
         S.Construct pos s es    -> S.Construct pos s (map applyF es)
         S.Bool  pos b           -> S.Bool pos b
-        S.Subscript pos e1 e2   -> S.Subscript pos (applyF e1) (applyF e2)
+        S.Subscript pos e1 me2  -> S.Subscript pos (applyF e1) (fmap applyF me2)
         S.String pos s          -> S.String pos s
         S.Field pos e s         -> S.Field pos (applyF e) s
         S.Float pos f           -> S.Float pos f

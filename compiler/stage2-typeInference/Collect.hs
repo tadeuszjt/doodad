@@ -429,11 +429,11 @@ collectExpr (S.AExpr exprType expr) = collectPos expr $ case expr of
         collectExpr e1
         collectExpr e2
 
-    S.Subscript _ e1 e2 -> do
+    S.Subscript _ e1 me2 -> do
         collectSubscript (typeof e1) exprType
         collectExpr e1
-        collectExpr e2
-        collectDefault (typeof e2) I64
+        maybe (return ()) collectExpr me2
+        --collectDefault (typeof e2) I64
 
     S.Tuple _ es -> do
         collect $ ConsTuple exprType (map typeof es)
