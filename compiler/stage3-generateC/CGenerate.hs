@@ -275,6 +275,31 @@ initialiser typ vals = do
         _ -> error (show base)
 
 
+accessRecord :: MonadGenerate m => Value -> (Maybe Value) -> m Value
+accessRecord val marg = do
+    base <- baseTypeOf val
+    case base of
+        Type.Tuple t -> do
+            assert (isNothing marg) "tuple access cannot have an argument"
+            baseT <- baseTypeOf t
+            case baseT of
+                Record ts -> do
+                    assign "record" $ Value t $ C.Initialiser $
+                        zipWith (\t i -> C.Address $ C.Member (valExpr val) ("m" ++ show i)) ts [0..]
+
+        Type.Table t -> do
+            assert (isJust marg) "table access needs an integer argument"
+            baseT <- baseTypeOf t
+            case baseT of
+                Record ts -> do
+                    elems <- forM (zip ts [0..]) $ \(t, i) -> do
+                        return $ C.Address $ C.Subscript (C.Member (valExpr val) ("r" ++ show i)) (valExpr $ fromJust marg)
+                    assign "record" $ Value t $ C.Initialiser elems
+
+        _ -> error "thar"
+
+
+
 subscript :: MonadGenerate m => Value -> Value -> m Value
 subscript val idx = do
     base <- baseTypeOf val

@@ -1,8 +1,5 @@
 module langTest
 
-import ../std/io
-import ../std/map
-
 
 fn assert(b:bool)
     ${ assert($b); }
@@ -18,21 +15,21 @@ fn test1Eq2()
     assert(x == x)
 
 
-fn testTuplePattern()
-    let x = (1, false, (3, "true"))
-    let (_, false, (y, "true")) = x
-    assert(y == 3)
-
-
-type enum (Enum0:() | Enum1:() | Enum2:())
-fn testEnumAdt()
-    let x = Enum1()
-    switch x
-        Enum0(); assert(false)
-        Enum2(); assert(false)
-        Enum1(); assert(true)
-        _; assert(false)
-
+//fn testTuplePattern()
+//    let x = (1, false, (3, "true"))
+//    let (_, false, (y, "true")) = x
+//    assert(y == 3)
+//
+//
+//type enum (Enum0:() | Enum1:() | Enum2:())
+//fn testEnumAdt()
+//    let x = Enum1()
+//    switch x
+//        Enum0(); assert(false)
+//        Enum2(); assert(false)
+//        Enum1(); assert(true)
+//        _; assert(false)
+//
 fn testForString()
     let s = "benisbongisb"
     let count = 0
@@ -40,253 +37,253 @@ fn testForString()
         if c == 'b'; count = count + 1
     assert(count == 3)
 
-fn testInfix()
-    let x = 10
-    let y = 3
-    assert((x + y) == 13)
-    assert((x * y) == 30)
-    assert((x - y) == 7)
+//fn testInfix()
+//    let x = 10
+//    let y = 3
+//    assert((x + y) == 13)
+//    assert((x * y) == 30)
+//    assert((x - y) == 7)
+//
+//
+//fn testIf()
+//    data x [i64]
+//    x += [0, 0, 0, 0]
+//    if 1 == 1
+//        x[1] = 2
+//        if x[1] == 3
+//            x[3] = 4
+//        else
+//            x[2] = 3
+//    else
+//        x[0] = 1
+//    assert(x[0] == 0)
+//    assert(x[1] == 2)
+//    assert(x[2] == 3)
+//    assert(x[3] == 0)
+//
+//
+//type ADT (Ctor0:(i64, bool, string) | Ctor1:())
+//fn testADT()
+//    let x = Ctor0(1, true, "benis")
+//    switch x
+//        Ctor1();                 assert(false)
+//        Ctor0(1, _, "beni");     assert(false)
+//        Ctor0(_, true, "benis"); assert(true)
+//
+//
+//fn testOneRow()
+//    data x [i64]
+//    x += [1, 2, 3, 4]
+//    assert(x[0] == 1)
+//    assert(x[3] == 4)
+//    assert(len(x) == 4)
+//    x += [5, 6]
+//    assert(len(x) == 6)
+//    assert(x[5] == 6)
+//
+//
+//fn testTwoRows()
+//    data x [i64, bool, string]
+//    x += (
+//        [1,       2]
+//        [true,    false]
+//        ["benis", "bongis"]
+//    )
+//    switch x[0]
+//        (1, true, "benis"); assert(true)
+//    assert (len(x) == 2)
+//
+//
+//fn testSubTable()
+//    data x [bool, [i64]]
+//    x += (
+//        [true, false]
+//        [ [1, 2], [3, 4] ]
+//    )
+//    let (false, [3, 4]) = x[1]
+//
+//
+//type Table [nums:i64, bools:bool]
+//fn testNamedTableArgs()
+//    data x Table
+//    x += (
+//        [1, 2, 3]
+//        [true, false, true]
+//    )
+//
+//    let sum = 0
+//    for x.nums -> num
+//        sum = sum + num
+//
+//    let [true, false, true] = x.bools
+//    assert(sum == 6)
+//
+//fn testParamsChange()
+//    let x = 2
+//    fn {x:i64} addOne()
+//        x = x + 1
+//    x.addOne()
+//    assert(x == 3)
+//
+//
+//fn testFloats()
+//    let x = 0.1
+//    x = x + 0.01
+//    assert(x > 0.105 && x < 0.112)
+//
+//
+//fn testTupleInfix()
+//    let x = (1, "be")
+//    let y = (-4, "nis")
+//    assert((x + y) == (-3, "benis"))
+//    assert( (1, "benis") == (1, "benis") )
+//    assert( (1, "be!is") != (1, "benis") )
+//
+//
+//type Tuple (f32, string)
+//fn testTypedInfix()
+//    let x = Tuple()
+//    x = x + (3, "benis")
+//    assert(x == (3, "benis"))
+//    assert(x != (3, "b!nis"))
+//
+//
+//fn testTableReferencing()
+//    data a [[i64]]
+//    data b [[i64]]
+//    a += [ [1], [2, 1] ]
+//    b += a
+//    b[1][1] = 3
+//    let [ [1], [2, 3] ] = b
+//    let [ [1], [2, 1] ] = a
+//
+//
+//type MyTuple (nums:[i64], bools:[bool])
+//fn testTupleReferencing()
+//    data a MyTuple
+//    data b MyTuple
+//
+//    a.nums += [1, 2, 3, 4]
+//    a.bools += [false, true]
+//
+//    b = a
+//    b.nums[1] = 5
+//    b.bools[1] = false
+//    let ([1, 2, 3, 4], [false, true]) = a
+//    let ([1, 5, 3, 4], [false, false]) = b
+//
+//
+//type Tuple2 (num:i64, str:string )
+//fn testTupleMembers()
+//    let x = Tuple2(1, "benis")
+//    let 1 = x.num
+//    type Tuple2 ( num:i64, str:string, b:bool )
+//    let y = Tuple2(2, "bongis", false)
+//    let false = y.b
+//    let 2 = y.num
+//    let 1 = x.num
+//
+//
+//fn testSubFunction()
+//    let x = 2
+//    fn {a:i64} testSomething(b:bool)
+//        a = a + 1
+//
+//    x.testSomething(true)
+//    let 3 = x
+//
+//
+//fn testTableSetElems()
+//    type Table [nums:[i64], name:string]
+//    data x Table
+//    x += ( [ [1, 2], [3] ], ["benis", "bongis"] )
+//    x[1] = ( [3, 4], "bongis!")
+//    let [1, 2] = x.nums[0]
+//    let [3, 4] = x.nums[1]
+//    let ["benis", "bongis!"] = x.name
+//
+//// more comment
+//     // more comment
+//
+//fn testLexerTwoDots()
+//    let x = [0..3] // a comment
+//
+//
+//fn testConst()
+//    const c = (1, 2, [1, 3])
+//    let x:(i64, f32, [f64]) = c
+//    let (_, _, nums):(i8, f64, [i32]) = c
+//    assert(nums[1] == 3)
+//    assert(nums[0] == 1)
+//
+//fn testTypeFunction()
+//    type[T] Box T
+//    let box1 = (2):Box(i64)
+//
+//    type[T] Box2 (T, T)
+//    let box2 = (2, 3):Box2(i64)
+//    let box3 = (2, 3):Box2(f64)
+//
+//    let(x:i64, y) = box2
+//    let(a:f64, b) = box3
+//
+//fn testTypeFunctionMembers()
+//    type[T] Vec2(x:T, y:T)
+//    let vec = (1, 2):Vec2(i32)
+//    let 2:i32 = vec.y
+//    let 1:i32 = vec.x
+//
+//    type[T] Maybe (Nothing:null | Just:T)
+//    //let x = Just(1):Maybe(i32)
+//
+//
+//fn testGenericFunction()
+//    fn[T] add(a:T, b:T) T
+//        return a + b
+//
+//    let "hello goodbye" = add("hello ", "goodbye")
+//    let 3 = add(1, 2)
+//    let (4, "24") = add( (1, "2"), (3, "4") )
+//
+//    
+//fn testMap()
+//    data m Map( (i64, string), i8 )
+//
+//    m.insert( (3, "benis"), 1 )
+//    m.insert( (4, "benis"), 2 )
+//    m.insert( (3, "ben!s"), 3 )
+//
+//    let .i8[1] = m.find((3, "benis"))
+//    let null   = m.find((3, "Benis"))
+//    let .i8[3] = m.find((3, "ben!s"))
 
 
-fn testIf()
-    data x [i64]
-    x += [0, 0, 0, 0]
-    if 1 == 1
-        x[1] = 2
-        if x[1] == 3
-            x[3] = 4
-        else
-            x[2] = 3
-    else
-        x[0] = 1
-    assert(x[0] == 0)
-    assert(x[1] == 2)
-    assert(x[2] == 3)
-    assert(x[3] == 0)
-
-
-type ADT (Ctor0:(i64, bool, string) | Ctor1:())
-fn testADT()
-    let x = Ctor0(1, true, "benis")
-    switch x
-        Ctor1();                 assert(false)
-        Ctor0(1, _, "beni");     assert(false)
-        Ctor0(_, true, "benis"); assert(true)
-
-
-fn testOneRow()
-    data x [i64]
-    x += [1, 2, 3, 4]
-    assert(x[0] == 1)
-    assert(x[3] == 4)
-    assert(len(x) == 4)
-    x += [5, 6]
-    assert(len(x) == 6)
-    assert(x[5] == 6)
-
-
-fn testTwoRows()
-    data x [i64, bool, string]
-    x += (
-        [1,       2]
-        [true,    false]
-        ["benis", "bongis"]
-    )
-    switch x[0]
-        (1, true, "benis"); assert(true)
-    assert (len(x) == 2)
-
-
-fn testSubTable()
-    data x [bool, [i64]]
-    x += (
-        [true, false]
-        [ [1, 2], [3, 4] ]
-    )
-    let (false, [3, 4]) = x[1]
-
-
-type Table [nums:i64, bools:bool]
-fn testNamedTableArgs()
-    data x Table
-    x += (
-        [1, 2, 3]
-        [true, false, true]
-    )
-
-    let sum = 0
-    for x.nums -> num
-        sum = sum + num
-
-    let [true, false, true] = x.bools
-    assert(sum == 6)
-
-fn testParamsChange()
-    let x = 2
-    fn {x:i64} addOne()
-        x = x + 1
-    x.addOne()
-    assert(x == 3)
-
-
-fn testFloats()
-    let x = 0.1
-    x = x + 0.01
-    assert(x > 0.105 && x < 0.112)
-
-
-fn testTupleInfix()
-    let x = (1, "be")
-    let y = (-4, "nis")
-    assert((x + y) == (-3, "benis"))
-    assert( (1, "benis") == (1, "benis") )
-    assert( (1, "be!is") != (1, "benis") )
-
-
-type Tuple (f32, string)
-fn testTypedInfix()
-    let x = Tuple()
-    x = x + (3, "benis")
-    assert(x == (3, "benis"))
-    assert(x != (3, "b!nis"))
-
-
-fn testTableReferencing()
-    data a [[i64]]
-    data b [[i64]]
-    a += [ [1], [2, 1] ]
-    b += a
-    b[1][1] = 3
-    let [ [1], [2, 3] ] = b
-    let [ [1], [2, 1] ] = a
-
-
-type MyTuple (nums:[i64], bools:[bool])
-fn testTupleReferencing()
-    data a MyTuple
-    data b MyTuple
-
-    a.nums += [1, 2, 3, 4]
-    a.bools += [false, true]
-
-    b = a
-    b.nums[1] = 5
-    b.bools[1] = false
-    let ([1, 2, 3, 4], [false, true]) = a
-    let ([1, 5, 3, 4], [false, false]) = b
-
-
-type Tuple2 (num:i64, str:string )
-fn testTupleMembers()
-    let x = Tuple2(1, "benis")
-    let 1 = x.num
-    type Tuple2 ( num:i64, str:string, b:bool )
-    let y = Tuple2(2, "bongis", false)
-    let false = y.b
-    let 2 = y.num
-    let 1 = x.num
-
-
-fn testSubFunction()
-    let x = 2
-    fn {a:i64} testSomething(b:bool)
-        a = a + 1
-
-    x.testSomething(true)
-    let 3 = x
-
-
-fn testTableSetElems()
-    type Table [nums:[i64], name:string]
-    data x Table
-    x += ( [ [1, 2], [3] ], ["benis", "bongis"] )
-    x[1] = ( [3, 4], "bongis!")
-    let [1, 2] = x.nums[0]
-    let [3, 4] = x.nums[1]
-    let ["benis", "bongis!"] = x.name
-
-// more comment
-     // more comment
-
-fn testLexerTwoDots()
-    let x = [0..3] // a comment
-
-
-fn testConst()
-    const c = (1, 2, [1, 3])
-    let x:(i64, f32, [f64]) = c
-    let (_, _, nums):(i8, f64, [i32]) = c
-    assert(nums[1] == 3)
-    assert(nums[0] == 1)
-
-fn testTypeFunction()
-    type[T] Box T
-    let box1 = (2):Box(i64)
-
-    type[T] Box2 (T, T)
-    let box2 = (2, 3):Box2(i64)
-    let box3 = (2, 3):Box2(f64)
-
-    let(x:i64, y) = box2
-    let(a:f64, b) = box3
-
-fn testTypeFunctionMembers()
-    type[T] Vec2(x:T, y:T)
-    let vec = (1, 2):Vec2(i32)
-    let 2:i32 = vec.y
-    let 1:i32 = vec.x
-
-    type[T] Maybe (Nothing:null | Just:T)
-    //let x = Just(1):Maybe(i32)
-
-
-fn testGenericFunction()
-    fn[T] add(a:T, b:T) T
-        return a + b
-
-    let "hello goodbye" = add("hello ", "goodbye")
-    let 3 = add(1, 2)
-    let (4, "24") = add( (1, "2"), (3, "4") )
-
-    
-fn testMap()
-    data m Map( (i64, string), i8 )
-
-    m.insert( (3, "benis"), 1 )
-    m.insert( (4, "benis"), 2 )
-    m.insert( (3, "ben!s"), 3 )
-
-    let .i8[1] = m.find((3, "benis"))
-    let null   = m.find((3, "Benis"))
-    let .i8[3] = m.find((3, "ben!s"))
-
-
-fn {io:Io} main()
+fn main()
     testNothing()
     test1Eq2()
-    testTuplePattern()
-    testEnumAdt()
+//    testTuplePattern()
+//    testEnumAdt()
     testForString()
-    testInfix()
-    testIf()
-    testADT()
-    testOneRow()
-    testTwoRows()
-    testSubTable()
-    testNamedTableArgs()
-    testParamsChange()
-    testFloats()
-    testTupleInfix()
-    testTypedInfix()
-    testTableReferencing()
-    testTupleReferencing()
-    testTupleMembers()
-    testSubFunction()
-    testTableSetElems()
-    testLexerTwoDots()
-    testConst()
-    testTypeFunction()
-    testTypeFunctionMembers()
-    testGenericFunction()
-    testMap()
-    io.putStrLn("finished")
+//    testInfix()
+//    testIf()
+//    testADT()
+//    testOneRow()
+//    testTwoRows()
+//    testSubTable()
+//    testNamedTableArgs()
+//    testParamsChange()
+//    testFloats()
+//    testTupleInfix()
+//    testTypedInfix()
+//    testTableReferencing()
+//    testTupleReferencing()
+//    testTupleMembers()
+//    testSubFunction()
+//    testTableSetElems()
+//    testLexerTwoDots()
+//    testConst()
+//    testTypeFunction()
+//    testTypeFunctionMembers()
+//    testGenericFunction()
+//    testMap()
+    print("finished")

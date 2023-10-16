@@ -205,24 +205,8 @@ generateIndex expr_@(S.AExpr t expr__) = case expr__ of
         val <- generateIndex expr
         base <- baseTypeOf expr
         case base of
---            Type.Array n t -> fmap (:[]) $ subscript val =<< generateExpr idx
---            Table [t] -> fmap (:[]) $ subscript val =<< generateExpr idx
---            Table ts -> do
---                idx <- generateExpr idx
---                forM (zip ts [0..]) $ \(t, i) -> do
---                    m <- member i val
---                    subscript m idx
             Type.String -> fail "cannot index string"
-            Type.Table typ -> do
-                assert (isJust midx) "table access must have an integer argument"
-                idx <- generateExpr (fromJust midx)
-                baseT <- baseTypeOf typ
-                case baseT of
-                    Record ts -> do
-                        initialiser typ $ zipWith (\t i -> Value t $ C.Subscript (C.Member (valExpr val) ("r" ++ show i)) (valExpr idx)) ts [0..]
-                        
-
-
+            Type.Table typ -> accessRecord val =<< maybe (return Nothing) (fmap Just . generateExpr) midx
             _ -> error (show base)
     _ -> error (show expr__)
 generateIndex e = error (show e)
@@ -704,22 +688,10 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
 
             _ -> error (show typ)
 
-    S.Subscript _ expr1 (Just expr2) -> do
-        val1 <- generateExpr expr1
-        val2 <- generateExpr expr2
-        subscript val1 val2
-
-    S.Subscript _ expr Nothing -> do -- tuple
+    S.Subscript _ expr marg -> do
         val <- generateExpr expr
-        base <- baseTypeOf val
-        case base of
-            Type.Tuple t -> do
-                baseT <- baseTypeOf t
-                case baseT of
-                    Record ts -> do
-                        assign "record" $ Value t $ C.Initialiser $ zipWith (\t i -> C.Address $ C.Member (valExpr val) ("m" ++ show i)) ts [0..]
+        accessRecord val =<< maybe (return Nothing) (fmap Just . generateExpr) marg
 
-            _ -> error (show base)
 
     _ -> error (show expr_)
     where
