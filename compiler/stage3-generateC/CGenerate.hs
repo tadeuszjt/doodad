@@ -210,8 +210,8 @@ len :: MonadGenerate m => Value -> m Value
 len val = do
     base <- baseTypeOf val
     case base of
---        Table ts       -> return $ Value I64 $ C.Member (valExpr val) "len"
-        Type.String    -> return $ Value I64 $ C.Call "strlen" [valExpr val]
+        Table _      -> return $ Value I64 $ C.Member (valExpr val) "len"
+        Type.String  -> return $ Value I64 $ C.Call "strlen" [valExpr val]
 --        Type.Array n t -> return $ Value I64 $ C.Int (fromIntegral n)
         _ -> error (show base)
 
@@ -300,29 +300,6 @@ accessRecord val marg = do
 
 
 
-subscript :: MonadGenerate m => Value -> Value -> m Value
-subscript val idx = do
-    base <- baseTypeOf val
-    baseIdx <- baseTypeOf idx
-    assert (isInt baseIdx) "idx type isn't integer"
-    case base of
---        Type.Array n t -> return $ Value t $ C.Subscript (C.Member (valExpr val) "arr") (valExpr idx)
---        Type.String -> return $ Value Type.Char $ C.Subscript (valExpr val) (valExpr idx)
---        Type.Table [t] -> return $ Value t $ C.Subscript (C.Member (valExpr val) "r0") (valExpr idx)
-        Type.Table t -> do
-            baseT <- baseTypeOf t
-            case baseT of
-                Record ts -> do
-                    elems <- forM (zip ts [0..]) $ \(t, i) -> do
-                        return $ C.Address $ C.Subscript (C.Member (valExpr val) ("r" ++ show i)) (valExpr idx)
-                    assign "record" $ Value t $ C.Initialiser elems
---        Type.Range I64 -> return $ Value Type.Bool $ C.Infix
---            C.AndAnd
---            (C.Infix C.GTEq (valExpr idx) (C.Member (valExpr val) "min"))
---            (C.Infix C.LT (valExpr idx) (C.Member (valExpr val) "max"))
-        _ -> error (show base)
-
-            
 baseTypeOf :: (MonadGenerate m, Typeof a) => a -> m Type.Type
 baseTypeOf a = case typeof a of
     Type.TypeApply symbol t -> do

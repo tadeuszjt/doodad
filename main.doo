@@ -15,13 +15,21 @@ fn[T] {t:[]T} length() i64
     ${ return $t->len; }
 
 
-
 fn[T] {t:[]T} push(elem:()T)
     t++
     t[t.length() - 1] = elem[]
 
+
 fn[T] {t:[]T} pop()
     ${ $t->len--; }
+
+
+type[R] Map []R
+
+
+//fn[R] {m:Map(R)} find(key:R{0})
+//    return
+
 
 
 fn main()
@@ -39,6 +47,11 @@ fn main()
     tab.pop()
     tab.pop()
     tab.push(("hello", 11))
+    tab.push(("barg", 13))
+
+    for tab -> p
+        print(p)
+
 
     print(t, t2, v, tab.length(), tab[0])
 

@@ -329,14 +329,14 @@ ordinal_t   : bool                          { T.Bool }
 
 
 record_t  : '{' types1 '}'                  { T.Record $2 }
-tuple_t  : tuple '(' type_ ')'              { T.Tuple $3 }
-         | '(' ')' type_                    { T.Tuple $3 }
+tuple_t  : '(' ')' type_                    { T.Tuple $3 }
 table_t  : '[' ']' type_                    { T.Table $3 }
 
 
 anno_t   : ordinal_t                        { S.AnnoType $1 }
          | record_t                         { S.AnnoType $1 }
          | tuple_t                          { S.AnnoType $1 }
+         | table_t                          { S.AnnoType $1 }
 
 
 adtFields1 : adtField                       { [$1] }

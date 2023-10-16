@@ -315,24 +315,22 @@ generateStmt stmt = withPos stmt $ case stmt of
 --                        return ()
                 Type.String -> return ()
 --                Type.Array _ _ -> return ()
---                Type.Table _ -> return ()
+                Type.Table _ -> return ()
 
             -- check that index is still in range
             idxGtEq <- case base of
 --                Type.Range I64 -> generateInfix S.GTEq idx $ Value I64 (C.Member (valExpr val) "max")
                 Type.String    -> generateInfix S.GTEq idx =<< len val
 --                Type.Array n t -> generateInfix S.GTEq idx (i64 n)
---                Type.Table ts  -> generateInfix S.GTEq idx =<< len val
+                Type.Table _  -> generateInfix S.GTEq idx =<< len val
             if_ idxGtEq (appendElem C.Break)
 
             -- check that pattern matches
             patMatches <- case mpat of
                 Nothing -> return true
                 Just pat -> case base of
---                    Type.Range I64 -> generatePattern pat idx
-                    Type.String    -> generatePattern pat =<< subscript val idx
---                    Type.Array n t -> generatePattern pat =<< subscript val idx
---                    Type.Table ts  -> generatePattern pat =<< subscript val idx
+                    --Type.String   -> generatePattern pat =<< subscript val idx
+                    Type.Table ts -> generatePattern pat =<< accessRecord val (Just idx)
 
             if_ (not_ patMatches) $ appendElem C.Break
             generateStmt stmt
@@ -382,29 +380,29 @@ generatePattern pattern val = withPos pattern $ do
         PatLiteral expr -> generateInfix S.EqEq val =<< generateExpr expr
         PatAnnotated pat typ -> generatePattern pat val
 
-        PatArray _ pats -> do   
-            base <- baseTypeOf val
-            endLabel <- fresh "end"
-            match <- assign "match" false
-
-            -- check len
-            case base of
---                Type.Array n t -> do --[1, 2, 3]:[3 i64]
---                    assert (n == length pats) "invalid number of patterns"
---                Type.Table [t] -> do -- [1, 2, 3]:[i64]
+--        PatArray _ pats -> do   
+--            base <- baseTypeOf val
+--            endLabel <- fresh "end"
+--            match <- assign "match" false
+--
+--            -- check len
+--            case base of
+----                Type.Array n t -> do --[1, 2, 3]:[3 i64]
+----                    assert (n == length pats) "invalid number of patterns"
+----                Type.Table [t] -> do -- [1, 2, 3]:[i64]
+----                    lenNotEq <- generateInfix S.NotEq (i64 $ length pats) =<< len val
+----                    if_ lenNotEq $ void $ appendElem $ C.Goto endLabel
+--                Type.String -> do -- ['a', 'b', 'c']:string
 --                    lenNotEq <- generateInfix S.NotEq (i64 $ length pats) =<< len val
 --                    if_ lenNotEq $ void $ appendElem $ C.Goto endLabel
-                Type.String -> do -- ['a', 'b', 'c']:string
-                    lenNotEq <- generateInfix S.NotEq (i64 $ length pats) =<< len val
-                    if_ lenNotEq $ void $ appendElem $ C.Goto endLabel
-
-            forM_ (zip pats [0..]) $ \(pat, i) -> do
-                b <- generatePattern pat =<< subscript val (i64 i)
-                if_ (not_ b) $ appendElem $ C.Goto endLabel
-                        
-            set match true
-            appendElem $ C.Label endLabel
-            return match
+--
+--            forM_ (zip pats [0..]) $ \(pat, i) -> do
+--                b <- generatePattern pat =<< subscript val (i64 i)
+--                if_ (not_ b) $ appendElem $ C.Goto endLabel
+--                        
+--            set match true
+--            appendElem $ C.Label endLabel
+--            return match
 
 
         PatIdent _ symbol -> do 
