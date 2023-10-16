@@ -19,9 +19,10 @@ substitute u x typ = case typ of
     Type _               -> typ
     Void                 -> typ
     _ | isSimple typ     -> typ
-    Tuple t              -> Tuple $ substitute u x t
     TypeApply s t        -> TypeApply s $ substitute u x t
     Record ts            -> Record $ map (substitute u x) ts
+    Tuple t              -> Tuple $ substitute u x t
+    Table t              -> Table $ substitute u x t
 --    Key t                -> Key $ substitute u x t
 --    Range t              -> Range $ substitute u x t
 --    Table ts             -> Table $ map (substitute u x) ts
@@ -137,6 +138,7 @@ instance Apply S.Pattern where
 
 instance Apply S.Stmt where
     apply f stmt = case stmt of
+        S.Increment pos expr        -> S.Increment pos (applyF expr)
         S.EmbedC pos s              -> S.EmbedC pos s
         S.Block stmts               -> S.Block $ map applyF stmts
         S.Return pos mexpr          -> S.Return pos $ fmap applyF mexpr

@@ -22,11 +22,11 @@ extra-source-files: CHANGELOG.md
 executable doodad
     main-is:           Main.hs
     c-sources:
-        compiler/stage0-parseAST/lexer/lexer.c
-        compiler/stage0-parseAST/lexer/io.c
-        compiler/stage0-parseAST/lexer/assert.c
-        compiler/stage0-parseAST/lexer/strings.c
-        include/doodad.c
+        compiler/stage0-parseAST/lexer/old_lexer.c
+        --compiler/stage0-parseAST/lexer/io.c
+        --compiler/stage0-parseAST/lexer/assert.c
+        --compiler/stage0-parseAST/lexer/strings.c
+        --include/doodad.c
     include-dirs:
         include
     hs-source-dirs:

@@ -159,7 +159,7 @@ bool issymbol(char c) {
 }
 
 bool isDoubleSymbol(char *s) {
-    char *doubles[] = { "&&", "||", "..", "::", "==", "!=", ">=", "<=", "->", "+=", NULL };
+    char *doubles[] = { "&&", "||", "..", "::", "==", "!=", ">=", "<=", "->", "+=", "++", NULL };
     for (int i = 0; doubles[i] != NULL; i++) {
         if (strcmp(s, doubles[i]) == 0) {
             return true;

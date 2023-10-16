@@ -14,7 +14,7 @@ import Text.Read (readMaybe)
 
 import Foreign.C.String
 
-foreign import ccall "lexer.h lexer_lexFile"
+foreign import ccall "lexer.h lexFile"
     c_lexFile :: CString -> CString -> IO ()
 
 

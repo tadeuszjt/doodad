@@ -30,6 +30,7 @@ data Type
     | String
     | Record [Type]
     | Tuple Type
+    | Table Type
     | TypeApply Symbol Type
     deriving (Eq, Ord)
 
@@ -54,7 +55,8 @@ instance Show Type where
         Char          -> "char"
         String        -> "string"
         Record ts     -> "{" ++ intercalate ", " (map show ts) ++ "}"
-        Tuple t       -> "tuple[" ++ show t ++ "]"
+        Tuple t       -> "tuple(" ++ show t ++ ")"
+        Table t       -> "table(" ++ show t ++ ")"
         TypeApply s t -> show s ++ "[" ++ show t ++ "]"
 --        Key t         -> '@' : show t
 --        Range t       -> "[..]" ++ show t
@@ -82,10 +84,11 @@ findGenerics typeArgs typ = case typ of
     TypeApply s (Record []) | s `elem` typeArgs -> [typ]
     TypeApply s t | s `elem` typeArgs -> error "generic applied to arguments"
     TypeApply s t -> findGenerics typeArgs t
---    Tuple ts -> concat $ map (findGenerics typeArgs) ts
---    Table ts -> concat $ map (findGenerics typeArgs) ts
+    Table t -> findGenerics typeArgs t
     Void -> []
     Type _ -> []
+    Record ts -> concat $ map (findGenerics typeArgs) ts
+    Tuple t -> findGenerics typeArgs t
     _ -> error $ show typ
 
 
@@ -127,6 +130,10 @@ typesCouldMatch typeVars a b = case (a, b) of
     (TypeApply s1 t1, TypeApply s2 t2)
         | s1 `elem` typeVars || s2 `elem` typeVars -> typesCouldMatch typeVars t1 t2
     (TypeApply s1 t1, TypeApply s2 t2)             -> symbolsCouldMatch s1 s2 && typesCouldMatch typeVars t1 t2
+    (TypeApply s1 t1, _)                           -> False
+    (Table t1, Table t2)                           -> typesCouldMatch typeVars t1 t2
+    (Record ts1, Record ts2)
+        | length ts1 == length ts2                 -> all (== True) $ zipWith (typesCouldMatch typeVars) ts1 ts2
     (Void, Void)                                   -> True
     _ | isSimple a                                 -> a == b
     _                                              -> error (show (a, b))

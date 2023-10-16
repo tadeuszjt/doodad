@@ -222,6 +222,14 @@ generateStmt stmt = withPos stmt $ case stmt of
     S.Const _ symbol expr -> do
         define (show symbol) $ CGenerate.Const expr
 
+    S.Increment _ expr -> do
+        val <- generateExpr expr
+        base <- baseTypeOf expr
+        case base of
+            Table t -> do
+                appendFuncName <- getTableAppendFunc (typeof val)
+                callWithParams [val] appendFuncName []
+
     S.Assign _ pattern expr -> do
         matched <- generatePattern pattern =<< generateExpr expr
         call "assert" [matched]

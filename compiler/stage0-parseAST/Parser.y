@@ -20,7 +20,7 @@ import Symbol
 %left      '==' '!='
 %left      '+' '-'
 %left      '*' '/' '%'
-%nonassoc  '<=' '>=' '<' '>'
+%nonassoc  '<=' '>=' '<' '>' '++'
 %right     '!'
 %left      ':'
 %nonassoc  '!'
@@ -57,6 +57,7 @@ import Symbol
     '->'       { Token _ TokSym "->" }
     '..'       { Token _ TokSym ".." }
     '+='       { Token _ TokSym "+=" }
+    '++'       { Token _ TokSym "++" }
 
     fn         { Token _ Reserved "fn" }
     const      { Token _ Reserved "const" }
@@ -156,6 +157,7 @@ line : let pattern '=' expr                         { S.Assign (tokPos $1) $2 $4
      | return mexpr                                 { S.Return (tokPos $1) $2 }
      | embed_c                                      { S.EmbedC (tokPos $1) (tokStr $1) }
      | const symbol '=' expr                        { S.Const (tokPos $1) (snd $2) $4 }
+     | index '++'                                   { S.Increment (tokPos $2) $1 }
 block : if_                                         { $1 }
       | fn mfnTypeArgs mfnrec ident '(' paramsA ')' mtype scope {
             S.FuncDef
@@ -311,6 +313,7 @@ type_         : ordinal_t                   { $1 }
               | symbol '(' type_ ')'        { T.TypeApply (snd $1) $3 }
               | record_t                    { $1 }
               | tuple_t                     { $1 }
+              | table_t                     { $1 }
 
 
 ordinal_t   : bool                          { T.Bool }
@@ -326,8 +329,9 @@ ordinal_t   : bool                          { T.Bool }
 
 
 record_t  : '{' types1 '}'                  { T.Record $2 }
-tuple_t  : tuple '[' type_ ']'              { T.Tuple $3 }
+tuple_t  : tuple '(' type_ ')'              { T.Tuple $3 }
          | '(' ')' type_                    { T.Tuple $3 }
+table_t  : '[' ']' type_                    { T.Table $3 }
 
 
 anno_t   : ordinal_t                        { S.AnnoType $1 }

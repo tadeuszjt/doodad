@@ -4,6 +4,7 @@ import Data.Maybe
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Control.Monad
+import Control.Monad.Except
 
 import Control.Monad.Fail
 import Control.Monad.IO.Class
@@ -77,6 +78,9 @@ funcHeaderFullyResolved header =
 --            Type.Tuple ts -> all (== True) (map typeFullyResolved ts)
             Type _ -> False
             Void -> True
+            Table t -> typeFullyResolved t
+            Tuple t -> typeFullyResolved t
+            Record ts -> all (== True) (map typeFullyResolved ts)
 --            Table ts -> all (== True) (map typeFullyResolved ts)
             _ -> error $ "typeFullyResolved: " ++ show typ
 
@@ -87,12 +91,14 @@ replaceGenericsInFuncHeaderWithCall :: BoM s m => FuncHeader -> FuncHeader -> m 
 replaceGenericsInFuncHeaderWithCall header callHeader = do
     assert (typeArgs callHeader == []) "Call header cannot have type args"
     assert (funcHeadersCouldMatch header callHeader) "headers cannot match"
-    constraints <- getConstraintsFromFuncHeaders header callHeader
-
-    subs <- unify (typeArgs header) constraints
-    let header' = (applySubs subs header) { typeArgs = [] } 
-    if funcHeaderHasGenerics (typeArgs header) header' then return Nothing
-    else return $ Just header'
+    resm <- catchError (fmap Just $ getConstraintsFromFuncHeaders header callHeader) (\_ -> return Nothing) 
+    case resm of
+        Nothing -> return Nothing
+        Just constraints -> do
+            subs <- unify (typeArgs header) constraints
+            let header' = (applySubs subs header) { typeArgs = [] } 
+            if funcHeaderHasGenerics (typeArgs header) header' then return Nothing
+            else return $ Just header'
 
 
 replaceGenericsInFuncBodyWithCall :: BoM s m => FuncBody -> FuncHeader -> m FuncBody
@@ -156,11 +162,16 @@ getConstraintsFromTypes typeArgs typeToReplace typ = case (typeToReplace, typ) o
     (t, Type x) -> return [(ConsEq (Type x) t)]
     (Type x, t) -> return [(ConsEq (Type x) t)]
 
+    (Table t1, Table t2) -> getConstraintsFromTypes typeArgs t1 t2
+    (Tuple t1, Tuple t2) -> getConstraintsFromTypes typeArgs t1 t2
+
+    (Void, Void) -> return []
+
+    (Tuple _, I64) -> fail "invalid types"
+
 --    (Table ts1, Table ts2) -> do
 --        assert (length ts1 == length ts2) "types should be applied to same number of args"
 --        fmap concat $ zipWithM (getConstraintsFromTypes typeArgs) ts1 ts2
-
-
-    (Void, _) -> return [(ConsEq typeToReplace typ)]
+--    (Void, _) -> return [(ConsEq typeToReplace typ)]
 
     _ -> error $ show (typeToReplace, typ)

@@ -47,6 +47,7 @@ instance DeAnnotate AST where
 
 instance DeAnnotate Stmt where
     deAnnotate stmt = case stmt of
+        Increment p e     -> Increment p <$> deAnnotate e
         EmbedC p s        -> return (EmbedC p s)
         Block ss          -> Block <$> mapM deAnnotate ss
         Return p me       -> Return p <$> maybe (return Nothing) (fmap Just . deAnnotate) me
@@ -188,6 +189,7 @@ hasTypeVars typ = case typ of
     T.Tuple t        -> hasTypeVars t
     T.TypeApply s t  -> hasTypeVars t
     T.Record ts      -> any (== True) (map hasTypeVars ts)
+    T.Table t        -> hasTypeVars t
 --    T.ADT fs         -> any (== True) (map fHasTypeVars fs)
 --    T.Table ts       -> any (== True) (map hasTypeVars ts)
 --    T.Tuple ts       -> any (== True) (map hasTypeVars ts)

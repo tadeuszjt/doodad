@@ -87,6 +87,7 @@ resolveFuncCall exprType (AST.Call pos params symbol args) = withPos pos $ do
 
 compileStmt :: BoM ASTResolved m => AST.Stmt -> m Stmt
 compileStmt stmt = withPos stmt $ case stmt of
+    AST.Increment pos expr -> AST.Increment pos <$> compileExpr expr
     AST.EmbedC pos s     -> return (AST.EmbedC pos s)
     AST.Block stmts      -> Block <$> mapM compileStmt stmts
     AST.ExprStmt expr    -> ExprStmt <$> compileExpr expr

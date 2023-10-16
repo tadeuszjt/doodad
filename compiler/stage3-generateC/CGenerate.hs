@@ -325,9 +325,20 @@ cTypeOf a = case typeof a of
         (argSymbol, typ) <- mapGet symbol =<< gets typefuncs
         getTypedef (Symbol.sym symbol) =<< cTypeOf (Type.applyTypeFunction argSymbol argType typ)
     Type.Tuple t -> do
-        Record ts <- baseTypeOf t
+        baseT <- baseTypeOf t
+        ts <- case baseT of
+            Record ts -> return ts
+            t         -> return [t]
         cts <- mapM cTypeOf ts
         getTypedef "tuple" $ Cstruct $ zipWith (\a b -> C.Param ("m" ++ show a) b) [0..] cts
+    Type.Table t -> do
+        base <- baseTypeOf t
+        ts <- case base of
+            Record ts -> return ts
+            t         -> return [t]
+        cts <- mapM cTypeOf ts
+        let pts = zipWith (\ct i -> C.Param ("r" ++ show i) (Cpointer ct)) cts [0..]
+        getTypedef "table" $ Cstruct (C.Param "len" Cint64_t:C.Param "cap" Cint64_t:pts)
 --    Type.Array n t -> do
 --        arr <- Carray n <$> cTypeOf t
 --        getTypedef "array" $ Cstruct [C.Param "arr" arr]
@@ -369,50 +380,54 @@ getTypedef suggestion typ = do
 
 getTableAppendFunc :: MonadGenerate m => Type.Type -> m String
 getTableAppendFunc typ = do
-    error ""
---    base@(Table ts) <- baseTypeOf typ
---    fm <- Map.lookup typ <$> gets tableAppendFuncs
---    case fm of
---        Just s -> return s
---        Nothing -> do -- append multiple tables
---            modName <- gets moduleName
---            funcName <- fresh $ modName ++ "_table_append"
---            aParam <- C.Param "a" . Cpointer <$> cTypeOf typ
---            bParam <- C.Param "b" . Cpointer <$> cTypeOf typ
---
---            -- create new function
---            funcId <- newFunction Cvoid funcName [aParam, bParam]
---            withCurID globalID $ append funcId
---            withCurID funcId $ do
---                let a = C.Ident "a"
---                let b = C.Ident "b"
---                let len = C.PMember a "len"
---                let len2 = C.PMember b "len" 
---                let newLen = (C.Infix C.Plus len len2)
---                let cap = C.PMember a "cap"
---                
---                -- realloc if needed
---                if_ (Value Type.Bool $ C.Infix C.GTEq newLen cap) $ do
---                    appendElem $ C.Set cap (C.Infix C.Times newLen (C.Int 2))
---                    forM_ (zip ts [0..]) $ \(t, row) -> do
---                        appendElem $ C.Assign
---                            (Cpointer Cvoid)
---                            ("mem" ++ show row)
---                            (C.Call "GC_malloc" [C.Infix C.Times cap (C.Sizeof $ C.Deref $ C.PMember a $ "r" ++ show row)])
---                    forM_ (zip ts [0..]) $ \(t, row) -> do
---                        appendElem $ C.ExprStmt $ C.Call "memcpy"
---                            [ C.Ident ("mem" ++ show row)
---                            , C.PMember a ("r" ++ show row)
---                            , C.Infix C.Times len (C.Sizeof $ C.Deref $ C.PMember a $ "r" ++ show row)]
---                    forM_ (zip ts [0..]) $ \(t, row) -> do
---                        appendElem $ C.Set (C.PMember a ("r" ++ show row)) (C.Ident $ "mem" ++ show row)
---
---                for (Value I64 len2) $ \idx -> do
+    base@(Table t) <- baseTypeOf typ
+    baseT <- baseTypeOf t
+    ts <- case baseT of
+        Record ts -> return ts
+        t         -> return [t]
+    fm <- Map.lookup typ <$> gets tableAppendFuncs
+    case fm of
+        Just s -> return s
+        Nothing -> do -- append multiple tables
+            modName <- gets moduleName
+            funcName <- fresh $ modName ++ "_table_append"
+            aParam <- C.Param "a" . Cpointer <$> cTypeOf typ
+            --bParam <- C.Param "b" . Cpointer <$> cTypeOf typ
+
+            -- create new function
+            funcId <- newFunction Cvoid funcName [aParam] --bParam]
+            withCurID globalID $ append funcId
+            withCurID funcId $ do
+                let a = C.Ident "a"
+                --let b = C.Ident "b"
+                let len = C.PMember a "len"
+                --let len2 = C.PMember b "len" 
+                let newLen = (C.Infix C.Plus len $ C.Int 1)
+                let cap = C.PMember a "cap"
+                
+                -- realloc if needed
+                if_ (Value Type.Bool $ C.Infix C.GTEq newLen cap) $ do
+                    appendElem $ C.Set cap (C.Infix C.Times newLen (C.Int 2))
+                    forM_ (zip ts [0..]) $ \(t, row) -> do
+                        appendElem $ C.Assign
+                            (Cpointer Cvoid)
+                            ("mem" ++ show row)
+                            (C.Call "GC_malloc" [C.Infix C.Times cap (C.Sizeof $ C.Deref $ C.PMember a $ "r" ++ show row)])
+                    forM_ (zip ts [0..]) $ \(t, row) -> do
+                        appendElem $ C.ExprStmt $ C.Call "memcpy"
+                            [ C.Ident ("mem" ++ show row)
+                            , C.PMember a ("r" ++ show row)
+                            , C.Infix C.Times len (C.Sizeof $ C.Deref $ C.PMember a $ "r" ++ show row)]
+                    forM_ (zip ts [0..]) $ \(t, row) -> do
+                        appendElem $ C.Set (C.PMember a ("r" ++ show row)) (C.Ident $ "mem" ++ show row)
+
+                for (Value I64 $ C.Int 1) $ \idx -> do
 --                    forM_ (zip ts [0..]) $ \(t, row) -> do
 --                        set
 --                            (Value t $ C.Subscript (C.PMember a $ "r" ++ show row) (C.PMember a "len"))
---                            (Value t $ C.Subscript (C.PMember b $ "r" ++ show row) (valExpr idx))
---                    void $ appendElem $ C.ExprStmt $ C.Increment $ C.PMember a "len"
---                    
---            modify $ \s -> s { tableAppendFuncs = Map.insert typ funcName (tableAppendFuncs s) }
---            return funcName
+--                            (Value t $ C.Initialiser [])
+--                            --(Value t $ C.Subscript (C.PMember b $ "r" ++ show row) (valExpr idx))
+                    void $ appendElem $ C.ExprStmt $ C.Increment $ C.PMember a "len"
+                    
+            modify $ \s -> s { tableAppendFuncs = Map.insert typ funcName (tableAppendFuncs s) }
+            return funcName

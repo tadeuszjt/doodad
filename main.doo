@@ -10,6 +10,19 @@ fn[T] {v:Vec2(T)} times2()
     v = (x * 2, y * 2)
 
 
+
+fn[T] {t:[]T} length() i64
+    ${ return $t->len; }
+
+
+
+fn[T] {t:[]T} append(elem:()T)
+    t++
+    t[t.lenght() - 1] = 
+
+    elem[] [] // the record accessor?
+
+
 fn main()
     let t = ("benis", 12):()Person
     let t2 = ("bongis", true):(){string, bool}
@@ -17,7 +30,12 @@ fn main()
 
     v.times2()
 
-    print(t, t2, v)
+
+    data tab []Person
+
+    tab.append(t)
+
+    print(t, t2, v, tab.length())
 
 
 

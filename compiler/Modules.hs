@@ -156,6 +156,7 @@ buildModule args modPath = do
         -- compile this module
         liftIO $ putStrLn $ "compiling: " ++ absoluteModPath
 
+
         -- unify asts and resolve symbols
         astImports <- forM importPaths $ \importPath -> do
             resm <- Map.lookup importPath <$> gets moduleMap

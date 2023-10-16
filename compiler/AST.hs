@@ -114,6 +114,7 @@ data Stmt
     | Data        TextPos Symbol Type (Maybe Expr)
     | EmbedC      TextPos String
     | Const       TextPos Symbol Expr
+    | Increment   TextPos Expr
     deriving (Eq, Show)
 
 
@@ -295,6 +296,8 @@ prettyAST ast = do
 
 prettyStmt :: String -> Stmt -> IO ()
 prettyStmt pre stmt = case stmt of
+    Increment pos expr -> do
+        error "here"
     FuncDef pos typeArgs params symbol args retty blk -> do
         typeArgsStr <- case typeArgs of
             [] -> return ""

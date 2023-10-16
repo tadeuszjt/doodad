@@ -55,6 +55,7 @@ unifyOne pos constraint = withPos pos $ case constraint of
         (Record ts1, Record ts2) -> do
             assert (length ts1 == length ts2) "record length mismatch"
             unify $ zipWith (\a b -> (ConsEq a b, pos)) ts1 ts2
+        (Table t1, Table t2)     -> unifyOne pos $ ConsEq t1 t2
 --        (Table tsa, Table tsb)
 --            | length tsa /= length tsb  -> fail "length"
 --            | otherwise                 -> unify $ zipWith (\a b -> (ConsEq a b, pos)) tsa tsb
