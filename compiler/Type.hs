@@ -1,5 +1,6 @@
 module Type where
 
+import Data.Maybe
 import qualified Data.Map as Map (Map, (!), member)
 import Data.List
 import Symbol
@@ -31,7 +32,7 @@ data Type
     | Record [Type]
     | Tuple Type
     | Table Type
-    | TypeApply Symbol Type
+    | TypeApply Symbol [Type]
     deriving (Eq, Ord)
 
 instance Show AdtField where
@@ -42,23 +43,23 @@ instance Show AdtField where
 
 instance Show Type where
     show t = case t of
-        Type id                 -> "t" ++ show id
-        Void                    -> "void"
-        U8                      -> "u8"
-        I8                      -> "i8"
-        I16                     -> "i16"
-        I32                     -> "i32"
-        I64                     -> "i64"
-        F32                     -> "f32"
-        F64                     -> "f64"
-        Bool                    -> "bool"
-        Char                    -> "char"
-        String                  -> "string"
-        Record ts               -> "{" ++ intercalate ", " (map show ts) ++ "}"
-        Tuple t                 -> "()" ++ show t
-        Table t                 -> "[]" ++ show t
-        TypeApply s (Record []) -> show s
-        TypeApply s t           -> show s ++ "(" ++ show t ++ ")"
+        Type id        -> "t" ++ show id
+        Void           -> "void"
+        U8             -> "u8"
+        I8             -> "i8"
+        I16            -> "i16"
+        I32            -> "i32"
+        I64            -> "i64"
+        F32            -> "f32"
+        F64            -> "f64"
+        Bool           -> "bool"
+        Char           -> "char"
+        String         -> "string"
+        Record ts      -> "{" ++ intercalate ", " (map show ts) ++ "}"
+        Tuple t        -> "()" ++ show t
+        Table t        -> "[]" ++ show t
+        TypeApply s [] -> show s
+        TypeApply s ts -> show s ++ "(" ++ intercalate ", " (map show ts) ++ ")"
 --        Key t         -> '@' : show t
 --        Range t       -> "[..]" ++ show t
 --        Tuple ts      -> "tuple(" ++ intercalate ", " (map show ts) ++ ")"
@@ -82,9 +83,9 @@ getTypeSymbol typ = case typ of
 findGenerics :: [Symbol] -> Type -> [Type]
 findGenerics typeArgs typ = case typ of
     t | isSimple t -> []
-    TypeApply s (Record []) | s `elem` typeArgs -> [typ]
-    TypeApply s t | s `elem` typeArgs -> error "generic applied to arguments"
-    TypeApply s t -> findGenerics typeArgs t
+    TypeApply s [] | s `elem` typeArgs -> [typ]
+    TypeApply s _  | s `elem` typeArgs -> error "generic applied to arguments"
+    TypeApply s ts -> concat $ map (findGenerics typeArgs) ts
     Table t -> findGenerics typeArgs t
     Void -> []
     Type _ -> []
@@ -96,13 +97,14 @@ findGenerics typeArgs typ = case typ of
 -- Replace the matching symbols with a the types specificed in the argument map.
 -- [T -> i64]  T -> i64
 -- [T -> M]    T[i64] -> M[i64]
-applyTypeFunction :: Symbol -> Type -> Type -> Type
-applyTypeFunction argSymbol argType typ = case typ of
-    TypeApply s (Record []) -> if s == argSymbol then argType else typ
-    TypeApply s t | s == argSymbol -> case argType of
-        TypeApply s2 (Record []) -> TypeApply s2 t
-    Record ts               -> Record $ map (applyTypeFunction argSymbol argType) ts
-    Tuple t                 -> Tuple $ applyTypeFunction argSymbol argType t
+applyTypeFunction :: [(Symbol, Type)] -> Type -> Type
+applyTypeFunction args typ = case typ of
+    TypeApply s [] -> if isJust (lookup s args) then fromJust (lookup s args) else typ
+--    TypeApply s t | isJust (lookup s args) -> case fromJust (lookup s args) of
+--        TypeApply s2 (Record []) -> TypeApply s2 t
+    Record ts               -> Record $ map (applyTypeFunction args) ts
+    Tuple t                 -> Tuple $ applyTypeFunction args t
+    Table t                 -> Table $ applyTypeFunction args t
     _ | isSimple typ        -> typ
     _                       -> error $ "applyTypeFunction: " ++ show typ
     where
@@ -124,17 +126,16 @@ typesCouldMatch :: [Symbol] -> Type -> Type -> Bool
 typesCouldMatch typeVars a b = case (a, b) of
     (Type _, _)                                    -> True
     (_, Type _)                                    -> True
-    (TypeApply s (Record []), _)
-        | s `elem` typeVars                        -> True
-    (_, TypeApply s (Record []))
-        | s `elem` typeVars                        -> True
-    (TypeApply s1 t1, TypeApply s2 t2)
-        | s1 `elem` typeVars || s2 `elem` typeVars -> typesCouldMatch typeVars t1 t2
-    (TypeApply s1 t1, TypeApply s2 t2)             -> symbolsCouldMatch s1 s2 && typesCouldMatch typeVars t1 t2
-    (TypeApply s1 t1, _)                           -> False
+
+    (TypeApply s1 ts1, TypeApply s2 ts2)
+        | length ts1 == length ts2 && (s1 `elem` typeVars || s2 `elem` typeVars || symbolsCouldMatch s1 s2) -> 
+            all (== True) $ zipWith (typesCouldMatch typeVars) ts1 ts2
+        | otherwise -> False
+
+    (TypeApply s1 [], _) | s1 `elem` typeVars -> True
+    (_, TypeApply s1 []) | s1 `elem` typeVars -> True
+
     (Table t1, Table t2)                           -> typesCouldMatch typeVars t1 t2
-    (Record ts1, Record ts2)
-        | length ts1 == length ts2                 -> all (== True) $ zipWith (typesCouldMatch typeVars) ts1 ts2
     (Void, Void)                                   -> True
     _ | isSimple a                                 -> a == b
     _                                              -> error (show (a, b))

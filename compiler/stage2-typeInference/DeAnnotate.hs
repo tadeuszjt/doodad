@@ -187,7 +187,7 @@ hasTypeVars typ = case typ of
     T.Void           -> False
     t | T.isSimple t -> False
     T.Tuple t        -> hasTypeVars t
-    T.TypeApply s t  -> hasTypeVars t
+    T.TypeApply s ts -> any (== True) (map hasTypeVars ts)
     T.Record ts      -> any (== True) (map hasTypeVars ts)
     T.Table t        -> hasTypeVars t
 --    T.ADT fs         -> any (== True) (map fHasTypeVars fs)

@@ -63,40 +63,10 @@ char *doodad_string_char(char c) {
 }
 
 char *doodad_string_i64(int64_t n) {
-    if (n == 0) {
-        return doodad_string_char('0');
-    }
-
-    bool minus = false;
-    if (n < 0) {
-        n = -n;
-        minus = true;
-    }
-
-    // get digits
-    char buf[1024] = {0};
-    int idx = 0;
-    while (n > 0) {
-        buf[idx++] = '0' + (n % 10);
-        n /= 10;
-    }
-
-    // reverse digits
-    for (int i = 0, j = (strlen(buf) - 1); i < j; i++, j--) {
-        char c = buf[i];
-        buf[i] = buf[j];
-        buf[j] = c;
-    }
-
-    int len = idx;
-    if (minus) {
-        char *s = doodad_string_alloc(len + 1);
-        s[0] = '-';
-        memcpy(s + 1, buf, len);
-        return s;
-    } else {
-        char *s = doodad_string_alloc(len);
-        memcpy(s, buf, len);
-        return s;
-    }
+    char buffer[32] = "";
+    sprintf(buffer, "%d", n);
+    char *s = doodad_string_alloc(strlen(buffer) + 1);
+    s[0] = '\0';
+    strcpy(s, buffer);
+    return s;
 }

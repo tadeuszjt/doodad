@@ -108,7 +108,7 @@ data Stmt
     | If          TextPos Expr Stmt (Maybe Stmt)
     | While       TextPos Expr Stmt
     | FuncDef     TextPos [Symbol] [Param] Symbol [Param] Type Stmt
-    | Typedef     TextPos (Maybe Symbol) Symbol AnnoType
+    | Typedef     TextPos [Symbol] Symbol AnnoType
     | Switch      TextPos Expr [(Pattern, Stmt)]
     | For         TextPos Expr (Maybe Pattern) Stmt
     | Data        TextPos Symbol Type (Maybe Expr)
@@ -335,10 +335,10 @@ prettyStmt pre stmt = case stmt of
         putStrLn $ pre ++ "while " ++ show cnd
         prettyStmt (pre ++ "\t") stmt
 
-    Typedef pos marg symbol anno -> do
-        argStr <- case marg of
-            Nothing -> return ""
-            Just arg -> return $ "[" ++ show arg ++ "]"
+    Typedef pos typeArgs symbol anno -> do
+        argStr <- case typeArgs of
+            [] -> return ""
+            xs -> return $ "[" ++ intercalate ", " (map show xs) ++ "]"
         putStrLn $ pre ++ "type" ++ argStr ++ " " ++ show symbol ++ " " ++ show anno
 
     Switch pos expr cases -> do

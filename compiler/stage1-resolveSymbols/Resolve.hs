@@ -46,7 +46,7 @@ data ResolveState
         , supply       :: Map.Map String Int
         , generics     :: Set.Set Symbol
         , funcDefsMap  :: Map.Map Symbol FuncBody
-        , typeFuncsMap :: Map.Map Symbol (Symbol, AnnoType)
+        , typeFuncsMap :: Map.Map Symbol ([Symbol], AnnoType)
         }
 
 initResolveState imports modName typeImports = ResolveState
@@ -138,7 +138,7 @@ annoToType anno = case anno of
             AST.ADTFieldMember symbol ts -> FieldCtor ts
 
 
-buildTypeFuncImportMap :: BoM (Map.Map Symbol (Symbol, Type)) m => [ASTResolved] -> m ()
+buildTypeFuncImportMap :: BoM (Map.Map Symbol ([Symbol], Type)) m => [ASTResolved] -> m ()
 buildTypeFuncImportMap imports = do
     forM_ imports $ \imprt -> do
         modify $ Map.union (typeFuncs imprt)
@@ -265,19 +265,17 @@ resolveFuncDef (FuncDef pos typeArgs params (Sym sym) args retty blk) = withPos 
 
 -- modifies the typedef function and inserts it into typeFuncsMap
 resolveTypeDef2 :: BoM ResolveState m => AST.Stmt -> m ()
-resolveTypeDef2 (AST.Typedef pos marg (Sym sym) anno) = do
+resolveTypeDef2 (AST.Typedef pos typeArgs (Sym sym) anno) = do
     symbol <- genSymbol sym
     define sym KeyType symbol
     define sym KeyFunc symbol
 
     -- Here we push the symbol table in order to temporarily define the type argument as a typedef
     pushSymbolTable
-    argSymbol <- case marg of
-        Nothing -> genSymbol "placeholder"
-        Just (Sym arg) -> do
-            s <- genSymbol arg
-            define arg KeyType s
-            return s
+    argSymbols <- forM typeArgs $ \(Sym arg) -> do
+        s <- genSymbol arg
+        define arg KeyType s
+        return s
 
     anno' <- case anno of
         AnnoType t -> AnnoType <$> resolve t
@@ -305,7 +303,7 @@ resolveTypeDef2 (AST.Typedef pos marg (Sym sym) anno) = do
     popSymbolTable
 
     extraSpecialKeyFuncDefiningFunction anno'
-    modify $ \s -> s { typeFuncsMap = Map.insert symbol (argSymbol, anno') (typeFuncsMap s) }
+    modify $ \s -> s { typeFuncsMap = Map.insert symbol (argSymbols, anno') (typeFuncsMap s) }
     where
         extraSpecialKeyFuncDefiningFunction :: BoM ResolveState m => AST.AnnoType -> m ()
         extraSpecialKeyFuncDefiningFunction anno' = case anno' of
@@ -484,9 +482,9 @@ instance Resolve Type where
         Record ts           -> Type.Record <$> mapM resolve ts
         Type.Tuple t        -> Type.Tuple <$> resolve t
         Type.Table t        -> Type.Table <$> resolve t
-        Type.TypeApply s t -> do
+        Type.TypeApply s ts -> do
             symbol' <- look s KeyType
-            Type.TypeApply symbol' <$> resolve t
+            Type.TypeApply symbol' <$> mapM resolve ts
         _ -> error $ "resolve type: " ++ show typ
 
 instance Resolve Expr where
@@ -513,7 +511,7 @@ instance Resolve Expr where
                     case resm of 
                         Just symbol' -> do
                             assert (params == []) "Convert cannot have params"
-                            return $ Conv pos (Type.TypeApply symbol' $ Type.Record []) exprs' -- TODO
+                            return $ Conv pos (Type.TypeApply symbol' []) exprs' -- TODO
                         Nothing -> do
                             symbol' <- look symbol KeyFunc
                             return $ Call pos params' symbol' exprs'

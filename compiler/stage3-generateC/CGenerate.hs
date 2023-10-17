@@ -46,7 +46,7 @@ data GenerateState
         , supply :: Map.Map String Int
         , ctors  :: Map.Map Symbol (Symbol, Int)
         , typedefs :: Map.Map Symbol Type.Type
-        , typefuncs :: Map.Map Symbol (Symbol, Type.Type)
+        , typefuncs :: Map.Map Symbol ([Symbol], Type.Type)
         , symTab :: SymTab.SymTab String () Value
         , tableAppendFuncs :: Map.Map Type.Type String
         }
@@ -302,11 +302,13 @@ accessRecord val marg = do
 
 baseTypeOf :: (MonadGenerate m, Typeof a) => a -> m Type.Type
 baseTypeOf a = case typeof a of
-    Type.TypeApply symbol t -> do
+    Type.TypeApply symbol ts -> do
         resm <- Map.lookup symbol <$> gets typefuncs
         case resm of
-            Nothing               -> fail $ "baseTypeOf: " ++ show (typeof a)
-            Just (argSymbol, typ) -> baseTypeOf $ applyTypeFunction argSymbol t typ
+            Nothing                -> fail $ "baseTypeOf: " ++ show (typeof a)
+            Just (argSymbols, typ) -> do
+                assert (length argSymbols == length ts) "invalid number of type arguments"
+                baseTypeOf $ applyTypeFunction (zip argSymbols ts) typ
 
 --            Just (symbols, typ) -> do
 --                assert (length ts == length symbols) $ "Invalid type function arguments: " ++ show ts
@@ -334,9 +336,10 @@ cTypeOf a = case typeof a of
     Type.Bool -> return $ Cbool
     Type.Char -> return $ Cchar
     Type.String -> return $ Cpointer Cchar
-    Type.TypeApply symbol argType -> do
-        (argSymbol, typ) <- mapGet symbol =<< gets typefuncs
-        getTypedef (Symbol.sym symbol) =<< cTypeOf (Type.applyTypeFunction argSymbol argType typ)
+    Type.TypeApply symbol argTypes -> do
+        (argSymbols, typ) <- mapGet symbol =<< gets typefuncs
+        assert (length argSymbols == length argTypes) "invalid number of type arguments"
+        getTypedef (Symbol.sym symbol) =<< cTypeOf (applyTypeFunction (zip argSymbols argTypes) typ)
     Type.Tuple t -> do
         baseT <- baseTypeOf t
         ts <- case baseT of

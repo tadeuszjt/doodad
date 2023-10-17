@@ -1,10 +1,10 @@
-syn keyword doodadKeyword push pop len clear print return 
+syn keyword doodadKeyword len print return 
 syn keyword doodadConditional if else switch
 syn keyword doodadFunc fn type
 syn keyword doodadDef let data const
 syn keyword doodadLoop for while
-syn keyword doodadTop module import import_c
-syn keyword doodadType i8 i16 i32 i64 f32 f64 bool char string sparse conv
+syn keyword doodadTop module import link include
+syn keyword doodadType i8 i16 i32 i64 f32 f64 bool char string conv
 syn keyword doodadConst true false null
 syn match   doodadInt '\<\d\+\>'
 syn match   doodadChar '\'.\''
@@ -13,7 +13,6 @@ syn match   doodadSpecial '\}'
 syn match   doodadSpecial "->"
 syn match   doodadString  '\"[^"]*\"'
 syn match   doodadComment '//.*'
-
 
 
 hi def link doodadKeyword Statement

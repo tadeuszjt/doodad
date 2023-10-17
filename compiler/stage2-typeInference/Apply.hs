@@ -19,7 +19,7 @@ substitute u x typ = case typ of
     Type _               -> typ
     Void                 -> typ
     _ | isSimple typ     -> typ
-    TypeApply s t        -> TypeApply s $ substitute u x t
+    TypeApply s ts       -> TypeApply s $ map (substitute u x) ts
     Record ts            -> Record $ map (substitute u x) ts
     Tuple t              -> Tuple $ substitute u x t
     Table t              -> Table $ substitute u x t
