@@ -3,12 +3,11 @@ module main
 
 type Person {string, i32}
 
-type[T] Vec2 (T, T)
+type[T] Vec2 (){x:T, y:T}
 
 fn[T] {v:Vec2(T)} times2()
     let (x, y) = v
     v = (x * 2, y * 2)
-
 
 
 fn[T] {t:[]T} length() i64
@@ -24,12 +23,17 @@ fn[T] {t:[]T} pop()
     ${ $t->len--; }
 
 
-type[K, V] Map ([]K, []V)
+type[K, V] Map (){keys:[]K, values:[]V}
 
 
-fn[K, V] {m:Map(K, V)} find(key:K)
+fn[K, V] {m:Map(K, V)} insert(key:()K, value:()V)
+    m.keys.push(key)
     return
 
+fn[K, V] {m:Map(K, V)} find(key:K)
+    for m.keys
+        print("keys")
+    return
 
 
 fn main()
@@ -38,6 +42,7 @@ fn main()
     let v = (1, 2):Vec2(i32)
 
     v.times2()
+    print(v.x, v.y)
 
     data tab []Person
 
@@ -56,4 +61,5 @@ fn main()
     data map Map(string, bool)
 
     map.find("benis")
+
 

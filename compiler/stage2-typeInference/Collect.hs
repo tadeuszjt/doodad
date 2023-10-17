@@ -169,7 +169,7 @@ collectCtorDef :: BoM CollectState m => Symbol -> Symbol -> Int -> m ()
 collectCtorDef symbol s@(SymResolved _ _ _) i = withErrorPrefix "collectCtorDef" $ do
     ObjTypeFunc typeArgs typ <- look s KeyType -- check
     case typ of
---        Tuple ts -> define (Sym $ sym symbol) (KeyField s) (ObjField i)
+        Tuple (Record ts) -> define (Sym $ sym symbol) (KeyField s) (ObjField i)
 --        Table ts -> define (Sym $ sym symbol) (KeyField s) (ObjField i)
 --        ADT fs   -> case fs !! i of
 --            FieldCtor ts -> do
@@ -177,7 +177,7 @@ collectCtorDef symbol s@(SymResolved _ _ _) i = withErrorPrefix "collectCtorDef"
 --                define symbol KeyAdtField (ObjField i)
 --            _            -> return ()
             
-        _ -> return ()
+        _ -> error (show typ)
 
 
 collectTypedef :: BoM CollectState m => Symbol -> Type -> m ()
@@ -444,9 +444,9 @@ collectExpr (S.AExpr exprType expr) = collectPos expr $ case expr of
     S.Field _ e (Sym sym) -> do
         case typeof e of
             Type x         -> return ()
---            TypeApply symbol _ -> do
---                ObjField i  <- look (Sym sym) . KeyField =<< getTypeSymbol (typeof e)
---                collectField exprType i (typeof e)
+            TypeApply symbol _ -> do
+                ObjField i  <- look (Sym sym) . KeyField =<< getTypeSymbol (typeof e)
+                collectField exprType i (typeof e)
             _ -> fail "invalid field access"
         collectExpr e
 

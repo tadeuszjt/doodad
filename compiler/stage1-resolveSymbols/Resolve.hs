@@ -126,7 +126,7 @@ popSymbolTable = do
 
 annoToType :: AnnoType -> Type
 annoToType anno = case anno of
---    AnnoTuple xs -> Type.Tuple $ map paramType xs
+    AnnoTuple params -> Type.Tuple $ Type.Record (map paramType params)
 --    AnnoADT  xs -> Type.ADT $ map annoFieldToField xs
     AnnoType t  -> t
 --    AnnoTable xs -> Type.Table $ map paramType xs

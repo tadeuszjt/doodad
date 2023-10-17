@@ -21,15 +21,8 @@ substitute u x typ = case typ of
     _ | isSimple typ     -> typ
     TypeApply s ts       -> TypeApply s $ map (substitute u x) ts
     Record ts            -> Record $ map (substitute u x) ts
-    Tuple t              -> Tuple $ substitute u x t
-    Table t              -> Table $ substitute u x t
---    Key t                -> Key $ substitute u x t
---    Range t              -> Range $ substitute u x t
---    Table ts             -> Table $ map (substitute u x) ts
---    Tuple ts             -> Tuple $ map (substitute u x) ts
---    Array n t            -> Array n (substitute u x t)
---    ADT fs               -> ADT $ map subAdtField fs
---    TypeApply s ts       -> TypeApply s $ map (substitute u x) ts
+    Tuple t              -> Tuple (substitute u x t)
+    Table t              -> Table (substitute u x t)
     _                    -> error (show typ)
     where
         subAdtField :: AdtField -> AdtField

@@ -97,7 +97,7 @@ data Expr
 
 instance Typeof Expr where
     typeof (AExpr t e) = t
-    typeof _ = error "can only take typeof AExpr"
+    typeof a = error $ "can only take typeof AExpr: " ++ show a
 
 data Stmt
     = Assign      TextPos Pattern Expr

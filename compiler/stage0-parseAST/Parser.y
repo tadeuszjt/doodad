@@ -201,7 +201,8 @@ paramsN : param 'N'                         { [$1] }
         | param 'N' paramsN                 { $1 : $3 }
 paramsA : params                            { $1 }
         | 'I' paramsN 'D'                   { $2 }
-
+paramsA1 : params1                          { $1 }
+         | 'I' paramsN 'D'                  { $2 }
 
 if_   : if condition scope else_            { S.If (tokPos $1) $2 $3 $4 }
       | if condition 'N' else_              { S.If (tokPos $1) $2 (S.Block []) $4 }
@@ -338,6 +339,7 @@ anno_t   : ordinal_t                        { S.AnnoType $1 }
          | record_t                         { S.AnnoType $1 }
          | tuple_t                          { S.AnnoType $1 }
          | table_t                          { S.AnnoType $1 }
+         | '(' ')' '{' paramsA1 '}'         { S.AnnoTuple $4 }
 
 
 adtFields1 : adtField                       { [$1] }

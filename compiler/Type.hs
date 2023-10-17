@@ -76,7 +76,7 @@ isSimple x   = isInt x || isFloat x || x == Char || x == Bool || x == String
 
 getTypeSymbol :: MonadFail m => Type ->  m Symbol
 getTypeSymbol typ = case typ of
---    TypeApply symbol _ -> return symbol
+    TypeApply symbol _ -> return symbol
     _ -> fail $ "no symbol for type: " ++ show typ
 
 
@@ -132,8 +132,12 @@ typesCouldMatch typeVars a b = case (a, b) of
             all (== True) $ zipWith (typesCouldMatch typeVars) ts1 ts2
         | otherwise -> False
 
-    (TypeApply s1 [], _) | s1 `elem` typeVars -> True
-    (_, TypeApply s1 []) | s1 `elem` typeVars -> True
+    (TypeApply s1 [], _)
+        | s1 `elem` typeVars -> True
+        | otherwise          -> False
+    (_, TypeApply s1 [])
+        | s1 `elem` typeVars -> True
+        | otherwise          -> False
 
     (Table t1, Table t2)                           -> typesCouldMatch typeVars t1 t2
     (Void, Void)                                   -> True
