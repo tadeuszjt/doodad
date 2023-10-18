@@ -42,7 +42,8 @@ infer ast printAnnotated verbose = do
 
             -- turn type constraints into substitutions using unify
             subs <- fmap fst $ runBoMTExcept (typeFuncs ast) (unify $ Map.toList $ collected collectState)
-            ast' <- fmap snd $ runBoMTExcept (applySubs subs annotated) CleanUp.compile
+            annotated' <- applySubs subs annotated
+            ast' <- fmap snd $ runBoMTExcept annotated' CleanUp.compile
             ast'' <- fmap fst $ runBoMTExcept () $ deAnnotate ast'
             return ast''
 
@@ -56,6 +57,7 @@ infer ast printAnnotated verbose = do
 
             -- apply substitutions to ast
             subs <- fmap fst $ runBoMTExcept (typeFuncs ast) (unifyDefault $ Map.toList $ defaults collectState)
-            ast' <- fmap snd $ runBoMTExcept (applySubs subs annotated) CleanUp.compile
+            annotated' <- applySubs subs annotated
+            ast' <- fmap snd $ runBoMTExcept annotated' CleanUp.compile
             ast'' <- fmap fst $ runBoMTExcept () $ deAnnotate ast'
             return ast''

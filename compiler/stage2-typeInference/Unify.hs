@@ -163,7 +163,7 @@ unify :: BoM UnifyState m => [(Constraint, TextPos)] -> m [(Type, Type)]
 unify []     = return []
 unify (x:xs) = do
     subs <- unify xs
-    s <- unifyOne (snd x) $ applySubs subs (fst x)
+    s <- unifyOne (snd x) =<< applySubs subs (fst x)
     return (s ++ subs)
 
 
@@ -172,6 +172,6 @@ unifyDefault []     = return []
 unifyDefault (x:xs) = do
     subs <- unifyDefault xs
     -- ignore errors in default mode
-    s <- catchError (unifyOne (snd x) (applySubs subs (fst x))) (\_ -> return []) 
+    s <- catchError (unifyOne (snd x) =<< applySubs subs (fst x)) (\_ -> return []) 
     return (s ++ subs)
 

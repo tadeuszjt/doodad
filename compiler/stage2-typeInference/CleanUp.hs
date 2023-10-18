@@ -30,7 +30,7 @@ compile = do
     funcDefs <- gets funcDefs
     forM_ (Map.toList funcDefs) $ \(symbol, body) -> do
         when (funcTypeArgs body == []) $ do
-            stmt' <- (mapStmt mapper) (funcStmt body)
+            stmt' <- (mapStmt cleanUpMapper) (funcStmt body)
             body' <- return body { funcStmt = stmt' }
             modify $ \s -> s { funcDefs = Map.insert symbol body' (ASTResolved.funcDefs s) }
 
@@ -45,8 +45,8 @@ genSymbol sym = do
     return symbol
 
 
-mapper :: BoM ASTResolved m => Elem -> m (Maybe Elem)
-mapper elem = case elem of
+cleanUpMapper :: BoM ASTResolved m => Elem -> m (Maybe Elem)
+cleanUpMapper elem = case elem of
     ElemStmt (AST.FuncDef _ _ _ _ _ _ _) -> return Nothing
     ElemStmt (AST.Const _ _ _)           -> return Nothing
     ElemStmt (AST.Typedef _ _ _ _)       -> return Nothing

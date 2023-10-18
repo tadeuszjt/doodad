@@ -96,7 +96,8 @@ replaceGenericsInFuncHeaderWithCall header callHeader = do
         Nothing -> return Nothing
         Just constraints -> do
             subs <- unify (typeArgs header) constraints
-            let header' = (applySubs subs header) { typeArgs = [] } 
+            header'' <- applySubs subs header
+            let header' = header'' { typeArgs = [] }
             if funcHeaderHasGenerics (typeArgs header) header' then return Nothing
             else return $ Just header'
 
@@ -108,10 +109,11 @@ replaceGenericsInFuncBodyWithCall body callHeader = do
     assert (funcHeadersCouldMatch callHeader header) "headers must be matchable"
     constraints <- getConstraintsFromFuncHeaders header callHeader
     subs <- unify (typeArgs header) constraints
-    return $ (applySubs subs body) { funcTypeArgs = [] } 
+    body' <- applySubs subs body
+    return $ body' { funcTypeArgs = [] }
 
 
-unifyOne :: MonadFail m => [Symbol] -> Constraint -> m [(Type, Type)]
+unifyOne :: BoM s m => [Symbol] -> Constraint -> m [(Type, Type)]
 unifyOne typeVars constraint = case constraint of
     ConsEq t1 t2 -> case (t1, t2) of
         _ | t1 == t2                            -> return []
@@ -125,15 +127,15 @@ unifyOne typeVars constraint = case constraint of
         _ -> error $ show (t1, t2)
 
 
-unify :: MonadFail m => [Symbol] -> [Constraint] -> m [(Type, Type)]
+unify :: BoM s m => [Symbol] -> [Constraint] -> m [(Type, Type)]
 unify typeVars []     = return []
 unify typeVars (x:xs) = do
     subs <- unify typeVars xs
-    s <- unifyOne typeVars (applySubs subs x)
+    s <- unifyOne typeVars =<< applySubs subs x
     return (s ++ subs)
 
 
-getConstraintsFromFuncHeaders :: MonadFail m => FuncHeader -> FuncHeader -> m [Constraint]
+getConstraintsFromFuncHeaders :: BoM s m => FuncHeader -> FuncHeader -> m [Constraint]
 getConstraintsFromFuncHeaders headerToReplace header = do
     assert (typeArgs header == []) "only headerToReplace can have typeArgs"
     paramConstraints <- fmap concat $
