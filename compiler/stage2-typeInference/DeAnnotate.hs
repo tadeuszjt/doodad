@@ -7,13 +7,12 @@ import Monad
 import Control.Monad.State
 import qualified Type as T
 import ASTResolved
+import ASTMapper
 
--- 'DeAnnotate takes an AST and annotates all expressions with a type variable using 'AExpr'.
--- This is the first step of the Hindley-Milner type inference algorithm.
+-- DeAnnotate takes an AST and removes all unresolved type annotations.
 
 class DeAnnotate a where
     deAnnotate :: BoM s m => a -> m a
-
 
 instance DeAnnotate Param where
     --annotate (Param pos name T.Void) = Param pos name <$> genType
@@ -38,7 +37,6 @@ instance DeAnnotate FuncBody where
             , funcRetty  = retty'
             , funcStmt   = stmt'
             }
-        
 
 instance DeAnnotate AST where
     deAnnotate ast = do
@@ -46,139 +44,17 @@ instance DeAnnotate AST where
         return $ ast { astStmts = stmts }
 
 instance DeAnnotate Stmt where
-    deAnnotate stmt = case stmt of
-        Increment p e     -> Increment p <$> deAnnotate e
-        EmbedC p s        -> return (EmbedC p s)
-        Block ss          -> Block <$> mapM deAnnotate ss
-        Return p me       -> Return p <$> maybe (return Nothing) (fmap Just . deAnnotate) me
-        ExprStmt e        -> ExprStmt <$> deAnnotate e
-        Const p s e       -> return $ Const p s e -- don't deAnnotate consts
-
-        FuncDef p tas ps s as rt blk -> do
-            ps' <- mapM deAnnotate ps
-            as' <- mapM deAnnotate as
-            blk' <- deAnnotate blk
-            return $ FuncDef p tas ps' s as' rt blk'
-
-        Assign p pat e      -> do
-            pat' <- deAnnotate pat
-            Assign p pat' <$> deAnnotate e
-
-        SetOp p op index e -> do
-            index' <- deAnnotate index
-            SetOp p op index' <$> deAnnotate e
-
-        AST.Typedef pos args symbol anno ->
-            return $ AST.Typedef pos args symbol anno -- has no expressions
-
-        If p c b elm        -> do
-            c' <- deAnnotate c
-            b' <- deAnnotate b
-            elm' <- maybe (return Nothing) (fmap Just . deAnnotate) elm
-            return $ If p c' b' elm'
-
-        While p c b -> do
-            c' <- deAnnotate c
-            While p c' <$> deAnnotate b
-
-        Switch p e cases -> do
-            e' <- deAnnotate e
-            cases' <- forM cases $ \(pat, stmt) -> do
-                pat' <- deAnnotate pat
-                stmt' <- deAnnotate stmt
-                return (pat', stmt')
-            return $ Switch p e' cases'
-
-        For p expr mcnd blk -> do
-            expr' <- deAnnotate expr
-            blk' <- deAnnotate blk
-            mcnd' <- maybe (return Nothing) (fmap Just . deAnnotate) mcnd
-            return $ For p expr' mcnd' blk'
-
-        Data p symbol typ mexpr -> Data p symbol typ <$> maybe (return Nothing) (fmap Just . deAnnotate) mexpr
+    deAnnotate stmt = mapStmt mapper stmt
 
 
-
-instance DeAnnotate Pattern where
-    deAnnotate pattern = case pattern of
-        PatIgnore p         -> return $ PatIgnore p
-        PatIdent p s        -> return $ PatIdent p s
-        PatLiteral e        -> PatLiteral <$> deAnnotate e
-        PatTuple p pats     -> PatTuple p <$> mapM deAnnotate pats
-        PatArray p pats     -> PatArray p <$> mapM deAnnotate pats
-        PatNull p           -> return $ PatNull p
-
-        PatGuarded p pat e -> do
-            pat' <- deAnnotate pat
-            e' <- deAnnotate e
-            return $ PatGuarded p pat' e'
-
-        PatField p symbol pats -> PatField p symbol <$> mapM deAnnotate pats
-
-        PatTypeField p typ pat -> PatTypeField p typ <$> deAnnotate pat
-            
-        PatAnnotated pat typ -> do
-            pat' <- deAnnotate pat
-            return $ PatAnnotated pat' typ
-
-
-instance DeAnnotate Expr where
-    deAnnotate expr = case expr of
-        AExpr typ e | hasTypeVars typ -> deAnnotate' e
-        AExpr typ e | otherwise       -> AExpr typ <$> deAnnotate' e
-        e                             -> deAnnotate' e
-        where
-            deAnnotate' expr = case expr of
-                Ident p s -> return expr
-                Char p c -> return expr
-                Int p n -> return expr
-                Float p f -> return expr
-                String p s -> return expr
-                Bool p b -> return expr
-                Null p -> return expr
-
-                Conv p s es -> Conv p s <$> mapM deAnnotate es
-                Tuple p es -> Tuple p <$> mapM deAnnotate es
-                Prefix p op e -> Prefix p op <$> deAnnotate e
-                Construct p symbol es -> Construct p symbol <$> mapM deAnnotate es
-
-                Call pos ps ident es -> do
-                    ps' <- mapM deAnnotate ps
-                    es' <- mapM deAnnotate es
-                    return $ Call pos ps' ident es'
-
-                Builtin pos ps ident es -> do
-                    ps' <- mapM deAnnotate ps
-                    es' <- mapM deAnnotate es
-                    return $ Builtin pos ps' ident es'
-
-                Infix p op e1 e2 -> do
-                    e1' <- deAnnotate e1
-                    Infix p op e1' <$> deAnnotate e2
-
-                Subscript p e1 me2 -> do
-                    e1' <- deAnnotate e1
-                    Subscript p e1' <$> maybe (return Nothing) (fmap Just . deAnnotate) me2
-
-                Field p e s -> do
-                    e' <- deAnnotate e
-                    return $ Field p e' s
-
-                Match pos expr pat -> do
-                    expr' <- deAnnotate expr
-                    pat' <- deAnnotate pat
-                    return $ Match pos expr' pat'
-
-                Range pos mexpr mexpr1 mexpr2 -> do
-                    mexpr' <- maybe (return Nothing) (fmap Just . deAnnotate) mexpr
-                    mexpr1' <- maybe (return Nothing) (fmap Just . deAnnotate) mexpr1
-                    mexpr2' <- maybe (return Nothing) (fmap Just . deAnnotate) mexpr2
-                    return $ Range pos mexpr' mexpr1' mexpr2'
-
-                Array pos exprs -> do
-                    Array pos <$> mapM deAnnotate exprs
-
-                _ -> error $ show expr
+mapper :: BoM s m => Elem -> m Elem
+mapper elem = case elem of
+    ElemStmt _                                  -> return elem
+    ElemExpr (AExpr typ expr) | hasTypeVars typ -> return $ ElemExpr expr
+    ElemExpr (AExpr typ expr) | otherwise       -> return $ ElemExpr $ AExpr typ expr
+    ElemExpr expr                               -> return $ ElemExpr expr
+    ElemType _                                  -> return elem
+    ElemPattern _                               -> return elem
 
 
 hasTypeVars :: T.Type -> Bool
@@ -190,12 +66,6 @@ hasTypeVars typ = case typ of
     T.TypeApply s ts -> any (== True) (map hasTypeVars ts)
     T.Record ts      -> any (== True) (map hasTypeVars ts)
     T.Table t        -> hasTypeVars t
---    T.ADT fs         -> any (== True) (map fHasTypeVars fs)
---    T.Table ts       -> any (== True) (map hasTypeVars ts)
---    T.Tuple ts       -> any (== True) (map hasTypeVars ts)
---    T.Range t        -> hasTypeVars t
---    T.Array n t      -> hasTypeVars t
---    T.TypeApply s ts -> any (== True) (map hasTypeVars ts)
     _ -> error (show typ)
     where
         fHasTypeVars :: T.AdtField -> Bool

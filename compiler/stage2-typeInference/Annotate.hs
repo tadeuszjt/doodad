@@ -7,13 +7,13 @@ import Monad
 import Control.Monad.State
 import qualified Type as T
 import ASTResolved
+import ASTMapper
 
 -- 'Annotate takes an AST and annotates all expressions with a type variable using 'AExpr'.
 -- This is the first step of the Hindley-Milner type inference algorithm.
 
 class Annotate a where
     annotate :: BoM Int m => a -> m a
-
 
 instance Annotate Param where
     --annotate (Param pos name T.Void) = Param pos name <$> genType
@@ -39,6 +39,17 @@ instance Annotate FuncBody where
             , funcStmt   = stmt'
             }
         
+mapper :: BoM Int m => Elem -> m Elem
+mapper elem = case elem of
+    ElemStmt _ -> return elem
+    ElemExpr expr -> case expr of
+        AExpr t e -> do
+            let AExpr _ e' = e
+            return $ ElemExpr $ AExpr t e'
+        _ -> ElemExpr <$> annotateWithType expr
+    ElemType _ -> return elem
+    ElemPattern _ -> return elem
+
 
 instance Annotate AST where
     annotate ast = do
@@ -46,137 +57,7 @@ instance Annotate AST where
         return $ ast { astStmts = stmts }
 
 instance Annotate Stmt where
-    annotate stmt = case stmt of
-        Increment p e     -> Increment p <$> annotate e
-        EmbedC p s        -> return (EmbedC p s)
-        Block ss          -> Block <$> mapM annotate ss
-        Return p me       -> Return p <$> maybe (return Nothing) (fmap Just . annotate) me
-        ExprStmt e        -> ExprStmt <$> annotate e
-        Const p s e       -> return $ Const p s e -- don't annotate consts
-
-        FuncDef p tas ps s as rt blk -> do
-            ps' <- mapM annotate ps
-            as' <- mapM annotate as
-            blk' <- annotate blk
-            return $ FuncDef p tas ps' s as' rt blk'
-
-        Assign p pat e      -> do
-            pat' <- annotate pat
-            Assign p pat' <$> annotate e
-
-        SetOp p op index e -> do
-            index' <- annotate index
-            SetOp p op index' <$> annotate e
-
-        AST.Typedef pos args symbol anno ->
-            return $ AST.Typedef pos args symbol anno -- has no expressions
-
-        If p c b elm        -> do
-            c' <- annotate c
-            b' <- annotate b
-            elm' <- maybe (return Nothing) (fmap Just . annotate) elm
-            return $ If p c' b' elm'
-
-        While p c b -> do
-            c' <- annotate c
-            While p c' <$> annotate b
-
-        Switch p e cases -> do
-            e' <- annotate e
-            cases' <- forM cases $ \(pat, stmt) -> do
-                pat' <- annotate pat
-                stmt' <- annotate stmt
-                return (pat', stmt')
-            return $ Switch p e' cases'
-
-        For p expr mcnd blk -> do
-            expr' <- annotate expr
-            blk' <- annotate blk
-            mcnd' <- maybe (return Nothing) (fmap Just . annotate) mcnd
-            return $ For p expr' mcnd' blk'
-
-        Data p symbol typ mexpr -> Data p symbol typ <$> maybe (return Nothing) (fmap Just . annotate) mexpr
-
-
-
-instance Annotate Pattern where
-    annotate pattern = case pattern of
-        PatIgnore p         -> return $ PatIgnore p
-        PatIdent p s        -> return $ PatIdent p s
-        PatLiteral e        -> PatLiteral <$> annotate e
-        PatTuple p pats     -> PatTuple p <$> mapM annotate pats
-        PatArray p pats     -> PatArray p <$> mapM annotate pats
-        PatNull p           -> return $ PatNull p
-
-        PatGuarded p pat e -> do
-            pat' <- annotate pat
-            e' <- annotate e
-            return $ PatGuarded p pat' e'
-
-        PatField p symbol pats -> PatField p symbol <$> mapM annotate pats
-
-        PatTypeField p typ pat -> PatTypeField p typ <$> annotate pat
-            
-        PatAnnotated pat typ -> do
-            pat' <- annotate pat
-            return $ PatAnnotated pat' typ
-
-
-instance Annotate Expr where
-    annotate (AExpr t e) = do
-        AExpr t' e' <- annotate e
-        return (AExpr t e')
-    annotate expr = annotateWithType =<< case expr of
-        Ident p s -> return expr
-        Char p c -> return expr
-        Int p n -> return expr
-        Float p f -> return expr
-        String p s -> return expr
-        Bool p b -> return expr
-        Null p -> return expr
-
-        Conv p s es -> Conv p s <$> mapM annotate es
-        Tuple p es -> Tuple p <$> mapM annotate es
-        Prefix p op e -> Prefix p op <$> annotate e
-        Construct p symbol es -> Construct p symbol <$> mapM annotate es
-
-        Call pos ps ident es -> do
-            ps' <- mapM annotate ps
-            es' <- mapM annotate es
-            return $ Call pos ps' ident es'
-
-        Builtin pos ps ident es -> do
-            ps' <- mapM annotate ps
-            es' <- mapM annotate es
-            return $ Builtin pos ps' ident es'
-
-        Infix p op e1 e2 -> do
-            e1' <- annotate e1
-            Infix p op e1' <$> annotate e2
-
-        Subscript p e1 me2 -> do
-            e1' <- annotate e1
-            Subscript p e1' <$> maybe (return Nothing) (fmap Just . annotate) me2
-
-        Field p e s -> do
-            e' <- annotate e
-            return $ Field p e' s
-
-        Match pos expr pat -> do
-            expr' <- annotate expr
-            pat' <- annotate pat
-            return $ Match pos expr' pat'
-
-        Range pos mexpr mexpr1 mexpr2 -> do
-            mexpr' <- maybe (return Nothing) (fmap Just . annotate) mexpr
-            mexpr1' <- maybe (return Nothing) (fmap Just . annotate) mexpr1
-            mexpr2' <- maybe (return Nothing) (fmap Just . annotate) mexpr2
-            return $ Range pos mexpr' mexpr1' mexpr2'
-
-        Array pos exprs -> do
-            Array pos <$> mapM annotate exprs
-
-        _ -> error $ show expr
+    annotate stmt = mapStmt mapper stmt
 
 
 annotateWithType :: BoM Int m => Expr -> m Expr

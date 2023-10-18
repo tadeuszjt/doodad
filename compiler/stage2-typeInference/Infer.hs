@@ -33,6 +33,10 @@ infer ast printAnnotated verbose = do
         inferTypes ast = do
             (annotated, typeSupplyCount) <- withErrorPrefix "annotate: " $
                 runBoMTExcept 0 $ annotate ast
+            when printAnnotated $ do
+                liftIO $ putStrLn ""
+                liftIO $ putStrLn "annotated AST:"
+                liftIO $ prettyASTResolved annotated
             collectState <- fmap snd $ withErrorPrefix "collect: " $
                 runBoMTExcept (initCollectState typeSupplyCount) (collectAST annotated)
 

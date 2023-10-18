@@ -80,4 +80,5 @@ executable doodad
         COptimise,
         Constraint,
         DeAnnotate,
-        FunctionFinder
+        FunctionFinder,
+        ASTMapper
