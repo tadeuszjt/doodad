@@ -47,14 +47,14 @@ instance DeAnnotate Stmt where
     deAnnotate stmt = mapStmt mapper stmt
 
 
-mapper :: BoM s m => Elem -> m Elem
+mapper :: BoM s m => Elem -> m (Maybe Elem)
 mapper elem = case elem of
-    ElemStmt _                                  -> return elem
-    ElemExpr (AExpr typ expr) | hasTypeVars typ -> return $ ElemExpr expr
-    ElemExpr (AExpr typ expr) | otherwise       -> return $ ElemExpr $ AExpr typ expr
-    ElemExpr expr                               -> return $ ElemExpr expr
-    ElemType _                                  -> return elem
-    ElemPattern _                               -> return elem
+    ElemStmt _                                  -> return $ Just elem
+    ElemExpr (AExpr typ expr) | hasTypeVars typ -> return $ Just $ ElemExpr expr
+    ElemExpr (AExpr typ expr) | otherwise       -> return $ Just $ ElemExpr $ AExpr typ expr
+    ElemExpr expr                               -> return $ Just $ ElemExpr expr
+    ElemType _                                  -> return $ Just elem
+    ElemPattern _                               -> return $ Just elem
 
 
 hasTypeVars :: T.Type -> Bool

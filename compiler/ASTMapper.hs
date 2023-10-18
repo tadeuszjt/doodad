@@ -1,5 +1,6 @@
 module ASTMapper where
 
+import Control.Monad.State
 import Monad
 import AST
 import Type
@@ -12,15 +13,18 @@ data Elem
     | ElemPattern Pattern
     deriving (Show)
 
-type MapperFunc m = (Elem -> m Elem)
+-- MapperFunc takes an ast element and modifies it using the BoM monad. when returning Nothing,
+-- all changes will be discarded including for the members of the element.
+type MapperFunc m = (Elem -> m (Maybe Elem))
 
 mapStmt :: BoM s m => MapperFunc m -> Stmt -> m Stmt
 mapStmt f stmt = withPos stmt $ do
-    ElemStmt x <- f . ElemStmt =<< case stmt of
+    prevState <- get
+    resm <- f . ElemStmt =<< case stmt of
         EmbedC pos s -> return $ EmbedC pos s
         Block stmts -> Block <$> mapM (mapStmt f) stmts
         ExprStmt expr -> ExprStmt <$> mapExpr f expr
-        Return pos mexpr -> Return <$> maybe (return Nothing) (fmap Just . mapExpr f) mexpr
+        Return pos mexpr -> Return pos <$> maybe (return Nothing) (fmap Just . mapExpr f) mexpr
 
         Assign pos pat expr -> do
             pat' <- mapPattern f pat
@@ -54,12 +58,15 @@ mapStmt f stmt = withPos stmt $ do
             return $ SetOp pos op expr1' expr2'
 
         _ -> error (show stmt)
-    return x
+    case resm of
+        Nothing -> put prevState >> return stmt
+        Just (ElemStmt x) -> return x
 
 
 mapExpr :: BoM s m => MapperFunc m -> Expr -> m Expr
 mapExpr f expr = withPos expr $ do
-    ElemExpr x <- f . ElemExpr =<< case expr of
+    prevState <- get
+    resm <- f . ElemExpr =<< case expr of
         AExpr typ expr -> do
             typ' <- mapType f typ
             expr' <- mapExpr f expr
@@ -69,7 +76,7 @@ mapExpr f expr = withPos expr $ do
         AST.String pos s    -> return $ AST.String pos s
         AST.Int pos n       -> return $ AST.Int pos n
         AST.Bool pos b      -> return $ AST.Bool pos b
-        AST.Tuple pos exprs -> AST.Tuple <$> mapM (mapExpr f) exprs
+        AST.Tuple pos exprs -> AST.Tuple pos <$> mapM (mapExpr f) exprs
 
         Field pos expr symbol -> do
             expr' <- mapExpr f expr
@@ -96,19 +103,27 @@ mapExpr f expr = withPos expr $ do
             return $ Subscript pos expr' mexpr'
 
         _ -> error (show expr)
-    return x
+    case resm of
+        Nothing -> put prevState >> return expr
+        Just (ElemExpr x) -> return x
 
 
 mapPattern :: BoM s m => MapperFunc m -> Pattern -> m Pattern
 mapPattern f pattern = withPos pattern $ do
-    ElemPattern x <- f . ElemPattern =<< case pattern of
+    prevState <- get
+    resm <- f . ElemPattern =<< case pattern of
         PatIdent pos symbol -> return $ PatIdent pos symbol
         PatTuple pos pats   -> PatTuple pos <$> mapM (mapPattern f) pats
         _ -> error (show pattern)
-    return x
+    case resm of
+        Nothing -> put prevState >> return pattern
+        Just (ElemPattern x) -> return x
 
 
 mapType :: BoM s m => MapperFunc m -> Type -> m Type
 mapType f t = do
-    ElemType x <- f $ ElemType t
-    return x
+    prevState <- get
+    resm <- f $ ElemType t
+    case resm of
+        Nothing -> put prevState >> return t
+        Just (ElemType x)  -> return x

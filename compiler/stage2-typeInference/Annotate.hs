@@ -39,16 +39,16 @@ instance Annotate FuncBody where
             , funcStmt   = stmt'
             }
         
-mapper :: BoM Int m => Elem -> m Elem
+mapper :: BoM Int m => Elem -> m (Maybe Elem)
 mapper elem = case elem of
-    ElemStmt _ -> return elem
-    ElemExpr expr -> case expr of
-        AExpr t e -> do
-            let AExpr _ e' = e
-            return $ ElemExpr $ AExpr t e'
-        _ -> ElemExpr <$> annotateWithType expr
-    ElemType _ -> return elem
-    ElemPattern _ -> return elem
+    ElemStmt _    -> return (Just elem)
+    ElemType _    -> return (Just elem)
+    ElemPattern _ -> return (Just elem)
+
+    ElemExpr (AExpr t e) -> do
+        let AExpr _ e' = e
+        return $ Just $ ElemExpr $ AExpr t e'
+    ElemExpr expr -> Just . ElemExpr <$> annotateWithType expr
 
 
 instance Annotate AST where
