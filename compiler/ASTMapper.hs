@@ -3,6 +3,7 @@ module ASTMapper where
 import Control.Monad.State
 import Monad
 import AST
+import ASTResolved
 import Type
 import Error
 
@@ -16,6 +17,32 @@ data Elem
 -- MapperFunc takes an ast element and modifies it using the BoM monad. when returning Nothing,
 -- all changes will be discarded including for the members of the element.
 type MapperFunc m = (Elem -> m (Maybe Elem))
+
+
+
+mapAST :: BoM s m => MapperFunc m -> AST -> m AST
+mapAST f ast = do
+    stmts' <- mapM (mapStmt f) (astStmts ast)
+    return $ ast { astStmts = stmts' }
+
+mapParam :: BoM s m => MapperFunc m -> Param -> m Param
+mapParam f (AST.Param pos symbol typ) = withPos pos $ AST.Param pos symbol <$> (mapType f typ)
+    
+
+mapFuncBody :: BoM s m => MapperFunc m -> FuncBody -> m FuncBody
+mapFuncBody f body = do
+    funcParams' <- mapM (mapParam f) (funcParams body)
+    funcArgs'   <- mapM (mapParam f) (funcArgs body)
+    funcRetty'  <- mapType f (funcRetty body)
+    funcStmt'   <- mapStmt f (funcStmt body)
+    return $ FuncBody
+        { funcTypeArgs = funcTypeArgs body
+        , funcParams   = funcParams'
+        , funcArgs     = funcArgs'
+        , funcRetty    = funcRetty'
+        , funcStmt     = funcStmt'
+        }
+
 
 mapStmt :: BoM s m => MapperFunc m -> Stmt -> m Stmt
 mapStmt f stmt = withPos stmt $ do

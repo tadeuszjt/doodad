@@ -1,72 +1,68 @@
 {-# LANGUAGE FlexibleContexts #-}
 module Annotate where
 
-import qualified Data.Map as Map
-import AST
 import Monad
 import Control.Monad.State
-import qualified Type as T
+import Type
+import AST
 import ASTResolved
 import ASTMapper
 
 -- 'Annotate takes an AST and annotates all expressions with a type variable using 'AExpr'.
 -- This is the first step of the Hindley-Milner type inference algorithm.
-
-class Annotate a where
-    annotate :: BoM Int m => a -> m a
-
-instance Annotate Param where
-    --annotate (Param pos name T.Void) = Param pos name <$> genType
-    annotate (Param pos name typ)    = return (Param pos name typ)
-
-instance Annotate ASTResolved where
-    annotate resolvedAst = do
-        funcDefs <- mapM annotate (funcDefs resolvedAst)
-        return $ resolvedAst
-            { funcDefs = funcDefs 
-            }
-
-instance Annotate FuncBody where
-    annotate funcBody = do
-        params' <- mapM annotate (funcParams funcBody)
-        args' <- mapM annotate (funcArgs funcBody)
-        stmt' <- annotate (funcStmt funcBody)
-        retty' <- return (funcRetty funcBody)
-        return $ funcBody
-            { funcParams = params'
-            , funcArgs   = args'
-            , funcRetty  = retty'
-            , funcStmt   = stmt'
-            }
+annotate :: BoM Int m => ASTResolved -> m ASTResolved
+annotate resolvedAST = do 
+    funcDefs <- mapM (mapFuncBody annotateMapper) (funcDefs resolvedAST)
+    return $ resolvedAST { funcDefs = funcDefs }
         
-mapper :: BoM Int m => Elem -> m (Maybe Elem)
-mapper elem = case elem of
-    ElemStmt _    -> return (Just elem)
-    ElemType _    -> return (Just elem)
-    ElemPattern _ -> return (Just elem)
-
-    ElemExpr (AExpr t e) -> do
-        let AExpr _ e' = e
-        return $ Just $ ElemExpr $ AExpr t e'
-    ElemExpr expr -> Just . ElemExpr <$> annotateWithType expr
-
-
-instance Annotate AST where
-    annotate ast = do
-        stmts <- mapM annotate (astStmts ast)
-        return $ ast { astStmts = stmts }
-
-instance Annotate Stmt where
-    annotate stmt = mapStmt mapper stmt
-
+annotateMapper :: BoM Int m => Elem -> m (Maybe Elem)
+annotateMapper elem = case elem of
+    ElemStmt _                     -> return (Just elem)
+    ElemType _                     -> return (Just elem)
+    ElemPattern _                  -> return (Just elem)
+    ElemExpr (AExpr t (AExpr _ e)) -> return $ Just $ ElemExpr $ AExpr t e
+    ElemExpr expr                  -> Just . ElemExpr <$> annotateWithType expr
 
 annotateWithType :: BoM Int m => Expr -> m Expr
 annotateWithType expr = do
     t <- genType
     return $ AExpr t expr
 
-genType :: BoM Int m => m T.Type
+genType :: BoM Int m => m Type
 genType = do
     i <- get
     put (i + 1)
-    return (T.Type $ i)
+    return (Type i)
+
+-- DeAnnotate takes an AST and removes all unresolved type annotations.
+deAnnotate :: BoM s m => ASTResolved -> m ASTResolved
+deAnnotate resolvedAst = do
+    funcDefs <- mapM (mapFuncBody deAnnotateMapper) (funcDefs resolvedAst)
+    return $ resolvedAst { funcDefs = funcDefs }
+
+deAnnotateMapper :: BoM s m => Elem -> m (Maybe Elem)
+deAnnotateMapper elem = return $ case elem of
+    ElemStmt _                                  -> Just elem
+    ElemExpr (AExpr typ expr) | hasTypeVars typ -> Just $ ElemExpr expr
+    ElemExpr (AExpr typ expr) | otherwise       -> Just $ ElemExpr $ AExpr typ expr
+    ElemExpr expr                               -> Just $ ElemExpr expr
+    ElemType _                                  -> Just elem
+    ElemPattern _                               -> Just elem
+
+hasTypeVars :: Type -> Bool
+hasTypeVars typ = case typ of
+    Type _         -> True
+    Void           -> False
+    t | isSimple t -> False
+    Type.Tuple t   -> hasTypeVars t
+    TypeApply s ts -> any (== True) (map hasTypeVars ts)
+    Record ts      -> any (== True) (map hasTypeVars ts)
+    Table t        -> hasTypeVars t
+    _ -> error (show typ)
+    where
+        fHasTypeVars :: AdtField -> Bool
+        fHasTypeVars field = case field of
+            FieldNull -> False
+            FieldType t -> hasTypeVars t
+            FieldCtor ts -> any (== True) (map hasTypeVars ts)
+            _ -> error (show field)

@@ -62,19 +62,6 @@ instance Apply ASTResolved where
             return (symbol, body')
         return $ ast { funcDefs = funcDefs' }
 
-
-instance Apply FuncBody where
-    apply f body = do
-        params' <- mapM (apply f) (funcParams body)
-        args'   <- mapM (apply f) (funcArgs body)
-        stmt'   <- apply f (funcStmt body)
-        return $ body {
-            funcParams = params',
-            funcArgs   = args',
-            funcRetty  = f (funcRetty body),
-            funcStmt   = stmt'
-            }
-
 instance Apply FuncHeader where
     apply f header = do
         return $ FuncHeader {
@@ -85,9 +72,9 @@ instance Apply FuncHeader where
             returnType = f (returnType header)
             }
        
-
-instance Apply S.Stmt where
-    apply f stmt = mapStmt (mapper f) stmt
+instance Apply FuncBody where apply f body = mapFuncBody (mapper f) body
+instance Apply S.Stmt   where apply f stmt = mapStmt (mapper f) stmt
+instance Apply S.Param  where apply f (S.Param p n t) = return $ S.Param p n (f t)
 
 instance Apply Constraint where
     apply f constraint = case constraint of
@@ -100,6 +87,4 @@ instance Apply Constraint where
         ConsAdtMem t1 i j t2 -> return $ ConsAdtMem (f t1) i j (f t2)
         ConsTuple t1 ts      -> return $ ConsTuple (f t1) (map f ts)
 
-instance Apply S.Param where
-    apply f (S.Param p n t) = return $ S.Param p n (f t)
 

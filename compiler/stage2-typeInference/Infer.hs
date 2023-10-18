@@ -17,7 +17,6 @@ import Collect
 import qualified Resolve
 import ASTResolved
 import Annotate
-import DeAnnotate
 import CleanUp
 import Type
 

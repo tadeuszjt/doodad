@@ -24,7 +24,6 @@ import ASTMapper
 -- Creates generic instantiations
 -- Resolves tuple/table field symbols
 -- Turns ctor function call into Contructors
-
 compile :: BoM ASTResolved m => m ()
 compile = do
     funcDefs <- gets funcDefs
