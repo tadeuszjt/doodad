@@ -49,32 +49,17 @@ mapper f elem = case elem of
     ElemType typ                 -> return $ Just $ ElemType (f typ)
     _ -> error (show elem)
 
-
 -- Apply represents taking a function and applying it to all types in an object.
-class Apply a where
-    apply :: BoM s m => (Type -> Type) -> a -> m a
-
+class Apply a             where apply :: BoM s m => (Type -> Type) -> a -> m a
+instance Apply FuncBody   where apply f body = mapFuncBody (mapper f) body
+instance Apply FuncHeader where apply f header = mapFuncHeader (mapper f) header
+instance Apply S.Stmt     where apply f stmt = mapStmt (mapper f) stmt
+instance Apply S.Param    where apply f (S.Param p n t) = return $ S.Param p n (f t)
             
 instance Apply ASTResolved where
     apply f ast = do
-        funcDefs' <- fmap Map.fromList $ forM (Map.toList $ funcDefs ast) $ \(symbol, body) -> do
-            body' <- apply f body
-            return (symbol, body')
+        funcDefs' <- mapM (apply f) (funcDefs ast)
         return $ ast { funcDefs = funcDefs' }
-
-instance Apply FuncHeader where
-    apply f header = do
-        return $ FuncHeader {
-            typeArgs   = typeArgs header,
-            paramTypes = map f (paramTypes header),
-            symbol     = symbol header,
-            argTypes   = map f (argTypes header),
-            returnType = f (returnType header)
-            }
-       
-instance Apply FuncBody where apply f body = mapFuncBody (mapper f) body
-instance Apply S.Stmt   where apply f stmt = mapStmt (mapper f) stmt
-instance Apply S.Param  where apply f (S.Param p n t) = return $ S.Param p n (f t)
 
 instance Apply Constraint where
     apply f constraint = case constraint of

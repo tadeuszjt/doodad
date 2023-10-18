@@ -42,10 +42,9 @@ deAnnotate resolvedAst = do
 
 deAnnotateMapper :: BoM s m => Elem -> m (Maybe Elem)
 deAnnotateMapper elem = return $ case elem of
-    ElemStmt _                                  -> Just elem
     ElemExpr (AExpr typ expr) | hasTypeVars typ -> Just $ ElemExpr expr
-    ElemExpr (AExpr typ expr) | otherwise       -> Just $ ElemExpr $ AExpr typ expr
-    ElemExpr expr                               -> Just $ ElemExpr expr
+    ElemExpr _                                  -> Just elem
+    ElemStmt _                                  -> Just elem
     ElemType _                                  -> Just elem
     ElemPattern _                               -> Just elem
 

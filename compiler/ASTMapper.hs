@@ -44,6 +44,20 @@ mapFuncBody f body = do
         }
 
 
+mapFuncHeader :: BoM s m => MapperFunc m -> FuncHeader -> m FuncHeader
+mapFuncHeader f header = do
+    paramTypes' <- mapM (mapType f) (paramTypes header)
+    argTypes'   <- mapM (mapType f) (argTypes header)
+    returnType' <- mapType f (returnType header)
+    return $ FuncHeader {
+        typeArgs = typeArgs header,
+        paramTypes = paramTypes',
+        symbol     = symbol header,
+        argTypes   = argTypes',
+        returnType = returnType'
+        }
+
+
 mapStmt :: BoM s m => MapperFunc m -> Stmt -> m Stmt
 mapStmt f stmt = withPos stmt $ do
     prevState <- get
