@@ -34,17 +34,31 @@ baseTypeOf typ = case typ of
     t      -> return (Just t)
 
 
+
+-- Takes a tuple and removes any spurious single-tuples.
+-- ()i64 -> i64
+-- ()()i64 -> i64
+-- (){i64} -> (){i64}
+flattenTuple :: BoM UnifyState m => Type -> m Type
+flattenTuple (Tuple typ) = case typ of
+    Tuple _ -> flattenTuple typ
+    Record _ -> return $ Tuple typ
+    _ -> error (show typ)
+
+
+
 unifyOne :: BoM UnifyState m => TextPos -> Constraint -> m [(Type, Type)]
 unifyOne pos constraint = withPos pos $ case constraint of
-    ConsTuple t ts -> do
-        basem <- baseTypeOf t
+    ConsTuple tupType ts -> do
+        basem <- baseTypeOf tupType
         case basem of
             Nothing -> return []
-            Just (Tuple tt) -> case ts of
-                [] -> error ""
-                [_] -> error ""
-                _ -> unifyOne pos $ ConsBase tt (Record ts)
-            
+            Just (Tuple t) -> do
+                baseT <- baseTypeOf t
+                case baseT of
+                    Just (Record _) -> unifyOne pos $ ConsBase t (Record ts)
+                    Just (Tuple _)  -> unifyOne pos $ ConsTuple t ts
+                    _ -> error (show baseT)
 
     ConsEq t1 t2 -> case (t1, t2) of
         _ | t1 == t2                    -> return []
@@ -54,20 +68,16 @@ unifyOne pos constraint = withPos pos $ case constraint of
             assert (length ts1 == length ts2) "record length mismatch"
             unify $ zipWith (\a b -> (ConsEq a b, pos)) ts1 ts2
         (Table t1, Table t2)     -> unifyOne pos $ ConsEq t1 t2
---        (Table tsa, Table tsb)
---            | length tsa /= length tsb  -> fail "length"
---            | otherwise                 -> unify $ zipWith (\a b -> (ConsEq a b, pos)) tsa tsb
---        (Tuple tsa, Tuple tsb)
---            | length tsa /= length tsb  -> fail "length"
---            | otherwise                 -> unify $ zipWith (\a b -> (ConsEq a b, pos)) tsa tsb
---        (Range a, Range b)              -> unifyOne pos $ ConsEq a b
---        (TypeApply s1 ts1, TypeApply s2 ts2) -> do
---            assert (s1 == s2) "type symbols should match"
---            assert (length ts1 == length ts2) "type arg lengths should match"
---            fmap concat $ zipWithM (\a b -> unifyOne pos $ ConsEq a b) ts1 ts2
+
+        (Tuple _, Tuple _) -> do
+            tup1 <- flattenTuple t1
+            tup2 <- flattenTuple t2
+            unifyOne pos $ ConsEq tup1 tup2
 
 
-        _                               -> fail $ "cannot unify " ++ show t1 ++ " with " ++ show t2
+        (Tuple t1, t2) | isSimple t1 -> unifyOne pos $ ConsEq t1 t2
+
+        _ -> fail $ "cannot unify " ++ show t1 ++ " with " ++ show t2
 
     ConsAdtMem t i j agg -> do
         basem <- baseTypeOf agg
@@ -82,7 +92,7 @@ unifyOne pos constraint = withPos pos $ case constraint of
 --                    FieldCtor ts -> do
 --                        assert (j < length ts) "Invalid ADT member"
 --                        unifyOne pos $ ConsEq t (ts !! j)
-            _ -> return []
+            _ -> error (show basem)
         
     ConsField t i agg -> do
         basem <- baseTypeOf agg
@@ -123,8 +133,18 @@ unifyOne pos constraint = withPos pos $ case constraint of
 --            Just (Table ts)   -> unifyOne pos (ConsEq t2 $ Tuple ts)
 --            Just (Array n t)  -> unifyOne pos (ConsEq t2 t)
             Just String    -> unifyOne pos (ConsEq t2 Char)
-            Just (Table t) -> unifyOne pos (ConsEq t2 t)
-            Just (Tuple t) -> unifyOne pos (ConsEq t2 t)
+            Just (Tuple t) -> do
+                baseT <- baseTypeOf t
+                case baseT of
+                    Nothing -> return []
+                    Just (Record _) -> unifyOne pos (ConsEq t2 t)
+                    Just _          -> unifyOne pos (ConsEq t2 $ Record [t])
+            Just (Table t) -> do
+                baseT <- baseTypeOf t
+                case baseT of
+                    Nothing -> return []
+                    Just (Record _) -> unifyOne pos (ConsEq t2 t)
+                    Just _          -> unifyOne pos (ConsEq t2 $ Record [t])
 
             Nothing -> return []
             _ -> error (show basem)

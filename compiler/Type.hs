@@ -43,30 +43,25 @@ instance Show AdtField where
 
 instance Show Type where
     show t = case t of
-        Type id        -> "t" ++ show id
-        Void           -> "void"
-        U8             -> "u8"
-        I8             -> "i8"
-        I16            -> "i16"
-        I32            -> "i32"
-        I64            -> "i64"
-        F32            -> "f32"
-        F64            -> "f64"
-        Bool           -> "bool"
-        Char           -> "char"
-        String         -> "string"
-        Record ts      -> "{" ++ intercalate ", " (map show ts) ++ "}"
-        Tuple t        -> "()" ++ show t
-        Table t        -> "[]" ++ show t
-        TypeApply s [] -> show s
-        TypeApply s ts -> show s ++ "(" ++ intercalate ", " (map show ts) ++ ")"
---        Key t         -> '@' : show t
---        Range t       -> "[..]" ++ show t
---        Tuple ts      -> "tuple(" ++ intercalate ", " (map show ts) ++ ")"
---        Array n t     -> "[" ++ show n ++ " " ++ show t ++ "]"
---        ADT tss       -> "(" ++ intercalate " | " (map show tss) ++ ")"
---        Table ts      -> "[" ++ intercalate "; " (map show ts) ++ "]"
---        TypeApply s ts -> show s ++ "(" ++ intercalate ", " (map show ts) ++ ")"
+        Type id           -> "t" ++ show id
+        Void              -> "void"
+        U8                -> "u8"
+        I8                -> "i8"
+        I16               -> "i16"
+        I32               -> "i32"
+        I64               -> "i64"
+        F32               -> "f32"
+        F64               -> "f64"
+        Bool              -> "bool"
+        Char              -> "char"
+        String            -> "string"
+        Record ts         -> "{" ++ intercalate ", " (map show ts) ++ "}"
+        Tuple (Record ts) -> "(" ++ intercalate ", " (map show ts) ++ ")"
+        Tuple t           -> "()" ++ show t
+        Table t           -> "[]" ++ show t
+        TypeApply s []    -> show s
+        TypeApply s ts    -> show s ++ "(" ++ intercalate ", " (map show ts) ++ ")"
+
 
 isInt x      = x `elem` [U8, I8, I16, I32, I64]
 isFloat x    = x `elem` [F32, F64]
@@ -139,7 +134,15 @@ typesCouldMatch typeVars a b = case (a, b) of
         | s1 `elem` typeVars -> True
         | otherwise          -> False
 
+    (Record ts1, Record ts2) ->
+        length ts1 == length ts2 && (all (== True) $ zipWith (typesCouldMatch typeVars) ts1 ts2)
+
     (Table t1, Table t2)                           -> typesCouldMatch typeVars t1 t2
+    (Tuple t1, Tuple t2)                           -> typesCouldMatch typeVars t1 t2
+
+    (Record _, Tuple _) -> False
+
+
     (Void, Void)                                   -> True
     _ | isSimple a                                 -> a == b
     _                                              -> error (show (a, b))

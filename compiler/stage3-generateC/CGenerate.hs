@@ -259,6 +259,12 @@ initialiser typ vals = do
                     assert (length ts == length vals) "initialiser length"
                     assign "tuple" $ Value typ $ C.Initialiser (map valExpr vals)
 
+                Type.Tuple _ -> do -- ()() ...
+                    Value x e <- initialiser t vals
+                    return $ Value typ e
+
+                _ -> error (show baseT)
+
         Type.Record ts -> do
             assert (length ts == length vals) "initialiser length"
             assign "record" $ Value typ $ C.Initialiser $ map (C.Address . valExpr) vals
@@ -286,6 +292,8 @@ accessRecord val marg = do
                 Record ts -> do
                     assign "record" $ Value t $ C.Initialiser $
                         zipWith (\t i -> C.Address $ C.Member (valExpr val) ("m" ++ show i)) ts [0..]
+                t -> do
+                    assign "record" $ Value (Record [t]) $ C.Initialiser $ [C.Address (valExpr val)]
 
         Type.Table t -> do
             assert (isJust marg) "table access needs an integer argument"
@@ -295,6 +303,11 @@ accessRecord val marg = do
                     elems <- forM (zip ts [0..]) $ \(t, i) -> do
                         return $ C.Address $ C.Subscript (C.Member (valExpr val) ("r" ++ show i)) (valExpr $ fromJust marg)
                     assign "record" $ Value t $ C.Initialiser elems
+                t -> do
+                    elem <- return $ C.Address $ C.Subscript (C.Member (valExpr val) ("r" ++ show 0)) (valExpr $ fromJust marg)
+                    assign "record" $ Value (Record [t]) $ C.Initialiser [elem]
+
+                _ -> error (show baseT)
 
         _ -> error "thar"
 
@@ -342,11 +355,12 @@ cTypeOf a = case typeof a of
         getTypedef (Symbol.sym symbol) =<< cTypeOf (applyTypeFunction (zip argSymbols argTypes) typ)
     Type.Tuple t -> do
         baseT <- baseTypeOf t
-        ts <- case baseT of
-            Record ts -> return ts
-            t         -> return [t]
-        cts <- mapM cTypeOf ts
-        getTypedef "tuple" $ Cstruct $ zipWith (\a b -> C.Param ("m" ++ show a) b) [0..] cts
+        case baseT of
+            Record ts -> do
+                cts <- mapM cTypeOf ts
+                getTypedef "tuple" $ Cstruct $ zipWith (\a b -> C.Param ("m" ++ show a) b) [0..] cts
+            t -> cTypeOf t
+
     Type.Table t -> do
         base <- baseTypeOf t
         ts <- case base of

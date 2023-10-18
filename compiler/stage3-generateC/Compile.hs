@@ -167,19 +167,22 @@ generatePrint app val = case typeof val of
     Type.I32 ->    void $ appendPrintf ("%d" ++ app) [valExpr val]
     Type.F64 ->    void $ appendPrintf ("%f" ++ app) [valExpr val]
     Type.F32 ->    void $ appendPrintf ("%f" ++ app) [valExpr val]
-    Type.String -> void $ appendPrintf ("%s" ++ app) [valExpr val]
+    Type.String -> void $ appendPrintf ("\"%s\"" ++ app) [valExpr val]
     Type.Char ->   void $ appendPrintf ("%c" ++ app) [valExpr val]
 
     Type.Bool -> void $ appendPrintf ("%s" ++ app) $
         [C.CndExpr (valExpr val) (C.String "true") (C.String "false")]
 
     Type.Tuple t -> do
-        Record ts <- baseTypeOf t
-        call "putchar" [Value Type.Char $ C.Char '(']
-        forM_ (zip ts [0..]) $ \(t, i) -> do
-            let end = i == length ts - 1
-            generatePrint (if end then "" else ", ") =<< member i val
-        void $ appendPrintf (")" ++ app) []
+        baseT <- baseTypeOf t
+        case baseT of
+            Record ts -> do
+                call "putchar" [Value Type.Char $ C.Char '(']
+                forM_ (zip ts [0..]) $ \(t, i) -> do
+                    let end = i == length ts - 1
+                    generatePrint (if end then "" else ", ") =<< member i val
+                void $ appendPrintf (")" ++ app) []
+            _ -> generatePrint app $ Value t (valExpr val)
 
     Type.TypeApply s t -> do
         base <- baseTypeOf val
@@ -737,6 +740,34 @@ generateInfix op a b = do
             S.Plus -> return $ Value (typeof a) (C.Call "doodad_string_plus" [valExpr a, valExpr b])
             S.EqEq -> return $ Value Type.Bool  (C.Call "doodad_string_eqeq" [valExpr a, valExpr b])
             _ -> error (show op)
+
+        Type.Record ts -> case op of
+            S.EqEq -> do
+                end <- fresh "end" 
+                eq <- assign "eq" false
+                forM_ (zip ts [0..]) $ \(t, i) -> do
+                    da <- return $ Value t $ C.Deref (C.Member (valExpr a) ("m" ++ show i))
+                    db <- return $ Value t $ C.Deref (C.Member (valExpr b) ("m" ++ show i))
+                    b <- generateInfix S.EqEq da db
+                    if_ (not_ b) $ appendElem $ C.Goto end
+                set eq true
+                appendElem $ C.Label end
+                return eq
+
+        Type.Tuple (Record ts) -> case op of
+            S.EqEq -> do
+                end <- fresh "end" 
+                eq <- assign "eq" false
+                forM_ (zip ts [0..]) $ \(t, i) -> do
+                    ma <- return $ Value t (C.Member (valExpr a) ("m" ++ show i))
+                    mb <- return $ Value t (C.Member (valExpr b) ("m" ++ show i))
+                    b <- generateInfix S.EqEq ma mb
+                    if_ (not_ b) $ appendElem $ C.Goto end
+                set eq true
+                appendElem $ C.Label end
+                return eq
+            
+
 
 --        Type.Tuple ts -> case op of
 --            S.NotEq -> not_ <$> generateInfix S.EqEq a b

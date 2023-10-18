@@ -340,6 +340,7 @@ anno_t   : ordinal_t                        { S.AnnoType $1 }
          | tuple_t                          { S.AnnoType $1 }
          | table_t                          { S.AnnoType $1 }
          | '(' ')' '{' paramsA1 '}'         { S.AnnoTuple $4 }
+         | '(' paramsA1 ')'                 { S.AnnoTuple $2 }
 
 
 adtFields1 : adtField                       { [$1] }

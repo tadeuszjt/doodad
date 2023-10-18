@@ -3,7 +3,7 @@ module main
 
 type Person {string, i32}
 
-type[T] Vec2 (){x:T, y:T}
+type[T] Vec2 (x:T, y:T)
 
 fn[T] {v:Vec2(T)} times2()
     let (x, y) = v
@@ -23,16 +23,18 @@ fn[T] {t:[]T} pop()
     ${ $t->len--; }
 
 
-type[K, V] Map (){keys:[]K, values:[]V}
+type[K, V] Map (keys:[]K, values:[]V)
 
 
 fn[K, V] {m:Map(K, V)} insert(key:()K, value:()V)
     m.keys.push(key)
     return
 
-fn[K, V] {m:Map(K, V)} find(key:K)
-    for m.keys
-        print("keys")
+fn[K, V] {m:Map(K, V)} find(key:()K)
+    for m.keys -> k
+        print(k)
+        if k == key[]
+            print("found")
     return
 
 
@@ -59,7 +61,19 @@ fn main()
     print(t, t2, v, tab.length(), tab[0])
 
     data map Map(string, bool)
+    data map2 Map({string, bool}, i64)
+    data map3 Map((string, bool), i64)
+
+    map.insert("benis", true)
+    map.insert("bongis", false)
+
+    map2.insert( ("benis", true), 1 )
+    map3.insert( ("benis", false), 4 )
 
     map.find("benis")
+    map2.find( ("benis", true) )
+    map3.find( ("benis", false) )
+
+    map3.find( t2 )
 
 
