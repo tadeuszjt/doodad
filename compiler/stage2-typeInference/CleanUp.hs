@@ -18,12 +18,14 @@ import ASTResolved
 import Apply
 import FunctionFinder
 import ASTMapper
+import TupleDeleter
 
 
 -- Resolves function calls
 -- Creates generic instantiations
 -- Resolves tuple/table field symbols
 -- Turns ctor function call into Contructors
+-- Removed spurious tuple types
 compile :: BoM ASTResolved m => m ()
 compile = do
     funcDefs <- gets funcDefs
@@ -32,6 +34,9 @@ compile = do
             stmt' <- (mapStmt cleanUpMapper) (funcStmt body)
             body' <- return body { funcStmt = stmt' }
             modify $ \s -> s { funcDefs = Map.insert symbol body' (ASTResolved.funcDefs s) }
+
+    deleteSingleTuples
+
 
 
 genSymbol :: BoM ASTResolved m => String -> m Symbol

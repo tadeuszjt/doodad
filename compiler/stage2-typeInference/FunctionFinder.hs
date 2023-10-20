@@ -81,7 +81,6 @@ funcHeaderFullyResolved header =
             Table t -> typeFullyResolved t
             Tuple t -> typeFullyResolved t
             Record ts -> all (== True) (map typeFullyResolved ts)
---            Table ts -> all (== True) (map typeFullyResolved ts)
             _ -> error $ "typeFullyResolved: " ++ show typ
 
 
@@ -117,13 +116,9 @@ unifyOne :: BoM s m => [Symbol] -> Constraint -> m [(Type, Type)]
 unifyOne typeVars constraint = case constraint of
     ConsEq t1 t2 -> case (t1, t2) of
         _ | t1 == t2                            -> return []
-        --(TypeApply _ _, TypeApply _ _) -> error (show constraint)
         (TypeApply s [], _) | s `elem` typeVars -> return [(t1, t2)]
---        (_, TypeApply s []) | s `elem` typeVars -> return [(t2, t1)]
         (Type _, _)                             -> return [(t1, t2)]
         (_, Type _)                             -> return [(t2, t1)]
---        (Tuple ts1, Tuple ts2) | length ts1 == length ts2 -> fmap concat $
---            zipWithM (\x y -> unifyOne typeVars $ ConsEq x y) ts1 ts2
         _ -> error $ show (t1, t2)
 
 
@@ -154,13 +149,6 @@ getConstraintsFromFuncHeaders headerToReplace header = do
 
 getConstraintsFromTypes :: MonadFail m => [Symbol] -> Type -> Type -> m [Constraint]
 getConstraintsFromTypes typeArgs typeToReplace typ = case (typeToReplace, typ) of
---    (TypeApply s _, _) | s `elem` typeArgs -> error "don't know"
---    (TypeApply s _, Type _) -> return []
---
---    (TypeApply s1 t1, TypeApply s2 t2) -> do
---        assert (s1 == s2) "types should match"
---        getConstraintsFromTypes typeArgs t1 t2
-
     (TypeApply s1 ts1, TypeApply s2 ts2)
         | s1 `elem` typeArgs -> do 
             assert (not $ s2 `elem` typeArgs) "don't know"
@@ -186,11 +174,6 @@ getConstraintsFromTypes typeArgs typeToReplace typ = case (typeToReplace, typ) o
 
     (a, b) | isSimple a && isSimple b -> return []
 
-    (Tuple _, I64) -> fail "invalid types"
-
---    (Table ts1, Table ts2) -> do
---        assert (length ts1 == length ts2) "types should be applied to same number of args"
---        fmap concat $ zipWithM (getConstraintsFromTypes typeArgs) ts1 ts2
---    (Void, _) -> return [(ConsEq typeToReplace typ)]
+    (Tuple _, t) | isSimple t -> fail "invalid types"
 
     _ -> error $ show (typeToReplace, typ)

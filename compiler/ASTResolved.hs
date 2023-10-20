@@ -9,18 +9,17 @@ import AST
 import Symbol
 import Type
 
-
 data ASTResolved
     = ASTResolved
         { moduleName      :: String
-        , includes        :: Set.Set String                -- c header includes
-        , links           :: Set.Set String                -- linked libraries
-        , constDefs       :: Map.Map Symbol Expr           -- defined consts
+        , includes        :: Set.Set String                  -- c header includes
+        , links           :: Set.Set String                  -- linked libraries
+        , constDefs       :: Map.Map Symbol Expr             -- defined consts
         , typeFuncs       :: Map.Map Symbol ([Symbol], Type) -- defined type functions
-        , ctorDefs        :: Map.Map Symbol (Symbol, Int)  -- defined ctors
-        , funcImports     :: Map.Map Symbol FuncBody       -- imported funcs
-        , funcDefs        :: Map.Map Symbol FuncBody       -- defined functions
-        , symSupply       :: Map.Map String Int            -- type supply from resovle
+        , ctorDefs        :: Map.Map Symbol (Symbol, Int)    -- defined ctors
+        , funcImports     :: Map.Map Symbol FuncBody         -- imported funcs
+        , funcDefs        :: Map.Map Symbol FuncBody         -- defined functions
+        , symSupply       :: Map.Map String Int              -- type supply from resovle
         }
     deriving (Eq)
 
@@ -73,6 +72,12 @@ isGenericFunction symbol ast = if Map.member symbol (funcDefs ast) then
     else if Map.member symbol (funcImports ast) then
         isGenericBody (funcImports ast Map.! symbol)
     else False
+
+
+getTypeFunction :: Symbol -> ASTResolved -> ([Symbol], Type)
+getTypeFunction symbol ast = if Map.member symbol (typeFuncs ast) then
+        typeFuncs ast Map.! symbol
+    else error "symbol is not a type"
 
 
 getFunctionTypeArgs :: Symbol -> ASTResolved -> [Symbol]

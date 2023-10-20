@@ -1,0 +1,30 @@
+module main2
+
+type Person {string, i32}
+
+fn[T] {t:[]T} length() i64
+    ${ return $t->len; }
+
+fn[T] {t:[]T} push(elem:()T)
+    t++
+    t[t.length() - 1] = elem[]
+
+type[K, V] Map (keys:[]K, values:[]V)
+
+fn[K, V] {m:Map(K, V)} insert(key:()K, value:()V)
+    m.keys.push(key)
+    return
+
+fn main()
+    let t = ("benis", 12):()Person
+
+    data tab []Person
+    tab.push(t)
+
+    data map Map(string, bool)
+
+    map.insert("benis", true)
+
+
+
+

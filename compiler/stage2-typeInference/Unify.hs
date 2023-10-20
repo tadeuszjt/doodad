@@ -35,18 +35,6 @@ baseTypeOf typ = case typ of
 
 
 
--- Takes a tuple and removes any spurious single-tuples.
--- ()i64 -> i64
--- ()()i64 -> i64
--- (){i64} -> (){i64}
-flattenTuple :: BoM UnifyState m => Type -> m Type
-flattenTuple (Tuple typ) = case typ of
-    Tuple _ -> flattenTuple typ
-    Record _ -> return $ Tuple typ
-    _ -> error (show typ)
-
-
-
 unifyOne :: BoM UnifyState m => TextPos -> Constraint -> m [(Type, Type)]
 unifyOne pos constraint = withPos pos $ case constraint of
     ConsTuple tupType ts -> do
@@ -57,7 +45,6 @@ unifyOne pos constraint = withPos pos $ case constraint of
                 baseT <- baseTypeOf t
                 case baseT of
                     Just (Record _) -> unifyOne pos $ ConsBase t (Record ts)
-                    Just (Tuple _)  -> unifyOne pos $ ConsTuple t ts
                     _ -> error (show baseT)
 
     ConsEq t1 t2 -> case (t1, t2) of
@@ -67,15 +54,8 @@ unifyOne pos constraint = withPos pos $ case constraint of
         (Record ts1, Record ts2) -> do
             assert (length ts1 == length ts2) "record length mismatch"
             unify $ zipWith (\a b -> (ConsEq a b, pos)) ts1 ts2
-        (Table t1, Table t2)     -> unifyOne pos $ ConsEq t1 t2
-
-        (Tuple _, Tuple _) -> do
-            tup1 <- flattenTuple t1
-            tup2 <- flattenTuple t2
-            unifyOne pos $ ConsEq tup1 tup2
-
-
-        (Tuple t1, t2) | isSimple t1 -> unifyOne pos $ ConsEq t1 t2
+        (Table t1, Table t2)      -> unifyOne pos $ ConsEq t1 t2
+        (Tuple t1, Tuple t2)      -> unifyOne pos $ ConsEq t1 t2
 
         _ -> fail $ "cannot unify " ++ show t1 ++ " with " ++ show t2
 

@@ -117,6 +117,7 @@ applyTypeFunction args typ = case typ of
 -- t1 - t1
 -- [T] T - anything
 -- [T] T[something] - anything[something]
+--
 typesCouldMatch :: [Symbol] -> Type -> Type -> Bool
 typesCouldMatch typeVars a b = case (a, b) of
     (Type _, _)                                    -> True

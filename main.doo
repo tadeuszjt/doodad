@@ -9,32 +9,27 @@ fn[T] {v:Vec2(T)} times2()
     let (x, y) = v
     v = (x * 2, y * 2)
 
-
 fn[T] {t:[]T} length() i64
     ${ return $t->len; }
-
 
 fn[T] {t:[]T} push(elem:()T)
     t++
     t[t.length() - 1] = elem[]
 
-
 fn[T] {t:[]T} pop()
     ${ $t->len--; }
 
-
 type[K, V] Map (keys:[]K, values:[]V)
 
-
 fn[K, V] {m:Map(K, V)} insert(key:()K, value:()V)
-    m.keys.push(key)
+    //m.keys.push(key)
     return
 
 fn[K, V] {m:Map(K, V)} find(key:()K)
     for m.keys -> k
         print(k)
-        if k == key[]
-            print("found")
+//        if k == key[]
+//            print("found")
     return
 
 
@@ -75,5 +70,8 @@ fn main()
     map3.find( ("benis", false) )
 
     map3.find( t2 )
+
+    let x = 4:()i64
+    print(x)
 
 

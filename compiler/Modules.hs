@@ -36,6 +36,7 @@ import CGenerate as C
 import Lexer
 import Compile as C
 import COptimise as O
+import TupleDeleter
 
 -- Modules are groups of .doo files with a module name header
 -- lang/lexer.doo: lexer module
@@ -162,9 +163,13 @@ buildModule args modPath = do
             resm <- Map.lookup importPath <$> gets moduleMap
             assert (isJust resm) $ show importPath ++ " not in module map"
             return $ fromJust resm
-        astResolved <- fmap fst $ R.resolveAsts asts astImports
+        astResolved' <- fmap fst $ R.resolveAsts asts astImports
         --Flatten.checkTypeDefs (typeDefs astResolved)
-        when (printAstResolved args) $ liftIO $ prettyASTResolved astResolved
+        when (printAstResolved args) $ liftIO $ prettyASTResolved astResolved'
+
+
+        -- remove spurious tuples
+        astResolved <- fmap snd $ runBoMTExcept astResolved' deleteSingleTuples
 
         -- infer ast types
         (astFinal, inferCount) <- withErrorPrefix "infer: " $
