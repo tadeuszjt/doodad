@@ -104,45 +104,54 @@ applyTypeFunction argSymbols argTypes typ = case length argSymbols == length arg
 
 
 
--- Types could match:
---
--- t0 - anything 
--- t1 - t1
--- [T] T - anything
--- [T] T[something] - anything[something]
---
-typesCouldMatch :: [Symbol] -> Type -> Type -> Bool
-typesCouldMatch typeVars a b = case (a, b) of
-    (Type _, _)                                    -> True
-    (_, Type _)                                    -> True
+typesCouldMatch :: Map.Map Symbol ([Symbol], Type) -> [Symbol] -> Type -> Type -> Bool
+typesCouldMatch typedefs generics t1 t2 = case (flattenTuple t1, flattenTuple t2) of
+    (a, b) | a == b                   -> True
+    (Type _, _)                       -> True
+    (_, Type _)                       -> True
+    (Tuple a, Tuple b)                -> typesCouldMatch typedefs generics a b
+    (Table a, Table b)                -> typesCouldMatch typedefs generics a b
+    (Record as, Record bs)            ->
+        length as == length bs &&
+        all (== True) (zipWith (typesCouldMatch typedefs generics) as bs)
 
+    -- type variables
     (TypeApply s1 ts1, TypeApply s2 ts2)
-        | length ts1 == length ts2 && (s1 `elem` typeVars || s2 `elem` typeVars || symbolsCouldMatch s1 s2) -> 
-            all (== True) $ zipWith (typesCouldMatch typeVars) ts1 ts2
-        | otherwise -> False
+        | s1 `elem` generics && s2 `elem` generics ->
+            length ts1 == length ts2 &&
+            all (== True) (zipWith (typesCouldMatch typedefs generics) ts1 ts2)
+    (x, TypeApply s ts) | s `elem` generics -> True
+    (TypeApply s ts, x) | s `elem` generics -> True
 
-    (TypeApply s1 [], _)
-        | s1 `elem` typeVars -> True
-        | otherwise          -> False
-    (_, TypeApply s1 [])
-        | s1 `elem` typeVars -> True
-        | otherwise          -> False
+    -- type defs
+    (TypeApply s1 ts1, TypeApply s2 ts2) | s1 == s2 ->
+        length ts1 == length ts2 &&
+        all (== True) (zipWith (typesCouldMatch typedefs generics) ts1 ts2)
 
-    (Record ts1, Record ts2) ->
-        length ts1 == length ts2 && (all (== True) $ zipWith (typesCouldMatch typeVars) ts1 ts2)
+    _ -> False
 
-    (Table t1, Table t2)                           -> typesCouldMatch typeVars t1 t2
-    (Tuple t1, Tuple t2)                           -> typesCouldMatch typeVars t1 t2
-
-    (Record _, Tuple _) -> False
-
-
-    (Void, Void)                                   -> True
-    _ | isSimple a                                 -> a == b
-    _                                              -> error (show (a, b))
     where
-        fieldsCouldMatch :: AdtField -> AdtField -> Bool
-        fieldsCouldMatch fa fb = case (fa, fb) of
-            (FieldNull, FieldNull) -> True
-            (FieldType a, FieldType b) -> typesCouldMatch typeVars a b
-            _ -> error $ show (fa, fb)
+        definitelyIgnoresTuples :: Type -> Bool
+        definitelyIgnoresTuples typ = case typ of
+            t | isSimple t -> True
+            Tuple t        -> True
+            Table t        -> True
+            Record ts      -> False
+            TypeApply s ts | s `elem` generics      -> False
+            TypeApply s ts | Map.member s typedefs ->
+                let (ss, t) = typedefs Map.! s in
+                definitelyIgnoresTuples (applyTypeFunction ss ts t)
+            _ -> error (show typ)
+
+
+        flattenTuple :: Type -> Type
+        flattenTuple typ = case typ of
+            t | isSimple t                      -> typ
+            Table t                             -> Table (flattenTuple t)
+            Void                                -> typ
+            Type _                              -> typ
+            TypeApply s ts                      -> TypeApply s (map flattenTuple ts)
+            Record ts                           -> Record (map flattenTuple ts)
+            Tuple t | definitelyIgnoresTuples t -> flattenTuple t
+            Tuple t | otherwise                 -> Tuple (flattenTuple t)
+            _ -> error (show typ)

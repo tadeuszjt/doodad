@@ -49,15 +49,17 @@ data CollectState
         , defaults   :: Map.Map Constraint TextPos
         , curPos     :: TextPos
         , typeSupply :: Int
+        , astResolved :: ASTResolved
         }
 
-initCollectState annotateCount = CollectState
+initCollectState annotateCount astResolved = CollectState
     { symTab     = SymTab.initSymTab
     , curRetty   = Void
     , collected  = Map.empty
     , defaults   = Map.empty
     , curPos     = TextPos "" 0 0
     , typeSupply = annotateCount
+    , astResolved = astResolved 
     }
 
 
@@ -330,7 +332,8 @@ collectCall exprType params symbol args = do -- can be resolved or sym
 
         _ -> return Nothing
 
-    let keys = filter keyCouldMatch keysWithReplacedGenerics
+    ast <- gets astResolved
+    let keys = filter (keyCouldMatch ast) keysWithReplacedGenerics
     --assert (keys /= []) $ "no keys for: " ++ show symbol
 
     collectIfOneDef keys
@@ -351,9 +354,9 @@ collectCall exprType params symbol args = do -- can be resolved or sym
                 Map.keys . Map.unions . Map.elems . Map.filterWithKey isMatch . last <$> gets symTab
 
 
-        keyCouldMatch :: SymKey -> Bool
-        keyCouldMatch key@(KeyFunc header) = funcHeadersCouldMatchOld header callHeader
-        keyCouldMatch _ = False
+        keyCouldMatch :: ASTResolved -> SymKey -> Bool
+        keyCouldMatch ast key@(KeyFunc header) = funcHeadersCouldMatch ast header callHeader
+        keyCouldMatch _ _ = False
 
 
         collectIfOneDef :: BoM CollectState m => [SymKey] -> m ()

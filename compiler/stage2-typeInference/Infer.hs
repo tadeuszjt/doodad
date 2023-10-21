@@ -37,7 +37,7 @@ infer ast printAnnotated verbose = do
                 liftIO $ putStrLn "annotated AST:"
                 liftIO $ prettyASTResolved annotated
             collectState <- fmap snd $ withErrorPrefix "collect: " $
-                runBoMTExcept (initCollectState typeSupplyCount) (collectAST annotated)
+                runBoMTExcept (initCollectState typeSupplyCount annotated) (collectAST annotated)
 
             -- turn type constraints into substitutions using unify
             subs <- fmap fst $ runBoMTExcept (typeFuncs ast) (unify $ Map.toList $ collected collectState)
@@ -52,7 +52,7 @@ infer ast printAnnotated verbose = do
             (annotated, typeSupplyCount) <- withErrorPrefix "annotate: " $
                 runBoMTExcept 0 $ annotate ast
             collectState <- fmap snd $ withErrorPrefix "collect: " $
-                runBoMTExcept (initCollectState typeSupplyCount) (collectAST annotated)
+                runBoMTExcept (initCollectState typeSupplyCount annotated) (collectAST annotated)
 
             -- apply substitutions to ast
             subs <- fmap fst $ runBoMTExcept (typeFuncs ast) (unifyDefault $ Map.toList $ defaults collectState)
