@@ -84,7 +84,7 @@ executable doodad
         TupleDeleter
 
 executable doodad-test
-    main-is: TestTypeMatcher.hs
+    main-is: TestMain.hs
     hs-source-dirs:
         compiler,
         compiler/test,
@@ -137,4 +137,7 @@ executable doodad-test
         Constraint,
         FunctionFinder,
         ASTMapper,
-        TupleDeleter
+        TupleDeleter,
+        TestTypeMatcher
+        TestTypeConstraints
+        TypeConstraints

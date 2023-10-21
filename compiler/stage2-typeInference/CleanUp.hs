@@ -38,7 +38,6 @@ compile = do
     deleteSingleTuples
 
 
-
 genSymbol :: BoM ASTResolved m => String -> m Symbol
 genSymbol sym = do  
     modName <- gets moduleName
@@ -62,31 +61,27 @@ cleanUpMapper elem = case elem of
     ElemExpr (AExpr exprType expr@(AST.Call pos params symbol exprs)) -> do
         symbol' <- resolveFuncCall exprType expr
         isCtor <- Map.member symbol' <$> gets ctorDefs
-        if isCtor then do
-            assert (params == []) "constructor cannot have params"
-            return $ Just $ ElemExpr $ AExpr exprType (Construct pos symbol' exprs)
-        else do
-            return $ Just $ ElemExpr $ AExpr exprType (Call pos params symbol' exprs)
+        fmap (Just . ElemExpr . AExpr exprType) $ case isCtor of
+            False -> return (Call pos params symbol' exprs)
+            True -> do
+                assert (params == []) "constructor cannot have params"
+                return (Construct pos symbol' exprs)
 
-    ElemExpr    _ -> return (Just elem)
-    ElemPattern _ -> return (Just elem)
-    ElemType    _ -> return (Just elem)
-    ElemStmt    _ -> return (Just elem)
+    _ -> return (Just elem)
 
     
 -- add extern if needed
 resolveFuncCall :: BoM ASTResolved m => Type -> AST.Expr -> m Symbol
 resolveFuncCall exprType (AST.Call pos params symbol args) = withPos pos $ do
-    return symbol 
     let callHeader = FuncHeader [] (map typeof params) symbol (map typeof args) exprType
-    ast <- get
 
     symbols <- case symbol of
         SymResolved _ _ _ -> return [symbol] -- already resolved
-        _                 -> findCandidates callHeader ast
+        _                 -> findCandidates callHeader
 
-    exacts <- findExactFunction callHeader ast
+    exacts <- findExactFunction callHeader
 
+    ast <- get
     if exacts /= [] then do
         assert (length exacts == 1) "cannot have multiple exact matches"
         return $ head exacts
@@ -104,7 +99,7 @@ resolveFuncCall exprType (AST.Call pos params symbol args) = withPos pos $ do
                     headerReplaced <- replaceGenericsInFuncHeaderWithCall header callHeader
 
                     if isJust headerReplaced && funcHeaderFullyResolved (fromJust headerReplaced) then do
-                        exacts <- findExactFunction ((fromJust headerReplaced) { symbol = Symbol.Sym sym }) ast 
+                        exacts <- findExactFunction ((fromJust headerReplaced) { symbol = Symbol.Sym sym })
                         case exacts of 
                             [] -> do -- define specific type case
                                 symbol'' <- genSymbol sym

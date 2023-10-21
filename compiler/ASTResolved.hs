@@ -9,6 +9,8 @@ import AST
 import Symbol
 import Type
 
+type TypeFuncs = Map.Map Symbol ([Symbol], Type)
+
 data ASTResolved
     = ASTResolved
         { moduleName      :: String

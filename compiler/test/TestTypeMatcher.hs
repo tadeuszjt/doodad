@@ -1,4 +1,4 @@
-module Main where
+module TestTypeMatcher where
 
 import qualified Data.Map as Map
 
@@ -131,11 +131,11 @@ test5 = do
     assert(typesCouldMatch typeFuncs typeVars (Tuple $ TypeApply tSymbol []) (TypeApply tSymbol [])) "()T == T"
 
 
-main :: IO ()
-main = do
+testTypeMatcher :: IO ()
+testTypeMatcher = do
     test1
     test2
     test3
     test4
     test5
-    putStrLn "success"
+    putStrLn "testTypeMatcher success"

@@ -137,6 +137,7 @@ definitelyIgnoresTuples typedefs typ = case typ of
     Tuple t        -> True
     Table t        -> True
     Record ts      -> False
+    Type _         -> False
     TypeApply s ts | Map.member s typedefs ->
         let (ss, t) = typedefs Map.! s in
         definitelyIgnoresTuples typedefs (applyTypeFunction ss ts t)

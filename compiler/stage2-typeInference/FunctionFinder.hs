@@ -19,25 +19,26 @@ import Error
 import Constraint
 import Monad
 
-findCandidates :: (MonadIO m, MonadFail m) => FuncHeader -> ASTResolved -> m [Symbol]
-findCandidates callHeader ast = do
-    funcSymbols <- findFunctionCandidates callHeader ast
-    typeSymbols <- findTypeCandidates callHeader ast
-    ctorSymbols <- findCtorCandidates callHeader ast
-    let candidates = Set.toList $ Set.fromList $ concat $ [funcSymbols, typeSymbols, ctorSymbols]
-    return candidates
+findCandidates :: BoM ASTResolved m => FuncHeader -> m [Symbol]
+findCandidates callHeader = do
+    funcSymbols <- findFunctionCandidates callHeader
+    typeSymbols <- findTypeCandidates callHeader
+    ctorSymbols <- findCtorCandidates callHeader
+    return $ Set.toList $ Set.fromList $ concat $ [funcSymbols, typeSymbols, ctorSymbols]
 
 
-findFunctionCandidates :: MonadFail m => FuncHeader -> ASTResolved -> m [Symbol]
-findFunctionCandidates callHeader ast = do
+findFunctionCandidates :: BoM ASTResolved m => FuncHeader -> m [Symbol]
+findFunctionCandidates callHeader = do
+    ast <- get
     fmap catMaybes $ forM (Map.toList $ Map.union (funcDefs ast) (funcImports ast)) $ \(symbol, body) -> do
         case funcHeadersCouldMatch ast (funcHeaderFromBody symbol body) callHeader of
             True -> return $ Just $ symbol
             False -> return Nothing
 
 -- does not allow generic functions
-findExactFunction :: Monad m => FuncHeader -> ASTResolved -> m [Symbol]
-findExactFunction callHeader ast = do
+findExactFunction :: BoM ASTResolved m => FuncHeader -> m [Symbol]
+findExactFunction callHeader = do
+    ast <- get
     fmap catMaybes $ forM (Map.toList $ Map.union (funcDefs ast) (funcImports ast)) $ \(symbol, body) -> case funcTypeArgs body of
         [] -> case funcHeadersCouldMatch ast (funcHeaderFromBody symbol body) callHeader of
             True -> return $ Just $ symbol
@@ -45,15 +46,17 @@ findExactFunction callHeader ast = do
         _ -> return Nothing
 
 
-findTypeCandidates :: MonadFail m => FuncHeader -> ASTResolved -> m [Symbol]
-findTypeCandidates callHeader ast = do
-    let res     = Map.filterWithKey (\k v -> symbolsCouldMatch k $ symbol callHeader) (typeFuncs ast)
+findTypeCandidates :: BoM ASTResolved m => FuncHeader -> m [Symbol]
+findTypeCandidates callHeader = do
+    typeFuncs <- gets typeFuncs
+    let res     = Map.filterWithKey (\k v -> symbolsCouldMatch k $ symbol callHeader) typeFuncs
     return $ Map.keys res
 
 
-findCtorCandidates :: MonadFail m => FuncHeader -> ASTResolved -> m [Symbol]
-findCtorCandidates callHeader ast = do
-    let res = Map.filterWithKey (\k v -> symbolsCouldMatch k $ symbol callHeader) (ctorDefs ast)
+findCtorCandidates :: BoM ASTResolved m => FuncHeader -> m [Symbol]
+findCtorCandidates callHeader = do
+    ctorDefs <- gets ctorDefs
+    let res = Map.filterWithKey (\k v -> symbolsCouldMatch k $ symbol callHeader) ctorDefs
     return $ Map.keys res
 
 
