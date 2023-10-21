@@ -8,6 +8,7 @@ import qualified Data.Set as Set
 import AST
 import Symbol
 import Type
+import TypeMatcher
 
 data ASTResolved
     = ASTResolved
@@ -115,8 +116,8 @@ funcHeaderFromBody symbol body =
         }
 
 
-funcHeadersCouldMatch :: FuncHeader -> FuncHeader -> Bool
-funcHeadersCouldMatch a b
+funcHeadersCouldMatchOld :: FuncHeader -> FuncHeader -> Bool
+funcHeadersCouldMatchOld a b
     | length (paramTypes a) /= length (paramTypes b) || length (argTypes a) /= length (argTypes b)             = False
     | not $ symbolsCouldMatch (symbol a) (symbol b)                                                            = False
     | not $ all (== True) $ zipWith (typesCouldMatch $ typeArgs a ++ typeArgs b) (paramTypes a) (paramTypes b) = False
@@ -124,6 +125,17 @@ funcHeadersCouldMatch a b
     | not $ typesCouldMatch (typeArgs a ++ typeArgs b) (returnType a) (returnType b)                           = False
     | otherwise = True
 
+
+funcHeadersCouldMatch :: ASTResolved -> FuncHeader -> FuncHeader -> Bool
+funcHeadersCouldMatch ast a b
+    | length (paramTypes a) /= length (paramTypes b) || length (argTypes a) /= length (argTypes b)             = False
+    | not $ symbolsCouldMatch (symbol a) (symbol b)                                                            = False
+    | not $ all (== True) $ zipWith (typesCouldMatch2 (typeFuncs ast) generics) (paramTypes a) (paramTypes b) = False
+    | not $ all (== True) $ zipWith (typesCouldMatch2 (typeFuncs ast) generics) (paramTypes a) (paramTypes b) = False
+    | not $ typesCouldMatch2 (typeFuncs ast) generics (returnType a) (returnType b)                           = False
+    | otherwise = True
+    where
+        generics = typeArgs a ++ typeArgs b
 
 
 prettyFuncBody :: Symbol -> FuncBody -> IO ()

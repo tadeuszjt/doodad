@@ -29,7 +29,7 @@ findCandidates callHeader ast = do
 findFunctionCandidates :: MonadFail m => FuncHeader -> ASTResolved -> m [Symbol]
 findFunctionCandidates callHeader ast = do
     fmap catMaybes $ forM (Map.toList $ Map.union (funcDefs ast) (funcImports ast)) $ \(symbol, body) -> do
-        case funcHeadersCouldMatch (funcHeaderFromBody symbol body) callHeader of
+        case funcHeadersCouldMatch ast (funcHeaderFromBody symbol body) callHeader of
             True -> return $ Just $ symbol
             False -> return Nothing
 
@@ -37,7 +37,7 @@ findFunctionCandidates callHeader ast = do
 findExactFunction :: Monad m => FuncHeader -> ASTResolved -> m [Symbol]
 findExactFunction callHeader ast = do
     fmap catMaybes $ forM (Map.toList $ Map.union (funcDefs ast) (funcImports ast)) $ \(symbol, body) -> case funcTypeArgs body of
-        [] -> case funcHeadersCouldMatch (funcHeaderFromBody symbol body) callHeader of
+        [] -> case funcHeadersCouldMatch ast (funcHeaderFromBody symbol body) callHeader of
             True -> return $ Just $ symbol
             False -> return Nothing
         _ -> return Nothing
@@ -89,7 +89,7 @@ funcHeaderFullyResolved header =
 replaceGenericsInFuncHeaderWithCall :: BoM s m => FuncHeader -> FuncHeader -> m (Maybe FuncHeader) 
 replaceGenericsInFuncHeaderWithCall header callHeader = do
     assert (typeArgs callHeader == []) "Call header cannot have type args"
-    assert (funcHeadersCouldMatch header callHeader) "headers cannot match"
+    --assert (funcHeadersCouldMatch header callHeader) "headers cannot match"
     resm <- catchError (fmap Just $ getConstraintsFromFuncHeaders header callHeader) (\_ -> return Nothing) 
     case resm of
         Nothing -> return Nothing
@@ -105,7 +105,7 @@ replaceGenericsInFuncBodyWithCall :: BoM s m => FuncBody -> FuncHeader -> m Func
 replaceGenericsInFuncBodyWithCall body callHeader = do
     let header = funcHeaderFromBody (symbol callHeader) body
     assert (typeArgs callHeader == []) "Call header cannot have type args"
-    assert (funcHeadersCouldMatch callHeader header) "headers must be matchable"
+    --assert (funcHeadersCouldMatch callHeader header) "headers must be matchable"
     constraints <- getConstraintsFromFuncHeaders header callHeader
     subs <- unify (typeArgs header) constraints
     body' <- applySubs subs body

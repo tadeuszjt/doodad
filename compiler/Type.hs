@@ -89,26 +89,19 @@ findGenerics typeArgs typ = case typ of
     _ -> error $ show typ
 
 
--- Replace the matching symbols with a the types specificed in the argument map.
--- [T -> i64]  T -> i64
--- [T -> M]    T[i64] -> M[i64]
-applyTypeFunction :: [(Symbol, Type)] -> Type -> Type
-applyTypeFunction args typ = case typ of
-    TypeApply s [] -> if isJust (lookup s args) then fromJust (lookup s args) else typ
---    TypeApply s t | isJust (lookup s args) -> case fromJust (lookup s args) of
---        TypeApply s2 (Record []) -> TypeApply s2 t
-    Record ts               -> Record $ map (applyTypeFunction args) ts
-    Tuple t                 -> Tuple $ applyTypeFunction args t
-    Table t                 -> Table $ applyTypeFunction args t
-    _ | isSimple typ        -> typ
-    _                       -> error $ "applyTypeFunction: " ++ show typ
-    where
---        applyTypeFunctionAdtField :: AdtField -> AdtField
---        applyTypeFunctionAdtField field = case field of
---            FieldType t  -> FieldType $ applyTypeFunction argMap t
---            FieldCtor ts -> FieldCtor $ map (applyTypeFunction argMap) ts
---            FieldNull    -> FieldNull
---            _ -> error $ show field
+applyTypeFunction :: [Symbol] -> [Type] -> Type -> Type
+applyTypeFunction argSymbols argTypes typ = case length argSymbols == length argTypes of
+    False -> error "invalid arguments to applyTypeFunction"
+    True -> let args = zip argSymbols argTypes in case typ of
+        TypeApply s [] -> if isJust (lookup s args) then fromJust (lookup s args) else typ
+    --    TypeApply s t | isJust (lookup s args) -> case fromJust (lookup s args) of
+    --        TypeApply s2 (Record []) -> TypeApply s2 t
+        Record ts               -> Record $ map (applyTypeFunction argSymbols argTypes) ts
+        Tuple t                 -> Tuple $ applyTypeFunction argSymbols argTypes t
+        Table t                 -> Table $ applyTypeFunction argSymbols argTypes t
+        _ | isSimple typ        -> typ
+        _                       -> error $ "applyTypeFunction: " ++ show typ
+
 
 
 -- Types could match:

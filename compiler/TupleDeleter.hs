@@ -20,7 +20,7 @@ mapper elem = case elem of
             Nothing -> return (Just elem) -- symbol isn't defined, must be generic
             Just (ss, typ) -> do
                 assert (length ts == length ss) "invalid number of type arguments"
-                let applied = applyTypeFunction (zip ss ts) typ
+                let applied = applyTypeFunction ss ts typ
                 case applied of
                     Record _ -> return (Just elem)
                     _ -> error (show applied)

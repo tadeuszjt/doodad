@@ -81,7 +81,8 @@ executable doodad
         Constraint,
         FunctionFinder,
         ASTMapper,
-        TupleDeleter
+        TupleDeleter,
+        TypeMatcher
 
 executable doodad-test
     main-is: TestTypeMatcher.hs

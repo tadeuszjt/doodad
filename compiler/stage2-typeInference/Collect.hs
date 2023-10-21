@@ -352,7 +352,7 @@ collectCall exprType params symbol args = do -- can be resolved or sym
 
 
         keyCouldMatch :: SymKey -> Bool
-        keyCouldMatch key@(KeyFunc header) = funcHeadersCouldMatch header callHeader
+        keyCouldMatch key@(KeyFunc header) = funcHeadersCouldMatchOld header callHeader
         keyCouldMatch _ = False
 
 

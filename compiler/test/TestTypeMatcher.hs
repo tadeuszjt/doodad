@@ -85,7 +85,7 @@ test3 = do
     assert(not $ typesCouldMatch2 typeFuncs typeVars (Tuple (Record [I64, String])) (Tuple type2)) "(type1, string) != ()type2"
 
 
--- test3
+-- test4
 -- typeDefs:
 --  type1[T] = T, type2 = {i64, string}
 --
@@ -94,8 +94,10 @@ test3 = do
 --  type1(i64) != type1(i32)
 --  type1(i64) != type1(i64, i64)
 --  ()type1(i64) == type1(i64)
+--  type1(type2) != ()type1(type2)
 test4 :: IO ()
 test4 = do
+    let aTuple      = Tuple (Record [I8, Bool])
     let tSymbol     = makeSymbol "T" 0
     let type1Symbol = makeSymbol "type1" 0
     let type2Symbol = makeSymbol "type2" 0
@@ -103,11 +105,31 @@ test4 = do
     let type2       = TypeApply type2Symbol []
     let typeFuncs   = Map.fromList [ (type1Symbol, ([tSymbol], TypeApply tSymbol [])), (type2Symbol, ([], Record [I64, String])) ]
     let typeVars    = []
-    assert(typesCouldMatch2 typeFuncs typeVars (type1 [I64]) (type1 [I64]))  "type1(i64) == type1(i64)"
-    assert(not $ typesCouldMatch2 typeFuncs typeVars (type1 [I64]) (type1 [I32]))  "type1(i64) != type1(i32)"
-    assert(not $ typesCouldMatch2 typeFuncs typeVars (type1 [I64]) (type1 [I64, I64]))  "type1(i64) != type1(i64, i64)"
-    --assert(typesCouldMatch2 typeFuncs typeVars (Tuple (type1 [I64])) (type1 [I64, I64]))  "()type1(i64) != type1(i64, i64)"
+    assert(typesCouldMatch2 typeFuncs typeVars (type1 [I64]) (type1 [I64]))                    "type1(i64) == type1(i64)"
+    assert(not $ typesCouldMatch2 typeFuncs typeVars (type1 [I64]) (type1 [I32]))              "type1(i64) != type1(i32)"
+    assert(not $ typesCouldMatch2 typeFuncs typeVars (type1 [I64]) (type1 [I64, I64]))         "type1(i64) != type1(i64, i64)"
+    assert(typesCouldMatch2 typeFuncs typeVars (Tuple (type1 [I64])) (type1 [I64]))            "()type1(i64) == type1(i64)"
+    assert(not $ typesCouldMatch2 typeFuncs typeVars (type1 [type2]) (Tuple (type1 [type2])))  "type1(type2) != ()type1(type2)"
 
+-- test5
+-- typeVars: T, G
+-- typeDefs:
+--
+-- test:
+--  i64 == T
+--  T == i8
+--  T == G
+--  ()T == T
+test5 :: IO ()
+test5 = do
+    let tSymbol = makeSymbol "T" 0
+    let gSymbol = makeSymbol "G" 0
+    let typeFuncs   = Map.fromList []
+    let typeVars    = [tSymbol, gSymbol]
+    assert(typesCouldMatch2 typeFuncs typeVars I64 (TypeApply tSymbol [])) "i64 == T"
+    assert(typesCouldMatch2 typeFuncs typeVars (TypeApply tSymbol []) I8) "T == i8"
+    assert(typesCouldMatch2 typeFuncs typeVars (TypeApply tSymbol []) (TypeApply gSymbol [])) "T == G"
+    assert(typesCouldMatch2 typeFuncs typeVars (Tuple $ TypeApply tSymbol []) (TypeApply tSymbol [])) "()T == T"
 
 
 main :: IO ()
@@ -116,4 +138,5 @@ main = do
     test2
     test3
     test4
+    test5
     putStrLn "success"
