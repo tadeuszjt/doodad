@@ -323,16 +323,16 @@ collectPattern pattern typ = collectPos pattern $ case pattern of
 
 collectCall :: BoM CollectState m => Type -> [S.Expr] -> Symbol -> [S.Expr] -> m ()
 collectCall exprType params symbol args = do -- can be resolved or sym
+    ast <- gets astResolved
     keysWithSameSymbol <- getKeysWithMatchingSymbol symbol
     keysWithReplacedGenerics <- fmap catMaybes $ forM keysWithSameSymbol $ \key -> case key of
         KeyFunc header | typeArgs header == [] -> return $ Just key
         KeyFunc header -> do
-            headerReplaced <- replaceGenericsInFuncHeaderWithCall header callHeader
+            headerReplaced <- fmap fst $ runBoMTExcept ast $ replaceGenericsInFuncHeaderWithCall header callHeader
             return $ fmap KeyFunc headerReplaced
 
         _ -> return Nothing
 
-    ast <- gets astResolved
     let keys = filter (keyCouldMatch ast) keysWithReplacedGenerics
     --assert (keys /= []) $ "no keys for: " ++ show symbol
 

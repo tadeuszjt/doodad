@@ -77,6 +77,7 @@ cleanUpMapper elem = case elem of
 -- add extern if needed
 resolveFuncCall :: BoM ASTResolved m => Type -> AST.Expr -> m Symbol
 resolveFuncCall exprType (AST.Call pos params symbol args) = withPos pos $ do
+    return symbol 
     let callHeader = FuncHeader [] (map typeof params) symbol (map typeof args) exprType
     ast <- get
 

@@ -105,7 +105,7 @@ applyTypeFunction argSymbols argTypes typ = case length argSymbols == length arg
 
 
 typesCouldMatch :: Map.Map Symbol ([Symbol], Type) -> [Symbol] -> Type -> Type -> Bool
-typesCouldMatch typedefs generics t1 t2 = case (flattenTuple t1, flattenTuple t2) of
+typesCouldMatch typedefs generics t1 t2 = case (flattenTuple typedefs t1, flattenTuple typedefs t2) of
     (a, b) | a == b                   -> True
     (Type _, _)                       -> True
     (_, Type _)                       -> True
@@ -130,28 +130,28 @@ typesCouldMatch typedefs generics t1 t2 = case (flattenTuple t1, flattenTuple t2
 
     _ -> False
 
-    where
-        definitelyIgnoresTuples :: Type -> Bool
-        definitelyIgnoresTuples typ = case typ of
-            t | isSimple t -> True
-            Tuple t        -> True
-            Table t        -> True
-            Record ts      -> False
-            TypeApply s ts | s `elem` generics      -> False
-            TypeApply s ts | Map.member s typedefs ->
-                let (ss, t) = typedefs Map.! s in
-                definitelyIgnoresTuples (applyTypeFunction ss ts t)
-            _ -> error (show typ)
+
+definitelyIgnoresTuples :: Map.Map Symbol ([Symbol], Type) -> Type -> Bool
+definitelyIgnoresTuples typedefs typ = case typ of
+    t | isSimple t -> True
+    Tuple t        -> True
+    Table t        -> True
+    Record ts      -> False
+    TypeApply s ts | Map.member s typedefs ->
+        let (ss, t) = typedefs Map.! s in
+        definitelyIgnoresTuples typedefs (applyTypeFunction ss ts t)
+    TypeApply s ts -> False -- must be generic
+    _ -> error (show typ)
 
 
-        flattenTuple :: Type -> Type
-        flattenTuple typ = case typ of
-            t | isSimple t                      -> typ
-            Table t                             -> Table (flattenTuple t)
-            Void                                -> typ
-            Type _                              -> typ
-            TypeApply s ts                      -> TypeApply s (map flattenTuple ts)
-            Record ts                           -> Record (map flattenTuple ts)
-            Tuple t | definitelyIgnoresTuples t -> flattenTuple t
-            Tuple t | otherwise                 -> Tuple (flattenTuple t)
-            _ -> error (show typ)
+flattenTuple :: Map.Map Symbol ([Symbol], Type) -> Type -> Type
+flattenTuple typedefs typ = case typ of
+    t | isSimple t                      -> typ
+    Table t                             -> Table (flattenTuple typedefs t)
+    Void                                -> typ
+    Type _                              -> typ
+    TypeApply s ts                      -> TypeApply s (map (flattenTuple typedefs) ts)
+    Record ts                           -> Record (map (flattenTuple typedefs) ts)
+    Tuple t | definitelyIgnoresTuples typedefs t -> flattenTuple typedefs t
+    Tuple t | otherwise                 -> Tuple (flattenTuple typedefs t)
+    _ -> error (show typ)
