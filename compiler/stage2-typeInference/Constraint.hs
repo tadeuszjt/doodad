@@ -13,4 +13,5 @@ data Constraint
     | ConsAdtMem Type Int Int Type
     | ConsKey Type Type          -- t2 is key type of t1
     | ConsTuple Type [Type]      -- t2s are the member types of 51
+    | ConsRecordAccess Type Type
     deriving (Show, Eq, Ord)

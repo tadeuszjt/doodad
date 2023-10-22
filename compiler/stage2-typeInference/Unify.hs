@@ -47,6 +47,20 @@ unifyOne pos constraint = withPos pos $ case constraint of
                     Just (Record _) -> unifyOne pos $ ConsBase t (Record ts)
                     _ -> error (show baseT)
 
+    ConsRecordAccess exprType typ -> do
+        base <- baseTypeOf typ
+        case base of
+            Just (Tuple t) -> do
+                baseT <- baseTypeOf t
+                case baseT of
+                    Just (Record ts) -> unifyOne pos $ ConsEq exprType t
+                    _ -> error (show baseT)
+
+            Just String -> unifyOne pos $ ConsEq exprType (Record [String])
+
+            Nothing -> return []
+            _ -> error (show base)
+
     ConsEq t1 t2 -> case (t1, t2) of
         _ | t1 == t2                    -> return []
         (Type x, t)                     -> return [(Type x, t)]

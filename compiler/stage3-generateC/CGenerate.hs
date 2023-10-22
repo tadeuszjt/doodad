@@ -309,6 +309,10 @@ accessRecord val marg = do
 
                 _ -> error (show baseT)
 
+        Type.String -> do
+            assert (isNothing marg) "no arg needed"
+            assign "record" $ Value (Record [typeof val]) $ C.Initialiser [C.Address $ valExpr val]
+
         _ -> error "thar"
 
 

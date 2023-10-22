@@ -71,5 +71,6 @@ instance Apply Constraint where
         ConsField t1 i t2    -> return $ ConsField (f t1) i (f t2)
         ConsAdtMem t1 i j t2 -> return $ ConsAdtMem (f t1) i j (f t2)
         ConsTuple t1 ts      -> return $ ConsTuple (f t1) (map f ts)
+        ConsRecordAccess t1 t2 -> return $ ConsRecordAccess (f t1) (f t2)
 
 

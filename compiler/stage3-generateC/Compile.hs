@@ -528,6 +528,16 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
             Value _ _ -> return obj
             CGenerate.Const e -> generateExpr =<< annotateExprWith typ e
 
+
+    S.RecordAccess _ expr -> do
+        val <- generateExpr expr
+        base <- baseTypeOf val
+        case base of
+            Type.Tuple _ -> accessRecord val Nothing
+            Type.String  -> accessRecord val Nothing
+
+            _ -> error (show base)
+
     S.Null _ -> do
         base <- baseTypeOf typ
         case base of

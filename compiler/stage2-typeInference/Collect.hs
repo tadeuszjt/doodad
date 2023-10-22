@@ -409,6 +409,12 @@ collectExpr (S.AExpr exprType expr) = collectPos expr $ case expr of
         collectExpr e
         collectDefault exprType Bool
 
+    S.RecordAccess _ e -> do
+        modify $ \s -> s {
+            collected = Map.insert (ConsRecordAccess exprType $ typeof e) (curPos s) (collected s)
+            }
+        collectExpr e
+
 --    S.Range _ me me1 me2 -> do
 --        when (isJust me) $ do
 --            collectExpr (fromJust me)

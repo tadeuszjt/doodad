@@ -118,6 +118,7 @@ mapExpr f expr = withPos expr $ do
         AST.Int pos n       -> return $ AST.Int pos n
         AST.Bool pos b      -> return $ AST.Bool pos b
         AST.Tuple pos exprs -> AST.Tuple pos <$> mapM (mapExpr f) exprs
+        RecordAccess pos expr -> RecordAccess pos <$> mapExpr f expr
 
         Field pos expr symbol -> do
             expr' <- mapExpr f expr

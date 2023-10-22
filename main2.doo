@@ -7,7 +7,7 @@ fn[T] {t:[]T} length() i64
 
 fn[T] {t:[]T} push(elem:()T)
     t++
-    //t[t.length() - 1] = elem{}
+    t[t.length() - 1] = elem{}
 
 type[K, V] Map (keys:[]K, values:[]V)
 
@@ -28,6 +28,9 @@ fn main()
     map2.insert( ("bongis", false), 1 )
 
     for tab -> x
+        print(x)
+
+    for map2.keys -> x
         print(x)
 
     print("main2 finished")
