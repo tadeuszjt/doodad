@@ -253,7 +253,7 @@ exprsA : exprs                              { $1 }
        | 'I' exprsN 'D'                     { $2 }
 
 call : symbol '(' exprsA ')'                   { S.Call (tokPos $2) [] (snd $1) $3 }
-     | '{' exprsA '}' '.' ident '(' exprsA ')' { S.Call (tokPos $4) $2 (Sym $ tokStr $5) $7 }
+     --| '{' exprsA '}' '.' ident '(' exprsA ')' { S.Call (tokPos $4) $2 (Sym $ tokStr $5) $7 }
 
 index  : symbol                             { S.Ident (fst $1) (snd $1) }
        | index '[' mexpr ']'                 { S.Subscript (tokPos $2) $1 $3 }
@@ -276,6 +276,7 @@ expr   : literal                            { $1 }
        | expr '[' mexpr '..' mexpr ']'      { S.Range (tokPos $2) (Just $1) $3 $5 }
        | '[' mexpr '..' mexpr ']'           { S.Range (tokPos $1) Nothing $2 $4 }
        | '[' exprsA ']'                     { S.Array (tokPos $1) $2 }
+       | expr '{' '}'                       { S.RecordAccess (tokPos $2) $1 }
 
 literal : int_c                             { S.Int (tokPos $1) (read $ tokStr $1) }
         | float_c                           { S.Float (tokPos $1) (read $ tokStr $1) }

@@ -162,9 +162,17 @@ mapPattern f pattern = withPos pattern $ do
 
 
 mapType :: BoM s m => MapperFunc m -> Type -> m Type
-mapType f t = do
+mapType f typ = do
     prevState <- get
-    resm <- f $ ElemType t
+    resm <- f . ElemType =<< case typ of
+        Void           -> return typ
+        Type _         -> return typ
+        t | isSimple t -> return typ
+        Record ts      -> Record <$> mapM (mapType f) ts
+        Table t        -> Table <$> mapType f t
+        Type.Tuple t   -> Type.Tuple <$> mapType f t
+        TypeApply s ts -> TypeApply s <$> mapM (mapType f) ts
+        _ -> error (show typ)
     case resm of
-        Nothing -> put prevState >> return t
+        Nothing -> put prevState >> return typ
         Just (ElemType x)  -> return x

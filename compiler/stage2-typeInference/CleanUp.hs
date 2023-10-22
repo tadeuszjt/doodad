@@ -82,17 +82,18 @@ resolveFuncCall exprType (AST.Call pos params callSymbol args) = withPos pos $ d
             resE <- tryError $ replaceGenericsInFuncBodyWithCall (getFunctionBody symbol ast) callHeader
             case resE of
                 Left _             -> do
-                    liftIO $ putStrLn "warning: replaceGenericsInFuncBodyWithCall failed"
-                    return symbol
+                    liftIO $ putStrLn $ "warning: replaceGenericsInFuncBodyWithCall failed for: " ++ show callSymbol
+                    return callSymbol
                 Right bodyReplaced -> case funcHeaderFullyResolved (funcHeaderFromBody symbol bodyReplaced) of
-                    False -> return symbol
+                    False -> return callSymbol
                     True  -> do
                         symbol' <- genSymbol (Symbol.sym callSymbol)
                         modify $ \s -> s { funcDefs = Map.insert symbol' bodyReplaced (funcDefs s) }
+                        liftIO $ putStrLn $ "replaced: " ++ show callSymbol ++ " with: " ++ show symbol'
+                        liftIO $ prettyFuncBody  symbol' bodyReplaced
                         return symbol'
 
-        [symbol] -> return symbol
-        _        -> return callSymbol
+        _ -> return callSymbol
 
 
 

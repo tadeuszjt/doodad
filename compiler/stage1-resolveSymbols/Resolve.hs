@@ -15,6 +15,7 @@ import Monad
 import Error
 import Symbol
 import ASTResolved
+import ASTMapper
 
 -- Modoule 'Resolve':
 --
@@ -417,48 +418,9 @@ instance Resolve Stmt where
             processCEmbed [] = return ""
 
 
-instance Resolve Pattern where
-    resolve pattern = withPos pattern $ case pattern of
-        PatIgnore pos     -> return $ PatIgnore pos
-        PatNull pos       -> return $ PatNull pos
-        PatTuple pos pats -> PatTuple pos <$> mapM resolve pats
-        PatLiteral expr   -> PatLiteral <$> resolve expr
-        PatArray pos pats -> PatArray pos <$> mapM resolve pats
-
-        PatIdent pos (Sym sym) -> do
-            symbol <- genSymbol sym
-            define sym KeyVar symbol
-            return $ PatIdent pos symbol
-
-        PatField pos symbol pats -> do -- it's KeyFunc for ctors, KeyType for other
-            pats' <- mapM resolve pats
-            mtype <- lookm symbol KeyType
-            case mtype of
---                Just symbol' -> do
---                    unless (length pats == 1) $ error "TODO - make it handle more"
---                    return $ PatTypeField pos (Type.TypeApply symbol' []) (head pats')
-                Nothing -> do
-                    symbol' <- look symbol KeyFunc
-                    return $ PatField pos symbol' pats'
-
-        PatTypeField pos typ pat -> do
-            pat' <- resolve pat
-            typ' <- resolve typ
-            return $ PatTypeField pos typ' pat'
-
-        PatGuarded pos pat expr -> do
-            pat' <- resolve pat
-            expr' <- resolve expr
-            return $ PatGuarded pos pat' expr'
-
-        PatAnnotated pat typ -> do
-            pat' <- resolve pat
-            typ' <- resolve typ
-            return $ PatAnnotated pat' typ'
-
-        _ -> error $ "invalid pattern: " ++ show pattern
-
-
+instance Resolve Type where resolve = mapType resolveMapper
+instance Resolve Pattern where resolve = mapPattern resolveMapper
+instance Resolve Expr where resolve = mapExpr resolveMapper
 instance Resolve Param where
     resolve (Param pos (Sym sym) typ) = withPos pos $ do
         typ' <- resolve typ
@@ -466,90 +428,43 @@ instance Resolve Param where
         define sym KeyVar symbol
         return $ Param pos symbol typ'
 
+resolveMapper :: BoM ResolveState m => Elem -> m (Maybe Elem)
+resolveMapper element = case element of
+    ElemType (Type.TypeApply s ts) -> do
+        symbol' <- look s KeyType
+        return $ Just $ ElemType $ Type.TypeApply symbol' ts
 
-instance Resolve AdtField where
-    resolve adtField = case adtField of
-        FieldNull -> return FieldNull
-        FieldType t -> FieldType <$> resolve t
-        FieldCtor ts -> FieldCtor <$> mapM resolve ts
+    ElemPattern (PatIdent pos symbol) -> do
+        let Sym sym = symbol
+        symbol' <- genSymbol sym
+        define sym KeyVar symbol'
+        return $ Just $ ElemPattern (PatIdent pos symbol')
 
+    ElemPattern (PatField pos symbol pats) -> do -- it's KeyFunc for ctors, KeyType for other
+        mtype <- lookm symbol KeyType
+        case mtype of
+--          Just symbol' -> do
+--              unless (length pats == 1) $ error "TODO - make it handle more"
+--              return $ PatTypeField pos (Type.TypeApply symbol' []) (head pats')
+            Nothing -> do
+                symbol' <- look symbol KeyFunc
+                return $ Just $ ElemPattern $ PatField pos symbol' pats
 
--- replaces Typedef sym with Typedef symbol
-instance Resolve Type where 
-    resolve typ = case typ of
-        Void                -> return typ
-        _ | isSimple typ    -> return typ
-        Record ts           -> Type.Record <$> mapM resolve ts
-        Type.Tuple t        -> Type.Tuple <$> resolve t
-        Type.Table t        -> Type.Table <$> resolve t
-        Type.TypeApply s ts -> do
-            symbol' <- look s KeyType
-            Type.TypeApply symbol' <$> mapM resolve ts
-        _ -> error $ "resolve type: " ++ show typ
+    ElemExpr (Ident pos symbol) -> Just . ElemExpr . Ident pos <$> look symbol KeyVar
 
-instance Resolve Expr where
-    resolve expr = withPos expr $ case expr of
-        Ident pos symbol      -> Ident pos <$> look symbol KeyVar
-        Prefix pos op expr -> Prefix pos op <$> resolve expr
-        AST.Char pos c -> return expr
-        AST.Int pos n -> return expr
-        AST.Bool pos b -> return expr
-        Float pos f -> return expr
-        AST.Tuple pos exprs -> AST.Tuple pos <$> mapM resolve exprs
-        AST.Array pos exprs -> AST.Array pos <$> mapM resolve exprs
-        AST.String pos s -> return expr
-        Null pos -> return (Null pos)
+    ElemExpr (Call pos params symbol exprs) -> case symbol of
+        Sym s | s `elem` ["len", "conv", "print"] -> do 
+            return $ Just $ ElemExpr (Builtin pos params s exprs)
+        _ -> do
+            resm <- lookm symbol KeyType
+            case resm of 
+                Just symbol' -> do
+                    assert (params == []) "Convert cannot have params"
+                    return $ Just $ ElemExpr $ Conv pos (Type.TypeApply symbol' []) exprs -- TODO
+                Nothing -> do
+                    symbol' <- look symbol KeyFunc
+                    return $ Just $ ElemExpr (Call pos params symbol' exprs)
 
-        Call pos params symbol exprs -> do
-            exprs' <- mapM resolve exprs
-            params' <- mapM resolve params
-            case symbol of
-                Sym s | s `elem` ["len", "conv", "print"] -> do 
-                    return $ Builtin pos params' s exprs'
-                _ -> do
-                    resm <- lookm symbol KeyType
-                    case resm of 
-                        Just symbol' -> do
-                            assert (params == []) "Convert cannot have params"
-                            return $ Conv pos (Type.TypeApply symbol' []) exprs' -- TODO
-                        Nothing -> do
-                            symbol' <- look symbol KeyFunc
-                            return $ Call pos params' symbol' exprs'
+    _ -> return (Just element)
 
 
-        Infix pos op exprA exprB -> do
-            exprA' <- resolve exprA
-            exprB' <- resolve exprB
-            return $ Infix pos op exprA' exprB'
-
-        Subscript pos e1 me2 -> do
-            e1' <- resolve e1
-            e2' <- maybe (return Nothing) (fmap Just . resolve) me2
-            return $ Subscript pos e1' e2'
-
-        Conv pos typ exprs -> do
-            typ' <- resolve typ
-            exprs' <- mapM resolve exprs
-            return $ Conv pos typ' exprs'
-
-        Field pos expr sym -> do
-            expr' <- resolve expr
-            return $ Field pos expr' sym
-
-        AExpr typ expr -> do
-            typ' <- resolve typ
-            expr' <- resolve expr
-            return $ AExpr typ' expr'
-
-        Match pos expr pat -> do
-            expr' <- resolve expr
-            pat' <- resolve pat
-            return $ Match pos expr' pat'
-
-        AST.Range pos mexpr mexpr1 mexpr2 -> do
-            mexpr' <- maybe (return Nothing) (fmap Just . resolve) mexpr
-            mexpr1' <- maybe (return Nothing) (fmap Just . resolve) mexpr1
-            mexpr2' <- maybe (return Nothing) (fmap Just . resolve) mexpr2
-            return $ AST.Range pos mexpr' mexpr1' mexpr2'
-
-        _ -> fail $ "invalid expression: " ++ show expr

@@ -339,7 +339,7 @@ generateStmt stmt = withPos stmt $ case stmt of
             if_ (not_ patMatches) $ appendElem C.Break
             generateStmt stmt
 
-    _ -> error (show stmt)
+    _ -> fail (show stmt)
 
 
 

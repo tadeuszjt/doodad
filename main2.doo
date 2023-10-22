@@ -7,12 +7,12 @@ fn[T] {t:[]T} length() i64
 
 fn[T] {t:[]T} push(elem:()T)
     t++
-    t[t.length() - 1] = elem[]
+    //t[t.length() - 1] = elem{}
 
 type[K, V] Map (keys:[]K, values:[]V)
 
 fn[K, V] {m:Map(K, V)} insert(key:()K, value:()V)
-    //m.keys.push(key)
+    m.keys.push(key)
     return
 
 fn main()
@@ -22,8 +22,10 @@ fn main()
     tab.push(t)
 
     data map Map(string, bool)
+    data map2 Map({string, bool}, i64)
 
     map.insert("benis", true)
+    map2.insert( ("bongis", false), 1 )
 
     for tab -> x
         print(x)

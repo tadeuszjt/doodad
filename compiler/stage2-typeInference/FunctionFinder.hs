@@ -132,32 +132,31 @@ getConstraintsFromFuncHeaders headerToReplace header = do
 getConstraintsFromTypes :: BoM ASTResolved m => [Symbol] -> Type -> Type -> m [Constraint]
 getConstraintsFromTypes typeArgs typeToReplace typ = do
     typedefs <- gets typeFuncs
-    case (flattenTuple typedefs typeToReplace, flattenTuple typedefs typ) of
+    case (typeToReplace, typ) of
+        (Table a, Table b) -> getConstraintsFromTypes typeArgs a b
+        (Tuple a, Tuple b) -> getConstraintsFromTypes typeArgs a b
+
         (TypeApply s1 ts1, TypeApply s2 ts2)
             | s1 `elem` typeArgs -> do 
                 assert (not $ s2 `elem` typeArgs) "don't know"
                 assert (length ts1 == length ts2) "type argument lengths mismatch"
                 constraints <- fmap concat $ zipWithM (getConstraintsFromTypes typeArgs) ts1 ts2
                 return $ ConsEq typeToReplace typ : constraints
-
-            | not (s1 `elem` typeArgs) -> do
-                assert (not $ s2 `elem` typeArgs) "don't know"
+            | not (elem s1 typeArgs) && s1 == s2 -> do
                 assert (length ts1 == length ts2) "type argument lengths mismatch"
-                fmap concat $ zipWithM (getConstraintsFromTypes typeArgs) ts1 ts2
+                constraints <- fmap concat $ zipWithM (getConstraintsFromTypes typeArgs) ts1 ts2
+                return $ ConsEq typeToReplace typ : constraints
+            | otherwise -> error "here"
 
-        (TypeApply s1 [], _)
-            | s1 `elem` typeArgs -> return [ConsEq typeToReplace typ]
 
-        (t, Type x) -> return [(ConsEq (Type x) t)]
+        (TypeApply s1 [], t) | elem s1 typeArgs ->
+            return [ConsEq typeToReplace typ]
+        (Tuple (TypeApply s1 []), t) | isSimple t && elem s1 typeArgs ->
+            return [ConsEq (TypeApply s1 []) typ]
+
+
         (Type x, t) -> return [(ConsEq (Type x) t)]
+        (t, Type x) -> return []
 
-        (Table t1, Table t2) -> getConstraintsFromTypes typeArgs t1 t2
-        (Tuple t1, Tuple t2) -> getConstraintsFromTypes typeArgs t1 t2
-
-        (Void, Void) -> return []
-
-        (a, b) | isSimple a && isSimple b -> return []
-
-        (Tuple _, t) | isSimple t -> fail "invalid types"
 
         _ -> error $ show (typeToReplace, typ)

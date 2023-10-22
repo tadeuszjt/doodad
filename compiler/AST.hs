@@ -92,6 +92,7 @@ data Expr
     | Infix       TextPos Operator Expr Expr
     | Match       TextPos Expr Pattern
     | Range       TextPos (Maybe Expr) (Maybe Expr) (Maybe Expr)
+    | RecordAccess TextPos Expr
     | Array       TextPos [Expr]
     deriving (Eq)
 
@@ -169,6 +170,7 @@ instance TextPosition Expr where
         Range        p _ _ _ -> p
         Array        p _ -> p
         Construct    p _ _ -> p
+        RecordAccess p _ -> p
         _ -> error (show expr)
 
 
@@ -277,6 +279,7 @@ instance Show Expr where
         Range pos mexpr mexpr1 mexpr2 -> maybe "" show mexpr ++ "[" ++ maybe "" show mexpr1 ++ ".." ++ maybe "" show mexpr2 ++ "]"
         Array pos exprs               -> arrStrs (map show exprs)
         Construct pos symbol exprs    -> show symbol ++ tupStrs (map show exprs)
+        RecordAccess pos expr         -> show expr ++ "{}"
 
 
 -- every function must end on a newline and print pre before every line

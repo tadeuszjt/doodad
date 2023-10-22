@@ -76,6 +76,15 @@ isGenericFunction symbol ast = if Map.member symbol (funcDefs ast) then
     else False
 
 
+isNonGenericFunction :: Symbol -> ASTResolved -> Bool
+isNonGenericFunction symbol ast = if Map.member symbol (funcDefs ast) then
+        not $ isGenericBody (funcDefs ast Map.! symbol)
+    else if Map.member symbol (funcImports ast) then
+        not $ isGenericBody (funcImports ast Map.! symbol)
+    else False
+
+
+
 getTypeFunction :: Symbol -> ASTResolved -> ([Symbol], Type)
 getTypeFunction symbol ast = if Map.member symbol (typeFuncs ast) then
         typeFuncs ast Map.! symbol
