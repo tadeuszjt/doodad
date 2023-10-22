@@ -152,6 +152,8 @@ unifyDefault []     = return []
 unifyDefault (x:xs) = do
     subs <- unifyDefault xs
     -- ignore errors in default mode
-    s <- catchError (unifyOne (snd x) =<< applySubs subs (fst x)) (\_ -> return []) 
-    return (s ++ subs)
+    res <- tryError $ unifyOne (snd x) =<< applySubs subs (fst x)
+    case res of
+        Left _  -> return subs
+        Right s -> return (s ++ subs)
 

@@ -15,8 +15,14 @@ instance Show Symbol where
     show (Sym s)                     = s
     show (SymQualified mod sym)      = mod ++ "::" ++ sym
     show (SymResolved mod sym level) = case level of
-        0 -> mod ++ "_" ++ sym
-        n -> mod ++ "_" ++ sym ++ "_" ++ show n
+        0 -> sym ++ "_0"
+        n -> sym ++ "_" ++ show n
+
+
+symbolIsResolved :: Symbol -> Bool
+symbolIsResolved (SymResolved _ _ _) = True
+symbolIsResolved _                   = False
+
 
 symbolsCouldMatch :: Symbol -> Symbol -> Bool
 symbolsCouldMatch a@(SymResolved _ _ _)  b@(SymResolved _ _ _) = a == b

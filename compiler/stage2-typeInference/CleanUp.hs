@@ -72,47 +72,28 @@ cleanUpMapper elem = case elem of
     
 -- add extern if needed
 resolveFuncCall :: BoM ASTResolved m => Type -> AST.Expr -> m Symbol
-resolveFuncCall exprType (AST.Call pos params symbol args) = withPos pos $ do
-    let callHeader = FuncHeader [] (map typeof params) symbol (map typeof args) exprType
-
-    symbols <- case symbol of
-        SymResolved _ _ _ -> return [symbol] -- already resolved
-        _                 -> findCandidates callHeader
-
-    exacts <- findExactFunction callHeader
-
+resolveFuncCall exprType (AST.Call pos params callSymbol args) = withPos pos $ do
+    let callHeader = FuncHeader [] (map typeof params) callSymbol (map typeof args) exprType
+    candidates <- findCandidates callHeader
     ast <- get
-    if exacts /= [] then do
-        assert (length exacts == 1) "cannot have multiple exact matches"
-        return $ head exacts
-    else do -- TODO this part could be neater
-        case symbols of
-            [] -> do
-                liftIO $ do
-                    prettyASTResolved ast
-                error $ "no candidates for:" ++ show callHeader
-            [symbol'] -> do
-                if (isGenericFunction symbol' ast) then do
-                    let header  = getFunctionHeader symbol' ast
-                    let body    = getFunctionBody symbol' ast
-                    let sym     = Symbol.sym (ASTResolved.symbol header)
-                    headerReplaced <- replaceGenericsInFuncHeaderWithCall header callHeader
+    case candidates of
+        [] -> error "no candidates"
+        [symbol] | isGenericFunction symbol ast -> do -- this is where we replace
+            resE <- tryError $ replaceGenericsInFuncBodyWithCall (getFunctionBody symbol ast) callHeader
+            case resE of
+                Left _             -> do
+                    liftIO $ putStrLn "warning: replaceGenericsInFuncBodyWithCall failed"
+                    return symbol
+                Right bodyReplaced -> case funcHeaderFullyResolved (funcHeaderFromBody symbol bodyReplaced) of
+                    False -> return symbol
+                    True  -> do
+                        symbol' <- genSymbol (Symbol.sym callSymbol)
+                        modify $ \s -> s { funcDefs = Map.insert symbol' bodyReplaced (funcDefs s) }
+                        return symbol'
 
-                    if isJust headerReplaced && funcHeaderFullyResolved (fromJust headerReplaced) then do
-                        exacts <- findExactFunction ((fromJust headerReplaced) { symbol = Symbol.Sym sym })
-                        case exacts of 
-                            [] -> do -- define specific type case
-                                symbol'' <- genSymbol sym
-                                body' <- replaceGenericsInFuncBodyWithCall body callHeader
-                                modify $ \s -> s { funcDefs = Map.insert symbol'' body' (funcDefs ast) }
-                                return symbol''
-                            [symbol''] -> return symbol''
-                    else return symbol'
-                else do
-                    return symbol'
-            _ -> do
+        [symbol] -> return symbol
+        _        -> return callSymbol
 
-                return symbol
 
 
 resolveFieldAccess :: BoM ASTResolved m => AST.Expr -> m Expr

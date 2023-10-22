@@ -18,6 +18,8 @@ import Apply
 import Error
 import Constraint
 import Monad
+import ASTMapper
+import TupleDeleter
 
 findCandidates :: BoM ASTResolved m => FuncHeader -> m [Symbol]
 findCandidates callHeader = do
@@ -34,17 +36,6 @@ findFunctionCandidates callHeader = do
         case funcHeadersCouldMatch ast (funcHeaderFromBody symbol body) callHeader of
             True -> return $ Just $ symbol
             False -> return Nothing
-
--- does not allow generic functions
-findExactFunction :: BoM ASTResolved m => FuncHeader -> m [Symbol]
-findExactFunction callHeader = do
-    ast <- get
-    fmap catMaybes $ forM (Map.toList $ Map.union (funcDefs ast) (funcImports ast)) $ \(symbol, body) -> case funcTypeArgs body of
-        [] -> case funcHeadersCouldMatch ast (funcHeaderFromBody symbol body) callHeader of
-            True -> return $ Just $ symbol
-            False -> return Nothing
-        _ -> return Nothing
-
 
 findTypeCandidates :: BoM ASTResolved m => FuncHeader -> m [Symbol]
 findTypeCandidates callHeader = do
@@ -89,32 +80,16 @@ funcHeaderFullyResolved header =
             _ -> error $ "typeFullyResolved: " ++ show typ
 
 
-
--- using a modified version of unify to replace generic type variables in function keys
-replaceGenericsInFuncHeaderWithCall :: BoM ASTResolved m => FuncHeader -> FuncHeader -> m (Maybe FuncHeader) 
-replaceGenericsInFuncHeaderWithCall header callHeader = do
-    assert (typeArgs callHeader == []) "Call header cannot have type args"
-    --assert (funcHeadersCouldMatch header callHeader) "headers cannot match"
-    resm <- catchError (fmap Just $ getConstraintsFromFuncHeaders header callHeader) (\_ -> return Nothing) 
-    case resm of
-        Nothing -> return Nothing
-        Just constraints -> do
-            subs <- unify (typeArgs header) constraints
-            header'' <- applySubs subs header
-            let header' = header'' { typeArgs = [] }
-            if funcHeaderHasGenerics (typeArgs header) header' then return Nothing
-            else return $ Just header'
-
-
 replaceGenericsInFuncBodyWithCall :: BoM ASTResolved m => FuncBody -> FuncHeader -> m FuncBody
 replaceGenericsInFuncBodyWithCall body callHeader = do
+    ast <- get
     let header = funcHeaderFromBody (symbol callHeader) body
     assert (typeArgs callHeader == []) "Call header cannot have type args"
-    --assert (funcHeadersCouldMatch callHeader header) "headers must be matchable"
+    assert (funcHeadersCouldMatch ast callHeader header) "headers must be matchable"
     constraints <- getConstraintsFromFuncHeaders header callHeader
     subs <- unify (typeArgs header) constraints
     body' <- applySubs subs body
-    return $ body' { funcTypeArgs = [] }
+    mapFuncBody tupleDeleterMapper $ body' { funcTypeArgs = [] }
 
 
 unifyOne :: BoM s m => [Symbol] -> Constraint -> m [(Type, Type)]

@@ -56,6 +56,11 @@ assert :: MonadFail m => Bool -> String -> m ()
 assert b s = when (not b) (fail s)
 
 
+tryError :: MonadError Error m => m a -> m (Either Error a)
+tryError f = catchError (fmap Right f) $ \e -> return (Left e)
+        
+
+
 mapGet :: (MonadFail m, Ord k, Show k) => k -> Map.Map k v -> m v
 mapGet key map = do
     case Map.lookup key map of

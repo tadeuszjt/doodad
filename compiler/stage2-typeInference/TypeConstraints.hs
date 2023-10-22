@@ -34,9 +34,10 @@ unify typeVars (x:xs) = do
 getConstraintsFromTypes :: BoM TypeFuncs m => [Symbol] -> Type -> Type -> m [Constraint]
 getConstraintsFromTypes typeArgs t1 t2 = do
     typeFuncs <- get
-    case (flattenTuple typeFuncs t1, flattenTuple typeFuncs t2) of
+    case (t1, t2) of
         (a, b) | a == b          -> return []
         (Type a, Type b)         -> return [ConsEq (Type a) (Type b)]
-        (Type a, b) | isSimple b -> return [ConsEq (Type a) b]
+        (Type a, b)              -> return [ConsEq (Type a) (flattenTuple typeFuncs b)]
+        (Tuple a, Tuple b)       -> getConstraintsFromTypes typeArgs a b
 
         (a, b) -> error $ show (a, b)

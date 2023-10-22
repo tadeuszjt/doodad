@@ -147,11 +147,12 @@ collectAST ast = do
     forM (Map.toList $ funcImports ast) $ \(symbol, body) -> 
         define symbol (KeyFunc $ funcHeaderFromBody symbol body) ObjFunc
 
-    forM (Map.toList $ funcDefs ast) $ \(symbol, body) -> 
+    forM (Map.toList $ funcDefs ast) $ \(symbol, body) ->
         define symbol (KeyFunc $ funcHeaderFromBody symbol body) ObjFunc
 
     forM_ (Map.toList $ funcDefs ast) $ \(symbol, body) ->
-        collectFuncDef symbol body
+        when (funcTypeArgs body == []) $ do
+            collectFuncDef symbol body
 
 
 collectFuncDef :: BoM CollectState m => Symbol -> FuncBody -> m ()
@@ -327,11 +328,15 @@ collectCall exprType params symbol args = do -- can be resolved or sym
     keysWithSameSymbol <- getKeysWithMatchingSymbol symbol
     keysWithReplacedGenerics <- fmap catMaybes $ forM keysWithSameSymbol $ \key -> case key of
         KeyFunc header | typeArgs header == [] -> return $ Just key
-        KeyFunc header -> do
-            headerReplaced <- fmap fst $ runBoMTExcept ast $ replaceGenericsInFuncHeaderWithCall header callHeader
-            return $ fmap KeyFunc headerReplaced
-
+        KeyFunc header -> return Nothing
+--            headerReplaced <- fmap fst $ runBoMTExcept ast $ replaceGenericsInFuncHeaderWithCall header callHeader
+--            return $ fmap KeyFunc headerReplaced
         _ -> return Nothing
+
+--    liftIO $ do
+--        putStrLn ""
+--        putStrLn $ "collectCall: " ++ show callHeader
+--        putStrLn $ show keysWithReplacedGenerics
 
     let keys = filter (keyCouldMatch ast) keysWithReplacedGenerics
     --assert (keys /= []) $ "no keys for: " ++ show symbol

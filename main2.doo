@@ -12,7 +12,7 @@ fn[T] {t:[]T} push(elem:()T)
 type[K, V] Map (keys:[]K, values:[]V)
 
 fn[K, V] {m:Map(K, V)} insert(key:()K, value:()V)
-    m.keys.push(key)
+    //m.keys.push(key)
     return
 
 fn main()
@@ -24,6 +24,11 @@ fn main()
     data map Map(string, bool)
 
     map.insert("benis", true)
+
+    for tab -> x
+        print(x)
+
+    print("main2 finished")
 
 
 

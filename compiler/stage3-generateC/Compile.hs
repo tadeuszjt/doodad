@@ -268,6 +268,7 @@ generateStmt stmt = withPos stmt $ case stmt of
 --        call "assert" [false]
 
     S.ExprStmt (AExpr _ (S.Call _ exprs1 symbol exprs2)) -> do
+        assert (symbolIsResolved symbol) "unresolved function"
         params <- mapM generateExpr exprs1
         args <- mapM generateExpr exprs2
         callWithParams params (show symbol) args
@@ -554,6 +555,7 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
         generateInfix op valA valB
 
     S.Call _ exprs1 symbol exprs2 -> do
+        assert (symbolIsResolved symbol) "unresolved function"
         objs1 <- mapM generateExpr exprs1
         objs2 <- mapM generateExpr exprs2
         return $ Value typ $ C.Call (show symbol) (map ptrExpr objs1 ++ map valExpr objs2)
