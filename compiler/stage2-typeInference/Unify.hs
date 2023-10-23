@@ -56,8 +56,7 @@ unifyOne pos constraint = withPos pos $ case constraint of
                     Just (Record ts) -> unifyOne pos $ ConsEq exprType t
                     _ -> error (show baseT)
 
-            Just String -> unifyOne pos $ ConsEq exprType (Record [String])
-
+            Just t | isSimple t -> unifyOne pos $ ConsEq exprType (Record [t])
             Nothing -> return []
             _ -> error (show base)
 
@@ -126,7 +125,7 @@ unifyOne pos constraint = withPos pos $ case constraint of
 --            Just (Table [t])  -> unifyOne pos (ConsEq t2 t)
 --            Just (Table ts)   -> unifyOne pos (ConsEq t2 $ Tuple ts)
 --            Just (Array n t)  -> unifyOne pos (ConsEq t2 t)
-            Just (Range _) -> unifyOne pos (ConsBase t2 Bool)
+            Just (Range _) -> unifyOne pos (ConsEq t2 I64)
             Just String    -> unifyOne pos (ConsEq t2 Char)
             Just (Tuple t) -> do
                 baseT <- baseTypeOf t

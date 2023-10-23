@@ -269,18 +269,13 @@ collectCall exprType params symbol args = do -- can be resolved or sym
 
 collectExpr :: BoM CollectState m => S.Expr -> m ()
 collectExpr (S.AExpr exprType expr) = collectPos expr $ case expr of
-    S.Call _ ps s es -> collectCall exprType ps s es
-    S.Prefix _ op e  -> collectEq exprType (typeof e) >> collectExpr e
-    S.Int _ c        -> collectDefault exprType I64
-    S.Float _ f      -> collectDefault exprType F64
-    S.Null _         -> return ()
-
-    S.Conv _ t es   -> do 
-        collectEq exprType t
-        mapM_ collectExpr es
-
-    S.Construct _ symbol es -> do
-        mapM_ collectExpr es
+    S.Call _ ps s es   -> collectCall exprType ps s es
+    S.Prefix _ op e    -> collectEq exprType (typeof e) >> collectExpr e
+    S.Int _ c          -> collectDefault exprType I64
+    S.Float _ f        -> collectDefault exprType F64
+    S.Null _           -> return ()
+    S.Construct _ _ es -> mapM_ collectExpr es
+    S.String _ _       -> collectDefault exprType $ String
 
     S.Builtin _ ps sym es -> do 
         case sym of
@@ -298,9 +293,6 @@ collectExpr (S.AExpr exprType expr) = collectPos expr $ case expr of
     S.Bool _ b       -> do
         collect $ ConsBase exprType Bool
         collectDefault exprType Bool
-
-    S.String _ s     -> do
-        collectDefault exprType $ String
 
     S.Ident _ symbol -> do
         obj <- look symbol KeyVar
@@ -331,10 +323,10 @@ collectExpr (S.AExpr exprType expr) = collectPos expr $ case expr of
         collectExpr e1
         collectExpr e2
 
-    S.Subscript _ e1 me2 -> do
+    S.Subscript _ e1 e2 -> do
         collect $ ConsSubscript (typeof e1) exprType
         collectExpr e1
-        maybe (return ()) collectExpr me2
+        collectExpr e2
         --collectDefault (typeof e2) I64
 
     S.Tuple _ es -> do
@@ -356,8 +348,6 @@ collectExpr (S.AExpr exprType expr) = collectPos expr $ case expr of
         ObjField i  <- look (Sym $ Symbol.sym symbol) . KeyField =<< getTypeSymbol (typeof e)
         collect $ ConsField exprType i (typeof e)
         collectExpr e
-
-    S.AExpr _ _ -> fail "what"
 
     S.Match _ e p -> do
         collectPattern p (typeof e)

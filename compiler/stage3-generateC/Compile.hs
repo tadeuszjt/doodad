@@ -186,7 +186,7 @@ generatePrint app val = case typeof val of
         call "putchar" [Value Type.Char $ C.Char '{']
         forM_ (zip ts [0..]) $ \(t, i) -> do
             let end = i == length ts - 1
-            generatePrint (if end then "" else ", ") $ Value t $ C.Deref (C.Member (valExpr val) ("m" ++ show i))
+            generatePrint (if end then "" else ", ") =<< member i val
         void $ appendPrintf ("}" ++ app) []
 
     _ -> error (show $ typeof val)
@@ -198,12 +198,12 @@ generateIndex expr_@(S.AExpr t expr__) = case expr__ of
     S.Ident _ _ -> generateExpr expr_
     S.Field _ _ _ -> generateExpr expr_
 
-    S.Subscript _ expr midx -> do
+    S.Subscript _ expr idx -> do
         val <- generateIndex expr
         base <- baseTypeOf expr
         case base of
             Type.String -> fail "cannot index string"
-            Type.Table typ -> accessRecord val =<< maybe (return Nothing) (fmap Just . generateExpr) midx
+            Type.Table typ -> accessRecord val =<< fmap Just (generateExpr idx)
             _ -> error (show base)
     _ -> error (show expr__)
 generateIndex e = error (show e)
@@ -513,10 +513,12 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
     S.String _ s -> return $ Value typ $ C.String s
     S.Char _ c -> return $ Value typ $ C.Char c
     S.Match _ expr pattern -> generatePattern pattern =<< generateExpr expr
+    S.Builtin _ [] "conv" [expr] -> convert typ =<< generateExpr expr
     S.Builtin _ params "len" exprs -> do 
         assert (params == []) "len cannot have params"
         assert (length exprs == 1) "len needs one argument"
         len =<< generateExpr (head exprs)
+
 
     S.Ident _ symbol -> do
         obj <- look (show symbol)
@@ -529,8 +531,8 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
         val <- generateExpr expr
         base <- baseTypeOf val
         case base of
-            Type.Tuple _ -> accessRecord val Nothing
-            Type.String  -> accessRecord val Nothing
+            t | isSimple t -> accessRecord val Nothing
+            Type.Tuple _   -> accessRecord val Nothing
 
             _ -> error (show base)
 
@@ -593,39 +595,6 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
             _ -> error (show base)
 
 
-    S.Conv _ t [expr] -> do
-        val <- generateExpr expr
-        base <- baseTypeOf t
-        baseVal <- baseTypeOf val
-        case base of
---            Type.ADT fs -> generateAdtInit t val
-            Type.I64 -> do
-                case baseVal of
-                    Type.Char -> return $ Value t (valExpr val)
-                    _ -> error (show baseVal)
-
-            Type.String -> do
-                case baseVal of
-                    Type.Char -> return $ Value t $ C.Call "doodad_string_char" [valExpr val]
-                    Type.I64 -> return $ Value t $ C.Call "doodad_string_i64" [valExpr val]
-                    Type.String -> return $ Value t (valExpr val)
---                    Type.Table [Type.Char] -> do
---                        return $ Value t $ C.Call "doodad_string_copy" [C.Member (valExpr val) "r0"]
-
-                    _ -> error (show baseVal)
-
-            Type.F32 -> do
-                case baseVal of
-                    Type.F64 -> return $ Value t $ C.Cast Cfloat (valExpr val)
-                    Type.I64 -> return $ Value t $ C.Cast Cfloat (valExpr val)
-
-            Type.Char -> do
-                case baseVal of
-                    Type.I64 -> return $ Value t $ C.Cast Cchar (valExpr val)
-
-            _ -> error (show base)
-    S.Conv _ _ es -> initialiser typ =<< mapM generateExpr es -- TODO
-
     S.Array _ exprs -> do
         base <- baseTypeOf typ
         case base of
@@ -684,9 +653,9 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
 
             _ -> error (show base)
 
-    S.Subscript _ expr marg -> do
+    S.Subscript _ expr arg -> do
         val <- generateExpr expr
-        accessRecord val =<< maybe (return Nothing) (fmap Just . generateExpr) marg
+        accessRecord val . Just =<< generateExpr arg
 
 
     _ -> error (show expr_)
@@ -742,8 +711,8 @@ generateInfix op a b = do
                 end <- fresh "end" 
                 eq <- assign "eq" false
                 forM_ (zip ts [0..]) $ \(t, i) -> do
-                    da <- return $ Value t $ C.Deref (C.Member (valExpr a) ("m" ++ show i))
-                    db <- return $ Value t $ C.Deref (C.Member (valExpr b) ("m" ++ show i))
+                    da <- member i a
+                    db <- member i b
                     b <- generateInfix S.EqEq da db
                     if_ (not_ b) $ appendElem $ C.Goto end
                 set eq true
@@ -755,8 +724,8 @@ generateInfix op a b = do
                 end <- fresh "end" 
                 eq <- assign "eq" false
                 forM_ (zip ts [0..]) $ \(t, i) -> do
-                    ma <- return $ Value t (C.Member (valExpr a) ("m" ++ show i))
-                    mb <- return $ Value t (C.Member (valExpr b) ("m" ++ show i))
+                    ma <- member i a
+                    mb <- member i b
                     b <- generateInfix S.EqEq ma mb
                     if_ (not_ b) $ appendElem $ C.Goto end
                 set eq true

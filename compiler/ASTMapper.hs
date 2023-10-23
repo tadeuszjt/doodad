@@ -140,10 +140,10 @@ mapExpr f expr = withPos expr $ do
             expr2' <- mapExpr f expr2
             return $ Infix pos op expr1' expr2'
 
-        Subscript pos expr mexpr -> do
+        Subscript pos expr arg -> do
             expr' <- mapExpr f expr
-            mexpr' <- maybe (return Nothing) (fmap Just . mapExpr f) mexpr
-            return $ Subscript pos expr' mexpr'
+            arg' <- mapExpr f arg
+            return $ Subscript pos expr' arg'
 
         AST.Range pos mexpr mexpr1 mexpr2 -> do
             mexpr' <- maybe (return Nothing)  (fmap Just . mapExpr f) mexpr

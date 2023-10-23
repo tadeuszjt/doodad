@@ -256,7 +256,7 @@ call : symbol '(' exprsA ')'                   { S.Call (tokPos $2) [] (snd $1) 
      --| '{' exprsA '}' '.' ident '(' exprsA ')' { S.Call (tokPos $4) $2 (Sym $ tokStr $5) $7 }
 
 index  : symbol                             { S.Ident (fst $1) (snd $1) }
-       | index '[' mexpr ']'                 { S.Subscript (tokPos $2) $1 $3 }
+       | index '[' expr ']'                 { S.Subscript (tokPos $2) $1 $3 }
        | index '.' ident                    { S.Field (tokPos $2) $1 (Sym $ tokStr $3) }
        | index '.' symbol '(' exprsA ')'    { S.Call (tokPos $2) [$1] (snd $3) $5 }
        | call                               { $1 }
@@ -267,10 +267,9 @@ expr   : literal                            { $1 }
        | call                               { $1 }
        | symbol                             { S.Ident (fst $1) (snd $1) }
        | '(' exprsA ')'                     { case $2 of [x] -> x; xs -> S.Tuple (tokPos $1) xs }
-       | ordinal_t '(' exprsA ')'           { S.Conv (tokPos $2) $1 $3 }
        | null                               { S.Null (tokPos $1) }
        | expr '.' ident                     { S.Field (tokPos $2) $1 (Sym $ tokStr $3) }
-       | expr '[' mexpr ']'                 { S.Subscript (tokPos $2) $1 $3 }
+       | expr '['  expr ']'                 { S.Subscript (tokPos $2) $1 $3 }
        | expr ':' type_                     { S.AExpr $3 $1 }
        | expr '.' ident '(' exprsA ')'      { S.Call (tokPos $4) [$1] (Sym $ tokStr $3) $5 }
        | expr '[' mexpr '..' mexpr ']'      { S.Range (tokPos $2) (Just $1) $3 $5 }
@@ -333,7 +332,7 @@ ordinal_t   : bool                          { T.Bool }
 record_t  : '{' types1 '}'                  { T.Record $2 }
 tuple_t  : '(' ')' type_                    { T.Tuple $3 }
          | '(' type_ ',' types1 ')'         { T.Tuple (T.Record $ $2 : $4) }
-         | '(' ')'                          { T.Tuple (T.Record []) }
+         --| '(' ')'                          { T.Tuple (T.Record []) }
 table_t  : '[' ']' type_                    { T.Table $3 }
 
 

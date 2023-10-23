@@ -162,6 +162,19 @@ for len f = do
     withCurID id (f idx)
 
 
+convert :: MonadGenerate m => Type.Type -> Value -> m Value
+convert typ val = do
+    base <- baseTypeOf typ
+    baseVal <- baseTypeOf val
+    case (base, baseVal) of
+        (t1, Record [t2]) | t1 == t2 -> do
+            r <- initialiser typ []
+            set r $ Value typ $ C.Deref $ C.Member (valExpr val) "m0"
+            return r
+
+
+        _ -> error $ show (base, baseVal)
+
 
 set :: MonadGenerate m => Value -> Value -> m ()
 set a b = do
@@ -227,10 +240,7 @@ member :: MonadGenerate m => Int -> Value -> m Value
 member i val = do
     base <- baseTypeOf val
     case base of
---        Type.Table ts -> assign "row" $ Value (Type.Table [ts !! i]) $ C.Initialiser
---            [ C.Member (valExpr val) "len"
---            , C.Member (valExpr val) "cap"
---            , C.Member (valExpr val) ("r" ++ show i)]
+        Type.Record ts -> assign "deref" $ Value (ts !! i) $ C.Deref $ C.Member (valExpr val) ("m" ++ show i)
         Type.Tuple t -> do
             Type.Record ts <- baseTypeOf t
             return $ Value (ts !! i) $ C.Member (valExpr val) ("m" ++ show i)
@@ -309,11 +319,11 @@ accessRecord val marg = do
 
                 _ -> error (show baseT)
 
-        Type.String -> do
+        t | isSimple t -> do
             assert (isNothing marg) "no arg needed"
             assign "record" $ Value (Record [typeof val]) $ C.Initialiser [C.Address $ valExpr val]
 
-        _ -> error "thar"
+        _ -> error (show base)
 
 
 

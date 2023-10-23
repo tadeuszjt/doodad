@@ -84,9 +84,8 @@ data Expr
     | Construct   TextPos Symbol [Expr]
     | Null        TextPos 
     | Field       TextPos Expr Symbol
-    | Subscript   TextPos Expr (Maybe Expr)
+    | Subscript   TextPos Expr Expr
     | Ident       TextPos Symbol
-    | Conv        TextPos Type [Expr]
     | Builtin     TextPos [Expr] String [Expr]
     | Prefix      TextPos Operator Expr
     | Infix       TextPos Operator Expr Expr
@@ -156,7 +155,6 @@ instance TextPosition Expr where
         Ident        p _ -> p
         Call         p _ _ _ -> p 
         Builtin      p _ _ _ -> p 
-        Conv         p _ _ -> p
         Prefix       p _ _ -> p
         Infix        p _ _ _ -> p
         Match        p _ _ -> p
@@ -255,7 +253,6 @@ instance Show Expr where
         Field pos expr symbol         -> show expr ++ "." ++ show symbol
         Subscript pos expr1 expr2     -> show expr1 ++ "[" ++ show expr2 ++ "]"
         Ident p s                     -> show s 
-        Conv pos typ exprs            -> show typ ++ tupStrs (map show exprs)
         Prefix pos op expr            -> show op ++ show expr
         Infix pos op expr1 expr2      -> show expr1 ++ " " ++ show op ++ " " ++ show expr2
         Call pos [] symbol exprs      -> show symbol ++ tupStrs (map show exprs)

@@ -13,12 +13,14 @@ type[K, V] Map (keys:[]K, values:[]V)
 
 fn[K, V] {m:Map(K, V)} insert(key:()K, value:()V)
     m.keys.push(key)
+    m.values.push(value)
     return
 
 
 fn[K, V] {m:Map(K, V)} find(key:()K) Maybe(()V)
     for m.keys[..] -> i
-        print(i:i64)
+        if m.keys[i] == key{}
+            return Just( conv(m.values[i]):()V )
     return Nothing(0:i8)
 
 

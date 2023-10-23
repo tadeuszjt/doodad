@@ -444,8 +444,9 @@ resolveMapper element = case element of
             resm <- lookm symbol KeyType
             case resm of 
                 Just symbol' -> do
-                    assert (params == []) "Convert cannot have params"
-                    return $ Just $ ElemExpr $ Conv pos (Type.TypeApply symbol' []) exprs -- TODO
+                    error "conv"
+--                    assert (params == []) "Convert cannot have params"
+--                    return $ Just $ ElemExpr $ Conv pos (Type.TypeApply symbol' []) exprs -- TODO
                 Nothing -> do
                     symbol' <- look symbol KeyFunc
                     return $ Just $ ElemExpr (Call pos params symbol' exprs)
