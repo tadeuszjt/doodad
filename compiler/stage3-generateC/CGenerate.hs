@@ -165,7 +165,7 @@ for len f = do
 
 set :: MonadGenerate m => Value -> Value -> m ()
 set a b = do
-    assert (typeof a == typeof b) "set: types don't match"
+    assert (typeof a == typeof b) $ "set - types don't match: " ++ show (typeof a) ++ ", " ++ show (typeof b)
     base <- baseTypeOf a
     void $ case base of
         _ | isSimple base               -> void $ appendElem $ C.Set (valExpr a) (valExpr b)
@@ -275,9 +275,9 @@ initialiser typ vals = do
 --        Type.Array n t -> do
 --            assert (length vals == n) "initialiser length"
 --            assign "array" $ Value typ $ C.Initialiser (map valExpr vals)
---        Type.Range t -> do
---            assert (map typeof vals == [t, t]) "initialiser types"
---            assign "range" $ Value typ $ C.Initialiser (map valExpr vals)
+        Type.Range t -> do
+            assert (map typeof vals == [t, t]) "initialiser types"
+            assign "range" $ Value typ $ C.Initialiser (map valExpr vals)
         _ -> error (show base)
 
 
@@ -379,27 +379,16 @@ cTypeOf a = case typeof a of
 --    Type.Array n t -> do
 --        arr <- Carray n <$> cTypeOf t
 --        getTypedef "array" $ Cstruct [C.Param "arr" arr]
+    Type.Range t -> do
+        ct <- cTypeOf t
+        getTypedef "range" $ Cstruct [C.Param "min" ct, C.Param "max" ct]
+    Type.ADT ts -> do
+        cts <- mapM cTypeOf ts
+        getTypedef "adt" $ Cstruct [C.Param "en" Cint64_t, C.Param "" $
+            Cunion $ map (\(ct, i) -> C.Param ("u" ++ show i) ct) (zip cts [0..])]
 
---    Type.Range t -> do
---        ct <- cTypeOf t
---        getTypedef "range" $ Cstruct [C.Param "min" ct, C.Param "max" ct]
---    Type.ADT fs -> do
---        cts <- mapM cTypeOf (map fieldType fs)
---        getTypedef "adt" $ Cstruct [C.Param "en" Cint64_t, C.Param "" $
---            Cunion $ map (\(ct, i) -> C.Param ("u" ++ show i) ct) (zip cts [0..])]
---    Type.Table ts -> do
---        cts <- mapM cTypeOf ts
---        let pts = zipWith (\ct i -> C.Param ("r" ++ show i) (Cpointer ct)) cts [0..]
---        getTypedef "table" $ Cstruct (C.Param "len" Cint64_t:C.Param "cap" Cint64_t:pts)
---
 
     _ -> error (show $ typeof a)
-    where
-        fieldType f = case f of
-            FieldNull -> I8
-            FieldType t -> t
-            FieldCtor [t] -> t
---            FieldCtor ts -> Type.Tuple ts
 
 
 

@@ -15,6 +15,16 @@ fn[K, V] {m:Map(K, V)} insert(key:()K, value:()V)
     m.keys.push(key)
     return
 
+
+fn[K, V] {m:Map(K, V)} find(key:()K) Maybe(()V)
+    for m.keys[..] -> i
+        print(i:i64)
+    return Nothing(0:i8)
+
+
+type[T] Maybe (Nothing:i8 | Just:T)
+
+
 fn main()
     let t = ("benis", 12):()Person
 
@@ -32,6 +42,8 @@ fn main()
 
     for map2.keys -> x
         print(x)
+
+    let z = map.find("benis")
 
     print("main2 finished")
 

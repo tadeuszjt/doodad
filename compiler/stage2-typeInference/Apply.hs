@@ -26,13 +26,8 @@ substitute u x typ = case typ of
     Record ts            -> Record $ map (substitute u x) ts
     Tuple t              -> Tuple (substitute u x t)
     Table t              -> Table (substitute u x t)
+    Range t              -> Range (substitute u x t)
     _                    -> error (show typ)
-    where
-        subAdtField :: AdtField -> AdtField
-        subAdtField field = case field of
-            FieldNull -> FieldNull
-            FieldType t -> FieldType (substitute u x t)
-            FieldCtor ts -> FieldCtor $ map (substitute u x) ts
 
 
 applySubs :: (Apply a, BoM s m) => [(Type, Type)] -> a -> m a
@@ -69,7 +64,7 @@ instance Apply Constraint where
         ConsElem t1 t2       -> return $ ConsElem (f t1) (f t2)
         ConsSubscript t1 t2  -> return $ ConsSubscript (f t1) (f t2)
         ConsField t1 i t2    -> return $ ConsField (f t1) i (f t2)
-        ConsAdtMem t1 i j t2 -> return $ ConsAdtMem (f t1) i j (f t2)
+        ConsAdtField t1 i j t2 -> return $ ConsAdtField (f t1) i j (f t2)
         ConsTuple t1 ts      -> return $ ConsTuple (f t1) (map f ts)
         ConsRecordAccess t1 t2 -> return $ ConsRecordAccess (f t1) (f t2)
 

@@ -333,6 +333,7 @@ ordinal_t   : bool                          { T.Bool }
 record_t  : '{' types1 '}'                  { T.Record $2 }
 tuple_t  : '(' ')' type_                    { T.Tuple $3 }
          | '(' type_ ',' types1 ')'         { T.Tuple (T.Record $ $2 : $4) }
+         | '(' ')'                          { T.Tuple (T.Record []) }
 table_t  : '[' ']' type_                    { T.Table $3 }
 
 
@@ -342,25 +343,8 @@ anno_t   : ordinal_t                        { S.AnnoType $1 }
          | table_t                          { S.AnnoType $1 }
          | '(' ')' '{' paramsA1 '}'         { S.AnnoTuple $4 }
          | '(' paramsA1 ')'                 { S.AnnoTuple $2 }
-
-
-adtFields1 : adtField                       { [$1] }
-           | adtField '|' adtFields1        { $1 : $3 }
-
-
-adtFields2 : adtField '|' adtFields1        { $1 : $3 }
-adtField : type_                            { T.FieldType $1 }
-         | null                             { T.FieldNull }
-
+         | '(' paramsL2 ')'                 { S.AnnoADT $2 }
 {
-
-paramToAdtField :: S.Param -> S.AnnoADTField
-paramToAdtField (S.Param pos symbol typ) = case typ of
---    T.Tuple [] -> S.ADTFieldMember symbol []
---    T.Tuple ts -> S.ADTFieldMember symbol ts
-    t          -> S.ADTFieldMember symbol [t]
-
-
 parse :: MonadError Error m => [Token] -> m S.AST
 parse tokens = do
     case (parseTokens tokens) 0 of

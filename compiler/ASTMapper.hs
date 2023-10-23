@@ -119,6 +119,7 @@ mapExpr f expr = withPos expr $ do
         AST.Bool pos b      -> return $ AST.Bool pos b
         AST.Tuple pos exprs -> AST.Tuple pos <$> mapM (mapExpr f) exprs
         RecordAccess pos expr -> RecordAccess pos <$> mapExpr f expr
+        Construct pos symbol exprs -> Construct pos symbol <$> mapM (mapExpr f) exprs
 
         Field pos expr symbol -> do
             expr' <- mapExpr f expr
@@ -143,6 +144,13 @@ mapExpr f expr = withPos expr $ do
             expr' <- mapExpr f expr
             mexpr' <- maybe (return Nothing) (fmap Just . mapExpr f) mexpr
             return $ Subscript pos expr' mexpr'
+
+        AST.Range pos mexpr mexpr1 mexpr2 -> do
+            mexpr' <- maybe (return Nothing)  (fmap Just . mapExpr f) mexpr
+            mexpr1' <- maybe (return Nothing) (fmap Just . mapExpr f) mexpr1 
+            mexpr2' <- maybe (return Nothing) (fmap Just . mapExpr f) mexpr2 
+            return $ AST.Range pos mexpr' mexpr1' mexpr2'
+
 
         _ -> error (show expr)
     case resm of
@@ -171,7 +179,9 @@ mapType f typ = do
         t | isSimple t -> return typ
         Record ts      -> Record <$> mapM (mapType f) ts
         Table t        -> Table <$> mapType f t
+        Type.Range t   -> Type.Range <$> mapType f t
         Type.Tuple t   -> Type.Tuple <$> mapType f t
+        ADT ts         -> ADT <$> mapM (mapType f) ts
         TypeApply s ts -> TypeApply s <$> mapM (mapType f) ts
         _ -> error (show typ)
     case resm of

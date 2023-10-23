@@ -9,13 +9,6 @@ class Typeof a where typeof :: a -> Type
 instance Typeof Type where 
     typeof typ = typ
 
-data AdtField
-    = FieldNull
-    | FieldType Type
-    | FieldCtor [Type]
-    deriving (Eq, Ord)
-
-
 data Type
     = Type Int
     | Void
@@ -29,17 +22,13 @@ data Type
     | Bool                   
     | Char                   
     | String
+    | Range Type
     | Record [Type]
     | Tuple Type
     | Table Type
+    | ADT [Type]
     | TypeApply Symbol [Type]
     deriving (Eq, Ord)
-
-instance Show AdtField where
-    show adtField = case adtField of
-        FieldNull -> "null"
-        FieldCtor ts -> "(" ++ intercalate ", " (map show ts) ++ ")"
-        FieldType t -> show t
 
 instance Show Type where
     show t = case t of
@@ -55,10 +44,12 @@ instance Show Type where
         Bool              -> "bool"
         Char              -> "char"
         String            -> "string"
+        Range t           -> "[..]" ++ show t
         Record ts         -> "{" ++ intercalate ", " (map show ts) ++ "}"
         Tuple (Record ts) -> "(" ++ intercalate ", " (map show ts) ++ ")"
         Tuple t           -> "()" ++ show t
         Table t           -> "[]" ++ show t
+        ADT ts            -> "(" ++ intercalate " | " (map show ts) ++ ")"
         TypeApply s []    -> show s
         TypeApply s ts    -> show s ++ "(" ++ intercalate ", " (map show ts) ++ ")"
 
@@ -99,6 +90,7 @@ applyTypeFunction argSymbols argTypes typ = case length argSymbols == length arg
         Record ts               -> Record $ map (applyTypeFunction argSymbols argTypes) ts
         Tuple t                 -> Tuple $ applyTypeFunction argSymbols argTypes t
         Table t                 -> Table $ applyTypeFunction argSymbols argTypes t
+        ADT ts                  -> ADT $ map (applyTypeFunction argSymbols argTypes) ts
         _ | isSimple typ        -> typ
         _                       -> error $ "applyTypeFunction: " ++ show typ
 
@@ -153,6 +145,8 @@ flattenTuple typedefs typ = case typ of
     Type _                              -> typ
     TypeApply s ts                      -> TypeApply s (map (flattenTuple typedefs) ts)
     Record ts                           -> Record (map (flattenTuple typedefs) ts)
+    ADT ts                              -> ADT (map (flattenTuple typedefs) ts)
+    Range t                             -> Range (flattenTuple typedefs t)
     Tuple t | definitelyIgnoresTuples typedefs t -> flattenTuple typedefs t
     Tuple t | otherwise                 -> Tuple (flattenTuple typedefs t)
     _ -> error (show typ)

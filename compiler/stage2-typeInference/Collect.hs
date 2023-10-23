@@ -14,10 +14,7 @@ import Error
 import Control.Monad.State
 import qualified SymTab
 import Symbol
-import qualified Resolve
 import ASTResolved
-import Annotate hiding (genType)
-import Apply
 import FunctionFinder
 
 import qualified Debug.Trace
@@ -39,22 +36,22 @@ data Object
 
 data CollectState
     = CollectState
-        { symTab     :: SymTab
-        , curRetty   :: Type
-        , collected  :: Map.Map Constraint TextPos
-        , defaults   :: Map.Map Constraint TextPos
-        , curPos     :: TextPos
-        , typeSupply :: Int
+        { symTab      :: SymTab
+        , curRetty    :: Type
+        , collected   :: Map.Map Constraint TextPos
+        , defaults    :: Map.Map Constraint TextPos
+        , curPos      :: TextPos
+        , typeSupply  :: Int
         , astResolved :: ASTResolved
         }
 
 initCollectState annotateCount astResolved = CollectState
-    { symTab     = SymTab.initSymTab
-    , curRetty   = Void
-    , collected  = Map.empty
-    , defaults   = Map.empty
-    , curPos     = TextPos "" 0 0
-    , typeSupply = annotateCount
+    { symTab      = SymTab.initSymTab
+    , curRetty    = Void
+    , collected   = Map.empty
+    , defaults    = Map.empty
+    , curPos      = TextPos "" 0 0
+    , typeSupply  = annotateCount
     , astResolved = astResolved 
     }
 
@@ -75,37 +72,9 @@ collectPos t m = withPos t $ do
     return r
 
 
-collectAdtField :: BoM CollectState m => Type -> Int -> Int -> Type -> m () 
-collectAdtField t i j agg =
-    modify $ \s -> s { collected = Map.insert (ConsAdtMem t i j agg) (curPos s) (collected s) }
-
-collectField :: BoM CollectState m => Type -> Int -> Type -> m () 
-collectField t i agg =
-    modify $ \s -> s { collected = Map.insert (ConsField t i agg) (curPos s) (collected s) }
-
 collect :: BoM CollectState m => Constraint -> m ()
 collect constraint = do
     modify $ \s -> s { collected = Map.insert (constraint) (curPos s) (collected s) }
-
-collectBase :: BoM CollectState m => Type -> Type -> m ()
-collectBase t1 t2 = do
-    modify $ \s -> s { collected = Map.insert (ConsBase t1 t2) (curPos s) (collected s) }
-
-collectMember :: BoM CollectState m => Type -> Int -> Type -> m ()
-collectMember t1 i t2 = do
-    modify $ \s -> s { collected = Map.insert (ConsMember t1 i t2) (curPos s) (collected s) }
-
-collectElem :: BoM CollectState m => Type -> Type -> m ()
-collectElem t1 t2 = do
-    modify $ \s -> s { collected = Map.insert (ConsElem t1 t2) (curPos s) (collected s) }
-
-collectSubscript :: BoM CollectState m => Type -> Type -> m ()
-collectSubscript t1 t2 = do
-    modify $ \s -> s { collected = Map.insert (ConsSubscript t1 t2) (curPos s) (collected s) }
-
-collectKey :: BoM CollectState m => Type -> Type -> m ()
-collectKey t1 t2 = do
-    modify $ \s -> s { collected = Map.insert (ConsKey t1 t2) (curPos s) (collected s) }
 
 collectEq :: BoM CollectState m => Type -> Type -> m ()
 collectEq t1 t2 = do
@@ -133,7 +102,8 @@ define symbol key obj = do
 collectAST :: BoM CollectState m => ASTResolved -> m ()
 collectAST ast = do
     forM (Map.toList $ ctorDefs ast) $ \(symbol, (typeDefSymbol, i)) -> do
-        collectCtorDef symbol typeDefSymbol i
+        (typeArgs, typ) <- mapGet typeDefSymbol =<< gets (typeFuncs . astResolved) -- check
+        define (Sym $ sym symbol) (KeyField typeDefSymbol) (ObjField i)
 
     forM (Map.toList $ constDefs ast) $ \(symbol, expr) -> do
         define symbol KeyVar (ObjConst expr)
@@ -156,21 +126,6 @@ collectFuncDef symbol body = do
     modify $ \s -> s { symTab = SymTab.pop (symTab s) }
 
 
-collectCtorDef :: BoM CollectState m => Symbol -> Symbol -> Int -> m ()
-collectCtorDef symbol s@(SymResolved _ _ _) i = withErrorPrefix "collectCtorDef" $ do
-    (typeArgs, typ) <- mapGet s =<< gets (typeFuncs . astResolved) -- check
-    case typ of
-        Tuple (Record ts) -> define (Sym $ sym symbol) (KeyField s) (ObjField i)
---        Table ts -> define (Sym $ sym symbol) (KeyField s) (ObjField i)
---        ADT fs   -> case fs !! i of
---            FieldCtor ts -> do
---                define symbol (KeyFunc $ FuncHeader [] [] symbol ts $ TypeApply s []) ObjFunc -- TODO add generic
---                define symbol KeyAdtField (ObjField i)
---            _            -> return ()
-            
-        _ -> error (show typ)
-
-
 
 collectStmt :: BoM CollectState m => S.Stmt -> m ()
 collectStmt stmt = collectPos stmt $ case stmt of
@@ -191,7 +146,7 @@ collectStmt stmt = collectPos stmt $ case stmt of
                 collectExpr expr
 
     S.If _ expr blk melse -> do
-        collectBase Bool (typeof expr)
+        collect $ ConsBase Bool (typeof expr)
         collectExpr expr
         collectStmt blk
         maybe (return ()) collectStmt melse
@@ -224,7 +179,7 @@ collectStmt stmt = collectPos stmt $ case stmt of
 
     S.While _ expr blk -> do
         collectExpr expr
-        collectBase Bool (typeof expr)
+        collect $ ConsBase Bool (typeof expr)
         collectStmt blk
 
     S.Switch p expr cases -> do
@@ -236,7 +191,7 @@ collectStmt stmt = collectPos stmt $ case stmt of
     S.For p expr mpat blk -> do
         when (isJust mpat) $ do
             gt <- genType
-            collectSubscript (typeof expr) gt
+            collect $ ConsSubscript (typeof expr) gt
             collectPattern (fromJust mpat) gt
 
         collectExpr expr
@@ -269,7 +224,7 @@ collectPattern pattern typ = collectPos pattern $ case pattern of
         Just (ObjField i) <- SymTab.lookup symbol KeyAdtField <$> gets symTab
         gts <- replicateM (length pats) genType
         zipWithM_ collectPattern pats gts
-        forM_ (zip gts [0..]) $ \(t, j) -> collectAdtField t i j typ
+        forM_ (zip gts [0..]) $ \(t, j) -> collect $ ConsAdtField t i j typ
 
     S.PatTypeField _ t pat -> do
         collectPattern pat t
@@ -283,7 +238,7 @@ collectPattern pattern typ = collectPos pattern $ case pattern of
     S.PatArray _ pats -> do
         gt <- genType
         mapM_ (\p -> collectPattern p gt) pats
-        collectMember typ 0 gt
+        collect $ ConsMember typ 0 gt
 
     S.PatAnnotated pat t -> do
         collectEq t typ
@@ -337,11 +292,11 @@ collectExpr (S.AExpr exprType expr) = collectPos expr $ case expr of
         mapM_ collectExpr es
 
     S.Char _ c       -> do
-        collectBase exprType Char
+        collect $ ConsBase exprType Char
         collectDefault exprType Char
 
     S.Bool _ b       -> do
-        collectBase exprType Bool
+        collect $ ConsBase exprType Bool
         collectDefault exprType Bool
 
     S.String _ s     -> do
@@ -365,10 +320,10 @@ collectExpr (S.AExpr exprType expr) = collectPos expr $ case expr of
             _ | op `elem` [S.Plus, S.Minus, S.Times, S.Divide, S.Modulo] -> do
                 collectEq exprType (typeof e1)
             _ | op `elem` [S.LT, S.GT, S.LTEq, S.GTEq, S.EqEq, S.NotEq]  -> do
-                collectBase exprType Bool
+                collect $ ConsBase exprType Bool
                 collectDefault exprType Bool
             _ | op `elem` [S.AndAnd, S.OrOr] -> do
-                collectBase exprType Bool
+                collect $ ConsBase exprType Bool
                 collectEq exprType (typeof e1)
             _ -> return ()
                     
@@ -377,14 +332,14 @@ collectExpr (S.AExpr exprType expr) = collectPos expr $ case expr of
         collectExpr e2
 
     S.Subscript _ e1 me2 -> do
-        collectSubscript (typeof e1) exprType
+        collect $ ConsSubscript (typeof e1) exprType
         collectExpr e1
         maybe (return ()) collectExpr me2
         --collectDefault (typeof e2) I64
 
     S.Tuple _ es -> do
         collect $ ConsTuple exprType (map typeof es)
---        collectBase exprType $ Tuple $ Record (map typeof es)
+--        collect $ ConsBase exprType $ Tuple $ Record (map typeof es)
 --        collectDefault exprType $ Tuple (map typeof es)
         mapM_ collectExpr es
 
@@ -393,13 +348,13 @@ collectExpr (S.AExpr exprType expr) = collectPos expr $ case expr of
             Type x         -> return ()
             TypeApply symbol _ -> do
                 ObjField i  <- look (Sym sym) . KeyField =<< getTypeSymbol (typeof e)
-                collectField exprType i (typeof e)
+                collect $ ConsField exprType i (typeof e)
             _ -> fail "invalid field access"
         collectExpr e
 
     S.Field _ e symbol@(SymResolved _ _ _) -> do
         ObjField i  <- look (Sym $ Symbol.sym symbol) . KeyField =<< getTypeSymbol (typeof e)
-        collectField exprType i (typeof e)
+        collect $ ConsField exprType i (typeof e)
         collectExpr e
 
     S.AExpr _ _ -> fail "what"
@@ -415,22 +370,21 @@ collectExpr (S.AExpr exprType expr) = collectPos expr $ case expr of
             }
         collectExpr e
 
---    S.Range _ me me1 me2 -> do
---        when (isJust me) $ do
---            collectExpr (fromJust me)
---
---        when (isJust me1 && isJust me2) $ do
---            collectEq (typeof $ fromJust me1) (typeof $ fromJust me2)
---        when (isJust me1) $ do
---            collectBase (Range $ typeof $ fromJust me1) exprType
---            collectDefault (Range $ typeof $ fromJust me1) exprType
---            collectExpr (fromJust me1)
---        when (isJust me2) $ do
---            collectBase (Range $ typeof $ fromJust me2) exprType
---            collectDefault (Range $ typeof $ fromJust me2) exprType
---            collectExpr (fromJust me2)
---        when (isNothing me1 && isNothing me2) $ do
---            collectDefault (Range I64) exprType
+    S.Range _ me me1 me2 -> do
+        when (isJust me) $ collectExpr (fromJust me)
+
+        when (isJust me1 && isJust me2) $ do
+            collectEq (typeof $ fromJust me1) (typeof $ fromJust me2)
+        when (isJust me1) $ do
+            collect $ ConsBase (Range $ typeof $ fromJust me1) exprType
+            collectDefault (Range $ typeof $ fromJust me1) exprType
+            collectExpr (fromJust me1)
+        when (isJust me2) $ do
+            collect $ ConsBase (Range $ typeof $ fromJust me2) exprType
+            collectDefault (Range $ typeof $ fromJust me2) exprType
+            collectExpr (fromJust me2)
+        when (isNothing me1 && isNothing me2) $ do
+            collectDefault (Range I64) exprType
 
 --    S.Array _ es -> do
 --        forM_ es $ \e -> do 

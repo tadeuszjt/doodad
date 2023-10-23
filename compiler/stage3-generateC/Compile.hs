@@ -36,12 +36,6 @@ getSymbolsOrderedByDependencies typedefs = do
 --            Type.ADT fs -> concat <$> mapM getSymbolsField fs
             _ -> error (show typ)
 
-        getSymbolsField :: Monad m => AdtField -> m [Symbol]
-        getSymbolsField field = case field of
-            FieldNull -> return []
-            FieldType t -> getSymbols t
-            FieldCtor ts -> concat <$> mapM getSymbols ts
-            _ -> error (show field)
         
         removeDuplicates :: Eq a => [a] -> [a]
         removeDuplicates [] = []
@@ -312,18 +306,18 @@ generateStmt stmt = withPos stmt $ case stmt of
             val <- generateExpr expr
             -- special preable for ranges
             case base of
---                Type.Range I64 -> do
---                    if_ first $ do
---                        set idx $ Value I64 (C.Member (valExpr val) "min")
---                        set first false
---                        return ()
+                Type.Range I64 -> do
+                    if_ first $ do
+                        set idx $ Value I64 (C.Member (valExpr val) "min")
+                        set first false
+                        return ()
                 Type.String -> return ()
 --                Type.Array _ _ -> return ()
                 Type.Table _ -> return ()
 
             -- check that index is still in range
             idxGtEq <- case base of
---                Type.Range I64 -> generateInfix S.GTEq idx $ Value I64 (C.Member (valExpr val) "max")
+                Type.Range I64 -> generateInfix S.GTEq idx $ Value I64 (C.Member (valExpr val) "max")
                 Type.String    -> generateInfix S.GTEq idx =<< len val
 --                Type.Array n t -> generateInfix S.GTEq idx (i64 n)
                 Type.Table _  -> generateInfix S.GTEq idx =<< len val
@@ -335,6 +329,8 @@ generateStmt stmt = withPos stmt $ case stmt of
                 Just pat -> case base of
                     --Type.String   -> generatePattern pat =<< subscript val idx
                     Type.Table ts -> generatePattern pat =<< accessRecord val (Just idx)
+                    Type.Range t  -> generatePattern pat idx
+                    _ -> error (show base)
 
             if_ (not_ patMatches) $ appendElem C.Break
             generateStmt stmt
@@ -652,16 +648,16 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
         start <- case base of
 --            Type.Array n t -> case mexpr1 of
 --                Nothing -> return (i64 0)
---            Type.Table ts -> case mexpr1 of
---                Nothing -> return (i64 0)
+            Type.Table _ -> case mexpr1 of
+                Nothing -> return (i64 0)
             Type.String -> case mexpr1 of
                 Nothing -> return (i64 0)
             _ -> error (show base)
         end <- case base of
 --            Type.Array n t -> case mexpr2 of
 --                Nothing -> return (i64 n)
---            Type.Table ts -> case mexpr2 of
---                Nothing -> len val
+            Type.Table _ -> case mexpr2 of
+                Nothing -> len val
             Type.String -> case mexpr1 of
                 Nothing -> len val
             _ -> error (show base)
@@ -674,32 +670,19 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
         initialiser typ [val1, val2]
 
     S.Construct _ symbol exprs -> do
-        base <- baseTypeOf typ
         vals <- mapM generateExpr exprs
-        (typ', i) <- mapGet symbol =<< gets ctors
-        -- assert (typ == Type.Typedef typ') "error, types don't match" TODO
-
+        (typeSymbol, i) <- mapGet symbol =<< gets ctors
+        base <- baseTypeOf typ
         case base of
---            Type.ADT fs -> do
---                assert (i < length fs) "invalid index"
---                case fs !! i of
---                    FieldCtor [t] -> do
---                        assert (length vals == 1) "invalid constructor"
---                        adt <- assign "adt" $ Value typ (C.Initialiser [C.Int $ fromIntegral i]) -- TODO
---                        m <- member i adt
---                        set m (head vals)
---                        return adt
---                    FieldCtor ts -> do
---                        assert (length vals == length ts) "invalid constructor"
---                        adt <- assign "adt" $ Value typ (C.Initialiser [C.Int $ fromIntegral i]) -- TODO
---                        forM_ (zip vals [0..]) $ \(v, j) -> do
---                            m <- member j =<< member i adt
---                            set m v
---                        return adt
---
---                    _ -> error (show $ fs !! i)
+            Type.ADT ts -> do
+                assert (length vals == 1) "TODO"
+                assert (i < length ts) "invalid index"
+                adt <- assign "adt" $ Value typ (C.Initialiser [C.Int $ fromIntegral i])
+                let t = ts !! i
+                set (Value t $ C.Member (valExpr adt) ("u" ++ show i)) (head vals)
+                return adt
 
-            _ -> error (show typ)
+            _ -> error (show base)
 
     S.Subscript _ expr marg -> do
         val <- generateExpr expr
@@ -714,6 +697,7 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
             assert (typeof r == typ) $ 
                 "generateExpr returned: " ++ show r ++ " but checked " ++ show typ ++ " for " ++ show expr_
             return r
+generateExpr x = error (show x)
             
 
 generateInfix :: MonadGenerate m => S.Operator -> Value -> Value -> m Value

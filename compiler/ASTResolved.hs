@@ -84,6 +84,10 @@ isNonGenericFunction symbol ast = if Map.member symbol (funcDefs ast) then
     else False
 
 
+isCtor :: Symbol -> ASTResolved -> Bool
+isCtor symbol ast = Map.member symbol (ctorDefs ast)
+
+
 
 getTypeFunction :: Symbol -> ASTResolved -> ([Symbol], Type)
 getTypeFunction symbol ast = if Map.member symbol (typeFuncs ast) then

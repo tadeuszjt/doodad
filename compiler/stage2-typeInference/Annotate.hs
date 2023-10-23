@@ -57,11 +57,5 @@ hasTypeVars typ = case typ of
     TypeApply s ts -> any (== True) (map hasTypeVars ts)
     Record ts      -> any (== True) (map hasTypeVars ts)
     Table t        -> hasTypeVars t
+    Type.Range t   -> hasTypeVars t
     _ -> error (show typ)
-    where
-        fHasTypeVars :: AdtField -> Bool
-        fHasTypeVars field = case field of
-            FieldNull -> False
-            FieldType t -> hasTypeVars t
-            FieldCtor ts -> any (== True) (map hasTypeVars ts)
-            _ -> error (show field)

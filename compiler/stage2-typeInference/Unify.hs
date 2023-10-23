@@ -73,7 +73,7 @@ unifyOne pos constraint = withPos pos $ case constraint of
 
         _ -> fail $ "cannot unify " ++ show t1 ++ " with " ++ show t2
 
-    ConsAdtMem t i j agg -> do
+    ConsAdtField t i j agg -> do
         basem <- baseTypeOf agg
         case basem of
 --            Just (ADT fs) -> do
@@ -126,6 +126,7 @@ unifyOne pos constraint = withPos pos $ case constraint of
 --            Just (Table [t])  -> unifyOne pos (ConsEq t2 t)
 --            Just (Table ts)   -> unifyOne pos (ConsEq t2 $ Tuple ts)
 --            Just (Array n t)  -> unifyOne pos (ConsEq t2 t)
+            Just (Range _) -> unifyOne pos (ConsBase t2 Bool)
             Just String    -> unifyOne pos (ConsEq t2 Char)
             Just (Tuple t) -> do
                 baseT <- baseTypeOf t

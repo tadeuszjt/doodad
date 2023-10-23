@@ -10,7 +10,7 @@ data Constraint
     | ConsElem Type Type         -- t2 is elem of t1
     | ConsSubscript Type Type    -- t2 is elem type of t1
     | ConsField Type Int Type 
-    | ConsAdtMem Type Int Int Type
+    | ConsAdtField Type Int Int Type
     | ConsKey Type Type          -- t2 is key type of t1
     | ConsTuple Type [Type]      -- t2s are the member types of 51
     | ConsRecordAccess Type Type

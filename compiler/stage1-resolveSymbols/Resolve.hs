@@ -128,15 +128,8 @@ popSymbolTable = do
 annoToType :: AnnoType -> Type
 annoToType anno = case anno of
     AnnoTuple params -> Type.Tuple $ Type.Record (map paramType params)
---    AnnoADT  xs -> Type.ADT $ map annoFieldToField xs
-    AnnoType t  -> t
---    AnnoTable xs -> Type.Table $ map paramType xs
-    where
-        annoFieldToField :: AnnoADTField -> AdtField
-        annoFieldToField field = case field of
-            AST.ADTFieldType t           -> FieldType t
-            AST.ADTFieldNull             -> FieldNull
-            AST.ADTFieldMember symbol ts -> FieldCtor ts
+    AnnoADT  params  -> Type.ADT $ map paramType params
+    AnnoType t       -> t
 
 
 buildTypeFuncImportMap :: BoM (Map.Map Symbol ([Symbol], Type)) m => [ASTResolved] -> m ()
@@ -161,13 +154,12 @@ buildCtorImportMap imports = do
 buildCtorMap :: BoM (Map.Map Symbol (Symbol, Int)) m => [(Symbol, AnnoType)] -> m ()
 buildCtorMap list = do
     forM_ list $ \(symbol, anno) -> case anno of
-        AnnoADT xs -> forM_ (zip xs [0..]) $ \(x, i) -> case x of
-            ADTFieldMember s t -> modify $ Map.insert s (symbol, i)
-            _ -> return ()
-        AnnoTuple xs -> forM_ (zip xs [0..]) $ \(Param _ s t, i) -> 
-            modify $ Map.insert s (symbol,  i)
-        AnnoTable xs -> forM_ (zip xs [0..]) $ \(Param _ s t, i) -> 
-            modify $ Map.insert s (symbol,  i)
+        AnnoADT ps -> forM_ (zip ps [0..]) $ \(Param _ s t, i) -> 
+            modify $ Map.insert s (symbol, i)
+        AnnoTuple ps -> forM_ (zip ps [0..]) $ \(Param _ s t, i) -> 
+            modify $ Map.insert s (symbol, i)
+        AnnoTable ps -> forM_ (zip ps [0..]) $ \(Param _ s t, i) -> 
+            modify $ Map.insert s (symbol, i)
         AnnoType t -> return ()
         _ -> error (show anno)
 
@@ -286,33 +278,26 @@ resolveTypeDef2 (AST.Typedef pos typeArgs (Sym sym) anno) = do
                 AST.Param pos s' <$> resolve t
             return $ AnnoTuple ps'
 
-        AnnoTable ps -> do
-            ps' <- forM ps $ \(AST.Param pos (Sym s) t) -> do
-                s' <- genSymbol s
-                AST.Param pos s' <$> resolve t
-            return $ AnnoTable ps'
+        AnnoTable params -> fmap AnnoTable $ forM params $ \(AST.Param pos (Sym s) t) -> do
+            s' <- genSymbol s
+            AST.Param pos s' <$> resolve t
 
-        AnnoADT xs -> do
-            xs' <- forM xs $ \x -> case x of
-                ADTFieldMember (Sym s) ts -> do
-                    s' <- genSymbol s
-                    ts' <- mapM resolve ts
-                    return $ ADTFieldMember s' ts'
-                ADTFieldType t -> ADTFieldType <$> resolve t
-                ADTFieldNull -> return ADTFieldNull
-            return $ AnnoADT xs'
+        AnnoADT params -> fmap AnnoADT $ forM params $ \(AST.Param pos (Sym s) t) -> do
+            s' <- genSymbol s
+            Param pos s' <$> resolve t
+
     popSymbolTable
 
-    extraSpecialKeyFuncDefiningFunction anno'
+    --extraSpecialKeyFuncDefiningFunction anno'
     modify $ \s -> s { typeFuncsMap = Map.insert symbol (argSymbols, anno') (typeFuncsMap s) }
     where
-        extraSpecialKeyFuncDefiningFunction :: BoM ResolveState m => AST.AnnoType -> m ()
-        extraSpecialKeyFuncDefiningFunction anno' = case anno' of
-            AnnoADT xs -> forM_ xs $ \x -> case x of
-                ADTFieldMember symbol' ts' -> do
-                    define (Symbol.sym symbol') KeyFunc symbol'
-                _ -> return ()
-            _ -> return ()
+--        extraSpecialKeyFuncDefiningFunction :: BoM ResolveState m => AST.AnnoType -> m ()
+--        extraSpecialKeyFuncDefiningFunction anno' = case anno' of
+--            AnnoADT xs -> forM_ xs $ \x -> case x of
+--                ADTFieldMember symbol' ts' -> do
+--                    define (Symbol.sym symbol') KeyFunc symbol'
+--                _ -> return ()
+--            _ -> return ()
 
 
 instance Resolve Stmt where

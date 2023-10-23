@@ -89,9 +89,12 @@ resolveFuncCall exprType (AST.Call pos params callSymbol args) = withPos pos $ d
                     True  -> do
                         symbol' <- genSymbol (Symbol.sym callSymbol)
                         modify $ \s -> s { funcDefs = Map.insert symbol' bodyReplaced (funcDefs s) }
-                        liftIO $ putStrLn $ "replaced: " ++ show callSymbol ++ " with: " ++ show symbol'
-                        liftIO $ prettyFuncBody  symbol' bodyReplaced
+                        --liftIO $ putStrLn $ "replaced: " ++ show callSymbol ++ " with: " ++ show symbol'
+                        --liftIO $ prettyFuncBody  symbol' bodyReplaced
                         return symbol'
+
+        [symbol] | isCtor symbol ast -> return symbol
+            
 
         _ -> return callSymbol
 

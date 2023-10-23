@@ -119,18 +119,11 @@ data Stmt
     deriving (Eq, Show)
 
 
-data AnnoADTField
-    = ADTFieldMember Symbol [Type]
-    | ADTFieldType   Type
-    | ADTFieldNull
-    deriving (Eq)
-
-
 data AnnoType
     = AnnoType  Type
     | AnnoTuple [Param]
     | AnnoTable [Param]
-    | AnnoADT   [AnnoADTField]
+    | AnnoADT   [Param]
     deriving (Eq)
 
 
@@ -227,16 +220,11 @@ instance Show Operator where
         Not    -> "!"
         PlusEq -> "+="
 
-instance Show AnnoADTField where
-    show annoAdtField = case annoAdtField of
-        ADTFieldType typ -> show typ
-        ADTFieldMember sym ts -> show sym ++ tupStrs (map show ts)
-
 instance Show AnnoType where
     show annoType = case annoType of
         AnnoType t   -> show t
         AnnoTuple ps -> tupStrs $ map show ps
-        AnnoADT xs   -> brcStrs $ map show xs
+        AnnoADT ps   -> brcStrs $ map show ps
         AnnoTable xs -> "[" ++ intercalate "; " (map show xs) ++ "]"
 
 
