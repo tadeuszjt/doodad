@@ -1,0 +1,10 @@
+module sparse
+
+type[T] Sparse (empty:[i64], values:[T])
+
+
+fn[X] {t:[X]} pop()
+    ${ $t->len--; }
+
+
+
