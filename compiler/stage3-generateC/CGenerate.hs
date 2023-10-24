@@ -391,12 +391,17 @@ cTypeOf a = case typeof a of
         ct <- cTypeOf t
         getTypedef "range" $ Cstruct [C.Param "min" ct, C.Param "max" ct]
     Type.ADT ts -> do
-        cts <- mapM cTypeOf ts
+        cts <- mapM cTypeOf (map replaceVoid ts)
         getTypedef "adt" $ Cstruct [C.Param "en" Cint64_t, C.Param "" $
             Cunion $ map (\(ct, i) -> C.Param ("u" ++ show i) ct) (zip cts [0..])]
 
 
     _ -> error (show $ typeof a)
+
+    where
+        replaceVoid :: Type.Type -> Type.Type
+        replaceVoid Void = I8
+        replaceVoid t    = t
 
 
 

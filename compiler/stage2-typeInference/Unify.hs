@@ -70,7 +70,7 @@ unifyOne pos constraint = withPos pos $ case constraint of
         (Table t1, Table t2)      -> unifyOne pos $ ConsEq t1 t2
         (Tuple t1, Tuple t2)      -> unifyOne pos $ ConsEq t1 t2
 
-        _ -> fail $ "cannot unify " ++ show t1 ++ " with " ++ show t2
+        _ -> fail $ "un - cannot unify " ++ show t1 ++ " with " ++ show t2
 
     ConsAdtField t i j adt -> do
         basem <- baseTypeOf adt

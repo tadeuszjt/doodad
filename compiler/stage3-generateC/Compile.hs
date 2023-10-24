@@ -205,6 +205,11 @@ generateIndex expr_@(S.AExpr t expr__) = case expr__ of
             Type.String -> fail "cannot index string"
             Type.Table typ -> accessRecord val =<< fmap Just (generateExpr idx)
             _ -> error (show base)
+
+    S.RecordAccess _ expr -> do
+        val <- generateExpr expr
+        accessRecord val Nothing
+
     _ -> error (show expr__)
 generateIndex e = error (show e)
 
@@ -433,7 +438,7 @@ generatePattern pattern val = withPos pattern $ do
             appendElem $ C.Label endLabel
             return match
 
-        PatField _ symbol [pat] -> do
+        PatField _ symbol pats -> do
             base <- baseTypeOf val
             case base of
                 ADT ts -> do
@@ -449,8 +454,14 @@ generatePattern pattern val = withPos pattern $ do
                     if_ (not_ match) $ appendElem $ C.Goto endLabel
                     set match false
 
-                    patMatch <- generatePattern pat =<< member i val
-                    if_ (not_ patMatch) $ void $ appendElem (C.Goto endLabel)
+                    case ts !! i of
+                        Void -> do
+                            assert (length pats == 0) "Invalid pattern for null field"
+                            return ()
+                        _ -> do
+                            assert (length pats == 1) "Invalid pattern for ADT"
+                            patMatch <- generatePattern (head pats) =<< member i val
+                            if_ (not_ patMatch) $ void $ appendElem (C.Goto endLabel)
 
                     set match true
                     appendElem $ C.Label endLabel
@@ -669,11 +680,15 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
         base <- baseTypeOf typ
         case base of
             Type.ADT ts -> do
-                assert (length vals == 1) "TODO"
                 assert (i < length ts) "invalid index"
                 adt <- assign "adt" $ Value typ (C.Initialiser [C.Int $ fromIntegral i])
                 let t = ts !! i
-                set (Value t $ C.Member (valExpr adt) ("u" ++ show i)) (head vals)
+                case t of
+                    Void -> do
+                        assert (length vals == 0) "Invalid arguments for null field"
+                    _ -> do
+                        assert (length vals == 1) "Invalid number of arguments for ADT"
+                        set (Value t $ C.Member (valExpr adt) ("u" ++ show i)) (head vals)
                 return adt
 
             _ -> error (show base)

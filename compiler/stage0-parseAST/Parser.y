@@ -190,7 +190,6 @@ params2 : param  ',' params1                { $1 : $3 }
 
 paramL  : ident ':' type_                   { S.Param (tokPos $1) (Sym $ tokStr $ $1) $3 }
         | ident ':' null                    { S.Param (tokPos $1) (Sym $ tokStr $ $1) T.Void }
-
 paramL_ : paramL { $1 }
          | paramL 'N' {$1}
 paramsL1 : paramL_                          { [$1] }
@@ -259,6 +258,7 @@ index  : symbol                             { S.Ident (fst $1) (snd $1) }
        | index '[' expr ']'                 { S.Subscript (tokPos $2) $1 $3 }
        | index '.' ident                    { S.Field (tokPos $2) $1 (Sym $ tokStr $3) }
        | index '.' symbol '(' exprsA ')'    { S.Call (tokPos $2) [$1] (snd $3) $5 }
+       | index '{' '}'                      { S.RecordAccess (tokPos $2) $1 }
        | call                               { $1 }
 
 expr   : literal                            { $1 }

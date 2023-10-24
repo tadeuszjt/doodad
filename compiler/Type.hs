@@ -92,6 +92,7 @@ applyTypeFunction argSymbols argTypes typ = case length argSymbols == length arg
         Table t                 -> Table $ applyTypeFunction argSymbols argTypes t
         ADT ts                  -> ADT $ map (applyTypeFunction argSymbols argTypes) ts
         _ | isSimple typ        -> typ
+        Void                    -> typ
         _                       -> error $ "applyTypeFunction: " ++ show typ
 
 

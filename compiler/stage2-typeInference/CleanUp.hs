@@ -81,14 +81,18 @@ resolveFuncCall exprType (AST.Call pos params callSymbol args) = withPos pos $ d
     candidates <- findCandidates callHeader
     ast <- get
     case candidates of
-        [] -> error "no candidates"
-        [symbol] | isGenericFunction symbol ast -> do -- this is where we replace
-            resE <- tryError $ replaceGenericsInFuncBodyWithCall (getFunctionBody symbol ast) callHeader
+        [] -> error $ "no candidates for: " ++ show callHeader
+
+        [symbol] | isNonGenericFunction symbol ast -> return symbol
+        [symbol] | isCtor symbol ast               -> return symbol
+        [symbol] | isGenericFunction symbol ast    -> do -- this is where we replace
+            let genericBody = getFunctionBody symbol ast
+            resE <- tryError $ replaceGenericsInFuncBodyWithCall genericBody callHeader
             case resE of
-                Left e             -> do
+                Left e -> do
                     liftIO $ putStrLn $ "warning: replaceGenericsInFuncBodyWithCall failed for: " ++ show callSymbol ++ " - " ++ show e
                     return callSymbol
-                Right bodyReplaced -> case funcHeaderFullyResolved (funcHeaderFromBody symbol bodyReplaced) of
+                Right bodyReplaced -> case funcHeaderFullyResolved (funcTypeArgs genericBody) (funcHeaderFromBody symbol bodyReplaced) of
                     False -> return callSymbol
                     True  -> do
                         symbol' <- genSymbol (Symbol.sym callSymbol)
@@ -97,12 +101,29 @@ resolveFuncCall exprType (AST.Call pos params callSymbol args) = withPos pos $ d
                         --liftIO $ prettyFuncBody  symbol' bodyReplaced
                         return symbol'
 
-        [symbol] | isCtor symbol ast -> do
-            --liftIO $ putStrLn $ "isCtor: " ++ show symbol
-            return symbol
+        [genericSymbol, nonGenericSymbol] |
+            isGenericFunction genericSymbol ast &&
+            isNonGenericFunction nonGenericSymbol ast -> do
+                let genericBody = getFunctionBody genericSymbol ast
+                resE <- tryError $ replaceGenericsInFuncBodyWithCall genericBody callHeader
+                case resE of
+                    Left e -> do
+                        liftIO $ putStrLn $ "warning: replaceGenericsInFuncBodyWithCall failed for: " ++ show callSymbol ++ " - " ++ show e
+                        return callSymbol
+                    Right bodyReplaced -> do
+                        let genericHeader    = funcHeaderFromBody nonGenericSymbol bodyReplaced
+                        let nonGenericHeader = funcHeaderFromBody nonGenericSymbol (getFunctionBody nonGenericSymbol ast)
+                        if genericHeader == nonGenericHeader then
+                            return nonGenericSymbol
+                        else
+                            return callSymbol
+
+
             
 
-        _ -> return callSymbol
+        _ -> do
+            liftIO $ putStrLn $ "multiple candidates for: " ++ show candidates
+            return callSymbol
 
 
 

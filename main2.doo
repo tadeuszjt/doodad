@@ -9,6 +9,10 @@ fn[T] {t:[]T} push(elem:()T)
     t++
     t[t.length() - 1] = elem{}
 
+fn[T] {t:[]T} pop()
+    ${ $t->len--; }
+
+
 type[K, V] Map (keys:[]K, values:[]V)
 
 fn[K, V] {m:Map(K, V)} insert(key:()K, value:()V)
@@ -21,10 +25,28 @@ fn[K, V] {m:Map(K, V)} find(key:()K) Maybe(()V)
     for m.keys[..] -> i
         if m.keys[i] == key{}
             return Just( conv(m.values[i]):()V )
-    return Nothing(0:i8)
+    return Nothing()
+
+type[T] Maybe (Nothing:null | Just:T)
+type[T] Sparse (values:[]T, empty:[]i64)
+
+fn[T] {s:Sparse(T)} insert(value:()T) i64
+    if s.empty.length() > 0
+        let key = 0
+        key{} = s.empty[s.empty.length() - 1]
+        s.empty.pop()
+        s.values[key] = value{}
+        return key
+
+    s.values.push(value)
+    return s.values.length() - 1
 
 
-type[T] Maybe (Nothing:i8 | Just:T)
+fn[T] {s:Sparse(T)} delete(key:i64)
+    if key == s.values.length() - 1
+        s.values.pop()
+    else
+        s.empty.push(key)
 
 
 fn main()
@@ -49,13 +71,23 @@ fn main()
 
     let z = map.find("benis")
     switch z
-        Nothing(_); print("nothing")
-        Just(x);    print("Just", x) 
+        Nothing(); print("nothing")
+        Just(x);   print("Just", x) 
 
 
     let Just(x) = map2.find( ("bongis", false) )
     //let Just(y) = map3.find( ("bongis", true) )
     print(x)
+
+
+    data sparse Sparse(string)
+    let key1 = sparse.insert("benis")
+    let key2 = sparse.insert("bongis")
+
+    for sparse.values -> v
+        print(v)
+    print(key1, key2)
+
 
     print("main2 finished")
 

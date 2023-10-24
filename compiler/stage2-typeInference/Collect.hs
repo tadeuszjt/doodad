@@ -74,11 +74,11 @@ collectPos t m = withPos t $ do
 
 collect :: BoM CollectState m => Constraint -> m ()
 collect constraint = do
+    --liftIO $ putStrLn $ "collected: " ++ show constraint
     modify $ \s -> s { collected = Map.insert (constraint) (curPos s) (collected s) }
 
 collectEq :: BoM CollectState m => Type -> Type -> m ()
-collectEq t1 t2 = do
-    modify $ \s -> s { collected = Map.insert (ConsEq t1 t2) (curPos s) (collected s) }
+collectEq t1 t2 = collect $ ConsEq t1 t2
 
 collectDefault :: BoM CollectState m => Type -> Type -> m ()
 collectDefault t1 t2 = do
@@ -110,6 +110,8 @@ collectAST ast = do
 
     forM_ (Map.toList $ funcDefs ast) $ \(symbol, body) ->
         when (funcTypeArgs body == []) $ do
+            --liftIO $ putStrLn $ "collecting func: " ++ show symbol
+            --liftIO $ prettyFuncBody symbol body
             collectFuncDef symbol body
 
 
@@ -263,6 +265,8 @@ collectCall exprType params symbol args = do -- can be resolved or sym
             collectEq exprType (returnType header)
             zipWithM_ collectEq (map typeof params) (paramTypes header)
             zipWithM_ collectEq (map typeof args) (argTypes header)
+
+            --liftIO $ putStrLn $ "collected non-generic: " ++ show symbol
             
         _ -> return ()
 

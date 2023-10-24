@@ -59,16 +59,15 @@ funcHeaderHasGenerics typeArgs header =
         rettyGenerics = findGenerics typeArgs (returnType header)
 
 
-funcHeaderFullyResolved :: FuncHeader -> Bool
-funcHeaderFullyResolved header =
-    typeArgs header == []
-    && all (== True) (map typeFullyResolved $ paramTypes header)
+funcHeaderFullyResolved :: [Symbol] -> FuncHeader -> Bool
+funcHeaderFullyResolved typeArgs header =
+    all (== True) (map typeFullyResolved $ paramTypes header)
     && all (== True) (map typeFullyResolved $ argTypes header)
     && typeFullyResolved (returnType header)
     where
         typeFullyResolved :: Type -> Bool
         typeFullyResolved typ = case typ of
-            TypeApply s _ | s `elem` (typeArgs header) -> False
+            TypeApply s _ | elem s typeArgs -> False
             TypeApply s ts -> all (== True) (map typeFullyResolved ts)
             _ | isSimple typ -> True
             Type _ -> False
@@ -88,7 +87,9 @@ replaceGenericsInFuncBodyWithCall body callHeader = do
     constraints <- getConstraintsFromFuncHeaders header callHeader
     subs <- unify (typeArgs header) constraints
     body' <- applySubs subs body
-    mapFuncBody tupleDeleterMapper $ body' { funcTypeArgs = [] }
+    body'' <- mapFuncBody tupleDeleterMapper $ body' { funcTypeArgs = [] }
+    --liftIO $ prettyFuncBody (symbol callHeader) body''
+    return body''
 
 
 unifyOne :: BoM s m => [Symbol] -> Constraint -> m [(Type, Type)]
@@ -99,7 +100,7 @@ unifyOne typeVars constraint = case constraint of
         (Type _, _)                             -> return [(t1, t2)]
         (_, Type _)                             -> return [(t2, t1)]
 
-        (Record _, Tuple _) -> fail $ "cannot unify " ++ show t1 ++ " with " ++ show t2
+        (Record _, Tuple _) -> fail $ "ff - cannot unify " ++ show t1 ++ " with " ++ show t2
         _ -> error $ show (t1, t2)
 
 
@@ -132,6 +133,7 @@ getConstraintsFromTypes :: BoM ASTResolved m => [Symbol] -> Type -> Type -> m [C
 getConstraintsFromTypes typeArgs typeToReplace typ = do
     typedefs <- gets typeFuncs
     case (typeToReplace, typ) of
+        (a, b) | a == b    -> return [] 
         (Table a, Table b) -> getConstraintsFromTypes typeArgs a b
         (Tuple a, Tuple b) -> getConstraintsFromTypes typeArgs a b
 
