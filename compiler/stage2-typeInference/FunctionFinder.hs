@@ -77,7 +77,6 @@ funcHeaderFullyResolved header =
             Type.Tuple ts -> all (== True) (map typeFullyResolved ts)
             Type _ -> False
             Void -> True
-            Table ts -> all (== True) (map typeFullyResolved ts)
             _ -> error $ "typeFullyResolved: " ++ show typ
 
 
@@ -154,14 +153,7 @@ getConstraintsFromTypes typeArgs typeToReplace typ = case (typeToReplace, typ) o
         assert (length ts1 == length ts2) "types should be applied to same number of args"
         fmap concat $ zipWithM (getConstraintsFromTypes typeArgs) ts1 ts2
 
-    (t, Type x) -> return [(ConsEq (Type x) t)]
-    (Type x, t) -> return [(ConsEq (Type x) t)]
-
-    (Table ts1, Table ts2) -> do
-        assert (length ts1 == length ts2) "types should be applied to same number of args"
-        fmap concat $ zipWithM (getConstraintsFromTypes typeArgs) ts1 ts2
-
-
+    (t, Type x) | isSimple t -> return [(ConsEq (Type x) t)]
     (Void, _) -> return [(ConsEq typeToReplace typ)]
 
     _ -> error $ show (typeToReplace, typ)

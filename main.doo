@@ -4,7 +4,6 @@ import std/assert
 import std/maybe
 import std/map
 
-import std/sparse
 
 fn main()
     data m Map(i64, string)
