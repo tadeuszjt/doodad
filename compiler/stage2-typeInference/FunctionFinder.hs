@@ -25,7 +25,7 @@ findCandidates :: BoM ASTResolved m => FuncHeader -> m [Symbol]
 findCandidates callHeader = do
     funcSymbols <- findFunctionCandidates callHeader
     typeSymbols <- findTypeCandidates callHeader
-    ctorSymbols <- findCtorCandidates callHeader
+    ctorSymbols <- findCtorCandidates (symbol callHeader)
     return $ Set.toList $ Set.fromList $ concat $ [funcSymbols, typeSymbols, ctorSymbols]
 
 
@@ -44,11 +44,10 @@ findTypeCandidates callHeader = do
     return $ Map.keys res
 
 
-findCtorCandidates :: BoM ASTResolved m => FuncHeader -> m [Symbol]
-findCtorCandidates callHeader = do
+findCtorCandidates :: BoM ASTResolved m => Symbol -> m [Symbol]
+findCtorCandidates callSymbol = do
     ctorDefs <- gets ctorDefs
-    let res = Map.filterWithKey (\k v -> symbolsCouldMatch k $ symbol callHeader) ctorDefs
-    return $ Map.keys res
+    return $ Map.keys $ Map.filterWithKey (\k v -> symbolsCouldMatch k callSymbol) ctorDefs
 
 
 funcHeaderHasGenerics :: [Symbol] -> FuncHeader -> Bool
@@ -100,7 +99,7 @@ unifyOne typeVars constraint = case constraint of
         (Type _, _)                             -> return [(t1, t2)]
         (_, Type _)                             -> return [(t2, t1)]
 
-        (Record _, Tuple _) -> fail "cannot unify"
+        (Record _, Tuple _) -> fail $ "cannot unify " ++ show t1 ++ " with " ++ show t2
         _ -> error $ show (t1, t2)
 
 
@@ -154,9 +153,7 @@ getConstraintsFromTypes typeArgs typeToReplace typ = do
         (Tuple (TypeApply s1 []), t) | isSimple t && elem s1 typeArgs ->
             return [ConsEq (TypeApply s1 []) typ]
 
-
         (Type x, t) -> return [(ConsEq (Type x) t)]
         (t, Type x) -> return []
-
 
         _ -> error $ show (typeToReplace, typ)

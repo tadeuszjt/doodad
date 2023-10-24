@@ -35,9 +35,11 @@ fn main()
 
     data map Map(string, bool)
     data map2 Map({string, bool}, i64)
+    data map3 Map((string, bool), string)
 
     map.insert("benis", true)
     map2.insert( ("bongis", false), 1 )
+    //map3.insert( ("bongis", true),  "value" )
 
     for tab -> x
         print(x)
@@ -46,6 +48,14 @@ fn main()
         print(x)
 
     let z = map.find("benis")
+    switch z
+        Nothing(_); print("nothing")
+        Just(x);    print("Just", x) 
+
+
+    let Just(x) = map2.find( ("bongis", false) )
+    //let Just(y) = map3.find( ("bongis", true) )
+    print(x)
 
     print("main2 finished")
 

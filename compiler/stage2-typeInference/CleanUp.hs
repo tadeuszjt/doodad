@@ -67,6 +67,10 @@ cleanUpMapper elem = case elem of
                 assert (params == []) "constructor cannot have params"
                 return (Construct pos symbol' exprs)
 
+    ElemPattern (PatField pos symbol pats) -> do
+        [symbol'] <- findCtorCandidates symbol
+        return $ Just $ ElemPattern (PatField pos symbol' pats)
+
     _ -> return (Just elem)
 
     
@@ -81,8 +85,8 @@ resolveFuncCall exprType (AST.Call pos params callSymbol args) = withPos pos $ d
         [symbol] | isGenericFunction symbol ast -> do -- this is where we replace
             resE <- tryError $ replaceGenericsInFuncBodyWithCall (getFunctionBody symbol ast) callHeader
             case resE of
-                Left _             -> do
-                    liftIO $ putStrLn $ "warning: replaceGenericsInFuncBodyWithCall failed for: " ++ show callSymbol
+                Left e             -> do
+                    liftIO $ putStrLn $ "warning: replaceGenericsInFuncBodyWithCall failed for: " ++ show callSymbol ++ " - " ++ show e
                     return callSymbol
                 Right bodyReplaced -> case funcHeaderFullyResolved (funcHeaderFromBody symbol bodyReplaced) of
                     False -> return callSymbol
@@ -93,7 +97,9 @@ resolveFuncCall exprType (AST.Call pos params callSymbol args) = withPos pos $ d
                         --liftIO $ prettyFuncBody  symbol' bodyReplaced
                         return symbol'
 
-        [symbol] | isCtor symbol ast -> return symbol
+        [symbol] | isCtor symbol ast -> do
+            --liftIO $ putStrLn $ "isCtor: " ++ show symbol
+            return symbol
             
 
         _ -> return callSymbol

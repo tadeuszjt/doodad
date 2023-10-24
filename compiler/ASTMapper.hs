@@ -88,6 +88,14 @@ mapStmt f stmt = withPos stmt $ do
             mfalse' <- maybe (return Nothing) (fmap Just . mapStmt f) mfalse
             return $ If pos expr' true' mfalse'
 
+        Switch pos expr cases -> do
+            expr' <- mapExpr f expr
+            cases' <- forM cases $ \(pat, stmt) -> do
+                pat' <- mapPattern f pat
+                stmt' <- mapStmt f stmt
+                return (pat', stmt')
+            return $ Switch pos expr' cases'
+
         Data pos symbol typ mexpr -> do
             typ' <- mapType f typ
             mexpr' <- maybe (return Nothing) (fmap Just . mapExpr f) mexpr
@@ -162,8 +170,10 @@ mapPattern :: BoM s m => MapperFunc m -> Pattern -> m Pattern
 mapPattern f pattern = withPos pattern $ do
     prevState <- get
     resm <- f . ElemPattern =<< case pattern of
-        PatIdent pos symbol -> return $ PatIdent pos symbol
-        PatTuple pos pats   -> PatTuple pos <$> mapM (mapPattern f) pats
+        PatIdent pos symbol      -> return pattern
+        PatIgnore pos            -> return pattern
+        PatTuple pos pats        -> PatTuple pos <$> mapM (mapPattern f) pats
+        PatField pos symbol pats -> PatField pos symbol <$> mapM (mapPattern f) pats
         _ -> error (show pattern)
     case resm of
         Nothing -> put prevState >> return pattern

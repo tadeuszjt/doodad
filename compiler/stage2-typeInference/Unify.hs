@@ -65,26 +65,21 @@ unifyOne pos constraint = withPos pos $ case constraint of
         (Type x, t)                     -> return [(Type x, t)]
         (t, Type x)                     -> return [(Type x, t)]
         (Record ts1, Record ts2) -> do
-            assert (length ts1 == length ts2) "record length mismatch"
+            assert (length ts1 == length ts2) $ "record length mismatch: " ++ show (t1, t2)
             unify $ zipWith (\a b -> (ConsEq a b, pos)) ts1 ts2
         (Table t1, Table t2)      -> unifyOne pos $ ConsEq t1 t2
         (Tuple t1, Tuple t2)      -> unifyOne pos $ ConsEq t1 t2
 
         _ -> fail $ "cannot unify " ++ show t1 ++ " with " ++ show t2
 
-    ConsAdtField t i j agg -> do
-        basem <- baseTypeOf agg
+    ConsAdtField t i j adt -> do
+        basem <- baseTypeOf adt
         case basem of
---            Just (ADT fs) -> do
---                assert (i < length fs) "Invalid ADT member"
---                case fs !! i of
---                    FieldNull -> fail "Invalid ADT member"
---                    FieldType ft -> do
---                        assert (j == 0) "Invalid ADT member"
---                        unifyOne pos $ ConsEq t ft
---                    FieldCtor ts -> do
---                        assert (j < length ts) "Invalid ADT member"
---                        unifyOne pos $ ConsEq t (ts !! j)
+            Nothing -> return []
+            Just (ADT ts) -> do
+                assert (i < length ts) "Invalid ADT field index"
+                assert (j == 0)        "Invalid ConsAdtField"
+                unifyOne pos $ ConsEq t (ts !! i)
             _ -> error (show basem)
         
     ConsField t i agg -> do
@@ -138,6 +133,7 @@ unifyOne pos constraint = withPos pos $ case constraint of
                 case baseT of
                     Nothing -> return []
                     Just (Record _) -> unifyOne pos (ConsEq t2 t)
+                    Just (Tuple t)  -> unifyOne pos (ConsEq t2 t)
                     Just _          -> unifyOne pos (ConsEq t2 $ Record [t])
 
             Nothing -> return []

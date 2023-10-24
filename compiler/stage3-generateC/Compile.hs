@@ -433,6 +433,31 @@ generatePattern pattern val = withPos pattern $ do
             appendElem $ C.Label endLabel
             return match
 
+        PatField _ symbol [pat] -> do
+            base <- baseTypeOf val
+            case base of
+                ADT ts -> do
+                    isCtor <- Map.member symbol <$> gets ctors
+                    assert isCtor $ "PatField needs ADT ctor -- TODO " ++ show symbol
+                    (s, i) <- mapGet symbol =<< gets ctors
+
+                    endLabel <- fresh "skipMatch"
+                    let TypeApply typeSymbol _ = typeof val
+                    assert (s == typeSymbol) "types do not match"
+
+                    match <- assign "match" =<< generateInfix S.EqEq (i64 i) =<< adtEnum val
+                    if_ (not_ match) $ appendElem $ C.Goto endLabel
+                    set match false
+
+                    patMatch <- generatePattern pat =<< member i val
+                    if_ (not_ patMatch) $ void $ appendElem (C.Goto endLabel)
+
+                    set match true
+                    appendElem $ C.Label endLabel
+                    return match
+
+                _ -> error (show base)
+
 
 --        PatField _ symbol pats -> do -- either a typedef or an ADT field, both members of ADT
 --            base@(Type.ADT fs) <- baseTypeOf val

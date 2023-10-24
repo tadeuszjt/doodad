@@ -221,10 +221,13 @@ collectPattern pattern typ = collectPos pattern $ case pattern of
         collectExpr expr
 
     S.PatField _ symbol pats -> do
-        Just (ObjField i) <- SymTab.lookup symbol KeyAdtField <$> gets symTab
+        ast <- gets astResolved
+        [symbol'] <- fmap fst $ runBoMTExcept ast (findCtorCandidates symbol)
+        (s, i) <- mapGet symbol' . ctorDefs =<< gets astResolved
         gts <- replicateM (length pats) genType
         zipWithM_ collectPattern pats gts
         forM_ (zip gts [0..]) $ \(t, j) -> collect $ ConsAdtField t i j typ
+
 
     S.PatTypeField _ t pat -> do
         collectPattern pat t

@@ -26,7 +26,11 @@ data Error
         { errPos :: TextPos
         , errStr :: String
         }
-    deriving (Show)
+    deriving ()
+
+
+instance Show Error where
+    show (ErrorStr s) = s
 
 
 class TextPosition a where

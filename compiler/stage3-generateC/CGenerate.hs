@@ -231,9 +231,8 @@ len val = do
 
 adtEnum :: MonadGenerate m => Value -> m Value
 adtEnum obj = do
-    error ""
---    base@(Type.ADT fs) <- baseTypeOf obj
---    return $ Value I64 $ C.Member (valExpr obj) "en"
+    base@(Type.ADT _) <- baseTypeOf obj
+    return $ Value I64 $ C.Member (valExpr obj) "en"
 
 
 member :: MonadGenerate m => Int -> Value -> m Value
@@ -244,12 +243,9 @@ member i val = do
         Type.Tuple t -> do
             Type.Record ts <- baseTypeOf t
             return $ Value (ts !! i) $ C.Member (valExpr val) ("m" ++ show i)
---        Type.ADT fs   -> case fs !! i of
---            FieldNull -> fail "no val for null field"
---            FieldType t -> return $ Value t $ C.Member (valExpr val) ("u" ++ show i)
---            FieldCtor [] -> fail "no val for empty ctor"
---            FieldCtor [t] -> return $ Value t $ C.Member (valExpr val) ("u" ++ show i)
---            FieldCtor ts -> return $ Value (Type.Tuple ts) $ C.Member (valExpr val) ("u" ++ show i)
+        Type.ADT ts   -> do
+            assert (i >= 0 && i < length ts) "invalid ADT field index"
+            return $ Value (ts !! i) $ C.Member (valExpr val) ("u" ++ show i)
         _ -> error (show base)
 
 
@@ -313,6 +309,8 @@ accessRecord val marg = do
                     elems <- forM (zip ts [0..]) $ \(t, i) -> do
                         return $ C.Address $ C.Subscript (C.Member (valExpr val) ("r" ++ show i)) (valExpr $ fromJust marg)
                     assign "record" $ Value t $ C.Initialiser elems
+                Type.Tuple _ -> do
+                    accessRecord (Value t $ C.Subscript (C.Member (valExpr val) "r0") (valExpr $ fromJust marg)) Nothing
                 t -> do
                     elem <- return $ C.Address $ C.Subscript (C.Member (valExpr val) ("r" ++ show 0)) (valExpr $ fromJust marg)
                     assign "record" $ Value (Record [t]) $ C.Initialiser [elem]
