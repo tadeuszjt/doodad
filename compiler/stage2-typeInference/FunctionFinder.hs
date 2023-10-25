@@ -96,15 +96,18 @@ unifyOne :: BoM s m => [Symbol] -> Constraint -> m [(Type, Type)]
 unifyOne typeVars constraint = case constraint of
     ConsEq t1 t2 -> case (t1, t2) of
         _ | t1 == t2                            -> return []
-        (TypeApply s _, _) | s `elem` typeVars -> return [(t1, t2)]
+        (TypeApply s _, _) | s `elem` typeVars  -> return [(t1, t2)]
         (Type _, _)                             -> return [(t1, t2)]
         (_, Type _)                             -> return [(t2, t1)]
         (Tuple a, Tuple b)                      -> unifyOne typeVars $ ConsEq a b
 
-        (TypeApply s1 ts1, TypeApply s2 ts2) | length ts1 == length ts2 ->
-            fmap concat $ zipWithM (\a b -> unifyOne typeVars $ ConsEq a b) ts1 ts2
+        (TypeApply s1 ts1, TypeApply s2 ts2)
+            | length ts1 == length ts2 ->
+                concat <$> zipWithM (\a b -> unifyOne typeVars $ ConsEq a b) ts1 ts2
 
-        _ -> error $ show (t1, t2)
+        --_ -> return []
+
+        _ -> fail $ "cannot unify: " ++ show (t1, t2)
 
 
 unify :: BoM s m => [Symbol] -> [Constraint] -> m [(Type, Type)]
@@ -133,42 +136,71 @@ getConstraintsFromFuncHeaders headerToReplace header = do
 
 
 getConstraintsFromTypes :: BoM ASTResolved m => [Symbol] -> Type -> Type -> m [Constraint]
-getConstraintsFromTypes typeArgs typeToReplace typ = do
-    typedefs <- gets typeFuncs
-    let t1 = (addTuple typedefs $ flattenTuple typedefs typeToReplace)
-    let t2 = (addTuple typedefs $ flattenTuple typedefs typ)
-    getConstraintsFromTypesPure t1 t2
+getConstraintsFromTypes typeArgs t1 t2 = do
+    (t1', t2') <- cleanTypes t1 t2
+    fromTypes t1' t2'
     where
-        addTuple typedefs typ = case typ of
-            Tuple t                                -> Tuple t
-            t | definitelyIgnoresTuples typedefs t -> Tuple t
-            t                                      -> t
+        cleanTypes :: BoM ASTResolved m => Type -> Type -> m (Type, Type)
+        cleanTypes t1 t2 = do
+            typeDefs <- gets typeFuncs
+            case (flattenTuple typeDefs t1, flattenTuple typeDefs t2) of
+                (Void, Void)                      -> return (Void, Void)
+                (a, b) | isSimple a && isSimple b -> return (a, b)
+
+                (Table a, Table b) -> do
+                    (a', b') <- cleanTypes a b
+                    return (Table a', Table b')
+
+                -- TODO this is the problem, cannot determine whether to reduce Tuple on lhs.
+                --(Tuple (TypeApply s []), Tuple t) | elem s typeArgs -> do
+                --    return (TypeApply s [], Tuple t)
+
+                (Tuple a, Tuple b) -> do
+                    (a', b') <- cleanTypes a b
+                    return (Tuple a', Tuple b')
+
+                (Tuple (TypeApply s []), Tuple t) | elem s typeArgs -> do
+                    return (TypeApply s [], Tuple t)
+
+                (TypeApply s1 ts1, TypeApply s2 ts2) | s1 == s2 -> do
+                    assert (length ts1 == length ts2) "invalid type arguments"
+                    (ts1', ts2') <- unzip <$> zipWithM cleanTypes ts1 ts2
+                    return (TypeApply s1 ts1', TypeApply s2 ts2')
+
+                (TypeApply s [], t) | elem s typeArgs -> do
+                    return (TypeApply s [], t)
 
 
-        getConstraintsFromTypesPure :: BoM ASTResolved m => Type -> Type -> m [Constraint]
-        getConstraintsFromTypesPure t1 t2 = do
-            --liftIO $ putStrLn $ show (t1, t2)
+                (Tuple (TypeApply s []), t) | elem s typeArgs && definitelyIgnoresTuples typeDefs t -> do
+                    return (TypeApply s [], t)
+
+                (t, Type x) -> return (t, Type x)
+                    
+                _ -> error $ show (t1, t2)
+
+
+        fromTypes :: BoM ASTResolved m => Type -> Type -> m [Constraint]
+        fromTypes t1 t2 = do
             typedefs <- gets typeFuncs
             case (t1, t2) of
                 (a, b) | a == b    -> return [] 
-                (Table a, Table b) -> getConstraintsFromTypesPure a b
-                (Tuple a, Tuple b) -> getConstraintsFromTypesPure a b
+                (Table a, Table b) -> fromTypes a b
+                (Tuple a, Tuple b) -> fromTypes a b
 
                 (TypeApply s1 ts1, TypeApply s2 ts2)
                     | s1 `elem` typeArgs -> do 
                         assert (not $ s2 `elem` typeArgs) "don't know"
                         assert (length ts1 == length ts2) "type argument lengths mismatch"
-                        constraints <- fmap concat $ zipWithM (getConstraintsFromTypesPure ) ts1 ts2
-                        return $ ConsEq t1 t2 : constraints
+                        (ConsEq t1 t2 :) . concat <$> zipWithM fromTypes ts1 ts2
+
                     | not (elem s1 typeArgs) && s1 == s2 -> do
                         assert (length ts1 == length ts2) "type argument lengths mismatch"
-                        constraints <- fmap concat $ zipWithM (getConstraintsFromTypesPure ) ts1 ts2
-                        return $ ConsEq t1 t2 : constraints
+                        (ConsEq t1 t2 :) . concat <$> zipWithM fromTypes ts1 ts2
+
                     | otherwise -> error "here"
 
                 (TypeApply s1 [], t) | elem s1 typeArgs -> return [ConsEq t1 t2]
-
-                (Type x, t) -> return [(ConsEq (Type x) t)]
-                (t, Type x) -> return []
+                (Type _, _)                             -> return [ConsEq t1 t2]
+                (_, Type _)                             -> return []
 
                 _ -> error $ show (t1, t2)

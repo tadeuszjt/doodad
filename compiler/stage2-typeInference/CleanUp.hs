@@ -81,6 +81,7 @@ resolveFuncCall exprType (AST.Call pos params callSymbol args) = withPos pos $ d
     candidates <- findCandidates callHeader
     ast <- get
     case candidates of
+        --[] -> return callSymbol
         [] -> error $ "no candidates for: " ++ show callHeader
 
         [symbol] | isNonGenericFunction symbol ast -> return symbol

@@ -136,7 +136,9 @@ collectStmt stmt = collectPos stmt $ case stmt of
     S.FuncDef _ _ _ _ _ _ _ -> return ()
     S.EmbedC _ _ -> return ()
     S.Block stmts -> mapM_ collectStmt stmts
-    S.ExprStmt e -> collectExpr e
+    S.ExprStmt e -> do
+        collectExpr e
+        collectDefault (typeof e) Void
     S.Const _ symbol expr -> define symbol KeyVar (ObjConst expr)
 
     S.Return _ mexpr -> do
