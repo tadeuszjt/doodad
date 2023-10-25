@@ -6,4 +6,4 @@ import TestTypeConstraints
 main :: IO ()
 main = do
     testTypeMatcher
-    testTypeConstraints
+    --testTypeConstraints

@@ -96,11 +96,14 @@ unifyOne :: BoM s m => [Symbol] -> Constraint -> m [(Type, Type)]
 unifyOne typeVars constraint = case constraint of
     ConsEq t1 t2 -> case (t1, t2) of
         _ | t1 == t2                            -> return []
-        (TypeApply s [], _) | s `elem` typeVars -> return [(t1, t2)]
+        (TypeApply s _, _) | s `elem` typeVars -> return [(t1, t2)]
         (Type _, _)                             -> return [(t1, t2)]
         (_, Type _)                             -> return [(t2, t1)]
+        (Tuple a, Tuple b)                      -> unifyOne typeVars $ ConsEq a b
 
-        (Record _, Tuple _) -> fail $ "ff - cannot unify " ++ show t1 ++ " with " ++ show t2
+        (TypeApply s1 ts1, TypeApply s2 ts2) | length ts1 == length ts2 ->
+            fmap concat $ zipWithM (\a b -> unifyOne typeVars $ ConsEq a b) ts1 ts2
+
         _ -> error $ show (t1, t2)
 
 
@@ -132,30 +135,40 @@ getConstraintsFromFuncHeaders headerToReplace header = do
 getConstraintsFromTypes :: BoM ASTResolved m => [Symbol] -> Type -> Type -> m [Constraint]
 getConstraintsFromTypes typeArgs typeToReplace typ = do
     typedefs <- gets typeFuncs
-    case (typeToReplace, typ) of
-        (a, b) | a == b    -> return [] 
-        (Table a, Table b) -> getConstraintsFromTypes typeArgs a b
-        (Tuple a, Tuple b) -> getConstraintsFromTypes typeArgs a b
-
-        (TypeApply s1 ts1, TypeApply s2 ts2)
-            | s1 `elem` typeArgs -> do 
-                assert (not $ s2 `elem` typeArgs) "don't know"
-                assert (length ts1 == length ts2) "type argument lengths mismatch"
-                constraints <- fmap concat $ zipWithM (getConstraintsFromTypes typeArgs) ts1 ts2
-                return $ ConsEq typeToReplace typ : constraints
-            | not (elem s1 typeArgs) && s1 == s2 -> do
-                assert (length ts1 == length ts2) "type argument lengths mismatch"
-                constraints <- fmap concat $ zipWithM (getConstraintsFromTypes typeArgs) ts1 ts2
-                return $ ConsEq typeToReplace typ : constraints
-            | otherwise -> error "here"
+    let t1 = (addTuple typedefs $ flattenTuple typedefs typeToReplace)
+    let t2 = (addTuple typedefs $ flattenTuple typedefs typ)
+    getConstraintsFromTypesPure t1 t2
+    where
+        addTuple typedefs typ = case typ of
+            Tuple t                                -> Tuple t
+            t | definitelyIgnoresTuples typedefs t -> Tuple t
+            t                                      -> t
 
 
-        (TypeApply s1 [], t) | elem s1 typeArgs ->
-            return [ConsEq typeToReplace typ]
-        (Tuple (TypeApply s1 []), t) | isSimple t && elem s1 typeArgs ->
-            return [ConsEq (TypeApply s1 []) typ]
+        getConstraintsFromTypesPure :: BoM ASTResolved m => Type -> Type -> m [Constraint]
+        getConstraintsFromTypesPure t1 t2 = do
+            --liftIO $ putStrLn $ show (t1, t2)
+            typedefs <- gets typeFuncs
+            case (t1, t2) of
+                (a, b) | a == b    -> return [] 
+                (Table a, Table b) -> getConstraintsFromTypesPure a b
+                (Tuple a, Tuple b) -> getConstraintsFromTypesPure a b
 
-        (Type x, t) -> return [(ConsEq (Type x) t)]
-        (t, Type x) -> return []
+                (TypeApply s1 ts1, TypeApply s2 ts2)
+                    | s1 `elem` typeArgs -> do 
+                        assert (not $ s2 `elem` typeArgs) "don't know"
+                        assert (length ts1 == length ts2) "type argument lengths mismatch"
+                        constraints <- fmap concat $ zipWithM (getConstraintsFromTypesPure ) ts1 ts2
+                        return $ ConsEq t1 t2 : constraints
+                    | not (elem s1 typeArgs) && s1 == s2 -> do
+                        assert (length ts1 == length ts2) "type argument lengths mismatch"
+                        constraints <- fmap concat $ zipWithM (getConstraintsFromTypesPure ) ts1 ts2
+                        return $ ConsEq t1 t2 : constraints
+                    | otherwise -> error "here"
 
-        _ -> error $ show (typeToReplace, typ)
+                (TypeApply s1 [], t) | elem s1 typeArgs -> return [ConsEq t1 t2]
+
+                (Type x, t) -> return [(ConsEq (Type x) t)]
+                (t, Type x) -> return []
+
+                _ -> error $ show (t1, t2)

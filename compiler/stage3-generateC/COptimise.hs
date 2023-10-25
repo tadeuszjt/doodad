@@ -47,6 +47,9 @@ optimise = do
             stmts' <- optimiseStmts (funcBody func)
             modifyElem id $ \_ -> return $ func { funcBody = stmts' }
 
+        ExprStmt expr -> do
+            modifyElem id $ \_ -> return $ ExprStmt (optimiseExpr expr)
+
         _ -> return ()
         
     return ()
@@ -111,6 +114,13 @@ optimiseExpr expr = case expr of
 
     Not e -> Not (optimiseExpr e)
     Infix op e1 e2 -> Infix op (optimiseExpr e1) (optimiseExpr e2)
+
+    Call symbol args           -> Call symbol (map optimiseExpr args)
+    Address e                  -> Address (optimiseExpr e)
+    Deref e                    -> Deref (optimiseExpr e)
+    Initialiser es             -> Initialiser (map optimiseExpr es)
+    Subscript e1 e2            -> Subscript (optimiseExpr e1) (optimiseExpr e2)
+
 
     _ -> expr
 

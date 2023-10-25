@@ -9,32 +9,68 @@ fn[T] {t:[]T} push(elem:()T)
     t++
     t[t.length() - 1] = elem{}
 
-fn[T] {t:[]T} pop()
+fn[T] {t:[]T} pop() ()T
+    data elem ()T
+    elem{} = t[t.length() - 1]
     ${ $t->len--; }
+    return elem
 
 
 type[K, V] Map (keys:[]K, values:[]V)
 
 fn[K, V] {m:Map(K, V)} insert(key:()K, value:()V)
+    for m.keys[..] -> i
+        if m.keys[i] == key{}
+            m.values[i] = value{}
+            return
+
     m.keys.push(key)
     m.values.push(value)
     return
 
-
 fn[K, V] {m:Map(K, V)} find(key:()K) Maybe(()V)
     for m.keys[..] -> i
         if m.keys[i] == key{}
-            return Just( conv(m.values[i]):()V )
+            return Just( conv(m.values[i]) )
     return Nothing()
+
+
+fn testMap()
+    data map1 Map(i64, string)
+
+    map1.insert(3, "three")
+    map1.insert(4, "four")
+    map1.insert(5, "six")
+    map1.insert(5, "five")
+
+    let Just("five") = map1.find(5)
+    let Just("three") = map1.find(3)
+    let Nothing()     = map1.find(2)
+
+    data map2 Map( {i64, string}, i8 )
+
+    map2.insert( (1, "two"), 3 )
+    map2.insert( (1, "tw0"), 2 )
+    map2.insert( (1, "two"), 4 )
+
+    let Just(4) = map2.find( (1, "two") )
+    let Just(2) = map2.find( (1, "tw0") )
+    let Nothing() = map2.find( (1, "Two") )
+
+    data map3 Map ( (i64, string), i8 )
+
+//    map3.insert( (1, "two"), 3 )
+
+    print("testMap passed")
+
+
 
 type[T] Maybe (Nothing:null | Just:T)
 type[T] Sparse (values:[]T, empty:[]i64)
 
 fn[T] {s:Sparse(T)} insert(value:()T) i64
     if s.empty.length() > 0
-        let key = 0
-        key{} = s.empty[s.empty.length() - 1]
-        s.empty.pop()
+        let key = s.empty.pop()
         s.values[key] = value{}
         return key
 
@@ -50,6 +86,7 @@ fn[T] {s:Sparse(T)} delete(key:i64)
 
 
 fn main()
+    testMap()
     let t = ("benis", 12):()Person
 
     data tab []Person

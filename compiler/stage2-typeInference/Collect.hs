@@ -260,6 +260,7 @@ collectCall exprType params symbol args = do -- can be resolved or sym
     ast <- gets astResolved
     candidates <- fmap fst $ runBoMTExcept ast (findCandidates callHeader)
     case candidates of
+        [symbol] | isGenericFunction symbol ast -> return ()
         [symbol] | isNonGenericFunction symbol ast -> do
             let header = getFunctionHeader symbol ast
             collectEq exprType (returnType header)
@@ -267,7 +268,9 @@ collectCall exprType params symbol args = do -- can be resolved or sym
             zipWithM_ collectEq (map typeof args) (argTypes header)
 
             --liftIO $ putStrLn $ "collected non-generic: " ++ show symbol
-            
+
+        [symbol] | isCtor symbol ast -> return ()
+
         _ -> return ()
 
     mapM_ collectExpr params
@@ -281,8 +284,20 @@ collectExpr (S.AExpr exprType expr) = collectPos expr $ case expr of
     S.Int _ c          -> collectDefault exprType I64
     S.Float _ f        -> collectDefault exprType F64
     S.Null _           -> return ()
-    S.Construct _ _ es -> mapM_ collectExpr es
     S.String _ _       -> collectDefault exprType $ String
+
+    S.Construct _ symbol es -> do
+        (typeSymbol, i)    <- mapGet symbol =<< gets (ctorDefs . astResolved)
+        (generics, ADT ts) <- mapGet typeSymbol =<< gets (typeFuncs . astResolved)
+        case exprType of
+            TypeApply s _ | s == typeSymbol -> case ts !! i of
+                Void -> assert (length es == 0) "Invalid ADT args"
+                _    -> do -- Eg :   Just( e:t ):exprType
+                    assert (length es == 1) "Invalid ADT args"
+                    collect $ ConsAdtField (typeof $ head es) i 0 exprType
+            _ -> error (show exprType)
+
+        mapM_ collectExpr es
 
     S.Builtin _ ps sym es -> do 
         case sym of

@@ -172,6 +172,7 @@ mapPattern f pattern = withPos pattern $ do
     resm <- f . ElemPattern =<< case pattern of
         PatIdent pos symbol      -> return pattern
         PatIgnore pos            -> return pattern
+        PatLiteral expr          -> PatLiteral <$> mapExpr f expr
         PatTuple pos pats        -> PatTuple pos <$> mapM (mapPattern f) pats
         PatField pos symbol pats -> PatField pos symbol <$> mapM (mapPattern f) pats
         _ -> error (show pattern)
