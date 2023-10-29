@@ -159,6 +159,11 @@ mapExpr f expr = withPos expr $ do
             mexpr2' <- maybe (return Nothing) (fmap Just . mapExpr f) mexpr2 
             return $ AST.Range pos mexpr' mexpr1' mexpr2'
 
+        AST.Match pos expr pattern -> do
+            expr' <- mapExpr f expr
+            pattern' <- mapPattern f pattern
+            return $ AST.Match pos expr' pattern'
+
 
         _ -> error (show expr)
     case resm of

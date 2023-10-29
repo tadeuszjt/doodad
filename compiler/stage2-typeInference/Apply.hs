@@ -67,5 +67,6 @@ instance Apply Constraint where
         ConsAdtField t1 i j t2 -> return $ ConsAdtField (f t1) i j (f t2)
         ConsTuple t1 ts      -> return $ ConsTuple (f t1) (map f ts)
         ConsRecordAccess t1 t2 -> return $ ConsRecordAccess (f t1) (f t2)
+        ConsSpecial t1 t2      -> return $ ConsSpecial (f t1) (f t2)
 
 

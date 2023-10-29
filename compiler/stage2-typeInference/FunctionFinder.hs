@@ -105,9 +105,11 @@ unifyOne typeVars constraint = case constraint of
             | length ts1 == length ts2 ->
                 concat <$> zipWithM (\a b -> unifyOne typeVars $ ConsEq a b) ts1 ts2
 
-        --_ -> return []
-
         _ -> fail $ "cannot unify: " ++ show (t1, t2)
+
+    ConsSpecial t1 t2 -> case (t1, t2) of
+        _ -> return [] -- TODO, fill this in if needed
+        _ -> error $ show (t1, t2)
 
 
 unify :: BoM s m => [Symbol] -> [Constraint] -> m [(Type, Type)]
@@ -137,54 +139,17 @@ getConstraintsFromFuncHeaders headerToReplace header = do
 
 getConstraintsFromTypes :: BoM ASTResolved m => [Symbol] -> Type -> Type -> m [Constraint]
 getConstraintsFromTypes typeArgs t1 t2 = do
-    (t1', t2') <- cleanTypes t1 t2
-    fromTypes t1' t2'
+    typeDefs <- gets typeFuncs
+    fromTypes (flattenTuple typeDefs t1) (flattenTuple typeDefs t2)
     where
-        cleanTypes :: BoM ASTResolved m => Type -> Type -> m (Type, Type)
-        cleanTypes t1 t2 = do
-            typeDefs <- gets typeFuncs
-            case (flattenTuple typeDefs t1, flattenTuple typeDefs t2) of
-                (Void, Void)                      -> return (Void, Void)
-                (a, b) | isSimple a && isSimple b -> return (a, b)
-
-                (Table a, Table b) -> do
-                    (a', b') <- cleanTypes a b
-                    return (Table a', Table b')
-
-                -- TODO this is the problem, cannot determine whether to reduce Tuple on lhs.
-                --(Tuple (TypeApply s []), Tuple t) | elem s typeArgs -> do
-                --    return (TypeApply s [], Tuple t)
-
-                (Tuple a, Tuple b) -> do
-                    (a', b') <- cleanTypes a b
-                    return (Tuple a', Tuple b')
-
-                (Tuple (TypeApply s []), Tuple t) | elem s typeArgs -> do
-                    return (TypeApply s [], Tuple t)
-
-                (TypeApply s1 ts1, TypeApply s2 ts2) | s1 == s2 -> do
-                    assert (length ts1 == length ts2) "invalid type arguments"
-                    (ts1', ts2') <- unzip <$> zipWithM cleanTypes ts1 ts2
-                    return (TypeApply s1 ts1', TypeApply s2 ts2')
-
-                (TypeApply s [], t) | elem s typeArgs -> do
-                    return (TypeApply s [], t)
-
-
-                (Tuple (TypeApply s []), t) | elem s typeArgs && definitelyIgnoresTuples typeDefs t -> do
-                    return (TypeApply s [], t)
-
-                (t, Type x) -> return (t, Type x)
-                    
-                _ -> error $ show (t1, t2)
-
-
         fromTypes :: BoM ASTResolved m => Type -> Type -> m [Constraint]
         fromTypes t1 t2 = do
             typedefs <- gets typeFuncs
             case (t1, t2) of
                 (a, b) | a == b    -> return [] 
                 (Table a, Table b) -> fromTypes a b
+
+                (Tuple (TypeApply s []), t) | elem s typeArgs -> return [ConsSpecial t1 t2]
                 (Tuple a, Tuple b) -> fromTypes a b
 
                 (TypeApply s1 ts1, TypeApply s2 ts2)

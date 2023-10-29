@@ -59,7 +59,7 @@ fn testMap()
 
     data map3 Map ( (i64, string), i8 )
 
-    //map3.insert( (1, "two"), 3 )
+    map3.insert( (1, "two"), 3 )
 
     print("testMap passed")
 
@@ -124,7 +124,6 @@ fn main()
     for sparse.values -> v
         print(v)
     print(key1, key2)
-
 
     print("main2 finished")
 
