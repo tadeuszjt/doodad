@@ -166,3 +166,14 @@ flattenTuple typedefs typ = case typ of
     Tuple t | definitelyIgnoresTuples typedefs t -> flattenTuple typedefs t
     Tuple t | otherwise                          -> Tuple (flattenTuple typedefs t)
     _                                            -> error (show typ)
+
+
+getRecordTreeTypes :: Map.Map Symbol ([Symbol], Type) -> Type -> [Type]
+getRecordTreeTypes typeDefs typ = case typ of
+    Record ts -> concat $ map (getRecordTreeTypes typeDefs) ts
+
+    I64 -> [I64]
+    Bool -> [Bool]
+    String -> [String]
+    Table _ -> [typ]
+    _ -> error (show typ)

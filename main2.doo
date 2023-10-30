@@ -35,6 +35,30 @@ fn[K, V] {m:Map(K, V)} find(key:()K) Maybe(()V)
     return Nothing()
 
 
+fn testTuple()
+    let t1 = (1, true, "three"):(){i64, bool, string}
+    let t2 = (2, false, "four"):(){i64, {bool, string}}
+    print("testTuple passed")
+
+fn testTable()
+    data tab1 []i64
+    tab1.push(3)
+    let 1 = tab1.length()
+    let 3 = tab1.pop()
+    let 0 = tab1.length()
+
+    data tab2 []()()i64
+    tab2.push(65)
+    let 65 = tab2.pop()
+
+    data tab3 []{i64, bool}
+    tab3.push( (1, true) )
+    let (1, true) = conv(tab3[0]):(i64, bool)
+    let {1, true} = tab3[0]
+
+    print("testTable passed")
+
+
 fn testMap()
     data map1 Map(i64, string)
 
@@ -86,45 +110,9 @@ fn[T] {s:Sparse(T)} delete(key:i64)
 
 
 fn main()
+    testTuple()
+    testTable()
     testMap()
-    let t = ("benis", 12):()Person
-
-    data tab []Person
-    tab.push(t)
-
-    data map Map(string, bool)
-    data map2 Map({string, bool}, i64)
-    data map3 Map((string, bool), string)
-
-    map.insert("benis", true)
-    map2.insert( ("bongis", false), 1 )
-    //map3.insert( ("bongis", true),  "value" )
-
-    for tab -> x
-        print(x)
-
-    for map2.keys -> x
-        print(x)
-
-    let z = map.find("benis")
-    switch z
-        Nothing(); print("nothing")
-        Just(x);   print("Just", x) 
-
-
-    let Just(x) = map2.find( ("bongis", false) )
-    //let Just(y) = map3.find( ("bongis", true) )
-    print(x)
-
-
-    data sparse Sparse(string)
-    let key1 = sparse.insert("benis")
-    let key2 = sparse.insert("bongis")
-
-    for sparse.values -> v
-        print(v)
-    print(key1, key2)
-
     print("main2 finished")
 
 

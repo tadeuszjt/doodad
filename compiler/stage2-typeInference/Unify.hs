@@ -44,7 +44,11 @@ unifyOne pos constraint = withPos pos $ case constraint of
             Just (Tuple t) -> do
                 baseT <- baseTypeOf t
                 case baseT of
-                    Just (Record _) -> unifyOne pos $ ConsBase t (Record ts)
+                    Just (Record _) -> do
+                        typeDefs <- get
+                        let recordTs = getRecordTreeTypes typeDefs t
+                        assert (length ts == length recordTs) "record length mismatch"
+                        concat <$> zipWithM (\a b -> unifyOne pos $ ConsEq a b) ts recordTs
                     _ -> error (show baseT)
 
     ConsRecordAccess exprType typ -> do

@@ -251,6 +251,11 @@ collectPattern pattern typ = collectPos pattern $ case pattern of
         collectEq t typ
         collectPattern pat typ
 
+    S.PatRecord _ pats -> do
+        gts <- replicateM (length pats) genType
+        collect $ ConsBase typ (Record gts)
+        zipWithM_ collectPattern pats gts
+
     S.PatNull _ -> return ()
         
     _ -> error $ show pattern

@@ -231,6 +231,7 @@ pattern  : '_'                              { S.PatIgnore (tokPos $1) }
          | null                             { S.PatNull (tokPos $1) }
          | '(' patterns ')'                 { S.PatTuple (tokPos $1) $2 }
          | '[' patterns ']'                 { S.PatArray (tokPos $1) $2 }
+         | '{' patterns '}'                 { S.PatRecord (tokPos $1) $2 }
          | pattern '|' expr                 { S.PatGuarded (tokPos $2) $1 $3 }
          | pattern '|' expr '->' pattern    { S.PatGuarded (tokPos $2) $1 (S.Match (tokPos $4) $3 $5) }
          | symbol '(' patterns ')'          { S.PatField (tokPos $2) (snd $1) $3 }

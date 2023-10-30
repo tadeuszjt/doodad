@@ -45,7 +45,6 @@ data GenerateState
         , tuples :: Map.Map C.Type String
         , supply :: Map.Map String Int
         , ctors  :: Map.Map Symbol (Symbol, Int)
-        , typedefs :: Map.Map Symbol Type.Type
         , typefuncs :: Map.Map Symbol ([Symbol], Type.Type)
         , symTab :: SymTab.SymTab String () Value
         , tableAppendFuncs :: Map.Map Type.Type String
@@ -57,7 +56,6 @@ initGenerateState modName
         , tuples = Map.empty
         , supply = Map.empty
         , ctors  = Map.empty
-        , typedefs = Map.empty
         , typefuncs = Map.empty
         , symTab = SymTab.initSymTab
         , tableAppendFuncs = Map.empty
@@ -166,14 +164,24 @@ convert :: MonadGenerate m => Type.Type -> Value -> m Value
 convert typ val = do
     base <- baseTypeOf typ
     baseVal <- baseTypeOf val
+    r <- initialiser typ []
     case (base, baseVal) of
-        (t1, Record [t2]) | t1 == t2 -> do
-            r <- initialiser typ []
-            set r $ Value typ $ C.Deref $ C.Member (valExpr val) "m0"
-            return r
+        _ | base == baseVal -> set r val
 
+        (t1, Record [t2]) | t1 == t2 -> do
+            set r $ Value typ $ C.Deref $ C.Member (valExpr val) "m0"
+
+        (Type.Tuple (Record ts1), Record ts2) -> do
+            assert (length ts1 == length ts2) "invalid type"
+            forM_ (zip3 ts1 ts2 [0..]) $ \(t, t2, i) -> do
+                m <- member i r
+                set m =<< convert t (Value t2 $ C.Deref $ C.Member (valExpr val) ("m" ++ show i))
 
         _ -> error $ show (base, baseVal)
+
+    return r
+
+
 
 
 set :: MonadGenerate m => Value -> Value -> m ()
@@ -261,8 +269,7 @@ initialiser typ vals = do
         Type.Tuple t -> do
             baseT <- baseTypeOf t
             case baseT of
-                Record ts -> do
-                    assert (length ts == length vals) "initialiser length"
+                Record _ -> do
                     assign "tuple" $ Value typ $ C.Initialiser (map valExpr vals)
 
                 Type.Tuple _ -> do -- ()() ...
@@ -368,7 +375,9 @@ cTypeOf a = case typeof a of
     Type.Tuple t -> do
         baseT <- baseTypeOf t
         case baseT of
-            Record ts -> do
+            Record _ -> do
+                typeDefs <- gets typefuncs
+                let ts = getRecordTreeTypes typeDefs t
                 cts <- mapM cTypeOf ts
                 getTypedef "tuple" $ Cstruct $ zipWith (\a b -> C.Param ("m" ++ show a) b) [0..] cts
             t -> cTypeOf t

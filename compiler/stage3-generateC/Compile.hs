@@ -385,6 +385,24 @@ generatePattern pattern val = withPos pattern $ do
         PatLiteral expr -> generateInfix S.EqEq val =<< generateExpr expr
         PatAnnotated pat typ -> generatePattern pat val
 
+        PatRecord _ pats -> do
+            base <- baseTypeOf val
+            case base of
+                Record ts -> do -- TODO patterns aren't references
+                    assert (length ts == length pats) "invalid pattern"
+                    endLabel <- fresh "end"
+                    match <- assign "match" false
+                    forM_ (zip3 pats [0..] ts) $ \(pat, i, t) -> do
+                        b <- generatePattern pat $ Value t $ C.Deref $ C.Member (valExpr val) ("m" ++ show i)
+                        if_ (not_ b) $ appendElem (C.Goto endLabel)
+
+                    set match true
+                    appendElem $ C.Label endLabel
+                    return match
+                        
+
+                _ -> error (show base)
+
 --        PatArray _ pats -> do   
 --            base <- baseTypeOf val
 --            endLabel <- fresh "end"
@@ -706,7 +724,7 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
             assert (typeof r == typ) $ 
                 "generateExpr returned: " ++ show r ++ " but checked " ++ show typ ++ " for " ++ show expr_
             return r
-generateExpr x = error (show x)
+generateExpr x = fail $ "unresolved expression"
             
 
 generateInfix :: MonadGenerate m => S.Operator -> Value -> Value -> m Value

@@ -69,6 +69,7 @@ data Pattern
     | PatField     TextPos Symbol [Pattern]
     | PatTypeField TextPos Type Pattern
     | PatAnnotated Pattern Type
+    | PatRecord    TextPos [Pattern]
     | PatNull      TextPos
     deriving (Eq)
 
@@ -237,6 +238,7 @@ instance Show Pattern where
         PatField pos symbol pats -> show symbol ++ tupStrs (map show pats)
         PatTypeField pos typ pat -> show pat ++ arrStrs [show typ]
         PatAnnotated pat typ     -> show pat ++ ":" ++ show typ
+        PatRecord pos pats       -> brcStrs (map show pats)
         PatNull pos              -> "null"
 
 

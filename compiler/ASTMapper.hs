@@ -180,6 +180,7 @@ mapPattern f pattern = withPos pattern $ do
         PatLiteral expr          -> PatLiteral <$> mapExpr f expr
         PatTuple pos pats        -> PatTuple pos <$> mapM (mapPattern f) pats
         PatField pos symbol pats -> PatField pos symbol <$> mapM (mapPattern f) pats
+        PatRecord pos pats       -> PatRecord pos <$> mapM (mapPattern f) pats
         _ -> error (show pattern)
     case resm of
         Nothing -> put prevState >> return pattern
