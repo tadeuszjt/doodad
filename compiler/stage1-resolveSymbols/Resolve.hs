@@ -129,6 +129,7 @@ annoToType :: AnnoType -> Type
 annoToType anno = case anno of
     AnnoTuple params -> Type.Tuple $ Type.Record (map paramType params)
     AnnoADT  params  -> Type.ADT $ map paramType params
+    AnnoRecord params -> Type.Record (map paramType params)
     AnnoType t       -> t
 
 
@@ -159,6 +160,8 @@ buildCtorMap list = do
         AnnoTuple ps -> forM_ (zip ps [0..]) $ \(Param _ s t, i) -> 
             modify $ Map.insert s (symbol, i)
         AnnoTable ps -> forM_ (zip ps [0..]) $ \(Param _ s t, i) -> 
+            modify $ Map.insert s (symbol, i)
+        AnnoRecord params -> forM_ (zip params [0..]) $ \(Param _ s t, i) ->
             modify $ Map.insert s (symbol, i)
         AnnoType t -> return ()
         _ -> error (show anno)
@@ -277,6 +280,10 @@ resolveTypeDef2 (AST.Typedef pos typeArgs (Sym sym) anno) = do
                 s' <- genSymbol s
                 AST.Param pos s' <$> resolve t
             return $ AnnoTuple ps'
+
+        AnnoRecord params -> fmap AnnoRecord $ forM params $ \(AST.Param pos (Sym s) t) -> do
+            s' <- genSymbol s
+            AST.Param pos s' <$> resolve t
 
         AnnoTable params -> fmap AnnoTable $ forM params $ \(AST.Param pos (Sym s) t) -> do
             s' <- genSymbol s

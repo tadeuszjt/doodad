@@ -62,6 +62,7 @@ mapStmt :: BoM s m => MapperFunc m -> Stmt -> m Stmt
 mapStmt f stmt = withPos stmt $ do
     prevState <- get
     resm <- f . ElemStmt =<< case stmt of
+        Typedef _ _ _ _ -> return stmt -- ignored
         EmbedC pos s -> return $ EmbedC pos s
         Block stmts -> Block <$> mapM (mapStmt f) stmts
         ExprStmt expr -> ExprStmt <$> mapExpr f expr

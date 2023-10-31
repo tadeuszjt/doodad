@@ -123,6 +123,7 @@ data AnnoType
     = AnnoType  Type
     | AnnoTuple [Param]
     | AnnoTable [Param]
+    | AnnoRecord [Param]
     | AnnoADT   [Param]
     deriving (Eq)
 
@@ -223,8 +224,9 @@ instance Show AnnoType where
     show annoType = case annoType of
         AnnoType t   -> show t
         AnnoTuple ps -> tupStrs $ map show ps
-        AnnoADT ps   -> brcStrs $ map show ps
+        AnnoADT ps   -> "(" ++ intercalate " | " (map show ps) ++ ")"
         AnnoTable xs -> "[" ++ intercalate "; " (map show xs) ++ "]"
+        AnnoRecord ps -> brcStrs $ map show ps
 
 
 instance Show Pattern where

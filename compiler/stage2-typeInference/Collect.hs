@@ -370,6 +370,14 @@ collectExpr (S.AExpr exprType expr) = collectPos expr $ case expr of
             TypeApply symbol _ -> do
                 ObjField i  <- look (Sym sym) . KeyField =<< getTypeSymbol (typeof e)
                 collect $ ConsField exprType i (typeof e)
+
+            Tuple x@(TypeApply symbol _) -> do
+                ObjField i  <- look (Sym sym) (KeyField symbol)
+                collect $ ConsField exprType i x
+                
+
+            _ -> error $ show (typeof e)
+
             _ -> fail "invalid field access"
         collectExpr e
 

@@ -38,6 +38,17 @@ fn[K, V] {m:Map(K, V)} find(key:()K) Maybe(()V)
 fn testTuple()
     let t1 = (1, true, "three"):(){i64, bool, string}
     let t2 = (2, false, "four"):(){i64, {bool, string}}
+
+
+    type Person {name:string, age:i64}
+    type Index i64
+
+    let t3 = ("john", 49, 2):(){Person, Index}
+
+    let t4 = ("jim", 50):()Person
+    //let 50 = t4.age how do fields work now?
+
+
     print("testTuple passed")
 
 fn testTable()

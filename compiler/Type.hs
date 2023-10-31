@@ -1,7 +1,7 @@
 module Type where
 
 import Data.Maybe
-import qualified Data.Map as Map (Map, (!), member)
+import qualified Data.Map as Map (Map, (!), member, lookup)
 import Data.List
 import Symbol
 
@@ -171,6 +171,11 @@ flattenTuple typedefs typ = case typ of
 getRecordTreeTypes :: Map.Map Symbol ([Symbol], Type) -> Type -> [Type]
 getRecordTreeTypes typeDefs typ = case typ of
     Record ts -> concat $ map (getRecordTreeTypes typeDefs) ts
+
+    TypeApply symbol ts -> case Map.lookup symbol typeDefs of
+        Just (ss, t) -> case applyTypeFunction ss ts t of
+            Record xs -> concat $ map (getRecordTreeTypes typeDefs) xs
+            x         -> getRecordTreeTypes typeDefs x
 
     I64 -> [I64]
     Bool -> [Bool]
