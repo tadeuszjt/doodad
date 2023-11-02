@@ -1,6 +1,7 @@
 module Constraint where
 
 import Type
+import Symbol
 
 -- constraints obtained from sub-expressions must be to the left
 data Constraint
@@ -9,11 +10,11 @@ data Constraint
     | ConsMember Type Int Type   -- t2 is ith elem of t1
     | ConsElem Type Type         -- t2 is elem of t1
     | ConsSubscript Type Type    -- t2 is elem type of t1
-    | ConsField Type Int Type 
     | ConsAdtField Type Int Int Type
     | ConsKey Type Type          -- t2 is key type of t1
     | ConsTuple Type [Type]      -- t2s are the member types of 51
     | ConsRecord Type [Type]     -- t2s are the member types of t1
     | ConsRecordAccess Type Type
     | ConsSpecial Type Type
+    | ConsField Type Symbol Type
     deriving (Show, Eq, Ord)

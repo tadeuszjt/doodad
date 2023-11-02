@@ -60,12 +60,6 @@ isIntegral x = isInt x || x == Char
 isSimple x   = isInt x || isFloat x || x == Char || x == Bool || x == String
 
 
-getTypeSymbol :: MonadFail m => Type ->  m Symbol
-getTypeSymbol typ = case typ of
-    TypeApply symbol _ -> return symbol
-    _ -> fail $ "no symbol for type: " ++ show typ
-
-
 findGenerics :: [Symbol] -> Type -> [Type]
 findGenerics typeArgs typ = case typ of
     t | isSimple t -> []
@@ -137,6 +131,11 @@ typesCouldMatch typedefs generics t1 t2 = typesCouldMatchPure
             _ -> False
 
 
+-- Determines whether the type will change after a tuple application.
+-- For example:
+-- i64         -> False because ()i64 == i64
+-- ()string    -> False because ()()string == ()string
+-- {i64, bool} -> True  because (){i64, bool} != {i64, bool}
 definitelyIgnoresTuples :: Map.Map Symbol ([Symbol], Type) -> Type -> Bool
 definitelyIgnoresTuples typedefs typ = case typ of
     ADT _          -> True
@@ -153,6 +152,12 @@ definitelyIgnoresTuples typedefs typ = case typ of
     _ -> error (show typ)
 
 
+-- Recursively removes all superfluous tuple applications from the type.
+-- For example:
+-- ()i64         -> i64
+-- ()()string    -> string
+-- ()T           -> ()T
+-- (){i64, bool} -> (){i64, bool}
 flattenTuple :: Map.Map Symbol ([Symbol], Type) -> Type -> Type
 flattenTuple typedefs typ = case typ of
     t | isSimple t                               -> typ
@@ -168,6 +173,12 @@ flattenTuple typedefs typ = case typ of
     _                                            -> error (show typ)
 
 
+-- Returns the list of types represeted by a tree of records.
+-- For example:
+-- {i64, bool}             -> [i64, bool] 
+-- { {i64, bool}, string } -> [i64, bool, string]
+-- { Person, Index }       -> [string, i64, i64]   (Person == {name:string, age:i64})
+-- i64                     -> [i64]
 getRecordTreeTypes :: Map.Map Symbol ([Symbol], Type) -> Type -> [Type]
 getRecordTreeTypes typeDefs typ = case typ of
     Record ts -> concat $ map (getRecordTreeTypes typeDefs) ts
@@ -181,4 +192,21 @@ getRecordTreeTypes typeDefs typ = case typ of
     Bool -> [Bool]
     String -> [String]
     Table _ -> [typ]
+    _ -> error (show typ)
+
+
+
+-- Returns the symbol from the type which will be associated with field accesses. 
+-- For example:
+-- Person          -> Person
+-- ()Person        -> Person
+-- []Person        -> Person
+-- ()PersonWrapper -> Person
+getFieldAccessorSymbol :: Map.Map Symbol ([Symbol], Type) -> Type -> Symbol
+getFieldAccessorSymbol typeDefs typ = case typ of
+    Tuple t -> getFieldAccessorSymbol typeDefs t
+    TypeApply symbol ts -> case Map.lookup symbol typeDefs of
+        Just (ss, Record _)         -> symbol
+        Just (ss, Tuple (Record _)) -> symbol
+        x -> error (show x)
     _ -> error (show typ)

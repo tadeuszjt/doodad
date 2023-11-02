@@ -622,10 +622,12 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
         objs2 <- mapM generateExpr exprs2
         return $ Value typ $ C.Call (show symbol) (map ptrExpr objs1 ++ map valExpr objs2)
 
+    S.Field _ _ (Sym s) -> fail $ "unresolved field: " ++ s
     S.Field _ expr symbol -> do 
         val <- generateExpr expr
         base <- baseTypeOf val
         (typ, i) <- mapGet symbol =<< gets ctors
+
         --assert (typ == typeof val) "ctor type mismatch" TODO
         member i val
 

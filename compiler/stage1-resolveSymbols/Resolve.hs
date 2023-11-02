@@ -169,69 +169,63 @@ buildCtorMap list = do
 
 
 resolveAsts :: BoM s m => [AST] -> [ASTResolved] -> m (ASTResolved, ResolveState)
-resolveAsts asts imports = withErrorPrefix "resolve: " $ do
-    runBoMTExcept (initResolveState imports (astModuleName $ head asts) Map.empty) f
-    where
-        f :: BoM ResolveState m => m ASTResolved
-        f = do
-            let moduleName = astModuleName $ head asts
-            let includes   = [ s | inc@(CInclude s) <- concat $ map astImports asts ]
-            let links      = [ s | link@(CLink s) <- concat $ map astImports asts ]
-            let typedefs   = [ stmt | stmt@(AST.Typedef _ _ _ _) <- concat $ map astStmts asts ]
-            let funcdefs   = [ stmt | stmt@(AST.FuncDef _ _ _ _ _ _ _) <- concat $ map astStmts asts ]
-            let consts     = [ stmt | stmt@(AST.Const _ _ _) <- concat $ map astStmts asts ]
+resolveAsts asts imports = withErrorPrefix "resolve: " $
+    runBoMTExcept (initResolveState imports (astModuleName $ head asts) Map.empty) $ do
+        let moduleName = astModuleName $ head asts
+        let includes   = [ s | inc@(CInclude s) <- concat $ map astImports asts ]
+        let links      = [ s | link@(CLink s) <- concat $ map astImports asts ]
+        let typedefs   = [ stmt | stmt@(AST.Typedef _ _ _ _) <- concat $ map astStmts asts ]
+        let funcdefs   = [ stmt | stmt@(AST.FuncDef _ _ _ _ _ _ _) <- concat $ map astStmts asts ]
+        let consts     = [ stmt | stmt@(AST.Const _ _ _) <- concat $ map astStmts asts ]
 
-            -- check validity
-            assert (all (== moduleName) $ map astModuleName asts) "module name mismatch"
-            forM_ (concat $ map astStmts asts) $ \stmt -> withPos stmt $ case stmt of
-                (AST.Typedef _ _ _ _) -> return ()
-                (AST.FuncDef _ _ _ _ _ _ _) -> return ()
-                (AST.Const _ _ _) -> return ()
-                _ -> fail "invalid top-level statement"
+        -- check validity
+        assert (all (== moduleName) $ map astModuleName asts) "module name mismatch"
+        forM_ (concat $ map astStmts asts) $ \stmt -> withPos stmt $ case stmt of
+            (AST.Typedef _ _ _ _) -> return ()
+            (AST.FuncDef _ _ _ _ _ _ _) -> return ()
+            (AST.Const _ _ _) -> return ()
+            _ -> fail "invalid top-level statement"
 
+        -- define constants
+        constDefsList <- forM consts $ \(AST.Const pos (Sym sym) expr) -> withPos pos $ do
+            symbol' <- genSymbol sym
+            define sym KeyVar symbol'
+            return (symbol', expr)
 
-            -- define type headers
+        -- define func headers
+        forM_ funcdefs $ \(FuncDef pos typeArgs params symbol args retty blk) -> withPos pos $ do
+            when (typeArgs == []) $ do
+                let funckey = (map typeof params, sym symbol, map typeof args, retty)
+                resm <- lookm (Sym $ sym symbol) KeyFunc
+                when (isNothing resm) $ define (sym symbol) KeyFunc (Sym $ sym $ symbol)
 
-            -- define constants
-            constDefsList <- forM consts $ \(AST.Const pos (Sym sym) expr) -> withPos pos $ do
-                symbol' <- genSymbol sym
-                define sym KeyVar symbol'
-                return (symbol', expr)
+        -- get imports
+        (_, typeFuncImportMap) <- runBoMTExcept Map.empty (buildTypeFuncImportMap imports)
+        (_, funcImportMap)     <- runBoMTExcept Map.empty (buildFuncImportMap imports)
+        (_, ctorImportMap)     <- runBoMTExcept Map.empty (buildCtorImportMap imports)
 
-            -- define func headers
-            forM_ funcdefs $ \(FuncDef pos typeArgs params symbol args retty blk) -> withPos pos $ do
-                when (typeArgs == []) $ do
-                    let funckey = (map typeof params, sym symbol, map typeof args, retty)
-                    resm <- lookm (Sym $ sym symbol) KeyFunc
-                    when (isNothing resm) $ define (sym symbol) KeyFunc (Sym $ sym $ symbol)
+        mapM resolveTypeDef2 typedefs
+        mapM_ resolveFuncDef funcdefs
 
-            -- get imports
-            (_, typeFuncImportMap) <- runBoMTExcept Map.empty (buildTypeFuncImportMap imports)
-            (_, funcImportMap)     <- runBoMTExcept Map.empty (buildFuncImportMap imports)
-            (_, ctorImportMap)     <- runBoMTExcept Map.empty (buildCtorImportMap imports)
+        typeFuncs <- gets typeFuncsMap
+        funcDefs <- gets funcDefsMap
 
-            mapM resolveTypeDef2 typedefs
-            mapM_ resolveFuncDef funcdefs
+        -- combine the typeDefs and typeFuncs map to build the ctorMap
+        ctorMap <- fmap snd $ runBoMTExcept Map.empty $ 
+            buildCtorMap $ Map.toList $ Map.map snd typeFuncs
 
-            typeFuncs <- gets typeFuncsMap
-            funcDefs <- gets funcDefsMap
-
-            -- combine the typeDefs and typeFuncs map to build the ctorMap
-            ctorMap <- fmap snd $ runBoMTExcept Map.empty $ 
-                buildCtorMap $ Map.toList $ Map.map snd typeFuncs
-
-            supply <- gets supply
-            return $ ASTResolved
-                { moduleName  = moduleName
-                , includes    = Set.fromList includes
-                , links       = Set.fromList links
-                , funcImports = funcImportMap
-                , constDefs   = Map.fromList constDefsList
-                , funcDefs    = funcDefs
-                , typeFuncs   = Map.union typeFuncImportMap (Map.map (\(x, y) -> (x, annoToType y)) typeFuncs)
-                , ctorDefs    = Map.union ctorImportMap ctorMap
-                , symSupply   = supply
-                }
+        supply <- gets supply
+        return $ ASTResolved
+            { moduleName  = moduleName
+            , includes    = Set.fromList includes
+            , links       = Set.fromList links
+            , funcImports = funcImportMap
+            , constDefs   = Map.fromList constDefsList
+            , funcDefs    = funcDefs
+            , typeFuncs   = Map.union typeFuncImportMap (Map.map (\(x, y) -> (x, annoToType y)) typeFuncs)
+            , ctorDefs    = Map.union ctorImportMap ctorMap
+            , symSupply   = supply
+            }
 
 
 
@@ -294,17 +288,7 @@ resolveTypeDef2 (AST.Typedef pos typeArgs (Sym sym) anno) = do
             Param pos s' <$> resolve t
 
     popSymbolTable
-
-    --extraSpecialKeyFuncDefiningFunction anno'
     modify $ \s -> s { typeFuncsMap = Map.insert symbol (argSymbols, anno') (typeFuncsMap s) }
-    where
---        extraSpecialKeyFuncDefiningFunction :: BoM ResolveState m => AST.AnnoType -> m ()
---        extraSpecialKeyFuncDefiningFunction anno' = case anno' of
---            AnnoADT xs -> forM_ xs $ \x -> case x of
---                ADTFieldMember symbol' ts' -> do
---                    define (Symbol.sym symbol') KeyFunc symbol'
---                _ -> return ()
---            _ -> return ()
 
 
 instance Resolve Stmt where

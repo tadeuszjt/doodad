@@ -55,7 +55,7 @@ cleanUpMapper elem = case elem of
     ElemStmt (AST.Typedef _ _ _ _)       -> return Nothing
 
     ElemExpr (AExpr exprType expr@(AST.Field pos e symbol)) -> case symbol of
-        Sym _             -> Just . ElemExpr . AExpr exprType <$> resolveFieldAccess expr
+        Sym _             -> Just . ElemExpr . AExpr exprType . AST.Field pos e <$> resolveFieldAccess (typeof e) symbol
         SymResolved _ _ _ -> return $ Just $ ElemExpr $ AExpr exprType (Field pos e symbol)
 
     ElemExpr (AExpr exprType expr@(AST.Call pos params symbol exprs)) -> do
@@ -127,27 +127,27 @@ resolveFuncCall exprType (AST.Call pos params callSymbol args) = withPos pos $ d
             return callSymbol
 
 
+-- (x:typ).sym -> (x:typ).mod_sym_0
+resolveFieldAccess :: BoM ASTResolved m => Type -> Symbol -> m Symbol
+resolveFieldAccess typ (Sym sym) = do
+    typeDefs <- gets typeFuncs
+    ctors    <- gets ctorDefs
 
-resolveFieldAccess :: BoM ASTResolved m => AST.Expr -> m Expr
-resolveFieldAccess (AST.Field pos expr' (Sym sym)) = do
-    -- (tup:typeSymbol).x:i64
-    -- find mod_x_n
-    ctors <- gets ctorDefs
-    res <- fmap catMaybes $ forM (Map.toList ctors) $ \(symbol, (typeSymbol, i)) -> do
-        exprTypeSymbolm <- case typeof expr' of
-            Type.TypeApply s _ -> return (Just s)
-            _ -> return Nothing
-        case exprTypeSymbolm of
-            Nothing -> return Nothing
-            Just exprTypeSymbol -> do
-                if Symbol.sym symbol == sym && exprTypeSymbol == typeSymbol then
-                    return $ Just symbol
-                else return Nothing
+    case typ of
+        Type _ -> return (Sym sym)
+        _ -> do
+            let typeSymbol = getFieldAccessorSymbol typeDefs typ
 
-    case res of
-        (a:b:xs) -> fail "ambiguous"
-        []       -> return $ Field pos expr' (Sym sym)
-        [symbol] -> return $ Field pos expr' symbol
+            res <- fmap catMaybes $ forM (Map.toList ctors) $ \(symbol, (typSym, i)) -> do
+                if Symbol.sym symbol == sym && typeSymbol == typSym then
+                    return (Just symbol)
+                else
+                    return Nothing
+
+            case res of
+                (a:b:xs) -> fail "ambiguous"
+                []       -> return $ (Sym sym)
+                [symbol] -> return $ symbol
 
 
 

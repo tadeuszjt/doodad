@@ -10,6 +10,7 @@ import Control.Monad.State
 import Control.Monad.Except
 
 import Type
+import ASTResolved
 import qualified AST as S
 import Constraint
 import Monad
@@ -18,13 +19,10 @@ import Apply
 import Symbol
 
 
-type UnifyState = Map.Map Symbol ([Symbol], Type)
-
-
-baseTypeOf :: BoM UnifyState m => Type -> m (Maybe Type)
+baseTypeOf :: BoM ASTResolved m => Type -> m (Maybe Type)
 baseTypeOf typ = case typ of
     TypeApply symbol ts -> do
-        resm <- gets $ Map.lookup symbol
+        resm <- gets $ Map.lookup symbol . typeFuncs
         case resm of
             Nothing              -> return Nothing
             Just (argSymbols, t) -> do
@@ -35,8 +33,55 @@ baseTypeOf typ = case typ of
 
 
 
-unifyOne :: BoM UnifyState m => TextPos -> Constraint -> m [(Type, Type)]
+unifyOne :: BoM ASTResolved m => TextPos -> Constraint -> m [(Type, Type)]
 unifyOne pos constraint = withPos pos $ case constraint of
+    ConsField typ (Sym _) exprType -> return []
+
+    ConsField typ symbol exprType -> case typ of
+        Type _ -> return []
+--        _ -> do
+--            typeDefs <- gets typeFuncs
+--            let typeSymbol = getFieldAccessorSymbol typeDefs typ
+--            (_, typeDef) <- mapGet typeSymbol =<< gets typeFuncs
+--            resm <- Map.lookup symbol <$> gets ctorDefs
+--            case resm of
+--                Just (typeSymbol', index) -> do
+--                    assert (typeSymbol == typeSymbol') "type symbols do not match"
+--                    case typeDef of
+--                        
+--                        _ -> error (show typeDef)
+--
+--                _ -> error (show resm)
+
+        -- Eg: (tuple:Person).age
+        TypeApply s ts -> do
+            resm <- Map.lookup symbol <$> gets ctorDefs
+            case resm of
+                Just (typeSymbol, index) -> do
+                    assert (typeSymbol == s) "invalid field access"
+                    base <- baseTypeOf typ
+                    case base of
+                        Just (Tuple (Record ts)) -> unifyOne pos $ ConsEq (ts !! index) exprType
+                        _ -> error (show base)
+
+                _ -> error (show resm)
+
+        -- Eg: (tuple:()Person).age
+        Tuple (TypeApply s ts) -> do
+            resm <- Map.lookup symbol <$> gets ctorDefs
+            case resm of
+                Just (typeSymbol, index) -> do
+                    assert (typeSymbol == s) "invalid field access"
+                    base <- baseTypeOf (TypeApply s ts)
+                    case base of
+                        Just (Record ts') -> unifyOne pos $ ConsEq (ts' !! index) exprType
+                        _ -> error (show base)
+
+
+                _ -> error (show resm)
+
+        _ -> error (show typ)
+
     ConsTuple tupType ts -> do
         basem <- baseTypeOf tupType
         case basem of
@@ -45,7 +90,7 @@ unifyOne pos constraint = withPos pos $ case constraint of
                 baseT <- baseTypeOf t
                 case baseT of
                     Just (Record _) -> do
-                        typeDefs <- get
+                        typeDefs <- gets typeFuncs
                         let recordTs = getRecordTreeTypes typeDefs t
                         assert (length ts == length recordTs) "record length mismatch"
                         concat <$> zipWithM (\a b -> unifyOne pos $ ConsEq a b) ts recordTs
@@ -86,12 +131,6 @@ unifyOne pos constraint = withPos pos $ case constraint of
                 unifyOne pos $ ConsEq t (ts !! i)
             _ -> error (show basem)
         
-    ConsField t i agg -> do
-        basem <- baseTypeOf agg
-        case basem of
-            Just (Tuple (Record ts)) -> unifyOne pos (ConsEq t $ ts !! i)
-            _ -> error (show basem)
-            _ -> return []
 
     ConsMember t1 i t2 -> do
         basem <- baseTypeOf t1
@@ -153,7 +192,7 @@ unifyOne pos constraint = withPos pos $ case constraint of
 
 
 
-unify :: BoM UnifyState m => [(Constraint, TextPos)] -> m [(Type, Type)]
+unify :: BoM ASTResolved m => [(Constraint, TextPos)] -> m [(Type, Type)]
 unify []     = return []
 unify (x:xs) = do
     subs <- unify xs
@@ -161,7 +200,7 @@ unify (x:xs) = do
     return (s ++ subs)
 
 
-unifyDefault :: BoM UnifyState m => [(Constraint, TextPos)] -> m [(Type, Type)]
+unifyDefault :: BoM ASTResolved m => [(Constraint, TextPos)] -> m [(Type, Type)]
 unifyDefault []     = return []
 unifyDefault (x:xs) = do
     subs <- unifyDefault xs

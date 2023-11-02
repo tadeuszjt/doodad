@@ -20,17 +20,9 @@ import FunctionFinder
 import qualified Debug.Trace
 
 
-type SymTab = SymTab.SymTab Symbol SymKey Object
-
-data SymKey
-    = KeyVar
-    | KeyField Symbol -- Field belonging to (Typedef Symbol)
-    | KeyAdtField
-    deriving (Show, Eq, Ord)
-
+type SymTab = SymTab.SymTab Symbol () Object
 data Object
     = ObjVar Type
-    | ObjField Int
     | ObjConst S.Expr
     deriving (Show, Eq)
 
@@ -85,28 +77,24 @@ collectDefault t1 t2 = do
     modify $ \s -> s { defaults = Map.insert (ConsEq t1 t2) (curPos s) (defaults s) }
 
 
-look :: BoM CollectState m => Symbol -> SymKey -> m Object
-look symbol key = do
-    rm <- SymTab.lookup symbol key <$> gets symTab
-    assert (isJust rm) $ show symbol ++ " " ++ show key ++ " undefined."
+look :: BoM CollectState m => Symbol -> m Object
+look symbol = do
+    rm <- SymTab.lookup symbol () <$> gets symTab
+    assert (isJust rm) $ show symbol ++ " undefined."
     return (fromJust rm)
 
 
-define :: BoM CollectState m => Symbol -> SymKey -> Object -> m ()
-define symbol key obj = do
-    resm <- SymTab.lookupHead symbol key <$> gets symTab
+define :: BoM CollectState m => Symbol -> Object -> m ()
+define symbol obj = do
+    resm <- SymTab.lookupHead symbol () <$> gets symTab
     assert (isNothing resm) $ show symbol ++ " already defined"
-    modify $ \s -> s { symTab = SymTab.insert symbol key obj (symTab s) }
+    modify $ \s -> s { symTab = SymTab.insert symbol () obj (symTab s) }
 
 
 collectAST :: BoM CollectState m => ASTResolved -> m ()
 collectAST ast = do
-    forM (Map.toList $ ctorDefs ast) $ \(symbol, (typeDefSymbol, i)) -> do
-        (typeArgs, typ) <- mapGet typeDefSymbol =<< gets (typeFuncs . astResolved) -- check
-        define (Sym $ sym symbol) (KeyField typeDefSymbol) (ObjField i)
-
     forM (Map.toList $ constDefs ast) $ \(symbol, expr) -> do
-        define symbol KeyVar (ObjConst expr)
+        define symbol (ObjConst expr)
 
     forM_ (Map.toList $ funcDefs ast) $ \(symbol, body) ->
         when (funcTypeArgs body == []) $ do
@@ -120,8 +108,8 @@ collectFuncDef symbol body = do
     modify $ \s -> s { symTab = SymTab.push (symTab s) }
     oldRetty <- gets curRetty
     modify $ \s -> s { curRetty = funcRetty body }
-    forM (funcParams body) $ \(S.Param _ symbol t) -> define symbol KeyVar (ObjVar t)
-    forM_ (funcArgs body) $ \(S.Param _ symbol t) -> define symbol KeyVar (ObjVar t)
+    forM (funcParams body) $ \(S.Param _ symbol t) -> define symbol (ObjVar t)
+    forM_ (funcArgs body) $ \(S.Param _ symbol t) -> define symbol (ObjVar t)
     collectStmt (funcStmt body)
     modify $ \s -> s { curRetty = oldRetty }
     --collectDefault (funcRetty body) Void
@@ -139,7 +127,7 @@ collectStmt stmt = collectPos stmt $ case stmt of
     S.ExprStmt e -> do
         collectExpr e
         collectDefault (typeof e) Void
-    S.Const _ symbol expr -> define symbol KeyVar (ObjConst expr)
+    S.Const _ symbol expr -> define symbol (ObjConst expr)
 
     S.Return _ mexpr -> do
         retty <- gets curRetty
@@ -202,7 +190,7 @@ collectStmt stmt = collectPos stmt $ case stmt of
         collectStmt blk
 
     S.Data p symbol typ mexpr -> do
-        define symbol KeyVar (ObjVar typ)
+        define symbol (ObjVar typ)
         maybe (return ()) (collectEq typ . typeof) mexpr
         maybe (return ()) collectExpr mexpr
         
@@ -214,7 +202,7 @@ collectPattern :: BoM CollectState m => S.Pattern -> Type -> m ()
 collectPattern pattern typ = collectPos pattern $ case pattern of
     S.PatIgnore pos -> return ()
     S.PatIdent _ symbol -> do
-        define symbol KeyVar (ObjVar typ)
+        define symbol (ObjVar typ)
 
     S.PatLiteral expr -> do 
         collectEq typ (typeof expr)
@@ -324,7 +312,7 @@ collectExpr (S.AExpr exprType expr) = collectPos expr $ case expr of
         collectDefault exprType Bool
 
     S.Ident _ symbol -> do
-        obj <- look symbol KeyVar
+        obj <- look symbol 
         case obj of
             ObjVar t -> collectEq t exprType
             ObjConst e -> do -- special!
@@ -364,26 +352,8 @@ collectExpr (S.AExpr exprType expr) = collectPos expr $ case expr of
 --        collectDefault exprType $ Tuple (map typeof es)
         mapM_ collectExpr es
 
-    S.Field _ e (Sym sym) -> do
-        case typeof e of
-            Type x         -> return ()
-            TypeApply symbol _ -> do
-                ObjField i  <- look (Sym sym) . KeyField =<< getTypeSymbol (typeof e)
-                collect $ ConsField exprType i (typeof e)
-
-            Tuple x@(TypeApply symbol _) -> do
-                ObjField i  <- look (Sym sym) (KeyField symbol)
-                collect $ ConsField exprType i x
-                
-
-            _ -> error $ show (typeof e)
-
-            _ -> fail "invalid field access"
-        collectExpr e
-
-    S.Field _ e symbol@(SymResolved _ _ _) -> do
-        ObjField i  <- look (Sym $ Symbol.sym symbol) . KeyField =<< getTypeSymbol (typeof e)
-        collect $ ConsField exprType i (typeof e)
+    S.Field _ e symbol -> do
+        collect $ ConsField (typeof e) symbol exprType
         collectExpr e
 
     S.Match _ e p -> do

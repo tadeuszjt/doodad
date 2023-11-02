@@ -63,10 +63,10 @@ instance Apply Constraint where
         ConsMember t1 i t2   -> return $ ConsMember (f t1) i (f t2)
         ConsElem t1 t2       -> return $ ConsElem (f t1) (f t2)
         ConsSubscript t1 t2  -> return $ ConsSubscript (f t1) (f t2)
-        ConsField t1 i t2    -> return $ ConsField (f t1) i (f t2)
         ConsAdtField t1 i j t2 -> return $ ConsAdtField (f t1) i j (f t2)
         ConsTuple t1 ts      -> return $ ConsTuple (f t1) (map f ts)
         ConsRecordAccess t1 t2 -> return $ ConsRecordAccess (f t1) (f t2)
         ConsSpecial t1 t2      -> return $ ConsSpecial (f t1) (f t2)
+        ConsField  t1 s t2     -> return $ ConsField (f t1) s (f t2)
 
 
