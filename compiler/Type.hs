@@ -5,6 +5,8 @@ import qualified Data.Map as Map (Map, (!), member, lookup)
 import Data.List
 import Symbol
 
+type TypeDefs = Map.Map Symbol ([Symbol], Type)
+
 class Typeof a where typeof :: a -> Type
 instance Typeof Type where 
     typeof typ = typ
@@ -90,7 +92,7 @@ applyTypeFunction argSymbols argTypes typ = case length argSymbols == length arg
         _                       -> error $ "applyTypeFunction: " ++ show typ
 
 
-typesCouldMatch :: Map.Map Symbol ([Symbol], Type) -> [Symbol] -> Type -> Type -> Bool
+typesCouldMatch :: TypeDefs -> [Symbol] -> Type -> Type -> Bool
 typesCouldMatch typedefs generics t1 t2 = typesCouldMatchPure
         typedefs
         generics
@@ -136,7 +138,7 @@ typesCouldMatch typedefs generics t1 t2 = typesCouldMatchPure
 -- i64         -> False because ()i64 == i64
 -- ()string    -> False because ()()string == ()string
 -- {i64, bool} -> True  because (){i64, bool} != {i64, bool}
-definitelyIgnoresTuples :: Map.Map Symbol ([Symbol], Type) -> Type -> Bool
+definitelyIgnoresTuples :: TypeDefs -> Type -> Bool
 definitelyIgnoresTuples typedefs typ = case typ of
     ADT _          -> True
     Void           -> True
@@ -158,7 +160,7 @@ definitelyIgnoresTuples typedefs typ = case typ of
 -- ()()string    -> string
 -- ()T           -> ()T
 -- (){i64, bool} -> (){i64, bool}
-flattenTuple :: Map.Map Symbol ([Symbol], Type) -> Type -> Type
+flattenTuple :: TypeDefs -> Type -> Type
 flattenTuple typedefs typ = case typ of
     t | isSimple t                               -> typ
     Table t                                      -> Table (flattenTuple typedefs t)
@@ -179,7 +181,7 @@ flattenTuple typedefs typ = case typ of
 -- { {i64, bool}, string } -> [i64, bool, string]
 -- { Person, Index }       -> [string, i64, i64]   (Person == {name:string, age:i64})
 -- i64                     -> [i64]
-getRecordTreeTypes :: Map.Map Symbol ([Symbol], Type) -> Type -> [Type]
+getRecordTreeTypes :: TypeDefs -> Type -> [Type]
 getRecordTreeTypes typeDefs typ = case typ of
     Record ts -> concat $ map (getRecordTreeTypes typeDefs) ts
 
@@ -196,17 +198,8 @@ getRecordTreeTypes typeDefs typ = case typ of
 
 
 
--- Returns the symbol from the type which will be associated with field accesses. 
--- For example:
--- Person          -> Person
--- ()Person        -> Person
--- []Person        -> Person
--- ()PersonWrapper -> Person
-getFieldAccessorSymbol :: Map.Map Symbol ([Symbol], Type) -> Type -> Symbol
-getFieldAccessorSymbol typeDefs typ = case typ of
-    Tuple t -> getFieldAccessorSymbol typeDefs t
-    TypeApply symbol ts -> case Map.lookup symbol typeDefs of
-        Just (ss, Record _)         -> symbol
-        Just (ss, Tuple (Record _)) -> symbol
-        x -> error (show x)
+getTypeFieldIndex :: TypeDefs -> Type -> Type -> Int
+getTypeFieldIndex typeDefs typ field = case typ of
+    Tuple (Record ts) -> fromJust (elemIndex field ts)
     _ -> error (show typ)
+

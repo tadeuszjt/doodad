@@ -249,6 +249,7 @@ member i val = do
     case base of
         Type.Record ts -> assign "deref" $ Value (ts !! i) $ C.Deref $ C.Member (valExpr val) ("m" ++ show i)
         Type.Tuple t -> do
+            -- TODO doesn't consider record trees
             Type.Record ts <- baseTypeOf t
             return $ Value (ts !! i) $ C.Member (valExpr val) ("m" ++ show i)
         Type.ADT ts   -> do

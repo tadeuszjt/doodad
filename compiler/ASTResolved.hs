@@ -9,15 +9,13 @@ import AST
 import Symbol
 import Type
 
-type TypeFuncs = Map.Map Symbol ([Symbol], Type)
-
 data ASTResolved
     = ASTResolved
         { moduleName      :: String
         , includes        :: Set.Set String                  -- c header includes
         , links           :: Set.Set String                  -- linked libraries
         , constDefs       :: Map.Map Symbol Expr             -- defined consts
-        , typeFuncs       :: Map.Map Symbol ([Symbol], Type) -- defined type functions
+        , typeFuncs       :: Type.TypeDefs                   -- defined type functions
         , ctorDefs        :: Map.Map Symbol (Symbol, Int)    -- defined ctors
         , funcImports     :: Map.Map Symbol FuncBody         -- imported funcs
         , funcDefs        :: Map.Map Symbol FuncBody         -- defined functions

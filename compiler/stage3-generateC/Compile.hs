@@ -624,12 +624,17 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
 
     S.Field _ _ (Sym s) -> fail $ "unresolved field: " ++ s
     S.Field _ expr symbol -> do 
-        val <- generateExpr expr
-        base <- baseTypeOf val
-        (typ, i) <- mapGet symbol =<< gets ctors
+        resm <- Map.lookup symbol <$> gets ctors
+        index <- case resm of
+            Just (typeSymbol, i) -> return i
+            Nothing              -> do
+                typeDefs <- gets typefuncs
+                return $ getTypeFieldIndex typeDefs (typeof expr) (TypeApply symbol [])
+
+            _ -> error (show resm)
 
         --assert (typ == typeof val) "ctor type mismatch" TODO
-        member i val
+        member index =<< generateExpr expr
 
     S.Tuple _ exprs -> do
         vals <- mapM generateExpr exprs

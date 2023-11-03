@@ -40,13 +40,14 @@ fn testTuple()
     let t2 = (2, false, "four"):(){i64, {bool, string}}
 
     type Person {name:string, age:i64}
+    type MyType {person:Person, something:bool}
     type Index i64
 
-    let t3 = ("john", 49, 2):(){Person, Index}
-
-    let t4 = ("jim", 50):()Person
-    let 50 = t4.age
+    let t3 = ("jim", 50):()Person
+    let 50    = t3.age
+    let "jim" = t3.name
     //let 49 = t3.Person.age
+
 
 
     print("testTuple passed")

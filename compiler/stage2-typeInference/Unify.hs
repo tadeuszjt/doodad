@@ -80,6 +80,7 @@ unifyOne pos constraint = withPos pos $ case constraint of
 
                 _ -> error (show resm)
 
+        _ -> return []
         _ -> error (show typ)
 
     ConsTuple tupType ts -> do

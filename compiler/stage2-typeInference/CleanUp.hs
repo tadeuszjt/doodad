@@ -129,26 +129,62 @@ resolveFuncCall exprType (AST.Call pos params callSymbol args) = withPos pos $ d
 
 -- (x:typ).sym -> (x:typ).mod_sym_0
 resolveFieldAccess :: BoM ASTResolved m => Type -> Symbol -> m Symbol
+resolveFieldAccess (Type _) (Sym sym) = return (Sym sym)
 resolveFieldAccess typ (Sym sym) = do
     typeDefs <- gets typeFuncs
     ctors    <- gets ctorDefs
+    let typeSymbol       = getFieldAccessorSymbol typeDefs typ
+    let typeFieldSymbols = getTypeFieldSymbols typeDefs typ
+    typeResults <- return $ filter (\s -> Symbol.sym s == sym) typeFieldSymbols
+    ctorResults <- return $ Map.keys $ Map.filterWithKey
+        (\symbol (typSym, _) -> Symbol.sym symbol == sym && typeSymbol == typSym)
+        ctors
 
-    case typ of
-        Type _ -> return (Sym sym)
-        _ -> do
-            let typeSymbol = getFieldAccessorSymbol typeDefs typ
+    case ctorResults ++ typeResults of
+        (a:b:xs) -> fail "ambiguous"
+        []       -> return $ (Sym sym)
+        [symbol] -> return $ symbol
+    where
+        -- Returns the symbol from the type which will be associated with field accesses. 
+        -- For example:
+        -- Person          -> Person
+        -- ()Person        -> Person
+        -- []Person        -> Person
+        -- ()PersonWrapper -> Person
+        getFieldAccessorSymbol :: Map.Map Symbol ([Symbol], Type) -> Type -> Symbol
+        getFieldAccessorSymbol typeDefs typ = case typ of
+            Type.Tuple t -> getFieldAccessorSymbol typeDefs t
+            TypeApply symbol ts -> case Map.lookup symbol typeDefs of
+                Just (ss, Record _)         -> symbol
+                Just (ss, Type.Tuple (Record _)) -> symbol
+                x -> error (show x)
+            _ -> error (show typ)
 
-            res <- fmap catMaybes $ forM (Map.toList ctors) $ \(symbol, (typSym, i)) -> do
-                if Symbol.sym symbol == sym && typeSymbol == typSym then
-                    return (Just symbol)
-                else
-                    return Nothing
 
-            case res of
-                (a:b:xs) -> fail "ambiguous"
-                []       -> return $ (Sym sym)
-                [symbol] -> return $ symbol
+        getTypeFieldSymbols :: Map.Map Symbol ([Symbol], Type) -> Type -> [Symbol]
+        getTypeFieldSymbols typeDefs typ = case typ of
+            TypeApply symbol ts -> case Map.lookup symbol typeDefs of
+                Just (ss, t)    -> let applied = applyTypeFunction ss ts t in
+                    case applied of
+                        Record ts'              -> catMaybes (map isSymbolType ts')
+                        Type.Tuple (Record ts') -> catMaybes (map isSymbolType ts')
+                        _ -> error (show applied)
+                x -> error (show x)
 
+            Type.Tuple (Record ts)       -> catMaybes $ map isSymbolType ts
+            Type.Tuple t@(TypeApply _ _) -> getTypeFieldSymbols typeDefs t
+            _ -> error (show typ)
+
+            where
+                isSymbolType :: Type -> Maybe Symbol
+                isSymbolType typ = case typ of
+                    t | isSimple t -> Nothing
+                    Table _        -> Nothing
+                    TypeApply s [] -> if Map.member s typeDefs then
+                            (Just s)
+                        else error "not typeDef"
+
+                    _ -> error (show typ)
 
 
 
