@@ -119,9 +119,6 @@ resolveFuncCall exprType (AST.Call pos params callSymbol args) = withPos pos $ d
                         else
                             return callSymbol
 
-
-            
-
         _ -> do
             liftIO $ putStrLn $ "multiple candidates for: " ++ show candidates
             return callSymbol
@@ -164,7 +161,7 @@ resolveFieldAccess typ (Sym sym) = do
         getTypeFieldSymbols :: Map.Map Symbol ([Symbol], Type) -> Type -> [Symbol]
         getTypeFieldSymbols typeDefs typ = case typ of
             TypeApply symbol ts -> case Map.lookup symbol typeDefs of
-                Just (ss, t)    -> let applied = applyTypeFunction ss ts t in
+                Just (ss, t)    -> let applied = applyTypeArguments ss ts t in
                     case applied of
                         Record ts'              -> catMaybes (map isSymbolType ts')
                         Type.Tuple (Record ts') -> catMaybes (map isSymbolType ts')

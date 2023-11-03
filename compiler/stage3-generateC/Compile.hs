@@ -154,7 +154,6 @@ generateFunc symbol body = do
     withCurID globalID $ append id
 
 
-
 generatePrint :: MonadGenerate m => String -> Value -> m ()
 generatePrint app val = case typeof val of
     Type.I64 ->    void $ appendPrintf ("%d" ++ app) [valExpr val]
@@ -487,40 +486,6 @@ generatePattern pattern val = withPos pattern $ do
 
                 _ -> error (show base)
 
-
---        PatField _ symbol pats -> do -- either a typedef or an ADT field, both members of ADT
---            base@(Type.ADT fs) <- baseTypeOf val
---            isCtor <- Map.member symbol <$> gets ctors
---            isTypedef <- Map.member symbol <$> gets typedefs
---            assert (isCtor && not isTypedef) "PatField is only for ctors"
---
---            endLabel <- fresh "skipMatch"
---
---            (typ', i) <- mapGet symbol =<< gets ctors
---            --assert (typ' == typeof val) "invalid ctor type" TODO add this back in somehow
---            let FieldCtor ts = fs !! i
---            assert (length pats == length ts) "invalid number of args"
---
---            match <- assign "match" =<< generateInfix S.EqEq (i64 i) =<< adtEnum val
---            if_ (not_ match) $ appendElem $ C.Goto endLabel
---            set match false
---
---            let FieldCtor ts = fs !! i
---            assert (length pats == length ts) "invalid number of args"
---            case ts of
---                [] -> return ()
---                [t] -> do
---                    patMatch <- generatePattern (head pats) =<< member i val
---                    if_ (not_ patMatch) $ void $ appendElem (C.Goto endLabel)
---                ts -> do
---                    forM_ (zip pats [0..]) $ \(pat, j) -> do
---                        patMatch <- generatePattern pat =<< member j =<< member i val
---                        if_ (not_ patMatch) $ void $ appendElem (C.Goto endLabel)
---
---            set match true
---            appendElem $ C.Label endLabel
---            return match
-
 --        PatNull _ -> do
 --            base@(Type.ADT fs) <- baseTypeOf val
 --            assert (Type.FieldNull `elem` fs) "ADT does not have a null field"
@@ -561,11 +526,11 @@ annotateExprWith typ expr = do
 -- generateExpr should return a 're-enter-able' expression, eg 1, not func()
 generateExpr :: MonadGenerate m => Expr -> m Value
 generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
-    S.Bool _ b -> return $ Value typ (C.Bool b)
-    S.Int _ n -> return $ Value typ (C.Int n)
-    S.Float _ f -> return $ Value typ (C.Float f)
+    S.Bool _ b   -> return $ Value typ (C.Bool b)
+    S.Int _ n    -> return $ Value typ (C.Int n)
+    S.Float _ f  -> return $ Value typ (C.Float f)
     S.String _ s -> return $ Value typ $ C.String s
-    S.Char _ c -> return $ Value typ $ C.Char c
+    S.Char _ c   -> return $ Value typ $ C.Char c
     S.Match _ expr pattern -> generatePattern pattern =<< generateExpr expr
     S.Builtin _ [] "conv" [expr] -> convert typ =<< generateExpr expr
     S.Builtin _ params "len" exprs -> do 
@@ -573,13 +538,11 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
         assert (length exprs == 1) "len needs one argument"
         len =<< generateExpr (head exprs)
 
-
     S.Ident _ symbol -> do
         obj <- look (show symbol)
         case obj of
             Value _ _ -> return obj
             CGenerate.Const e -> generateExpr =<< annotateExprWith typ e
-
 
     S.RecordAccess _ expr -> do
         val <- generateExpr expr
@@ -641,18 +604,6 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
         base <- baseTypeOf typ
         case base of
             Type.Tuple t -> initialiser typ vals -- TODO
---            Type.Tuple ts -> initialiser typ vals -- TODO
---            Type.Table ts -> do
---                assert (length ts == length exprs) "invalid table type"
---                ptrs <- forM (zip ts exprs) $ \(t, e) -> do
---                    v <- generateExpr e
---                    b <- baseTypeOf v
---                    assert (b == Table [t]) "invalid row type"
---                    return $ C.Member (valExpr v) "r0"
---
---                assign "table" $ Value typ (C.Initialiser
---                    ([ C.Member (valExpr $ head vals) "len"
---                    , C.Member (valExpr $ head vals) "cap"] ++ ptrs))
             _ -> error (show base)
 
 
@@ -797,29 +748,6 @@ generateInfix op a b = do
                 appendElem $ C.Label end
                 return eq
             
-
-
---        Type.Tuple ts -> case op of
---            S.NotEq -> not_ <$> generateInfix S.EqEq a b
---            S.EqEq -> do
---                end <- fresh "end" 
---                eq <- assign "eq" false
---                forM_ (zip ts [0..]) $ \(t, i) -> do
---                    ma <- member i a
---                    mb <- member i b
---                    b <- generateInfix S.EqEq ma mb
---                    if_ (not_ b) $ appendElem $ C.Goto end
---                set eq true
---                appendElem $ C.Label end
---                return eq
---
---            S.Plus -> do
---                vals <- forM (zip ts [0..]) $ \(t, i) -> do
---                    ma <- member i a
---                    mb <- member i b
---                    generateInfix op ma mb
---                initialiser (typeof a) vals
---
 --        Type.Array n t -> case op of
 --            S.EqEq -> do
 --                idx <- assign "idx" (i64 0)
@@ -837,5 +765,4 @@ generateInfix op a b = do
 --            S.NotEq -> not_ <$> generateAdtEqual a b
 --            S.EqEq -> generateAdtEqual a b
                     
-
         _ -> error $ show (base, op)

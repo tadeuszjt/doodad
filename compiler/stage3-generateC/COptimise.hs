@@ -9,6 +9,7 @@ import Control.Monad.State
 import Monad
 import CAst
 import CBuilder
+import Error
 
 
 modifyElem :: BoM BuilderState m => ID -> (Element -> m Element) -> m ()
@@ -22,11 +23,10 @@ modifyElem id f = do
 optimise :: BoM BuilderState m => m ()
 optimise = do
     elems <- Map.toList <$> gets elements
-
     forM_ elems $ \(id, elem) -> case elem of
-        -- empty switch
-        Switch expr [] -> do modifyElem id $ \_ -> return $ ExprStmt expr
-        Assign a b expr -> do modifyElem id $ \_ -> return $ Assign a b (optimiseExpr expr)
+        Switch expr []  -> modifyElem id $ \_ -> return $ ExprStmt expr
+        Assign a b expr -> modifyElem id $ \_ -> return $ Assign a b (optimiseExpr expr)
+        ExprStmt expr   -> modifyElem id $ \_ -> return $ ExprStmt (optimiseExpr expr)
 
         If expr stmts -> do
             expr' <- return $ optimiseExpr expr
@@ -47,12 +47,7 @@ optimise = do
             stmts' <- optimiseStmts (funcBody func)
             modifyElem id $ \_ -> return $ func { funcBody = stmts' }
 
-        ExprStmt expr -> do
-            modifyElem id $ \_ -> return $ ExprStmt (optimiseExpr expr)
-
         _ -> return ()
-        
-    return ()
 
 
 optimiseStmts :: BoM BuilderState m => [ID] -> m [ID]
@@ -62,11 +57,9 @@ optimiseStmts stmts = optimiseStmtPairs =<< optimiseStmtSingles stmts
 optimiseStmtSingles :: BoM BuilderState m => [ID] -> m [ID]
 optimiseStmtSingles [] = return []
 optimiseStmtSingles (id:xs) = do
-    elem <- (Map.! id) <$> gets elements
+    elem <- mapGet id =<< gets elements
     case elem of
-        -- useless assert
         ExprStmt (Call "assert" [Bool True]) -> optimiseStmtSingles xs
-
         ExprStmt e | exprNoEffects e -> optimiseStmtSingles xs
 
         _ -> (id:) <$> optimiseStmtSingles xs
@@ -88,7 +81,6 @@ optimiseStmtPairs (x:y:xs) = do
         (Break, elem) | elemDeleteable elem      -> optimiseStmtPairs (x:xs)
 
         _ -> (x:) <$> optimiseStmtPairs (y:xs)
-
 
 
 optimiseExpr :: Expression -> Expression
@@ -120,7 +112,6 @@ optimiseExpr expr = case expr of
     Deref e                    -> Deref (optimiseExpr e)
     Initialiser es             -> Initialiser (map optimiseExpr es)
     Subscript e1 e2            -> Subscript (optimiseExpr e1) (optimiseExpr e2)
-
 
     _ -> expr
 

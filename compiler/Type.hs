@@ -76,20 +76,20 @@ findGenerics typeArgs typ = case typ of
     _ -> error $ show typ
 
 
-applyTypeFunction :: [Symbol] -> [Type] -> Type -> Type
-applyTypeFunction argSymbols argTypes typ = case length argSymbols == length argTypes of
-    False -> error $ "invalid arguments to applyTypeFunction for: " ++ show typ
+applyTypeArguments :: [Symbol] -> [Type] -> Type -> Type
+applyTypeArguments argSymbols argTypes typ = case length argSymbols == length argTypes of
+    False -> error $ "invalid arguments to applyTypeArguments for: " ++ show typ
     True -> let args = zip argSymbols argTypes in case typ of
         TypeApply s [] -> if isJust (lookup s args) then fromJust (lookup s args) else typ
     --    TypeApply s t | isJust (lookup s args) -> case fromJust (lookup s args) of
     --        TypeApply s2 (Record []) -> TypeApply s2 t
-        Record ts               -> Record $ map (applyTypeFunction argSymbols argTypes) ts
-        Tuple t                 -> Tuple $ applyTypeFunction argSymbols argTypes t
-        Table t                 -> Table $ applyTypeFunction argSymbols argTypes t
-        ADT ts                  -> ADT $ map (applyTypeFunction argSymbols argTypes) ts
+        Record ts               -> Record $ map (applyTypeArguments argSymbols argTypes) ts
+        Tuple t                 -> Tuple $ applyTypeArguments argSymbols argTypes t
+        Table t                 -> Table $ applyTypeArguments argSymbols argTypes t
+        ADT ts                  -> ADT $ map (applyTypeArguments argSymbols argTypes) ts
         _ | isSimple typ        -> typ
         Void                    -> typ
-        _                       -> error $ "applyTypeFunction: " ++ show typ
+        _                       -> error $ "applyTypeArguments: " ++ show typ
 
 
 typesCouldMatch :: TypeDefs -> [Symbol] -> Type -> Type -> Bool
@@ -149,7 +149,7 @@ definitelyIgnoresTuples typedefs typ = case typ of
     Type _         -> False
     TypeApply s ts | Map.member s typedefs ->
         let (ss, t) = typedefs Map.! s in
-        definitelyIgnoresTuples typedefs (applyTypeFunction ss ts t)
+        definitelyIgnoresTuples typedefs (applyTypeArguments ss ts t)
     TypeApply s ts -> False -- must be generic
     _ -> error (show typ)
 
@@ -186,7 +186,7 @@ getRecordTreeTypes typeDefs typ = case typ of
     Record ts -> concat $ map (getRecordTreeTypes typeDefs) ts
 
     TypeApply symbol ts -> case Map.lookup symbol typeDefs of
-        Just (ss, t) -> case applyTypeFunction ss ts t of
+        Just (ss, t) -> case applyTypeArguments ss ts t of
             Record xs -> concat $ map (getRecordTreeTypes typeDefs) xs
             x         -> getRecordTreeTypes typeDefs x
 

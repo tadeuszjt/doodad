@@ -75,6 +75,16 @@ cPretty includePaths = do
 
 cPrettyElem :: BoM CPrettyState m => Element -> m ()
 cPrettyElem elem = case elem of
+    Return expr         -> printLn $ "return " ++ show expr ++ ";"
+    ReturnVoid          -> printLn $ "return;"
+    Assign typ str expr -> printLn $ show typ ++ " " ++ str ++ " = " ++ show expr ++ ";"
+    ExprStmt expr       -> printLn $ show expr ++ ";"
+    Break               -> printLn "break;"
+    Set expr1 expr2     -> printLn $ show expr1 ++ " = " ++ show expr2 ++ ";"
+    Embed str           -> mapM_ printLn (lines str)
+    Goto str            -> printLn $ "goto " ++ str ++ ";"
+    Label str           -> printLn $ str ++ ":;"
+
     func@(Func _ _ _ _) -> do
         printLn ""
         printLn $ show (funcRetty func) ++ " " ++ funcName func ++ "(" ++ intercalate ", " (map show $ funcArgs func) ++ ") {"
@@ -95,15 +105,6 @@ cPrettyElem elem = case elem of
         printLn ""
         printLn $ "typedef " ++ show (typedefType typedef) ++ " " ++ typedefName typedef ++ ";"
 
-    return@(Return expr) -> do
-        printLn $ "return " ++ show expr ++ ";"
-
-    returnVoid@(ReturnVoid) -> do
-        printLn $ "return;"
-
-    assign@(Assign typ str expr) -> do
-        printLn $ show typ ++ " " ++ str ++ " = " ++ show expr ++ ";"
-
     if_@(If _ _) -> do
         printLn $ "if (" ++ show (ifExpr if_) ++ ") {"
         pushIndent
@@ -117,9 +118,6 @@ cPrettyElem elem = case elem of
         printElems (elseStmts els)
         popIndent
         printLn "}"
-
-    exprStmt@(ExprStmt expr) -> do
-        printLn $ show expr ++ ";"
 
     switch@(Switch _ _) -> do
         printLn $ "switch(" ++ show (switchExpr switch) ++ ") {"
@@ -135,11 +133,6 @@ cPrettyElem elem = case elem of
         popIndent
         printLn "}"
 
-    Break -> printLn "break;"
-
-    Set expr1 expr2 -> do
-        printLn $ show expr1 ++ " = " ++ show expr2 ++ ";"
-
     for@(For _ _ _ _) -> do
         printLn ""
         printLn $ "for (" ++ maybe "" show (forInit for) ++ "; " ++ maybe "" show (forCnd for) ++ "; " ++ maybe "" show (forPost for) ++ ") {"
@@ -147,16 +140,6 @@ cPrettyElem elem = case elem of
         printElems (forBody for)
         popIndent
         printLn "}"
-
-    cembed@(Embed str) -> do
-        forM_ (lines str) $ \line -> do
-            printLn line
-
-    goto@(Goto str) -> do
-        printLn $ "goto " ++ str ++ ";"
-
-    label@(Label str) -> do
-        printLn $ str ++ ":;"
 
     _ -> error (show elem) 
     where 

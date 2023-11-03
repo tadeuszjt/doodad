@@ -61,7 +61,6 @@ executable doodad
         Parser,
         SymTab,
         Type,
-        Trace,
         Annotate,
         Collect,
         Unify,
@@ -117,7 +116,6 @@ executable doodad-test
         Parser,
         SymTab,
         Type,
-        Trace,
         Annotate,
         Collect,
         Unify,
@@ -139,5 +137,3 @@ executable doodad-test
         ASTMapper,
         TupleDeleter,
         TestTypeMatcher
-        TestTypeConstraints
-        TypeConstraints

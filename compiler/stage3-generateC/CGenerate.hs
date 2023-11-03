@@ -341,11 +341,11 @@ baseTypeOf a = case typeof a of
             Nothing                -> fail $ "baseTypeOf: " ++ show (typeof a)
             Just (argSymbols, typ) -> do
                 assert (length argSymbols == length ts) "invalid number of type arguments"
-                baseTypeOf $ applyTypeFunction argSymbols ts typ
+                baseTypeOf $ applyTypeArguments argSymbols ts typ
 
 --            Just (symbols, typ) -> do
 --                assert (length ts == length symbols) $ "Invalid type function arguments: " ++ show ts
---                baseTypeOf $ applyTypeFunction (Map.fromList $ zip symbols ts) typ
+--                baseTypeOf $ applyTypeArguments (Map.fromList $ zip symbols ts) typ
         
     _ -> return (typeof a)
     _ -> error (show $ typeof a)
@@ -372,7 +372,7 @@ cTypeOf a = case typeof a of
     Type.TypeApply symbol argTypes -> do
         (argSymbols, typ) <- mapGet symbol =<< gets typefuncs
         assert (length argSymbols == length argTypes) "invalid number of type arguments"
-        getTypedef (Symbol.sym symbol) =<< cTypeOf (applyTypeFunction argSymbols argTypes typ)
+        getTypedef (Symbol.sym symbol) =<< cTypeOf (applyTypeArguments argSymbols argTypes typ)
     Type.Tuple t -> do
         baseT <- baseTypeOf t
         case baseT of

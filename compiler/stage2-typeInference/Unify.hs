@@ -27,7 +27,7 @@ baseTypeOf typ = case typ of
             Nothing              -> return Nothing
             Just (argSymbols, t) -> do
                 assert (length argSymbols == length ts) "invalid number of type arguments"
-                baseTypeOf $ applyTypeFunction argSymbols ts t
+                baseTypeOf $ applyTypeArguments argSymbols ts t
     Type x -> return Nothing
     t      -> return (Just t)
 

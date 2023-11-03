@@ -17,8 +17,6 @@ import Symbol
 import ASTResolved
 import FunctionFinder
 
-import qualified Debug.Trace
-
 
 type SymTab = SymTab.SymTab Symbol () Object
 data Object
@@ -65,8 +63,7 @@ collectPos t m = withPos t $ do
 
 
 collect :: BoM CollectState m => Constraint -> m ()
-collect constraint = do
-    --liftIO $ putStrLn $ "collected: " ++ show constraint
+collect constraint =
     modify $ \s -> s { collected = Map.insert (constraint) (curPos s) (collected s) }
 
 collectEq :: BoM CollectState m => Type -> Type -> m ()
@@ -97,9 +94,7 @@ collectAST ast = do
         define symbol (ObjConst expr)
 
     forM_ (Map.toList $ funcDefs ast) $ \(symbol, body) ->
-        when (funcTypeArgs body == []) $ do
-            --liftIO $ putStrLn $ "collecting func: " ++ show symbol
-            --liftIO $ prettyFuncBody symbol body
+        when (funcTypeArgs body == []) $
             collectFuncDef symbol body
 
 
@@ -119,15 +114,15 @@ collectFuncDef symbol body = do
 
 collectStmt :: BoM CollectState m => S.Stmt -> m ()
 collectStmt stmt = collectPos stmt $ case stmt of
-    S.Increment _ expr -> collectExpr expr
-    S.Typedef _ _ _ _ -> return ()
-    S.FuncDef _ _ _ _ _ _ _ -> return ()
-    S.EmbedC _ _ -> return ()
-    S.Block stmts -> mapM_ collectStmt stmts
-    S.ExprStmt e -> do
-        collectExpr e
-        collectDefault (typeof e) Void
-    S.Const _ symbol expr -> define symbol (ObjConst expr)
+    S.Increment _ expr       -> collectExpr expr
+    S.Typedef _ _ _ _        -> return ()
+    S.FuncDef _ _ _ _ _ _ _  -> return ()
+    S.EmbedC _ _             -> return ()
+    S.Block stmts            -> mapM_ collectStmt stmts
+    S.Const _ symbol expr    -> define symbol (ObjConst expr)
+    S.ExprStmt expr -> do
+        collectExpr expr
+        collectDefault (typeof expr) Void
 
     S.Return _ mexpr -> do
         retty <- gets curRetty
@@ -200,9 +195,10 @@ collectStmt stmt = collectPos stmt $ case stmt of
 -- collectPattern pattern <with this type of expression trying to match>
 collectPattern :: BoM CollectState m => S.Pattern -> Type -> m ()
 collectPattern pattern typ = collectPos pattern $ case pattern of
-    S.PatIgnore pos -> return ()
-    S.PatIdent _ symbol -> do
-        define symbol (ObjVar typ)
+    S.PatIgnore pos        -> return ()
+    S.PatNull _            -> return ()
+    S.PatIdent _ symbol    -> define symbol (ObjVar typ)
+    S.PatTypeField _ t pat -> collectPattern pat t
 
     S.PatLiteral expr -> do 
         collectEq typ (typeof expr)
@@ -219,10 +215,6 @@ collectPattern pattern typ = collectPos pattern $ case pattern of
         gts <- replicateM (length pats) genType
         zipWithM_ collectPattern pats gts
         forM_ (zip gts [0..]) $ \(t, j) -> collect $ ConsAdtField t i j typ
-
-
-    S.PatTypeField _ t pat -> do
-        collectPattern pat t
 
     S.PatTuple _ pats -> do
         gts <- replicateM (length pats) genType
@@ -243,8 +235,6 @@ collectPattern pattern typ = collectPos pattern $ case pattern of
         gts <- replicateM (length pats) genType
         collect $ ConsBase typ (Record gts)
         zipWithM_ collectPattern pats gts
-
-    S.PatNull _ -> return ()
         
     _ -> error $ show pattern
 
@@ -262,8 +252,6 @@ collectCall exprType params symbol args = do -- can be resolved or sym
             zipWithM_ collectEq (map typeof params) (paramTypes header)
             zipWithM_ collectEq (map typeof args) (argTypes header)
 
-            --liftIO $ putStrLn $ "collected non-generic: " ++ show symbol
-
         [symbol] | isCtor symbol ast -> return ()
 
         _ -> return ()
@@ -273,48 +261,47 @@ collectCall exprType params symbol args = do -- can be resolved or sym
 
 
 collectExpr :: BoM CollectState m => S.Expr -> m ()
-collectExpr (S.AExpr exprType expr) = collectPos expr $ case expr of
-    S.Call _ ps s es   -> collectCall exprType ps s es
-    S.Prefix _ op e    -> collectEq exprType (typeof e) >> collectExpr e
-    S.Int _ c          -> collectDefault exprType I64
-    S.Float _ f        -> collectDefault exprType F64
-    S.Null _           -> return ()
-    S.String _ _       -> collectDefault exprType $ String
+collectExpr (S.AExpr exprType expression) = collectPos expression $ case expression of
+    S.Call _ ps s exprs -> collectCall exprType ps s exprs
+    S.Prefix _ op expr  -> collectEq exprType (typeof expr) >> collectExpr expr
+    S.Int _ c           -> collectDefault exprType I64
+    S.Float _ f         -> collectDefault exprType F64
+    S.Null _            -> return ()
+    S.String _ _        -> collectDefault exprType $ String
 
-    S.Construct _ symbol es -> do
+    S.Construct _ symbol args -> do
+        mapM_ collectExpr args
         (typeSymbol, i)    <- mapGet symbol =<< gets (ctorDefs . astResolved)
         (generics, ADT ts) <- mapGet typeSymbol =<< gets (typeFuncs . astResolved)
         case exprType of
             TypeApply s _ | s == typeSymbol -> case ts !! i of
-                Void -> assert (length es == 0) "Invalid ADT args"
+                Void -> assert (length args == 0) "Invalid ADT args"
                 _    -> do -- Eg :   Just( e:t ):exprType
-                    assert (length es == 1) "Invalid ADT args"
-                    collect $ ConsAdtField (typeof $ head es) i 0 exprType
+                    assert (length args == 1) "Invalid ADT args"
+                    collect $ ConsAdtField (typeof $ head args) i 0 exprType
             _ -> error (show exprType)
 
-        mapM_ collectExpr es
-
-    S.Builtin _ ps sym es -> do 
+    S.Builtin _ ps sym args -> do 
         case sym of
             "conv" -> do 
                 assert (length ps == 0) "invalid conv"
             "len" -> collectDefault exprType I64
             "print" -> collectEq exprType Void
         mapM_ collectExpr ps
-        mapM_ collectExpr es
+        mapM_ collectExpr args
 
-    S.Char _ c       -> do
+    S.Char _ c -> do
         collect $ ConsBase exprType Char
         collectDefault exprType Char
 
-    S.Bool _ b       -> do
+    S.Bool _ b -> do
         collect $ ConsBase exprType Bool
         collectDefault exprType Bool
 
     S.Ident _ symbol -> do
         obj <- look symbol 
         case obj of
-            ObjVar t -> collectEq t exprType
+            ObjVar typ -> collectEq typ exprType
             ObjConst e -> do -- special!
                 return ()
 --                count <- gets typeSupply
@@ -323,7 +310,6 @@ collectExpr (S.AExpr exprType expr) = collectPos expr $ case expr of
 --                collectEq (typeof e') exprType
 --                collectExpr e'
                 
-
     S.Infix _ op e1 e2 -> do
         case op of
             _ | op `elem` [S.Plus, S.Minus, S.Times, S.Divide, S.Modulo] -> do
@@ -346,11 +332,9 @@ collectExpr (S.AExpr exprType expr) = collectPos expr $ case expr of
         collectExpr e2
         --collectDefault (typeof e2) I64
 
-    S.Tuple _ es -> do
-        collect $ ConsTuple exprType (map typeof es)
---        collect $ ConsBase exprType $ Tuple $ Record (map typeof es)
---        collectDefault exprType $ Tuple (map typeof es)
-        mapM_ collectExpr es
+    S.Tuple _ exprs -> do
+        collect $ ConsTuple exprType (map typeof exprs)
+        mapM_ collectExpr exprs
 
     S.Field _ e symbol -> do
         collect $ ConsField (typeof e) symbol exprType
@@ -392,4 +376,4 @@ collectExpr (S.AExpr exprType expr) = collectPos expr $ case expr of
 --
 --        mapM_ collectExpr es
 
-    _ -> error (show expr)
+    _ -> error (show expression)

@@ -64,7 +64,6 @@ getDoodadFilesInDirectory dir = do
     return [ dir ++ "/" ++ f | f <- list, isSuffixOf ".doo" f ]
 
 
-
 readModuleName :: BoM s m => FilePath -> m (Maybe String)
 readModuleName filePath = do 
     src <- liftIO (readFile filePath) 
@@ -166,7 +165,6 @@ buildModule args modPath = do
         astResolved' <- fmap fst $ R.resolveAsts asts astImports
         --Flatten.checkTypeDefs (typeDefs astResolved)
         when (printAstResolved args) $ liftIO $ prettyASTResolved astResolved'
-
 
         -- remove spurious tuples
         astResolved <- fmap snd $ runBoMTExcept astResolved' deleteSingleTuples

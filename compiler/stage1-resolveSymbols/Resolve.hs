@@ -133,18 +133,6 @@ annoToType anno = case anno of
     AnnoType t       -> t
 
 
-buildTypeFuncImportMap :: BoM (Map.Map Symbol ([Symbol], Type)) m => [ASTResolved] -> m ()
-buildTypeFuncImportMap imports = do
-    forM_ imports $ \imprt -> do
-        modify $ Map.union (typeFuncs imprt)
-
-buildFuncImportMap :: BoM (Map.Map Symbol FuncBody) m => [ASTResolved] -> m ()
-buildFuncImportMap imports = do
-    forM_ imports $ \imprt -> do
-        forM_ (Map.toList $ funcDefs imprt) $ \(symbol, body) -> do
-            False <- Map.member symbol <$> get
-            modify $ Map.insert symbol body
-
 buildCtorImportMap :: BoM (Map.Map Symbol (Symbol, Int)) m => [ASTResolved] -> m ()
 buildCtorImportMap imports = do
     forM_ imports $ \imprt -> do
@@ -192,19 +180,12 @@ resolveAsts asts imports = withErrorPrefix "resolve: " $
             define sym KeyVar symbol'
             return (symbol', expr)
 
-        -- define func headers
-        forM_ funcdefs $ \(FuncDef pos typeArgs params symbol args retty blk) -> withPos pos $ do
-            when (typeArgs == []) $ do
-                let funckey = (map typeof params, sym symbol, map typeof args, retty)
-                resm <- lookm (Sym $ sym symbol) KeyFunc
-                when (isNothing resm) $ define (sym symbol) KeyFunc (Sym $ sym $ symbol)
-
         -- get imports
-        (_, typeFuncImportMap) <- runBoMTExcept Map.empty (buildTypeFuncImportMap imports)
-        (_, funcImportMap)     <- runBoMTExcept Map.empty (buildFuncImportMap imports)
+        let typeFuncImportMap = Map.unions (map typeFuncs imports)
+
         (_, ctorImportMap)     <- runBoMTExcept Map.empty (buildCtorImportMap imports)
 
-        mapM resolveTypeDef2 typedefs
+        mapM resolveTypeDef typedefs
         mapM_ resolveFuncDef funcdefs
 
         typeFuncs <- gets typeFuncsMap
@@ -219,7 +200,7 @@ resolveAsts asts imports = withErrorPrefix "resolve: " $
             { moduleName  = moduleName
             , includes    = Set.fromList includes
             , links       = Set.fromList links
-            , funcImports = funcImportMap
+            , funcImports = Map.unions (map ASTResolved.funcDefs imports)
             , constDefs   = Map.fromList constDefsList
             , funcDefs    = funcDefs
             , typeFuncs   = Map.union typeFuncImportMap (Map.map (\(x, y) -> (x, annoToType y)) typeFuncs)
@@ -254,8 +235,8 @@ resolveFuncDef (FuncDef pos typeArgs params (Sym sym) args retty blk) = withPos 
 
 
 -- modifies the typedef function and inserts it into typeFuncsMap
-resolveTypeDef2 :: BoM ResolveState m => AST.Stmt -> m ()
-resolveTypeDef2 (AST.Typedef pos typeArgs (Sym sym) anno) = do
+resolveTypeDef :: BoM ResolveState m => AST.Stmt -> m ()
+resolveTypeDef (AST.Typedef pos typeArgs (Sym sym) anno) = do
     symbol <- genSymbol sym
     define sym KeyType symbol
     define sym KeyFunc symbol
@@ -299,7 +280,6 @@ instance Resolve Stmt where
 
         FuncDef pos typeArgs params (Sym sym) args retty blk -> do
             symbol' <- resolveFuncDef stmt
-            isInMap <- (Map.member symbol') <$> gets funcDefsMap
             body <- mapGet symbol' =<< gets funcDefsMap
             return $ FuncDef
                 pos
@@ -311,7 +291,7 @@ instance Resolve Stmt where
                 (funcStmt body)
 
         AST.Typedef pos args symbol anno -> do
-            resolveTypeDef2 stmt
+            resolveTypeDef stmt
             return $ AST.Typedef pos args symbol anno -- essentially discarded
 
         Const pos (Sym s) expr -> do

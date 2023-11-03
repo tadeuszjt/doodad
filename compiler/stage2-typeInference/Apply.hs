@@ -46,9 +46,9 @@ mapper f elem = case elem of
 
 -- Apply represents taking a function and applying it to all types in an object.
 class Apply a             where apply :: BoM s m => (Type -> Type) -> a -> m a
-instance Apply FuncBody   where apply f body = mapFuncBody (mapper f) body
-instance Apply FuncHeader where apply f header = mapFuncHeader (mapper f) header
-instance Apply S.Stmt     where apply f stmt = mapStmt (mapper f) stmt
+instance Apply FuncBody   where apply f body            = mapFuncBody (mapper f) body
+instance Apply FuncHeader where apply f header          = mapFuncHeader (mapper f) header
+instance Apply S.Stmt     where apply f stmt            = mapStmt (mapper f) stmt
 instance Apply S.Param    where apply f (S.Param p n t) = return $ S.Param p n (f t)
             
 instance Apply ASTResolved where

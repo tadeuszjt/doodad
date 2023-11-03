@@ -9,11 +9,9 @@ import Type (Type, Type(Void), Typeof, typeof)
 import Error
 import Symbol
 
-type ModuleName = String
-
 data AST
     = AST
-        { astModuleName :: ModuleName
+        { astModuleName :: String
         , astImports    :: [Import]
         , astStmts      :: [Stmt]
         }
@@ -97,7 +95,7 @@ data Expr
     deriving (Eq)
 
 instance Typeof Expr where
-    typeof (AExpr t e) = t
+    typeof (AExpr typ _) = typ
     typeof a = error $ "can only take typeof AExpr: " ++ show a
 
 data Stmt
@@ -120,11 +118,11 @@ data Stmt
 
 
 data AnnoType
-    = AnnoType  Type
-    | AnnoTuple [Param]
-    | AnnoTable [Param]
+    = AnnoType   Type
+    | AnnoTuple  [Param]
+    | AnnoTable  [Param]
     | AnnoRecord [Param]
-    | AnnoADT   [Param]
+    | AnnoADT    [Param]
     deriving (Eq)
 
 
@@ -143,18 +141,18 @@ instance TextPosition Pattern where
 
 
 instance TextPosition Expr where
-    textPos expr = case expr of
-        AExpr        t e -> textPos e
-        Int          p _ -> p
-        Float        p _ -> p
-        Bool         p _ -> p
-        Char         p _ -> p
-        Null         p -> p
-        String       p _ -> p
-        Tuple        p _ -> p
-        Field        p _ _ -> p
-        Subscript    p _ _ -> p
-        Ident        p _ -> p
+    textPos expression = case expression of
+        AExpr        t expr -> textPos expr
+        Int          p _    -> p
+        Float        p _    -> p
+        Bool         p _    -> p
+        Char         p _    -> p
+        Null         p      -> p
+        String       p _    -> p
+        Tuple        p _    -> p
+        Field        p _ _  -> p
+        Subscript    p _ _  -> p
+        Ident        p _    -> p
         Call         p _ _ _ -> p 
         Builtin      p _ _ _ -> p 
         Prefix       p _ _ -> p
@@ -164,13 +162,13 @@ instance TextPosition Expr where
         Array        p _ -> p
         Construct    p _ _ -> p
         RecordAccess p _ -> p
-        _ -> error (show expr)
+        _ -> error (show expression)
 
 
 instance TextPosition Stmt where
     textPos stmt = case stmt of
         Assign      p _ _ -> p
-        ExprStmt    e -> textPos e
+        ExprStmt    expr -> textPos expr
         Return      p _ -> p
         Block       s -> textPos (head s)
         If          p _ _ _ -> p
@@ -202,7 +200,7 @@ instance Show Param where
 
 
 instance Show Operator where
-    show op = case op of
+    show operator = case operator of
         Plus   -> "+"
         Minus  -> "-"
         Times  -> "*"
@@ -230,7 +228,7 @@ instance Show AnnoType where
 
 
 instance Show Pattern where
-    show pat = case pat of
+    show pattern = case pattern of
         PatLiteral c             -> show c
         PatIgnore pos            -> "_"
         PatIdent pos symbol      -> show symbol
@@ -245,8 +243,8 @@ instance Show Pattern where
 
 
 instance Show Expr where
-    show expr = case expr of
-        AExpr t e                     -> show e ++ ":" ++ show t 
+    show expression = case expression of
+        AExpr t expr                  -> show expr ++ ":" ++ show t 
         Int pos n                     -> show n
         Float pos f                   -> show f
         Bool pos b                    -> if b then "true" else "false"
@@ -275,14 +273,10 @@ instance Show Expr where
 prettyAST :: AST -> IO ()
 prettyAST ast = do
     putStrLn $ "module " ++ (astModuleName ast)
-
     putStrLn ""
-
     forM_ (astImports ast) $ \imp ->
         putStrLn $ show imp
-
     putStrLn ""
-
     mapM_ (prettyStmt "") (astStmts ast)
 
 
