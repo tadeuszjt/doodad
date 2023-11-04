@@ -222,6 +222,7 @@ getRecordTree typeDefs typ = case typ of
         getMax :: RecordTree -> Int
         getMax tree = case tree of
             RecordLeaf _ i -> i
+            RecordTree ns  -> getMax (last ns)
             _ -> error (show tree)
 
 
@@ -231,13 +232,26 @@ getRecordTree typeDefs typ = case typ of
             Table _        -> RecordLeaf typ offset
             Record ts      -> RecordTree (applyFunc offset ts)
             TypeApply symbol ts -> case Map.lookup symbol typeDefs of
-                Just (ss, Record xs) -> getRecordTree' offset (applyTypeArguments ss ts $ Record xs)
+                Just (ss, t) -> getRecordTree' offset (applyTypeArguments ss ts t)
                 x -> error (show x)
             _ -> error (show typ)
+
+
+getRecordLeaves :: TypeDefs -> RecordTree -> [ (Type, Int) ]
+getRecordLeaves typeDefs tree = case tree of
+    RecordTree ns  -> concat $ map (getRecordLeaves typeDefs) ns
+    RecordLeaf t i -> [ (t, i) ]
+    x -> error (show x)
 
 
 getTypeFieldIndex :: TypeDefs -> Type -> Type -> Int
 getTypeFieldIndex typeDefs typ field = case typ of
     Tuple (Record ts) -> fromJust (elemIndex field ts)
+    Tuple (TypeApply symbol ts) -> case Map.lookup symbol typeDefs of
+        Just (ss, t) -> getTypeFieldIndex typeDefs (applyTypeArguments ss ts t) field
+
+    Record ts -> fromJust (elemIndex field ts)
+    TypeApply symbol ts -> case Map.lookup symbol typeDefs of
+        Just (ss, t) -> getTypeFieldIndex typeDefs (applyTypeArguments ss ts t) field
     _ -> error (show typ)
 

@@ -44,6 +44,14 @@ unifyOne pos constraint = withPos pos $ case constraint of
         TypeApply s ts -> do
             resm <- Map.lookup symbol <$> gets ctorDefs
             case resm of
+                Nothing -> do
+                    base <- baseTypeOf typ
+                    case base of
+                        Just (Record ts') -> case elemIndex (TypeApply symbol []) ts' of
+                            Just index -> unifyOne pos $ ConsEq (ts' !! index) exprType
+                            x -> error (show x)
+                        _ -> error (show base)
+
                 Just (typeSymbol, index) -> do
                     assert (typeSymbol == s) "invalid field access"
                     base <- baseTypeOf typ
@@ -58,6 +66,15 @@ unifyOne pos constraint = withPos pos $ case constraint of
         Tuple (TypeApply s ts) -> do
             resm <- Map.lookup symbol <$> gets ctorDefs
             case resm of
+                Nothing -> do
+                    base <- baseTypeOf (TypeApply s ts)
+                    case base of
+                        Just (Record ts') -> case elemIndex (TypeApply symbol []) ts' of
+                            Just index -> unifyOne pos $ ConsEq (ts' !! index) exprType
+                            x -> error (show x)
+                        _ -> error (show base)
+
+
                 Just (typeSymbol, index) -> do
                     assert (typeSymbol == s) "invalid field access"
                     base <- baseTypeOf (TypeApply s ts)

@@ -48,7 +48,15 @@ fn testTuple()
     let "jim" = t3.name
 
     let t4 = ("james", 32, 3):(){Person, Index}
-    //let "james" = t4.Person.name
+    let "james" = t4.Person.name
+    let {"james", 32} = t4.Person
+    let 3             = t4.Index
+
+    type BigType {Index, Person, bool, MyType}
+    let t5 = (1, "two", 3, false, "five", 6, true):()BigType
+    let "five" = t5.MyType.Person.name
+    let "five" = t5.MyType.person.name
+    let 3      = t5.Person.age
 
 
     print("testTuple passed")

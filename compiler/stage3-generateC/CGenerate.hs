@@ -148,6 +148,15 @@ callWithParams params name args = do
     void $ appendElem $ C.ExprStmt $ C.Call name (map ptrExpr params ++ map valExpr args)
 
 
+recordLeafTypes :: MonadGenerate m => Type.Type -> m [Type.Type]
+recordLeafTypes typ = do
+    base <- baseTypeOf typ
+    case base of
+        Record _ -> do
+            typeDefs <- gets typefuncs
+            return $ getRecordTypes typeDefs typ
+
+
 for :: MonadGenerate m => Value -> (Value -> m a) -> m a
 for len f = do
     base@(I64) <- baseTypeOf len
@@ -251,11 +260,15 @@ member index val = do
             typeDefs <- gets typefuncs
             let Type.RecordTree ns = getRecordTree typeDefs (Type.Record ts)
             case ns !! index of
-                --x -> fail (show val)
-                Type.RecordLeaf t i -> assign "deref" $ Value t $ -- TODO i don't want to do this
+                RecordLeaf t i -> assign "deref" $ Value t $
                     C.Deref $ C.Member (valExpr val) ("m" ++ show i)
---                Type.RecordLeaf t i -> return $ Value (Type.Record [t]) $
---                    C.Member (valExpr val) ("m" ++ show i)
+
+                RecordTree ns -> do
+                    let leaves = getRecordLeaves typeDefs (RecordTree ns)
+                    elems <- forM leaves $ \(t, i) -> do
+                        return $ C.Member (valExpr val) ("m" ++ show i)
+                    assign "record" $ Value (ts !! index) $ C.Initialiser elems
+
                 x -> error (show x)
         Type.Tuple t -> do
             typeDefs <- gets typefuncs
@@ -263,6 +276,11 @@ member index val = do
             let Type.RecordTree ns = getRecordTree typeDefs t
             case ns !! index of
                 RecordLeaf t i -> return $ Value (ts !! index) $ C.Member (valExpr val) ("m" ++ show i)
+                RecordTree ns  -> do
+                    let leaves = getRecordLeaves typeDefs (RecordTree ns)
+                    elems <- forM leaves $ \(t, i) -> do
+                        return $ C.Address $ C.Member (valExpr val) ("m" ++ show i)
+                    return $ Value (ts !! index) $ C.Initialiser elems
                 x -> error (show x)
 
         Type.ADT ts   -> do
@@ -287,8 +305,7 @@ initialiser typ vals = do
                 _ -> error (show baseT)
 
         Type.Record _ -> do
-            typeDefs <- gets typefuncs
-            let ts = getRecordTypes typeDefs typ
+            ts <- recordLeafTypes typ
             assert (length ts == length vals) "initialiser length"
             assign "record" $ Value typ $ C.Initialiser $ map (C.Address . valExpr) vals
 
@@ -315,8 +332,7 @@ accessRecord val marg = do
                     elem <- return $ C.Address $ C.Subscript (C.Member (valExpr val) ("r" ++ show 0)) (valExpr $ fromJust marg)
                     assign "record" $ Value (Record [t]) $ C.Initialiser [elem]
                 Record _ -> do
-                    typeDefs <- gets typefuncs
-                    let ts = getRecordTypes typeDefs t
+                    ts <- recordLeafTypes t
                     elems <- forM (zip ts [0..]) $ \(t, i) -> do
                         return $ C.Address $ C.Subscript (C.Member (valExpr val) ("r" ++ show i)) (valExpr $ fromJust marg)
                     assign "record" $ Value t $ C.Initialiser elems
@@ -327,8 +343,7 @@ accessRecord val marg = do
             baseT <- baseTypeOf t
             case baseT of
                 Record _ -> do
-                    typeDefs <- gets typefuncs
-                    let ts = getRecordTypes typeDefs t
+                    ts <- recordLeafTypes t
                     elems <- forM (zip ts [0..]) $ \(t, i) -> do
                         return $ C.Address $ C.Member (valExpr val) ("m" ++ show i)
                     assign "record" $ Value t $ C.Initialiser elems
@@ -386,8 +401,8 @@ cTypeOf a = case typeof a of
         baseT <- baseTypeOf t
         case baseT of
             Record _ -> do
-                typeDefs <- gets typefuncs
-                cts <- mapM cTypeOf (getRecordTypes typeDefs t)
+                ts <- recordLeafTypes t
+                cts <- mapM cTypeOf ts
                 getTypedef "tuple" $ Cstruct $ zipWith (\a b -> C.Param ("m" ++ show a) b) [0..] cts
             t -> cTypeOf t
 
@@ -395,15 +410,14 @@ cTypeOf a = case typeof a of
         base <- baseTypeOf t
         typeDefs <- gets typefuncs
         ts <- case base of
-            Record ts -> return (getRecordTypes typeDefs t)
+            Record ts -> recordLeafTypes t
             t         -> return [t]
         cts <- mapM cTypeOf ts
         let pts = zipWith (\ct i -> C.Param ("r" ++ show i) (Cpointer ct)) cts [0..]
         getTypedef "table" $ Cstruct (C.Param "len" Cint64_t:C.Param "cap" Cint64_t:pts)
 
     Type.Record ts -> do
-        typeDefs <- gets typefuncs
-        cts <- mapM cTypeOf (getRecordTypes typeDefs $ Type.Record ts)
+        cts <- mapM cTypeOf =<< recordLeafTypes (Type.Record ts)
         getTypedef "record" $ Cstruct $ zipWith (\ct i -> C.Param ("m" ++ show i) (Cpointer ct)) cts [0..]
 --    Type.Array n t -> do
 --        arr <- Carray n <$> cTypeOf t

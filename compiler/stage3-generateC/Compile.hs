@@ -374,6 +374,8 @@ generateReentrantExpr (Value typ expr) = Value typ <$> reentrantExpr expr
                 return $ C.Member e1' str
             C.Call str es -> do
                 fmap valExpr $ assign "call" . Value typ =<< C.Call str <$> mapM reentrantExpr es
+            C.Initialiser elems -> do
+                fmap valExpr $ assign "init" . Value typ =<< C.Initialiser <$> mapM reentrantExpr elems
             _ -> error (show expr)
 
 
