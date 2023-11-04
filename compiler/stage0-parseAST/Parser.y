@@ -343,6 +343,7 @@ anno_t   : ordinal_t                        { S.AnnoType $1 }
          | table_t                          { S.AnnoType $1 }
          | '{' paramsA1 '}'                 { S.AnnoRecord $2 }
          | '(' ')' '{' paramsA1 '}'         { S.AnnoTuple $4 }
+         | '[' ']' '{' paramsA1 '}'         { S.AnnoTable $4 }
          | '(' paramsA1 ')'                 { S.AnnoTuple $2 }
          | '(' paramsL2 ')'                 { S.AnnoADT $2 }
 {

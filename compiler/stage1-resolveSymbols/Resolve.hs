@@ -127,10 +127,11 @@ popSymbolTable = do
 
 annoToType :: AnnoType -> Type
 annoToType anno = case anno of
-    AnnoTuple params -> Type.Tuple $ Type.Record (map paramType params)
-    AnnoADT  params  -> Type.ADT $ map paramType params
+    AnnoTuple params  -> Type.Tuple $ Type.Record (map paramType params)
+    AnnoTable params  -> Type.Table $ Type.Record (map paramType params)
+    AnnoADT  params   -> Type.ADT    (map paramType params)
     AnnoRecord params -> Type.Record (map paramType params)
-    AnnoType t       -> t
+    AnnoType t        -> t
 
 
 buildCtorImportMap :: BoM (Map.Map Symbol (Symbol, Int)) m => [ASTResolved] -> m ()

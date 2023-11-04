@@ -230,6 +230,7 @@ getRecordTree typeDefs typ = case typ of
         getRecordTree' offset typ = case typ of
             t | isSimple t -> RecordLeaf typ offset
             Table _        -> RecordLeaf typ offset
+            Tuple _        -> RecordLeaf typ offset
             Record ts      -> RecordTree (applyFunc offset ts)
             TypeApply symbol ts -> case Map.lookup symbol typeDefs of
                 Just (ss, t) -> getRecordTree' offset (applyTypeArguments ss ts t)

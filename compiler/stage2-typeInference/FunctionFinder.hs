@@ -80,6 +80,7 @@ funcHeaderFullyResolved typeArgs header =
 
 replaceGenericsInFuncBodyWithCall :: BoM ASTResolved m => FuncBody -> FuncHeader -> m FuncBody
 replaceGenericsInFuncBodyWithCall body callHeader = do
+    --liftIO $ putStrLn $ "replacing: " ++ show callHeader
     ast <- get
     let header = funcHeaderFromBody (symbol callHeader) body
     assert (typeArgs callHeader == []) "Call header cannot have type args"

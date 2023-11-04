@@ -39,18 +39,28 @@ unifyOne pos constraint = withPos pos $ case constraint of
     ConsField typ symbol exprType -> do
         resm <- Map.lookup symbol <$> gets ctorDefs
         base <- baseTypeOf typ
-        ts <- case base of
-            Just (Record ts) -> return ts
+        case base of
+            Just (Record ts) -> case resm of
+                Just (typeSymbol, index) -> unifyOne pos $ ConsEq (ts !! index) exprType
+                Nothing                  -> case elemIndex (TypeApply symbol []) ts of
+                    Just index -> unifyOne pos $ ConsEq (ts !! index) exprType
+                    x          -> error (show x)
+
             Just (Tuple t)   -> do
                 baseT <- baseTypeOf t
                 case baseT of
-                    Just (Record ts) -> return ts
+                    Just (Record ts) -> case resm of
+                        Just (typeSymbol, index) -> unifyOne pos $ ConsEq (ts !! index) exprType
+                        Nothing                  -> case elemIndex (TypeApply symbol []) ts of
+                            Just index -> unifyOne pos $ ConsEq (ts !! index) exprType
+                            x          -> error (show x)
 
-        case resm of
-            Just (typeSymbol, index) -> unifyOne pos $ ConsEq (ts !! index) exprType
-            Nothing                  -> case elemIndex (TypeApply symbol []) ts of
-                Just index -> unifyOne pos $ ConsEq (ts !! index) exprType
-                x          -> error (show x)
+            Just (Table t)   -> do
+                baseT <- baseTypeOf t
+                case baseT of
+                    Just (Record ts) -> case resm of
+                        Just (typeSymbol, index) -> unifyOne pos $ ConsEq (Table $ ts !! index) exprType
+
 
     ConsTuple tupType ts -> do
         basem <- baseTypeOf tupType
@@ -130,17 +140,8 @@ unifyOne pos constraint = withPos pos $ case constraint of
     ConsSubscript t1 t2 -> do
         basem <- baseTypeOf t1
         case basem of
---            Just (Table [t])  -> unifyOne pos (ConsEq t2 t)
---            Just (Table ts)   -> unifyOne pos (ConsEq t2 $ Tuple ts)
---            Just (Array n t)  -> unifyOne pos (ConsEq t2 t)
             Just (Range _) -> unifyOne pos (ConsEq t2 I64)
             Just String    -> unifyOne pos (ConsEq t2 Char)
-            Just (Tuple t) -> do
-                baseT <- baseTypeOf t
-                case baseT of
-                    Nothing -> return []
-                    Just (Record _) -> unifyOne pos (ConsEq t2 t)
-                    Just _          -> unifyOne pos (ConsEq t2 $ Record [t])
             Just (Table t) -> do
                 baseT <- baseTypeOf t
                 case baseT of

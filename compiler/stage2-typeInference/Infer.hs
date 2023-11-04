@@ -24,12 +24,14 @@ import Type
 infer :: BoM s m => ASTResolved -> Bool -> Bool -> m (ASTResolved, Int)
 infer ast printAnnotated verbose = do 
     runBoMUntilSameResult ast $ \ast' -> do 
+        when verbose $ liftIO $ putStrLn $ "inferring..."
         (inferred, _) <- runBoMUntilSameResult ast' inferTypes
         (defaulted, _) <- runBoMUntilSameResult inferred inferDefaults
         return defaulted
     where
         inferTypes :: BoM s m => ASTResolved -> m ASTResolved
         inferTypes ast = do
+            when verbose $ liftIO $ putStrLn $ "inferring types..."
             (annotated, typeSupplyCount) <- withErrorPrefix "annotate: " $
                 runBoMTExcept 0 $ annotate ast
             when printAnnotated $ do
@@ -42,13 +44,14 @@ infer ast printAnnotated verbose = do
             -- turn type constraints into substitutions using unify
             subs <- fmap fst $ runBoMTExcept ast (unify $ Map.toList $ collected collectState)
             annotated' <- applySubs subs annotated
-            ast' <- fmap snd $ runBoMTExcept annotated' CleanUp.compile
+            ast' <- fmap snd $ runBoMTExcept annotated' (CleanUp.compile verbose)
             ast'' <- fmap fst $ runBoMTExcept () $ deAnnotate ast'
             return ast''
 
 
         inferDefaults :: BoM s m => ASTResolved -> m ASTResolved
         inferDefaults ast = do
+            when verbose $ liftIO $ putStrLn $ "inferring defaults..."
             (annotated, typeSupplyCount) <- withErrorPrefix "annotate: " $
                 runBoMTExcept 0 $ annotate ast
             collectState <- fmap snd $ withErrorPrefix "collect: " $
@@ -57,6 +60,6 @@ infer ast printAnnotated verbose = do
             -- apply substitutions to ast
             subs <- fmap fst $ runBoMTExcept ast (unifyDefault $ Map.toList $ defaults collectState)
             annotated' <- applySubs subs annotated
-            ast' <- fmap snd $ runBoMTExcept annotated' CleanUp.compile
+            ast' <- fmap snd $ runBoMTExcept annotated' (CleanUp.compile verbose)
             ast'' <- fmap fst $ runBoMTExcept () $ deAnnotate ast'
             return ast''

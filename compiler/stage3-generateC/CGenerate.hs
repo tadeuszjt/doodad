@@ -254,34 +254,47 @@ adtEnum obj = do
 
 member :: MonadGenerate m => Int -> Value -> m Value
 member index val = do
+    typeDefs <- gets typefuncs
     base <- baseTypeOf val
     case base of
         Type.Record ts -> do
-            typeDefs <- gets typefuncs
             let Type.RecordTree ns = getRecordTree typeDefs (Type.Record ts)
             case ns !! index of
                 RecordLeaf t i -> assign "deref" $ Value t $
                     C.Deref $ C.Member (valExpr val) ("m" ++ show i)
 
-                RecordTree ns -> do
-                    let leaves = getRecordLeaves typeDefs (RecordTree ns)
+                RecordTree _ -> do
+                    let leaves = getRecordLeaves typeDefs (ns !! index)
                     elems <- forM leaves $ \(t, i) -> do
                         return $ C.Member (valExpr val) ("m" ++ show i)
                     assign "record" $ Value (ts !! index) $ C.Initialiser elems
 
                 x -> error (show x)
+
         Type.Tuple t -> do
-            typeDefs <- gets typefuncs
             Type.Record ts <- baseTypeOf t
             let Type.RecordTree ns = getRecordTree typeDefs t
             case ns !! index of
-                RecordLeaf t i -> return $ Value (ts !! index) $ C.Member (valExpr val) ("m" ++ show i)
-                RecordTree ns  -> do
-                    let leaves = getRecordLeaves typeDefs (RecordTree ns)
-                    elems <- forM leaves $ \(t, i) -> do
-                        return $ C.Address $ C.Member (valExpr val) ("m" ++ show i)
-                    return $ Value (ts !! index) $ C.Initialiser elems
+                RecordLeaf t i -> assign "member" $ Value (ts !! index) $
+                    C.Member (valExpr val) ("m" ++ show i)
+
+                RecordTree _ -> do
+                    let leaves = getRecordLeaves typeDefs (ns !! index)
+                    assign "member" $ Value (ts !! index) $ C.Initialiser $
+                        map (\(t, i) -> C.Address $ C.Member (valExpr val) ("m" ++ show i)) leaves
+
                 x -> error (show x)
+
+        Type.Table t -> do
+            Type.Record ts <- baseTypeOf t
+            let Type.RecordTree ns = getRecordTree typeDefs t
+            let leaves = getRecordLeaves typeDefs (ns !! index)
+            liftIO $ putStrLn $ show leaves ++ " " ++ show base
+            let elems  = map (\(t, i) -> C.Member (valExpr val) ("r" ++ show i)) leaves
+            assign "member" $ Value (Table $ ts !! index) $ C.Initialiser $
+                [ C.Member (valExpr val) "len"
+                , C.Member (valExpr val) "cap"
+                ] ++ elems
 
         Type.ADT ts   -> do
             assert (index >= 0 && index < length ts) "invalid ADT field index"
@@ -457,8 +470,8 @@ getTableAppendFunc typ = do
     base@(Table t) <- baseTypeOf typ
     baseT <- baseTypeOf t
     ts <- case baseT of
-        Record ts -> return ts
-        t         -> return [t]
+        Record _ -> recordLeafTypes t
+        t        -> return [t]
     fm <- Map.lookup typ <$> gets tableAppendFuncs
     case fm of
         Just s -> return s

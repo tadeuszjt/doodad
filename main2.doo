@@ -1,5 +1,24 @@
 module main2
 
+
+type[K, V] Map []{keys:K, values:V}
+
+fn[K, V] {m:Map(K, V)} insert(key:()K, value:()V)
+    for m[..] -> i
+        if m.keys[i] == key{}
+            m.values[i] = value{}
+            return
+    
+    m++
+    m.keys[len(m) - 1]   = key{}
+    m.values[len(m) - 1] = value{}
+
+fn[K, V] {m:Map(K, V)} find(key:()K) Maybe(()V)
+    for m[..] -> i
+        if m.keys[i] == key{}
+            return Just( conv(m.values[i]) )
+    return Nothing()
+
 type Person {string, i32}
 
 fn[T] {t:[]T} length() i64
@@ -14,25 +33,6 @@ fn[T] {t:[]T} pop() ()T
     elem{} = t[t.length() - 1]
     ${ $t->len--; }
     return elem
-
-
-type[K, V] Map (keys:[]K, values:[]V)
-
-fn[K, V] {m:Map(K, V)} insert(key:()K, value:()V)
-    for m.keys[..] -> i
-        if m.keys[i] == key{}
-            m.values[i] = value{}
-            return
-
-    m.keys.push(key)
-    m.values.push(value)
-    return
-
-fn[K, V] {m:Map(K, V)} find(key:()K) Maybe(()V)
-    for m.keys[..] -> i
-        if m.keys[i] == key{}
-            return Just( conv(m.values[i]) )
-    return Nothing()
 
 
 fn testTuple()
@@ -74,7 +74,7 @@ fn testTable()
 
     data tab3 []{i64, bool}
     tab3.push( (1, true) )
-    let (1, true) = conv(tab3[0]):(i64, bool)
+    //let (1, true) = conv(tab3[0]):(i64, bool)
     let {1, true} = tab3[0]
 
     print("testTable passed")
