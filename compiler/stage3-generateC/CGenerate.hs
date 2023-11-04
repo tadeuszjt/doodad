@@ -244,17 +244,30 @@ adtEnum obj = do
 
 
 member :: MonadGenerate m => Int -> Value -> m Value
-member i val = do
+member index val = do
     base <- baseTypeOf val
     case base of
-        Type.Record ts -> assign "deref" $ Value (ts !! i) $ C.Deref $ C.Member (valExpr val) ("m" ++ show i)
+        Type.Record ts -> do
+            typeDefs <- gets typefuncs
+            let Type.RecordTree ns = getRecordTree typeDefs (Type.Record ts)
+            case ns !! index of
+                --x -> fail (show val)
+                Type.RecordLeaf t i -> assign "deref" $ Value t $ -- TODO i don't want to do this
+                    C.Deref $ C.Member (valExpr val) ("m" ++ show i)
+--                Type.RecordLeaf t i -> return $ Value (Type.Record [t]) $
+--                    C.Member (valExpr val) ("m" ++ show i)
+                x -> error (show x)
         Type.Tuple t -> do
-            -- TODO doesn't consider record trees
+            typeDefs <- gets typefuncs
             Type.Record ts <- baseTypeOf t
-            return $ Value (ts !! i) $ C.Member (valExpr val) ("m" ++ show i)
+            let Type.RecordTree ns = getRecordTree typeDefs t
+            case ns !! index of
+                RecordLeaf t i -> return $ Value (ts !! index) $ C.Member (valExpr val) ("m" ++ show i)
+                x -> error (show x)
+
         Type.ADT ts   -> do
-            assert (i >= 0 && i < length ts) "invalid ADT field index"
-            return $ Value (ts !! i) $ C.Member (valExpr val) ("u" ++ show i)
+            assert (index >= 0 && index < length ts) "invalid ADT field index"
+            return $ Value (ts !! index) $ C.Member (valExpr val) ("u" ++ show index)
         _ -> error (show base)
 
 
@@ -378,8 +391,7 @@ cTypeOf a = case typeof a of
         case baseT of
             Record _ -> do
                 typeDefs <- gets typefuncs
-                let ts = getRecordTreeTypes typeDefs t
-                cts <- mapM cTypeOf ts
+                cts <- mapM cTypeOf (getRecordTypes typeDefs t)
                 getTypedef "tuple" $ Cstruct $ zipWith (\a b -> C.Param ("m" ++ show a) b) [0..] cts
             t -> cTypeOf t
 
@@ -392,7 +404,8 @@ cTypeOf a = case typeof a of
         let pts = zipWith (\ct i -> C.Param ("r" ++ show i) (Cpointer ct)) cts [0..]
         getTypedef "table" $ Cstruct (C.Param "len" Cint64_t:C.Param "cap" Cint64_t:pts)
     Type.Record ts -> do
-        cts <- mapM cTypeOf ts
+        typeDefs <- gets typefuncs
+        cts <- mapM cTypeOf (getRecordTypes typeDefs $ Type.Record ts)
         getTypedef "record" $ Cstruct $ zipWith (\ct i -> C.Param ("m" ++ show i) (Cpointer ct)) cts [0..]
 --    Type.Array n t -> do
 --        arr <- Carray n <$> cTypeOf t

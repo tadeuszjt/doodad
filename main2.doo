@@ -46,8 +46,9 @@ fn testTuple()
     let t3 = ("jim", 50):()Person
     let 50    = t3.age
     let "jim" = t3.name
-    //let 49 = t3.Person.age
 
+    let t4 = ("james", 32, 3):(){Person, Index}
+    //let "james" = t4.Person.name
 
 
     print("testTuple passed")

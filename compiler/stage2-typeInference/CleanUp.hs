@@ -131,7 +131,7 @@ resolveFieldAccess typ (Sym sym) = do
     typeDefs <- gets typeFuncs
     ctors    <- gets ctorDefs
     let typeSymbol       = getFieldAccessorSymbol typeDefs typ
-    let typeFieldSymbols = getTypeFieldSymbols typeDefs typ
+    typeFieldSymbols <- getTypeFieldSymbols typeDefs typ
     typeResults <- return $ filter (\s -> Symbol.sym s == sym) typeFieldSymbols
     ctorResults <- return $ Map.keys $ Map.filterWithKey
         (\symbol (typSym, _) -> Symbol.sym symbol == sym && typeSymbol == typSym)
@@ -148,7 +148,7 @@ resolveFieldAccess typ (Sym sym) = do
         -- ()Person        -> Person
         -- []Person        -> Person
         -- ()PersonWrapper -> Person
-        getFieldAccessorSymbol :: Map.Map Symbol ([Symbol], Type) -> Type -> Symbol
+        getFieldAccessorSymbol :: TypeDefs -> Type -> Symbol
         getFieldAccessorSymbol typeDefs typ = case typ of
             Type.Tuple t -> getFieldAccessorSymbol typeDefs t
             TypeApply symbol ts -> case Map.lookup symbol typeDefs of
@@ -157,20 +157,24 @@ resolveFieldAccess typ (Sym sym) = do
                 x -> error (show x)
             _ -> error (show typ)
 
+        
+        getTypeFieldSymbols :: BoM s m => TypeDefs -> Type -> m [Symbol]
+        getTypeFieldSymbols typeDefs typ = do
+            --liftIO $ putStrLn $ "getTypeFieldSymbols: " ++ show typ
+            case typ of
+                TypeApply symbol ts -> case Map.lookup symbol typeDefs of
+                    Just (ss, t)    -> do
+                        let applied = applyTypeArguments ss ts t
+                        --liftIO $ putStrLn $ "applied: " ++ show applied
+                        case applied of
+                            Record ts'              -> return $ catMaybes (map isSymbolType ts')
+                            Type.Tuple (Record ts') -> return $ catMaybes (map isSymbolType ts')
+                            _ -> error (show applied)
+                    x -> error (show x)
 
-        getTypeFieldSymbols :: Map.Map Symbol ([Symbol], Type) -> Type -> [Symbol]
-        getTypeFieldSymbols typeDefs typ = case typ of
-            TypeApply symbol ts -> case Map.lookup symbol typeDefs of
-                Just (ss, t)    -> let applied = applyTypeArguments ss ts t in
-                    case applied of
-                        Record ts'              -> catMaybes (map isSymbolType ts')
-                        Type.Tuple (Record ts') -> catMaybes (map isSymbolType ts')
-                        _ -> error (show applied)
-                x -> error (show x)
-
-            Type.Tuple (Record ts)       -> catMaybes $ map isSymbolType ts
-            Type.Tuple t@(TypeApply _ _) -> getTypeFieldSymbols typeDefs t
-            _ -> error (show typ)
+                Type.Tuple (Record ts)       -> return $ catMaybes $ map isSymbolType ts
+                Type.Tuple t@(TypeApply _ _) -> getTypeFieldSymbols typeDefs t
+                _ -> error (show typ)
 
             where
                 isSymbolType :: Type -> Maybe Symbol

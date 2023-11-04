@@ -181,21 +181,59 @@ flattenTuple typedefs typ = case typ of
 -- { {i64, bool}, string } -> [i64, bool, string]
 -- { Person, Index }       -> [string, i64, i64]   (Person == {name:string, age:i64})
 -- i64                     -> [i64]
-getRecordTreeTypes :: TypeDefs -> Type -> [Type]
-getRecordTreeTypes typeDefs typ = case typ of
-    Record ts -> concat $ map (getRecordTreeTypes typeDefs) ts
+getRecordTypes :: TypeDefs -> Type -> [Type]
+getRecordTypes typeDefs typ = case typ of
+    Record ts -> concat $ map (getRecordTypes typeDefs) ts
 
     TypeApply symbol ts -> case Map.lookup symbol typeDefs of
         Just (ss, t) -> case applyTypeArguments ss ts t of
-            Record xs -> concat $ map (getRecordTreeTypes typeDefs) xs
-            x         -> getRecordTreeTypes typeDefs x
+            Record xs -> concat $ map (getRecordTypes typeDefs) xs
+            x         -> getRecordTypes typeDefs x
 
-    I64 -> [I64]
-    Bool -> [Bool]
-    String -> [String]
+    t | isSimple t -> [t]
     Table _ -> [typ]
     _ -> error (show typ)
 
+
+data RecordTree
+    = RecordLeaf Type Int
+    | RecordTree [RecordTree]
+
+instance Show RecordTree where
+    show (RecordLeaf t i) = show t ++ "." ++ show i
+    show (RecordTree rs ) = "{" ++ intercalate ", " (map show rs) ++ "}"
+
+getRecordTree :: TypeDefs -> Type -> RecordTree
+getRecordTree typeDefs typ = case typ of
+    Record ts           -> RecordTree $ applyFunc 0 ts
+    TypeApply symbol ts -> case Map.lookup symbol typeDefs of
+        Just (ss, Tuple t)   -> RecordLeaf (applyTypeArguments ss ts (Tuple t)) 0
+        Just (ss, Record xs) -> getRecordTree typeDefs $ applyTypeArguments ss ts (Record xs)
+        x -> error (show x)
+
+    _ -> error (show typ)
+    where
+        applyFunc :: Int -> [Type] -> [RecordTree]
+        applyFunc offset ts = case ts of
+            []     -> []
+            (x:xs) -> let tree = getRecordTree' offset x in
+                tree : (applyFunc (getMax tree + 1) xs)
+
+        getMax :: RecordTree -> Int
+        getMax tree = case tree of
+            RecordLeaf _ i -> i
+            _ -> error (show tree)
+
+
+        getRecordTree' :: Int -> Type -> RecordTree
+        getRecordTree' offset typ = case typ of
+            t | isSimple t -> RecordLeaf typ offset
+            Table _        -> RecordLeaf typ offset
+            Record ts      -> RecordTree (applyFunc offset ts)
+            TypeApply symbol ts -> case Map.lookup symbol typeDefs of
+                Just (ss, Record xs) -> getRecordTree' offset (applyTypeArguments ss ts $ Record xs)
+                x -> error (show x)
+            _ -> error (show typ)
 
 
 getTypeFieldIndex :: TypeDefs -> Type -> Type -> Int

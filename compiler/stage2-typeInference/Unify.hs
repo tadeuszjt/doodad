@@ -39,19 +39,6 @@ unifyOne pos constraint = withPos pos $ case constraint of
 
     ConsField typ symbol exprType -> case typ of
         Type _ -> return []
---        _ -> do
---            typeDefs <- gets typeFuncs
---            let typeSymbol = getFieldAccessorSymbol typeDefs typ
---            (_, typeDef) <- mapGet typeSymbol =<< gets typeFuncs
---            resm <- Map.lookup symbol <$> gets ctorDefs
---            case resm of
---                Just (typeSymbol', index) -> do
---                    assert (typeSymbol == typeSymbol') "type symbols do not match"
---                    case typeDef of
---                        
---                        _ -> error (show typeDef)
---
---                _ -> error (show resm)
 
         -- Eg: (tuple:Person).age
         TypeApply s ts -> do
@@ -62,6 +49,7 @@ unifyOne pos constraint = withPos pos $ case constraint of
                     base <- baseTypeOf typ
                     case base of
                         Just (Tuple (Record ts)) -> unifyOne pos $ ConsEq (ts !! index) exprType
+                        Just (Record ts)         -> unifyOne pos $ ConsEq (ts !! index) exprType
                         _ -> error (show base)
 
                 _ -> error (show resm)
@@ -77,10 +65,18 @@ unifyOne pos constraint = withPos pos $ case constraint of
                         Just (Record ts') -> unifyOne pos $ ConsEq (ts' !! index) exprType
                         _ -> error (show base)
 
-
                 _ -> error (show resm)
 
-        _ -> return []
+        Tuple (Record ts) -> do
+            resm <- Map.lookup symbol <$> gets ctorDefs
+            case resm of
+                Nothing -> case elemIndex (TypeApply symbol []) ts of
+                    Just index -> unifyOne pos $ ConsEq (ts !! index) exprType
+                    x -> error (show x)
+                    
+                _ -> error (show resm)
+
+        --_ -> return []
         _ -> error (show typ)
 
     ConsTuple tupType ts -> do
@@ -92,7 +88,7 @@ unifyOne pos constraint = withPos pos $ case constraint of
                 case baseT of
                     Just (Record _) -> do
                         typeDefs <- gets typeFuncs
-                        let recordTs = getRecordTreeTypes typeDefs t
+                        let recordTs = getRecordTypes typeDefs t
                         assert (length ts == length recordTs) "record length mismatch"
                         concat <$> zipWithM (\a b -> unifyOne pos $ ConsEq a b) ts recordTs
                     _ -> error (show baseT)
