@@ -32,69 +32,25 @@ baseTypeOf typ = case typ of
     t      -> return (Just t)
 
 
-
 unifyOne :: BoM ASTResolved m => TextPos -> Constraint -> m [(Type, Type)]
 unifyOne pos constraint = withPos pos $ case constraint of
     ConsField typ (Sym _) exprType -> return []
 
-    ConsField typ symbol exprType -> case typ of
-        Type _ -> return []
+    ConsField typ symbol exprType -> do
+        resm <- Map.lookup symbol <$> gets ctorDefs
+        base <- baseTypeOf typ
+        ts <- case base of
+            Just (Record ts) -> return ts
+            Just (Tuple t)   -> do
+                baseT <- baseTypeOf t
+                case baseT of
+                    Just (Record ts) -> return ts
 
-        -- Eg: (tuple:Person).age
-        TypeApply s ts -> do
-            resm <- Map.lookup symbol <$> gets ctorDefs
-            case resm of
-                Nothing -> do
-                    base <- baseTypeOf typ
-                    case base of
-                        Just (Record ts') -> case elemIndex (TypeApply symbol []) ts' of
-                            Just index -> unifyOne pos $ ConsEq (ts' !! index) exprType
-                            x -> error (show x)
-                        _ -> error (show base)
-
-                Just (typeSymbol, index) -> do
-                    assert (typeSymbol == s) "invalid field access"
-                    base <- baseTypeOf typ
-                    case base of
-                        Just (Tuple (Record ts)) -> unifyOne pos $ ConsEq (ts !! index) exprType
-                        Just (Record ts)         -> unifyOne pos $ ConsEq (ts !! index) exprType
-                        _ -> error (show base)
-
-                _ -> error (show resm)
-
-        -- Eg: (tuple:()Person).age
-        Tuple (TypeApply s ts) -> do
-            resm <- Map.lookup symbol <$> gets ctorDefs
-            case resm of
-                Nothing -> do
-                    base <- baseTypeOf (TypeApply s ts)
-                    case base of
-                        Just (Record ts') -> case elemIndex (TypeApply symbol []) ts' of
-                            Just index -> unifyOne pos $ ConsEq (ts' !! index) exprType
-                            x -> error (show x)
-                        _ -> error (show base)
-
-
-                Just (typeSymbol, index) -> do
-                    assert (typeSymbol == s) "invalid field access"
-                    base <- baseTypeOf (TypeApply s ts)
-                    case base of
-                        Just (Record ts') -> unifyOne pos $ ConsEq (ts' !! index) exprType
-                        _ -> error (show base)
-
-                _ -> error (show resm)
-
-        Tuple (Record ts) -> do
-            resm <- Map.lookup symbol <$> gets ctorDefs
-            case resm of
-                Nothing -> case elemIndex (TypeApply symbol []) ts of
-                    Just index -> unifyOne pos $ ConsEq (ts !! index) exprType
-                    x -> error (show x)
-                    
-                _ -> error (show resm)
-
-        --_ -> return []
-        _ -> error (show typ)
+        case resm of
+            Just (typeSymbol, index) -> unifyOne pos $ ConsEq (ts !! index) exprType
+            Nothing                  -> case elemIndex (TypeApply symbol []) ts of
+                Just index -> unifyOne pos $ ConsEq (ts !! index) exprType
+                x          -> error (show x)
 
     ConsTuple tupType ts -> do
         basem <- baseTypeOf tupType
