@@ -3,6 +3,7 @@ module main2
 
 type[K, V] Map []{keys:K, values:V}
 
+
 fn[K, V] {m:Map(K, V)} insert(key:()K, value:()V)
     for m[..] -> i
         if m.keys[i] == key{}
@@ -13,11 +14,13 @@ fn[K, V] {m:Map(K, V)} insert(key:()K, value:()V)
     m.keys[len(m) - 1]   = key{}
     m.values[len(m) - 1] = value{}
 
+
 fn[K, V] {m:Map(K, V)} find(key:()K) Maybe(()V)
     for m[..] -> i
         if m.keys[i] == key{}
             return Just( conv(m.values[i]) )
     return Nothing()
+
 
 type Person {string, i32}
 
@@ -58,8 +61,8 @@ fn testTuple()
     let "five" = t5.MyType.person.name
     let 3      = t5.Person.age
 
-
     print("testTuple passed")
+
 
 fn testTable()
     data tab1 []i64
@@ -135,7 +138,3 @@ fn main()
     testTable()
     testMap()
     print("main2 finished")
-
-
-
-

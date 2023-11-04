@@ -289,7 +289,6 @@ member index val = do
             Type.Record ts <- baseTypeOf t
             let Type.RecordTree ns = getRecordTree typeDefs t
             let leaves = getRecordLeaves typeDefs (ns !! index)
-            liftIO $ putStrLn $ show leaves ++ " " ++ show base
             let elems  = map (\(t, i) -> C.Member (valExpr val) ("r" ++ show i)) leaves
             assign "member" $ Value (Table $ ts !! index) $ C.Initialiser $
                 [ C.Member (valExpr val) "len"

@@ -88,8 +88,9 @@ define symbol obj = do
     modify $ \s -> s { symTab = SymTab.insert symbol () obj (symTab s) }
 
 
-collectAST :: BoM CollectState m => ASTResolved -> m ()
-collectAST ast = do
+collectAST :: BoM CollectState m => Bool -> ASTResolved -> m ()
+collectAST verbose ast = do
+    when verbose $ liftIO $ putStrLn "collecting..."
     forM (Map.toList $ constDefs ast) $ \(symbol, expr) -> do
         define symbol (ObjConst expr)
 

@@ -21,6 +21,19 @@ extra-source-files: CHANGELOG.md
 
 executable doodad
     main-is:           Main.hs
+
+-- HOW TO PROFILE
+-- install ghc-prof (sudo apt-get install ghc-prof)
+-- enable the options below.
+-- run as usual (cabal run doodad -- main2)
+-- look at doodad.prof file
+--    ghc-options:
+--        -O2
+--        -threaded
+--        -prof
+--        -fprof-auto
+--        "-with-rtsopts=-N -p -s -h -i0.1"
+
     c-sources:
         compiler/stage0-parseAST/lexer/old_lexer.c
         --compiler/stage0-parseAST/lexer/io.c

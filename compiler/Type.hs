@@ -56,10 +56,36 @@ instance Show Type where
         TypeApply s ts    -> show s ++ "(" ++ intercalate ", " (map show ts) ++ ")"
 
 
-isInt x      = x `elem` [U8, I8, I16, I32, I64]
-isFloat x    = x `elem` [F32, F64]
+isInt :: Type -> Bool
+isInt typ = case typ of
+    U8 -> True
+    I8 -> True
+    I16 -> True
+    I32 -> True
+    I64 -> True
+    _ -> False
+
+isFloat :: Type -> Bool
+isFloat typ = case typ of
+    F32 -> True
+    F64 -> True
+    _   -> False
+
+isSimple :: Type -> Bool
+isSimple typ = case typ of
+    U8 -> True
+    I8 -> True
+    I16 -> True
+    I32 -> True
+    I64 -> True
+    F32 -> True
+    F64 -> True
+    Bool -> True
+    String -> True
+    Char -> True
+    _ -> False
+
 isIntegral x = isInt x || x == Char
-isSimple x   = isInt x || isFloat x || x == Char || x == Bool || x == String
 
 
 findGenerics :: [Symbol] -> Type -> [Type]
