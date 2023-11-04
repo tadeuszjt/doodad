@@ -283,25 +283,15 @@ initialiser typ vals = do
         Type.Tuple t -> do
             baseT <- baseTypeOf t
             case baseT of
-                Record _ -> do
-                    assign "tuple" $ Value typ $ C.Initialiser (map valExpr vals)
-
-                Type.Tuple _ -> do -- ()() ...
-                    Value x e <- initialiser t vals
-                    return $ Value typ e
-
+                Record _ -> do assign "tuple" $ Value typ $ C.Initialiser (map valExpr vals)
                 _ -> error (show baseT)
 
-        Type.Record ts -> do
+        Type.Record _ -> do
+            typeDefs <- gets typefuncs
+            let ts = getRecordTypes typeDefs typ
             assert (length ts == length vals) "initialiser length"
             assign "record" $ Value typ $ C.Initialiser $ map (C.Address . valExpr) vals
 
---        Type.Tuple ts -> do
---            assert (length ts == length vals) "initialiser length"
---            assign "tuple" $ Value typ $ C.Initialiser (map valExpr vals)
---        Type.Array n t -> do
---            assert (length vals == n) "initialiser length"
---            assign "array" $ Value typ $ C.Initialiser (map valExpr vals)
         Type.Range t -> do
             assert (map typeof vals == [t, t]) "initialiser types"
             assign "range" $ Value typ $ C.Initialiser (map valExpr vals)
@@ -312,35 +302,41 @@ accessRecord :: MonadGenerate m => Value -> (Maybe Value) -> m Value
 accessRecord val marg = do
     base <- baseTypeOf val
     case base of
+        _ | isSimple base -> do
+            assert (isNothing marg) "no arg needed"
+            assign "record" $ Value (Record [typeof val]) $ C.Initialiser [C.Address $ valExpr val]
+
+        Table t -> do
+            assert (isJust marg) "table access needs an integer argument"
+            baseT <- baseTypeOf t
+            case baseT of
+                Type.Tuple _ -> accessRecord (Value t $ C.Subscript (C.Member (valExpr val) ("r" ++ show 0)) (valExpr $ fromJust marg)) Nothing
+                _ | isSimple baseT -> do
+                    elem <- return $ C.Address $ C.Subscript (C.Member (valExpr val) ("r" ++ show 0)) (valExpr $ fromJust marg)
+                    assign "record" $ Value (Record [t]) $ C.Initialiser [elem]
+                Record _ -> do
+                    typeDefs <- gets typefuncs
+                    let ts = getRecordTypes typeDefs t
+                    elems <- forM (zip ts [0..]) $ \(t, i) -> do
+                        return $ C.Address $ C.Subscript (C.Member (valExpr val) ("r" ++ show i)) (valExpr $ fromJust marg)
+                    assign "record" $ Value t $ C.Initialiser elems
+                x -> error (show x)
+
         Type.Tuple t -> do
             assert (isNothing marg) "tuple access cannot have an argument"
             baseT <- baseTypeOf t
             case baseT of
-                Record ts -> do
-                    assign "record" $ Value t $ C.Initialiser $
-                        zipWith (\t i -> C.Address $ C.Member (valExpr val) ("m" ++ show i)) ts [0..]
-                t -> do
-                    assign "record" $ Value (Record [t]) $ C.Initialiser $ [C.Address (valExpr val)]
-
-        Type.Table t -> do
-            assert (isJust marg) "table access needs an integer argument"
-            baseT <- baseTypeOf t
-            case baseT of
-                Record ts -> do
+                Record _ -> do
+                    typeDefs <- gets typefuncs
+                    let ts = getRecordTypes typeDefs t
                     elems <- forM (zip ts [0..]) $ \(t, i) -> do
-                        return $ C.Address $ C.Subscript (C.Member (valExpr val) ("r" ++ show i)) (valExpr $ fromJust marg)
+                        return $ C.Address $ C.Member (valExpr val) ("m" ++ show i)
                     assign "record" $ Value t $ C.Initialiser elems
-                Type.Tuple _ -> do
-                    accessRecord (Value t $ C.Subscript (C.Member (valExpr val) "r0") (valExpr $ fromJust marg)) Nothing
-                t -> do
-                    elem <- return $ C.Address $ C.Subscript (C.Member (valExpr val) ("r" ++ show 0)) (valExpr $ fromJust marg)
-                    assign "record" $ Value (Record [t]) $ C.Initialiser [elem]
 
                 _ -> error (show baseT)
+            
 
-        t | isSimple t -> do
-            assert (isNothing marg) "no arg needed"
-            assign "record" $ Value (Record [typeof val]) $ C.Initialiser [C.Address $ valExpr val]
+        x -> error (show x)
 
         _ -> error (show base)
 
@@ -397,12 +393,14 @@ cTypeOf a = case typeof a of
 
     Type.Table t -> do
         base <- baseTypeOf t
+        typeDefs <- gets typefuncs
         ts <- case base of
-            Record ts -> return ts
+            Record ts -> return (getRecordTypes typeDefs t)
             t         -> return [t]
         cts <- mapM cTypeOf ts
         let pts = zipWith (\ct i -> C.Param ("r" ++ show i) (Cpointer ct)) cts [0..]
         getTypedef "table" $ Cstruct (C.Param "len" Cint64_t:C.Param "cap" Cint64_t:pts)
+
     Type.Record ts -> do
         typeDefs <- gets typefuncs
         cts <- mapM cTypeOf (getRecordTypes typeDefs $ Type.Record ts)

@@ -184,7 +184,6 @@ flattenTuple typedefs typ = case typ of
 getRecordTypes :: TypeDefs -> Type -> [Type]
 getRecordTypes typeDefs typ = case typ of
     Record ts -> concat $ map (getRecordTypes typeDefs) ts
-
     TypeApply symbol ts -> case Map.lookup symbol typeDefs of
         Just (ss, t) -> case applyTypeArguments ss ts t of
             Record xs -> concat $ map (getRecordTypes typeDefs) xs
@@ -192,6 +191,7 @@ getRecordTypes typeDefs typ = case typ of
 
     t | isSimple t -> [t]
     Table _ -> [typ]
+    Tuple _ -> [typ]
     _ -> error (show typ)
 
 
