@@ -18,16 +18,7 @@ import Monad
 substitute :: Type -> Type -> Type -> Type
 substitute u x typ = case typ of
     _ | typ == x         -> u  -- this one replaces regardless of type
-    --Type _ | typ == x    -> u
-    Type _               -> typ
-    Void                 -> typ
-    _ | isSimple typ     -> typ
-    TypeApply s ts       -> TypeApply s $ map (substitute u x) ts
-    Record ts            -> Record $ map (substitute u x) ts
-    Tuple t              -> Tuple (substitute u x t)
-    Table t              -> Table (substitute u x t)
-    Range t              -> Range (substitute u x t)
-    _                    -> error (show typ)
+    _                    -> typ
 
 
 applySubs :: (Apply a, BoM s m) => [(Type, Type)] -> a -> m a
@@ -36,12 +27,12 @@ applySubs subs a = apply (\t -> foldr (\(x, u) z -> substitute u x z) t subs) a
 
 mapper :: BoM s m => (Type -> Type) -> Elem -> m (Maybe Elem)
 mapper f elem = case elem of
-    ElemStmt (S.Const _ _ _)     -> return Nothing
-    ElemStmt (S.Typedef _ _ _ _) -> return Nothing
+    ElemType typ                 -> return $ Just $ ElemType (f typ)
     ElemStmt _                   -> return (Just elem)
     ElemExpr _                   -> return (Just elem)
     ElemPattern _                -> return (Just elem)
-    ElemType typ                 -> return $ Just $ ElemType (f typ)
+    ElemStmt (S.Const _ _ _)     -> return Nothing
+    ElemStmt (S.Typedef _ _ _ _) -> return Nothing
     _ -> error (show elem)
 
 -- Apply represents taking a function and applying it to all types in an object.

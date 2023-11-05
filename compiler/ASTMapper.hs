@@ -192,16 +192,25 @@ mapType :: BoM s m => MapperFunc m -> Type -> m Type
 mapType f typ = do
     prevState <- get
     resm <- f . ElemType =<< case typ of
+        Type.U8        -> return typ
+        Type.I8        -> return typ
+        Type.I16       -> return typ
+        Type.I32       -> return typ
+        Type.I64       -> return typ
+        Type.F32       -> return typ
+        Type.F64       -> return typ
+        Type.Bool      -> return typ
+        Type.String    -> return typ
+        Type.Char      -> return typ
         Type _         -> return typ
         Record ts      -> Record <$> mapM (mapType f) ts
         Type.Tuple t   -> Type.Tuple <$> mapType f t
         Table t        -> Table <$> mapType f t
         TypeApply s ts -> TypeApply s <$> mapM (mapType f) ts
-        t | isSimple t -> return typ
         Type.Range t   -> Type.Range <$> mapType f t
         ADT ts         -> ADT <$> mapM (mapType f) ts
         Void           -> return typ
         _ -> error (show typ)
     case resm of
-        Nothing -> put prevState >> return typ
-        Just (ElemType x)  -> return x
+        Just (ElemType x) -> return x
+        Nothing           -> put prevState >> return typ

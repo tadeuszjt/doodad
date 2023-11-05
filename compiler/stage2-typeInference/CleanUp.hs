@@ -36,8 +36,6 @@ compile verbose = do
             body' <- return body { funcStmt = stmt' }
             modify $ \s -> s { funcDefs = Map.insert symbol body' (ASTResolved.funcDefs s) }
 
-    deleteSingleTuples
-
 
 genSymbol :: BoM ASTResolved m => String -> m Symbol
 genSymbol sym = do  
@@ -51,6 +49,12 @@ genSymbol sym = do
 
 cleanUpMapper :: BoM ASTResolved m => Elem -> m (Maybe Elem)
 cleanUpMapper elem = case elem of
+    ElemType (Type.Tuple t) -> do
+        typeDefs <- gets typeFuncs 
+        case definitelyIgnoresTuples typeDefs t of
+            True  -> return $ Just (ElemType t)
+            False -> return $ Just elem
+        
     ElemStmt (AST.FuncDef _ _ _ _ _ _ _) -> return Nothing
     ElemStmt (AST.Const _ _ _)           -> return Nothing
     ElemStmt (AST.Typedef _ _ _ _)       -> return Nothing
@@ -77,6 +81,7 @@ cleanUpMapper elem = case elem of
     
 -- add extern if needed
 resolveFuncCall :: BoM ASTResolved m => Type -> AST.Expr -> m Symbol
+resolveFuncCall _ (AST.Call _ _ s@(SymResolved _ _ _) _) = return s
 resolveFuncCall exprType (AST.Call pos params callSymbol args) = withPos pos $ do
     --liftIO $ putStrLn $ "resolving: " ++ show callSymbol
     let callHeader = FuncHeader [] (map typeof params) callSymbol (map typeof args) exprType

@@ -194,12 +194,12 @@ definitelyIgnoresTuples typedefs typ = case typ of
 flattenTuple :: TypeDefs -> Type -> Type
 flattenTuple typedefs typ = case typ of
     t | isSimple t                               -> typ
-    Table t                                      -> Table (flattenTuple typedefs t)
     Void                                         -> typ
     Type _                                       -> typ
-    TypeApply s ts                               -> TypeApply s (map (flattenTuple typedefs) ts)
-    Record ts                                    -> Record (map (flattenTuple typedefs) ts)
-    ADT ts                                       -> ADT (map (flattenTuple typedefs) ts)
+    Table t                                      -> Table (flattenTuple typedefs t)
+    TypeApply s ts                               -> TypeApply s $ map (flattenTuple typedefs) ts
+    Record ts                                    -> Record $ map (flattenTuple typedefs) ts
+    ADT ts                                       -> ADT $ map (flattenTuple typedefs) ts
     Range t                                      -> Range (flattenTuple typedefs t)
     Tuple t | definitelyIgnoresTuples typedefs t -> flattenTuple typedefs t
     Tuple t | otherwise                          -> Tuple (flattenTuple typedefs t)
