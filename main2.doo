@@ -3,6 +3,7 @@ module main2
 import std/maybe
 import std/table
 import std/map
+import std/sparse
 
 type Person {string, i32}
 
@@ -88,32 +89,17 @@ fn testSparse()
     let 0 = s1.insert(3)
     let 1 = s1.insert(4)
     let 2 = s1.insert(5)
-
     s1.delete(1)
     let 1 = s1.insert(6)
     let 3 = s1.insert(7)
+    let 7 = s1.get(3)
+
+    data s2 Sparse(Person)
+    let key = s2.insert( ("jones", 44) )
+    let ("jones", 44) = s2.get(key)
+
 
     print("testSparse passed")
-
-
-type[T] SparseKey i64
-type[T] Sparse (values:[]T, empty:[]SparseKey(T))
-
-fn[T] {s:Sparse(T)} insert(value:()T) SparseKey(T)
-    if s.empty.length() > 0
-        let key = s.empty.pop()
-        s.values[key] = value{}
-        return key
-
-    s.values.push(value)
-    return conv(s.values.length() - 1)
-
-
-fn[T] {s:Sparse(T)} delete(key:SparseKey(T))
-    if key == conv(s.values.length() - 1)
-        s.values.pop()
-    else
-        s.empty.push(key)
 
 
 fn main()

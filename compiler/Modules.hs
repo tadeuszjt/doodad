@@ -114,6 +114,20 @@ buildBinaryFromModule args modPath = do
         forM_ (cFiles) $ \file -> do
             liftIO $ putStrLn =<< readFile file
 
+    when (printAssembly args) $ do
+        forM_ cFiles $ \cFile -> do
+            let asmPath = dropExtension cFile <.> ".s"
+            exitCode <- liftIO $ rawSystem "gcc" $
+                ["-S"] ++ ["-I", hDoodad] ++ [cFile] ++ ["-o", asmPath]
+            case exitCode of
+                ExitSuccess -> return ()
+                ExitFailure s -> fail $ "gcc failed: " ++ show s
+
+            liftIO $ putStrLn ""
+            liftIO $ putStrLn =<< readFile asmPath
+            liftIO $ removeFile asmPath
+            
+
     exitCode <- liftIO $ rawSystem "gcc" $
         ["-I", hDoodad] ++ cFiles ++ ["-lgc"] ++ map ("-l" ++) linkPaths ++ ["-o", binFile]
     case exitCode of
