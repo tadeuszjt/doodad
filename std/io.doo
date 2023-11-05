@@ -1,115 +1,115 @@
 module io
 
-import ./assert
-
-type FileKey i64
-type FilePtr i64
-
-type Files [keys:FileKey, ptrs:FilePtr]
-
-type Io (keySupply:FileKey, files:Files)
-
-fn {t:Files} delete(idx:i64)
-    assert(idx >= 0 && idx < len(t))
-    t[idx] = t[len(t) - 1]
-    ${ $t->len--; }
-
-
-fn {io:Io} newKey() FileKey
-    let key = io.keySupply
-    io.keySupply = io.keySupply + 1
-    return key
-
-
-fn {io:Io} openFile(filename:string) FileKey
-    let key = io.newKey()
-    let ptr = 0
-    ${
-        FILE *fp = fopen($filename, "w+");
-        assert(fp != NULL);
-        $ptr = (int64_t)(fp);
-    }
-
-    io.files += ([key], [ptr])
-    return key
-
-
-fn {io:Io} closeFile(key:FileKey)
-    for io.files[..] -> i
-        if io.files.keys[i] == key
-            let ptr = io.files.ptrs[i]
-            ${ fclose((FILE*)$ptr); }
-            io.files.delete(i)
-            return
-    assert(false)
-
-
-fn {io:Io} fPutStr(key:FileKey, s:string)
-    for io.files -> (k, p)
-        if k == key
-            ${ fprintf((FILE*)$p, "%s", $s); }
-            return
-    assert(false)
-
-
-fn {io:Io} fPutStrLn(key:FileKey, s:string)
-    for io.files -> (k, p)
-        if k == key
-            ${ fprintf((FILE*)$p, "%s\n", $s); }
-            return
-    assert(false)
-
-
-fn {io:Io} putStrLn(s:string)
-    ${ printf("%s\n", $s); }
-
-
-fn {io:Io} putStr(s:string)
-    ${ printf("%s", $s); }
-
-
-fn {io:Io} putChar(c:char)
-    ${ putchar($c); }
-
-
-fn {io:Io} getChar() char
-    let c = char()
-    ${ $c = getchar(); }
-    return c
-
-
-fn {io:Io} getStrLn() (null | string)
-    let eof = false
-    let s = ""
-    ${
-        char buffer[1024];
-        char *ret = fgets(buffer, sizeof(buffer), stdin);
-        int len = strlen(buffer);
-        if (ret == NULL) {
-            $eof = true;
-        } else {
-            if (buffer[len-1] == '\n') {
-                buffer[len-1] = '\0';
-            }
-            $s = doodad_string_copy(buffer);
-        }
-    }
-    if eof; return null
-    return conv(s)
-
-
-fn {io:Io} readFile(filename:string) string
-    let contents = ""
-    ${
-        FILE *fp = fopen($filename, "r");
-        assert(fp != NULL);
-
-        fseek(fp, 0, SEEK_END);
-        int64_t fileSize = ftell(fp);
-        fseek(fp, 0, SEEK_SET);
-
-        $contents = doodad_string_alloc(fileSize);
-        fread($contents, 1, fileSize, fp);
-        fclose(fp);
-    }
-    return contents
+//import ./assert
+//
+//type FileKey i64
+//type FilePtr i64
+//
+//type Files [keys:FileKey, ptrs:FilePtr]
+//
+//type Io (keySupply:FileKey, files:Files)
+//
+//fn {t:Files} delete(idx:i64)
+//    assert(idx >= 0 && idx < len(t))
+//    t[idx] = t[len(t) - 1]
+//    ${ $t->len--; }
+//
+//
+//fn {io:Io} newKey() FileKey
+//    let key = io.keySupply
+//    io.keySupply = io.keySupply + 1
+//    return key
+//
+//
+//fn {io:Io} openFile(filename:string) FileKey
+//    let key = io.newKey()
+//    let ptr = 0
+//    ${
+//        FILE *fp = fopen($filename, "w+");
+//        assert(fp != NULL);
+//        $ptr = (int64_t)(fp);
+//    }
+//
+//    io.files += ([key], [ptr])
+//    return key
+//
+//
+//fn {io:Io} closeFile(key:FileKey)
+//    for io.files[..] -> i
+//        if io.files.keys[i] == key
+//            let ptr = io.files.ptrs[i]
+//            ${ fclose((FILE*)$ptr); }
+//            io.files.delete(i)
+//            return
+//    assert(false)
+//
+//
+//fn {io:Io} fPutStr(key:FileKey, s:string)
+//    for io.files -> (k, p)
+//        if k == key
+//            ${ fprintf((FILE*)$p, "%s", $s); }
+//            return
+//    assert(false)
+//
+//
+//fn {io:Io} fPutStrLn(key:FileKey, s:string)
+//    for io.files -> (k, p)
+//        if k == key
+//            ${ fprintf((FILE*)$p, "%s\n", $s); }
+//            return
+//    assert(false)
+//
+//
+//fn {io:Io} putStrLn(s:string)
+//    ${ printf("%s\n", $s); }
+//
+//
+//fn {io:Io} putStr(s:string)
+//    ${ printf("%s", $s); }
+//
+//
+//fn {io:Io} putChar(c:char)
+//    ${ putchar($c); }
+//
+//
+//fn {io:Io} getChar() char
+//    let c = char()
+//    ${ $c = getchar(); }
+//    return c
+//
+//
+//fn {io:Io} getStrLn() (null | string)
+//    let eof = false
+//    let s = ""
+//    ${
+//        char buffer[1024];
+//        char *ret = fgets(buffer, sizeof(buffer), stdin);
+//        int len = strlen(buffer);
+//        if (ret == NULL) {
+//            $eof = true;
+//        } else {
+//            if (buffer[len-1] == '\n') {
+//                buffer[len-1] = '\0';
+//            }
+//            $s = doodad_string_copy(buffer);
+//        }
+//    }
+//    if eof; return null
+//    return conv(s)
+//
+//
+//fn {io:Io} readFile(filename:string) string
+//    let contents = ""
+//    ${
+//        FILE *fp = fopen($filename, "r");
+//        assert(fp != NULL);
+//
+//        fseek(fp, 0, SEEK_END);
+//        int64_t fileSize = ftell(fp);
+//        fseek(fp, 0, SEEK_SET);
+//
+//        $contents = doodad_string_alloc(fileSize);
+//        fread($contents, 1, fileSize, fp);
+//        fclose(fp);
+//    }
+//    return contents

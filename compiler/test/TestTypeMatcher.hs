@@ -131,6 +131,19 @@ test5 = do
     assert(typesCouldMatch typeFuncs typeVars I64 (Tuple $ TypeApply tSymbol []))                    "i64 == ()T"
 
 
+test6 :: IO ()
+test6 = do
+    let tSymbol = makeSymbol "T" 0
+    let gSymbol = makeSymbol "G" 0
+    let kSymbol = makeSymbol "Key" 0
+    let typeVars = [gSymbol]
+    let typeFuncs = Map.fromList [ (kSymbol, ([tSymbol], I64)) ]
+    let gApply = TypeApply gSymbol []
+
+    assert(typesCouldMatch typeFuncs typeVars (TypeApply kSymbol [I64]) (TypeApply kSymbol [gApply])) "Key(i64) == Key(G)"
+    assert(typesCouldMatch typeFuncs typeVars (TypeApply kSymbol [gApply]) (TypeApply kSymbol [I64])) "Key(G) == Key(i64)"
+
+
 testTypeMatcher :: IO ()
 testTypeMatcher = do
     test1
@@ -138,4 +151,5 @@ testTypeMatcher = do
     test3
     test4
     test5
+    test6
     putStrLn "testTypeMatcher success"

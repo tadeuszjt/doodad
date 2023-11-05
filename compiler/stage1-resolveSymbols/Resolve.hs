@@ -45,7 +45,6 @@ data ResolveState
         , imports      :: [ASTResolved]
         , modName      :: String
         , supply       :: Map.Map String Int
-        , generics     :: Set.Set Symbol
         , funcDefsMap  :: Map.Map Symbol FuncBody
         , typeFuncsMap :: Map.Map Symbol ([Symbol], AnnoType)
         }
@@ -55,7 +54,6 @@ initResolveState imports modName typeImports = ResolveState
     , imports       = imports
     , modName       = modName
     , supply        = Map.empty
-    , generics      = Set.empty
     , funcDefsMap   = Map.empty
     , typeFuncsMap  = Map.empty
     }
@@ -69,7 +67,6 @@ look symbol key = do
     return $ fromJust lm
 
 
--- TODO absolutely broken shite
 lookm :: BoM ResolveState m => Symbol -> SymKey -> m (Maybe Symbol)
 lookm (Sym sym) KeyVar = SymTab.lookup sym KeyVar <$> gets symTab
 lookm symbol key = case symbol of
@@ -79,11 +76,17 @@ lookm symbol key = case symbol of
             Just s -> return (Just s)
             Nothing -> do
                 case key of
-                    KeyFunc -> do 
-                        xs <- concat . map (Map.keys . Map.filterWithKey (\s _ -> Symbol.sym s == sym) . ctorDefs) <$> gets imports
+                    -- if the symbol is a constructor, resolve here
+                    KeyFunc -> do
+                        imprts <- gets imports
+                        xs <- fmap concat $ forM imprts $
+                            \imprt -> return $ Map.keys $ Map.filterWithKey
+                                (\s _ -> Symbol.sym s == sym && Symbol.mod s == moduleName imprt)
+                                (ctorDefs imprt)
                         case xs of 
                             [x] -> return (Just x)
                             [] -> return (Just symbol) -- Maybe remove this
+                            xs -> error (show xs)
                     KeyType -> do
                         xs <- Set.toList . Set.fromList . concat . map (Map.keys . Map.filterWithKey (\s _ -> Symbol.sym s == sym) . typeFuncs) <$> gets imports
                         case xs of

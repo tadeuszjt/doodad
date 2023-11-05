@@ -1,0 +1,17 @@
+module table
+
+
+fn[T] {t:[]T} length() i64
+    ${ return $t->len; }
+
+
+fn[T] {t:[]T} push(elem:()T)
+    t++
+    t[t.length() - 1] = elem{}
+
+
+fn[T] {t:[]T} pop() ()T
+    data elem ()T
+    elem{} = t[t.length() - 1]
+    ${ $t->len--; }
+    return elem

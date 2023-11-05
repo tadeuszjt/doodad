@@ -121,6 +121,23 @@ resolveFuncCall exprType (AST.Call pos params callSymbol args) = withPos pos $ d
                         else
                             return callSymbol
 
+        [nonGenericSymbol, genericSymbol] |
+            isGenericFunction genericSymbol ast &&
+            isNonGenericFunction nonGenericSymbol ast -> do
+                let genericBody = getFunctionBody genericSymbol ast
+                resE <- tryError $ replaceGenericsInFuncBodyWithCall genericBody callHeader
+                case resE of
+                    Left e -> do
+                        liftIO $ putStrLn $ "warning: replaceGenericsInFuncBodyWithCall failed for: " ++ show callSymbol ++ " - " ++ show e
+                        return callSymbol
+                    Right bodyReplaced -> do
+                        let genericHeader    = funcHeaderFromBody nonGenericSymbol bodyReplaced
+                        let nonGenericHeader = funcHeaderFromBody nonGenericSymbol (getFunctionBody nonGenericSymbol ast)
+                        if genericHeader == nonGenericHeader then
+                            return nonGenericSymbol
+                        else
+                            return callSymbol
+
         _ -> do
             --liftIO $ putStrLn $ "multiple candidates for: " ++ show candidates
             return callSymbol

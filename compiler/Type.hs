@@ -106,7 +106,12 @@ applyTypeArguments :: [Symbol] -> [Type] -> Type -> Type
 applyTypeArguments argSymbols argTypes typ = case length argSymbols == length argTypes of
     False -> error $ "invalid arguments to applyTypeArguments for: " ++ show typ
     True -> let args = zip argSymbols argTypes in case typ of
+
         TypeApply s [] -> if isJust (lookup s args) then fromJust (lookup s args) else typ
+        TypeApply s ts -> case lookup s args of
+            Just x  -> error (show x)
+            Nothing -> TypeApply s $ map (applyTypeArguments argSymbols argTypes) ts
+
     --    TypeApply s t | isJust (lookup s args) -> case fromJust (lookup s args) of
     --        TypeApply s2 (Record []) -> TypeApply s2 t
         Record ts               -> Record $ map (applyTypeArguments argSymbols argTypes) ts

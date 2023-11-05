@@ -33,7 +33,12 @@ findFunctionCandidates :: BoM ASTResolved m => FuncHeader -> m [Symbol]
 findFunctionCandidates callHeader = do
     ast <- get
     fmap catMaybes $ forM (Map.toList $ Map.union (funcDefs ast) (funcImports ast)) $ \(symbol, body) -> do
-        case funcHeadersCouldMatch ast (funcHeaderFromBody symbol body) callHeader of
+        let bodyHeader = funcHeaderFromBody symbol body
+--        when (Symbol.sym (ASTResolved.symbol callHeader) == "length") $ do
+--            liftIO $ putStrLn $ "callHeader: " ++ show callHeader 
+--            liftIO $ putStrLn $ "bodyHeader: " ++ show bodyHeader 
+--            liftIO $ putStrLn $ "could match: " ++ show (funcHeadersCouldMatch ast bodyHeader callHeader)
+        case funcHeadersCouldMatch ast bodyHeader callHeader of
             True -> return $ Just $ symbol
             False -> return Nothing
 
@@ -154,8 +159,13 @@ getConstraintsFromTypes typeArgs t1 t2 = do
                 (TypeApply s1 ts1, TypeApply s2 ts2)
                     | s1 `elem` typeArgs -> do 
                         assert (not $ s2 `elem` typeArgs) "don't know"
-                        assert (length ts1 == length ts2) "type argument lengths mismatch"
-                        (ConsEq t1 t2 :) . concat <$> zipWithM fromTypes ts1 ts2
+
+                        case ts1 of
+                            [] -> return [ConsEq t1 t2]
+                            _  -> do
+                                assert (length ts1 == length ts2) $
+                                    "type argument lengths mismatch: " ++ show (t1, t2)
+                                (ConsEq t1 t2 :) . concat <$> zipWithM fromTypes ts1 ts2
 
                     | not (elem s1 typeArgs) && s1 == s2 -> do
                         assert (length ts1 == length ts2) "type argument lengths mismatch"

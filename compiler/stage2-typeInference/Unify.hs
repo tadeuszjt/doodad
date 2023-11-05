@@ -85,7 +85,7 @@ unifyOne pos constraint = withPos pos $ case constraint of
                     Just (Record ts) -> unifyOne pos $ ConsEq exprType t
                     _ -> error (show baseT)
 
-            Just t | isSimple t -> unifyOne pos $ ConsEq exprType (Record [t])
+            Just t | isSimple t -> unifyOne pos $ ConsEq exprType (Record [typ])
             Nothing -> return []
             _ -> error (show base)
 

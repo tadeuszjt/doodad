@@ -1,20 +1,25 @@
 module map
 
 import std/maybe
+import std/table
 
 
-type[K, V] Map [K, V]
+type[K, V] Map []{keys:K, values:V}
 
-fn[K, V] {m:Map(K, V)} insert(key:K, value:V)
-    for m[..] -> i | m[i] -> (k, v)
-        if k == key
-            m[i] = (k, value)
+
+fn[K, V] {m:Map(K, V)} insert(key:()K, value:()V)
+    for m[..] -> i
+        if m.keys[i] == key{}
+            m.values[i] = value{}
             return
-    m += ([key], [value])
+    
+    m++
+    m.keys[len(m) - 1]   = key{}
+    m.values[len(m) - 1] = value{}
 
 
-fn[K, V] {m:Map(K, V)} find(key:K) Maybe(V)
-    for m -> (k, v)
-        if k == key
-            return conv(v)
-    return null
+fn[K, V] {m:Map(K, V)} find(key:()K) Maybe(()V)
+    for m[..] -> i
+        if m.keys[i] == key{}
+            return Just( conv(m.values[i]) )
+    return Nothing()

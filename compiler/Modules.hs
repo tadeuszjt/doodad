@@ -111,7 +111,7 @@ buildBinaryFromModule args modPath = do
         liftIO $ putStrLn $ "linking '" ++ path ++ "'"
 
     when (printC args) $ do
-        forM_ (reverse cFiles) $ \file -> do
+        forM_ (cFiles) $ \file -> do
             liftIO $ putStrLn =<< readFile file
 
     exitCode <- liftIO $ rawSystem "gcc" $

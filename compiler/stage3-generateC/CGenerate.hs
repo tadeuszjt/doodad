@@ -175,7 +175,9 @@ convert typ val = do
     baseVal <- baseTypeOf val
     r <- initialiser typ []
     case (base, baseVal) of
-        _ | base == baseVal -> set r val
+        _ | base == baseVal -> do
+            let Value _ expr = val
+            set r (Value typ expr)
 
         (t1, Record [t2]) | t1 == t2 -> do
             set r $ Value typ $ C.Deref $ C.Member (valExpr val) "m0"
@@ -275,7 +277,7 @@ member index val = do
             Type.Record ts <- baseTypeOf t
             let Type.RecordTree ns = getRecordTree typeDefs t
             case ns !! index of
-                RecordLeaf t i -> assign "member" $ Value (ts !! index) $
+                RecordLeaf t i -> return $ Value (ts !! index) $
                     C.Member (valExpr val) ("m" ++ show i)
 
                 RecordTree _ -> do
@@ -361,30 +363,16 @@ accessRecord val marg = do
                     assign "record" $ Value t $ C.Initialiser elems
 
                 _ -> error (show baseT)
-            
 
         x -> error (show x)
-
-        _ -> error (show base)
-
 
 
 baseTypeOf :: (MonadGenerate m, Typeof a) => a -> m Type.Type
 baseTypeOf a = case typeof a of
     Type.TypeApply symbol ts -> do
-        resm <- Map.lookup symbol <$> gets typefuncs
-        case resm of
-            Nothing                -> fail $ "baseTypeOf: " ++ show (typeof a)
-            Just (argSymbols, typ) -> do
-                assert (length argSymbols == length ts) "invalid number of type arguments"
-                baseTypeOf $ applyTypeArguments argSymbols ts typ
-
---            Just (symbols, typ) -> do
---                assert (length ts == length symbols) $ "Invalid type function arguments: " ++ show ts
---                baseTypeOf $ applyTypeArguments (Map.fromList $ zip symbols ts) typ
-        
+        (argSymbols, typ) <- mapGet symbol =<< gets typefuncs
+        baseTypeOf (applyTypeArguments argSymbols ts typ)
     _ -> return (typeof a)
-    _ -> error (show $ typeof a)
 
 
 cParamOf :: MonadGenerate m => S.Param -> m C.Param
@@ -405,43 +393,16 @@ cTypeOf a = case typeof a of
     Type.Bool -> return $ Cbool
     Type.Char -> return $ Cchar
     Type.String -> return $ Cpointer Cchar
+    Type.Tuple t -> getTypedef "Tuple" =<< cTypeNoDef (Type.Tuple t)
+    Type.Table t -> getTypedef "Table" =<< cTypeNoDef (Type.Table t)
+    Type.Record ts -> getTypedef "Record" =<< cTypeNoDef (Type.Record ts)
+    Type.ADT ts -> getTypedef "Adt" =<< cTypeNoDef (Type.ADT ts)
+    Type.Range t -> getTypedef "Range" =<< cTypeNoDef (Type.Range t)
+
     Type.TypeApply symbol argTypes -> do
         (argSymbols, typ) <- mapGet symbol =<< gets typefuncs
         assert (length argSymbols == length argTypes) "invalid number of type arguments"
-        getTypedef (Symbol.sym symbol) =<< cTypeOf (applyTypeArguments argSymbols argTypes typ)
-    Type.Tuple t -> do
-        baseT <- baseTypeOf t
-        case baseT of
-            Record _ -> do
-                ts <- recordLeafTypes t
-                cts <- mapM cTypeOf ts
-                getTypedef "tuple" $ Cstruct $ zipWith (\a b -> C.Param ("m" ++ show a) b) [0..] cts
-            t -> cTypeOf t
-
-    Type.Table t -> do
-        base <- baseTypeOf t
-        typeDefs <- gets typefuncs
-        ts <- case base of
-            Record ts -> recordLeafTypes t
-            t         -> return [t]
-        cts <- mapM cTypeOf ts
-        let pts = zipWith (\ct i -> C.Param ("r" ++ show i) (Cpointer ct)) cts [0..]
-        getTypedef "table" $ Cstruct (C.Param "len" Cint64_t:C.Param "cap" Cint64_t:pts)
-
-    Type.Record ts -> do
-        cts <- mapM cTypeOf =<< recordLeafTypes (Type.Record ts)
-        getTypedef "record" $ Cstruct $ zipWith (\ct i -> C.Param ("m" ++ show i) (Cpointer ct)) cts [0..]
---    Type.Array n t -> do
---        arr <- Carray n <$> cTypeOf t
---        getTypedef "array" $ Cstruct [C.Param "arr" arr]
-    Type.Range t -> do
-        ct <- cTypeOf t
-        getTypedef "range" $ Cstruct [C.Param "min" ct, C.Param "max" ct]
-    Type.ADT ts -> do
-        cts <- mapM cTypeOf (map replaceVoid ts)
-        getTypedef "adt" $ Cstruct [C.Param "en" Cint64_t, C.Param "" $
-            Cunion $ map (\(ct, i) -> C.Param ("u" ++ show i) ct) (zip cts [0..])]
-
+        getTypedef (Symbol.sym symbol) =<< cTypeNoDef (applyTypeArguments argSymbols argTypes typ)
 
     _ -> error (show $ typeof a)
 
@@ -450,6 +411,47 @@ cTypeOf a = case typeof a of
         replaceVoid Void = I8
         replaceVoid t    = t
 
+        cTypeNoDef :: (MonadGenerate m, Typeof a) => a -> m C.Type
+        cTypeNoDef a = case typeof a of
+            I64 -> return $ Cint64_t
+            I32 -> return $ Cint32_t
+            I8 ->  return $ Cint8_t
+            U8 ->  return $ Cuint8_t
+            F64 -> return $ Cdouble
+            F32 -> return $ Cfloat
+            Void -> return Cvoid
+            Type.Bool -> return $ Cbool
+            Type.Char -> return $ Cchar
+            Type.String -> return $ Cpointer Cchar
+            Type.Tuple t -> do
+                baseT <- baseTypeOf t
+                case baseT of
+                    Record _ -> do
+                        cts <- mapM cTypeOf =<< recordLeafTypes t
+                        return $ Cstruct $ zipWith (\a b -> C.Param ("m" ++ show a) b) [0..] cts
+
+            Type.Range t -> do
+                ct <- cTypeOf t
+                return $ Cstruct [ C.Param "min" ct, C.Param "max" ct ]
+
+            Type.ADT ts -> do
+                cts <- mapM cTypeOf (map replaceVoid ts)
+                return $ Cstruct [C.Param "en" Cint64_t, C.Param "" $
+                    Cunion $ map (\(ct, i) -> C.Param ("u" ++ show i) ct) (zip cts [0..])]
+
+            Type.Table t -> do
+                baseT <- baseTypeOf t
+                cts <- mapM cTypeOf =<< case baseT of
+                    Record ts -> recordLeafTypes t
+                    t         -> return [t]
+                let pts = zipWith (\ct i -> C.Param ("r" ++ show i) (Cpointer ct)) cts [0..]
+                return $ Cstruct (C.Param "len" Cint64_t:C.Param "cap" Cint64_t:pts)
+
+            Type.Record ts -> do
+                cts <- mapM cTypeOf =<< recordLeafTypes (Type.Record ts)
+                return $ Cstruct $ zipWith (\ct i -> C.Param ("m" ++ show i) (Cpointer ct)) cts [0..]
+
+            x -> error (show x)
 
 
 getTypedef :: MonadGenerate m => String -> C.Type -> m C.Type

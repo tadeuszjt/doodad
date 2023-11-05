@@ -1,42 +1,10 @@
 module main2
 
-
-type[K, V] Map []{keys:K, values:V}
-
-
-fn[K, V] {m:Map(K, V)} insert(key:()K, value:()V)
-    for m[..] -> i
-        if m.keys[i] == key{}
-            m.values[i] = value{}
-            return
-    
-    m++
-    m.keys[len(m) - 1]   = key{}
-    m.values[len(m) - 1] = value{}
-
-
-fn[K, V] {m:Map(K, V)} find(key:()K) Maybe(()V)
-    for m[..] -> i
-        if m.keys[i] == key{}
-            return Just( conv(m.values[i]) )
-    return Nothing()
-
+import std/maybe
+import std/table
+import std/map
 
 type Person {string, i32}
-
-fn[T] {t:[]T} length() i64
-    ${ return $t->len; }
-
-fn[T] {t:[]T} push(elem:()T)
-    t++
-    t[t.length() - 1] = elem{}
-
-fn[T] {t:[]T} pop() ()T
-    data elem ()T
-    elem{} = t[t.length() - 1]
-    ${ $t->len--; }
-    return elem
-
 
 fn testTuple()
     let t1 = (1, true, "three"):(){i64, bool, string}
@@ -77,8 +45,11 @@ fn testTable()
 
     data tab3 []{i64, bool}
     tab3.push( (1, true) )
-    //let (1, true) = conv(tab3[0]):(i64, bool)
     let {1, true} = tab3[0]
+
+    data tab4 []SparseKey(i64)
+    tab4.push(3)
+    let 3 = tab4.pop()
 
     print("testTable passed")
 
@@ -112,22 +83,34 @@ fn testMap()
     print("testMap passed")
 
 
+fn testSparse()
+    data s1 Sparse(i64)
+    let 0 = s1.insert(3)
+    let 1 = s1.insert(4)
+    let 2 = s1.insert(5)
 
-type[T] Maybe (Nothing:null | Just:T)
-type[T] Sparse (values:[]T, empty:[]i64)
+    s1.delete(1)
+    let 1 = s1.insert(6)
+    let 3 = s1.insert(7)
 
-fn[T] {s:Sparse(T)} insert(value:()T) i64
+    print("testSparse passed")
+
+
+type[T] SparseKey i64
+type[T] Sparse (values:[]T, empty:[]SparseKey(T))
+
+fn[T] {s:Sparse(T)} insert(value:()T) SparseKey(T)
     if s.empty.length() > 0
         let key = s.empty.pop()
         s.values[key] = value{}
         return key
 
     s.values.push(value)
-    return s.values.length() - 1
+    return conv(s.values.length() - 1)
 
 
-fn[T] {s:Sparse(T)} delete(key:i64)
-    if key == s.values.length() - 1
+fn[T] {s:Sparse(T)} delete(key:SparseKey(T))
+    if key == conv(s.values.length() - 1)
         s.values.pop()
     else
         s.empty.push(key)
@@ -137,4 +120,5 @@ fn main()
     testTuple()
     testTable()
     testMap()
+    testSparse()
     print("main2 finished")
