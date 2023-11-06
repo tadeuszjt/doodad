@@ -25,9 +25,7 @@ baseTypeOf typ = case typ of
         resm <- gets $ Map.lookup symbol . typeFuncs
         case resm of
             Nothing              -> return Nothing
-            Just (argSymbols, t) -> do
-                assert (length argSymbols == length ts) "invalid number of type arguments"
-                baseTypeOf $ applyTypeArguments argSymbols ts t
+            Just (argSymbols, t) -> baseTypeOf (applyTypeArguments argSymbols ts t)
     Type x -> return Nothing
     t      -> return (Just t)
 
@@ -90,14 +88,14 @@ unifyOne pos constraint = withPos pos $ case constraint of
             _ -> error (show base)
 
     ConsEq t1 t2 -> case (t1, t2) of
-        _ | t1 == t2                    -> return []
-        (Type x, t)                     -> return [(Type x, t)]
-        (t, Type x)                     -> return [(Type x, t)]
+        _ | t1 == t2             -> return []
+        (Type x, t)              -> return [(Type x, t)]
+        (t, Type x)              -> return [(Type x, t)]
+        (Table t1, Table t2)     -> unifyOne pos $ ConsEq t1 t2
+        (Tuple t1, Tuple t2)     -> unifyOne pos $ ConsEq t1 t2
         (Record ts1, Record ts2) -> do
             assert (length ts1 == length ts2) $ "record length mismatch: " ++ show (t1, t2)
             unify $ zipWith (\a b -> (ConsEq a b, pos)) ts1 ts2
-        (Table t1, Table t2)      -> unifyOne pos $ ConsEq t1 t2
-        (Tuple t1, Tuple t2)      -> unifyOne pos $ ConsEq t1 t2
 
         _ -> fail $ "un - cannot unify " ++ show t1 ++ " with " ++ show t2
 
@@ -111,31 +109,6 @@ unifyOne pos constraint = withPos pos $ case constraint of
                 unifyOne pos $ ConsEq t (ts !! i)
             _ -> error (show basem)
         
-
-    ConsMember t1 i t2 -> do
-        basem <- baseTypeOf t1
-        case basem of
---            Just (Tuple ts)  -> unifyOne pos (ConsEq t2 $ ts !! i)
---            Just (Table ts)  -> unifyOne pos (ConsEq t2 $ ts !! i)
---            Just (Array n t) -> do 
---                assert (i == 0) "ConsMember: Invalid index"
---                unifyOne pos (ConsEq t2 t)
---            Just (Range t)   -> do 
---                assert (i == 0) "ConsMember: Invalid index"
---                unifyOne pos (ConsEq t2 t)
-            Just String -> do
-                unifyOne pos (ConsEq t2 Char)
-            Nothing -> return []
-            _ -> error (show basem)
-
-    ConsElem t1 t2 -> do
-        basem <- baseTypeOf t1
-        case basem of
---            Just (Table [t]) -> unifyOne pos (ConsEq t2 t)
---            Just (Table ts)  -> unifyOne pos (ConsEq t2 $ Tuple ts)
---            Just (Array n t) -> unifyOne pos (ConsEq t2 t)
-            Nothing -> return []
-            _ -> error (show basem)
 
     ConsSubscript t1 t2 -> do
         basem <- baseTypeOf t1
@@ -152,7 +125,6 @@ unifyOne pos constraint = withPos pos $ case constraint of
 
             Nothing -> return []
             _ -> error (show basem)
-            _ -> return []
 
     ConsBase t1 t2 -> do
         base1m <- baseTypeOf t1

@@ -87,8 +87,29 @@ isSimple typ = case typ of
 
 isIntegral x = isInt x || x == Char
 
+mapType :: (Type -> Type) -> Type -> Type
+mapType f typ = f $ case typ of
+        U8             -> typ
+        I8             -> typ
+        I16            -> typ
+        I32            -> typ
+        I64            -> typ
+        F32            -> typ
+        F64            -> typ
+        Bool           -> typ
+        String         -> typ
+        Char           -> typ
+        Type _         -> typ
+        Record ts      -> Record $ map (mapType f) ts
+        Tuple t        -> Tuple $ mapType f t
+        Table t        -> Table $ mapType f t
+        TypeApply s ts -> TypeApply s $ map (mapType f) ts
+        Range t        -> Type.Range $ mapType f t
+        ADT ts         -> ADT $ map (mapType f) ts
+        Void           -> typ
+        _ -> error (show typ)
 
-findGenerics :: [Symbol] -> Type -> [Type]
+
 findGenerics typeArgs typ = case typ of
     t | isSimple t -> []
     TypeApply s [] | s `elem` typeArgs -> [typ]
@@ -106,14 +127,11 @@ applyTypeArguments :: [Symbol] -> [Type] -> Type -> Type
 applyTypeArguments argSymbols argTypes typ = case length argSymbols == length argTypes of
     False -> error $ "invalid arguments to applyTypeArguments for: " ++ show typ
     True -> let args = zip argSymbols argTypes in case typ of
-
         TypeApply s [] -> if isJust (lookup s args) then fromJust (lookup s args) else typ
         TypeApply s ts -> case lookup s args of
             Just x  -> error (show x)
             Nothing -> TypeApply s $ map (applyTypeArguments argSymbols argTypes) ts
 
-    --    TypeApply s t | isJust (lookup s args) -> case fromJust (lookup s args) of
-    --        TypeApply s2 (Record []) -> TypeApply s2 t
         Record ts               -> Record $ map (applyTypeArguments argSymbols argTypes) ts
         Tuple t                 -> Tuple $ applyTypeArguments argSymbols argTypes t
         Table t                 -> Table $ applyTypeArguments argSymbols argTypes t
@@ -192,18 +210,9 @@ definitelyIgnoresTuples typedefs typ = case typ of
 -- ()T           -> ()T
 -- (){i64, bool} -> (){i64, bool}
 flattenTuple :: TypeDefs -> Type -> Type
-flattenTuple typedefs typ = case typ of
-    t | isSimple t                               -> typ
-    Void                                         -> typ
-    Type _                                       -> typ
-    Table t                                      -> Table (flattenTuple typedefs t)
-    TypeApply s ts                               -> TypeApply s $ map (flattenTuple typedefs) ts
-    Record ts                                    -> Record $ map (flattenTuple typedefs) ts
-    ADT ts                                       -> ADT $ map (flattenTuple typedefs) ts
-    Range t                                      -> Range (flattenTuple typedefs t)
-    Tuple t | definitelyIgnoresTuples typedefs t -> flattenTuple typedefs t
-    Tuple t | otherwise                          -> Tuple (flattenTuple typedefs t)
-    _                                            -> error (show typ)
+flattenTuple typeDefs = mapType $ \typ -> case typ of
+    Tuple t | definitelyIgnoresTuples typeDefs t -> t
+    _                                            -> typ
 
 
 -- Returns the list of types represeted by a tree of records.

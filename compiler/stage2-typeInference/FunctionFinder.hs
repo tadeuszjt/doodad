@@ -93,7 +93,7 @@ replaceGenericsInFuncBodyWithCall body callHeader = do
     constraints <- getConstraintsFromFuncHeaders header callHeader
     subs <- unify (typeArgs header) constraints
     body' <- applySubs subs body
-    mapFuncBody (tupleDeleterMapper (typeFuncs ast)) $ body' { funcTypeArgs = [] }
+    mapFuncBodyM (tupleDeleterMapper (typeFuncs ast)) $ body' { funcTypeArgs = [] }
 
 
 unifyOne :: BoM s m => [Symbol] -> Constraint -> m [(Type, Type)]

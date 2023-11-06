@@ -13,16 +13,9 @@ import ASTResolved
 import ASTMapper
 import Monad
 
--- constraint:   (t1, t2) or (x, y)
--- substitution: (id, t) or (x, u)
-substitute :: Type -> Type -> Type -> Type
-substitute u x typ = case typ of
-    _ | typ == x         -> u  -- this one replaces regardless of type
-    _                    -> typ
-
 
 applySubs :: (Apply a, BoM s m) => [(Type, Type)] -> a -> m a
-applySubs subs a = apply (\t -> foldr (\(x, u) z -> substitute u x z) t subs) a
+applySubs subs a = apply (\t -> foldr (\(x, u) z -> if z == x then u else z) t subs) a
 
 
 mapper :: BoM s m => (Type -> Type) -> Elem -> m (Maybe Elem)
@@ -37,27 +30,27 @@ mapper f elem = case elem of
 
 -- Apply represents taking a function and applying it to all types in an object.
 class Apply a             where apply :: BoM s m => (Type -> Type) -> a -> m a
-instance Apply FuncBody   where apply f body            = mapFuncBody (mapper f) body
-instance Apply FuncHeader where apply f header          = mapFuncHeader (mapper f) header
-instance Apply S.Stmt     where apply f stmt            = mapStmt (mapper f) stmt
-instance Apply S.Param    where apply f (S.Param p n t) = return $ S.Param p n (f t)
+instance Apply FuncBody   where apply f body    = mapFuncBodyM (mapper f) body
+instance Apply FuncHeader where apply f header  = mapFuncHeaderM (mapper f) header
+instance Apply S.Stmt     where apply f stmt    = mapStmtM (mapper f) stmt
             
 instance Apply ASTResolved where
     apply f ast = do
         funcDefs' <- mapM (apply f) (funcDefs ast)
         return $ ast { funcDefs = funcDefs' }
 
+-- TODO this is broken, needs to recurse
 instance Apply Constraint where
     apply f constraint = case constraint of
-        ConsEq t1 t2         -> return $ ConsEq (f t1) (f t2)
-        ConsBase t1 t2       -> return $ ConsBase (f t1) (f t2)
-        ConsMember t1 i t2   -> return $ ConsMember (f t1) i (f t2)
-        ConsElem t1 t2       -> return $ ConsElem (f t1) (f t2)
-        ConsSubscript t1 t2  -> return $ ConsSubscript (f t1) (f t2)
-        ConsAdtField t1 i j t2 -> return $ ConsAdtField (f t1) i j (f t2)
-        ConsTuple t1 ts      -> return $ ConsTuple (f t1) (map f ts)
-        ConsRecordAccess t1 t2 -> return $ ConsRecordAccess (f t1) (f t2)
-        ConsSpecial t1 t2      -> return $ ConsSpecial (f t1) (f t2)
-        ConsField  t1 s t2     -> return $ ConsField (f t1) s (f t2)
+        ConsEq t1 t2           -> return $ ConsEq (rf t1) (rf t2)
+        ConsBase t1 t2         -> return $ ConsBase (rf t1) (rf t2)
+        ConsSubscript t1 t2    -> return $ ConsSubscript (rf t1) (rf t2)
+        ConsAdtField t1 i j t2 -> return $ ConsAdtField (rf t1) i j (rf t2)
+        ConsTuple t1 ts        -> return $ ConsTuple (rf t1) (map rf ts)
+        ConsRecordAccess t1 t2 -> return $ ConsRecordAccess (rf t1) (rf t2)
+        ConsSpecial t1 t2      -> return $ ConsSpecial (rf t1) (rf t2)
+        ConsField  t1 s t2     -> return $ ConsField (rf t1) s (rf t2)
+        where
+            rf = mapType f
 
 

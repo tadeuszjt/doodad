@@ -32,7 +32,7 @@ compile verbose = do
     funcDefs <- gets funcDefs
     forM_ (Map.toList funcDefs) $ \(symbol, body) -> do
         when (funcTypeArgs body == []) $ do
-            stmt' <- (mapStmt cleanUpMapper) (funcStmt body)
+            stmt' <- (mapStmtM cleanUpMapper) (funcStmt body)
             body' <- return body { funcStmt = stmt' }
             modify $ \s -> s { funcDefs = Map.insert symbol body' (ASTResolved.funcDefs s) }
 

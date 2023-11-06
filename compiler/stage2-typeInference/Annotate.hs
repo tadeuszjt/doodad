@@ -12,7 +12,7 @@ import ASTMapper
 -- This is the first step of the Hindley-Milner type inference algorithm.
 annotate :: BoM Int m => ASTResolved -> m ASTResolved
 annotate resolvedAST = do 
-    funcDefs <- mapM (mapFuncBody annotateMapper) (funcDefs resolvedAST)
+    funcDefs <- mapM (mapFuncBodyM annotateMapper) (funcDefs resolvedAST)
     return $ resolvedAST { funcDefs = funcDefs }
         
 annotateMapper :: BoM Int m => Elem -> m (Maybe Elem)
@@ -37,7 +37,7 @@ genType = do
 -- DeAnnotate takes an AST and removes all unresolved type annotations.
 deAnnotate :: BoM s m => ASTResolved -> m ASTResolved
 deAnnotate resolvedAst = do
-    funcDefs <- mapM (mapFuncBody deAnnotateMapper) (funcDefs resolvedAst)
+    funcDefs <- mapM (mapFuncBodyM deAnnotateMapper) (funcDefs resolvedAst)
     return $ resolvedAst { funcDefs = funcDefs }
 
 deAnnotateMapper :: BoM s m => Elem -> m (Maybe Elem)

@@ -378,9 +378,9 @@ instance Resolve Stmt where
             processCEmbed [] = return ""
 
 
-instance Resolve Type where resolve = mapType resolveMapper
+instance Resolve Type where resolve = mapTypeM resolveMapper
 instance Resolve Pattern where resolve = mapPattern resolveMapper
-instance Resolve Expr where resolve = mapExpr resolveMapper
+instance Resolve Expr where resolve = mapExprM resolveMapper
 instance Resolve Param where
     resolve (Param pos (Sym sym) typ) = withPos pos $ do
         typ' <- resolve typ

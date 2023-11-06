@@ -21,7 +21,7 @@ tupleDeleterMapper typeDefs elem = do
 deleteSingleTuples :: BoM ASTResolved m => m ()
 deleteSingleTuples = do
     typeDefs <- gets typeFuncs
-    funcDefs'  <- mapM (mapFuncBody (tupleDeleterMapper typeDefs)) =<< gets funcDefs
-    typeFuncs' <- mapM (\(ss, t) -> do { t' <- mapType (tupleDeleterMapper typeDefs) t; return (ss, t')}) =<< gets typeFuncs
+    funcDefs'  <- mapM (mapFuncBodyM (tupleDeleterMapper typeDefs)) =<< gets funcDefs
+    typeFuncs' <- mapM (\(ss, t) -> do { t' <- mapTypeM (tupleDeleterMapper typeDefs) t; return (ss, t')}) =<< gets typeFuncs
     modify $ \s -> s { funcDefs = funcDefs', typeFuncs = typeFuncs' }
 

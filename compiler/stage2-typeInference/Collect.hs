@@ -226,7 +226,8 @@ collectPattern pattern typ = collectPos pattern $ case pattern of
     S.PatArray _ pats -> do
         gt <- genType
         mapM_ (\p -> collectPattern p gt) pats
-        collect $ ConsMember typ 0 gt
+        error "here"
+        --collect $ ConsMember typ 0 gt
 
     S.PatAnnotated pat t -> do
         collectEq t typ

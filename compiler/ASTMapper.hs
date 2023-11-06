@@ -19,22 +19,16 @@ data Elem
 type MapperFunc m = (Elem -> m (Maybe Elem))
 
 
-
-mapAST :: BoM s m => MapperFunc m -> AST -> m AST
-mapAST f ast = do
-    stmts' <- mapM (mapStmt f) (astStmts ast)
-    return $ ast { astStmts = stmts' }
-
-mapParam :: BoM s m => MapperFunc m -> Param -> m Param
-mapParam f (AST.Param pos symbol typ) = withPos pos $ AST.Param pos symbol <$> (mapType f typ)
+mapParamM :: BoM s m => MapperFunc m -> Param -> m Param
+mapParamM f (AST.Param pos symbol typ) = withPos pos $ AST.Param pos symbol <$> (mapTypeM f typ)
     
 
-mapFuncBody :: BoM s m => MapperFunc m -> FuncBody -> m FuncBody
-mapFuncBody f body = do
-    funcParams' <- mapM (mapParam f) (funcParams body)
-    funcArgs'   <- mapM (mapParam f) (funcArgs body)
-    funcRetty'  <- mapType f (funcRetty body)
-    funcStmt'   <- mapStmt f (funcStmt body)
+mapFuncBodyM :: BoM s m => MapperFunc m -> FuncBody -> m FuncBody
+mapFuncBodyM f body = do
+    funcParams' <- mapM (mapParamM f) (funcParams body)
+    funcArgs'   <- mapM (mapParamM f) (funcArgs body)
+    funcRetty'  <- mapTypeM f (funcRetty body)
+    funcStmt'   <- mapStmtM f (funcStmt body)
     return $ FuncBody
         { funcTypeArgs = funcTypeArgs body
         , funcParams   = funcParams'
@@ -44,11 +38,11 @@ mapFuncBody f body = do
         }
 
 
-mapFuncHeader :: BoM s m => MapperFunc m -> FuncHeader -> m FuncHeader
-mapFuncHeader f header = do
-    paramTypes' <- mapM (mapType f) (paramTypes header)
-    argTypes'   <- mapM (mapType f) (argTypes header)
-    returnType' <- mapType f (returnType header)
+mapFuncHeaderM :: BoM s m => MapperFunc m -> FuncHeader -> m FuncHeader
+mapFuncHeaderM f header = do
+    paramTypes' <- mapM (mapTypeM f) (paramTypes header)
+    argTypes'   <- mapM (mapTypeM f) (argTypes header)
+    returnType' <- mapTypeM f (returnType header)
     return $ FuncHeader {
         typeArgs = typeArgs header,
         paramTypes = paramTypes',
@@ -58,53 +52,53 @@ mapFuncHeader f header = do
         }
 
 
-mapStmt :: BoM s m => MapperFunc m -> Stmt -> m Stmt
-mapStmt f stmt = withPos stmt $ do
+mapStmtM :: BoM s m => MapperFunc m -> Stmt -> m Stmt
+mapStmtM f stmt = withPos stmt $ do
     prevState <- get
     resm <- f . ElemStmt =<< case stmt of
         Typedef _ _ _ _ -> return stmt -- ignored
         EmbedC pos s -> return $ EmbedC pos s
-        Block stmts -> Block <$> mapM (mapStmt f) stmts
-        ExprStmt expr -> ExprStmt <$> mapExpr f expr
-        Return pos mexpr -> Return pos <$> maybe (return Nothing) (fmap Just . mapExpr f) mexpr
+        Block stmts -> Block <$> mapM (mapStmtM f) stmts
+        ExprStmt expr -> ExprStmt <$> mapExprM f expr
+        Return pos mexpr -> Return pos <$> maybe (return Nothing) (fmap Just . mapExprM f) mexpr
 
         Assign pos pat expr -> do
             pat' <- mapPattern f pat
-            expr' <- mapExpr f expr
+            expr' <- mapExprM f expr
             return $ Assign pos pat' expr'
 
         Increment pos expr -> do
-            expr' <- mapExpr f expr
+            expr' <- mapExprM f expr
             return $ Increment pos expr'
 
         For pos expr mcnd blk -> do
-            expr' <- mapExpr f expr
+            expr' <- mapExprM f expr
             mcnd' <- maybe (return Nothing) (fmap Just . (mapPattern f)) mcnd
-            blk'  <- mapStmt f blk
+            blk'  <- mapStmtM f blk
             return $ For pos expr' mcnd' blk'
 
         If pos expr true mfalse -> do
-            expr' <- mapExpr f expr
-            true' <- mapStmt f true
-            mfalse' <- maybe (return Nothing) (fmap Just . mapStmt f) mfalse
+            expr' <- mapExprM f expr
+            true' <- mapStmtM f true
+            mfalse' <- maybe (return Nothing) (fmap Just . mapStmtM f) mfalse
             return $ If pos expr' true' mfalse'
 
         Switch pos expr cases -> do
-            expr' <- mapExpr f expr
+            expr' <- mapExprM f expr
             cases' <- forM cases $ \(pat, stmt) -> do
                 pat' <- mapPattern f pat
-                stmt' <- mapStmt f stmt
+                stmt' <- mapStmtM f stmt
                 return (pat', stmt')
             return $ Switch pos expr' cases'
 
         Data pos symbol typ mexpr -> do
-            typ' <- mapType f typ
-            mexpr' <- maybe (return Nothing) (fmap Just . mapExpr f) mexpr
+            typ' <- mapTypeM f typ
+            mexpr' <- maybe (return Nothing) (fmap Just . mapExprM f) mexpr
             return $ Data pos symbol typ' mexpr'
 
         SetOp pos op expr1 expr2 -> do
-            expr1' <- mapExpr f expr1
-            expr2' <- mapExpr f expr2
+            expr1' <- mapExprM f expr1
+            expr2' <- mapExprM f expr2
             return $ SetOp pos op expr1' expr2'
 
         _ -> error (show stmt)
@@ -113,58 +107,57 @@ mapStmt f stmt = withPos stmt $ do
         Just (ElemStmt x) -> return x
 
 
-mapExpr :: BoM s m => MapperFunc m -> Expr -> m Expr
-mapExpr f expr = withPos expr $ do
+mapExprM :: BoM s m => MapperFunc m -> Expr -> m Expr
+mapExprM f expr = withPos expr $ do
     prevState <- get
     resm <- f . ElemExpr =<< case expr of
         AExpr typ expr -> do
-            typ' <- mapType f typ
-            expr' <- mapExpr f expr
+            typ' <- mapTypeM f typ
+            expr' <- mapExprM f expr
             return $ AExpr typ' expr'
 
         Ident pos symbol    -> return $ Ident pos symbol
         AST.String pos s    -> return $ AST.String pos s
         AST.Int pos n       -> return $ AST.Int pos n
         AST.Bool pos b      -> return $ AST.Bool pos b
-        AST.Tuple pos exprs -> AST.Tuple pos <$> mapM (mapExpr f) exprs
-        RecordAccess pos expr -> RecordAccess pos <$> mapExpr f expr
-        Construct pos symbol exprs -> Construct pos symbol <$> mapM (mapExpr f) exprs
+        AST.Tuple pos exprs -> AST.Tuple pos <$> mapM (mapExprM f) exprs
+        RecordAccess pos expr -> RecordAccess pos <$> mapExprM f expr
+        Construct pos symbol exprs -> Construct pos symbol <$> mapM (mapExprM f) exprs
 
         Field pos expr symbol -> do
-            expr' <- mapExpr f expr
+            expr' <- mapExprM f expr
             return $ Field pos expr' symbol
 
         Call pos ps symbol es -> do
-            ps' <- mapM (mapExpr f) ps
-            es' <- mapM (mapExpr f) es
+            ps' <- mapM (mapExprM f) ps
+            es' <- mapM (mapExprM f) es
             return $ Call pos ps' symbol es'
 
         Builtin pos ps symbol es -> do
-            ps' <- mapM (mapExpr f) ps
-            es' <- mapM (mapExpr f) es
+            ps' <- mapM (mapExprM f) ps
+            es' <- mapM (mapExprM f) es
             return $ Builtin pos ps' symbol es'
 
         Infix pos op expr1 expr2 -> do
-            expr1' <- mapExpr f expr1
-            expr2' <- mapExpr f expr2
+            expr1' <- mapExprM f expr1
+            expr2' <- mapExprM f expr2
             return $ Infix pos op expr1' expr2'
 
         Subscript pos expr arg -> do
-            expr' <- mapExpr f expr
-            arg' <- mapExpr f arg
+            expr' <- mapExprM f expr
+            arg' <- mapExprM f arg
             return $ Subscript pos expr' arg'
 
         AST.Range pos mexpr mexpr1 mexpr2 -> do
-            mexpr' <- maybe (return Nothing)  (fmap Just . mapExpr f) mexpr
-            mexpr1' <- maybe (return Nothing) (fmap Just . mapExpr f) mexpr1 
-            mexpr2' <- maybe (return Nothing) (fmap Just . mapExpr f) mexpr2 
+            mexpr' <- maybe (return Nothing)  (fmap Just . mapExprM f) mexpr
+            mexpr1' <- maybe (return Nothing) (fmap Just . mapExprM f) mexpr1 
+            mexpr2' <- maybe (return Nothing) (fmap Just . mapExprM f) mexpr2 
             return $ AST.Range pos mexpr' mexpr1' mexpr2'
 
         AST.Match pos expr pattern -> do
-            expr' <- mapExpr f expr
+            expr' <- mapExprM f expr
             pattern' <- mapPattern f pattern
             return $ AST.Match pos expr' pattern'
-
 
         _ -> error (show expr)
     case resm of
@@ -178,7 +171,7 @@ mapPattern f pattern = withPos pattern $ do
     resm <- f . ElemPattern =<< case pattern of
         PatIdent pos symbol      -> return pattern
         PatIgnore pos            -> return pattern
-        PatLiteral expr          -> PatLiteral <$> mapExpr f expr
+        PatLiteral expr          -> PatLiteral <$> mapExprM f expr
         PatTuple pos pats        -> PatTuple pos <$> mapM (mapPattern f) pats
         PatField pos symbol pats -> PatField pos symbol <$> mapM (mapPattern f) pats
         PatRecord pos pats       -> PatRecord pos <$> mapM (mapPattern f) pats
@@ -188,8 +181,8 @@ mapPattern f pattern = withPos pattern $ do
         Just (ElemPattern x) -> return x
 
 
-mapType :: BoM s m => MapperFunc m -> Type -> m Type
-mapType f typ = do
+mapTypeM :: BoM s m => MapperFunc m -> Type -> m Type
+mapTypeM f typ = do
     prevState <- get
     resm <- f . ElemType =<< case typ of
         Type.U8        -> return typ
@@ -203,14 +196,15 @@ mapType f typ = do
         Type.String    -> return typ
         Type.Char      -> return typ
         Type _         -> return typ
-        Record ts      -> Record <$> mapM (mapType f) ts
-        Type.Tuple t   -> Type.Tuple <$> mapType f t
-        Table t        -> Table <$> mapType f t
-        TypeApply s ts -> TypeApply s <$> mapM (mapType f) ts
-        Type.Range t   -> Type.Range <$> mapType f t
-        ADT ts         -> ADT <$> mapM (mapType f) ts
+        Record ts      -> Record <$> mapM (mapTypeM f) ts
+        Type.Tuple t   -> Type.Tuple <$> mapTypeM f t
+        Table t        -> Table <$> mapTypeM f t
+        TypeApply s ts -> TypeApply s <$> mapM (mapTypeM f) ts
+        Type.Range t   -> Type.Range <$> mapTypeM f t
+        ADT ts         -> ADT <$> mapM (mapTypeM f) ts
         Void           -> return typ
         _ -> error (show typ)
     case resm of
         Just (ElemType x) -> return x
         Nothing           -> put prevState >> return typ
+

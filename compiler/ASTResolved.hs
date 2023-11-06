@@ -130,8 +130,8 @@ funcHeaderFromBody symbol body =
 
 funcHeadersCouldMatch :: ASTResolved -> FuncHeader -> FuncHeader -> Bool
 funcHeadersCouldMatch ast a b
-    | length (paramTypes a) /= length (paramTypes b) || length (argTypes a) /= length (argTypes b)           = False
     | not $ symbolsCouldMatch (symbol a) (symbol b)                                                          = False
+    | length (paramTypes a) /= length (paramTypes b) || length (argTypes a) /= length (argTypes b)           = False
     | not $ all (== True) $ zipWith (typesCouldMatch (typeFuncs ast) generics) (paramTypes a) (paramTypes b) = False
     | not $ all (== True) $ zipWith (typesCouldMatch (typeFuncs ast) generics) (paramTypes a) (paramTypes b) = False
     | not $ typesCouldMatch (typeFuncs ast) generics (returnType a) (returnType b)                           = False
@@ -154,7 +154,7 @@ prettyFuncBody symbol body =
 
 prettyASTResolved :: ASTResolved -> IO ()
 prettyASTResolved ast = do
-    putStrLn $ "module: " ++ moduleName ast
+    putStrLn $ "module " ++ moduleName ast
 
     forM_ (Map.toList $ constDefs ast) $ \(symbol, expr) ->
         prettyStmt "" $ AST.Const undefined symbol expr
