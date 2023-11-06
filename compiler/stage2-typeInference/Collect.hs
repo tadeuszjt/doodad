@@ -276,6 +276,8 @@ collectExpr (S.AExpr exprType expression) = collectPos expression $ case express
         (typeSymbol, i)    <- mapGet symbol =<< gets (ctorDefs . astResolved)
         (generics, ADT ts) <- mapGet typeSymbol =<< gets (typeFuncs . astResolved)
         case exprType of
+            Type _ -> return ()
+
             TypeApply s _ | s == typeSymbol -> case ts !! i of
                 Void -> assert (length args == 0) "Invalid ADT args"
                 _    -> do -- Eg :   Just( e:t ):exprType

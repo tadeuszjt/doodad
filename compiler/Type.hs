@@ -5,11 +5,14 @@ import qualified Data.Map as Map (Map, (!), member, lookup)
 import Data.List
 import Symbol
 
-type TypeDefs = Map.Map Symbol ([Symbol], Type)
+type TypeDefsMap = Map.Map Symbol ([Symbol], Type)
+
+
+class Monad m => TypeDefs m where getTypeDefs :: m TypeDefsMap
+
 
 class Typeof a where typeof :: a -> Type
-instance Typeof Type where 
-    typeof typ = typ
+instance Typeof Type where typeof = id
 
 data Type
     = Type Int
@@ -109,7 +112,7 @@ mapType f typ = f $ case typ of
         Void           -> typ
         _ -> error (show typ)
 
-
+findGenerics :: [Symbol] -> Type -> [Type]
 findGenerics typeArgs typ = case typ of
     t | isSimple t -> []
     TypeApply s [] | s `elem` typeArgs -> [typ]
@@ -123,25 +126,26 @@ findGenerics typeArgs typ = case typ of
     _ -> error $ show typ
 
 
-applyTypeArguments :: [Symbol] -> [Type] -> Type -> Type
-applyTypeArguments argSymbols argTypes typ = case length argSymbols == length argTypes of
-    False -> error $ "invalid arguments to applyTypeArguments for: " ++ show typ
-    True -> let args = zip argSymbols argTypes in case typ of
-        TypeApply s [] -> if isJust (lookup s args) then fromJust (lookup s args) else typ
-        TypeApply s ts -> case lookup s args of
-            Just x  -> error (show x)
-            Nothing -> TypeApply s $ map (applyTypeArguments argSymbols argTypes) ts
+applyTypeArguments :: TypeDefsMap -> [Symbol] -> [Type] -> Type -> Type
+applyTypeArguments typeDefs argSymbols argTypes typ = flattenTuple typeDefs $
+    case length argSymbols == length argTypes of
+        False -> error $ "invalid arguments to applyTypeArguments for: " ++ show typ
+        True -> let args = zip argSymbols argTypes in case typ of
+            TypeApply s [] -> if isJust (lookup s args) then fromJust (lookup s args) else typ
+            TypeApply s ts -> case lookup s args of
+                Just x  -> error (show x)
+                Nothing -> TypeApply s $ map (applyTypeArguments typeDefs argSymbols argTypes) ts
 
-        Record ts               -> Record $ map (applyTypeArguments argSymbols argTypes) ts
-        Tuple t                 -> Tuple $ applyTypeArguments argSymbols argTypes t
-        Table t                 -> Table $ applyTypeArguments argSymbols argTypes t
-        ADT ts                  -> ADT $ map (applyTypeArguments argSymbols argTypes) ts
-        _ | isSimple typ        -> typ
-        Void                    -> typ
-        _                       -> error $ "applyTypeArguments: " ++ show typ
+            Record ts               -> Record $ map (applyTypeArguments typeDefs argSymbols argTypes) ts
+            Tuple t                 -> Tuple $ applyTypeArguments typeDefs argSymbols argTypes t
+            Table t                 -> Table $ applyTypeArguments typeDefs argSymbols argTypes t
+            ADT ts                  -> ADT $ map (applyTypeArguments typeDefs argSymbols argTypes) ts
+            _ | isSimple typ        -> typ
+            Void                    -> typ
+            _                       -> error $ "applyTypeArguments: " ++ show typ
 
 
-typesCouldMatch :: TypeDefs -> [Symbol] -> Type -> Type -> Bool
+typesCouldMatch :: TypeDefsMap -> [Symbol] -> Type -> Type -> Bool
 typesCouldMatch typedefs generics t1 t2 = typesCouldMatchPure
         typedefs
         generics
@@ -187,8 +191,8 @@ typesCouldMatch typedefs generics t1 t2 = typesCouldMatchPure
 -- i64         -> False because ()i64 == i64
 -- ()string    -> False because ()()string == ()string
 -- {i64, bool} -> True  because (){i64, bool} != {i64, bool}
-definitelyIgnoresTuples :: TypeDefs -> Type -> Bool
-definitelyIgnoresTuples typedefs typ = case typ of
+definitelyIgnoresTuples :: TypeDefsMap -> Type -> Bool
+definitelyIgnoresTuples typeDefs typ = case typ of
     ADT _          -> True
     Void           -> True
     t | isSimple t -> True
@@ -196,9 +200,9 @@ definitelyIgnoresTuples typedefs typ = case typ of
     Table t        -> True
     Record ts      -> False
     Type _         -> False
-    TypeApply s ts | Map.member s typedefs ->
-        let (ss, t) = typedefs Map.! s in
-        definitelyIgnoresTuples typedefs (applyTypeArguments ss ts t)
+    TypeApply s ts | Map.member s typeDefs ->
+        let (ss, t) = typeDefs Map.! s in
+        definitelyIgnoresTuples typeDefs (applyTypeArguments typeDefs ss ts t)
     TypeApply s ts -> False -- must be generic
     _ -> error (show typ)
 
@@ -209,7 +213,7 @@ definitelyIgnoresTuples typedefs typ = case typ of
 -- ()()string    -> string
 -- ()T           -> ()T
 -- (){i64, bool} -> (){i64, bool}
-flattenTuple :: TypeDefs -> Type -> Type
+flattenTuple :: TypeDefsMap -> Type -> Type
 flattenTuple typeDefs = mapType $ \typ -> case typ of
     Tuple t | definitelyIgnoresTuples typeDefs t -> t
     _                                            -> typ
@@ -221,18 +225,10 @@ flattenTuple typeDefs = mapType $ \typ -> case typ of
 -- { {i64, bool}, string } -> [i64, bool, string]
 -- { Person, Index }       -> [string, i64, i64]   (Person == {name:string, age:i64})
 -- i64                     -> [i64]
-getRecordTypes :: TypeDefs -> Type -> [Type]
-getRecordTypes typeDefs typ = case typ of
-    Record ts -> concat $ map (getRecordTypes typeDefs) ts
-    TypeApply symbol ts -> case Map.lookup symbol typeDefs of
-        Just (ss, t) -> case applyTypeArguments ss ts t of
-            Record xs -> concat $ map (getRecordTypes typeDefs) xs
-            x         -> getRecordTypes typeDefs x
-
-    t | isSimple t -> [t]
-    Table _ -> [typ]
-    Tuple _ -> [typ]
-    _ -> error (show typ)
+getRecordTypes :: TypeDefs m => Type -> m [Type]
+getRecordTypes typ = do
+    tree <- getRecordTree typ
+    map fst <$> getRecordLeaves tree
 
 
 data RecordTree
@@ -243,21 +239,24 @@ instance Show RecordTree where
     show (RecordLeaf t i) = show t ++ "." ++ show i
     show (RecordTree rs ) = "{" ++ intercalate ", " (map show rs) ++ "}"
 
-getRecordTree :: TypeDefs -> Type -> RecordTree
-getRecordTree typeDefs typ = case typ of
-    Record ts           -> RecordTree $ applyFunc 0 ts
-    TypeApply symbol ts -> case Map.lookup symbol typeDefs of
-        Just (ss, Tuple t)   -> RecordLeaf (applyTypeArguments ss ts (Tuple t)) 0
-        Just (ss, Record xs) -> getRecordTree typeDefs $ applyTypeArguments ss ts (Record xs)
-        x -> error (show x)
 
-    _ -> error (show typ)
+getRecordTree :: TypeDefs m => Type -> m RecordTree
+getRecordTree typ = do
+    typeDefs <- getTypeDefs
+    case typ of
+        Record ts           -> return $ RecordTree (applyFunc typeDefs 0 ts)
+        TypeApply symbol ts -> case Map.lookup symbol typeDefs of
+            Just (ss, Tuple t)   -> return $ RecordLeaf (applyTypeArguments typeDefs ss ts (Tuple t)) 0
+            Just (ss, Record xs) -> getRecordTree $ applyTypeArguments typeDefs ss ts (Record xs)
+            x -> error (show x)
+
+        _ -> error (show typ)
     where
-        applyFunc :: Int -> [Type] -> [RecordTree]
-        applyFunc offset ts = case ts of
+        applyFunc :: TypeDefsMap -> Int -> [Type] -> [RecordTree]
+        applyFunc typeDefs offset ts = case ts of
             []     -> []
-            (x:xs) -> let tree = getRecordTree' offset x in
-                tree : (applyFunc (getMax tree + 1) xs)
+            (x:xs) -> let tree = getRecordTree' typeDefs offset x in
+                tree : (applyFunc typeDefs (getMax tree + 1) xs)
 
         getMax :: RecordTree -> Int
         getMax tree = case tree of
@@ -266,33 +265,37 @@ getRecordTree typeDefs typ = case typ of
             _ -> error (show tree)
 
 
-        getRecordTree' :: Int -> Type -> RecordTree
-        getRecordTree' offset typ = case typ of
+        getRecordTree' :: TypeDefsMap -> Int -> Type -> RecordTree
+        getRecordTree' typeDefs offset typ = case typ of
             t | isSimple t -> RecordLeaf typ offset
             Table _        -> RecordLeaf typ offset
             Tuple _        -> RecordLeaf typ offset
-            Record ts      -> RecordTree (applyFunc offset ts)
+            ADT ts         -> RecordLeaf typ offset
+            Record ts      -> RecordTree (applyFunc typeDefs offset ts)
             TypeApply symbol ts -> case Map.lookup symbol typeDefs of
-                Just (ss, t) -> getRecordTree' offset (applyTypeArguments ss ts t)
+                Just (ss, t) -> getRecordTree' typeDefs offset (applyTypeArguments typeDefs ss ts t)
                 x -> error (show x)
             _ -> error (show typ)
 
 
-getRecordLeaves :: TypeDefs -> RecordTree -> [ (Type, Int) ]
-getRecordLeaves typeDefs tree = case tree of
-    RecordTree ns  -> concat $ map (getRecordLeaves typeDefs) ns
-    RecordLeaf t i -> [ (t, i) ]
-    x -> error (show x)
+getRecordLeaves :: TypeDefs m => RecordTree -> m [ (Type, Int) ]
+getRecordLeaves tree = do
+    case tree of
+        RecordTree ns  -> concat <$> mapM getRecordLeaves ns
+        RecordLeaf t i -> return [ (t, i) ]
+        x              -> error (show x)
 
 
-getTypeFieldIndex :: TypeDefs -> Type -> Type -> Int
-getTypeFieldIndex typeDefs typ field = case typ of
-    Tuple (Record ts) -> fromJust (elemIndex field ts)
-    Tuple (TypeApply symbol ts) -> case Map.lookup symbol typeDefs of
-        Just (ss, t) -> getTypeFieldIndex typeDefs (applyTypeArguments ss ts t) field
+getTypeFieldIndex :: TypeDefs m => Type -> Type -> m Int
+getTypeFieldIndex typ field = do
+    typeDefs <- getTypeDefs
+    case typ of
+        Tuple (Record ts)           -> return $ fromJust (elemIndex field ts)
+        Tuple (TypeApply symbol ts) -> case Map.lookup symbol typeDefs of
+            Just (ss, t) -> getTypeFieldIndex (applyTypeArguments typeDefs ss ts t) field
 
-    Record ts -> fromJust (elemIndex field ts)
-    TypeApply symbol ts -> case Map.lookup symbol typeDefs of
-        Just (ss, t) -> getTypeFieldIndex typeDefs (applyTypeArguments ss ts t) field
-    _ -> error (show typ)
+        Record ts           -> return $ fromJust (elemIndex field ts)
+        TypeApply symbol ts -> case Map.lookup symbol typeDefs of
+            Just (ss, t) -> getTypeFieldIndex (applyTypeArguments typeDefs ss ts t) field
+        _ -> error (show typ)
 

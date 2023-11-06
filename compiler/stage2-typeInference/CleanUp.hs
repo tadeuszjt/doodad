@@ -174,7 +174,7 @@ resolveFieldAccess typ (Sym sym) = do
         -- ()Person        -> Person
         -- []Person        -> Person
         -- ()PersonWrapper -> Person
-        getFieldAccessorSymbol :: TypeDefs -> Type -> Symbol
+        getFieldAccessorSymbol :: TypeDefsMap -> Type -> Symbol
         getFieldAccessorSymbol typeDefs typ = case typ of
             Type.Table t -> getFieldAccessorSymbol typeDefs t
             Type.Tuple t -> getFieldAccessorSymbol typeDefs t
@@ -186,13 +186,13 @@ resolveFieldAccess typ (Sym sym) = do
             _ -> error (show typ)
 
         
-        getTypeFieldSymbols :: BoM s m => TypeDefs -> Type -> m [Symbol]
+        getTypeFieldSymbols :: BoM s m => TypeDefsMap -> Type -> m [Symbol]
         getTypeFieldSymbols typeDefs typ = do
             --liftIO $ putStrLn $ "getTypeFieldSymbols: " ++ show typ
             case typ of
                 TypeApply symbol ts -> case Map.lookup symbol typeDefs of
                     Just (ss, t)    -> do
-                        let applied = applyTypeArguments ss ts t
+                        let applied = applyTypeArguments typeDefs ss ts t
                         --liftIO $ putStrLn $ "applied: " ++ show applied
                         case applied of
                             Record ts'              -> return $ catMaybes (map isSymbolType ts')
@@ -213,7 +213,7 @@ resolveFieldAccess typ (Sym sym) = do
                     Table _        -> Nothing
                     Type.Tuple _   -> Nothing
                     Record _       -> Nothing
-                    TypeApply s [] -> if Map.member s typeDefs then
+                    TypeApply s ts -> if Map.member s typeDefs then
                             (Just s)
                         else error "not typeDef"
 

@@ -12,7 +12,7 @@ import Type
 import Error
 
 
-tupleDeleterMapper :: BoM ASTResolved m => TypeDefs -> Elem -> m (Maybe Elem)
+tupleDeleterMapper :: BoM ASTResolved m => TypeDefsMap -> Elem -> m (Maybe Elem)
 tupleDeleterMapper typeDefs elem = do
     return $ case elem of
         ElemType (Type.Tuple t) | definitelyIgnoresTuples typeDefs t -> Just (ElemType t)

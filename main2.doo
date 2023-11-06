@@ -7,6 +7,30 @@ import std/sparse
 
 type Person {string, i32}
 
+
+type[T] BinaryNode ( BinaryLeaf:()T | BinaryNode: i64 )
+type[T] BinaryTree ( nodes : Sparse(BinaryNode(T))  )
+
+
+fn[T] {tree:BinaryTree(T)} insert(elem:()T)
+    let elemKey = tree.nodes.insert( BinaryLeaf(elem) )
+
+    if tree.nodes.length() == 0
+        print("zero")
+    print("insert")
+    
+
+
+fn testTree()
+    data tree BinaryTree(i64)
+
+    tree.insert(10)
+    tree.insert(19)
+    tree.insert(3)
+
+    print("testTree passed")
+
+
 fn testTuple()
     let t1 = (1, true, "three"):(){i64, bool, string}
     let t2 = (2, false, "four"):(){i64, {bool, string}}
@@ -107,4 +131,5 @@ fn main()
     testTable()
     testMap()
     testSparse()
+    testTree()
     print("main2 finished")

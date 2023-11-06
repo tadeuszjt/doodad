@@ -552,6 +552,7 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
         case base of
             t | isSimple t -> accessRecord val Nothing
             Type.Tuple _   -> accessRecord val Nothing
+            ADT _          -> accessRecord val Nothing
 
             _ -> error (show base)
 
@@ -592,9 +593,7 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
         resm <- Map.lookup symbol <$> gets ctors
         index <- case resm of
             Just (typeSymbol, i) -> return i
-            Nothing              -> do
-                typeDefs <- gets typefuncs
-                return $ getTypeFieldIndex typeDefs (typeof expr) (TypeApply symbol [])
+            Nothing              -> getTypeFieldIndex (typeof expr) (TypeApply symbol [])
 
             _ -> error (show resm)
 

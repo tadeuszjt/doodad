@@ -8,6 +8,10 @@ type[T] SparseKey i64
 type[T] Sparse (values:[]T, empty:[]SparseKey(T))
 
 
+fn[T] {s:Sparse(T)} length() i64
+    return s.values.length() - s.empty.length()
+
+
 fn[T] {s:Sparse(T)} insert(value:()T) SparseKey(T)
     if s.empty.length() > 0
         let key = s.empty.pop()

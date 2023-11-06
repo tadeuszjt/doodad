@@ -62,7 +62,7 @@ initGenerateState modName
         }
 
 
-class (MonadBuilder m, MonadFail m, MonadState GenerateState m, MonadIO m, MonadError Error m) => MonadGenerate m
+class (MonadBuilder m, MonadFail m, MonadState GenerateState m, MonadIO m, MonadError Error m, TypeDefs m) => MonadGenerate m
 
 newtype GenerateT m a = GenerateT { unGenerateT :: StateT GenerateState (StateT BuilderState (ExceptT Error m)) a }
     deriving (Functor, Applicative, Monad, MonadState GenerateState, MonadGenerate, MonadIO, MonadError Error)
@@ -75,6 +75,10 @@ instance MonadTrans GenerateT where
 
 instance Monad m => MonadFail (GenerateT m) where
     fail s = throwError (ErrorStr s)
+
+instance Monad m => TypeDefs (GenerateT m) where
+    getTypeDefs = gets typefuncs
+
 
 runGenerateT :: Monad m => GenerateState -> BuilderState -> GenerateT m a -> m (Either Error ((a, GenerateState), BuilderState))
 runGenerateT generateState builderState generateT =
@@ -152,9 +156,7 @@ recordLeafTypes :: MonadGenerate m => Type.Type -> m [Type.Type]
 recordLeafTypes typ = do
     base <- baseTypeOf typ
     case base of
-        Record _ -> do
-            typeDefs <- gets typefuncs
-            return $ getRecordTypes typeDefs typ
+        Record _ -> getRecordTypes typ
 
 
 for :: MonadGenerate m => Value -> (Value -> m a) -> m a
@@ -256,17 +258,16 @@ adtEnum obj = do
 
 member :: MonadGenerate m => Int -> Value -> m Value
 member index val = do
-    typeDefs <- gets typefuncs
     base <- baseTypeOf val
     case base of
         Type.Record ts -> do
-            let Type.RecordTree ns = getRecordTree typeDefs (Type.Record ts)
+            Type.RecordTree ns <- getRecordTree (Type.Record ts)
             case ns !! index of
                 RecordLeaf t i -> assign "deref" $ Value t $
                     C.Deref $ C.Member (valExpr val) ("m" ++ show i)
 
                 RecordTree _ -> do
-                    let leaves = getRecordLeaves typeDefs (ns !! index)
+                    leaves <- getRecordLeaves (ns !! index)
                     elems <- forM leaves $ \(t, i) -> do
                         return $ C.Member (valExpr val) ("m" ++ show i)
                     assign "record" $ Value (ts !! index) $ C.Initialiser elems
@@ -275,13 +276,13 @@ member index val = do
 
         Type.Tuple t -> do
             Type.Record ts <- baseTypeOf t
-            let Type.RecordTree ns = getRecordTree typeDefs t
+            Type.RecordTree ns <- getRecordTree t
             case ns !! index of
                 RecordLeaf t i -> return $ Value (ts !! index) $
                     C.Member (valExpr val) ("m" ++ show i)
 
                 RecordTree _ -> do
-                    let leaves = getRecordLeaves typeDefs (ns !! index)
+                    leaves <- getRecordLeaves (ns !! index)
                     assign "member" $ Value (ts !! index) $ C.Initialiser $
                         map (\(t, i) -> C.Address $ C.Member (valExpr val) ("m" ++ show i)) leaves
 
@@ -289,8 +290,8 @@ member index val = do
 
         Type.Table t -> do
             Type.Record ts <- baseTypeOf t
-            let Type.RecordTree ns = getRecordTree typeDefs t
-            let leaves = getRecordLeaves typeDefs (ns !! index)
+            Type.RecordTree ns <- getRecordTree t
+            leaves <- getRecordLeaves (ns !! index)
             let elems  = map (\(t, i) -> C.Member (valExpr val) ("r" ++ show i)) leaves
             assign "member" $ Value (Table $ ts !! index) $ C.Initialiser $
                 [ C.Member (valExpr val) "len"
@@ -337,6 +338,10 @@ accessRecord val marg = do
             assert (isNothing marg) "no arg needed"
             assign "record" $ Value (Record [typeof val]) $ C.Initialiser [C.Address $ valExpr val]
 
+        Type.ADT ts -> do
+            assert (isNothing marg) "not a table"
+            assign "record" $ Value (Record [typeof val]) $ C.Initialiser [C.Address $ valExpr val]
+
         Table t -> do
             assert (isJust marg) "table access needs an integer argument"
             baseT <- baseTypeOf t
@@ -345,11 +350,15 @@ accessRecord val marg = do
                 _ | isSimple baseT -> do
                     elem <- return $ C.Address $ C.Subscript (C.Member (valExpr val) ("r" ++ show 0)) (valExpr $ fromJust marg)
                     assign "record" $ Value (Record [t]) $ C.Initialiser [elem]
+                ADT ts -> do
+                    elem <- return $ C.Address $ C.Subscript (C.Member (valExpr val) ("r" ++ show 0)) (valExpr $ fromJust marg)
+                    assign "record" $ Value (Record [t]) $ C.Initialiser [elem]
                 Record _ -> do
                     ts <- recordLeafTypes t
                     elems <- forM (zip ts [0..]) $ \(t, i) -> do
                         return $ C.Address $ C.Subscript (C.Member (valExpr val) ("r" ++ show i)) (valExpr $ fromJust marg)
                     assign "record" $ Value t $ C.Initialiser elems
+
                 x -> error (show x)
 
         Type.Tuple t -> do
@@ -370,8 +379,9 @@ accessRecord val marg = do
 baseTypeOf :: (MonadGenerate m, Typeof a) => a -> m Type.Type
 baseTypeOf a = case typeof a of
     Type.TypeApply symbol ts -> do
-        (argSymbols, typ) <- mapGet symbol =<< gets typefuncs
-        baseTypeOf (applyTypeArguments argSymbols ts typ)
+        typeDefs <- gets typefuncs
+        (argSymbols, typ) <- mapGet symbol typeDefs
+        baseTypeOf (applyTypeArguments typeDefs argSymbols ts typ)
     _ -> return (typeof a)
 
 
@@ -400,9 +410,10 @@ cTypeOf a = case typeof a of
     Type.Range t -> getTypedef "Range" =<< cTypeNoDef (Type.Range t)
 
     Type.TypeApply symbol argTypes -> do
-        (argSymbols, typ) <- mapGet symbol =<< gets typefuncs
+        typeDefs <- gets typefuncs
+        (argSymbols, typ) <- mapGet symbol typeDefs
         assert (length argSymbols == length argTypes) "invalid number of type arguments"
-        getTypedef (Symbol.sym symbol) =<< cTypeNoDef (applyTypeArguments argSymbols argTypes typ)
+        getTypedef (Symbol.sym symbol) =<< cTypeNoDef (applyTypeArguments typeDefs argSymbols argTypes typ)
 
     _ -> error (show $ typeof a)
 
