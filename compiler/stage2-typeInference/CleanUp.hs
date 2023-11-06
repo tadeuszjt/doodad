@@ -47,23 +47,23 @@ genSymbol sym = do
     return symbol
 
 
-cleanUpMapper :: BoM ASTResolved m => Elem -> m (Maybe Elem)
+cleanUpMapper :: BoM ASTResolved m => Elem -> m Elem
 cleanUpMapper elem = case elem of
     ElemType (Type.Tuple t) -> do
         typeDefs <- gets typeFuncs 
         b <- definitelyIgnoresTuples t
         return $ case b of
-            True  -> Just (ElemType t)
-            False -> Just elem
+            True  -> ElemType t
+            False -> elem
         
     ElemExpr (AExpr exprType expr@(AST.Field pos e symbol)) -> case symbol of
-        Sym _             -> Just . ElemExpr . AExpr exprType . AST.Field pos e <$> resolveFieldAccess (typeof e) symbol
-        SymResolved _ _ _ -> return $ Just $ ElemExpr $ AExpr exprType (Field pos e symbol)
+        Sym _             -> ElemExpr . AExpr exprType . AST.Field pos e <$> resolveFieldAccess (typeof e) symbol
+        SymResolved _ _ _ -> return $ ElemExpr $ AExpr exprType (Field pos e symbol)
 
     ElemExpr (AExpr exprType expr@(AST.Call pos params symbol exprs)) -> do
         symbol' <- resolveFuncCall exprType expr
         isCtor <- Map.member symbol' <$> gets ctorDefs
-        fmap (Just . ElemExpr . AExpr exprType) $ case isCtor of
+        fmap (ElemExpr . AExpr exprType) $ case isCtor of
             False -> return (Call pos params symbol' exprs)
             True -> do
                 assert (params == []) "constructor cannot have params"
@@ -71,9 +71,9 @@ cleanUpMapper elem = case elem of
 
     ElemPattern (PatField pos symbol pats) -> do
         [symbol'] <- findCtorCandidates symbol
-        return $ Just $ ElemPattern (PatField pos symbol' pats)
+        return $ ElemPattern (PatField pos symbol' pats)
 
-    _ -> return (Just elem)
+    _ -> return elem
 
     
 -- add extern if needed

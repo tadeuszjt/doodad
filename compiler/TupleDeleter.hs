@@ -12,14 +12,14 @@ import Type
 import Error
 
 
-tupleDeleterMapper :: BoM ASTResolved m => Elem -> m (Maybe Elem)
+tupleDeleterMapper :: BoM ASTResolved m => Elem -> m Elem
 tupleDeleterMapper elem = case elem of
     ElemType (Type.Tuple t) -> do
         b <- definitelyIgnoresTuples t
         case b of
-            True  -> return $ Just (ElemType t)
-            False -> return $ Just elem
-    _                       -> return (Just elem)
+            True  -> return (ElemType t)
+            False -> return elem
+    _ -> return elem
 
 deleteSingleTuples :: BoM ASTResolved m => m ()
 deleteSingleTuples = do

@@ -15,13 +15,13 @@ annotate resolvedAST = do
     funcDefs <- mapM (mapFuncBodyM annotateMapper) (funcDefs resolvedAST)
     return $ resolvedAST { funcDefs = funcDefs }
         
-annotateMapper :: BoM Int m => Elem -> m (Maybe Elem)
+annotateMapper :: BoM Int m => Elem -> m Elem
 annotateMapper elem = case elem of
-    ElemStmt _                     -> return (Just elem)
-    ElemType _                     -> return (Just elem)
-    ElemPattern _                  -> return (Just elem)
-    ElemExpr (AExpr t (AExpr _ e)) -> return $ Just $ ElemExpr $ AExpr t e
-    ElemExpr expr                  -> Just . ElemExpr <$> annotateWithType expr
+    ElemStmt _                     -> return elem
+    ElemType _                     -> return elem
+    ElemPattern _                  -> return elem
+    ElemExpr (AExpr t (AExpr _ e)) -> return $ ElemExpr $ AExpr t e
+    ElemExpr expr                  -> ElemExpr <$> annotateWithType expr
 
 annotateWithType :: BoM Int m => Expr -> m Expr
 annotateWithType expr = do
@@ -40,13 +40,13 @@ deAnnotate resolvedAst = do
     funcDefs <- mapM (mapFuncBodyM deAnnotateMapper) (funcDefs resolvedAst)
     return $ resolvedAst { funcDefs = funcDefs }
 
-deAnnotateMapper :: BoM s m => Elem -> m (Maybe Elem)
+deAnnotateMapper :: BoM s m => Elem -> m Elem
 deAnnotateMapper elem = return $ case elem of
-    ElemExpr (AExpr typ expr) | hasTypeVars typ -> Just $ ElemExpr expr
-    ElemExpr _                                  -> Just elem
-    ElemStmt _                                  -> Just elem
-    ElemType _                                  -> Just elem
-    ElemPattern _                               -> Just elem
+    ElemExpr (AExpr typ expr) | hasTypeVars typ -> ElemExpr expr
+    ElemExpr _                                  -> elem
+    ElemStmt _                                  -> elem
+    ElemType _                                  -> elem
+    ElemPattern _                               -> elem
 
 hasTypeVars :: Type -> Bool
 hasTypeVars typ = case typ of

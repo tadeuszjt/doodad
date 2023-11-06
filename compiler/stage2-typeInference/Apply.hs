@@ -18,12 +18,12 @@ applySubs :: (Apply a, BoM s m) => [(Type, Type)] -> a -> m a
 applySubs subs a = apply (\t -> foldr (\(x, u) z -> if z == x then u else z) t subs) a
 
 
-mapper :: BoM s m => (Type -> Type) -> Elem -> m (Maybe Elem)
+mapper :: BoM s m => (Type -> Type) -> Elem -> m Elem
 mapper f elem = case elem of
-    ElemType typ                 -> return $ Just $ ElemType (f typ)
-    ElemStmt _                   -> return (Just elem)
-    ElemExpr _                   -> return (Just elem)
-    ElemPattern _                -> return (Just elem)
+    ElemType typ                 -> return $ ElemType (f typ)
+    ElemStmt _                   -> return elem
+    ElemExpr _                   -> return elem
+    ElemPattern _                -> return elem
     _ -> error (show elem)
 
 -- Apply represents taking a function and applying it to all types in an object.

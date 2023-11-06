@@ -15,16 +15,13 @@ data Elem
     | ElemPattern Pattern
     deriving (Show)
 
--- MapperFunc takes an ast element and modifies it using the BoM monad. when returning Nothing,
--- all changes will be discarded including for the members of the element.
-type MapperFunc m = (Elem -> m (Maybe Elem))
+type MapperFunc m = (Elem -> m Elem)
 
-
-mapParamM :: (MonadError Error m, MonadState s m) => MapperFunc m -> Param -> m Param
+mapParamM :: MonadError Error m => MapperFunc m -> Param -> m Param
 mapParamM f (AST.Param pos symbol typ) = withPos pos $ AST.Param pos symbol <$> (mapTypeM f typ)
     
 
-mapFuncBodyM :: (MonadError Error m, MonadState s m) => MapperFunc m -> FuncBody -> m FuncBody
+mapFuncBodyM :: MonadError Error m => MapperFunc m -> FuncBody -> m FuncBody
 mapFuncBodyM f body = do
     funcParams' <- mapM (mapParamM f) (funcParams body)
     funcArgs'   <- mapM (mapParamM f) (funcArgs body)
@@ -39,7 +36,7 @@ mapFuncBodyM f body = do
         }
 
 
-mapFuncHeaderM :: (MonadError Error m, MonadState s m) => MapperFunc m -> FuncHeader -> m FuncHeader
+mapFuncHeaderM :: MonadError Error m => MapperFunc m -> FuncHeader -> m FuncHeader
 mapFuncHeaderM f header = do
     paramTypes' <- mapM (mapTypeM f) (paramTypes header)
     argTypes'   <- mapM (mapTypeM f) (argTypes header)
@@ -53,10 +50,9 @@ mapFuncHeaderM f header = do
         }
 
 
-mapStmtM :: (MonadError Error m, MonadState s m) => MapperFunc m -> Stmt -> m Stmt
+mapStmtM :: MonadError Error m => MapperFunc m -> Stmt -> m Stmt
 mapStmtM f stmt = withPos stmt $ do
-    prevState <- get
-    resm <- f . ElemStmt =<< case stmt of
+    res <- f . ElemStmt =<< case stmt of
         Typedef _ _ _ _ -> return stmt -- ignored
         EmbedC pos s -> return $ EmbedC pos s
         Block stmts -> Block <$> mapM (mapStmtM f) stmts
@@ -103,15 +99,14 @@ mapStmtM f stmt = withPos stmt $ do
             return $ SetOp pos op expr1' expr2'
 
         _ -> error (show stmt)
-    case resm of
-        Nothing -> put prevState >> return stmt
-        Just (ElemStmt x) -> return x
+    case res of
+        ElemStmt x -> return x
+        _          -> error "result wasn't ElemStmt"
 
 
-mapExprM :: (MonadError Error m, MonadState s m) => MapperFunc m -> Expr -> m Expr
+mapExprM :: MonadError Error m => MapperFunc m -> Expr -> m Expr
 mapExprM f expr = withPos expr $ do
-    prevState <- get
-    resm <- f . ElemExpr =<< case expr of
+    res <- f . ElemExpr =<< case expr of
         AExpr typ expr -> do
             typ' <- mapTypeM f typ
             expr' <- mapExprM f expr
@@ -161,15 +156,14 @@ mapExprM f expr = withPos expr $ do
             return $ AST.Match pos expr' pattern'
 
         _ -> error (show expr)
-    case resm of
-        Nothing -> put prevState >> return expr
-        Just (ElemExpr x) -> return x
+    case res of
+        ElemExpr x -> return x
+        _          -> error "result wasn't ElemExpr"
 
 
-mapPattern :: (MonadError Error m, MonadState s m) => MapperFunc m -> Pattern -> m Pattern
+mapPattern :: MonadError Error m => MapperFunc m -> Pattern -> m Pattern
 mapPattern f pattern = withPos pattern $ do
-    prevState <- get
-    resm <- f . ElemPattern =<< case pattern of
+    res <- f . ElemPattern =<< case pattern of
         PatIdent pos symbol      -> return pattern
         PatIgnore pos            -> return pattern
         PatLiteral expr          -> PatLiteral <$> mapExprM f expr
@@ -177,15 +171,14 @@ mapPattern f pattern = withPos pattern $ do
         PatField pos symbol pats -> PatField pos symbol <$> mapM (mapPattern f) pats
         PatRecord pos pats       -> PatRecord pos <$> mapM (mapPattern f) pats
         _ -> error (show pattern)
-    case resm of
-        Nothing -> put prevState >> return pattern
-        Just (ElemPattern x) -> return x
+    case res of
+        ElemPattern x -> return x
+        _             -> error "result wasn't ElemPattern"
 
 
-mapTypeM :: MonadState s m => MapperFunc m -> Type -> m Type
+mapTypeM :: Monad m => MapperFunc m -> Type -> m Type
 mapTypeM f typ = do
-    prevState <- get
-    resm <- f . ElemType =<< case typ of
+    res <- f . ElemType =<< case typ of
         Type.U8        -> return typ
         Type.I8        -> return typ
         Type.I16       -> return typ
@@ -205,7 +198,7 @@ mapTypeM f typ = do
         ADT ts         -> ADT <$> mapM (mapTypeM f) ts
         Void           -> return typ
         _ -> error (show typ)
-    case resm of
-        Just (ElemType x) -> return x
-        Nothing           -> put prevState >> return typ
+    case res of
+        ElemType x -> return x
+        _          -> error "result wasn't ElemType"
 

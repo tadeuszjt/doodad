@@ -396,17 +396,17 @@ instance Resolve Param where
         define sym KeyVar symbol
         return $ Param pos symbol typ'
 
-resolveMapper :: BoM ResolveState m => Elem -> m (Maybe Elem)
+resolveMapper :: BoM ResolveState m => Elem -> m Elem
 resolveMapper element = case element of
     ElemType (Type.TypeApply s ts) -> do
         symbol' <- look s KeyType
-        return $ Just $ ElemType $ Type.TypeApply symbol' ts
+        return $ ElemType $ Type.TypeApply symbol' ts
 
     ElemPattern (PatIdent pos symbol) -> do
         let Sym sym = symbol
         symbol' <- genSymbol sym
         define sym KeyVar symbol'
-        return $ Just $ ElemPattern (PatIdent pos symbol')
+        return $ ElemPattern (PatIdent pos symbol')
 
     ElemPattern (PatField pos symbol pats) -> do -- it's KeyFunc for ctors, KeyType for other
         mtype <- lookm symbol KeyType
@@ -416,13 +416,13 @@ resolveMapper element = case element of
 --              return $ PatTypeField pos (Type.TypeApply symbol' []) (head pats')
             Nothing -> do
                 symbol' <- look symbol KeyFunc
-                return $ Just $ ElemPattern $ PatField pos symbol' pats
+                return $ ElemPattern $ PatField pos symbol' pats
 
-    ElemExpr (Ident pos symbol) -> Just . ElemExpr . Ident pos <$> look symbol KeyVar
+    ElemExpr (Ident pos symbol) -> ElemExpr . Ident pos <$> look symbol KeyVar
 
     ElemExpr (Call pos params symbol exprs) -> case symbol of
         Sym s | s `elem` ["len", "conv", "print"] -> do 
-            return $ Just $ ElemExpr (Builtin pos params s exprs)
+            return $ ElemExpr (Builtin pos params s exprs)
         _ -> do
             resm <- lookm symbol KeyType
             case resm of 
@@ -432,8 +432,8 @@ resolveMapper element = case element of
 --                    return $ Just $ ElemExpr $ Conv pos (Type.TypeApply symbol' []) exprs -- TODO
                 Nothing -> do
                     symbol' <- look symbol KeyFunc
-                    return $ Just $ ElemExpr (Call pos params symbol' exprs)
+                    return $ ElemExpr (Call pos params symbol' exprs)
 
-    _ -> return (Just element)
+    _ -> return element
 
 
