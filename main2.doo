@@ -8,17 +8,46 @@ import std/sparse
 type Person {string, i32}
 
 
-type[T] BinaryNode ( BinaryLeaf:()T | BinaryNode: i64 )
-type[T] BinaryTree ( nodes : Sparse(BinaryNode(T))  )
+type[T] BinaryNode ( BinaryLeaf:()T | BinaryBranch:(T, SparseKey(BinaryNode(T)), SparseKey(BinaryNode(T))) )
+
+type[T] BinaryTree (
+    nodes : Sparse( BinaryNode(T) )
+    base  : Maybe(  SparseKey(BinaryNode(T)) )
+)
 
 
 fn[T] {tree:BinaryTree(T)} insert(elem:()T)
     let elemKey = tree.nodes.insert( BinaryLeaf(elem) )
 
-    if tree.nodes.length() == 0
-        print("zero")
-    print("insert")
-    
+    switch tree.base
+        Nothing(); tree.base = Just(elemKey)
+        Just(baseKey)
+            let key = baseKey
+            while tree.nodes.get(key) -> BinaryBranch((x, left, right))
+                if elem < x; key = left
+                else;        key = right
+
+            let BinaryLeaf(x) = tree.nodes.get(key)
+            let right = elemKey
+            let left  = tree.nodes.insert( BinaryLeaf(x) )
+            if elem < x
+                right = left
+                left  = elemKey
+
+            tree.nodes.replace(key, BinaryBranch((x, left, right)) )
+
+
+fn[T] {tree:BinaryTree(T)} printTree()
+    fn[T] {tree:BinaryTree(T)} printNode(key:SparseKey(BinaryNode(T)))
+        switch tree.nodes.get(key)
+            BinaryLeaf(x); print(x)
+            BinaryBranch((x, left, right))
+                tree.printNode(left)
+                tree.printNode(right)
+
+    switch tree.base
+        Nothing();     print("empty")
+        Just(baseKey); tree.printNode(baseKey)
 
 
 fn testTree()
@@ -27,6 +56,20 @@ fn testTree()
     tree.insert(10)
     tree.insert(19)
     tree.insert(3)
+    tree.insert(433)
+    tree.insert(2)
+    tree.printTree()
+
+    data tree2 BinaryTree(string)
+
+    tree2.insert("benzhis")
+    tree2.insert("benis")
+    tree2.insert("beni")
+    tree2.insert("bongis")
+    tree2.insert("banghis")
+    tree2.insert("benghis")
+
+    tree2.printTree()
 
     print("testTree passed")
 

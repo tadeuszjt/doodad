@@ -202,8 +202,6 @@ set a b = do
     base <- baseTypeOf a
     void $ case base of
         _ | isSimple base               -> void $ appendElem $ C.Set (valExpr a) (valExpr b)
---        Type.ADT fs                     -> void $ appendElem $ C.Set (valExpr a) (valExpr b)
---        Type.Tuple ts | all isSimple ts -> void $ appendElem $ C.Set (valExpr a) (valExpr b)
         Type.Tuple t -> do
             Record ts <- baseTypeOf t
             forM_ (zip ts [0..]) $ \(t, i) -> do
@@ -213,7 +211,14 @@ set a b = do
 
         Type.Record ts -> do
             forM_ (zip ts [0..]) $ \(t, i) -> do
-               void $ appendElem $ C.Set (C.Deref $ C.Member (valExpr a) ("m" ++ show i)) (C.Deref $ C.Member (valExpr b) ("m" ++ show i))
+                let ma = Value t $ C.Deref $ C.Member (valExpr a) ("m" ++ show i)
+                let mb = Value t $ C.Deref $ C.Member (valExpr b) ("m" ++ show i)
+                set ma mb
+
+
+        Type.ADT ts -> void $ appendElem $ C.Set (valExpr a) (valExpr b) -- TODO broken
+            
+
 --        Type.Table ts -> do
 --            let cap = C.Member (valExpr a) "cap"
 --            let len = C.Member (valExpr a) "len"
@@ -373,14 +378,6 @@ accessRecord val marg = do
                 _ -> error (show baseT)
 
         x -> error (show x)
-
-
-baseTypeOf :: (MonadGenerate m, Typeof a) => a -> m Type.Type
-baseTypeOf a = case typeof a of
-    Type.TypeApply symbol ts -> do
-        (argSymbols, typ) <- mapGet symbol =<< getTypeDefs
-        baseTypeOf =<< applyTypeArguments argSymbols ts typ
-    _ -> return (typeof a)
 
 
 cParamOf :: MonadGenerate m => S.Param -> m C.Param

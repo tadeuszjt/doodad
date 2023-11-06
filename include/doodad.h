@@ -9,6 +9,7 @@
 
 char *doodad_string_plus(char *a, char *b);
 bool doodad_string_eqeq(char *a, char *b);
+bool doodad_string_lt(char *a, char *b);
 char *doodad_string_copy(char *s);
 char *doodad_string_alloc(size_t len);
 char *doodad_string_char(char c);

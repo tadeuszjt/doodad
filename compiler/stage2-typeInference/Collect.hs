@@ -218,6 +218,7 @@ collectPattern pattern typ = collectPos pattern $ case pattern of
         forM_ (zip gts [0..]) $ \(t, j) -> collect $ ConsAdtField t i j typ
 
     S.PatTuple _ pats -> do
+        -- TODO get rid of this and annotate patterns properly 
         gts <- replicateM (length pats) genType
         collectDefault typ (Tuple $ Record gts)
         collect $ ConsTuple typ gts
@@ -338,7 +339,7 @@ collectExpr (S.AExpr exprType expression) = collectPos expression $ case express
 
     S.Tuple _ exprs -> do
         collect $ ConsTuple exprType (map typeof exprs)
-        mapM_ collectExpr exprs
+        mapM_ collectExpr exprs;
 
     S.Field _ e symbol -> do
         collect $ ConsField (typeof e) symbol exprType

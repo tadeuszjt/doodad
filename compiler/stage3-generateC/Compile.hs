@@ -683,7 +683,7 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
             assert (typeof r == typ) $ 
                 "generateExpr returned: " ++ show r ++ " but checked " ++ show typ ++ " for " ++ show expr_
             return r
-generateExpr x = fail $ "unresolved expression"
+generateExpr x = fail $ "unresolved expression: " ++ show x
             
 
 generateInfix :: MonadGenerate m => S.Operator -> Value -> Value -> m Value
@@ -721,6 +721,7 @@ generateInfix op a b = do
         Type.String -> case op of
             S.Plus -> return $ Value (typeof a) (C.Call "doodad_string_plus" [valExpr a, valExpr b])
             S.EqEq -> return $ Value Type.Bool  (C.Call "doodad_string_eqeq" [valExpr a, valExpr b])
+            S.LT   -> return $ Value Type.Bool  (C.Call "doodad_string_lt"   [valExpr a, valExpr b])
             _ -> error (show op)
 
         Type.Record ts -> case op of

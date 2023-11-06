@@ -138,6 +138,24 @@ findGenerics typeArgs typ = case typ of
     _ -> error $ show typ
 
 
+baseTypeOf :: (TypeDefs m, Typeof a) => a -> m Type
+baseTypeOf a = case typeof a of
+    t | isSimple t -> return t
+    Record ts      -> return (Record ts)
+    ADT ts         -> return (ADT ts)
+    Tuple t        -> return (Tuple t)
+    Table t        -> return (Table t)
+    Range t        -> return (Range t)
+    TypeApply symbol ts -> do
+        resm <- Map.lookup symbol <$> getTypeDefs
+        case resm of
+            Nothing -> error "symbol not defined"
+            Just (ss, t) -> baseTypeOf =<< applyTypeArguments ss ts t
+
+    x -> error (show x)
+    
+
+
 applyTypeArguments :: TypeDefs m => [Symbol] -> [Type] -> Type -> m Type
 applyTypeArguments argSymbols argTypes typ = do
     when (length argSymbols /= length argTypes) $ error "invalid arguments"
@@ -271,6 +289,7 @@ getRecordTypes typ = do
 
 
 
+-- TODO all wrong, returning base types
 getRecordTree :: TypeDefs m => Type -> m RecordTree
 getRecordTree typ = do
     typeDefs <- getTypeDefs
@@ -309,7 +328,11 @@ getRecordTree typ = do
             TypeApply symbol ts -> do
                 resm <- Map.lookup symbol <$> getTypeDefs
                 case resm of
-                    Just (ss, t) -> getRecordTree' offset =<< applyTypeArguments ss ts t
+                    Just (ss, t) -> do
+                        baseT <- baseTypeOf t
+                        case baseT of
+                            Record _ -> getRecordTree' offset =<< applyTypeArguments ss ts t
+                            _        -> return (RecordLeaf typ offset)
                     x            -> error (show x)
             _ -> error (show typ)
 

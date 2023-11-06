@@ -33,4 +33,5 @@ fn[T] {s:Sparse(T)} get(key:SparseKey(T)) ()T
     elem{} = s.values[key]
     return elem
 
-
+fn[T] {s:Sparse(T)} replace(key:SparseKey(T), elem:()T)
+    s.values[key] = elem{}

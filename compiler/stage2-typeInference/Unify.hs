@@ -20,13 +20,13 @@ import Apply
 import Symbol
 
 
-baseTypeOf :: BoM ASTResolved m => Type -> m (Maybe Type)
-baseTypeOf typ = case typ of
+baseTypeOfm :: BoM ASTResolved m => Type -> m (Maybe Type)
+baseTypeOfm typ = case typ of
     TypeApply symbol ts -> do
         typeDefs <- gets typeFuncs
         case Map.lookup symbol typeDefs of
             Nothing              -> return Nothing
-            Just (argSymbols, t) -> baseTypeOf =<< applyTypeArguments argSymbols ts t
+            Just (argSymbols, t) -> baseTypeOfm =<< applyTypeArguments argSymbols ts t
     Type x -> return Nothing
     t      -> return (Just t)
 
@@ -37,7 +37,7 @@ unifyOne pos constraint = withPos pos $ case constraint of
 
     ConsField typ symbol exprType -> do
         resm <- Map.lookup symbol <$> gets ctorDefs
-        base <- baseTypeOf typ
+        base <- baseTypeOfm typ
         case base of
             Just (Record ts) -> case resm of
                 Just (typeSymbol, index) -> unifyOne pos $ ConsEq (ts !! index) exprType
@@ -46,7 +46,7 @@ unifyOne pos constraint = withPos pos $ case constraint of
                     x          -> error (show x)
 
             Just (Tuple t)   -> do
-                baseT <- baseTypeOf t
+                baseT <- baseTypeOfm t
                 case baseT of
                     Just (Record ts) -> case resm of
                         Just (typeSymbol, index) -> unifyOne pos $ ConsEq (ts !! index) exprType
@@ -55,18 +55,18 @@ unifyOne pos constraint = withPos pos $ case constraint of
                             x          -> error (show x)
 
             Just (Table t)   -> do
-                baseT <- baseTypeOf t
+                baseT <- baseTypeOfm t
                 case baseT of
                     Just (Record ts) -> case resm of
                         Just (typeSymbol, index) -> unifyOne pos $ ConsEq (Table $ ts !! index) exprType
 
 
     ConsTuple tupType ts -> do
-        basem <- baseTypeOf tupType
+        basem <- baseTypeOfm tupType
         case basem of
             Nothing -> return []
             Just (Tuple t) -> do
-                baseT <- baseTypeOf t
+                baseT <- baseTypeOfm t
                 case baseT of
                     Just (Record _) -> do
                         recordTs <- getRecordTypes t
@@ -75,13 +75,13 @@ unifyOne pos constraint = withPos pos $ case constraint of
                     _ -> error (show baseT)
 
     ConsRecordAccess exprType typ -> do
-        base <- baseTypeOf typ
+        base <- baseTypeOfm typ
         case base of
             Just (ADT ts) -> unifyOne pos $ ConsEq exprType (Record [typ])
 
 
             Just (Tuple t) -> do
-                baseT <- baseTypeOf t
+                baseT <- baseTypeOfm t
                 case baseT of
                     Just (Record ts) -> unifyOne pos $ ConsEq exprType t
                     _ -> error (show baseT)
@@ -103,7 +103,7 @@ unifyOne pos constraint = withPos pos $ case constraint of
         _ -> fail $ "un - cannot unify " ++ show t1 ++ " with " ++ show t2
 
     ConsAdtField t i j adt -> do
-        basem <- baseTypeOf adt
+        basem <- baseTypeOfm adt
         case basem of
             Nothing -> return []
             Just (ADT ts) -> do
@@ -114,12 +114,12 @@ unifyOne pos constraint = withPos pos $ case constraint of
         
 
     ConsSubscript t1 t2 -> do
-        basem <- baseTypeOf t1
+        basem <- baseTypeOfm t1
         case basem of
             Just (Range _) -> unifyOne pos (ConsEq t2 I64)
             Just String    -> unifyOne pos (ConsEq t2 Char)
             Just (Table t) -> do
-                baseT <- baseTypeOf t
+                baseT <- baseTypeOfm t
                 case baseT of
                     Nothing -> return []
                     Just (Record _) -> unifyOne pos (ConsEq t2 t)
@@ -130,8 +130,8 @@ unifyOne pos constraint = withPos pos $ case constraint of
             _ -> error (show basem)
 
     ConsBase t1 t2 -> do
-        base1m <- baseTypeOf t1
-        base2m <- baseTypeOf t2
+        base1m <- baseTypeOfm t1
+        base2m <- baseTypeOfm t2
         case (base1m, base2m) of
             (Just b1, Just b2) -> unifyOne pos (ConsEq b1 b2)
             _                  -> return []
