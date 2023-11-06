@@ -13,7 +13,6 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Data.Maybe
 
-import Monad
 import Symbol
 import ASTResolved hiding (moduleName)
 import CBuilder as C hiding (moduleName)
@@ -379,9 +378,8 @@ accessRecord val marg = do
 baseTypeOf :: (MonadGenerate m, Typeof a) => a -> m Type.Type
 baseTypeOf a = case typeof a of
     Type.TypeApply symbol ts -> do
-        typeDefs <- gets typefuncs
-        (argSymbols, typ) <- mapGet symbol typeDefs
-        baseTypeOf (applyTypeArguments typeDefs argSymbols ts typ)
+        (argSymbols, typ) <- mapGet symbol =<< getTypeDefs
+        baseTypeOf =<< applyTypeArguments argSymbols ts typ
     _ -> return (typeof a)
 
 
@@ -410,10 +408,9 @@ cTypeOf a = case typeof a of
     Type.Range t -> getTypedef "Range" =<< cTypeNoDef (Type.Range t)
 
     Type.TypeApply symbol argTypes -> do
-        typeDefs <- gets typefuncs
-        (argSymbols, typ) <- mapGet symbol typeDefs
+        (argSymbols, typ) <- mapGet symbol =<< getTypeDefs
         assert (length argSymbols == length argTypes) "invalid number of type arguments"
-        getTypedef (Symbol.sym symbol) =<< cTypeNoDef (applyTypeArguments typeDefs argSymbols argTypes typ)
+        getTypedef (Symbol.sym symbol) =<< cTypeNoDef =<< applyTypeArguments argSymbols argTypes typ
 
     _ -> error (show $ typeof a)
 

@@ -1,7 +1,8 @@
+{-# LANGUAGE FlexibleContexts #-}
 module ASTMapper where
 
 import Control.Monad.State
-import Monad
+import Control.Monad.Except
 import AST
 import ASTResolved
 import Type
@@ -19,11 +20,11 @@ data Elem
 type MapperFunc m = (Elem -> m (Maybe Elem))
 
 
-mapParamM :: BoM s m => MapperFunc m -> Param -> m Param
+mapParamM :: (MonadError Error m, MonadState s m) => MapperFunc m -> Param -> m Param
 mapParamM f (AST.Param pos symbol typ) = withPos pos $ AST.Param pos symbol <$> (mapTypeM f typ)
     
 
-mapFuncBodyM :: BoM s m => MapperFunc m -> FuncBody -> m FuncBody
+mapFuncBodyM :: (MonadError Error m, MonadState s m) => MapperFunc m -> FuncBody -> m FuncBody
 mapFuncBodyM f body = do
     funcParams' <- mapM (mapParamM f) (funcParams body)
     funcArgs'   <- mapM (mapParamM f) (funcArgs body)
@@ -38,7 +39,7 @@ mapFuncBodyM f body = do
         }
 
 
-mapFuncHeaderM :: BoM s m => MapperFunc m -> FuncHeader -> m FuncHeader
+mapFuncHeaderM :: (MonadError Error m, MonadState s m) => MapperFunc m -> FuncHeader -> m FuncHeader
 mapFuncHeaderM f header = do
     paramTypes' <- mapM (mapTypeM f) (paramTypes header)
     argTypes'   <- mapM (mapTypeM f) (argTypes header)
@@ -52,7 +53,7 @@ mapFuncHeaderM f header = do
         }
 
 
-mapStmtM :: BoM s m => MapperFunc m -> Stmt -> m Stmt
+mapStmtM :: (MonadError Error m, MonadState s m) => MapperFunc m -> Stmt -> m Stmt
 mapStmtM f stmt = withPos stmt $ do
     prevState <- get
     resm <- f . ElemStmt =<< case stmt of
@@ -107,7 +108,7 @@ mapStmtM f stmt = withPos stmt $ do
         Just (ElemStmt x) -> return x
 
 
-mapExprM :: BoM s m => MapperFunc m -> Expr -> m Expr
+mapExprM :: (MonadError Error m, MonadState s m) => MapperFunc m -> Expr -> m Expr
 mapExprM f expr = withPos expr $ do
     prevState <- get
     resm <- f . ElemExpr =<< case expr of
@@ -165,7 +166,7 @@ mapExprM f expr = withPos expr $ do
         Just (ElemExpr x) -> return x
 
 
-mapPattern :: BoM s m => MapperFunc m -> Pattern -> m Pattern
+mapPattern :: (MonadError Error m, MonadState s m) => MapperFunc m -> Pattern -> m Pattern
 mapPattern f pattern = withPos pattern $ do
     prevState <- get
     resm <- f . ElemPattern =<< case pattern of
@@ -181,7 +182,7 @@ mapPattern f pattern = withPos pattern $ do
         Just (ElemPattern x) -> return x
 
 
-mapTypeM :: BoM s m => MapperFunc m -> Type -> m Type
+mapTypeM :: MonadState s m => MapperFunc m -> Type -> m Type
 mapTypeM f typ = do
     prevState <- get
     resm <- f . ElemType =<< case typ of

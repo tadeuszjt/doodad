@@ -1,6 +1,5 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE UndecidableInstances #-}
 module Unify where
 
 import Data.List
@@ -20,9 +19,6 @@ import Error
 import Apply
 import Symbol
 
-instance (Monad m, BoM ASTResolved m) => TypeDefs m where
-    getTypeDefs = gets typeFuncs
-
 
 baseTypeOf :: BoM ASTResolved m => Type -> m (Maybe Type)
 baseTypeOf typ = case typ of
@@ -30,7 +26,7 @@ baseTypeOf typ = case typ of
         typeDefs <- gets typeFuncs
         case Map.lookup symbol typeDefs of
             Nothing              -> return Nothing
-            Just (argSymbols, t) -> baseTypeOf (applyTypeArguments typeDefs argSymbols ts t)
+            Just (argSymbols, t) -> baseTypeOf =<< applyTypeArguments argSymbols ts t
     Type x -> return Nothing
     t      -> return (Just t)
 

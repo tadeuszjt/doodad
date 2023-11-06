@@ -12,16 +12,18 @@ import Type
 import Error
 
 
-tupleDeleterMapper :: BoM ASTResolved m => TypeDefsMap -> Elem -> m (Maybe Elem)
-tupleDeleterMapper typeDefs elem = do
-    return $ case elem of
-        ElemType (Type.Tuple t) | definitelyIgnoresTuples typeDefs t -> Just (ElemType t)
-        _                                                            -> Just elem
+tupleDeleterMapper :: BoM ASTResolved m => Elem -> m (Maybe Elem)
+tupleDeleterMapper elem = case elem of
+    ElemType (Type.Tuple t) -> do
+        b <- definitelyIgnoresTuples t
+        case b of
+            True  -> return $ Just (ElemType t)
+            False -> return $ Just elem
+    _                       -> return (Just elem)
 
 deleteSingleTuples :: BoM ASTResolved m => m ()
 deleteSingleTuples = do
-    typeDefs <- gets typeFuncs
-    funcDefs'  <- mapM (mapFuncBodyM (tupleDeleterMapper typeDefs)) =<< gets funcDefs
-    typeFuncs' <- mapM (\(ss, t) -> do { t' <- mapTypeM (tupleDeleterMapper typeDefs) t; return (ss, t')}) =<< gets typeFuncs
+    funcDefs'  <- mapM (mapFuncBodyM tupleDeleterMapper) =<< gets funcDefs
+    typeFuncs' <- mapM (\(ss, t) -> do { t' <- mapTypeM tupleDeleterMapper t; return (ss, t')}) =<< gets typeFuncs
     modify $ \s -> s { funcDefs = funcDefs', typeFuncs = typeFuncs' }
 

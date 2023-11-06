@@ -51,14 +51,11 @@ cleanUpMapper :: BoM ASTResolved m => Elem -> m (Maybe Elem)
 cleanUpMapper elem = case elem of
     ElemType (Type.Tuple t) -> do
         typeDefs <- gets typeFuncs 
-        case definitelyIgnoresTuples typeDefs t of
-            True  -> return $ Just (ElemType t)
-            False -> return $ Just elem
+        b <- definitelyIgnoresTuples t
+        return $ case b of
+            True  -> Just (ElemType t)
+            False -> Just elem
         
-    ElemStmt (AST.FuncDef _ _ _ _ _ _ _) -> return Nothing
-    ElemStmt (AST.Const _ _ _)           -> return Nothing
-    ElemStmt (AST.Typedef _ _ _ _)       -> return Nothing
-
     ElemExpr (AExpr exprType expr@(AST.Field pos e symbol)) -> case symbol of
         Sym _             -> Just . ElemExpr . AExpr exprType . AST.Field pos e <$> resolveFieldAccess (typeof e) symbol
         SymResolved _ _ _ -> return $ Just $ ElemExpr $ AExpr exprType (Field pos e symbol)
@@ -157,7 +154,7 @@ resolveFieldAccess typ (Sym sym) = do
     ctors    <- gets ctorDefs
     --liftIO $ putStrLn $ "resolveFieldAccess: " ++ sym ++ " " ++ show typ
     let typeSymbol = getFieldAccessorSymbol typeDefs typ
-    typeFieldSymbols <- getTypeFieldSymbols typeDefs typ
+    typeFieldSymbols <- getTypeFieldSymbols typ
     typeResults <- return $ filter (\s -> Symbol.sym s == sym) typeFieldSymbols
     ctorResults <- return $ Map.keys $ Map.filterWithKey
         (\symbol (typSym, _) -> Symbol.sym symbol == sym && typeSymbol == typSym)
@@ -186,35 +183,38 @@ resolveFieldAccess typ (Sym sym) = do
             _ -> error (show typ)
 
         
-        getTypeFieldSymbols :: BoM s m => TypeDefsMap -> Type -> m [Symbol]
-        getTypeFieldSymbols typeDefs typ = do
+        getTypeFieldSymbols :: BoM ASTResolved m => Type -> m [Symbol]
+        getTypeFieldSymbols typ = do
+            typeDefs <- getTypeDefs
             --liftIO $ putStrLn $ "getTypeFieldSymbols: " ++ show typ
             case typ of
                 TypeApply symbol ts -> case Map.lookup symbol typeDefs of
                     Just (ss, t)    -> do
-                        let applied = applyTypeArguments typeDefs ss ts t
+                        applied <- applyTypeArguments ss ts t
                         --liftIO $ putStrLn $ "applied: " ++ show applied
                         case applied of
-                            Record ts'              -> return $ catMaybes (map isSymbolType ts')
-                            Type.Tuple (Record ts') -> return $ catMaybes (map isSymbolType ts')
-                            Type.Table (Record ts') -> return $ catMaybes (map isSymbolType ts')
+                            Record ts'              -> catMaybes <$> mapM isSymbolType ts'
+                            Type.Tuple (Record ts') -> catMaybes <$> mapM isSymbolType ts'
+                            Type.Table (Record ts') -> catMaybes <$> mapM isSymbolType ts'
                             _ -> error (show applied)
                     x -> error (show x)
 
-                Type.Record ts               -> return $ catMaybes $ map isSymbolType ts
-                Type.Tuple (Record ts)       -> return $ catMaybes $ map isSymbolType ts
-                Type.Tuple t@(TypeApply _ _) -> getTypeFieldSymbols typeDefs t
+                Type.Record ts               -> catMaybes <$> mapM isSymbolType ts
+                Type.Tuple (Record ts)       -> catMaybes <$> mapM isSymbolType ts
+                Type.Tuple t@(TypeApply _ _) -> getTypeFieldSymbols t
                 _ -> error (show typ)
 
             where
-                isSymbolType :: Type -> Maybe Symbol
+                isSymbolType :: BoM ASTResolved m => Type -> m (Maybe Symbol)
                 isSymbolType typ = case typ of
-                    t | isSimple t -> Nothing
-                    Table _        -> Nothing
-                    Type.Tuple _   -> Nothing
-                    Record _       -> Nothing
-                    TypeApply s ts -> if Map.member s typeDefs then
-                            (Just s)
+                    t | isSimple t -> return Nothing
+                    Table _        -> return Nothing
+                    Type.Tuple _   -> return Nothing
+                    Record _       -> return Nothing
+                    TypeApply s ts -> do
+                        typeDefs <- getTypeDefs
+                        if Map.member s typeDefs then
+                            return (Just s)
                         else error "not typeDef"
 
                     _ -> error (show typ)

@@ -93,7 +93,7 @@ replaceGenericsInFuncBodyWithCall body callHeader = do
     constraints <- getConstraintsFromFuncHeaders header callHeader
     subs <- unify (typeArgs header) constraints
     body' <- applySubs subs body
-    mapFuncBodyM (tupleDeleterMapper (typeFuncs ast)) $ body' { funcTypeArgs = [] }
+    mapFuncBodyM tupleDeleterMapper $ body' { funcTypeArgs = [] }
 
 
 unifyOne :: BoM s m => [Symbol] -> Constraint -> m [(Type, Type)]
@@ -143,8 +143,9 @@ getConstraintsFromFuncHeaders headerToReplace header = do
 
 getConstraintsFromTypes :: BoM ASTResolved m => [Symbol] -> Type -> Type -> m [Constraint]
 getConstraintsFromTypes typeArgs t1 t2 = do
-    typeDefs <- gets typeFuncs
-    fromTypes (flattenTuple typeDefs t1) (flattenTuple typeDefs t2)
+    flatT1 <- flattenTuple t1
+    flatT2 <- flattenTuple t2
+    fromTypes flatT1 flatT2
     where
         fromTypes :: BoM ASTResolved m => Type -> Type -> m [Constraint]
         fromTypes t1 t2 = do

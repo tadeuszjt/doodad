@@ -2,6 +2,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE UndecidableInstances #-}
 module Monad where
 -- A monad which encapsulates StateT and error handling using Error
 
@@ -12,6 +13,8 @@ import Control.Monad.Trans
 import Control.Monad.Identity
 
 import Error
+import Type
+import ASTResolved
 
 
 newtype BoMT s m a
@@ -64,3 +67,7 @@ instance (Monad m, MonadFail m) => MonadFail (BoMT s m) where
 
 instance MonadTrans (BoMT s) where
     lift = BoMT . lift . ExceptT . (fmap Right)
+
+instance (Monad m, BoM ASTResolved m) => TypeDefs m where
+    getTypeDefs = gets typeFuncs
+

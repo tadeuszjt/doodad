@@ -24,8 +24,6 @@ mapper f elem = case elem of
     ElemStmt _                   -> return (Just elem)
     ElemExpr _                   -> return (Just elem)
     ElemPattern _                -> return (Just elem)
-    ElemStmt (S.Const _ _ _)     -> return Nothing
-    ElemStmt (S.Typedef _ _ _ _) -> return Nothing
     _ -> error (show elem)
 
 -- Apply represents taking a function and applying it to all types in an object.

@@ -306,8 +306,16 @@ instance Resolve Stmt where
         Block stmts -> do
             pushSymbolTable
             stmts' <- mapM resolve stmts
+
+            -- filter out statements
+            stmts'' <- fmap catMaybes $ forM stmts' $ \st -> case st of
+                Typedef _ _ _ _ -> return Nothing
+                FuncDef _ _ _ _ _ _ _ -> return Nothing
+                Const _ _ _ -> return Nothing
+                _ -> return (Just st)
+
             popSymbolTable
-            return $ Block stmts'
+            return $ Block stmts''
 
         Return pos mexpr -> case mexpr of
             Nothing -> return stmt
