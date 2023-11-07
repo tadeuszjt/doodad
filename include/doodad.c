@@ -14,6 +14,7 @@ char *doodad_string_alloc(size_t len);
 char *doodad_string_char(char c);
 char *doodad_string_i64(int64_t n);
 
+
 char *doodad_string_alloc(size_t len) {
     char *str = GC_malloc(len + 1);
     str[0] = '\0';

@@ -46,7 +46,6 @@ data GenerateState
         , ctors  :: Map.Map Symbol (Symbol, Int)
         , typefuncs :: Map.Map Symbol ([Symbol], Type.Type)
         , symTab :: SymTab.SymTab String () Value
-        , tableAppendFuncs :: Map.Map Type.Type String
         }
 
 initGenerateState modName
@@ -57,7 +56,6 @@ initGenerateState modName
         , ctors  = Map.empty
         , typefuncs = Map.empty
         , symTab = SymTab.initSymTab
-        , tableAppendFuncs = Map.empty
         }
 
 
@@ -469,56 +467,25 @@ getTypedef suggestion typ = do
             return $ Ctypedef name
 
 
-getTableAppendFunc :: MonadGenerate m => Type.Type -> m String
-getTableAppendFunc typ = do
-    base@(Table t) <- baseTypeOf typ
+tableAppend :: MonadGenerate m => Value -> m ()
+tableAppend val = do
+    Table t <- baseTypeOf val
     baseT <- baseTypeOf t
     ts <- case baseT of
         Record _ -> getRecordTypes t
-        t        -> return [t]
-    fm <- Map.lookup typ <$> gets tableAppendFuncs
-    case fm of
-        Just s -> return s
-        Nothing -> do -- append multiple tables
-            modName <- gets moduleName
-            funcName <- fresh $ modName ++ "_table_append"
-            aParam <- C.Param "a" . Cpointer <$> cTypeOf typ
-            --bParam <- C.Param "b" . Cpointer <$> cTypeOf typ
+        _        -> return [t]
 
-            -- create new function
-            funcId <- newFunction Cvoid funcName [aParam] --bParam]
-            withCurID globalID $ append funcId
-            withCurID funcId $ do
-                let a = C.Ident "a"
-                --let b = C.Ident "b"
-                let len = C.PMember a "len"
-                --let len2 = C.PMember b "len" 
-                let newLen = (C.Infix C.Plus len $ C.Int 1)
-                let cap = C.PMember a "cap"
-                
-                -- realloc if needed
-                if_ (Value Type.Bool $ C.Infix C.GTEq newLen cap) $ do
-                    appendElem $ C.Set cap (C.Infix C.Times newLen (C.Int 2))
-                    forM_ (zip ts [0..]) $ \(t, row) -> do
-                        appendElem $ C.Assign
-                            (Cpointer Cvoid)
-                            ("mem" ++ show row)
-                            (C.Call "GC_malloc" [C.Infix C.Times cap (C.Sizeof $ C.Deref $ C.PMember a $ "r" ++ show row)])
-                    forM_ (zip ts [0..]) $ \(t, row) -> do
-                        appendElem $ C.ExprStmt $ C.Call "memcpy"
-                            [ C.Ident ("mem" ++ show row)
-                            , C.PMember a ("r" ++ show row)
-                            , C.Infix C.Times len (C.Sizeof $ C.Deref $ C.PMember a $ "r" ++ show row)]
-                    forM_ (zip ts [0..]) $ \(t, row) -> do
-                        appendElem $ C.Set (C.PMember a ("r" ++ show row)) (C.Ident $ "mem" ++ show row)
+    let len    = C.Member (valExpr val) "len"
+    let newLen = (C.Infix C.Plus len $ C.Int 1)
+    let cap    = C.Member (valExpr val) "cap"
+    
+    -- realloc if needed
+    if_ (Value Type.Bool $ C.Infix C.GTEq len cap) $ do
+        appendElem $ C.Set cap (C.Infix C.Times newLen (C.Int 2))
 
-                for (Value I64 $ C.Int 1) $ \idx -> do
---                    forM_ (zip ts [0..]) $ \(t, row) -> do
---                        set
---                            (Value t $ C.Subscript (C.PMember a $ "r" ++ show row) (C.PMember a "len"))
---                            (Value t $ C.Initialiser [])
---                            --(Value t $ C.Subscript (C.PMember b $ "r" ++ show row) (valExpr idx))
-                    void $ appendElem $ C.ExprStmt $ C.Increment $ C.PMember a "len"
-                    
-            modify $ \s -> s { tableAppendFuncs = Map.insert typ funcName (tableAppendFuncs s) }
-            return funcName
+        forM_ (zip ts [0..]) $ \(t, row) -> do
+            let pMem = C.Member (valExpr val) ("r" ++ show row)
+            let newSize = C.Infix C.Times cap (C.Sizeof $ C.Deref $ C.Member (valExpr val) $ "r" ++ show row)
+            appendElem $ C.Set pMem $ C.Call "GC_realloc" [pMem, newSize]
+
+    void $ appendElem $ C.ExprStmt $ C.Increment $ C.Member (valExpr val) "len"

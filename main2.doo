@@ -89,7 +89,7 @@ fn testTree()
     tree4.insert( (true, "joranz", 39) )
     tree4.insert( (true, "jaranz", 50) )
     tree4.insert( (true, "jaranz", 36) )
-    //tree4.printTree()
+    tree4.printTree()
 
     print("testTree passed")
 

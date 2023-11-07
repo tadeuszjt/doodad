@@ -233,9 +233,7 @@ generateStmt stmt = withPos stmt $ case stmt of
         val <- generateExpr expr
         base <- baseTypeOf expr
         case base of
-            Table t -> do
-                appendFuncName <- getTableAppendFunc (typeof val)
-                callWithParams [val] appendFuncName []
+            Table t -> tableAppend val
 
     S.Assign _ pattern expr -> do
         matched <- generatePattern pattern =<< generateExpr expr
