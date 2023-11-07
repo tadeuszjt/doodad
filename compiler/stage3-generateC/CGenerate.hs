@@ -151,13 +151,6 @@ callWithParams params name args = do
     void $ appendElem $ C.ExprStmt $ C.Call name (map ptrExpr params ++ map valExpr args)
 
 
-recordLeafTypes :: MonadGenerate m => Type.Type -> m [Type.Type]
-recordLeafTypes typ = do
-    base <- baseTypeOf typ
-    case base of
-        Record _ -> getRecordTypes typ
-
-
 for :: MonadGenerate m => Value -> (Value -> m a) -> m a
 for len f = do
     base@(I64) <- baseTypeOf len
@@ -209,7 +202,8 @@ set a b = do
                 mb <- member i b
                 set ma mb
 
-        Type.Record ts -> do
+        Type.Record _ -> do
+            ts <- getRecordTypes (typeof a)
             forM_ (zip ts [0..]) $ \(t, i) -> do
                 let ma = Value t $ C.Deref $ C.Member (valExpr a) ("m" ++ show i)
                 let mb = Value t $ C.Deref $ C.Member (valExpr b) ("m" ++ show i)
@@ -324,7 +318,7 @@ initialiser typ vals = do
                 _ -> error (show baseT)
 
         Type.Record _ -> do
-            ts <- recordLeafTypes typ
+            ts <- getRecordTypes typ
             assert (length ts == length vals) "initialiser length"
             assign "record" $ Value typ $ C.Initialiser $ map (C.Address . valExpr) vals
 
@@ -346,6 +340,10 @@ accessRecord val marg = do
             assert (isNothing marg) "not a table"
             assign "record" $ Value (Record [typeof val]) $ C.Initialiser [C.Address $ valExpr val]
 
+        Record ts -> do
+            assert (isNothing marg) "not a table"
+            return val
+
         Table t -> do
             assert (isJust marg) "table access needs an integer argument"
             baseT <- baseTypeOf t
@@ -358,7 +356,7 @@ accessRecord val marg = do
                     elem <- return $ C.Address $ C.Subscript (C.Member (valExpr val) ("r" ++ show 0)) (valExpr $ fromJust marg)
                     assign "record" $ Value (Record [t]) $ C.Initialiser [elem]
                 Record _ -> do
-                    ts <- recordLeafTypes t
+                    ts <- getRecordTypes t
                     elems <- forM (zip ts [0..]) $ \(t, i) -> do
                         return $ C.Address $ C.Subscript (C.Member (valExpr val) ("r" ++ show i)) (valExpr $ fromJust marg)
                     assign "record" $ Value t $ C.Initialiser elems
@@ -370,7 +368,7 @@ accessRecord val marg = do
             baseT <- baseTypeOf t
             case baseT of
                 Record _ -> do
-                    ts <- recordLeafTypes t
+                    ts <- getRecordTypes t
                     elems <- forM (zip ts [0..]) $ \(t, i) -> do
                         return $ C.Address $ C.Member (valExpr val) ("m" ++ show i)
                     assign "record" $ Value t $ C.Initialiser elems
@@ -432,7 +430,7 @@ cTypeOf a = case typeof a of
                 baseT <- baseTypeOf t
                 case baseT of
                     Record _ -> do
-                        cts <- mapM cTypeOf =<< recordLeafTypes t
+                        cts <- mapM cTypeOf =<< getRecordTypes t
                         return $ Cstruct $ zipWith (\a b -> C.Param ("m" ++ show a) b) [0..] cts
 
             Type.Range t -> do
@@ -447,13 +445,13 @@ cTypeOf a = case typeof a of
             Type.Table t -> do
                 baseT <- baseTypeOf t
                 cts <- mapM cTypeOf =<< case baseT of
-                    Record ts -> recordLeafTypes t
+                    Record ts -> getRecordTypes t
                     t         -> return [t]
                 let pts = zipWith (\ct i -> C.Param ("r" ++ show i) (Cpointer ct)) cts [0..]
                 return $ Cstruct (C.Param "len" Cint64_t:C.Param "cap" Cint64_t:pts)
 
             Type.Record ts -> do
-                cts <- mapM cTypeOf =<< recordLeafTypes (Type.Record ts)
+                cts <- mapM cTypeOf =<< getRecordTypes (Type.Record ts)
                 return $ Cstruct $ zipWith (\ct i -> C.Param ("m" ++ show i) (Cpointer ct)) cts [0..]
 
             x -> error (show x)
@@ -476,7 +474,7 @@ getTableAppendFunc typ = do
     base@(Table t) <- baseTypeOf typ
     baseT <- baseTypeOf t
     ts <- case baseT of
-        Record _ -> recordLeafTypes t
+        Record _ -> getRecordTypes t
         t        -> return [t]
     fm <- Map.lookup typ <$> gets tableAppendFuncs
     case fm of

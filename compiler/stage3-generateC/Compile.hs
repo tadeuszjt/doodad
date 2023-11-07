@@ -169,12 +169,14 @@ generatePrint app val = case typeof val of
     Type.Tuple t -> do
         baseT <- baseTypeOf t
         case baseT of
-            Record ts -> do
+            Record _ -> do
+                ts <- getRecordTypes t
+
                 call "putchar" [Value Type.Char $ C.Char '(']
                 forM_ (zip ts [0..]) $ \(t, i) -> do
                     let end = i == length ts - 1
-                    generatePrint (if end then "" else ", ") =<< member i val
-                void $ appendPrintf (")" ++ app) []
+                    let member = Value t $ C.Member (valExpr val) ("m" ++ show i)
+                    generatePrint (if end then (")" ++ app) else ", ") member
             _ -> generatePrint app $ Value t (valExpr val)
 
     Type.TypeApply s t -> do
@@ -187,6 +189,9 @@ generatePrint app val = case typeof val of
             let end = i == length ts - 1
             generatePrint (if end then "" else ", ") =<< member i val
         void $ appendPrintf ("}" ++ app) []
+
+    Type.ADT ts -> do -- TODO
+        void $ appendPrintf ("ADT" ++ app) []
 
     _ -> error (show $ typeof val)
 
@@ -438,16 +443,23 @@ generatePattern pattern val = withPos pattern $ do
 
         PatTuple _ pats -> do
             base@(Type.Tuple t) <- baseTypeOf val
-            endLabel <- fresh "end"
-            match <- assign "match" false
+            baseT <- baseTypeOf t
 
-            forM_ (zip pats [0..]) $ \(pat, i) -> do
-                b <- generatePattern pat =<< member i val
-                if_ (not_ b) $ appendElem $ C.Goto endLabel
-                        
-            set match true
-            appendElem $ C.Label endLabel
-            return match
+            case baseT of
+                Record _ -> do
+                    ts <- getRecordTypes t
+                    assert (length pats == length ts) "invalid tuple length"
+                    endLabel <- fresh "end"
+                    match <- assign "match" false
+
+                    forM_ (zip3 pats ts [0..]) $ \(pat, t, i) -> do
+                        let member = Value t $ C.Member (valExpr val) ("m" ++ show i)
+                        b <- generatePattern pat member
+                        if_ (not_ b) $ appendElem $ C.Goto endLabel
+                                
+                    set match true
+                    appendElem $ C.Label endLabel
+                    return match
 
         PatGuarded _ pat expr -> do
             match <- assign "match" =<< generatePattern pat val
@@ -553,6 +565,7 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
             t | isSimple t -> accessRecord val Nothing
             Type.Tuple _   -> accessRecord val Nothing
             ADT _          -> accessRecord val Nothing
+            Record _       -> accessRecord val Nothing
 
             _ -> error (show base)
 
@@ -710,6 +723,7 @@ generateInfix op a b = do
             S.AndAnd -> Value (typeof a) $ C.Infix C.AndAnd (valExpr a) (valExpr b)
             S.OrOr   -> Value (typeof a) $ C.Infix C.OrOr (valExpr a) (valExpr b)
             S.EqEq   -> Value (typeof a) $ C.Infix C.EqEq (valExpr a) (valExpr b)
+            S.LT     -> Value (typeof a) $ C.Infix C.LT (valExpr a) (valExpr b)
             _ -> error (show op)
 
         Type.Char -> return $ case op of
@@ -737,18 +751,55 @@ generateInfix op a b = do
                 appendElem $ C.Label end
                 return eq
 
-        Type.Tuple (Record ts) -> case op of
-            S.EqEq -> do
+            S.LT -> do
                 end <- fresh "end" 
-                eq <- assign "eq" false
+                res <- assign "lt" true
                 forM_ (zip ts [0..]) $ \(t, i) -> do
-                    ma <- member i a
-                    mb <- member i b
-                    b <- generateInfix S.EqEq ma mb
-                    if_ (not_ b) $ appendElem $ C.Goto end
-                set eq true
+                    da <- member i a
+                    db <- member i b
+                    lt <- generateInfix S.LT da db
+                    if_ lt $ appendElem $ C.Goto end
+                    eq <- generateInfix S.EqEq da db
+                    if_ (not_ eq) $ do
+                        set res false
+                        appendElem $ C.Goto end
                 appendElem $ C.Label end
-                return eq
+                return res
+
+            _ -> error (show op)
+
+        Type.Tuple t -> do
+            baseT <- baseTypeOf t
+            ts <- case baseT of
+                Record _ -> getRecordTypes t
+                _        -> return [t]
+            case op of
+                S.EqEq -> do
+                    end <- fresh "end" 
+                    eq <- assign "eq" false
+                    forM_ (zip ts [0..]) $ \(t, i) -> do
+                        let ma = Value t $ C.Member (valExpr a) ("m" ++ show i)
+                        let mb = Value t $ C.Member (valExpr b) ("m" ++ show i)
+                        b <- generateInfix S.EqEq ma mb
+                        if_ (not_ b) $ appendElem $ C.Goto end
+                    set eq true
+                    appendElem $ C.Label end
+                    return eq
+
+                S.LT -> do
+                    end <- fresh "end" 
+                    res <- assign "lt" true
+                    forM_ (zip ts [0..]) $ \(t, i) -> do
+                        let ma = Value t $ C.Member (valExpr a) ("m" ++ show i)
+                        let mb = Value t $ C.Member (valExpr b) ("m" ++ show i)
+                        lt <- generateInfix S.LT ma mb
+                        if_ lt $ appendElem $ C.Goto end
+                        eq <- generateInfix S.EqEq ma mb
+                        if_ (not_ eq) $ do
+                            set res false
+                            appendElem $ C.Goto end
+                    appendElem $ C.Label end
+                    return res
             
 --        Type.Array n t -> case op of
 --            S.EqEq -> do

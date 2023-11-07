@@ -279,6 +279,8 @@ collectExpr (S.AExpr exprType expression) = collectPos expression $ case express
                 _    -> do -- Eg :   Just( e:t ):exprType
                     assert (length args == 1) "Invalid ADT args"
                     collect $ ConsAdtField (typeof $ head args) i 0 exprType
+
+            _ -> return () -- TODO
             _ -> error (show exprType)
 
     S.Builtin _ ps sym args -> do 

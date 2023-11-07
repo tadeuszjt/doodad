@@ -189,7 +189,7 @@ resolveAsts asts imports = withErrorPrefix "resolve: " $
 
         (_, ctorImportMap)     <- runBoMTExcept Map.empty (buildCtorImportMap imports)
 
-        mapM resolveTypeDef typedefs
+        mapM resolveTypeDef typedefs -- TODO resolve in order of symbol dependencies or something.
         mapM_ resolveFuncDef funcdefs
 
         typeFuncs <- gets typeFuncsMap

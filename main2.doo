@@ -7,70 +7,89 @@ import std/sparse
 
 type Person {string, i32}
 
-
-type[T] BinaryNode ( BinaryLeaf:()T | BinaryBranch:(T, SparseKey(BinaryNode(T)), SparseKey(BinaryNode(T))) )
-
-type[T] BinaryTree (
-    nodes : Sparse( BinaryNode(T) )
-    base  : Maybe(  SparseKey(BinaryNode(T)) )
+type[T] TreeNode   ( NodeBranch:(i64, i64) | NodeLeaf:null)
+type[T] TreeRecord { node:TreeNode(T), elem:T} 
+type[T] Tree (
+    base : Maybe(  Key(TreeRecord(T)) )
+    nodes: Sparse( TreeRecord(T) )
 )
 
 
-fn[T] {tree:BinaryTree(T)} insert(elem:()T)
-    let elemKey = tree.nodes.insert( BinaryLeaf(elem) )
+fn[T] {tree:Tree(T)} insert(elem:()T)
+    data record ()TreeRecord(T)
+    record.elem{} = elem{}
+    record.node   = NodeLeaf()
+    let elemKey = tree.nodes.insert(record)
 
     switch tree.base
         Nothing(); tree.base = Just(elemKey)
         Just(baseKey)
             let key = baseKey
-            while tree.nodes.get(key) -> BinaryBranch((x, left, right))
-                if elem < x; key = left
-                else;        key = right
+            while tree.nodes.get(key).node -> NodeBranch((left, right))
+                if elem{} < tree.nodes.get(key).elem{}
+                    key = conv(left)
+                else; key = conv(right)
 
-            let BinaryLeaf(x) = tree.nodes.get(key)
-            let right = elemKey
-            let left  = tree.nodes.insert( BinaryLeaf(x) )
-            if elem < x
-                right = left
-                left  = elemKey
+            data newLeaf ()TreeRecord(T)
+            newLeaf.elem{} = tree.nodes.get(key).elem{}
+            newLeaf.node   = NodeLeaf()
+            let newLeafKey = tree.nodes.insert( newLeaf )
 
-            tree.nodes.replace(key, BinaryBranch((x, left, right)) )
+            data newBranch ()TreeRecord(T)
+            newBranch.elem{} = elem{}
+            if elem{} < tree.nodes.get(key).elem{}
+                newBranch.elem{} = tree.nodes.get(key).elem{}
+                newBranch.node   = NodeBranch((conv(elemKey), conv(newLeafKey)))
+            else
+                newBranch.elem{} = elem{}
+                newBranch.node   = NodeBranch((conv(newLeafKey), conv(elemKey)))
 
+            tree.nodes.replace(key, newBranch)
 
-fn[T] {tree:BinaryTree(T)} printTree()
-    fn[T] {tree:BinaryTree(T)} printNode(key:SparseKey(BinaryNode(T)))
-        switch tree.nodes.get(key)
-            BinaryLeaf(x); print(x)
-            BinaryBranch((x, left, right))
-                tree.printNode(left)
-                tree.printNode(right)
-
+fn[T] {tree:Tree(T)} printTree()
+    fn[T] {tree:Tree(T)} printNode(key:Key(TreeRecord(T)))
+        switch tree.nodes.get(key).node
+            NodeLeaf(); print(tree.nodes.get(key).elem)
+            NodeBranch((left, right))
+                tree.printNode(conv(left))
+                tree.printNode(conv(right))
+                    
     switch tree.base
-        Nothing();     print("empty")
-        Just(baseKey); tree.printNode(baseKey)
-
-
+        Nothing(); print("empty")
+        Just(key); tree.printNode(key)
+                
+    
 fn testTree()
-    data tree BinaryTree(i64)
-
+    data tree Tree(i64)
     tree.insert(10)
-
     tree.insert(19)
     tree.insert(3)
     tree.insert(433)
     tree.insert(2)
-    tree.printTree()
+    //tree.printTree()
 
-    data tree2 BinaryTree(string)
-
+    data tree2 Tree(string)
     tree2.insert("benzhis")
     tree2.insert("benis")
     tree2.insert("beni")
     tree2.insert("bongis")
     tree2.insert("banghis")
     tree2.insert("benghis")
+    //tree2.printTree()
 
-    tree2.printTree()
+    data tree3 Tree(Person)
+    tree3.insert( ("jorinz", 35) )
+    tree3.insert( ("joranz", 39) )
+    tree3.insert( ("jaranz", 50) )
+    tree3.insert( ("jaranz", 36) )
+    //tree3.printTree()
+
+    data tree4 Tree((){bool, Person})
+    tree4.insert( (true, "jorinz", 35) )
+    tree4.insert( (true, "joranz", 39) )
+    tree4.insert( (true, "jaranz", 50) )
+    tree4.insert( (true, "jaranz", 36) )
+    //tree4.printTree()
 
     print("testTree passed")
 
@@ -116,9 +135,14 @@ fn testTable()
     tab3.push( (1, true) )
     let {1, true} = tab3[0]
 
-    data tab4 []SparseKey(i64)
+    data tab4 []Key(i64)
     tab4.push(3)
     let 3 = tab4.pop()
+
+    type[T] AnotherRecord {bool, T}
+    data tab5 []AnotherRecord(Person)
+    tab5.push( (true, "jorinz", 49) )
+    let (true, "jorinz", 49) = tab5.pop()
 
     print("testTable passed")
 

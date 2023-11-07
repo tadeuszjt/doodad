@@ -126,7 +126,6 @@ buildBinaryFromModule args modPath = do
             liftIO $ putStrLn ""
             liftIO $ putStrLn =<< readFile asmPath
             liftIO $ removeFile asmPath
-            
 
     exitCode <- liftIO $ rawSystem "gcc" $
         ["-I", hDoodad] ++ cFiles ++ ["-lgc"] ++ map ("-l" ++) linkPaths ++ ["-o", binFile]
@@ -212,4 +211,5 @@ buildModule args modPath = do
         cHandle <- liftIO $ openFile cFilePath WriteMode
         void $ runBoMTExcept (initCPrettyState cHandle finalBuilderState) (cPretty includePaths)
         void $ liftIO $ hClose cHandle
-        liftIO $ putStrLn $ "wrote c:   " ++ cFilePath
+        count <- liftIO $ length . lines <$> readFile cFilePath
+        liftIO $ putStrLn $ "wrote c:   " ++ cFilePath ++ " LOC:" ++ show count
