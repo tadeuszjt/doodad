@@ -31,26 +31,17 @@ data CollectState
         , collected   :: Map.Map Constraint TextPos
         , defaults    :: Map.Map Constraint TextPos
         , curPos      :: TextPos
-        , typeSupply  :: Int
         , astResolved :: ASTResolved
         }
 
-initCollectState annotateCount astResolved = CollectState
+initCollectState astResolved = CollectState
     { symTab      = SymTab.initSymTab
     , curRetty    = Void
     , collected   = Map.empty
     , defaults    = Map.empty
     , curPos      = TextPos "" 0 0
-    , typeSupply  = annotateCount
     , astResolved = astResolved 
     }
-
-
-genType :: BoM CollectState m => m Type
-genType = do
-    i <- gets typeSupply
-    modify $ \s -> s { typeSupply = i + 1 }
-    return $ Type i
 
 
 collectPos :: (BoM CollectState m, TextPosition t) => t -> m a -> m a
@@ -140,7 +131,8 @@ collectStmt stmt = collectPos stmt $ case stmt of
         maybe (return ()) collectStmt melse
 
     S.Assign _ pattern expr -> do
-        collectPattern pattern (typeof expr)
+        collectEq (typeof pattern) (typeof expr)
+        collectPattern pattern
         collectExpr expr
 
     -- only tables use +=, must be table
@@ -173,14 +165,14 @@ collectStmt stmt = collectPos stmt $ case stmt of
     S.Switch p expr cases -> do
         collectExpr expr
         forM_ cases $ \(pat, stmt) -> do
-            collectPattern pat (typeof expr)
+            collectEq (typeof pat) (typeof expr)
+            collectPattern pat
             collectStmt stmt
 
     S.For p expr mpat blk -> do
         when (isJust mpat) $ do
-            gt <- genType
-            collect $ ConsSubscript (typeof expr) gt
-            collectPattern (fromJust mpat) gt
+            collect $ ConsSubscript (typeof expr) (typeof $ fromJust mpat)
+            collectPattern (fromJust mpat)
 
         collectExpr expr
         collectStmt blk
@@ -194,50 +186,53 @@ collectStmt stmt = collectPos stmt $ case stmt of
 
 
 -- collectPattern pattern <with this type of expression trying to match>
-collectPattern :: BoM CollectState m => S.Pattern -> Type -> m ()
-collectPattern pattern typ = collectPos pattern $ case pattern of
+collectPattern :: BoM CollectState m => S.Pattern -> m ()
+collectPattern (S.PatAnnotated pattern patType) = collectPos pattern $ case pattern of
     S.PatIgnore pos        -> return ()
     S.PatNull _            -> return ()
-    S.PatIdent _ symbol    -> define symbol (ObjVar typ)
-    S.PatTypeField _ t pat -> collectPattern pat t
+    S.PatIdent _ symbol    -> do
+        define symbol (ObjVar patType)
+
+    S.PatTypeField _ t pat -> do
+        collectEq patType t
+        collectPattern pat
 
     S.PatLiteral expr -> do 
-        collectEq typ (typeof expr)
+        collectEq patType (typeof expr)
         collectExpr expr
 
     S.PatGuarded _ pat expr -> do
-        collectPattern pat typ
+        collectPattern pat
         collectExpr expr
 
     S.PatField _ symbol pats -> do
         ast <- gets astResolved
         [symbol'] <- fmap fst $ runBoMTExcept ast (findCtorCandidates symbol)
         (s, i) <- mapGet symbol' . ctorDefs =<< gets astResolved
-        gts <- replicateM (length pats) genType
-        zipWithM_ collectPattern pats gts
-        forM_ (zip gts [0..]) $ \(t, j) -> collect $ ConsAdtField t i j typ
+        forM_ (zip pats [0..]) $ \(pat, j) ->
+            collect $ ConsAdtField (typeof pat) i j patType
+        mapM_ collectPattern pats
+
 
     S.PatTuple _ pats -> do
         -- TODO get rid of this and annotate patterns properly 
-        gts <- replicateM (length pats) genType
-        collectDefault typ (Tuple $ Record gts)
-        collect $ ConsTuple typ gts
-        zipWithM_ collectPattern pats gts
+        collectDefault patType (Tuple $ Record $ map typeof pats)
+        collect $ ConsTuple patType (map typeof pats)
+        mapM_ collectPattern pats
 
     S.PatArray _ pats -> do
-        gt <- genType
-        mapM_ (\p -> collectPattern p gt) pats
+        --gt <- genType
+        --mapM_ (\p -> collectPattern p gt) pats
         error "here"
         --collect $ ConsMember typ 0 gt
 
     S.PatAnnotated pat t -> do
-        collectEq t typ
-        collectPattern pat typ
+        collectEq t patType
+        collectPattern pat
 
     S.PatRecord _ pats -> do
-        gts <- replicateM (length pats) genType
-        collect $ ConsBase typ (Record gts)
-        zipWithM_ collectPattern pats gts
+        collect $ ConsBase patType $ Record (map typeof pats)
+        mapM_ collectPattern pats
         
     _ -> error $ show pattern
 
@@ -346,7 +341,8 @@ collectExpr (S.AExpr exprType expression) = collectPos expression $ case express
         collectExpr e
 
     S.Match _ e p -> do
-        collectPattern p (typeof e)
+        collectEq (typeof p) (typeof e)
+        collectPattern p
         collectExpr e
         collectDefault exprType Bool
 

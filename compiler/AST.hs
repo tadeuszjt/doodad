@@ -98,6 +98,10 @@ instance Typeof Expr where
     typeof (AExpr typ _) = typ
     typeof a = error $ "can only take typeof AExpr: " ++ show a
 
+instance Typeof Pattern where
+    typeof (PatAnnotated _ typ) = typ
+    typeof a = error $ "can only take typeof PatAnnotated" 
+
 data Stmt
     = Assign      TextPos Pattern Expr
     | SetOp       TextPos Operator Expr   Expr

@@ -54,6 +54,7 @@ fn testTree()
     data tree BinaryTree(i64)
 
     tree.insert(10)
+
     tree.insert(19)
     tree.insert(3)
     tree.insert(433)

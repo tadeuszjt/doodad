@@ -32,14 +32,13 @@ infer ast printAnnotated verbose = do
         inferTypes :: BoM s m => ASTResolved -> m ASTResolved
         inferTypes ast = do
             when verbose $ liftIO $ putStrLn $ "inferring types..."
-            (annotated, typeSupplyCount) <- withErrorPrefix "annotate: " $
-                runBoMTExcept 0 $ annotate ast
+            (annotated, _) <- withErrorPrefix "annotate: " $ runBoMTExcept 0 $ annotate ast
             when printAnnotated $ do
                 liftIO $ putStrLn ""
                 liftIO $ putStrLn "annotated AST:"
                 liftIO $ prettyASTResolved annotated
             collectState <- fmap snd $ withErrorPrefix "collect: " $
-                runBoMTExcept (initCollectState typeSupplyCount annotated) (collectAST verbose annotated)
+                runBoMTExcept (initCollectState annotated) (collectAST verbose annotated)
 
             -- turn type constraints into substitutions using unify
             subs <- fmap fst $ runBoMTExcept ast (unify $ Map.toList $ collected collectState)
@@ -52,10 +51,9 @@ infer ast printAnnotated verbose = do
         inferDefaults :: BoM s m => ASTResolved -> m ASTResolved
         inferDefaults ast = do
             when verbose $ liftIO $ putStrLn $ "inferring defaults..."
-            (annotated, typeSupplyCount) <- withErrorPrefix "annotate: " $
-                runBoMTExcept 0 $ annotate ast
+            (annotated, _) <- withErrorPrefix "annotate: " $ runBoMTExcept 0 $ annotate ast
             collectState <- fmap snd $ withErrorPrefix "collect: " $
-                runBoMTExcept (initCollectState typeSupplyCount annotated) (collectAST verbose annotated)
+                runBoMTExcept (initCollectState annotated) (collectAST verbose annotated)
 
             -- apply substitutions to ast
             subs <- fmap fst $ runBoMTExcept ast (unifyDefault $ Map.toList $ defaults collectState)

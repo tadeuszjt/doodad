@@ -19,14 +19,17 @@ annotateMapper :: BoM Int m => Elem -> m Elem
 annotateMapper elem = case elem of
     ElemStmt _                     -> return elem
     ElemType _                     -> return elem
-    ElemPattern _                  -> return elem
     ElemExpr (AExpr t (AExpr _ e)) -> return $ ElemExpr $ AExpr t e
-    ElemExpr expr                  -> ElemExpr <$> annotateWithType expr
+    ElemExpr expr                  -> do
+        t <- genType
+        return $ ElemExpr (AExpr t expr)
+    ElemPattern (PatAnnotated (PatAnnotated p _) t) -> do
+        return $ ElemPattern (PatAnnotated p t)
+    ElemPattern pattern -> do
+        t <- genType
+        return $ ElemPattern (PatAnnotated pattern t)
+        
 
-annotateWithType :: BoM Int m => Expr -> m Expr
-annotateWithType expr = do
-    t <- genType
-    return $ AExpr t expr
 
 genType :: BoM Int m => m Type
 genType = do
@@ -42,11 +45,9 @@ deAnnotate resolvedAst = do
 
 deAnnotateMapper :: BoM s m => Elem -> m Elem
 deAnnotateMapper elem = return $ case elem of
-    ElemExpr (AExpr typ expr) | hasTypeVars typ -> ElemExpr expr
-    ElemExpr _                                  -> elem
-    ElemStmt _                                  -> elem
-    ElemType _                                  -> elem
-    ElemPattern _                               -> elem
+    ElemExpr (AExpr typ expr)          | hasTypeVars typ -> ElemExpr expr
+    ElemPattern (PatAnnotated pat typ) | hasTypeVars typ -> ElemPattern pat
+    _                                                    -> elem
 
 hasTypeVars :: Type -> Bool
 hasTypeVars typ = case typ of
