@@ -18,16 +18,6 @@ import Apply
 import Symbol
 
 
-baseTypeOfm :: Type -> DoM ASTResolved (Maybe Type)
-baseTypeOfm typ = case typ of
-    TypeApply symbol ts -> do
-        typeDefs <- gets typeFuncs
-        case Map.lookup symbol typeDefs of
-            Nothing              -> return Nothing
-            Just (argSymbols, t) -> baseTypeOfm =<< applyTypeArguments argSymbols ts t
-    Type x -> return Nothing
-    t      -> return (Just t)
-
 
 unifyOne :: TextPos -> Constraint -> DoM ASTResolved [(Type, Type)]
 unifyOne pos constraint = withPos pos $ case constraint of

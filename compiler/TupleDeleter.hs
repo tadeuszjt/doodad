@@ -13,11 +13,7 @@ import Error
 
 tupleDeleterMapper :: Elem -> DoM ASTResolved Elem
 tupleDeleterMapper elem = case elem of
-    ElemType (Type.Tuple t) -> do
-        b <- definitelyIgnoresTuples t
-        case b of
-            True  -> return (ElemType t)
-            False -> return elem
+    ElemType t -> ElemType <$> flattenType t
     _ -> return elem
 
 deleteSingleTuples :: DoM ASTResolved ()

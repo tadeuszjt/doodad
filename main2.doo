@@ -17,9 +17,11 @@ type[T] Tree (
 
 fn[T] {tree:Tree(T)} insert(elem:()T)
     data record ()TreeRecord(T)
-    record.elem{} = elem{}
     record.node   = NodeLeaf()
+    record.elem{} = elem{}
     let elemKey = tree.nodes.insert(record)
+    //switch tree.nodes.at(elemKey)
+    //    {NodeLeaf(), x}; print("here", x)
 
     switch tree.base
         Nothing(); tree.base = Just(elemKey)
@@ -123,6 +125,7 @@ fn testTuple()
 fn testTable()
     data tab1 []i64
     tab1.push(3)
+    let {3} = tab1.at(0)
     let 1 = tab1.length()
     let 3 = tab1.pop()
     let 0 = tab1.length()
@@ -176,6 +179,21 @@ fn testMap()
     print("testMap passed")
 
 
+fn testPatRecord()
+    let x = 3
+    if x{} -> {y}
+        y = 4
+    //let 4 = x
+
+    //let x2 = (3, 4)
+    //if x2{} -> {a, b}
+    //    b = 5
+    //    a = 2
+    //let (2, 5) = x2
+
+    print("testPatRecord passed")
+
+
 fn testSparse()
     data s1 Sparse(i64)
     let 0 = s1.insert(3)
@@ -200,4 +218,5 @@ fn main()
     testMap()
     testSparse()
     testTree()
+    testPatRecord()
     print("main2 finished")

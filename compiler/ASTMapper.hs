@@ -7,6 +7,7 @@ import AST
 import ASTResolved
 import Type
 import Error
+import Monad
 
 data Elem
     = ElemStmt Stmt
@@ -15,13 +16,13 @@ data Elem
     | ElemPattern Pattern
     deriving (Show)
 
-type MapperFunc m = (Elem -> m Elem)
+type MapperFunc s = (Elem -> DoM s Elem)
 
-mapParamM :: MonadError Error m => MapperFunc m -> Param -> m Param
+mapParamM :: MapperFunc s -> Param -> DoM s Param
 mapParamM f (AST.Param pos symbol typ) = withPos pos $ AST.Param pos symbol <$> (mapTypeM f typ)
     
 
-mapFuncBodyM :: MonadError Error m => MapperFunc m -> FuncBody -> m FuncBody
+mapFuncBodyM :: MapperFunc s -> FuncBody -> DoM s FuncBody
 mapFuncBodyM f body = do
     funcParams' <- mapM (mapParamM f) (funcParams body)
     funcArgs'   <- mapM (mapParamM f) (funcArgs body)
@@ -36,7 +37,7 @@ mapFuncBodyM f body = do
         }
 
 
-mapFuncHeaderM :: MonadError Error m => MapperFunc m -> FuncHeader -> m FuncHeader
+mapFuncHeaderM :: MapperFunc s -> FuncHeader -> DoM s FuncHeader
 mapFuncHeaderM f header = do
     paramTypes' <- mapM (mapTypeM f) (paramTypes header)
     argTypes'   <- mapM (mapTypeM f) (argTypes header)
@@ -50,7 +51,7 @@ mapFuncHeaderM f header = do
         }
 
 
-mapStmtM :: MonadError Error m => MapperFunc m -> Stmt -> m Stmt
+mapStmtM :: MapperFunc s -> Stmt -> DoM s Stmt
 mapStmtM f stmt = withPos stmt $ do
     res <- f . ElemStmt =<< case stmt of
         Typedef _ _ _ _ -> return stmt -- ignored
@@ -109,7 +110,7 @@ mapStmtM f stmt = withPos stmt $ do
         _          -> error "result wasn't ElemStmt"
 
 
-mapExprM :: MonadError Error m => MapperFunc m -> Expr -> m Expr
+mapExprM :: MapperFunc s -> Expr -> DoM s Expr
 mapExprM f expr = withPos expr $ do
     res <- f . ElemExpr =<< case expr of
         AExpr typ expr -> do
@@ -166,7 +167,7 @@ mapExprM f expr = withPos expr $ do
         _          -> error "result wasn't ElemExpr"
 
 
-mapPattern :: MonadError Error m => MapperFunc m -> Pattern -> m Pattern
+mapPattern :: MapperFunc s -> Pattern -> DoM s Pattern
 mapPattern f pattern = withPos pattern $ do
     res <- f . ElemPattern =<< case pattern of
         PatIdent pos symbol      -> return pattern
@@ -185,7 +186,7 @@ mapPattern f pattern = withPos pattern $ do
         _             -> error "result wasn't ElemPattern"
 
 
-mapTypeM :: Monad m => MapperFunc m -> Type -> m Type
+mapTypeM :: MapperFunc s -> Type -> DoM s Type
 mapTypeM f typ = do
     res <- f . ElemType =<< case typ of
         Type.U8        -> return typ
@@ -200,6 +201,7 @@ mapTypeM f typ = do
         Type.Char      -> return typ
         Type _         -> return typ
         Record ts      -> Record <$> mapM (mapTypeM f) ts
+        RecordApply t  -> RecordApply <$> mapTypeM f t 
         Type.Tuple t   -> Type.Tuple <$> mapTypeM f t
         Table t        -> Table <$> mapTypeM f t
         TypeApply s ts -> TypeApply s <$> mapM (mapTypeM f) ts

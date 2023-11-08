@@ -40,6 +40,7 @@ data Type
     | String
     | Range Type
     | Record [Type]
+    | RecordApply Type
     | Tuple Type
     | Table Type
     | ADT [Type]
@@ -62,6 +63,7 @@ instance Show Type where
         String            -> "string"
         Range t           -> "[..]" ++ show t
         Record ts         -> "{" ++ intercalate ", " (map show ts) ++ "}"
+        RecordApply t     -> "{}" ++ show t
         Tuple (Record ts) -> "(" ++ intercalate ", " (map show ts) ++ ")"
         Tuple t           -> "()" ++ show t
         Table t           -> "[]" ++ show t
@@ -115,8 +117,9 @@ mapType f typ = f $ case typ of
         Char           -> typ
         Type _         -> typ
         Record ts      -> Record $ map (mapType f) ts
-        Tuple t        -> Tuple $ mapType f t
-        Table t        -> Table $ mapType f t
+        Tuple t        -> Tuple (mapType f t)
+        Table t        -> Table (mapType f t)
+        RecordApply t  -> RecordApply (mapType f t)
         TypeApply s ts -> TypeApply s $ map (mapType f) ts
         Range t        -> Type.Range $ mapType f t
         ADT ts         -> ADT $ map (mapType f) ts
@@ -138,28 +141,36 @@ findGenerics typeArgs typ = case typ of
 
 
 baseTypeOf :: (TypeDefs m, Typeof a) => a -> m Type
-baseTypeOf a = case typeof a of
-    t | isSimple t -> return t
-    Record ts      -> return (Record ts)
-    ADT ts         -> return (ADT ts)
-    Tuple t        -> return (Tuple t)
-    Table t        -> return (Table t)
-    Range t        -> return (Range t)
+baseTypeOf a = do
+    resm <- baseTypeOfm a
+    case resm of
+        Nothing -> error "baseTypeOf"
+        Just x  -> return x
+    
+
+baseTypeOfm :: (TypeDefs m, Typeof a) => a -> m (Maybe Type)
+baseTypeOfm a = case typeof a of
+    t | isSimple t -> return $ Just t
+    Record ts      -> return $ Just (Record ts)
+    ADT ts         -> return $ Just (ADT ts)
+    Tuple t        -> return $ Just (Tuple t)
+    Table t        -> return $ Just (Table t)
+    Range t        -> return $ Just (Range t)
     TypeApply symbol ts -> do
         resm <- Map.lookup symbol <$> getTypeDefs
         case resm of
-            Nothing -> error "symbol not defined"
-            Just (ss, t) -> baseTypeOf =<< applyTypeArguments ss ts t
+            Nothing -> return Nothing
+            Just (ss, t) -> baseTypeOfm =<< applyTypeArguments ss ts t
+    Type x -> return Nothing
 
     x -> error (show x)
-    
 
 
 applyTypeArguments :: TypeDefs m => [Symbol] -> [Type] -> Type -> m Type
 applyTypeArguments argSymbols argTypes typ = do
     when (length argSymbols /= length argTypes) $ error "invalid arguments"
     let args = zip argSymbols argTypes
-    flattenTuple =<< case typ of
+    flattenType =<< case typ of
         TypeApply s [] -> case lookup s args of
             Just x  -> return x
             Nothing -> return typ
@@ -181,8 +192,8 @@ typesCouldMatch :: TypeDefsMap -> [Symbol] -> Type -> Type -> Bool
 typesCouldMatch typedefs generics t1 t2 = typesCouldMatchPure
         typedefs
         generics
-        (addTuple $ runTypeDefsMonad typedefs (flattenTuple t1))
-        (addTuple $ runTypeDefsMonad typedefs (flattenTuple t2))
+        (addTuple $ runTypeDefsMonad typedefs (flattenType t1))
+        (addTuple $ runTypeDefsMonad typedefs (flattenType t2))
     where
         addTuple :: Type -> Type
         addTuple typ = case typ of
@@ -231,6 +242,7 @@ definitelyIgnoresTuples typ = case typ of
     t | isSimple t -> return True
     Tuple t        -> return True
     Table t        -> return True
+    RecordApply _  -> return True -- TODO, correct?
     Record ts      -> return False
     Type _         -> return False
     TypeApply s ts -> do
@@ -241,29 +253,49 @@ definitelyIgnoresTuples typ = case typ of
 
     _ -> error (show typ)
 
--- Recursively removes all superfluous tuple applications from the type.
--- For example:
+
+-- {}i64           -> {i64}
+-- {}Person        -> Person
+-- {}(){i64, bool} -> {i64, bool}
+-- {}[]{i64, bool} -> {[]{i64, bool}}
 -- ()i64         -> i64
 -- ()()string    -> string
 -- ()T           -> ()T
 -- (){i64, bool} -> (){i64, bool}
-flattenTuple :: TypeDefs m => Type -> m Type
-flattenTuple typ = case typ of
+flattenType :: TypeDefs m => Type -> m Type
+flattenType typ = case typ of
+    t | isSimple t -> return typ
+
     Tuple t -> do
-        b <- definitelyIgnoresTuples t
+        t' <- flattenType t
+        b <- definitelyIgnoresTuples t'
         case b of
-            True -> return t
-            False -> return typ
+            True -> flattenType t'
+            False -> Tuple <$> flattenType t;
 
-    TypeApply s ts -> TypeApply s <$> mapM flattenTuple ts
-    Record ts      -> Record <$> mapM flattenTuple ts
-    Table t        -> Table <$> flattenTuple t
-    ADT ts         -> ADT <$> mapM flattenTuple ts
+    TypeApply s ts -> TypeApply s <$> mapM flattenType ts
 
-    t | isSimple t -> return t
-    Type _         -> return typ
-    Void           -> return typ
-    _ -> error (show typ)
+    RecordApply t -> do
+        t' <- flattenType t
+        basem <- baseTypeOfm t'
+        case basem of
+            Just base -> case base of
+                t | isSimple t -> return $ Record [t']
+                Record _       -> return t'
+
+                x -> error (show x)
+
+            Nothing -> return (RecordApply t')
+            x -> error (show x)
+
+    Record ts -> Record <$> mapM flattenType ts
+
+    Void -> return typ
+    Type _ -> return typ
+    Table t -> Table <$> flattenType t
+    ADT ts -> ADT <$> mapM flattenType ts
+
+    x -> error (show x)
 
 
 data RecordTree

@@ -58,4 +58,5 @@ hasTypeVars typ = case typ of
     Record ts      -> any (== True) (map hasTypeVars ts)
     Table t        -> hasTypeVars t
     Type.Range t   -> hasTypeVars t
+    RecordApply t  -> hasTypeVars t
     _ -> error (show typ)

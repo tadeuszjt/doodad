@@ -79,6 +79,7 @@ funcHeaderFullyResolved typeArgs header =
             Table t -> typeFullyResolved t
             Tuple t -> typeFullyResolved t
             Record ts -> all (== True) (map typeFullyResolved ts)
+            RecordApply t -> typeFullyResolved t
             _ -> error $ "typeFullyResolved: " ++ show typ
 
 
@@ -142,8 +143,8 @@ getConstraintsFromFuncHeaders headerToReplace header = do
 
 getConstraintsFromTypes :: [Symbol] -> Type -> Type -> DoM ASTResolved [Constraint]
 getConstraintsFromTypes typeArgs t1 t2 = do
-    flatT1 <- flattenTuple t1
-    flatT2 <- flattenTuple t2
+    flatT1 <- flattenType t1
+    flatT2 <- flattenType t2
     fromTypes flatT1 flatT2
     where
         fromTypes :: Type -> Type -> DoM ASTResolved [Constraint]

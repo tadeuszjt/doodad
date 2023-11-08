@@ -316,6 +316,7 @@ type_         : ordinal_t                   { $1 }
               | record_t                    { $1 }
               | tuple_t                     { $1 }
               | table_t                     { $1 }
+              | recapp_t                    { $1 }
 
 
 ordinal_t   : bool                          { T.Bool }
@@ -335,6 +336,7 @@ tuple_t  : '(' ')' type_                    { T.Tuple $3 }
          | '(' type_ ',' types1 ')'         { T.Tuple (T.Record $ $2 : $4) }
          --| '(' ')'                          { T.Tuple (T.Record []) }
 table_t  : '[' ']' type_                    { T.Table $3 }
+recapp_t : '{' '}' type_                    { T.RecordApply $3 }
 
 
 anno_t   : ordinal_t                        { S.AnnoType $1 }

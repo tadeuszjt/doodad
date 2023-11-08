@@ -11,6 +11,9 @@ type[T] Sparse (values:[]T, empty:[]Key(T))
 fn[T] {s:Sparse(T)} length() i64
     return s.values.length() - s.empty.length()
 
+fn[T] {s:Sparse(T)} at(key:Key(T)) {}T
+    return s.values[key]
+
 
 fn[T] {s:Sparse(T)} insert(value:()T) Key(T)
     if s.empty.length() > 0

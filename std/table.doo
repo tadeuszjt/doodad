@@ -15,3 +15,6 @@ fn[T] {t:[]T} pop() ()T
     elem{} = t[t.length() - 1]
     ${ $t->len--; }
     return elem
+
+fn[T] {t:[]T} at(index:i64) {}T
+    return t[index]

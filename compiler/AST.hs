@@ -141,6 +141,7 @@ instance TextPosition Pattern where
         PatField     p _ _ -> p
         PatTypeField p _ _ -> p
         PatAnnotated pat _ -> textPos pat
+        PatRecord p _ -> p
         PatNull      p -> p
 
 

@@ -236,7 +236,7 @@ generateStmt stmt = withPos stmt $ case stmt of
             Table t -> tableAppend val
 
     S.Assign _ pattern expr -> do
-        matched <- generatePattern pattern =<< generateExpr expr
+        matched <- generatePattern False pattern =<< generateExpr expr
         call "assert" [matched]
 
     S.Data _ symbol typ Nothing -> do
@@ -258,7 +258,7 @@ generateStmt stmt = withPos stmt $ case stmt of
         withCurID switchId $ append caseId
         withCurID caseId $ do
             forM_ cases $ \(pattern, stmt) -> do
-                cnd <- generatePattern pattern newVal
+                cnd <- generatePattern False pattern newVal
                 if_ cnd $ do
                     generateStmt stmt
                     appendElem C.Break
@@ -334,9 +334,9 @@ generateStmt stmt = withPos stmt $ case stmt of
             patMatches <- case mpat of
                 Nothing -> return true
                 Just pat -> case base of
-                    --Type.String   -> generatePattern pat =<< subscript val idx
-                    Type.Table ts -> generatePattern pat =<< accessRecord val (Just idx)
-                    Type.Range t  -> generatePattern pat idx
+                    --Type.String   -> generatePattern False pat =<< subscript val idx
+                    Type.Table ts -> generatePattern False pat =<< accessRecord val (Just idx)
+                    Type.Range t  -> generatePattern False pat idx
                     _ -> error (show base)
 
             if_ (not_ patMatches) $ appendElem C.Break
@@ -382,12 +382,12 @@ generateReentrantExpr (Value typ expr) = Value typ <$> reentrantExpr expr
             _ -> error (show expr)
 
 
-generatePattern :: MonadGenerate m => Pattern -> Value -> m Value
-generatePattern pattern val = withPos pattern $ do
+generatePattern :: MonadGenerate m => Bool -> Pattern -> Value -> m Value
+generatePattern isReference pattern val = withPos pattern $ do
     case pattern of
         PatIgnore _ -> return true
         PatLiteral expr -> generateInfix S.EqEq val =<< generateExpr expr
-        PatAnnotated pat typ -> generatePattern pat val
+        PatAnnotated pat typ -> generatePattern isReference pat val
 
         PatRecord _ pats -> do
             base <- baseTypeOf val
@@ -397,14 +397,13 @@ generatePattern pattern val = withPos pattern $ do
                     endLabel <- fresh "end"
                     match <- assign "match" false
                     forM_ (zip3 pats [0..] ts) $ \(pat, i, t) -> do
-                        b <- generatePattern pat $ Value t $ C.Deref $ C.Member (valExpr val) ("m" ++ show i)
+                        b <- generatePattern True pat =<< member i val
                         if_ (not_ b) $ appendElem (C.Goto endLabel)
 
                     set match true
                     appendElem $ C.Label endLabel
                     return match
                         
-
                 _ -> error (show base)
 
 --        PatArray _ pats -> do   
@@ -424,7 +423,7 @@ generatePattern pattern val = withPos pattern $ do
 --                    if_ lenNotEq $ void $ appendElem $ C.Goto endLabel
 --
 --            forM_ (zip pats [0..]) $ \(pat, i) -> do
---                b <- generatePattern pat =<< subscript val (i64 i)
+--                b <- generatePattern isReference pat =<< subscript val (i64 i)
 --                if_ (not_ b) $ appendElem $ C.Goto endLabel
 --                        
 --            set match true
@@ -434,9 +433,12 @@ generatePattern pattern val = withPos pattern $ do
 
         PatIdent _ symbol -> do 
             let name = show symbol
-            define name (Value (typeof val) $ C.Ident name)
-            cType <- cTypeOf (typeof val)
-            appendAssign cType (show symbol) (valExpr val)
+            if isReference then do
+                define name (Value (typeof val) $ valExpr val)
+            else do
+                define name (Value (typeof val) $ C.Ident name)
+                cType <- cTypeOf (typeof val)
+                void $ appendAssign cType (show symbol) (valExpr val)
             return true
 
         PatTuple _ pats -> do
@@ -452,7 +454,7 @@ generatePattern pattern val = withPos pattern $ do
 
                     forM_ (zip3 pats ts [0..]) $ \(pat, t, i) -> do
                         let member = Value t $ C.Member (valExpr val) ("m" ++ show i)
-                        b <- generatePattern pat member
+                        b <- generatePattern isReference pat member
                         if_ (not_ b) $ appendElem $ C.Goto endLabel
                                 
                     set match true
@@ -460,7 +462,7 @@ generatePattern pattern val = withPos pattern $ do
                     return match
 
         PatGuarded _ pat expr -> do
-            match <- assign "match" =<< generatePattern pat val
+            match <- assign "match" =<< generatePattern isReference pat val
             endLabel <- fresh "end"
             if_ (not_ match) $ appendElem $ C.Goto endLabel
             set match =<< generateExpr expr
@@ -489,7 +491,7 @@ generatePattern pattern val = withPos pattern $ do
                             return ()
                         _ -> do
                             assert (length pats == 1) "Invalid pattern for ADT"
-                            patMatch <- generatePattern (head pats) =<< member i val
+                            patMatch <- generatePattern isReference (head pats) =<< member i val
                             if_ (not_ patMatch) $ void $ appendElem (C.Goto endLabel)
 
                     set match true
@@ -515,7 +517,7 @@ generatePattern pattern val = withPos pattern $ do
 --            match <- assign "matchNull" =<< generateInfix S.EqEq (i64 i) =<< adtEnum val
 --            if_ (not_ match) $ appendElem (C.Goto skip)
 --
---            set match =<< generatePattern pat =<< member i val
+--            set match =<< generatePattern isReference pat =<< member i val
 --            appendElem $ C.Label skip
 --            return match
 
@@ -543,7 +545,7 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
     S.Float _ f  -> return $ Value typ (C.Float f)
     S.String _ s -> return $ Value typ $ C.String s
     S.Char _ c   -> return $ Value typ $ C.Char c
-    S.Match _ expr pattern -> generatePattern pattern =<< generateExpr expr
+    S.Match _ expr pattern -> generatePattern False pattern =<< generateExpr expr
     S.Builtin _ [] "conv" [expr] -> convert typ =<< generateExpr expr
     S.Builtin _ params "len" exprs -> do 
         assert (params == []) "len cannot have params"

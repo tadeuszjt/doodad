@@ -47,8 +47,8 @@ genSymbol sym = do
 
 cleanUpMapper :: Elem -> DoM ASTResolved Elem
 cleanUpMapper elem = case elem of
+    ElemType (Type.RecordApply t) -> ElemType <$> flattenType (Type.RecordApply t)
     ElemType (Type.Tuple t) -> do
-        typeDefs <- gets typeFuncs 
         b <- definitelyIgnoresTuples t
         return $ case b of
             True  -> ElemType t
@@ -141,6 +141,13 @@ resolveFuncCall exprType (AST.Call pos params callSymbol args) = withPos pos $ d
         _ -> do
             --liftIO $ putStrLn $ "multiple candidates for: " ++ show candidates
             return callSymbol
+    where
+        checkReplaced :: DoM ASTResolved Symbol -> DoM ASTResolved Symbol
+        checkReplaced f = do
+            symbol <- f
+            when (symbol /= callSymbol) $
+                liftIO $ putStrLn $ "symbol replaced: " ++ show callSymbol ++ " with " ++ show symbol
+            return symbol
 
 
 -- (x:typ).sym -> (x:typ).mod_sym_0
