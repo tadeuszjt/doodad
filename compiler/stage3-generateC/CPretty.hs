@@ -1,4 +1,3 @@
-{-# LANGUAGE FlexibleContexts #-}
 module CPretty where
 
 import Prelude hiding (print)
@@ -31,33 +30,33 @@ initCPrettyState handle builder
 
 
 
-print :: BoM CPrettyState m => String -> m ()
+print :: String -> DoM CPrettyState ()
 print s = do
     printIndent
     handle <- gets fileHandle
     liftIO $ hPutStr handle s
 
-printLn :: BoM CPrettyState m => String -> m ()
+printLn :: String -> DoM CPrettyState ()
 printLn s = do
     printIndent
     handle <- gets fileHandle
     liftIO $ hPutStrLn handle s
 
 
-printIndent :: BoM CPrettyState m => m ()
+printIndent :: DoM CPrettyState ()
 printIndent = do
     level <- gets indent
     handle <- gets fileHandle
     void $ replicateM level $ liftIO $ hPutStr handle "    "
 
-pushIndent :: BoM CPrettyState m => m ()
+pushIndent :: DoM CPrettyState ()
 pushIndent = modify $ \s -> s { indent = indent s + 1 }
 
-popIndent :: BoM CPrettyState m => m ()
+popIndent :: DoM CPrettyState ()
 popIndent = modify $ \s -> s { indent = (indent s - 1) }
 
 
-cPretty :: BoM CPrettyState m => Set.Set String -> m ()
+cPretty :: Set.Set String -> DoM CPrettyState ()
 cPretty includePaths = do
     modName <- moduleName <$> gets builder
     printLn $ "/* Doodad Module: " ++ modName ++ " */"
@@ -73,7 +72,7 @@ cPretty includePaths = do
     printLn ""
 
 
-cPrettyElem :: BoM CPrettyState m => Element -> m ()
+cPrettyElem :: Element -> DoM CPrettyState ()
 cPrettyElem elem = case elem of
     Return expr         -> printLn $ "return " ++ show expr ++ ";"
     ReturnVoid          -> printLn $ "return;"
@@ -143,7 +142,7 @@ cPrettyElem elem = case elem of
 
     _ -> error (show elem) 
     where 
-        printElems :: BoM CPrettyState m => [ID] -> m ()
+        printElems :: [ID] -> DoM CPrettyState ()
         printElems ids = do
             forM_ ids $ \id -> do
                 elem <- (Map.! id) . elements <$> gets builder

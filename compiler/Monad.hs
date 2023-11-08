@@ -1,8 +1,6 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE UndecidableInstances #-}
 module Monad where
 -- A monad which encapsulates StateT and error handling using Error
 
@@ -17,57 +15,50 @@ import Type
 import ASTResolved
 
 
-newtype BoMT s m a
-    = BoMT { getStateT :: StateT s (ExceptT Error m) a }
+newtype DoM s a
+    = DoM { getDoM :: StateT s (ExceptT Error IO) a}
     deriving (Functor, Applicative, Monad, MonadIO, MonadState s, MonadError Error)
 
 
-runBoMT :: Monad m => s -> BoMT s m a -> m (Either Error (a, s))
-runBoMT state bomt =
-    runExceptT $ runStateT (getStateT bomt) state
+runDoM :: MonadIO m => s -> DoM s a -> m (Either Error (a, s))
+runDoM state dom = do   
+    liftIO $ runExceptT $ runStateT (getDoM dom) state
 
 
-runBoMTExcept :: BoM s m => s1 -> BoMT s1 m a -> m (a, s1)
-runBoMTExcept state bomt = do
-    res <- runExceptT $ runStateT (getStateT bomt) state
+runDoMExcept :: (MonadIO m, MonadError Error m) => s -> DoM s a -> m (a, s)
+runDoMExcept state dom = do
+    res <- liftIO $ runExceptT $ runStateT (getDoM dom) state
     case res of
         Left e -> throwError e
         Right r -> return r
 
 
-runBoMUntilSameResult :: Eq a => BoM s m => a -> (a -> m a) -> m (a, Int)
-runBoMUntilSameResult a f = runBoMUntilSameResult' 1 a f
+runDoMUntilSameResult :: Eq a => a -> (a -> DoM s a) -> DoM s (a, Int)
+runDoMUntilSameResult a f = runDoMUntilSameResult' 1 a f
     where
-        runBoMUntilSameResult' :: Eq a => BoM s m => Int -> a -> (a -> m a) -> m (a, Int)
-        runBoMUntilSameResult' n a f = do
+        runDoMUntilSameResult' :: Eq a => Int -> a -> (a -> DoM s a) -> DoM s (a, Int)
+        runDoMUntilSameResult' n a f = do
             a' <- f a
             if a == a' then return (a, n)
-            else runBoMUntilSameResult' (n + 1) a' f
+            else runDoMUntilSameResult' (n + 1) a' f
 
 
 
-runBoMUntilSameState :: Eq s => BoM s m => m a -> m (a, Int)
-runBoMUntilSameState f = runBoMUntilSameState' 1 f
+runDoMUntilSameState :: Eq s => DoM s a -> DoM s (a, Int)
+runDoMUntilSameState f = runDoMUntilSameState' 1 f
     where
-        runBoMUntilSameState' :: Eq s => BoM s m => Int -> m a -> m (a, Int)
-        runBoMUntilSameState' n f = do
+        runDoMUntilSameState' :: Eq s => Int -> DoM s a -> DoM s (a, Int)
+        runDoMUntilSameState' n f = do
             s <- get
             a <- f
             s' <- get
             if s == s' then return (a, n)
-            else runBoMUntilSameState' (n + 1) f
+            else runDoMUntilSameState' (n + 1) f
 
 
-class (MonadState s m, MonadFail m, MonadIO m, MonadError Error m) => BoM s m
-
-instance (MonadFail m, MonadIO m) => BoM s (BoMT s m)
-
-instance (Monad m, MonadFail m) => MonadFail (BoMT s m) where
+instance MonadFail (DoM s) where
     fail s = throwError (ErrorStr s)
 
-instance MonadTrans (BoMT s) where
-    lift = BoMT . lift . ExceptT . (fmap Right)
-
-instance (Monad m, BoM ASTResolved m) => TypeDefs m where
+instance TypeDefs (DoM ASTResolved) where
     getTypeDefs = gets typeFuncs
 

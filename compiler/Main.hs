@@ -23,14 +23,14 @@ main = do
     let parsedArgs = parseArgs initArgs args
     if astOnly parsedArgs then
         forM_ (modPaths parsedArgs) $ \path -> do
-            res <- runBoMT () $ parse parsedArgs path
+            res <- runDoM () $ parse parsedArgs path
             case res of
                 Left err     -> printError err 
                 Right (ast, _) -> prettyAST ast
 
     else do
         forM_ (modPaths parsedArgs) $ \path -> do
-            res <- runBoMT undefined $ buildBinaryFromModule parsedArgs path
+            res <- runDoM () $ buildBinaryFromModule parsedArgs path
             case res of
                 Left err -> printError err >> exitFailure
                 Right _  -> return ()

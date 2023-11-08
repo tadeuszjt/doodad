@@ -1,4 +1,3 @@
-{-# LANGUAGE FlexibleContexts #-}
 module TupleDeleter where
 
 import qualified Data.Map as Map
@@ -12,7 +11,7 @@ import Type
 import Error
 
 
-tupleDeleterMapper :: BoM ASTResolved m => Elem -> m Elem
+tupleDeleterMapper :: Elem -> DoM ASTResolved Elem
 tupleDeleterMapper elem = case elem of
     ElemType (Type.Tuple t) -> do
         b <- definitelyIgnoresTuples t
@@ -21,7 +20,7 @@ tupleDeleterMapper elem = case elem of
             False -> return elem
     _ -> return elem
 
-deleteSingleTuples :: BoM ASTResolved m => m ()
+deleteSingleTuples :: DoM ASTResolved ()
 deleteSingleTuples = do
     funcDefs'  <- mapM (mapFuncBodyM tupleDeleterMapper) =<< gets funcDefs
     typeFuncs' <- mapM (\(ss, t) -> do { t' <- mapTypeM tupleDeleterMapper t; return (ss, t')}) =<< gets typeFuncs

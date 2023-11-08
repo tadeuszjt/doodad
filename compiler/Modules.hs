@@ -1,4 +1,3 @@
-{-# LANGUAGE FlexibleContexts #-}
 module Modules where
 
 import System.Process
@@ -58,13 +57,13 @@ initModulesState doodadPath
         }
 
 
-getDoodadFilesInDirectory :: BoM s m => FilePath -> m [FilePath]
+getDoodadFilesInDirectory :: FilePath -> DoM s [FilePath]
 getDoodadFilesInDirectory dir = do
     list <- liftIO (listDirectory dir)
     return [ dir ++ "/" ++ f | f <- list, isSuffixOf ".doo" f ]
 
 
-readModuleName :: BoM s m => FilePath -> m (Maybe String)
+readModuleName :: FilePath -> DoM s (Maybe String)
 readModuleName filePath = do 
     src <- liftIO (readFile filePath) 
     let start = dropWhile isSpace src
@@ -75,7 +74,7 @@ readModuleName filePath = do
         _ -> return Nothing
 
 
-getSpecificModuleFiles :: BoM s m => Args -> String -> [FilePath] -> m [FilePath]
+getSpecificModuleFiles :: Args -> String -> [FilePath] -> DoM s [FilePath]
 getSpecificModuleFiles args name []     = return []
 getSpecificModuleFiles args name (f:fs) = do
     source <- liftIO (readFile f)
@@ -88,7 +87,7 @@ getSpecificModuleFiles args name (f:fs) = do
 
 -- parse a file into an AST.
 -- Throw an error on failure.
-parse :: BoM s m => Args -> FilePath -> m S.AST
+parse :: Args -> FilePath -> DoM s S.AST
 parse args file = do
     newTokens <- liftIO $ lexFile (printTokens args) file
     when (printTokens args) $ do
@@ -96,10 +95,10 @@ parse args file = do
     P.parse newTokens
 
 
-buildBinaryFromModule :: BoM s m => Args -> FilePath -> m ()
+buildBinaryFromModule :: Args -> FilePath -> DoM s ()
 buildBinaryFromModule args modPath = do
     doodadPath <- liftIO $ getEnv "DOODAD_PATH"
-    state <- fmap snd $ runBoMTExcept (initModulesState doodadPath) (buildModule args modPath)
+    state <- fmap snd $ runDoMExcept (initModulesState doodadPath) (buildModule args modPath)
 
     let hDoodad   = joinPath [doodadPath, "include"]
     let cDoodad   = joinPath [doodadPath, "include/doodad.c"]
@@ -140,7 +139,7 @@ buildBinaryFromModule args modPath = do
 
 
 
-buildModule :: BoM Modules m => Args -> FilePath -> m ()
+buildModule :: Args -> FilePath -> DoM Modules ()
 buildModule args modPath = do
     doodadPath <- gets doodadPath
     let isRelative = isPrefixOf "../" modPath || isPrefixOf "./" modPath
@@ -175,15 +174,15 @@ buildModule args modPath = do
             resm <- Map.lookup importPath <$> gets moduleMap
             assert (isJust resm) $ show importPath ++ " not in module map"
             return $ fromJust resm
-        astResolved' <- fmap fst $ R.resolveAsts asts astImports
+        astResolved' <- fmap (fst . fst) $ runDoMExcept () (R.resolveAsts asts astImports)
         --Flatten.checkTypeDefs (typeDefs astResolved)
         when (printAstResolved args) $ liftIO $ prettyASTResolved astResolved'
 
         -- remove spurious tuples
-        astResolved <- fmap snd $ runBoMTExcept astResolved' deleteSingleTuples
+        astResolved <- fmap snd $ runDoMExcept astResolved' deleteSingleTuples
 
         -- infer ast types
-        (astFinal, inferCount) <- withErrorPrefix "infer: " $
+        (astFinal, inferCount) <- fmap fst $ runDoMExcept () $ withErrorPrefix "infer: " $
             infer astResolved (printAstAnnotated args) (verbose args)
         liftIO $ putStrLn $ "ran:       " ++ show inferCount ++ " type inference passes"
         when (printAstFinal args)    $ liftIO $ prettyASTResolved astFinal
@@ -199,8 +198,8 @@ buildModule args modPath = do
         -- optimise C builder state
         let includePaths = includes astFinal
         finalBuilderState <- if Args.optimise args then do
-            (((), n), cBuilderStateOptimised) <- runBoMTExcept cBuilderState $ do
-                runBoMUntilSameState O.optimise
+            (((), n), cBuilderStateOptimised) <- runDoMExcept cBuilderState $ do
+                runDoMUntilSameState O.optimise
             liftIO $ putStrLn $ "ran:       " ++ show n ++ " optimisation passes"
             return cBuilderStateOptimised
         else return cBuilderState
@@ -209,7 +208,7 @@ buildModule args modPath = do
         cFilePath <- liftIO $ writeSystemTempFile (modName ++ ".c") ""
         modify $ \s -> s { cFileMap = Map.insert absoluteModPath cFilePath (cFileMap s) }
         cHandle <- liftIO $ openFile cFilePath WriteMode
-        void $ runBoMTExcept (initCPrettyState cHandle finalBuilderState) (cPretty includePaths)
+        void $ runDoMExcept (initCPrettyState cHandle finalBuilderState) (cPretty includePaths)
         void $ liftIO $ hClose cHandle
         count <- liftIO $ length . lines <$> readFile cFilePath
         liftIO $ putStrLn $ "wrote c:   " ++ cFilePath ++ " LOC:" ++ show count

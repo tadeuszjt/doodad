@@ -1,5 +1,3 @@
-{-# LANGUAGE TypeSynonymInstances #-}
-{-# LANGUAGE FlexibleInstances #-}
 module Apply where
 
 import Control.Monad
@@ -14,11 +12,11 @@ import ASTMapper
 import Monad
 
 
-applySubs :: (Apply a, BoM s m) => [(Type, Type)] -> a -> m a
+applySubs :: (Apply a) => [(Type, Type)] -> a -> DoM s a
 applySubs subs a = apply (\t -> foldr (\(x, u) z -> if z == x then u else z) t subs) a
 
 
-mapper :: BoM s m => (Type -> Type) -> Elem -> m Elem
+mapper :: (Type -> Type) -> Elem -> DoM s Elem
 mapper f elem = case elem of
     ElemType typ                 -> return $ ElemType (f typ)
     ElemStmt _                   -> return elem
@@ -27,7 +25,7 @@ mapper f elem = case elem of
     _ -> error (show elem)
 
 -- Apply represents taking a function and applying it to all types in an object.
-class Apply a             where apply :: BoM s m => (Type -> Type) -> a -> m a
+class Apply a             where apply :: (Type -> Type) -> a -> DoM s a
 instance Apply FuncBody   where apply f body    = mapFuncBodyM (mapper f) body
 instance Apply FuncHeader where apply f header  = mapFuncHeaderM (mapper f) header
 instance Apply S.Stmt     where apply f stmt    = mapStmtM (mapper f) stmt

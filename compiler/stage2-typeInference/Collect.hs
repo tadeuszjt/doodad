@@ -1,4 +1,3 @@
-{-# LANGUAGE FlexibleContexts #-}
 module Collect where
 
 import Data.Maybe
@@ -44,7 +43,7 @@ initCollectState astResolved = CollectState
     }
 
 
-collectPos :: (BoM CollectState m, TextPosition t) => t -> m a -> m a
+collectPos :: (TextPosition t) => t -> DoM CollectState a -> DoM CollectState a
 collectPos t m = withPos t $ do
     old <- gets curPos
     modify $ \s -> s { curPos = (textPos t) }
@@ -53,33 +52,33 @@ collectPos t m = withPos t $ do
     return r
 
 
-collect :: BoM CollectState m => Constraint -> m ()
+collect :: Constraint -> DoM CollectState ()
 collect constraint =
     modify $ \s -> s { collected = Map.insert (constraint) (curPos s) (collected s) }
 
-collectEq :: BoM CollectState m => Type -> Type -> m ()
+collectEq :: Type -> Type -> DoM CollectState ()
 collectEq t1 t2 = collect $ ConsEq t1 t2
 
-collectDefault :: BoM CollectState m => Type -> Type -> m ()
+collectDefault :: Type -> Type -> DoM CollectState ()
 collectDefault t1 t2 = do
     modify $ \s -> s { defaults = Map.insert (ConsEq t1 t2) (curPos s) (defaults s) }
 
 
-look :: BoM CollectState m => Symbol -> m Object
+look :: Symbol -> DoM CollectState Object
 look symbol = do
     rm <- SymTab.lookup symbol () <$> gets symTab
     assert (isJust rm) $ show symbol ++ " undefined."
     return (fromJust rm)
 
 
-define :: BoM CollectState m => Symbol -> Object -> m ()
+define :: Symbol -> Object -> DoM CollectState ()
 define symbol obj = do
     resm <- SymTab.lookupHead symbol () <$> gets symTab
     assert (isNothing resm) $ show symbol ++ " already defined"
     modify $ \s -> s { symTab = SymTab.insert symbol () obj (symTab s) }
 
 
-collectAST :: BoM CollectState m => Bool -> ASTResolved -> m ()
+collectAST :: Bool -> ASTResolved -> DoM CollectState ()
 collectAST verbose ast = do
     when verbose $ liftIO $ putStrLn "collecting..."
     forM (Map.toList $ constDefs ast) $ \(symbol, expr) -> do
@@ -90,7 +89,7 @@ collectAST verbose ast = do
             collectFuncDef symbol body
 
 
-collectFuncDef :: BoM CollectState m => Symbol -> FuncBody -> m ()
+collectFuncDef :: Symbol -> FuncBody -> DoM CollectState ()
 collectFuncDef symbol body = do
     modify $ \s -> s { symTab = SymTab.push (symTab s) }
     oldRetty <- gets curRetty
@@ -104,7 +103,7 @@ collectFuncDef symbol body = do
 
 
 
-collectStmt :: BoM CollectState m => S.Stmt -> m ()
+collectStmt :: S.Stmt -> DoM CollectState ()
 collectStmt stmt = collectPos stmt $ case stmt of
     S.Increment _ expr       -> collectExpr expr
     S.Typedef _ _ _ _        -> return ()
@@ -186,7 +185,7 @@ collectStmt stmt = collectPos stmt $ case stmt of
 
 
 -- collectPattern pattern <with this type of expression trying to match>
-collectPattern :: BoM CollectState m => S.Pattern -> m ()
+collectPattern :: S.Pattern -> DoM CollectState ()
 collectPattern (S.PatAnnotated pattern patType) = collectPos pattern $ case pattern of
     S.PatIgnore pos        -> return ()
     S.PatNull _            -> return ()
@@ -207,7 +206,7 @@ collectPattern (S.PatAnnotated pattern patType) = collectPos pattern $ case patt
 
     S.PatField _ symbol pats -> do
         ast <- gets astResolved
-        [symbol'] <- fmap fst $ runBoMTExcept ast (findCtorCandidates symbol)
+        [symbol'] <- fmap fst $ runDoMExcept ast (findCtorCandidates symbol)
         (s, i) <- mapGet symbol' . ctorDefs =<< gets astResolved
         forM_ (zip pats [0..]) $ \(pat, j) ->
             collect $ ConsAdtField (typeof pat) i j patType
@@ -237,11 +236,11 @@ collectPattern (S.PatAnnotated pattern patType) = collectPos pattern $ case patt
     _ -> error $ show pattern
 
 
-collectCall :: BoM CollectState m => Type -> [S.Expr] -> Symbol -> [S.Expr] -> m ()
+collectCall :: Type -> [S.Expr] -> Symbol -> [S.Expr] -> DoM CollectState ()
 collectCall exprType params symbol args = do -- can be resolved or sym
     let callHeader = FuncHeader [] (map typeof params) symbol (map typeof args) exprType
     ast <- gets astResolved
-    candidates <- fmap fst $ runBoMTExcept ast (findCandidates callHeader)
+    candidates <- fmap fst $ runDoMExcept ast (findCandidates callHeader)
     case candidates of
         [symbol] | isGenericFunction symbol ast -> return ()
         [symbol] | isNonGenericFunction symbol ast -> do
@@ -258,7 +257,7 @@ collectCall exprType params symbol args = do -- can be resolved or sym
     mapM_ collectExpr args
 
 
-collectExpr :: BoM CollectState m => S.Expr -> m ()
+collectExpr :: S.Expr -> DoM CollectState ()
 collectExpr (S.AExpr exprType expression) = collectPos expression $ case expression of
     S.Call _ ps s exprs -> collectCall exprType ps s exprs
     S.Prefix _ op expr  -> collectEq exprType (typeof expr) >> collectExpr expr
@@ -307,7 +306,7 @@ collectExpr (S.AExpr exprType expression) = collectPos expression $ case express
             ObjConst e -> do -- special!
                 return ()
 --                count <- gets typeSupply
---                (e', count') <- runBoMTExcept count (annotate e)
+--                (e', count') <- runDoMExcept count (annotate e)
 --                modify $ \s -> s { typeSupply = count' }
 --                collectEq (typeof e') exprType
 --                collectExpr e'

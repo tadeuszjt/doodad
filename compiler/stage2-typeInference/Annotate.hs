@@ -1,4 +1,3 @@
-{-# LANGUAGE FlexibleContexts #-}
 module Annotate where
 
 import Monad
@@ -10,12 +9,12 @@ import ASTMapper
 
 -- 'Annotate takes an AST and annotates all expressions with a type variable using 'AExpr'.
 -- This is the first step of the Hindley-Milner type inference algorithm.
-annotate :: BoM Int m => ASTResolved -> m ASTResolved
+annotate :: ASTResolved -> DoM Int ASTResolved
 annotate resolvedAST = do 
     funcDefs <- mapM (mapFuncBodyM annotateMapper) (funcDefs resolvedAST)
     return $ resolvedAST { funcDefs = funcDefs }
         
-annotateMapper :: BoM Int m => Elem -> m Elem
+annotateMapper :: Elem -> DoM Int Elem
 annotateMapper elem = case elem of
     ElemStmt _                     -> return elem
     ElemType _                     -> return elem
@@ -31,19 +30,19 @@ annotateMapper elem = case elem of
         
 
 
-genType :: BoM Int m => m Type
+genType :: DoM Int Type
 genType = do
     i <- get
     put (i + 1)
     return (Type i)
 
 -- DeAnnotate takes an AST and removes all unresolved type annotations.
-deAnnotate :: BoM s m => ASTResolved -> m ASTResolved
+deAnnotate :: ASTResolved -> DoM () ASTResolved
 deAnnotate resolvedAst = do
     funcDefs <- mapM (mapFuncBodyM deAnnotateMapper) (funcDefs resolvedAst)
     return $ resolvedAst { funcDefs = funcDefs }
 
-deAnnotateMapper :: BoM s m => Elem -> m Elem
+deAnnotateMapper :: Elem -> DoM () Elem
 deAnnotateMapper elem = return $ case elem of
     ElemExpr (AExpr typ expr)          | hasTypeVars typ -> ElemExpr expr
     ElemPattern (PatAnnotated pat typ) | hasTypeVars typ -> ElemPattern pat

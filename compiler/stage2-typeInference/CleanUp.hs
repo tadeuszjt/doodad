@@ -1,5 +1,3 @@
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
 module CleanUp where
 
 import Data.List
@@ -26,7 +24,7 @@ import TupleDeleter
 -- Resolves tuple/table field symbols
 -- Turns ctor function call into Contructors
 -- Removed spurious tuple types
-compile :: BoM ASTResolved m => Bool -> m ()
+compile :: Bool -> DoM ASTResolved ()
 compile verbose = do
     when verbose $ liftIO $ putStrLn $ "cleaning..."
     funcDefs <- gets funcDefs
@@ -37,7 +35,7 @@ compile verbose = do
             modify $ \s -> s { funcDefs = Map.insert symbol body' (ASTResolved.funcDefs s) }
 
 
-genSymbol :: BoM ASTResolved m => String -> m Symbol
+genSymbol :: String -> DoM ASTResolved Symbol
 genSymbol sym = do  
     modName <- gets moduleName
     im <- gets $ Map.lookup sym . symSupply
@@ -47,7 +45,7 @@ genSymbol sym = do
     return symbol
 
 
-cleanUpMapper :: BoM ASTResolved m => Elem -> m Elem
+cleanUpMapper :: Elem -> DoM ASTResolved Elem
 cleanUpMapper elem = case elem of
     ElemType (Type.Tuple t) -> do
         typeDefs <- gets typeFuncs 
@@ -77,7 +75,7 @@ cleanUpMapper elem = case elem of
 
     
 -- add extern if needed
-resolveFuncCall :: BoM ASTResolved m => Type -> AST.Expr -> m Symbol
+resolveFuncCall :: Type -> AST.Expr -> DoM ASTResolved Symbol
 resolveFuncCall _ (AST.Call _ _ s@(SymResolved _ _ _) _) = return s
 resolveFuncCall exprType (AST.Call pos params callSymbol args) = withPos pos $ do
     --liftIO $ putStrLn $ "resolving: " ++ show callSymbol
@@ -146,7 +144,7 @@ resolveFuncCall exprType (AST.Call pos params callSymbol args) = withPos pos $ d
 
 
 -- (x:typ).sym -> (x:typ).mod_sym_0
-resolveFieldAccess :: BoM ASTResolved m => Type -> Symbol -> m Symbol
+resolveFieldAccess :: Type -> Symbol -> DoM ASTResolved Symbol
 resolveFieldAccess (Type _) (Sym sym) = return (Sym sym)
 resolveFieldAccess typ (Sym sym) = do
     --liftIO $ putStrLn $ "resolving field: " ++ sym
@@ -183,7 +181,7 @@ resolveFieldAccess typ (Sym sym) = do
             _ -> error (show typ)
 
         
-        getTypeFieldSymbols :: BoM ASTResolved m => Type -> m [Symbol]
+        getTypeFieldSymbols :: Type -> DoM ASTResolved [Symbol]
         getTypeFieldSymbols typ = do
             typeDefs <- getTypeDefs
             --liftIO $ putStrLn $ "getTypeFieldSymbols: " ++ show typ
@@ -205,7 +203,7 @@ resolveFieldAccess typ (Sym sym) = do
                 _ -> error (show typ)
 
             where
-                isSymbolType :: BoM ASTResolved m => Type -> m (Maybe Symbol)
+                isSymbolType :: Type -> DoM ASTResolved (Maybe Symbol)
                 isSymbolType typ = case typ of
                     t | isSimple t -> return Nothing
                     Table _        -> return Nothing

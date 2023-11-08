@@ -1,4 +1,3 @@
-{-# LANGUAGE FlexibleContexts #-}
 module Resolve where
 
 import qualified Data.Map as Map
@@ -28,7 +27,7 @@ import ASTMapper
 -- determined at this stage.
 
 class Resolve a where
-    resolve :: BoM ResolveState m => a -> m a
+    resolve :: a -> DoM ResolveState a
 
 data SymKey
     = KeyType
@@ -60,14 +59,14 @@ initResolveState imports modName typeImports = ResolveState
 
 
 
-look :: BoM ResolveState m => Symbol -> SymKey -> m Symbol
+look :: Symbol -> SymKey -> DoM ResolveState Symbol
 look symbol key = do
     lm <- lookm symbol key
     assert (isJust lm) $ show symbol ++ " isn't defined"
     return $ fromJust lm
 
 
-lookm :: BoM ResolveState m => Symbol -> SymKey -> m (Maybe Symbol)
+lookm :: Symbol -> SymKey -> DoM ResolveState (Maybe Symbol)
 lookm (Sym sym) KeyVar = SymTab.lookup sym KeyVar <$> gets symTab
 lookm symbol key = case symbol of
     Sym sym -> do
@@ -101,7 +100,7 @@ lookm symbol key = case symbol of
     _ -> fail $ show (symbol, key)
 
 
-genSymbol :: BoM ResolveState m => String -> m Symbol
+genSymbol :: String -> DoM ResolveState Symbol
 genSymbol sym = do  
     modName <- gets modName
     im <- gets $ Map.lookup sym . supply
@@ -111,19 +110,19 @@ genSymbol sym = do
     return symbol
         
 
-define :: BoM ResolveState m => String -> SymKey -> Symbol -> m ()
+define :: String -> SymKey -> Symbol -> DoM ResolveState ()
 define sym key symbol = do
     resm <- gets $ SymTab.lookupHead sym key . symTab
     assert (isNothing resm) $ sym ++ " already defined"
     modify $ \s -> s { symTab = SymTab.insert sym key symbol (symTab s) }
 
 
-pushSymbolTable :: BoM ResolveState m => m ()
+pushSymbolTable :: DoM ResolveState ()
 pushSymbolTable = do
     modify $ \s -> s { symTab = SymTab.push (symTab s) }
 
 
-popSymbolTable :: BoM ResolveState m => m ()
+popSymbolTable :: DoM ResolveState ()
 popSymbolTable = do
     modify $ \s -> s { symTab = SymTab.pop (symTab s) }
 
@@ -137,14 +136,15 @@ annoToType anno = case anno of
     AnnoType t        -> t
 
 
-buildCtorImportMap :: BoM (Map.Map Symbol (Symbol, Int)) m => [ASTResolved] -> m ()
+buildCtorImportMap :: [ASTResolved] -> DoM (Map.Map Symbol (Symbol, Int)) ()
 buildCtorImportMap imports = do
     forM_ imports $ \imprt -> do
         forM_ (Map.toList $ ctorDefs imprt) $ \(symbol, (typeSymbol, i)) -> do
             when (Symbol.mod symbol == moduleName imprt) $ do
                 modify $ Map.insert symbol (typeSymbol, i)
 
-buildCtorMap :: BoM (Map.Map Symbol (Symbol, Int)) m => [(Symbol, AnnoType)] -> m ()
+
+buildCtorMap :: [(Symbol, AnnoType)] -> DoM (Map.Map Symbol (Symbol, Int)) ()
 buildCtorMap list = do
     forM_ list $ \(symbol, anno) -> case anno of
         AnnoADT ps -> forM_ (zip ps [0..]) $ \(Param _ s t, i) -> 
@@ -160,9 +160,9 @@ buildCtorMap list = do
 
 
 
-resolveAsts :: BoM s m => [AST] -> [ASTResolved] -> m (ASTResolved, ResolveState)
-resolveAsts asts imports = withErrorPrefix "resolve: " $
-    runBoMTExcept (initResolveState imports (astModuleName $ head asts) Map.empty) $ do
+resolveAsts :: [AST] -> [ASTResolved] -> DoM s (ASTResolved, ResolveState)
+resolveAsts asts imports = runDoMExcept (initResolveState imports (astModuleName $ head asts) Map.empty) $
+    withErrorPrefix "resolve" $ do
         let moduleName = astModuleName $ head asts
         let includes   = [ s | inc@(CInclude s) <- concat $ map astImports asts ]
         let links      = [ s | link@(CLink s) <- concat $ map astImports asts ]
@@ -187,7 +187,7 @@ resolveAsts asts imports = withErrorPrefix "resolve: " $
         -- get imports
         let typeFuncImportMap = Map.unions (map typeFuncs imports)
 
-        (_, ctorImportMap)     <- runBoMTExcept Map.empty (buildCtorImportMap imports)
+        (_, ctorImportMap) <- runDoMExcept Map.empty (buildCtorImportMap imports)
 
         mapM resolveTypeDef typedefs -- TODO resolve in order of symbol dependencies or something.
         mapM_ resolveFuncDef funcdefs
@@ -196,7 +196,7 @@ resolveAsts asts imports = withErrorPrefix "resolve: " $
         funcDefs <- gets funcDefsMap
 
         -- combine the typeDefs and typeFuncs map to build the ctorMap
-        ctorMap <- fmap snd $ runBoMTExcept Map.empty $ 
+        ctorMap <- fmap snd $ runDoMExcept Map.empty $ 
             buildCtorMap $ Map.toList $ Map.map snd typeFuncs
 
         supply <- gets supply
@@ -215,7 +215,7 @@ resolveAsts asts imports = withErrorPrefix "resolve: " $
 
 
 -- defines in funcDefsMap
-resolveFuncDef :: BoM ResolveState m => AST.Stmt -> m Symbol
+resolveFuncDef :: AST.Stmt -> DoM ResolveState Symbol
 resolveFuncDef (FuncDef pos typeArgs params (Sym sym) args retty blk) = withPos pos $ do
     pushSymbolTable
     typeSymbols <- mapM (\(Sym s) -> genSymbol s) typeArgs
@@ -239,7 +239,7 @@ resolveFuncDef (FuncDef pos typeArgs params (Sym sym) args retty blk) = withPos 
 
 
 -- modifies the typedef function and inserts it into typeFuncsMap
-resolveTypeDef :: BoM ResolveState m => AST.Stmt -> m ()
+resolveTypeDef :: AST.Stmt -> DoM ResolveState ()
 resolveTypeDef (AST.Typedef pos typeArgs (Sym sym) anno) = do
     symbol <- genSymbol sym
     define sym KeyType symbol
@@ -373,7 +373,7 @@ instance Resolve Stmt where
             mexpr' <- maybe (return Nothing) (fmap Just . resolve) mexpr
             return $ Data pos symbol typ' mexpr'
         where
-            processCEmbed :: BoM ResolveState m => String -> m String
+            processCEmbed :: String -> DoM ResolveState String
             processCEmbed ('$':xs) = do
                 let ident = takeWhile (\c -> isAlpha c || isDigit c || c == '_') xs
                 assert (length ident > 0) "invalid ident"
@@ -396,7 +396,7 @@ instance Resolve Param where
         define sym KeyVar symbol
         return $ Param pos symbol typ'
 
-resolveMapper :: BoM ResolveState m => Elem -> m Elem
+resolveMapper :: Elem -> DoM ResolveState Elem
 resolveMapper element = case element of
     ElemType (Type.TypeApply s ts) -> do
         symbol' <- look s KeyType

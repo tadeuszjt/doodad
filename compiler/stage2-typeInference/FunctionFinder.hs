@@ -1,4 +1,3 @@
-{-# LANGUAGE FlexibleContexts #-}
 module FunctionFinder where
 
 import Data.Maybe
@@ -21,7 +20,7 @@ import Monad
 import ASTMapper
 import TupleDeleter
 
-findCandidates :: BoM ASTResolved m => FuncHeader -> m [Symbol]
+findCandidates :: FuncHeader -> DoM ASTResolved [Symbol]
 findCandidates callHeader = do
     funcSymbols <- findFunctionCandidates callHeader
     typeSymbols <- findTypeCandidates callHeader
@@ -29,7 +28,7 @@ findCandidates callHeader = do
     return $ Set.toList $ Set.fromList $ concat $ [funcSymbols, typeSymbols, ctorSymbols]
 
 
-findFunctionCandidates :: BoM ASTResolved m => FuncHeader -> m [Symbol]
+findFunctionCandidates :: FuncHeader -> DoM ASTResolved [Symbol]
 findFunctionCandidates callHeader = do
     ast <- get
     fmap catMaybes $ forM (Map.toList $ Map.union (funcDefs ast) (funcImports ast)) $ \(symbol, body) -> do
@@ -42,14 +41,14 @@ findFunctionCandidates callHeader = do
             True -> return $ Just $ symbol
             False -> return Nothing
 
-findTypeCandidates :: BoM ASTResolved m => FuncHeader -> m [Symbol]
+findTypeCandidates :: FuncHeader -> DoM ASTResolved [Symbol]
 findTypeCandidates callHeader = do
     typeFuncs <- gets typeFuncs
     let res     = Map.filterWithKey (\k v -> symbolsCouldMatch k $ symbol callHeader) typeFuncs
     return $ Map.keys res
 
 
-findCtorCandidates :: BoM ASTResolved m => Symbol -> m [Symbol]
+findCtorCandidates :: Symbol -> DoM ASTResolved [Symbol]
 findCtorCandidates callSymbol = do
     ctorDefs <- gets ctorDefs
     return $ Map.keys $ Map.filterWithKey (\k v -> symbolsCouldMatch k callSymbol) ctorDefs
@@ -83,7 +82,7 @@ funcHeaderFullyResolved typeArgs header =
             _ -> error $ "typeFullyResolved: " ++ show typ
 
 
-replaceGenericsInFuncBodyWithCall :: BoM ASTResolved m => FuncBody -> FuncHeader -> m FuncBody
+replaceGenericsInFuncBodyWithCall :: FuncBody -> FuncHeader -> DoM ASTResolved FuncBody
 replaceGenericsInFuncBodyWithCall body callHeader = do
     --liftIO $ putStrLn $ "replacing: " ++ show callHeader
     ast <- get
@@ -96,7 +95,7 @@ replaceGenericsInFuncBodyWithCall body callHeader = do
     mapFuncBodyM tupleDeleterMapper $ body' { funcTypeArgs = [] }
 
 
-unifyOne :: BoM s m => [Symbol] -> Constraint -> m [(Type, Type)]
+unifyOne :: [Symbol] -> Constraint -> DoM ASTResolved [(Type, Type)]
 unifyOne typeVars constraint = case constraint of
     ConsEq t1 t2 -> case (t1, t2) of
         _ | t1 == t2                            -> return []
@@ -116,7 +115,7 @@ unifyOne typeVars constraint = case constraint of
         _ -> error $ show (t1, t2)
 
 
-unify :: BoM s m => [Symbol] -> [Constraint] -> m [(Type, Type)]
+unify :: [Symbol] -> [Constraint] -> DoM ASTResolved [(Type, Type)]
 unify typeVars []     = return []
 unify typeVars (x:xs) = do
     subs <- unify typeVars xs
@@ -124,7 +123,7 @@ unify typeVars (x:xs) = do
     return (s ++ subs)
 
 
-getConstraintsFromFuncHeaders :: BoM ASTResolved m => FuncHeader -> FuncHeader -> m [Constraint]
+getConstraintsFromFuncHeaders :: FuncHeader -> FuncHeader -> DoM ASTResolved [Constraint]
 getConstraintsFromFuncHeaders headerToReplace header = do
     assert (typeArgs header == []) "only headerToReplace can have typeArgs"
     paramConstraints <- fmap concat $
@@ -141,13 +140,13 @@ getConstraintsFromFuncHeaders headerToReplace header = do
     return $ paramConstraints ++ argConstraints ++ rettyConstraints
 
 
-getConstraintsFromTypes :: BoM ASTResolved m => [Symbol] -> Type -> Type -> m [Constraint]
+getConstraintsFromTypes :: [Symbol] -> Type -> Type -> DoM ASTResolved [Constraint]
 getConstraintsFromTypes typeArgs t1 t2 = do
     flatT1 <- flattenTuple t1
     flatT2 <- flattenTuple t2
     fromTypes flatT1 flatT2
     where
-        fromTypes :: BoM ASTResolved m => Type -> Type -> m [Constraint]
+        fromTypes :: Type -> Type -> DoM ASTResolved [Constraint]
         fromTypes t1 t2 = do
             typedefs <- gets typeFuncs
             case (t1, t2) of

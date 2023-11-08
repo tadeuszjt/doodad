@@ -1,4 +1,3 @@
-{-# LANGUAGE FlexibleContexts #-}
 module CBuilder where
 
 import qualified Data.Map as Map

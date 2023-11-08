@@ -21,43 +21,43 @@ import CleanUp
 import Type
 
 -- Takes a resolved and annotated ast and inferes all types.
-infer :: BoM s m => ASTResolved -> Bool -> Bool -> m (ASTResolved, Int)
+infer :: ASTResolved -> Bool -> Bool -> DoM s (ASTResolved, Int)
 infer ast printAnnotated verbose = do 
-    runBoMUntilSameResult ast $ \ast' -> do 
+    runDoMUntilSameResult ast $ \ast' -> do 
         when verbose $ liftIO $ putStrLn $ "inferring..."
-        (inferred, _) <- runBoMUntilSameResult ast' inferTypes
-        (defaulted, _) <- runBoMUntilSameResult inferred inferDefaults
+        (inferred, _) <- runDoMUntilSameResult ast' inferTypes
+        (defaulted, _) <- runDoMUntilSameResult inferred inferDefaults
         return defaulted
     where
-        inferTypes :: BoM s m => ASTResolved -> m ASTResolved
+        inferTypes :: ASTResolved -> DoM s ASTResolved
         inferTypes ast = do
             when verbose $ liftIO $ putStrLn $ "inferring types..."
-            (annotated, _) <- withErrorPrefix "annotate: " $ runBoMTExcept 0 $ annotate ast
+            (annotated, _) <- withErrorPrefix "annotate: " $ runDoMExcept 0 $ annotate ast
             when printAnnotated $ do
                 liftIO $ putStrLn ""
                 liftIO $ putStrLn "annotated AST:"
                 liftIO $ prettyASTResolved annotated
             collectState <- fmap snd $ withErrorPrefix "collect: " $
-                runBoMTExcept (initCollectState annotated) (collectAST verbose annotated)
+                runDoMExcept (initCollectState annotated) (collectAST verbose annotated)
 
             -- turn type constraints into substitutions using unify
-            subs <- fmap fst $ runBoMTExcept ast (unify $ Map.toList $ collected collectState)
+            subs <- fmap fst $ runDoMExcept ast (unify $ Map.toList $ collected collectState)
             annotated' <- applySubs subs annotated
-            ast' <- fmap snd $ runBoMTExcept annotated' (CleanUp.compile verbose)
-            ast'' <- fmap fst $ runBoMTExcept () $ deAnnotate ast'
+            ast' <- fmap snd $ runDoMExcept annotated' (CleanUp.compile verbose)
+            ast'' <- fmap fst $ runDoMExcept () $ deAnnotate ast'
             return ast''
 
 
-        inferDefaults :: BoM s m => ASTResolved -> m ASTResolved
+        inferDefaults :: ASTResolved -> DoM s ASTResolved
         inferDefaults ast = do
             when verbose $ liftIO $ putStrLn $ "inferring defaults..."
-            (annotated, _) <- withErrorPrefix "annotate: " $ runBoMTExcept 0 $ annotate ast
+            (annotated, _) <- withErrorPrefix "annotate: " $ runDoMExcept 0 $ annotate ast
             collectState <- fmap snd $ withErrorPrefix "collect: " $
-                runBoMTExcept (initCollectState annotated) (collectAST verbose annotated)
+                runDoMExcept (initCollectState annotated) (collectAST verbose annotated)
 
             -- apply substitutions to ast
-            subs <- fmap fst $ runBoMTExcept ast (unifyDefault $ Map.toList $ defaults collectState)
+            subs <- fmap fst $ runDoMExcept ast (unifyDefault $ Map.toList $ defaults collectState)
             annotated' <- applySubs subs annotated
-            ast' <- fmap snd $ runBoMTExcept annotated' (CleanUp.compile verbose)
-            ast'' <- fmap fst $ runBoMTExcept () $ deAnnotate ast'
+            ast' <- fmap snd $ runDoMExcept annotated' (CleanUp.compile verbose)
+            ast'' <- fmap fst $ runDoMExcept () $ deAnnotate ast'
             return ast''

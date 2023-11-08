@@ -1,5 +1,3 @@
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE FlexibleInstances #-}
 module Unify where
 
 import Data.List
@@ -20,7 +18,7 @@ import Apply
 import Symbol
 
 
-baseTypeOfm :: BoM ASTResolved m => Type -> m (Maybe Type)
+baseTypeOfm :: Type -> DoM ASTResolved (Maybe Type)
 baseTypeOfm typ = case typ of
     TypeApply symbol ts -> do
         typeDefs <- gets typeFuncs
@@ -31,7 +29,7 @@ baseTypeOfm typ = case typ of
     t      -> return (Just t)
 
 
-unifyOne :: BoM ASTResolved m => TextPos -> Constraint -> m [(Type, Type)]
+unifyOne :: TextPos -> Constraint -> DoM ASTResolved [(Type, Type)]
 unifyOne pos constraint = withPos pos $ case constraint of
     ConsField typ (Sym _) exprType -> return []
 
@@ -138,7 +136,7 @@ unifyOne pos constraint = withPos pos $ case constraint of
 
 
 
-unify :: BoM ASTResolved m => [(Constraint, TextPos)] -> m [(Type, Type)]
+unify :: [(Constraint, TextPos)] -> DoM ASTResolved [(Type, Type)]
 unify []     = return []
 unify (x:xs) = do
     subs <- unify xs
@@ -146,7 +144,7 @@ unify (x:xs) = do
     return (s ++ subs)
 
 
-unifyDefault :: BoM ASTResolved m => [(Constraint, TextPos)] -> m [(Type, Type)]
+unifyDefault :: [(Constraint, TextPos)] -> DoM ASTResolved [(Type, Type)]
 unifyDefault []     = return []
 unifyDefault (x:xs) = do
     subs <- unifyDefault xs

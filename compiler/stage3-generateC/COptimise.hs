@@ -1,6 +1,3 @@
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
 module COptimise where
 
 import qualified Data.Map as Map
@@ -12,7 +9,7 @@ import CBuilder
 import Error
 
 
-modifyElem :: BoM BuilderState m => ID -> (Element -> m Element) -> m ()
+modifyElem :: ID -> (Element -> DoM BuilderState Element) -> DoM BuilderState ()
 modifyElem id f = do
     elem <- (Map.! id) <$> gets elements
     elem' <- f elem
@@ -20,7 +17,7 @@ modifyElem id f = do
 
 
 
-optimise :: BoM BuilderState m => m ()
+optimise :: DoM BuilderState ()
 optimise = do
     elems <- Map.toList <$> gets elements
     forM_ elems $ \(id, elem) -> case elem of
@@ -50,11 +47,11 @@ optimise = do
         _ -> return ()
 
 
-optimiseStmts :: BoM BuilderState m => [ID] -> m [ID]
+optimiseStmts :: [ID] -> DoM BuilderState [ID]
 optimiseStmts stmts = optimiseStmtPairs =<< optimiseStmtSingles stmts
 
 
-optimiseStmtSingles :: BoM BuilderState m => [ID] -> m [ID]
+optimiseStmtSingles :: [ID] -> DoM BuilderState [ID]
 optimiseStmtSingles [] = return []
 optimiseStmtSingles (id:xs) = do
     elem <- mapGet id =<< gets elements
@@ -65,7 +62,7 @@ optimiseStmtSingles (id:xs) = do
         _ -> (id:) <$> optimiseStmtSingles xs
 
 
-optimiseStmtPairs :: BoM BuilderState m => [ID] -> m [ID]
+optimiseStmtPairs :: [ID] -> DoM BuilderState [ID]
 optimiseStmtPairs [] = return []
 optimiseStmtPairs [x] = return [x]
 optimiseStmtPairs (x:y:xs) = do
