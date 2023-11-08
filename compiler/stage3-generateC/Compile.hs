@@ -236,7 +236,7 @@ generateStmt stmt = withPos stmt $ case stmt of
             Table t -> tableAppend val
 
     S.Assign _ pattern expr -> do
-        matched <- generatePattern False pattern =<< generateExpr expr
+        matched <- generatePattern pattern =<< generateExpr expr
         call "assert" [matched]
 
     S.Data _ symbol typ Nothing -> do
@@ -258,7 +258,7 @@ generateStmt stmt = withPos stmt $ case stmt of
         withCurID switchId $ append caseId
         withCurID caseId $ do
             forM_ cases $ \(pattern, stmt) -> do
-                cnd <- generatePattern False pattern newVal
+                cnd <- generatePattern pattern newVal
                 if_ cnd $ do
                     generateStmt stmt
                     appendElem C.Break
@@ -335,8 +335,8 @@ generateStmt stmt = withPos stmt $ case stmt of
                 Nothing -> return true
                 Just pat -> case base of
                     --Type.String   -> generatePattern False pat =<< subscript val idx
-                    Type.Table ts -> generatePattern False pat =<< accessRecord val (Just idx)
-                    Type.Range t  -> generatePattern False pat idx
+                    Type.Table ts -> generatePattern pat =<< accessRecord val (Just idx)
+                    Type.Range t  -> generatePattern pat idx
                     _ -> error (show base)
 
             if_ (not_ patMatches) $ appendElem C.Break
@@ -382,12 +382,17 @@ generateReentrantExpr (Value typ expr) = Value typ <$> reentrantExpr expr
             _ -> error (show expr)
 
 
-generatePattern :: MonadGenerate m => Bool -> Pattern -> Value -> m Value
-generatePattern isReference pattern val = withPos pattern $ do
+--  -> {x}        // x works like... a normal ident
+--  -> {(x, y)}   // x and y are not references?
+--  -> {x, y}     // x and y work like idents
+--  -> ({x}, {y}) // yeah, x and y are idents
+--  Maybe( {}i64 ) -> Just( x )
+generatePattern :: MonadGenerate m => Pattern -> Value -> m Value
+generatePattern pattern val = withPos pattern $ do
     case pattern of
         PatIgnore _ -> return true
         PatLiteral expr -> generateInfix S.EqEq val =<< generateExpr expr
-        PatAnnotated pat typ -> generatePattern isReference pat val
+        PatAnnotated pat typ -> generatePattern pat val
 
         PatRecord _ pats -> do
             base <- baseTypeOf val
@@ -397,7 +402,11 @@ generatePattern isReference pattern val = withPos pattern $ do
                     endLabel <- fresh "end"
                     match <- assign "match" false
                     forM_ (zip3 pats [0..] ts) $ \(pat, i, t) -> do
-                        b <- generatePattern True pat =<< member i val
+                        b <- case pat of
+                            PatAnnotated (PatIdent _ symbol) _ -> do
+                                define (show symbol) =<< member i val
+                                return true
+                            _ -> generatePattern pat =<< member i val
                         if_ (not_ b) $ appendElem (C.Goto endLabel)
 
                     set match true
@@ -406,39 +415,12 @@ generatePattern isReference pattern val = withPos pattern $ do
                         
                 _ -> error (show base)
 
---        PatArray _ pats -> do   
---            base <- baseTypeOf val
---            endLabel <- fresh "end"
---            match <- assign "match" false
---
---            -- check len
---            case base of
-----                Type.Array n t -> do --[1, 2, 3]:[3 i64]
-----                    assert (n == length pats) "invalid number of patterns"
-----                Type.Table [t] -> do -- [1, 2, 3]:[i64]
-----                    lenNotEq <- generateInfix S.NotEq (i64 $ length pats) =<< len val
-----                    if_ lenNotEq $ void $ appendElem $ C.Goto endLabel
---                Type.String -> do -- ['a', 'b', 'c']:string
---                    lenNotEq <- generateInfix S.NotEq (i64 $ length pats) =<< len val
---                    if_ lenNotEq $ void $ appendElem $ C.Goto endLabel
---
---            forM_ (zip pats [0..]) $ \(pat, i) -> do
---                b <- generatePattern isReference pat =<< subscript val (i64 i)
---                if_ (not_ b) $ appendElem $ C.Goto endLabel
---                        
---            set match true
---            appendElem $ C.Label endLabel
---            return match
-
-
         PatIdent _ symbol -> do 
             let name = show symbol
-            if isReference then do
-                define name (Value (typeof val) $ valExpr val)
-            else do
-                define name (Value (typeof val) $ C.Ident name)
-                cType <- cTypeOf (typeof val)
-                void $ appendAssign cType (show symbol) (valExpr val)
+            define name (Value (typeof val) $ C.Ident name)
+            cType <- cTypeOf (typeof val)
+            void $ appendAssign cType (show symbol) $ C.Initialiser [C.Int 0]
+            set (Value (typeof val) $ C.Ident name) val
             return true
 
         PatTuple _ pats -> do
@@ -454,7 +436,7 @@ generatePattern isReference pattern val = withPos pattern $ do
 
                     forM_ (zip3 pats ts [0..]) $ \(pat, t, i) -> do
                         let member = Value t $ C.Member (valExpr val) ("m" ++ show i)
-                        b <- generatePattern isReference pat member
+                        b <- generatePattern pat member
                         if_ (not_ b) $ appendElem $ C.Goto endLabel
                                 
                     set match true
@@ -462,7 +444,7 @@ generatePattern isReference pattern val = withPos pattern $ do
                     return match
 
         PatGuarded _ pat expr -> do
-            match <- assign "match" =<< generatePattern isReference pat val
+            match <- assign "match" =<< generatePattern pat val
             endLabel <- fresh "end"
             if_ (not_ match) $ appendElem $ C.Goto endLabel
             set match =<< generateExpr expr
@@ -491,7 +473,7 @@ generatePattern isReference pattern val = withPos pattern $ do
                             return ()
                         _ -> do
                             assert (length pats == 1) "Invalid pattern for ADT"
-                            patMatch <- generatePattern isReference (head pats) =<< member i val
+                            patMatch <- generatePattern (head pats) =<< member i val
                             if_ (not_ patMatch) $ void $ appendElem (C.Goto endLabel)
 
                     set match true
@@ -545,7 +527,7 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
     S.Float _ f  -> return $ Value typ (C.Float f)
     S.String _ s -> return $ Value typ $ C.String s
     S.Char _ c   -> return $ Value typ $ C.Char c
-    S.Match _ expr pattern -> generatePattern False pattern =<< generateExpr expr
+    S.Match _ expr pattern -> generatePattern pattern =<< generateExpr expr
     S.Builtin _ [] "conv" [expr] -> convert typ =<< generateExpr expr
     S.Builtin _ params "len" exprs -> do 
         assert (params == []) "len cannot have params"
@@ -738,35 +720,36 @@ generateInfix op a b = do
             S.LT   -> return $ Value Type.Bool  (C.Call "doodad_string_lt"   [valExpr a, valExpr b])
             _ -> error (show op)
 
-        Type.Record ts -> case op of
-            S.EqEq -> do
-                end <- fresh "end" 
-                eq <- assign "eq" false
-                forM_ (zip ts [0..]) $ \(t, i) -> do
-                    da <- member i a
-                    db <- member i b
-                    b <- generateInfix S.EqEq da db
-                    if_ (not_ b) $ appendElem $ C.Goto end
-                set eq true
-                appendElem $ C.Label end
-                return eq
+        Type.Record xs -> do
+            ts <- getRecordTypes (Type.Record xs)
+            end <- fresh "end" 
+            case op of
+                S.EqEq -> do
+                    eq <- assign "eq" false
+                    forM_ (zip ts [0..]) $ \(t, i) -> do
+                        let da = Value t $ C.Deref $ C.Member (valExpr a) ("m" ++ show i) 
+                        let db = Value t $ C.Deref $ C.Member (valExpr b) ("m" ++ show i) 
+                        b <- generateInfix S.EqEq da db
+                        if_ (not_ b) $ appendElem $ C.Goto end
+                    set eq true
+                    appendElem $ C.Label end
+                    return eq
 
-            S.LT -> do
-                end <- fresh "end" 
-                res <- assign "lt" true
-                forM_ (zip ts [0..]) $ \(t, i) -> do
-                    da <- member i a
-                    db <- member i b
-                    lt <- generateInfix S.LT da db
-                    if_ lt $ appendElem $ C.Goto end
-                    eq <- generateInfix S.EqEq da db
-                    if_ (not_ eq) $ do
-                        set res false
-                        appendElem $ C.Goto end
-                appendElem $ C.Label end
-                return res
+                S.LT -> do
+                    res <- assign "lt" true
+                    forM_ (zip ts [0..]) $ \(t, i) -> do
+                        let da = Value t $ C.Deref $ C.Member (valExpr a) ("m" ++ show i) 
+                        let db = Value t $ C.Deref $ C.Member (valExpr b) ("m" ++ show i) 
+                        lt <- generateInfix S.LT da db
+                        if_ lt $ appendElem $ C.Goto end
+                        eq <- generateInfix S.EqEq da db
+                        if_ (not_ eq) $ do
+                            set res false
+                            appendElem $ C.Goto end
+                    appendElem $ C.Label end
+                    return res
 
-            _ -> error (show op)
+                _ -> error (show op)
 
         Type.Tuple t -> do
             baseT <- baseTypeOf t

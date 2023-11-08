@@ -16,42 +16,36 @@ type[T] Tree (
 
 
 fn[T] {tree:Tree(T)} insert(elem:()T)
-    data record ()TreeRecord(T)
-    record.node   = NodeLeaf()
-    record.elem{} = elem{}
-    let elemKey = tree.nodes.insert(record)
-    //switch tree.nodes.at(elemKey)
-    //    {NodeLeaf(), x}; print("here", x)
+    let elemKey = tree.nodes.insert()
+    if tree.nodes.at(elemKey) -> {n, e}
+        n   = NodeLeaf()
+        e{} = elem{}
 
     switch tree.base
         Nothing(); tree.base = Just(elemKey)
         Just(baseKey)
             let key = baseKey
-            while tree.nodes.get(key).node -> NodeBranch((left, right))
-                if elem{} < tree.nodes.get(key).elem{}
+            while tree.nodes.at(key).node -> NodeBranch((left, right))
+                if elem{} < tree.nodes.at(key).elem{}
                     key = conv(left)
                 else; key = conv(right)
 
-            data newLeaf ()TreeRecord(T)
-            newLeaf.elem{} = tree.nodes.get(key).elem{}
-            newLeaf.node   = NodeLeaf()
-            let newLeafKey = tree.nodes.insert( newLeaf )
+            let newLeafKey = tree.nodes.insert()
+            if tree.nodes.at(newLeafKey) -> {n, e}
+                n   = NodeLeaf()
+                e{} = tree.nodes.at(key).elem{}
 
-            data newBranch ()TreeRecord(T)
-            newBranch.elem{} = elem{}
-            if elem{} < tree.nodes.get(key).elem{}
-                newBranch.elem{} = tree.nodes.get(key).elem{}
-                newBranch.node   = NodeBranch((conv(elemKey), conv(newLeafKey)))
+            if elem{} < tree.nodes.at(key).elem{}
+                tree.nodes.at(key).node = NodeBranch((conv(elemKey), conv(newLeafKey)))
             else
-                newBranch.elem{} = elem{}
-                newBranch.node   = NodeBranch((conv(newLeafKey), conv(elemKey)))
+                tree.nodes.at(key).node   = NodeBranch((conv(newLeafKey), conv(elemKey)))
+                tree.nodes.at(key).elem{} = elem{}
 
-            tree.nodes.replace(key, newBranch)
 
 fn[T] {tree:Tree(T)} printTree()
     fn[T] {tree:Tree(T)} printNode(key:Key(TreeRecord(T)))
         switch tree.nodes.get(key).node
-            NodeLeaf(); print(tree.nodes.get(key).elem)
+            NodeLeaf(); print(tree.nodes.at(key).elem)
             NodeBranch((left, right))
                 tree.printNode(conv(left))
                 tree.printNode(conv(right))
@@ -183,13 +177,13 @@ fn testPatRecord()
     let x = 3
     if x{} -> {y}
         y = 4
-    //let 4 = x
+    let 4 = x
 
-    //let x2 = (3, 4)
-    //if x2{} -> {a, b}
-    //    b = 5
-    //    a = 2
-    //let (2, 5) = x2
+    let x2 = (3, 4)
+    if x2{} -> {a, b}
+        b = 5
+        a = 2
+    let (2, 5) = x2
 
     print("testPatRecord passed")
 

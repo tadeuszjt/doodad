@@ -251,6 +251,10 @@ adtEnum obj = do
     return $ Value I64 $ C.Member (valExpr obj) "en"
 
 
+-- {Person, bool}.0 -> Person = {string, i64}
+-- {Person, bool}.1 -> {bool}
+-- ()Person.0       -> string
+-- ()Person.1       -> i64
 member :: MonadGenerate m => Int -> Value -> m Value
 member index val = do
     base <- baseTypeOf val
@@ -258,8 +262,8 @@ member index val = do
         Type.Record ts -> do
             Type.RecordTree ns <- getRecordTree (Type.Record ts)
             case ns !! index of
-                RecordLeaf t i -> assign "deref" $ Value t $
-                    C.Deref $ C.Member (valExpr val) ("m" ++ show i)
+                RecordLeaf t i -> do
+                    return $ Value t $ C.Deref $ C.Member (valExpr val) ("m" ++ show i)
 
                 RecordTree _ -> do
                     leaves <- getRecordLeaves (ns !! index)
