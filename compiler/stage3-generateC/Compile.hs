@@ -235,9 +235,13 @@ generateStmt stmt = withPos stmt $ case stmt of
         case base of
             Table t -> tableAppend val
 
-    S.Assign _ pattern expr -> do
+    S.Let _ pattern expr mblk -> do
         matched <- generatePattern pattern =<< generateExpr expr
         call "assert" [matched]
+        case mblk of
+            Nothing -> return ()
+            Just blk -> generateStmt blk
+
 
     S.Data _ symbol typ Nothing -> do
         ctyp <- cTypeOf typ

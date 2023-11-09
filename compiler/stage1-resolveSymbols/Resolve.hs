@@ -188,8 +188,9 @@ resolveAsts asts imports = runDoMExcept (initResolveState imports (astModuleName
         let typeFuncImportMap = Map.unions (map typeFuncs imports)
 
         (_, ctorImportMap) <- runDoMExcept Map.empty (buildCtorImportMap imports)
-
-        mapM resolveTypeDef typedefs -- TODO resolve in order of symbol dependencies or something.
+        
+        mapM_ defineTypeSymbols typedefs
+        mapM_ resolveTypeDef typedefs
         mapM_ resolveFuncDef funcdefs
 
         typeFuncs <- gets typeFuncsMap
@@ -238,14 +239,19 @@ resolveFuncDef (FuncDef pos typeArgs params (Sym sym) args retty blk) = withPos 
     return symbol'
 
 
--- modifies the typedef function and inserts it into typeFuncsMap
-resolveTypeDef :: AST.Stmt -> DoM ResolveState ()
-resolveTypeDef (AST.Typedef pos typeArgs (Sym sym) anno) = do
+defineTypeSymbols :: AST.Stmt -> DoM ResolveState ()
+defineTypeSymbols (AST.Typedef pos typeArgs (Sym sym) anno) = withPos pos $ do
     symbol <- genSymbol sym
     define sym KeyType symbol
     define sym KeyFunc symbol
 
-    -- Here we push the symbol table in order to temporarily define the type argument as a typedef
+
+-- modifies the typedef function and inserts it into typeFuncsMap
+resolveTypeDef :: AST.Stmt -> DoM ResolveState ()
+resolveTypeDef (AST.Typedef pos typeArgs (Sym sym) anno) = withPos pos $ do
+    symbol <- look (Sym sym) KeyType
+
+    -- Push the symbol table in order to temporarily define the type argument as a typedef
     pushSymbolTable
     argSymbols <- forM typeArgs $ \(Sym arg) -> do
         s <- genSymbol arg
@@ -253,27 +259,19 @@ resolveTypeDef (AST.Typedef pos typeArgs (Sym sym) anno) = do
         return s
 
     anno' <- case anno of
-        AnnoType t -> AnnoType <$> resolve t
-        AnnoTuple ps -> do 
-            ps' <- forM ps $ \(AST.Param pos (Sym s) t) -> do
-                s' <- genSymbol s
-                AST.Param pos s' <$> resolve t
-            return $ AnnoTuple ps'
-
-        AnnoRecord params -> fmap AnnoRecord $ forM params $ \(AST.Param pos (Sym s) t) -> do
-            s' <- genSymbol s
-            AST.Param pos s' <$> resolve t
-
-        AnnoTable params -> fmap AnnoTable $ forM params $ \(AST.Param pos (Sym s) t) -> do
-            s' <- genSymbol s
-            AST.Param pos s' <$> resolve t
-
-        AnnoADT params -> fmap AnnoADT $ forM params $ \(AST.Param pos (Sym s) t) -> do
-            s' <- genSymbol s
-            Param pos s' <$> resolve t
+        AnnoType t        -> AnnoType <$> resolve t
+        AnnoTuple params  -> AnnoTuple  <$> mapM resolveTypedefParam params
+        AnnoRecord params -> AnnoRecord <$> mapM resolveTypedefParam params
+        AnnoTable params  -> AnnoTable  <$> mapM resolveTypedefParam params
+        AnnoADT params    -> AnnoADT    <$> mapM resolveTypedefParam params
 
     popSymbolTable
     modify $ \s -> s { typeFuncsMap = Map.insert symbol (argSymbols, anno') (typeFuncsMap s) }
+    where
+        resolveTypedefParam :: AST.Param -> DoM ResolveState AST.Param
+        resolveTypedefParam (AST.Param pos (Sym s) t) = withPos pos $ do
+            s' <- genSymbol s
+            AST.Param pos s' <$> resolve t
 
 
 instance Resolve Stmt where
@@ -295,6 +293,7 @@ instance Resolve Stmt where
                 (funcStmt body)
 
         AST.Typedef pos args symbol anno -> do
+            defineTypeSymbols stmt
             resolveTypeDef stmt
             return $ AST.Typedef pos args symbol anno -- essentially discarded
 
@@ -321,10 +320,13 @@ instance Resolve Stmt where
             Nothing -> return stmt
             Just expr -> Return pos . Just <$> resolve expr
 
-        Assign pos pat expr -> do
+        Let pos pat expr mblk -> do
+            when (isJust mblk) pushSymbolTable
             expr' <- resolve expr 
             pat' <- resolve pat
-            return $ Assign pos pat' expr'
+            mblk' <- maybe (return Nothing) (fmap Just . resolve) mblk
+            when (isJust mblk) popSymbolTable
+            return $ Let pos pat' expr' mblk'
         
         If pos condition stmt melse -> do
             pushSymbolTable
@@ -399,8 +401,8 @@ instance Resolve Param where
 resolveMapper :: Elem -> DoM ResolveState Elem
 resolveMapper element = case element of
     ElemType (Type.TypeApply s ts) -> do
-        symbol' <- look s KeyType
-        return $ ElemType $ Type.TypeApply symbol' ts
+        s' <- look s KeyType
+        return $ ElemType $ Type.TypeApply s' ts
 
     ElemPattern (PatIdent pos symbol) -> do
         let Sym sym = symbol

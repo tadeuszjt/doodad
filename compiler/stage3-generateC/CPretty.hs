@@ -74,12 +74,12 @@ cPretty includePaths = do
 
 cPrettyElem :: Element -> DoM CPrettyState ()
 cPrettyElem elem = case elem of
-    Return expr         -> printLn $ "return " ++ show expr ++ ";"
+    Return expr         -> printLn $ "return " ++ showNoParens expr ++ ";"
     ReturnVoid          -> printLn $ "return;"
-    Assign typ str expr -> printLn $ show typ ++ " " ++ str ++ " = " ++ show expr ++ ";"
-    ExprStmt expr       -> printLn $ show expr ++ ";"
+    Assign typ str expr -> printLn $ show typ ++ " " ++ str ++ " = " ++ showNoParens expr ++ ";"
+    ExprStmt expr       -> printLn $ showNoParens expr ++ ";"
     Break               -> printLn "break;"
-    Set expr1 expr2     -> printLn $ show expr1 ++ " = " ++ show expr2 ++ ";"
+    Set expr1 expr2     -> printLn $ showNoParens expr1 ++ " = " ++ showNoParens expr2 ++ ";"
     Embed str           -> mapM_ printLn (lines str)
     Goto str            -> printLn $ "goto " ++ str ++ ";"
     Label str           -> printLn $ str ++ ":;"
@@ -105,7 +105,7 @@ cPrettyElem elem = case elem of
         printLn $ "typedef " ++ show (typedefType typedef) ++ " " ++ typedefName typedef ++ ";"
 
     if_@(If _ _) -> do
-        printLn $ "if (" ++ show (ifExpr if_) ++ ") {"
+        printLn $ "if (" ++ showNoParens (ifExpr if_) ++ ") {"
         pushIndent
         printElems (ifStmts if_)
         popIndent
@@ -119,14 +119,14 @@ cPrettyElem elem = case elem of
         printLn "}"
 
     switch@(Switch _ _) -> do
-        printLn $ "switch(" ++ show (switchExpr switch) ++ ") {"
+        printLn $ "switch(" ++ showNoParens (switchExpr switch) ++ ") {"
         pushIndent
         printElems (switchBody switch)
         popIndent
         printLn "}"
 
     cas@(Case _ _) -> do
-        printLn $ "case " ++ show (caseExpr cas) ++ ": {"
+        printLn $ "case " ++ showNoParens (caseExpr cas) ++ ": {"
         pushIndent
         printElems (caseBody cas)
         popIndent
@@ -134,7 +134,7 @@ cPrettyElem elem = case elem of
 
     for@(For _ _ _ _) -> do
         printLn ""
-        printLn $ "for (" ++ maybe "" show (forInit for) ++ "; " ++ maybe "" show (forCnd for) ++ "; " ++ maybe "" show (forPost for) ++ ") {"
+        printLn $ "for (" ++ maybe "" showNoParens (forInit for) ++ "; " ++ maybe "" showNoParens (forCnd for) ++ "; " ++ maybe "" show (forPost for) ++ ") {"
         pushIndent
         printElems (forBody for)
         popIndent

@@ -1,0 +1,51 @@
+module binaryTree
+
+import std/maybe
+import std/sparse
+
+type[T] TreeNode   ( NodeBranch:(Key(TreeRecord(T)), Key(TreeRecord(T))) | NodeLeaf:null )
+type[T] TreeRecord { node:TreeNode(T), elem:T } 
+type[T] Tree (
+    base : Maybe(  Key(TreeRecord(T)) )
+    nodes: Sparse( TreeRecord(T) )
+)
+
+
+fn[T] {tree:Tree(T)} insert(elem:()T)
+    let elemKey = tree.nodes.insert()
+    let {n, e} = tree.nodes.at(elemKey) in
+        n   = NodeLeaf()
+        e{} = elem{}
+
+    switch tree.base
+        Nothing(); tree.base = Just(elemKey)
+        Just(baseKey)
+            let key = baseKey
+            while tree.nodes.at(key) -> {NodeBranch((left, right)), e}
+                if elem{} < e{}
+                    key   = left
+                else; key = right
+
+            let newLeafKey = tree.nodes.insert()
+            let {n, e} = tree.nodes.at(newLeafKey) in
+                n   = NodeLeaf()
+                e{} = tree.nodes.at(key).elem{}
+
+            let {n, e} = tree.nodes.at(key) in
+                if elem{} < e{}; n = NodeBranch((elemKey, newLeafKey))
+                else
+                    n   = NodeBranch((newLeafKey, elemKey))
+                    e{} = elem{}
+
+
+fn[T] {tree:Tree(T)} printTree()
+    fn[T] {tree:Tree(T)} printNode(key:Key(TreeRecord(T)))
+        switch tree.nodes.get(key).node
+            NodeLeaf(); print(tree.nodes.at(key).elem)
+            NodeBranch((left, right))
+                tree.printNode(left)
+                tree.printNode(right)
+                    
+    switch tree.base
+        Nothing(); print("empty")
+        Just(key); tree.printNode(key)

@@ -13,10 +13,11 @@ import Monad
 
 
 applySubs :: (Apply a) => [(Type, Type)] -> a -> DoM s a
-applySubs subs a = apply (\t -> foldr foldFunc t subs) a
+applySubs subs a = apply (f subs) a
     where
-        foldFunc :: (Type, Type) -> Type -> Type
-        foldFunc (x, u) z = if z == x then u else z
+        f :: [(Type, Type)] -> Type -> Type
+        f []          z = z
+        f ((x, u):xs) z = f xs (if z == x then u else z)
 
 
 mapper :: (Type -> Type) -> Elem -> DoM s Elem

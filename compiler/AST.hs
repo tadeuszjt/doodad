@@ -103,7 +103,7 @@ instance Typeof Pattern where
     typeof a = error $ "can only take typeof PatAnnotated" 
 
 data Stmt
-    = Assign      TextPos Pattern Expr
+    = Let      TextPos Pattern Expr (Maybe Stmt)
     | SetOp       TextPos Operator Expr   Expr
     | ExprStmt    Expr
     | Return      TextPos (Maybe Expr)
@@ -172,7 +172,7 @@ instance TextPosition Expr where
 
 instance TextPosition Stmt where
     textPos stmt = case stmt of
-        Assign      p _ _ -> p
+        Let      p _ _ _ -> p
         ExprStmt    expr -> textPos expr
         Return      p _ -> p
         Block       s -> textPos (head s)
@@ -306,7 +306,11 @@ prettyStmt pre stmt = case stmt of
         prettyStmt (pre ++ "\t") blk
         putStrLn ""
 
-    Assign pos pat expr    -> putStrLn $ pre ++ "let " ++ show pat ++ " = " ++ show expr
+    Let pos pat expr mblk -> do
+        putStrLn $ pre ++ "let " ++ show pat ++ " = " ++ show expr ++ if isJust mblk then " in" else ""
+        when (isJust mblk) $ prettyStmt (pre ++ "\t") (fromJust mblk)
+
+
     SetOp _ op expr1 expr2 -> putStrLn $ pre ++ (show expr1) ++ " " ++ show op ++ " " ++ show expr2
     Return pos mexpr       -> putStrLn $ pre ++ "return " ++ maybe "" show mexpr
     Const _ symbol expr    -> putStrLn $ pre ++ "const " ++ show symbol ++ " = " ++ show expr

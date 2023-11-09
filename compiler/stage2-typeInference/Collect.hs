@@ -129,10 +129,11 @@ collectStmt stmt = collectPos stmt $ case stmt of
         collectStmt blk
         maybe (return ()) collectStmt melse
 
-    S.Assign _ pattern expr -> do
+    S.Let _ pattern expr mblk -> do
         collectEq (typeof pattern) (typeof expr)
         collectPattern pattern
         collectExpr expr
+        when (isJust mblk) $ collectStmt (fromJust mblk)
 
     -- only tables use +=, must be table
     S.SetOp _ S.PlusEq expr1 expr2@(S.AExpr t2 (S.Tuple _ es)) -> do

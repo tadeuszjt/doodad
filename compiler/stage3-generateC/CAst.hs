@@ -119,22 +119,27 @@ instance Show Expression where
     show (Int n) = show n
     show (Float f) = show f
     show (String s) = show s
-    show (Call name exprs) = name ++ "(" ++ intercalate ", " (map show exprs) ++ ")"
+    show (Call name exprs) = name ++ "(" ++ intercalate ", " (map showNoParens exprs) ++ ")"
     show (CndExpr c a b) = show c ++ " ? " ++ show a ++ " : " ++ show b
     show (Infix op a b) = "(" ++ show a ++ " " ++ show op ++ " " ++ show b ++ ")"
     show (Prefix op a) = "(" ++ show op ++ " " ++ show a ++ ")"
-    show (Initialiser es) = "{" ++ intercalate ", " (map show es) ++ "}"
+    show (Initialiser es) = "{" ++ intercalate ", " (map showNoParens es) ++ "}"
     show (Member a b) = show a ++ "." ++ b
     show (PMember a b) = show a ++ "->" ++ b
     show (Increment e) = show e ++ "++"
-    show (Subscript e1 e2) = show e1 ++ "[" ++ show e2 ++ "]"
+    show (Subscript e1 e2) = show e1 ++ "[" ++ showNoParens e2 ++ "]"
     show (Deref e) = "(*" ++ show e ++ ")"
+    show (Address (Ident s)) = "&" ++ s
     show (Address e) = "&(" ++ show e ++ ")"
     show (Not e) = "!" ++ show e
     show (Char '\0') = "'\\0'"
     show (Char c) = show c
-    show (Sizeof e) = "sizeof(" ++ show e ++ ")"
-    show (Cast t e) = "(" ++ show t ++ ")(" ++ show e ++ ")"
+    show (Sizeof e) = "sizeof(" ++ showNoParens e ++ ")"
+    show (Cast t e) = "(" ++ show t ++ ")(" ++ showNoParens e ++ ")"
+
+showNoParens :: Expression -> String
+showNoParens expr = let str = show expr in
+    if head str == '(' && last str == ')' then init (tail str) else str
 
 data ID =
     ID Int

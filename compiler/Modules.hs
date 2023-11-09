@@ -102,7 +102,7 @@ buildBinaryFromModule args modPath = do
 
     let hDoodad   = joinPath [doodadPath, "include"]
     let cDoodad   = joinPath [doodadPath, "include/doodad.c"]
-    let cFiles    = cDoodad : Map.elems (cFileMap state)
+    let cFiles    = Map.elems (cFileMap state) ++ [cDoodad]
     let binFile   = takeFileName modPath
     let linkPaths = Set.toList $ Set.unions (map links $ Map.elems $ moduleMap state)
 
@@ -110,21 +110,26 @@ buildBinaryFromModule args modPath = do
         liftIO $ putStrLn $ "linking '" ++ path ++ "'"
 
     when (printC args) $ do
-        forM_ (cFiles) $ \file -> do
+        forM_ (reverse cFiles) $ \file -> do
             liftIO $ putStrLn =<< readFile file
 
-    when (printAssembly args) $ do
-        forM_ cFiles $ \cFile -> do
+    when (printAssembly args) $ liftIO $ do
+        locs <- forM cFiles $ \cFile -> do
             let asmPath = dropExtension cFile <.> ".s"
-            exitCode <- liftIO $ rawSystem "gcc" $
+            exitCode <- rawSystem "gcc" $
                 ["-S"] ++ ["-I", hDoodad] ++ [cFile] ++ ["-o", asmPath]
             case exitCode of
                 ExitSuccess -> return ()
                 ExitFailure s -> fail $ "gcc failed: " ++ show s
 
-            liftIO $ putStrLn ""
-            liftIO $ putStrLn =<< readFile asmPath
-            liftIO $ removeFile asmPath
+            putStrLn ""
+            contents <- readFile asmPath
+            let loc = length (lines contents)
+            putStrLn contents
+            removeFile asmPath
+            return (loc, cFile)
+        forM_ locs $ \(loc, cFile) -> putStrLn $ show loc ++ " lines of ASM for: " ++ show cFile
+
 
     exitCode <- liftIO $ rawSystem "gcc" $
         ["-I", hDoodad] ++ cFiles ++ ["-lgc"] ++ map ("-l" ++) linkPaths ++ ["-o", binFile]

@@ -4,55 +4,8 @@ import std/maybe
 import std/table
 import std/map
 import std/sparse
+import std/binaryTree
 
-type Person {string, i32}
-
-type[T] TreeNode   ( NodeBranch:(i64, i64) | NodeLeaf:null)
-type[T] TreeRecord { node:TreeNode(T), elem:T} 
-type[T] Tree (
-    base : Maybe(  Key(TreeRecord(T)) )
-    nodes: Sparse( TreeRecord(T) )
-)
-
-
-fn[T] {tree:Tree(T)} insert(elem:()T)
-    let elemKey = tree.nodes.insert()
-    if tree.nodes.at(elemKey) -> {n, e}
-        n   = NodeLeaf()
-        e{} = elem{}
-
-    switch tree.base
-        Nothing(); tree.base = Just(elemKey)
-        Just(baseKey)
-            let key = baseKey
-            while tree.nodes.at(key).node -> NodeBranch((left, right))
-                if elem{} < tree.nodes.at(key).elem{}
-                    key = conv(left)
-                else; key = conv(right)
-
-            let newLeafKey = tree.nodes.insert()
-            if tree.nodes.at(newLeafKey) -> {n, e}
-                n   = NodeLeaf()
-                e{} = tree.nodes.at(key).elem{}
-
-            if elem{} < tree.nodes.at(key).elem{}
-                tree.nodes.at(key).node = NodeBranch((conv(elemKey), conv(newLeafKey)))
-            else
-                tree.nodes.at(key).node   = NodeBranch((conv(newLeafKey), conv(elemKey)))
-                tree.nodes.at(key).elem{} = elem{}
-
-
-fn[T] {tree:Tree(T)} printTree()
-    fn[T] {tree:Tree(T)} printNode(key:Key(TreeRecord(T)))
-        switch tree.nodes.get(key).node
-            NodeLeaf(); print(tree.nodes.at(key).elem)
-            NodeBranch((left, right))
-                tree.printNode(conv(left))
-                tree.printNode(conv(right))
-                    
-    switch tree.base
-        Nothing(); print("empty")
-        Just(key); tree.printNode(key)
                 
     
 fn testTree()
@@ -185,6 +138,14 @@ fn testPatRecord()
         a = 2
     let (2, 5) = x2
 
+    data sparse Sparse( (i64, bool) )
+    let key = sparse.insert((1, true))
+    let {1, true} = sparse.at(key)
+    let {i, b} = sparse.at(key) in
+        b = false
+        i = i + 1
+    let {2, false} = sparse.at(key)
+
     print("testPatRecord passed")
 
 
@@ -214,3 +175,6 @@ fn main()
     testTree()
     testPatRecord()
     print("main2 finished")
+
+type Person {string, i32}
+

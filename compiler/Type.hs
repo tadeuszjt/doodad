@@ -282,6 +282,11 @@ flattenType typ = case typ of
             Just base -> case base of
                 t | isSimple t -> return $ Record [t']
                 Record _       -> return t'
+                Tuple t        -> do
+                    baseT <- baseTypeOfm t
+                    case baseT of
+                        Just (Record _) -> return t
+                        x -> error (show x)
 
                 x -> error (show x)
 

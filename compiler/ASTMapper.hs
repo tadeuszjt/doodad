@@ -60,10 +60,11 @@ mapStmtM f stmt = withPos stmt $ do
         ExprStmt expr -> ExprStmt <$> mapExprM f expr
         Return pos mexpr -> Return pos <$> maybe (return Nothing) (fmap Just . mapExprM f) mexpr
 
-        Assign pos pat expr -> do
+        Let pos pat expr mblk -> do
             pat' <- mapPattern f pat
             expr' <- mapExprM f expr
-            return $ Assign pos pat' expr'
+            mblk' <- maybe (return Nothing) (fmap Just . mapStmtM f) mblk
+            return $ Let pos pat' expr' mblk'
 
         Increment pos expr -> do
             expr' <- mapExprM f expr

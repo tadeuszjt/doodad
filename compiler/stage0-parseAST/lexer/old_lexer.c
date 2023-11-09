@@ -207,6 +207,7 @@ bool isKeyword(char *s) {
         "char",
         "data",
         "let",
+        "in",
         "null",
         "true",
         "false",

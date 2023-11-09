@@ -65,6 +65,7 @@ import Symbol
     if         { Token _ Reserved "if" }
     else       { Token _ Reserved "else" }
     let        { Token _ Reserved "let" }
+    in         { Token _ Reserved "in" }
     while      { Token _ Reserved "while" }
     return     { Token _ Reserved "return" }
     switch     { Token _ Reserved "switch" }
@@ -147,7 +148,7 @@ mfnrec : {-empty-}                          { [] }
 mfnTypeArgs : {-empty-}                     { [] }
             | '[' idents1 ']'               { $2 }
 
-line : let pattern '=' expr                         { S.Assign (tokPos $1) $2 $4 }  
+line : let pattern '=' expr                         { S.Let (tokPos $1) $2 $4 Nothing }  
      | index '=' expr                               { S.SetOp (tokPos $2) S.Eq $1 $3 }
      | index '+=' expr                              { S.SetOp (tokPos $2) S.PlusEq $1 $3 }
      | index                                        { S.ExprStmt $1 }
@@ -172,6 +173,7 @@ block : if_                                         { $1 }
       | for expr scope                              { S.For (tokPos $1) $2 Nothing $3 }
       | for expr '->' pattern scope                 { S.For (tokPos $1) $2 (Just $4) $5 }
       | switch_                                     { $1 }
+      | let pattern '=' expr in scope               { S.Let (tokPos $1) $2 $4 (Just $6) }
 
 scope  : 'I' stmts 'D'                      { S.Block $2 }
        | ';' line 'N'                       { $2 }
