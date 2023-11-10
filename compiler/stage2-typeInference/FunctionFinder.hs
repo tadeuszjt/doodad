@@ -25,7 +25,9 @@ findCandidates callHeader = do
     funcSymbols <- findFunctionCandidates callHeader
     typeSymbols <- findTypeCandidates callHeader
     ctorSymbols <- findCtorCandidates (symbol callHeader)
-    return $ Set.toList $ Set.fromList $ concat $ [funcSymbols, typeSymbols, ctorSymbols]
+    let r = Set.toList $ Set.fromList $ concat $ [funcSymbols, typeSymbols, ctorSymbols]
+    --liftIO $ putStrLn $ show callHeader ++ ": " ++ show r
+    return r
 
 
 findFunctionCandidates :: FuncHeader -> DoM ASTResolved [Symbol]

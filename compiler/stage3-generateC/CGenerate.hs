@@ -1,4 +1,3 @@
-{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 module CGenerate where
@@ -57,52 +56,46 @@ initGenerateState modName
         , symTab = SymTab.initSymTab
         }
 
+newtype Generate a = Generate { unGenerate :: StateT GenerateState (StateT BuilderState (ExceptT Error IO)) a }
+    deriving (Functor, Applicative, Monad, MonadState GenerateState, MonadIO, MonadError Error)
 
-class (MonadBuilder m, MonadFail m, MonadState GenerateState m, MonadIO m, MonadError Error m, TypeDefs m) => MonadGenerate m
+instance MonadBuilder Generate where
+    liftBuilderState (StateT s) = Generate $ lift $ StateT $ pure . runIdentity . s
 
-newtype GenerateT m a = GenerateT { unGenerateT :: StateT GenerateState (StateT BuilderState (ExceptT Error m)) a }
-    deriving (Functor, Applicative, Monad, MonadState GenerateState, MonadGenerate, MonadIO, MonadError Error)
-
-instance Monad m => MonadBuilder (GenerateT m) where
-    liftBuilderState (StateT s) = GenerateT $ lift $ StateT $ pure . runIdentity . s
-
-instance MonadTrans GenerateT where
-    lift = GenerateT . lift . lift . ExceptT . (fmap Right)
-
-instance Monad m => MonadFail (GenerateT m) where
+instance MonadFail Generate where
     fail s = throwError (ErrorStr s)
 
-instance Monad m => TypeDefs (GenerateT m) where
+instance TypeDefs Generate where
     getTypeDefs = gets typefuncs
 
 
-runGenerateT :: Monad m => GenerateState -> BuilderState -> GenerateT m a -> m (Either Error ((a, GenerateState), BuilderState))
-runGenerateT generateState builderState generateT =
-    runExceptT $ runStateT (runStateT (unGenerateT generateT) generateState) builderState
+runGenerate :: MonadIO m => GenerateState -> BuilderState -> Generate a -> m (Either Error ((a, GenerateState), BuilderState))
+runGenerate generateState builderState generate =
+    liftIO $ runExceptT $ runStateT (runStateT (unGenerate generate) generateState) builderState
 
 
-pushSymTab :: MonadGenerate m => m ()
+pushSymTab :: Generate ()
 pushSymTab = modify $ \s -> s { symTab = SymTab.push (symTab s) }
 
 
-popSymTab :: MonadGenerate m => m ()
+popSymTab :: Generate ()
 popSymTab = modify $ \s -> s { symTab = SymTab.pop (symTab s) }
 
 
-define :: MonadGenerate m => String -> Value -> m ()
+define :: String -> Value -> Generate ()
 define str obj = withErrorPrefix "CGenerate: " $ do
     resm <- SymTab.lookup str () <$> gets symTab
     assert (isNothing resm) $ str ++ " already defined"
     modify $ \s -> s { symTab = SymTab.insert str () obj (symTab s) }
 
-look :: MonadGenerate m => String -> m Value
+look :: String -> Generate Value
 look str = do
     resm <- SymTab.lookup str () <$> gets symTab
     when (isNothing resm) $ fail $ str ++ " isn't defined"
     return (fromJust resm)
 
 
-fresh :: MonadGenerate m => String -> m String
+fresh :: String -> Generate String
 fresh suggestion = do
     nm <- Map.lookup suggestion <$> gets supply
     let n = maybe 0 id nm
@@ -123,7 +116,7 @@ not_ :: Value -> Value
 not_ (Value typ expr) = Value typ (C.Not expr)
 
 
-assign :: MonadGenerate m => String -> Value -> m Value
+assign :: String -> Value -> Generate Value
 assign suggestion val = do
     name <- fresh suggestion
     ctyp <- cTypeOf (typeof val)
@@ -131,24 +124,24 @@ assign suggestion val = do
     return $ Value (typeof val) $ C.Ident name
 
 
-if_ :: MonadGenerate m => Value -> m a -> m a
+if_ :: Value -> Generate a -> Generate a
 if_ cnd f = do
     base@(Type.Bool) <- baseTypeOf cnd
     id <- appendIf (valExpr cnd)
     withCurID id f
 
 
-call :: MonadGenerate m => String -> [Value] -> m () 
+call :: String -> [Value] -> Generate () 
 call name args = do
     void $ appendElem $ C.ExprStmt $ C.Call name (map valExpr args)
 
 
-callWithParams :: MonadGenerate m => [Value] -> String -> [Value] -> m ()
+callWithParams :: [Value] -> String -> [Value] -> Generate ()
 callWithParams params name args = do
     void $ appendElem $ C.ExprStmt $ C.Call name (map ptrExpr params ++ map valExpr args)
 
 
-for :: MonadGenerate m => Value -> (Value -> m a) -> m a
+for :: Value -> (Value -> Generate a) -> Generate a
 for len f = do
     base@(I64) <- baseTypeOf len
     idx <- assign "idx" (i64 0)
@@ -160,7 +153,7 @@ for len f = do
     withCurID id (f idx)
 
 
-convert :: MonadGenerate m => Type.Type -> Value -> m Value
+convert :: Type.Type -> Value -> Generate Value
 convert typ val = do
     base <- baseTypeOf typ
     baseVal <- baseTypeOf val
@@ -186,7 +179,7 @@ convert typ val = do
 
 
 
-set :: MonadGenerate m => Value -> Value -> m ()
+set :: Value -> Value -> Generate ()
 set a b = do
     assert (typeof a == typeof b) $ "set - types don't match: " ++ show (typeof a) ++ ", " ++ show (typeof b)
     base <- baseTypeOf a
@@ -235,7 +228,7 @@ set a b = do
         _ -> error (show base)
 
 
-len :: MonadGenerate m => Value -> m Value
+len :: Value -> Generate Value
 len val = do
     base <- baseTypeOf val
     case base of
@@ -245,7 +238,7 @@ len val = do
         _ -> error (show base)
 
 
-adtEnum :: MonadGenerate m => Value -> m Value
+adtEnum :: Value -> Generate Value
 adtEnum obj = do
     base@(Type.ADT _) <- baseTypeOf obj
     return $ Value I64 $ C.Member (valExpr obj) "en"
@@ -255,7 +248,7 @@ adtEnum obj = do
 -- {Person, bool}.1 -> {bool}
 -- ()Person.0       -> string
 -- ()Person.1       -> i64
-member :: MonadGenerate m => Int -> Value -> m Value
+member :: Int -> Value -> Generate Value
 member index val = do
     base <- baseTypeOf val
     case base of
@@ -303,7 +296,7 @@ member index val = do
         _ -> error (show base)
 
 
-initialiser :: MonadGenerate m => Type.Type -> [Value] -> m Value
+initialiser :: Type.Type -> [Value] -> Generate Value
 initialiser typ [] = do
     base <- baseTypeOf typ
     case base of
@@ -329,7 +322,7 @@ initialiser typ vals = do
         _ -> error (show base)
 
 
-accessRecord :: MonadGenerate m => Value -> (Maybe Value) -> m Value
+accessRecord :: Value -> (Maybe Value) -> Generate Value
 accessRecord val marg = do
     base <- baseTypeOf val
     case base of
@@ -379,13 +372,13 @@ accessRecord val marg = do
         x -> error (show x)
 
 
-cParamOf :: MonadGenerate m => S.Param -> m C.Param
+cParamOf :: S.Param -> Generate C.Param
 cParamOf param = do
     ctype <- cTypeOf (paramType param)
     return $ C.Param { C.cName = show (paramName param), C.cType = ctype }
 
 
-cTypeOf :: (MonadGenerate m, Typeof a) => a -> m C.Type
+cTypeOf :: (Typeof a) => a -> Generate C.Type
 cTypeOf a = case typeof a of
     I64 -> return $ Cint64_t
     I32 -> return $ Cint32_t
@@ -415,7 +408,7 @@ cTypeOf a = case typeof a of
         replaceVoid Void = I8
         replaceVoid t    = t
 
-        cTypeNoDef :: (MonadGenerate m, Typeof a) => a -> m C.Type
+        cTypeNoDef :: (Typeof a) => a -> Generate C.Type
         cTypeNoDef a = case typeof a of
             I64 -> return $ Cint64_t
             I32 -> return $ Cint32_t
@@ -458,7 +451,7 @@ cTypeOf a = case typeof a of
             x -> error (show x)
 
 
-getTypedef :: MonadGenerate m => String -> C.Type -> m C.Type
+getTypedef :: String -> C.Type -> Generate C.Type
 getTypedef suggestion typ = do
     sm <- Map.lookup typ <$> gets tuples
     case sm of
@@ -470,7 +463,7 @@ getTypedef suggestion typ = do
             return $ Ctypedef name
 
 
-tableAppend :: MonadGenerate m => Value -> m ()
+tableAppend :: Value -> Generate ()
 tableAppend val = do
     Table t <- baseTypeOf val
     baseT <- baseTypeOf t
@@ -492,3 +485,11 @@ tableAppend val = do
             appendElem $ C.Set pMem $ C.Call "GC_realloc" [pMem, newSize]
 
     void $ appendElem $ C.ExprStmt $ C.Increment $ C.Member (valExpr val) "len"
+
+
+withFakeSwitch :: Generate a -> Generate a
+withFakeSwitch f = do
+    switchId <- appendElem $ C.Switch { switchBody = [], switchExpr = C.Int 0 }
+    caseId <- newElement $ C.Case { caseExpr = C.Int 0, caseBody = [] }
+    withCurID switchId $ append caseId
+    withCurID caseId f

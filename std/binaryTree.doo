@@ -38,9 +38,23 @@ fn[T] {tree:Tree(T)} insert(elem:()T)
                     e{} = elem{}
 
 
+fn[T] {tree:Tree(T)} contains(elem:()T) bool
+    fn[T] {tree:Tree(T)} contains(key:Key(TreeRecord(T)), elem:()T) bool
+        switch tree.nodes.at(key)
+            {NodeLeaf(), e}; return e{} == elem{}
+            {NodeBranch((left, right)), e}
+                if e{} == elem{};     return true
+                else if elem{} < e{}; return tree.contains(left, elem)
+                else;                 return tree.contains(right, elem)
+
+    switch tree.base
+        Nothing(); return false
+        Just(key); return tree.contains(key, elem)
+
+
 fn[T] {tree:Tree(T)} printTree()
     fn[T] {tree:Tree(T)} printNode(key:Key(TreeRecord(T)))
-        switch tree.nodes.get(key).node
+        switch tree.nodes.at(key).node
             NodeLeaf(); print(tree.nodes.at(key).elem)
             NodeBranch((left, right))
                 tree.printNode(left)

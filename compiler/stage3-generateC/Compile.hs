@@ -51,7 +51,7 @@ getSymbolsOrderedByDependencies typedefs = do
 
 
 
-generateAdtInit :: MonadGenerate m => Type.Type -> Value -> m Value
+generateAdtInit :: Type.Type -> Value -> Generate Value
 generateAdtInit typ val = do
     error ""
 --    base@(Type.ADT fs) <- baseTypeOf typ
@@ -63,7 +63,7 @@ generateAdtInit typ val = do
 --    set un val
 --    return adt
 
-generateAdtEqual :: MonadGenerate m => Value -> Value -> m Value
+generateAdtEqual :: Value -> Value -> Generate Value
 generateAdtEqual a b = do
     error ""
 --    assert (typeof a == typeof b) "types aren't equal"
@@ -83,7 +83,7 @@ generateAdtEqual a b = do
 --
 --    return eq
 
-generate :: MonadGenerate m => ASTResolved -> m ()
+generate :: ASTResolved -> Generate ()
 generate ast = withErrorPrefix "generate: " $ do
     -- copy members from resolved ast
     modify $ \s -> s { ctors = ctorDefs ast }
@@ -128,7 +128,7 @@ generate ast = withErrorPrefix "generate: " $ do
         else return ()
 
 
-generateFunc :: MonadGenerate m => Symbol -> FuncBody -> m ()
+generateFunc :: Symbol -> FuncBody -> Generate ()
 generateFunc symbol body = do
     args <- mapM cParamOf (ASTResolved.funcArgs body)
     params <- map (\(C.Param n t) -> C.Param n (Cpointer t)) <$> mapM cParamOf (ASTResolved.funcParams body)
@@ -154,7 +154,7 @@ generateFunc symbol body = do
     withCurID globalID $ append id
 
 
-generatePrint :: MonadGenerate m => String -> Value -> m ()
+generatePrint :: String -> Value -> Generate ()
 generatePrint app val = case typeof val of
     Type.I64 ->    void $ appendPrintf ("%d" ++ app) [valExpr val]
     Type.I32 ->    void $ appendPrintf ("%d" ++ app) [valExpr val]
@@ -197,7 +197,7 @@ generatePrint app val = case typeof val of
 
 
 
-generateIndex :: MonadGenerate m => S.Expr -> m Value
+generateIndex :: S.Expr -> Generate Value
 generateIndex expr_@(S.AExpr t expr__) = case expr__ of
     S.Ident _ _ -> generateExpr expr_
     S.Field _ _ _ -> generateExpr expr_
@@ -218,14 +218,12 @@ generateIndex expr_@(S.AExpr t expr__) = case expr__ of
 generateIndex e = error (show e)
 
 
-generateStmt :: MonadGenerate m => S.Stmt -> m ()
+generateStmt :: S.Stmt -> Generate ()
 generateStmt stmt = withPos stmt $ case stmt of
     S.EmbedC _ str -> void $ appendElem (C.Embed str)
     S.Block stmts -> mapM_ generateStmt stmts
     S.Return _ Nothing -> void $ appendElem (C.ReturnVoid)
     S.Return _ (Just expr) -> void $ appendElem . C.Return . valExpr =<< generateExpr expr
-    S.FuncDef _ _ _ _ _ _ _ -> return ()
-    S.Typedef _ _ _ _ -> return ()
     S.Const _ symbol expr -> do
         define (show symbol) $ CGenerate.Const expr
 
@@ -257,10 +255,7 @@ generateStmt stmt = withPos stmt $ case stmt of
 
     S.Switch _ cnd cases -> do
         newVal <- assign "switchExpr" =<< generateExpr cnd
-        switchId <- appendElem $ C.Switch { switchBody = [], switchExpr = C.Int 0 }
-        caseId <- newElement $ C.Case { caseExpr = C.Int 0, caseBody = [] }
-        withCurID switchId $ append caseId
-        withCurID caseId $ do
+        withFakeSwitch $ do
             forM_ cases $ \(pattern, stmt) -> do
                 cnd <- generatePattern pattern newVal
                 if_ cnd $ do
@@ -351,11 +346,11 @@ generateStmt stmt = withPos stmt $ case stmt of
 
 
 -- creates an expression which may be used multiple times without side-effects
-generateReentrantExpr :: MonadGenerate m => Value -> m Value
+generateReentrantExpr :: Value -> Generate Value
 generateReentrantExpr (CGenerate.Const expr) = return (CGenerate.Const expr)
 generateReentrantExpr (Value typ expr) = Value typ <$> reentrantExpr expr
     where
-        reentrantExpr :: MonadGenerate m => C.Expression -> m C.Expression
+        reentrantExpr :: C.Expression -> Generate C.Expression
         reentrantExpr expr = case expr of
             C.Ident _ -> return expr
             C.Bool _  -> return expr
@@ -391,7 +386,7 @@ generateReentrantExpr (Value typ expr) = Value typ <$> reentrantExpr expr
 --  -> {x, y}     // x and y work like idents
 --  -> ({x}, {y}) // yeah, x and y are idents
 --  Maybe( {}i64 ) -> Just( x )
-generatePattern :: MonadGenerate m => Pattern -> Value -> m Value
+generatePattern :: Pattern -> Value -> Generate Value
 generatePattern pattern val = withPos pattern $ do
     case pattern of
         PatIgnore _ -> return true
@@ -484,7 +479,7 @@ generatePattern pattern val = withPos pattern $ do
                     appendElem $ C.Label endLabel
                     return match
 
-                _ -> error (show base)
+                _ -> fail (show base)
 
 --        PatNull _ -> do
 --            base@(Type.ADT fs) <- baseTypeOf val
@@ -510,7 +505,7 @@ generatePattern pattern val = withPos pattern $ do
         _ -> error (show pattern)
 
 
-annotateExprWith :: MonadGenerate m => Type.Type -> S.Expr -> m S.Expr
+annotateExprWith :: Type.Type -> S.Expr -> Generate S.Expr
 annotateExprWith typ expr = do
     base <- baseTypeOf typ
     fmap (AExpr typ) $ case expr of
@@ -524,7 +519,7 @@ annotateExprWith typ expr = do
 
 
 -- generateExpr should return a 're-enter-able' expression, eg 1, not func()
-generateExpr :: MonadGenerate m => Expr -> m Value
+generateExpr :: Expr -> Generate Value
 generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
     S.Bool _ b   -> return $ Value typ (C.Bool b)
     S.Int _ n    -> return $ Value typ (C.Int n)
@@ -676,7 +671,7 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
 
     _ -> error (show expr_)
     where
-        withTypeCheck :: MonadGenerate m => m Value -> m Value
+        withTypeCheck :: Generate Value -> Generate Value
         withTypeCheck f = do
             r <- generateReentrantExpr =<< f
             assert (typeof r == typ) $ 
@@ -685,7 +680,7 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
 generateExpr x = fail $ "unresolved expression: " ++ show x
             
 
-generateInfix :: MonadGenerate m => S.Operator -> Value -> Value -> m Value
+generateInfix :: S.Operator -> Value -> Value -> Generate Value
 generateInfix op a b = do
     assert (typeof a == typeof b) $ "infix type mismatch: " ++ show (typeof a) ++ ", " ++ show (typeof b)
     base <- baseTypeOf a
@@ -730,26 +725,27 @@ generateInfix op a b = do
             case op of
                 S.EqEq -> do
                     eq <- assign "eq" false
-                    forM_ (zip ts [0..]) $ \(t, i) -> do
-                        let da = Value t $ C.Deref $ C.Member (valExpr a) ("m" ++ show i) 
-                        let db = Value t $ C.Deref $ C.Member (valExpr b) ("m" ++ show i) 
-                        b <- generateInfix S.EqEq da db
-                        if_ (not_ b) $ appendElem $ C.Goto end
-                    set eq true
-                    appendElem $ C.Label end
+                    withFakeSwitch $ do
+                        forM_ (zip ts [0..]) $ \(t, i) -> do
+                            let da = Value t $ C.Deref $ C.Member (valExpr a) ("m" ++ show i) 
+                            let db = Value t $ C.Deref $ C.Member (valExpr b) ("m" ++ show i) 
+                            b <- generateInfix S.EqEq da db
+                            if_ (not_ b) $ appendElem $ C.Break
+                        set eq true
                     return eq
 
                 S.LT -> do
                     res <- assign "lt" true
-                    forM_ (zip ts [0..]) $ \(t, i) -> do
-                        let da = Value t $ C.Deref $ C.Member (valExpr a) ("m" ++ show i) 
-                        let db = Value t $ C.Deref $ C.Member (valExpr b) ("m" ++ show i) 
-                        lt <- generateInfix S.LT da db
-                        if_ lt $ appendElem $ C.Goto end
-                        eq <- generateInfix S.EqEq da db
-                        if_ (not_ eq) $ do
-                            set res false
-                            appendElem $ C.Goto end
+                    withFakeSwitch $ do
+                        forM_ (zip ts [0..]) $ \(t, i) -> do
+                            let da = Value t $ C.Deref $ C.Member (valExpr a) ("m" ++ show i) 
+                            let db = Value t $ C.Deref $ C.Member (valExpr b) ("m" ++ show i) 
+                            lt <- generateInfix S.LT da db
+                            if_ lt $ appendElem $ C.Break
+                            eq <- generateInfix S.EqEq da db
+                            if_ (not_ eq) $ do
+                                set res false
+                                appendElem $ C.Break
                     appendElem $ C.Label end
                     return res
 
@@ -764,28 +760,28 @@ generateInfix op a b = do
                 S.EqEq -> do
                     end <- fresh "end" 
                     eq <- assign "eq" false
-                    forM_ (zip ts [0..]) $ \(t, i) -> do
-                        let ma = Value t $ C.Member (valExpr a) ("m" ++ show i)
-                        let mb = Value t $ C.Member (valExpr b) ("m" ++ show i)
-                        b <- generateInfix S.EqEq ma mb
-                        if_ (not_ b) $ appendElem $ C.Goto end
-                    set eq true
-                    appendElem $ C.Label end
+                    withFakeSwitch $ do
+                        forM_ (zip ts [0..]) $ \(t, i) -> do
+                            let ma = Value t $ C.Member (valExpr a) ("m" ++ show i)
+                            let mb = Value t $ C.Member (valExpr b) ("m" ++ show i)
+                            b <- generateInfix S.EqEq ma mb
+                            if_ (not_ b) $ appendElem $ C.Break
+                        set eq true
                     return eq
 
                 S.LT -> do
                     end <- fresh "end" 
                     res <- assign "lt" true
-                    forM_ (zip ts [0..]) $ \(t, i) -> do
-                        let ma = Value t $ C.Member (valExpr a) ("m" ++ show i)
-                        let mb = Value t $ C.Member (valExpr b) ("m" ++ show i)
-                        lt <- generateInfix S.LT ma mb
-                        if_ lt $ appendElem $ C.Goto end
-                        eq <- generateInfix S.EqEq ma mb
-                        if_ (not_ eq) $ do
-                            set res false
-                            appendElem $ C.Goto end
-                    appendElem $ C.Label end
+                    withFakeSwitch $ do
+                        forM_ (zip ts [0..]) $ \(t, i) -> do
+                            let ma = Value t $ C.Member (valExpr a) ("m" ++ show i)
+                            let mb = Value t $ C.Member (valExpr b) ("m" ++ show i)
+                            lt <- generateInfix S.LT ma mb
+                            if_ lt $ appendElem $ C.Break
+                            eq <- generateInfix S.EqEq ma mb
+                            if_ (not_ eq) $ do
+                                set res false
+                                appendElem $ C.Break
                     return res
             
 --        Type.Array n t -> case op of

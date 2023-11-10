@@ -116,8 +116,7 @@ buildBinaryFromModule args modPath = do
     when (printAssembly args) $ liftIO $ do
         locs <- forM cFiles $ \cFile -> do
             let asmPath = dropExtension cFile <.> ".s"
-            exitCode <- rawSystem "gcc" $
-                ["-S"] ++ ["-I", hDoodad] ++ [cFile] ++ ["-o", asmPath]
+            exitCode <- rawSystem "gcc" $ ["-S"] ++ ["-I", hDoodad] ++ [cFile] ++ ["-o", asmPath]
             case exitCode of
                 ExitSuccess -> return ()
                 ExitFailure s -> fail $ "gcc failed: " ++ show s
@@ -194,7 +193,7 @@ buildModule args modPath = do
         modify $ \s -> s { moduleMap = Map.insert absoluteModPath astFinal (moduleMap s) }
 
         -- build C ast from final ast
-        res <- runGenerateT
+        res <- runGenerate
             (C.initGenerateState modName) (C.initBuilderState modName) (generate astFinal)
         cBuilderState <- case res of
             Right x -> return (snd x)

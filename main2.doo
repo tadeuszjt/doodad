@@ -6,8 +6,7 @@ import std/map
 import std/sparse
 import std/binaryTree
 
-                
-    
+
 fn testTree()
     data tree Tree(i64)
     tree.insert(10)
@@ -15,6 +14,9 @@ fn testTree()
     tree.insert(3)
     tree.insert(433)
     tree.insert(2)
+
+    let false = tree.contains(11)
+    let true = tree.contains(10)
     //tree.printTree()
 
     data tree2 Tree(string)
@@ -24,6 +26,8 @@ fn testTree()
     tree2.insert("bongis")
     tree2.insert("banghis")
     tree2.insert("benghis")
+    let true = tree2.contains("bongis")
+    let false = tree2.contains("b0ngis")
     //tree2.printTree()
 
     data tree3 Tree(Person)
@@ -38,6 +42,8 @@ fn testTree()
     tree4.insert( (true, "joranz", 39) )
     tree4.insert( (true, "jaranz", 50) )
     tree4.insert( (true, "jaranz", 36) )
+    let true  = tree4.contains((true, "jaranz", 36))
+    let false = tree4.contains((true, "jaranzz", 36))
     tree4.printTree()
 
     print("testTree passed")
@@ -163,9 +169,7 @@ fn testSparse()
     let key = s2.insert( ("jones", 44) )
     let ("jones", 44) = s2.get(key)
 
-
     print("testSparse passed")
-
 
 fn main()
     testTuple()
