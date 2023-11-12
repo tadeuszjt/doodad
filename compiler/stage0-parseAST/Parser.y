@@ -190,13 +190,17 @@ params1 : param                             { [$1] }
         | param ',' params1                 { $1 : $3 }
 params2 : param  ',' params1                { $1 : $3 }
 
+
 paramL  : ident ':' type_                   { S.Param (tokPos $1) (Sym $ tokStr $ $1) $3 }
         | ident ':' null                    { S.Param (tokPos $1) (Sym $ tokStr $ $1) T.Void }
-paramL_ : paramL { $1 }
-         | paramL 'N' {$1}
-paramsL1 : paramL_                          { [$1] }
-         | paramL_ '|' paramsL1             { $1 : $3 }
-paramsL2 : paramL_ '|' paramsL1             { $1 : $3 }
+paramsL1 : paramL                           { [$1] }
+         | paramL '|' paramsL1              { $1 : $3 }
+paramsLN1 : paramL 'N'                      { [$1] }
+          | paramL '|' 'N' paramsLN1        { $1 : $4 }
+paramsLN2 : paramL '|' 'N' paramsLN1        { $1 : $4 }
+paramsLA2 : 'I' paramsLN2 'D'               { $2 }
+          | paramsL1                        { $1 }
+
 
 paramsN : param 'N'                         { [$1] } 
         | param 'N' paramsN                 { $1 : $3 }
@@ -311,6 +315,9 @@ mtype  : {-empty-}                          { Nothing }
        | type_                              { Just $1 }
 types1 : type_                              { [$1] }
        | type_ ',' types1                   { $1 : $3 }
+types1N : type_ 'N'                         { [$1] }
+        | type_ ',' 'N' types1N             { $1 : $4 }
+types2N : type_ ',' 'N' types1N             { $1 : $4 }
     
 type_         : ordinal_t                   { $1 }
               | symbol                      { T.TypeApply (snd $1) [] }
@@ -336,7 +343,8 @@ ordinal_t   : bool                          { T.Bool }
 record_t  : '{' types1 '}'                  { T.Record $2 }
 tuple_t  : '(' ')' type_                    { T.Tuple $3 }
          | '(' type_ ',' types1 ')'         { T.Tuple (T.Record $ $2 : $4) }
-         --| '(' ')'                          { T.Tuple (T.Record []) }
+         | '(' 'I' types2N 'D' ')'          { T.Tuple (T.Record $3) }
+         --| '(' ')'                        { T.Tuple (T.Record []) }
 table_t  : '[' ']' type_                    { T.Table $3 }
 recapp_t : '{' '}' type_                    { T.RecordApply $3 }
 
@@ -349,7 +357,8 @@ anno_t   : ordinal_t                        { S.AnnoType $1 }
          | '(' ')' '{' paramsA1 '}'         { S.AnnoTuple $4 }
          | '[' ']' '{' paramsA1 '}'         { S.AnnoTable $4 }
          | '(' paramsA1 ')'                 { S.AnnoTuple $2 }
-         | '(' paramsL2 ')'                 { S.AnnoADT $2 }
+         | '=' '(' paramsLA2 ')'            { S.AnnoADT $3 }
+
 {
 parse :: MonadError Error m => [Token] -> m S.AST
 parse tokens = do

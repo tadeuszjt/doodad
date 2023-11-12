@@ -197,9 +197,9 @@ typesCouldMatch typedefs generics t1 t2 = typesCouldMatchPure
     where
         addTuple :: Type -> Type
         addTuple typ = case typ of
-            Tuple t                                   -> Tuple t
+            Tuple t                                                     -> Tuple t
             t | (runTypeDefsMonad typedefs $ definitelyIgnoresTuples t) -> Tuple t
-            t                                         -> t
+            t                                                           -> t
 
         typesCouldMatchPure :: Map.Map Symbol ([Symbol], Type) -> [Symbol] -> Type -> Type -> Bool
         typesCouldMatchPure typedefs generics t1 t2 = case (t1, t2) of
@@ -281,6 +281,7 @@ flattenType typ = case typ of
         case basem of
             Just base -> case base of
                 t | isSimple t -> return $ Record [t']
+                ADT _          -> return $ Record [t']
                 Record _       -> return t'
                 Tuple t        -> do
                     baseT <- baseTypeOfm t

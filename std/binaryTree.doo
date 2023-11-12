@@ -3,63 +3,69 @@ module binaryTree
 import std/maybe
 import std/unordered
 
-type[T] TreeNode   ( NodeBranch:(UnorderedKey(TreeRecord(T)), UnorderedKey(TreeRecord(T))) | NodeLeaf:null )
-type[T] TreeRecord { node:TreeNode(T), elem:T } 
-type[T] Tree (
-    base : Maybe(  UnorderedKey(TreeRecord(T)) )
-    nodes: Unordered( TreeRecord(T) )
+type[K, V] TreeElem { key:K, value:V }
+
+type[K, V] TreeNode = (
+    NodeLeaf : UnorderedKey(TreeElem(K, V)) |
+    NodeBranch : (
+        Key(TreeNode(K, V)),
+        Key(TreeNode(K, V)),
+        ()K
+    )
+)
+
+type[K, V] Tree (
+    base  : Maybe( Key(TreeNode(K, V)) )
+    nodes : Sparse( TreeNode(K, V) )
+    elems : Unordered( TreeElem(K, V) )
 )
 
 
-fn[T] {tree:Tree(T)} insert(elem:()T)
-    let elemKey = tree.nodes.insert()
-    let {n, e} = tree.nodes.at(elemKey) in
-        n   = NodeLeaf()
-        e{} = elem{}
+fn[K, V] {tree:Tree(K, V)} insert(key:()K, value:()V)
+    let elemKey = tree.elems.insert()
+    let {k, v}  = tree.elems.at(elemKey) in
+        k{} = key{}
+        v{} = value{}
+
+    let newNodeKey = tree.nodes.insert(NodeLeaf(elemKey))
 
     switch tree.base
-        Nothing(); tree.base = Just(elemKey)
-        Just(baseKey)
-            let key = baseKey
-            while tree.nodes.at(key) -> {NodeBranch((left, right)), e}
-                if elem{} < e{}
-                    key   = left
-                else; key = right
+        Nothing(); tree.base = Just(newNodeKey)
+        Just(baseNodeKey)
+            
+            // set nodeKey to the appropriate leaf
+            let nodeKey = baseNodeKey
+            while tree.nodes.at(nodeKey) -> {NodeBranch((left, right, branchKey))}
+                if key < branchKey; nodeKey = left
+                else;               nodeKey = right
 
-            let newLeafKey = tree.nodes.insert()
-            let {n, e} = tree.nodes.at(newLeafKey) in
-                n   = NodeLeaf()
-                e{} = tree.nodes.at(key).elem{}
+            // construct new leaf and branch
+            let leafKey = tree.nodes.insert( tree.nodes.get(nodeKey) ) // set new leaf to node
+            let branch = NodeBranch((leafKey, newNodeKey, key)):TreeNode(K, V)
+            let NodeLeaf(oldElemKey) = tree.nodes.get(nodeKey) in
+                let {k, _} = tree.elems.at(oldElemKey) in
+                    if key{} < k{}
+                        data x ()K
+                        x{} = k{}
+                        branch = NodeBranch((newNodeKey, leafKey, x))
 
-            let {n, e} = tree.nodes.at(key) in
-                if elem{} < e{}; n = NodeBranch((elemKey, newLeafKey))
-                else
-                    n   = NodeBranch((newLeafKey, elemKey))
-                    e{} = elem{}
+            tree.nodes.at(nodeKey) = branch{}
 
 
-fn[T] {tree:Tree(T)} contains(elem:()T) bool
-    fn[T] {tree:Tree(T)} contains(key:UnorderedKey(TreeRecord(T)), elem:()T) bool
-        switch tree.nodes.at(key)
-            {NodeLeaf(), e}; return e{} == elem{}
-            {NodeBranch((left, right)), e}
-                if e{} == elem{};     return true
-                else if elem{} < e{}; return tree.contains(left, elem)
-                else;                 return tree.contains(right, elem)
 
+fn[K, V] {tree:Tree(K, V)} contains(key:()K) bool
+    fn[K, V] {tree:Tree(K, V)} contains(nodeKey:Key(TreeNode(K, V)), key:()K) bool
+        switch tree.nodes.at(nodeKey)
+            {NodeLeaf( elemKey )}; return tree.elems.at(elemKey).key{} == key{}
+            {NodeBranch((left, right, k))}
+                if key < k; return tree.contains(left, key)
+                else      ; return tree.contains(right, key)
+    
     switch tree.base
-        Nothing(); return false
-        Just(key); return tree.contains(key, elem)
+        Nothing();         return false
+        Just(baseNodeKey); return tree.contains(baseNodeKey, key)
 
 
-fn[T] {tree:Tree(T)} printTree()
-    fn[T] {tree:Tree(T)} printNode(key:UnorderedKey(TreeRecord(T)))
-        switch tree.nodes.at(key).node
-            NodeLeaf(); print(tree.nodes.at(key).elem)
-            NodeBranch((left, right))
-                tree.printNode(left)
-                tree.printNode(right)
-                    
-    switch tree.base
-        Nothing(); print("empty")
-        Just(key); tree.printNode(key)
+fn[K, V] {tree:Tree(K, V)} length() i64
+    return tree.elems.length()
+

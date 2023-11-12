@@ -126,6 +126,7 @@ mapExprM f expr = withPos expr $ do
         AST.Tuple pos exprs -> AST.Tuple pos <$> mapM (mapExprM f) exprs
         RecordAccess pos expr -> RecordAccess pos <$> mapExprM f expr
         Construct pos symbol exprs -> Construct pos symbol <$> mapM (mapExprM f) exprs
+        Prefix pos op expr -> Prefix pos op <$> mapExprM f expr
 
         Field pos expr symbol -> do
             expr' <- mapExprM f expr
@@ -177,6 +178,10 @@ mapPattern f pattern = withPos pattern $ do
         PatTuple pos pats        -> PatTuple pos <$> mapM (mapPattern f) pats
         PatField pos symbol pats -> PatField pos symbol <$> mapM (mapPattern f) pats
         PatRecord pos pats       -> PatRecord pos <$> mapM (mapPattern f) pats
+        PatGuarded pos pat expr  -> do
+            pat' <- mapPattern f pat
+            expr' <- mapExprM f expr
+            return $ PatGuarded pos pat' expr'
         PatAnnotated pat typ     -> do
             pat' <- mapPattern f pat
             typ' <- mapTypeM f typ
