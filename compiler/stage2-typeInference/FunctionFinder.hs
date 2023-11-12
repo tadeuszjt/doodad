@@ -174,7 +174,7 @@ getConstraintsFromTypes typeArgs t1 t2 = do
                         assert (length ts1 == length ts2) "type argument lengths mismatch"
                         (ConsEq t1 t2 :) . concat <$> zipWithM fromTypes ts1 ts2
 
-                    | otherwise -> error "here"
+                    | otherwise -> fail "here"
 
                 (TypeApply s1 [], t) | elem s1 typeArgs -> return [ConsEq t1 t2]
                 (Type _, _)                             -> return [ConsEq t1 t2]

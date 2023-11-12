@@ -214,6 +214,8 @@ generateIndex expr_@(S.AExpr t expr__) = case expr__ of
         val <- generateExpr expr
         accessRecord val Nothing
 
+    S.Call _ _ _ _ -> generateExpr expr_
+
     _ -> error (show expr__)
 generateIndex e = error (show e)
 

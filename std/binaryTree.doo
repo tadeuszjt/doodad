@@ -1,13 +1,13 @@
 module binaryTree
 
 import std/maybe
-import std/sparse
+import std/unordered
 
-type[T] TreeNode   ( NodeBranch:(Key(TreeRecord(T)), Key(TreeRecord(T))) | NodeLeaf:null )
+type[T] TreeNode   ( NodeBranch:(UnorderedKey(TreeRecord(T)), UnorderedKey(TreeRecord(T))) | NodeLeaf:null )
 type[T] TreeRecord { node:TreeNode(T), elem:T } 
 type[T] Tree (
-    base : Maybe(  Key(TreeRecord(T)) )
-    nodes: Sparse( TreeRecord(T) )
+    base : Maybe(  UnorderedKey(TreeRecord(T)) )
+    nodes: Unordered( TreeRecord(T) )
 )
 
 
@@ -39,7 +39,7 @@ fn[T] {tree:Tree(T)} insert(elem:()T)
 
 
 fn[T] {tree:Tree(T)} contains(elem:()T) bool
-    fn[T] {tree:Tree(T)} contains(key:Key(TreeRecord(T)), elem:()T) bool
+    fn[T] {tree:Tree(T)} contains(key:UnorderedKey(TreeRecord(T)), elem:()T) bool
         switch tree.nodes.at(key)
             {NodeLeaf(), e}; return e{} == elem{}
             {NodeBranch((left, right)), e}
@@ -53,7 +53,7 @@ fn[T] {tree:Tree(T)} contains(elem:()T) bool
 
 
 fn[T] {tree:Tree(T)} printTree()
-    fn[T] {tree:Tree(T)} printNode(key:Key(TreeRecord(T)))
+    fn[T] {tree:Tree(T)} printNode(key:UnorderedKey(TreeRecord(T)))
         switch tree.nodes.at(key).node
             NodeLeaf(); print(tree.nodes.at(key).elem)
             NodeBranch((left, right))
