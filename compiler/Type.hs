@@ -188,6 +188,7 @@ applyTypeArguments argSymbols argTypes typ = do
         _                       -> error $ "applyTypeArguments: " ++ show typ
 
 
+-- TODO can't candle record applications with generics
 typesCouldMatch :: TypeDefsMap -> [Symbol] -> Type -> Type -> Bool
 typesCouldMatch typedefs generics t1 t2 = typesCouldMatchPure
         typedefs

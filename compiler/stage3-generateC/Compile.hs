@@ -784,6 +784,7 @@ generateInfix op a b = do
                             if_ (not_ eq) $ do
                                 set res false
                                 appendElem $ C.Break
+                        set res false
                     return res
             
 --        Type.Array n t -> case op of

@@ -47,23 +47,26 @@ fn testTree()
     tree.insert(3, true)
     tree.insert(433, false)
     tree.insert(2, true)
-
     let 5 = tree.length()
     let false = tree.contains(11)
     let true = tree.contains(10)
+    tree.delete(10)
+    let false = tree.contains(10)
     //tree.printTree()
 
-    data tree2 Tree(string, bool)
-    tree2.insert("benzhis", true)
-    tree2.insert("benis", true)
-    tree2.insert("beni", true)
-    tree2.insert("bongis", true)
-    tree2.insert("banghis", true)
-    tree2.insert("benghis", true)
-
+    data tree2 Tree(string, i64)
+    tree2.insert("benzhis", 1)
+    tree2.insert("benis", 2)
+    tree2.insert("beni", 3)
+    tree2.insert("bongis", 4)
+    tree2.insert("banghis", 5)
+    tree2.insert("benghis", 6)
     let 6 = tree2.length()
     let true = tree2.contains("bongis")
     let false = tree2.contains("b0ngis")
+    tree2.delete("bongis")
+    let false = tree2.contains("bongis")
+    let 5 = tree2.length()
     //tree2.printTree()
 
     data tree3 Tree(Person, bool)
@@ -72,6 +75,12 @@ fn testTree()
     tree3.insert( ("jaranz", 50), true )
     tree3.insert( ("jaranz", 36), true )
     let 4 = tree3.length()
+    tree3.delete( ("jorinz", 35) )
+    let 3 = tree3.length()
+    tree3.delete( ("joranz", 39) )
+    tree3.delete( ("jaranz", 50) )
+    tree3.delete( ("jaranz", 36) )
+    let 0 = tree3.length()
     //tree3.printTree()
 
     data tree4 Tree((){bool, Person}, bool)
@@ -109,6 +118,10 @@ fn testTuple()
     let "five" = t5.MyType.Person.name
     let "five" = t5.MyType.person.name
     let 3      = t5.Person.age
+
+    let false = "jorinz" < "jorinz"
+    let false = 35 < 35
+    let false = ("jorinz", 35) < ("jorinz", 35)
 
     print("testTuple passed")
 
@@ -198,10 +211,13 @@ fn testSparse()
     let 0 = s1.insert(3)
     let 1 = s1.insert(4)
     let 2 = s1.insert(5)
+    let 3 = s1.length()
     s1.delete(1)
+    let 2 = s1.length()
     let 1 = s1.insert(6)
     let 3 = s1.insert(7)
     let 7 = s1.get(3)
+    let 4 = s1.length()
 
     data s2 Sparse(Person)
     let key = s2.insert( ("jones", 44) )

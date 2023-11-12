@@ -1,25 +1,16 @@
 module map
 
 import std/maybe
-import std/table
+import std/binaryTree
 
-
-type[K, V] Map []{keys:K, values:V}
+type[K, V] Map (tree : Tree(K, V))
 
 
 fn[K, V] {m:Map(K, V)} insert(key:()K, value:()V)
-    for m[..] -> i
-        if m.keys[i] == key{}
-            m.values[i] = value{}
-            return
-    
-    m++
-    m.keys[len(m) - 1]   = key{}
-    m.values[len(m) - 1] = value{}
-
+    if m.tree.contains(key)
+        m.tree.delete(key)
+    m.tree.insert(key, value)
 
 fn[K, V] {m:Map(K, V)} find(key:()K) Maybe(()V)
-    for m[..] -> i
-        if m.keys[i] == key{}
-            return Just( conv(m.values[i]) )
-    return Nothing()
+    if m.tree.contains(key); return Just(m.tree.get(key))
+    else;                    return Nothing()

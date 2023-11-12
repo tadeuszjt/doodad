@@ -26,7 +26,6 @@ fn[K, V] {tree:Tree(K, V)} insert(key:()K, value:()V)
     let {k, v}  = tree.elems.at(elemKey) in
         k{} = key{}
         v{} = value{}
-
     let newNodeKey = tree.nodes.insert(NodeLeaf(elemKey))
 
     switch tree.base
@@ -52,18 +51,67 @@ fn[K, V] {tree:Tree(K, V)} insert(key:()K, value:()V)
             tree.nodes.at(nodeKey) = branch{}
 
 
+fn[K, V] {tree:Tree(K, V)} delete(key:()K)
+    fn[K, V] {tree:Tree(K, V)} deleteFromBranch(nodeKey:Key(TreeNode(K, V)), key:()K)
+            let NodeBranch((left, right, k)) = tree.nodes.get(nodeKey)
+            if key < k
+                switch tree.nodes.get(left)
+                    NodeBranch(_); tree.deleteFromBranch(left, key)
+                    NodeLeaf(elemKey)
+                        let true = key{} == tree.elems.at(elemKey).key{}
+                        tree.nodes.at(nodeKey) = tree.nodes.at(right)
+                        tree.elems.delete(elemKey)
+                        tree.nodes.delete(left)
+                        tree.nodes.delete(right)
+            else
+                switch tree.nodes.get(right)
+                    NodeBranch(_); tree.deleteFromBranch(right, key)
+                    NodeLeaf(elemKey)
+                        let true = key{} == tree.elems.at(elemKey).key{}
+                        tree.nodes.at(nodeKey) = tree.nodes.at(left)
+                        tree.elems.delete(elemKey)
+                        tree.nodes.delete(left)
+                        tree.nodes.delete(right)
+
+    switch tree.base
+        Just(baseNodeKey)
+            switch tree.nodes.at(baseNodeKey)
+                {NodeBranch(_)}; tree.deleteFromBranch(baseNodeKey, key)
+                {NodeLeaf(elemKey)}
+                    let true = key{} == tree.elems.at(elemKey).key{}
+                    tree.elems.delete(elemKey)
+                    tree.nodes.delete(baseNodeKey)
+                    tree.base = Nothing()
+
 
 fn[K, V] {tree:Tree(K, V)} contains(key:()K) bool
     fn[K, V] {tree:Tree(K, V)} contains(nodeKey:Key(TreeNode(K, V)), key:()K) bool
-        switch tree.nodes.at(nodeKey)
-            {NodeLeaf( elemKey )}; return tree.elems.at(elemKey).key{} == key{}
-            {NodeBranch((left, right, k))}
+        switch tree.nodes.get(nodeKey)
+            NodeLeaf(elemKey); return tree.elems.at(elemKey).key{} == key{}
+            NodeBranch((left, right, k))
                 if key < k; return tree.contains(left, key)
                 else      ; return tree.contains(right, key)
     
     switch tree.base
         Nothing();         return false
         Just(baseNodeKey); return tree.contains(baseNodeKey, key)
+
+
+fn[K, V] {tree:Tree(K, V)} get(key:()K) ()V
+    fn[K, V] {tree:Tree(K, V)} getFromNode(nodeKey:Key(TreeNode(K, V)), key:()K) ()V
+        switch tree.nodes.get(nodeKey)
+            NodeLeaf(elemKey)
+                let true = key{} == tree.elems.at(elemKey).key{}
+                data value ()V
+                value{} = tree.elems.at(elemKey).value{}
+                return value
+
+            NodeBranch((left, right, k))
+                if key < k; return tree.getFromNode(left, key)
+                else;       return tree.getFromNode(right, key)
+
+    let Just(baseNodeKey) = tree.base
+    return tree.getFromNode(baseNodeKey, key)
 
 
 fn[K, V] {tree:Tree(K, V)} length() i64

@@ -215,7 +215,6 @@ collectPattern (S.PatAnnotated pattern patType) = collectPos pattern $ case patt
 
 
     S.PatTuple _ pats -> do
-        -- TODO get rid of this and annotate patterns properly 
         collectDefault patType (Tuple $ Record $ map typeof pats)
         collect $ ConsTuple patType (map typeof pats)
         mapM_ collectPattern pats
@@ -336,6 +335,7 @@ collectExpr (S.AExpr exprType expression) = collectPos expression $ case express
 
     S.Tuple _ exprs -> do
         collect $ ConsTuple exprType (map typeof exprs)
+        collectDefault exprType $ Tuple $ Record $ map typeof exprs
         mapM_ collectExpr exprs;
 
     S.Field _ e symbol -> do
