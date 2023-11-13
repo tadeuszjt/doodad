@@ -8,14 +8,14 @@ type[K, V] TreeElem { key:K, value:V }
 type[K, V] TreeNode = (
     NodeLeaf : UnorderedKey(TreeElem(K, V)) |
     NodeBranch : (
-        Key(TreeNode(K, V)),
-        Key(TreeNode(K, V)),
+        SparseKey(TreeNode(K, V)),
+        SparseKey(TreeNode(K, V)),
         ()K
     )
 )
 
 type[K, V] Tree (
-    base  : Maybe( Key(TreeNode(K, V)) )
+    base  : Maybe( SparseKey(TreeNode(K, V)) )
     nodes : Sparse( TreeNode(K, V) )
     elems : Unordered( TreeElem(K, V) )
 )
@@ -26,58 +26,51 @@ fn[K, V] {tree:Tree(K, V)} insert(key:()K, value:()V)
     let {k, v}  = tree.elems.at(elemKey) in
         k{} = key{}
         v{} = value{}
-    let newNodeKey = tree.nodes.insert(NodeLeaf(elemKey))
+    let leafNew = tree.nodes.insert(NodeLeaf(elemKey))
 
     switch tree.base
-        Nothing(); tree.base = Just(newNodeKey)
+        Nothing(); tree.base = Just(leafNew)
         Just(baseNodeKey)
-            
-            // set nodeKey to the appropriate leaf
-            let nodeKey = baseNodeKey
-            while tree.nodes.at(nodeKey) -> {NodeBranch((left, right, k))}
-                if key < k; nodeKey = left
-                else;       nodeKey = right
+            // set leaf to the appropriate leaf
+            let leaf = baseNodeKey
+            while tree.nodes.at(leaf) -> {NodeBranch(left, right, k)}
+                if key < k; leaf = left
+                else;       leaf = right
+            let NodeLeaf(ek) = tree.nodes.get(leaf)
 
-            let NodeLeaf(ek) = tree.nodes.get(nodeKey) in
-                let {k, _} = tree.elems.at(ek) in
-                    if k{} == key{}
-                        print("tree already contains key:", key)
-                        let true = false
+            // check the key is not already in the tree as this would invalidate the structure
+            if key{} == tree.elems.at(ek).key{}
+                print("tree already contains key:", key)
+                let true = false
 
             // construct new leaf and branch
-            let leafKey = tree.nodes.insert( tree.nodes.get(nodeKey) ) // set new leaf to node
-            let branch = NodeBranch((leafKey, newNodeKey, key)):TreeNode(K, V)
-            let NodeLeaf(oldElemKey) = tree.nodes.get(nodeKey) in
-                let {k, _} = tree.elems.at(oldElemKey) in
-                    if key{} < k{}
-                        data x ()K
-                        x{} = k{}
-                        branch = NodeBranch((newNodeKey, leafKey, x))
+            let leafCopy = tree.nodes.insert( NodeLeaf(ek) ) // set new leaf to node
+            let branch = NodeBranch(leafCopy, leafNew, key):TreeNode(K, V)
+            let {k, _} = tree.elems.at(ek) in
+                if key{} < k{}
+                    data x ()K
+                    x{} = k{}
+                    branch = NodeBranch(leafNew, leafCopy, x)
 
-            tree.nodes.at(nodeKey) = branch{}
+            tree.nodes.at(leaf) = branch{}
 
 
 fn[K, V] {tree:Tree(K, V)} delete(key:()K)
-    fn[K, V] {tree:Tree(K, V)} deleteFromBranch(nodeKey:Key(TreeNode(K, V)), key:()K)
-        let NodeBranch((left, right, k)) = tree.nodes.get(nodeKey)
+    fn[K, V] {tree:Tree(K, V)} deleteFromBranch(nodeKey:SparseKey(TreeNode(K, V)), key:()K)
+        let NodeBranch(left, right, k) = tree.nodes.get(nodeKey)
+        let (x, y) = (left, right)
         if key < k
-            switch tree.nodes.get(left)
-                NodeBranch(_); tree.deleteFromBranch(left, key)
-                NodeLeaf(elemKey)
-                    let true = key{} == tree.elems.at(elemKey).key{}
-                    tree.nodes.at(nodeKey) = tree.nodes.at(right)
-                    tree.elems.delete(elemKey)
-                    tree.nodes.delete(left)
-                    tree.nodes.delete(right)
-        else
-            switch tree.nodes.get(right)
-                NodeBranch(_); tree.deleteFromBranch(right, key)
-                NodeLeaf(elemKey)
-                    let true = key{} == tree.elems.at(elemKey).key{}
-                    tree.nodes.at(nodeKey) = tree.nodes.at(left)
-                    tree.elems.delete(elemKey)
-                    tree.nodes.delete(left)
-                    tree.nodes.delete(right)
+            x = right
+            y = left
+
+        switch tree.nodes.get(y)
+            NodeBranch(_); tree.deleteFromBranch(y, key)
+            NodeLeaf(elem)
+                let true = key{} == tree.elems.at(elem).key{}
+                tree.nodes.at(nodeKey) = tree.nodes.at(x)
+                tree.elems.delete(elem)
+                tree.nodes.delete(x)
+                tree.nodes.delete(y)
 
     switch tree.base
         Just(baseNodeKey)
@@ -91,10 +84,10 @@ fn[K, V] {tree:Tree(K, V)} delete(key:()K)
 
 
 fn[K, V] {tree:Tree(K, V)} contains(key:()K) bool
-    fn[K, V] {tree:Tree(K, V)} contains(nodeKey:Key(TreeNode(K, V)), key:()K) bool
+    fn[K, V] {tree:Tree(K, V)} contains(nodeKey:SparseKey(TreeNode(K, V)), key:()K) bool
         switch tree.nodes.get(nodeKey)
             NodeLeaf(elemKey); return tree.elems.at(elemKey).key{} == key{}
-            NodeBranch((left, right, k))
+            NodeBranch(left, right, k)
                 if key < k; return tree.contains(left, key)
                 else      ; return tree.contains(right, key)
     
@@ -104,7 +97,7 @@ fn[K, V] {tree:Tree(K, V)} contains(key:()K) bool
 
 
 fn[K, V] {tree:Tree(K, V)} get(key:()K) ()V
-    fn[K, V] {tree:Tree(K, V)} getFromNode(nodeKey:Key(TreeNode(K, V)), key:()K) ()V
+    fn[K, V] {tree:Tree(K, V)} getFromNode(nodeKey:SparseKey(TreeNode(K, V)), key:()K) ()V
         switch tree.nodes.get(nodeKey)
             NodeLeaf(elemKey)
                 let true = key{} == tree.elems.at(elemKey).key{}
@@ -112,7 +105,7 @@ fn[K, V] {tree:Tree(K, V)} get(key:()K) ()V
                 value{} = tree.elems.at(elemKey).value{}
                 return value
 
-            NodeBranch((left, right, k))
+            NodeBranch(left, right, k)
                 if key < k; return tree.getFromNode(left, key)
                 else;       return tree.getFromNode(right, key)
 

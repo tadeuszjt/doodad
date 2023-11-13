@@ -142,7 +142,7 @@ fn testTable()
     tab3.push( (1, true) )
     let {1, true} = tab3[0]
 
-    data tab4 []Key(i64)
+    data tab4 []SparseKey(i64)
     tab4.push(3)
     let 3 = tab4.pop()
 

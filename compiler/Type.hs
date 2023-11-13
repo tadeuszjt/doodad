@@ -162,6 +162,7 @@ baseTypeOfm a = case typeof a of
             Nothing -> return Nothing
             Just (ss, t) -> baseTypeOfm =<< applyTypeArguments ss ts t
     Type x -> return Nothing
+    Void   -> return $ Just Void
 
     x -> error (show x)
 

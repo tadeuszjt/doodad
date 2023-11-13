@@ -207,10 +207,13 @@ collectPattern (S.PatAnnotated pattern patType) = collectPos pattern $ case patt
 
     S.PatField _ symbol pats -> do
         ast <- gets astResolved
-        [symbol'] <- fmap fst $ runDoMExcept ast (findCtorCandidates symbol)
+        candidates <- fmap fst $ runDoMExcept ast (findCtorCandidates symbol)
+        symbol' <- case candidates of
+            [s] -> return s
+            xs  -> error $ "PatField candidates for: " ++ show symbol ++ " " ++ show xs
+
         (s, i) <- mapGet symbol' . ctorDefs =<< gets astResolved
-        forM_ (zip pats [0..]) $ \(pat, j) ->
-            collect $ ConsAdtField (typeof pat) i j patType
+        collect $ ConsAdtField patType i (map typeof pats)
         mapM_ collectPattern pats
 
 
@@ -273,11 +276,11 @@ collectExpr (S.AExpr exprType expression) = collectPos expression $ case express
         case exprType of
             Type _ -> return ()
 
-            TypeApply s _ | s == typeSymbol -> case ts !! i of
-                Void -> assert (length args == 0) "Invalid ADT args"
-                _    -> do -- Eg :   Just( e:t ):exprType
-                    assert (length args == 1) "Invalid ADT args"
-                    collect $ ConsAdtField (typeof $ head args) i 0 exprType
+            TypeApply s _ | s == typeSymbol -> do
+                case args of
+                    []    -> assert( (ts !! i) == Void ) "invalid ADT args"
+                    [arg] -> collect $ ConsAdtField exprType i [typeof arg]
+                    args  -> collect $ ConsAdtField exprType i (map typeof args)
 
             _ -> return () -- TODO
             _ -> error (show exprType)

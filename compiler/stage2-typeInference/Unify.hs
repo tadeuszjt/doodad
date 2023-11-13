@@ -61,6 +61,7 @@ unifyOne pos constraint = withPos pos $ case constraint of
                         assert (length ts == length recordTs) "record length mismatch"
                         concat <$> zipWithM (\a b -> unifyOne pos $ ConsEq a b) ts recordTs
                     _ -> error (show baseT)
+            _ -> error (show basem)
 
     ConsRecordAccess exprType typ -> do
         base <- baseTypeOfm typ
@@ -91,16 +92,17 @@ unifyOne pos constraint = withPos pos $ case constraint of
 
         _ -> fail $ "un - cannot unify " ++ show t1 ++ " with " ++ show t2
 
-    ConsAdtField t i j adt -> do
-        basem <- baseTypeOfm adt
+
+    ConsAdtField adtType i ts -> do
+        basem <- baseTypeOfm adtType
         case basem of
             Nothing -> return []
-            Just (ADT ts) -> do
-                assert (i < length ts) "Invalid ADT field index"
-                assert (j == 0)        "Invalid ConsAdtField"
-                unifyOne pos $ ConsEq t (ts !! i)
-            _ -> error (show basem)
-        
+            Just (ADT ts') -> do
+                assert(i >= 0 && i < length ts') "invalid ADT field index"
+                case ts of
+                    []  -> unifyOne pos $ ConsEq Void (ts' !! i)
+                    [t] -> unifyOne pos $ ConsEq t (ts' !! i)
+                    ts  -> unifyOne pos $ ConsTuple (ts' !! i) ts
 
     ConsSubscript t1 t2 -> do
         basem <- baseTypeOfm t1

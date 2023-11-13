@@ -140,8 +140,8 @@ buildCtorImportMap :: [ASTResolved] -> DoM (Map.Map Symbol (Symbol, Int)) ()
 buildCtorImportMap imports = do
     forM_ imports $ \imprt -> do
         forM_ (Map.toList $ ctorDefs imprt) $ \(symbol, (typeSymbol, i)) -> do
-            when (Symbol.mod symbol == moduleName imprt) $ do
-                modify $ Map.insert symbol (typeSymbol, i)
+            --when (Symbol.mod symbol == moduleName imprt) $ do
+            modify $ Map.insert symbol (typeSymbol, i)
 
 
 buildCtorMap :: [(Symbol, AnnoType)] -> DoM (Map.Map Symbol (Symbol, Int)) ()
@@ -157,7 +157,6 @@ buildCtorMap list = do
             modify $ Map.insert s (symbol, i)
         AnnoType t -> return ()
         _ -> error (show anno)
-
 
 
 resolveAsts :: [AST] -> [ASTResolved] -> DoM s (ASTResolved, ResolveState)
@@ -205,7 +204,7 @@ resolveAsts asts imports = runDoMExcept (initResolveState imports (astModuleName
             { moduleName  = moduleName
             , includes    = Set.fromList includes
             , links       = Set.fromList links
-            , funcImports = Map.unions (map ASTResolved.funcDefs imports)
+            , funcImports = Map.unions $ concat [map ASTResolved.funcDefs imports,  map ASTResolved.funcImports imports]
             , constDefs   = Map.fromList constDefsList
             , funcDefs    = funcDefs
             , typeFuncs   = Map.union typeFuncImportMap (Map.map (\(x, y) -> (x, annoToType y)) typeFuncs)

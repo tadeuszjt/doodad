@@ -455,7 +455,7 @@ generatePattern pattern val = withPos pattern $ do
             appendElem $ C.Label endLabel
             return match
 
-        PatField _ symbol pats -> do
+        PatField pos symbol pats -> do
             base <- baseTypeOf val
             case base of
                 ADT ts -> do
@@ -471,13 +471,14 @@ generatePattern pattern val = withPos pattern $ do
                     if_ (not_ match) $ appendElem $ C.Goto endLabel
                     set match false
 
-                    case ts !! i of
-                        Void -> do
-                            assert (length pats == 0) "Invalid pattern for null field"
-                            return ()
-                        _ -> do
-                            assert (length pats == 1) "Invalid pattern for ADT"
-                            patMatch <- generatePattern (head pats) =<< member i val
+                    case pats of
+                        [] -> return ()
+                        [pat] -> do
+                            patMatch <- generatePattern pat =<< member i val
+                            if_ (not_ patMatch) $ void $ appendElem (C.Goto endLabel)
+                        pats -> do
+                            -- Bit of a hack to use PatTuple
+                            patMatch <- generatePattern (PatTuple pos pats) =<< member i val
                             if_ (not_ patMatch) $ void $ appendElem (C.Goto endLabel)
 
                     set match true
@@ -650,7 +651,7 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
         assert (typeof val1 == typeof val2) "type mismatch"
         initialiser typ [val1, val2]
 
-    S.Construct _ symbol exprs -> do
+    S.Construct pos symbol exprs -> do
         vals <- mapM generateExpr exprs
         (typeSymbol, i) <- mapGet symbol =<< gets ctors
         base <- baseTypeOf typ
@@ -658,13 +659,14 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
             Type.ADT ts -> do
                 assert (i < length ts) "invalid index"
                 adt <- assign "adt" $ Value typ (C.Initialiser [C.Int $ fromIntegral i])
-                let t = ts !! i
-                case t of
-                    Void -> do
-                        assert (length vals == 0) "Invalid arguments for null field"
-                    _ -> do
-                        assert (length vals == 1) "Invalid number of arguments for ADT"
-                        set (Value t $ C.Member (valExpr adt) ("u" ++ show i)) (head vals)
+                let fieldType = ts !! i
+                case vals of
+                    []    -> assert ( fieldType == Void ) "invalid arguments for null field"
+                    [val] -> set (Value fieldType $ C.Member (valExpr adt) ("u" ++ show i)) val
+                    vals  -> do
+                        tup <- initialiser fieldType vals
+                        set (Value fieldType $ C.Member (valExpr adt) ("u" ++ show i)) tup
+
                 return adt
 
             _ -> error (show base)

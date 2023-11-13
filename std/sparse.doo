@@ -3,19 +3,19 @@ module sparse
 import std/table
 
 
-type[T] Key i64
+type[T] SparseKey i64
 
-type[T] Sparse (values:[]T, empty:[]Key(T))
+type[T] Sparse (values:[]T, empty:[]SparseKey(T))
 
 
 fn[T] {s:Sparse(T)} length() i64
     return s.values.length() - s.empty.length()
 
-fn[T] {s:Sparse(T)} at(key:Key(T)) {}T
+fn[T] {s:Sparse(T)} at(key:SparseKey(T)) {}T
     return s.values[key]
 
 
-fn[T] {s:Sparse(T)} insert(value:()T) Key(T)
+fn[T] {s:Sparse(T)} insert(value:()T) SparseKey(T)
     if s.empty.length() > 0
         let key = s.empty.pop()
         s.values[key] = value{}
@@ -24,7 +24,7 @@ fn[T] {s:Sparse(T)} insert(value:()T) Key(T)
     s.values.push(value)
     return conv(s.values.length() - 1)
 
-fn[T] {s:Sparse(T)} insert() Key(T)
+fn[T] {s:Sparse(T)} insert() SparseKey(T)
     data value ()T
     if s.empty.length() > 0
         let key = s.empty.pop()
@@ -35,16 +35,16 @@ fn[T] {s:Sparse(T)} insert() Key(T)
     return conv(s.values.length() - 1)
 
 
-fn[T] {s:Sparse(T)} delete(key:Key(T))
+fn[T] {s:Sparse(T)} delete(key:SparseKey(T))
     if key == conv(s.values.length() - 1)
         s.values.pop()
     else
         s.empty.push(key)
 
-fn[T] {s:Sparse(T)} get(key:Key(T)) ()T
+fn[T] {s:Sparse(T)} get(key:SparseKey(T)) ()T
     data elem ()T
     elem{} = s.values[key]
     return elem
 
-fn[T] {s:Sparse(T)} replace(key:Key(T), elem:()T)
+fn[T] {s:Sparse(T)} replace(key:SparseKey(T), elem:()T)
     s.values[key] = elem{}

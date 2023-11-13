@@ -45,7 +45,7 @@ instance Apply Constraint where
         ConsEq t1 t2           -> return $ ConsEq (rf t1) (rf t2)
         ConsBase t1 t2         -> return $ ConsBase (rf t1) (rf t2)
         ConsSubscript t1 t2    -> return $ ConsSubscript (rf t1) (rf t2)
-        ConsAdtField t1 i j t2 -> return $ ConsAdtField (rf t1) i j (rf t2)
+        ConsAdtField t i ts -> return $ ConsAdtField (rf t) i (map rf ts)
         ConsTuple t1 ts        -> return $ ConsTuple (rf t1) (map rf ts)
         ConsRecordAccess t1 t2 -> return $ ConsRecordAccess (rf t1) (rf t2)
         ConsSpecial t1 t2      -> return $ ConsSpecial (rf t1) (rf t2)
