@@ -116,7 +116,7 @@ buildBinaryFromModule args modPath = do
     when (printAssembly args) $ liftIO $ do
         locs <- forM cFiles $ \cFile -> do
             let asmPath = dropExtension cFile <.> ".s"
-            exitCode <- rawSystem "gcc" $ ["-S"] ++ ["-I", hDoodad] ++ [cFile] ++ ["-o", asmPath]
+            exitCode <- rawSystem "gcc" $ ["-O3"] ++ ["-S"] ++ ["-I", hDoodad] ++ [cFile] ++ ["-o", asmPath]
             case exitCode of
                 ExitSuccess -> return ()
                 ExitFailure s -> fail $ "gcc failed: " ++ show s

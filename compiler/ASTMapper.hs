@@ -123,6 +123,7 @@ mapExprM f expr = withPos expr $ do
         AST.String pos s    -> return $ AST.String pos s
         AST.Int pos n       -> return $ AST.Int pos n
         AST.Bool pos b      -> return $ AST.Bool pos b
+        AST.Char pos c      -> return $ AST.Char pos c
         AST.Tuple pos exprs -> AST.Tuple pos <$> mapM (mapExprM f) exprs
         RecordAccess pos expr -> RecordAccess pos <$> mapExprM f expr
         Construct pos symbol exprs -> Construct pos symbol <$> mapM (mapExprM f) exprs

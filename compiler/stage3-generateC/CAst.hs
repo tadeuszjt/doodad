@@ -138,6 +138,7 @@ instance Show Expression where
     show (Cast t e) = "(" ++ show t ++ ")(" ++ showNoParens e ++ ")"
 
 showNoParens :: Expression -> String
+showNoParens expr@(Cast _ _) = show expr
 showNoParens expr = let str = show expr in
     if head str == '(' && last str == ')' then init (tail str) else str
 

@@ -38,7 +38,7 @@ fn[T] {u:Unordered(T)} atIndex(index:i64) {}T
 
 fn[T] {u:Unordered(T)} at(key:UnorderedKey(T)) {}T
     let {index} = u.indices.at(conv(key)) in
-        return u.values[index].value
+        return u.values[index].value{}
 
 
 fn[T] {u:Unordered(T)} length() i64

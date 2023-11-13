@@ -34,9 +34,9 @@ fn[K, V] {tree:Tree(K, V)} insert(key:()K, value:()V)
             
             // set nodeKey to the appropriate leaf
             let nodeKey = baseNodeKey
-            while tree.nodes.at(nodeKey) -> {NodeBranch((left, right, branchKey))}
-                if key < branchKey; nodeKey = left
-                else;               nodeKey = right
+            while tree.nodes.at(nodeKey) -> {NodeBranch((left, right, k))}
+                if key < k; nodeKey = left
+                else;       nodeKey = right
 
             // construct new leaf and branch
             let leafKey = tree.nodes.insert( tree.nodes.get(nodeKey) ) // set new leaf to node
@@ -53,31 +53,44 @@ fn[K, V] {tree:Tree(K, V)} insert(key:()K, value:()V)
 
 fn[K, V] {tree:Tree(K, V)} delete(key:()K)
     fn[K, V] {tree:Tree(K, V)} deleteFromBranch(nodeKey:Key(TreeNode(K, V)), key:()K)
-            let NodeBranch((left, right, k)) = tree.nodes.get(nodeKey)
-            if key < k
-                switch tree.nodes.get(left)
-                    NodeBranch(_); tree.deleteFromBranch(left, key)
-                    NodeLeaf(elemKey)
-                        let true = key{} == tree.elems.at(elemKey).key{}
-                        tree.nodes.at(nodeKey) = tree.nodes.at(right)
-                        tree.elems.delete(elemKey)
-                        tree.nodes.delete(left)
-                        tree.nodes.delete(right)
-            else
-                switch tree.nodes.get(right)
-                    NodeBranch(_); tree.deleteFromBranch(right, key)
-                    NodeLeaf(elemKey)
-                        let true = key{} == tree.elems.at(elemKey).key{}
-                        tree.nodes.at(nodeKey) = tree.nodes.at(left)
-                        tree.elems.delete(elemKey)
-                        tree.nodes.delete(left)
-                        tree.nodes.delete(right)
+        let NodeBranch((left, right, k)) = tree.nodes.get(nodeKey)
+        //print("from branch", left, right, key, k)
+        if key < k
+            switch tree.nodes.get(left)
+                NodeBranch(_)
+                    //print("go left")
+                    tree.deleteFromBranch(left, key)
+                NodeLeaf(elemKey)
+                    //print("left leaf", elemKey, tree.elems.at(elemKey), left, right)
+                    let b = key{} == tree.elems.at(elemKey).key{}
+                    if !b
+                        print("here", key, tree.elems.at(elemKey).key{}, k)
+                        let true = false
+
+                    tree.nodes.at(nodeKey) = tree.nodes.at(right)
+                    tree.elems.delete(elemKey)
+                    tree.nodes.delete(left)
+                    tree.nodes.delete(right)
+        else
+            switch tree.nodes.get(right)
+                NodeBranch(_)
+                    //print("go right")
+                    tree.deleteFromBranch(right, key)
+                NodeLeaf(elemKey)
+                    //print("right leaf", elemKey, tree.elems.at(elemKey))
+
+                    //print("right leaf", elemKey)
+                    let true = key{} == tree.elems.at(elemKey).key{}
+                    tree.nodes.at(nodeKey) = tree.nodes.at(left)
+                    tree.elems.delete(elemKey)
+                    tree.nodes.delete(left)
+                    tree.nodes.delete(right)
 
     switch tree.base
         Just(baseNodeKey)
-            switch tree.nodes.at(baseNodeKey)
-                {NodeBranch(_)}; tree.deleteFromBranch(baseNodeKey, key)
-                {NodeLeaf(elemKey)}
+            switch tree.nodes.get(baseNodeKey)
+                NodeBranch(_); tree.deleteFromBranch(baseNodeKey, key)
+                NodeLeaf(elemKey)
                     let true = key{} == tree.elems.at(elemKey).key{}
                     tree.elems.delete(elemKey)
                     tree.nodes.delete(baseNodeKey)

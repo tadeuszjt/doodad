@@ -163,6 +163,9 @@ convert typ val = do
             let Value _ expr = val
             set r (Value typ expr)
 
+        (I64, Type.Char) -> do
+            set r $ Value typ $ C.Cast Cint64_t (valExpr val)
+
         (t1, Record [t2]) | t1 == t2 -> do
             set r $ Value typ $ C.Deref $ C.Member (valExpr val) "m0"
 
@@ -481,7 +484,9 @@ tableAppend val = do
 
         forM_ (zip ts [0..]) $ \(t, row) -> do
             let pMem = C.Member (valExpr val) ("r" ++ show row)
-            let newSize = C.Infix C.Times cap (C.Sizeof $ C.Deref $ C.Member (valExpr val) $ "r" ++ show row)
+            let elemSize = C.Sizeof $ C.Deref $ C.Member (valExpr val) $ "r" ++ show row
+            let newSize = C.Infix C.Times cap elemSize
+            let dataSize = C.Infix C.Times len elemSize
             appendElem $ C.Set pMem $ C.Call "GC_realloc" [pMem, newSize]
 
     void $ appendElem $ C.ExprStmt $ C.Increment $ C.Member (valExpr val) "len"

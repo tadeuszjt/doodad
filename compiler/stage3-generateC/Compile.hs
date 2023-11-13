@@ -118,9 +118,11 @@ generate ast = withErrorPrefix "generate: " $ do
             generateFunc symbol func
             when (sym symbol == "main") $ do
 --                let typedef = Type.TypeApply (SymResolved "io" "Io" 0) []
-                id <- newFunction Cvoid "main" []
+                id <- newFunction Cvoid "main" [C.Param "argc" Cint, C.Param "argv" (Cpointer (Cpointer Cchar))]
                 withCurID id $ case (ASTResolved.funcParams func, ASTResolved.funcArgs func) of
-                    ([], []) -> call (show symbol) []
+                    ([], []) -> do
+                        appendElem $ C.ExprStmt $ C.Call "doodad_set_args" [C.Ident "argc", C.Ident "argv"]
+                        call (show symbol) []
 --                    ([p], []) | typeof p == typedef -> do -- main with io
 --                        io <- initialiser typedef []
 --                        callWithParams [io] (show symbol) []
@@ -668,7 +670,13 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
 
     S.Subscript _ expr arg -> do
         val <- generateExpr expr
-        accessRecord val . Just =<< generateExpr arg
+        argVal <- generateExpr arg
+        base <- baseTypeOf val
+        case base of
+            Type.String -> return $ Value typ $ C.Subscript (valExpr val) (valExpr argVal)
+
+
+            _ -> accessRecord val . Just =<< generateExpr arg
 
 
     _ -> error (show expr_)

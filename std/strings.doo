@@ -1,5 +1,8 @@
 module strings
 
+import std/maybe
+import std/table
+
 
 fn isAlpha(c:char) bool
     let r = false
@@ -19,19 +22,19 @@ fn isSpace(c:char) bool
     return r
 
 
-fn isPrefix(pre:string, str:string) bool
-    if len(pre) > len(str); return false
-    for pre[..] -> i
-        if str[i] != pre[i]; return false
-    return true
-
-
-fn {s:string} at(idx:i64) (null | char)
-    if idx >= 0 && idx < len(s)
-        return conv(s[idx])
-    return null
-
-
+//fn isPrefix(pre:string, str:string) bool
+//    if len(pre) > len(str); return false
+//    for pre[..] -> i
+//        if str[i] != pre[i]; return false
+//    return true
+//
+//
+//fn {s:string} at(idx:i64) (null | char)
+//    if idx >= 0 && idx < len(s)
+//        return conv(s[idx])
+//    return null
+//
+//
 fn drop(s:string, n:i64) string
     let r = ""
     ${
@@ -40,48 +43,54 @@ fn drop(s:string, n:i64) string
         }
     }
     return r
+//
+//
+//fn take(s:string, n:i64) string
+//    let r = ""
+//    ${
+//        size_t len = strlen($s);
+//        if ($n >= len) {
+//            $r = $s;
+//        } else {
+//            $r = doodad_string_alloc($n);
+//            memcpy($r, $s, $n);
+//            $r[$n] = '\0';
+//        }
+//    }
+//    return r
+//
+//
 
 
-fn take(s:string, n:i64) string
-    let r = ""
-    ${
-        size_t len = strlen($s);
-        if ($n >= len) {
-            $r = $s;
-        } else {
-            $r = doodad_string_alloc($n);
-            memcpy($r, $s, $n);
-            $r[$n] = '\0';
-        }
-    }
-    return r
+fn get(s:string, idx:i64) Maybe(char)
+    if idx >= 0 && idx < len(s)
+        return Just(s[idx])
+    return Nothing()
 
 
-fn readI64(s:string) (null | i64, string)
-    let fail = (null, s)
-
-    while s.at(0) -> .char[c] | isSpace(c)
+fn readI64(s:string) Maybe((i64, string))
+    while get(s, 0) -> Just(c) | isSpace(c)
         s = drop(s, 1)
 
     let isMinus = false
-    if s.at(0) -> .char['-']
+    if get(s, 0) -> Just('-')
         isMinus = true
         s = drop(s, 1)
 
     let hasDigits = false
     let x = 0
-    data digits [char]
-    while s.at(0) -> .char[c] | isDigit(c)
+    data digits []char
+    while get(s, 0) -> Just(c) | isDigit(c)
         hasDigits = true
-        digits += [c]
+        digits.push(c)
         s = drop(s, 1)
 
-    for digits[..] -> i
-        x = x*10 + i64(digits[len(digits) - i - 1] - '0')
+    for digits -> {digit}
+        x = x*10 + conv(digit - '0'):i64
 
     if !hasDigits
-        return fail
+        return Nothing()
     if isMinus
         x = 0 - x
-    return (conv(x), s)
+    return Just((x, s))
 

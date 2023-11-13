@@ -14,3 +14,5 @@ char *doodad_string_copy(char *s);
 char *doodad_string_alloc(size_t len);
 char *doodad_string_char(char c);
 char *doodad_string_i64(int64_t n);
+void doodad_set_args(int64_t argc, char **argv);
+char *doodad_get_arg(int64_t n);
