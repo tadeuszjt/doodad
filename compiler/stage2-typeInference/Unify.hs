@@ -58,7 +58,7 @@ unifyOne pos constraint = withPos pos $ case constraint of
                 case baseT of
                     Just (Record _) -> do
                         recordTs <- getRecordTypes t
-                        assert (length ts == length recordTs) "record length mismatch"
+                        unless (length ts == length recordTs) (error "record mismatch")
                         concat <$> zipWithM (\a b -> unifyOne pos $ ConsEq a b) ts recordTs
                     _ -> error (show baseT)
             _ -> error (show basem)
@@ -87,10 +87,10 @@ unifyOne pos constraint = withPos pos $ case constraint of
         (Tuple t1, Tuple t2)     -> unifyOne pos $ ConsEq t1 t2
         (Range t1, Range t2)     -> unifyOne pos $ ConsEq t1 t2
         (Record ts1, Record ts2) -> do
-            assert (length ts1 == length ts2) $ "record length mismatch: " ++ show (t1, t2)
+            check (length ts1 == length ts2) ("type mismatch: " ++ show t1 ++ " != " ++ show t2)
             unify $ zipWith (\a b -> (ConsEq a b, pos)) ts1 ts2
 
-        _ -> fail $ "un - cannot unify " ++ show t1 ++ " with " ++ show t2
+        _ -> fail ("type mismatch: " ++ show t1 ++ " != " ++ show t2)
 
 
     ConsAdtField adtType i ts -> do
@@ -98,7 +98,7 @@ unifyOne pos constraint = withPos pos $ case constraint of
         case basem of
             Nothing -> return []
             Just (ADT ts') -> do
-                assert(i >= 0 && i < length ts') "invalid ADT field index"
+                unless (i >= 0 && i < length ts') (error "index out of range")
                 case ts of
                     []  -> unifyOne pos $ ConsEq Void (ts' !! i)
                     [t] -> unifyOne pos $ ConsEq t (ts' !! i)

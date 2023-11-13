@@ -18,7 +18,6 @@ import qualified Data.Set as Set
 
 import qualified AST as S
 import qualified Parser as P
-import Flatten
 import Monad
 import Error
 import Args
@@ -157,7 +156,7 @@ buildModule args modPath = do
 
         -- get files and parse asts
         files <- getSpecificModuleFiles args modName =<< getDoodadFilesInDirectory modDirectory
-        assert (not $ null files) ("no files for: " ++ absoluteModPath)
+        check (not $ null files) ("no matching files found in module path: " ++ absoluteModPath)
         asts <- mapM (parse args) files
         when (printAst args) $ mapM_ (liftIO . S.prettyAST) asts
 
@@ -176,7 +175,7 @@ buildModule args modPath = do
         -- unify asts and resolve symbols
         astImports <- forM importPaths $ \importPath -> do
             resm <- Map.lookup importPath <$> gets moduleMap
-            assert (isJust resm) $ show importPath ++ " not in module map"
+            unless (isJust resm) (error $ show importPath ++ " not in module map")
             return $ fromJust resm
         astResolved' <- fmap (fst . fst) $ runDoMExcept () (R.resolveAsts asts astImports)
         --Flatten.checkTypeDefs (typeDefs astResolved)

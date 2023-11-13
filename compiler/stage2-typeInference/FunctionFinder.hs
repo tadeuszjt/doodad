@@ -90,8 +90,8 @@ replaceGenericsInFuncBodyWithCall body callHeader = do
     --liftIO $ putStrLn $ "replacing: " ++ show callHeader
     ast <- get
     let header = funcHeaderFromBody (symbol callHeader) body
-    assert (typeArgs callHeader == []) "Call header cannot have type args"
-    assert (funcHeadersCouldMatch ast callHeader header) "headers must be matchable"
+    unless (typeArgs callHeader == [])                   (error "call header cannot be generic")
+    unless (funcHeadersCouldMatch ast callHeader header) (error "headers could not match")
     constraints <- getConstraintsFromFuncHeaders header callHeader
     subs <- unify (typeArgs header) constraints
     body' <- applySubs subs body
@@ -128,7 +128,7 @@ unify typeVars (x:xs) = do
 
 getConstraintsFromFuncHeaders :: FuncHeader -> FuncHeader -> DoM ASTResolved [Constraint]
 getConstraintsFromFuncHeaders headerToReplace header = do
-    assert (typeArgs header == []) "only headerToReplace can have typeArgs"
+    unless (typeArgs header == []) (error "header cannot be generic")
     paramConstraints <- fmap concat $
         zipWithM (getConstraintsFromTypes $ typeArgs headerToReplace)
             (paramTypes headerToReplace)
@@ -161,17 +161,16 @@ getConstraintsFromTypes typeArgs t1 t2 = do
 
                 (TypeApply s1 ts1, TypeApply s2 ts2)
                     | s1 `elem` typeArgs -> do 
-                        assert (not $ s2 `elem` typeArgs) "don't know"
+                        unless (not $ s2 `elem` typeArgs) (error "unknown")
 
                         case ts1 of
                             [] -> return [ConsEq t1 t2]
                             _  -> do
-                                assert (length ts1 == length ts2) $
-                                    "type argument lengths mismatch: " ++ show (t1, t2)
+                                unless (length ts1 == length ts2) (error "type mismatch")
                                 (ConsEq t1 t2 :) . concat <$> zipWithM fromTypes ts1 ts2
 
                     | not (elem s1 typeArgs) && s1 == s2 -> do
-                        assert (length ts1 == length ts2) "type argument lengths mismatch"
+                        unless (length ts1 == length ts2) (error "type mismatch")
                         (ConsEq t1 t2 :) . concat <$> zipWithM fromTypes ts1 ts2
 
                     | otherwise -> fail "here"

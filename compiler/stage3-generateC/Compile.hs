@@ -50,39 +50,6 @@ getSymbolsOrderedByDependencies typedefs = do
             | otherwise = x : deleteAll a xs
 
 
-
-generateAdtInit :: Type.Type -> Value -> Generate Value
-generateAdtInit typ val = do
-    error ""
---    base@(Type.ADT fs) <- baseTypeOf typ
---    let field = Type.FieldType (typeof val)
---    assert (field `elem` fs) "TODO"
---    let i = fromJust $ elemIndex field fs
---    adt <- assign "adt" $ Value typ $ C.Initialiser [C.Int $ fromIntegral i]
---    un <- member i adt
---    set un val
---    return adt
-
-generateAdtEqual :: Value -> Value -> Generate Value
-generateAdtEqual a b = do
-    error ""
---    assert (typeof a == typeof b) "types aren't equal"
---    base@(Type.ADT fs) <- baseTypeOf a
---
---    enA <- adtEnum a
---    enB <- adtEnum b
---    eq <- assign "adtEq" =<< generateInfix S.EqEq enA enB
---    
---    if_ eq $ do
---        switchId <- appendElem $ C.Switch (valExpr enA) []
---        withCurID switchId $ do
---            forM_ (zip fs [0..]) $ \(field, i) -> case field of
---                FieldNull -> return ()
---                FieldCtor [] -> return ()
---                -- set eq to false if we have a field to check
---
---    return eq
-
 generate :: ASTResolved -> Generate ()
 generate ast = withErrorPrefix "generate: " $ do
     -- copy members from resolved ast
@@ -273,12 +240,12 @@ generateStmt stmt = withPos stmt $ case stmt of
 --        call "assert" [false]
 
     S.ExprStmt (AExpr _ (S.Call _ exprs1 symbol exprs2)) -> do
-        assert (symbolIsResolved symbol) "unresolved function"
+        check (symbolIsResolved symbol) ("unresolved function call: " ++ show symbol)
         params <- mapM generateExpr exprs1
         args <- mapM generateExpr exprs2
         callWithParams params (show symbol) args
 
-    S.ExprStmt (AExpr _ (S.Builtin _ [] "print" exprs)) -> do
+    S.ExprStmt (AExpr _ (S.Builtin _ "print" exprs)) -> do
         vals <- mapM generateExpr exprs
         forM_ (zip vals [0..]) $ \(val, i) -> do
             let end = i == length vals - 1
@@ -290,7 +257,7 @@ generateStmt stmt = withPos stmt $ case stmt of
 
     S.SetOp _ S.PlusEq expr1 (S.AExpr t2 expr2) -> do
         val1 <- generateExpr expr1
-        assert (typeof val1 == t2) "types do not match"
+        unless (typeof val1 == t2) (error "type mismatch")
         base <- baseTypeOf val1
         case base of
 --            Table ts -> do
@@ -402,7 +369,7 @@ generatePattern pattern val = withPos pattern $ do
             base <- baseTypeOf val
             case base of
                 Record ts -> do -- TODO patterns aren't references
-                    assert (length ts == length pats) "invalid pattern"
+                    unless (length ts == length pats) (error "invalid record length")
                     endLabel <- fresh "end"
                     match <- assign "match" false
                     forM_ (zip3 pats [0..] ts) $ \(pat, i, t) -> do
@@ -434,7 +401,7 @@ generatePattern pattern val = withPos pattern $ do
             case baseT of
                 Record _ -> do
                     ts <- getRecordTypes t
-                    assert (length pats == length ts) "invalid tuple length"
+                    unless (length pats == length ts) (error "invalid tuple length")
                     endLabel <- fresh "end"
                     match <- assign "match" false
 
@@ -460,12 +427,12 @@ generatePattern pattern val = withPos pattern $ do
             case base of
                 ADT ts -> do
                     isCtor <- Map.member symbol <$> gets ctors
-                    assert isCtor $ "PatField needs ADT ctor -- TODO " ++ show symbol
+                    unless isCtor $ error ("PatField needs ADT ctor -- TODO " ++ show symbol)
                     (s, i) <- mapGet symbol =<< gets ctors
 
                     endLabel <- fresh "skipMatch"
                     let TypeApply typeSymbol _ = typeof val
-                    assert (s == typeSymbol) "types do not match"
+                    unless (s == typeSymbol) (error "type mismatch")
 
                     match <- assign "match" =<< generateInfix S.EqEq (i64 i) =<< adtEnum val
                     if_ (not_ match) $ appendElem $ C.Goto endLabel
@@ -533,10 +500,10 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
     S.String _ s -> return $ Value typ $ C.String s
     S.Char _ c   -> return $ Value typ $ C.Char c
     S.Match _ expr pattern -> generatePattern pattern =<< generateExpr expr
-    S.Builtin _ [] "conv" [expr] -> convert typ =<< generateExpr expr
-    S.Builtin _ params "len" exprs -> do 
-        assert (params == []) "len cannot have params"
-        assert (length exprs == 1) "len needs one argument"
+    S.Builtin _ "conv" [expr] -> convert typ =<< generateExpr expr
+
+    S.Builtin _ "len" exprs -> do 
+        unless (length exprs == 1) (error "invalid len call")
         len =<< generateExpr (head exprs)
 
     S.Ident _ symbol -> do
@@ -583,7 +550,7 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
         generateInfix op valA valB
 
     S.Call _ exprs1 symbol exprs2 -> do
-        assert (symbolIsResolved symbol) "unresolved function"
+        check (symbolIsResolved symbol) ("unresolved function call: " ++ show symbol)
         objs1 <- mapM generateExpr exprs1
         objs2 <- mapM generateExpr exprs2
         return $ Value typ $ C.Call (show symbol) (map ptrExpr objs1 ++ map valExpr objs2)
@@ -648,7 +615,7 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
     S.Range _ Nothing (Just expr1) (Just expr2) -> do
         val1 <- generateExpr expr1
         val2 <- generateExpr expr2
-        assert (typeof val1 == typeof val2) "type mismatch"
+        unless (typeof val1 == typeof val2) (error "type mismatch")
         initialiser typ [val1, val2]
 
     S.Construct pos symbol exprs -> do
@@ -657,11 +624,11 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
         base <- baseTypeOf typ
         case base of
             Type.ADT ts -> do
-                assert (i < length ts) "invalid index"
+                unless (i < length ts) (error "invalid index")
                 adt <- assign "adt" $ Value typ (C.Initialiser [C.Int $ fromIntegral i])
                 let fieldType = ts !! i
                 case vals of
-                    []    -> assert ( fieldType == Void ) "invalid arguments for null field"
+                    []    -> unless (fieldType == Void) (error "null field cannot have arguments")
                     [val] -> set (Value fieldType $ C.Member (valExpr adt) ("u" ++ show i)) val
                     vals  -> do
                         tup <- initialiser fieldType vals
@@ -687,15 +654,14 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
         withTypeCheck :: Generate Value -> Generate Value
         withTypeCheck f = do
             r <- generateReentrantExpr =<< f
-            assert (typeof r == typ) $ 
-                "generateExpr returned: " ++ show r ++ " but checked " ++ show typ ++ " for " ++ show expr_
+            unless (typeof r == typ) (error "generateExpr returned incorrect type")
             return r
 generateExpr x = fail $ "unresolved expression: " ++ show x
             
 
 generateInfix :: S.Operator -> Value -> Value -> Generate Value
 generateInfix op a b = do
-    assert (typeof a == typeof b) $ "infix type mismatch: " ++ show (typeof a) ++ ", " ++ show (typeof b)
+    unless (typeof a == typeof b) (error "type mismatch")
     base <- baseTypeOf a
     case base of
         _ | base `elem` [Type.I8, Type.I16, Type.I32, Type.I64, Type.U8, Type.F32, Type.F64] ->

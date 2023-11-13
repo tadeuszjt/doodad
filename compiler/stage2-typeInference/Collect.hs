@@ -67,14 +67,14 @@ collectDefault t1 t2 = do
 look :: Symbol -> DoM CollectState Object
 look symbol = do
     rm <- SymTab.lookup symbol () <$> gets symTab
-    assert (isJust rm) $ show symbol ++ " undefined."
+    unless (isJust rm) (error $ show symbol ++ " undefined")
     return (fromJust rm)
 
 
 define :: Symbol -> Object -> DoM CollectState ()
 define symbol obj = do
     resm <- SymTab.lookupHead symbol () <$> gets symTab
-    assert (isNothing resm) $ show symbol ++ " already defined"
+    unless (isNothing resm) (error $ show symbol ++ " already defined")
     modify $ \s -> s { symTab = SymTab.insert symbol () obj (symTab s) }
 
 
@@ -264,10 +264,12 @@ collectExpr :: S.Expr -> DoM CollectState ()
 collectExpr (S.AExpr exprType expression) = collectPos expression $ case expression of
     S.Call _ ps s exprs -> collectCall exprType ps s exprs
     S.Prefix _ op expr  -> collectEq exprType (typeof expr) >> collectExpr expr
-    S.Int _ c           -> collectDefault exprType I64
-    S.Float _ f         -> collectDefault exprType F64
+    S.Int _ _           -> collectDefault exprType I64
+    S.Float _ _         -> collectDefault exprType F64
+    S.String _ _        -> do
+        collect (ConsBase exprType String)
+        collectDefault exprType String
     S.Null _            -> return ()
-    S.String _ _        -> collectDefault exprType $ String
 
     S.Construct _ symbol args -> do
         mapM_ collectExpr args
@@ -278,28 +280,28 @@ collectExpr (S.AExpr exprType expression) = collectPos expression $ case express
 
             TypeApply s _ | s == typeSymbol -> do
                 case args of
-                    []    -> assert( (ts !! i) == Void ) "invalid ADT args"
+                    []    -> unless ( (ts !! i) == Void ) (error "type wasn't void")
                     [arg] -> collect $ ConsAdtField exprType i [typeof arg]
                     args  -> collect $ ConsAdtField exprType i (map typeof args)
 
             _ -> return () -- TODO
             _ -> error (show exprType)
 
-    S.Builtin _ ps sym args -> do 
+    S.Builtin _ sym args -> do 
         case sym of
-            "conv" -> do 
-                assert (length ps == 0) "invalid conv"
-            "len" -> collectDefault exprType I64
+            "conv"  -> return ()
+            "len"   -> do
+                collect (ConsBase exprType I64)
+                collectDefault exprType I64
             "print" -> collectEq exprType Void
-        mapM_ collectExpr ps
         mapM_ collectExpr args
 
     S.Char _ c -> do
-        collect $ ConsBase exprType Char
+        collect (ConsBase exprType Char)
         collectDefault exprType Char
 
     S.Bool _ b -> do
-        collect $ ConsBase exprType Bool
+        collect (ConsBase exprType Bool)
         collectDefault exprType Bool
 
     S.Ident _ symbol -> do

@@ -85,7 +85,7 @@ data Expr
     | Field       TextPos Expr Symbol
     | Subscript   TextPos Expr Expr
     | Ident       TextPos Symbol
-    | Builtin     TextPos [Expr] String [Expr]
+    | Builtin     TextPos String [Expr]
     | Prefix      TextPos Operator Expr
     | Infix       TextPos Operator Expr Expr
     | Match       TextPos Expr Pattern
@@ -159,7 +159,7 @@ instance TextPosition Expr where
         Subscript    p _ _  -> p
         Ident        p _    -> p
         Call         p _ _ _ -> p 
-        Builtin      p _ _ _ -> p 
+        Builtin      p _ _ -> p 
         Prefix       p _ _ -> p
         Infix        p _ _ _ -> p
         Match        p _ _ -> p
@@ -265,8 +265,7 @@ instance Show Expr where
         Call pos [] symbol exprs      -> show symbol ++ tupStrs (map show exprs)
         Call pos [param] symbol exprs -> show param ++ "." ++ show symbol ++ tupStrs (map show exprs)
         Call pos params symbol exprs  -> brcStrs (map show params) ++ "." ++ show symbol ++ tupStrs (map show exprs)
-        Builtin pos [] sym exprs      -> sym ++ tupStrs (map show exprs)
-        Builtin pos params sym exprs  -> brcStrs (map show params) ++ "." ++ sym ++ tupStrs (map show exprs)
+        Builtin pos sym exprs         -> sym ++ tupStrs (map show exprs)
         Match pos expr1 expr2         -> "(" ++ show expr1 ++ " -> " ++ show expr2 ++ ")"
         Range pos mexpr mexpr1 mexpr2 -> maybe "" show mexpr ++ "[" ++ maybe "" show mexpr1 ++ ".." ++ maybe "" show mexpr2 ++ "]"
         Array pos exprs               -> arrStrs (map show exprs)

@@ -64,7 +64,7 @@ cleanUpMapper elem = case elem of
         fmap (ElemExpr . AExpr exprType) $ case isCtor of
             False -> return (Call pos params symbol' exprs)
             True -> do
-                assert (params == []) "constructor cannot have params"
+                unless (params == []) (error "invalid params")
                 return (Construct pos symbol' exprs)
 
     ElemPattern (PatField pos symbol pats) -> do

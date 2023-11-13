@@ -138,10 +138,9 @@ mapExprM f expr = withPos expr $ do
             es' <- mapM (mapExprM f) es
             return $ Call pos ps' symbol es'
 
-        Builtin pos ps symbol es -> do
-            ps' <- mapM (mapExprM f) ps
+        Builtin pos symbol es -> do
             es' <- mapM (mapExprM f) es
-            return $ Builtin pos ps' symbol es'
+            return (Builtin pos symbol es')
 
         Infix pos op expr1 expr2 -> do
             expr1' <- mapExprM f expr1

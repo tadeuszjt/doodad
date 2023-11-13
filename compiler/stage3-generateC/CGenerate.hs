@@ -83,9 +83,9 @@ popSymTab = modify $ \s -> s { symTab = SymTab.pop (symTab s) }
 
 
 define :: String -> Value -> Generate ()
-define str obj = withErrorPrefix "CGenerate: " $ do
+define str obj = do
     resm <- SymTab.lookup str () <$> gets symTab
-    assert (isNothing resm) $ str ++ " already defined"
+    check (isNothing resm) $ str ++ " already defined"
     modify $ \s -> s { symTab = SymTab.insert str () obj (symTab s) }
 
 look :: String -> Generate Value
@@ -170,7 +170,7 @@ convert typ val = do
             set r $ Value typ $ C.Deref $ C.Member (valExpr val) "m0"
 
         (Type.Tuple (Record ts1), Record ts2) -> do
-            assert (length ts1 == length ts2) "invalid type"
+            check (length ts1 == length ts2) "cannot convert record of different length"
             forM_ (zip3 ts1 ts2 [0..]) $ \(t, t2, i) -> do
                 m <- member i r
                 set m =<< convert t (Value t2 $ C.Deref $ C.Member (valExpr val) ("m" ++ show i))
@@ -184,7 +184,7 @@ convert typ val = do
 
 set :: Value -> Value -> Generate ()
 set a b = do
-    assert (typeof a == typeof b) $ "set - types don't match: " ++ show (typeof a) ++ ", " ++ show (typeof b)
+    unless (typeof a == typeof b) (error "set: type mismatch")
     base <- baseTypeOf a
     void $ case base of
         _ | isSimple base               -> void $ appendElem $ C.Set (valExpr a) (valExpr b)
@@ -294,7 +294,7 @@ member index val = do
                 ] ++ elems
 
         Type.ADT ts   -> do
-            assert (index >= 0 && index < length ts) "invalid ADT field index"
+            unless (index >= 0 && index < length ts) (error "invalid ADT field index")
             return $ Value (ts !! index) $ C.Member (valExpr val) ("u" ++ show index)
         _ -> error (show base)
 
@@ -316,11 +316,11 @@ initialiser typ vals = do
 
         Type.Record _ -> do
             ts <- getRecordTypes typ
-            assert (length ts == length vals) "initialiser length"
+            unless (length ts == length vals) (error "initialiser length")
             assign "record" $ Value typ $ C.Initialiser $ map (C.Address . valExpr) vals
 
         Type.Range t -> do
-            assert (map typeof vals == [t, t]) "initialiser types"
+            unless (map typeof vals == [t, t]) (error "initialiser types")
             assign "range" $ Value typ $ C.Initialiser (map valExpr vals)
         _ -> error (show base)
 
@@ -330,19 +330,19 @@ accessRecord val marg = do
     base <- baseTypeOf val
     case base of
         _ | isSimple base -> do
-            assert (isNothing marg) "no arg needed"
+            unless (isNothing marg) (error "no arg needed")
             assign "record" $ Value (Record [typeof val]) $ C.Initialiser [C.Address $ valExpr val]
 
         Type.ADT ts -> do
-            assert (isNothing marg) "not a table"
+            unless (isNothing marg) (error "not a table")
             assign "record" $ Value (Record [typeof val]) $ C.Initialiser [C.Address $ valExpr val]
 
         Record ts -> do
-            assert (isNothing marg) "not a table"
+            unless (isNothing marg) (error "not a table")
             return val
 
         Table t -> do
-            assert (isJust marg) "table access needs an integer argument"
+            unless (isJust marg) (error "table access needs an integer argument")
             baseT <- baseTypeOf t
             case baseT of
                 Type.Tuple _ -> accessRecord (Value t $ C.Subscript (C.Member (valExpr val) ("r" ++ show 0)) (valExpr $ fromJust marg)) Nothing
@@ -361,7 +361,7 @@ accessRecord val marg = do
                 x -> error (show x)
 
         Type.Tuple t -> do
-            assert (isNothing marg) "tuple access cannot have an argument"
+            unless (isNothing marg) (error "tuple access cannot have an argument")
             baseT <- baseTypeOf t
             case baseT of
                 Record _ -> do
@@ -383,26 +383,25 @@ cParamOf param = do
 
 cTypeOf :: (Typeof a) => a -> Generate C.Type
 cTypeOf a = case typeof a of
-    I64 -> return $ Cint64_t
-    I32 -> return $ Cint32_t
-    I8 ->  return $ Cint8_t
-    U8 ->  return $ Cuint8_t
-    F64 -> return $ Cdouble
-    F32 -> return $ Cfloat
-    Void -> return Cvoid
-    Type.Bool -> return $ Cbool
-    Type.Char -> return $ Cchar
-    Type.String -> return $ Cpointer Cchar
-    Type.Tuple t -> getTypedef "Tuple" =<< cTypeNoDef (Type.Tuple t)
-    Type.Table t -> getTypedef "Table" =<< cTypeNoDef (Type.Table t)
+    I64            -> return Cint64_t
+    I32            -> return Cint32_t
+    I8             -> return Cint8_t
+    U8             -> return Cuint8_t
+    F64            -> return Cdouble
+    F32            -> return Cfloat
+    Void           -> return Cvoid
+    Type.Bool      -> return Cbool
+    Type.Char      -> return Cchar
+    Type.String    -> return (Cpointer Cchar)
+    Type.Tuple t   -> getTypedef "Tuple"  =<< cTypeNoDef (Type.Tuple t)
+    Type.Table t   -> getTypedef "Table"  =<< cTypeNoDef (Type.Table t)
     Type.Record ts -> getTypedef "Record" =<< cTypeNoDef (Type.Record ts)
-    Type.ADT ts -> getTypedef "Adt" =<< cTypeNoDef (Type.ADT ts)
-    Type.Range t -> getTypedef "Range" =<< cTypeNoDef (Type.Range t)
+    Type.ADT ts    -> getTypedef "Adt"    =<< cTypeNoDef (Type.ADT ts)
+    Type.Range t   -> getTypedef "Range"  =<< cTypeNoDef (Type.Range t)
 
-    Type.TypeApply symbol argTypes -> do
-        (argSymbols, typ) <- mapGet symbol =<< getTypeDefs
-        assert (length argSymbols == length argTypes) "invalid number of type arguments"
-        getTypedef (Symbol.sym symbol) =<< cTypeNoDef =<< applyTypeArguments argSymbols argTypes typ
+    Type.TypeApply symbol args -> do
+        (generics, typ) <- mapGet symbol =<< getTypeDefs
+        getTypedef (Symbol.sym symbol) =<< cTypeNoDef =<< applyTypeArguments generics args typ
 
     _ -> error (show $ typeof a)
 

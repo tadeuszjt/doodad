@@ -62,7 +62,7 @@ initResolveState imports modName typeImports = ResolveState
 look :: Symbol -> SymKey -> DoM ResolveState Symbol
 look symbol key = do
     lm <- lookm symbol key
-    assert (isJust lm) $ show symbol ++ " isn't defined"
+    check (isJust lm) $ show symbol ++ " isn't defined"
     return $ fromJust lm
 
 
@@ -113,7 +113,7 @@ genSymbol sym = do
 define :: String -> SymKey -> Symbol -> DoM ResolveState ()
 define sym key symbol = do
     resm <- gets $ SymTab.lookupHead sym key . symTab
-    assert (isNothing resm) $ sym ++ " already defined"
+    check (isNothing resm) $ sym ++ " already defined"
     modify $ \s -> s { symTab = SymTab.insert sym key symbol (symTab s) }
 
 
@@ -162,7 +162,7 @@ buildCtorMap list = do
 resolveAsts :: [AST] -> [ASTResolved] -> DoM s (ASTResolved, ResolveState)
 resolveAsts asts imports = runDoMExcept (initResolveState imports (astModuleName $ head asts) Map.empty) $
     withErrorPrefix "resolve" $ do
-        let moduleName = astModuleName $ head asts
+        let moduleName = astModuleName (head asts)
         let includes   = [ s | inc@(CInclude s) <- concat $ map astImports asts ]
         let links      = [ s | link@(CLink s) <- concat $ map astImports asts ]
         let typedefs   = [ stmt | stmt@(AST.Typedef _ _ _ _) <- concat $ map astStmts asts ]
@@ -170,7 +170,7 @@ resolveAsts asts imports = runDoMExcept (initResolveState imports (astModuleName
         let consts     = [ stmt | stmt@(AST.Const _ _ _) <- concat $ map astStmts asts ]
 
         -- check validity
-        assert (all (== moduleName) $ map astModuleName asts) "module name mismatch"
+        unless (all (== moduleName) $ map astModuleName asts) (error "module name mismatch")
         forM_ (concat $ map astStmts asts) $ \stmt -> withPos stmt $ case stmt of
             (AST.Typedef _ _ _ _) -> return ()
             (AST.FuncDef _ _ _ _ _ _ _) -> return ()
@@ -377,8 +377,8 @@ instance Resolve Stmt where
             processCEmbed :: String -> DoM ResolveState String
             processCEmbed ('$':xs) = do
                 let ident = takeWhile (\c -> isAlpha c || isDigit c || c == '_') xs
-                assert (length ident > 0) "invalid ident"
-                assert (isAlpha $ ident !! 0) "invalid ident"
+                check (length ident > 0)     "invalid identifier following '$' token"
+                check (isAlpha $ ident !! 0) "invalid identifier following '$' token"
                 let rest = drop (length ident) xs
 
                 symbol <- look (Sym ident) KeyVar
@@ -423,7 +423,8 @@ resolveMapper element = case element of
 
     ElemExpr (Call pos params symbol exprs) -> case symbol of
         Sym s | s `elem` ["len", "conv", "print"] -> do 
-            return $ ElemExpr (Builtin pos params s exprs)
+            check (params == []) "invalid builtin function call"
+            return $ ElemExpr (Builtin pos s exprs)
         _ -> do
             resm <- lookm symbol KeyType
             case resm of 

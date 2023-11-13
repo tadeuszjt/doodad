@@ -29,18 +29,10 @@ data Error
     deriving ()
 
 
-instance Show Error where
-    show (ErrorStr s) = s
-
-
-class TextPosition a where
-    textPos :: a -> TextPos
-
-instance Show TextPos where
-    show (TextPos f l c) = f ++ ":" ++ show l ++ ":" ++ show c
-
-instance TextPosition TextPos where
-    textPos = id
+class TextPosition a where textPos :: a -> TextPos
+instance TextPosition TextPos where textPos = id
+instance Show TextPos where show (TextPos f l c) = f ++ ":" ++ show l ++ ":" ++ show c
+instance Show Error where show (ErrorStr s) = s
 
 
 withPos :: (MonadError Error m, TextPosition a) => a -> m b -> m b
@@ -56,13 +48,12 @@ withErrorPrefix str f = do
         ErrorStr s         -> throwError $ ErrorStr (str ++ s)
         ErrorPos p s       -> throwError $ ErrorPos p (str ++ s)
 
-assert :: MonadFail m => Bool -> String -> m ()
-assert b s = when (not b) (fail s)
+check :: MonadFail m => Bool -> String -> m ()
+check b s = unless b (fail s)
 
 
 tryError :: MonadError Error m => m a -> m (Either Error a)
 tryError f = catchError (fmap Right f) $ \e -> return (Left e)
-        
 
 
 mapGet :: (MonadFail m, Ord k, Show k) => k -> Map.Map k v -> m v
