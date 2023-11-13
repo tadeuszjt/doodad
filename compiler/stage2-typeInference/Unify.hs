@@ -84,6 +84,7 @@ unifyOne pos constraint = withPos pos $ case constraint of
         (t, Type x)              -> return [(Type x, t)]
         (Table t1, Table t2)     -> unifyOne pos $ ConsEq t1 t2
         (Tuple t1, Tuple t2)     -> unifyOne pos $ ConsEq t1 t2
+        (Range t1, Range t2)     -> unifyOne pos $ ConsEq t1 t2
         (Record ts1, Record ts2) -> do
             assert (length ts1 == length ts2) $ "record length mismatch: " ++ show (t1, t2)
             unify $ zipWith (\a b -> (ConsEq a b, pos)) ts1 ts2

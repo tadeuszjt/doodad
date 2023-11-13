@@ -118,11 +118,12 @@ generate ast = withErrorPrefix "generate: " $ do
             generateFunc symbol func
             when (sym symbol == "main") $ do
 --                let typedef = Type.TypeApply (SymResolved "io" "Io" 0) []
-                id <- newFunction Cvoid "main" [C.Param "argc" Cint, C.Param "argv" (Cpointer (Cpointer Cchar))]
+                id <- newFunction Cint "main" [C.Param "argc" Cint, C.Param "argv" (Cpointer (Cpointer Cchar))]
                 withCurID id $ case (ASTResolved.funcParams func, ASTResolved.funcArgs func) of
                     ([], []) -> do
                         appendElem $ C.ExprStmt $ C.Call "doodad_set_args" [C.Ident "argc", C.Ident "argv"]
                         call (show symbol) []
+                        appendElem $ C.Return $ C.Int 0
 --                    ([p], []) | typeof p == typedef -> do -- main with io
 --                        io <- initialiser typedef []
 --                        callWithParams [io] (show symbol) []

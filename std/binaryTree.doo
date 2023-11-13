@@ -38,6 +38,12 @@ fn[K, V] {tree:Tree(K, V)} insert(key:()K, value:()V)
                 if key < k; nodeKey = left
                 else;       nodeKey = right
 
+            let NodeLeaf(ek) = tree.nodes.get(nodeKey) in
+                let {k, _} = tree.elems.at(ek) in
+                    if k{} == key{}
+                        print("tree already contains key:", key)
+                        let true = false
+
             // construct new leaf and branch
             let leafKey = tree.nodes.insert( tree.nodes.get(nodeKey) ) // set new leaf to node
             let branch = NodeBranch((leafKey, newNodeKey, key)):TreeNode(K, V)
@@ -54,32 +60,19 @@ fn[K, V] {tree:Tree(K, V)} insert(key:()K, value:()V)
 fn[K, V] {tree:Tree(K, V)} delete(key:()K)
     fn[K, V] {tree:Tree(K, V)} deleteFromBranch(nodeKey:Key(TreeNode(K, V)), key:()K)
         let NodeBranch((left, right, k)) = tree.nodes.get(nodeKey)
-        //print("from branch", left, right, key, k)
         if key < k
             switch tree.nodes.get(left)
-                NodeBranch(_)
-                    //print("go left")
-                    tree.deleteFromBranch(left, key)
+                NodeBranch(_); tree.deleteFromBranch(left, key)
                 NodeLeaf(elemKey)
-                    //print("left leaf", elemKey, tree.elems.at(elemKey), left, right)
-                    let b = key{} == tree.elems.at(elemKey).key{}
-                    if !b
-                        print("here", key, tree.elems.at(elemKey).key{}, k)
-                        let true = false
-
+                    let true = key{} == tree.elems.at(elemKey).key{}
                     tree.nodes.at(nodeKey) = tree.nodes.at(right)
                     tree.elems.delete(elemKey)
                     tree.nodes.delete(left)
                     tree.nodes.delete(right)
         else
             switch tree.nodes.get(right)
-                NodeBranch(_)
-                    //print("go right")
-                    tree.deleteFromBranch(right, key)
+                NodeBranch(_); tree.deleteFromBranch(right, key)
                 NodeLeaf(elemKey)
-                    //print("right leaf", elemKey, tree.elems.at(elemKey))
-
-                    //print("right leaf", elemKey)
                     let true = key{} == tree.elems.at(elemKey).key{}
                     tree.nodes.at(nodeKey) = tree.nodes.at(left)
                     tree.elems.delete(elemKey)
