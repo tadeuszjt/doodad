@@ -80,7 +80,7 @@ define symbol obj = do
 
 collectAST :: Bool -> ASTResolved -> DoM CollectState ()
 collectAST verbose ast = do
-    when verbose $ liftIO $ putStrLn "collecting..."
+    --when verbose $ liftIO $ putStrLn "collecting..."
     forM (Map.toList $ constDefs ast) $ \(symbol, expr) -> do
         define symbol (ObjConst expr)
 
@@ -202,6 +202,7 @@ collectPattern (S.PatAnnotated pattern patType) = collectPos pattern $ case patt
         collectExpr expr
 
     S.PatGuarded _ pat expr -> do
+        collect $ ConsBase Bool (typeof expr)
         collectPattern pat
         collectExpr expr
 
@@ -216,7 +217,6 @@ collectPattern (S.PatAnnotated pattern patType) = collectPos pattern $ case patt
         collect $ ConsAdtField patType i (map typeof pats)
         mapM_ collectPattern pats
 
-
     S.PatTuple _ pats -> do
         collectDefault patType (Tuple $ Record $ map typeof pats)
         collect $ ConsTuple patType (map typeof pats)
@@ -230,10 +230,11 @@ collectPattern (S.PatAnnotated pattern patType) = collectPos pattern $ case patt
 
     S.PatAnnotated pat t -> do
         collectEq t patType
+        collectEq t (typeof pat)
         collectPattern pat
 
     S.PatRecord _ pats -> do
-        collect $ ConsBase patType $ Record (map typeof pats)
+        collect $ ConsRecord patType (map typeof pats)
         mapM_ collectPattern pats
         
     _ -> error $ show pattern
@@ -340,8 +341,8 @@ collectExpr (S.AExpr exprType expression) = collectPos expression $ case express
 
     S.Tuple _ exprs -> do
         collect $ ConsTuple exprType (map typeof exprs)
-        collectDefault exprType $ Tuple $ Record $ map typeof exprs
-        mapM_ collectExpr exprs;
+        collectDefault exprType $ Tuple $ Record (map typeof exprs)
+        mapM_ collectExpr exprs
 
     S.Field _ e symbol -> do
         collect $ ConsField (typeof e) symbol exprType
@@ -353,11 +354,9 @@ collectExpr (S.AExpr exprType expression) = collectPos expression $ case express
         collectExpr e
         collectDefault exprType Bool
 
-    S.RecordAccess _ e -> do
-        modify $ \s -> s {
-            collected = Map.insert (ConsRecordAccess exprType $ typeof e) (curPos s) (collected s)
-            }
-        collectExpr e
+    S.RecordAccess _ expr -> do
+        collect $ ConsRecordAccess exprType (typeof expr) 
+        collectExpr expr
 
     S.Range _ me me1 me2 -> do
         when (isJust me) $ collectExpr (fromJust me)

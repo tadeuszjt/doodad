@@ -26,7 +26,7 @@ import TupleDeleter
 -- Removed spurious tuple types
 compile :: Bool -> DoM ASTResolved ()
 compile verbose = do
-    when verbose $ liftIO $ putStrLn $ "cleaning..."
+    --when verbose $ liftIO $ putStrLn $ "cleaning..."
     funcDefs <- gets funcDefs
     forM_ (Map.toList funcDefs) $ \(symbol, body) -> do
         when (funcTypeArgs body == []) $ do

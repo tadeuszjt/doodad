@@ -24,14 +24,15 @@ import Type
 infer :: ASTResolved -> Bool -> Bool -> DoM s (ASTResolved, Int)
 infer ast printAnnotated verbose = do 
     runDoMUntilSameResult ast $ \ast' -> do 
-        when verbose $ liftIO $ putStrLn $ "inferring..."
-        (inferred, _) <- runDoMUntilSameResult ast' inferTypes
-        (defaulted, _) <- runDoMUntilSameResult inferred inferDefaults
+        --when verbose $ liftIO $ putStrLn $ "inferring..."
+        (inferred, inferCount) <- runDoMUntilSameResult ast' inferTypes
+        when verbose $ liftIO $ putStrLn ("inferred types " ++ show inferCount ++ " times")
+        (defaulted, defaultCount) <- runDoMUntilSameResult inferred inferDefaults
+        when verbose $ liftIO $ putStrLn ("inferred defaults " ++ show defaultCount ++ " times")
         return defaulted
     where
         inferTypes :: ASTResolved -> DoM s ASTResolved
         inferTypes ast = do
-            when verbose $ liftIO $ putStrLn $ "inferring types..."
             (annotated, _) <- withErrorPrefix "annotate: " $ runDoMExcept 0 $ annotate ast
             when printAnnotated $ do
                 liftIO $ putStrLn ""
@@ -42,7 +43,7 @@ infer ast printAnnotated verbose = do
 
             -- turn type constraints into substitutions using unify
             subs <- fmap fst $ runDoMExcept ast (unify $ Map.toList $ collected collectState)
-            annotated' <- applySubs subs annotated
+            annotated' <- applySubs2 subs annotated
             ast' <- fmap snd $ runDoMExcept annotated' (CleanUp.compile verbose)
             ast'' <- fmap fst $ runDoMExcept () $ deAnnotate ast'
             return ast''
@@ -50,7 +51,6 @@ infer ast printAnnotated verbose = do
 
         inferDefaults :: ASTResolved -> DoM s ASTResolved
         inferDefaults ast = do
-            when verbose $ liftIO $ putStrLn $ "inferring defaults..."
             (annotated, _) <- withErrorPrefix "annotate: " $ runDoMExcept 0 $ annotate ast
             collectState <- fmap snd $ withErrorPrefix "collect: " $
                 runDoMExcept (initCollectState annotated) (collectAST verbose annotated)

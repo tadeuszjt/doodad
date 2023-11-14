@@ -63,6 +63,15 @@ unifyOne pos constraint = withPos pos $ case constraint of
                     _ -> error (show baseT)
             _ -> error (show basem)
 
+    ConsRecord recordType ts -> do
+        basem <- baseTypeOfm recordType
+        case basem of
+            Nothing -> return []
+            Just (Record ts') -> do
+                unless (length ts == length ts') (error "record mismatch")
+                concat <$> zipWithM  (\a b -> unifyOne pos $ ConsEq a b) ts ts'
+            _ -> error (show basem)
+
     ConsRecordAccess exprType typ -> do
         base <- baseTypeOfm typ
         case base of

@@ -20,6 +20,14 @@ applySubs subs a = apply (f subs) a
         f ((x, u):xs) z = f xs (if z == x then u else z)
 
 
+applySubs2 :: (Apply a) => [(Type, Type)] -> a -> DoM s a
+applySubs2 subs a = apply (f subs) a
+    where
+        f :: [(Type, Type)] -> Type -> Type
+        f []          z = z
+        f ((x, u):xs) z = f xs (if z == x then u else z)
+
+
 mapper :: (Type -> Type) -> Elem -> DoM s Elem
 mapper f elem = case elem of
     ElemType typ                 -> return $ ElemType (f typ)
@@ -45,8 +53,9 @@ instance Apply Constraint where
         ConsEq t1 t2           -> return $ ConsEq (rf t1) (rf t2)
         ConsBase t1 t2         -> return $ ConsBase (rf t1) (rf t2)
         ConsSubscript t1 t2    -> return $ ConsSubscript (rf t1) (rf t2)
-        ConsAdtField t i ts -> return $ ConsAdtField (rf t) i (map rf ts)
+        ConsAdtField t i ts    -> return $ ConsAdtField (rf t) i (map rf ts)
         ConsTuple t1 ts        -> return $ ConsTuple (rf t1) (map rf ts)
+        ConsRecord t1 ts       -> return $ ConsRecord (rf t1) (map rf ts)
         ConsRecordAccess t1 t2 -> return $ ConsRecordAccess (rf t1) (rf t2)
         ConsSpecial t1 t2      -> return $ ConsSpecial (rf t1) (rf t2)
         ConsField  t1 s t2     -> return $ ConsField (rf t1) s (rf t2)
