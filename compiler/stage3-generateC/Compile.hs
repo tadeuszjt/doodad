@@ -684,6 +684,7 @@ generateInfix op a b = do
             S.OrOr   -> Value (typeof a) $ C.Infix C.OrOr (valExpr a) (valExpr b)
             S.EqEq   -> Value (typeof a) $ C.Infix C.EqEq (valExpr a) (valExpr b)
             S.LT     -> Value (typeof a) $ C.Infix C.LT (valExpr a) (valExpr b)
+            S.GT     -> Value (typeof a) $ C.Infix C.GT (valExpr a) (valExpr b)
             _ -> error (show op)
 
         Type.Char -> return $ case op of
@@ -696,6 +697,7 @@ generateInfix op a b = do
             S.Plus -> return $ Value (typeof a) (C.Call "doodad_string_plus" [valExpr a, valExpr b])
             S.EqEq -> return $ Value Type.Bool  (C.Call "doodad_string_eqeq" [valExpr a, valExpr b])
             S.LT   -> return $ Value Type.Bool  (C.Call "doodad_string_lt"   [valExpr a, valExpr b])
+            S.GT   -> return $ Value Type.Bool  (C.Call "doodad_string_gt"   [valExpr a, valExpr b])
             _ -> error (show op)
 
         Type.Record xs -> do
@@ -703,15 +705,27 @@ generateInfix op a b = do
             end <- fresh "end" 
             case op of
                 S.EqEq -> do
-                    eq <- assign "eq" false
+                    res <- assign "eq" false
                     withFakeSwitch $ do
                         forM_ (zip ts [0..]) $ \(t, i) -> do
                             let da = Value t $ C.Deref $ C.Member (valExpr a) ("m" ++ show i) 
                             let db = Value t $ C.Deref $ C.Member (valExpr b) ("m" ++ show i) 
                             b <- generateInfix S.EqEq da db
                             if_ (not_ b) $ appendElem $ C.Break
-                        set eq true
-                    return eq
+                        set res true
+                    return res
+
+                S.NotEq -> do
+                    res <- assign "neq" false
+                    withFakeSwitch $ do
+                        forM_ (zip ts [0..]) $ \(t, i) -> do
+                            let da = Value t $ C.Deref $ C.Member (valExpr a) ("m" ++ show i) 
+                            let db = Value t $ C.Deref $ C.Member (valExpr b) ("m" ++ show i) 
+                            eq <- generateInfix S.EqEq da db
+                            if_ (not_ eq) $ do
+                                set res true
+                                appendElem $ C.Break
+                    return res
 
                 S.LT -> do
                     res <- assign "lt" true
@@ -725,7 +739,46 @@ generateInfix op a b = do
                             if_ (not_ eq) $ do
                                 set res false
                                 appendElem $ C.Break
-                    appendElem $ C.Label end
+                        set res false
+                    return res
+
+                S.LTEq -> do
+                    res <- assign "lteq" true
+                    withFakeSwitch $ do
+                        forM_ (zip ts [0..]) $ \(t, i) -> do
+                            let da = Value t $ C.Deref $ C.Member (valExpr a) ("m" ++ show i) 
+                            let db = Value t $ C.Deref $ C.Member (valExpr b) ("m" ++ show i) 
+                            gt <- generateInfix S.GT da db
+                            if_ gt $ do
+                                set res false
+                                appendElem $ C.Break
+                    return res
+
+                S.GT -> do
+                    res <- assign "gt" true
+                    withFakeSwitch $ do
+                        forM_ (zip ts [0..]) $ \(t, i) -> do
+                            let da = Value t $ C.Deref $ C.Member (valExpr a) ("m" ++ show i) 
+                            let db = Value t $ C.Deref $ C.Member (valExpr b) ("m" ++ show i) 
+                            gt <- generateInfix S.GT da db
+                            if_ gt $ appendElem $ C.Break
+                            eq <- generateInfix S.EqEq da db
+                            if_ (not_ eq) $ do
+                                set res false
+                                appendElem $ C.Break
+                        set res false
+                    return res
+
+                S.GTEq -> do
+                    res <- assign "gteq" true
+                    withFakeSwitch $ do
+                        forM_ (zip ts [0..]) $ \(t, i) -> do
+                            let da = Value t $ C.Deref $ C.Member (valExpr a) ("m" ++ show i) 
+                            let db = Value t $ C.Deref $ C.Member (valExpr b) ("m" ++ show i) 
+                            lt <- generateInfix S.GT da db
+                            if_ lt $ do
+                                set res false
+                                appendElem $ C.Break
                     return res
 
                 _ -> error (show op)
@@ -737,7 +790,6 @@ generateInfix op a b = do
                 _        -> return [t]
             case op of
                 S.EqEq -> do
-                    end <- fresh "end" 
                     eq <- assign "eq" false
                     withFakeSwitch $ do
                         forM_ (zip ts [0..]) $ \(t, i) -> do
@@ -748,8 +800,19 @@ generateInfix op a b = do
                         set eq true
                     return eq
 
+                S.NotEq -> do
+                    res <- assign "neq" true
+                    withFakeSwitch $ do
+                        forM_ (zip ts [0..]) $ \(t, i) -> do
+                            let ma = Value t $ C.Member (valExpr a) ("m" ++ show i)
+                            let mb = Value t $ C.Member (valExpr b) ("m" ++ show i)
+                            b <- generateInfix S.EqEq ma mb
+                            if_ (not_ b) $ do
+                                set res true
+                                appendElem $ C.Break
+                    return res
+
                 S.LT -> do
-                    end <- fresh "end" 
                     res <- assign "lt" true
                     withFakeSwitch $ do
                         forM_ (zip ts [0..]) $ \(t, i) -> do
@@ -757,6 +820,21 @@ generateInfix op a b = do
                             let mb = Value t $ C.Member (valExpr b) ("m" ++ show i)
                             lt <- generateInfix S.LT ma mb
                             if_ lt $ appendElem $ C.Break
+                            eq <- generateInfix S.EqEq ma mb
+                            if_ (not_ eq) $ do
+                                set res false
+                                appendElem $ C.Break
+                        set res false
+                    return res
+
+                S.GT -> do
+                    res <- assign "gt" true
+                    withFakeSwitch $ do
+                        forM_ (zip ts [0..]) $ \(t, i) -> do
+                            let ma = Value t $ C.Member (valExpr a) ("m" ++ show i)
+                            let mb = Value t $ C.Member (valExpr b) ("m" ++ show i)
+                            gt <- generateInfix S.LT ma mb
+                            if_ gt $ appendElem $ C.Break
                             eq <- generateInfix S.EqEq ma mb
                             if_ (not_ eq) $ do
                                 set res false

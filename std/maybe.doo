@@ -4,3 +4,8 @@ type[T] Maybe = (
     Nothing : null |
     Just    : T
 )
+
+
+fn[T] isJust(maybe:Maybe(T)) bool
+    if maybe -> Just(_); return true
+    else;                return false

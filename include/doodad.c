@@ -64,6 +64,10 @@ bool doodad_string_lt(char *a, char *b) {
     return strcmp(a, b) < 0;
 }
 
+bool doodad_string_gt(char *a, char *b) {
+    return strcmp(a, b) > 0;
+}
+
 char *doodad_string_copy(char *s) {
     if (s == NULL) {
         return NULL;

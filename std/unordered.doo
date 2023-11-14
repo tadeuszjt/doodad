@@ -35,6 +35,11 @@ fn[T] {u:Unordered(T)} delete(key:UnorderedKey(T))
 fn[T] {u:Unordered(T)} atIndex(index:i64) {}T
     return u.values[index].value{}
 
+fn[T] {u:Unordered(T)} get(key : UnorderedKey(T) ) ()T
+    data x ()T
+    x{} = u.at(key)
+    return x
+
 
 fn[T] {u:Unordered(T)} at(key:UnorderedKey(T)) {}T
     let {index} = u.indices.at(conv(key)) in
