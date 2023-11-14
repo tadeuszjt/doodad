@@ -27,9 +27,7 @@ fn[K, V] {tree : Tree(K, V)} get(key : ()K) ()V
             while tree.nodes.at(node).key{} != key{}
                 if      tree.nodes.at(node).left -> Just(left)   | key{} < tree.nodes.at(node).key{}; node = left
                 else if tree.nodes.at(node).right -> Just(right) | key{} > tree.nodes.at(node).key{}; node = right
-                else
-                    print("error")
-                    let true = false
+                else; assert(false, "error")
 
             data value ()V
             value{} = tree.nodes.at(node).value{}
@@ -44,9 +42,7 @@ fn[K, V] {tree : Tree(K, V)} insert(key : ()K, value : ()V)
         let lt = tree.nodes.at(newNode).key < tree.nodes.at(node).key
         let gt = tree.nodes.at(newNode).key > tree.nodes.at(node).key
         let {l, r, k, v} = tree.nodes.at(node) in
-            if !lt && !gt
-                print("error: key already in tree")
-                let true = false
+            if !lt && !gt                ; assert(false, "key already in tree")
             else if l -> Just(left)  | lt; tree.insertNode(newNode, left)
             else if r -> Just(right) | gt; tree.insertNode(newNode, right)
             else if l -> Nothing()   | lt; l = Just(newNode)
@@ -102,9 +98,7 @@ fn[K, V] {tree : Tree(K, V)} delete(key : ()K)
         else if rightm -> Just(right) | key{} > tree.nodes.at(node).key{}
             tree.deleteFromNode(right, key)
 
-        else
-            print("error")
-            let true = false
+        else; assert(false, "invalid key")
 
     switch tree.base
         Just(base)

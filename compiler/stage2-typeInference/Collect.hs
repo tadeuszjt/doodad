@@ -123,9 +123,7 @@ collectFuncDef symbol body = do
 
 collectMapper :: Elem -> DoM CollectState Elem
 collectMapper element = (\_ -> return element) =<< case element of
-    ElemType _ -> return ()
-
-    ElemStmt stmt -> case stmt of
+    ElemStmt statement -> case statement of
         S.Increment _ _          -> return ()
         S.Block _                -> return ()
         S.EmbedC _ _             -> return ()
@@ -172,7 +170,6 @@ collectMapper element = (\_ -> return element) =<< case element of
 
             (s, i) <- mapGet symbol' . ctorDefs =<< gets astResolved
             collect $ ConsAdtField patType i (map typeof pats)
-    ElemPattern _ -> return ()
 
     ElemExpr (S.AExpr exprType expression) -> case expression of
         S.Call _ params symbol exprs -> collectCall exprType params symbol exprs
@@ -214,6 +211,11 @@ collectMapper element = (\_ -> return element) =<< case element of
         S.Builtin _ sym args -> do 
             case sym of
                 "conv"  -> return ()
+                "assert" -> do
+                    check (length args == 2) "invalid assert args"
+                    collect $ ConsBase (typeof $ args !! 0) Bool
+                    collect $ ConsBase (typeof $ args !! 1) String
+                    collectEq exprType Void
                 "len"   -> do
                     collect (ConsBase exprType I64)
                     collectDefault exprType I64
@@ -263,7 +265,9 @@ collectMapper element = (\_ -> return element) =<< case element of
                 collectDefault (Range $ typeof $ fromJust me2) exprType
             when (isNothing me1 && isNothing me2) $ do
                 collectDefault (Range I64) exprType
-    ElemExpr _ -> return ()
 
-    x -> error (show x)
+    ElemExpr _ -> return ()
+    ElemPattern _ -> return ()
+    ElemStmt _ -> return ()
+    ElemType _ -> return ()
 

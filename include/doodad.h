@@ -1,11 +1,15 @@
 #include "gc.h"
 #include <stdint.h>
 #include <stdbool.h>
+#include <stdlib.h>
 #include <stdio.h>
 #include <assert.h>
 #include <string.h>
 #include <ctype.h>
 #include <stdarg.h>
+
+#define doodad_assert(filename, line, cnd, str) do { if (!cnd) { fprintf(stderr, "%s:%d failed: %s\n", filename, line, str); abort(); } } while(0)
+#define doodad_fail  (filename, line, str)      do { fprintf(stderr, "%s:%d failed: %s\n", filename, line, str); abort(); } while(0)
 
 char *doodad_string_plus(char *a, char *b);
 bool doodad_string_eqeq(char *a, char *b);

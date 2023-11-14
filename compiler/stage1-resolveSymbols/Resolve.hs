@@ -422,7 +422,7 @@ resolveMapper element = case element of
     ElemExpr (Ident pos symbol) -> ElemExpr . Ident pos <$> look symbol KeyVar
 
     ElemExpr (Call pos params symbol exprs) -> case symbol of
-        Sym s | s `elem` ["len", "conv", "print"] -> do 
+        Sym s | s `elem` ["len", "conv", "print", "assert"] -> do 
             check (params == []) "invalid builtin function call"
             return $ ElemExpr (Builtin pos s exprs)
         _ -> do

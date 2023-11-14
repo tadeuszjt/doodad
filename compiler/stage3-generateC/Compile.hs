@@ -204,6 +204,13 @@ generateStmt stmt = withPos stmt $ case stmt of
             let end = i == length vals - 1
             generatePrint (if end then "\n" else ", ") val
 
+    S.ExprStmt (AExpr _ (S.Builtin pos "assert" [cnd, str])) -> do
+        cndVal <- generateExpr cnd
+        strVal <- generateExpr str
+        fileNameVal <- return $ Value Type.String (C.String $ textFile pos)
+        lineVal <- return $ Value I64 (C.Int $ fromIntegral $ textLine pos)
+        call "doodad_assert" [fileNameVal, lineVal, cndVal, strVal]
+
     S.SetOp _ S.Eq index expr -> do
         idx <- generateIndex index
         set idx =<< generateExpr expr
@@ -410,6 +417,7 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
     S.String _ s -> return $ Value typ (C.String s)
     S.Char _ c   -> return $ Value typ (C.Char c)
     S.Match _ expr pattern -> generatePattern pattern =<< generateExpr expr
+
     S.Builtin _ "conv" [expr] -> convert typ =<< generateExpr expr
 
     S.Builtin _ "len" exprs -> do 
