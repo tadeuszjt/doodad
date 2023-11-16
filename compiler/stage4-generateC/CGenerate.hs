@@ -88,6 +88,7 @@ define str obj = do
     check (isNothing resm) $ str ++ " already defined"
     modify $ \s -> s { symTab = SymTab.insert str () obj (symTab s) }
 
+
 look :: String -> Generate Value
 look str = do
     resm <- SymTab.lookup str () <$> gets symTab
@@ -102,8 +103,10 @@ fresh suggestion = do
     modify $ \s -> s { supply = Map.insert suggestion (n + 1) (supply s) }
     return $ suggestion ++ show n
 
+
 true :: Value
 true = Value Type.Bool (C.Bool True)
+
 
 false :: Value
 false = Value Type.Bool (C.Bool False)
@@ -180,8 +183,6 @@ convert typ val = do
     return r
 
 
-
-
 set :: Value -> Value -> Generate ()
 set a b = do
     unless (typeof a == typeof b) (error "set: type mismatch")
@@ -205,7 +206,6 @@ set a b = do
 
         Type.ADT ts -> void $ appendElem $ C.Set (valExpr a) (valExpr b) -- TODO broken
             
-
 --        Type.Table ts -> do
 --            let cap = C.Member (valExpr a) "cap"
 --            let len = C.Member (valExpr a) "len"
@@ -412,16 +412,16 @@ cTypeOf a = case typeof a of
 
         cTypeNoDef :: (Typeof a) => a -> Generate C.Type
         cTypeNoDef a = case typeof a of
-            I64 -> return $ Cint64_t
-            I32 -> return $ Cint32_t
-            I8 ->  return $ Cint8_t
-            U8 ->  return $ Cuint8_t
-            F64 -> return $ Cdouble
-            F32 -> return $ Cfloat
+            I64 -> return Cint64_t
+            I32 -> return Cint32_t
+            I8 ->  return Cint8_t
+            U8 ->  return Cuint8_t
+            F64 -> return Cdouble
+            F32 -> return Cfloat
             Void -> return Cvoid
-            Type.Bool -> return $ Cbool
-            Type.Char -> return $ Cchar
-            Type.String -> return $ Cpointer Cchar
+            Type.Bool -> return Cbool
+            Type.Char -> return Cchar
+            Type.String -> return (Cpointer Cchar)
             Type.Tuple t -> do
                 baseT <- baseTypeOf t
                 case baseT of

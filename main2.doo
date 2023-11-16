@@ -1,11 +1,11 @@
 module main2
 
+import std/binaryTree
+import std/unordered
+import std/sparse
 import std/maybe
 import std/table
 import std/map
-import std/sparse
-import std/binaryTree
-import std/unordered
 import std/io
 
 

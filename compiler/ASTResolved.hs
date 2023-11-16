@@ -25,7 +25,7 @@ data ASTResolved
 
 
 data FuncHeader = FuncHeader
-    { typeArgs   :: [Symbol]
+    { generics   :: [Symbol]
     , paramTypes :: [Type]
     , symbol     :: Symbol
     , argTypes   :: [Type]
@@ -50,7 +50,7 @@ instance Show FuncHeader where
     show header =
         "fn" ++ typeArgsStr ++ " " ++ paramsStr ++ " " ++ (show $ symbol header) ++ argsStr ++ " " ++ show (returnType header)
         where
-            typeArgsStr = case typeArgs header of
+            typeArgsStr = case generics header of
                 [] -> ""
                 ss -> "[" ++ intercalate ", " (map show ss) ++ "]"
             paramsStr = case paramTypes header of
@@ -120,7 +120,7 @@ getFunctionBody symbol ast = if Map.member symbol (funcDefs ast) then
 funcHeaderFromBody :: Symbol -> FuncBody -> FuncHeader
 funcHeaderFromBody symbol body =
     FuncHeader {
-        typeArgs = funcTypeArgs body,
+        generics = funcTypeArgs body,
         paramTypes = map typeof (funcParams body),
         symbol = symbol,
         argTypes = map typeof (funcArgs body),
@@ -132,12 +132,12 @@ funcHeadersCouldMatch :: ASTResolved -> FuncHeader -> FuncHeader -> Bool
 funcHeadersCouldMatch ast a b
     | not $ symbolsCouldMatch (symbol a) (symbol b)                                                          = False
     | length (paramTypes a) /= length (paramTypes b) || length (argTypes a) /= length (argTypes b)           = False
-    | not $ all (== True) $ zipWith (typesCouldMatch (typeFuncs ast) generics) (paramTypes a) (paramTypes b) = False
-    | not $ all (== True) $ zipWith (typesCouldMatch (typeFuncs ast) generics) (paramTypes a) (paramTypes b) = False
-    | not $ typesCouldMatch (typeFuncs ast) generics (returnType a) (returnType b)                           = False
+    | not $ all (== True) $ zipWith (typesCouldMatch (typeFuncs ast) gens) (paramTypes a) (paramTypes b) = False
+    | not $ all (== True) $ zipWith (typesCouldMatch (typeFuncs ast) gens) (paramTypes a) (paramTypes b) = False
+    | not $ typesCouldMatch (typeFuncs ast) gens (returnType a) (returnType b)                           = False
     | otherwise = True
     where
-        generics = typeArgs a ++ typeArgs b
+        gens = generics a ++ generics b
 
 
 prettyFuncBody :: Symbol -> FuncBody -> IO ()
@@ -159,8 +159,8 @@ prettyASTResolved ast = do
     forM_ (Map.toList $ constDefs ast) $ \(symbol, expr) ->
         prettyStmt "" $ AST.Const undefined symbol expr
 
-    forM_ (Map.toList $ typeFuncs ast) $ \(symbol, (typeArgs, typ)) ->
-        prettyStmt "" (AST.Typedef undefined typeArgs symbol $ AnnoType typ)
+    forM_ (Map.toList $ typeFuncs ast) $ \(symbol, (generics, typ)) ->
+        prettyStmt "" (AST.Typedef undefined generics symbol $ AnnoType typ)
 
     forM_ (Map.toList $ funcDefs ast) $ \(symbol, body) -> prettyFuncBody symbol body
 

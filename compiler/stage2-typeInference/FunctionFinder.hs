@@ -20,6 +20,11 @@ import Monad
 import ASTMapper
 import TupleDeleter
 
+
+-- Function Finder contains functions which can determine whether a generic function could match
+-- a function call. This involves using a smaller version of the type inference algorithm to replace
+-- generic symbols with resolved types.
+
 findCandidates :: FuncHeader -> DoM ASTResolved [Symbol]
 findCandidates callHeader = do
     funcSymbols <- findFunctionCandidates callHeader
@@ -57,23 +62,23 @@ findCtorCandidates callSymbol = do
 
 
 funcHeaderHasGenerics :: [Symbol] -> FuncHeader -> Bool
-funcHeaderHasGenerics typeArgs header =
+funcHeaderHasGenerics generics header =
     paramGenerics /= [] || argGenerics /= [] || rettyGenerics /= []
     where
-        paramGenerics = concat $ map (findGenerics typeArgs) (paramTypes header)
-        argGenerics   = concat $ map (findGenerics typeArgs) (argTypes header)
-        rettyGenerics = findGenerics typeArgs (returnType header)
+        paramGenerics = concat $ map (findGenerics generics) (paramTypes header)
+        argGenerics   = concat $ map (findGenerics generics) (argTypes header)
+        rettyGenerics = findGenerics generics (returnType header)
 
 
 funcHeaderFullyResolved :: [Symbol] -> FuncHeader -> Bool
-funcHeaderFullyResolved typeArgs header =
+funcHeaderFullyResolved generics header =
     all (== True) (map typeFullyResolved $ paramTypes header)
     && all (== True) (map typeFullyResolved $ argTypes header)
     && typeFullyResolved (returnType header)
     where
         typeFullyResolved :: Type -> Bool
         typeFullyResolved typ = case typ of
-            TypeApply s _ | elem s typeArgs -> False
+            TypeApply s _ | elem s generics -> False
             TypeApply s ts -> all (== True) (map typeFullyResolved ts)
             _ | isSimple typ -> True
             Type _ -> False
@@ -90,26 +95,26 @@ replaceGenericsInFuncBodyWithCall body callHeader = do
     --liftIO $ putStrLn $ "replacing: " ++ show callHeader
     ast <- get
     let header = funcHeaderFromBody (symbol callHeader) body
-    unless (typeArgs callHeader == [])                   (error "call header cannot be generic")
+    unless (generics callHeader == [])                   (error "call header cannot be generic")
     unless (funcHeadersCouldMatch ast callHeader header) (error "headers could not match")
     constraints <- getConstraintsFromFuncHeaders header callHeader
-    subs <- unify (typeArgs header) constraints
+    subs <- unify (generics header) constraints
     body' <- applySubs subs body
     mapFuncBodyM tupleDeleterMapper $ body' { funcTypeArgs = [] }
 
 
 unifyOne :: [Symbol] -> Constraint -> DoM ASTResolved [(Type, Type)]
-unifyOne typeVars constraint = case constraint of
+unifyOne generics constraint = case constraint of
     ConsEq t1 t2 -> case (t1, t2) of
         _ | t1 == t2                            -> return []
-        (TypeApply s _, _) | s `elem` typeVars  -> return [(t1, t2)]
+        (TypeApply s _, _) | s `elem` generics  -> return [(t1, t2)]
         (Type _, _)                             -> return [(t1, t2)]
         (_, Type _)                             -> return [(t2, t1)]
-        (Tuple a, Tuple b)                      -> unifyOne typeVars $ ConsEq a b
+        (Tuple a, Tuple b)                      -> unifyOne generics $ ConsEq a b
 
         (TypeApply s1 ts1, TypeApply s2 ts2)
             | length ts1 == length ts2 ->
-                concat <$> zipWithM (\a b -> unifyOne typeVars $ ConsEq a b) ts1 ts2
+                concat <$> zipWithM (\a b -> unifyOne generics $ ConsEq a b) ts1 ts2
 
         _ -> fail $ "cannot unify: " ++ show (t1, t2)
 
@@ -119,32 +124,32 @@ unifyOne typeVars constraint = case constraint of
 
 
 unify :: [Symbol] -> [Constraint] -> DoM ASTResolved [(Type, Type)]
-unify typeVars []     = return []
-unify typeVars (x:xs) = do
-    subs <- unify typeVars xs
-    s <- unifyOne typeVars =<< applySubs subs x
+unify generics []     = return []
+unify generics (x:xs) = do
+    subs <- unify generics xs
+    s <- unifyOne generics =<< applySubs subs x
     return (s ++ subs)
 
 
 getConstraintsFromFuncHeaders :: FuncHeader -> FuncHeader -> DoM ASTResolved [Constraint]
 getConstraintsFromFuncHeaders headerToReplace header = do
-    unless (typeArgs header == []) (error "header cannot be generic")
+    unless (generics header == []) (error "header cannot be generic")
     paramConstraints <- fmap concat $
-        zipWithM (getConstraintsFromTypes $ typeArgs headerToReplace)
+        zipWithM (getConstraintsFromTypes $ generics headerToReplace)
             (paramTypes headerToReplace)
             (paramTypes header)
     argConstraints <- fmap concat $
-        zipWithM (getConstraintsFromTypes $ typeArgs headerToReplace)
+        zipWithM (getConstraintsFromTypes $ generics headerToReplace)
             (argTypes headerToReplace)
             (argTypes header)
-    rettyConstraints <- getConstraintsFromTypes (typeArgs headerToReplace)
+    rettyConstraints <- getConstraintsFromTypes (generics headerToReplace)
         (returnType headerToReplace)
         (returnType header)
     return $ paramConstraints ++ argConstraints ++ rettyConstraints
 
 
 getConstraintsFromTypes :: [Symbol] -> Type -> Type -> DoM ASTResolved [Constraint]
-getConstraintsFromTypes typeArgs t1 t2 = do
+getConstraintsFromTypes generics t1 t2 = do
     flatT1 <- flattenType t1
     flatT2 <- flattenType t2
     fromTypes flatT1 flatT2
@@ -156,12 +161,12 @@ getConstraintsFromTypes typeArgs t1 t2 = do
                 (a, b) | a == b    -> return [] 
                 (Table a, Table b) -> fromTypes a b
 
-                (Tuple (TypeApply s []), t) | elem s typeArgs -> return [ConsSpecial t1 t2]
+                (Tuple (TypeApply s []), t) | elem s generics -> return [ConsSpecial t1 t2]
                 (Tuple a, Tuple b) -> fromTypes a b
 
                 (TypeApply s1 ts1, TypeApply s2 ts2)
-                    | s1 `elem` typeArgs -> do 
-                        unless (not $ s2 `elem` typeArgs) (error "unknown")
+                    | s1 `elem` generics -> do 
+                        unless (not $ s2 `elem` generics) (error "unknown")
 
                         case ts1 of
                             [] -> return [ConsEq t1 t2]
@@ -169,13 +174,13 @@ getConstraintsFromTypes typeArgs t1 t2 = do
                                 unless (length ts1 == length ts2) (error "type mismatch")
                                 (ConsEq t1 t2 :) . concat <$> zipWithM fromTypes ts1 ts2
 
-                    | not (elem s1 typeArgs) && s1 == s2 -> do
+                    | not (elem s1 generics) && s1 == s2 -> do
                         unless (length ts1 == length ts2) (error "type mismatch")
                         (ConsEq t1 t2 :) . concat <$> zipWithM fromTypes ts1 ts2
 
                     | otherwise -> fail "here"
 
-                (TypeApply s1 [], t) | elem s1 typeArgs -> return [ConsEq t1 t2]
+                (TypeApply s1 [], t) | elem s1 generics -> return [ConsEq t1 t2]
                 (Type _, _)                             -> return [ConsEq t1 t2]
                 (_, Type _)                             -> return []
 

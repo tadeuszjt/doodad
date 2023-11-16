@@ -43,7 +43,7 @@ mapFuncHeaderM f header = do
     argTypes'   <- mapM (mapTypeM f) (argTypes header)
     returnType' <- mapTypeM f (returnType header)
     return $ FuncHeader {
-        typeArgs = typeArgs header,
+        generics   = generics header,
         paramTypes = paramTypes',
         symbol     = symbol header,
         argTypes   = argTypes',

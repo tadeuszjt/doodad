@@ -5,18 +5,16 @@ import Data.Maybe
 import Control.Monad
 import Control.Monad.State
 import qualified Data.Map as Map
-import qualified Data.Set as Set
 
 import AST
+import ASTResolved
+import ASTMapper
 import Symbol
 import Monad
 import Error
 import Type
-import ASTResolved
 import Apply
 import FunctionFinder
-import ASTMapper
-import TupleDeleter
 
 
 -- Resolves function calls
@@ -41,8 +39,7 @@ genSymbol sym = do
     im <- gets $ Map.lookup sym . symSupply
     let n = maybe 0 (id) im
     modify $ \s -> s { symSupply = Map.insert sym (n + 1) (symSupply s) }
-    let symbol = SymResolved modName sym n
-    return symbol
+    return (SymResolved modName sym n)
 
 
 cleanUpMapper :: Elem -> DoM ASTResolved Elem
@@ -166,9 +163,9 @@ resolveFieldAccess typ (Sym sym) = do
         ctors
 
     case ctorResults ++ typeResults of
-        (a:b:xs) -> fail "ambiguous"
-        []       -> return $ (Sym sym)
-        [symbol] -> return $ symbol
+        (a:b:xs) -> fail "ambiguous field symbol"
+        []       -> return (Sym sym)
+        [symbol] -> return symbol
     where
         -- Returns the symbol from the type which will be associated with field accesses. 
         -- For example:
@@ -223,6 +220,4 @@ resolveFieldAccess typ (Sym sym) = do
                         else error "not typeDef"
 
                     _ -> error (show typ)
-
-
 

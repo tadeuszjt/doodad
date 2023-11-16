@@ -149,6 +149,14 @@ data ID =
 data Element
     = Global { globalBody :: [ID] }
     | Embed String
+    | Return Expression
+    | ReturnVoid
+    | Break
+    | Assign Type String Expression
+    | Set Expression Expression
+    | Goto String
+    | Label String
+    | ExprStmt Expression
     | For
         { forInit :: Maybe Expression
         , forCnd :: Maybe Expression
@@ -170,13 +178,6 @@ data Element
         { typedefName :: String
         , typedefType :: Type
         }
-    | Return Expression
-    | ReturnVoid
-    | Break
-    | Assign Type String Expression
-    | Set Expression Expression
-    | Goto String
-    | Label String
     | If
         { ifExpr :: Expression
         , ifStmts :: [ID]
@@ -184,7 +185,6 @@ data Element
     | Else
         { elseStmts :: [ID]
         }
-    | ExprStmt Expression
     | Switch
         { switchExpr :: Expression
         , switchBody :: [ID]

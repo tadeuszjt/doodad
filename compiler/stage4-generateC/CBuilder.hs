@@ -7,8 +7,6 @@ import Control.Monad.State
 import Error
 
 
-
-
 data BuilderState
     = BuilderState
     { elements :: Map.Map ID Element
@@ -25,6 +23,7 @@ class (Monad m, MonadFail m) => MonadBuilder m where
 
 globalID = ID 0
 
+
 initBuilderState moduleName = BuilderState
     { elements = Map.singleton globalID (Global [])
     , currentID = globalID
@@ -39,6 +38,7 @@ freshId = do
     liftBuilderState $ modify $ \s -> s { idSupply = supply + 1 }
     return (ID supply)
 
+
 withCurID :: MonadBuilder m => ID -> m a -> m a
 withCurID id f = do
     curId <- liftBuilderState $ gets currentID
@@ -46,6 +46,7 @@ withCurID id f = do
     a <- f
     setCurrentId curId
     return a
+
 
 setCurrentId :: MonadBuilder m => ID -> m ()
 setCurrentId id = do
@@ -68,11 +69,13 @@ append id = do
 
     liftBuilderState $ modify $ \s -> s { elements = Map.insert curId elem' (elements s) }
 
+
 appendElem :: MonadBuilder m => Element -> m ID
 appendElem elem = do
     id <- newElement elem
     append id
     return id
+
 
 appendIf :: MonadBuilder m => Expression -> m ID
 appendIf cnd = do
@@ -80,13 +83,16 @@ appendIf cnd = do
     append id
     return id
 
+
 appendElse :: MonadBuilder m => m ID
 appendElse = do
     appendElem $ Else { elseStmts = [] }
 
+
 appendPrintf :: MonadBuilder m => String -> [Expression] -> m ID
 appendPrintf fmt exprs = do
     appendElem $ ExprStmt $ Call "printf" (String fmt : exprs)
+
 
 appendAssign :: MonadBuilder m => Type -> String -> Expression -> m ID
 appendAssign ctyp name expr = do
@@ -106,7 +112,6 @@ modifyElement id f = do
     liftBuilderState $ modify $ \s -> s { elements = Map.insert id elem' (elements s) }
 
 
-
 newExtern :: MonadBuilder m => String -> Type -> [Type] -> m ()
 newExtern name retty args = do
     id <- newElement (Extern { extName = name, extRetty = retty, extArgs = args })
@@ -118,6 +123,7 @@ newTypedef typ name = do
     id <- newElement (Typedef { typedefName = name, typedefType = typ })
     withCurID globalID (append id)
     return id
+
 
 newFunction :: MonadBuilder m => Type -> String -> [Param] -> m ID 
 newFunction retty name args = do

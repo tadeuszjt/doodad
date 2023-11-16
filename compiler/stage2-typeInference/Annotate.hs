@@ -27,8 +27,6 @@ annotateMapper elem = case elem of
     ElemPattern pattern -> do
         t <- genType
         return $ ElemPattern (PatAnnotated pattern t)
-        
-
 
 genType :: DoM Int Type
 genType = do

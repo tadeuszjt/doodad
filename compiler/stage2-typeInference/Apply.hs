@@ -2,11 +2,11 @@ module Apply where
 
 import Control.Monad
 import Type
-import qualified AST as S
 import Constraint
 import qualified Data.Map as Map
 import qualified SymTab
 import qualified Resolve
+import AST
 import ASTResolved
 import ASTMapper
 import Monad
@@ -29,18 +29,15 @@ applySubs2 subs a = apply (f subs) a
 
 
 mapper :: (Type -> Type) -> Elem -> DoM s Elem
-mapper f elem = case elem of
-    ElemType typ                 -> return $ ElemType (f typ)
-    ElemStmt _                   -> return elem
-    ElemExpr _                   -> return elem
-    ElemPattern _                -> return elem
-    _ -> error (show elem)
+mapper f (ElemType typ) = return $ ElemType (f typ)
+mapper f element        = return element
+
 
 -- Apply represents taking a function and applying it to all types in an object.
 class Apply a             where apply :: (Type -> Type) -> a -> DoM s a
 instance Apply FuncBody   where apply f body    = mapFuncBodyM (mapper f) body
 instance Apply FuncHeader where apply f header  = mapFuncHeaderM (mapper f) header
-instance Apply S.Stmt     where apply f stmt    = mapStmtM (mapper f) stmt
+instance Apply Stmt       where apply f stmt    = mapStmtM (mapper f) stmt
             
 instance Apply ASTResolved where
     apply f ast = do
@@ -49,16 +46,16 @@ instance Apply ASTResolved where
 
 -- TODO this is broken, needs to recurse
 instance Apply Constraint where
-    apply f constraint = case constraint of
-        ConsEq t1 t2           -> return $ ConsEq (rf t1) (rf t2)
-        ConsBase t1 t2         -> return $ ConsBase (rf t1) (rf t2)
-        ConsSubscript t1 t2    -> return $ ConsSubscript (rf t1) (rf t2)
-        ConsAdtField t i ts    -> return $ ConsAdtField (rf t) i (map rf ts)
-        ConsTuple t1 ts        -> return $ ConsTuple (rf t1) (map rf ts)
-        ConsRecord t1 ts       -> return $ ConsRecord (rf t1) (map rf ts)
-        ConsRecordAccess t1 t2 -> return $ ConsRecordAccess (rf t1) (rf t2)
-        ConsSpecial t1 t2      -> return $ ConsSpecial (rf t1) (rf t2)
-        ConsField  t1 s t2     -> return $ ConsField (rf t1) s (rf t2)
+    apply f constraint = return $ case constraint of
+        ConsEq t1 t2           -> ConsEq (rf t1) (rf t2)
+        ConsBase t1 t2         -> ConsBase (rf t1) (rf t2)
+        ConsSubscript t1 t2    -> ConsSubscript (rf t1) (rf t2)
+        ConsAdtField t i ts    -> ConsAdtField (rf t) i (map rf ts)
+        ConsTuple t1 ts        -> ConsTuple (rf t1) (map rf ts)
+        ConsRecord t1 ts       -> ConsRecord (rf t1) (map rf ts)
+        ConsRecordAccess t1 t2 -> ConsRecordAccess (rf t1) (rf t2)
+        ConsSpecial t1 t2      -> ConsSpecial (rf t1) (rf t2)
+        ConsField  t1 s t2     -> ConsField (rf t1) s (rf t2)
         where
             rf = mapType f
 
