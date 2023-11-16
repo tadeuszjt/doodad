@@ -45,18 +45,21 @@ generate ast = withErrorPrefix "generate: " $ do
     forM_ (Map.toList $ funcDefs ast) $ \(symbol, func) -> do
         unless (isGenericBody func) $ do
             generateFunc symbol func
+
             when (sym symbol == "main") $ do
---                let typedef = Type.TypeApply (SymResolved "io" "Io" 0) []
-                id <- newFunction Cint "main" [C.Param "argc" Cint, C.Param "argv" (Cpointer (Cpointer Cchar))]
-                withCurID id $ case (ASTResolved.funcParams func, ASTResolved.funcArgs func) of
-                    ([], []) -> do
-                        appendElem $ C.ExprStmt $ C.Call "doodad_set_args" [C.Ident "argc", C.Ident "argv"]
-                        call (show symbol) []
-                        appendElem $ C.Return $ C.Int 0
---                    ([p], []) | typeof p == typedef -> do -- main with io
---                        io <- initialiser typedef []
---                        callWithParams [io] (show symbol) []
+                let ioTypedef = Type.TypeApply (SymResolved "io" "Io" 0) []
+                id <- newFunction Cint "main" $ 
+                    [ C.Param "argc" Cint, C.Param "argv" (Cpointer (Cpointer Cchar)) ]
+
+                withCurID id $ do
+                    appendElem $ C.ExprStmt $ C.Call "doodad_set_args" [C.Ident "argc", C.Ident "argv"]
+                    params <- case (ASTResolved.funcParams func) of
+                        [] -> return []
+                        [p] | typeof p == ioTypedef -> (:[]) <$> initialiser ioTypedef []
+                    callWithParams params (show symbol) []
+                    void $ appendElem $ C.Return $ C.Int 0
                 withCurID globalID (append id)
+
 
 
 generateFunc :: Symbol -> FuncBody -> Generate ()

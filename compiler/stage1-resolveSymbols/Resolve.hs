@@ -68,36 +68,57 @@ look symbol key = do
 
 lookm :: Symbol -> SymKey -> DoM ResolveState (Maybe Symbol)
 lookm (Sym sym) KeyVar = SymTab.lookup sym KeyVar <$> gets symTab
-lookm symbol key = case symbol of
+
+lookm symbol KeyFunc = case symbol of
     Sym sym -> do
-        resm <- SymTab.lookup sym key <$> gets symTab
+        resm <- SymTab.lookup sym KeyFunc <$> gets symTab
         case resm of
             Just s -> return (Just s)
             Nothing -> do
-                case key of
-                    -- if the symbol is a constructor, resolve here
-                    KeyFunc -> do
-                        imprts <- gets imports
-                        xs <- fmap concat $ forM imprts $
-                            \imprt -> return $ Map.keys $ Map.filterWithKey
-                                (\s _ -> Symbol.sym s == sym && Symbol.mod s == moduleName imprt)
-                                (ctorDefs imprt)
-                        case xs of 
-                            [x] -> return (Just x)
-                            [] -> return (Just symbol) -- Maybe remove this
-                            xs -> error (show xs)
-                    KeyType -> do
-                        xs <- Set.toList . Set.fromList . concat . map (Map.keys . Map.filterWithKey (\s _ -> Symbol.sym s == sym) . typeFuncs) <$> gets imports
-                        case xs of
-                            [] -> return Nothing
-                            [x] -> return (Just x)
+                imprts <- gets imports
+                xs <- fmap concat $ forM imprts $ \imprt -> return $ Map.keys $ Map.filterWithKey
+                    (\s _ -> symbolsCouldMatch (SymQualified (moduleName imprt) sym) s)
+                    (ctorDefs imprt)
+                case xs of 
+                    [x] -> return (Just x)
+                    [] -> return (Just symbol) -- leave functions unresolved
+                    xs -> error (show xs)
 
     SymQualified mod sym -> do
         modName <- gets modName
-        if mod == modName then SymTab.lookup sym key <$> gets symTab
-        else lookm (Sym sym) key
+        if mod == modName then SymTab.lookup sym KeyFunc <$> gets symTab
+        else lookm (Sym sym) KeyFunc
 
-    _ -> fail $ show (symbol, key)
+    _ -> fail $ show symbol
+
+lookm symbol KeyType = case symbol of
+    Sym sym -> do
+        resm <- SymTab.lookup sym KeyType <$> gets symTab
+        case resm of
+            Just s -> return (Just s)
+            Nothing -> do
+                imprts <- gets imports
+                xs <- fmap concat $ forM imprts $
+                    \imprt -> return $ Map.keys $ Map.filterWithKey
+                        (\s _ -> Symbol.sym s == sym && Symbol.mod s == moduleName imprt)
+                        (typeFuncs imprt)
+
+                case xs of
+                    [] -> return Nothing
+                    [x] -> return (Just x)
+                    x   -> fail $ "ambiguous symbol: " ++ show symbol ++ ", use qualifier."
+
+    SymQualified mod sym -> do
+        modName <- gets modName
+        if mod == modName then SymTab.lookup sym KeyType <$> gets symTab
+        else do
+            xs <- Set.toList . Set.fromList . concat . map (Map.keys . Map.filterWithKey (\s _ -> symbolsCouldMatch symbol s) . typeFuncs) <$> gets imports
+            case xs of
+                [] -> return Nothing
+                [x] -> return (Just x)
+                x   -> fail $ "ambiguous symbol: " ++ show symbol ++ ", use qualifier."
+
+    _ -> fail $ show symbol
 
 
 genSymbol :: String -> DoM ResolveState Symbol
@@ -161,7 +182,7 @@ buildCtorMap list = do
 
 resolveAsts :: [AST] -> [ASTResolved] -> DoM s (ASTResolved, ResolveState)
 resolveAsts asts imports = runDoMExcept (initResolveState imports (astModuleName $ head asts) Map.empty) $
-    withErrorPrefix "resolve" $ do
+    withErrorPrefix "symbol resolver: " $ do
         let moduleName = astModuleName (head asts)
         let includes   = [ s | inc@(CInclude s) <- concat $ map astImports asts ]
         let links      = [ s | link@(CLink s) <- concat $ map astImports asts ]
@@ -190,7 +211,35 @@ resolveAsts asts imports = runDoMExcept (initResolveState imports (astModuleName
         
         mapM_ defineTypeSymbols typedefs
         mapM_ resolveTypeDef typedefs
-        mapM_ resolveFuncDef funcdefs
+
+        forM_ funcdefs $ \funcdef@(FuncDef _ generics params (Sym sym) args retty blk) -> do
+            if sym == "main" then do
+                check (generics == []) "main cannot be generic"
+                check (args     == []) "main cannot have arguments"
+                check (retty == Void)  "main cannot have a return type"
+
+                pushSymbolTable
+
+                case params of
+                    [] -> return ()
+                    [Param _ _ (TypeApply (Sym "Io") [])] -> return ()
+                    _ -> check (False) "main may only have one Io parameter"
+
+                params' <- mapM resolve params
+                blk' <- resolve blk
+                popSymbolTable
+
+                symbol' <- genSymbol sym
+                let funcBody = FuncBody {
+                    funcTypeArgs = [],
+                    funcParams   = params',
+                    funcArgs     = [],
+                    funcRetty    = Void,
+                    funcStmt     = blk'
+                    }
+                modify $ \s -> s { funcDefsMap = Map.insert symbol' funcBody (funcDefsMap s) }
+            else do
+                void $ resolveFuncDef funcdef
 
         typeFuncs <- gets typeFuncsMap
         funcDefs <- gets funcDefsMap
@@ -239,7 +288,7 @@ resolveFuncDef (FuncDef pos typeArgs params (Sym sym) args retty blk) = withPos 
 
 
 defineTypeSymbols :: AST.Stmt -> DoM ResolveState ()
-defineTypeSymbols (AST.Typedef pos typeArgs (Sym sym) anno) = withPos pos $ do
+defineTypeSymbols (AST.Typedef pos _ (Sym sym) _) = withPos pos $ do
     symbol <- genSymbol sym
     define sym KeyType symbol
     define sym KeyFunc symbol
@@ -247,12 +296,12 @@ defineTypeSymbols (AST.Typedef pos typeArgs (Sym sym) anno) = withPos pos $ do
 
 -- modifies the typedef function and inserts it into typeFuncsMap
 resolveTypeDef :: AST.Stmt -> DoM ResolveState ()
-resolveTypeDef (AST.Typedef pos typeArgs (Sym sym) anno) = withPos pos $ do
+resolveTypeDef (AST.Typedef pos generics (Sym sym) anno) = withPos pos $ do
     symbol <- look (Sym sym) KeyType
 
     -- Push the symbol table in order to temporarily define the type argument as a typedef
     pushSymbolTable
-    argSymbols <- forM typeArgs $ \(Sym arg) -> do
+    genericSymbols <- forM generics $ \(Sym arg) -> do
         s <- genSymbol arg
         define arg KeyType s
         return s
@@ -265,7 +314,7 @@ resolveTypeDef (AST.Typedef pos typeArgs (Sym sym) anno) = withPos pos $ do
         AnnoADT params    -> AnnoADT    <$> mapM resolveTypedefParam params
 
     popSymbolTable
-    modify $ \s -> s { typeFuncsMap = Map.insert symbol (argSymbols, anno') (typeFuncsMap s) }
+    modify $ \s -> s { typeFuncsMap = Map.insert symbol (genericSymbols, anno') (typeFuncsMap s) }
     where
         resolveTypedefParam :: AST.Param -> DoM ResolveState AST.Param
         resolveTypedefParam (AST.Param pos (Sym s) t) = withPos pos $ do

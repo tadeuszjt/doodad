@@ -3,16 +3,16 @@ module binaryTree
 import std/maybe
 import std/unordered
 
-type[K, V] TreeNode {
-    left  : Maybe( UnorderedKey( TreeNode(K, V) ) )
-    right : Maybe( UnorderedKey( TreeNode(K, V) ) )
+type[K, V] Node {
+    left  : Maybe( unordered::Key( Node(K, V) ) )
+    right : Maybe( unordered::Key( Node(K, V) ) )
     key   : K
     value : V
 }
 
 type[K, V] Tree (
-    nodes : Unordered( TreeNode(K, V) )
-    base  : Maybe( UnorderedKey( TreeNode(K, V) ) )
+    nodes : Unordered( Node(K, V) )
+    base  : Maybe( unordered::Key( Node(K, V) ) )
 )
 
 
@@ -35,10 +35,7 @@ fn[K, V] {tree : Tree(K, V)} get(key : ()K) ()V
 
 
 fn[K, V] {tree : Tree(K, V)} insert(key : ()K, value : ()V)
-    fn[K, V] {tree : Tree(K, V)} insertNode(
-        newNode : UnorderedKey( TreeNode(K, V) )
-        node    : UnorderedKey( TreeNode(K, V) )
-    )
+    fn[K, V] {tree : Tree(K, V)} insertNode(newNode : Key(Node(K, V)), node : Key(Node(K, V)))
         let lt = tree.nodes.at(newNode).key < tree.nodes.at(node).key
         let gt = tree.nodes.at(newNode).key > tree.nodes.at(node).key
         let {l, r, k, v} = tree.nodes.at(node) in
@@ -58,26 +55,25 @@ fn[K, V] {tree : Tree(K, V)} insert(key : ()K, value : ()V)
 
 
 fn[K, V] {tree : Tree(K, V)} delete(key : ()K) 
-    fn[K, V] {tree : Tree(K, V)} leftMost(node : UnorderedKey( TreeNode(K, V) )) UnorderedKey(TreeNode(K, V))
+    fn[K, V] {tree : Tree(K, V)} leftMost(node : Key( Node(K, V) )) Key(Node(K, V))
         if tree.nodes.at(node) -> {Just(left), _, _, _}
             return tree.leftMost(left)
         return node
 
-    fn[K, V] {tree : Tree(K, V)} rightMost(node : UnorderedKey( TreeNode(K, V) )) UnorderedKey(TreeNode(K, V))
+    fn[K, V] {tree : Tree(K, V)} rightMost(node : Key( Node(K, V) )) Key(Node(K, V))
         if tree.nodes.at(node) -> {_, Just(right), _, _}
             return tree.rightMost(right)
         return node
 
-    fn[K, V] {tree : Tree(K, V)} deleteFromNode(node : UnorderedKey( TreeNode(K, V) ), key : ()K)
-        // check if the matching node exists on the left or right branch
-        let false = key{} == tree.nodes.at(node).key{} // cannot match current node
+    fn[K, V] {tree : Tree(K, V)} deleteFromNode(node : Key( Node(K, V) ), key : ()K)
+        assert(key{} != tree.nodes.at(node).key{}, "key cannot match current node")
         let leftm  = tree.nodes.get(node).left
         let rightm = tree.nodes.get(node).right
 
         if leftm -> Just(left) | key{} == tree.nodes.at(left).key{} // deleting node on left
             if tree.nodes.get(left).right -> Just(leftRight)
                 let leftMost                 = tree.leftMost(leftRight)
-                tree.nodes.at(leftMost).left = tree.nodes.get(left).left
+                tree.nodes.at(leftMost).left = tree.nodes.at(left).left
                 tree.nodes.at(node).left     = Just(leftRight)
             else
                 tree.nodes.at(node).left = tree.nodes.at(left).left
@@ -86,7 +82,7 @@ fn[K, V] {tree : Tree(K, V)} delete(key : ()K)
         else if rightm -> Just(right) | key{} == tree.nodes.at(right).key{} // deleting from right
             if tree.nodes.get(right).left -> Just(rightLeft)
                 let rightMost                  = tree.rightMost(rightLeft)
-                tree.nodes.at(rightMost).right = tree.nodes.get(right).right
+                tree.nodes.at(rightMost).right = tree.nodes.at(right).right
                 tree.nodes.at(node).right      = Just(rightLeft)
             else
                 tree.nodes.at(node).right = tree.nodes.at(right).right
@@ -116,7 +112,7 @@ fn[K, V] {tree : Tree(K, V)} delete(key : ()K)
 
 
 fn[K, V] {tree : Tree(K, V)} contains(key : ()K) bool
-    fn[K, V] {tree : Tree(K, V)} nodeContains(node : UnorderedKey( TreeNode(K, V) ), key : ()K) bool
+    fn[K, V] {tree : Tree(K, V)} nodeContains(node : Key( Node(K, V) ), key : ()K) bool
         let {l, r, k, v} = tree.nodes.at(node) in
             let lt = key{} < k{}
             let gt = key{} > k{}

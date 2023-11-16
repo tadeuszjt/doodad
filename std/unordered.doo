@@ -4,24 +4,26 @@ import std/sparse
 import std/table
 
 
-type[T] UnorderedKey i64
-type[T] UnorderedRecord { key:UnorderedKey(i64), value:T }
+type[T] Key i64
+type[T] UnorderedRecord { key:Key(i64), value:T }
 type[T] Unordered ( indices:Sparse(i64), values:[]UnorderedRecord(T) )
 
-fn[T] {u:Unordered(T)} insert(elem:()T) UnorderedKey(T)
+
+fn[T] {u:Unordered(T)} insert(elem:()T) Key(T)
     let index = u.values.length()
     let key   = u.indices.insert(index)
     u.values.push((conv(key), elem))
     return conv(key)
 
-fn[T] {u:Unordered(T)} insert() UnorderedKey(T)
+
+fn[T] {u:Unordered(T)} insert() Key(T)
     let key = u.indices.insert(u.values.length())
     u.values++
     u.values[u.values.length() - 1].key = conv(key)
     return conv(key)
 
 
-fn[T] {u:Unordered(T)} delete(key:UnorderedKey(T))
+fn[T] {u:Unordered(T)} delete(key:Key(T))
     let end    = u.values.length() - 1
     let endKey = u.values[end].key
     let index  = u.indices.get(conv(key))
@@ -35,13 +37,14 @@ fn[T] {u:Unordered(T)} delete(key:UnorderedKey(T))
 fn[T] {u:Unordered(T)} atIndex(index:i64) {}T
     return u.values[index].value{}
 
-fn[T] {u:Unordered(T)} get(key : UnorderedKey(T) ) ()T
+
+fn[T] {u:Unordered(T)} get(key : Key(T) ) ()T
     data x ()T
     x{} = u.at(key)
     return x
 
 
-fn[T] {u:Unordered(T)} at(key:UnorderedKey(T)) {}T
+fn[T] {u:Unordered(T)} at(key:Key(T)) {}T
     let {index} = u.indices.at(conv(key)) in
         return u.values[index].value{}
 

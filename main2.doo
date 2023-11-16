@@ -6,17 +6,16 @@ import std/map
 import std/sparse
 import std/binaryTree
 import std/unordered
+import std/io
 
 
 fn testUnordered()
     data u Unordered(string)
 
     let 0 = u.length()
-
     let 0 = u.insert("benis")
     let 1 = u.insert("bongis")
     let 2 = u.insert("bangis")
-
     let 3 = u.length()
 
     let {"benis"}  = u.atIndex(0)
@@ -28,16 +27,13 @@ fn testUnordered()
     let 2 = u.length()
     let {"benis"}  = u.atIndex(0)
     let {"bangis"} = u.atIndex(1)
-
     let 1 = u.insert("benghis")
-
     let 3 = u.length()
     let {"benis"}   = u.atIndex(0)
     let {"bangis"}  = u.atIndex(1)
     let {"benghis"} = u.atIndex(2)
 
     print("testUnordered passed")
-
 
 
 fn testTree()
@@ -142,7 +138,7 @@ fn testTable()
     tab3.push( (1, true) )
     let {1, true} = tab3[0]
 
-    data tab4 []SparseKey(i64)
+    data tab4 []sparse::Key(i64)
     tab4.push(3)
     let 3 = tab4.pop()
 
@@ -225,7 +221,8 @@ fn testSparse()
 
     print("testSparse passed")
 
-fn main()
+
+fn {io : Io} main()
     testTuple()
     testTable()
     testMap()
@@ -233,7 +230,8 @@ fn main()
     testTree()
     testPatRecord()
     testUnordered()
-    print("main2 finished")
+
+    io.putStrLn("main2 finished")
 
 type Person {string, i32}
 

@@ -35,6 +35,7 @@ import Lexer
 import Compile as C
 import COptimise as O
 import TupleDeleter
+import Checker
 
 -- Modules are groups of .doo files with a module name header
 -- lang/lexer.doo: lexer module
@@ -188,8 +189,13 @@ buildModule args modPath = do
         (astFinal, inferCount) <- fmap fst $ runDoMExcept () $ withErrorPrefix "infer: " $
             infer astResolved (printAstAnnotated args) (verbose args)
         liftIO $ putStrLn $ "ran:       " ++ show inferCount ++ " type inference passes"
-        when (printAstFinal args)    $ liftIO $ prettyASTResolved astFinal
+        when (printAstFinal args) $ liftIO $ prettyASTResolved astFinal
         modify $ \s -> s { moduleMap = Map.insert absoluteModPath astFinal (moduleMap s) }
+
+        
+        -- check ast for memory/type violations
+        runASTChecker astFinal
+
 
         -- build C ast from final ast
         res <- runGenerate

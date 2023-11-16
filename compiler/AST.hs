@@ -309,7 +309,6 @@ prettyStmt pre stmt = case stmt of
         putStrLn $ pre ++ "let " ++ show pat ++ " = " ++ show expr ++ if isJust mblk then " in" else ""
         when (isJust mblk) $ prettyStmt (pre ++ "\t") (fromJust mblk)
 
-
     SetOp _ op expr1 expr2 -> putStrLn $ pre ++ (show expr1) ++ " " ++ show op ++ " " ++ show expr2
     Return pos mexpr       -> putStrLn $ pre ++ "return " ++ maybe "" show mexpr
     Const _ symbol expr    -> putStrLn $ pre ++ "const " ++ show symbol ++ " = " ++ show expr

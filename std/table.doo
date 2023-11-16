@@ -16,6 +16,7 @@ fn[T] {t:[]T} pop() ()T
     ${ $t->len--; }
     return elem
 
+
 fn[T] {t:[]T} at(index:i64) {}T
     assert(index >= 0 && index < len(t), "index out of range")
     return t[index]
