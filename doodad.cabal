@@ -27,7 +27,8 @@ executable doodad
 -- enable the options below.
 -- run as usual (cabal run doodad -- main2)
 -- look at doodad.prof file
---    ghc-options:
+    ghc-options:
+        -fno-warn-overlapping-patterns
 --        -O2
 --        -threaded
 --        -prof
@@ -62,8 +63,8 @@ executable doodad
         filepath,
         exceptions,
         process
-    build-tools:
-        happy
+    build-tool-depends:
+        happy:happy
     other-modules:
         AST,
         Args,
@@ -118,8 +119,8 @@ executable doodad-test
         filepath,
         exceptions,
         process
-    build-tools:
-        happy
+    build-tool-depends:
+        happy:happy
     other-modules:
         AST,
         Args,

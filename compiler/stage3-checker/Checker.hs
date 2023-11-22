@@ -95,7 +95,7 @@ checkStmt stmt = case stmt of
 
     If _ cnd blk mblk -> do
         checkStmt blk
-        maybe (return ()) checkStmt mblk
+        void $ traverse checkStmt mblk
 
     Return _ mexpr -> do
         return ()
@@ -117,7 +117,7 @@ checkStmt stmt = case stmt of
 
     Let _ pat expr mblk -> do
         checkPattern [] pat 
-        maybe (return ()) checkStmt mblk
+        void $ traverse checkStmt mblk
 
     Switch _ expr cases -> do
         forM_ cases $ \(pat, blk) -> do

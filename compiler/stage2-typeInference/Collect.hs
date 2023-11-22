@@ -141,7 +141,7 @@ collectMapper element = (\_ -> return element) =<< case element of
 
         Data p symbol typ mexpr -> do
             define symbol (ObjVar typ)
-            maybe (return ()) (collectEq typ . typeof) mexpr
+            void $ traverse (collectEq typ . typeof) mexpr
 
     ElemPattern (PatAnnotated pattern patType) -> case pattern of
         PatIgnore _           -> return ()

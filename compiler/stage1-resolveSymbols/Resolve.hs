@@ -372,7 +372,7 @@ instance Resolve Stmt where
             when (isJust mblk) pushSymbolTable
             expr' <- resolve expr 
             pat' <- resolve pat
-            mblk' <- maybe (return Nothing) (fmap Just . resolve) mblk
+            mblk' <- traverse resolve mblk
             when (isJust mblk) popSymbolTable
             return $ Let pos pat' expr' mblk'
         
@@ -382,7 +382,7 @@ instance Resolve Stmt where
             stmt' <- resolve stmt
             popSymbolTable
             pushSymbolTable
-            melse' <- maybe (return Nothing) (fmap Just . resolve) melse
+            melse' <- traverse resolve melse
             popSymbolTable
             return $ If pos condition' stmt' melse'
 
@@ -411,7 +411,7 @@ instance Resolve Stmt where
         For pos expr mpattern blk -> do
             pushSymbolTable
             expr' <- resolve expr
-            mpattern' <- maybe (return Nothing) (fmap Just . resolve) mpattern
+            mpattern' <- traverse resolve mpattern
             blk' <- resolve blk
             popSymbolTable
             return $ For pos expr' mpattern' blk'
@@ -420,7 +420,7 @@ instance Resolve Stmt where
             symbol <- genSymbol sym
             define sym KeyVar symbol
             typ' <- resolve typ
-            mexpr' <- maybe (return Nothing) (fmap Just . resolve) mexpr
+            mexpr' <- traverse resolve mexpr
             return $ Data pos symbol typ' mexpr'
         where
             processCEmbed :: String -> DoM ResolveState String

@@ -58,12 +58,12 @@ mapStmtM f stmt = withPos stmt $ do
         EmbedC pos s -> return $ EmbedC pos s
         Block stmts -> Block <$> mapM (mapStmtM f) stmts
         ExprStmt expr -> ExprStmt <$> mapExprM f expr
-        Return pos mexpr -> Return pos <$> maybe (return Nothing) (fmap Just . mapExprM f) mexpr
+        Return pos mexpr -> Return pos <$> traverse (mapExprM f) mexpr
 
         Let pos pat expr mblk -> do
             pat' <- mapPattern f pat
             expr' <- mapExprM f expr
-            mblk' <- maybe (return Nothing) (fmap Just . mapStmtM f) mblk
+            mblk' <- traverse (mapStmtM f) mblk
             return $ Let pos pat' expr' mblk'
 
         Increment pos expr -> do
@@ -72,7 +72,7 @@ mapStmtM f stmt = withPos stmt $ do
 
         For pos expr mcnd blk -> do
             expr' <- mapExprM f expr
-            mcnd' <- maybe (return Nothing) (fmap Just . (mapPattern f)) mcnd
+            mcnd' <- traverse (mapPattern f) mcnd
             blk'  <- mapStmtM f blk
             return $ For pos expr' mcnd' blk'
 
@@ -84,7 +84,7 @@ mapStmtM f stmt = withPos stmt $ do
         If pos expr true mfalse -> do
             expr' <- mapExprM f expr
             true' <- mapStmtM f true
-            mfalse' <- maybe (return Nothing) (fmap Just . mapStmtM f) mfalse
+            mfalse' <- traverse (mapStmtM f) mfalse
             return $ If pos expr' true' mfalse'
 
         Switch pos expr cases -> do
@@ -97,7 +97,7 @@ mapStmtM f stmt = withPos stmt $ do
 
         Data pos symbol typ mexpr -> do
             typ' <- mapTypeM f typ
-            mexpr' <- maybe (return Nothing) (fmap Just . mapExprM f) mexpr
+            mexpr' <- traverse (mapExprM f) mexpr
             return $ Data pos symbol typ' mexpr'
 
         SetOp pos op expr1 expr2 -> do
@@ -153,9 +153,9 @@ mapExprM f expr = withPos expr $ do
             return $ Subscript pos expr' arg'
 
         AST.Range pos mexpr mexpr1 mexpr2 -> do
-            mexpr' <- maybe (return Nothing)  (fmap Just . mapExprM f) mexpr
-            mexpr1' <- maybe (return Nothing) (fmap Just . mapExprM f) mexpr1 
-            mexpr2' <- maybe (return Nothing) (fmap Just . mapExprM f) mexpr2 
+            mexpr' <-  traverse (mapExprM f) mexpr
+            mexpr1' <- traverse (mapExprM f) mexpr1 
+            mexpr2' <- traverse (mapExprM f) mexpr2 
             return $ AST.Range pos mexpr' mexpr1' mexpr2'
 
         AST.Match pos expr pattern -> do

@@ -16,7 +16,6 @@ modifyElem id f = do
     modify $ \s -> s { elements = Map.insert id elem' (elements s) }
 
 
-
 optimise :: DoM BuilderState ()
 optimise = do
     elems <- Map.toList <$> gets elements
@@ -31,7 +30,7 @@ optimise = do
             modifyElem id $ \_ -> return $ If expr' stmts'
 
         For mpre mcnd mpost stmts -> do
-            mpre' <- return $ maybe (Nothing) (Just . optimiseExpr) mpre
+            mpre' <- return $ fmap optimiseExpr mpre
             stmts' <- optimiseStmts stmts
             modifyElem id $ \_ -> return $ For mpre' mcnd mpost stmts'
 
@@ -89,8 +88,8 @@ optimiseExpr expr = case expr of
     Infix AndAnd e (Bool True) -> optimiseExpr e
     Infix EqEq e (Bool True)   -> optimiseExpr e
     Infix EqEq (Bool True) e   -> optimiseExpr e
-    Infix EqEq e (Bool False)  -> optimiseExpr $ Not e
-    Infix EqEq (Bool False) e  -> optimiseExpr $ Not e
+    Infix EqEq e (Bool False)  -> optimiseExpr (Not e)
+    Infix EqEq (Bool False) e  -> optimiseExpr (Not e)
 
     Infix NotEq e (Bool True)  -> optimiseExpr (Not e)
     Infix NotEq (Bool True) e  -> optimiseExpr (Not e)
@@ -101,9 +100,8 @@ optimiseExpr expr = case expr of
     Member (Deref e) str       -> PMember (optimiseExpr e) str
     PMember (Address e) str    -> Member (optimiseExpr e) str
 
-    Not e -> Not (optimiseExpr e)
-    Infix op e1 e2 -> Infix op (optimiseExpr e1) (optimiseExpr e2)
-
+    Not e                      -> Not (optimiseExpr e)
+    Infix op e1 e2             -> Infix op (optimiseExpr e1) (optimiseExpr e2)
     Call symbol args           -> Call symbol (map optimiseExpr args)
     Address e                  -> Address (optimiseExpr e)
     Deref e                    -> Deref (optimiseExpr e)
