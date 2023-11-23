@@ -127,8 +127,7 @@ genSymbol sym = do
     im <- gets $ Map.lookup sym . supply
     let n = maybe 0 (id) im
     modify $ \s -> s { supply = Map.insert sym (n + 1) (supply s) }
-    let symbol = SymResolved modName sym n
-    return symbol
+    return (SymResolved modName sym n)
         
 
 define :: String -> SymKey -> Symbol -> DoM ResolveState ()
@@ -213,33 +212,7 @@ resolveAsts asts imports = runDoMExcept (initResolveState imports (astModuleName
         mapM_ resolveTypeDef typedefs
 
         forM_ funcdefs $ \funcdef@(FuncDef _ generics params (Sym sym) args retty blk) -> do
-            if sym == "main" then do
-                check (generics == []) "main cannot be generic"
-                check (args     == []) "main cannot have arguments"
-                check (retty == Void)  "main cannot have a return type"
-
-                pushSymbolTable
-
-                case params of
-                    [] -> return ()
-                    [Param _ _ (TypeApply (Sym "Io") [])] -> return ()
-                    _ -> check (False) "main may only have one Io parameter"
-
-                params' <- mapM resolve params
-                blk' <- resolve blk
-                popSymbolTable
-
-                symbol' <- genSymbol sym
-                let funcBody = FuncBody {
-                    funcTypeArgs = [],
-                    funcParams   = params',
-                    funcArgs     = [],
-                    funcRetty    = Void,
-                    funcStmt     = blk'
-                    }
-                modify $ \s -> s { funcDefsMap = Map.insert symbol' funcBody (funcDefsMap s) }
-            else do
-                void $ resolveFuncDef funcdef
+            void $ resolveFuncDef funcdef
 
         typeFuncs <- gets typeFuncsMap
         funcDefs <- gets funcDefsMap
@@ -265,24 +238,33 @@ resolveAsts asts imports = runDoMExcept (initResolveState imports (astModuleName
 
 -- defines in funcDefsMap
 resolveFuncDef :: AST.Stmt -> DoM ResolveState Symbol
-resolveFuncDef (FuncDef pos typeArgs params (Sym sym) args retty blk) = withPos pos $ do
+resolveFuncDef (FuncDef pos generics params (Sym sym) args retty blk) = withPos pos $ do
+    symbol' <- genSymbol sym
     pushSymbolTable
-    typeSymbols <- mapM (\(Sym s) -> genSymbol s) typeArgs
-    forM_ typeSymbols $ \symbol -> define (Symbol.sym symbol) KeyType symbol
+    genericSymbols <- mapM (\(Sym s) -> genSymbol s) generics
+    forM_ genericSymbols $ \symbol -> define (Symbol.sym symbol) KeyType symbol
     params' <- mapM resolve params
     args' <- mapM resolve args
     retty' <- resolve retty
     blk' <- resolve blk
-    popSymbolTable
 
-    symbol' <- genSymbol sym
+    when (sym == "main") $ do
+        check (generics == []) "main cannot be generic"
+        check (args     == []) "main cannot have arguments"
+        check (retty == Void)  "main cannot have a return type"
+        case params of
+            []                                    -> return ()
+            [Param _ _ (TypeApply (Sym "Io") [])] -> return ()
+            _ -> check (False) "main may only have one Io parameter"
+
     let funcBody = FuncBody {
-        funcTypeArgs = typeSymbols,
+        funcTypeArgs = genericSymbols,
         funcParams   = params',
         funcArgs     = args',
         funcRetty    = retty',
         funcStmt     = blk'
         }
+    popSymbolTable
     modify $ \s -> s { funcDefsMap = Map.insert symbol' funcBody (funcDefsMap s) }
     return symbol'
 

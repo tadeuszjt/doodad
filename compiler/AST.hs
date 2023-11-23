@@ -72,26 +72,27 @@ data Pattern
     deriving (Eq)
 
 data Expr
-    = AExpr       Type  Expr
-    | Int         TextPos Integer
-    | Float       TextPos Double
-    | Bool        TextPos Bool
-    | Char        TextPos Char
-    | String      TextPos String
-    | Tuple       TextPos [Expr]
-    | Call        TextPos [Expr] Symbol [Expr]
-    | Construct   TextPos Symbol [Expr]
-    | Null        TextPos 
-    | Field       TextPos Expr Symbol
-    | Subscript   TextPos Expr Expr
-    | Ident       TextPos Symbol
-    | Builtin     TextPos String [Expr]
-    | Prefix      TextPos Operator Expr
-    | Infix       TextPos Operator Expr Expr
-    | Match       TextPos Expr Pattern
-    | Range       TextPos (Maybe Expr) (Maybe Expr) (Maybe Expr)
+    = AExpr        Type  Expr
+    | Int          TextPos Integer
+    | Float        TextPos Double
+    | Bool         TextPos Bool
+    | Char         TextPos Char
+    | String       TextPos String
+    | Tuple        TextPos [Expr]
+    | Call         TextPos [Expr] Symbol [Expr]
+    | Construct    TextPos Symbol [Expr]
+    | Null         TextPos 
+    | Field        TextPos Expr Symbol
+    | Subscript    TextPos Expr Expr
+    | Ident        TextPos Symbol
+    | Builtin      TextPos String [Expr]
+    | Prefix       TextPos Operator Expr
+    | Infix        TextPos Operator Expr Expr
+    | Match        TextPos Expr Pattern
+    | Range        TextPos (Maybe Expr) (Maybe Expr) (Maybe Expr)
+    | Record       TextPos [Expr]
     | RecordAccess TextPos Expr
-    | Array       TextPos [Expr]
+    | Array        TextPos [Expr]
     deriving (Eq)
 
 instance Typeof Expr where
@@ -271,6 +272,7 @@ instance Show Expr where
         Array pos exprs               -> arrStrs (map show exprs)
         Construct pos symbol exprs    -> show symbol ++ tupStrs (map show exprs)
         RecordAccess pos expr         -> show expr ++ "{}"
+        Record pos exprs              -> brcStrs (map show exprs)
 
 
 -- every function must end on a newline and print pre before every line

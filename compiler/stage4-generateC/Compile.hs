@@ -103,7 +103,7 @@ generatePrint app val = case typeof val of
     Type.Tuple t -> do
         baseT <- baseTypeOf t
         case baseT of
-            Record _ -> do
+            Type.Record _ -> do
                 ts <- getRecordTypes t
                 call "putchar" [Value Type.Char $ C.Char '(']
                 forM_ (zip ts [0..]) $ \(t, i) -> do
@@ -315,7 +315,7 @@ generatePattern pattern val = withPos pattern $ do
         PatRecord _ pats -> do
             base <- baseTypeOf val
             case base of
-                Record ts -> do -- TODO patterns aren't references
+                Type.Record ts -> do -- TODO patterns aren't references
                     unless (length ts == length pats) (error "invalid record length")
                     endLabel <- fresh "end"
                     match <- assign "match" false
@@ -346,7 +346,7 @@ generatePattern pattern val = withPos pattern $ do
             baseT <- baseTypeOf t
 
             case baseT of
-                Record _ -> do
+                Type.Record _ -> do
                     ts <- getRecordTypes t
                     unless (length pats == length ts) (error "invalid tuple length")
                     endLabel <- fresh "end"
@@ -530,6 +530,10 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
         case base of
             Type.String -> return $ Value typ $ C.Subscript (valExpr val) (valExpr argVal)
             _ -> accessRecord val . Just =<< generateExpr arg
+
+    S.Record _ exprs -> do
+        vals <- mapM generateExpr exprs
+        assign "record" $ Value typ $ C.Initialiser $ map (C.Address . valExpr) vals
 
 
     _ -> error (show expr_)

@@ -178,9 +178,9 @@ resolveFieldAccess typ (Sym sym) = do
             Type.Table t -> getFieldAccessorSymbol typeDefs t
             Type.Tuple t -> getFieldAccessorSymbol typeDefs t
             TypeApply symbol ts -> case Map.lookup symbol typeDefs of
-                Just (ss, Record _)              -> symbol
-                Just (ss, Type.Tuple (Record _)) -> symbol
-                Just (ss, Type.Table (Record _)) -> symbol
+                Just (ss, Type.Record _)              -> symbol
+                Just (ss, Type.Tuple (Type.Record _)) -> symbol
+                Just (ss, Type.Table (Type.Record _)) -> symbol
                 x -> error (show x)
             _ -> error (show typ)
 
@@ -195,14 +195,14 @@ resolveFieldAccess typ (Sym sym) = do
                         applied <- applyTypeArguments ss ts t
                         --liftIO $ putStrLn $ "applied: " ++ show applied
                         case applied of
-                            Record ts'              -> catMaybes <$> mapM isSymbolType ts'
-                            Type.Tuple (Record ts') -> catMaybes <$> mapM isSymbolType ts'
-                            Type.Table (Record ts') -> catMaybes <$> mapM isSymbolType ts'
+                            Type.Record ts'              -> catMaybes <$> mapM isSymbolType ts'
+                            Type.Tuple (Type.Record ts') -> catMaybes <$> mapM isSymbolType ts'
+                            Type.Table (Type.Record ts') -> catMaybes <$> mapM isSymbolType ts'
                             _ -> error (show applied)
                     x -> error (show x)
 
                 Type.Record ts               -> catMaybes <$> mapM isSymbolType ts
-                Type.Tuple (Record ts)       -> catMaybes <$> mapM isSymbolType ts
+                Type.Tuple (Type.Record ts)  -> catMaybes <$> mapM isSymbolType ts
                 Type.Tuple t@(TypeApply _ _) -> getTypeFieldSymbols t
                 _ -> error (show typ)
 
@@ -212,7 +212,7 @@ resolveFieldAccess typ (Sym sym) = do
                     t | isSimple t -> return Nothing
                     Table _        -> return Nothing
                     Type.Tuple _   -> return Nothing
-                    Record _       -> return Nothing
+                    Type.Record _  -> return Nothing
                     TypeApply s ts -> do
                         typeDefs <- getTypeDefs
                         if Map.member s typeDefs then

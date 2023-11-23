@@ -153,7 +153,7 @@ collectMapper element = (\_ -> return element) =<< case element of
         PatRecord _ pats      -> collect $ ConsRecord patType (map typeof pats)
 
         PatTuple _ pats -> do
-            collectDefault patType (Type.Tuple $ Record $ map typeof pats)
+            collectDefault patType (Type.Tuple $ Type.Record $ map typeof pats)
             collect $ ConsTuple patType (map typeof pats)
 
         PatAnnotated pat t -> do
@@ -179,6 +179,9 @@ collectMapper element = (\_ -> return element) =<< case element of
         RecordAccess _ expr -> collect $ ConsRecordAccess exprType (typeof expr) 
         Null _              -> return ()
         Field _ e symbol    -> collect $ ConsField (typeof e) symbol exprType
+        AST.Record _ exprs  -> do
+            collect $ ConsBase exprType (Type.Record $ map typeof exprs)
+            collectDefault exprType (Type.Record $ map typeof exprs)
 
         AST.Char _ _ -> do
             collect (ConsBase exprType Type.Char)
@@ -247,7 +250,7 @@ collectMapper element = (\_ -> return element) =<< case element of
 
         AST.Tuple _ exprs -> do
             collect $ ConsTuple exprType (map typeof exprs)
-            collectDefault exprType $ Type.Tuple $ Record (map typeof exprs)
+            collectDefault exprType $ Type.Tuple $ Type.Record (map typeof exprs)
 
         Match _ e p -> do
             collectEq (typeof p) (typeof e)

@@ -46,8 +46,9 @@ fn[K, V] {tree : Tree(K, V)} insert(key : ()K, value : ()V)
             else if r -> Nothing()   | gt; r = Just(newNode)
 
     let nodeKey = tree.nodes.insert()
-    tree.nodes.at(nodeKey).key{}   = key{}
-    tree.nodes.at(nodeKey).value{} = value{}
+    let {_, _, k, v} = tree.nodes.at(nodeKey) in
+        k{} = key{}
+        v{} = value{}
     switch tree.base
         Nothing(); tree.base = Just(nodeKey)
         Just(baseNode)
@@ -55,72 +56,74 @@ fn[K, V] {tree : Tree(K, V)} insert(key : ()K, value : ()V)
 
 
 fn[K, V] {tree : Tree(K, V)} delete(key : ()K) 
-    fn[K, V] {tree : Tree(K, V)} leftMost(node : Key( Node(K, V) )) Key(Node(K, V))
-        if tree.nodes.at(node) -> {Just(left), _, _, _}
-            return tree.leftMost(left)
+    fn[K, V] {nodes : Unordered( Node(K, V) ) } leftMost(node : Key( Node(K, V) )) Key(Node(K, V))
+        if nodes.at(node) -> {Just(left), _, _, _}
+            return nodes.leftMost(left)
         return node
 
-    fn[K, V] {tree : Tree(K, V)} rightMost(node : Key( Node(K, V) )) Key(Node(K, V))
-        if tree.nodes.at(node) -> {_, Just(right), _, _}
-            return tree.rightMost(right)
+    fn[K, V] {nodes : Unordered( Node(K, V) ) } rightMost(node : Key( Node(K, V) )) Key(Node(K, V))
+        if nodes.at(node) -> {_, Just(right), _, _}
+            return nodes.rightMost(right)
         return node
 
-    fn[K, V] {tree : Tree(K, V)} deleteFromNode(node : Key( Node(K, V) ), key : ()K)
-        assert(key{} != tree.nodes.at(node).key{}, "key cannot match current node")
-        let leftm  = tree.nodes.get(node).left
-        let rightm = tree.nodes.get(node).right
+    fn[K, V] {nodes : Unordered( Node(K, V) ) } deleteFromNode(node : Key( Node(K, V) ), key : ()K)
+        assert(key{} != nodes.at(node).key{}, "key cannot match current node")
+        let leftm  = nodes.get(node).left
+        let rightm = nodes.get(node).right
 
-        if leftm -> Just(left) | key{} == tree.nodes.at(left).key{} // deleting node on left
-            if tree.nodes.get(left).right -> Just(leftRight)
-                let leftMost                 = tree.leftMost(leftRight)
-                tree.nodes.at(leftMost).left = tree.nodes.at(left).left
-                tree.nodes.at(node).left     = Just(leftRight)
-            else
-                tree.nodes.at(node).left = tree.nodes.at(left).left
-            tree.nodes.delete(left)
+        if leftm -> Just(left) | key{} == nodes.at(left).key{} // deleting node on left
+            if nodes.get(left).right -> Just(leftRight)
+                let leftMost            = nodes.leftMost(leftRight)
+                nodes.at(leftMost).left = nodes.at(left).left
+                nodes.at(node).left     = Just(leftRight)
+            else; nodes.at(node).left = nodes.at(left).left
+            nodes.delete(left)
 
-        else if rightm -> Just(right) | key{} == tree.nodes.at(right).key{} // deleting from right
-            if tree.nodes.get(right).left -> Just(rightLeft)
-                let rightMost                  = tree.rightMost(rightLeft)
-                tree.nodes.at(rightMost).right = tree.nodes.at(right).right
-                tree.nodes.at(node).right      = Just(rightLeft)
-            else
-                tree.nodes.at(node).right = tree.nodes.at(right).right
-            tree.nodes.delete(right)
+        else if rightm -> Just(right) | key{} == nodes.at(right).key{} // deleting from right
+            if nodes.get(right).left -> Just(rightLeft)
+                let rightMost             = nodes.rightMost(rightLeft)
+                nodes.at(rightMost).right = nodes.at(right).right
+                nodes.at(node).right      = Just(rightLeft)
+            else; nodes.at(node).right = nodes.at(right).right
+            nodes.delete(right)
                 
-        else if leftm -> Just(left) | key{} < tree.nodes.at(node).key{}
-            tree.deleteFromNode(left, key)
+        else if leftm -> Just(left) | key{} < nodes.at(node).key{}
+            nodes.deleteFromNode(left, key)
     
-        else if rightm -> Just(right) | key{} > tree.nodes.at(node).key{}
-            tree.deleteFromNode(right, key)
+        else if rightm -> Just(right) | key{} > nodes.at(node).key{}
+            nodes.deleteFromNode(right, key)
 
         else; assert(false, "invalid key")
 
     switch tree.base
         Just(base)
-            if tree.nodes.at(base).key{} == key{}
-                if tree.nodes.at(base).left -> Just(left)
-                    tree.base = Just(left)
-                    tree.nodes.at(tree.rightMost(left)).right = tree.nodes.at(base).right
-                else if tree.nodes.at(base).right -> Just(right)
-                    tree.base = Just(right)
-                    tree.nodes.at(tree.rightMost(right)).left = tree.nodes.at(base).left
-                else
-                    tree.base = Nothing()
-                tree.nodes.delete(base)
-            else; tree.deleteFromNode(base, key)
+            let {nodes} = {tree.nodes} in
+                if nodes.at(base).key{} == key{}
+                    if nodes.at(base).left -> Just(left)
+                        tree.base = Just(left)
+                        nodes.at(nodes.rightMost(left)).right = nodes.at(base).right
+                    else if nodes.at(base).right -> Just(right)
+                        tree.base = Just(right)
+                        nodes.at(nodes.leftMost(right)).left = nodes.at(base).left
+                    else; tree.base = Nothing()
+                    nodes.delete(base)
+                else; nodes.deleteFromNode(base, key)
 
 
 fn[K, V] {tree : Tree(K, V)} contains(key : ()K) bool
     fn[K, V] {tree : Tree(K, V)} nodeContains(node : Key( Node(K, V) ), key : ()K) bool
+        let (lt, gt, lm, rm) = (false, false, Nothing(), Nothing())
         let {l, r, k, v} = tree.nodes.at(node) in
-            let lt = key{} < k{}
-            let gt = key{} > k{}
-            if  !lt  &&  !gt             ; return true
-            else if l -> Just(left)  | lt; return tree.nodeContains(left, key)
-            else if r -> Just(right) | gt; return tree.nodeContains(right, key)
-            else                         ; return false
+            lm = l
+            rm = r
+            lt = key{} < k{}
+            gt = key{} > k{}
+
+        if  !lt  &&  !gt              ; return true
+        else if lm -> Just(left)  | lt; return tree.nodeContains(left, key)
+        else if rm -> Just(right) | gt; return tree.nodeContains(right, key)
+        else                          ; return false
 
     switch tree.base
-        Nothing(); return false
+        Nothing();  return false
         Just(base); return tree.nodeContains(base, key)

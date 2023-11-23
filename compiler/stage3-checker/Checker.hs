@@ -152,6 +152,7 @@ checkPattern parents (PatAnnotated pattern patType) = case pattern of
 
     PatTuple _ pats -> do
         mapM_ (checkPattern parents) pats
+    PatIgnore _ -> return ()
 
     x -> error (show x)
 checkPattern _ pattern = withPos pattern $ fail "unresolved pattern"

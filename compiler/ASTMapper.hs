@@ -128,6 +128,7 @@ mapExprM f expr = withPos expr $ do
         RecordAccess pos expr -> RecordAccess pos <$> mapExprM f expr
         Construct pos symbol exprs -> Construct pos symbol <$> mapM (mapExprM f) exprs
         Prefix pos op expr -> Prefix pos op <$> mapExprM f expr
+        AST.Record pos exprs -> AST.Record pos <$> mapM (mapExprM f) exprs
 
         Field pos expr symbol -> do
             expr' <- mapExprM f expr
@@ -162,6 +163,7 @@ mapExprM f expr = withPos expr $ do
             expr' <- mapExprM f expr
             pattern' <- mapPattern f pattern
             return $ AST.Match pos expr' pattern'
+
 
         _ -> error (show expr)
     case res of
@@ -206,7 +208,7 @@ mapTypeM f typ = do
         Type.String    -> return typ
         Type.Char      -> return typ
         Type _         -> return typ
-        Record ts      -> Record <$> mapM (mapTypeM f) ts
+        Type.Record ts -> Type.Record <$> mapM (mapTypeM f) ts
         RecordApply t  -> RecordApply <$> mapTypeM f t 
         Type.Tuple t   -> Type.Tuple <$> mapTypeM f t
         Table t        -> Table <$> mapTypeM f t

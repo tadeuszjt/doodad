@@ -53,7 +53,7 @@ hasTypeVars typ = case typ of
     t | isSimple t -> False
     Type.Tuple t   -> hasTypeVars t
     TypeApply s ts -> any (== True) (map hasTypeVars ts)
-    Record ts      -> any (== True) (map hasTypeVars ts)
+    Type.Record ts -> any (== True) (map hasTypeVars ts)
     Table t        -> hasTypeVars t
     Type.Range t   -> hasTypeVars t
     RecordApply t  -> hasTypeVars t

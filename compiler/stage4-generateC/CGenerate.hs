@@ -169,10 +169,10 @@ convert typ val = do
         (I64, Type.Char) -> do
             set r $ Value typ $ C.Cast Cint64_t (valExpr val)
 
-        (t1, Record [t2]) | t1 == t2 -> do
+        (t1, Type.Record [t2]) | t1 == t2 -> do
             set r $ Value typ $ C.Deref $ C.Member (valExpr val) "m0"
 
-        (Type.Tuple (Record ts1), Record ts2) -> do
+        (Type.Tuple (Type.Record ts1), Type.Record ts2) -> do
             check (length ts1 == length ts2) "cannot convert record of different length"
             forM_ (zip3 ts1 ts2 [0..]) $ \(t, t2, i) -> do
                 m <- member i r
@@ -190,7 +190,7 @@ set a b = do
     void $ case base of
         _ | isSimple base               -> void $ appendElem $ C.Set (valExpr a) (valExpr b)
         Type.Tuple t -> do
-            Record ts <- baseTypeOf t
+            Type.Record ts <- baseTypeOf t
             forM_ (zip ts [0..]) $ \(t, i) -> do
                 ma <- member i a
                 mb <- member i b
@@ -311,7 +311,7 @@ initialiser typ vals = do
         Type.Tuple t -> do
             baseT <- baseTypeOf t
             case baseT of
-                Record _ -> do assign "tuple" $ Value typ $ C.Initialiser (map valExpr vals)
+                Type.Record _ -> do assign "tuple" $ Value typ $ C.Initialiser (map valExpr vals)
                 _ -> error (show baseT)
 
         Type.Record _ -> do
@@ -331,13 +331,13 @@ accessRecord val marg = do
     case base of
         _ | isSimple base -> do
             unless (isNothing marg) (error "no arg needed")
-            assign "record" $ Value (Record [typeof val]) $ C.Initialiser [C.Address $ valExpr val]
+            assign "record" $ Value (Type.Record [typeof val]) $ C.Initialiser [C.Address $ valExpr val]
 
         Type.ADT ts -> do
             unless (isNothing marg) (error "not a table")
-            assign "record" $ Value (Record [typeof val]) $ C.Initialiser [C.Address $ valExpr val]
+            assign "record" $ Value (Type.Record [typeof val]) $ C.Initialiser [C.Address $ valExpr val]
 
-        Record ts -> do
+        Type.Record ts -> do
             unless (isNothing marg) (error "not a table")
             return val
 
@@ -348,11 +348,11 @@ accessRecord val marg = do
                 Type.Tuple _ -> accessRecord (Value t $ C.Subscript (C.Member (valExpr val) ("r" ++ show 0)) (valExpr $ fromJust marg)) Nothing
                 _ | isSimple baseT -> do
                     elem <- return $ C.Address $ C.Subscript (C.Member (valExpr val) ("r" ++ show 0)) (valExpr $ fromJust marg)
-                    assign "record" $ Value (Record [t]) $ C.Initialiser [elem]
+                    assign "record" $ Value (Type.Record [t]) $ C.Initialiser [elem]
                 ADT ts -> do
                     elem <- return $ C.Address $ C.Subscript (C.Member (valExpr val) ("r" ++ show 0)) (valExpr $ fromJust marg)
-                    assign "record" $ Value (Record [t]) $ C.Initialiser [elem]
-                Record _ -> do
+                    assign "record" $ Value (Type.Record [t]) $ C.Initialiser [elem]
+                Type.Record _ -> do
                     ts <- getRecordTypes t
                     elems <- forM (zip ts [0..]) $ \(t, i) -> do
                         return $ C.Address $ C.Subscript (C.Member (valExpr val) ("r" ++ show i)) (valExpr $ fromJust marg)
@@ -364,7 +364,7 @@ accessRecord val marg = do
             unless (isNothing marg) (error "tuple access cannot have an argument")
             baseT <- baseTypeOf t
             case baseT of
-                Record _ -> do
+                Type.Record _ -> do
                     ts <- getRecordTypes t
                     elems <- forM (zip ts [0..]) $ \(t, i) -> do
                         return $ C.Address $ C.Member (valExpr val) ("m" ++ show i)
@@ -425,7 +425,7 @@ cTypeOf a = case typeof a of
             Type.Tuple t -> do
                 baseT <- baseTypeOf t
                 case baseT of
-                    Record _ -> do
+                    Type.Record _ -> do
                         cts <- mapM cTypeOf =<< getRecordTypes t
                         return $ Cstruct $ zipWith (\a b -> C.Param ("m" ++ show a) b) [0..] cts
 
@@ -441,8 +441,8 @@ cTypeOf a = case typeof a of
             Type.Table t -> do
                 baseT <- baseTypeOf t
                 cts <- mapM cTypeOf =<< case baseT of
-                    Record ts -> getRecordTypes t
-                    t         -> return [t]
+                    Type.Record ts -> getRecordTypes t
+                    t              -> return [t]
                 let pts = zipWith (\ct i -> C.Param ("r" ++ show i) (Cpointer ct)) cts [0..]
                 return $ Cstruct (C.Param "len" Cint64_t:C.Param "cap" Cint64_t:pts)
 
@@ -470,8 +470,8 @@ tableAppend val = do
     Table t <- baseTypeOf val
     baseT <- baseTypeOf t
     ts <- case baseT of
-        Record _ -> getRecordTypes t
-        _        -> return [t]
+        Type.Record _ -> getRecordTypes t
+        _             -> return [t]
 
     let len    = C.Member (valExpr val) "len"
     let newLen = (C.Infix C.Plus len $ C.Int 1)

@@ -279,6 +279,7 @@ expr   : literal                                 { $1 }
        | expr '[' mexpr '..' mexpr ']'           { AST.Range (tokPos $2) (Just $1) $3 $5 }
        | '[' mexpr '..' mexpr ']'                { AST.Range (tokPos $1) Nothing $2 $4 }
        | '[' exprsA ']'                          { Array (tokPos $1) $2 }
+       | '{' exprsA '}'                          { AST.Record (tokPos $1) $2 }
        | expr '{' '}'                            { RecordAccess (tokPos $2) $1 }
 
 literal : int_c                                  { AST.Int (tokPos $1) (read $ tokStr $1) }
@@ -337,11 +338,11 @@ ordinal_t   : bool                    { Type.Bool }
             | string                  { Type.String }
 
 
-record_t  : '{' types1 '}'            { Record $2 }
+record_t  : '{' types1 '}'            { Type.Record $2 }
 tuple_t  : '(' ')' type_              { Type.Tuple $3 }
-         | '(' type_ ',' types1 ')'   { Type.Tuple (Record $ $2 : $4) }
-         | '(' 'I' types2N 'D' ')'    { Type.Tuple (Record $3) }
-         --| '(' ')'                  { Type.Tuple (Record []) }
+         | '(' type_ ',' types1 ')'   { Type.Tuple (Type.Record $ $2 : $4) }
+         | '(' 'I' types2N 'D' ')'    { Type.Tuple (Type.Record $3) }
+         --| '(' ')'                  { Type.Tuple (Type.Record []) }
 table_t  : '[' ']' type_              { Type.Table $3 }
 recapp_t : '{' '}' type_              { RecordApply $3 }
 
