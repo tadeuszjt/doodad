@@ -52,6 +52,7 @@ lexFile printTokens filename = do
             l | isPrefixOf "char: " l     -> Token pos Char (fromJust $ stripPrefix "char: " l)
             l | isPrefixOf "import: " l   -> Token pos Import (dropWhile isSpace $ fromJust $ stripPrefix "import: " l)
             l | isPrefixOf "include: " l  -> Token pos CInclude (fromJust $ stripPrefix "include: " l)
+            l | isPrefixOf "module: " l   -> Token pos Module (fromJust $ stripPrefix "module: " l)
             l | isPrefixOf "link: " l     -> Token pos CLink (fromJust $ stripPrefix "link: " l)
             l | isPrefixOf "cembed: " l   -> Token pos EmbedC (fromJust $ stripPrefix "cembed: " $ replace31 l)
             l -> error ("line is: " ++ l)

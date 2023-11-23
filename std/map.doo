@@ -3,21 +3,23 @@ module map
 import std/maybe
 import std/binaryTree
 
-type[K, V] Map (tree : Tree(K, V))
+type[K, V] Map (tree Tree[K, V])
 
 
-fn[K, V] {m:Map(K, V)} insert(key:()K, value:()V)
+fn[K, V] {m Map[K, V]} insert(key ()K, value ()V)
     if m.tree.contains(key)
         m.tree.delete(key)
     m.tree.insert(key, value)
 
-fn[K, V] {m:Map(K, V)} find(key:()K) Maybe(()V)
+
+fn[K, V] {m Map[K, V]} find(key ()K) Maybe[()V]
     if m.tree.contains(key); return Just(m.tree.get(key))
     else;                    return Nothing()
 
-fn[K, V] {m : Map(K, V)} contains(key : ()K) bool
+
+fn[K, V] {m Map[K, V]} contains(key ()K) bool
     return m.tree.contains(key)
 
 
-fn[K, V] {m : Map(K, V)} delete(key : ()K)
+fn[K, V] {m Map[K, V]} delete(key ()K)
     m.tree.delete(key)

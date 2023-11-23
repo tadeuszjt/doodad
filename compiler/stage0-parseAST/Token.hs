@@ -24,6 +24,7 @@ data TokenType
     | String
     | Indent
     | NewLine
+    | Module
     | Import
     | Dedent
     | EmbedC

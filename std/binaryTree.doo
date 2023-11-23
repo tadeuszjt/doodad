@@ -4,24 +4,24 @@ import std/maybe
 import std/unordered
 
 type[K, V] Node {
-    left  : Maybe( unordered::Key( Node(K, V) ) )
-    right : Maybe( unordered::Key( Node(K, V) ) )
-    key   : K
-    value : V
+    left  Maybe[unordered::Key[Node[K, V]]]
+    right Maybe[Key[Node[K, V]]]
+    key   K
+    value V
 }
 
 type[K, V] Tree (
-    nodes : Unordered( Node(K, V) )
-    base  : Maybe( unordered::Key( Node(K, V) ) )
+    nodes Unordered[ Node[K, V] ]
+    base  Maybe[unordered::Key[Node[K, V]]]
 )
 
 
 
-fn[K, V] {tree : Tree(K, V)} length() i64
+fn[K, V] {tree Tree[K, V]} length() i64
     return tree.nodes.length()
 
 
-fn[K, V] {tree : Tree(K, V)} get(key : ()K) ()V
+fn[K, V] {tree Tree[K, V]} get(key ()K) ()V
     switch tree.base
         Just(node)
             while tree.nodes.at(node).key{} != key{}
@@ -34,8 +34,8 @@ fn[K, V] {tree : Tree(K, V)} get(key : ()K) ()V
             return value
 
 
-fn[K, V] {tree : Tree(K, V)} insert(key : ()K, value : ()V)
-    fn[K, V] {tree : Tree(K, V)} insertNode(newNode : Key(Node(K, V)), node : Key(Node(K, V)))
+fn[K, V] {tree Tree[K, V]} insert(key ()K, value ()V)
+    fn[K, V] {tree Tree[K, V]} insertNode(newNode Key[Node[K, V]], node Key[Node[K, V]])
         let lt = tree.nodes.at(newNode).key < tree.nodes.at(node).key
         let gt = tree.nodes.at(newNode).key > tree.nodes.at(node).key
         let {l, r, k, v} = tree.nodes.at(node) in
@@ -55,18 +55,18 @@ fn[K, V] {tree : Tree(K, V)} insert(key : ()K, value : ()V)
             tree.insertNode(nodeKey, baseNode)
 
 
-fn[K, V] {tree : Tree(K, V)} delete(key : ()K) 
-    fn[K, V] {nodes : Unordered( Node(K, V) ) } leftMost(node : Key( Node(K, V) )) Key(Node(K, V))
+fn[K, V] {tree Tree[K, V]} delete(key ()K) 
+    fn[K, V] {nodes Unordered[ Node[K, V] ] } leftMost(node Key[ Node[K, V] ]) Key[Node[K, V]]
         if nodes.at(node) -> {Just(left), _, _, _}
             return nodes.leftMost(left)
         return node
 
-    fn[K, V] {nodes : Unordered( Node(K, V) ) } rightMost(node : Key( Node(K, V) )) Key(Node(K, V))
+    fn[K, V] {nodes Unordered[ Node[K, V] ] } rightMost(node Key[ Node[K, V] ]) Key[Node[K, V]]
         if nodes.at(node) -> {_, Just(right), _, _}
             return nodes.rightMost(right)
         return node
 
-    fn[K, V] {nodes : Unordered( Node(K, V) ) } deleteFromNode(node : Key( Node(K, V) ), key : ()K)
+    fn[K, V] {nodes Unordered[Node[K, V]] } deleteFromNode(node Key[Node[K, V]], key ()K)
         assert(key{} != nodes.at(node).key{}, "key cannot match current node")
         let leftm  = nodes.get(node).left
         let rightm = nodes.get(node).right
@@ -110,8 +110,8 @@ fn[K, V] {tree : Tree(K, V)} delete(key : ()K)
                 else; nodes.deleteFromNode(base, key)
 
 
-fn[K, V] {tree : Tree(K, V)} contains(key : ()K) bool
-    fn[K, V] {tree : Tree(K, V)} nodeContains(node : Key( Node(K, V) ), key : ()K) bool
+fn[K, V] {tree Tree[K, V]} contains(key ()K) bool
+    fn[K, V] {tree Tree[K, V]} nodeContains(node Key[Node[K, V]], key ()K) bool
         let (lt, gt, lm, rm) = (false, false, Nothing(), Nothing())
         let {l, r, k, v} = tree.nodes.at(node) in
             lm = l

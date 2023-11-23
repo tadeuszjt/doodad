@@ -2,10 +2,10 @@ module io
 
 import std/map
 
-type Io ( files : Map(string, i64) )
+type Io ( files Map[string, i64] )
 
 
-fn {io : Io} openFile(fileName : string)
+fn {io Io} openFile(fileName string)
     assert(!io.files.contains(fileName), fileName + " already open")
     let ptr = 0
     ${
@@ -16,33 +16,33 @@ fn {io : Io} openFile(fileName : string)
     io.files.insert(fileName, ptr)
 
 
-fn {io : Io} closeFile(fileName : string)
+fn {io Io} closeFile(fileName string)
     assert(io.files.contains(fileName), fileName + " is not open")
     let Just(ptr) = io.files.find(fileName)
     ${ fclose((FILE*)$ptr); }
     io.files.delete(fileName)
 
 
-fn {io : Io} fPutStr(fileName : string, str : string)
+fn {io Io} fPutStr(fileName string, str string)
     assert(io.files.contains(fileName), fileName + " is not open")
     let Just(ptr) = io.files.find(fileName)
     ${ fprintf((FILE*)$ptr, "%s", $str); }
 
 
-fn {io : Io} fPutStrLn(fileName : string, str : string)
+fn {io Io} fPutStrLn(fileName string, str string)
     assert(io.files.contains(fileName), fileName + " is not open")
     let Just(ptr) = io.files.find(fileName)
     ${ fprintf((FILE*)$ptr, "%s\n", $str); }
 
 
-fn {io : Io} putStrLn(s : string)
+fn {io Io} putStrLn(s string)
     ${ printf("%s\n", $s); }
 
 
-fn {io : Io} putStr(s : string)
+fn {io Io} putStr(s string)
     ${ printf("%s", $s); }
 
 
-fn {io : Io} putChar(c : char)
+fn {io Io} putChar(c char)
     ${ putchar($c); }
 

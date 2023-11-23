@@ -183,10 +183,6 @@ bool isValidCharLiteral(char c) {
 
 bool isKeyword(char *s) {
     char *keywords[] = {
-        "module",
-        "import",
-        "include",
-        "link",
         "const",
         "for",
         "while",
@@ -212,6 +208,7 @@ bool isKeyword(char *s) {
         "true",
         "false",
         "type",
+        "table",
         NULL
     };
     for (int i = 0; keywords[i] != NULL; i++) {
@@ -263,7 +260,10 @@ bool lex() { // returns false for EOF
             stackPush(c);
         } else {
             // print ident
-            if (strcmp(stack, "import") == 0 || strcmp(stack, "include") == 0 || strcmp(stack, "link") == 0) {
+            if (strcmp(stack, "import") == 0  ||
+                strcmp(stack, "include") == 0 ||
+                strcmp(stack, "link") == 0    ||
+                strcmp(stack, "module") == 0) {
                 assert(c == ' ');
                 stackPush(':');
                 stackPush(' ');

@@ -44,6 +44,7 @@ import Symbol
     '!'        { Token _ Token.TokSym "!" }
     '@'        { Token _ Token.TokSym "@" }
     '~'        { Token _ Token.TokSym "~" }
+    '#'        { Token _ Token.TokSym "#" }
     '!='       { Token _ Token.TokSym "!=" }
     '<='       { Token _ Token.TokSym "<=" }
     '>='       { Token _ Token.TokSym ">=" }
@@ -68,10 +69,10 @@ import Symbol
     switch     { Token _ Token.Reserved "switch" }
     true       { Token _ Token.Reserved "true" }
     false      { Token _ Token.Reserved "false" }
-    module     { Token _ Token.Reserved "module" }
     for        { Token _ Token.Reserved "for" }
     null       { Token _ Token.Reserved "null" }
     data       { Token _ Token.Reserved "data" }
+    module     { Token _ Token.Module _ }
     import     { Token _ Token.Import _ }
     include    { Token _ Token.CInclude _ }
     link       { Token _ Token.CLink _ }
@@ -120,7 +121,7 @@ stmts : {-empty-}                  { [] }
       | line 'N' stmts             { $1 : $3 }
       | block stmts                { $1 : $2 }
 
-header : module ident 'N' imports  { ($2, $4) }
+header : module 'N' imports        { ($1, $3) }
 imports : {- empty -}              { [] }
         | import 'N' imports       { AST.Import   (tokStr $1) : $3 }
         | include 'N' imports      { AST.CInclude (tokStr $1) : $3 }
@@ -180,7 +181,7 @@ condition : expr                        { $1 }
           | expr '->' pattern           { Match (tokPos $2) $1 $3 }
 
 
-param   : ident ':' type_               { Param (tokPos $1) (Sym $ tokStr $1) $3 }
+param   : ident     type_               { Param (tokPos $1) (Sym $ tokStr $1) $2 }
 params  : {- empty -}                   { [] }
         | params1                       { $1 }
 params1 : param                         { [$1] }
@@ -188,8 +189,8 @@ params1 : param                         { [$1] }
 params2 : param  ',' params1            { $1 : $3 }
 
 
-paramL  : ident ':' type_               { Param (tokPos $1) (Sym $ tokStr $1) $3 }
-        | ident ':' null                { Param (tokPos $1) (Sym $ tokStr $1) Void }
+paramL  : ident     type_               { Param (tokPos $1) (Sym $ tokStr $1) $2 }
+        | ident     null                { Param (tokPos $1) (Sym $ tokStr $1) Void }
 paramsL1 : paramL                       { [$1] }
          | paramL '|' paramsL1          { $1 : $3 }
 paramsLN1 : paramL 'N'                  { [$1] }
@@ -238,7 +239,7 @@ pattern  : '_'                           { PatIgnore (tokPos $1) }
          | pattern '|' expr              { PatGuarded (tokPos $2) $1 $3 }
          | pattern '|' expr '->' pattern { PatGuarded (tokPos $2) $1 (Match (tokPos $4) $3 $5) }
          | symbol '(' patterns ')'       { PatField (tokPos $2) (snd $1) $3 }
-         | '.' type_ '[' pattern ']'     { PatTypeField (tokPos $1) $2 $4 }
+         --| '.' type_ '[' pattern ']'     { PatTypeField (tokPos $1) $2 $4 }
          | pattern ':' type_             { PatAnnotated $1 $3 }
 
 ---------------------------------------------------------------------------------------------------
@@ -259,7 +260,7 @@ call : symbol '(' exprsA ')'                     { Call (tokPos $2) [] (snd $1) 
      --| '{' exprsA '}' '.' ident '(' exprsA ')' { Call (tokPos $4) $2 (Sym $ tokStr $5) $7 }
 
 index  : symbol                                  { AST.Ident (fst $1) (snd $1) }
-       | index '[' expr ']'                      { Subscript (tokPos $2) $1 $3 }
+       | index '{' expr '}'                      { Subscript (tokPos $2) $1 $3 }
        | index '.' ident                         { Field (tokPos $2) $1 (Sym $ tokStr $3) }
        | index '.' symbol '(' exprsA ')'         { Call (tokPos $2) [$1] (snd $3) $5 }
        | index '{' '}'                           { RecordAccess (tokPos $2) $1 }
@@ -273,12 +274,12 @@ expr   : literal                                 { $1 }
        | '(' exprsA ')'                          { case $2 of [x] -> x; xs -> AST.Tuple (tokPos $1) xs }
        | null                                    { Null (tokPos $1) }
        | expr '.' ident                          { Field (tokPos $2) $1 (Sym $ tokStr $3) }
-       | expr '['  expr ']'                      { Subscript (tokPos $2) $1 $3 }
+       | expr '{'  expr '}'                      { Subscript (tokPos $2) $1 $3 }
        | expr ':' type_                          { AExpr $3 $1 }
        | expr '.' ident '(' exprsA ')'           { Call (tokPos $4) [$1] (Sym $ tokStr $3) $5 }
-       | expr '[' mexpr '..' mexpr ']'           { AST.Range (tokPos $2) (Just $1) $3 $5 }
-       | '[' mexpr '..' mexpr ']'                { AST.Range (tokPos $1) Nothing $2 $4 }
-       | '[' exprsA ']'                          { Array (tokPos $1) $2 }
+       --| expr '[' mexpr '..' mexpr ']'           { AST.Range (tokPos $2) (Just $1) $3 $5 }
+       --| '[' mexpr '..' mexpr ']'                { AST.Range (tokPos $1) Nothing $2 $4 }
+       --| '[' exprsA ']'                          { Array (tokPos $1) $2 }
        | '{' exprsA '}'                          { AST.Record (tokPos $1) $2 }
        | expr '{' '}'                            { RecordAccess (tokPos $2) $1 }
 
@@ -319,7 +320,7 @@ types2N : type_ ',' 'N' types1N       { $1 : $4 }
     
 type_         : ordinal_t             { $1 }
               | symbol                { TypeApply (snd $1) [] }
-              | symbol '(' types1 ')' { TypeApply (snd $1) $3 }
+              | symbol '[' types1 ']' { TypeApply (snd $1) $3 }
               | record_t              { $1 }
               | tuple_t               { $1 }
               | table_t               { $1 }
@@ -343,7 +344,7 @@ tuple_t  : '(' ')' type_              { Type.Tuple $3 }
          | '(' type_ ',' types1 ')'   { Type.Tuple (Type.Record $ $2 : $4) }
          | '(' 'I' types2N 'D' ')'    { Type.Tuple (Type.Record $3) }
          --| '(' ')'                  { Type.Tuple (Type.Record []) }
-table_t  : '[' ']' type_              { Type.Table $3 }
+table_t  : table '[' type_ ']'        { Type.Table $3 }
 recapp_t : '{' '}' type_              { RecordApply $3 }
 
 
