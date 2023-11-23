@@ -99,7 +99,7 @@ replaceGenericsInFuncBodyWithCall body callHeader = do
     unless (funcHeadersCouldMatch ast callHeader header) (error "headers could not match")
     constraints <- getConstraintsFromFuncHeaders header callHeader
     subs <- unify (generics header) constraints
-    body' <- applySubs subs body
+    let body' = applyFuncBody subs body
     mapFuncBodyM tupleDeleterMapper $ body' { funcTypeArgs = [] }
 
 
@@ -127,7 +127,7 @@ unify :: [Symbol] -> [Constraint] -> DoM ASTResolved [(Type, Type)]
 unify generics []     = return []
 unify generics (x:xs) = do
     subs <- unify generics xs
-    s <- unifyOne generics =<< applySubs subs x
+    s <- unifyOne generics (applyConstraint subs x)
     return (s ++ subs)
 
 

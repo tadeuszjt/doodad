@@ -142,7 +142,7 @@ unify :: [(Constraint, TextPos)] -> DoM ASTResolved [(Type, Type)]
 unify []     = return []
 unify (x:xs) = do
     subs <- unify xs
-    s <- unifyOne (snd x) =<< applySubs subs (fst x)
+    s <- unifyOne (snd x) (applyConstraint subs (fst x))
     return (s ++ subs)
 
 
@@ -151,7 +151,7 @@ unifyDefault []     = return []
 unifyDefault (x:xs) = do
     subs <- unifyDefault xs
     -- ignore errors in default mode
-    res <- tryError $ unifyOne (snd x) =<< applySubs subs (fst x)
+    res <- tryError $ unifyOne (snd x) (applyConstraint subs (fst x))
     case res of
         Left _  -> return subs
         Right s -> return (s ++ subs)
