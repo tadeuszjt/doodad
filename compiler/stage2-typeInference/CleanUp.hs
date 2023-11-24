@@ -77,7 +77,12 @@ resolveFuncCall _ (AST.Call _ _ s@(SymResolved _ _ _) _) = return s
 resolveFuncCall exprType (AST.Call pos params callSymbol args) = withPos pos $ do
     --liftIO $ putStrLn $ "resolving: " ++ show callSymbol
     let callHeader = FuncHeader [] (map typeof params) callSymbol (map typeof args) exprType
-    candidates <- findCandidates callHeader
+
+    mReceiverType <- case params of
+        [] -> return Nothing
+        [p] -> return (Just $ typeof p)
+
+    candidates <- findCandidates mReceiverType callSymbol (map typeof args) exprType
     ast <- get
     case candidates of
         --[] -> return callSymbol

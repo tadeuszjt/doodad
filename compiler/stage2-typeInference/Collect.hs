@@ -93,7 +93,10 @@ collectCall :: Type -> [Expr] -> Symbol -> [Expr] -> DoM CollectState ()
 collectCall exprType params symbol args = do -- can be resolved or sym
     let callHeader = FuncHeader [] (map typeof params) symbol (map typeof args) exprType
     ast <- gets astResolved
-    candidates <- fmap fst $ runDoMExcept ast (findCandidates callHeader)
+    mReceiverType <- case params of
+        [] -> return Nothing
+        [p] -> return (Just $ typeof p)
+    candidates <- fmap fst $ runDoMExcept ast (findCandidates mReceiverType symbol (map typeof args) exprType)
     case candidates of
         [symbol] | isGenericFunction symbol ast -> return ()
         [symbol] | isNonGenericFunction symbol ast -> do

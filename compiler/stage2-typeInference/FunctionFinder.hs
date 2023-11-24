@@ -25,8 +25,9 @@ import TupleDeleter
 -- a function call. This involves using a smaller version of the type inference algorithm to replace
 -- generic symbols with resolved types.
 
-findCandidates :: FuncHeader -> DoM ASTResolved [Symbol]
-findCandidates callHeader = do
+findCandidates :: Maybe Type -> Symbol -> [Type] -> Type -> DoM ASTResolved [Symbol]
+findCandidates mReceiverType s argTypes returnType = do
+    let callHeader = FuncHeader [] (if isJust mReceiverType then [fromJust mReceiverType] else []) s argTypes returnType
     funcSymbols <- findFunctionCandidates callHeader
     typeSymbols <- findTypeCandidates callHeader
     ctorSymbols <- findCtorCandidates (symbol callHeader)
