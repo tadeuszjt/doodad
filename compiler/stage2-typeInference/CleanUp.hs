@@ -27,7 +27,7 @@ compile verbose = do
     --when verbose $ liftIO $ putStrLn $ "cleaning..."
     funcDefs <- gets funcDefs
     forM_ (Map.toList funcDefs) $ \(symbol, body) -> do
-        when (funcTypeArgs body == []) $ do
+        when (funcGenerics body == []) $ do
             stmt' <- (mapStmtM cleanUpMapper) (funcStmt body)
             body' <- return body { funcStmt = stmt' }
             modify $ \s -> s { funcDefs = Map.insert symbol body' (ASTResolved.funcDefs s) }
@@ -76,13 +76,16 @@ resolveFuncCall :: Type -> AST.Expr -> DoM ASTResolved Symbol
 resolveFuncCall _ (AST.Call _ _ s@(SymResolved _ _ _) _) = return s
 resolveFuncCall exprType (AST.Call pos params callSymbol args) = withPos pos $ do
     --liftIO $ putStrLn $ "resolving: " ++ show callSymbol
-    let callHeader = FuncHeader [] (map typeof params) callSymbol (map typeof args) exprType
+    mp <- case params of
+        [] -> return Nothing
+        [x] -> return (Just $ typeof x)
+    let callHeader = CallHeader mp callSymbol (map typeof args) exprType
 
     mReceiverType <- case params of
         [] -> return Nothing
         [p] -> return (Just $ typeof p)
 
-    candidates <- findCandidates mReceiverType callSymbol (map typeof args) exprType
+    candidates <- findCandidates $ CallHeader mReceiverType callSymbol (map typeof args) exprType
     ast <- get
     case candidates of
         --[] -> return callSymbol
@@ -97,7 +100,7 @@ resolveFuncCall exprType (AST.Call pos params callSymbol args) = withPos pos $ d
                 Left e -> do
                     liftIO $ putStrLn $ "warning: replaceGenericsInFuncBodyWithCall failed for: " ++ show callSymbol ++ " - " ++ show e
                     return callSymbol
-                Right bodyReplaced -> case funcHeaderFullyResolved (funcTypeArgs genericBody) (funcHeaderFromBody symbol bodyReplaced) of
+                Right bodyReplaced -> case funcHeaderFullyResolved (funcGenerics genericBody) (funcHeaderFromBody symbol bodyReplaced) of
                     False -> return callSymbol
                     True  -> do
                         symbol' <- genSymbol (Symbol.sym callSymbol)

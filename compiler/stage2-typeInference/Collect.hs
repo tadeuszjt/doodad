@@ -85,7 +85,7 @@ collectAST verbose ast = do
         define symbol (ObjConst expr)
 
     forM_ (Map.toList $ funcDefs ast) $ \(symbol, body) ->
-        when (funcTypeArgs body == []) $
+        when (funcGenerics body == []) $
             collectFuncDef symbol body
 
 
@@ -96,7 +96,7 @@ collectCall exprType params symbol args = do -- can be resolved or sym
     mReceiverType <- case params of
         [] -> return Nothing
         [p] -> return (Just $ typeof p)
-    candidates <- fmap fst $ runDoMExcept ast (findCandidates mReceiverType symbol (map typeof args) exprType)
+    candidates <- fmap fst $ runDoMExcept ast (findCandidates $ CallHeader mReceiverType symbol (map typeof args) exprType)
     case candidates of
         [symbol] | isGenericFunction symbol ast -> return ()
         [symbol] | isNonGenericFunction symbol ast -> do

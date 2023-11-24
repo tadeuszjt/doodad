@@ -258,7 +258,7 @@ resolveFuncDef (FuncDef pos generics params (Sym sym) args retty blk) = withPos 
             _ -> check (False) "main may only have one Io parameter"
 
     let funcBody = FuncBody {
-        funcTypeArgs = genericSymbols,
+        funcGenerics = genericSymbols,
         funcParams   = params',
         funcArgs     = args',
         funcRetty    = retty',
@@ -315,7 +315,7 @@ instance Resolve Stmt where
             body <- mapGet symbol' =<< gets funcDefsMap
             return $ FuncDef
                 pos
-                (funcTypeArgs body)
+                (funcGenerics body)
                 (funcParams body)
                 symbol'
                 (funcArgs body)

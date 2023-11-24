@@ -76,7 +76,7 @@ assertTypeNoReferences typ = case typ of
 checkAST :: ASTResolved -> DoM CheckState ()
 checkAST ast = do
     forM_ (Map.toList $ funcDefs ast) $ \(symbol, body) -> do
-        when (funcTypeArgs body == []) $
+        when (funcGenerics body == []) $
             checkFuncDef symbol body
 
 

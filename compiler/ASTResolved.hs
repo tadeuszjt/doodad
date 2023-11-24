@@ -34,10 +34,18 @@ data FuncHeader = FuncHeader
     deriving (Eq, Ord)
 
 
+data CallHeader = CallHeader
+    { callParamType :: Maybe Type
+    , callSymbol    :: Symbol
+    , callArgTypes  :: [Type]
+    , callRetType   :: Type
+    }
+    deriving (Eq, Ord)
+
+
 data FuncBody
-    = FuncBodyEmpty
-    | FuncBody
-        { funcTypeArgs :: [Symbol]
+    = FuncBody
+        { funcGenerics :: [Symbol]
         , funcParams   :: [AST.Param]
         , funcArgs     :: [AST.Param]
         , funcRetty    :: Type
@@ -60,6 +68,16 @@ instance Show FuncHeader where
                 [] -> "()"
                 ts -> "(" ++ intercalate ", " (map show ts) ++ ")"
 
+instance Show CallHeader where
+    show header =
+        paramsStr ++ " " ++ (show $ callSymbol header) ++ argsStr ++ " " ++ show (callRetType header)
+        where
+            paramsStr = case callParamType header of
+                Nothing -> ""
+                Just t  -> show t ++ "."
+            argsStr = case callArgTypes header of
+                [] -> "()"
+                ts -> "(" ++ intercalate ", " (map show ts) ++ ")"
 
 isGenericBody :: FuncBody -> Bool
 isGenericBody (FuncBody [] _ _ _ _) = False
@@ -95,9 +113,9 @@ getTypeFunction symbol ast = if Map.member symbol (typeFuncs ast) then
 
 getFunctionTypeArgs :: Symbol -> ASTResolved -> [Symbol]
 getFunctionTypeArgs symbol ast = if Map.member symbol (funcDefs ast) then
-        let body = funcDefs ast Map.! symbol in funcTypeArgs body
+        let body = funcDefs ast Map.! symbol in funcGenerics body
     else if Map.member symbol (funcImports ast) then
-        let body = funcImports ast Map.! symbol in funcTypeArgs body
+        let body = funcImports ast Map.! symbol in funcGenerics body
     else error "symbol is not function"
 
 
@@ -120,12 +138,13 @@ getFunctionBody symbol ast = if Map.member symbol (funcDefs ast) then
 funcHeaderFromBody :: Symbol -> FuncBody -> FuncHeader
 funcHeaderFromBody symbol body =
     FuncHeader {
-        generics = funcTypeArgs body,
+        generics = funcGenerics body,
         paramTypes = map typeof (funcParams body),
         symbol = symbol,
         argTypes = map typeof (funcArgs body),
         returnType = funcRetty body
         }
+
 
 
 funcHeadersCouldMatch :: ASTResolved -> FuncHeader -> FuncHeader -> Bool
@@ -144,7 +163,7 @@ prettyFuncBody :: Symbol -> FuncBody -> IO ()
 prettyFuncBody symbol body =
     prettyStmt "" $ FuncDef
         undefined
-        (funcTypeArgs body)
+        (funcGenerics body)
         (funcParams body)
         symbol
         (funcArgs body)

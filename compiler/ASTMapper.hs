@@ -29,7 +29,7 @@ mapFuncBodyM f body = do
     funcRetty'  <- mapTypeM f (funcRetty body)
     funcStmt'   <- mapStmtM f (funcStmt body)
     return $ FuncBody
-        { funcTypeArgs = funcTypeArgs body
+        { funcGenerics = funcGenerics body
         , funcParams   = funcParams'
         , funcArgs     = funcArgs'
         , funcRetty    = funcRetty'

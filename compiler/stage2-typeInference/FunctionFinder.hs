@@ -25,32 +25,31 @@ import TupleDeleter
 -- a function call. This involves using a smaller version of the type inference algorithm to replace
 -- generic symbols with resolved types.
 
-findCandidates :: Maybe Type -> Symbol -> [Type] -> Type -> DoM ASTResolved [Symbol]
-findCandidates mReceiverType s argTypes returnType = do
-    let callHeader = FuncHeader [] (if isJust mReceiverType then [fromJust mReceiverType] else []) s argTypes returnType
+findCandidates :: CallHeader -> DoM ASTResolved [Symbol]
+findCandidates callHeader = do
     funcSymbols <- findFunctionCandidates callHeader
-    typeSymbols <- findTypeCandidates callHeader
-    ctorSymbols <- findCtorCandidates (symbol callHeader)
+    typeSymbols <- findTypeCandidates     callHeader
+    ctorSymbols <- findCtorCandidates (callSymbol callHeader)
     let r = Set.toList $ Set.fromList $ concat $ [funcSymbols, typeSymbols, ctorSymbols]
     --liftIO $ putStrLn $ show callHeader ++ ": " ++ show r
     return r
 
 
-findFunctionCandidates :: FuncHeader -> DoM ASTResolved [Symbol]
-findFunctionCandidates callHeader = do
+
+findFunctionCandidates :: CallHeader -> DoM ASTResolved [Symbol]
+findFunctionCandidates call@(CallHeader mReceiverType s argTypes returnType) = do
+    let callHeader = FuncHeader [] (if isJust mReceiverType then [fromJust mReceiverType] else []) s argTypes returnType
     ast <- get
     fmap catMaybes $ forM (Map.toList $ Map.union (funcDefs ast) (funcImports ast)) $ \(symbol, body) -> do
         let bodyHeader = funcHeaderFromBody symbol body
---        when (Symbol.sym (ASTResolved.symbol callHeader) == "length") $ do
---            liftIO $ putStrLn $ "callHeader: " ++ show callHeader 
---            liftIO $ putStrLn $ "bodyHeader: " ++ show bodyHeader 
---            liftIO $ putStrLn $ "could match: " ++ show (funcHeadersCouldMatch ast bodyHeader callHeader)
-        case funcHeadersCouldMatch ast bodyHeader callHeader of
+        b <- callCouldMatchFunc call symbol body
+        case b of
             True -> return $ Just $ symbol
             False -> return Nothing
 
-findTypeCandidates :: FuncHeader -> DoM ASTResolved [Symbol]
-findTypeCandidates callHeader = do
+findTypeCandidates :: CallHeader -> DoM ASTResolved [Symbol]
+findTypeCandidates callHeader@(CallHeader mReceiverType s argTypes returnType) = do
+    let callHeader = FuncHeader [] (if isJust mReceiverType then [fromJust mReceiverType] else []) s argTypes returnType
     typeFuncs <- gets typeFuncs
     let res     = Map.filterWithKey (\k v -> symbolsCouldMatch k $ symbol callHeader) typeFuncs
     return $ Map.keys res
@@ -60,6 +59,31 @@ findCtorCandidates :: Symbol -> DoM ASTResolved [Symbol]
 findCtorCandidates callSymbol = do
     ctorDefs <- gets ctorDefs
     return $ Map.keys $ Map.filterWithKey (\k v -> symbolsCouldMatch k callSymbol) ctorDefs
+
+
+
+callCouldMatchFunc :: CallHeader -> Symbol -> FuncBody -> DoM ASTResolved Bool
+callCouldMatchFunc call symbol body
+    | not $ symbolsCouldMatch (callSymbol call) symbol = return False
+    | not $ length (callArgTypes call) == length (map typeof $ funcArgs body) = return False
+    | otherwise = do
+        ast <- get
+        let argsMatch        = all (== True) $ zipWith (typesCouldMatch (typeFuncs ast) (funcGenerics body)) (callArgTypes call) (map typeof $ funcArgs body)
+        let rettyMatch       = typesCouldMatch (typeFuncs ast) (funcGenerics body) (callRetType call) (funcRetty body)
+        paramMatches <- case (callParamType call, map typeof (funcParams body)) of
+            (Nothing, [])       -> return True
+            (Nothing, _ )       -> return False
+            (Just (Type _), []) -> return False
+            (Just (Type _), _ ) -> return True
+            (Just t1,  [t2])    -> return $ typesCouldMatch (typeFuncs ast) (funcGenerics body) t1 t2
+            (Just t1,  t2s)     -> do
+                baseT1 <- baseTypeOf t1
+                t1s <- case baseT1 of
+                    Record _ -> getRecordTypes t1
+                    t        -> return [t]
+                return $ all (== True) $ zipWith (typesCouldMatch (typeFuncs ast) (funcGenerics body)) t1s t2s
+            x -> error (show x)
+        return (argsMatch && rettyMatch && paramMatches)
 
 
 funcHeaderHasGenerics :: [Symbol] -> FuncHeader -> Bool
@@ -91,17 +115,18 @@ funcHeaderFullyResolved generics header =
             _ -> error $ "typeFullyResolved: " ++ show typ
 
 
-replaceGenericsInFuncBodyWithCall :: FuncBody -> FuncHeader -> DoM ASTResolved FuncBody
-replaceGenericsInFuncBodyWithCall body callHeader = do
+replaceGenericsInFuncBodyWithCall :: FuncBody -> CallHeader -> DoM ASTResolved FuncBody
+replaceGenericsInFuncBodyWithCall body call@(CallHeader mp s as rt) = do
+    let callHeader = FuncHeader [] (if isNothing mp then [] else [fromJust mp]) s as rt
     --liftIO $ putStrLn $ "replacing: " ++ show callHeader
     ast <- get
-    let header = funcHeaderFromBody (symbol callHeader) body
-    unless (generics callHeader == [])                   (error "call header cannot be generic")
-    unless (funcHeadersCouldMatch ast callHeader header) (error "headers could not match")
+    let header = funcHeaderFromBody (callSymbol call) body
+
+    couldMatch <- callCouldMatchFunc call (callSymbol call) body
+    unless couldMatch (error "headers could not match")
     constraints <- getConstraintsFromFuncHeaders header callHeader
-    subs <- unify (generics header) constraints
-    let body' = applyFuncBody subs body
-    mapFuncBodyM tupleDeleterMapper $ body' { funcTypeArgs = [] }
+    subs <- unify (funcGenerics body) constraints
+    mapFuncBodyM tupleDeleterMapper $ (applyFuncBody subs body) { funcGenerics = [] }
 
 
 unifyOne :: [Symbol] -> Constraint -> DoM ASTResolved [(Type, Type)]
@@ -130,6 +155,7 @@ unify generics (x:xs) = do
     subs <- unify generics xs
     s <- unifyOne generics (applyConstraint subs x)
     return (s ++ subs)
+
 
 
 getConstraintsFromFuncHeaders :: FuncHeader -> FuncHeader -> DoM ASTResolved [Constraint]
