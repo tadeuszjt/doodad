@@ -60,11 +60,11 @@ mapStmtM f stmt = withPos stmt $ do
         ExprStmt expr -> ExprStmt <$> mapExprM f expr
         Return pos mexpr -> Return pos <$> traverse (mapExprM f) mexpr
 
-        Let pos pat expr mblk -> do
+        Let pos pat mexpr mblk -> do
             pat' <- mapPattern f pat
-            expr' <- mapExprM f expr
+            mexpr' <- traverse (mapExprM f) mexpr
             mblk' <- traverse (mapStmtM f) mblk
-            return $ Let pos pat' expr' mblk'
+            return $ Let pos pat' mexpr' mblk'
 
         Increment pos expr -> do
             expr' <- mapExprM f expr

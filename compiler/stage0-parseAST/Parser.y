@@ -146,7 +146,8 @@ mfnRec : {-empty-}                        { [] }
 mfnTypeArgs : {-empty-}                   { [] }
             | '[' idents1 ']'             { $2 }
 
-line : let pattern '=' expr               { Let (tokPos $1) $2 $4 Nothing }  
+line : let pattern '=' expr               { Let (tokPos $1) $2 (Just $4) Nothing }  
+     | let pattern                        { Let (tokPos $1) $2 Nothing Nothing }
      | index '=' expr                     { SetOp (tokPos $2) Eq $1 $3 }
      | index '+=' expr                    { SetOp (tokPos $2) PlusEq $1 $3 }
      | index                              { ExprStmt $1 }
@@ -171,7 +172,8 @@ block : if_                               { $1 }
       | for expr scope                  { For (tokPos $1) $2 Nothing $3 }
       | for expr '->' pattern scope     { For (tokPos $1) $2 (Just $4) $5 }
       | switch_                         { $1 }
-      | let pattern '=' expr in scope   { Let (tokPos $1) $2 $4 (Just $6) }
+      | let pattern '='  expr in scope  { Let (tokPos $1) $2 (Just $4) (Just $6) }
+      | let pattern in scope            { Let (tokPos $1) $2 Nothing (Just $4) }
 
 scope  : 'I' stmts 'D'                  { Block $2 }
        | ';' line 'N'                   { $2 }

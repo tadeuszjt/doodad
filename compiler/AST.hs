@@ -104,7 +104,7 @@ instance Typeof Pattern where
     typeof a = error $ "can only take typeof PatAnnotated" 
 
 data Stmt
-    = Let      TextPos Pattern Expr (Maybe Stmt)
+    = Let         TextPos Pattern (Maybe Expr) (Maybe Stmt)
     | SetOp       TextPos Operator Expr   Expr
     | ExprStmt    Expr
     | Return      TextPos (Maybe Expr)

@@ -350,13 +350,13 @@ instance Resolve Stmt where
             Nothing -> return stmt
             Just expr -> Return pos . Just <$> resolve expr
 
-        Let pos pat expr mblk -> do
+        Let pos pat mexpr mblk -> do
             when (isJust mblk) pushSymbolTable
-            expr' <- resolve expr 
+            mexpr' <- traverse resolve mexpr 
             pat' <- resolve pat
             mblk' <- traverse resolve mblk
             when (isJust mblk) popSymbolTable
-            return $ Let pos pat' expr' mblk'
+            return $ Let pos pat' mexpr' mblk'
         
         If pos condition stmt melse -> do
             pushSymbolTable
