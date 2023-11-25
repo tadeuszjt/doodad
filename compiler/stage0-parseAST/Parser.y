@@ -150,6 +150,7 @@ line : let pattern '=' expr               { Let (tokPos $1) $2 (Just $4) Nothing
      | let pattern                        { Let (tokPos $1) $2 Nothing Nothing }
      | index '=' expr                     { SetOp (tokPos $2) Eq $1 $3 }
      | index '+=' expr                    { SetOp (tokPos $2) PlusEq $1 $3 }
+     | index '++'                         { Increment (tokPos $2) $1 }
      | index                              { ExprStmt $1 }
      | type symbol anno_t                 { Typedef (fst $2) [] (snd $2) $3 }
      | type '[' idents1 ']' symbol anno_t { Typedef (fst $5) (map Sym $3) (snd $5) $6 }
@@ -157,8 +158,14 @@ line : let pattern '=' expr               { Let (tokPos $1) $2 (Just $4) Nothing
      | return mexpr                       { Return (tokPos $1) $2 }
      | embed_c                            { AST.EmbedC (tokPos $1) (tokStr $1) }
      | const symbol '=' expr              { Const (tokPos $1) (snd $2) $4 }
-     | index '++'                         { Increment (tokPos $2) $1 }
+
 block : if_                               { $1 }
+      | while condition scope             { While (tokPos $1) $2 $3 }
+      | for expr scope                    { For (tokPos $1) $2 Nothing $3 }
+      | for expr '->' pattern scope       { For (tokPos $1) $2 (Just $4) $5 }
+      | switch_                           { $1 }
+      | let pattern '='  expr in scope    { Let (tokPos $1) $2 (Just $4) (Just $6) }
+      | let pattern in scope              { Let (tokPos $1) $2 Nothing (Just $4) }
       | fn mfnTypeArgs mfnRec ident '(' paramsA ')' mtype scope {
             FuncDef
                 (tokPos $1)
@@ -168,19 +175,10 @@ block : if_                               { $1 }
                 $6
                 (case $8 of Just t -> t; Nothing -> Void) $9
         }
-      | while condition scope           { While (tokPos $1) $2 $3 }
-      | for expr scope                  { For (tokPos $1) $2 Nothing $3 }
-      | for expr '->' pattern scope     { For (tokPos $1) $2 (Just $4) $5 }
-      | switch_                         { $1 }
-      | let pattern '='  expr in scope  { Let (tokPos $1) $2 (Just $4) (Just $6) }
-      | let pattern in scope            { Let (tokPos $1) $2 Nothing (Just $4) }
 
 scope  : 'I' stmts 'D'                  { Block $2 }
        | ';' line 'N'                   { $2 }
        | ';' 'N'                        { Block [] }
-
-condition : expr                        { $1 }
-          | expr '->' pattern           { Match (tokPos $2) $1 $3 }
 
 
 param   : ident     type_               { Param (tokPos $1) (Sym $ tokStr $1) $2 }
@@ -258,32 +256,33 @@ mexpr  : {-empty-}                               { Nothing }
 exprsA : exprs                                   { $1 }
        | 'I' exprsN 'D'                          { $2 }
 
-call : symbol '(' exprsA ')'                     { Call (tokPos $2) [] (snd $1) $3 }
-     --| '{' exprsA '}' '.' ident '(' exprsA ')' { Call (tokPos $4) $2 (Sym $ tokStr $5) $7 }
+condition : expr                        { $1 }
+          | expr '->' pattern           { Match (tokPos $2) $1 $3 }
 
 index  : symbol                                  { AST.Ident (fst $1) (snd $1) }
        | index '{' expr '}'                      { Subscript (tokPos $2) $1 $3 }
        | index '.' ident                         { Field (tokPos $2) $1 (Sym $ tokStr $3) }
-       | index '.' symbol '(' exprsA ')'         { Call (tokPos $2) [$1] (snd $3) $5 }
+       | index '.' symbol '(' exprsA ')'         { Call (tokPos $2) (Just $1) (snd $3) $5 }
+       | symbol '(' exprsA ')'                   { Call (tokPos $2) Nothing (snd $1) $3 }
        | index '{' '}'                           { RecordAccess (tokPos $2) $1 }
-       | call                                    { $1 }
+       --| '{' exprs1 '}'                          { AST.Record (tokPos $1) $2 }
 
 expr   : literal                                 { $1 }
        | infix                                   { $1 }
        | prefix                                  { $1 }
-       | call                                    { $1 }
+       | expr ':' type_                          { AExpr $3 $1 }
+       | null                                    { Null (tokPos $1) }
        | symbol                                  { AST.Ident (fst $1) (snd $1) }
        | '(' exprsA ')'                          { case $2 of [x] -> x; xs -> AST.Tuple (tokPos $1) xs }
-       | null                                    { Null (tokPos $1) }
+       | symbol '(' exprsA ')'                   { Call (tokPos $2) Nothing (snd $1) $3 }
+       | expr '.' symbol '(' exprsA ')'          { Call (tokPos $4) (Just $1) (snd $3) $5 }
        | expr '.' ident                          { Field (tokPos $2) $1 (Sym $ tokStr $3) }
        | expr '{'  expr '}'                      { Subscript (tokPos $2) $1 $3 }
-       | expr ':' type_                          { AExpr $3 $1 }
-       | expr '.' ident '(' exprsA ')'           { Call (tokPos $4) [$1] (Sym $ tokStr $3) $5 }
+       | '{' exprs1 '}'                          { AST.Record (tokPos $1) $2 }
+       | expr '{' '}'                            { RecordAccess (tokPos $2) $1 }
        --| expr '[' mexpr '..' mexpr ']'           { AST.Range (tokPos $2) (Just $1) $3 $5 }
        --| '[' mexpr '..' mexpr ']'                { AST.Range (tokPos $1) Nothing $2 $4 }
        --| '[' exprsA ']'                          { Array (tokPos $1) $2 }
-       | '{' exprsA '}'                          { AST.Record (tokPos $1) $2 }
-       | expr '{' '}'                            { RecordAccess (tokPos $2) $1 }
 
 literal : int_c                                  { AST.Int (tokPos $1) (read $ tokStr $1) }
         | float_c                                { AST.Float (tokPos $1) (read $ tokStr $1) }

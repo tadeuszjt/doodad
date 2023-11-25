@@ -452,9 +452,9 @@ resolveMapper element = case element of
 
     ElemExpr (Ident pos symbol) -> ElemExpr . Ident pos <$> look symbol KeyVar
 
-    ElemExpr (Call pos params symbol exprs) -> case symbol of
+    ElemExpr (Call pos mparam symbol exprs) -> case symbol of
         Sym s | s `elem` ["len", "conv", "print", "assert"] -> do 
-            check (params == []) "invalid builtin function call"
+            check (isNothing mparam) "invalid builtin function call"
             return $ ElemExpr (Builtin pos s exprs)
         _ -> do
             resm <- lookm symbol KeyType
@@ -465,7 +465,7 @@ resolveMapper element = case element of
 --                    return $ Just $ ElemExpr $ Conv pos (Type.TypeApply symbol' []) exprs -- TODO
                 Nothing -> do
                     symbol' <- look symbol KeyFunc
-                    return $ ElemExpr (Call pos params symbol' exprs)
+                    return $ ElemExpr (Call pos mparam symbol' exprs)
 
     _ -> return element
 

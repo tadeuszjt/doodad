@@ -89,19 +89,22 @@ collectAST verbose ast = do
             collectFuncDef symbol body
 
 
-collectCall :: Type -> [Expr] -> Symbol -> [Expr] -> DoM CollectState ()
-collectCall exprType params symbol args = do -- can be resolved or sym
+collectCall :: Type -> (Maybe Expr) -> Symbol -> [Expr] -> DoM CollectState ()
+collectCall exprType mparam symbol args = do -- can be resolved or sym
     ast <- gets astResolved
-    mReceiverType <- case params of
-        [] -> return Nothing
-        [p] -> return (Just $ typeof p)
+    let mReceiverType = fmap typeof mparam
     candidates <- fmap fst $ runDoMExcept ast (findCandidates $ CallHeader mReceiverType symbol (map typeof args) exprType)
     case candidates of
         [symbol] | isGenericFunction symbol ast -> return ()
         [symbol] | isNonGenericFunction symbol ast -> do
             let body = getFunctionBody symbol ast
             collectEq exprType (funcRetty body)
-            zipWithM_ collectEq (map typeof params) (map typeof $ funcParams body)
+
+            case map typeof (funcParams body) of
+                [] -> unless (isNothing mparam) (error "invalid func call")
+                [t] -> collectEq (typeof $ fromJust mparam) t
+                x -> error (show x)
+
             zipWithM_ collectEq (map typeof args)   (map typeof $ funcArgs body)
         [symbol] | isCtor symbol ast -> return ()
 
@@ -172,7 +175,7 @@ collectMapper element = (\_ -> return element) =<< case element of
             collect $ ConsAdtField patType i (map typeof pats)
 
     ElemExpr (AExpr exprType expression) -> case expression of
-        Call _ params symbol exprs -> collectCall exprType params symbol exprs
+        Call _ mparam symbol exprs -> collectCall exprType mparam symbol exprs
         Prefix _ op expr    -> collectEq exprType (typeof expr)
         Int _ _             -> collectDefault exprType I64
         Float _ _           -> collectDefault exprType F64

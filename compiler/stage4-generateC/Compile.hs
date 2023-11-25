@@ -201,11 +201,22 @@ generateStmt stmt = withPos stmt $ case stmt of
                     appendElem C.Break
             call "assert" [false]
 
-    S.ExprStmt (AExpr _ (S.Call _ exprs1 symbol exprs2)) -> do
+    S.ExprStmt (AExpr _ (S.Call _ mexpr symbol exprs2)) -> do
         check (symbolIsResolved symbol) ("unresolved function call: " ++ show symbol)
-        params <- mapM generateExpr exprs1
+        mparam <- traverse generateExpr mexpr
         args <- mapM generateExpr exprs2
-        callWithParams params (show symbol) args
+        ptrs <- case mparam of
+            Nothing -> return []
+            Just param -> do
+                base <- baseTypeOf param
+                case base of
+                    Type.Record _ -> do 
+                        ts <- getRecordTypes (typeof param)
+                        forM (zip ts [0..]) $ \(t, i) -> do 
+                            return $ C.Member (valExpr param) ("m" ++ show i)
+                    _ -> return [C.Address (valExpr param)]
+
+        void $ appendElem $ C.ExprStmt $ C.Call (show symbol) (ptrs ++ map valExpr args) 
 
     S.ExprStmt (AExpr _ (S.Builtin _ "print" exprs)) -> do
         vals <- mapM generateExpr exprs
@@ -461,11 +472,23 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
         valB <- generateExpr b
         generateInfix op valA valB
 
-    S.Call _ exprs1 symbol exprs2 -> do
+    S.Call _ mexpr symbol exprs -> do
         check (symbolIsResolved symbol) ("unresolved function call: " ++ show symbol)
-        objs1 <- mapM generateExpr exprs1
-        objs2 <- mapM generateExpr exprs2
-        return $ Value typ $ C.Call (show symbol) (map ptrExpr objs1 ++ map valExpr objs2)
+        mparam <- traverse generateExpr mexpr
+        vals <- mapM generateExpr exprs
+        ptrs <- case mparam of
+            Nothing -> return []
+            Just param -> do
+                base <- baseTypeOf param
+                case base of
+                    Type.Record _ -> do 
+                        ts <- getRecordTypes (typeof param)
+                        forM (zip ts [0..]) $ \(t, i) -> do 
+                            return $ C.Member (valExpr param) ("m" ++ show i)
+                    _ -> do
+                        return [C.Address (valExpr param)]
+                    x -> error (show x)
+        return $ Value typ $ C.Call (show symbol) (ptrs ++ map valExpr vals)
 
     S.Field _ _ (Sym s) -> fail $ "unresolved field: " ++ s
     S.Field _ expr symbol -> do 

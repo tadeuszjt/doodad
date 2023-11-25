@@ -222,6 +222,19 @@ fn testSparse()
     print("testSparse passed")
 
 
+fn {io Io} testFuncCalls()
+    fn {n i64, b bool} f()
+        n = n + 1
+        b = !b
+
+    let n = 0
+    let b = false
+    //{n, b}.f()
+
+
+    io.putStrLn("testFuncCalls passed")
+
+
 fn {io Io} main()
     testTuple()
     testTable()
@@ -230,6 +243,7 @@ fn {io Io} main()
     testTree()
     testPatRecord()
     testUnordered()
+    io.testFuncCalls()
 
     io.putStrLn("main2 finished")
 

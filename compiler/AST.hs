@@ -79,7 +79,7 @@ data Expr
     | Char         TextPos Char
     | String       TextPos String
     | Tuple        TextPos [Expr]
-    | Call         TextPos [Expr] Symbol [Expr]
+    | Call         TextPos (Maybe Expr) Symbol [Expr]
     | Construct    TextPos Symbol [Expr]
     | Null         TextPos 
     | Field        TextPos Expr Symbol
@@ -250,29 +250,28 @@ instance Show Pattern where
 
 instance Show Expr where
     show expression = case expression of
-        AExpr t expr                  -> show expr ++ ":" ++ show t 
-        Int pos n                     -> show n
-        Float pos f                   -> show f
-        Bool pos b                    -> if b then "true" else "false"
-        Char pos c                    -> show c
-        Null p                        -> "null"
-        String pos s                  -> show s
-        Tuple pos exprs               -> tupStrs (map show exprs)
-        Field pos expr symbol         -> show expr ++ "." ++ show symbol
-        Subscript pos expr1 expr2     -> show expr1 ++ "[" ++ show expr2 ++ "]"
-        Ident p s                     -> show s 
-        Prefix pos op expr            -> show op ++ show expr
-        Infix pos op expr1 expr2      -> show expr1 ++ " " ++ show op ++ " " ++ show expr2
-        Call pos [] symbol exprs      -> show symbol ++ tupStrs (map show exprs)
-        Call pos [param] symbol exprs -> show param ++ "." ++ show symbol ++ tupStrs (map show exprs)
-        Call pos params symbol exprs  -> brcStrs (map show params) ++ "." ++ show symbol ++ tupStrs (map show exprs)
-        Builtin pos sym exprs         -> sym ++ tupStrs (map show exprs)
-        Match pos expr1 expr2         -> "(" ++ show expr1 ++ " -> " ++ show expr2 ++ ")"
-        Range pos mexpr mexpr1 mexpr2 -> maybe "" show mexpr ++ "[" ++ maybe "" show mexpr1 ++ ".." ++ maybe "" show mexpr2 ++ "]"
-        Array pos exprs               -> arrStrs (map show exprs)
-        Construct pos symbol exprs    -> show symbol ++ tupStrs (map show exprs)
-        RecordAccess pos expr         -> show expr ++ "{}"
-        Record pos exprs              -> brcStrs (map show exprs)
+        AExpr t expr                       -> show expr ++ ":" ++ show t 
+        Int pos n                          -> show n
+        Float pos f                        -> show f
+        Bool pos b                         -> if b then "true" else "false"
+        Char pos c                         -> show c
+        Null p                             -> "null"
+        String pos s                       -> show s
+        Tuple pos exprs                    -> tupStrs (map show exprs)
+        Field pos expr symbol              -> show expr ++ "." ++ show symbol
+        Subscript pos expr1 expr2          -> show expr1 ++ "[" ++ show expr2 ++ "]"
+        Ident p s                          -> show s 
+        Prefix pos op expr                 -> show op ++ show expr
+        Infix pos op expr1 expr2           -> show expr1 ++ " " ++ show op ++ " " ++ show expr2
+        Call pos Nothing symbol exprs      -> show symbol ++ tupStrs (map show exprs)
+        Call pos (Just param) symbol exprs -> show param ++ "." ++ show symbol ++ tupStrs (map show exprs)
+        Builtin pos sym exprs              -> sym ++ tupStrs (map show exprs)
+        Match pos expr1 expr2              -> "(" ++ show expr1 ++ " -> " ++ show expr2 ++ ")"
+        Range pos mexpr mexpr1 mexpr2      -> maybe "" show mexpr ++ "[" ++ maybe "" show mexpr1 ++ ".." ++ maybe "" show mexpr2 ++ "]"
+        Array pos exprs                    -> arrStrs (map show exprs)
+        Construct pos symbol exprs         -> show symbol ++ tupStrs (map show exprs)
+        RecordAccess pos expr              -> show expr ++ "{}"
+        Record pos exprs                   -> brcStrs (map show exprs)
 
 
 -- every function must end on a newline and print pre before every line

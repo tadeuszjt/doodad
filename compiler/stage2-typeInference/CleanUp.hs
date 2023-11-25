@@ -50,13 +50,13 @@ cleanUpMapper elem = case elem of
         Sym _             -> ElemExpr . AExpr exprType . AST.Field pos e <$> resolveFieldAccess (typeof e) symbol
         SymResolved _ _ _ -> return $ ElemExpr $ AExpr exprType (Field pos e symbol)
 
-    ElemExpr (AExpr exprType expr@(AST.Call pos params symbol exprs)) -> do
+    ElemExpr (AExpr exprType expr@(AST.Call pos mparam symbol exprs)) -> do
         symbol' <- resolveFuncCall exprType expr
         isCtor <- Map.member symbol' <$> gets ctorDefs
         fmap (ElemExpr . AExpr exprType) $ case isCtor of
-            False -> return (Call pos params symbol' exprs)
+            False -> return (Call pos mparam symbol' exprs)
             True -> do
-                unless (params == []) (error "invalid params")
+                unless (isNothing mparam) (error "invalid params")
                 return (Construct pos symbol' exprs)
 
     ElemPattern (PatField pos symbol pats) -> do
@@ -69,12 +69,9 @@ cleanUpMapper elem = case elem of
 -- add extern if needed
 resolveFuncCall :: Type -> AST.Expr -> DoM ASTResolved Symbol
 resolveFuncCall _ (AST.Call _ _ s@(SymResolved _ _ _) _) = return s
-resolveFuncCall exprType (AST.Call pos params callSymbol args) = withPos pos $ do
+resolveFuncCall exprType (AST.Call pos mparam callSymbol args) = withPos pos $ do
     --liftIO $ putStrLn $ "resolving: " ++ show callSymbol
-    mp <- case params of
-        [] -> return Nothing
-        [x] -> return (Just $ typeof x)
-    let callHeader = CallHeader mp callSymbol (map typeof args) exprType
+    let callHeader = CallHeader (fmap typeof mparam) callSymbol (map typeof args) exprType
 
     candidates <- findCandidates callHeader
     ast <- get
