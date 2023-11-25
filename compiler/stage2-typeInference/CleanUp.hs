@@ -44,12 +44,7 @@ genSymbol sym = do
 
 cleanUpMapper :: Elem -> DoM ASTResolved Elem
 cleanUpMapper elem = case elem of
-    ElemType (Type.RecordApply t) -> ElemType <$> flattenType (Type.RecordApply t)
-    ElemType (Type.Tuple t) -> do
-        b <- definitelyIgnoresTuples t
-        return $ case b of
-            True  -> ElemType t
-            False -> elem
+    ElemType t -> ElemType <$> flattenType t
         
     ElemExpr (AExpr exprType expr@(AST.Field pos e symbol)) -> case symbol of
         Sym _             -> ElemExpr . AExpr exprType . AST.Field pos e <$> resolveFieldAccess (typeof e) symbol
@@ -90,53 +85,33 @@ resolveFuncCall exprType (AST.Call pos params callSymbol args) = withPos pos $ d
         [symbol] | isCtor symbol ast               -> return symbol
         [symbol] | isGenericFunction symbol ast    -> do -- this is where we replace
             let genericBody = getFunctionBody symbol ast
-            resE <- tryError $ replaceGenericsInFuncBodyWithCall genericBody callHeader
-            case resE of
-                Left e -> do
-                    liftIO $ putStrLn $ "warning: replaceGenericsInFuncBodyWithCall failed for: " ++ show callSymbol ++ " - " ++ show e
-                    return callSymbol
-                Right bodyReplaced -> case funcFullyResolved (funcGenerics genericBody) bodyReplaced of
-                    False -> return callSymbol
-                    True  -> do
-                        symbol' <- genSymbol (Symbol.sym callSymbol)
-                        modify $ \s -> s { funcDefs = Map.insert symbol' bodyReplaced (funcDefs s) }
-                        --liftIO $ putStrLn $ "replaced: " ++ show callSymbol ++ " with: " ++ show symbol'
-                        --liftIO $ prettyFuncBody  symbol' bodyReplaced
-                        return symbol'
+            bodyReplaced <- replaceGenericsInFuncBodyWithCall genericBody callHeader
+            case funcFullyResolved (funcGenerics genericBody) bodyReplaced of
+                False -> return callSymbol
+                True  -> do
+                    symbol' <- genSymbol (Symbol.sym callSymbol)
+                    modify $ \s -> s { funcDefs = Map.insert symbol' bodyReplaced (funcDefs s) }
+                    return symbol'
 
         [genericSymbol, nonGenericSymbol] |
             isGenericFunction genericSymbol ast &&
             isNonGenericFunction nonGenericSymbol ast -> do
                 let genericBody = getFunctionBody genericSymbol ast
-                resE <- tryError $ replaceGenericsInFuncBodyWithCall genericBody callHeader
-                case resE of
-                    Left e -> do
-                        liftIO $ putStrLn $ "warning: replaceGenericsInFuncBodyWithCall failed for: " ++ show callSymbol ++ " - " ++ show e
-                        return callSymbol
-                    Right bodyReplaced -> do
-                        let genericHeader    = funcHeaderFromBody nonGenericSymbol bodyReplaced
-                        let nonGenericHeader = funcHeaderFromBody nonGenericSymbol (getFunctionBody nonGenericSymbol ast)
-                        if genericHeader == nonGenericHeader then
-                            return nonGenericSymbol
-                        else
-                            return callSymbol
+                let nonGenericBody = getFunctionBody nonGenericSymbol ast
+                bodyReplaced <- replaceGenericsInFuncBodyWithCall genericBody callHeader
+                case funcHeaderTypesMatch bodyReplaced nonGenericBody of
+                    True -> return nonGenericSymbol
+                    False -> return callSymbol
 
         [nonGenericSymbol, genericSymbol] |
             isGenericFunction genericSymbol ast &&
             isNonGenericFunction nonGenericSymbol ast -> do
+                let nonGenericBody = getFunctionBody nonGenericSymbol ast
                 let genericBody = getFunctionBody genericSymbol ast
-                resE <- tryError $ replaceGenericsInFuncBodyWithCall genericBody callHeader
-                case resE of
-                    Left e -> do
-                        liftIO $ putStrLn $ "warning: replaceGenericsInFuncBodyWithCall failed for: " ++ show callSymbol ++ " - " ++ show e
-                        return callSymbol
-                    Right bodyReplaced -> do
-                        let genericHeader    = funcHeaderFromBody nonGenericSymbol bodyReplaced
-                        let nonGenericHeader = funcHeaderFromBody nonGenericSymbol (getFunctionBody nonGenericSymbol ast)
-                        if genericHeader == nonGenericHeader then
-                            return nonGenericSymbol
-                        else
-                            return callSymbol
+                bodyReplaced <- replaceGenericsInFuncBodyWithCall genericBody callHeader
+                case funcHeaderTypesMatch bodyReplaced nonGenericBody of
+                    True -> return nonGenericSymbol
+                    False -> return callSymbol
 
         _ -> do
             --liftIO $ putStrLn $ "multiple candidates for: " ++ show candidates

@@ -37,20 +37,6 @@ mapFuncBodyM f body = do
         }
 
 
-mapFuncHeaderM :: MapperFunc s -> FuncHeader -> DoM s FuncHeader
-mapFuncHeaderM f header = do
-    paramTypes' <- mapM (mapTypeM f) (paramTypes header)
-    argTypes'   <- mapM (mapTypeM f) (argTypes header)
-    returnType' <- mapTypeM f (returnType header)
-    return $ FuncHeader {
-        generics   = generics header,
-        paramTypes = paramTypes',
-        symbol     = symbol header,
-        argTypes   = argTypes',
-        returnType = returnType'
-        }
-
-
 mapStmtM :: MapperFunc s -> Stmt -> DoM s Stmt
 mapStmtM f stmt = withPos stmt $ do
     res <- f . ElemStmt =<< case stmt of

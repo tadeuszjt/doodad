@@ -24,16 +24,6 @@ data ASTResolved
     deriving (Eq)
 
 
-data FuncHeader = FuncHeader
-    { generics   :: [Symbol]
-    , paramTypes :: [Type]
-    , symbol     :: Symbol
-    , argTypes   :: [Type]
-    , returnType :: Type
-    }
-    deriving (Eq, Ord)
-
-
 data CallHeader = CallHeader
     { callParamType :: Maybe Type
     , callSymbol    :: Symbol
@@ -53,20 +43,6 @@ data FuncBody
         }
     deriving (Eq, Show)
 
-
-instance Show FuncHeader where
-    show header =
-        "fn" ++ typeArgsStr ++ " " ++ paramsStr ++ " " ++ (show $ symbol header) ++ argsStr ++ " " ++ show (returnType header)
-        where
-            typeArgsStr = case generics header of
-                [] -> ""
-                ss -> "[" ++ intercalate ", " (map show ss) ++ "]"
-            paramsStr = case paramTypes header of
-                [] -> ""
-                ts -> "{" ++ intercalate ", " (map show ts) ++ "}"
-            argsStr = case argTypes header of
-                [] -> "()"
-                ts -> "(" ++ intercalate ", " (map show ts) ++ ")"
 
 instance Show CallHeader where
     show header =
@@ -119,14 +95,6 @@ getFunctionTypeArgs symbol ast = if Map.member symbol (funcDefs ast) then
     else error "symbol is not function"
 
 
-getFunctionHeader :: Symbol -> ASTResolved -> FuncHeader
-getFunctionHeader symbol ast = if Map.member symbol (funcDefs ast) then
-        let body = funcDefs ast Map.! symbol in funcHeaderFromBody symbol body
-    else if Map.member symbol (funcImports ast) then
-        let body = funcImports ast Map.! symbol in funcHeaderFromBody symbol body
-    else error "symbol is not function"
-
-
 getFunctionBody :: Symbol -> ASTResolved -> FuncBody
 getFunctionBody symbol ast = if Map.member symbol (funcDefs ast) then
         funcDefs ast Map.! symbol
@@ -135,28 +103,12 @@ getFunctionBody symbol ast = if Map.member symbol (funcDefs ast) then
     else error "symbol is not function"
 
 
-funcHeaderFromBody :: Symbol -> FuncBody -> FuncHeader
-funcHeaderFromBody symbol body =
-    FuncHeader {
-        generics = funcGenerics body,
-        paramTypes = map typeof (funcParams body),
-        symbol = symbol,
-        argTypes = map typeof (funcArgs body),
-        returnType = funcRetty body
-        }
+funcHeaderTypesMatch :: FuncBody -> FuncBody -> Bool
+funcHeaderTypesMatch a b =
+    funcRetty a == funcRetty b &&
+    map typeof (funcParams a) == map typeof (funcParams b) &&
+    map typeof (funcArgs a) == map typeof (funcArgs b)
 
-
-
-funcHeadersCouldMatch :: ASTResolved -> FuncHeader -> FuncHeader -> Bool
-funcHeadersCouldMatch ast a b
-    | not $ symbolsCouldMatch (symbol a) (symbol b)                                                          = False
-    | length (paramTypes a) /= length (paramTypes b) || length (argTypes a) /= length (argTypes b)           = False
-    | not $ all (== True) $ zipWith (typesCouldMatch (typeFuncs ast) gens) (paramTypes a) (paramTypes b) = False
-    | not $ all (== True) $ zipWith (typesCouldMatch (typeFuncs ast) gens) (paramTypes a) (paramTypes b) = False
-    | not $ typesCouldMatch (typeFuncs ast) gens (returnType a) (returnType b)                           = False
-    | otherwise = True
-    where
-        gens = generics a ++ generics b
 
 
 prettyFuncBody :: Symbol -> FuncBody -> IO ()
@@ -174,13 +126,9 @@ prettyFuncBody symbol body =
 prettyASTResolved :: ASTResolved -> IO ()
 prettyASTResolved ast = do
     putStrLn $ "module " ++ moduleName ast
-
     forM_ (Map.toList $ constDefs ast) $ \(symbol, expr) ->
         prettyStmt "" $ AST.Const undefined symbol expr
-
     forM_ (Map.toList $ typeFuncs ast) $ \(symbol, (generics, typ)) ->
         prettyStmt "" (AST.Typedef undefined generics symbol $ AnnoType typ)
-
     forM_ (Map.toList $ funcDefs ast) $ \(symbol, body) -> prettyFuncBody symbol body
-
     putStrLn ""

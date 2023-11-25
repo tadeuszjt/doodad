@@ -91,7 +91,6 @@ collectAST verbose ast = do
 
 collectCall :: Type -> [Expr] -> Symbol -> [Expr] -> DoM CollectState ()
 collectCall exprType params symbol args = do -- can be resolved or sym
-    let callHeader = FuncHeader [] (map typeof params) symbol (map typeof args) exprType
     ast <- gets astResolved
     mReceiverType <- case params of
         [] -> return Nothing
@@ -100,11 +99,10 @@ collectCall exprType params symbol args = do -- can be resolved or sym
     case candidates of
         [symbol] | isGenericFunction symbol ast -> return ()
         [symbol] | isNonGenericFunction symbol ast -> do
-            let header = getFunctionHeader symbol ast
-            collectEq exprType (returnType header)
-            zipWithM_ collectEq (map typeof params) (paramTypes header)
-            zipWithM_ collectEq (map typeof args) (argTypes header)
-
+            let body = getFunctionBody symbol ast
+            collectEq exprType (funcRetty body)
+            zipWithM_ collectEq (map typeof params) (map typeof $ funcParams body)
+            zipWithM_ collectEq (map typeof args)   (map typeof $ funcArgs body)
         [symbol] | isCtor symbol ast -> return ()
 
         _ -> return ()
