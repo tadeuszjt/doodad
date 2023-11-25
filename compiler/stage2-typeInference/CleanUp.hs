@@ -81,14 +81,9 @@ resolveFuncCall exprType (AST.Call pos params callSymbol args) = withPos pos $ d
         [x] -> return (Just $ typeof x)
     let callHeader = CallHeader mp callSymbol (map typeof args) exprType
 
-    mReceiverType <- case params of
-        [] -> return Nothing
-        [p] -> return (Just $ typeof p)
-
-    candidates <- findCandidates $ CallHeader mReceiverType callSymbol (map typeof args) exprType
+    candidates <- findCandidates callHeader
     ast <- get
     case candidates of
-        --[] -> return callSymbol
         [] -> fail $ "no candidates for: " ++ show callHeader
 
         [symbol] | isNonGenericFunction symbol ast -> return symbol
@@ -100,7 +95,7 @@ resolveFuncCall exprType (AST.Call pos params callSymbol args) = withPos pos $ d
                 Left e -> do
                     liftIO $ putStrLn $ "warning: replaceGenericsInFuncBodyWithCall failed for: " ++ show callSymbol ++ " - " ++ show e
                     return callSymbol
-                Right bodyReplaced -> case funcHeaderFullyResolved (funcGenerics genericBody) (funcHeaderFromBody symbol bodyReplaced) of
+                Right bodyReplaced -> case funcFullyResolved (funcGenerics genericBody) bodyReplaced of
                     False -> return callSymbol
                     True  -> do
                         symbol' <- genSymbol (Symbol.sym callSymbol)

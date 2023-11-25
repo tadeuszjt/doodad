@@ -26,32 +26,31 @@ import TupleDeleter
 -- generic symbols with resolved types.
 
 findCandidates :: CallHeader -> DoM ASTResolved [Symbol]
-findCandidates callHeader = do
-    funcSymbols <- findFunctionCandidates callHeader
-    typeSymbols <- findTypeCandidates     callHeader
-    ctorSymbols <- findCtorCandidates (callSymbol callHeader)
+findCandidates call = do
+    funcSymbols <- findFunctionCandidates call
+    typeSymbols <- findTypeCandidates     call
+    ctorSymbols <- findCtorCandidates (callSymbol call)
     let r = Set.toList $ Set.fromList $ concat $ [funcSymbols, typeSymbols, ctorSymbols]
-    --liftIO $ putStrLn $ show callHeader ++ ": " ++ show r
+    --liftIO $ putStrLn $ show call ++ ": " ++ show r
     return r
 
 
 
 findFunctionCandidates :: CallHeader -> DoM ASTResolved [Symbol]
-findFunctionCandidates call@(CallHeader mReceiverType s argTypes returnType) = do
-    let callHeader = FuncHeader [] (if isJust mReceiverType then [fromJust mReceiverType] else []) s argTypes returnType
+findFunctionCandidates call = do
     ast <- get
-    fmap catMaybes $ forM (Map.toList $ Map.union (funcDefs ast) (funcImports ast)) $ \(symbol, body) -> do
-        let bodyHeader = funcHeaderFromBody symbol body
-        b <- callCouldMatchFunc call symbol body
-        case b of
-            True -> return $ Just $ symbol
-            False -> return Nothing
+    fmap catMaybes $ forM (Map.toList $ Map.union (funcDefs ast) (funcImports ast)) $
+        \(symbol, body) -> do
+            b <- callCouldMatchFunc call symbol body
+            return $ case b of
+                True -> Just symbol
+                False -> Nothing
+
 
 findTypeCandidates :: CallHeader -> DoM ASTResolved [Symbol]
-findTypeCandidates callHeader@(CallHeader mReceiverType s argTypes returnType) = do
-    let callHeader = FuncHeader [] (if isJust mReceiverType then [fromJust mReceiverType] else []) s argTypes returnType
+findTypeCandidates (CallHeader mReceiverType s argTypes returnType) = do
     typeFuncs <- gets typeFuncs
-    let res     = Map.filterWithKey (\k v -> symbolsCouldMatch k $ symbol callHeader) typeFuncs
+    let res     = Map.filterWithKey (\k v -> symbolsCouldMatch k s) typeFuncs
     return $ Map.keys res
 
 
@@ -59,7 +58,6 @@ findCtorCandidates :: Symbol -> DoM ASTResolved [Symbol]
 findCtorCandidates callSymbol = do
     ctorDefs <- gets ctorDefs
     return $ Map.keys $ Map.filterWithKey (\k v -> symbolsCouldMatch k callSymbol) ctorDefs
-
 
 
 callCouldMatchFunc :: CallHeader -> Symbol -> FuncBody -> DoM ASTResolved Bool
@@ -86,20 +84,11 @@ callCouldMatchFunc call symbol body
         return (argsMatch && rettyMatch && paramMatches)
 
 
-funcHeaderHasGenerics :: [Symbol] -> FuncHeader -> Bool
-funcHeaderHasGenerics generics header =
-    paramGenerics /= [] || argGenerics /= [] || rettyGenerics /= []
-    where
-        paramGenerics = concat $ map (findGenerics generics) (paramTypes header)
-        argGenerics   = concat $ map (findGenerics generics) (argTypes header)
-        rettyGenerics = findGenerics generics (returnType header)
-
-
-funcHeaderFullyResolved :: [Symbol] -> FuncHeader -> Bool
-funcHeaderFullyResolved generics header =
-    all (== True) (map typeFullyResolved $ paramTypes header)
-    && all (== True) (map typeFullyResolved $ argTypes header)
-    && typeFullyResolved (returnType header)
+funcFullyResolved :: [Symbol] -> FuncBody -> Bool
+funcFullyResolved generics body =
+    all (== True) (map typeFullyResolved $ map typeof $ funcParams body)
+    && all (== True) (map typeFullyResolved $ map typeof $ funcArgs body)
+    && typeFullyResolved (funcRetty body)
     where
         typeFullyResolved :: Type -> Bool
         typeFullyResolved typ = case typ of
@@ -115,17 +104,12 @@ funcHeaderFullyResolved generics header =
             _ -> error $ "typeFullyResolved: " ++ show typ
 
 
-replaceGenericsInFuncBodyWithCall :: FuncBody -> CallHeader -> DoM ASTResolved FuncBody
-replaceGenericsInFuncBodyWithCall body call@(CallHeader mp s as rt) = do
-    let callHeader = FuncHeader [] (if isNothing mp then [] else [fromJust mp]) s as rt
-    --liftIO $ putStrLn $ "replacing: " ++ show callHeader
-    ast <- get
-    let header = funcHeaderFromBody (callSymbol call) body
 
+replaceGenericsInFuncBodyWithCall :: FuncBody -> CallHeader -> DoM ASTResolved FuncBody
+replaceGenericsInFuncBodyWithCall body call = do
     couldMatch <- callCouldMatchFunc call (callSymbol call) body
     unless couldMatch (error "headers could not match")
-    constraints <- getConstraintsFromFuncHeaders header callHeader
-    subs <- unify (funcGenerics body) constraints
+    subs <- unify (funcGenerics body) =<< getConstraints call body
     mapFuncBodyM tupleDeleterMapper $ (applyFuncBody subs body) { funcGenerics = [] }
 
 
@@ -157,22 +141,20 @@ unify generics (x:xs) = do
     return (s ++ subs)
 
 
-
-getConstraintsFromFuncHeaders :: FuncHeader -> FuncHeader -> DoM ASTResolved [Constraint]
-getConstraintsFromFuncHeaders headerToReplace header = do
-    unless (generics header == []) (error "header cannot be generic")
-    paramConstraints <- fmap concat $
-        zipWithM (getConstraintsFromTypes $ generics headerToReplace)
-            (paramTypes headerToReplace)
-            (paramTypes header)
-    argConstraints <- fmap concat $
-        zipWithM (getConstraintsFromTypes $ generics headerToReplace)
-            (argTypes headerToReplace)
-            (argTypes header)
-    rettyConstraints <- getConstraintsFromTypes (generics headerToReplace)
-        (returnType headerToReplace)
-        (returnType header)
-    return $ paramConstraints ++ argConstraints ++ rettyConstraints
+getConstraints :: CallHeader -> FuncBody -> DoM ASTResolved [Constraint]
+getConstraints call body = do
+    retCs <- getConstraintsFromTypes (funcGenerics body) (funcRetty body) (callRetType call)
+    argCs <- fmap concat $ zipWithM (getConstraintsFromTypes $ funcGenerics body)
+        (map typeof $ funcArgs body)
+        (callArgTypes call)
+    parCs <- case callParamType call of
+        Nothing -> return []
+        Just typ -> do
+            case map typeof (funcParams body) of
+                [t] -> getConstraintsFromTypes (funcGenerics body) t typ
+                _ -> error "TODO"
+    return (retCs ++ argCs ++ parCs)
+    
 
 
 getConstraintsFromTypes :: [Symbol] -> Type -> Type -> DoM ASTResolved [Constraint]
