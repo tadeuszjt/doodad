@@ -77,7 +77,7 @@ callCouldMatchFunc call symbol body
             (Just t1,  t2s)     -> do
                 baseT1 <- baseTypeOf t1
                 t1s <- case baseT1 of
-                    Record _ -> getRecordTypes t1
+                    Record ts -> return ts
                     t        -> return [t]
                 return $ all (== True) $ zipWith (typesCouldMatch (typeFuncs ast) (funcGenerics body)) t1s t2s
             x -> error (show x)
