@@ -103,6 +103,7 @@ collectCall exprType mparam symbol args = do -- can be resolved or sym
             case map typeof (funcParams body) of
                 [] -> unless (isNothing mparam) (error "invalid func call")
                 [t] -> collectEq (typeof $ fromJust mparam) t
+                ts  -> collectEq (typeof $ fromJust mparam) (Type.Record ts)
                 x -> error (show x)
 
             zipWithM_ collectEq (map typeof args)   (map typeof $ funcArgs body)

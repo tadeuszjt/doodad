@@ -29,7 +29,8 @@ generate ast = withErrorPrefix "generate: " $ do
     forM_ (Map.toList $ funcImports ast) $ \(symbol, body) -> do
         unless (isGenericBody body) $ do
             crt <- cTypeOf (ASTResolved.funcRetty body)
-            cpts <- map Cpointer <$> mapM cTypeOf (ASTResolved.funcParams body)
+            pts <- getRecordTypes $ Type.Record (map typeof $ ASTResolved.funcParams body)
+            cpts <- map Cpointer <$> mapM cTypeOf pts
             cats <- mapM cTypeOf (ASTResolved.funcArgs body)
             newExtern (show symbol) crt (cpts ++ cats)
 
@@ -37,7 +38,8 @@ generate ast = withErrorPrefix "generate: " $ do
     forM_ (Map.toList $ funcDefs ast) $ \(symbol, func) -> do
          unless (isGenericBody func) $ do
             crt <- cTypeOf (ASTResolved.funcRetty func)
-            cpts <- map Cpointer <$> mapM cTypeOf (map paramType $ ASTResolved.funcParams func)
+            pts <- getRecordTypes $ Type.Record (map typeof $ ASTResolved.funcParams func)
+            cpts <- map Cpointer <$> mapM cTypeOf pts
             cats <- mapM cTypeOf (map paramType $ ASTResolved.funcArgs func)
             newExtern (show symbol) crt (cpts ++ cats)
 
@@ -65,25 +67,50 @@ generate ast = withErrorPrefix "generate: " $ do
 generateFunc :: Symbol -> FuncBody -> Generate ()
 generateFunc symbol body = do
     args <- mapM cParamOf (ASTResolved.funcArgs body)
-    params <- map (\(C.Param n t) -> C.Param n (Cpointer t)) <$> mapM cParamOf (ASTResolved.funcParams body)
     rettyType <- cTypeOf (ASTResolved.funcRetty body)
 
     pushSymTab
-    forM_ (ASTResolved.funcParams body) $ \param -> do
-        ctyp <- cTypeOf (paramType param)
-        name <- return $ show (S.paramName param)
-        define name $ Value (S.paramType param) $ C.Deref (C.Ident name)
 
-    forM_ (ASTResolved.funcArgs body) $ \arg -> do
-        ctyp <- cTypeOf (paramType arg)
-        name <- return $ show (S.paramName arg)
-        define name $ Value (S.paramType arg) (C.Ident name)
+    -- { p Person } -> (char *p0, int64_t *p1, ... 
+    -- p = {p0, p1}
+    -- the record types are expanded into args
+    -- the record fields are expanded into records
+    RecordTree ns <- getRecordTree $ Type.Record (map typeof $ ASTResolved.funcParams body)
+    paramArgs <- fmap concat $ forM (zip ns [0..]) $ \(n, pi) -> do
+        let sName = S.paramName (ASTResolved.funcParams body !! pi)
+        case n of
+            RecordLeaf t i -> (:[]) . C.Param (show sName) . Cpointer <$> cTypeOf t
+            RecordTree ns -> do
+                leaves <- getRecordLeaves (RecordTree ns)
+                forM leaves $ \(t, i) -> do
+                    s' <- fresh (show sName)
+                    C.Param s' . Cpointer <$> cTypeOf t
 
-    id <- newFunction rettyType (show symbol) (params ++ args)
+    id <- newFunction rettyType (show symbol) (paramArgs ++ args)
     withCurID id $ do
+        forM_ (zip ns [0..]) $ \(n, pi) -> case n of
+            RecordLeaf t i -> do
+                let sName = S.paramName (ASTResolved.funcParams body !! pi)
+                let cParam = paramArgs !! i
+                define (show sName) $ Value t $ C.Deref (C.Ident $ C.cName cParam)
+
+            RecordTree ns' -> do
+                let sName = S.paramName (ASTResolved.funcParams body !! pi)
+                let sType = S.paramType (ASTResolved.funcParams body !! pi)
+                leaves <- getRecordLeaves (RecordTree ns')
+                let names' = [ C.Ident (C.cName (paramArgs !! i)) | i <- map snd leaves ]
+                rec <- assign "param" $ Value sType $ C.Initialiser names'
+                define (show sName) rec
+
+        forM_ (ASTResolved.funcArgs body) $ \arg -> do
+            ctyp <- cTypeOf (paramType arg)
+            name <- return $ show (S.paramName arg)
+            define name $ Value (S.paramType arg) (C.Ident name)
+
         generateStmt (ASTResolved.funcStmt body)
         when (ASTResolved.funcRetty body /= Type.Void) $ -- check to ensure function has return
             call "assert" [false]
+
     popSymTab
     withCurID globalID $ append id
 

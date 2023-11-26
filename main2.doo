@@ -223,14 +223,22 @@ fn testSparse()
 
 
 fn {io Io} testFuncCalls()
-    fn {n i64, b bool} f()
+    fn {n i64, b bool} f() string
         n = n + 1
         b = !b
+        return ""
 
     let n = 0
     let b = false
-    //{n, b}.f()
+    let "" = {n, b}.f()
+    let (1, true) = (n, b)
 
+    fn {p Person} g() bool
+        return p.name == "john"
+    let p:()Person
+    let false = p{}.g()
+    p.name = "john"
+    let true = p{}.g()
 
     io.putStrLn("testFuncCalls passed")
 
@@ -247,5 +255,5 @@ fn {io Io} main()
 
     io.putStrLn("main2 finished")
 
-type Person {string, i32}
+type Person {name string, age i32}
 

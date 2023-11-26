@@ -57,14 +57,32 @@ char *doodad_string_plus(char *a, char *b) {
 }
 
 bool doodad_string_eqeq(char *a, char *b) {
+    if (a == NULL) {
+        a = "";
+    }
+    if (b == NULL) {
+        b == ""; 
+    }
     return strcmp(a, b) == 0;
 }
 
 bool doodad_string_lt(char *a, char *b) {
+    if (a == NULL) {
+        a = "";
+    }
+    if (b == NULL) {
+        b == ""; 
+    }
     return strcmp(a, b) < 0;
 }
 
 bool doodad_string_gt(char *a, char *b) {
+    if (a == NULL) {
+        a = "";
+    }
+    if (b == NULL) {
+        b == ""; 
+    }
     return strcmp(a, b) > 0;
 }
 
