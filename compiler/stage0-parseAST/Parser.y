@@ -143,8 +143,8 @@ symbols1 : symbol                         { [$1] }
 mfnRec : {-empty-}                        { [] }
        | '{' paramsA '}'                  { $2 }
 
-mfnGenerics : {-empty-}                   { [] }
-            | '[' idents1 ']'             { $2 }
+generics : {-empty-}                      { [] }
+         | '[' idents1 ']'                { map Symbol.Sym $2 }
 
 line : let pattern '=' expr               { Let (tokPos $1) $2 (Just $4) Nothing }  
      | let pattern                        { Let (tokPos $1) $2 Nothing Nothing }
@@ -152,8 +152,7 @@ line : let pattern '=' expr               { Let (tokPos $1) $2 (Just $4) Nothing
      | expr '++'                          { Increment (tokPos $2) $1 }
      | expr '=' expr                      { SetOp (tokPos $2) Eq $1 $3 }
      | expr '+=' expr                     { SetOp (tokPos $2) PlusEq $1 $3 }
-     | type symbol anno_t                 { Typedef (fst $2) [] (snd $2) $3 }
-     | type '[' idents1 ']' symbol anno_t { Typedef (fst $5) (map Sym $3) (snd $5) $6 }
+     | type generics symbol anno_t        { Typedef (fst $3) $2 (snd $3) $4 }
      | data symbol type_                  { Data (tokPos $1) (snd $2) $3 Nothing }
      | return mexpr                       { Return (tokPos $1) $2 }
      | embed_c                            { AST.EmbedC (tokPos $1) (tokStr $1) }
@@ -166,10 +165,10 @@ block : if_                               { $1 }
       | switch expr 'I' cases1 'D'        { Switch (tokPos $1) $2 $4 }
       | let pattern '='  expr in scope    { Let (tokPos $1) $2 (Just $4) (Just $6) }
       | let pattern in scope              { Let (tokPos $1) $2 Nothing (Just $4) }
-      | fn mfnGenerics mfnRec ident '(' paramsA ')' mtype scope {
+      | fn generics mfnRec ident '(' paramsA ')' mtype scope {
             FuncDef
                 (tokPos $1)
-                (map Symbol.Sym $2)
+                $2
                 $3
                 (Sym $ tokStr $4)
                 $6

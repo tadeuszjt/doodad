@@ -168,6 +168,7 @@ instance TextPosition Expr where
         Array        p _ -> p
         Construct    p _ _ -> p
         RecordAccess p _ -> p
+        Record       p _ -> p
         _ -> error (show expression)
 
 

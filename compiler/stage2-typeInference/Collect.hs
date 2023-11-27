@@ -133,7 +133,7 @@ collectMapper element = (\_ -> return element) =<< case element of
         EmbedC _ _             -> return ()
         ExprStmt expr          -> collectDefault (typeof expr) Void
         If _ expr blk melse    -> collect $ ConsBase Type.Bool (typeof expr)
-        Let _ pattern mexpr _  -> when (isJust mexpr) $ collectEq (typeof pattern) (typeof $ fromJust mexpr)
+        Let _ pattern mexpr _  -> when (isJust mexpr) $ collectEq (typeof $ fromJust mexpr) (typeof pattern)
         SetOp _ op expr1 expr2 -> collectEq (typeof expr1) (typeof expr2)
         While _ expr _         -> collect $ ConsBase Type.Bool (typeof expr)
         Return _ mexpr         -> collectEq (maybe Void typeof mexpr) =<< gets curRetty

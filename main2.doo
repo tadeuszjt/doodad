@@ -240,6 +240,9 @@ fn {io Io} testFuncCalls()
     p.name = "john"
     let true = p{}.g()
 
+    let (s0, n0) = ("benis", 5:i32)
+    {s0, n0}.g()
+
     fn {b bool, p Person, n i64} h()
         p.name = "james"
         b = false
@@ -251,6 +254,9 @@ fn {io Io} testFuncCalls()
     tab2.push( (true, "jim", 49, 2) )
     tab1{0}.h()
     tab2{0}.h()
+
+    {b, tab1{0}.Person, n}.h()
+
     let "james" = tab1{0}.Person.name
     let "james" = tab2{0}.Person.name
 
@@ -266,8 +272,15 @@ fn {io Io} main()
     testPatRecord()
     testUnordered()
     io.testFuncCalls()
-
     io.putStrLn("main2 finished")
+
+    fn {n i64} fug() {}i64
+        return {n}
+
+    let x = 1
+    let y = 2
+
+    let false = y.fug() < x.fug()
 
 type Person {name string, age i32}
 

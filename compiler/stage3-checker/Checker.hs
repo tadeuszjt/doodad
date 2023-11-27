@@ -1,5 +1,7 @@
+{-# LANGUAGE FlexibleInstances #-}
 module Checker where
 
+import qualified Data.Set as Set
 import qualified Data.Map as Map
 import Control.Monad
 import Control.Monad.State
@@ -15,22 +17,28 @@ import Error
 
 
 data Object
-    = Object { objChildren :: [Symbol] }
+    = ObjUses Symbol
+    | ObjDefines Symbol [Symbol]
+    deriving (Show, Eq, Ord)
 
 
 data CheckState
     = CheckState
-        { symTab :: SymTab.SymTab Symbol () Object
+        { symTab      :: SymTab.SymTab Symbol () Object
+        , astResolved :: ASTResolved
         }
 
 
-initCheckState = CheckState
-    { symTab = SymTab.initSymTab
+initCheckState ast = CheckState
+    { symTab      = SymTab.initSymTab
+    , astResolved = ast
     }
+
+instance TypeDefs (DoM CheckState) where getTypeDefs = gets (typeFuncs . astResolved)
 
 
 runASTChecker :: ASTResolved -> DoM s ()
-runASTChecker ast = fmap fst $ runDoMExcept initCheckState (checkAST ast)
+runASTChecker ast = fmap fst $ runDoMExcept (initCheckState ast) (checkAST ast)
 
 
 pushSymTab :: DoM CheckState ()
@@ -53,78 +61,137 @@ look symbol = do
     isDefined <- isJust . SymTab.lookup symbol () <$> gets symTab
     check (isDefined) (show symbol ++ " not defined")
     fmap fromJust $ SymTab.lookup symbol () <$> gets symTab
-    
-
-
-assertSymbolResolved :: Symbol -> DoM CheckState ()
-assertSymbolResolved (SymResolved _ _ _) = return ()
-assertSymbolResolved symbol              = fail $ "unresolved symbol: " ++ show symbol
-
-assertTypeNoReferences :: Type -> DoM CheckState ()
-assertTypeNoReferences typ = case typ of
-    Type.Tuple t -> assertRecordNoReferences t
-
-    x -> error (show x)
-    where
-        assertRecordNoReferences :: Type -> DoM CheckState ()
-        assertRecordNoReferences typ = case typ of
-            x -> error (show x)
-
-
 
 
 checkAST :: ASTResolved -> DoM CheckState ()
 checkAST ast = do
     forM_ (Map.toList $ funcDefs ast) $ \(symbol, body) -> do
-        when (funcGenerics body == []) $
-            checkFuncDef symbol body
+        when (funcGenerics body == []) $ do
+            pushSymTab
+            objects <- checkStmt (funcStmt body)
+            popSymTab
 
 
-checkFuncDef :: Symbol -> FuncBody -> DoM CheckState ()
-checkFuncDef symbol body = do
-    checkStmt (funcStmt body)
-    return ()
+checkUses :: [Object] -> DoM CheckState ()
+checkUses objs = do
+    let uses = filter isUse objs
+    let dups = checkDup uses
+    case dups of
+        [] -> return ()
+        (x:xs) -> fail ("multiple uses: " ++ show x)
+    where
+        isUse :: Object -> Bool
+        isUse (ObjUses _) = True
+        isUse _           = False
+
+        checkDup :: Eq a => [a] -> [a]
+        checkDup (x:xs) = if x `elem` xs then x : (checkDup xs) else checkDup xs
+        checkDup []     = []
 
 
-checkStmt :: Stmt -> DoM CheckState ()
+pack :: [Object] -> [Object]
+pack = Set.toList . Set.fromList
+
+
+checkExpr :: Expr -> DoM CheckState [Object]
+checkExpr (AExpr exprType expression) = withPos expression $ case expression of
+    Infix pos op expr1 expr2 -> do
+        objs1 <- checkExpr expr1
+        objs2 <- checkExpr expr2
+        checkUses (objs1 ++ objs2)
+        return []
+
+    Prefix pos op expr -> do
+        return []
+
+    Field pos expr ident -> checkExpr expr
+
+    -- return objects from mparam if returns record
+    Call pos mparam symbol exprs -> do
+        void $ mapM checkExpr exprs
+        resm <- traverse checkExpr mparam
+        objs <- case resm of
+            Nothing -> return []
+            Just res -> return res
+        base <- baseTypeOf exprType
+        case base of
+            Type.Record _ -> return objs
+            _             -> return []
+
+    RecordAccess pos expr -> checkExpr expr
+
+    Ident pos symbol -> return [ObjUses symbol]
+
+    Match pos pat expr -> return []
+
+    Builtin pos symbol exprs -> return []
+
+    Int pos n -> return []
+
+    AST.Bool pos b -> return []
+
+    AST.String pos s -> return []
+
+    AST.Record pos exprs -> return []
+
+    AST.Tuple pos exprs -> return []
+
+    RecordAccess pos expr -> return []
+
+    Subscript pos expr1 expr2 -> return []
+
+    x -> fail (show x)
+    
+
+
+checkStmt :: Stmt -> DoM CheckState [Object]
 checkStmt stmt = case stmt of
     Block stmts -> do
         pushSymTab
         mapM_ checkStmt stmts
         popSymTab
+        return []
 
     If _ cnd blk mblk -> do
+        objs <- checkExpr cnd
         checkStmt blk
         void $ traverse checkStmt mblk
+        return []
 
     Return _ mexpr -> do
-        return ()
+        return []
 
     ExprStmt expr -> do
-        return ()
+        return []
 
-    EmbedC _ _ -> return ()
+    EmbedC _ _ -> do
+        return []
 
     Data _ symbol typ Nothing -> do
-        assertSymbolResolved symbol
         --assertTypeNoReferences typ
-        define symbol (Object [])
-        return ()
+        define symbol (ObjDefines symbol [])
+        return []
 
-    SetOp _ op expr1 expr2 -> return ()
+    SetOp _ op expr1 expr2 -> do
+        return []
 
-    Increment _ expr -> return ()
+    Increment _ expr -> do
+        return []
 
-    Let _ pat expr mblk -> do
+    Let _ pat mexpr mblk -> do
         checkPattern [] pat 
+        void $ traverse checkExpr mexpr
         void $ traverse checkStmt mblk
+        return []
 
     Switch _ expr cases -> do
         forM_ cases $ \(pat, blk) -> do
             checkStmt blk
+        return []
 
     While _ cnd blk -> do
         checkStmt blk
+        return []
 
     x -> error (show x)
 
@@ -132,7 +199,7 @@ checkStmt stmt = case stmt of
 checkPattern :: [Symbol] -> Pattern -> DoM CheckState ()
 checkPattern parents (PatAnnotated pattern patType) = case pattern of
     PatIdent _ symbol -> do
-        assertSymbolResolved symbol
+        return ()
 
     PatRecord _ pats -> do
         forM_ pats $ \pat -> case pat of
@@ -144,7 +211,6 @@ checkPattern parents (PatAnnotated pattern patType) = case pattern of
         mapM_ (checkPattern parents) pats
 
     PatField _ symbol pats -> do
-        assertSymbolResolved symbol
         mapM_ (checkPattern parents) pats
 
     PatLiteral expr -> do

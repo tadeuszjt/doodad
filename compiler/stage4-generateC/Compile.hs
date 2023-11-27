@@ -239,8 +239,7 @@ generateStmt stmt = withPos stmt $ case stmt of
                 case base of
                     Type.Record _ -> do 
                         ts <- getRecordTypes (typeof param)
-                        forM (zip ts [0..]) $ \(t, i) -> do 
-                            return $ C.Member (valExpr param) ("m" ++ show i)
+                        return [ C.Member (valExpr param) ("m" ++ show i) | (t, i) <- zip ts [0..] ]
                     _ -> return [C.Address (valExpr param)]
 
         void $ appendElem $ C.ExprStmt $ C.Call (show symbol) (ptrs ++ map valExpr args) 
@@ -510,8 +509,7 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
                 case base of
                     Type.Record _ -> do 
                         ts <- getRecordTypes (typeof param)
-                        forM (zip ts [0..]) $ \(t, i) -> do 
-                            return $ C.Member (valExpr param) ("m" ++ show i)
+                        return [ C.Member (valExpr param) ("m" ++ show i) | (t, i) <- zip ts [0..] ]
                     _ -> do
                         return [C.Address (valExpr param)]
                     x -> error (show x)
@@ -589,7 +587,15 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
 
     S.Record _ exprs -> do
         vals <- mapM generateExpr exprs
-        assign "record" $ Value typ $ C.Initialiser $ map (C.Address . valExpr) vals
+        ptrs <- fmap concat $ forM vals $ \val -> do
+            base <- baseTypeOf val
+            case base of
+                Type.Record _ -> do
+                    ts <- getRecordTypes (typeof val)
+                    return [ C.Member (valExpr val) ("m" ++ show i) | (t, i) <- zip ts [0..] ]
+                _ -> return [C.Address (valExpr val)]
+
+        assign "record" $ Value typ (C.Initialiser ptrs)
 
 
     _ -> error (show expr_)

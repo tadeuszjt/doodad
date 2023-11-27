@@ -35,8 +35,8 @@ fn[K, V] {tree Tree[K, V]} get(key ()K) ()V
 
 fn[K, V] {tree Tree[K, V]} insert(key ()K, value ()V)
     fn[K, V] {tree Tree[K, V]} insertNode(newNode Key[Node[K, V]], node Key[Node[K, V]])
-        let lt = tree.nodes.at(newNode).key < tree.nodes.at(node).key
-        let gt = tree.nodes.at(newNode).key > tree.nodes.at(node).key
+        let lt = tree.nodes.get(newNode).key < tree.nodes.get(node).key
+        let gt = tree.nodes.get(newNode).key > tree.nodes.get(node).key
         let {l, r, k, v} = tree.nodes.at(node) in
             if !lt && !gt                ; assert(false, "key already in tree")
             else if l -> Just(left)  | lt; tree.insertNode(newNode, left)
