@@ -17,14 +17,22 @@ import Error
 
 
 data Object
-    = ObjUses Symbol
-    | ObjDefines Symbol [Symbol]
+    = Referencing Symbol -- presenting a reference to
+    | Defining Symbol    -- defining   a reference to
     deriving (Show, Eq, Ord)
 
 
+isReferencing :: Object -> Bool
+isReferencing (Referencing _) = True
+isReferencing _               = False
+
+isDefining :: Object -> Bool
+isDefining (Defining _) = True
+isDefining _            = False
+
 data CheckState
     = CheckState
-        { symTab      :: SymTab.SymTab Symbol () Object
+        { symTab      :: SymTab.SymTab Object () ()
         , astResolved :: ASTResolved
         }
 
@@ -49,18 +57,16 @@ popSymTab :: DoM CheckState ()
 popSymTab = modify $ \s -> s { symTab = SymTab.pop (symTab s) }
 
 
-define :: Symbol -> Object -> DoM CheckState ()
-define symbol object = do
-    isDefined <- isJust . SymTab.lookup symbol () <$> gets symTab
-    check (not isDefined) (show symbol ++ " already defined")
-    modify $ \s -> s { symTab = SymTab.insert symbol () object (symTab s) }
+define :: Object -> DoM CheckState ()
+define object = do
+    isDefined <- isJust . SymTab.lookup object () <$> gets symTab
+    check (not isDefined) (show object ++ " already defined")
+    modify $ \s -> s { symTab = SymTab.insert object () () (symTab s) }
 
 
-look :: Symbol -> DoM CheckState Object
-look symbol = do
-    isDefined <- isJust . SymTab.lookup symbol () <$> gets symTab
-    check (isDefined) (show symbol ++ " not defined")
-    fmap fromJust $ SymTab.lookup symbol () <$> gets symTab
+look :: Object -> DoM CheckState Bool
+look object = do
+    isJust . SymTab.lookup object () <$> gets symTab
 
 
 checkAST :: ASTResolved -> DoM CheckState ()
@@ -72,18 +78,14 @@ checkAST ast = do
             popSymTab
 
 
-checkUses :: [Object] -> DoM CheckState ()
-checkUses objs = do
-    let uses = filter isUse objs
+checkMultipleReferences :: [Object] -> DoM CheckState ()
+checkMultipleReferences objs = do
+    let uses = filter isReferencing objs
     let dups = checkDup uses
     case dups of
         [] -> return ()
         (x:xs) -> fail ("multiple uses: " ++ show x)
     where
-        isUse :: Object -> Bool
-        isUse (ObjUses _) = True
-        isUse _           = False
-
         checkDup :: Eq a => [a] -> [a]
         checkDup (x:xs) = if x `elem` xs then x : (checkDup xs) else checkDup xs
         checkDup []     = []
@@ -95,16 +97,40 @@ pack = Set.toList . Set.fromList
 
 checkExpr :: Expr -> DoM CheckState [Object]
 checkExpr (AExpr exprType expression) = withPos expression $ case expression of
+    Int pos n -> return []
+    AST.Bool pos b -> return []
+    AST.String pos s -> return []
+
+    AST.Tuple pos exprs -> do
+        mapM_ checkExpr exprs
+        return []
+
+    -- returns the references of the expressions
+    AST.Record pos exprs -> do
+        objs <- fmap concat $ mapM checkExpr exprs
+        checkMultipleReferences objs
+        return objs
+
+    -- returns the references of the expr
+    Field pos expr ident -> checkExpr expr
+
+    -- returns one reference
+    Ident pos symbol -> do
+        b <- look (Referencing symbol)
+        when b $ fail $ "invalid reference: " ++ (Symbol.sym symbol)
+        return [Referencing symbol]
+
+    -- returns the references of the expr
+    RecordAccess pos expr -> do
+        objs <- checkExpr expr
+        return objs
+
+    -- ensures no multiple references active
     Infix pos op expr1 expr2 -> do
         objs1 <- checkExpr expr1
         objs2 <- checkExpr expr2
-        checkUses (objs1 ++ objs2)
+        checkMultipleReferences (objs1 ++ objs2)
         return []
-
-    Prefix pos op expr -> do
-        return []
-
-    Field pos expr ident -> checkExpr expr
 
     -- return objects from mparam if returns record
     Call pos mparam symbol exprs -> do
@@ -118,107 +144,119 @@ checkExpr (AExpr exprType expression) = withPos expression $ case expression of
             Type.Record _ -> return objs
             _             -> return []
 
-    RecordAccess pos expr -> checkExpr expr
-
-    Ident pos symbol -> return [ObjUses symbol]
-
-    Match pos pat expr -> return []
+    -- pat defines, redefines references of expr.
+    Match pos expr pat -> do
+        objs1 <- checkExpr expr
+        ss <- checkPattern pat
+        case ss of
+            [] -> return []
+            _  -> return [ Referencing s | Referencing s <- objs1 ] 
 
     Builtin pos symbol exprs -> return []
 
-    Int pos n -> return []
-
-    AST.Bool pos b -> return []
-
-    AST.String pos s -> return []
-
-    AST.Record pos exprs -> return []
-
-    AST.Tuple pos exprs -> return []
-
-    RecordAccess pos expr -> return []
-
     Subscript pos expr1 expr2 -> return []
+
+    Construct pos typ exprs -> return []
+
+    Prefix pos op expr -> do
+        return []
+
 
     x -> fail (show x)
     
 
 
-checkStmt :: Stmt -> DoM CheckState [Object]
-checkStmt stmt = case stmt of
+checkStmt :: Stmt -> DoM CheckState ()
+checkStmt stmt = withPos stmt $ case stmt of
     Block stmts -> do
         pushSymTab
         mapM_ checkStmt stmts
         popSymTab
-        return []
 
     If _ cnd blk mblk -> do
+        pushSymTab
         objs <- checkExpr cnd
+        mapM define [ Referencing s | Referencing s <- objs ]
         checkStmt blk
-        void $ traverse checkStmt mblk
-        return []
+        traverse checkStmt mblk
+        popSymTab
 
     Return _ mexpr -> do
-        return []
+        void $ traverse checkExpr mexpr
 
     ExprStmt expr -> do
-        return []
+        checkExpr expr
+        return ()
 
     EmbedC _ _ -> do
-        return []
+        return ()
 
     Data _ symbol typ Nothing -> do
-        --assertTypeNoReferences typ
-        define symbol (ObjDefines symbol [])
-        return []
+        return ()
 
     SetOp _ op expr1 expr2 -> do
-        return []
+        objs1 <- checkExpr expr1
+        objs2 <- checkExpr expr2
+        checkMultipleReferences (objs1 ++ objs2)
+        return ()
 
     Increment _ expr -> do
-        return []
+        checkExpr expr
+        return ()
 
     Let _ pat mexpr mblk -> do
-        checkPattern [] pat 
-        void $ traverse checkExpr mexpr
-        void $ traverse checkStmt mblk
-        return []
+        pushSymTab
+        mobjs <- traverse checkExpr mexpr
+        objs <- case mobjs of
+            Nothing -> return []
+            Just xs -> return xs
+
+        ss <- checkPattern pat 
+        case ss of
+            [] -> return []
+            ss -> do
+                mapM define [ Referencing s | Referencing s <- objs ]
+
+        traverse checkStmt mblk
+        popSymTab
 
     Switch _ expr cases -> do
+        checkExpr expr
         forM_ cases $ \(pat, blk) -> do
+            pushSymTab
+            checkPattern pat
             checkStmt blk
-        return []
+            popSymTab
+        return ()
 
     While _ cnd blk -> do
+        checkExpr cnd
         checkStmt blk
-        return []
+        return ()
 
     x -> error (show x)
 
 
-checkPattern :: [Symbol] -> Pattern -> DoM CheckState ()
-checkPattern parents (PatAnnotated pattern patType) = case pattern of
-    PatIdent _ symbol -> do
-        return ()
+-- The only way that patterns concern references is by defining them in the record pattern.
+-- Return all defined symbols to references
+checkPattern :: Pattern -> DoM CheckState [Symbol]
+checkPattern (PatAnnotated pattern patType) = withPos pattern $ case pattern of
+    PatIdent _ symbol -> return []
+    PatIgnore _       -> return []
+    PatLiteral expr   -> checkExpr expr >> return []
+
+    PatGuarded _ pat expr -> do
+        checkExpr expr
+        checkPattern pat
+
+    PatTuple _ pats -> fmap concat $ mapM checkPattern pats
+
+    PatField _ symbol pats -> fmap concat $ mapM checkPattern pats
 
     PatRecord _ pats -> do
-        forM_ pats $ \pat -> case pat of
-            PatAnnotated (PatIdent _ s) t -> do
-                return ()
-
-            _ -> return ()
-
-        mapM_ (checkPattern parents) pats
-
-    PatField _ symbol pats -> do
-        mapM_ (checkPattern parents) pats
-
-    PatLiteral expr -> do
-        return ()
-
-    PatTuple _ pats -> do
-        mapM_ (checkPattern parents) pats
-    PatIgnore _ -> return ()
+        ss <- fmap concat $ mapM checkPattern pats
+        return $ [ s | PatAnnotated (PatIdent _ s) _ <- pats ] ++ ss
 
     x -> error (show x)
-checkPattern _ pattern = withPos pattern $ fail "unresolved pattern"
+checkPattern _ = return []
+checkPattern pattern = withPos pattern $ fail $ "unresolved pattern: " ++ show pattern
