@@ -213,18 +213,20 @@ checkStmt stmt = withPos stmt $ case stmt of
 
         ss <- checkPattern pat 
         case ss of
-            [] -> return []
-            ss -> do
-                mapM define [ Referencing s | Referencing s <- objs ]
-
+            [] -> return ()
+            ss -> mapM_ define [ Referencing s | Referencing s <- objs ]
         traverse checkStmt mblk
         popSymTab
 
     Switch _ expr cases -> do
-        checkExpr expr
+        objs <- checkExpr expr
         forM_ cases $ \(pat, blk) -> do
             pushSymTab
-            checkPattern pat
+            ss <- checkPattern pat
+            case ss of
+                [] -> return ()
+                ss -> mapM_ define [ Referencing s | Referencing s <- objs ]
+
             checkStmt blk
             popSymTab
         return ()

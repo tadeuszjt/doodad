@@ -49,19 +49,18 @@ fn[K, V] {tree Tree[K, V]} insert(key ()K, value ()V)
         k{} = key{}
         v{} = value{}
     switch tree.base
-        Nothing(); tree.base = Just(nodeKey)
-        Just(baseNode)
-            tree.nodes.insertNode(nodeKey, baseNode)
+        Nothing()     ; tree.base = Just(nodeKey)
+        Just(baseNode); tree.nodes.insertNode(nodeKey, baseNode)
 
 
 fn[K, V] {tree Tree[K, V]} delete(key ()K) 
     fn[K, V] {nodes Unordered[Node[K, V]]} leftMost(node Key[Node[K, V]]) Key[Node[K, V]]
-        if nodes.at(node) -> {Just(left), _, _, _}
+        if nodes.at(node).left -> Just(left)
             return nodes.leftMost(left)
         return node
 
     fn[K, V] {nodes Unordered[Node[K, V]]} rightMost(node Key[Node[K, V]]) Key[Node[K, V]]
-        if nodes.at(node) -> {_, Just(right), _, _}
+        if nodes.at(node).right -> Just(right)
             return nodes.rightMost(right)
         return node
 
