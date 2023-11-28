@@ -3,6 +3,6 @@ module maybe
 type[T] Maybe = (Nothing() | Just T)
 
 
-fn[T] isJust(maybe Maybe[T]) bool
+fn[T] isJust(maybe Maybe[T]) Bool
     if maybe -> Just(_); return true
     else;                return false

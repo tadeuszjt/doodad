@@ -5,10 +5,8 @@ import std/sfml/sfml
 import std/rand
 
 
-type record {vertex Vertex, somehing bool}
 
-
-fn {v table[Vertex]} pushTriangle(position Vec2f)
+fn {v Table[Vertex]} pushTriangle(position Vec2f)
     v.push( (position + (0, -10),  red(),   (0, 0)) )
     v.push( (position + (-10, 10), green(), (0, 0)) )
     v.push( (position + (10, 10),  blue(),  (0, 0)) )
@@ -24,9 +22,11 @@ fn {io Io} main()
     let w:Window
     w.create()
 
-    data vertices table[Vertex]
+    data vertices Table[Vertex]
 
     vertices.pushTriangle( rand.randVec2f() )
+
+
     vertices.pushTriangle( rand.randVec2f() )
     vertices.pushTriangle( rand.randVec2f() )
     vertices.pushTriangle( rand.randVec2f() )

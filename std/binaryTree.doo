@@ -16,7 +16,7 @@ type[K, V] Tree (
 )
 
 
-fn[K, V] {tree Tree[K, V]} length() i64
+fn[K, V] {tree Tree[K, V]} length() I64
     return tree.nodes.length()
 
 
@@ -107,8 +107,8 @@ fn[K, V] {tree Tree[K, V]} delete(key ()K)
             else; tree.nodes.deleteFromNode(base, key)
 
 
-fn[K, V] {tree Tree[K, V]} contains(key ()K) bool
-    fn[K, V] {tree Tree[K, V]} nodeContains(node Key[Node[K, V]], key ()K) bool
+fn[K, V] {tree Tree[K, V]} contains(key ()K) Bool
+    fn[K, V] {tree Tree[K, V]} nodeContains(node Key[Node[K, V]], key ()K) Bool
         let (less, greater, mLeft, mRight)
         let {l, r, k, v} = tree.nodes.at(node) in
             mLeft   = l

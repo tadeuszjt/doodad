@@ -4,38 +4,38 @@ import std/maybe
 import std/table
 
 
-fn isAlpha(c:char) bool
+fn isAlpha(c:Char) bool
     let r = false
     ${ $r = isalpha($c); }
     return r
 
 
-fn isDigit(c:char) bool
+fn isDigit(c:Char) bool
     let r = false
     ${ $r = isdigit($c); }
     return r
 
 
-fn isSpace(c:char) bool
+fn isSpace(c:Char) bool
     let r = false
     ${ $r = isspace($c); }
     return r
 
 
-//fn isPrefix(pre:string, str:string) bool
+//fn isPrefix(pre:String, str:String) bool
 //    if len(pre) > len(str); return false
 //    for pre[..] -> i
 //        if str[i] != pre[i]; return false
 //    return true
 //
 //
-//fn {s:string} at(idx:i64) (null | char)
+//fn {s:String} at(idx:I64) (null | Char)
 //    if idx >= 0 && idx < len(s)
 //        return conv(s[idx])
 //    return null
 //
 //
-fn drop(s:string, n:i64) string
+fn drop(s:String, n:I64) String
     let r = ""
     ${
         if ($n <= strlen($s)) {
@@ -45,7 +45,7 @@ fn drop(s:string, n:i64) string
     return r
 //
 //
-//fn take(s:string, n:i64) string
+//fn take(s:String, n:I64) String
 //    let r = ""
 //    ${
 //        size_t len = strlen($s);
@@ -62,13 +62,13 @@ fn drop(s:string, n:i64) string
 //
 
 
-fn get(s:string, idx:i64) Maybe(char)
+fn get(s:String, idx:I64) Maybe(Char)
     if idx >= 0 && idx < len(s)
         return Just(s[idx])
     return Nothing()
 
 
-fn readI64(s:string) Maybe((i64, string))
+fn readI64(s:String) Maybe((I64, String))
     while get(s, 0) -> Just(c) | isSpace(c)
         s = drop(s, 1)
 
@@ -79,14 +79,14 @@ fn readI64(s:string) Maybe((i64, string))
 
     let hasDigits = false
     let x = 0
-    data digits []char
+    data digits []Char
     while get(s, 0) -> Just(c) | isDigit(c)
         hasDigits = true
         digits.push(c)
         s = drop(s, 1)
 
     for digits -> {digit}
-        x = x*10 + conv(digit - '0'):i64
+        x = x*10 + conv(digit - '0'):I64
 
     if !hasDigits
         return Nothing()

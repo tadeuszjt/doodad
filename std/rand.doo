@@ -5,20 +5,20 @@ include <time.h>
 include <math.h>
 link m
 
-type Rand i64
+type Rand I64
 
 
-fn {r Rand} randI64(min i64, max i64) i64
+fn {r Rand} randI64(min I64, max I64) I64
     ${ srand(*$r); }
     ${ *$r = rand(); }
     return (conv(r) % (max - min)) + min
 
 
-fn {r Rand} randF64(min f64, max f64) f64
+fn {r Rand} randF64(min F64, max F64) F64
     if min == max
         return min
 
-    let x:f64 = 0 
+    let x:F64 = 0 
 
     ${
         srand(*$r);
@@ -28,11 +28,11 @@ fn {r Rand} randF64(min f64, max f64) f64
     return x
 
 
-fn {r Rand} randF32(min f32, max f32) f32
+fn {r Rand} randF32(min F32, max F32) F32
     if min == max
         return min
 
-    let x:f32 = 0 
+    let x:F32 = 0 
 
     ${ srand(*$r); }
     ${ *$r = rand(); }

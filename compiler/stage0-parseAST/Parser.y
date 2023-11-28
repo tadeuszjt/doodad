@@ -76,24 +76,24 @@ import Symbol
     include    { Token _ Token.CInclude _ }
     link       { Token _ Token.CLink _ }
 
-    u8         { Token _ Token.Reserved "u8" }
-    i8         { Token _ Token.Reserved "i8" }
-    i16        { Token _ Token.Reserved "i16" }
-    i32        { Token _ Token.Reserved "i32" }
-    i64        { Token _ Token.Reserved "i64" }
-    f32        { Token _ Token.Reserved "f32" }
-    f64        { Token _ Token.Reserved "f64" }
-    bool       { Token _ Token.Reserved "bool" }
-    char       { Token _ Token.Reserved "char" }
-    string     { Token _ Token.Reserved "string" }
-    table      { Token _ Token.Reserved "table" }
-    tuple      { Token _ Token.Reserved "tuple" }
+    U8         { Token _ Token.Reserved "U8" }
+    I8         { Token _ Token.Reserved "I8" }
+    I16        { Token _ Token.Reserved "I16" }
+    I32        { Token _ Token.Reserved "I32" }
+    I64        { Token _ Token.Reserved "I64" }
+    F32        { Token _ Token.Reserved "F32" }
+    F64        { Token _ Token.Reserved "F64" }
+    Bool       { Token _ Token.Reserved "Bool" }
+    Char       { Token _ Token.Reserved "Char" }
+    String     { Token _ Token.Reserved "String" }
+    Table      { Token _ Token.Reserved "Table" }
 
     int_c      { Token _ Token.Int _ }
     float_c    { Token _ Token.Float _ }
     char_c     { Token _ Token.Char _ }
     string_c   { Token _ Token.String _ }
     ident      { Token _ Token.Ident _ }
+    Ident      { Token _ Token.UpperIdent _ }
 
     embed_c    { Token _ Token.EmbedC _ }
 
@@ -133,8 +133,14 @@ imports : {- empty -}              { [] }
 idents1 : ident                           { [tokStr $1] }
         | ident ',' idents1               { (tokStr $1):($3) }
 
+Idents1 : Ident                           { [tokStr $1] }
+        | Ident ',' Idents1               { (tokStr $1):($3) } 
+
 symbol : ident                            { (tokPos $1, Sym (tokStr $1)) }
        | ident '::' ident                 { (tokPos $3, SymQualified (tokStr $1) (tokStr $3)) }
+
+Symbol : Ident                            { (tokPos $1, Sym (tokStr $1)) }
+       | ident '::' Ident                 { (tokPos $3, SymQualified (tokStr $1) (tokStr $3)) }
 
 symbols1 : symbol                         { [$1] }
          | symbol ',' symbols1            { $1 : $3 }
@@ -143,7 +149,7 @@ mfnRec : {-empty-}                        { [] }
        | '{' paramsA '}'                  { $2 }
 
 generics : {-empty-}                      { [] }
-         | '[' idents1 ']'                { map Symbol.Sym $2 }
+         | '[' Idents1 ']'                { map Symbol.Sym $2 }
 
 line : let pattern '=' expr               { Let (tokPos $1) $2 (Just $4) Nothing }  
      | let pattern                        { Let (tokPos $1) $2 Nothing Nothing }
@@ -151,7 +157,7 @@ line : let pattern '=' expr               { Let (tokPos $1) $2 (Just $4) Nothing
      | expr '++'                          { Increment (tokPos $2) $1 }
      | expr '=' expr                      { SetOp (tokPos $2) Eq $1 $3 }
      | expr '+=' expr                     { SetOp (tokPos $2) PlusEq $1 $3 }
-     | type generics symbol anno_t        { Typedef (fst $3) $2 (snd $3) $4 }
+     | type generics Symbol anno_t        { Typedef (fst $3) $2 (snd $3) $4 }
      | data symbol type_                  { Data (tokPos $1) (snd $2) $3 Nothing }
      | return mexpr                       { Return (tokPos $1) $2 }
      | embed_c                            { AST.EmbedC (tokPos $1) (tokStr $1) }
@@ -187,8 +193,8 @@ params1 : param                         { [$1] }
 params2 : param  ',' params1            { $1 : $3 }
 
 
-paramL  : ident     type_               { Param (tokPos $1) (Sym $ tokStr $1) $2 }
-        | ident     '(' ')'             { Param (tokPos $1) (Sym $ tokStr $1) Void }
+paramL  : Ident     type_               { Param (tokPos $1) (Sym $ tokStr $1) $2 }
+        | Ident     '(' ')'             { Param (tokPos $1) (Sym $ tokStr $1) Void }
 paramsL1 : paramL                       { [$1] }
          | paramL '|' paramsL1          { $1 : $3 }
 paramsLN1 : paramL 'N'                  { [$1] }
@@ -232,7 +238,7 @@ pattern  : '_'                           { PatIgnore (tokPos $1) }
          | '{' patterns '}'              { PatRecord (tokPos $1) $2 }
          | pattern '|' expr              { PatGuarded (tokPos $2) $1 $3 }
          | pattern '|' expr '->' pattern { PatGuarded (tokPos $2) $1 (Match (tokPos $4) $3 $5) }
-         | symbol '(' patterns ')'       { PatField (tokPos $2) (snd $1) $3 }
+         | Symbol '(' patterns ')'       { PatField (tokPos $2) (snd $1) $3 }
          --| '.' type_ '[' pattern ']'     { PatTypeField (tokPos $1) $2 $4 }
          | pattern ':' type_             { PatAnnotated $1 $3 }
 
@@ -260,8 +266,10 @@ expr   : literal                                 { $1 }
        | symbol                                  { AST.Ident (fst $1) (snd $1) }
        | '(' exprsA ')'                          { case $2 of [x] -> x; xs -> AST.Tuple (tokPos $1) xs }
        | symbol '(' exprsA ')'                   { Call (tokPos $2) Nothing (snd $1) $3 }
+       | Symbol '(' exprsA ')'                   { Call (tokPos $2) Nothing (snd $1) $3 }
        | expr '.' symbol '(' exprsA ')'          { Call (tokPos $4) (Just $1) (snd $3) $5 }
        | expr '.' ident                          { Field (tokPos $2) $1 (Sym $ tokStr $3) }
+       | expr '.' Ident                          { Field (tokPos $2) $1 (Sym $ tokStr $3) }
        | '{' exprs1 '}'                          { AST.Record (tokPos $1) $2 }
        | expr '{'  expr '}'                      { Subscript (tokPos $2) $1 $3 }
        | expr '{' '}'                            { RecordAccess (tokPos $2) $1 }
@@ -305,23 +313,23 @@ types1N : type_ 'N'                   { [$1] }
 types2N : type_ ',' 'N' types1N       { $1 : $4 }
     
 type_         : ordinal_t             { $1 }
-              | symbol                { TypeApply (snd $1) [] }
-              | symbol '[' types1 ']' { TypeApply (snd $1) $3 }
+              | Symbol                { TypeApply (snd $1) [] }
+              | Symbol '[' types1 ']' { TypeApply (snd $1) $3 }
               | record_t              { $1 }
               | tuple_t               { $1 }
               | table_t               { $1 }
 
 
-ordinal_t   : bool                    { Type.Bool }
-            | u8                      { U8 }
-            | i8                      { I8 }
-            | i16                     { I16 }
-            | i32                     { I32 }
-            | i64                     { I64 }
-            | f32                     { F32 }
-            | f64                     { F64 }
-            | char                    { Type.Char }
-            | string                  { Type.String }
+ordinal_t   : Bool                    { Type.Bool }
+            | U8                      { U8 }
+            | I8                      { I8 }
+            | I16                     { I16 }
+            | I32                     { I32 }
+            | I64                     { I64 }
+            | F32                     { F32 }
+            | F64                     { F64 }
+            | Char                    { Type.Char }
+            | String                  { Type.String }
 
 
 record_t  : '{' types1 '}'            { Type.Record $2 }
@@ -332,7 +340,7 @@ tuple_t  : '(' ')' type_              { Type.Tuple $3 }
          | '(' 'I' types2N 'D' ')'    { Type.Tuple (Type.Record $3) }
          --| '(' ')'                    { Type.Tuple (Type.Record []) }
 
-table_t  : table '[' type_ ']'        { Type.Table $3 }
+table_t  : Table '[' type_ ']'        { Type.Table $3 }
 
 
 anno_t   : ordinal_t                      { AnnoType $1 }
@@ -341,7 +349,7 @@ anno_t   : ordinal_t                      { AnnoType $1 }
          | table_t                        { AnnoType $1 }
          | '{' paramsA1 '}'               { AnnoRecord $2 }
          | '(' ')' '{' paramsA1 '}'       { AnnoTuple $4 }
-         | table '[' '{' paramsA1 '}' ']' { AnnoTable $4 }
+         | Table '[' '{' paramsA1 '}' ']' { AnnoTable $4 }
          | '(' paramsA1 ')'               { AnnoTuple $2 }
          | '=' '(' paramsLA2 ')'          { AnnoADT $3 }
 

@@ -3,12 +3,12 @@ module sparse
 import std/table
 
 
-type[T] Key i64
+type[T] Key I64
 
-type[T] Sparse (values table[T], empty table[Key[T]])
+type[T] Sparse (values Table[T], empty Table[Key[T]])
 
 
-fn[T] {s Sparse[T]} length() i64
+fn[T] {s Sparse[T]} length() I64
     return s.values.length() - s.empty.length()
 
 

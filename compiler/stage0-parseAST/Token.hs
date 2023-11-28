@@ -18,6 +18,7 @@ data TokenType
     = TokSym
     | Reserved
     | Ident
+    | UpperIdent
     | Int
     | Float
     | Char

@@ -17,7 +17,7 @@ fn[K, V] {m Map[K, V]} find(key ()K) Maybe[()V]
     else;                    return Nothing()
 
 
-fn[K, V] {m Map[K, V]} contains(key ()K) bool
+fn[K, V] {m Map[K, V]} contains(key ()K) Bool
     return m.tree.contains(key)
 
 

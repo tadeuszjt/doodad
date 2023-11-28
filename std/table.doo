@@ -1,22 +1,22 @@
 module table
 
 
-fn[T] {t table[T]} length() i64
+fn[T] {t Table[T]} length() I64
     ${ return $t->len; }
 
 
-fn[T] {t table[T]} push(elem ()T)
+fn[T] {t Table[T]} push(elem ()T)
     t++
     t{t.length() - 1} = elem{}
 
 
-fn[T] {t table[T]} pop() ()T
+fn[T] {t Table[T]} pop() ()T
     data elem ()T
     elem{} = t{t.length() - 1}
     ${ $t->len--; }
     return elem
 
 
-fn[T] {t table[T]} at(index i64) {}T
+fn[T] {t Table[T]} at(index I64) {}T
     assert(index >= 0 && index < len(t), "index out of range")
     return t{index}

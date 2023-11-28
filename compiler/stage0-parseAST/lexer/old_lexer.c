@@ -191,24 +191,23 @@ bool isKeyword(char *s) {
         "fn",
         "return",
         "switch",
-        "bool",
-        "string",
-        "i64",
-        "i32",
-        "i16",
-        "i8",
-        "u8",
-        "f64",
-        "f32",
-        "char",
+        "Bool",
+        "String",
+        "I64",
+        "I32",
+        "I16",
+        "I8",
+        "U8",
+        "F64",
+        "F32",
+        "Table",
+        "Char",
         "data",
         "let",
         "in",
-        "null",
         "true",
         "false",
         "type",
-        "table",
         NULL
     };
     for (int i = 0; keywords[i] != NULL; i++) {
@@ -271,6 +270,8 @@ bool lex() { // returns false for EOF
             } else {
                 if (isKeyword(stack)) {
                     printToken("keyword: %s\n", stack);
+                } else if (isupper(stack[0])) {
+                    printToken("Ident: %s\n", stack);
                 } else {
                     printToken("ident: %s\n", stack);
                 }

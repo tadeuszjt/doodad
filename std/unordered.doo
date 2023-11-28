@@ -4,9 +4,9 @@ import std/sparse
 import std/table
 
 
-type[T] Key i64
-type[T] UnorderedRecord { key Key[i64], value T }
-type[T] Unordered ( indices Sparse[i64], values table[UnorderedRecord[T]] )
+type[T] Key I64
+type[T] UnorderedRecord { key Key[I64], value T }
+type[T] Unordered ( indices Sparse[I64], values Table[UnorderedRecord[T]] )
 
 
 fn[T] {u Unordered[T]} insert(elem ()T) Key[T]
@@ -34,7 +34,7 @@ fn[T] {u Unordered[T]} delete(key Key[T])
     u.values.pop()
 
 
-fn[T] {u Unordered[T]} atIndex(index i64) {}T
+fn[T] {u Unordered[T]} atIndex(index I64) {}T
     return u.values{index}.value{}
 
 
@@ -49,5 +49,5 @@ fn[T] {u Unordered[T]} at(key Key[T]) {}T
         return u.values{index}.value{}
 
 
-fn[T] {u Unordered[T]} length() i64
+fn[T] {u Unordered[T]} length() I64
     return u.values.length()

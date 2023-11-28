@@ -4,15 +4,14 @@ syn keyword doodadFunc fn type
 syn keyword doodadDef let data const in
 syn keyword doodadLoop for while
 syn keyword doodadTop module import link include
-syn keyword doodadType i8 i16 i32 i64 f32 f64 bool char string table conv
-syn keyword doodadConst true false null
+syn keyword doodadType U8 I8 I16 I32 I64 F32 F64 Bool Char String Table conv
+syn keyword doodadConst true false
 syn match   doodadInt '\<\d\+\>'
 syn match   doodadChar '\'.\''
-syn match   doodadSpecial '{'
-syn match   doodadSpecial '\}'
 syn match   doodadSpecial "->"
 syn match   doodadString  '\"[^"]*\"'
 syn match   doodadComment '//.*'
+syn match   doodadType "\<[A-Z][a-zA-Z0-9_]*\>"
 
 
 hi def link doodadKeyword Statement

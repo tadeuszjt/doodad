@@ -10,7 +10,7 @@ import std/io
 
 
 fn testUnordered()
-    data u Unordered[string]
+    data u Unordered[String]
 
     let 0 = u.length()
     let 0 = u.insert("benis")
@@ -37,7 +37,7 @@ fn testUnordered()
 
 
 fn testTree()
-    data tree Tree[i64, bool]
+    data tree Tree[I64, Bool]
     tree.insert(10, true)
     tree.insert(19, false)
     tree.insert(3, true)
@@ -50,7 +50,7 @@ fn testTree()
     let false = tree.contains(10)
     //tree.printTree()
 
-    data tree2 Tree[string, i64]
+    data tree2 Tree[String, I64]
     tree2.insert("benzhis", 1)
     tree2.insert("benis", 2)
     tree2.insert("beni", 3)
@@ -65,7 +65,7 @@ fn testTree()
     let 5 = tree2.length()
     //tree2.printTree()
 
-    data tree3 Tree[Person, bool]
+    data tree3 Tree[Person, Bool]
     tree3.insert( ("jorinz", 35), true )
     tree3.insert( ("joranz", 39), true )
     tree3.insert( ("jaranz", 50), true )
@@ -79,7 +79,7 @@ fn testTree()
     let 0 = tree3.length()
     //tree3.printTree()
 
-    data tree4 Tree[(bool, Person), bool]
+    data tree4 Tree[(Bool, Person), Bool]
     tree4.insert( (true, "jorinz", 35), true )
     tree4.insert( (true, "joranz", 39), true )
     tree4.insert( (true, "jaranz", 50), true )
@@ -93,12 +93,12 @@ fn testTree()
 
 
 fn testTuple()
-    let t1 = (1, true, "three"):(){i64, bool, string}
-    let t2 = (2, false, "four"):(i64, {bool, string})
+    let t1 = (1, true, "three"):(){I64, Bool, String}
+    let t2 = (2, false, "four"):(I64, {Bool, String})
 
-    type Person {name string, age i64}
-    type MyType {person Person, something bool}
-    type Index i64
+    type Person {name String, age I64}
+    type MyType {person Person, something Bool}
+    type Index I64
 
     let t3 = ("jim", 50):()Person
     let 50    = t3.age
@@ -109,7 +109,7 @@ fn testTuple()
     let {"james", 32} = t4.Person
     let 3             = t4.Index
 
-    type BigType {Index, Person, bool, MyType}
+    type BigType {Index, Person, Bool, MyType}
     let t5 = (1, "two", 3, false, "five", 6, true):()BigType
     let "five" = t5.MyType.Person.name
     let "five" = t5.MyType.person.name
@@ -123,27 +123,27 @@ fn testTuple()
 
 
 fn testTable()
-    data tab1 table[i64]
+    data tab1 Table[I64]
     tab1.push(3)
     let {3} = tab1.at(0)
     let 1 = tab1.length()
     let 3 = tab1.pop()
     let 0 = tab1.length()
 
-    data tab2 table[()()i64]
+    data tab2 Table[()()I64]
     tab2.push(65)
     let 65 = tab2.pop()
 
-    data tab3 table[{i64, bool}]
+    data tab3 Table[{I64, Bool}]
     tab3.push( (1, true) )
     let {1, true} = tab3{0}
 
-    data tab4 table[sparse::Key[i64]]
+    data tab4 Table[sparse::Key[I64]]
     tab4.push(3)
     let 3 = tab4.pop()
 
-    type[T] AnotherRecord {bool, T}
-    data tab5 table[AnotherRecord[Person]]
+    type[T] AnotherRecord {Bool, T}
+    data tab5 Table[AnotherRecord[Person]]
     tab5.push( (true, "jorinz", 49) )
     let (true, "jorinz", 49) = tab5.pop()
 
@@ -151,7 +151,7 @@ fn testTable()
 
 
 fn testMap()
-    data map1 Map[i64, string]
+    data map1 Map[I64, String]
 
     map1.insert(3, "three")
     map1.insert(4, "four")
@@ -162,7 +162,7 @@ fn testMap()
     let Just("three") = map1.find(3)
     let Nothing()     = map1.find(2)
 
-    data map2 Map[ {i64, string}, i8 ]
+    data map2 Map[ {I64, String}, I8 ]
 
     map2.insert( (1, "two"), 3 )
     map2.insert( (1, "tw0"), 2 )
@@ -172,7 +172,7 @@ fn testMap()
     let Just(2) = map2.find( (1, "tw0") )
     let Nothing() = map2.find( (1, "Two") )
 
-    data map3 Map[ (i64, string), i8 ]
+    data map3 Map[ (I64, String), I8 ]
 
     map3.insert( (1, "two"), 3 )
 
@@ -191,7 +191,7 @@ fn testPatRecord()
         a = 2
     let (2, 5) = x2
 
-    data sparse Sparse[(i64, bool)]
+    data sparse Sparse[(I64, Bool)]
     let key = sparse.insert((1, true))
     let {1, true} = sparse.at(key)
     let {i, b} = sparse.at(key) in
@@ -203,7 +203,7 @@ fn testPatRecord()
 
 
 fn testSparse()
-    data s1 Sparse[i64]
+    data s1 Sparse[I64]
     let 0 = s1.insert(3)
     let 1 = s1.insert(4)
     let 2 = s1.insert(5)
@@ -223,7 +223,7 @@ fn testSparse()
 
 
 fn {io Io} testFuncCalls()
-    fn {n i64, b bool} f() string
+    fn {n I64, b Bool} f() String
         n = n + 1
         b = !b
         return ""
@@ -233,23 +233,23 @@ fn {io Io} testFuncCalls()
     let "" = {n, b}.f()
     let (1, true) = (n, b)
 
-    fn {p Person} g() bool
+    fn {p Person} g() Bool
         return p.name == "john"
     let p:()Person
     let false = p{}.g()
     p.name = "john"
     let true = p{}.g()
 
-    let (s0, n0) = ("benis", 5:i32)
+    let (s0, n0) = ("benis", 5:I32)
     {s0, n0}.g()
 
-    fn {b bool, p Person, n i64} h()
+    fn {b Bool, p Person, n I64} h()
         p.name = "james"
         b = false
         n = n + 1
 
-    data tab1 table[(bool, Person, i64)]
-    data tab2 table[{bool, Person, i64}]
+    data tab1 Table[(Bool, Person, I64)]
+    data tab2 Table[{Bool, Person, I64}]
     tab1.push( (true, "jim", 49, 2) )
     tab2.push( (true, "jim", 49, 2) )
     tab1{0}.h()
@@ -274,7 +274,7 @@ fn {io Io} main()
     io.testFuncCalls()
     io.putStrLn("main2 finished")
 
-    fn {n i64} fug() {}i64
+    fn {n I64} fug() {}I64
         return {n}
 
     let x = 1
@@ -282,5 +282,5 @@ fn {io Io} main()
 
     let false = y.fug() < x.fug()
 
-type Person {name string, age i32}
+type Person {name String, age I32}
 

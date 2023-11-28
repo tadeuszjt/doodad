@@ -41,6 +41,7 @@ lexFile printTokens filename = do
 
         return $ case line of
             l | isPrefixOf "ident: " l    -> Token pos Ident (fromJust $ stripPrefix "ident: " l)
+            l | isPrefixOf "Ident: " l    -> Token pos UpperIdent (fromJust $ stripPrefix "Ident: " l)
             l | isPrefixOf "keyword: " l  -> Token pos Reserved (fromJust $ stripPrefix "keyword: " l)
             l | isPrefixOf "newline:" l   -> Token pos NewLine ""
             l | isPrefixOf "indent:" l    -> Token pos Indent ""
