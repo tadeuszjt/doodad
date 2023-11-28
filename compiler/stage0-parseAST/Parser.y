@@ -70,7 +70,6 @@ import Symbol
     true       { Token _ Token.Reserved "true" }
     false      { Token _ Token.Reserved "false" }
     for        { Token _ Token.Reserved "for" }
-    null       { Token _ Token.Reserved "null" }
     data       { Token _ Token.Reserved "data" }
     module     { Token _ Token.Module _ }
     import     { Token _ Token.Import _ }
@@ -189,7 +188,7 @@ params2 : param  ',' params1            { $1 : $3 }
 
 
 paramL  : ident     type_               { Param (tokPos $1) (Sym $ tokStr $1) $2 }
-        | ident     null                { Param (tokPos $1) (Sym $ tokStr $1) Void }
+        | ident     '(' ')'             { Param (tokPos $1) (Sym $ tokStr $1) Void }
 paramsL1 : paramL                       { [$1] }
          | paramL '|' paramsL1          { $1 : $3 }
 paramsLN1 : paramL 'N'                  { [$1] }
@@ -228,7 +227,6 @@ pattern  : '_'                           { PatIgnore (tokPos $1) }
          | literal                       { PatLiteral $1 }
          | '-' int_c                     { PatLiteral (AST.Int (tokPos $1) $ 0 - (read $ tokStr $2)) }
          | ident                         { PatIdent (tokPos $1) (Sym $ tokStr $1) }
-         | null                          { PatNull (tokPos $1) }
          | '(' patterns ')'              { PatTuple (tokPos $1) $2 }
          | '[' patterns ']'              { PatArray (tokPos $1) $2 }
          | '{' patterns '}'              { PatRecord (tokPos $1) $2 }
@@ -259,7 +257,6 @@ expr   : literal                                 { $1 }
        | infix                                   { $1 }
        | prefix                                  { $1 }
        | expr ':' type_                          { AExpr $3 $1 }
-       | null                                    { Null (tokPos $1) }
        | symbol                                  { AST.Ident (fst $1) (snd $1) }
        | '(' exprsA ')'                          { case $2 of [x] -> x; xs -> AST.Tuple (tokPos $1) xs }
        | symbol '(' exprsA ')'                   { Call (tokPos $2) Nothing (snd $1) $3 }
@@ -313,7 +310,6 @@ type_         : ordinal_t             { $1 }
               | record_t              { $1 }
               | tuple_t               { $1 }
               | table_t               { $1 }
-              | recapp_t              { $1 }
 
 
 ordinal_t   : bool                    { Type.Bool }
@@ -329,23 +325,25 @@ ordinal_t   : bool                    { Type.Bool }
 
 
 record_t  : '{' types1 '}'            { Type.Record $2 }
+         | '{' '}' type_              { RecordApply $3 }
+
 tuple_t  : '(' ')' type_              { Type.Tuple $3 }
          | '(' type_ ',' types1 ')'   { Type.Tuple (Type.Record $ $2 : $4) }
          | '(' 'I' types2N 'D' ')'    { Type.Tuple (Type.Record $3) }
-         --| '(' ')'                  { Type.Tuple (Type.Record []) }
+         --| '(' ')'                    { Type.Tuple (Type.Record []) }
+
 table_t  : table '[' type_ ']'        { Type.Table $3 }
-recapp_t : '{' '}' type_              { RecordApply $3 }
 
 
-anno_t   : ordinal_t                  { AnnoType $1 }
-         | record_t                   { AnnoType $1 }
-         | tuple_t                    { AnnoType $1 }
-         | table_t                    { AnnoType $1 }
-         | '{' paramsA1 '}'           { AnnoRecord $2 }
-         | '(' ')' '{' paramsA1 '}'   { AnnoTuple $4 }
-         | '[' ']' '{' paramsA1 '}'   { AnnoTable $4 }
-         | '(' paramsA1 ')'           { AnnoTuple $2 }
-         | '=' '(' paramsLA2 ')'      { AnnoADT $3 }
+anno_t   : ordinal_t                      { AnnoType $1 }
+         | record_t                       { AnnoType $1 }
+         | tuple_t                        { AnnoType $1 }
+         | table_t                        { AnnoType $1 }
+         | '{' paramsA1 '}'               { AnnoRecord $2 }
+         | '(' ')' '{' paramsA1 '}'       { AnnoTuple $4 }
+         | table '[' '{' paramsA1 '}' ']' { AnnoTable $4 }
+         | '(' paramsA1 ')'               { AnnoTuple $2 }
+         | '=' '(' paramsLA2 ')'          { AnnoADT $3 }
 
 {
 parse :: MonadError Error m => [Token] -> m AST

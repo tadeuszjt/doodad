@@ -694,31 +694,38 @@ generateInfix op a b = do
 
         Type.Tuple t -> do
             ts <- getRecordTypes =<< baseTypeOf t
-            res <- assign "res" true
+            res <- assign "res" =<< case op of
+                S.Plus -> initialiser (typeof a) []
+                _      -> return true
+
             withFakeSwitch $ do
                 forM_ (zip ts [0..]) $ \(t, i) -> do
                     let ma = Value t $ C.Member (valExpr a) ("m" ++ show i)
                     let mb = Value t $ C.Member (valExpr b) ("m" ++ show i)
                     eq <- generateInfix S.EqEq ma mb
                     case op of
-                        S.NotEq -> if_ (not_ eq) (appendElem C.Break)
+                        S.NotEq -> void $ if_ (not_ eq) (appendElem C.Break)
                         S.EqEq -> if_ (not_ eq) $ do
                             set res false
-                            appendElem C.Break
+                            void $ appendElem C.Break
 
                         S.LT -> do
                             lt <- generateInfix S.LT ma mb
                             if_ lt (appendElem C.Break)
-                            if_ (not_ eq) $ do
+                            void $ if_ (not_ eq) $ do
                                 set res false
                                 appendElem C.Break
 
                         S.GT -> do
                             gt <- generateInfix S.GT ma mb
                             if_ gt (appendElem C.Break)
-                            if_ (not_ eq) $ do
+                            void $ if_ (not_ eq) $ do
                                 set res false
                                 appendElem C.Break
+
+                        S.Plus -> do
+                            let mr = Value t $ C.Member (valExpr res) ("m" ++ show i)
+                            void $ set mr =<< generateInfix S.Plus ma mb
 
                 case op of
                     S.NotEq -> set res false

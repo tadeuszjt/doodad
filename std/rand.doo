@@ -8,15 +8,33 @@ link m
 type Rand i64
 
 
-fn {r:Rand} I64(range:[..]i64) i64
-    let x = 0
-    ${ $x = (rand() % ($range.max - $range.min)) + $range.min; }
+fn {r Rand} randI64(min i64, max i64) i64
+    ${ srand(*$r); }
+    ${ *$r = rand(); }
+    return (conv(r) % (max - min)) + min
+
+
+fn {r Rand} randF64(min f64, max f64) f64
+    if min == max
+        return min
+
+    let x:f64 = 0 
+
+    ${
+        srand(*$r);
+        *$r = rand();
+        $x = fmod(*$r, $max - $min) + $min;
+    }
     return x
 
 
-fn {r:Rand} F32(min:f32, max:f32) f32
-    let x = 0
-    if max == min
+fn {r Rand} randF32(min f32, max f32) f32
+    if min == max
         return min
-    ${ $x = fmod(rand(), ((double)$max - (double)$min)) + (double)$min; }
+
+    let x:f32 = 0 
+
+    ${ srand(*$r); }
+    ${ *$r = rand(); }
+    ${ $x = fmod(*$r, $max - $min) + $min; }
     return x

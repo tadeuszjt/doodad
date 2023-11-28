@@ -2,8 +2,8 @@ module colours
 
 type Colour (r u8, g u8, b u8, a u8)
 
-fn Black() Colour; return (0, 0, 0, 255)
-fn White() Colour; return (255, 255, 255, 255)
-fn Red()   Colour; return (255, 0, 0, 255)
-fn Green() Colour; return (0, 255, 0, 255)
-fn Blue()  Colour; return (0, 0, 255, 255)
+fn black() Colour; return (0, 0, 0, 255)
+fn white() Colour; return (255, 255, 255, 255)
+fn red()   Colour; return (255, 0, 0, 255)
+fn green() Colour; return (0, 255, 0, 255)
+fn blue()  Colour; return (0, 0, 255, 255)

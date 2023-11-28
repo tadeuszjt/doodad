@@ -1,0 +1,54 @@
+module graphicsTest
+
+import std/io
+import std/sfml/sfml
+import std/rand
+
+
+type record {vertex Vertex, somehing bool}
+
+
+fn {v table[Vertex]} pushTriangle(position Vec2f)
+    v.push( (position + (0, -10),  red(),   (0, 0)) )
+    v.push( (position + (-10, 10), green(), (0, 0)) )
+    v.push( (position + (10, 10),  blue(),  (0, 0)) )
+
+
+fn {r Rand} randVec2f() Vec2f
+    return (r.randF32(0, 500), r.randF32(0, 500))
+
+
+fn {io Io} main()
+    let rand:Rand
+
+    let w:Window
+    w.create()
+
+    data vertices table[Vertex]
+
+    vertices.pushTriangle( rand.randVec2f() )
+    vertices.pushTriangle( rand.randVec2f() )
+    vertices.pushTriangle( rand.randVec2f() )
+    vertices.pushTriangle( rand.randVec2f() )
+    vertices.pushTriangle( rand.randVec2f() )
+    vertices.pushTriangle( rand.randVec2f() )
+    vertices.pushTriangle( rand.randVec2f() )
+    vertices.pushTriangle( rand.randVec2f() )
+    vertices.pushTriangle( rand.randVec2f() )
+    vertices.pushTriangle( rand.randVec2f() )
+
+
+    while w.isOpen()
+        while w.pollEvent() -> Just(event)
+            switch event
+                Closed(); w.close()
+                None();
+
+        w.clearWindow(white())
+        {w, vertices}.drawPrimitives()
+        w.display()
+
+    w.destroy()
+
+
+    io.putStrLn("graphicsTest")

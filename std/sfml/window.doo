@@ -19,7 +19,7 @@ type Triangle (Vertex, Vertex, Vertex)
 
 type Window i64
 
-type Event = ( None null | Closed null )
+type Event = ( None() | Closed() )
 
 
 fn {w Window} create()

@@ -166,8 +166,9 @@ convert typ val = do
             let Value _ expr = val
             set r (Value typ expr)
 
-        (I64, Type.Char) -> do
-            set r $ Value typ $ C.Cast Cint64_t (valExpr val)
+        (F32, f64)       -> set r $ Value typ $ C.Cast Cfloat (valExpr val)
+        (F32, I64)       -> set r $ Value typ $ C.Cast Cfloat (valExpr val)
+        (I64, Type.Char) -> set r $ Value typ $ C.Cast Cint64_t (valExpr val)
 
         (t1, Type.Record [t2]) | t1 == t2 -> do
             set r $ Value typ $ C.Deref $ C.Member (valExpr val) "m0"
