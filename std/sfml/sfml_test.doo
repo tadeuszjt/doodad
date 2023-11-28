@@ -1,25 +1,24 @@
 module sfmlTest
 
-import sfml
-import ../colours
+import std/sfml/sfml
+import std/colours
+import std/table
 
 
 fn main()
     print("sfml")
 
-    data vertices [Vertex]
+    data vertices table[Vertex]
 
-    let w = Window()
+    let w:Window
     w.create()
 
-    vertices += [
-        ((200, 50),  Red(),   (0, 0))
-        ((100, 250), Green(), (0, 0))
-        ((300, 250), Blue(),  (0, 0))
-    ]
+    vertices.push( ((200, 50),  Red(),   (0, 0)) )
+    vertices.push( ((100, 250), Green(), (0, 0)) )
+    vertices.push( ((300, 250), Blue(),  (0, 0)) )
 
     while w.isOpen()
-        while w.pollEvent() -> Event(event)
+        while w.pollEvent() -> Just(event)
             switch event
                 Closed(); w.close()
                 None();

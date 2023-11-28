@@ -188,7 +188,8 @@ buildModule args modPath = do
         -- infer ast types
         (astFinal, inferCount) <- fmap fst $ runDoMExcept () $ withErrorPrefix "infer: " $
             infer astResolved (printAstAnnotated args) (verbose args)
-        liftIO $ putStrLn $ "ran:       " ++ show inferCount ++ " type inference passes"
+        when (verbose args) $ do
+            liftIO $ putStrLn $ "ran:       " ++ show inferCount ++ " type inference passes"
         when (printAstFinal args) $ liftIO $ prettyASTResolved astFinal
         modify $ \s -> s { moduleMap = Map.insert absoluteModPath astFinal (moduleMap s) }
 
@@ -209,7 +210,8 @@ buildModule args modPath = do
         finalBuilderState <- if Args.optimise args then do
             (((), n), cBuilderStateOptimised) <- runDoMExcept cBuilderState $ do
                 runDoMUntilSameState O.optimise
-            liftIO $ putStrLn $ "ran:       " ++ show n ++ " optimisation passes"
+            when (verbose args) $ do
+                liftIO $ putStrLn $ "ran:       " ++ show n ++ " optimisation passes"
             return cBuilderStateOptimised
         else return cBuilderState
 
@@ -220,4 +222,4 @@ buildModule args modPath = do
         void $ runDoMExcept (initCPrettyState cHandle finalBuilderState) (cPretty includePaths)
         void $ liftIO $ hClose cHandle
         count <- liftIO $ length . lines <$> readFile cFilePath
-        liftIO $ putStrLn $ "wrote c:   " ++ cFilePath ++ " LOC:" ++ show count
+        when (verbose args) $ liftIO $ putStrLn $ "wrote c:   " ++ cFilePath ++ " LOC:" ++ show count

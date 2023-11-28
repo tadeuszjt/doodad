@@ -1,6 +1,7 @@
 module sfml
 
-import ../colours
+import std/colours
+import std/maybe
 
 include <SFML/Graphics.h>
 link csfml-graphics
@@ -14,9 +15,11 @@ type Rectf (min Vec2f, max Vec2f)
 
 type Vertex (position Vec2f, colour Colour, texCoords Vec2f)
 
+type Triangle (Vertex, Vertex, Vertex)
+
 type Window i64
 
-type Event ( None() | Closed() )
+type Event = ( None null | Closed null )
 
 
 fn {w Window} create()
@@ -64,7 +67,7 @@ fn {w Window} isOpen() bool
     return isOpen
 
 
-fn {w Window} pollEvent() (null | Event)
+fn {w Window} pollEvent() Maybe[Event]
     let continue = false
     let event = None()
     ${
@@ -75,11 +78,11 @@ fn {w Window} pollEvent() (null | Event)
         }
     }
     if continue
-        return conv(event)
-    return null
+        return Just(event)
+    return Nothing()
 
 
-fn {w Window, vertices [Vertex]} drawPrimitives()
+fn {w Window, vertices table[Vertex]} drawPrimitives()
     ${
         sfRenderWindow_drawPrimitives(
             (sfRenderWindow*)*$w,
@@ -90,7 +93,7 @@ fn {w Window, vertices [Vertex]} drawPrimitives()
         );
     }
 
-fn {w Window, vertices [[3 Vertex]]} drawPrimitives()
+fn {w Window, vertices table[Triangle]} drawPrimitives()
     ${
         sfRenderWindow_drawPrimitives(
             (sfRenderWindow*)*$w,

@@ -34,14 +34,14 @@ fn[K, V] {tree Tree[K, V]} get(key ()K) ()V
 
 
 fn[K, V] {tree Tree[K, V]} insert(key ()K, value ()V)
-    fn[K, V] {nodes Unordered[Node[K, V]]} insertNode(newNode Key[Node[K, V]], node Key[Node[K, V]])
-        let lt = nodes.get(newNode).key < nodes.get(node).key
-        let gt = nodes.get(newNode).key > nodes.get(node).key
+    fn[K, V] {n Unordered[Node[K, V]]} insertNode(newNode Key[Node[K, V]], node Key[Node[K, V]])
+        let lt = n.get(newNode).key < n.get(node).key
+        let gt = n.get(newNode).key > n.get(node).key
 
-        if      nodes.at(node).left -> Just(left)   | lt ; nodes.insertNode(newNode, left)
-        else if nodes.at(node).right -> Just(right) | gt ; nodes.insertNode(newNode, right)
-        else if nodes.at(node).left -> Nothing()    | lt ; nodes.at(node).left = Just(newNode)
-        else if nodes.at(node).right -> Nothing()   | gt ; nodes.at(node).right = Just(newNode)
+        if      n.at(node).left -> Just(left)   | lt ; n.insertNode(newNode, left)
+        else if n.at(node).right -> Just(right) | gt ; n.insertNode(newNode, right)
+        else if n.at(node).left -> Nothing()    | lt ; n.at(node).left = Just(newNode)
+        else if n.at(node).right -> Nothing()   | gt ; n.at(node).right = Just(newNode)
         else; assert(false, "key already in tree")
 
     let nodeKey = tree.nodes.insert()

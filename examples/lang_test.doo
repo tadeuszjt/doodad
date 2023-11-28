@@ -1,7 +1,7 @@
 module langTest
 
 
-fn assert(b:bool)
+fn assert(b bool)
     ${ assert($b); }
 
 
