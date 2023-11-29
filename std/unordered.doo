@@ -8,6 +8,9 @@ type[T] Key I64
 type[T] UnorderedRecord { key Key[I64], value T }
 type[T] Unordered ( indices Sparse[I64], values Table[UnorderedRecord[T]] )
 
+fn[T] {u Unordered[T]} atValues() {Table[T]}
+    return {u.values.value}
+
 
 fn[T] {u Unordered[T]} insert(elem ()T) Key[T]
     let index = u.values.length()

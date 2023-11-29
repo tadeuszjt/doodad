@@ -179,6 +179,7 @@ resolveFieldAccess typ (Sym sym) = do
                 Type.Record ts               -> catMaybes <$> mapM isSymbolType ts
                 Type.Tuple (Type.Record ts)  -> catMaybes <$> mapM isSymbolType ts
                 Type.Tuple t@(TypeApply _ _) -> getTypeFieldSymbols t
+                Type.Table t@(TypeApply _ _) -> getTypeFieldSymbols t
                 _ -> error (show typ)
 
             where

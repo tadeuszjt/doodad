@@ -66,20 +66,22 @@ callCouldMatchFunc call symbol body
     | not $ length (callArgTypes call) == length (map typeof $ funcArgs body) = return False
     | otherwise = do
         ast <- get
-        let argsMatch        = all (== True) $ zipWith (typesCouldMatch (typeFuncs ast) (funcGenerics body)) (callArgTypes call) (map typeof $ funcArgs body)
-        let rettyMatch       = typesCouldMatch (typeFuncs ast) (funcGenerics body) (callRetType call) (funcRetty body)
+        let argsMatch  = all (== True) $ zipWith (typesCouldMatch (typeFuncs ast) (funcGenerics body)) (callArgTypes call) (map typeof $ funcArgs body)
+        let rettyMatch = typesCouldMatch (typeFuncs ast) (funcGenerics body) (callRetType call) (funcRetty body)
         paramMatches <- case (callParamType call, map typeof (funcParams body)) of
             (Nothing, [])       -> return True
             (Nothing, _ )       -> return False
             (Just (Type _), []) -> return False
             (Just (Type _), _ ) -> return True
-            (Just t1,  [t2])    -> return $ typesCouldMatch (typeFuncs ast) (funcGenerics body) t1 t2
             (Just t1,  t2s)     -> do
                 baseT1 <- baseTypeOf t1
-                t1s <- case baseT1 of
-                    Record ts -> return ts
-                    t        -> return [t]
-                return $ all (== True) $ zipWith (typesCouldMatch (typeFuncs ast) (funcGenerics body)) t1s t2s
+                t1s <- case baseT1 of 
+                    Record xs -> return xs
+                    t         -> return [t1]
+                let l = length t2s == length t1s
+                return $ l && (all (== True) $ zipWith (typesCouldMatch (typeFuncs ast) (funcGenerics body)) t1s t2s)
+
+
             x -> error (show x)
         return (argsMatch && rettyMatch && paramMatches)
 
@@ -149,10 +151,15 @@ getConstraints call body = do
         (callArgTypes call)
     parCs <- case callParamType call of
         Nothing -> return []
+        Just (Type _) -> return []
         Just typ -> do
-            case map typeof (funcParams body) of
-                [t] -> getConstraintsFromTypes (funcGenerics body) t typ
-                _ -> error "TODO"
+            let fts = map typeof (funcParams body)
+            base <- baseTypeOf typ
+            ts <- case base of
+                Record ts -> return ts
+                _         -> return [typ]
+            unless (length fts == length ts) (error "param mismatch")
+            fmap concat $ zipWithM (getConstraintsFromTypes (funcGenerics body)) fts ts
     return (retCs ++ argCs ++ parCs)
     
 

@@ -89,11 +89,11 @@ collectAST verbose ast = do
             collectFuncDef symbol body
 
 
+
 collectCall :: Type -> (Maybe Expr) -> Symbol -> [Expr] -> DoM CollectState ()
 collectCall exprType mparam symbol args = do -- can be resolved or sym
     ast <- gets astResolved
-    let mReceiverType = fmap typeof mparam
-    candidates <- fmap fst $ runDoMExcept ast (findCandidates $ CallHeader mReceiverType symbol (map typeof args) exprType)
+    candidates <- fmap fst $ runDoMExcept ast (findCandidates $ CallHeader (fmap typeof mparam) symbol (map typeof args) exprType)
     case candidates of
         [symbol] | isGenericFunction symbol ast -> return ()
         [symbol] | isNonGenericFunction symbol ast -> do
@@ -102,11 +102,10 @@ collectCall exprType mparam symbol args = do -- can be resolved or sym
 
             case map typeof (funcParams body) of
                 [] -> unless (isNothing mparam) (error "invalid func call")
-                [t] -> collectEq (typeof $ fromJust mparam) t
-                ts  -> collectEq (typeof $ fromJust mparam) (Type.Record ts)
+                ts  -> return () -- collectEq (fmap typeof mparam) (Type.Record ts)
                 x -> error (show x)
 
-            zipWithM_ collectEq (map typeof args)   (map typeof $ funcArgs body)
+            zipWithM_ collectEq (map typeof args)  (map typeof $ funcArgs body)
         [symbol] | isCtor symbol ast -> return ()
 
         _ -> return ()

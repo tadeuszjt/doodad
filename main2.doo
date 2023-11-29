@@ -124,7 +124,7 @@ fn testTuple()
 
 fn testTable()
     data tab1 Table[I64]
-    tab1.push(3)
+    {tab1}.push(3)
     let {3} = tab1.at(0)
     let 1 = tab1.length()
     let 3 = tab1.pop()
@@ -140,7 +140,7 @@ fn testTable()
 
     data tab4 Table[sparse::Key[I64]]
     tab4.push(3)
-    let 3 = tab4.pop()
+    let 3:sparse::Key[I64] = tab4.pop()
 
     type[T] AnotherRecord {Bool, T}
     data tab5 Table[AnotherRecord[Person]]
@@ -260,7 +260,40 @@ fn {io Io} testFuncCalls()
     let "james" = tab1{0}.Person.name
     let "james" = tab2{0}.Person.name
 
+
+    data tab3 Table[I64]
+    tab3.push(4)
+    fn {n I64} j()
+        let n = 4
+    tab3{0}.j()
+
     io.putStrLn("testFuncCalls passed")
+
+
+fn {io Io} testSubTable()
+    data t Table[Person]
+    t.push( ("john", 45) )
+    t.push( ("jim", 32) )
+    t.push( ("james", 24) )
+    fn {t Table[String]} printNames()
+        let {"john"} = t.at(0)
+    t.name.printNames()
+
+    data u Unordered[I64]
+
+    let k0 = u.insert(46)
+    let k1 = u.insert(92)
+    let k2 = u.insert(1)
+
+    fn {t Table[I64]} h()
+        let {46} = t.at(0)
+        let {1}  = t.at(2)
+
+    let {t} = u.atValues() in
+        t.h()
+    u.atValues().h()
+
+    io.putStrLn("testSubTable passed")
 
 
 fn {io Io} main()
@@ -272,15 +305,9 @@ fn {io Io} main()
     testPatRecord()
     testUnordered()
     io.testFuncCalls()
+    io.testSubTable()
     io.putStrLn("main2 finished")
 
-    fn {n I64} fug() {}I64
-        return {n}
-
-    let x = 1
-    let y = 2
-
-    let false = y.fug() < x.fug()
 
 type Person {name String, age I32}
 
