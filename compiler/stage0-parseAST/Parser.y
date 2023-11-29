@@ -130,23 +130,9 @@ imports : {- empty -}              { [] }
 ---------------------------------------------------------------------------------------------------
 -- Statements -------------------------------------------------------------------------------------
 
-idents1 : ident                           { [tokStr $1] }
-        | ident ',' idents1               { (tokStr $1):($3) }
-
-Idents1 : Ident                           { [tokStr $1] }
-        | Ident ',' Idents1               { (tokStr $1):($3) } 
-
-symbol : ident                            { (tokPos $1, Sym (tokStr $1)) }
-       | ident '::' ident                 { (tokPos $3, SymQualified (tokStr $1) (tokStr $3)) }
-
-Symbol : Ident                            { (tokPos $1, Sym (tokStr $1)) }
-       | ident '::' Ident                 { (tokPos $3, SymQualified (tokStr $1) (tokStr $3)) }
-
-symbols1 : symbol                         { [$1] }
-         | symbol ',' symbols1            { $1 : $3 }
 
 mfnRec : {-empty-}                        { [] }
-       | '{' paramsA '}'                  { $2 }
+       | '{' paramsA1 '}'                 { $2 }
 
 generics : {-empty-}                      { [] }
          | '[' Idents1 ']'                { map Symbol.Sym $2 }
@@ -165,6 +151,7 @@ line : let pattern '=' expr               { Let (tokPos $1) $2 (Just $4) Nothing
 
 block : if_                               { $1 }
       | while condition scope             { While (tokPos $1) $2 $3 }
+      | type generics Symbol 'I' paramsLN1 'D' { Typedef (fst $3) $2 (snd $3) (AnnoADT $5) }
       | for expr scope                    { For (tokPos $1) $2 Nothing $3 }
       | for expr '->' pattern scope       { For (tokPos $1) $2 (Just $4) $5 }
       | switch expr 'I' cases1 'D'        { Switch (tokPos $1) $2 $4 }
@@ -180,46 +167,54 @@ block : if_                               { $1 }
                 (case $8 of Just t -> t; Nothing -> Void) $9
         }
 
-scope  : 'I' stmts 'D'                  { Block $2 }
-       | ';' line 'N'                   { $2 }
-       | ';' 'N'                        { Block [] }
+if_   : if condition scope else_          { If (tokPos $1) $2 $3 $4 }
+      | if condition 'N' else_            { If (tokPos $1) $2 (Block []) $4 }
+else_ : else scope                        { Just $2 }
+      | else if_                          { Just $2 }
+      | {-empty-}                         { Nothing }
+
+scope  : 'I' stmts 'D'                    { Block $2 }
+       | ';' line 'N'                     { $2 }
+       | ';' 'N'                          { Block [] }
+
+cases1 : case                             { [$1] }
+       | case cases1                      { $1 : $2 }
+case : pattern scope                      { ($1, $2) }
 
 
-param   : ident     type_               { Param (tokPos $1) (Sym $ tokStr $1) $2 }
-params  : {- empty -}                   { [] }
-        | params1                       { $1 }
-params1 : param                         { [$1] }
-        | param ',' params1             { $1 : $3 }
-params2 : param  ',' params1            { $1 : $3 }
+--------------------------------------------------------------------------------------------------
+-- Misc ------------------------------------------------------------------------------------------
+
+Idents1 : Ident                          { [tokStr $1] }
+        | Ident ',' Idents1              { (tokStr $1):($3) } 
+
+symbol : ident                           { (tokPos $1, Sym (tokStr $1)) }
+       | ident '::' ident                { (tokPos $3, SymQualified (tokStr $1) (tokStr $3)) }
+
+Symbol : Ident                           { (tokPos $1, Sym (tokStr $1)) }
+       | ident '::' Ident                { (tokPos $3, SymQualified (tokStr $1) (tokStr $3)) }
 
 
-paramL  : Ident     type_               { Param (tokPos $1) (Sym $ tokStr $1) $2 }
-        | Ident     '(' ')'             { Param (tokPos $1) (Sym $ tokStr $1) Void }
-paramsL1 : paramL                       { [$1] }
-         | paramL '|' paramsL1          { $1 : $3 }
-paramsLN1 : paramL 'N'                  { [$1] }
-          | paramL '|' 'N' paramsLN1    { $1 : $4 }
-paramsLN2 : paramL '|' 'N' paramsLN1    { $1 : $4 }
-paramsLA2 : 'I' paramsLN2 'D'           { $2 }
-          | paramsL1                    { $1 }
+param   : ident type_                    { Param (tokPos $1) (Sym $ tokStr $1) $2 }
+params  : {- empty -}                    { [] }
+        | params1                        { $1 }
+params1 : param                          { [$1] }
+        | param ',' params1              { $1 : $3 }
 
 
-paramsN : param 'N'                     { [$1] } 
-        | param 'N' paramsN             { $1 : $3 }
-paramsA : params                        { $1 }
-        | 'I' paramsN 'D'               { $2 }
-paramsA1 : params1                      { $1 }
-         | 'I' paramsN 'D'              { $2 }
+paramL  : Ident type_                    { Param (tokPos $1) (Sym $ tokStr $1) $2 }
+        | Ident '(' ')'                  { Param (tokPos $1) (Sym $ tokStr $1) Void }
+paramsLN1 : paramL 'N'                   { [$1] }
+          | paramL 'N' paramsLN1         { $1 : $3 }
 
-if_   : if condition scope else_        { If (tokPos $1) $2 $3 $4 }
-      | if condition 'N' else_          { If (tokPos $1) $2 (Block []) $4 }
-else_ : else scope                      { Just $2 }
-      | else if_                        { Just $2 }
-      | {-empty-}                       { Nothing }
 
-cases1 : case                           { [$1] }
-      | case cases1                     { $1 : $2 }
-case : pattern scope                    { ($1, $2) }
+paramsN : param 'N'                      { [$1] } 
+        | param 'N' paramsN              { $1 : $3 }
+paramsA : params                         { $1 }
+        | 'I' paramsN 'D'                { $2 }
+paramsA1 : params1                       { $1 }
+         | 'I' paramsN 'D'               { $2 }
+
 
 ---------------------------------------------------------------------------------------------------
 -- Patterns ---------------------------------------------------------------------------------------
@@ -239,7 +234,6 @@ pattern  : '_'                           { PatIgnore (tokPos $1) }
          | pattern '|' expr              { PatGuarded (tokPos $2) $1 $3 }
          | pattern '|' expr '->' pattern { PatGuarded (tokPos $2) $1 (Match (tokPos $4) $3 $5) }
          | Symbol '(' patterns ')'       { PatField (tokPos $2) (snd $1) $3 }
-         --| '.' type_ '[' pattern ']'     { PatTypeField (tokPos $1) $2 $4 }
          | pattern ':' type_             { PatAnnotated $1 $3 }
 
 ---------------------------------------------------------------------------------------------------
@@ -266,7 +260,7 @@ expr   : literal                                 { $1 }
        | symbol                                  { AST.Ident (fst $1) (snd $1) }
        | '(' exprsA ')'                          { case $2 of [x] -> x; xs -> AST.Tuple (tokPos $1) xs }
        | symbol '(' exprsA ')'                   { Call (tokPos $2) Nothing (snd $1) $3 }
-       | Symbol '(' exprsA ')'                   { Call (tokPos $2) Nothing (snd $1) $3 }
+       | Symbol '(' exprsA ')'                   { Construct (tokPos $2) (snd $1) $3 }
        | expr '.' symbol '(' exprsA ')'          { Call (tokPos $4) (Just $1) (snd $3) $5 }
        | expr '.' ident                          { Field (tokPos $2) $1 (Sym $ tokStr $3) }
        | expr '.' Ident                          { Field (tokPos $2) $1 (Sym $ tokStr $3) }
@@ -304,55 +298,53 @@ prefix : '-' expr                                { Prefix (tokPos $1) Minus $2 }
 
 ---------------------------------------------------------------------------------------------------
 -- Types ------------------------------------------------------------------------------------------
-mtype  : {-empty-}                    { Nothing }
-       | type_                        { Just $1 }
-types1 : type_                        { [$1] }
-       | type_ ',' types1             { $1 : $3 }
-types1N : type_ 'N'                   { [$1] }
-        | type_ ',' 'N' types1N       { $1 : $4 }
-types2N : type_ ',' 'N' types1N       { $1 : $4 }
+mtype  : {-empty-}                         { Nothing }
+       | type_                             { Just $1 }
+types1 : type_                             { [$1] }
+       | type_ ',' types1                  { $1 : $3 }
+types1N : type_ 'N'                        { [$1] }
+        | type_ ',' 'N' types1N            { $1 : $4 }
+types2N : type_ ',' 'N' types1N            { $1 : $4 }
     
-type_         : ordinal_t             { $1 }
-              | Symbol                { TypeApply (snd $1) [] }
-              | Symbol '[' types1 ']' { TypeApply (snd $1) $3 }
-              | record_t              { $1 }
-              | tuple_t               { $1 }
-              | table_t               { $1 }
+type_         : ordinal_t                  { $1 }
+              | '(' type_ ')'              { $2 }
+              | Symbol                     { TypeApply (snd $1) [] }
+              | Symbol '[' types1 ']'      { TypeApply (snd $1) $3 }
+              | record_t                   { $1 }
+              | tuple_t                    { $1 }
+              | table_t                    { $1 }
 
 
-ordinal_t   : Bool                    { Type.Bool }
-            | U8                      { U8 }
-            | I8                      { I8 }
-            | I16                     { I16 }
-            | I32                     { I32 }
-            | I64                     { I64 }
-            | F32                     { F32 }
-            | F64                     { F64 }
-            | Char                    { Type.Char }
-            | String                  { Type.String }
+ordinal_t   : Bool                         { Type.Bool }
+            | U8                           { U8 }
+            | I8                           { I8 }
+            | I16                          { I16 }
+            | I32                          { I32 }
+            | I64                          { I64 }
+            | F32                          { F32 }
+            | F64                          { F64 }
+            | Char                         { Type.Char }
+            | String                       { Type.String }
 
 
-record_t  : '{' types1 '}'            { Type.Record $2 }
-         | '{' '}' type_              { RecordApply $3 }
+record_t  : '{' types1 '}'                 { Type.Record $2 }
+         | '{' '}' type_                   { RecordApply $3 }
 
-tuple_t  : '(' ')' type_              { Type.Tuple $3 }
-         | '(' type_ ',' types1 ')'   { Type.Tuple (Type.Record $ $2 : $4) }
-         | '(' 'I' types2N 'D' ')'    { Type.Tuple (Type.Record $3) }
-         --| '(' ')'                    { Type.Tuple (Type.Record []) }
+tuple_t  : '(' ')' type_                   { Type.Tuple $3 }
+         | '(' type_ ',' types1 ')'        { Type.Tuple (Type.Record $ $2 : $4) }
+         | '(' 'I' types2N 'D' ')'         { Type.Tuple (Type.Record $3) }
 
-table_t  : Table '[' type_ ']'        { Type.Table $3 }
+table_t  : Table '[' type_ ']'             { Type.Table $3 }
 
 
-anno_t   : ordinal_t                      { AnnoType $1 }
-         | record_t                       { AnnoType $1 }
-         | tuple_t                        { AnnoType $1 }
-         | table_t                        { AnnoType $1 }
-         | '{' paramsA1 '}'               { AnnoRecord $2 }
-         | '(' ')' '{' paramsA1 '}'       { AnnoTuple $4 }
-         | Table '[' '{' paramsA1 '}' ']' { AnnoTable $4 }
-         | '(' paramsA1 ')'               { AnnoTuple $2 }
-         | '=' '(' paramsLA2 ')'          { AnnoADT $3 }
-
+anno_t   : ordinal_t                       { AnnoType $1 }
+         | record_t                        { AnnoType $1 }
+         | tuple_t                         { AnnoType $1 }
+         | table_t                         { AnnoType $1 }
+         | '{' paramsA1 '}'                { AnnoRecord $2 }
+         | '(' ')' '{' paramsA1 '}'        { AnnoTuple $4 }
+         | Table '[' '{' paramsA1 '}' ']'  { AnnoTable $4 }
+         | '(' paramsA1 ')'                { AnnoTuple $2 }
 {
 parse :: MonadError Error m => [Token] -> m AST
 parse tokens = do

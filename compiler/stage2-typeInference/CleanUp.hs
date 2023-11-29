@@ -163,7 +163,6 @@ resolveFieldAccess typ (Sym sym) = do
         getTypeFieldSymbols :: Type -> DoM ASTResolved [Symbol]
         getTypeFieldSymbols typ = do
             typeDefs <- getTypeDefs
-            --liftIO $ putStrLn $ "getTypeFieldSymbols: " ++ show typ
             case typ of
                 TypeApply symbol ts -> case Map.lookup symbol typeDefs of
                     Just (ss, t)    -> do

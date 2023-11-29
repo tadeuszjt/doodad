@@ -79,6 +79,8 @@ lookm symbol KeyFunc = case symbol of
                 xs <- fmap concat $ forM imprts $ \imprt -> return $ Map.keys $ Map.filterWithKey
                     (\s _ -> symbolsCouldMatch (SymQualified (moduleName imprt) sym) s)
                     (ctorDefs imprt)
+                -- TODO need to look at local ctors too
+                --liftIO $ putStrLn $ "looking here: " ++ show sym ++ " " ++ show xs
                 case xs of 
                     [x] -> return (Just x)
                     [] -> return (Just symbol) -- leave functions unresolved
@@ -430,41 +432,33 @@ instance Resolve Param where
 
 resolveMapper :: Elem -> DoM ResolveState Elem
 resolveMapper element = case element of
+    ElemExpr (Ident pos symbol) -> ElemExpr . Ident pos <$> look symbol KeyVar
+
     ElemType (Type.TypeApply s ts) -> do
         s' <- look s KeyType
-        return $ ElemType $ Type.TypeApply s' ts
+        return $ ElemType (Type.TypeApply s' ts)
 
-    ElemPattern (PatIdent pos symbol) -> do
-        let Sym sym = symbol
+    ElemPattern (PatIdent pos (Sym sym)) -> do
         symbol' <- genSymbol sym
         define sym KeyVar symbol'
         return $ ElemPattern (PatIdent pos symbol')
 
     ElemPattern (PatField pos symbol pats) -> do -- it's KeyFunc for ctors, KeyType for other
-        mtype <- lookm symbol KeyType
-        case mtype of
---          Just symbol' -> do
---              unless (length pats == 1) $ error "TODO - make it handle more"
---              return $ PatTypeField pos (Type.TypeApply symbol' []) (head pats')
-            Nothing -> do
-                symbol' <- look symbol KeyFunc
-                return $ ElemPattern $ PatField pos symbol' pats
+        symbol' <- look symbol KeyFunc
+        return $ ElemPattern (PatField pos symbol' pats)
 
-    ElemExpr (Ident pos symbol) -> ElemExpr . Ident pos <$> look symbol KeyVar
+    ElemExpr (Construct pos symbol exprs) -> do
+        symbol' <- look symbol KeyFunc
+        return $ ElemExpr (Construct pos symbol' exprs)
 
-    ElemExpr (Call pos mparam symbol exprs) -> case symbol of
-        Sym s | s `elem` ["len", "conv", "print", "assert"] -> do 
+    ElemExpr (Call pos mparam (Sym sym) exprs)
+        | sym `elem` ["len", "conv", "print", "assert"] -> do 
             check (isNothing mparam) "invalid builtin function call"
-            return $ ElemExpr (Builtin pos s exprs)
-        _ -> do
-            resm <- lookm symbol KeyType
-            case resm of 
-                Just symbol' -> do
-                    unless (isNothing mparam) (fail "Convert cannot have params")
-                    return $ ElemExpr $ Construct pos symbol' exprs -- TODO
-                Nothing -> do
-                    symbol' <- look symbol KeyFunc
-                    return $ ElemExpr (Call pos mparam symbol' exprs)
+            return $ ElemExpr (Builtin pos sym exprs)
+
+        | otherwise -> do
+            symbol' <- look (Sym sym) KeyFunc
+            return $ ElemExpr (Call pos mparam symbol' exprs)
 
     _ -> return element
 

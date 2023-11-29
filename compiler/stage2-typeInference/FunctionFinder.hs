@@ -80,8 +80,6 @@ callCouldMatchFunc call symbol body
                     t         -> return [t1]
                 let l = length t2s == length t1s
                 return $ l && (all (== True) $ zipWith (typesCouldMatch (typeFuncs ast) (funcGenerics body)) t1s t2s)
-
-
             x -> error (show x)
         return (argsMatch && rettyMatch && paramMatches)
 

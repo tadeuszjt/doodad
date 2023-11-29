@@ -151,7 +151,6 @@ collectMapper element = (\_ -> return element) =<< case element of
         PatIgnore _           -> return ()
         PatNull _             -> return ()
         PatIdent _ symbol     -> define symbol (ObjVar patType)
-        PatTypeField _ t _    -> collectEq patType t
         PatLiteral expr       -> collectEq patType (typeof expr)
         PatGuarded _ pat expr -> collect $ ConsBase Type.Bool (typeof expr)
         PatRecord _ pats      -> collect $ ConsRecord patType (map typeof pats)
@@ -200,7 +199,7 @@ collectMapper element = (\_ -> return element) =<< case element of
             collectDefault exprType Type.String
 
         Construct _ symbol args -> do
-            (typeSymbol, i)    <- mapGet symbol =<< gets (ctorDefs . astResolved)
+            (typeSymbol, i)    <- withErrorPrefix "benis " $ mapGet symbol =<< gets (ctorDefs . astResolved)
             (generics, ADT ts) <- mapGet typeSymbol =<< gets (typeFuncs . astResolved)
             case exprType of
                 Type _ -> return ()

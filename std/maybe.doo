@@ -1,6 +1,8 @@
 module maybe
 
-type[T] Maybe = (Nothing() | Just T)
+type[T] Maybe
+    Nothing()
+    Just(T)
 
 
 fn[T] isJust(maybe Maybe[T]) Bool

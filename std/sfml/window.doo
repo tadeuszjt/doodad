@@ -19,7 +19,9 @@ type Triangle (Vertex, Vertex, Vertex)
 
 type Window I64
 
-type Event = ( None() | Closed() )
+type Event
+    None()
+    Closed()
 
 
 fn {w Window} create()
@@ -69,7 +71,7 @@ fn {w Window} isOpen() Bool
 
 fn {w Window} pollEvent() Maybe[Event]
     let continue = false
-    let event = None()
+    let event:Event
     ${
         sfEvent event;
         $continue = sfRenderWindow_pollEvent((sfRenderWindow*)(*$w), &event);

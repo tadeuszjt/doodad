@@ -51,22 +51,22 @@ instance Show Type where
     show t = case t of
         Type id           -> "t" ++ show id
         Void              -> "void"
-        U8                -> "u8"
-        I8                -> "i8"
-        I16               -> "i16"
-        I32               -> "i32"
-        I64               -> "i64"
-        F32               -> "f32"
-        F64               -> "f64"
-        Bool              -> "bool"
-        Char              -> "char"
-        String            -> "string"
+        U8                -> "U8"
+        I8                -> "I8"
+        I16               -> "I16"
+        I32               -> "I32"
+        I64               -> "I64"
+        F32               -> "F32"
+        F64               -> "F64"
+        Bool              -> "Bool"
+        Char              -> "Char"
+        String            -> "String"
         Range t           -> "[..]" ++ show t
         Record ts         -> "{" ++ intercalate ", " (map show ts) ++ "}"
         RecordApply t     -> "{}" ++ show t
         Tuple (Record ts) -> "(" ++ intercalate ", " (map show ts) ++ ")"
         Tuple t           -> "()" ++ show t
-        Table t           -> "[]" ++ show t
+        Table t           -> "Table[" ++ show t ++ "]"
         ADT ts            -> "(" ++ intercalate " | " (map show ts) ++ ")"
         TypeApply s []    -> show s
         TypeApply s ts    -> show s ++ "(" ++ intercalate ", " (map show ts) ++ ")"
@@ -105,26 +105,26 @@ isIntegral x = isInt x || x == Char
 
 mapType :: (Type -> Type) -> Type -> Type
 mapType f typ = f $ case typ of
-        U8             -> typ
-        I8             -> typ
-        I16            -> typ
-        I32            -> typ
-        I64            -> typ
-        F32            -> typ
-        F64            -> typ
-        Bool           -> typ
-        String         -> typ
-        Char           -> typ
-        Type _         -> typ
-        Record ts      -> Record $ map (mapType f) ts
-        Tuple t        -> Tuple (mapType f t)
-        Table t        -> Table (mapType f t)
-        RecordApply t  -> RecordApply (mapType f t)
-        TypeApply s ts -> TypeApply s $ map (mapType f) ts
-        Range t        -> Type.Range $ mapType f t
-        ADT ts         -> ADT $ map (mapType f) ts
-        Void           -> typ
-        _ -> error (show typ)
+    U8             -> typ
+    I8             -> typ
+    I16            -> typ
+    I32            -> typ
+    I64            -> typ
+    F32            -> typ
+    F64            -> typ
+    Bool           -> typ
+    String         -> typ
+    Char           -> typ
+    Type _         -> typ
+    Record ts      -> Record $ map (mapType f) ts
+    Tuple t        -> Tuple (mapType f t)
+    Table t        -> Table (mapType f t)
+    RecordApply t  -> RecordApply (mapType f t)
+    TypeApply s ts -> TypeApply s $ map (mapType f) ts
+    Range t        -> Type.Range $ mapType f t
+    ADT ts         -> ADT $ map (mapType f) ts
+    Void           -> typ
+    _ -> error (show typ)
 
 findGenerics :: [Symbol] -> Type -> [Type]
 findGenerics typeArgs typ = case typ of
@@ -328,7 +328,6 @@ getRecordTypes typ = do
 
 
 
--- TODO all wrong, returning base types
 getRecordTree :: TypeDefs m => Type -> m RecordTree
 getRecordTree typ = do
     typeDefs <- getTypeDefs
