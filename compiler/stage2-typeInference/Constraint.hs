@@ -14,4 +14,5 @@ data Constraint
     | ConsRecordAccess Type Type
     | ConsSpecial Type Type
     | ConsField Type Symbol Type
+    | ConsForExpr Type Type
     deriving (Show, Eq, Ord)

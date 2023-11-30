@@ -320,9 +320,6 @@ initialiser typ vals = do
             unless (length ts == length vals) (error "initialiser length")
             assign "record" $ Value typ $ C.Initialiser $ map (C.Address . valExpr) vals
 
-        Type.Range t -> do
-            unless (map typeof vals == [t, t]) (error "initialiser types")
-            assign "range" $ Value typ $ C.Initialiser (map valExpr vals)
         _ -> error (show base)
 
 
@@ -398,7 +395,6 @@ cTypeOf a = case typeof a of
     Type.Table t   -> getTypedef "Table"  =<< cTypeNoDef (Type.Table t)
     Type.Record ts -> getTypedef "Record" =<< cTypeNoDef (Type.Record ts)
     Type.ADT ts    -> getTypedef "Adt"    =<< cTypeNoDef (Type.ADT ts)
-    Type.Range t   -> getTypedef "Range"  =<< cTypeNoDef (Type.Range t)
 
     Type.TypeApply symbol args -> do
         (generics, typ) <- mapGet symbol =<< getTypeDefs
@@ -429,10 +425,6 @@ cTypeOf a = case typeof a of
                     Type.Record _ -> do
                         cts <- mapM cTypeOf =<< getRecordTypes t
                         return $ Cstruct $ zipWith (\a b -> C.Param ("m" ++ show a) b) [0..] cts
-
-            Type.Range t -> do
-                ct <- cTypeOf t
-                return $ Cstruct [ C.Param "min" ct, C.Param "max" ct ]
 
             Type.ADT ts -> do
                 cts <- mapM cTypeOf (map replaceVoid ts)

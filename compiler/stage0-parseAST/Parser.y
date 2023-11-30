@@ -265,8 +265,6 @@ expr   : literal                                 { $1 }
        | expr '.' Ident                          { Field (tokPos $2) $1 (Sym $ tokStr $3) }
        | '{' exprs1 '}'                          { AST.Record (tokPos $1) $2 }
        | expr '{' '}'                            { RecordAccess (tokPos $2) $1 }
-       --| expr '[' mexpr '..' mexpr ']'           { AST.Range (tokPos $2) (Just $1) $3 $5 }
-       --| '[' mexpr '..' mexpr ']'                { AST.Range (tokPos $1) Nothing $2 $4 }
        --| '[' exprsA ']'                          { Array (tokPos $1) $2 }
 
 literal : int_c                                  { AST.Int (tokPos $1) (read $ tokStr $1) }

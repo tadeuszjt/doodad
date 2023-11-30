@@ -230,6 +230,11 @@ checkStmt stmt = withPos stmt $ case stmt of
         checkStmt blk
         return ()
 
+    For _ expr mpat blk -> do
+        checkExpr expr
+        traverse checkPattern mpat
+        checkStmt blk
+
     x -> error (show x)
 
 

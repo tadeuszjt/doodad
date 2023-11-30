@@ -35,6 +35,7 @@ applyStmt subs stmt = case stmt of
     Let pos pattern mexpr mblk -> Let pos (applyPat pattern) (fmap applyEx mexpr) (fmap applySt mblk)
     Switch pos expr cases -> Switch pos (applyEx expr) $ map (\(p, st) -> (applyPat p, applySt st)) cases
     While pos expr blk -> While pos (applyEx expr) (applySt blk)
+    For pos expr mpat blk -> For pos (applyEx expr) (fmap applyPat mpat) (applySt blk)
     x -> error (show x)
     where
         applySt = applyStmt subs
@@ -105,6 +106,7 @@ applyConstraint subs constraint = case constraint of
     ConsRecordAccess t1 t2 -> ConsRecordAccess (rf t1) (rf t2)
     ConsSpecial t1 t2      -> ConsSpecial (rf t1) (rf t2)
     ConsField  t1 s t2     -> ConsField (rf t1) s (rf t2)
+    ConsForExpr t1 t2      -> ConsForExpr (rf t1) (rf t2)
     where
         rf = applyType subs
 

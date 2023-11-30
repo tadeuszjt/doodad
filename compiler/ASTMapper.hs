@@ -130,17 +130,10 @@ mapExprM f expr = withPos expr $ do
             expr2' <- mapExprM f expr2
             return $ Infix pos op expr1' expr2'
 
-        AST.Range pos mexpr mexpr1 mexpr2 -> do
-            mexpr' <-  traverse (mapExprM f) mexpr
-            mexpr1' <- traverse (mapExprM f) mexpr1 
-            mexpr2' <- traverse (mapExprM f) mexpr2 
-            return $ AST.Range pos mexpr' mexpr1' mexpr2'
-
         AST.Match pos expr pattern -> do
             expr' <- mapExprM f expr
             pattern' <- mapPattern f pattern
             return $ AST.Match pos expr' pattern'
-
 
         _ -> error (show expr)
     case res of
@@ -190,7 +183,6 @@ mapTypeM f typ = do
         Type.Tuple t   -> Type.Tuple <$> mapTypeM f t
         Table t        -> Table <$> mapTypeM f t
         TypeApply s ts -> TypeApply s <$> mapM (mapTypeM f) ts
-        Type.Range t   -> Type.Range <$> mapTypeM f t
         ADT ts         -> ADT <$> mapM (mapTypeM f) ts
         Void           -> return typ
         _ -> error (show typ)

@@ -38,7 +38,6 @@ data Type
     | Bool                   
     | Char                   
     | String
-    | Range Type
     | Record [Type]
     | RecordApply Type
     | Tuple Type
@@ -61,7 +60,6 @@ instance Show Type where
         Bool              -> "Bool"
         Char              -> "Char"
         String            -> "String"
-        Range t           -> "[..]" ++ show t
         Record ts         -> "{" ++ intercalate ", " (map show ts) ++ "}"
         RecordApply t     -> "{}" ++ show t
         Tuple (Record ts) -> "(" ++ intercalate ", " (map show ts) ++ ")"
@@ -121,7 +119,6 @@ mapType f typ = f $ case typ of
     Table t        -> Table (mapType f t)
     RecordApply t  -> RecordApply (mapType f t)
     TypeApply s ts -> TypeApply s $ map (mapType f) ts
-    Range t        -> Type.Range $ mapType f t
     ADT ts         -> ADT $ map (mapType f) ts
     Void           -> typ
     _ -> error (show typ)
@@ -155,7 +152,6 @@ baseTypeOfm a = case typeof a of
     ADT ts         -> return $ Just (ADT ts)
     Tuple t        -> return $ Just (Tuple t)
     Table t        -> return $ Just (Table t)
-    Range t        -> return $ Just (Range t)
     TypeApply symbol ts -> do
         resm <- Map.lookup symbol <$> getTypeDefs
         case resm of

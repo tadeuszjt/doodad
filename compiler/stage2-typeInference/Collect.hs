@@ -140,7 +140,7 @@ collectMapper element = (\_ -> return element) =<< case element of
             collectEq (typeof pat) (typeof expr)
 
         For p expr mpat blk -> when (isJust mpat) $ do
-            collect $ ConsSubscript (typeof expr) (typeof $ fromJust mpat)
+            collect $ ConsForExpr (typeof expr) (typeof $ fromJust mpat)
 
         Data p symbol typ mexpr -> do
             define symbol (ObjVar typ)
@@ -263,18 +263,6 @@ collectMapper element = (\_ -> return element) =<< case element of
         Match _ e p -> do
             collectEq (typeof p) (typeof e)
             collectDefault exprType Type.Bool
-
-        AST.Range _ me me1 me2 -> do
-            when (isJust me1 && isJust me2) $ do
-                collectEq (typeof $ fromJust me1) (typeof $ fromJust me2)
-            when (isJust me1) $ do
-                collect $ ConsBase (Type.Range $ typeof $ fromJust me1) exprType
-                collectDefault (Type.Range $ typeof $ fromJust me1) exprType
-            when (isJust me2) $ do
-                collect $ ConsBase (Type.Range $ typeof $ fromJust me2) exprType
-                collectDefault (Type.Range $ typeof $ fromJust me2) exprType
-            when (isNothing me1 && isNothing me2) $ do
-                collectDefault (Type.Range I64) exprType
 
     ElemExpr _ -> return ()
     ElemPattern _ -> return ()

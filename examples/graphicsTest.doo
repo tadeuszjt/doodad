@@ -26,16 +26,8 @@ fn {io Io} main()
 
     vertices.pushTriangle( rand.randVec2f() )
 
-
-    vertices.pushTriangle( rand.randVec2f() )
-    vertices.pushTriangle( rand.randVec2f() )
-    vertices.pushTriangle( rand.randVec2f() )
-    vertices.pushTriangle( rand.randVec2f() )
-    vertices.pushTriangle( rand.randVec2f() )
-    vertices.pushTriangle( rand.randVec2f() )
-    vertices.pushTriangle( rand.randVec2f() )
-    vertices.pushTriangle( rand.randVec2f() )
-    vertices.pushTriangle( rand.randVec2f() )
+    for (0, 200)
+        vertices.pushTriangle( rand.randVec2f() )
 
 
     while w.isOpen()

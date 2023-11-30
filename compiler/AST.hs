@@ -87,7 +87,6 @@ data Expr
     | Prefix       TextPos Operator Expr
     | Infix        TextPos Operator Expr Expr
     | Match        TextPos Expr Pattern
-    | Range        TextPos (Maybe Expr) (Maybe Expr) (Maybe Expr)
     | Record       TextPos [Expr]
     | RecordAccess TextPos Expr
     | Array        TextPos [Expr]
@@ -159,7 +158,6 @@ instance TextPosition Expr where
         Prefix       p _ _ -> p
         Infix        p _ _ _ -> p
         Match        p _ _ -> p
-        Range        p _ _ _ -> p
         Array        p _ -> p
         Construct    p _ _ -> p
         RecordAccess p _ -> p
@@ -261,7 +259,6 @@ instance Show Expr where
         Call pos (Just param) symbol exprs -> show param ++ "." ++ show symbol ++ tupStrs (map show exprs)
         Builtin pos sym exprs              -> sym ++ tupStrs (map show exprs)
         Match pos expr1 expr2              -> "(" ++ show expr1 ++ " -> " ++ show expr2 ++ ")"
-        Range pos mexpr mexpr1 mexpr2      -> maybe "" show mexpr ++ "[" ++ maybe "" show mexpr1 ++ ".." ++ maybe "" show mexpr2 ++ "]"
         Array pos exprs                    -> arrStrs (map show exprs)
         Construct pos symbol exprs         -> show symbol ++ tupStrs (map show exprs)
         RecordAccess pos expr              -> show expr ++ "{}"

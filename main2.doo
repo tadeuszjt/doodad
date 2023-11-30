@@ -7,6 +7,7 @@ import std/maybe
 import std/table
 import std/map
 import std/io
+import std/range
 
 
 fn testUnordered()
@@ -296,6 +297,26 @@ fn {io Io} testSubTable()
     io.putStrLn("testSubTable passed")
 
 
+fn {io Io} testRange()
+    let range:Range[I64] = (0, 10)
+
+    let 0 = range.min
+
+    data tab Table[String]
+
+    tab.push("benis")
+    tab.push("bonghis")
+
+    let (0, 2) = tab.range()
+
+    let n = 0
+    for tab.range() -> i
+        n = n + 1
+    let 2 = n
+
+    io.putStrLn("testRange passed")
+
+
 fn {io Io} main()
     testTuple()
     testTable()
@@ -306,6 +327,7 @@ fn {io Io} main()
     testUnordered()
     io.testFuncCalls()
     io.testSubTable()
+    io.testRange()
     io.putStrLn("main2 finished")
 
 

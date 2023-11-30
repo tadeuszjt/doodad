@@ -1,5 +1,7 @@
 module table
 
+import std/range
+
 
 fn[T] {t Table[T]} len() I64
     ${ return $t->len; }
@@ -26,3 +28,7 @@ fn[T] {t Table[T]} pop() ()T
 fn[T] {t Table[T]} at(index I64) {}T
     assert(index >= 0 && index < t.len(), "index out of range")
     return builtin_at(t, index)
+
+
+fn[T] {t Table[T]} range() Range[I64]
+    return (0, t.len())

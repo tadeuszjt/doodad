@@ -94,7 +94,6 @@ unifyOne pos constraint = withPos pos $ case constraint of
         (t, Type x)              -> return [(Type x, t)]
         (Table t1, Table t2)     -> unifyOne pos (ConsEq t1 t2)
         (Tuple t1, Tuple t2)     -> unifyOne pos (ConsEq t1 t2)
-        (Range t1, Range t2)     -> unifyOne pos (ConsEq t1 t2)
         (Record ts1, Record ts2) -> do
             check (length ts1 == length ts2) ("type mismatch: " ++ show t1 ++ " != " ++ show t2)
             unify $ zipWith (\a b -> (ConsEq a b, pos)) ts1 ts2
@@ -113,10 +112,19 @@ unifyOne pos constraint = withPos pos $ case constraint of
                     [t] -> unifyOne pos $ ConsEq t (ts' !! i)
                     ts  -> unifyOne pos $ ConsTuple (ts' !! i) ts
 
+    ConsForExpr t1 t2 -> do
+        basem <- baseTypeOfm t1
+        case basem of
+            Nothing -> return []
+            Just (Type.Tuple (Type.Record [I64, I64])) -> do -- range
+                unifyOne pos $ ConsEq t2 I64
+
+                
+            x -> error (show x)
+
     ConsSubscript t1 t2 -> do
         basem <- baseTypeOfm t1
         case basem of
-            Just (Range _) -> unifyOne pos (ConsEq t2 I64)
             Just String    -> unifyOne pos (ConsEq t2 Char)
             Just (Table t) -> do
                 baseT <- baseTypeOfm t

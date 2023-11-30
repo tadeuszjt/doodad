@@ -224,17 +224,19 @@ generateStmt stmt = withPos stmt $ case stmt of
             case base of
                 Type.String -> return ()
                 Type.Table _ -> return ()
-                Type.Range I64 -> do
+                Type.Tuple (Type.Record [I64, I64]) -> do
                     if_ first $ do
-                        set idx $ Value I64 (C.Member (valExpr val) "min")
+                        set idx $ Value I64 (C.Member (valExpr val) "m0")
                         set first false
                         return ()
+                x -> error (show x)
 
             -- check that index is still in range
             idxGtEq <- case base of
-                Type.Range I64 -> generateInfix S.GTEq idx $ Value I64 (C.Member (valExpr val) "max")
                 Type.String    -> generateInfix S.GTEq idx =<< len val
                 Type.Table _  -> generateInfix S.GTEq idx =<< len val
+                Type.Tuple (Type.Record [I64, I64]) -> do
+                    generateInfix S.GTEq idx $ Value I64 (C.Member (valExpr val) "m1")
             if_ idxGtEq (appendElem C.Break)
 
             -- check that pattern matches
@@ -242,7 +244,7 @@ generateStmt stmt = withPos stmt $ case stmt of
                 Nothing -> return true
                 Just pat -> case base of
                     Type.Table ts -> generatePattern pat =<< accessRecord val (Just idx)
-                    Type.Range t  -> generatePattern pat idx
+                    Type.Tuple (Type.Record [I64, I64]) -> generatePattern pat idx
                     _ -> error (show base)
 
             if_ (not_ patMatches) $ appendElem C.Break
@@ -505,29 +507,6 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
         case base of
             Type.Tuple t -> initialiser typ vals -- TODO
             _ -> error (show base)
-
-    S.Range _ (Just expr) mexpr1 mexpr2 -> do
-        val <- generateExpr expr
-        base <- baseTypeOf val
-        start <- case base of
-            Type.Table _ -> case mexpr1 of
-                Nothing -> return (i64 0)
-            Type.String -> case mexpr1 of
-                Nothing -> return (i64 0)
-            _ -> error (show base)
-        end <- case base of
-            Type.Table _ -> case mexpr2 of
-                Nothing -> len val
-            Type.String -> case mexpr1 of
-                Nothing -> len val
-            _ -> error (show base)
-        initialiser typ [start, end]
-
-    S.Range _ Nothing (Just expr1) (Just expr2) -> do
-        val1 <- generateExpr expr1
-        val2 <- generateExpr expr2
-        unless (typeof val1 == typeof val2) (error "type mismatch")
-        initialiser typ [val1, val2]
 
     S.Construct pos symbol exprs -> do
         vals <- mapM generateExpr exprs
