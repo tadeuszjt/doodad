@@ -27,7 +27,7 @@ fn[T] {s Sparse[T]} insert(value ()T) Key[T]
 
 
 fn[T] {s Sparse[T]} insert() Key[T]
-    data value ()T
+    let value:()T
     if s.empty.length() > 0
         let key = s.empty.pop()
         s.values{key} = value{}

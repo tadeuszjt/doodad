@@ -432,6 +432,7 @@ instance Resolve Param where
 
 resolveMapper :: Elem -> DoM ResolveState Elem
 resolveMapper element = case element of
+    --ElemExpr (Subscript pos _ _) -> if (drop 30 (textFile pos) /= "table.doo") then (fail "here") else return element
     ElemExpr (Ident pos symbol) -> ElemExpr . Ident pos <$> look symbol KeyVar
 
     ElemType (Type.TypeApply s ts) -> do

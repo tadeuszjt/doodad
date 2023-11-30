@@ -7,12 +7,12 @@ fn[T] {t Table[T]} length() I64
 
 fn[T] {t Table[T]} push(elem ()T)
     t++
-    t{t.length() - 1} = elem{}
+    t.at(t.length() - 1) = elem{}
 
 
 fn[T] {t Table[T]} pop() ()T
     data elem ()T
-    elem{} = t{t.length() - 1}
+    elem{} = t.at(t.length() - 1)
     ${ $t->len--; }
     return elem
 

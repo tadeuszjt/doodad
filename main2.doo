@@ -136,7 +136,7 @@ fn testTable()
 
     data tab3 Table[{I64, Bool}]
     tab3.push( (1, true) )
-    let {1, true} = tab3{0}
+    let {1, true} = tab3.at(0)
 
     data tab4 Table[sparse::Key[I64]]
     tab4.push(3)
@@ -252,20 +252,20 @@ fn {io Io} testFuncCalls()
     data tab2 Table[{Bool, Person, I64}]
     tab1.push( (true, "jim", 49, 2) )
     tab2.push( (true, "jim", 49, 2) )
-    tab1{0}.h()
-    tab2{0}.h()
+    tab1.at(0).h()
+    tab2.at(0).h()
 
     {b, tab1{0}.Person, n}.h()
 
-    let "james" = tab1{0}.Person.name
-    let "james" = tab2{0}.Person.name
+    let "james" = tab1.at(0).Person.name
+    let "james" = tab2.at(0).Person.name
 
 
     data tab3 Table[I64]
     tab3.push(4)
     fn {n I64} j()
         let n = 4
-    tab3{0}.j()
+    tab3.at(0).j()
 
     io.putStrLn("testFuncCalls passed")
 
