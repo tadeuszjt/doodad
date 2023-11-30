@@ -16,8 +16,8 @@ type[K, V] Tree (
 )
 
 
-fn[K, V] {tree Tree[K, V]} length() I64
-    return tree.nodes.length()
+fn[K, V] {tree Tree[K, V]} len() I64
+    return tree.nodes.len()
 
 
 fn[K, V] {tree Tree[K, V]} get(key ()K) ()V

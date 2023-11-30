@@ -13,21 +13,21 @@ fn[T] {u Unordered[T]} atValues() {Table[T]}
 
 
 fn[T] {u Unordered[T]} insert(elem ()T) Key[T]
-    let index = u.values.length()
+    let index = u.values.len()
     let key   = u.indices.insert(index)
     u.values.push((conv(key), elem))
     return conv(key)
 
 
 fn[T] {u Unordered[T]} insert() Key[T]
-    let key = u.indices.insert(u.values.length())
+    let key = u.indices.insert(u.values.len())
     u.values++
-    u.values{u.values.length() - 1}.key = conv(key)
+    u.values{u.values.len() - 1}.key = conv(key)
     return conv(key)
 
 
 fn[T] {u Unordered[T]} delete(key Key[T])
-    let end    = u.values.length() - 1
+    let end    = u.values.len() - 1
     let endKey = u.values{end}.key
     let index  = u.indices.get(conv(key))
 
@@ -52,5 +52,5 @@ fn[T] {u Unordered[T]} at(key Key[T]) {}T
         return u.values{index}.value{}
 
 
-fn[T] {u Unordered[T]} length() I64
-    return u.values.length()
+fn[T] {u Unordered[T]} len() I64
+    return u.values.len()

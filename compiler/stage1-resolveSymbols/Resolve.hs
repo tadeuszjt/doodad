@@ -453,7 +453,7 @@ resolveMapper element = case element of
         return $ ElemExpr (Construct pos symbol' exprs)
 
     ElemExpr (Call pos mparam (Sym sym) exprs)
-        | sym `elem` ["len", "conv", "print", "assert"] -> do 
+        | sym `elem` ["builtin_len", "conv", "print", "assert"] -> do 
             check (isNothing mparam) "invalid builtin function call"
             return $ ElemExpr (Builtin pos sym exprs)
 

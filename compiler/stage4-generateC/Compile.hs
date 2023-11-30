@@ -466,10 +466,6 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
 
     S.Builtin _ "conv" [expr] -> convert typ =<< generateExpr expr
 
-    S.Builtin _ "len" exprs -> do 
-        unless (length exprs == 1) (error "invalid len call")
-        len =<< generateExpr (head exprs)
-
     S.Ident _ symbol -> do
         obj <- look (show symbol)
         case obj of

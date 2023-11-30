@@ -8,8 +8,8 @@ type[T] Key I64
 type[T] Sparse (values Table[T], empty Table[Key[T]])
 
 
-fn[T] {s Sparse[T]} length() I64
-    return s.values.length() - s.empty.length()
+fn[T] {s Sparse[T]} len() I64
+    return s.values.len() - s.empty.len()
 
 
 fn[T] {s Sparse[T]} at(key Key[T]) {}T
@@ -17,28 +17,28 @@ fn[T] {s Sparse[T]} at(key Key[T]) {}T
 
 
 fn[T] {s Sparse[T]} insert(value ()T) Key[T]
-    if s.empty.length() > 0
+    if s.empty.len() > 0
         let key = s.empty.pop()
         s.values{key} = value{}
         return key
 
     s.values.push(value)
-    return conv(s.values.length() - 1)
+    return conv(s.values.len() - 1)
 
 
 fn[T] {s Sparse[T]} insert() Key[T]
     let value:()T
-    if s.empty.length() > 0
+    if s.empty.len() > 0
         let key = s.empty.pop()
         s.values{key} = value{}
         return key
 
     s.values.push(value)
-    return conv(s.values.length() - 1)
+    return conv(s.values.len() - 1)
 
 
 fn[T] {s Sparse[T]} delete(key Key[T])
-    if key == conv(s.values.length() - 1)
+    if key == conv(s.values.len() - 1)
         s.values.pop()
     else
         s.empty.push(key)
