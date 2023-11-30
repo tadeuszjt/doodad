@@ -6,7 +6,13 @@ fn[T] {t Table[T]} len() I64
 
 
 fn[T] {t Table[T]} push(elem ()T)
-    t++
+    builtin_table_append(t)
+    t.at(t.len() - 1) = elem{}
+
+
+fn[T] {t Table[T]} push()
+    let elem:()T
+    builtin_table_append(t)
     t.at(t.len() - 1) = elem{}
 
 
@@ -19,4 +25,4 @@ fn[T] {t Table[T]} pop() ()T
 
 fn[T] {t Table[T]} at(index I64) {}T
     assert(index >= 0 && index < t.len(), "index out of range")
-    return t{index}
+    return builtin_at(t, index)

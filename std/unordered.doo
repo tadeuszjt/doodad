@@ -21,24 +21,24 @@ fn[T] {u Unordered[T]} insert(elem ()T) Key[T]
 
 fn[T] {u Unordered[T]} insert() Key[T]
     let key = u.indices.insert(u.values.len())
-    u.values++
-    u.values{u.values.len() - 1}.key = conv(key)
+    u.values.push()
+    u.values.at(u.values.len() - 1).key = conv(key)
     return conv(key)
 
 
 fn[T] {u Unordered[T]} delete(key Key[T])
     let end    = u.values.len() - 1
-    let endKey = u.values{end}.key
+    let endKey = u.values.at(end).key
     let index  = u.indices.get(conv(key))
 
-    u.values{index}            = u.values{end}
+    builtin_at(u.values, index) = u.values.at(end)
     u.indices.at(conv(endKey)) = index{}
     u.indices.delete(conv(key))
     u.values.pop()
 
 
 fn[T] {u Unordered[T]} atIndex(index I64) {}T
-    return u.values{index}.value{}
+    return u.values.at(index).value{}
 
 
 fn[T] {u Unordered[T]} get(key Key[T] ) ()T
@@ -48,8 +48,8 @@ fn[T] {u Unordered[T]} get(key Key[T] ) ()T
 
 
 fn[T] {u Unordered[T]} at(key Key[T]) {}T
-    let {index} = u.indices.at(conv(key)) in
-        return u.values{index}.value{}
+    let index = u.indices.get(conv(key))
+    return u.values.at(index).value{}
 
 
 fn[T] {u Unordered[T]} len() I64

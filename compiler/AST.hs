@@ -82,7 +82,6 @@ data Expr
     | Construct    TextPos Symbol [Expr]
     | Null         TextPos 
     | Field        TextPos Expr Symbol
-    | Subscript    TextPos Expr Expr
     | Ident        TextPos Symbol
     | Builtin      TextPos String [Expr]
     | Prefix       TextPos Operator Expr
@@ -117,7 +116,6 @@ data Stmt
     | Data        TextPos Symbol Type (Maybe Expr)
     | EmbedC      TextPos String
     | Const       TextPos Symbol Expr
-    | Increment   TextPos Expr
     deriving (Eq, Show)
 
 
@@ -155,7 +153,6 @@ instance TextPosition Expr where
         String       p _    -> p
         Tuple        p _    -> p
         Field        p _ _  -> p
-        Subscript    p _ _  -> p
         Ident        p _    -> p
         Call         p _ _ _ -> p 
         Builtin      p _ _ -> p 
@@ -257,7 +254,6 @@ instance Show Expr where
         String pos s                       -> show s
         Tuple pos exprs                    -> tupStrs (map show exprs)
         Field pos expr symbol              -> show expr ++ "." ++ show symbol
-        Subscript pos expr1 expr2          -> show expr1 ++ "[" ++ show expr2 ++ "]"
         Ident p s                          -> show s 
         Prefix pos op expr                 -> show op ++ show expr
         Infix pos op expr1 expr2           -> show expr1 ++ " " ++ show op ++ " " ++ show expr2
@@ -285,7 +281,6 @@ prettyAST ast = do
 
 prettyStmt :: String -> Stmt -> IO ()
 prettyStmt pre stmt = case stmt of
-    Increment pos expr -> putStrLn $ pre ++ show expr ++ "++"
     FuncDef pos typeArgs params symbol args retty blk -> do
         typeArgsStr <- case typeArgs of
             [] -> return ""

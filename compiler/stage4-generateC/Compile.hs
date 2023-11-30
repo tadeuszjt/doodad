@@ -156,42 +156,15 @@ generatePrint app val = case typeof val of
     _ -> error (show $ typeof val)
 
 
-generateIndex :: S.Expr -> Generate Value
-generateIndex expr_@(S.AExpr t expr__) = case expr__ of
-    S.Ident _ _    -> generateExpr expr_
-    S.Field _ _ _  -> generateExpr expr_
-    S.Call _ _ _ _ -> generateExpr expr_
-
-    S.Subscript _ expr idx -> do
-        val <- generateIndex expr
-        base <- baseTypeOf expr
-        case base of
-            Type.String -> fail "cannot index string"
-            Type.Table typ -> accessRecord val =<< fmap Just (generateExpr idx)
-            _ -> error (show base)
-
-    S.RecordAccess _ expr -> do
-        val <- generateExpr expr
-        accessRecord val Nothing
-
-    _ -> error (show expr__)
-generateIndex e = error (show e)
-
-
 generateStmt :: S.Stmt -> Generate ()
 generateStmt stmt = withPos stmt $ case stmt of
-    S.EmbedC _ str -> void $ appendElem (C.Embed str)
-    S.Block stmts -> mapM_ generateStmt stmts
-    S.Return _ Nothing -> void $ appendElem (C.ReturnVoid)
+    S.Block stmts          -> mapM_ generateStmt stmts
+    S.EmbedC _ str         -> void $ appendElem (C.Embed str)
+    S.Return _ Nothing     -> void $ appendElem (C.ReturnVoid)
     S.Return _ (Just expr) -> void $ appendElem . C.Return . valExpr =<< generateExpr expr
-    S.Const _ symbol expr -> do
+    S.ExprStmt expr        -> void $ generateExpr expr
+    S.Const _ symbol expr  -> do
         define (show symbol) $ CGenerate.Const expr
-
-    S.Increment _ expr -> do
-        val <- generateExpr expr
-        base <- baseTypeOf expr
-        case base of
-            Table t -> tableAppend val
 
     S.Let _ pattern mexpr mblk -> do
         case mexpr of
@@ -228,37 +201,8 @@ generateStmt stmt = withPos stmt $ case stmt of
                     appendElem C.Break
             call "assert" [false]
 
-    S.ExprStmt (AExpr _ (S.Call _ mexpr symbol exprs2)) -> do
-        check (symbolIsResolved symbol) ("unresolved function call: " ++ show symbol)
-        mparam <- traverse generateExpr mexpr
-        args <- mapM generateExpr exprs2
-        ptrs <- case mparam of
-            Nothing -> return []
-            Just param -> do
-                base <- baseTypeOf param
-                case base of
-                    Type.Record _ -> do 
-                        ts <- getRecordTypes (typeof param)
-                        return [ C.Member (valExpr param) ("m" ++ show i) | (t, i) <- zip ts [0..] ]
-                    _ -> return [C.Address (valExpr param)]
-
-        void $ appendElem $ C.ExprStmt $ C.Call (show symbol) (ptrs ++ map valExpr args) 
-
-    S.ExprStmt (AExpr _ (S.Builtin _ "print" exprs)) -> do
-        vals <- mapM generateExpr exprs
-        forM_ (zip vals [0..]) $ \(val, i) -> do
-            let end = i == length vals - 1
-            generatePrint (if end then "\n" else ", ") val
-
-    S.ExprStmt (AExpr _ (S.Builtin pos "assert" [cnd, str])) -> do
-        cndVal <- generateExpr cnd
-        strVal <- generateExpr str
-        fileNameVal <- return $ Value Type.String (C.String $ textFile pos)
-        lineVal <- return $ Value I64 (C.Int $ fromIntegral $ textLine pos)
-        call "doodad_assert" [fileNameVal, lineVal, cndVal, strVal]
-
     S.SetOp _ S.Eq index expr -> do
-        idx <- generateIndex index
+        idx <- generateExpr index
         set idx =<< generateExpr expr
 
     S.While _ expr stmt -> do
@@ -304,7 +248,7 @@ generateStmt stmt = withPos stmt $ case stmt of
             if_ (not_ patMatches) $ appendElem C.Break
             generateStmt stmt
 
-    _ -> fail (show stmt)
+    _ -> fail $ "invalid statement: " ++ (show stmt)
 
 
 -- creates an expression which may be used multiple times without side-effects
@@ -466,6 +410,34 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
 
     S.Builtin _ "conv" [expr] -> convert typ =<< generateExpr expr
 
+    S.Builtin _ "print" exprs -> do
+        vals <- mapM generateExpr exprs
+        forM_ (zip vals [0..]) $ \(val, i) -> do
+            let end = i == length vals - 1
+            generatePrint (if end then "\n" else ", ") val
+        return $ Value Void $ C.Int 0
+
+    S.Builtin pos "assert" [cnd, str] -> do
+        cndVal <- generateExpr cnd
+        strVal <- generateExpr str
+        fileNameVal <- return $ Value Type.String (C.String $ textFile pos)
+        lineVal <- return $ Value I64 (C.Int $ fromIntegral $ textLine pos)
+        call "doodad_assert" [fileNameVal, lineVal, cndVal, strVal]
+        return $ Value Void $ C.Int 0
+
+    S.Builtin _ "builtin_at" [expr1, expr2] -> do
+        val <- generateExpr expr1
+        idx <- generateExpr expr2
+        base <- baseTypeOf val
+        case base of
+            Type.Table _ -> accessRecord val (Just idx)
+
+    S.Builtin _ "builtin_table_append" [expr1] -> do
+        val <- generateExpr expr1
+        base <- baseTypeOf val
+        case base of
+            Type.Table _ -> tableAppend val >> return (Value Void (C.Int 0))
+
     S.Ident _ symbol -> do
         obj <- look (show symbol)
         case obj of
@@ -509,7 +481,11 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
                     _ -> do
                         return [C.Address (valExpr param)]
                     x -> error (show x)
-        return $ Value typ $ C.Call (show symbol) (ptrs ++ map valExpr vals)
+        case typ of
+            Void -> do
+                appendElem $ C.ExprStmt $ C.Call (show symbol) (ptrs ++ map valExpr vals)
+                return $ Value Void $ C.Int 0
+            _ -> return $ Value typ $ C.Call (show symbol) (ptrs ++ map valExpr vals)
 
     S.Field _ _ (Sym s) -> fail $ "unresolved field: " ++ s
     S.Field _ expr symbol -> do 
@@ -573,13 +549,6 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
 
             _ -> error (show base)
 
-    S.Subscript _ expr arg -> do
-        val <- generateExpr expr
-        argVal <- generateExpr arg
-        base <- baseTypeOf val
-        case base of
-            Type.String -> return $ Value typ $ C.Subscript (valExpr val) (valExpr argVal)
-            _ -> accessRecord val . Just =<< generateExpr arg
 
     S.Record _ exprs -> do
         vals <- mapM generateExpr exprs

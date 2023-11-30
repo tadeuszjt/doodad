@@ -154,8 +154,6 @@ checkExpr (AExpr exprType expression) = withPos expression $ case expression of
 
     Builtin pos symbol exprs -> return []
 
-    Subscript pos expr1 expr2 -> return []
-
     Construct pos typ exprs -> return []
 
     Prefix pos op expr -> do
@@ -198,10 +196,6 @@ checkStmt stmt = withPos stmt $ case stmt of
         objs1 <- checkExpr expr1
         objs2 <- checkExpr expr2
         checkMultipleReferences (objs1 ++ objs2)
-        return ()
-
-    Increment _ expr -> do
-        checkExpr expr
         return ()
 
     Let _ pat mexpr mblk -> do

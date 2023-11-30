@@ -32,7 +32,6 @@ applyStmt subs stmt = case stmt of
     EmbedC pos s -> EmbedC pos s
     Data pos symbol typ mexpr -> Data pos symbol (applyTy typ) (fmap applyEx mexpr)
     SetOp pos op expr1 expr2 -> SetOp pos op (applyEx expr1) (applyEx expr2)
-    Increment pos expr -> Increment pos (applyEx expr)
     Let pos pattern mexpr mblk -> Let pos (applyPat pattern) (fmap applyEx mexpr) (fmap applySt mblk)
     Switch pos expr cases -> Switch pos (applyEx expr) $ map (\(p, st) -> (applyPat p, applySt st)) cases
     While pos expr blk -> While pos (applyEx expr) (applySt blk)
@@ -56,7 +55,6 @@ applyExpr subs expression = case expression of
     Prefix pos op expr -> Prefix pos op (applyEx expr)
     AST.Int pos n -> AST.Int pos n
     AST.String pos s -> AST.String pos s
-    Subscript pos expr1 expr2 -> Subscript pos (applyEx expr1) (applyEx expr2)
     RecordAccess pos expr -> RecordAccess pos (applyEx expr)
     Field pos expr symbol -> Field pos (applyEx expr) symbol
     AST.Tuple pos exprs -> AST.Tuple pos (map applyEx exprs)

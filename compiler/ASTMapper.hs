@@ -52,10 +52,6 @@ mapStmtM f stmt = withPos stmt $ do
             mblk' <- traverse (mapStmtM f) mblk
             return $ Let pos pat' mexpr' mblk'
 
-        Increment pos expr -> do
-            expr' <- mapExprM f expr
-            return $ Increment pos expr'
-
         For pos expr mcnd blk -> do
             expr' <- mapExprM f expr
             mcnd' <- traverse (mapPattern f) mcnd
@@ -133,11 +129,6 @@ mapExprM f expr = withPos expr $ do
             expr1' <- mapExprM f expr1
             expr2' <- mapExprM f expr2
             return $ Infix pos op expr1' expr2'
-
-        Subscript pos expr arg -> do
-            expr' <- mapExprM f expr
-            arg' <- mapExprM f arg
-            return $ Subscript pos expr' arg'
 
         AST.Range pos mexpr mexpr1 mexpr2 -> do
             mexpr' <-  traverse (mapExprM f) mexpr

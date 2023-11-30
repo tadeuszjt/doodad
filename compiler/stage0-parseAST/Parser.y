@@ -140,7 +140,6 @@ generics : {-empty-}                      { [] }
 line : let pattern '=' expr               { Let (tokPos $1) $2 (Just $4) Nothing }  
      | let pattern                        { Let (tokPos $1) $2 Nothing Nothing }
      | expr                               { ExprStmt $1 }
-     | expr '++'                          { Increment (tokPos $2) $1 }
      | expr '=' expr                      { SetOp (tokPos $2) Eq $1 $3 }
      | expr '+=' expr                     { SetOp (tokPos $2) PlusEq $1 $3 }
      | type generics Symbol anno_t        { Typedef (fst $3) $2 (snd $3) $4 }
@@ -265,7 +264,6 @@ expr   : literal                                 { $1 }
        | expr '.' ident                          { Field (tokPos $2) $1 (Sym $ tokStr $3) }
        | expr '.' Ident                          { Field (tokPos $2) $1 (Sym $ tokStr $3) }
        | '{' exprs1 '}'                          { AST.Record (tokPos $1) $2 }
-       | expr '{'  expr '}'                      { Subscript (tokPos $2) $1 $3 }
        | expr '{' '}'                            { RecordAccess (tokPos $2) $1 }
        --| expr '[' mexpr '..' mexpr ']'           { AST.Range (tokPos $2) (Just $1) $3 $5 }
        --| '[' mexpr '..' mexpr ']'                { AST.Range (tokPos $1) Nothing $2 $4 }

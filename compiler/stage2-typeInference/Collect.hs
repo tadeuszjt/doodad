@@ -127,7 +127,6 @@ collectFuncDef symbol body = do
 collectMapper :: Elem -> DoM CollectState Elem
 collectMapper element = (\_ -> return element) =<< case element of
     ElemStmt statement -> case statement of
-        Increment _ _          -> return ()
         Block _                -> return ()
         EmbedC _ _             -> return ()
         ExprStmt expr          -> collectDefault (typeof expr) Void
@@ -178,7 +177,6 @@ collectMapper element = (\_ -> return element) =<< case element of
         Prefix _ op expr    -> collectEq exprType (typeof expr)
         Int _ _             -> collectDefault exprType I64
         Float _ _           -> collectDefault exprType F64
-        Subscript _ e1 e2   -> collect $ ConsSubscript (typeof e1) exprType
         RecordAccess _ expr -> collect $ ConsRecordAccess exprType (typeof expr) 
         Null _              -> return ()
         Field _ e symbol    -> collect $ ConsField (typeof e) symbol exprType
@@ -221,9 +219,16 @@ collectMapper element = (\_ -> return element) =<< case element of
                     collect $ ConsBase (typeof $ args !! 0) Type.Bool
                     collect $ ConsBase (typeof $ args !! 1) Type.String
                     collectEq exprType Void
-                "len"   -> do
+                "builtin_len"   -> do
                     collect (ConsBase exprType I64)
                     collectDefault exprType I64
+                "builtin_at" -> do
+                    check (length args == 2) "invalid builtin_at call"
+                    collect $ ConsBase (typeof $ args !! 1) I64
+                    collect $ ConsSubscript (typeof $ args !! 0) exprType
+                "builtin_table_append" -> do
+                    check (length args == 1) "invalid builtin_table_append call"
+                    collectEq exprType Void
                 "print" -> collectEq exprType Void
 
         Ident _ symbol -> do

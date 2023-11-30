@@ -308,7 +308,6 @@ resolveTypeDef (AST.Typedef pos generics (Sym sym) anno) = withPos pos $ do
 
 instance Resolve Stmt where
     resolve stmt = withPos stmt $ case stmt of
-        Increment pos expr -> Increment pos <$> resolve expr
         ExprStmt callExpr -> ExprStmt <$> resolve callExpr
         EmbedC pos str -> EmbedC pos <$> processCEmbed str
 
@@ -432,7 +431,6 @@ instance Resolve Param where
 
 resolveMapper :: Elem -> DoM ResolveState Elem
 resolveMapper element = case element of
-    --ElemExpr (Subscript pos _ _) -> if (drop 30 (textFile pos) /= "table.doo") then (fail "here") else return element
     ElemExpr (Ident pos symbol) -> ElemExpr . Ident pos <$> look symbol KeyVar
 
     ElemType (Type.TypeApply s ts) -> do
@@ -453,7 +451,7 @@ resolveMapper element = case element of
         return $ ElemExpr (Construct pos symbol' exprs)
 
     ElemExpr (Call pos mparam (Sym sym) exprs)
-        | sym `elem` ["builtin_len", "conv", "print", "assert"] -> do 
+        | sym `elem` ["builtin_table_append", "builtin_len", "builtin_at", "conv", "print", "assert"] -> do 
             check (isNothing mparam) "invalid builtin function call"
             return $ ElemExpr (Builtin pos sym exprs)
 

@@ -255,7 +255,7 @@ fn {io Io} testFuncCalls()
     tab1.at(0).h()
     tab2.at(0).h()
 
-    {b, tab1{0}.Person, n}.h()
+    {b, tab1.at(0).Person, n}.h()
 
     let "james" = tab1.at(0).Person.name
     let "james" = tab2.at(0).Person.name
