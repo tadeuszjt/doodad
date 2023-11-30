@@ -146,7 +146,6 @@ line : let pattern '=' expr               { Let (tokPos $1) $2 (Just $4) Nothing
      | data symbol type_                  { Data (tokPos $1) (snd $2) $3 Nothing }
      | return mexpr                       { Return (tokPos $1) $2 }
      | embed_c                            { AST.EmbedC (tokPos $1) (tokStr $1) }
-     | const symbol '=' expr              { Const (tokPos $1) (snd $2) $4 }
 
 block : if_                               { $1 }
       | while condition scope             { While (tokPos $1) $2 $3 }
@@ -228,7 +227,6 @@ pattern  : '_'                           { PatIgnore (tokPos $1) }
          | '-' int_c                     { PatLiteral (AST.Int (tokPos $1) $ 0 - (read $ tokStr $2)) }
          | ident                         { PatIdent (tokPos $1) (Sym $ tokStr $1) }
          | '(' patterns ')'              { PatTuple (tokPos $1) $2 }
-         | '[' patterns ']'              { PatArray (tokPos $1) $2 }
          | '{' patterns '}'              { PatRecord (tokPos $1) $2 }
          | pattern '|' expr              { PatGuarded (tokPos $2) $1 $3 }
          | pattern '|' expr '->' pattern { PatGuarded (tokPos $2) $1 (Match (tokPos $4) $3 $5) }
@@ -265,7 +263,6 @@ expr   : literal                                 { $1 }
        | expr '.' Ident                          { Field (tokPos $2) $1 (Sym $ tokStr $3) }
        | '{' exprs1 '}'                          { AST.Record (tokPos $1) $2 }
        | expr '{' '}'                            { RecordAccess (tokPos $2) $1 }
-       --| '[' exprsA ']'                          { Array (tokPos $1) $2 }
 
 literal : int_c                                  { AST.Int (tokPos $1) (read $ tokStr $1) }
         | float_c                                { AST.Float (tokPos $1) (read $ tokStr $1) }

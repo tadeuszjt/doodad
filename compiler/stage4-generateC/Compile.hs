@@ -22,9 +22,6 @@ generate ast = withErrorPrefix "generate: " $ do
     modify $ \s -> s { ctors = ctorDefs ast }
     modify $ \s -> s { typefuncs = typeFuncs ast } 
 
-    forM_ (Map.toList $ constDefs ast) $ \(symbol, expr) -> do
-        define (show symbol) (CGenerate.Const expr)
-            
     -- generate imported function externs
     forM_ (Map.toList $ funcImports ast) $ \(symbol, body) -> do
         unless (isGenericBody body) $ do
@@ -163,9 +160,6 @@ generateStmt stmt = withPos stmt $ case stmt of
     S.Return _ Nothing     -> void $ appendElem (C.ReturnVoid)
     S.Return _ (Just expr) -> void $ appendElem . C.Return . valExpr =<< generateExpr expr
     S.ExprStmt expr        -> void $ generateExpr expr
-    S.Const _ symbol expr  -> do
-        define (show symbol) $ CGenerate.Const expr
-
     S.Let _ pattern mexpr mblk -> do
         case mexpr of
             Just expr -> do
@@ -255,7 +249,6 @@ generateStmt stmt = withPos stmt $ case stmt of
 
 -- creates an expression which may be used multiple times without side-effects
 generateReentrantExpr :: Value -> Generate Value
-generateReentrantExpr (CGenerate.Const expr) = return (CGenerate.Const expr)
 generateReentrantExpr (Value typ expr) = Value typ <$> reentrantExpr expr
     where
         reentrantExpr :: C.Expression -> Generate C.Expression
@@ -403,12 +396,13 @@ annotateExprWith typ expr = do
 -- generateExpr should return a 're-enter-able' expression, eg 1, not func()
 generateExpr :: Expr -> Generate Value
 generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
-    S.Bool _ b   -> return $ Value typ (C.Bool b)
-    S.Int _ n    -> return $ Value typ (C.Int n)
-    S.Float _ f  -> return $ Value typ (C.Float f)
-    S.String _ s -> return $ Value typ (C.String s)
-    S.Char _ c   -> return $ Value typ (C.Char c)
+    S.Bool _ b             -> return $ Value typ (C.Bool b)
+    S.Int _ n              -> return $ Value typ (C.Int n)
+    S.Float _ f            -> return $ Value typ (C.Float f)
+    S.String _ s           -> return $ Value typ (C.String s)
+    S.Char _ c             -> return $ Value typ (C.Char c)
     S.Match _ expr pattern -> generatePattern pattern =<< generateExpr expr
+    S.Ident _ symbol       -> look (show symbol)
 
     S.Builtin _ "conv" [expr] -> convert typ =<< generateExpr expr
 
@@ -439,12 +433,6 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
         base <- baseTypeOf val
         case base of
             Type.Table _ -> tableAppend val >> return (Value Void (C.Int 0))
-
-    S.Ident _ symbol -> do
-        obj <- look (show symbol)
-        case obj of
-            Value _ _ -> return obj
-            CGenerate.Const e -> generateExpr =<< annotateExprWith typ e
 
     S.RecordAccess _ expr -> do
         val <- generateExpr expr

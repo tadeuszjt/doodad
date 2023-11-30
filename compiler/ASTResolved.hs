@@ -14,7 +14,6 @@ data ASTResolved
         { moduleName      :: String
         , includes        :: Set.Set String                  -- c header includes
         , links           :: Set.Set String                  -- linked libraries
-        , constDefs       :: Map.Map Symbol Expr             -- defined consts
         , typeFuncs       :: Type.TypeDefsMap                -- defined type functions
         , ctorDefs        :: Map.Map Symbol (Symbol, Int)    -- defined ctors
         , funcImports     :: Map.Map Symbol FuncBody         -- imported funcs
@@ -126,8 +125,6 @@ prettyFuncBody symbol body =
 prettyASTResolved :: ASTResolved -> IO ()
 prettyASTResolved ast = do
     putStrLn $ "module " ++ moduleName ast
-    forM_ (Map.toList $ constDefs ast) $ \(symbol, expr) ->
-        prettyStmt "" $ AST.Const undefined symbol expr
     forM_ (Map.toList $ typeFuncs ast) $ \(symbol, (generics, typ)) ->
         prettyStmt "" (AST.Typedef undefined generics symbol $ AnnoType typ)
     forM_ (Map.toList $ funcDefs ast) $ \(symbol, body) -> prettyFuncBody symbol body

@@ -189,21 +189,13 @@ resolveAsts asts imports = runDoMExcept (initResolveState imports (astModuleName
         let links      = [ s | link@(CLink s) <- concat $ map astImports asts ]
         let typedefs   = [ stmt | stmt@(AST.Typedef _ _ _ _) <- concat $ map astStmts asts ]
         let funcdefs   = [ stmt | stmt@(AST.FuncDef _ _ _ _ _ _ _) <- concat $ map astStmts asts ]
-        let consts     = [ stmt | stmt@(AST.Const _ _ _) <- concat $ map astStmts asts ]
 
         -- check validity
         unless (all (== moduleName) $ map astModuleName asts) (error "module name mismatch")
         forM_ (concat $ map astStmts asts) $ \stmt -> withPos stmt $ case stmt of
             (AST.Typedef _ _ _ _) -> return ()
             (AST.FuncDef _ _ _ _ _ _ _) -> return ()
-            (AST.Const _ _ _) -> return ()
             _ -> fail "invalid top-level statement"
-
-        -- define constants
-        constDefsList <- forM consts $ \(AST.Const pos (Sym sym) expr) -> withPos pos $ do
-            symbol' <- genSymbol sym
-            define sym KeyVar symbol'
-            return (symbol', expr)
 
         -- get imports
         let typeFuncImportMap = Map.unions (map typeFuncs imports)
@@ -229,7 +221,6 @@ resolveAsts asts imports = runDoMExcept (initResolveState imports (astModuleName
             , includes    = Set.fromList includes
             , links       = Set.fromList links
             , funcImports = Map.unions $ concat [map ASTResolved.funcDefs imports,  map ASTResolved.funcImports imports]
-            , constDefs   = Map.fromList constDefsList
             , funcDefs    = funcDefs
             , typeFuncs   = Map.union typeFuncImportMap (Map.map (\(x, y) -> (x, annoToType y)) typeFuncs)
             , ctorDefs    = Map.union ctorImportMap ctorMap
@@ -328,11 +319,6 @@ instance Resolve Stmt where
             resolveTypeDef stmt
             return $ AST.Typedef pos args symbol anno -- essentially discarded
 
-        Const pos (Sym s) expr -> do
-            symbol' <- genSymbol s
-            define s KeyVar symbol'
-            Const pos symbol' <$> resolve expr
-
         Block stmts -> do
             pushSymbolTable
             stmts' <- mapM resolve stmts
@@ -341,7 +327,6 @@ instance Resolve Stmt where
             stmts'' <- fmap catMaybes $ forM stmts' $ \st -> case st of
                 Typedef _ _ _ _ -> return Nothing
                 FuncDef _ _ _ _ _ _ _ -> return Nothing
-                Const _ _ _ -> return Nothing
                 _ -> return (Just st)
 
             popSymbolTable

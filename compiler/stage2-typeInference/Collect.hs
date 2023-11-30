@@ -20,7 +20,6 @@ import FunctionFinder
 type SymTab = SymTab.SymTab Symbol () Object
 data Object
     = ObjVar Type
-    | ObjConst Expr
     deriving (Show, Eq)
 
 data CollectState
@@ -81,13 +80,9 @@ define symbol obj = do
 collectAST :: Prelude.Bool -> ASTResolved -> DoM CollectState ()
 collectAST verbose ast = do
     --when verbose $ liftIO $ putStrLn "collecting..."
-    forM (Map.toList $ constDefs ast) $ \(symbol, expr) -> do
-        define symbol (ObjConst expr)
-
     forM_ (Map.toList $ funcDefs ast) $ \(symbol, body) ->
         when (funcGenerics body == []) $
             collectFuncDef symbol body
-
 
 
 collectCall :: Type -> (Maybe Expr) -> Symbol -> [Expr] -> DoM CollectState ()
@@ -148,7 +143,6 @@ collectMapper element = (\_ -> return element) =<< case element of
 
     ElemPattern (PatAnnotated pattern patType) -> case pattern of
         PatIgnore _           -> return ()
-        PatNull _             -> return ()
         PatIdent _ symbol     -> define symbol (ObjVar patType)
         PatLiteral expr       -> collectEq patType (typeof expr)
         PatGuarded _ pat expr -> collect $ ConsBase Type.Bool (typeof expr)
@@ -178,8 +172,12 @@ collectMapper element = (\_ -> return element) =<< case element of
         Int _ _             -> collectDefault exprType I64
         Float _ _           -> collectDefault exprType F64
         RecordAccess _ expr -> collect $ ConsRecordAccess exprType (typeof expr) 
-        Null _              -> return ()
         Field _ e symbol    -> collect $ ConsField (typeof e) symbol exprType
+
+        Ident _ symbol -> do
+            ObjVar typ <- look symbol 
+            collectEq typ exprType
+
         AST.Record _ exprs  -> do
             collect $ ConsBase exprType (Type.Record $ map typeof exprs)
             collectDefault exprType (Type.Record $ map typeof exprs)
@@ -230,18 +228,6 @@ collectMapper element = (\_ -> return element) =<< case element of
                     check (length args == 1) "invalid builtin_table_append call"
                     collectEq exprType Void
                 "print" -> collectEq exprType Void
-
-        Ident _ symbol -> do
-            obj <- look symbol 
-            case obj of
-                ObjVar typ -> collectEq typ exprType
-                ObjConst e -> do -- special!
-                    return ()
-    --                count <- gets typeSupply
-    --                (e', count') <- runDoMExcept count (annotate e)
-    --                modify $ \s -> s { typeSupply = count' }
-    --                collectEq (typeof e') exprType
-    --                collectExpr e'
                     
         Infix _ op e1 e2 -> do
             case op of

@@ -62,12 +62,10 @@ data Pattern
     | PatIgnore    TextPos
     | PatIdent     TextPos Symbol
     | PatTuple     TextPos [Pattern]
-    | PatArray     TextPos [Pattern]
     | PatGuarded   TextPos Pattern Expr
     | PatField     TextPos Symbol [Pattern]
     | PatAnnotated Pattern Type
     | PatRecord    TextPos [Pattern]
-    | PatNull      TextPos
     deriving (Eq)
 
 data Expr
@@ -80,7 +78,6 @@ data Expr
     | Tuple        TextPos [Expr]
     | Call         TextPos (Maybe Expr) Symbol [Expr]
     | Construct    TextPos Symbol [Expr]
-    | Null         TextPos 
     | Field        TextPos Expr Symbol
     | Ident        TextPos Symbol
     | Builtin      TextPos String [Expr]
@@ -89,7 +86,6 @@ data Expr
     | Match        TextPos Expr Pattern
     | Record       TextPos [Expr]
     | RecordAccess TextPos Expr
-    | Array        TextPos [Expr]
     deriving (Eq)
 
 instance Typeof Expr where
@@ -114,7 +110,6 @@ data Stmt
     | For         TextPos Expr (Maybe Pattern) Stmt
     | Data        TextPos Symbol Type (Maybe Expr)
     | EmbedC      TextPos String
-    | Const       TextPos Symbol Expr
     deriving (Eq, Show)
 
 
@@ -133,12 +128,10 @@ instance TextPosition Pattern where
         PatIgnore    p -> p
         PatIdent     p _ -> p
         PatTuple     p _ -> p
-        PatArray     p _ -> p
         PatGuarded   p _ _ -> p
         PatField     p _ _ -> p
         PatAnnotated pat _ -> textPos pat
         PatRecord p _ -> p
-        PatNull      p -> p
 
 
 instance TextPosition Expr where
@@ -148,7 +141,6 @@ instance TextPosition Expr where
         Float        p _    -> p
         Bool         p _    -> p
         Char         p _    -> p
-        Null         p      -> p
         String       p _    -> p
         Tuple        p _    -> p
         Field        p _ _  -> p
@@ -158,7 +150,6 @@ instance TextPosition Expr where
         Prefix       p _ _ -> p
         Infix        p _ _ _ -> p
         Match        p _ _ -> p
-        Array        p _ -> p
         Construct    p _ _ -> p
         RecordAccess p _ -> p
         Record       p _ -> p
@@ -167,8 +158,8 @@ instance TextPosition Expr where
 
 instance TextPosition Stmt where
     textPos stmt = case stmt of
-        Let      p _ _ _ -> p
         ExprStmt    expr -> textPos expr
+        Let         p _ _ _ -> p
         Return      p _ -> p
         Block       s -> textPos (head s)
         If          p _ _ _ -> p
@@ -180,7 +171,6 @@ instance TextPosition Stmt where
         Data        p _ _ _ -> p
         EmbedC      p _ -> p
         SetOp       p _ _ _ -> p
-        Const       p _ _ -> p
         _ -> error (show stmt)
 
 tupStrs, arrStrs, brcStrs :: [String] -> String
@@ -223,7 +213,7 @@ instance Show AnnoType where
         AnnoType t   -> show t
         AnnoTuple ps -> tupStrs $ map show ps
         AnnoADT ps   -> "(" ++ intercalate " | " (map show ps) ++ ")"
-        AnnoTable xs -> "[" ++ intercalate "; " (map show xs) ++ "]"
+        AnnoTable xs -> "Table[{" ++ intercalate ", " (map show xs) ++ "}]"
         AnnoRecord ps -> brcStrs $ map show ps
 
 
@@ -233,12 +223,10 @@ instance Show Pattern where
         PatIgnore pos            -> "_"
         PatIdent pos symbol      -> show symbol
         PatTuple pos ps          -> tupStrs (map show ps)
-        PatArray pos ps          -> arrStrs (map show ps)
         PatGuarded pos pat expr  -> show pat ++ " | " ++ show expr
         PatField pos symbol pats -> show symbol ++ tupStrs (map show pats)
         PatAnnotated pat typ     -> show pat ++ ":" ++ show typ
         PatRecord pos pats       -> brcStrs (map show pats)
-        PatNull pos              -> "null"
 
 
 instance Show Expr where
@@ -248,7 +236,6 @@ instance Show Expr where
         Float pos f                        -> show f
         Bool pos b                         -> if b then "true" else "false"
         Char pos c                         -> show c
-        Null p                             -> "null"
         String pos s                       -> show s
         Tuple pos exprs                    -> tupStrs (map show exprs)
         Field pos expr symbol              -> show expr ++ "." ++ show symbol
@@ -259,7 +246,6 @@ instance Show Expr where
         Call pos (Just param) symbol exprs -> show param ++ "." ++ show symbol ++ tupStrs (map show exprs)
         Builtin pos sym exprs              -> sym ++ tupStrs (map show exprs)
         Match pos expr1 expr2              -> "(" ++ show expr1 ++ " -> " ++ show expr2 ++ ")"
-        Array pos exprs                    -> arrStrs (map show exprs)
         Construct pos symbol exprs         -> show symbol ++ tupStrs (map show exprs)
         RecordAccess pos expr              -> show expr ++ "{}"
         Record pos exprs                   -> brcStrs (map show exprs)
@@ -302,7 +288,6 @@ prettyStmt pre stmt = case stmt of
 
     SetOp _ op expr1 expr2 -> putStrLn $ pre ++ (show expr1) ++ " " ++ show op ++ " " ++ show expr2
     Return pos mexpr       -> putStrLn $ pre ++ "return " ++ maybe "" show mexpr
-    Const _ symbol expr    -> putStrLn $ pre ++ "const " ++ show symbol ++ " = " ++ show expr
 
     If pos cnd true mfalse -> do
         putStrLn $ pre ++ "if " ++ show cnd
