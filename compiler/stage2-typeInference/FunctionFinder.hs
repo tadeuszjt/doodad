@@ -24,20 +24,8 @@ import TupleDeleter
 -- Function Finder contains functions which can determine whether a generic function could match
 -- a function call. This involves using a smaller version of the type inference algorithm to replace
 -- generic symbols with resolved types.
-
 findCandidates :: CallHeader -> DoM ASTResolved [Symbol]
 findCandidates call = do
-    funcSymbols <- findFunctionCandidates call
-    typeSymbols <- findTypeCandidates     call
-    ctorSymbols <- findCtorCandidates (callSymbol call)
-    let r = Set.toList $ Set.fromList $ concat $ [funcSymbols, typeSymbols, ctorSymbols]
-    --liftIO $ putStrLn $ show call ++ ": " ++ show r
-    return r
-
-
-
-findFunctionCandidates :: CallHeader -> DoM ASTResolved [Symbol]
-findFunctionCandidates call = do
     ast <- get
     fmap catMaybes $ forM (Map.toList $ Map.union (funcDefs ast) (funcImports ast)) $
         \(symbol, body) -> do
@@ -47,62 +35,49 @@ findFunctionCandidates call = do
                 False -> Nothing
 
 
-findTypeCandidates :: CallHeader -> DoM ASTResolved [Symbol]
-findTypeCandidates (CallHeader mReceiverType s argTypes returnType) = do
-    typeFuncs <- gets typeFuncs
-    let res     = Map.filterWithKey (\k v -> symbolsCouldMatch k s) typeFuncs
-    return $ Map.keys res
-
-
-findCtorCandidates :: Symbol -> DoM ASTResolved [Symbol]
-findCtorCandidates callSymbol = do
-    ctorDefs <- gets ctorDefs
-    return $ Map.keys $ Map.filterWithKey (\k v -> symbolsCouldMatch k callSymbol) ctorDefs
-
-
 callCouldMatchFunc :: CallHeader -> Symbol -> FuncBody -> DoM ASTResolved Bool
-callCouldMatchFunc call symbol body
-    | not $ symbolsCouldMatch (callSymbol call) symbol = return False
-    | not $ length (callArgTypes call) == length (map typeof $ funcArgs body) = return False
-    | otherwise = do
-        ast <- get
-        let argsMatch  = all (== True) $ zipWith (typesCouldMatch (typeFuncs ast) (funcGenerics body)) (callArgTypes call) (map typeof $ funcArgs body)
-        let rettyMatch = typesCouldMatch (typeFuncs ast) (funcGenerics body) (callRetType call) (funcRetty body)
-        paramMatches <- case (callParamType call, map typeof (funcParams body)) of
-            (Nothing, [])       -> return True
-            (Nothing, _ )       -> return False
-            (Just (Type _), []) -> return False
-            (Just (Type _), _ ) -> return True
-            (Just t1,  t2s)     -> do
+callCouldMatchFunc call symbol body = do
+    ast <- get
+    if symbolsMatch && (argsMatch ast) && (rettyMatch ast) then
+        paramMatches ast
+    else return False
+    where
+        typesMatch :: ASTResolved -> [Type] -> [Type] -> Bool
+        typesMatch ast ts1 ts2 =
+            length ts1 == length ts2 &&
+            all id (zipWith (typesCouldMatch (typeFuncs ast) (funcGenerics body)) ts1 ts2)
+
+        symbolsMatch    = symbolsCouldMatch (callSymbol call) symbol
+        argsMatch ast   = typesMatch ast (callArgTypes call) (map typeof $ funcArgs body)
+        rettyMatch ast  = typesMatch ast [callRetType call] [funcRetty body]
+        paramMatches ast = case (callParamType call, map typeof (funcParams body)) of
+            (Nothing, xs)       -> return (xs == [])
+            (Just (Type _), xs) -> return (xs /= [])
+            (Just t1,  ts2)     -> do
                 baseT1 <- baseTypeOf t1
-                t1s <- case baseT1 of 
+                fmap (typesMatch ast ts2) $ case baseT1 of 
                     Record xs -> return xs
                     t         -> return [t1]
-                let l = length t2s == length t1s
-                return $ l && (all (== True) $ zipWith (typesCouldMatch (typeFuncs ast) (funcGenerics body)) t1s t2s)
-            x -> error (show x)
-        return (argsMatch && rettyMatch && paramMatches)
 
 
 funcFullyResolved :: [Symbol] -> FuncBody -> Bool
 funcFullyResolved generics body =
-    all (== True) (map typeFullyResolved $ map typeof $ funcParams body)
-    && all (== True) (map typeFullyResolved $ map typeof $ funcArgs body)
-    && typeFullyResolved (funcRetty body)
+    all id (map typeFullyResolved $ map typeof $ funcParams body) &&
+    all id (map typeFullyResolved $ map typeof $ funcArgs body) &&
+    typeFullyResolved (funcRetty body)
     where
         typeFullyResolved :: Type -> Bool
         typeFullyResolved typ = case typ of
+            Type _                          -> False
             TypeApply s _ | elem s generics -> False
-            TypeApply s ts -> all (== True) (map typeFullyResolved ts)
-            _ | isSimple typ -> True
-            Type _ -> False
-            Void -> True
-            Table t -> typeFullyResolved t
-            Tuple t -> typeFullyResolved t
-            Record ts -> all (== True) (map typeFullyResolved ts)
-            RecordApply t -> typeFullyResolved t
-            _ -> error $ "typeFullyResolved: " ++ show typ
-
+            TypeApply s ts                  -> all id (map typeFullyResolved ts)
+            Record ts                       -> all id (map typeFullyResolved ts)
+            Table t                         -> typeFullyResolved t
+            Tuple t                         -> typeFullyResolved t
+            RecordApply t                   -> typeFullyResolved t
+            x | isSimple x                  -> True
+            Void                            -> True
+            x -> error $ "typeFullyResolved: " ++ show x
 
 
 replaceGenericsInFuncBodyWithCall :: FuncBody -> CallHeader -> DoM ASTResolved FuncBody
@@ -117,11 +92,9 @@ unifyOne :: [Symbol] -> Constraint -> DoM ASTResolved [(Type, Type)]
 unifyOne generics constraint = case constraint of
     ConsEq t1 t2 -> case (t1, t2) of
         _ | t1 == t2                            -> return []
-        (TypeApply s _, _) | s `elem` generics  -> return [(t1, t2)]
+        (TypeApply s [], _) | s `elem` generics -> return [(t1, t2)]
         (Type _, _)                             -> return [(t1, t2)]
-        (_, Type _)                             -> return [(t2, t1)]
         (Tuple a, Tuple b)                      -> unifyOne generics $ ConsEq a b
-
         (TypeApply s1 ts1, TypeApply s2 ts2)
             | length ts1 == length ts2 ->
                 concat <$> zipWithM (\a b -> unifyOne generics $ ConsEq a b) ts1 ts2
@@ -130,7 +103,6 @@ unifyOne generics constraint = case constraint of
 
     ConsSpecial t1 t2 -> case (t1, t2) of
         _ -> return [] -- TODO, fill this in if needed
-        _ -> error $ show (t1, t2)
 
 
 unify :: [Symbol] -> [Constraint] -> DoM ASTResolved [(Type, Type)]
@@ -148,7 +120,7 @@ getConstraints call body = do
         (map typeof $ funcArgs body)
         (callArgTypes call)
     parCs <- case callParamType call of
-        Nothing -> return []
+        Nothing       -> return []
         Just (Type _) -> return []
         Just typ -> do
             let fts = map typeof (funcParams body)
@@ -172,11 +144,12 @@ getConstraintsFromTypes generics t1 t2 = do
         fromTypes t1 t2 = do
             typedefs <- gets typeFuncs
             case (t1, t2) of
-                (a, b) | a == b    -> return [] 
-                (Table a, Table b) -> fromTypes a b
-
+                (a, b) | a == b                               -> return [] 
                 (Tuple (TypeApply s []), t) | elem s generics -> return [ConsSpecial t1 t2]
-                (Tuple a, Tuple b) -> fromTypes a b
+                (Tuple a, Tuple b)                            -> fromTypes a b
+                (Table a, Table b)                            -> fromTypes a b
+                (Type _, _)                                   -> return [ConsEq t1 t2]
+                (_, Type _)                                   -> return []
 
                 (TypeApply s1 ts1, TypeApply s2 ts2)
                     | s1 `elem` generics -> do 
@@ -195,7 +168,5 @@ getConstraintsFromTypes generics t1 t2 = do
                     | otherwise -> fail "here"
 
                 (TypeApply s1 [], t) | elem s1 generics -> return [ConsEq t1 t2]
-                (Type _, _)                             -> return [ConsEq t1 t2]
-                (_, Type _)                             -> return []
 
                 _ -> error $ show (t1, t2)

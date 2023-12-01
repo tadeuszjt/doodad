@@ -158,7 +158,10 @@ collectMapper element = (\_ -> return element) =<< case element of
 
         PatField _ symbol pats -> do
             ast <- gets astResolved
-            candidates <- fmap fst $ runDoMExcept ast (findCtorCandidates symbol)
+            candidates <- fmap catMaybes $ forM (Map.toList $ ctorDefs ast) $ \(symb, _) -> do
+                case symbolsCouldMatch symb symbol of
+                    True -> return (Just symb)
+                    False -> return Nothing
             symbol' <- case candidates of
                 [s] -> return s
                 xs  -> error $ "PatField candidates for: " ++ show symbol ++ " " ++ show xs

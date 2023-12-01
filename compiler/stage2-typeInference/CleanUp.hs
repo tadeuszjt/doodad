@@ -60,7 +60,11 @@ cleanUpMapper elem = case elem of
                 return (Construct pos symbol' exprs)
 
     ElemPattern (PatField pos symbol pats) -> do
-        [symbol'] <- findCtorCandidates symbol
+        ast <- get
+        [symbol'] <- fmap catMaybes $ forM (Map.keys $ ctorDefs ast) $ \symb ->
+            case symbolsCouldMatch symb symbol of
+                True -> return (Just symb)
+                False -> return Nothing
         return $ ElemPattern (PatField pos symbol' pats)
 
     _ -> return elem
@@ -110,16 +114,7 @@ resolveFuncCall exprType (AST.Call pos mparam callSymbol args) = withPos pos $ d
                     True -> return nonGenericSymbol
                     False -> return callSymbol
 
-        _ -> do
-            --liftIO $ putStrLn $ "multiple candidates for: " ++ show candidates
-            return callSymbol
-    where
-        checkReplaced :: DoM ASTResolved Symbol -> DoM ASTResolved Symbol
-        checkReplaced f = do
-            symbol <- f
-            when (symbol /= callSymbol) $
-                liftIO $ putStrLn $ "symbol replaced: " ++ show callSymbol ++ " with " ++ show symbol
-            return symbol
+        _ -> return callSymbol
 
 
 -- (x:typ).sym -> (x:typ).mod_sym_0
@@ -162,37 +157,18 @@ resolveFieldAccess typ (Sym sym) = do
         
         getTypeFieldSymbols :: Type -> DoM ASTResolved [Symbol]
         getTypeFieldSymbols typ = do
-            typeDefs <- getTypeDefs
-            case typ of
-                TypeApply symbol ts -> case Map.lookup symbol typeDefs of
-                    Just (ss, t)    -> do
-                        applied <- applyTypeArguments ss ts t
-                        --liftIO $ putStrLn $ "applied: " ++ show applied
-                        case applied of
-                            Type.Record ts'              -> catMaybes <$> mapM isSymbolType ts'
-                            Type.Tuple (Type.Record ts') -> catMaybes <$> mapM isSymbolType ts'
-                            Type.Table (Type.Record ts') -> catMaybes <$> mapM isSymbolType ts'
-                            _ -> error (show applied)
-                    x -> error (show x)
-
+            base <- baseTypeOf typ
+            case base of
                 Type.Record ts               -> catMaybes <$> mapM isSymbolType ts
                 Type.Tuple (Type.Record ts)  -> catMaybes <$> mapM isSymbolType ts
                 Type.Tuple t@(TypeApply _ _) -> getTypeFieldSymbols t
                 Type.Table t@(TypeApply _ _) -> getTypeFieldSymbols t
                 _ -> error (show typ)
-
             where
                 isSymbolType :: Type -> DoM ASTResolved (Maybe Symbol)
                 isSymbolType typ = case typ of
-                    t | isSimple t -> return Nothing
-                    Table _        -> return Nothing
-                    Type.Tuple _   -> return Nothing
-                    Type.Record _  -> return Nothing
                     TypeApply s ts -> do
-                        typeDefs <- getTypeDefs
-                        if Map.member s typeDefs then
-                            return (Just s)
-                        else error "not typeDef"
-
-                    _ -> error (show typ)
+                        True <- Map.member s <$> getTypeDefs
+                        return (Just s)
+                    _ -> return Nothing
 
