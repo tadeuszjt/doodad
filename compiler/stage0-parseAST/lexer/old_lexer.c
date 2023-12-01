@@ -300,7 +300,7 @@ bool lex() { // returns false for EOF
             if (strchr(stack, '.') == NULL) {
                 printToken("integer: %s\n", stack);
             } else {
-                printToken("float: %s\n", stack);
+                printToken("floating: %s\n", stack);
             }
             printToken("symbol: ..\n");
             stackClear();
@@ -312,7 +312,7 @@ bool lex() { // returns false for EOF
             if (strchr(stack, '.') == NULL) {
                 printToken("integer: %s\n", stack);
             } else {
-                printToken("float: %s\n", stack);
+                printToken("floating: %s\n", stack);
             }
             stackClear();
 

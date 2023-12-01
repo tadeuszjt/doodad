@@ -3,32 +3,58 @@ module graphicsTest
 import std/io
 import std/sfml/sfml
 import std/rand
+import std/table
+import std/sparse
 
 
+type Blob {
+    position    Vec2f
+    velocity    Vec2f
+    triangleKey Key[I64]
+}
 
-fn {v Table[Vertex]} pushTriangle(position Vec2f)
-    v.push( (position + (0, -10),  red(),   (0, 0)) )
-    v.push( (position + (-10, 10), green(), (0, 0)) )
-    v.push( (position + (10, 10),  blue(),  (0, 0)) )
+type Triangles (
+    vertexKeys Sparse[I64]
+    vertexes   Table[Vertex]
+)
+
+fn {t Triangles} addTriangle(position Vec2f) Key[I64]
+    let key = t.vertexes.len()
+    t.vertexes.push( (position + (0, -10),  red(),   (0, 0)) )
+    t.vertexes.push( (position + (-10, 10), green(), (0, 0)) )
+    t.vertexes.push( (position + (10, 10),  blue(),  (0, 0)) )
+    return t.vertexKeys.insert(key)
 
 
-fn {r Rand} randVec2f() Vec2f
+fn {t Triangles} setTrianglePosition(key Key[I64], pos Vec2f)
+    let index = t.vertexKeys.get(key)
+    let {p, _, _} = t.vertexes.at(index + 0) in; p = pos + (0, -10)
+    let {p, _, _} = t.vertexes.at(index + 1) in; p = pos + (-10, 10)
+    let {p, _, _} = t.vertexes.at(index + 2) in; p = pos + (10, 10)
+
+
+fn {r Rand} vec2f() Vec2f
     return (r.randF32(0, 500), r.randF32(0, 500))
+
+fn {r Rand} vec2f(min Vec2f, max Vec2f) Vec2f
+    return (r.randF32(min.x, max.x), r.randF32(min.y, max.y))
 
 
 fn {io Io} main()
     let rand:Rand
-
     let w:Window
+
     w.create()
 
-    data vertices Table[Vertex]
+    data triangles Triangles
+    data blobs     Table[Blob]
 
-    vertices.pushTriangle( rand.randVec2f() )
-
-    for (0, 200)
-        vertices.pushTriangle( rand.randVec2f() )
-
+    for (0, 2000)
+        let blob:()Blob
+        blob.position    = rand.vec2f()
+        blob.velocity    = rand.vec2f( (-0.1, -0.1), (0.1, 0.1) )
+        blob.triangleKey = triangles.addTriangle( blob.position )
+        blobs.push(blob)
 
     while w.isOpen()
         while w.pollEvent() -> Just(event)
@@ -36,11 +62,17 @@ fn {io Io} main()
                 Closed(); w.close()
                 None();
 
+        for blobs -> {p, v, k}
+            p = p + v
+            triangles.setTrianglePosition(k, p)
+
+
+        let (width, height) = w.getSize()
+        w.setViewFromRect(((0, 0), (conv(width), conv(height))))
         w.clearWindow(white())
-        {w, vertices}.drawPrimitives()
+        {w, triangles.vertexes}.drawPrimitives()
         w.display()
 
     w.destroy()
-
 
     io.putStrLn("graphicsTest")

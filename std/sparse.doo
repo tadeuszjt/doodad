@@ -2,10 +2,11 @@ module sparse
 
 import std/table
 
-
-type[T] Key I64
-
-type[T] Sparse (values Table[T], empty Table[Key[T]])
+type[T] Key    I64
+type[T] Sparse (
+    values Table[T]
+    empty  Table[Key[T]]
+)
 
 
 fn[T] {s Sparse[T]} len() I64
@@ -14,6 +15,12 @@ fn[T] {s Sparse[T]} len() I64
 
 fn[T] {s Sparse[T]} at(key Key[T]) {}T
     return s.values.at(conv(key))
+
+
+fn[T] {s Sparse[T]} get(key Key[T]) ()T
+    let elem:()T
+    elem{} = s.values.at(conv(key))
+    return elem
 
 
 fn[T] {s Sparse[T]} insert(value ()T) Key[T]
@@ -42,12 +49,6 @@ fn[T] {s Sparse[T]} delete(key Key[T])
         s.values.pop()
     else
         s.empty.push(key)
-
-
-fn[T] {s Sparse[T]} get(key Key[T]) ()T
-    data elem ()T
-    elem{} = s.values.at(conv(key))
-    return elem
 
 
 fn[T] {s Sparse[T]} replace(key Key[T], elem ()T)

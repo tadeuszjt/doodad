@@ -15,8 +15,6 @@ type Rectf (min Vec2f, max Vec2f)
 
 type Vertex (position Vec2f, colour Colour, texCoords Vec2f)
 
-type Triangle (Vertex, Vertex, Vertex)
-
 type Window I64
 
 type Event
@@ -94,18 +92,6 @@ fn {w Window, vertices Table[Vertex]} drawPrimitives()
             NULL
         );
     }
-
-fn {w Window, vertices Table[Triangle]} drawPrimitives()
-    ${
-        sfRenderWindow_drawPrimitives(
-            (sfRenderWindow*)*$w,
-            (const sfVertex *)$vertices->r0,
-            $vertices->len * 3,
-            sfTriangles,
-            NULL
-        );
-    }
-
 
 fn {w Window} setViewFromRect(rect Rectf)
     let (l, t, r, b) = (rect.min.x, rect.min.y, rect.max.x, rect.max.y)

@@ -98,6 +98,7 @@ pack = Set.toList . Set.fromList
 checkExpr :: Expr -> DoM CheckState [Object]
 checkExpr (AExpr exprType expression) = withPos expression $ case expression of
     Int pos n -> return []
+    AST.Float pos n -> return []
     AST.Bool pos b -> return []
     AST.String pos s -> return []
 

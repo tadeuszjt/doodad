@@ -118,6 +118,7 @@ unifyOne pos constraint = withPos pos $ case constraint of
             Nothing -> return []
             Just (Type.Tuple (Type.Record [I64, I64])) -> do -- range
                 unifyOne pos $ ConsEq t2 I64
+            Just (Type.Table t) -> unifyOne pos $ ConsEq t2 t
 
                 
             x -> error (show x)

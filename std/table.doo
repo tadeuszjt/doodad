@@ -29,6 +29,11 @@ fn[T] {t Table[T]} at(index I64) {}T
     assert(index >= 0 && index < t.len(), "index out of range")
     return builtin_at(t, index)
 
+fn[T] {t Table[T]} get(index I64) ()T
+    let elem:()T
+    elem{} = t.at(index)
+    return elem
+
 
 fn[T] {t Table[T]} range() Range[I64]
     return (0, t.len())

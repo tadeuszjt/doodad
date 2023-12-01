@@ -256,6 +256,7 @@ definitelyIgnoresTuples typ = case typ of
 
 -- {}i64           -> {i64}
 -- {}Person        -> Person
+-- {}Vec2f         -> {}Vec2f
 -- {}(){i64, bool} -> {i64, bool}
 -- {}[]{i64, bool} -> {[]{i64, bool}}
 -- ()i64         -> i64

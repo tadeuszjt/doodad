@@ -64,32 +64,32 @@ fn[K, V] {tree Tree[K, V]} delete(key ()K)
             return nodes.rightMost(right)
         return node
 
-    fn[K, V] {nodes Unordered[Node[K, V]]} deleteFromNode(node Key[Node[K, V]], key ()K)
-        assert(key{} != nodes.at(node).key{}, "key cannot match current node")
-        let leftm  = nodes.get(node).left
-        let rightm = nodes.get(node).right
+    fn[K, V] {n Unordered[Node[K, V]]} deleteFromNode(node Key[Node[K, V]], key ()K)
+        assert(key{} != n.at(node).key{}, "key cannot match current node")
+        let leftm  = n.get(node).left
+        let rightm = n.get(node).right
 
-        if leftm -> Just(left) | key{} == nodes.at(left).key{} // deleting node on left
-            if nodes.get(left).right -> Just(leftRight)
-                let leftMost            = nodes.leftMost(leftRight)
-                nodes.at(leftMost).left = nodes.get(left).left
-                nodes.at(node).left     = Just(leftRight)
-            else; nodes.at(node).left   = nodes.get(left).left
-            nodes.delete(left)
+        if leftm -> Just(left) | key{} == n.at(left).key{} // deleting node on left
+            if n.get(left).right -> Just(leftRight)
+                let leftMost        = n.leftMost(leftRight)
+                n.at(leftMost).left = n.get(left).left
+                n.at(node).left     = Just(leftRight)
+            else; n.at(node).left   = n.get(left).left
+            n.delete(left)
 
-        else if rightm -> Just(right) | key{} == nodes.at(right).key{} // deleting from right
-            if nodes.get(right).left -> Just(rightLeft)
-                let rightMost             = nodes.rightMost(rightLeft)
-                nodes.at(rightMost).right = nodes.get(right).right
-                nodes.at(node).right      = Just(rightLeft)
-            else; nodes.at(node).right    = nodes.get(right).right
-            nodes.delete(right)
+        else if rightm -> Just(right) | key{} == n.at(right).key{} // deleting from right
+            if n.get(right).left -> Just(rightLeft)
+                let rightMost         = n.rightMost(rightLeft)
+                n.at(rightMost).right = n.get(right).right
+                n.at(node).right      = Just(rightLeft)
+            else; n.at(node).right    = n.get(right).right
+            n.delete(right)
                 
-        else if leftm -> Just(left) | key{} < nodes.at(node).key{}
-            nodes.deleteFromNode(left, key)
+        else if leftm -> Just(left) | key{} < n.at(node).key{}
+            n.deleteFromNode(left, key)
     
-        else if rightm -> Just(right) | key{} > nodes.at(node).key{}
-            nodes.deleteFromNode(right, key)
+        else if rightm -> Just(right) | key{} > n.at(node).key{}
+            n.deleteFromNode(right, key)
 
         else; assert(false, "invalid key")
 

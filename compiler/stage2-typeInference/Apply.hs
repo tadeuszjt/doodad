@@ -55,6 +55,7 @@ applyExpr subs expression = case expression of
     Infix pos op expr1 expr2 -> Infix pos op (applyEx expr1) (applyEx expr2)
     Prefix pos op expr -> Prefix pos op (applyEx expr)
     AST.Int pos n -> AST.Int pos n
+    AST.Float pos n -> AST.Float pos n
     AST.String pos s -> AST.String pos s
     RecordAccess pos expr -> RecordAccess pos (applyEx expr)
     Field pos expr symbol -> Field pos (applyEx expr) symbol
