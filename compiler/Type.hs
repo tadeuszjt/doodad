@@ -172,47 +172,61 @@ applyTypeArguments argSymbols argTypes typ = do
         _                       -> error $ "applyTypeArguments: " ++ show typ
 
 
--- TODO can't candle record applications with generics
-typesCouldMatch :: TypeDefsMap -> [Symbol] -> Type -> Type -> Bool
-typesCouldMatch typedefs generics t1 t2 = couldMatch
-        typedefs
-        generics
-        (addTuple $ runTypeDefsMonad typedefs (flattenType t1))
-        (addTuple $ runTypeDefsMonad typedefs (flattenType t2))
+typesCouldMatch :: TypeDefs m => [Symbol] -> Type -> Type -> m Bool
+typesCouldMatch generics t1 t2 = do
+    flat1 <- addTuple =<< flattenType t1
+    flat2 <- addTuple =<< flattenType t2
+    couldMatch flat1 flat2
     where
-        addTuple :: Type -> Type
-        addTuple typ = case typ of
-            Tuple t                                                     -> Tuple t
-            t | (runTypeDefsMonad typedefs $ definitelyIgnoresTuples t) -> Tuple t
-            t                                                           -> t
+        addTuple :: TypeDefs m => Type -> m Type
+        addTuple typ = do
+            b <- definitelyIgnoresTuples typ
+            return $ case typ of
+                Tuple t -> Tuple t
+                t | b   -> Tuple t
+                t       -> t
 
         -- pure version of function that doesn't worry about flattening types
-        couldMatch :: Map.Map Symbol ([Symbol], Type) -> [Symbol] -> Type -> Type -> Bool
-        couldMatch typedefs generics t1 t2 = case (t1, t2) of
-            (a, b) | a == b                   -> True
-            (Type _, _)                       -> True
-            (_, Type _)                       -> True
+        couldMatch :: TypeDefs m => Type -> Type -> m Bool
+        couldMatch t1 t2 = case (t1, t2) of
+            (a, b) | a == b                   -> return True
+            (Type _, _)                       -> return True
+            (_, Type _)                       -> return True
 
-            (Tuple a, Tuple b)                -> couldMatch typedefs generics a b
-            (Table a, Table b)                -> typesCouldMatch typedefs generics a b
-            (Record as, Record bs)            ->
-                length as == length bs &&
-                all (== True) (zipWith (typesCouldMatch typedefs generics) as bs)
+            (Tuple a, Tuple b)                -> couldMatch a b
+            (Table a, Table b)                -> typesCouldMatch generics a b
+            (Record as, Record bs)            -> do
+                bs <- zipWithM (typesCouldMatch generics) as bs
+                return $ length as == length bs && all id bs
+
+            (Record ts1, RecordApply (TypeApply s ts2))
+                | s `elem` generics -> return True
 
             -- type variables
             (TypeApply s1 ts1, TypeApply s2 ts2)
-                | s1 `elem` generics && s2 `elem` generics ->
-                    length ts1 == length ts2 &&
-                    all (== True) (zipWith (typesCouldMatch typedefs generics) ts1 ts2)
-            (x, TypeApply s ts) | s `elem` generics -> True
-            (TypeApply s ts, x) | s `elem` generics -> True
+                | s1 `elem` generics && s2 `elem` generics -> do
+                    bs <- zipWithM (typesCouldMatch generics) ts1 ts2
+                    return $ length ts1 == length ts2 && all id bs
+            (x, TypeApply s ts) | s `elem` generics -> return True
+            (TypeApply s ts, x) | s `elem` generics -> return True
 
             -- type defs
-            (TypeApply s1 ts1, TypeApply s2 ts2) | s1 == s2 ->
-                length ts1 == length ts2 &&
-                all (== True) (zipWith (typesCouldMatch typedefs generics) ts1 ts2)
+            (TypeApply s1 ts1, TypeApply s2 ts2) | s1 == s2 -> do
+                bs <- zipWithM (typesCouldMatch generics) ts1 ts2
+                return $ length ts1 == length ts2 && all id bs
 
-            _ -> False
+
+--            (I64, I32) -> return False
+--            (TypeApply _ _, I64) -> return False
+--            (TypeApply _ _, Bool) -> return False
+--            (Record _, TypeApply _ _) -> return False
+--            (TypeApply _ _, Record _) -> return False
+--            (TypeApply _ _, Tuple _) -> return False
+--            (Tuple _, TypeApply _ _) -> return False
+--
+--            x -> error (show x)
+
+            _ -> return False
 
 
 
@@ -228,7 +242,7 @@ definitelyIgnoresTuples typ = case typ of
     t | isSimple t -> return True
     Tuple t        -> return True
     Table t        -> return True
-    RecordApply _  -> return True -- TODO, correct?
+    RecordApply _  -> return False
     Record ts      -> return False
     Type _         -> return False
     TypeApply s ts -> do

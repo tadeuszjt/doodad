@@ -88,7 +88,10 @@ collectAST verbose ast = do
 collectCall :: Type -> (Maybe Expr) -> Symbol -> [Expr] -> DoM CollectState ()
 collectCall exprType mparam symbol args = do -- can be resolved or sym
     ast <- gets astResolved
-    candidates <- fmap fst $ runDoMExcept ast (findCandidates $ CallHeader (fmap typeof mparam) symbol (map typeof args) exprType)
+    candidates <- case symbolIsResolved symbol of
+        True -> return [symbol]
+        False -> fmap fst $ runDoMExcept ast
+            (findCandidates $ CallHeader (fmap typeof mparam) symbol (map typeof args) exprType)
     case candidates of
         [symbol] | isGenericFunction symbol ast -> return ()
         [symbol] | isNonGenericFunction symbol ast -> do
@@ -101,7 +104,6 @@ collectCall exprType mparam symbol args = do -- can be resolved or sym
                 x -> error (show x)
 
             zipWithM_ collectEq (map typeof args)  (map typeof $ funcArgs body)
-        [symbol] | isCtor symbol ast -> return ()
 
         _ -> return ()
 

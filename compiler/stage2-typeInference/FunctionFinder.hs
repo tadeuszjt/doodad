@@ -27,6 +27,7 @@ import TupleDeleter
 findCandidates :: CallHeader -> DoM ASTResolved [Symbol]
 findCandidates call = do
     ast <- get
+    --liftIO $ putStrLn $ "findCandidates: " ++ show (callSymbol call)
     fmap catMaybes $ forM (Map.toList $ Map.union (funcDefs ast) (funcImports ast)) $
         \(symbol, body) -> do
             b <- callCouldMatchFunc call symbol body
@@ -37,25 +38,28 @@ findCandidates call = do
 
 callCouldMatchFunc :: CallHeader -> Symbol -> FuncBody -> DoM ASTResolved Bool
 callCouldMatchFunc call symbol body = do
-    ast <- get
-    if symbolsMatch && (argsMatch ast) && (rettyMatch ast) then
-        paramMatches ast
+    if symbolsMatch then do
+        am <- argsMatch
+        rm <- rettyMatch
+        pm <- paramMatches
+        return (am && rm && pm)
     else return False
     where
-        typesMatch :: ASTResolved -> [Type] -> [Type] -> Bool
-        typesMatch ast ts1 ts2 =
-            length ts1 == length ts2 &&
-            all id (zipWith (typesCouldMatch (typeFuncs ast) (funcGenerics body)) ts1 ts2)
+        typesMatch :: [Type] -> [Type] -> DoM ASTResolved Bool
+        typesMatch ts1 ts2 = do
+            bs <- zipWithM (typesCouldMatch (funcGenerics body)) ts1 ts2
+            return $ length ts1 == length ts2 && (all id bs)
 
         symbolsMatch    = symbolsCouldMatch (callSymbol call) symbol
-        argsMatch ast   = typesMatch ast (callArgTypes call) (map typeof $ funcArgs body)
-        rettyMatch ast  = typesMatch ast [callRetType call] [funcRetty body]
-        paramMatches ast = case (callParamType call, map typeof (funcParams body)) of
+        argsMatch       = typesMatch (callArgTypes call) (map typeof $ funcArgs body)
+        rettyMatch      = typesMatch [callRetType call] [funcRetty body]
+
+        paramMatches = case (callParamType call, map typeof (funcParams body)) of
             (Nothing, xs)       -> return (xs == [])
             (Just (Type _), xs) -> return (xs /= [])
             (Just t1,  ts2)     -> do
                 baseT1 <- baseTypeOf t1
-                fmap (typesMatch ast ts2) $ case baseT1 of 
+                typesMatch ts2 =<< case baseT1 of 
                     Record xs -> return xs
                     t         -> return [t1]
 
@@ -150,6 +154,9 @@ getConstraintsFromTypes generics t1 t2 = do
                 (Table a, Table b)                            -> fromTypes a b
                 (Type _, _)                                   -> return [ConsEq t1 t2]
                 (_, Type _)                                   -> return []
+
+                (RecordApply (TypeApply s ts), Record ts2)
+                    | s `elem` generics -> return [ConsSpecial t1 t2]
 
                 (TypeApply s1 ts1, TypeApply s2 ts2)
                     | s1 `elem` generics -> do 

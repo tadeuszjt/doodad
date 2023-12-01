@@ -10,6 +10,8 @@ makeSymbol :: String -> Int -> Symbol
 makeSymbol sym n = SymResolved "main" sym n
 
 
+run = runTypeDefsMonad
+
 -- test1
 -- typeDefs:
 --  type1 = i64
@@ -28,14 +30,13 @@ test1 = do
     let type1Symbol = makeSymbol "type1" 0
     let type1       = TypeApply type1Symbol []
     let typeFuncs = Map.fromList [ (type1Symbol, ([], I64)) ]
-    check(typesCouldMatch typeFuncs [] type1 type1)                 "type1 == type1"
-    check(typesCouldMatch typeFuncs [] type1 (Tuple type1) )        "type1 == ()type1"
-    check(typesCouldMatch typeFuncs [] type1 (Tuple (Tuple type1))) "type1 == ()()type1"
-    check(typesCouldMatch typeFuncs [] (Tuple type1) (Tuple type1)) "()type1 == ()type1"
-    check(not $ typesCouldMatch typeFuncs [] type1 I64)                             "type1 != i64"
-    check(not $ typesCouldMatch typeFuncs [] type1 Bool)                            "type1 != bool"
-    check(not $ typesCouldMatch typeFuncs [] type1 (Tuple (Record [type1, type1]))) "type1 != bool"
-
+    check(run typeFuncs (typesCouldMatch [] type1 type1)) "type1 == type1"
+    check(run typeFuncs $ typesCouldMatch [] type1 (Tuple type1) )        "type1 == ()type1"
+    check(run typeFuncs $ typesCouldMatch [] type1 (Tuple (Tuple type1))) "type1 == ()()type1"
+    check(run typeFuncs $ typesCouldMatch [] (Tuple type1) (Tuple type1)) "()type1 == ()type1"
+    check(not $ run typeFuncs $ typesCouldMatch [] type1 I64)                             "type1 != i64"
+    check(not $ run typeFuncs $ typesCouldMatch [] type1 Bool)                            "type1 != bool"
+    check(not $ run typeFuncs $ typesCouldMatch [] type1 (Tuple (Record [type1, type1]))) "type1 != bool"
 
 -- test2
 -- typeDefs:
@@ -52,11 +53,11 @@ test2 = do
     let type1Symbol = makeSymbol "type1" 0
     let type1       = TypeApply type1Symbol []
     let typeFuncs = Map.fromList [ (type1Symbol, ([], Record [I64, String])) ]
-    check(typesCouldMatch typeFuncs [] type1 type1)               "type1 == type1"
-    check(not $ typesCouldMatch typeFuncs [] type1 (Tuple type1)) "type1 != ()type1"
-    check(not $ typesCouldMatch typeFuncs [] type1 (Tuple (Tuple type1))) "type1 != ()()type1"
-    check(typesCouldMatch typeFuncs [] (Tuple type1) (Tuple (Tuple type1))) "type1() == ()()type1"
-    check(not $ typesCouldMatch typeFuncs [] type1 (Tuple (Record [I64, String]))) "type1 != (i64, string)"
+    check(run typeFuncs $ typesCouldMatch [] type1 type1)               "type1 == type1"
+    check(not $ run typeFuncs $ typesCouldMatch [] type1 (Tuple type1)) "type1 != ()type1"
+    check(not $ run typeFuncs $ typesCouldMatch [] type1 (Tuple (Tuple type1))) "type1 != ()()type1"
+    check(run typeFuncs $ typesCouldMatch [] (Tuple type1) (Tuple (Tuple type1))) "type1() == ()()type1"
+    check(not $ run typeFuncs $ typesCouldMatch [] type1 (Tuple (Record [I64, String]))) "type1 != (i64, string)"
 
 
 -- test3
@@ -77,11 +78,11 @@ test3 = do
     let type2       = TypeApply type2Symbol []
     let typeFuncs   = Map.fromList [ (type1Symbol, ([], I64)), (type2Symbol, ([], Record [I64, String])) ]
     let generics    = []
-    check(typesCouldMatch typeFuncs generics type1 type1)               "type1 == type1"
-    check(not $ typesCouldMatch typeFuncs generics (Tuple type1) type2) "type1 != type2"
-    check(not $ typesCouldMatch typeFuncs generics (Tuple (Record [type1, String])) (Tuple (Record [I64, String]))) "(type1, string) != (i64, string)"
-    check(typesCouldMatch typeFuncs generics (Tuple (Record [I64, String])) (Tuple (Record [I64, String]))) "(type1, string) != (i64, string)"
-    check(not $ typesCouldMatch typeFuncs generics (Tuple (Record [I64, String])) (Tuple type2)) "(type1, string) != ()type2"
+    check(run typeFuncs $ typesCouldMatch generics type1 type1)               "type1 == type1"
+    check(not $ run typeFuncs $ typesCouldMatch generics (Tuple type1) type2) "type1 != type2"
+    check(not $ run typeFuncs $ typesCouldMatch generics (Tuple (Record [type1, String])) (Tuple (Record [I64, String]))) "(type1, string) != (i64, string)"
+    check(run typeFuncs $ typesCouldMatch generics (Tuple (Record [I64, String])) (Tuple (Record [I64, String]))) "(type1, string) != (i64, string)"
+    check(not $ run typeFuncs $ typesCouldMatch generics (Tuple (Record [I64, String])) (Tuple type2)) "(type1, string) != ()type2"
 
 
 -- test4
@@ -104,10 +105,10 @@ test4 = do
     let type2       = TypeApply type2Symbol []
     let typeFuncs   = Map.fromList [ (type1Symbol, ([tSymbol], TypeApply tSymbol [])), (type2Symbol, ([], Record [I64, String])) ]
     let generics    = []
-    check(typesCouldMatch typeFuncs generics (type1 [I64]) (type1 [I64]))                    "type1(i64) == type1(i64)"
-    check(not $ typesCouldMatch typeFuncs generics (type1 [I64]) (type1 [I32]))              "type1(i64) != type1(i32)"
-    check(typesCouldMatch typeFuncs generics (Tuple (type1 [I64])) (type1 [I64]))            "()type1(i64) == type1(i64)"
-    check(not $ typesCouldMatch typeFuncs generics (type1 [type2]) (Tuple (type1 [type2])))  "type1(type2) != ()type1(type2)"
+    check(run typeFuncs $ typesCouldMatch generics (type1 [I64]) (type1 [I64]))                    "type1(i64) == type1(i64)"
+    check(not $ run typeFuncs $ typesCouldMatch generics (type1 [I64]) (type1 [I32]))              "type1(i64) != type1(i32)"
+    check(run typeFuncs $ typesCouldMatch generics (Tuple (type1 [I64])) (type1 [I64]))            "()type1(i64) == type1(i64)"
+    check(not $ run typeFuncs $ typesCouldMatch generics (type1 [type2]) (Tuple (type1 [type2])))  "type1(type2) != ()type1(type2)"
 
 -- test5
 -- generics: T, G
@@ -124,11 +125,11 @@ test5 = do
     let gSymbol = makeSymbol "G" 0
     let typeFuncs   = Map.fromList []
     let generics    = [tSymbol, gSymbol]
-    check(typesCouldMatch typeFuncs generics I64 (TypeApply tSymbol []))                            "i64 == T"
-    check(typesCouldMatch typeFuncs generics (TypeApply tSymbol []) I8)                             "T == i8"
-    check(typesCouldMatch typeFuncs generics (TypeApply tSymbol []) (TypeApply gSymbol []))         "T == G"
-    check(typesCouldMatch typeFuncs generics (Tuple $ TypeApply tSymbol []) (TypeApply tSymbol [])) "()T == T"
-    check(typesCouldMatch typeFuncs generics I64 (Tuple $ TypeApply tSymbol []))                    "i64 == ()T"
+    check(run typeFuncs $ typesCouldMatch generics I64 (TypeApply tSymbol []))                            "i64 == T"
+    check(run typeFuncs $ typesCouldMatch generics (TypeApply tSymbol []) I8)                             "T == i8"
+    check(run typeFuncs $ typesCouldMatch generics (TypeApply tSymbol []) (TypeApply gSymbol []))         "T == G"
+    check(run typeFuncs $ typesCouldMatch generics (Tuple $ TypeApply tSymbol []) (TypeApply tSymbol [])) "()T == T"
+    check(run typeFuncs $ typesCouldMatch generics I64 (Tuple $ TypeApply tSymbol []))                    "i64 == ()T"
 
 
 test6 :: IO ()
@@ -140,9 +141,17 @@ test6 = do
     let typeFuncs = Map.fromList [ (kSymbol, ([tSymbol], I64)) ]
     let gApply = TypeApply gSymbol []
 
-    check(typesCouldMatch typeFuncs generics (TypeApply kSymbol [I64]) (TypeApply kSymbol [gApply])) "Key(i64) == Key(G)"
-    check(typesCouldMatch typeFuncs generics (TypeApply kSymbol [gApply]) (TypeApply kSymbol [I64])) "Key(G) == Key(i64)"
+    check(run typeFuncs $ typesCouldMatch generics (TypeApply kSymbol [I64]) (TypeApply kSymbol [gApply])) "Key(i64) == Key(G)"
+    check(run typeFuncs $ typesCouldMatch generics (TypeApply kSymbol [gApply]) (TypeApply kSymbol [I64])) "Key(G) == Key(i64)"
 
+test7 :: IO ()
+test7 = do
+    let gSymbol = makeSymbol "G" 0
+    let generics = [gSymbol]
+    let typeFuncs = Map.fromList []
+    let gApply = TypeApply gSymbol []
+
+    check(run typeFuncs $ typesCouldMatch generics (Record [I64]) (RecordApply gApply)) "{I64} == {}G"
 
 testTypeMatcher :: IO ()
 testTypeMatcher = do
@@ -152,4 +161,5 @@ testTypeMatcher = do
     test4
     test5
     test6
+    test7
     putStrLn "testTypeMatcher success"
