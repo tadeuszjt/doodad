@@ -1,9 +1,5 @@
 module Symbol where
 
-import qualified Data.Map as Map
-import Data.Maybe
-import qualified SymTab 
-
 data Symbol
     = Sym          { sym :: String }
     | SymQualified { mod :: String, sym :: String }

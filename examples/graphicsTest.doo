@@ -20,9 +20,9 @@ type Triangles (
 
 fn {t Triangles} addTriangle(position Vec2f) Key[I64]
     let key = t.vertexes.len()
-    t.vertexes.push( (position + (0, -10),  red(),   (0, 0)) )
+    t.vertexes.push( (position + (0, -10),  green(),   (0, 0)) )
     t.vertexes.push( (position + (-10, 10), green(), (0, 0)) )
-    t.vertexes.push( (position + (10, 10),  blue(),  (0, 0)) )
+    t.vertexes.push( (position + (10, 10),  green(),  (0, 0)) )
     return t.vertexKeys.insert(key)
 
 
@@ -33,11 +33,11 @@ fn {t Triangles} setTrianglePosition(key Key[I64], pos Vec2f)
     let {p, _, _} = t.vertexes.at(index + 2) in; p = pos + (10, 10)
 
 
-fn {r Rand} vec2f() Vec2f
-    return (r.randF32(0, 500), r.randF32(0, 500))
+fn {rand Rand} vec2f() Vec2f
+    return (rand.f32(0, 500), rand.f32(0, 500))
 
-fn {r Rand} vec2f(min Vec2f, max Vec2f) Vec2f
-    return (r.randF32(min.x, max.x), r.randF32(min.y, max.y))
+fn {rand Rand} vec2f(min Vec2f, max Vec2f) Vec2f
+    return (rand.f32(min.x, max.x), rand.f32(min.y, max.y))
 
 
 fn {io Io} main()

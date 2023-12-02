@@ -1,13 +1,17 @@
 module TestTypeMatcher where
 
 import qualified Data.Map as Map
+import Control.Monad
 
 import Type
 import Symbol
-import Error
 
 makeSymbol :: String -> Int -> Symbol
 makeSymbol sym n = SymResolved "main" sym n
+
+check :: Bool -> String -> IO ()
+check cnd str = do
+    unless cnd (error str)
 
 
 run = runTypeDefsMonad

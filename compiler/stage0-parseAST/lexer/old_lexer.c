@@ -10,6 +10,7 @@
 FILE *fpIn = NULL;
 FILE *fpOut = NULL;
 int currentLine = 1;
+int currentColumn = 0;
 
 void printToken(const char *fmt, ...) {
     va_list args;
@@ -19,9 +20,22 @@ void printToken(const char *fmt, ...) {
     va_end(args);
 }
 
+char getChar() {
+    char c = fgetc(fpIn);
+    if (c == '\n') {
+        currentLine++;
+        currentColumn = 0;
+    } else {
+        currentColumn++;
+    }
+    return c;
+}
+
 void ungetChar(char c) {
     if (c == '\n') {
         currentLine--;
+    } else {
+        currentColumn--;
     }
     ungetc(c, fpIn);
 }
@@ -134,6 +148,7 @@ void init() {
     fpIn = stdin;
     fpOut = stdout;
     currentLine = 1;
+    currentColumn = 0;
     state = STATE_INIT;
 
     stackLen = 0;
@@ -219,10 +234,7 @@ bool isKeyword(char *s) {
 }
 
 bool lex() { // returns false for EOF
-    char c = fgetc(fpIn);
-    if (c == '\n') {
-        currentLine++;
-    }
+    char c = getChar();
 
     switch (state) {
     case STATE_INIT:

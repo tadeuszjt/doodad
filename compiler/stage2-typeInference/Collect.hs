@@ -123,7 +123,7 @@ collectFuncDef symbol body = do
 
 collectMapper :: Elem -> DoM CollectState Elem
 collectMapper element = (\_ -> return element) =<< case element of
-    ElemStmt statement -> case statement of
+    ElemStmt statement -> collectPos statement $ case statement of
         Block _                -> return ()
         EmbedC _ _             -> return ()
         ExprStmt expr          -> collectDefault (typeof expr) Void
@@ -143,7 +143,7 @@ collectMapper element = (\_ -> return element) =<< case element of
             define symbol (ObjVar typ)
             void $ traverse (collectEq typ . typeof) mexpr
 
-    ElemPattern (PatAnnotated pattern patType) -> case pattern of
+    ElemPattern (PatAnnotated pattern patType) -> collectPos pattern $ case pattern of
         PatIgnore _           -> return ()
         PatIdent _ symbol     -> define symbol (ObjVar patType)
         PatLiteral expr       -> collectEq patType (typeof expr)
@@ -171,7 +171,7 @@ collectMapper element = (\_ -> return element) =<< case element of
             (s, i) <- mapGet symbol' . ctorDefs =<< gets astResolved
             collect $ ConsAdtField patType i (map typeof pats)
 
-    ElemExpr (AExpr exprType expression) -> case expression of
+    ElemExpr (AExpr exprType expression) -> collectPos expression $ case expression of
         Call _ mparam symbol exprs -> collectCall exprType mparam symbol exprs
         Prefix _ op expr    -> collectEq exprType (typeof expr)
         Int _ _             -> collectDefault exprType I64

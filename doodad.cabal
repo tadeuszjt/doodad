@@ -59,9 +59,7 @@ executable doodad
         mtl,
         array,
         directory,
-        haskeline,
         filepath,
-        exceptions,
         process
     build-tool-depends:
         happy:happy
@@ -101,55 +99,13 @@ executable doodad-test
     main-is: TestMain.hs
     hs-source-dirs:
         compiler,
-        compiler/test,
-        compiler/stage0-parseAST,
-        compiler/stage1-resolveSymbols,
-        compiler/stage2-typeInference,
-        compiler/stage3-checker,
-        compiler/stage4-generateC
+        compiler/test
     default-language:  Haskell2010
     build-depends:
         base,
-        temporary,
         containers,
         mtl,
-        array,
-        directory,
-        haskeline,
-        filepath,
-        exceptions,
-        process
-    build-tool-depends:
-        happy:happy
     other-modules:
-        AST,
-        Args,
-        Apply,
-        Error,
-        Modules,
-        Monad,
-        Parser,
-        SymTab,
-        Type,
-        Annotate,
-        Collect,
-        Unify,
-        Resolve,
-        Infer,
         Symbol,
-        ASTResolved,
-        Lexer,
-        Token,
-        CleanUp,
-        CBuilder,
-        CPretty,
-        CGenerate,
-        CAst,
-        Compile,
-        COptimise,
-        Constraint,
-        FunctionFinder,
-        ASTMapper,
-        TupleDeleter,
-        TestTypeMatcher,
-        Checker
+        Type,
+        TestTypeMatcher

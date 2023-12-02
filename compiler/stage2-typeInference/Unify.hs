@@ -70,7 +70,7 @@ unifyOne pos constraint = withPos pos $ case constraint of
             Just (Record ts') -> do
                 unless (length ts == length ts') (error "record mismatch")
                 concat <$> zipWithM  (\a b -> unifyOne pos $ ConsEq a b) ts ts'
-            _ -> error (show basem)
+            _ -> fail (show basem)
 
     ConsRecordAccess exprType typ -> do
         base <- baseTypeOfm typ
@@ -118,7 +118,7 @@ unifyOne pos constraint = withPos pos $ case constraint of
             Nothing -> return []
             Just (Type.Tuple (Type.Record [I64, I64])) -> do -- range
                 unifyOne pos $ ConsEq t2 I64
-            Just (Type.Table t) -> unifyOne pos $ ConsEq t2 t
+            Just (Type.Table t) -> unifyOne pos $ ConsRecordAccess t2 t
 
                 
             x -> error (show x)
