@@ -77,6 +77,7 @@ unifyOne pos constraint = withPos pos $ case constraint of
         case base of
             Just (ADT ts) -> unifyOne pos $ ConsEq exprType (Record [typ])
             Just (Record ts) -> unifyOne pos $ ConsEq exprType typ
+            Just (Table t) -> unifyOne pos (ConsEq exprType $ Record [typ])
 
             Just (Tuple t) -> do
                 baseT <- baseTypeOfm t

@@ -195,7 +195,7 @@ buildModule args modPath = do
 
         
         -- check ast for memory/type violations
-        runASTChecker astFinal
+        withErrorPrefix "checker: " $ runASTChecker astFinal
 
 
         -- build C ast from final ast

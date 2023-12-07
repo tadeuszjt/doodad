@@ -124,7 +124,7 @@ mapType f typ = f $ case typ of
     _ -> error (show typ)
 
 
-baseTypeOf :: (TypeDefs m, Typeof a) => a -> m Type
+baseTypeOf :: (MonadFail m, TypeDefs m, Typeof a) => a -> m Type
 baseTypeOf a = do
     resm <- baseTypeOfm a
     case resm of
@@ -132,7 +132,7 @@ baseTypeOf a = do
         Just x  -> return x
     
 
-baseTypeOfm :: (TypeDefs m, Typeof a) => a -> m (Maybe Type)
+baseTypeOfm :: (MonadFail m, TypeDefs m, Typeof a) => a -> m (Maybe Type)
 baseTypeOfm a = case typeof a of
     Type x         -> return Nothing
     t | isSimple t -> return $ Just t
@@ -150,9 +150,9 @@ baseTypeOfm a = case typeof a of
     x -> error (show x)
 
 
-applyTypeArguments :: TypeDefs m => [Symbol] -> [Type] -> Type -> m Type
+applyTypeArguments :: (MonadFail m, TypeDefs m) => [Symbol] -> [Type] -> Type -> m Type
 applyTypeArguments argSymbols argTypes typ = do
-    when (length argSymbols /= length argTypes) $ error "invalid arguments"
+    unless (length argSymbols == length argTypes) (fail $ "invalid arguments: " ++ show typ)
     let args = zip argSymbols argTypes
     flattenType =<< case typ of
         TypeApply s [] -> case lookup s args of
@@ -172,13 +172,13 @@ applyTypeArguments argSymbols argTypes typ = do
         _                       -> error $ "applyTypeArguments: " ++ show typ
 
 
-typesCouldMatch :: TypeDefs m => [Symbol] -> Type -> Type -> m Bool
+typesCouldMatch :: (MonadFail m, TypeDefs m) => [Symbol] -> Type -> Type -> m Bool
 typesCouldMatch generics t1 t2 = do
     flat1 <- addTuple =<< flattenType t1
     flat2 <- addTuple =<< flattenType t2
     couldMatch flat1 flat2
     where
-        addTuple :: TypeDefs m => Type -> m Type
+        addTuple :: (MonadFail m, TypeDefs m) => Type -> m Type
         addTuple typ = do
             b <- definitelyIgnoresTuples typ
             return $ case typ of
@@ -187,7 +187,7 @@ typesCouldMatch generics t1 t2 = do
                 t       -> t
 
         -- pure version of function that doesn't worry about flattening types
-        couldMatch :: TypeDefs m => Type -> Type -> m Bool
+        couldMatch :: (MonadFail m, TypeDefs m) => Type -> Type -> m Bool
         couldMatch t1 t2 = case (t1, t2) of
             (a, b) | a == b                   -> return True
             (Type _, _)                       -> return True
@@ -235,7 +235,7 @@ typesCouldMatch generics t1 t2 = do
 -- i64         -> False because ()i64 == i64
 -- ()string    -> False because ()()string == ()string
 -- {i64, bool} -> True  because (){i64, bool} != {i64, bool}
-definitelyIgnoresTuples :: TypeDefs m => Type -> m Bool
+definitelyIgnoresTuples :: (MonadFail m, TypeDefs m) => Type -> m Bool
 definitelyIgnoresTuples typ = case typ of
     ADT _          -> return True
     Void           -> return True
@@ -263,7 +263,7 @@ definitelyIgnoresTuples typ = case typ of
 -- ()()string    -> string
 -- ()T           -> ()T
 -- (){i64, bool} -> (){i64, bool}
-flattenType :: TypeDefs m => Type -> m Type
+flattenType :: (MonadFail m, TypeDefs m) => Type -> m Type
 flattenType typ = case typ of
     t | isSimple t -> return typ
     Void           -> return typ
@@ -285,6 +285,7 @@ flattenType typ = case typ of
             Just base -> case base of
                 t | isSimple t -> return $ Record [t']
                 ADT _          -> return $ Record [t']
+                Table _        -> return $ Record [t']
                 Record _       -> return t'
                 Tuple t        -> do
                     baseT <- baseTypeOfm t
@@ -314,15 +315,15 @@ instance Show RecordTree where
 -- { {i64, bool}, string } -> [i64, bool, string]
 -- { Person, Index }       -> [string, i64, i64]   (Person == {name:string, age:i64})
 -- i64                     -> [i64]
-getRecordTypes :: TypeDefs m => Type -> m [Type]
+getRecordTypes :: (MonadFail m, TypeDefs m) => Type -> m [Type]
 getRecordTypes typ = do
     fmap (map fst) (getRecordLeaves =<< getRecordTree typ)
 
 
-getRecordTree :: TypeDefs m => Type -> m RecordTree
+getRecordTree :: (MonadFail m, TypeDefs m) => Type -> m RecordTree
 getRecordTree typ = getRecordTree' 0 typ
     where
-        applyFunc :: TypeDefs m => Int -> [Type] -> m [RecordTree]
+        applyFunc :: (MonadFail m, TypeDefs m) => Int -> [Type] -> m [RecordTree]
         applyFunc offset ts = case ts of
             []     -> return []
             (x:xs) -> do
@@ -334,7 +335,7 @@ getRecordTree typ = getRecordTree' 0 typ
             RecordLeaf _ i -> i
             RecordTree ns  -> getMax (last ns)
 
-        getRecordTree' :: TypeDefs m => Int -> Type -> m RecordTree
+        getRecordTree' :: (MonadFail m, TypeDefs m) => Int -> Type -> m RecordTree
         getRecordTree' offset typ = do
             base <- baseTypeOf typ
             case base of
@@ -350,7 +351,7 @@ getRecordLeaves tree = do
         x              -> error (show x)
 
 
-getTypeFieldIndex :: TypeDefs m => Type -> Type -> m Int
+getTypeFieldIndex :: (MonadFail m, TypeDefs m) => Type -> Type -> m Int
 getTypeFieldIndex typ field = do
     base <- baseTypeOf typ
     case base of

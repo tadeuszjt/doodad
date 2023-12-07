@@ -50,6 +50,7 @@ applyExpr subs expression = case expression of
     Match pos expr pattern -> Match pos (applyEx expr) (applyPat pattern)
     Ident pos symbol -> Ident pos symbol
     AST.Bool pos b -> AST.Bool pos b
+    AST.Char pos c -> AST.Char pos c
     Call pos mparam symbol args -> Call pos (fmap applyEx mparam) symbol (map applyEx args)
     Builtin pos symbol args -> Builtin pos symbol (map applyEx args)
     Infix pos op expr1 expr2 -> Infix pos op (applyEx expr1) (applyEx expr2)

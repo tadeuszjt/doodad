@@ -101,6 +101,7 @@ checkExpr (AExpr exprType expression) = withPos expression $ case expression of
     AST.Float pos n -> return []
     AST.Bool pos b -> return []
     AST.String pos s -> return []
+    AST.Char pos c -> return []
 
     AST.Tuple pos exprs -> do
         mapM_ checkExpr exprs
@@ -130,7 +131,7 @@ checkExpr (AExpr exprType expression) = withPos expression $ case expression of
     Infix pos op expr1 expr2 -> do
         objs1 <- checkExpr expr1
         objs2 <- checkExpr expr2
-        checkMultipleReferences (objs1 ++ objs2)
+        --checkMultipleReferences (objs1 ++ objs2)
         return []
 
     -- return objects from mparam if returns record
