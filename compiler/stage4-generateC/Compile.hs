@@ -237,7 +237,7 @@ generateStmt stmt = withPos stmt $ case stmt of
             patMatches <- case mpat of
                 Nothing -> return true
                 Just pat -> case base of
-                    Type.Table ts -> generatePattern pat =<< accessRecord val (Just idx)
+                    Type.Table ts -> generatePattern pat =<< builtinTableAt val idx
                     Type.Tuple (Type.Record [I64, I64]) -> generatePattern pat idx
                     _ -> error (show base)
 
@@ -316,6 +316,8 @@ generatePattern pattern val = withPos pattern $ do
                 _ -> error (show base)
 
         PatIdent _ symbol -> do 
+            base <- baseTypeOf val
+            check (not $ isRecord base) "cannot assign record to identifier"
             let name = show symbol
             define name (Value (typeof val) $ C.Ident name)
             cType <- cTypeOf (typeof val)
@@ -403,7 +405,7 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
     S.Char _ c             -> return $ Value typ (C.Char c)
     S.Match _ expr pattern -> generatePattern pattern =<< generateExpr expr
     S.Ident _ symbol       -> look (show symbol)
-
+    S.RecordAccess _ expr  -> accessRecord =<< generateExpr expr
     S.Builtin _ "conv" [expr] -> convert typ =<< generateExpr expr
 
     S.Builtin _ "print" exprs -> do
@@ -426,18 +428,13 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
         idx <- generateExpr expr2
         base <- baseTypeOf val
         case base of
-            Type.Table _ -> accessRecord val (Just idx)
+            Type.Table _ -> builtinTableAt val idx
 
     S.Builtin _ "builtin_table_append" [expr1] -> do
         val <- generateExpr expr1
         base <- baseTypeOf val
         case base of
             Type.Table _ -> tableAppend val >> return (Value Void (C.Int 0))
-
-    S.RecordAccess _ expr -> do
-        val <- generateExpr expr
-        base <- baseTypeOf val
-        accessRecord val Nothing
 
     S.Prefix _ op a -> do
         val <- generateExpr a

@@ -204,24 +204,25 @@ set a b = do
                 let mb = Value t $ C.Deref $ C.Member (valExpr b) ("m" ++ show i)
                 set ma mb
 
-
         Type.ADT ts -> void $ appendElem $ C.Set (valExpr a) (valExpr b) -- TODO broken
             
---        Type.Table ts -> do
---            let cap = C.Member (valExpr a) "cap"
---            let len = C.Member (valExpr a) "len"
---            appendElem $ C.Set len (C.Member (valExpr b) "len")
---            appendElem $ C.Set cap (C.Member (valExpr b) "len")
---            forM_ (zip ts [0..]) $ \(t, i) -> do
---                let size = C.Sizeof $ C.Deref $ C.Member (valExpr a) ("r" ++ show i)
---                appendElem $ C.Set -- a.rn = GC_malloc(sizeof(*a.rn) * a.cap
---                    (C.Member (valExpr a) ("r" ++ show i))
---                    (C.Call "GC_malloc" [C.Infix C.Times size cap])
---                
---                for (Value I64 len) $ \idx -> set
---                    (Value t $ C.Subscript (C.Member (valExpr a) ("r" ++ show i)) $ valExpr idx)
---                    (Value t $ C.Subscript (C.Member (valExpr b) ("r" ++ show i)) $ valExpr idx)
---
+        Type.Table t -> do
+            let cap = C.Member (valExpr a) "cap"
+            let len = C.Member (valExpr a) "len"
+            appendElem $ C.Set len (C.Member (valExpr b) "len")
+            appendElem $ C.Set cap (C.Member (valExpr b) "len")
+
+            ts <- getRecordTypes t
+            forM_ (zip ts [0..]) $ \(t, i) -> do
+                let size = C.Sizeof $ C.Deref $ C.Member (valExpr a) ("r" ++ show i)
+                appendElem $ C.Set -- a.rn = GC_malloc(sizeof(*a.rn) * a.cap
+                    (C.Member (valExpr a) ("r" ++ show i))
+                    (C.Call "GC_malloc" [C.Infix C.Times size cap])
+                
+                for (Value I64 len) $ \idx -> set
+                    (Value t $ C.Subscript (C.Member (valExpr a) ("r" ++ show i)) $ valExpr idx)
+                    (Value t $ C.Subscript (C.Member (valExpr b) ("r" ++ show i)) $ valExpr idx)
+
 --        Type.Array n t -> do
 --            for (i64 n) $ \idx -> do
 --                sa <- subscript a idx
@@ -323,43 +324,46 @@ initialiser typ vals = do
         _ -> error (show base)
 
 
-accessRecord :: Value -> (Maybe Value) -> Generate Value
-accessRecord val marg = do
+builtinTableAt :: Value -> Value -> Generate Value
+builtinTableAt val idx = do
+    Table t <- baseTypeOf val
+    baseT <- baseTypeOf t
+    case baseT of
+        _ | isSimple baseT -> do
+            elem <- return $ C.Address $ C.Subscript (C.Member (valExpr val) ("r" ++ show 0)) (valExpr idx)
+            assign "record" $ Value (Type.Record [t]) $ C.Initialiser [elem]
+        ADT ts -> do
+            elem <- return $ C.Address $ C.Subscript (C.Member (valExpr val) ("r" ++ show 0)) (valExpr idx)
+            assign "record" $ Value (Type.Record [t]) $ C.Initialiser [elem]
+        Type.Table _ -> do
+            elem <- return $ C.Address $ C.Subscript (C.Member (valExpr val) ("r" ++ show 0)) (valExpr idx)
+            assign "record" $ Value (Type.Record [t]) $ C.Initialiser [elem]
+        Type.Tuple _ ->
+            accessRecord (Value t $ C.Subscript (C.Member (valExpr val) ("r" ++ show 0)) (valExpr idx))
+        Type.Record _ -> do
+            ts <- getRecordTypes t
+            elems <- forM (zip ts [0..]) $ \(t, i) -> do
+                return $ C.Address $ C.Subscript (C.Member (valExpr val) ("r" ++ show i)) (valExpr idx)
+            assign "record" $ Value t $ C.Initialiser elems
+            
+        x -> error (show x)
+
+
+accessRecord :: Value -> Generate Value
+accessRecord val = do
     base <- baseTypeOf val
     case base of
         _ | isSimple base -> do
-            unless (isNothing marg) (error "no arg needed")
             assign "record" $ Value (Type.Record [typeof val]) $ C.Initialiser [C.Address $ valExpr val]
-
         Type.ADT ts -> do
-            unless (isNothing marg) (error "not a table")
+            assign "record" $ Value (Type.Record [typeof val]) $ C.Initialiser [C.Address $ valExpr val]
+        Table t -> do
             assign "record" $ Value (Type.Record [typeof val]) $ C.Initialiser [C.Address $ valExpr val]
 
         Type.Record ts -> do
-            unless (isNothing marg) (error "not a table")
             return val
 
-        Table t -> do
-            unless (isJust marg) (error "table access needs an integer argument")
-            baseT <- baseTypeOf t
-            case baseT of
-                Type.Tuple _ -> accessRecord (Value t $ C.Subscript (C.Member (valExpr val) ("r" ++ show 0)) (valExpr $ fromJust marg)) Nothing
-                _ | isSimple baseT -> do
-                    elem <- return $ C.Address $ C.Subscript (C.Member (valExpr val) ("r" ++ show 0)) (valExpr $ fromJust marg)
-                    assign "record" $ Value (Type.Record [t]) $ C.Initialiser [elem]
-                ADT ts -> do
-                    elem <- return $ C.Address $ C.Subscript (C.Member (valExpr val) ("r" ++ show 0)) (valExpr $ fromJust marg)
-                    assign "record" $ Value (Type.Record [t]) $ C.Initialiser [elem]
-                Type.Record _ -> do
-                    ts <- getRecordTypes t
-                    elems <- forM (zip ts [0..]) $ \(t, i) -> do
-                        return $ C.Address $ C.Subscript (C.Member (valExpr val) ("r" ++ show i)) (valExpr $ fromJust marg)
-                    assign "record" $ Value t $ C.Initialiser elems
-
-                x -> error (show x)
-
         Type.Tuple t -> do
-            unless (isNothing marg) (error "tuple access cannot have an argument")
             baseT <- baseTypeOf t
             case baseT of
                 Type.Record _ -> do

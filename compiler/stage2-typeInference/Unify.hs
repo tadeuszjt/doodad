@@ -121,7 +121,6 @@ unifyOne pos constraint = withPos pos $ case constraint of
                 unifyOne pos $ ConsEq t2 I64
             Just (Type.Table t) -> unifyOne pos $ ConsRecordAccess t2 t
 
-                
             x -> error (show x)
 
     ConsSubscript t1 t2 -> do

@@ -85,6 +85,12 @@ isFloat typ = case typ of
     F64 -> True
     _   -> False
 
+isRecord :: Type -> Bool
+isRecord (Record _)      = True
+isRecord (RecordApply _) = True
+isRecord _               = False
+
+
 isSimple :: Type -> Bool
 isSimple typ = case typ of
     U8 -> True
