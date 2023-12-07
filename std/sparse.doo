@@ -18,9 +18,7 @@ fn[T] {s Sparse[T]} at(key Key[T]) {}T
 
 
 fn[T] {s Sparse[T]} get(key Key[T]) ()T
-    let elem:()T
-    elem{} = s.values.at(conv(key))
-    return elem
+    return s.values.get(conv(key))
 
 
 fn[T] {s Sparse[T]} insert(value ()T) Key[T]
@@ -34,13 +32,13 @@ fn[T] {s Sparse[T]} insert(value ()T) Key[T]
 
 
 fn[T] {s Sparse[T]} insert() Key[T]
-    let value:()T
     if s.empty.len() > 0
+        let value:()T
         let key = s.empty.pop()
         s.values.at(conv(key)) = value{}
         return key
 
-    s.values.push(value)
+    s.values.push()
     return conv(s.values.len() - 1)
 
 

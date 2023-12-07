@@ -2,47 +2,59 @@ module io
 
 import std/map
 
-type Io ( files Map[String, I64] )
 
-
-fn {io Io} openFile(fileName String)
-    assert(!io.files.contains(fileName), fileName + " already open")
-    let ptr = 0
-    ${
-        FILE *fp = fopen($fileName, "w+");
-        assert(fp != NULL);
-        $ptr = (int64_t)(fp);
-    }
-    io.files.insert(fileName, ptr)
-
-
-fn {io Io} closeFile(fileName String)
-    assert(io.files.contains(fileName), fileName + " is not open")
-    let Just(ptr) = io.files.find(fileName)
-    ${ fclose((FILE*)$ptr); }
-    io.files.delete(fileName)
-
-
-fn {io Io} fPutStr(fileName String, str String)
-    assert(io.files.contains(fileName), fileName + " is not open")
-    let Just(ptr) = io.files.find(fileName)
-    ${ fprintf((FILE*)$ptr, "%s", $str); }
-
-
-fn {io Io} fPutStrLn(fileName String, str String)
-    assert(io.files.contains(fileName), fileName + " is not open")
-    let Just(ptr) = io.files.find(fileName)
-    ${ fprintf((FILE*)$ptr, "%s\n", $str); }
-
-
-fn {io Io} putStrLn(s String)
-    ${ printf("%s\n", $s); }
-
-
-fn {io Io} putStr(s String)
-    ${ printf("%s", $s); }
+type Io ( files Map[I64, Bool] )
 
 
 fn {io Io} putChar(c Char)
     ${ putchar($c); }
+
+
+fn {io Io, string Table[Char]} putStr()
+    for string -> {c}
+        io.putChar(c)
+
+
+fn {io Io, string Table[Char]} putStrLn()
+    {io, string}.putStr()
+    io.putChar('\n')
+
+//
+//fn {io Io} openFile(fileName String)
+//    assert(!io.files.contains(fileName), fileName + " already open")
+//    let ptr = 0
+//    ${
+//        FILE *fp = fopen($fileName, "w+");
+//        assert(fp != NULL);
+//        $ptr = (int64_t)(fp);
+//    }
+//    io.files.insert(fileName, ptr)
+//
+//
+//fn {io Io} closeFile(fileName String)
+//    assert(io.files.contains(fileName), fileName + " is not open")
+//    let Just(ptr) = io.files.find(fileName)
+//    ${ fclose((FILE*)$ptr); }
+//    io.files.delete(fileName)
+//
+//
+//fn {io Io} fPutStr(fileName String, str String)
+//    assert(io.files.contains(fileName), fileName + " is not open")
+//    let Just(ptr) = io.files.find(fileName)
+//    ${ fprintf((FILE*)$ptr, "%s", $str); }
+//
+//
+//fn {io Io} fPutStrLn(fileName String, str String)
+//    assert(io.files.contains(fileName), fileName + " is not open")
+//    let Just(ptr) = io.files.find(fileName)
+//    ${ fprintf((FILE*)$ptr, "%s\n", $str); }
+//
+//
+//fn {io Io} putStrLn(s String)
+//    ${ printf("%s\n", $s); }
+//
+//
+//fn {io Io} putStr(s String)
+//    ${ printf("%s", $s); }
+
 

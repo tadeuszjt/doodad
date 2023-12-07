@@ -7,6 +7,7 @@ import std/maybe
 import std/table
 import std/map
 import std/io
+import std/strings
 import std/range
 
 
@@ -223,7 +224,7 @@ fn testSparse()
     print("testSparse passed")
 
 
-fn {io Io} testFuncCalls()
+fn testFuncCalls()
     fn {n I64, b Bool} f() String
         n = n + 1
         b = !b
@@ -268,10 +269,10 @@ fn {io Io} testFuncCalls()
         let n = 4
     tab3.at(0).j()
 
-    io.putStrLn("testFuncCalls passed")
+    print("testFuncCalls passed")
 
 
-fn {io Io} testSubTable()
+fn testSubTable()
     data t Table[Person]
     t.push( ("john", 45) )
     t.push( ("jim", 32) )
@@ -294,10 +295,10 @@ fn {io Io} testSubTable()
         t.h()
     u.atValues().h()
 
-    io.putStrLn("testSubTable passed")
+    print("testSubTable passed")
 
 
-fn {io Io} testRange()
+fn testRange()
     let range:Range[I64] = (0, 10)
 
     let 0 = range.min
@@ -314,7 +315,7 @@ fn {io Io} testRange()
         n = n + 1
     let 2 = n
 
-    io.putStrLn("testRange passed")
+    print("testRange passed")
 
 
 fn {io Io} main()
@@ -325,10 +326,18 @@ fn {io Io} main()
     testTree()
     testPatRecord()
     testUnordered()
-    io.testFuncCalls()
-    io.testSubTable()
-    io.testRange()
-    io.putStrLn("main2 finished")
+    testFuncCalls()
+    testSubTable()
+    testRange()
+
+    data msg Table[Char]
+    msg.push('m')
+    msg.push('a')
+    msg.push('i')
+    msg.push('n')
+    msg.push('2')
+
+    {io, msg}.putStrLn()
 
 
 type Person {name String, age I32}

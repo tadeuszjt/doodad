@@ -1,25 +1,25 @@
 module strings
 
-import std/maybe
-import std/table
 
-
-fn isAlpha(c:Char) bool
+fn isAlpha(c Char) Bool
     let r = false
     ${ $r = isalpha($c); }
     return r
 
 
-fn isDigit(c:Char) bool
+fn isDigit(c Char) Bool
     let r = false
     ${ $r = isdigit($c); }
     return r
 
 
-fn isSpace(c:Char) bool
+fn isSpace(c Char) Bool
     let r = false
     ${ $r = isspace($c); }
     return r
+
+
+
 
 
 //fn isPrefix(pre:String, str:String) bool
@@ -35,62 +35,29 @@ fn isSpace(c:Char) bool
 //    return null
 //
 //
-fn drop(s:String, n:I64) String
-    let r = ""
-    ${
-        if ($n <= strlen($s)) {
-            $r = $s + $n;
-        }
-    }
-    return r
+//fn readI64(s:String) Maybe((I64, String))
+//    while get(s, 0) -> Just(c) | isSpace(c)
+//        s = drop(s, 1)
 //
+//    let isMinus = false
+//    if get(s, 0) -> Just('-')
+//        isMinus = true
+//        s = drop(s, 1)
 //
-//fn take(s:String, n:I64) String
-//    let r = ""
-//    ${
-//        size_t len = strlen($s);
-//        if ($n >= len) {
-//            $r = $s;
-//        } else {
-//            $r = doodad_string_alloc($n);
-//            memcpy($r, $s, $n);
-//            $r[$n] = '\0';
-//        }
-//    }
-//    return r
+//    let hasDigits = false
+//    let x = 0
+//    data digits []Char
+//    while get(s, 0) -> Just(c) | isDigit(c)
+//        hasDigits = true
+//        digits.push(c)
+//        s = drop(s, 1)
 //
+//    for digits -> {digit}
+//        x = x*10 + conv(digit - '0'):I64
 //
-
-
-fn get(s:String, idx:I64) Maybe(Char)
-    if idx >= 0 && idx < len(s)
-        return Just(s[idx])
-    return Nothing()
-
-
-fn readI64(s:String) Maybe((I64, String))
-    while get(s, 0) -> Just(c) | isSpace(c)
-        s = drop(s, 1)
-
-    let isMinus = false
-    if get(s, 0) -> Just('-')
-        isMinus = true
-        s = drop(s, 1)
-
-    let hasDigits = false
-    let x = 0
-    data digits []Char
-    while get(s, 0) -> Just(c) | isDigit(c)
-        hasDigits = true
-        digits.push(c)
-        s = drop(s, 1)
-
-    for digits -> {digit}
-        x = x*10 + conv(digit - '0'):I64
-
-    if !hasDigits
-        return Nothing()
-    if isMinus
-        x = 0 - x
-    return Just((x, s))
+//    if !hasDigits
+//        return Nothing()
+//    if isMinus
+//        x = 0 - x
+//    return Just((x, s))
 
