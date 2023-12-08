@@ -21,9 +21,8 @@ fn {rand Rand} f64(min F64, max F64) F64
     let x:F64 = 0 
 
     ${
-        srand(*$rand);
-        *$rand = rand();
-        $x = fmod(*$rand, $max - $min) + $min;
+        double d = (double)rand() / RAND_MAX;
+        $x = d * ($max - $min) + $min;
     }
     return x
 
@@ -33,8 +32,9 @@ fn {rand Rand} f32(min F32, max F32) F32
         return min
 
     let x:F32 = 0 
+    ${
+        double d = (double)rand() / RAND_MAX;
+        $x = (float)d * ($max - $min) + $min;
+    }
 
-    ${ srand(*$rand); }
-    ${ *$rand = rand(); }
-    ${ $x = fmod(*$rand, $max - $min) + $min; }
     return x

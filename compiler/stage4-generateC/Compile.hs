@@ -114,8 +114,8 @@ generateFunc symbol body = do
 
 generatePrint :: String -> Value -> Generate ()
 generatePrint app val = case typeof val of
-    Type.I64 ->    void $ appendPrintf ("%d" ++ app) [valExpr val]
-    Type.I32 ->    void $ appendPrintf ("%d" ++ app) [valExpr val]
+    Type.I64 ->    void $ appendPrintf ("%lld" ++ app) [valExpr val]
+    Type.I32 ->    void $ appendPrintf ("%ld" ++ app) [valExpr val]
     Type.F64 ->    void $ appendPrintf ("%f" ++ app) [valExpr val]
     Type.F32 ->    void $ appendPrintf ("%f" ++ app) [valExpr val]
     Type.String -> void $ appendPrintf ("\"%s\"" ++ app) [valExpr val]

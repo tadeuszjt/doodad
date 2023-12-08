@@ -5,6 +5,7 @@ import std/sfml/sfml
 import std/rand
 import std/table
 import std/sparse
+import std/time
 
 
 type Blob {
@@ -34,7 +35,7 @@ fn {t Triangles} setTrianglePosition(key Key[I64], pos Vec2f)
 
 
 fn {rand Rand} vec2f() Vec2f
-    return (rand.f32(0, 500), rand.f32(0, 500))
+    return (rand.f32(0, 5000), rand.f32(0, 5000))
 
 fn {rand Rand} vec2f(min Vec2f, max Vec2f) Vec2f
     return (rand.f32(min.x, max.x), rand.f32(min.y, max.y))
@@ -49,14 +50,18 @@ fn {io Io} main()
     data triangles Triangles
     data blobs     Table[Blob]
 
-    for (0, 2000)
+    for (0, 100000)
         let blob:()Blob
         blob.position    = rand.vec2f()
-        blob.velocity    = rand.vec2f( (-0.1, -0.1), (0.1, 0.1) )
+        blob.velocity    = rand.vec2f( (-0.5, -0.5), (0.5, 0.5) )
         blob.triangleKey = triangles.addTriangle( blob.position )
         blobs.push(blob)
 
+
     while w.isOpen()
+
+        let prevNs = time::getTimestampNs()
+
         while w.pollEvent() -> Just(event)
             switch event
                 Closed(); w.close()
@@ -66,6 +71,15 @@ fn {io Io} main()
             p = p + v
             triangles.setTrianglePosition(k, p)
 
+        let nextNs = time::getTimestampNs()
+
+        print("process time:", nextNs - prevNs)
+
+        let diff = nextNs - prevNs
+        //sleepNs(15600000 - diff)
+        
+
+        prevNs = time::getTimestampNs()
 
         let (width, height) = w.getSize()
         w.setViewFromRect(((0, 0), (conv(width), conv(height))))
@@ -73,6 +87,9 @@ fn {io Io} main()
         {w, triangles.vertexes}.drawPrimitives()
         w.display()
 
+        nextNs = time::getTimestampNs()
+        print("render time: ", nextNs - prevNs)
+
     w.destroy()
 
-    io.putStrLn("graphicsTest")
+

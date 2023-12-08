@@ -1,18 +1,28 @@
 module time
 
 include <time.h>
+include <inttypes.h>
 
-fn sleepNs(n:I64)
+fn sleepNs(n I64)
     ${
         struct timespec wait_time = {0};
         wait_time.tv_nsec = $n;
         nanosleep(&wait_time, NULL);
     }
 
-fn sleepMs(n:I64)
+fn sleepMs(n I64)
     ${
         struct timespec wait_time = {0};
         wait_time.tv_sec = $n / 1000;
         wait_time.tv_nsec = ($n % 1000) * 1000000;
         nanosleep(&wait_time, NULL);
     }
+
+fn getTimestampNs() I64
+    let t = 0
+    ${
+        struct timespec time = {0};
+        clock_gettime(CLOCK_MONOTONIC, &time);
+        $t = (int64_t)(time.tv_sec) * 1000000000 + (int64_t)(time.tv_nsec);
+    }
+    return t
