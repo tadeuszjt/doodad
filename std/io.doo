@@ -10,13 +10,13 @@ fn {io Io} putChar(c Char)
     ${ putchar($c); }
 
 
-fn {io Io, string Table[Char]} putStr()
+fn {io Io} putStr(string Table[Char])
     for string -> {c}
         io.putChar(c)
 
 
-fn {io Io, string Table[Char]} putStrLn()
-    {io, string}.putStr()
+fn {io Io} putStrLn(string Table[Char])
+    io.putStr(string)
     io.putChar('\n')
 
 //

@@ -337,7 +337,7 @@ fn {io Io} main()
     msg.push('n')
     msg.push('2')
 
-    {io, msg}.putStrLn()
+    io.putStrLn(msg)
 
 
 type Person {name String, age I32}
