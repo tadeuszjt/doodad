@@ -38,8 +38,6 @@ data Type
     | Bool                   
     | Char                   
     | String
-    | Record [Type]
-    | RecordApply Type
     | Tuple Type
     | Table Type
     | ADT [Type]
@@ -60,9 +58,6 @@ instance Show Type where
         Bool              -> "Bool"
         Char              -> "Char"
         String            -> "String"
-        Record ts         -> "{" ++ intercalate ", " (map show ts) ++ "}"
-        RecordApply t     -> "{}" ++ show t
-        Tuple (Record ts) -> "(" ++ intercalate ", " (map show ts) ++ ")"
         Tuple t           -> "()" ++ show t
         Table t           -> "Table[" ++ show t ++ "]"
         ADT ts            -> "(" ++ intercalate " | " (map show ts) ++ ")"
@@ -86,8 +81,6 @@ isFloat typ = case typ of
     _   -> False
 
 isRecord :: Type -> Bool
-isRecord (Record _)      = True
-isRecord (RecordApply _) = True
 isRecord _               = False
 
 
@@ -120,10 +113,8 @@ mapType f typ = f $ case typ of
     String         -> typ
     Char           -> typ
     Type _         -> typ
-    Record ts      -> Record $ map (mapType f) ts
     Tuple t        -> Tuple (mapType f t)
     Table t        -> Table (mapType f t)
-    RecordApply t  -> RecordApply (mapType f t)
     TypeApply s ts -> TypeApply s $ map (mapType f) ts
     ADT ts         -> ADT $ map (mapType f) ts
     Void           -> typ
@@ -142,7 +133,6 @@ baseTypeOfm :: (MonadFail m, TypeDefs m, Typeof a) => a -> m (Maybe Type)
 baseTypeOfm a = case typeof a of
     Type x         -> return Nothing
     t | isSimple t -> return $ Just t
-    Record ts      -> return $ Just (Record ts)
     ADT ts         -> return $ Just (ADT ts)
     Tuple t        -> return $ Just (Tuple t)
     Table t        -> return $ Just (Table t)
@@ -169,7 +159,6 @@ applyTypeArguments argSymbols argTypes typ = do
             Just x  -> error (show x)
             Nothing -> TypeApply s <$> mapM (applyTypeArguments argSymbols argTypes) ts
 
-        Record ts               -> Record <$> mapM (applyTypeArguments argSymbols argTypes) ts
         Tuple t                 -> Tuple <$> applyTypeArguments argSymbols argTypes t
         Table t                 -> Table <$> applyTypeArguments argSymbols argTypes t
         ADT ts                  -> ADT <$> mapM (applyTypeArguments argSymbols argTypes) ts
@@ -201,12 +190,6 @@ typesCouldMatch generics t1 t2 = do
 
             (Tuple a, Tuple b)                -> couldMatch a b
             (Table a, Table b)                -> typesCouldMatch generics a b
-            (Record as, Record bs)            -> do
-                bs <- zipWithM (typesCouldMatch generics) as bs
-                return $ length as == length bs && all id bs
-
-            (Record ts1, RecordApply (TypeApply s ts2))
-                | s `elem` generics -> return True
 
             -- type variables
             (TypeApply s1 ts1, TypeApply s2 ts2)
@@ -225,8 +208,6 @@ typesCouldMatch generics t1 t2 = do
 --            (I64, I32) -> return False
 --            (TypeApply _ _, I64) -> return False
 --            (TypeApply _ _, Bool) -> return False
---            (Record _, TypeApply _ _) -> return False
---            (TypeApply _ _, Record _) -> return False
 --            (TypeApply _ _, Tuple _) -> return False
 --            (Tuple _, TypeApply _ _) -> return False
 --
@@ -248,8 +229,6 @@ definitelyIgnoresTuples typ = case typ of
     t | isSimple t -> return True
     Tuple t        -> return True
     Table t        -> return True
-    RecordApply _  -> return False
-    Record ts      -> return False
     Type _         -> return False
     TypeApply s ts -> do
         resm <- Map.lookup s <$> getTypeDefs
@@ -276,7 +255,6 @@ flattenType typ = case typ of
     Type _         -> return typ
     Table t        -> Table <$> flattenType t
     ADT ts         -> ADT <$> mapM flattenType ts
-    Record ts      -> Record <$> mapM flattenType ts
     TypeApply s ts -> TypeApply s <$> mapM flattenType ts
 
     Tuple t -> do
@@ -284,84 +262,13 @@ flattenType typ = case typ of
         b <- definitelyIgnoresTuples t'
         return $ if b then t' else Tuple t'
 
-    RecordApply t -> do
-        t' <- flattenType t
-        basem <- baseTypeOfm t'
-        case basem of
-            Just base -> case base of
-                t | isSimple t -> return $ Record [t']
-                ADT _          -> return $ Record [t']
-                Table _        -> return $ Record [t']
-                Record _       -> return t'
-                Tuple t        -> do
-                    baseT <- baseTypeOfm t
-                    case baseT of
-                        Just (Record _) -> return t
-                        x -> error (show x)
-
-                x -> error (show x)
-            Nothing -> return (RecordApply t')
-            x -> error (show x)
-
     x -> error (show x)
-
-
-data RecordTree
-    = RecordLeaf Type Int
-    | RecordTree [RecordTree]
-
-instance Show RecordTree where
-    show (RecordLeaf t i) = show t ++ "." ++ show i
-    show (RecordTree rs ) = "{" ++ intercalate ", " (map show rs) ++ "}"
-
-
--- Returns the list of types represeted by a tree of records.
--- For example:
--- {i64, bool}             -> [i64, bool] 
--- { {i64, bool}, string } -> [i64, bool, string]
--- { Person, Index }       -> [string, i64, i64]   (Person == {name:string, age:i64})
--- i64                     -> [i64]
-getRecordTypes :: (MonadFail m, TypeDefs m) => Type -> m [Type]
-getRecordTypes typ = do
-    fmap (map fst) (getRecordLeaves =<< getRecordTree typ)
-
-
-getRecordTree :: (MonadFail m, TypeDefs m) => Type -> m RecordTree
-getRecordTree typ = getRecordTree' 0 typ
-    where
-        applyFunc :: (MonadFail m, TypeDefs m) => Int -> [Type] -> m [RecordTree]
-        applyFunc offset ts = case ts of
-            []     -> return []
-            (x:xs) -> do
-                tree <- getRecordTree' offset x
-                (tree :) <$> applyFunc (getMax tree + 1) xs
-
-        getMax :: RecordTree -> Int
-        getMax tree = case tree of
-            RecordLeaf _ i -> i
-            RecordTree ns  -> getMax (last ns)
-
-        getRecordTree' :: (MonadFail m, TypeDefs m) => Int -> Type -> m RecordTree
-        getRecordTree' offset typ = do
-            base <- baseTypeOf typ
-            case base of
-                Record ts -> RecordTree <$> applyFunc offset ts
-                _         -> return (RecordLeaf typ offset)
-
-
-getRecordLeaves :: TypeDefs m => RecordTree -> m [ (Type, Int) ]
-getRecordLeaves tree = do
-    case tree of
-        RecordTree ns  -> concat <$> mapM getRecordLeaves ns
-        RecordLeaf t i -> return [ (t, i) ]
-        x              -> error (show x)
 
 
 getTypeFieldIndex :: (MonadFail m, TypeDefs m) => Type -> Type -> m Int
 getTypeFieldIndex typ field = do
     base <- baseTypeOf typ
     case base of
-        Record ts -> return $ fromJust (elemIndex field ts)
         Tuple t   -> do 
             b <- baseTypeOf t
             getTypeFieldIndex b field

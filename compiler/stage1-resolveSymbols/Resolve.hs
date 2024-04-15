@@ -151,10 +151,9 @@ popSymbolTable = do
 
 annoToType :: AnnoType -> Type
 annoToType anno = case anno of
-    AnnoTuple params  -> Type.Tuple $ Type.Record (map paramType params)
-    AnnoTable params  -> Type.Table $ Type.Record (map paramType params)
+    AnnoTuple params  -> error ""
+    AnnoTable params  -> error ""
     AnnoADT  params   -> Type.ADT    (map paramType params)
-    AnnoRecord params -> Type.Record (map paramType params)
     AnnoType t        -> t
 
 
@@ -174,8 +173,6 @@ buildCtorMap list = do
         AnnoTuple ps -> forM_ (zip ps [0..]) $ \(Param _ s t, i) -> 
             modify $ Map.insert s (symbol, i)
         AnnoTable ps -> forM_ (zip ps [0..]) $ \(Param _ s t, i) -> 
-            modify $ Map.insert s (symbol, i)
-        AnnoRecord params -> forM_ (zip params [0..]) $ \(Param _ s t, i) ->
             modify $ Map.insert s (symbol, i)
         AnnoType t -> return ()
         _ -> error (show anno)
@@ -284,7 +281,6 @@ resolveTypeDef (AST.Typedef pos generics (Sym sym) anno) = withPos pos $ do
     anno' <- case anno of
         AnnoType t        -> AnnoType <$> resolve t
         AnnoTuple params  -> AnnoTuple  <$> mapM resolveTypedefParam params
-        AnnoRecord params -> AnnoRecord <$> mapM resolveTypedefParam params
         AnnoTable params  -> AnnoTable  <$> mapM resolveTypedefParam params
         AnnoADT params    -> AnnoADT    <$> mapM resolveTypedefParam params
 

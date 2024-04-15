@@ -107,12 +107,6 @@ checkExpr (AExpr exprType expression) = withPos expression $ case expression of
         mapM_ checkExpr exprs
         return []
 
-    -- returns the references of the expressions
-    AST.Record pos exprs -> do
-        objs <- fmap concat $ mapM checkExpr exprs
-        checkMultipleReferences objs
-        return objs
-
     -- returns the references of the expr
     Field pos expr ident -> checkExpr expr
 
@@ -121,11 +115,6 @@ checkExpr (AExpr exprType expression) = withPos expression $ case expression of
         b <- look (Referencing symbol)
         when b $ fail $ "invalid reference: " ++ (Symbol.sym symbol)
         return [Referencing symbol]
-
-    -- returns the references of the expr
-    RecordAccess pos expr -> do
-        objs <- checkExpr expr
-        return objs
 
     -- ensures no multiple references active
     Infix pos op expr1 expr2 -> do
@@ -143,7 +132,6 @@ checkExpr (AExpr exprType expression) = withPos expression $ case expression of
             Just res -> return res
         base <- baseTypeOf exprType
         case base of
-            Type.Record _ -> return objs
             _             -> return []
 
     -- pat defines, redefines references of expr.
@@ -255,10 +243,6 @@ checkPattern (PatAnnotated pattern patType) = withPos pattern $ case pattern of
     PatTuple _ pats -> fmap concat $ mapM checkPattern pats
 
     PatField _ symbol pats -> fmap concat $ mapM checkPattern pats
-
-    PatRecord _ pats -> do
-        ss <- fmap concat $ mapM checkPattern pats
-        return $ [ s | PatAnnotated (PatIdent _ s) _ <- pats ] ++ ss
 
     x -> error (show x)
 checkPattern _ = return []

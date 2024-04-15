@@ -148,11 +148,11 @@ collectMapper element = (\_ -> return element) =<< case element of
         PatIdent _ symbol     -> define symbol (ObjVar patType)
         PatLiteral expr       -> collectEq patType (typeof expr)
         PatGuarded _ pat expr -> collect $ ConsBase Type.Bool (typeof expr)
-        PatRecord _ pats      -> collect $ ConsRecord patType (map typeof pats)
 
         PatTuple _ pats -> do
-            collectDefault patType (Type.Tuple $ Type.Record $ map typeof pats)
-            collect $ ConsTuple patType (map typeof pats)
+            error ""
+--            collectDefault patType (Type.Tuple $ Type.Record $ map typeof pats)
+--            collect $ ConsTuple patType (map typeof pats)
 
         PatAnnotated pat t -> do
             collectEq t patType
@@ -176,16 +176,11 @@ collectMapper element = (\_ -> return element) =<< case element of
         Prefix _ op expr    -> collectEq exprType (typeof expr)
         Int _ _             -> collectDefault exprType I64
         Float _ _           -> collectDefault exprType F64
-        RecordAccess _ expr -> collect $ ConsRecordAccess exprType (typeof expr) 
         Field _ e symbol    -> collect $ ConsField (typeof e) symbol exprType
 
         Ident _ symbol -> do
             ObjVar typ <- look symbol 
             collectEq typ exprType
-
-        AST.Record _ exprs  -> do
-            collect $ ConsBase exprType (Type.Record $ map typeof exprs)
-            collectDefault exprType (Type.Record $ map typeof exprs)
 
         AST.Char _ _ -> do
             collect (ConsBase exprType Type.Char)
@@ -249,7 +244,7 @@ collectMapper element = (\_ -> return element) =<< case element of
 
         AST.Tuple _ exprs -> do
             collect $ ConsTuple exprType (map typeof exprs)
-            collectDefault exprType $ Type.Tuple $ Type.Record (map typeof exprs)
+--            collectDefault exprType $ Type.Tuple $ Type.Record (map typeof exprs)
 
         Match _ e p -> do
             collectEq (typeof p) (typeof e)

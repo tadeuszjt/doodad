@@ -60,7 +60,6 @@ callCouldMatchFunc call symbol body = do
             (Just t1,  ts2)     -> do
                 baseT1 <- baseTypeOf t1
                 typesMatch ts2 =<< case baseT1 of 
-                    Record xs -> return xs
                     t         -> return [t1]
 
 
@@ -75,10 +74,8 @@ funcFullyResolved generics body =
             Type _                          -> False
             TypeApply s _ | elem s generics -> False
             TypeApply s ts                  -> all id (map typeFullyResolved ts)
-            Record ts                       -> all id (map typeFullyResolved ts)
             Table t                         -> typeFullyResolved t
             Tuple t                         -> typeFullyResolved t
-            RecordApply t                   -> typeFullyResolved t
             x | isSimple x                  -> True
             Void                            -> True
             x -> error $ "typeFullyResolved: " ++ show x
@@ -130,7 +127,6 @@ getConstraints call body = do
             let fts = map typeof (funcParams body)
             base <- baseTypeOf typ
             ts <- case base of
-                Record ts -> return ts
                 _         -> return [typ]
             unless (length fts == length ts) (error "param mismatch")
             fmap concat $ zipWithM (getConstraintsFromTypes (funcGenerics body)) fts ts
@@ -154,9 +150,6 @@ getConstraintsFromTypes generics t1 t2 = do
                 (Table a, Table b)                            -> fromTypes a b
                 (Type _, _)                                   -> return [ConsEq t1 t2]
                 (_, Type _)                                   -> return []
-
-                (RecordApply (TypeApply s ts), Record ts2)
-                    | s `elem` generics -> return [ConsSpecial t1 t2]
 
                 (TypeApply s1 ts1, TypeApply s2 ts2)
                     | s1 `elem` generics -> do 

@@ -65,7 +65,6 @@ data Pattern
     | PatGuarded   TextPos Pattern Expr
     | PatField     TextPos Symbol [Pattern]
     | PatAnnotated Pattern Type
-    | PatRecord    TextPos [Pattern]
     deriving (Eq)
 
 data Expr
@@ -84,8 +83,6 @@ data Expr
     | Prefix       TextPos Operator Expr
     | Infix        TextPos Operator Expr Expr
     | Match        TextPos Expr Pattern
-    | Record       TextPos [Expr]
-    | RecordAccess TextPos Expr
     deriving (Eq)
 
 instance Typeof Expr where
@@ -117,7 +114,6 @@ data AnnoType
     = AnnoType   Type
     | AnnoTuple  [Param]
     | AnnoTable  [Param]
-    | AnnoRecord [Param]
     | AnnoADT    [Param]
     deriving (Eq)
 
@@ -131,7 +127,6 @@ instance TextPosition Pattern where
         PatGuarded   p _ _ -> p
         PatField     p _ _ -> p
         PatAnnotated pat _ -> textPos pat
-        PatRecord p _ -> p
 
 
 instance TextPosition Expr where
@@ -151,8 +146,6 @@ instance TextPosition Expr where
         Infix        p _ _ _ -> p
         Match        p _ _ -> p
         Construct    p _ _ -> p
-        RecordAccess p _ -> p
-        Record       p _ -> p
         _ -> error (show expression)
 
 
@@ -214,7 +207,6 @@ instance Show AnnoType where
         AnnoTuple ps -> tupStrs $ map show ps
         AnnoADT ps   -> "(" ++ intercalate " | " (map show ps) ++ ")"
         AnnoTable xs -> "Table[{" ++ intercalate ", " (map show xs) ++ "}]"
-        AnnoRecord ps -> brcStrs $ map show ps
 
 
 instance Show Pattern where
@@ -226,7 +218,6 @@ instance Show Pattern where
         PatGuarded pos pat expr  -> show pat ++ " | " ++ show expr
         PatField pos symbol pats -> show symbol ++ tupStrs (map show pats)
         PatAnnotated pat typ     -> show pat ++ ":" ++ show typ
-        PatRecord pos pats       -> brcStrs (map show pats)
 
 
 instance Show Expr where
@@ -247,8 +238,6 @@ instance Show Expr where
         Builtin pos sym exprs              -> sym ++ tupStrs (map show exprs)
         Match pos expr1 expr2              -> "(" ++ show expr1 ++ " -> " ++ show expr2 ++ ")"
         Construct pos symbol exprs         -> show symbol ++ tupStrs (map show exprs)
-        RecordAccess pos expr              -> show expr ++ "{}"
-        Record pos exprs                   -> brcStrs (map show exprs)
 
 
 -- every function must end on a newline and print pre before every line

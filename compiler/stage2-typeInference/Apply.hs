@@ -58,10 +58,8 @@ applyExpr subs expression = case expression of
     AST.Int pos n -> AST.Int pos n
     AST.Float pos n -> AST.Float pos n
     AST.String pos s -> AST.String pos s
-    RecordAccess pos expr -> RecordAccess pos (applyEx expr)
     Field pos expr symbol -> Field pos (applyEx expr) symbol
     AST.Tuple pos exprs -> AST.Tuple pos (map applyEx exprs)
-    AST.Record pos exprs -> AST.Record pos (map applyEx exprs)
     Construct pos symbol exprs -> Construct pos symbol (map applyEx exprs)
     x -> error (show x)
     where
@@ -85,7 +83,6 @@ applyPattern subs pattern = case pattern of
     PatField pos symbol pats -> PatField pos symbol (map applyPat pats)
     PatIgnore pos -> PatIgnore pos
     PatIdent pos symbol -> PatIdent pos symbol
-    PatRecord pos pats -> PatRecord pos (map applyPat pats)
     PatGuarded pos pat expr -> PatGuarded pos (applyPat pat) (applyEx expr)
     PatTuple pos pats -> PatTuple pos (map applyPat pats)
     PatLiteral expr -> PatLiteral (applyEx expr)
@@ -105,7 +102,6 @@ applyConstraint subs constraint = case constraint of
     ConsAdtField t i ts    -> ConsAdtField (rf t) i (map rf ts)
     ConsTuple t1 ts        -> ConsTuple (rf t1) (map rf ts)
     ConsRecord t1 ts       -> ConsRecord (rf t1) (map rf ts)
-    ConsRecordAccess t1 t2 -> ConsRecordAccess (rf t1) (rf t2)
     ConsSpecial t1 t2      -> ConsSpecial (rf t1) (rf t2)
     ConsField  t1 s t2     -> ConsField (rf t1) s (rf t2)
     ConsForExpr t1 t2      -> ConsForExpr (rf t1) (rf t2)

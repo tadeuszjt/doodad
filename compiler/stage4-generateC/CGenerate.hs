@@ -170,15 +170,6 @@ convert typ val = do
         (F32, I64)       -> set r $ Value typ $ C.Cast Cfloat (valExpr val)
         (I64, Type.Char) -> set r $ Value typ $ C.Cast Cint64_t (valExpr val)
 
-        (t1, Type.Record [t2]) | t1 == t2 -> do
-            set r $ Value typ $ C.Deref $ C.Member (valExpr val) "m0"
-
-        (Type.Tuple (Type.Record ts1), Type.Record ts2) -> do
-            check (length ts1 == length ts2) "cannot convert record of different length"
-            forM_ (zip3 ts1 ts2 [0..]) $ \(t, t2, i) -> do
-                m <- member i r
-                set m =<< convert t (Value t2 $ C.Deref $ C.Member (valExpr val) ("m" ++ show i))
-
         _ -> error $ show (base, baseVal)
 
     return r
@@ -191,37 +182,27 @@ set a b = do
     void $ case base of
         _ | isSimple base               -> void $ appendElem $ C.Set (valExpr a) (valExpr b)
         Type.Tuple t -> do
-            Type.Record ts <- baseTypeOf t
-            forM_ (zip ts [0..]) $ \(t, i) -> do
-                ma <- member i a
-                mb <- member i b
-                set ma mb
-
-        Type.Record _ -> do
-            ts <- getRecordTypes (typeof a)
-            forM_ (zip ts [0..]) $ \(t, i) -> do
-                let ma = Value t $ C.Deref $ C.Member (valExpr a) ("m" ++ show i)
-                let mb = Value t $ C.Deref $ C.Member (valExpr b) ("m" ++ show i)
-                set ma mb
+            error ""
 
         Type.ADT ts -> void $ appendElem $ C.Set (valExpr a) (valExpr b) -- TODO broken
             
         Type.Table t -> do
-            let cap = C.Member (valExpr a) "cap"
-            let len = C.Member (valExpr a) "len"
-            appendElem $ C.Set len (C.Member (valExpr b) "len")
-            appendElem $ C.Set cap (C.Member (valExpr b) "len")
-
-            ts <- getRecordTypes t
-            forM_ (zip ts [0..]) $ \(t, i) -> do
-                let size = C.Sizeof $ C.Deref $ C.Member (valExpr a) ("r" ++ show i)
-                appendElem $ C.Set -- a.rn = GC_malloc(sizeof(*a.rn) * a.cap
-                    (C.Member (valExpr a) ("r" ++ show i))
-                    (C.Call "GC_malloc" [C.Infix C.Times size cap])
-                
-                for (Value I64 len) $ \idx -> set
-                    (Value t $ C.Subscript (C.Member (valExpr a) ("r" ++ show i)) $ valExpr idx)
-                    (Value t $ C.Subscript (C.Member (valExpr b) ("r" ++ show i)) $ valExpr idx)
+            error ""
+--            let cap = C.Member (valExpr a) "cap"
+--            let len = C.Member (valExpr a) "len"
+--            appendElem $ C.Set len (C.Member (valExpr b) "len")
+--            appendElem $ C.Set cap (C.Member (valExpr b) "len")
+--
+--            ts <- getRecordTypes t
+--            forM_ (zip ts [0..]) $ \(t, i) -> do
+--                let size = C.Sizeof $ C.Deref $ C.Member (valExpr a) ("r" ++ show i)
+--                appendElem $ C.Set -- a.rn = GC_malloc(sizeof(*a.rn) * a.cap
+--                    (C.Member (valExpr a) ("r" ++ show i))
+--                    (C.Call "GC_malloc" [C.Infix C.Times size cap])
+--                
+--                for (Value I64 len) $ \idx -> set
+--                    (Value t $ C.Subscript (C.Member (valExpr a) ("r" ++ show i)) $ valExpr idx)
+--                    (Value t $ C.Subscript (C.Member (valExpr b) ("r" ++ show i)) $ valExpr idx)
 
 --        Type.Array n t -> do
 --            for (i64 n) $ \idx -> do
@@ -257,43 +238,31 @@ member :: Int -> Value -> Generate Value
 member index val = do
     base <- baseTypeOf val
     case base of
-        Type.Record ts -> do
-            Type.RecordTree ns <- getRecordTree (Type.Record ts)
-            case ns !! index of
-                RecordLeaf t i -> do
-                    return $ Value t $ C.Deref $ C.Member (valExpr val) ("m" ++ show i)
-
-                RecordTree _ -> do
-                    leaves <- getRecordLeaves (ns !! index)
-                    elems <- forM leaves $ \(t, i) -> do
-                        return $ C.Member (valExpr val) ("m" ++ show i)
-                    assign "record" $ Value (ts !! index) $ C.Initialiser elems
-
-                x -> error (show x)
-
         Type.Tuple t -> do
-            Type.Record ts <- baseTypeOf t
-            Type.RecordTree ns <- getRecordTree t
-            case ns !! index of
-                RecordLeaf t i -> return $ Value (ts !! index) $
-                    C.Member (valExpr val) ("m" ++ show i)
-
-                RecordTree _ -> do
-                    leaves <- getRecordLeaves (ns !! index)
-                    assign "member" $ Value (ts !! index) $ C.Initialiser $
-                        map (\(t, i) -> C.Address $ C.Member (valExpr val) ("m" ++ show i)) leaves
-
-                x -> error (show x)
+            error ""
+--            Type.Record ts <- baseTypeOf t
+--            Type.RecordTree ns <- getRecordTree t
+--            case ns !! index of
+--                RecordLeaf t i -> return $ Value (ts !! index) $
+--                    C.Member (valExpr val) ("m" ++ show i)
+--
+--                RecordTree _ -> do
+--                    leaves <- getRecordLeaves (ns !! index)
+--                    assign "member" $ Value (ts !! index) $ C.Initialiser $
+--                        map (\(t, i) -> C.Address $ C.Member (valExpr val) ("m" ++ show i)) leaves
+--
+--                x -> error (show x)
 
         Type.Table t -> do
-            Type.Record ts <- baseTypeOf t
-            Type.RecordTree ns <- getRecordTree t
-            leaves <- getRecordLeaves (ns !! index)
-            let elems  = map (\(t, i) -> C.Member (valExpr val) ("r" ++ show i)) leaves
-            assign "member" $ Value (Table $ ts !! index) $ C.Initialiser $
-                [ C.Member (valExpr val) "len"
-                , C.Member (valExpr val) "cap"
-                ] ++ elems
+            error ""
+--            Type.Record ts <- baseTypeOf t
+--            Type.RecordTree ns <- getRecordTree t
+--            leaves <- getRecordLeaves (ns !! index)
+--            let elems  = map (\(t, i) -> C.Member (valExpr val) ("r" ++ show i)) leaves
+--            assign "member" $ Value (Table $ ts !! index) $ C.Initialiser $
+--                [ C.Member (valExpr val) "len"
+--                , C.Member (valExpr val) "cap"
+--                ] ++ elems
 
         Type.ADT ts   -> do
             unless (index >= 0 && index < length ts) (error "invalid ADT field index")
@@ -313,13 +282,7 @@ initialiser typ vals = do
         Type.Tuple t -> do
             baseT <- baseTypeOf t
             case baseT of
-                Type.Record _ -> do assign "tuple" $ Value typ $ C.Initialiser (map valExpr vals)
                 _ -> error (show baseT)
-
-        Type.Record _ -> do
-            ts <- getRecordTypes typ
-            unless (length ts == length vals) (error "initialiser length")
-            assign "record" $ Value typ $ C.Initialiser $ map (C.Address . valExpr) vals
 
         _ -> error (show base)
 
@@ -329,23 +292,10 @@ builtinTableAt val idx = do
     Table t <- baseTypeOf val
     baseT <- baseTypeOf t
     case baseT of
-        _ | isSimple baseT -> do
-            elem <- return $ C.Address $ C.Subscript (C.Member (valExpr val) ("r" ++ show 0)) (valExpr idx)
-            assign "record" $ Value (Type.Record [t]) $ C.Initialiser [elem]
-        ADT ts -> do
-            elem <- return $ C.Address $ C.Subscript (C.Member (valExpr val) ("r" ++ show 0)) (valExpr idx)
-            assign "record" $ Value (Type.Record [t]) $ C.Initialiser [elem]
-        Type.Table _ -> do
-            elem <- return $ C.Address $ C.Subscript (C.Member (valExpr val) ("r" ++ show 0)) (valExpr idx)
-            assign "record" $ Value (Type.Record [t]) $ C.Initialiser [elem]
-        Type.Tuple _ ->
-            accessRecord (Value t $ C.Subscript (C.Member (valExpr val) ("r" ++ show 0)) (valExpr idx))
-        Type.Record _ -> do
-            ts <- getRecordTypes t
-            elems <- forM (zip ts [0..]) $ \(t, i) -> do
-                return $ C.Address $ C.Subscript (C.Member (valExpr val) ("r" ++ show i)) (valExpr idx)
-            assign "record" $ Value t $ C.Initialiser elems
-            
+        _ | isSimple baseT -> error ""
+        ADT ts -> error ""
+        Type.Table _ -> error ""
+        Type.Tuple _ -> error ""
         x -> error (show x)
 
 
@@ -353,25 +303,13 @@ accessRecord :: Value -> Generate Value
 accessRecord val = do
     base <- baseTypeOf val
     case base of
-        _ | isSimple base -> do
-            assign "record" $ Value (Type.Record [typeof val]) $ C.Initialiser [C.Address $ valExpr val]
-        Type.ADT ts -> do
-            assign "record" $ Value (Type.Record [typeof val]) $ C.Initialiser [C.Address $ valExpr val]
-        Table t -> do
-            assign "record" $ Value (Type.Record [typeof val]) $ C.Initialiser [C.Address $ valExpr val]
-
-        Type.Record ts -> do
-            return val
+        _ | isSimple base -> error ""
+        Type.ADT ts -> error ""
+        Table t -> error ""
 
         Type.Tuple t -> do
             baseT <- baseTypeOf t
             case baseT of
-                Type.Record _ -> do
-                    ts <- getRecordTypes t
-                    elems <- forM (zip ts [0..]) $ \(t, i) -> do
-                        return $ C.Address $ C.Member (valExpr val) ("m" ++ show i)
-                    assign "record" $ Value t $ C.Initialiser elems
-
                 _ -> error (show baseT)
 
         x -> error (show x)
@@ -397,7 +335,6 @@ cTypeOf a = case typeof a of
     Type.String    -> return (Cpointer Cchar)
     Type.Tuple t   -> getTypedef "Tuple"  =<< cTypeNoDef (Type.Tuple t)
     Type.Table t   -> getTypedef "Table"  =<< cTypeNoDef (Type.Table t)
-    Type.Record ts -> getTypedef "Record" =<< cTypeNoDef (Type.Record ts)
     Type.ADT ts    -> getTypedef "Adt"    =<< cTypeNoDef (Type.ADT ts)
 
     Type.TypeApply symbol args -> do
@@ -426,9 +363,7 @@ cTypeOf a = case typeof a of
             Type.Tuple t -> do
                 baseT <- baseTypeOf t
                 case baseT of
-                    Type.Record _ -> do
-                        cts <- mapM cTypeOf =<< getRecordTypes t
-                        return $ Cstruct $ zipWith (\a b -> C.Param ("m" ++ show a) b) [0..] cts
+                    _ -> error ""
 
             Type.ADT ts -> do
                 cts <- mapM cTypeOf (map replaceVoid ts)
@@ -438,14 +373,9 @@ cTypeOf a = case typeof a of
             Type.Table t -> do
                 baseT <- baseTypeOf t
                 cts <- mapM cTypeOf =<< case baseT of
-                    Type.Record ts -> getRecordTypes t
                     t              -> return [t]
                 let pts = zipWith (\ct i -> C.Param ("r" ++ show i) (Cpointer ct)) cts [0..]
                 return $ Cstruct (C.Param "len" Cint64_t:C.Param "cap" Cint64_t:pts)
-
-            Type.Record ts -> do
-                cts <- mapM cTypeOf =<< getRecordTypes (Type.Record ts)
-                return $ Cstruct $ zipWith (\ct i -> C.Param ("m" ++ show i) (Cpointer ct)) cts [0..]
 
             x -> error (show x)
 
@@ -467,7 +397,6 @@ tableAppend val = do
     Table t <- baseTypeOf val
     baseT <- baseTypeOf t
     ts <- case baseT of
-        Type.Record _ -> getRecordTypes t
         _             -> return [t]
 
     let len    = C.Member (valExpr val) "len"

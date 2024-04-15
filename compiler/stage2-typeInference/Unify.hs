@@ -27,26 +27,15 @@ unifyOne pos constraint = withPos pos $ case constraint of
         resm <- Map.lookup symbol <$> gets ctorDefs
         base <- baseTypeOfm typ
         case base of
-            Just (Record ts) -> case resm of
-                Just (typeSymbol, index) -> unifyOne pos $ ConsEq (ts !! index) exprType
-                Nothing                  -> case elemIndex (TypeApply symbol []) ts of
-                    Just index -> unifyOne pos $ ConsEq (ts !! index) exprType
-                    x          -> error (show x)
-
             Just (Tuple t)   -> do
                 baseT <- baseTypeOfm t
                 case baseT of
-                    Just (Record ts) -> case resm of
-                        Just (typeSymbol, index) -> unifyOne pos $ ConsEq (ts !! index) exprType
-                        Nothing                  -> case elemIndex (TypeApply symbol []) ts of
-                            Just index -> unifyOne pos $ ConsEq (ts !! index) exprType
-                            x          -> error (show x)
+                    _ -> error ""
 
             Just (Table t)   -> do
                 baseT <- baseTypeOfm t
                 case baseT of
-                    Just (Record ts) -> case resm of
-                        Just (typeSymbol, index) -> unifyOne pos $ ConsEq (Table $ ts !! index) exprType
+                    _ -> error ""
 
 
     ConsTuple tupType ts -> do
@@ -56,38 +45,8 @@ unifyOne pos constraint = withPos pos $ case constraint of
             Just (Tuple t) -> do
                 baseT <- baseTypeOfm t
                 case baseT of
-                    Just (Record _) -> do
-                        recordTs <- getRecordTypes t
-                        unless (length ts == length recordTs) (error "record mismatch")
-                        concat <$> zipWithM (\a b -> unifyOne pos $ ConsEq a b) ts recordTs
                     _ -> error (show baseT)
             _ -> error (show basem)
-
-    ConsRecord recordType ts -> do
-        basem <- baseTypeOfm recordType
-        case basem of
-            Nothing -> return []
-            Just (Record ts') -> do
-                unless (length ts == length ts') (error "record mismatch")
-                concat <$> zipWithM  (\a b -> unifyOne pos $ ConsEq a b) ts ts'
-            _ -> fail (show basem)
-
-    ConsRecordAccess exprType typ -> do
-        base <- baseTypeOfm typ
-        case base of
-            Just (ADT ts) -> unifyOne pos $ ConsEq exprType (Record [typ])
-            Just (Record ts) -> unifyOne pos $ ConsEq exprType typ
-            Just (Table t) -> unifyOne pos (ConsEq exprType $ Record [typ])
-
-            Just (Tuple t) -> do
-                baseT <- baseTypeOfm t
-                case baseT of
-                    Just (Record ts) -> unifyOne pos $ ConsEq exprType t
-                    _ -> error (show baseT)
-
-            Just t | isSimple t -> unifyOne pos $ ConsEq exprType (Record [typ])
-            Nothing -> return []
-            _ -> error (show base)
 
     ConsEq t1 t2 -> case (t1, t2) of
         _ | t1 == t2             -> return []
@@ -95,9 +54,6 @@ unifyOne pos constraint = withPos pos $ case constraint of
         (t, Type x)              -> return [(Type x, t)]
         (Table t1, Table t2)     -> unifyOne pos (ConsEq t1 t2)
         (Tuple t1, Tuple t2)     -> unifyOne pos (ConsEq t1 t2)
-        (Record ts1, Record ts2) -> do
-            check (length ts1 == length ts2) ("type mismatch: " ++ show t1 ++ " != " ++ show t2)
-            unify $ zipWith (\a b -> (ConsEq a b, pos)) ts1 ts2
 
         _ -> fail ("type mismatch: " ++ show t1 ++ " != " ++ show t2)
 
@@ -117,9 +73,6 @@ unifyOne pos constraint = withPos pos $ case constraint of
         basem <- baseTypeOfm t1
         case basem of
             Nothing -> return []
-            Just (Type.Tuple (Type.Record [I64, I64])) -> do -- range
-                unifyOne pos $ ConsEq t2 I64
-            Just (Type.Table t) -> unifyOne pos $ ConsRecordAccess t2 t
 
             x -> error (show x)
 
@@ -131,9 +84,7 @@ unifyOne pos constraint = withPos pos $ case constraint of
                 baseT <- baseTypeOfm t
                 case baseT of
                     Nothing -> return []
-                    Just (Record _) -> unifyOne pos (ConsEq t2 t)
                     Just (Tuple t)  -> unifyOne pos (ConsEq t2 t)
-                    Just _          -> unifyOne pos (ConsEq t2 $ Record [t])
 
             Nothing -> return []
             _ -> error (show basem)

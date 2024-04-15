@@ -227,7 +227,6 @@ pattern  : '_'                           { PatIgnore (tokPos $1) }
          | '-' int_c                     { PatLiteral (AST.Int (tokPos $1) $ 0 - (read $ tokStr $2)) }
          | ident                         { PatIdent (tokPos $1) (Sym $ tokStr $1) }
          | '(' patterns ')'              { PatTuple (tokPos $1) $2 }
-         | '{' patterns '}'              { PatRecord (tokPos $1) $2 }
          | pattern '|' expr              { PatGuarded (tokPos $2) $1 $3 }
          | pattern '|' expr '->' pattern { PatGuarded (tokPos $2) $1 (Match (tokPos $4) $3 $5) }
          | Symbol '(' patterns ')'       { PatField (tokPos $2) (snd $1) $3 }
@@ -261,8 +260,6 @@ expr   : literal                                 { $1 }
        | expr '.' symbol '(' exprsA ')'          { Call (tokPos $4) (Just $1) (snd $3) $5 }
        | expr '.' ident                          { Field (tokPos $2) $1 (Sym $ tokStr $3) }
        | expr '.' Ident                          { Field (tokPos $2) $1 (Sym $ tokStr $3) }
-       | '{' exprs1 '}'                          { AST.Record (tokPos $1) $2 }
-       | expr '{' '}'                            { RecordAccess (tokPos $2) $1 }
 
 literal : int_c                                  { AST.Int (tokPos $1) (read $ tokStr $1) }
         | float_c                                { AST.Float (tokPos $1) (read $ tokStr $1) }
@@ -303,7 +300,6 @@ type_         : ordinal_t                  { $1 }
               | '(' type_ ')'              { $2 }
               | Symbol                     { TypeApply (snd $1) [] }
               | Symbol '[' types1 ']'      { TypeApply (snd $1) $3 }
-              | record_t                   { $1 }
               | tuple_t                    { $1 }
               | table_t                    { $1 }
 
@@ -320,21 +316,14 @@ ordinal_t   : Bool                         { Type.Bool }
             | String                       { Type.String }
 
 
-record_t  : '{' types1 '}'                 { Type.Record $2 }
-         | '{' '}' type_                   { RecordApply $3 }
-
 tuple_t  : '(' ')' type_                   { Type.Tuple $3 }
-         | '(' type_ ',' types1 ')'        { Type.Tuple (Type.Record $ $2 : $4) }
-         | '(' 'I' types2N 'D' ')'         { Type.Tuple (Type.Record $3) }
 
 table_t  : Table '[' type_ ']'             { Type.Table $3 }
 
 
 anno_t   : ordinal_t                       { AnnoType $1 }
-         | record_t                        { AnnoType $1 }
          | tuple_t                         { AnnoType $1 }
          | table_t                         { AnnoType $1 }
-         | '{' paramsA1 '}'                { AnnoRecord $2 }
          | '(' ')' '{' paramsA1 '}'        { AnnoTuple $4 }
          | Table '[' '{' paramsA1 '}' ']'  { AnnoTable $4 }
          | '(' paramsA1 ')'                { AnnoTuple $2 }

@@ -26,8 +26,9 @@ generate ast = withErrorPrefix "generate: " $ do
     forM_ (Map.toList $ funcImports ast) $ \(symbol, body) -> do
         unless (isGenericBody body) $ do
             crt <- cTypeOf (ASTResolved.funcRetty body)
-            pts <- getRecordTypes $ Type.Record (map typeof $ ASTResolved.funcParams body)
-            cpts <- map Cpointer <$> mapM cTypeOf pts
+            --pts <- getRecordTypes $ Type.Record (map typeof $ ASTResolved.funcParams body)
+            --cpts <- map Cpointer <$> mapM cTypeOf pts
+            let cpts = []
             cats <- mapM cTypeOf (ASTResolved.funcArgs body)
             newExtern (show symbol) crt (cpts ++ cats)
 
@@ -35,8 +36,9 @@ generate ast = withErrorPrefix "generate: " $ do
     forM_ (Map.toList $ funcDefs ast) $ \(symbol, func) -> do
          unless (isGenericBody func) $ do
             crt <- cTypeOf (ASTResolved.funcRetty func)
-            pts <- getRecordTypes $ Type.Record (map typeof $ ASTResolved.funcParams func)
-            cpts <- map Cpointer <$> mapM cTypeOf pts
+            --pts <- getRecordTypes $ Type.Record (map typeof $ ASTResolved.funcParams func)
+            --cpts <- map Cpointer <$> mapM cTypeOf pts
+            let cpts = []
             cats <- mapM cTypeOf (map paramType $ ASTResolved.funcArgs func)
             newExtern (show symbol) crt (cpts ++ cats)
 
@@ -72,32 +74,32 @@ generateFunc symbol body = do
     -- p = {p0, p1}
     -- the record types are expanded into args
     -- the record fields are expanded into records
-    RecordTree ns <- getRecordTree $ Type.Record (map typeof $ ASTResolved.funcParams body)
-    paramArgs <- fmap concat $ forM (zip ns [0..]) $ \(n, pi) -> do
-        let sName = S.paramName (ASTResolved.funcParams body !! pi)
-        case n of
-            RecordLeaf t i -> (:[]) . C.Param (show sName) . Cpointer <$> cTypeOf t
-            RecordTree ns -> do
-                leaves <- getRecordLeaves (RecordTree ns)
-                forM leaves $ \(t, i) -> do
-                    s' <- fresh (show sName)
-                    C.Param s' . Cpointer <$> cTypeOf t
+--    RecordTree ns <- getRecordTree $ Type.Record (map typeof $ ASTResolved.funcParams body)
+--    paramArgs <- fmap concat $ forM (zip ns [0..]) $ \(n, pi) -> do
+--        let sName = S.paramName (ASTResolved.funcParams body !! pi)
+--        case n of
+--            RecordLeaf t i -> (:[]) . C.Param (show sName) . Cpointer <$> cTypeOf t
+--            RecordTree ns -> do
+--                leaves <- getRecordLeaves (RecordTree ns)
+--                forM leaves $ \(t, i) -> do
+--                    s' <- fresh (show sName)
+--                    C.Param s' . Cpointer <$> cTypeOf t
 
-    id <- newFunction rettyType (show symbol) (paramArgs ++ args)
+    id <- newFunction rettyType (show symbol) ([] ++ args)
     withCurID id $ do
-        forM_ (zip ns [0..]) $ \(n, pi) -> case n of
-            RecordLeaf t i -> do
-                let sName = S.paramName (ASTResolved.funcParams body !! pi)
-                let cParam = paramArgs !! i
-                define (show sName) $ Value t $ C.Deref (C.Ident $ C.cName cParam)
-
-            RecordTree ns' -> do
-                let sName = S.paramName (ASTResolved.funcParams body !! pi)
-                let sType = S.paramType (ASTResolved.funcParams body !! pi)
-                leaves <- getRecordLeaves (RecordTree ns')
-                let names' = [ C.Ident (C.cName (paramArgs !! i)) | i <- map snd leaves ]
-                rec <- assign "param" $ Value sType $ C.Initialiser names'
-                define (show sName) rec
+--        forM_ (zip ns [0..]) $ \(n, pi) -> case n of
+--            RecordLeaf t i -> do
+--                let sName = S.paramName (ASTResolved.funcParams body !! pi)
+--                let cParam = paramArgs !! i
+--                define (show sName) $ Value t $ C.Deref (C.Ident $ C.cName cParam)
+--
+--            RecordTree ns' -> do
+--                let sName = S.paramName (ASTResolved.funcParams body !! pi)
+--                let sType = S.paramType (ASTResolved.funcParams body !! pi)
+--                leaves <- getRecordLeaves (RecordTree ns')
+--                let names' = [ C.Ident (C.cName (paramArgs !! i)) | i <- map snd leaves ]
+--                rec <- assign "param" $ Value sType $ C.Initialiser names'
+--                define (show sName) rec
 
         forM_ (ASTResolved.funcArgs body) $ \arg -> do
             ctyp <- cTypeOf (paramType arg)
@@ -127,25 +129,11 @@ generatePrint app val = case typeof val of
     Type.Tuple t -> do
         baseT <- baseTypeOf t
         case baseT of
-            Type.Record _ -> do
-                ts <- getRecordTypes t
-                call "putchar" [Value Type.Char $ C.Char '(']
-                forM_ (zip ts [0..]) $ \(t, i) -> do
-                    let end = i == length ts - 1
-                    let member = Value t $ C.Member (valExpr val) ("m" ++ show i)
-                    generatePrint (if end then (")" ++ app) else ", ") member
             _ -> generatePrint app $ Value t (valExpr val)
 
     Type.TypeApply s t -> do
         base <- baseTypeOf val
         generatePrint app $ Value base (valExpr val)
-
-    Type.Record ts -> do
-        call "putchar" [Value Type.Char $ C.Char '{']
-        forM_ (zip ts [0..]) $ \(t, i) -> do
-            let end = i == length ts - 1
-            generatePrint (if end then "" else ", ") =<< member i val
-        void $ appendPrintf ("}" ++ app) []
 
     Type.ADT ts -> do -- TODO
         void $ appendPrintf ("ADT" ++ app) []
@@ -218,19 +206,12 @@ generateStmt stmt = withPos stmt $ case stmt of
             case base of
                 Type.String -> return ()
                 Type.Table _ -> return ()
-                Type.Tuple (Type.Record [I64, I64]) -> do
-                    if_ first $ do
-                        set idx $ Value I64 (C.Member (valExpr val) "m0")
-                        set first false
-                        return ()
                 x -> error (show x)
 
             -- check that index is still in range
             idxGtEq <- case base of
                 Type.String    -> generateInfix S.GTEq idx =<< len val
                 Type.Table _  -> generateInfix S.GTEq idx =<< len val
-                Type.Tuple (Type.Record [I64, I64]) -> do
-                    generateInfix S.GTEq idx $ Value I64 (C.Member (valExpr val) "m1")
             if_ idxGtEq (appendElem C.Break)
 
             -- check that pattern matches
@@ -238,7 +219,6 @@ generateStmt stmt = withPos stmt $ case stmt of
                 Nothing -> return true
                 Just pat -> case base of
                     Type.Table ts -> generatePattern pat =<< builtinTableAt val idx
-                    Type.Tuple (Type.Record [I64, I64]) -> generatePattern pat idx
                     _ -> error (show base)
 
             if_ (not_ patMatches) $ appendElem C.Break
@@ -294,30 +274,9 @@ generatePattern pattern val = withPos pattern $ do
         PatLiteral expr -> generateInfix S.EqEq val =<< generateExpr expr
         PatAnnotated pat typ -> generatePattern pat val
 
-        PatRecord _ pats -> do
-            base <- baseTypeOf val
-            case base of
-                Type.Record ts -> do -- TODO patterns aren't references
-                    unless (length ts == length pats) (error "invalid record length")
-                    endLabel <- fresh "end"
-                    match <- assign "match" false
-                    forM_ (zip3 pats [0..] ts) $ \(pat, i, t) -> do
-                        b <- case pat of
-                            PatAnnotated (PatIdent _ symbol) _ -> do
-                                define (show symbol) =<< member i val
-                                return true
-                            _ -> generatePattern pat =<< member i val
-                        if_ (not_ b) $ appendElem (C.Goto endLabel)
-
-                    set match true
-                    appendElem $ C.Label endLabel
-                    return match
-                        
-                _ -> error (show base)
 
         PatIdent _ symbol -> do 
             base <- baseTypeOf val
-            check (not $ isRecord base) "cannot assign record to identifier"
             let name = show symbol
             define name (Value (typeof val) $ C.Ident name)
             cType <- cTypeOf (typeof val)
@@ -328,22 +287,8 @@ generatePattern pattern val = withPos pattern $ do
         PatTuple _ pats -> do
             base@(Type.Tuple t) <- baseTypeOf val
             baseT <- baseTypeOf t
+            error ""
 
-            case baseT of
-                Type.Record _ -> do
-                    ts <- getRecordTypes t
-                    unless (length pats == length ts) (error "invalid tuple length")
-                    endLabel <- fresh "end"
-                    match <- assign "match" false
-
-                    forM_ (zip3 pats ts [0..]) $ \(pat, t, i) -> do
-                        let member = Value t $ C.Member (valExpr val) ("m" ++ show i)
-                        b <- generatePattern pat member
-                        if_ (not_ b) $ appendElem (C.Goto endLabel)
-                                
-                    set match true
-                    appendElem (C.Label endLabel)
-                    return match
 
         PatGuarded _ pat expr -> do
             match <- assign "match" =<< generatePattern pat val
@@ -405,7 +350,6 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
     S.Char _ c             -> return $ Value typ (C.Char c)
     S.Match _ expr pattern -> generatePattern pattern =<< generateExpr expr
     S.Ident _ symbol       -> look (show symbol)
-    S.RecordAccess _ expr  -> accessRecord =<< generateExpr expr
     S.Builtin _ "conv" [expr] -> convert typ =<< generateExpr expr
 
     S.Builtin _ "print" exprs -> do
@@ -462,9 +406,6 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
             Just param -> do
                 base <- baseTypeOf param
                 case base of
-                    Type.Record _ -> do 
-                        ts <- getRecordTypes (typeof param)
-                        return [ C.Member (valExpr param) ("m" ++ show i) | (t, i) <- zip ts [0..] ]
                     _ -> do
                         return [C.Address (valExpr param)]
                     x -> error (show x)
@@ -512,19 +453,6 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
                 return adt
 
             _ -> error (show base)
-
-
-    S.Record _ exprs -> do
-        vals <- mapM generateExpr exprs
-        ptrs <- fmap concat $ forM vals $ \val -> do
-            base <- baseTypeOf val
-            case base of
-                Type.Record _ -> do
-                    ts <- getRecordTypes (typeof val)
-                    return [ C.Member (valExpr val) ("m" ++ show i) | (t, i) <- zip ts [0..] ]
-                _ -> return [C.Address (valExpr val)]
-
-        assign "record" $ Value typ (C.Initialiser ptrs)
 
 
     _ -> error (show expr_)
@@ -579,89 +507,49 @@ generateInfix op a b = do
             S.GT   -> return $ Value Type.Bool  (C.Call "doodad_string_gt"   [valExpr a, valExpr b])
             _ -> error (show op)
 
-        Type.Record xs -> do
-            ts <- getRecordTypes (Type.Record xs)
-            res <- assign "res" true
-            withFakeSwitch $ do
-                forM_ (zip ts [0..]) $ \(t, i) -> do
-                    let da = Value t $ C.Deref $ C.Member (valExpr a) ("m" ++ show i) 
-                    let db = Value t $ C.Deref $ C.Member (valExpr b) ("m" ++ show i) 
-                    case op of
-                        _ | op `elem` [S.EqEq, S.LTEq, S.GTEq] -> do 
-                            b <- generateInfix op da db
-                            if_ (not_ b) $ do
-                                set res false
-                                appendElem C.Break
-
-                        S.NotEq -> do
-                            neq <- generateInfix S.NotEq da db
-                            if_ (neq) (appendElem C.Break)
-
-                        S.LT -> do
-                            lt <- generateInfix S.LT da db
-                            if_ lt (appendElem C.Break)
-                            eq <- generateInfix S.EqEq da db
-                            if_ (not_ eq) $ do
-                                set res false
-                                appendElem C.Break
-
-                        S.GT -> do
-                            gt <- generateInfix S.GT da db
-                            if_ gt (appendElem C.Break)
-                            eq <- generateInfix S.EqEq da db
-                            if_ (not_ eq) $ do
-                                set res false
-                                appendElem C.Break
-
-                case op of
-                    S.NotEq -> set res false
-                    S.LT    -> set res false
-                    S.GT    -> set res false
-                    _       -> return ()
-
-            return res
 
         Type.Tuple t -> do
-            ts <- getRecordTypes =<< baseTypeOf t
-            res <- assign "res" =<< case op of
-                S.Plus -> initialiser (typeof a) []
-                _      -> return true
-
-            withFakeSwitch $ do
-                forM_ (zip ts [0..]) $ \(t, i) -> do
-                    let ma = Value t $ C.Member (valExpr a) ("m" ++ show i)
-                    let mb = Value t $ C.Member (valExpr b) ("m" ++ show i)
-                    eq <- generateInfix S.EqEq ma mb
-                    case op of
-                        S.NotEq -> void $ if_ (not_ eq) (appendElem C.Break)
-                        S.EqEq -> if_ (not_ eq) $ do
-                            set res false
-                            void $ appendElem C.Break
-
-                        S.LT -> do
-                            lt <- generateInfix S.LT ma mb
-                            if_ lt (appendElem C.Break)
-                            void $ if_ (not_ eq) $ do
-                                set res false
-                                appendElem C.Break
-
-                        S.GT -> do
-                            gt <- generateInfix S.GT ma mb
-                            if_ gt (appendElem C.Break)
-                            void $ if_ (not_ eq) $ do
-                                set res false
-                                appendElem C.Break
-
-                        S.Plus -> do
-                            let mr = Value t $ C.Member (valExpr res) ("m" ++ show i)
-                            void $ set mr =<< generateInfix S.Plus ma mb
-
-                case op of
-                    S.NotEq -> set res false
-                    S.LT    -> set res false
-                    S.GT    -> set res false
-                    _       -> return ()
-
-            return res
+            error ""
+--            ts <- getRecordTypes =<< baseTypeOf t
+--            res <- assign "res" =<< case op of
+--                S.Plus -> initialiser (typeof a) []
+--                _      -> return true
+--
+--            withFakeSwitch $ do
+--                forM_ (zip ts [0..]) $ \(t, i) -> do
+--                    let ma = Value t $ C.Member (valExpr a) ("m" ++ show i)
+--                    let mb = Value t $ C.Member (valExpr b) ("m" ++ show i)
+--                    eq <- generateInfix S.EqEq ma mb
+--                    case op of
+--                        S.NotEq -> void $ if_ (not_ eq) (appendElem C.Break)
+--                        S.EqEq -> if_ (not_ eq) $ do
+--                            set res false
+--                            void $ appendElem C.Break
+--
+--                        S.LT -> do
+--                            lt <- generateInfix S.LT ma mb
+--                            if_ lt (appendElem C.Break)
+--                            void $ if_ (not_ eq) $ do
+--                                set res false
+--                                appendElem C.Break
+--
+--                        S.GT -> do
+--                            gt <- generateInfix S.GT ma mb
+--                            if_ gt (appendElem C.Break)
+--                            void $ if_ (not_ eq) $ do
+--                                set res false
+--                                appendElem C.Break
+--
+--                        S.Plus -> do
+--                            let mr = Value t $ C.Member (valExpr res) ("m" ++ show i)
+--                            void $ set mr =<< generateInfix S.Plus ma mb
+--
+--                case op of
+--                    S.NotEq -> set res false
+--                    S.LT    -> set res false
+--                    S.GT    -> set res false
+--                    _       -> return ()
+--
+--            return res
             
         _ -> error $ show (base, op)

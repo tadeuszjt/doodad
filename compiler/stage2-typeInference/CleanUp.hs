@@ -148,9 +148,6 @@ resolveFieldAccess typ (Sym sym) = do
             Type.Table t -> getFieldAccessorSymbol typeDefs t
             Type.Tuple t -> getFieldAccessorSymbol typeDefs t
             TypeApply symbol ts -> case Map.lookup symbol typeDefs of
-                Just (ss, Type.Record _)              -> symbol
-                Just (ss, Type.Tuple (Type.Record _)) -> symbol
-                Just (ss, Type.Table (Type.Record _)) -> symbol
                 x -> error (show x)
             _ -> error (show typ)
 
@@ -159,8 +156,6 @@ resolveFieldAccess typ (Sym sym) = do
         getTypeFieldSymbols typ = do
             base <- baseTypeOf typ
             case base of
-                Type.Record ts               -> catMaybes <$> mapM isSymbolType ts
-                Type.Tuple (Type.Record ts)  -> catMaybes <$> mapM isSymbolType ts
                 Type.Tuple t@(TypeApply _ _) -> getTypeFieldSymbols t
                 Type.Table t@(TypeApply _ _) -> getTypeFieldSymbols t
                 _ -> error (show typ)
