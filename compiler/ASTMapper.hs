@@ -176,7 +176,7 @@ mapTypeM f typ = do
         Type.String    -> return typ
         Type.Char      -> return typ
         Type _         -> return typ
-        Type.Tuple t   -> Type.Tuple <$> mapTypeM f t
+        Type.Tuple ts  -> Type.Tuple <$> mapM (mapTypeM f) ts
         Table t        -> Table <$> mapTypeM f t
         TypeApply s ts -> TypeApply s <$> mapM (mapTypeM f) ts
         ADT ts         -> ADT <$> mapM (mapTypeM f) ts

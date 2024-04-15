@@ -126,28 +126,23 @@ resolveFieldAccess typ (Sym sym) = do
     ctors    <- gets ctorDefs
     --liftIO $ putStrLn $ "resolveFieldAccess: " ++ sym ++ " " ++ show typ
     let typeSymbol = getFieldAccessorSymbol typeDefs typ
-    typeFieldSymbols <- getTypeFieldSymbols typ
-    typeResults <- return $ filter (\s -> Symbol.sym s == sym) typeFieldSymbols
+    --typeFieldSymbols <- getTypeFieldSymbols typ
+    --typeResults <- return $ filter (\s -> Symbol.sym s == sym) typeFieldSymbols
     ctorResults <- return $ Map.keys $ Map.filterWithKey
         (\symbol (typSym, _) -> Symbol.sym symbol == sym && typeSymbol == typSym)
         ctors
 
-    case ctorResults ++ typeResults of
+    --case ctorResults ++ typeResults of
+    case ctorResults of
         (a:b:xs) -> fail "ambiguous field symbol"
         []       -> return (Sym sym)
         [symbol] -> return symbol
     where
         -- Returns the symbol from the type which will be associated with field accesses. 
-        -- For example:
-        -- Person          -> Person
-        -- ()Person        -> Person
-        -- []Person        -> Person
-        -- ()PersonWrapper -> Person
         getFieldAccessorSymbol :: TypeDefsMap -> Type -> Symbol
         getFieldAccessorSymbol typeDefs typ = case typ of
-            Type.Table t -> getFieldAccessorSymbol typeDefs t
-            Type.Tuple t -> getFieldAccessorSymbol typeDefs t
             TypeApply symbol ts -> case Map.lookup symbol typeDefs of
+                Just (xs, t) -> symbol
                 x -> error (show x)
             _ -> error (show typ)
 
@@ -156,8 +151,8 @@ resolveFieldAccess typ (Sym sym) = do
         getTypeFieldSymbols typ = do
             base <- baseTypeOf typ
             case base of
-                Type.Tuple t@(TypeApply _ _) -> getTypeFieldSymbols t
-                Type.Table t@(TypeApply _ _) -> getTypeFieldSymbols t
+                --Type.Tuple t@(TypeApply _ _) -> getTypeFieldSymbols t
+                --Type.Table t@(TypeApply _ _) -> getTypeFieldSymbols t
                 _ -> error (show typ)
             where
                 isSymbolType :: Type -> DoM ASTResolved (Maybe Symbol)

@@ -150,9 +150,8 @@ collectMapper element = (\_ -> return element) =<< case element of
         PatGuarded _ pat expr -> collect $ ConsBase Type.Bool (typeof expr)
 
         PatTuple _ pats -> do
-            error ""
---            collectDefault patType (Type.Tuple $ Type.Record $ map typeof pats)
---            collect $ ConsTuple patType (map typeof pats)
+            collectDefault patType (Type.Tuple $ map typeof pats)
+            collect $ ConsTuple patType (map typeof pats)
 
         PatAnnotated pat t -> do
             collectEq t patType
@@ -244,7 +243,7 @@ collectMapper element = (\_ -> return element) =<< case element of
 
         AST.Tuple _ exprs -> do
             collect $ ConsTuple exprType (map typeof exprs)
---            collectDefault exprType $ Type.Tuple $ Type.Record (map typeof exprs)
+            collectDefault exprType $ Type.Tuple (map typeof exprs)
 
         Match _ e p -> do
             collectEq (typeof p) (typeof e)

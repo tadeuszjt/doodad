@@ -27,15 +27,41 @@ fn testSwitch()
     let 1 = x
 
 
+fn testTuple()
+    let x = (1, true)
+    let (1, true) = x
+    if x -> (1, false)
+        let true = false
+
+
+fn testGeneric()
+    fn[T] add(a T, b T) T
+        return a + b
+
+    let 2 = add(1, 1)
+    let 2.0 = add(1.0, 1.0)
+    let (3, 4) = add( (1, 2), (2, 2) )
+
+
+fn testTupleFields()
+    type MyTuple (a I64, b Bool)
+    let x : MyTuple = (1, true)
+    let 1 = x.a
+    let true = x.b
+
+    type[T] MyTuple2 (a Bool, b T)
+    let y : MyTuple2[F64]
+    y.b = 2.4
+    let (false, z) | z == 2.4 = y
+    
+
 fn main()
     testArithmetic()
     testFloats()
     testIf()
     testSwitch()
-
-
-    //let x = (1, true)
-
-
+    testTuple()
+    testGeneric()
+    testTupleFields()
 
     print("success")

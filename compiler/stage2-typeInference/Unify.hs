@@ -27,25 +27,21 @@ unifyOne pos constraint = withPos pos $ case constraint of
         resm <- Map.lookup symbol <$> gets ctorDefs
         base <- baseTypeOfm typ
         case base of
-            Just (Tuple t)   -> do
-                baseT <- baseTypeOfm t
-                case baseT of
-                    _ -> error ""
+            Just (Tuple ts) -> case resm of
+                Just (typeSymbol, i) -> unifyOne pos $ ConsEq exprType (ts !! i) --TODO, check more?
 
             Just (Table t)   -> do
                 baseT <- baseTypeOfm t
                 case baseT of
                     _ -> error ""
 
-
-    ConsTuple tupType ts -> do
+    ConsTuple tupType ts1 -> do
         basem <- baseTypeOfm tupType
         case basem of
             Nothing -> return []
-            Just (Tuple t) -> do
-                baseT <- baseTypeOfm t
-                case baseT of
-                    _ -> error (show baseT)
+            Just (Tuple ts2)
+                | length ts1 == length ts2 -> concat <$> zipWithM (\a b -> unifyOne pos (ConsEq a b)) ts1 ts2
+
             _ -> error (show basem)
 
     ConsEq t1 t2 -> case (t1, t2) of
@@ -53,7 +49,8 @@ unifyOne pos constraint = withPos pos $ case constraint of
         (Type x, t)              -> return [(Type x, t)]
         (t, Type x)              -> return [(Type x, t)]
         (Table t1, Table t2)     -> unifyOne pos (ConsEq t1 t2)
-        (Tuple t1, Tuple t2)     -> unifyOne pos (ConsEq t1 t2)
+        (Tuple ts1, Tuple ts2)
+            | length ts1 == length ts2 -> concat <$> zipWithM (\a b -> unifyOne pos (ConsEq a b)) ts1 ts2
 
         _ -> fail ("type mismatch: " ++ show t1 ++ " != " ++ show t2)
 
@@ -84,7 +81,7 @@ unifyOne pos constraint = withPos pos $ case constraint of
                 baseT <- baseTypeOfm t
                 case baseT of
                     Nothing -> return []
-                    Just (Tuple t)  -> unifyOne pos (ConsEq t2 t)
+                    Just (Tuple _)  -> error ""
 
             Nothing -> return []
             _ -> error (show basem)

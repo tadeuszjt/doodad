@@ -38,7 +38,7 @@ data Type
     | Bool                   
     | Char                   
     | String
-    | Tuple Type
+    | Tuple [Type]
     | Table Type
     | ADT [Type]
     | TypeApply Symbol [Type]
@@ -110,7 +110,7 @@ mapType f typ = f $ case typ of
     String         -> typ
     Char           -> typ
     Type _         -> typ
-    Tuple t        -> Tuple (mapType f t)
+    Tuple ts       -> Tuple $ map (mapType f) ts
     Table t        -> Table (mapType f t)
     TypeApply s ts -> TypeApply s $ map (mapType f) ts
     ADT ts         -> ADT $ map (mapType f) ts
@@ -156,12 +156,12 @@ applyTypeArguments argSymbols argTypes typ = do
             Just x  -> error (show x)
             Nothing -> TypeApply s <$> mapM (applyTypeArguments argSymbols argTypes) ts
 
-        Tuple t                 -> Tuple <$> applyTypeArguments argSymbols argTypes t
-        Table t                 -> Table <$> applyTypeArguments argSymbols argTypes t
-        ADT ts                  -> ADT <$> mapM (applyTypeArguments argSymbols argTypes) ts
-        _ | isSimple typ        -> return typ
-        Void                    -> return typ
-        _                       -> error $ "applyTypeArguments: " ++ show typ
+        Tuple ts         -> Tuple <$> mapM (applyTypeArguments argSymbols argTypes) ts
+        Table t          -> Table <$> applyTypeArguments argSymbols argTypes t
+        ADT ts           -> ADT <$> mapM (applyTypeArguments argSymbols argTypes) ts
+        _ | isSimple typ -> return typ
+        Void             -> return typ
+        _                -> error $ "applyTypeArguments: " ++ show typ
 
 
 typesCouldMatch :: (MonadFail m, TypeDefs m) => [Symbol] -> Type -> Type -> m Bool
@@ -173,8 +173,11 @@ typesCouldMatch generics t1 t2 = couldMatch t1 t2
             (Type _, _)                       -> return True
             (_, Type _)                       -> return True
 
-            (Tuple a, Tuple b)                -> couldMatch a b
-            (Table a, Table b)                -> typesCouldMatch generics a b
+            (Tuple as, Tuple bs)
+                | length as == length bs -> all id <$> zipWithM couldMatch as bs
+                
+
+            (Table a, Table b) -> typesCouldMatch generics a b
 
             -- type variables
             (TypeApply s1 ts1, TypeApply s2 ts2)

@@ -51,7 +51,7 @@ hasTypeVars typ = case typ of
     Type _         -> True
     Void           -> False
     t | isSimple t -> False
-    Type.Tuple t   -> hasTypeVars t
+    Type.Tuple ts  -> any (== True) (map hasTypeVars ts)
     TypeApply s ts -> any (== True) (map hasTypeVars ts)
     Table t        -> hasTypeVars t
     _ -> error (show typ)

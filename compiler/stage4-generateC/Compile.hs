@@ -126,10 +126,13 @@ generatePrint app val = case typeof val of
     Type.Bool -> void $ appendPrintf ("%s" ++ app) $
         [C.CndExpr (valExpr val) (C.String "true") (C.String "false")]
 
-    Type.Tuple t -> do
-        baseT <- baseTypeOf t
-        case baseT of
-            _ -> generatePrint app $ Value t (valExpr val)
+    Type.Tuple ts -> do
+        void $ appendPrintf "(" []
+
+        forM_ (zip ts [0..]) $ \(t, i) -> do
+            let ap = if i == (length ts - 1) then ")" ++ app else ", "
+            generatePrint ap $ Value t $ C.Member (valExpr val) ("m" ++ show i)
+
 
     Type.TypeApply s t -> do
         base <- baseTypeOf val
@@ -285,9 +288,21 @@ generatePattern pattern val = withPos pattern $ do
             return true
 
         PatTuple _ pats -> do
-            base@(Type.Tuple t) <- baseTypeOf val
-            baseT <- baseTypeOf t
-            error ""
+            base@(Type.Tuple ts) <- baseTypeOf val
+            unless (length pats == length ts) (error "invalid tuple pattern")
+
+            match <- assign "match" false
+            endLabel <- fresh "skipMatch"
+            -- TODO early exit?
+            forM_ (zip ts [0..]) $ \(t, i) -> do
+                let v = Value t $ C.Member (valExpr val) ("m" ++ show i)
+                b <- generatePattern (pats !! i) v
+                if_ (not_ b) $ appendElem (C.Goto endLabel)
+
+            set match true
+            appendElem (C.Label endLabel)
+
+            return match
 
 
         PatGuarded _ pat expr -> do
@@ -431,7 +446,12 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
         vals <- mapM generateExpr exprs
         base <- baseTypeOf typ
         case base of
-            Type.Tuple t -> initialiser typ vals -- TODO
+            Type.Tuple ts -> do
+                unless (length ts == length vals) (error "invalid tuple type")
+                initialiser typ vals
+
+
+
             _ -> error (show base)
 
     S.Construct pos symbol exprs -> do
@@ -508,48 +528,46 @@ generateInfix op a b = do
             _ -> error (show op)
 
 
-        Type.Tuple t -> do
-            error ""
---            ts <- getRecordTypes =<< baseTypeOf t
---            res <- assign "res" =<< case op of
---                S.Plus -> initialiser (typeof a) []
---                _      -> return true
---
---            withFakeSwitch $ do
---                forM_ (zip ts [0..]) $ \(t, i) -> do
---                    let ma = Value t $ C.Member (valExpr a) ("m" ++ show i)
---                    let mb = Value t $ C.Member (valExpr b) ("m" ++ show i)
---                    eq <- generateInfix S.EqEq ma mb
---                    case op of
---                        S.NotEq -> void $ if_ (not_ eq) (appendElem C.Break)
---                        S.EqEq -> if_ (not_ eq) $ do
---                            set res false
---                            void $ appendElem C.Break
---
---                        S.LT -> do
---                            lt <- generateInfix S.LT ma mb
---                            if_ lt (appendElem C.Break)
---                            void $ if_ (not_ eq) $ do
---                                set res false
---                                appendElem C.Break
---
---                        S.GT -> do
---                            gt <- generateInfix S.GT ma mb
---                            if_ gt (appendElem C.Break)
---                            void $ if_ (not_ eq) $ do
---                                set res false
---                                appendElem C.Break
---
---                        S.Plus -> do
---                            let mr = Value t $ C.Member (valExpr res) ("m" ++ show i)
---                            void $ set mr =<< generateInfix S.Plus ma mb
---
---                case op of
---                    S.NotEq -> set res false
---                    S.LT    -> set res false
---                    S.GT    -> set res false
---                    _       -> return ()
---
---            return res
+        Type.Tuple ts -> do
+            res <- assign "res" =<< case op of
+                S.Plus -> initialiser (typeof a) []
+                _      -> return true
+
+            withFakeSwitch $ do
+                forM_ (zip ts [0..]) $ \(t, i) -> do
+                    let ma = Value t $ C.Member (valExpr a) ("m" ++ show i)
+                    let mb = Value t $ C.Member (valExpr b) ("m" ++ show i)
+                    eq <- generateInfix S.EqEq ma mb
+                    case op of
+                        S.NotEq -> void $ if_ (not_ eq) (appendElem C.Break)
+                        S.EqEq -> if_ (not_ eq) $ do
+                            set res false
+                            void $ appendElem C.Break
+
+                        S.LT -> do
+                            lt <- generateInfix S.LT ma mb
+                            if_ lt (appendElem C.Break)
+                            void $ if_ (not_ eq) $ do
+                                set res false
+                                appendElem C.Break
+
+                        S.GT -> do
+                            gt <- generateInfix S.GT ma mb
+                            if_ gt (appendElem C.Break)
+                            void $ if_ (not_ eq) $ do
+                                set res false
+                                appendElem C.Break
+
+                        S.Plus -> do
+                            let mr = Value t $ C.Member (valExpr res) ("m" ++ show i)
+                            void $ set mr =<< generateInfix S.Plus ma mb
+
+                case op of
+                    S.NotEq -> set res false
+                    S.LT    -> set res false
+                    S.GT    -> set res false
+                    _       -> return ()
+
+            return res
             
         _ -> error $ show (base, op)

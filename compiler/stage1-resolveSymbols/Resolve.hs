@@ -151,7 +151,7 @@ popSymbolTable = do
 
 annoToType :: AnnoType -> Type
 annoToType anno = case anno of
-    AnnoTuple params  -> error ""
+    AnnoTuple params  -> Type.Tuple (map paramType params)
     AnnoTable params  -> error ""
     AnnoADT  params   -> Type.ADT    (map paramType params)
     AnnoType t        -> t

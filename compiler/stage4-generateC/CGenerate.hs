@@ -181,8 +181,11 @@ set a b = do
     base <- baseTypeOf a
     void $ case base of
         _ | isSimple base               -> void $ appendElem $ C.Set (valExpr a) (valExpr b)
-        Type.Tuple t -> do
-            error ""
+        Type.Tuple ts -> do
+            forM_ (zip ts [0..]) $ \(t, i) -> do
+                let va = Value t $ C.Member (valExpr a) ("m" ++ show i)
+                let vb = Value t $ C.Member (valExpr b) ("m" ++ show i)
+                set va vb
 
         Type.ADT ts -> void $ appendElem $ C.Set (valExpr a) (valExpr b) -- TODO broken
             
@@ -238,20 +241,9 @@ member :: Int -> Value -> Generate Value
 member index val = do
     base <- baseTypeOf val
     case base of
-        Type.Tuple t -> do
-            error ""
---            Type.Record ts <- baseTypeOf t
---            Type.RecordTree ns <- getRecordTree t
---            case ns !! index of
---                RecordLeaf t i -> return $ Value (ts !! index) $
---                    C.Member (valExpr val) ("m" ++ show i)
---
---                RecordTree _ -> do
---                    leaves <- getRecordLeaves (ns !! index)
---                    assign "member" $ Value (ts !! index) $ C.Initialiser $
---                        map (\(t, i) -> C.Address $ C.Member (valExpr val) ("m" ++ show i)) leaves
---
---                x -> error (show x)
+        Type.Tuple ts -> do
+            unless (index >= 0 && index < length ts) (error "invalid member index")
+            return $ Value (ts !! index) $ C.Member (valExpr val) ("m" ++ show index)
 
         Type.Table t -> do
             error ""
@@ -279,10 +271,9 @@ initialiser typ [] = do
 initialiser typ vals = do
     base <- baseTypeOf typ
     case base of
-        Type.Tuple t -> do
-            baseT <- baseTypeOf t
-            case baseT of
-                _ -> error (show baseT)
+        Type.Tuple ts -> do
+            unless (length vals == length ts) (fail "invalid tuple initialiser")
+            assign "zero" $ Value typ $ C.Initialiser (map valExpr vals)
 
         _ -> error (show base)
 
@@ -298,21 +289,6 @@ builtinTableAt val idx = do
         Type.Tuple _ -> error ""
         x -> error (show x)
 
-
-accessRecord :: Value -> Generate Value
-accessRecord val = do
-    base <- baseTypeOf val
-    case base of
-        _ | isSimple base -> error ""
-        Type.ADT ts -> error ""
-        Table t -> error ""
-
-        Type.Tuple t -> do
-            baseT <- baseTypeOf t
-            case baseT of
-                _ -> error (show baseT)
-
-        x -> error (show x)
 
 
 cParamOf :: S.Param -> Generate C.Param
@@ -360,10 +336,9 @@ cTypeOf a = case typeof a of
             Type.Bool -> return Cbool
             Type.Char -> return Cchar
             Type.String -> return (Cpointer Cchar)
-            Type.Tuple t -> do
-                baseT <- baseTypeOf t
-                case baseT of
-                    _ -> error ""
+            Type.Tuple ts -> do
+                cts <- mapM cTypeOf (map replaceVoid ts)
+                return $ Cstruct $ map (\(ct, i) -> C.Param ("m" ++ show i) ct) (zip cts [0..])
 
             Type.ADT ts -> do
                 cts <- mapM cTypeOf (map replaceVoid ts)

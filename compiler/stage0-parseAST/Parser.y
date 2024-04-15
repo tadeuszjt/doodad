@@ -316,7 +316,8 @@ ordinal_t   : Bool                         { Type.Bool }
             | String                       { Type.String }
 
 
-tuple_t  : '(' ')' type_                   { Type.Tuple $3 }
+tuple_t
+    : '(' type_ ',' types1 ')' { Type.Tuple ($2:$4) }
 
 table_t  : Table '[' type_ ']'             { Type.Table $3 }
 
