@@ -62,7 +62,7 @@ instance Show Type where
         Table t           -> "Table[" ++ show t ++ "]"
         ADT ts            -> "(" ++ intercalate " | " (map show ts) ++ ")"
         TypeApply s []    -> show s
-        TypeApply s ts    -> show s ++ "(" ++ intercalate ", " (map show ts) ++ ")"
+        TypeApply s ts    -> show s ++ "[" ++ intercalate ", " (map show ts) ++ "]"
 
 
 isInt :: Type -> Bool
@@ -79,9 +79,6 @@ isFloat typ = case typ of
     F32 -> True
     F64 -> True
     _   -> False
-
-isRecord :: Type -> Bool
-isRecord _               = False
 
 
 isSimple :: Type -> Bool
@@ -150,7 +147,7 @@ applyTypeArguments :: (MonadFail m, TypeDefs m) => [Symbol] -> [Type] -> Type ->
 applyTypeArguments argSymbols argTypes typ = do
     unless (length argSymbols == length argTypes) (fail $ "invalid arguments: " ++ show typ)
     let args = zip argSymbols argTypes
-    flattenType =<< case typ of
+    case typ of
         TypeApply s [] -> case lookup s args of
             Just x  -> return x
             Nothing -> return typ
@@ -168,20 +165,8 @@ applyTypeArguments argSymbols argTypes typ = do
 
 
 typesCouldMatch :: (MonadFail m, TypeDefs m) => [Symbol] -> Type -> Type -> m Bool
-typesCouldMatch generics t1 t2 = do
-    flat1 <- addTuple =<< flattenType t1
-    flat2 <- addTuple =<< flattenType t2
-    couldMatch flat1 flat2
+typesCouldMatch generics t1 t2 = couldMatch t1 t2
     where
-        addTuple :: (MonadFail m, TypeDefs m) => Type -> m Type
-        addTuple typ = do
-            b <- definitelyIgnoresTuples typ
-            return $ case typ of
-                Tuple t -> Tuple t
-                t | b   -> Tuple t
-                t       -> t
-
-        -- pure version of function that doesn't worry about flattening types
         couldMatch :: (MonadFail m, TypeDefs m) => Type -> Type -> m Bool
         couldMatch t1 t2 = case (t1, t2) of
             (a, b) | a == b                   -> return True
@@ -214,63 +199,3 @@ typesCouldMatch generics t1 t2 = do
 --            x -> error (show x)
 
             _ -> return False
-
-
-
--- Determines whether the type will change after a tuple application.
--- For example:
--- i64         -> False because ()i64 == i64
--- ()string    -> False because ()()string == ()string
--- {i64, bool} -> True  because (){i64, bool} != {i64, bool}
-definitelyIgnoresTuples :: (MonadFail m, TypeDefs m) => Type -> m Bool
-definitelyIgnoresTuples typ = case typ of
-    ADT _          -> return True
-    Void           -> return True
-    t | isSimple t -> return True
-    Tuple t        -> return True
-    Table t        -> return True
-    Type _         -> return False
-    TypeApply s ts -> do
-        resm <- Map.lookup s <$> getTypeDefs
-        case resm of
-            Just (ss, t) -> definitelyIgnoresTuples =<< applyTypeArguments ss ts t
-            Nothing      -> return False -- must be generic
-
-    _ -> error (show typ)
-
-
--- {}i64           -> {i64}
--- {}Person        -> Person
--- {}Vec2f         -> {}Vec2f
--- {}(){i64, bool} -> {i64, bool}
--- {}[]{i64, bool} -> {[]{i64, bool}}
--- ()i64         -> i64
--- ()()string    -> string
--- ()T           -> ()T
--- (){i64, bool} -> (){i64, bool}
-flattenType :: (MonadFail m, TypeDefs m) => Type -> m Type
-flattenType typ = case typ of
-    t | isSimple t -> return typ
-    Void           -> return typ
-    Type _         -> return typ
-    Table t        -> Table <$> flattenType t
-    ADT ts         -> ADT <$> mapM flattenType ts
-    TypeApply s ts -> TypeApply s <$> mapM flattenType ts
-
-    Tuple t -> do
-        t' <- flattenType t
-        b <- definitelyIgnoresTuples t'
-        return $ if b then t' else Tuple t'
-
-    x -> error (show x)
-
-
-getTypeFieldIndex :: (MonadFail m, TypeDefs m) => Type -> Type -> m Int
-getTypeFieldIndex typ field = do
-    base <- baseTypeOf typ
-    case base of
-        Tuple t   -> do 
-            b <- baseTypeOf t
-            getTypeFieldIndex b field
-        _ -> error (show typ)
-

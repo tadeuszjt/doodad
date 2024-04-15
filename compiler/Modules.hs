@@ -34,7 +34,6 @@ import CGenerate as C
 import Lexer
 import Compile as C
 import COptimise as O
-import TupleDeleter
 import Checker
 
 -- Modules are groups of .doo files with a module name header
@@ -183,7 +182,7 @@ buildModule args modPath = do
         when (printAstResolved args) $ liftIO $ prettyASTResolved astResolved'
 
         -- remove spurious tuples
-        astResolved <- fmap snd $ runDoMExcept astResolved' deleteSingleTuples
+        astResolved <- return astResolved'
 
         -- infer ast types
         (astFinal, inferCount) <- fmap fst $ runDoMExcept () $ withErrorPrefix "infer: " $

@@ -1,0 +1,41 @@
+module main
+
+fn testArithmetic()
+    let x = 1 + 2
+    let 3 = x
+
+fn testFloats()
+    let x = 1.0 + 2.0
+    let 3.0 = x
+    let 4.0 = 16.0 / 4.0
+
+fn testIf()
+    let x = 3
+    if x == 3
+        let true = true
+    else
+        let false = true
+
+
+fn testSwitch()
+    let x = 0
+    switch 10
+        x | x == 0; let true = false
+        y | y == 10; x = 1
+        _; let true = false
+
+    let 1 = x
+
+
+fn main()
+    testArithmetic()
+    testFloats()
+    testIf()
+    testSwitch()
+
+
+    //let x = (1, true)
+
+
+
+    print("success")

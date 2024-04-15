@@ -44,7 +44,7 @@ genSymbol sym = do
 
 cleanUpMapper :: Elem -> DoM ASTResolved Elem
 cleanUpMapper elem = case elem of
-    ElemType t -> ElemType <$> flattenType t
+    ElemType t -> return (ElemType t)
         
     ElemExpr (AExpr exprType expr@(AST.Field pos e symbol)) -> case symbol of
         Sym _             -> ElemExpr . AExpr exprType . AST.Field pos e <$> resolveFieldAccess (typeof e) symbol

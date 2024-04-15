@@ -18,7 +18,6 @@ import Error
 import Constraint
 import Monad
 import ASTMapper
-import TupleDeleter
 
 
 -- Function Finder contains functions which can determine whether a generic function could match
@@ -86,7 +85,7 @@ replaceGenericsInFuncBodyWithCall body call = do
     couldMatch <- callCouldMatchFunc call (callSymbol call) body
     unless couldMatch (error "headers could not match")
     subs <- unify (funcGenerics body) =<< getConstraints call body
-    mapFuncBodyM tupleDeleterMapper $ (applyFuncBody subs body) { funcGenerics = [] }
+    return $ (applyFuncBody subs body) { funcGenerics = [] }
 
 
 unifyOne :: [Symbol] -> Constraint -> DoM ASTResolved [(Type, Type)]
@@ -135,10 +134,7 @@ getConstraints call body = do
 
 
 getConstraintsFromTypes :: [Symbol] -> Type -> Type -> DoM ASTResolved [Constraint]
-getConstraintsFromTypes generics t1 t2 = do
-    flatT1 <- flattenType t1
-    flatT2 <- flattenType t2
-    fromTypes flatT1 flatT2
+getConstraintsFromTypes generics t1 t2 = fromTypes t1 t2
     where
         fromTypes :: Type -> Type -> DoM ASTResolved [Constraint]
         fromTypes t1 t2 = do

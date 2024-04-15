@@ -420,7 +420,7 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
         resm <- Map.lookup symbol <$> gets ctors
         index <- case resm of
             Just (typeSymbol, i) -> return i
-            Nothing              -> getTypeFieldIndex (typeof expr) (TypeApply symbol [])
+            Nothing              -> error ""
 
             _ -> error (show resm)
 

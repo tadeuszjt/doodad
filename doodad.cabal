@@ -92,7 +92,6 @@ executable doodad
         Constraint,
         FunctionFinder,
         ASTMapper,
-        TupleDeleter,
         Checker
 
 executable doodad-test
