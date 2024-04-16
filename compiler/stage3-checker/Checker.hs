@@ -97,7 +97,16 @@ pack = Set.toList . Set.fromList
 
 checkExpr :: Expr -> DoM CheckState [Object]
 checkExpr (AExpr exprType expression) = withPos expression $ case expression of
-    Int pos n -> return []
+    Int pos n -> do
+        base <- baseTypeOf exprType
+        case base of
+            I64 -> return []
+            I32 -> return []
+            I16 -> return []
+            I8 -> return []
+            x -> fail ("invalid integer type: " ++ show x)
+
+
     AST.Float pos n -> return []
     AST.Bool pos b -> return []
     AST.String pos s -> return []
@@ -149,8 +158,13 @@ checkExpr (AExpr exprType expression) = withPos expression $ case expression of
     Prefix pos op expr -> do
         return []
 
+    AST.Reference pos expr -> do
+        return []
 
-    x -> fail (show x)
+    Dereference pos expr -> return []
+
+
+    x -> fail ("unknown expression: " ++ show x)
     
 
 

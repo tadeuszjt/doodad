@@ -1,5 +1,8 @@
 module main
 
+import std/table
+
+
 fn testArithmetic()
     let x = 1 + 2
     let 3 = x
@@ -25,6 +28,12 @@ fn testSwitch()
         _; let true = false
 
     let 1 = x
+
+
+fn testLet()
+    let x = 1 in
+        x = 2
+    let x = 4
 
 
 fn testTuple()
@@ -53,7 +62,47 @@ fn testTupleFields()
     let y : MyTuple2[F64]
     y.b = 2.4
     let (false, z) | z == 2.4 = y
-    
+
+
+fn testFnWithRef()
+    fn f(a &I64)
+        a = a + 1
+    let x = 1
+    f(&x)
+    let 2 = x
+
+    type[T] MyRefType &T
+    fn g(a MyRefType[Bool])
+        a = !a
+
+    let a = true
+    g(&a)
+    let false = a
+
+
+fn testTable()
+    data table Table[I64]
+
+    let 0 = table.len()
+
+    table.push(1)
+    table.push(2)
+    table.push(3)
+
+    let 3 = table.len()
+
+    let 3 = table.pop()
+    let 2 = table.pop()
+    let 1 = table.pop()
+
+    let 0 = table.len()
+
+//    type Person (age I64, male Bool)
+//    data t2 Table[Person]
+//
+//    t2.push( (1, true) : Person )
+//    t2.push( (2, false) : Person )
+
 
 fn main()
     testArithmetic()
@@ -63,5 +112,8 @@ fn main()
     testTuple()
     testGeneric()
     testTupleFields()
+    testLet()
+    testFnWithRef()
+    testTable()
 
     print("success")

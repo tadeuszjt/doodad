@@ -134,6 +134,12 @@ mapExprM f expr = withPos expr $ do
             pattern' <- mapPattern f pattern
             return $ AST.Match pos expr' pattern'
 
+        AST.Reference pos expr -> do
+            expr' <- mapExprM f expr
+            return $ AST.Reference pos expr'
+
+        Dereference pos expr -> Dereference pos <$> mapExprM f expr
+
         _ -> error (show expr)
     case res of
         ElemExpr x -> return x
@@ -180,6 +186,7 @@ mapTypeM f typ = do
         Table t        -> Table <$> mapTypeM f t
         TypeApply s ts -> TypeApply s <$> mapM (mapTypeM f) ts
         ADT ts         -> ADT <$> mapM (mapTypeM f) ts
+        Type.Reference t -> Type.Reference <$> mapTypeM f t
         Void           -> return typ
         _ -> error (show typ)
     case res of

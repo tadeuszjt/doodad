@@ -77,6 +77,7 @@ funcFullyResolved generics body =
             Tuple ts                        -> all id (map typeFullyResolved ts)
             x | isSimple x                  -> True
             Void                            -> True
+            Type.Reference t                -> typeFullyResolved t
             x -> error $ "typeFullyResolved: " ++ show x
 
 
@@ -151,6 +152,8 @@ getConstraintsFromTypes generics t1 t2 = fromTypes t1 t2
                 (Tuple as, Tuple bs)
                     | length as == length bs ->
                         (ConsEq t1 t2 :) . concat <$> zipWithM fromTypes as bs
+
+                (Reference a, Reference b) -> fromTypes a b
 
                 (TypeApply s1 ts1, TypeApply s2 ts2)
                     | s1 `elem` generics -> do 

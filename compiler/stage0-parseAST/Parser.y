@@ -19,6 +19,7 @@ import Symbol
 %left      '+' '-'
 %left      '*' '/' '%'
 %nonassoc  '<=' '>=' '<' '>' '++'
+%right     '&' '*'
 %right     '!'
 %left      ':'
 %nonassoc  '!'
@@ -45,6 +46,7 @@ import Symbol
     '@'        { Token _ Token.TokSym "@" }
     '~'        { Token _ Token.TokSym "~" }
     '#'        { Token _ Token.TokSym "#" }
+    '&'        { Token _ Token.TokSym "&" }
     '!='       { Token _ Token.TokSym "!=" }
     '<='       { Token _ Token.TokSym "<=" }
     '>='       { Token _ Token.TokSym ">=" }
@@ -231,7 +233,7 @@ pattern  : '_'                           { PatIgnore (tokPos $1) }
          | pattern '|' expr '->' pattern { PatGuarded (tokPos $2) $1 (Match (tokPos $4) $3 $5) }
          | Symbol '(' patterns ')'       { PatField (tokPos $2) (snd $1) $3 }
          | pattern ':' type_             { PatAnnotated $1 $3 }
-
+ 
 ---------------------------------------------------------------------------------------------------
 -- Expressions ------------------------------------------------------------------------------------
 
@@ -257,9 +259,13 @@ expr   : literal                                 { $1 }
        | '(' exprsA ')'                          { case $2 of [x] -> x; xs -> AST.Tuple (tokPos $1) xs }
        | symbol '(' exprsA ')'                   { Call (tokPos $2) Nothing (snd $1) $3 }
        | Symbol '(' exprsA ')'                   { Construct (tokPos $2) (snd $1) $3 }
-       | expr '.' symbol '(' exprsA ')'          { Call (tokPos $4) (Just $1) (snd $3) $5 }
+       --| expr '.' symbol '(' exprsA ')'          { Call (tokPos $4) (Just $1) (snd $3) $5 }
+       | expr '.' symbol '(' exprsA ')'          { Call (tokPos $4) Nothing (snd $3) (AST.Reference (tokPos $2) $1 : $5) }
        | expr '.' ident                          { Field (tokPos $2) $1 (Sym $ tokStr $3) }
        | expr '.' Ident                          { Field (tokPos $2) $1 (Sym $ tokStr $3) }
+       | '&' expr                                { AST.Reference (tokPos $1) $2 }
+       | '*' expr                                { Dereference (tokPos $1) $2 }
+
 
 literal : int_c                                  { AST.Int (tokPos $1) (read $ tokStr $1) }
         | float_c                                { AST.Float (tokPos $1) (read $ tokStr $1) }
@@ -302,6 +308,7 @@ type_         : ordinal_t                  { $1 }
               | Symbol '[' types1 ']'      { TypeApply (snd $1) $3 }
               | tuple_t                    { $1 }
               | table_t                    { $1 }
+              | '&' type_                  { Type.Reference $2 }
 
 
 ordinal_t   : Bool                         { Type.Bool }
@@ -325,6 +332,7 @@ table_t  : Table '[' type_ ']'             { Type.Table $3 }
 anno_t   : ordinal_t                       { AnnoType $1 }
          | tuple_t                         { AnnoType $1 }
          | table_t                         { AnnoType $1 }
+         | '&' type_                       { AnnoType (Type.Reference $2) }
          | '(' ')' '{' paramsA1 '}'        { AnnoTuple $4 }
          | Table '[' '{' paramsA1 '}' ']'  { AnnoTable $4 }
          | '(' paramsA1 ')'                { AnnoTuple $2 }

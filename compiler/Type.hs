@@ -41,6 +41,7 @@ data Type
     | Tuple [Type]
     | Table Type
     | ADT [Type]
+    | Reference Type
     | TypeApply Symbol [Type]
     deriving (Eq, Ord)
 
@@ -61,6 +62,7 @@ instance Show Type where
         Tuple t           -> "()" ++ show t
         Table t           -> "Table[" ++ show t ++ "]"
         ADT ts            -> "(" ++ intercalate " | " (map show ts) ++ ")"
+        Reference t       -> "&" ++ show t
         TypeApply s []    -> show s
         TypeApply s ts    -> show s ++ "[" ++ intercalate ", " (map show ts) ++ "]"
 
@@ -115,6 +117,7 @@ mapType f typ = f $ case typ of
     TypeApply s ts -> TypeApply s $ map (mapType f) ts
     ADT ts         -> ADT $ map (mapType f) ts
     Void           -> typ
+    Reference t    -> Reference $ mapType f t
     _ -> error (show typ)
 
 
@@ -124,7 +127,7 @@ baseTypeOf a = do
     case resm of
         Nothing -> error "baseTypeOf"
         Just x  -> return x
-    
+
 
 baseTypeOfm :: (MonadFail m, TypeDefs m, Typeof a) => a -> m (Maybe Type)
 baseTypeOfm a = case typeof a of
@@ -134,6 +137,8 @@ baseTypeOfm a = case typeof a of
     Tuple t        -> return $ Just (Tuple t)
     Table t        -> return $ Just (Table t)
     Void           -> return $ Just Void
+    Reference t    -> return $ Just (Reference t)
+
     TypeApply symbol ts -> do
         resm <- Map.lookup symbol <$> getTypeDefs
         case resm of
@@ -159,6 +164,7 @@ applyTypeArguments argSymbols argTypes typ = do
         Tuple ts         -> Tuple <$> mapM (applyTypeArguments argSymbols argTypes) ts
         Table t          -> Table <$> applyTypeArguments argSymbols argTypes t
         ADT ts           -> ADT <$> mapM (applyTypeArguments argSymbols argTypes) ts
+        Reference t      -> Reference <$> applyTypeArguments argSymbols argTypes t
         _ | isSimple typ -> return typ
         Void             -> return typ
         _                -> error $ "applyTypeArguments: " ++ show typ
@@ -175,6 +181,8 @@ typesCouldMatch generics t1 t2 = couldMatch t1 t2
 
             (Tuple as, Tuple bs)
                 | length as == length bs -> all id <$> zipWithM couldMatch as bs
+
+            (Reference a, Reference b) -> typesCouldMatch generics a b
                 
 
             (Table a, Table b) -> typesCouldMatch generics a b

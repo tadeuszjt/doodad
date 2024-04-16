@@ -54,4 +54,5 @@ hasTypeVars typ = case typ of
     Type.Tuple ts  -> any (== True) (map hasTypeVars ts)
     TypeApply s ts -> any (== True) (map hasTypeVars ts)
     Table t        -> hasTypeVars t
+    Type.Reference t    -> hasTypeVars t
     _ -> error (show typ)

@@ -1,39 +1,20 @@
 module table
 
-import std/range
 
+fn[T] len(table &Table[T]) I64
+    let len = 0
+    ${ $len = $table->len; }
+    return len
 
-fn[T] {t Table[T]} len() I64
-    ${ return $t->len; }
+fn[T] push(table &Table[T], item T)
+    builtin_table_append(table)
+    builtin_at(table, table.len() - 1) = item
 
+fn[T] at(table &Table[T], index I64) &T
+    return &builtin_at(table, index)
+    
 
-fn[T] {t Table[T]} push(elem ()T)
-    builtin_table_append(t)
-    t.at(t.len() - 1) = elem{}
-
-
-fn[T] {t Table[T]} push()
-    let elem:()T
-    builtin_table_append(t)
-    t.at(t.len() - 1) = elem{}
-
-
-fn[T] {t Table[T]} pop() ()T
-    data elem ()T
-    elem{} = t.at(t.len() - 1)
+fn[T] pop(t &Table[T]) T
+    let item : T = *t.at(t.len() - 1)
     ${ $t->len--; }
-    return elem
-
-
-fn[T] {t Table[T]} at(index I64) {}T
-    assert(index >= 0 && index < t.len(), "index out of range")
-    return builtin_at(t, index)
-
-fn[T] {t Table[T]} get(index I64) ()T
-    let elem:()T
-    elem{} = t.at(index)
-    return elem
-
-
-fn[T] {t Table[T]} range() Range[I64]
-    return (0, t.len())
+    return item

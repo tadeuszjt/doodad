@@ -113,8 +113,9 @@ collectFuncDef symbol body = do
     modify $ \s -> s { symTab = SymTab.push (symTab s) }
     oldRetty <- gets curRetty
     modify $ \s -> s { curRetty = funcRetty body }
-    forM (funcParams body) $ \(Param _ symbol t) -> define symbol (ObjVar t)
+    forM (funcParams body) $ \(Param _ symbol t) -> error ""
     forM_ (funcArgs body) $ \(Param _ symbol t) -> define symbol (ObjVar t)
+
     mapStmtM collectMapper (funcStmt body)
     modify $ \s -> s { curRetty = oldRetty }
     --collectDefault (funcRetty body) Void
@@ -177,9 +178,19 @@ collectMapper element = (\_ -> return element) =<< case element of
         Float _ _           -> collectDefault exprType F64
         Field _ e symbol    -> collect $ ConsField (typeof e) symbol exprType
 
+        AST.Reference _ e -> do
+            collect $ ConsBase exprType $ Type.Reference (typeof e)
+            collect $ ConsReference exprType (typeof e)
+            collectDefault exprType $ Type.Reference (typeof e)
+
+        Dereference _ e -> do
+            collect $ ConsBase (typeof e) (Type.Reference exprType)
+            collect $ ConsReference (typeof e) exprType
+            
+
         Ident _ symbol -> do
             ObjVar typ <- look symbol 
-            collectEq typ exprType
+            collect $ ConsIdent typ exprType
 
         AST.Char _ _ -> do
             collect (ConsBase exprType Type.Char)
@@ -222,7 +233,7 @@ collectMapper element = (\_ -> return element) =<< case element of
                 "builtin_at" -> do
                     check (length args == 2) "invalid builtin_at call"
                     collect $ ConsBase (typeof $ args !! 1) I64
-                    collect $ ConsSubscript (typeof $ args !! 0) exprType
+                    --collect $ ConsSubscript (typeof $ args !! 0) exprType
                 "builtin_table_append" -> do
                     check (length args == 1) "invalid builtin_table_append call"
                     collectEq exprType Void

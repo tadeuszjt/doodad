@@ -164,7 +164,7 @@ void init() {
 /* ------------------HELPERS--------------------*/
 /* helper functions to validate chars and strings */
 bool issymbol(char c) {
-    char *symbols = "=+-*/%!&|(){}[].,:;_<>";
+    char *symbols = "=+-*/%!&|(){}[].,:;_<>&";
     for (int i = 0; symbols[i] != '\0'; i++) {
         if (c == symbols[i]) {
             return true;

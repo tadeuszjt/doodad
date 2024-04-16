@@ -102,9 +102,17 @@ generateFunc symbol body = do
 --                define (show sName) rec
 
         forM_ (ASTResolved.funcArgs body) $ \arg -> do
-            ctyp <- cTypeOf (paramType arg)
-            name <- return $ show (S.paramName arg)
-            define name $ Value (S.paramType arg) (C.Ident name)
+            let name = show (paramName arg)
+            base <- baseTypeOf (paramType arg)
+            case base of
+                Type.Reference t -> do
+                    baseT <- baseTypeOf t
+                    case baseT of
+                        _ | isSimple baseT -> define name $ Value t $ (C.Deref $ C.Ident name)
+                        Table _            -> define name $ Value t $ (C.Deref $ C.Ident name)
+                        x -> error (show x)
+                _ -> do
+                    define name $ Value (S.paramType arg) (C.Ident name)
 
         generateStmt (ASTResolved.funcStmt body)
         when (ASTResolved.funcRetty body /= Type.Void) $ -- check to ensure function has return
@@ -474,6 +482,23 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
 
             _ -> error (show base)
 
+    S.Reference pos expr -> do
+        val <- generateExpr expr
+        base <- baseTypeOf val
+        case base of
+            _ | isSimple base -> return $ Value typ $ C.Address (valExpr val)
+            Table _           -> return $ Value typ $ C.Address (valExpr val)
+            x -> error (show x)
+
+    S.Dereference pos expr -> do
+        val <- generateExpr expr
+        Type.Reference t <- baseTypeOf val
+        base <- baseTypeOf t
+        case base of
+            _ | isSimple base -> return $ Value t $ C.Deref (valExpr val)
+            Table _           -> return $ Value t $ C.Deref (valExpr val)
+            
+            x -> error (show x)
 
     _ -> error (show expr_)
     where
