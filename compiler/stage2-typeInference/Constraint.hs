@@ -14,4 +14,5 @@ data Constraint
     | ConsForExpr Type Type
     | ConsReference Type Type    -- t1 is reference type of t2
     | ConsIdent Type Type        -- t1 is ident type, t2 is exprType
+    | ConsBuiltinAt Type Type
     deriving (Show, Eq, Ord)

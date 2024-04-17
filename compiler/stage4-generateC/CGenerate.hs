@@ -270,8 +270,8 @@ initialiser typ vals = do
         _ -> error (show base)
 
 
-builtinTableAt :: Value -> Value -> Generate Value
-builtinTableAt val idx = do
+builtinTableGet :: Value -> Value -> Generate Value
+builtinTableGet val idx = do
     Table t <- baseTypeOf val
     baseT <- baseTypeOf t
     case baseT of
@@ -281,6 +281,20 @@ builtinTableAt val idx = do
             
         ADT ts -> error ""
         Type.Table _ -> error ""
+        x -> error (show x)
+
+
+builtinTableAt :: Value -> Value -> Generate Value
+builtinTableAt val idx = do
+    Type.Reference tabTyp <- baseTypeOf val
+    I64 <- baseTypeOf idx
+    Table t <- baseTypeOf tabTyp
+    baseT <- baseTypeOf t
+    case baseT of
+        x | isSimple x -> return $ Value (Type.Reference t) $ C.Address $ C.Subscript
+            (C.Member (C.Deref $ valExpr val) "r0")
+            (valExpr idx)
+
         x -> error (show x)
 
 

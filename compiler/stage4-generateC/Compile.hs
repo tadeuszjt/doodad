@@ -195,7 +195,7 @@ generateStmt stmt = withPos stmt $ case stmt of
             patMatches <- case mpat of
                 Nothing -> return true
                 Just pat -> case base of
-                    Type.Table ts -> generatePattern pat =<< builtinTableAt val idx
+                    Type.Table ts -> generatePattern pat =<< builtinTableGet val idx
                     _ -> error (show base)
 
             if_ (not_ patMatches) $ appendElem C.Break
@@ -342,7 +342,15 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
         idx <- generateExpr expr2
         base <- baseTypeOf val
         case base of
-            Type.Table _ -> builtinTableAt val idx
+            Type.Reference t -> do
+                Table _ <- baseTypeOf t
+                builtinTableAt val idx
+
+            Type.Table _ -> do
+                baseType <- baseTypeOf typ
+                case baseType of
+                    Type.Reference t -> builtinTableAt val idx
+                    _                -> builtinTableGet val idx
 
     S.Builtin _ "builtin_table_append" [expr1] -> do
         val <- generateExpr expr1

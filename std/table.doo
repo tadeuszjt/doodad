@@ -11,7 +11,7 @@ fn[T] push(table &Table[T], item T)
     builtin_at(table, table.len() - 1) = item
 
 fn[T] at(table &Table[T], index I64) &T
-    return &builtin_at(table, index)
+    return builtin_at(&table, index)
     
 
 fn[T] pop(t &Table[T]) T

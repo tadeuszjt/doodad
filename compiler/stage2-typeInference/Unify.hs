@@ -97,6 +97,14 @@ unifyOne pos constraint = withPos pos $ case constraint of
             (Just b1, Just b2) -> unifyOne pos (ConsEq b1 b2)
             _                  -> return []
 
+    ConsBuiltinAt t1 t2 -> do
+        baseT1m <- baseTypeOfm t1
+        case baseT1m of
+            Nothing -> return []
+            Just x | isSimple x -> return []
+            Just (Reference t) -> return []
+            x -> error (show x)
+
 
 
 unify :: [(Constraint, TextPos)] -> DoM ASTResolved [(Type, Type)]

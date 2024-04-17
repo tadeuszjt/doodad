@@ -107,6 +107,7 @@ applyConstraint subs constraint = case constraint of
     ConsField  t1 s t2     -> ConsField (rf t1) s (rf t2)
     ConsForExpr t1 t2      -> ConsForExpr (rf t1) (rf t2)
     ConsReference t1 t2    -> ConsReference (rf t1) (rf t2)
+    ConsBuiltinAt t1 t2    -> ConsBuiltinAt (rf t1) (rf t2)
     where
         rf = applyType subs
 

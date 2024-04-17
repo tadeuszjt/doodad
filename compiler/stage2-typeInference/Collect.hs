@@ -259,6 +259,10 @@ collectExpr (AExpr exprType expression) = withPos expression $ case expression o
             "builtin_at" -> do
                 check (length exprs == 2) "invalid builtin_at call"
                 collect $ ConsBase (typeof $ exprs !! 1) I64
+                collect $ ConsBuiltinAt exprType (typeof $ exprs !! 0)
+                
+
+
             "builtin_table_append" -> do
                 check (length exprs == 1) "invalid builtin_table_append call"
                 collectEq exprType Void
