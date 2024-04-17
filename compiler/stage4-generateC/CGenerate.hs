@@ -275,12 +275,24 @@ builtinTableGet val idx = do
     Table t <- baseTypeOf val
     baseT <- baseTypeOf t
     case baseT of
-        _ | isSimple baseT -> return $ Value t $ C.Subscript (C.Member (valExpr val) "r0") (valExpr idx)
+        _ | isSimple baseT -> return $ Value t $ C.Subscript
+            (C.Member (valExpr val) "r0")
+            (valExpr idx)
         Type.Tuple _ -> error ""
 
             
         ADT ts -> error ""
         Type.Table _ -> error ""
+        x -> error (show x)
+
+
+
+deref :: Value -> Generate Value
+deref val = do
+    Type.Reference t <- baseTypeOf val
+    case t of
+        x | isSimple x -> return $ Value t $ C.Deref (valExpr val)
+        Table _        -> return $ Value t $ C.Deref (valExpr val)
         x -> error (show x)
 
 

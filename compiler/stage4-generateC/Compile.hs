@@ -71,16 +71,7 @@ generateFunc symbol body = do
     withCurID id $ do
         forM_ (ASTResolved.funcArgs body) $ \arg -> do
             let name = show (paramName arg)
-            base <- baseTypeOf (paramType arg)
-            case base of
-                Type.Reference t -> do
-                    baseT <- baseTypeOf t
-                    case baseT of
-                        _ | isSimple baseT -> define name $ Value t $ (C.Deref $ C.Ident name)
-                        Table _            -> define name $ Value t $ (C.Deref $ C.Ident name)
-                        x -> error (show x)
-                _ -> do
-                    define name $ Value (S.paramType arg) (C.Ident name)
+            define name $ Value (S.paramType arg) (C.Ident name)
 
         generateStmt (ASTResolved.funcStmt body)
         when (ASTResolved.funcRetty body /= Type.Void) $ -- check to ensure function has return
@@ -319,7 +310,16 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
     S.String _ s           -> return $ Value typ (C.String s)
     S.Char _ c             -> return $ Value typ (C.Char c)
     S.Match _ expr pattern -> generatePattern pattern =<< generateExpr expr
-    S.Ident _ symbol       -> look (show symbol)
+    S.Ident _ symbol       -> do
+        base <- baseTypeOf typ
+        val <- look (show symbol)
+        baseVal <- baseTypeOf val
+        case (base, baseVal) of
+            (Type.Reference _, Type.Reference _) -> return val
+            (_, Type.Reference _)                -> deref val
+            (_, _)                               -> return val
+
+
     S.Builtin _ "conv" [expr] -> convert typ =<< generateExpr expr
 
     S.Builtin _ "print" exprs -> do
@@ -445,15 +445,7 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
             Table _           -> return $ Value typ $ C.Address (valExpr val)
             x -> error (show x)
 
-    S.Dereference pos expr -> do
-        val <- generateExpr expr
-        Type.Reference t <- baseTypeOf val
-        base <- baseTypeOf t
-        case base of
-            _ | isSimple base -> return $ Value t $ C.Deref (valExpr val)
-            Table _           -> return $ Value t $ C.Deref (valExpr val)
-            
-            x -> error (show x)
+    S.Dereference pos expr -> deref =<< generateExpr expr
 
     _ -> error (show expr_)
     where
