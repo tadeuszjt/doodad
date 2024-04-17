@@ -13,7 +13,6 @@ import Control.Monad.State
 import qualified SymTab
 import Symbol
 import ASTResolved
-import ASTMapper
 import FunctionFinder
 
 
@@ -111,151 +110,190 @@ collectFuncDef symbol body = do
     forM (funcParams body) $ \(Param _ symbol t) -> error ""
     forM_ (funcArgs body) $ \(Param _ symbol t) -> define symbol (ObjVar t)
 
-    mapStmtM collectMapper (funcStmt body)
+    collectStmt (funcStmt body)
+
     modify $ \s -> s { curRetty = oldRetty }
     --collectDefault (funcRetty body) Void
     modify $ \s -> s { symTab = SymTab.pop (symTab s) }
 
 
-collectMapper :: Elem -> DoM CollectState Elem
-collectMapper element = (\_ -> return element) =<< case element of
-    ElemStmt statement -> collectPos statement $ case statement of
-        Block _                -> return ()
-        EmbedC _ _             -> return ()
-        ExprStmt expr          -> collectDefault (typeof expr) Void
-        If _ expr blk melse    -> collect $ ConsBase Type.Bool (typeof expr)
-        Let _ pattern mexpr _  -> when (isJust mexpr) $ collectEq (typeof $ fromJust mexpr) (typeof pattern)
-        SetOp _ op expr1 expr2 -> collectEq (typeof expr1) (typeof expr2)
-        While _ expr _         -> collect $ ConsBase Type.Bool (typeof expr)
-        Return _ mexpr         -> collectEq (maybe Void typeof mexpr) =<< gets curRetty
 
-        Switch p expr cases    -> forM_ cases $ \(pat, _) ->
-            collectEq (typeof pat) (typeof expr)
 
-        For p expr mpat blk -> when (isJust mpat) $ do
-            collect $ ConsForExpr (typeof expr) (typeof $ fromJust mpat)
 
-        Data p symbol typ mexpr -> do
-            define symbol (ObjVar typ)
-            void $ traverse (collectEq typ . typeof) mexpr
+collectStmt :: Stmt -> DoM CollectState ()
+collectStmt statement = withPos statement $ case statement of
+    EmbedC _ _ -> return ()
 
-    ElemPattern (PatAnnotated pattern patType) -> collectPos pattern $ case pattern of
-        PatIgnore _           -> return ()
-        PatIdent _ symbol     -> define symbol (ObjVar patType)
-        PatLiteral expr       -> collectEq patType (typeof expr)
-        PatGuarded _ pat expr -> collect $ ConsBase Type.Bool (typeof expr)
+    Block stmts -> mapM_ collectStmt stmts
 
-        PatTuple _ pats -> do
-            collectDefault patType (Type.Tuple $ map typeof pats)
-            collect $ ConsTuple patType (map typeof pats)
+    SetOp _ op expr1 expr2 -> do
+        collect $ ConsEq (typeof expr1) (typeof expr2) 
+        collectExpr expr1
+        collectExpr expr2
 
-        PatAnnotated pat t -> do
-            collectEq t patType
-            collectEq t (typeof pat)
+    Return _ mexpr -> do
+        curRetty <- gets curRetty
+        collect $ ConsEq (maybe Void typeof mexpr) curRetty
+        void $ traverse collectExpr mexpr
 
-        PatField _ symbol pats -> do
-            ast <- gets astResolved
-            candidates <- fmap catMaybes $ forM (Map.toList $ ctorDefs ast) $ \(symb, _) -> do
-                case symbolsCouldMatch symb symbol of
-                    True -> return (Just symb)
-                    False -> return Nothing
-            symbol' <- case candidates of
-                [s] -> return s
-                xs  -> error $ "PatField candidates for: " ++ show symbol ++ " " ++ show xs
+    ExprStmt expr -> do
+        collect $ ConsEq (typeof expr) Void
+        collectExpr expr
 
-            (s, i) <- mapGet symbol' . ctorDefs =<< gets astResolved
-            collect $ ConsAdtField patType i (map typeof pats)
+    Let _ pattern mexpr mstmt  -> do
+        when (isJust mexpr) $ collect $ ConsEq (typeof $ fromJust mexpr) (typeof pattern)
+        collectPattern pattern
+        void $ traverse collectExpr mexpr
+        void $ traverse collectStmt mstmt
+        
+    If _ expr blk melse -> do
+        collect $ ConsBase Type.Bool (typeof expr)
+        collectExpr expr
+        collectStmt blk
+        void $ traverse collectStmt melse
 
-    ElemExpr (AExpr exprType expression) -> collectPos expression $ case expression of
-        Call _ Nothing symbol exprs -> collectCall exprType symbol exprs
-        Prefix _ op expr    -> collectEq exprType (typeof expr)
-        Int _ _             -> collectDefault exprType I64
-        Float _ _           -> collectDefault exprType F64
-        Field _ e symbol    -> collect $ ConsField (typeof e) symbol exprType
+    Switch _ expr cases -> do
+        forM_ cases $ \(pat, blk) -> do
+            collect $ ConsEq (typeof pat) (typeof expr)
+            collectStmt blk
+            collectPattern pat
+        collectExpr expr
 
-        AST.Reference _ e -> do
-            collect $ ConsBase exprType $ Type.Reference (typeof e)
-            collect $ ConsReference exprType (typeof e)
-            collectDefault exprType $ Type.Reference (typeof e)
+    Data _ symbol typ mexpr -> do
+        define symbol (ObjVar typ)
+        void $ traverse (collectEq typ . typeof) mexpr
+        void $ traverse collectExpr mexpr
 
-        Dereference _ e -> do
-            collect $ ConsBase (typeof e) (Type.Reference exprType)
-            collect $ ConsReference (typeof e) exprType
-            
+    x -> error (show x)
 
-        Ident _ symbol -> do
-            ObjVar typ <- look symbol 
-            collect $ ConsIdent typ exprType
+collectPattern :: Pattern -> DoM CollectState ()
+collectPattern (PatAnnotated pattern patType) = withPos pattern $ case pattern of
+    PatIgnore _           -> return ()
+    PatIdent _ symbol     -> define symbol (ObjVar patType)
+    PatLiteral expr       -> do
+        collectEq patType (typeof expr)
+        collectExpr expr
+    PatGuarded _ pat expr -> do
+        collect $ ConsBase Type.Bool (typeof expr)
+        collectPattern pat
+        collectExpr expr
 
-        AST.Char _ _ -> do
-            collect (ConsBase exprType Type.Char)
-            collectDefault exprType Type.Char
+    PatTuple _ pats -> do
+        collectDefault patType (Type.Tuple $ map typeof pats)
+        collect $ ConsTuple patType (map typeof pats)
+        mapM_ collectPattern pats
 
-        AST.Bool _ _ -> do
-            collect (ConsBase exprType Type.Bool)
-            collectDefault exprType Type.Bool
+    PatAnnotated pat t -> do
+        collectEq t patType
+        collectEq t (typeof pat)
+        collectPattern pat
 
-        AST.String _ _ -> do
-            collect (ConsBase exprType Type.String)
-            collectDefault exprType Type.String
+    PatField _ symbol pats -> do
+        ast <- gets astResolved
+        candidates <- fmap catMaybes $ forM (Map.toList $ ctorDefs ast) $ \(symb, _) -> do
+            case symbolsCouldMatch symb symbol of
+                True -> return (Just symb)
+                False -> return Nothing
+        symbol' <- case candidates of
+            [s] -> return s
+            xs  -> error $ "PatField candidates for: " ++ show symbol ++ " " ++ show xs
 
-        Construct _ symbol args -> do
-            (typeSymbol, i)    <- withErrorPrefix "benis " $ mapGet symbol =<< gets (ctorDefs . astResolved)
-            (generics, ADT ts) <- mapGet typeSymbol =<< gets (typeFuncs . astResolved)
-            case exprType of
-                Type _ -> return ()
+        (s, i) <- mapGet symbol' . ctorDefs =<< gets astResolved
+        collect $ ConsAdtField patType i (map typeof pats)
+        mapM_ collectPattern pats
 
-                TypeApply s _ | s == typeSymbol -> do
-                    case args of
-                        []    -> unless ( (ts !! i) == Void ) (error "type wasn't void")
-                        [arg] -> collect $ ConsAdtField exprType i [typeof arg]
-                        args  -> collect $ ConsAdtField exprType i (map typeof args)
+    x -> error (show x)
 
-                _ -> return () -- TODO
-                _ -> error (show exprType)
 
-        Builtin _ sym args -> do 
-            case sym of
-                "conv"  -> return ()
-                "assert" -> do
-                    check (length args == 2) "invalid assert args"
-                    collect $ ConsBase (typeof $ args !! 0) Type.Bool
-                    collect $ ConsBase (typeof $ args !! 1) Type.String
-                    collectEq exprType Void
-                "builtin_len"   -> do
-                    collect (ConsBase exprType I64)
-                    collectDefault exprType I64
-                "builtin_at" -> do
-                    check (length args == 2) "invalid builtin_at call"
-                    collect $ ConsBase (typeof $ args !! 1) I64
-                "builtin_table_append" -> do
-                    check (length args == 1) "invalid builtin_table_append call"
-                    collectEq exprType Void
-                "print" -> collectEq exprType Void
-                    
-        Infix _ op e1 e2 -> do
-            case op of
-                _ | op `elem` [Plus, Minus, Times, Divide, Modulo] -> do
-                    collectEq exprType (typeof e1)
-                _ | op `elem` [AST.LT, AST.GT, AST.LTEq, AST.GTEq, AST.EqEq, AST.NotEq]  -> do
-                    collect (ConsBase exprType Type.Bool)
-                    collectDefault exprType Type.Bool
-                _ | op `elem` [AndAnd, OrOr] -> do
-                    collect (ConsBase exprType Type.Bool)
-                    collectEq exprType (typeof e1)
-                _ -> return ()
-            collectEq (typeof e1) (typeof e2)
+collectExpr :: Expr -> DoM CollectState ()
+collectExpr (AExpr exprType expression) = withPos expression $ case expression of
+    Prefix _ op expr -> do
+        collect $ ConsEq exprType (typeof expr)
+        collectExpr expr
 
-        AST.Tuple _ exprs -> do
-            collect $ ConsTuple exprType (map typeof exprs)
-            collectDefault exprType $ Type.Tuple (map typeof exprs)
+    Float _ _ -> do
+        collectDefault exprType F64
 
-        Match _ e p -> do
-            collectEq (typeof p) (typeof e)
-            collectDefault exprType Type.Bool
+    AST.Bool _ _ -> do
+        collectDefault exprType Type.Bool
+        collect $ ConsBase exprType Type.Bool
 
-    ElemExpr _ -> return ()
-    ElemPattern _ -> return ()
-    ElemStmt _ -> return ()
-    ElemType _ -> return ()
+    Call _ Nothing symbol exprs -> do
+        collectCall exprType symbol exprs
+        mapM_ collectExpr exprs
 
+    Match _ expr pat -> do
+        collect $ ConsEq (typeof pat) (typeof expr)
+        collectDefault exprType Type.Bool
+        collectExpr expr
+        collectPattern pat
+
+    Field _ expr symbol -> do
+        collect $ ConsField (typeof expr) symbol exprType
+        collectExpr expr
+
+    AST.Reference _ expr -> do
+        collect $ ConsBase exprType $ Type.Reference (typeof expr)
+        collect $ ConsReference exprType (typeof expr)
+        collectDefault exprType $ Type.Reference (typeof expr)
+        collectExpr expr
+
+    Dereference _ expr -> do
+        collect $ ConsBase (typeof expr) (Type.Reference exprType)
+        collect $ ConsReference (typeof expr) exprType
+        collectExpr expr
+
+    AST.Tuple _ exprs -> do
+        collect $ ConsTuple exprType (map typeof exprs)
+        collectDefault exprType $ Type.Tuple (map typeof exprs)
+        mapM_ collectExpr exprs
+
+    Builtin _ sym exprs -> do 
+        case sym of
+            "conv"  -> return ()
+            "assert" -> do
+                check (length exprs == 2) "invalid assert exprs"
+                collect $ ConsBase (typeof $ exprs !! 0) Type.Bool
+                collect $ ConsBase (typeof $ exprs !! 1) Type.String
+                collectEq exprType Void
+            "builtin_len"   -> do
+                collect (ConsBase exprType I64)
+                collectDefault exprType I64
+            "builtin_at" -> do
+                check (length exprs == 2) "invalid builtin_at call"
+                collect $ ConsBase (typeof $ exprs !! 1) I64
+            "builtin_table_append" -> do
+                check (length exprs == 1) "invalid builtin_table_append call"
+                collectEq exprType Void
+            "print" -> collectEq exprType Void
+
+        mapM_ collectExpr exprs
+
+    Ident _ symbol -> do
+        ObjVar typ <- look symbol 
+        collect $ ConsIdent typ exprType
+
+    Infix _ op expr1 expr2 -> do
+        collect $ ConsEq (typeof expr1) (typeof expr2)
+        case op of
+            _ | op `elem` [Plus, Minus, Times, Divide, Modulo] -> do
+                collect $ ConsEq exprType (typeof expr1)
+            _ | op `elem` [AST.LT, AST.GT, AST.LTEq, AST.GTEq, AST.EqEq, AST.NotEq]  -> do
+                collect (ConsBase exprType Type.Bool)
+                collectDefault exprType Type.Bool
+            _ | op `elem` [AndAnd, OrOr] -> do
+                collect (ConsBase exprType Type.Bool)
+                collectEq exprType (typeof expr1)
+            _ -> return ()
+
+        collectExpr expr1
+        collectExpr expr2
+
+    Int _ n -> do
+        collectDefault exprType I64
+
+    AST.String _ s -> do
+        collectDefault exprType Type.String
+        collect $ ConsBase exprType Type.String
+
+    x -> error (show x)

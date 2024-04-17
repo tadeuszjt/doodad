@@ -165,6 +165,8 @@ checkExpr (AExpr exprType expression) = withPos expression $ case expression of
 
 
     x -> fail ("unknown expression: " ++ show x)
+
+checkExpr _ = fail "unresolved type"
     
 
 
