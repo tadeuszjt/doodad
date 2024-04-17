@@ -117,9 +117,6 @@ collectFuncDef symbol body = do
     modify $ \s -> s { symTab = SymTab.pop (symTab s) }
 
 
-
-
-
 collectStmt :: Stmt -> DoM CollectState ()
 collectStmt statement = withPos statement $ case statement of
     EmbedC _ _ -> return ()
