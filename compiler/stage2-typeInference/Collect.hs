@@ -85,24 +85,19 @@ collectAST verbose ast = do
             collectFuncDef symbol body
 
 
-collectCall :: Type -> (Maybe Expr) -> Symbol -> [Expr] -> DoM CollectState ()
-collectCall exprType mparam symbol args = do -- can be resolved or sym
+collectCall :: Type -> Symbol -> [Expr] -> DoM CollectState ()
+collectCall exprType symbol args = do -- can be resolved or sym
     ast <- gets astResolved
-    candidates <- case symbolIsResolved symbol of
-        True -> return [symbol]
-        False -> fmap fst $ runDoMExcept ast
-            (findCandidates $ CallHeader (fmap typeof mparam) symbol (map typeof args) exprType)
+    candidates <- if symbolIsResolved symbol then
+        return [symbol]
+    else fmap fst $ runDoMExcept ast $ findCandidates $
+        CallHeader Nothing symbol (map typeof args) exprType
+
     case candidates of
         [symbol] | isGenericFunction symbol ast -> return ()
         [symbol] | isNonGenericFunction symbol ast -> do
             let body = getFunctionBody symbol ast
             collectEq exprType (funcRetty body)
-
-            case map typeof (funcParams body) of
-                [] -> unless (isNothing mparam) (error "invalid func call")
-                ts  -> return () -- collectEq (fmap typeof mparam) (Type.Record ts)
-                x -> error (show x)
-
             zipWithM_ collectEq (map typeof args)  (map typeof $ funcArgs body)
 
         _ -> return ()
@@ -172,7 +167,7 @@ collectMapper element = (\_ -> return element) =<< case element of
             collect $ ConsAdtField patType i (map typeof pats)
 
     ElemExpr (AExpr exprType expression) -> collectPos expression $ case expression of
-        Call _ mparam symbol exprs -> collectCall exprType mparam symbol exprs
+        Call _ Nothing symbol exprs -> collectCall exprType symbol exprs
         Prefix _ op expr    -> collectEq exprType (typeof expr)
         Int _ _             -> collectDefault exprType I64
         Float _ _           -> collectDefault exprType F64
@@ -200,7 +195,7 @@ collectMapper element = (\_ -> return element) =<< case element of
             collect (ConsBase exprType Type.Bool)
             collectDefault exprType Type.Bool
 
-        AST.String _ _        -> do
+        AST.String _ _ -> do
             collect (ConsBase exprType Type.String)
             collectDefault exprType Type.String
 

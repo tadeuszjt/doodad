@@ -70,37 +70,8 @@ generateFunc symbol body = do
 
     pushSymTab
 
-    -- { p Person } -> (char *p0, int64_t *p1, ... 
-    -- p = {p0, p1}
-    -- the record types are expanded into args
-    -- the record fields are expanded into records
---    RecordTree ns <- getRecordTree $ Type.Record (map typeof $ ASTResolved.funcParams body)
---    paramArgs <- fmap concat $ forM (zip ns [0..]) $ \(n, pi) -> do
---        let sName = S.paramName (ASTResolved.funcParams body !! pi)
---        case n of
---            RecordLeaf t i -> (:[]) . C.Param (show sName) . Cpointer <$> cTypeOf t
---            RecordTree ns -> do
---                leaves <- getRecordLeaves (RecordTree ns)
---                forM leaves $ \(t, i) -> do
---                    s' <- fresh (show sName)
---                    C.Param s' . Cpointer <$> cTypeOf t
-
     id <- newFunction rettyType (show symbol) ([] ++ args)
     withCurID id $ do
---        forM_ (zip ns [0..]) $ \(n, pi) -> case n of
---            RecordLeaf t i -> do
---                let sName = S.paramName (ASTResolved.funcParams body !! pi)
---                let cParam = paramArgs !! i
---                define (show sName) $ Value t $ C.Deref (C.Ident $ C.cName cParam)
---
---            RecordTree ns' -> do
---                let sName = S.paramName (ASTResolved.funcParams body !! pi)
---                let sType = S.paramType (ASTResolved.funcParams body !! pi)
---                leaves <- getRecordLeaves (RecordTree ns')
---                let names' = [ C.Ident (C.cName (paramArgs !! i)) | i <- map snd leaves ]
---                rec <- assign "param" $ Value sType $ C.Initialiser names'
---                define (show sName) rec
-
         forM_ (ASTResolved.funcArgs body) $ \arg -> do
             let name = show (paramName arg)
             base <- baseTypeOf (paramType arg)
