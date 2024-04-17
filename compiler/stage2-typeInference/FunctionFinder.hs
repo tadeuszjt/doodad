@@ -105,9 +105,6 @@ unifyOne generics constraint = case constraint of
 
         _ -> fail $ "cannot unify: " ++ show (t1, t2)
 
-    ConsSpecial t1 t2 -> case (t1, t2) of
-        _ -> return [] -- TODO, fill this in if needed
-
 
 unify :: [Symbol] -> [Constraint] -> DoM ASTResolved [(Type, Type)]
 unify generics []     = return []

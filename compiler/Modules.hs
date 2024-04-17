@@ -177,6 +177,7 @@ buildModule args modPath = do
             resm <- Map.lookup importPath <$> gets moduleMap
             unless (isJust resm) (error $ show importPath ++ " not in module map")
             return $ fromJust resm
+
         astResolved' <- fmap (fst . fst) $ runDoMExcept () (R.resolveAsts asts astImports)
         --Flatten.checkTypeDefs (typeDefs astResolved)
         when (printAstResolved args) $ liftIO $ prettyASTResolved astResolved'
@@ -190,6 +191,7 @@ buildModule args modPath = do
         when (verbose args) $ do
             liftIO $ putStrLn $ "ran:       " ++ show inferCount ++ " type inference passes"
         when (printAstFinal args) $ liftIO $ prettyASTResolved astFinal
+        
         modify $ \s -> s { moduleMap = Map.insert absoluteModPath astFinal (moduleMap s) }
 
         

@@ -104,7 +104,6 @@ applyConstraint subs constraint = case constraint of
     ConsSubscript t1 t2    -> ConsSubscript (rf t1) (rf t2)
     ConsAdtField t i ts    -> ConsAdtField (rf t) i (map rf ts)
     ConsTuple t1 ts        -> ConsTuple (rf t1) (map rf ts)
-    ConsSpecial t1 t2      -> ConsSpecial (rf t1) (rf t2)
     ConsField  t1 s t2     -> ConsField (rf t1) s (rf t2)
     ConsForExpr t1 t2      -> ConsForExpr (rf t1) (rf t2)
     ConsReference t1 t2    -> ConsReference (rf t1) (rf t2)

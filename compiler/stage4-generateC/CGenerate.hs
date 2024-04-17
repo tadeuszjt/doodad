@@ -139,11 +139,6 @@ call name args = do
     void $ appendElem $ C.ExprStmt $ C.Call name (map valExpr args)
 
 
-callWithParams :: [Value] -> String -> [Value] -> Generate ()
-callWithParams params name args = do
-    void $ appendElem $ C.ExprStmt $ C.Call name (map ptrExpr params ++ map valExpr args)
-
-
 for :: Value -> (Value -> Generate a) -> Generate a
 for len f = do
     base@(I64) <- baseTypeOf len
@@ -233,10 +228,6 @@ adtEnum obj = do
     return $ Value I64 $ C.Member (valExpr obj) "en"
 
 
--- {Person, bool}.0 -> Person = {string, i64}
--- {Person, bool}.1 -> {bool}
--- ()Person.0       -> string
--- ()Person.1       -> i64
 member :: Int -> Value -> Generate Value
 member index val = do
     base <- baseTypeOf val
@@ -333,10 +324,6 @@ cTypeOf a = case typeof a of
     _ -> error (show $ typeof a)
 
     where
-        replaceVoid :: Type.Type -> Type.Type
-        replaceVoid Void = I8
-        replaceVoid t    = t
-
         cTypeNoDef :: (Typeof a) => a -> Generate C.Type
         cTypeNoDef a = case typeof a of
             I64 -> return Cint64_t
@@ -350,11 +337,11 @@ cTypeOf a = case typeof a of
             Type.Char -> return Cchar
             Type.String -> return (Cpointer Cchar)
             Type.Tuple ts -> do
-                cts <- mapM cTypeOf (map replaceVoid ts)
+                cts <- mapM cTypeOf ts
                 return $ Cstruct $ map (\(ct, i) -> C.Param ("m" ++ show i) ct) (zip cts [0..])
 
             Type.ADT ts -> do
-                cts <- mapM cTypeOf (map replaceVoid ts)
+                cts <- mapM cTypeOf ts
                 return $ Cstruct [C.Param "en" Cint64_t, C.Param "" $
                     Cunion $ map (\(ct, i) -> C.Param ("u" ++ show i) ct) (zip cts [0..])]
 

@@ -54,10 +54,7 @@ generate ast = withErrorPrefix "generate: " $ do
 
                 withCurID id $ do
                     appendElem $ C.ExprStmt $ C.Call "doodad_set_args" [C.Ident "argc", C.Ident "argv"]
-                    params <- case (ASTResolved.funcParams func) of
-                        [] -> return []
-                        [p] | typeof p == ioTypedef -> (:[]) <$> initialiser ioTypedef []
-                    callWithParams params (show symbol) []
+                    call (show symbol) []
                     void $ appendElem $ C.Return $ C.Int 0
                 withCurID globalID (append id)
 
@@ -70,37 +67,8 @@ generateFunc symbol body = do
 
     pushSymTab
 
-    -- { p Person } -> (char *p0, int64_t *p1, ... 
-    -- p = {p0, p1}
-    -- the record types are expanded into args
-    -- the record fields are expanded into records
---    RecordTree ns <- getRecordTree $ Type.Record (map typeof $ ASTResolved.funcParams body)
---    paramArgs <- fmap concat $ forM (zip ns [0..]) $ \(n, pi) -> do
---        let sName = S.paramName (ASTResolved.funcParams body !! pi)
---        case n of
---            RecordLeaf t i -> (:[]) . C.Param (show sName) . Cpointer <$> cTypeOf t
---            RecordTree ns -> do
---                leaves <- getRecordLeaves (RecordTree ns)
---                forM leaves $ \(t, i) -> do
---                    s' <- fresh (show sName)
---                    C.Param s' . Cpointer <$> cTypeOf t
-
     id <- newFunction rettyType (show symbol) ([] ++ args)
     withCurID id $ do
---        forM_ (zip ns [0..]) $ \(n, pi) -> case n of
---            RecordLeaf t i -> do
---                let sName = S.paramName (ASTResolved.funcParams body !! pi)
---                let cParam = paramArgs !! i
---                define (show sName) $ Value t $ C.Deref (C.Ident $ C.cName cParam)
---
---            RecordTree ns' -> do
---                let sName = S.paramName (ASTResolved.funcParams body !! pi)
---                let sType = S.paramType (ASTResolved.funcParams body !! pi)
---                leaves <- getRecordLeaves (RecordTree ns')
---                let names' = [ C.Ident (C.cName (paramArgs !! i)) | i <- map snd leaves ]
---                rec <- assign "param" $ Value sType $ C.Initialiser names'
---                define (show sName) rec
-
         forM_ (ASTResolved.funcArgs body) $ \arg -> do
             let name = show (paramName arg)
             base <- baseTypeOf (paramType arg)
@@ -136,11 +104,9 @@ generatePrint app val = case typeof val of
 
     Type.Tuple ts -> do
         void $ appendPrintf "(" []
-
         forM_ (zip ts [0..]) $ \(t, i) -> do
             let ap = if i == (length ts - 1) then ")" ++ app else ", "
             generatePrint ap $ Value t $ C.Member (valExpr val) ("m" ++ show i)
-
 
     Type.TypeApply s t -> do
         base <- baseTypeOf val
@@ -273,11 +239,6 @@ generateReentrantExpr (Value typ expr) = Value typ <$> reentrantExpr expr
             _ -> error (show expr)
 
 
---  -> {x}        // x works like... a normal ident
---  -> {(x, y)}   // x and y are not references?
---  -> {x, y}     // x and y work like idents
---  -> ({x}, {y}) // yeah, x and y are idents
---  Maybe( {}i64 ) -> Just( x )
 generatePattern :: Pattern -> Value -> Generate Value
 generatePattern pattern val = withPos pattern $ do
     case pattern of
@@ -311,7 +272,6 @@ generatePattern pattern val = withPos pattern $ do
             appendElem (C.Label endLabel)
 
             return match
-
 
         PatGuarded _ pat expr -> do
             match <- assign "match" =<< generatePattern pat val
@@ -348,19 +308,6 @@ generatePattern pattern val = withPos pattern $ do
             return match
 
         _ -> error (show pattern)
-
-
-annotateExprWith :: Type.Type -> S.Expr -> Generate S.Expr
-annotateExprWith typ expr = do
-    base <- baseTypeOf typ
-    fmap (AExpr typ) $ case expr of
-        S.Int _ _ -> return expr
---        S.Array pos es -> case base of
---                Type.Table [t] -> S.Array pos <$> mapM (annotateExprWith t) es
---        S.Tuple pos es -> case base of
---            Type.Tuple ts -> S.Tuple pos <$> zipWithM annotateExprWith ts es
-        
-        _ -> error (show expr)
 
 
 -- generateExpr should return a 're-enter-able' expression, eg 1, not func()

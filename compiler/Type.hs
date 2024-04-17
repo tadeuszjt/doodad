@@ -59,7 +59,7 @@ instance Show Type where
         Bool              -> "Bool"
         Char              -> "Char"
         String            -> "String"
-        Tuple t           -> "()" ++ show t
+        Tuple ts          -> "(" ++ intercalate ", " (map show ts) ++ ")"
         Table t           -> "Table[" ++ show t ++ "]"
         ADT ts            -> "(" ++ intercalate " | " (map show ts) ++ ")"
         Reference t       -> "&" ++ show t

@@ -90,21 +90,6 @@ unifyOne pos constraint = withPos pos $ case constraint of
 
             x -> error (show x)
 
-    ConsSubscript t1 t2 -> do
-        basem <- baseTypeOfm t1
-        case basem of
-            Just String    -> unifyOne pos (ConsEq t2 Char)
-            Just (Table t) -> do
-                baseT <- baseTypeOfm t
-                case baseT of
-                    Nothing -> return []
-                    --Just Bool -> unifyOne pos (ConsEq t2 t)
-
-                    x -> error (show x)
-
-            Nothing -> return []
-            _ -> error (show basem)
-
     ConsBase t1 t2 -> do
         base1m <- baseTypeOfm t1
         base2m <- baseTypeOfm t2
