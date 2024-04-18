@@ -96,7 +96,7 @@ collectCall exprType symbol args = do -- can be resolved or sym
         [symbol] | isGenericFunction symbol ast -> return ()
         [symbol] | isNonGenericFunction symbol ast -> do
             let body = getFunctionBody symbol ast
-            collectEq exprType (funcRetty body)
+            collectEq exprType (typeof $ funcRetty body)
             zipWithM_ collectEq (map typeof args)  (map typeof $ funcArgs body)
 
         _ -> return ()
@@ -106,7 +106,7 @@ collectFuncDef :: Symbol -> FuncBody -> DoM CollectState ()
 collectFuncDef symbol body = do
     modify $ \s -> s { symTab = SymTab.push (symTab s) }
     oldRetty <- gets curRetty
-    modify $ \s -> s { curRetty = funcRetty body }
+    modify $ \s -> s { curRetty = typeof (funcRetty body) }
     forM (funcParams body) $ \(Param _ symbol t) -> error ""
     forM_ (funcArgs body) $ \param -> case param of
         (Param _ symbol t) -> define symbol (ObjVar t)
@@ -136,7 +136,7 @@ collectStmt statement = withPos statement $ case statement of
         void $ traverse collectExpr mexpr
 
     ExprStmt expr -> do
-        collect $ ConsEq (typeof expr) Void
+        --collect $ ConsEq (typeof expr) Void
         collectExpr expr
 
     Let _ pattern mexpr mstmt  -> do
@@ -257,12 +257,10 @@ collectExpr (AExpr exprType expression) = withPos expression $ case expression o
             "builtin_len"   -> do
                 collect (ConsBase exprType I64)
                 collectDefault exprType I64
-            "builtin_at" -> do
-                check (length exprs == 2) "invalid builtin_at call"
+            "builtin_table_at" -> do
+                check (length exprs == 2) "invalid builtin_table_at call"
                 collect $ ConsBase (typeof $ exprs !! 1) I64
-                collect $ ConsBuiltinAt exprType (typeof $ exprs !! 0)
-                
-
+                collect $ ConsBase (typeof $ exprs !! 0) (Type.Table exprType)
 
             "builtin_table_append" -> do
                 check (length exprs == 1) "invalid builtin_table_append call"
@@ -273,7 +271,7 @@ collectExpr (AExpr exprType expression) = withPos expression $ case expression o
 
     Ident _ symbol -> do
         ObjVar typ <- look symbol 
-        collect $ ConsIdent typ exprType
+        collect $ ConsEq typ exprType
 
     Infix _ op expr1 expr2 -> do
         collect $ ConsEq (typeof expr1) (typeof expr2)

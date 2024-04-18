@@ -38,6 +38,7 @@ data GenerateState
         , supply     :: Map.Map String Int
         , ctors      :: Map.Map Symbol (Symbol, Int)
         , typefuncs  :: Map.Map Symbol ([Symbol], Type.Type)
+        , refFuncs   :: Map.Map Symbol Bool
         , symTab     :: SymTab.SymTab String () Value
         }
 
@@ -49,6 +50,7 @@ initGenerateState modName
         , ctors  = Map.empty
         , typefuncs = Map.empty
         , symTab = SymTab.initSymTab
+        , refFuncs = Map.empty
         }
 
 newtype Generate a = Generate { unGenerate :: StateT GenerateState (StateT BuilderState (ExceptT Error IO)) a }
@@ -75,6 +77,16 @@ pushSymTab = modify $ \s -> s { symTab = SymTab.push (symTab s) }
 
 popSymTab :: Generate ()
 popSymTab = modify $ \s -> s { symTab = SymTab.pop (symTab s) }
+
+
+addFuncRefType :: Symbol -> Bool -> Generate ()
+addFuncRefType symbol b = do
+    modify $ \s -> s { refFuncs = Map.insert symbol b (refFuncs s) }
+
+getFuncRefType :: Symbol -> Generate Bool
+getFuncRefType symbol = do
+    refFuncs <- gets refFuncs
+    return $ refFuncs Map.! symbol
 
 
 define :: String -> Value -> Generate ()
@@ -117,9 +129,15 @@ not_ (Value typ expr) = Value typ (C.Not expr)
 assign :: String -> Value -> Generate Value
 assign suggestion val = do
     name <- fresh suggestion
-    ctyp <- cTypeOf (typeof val)
-    appendElem $ C.Assign ctyp name (valExpr val)
-    return $ Value (typeof val) $ C.Ident name
+    case val of
+        Value _ _ -> do
+            ctyp <- cTypeOf (typeof val)
+            appendElem $ C.Assign ctyp name (valExpr val)
+            return $ Value (typeof val) $ C.Ident name
+        Ref _ _ -> do
+            ctyp <- cRefTypeOf (typeof val)
+            appendElem $ C.Assign ctyp name (refExpr val)
+            return $ Ref (typeof val) $ C.Ident name
 
 
 if_ :: Value -> Generate a -> Generate a
@@ -178,21 +196,22 @@ deref (Ref typ expr) = do
 set :: Value -> Value -> Generate ()
 set a b = do
     unless (typeof a == typeof b) (error "set: type mismatch")
+    bVal <- deref b
     base <- baseTypeOf a
     case base of
         _ | isSimple base -> do
             case a of
-                Value _ _ -> void $ appendElem $ C.Set (valExpr a) (valExpr b)
-                Ref _ _   -> void $ appendElem $ C.Set (C.Deref $ refExpr a) (valExpr b)
+                Value _ _ -> void $ appendElem $ C.Set (valExpr a) (valExpr bVal)
+                Ref _ _   -> void $ appendElem $ C.Set (C.Deref $ refExpr a) (valExpr bVal)
 
 
         Type.Tuple ts -> do
             forM_ (zip ts [0..]) $ \(t, i) -> do
                 let va = Value t $ C.Member (valExpr a) ("m" ++ show i)
-                let vb = Value t $ C.Member (valExpr b) ("m" ++ show i)
+                let vb = Value t $ C.Member (valExpr bVal) ("m" ++ show i)
                 set va vb
 
-        Type.ADT ts -> void $ appendElem $ C.Set (valExpr a) (valExpr b) -- TODO broken
+        --Type.ADT ts -> void $ appendElem $ C.Set (valExpr a) (valExpr b) -- TODO broken
             
         Type.Table t -> do
             error ""
@@ -296,29 +315,34 @@ builtinTableGet val idx = do
 
 
 builtinTableAt :: Value -> Value -> Generate Value
-builtinTableAt val idx = do
-    error ""
---    Type.Reference tabTyp <- baseTypeOf val
---    I64 <- baseTypeOf idx
---    Table t <- baseTypeOf tabTyp
---    baseT <- baseTypeOf t
---    case baseT of
---        x | isSimple x -> return $ Value (Type.Reference t) $ C.Address $ C.Subscript
---            (C.Member (C.Deref $ valExpr val) "r0")
---            (valExpr idx)
---
---        x -> error (show x)
+builtinTableAt (Ref tabType expr) idx = do
+    I64 <- baseTypeOf idx
+    Table t <- baseTypeOf tabType
 
+    baseT <- baseTypeOf t
+    case baseT of
+        x | isSimple x -> return $ Ref t $ C.Address $ C.Subscript
+            (C.PMember expr "r0")
+            (valExpr idx)
+
+        x -> error (show x)
 
 
 cParamOf :: S.Param -> Generate C.Param
-cParamOf param = case param of
-    S.Param _ _ _ -> do
-        ctype <- cTypeOf param
-        return $ C.Param { C.cName = show (paramName param), C.cType = ctype }
-    S.RefParam _ _ _ -> do
-        ctype <- cTypeOf param
-        return $ C.Param { C.cName = show (paramName param), C.cType = (Cpointer ctype) }
+cParamOf param = do
+    ctype <- case param of
+        S.Param _ _ _ -> cTypeOf param
+        S.RefParam _ _ _ -> cRefTypeOf param
+    return $ C.Param { C.cName = show (paramName param), C.cType = ctype }
+
+
+cRefTypeOf :: Typeof a => a -> Generate C.Type
+cRefTypeOf a = do
+    base <- baseTypeOf a
+    case base of
+        x | isSimple x -> Cpointer <$> cTypeOf a 
+        Type.Table _   -> Cpointer <$> cTypeOf a
+        x -> error (show x)
 
 
 cTypeOf :: (Typeof a) => a -> Generate C.Type

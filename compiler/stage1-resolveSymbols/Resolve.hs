@@ -241,7 +241,7 @@ resolveFuncDef (FuncDef pos generics params (Sym sym) args retty blk) = withPos 
     when (sym == "main") $ do
         check (generics == []) "main cannot be generic"
         check (args     == []) "main cannot have arguments"
-        check (retty == Void)  "main cannot have a return type"
+        check (retty == VoidRetty)  "main cannot have a return type"
         case params of
             []                                    -> return ()
             [Param _ _ (TypeApply (Sym "Io") [])] -> return ()
@@ -403,6 +403,13 @@ instance Resolve Stmt where
 instance Resolve Type where resolve = mapTypeM resolveMapper
 instance Resolve Pattern where resolve = mapPattern resolveMapper
 instance Resolve Expr where resolve = mapExprM resolveMapper
+
+
+instance Resolve Retty where
+    resolve VoidRetty = return VoidRetty
+    resolve (Retty t) = Retty <$> resolve t
+    resolve (RefRetty t) = RefRetty <$> resolve t
+
 instance Resolve Param where
     resolve (Param pos (Sym sym) typ) = withPos pos $ do
         typ' <- resolve typ
@@ -437,7 +444,7 @@ resolveMapper element = case element of
         return $ ElemExpr (Construct pos symbol' exprs)
 
     ElemExpr (Call pos mparam (Sym sym) exprs)
-        | sym `elem` ["builtin_table_append", "builtin_len", "builtin_at", "conv", "print", "assert"] -> do 
+        | sym `elem` ["builtin_table_append", "builtin_len", "builtin_table_at", "conv", "print", "assert"] -> do 
             check (isNothing mparam) "invalid builtin function call"
             return $ ElemExpr (Builtin pos sym exprs)
 

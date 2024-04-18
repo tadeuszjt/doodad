@@ -21,13 +21,19 @@ type MapperFunc s = (Elem -> DoM s Elem)
 mapParamM :: MapperFunc s -> Param -> DoM s Param
 mapParamM f (AST.Param pos symbol typ) = withPos pos $ AST.Param pos symbol <$> (mapTypeM f typ)
 mapParamM f (AST.RefParam pos symbol typ) = withPos pos $ AST.RefParam pos symbol <$> (mapTypeM f typ)
+
+
+mapRettyM :: MapperFunc s -> Retty -> DoM s Retty
+mapRettyM f (AST.Retty t) = AST.Retty <$> mapTypeM f t
+mapRettyM f (AST.RefRetty t) = AST.RefRetty <$> mapTypeM f t
+mapRettyM f (AST.VoidRetty) = return AST.VoidRetty
     
 
 mapFuncBodyM :: MapperFunc s -> FuncBody -> DoM s FuncBody
 mapFuncBodyM f body = do
     funcParams' <- mapM (mapParamM f) (funcParams body)
     funcArgs'   <- mapM (mapParamM f) (funcArgs body)
-    funcRetty'  <- mapTypeM f (funcRetty body)
+    funcRetty'  <- mapRettyM f (funcRetty body)
     funcStmt'   <- mapStmtM f (funcStmt body)
     return $ FuncBody
         { funcGenerics = funcGenerics body

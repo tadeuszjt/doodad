@@ -87,6 +87,7 @@ resolveFuncCall exprType (AST.Call pos Nothing callSymbol args) = withPos pos $ 
         [symbol] | isGenericFunction symbol ast    -> do -- this is where we replace
             let genericBody = getFunctionBody symbol ast
             bodyReplaced <- replaceGenericsInFuncBodyWithCall genericBody callHeader
+            --liftIO $ putStrLn $ "new body: " ++ show bodyReplaced
             case funcFullyResolved (funcGenerics genericBody) bodyReplaced of
                 False -> return callSymbol
                 True  -> do

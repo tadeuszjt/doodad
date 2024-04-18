@@ -21,13 +21,6 @@ import Symbol
 
 unifyOne :: TextPos -> Constraint -> DoM ASTResolved [(Type, Type)]
 unifyOne pos constraint = withPos pos $ case constraint of
-    ConsIdent t1 t2 -> do
-        base <- baseTypeOfm t1
-        case base of
-            Nothing -> return []
-            Just _                  -> unifyOne pos (ConsEq t2 t1)
-
-
     ConsField typ (Sym _) exprType -> return []
 
     ConsField typ symbol exprType -> do
@@ -47,7 +40,8 @@ unifyOne pos constraint = withPos pos $ case constraint of
         case basem of
             Nothing -> return []
             Just (Tuple ts2)
-                | length ts1 == length ts2 -> concat <$> zipWithM (\a b -> unifyOne pos (ConsEq a b)) ts1 ts2
+                | length ts1 == length ts2 ->
+                    concat <$> zipWithM (\a b -> unifyOne pos (ConsEq a b)) ts1 ts2
 
             _ -> error (show basem)
 
@@ -86,14 +80,6 @@ unifyOne pos constraint = withPos pos $ case constraint of
         case (base1m, base2m) of
             (Just b1, Just b2) -> unifyOne pos (ConsEq b1 b2)
             _                  -> return []
-
-    ConsBuiltinAt t1 t2 -> do
-        baseT1m <- baseTypeOfm t1
-        case baseT1m of
-            Nothing -> return []
-            Just x | isSimple x -> return []
-            x -> error (show x)
-
 
 
 unify :: [(Constraint, TextPos)] -> DoM ASTResolved [(Type, Type)]

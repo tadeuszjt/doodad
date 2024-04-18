@@ -133,11 +133,12 @@ imports : {- empty -}              { [] }
 -- Statements -------------------------------------------------------------------------------------
 
 
-mfnRec : {-empty-}                        { [] }
-       | '{' paramsA1 '}'                 { $2 }
-
 generics : {-empty-}                      { [] }
          | '[' Idents1 ']'                { map Symbol.Sym $2 }
+
+retty : {-empty-} { VoidRetty }
+      | type_     { Retty $1 }
+      | '&' type_ { RefRetty $2 }
 
 line : let pattern '=' expr               { Let (tokPos $1) $2 (Just $4) Nothing }  
      | let pattern                        { Let (tokPos $1) $2 Nothing Nothing }
@@ -157,14 +158,8 @@ block : if_                               { $1 }
       | switch expr 'I' cases1 'D'        { Switch (tokPos $1) $2 $4 }
       | let pattern '='  expr in scope    { Let (tokPos $1) $2 (Just $4) (Just $6) }
       | let pattern in scope              { Let (tokPos $1) $2 Nothing (Just $4) }
-      | fn generics mfnRec ident '(' paramsA ')' mtype scope {
-            FuncDef
-                (tokPos $1)
-                $2
-                $3
-                (Sym $ tokStr $4)
-                $6
-                (case $8 of Just t -> t; Nothing -> Void) $9
+      | fn generics ident '(' paramsA ')' retty scope {
+            FuncDef (tokPos $1) $2 [] (Sym $ tokStr $3) $5 $7 $8
         }
 
 if_   : if condition scope else_          { If (tokPos $1) $2 $3 $4 }

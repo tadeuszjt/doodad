@@ -56,7 +56,7 @@ funcFullyResolved :: [Symbol] -> FuncBody -> Bool
 funcFullyResolved generics body =
     all id (map typeFullyResolved $ map typeof $ funcParams body) &&
     all id (map typeFullyResolved $ map typeof $ funcArgs body) &&
-    typeFullyResolved (funcRetty body)
+    typeFullyResolved (typeof (funcRetty body))
     where
         typeFullyResolved :: Type -> Bool
         typeFullyResolved typ = case typ of
@@ -105,7 +105,7 @@ unify generics (x:xs) = do
 
 getConstraints :: CallHeader -> FuncBody -> DoM ASTResolved [Constraint]
 getConstraints call body = do
-    retCs <- getConstraintsFromTypes (funcGenerics body) (funcRetty body) (callRetType call)
+    retCs <- getConstraintsFromTypes (funcGenerics body) (typeof $ funcRetty body) (callRetType call)
     argCs <- fmap concat $ zipWithM (getConstraintsFromTypes $ funcGenerics body)
         (map typeof $ funcArgs body)
         (callArgTypes call)

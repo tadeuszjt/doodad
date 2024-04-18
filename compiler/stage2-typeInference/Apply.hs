@@ -15,8 +15,14 @@ applyFuncBody subs body = body {
     funcParams = map (applyParam subs) (funcParams body),
     funcStmt = applyStmt subs (funcStmt body),
     funcArgs = map (applyParam subs) (funcArgs body),
-    funcRetty = applyType subs (funcRetty body)
+    funcRetty = applyRetty subs (funcRetty body)
     }
+
+
+applyRetty :: [(Type, Type)] -> Retty -> Retty
+applyRetty subs (VoidRetty)  = VoidRetty
+applyRetty subs (Retty t)    = Retty (applyType subs t)
+applyRetty subs (RefRetty t) = RefRetty (applyType subs t)
 
 
 applyParam :: [(Type, Type)] -> Param -> Param
@@ -99,7 +105,6 @@ applyPattern subs pattern = case pattern of
 
 applyConstraint :: [(Type, Type)] -> Constraint -> Constraint
 applyConstraint subs constraint = case constraint of
-    ConsIdent t1 t2        -> ConsIdent (rf t1) (rf t2)
     ConsEq t1 t2           -> ConsEq (rf t1) (rf t2)
     ConsBase t1 t2         -> ConsBase (rf t1) (rf t2)
     ConsSubscript t1 t2    -> ConsSubscript (rf t1) (rf t2)
@@ -107,7 +112,6 @@ applyConstraint subs constraint = case constraint of
     ConsTuple t1 ts        -> ConsTuple (rf t1) (map rf ts)
     ConsField  t1 s t2     -> ConsField (rf t1) s (rf t2)
     ConsForExpr t1 t2      -> ConsForExpr (rf t1) (rf t2)
-    ConsBuiltinAt t1 t2    -> ConsBuiltinAt (rf t1) (rf t2)
     where
         rf = applyType subs
 

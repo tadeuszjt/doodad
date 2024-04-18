@@ -36,7 +36,7 @@ data FuncBody
         { funcGenerics :: [Symbol]
         , funcParams   :: [AST.Param]
         , funcArgs     :: [AST.Param]
-        , funcRetty    :: Type
+        , funcRetty    :: AST.Retty
         , funcStmt     :: AST.Stmt
         }
     deriving (Eq, Show)

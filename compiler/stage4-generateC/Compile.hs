@@ -25,7 +25,12 @@ generate ast = withErrorPrefix "generate: " $ do
     -- generate imported function externs
     forM_ (Map.toList $ funcImports ast) $ \(symbol, body) -> do
         unless (isGenericBody body) $ do
-            crt <- cTypeOf (ASTResolved.funcRetty body)
+            case (ASTResolved.funcRetty body) of
+                Retty _    -> addFuncRefType symbol False
+                RefRetty _ -> addFuncRefType symbol True
+                _ -> return ()
+
+            crt <- cRettyType (ASTResolved.funcRetty body)
             cats <- forM (ASTResolved.funcArgs body) $ \param -> case param of
                 S.Param _ _ _ -> cTypeOf param
                 S.RefParam _ _ _ -> Cpointer <$> cTypeOf param
@@ -35,8 +40,12 @@ generate ast = withErrorPrefix "generate: " $ do
     -- generate function headers
     forM_ (Map.toList $ funcDefs ast) $ \(symbol, func) -> do
          unless (isGenericBody func) $ do
-            crt <- cTypeOf (ASTResolved.funcRetty func)
+            case (ASTResolved.funcRetty func) of
+                Retty _    -> addFuncRefType symbol False
+                RefRetty _ -> addFuncRefType symbol True
+                _ -> return ()
 
+            crt <- cRettyType (ASTResolved.funcRetty func) 
             cats <- forM (ASTResolved.funcArgs func) $ \param -> case param of
                 S.Param _ _ _ -> cTypeOf param
                 S.RefParam _ _ _ -> Cpointer <$> cTypeOf param
@@ -60,13 +69,17 @@ generate ast = withErrorPrefix "generate: " $ do
                     void $ appendElem $ C.Return $ C.Int 0
                 withCurID globalID (append id)
 
+cRettyType :: S.Retty -> Generate C.Type
+cRettyType retty = case retty of
+    VoidRetty -> return Cvoid
+    Retty t -> cTypeOf t
+    RefRetty t -> cRefTypeOf t
 
 
 generateFunc :: Symbol -> FuncBody -> Generate ()
 generateFunc symbol body = do
     args <- mapM cParamOf (ASTResolved.funcArgs body)
-    rettyType <- cTypeOf (ASTResolved.funcRetty body)
-
+    rettyType <- cRettyType (ASTResolved.funcRetty body)
     pushSymTab
 
     id <- newFunction rettyType (show symbol) ([] ++ args)
@@ -79,7 +92,7 @@ generateFunc symbol body = do
                 x -> error (show x)
 
         generateStmt (ASTResolved.funcStmt body)
-        when (ASTResolved.funcRetty body /= Type.Void) $ -- check to ensure function has return
+        when (ASTResolved.funcRetty body /= S.VoidRetty) $ -- check to ensure function has return
             call "assert" [false]
 
     popSymTab
@@ -118,9 +131,17 @@ generateStmt :: S.Stmt -> Generate ()
 generateStmt stmt = withPos stmt $ case stmt of
     S.Block stmts          -> mapM_ generateStmt stmts
     S.EmbedC _ str         -> void $ appendElem (C.Embed str)
+
     S.Return _ Nothing     -> void $ appendElem (C.ReturnVoid)
-    S.Return _ (Just expr) -> void $ appendElem . C.Return . valExpr =<< generateExpr expr
-    S.ExprStmt expr        -> void $ generateExpr expr
+
+    S.Return _ (Just expr) -> do
+        val <- generateExpr expr
+        case val of
+            Value _ _ -> void $ appendElem $ C.Return (valExpr val)
+            Ref _ _   -> void $ appendElem $ C.Return (refExpr val)
+
+
+    S.ExprStmt expr -> void $ generateExpr expr
     S.Let _ pattern mexpr mblk -> do
         case mexpr of
             Just expr -> do
@@ -158,7 +179,6 @@ generateStmt stmt = withPos stmt $ case stmt of
 
     S.SetOp _ S.Eq index expr -> do
         idx <- generateExpr index
-
         case idx of
             Value _ _ -> set idx =<< generateExpr expr
             Ref _ _ -> set idx =<< generateExpr expr
@@ -308,15 +328,12 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
         call "doodad_assert" [fileNameVal, lineVal, cndVal, strVal]
         return $ Value Void $ C.Int 0
 
-    S.Builtin _ "builtin_at" [expr1, expr2] -> do
+    S.Builtin _ "builtin_table_at" [expr1, expr2] -> do
         val <- generateExpr expr1
         idx <- generateExpr expr2
-        base <- baseTypeOf val
-        case base of
-            Type.Table _ -> do
-                baseType <- baseTypeOf typ
-                case baseType of
-                    _                -> builtinTableGet val idx
+        Type.Table _ <- baseTypeOf val
+        builtinTableAt val idx
+
 
     S.Builtin _ "builtin_table_append" [expr1] -> do
         val <- generateExpr expr1
@@ -346,7 +363,6 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
     S.Call _ Nothing symbol exprs -> do
         check (symbolIsResolved symbol) ("unresolved function call: " ++ show symbol)
         vals <- mapM generateExpr exprs
-
         argExprs <- forM vals $ \val -> case val of
             Value _ _ -> return (valExpr val)
             Ref _ _   -> return (refExpr val)
@@ -354,8 +370,10 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
             Void -> do
                 appendElem $ C.ExprStmt $ C.Call (show symbol) argExprs
                 return $ Value Void $ C.Int 0
-            _ -> assign "call" $ Value typ $ C.Call (show symbol) argExprs
-
+            _ -> do
+                isRef <- getFuncRefType symbol
+                if isRef then assign "call" $ Ref typ $ C.Call (show symbol) argExprs
+                else          assign "call" $ Value typ $ C.Call (show symbol) argExprs
 
     S.Field _ _ (Sym s) -> fail $ "unresolved field: " ++ s
     S.Field _ expr symbol -> do 

@@ -58,8 +58,21 @@ data Param
         }
     deriving (Eq, Ord)
 
+
+data Retty
+    = Retty Type
+    | RefRetty Type
+    | VoidRetty
+    deriving (Eq, Ord)
+
+
 instance Type.Typeof Param where
     typeof = paramType
+
+instance Type.Typeof Retty where
+    typeof (Retty t) = t
+    typeof (RefRetty t) = t
+    typeof (VoidRetty) = Void
 
 
 data Pattern
@@ -108,7 +121,7 @@ data Stmt
     | Block       [Stmt]
     | If          TextPos Expr Stmt (Maybe Stmt)
     | While       TextPos Expr Stmt
-    | FuncDef     TextPos [Symbol] [Param] Symbol [Param] Type Stmt
+    | FuncDef     TextPos [Symbol] [Param] Symbol [Param] Retty Stmt
     | Typedef     TextPos [Symbol] Symbol AnnoType
     | Switch      TextPos Expr [(Pattern, Stmt)]
     | For         TextPos Expr (Maybe Pattern) Stmt
@@ -189,6 +202,12 @@ instance Show Import where
 instance Show Param where
     show (Param pos name typ)    = show name ++ " " ++ show typ
     show (RefParam pos name typ) = show name ++ "& " ++ show typ
+
+
+instance Show Retty where
+    show (Retty t) = show t
+    show (RefRetty t) = "&" ++ show t
+    show (VoidRetty)  = ""
 
 
 instance Show Operator where
@@ -278,7 +297,7 @@ prettyStmt pre stmt = case stmt of
             ++ show symbol
             ++ tupStrs (map show args)
             ++ " "
-            ++ if retty == Void then "" else show retty
+            ++ show retty
         prettyStmt (pre ++ "\t") blk
         putStrLn ""
 

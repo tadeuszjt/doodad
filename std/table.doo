@@ -5,17 +5,17 @@ fn[T] len(table &Table[T]) I64
     ${ $len = $table->len; }
     return len
 
+
+fn[T] at(table &Table[T], index I64) &T
+    return builtin_table_at(&table, index)
+
+
 fn[T] push(table &Table[T], item T)
     builtin_table_append(&table)
-    //builtin_at(table, table.len() - 1) = item
-    return
+    builtin_table_at(&table, table.len() - 1) = item
 
 
-//fn[T] at(table &Table[T], index I64) (&T, &T):(T, T)
-//    return builtin_at(&table, index)
-//    
-//
-//fn[T] pop(t &Table[T]) T
-//    let item : T = t.at(t.len() - 1)
-//    ${ $t->len--; }
-//    return item
+fn[T] pop(table &Table[T]) T
+    let item : T = builtin_table_at(&table, table.len() - 1)
+    ${ $table->len--; }
+    return item

@@ -129,8 +129,8 @@ instance Show Expression where
     show (Increment e) = show e ++ "++"
     show (Subscript e1 e2) = show e1 ++ "[" ++ showNoParens e2 ++ "]"
     show (Deref e) = "(*" ++ show e ++ ")"
-    show (Address (Ident s)) = "&" ++ s
-    show (Address e) = "&(" ++ show e ++ ")"
+    show (Address (Ident s)) = "(&" ++ s ++ ")"
+    show (Address e) = "&(" ++ showNoParens e ++ ")"
     show (Not e) = "!" ++ show e
     show (Char '\0') = "'\\0'"
     show (Char c) = show c
