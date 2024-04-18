@@ -24,8 +24,7 @@ data ASTResolved
 
 
 data CallHeader = CallHeader
-    { callParamType :: Maybe Type
-    , callSymbol    :: Symbol
+    { callSymbol    :: Symbol
     , callArgTypes  :: [Type]
     , callRetType   :: Type
     }
@@ -45,11 +44,8 @@ data FuncBody
 
 instance Show CallHeader where
     show header =
-        paramsStr ++ " " ++ (show $ callSymbol header) ++ argsStr ++ " " ++ show (callRetType header)
+        (show $ callSymbol header) ++ argsStr ++ " " ++ show (callRetType header)
         where
-            paramsStr = case callParamType header of
-                Nothing -> ""
-                Just t  -> show t ++ "."
             argsStr = case callArgTypes header of
                 [] -> "()"
                 ts -> "(" ++ intercalate ", " (map show ts) ++ ")"

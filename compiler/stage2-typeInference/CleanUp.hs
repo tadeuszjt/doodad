@@ -73,9 +73,9 @@ cleanUpMapper elem = case elem of
 -- add extern if needed
 resolveFuncCall :: Type -> AST.Expr -> DoM ASTResolved Symbol
 resolveFuncCall _ (AST.Call _ _ s@(SymResolved _ _ _) _) = return s
-resolveFuncCall exprType (AST.Call pos mparam callSymbol args) = withPos pos $ do
+resolveFuncCall exprType (AST.Call pos Nothing callSymbol args) = withPos pos $ do
     --liftIO $ putStrLn $ "resolving: " ++ show callSymbol
-    let callHeader = CallHeader (fmap typeof mparam) callSymbol (map typeof args) exprType
+    let callHeader = CallHeader callSymbol (map typeof args) exprType
 
     candidates <- findCandidates callHeader
     ast <- get

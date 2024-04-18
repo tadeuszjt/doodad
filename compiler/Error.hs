@@ -80,8 +80,8 @@ printError err = case err of
             let TextPos _ l c = pos
             putStrLn (show pos ++ " " ++ str)
             let srcLines = lines src
-            unless (l < 3) $ putStrLn (srcLines !! (l-2))
-            unless (l < 2) $ putStrLn (srcLines !! (l-1))
-            unless (l < 1) $ putStrLn (srcLines !! (l-0))
+            unless (l < 3) $ putStrLn (srcLines !! (l-3))
+            unless (l < 2) $ putStrLn (srcLines !! (l-2))
+            unless (l < 1) $ putStrLn (srcLines !! (l-1))
             --when   (l == 0) $ putStrLn (srcLines !! 0)
             putStrLn (replicate c '-' ++ "^")

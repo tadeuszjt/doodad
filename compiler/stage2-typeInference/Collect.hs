@@ -90,7 +90,7 @@ collectCall exprType symbol args = do -- can be resolved or sym
     candidates <- if symbolIsResolved symbol then
         return [symbol]
     else fmap fst $ runDoMExcept ast $ findCandidates $
-        CallHeader Nothing symbol (map typeof args) exprType
+        CallHeader symbol (map typeof args) exprType
 
     case candidates of
         [symbol] | isGenericFunction symbol ast -> return ()

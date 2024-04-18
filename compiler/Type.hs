@@ -175,38 +175,22 @@ typesCouldMatch generics t1 t2 = couldMatch t1 t2
     where
         couldMatch :: (MonadFail m, TypeDefs m) => Type -> Type -> m Bool
         couldMatch t1 t2 = case (t1, t2) of
-            (a, b) | a == b                   -> return True
-            (Type _, _)                       -> return True
-            (_, Type _)                       -> return True
+            (a, b) | a == b            -> return True
+            (Type _, _)                -> return True
+            (_, Type _)                -> return True
+            (Reference a, Reference b) -> couldMatch a b
+            (Table a, Table b)         -> couldMatch a b
 
             (Tuple as, Tuple bs)
                 | length as == length bs -> all id <$> zipWithM couldMatch as bs
 
-            (Reference a, Reference b) -> typesCouldMatch generics a b
-                
 
-            (Table a, Table b) -> typesCouldMatch generics a b
-
-            -- type variables
             (TypeApply s1 ts1, TypeApply s2 ts2)
-                | s1 `elem` generics && s2 `elem` generics -> do
-                    bs <- zipWithM (typesCouldMatch generics) ts1 ts2
+                | (s1 `elem` generics && s2 `elem` generics) || (s1 == s2) -> do
+                    bs <- zipWithM couldMatch ts1 ts2
                     return $ length ts1 == length ts2 && all id bs
+
             (x, TypeApply s ts) | s `elem` generics -> return True
             (TypeApply s ts, x) | s `elem` generics -> return True
-
-            -- type defs
-            (TypeApply s1 ts1, TypeApply s2 ts2) | s1 == s2 -> do
-                bs <- zipWithM (typesCouldMatch generics) ts1 ts2
-                return $ length ts1 == length ts2 && all id bs
-
-
---            (I64, I32) -> return False
---            (TypeApply _ _, I64) -> return False
---            (TypeApply _ _, Bool) -> return False
---            (TypeApply _ _, Tuple _) -> return False
---            (Tuple _, TypeApply _ _) -> return False
---
---            x -> error (show x)
 
             _ -> return False

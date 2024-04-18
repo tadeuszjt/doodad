@@ -40,8 +40,7 @@ callCouldMatchFunc call symbol body = do
     if symbolsMatch then do
         am <- argsMatch
         rm <- rettyMatch
-        pm <- paramMatches
-        return (am && rm && pm)
+        return (am && rm)
     else return False
     where
         typesMatch :: [Type] -> [Type] -> DoM ASTResolved Bool
@@ -51,15 +50,7 @@ callCouldMatchFunc call symbol body = do
 
         symbolsMatch    = symbolsCouldMatch (callSymbol call) symbol
         argsMatch       = typesMatch (callArgTypes call) (map typeof $ funcArgs body)
-        rettyMatch      = typesMatch [callRetType call] [funcRetty body]
-
-        paramMatches = case (callParamType call, map typeof (funcParams body)) of
-            (Nothing, xs)       -> return (xs == [])
-            (Just (Type _), xs) -> return (xs /= [])
-            (Just t1,  ts2)     -> do
-                baseT1 <- baseTypeOf t1
-                typesMatch ts2 =<< case baseT1 of 
-                    t         -> return [t1]
+        rettyMatch      = typesCouldMatch (funcGenerics body) (callRetType call) (funcRetty body)
 
 
 funcFullyResolved :: [Symbol] -> FuncBody -> Bool
@@ -95,13 +86,13 @@ unifyOne generics constraint = case constraint of
         _ | t1 == t2                            -> return []
         (TypeApply s [], _) | s `elem` generics -> return [(t1, t2)]
         (Type _, _)                             -> return [(t1, t2)]
-        (Tuple as, Tuple bs)                      
-            | length as == length bs ->
-                concat <$> zipWithM (\a b -> unifyOne generics $ ConsEq a b) as bs
+        (Tuple ts1, Tuple ts2)                      
+            | length ts1 == length ts2 ->
+                concat <$> zipWithM (\a -> unifyOne generics .  ConsEq a) ts1 ts2
 
         (TypeApply s1 ts1, TypeApply s2 ts2)
             | length ts1 == length ts2 ->
-                concat <$> zipWithM (\a b -> unifyOne generics $ ConsEq a b) ts1 ts2
+                concat <$> zipWithM (\a -> unifyOne generics . ConsEq a) ts1 ts2
 
         _ -> fail $ "cannot unify: " ++ show (t1, t2)
 
@@ -120,17 +111,7 @@ getConstraints call body = do
     argCs <- fmap concat $ zipWithM (getConstraintsFromTypes $ funcGenerics body)
         (map typeof $ funcArgs body)
         (callArgTypes call)
-    parCs <- case callParamType call of
-        Nothing       -> return []
-        Just (Type _) -> return []
-        Just typ -> do
-            let fts = map typeof (funcParams body)
-            base <- baseTypeOf typ
-            ts <- case base of
-                _         -> return [typ]
-            unless (length fts == length ts) (error "param mismatch")
-            fmap concat $ zipWithM (getConstraintsFromTypes (funcGenerics body)) fts ts
-    return (retCs ++ argCs ++ parCs)
+    return (retCs ++ argCs)
     
 
 
@@ -141,16 +122,15 @@ getConstraintsFromTypes generics t1 t2 = fromTypes t1 t2
         fromTypes t1 t2 = do
             typedefs <- gets typeFuncs
             case (t1, t2) of
-                (a, b) | a == b                               -> return [] 
-                (Table a, Table b)                            -> fromTypes a b
-                (Type _, _)                                   -> return [ConsEq t1 t2]
-                (_, Type _)                                   -> return []
-
-                (Tuple as, Tuple bs)
-                    | length as == length bs ->
-                        (ConsEq t1 t2 :) . concat <$> zipWithM fromTypes as bs
-
+                (a, b) | a == b            -> return [] 
+                (Table a, Table b)         -> fromTypes a b
+                (Type _, _)                -> return [ConsEq t1 t2]
+                (_, Type _)                -> return []
                 (Reference a, Reference b) -> fromTypes a b
+
+                (Tuple ts1, Tuple ts2)
+                    | length ts1 == length ts2 ->
+                        (ConsEq t1 t2 :) . concat <$> zipWithM fromTypes ts1 ts2
 
                 (TypeApply s1 ts1, TypeApply s2 ts2)
                     | s1 `elem` generics -> do 
