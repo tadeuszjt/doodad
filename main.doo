@@ -75,12 +75,11 @@ fn testTable()
     data table Table[I64]
 
     let 0 = table.len()
-//
-//    table.push(1)
-//    table.push(2)
-//    table.push(3)
-//
-//    let 3 = table.len()
+    table.push(1)
+    table.push(2)
+    table.push(3)
+
+    let 3 = table.len()
 //
 //    let 3 = table.pop()
 //    let 2 = table.pop()

@@ -23,27 +23,22 @@ import qualified SymTab
 
 data Value
     = Value { valType :: Type.Type, valExpr :: C.Expression }
-    | Const S.Expr
+    | Ref   { refType :: Type.Type, refExpr :: C.Expression }
     deriving (Show, Eq)
 
 instance Typeof Value where
     typeof (Value t _) = t
-
-
-ptrExpr :: Value -> C.Expression
-ptrExpr obj = case obj of
-    Value t (C.Deref e) -> e
-    Value t e   -> C.Address e
+    typeof (Ref t _)   = t
 
 
 data GenerateState
     = GenerateState
         { moduleName :: String
-        , tuples :: Map.Map C.Type String
-        , supply :: Map.Map String Int
-        , ctors  :: Map.Map Symbol (Symbol, Int)
-        , typefuncs :: Map.Map Symbol ([Symbol], Type.Type)
-        , symTab :: SymTab.SymTab String () Value
+        , tuples     :: Map.Map C.Type String
+        , supply     :: Map.Map String Int
+        , ctors      :: Map.Map Symbol (Symbol, Int)
+        , typefuncs  :: Map.Map Symbol ([Symbol], Type.Type)
+        , symTab     :: SymTab.SymTab String () Value
         }
 
 initGenerateState modName
@@ -170,12 +165,27 @@ convert typ val = do
     return r
 
 
+deref :: Value -> Generate Value
+deref (Value t e) = return (Value t e)
+deref (Ref typ expr) = do
+    base <- baseTypeOf typ
+    case base of
+        x | isSimple x -> return $ Value typ (C.Deref expr)
+        x -> error (show x)
+    
+
+
 set :: Value -> Value -> Generate ()
 set a b = do
     unless (typeof a == typeof b) (error "set: type mismatch")
     base <- baseTypeOf a
-    void $ case base of
-        _ | isSimple base               -> void $ appendElem $ C.Set (valExpr a) (valExpr b)
+    case base of
+        _ | isSimple base -> do
+            case a of
+                Value _ _ -> void $ appendElem $ C.Set (valExpr a) (valExpr b)
+                Ref _ _   -> void $ appendElem $ C.Set (C.Deref $ refExpr a) (valExpr b)
+
+
         Type.Tuple ts -> do
             forM_ (zip ts [0..]) $ \(t, i) -> do
                 let va = Value t $ C.Member (valExpr a) ("m" ++ show i)
@@ -378,28 +388,24 @@ getTypedef suggestion typ = do
 
 
 tableAppend :: Value -> Generate ()
-tableAppend val = do
-    Table t <- baseTypeOf val
-    baseT <- baseTypeOf t
-    ts <- case baseT of
-        _             -> return [t]
+tableAppend (Ref typ expr) = do
+    Table t <- baseTypeOf typ
 
-    let len    = C.Member (valExpr val) "len"
+    let len    = C.Member (C.Deref expr) "len"
     let newLen = (C.Infix C.Plus len $ C.Int 1)
-    let cap    = C.Member (valExpr val) "cap"
+    let cap    = C.Member (C.Deref expr) "cap"
     
     -- realloc if needed
     if_ (Value Type.Bool $ C.Infix C.GTEq len cap) $ do
         appendElem $ C.Set cap (C.Infix C.Times newLen (C.Int 2))
 
-        forM_ (zip ts [0..]) $ \(t, row) -> do
-            let pMem = C.Member (valExpr val) ("r" ++ show row)
-            let elemSize = C.Sizeof $ C.Deref $ C.Member (valExpr val) $ "r" ++ show row
-            let newSize = C.Infix C.Times cap elemSize
-            let dataSize = C.Infix C.Times len elemSize
-            appendElem $ C.Set pMem $ C.Call "GC_realloc" [pMem, newSize]
+        let pMem = C.PMember expr "r0"
+        let elemSize = C.Sizeof $ C.Deref $ C.PMember expr "r0"
+        let newSize = C.Infix C.Times cap elemSize
+        let dataSize = C.Infix C.Times len elemSize
+        appendElem $ C.Set pMem $ C.Call "GC_realloc" [pMem, newSize]
 
-    void $ appendElem $ C.ExprStmt $ C.Increment $ C.Member (valExpr val) "len"
+    void $ appendElem $ C.ExprStmt $ C.Increment $ C.PMember expr "len"
 
 
 withFakeSwitch :: Generate a -> Generate a

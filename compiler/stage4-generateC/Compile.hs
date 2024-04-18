@@ -74,8 +74,8 @@ generateFunc symbol body = do
         forM_ (ASTResolved.funcArgs body) $ \arg -> do
             let name = show (paramName arg)
             case arg of
-                S.Param _ _ _ -> define name $ Value (typeof arg) (C.Ident name)
-                S.RefParam _ _ _ -> define name $ Value (typeof arg) (C.Deref $ C.Ident name)
+                S.Param _ _ _ ->    define name $ Value (typeof arg) (C.Ident name)
+                S.RefParam _ _ _ -> define name $ Ref (typeof arg) (C.Ident name)
                 x -> error (show x)
 
         generateStmt (ASTResolved.funcStmt body)
@@ -158,7 +158,10 @@ generateStmt stmt = withPos stmt $ case stmt of
 
     S.SetOp _ S.Eq index expr -> do
         idx <- generateExpr index
-        set idx =<< generateExpr expr
+
+        case idx of
+            Value _ _ -> set idx =<< generateExpr expr
+            Ref _ _ -> set idx =<< generateExpr expr
 
     S.While _ expr stmt -> do
         id <- appendElem $ C.For Nothing Nothing Nothing []
@@ -199,40 +202,6 @@ generateStmt stmt = withPos stmt $ case stmt of
 
     _ -> fail $ "invalid statement: " ++ (show stmt)
 
-
--- creates an expression which may be used multiple times without side-effects
-generateReentrantExpr :: Value -> Generate Value
-generateReentrantExpr (Value typ expr) = Value typ <$> reentrantExpr expr
-    where
-        reentrantExpr :: C.Expression -> Generate C.Expression
-        reentrantExpr expr = case expr of
-            C.Ident _ -> return expr
-            C.Bool _  -> return expr
-            C.String _ -> return expr
-            C.Int _ -> return expr
-            C.Float _ -> return expr
-            C.Char _ -> return expr
-            C.Not e -> C.Not <$> reentrantExpr e
-            C.Deref e -> C.Deref <$> reentrantExpr e
-            C.Address e -> C.Address <$> reentrantExpr e
-            C.Cast t e -> C.Cast t <$> reentrantExpr e
-            C.Prefix op e -> C.Prefix op <$> reentrantExpr e
-            C.Infix op e1 e2 -> do
-                e1' <- reentrantExpr e1
-                e2' <- reentrantExpr e2
-                return $ C.Infix op e1' e2'
-            C.Subscript e1 e2 -> do
-                e1' <- reentrantExpr e1
-                e2' <- reentrantExpr e2
-                return $ C.Subscript e1' e2'
-            C.Member e1 str -> do
-                e1' <- reentrantExpr e1
-                return $ C.Member e1' str
-            C.Call str es -> do
-                fmap valExpr $ assign "call" . Value typ =<< C.Call str <$> mapM reentrantExpr es
-            C.Initialiser elems -> do
-                fmap valExpr $ assign "init" . Value typ =<< C.Initialiser <$> mapM reentrantExpr elems
-            _ -> error (show expr)
 
 
 generatePattern :: Pattern -> Value -> Generate Value
@@ -316,11 +285,10 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
     S.Char _ c             -> return $ Value typ (C.Char c)
     S.Match _ expr pattern -> generatePattern pattern =<< generateExpr expr
     S.Ident _ symbol       -> do
-        base <- baseTypeOf typ
         val <- look (show symbol)
-        baseVal <- baseTypeOf val
-        case (base, baseVal) of
-            (_, _)                               -> return val
+        case val of
+            Value _ _ -> return val
+            Ref   t e -> return val
 
 
     S.Builtin _ "conv" [expr] -> convert typ =<< generateExpr expr
@@ -352,9 +320,11 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
 
     S.Builtin _ "builtin_table_append" [expr1] -> do
         val <- generateExpr expr1
-        base <- baseTypeOf val
-        case base of
-            Type.Table _ -> tableAppend val >> return (Value Void (C.Int 0))
+        Table _ <- baseTypeOf val
+        case val of
+            Value _ _ -> fail "isn't reference"
+            Ref _ _   -> tableAppend val >> return (Value Void $ C.Int 0)
+
 
     S.Prefix _ op a -> do
         val <- generateExpr a
@@ -373,23 +343,19 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
         valB <- generateExpr b
         generateInfix op valA valB
 
-    S.Call _ mexpr symbol exprs -> do
+    S.Call _ Nothing symbol exprs -> do
         check (symbolIsResolved symbol) ("unresolved function call: " ++ show symbol)
-        mparam <- traverse generateExpr mexpr
         vals <- mapM generateExpr exprs
-        ptrs <- case mparam of
-            Nothing -> return []
-            Just param -> do
-                base <- baseTypeOf param
-                case base of
-                    _ -> do
-                        return [C.Address (valExpr param)]
-                    x -> error (show x)
+
+        argExprs <- forM vals $ \val -> case val of
+            Value _ _ -> return (valExpr val)
+            Ref _ _   -> return (refExpr val)
         case typ of
             Void -> do
-                appendElem $ C.ExprStmt $ C.Call (show symbol) (ptrs ++ map valExpr vals)
+                appendElem $ C.ExprStmt $ C.Call (show symbol) argExprs
                 return $ Value Void $ C.Int 0
-            _ -> return $ Value typ $ C.Call (show symbol) (ptrs ++ map valExpr vals)
+            _ -> assign "call" $ Value typ $ C.Call (show symbol) argExprs
+
 
     S.Field _ _ (Sym s) -> fail $ "unresolved field: " ++ s
     S.Field _ expr symbol -> do 
@@ -438,10 +404,13 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
     S.Reference pos expr -> do
         val <- generateExpr expr
         base <- baseTypeOf val
-        case base of
-            _ | isSimple base -> return $ Value typ $ C.Address (valExpr val)
-            Table _           -> return $ Value typ $ C.Address (valExpr val)
-            x -> error (show x)
+        case val of
+            Ref _ _ -> return val
+            Value _ _ -> case base of
+                x | isSimple x -> return $ Ref (typeof val) (C.Address $ valExpr val)
+                Table _        -> return $ Ref (typeof val) (C.Address $ valExpr val)
+
+
 
     S.Dereference pos expr -> error ""
 
@@ -449,14 +418,18 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
     where
         withTypeCheck :: Generate Value -> Generate Value
         withTypeCheck f = do
-            r <- generateReentrantExpr =<< f
+            r <- f
             unless (typeof r == typ) (error "generateExpr returned incorrect type")
             return r
 generateExpr x = fail $ "unresolved expression: " ++ show x
             
 
 generateInfix :: S.Operator -> Value -> Value -> Generate Value
-generateInfix op a b = do
+generateInfix op a' b' = do
+    a <- deref a'
+    b <- deref b'
+
+
     unless (typeof a == typeof b) (error "type mismatch")
     base <- baseTypeOf a
     case base of
