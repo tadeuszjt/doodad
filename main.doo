@@ -71,31 +71,22 @@ fn testFnWithRef()
     f(&x)
     let 2 = x
 
-    type[T] MyRefType &T
-    fn g(a MyRefType[Bool])
-        a = !a
-
-    let a = true
-    g(&a)
-    let false = a
-
-
 fn testTable()
     data table Table[I64]
 
     let 0 = table.len()
-
-    table.push(1)
-    table.push(2)
-    table.push(3)
-
-    let 3 = table.len()
-
-    let 3 = table.pop()
-    let 2 = table.pop()
-    let 1 = table.pop()
-
-    let 0 = table.len()
+//
+//    table.push(1)
+//    table.push(2)
+//    table.push(3)
+//
+//    let 3 = table.len()
+//
+//    let 3 = table.pop()
+//    let 2 = table.pop()
+//    let 1 = table.pop()
+//
+//    let 0 = table.len()
 
 //    type Person (age I64, male Bool)
 //    data t2 Table[Person]

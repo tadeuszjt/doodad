@@ -108,7 +108,9 @@ collectFuncDef symbol body = do
     oldRetty <- gets curRetty
     modify $ \s -> s { curRetty = funcRetty body }
     forM (funcParams body) $ \(Param _ symbol t) -> error ""
-    forM_ (funcArgs body) $ \(Param _ symbol t) -> define symbol (ObjVar t)
+    forM_ (funcArgs body) $ \param -> case param of
+        (Param _ symbol t) -> define symbol (ObjVar t)
+        (RefParam _ symbol t) -> define symbol (ObjVar t)
 
     collectStmt (funcStmt body)
 
@@ -230,15 +232,14 @@ collectExpr (AExpr exprType expression) = withPos expression $ case expression o
         collectExpr expr
 
     AST.Reference _ expr -> do
-        collect $ ConsBase exprType $ Type.Reference (typeof expr)
-        collect $ ConsReference exprType (typeof expr)
-        collectDefault exprType $ Type.Reference (typeof expr)
+        collect $ ConsEq exprType (typeof expr)
         collectExpr expr
 
     Dereference _ expr -> do
-        collect $ ConsBase (typeof expr) (Type.Reference exprType)
-        collect $ ConsReference (typeof expr) exprType
-        collectExpr expr
+        error ""
+--        collect $ ConsBase (typeof expr) (Type.Reference exprType)
+--        collect $ ConsReference (typeof expr) exprType
+--        collectExpr expr
 
     AST.Tuple _ exprs -> do
         collect $ ConsTuple exprType (map typeof exprs)

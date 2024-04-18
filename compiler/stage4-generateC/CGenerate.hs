@@ -257,12 +257,10 @@ initialiser :: Type.Type -> [Value] -> Generate Value
 initialiser typ [] = do
     base <- baseTypeOf typ
     case base of
-        Type.Reference _ -> fail "cannot initialize empty reference"
         _           -> assign "zero" $ Value typ $ C.Initialiser [C.Int 0]
 initialiser typ vals = do
     base <- baseTypeOf typ
     case base of
-        Type.Reference t -> fail "cannot initialise reference"
         Type.Tuple ts -> do
             unless (length vals == length ts) (fail "invalid tuple initialiser")
             assign "zero" $ Value typ $ C.Initialiser (map valExpr vals)
@@ -287,34 +285,30 @@ builtinTableGet val idx = do
 
 
 
-deref :: Value -> Generate Value
-deref val = do
-    Type.Reference t <- baseTypeOf val
-    case t of
-        x | isSimple x -> return $ Value t $ C.Deref (valExpr val)
-        Table _        -> return $ Value t $ C.Deref (valExpr val)
-        x -> error (show x)
-
-
 builtinTableAt :: Value -> Value -> Generate Value
 builtinTableAt val idx = do
-    Type.Reference tabTyp <- baseTypeOf val
-    I64 <- baseTypeOf idx
-    Table t <- baseTypeOf tabTyp
-    baseT <- baseTypeOf t
-    case baseT of
-        x | isSimple x -> return $ Value (Type.Reference t) $ C.Address $ C.Subscript
-            (C.Member (C.Deref $ valExpr val) "r0")
-            (valExpr idx)
-
-        x -> error (show x)
+    error ""
+--    Type.Reference tabTyp <- baseTypeOf val
+--    I64 <- baseTypeOf idx
+--    Table t <- baseTypeOf tabTyp
+--    baseT <- baseTypeOf t
+--    case baseT of
+--        x | isSimple x -> return $ Value (Type.Reference t) $ C.Address $ C.Subscript
+--            (C.Member (C.Deref $ valExpr val) "r0")
+--            (valExpr idx)
+--
+--        x -> error (show x)
 
 
 
 cParamOf :: S.Param -> Generate C.Param
-cParamOf param = do
-    ctype <- cTypeOf (paramType param)
-    return $ C.Param { C.cName = show (paramName param), C.cType = ctype }
+cParamOf param = case param of
+    S.Param _ _ _ -> do
+        ctype <- cTypeOf param
+        return $ C.Param { C.cName = show (paramName param), C.cType = ctype }
+    S.RefParam _ _ _ -> do
+        ctype <- cTypeOf param
+        return $ C.Param { C.cName = show (paramName param), C.cType = (Cpointer ctype) }
 
 
 cTypeOf :: (Typeof a) => a -> Generate C.Type
@@ -332,16 +326,6 @@ cTypeOf a = case typeof a of
     Type.Tuple t   -> getTypedef "Tuple"  =<< cTypeNoDef (Type.Tuple t)
     Type.Table t   -> getTypedef "Table"  =<< cTypeNoDef (Type.Table t)
     Type.ADT ts    -> getTypedef "Adt"    =<< cTypeNoDef (Type.ADT ts)
-
-    Type.Reference t -> do
-        base <- baseTypeOf t
-        case base of
-            _ | isSimple base -> Cpointer <$> cTypeOf t
-            Table _           -> Cpointer <$> cTypeOf t
-            Type.Tuple _      -> getTypedef "Reference" =<< cTypeNoDef (Type.Reference t)
-
-
-            x -> error (show x)
 
     Type.TypeApply symbol args -> do
         (generics, typ) <- mapGet symbol =<< getTypeDefs
@@ -377,12 +361,6 @@ cTypeOf a = case typeof a of
                     t              -> return [t]
                 let pts = zipWith (\ct i -> C.Param ("r" ++ show i) (Cpointer ct)) cts [0..]
                 return $ Cstruct (C.Param "len" Cint64_t:C.Param "cap" Cint64_t:pts)
-
-            Type.Reference t -> do
-                baseT <- baseTypeOf t
-                case baseT of
-                    _ | isSimple baseT -> Cpointer <$> cTypeOf t
-                    x -> error (show x)
 
             x -> error (show x)
 

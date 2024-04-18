@@ -25,16 +25,7 @@ unifyOne pos constraint = withPos pos $ case constraint of
         base <- baseTypeOfm t1
         case base of
             Nothing -> return []
-            Just (Type.Reference t) -> unifyOne pos (ConsEq t2 t)
             Just _                  -> unifyOne pos (ConsEq t2 t1)
-
-    ConsReference t1 t2 -> do
-        base <- baseTypeOfm t1
-        case base of
-            Nothing -> return []
-            Just (Type.Reference t) -> unifyOne pos (ConsEq t t2)
-            Just t                  -> fail ("invalid reference type: " ++ show t)
-            x -> error (show x)
 
 
     ConsField typ (Sym _) exprType -> return []
@@ -65,7 +56,6 @@ unifyOne pos constraint = withPos pos $ case constraint of
         (Type x, t)              -> return [(Type x, t)]
         (t, Type x)              -> return [(Type x, t)]
         (Table t1, Table t2)     -> unifyOne pos (ConsEq t1 t2)
-        (Reference t1, Reference t2) -> unifyOne pos (ConsEq t1 t2)
         (Tuple ts1, Tuple ts2)
             | length ts1 == length ts2 -> concat <$> zipWithM (\a b -> unifyOne pos (ConsEq a b)) ts1 ts2
 
@@ -102,7 +92,6 @@ unifyOne pos constraint = withPos pos $ case constraint of
         case baseT1m of
             Nothing -> return []
             Just x | isSimple x -> return []
-            Just (Reference t) -> return []
             x -> error (show x)
 
 

@@ -41,7 +41,6 @@ data Type
     | Tuple [Type]
     | Table Type
     | ADT [Type]
-    | Reference Type
     | TypeApply Symbol [Type]
     deriving (Eq, Ord)
 
@@ -62,7 +61,6 @@ instance Show Type where
         Tuple ts          -> "(" ++ intercalate ", " (map show ts) ++ ")"
         Table t           -> "Table[" ++ show t ++ "]"
         ADT ts            -> "(" ++ intercalate " | " (map show ts) ++ ")"
-        Reference t       -> "&" ++ show t
         TypeApply s []    -> show s
         TypeApply s ts    -> show s ++ "[" ++ intercalate ", " (map show ts) ++ "]"
 
@@ -117,7 +115,6 @@ mapType f typ = f $ case typ of
     TypeApply s ts -> TypeApply s $ map (mapType f) ts
     ADT ts         -> ADT $ map (mapType f) ts
     Void           -> typ
-    Reference t    -> Reference $ mapType f t
     _ -> error (show typ)
 
 
@@ -137,7 +134,6 @@ baseTypeOfm a = case typeof a of
     Tuple t        -> return $ Just (Tuple t)
     Table t        -> return $ Just (Table t)
     Void           -> return $ Just Void
-    Reference t    -> return $ Just (Reference t)
 
     TypeApply symbol ts -> do
         resm <- Map.lookup symbol <$> getTypeDefs
@@ -164,7 +160,6 @@ applyTypeArguments argSymbols argTypes typ = do
         Tuple ts         -> Tuple <$> mapM (applyTypeArguments argSymbols argTypes) ts
         Table t          -> Table <$> applyTypeArguments argSymbols argTypes t
         ADT ts           -> ADT <$> mapM (applyTypeArguments argSymbols argTypes) ts
-        Reference t      -> Reference <$> applyTypeArguments argSymbols argTypes t
         _ | isSimple typ -> return typ
         Void             -> return typ
         _                -> error $ "applyTypeArguments: " ++ show typ
@@ -178,7 +173,6 @@ typesCouldMatch generics t1 t2 = couldMatch t1 t2
             (a, b) | a == b            -> return True
             (Type _, _)                -> return True
             (_, Type _)                -> return True
-            (Reference a, Reference b) -> couldMatch a b
             (Table a, Table b)         -> couldMatch a b
 
             (Tuple as, Tuple bs)

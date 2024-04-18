@@ -196,6 +196,7 @@ Symbol : Ident                           { (tokPos $1, Sym (tokStr $1)) }
 
 
 param   : ident type_                    { Param (tokPos $1) (Sym $ tokStr $1) $2 }
+        | ident '&' type_                { RefParam (tokPos $1) (Sym $ tokStr $1) $3 }
 params  : {- empty -}                    { [] }
         | params1                        { $1 }
 params1 : param                          { [$1] }
@@ -308,7 +309,6 @@ type_         : ordinal_t                  { $1 }
               | Symbol '[' types1 ']'      { TypeApply (snd $1) $3 }
               | tuple_t                    { $1 }
               | table_t                    { $1 }
-              | '&' type_                  { Type.Reference $2 }
 
 
 ordinal_t   : Bool                         { Type.Bool }
@@ -332,7 +332,6 @@ table_t  : Table '[' type_ ']'             { Type.Table $3 }
 anno_t   : ordinal_t                       { AnnoType $1 }
          | tuple_t                         { AnnoType $1 }
          | table_t                         { AnnoType $1 }
-         | '&' type_                       { AnnoType (Type.Reference $2) }
          | '(' ')' '{' paramsA1 '}'        { AnnoTuple $4 }
          | Table '[' '{' paramsA1 '}' ']'  { AnnoTable $4 }
          | '(' paramsA1 ')'                { AnnoTuple $2 }

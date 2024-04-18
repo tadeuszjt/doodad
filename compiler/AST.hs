@@ -51,10 +51,15 @@ data Param
         , paramName :: Symbol
         , paramType :: Type
         }
+    | RefParam
+        { paramPos :: TextPos
+        , paramName :: Symbol
+        , paramType :: Type
+        }
     deriving (Eq, Ord)
 
 instance Type.Typeof Param where
-    typeof (Param pos name typ) = typ
+    typeof = paramType
 
 
 data Pattern
@@ -182,8 +187,8 @@ instance Show Import where
     show (CLink path) = "link " ++ path
 
 instance Show Param where
-    show (Param pos name Void) = show name
-    show (Param pos name typ)  = show name ++ ":" ++ show typ
+    show (Param pos name typ)    = show name ++ " " ++ show typ
+    show (RefParam pos name typ) = show name ++ "& " ++ show typ
 
 
 instance Show Operator where

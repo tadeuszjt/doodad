@@ -26,21 +26,23 @@ generate ast = withErrorPrefix "generate: " $ do
     forM_ (Map.toList $ funcImports ast) $ \(symbol, body) -> do
         unless (isGenericBody body) $ do
             crt <- cTypeOf (ASTResolved.funcRetty body)
-            --pts <- getRecordTypes $ Type.Record (map typeof $ ASTResolved.funcParams body)
-            --cpts <- map Cpointer <$> mapM cTypeOf pts
-            let cpts = []
-            cats <- mapM cTypeOf (ASTResolved.funcArgs body)
-            newExtern (show symbol) crt (cpts ++ cats)
+            cats <- forM (ASTResolved.funcArgs body) $ \param -> case param of
+                S.Param _ _ _ -> cTypeOf param
+                S.RefParam _ _ _ -> Cpointer <$> cTypeOf param
+                x -> error (show x)
+            newExtern (show symbol) crt cats
 
     -- generate function headers
     forM_ (Map.toList $ funcDefs ast) $ \(symbol, func) -> do
          unless (isGenericBody func) $ do
             crt <- cTypeOf (ASTResolved.funcRetty func)
-            --pts <- getRecordTypes $ Type.Record (map typeof $ ASTResolved.funcParams func)
-            --cpts <- map Cpointer <$> mapM cTypeOf pts
-            let cpts = []
-            cats <- mapM cTypeOf (map paramType $ ASTResolved.funcArgs func)
-            newExtern (show symbol) crt (cpts ++ cats)
+
+            cats <- forM (ASTResolved.funcArgs func) $ \param -> case param of
+                S.Param _ _ _ -> cTypeOf param
+                S.RefParam _ _ _ -> Cpointer <$> cTypeOf param
+                x -> error (show x)
+
+            newExtern (show symbol) crt cats
 
     -- generate functions, main is a special case
     forM_ (Map.toList $ funcDefs ast) $ \(symbol, func) -> do
@@ -71,7 +73,10 @@ generateFunc symbol body = do
     withCurID id $ do
         forM_ (ASTResolved.funcArgs body) $ \arg -> do
             let name = show (paramName arg)
-            define name $ Value (S.paramType arg) (C.Ident name)
+            case arg of
+                S.Param _ _ _ -> define name $ Value (typeof arg) (C.Ident name)
+                S.RefParam _ _ _ -> define name $ Value (typeof arg) (C.Deref $ C.Ident name)
+                x -> error (show x)
 
         generateStmt (ASTResolved.funcStmt body)
         when (ASTResolved.funcRetty body /= Type.Void) $ -- check to ensure function has return
@@ -315,8 +320,6 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
         val <- look (show symbol)
         baseVal <- baseTypeOf val
         case (base, baseVal) of
-            (Type.Reference _, Type.Reference _) -> return val
-            (_, Type.Reference _)                -> deref val
             (_, _)                               -> return val
 
 
@@ -342,14 +345,9 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
         idx <- generateExpr expr2
         base <- baseTypeOf val
         case base of
-            Type.Reference t -> do
-                Table _ <- baseTypeOf t
-                builtinTableAt val idx
-
             Type.Table _ -> do
                 baseType <- baseTypeOf typ
                 case baseType of
-                    Type.Reference t -> builtinTableAt val idx
                     _                -> builtinTableGet val idx
 
     S.Builtin _ "builtin_table_append" [expr1] -> do
@@ -445,7 +443,7 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
             Table _           -> return $ Value typ $ C.Address (valExpr val)
             x -> error (show x)
 
-    S.Dereference pos expr -> deref =<< generateExpr expr
+    S.Dereference pos expr -> error ""
 
     _ -> error (show expr_)
     where

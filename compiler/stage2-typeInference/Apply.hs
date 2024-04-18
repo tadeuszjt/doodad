@@ -21,6 +21,7 @@ applyFuncBody subs body = body {
 
 applyParam :: [(Type, Type)] -> Param -> Param
 applyParam subs (Param pos symbol typ) = Param pos symbol (applyType subs typ)
+applyParam subs (RefParam pos symbol typ) = RefParam pos symbol (applyType subs typ)
 
 
 applyStmt :: [(Type, Type)] -> Stmt -> Stmt
@@ -106,7 +107,6 @@ applyConstraint subs constraint = case constraint of
     ConsTuple t1 ts        -> ConsTuple (rf t1) (map rf ts)
     ConsField  t1 s t2     -> ConsField (rf t1) s (rf t2)
     ConsForExpr t1 t2      -> ConsForExpr (rf t1) (rf t2)
-    ConsReference t1 t2    -> ConsReference (rf t1) (rf t2)
     ConsBuiltinAt t1 t2    -> ConsBuiltinAt (rf t1) (rf t2)
     where
         rf = applyType subs

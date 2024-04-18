@@ -20,6 +20,7 @@ type MapperFunc s = (Elem -> DoM s Elem)
 
 mapParamM :: MapperFunc s -> Param -> DoM s Param
 mapParamM f (AST.Param pos symbol typ) = withPos pos $ AST.Param pos symbol <$> (mapTypeM f typ)
+mapParamM f (AST.RefParam pos symbol typ) = withPos pos $ AST.RefParam pos symbol <$> (mapTypeM f typ)
     
 
 mapFuncBodyM :: MapperFunc s -> FuncBody -> DoM s FuncBody
@@ -186,7 +187,6 @@ mapTypeM f typ = do
         Table t        -> Table <$> mapTypeM f t
         TypeApply s ts -> TypeApply s <$> mapM (mapTypeM f) ts
         ADT ts         -> ADT <$> mapM (mapTypeM f) ts
-        Type.Reference t -> Type.Reference <$> mapTypeM f t
         Void           -> return typ
         _ -> error (show typ)
     case res of

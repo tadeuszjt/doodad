@@ -30,17 +30,16 @@ findCandidates call = do
     fmap catMaybes $ forM (Map.toList $ Map.union (funcDefs ast) (funcImports ast)) $
         \(symbol, body) -> do
             b <- callCouldMatchFunc call symbol body
-            return $ case b of
-                True -> Just symbol
-                False -> Nothing
+            if b then return (Just symbol)
+            else      return Nothing
 
 
 callCouldMatchFunc :: CallHeader -> Symbol -> FuncBody -> DoM ASTResolved Bool
 callCouldMatchFunc call symbol body = do
     if symbolsMatch then do
         am <- argsMatch
-        rm <- rettyMatch
-        return (am && rm)
+        --rm <- rettyMatch
+        return (am )
     else return False
     where
         typesMatch :: [Type] -> [Type] -> DoM ASTResolved Bool
@@ -50,7 +49,7 @@ callCouldMatchFunc call symbol body = do
 
         symbolsMatch    = symbolsCouldMatch (callSymbol call) symbol
         argsMatch       = typesMatch (callArgTypes call) (map typeof $ funcArgs body)
-        rettyMatch      = typesCouldMatch (funcGenerics body) (callRetType call) (funcRetty body)
+        --rettyMatch      = typesCouldMatch (funcGenerics body) (callRetType call) (funcRetty body)
 
 
 funcFullyResolved :: [Symbol] -> FuncBody -> Bool
@@ -68,7 +67,6 @@ funcFullyResolved generics body =
             Tuple ts                        -> all id (map typeFullyResolved ts)
             x | isSimple x                  -> True
             Void                            -> True
-            Type.Reference t                -> typeFullyResolved t
             x -> error $ "typeFullyResolved: " ++ show x
 
 
@@ -126,7 +124,6 @@ getConstraintsFromTypes generics t1 t2 = fromTypes t1 t2
                 (Table a, Table b)         -> fromTypes a b
                 (Type _, _)                -> return [ConsEq t1 t2]
                 (_, Type _)                -> return []
-                (Reference a, Reference b) -> fromTypes a b
 
                 (Tuple ts1, Tuple ts2)
                     | length ts1 == length ts2 ->

@@ -409,6 +409,11 @@ instance Resolve Param where
         symbol <- genSymbol sym
         define sym KeyVar symbol
         return $ Param pos symbol typ'
+    resolve (RefParam pos (Sym sym) typ) = withPos pos $ do
+        typ' <- resolve typ
+        symbol <- genSymbol sym
+        define sym KeyVar symbol
+        return $ RefParam pos symbol typ'
 
 resolveMapper :: Elem -> DoM ResolveState Elem
 resolveMapper element = case element of
