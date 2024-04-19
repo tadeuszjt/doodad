@@ -157,8 +157,8 @@ collectPattern (PatAnnotated pattern patType) = withPos pattern $ case pattern o
         collectExpr expr
 
     PatTuple _ pats -> do
-        collectDefault patType (Type.Tuple $ map typeof pats)
-        collect $ ConsBase patType $ Type.Tuple (map typeof pats)
+        collectDefault patType (Type.TypeApply (Sym "Tuple") $ map typeof pats)
+        collect $ ConsBase patType $ Type.TypeApply (Sym "Tuple") (map typeof pats)
         mapM_ collectPattern pats
 
     PatAnnotated pat t -> do
@@ -219,8 +219,8 @@ collectExpr (AExpr exprType expression) = withPos expression $ case expression o
         collectExpr expr
 
     AST.Tuple _ exprs -> do
-        collect $ ConsBase exprType $ Type.Tuple (map typeof exprs)
-        collectDefault exprType $ Type.Tuple (map typeof exprs)
+        collect $ ConsBase exprType $ Type.TypeApply (Sym "Tuple") (map typeof exprs)
+        collectDefault exprType $ Type.TypeApply (Sym "Tuple") (map typeof exprs)
         mapM_ collectExpr exprs
 
     Builtin _ sym exprs -> do 
@@ -237,7 +237,7 @@ collectExpr (AExpr exprType expression) = withPos expression $ case expression o
             "builtin_table_at" -> do
                 check (length exprs == 2) "invalid builtin_table_at call"
                 collect $ ConsBase (typeof $ exprs !! 1) I64
-                collect $ ConsBase (typeof $ exprs !! 0) (Type.Table exprType)
+                collect $ ConsBase (typeof $ exprs !! 0) (Type.TypeApply (Sym "Table") [exprType])
 
             "builtin_table_append" -> do
                 check (length exprs == 1) "invalid builtin_table_append call"

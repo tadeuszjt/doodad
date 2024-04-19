@@ -316,7 +316,7 @@ ordinal_t   : Bool                         { Type.Bool }
             | Char                         { Type.Char }
             | String                       { Type.String }
 
-tuple_t : '(' type_ ',' types1 ')' { Type.Tuple ($2:$4) }
+tuple_t : '(' type_ ',' types1 ')' { Type.TypeApply (Sym "Tuple") ($2:$4) }
 
 anno_t   : ordinal_t               { AnnoType $1 }
          | tuple_t                 { AnnoType $1 }

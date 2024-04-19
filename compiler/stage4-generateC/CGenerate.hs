@@ -187,7 +187,7 @@ deref (Ref typ expr) = do
     base <- baseTypeOf typ
     case base of
         x | isSimple x -> return $ Value typ (C.Deref expr)
-        Type.Tuple ts  -> do
+        Type.TypeApply (Sym "Tuple") ts  -> do
             -- TODO implement memory shear
             let ptr = C.Member expr "ptr"
             return $ Value typ (C.Deref ptr)
@@ -202,7 +202,7 @@ set (Ref ta a) (Ref tb b) = do
     unless (ta == tb) (error "set: type mismatch")
     base <- baseTypeOf ta
     case base of
-        Type.Tuple ts -> do
+        Type.TypeApply (Sym "Tuple") ts -> do
             -- TODO implement shear
             let tupA = C.Deref (C.Member a "ptr")
             let tupB = C.Deref (C.Member b "ptr")
@@ -221,7 +221,7 @@ set (Ref ta a) (Value tb b) = do
         x | isSimple x -> do
             set (Value ta $ C.Deref a) $ Value tb b
 
-        Type.Tuple ts -> do
+        Type.TypeApply (Sym "Tuple") ts -> do
             -- TODO implement shear
             let tupA = C.Deref (C.Member a "ptr")
             let tupB = b
@@ -245,15 +245,15 @@ set a b = do
                 Ref _ _   -> void $ appendElem $ C.Set (C.Deref $ refExpr a) (valExpr bVal)
 
 
-        Type.Tuple ts -> do
+        Type.TypeApply (Sym "Tuple") ts -> do
             forM_ (zip ts [0..]) $ \(t, i) -> do
                 let va = Value t $ C.Member (valExpr a) ("m" ++ show i)
                 let vb = Value t $ C.Member (valExpr bVal) ("m" ++ show i)
                 set va vb
 
-        --Type.Sum ts -> void $ appendElem $ C.Set (valExpr a) (valExpr b) -- TODO broken
+        --Type.TypeApply (Sym "Sum") ts -> void $ appendElem $ C.Set (valExpr a) (valExpr b) -- TODO broken
             
-        Type.Table t -> do
+        Type.TypeApply (Sym "Table") t -> do
             error ""
 --            let cap = C.Member (valExpr a) "cap"
 --            let len = C.Member (valExpr a) "len"
@@ -285,7 +285,7 @@ len :: Value -> Generate Value
 len val = do
     base <- baseTypeOf val
     case base of
-        Table _      -> return $ Value I64 $ C.Member (valExpr val) "len"
+        TypeApply (Sym "Table") _      -> return $ Value I64 $ C.Member (valExpr val) "len"
         Type.String  -> return $ Value I64 $ C.Call "strlen" [valExpr val]
 --        Type.Array n t -> return $ Value I64 $ C.Int (fromIntegral n)
         _ -> error (show base)
@@ -293,7 +293,7 @@ len val = do
 
 adtEnum :: Value -> Generate Value
 adtEnum obj = do
-    base@(Type.Sum _) <- baseTypeOf obj
+    base@(Type.TypeApply (Sym "Sum") _) <- baseTypeOf obj
     return $ Value I64 $ C.Member (valExpr obj) "en"
 
 
@@ -301,7 +301,7 @@ member :: Int -> Value -> Generate Value
 member idx (Ref typ expr) = do
     base <- baseTypeOf typ
     case base of
-        Type.Tuple ts -> do
+        Type.TypeApply (Sym "Tuple") ts -> do
             unless (idx >= 0 && idx < length ts) (error "invalid member index")
             -- TODO implement shear
             return $ Value (ts !! idx) $ C.PMember (C.Member expr "ptr") ("m" ++ show idx)
@@ -312,22 +312,22 @@ member idx (Ref typ expr) = do
 member index val = do
     base <- baseTypeOf val
     case base of
-        Type.Tuple ts -> do
+        Type.TypeApply (Sym "Tuple") ts -> do
             unless (index >= 0 && index < length ts) (error "invalid member index")
             return $ Value (ts !! index) $ C.Member (valExpr val) ("m" ++ show index)
 
-        Type.Table t -> do
+        Type.TypeApply (Sym "Table") t -> do
             error ""
 --            Type.Record ts <- baseTypeOf t
 --            Type.RecordTree ns <- getRecordTree t
 --            leaves <- getRecordLeaves (ns !! index)
 --            let elems  = map (\(t, i) -> C.Member (valExpr val) ("r" ++ show i)) leaves
---            assign "member" $ Value (Table $ ts !! index) $ C.Initialiser $
+--            assign "member" $ Value (TypeApply (Sym "Table") $ ts !! index) $ C.Initialiser $
 --                [ C.Member (valExpr val) "len"
 --                , C.Member (valExpr val) "cap"
 --                ] ++ elems
 
-        Type.Sum ts   -> do
+        Type.TypeApply (Sym "Sum") ts   -> do
             unless (index >= 0 && index < length ts) (error "invalid Sum field index")
             return $ Value (ts !! index) $ C.Member (valExpr val) ("u" ++ show index)
         _ -> error (show base)
@@ -341,7 +341,7 @@ initialiser typ [] = do
 initialiser typ vals = do
     base <- baseTypeOf typ
     case base of
-        Type.Tuple ts -> do
+        Type.TypeApply (Sym "Tuple") ts -> do
             unless (length vals == length ts) (fail "invalid tuple initialiser")
             assign "zero" $ Value typ $ C.Initialiser (map valExpr vals)
 
@@ -350,17 +350,17 @@ initialiser typ vals = do
 
 builtinTableGet :: Value -> Value -> Generate Value
 builtinTableGet val idx = do
-    Table t <- baseTypeOf val
+    TypeApply (Sym "Table") [t] <- baseTypeOf val
     baseT <- baseTypeOf t
     case baseT of
         _ | isSimple baseT -> return $ Value t $ C.Subscript
             (C.Member (valExpr val) "r0")
             (valExpr idx)
-        Type.Tuple _ -> error ""
+        Type.TypeApply (Sym "Tuple") _ -> error ""
 
             
-        Sum ts -> error ""
-        Type.Table _ -> error ""
+        TypeApply (Sym "Sum") ts -> error ""
+        Type.TypeApply (Sym "Table") _ -> error ""
         x -> error (show x)
 
 
@@ -368,7 +368,7 @@ builtinTableGet val idx = do
 builtinTableAt :: Value -> Value -> Generate Value
 builtinTableAt (Ref tabType expr) idx = do
     I64 <- baseTypeOf idx
-    Table t <- baseTypeOf tabType
+    TypeApply (Sym "Table") [t] <- baseTypeOf tabType
 
     baseT <- baseTypeOf t
     case baseT of
@@ -376,7 +376,7 @@ builtinTableAt (Ref tabType expr) idx = do
             (C.PMember expr "r0")
             (valExpr idx)
 
-        Type.Tuple ts -> do
+        Type.TypeApply (Sym "Tuple") ts -> do
             -- TODO implement shear
             let ptr = C.Address $ C.Subscript (C.PMember expr "r0") (valExpr idx)
             assign "ref" $ Ref t $ C.Initialiser [ptr, C.Int 0, C.Int 0]
@@ -397,8 +397,8 @@ cRefTypeOf a = do
     base <- baseTypeOf a
     case base of
         x | isSimple x -> Cpointer <$> cTypeOf a 
-        Type.Table _   -> Cpointer <$> cTypeOf a
-        Type.Tuple ts  -> do
+        Type.TypeApply (Sym "Table") _   -> Cpointer <$> cTypeOf a
+        Type.TypeApply (Sym "Tuple") ts  -> do
             pt <- Cpointer <$> cTypeOf a
             cst <- return $ Cstruct [C.Param "ptr" pt, C.Param "idx" Csize_t, C.Param "cap" Csize_t]
             getTypedef "Ref" cst
@@ -418,9 +418,9 @@ cTypeOf a = case typeof a of
     Type.Bool      -> return Cbool
     Type.Char      -> return Cchar
     Type.String    -> return (Cpointer Cchar)
-    Type.Tuple t   -> getTypedef "Tuple"  =<< cTypeNoDef (Type.Tuple t)
-    Type.Table t   -> getTypedef "Table"  =<< cTypeNoDef (Type.Table t)
-    Type.Sum ts    -> getTypedef "Adt"    =<< cTypeNoDef (Type.Sum ts)
+    Type.TypeApply (Sym "Tuple") t   -> getTypedef "Tuple"  =<< cTypeNoDef (Type.TypeApply (Sym "Tuple") t)
+    Type.TypeApply (Sym "Table") t   -> getTypedef "Table"  =<< cTypeNoDef (Type.TypeApply (Sym "Table") t)
+    Type.TypeApply (Sym "Sum") ts    -> getTypedef "Adt"    =<< cTypeNoDef (Type.TypeApply (Sym "Sum") ts)
 
     Type.TypeApply symbol args -> do
         (generics, typ) <- mapGet symbol =<< getTypeDefs
@@ -441,16 +441,16 @@ cTypeOf a = case typeof a of
             Type.Bool -> return Cbool
             Type.Char -> return Cchar
             Type.String -> return (Cpointer Cchar)
-            Type.Tuple ts -> do
+            Type.TypeApply (Sym "Tuple") ts -> do
                 cts <- mapM cTypeOf ts
                 return $ Cstruct $ map (\(ct, i) -> C.Param ("m" ++ show i) ct) (zip cts [0..])
 
-            Type.Sum ts -> do
+            Type.TypeApply (Sym "Sum") ts -> do
                 cts <- mapM cTypeOf ts
                 return $ Cstruct [C.Param "en" Cint64_t, C.Param "" $
                     Cunion $ map (\(ct, i) -> C.Param ("u" ++ show i) ct) (zip cts [0..])]
 
-            Type.Table t -> do
+            Type.TypeApply (Sym "Table") [t] -> do
                 baseT <- baseTypeOf t
                 cts <- mapM cTypeOf =<< case baseT of
                     t              -> return [t]
@@ -474,7 +474,7 @@ getTypedef suggestion typ = do
 
 tableAppend :: Value -> Generate ()
 tableAppend (Ref typ expr) = do
-    Table t <- baseTypeOf typ
+    TypeApply (Sym "Table") t <- baseTypeOf typ
 
     let len    = C.Member (C.Deref expr) "len"
     let newLen = (C.Infix C.Plus len $ C.Int 1)

@@ -38,9 +38,6 @@ data Type
     | Bool                   
     | Char                   
     | String
-    | Tuple [Type]
-    | Table Type
-    | Sum [Type]
     | TypeApply Symbol [Type]
     deriving (Eq, Ord)
 
@@ -58,9 +55,6 @@ instance Show Type where
         Bool              -> "Bool"
         Char              -> "Char"
         String            -> "String"
-        Tuple ts          -> "(" ++ intercalate ", " (map show ts) ++ ")"
-        Table t           -> "Table[" ++ show t ++ "]"
-        Sum ts            -> "Sum[" ++ intercalate ", " (map show ts) ++ "]"
         TypeApply s []    -> show s
         TypeApply s ts    -> show s ++ "[" ++ intercalate ", " (map show ts) ++ "]"
 
@@ -99,21 +93,9 @@ isIntegral x = isInt x || x == Char
 
 mapType :: (Type -> Type) -> Type -> Type
 mapType f typ = f $ case typ of
-    U8             -> typ
-    I8             -> typ
-    I16            -> typ
-    I32            -> typ
-    I64            -> typ
-    F32            -> typ
-    F64            -> typ
-    Bool           -> typ
-    String         -> typ
-    Char           -> typ
+    x | isSimple x -> typ
     Type _         -> typ
-    Tuple ts       -> Tuple $ map (mapType f) ts
-    Table t        -> Table (mapType f t)
     TypeApply s ts -> TypeApply s $ map (mapType f) ts
-    Sum ts         -> Sum $ map (mapType f) ts
     Void           -> typ
     _ -> error (show typ)
 
@@ -130,9 +112,9 @@ baseTypeOfm :: (MonadFail m, TypeDefs m, Typeof a) => a -> m (Maybe Type)
 baseTypeOfm a = case typeof a of
     Type x         -> return Nothing
     t | isSimple t -> return $ Just t
-    Sum ts         -> return $ Just (Sum ts)
-    Tuple t        -> return $ Just (Tuple t)
-    Table t        -> return $ Just (Table t)
+    TypeApply (Sym "Sum") ts  -> return $ Just $ typeof a
+    TypeApply (Sym "Tuple") t -> return $ Just $ typeof a
+    TypeApply (Sym "Table") t -> return $ Just $ typeof a
     Void           -> return $ Just Void
 
     TypeApply symbol ts -> do
@@ -157,9 +139,6 @@ applyTypeArguments argSymbols argTypes typ = do
             Just x  -> error (show x)
             Nothing -> TypeApply s <$> mapM (applyTypeArguments argSymbols argTypes) ts
 
-        Tuple ts         -> Tuple <$> mapM (applyTypeArguments argSymbols argTypes) ts
-        Table t          -> Table <$> applyTypeArguments argSymbols argTypes t
-        Sum ts           -> Sum <$> mapM (applyTypeArguments argSymbols argTypes) ts
         _ | isSimple typ -> return typ
         Void             -> return typ
         _                -> error $ "applyTypeArguments: " ++ show typ
@@ -173,11 +152,6 @@ typesCouldMatch generics t1 t2 = couldMatch t1 t2
             (a, b) | a == b            -> return True
             (Type _, _)                -> return True
             (_, Type _)                -> return True
-            (Table a, Table b)         -> couldMatch a b
-
-            (Tuple as, Tuple bs)
-                | length as == length bs -> all id <$> zipWithM couldMatch as bs
-
 
             (TypeApply s1 ts1, TypeApply s2 ts2)
                 | (s1 `elem` generics && s2 `elem` generics) || (s1 == s2) -> do

@@ -44,8 +44,8 @@ unifyOne pos constraint = withPos pos $ case constraint of
         base <- baseTypeOfm typ
         case base of
             Nothing         -> return []
-            Just (Tuple ts) -> unifyOne pos $ ConsEq exprType (ts !! idx)
-            Just (Table t)  -> do
+            Just (TypeApply (Sym "Tuple") ts) -> unifyOne pos $ ConsEq exprType (ts !! idx)
+            Just (TypeApply (Sym "Table") [t])  -> do
                 baseT <- baseTypeOfm t
                 case baseT of
                     _ -> error ""
@@ -56,9 +56,9 @@ unifyOne pos constraint = withPos pos $ case constraint of
         _ | t1 == t2             -> return []
         (Type x, t)              -> return [(Type x, t)]
         (t, Type x)              -> return [(Type x, t)]
-        (Table t1, Table t2)     -> unifyOne pos (ConsEq t1 t2)
-        (Tuple ts1, Tuple ts2)
-            | length ts1 == length ts2 -> concat <$> zipWithM (\a b -> unifyOne pos (ConsEq a b)) ts1 ts2
+        (TypeApply s1 ts1, TypeApply s2 ts2)
+            | length ts1 == length ts2 ->
+                concat <$> zipWithM (\a b -> unifyOne pos (ConsEq a b)) ts1 ts2
 
         _ -> fail ("type mismatch: " ++ show t1 ++ " != " ++ show t2)
 
@@ -67,7 +67,7 @@ unifyOne pos constraint = withPos pos $ case constraint of
         basem <- baseTypeOfm adtType
         case basem of
             Nothing -> return []
-            Just (Sum ts') -> do
+            Just (TypeApply (Sym "Sum") ts') -> do
                 unless (i >= 0 && i < length ts') (error "index out of range")
                 case ts of
                     []  -> unifyOne pos $ ConsEq Void (ts' !! i)

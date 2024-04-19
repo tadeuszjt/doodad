@@ -138,7 +138,7 @@ popSymbolTable = do
 
 annoToType :: AnnoType -> Type
 annoToType anno = case anno of
-    AnnoTuple params  -> Type.Tuple (map paramType params)
+    AnnoTuple params  -> Type.TypeApply (Sym "Tuple") (map paramType params)
     AnnoTable params  -> error ""
     --AnnoSum  params   -> Type.Sum    (map paramType params)
     AnnoType t        -> t
@@ -385,15 +385,11 @@ resolveMapper :: Elem -> DoM ResolveState Elem
 resolveMapper element = case element of
     ElemExpr (Ident pos symbol) -> ElemExpr . Ident pos <$> look symbol KeyVar
 
-    ElemType (Type.TypeApply (Symbol.Sym "Tuple") ts) -> do
-        return $ ElemType $ Type.Tuple ts
-
+    ElemType (Type.TypeApply (Symbol.Sym "Sum") ts)   -> return element
+    ElemType (Type.TypeApply (Symbol.Sym "Tuple") ts) -> return element
     ElemType (Type.TypeApply (Symbol.Sym "Table") ts) -> do
         let [t] = ts
-        return $ ElemType $ Type.Table t
-
-    ElemType (Type.TypeApply (Symbol.Sym "Sum") ts) -> do
-        return $ ElemType $ Type.Sum ts
+        return element
 
     ElemType (Type.TypeApply s ts) -> do
         s' <- look s KeyType

@@ -63,8 +63,6 @@ funcFullyResolved generics body =
             Type _                          -> False
             TypeApply s _ | elem s generics -> False
             TypeApply s ts                  -> all id (map typeFullyResolved ts)
-            Table t                         -> typeFullyResolved t
-            Tuple ts                        -> all id (map typeFullyResolved ts)
             x | isSimple x                  -> True
             Void                            -> True
             x -> error $ "typeFullyResolved: " ++ show x
@@ -84,10 +82,6 @@ unifyOne generics constraint = case constraint of
         _ | t1 == t2                            -> return []
         (TypeApply s [], _) | s `elem` generics -> return [(t1, t2)]
         (Type _, _)                             -> return [(t1, t2)]
-        (Tuple ts1, Tuple ts2)                      
-            | length ts1 == length ts2 ->
-                concat <$> zipWithM (\a -> unifyOne generics .  ConsEq a) ts1 ts2
-
         (TypeApply s1 ts1, TypeApply s2 ts2)
             | length ts1 == length ts2 ->
                 concat <$> zipWithM (\a -> unifyOne generics . ConsEq a) ts1 ts2
@@ -121,13 +115,8 @@ getConstraintsFromTypes generics t1 t2 = fromTypes t1 t2
             typedefs <- gets typeFuncs
             case (t1, t2) of
                 (a, b) | a == b            -> return [] 
-                (Table a, Table b)         -> fromTypes a b
                 (Type _, _)                -> return [ConsEq t1 t2]
                 (_, Type _)                -> return []
-
-                (Tuple ts1, Tuple ts2)
-                    | length ts1 == length ts2 ->
-                        (ConsEq t1 t2 :) . concat <$> zipWithM fromTypes ts1 ts2
 
                 (TypeApply s1 ts1, TypeApply s2 ts2)
                     | s1 `elem` generics -> do 

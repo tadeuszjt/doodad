@@ -110,7 +110,7 @@ generatePrint app val = case typeof val of
     Type.Bool -> void $ appendPrintf ("%s" ++ app) $
         [C.CndExpr (valExpr val) (C.String "true") (C.String "false")]
 
-    Type.Tuple ts -> do
+    Type.TypeApply (Sym "Tuple") ts -> do
         void $ appendPrintf "(" []
         forM_ (zip ts [0..]) $ \(t, i) -> do
             let ap = if i == (length ts - 1) then ")" ++ app else ", "
@@ -120,7 +120,7 @@ generatePrint app val = case typeof val of
         base <- baseTypeOf val
         generatePrint app $ Value base (valExpr val)
 
-    Type.Sum ts -> do -- TODO
+    Type.TypeApply (Sym "Sum") ts -> do -- TODO
         void $ appendPrintf ("Sum" ++ app) []
 
     _ -> error (show $ typeof val)
@@ -196,20 +196,20 @@ generateStmt stmt = withPos stmt $ case stmt of
             -- special preable for ranges
             case base of
                 Type.String -> return ()
-                Type.Table _ -> return ()
+                Type.TypeApply (Sym "Table") _ -> return ()
                 x -> error (show x)
 
             -- check that index is still in range
             idxGtEq <- case base of
                 Type.String    -> generateInfix S.GTEq idx =<< len val
-                Type.Table _  -> generateInfix S.GTEq idx =<< len val
+                Type.TypeApply (Sym "Table") _  -> generateInfix S.GTEq idx =<< len val
             if_ idxGtEq (appendElem C.Break)
 
             -- check that pattern matches
             patMatches <- case mpat of
                 Nothing -> return true
                 Just pat -> case base of
-                    Type.Table ts -> generatePattern pat =<< builtinTableGet val idx
+                    Type.TypeApply (Sym "Table") ts -> generatePattern pat =<< builtinTableGet val idx
                     _ -> error (show base)
 
             if_ (not_ patMatches) $ appendElem C.Break
@@ -237,7 +237,7 @@ generatePattern pattern val = withPos pattern $ do
             return true
 
         PatTuple _ pats -> do
-            base@(Type.Tuple ts) <- baseTypeOf val
+            base@(Type.TypeApply (Sym "Tuple") ts) <- baseTypeOf val
             unless (length pats == length ts) (error "invalid tuple pattern")
 
             match <- assign "match" false
@@ -263,7 +263,7 @@ generatePattern pattern val = withPos pattern $ do
 
         PatField pos symbol pats -> do
             error ""
---            Sum ts <- baseTypeOf val
+--            TypeApply (Sym "Sum") ts <- baseTypeOf val
 --            (s, i) <- mapGet symbol =<< gets ctors
 --
 --            endLabel <- fresh "skipMatch"
@@ -327,13 +327,13 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
     S.Builtin _ "builtin_table_at" [expr1, expr2] -> do
         val <- generateExpr expr1
         idx <- generateExpr expr2
-        Type.Table _ <- baseTypeOf val
+        Type.TypeApply (Sym "Table") _ <- baseTypeOf val
         builtinTableAt val idx
 
 
     S.Builtin _ "builtin_table_append" [expr1] -> do
         val <- generateExpr expr1
-        Table _ <- baseTypeOf val
+        TypeApply (Sym "Table") _ <- baseTypeOf val
         case val of
             Value _ _ -> fail "isn't reference"
             Ref _ _   -> tableAppend val >> return (Value Void $ C.Int 0)
@@ -378,7 +378,7 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
         vals <- mapM generateExpr exprs
         base <- baseTypeOf typ
         case base of
-            Type.Tuple ts -> do
+            Type.TypeApply (Sym "Tuple") ts -> do
                 unless (length ts == length vals) (error "invalid tuple type")
                 initialiser typ vals
 
@@ -392,7 +392,7 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
 --        (typeSymbol, i) <- mapGet symbol =<< gets ctors
 --        base <- baseTypeOf typ
 --        case base of
---            Type.Sum ts -> do
+--            Type.TypeApply (Sym "Sum") ts -> do
 --                unless (i < length ts) (error "invalid index")
 --                adt <- assign "adt" $ Value typ (C.Initialiser [C.Int $ fromIntegral i])
 --                let fieldType = ts !! i
@@ -414,8 +414,8 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
             Ref _ _ -> return val
             Value _ _ -> case base of
                 x | isSimple x -> return $ Ref (typeof val) (C.Address $ valExpr val)
-                Table _        -> return $ Ref (typeof val) (C.Address $ valExpr val)
-                Type.Tuple ts  -> do
+                TypeApply (Sym "Table") _        -> return $ Ref (typeof val) (C.Address $ valExpr val)
+                Type.TypeApply (Sym "Tuple") ts  -> do
                     ref <- assign "ref" $ Ref (typeof val) $ C.Initialiser [C.Address (valExpr val), C.Int 0, C.Int 0]
                     return ref
                 x -> error (show x)
@@ -477,7 +477,7 @@ generateInfix op a' b' = do
             _ -> error (show op)
 
 
-        Type.Tuple ts -> do
+        Type.TypeApply (Sym "Tuple") ts -> do
             res <- assign "res" =<< case op of
                 S.Plus -> initialiser (typeof a) []
                 _      -> return true

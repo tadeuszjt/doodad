@@ -176,21 +176,9 @@ mapPattern f pattern = withPos pattern $ do
 mapTypeM :: MapperFunc s -> Type -> DoM s Type
 mapTypeM f typ = do
     res <- f . ElemType =<< case typ of
-        Type.U8        -> return typ
-        Type.I8        -> return typ
-        Type.I16       -> return typ
-        Type.I32       -> return typ
-        Type.I64       -> return typ
-        Type.F32       -> return typ
-        Type.F64       -> return typ
-        Type.Bool      -> return typ
-        Type.String    -> return typ
-        Type.Char      -> return typ
+        x | isSimple x -> return typ
         Type _         -> return typ
-        Type.Tuple ts  -> Type.Tuple <$> mapM (mapTypeM f) ts
-        Table t        -> Table <$> mapTypeM f t
         TypeApply s ts -> TypeApply s <$> mapM (mapTypeM f) ts
-        Sum ts         -> Sum <$> mapM (mapTypeM f) ts
         Void           -> return typ
         _ -> error (show typ)
     case res of
