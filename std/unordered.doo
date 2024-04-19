@@ -4,15 +4,21 @@ import std/sparse
 import std/table
 
 type[T] Key I64
-type[T] Entry ( key Key[I64], value T )
-type[T] Unordered ( indices Sparse[I64], values Table[Entry[T]] )
+type[T] Entry ( Key[I64], T )
+type[T] Unordered ( Sparse[I64], Table[Entry[T]] )
+
+
+fn[T] key(e &Entry[T]) &Key[I64];               return &e.0
+fn[T] value(e &Entry[T]) &T;                    return &e.1
+fn[T] indices(u &Unordered[T]) &Sparse[I64];    return &u.0
+fn[T] values(u &Unordered[T]) &Table[Entry[T]]; return &u.1
 
 
 fn[T] len(u &Unordered[T]) I64
-    return u.values.len()
+    return u.values.len
 
 fn[T] insert(u &Unordered[T], elem T) Key[T]
-    let key = u.indices.insert(u.values.len())
+    let key = u.indices.insert(u.values.len)
     u.values.push((conv(key), elem))
     return conv(key)
 
@@ -31,11 +37,11 @@ fn[T] atIndex(u &Unordered[T], index I64) &T
 
 
 fn[T] delete(u &Unordered[T], key Key[T])
-    let end    = u.values.len() - 1
+    let end    = u.values.len - 1
     let endKey = u.values.at(end).key
     let index  = u.indices.at(conv(key))
 
     u.values.at(index) = u.values.at(end)
     u.indices.at(conv(endKey)) = index
     u.indices.delete(conv(key))
-    u.values.pop()
+    u.values.pop

@@ -5,6 +5,6 @@ type[T] Maybe
     Just(T)
 
 
-fn[T] isJust(maybe Maybe[T]) Bool
-    if maybe -> Just(_); return true
-    else;                return false
+//fn[T] isJust(maybe Maybe[T]) Bool
+//    if maybe -> Just(&x); return true
+//    else;                 return false

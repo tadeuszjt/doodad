@@ -20,10 +20,8 @@ import ASTMapper
 --
 -- 1.) Updates local symbols to be scope-agnostic: x -> x_0
 -- 2.) Updates imported symbols to contain module: x -> mod_x_0
--- 3.) Replaces builtin function calls with specific: len -> builtin len
--- 4.) Replaces PatField with PatTypeField when symbol is a type
 --
--- function calls and tuple members will not be changed because the exact definiton of these symbols cannot be 
+-- function calls will not be changed because the exact definiton of these symbols cannot be 
 -- determined at this stage.
 
 class Resolve a where
@@ -68,23 +66,12 @@ look symbol key = do
 
 lookm :: Symbol -> SymKey -> DoM ResolveState (Maybe Symbol)
 lookm (Sym sym) KeyVar = SymTab.lookup sym KeyVar <$> gets symTab
-
 lookm symbol KeyFunc = case symbol of
     Sym sym -> do
         resm <- SymTab.lookup sym KeyFunc <$> gets symTab
         case resm of
             Just s -> return (Just s)
-            Nothing -> do
-                imprts <- gets imports
-                xs <- fmap concat $ forM imprts $ \imprt -> return $ Map.keys $ Map.filterWithKey
-                    (\s _ -> symbolsCouldMatch (SymQualified (moduleName imprt) sym) s)
-                    (ctorDefs imprt)
-                -- TODO need to look at local ctors too
-                --liftIO $ putStrLn $ "looking here: " ++ show sym ++ " " ++ show xs
-                case xs of 
-                    [x] -> return (Just x)
-                    [] -> return (Just symbol) -- leave functions unresolved
-                    xs -> error (show xs)
+            Nothing -> return (Just symbol)
 
     SymQualified mod sym -> do
         modName <- gets modName
@@ -157,27 +144,6 @@ annoToType anno = case anno of
     AnnoType t        -> t
 
 
-buildCtorImportMap :: [ASTResolved] -> DoM (Map.Map Symbol (Symbol, Int)) ()
-buildCtorImportMap imports = do
-    forM_ imports $ \imprt -> do
-        forM_ (Map.toList $ ctorDefs imprt) $ \(symbol, (typeSymbol, i)) -> do
-            --when (Symbol.mod symbol == moduleName imprt) $ do
-            modify $ Map.insert symbol (typeSymbol, i)
-
-
-buildCtorMap :: [(Symbol, AnnoType)] -> DoM (Map.Map Symbol (Symbol, Int)) ()
-buildCtorMap list = do
-    forM_ list $ \(symbol, anno) -> case anno of
-        AnnoADT ps -> forM_ (zip ps [0..]) $ \(Param _ s t, i) -> 
-            modify $ Map.insert s (symbol, i)
-        AnnoTuple ps -> forM_ (zip ps [0..]) $ \(Param _ s t, i) -> 
-            modify $ Map.insert s (symbol, i)
-        AnnoTable ps -> forM_ (zip ps [0..]) $ \(Param _ s t, i) -> 
-            modify $ Map.insert s (symbol, i)
-        AnnoType t -> return ()
-        _ -> error (show anno)
-
-
 resolveAsts :: [AST] -> [ASTResolved] -> DoM s (ASTResolved, ResolveState)
 resolveAsts asts imports = runDoMExcept (initResolveState imports (astModuleName $ head asts) Map.empty) $
     withErrorPrefix "symbol resolver: " $ do
@@ -197,8 +163,6 @@ resolveAsts asts imports = runDoMExcept (initResolveState imports (astModuleName
         -- get imports
         let typeFuncImportMap = Map.unions (map typeFuncs imports)
 
-        (_, ctorImportMap) <- runDoMExcept Map.empty (buildCtorImportMap imports)
-        
         mapM_ defineTypeSymbols typedefs
         mapM_ resolveTypeDef typedefs
 
@@ -208,10 +172,6 @@ resolveAsts asts imports = runDoMExcept (initResolveState imports (astModuleName
         typeFuncs <- gets typeFuncsMap
         funcDefs <- gets funcDefsMap
 
-        -- combine the typeDefs and typeFuncs map to build the ctorMap
-        ctorMap <- fmap snd $ runDoMExcept Map.empty $ 
-            buildCtorMap $ Map.toList $ Map.map snd typeFuncs
-
         supply <- gets supply
         return $ ASTResolved
             { moduleName  = moduleName
@@ -220,7 +180,6 @@ resolveAsts asts imports = runDoMExcept (initResolveState imports (astModuleName
             , funcImports = Map.unions $ concat [map ASTResolved.funcDefs imports,  map ASTResolved.funcImports imports]
             , funcDefs    = funcDefs
             , typeFuncs   = Map.union typeFuncImportMap (Map.map (\(x, y) -> (x, annoToType y)) typeFuncs)
-            , ctorDefs    = Map.union ctorImportMap ctorMap
             , symSupply   = supply
             }
 
@@ -435,7 +394,7 @@ resolveMapper element = case element of
         define sym KeyVar symbol'
         return $ ElemPattern (PatIdent pos symbol')
 
-    ElemPattern (PatField pos symbol pats) -> do -- it's KeyFunc for ctors, KeyType for other
+    ElemPattern (PatField pos symbol pats) -> do 
         symbol' <- look symbol KeyFunc
         return $ ElemPattern (PatField pos symbol' pats)
 

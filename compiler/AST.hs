@@ -95,7 +95,7 @@ data Expr
     | Tuple        TextPos [Expr]
     | Call         TextPos (Maybe Expr) Symbol [Expr]
     | Construct    TextPos Symbol [Expr]
-    | Field        TextPos Expr Symbol
+    | Field        TextPos Expr Int
     | Ident        TextPos Symbol
     | Builtin      TextPos String [Expr]
     | Prefix       TextPos Operator Expr

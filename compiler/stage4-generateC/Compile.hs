@@ -19,7 +19,6 @@ import Error
 generate :: ASTResolved -> Generate ()
 generate ast = withErrorPrefix "generate: " $ do
     -- copy members from resolved ast
-    modify $ \s -> s { ctors = ctorDefs ast }
     modify $ \s -> s { typefuncs = typeFuncs ast } 
 
     -- generate imported function externs
@@ -265,30 +264,31 @@ generatePattern pattern val = withPos pattern $ do
             return match
 
         PatField pos symbol pats -> do
-            ADT ts <- baseTypeOf val
-            (s, i) <- mapGet symbol =<< gets ctors
-
-            endLabel <- fresh "skipMatch"
-            let TypeApply typeSymbol _ = typeof val
-            unless (s == typeSymbol) (error "type mismatch")
-
-            match <- assign "match" =<< generateInfix S.EqEq (i64 i) =<< adtEnum val
-            if_ (not_ match) $ appendElem $ C.Goto endLabel
-            set match false
-
-            case pats of
-                [] -> return ()
-                [pat] -> do
-                    patMatch <- generatePattern pat =<< member i val
-                    if_ (not_ patMatch) $ void $ appendElem (C.Goto endLabel)
-                pats -> do
-                    -- Bit of a hack to use PatTuple
-                    patMatch <- generatePattern (PatTuple pos pats) =<< member i val
-                    if_ (not_ patMatch) $ void $ appendElem (C.Goto endLabel)
-
-            set match true
-            appendElem $ C.Label endLabel
-            return match
+            error ""
+--            ADT ts <- baseTypeOf val
+--            (s, i) <- mapGet symbol =<< gets ctors
+--
+--            endLabel <- fresh "skipMatch"
+--            let TypeApply typeSymbol _ = typeof val
+--            unless (s == typeSymbol) (error "type mismatch")
+--
+--            match <- assign "match" =<< generateInfix S.EqEq (i64 i) =<< adtEnum val
+--            if_ (not_ match) $ appendElem $ C.Goto endLabel
+--            set match false
+--
+--            case pats of
+--                [] -> return ()
+--                [pat] -> do
+--                    patMatch <- generatePattern pat =<< member i val
+--                    if_ (not_ patMatch) $ void $ appendElem (C.Goto endLabel)
+--                pats -> do
+--                    -- Bit of a hack to use PatTuple
+--                    patMatch <- generatePattern (PatTuple pos pats) =<< member i val
+--                    if_ (not_ patMatch) $ void $ appendElem (C.Goto endLabel)
+--
+--            set match true
+--            appendElem $ C.Label endLabel
+--            return match
 
         _ -> error (show pattern)
 
@@ -373,17 +373,8 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
                 if isRef then assign "call" $ Ref typ $ C.Call (show symbol) argExprs
                 else          assign "call" $ Value typ $ C.Call (show symbol) argExprs
 
-    S.Field _ _ (Sym s) -> fail $ "unresolved field: " ++ s
-    S.Field _ expr symbol -> do 
-        resm <- Map.lookup symbol <$> gets ctors
-        index <- case resm of
-            Just (typeSymbol, i) -> return i
-            Nothing              -> error ""
-
-            _ -> error (show resm)
-
-        --assert (typ == typeof val) "ctor type mismatch" TODO
-        member index =<< generateExpr expr
+    S.Field _ expr idx -> do 
+        member idx =<< generateExpr expr
 
     S.Tuple _ exprs -> do
         vals <- mapM generateExpr exprs
@@ -398,24 +389,25 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
             _ -> error (show base)
 
     S.Construct pos symbol exprs -> do
-        vals <- mapM generateExpr exprs
-        (typeSymbol, i) <- mapGet symbol =<< gets ctors
-        base <- baseTypeOf typ
-        case base of
-            Type.ADT ts -> do
-                unless (i < length ts) (error "invalid index")
-                adt <- assign "adt" $ Value typ (C.Initialiser [C.Int $ fromIntegral i])
-                let fieldType = ts !! i
-                case vals of
-                    []    -> unless (fieldType == Void) (error "null field cannot have arguments")
-                    [val] -> set (Value fieldType $ C.Member (valExpr adt) ("u" ++ show i)) val
-                    vals  -> do
-                        tup <- initialiser fieldType vals
-                        set (Value fieldType $ C.Member (valExpr adt) ("u" ++ show i)) tup
-
-                return adt
-
-            _ -> error (show base)
+        error ""
+--        vals <- mapM generateExpr exprs
+--        (typeSymbol, i) <- mapGet symbol =<< gets ctors
+--        base <- baseTypeOf typ
+--        case base of
+--            Type.ADT ts -> do
+--                unless (i < length ts) (error "invalid index")
+--                adt <- assign "adt" $ Value typ (C.Initialiser [C.Int $ fromIntegral i])
+--                let fieldType = ts !! i
+--                case vals of
+--                    []    -> unless (fieldType == Void) (error "null field cannot have arguments")
+--                    [val] -> set (Value fieldType $ C.Member (valExpr adt) ("u" ++ show i)) val
+--                    vals  -> do
+--                        tup <- initialiser fieldType vals
+--                        set (Value fieldType $ C.Member (valExpr adt) ("u" ++ show i)) tup
+--
+--                return adt
+--
+--            _ -> error (show base)
 
     S.Reference pos expr -> do
         val <- generateExpr expr

@@ -13,7 +13,6 @@ import Control.Monad.State
 import qualified SymTab
 import Symbol
 import ASTResolved
-import FunctionFinder
 
 
 type SymTab = SymTab.SymTab Symbol () Object
@@ -28,16 +27,14 @@ data CollectState
         , collected   :: Map.Map Constraint TextPos
         , defaults    :: Map.Map Constraint TextPos
         , curPos      :: TextPos
-        , astResolved :: ASTResolved
         }
 
-initCollectState astResolved = CollectState
+initCollectState = CollectState
     { symTab      = SymTab.initSymTab
     , curRetty    = Void
     , collected   = Map.empty
     , defaults    = Map.empty
     , curPos      = TextPos "" 0 0
-    , astResolved = astResolved 
     }
 
 
@@ -82,24 +79,6 @@ collectAST verbose ast = do
     forM_ (Map.toList $ funcDefs ast) $ \(symbol, body) ->
         when (funcGenerics body == []) $
             collectFuncDef symbol body
-
-
-collectCall :: Type -> Symbol -> [Expr] -> DoM CollectState ()
-collectCall exprType symbol args = do -- can be resolved or sym
-    ast <- gets astResolved
-    candidates <- if symbolIsResolved symbol then
-        return [symbol]
-    else fmap fst $ runDoMExcept ast $ findCandidates $
-        CallHeader symbol (map typeof args) exprType
-
-    case candidates of
-        [symbol] | isGenericFunction symbol ast -> return ()
-        [symbol] | isNonGenericFunction symbol ast -> do
-            let body = getFunctionBody symbol ast
-            collectEq exprType (typeof $ funcRetty body)
-            zipWithM_ collectEq (map typeof args)  (map typeof $ funcArgs body)
-
-        _ -> return ()
 
 
 collectFuncDef :: Symbol -> FuncBody -> DoM CollectState ()
@@ -187,19 +166,19 @@ collectPattern (PatAnnotated pattern patType) = withPos pattern $ case pattern o
         collectEq t (typeof pat)
         collectPattern pat
 
-    PatField _ symbol pats -> do
-        ast <- gets astResolved
-        candidates <- fmap catMaybes $ forM (Map.toList $ ctorDefs ast) $ \(symb, _) -> do
-            case symbolsCouldMatch symb symbol of
-                True -> return (Just symb)
-                False -> return Nothing
-        symbol' <- case candidates of
-            [s] -> return s
-            xs  -> error $ "PatField candidates for: " ++ show symbol ++ " " ++ show xs
-
-        (s, i) <- mapGet symbol' . ctorDefs =<< gets astResolved
-        collect $ ConsAdtField patType i (map typeof pats)
-        mapM_ collectPattern pats
+--    PatField _ symbol pats -> do
+--        ast <- gets astResolved
+--        candidates <- fmap catMaybes $ forM (Map.toList $ ctorDefs ast) $ \(symb, _) -> do
+--            case symbolsCouldMatch symb symbol of
+--                True -> return (Just symb)
+--                False -> return Nothing
+--        symbol' <- case candidates of
+--            [s] -> return s
+--            xs  -> error $ "PatField candidates for: " ++ show symbol ++ " " ++ show xs
+--
+--        (s, i) <- mapGet symbol' . ctorDefs =<< gets astResolved
+--        collect $ ConsAdtField patType i (map typeof pats)
+--        mapM_ collectPattern pats
 
     x -> error (show x)
 
@@ -218,8 +197,12 @@ collectExpr (AExpr exprType expression) = withPos expression $ case expression o
         collect $ ConsBase exprType Type.Bool
 
     Call _ Nothing symbol exprs -> do
-        collectCall exprType symbol exprs
+        collect $ ConsCall exprType symbol (map typeof exprs)
         mapM_ collectExpr exprs
+
+    Construct _ symbol exprs -> do
+        mapM_ collectExpr exprs
+        error $ "here: " ++ show symbol
 
     Match _ expr pat -> do
         collect $ ConsEq (typeof pat) (typeof expr)
@@ -227,8 +210,8 @@ collectExpr (AExpr exprType expression) = withPos expression $ case expression o
         collectExpr expr
         collectPattern pat
 
-    Field _ expr symbol -> do
-        collect $ ConsField (typeof expr) symbol exprType
+    Field _ expr idx -> do
+        collect $ ConsField (typeof expr) idx exprType
         collectExpr expr
 
     AST.Reference _ expr -> do

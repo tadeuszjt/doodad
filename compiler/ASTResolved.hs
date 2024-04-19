@@ -15,7 +15,6 @@ data ASTResolved
         , includes        :: Set.Set String                  -- c header includes
         , links           :: Set.Set String                  -- linked libraries
         , typeFuncs       :: Type.TypeDefsMap                -- defined type functions
-        , ctorDefs        :: Map.Map Symbol (Symbol, Int)    -- defined ctors
         , funcImports     :: Map.Map Symbol FuncBody         -- imported funcs
         , funcDefs        :: Map.Map Symbol FuncBody         -- defined functions
         , symSupply       :: Map.Map String Int              -- type supply from resovle
@@ -69,11 +68,6 @@ isNonGenericFunction symbol ast = if Map.member symbol (funcDefs ast) then
     else if Map.member symbol (funcImports ast) then
         not $ isGenericBody (funcImports ast Map.! symbol)
     else False
-
-
-isCtor :: Symbol -> ASTResolved -> Bool
-isCtor symbol ast = Map.member symbol (ctorDefs ast)
-
 
 
 getTypeFunction :: Symbol -> ASTResolved -> ([Symbol], Type)

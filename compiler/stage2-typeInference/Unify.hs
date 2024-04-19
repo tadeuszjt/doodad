@@ -16,24 +16,40 @@ import Monad
 import Error
 import Apply
 import Symbol
-
+import FunctionFinder (findCandidates)
 
 
 unifyOne :: TextPos -> Constraint -> DoM ASTResolved [(Type, Type)]
 unifyOne pos constraint = withPos pos $ case constraint of
-    ConsField typ (Sym _) exprType -> return []
-    ConsField typ symbol exprType -> do
-        resm <- Map.lookup symbol <$> gets ctorDefs
+    ConsCall exprType symbol argTypes -> do
+        ast <- get
+        candidates <- if symbolIsResolved symbol then
+                return [symbol]
+            else
+                fmap fst $ runDoMExcept ast $ findCandidates (CallHeader symbol argTypes exprType)
+        case candidates of
+            [symbol] | isGenericFunction symbol ast -> return []
+            [symbol] | isNonGenericFunction symbol ast -> do
+                let body = getFunctionBody symbol ast
+
+                subs <- unifyOne pos $ ConsEq exprType (typeof $ funcRetty body)
+                subs' <- fmap concat $ zipWithM (\a b -> unifyOne pos $ ConsEq a b) argTypes
+                    (map typeof $ funcArgs body)
+                return (subs ++ subs')
+
+            _ -> return []
+
+
+    ConsField typ idx exprType -> do
         base <- baseTypeOfm typ
         case base of
-            Just (Tuple ts) -> case resm of
-                Just (typeSymbol, i) ->
-                    unifyOne pos $ ConsEq exprType (ts !! i) --TODO, check more?
-
-            Just (Table t)   -> do
+            Nothing         -> return []
+            Just (Tuple ts) -> unifyOne pos $ ConsEq exprType (ts !! idx)
+            Just (Table t)  -> do
                 baseT <- baseTypeOfm t
                 case baseT of
                     _ -> error ""
+            x -> error (show x)
 
 
     ConsEq t1 t2 -> case (t1, t2) of

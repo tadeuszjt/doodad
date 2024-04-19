@@ -31,10 +31,10 @@ infer ast printAnnotated verbose = runDoMUntilSameResult ast $ \ast -> do
                 liftIO $ putStrLn "annotated AST:"
                 liftIO $ prettyASTResolved annotated
             collectState <- fmap snd $ withErrorPrefix "collect: " $
-                runDoMExcept (initCollectState annotated) (collectAST verbose annotated)
+                runDoMExcept initCollectState (collectAST verbose annotated)
 
             -- turn type constraints into substitutions using unify
-            subs <- fmap fst $ runDoMExcept ast (unify $ Map.toList $ collected collectState)
+            subs <- fmap fst $ runDoMExcept annotated (unify $ Map.toList $ collected collectState)
             --annotated' <- applySubs2 subs annotated
             let annotated' = applyAST subs annotated
             ast' <- fmap snd $ runDoMExcept annotated' (CleanUp.compile verbose)
@@ -45,7 +45,7 @@ infer ast printAnnotated verbose = runDoMUntilSameResult ast $ \ast -> do
         inferDefaults ast = do
             (annotated, _) <- withErrorPrefix "annotate: " $ runDoMExcept 0 $ annotate ast
             collectState <- fmap snd $ withErrorPrefix "collect: " $
-                runDoMExcept (initCollectState annotated) (collectAST verbose annotated)
+                runDoMExcept initCollectState (collectAST verbose annotated)
 
             -- apply substitutions to ast
             subs <- fmap fst $ runDoMExcept ast (unifyDefault $ Map.toList $ defaults collectState)

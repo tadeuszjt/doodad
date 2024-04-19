@@ -36,7 +36,6 @@ data GenerateState
         { moduleName :: String
         , tuples     :: Map.Map C.Type String
         , supply     :: Map.Map String Int
-        , ctors      :: Map.Map Symbol (Symbol, Int)
         , typefuncs  :: Map.Map Symbol ([Symbol], Type.Type)
         , refFuncs   :: Map.Map Symbol Bool
         , symTab     :: SymTab.SymTab String () Value
@@ -47,7 +46,6 @@ initGenerateState modName
         { moduleName = modName
         , tuples = Map.empty
         , supply = Map.empty
-        , ctors  = Map.empty
         , typefuncs = Map.empty
         , symTab = SymTab.initSymTab
         , refFuncs = Map.empty

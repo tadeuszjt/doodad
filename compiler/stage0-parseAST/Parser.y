@@ -257,8 +257,10 @@ expr   : literal                                 { $1 }
        | Symbol '(' exprsA ')'                   { Construct (tokPos $2) (snd $1) $3 }
        --| expr '.' symbol '(' exprsA ')'          { Call (tokPos $4) (Just $1) (snd $3) $5 }
        | expr '.' symbol '(' exprsA ')'          { Call (tokPos $4) Nothing (snd $3) (AST.Reference (tokPos $2) $1 : $5) }
-       | expr '.' ident                          { Field (tokPos $2) $1 (Sym $ tokStr $3) }
-       | expr '.' Ident                          { Field (tokPos $2) $1 (Sym $ tokStr $3) }
+       | expr '.' int_c                          { Field (tokPos $2) $1 (read $ tokStr $3)  }
+       | expr '.' symbol                         { Call (tokPos $2) Nothing (snd $3) (AST.Reference (tokPos $2) $1 : []) }
+--       | expr '.' ident                          { Field (tokPos $2) $1 (Sym $ tokStr $3) }
+--       | expr '.' Ident                          { Field (tokPos $2) $1 (Sym $ tokStr $3) }
        | '&' expr                                { AST.Reference (tokPos $1) $2 }
 
 
