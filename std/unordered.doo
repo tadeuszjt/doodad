@@ -3,54 +3,39 @@ module unordered
 import std/sparse
 import std/table
 
-
 type[T] Key I64
-type[T] UnorderedRecord { key Key[I64], value T }
-type[T] Unordered ( indices Sparse[I64], values Table[UnorderedRecord[T]] )
-
-fn[T] {u Unordered[T]} atValues() {Table[T]}
-    return {u.values.value}
+type[T] Entry ( key Key[I64], value T )
+type[T] Unordered ( indices Sparse[I64], values Table[Entry[T]] )
 
 
-fn[T] {u Unordered[T]} insert(elem ()T) Key[T]
-    let index = u.values.len()
-    let key   = u.indices.insert(index)
+fn[T] len(u &Unordered[T]) I64
+    return u.values.len()
+
+fn[T] insert(u &Unordered[T], elem T) Key[T]
+    let key = u.indices.insert(u.values.len())
     u.values.push((conv(key), elem))
     return conv(key)
 
-
-fn[T] {u Unordered[T]} insert() Key[T]
-    let key = u.indices.insert(u.values.len())
-    u.values.push()
-    u.values.at(u.values.len() - 1).key = conv(key)
-    return conv(key)
+fn[T] insert(u &Unordered[T]) Key[T]
+    let value : T
+    return u.insert(value)
 
 
-fn[T] {u Unordered[T]} delete(key Key[T])
+fn[T] at(u &Unordered[T], key Key[T]) &T
+    let index = u.indices.at(conv(key))
+    return &u.values.at(index).value
+
+
+fn[T] atIndex(u &Unordered[T], index I64) &T
+    return &u.values.at(index).value
+
+
+fn[T] delete(u &Unordered[T], key Key[T])
     let end    = u.values.len() - 1
     let endKey = u.values.at(end).key
-    let index  = u.indices.get(conv(key))
+    let index  = u.indices.at(conv(key))
 
-    builtin_at(u.values, index) = u.values.at(end)
-    u.indices.at(conv(endKey)) = index{}
+    u.values.at(index) = u.values.at(end)
+    u.indices.at(conv(endKey)) = index
     u.indices.delete(conv(key))
     u.values.pop()
-
-
-fn[T] {u Unordered[T]} atIndex(index I64) {}T
-    return u.values.at(index).value{}
-
-
-fn[T] {u Unordered[T]} get(key Key[T] ) ()T
-    data x ()T
-    x{} = u.at(key)
-    return x
-
-
-fn[T] {u Unordered[T]} at(key Key[T]) {}T
-    let index = u.indices.get(conv(key))
-    return u.values.at(index).value{}
-
-
-fn[T] {u Unordered[T]} len() I64
-    return u.values.len()

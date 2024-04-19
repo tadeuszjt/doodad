@@ -14,6 +14,8 @@ fn[T] push(table &Table[T], item T)
     builtin_table_append(&table)
     builtin_table_at(&table, table.len() - 1) = item
 
+fn[T] push(table &Table[T])
+    builtin_table_append(&table)
 
 fn[T] pop(table &Table[T]) T
     let item : T = builtin_table_at(&table, table.len() - 1)

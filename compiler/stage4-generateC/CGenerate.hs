@@ -200,6 +200,22 @@ deref (Ref typ expr) = do
 
 set :: Value -> Value -> Generate ()
 
+set (Ref ta a) (Ref tb b) = do
+    unless (ta == tb) (error "set: type mismatch")
+    base <- baseTypeOf ta
+    case base of
+        Type.Tuple ts -> do
+            -- TODO implement shear
+            let tupA = C.Deref (C.Member a "ptr")
+            let tupB = C.Deref (C.Member b "ptr")
+
+            forM_ (zip ts [0..]) $ \(t, i) -> do
+                let va = Value t $ C.Member tupA ("m" ++ show i)
+                let vb = Value t $ C.Member tupB ("m" ++ show i)
+                set va vb
+        x -> error (show x)
+    
+
 set (Ref ta a) (Value tb b) = do
     unless (ta == tb) (error "set: type mismatch")
     base <- baseTypeOf ta
@@ -284,6 +300,17 @@ adtEnum obj = do
 
 
 member :: Int -> Value -> Generate Value
+member idx (Ref typ expr) = do
+    base <- baseTypeOf typ
+    case base of
+        Type.Tuple ts -> do
+            unless (idx >= 0 && idx < length ts) (error "invalid member index")
+            -- TODO implement shear
+            return $ Value (ts !! idx) $ C.PMember (C.Member expr "ptr") ("m" ++ show idx)
+
+        x -> error (show x)
+
+
 member index val = do
     base <- baseTypeOf val
     case base of
