@@ -4,6 +4,7 @@ import std/table
 import std/sparse
 import std/unordered
 import std/maybe
+import std/binaryTree
 
 
 fn testArithmetic()
@@ -47,7 +48,7 @@ fn testTuple()
 
 
 fn testGeneric()
-    fn[T] add(a T, b T) T
+    fn{T} add(a T, b T) T
         return a + b
 
     let 2 = add(1, 1)
@@ -79,7 +80,7 @@ fn testFnWithRef()
 
 
 fn testTable()
-    data table Table[I64]
+    data table I64.Table
 
     let 0 = table.len
     table.push(1)
@@ -99,9 +100,9 @@ fn testTable()
     let 0 = table.len
 
     type Person (I64, Bool)
-    data t2 Table[Person]
+    data t2 Person.Table
 
-    t2.push( (1, true) : Person )
+    t2.push( (1, true) )
     t2.push( (2, false))
 
     let 2 = t2.len
@@ -111,7 +112,7 @@ fn testTable()
 
 
 fn testSparse()
-    data s1 Sparse[I64]
+    data s1 Sparse{I64}
 
     let 0 = s1.len
     let k1 = s1.insert
@@ -138,7 +139,7 @@ fn testSparse()
 
 
 fn testUnordered()
-    data u1 Unordered[I64]
+    data u1 I64.Unordered
 
     let 0  = u1.len
     let k1 = u1.insert(1)
@@ -163,14 +164,14 @@ fn testUnordered()
 
 
 fn testSumType()
-    let s : Sum[I64, Bool]
+    let s : Sum{I64, Bool}
     let x = 0
     switch s
         I64(n); x = 1
         Bool(b); x = 2
     let 1 = x
 
-    let s2 = Sum[I64, Bool](1)
+    let s2 = Sum{I64, Bool}(1)
     switch s2
         Bool(_);         let true = false
         I64(n) | n != 1; let true = false
@@ -185,17 +186,28 @@ fn testSumType()
 
 
 fn testMaybe()
-    let m : Maybe[I64]
+    let m : I64.Maybe
     switch m
         Nothing(); let true = true
         I64(n) ; let false = true
     let false = m.hasValue()
 
-    m = Maybe[I64](3)
+    m = Maybe{I64}(3)
     switch m
         Nothing(); let false = true
         I64(3) ; let true = true
     let true = m.hasValue()
+
+
+fn testTree()
+    data t binaryTree::Tree{I64, Bool}
+    let 0 = t.len()
+    t.insert(1, true)
+    t.insert(2, false)
+    let 2 = t.len()
+
+    let true = t.at(1)
+    let false = t.at(2)
 
 fn main()
     testArithmetic()
@@ -211,5 +223,6 @@ fn main()
     testUnordered()
     testSumType()
     testMaybe()
+    testTree()
 
     print("success")

@@ -1,8 +1,9 @@
 module maybe
 
-type Nothing Tuple[]
-type[T] Maybe Sum[Nothing, T]
+type Nothing Tuple{}
+type{T} Maybe Sum{Nothing, T}
 
-fn[T] hasValue(m &Maybe[T]) Bool
+
+fn{T} hasValue(m &T.Maybe) Bool
     if m -> T(_); return true
     return false

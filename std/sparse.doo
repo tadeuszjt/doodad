@@ -2,37 +2,37 @@ module sparse
 
 import std/table
 
-type[T] Key    I64
-type[T] Sparse ( Table[T], Table[Key[T]] )
+type{T} Key    I64
+type{T} Sparse ( Table{T}, Table{Key{T}} )
 
-fn[T] values(s &Sparse[T]) &Table[T];     return &s.0
-fn[T] empty(s &Sparse[T]) &Table[Key[T]]; return &s.1
+fn{T} values(s &Sparse{T}) &Table{T};     return &s.0
+fn{T} empty(s &Sparse{T}) &Table{Key{T}}; return &s.1
 
 
-fn[T] len(s &Sparse[T]) I64
+fn{T} len(s &Sparse{T}) I64
     return s.values.len - s.empty.len
 
 
-fn[T] at(s &Sparse[T], key Key[T]) &T
+fn{T} at(s &Sparse{T}, key Key{T}) &T
     return s.values.at(I64(key))
 
-fn[T] insert(s &Sparse[T]) Key[T]
+fn{T} insert(s &Sparse{T}) Key{T}
     let value : T
     return s.insert(value)
 
 
-fn[T] insert(s &Sparse[T], value T) Key[T]
+fn{T} insert(s &Sparse{T}, value T) Key{T}
     if s.empty.len > 0
         let key = s.empty.pop
         s.values.at(I64(key)) = value
         return key
 
     s.values.push(value)
-    return Key[T](s.values.len - 1)
+    return Key{T}(s.values.len - 1)
 
 
-fn[T] delete(s &Sparse[T], key Key[T])
-    if key == Key[T](s.values.len - 1)
+fn{T} delete(s &Sparse{T}, key Key{T})
+    if key == Key{T}(s.values.len - 1)
         s.values.pop
     else
         s.empty.push(key)

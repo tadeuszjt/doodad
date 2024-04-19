@@ -243,6 +243,9 @@ set a b = do
                     let vb = Value typ $ C.Member tupB ("m" ++ show i)
                     set va vb
 
+            Type.TypeApply (Sym "Sum") ts | copyable ->
+                void $ appendElem $ C.Set (C.Deref a) b
+
             x -> error (show x)
 
         (Value _ a, Value _ b) -> case base of

@@ -133,7 +133,7 @@ imports : {- empty -}              { [] }
 
 
 generics : {-empty-}                      { [] }
-         | '[' Idents1 ']'                { map Symbol.Sym $2 }
+         | '{' Idents1 '}'                { map Symbol.Sym $2 }
 
 retty : {-empty-} { VoidRetty }
       | type_     { Retty $1 }
@@ -259,9 +259,8 @@ expr   : literal                                 { $1 }
        | expr '.' symbol '(' exprsA ')'          { Call (tokPos $4) Nothing (snd $3) (AST.Reference (tokPos $2) $1 : $5) }
        | expr '.' int_c                          { Field (tokPos $2) $1 (read $ tokStr $3)  }
        | expr '.' symbol                         { Call (tokPos $2) Nothing (snd $3) (AST.Reference (tokPos $2) $1 : []) }
---       | expr '.' ident                          { Field (tokPos $2) $1 (Sym $ tokStr $3) }
---       | expr '.' Ident                          { Field (tokPos $2) $1 (Sym $ tokStr $3) }
        | '&' expr                                { AST.Reference (tokPos $1) $2 }
+       | expr '[' expr ']'                       { Call (tokPos $2) Nothing (Sym "at") [AST.Reference (tokPos $2) $1, $3] }
 
 literal : int_c                                  { AST.Int (tokPos $1) (read $ tokStr $1) }
         | float_c                                { AST.Float (tokPos $1) (read $ tokStr $1) }
@@ -302,8 +301,9 @@ types2N : type_ ',' 'N' types1N            { $1 : $4 }
 type_         : ordinal_t                  { $1 }
               | '(' type_ ')'              { $2 }
               | Symbol                     { TypeApply (snd $1) [] }
-              | Symbol '[' types1 ']'      { TypeApply (snd $1) $3 }
-              | Symbol '[' ']'             { TypeApply (snd $1) [] }
+              | Symbol '{' '}'             { TypeApply (snd $1) [] }
+              | Symbol '{' types1 '}'      { TypeApply (snd $1) $3 }
+              | type_ '.' Symbol           { TypeApply (snd $3) [$1] }
               | tuple_t                    { $1 }
 
 ordinal_t   : Bool                         { Type.Bool }

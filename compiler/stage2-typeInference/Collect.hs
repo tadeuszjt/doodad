@@ -62,7 +62,7 @@ collectDefault t1 t2 = do
 look :: Symbol -> DoM CollectState Object
 look symbol = do
     rm <- SymTab.lookup symbol () <$> gets symTab
-    unless (isJust rm) (error $ show symbol ++ " undefined")
+    unless (isJust rm) (fail $ show symbol ++ " undefined")
     return (fromJust rm)
 
 
@@ -130,11 +130,17 @@ collectStmt statement = withPos statement $ case statement of
         collectStmt blk
         void $ traverse collectStmt melse
 
+    While _ expr blk -> do
+        collect $ ConsBase Type.Bool (typeof expr)
+        collectDefault Type.Bool (typeof expr)
+        collectStmt blk
+        collectExpr expr
+
     Switch _ expr cases -> do
         forM_ cases $ \(pat, blk) -> do
             collect $ ConsEq (typeof pat) (typeof expr)
-            collectStmt blk
             collectPattern pat
+            collectStmt blk
         collectExpr expr
 
     Data _ symbol typ mexpr -> do
@@ -147,7 +153,8 @@ collectStmt statement = withPos statement $ case statement of
 collectPattern :: Pattern -> DoM CollectState ()
 collectPattern (PatAnnotated pattern patType) = withPos pattern $ case pattern of
     PatIgnore _           -> return ()
-    PatIdent _ symbol     -> define symbol (ObjVar patType)
+    PatIdent _ symbol     -> do
+        define symbol (ObjVar patType)
     PatLiteral expr       -> do
         collectEq patType (typeof expr)
         collectExpr expr
