@@ -55,19 +55,6 @@ fn testGeneric()
     let (3, 4) = add( (1, 2), (2, 2) )
 
 
-fn testTupleFields()
-//    type MyTuple (a I64, b Bool)
-//    let x : MyTuple = (1, true)
-//    let 1 = x.a
-//    let true = x.b
-//
-//    type[T] MyTuple2 (a Bool, b T)
-//    let y : MyTuple2[F64]
-//    y.b = 2.4
-//    let (false, z) | z == 2.4 = y
-    return
-
-
 fn testFnWithRef()
     fn f(a &I64)
         a = a + 1
@@ -111,7 +98,7 @@ fn testTable()
     let 1 = table.pop
     let 0 = table.len
 
-    type Person (age I64, male Bool)
+    type Person (I64, Bool)
     data t2 Table[Person]
 
     t2.push( (1, true) : Person )
@@ -176,18 +163,39 @@ fn testUnordered()
 
 
 fn testSumType()
-    //let s : Sum[I64, Bool]
-    return
+    let s : Sum[I64, Bool]
+    let x = 0
+    switch s
+        I64(n); x = 1
+        Bool(b); x = 2
+    let 1 = x
+
+    let s2 = Sum[I64, Bool](1)
+    switch s2
+        Bool(_);         let true = false
+        I64(n) | n != 1; let true = false
+        I64(1);          let true = true
+
+    s2 = conv(true)
+
+    if s2 -> Bool(true)
+        let true = true
+    else
+        let false = true
 
 
 fn testMaybe()
     let m : Maybe[I64]
-    let false = m.isJust
-    m.setJust(3)
-    let 3 = m.just
+    switch m
+        Nothing(); let true = true
+        I64(n) ; let false = true
+    let false = m.hasValue()
 
-    return
-
+    m = Maybe[I64](3)
+    switch m
+        Nothing(); let false = true
+        I64(3) ; let true = true
+    let true = m.hasValue()
 
 fn main()
     testArithmetic()
@@ -196,7 +204,6 @@ fn main()
     testSwitch()
     testTuple()
     testGeneric()
-    testTupleFields()
     testLet()
     testFnWithRef()
     testTable()

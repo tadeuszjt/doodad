@@ -1,20 +1,8 @@
 module maybe
 
+type Nothing Tuple[]
+type[T] Maybe Sum[Nothing, T]
 
-type[T] Maybe (Bool, T)
-
-fn[T] just(m &Maybe[T]) &T
-    assert(m.0, "maybe wasn't just")
-    return &m.1
-
-fn[T] isJust(m &Maybe[T]) Bool
-    return m.0
-
-fn[T] setJust(m &Maybe[T], item T)
-    m.0 = true
-    m.1 = item
-
-
-//fn[T] isJust(maybe Maybe[T]) Bool
-//    if maybe -> Just(&x); return true
-//    else;                 return false
+fn[T] hasValue(m &Maybe[T]) Bool
+    if m -> T(_); return true
+    return false

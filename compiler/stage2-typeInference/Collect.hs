@@ -166,19 +166,10 @@ collectPattern (PatAnnotated pattern patType) = withPos pattern $ case pattern o
         collectEq t (typeof pat)
         collectPattern pat
 
---    PatField _ symbol pats -> do
---        ast <- gets astResolved
---        candidates <- fmap catMaybes $ forM (Map.toList $ ctorDefs ast) $ \(symb, _) -> do
---            case symbolsCouldMatch symb symbol of
---                True -> return (Just symb)
---                False -> return Nothing
---        symbol' <- case candidates of
---            [s] -> return s
---            xs  -> error $ "PatField candidates for: " ++ show symbol ++ " " ++ show xs
---
---        (s, i) <- mapGet symbol' . ctorDefs =<< gets astResolved
---        collect $ ConsAdtField patType i (map typeof pats)
---        mapM_ collectPattern pats
+    PatField _ typ pats -> do
+        collect $ ConsPatField patType typ (map typeof pats)
+        mapM_ collectPattern pats
+
 
     x -> error (show x)
 
@@ -200,9 +191,9 @@ collectExpr (AExpr exprType expression) = withPos expression $ case expression o
         collect $ ConsCall exprType symbol (map typeof exprs)
         mapM_ collectExpr exprs
 
-    Construct _ symbol exprs -> do
+    Construct _ typ exprs -> do
+        collect $ ConsEq exprType typ
         mapM_ collectExpr exprs
-        error $ "here: " ++ show symbol
 
     Match _ expr pat -> do
         collect $ ConsEq (typeof pat) (typeof expr)

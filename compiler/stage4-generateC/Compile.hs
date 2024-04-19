@@ -226,7 +226,6 @@ generatePattern pattern val = withPos pattern $ do
         PatLiteral expr -> generateInfix S.EqEq val =<< generateExpr expr
         PatAnnotated pat typ -> generatePattern pat val
 
-
         PatIdent _ symbol -> do 
             base <- baseTypeOf val
             let name = show symbol
@@ -261,32 +260,28 @@ generatePattern pattern val = withPos pattern $ do
             appendElem (C.Label endLabel)
             return match
 
-        PatField pos symbol pats -> do
-            error ""
---            TypeApply (Sym "Sum") ts <- baseTypeOf val
---            (s, i) <- mapGet symbol =<< gets ctors
---
---            endLabel <- fresh "skipMatch"
---            let TypeApply typeSymbol _ = typeof val
---            unless (s == typeSymbol) (error "type mismatch")
---
---            match <- assign "match" =<< generateInfix S.EqEq (i64 i) =<< adtEnum val
---            if_ (not_ match) $ appendElem $ C.Goto endLabel
---            set match false
---
---            case pats of
---                [] -> return ()
---                [pat] -> do
---                    patMatch <- generatePattern pat =<< member i val
---                    if_ (not_ patMatch) $ void $ appendElem (C.Goto endLabel)
---                pats -> do
---                    -- Bit of a hack to use PatTuple
---                    patMatch <- generatePattern (PatTuple pos pats) =<< member i val
---                    if_ (not_ patMatch) $ void $ appendElem (C.Goto endLabel)
---
---            set match true
---            appendElem $ C.Label endLabel
---            return match
+        PatField pos fieldType pats -> do
+            TypeApply (Sym "Sum") ts <- baseTypeOf val
+            let Just i = elemIndex fieldType ts
+
+            endLabel <- fresh "skipMatch"
+            match <- assign "match" =<< generateInfix S.EqEq (i64 i) =<< adtEnum val
+            if_ (not_ match) $ appendElem $ C.Goto endLabel
+            set match false
+
+            case pats of
+                [] -> return ()
+                [pat] -> do
+                    patMatch <- generatePattern pat =<< member i val
+                    if_ (not_ patMatch) $ void $ appendElem (C.Goto endLabel)
+                pats -> do
+                    -- Bit of a hack to use PatTuple
+                    patMatch <- generatePattern (PatTuple pos pats) =<< member i val
+                    if_ (not_ patMatch) $ void $ appendElem (C.Goto endLabel)
+
+            set match true
+            appendElem $ C.Label endLabel
+            return match
 
         _ -> error (show pattern)
 
@@ -305,7 +300,6 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
         case val of
             Value _ _ -> return val
             Ref   t e -> return val
-
 
     S.Builtin _ "conv" [expr] -> convert typ =<< generateExpr expr
 
@@ -381,31 +375,12 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
             Type.TypeApply (Sym "Tuple") ts -> do
                 unless (length ts == length vals) (error "invalid tuple type")
                 initialiser typ vals
-
-
-
             _ -> error (show base)
 
-    S.Construct pos symbol exprs -> do
-        error ""
---        vals <- mapM generateExpr exprs
---        (typeSymbol, i) <- mapGet symbol =<< gets ctors
---        base <- baseTypeOf typ
---        case base of
---            Type.TypeApply (Sym "Sum") ts -> do
---                unless (i < length ts) (error "invalid index")
---                adt <- assign "adt" $ Value typ (C.Initialiser [C.Int $ fromIntegral i])
---                let fieldType = ts !! i
---                case vals of
---                    []    -> unless (fieldType == Void) (error "null field cannot have arguments")
---                    [val] -> set (Value fieldType $ C.Member (valExpr adt) ("u" ++ show i)) val
---                    vals  -> do
---                        tup <- initialiser fieldType vals
---                        set (Value fieldType $ C.Member (valExpr adt) ("u" ++ show i)) tup
---
---                return adt
---
---            _ -> error (show base)
+    S.Construct pos typ exprs -> do
+        vals <- mapM generateExpr exprs
+        case vals of
+            [val] -> convert typ val
 
     S.Reference pos expr -> do
         val <- generateExpr expr
@@ -413,9 +388,10 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
         case val of
             Ref _ _ -> return val
             Value _ _ -> case base of
-                x | isSimple x -> return $ Ref (typeof val) (C.Address $ valExpr val)
-                TypeApply (Sym "Table") _        -> return $ Ref (typeof val) (C.Address $ valExpr val)
-                Type.TypeApply (Sym "Tuple") ts  -> do
+                x | isSimple x                  -> return $ Ref (typeof val) (C.Address $ valExpr val)
+                TypeApply (Sym "Sum") _         -> return $ Ref (typeof val) (C.Address $ valExpr val)
+                TypeApply (Sym "Table") _       -> return $ Ref (typeof val) (C.Address $ valExpr val)
+                Type.TypeApply (Sym "Tuple") ts -> do
                     ref <- assign "ref" $ Ref (typeof val) $ C.Initialiser [C.Address (valExpr val), C.Int 0, C.Int 0]
                     return ref
                 x -> error (show x)
@@ -425,7 +401,7 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
         withTypeCheck :: Generate Value -> Generate Value
         withTypeCheck f = do
             r <- f
-            unless (typeof r == typ) (error "generateExpr returned incorrect type")
+            unless (typeof r == typ) $ error ("generateExpr returned incorrect type: " ++ show (typeof r))
             return r
 generateExpr x = fail $ "unresolved expression: " ++ show x
             

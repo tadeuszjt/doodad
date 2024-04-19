@@ -47,15 +47,6 @@ cleanUpMapper elem = case elem of
         symbol' <- resolveFuncCall exprType expr
         fmap (ElemExpr . AExpr exprType) $ return (Call pos mparam symbol' exprs)
 
-    ElemPattern (PatField pos symbol pats) -> do
-        error ""
---        ast <- get
---        [symbol'] <- fmap catMaybes $ forM (Map.keys $ ctorDefs ast) $ \symb ->
---            case symbolsCouldMatch symb symbol of
---                True -> return (Just symb)
---                False -> return Nothing
---        return $ ElemPattern (PatField pos symbol' pats)
-
     _ -> return elem
 
     

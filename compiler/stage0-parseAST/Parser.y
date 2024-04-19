@@ -226,8 +226,9 @@ pattern  : '_'                           { PatIgnore (tokPos $1) }
          | '(' patterns ')'              { PatTuple (tokPos $1) $2 }
          | pattern '|' expr              { PatGuarded (tokPos $2) $1 $3 }
          | pattern '|' expr '->' pattern { PatGuarded (tokPos $2) $1 (Match (tokPos $4) $3 $5) }
-         | Symbol '(' patterns ')'       { PatField (tokPos $2) (snd $1) $3 }
+         --| Symbol '(' patterns ')'       { PatField (tokPos $2) (snd $1) $3 }
          | pattern ':' type_             { PatAnnotated $1 $3 }
+         | type_ '(' patterns ')'        { PatField (tokPos $2) $1 $3 }
  
 ---------------------------------------------------------------------------------------------------
 -- Expressions ------------------------------------------------------------------------------------
@@ -253,7 +254,7 @@ expr   : literal                                 { $1 }
        | symbol                                  { AST.Ident (fst $1) (snd $1) }
        | '(' exprsA ')'                          { case $2 of [x] -> x; xs -> AST.Tuple (tokPos $1) xs }
        | symbol '(' exprsA ')'                   { Call (tokPos $2) Nothing (snd $1) $3 }
-       | Symbol '(' exprsA ')'                   { Construct (tokPos $2) (snd $1) $3 }
+       | type_ '(' exprsA ')'                    { Construct (tokPos $2) $1 $3 }
        --| expr '.' symbol '(' exprsA ')'          { Call (tokPos $4) (Just $1) (snd $3) $5 }
        | expr '.' symbol '(' exprsA ')'          { Call (tokPos $4) Nothing (snd $3) (AST.Reference (tokPos $2) $1 : $5) }
        | expr '.' int_c                          { Field (tokPos $2) $1 (read $ tokStr $3)  }
@@ -261,7 +262,6 @@ expr   : literal                                 { $1 }
 --       | expr '.' ident                          { Field (tokPos $2) $1 (Sym $ tokStr $3) }
 --       | expr '.' Ident                          { Field (tokPos $2) $1 (Sym $ tokStr $3) }
        | '&' expr                                { AST.Reference (tokPos $1) $2 }
-
 
 literal : int_c                                  { AST.Int (tokPos $1) (read $ tokStr $1) }
         | float_c                                { AST.Float (tokPos $1) (read $ tokStr $1) }
@@ -303,6 +303,7 @@ type_         : ordinal_t                  { $1 }
               | '(' type_ ')'              { $2 }
               | Symbol                     { TypeApply (snd $1) [] }
               | Symbol '[' types1 ']'      { TypeApply (snd $1) $3 }
+              | Symbol '[' ']'             { TypeApply (snd $1) [] }
               | tuple_t                    { $1 }
 
 ordinal_t   : Bool                         { Type.Bool }
@@ -318,10 +319,7 @@ ordinal_t   : Bool                         { Type.Bool }
 
 tuple_t : '(' type_ ',' types1 ')' { Type.TypeApply (Sym "Tuple") ($2:$4) }
 
-anno_t   : ordinal_t               { AnnoType $1 }
-         | tuple_t                 { AnnoType $1 }
-         --| Table '[' paramsA1 ']'  { AnnoTable $3 }
-         | '(' paramsA1 ')'        { AnnoTuple $2 }
+anno_t   : type_                   { AnnoType $1 }
 {
 parse :: MonadError Error m => [Token] -> m AST
 parse tokens = do

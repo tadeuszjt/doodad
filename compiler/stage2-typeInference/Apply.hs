@@ -67,7 +67,7 @@ applyExpr subs expression = case expression of
     AST.String pos s -> AST.String pos s
     Field pos expr symbol -> Field pos (applyEx expr) symbol
     AST.Tuple pos exprs -> AST.Tuple pos (map applyEx exprs)
-    Construct pos symbol exprs -> Construct pos symbol (map applyEx exprs)
+    Construct pos typ exprs -> Construct pos (applyTy typ) (map applyEx exprs)
     AST.Reference pos expr -> AST.Reference pos (applyEx expr)
     x -> error (show x)
     where
@@ -88,7 +88,7 @@ applyType subs = mapType (f subs)
 applyPattern :: [(Type, Type)] -> Pattern -> Pattern
 applyPattern subs pattern = case pattern of
     PatAnnotated pat typ -> PatAnnotated (applyPat pat) (applyTy typ)
-    PatField pos symbol pats -> PatField pos symbol (map applyPat pats)
+    PatField pos typ pats -> PatField pos (applyTy typ) (map applyPat pats)
     PatIgnore pos -> PatIgnore pos
     PatIdent pos symbol -> PatIdent pos symbol
     PatGuarded pos pat expr -> PatGuarded pos (applyPat pat) (applyEx expr)
@@ -106,7 +106,7 @@ applyConstraint :: [(Type, Type)] -> Constraint -> Constraint
 applyConstraint subs constraint = case constraint of
     ConsEq t1 t2           -> ConsEq (rf t1) (rf t2)
     ConsBase t1 t2         -> ConsBase (rf t1) (rf t2)
-    ConsAdtField t i ts    -> ConsAdtField (rf t) i (map rf ts)
+    ConsPatField t1 t2 ts  -> ConsPatField (rf t1) (rf t2) (map rf ts)
     ConsField  t1 s t2     -> ConsField (rf t1) s (rf t2)
     ConsForExpr t1 t2      -> ConsForExpr (rf t1) (rf t2)
     ConsCall t1 s t2s      -> ConsCall (rf t1) s (map rf t2s)

@@ -81,7 +81,7 @@ data Pattern
     | PatIdent     TextPos Symbol
     | PatTuple     TextPos [Pattern]
     | PatGuarded   TextPos Pattern Expr
-    | PatField     TextPos Symbol [Pattern]
+    | PatField     TextPos Type [Pattern]
     | PatAnnotated Pattern Type
     deriving (Eq)
 
@@ -94,7 +94,7 @@ data Expr
     | String       TextPos String
     | Tuple        TextPos [Expr]
     | Call         TextPos (Maybe Expr) Symbol [Expr]
-    | Construct    TextPos Symbol [Expr]
+    | Construct    TextPos Type [Expr]
     | Field        TextPos Expr Int
     | Ident        TextPos Symbol
     | Builtin      TextPos String [Expr]
@@ -242,7 +242,7 @@ instance Show Pattern where
         PatIdent pos symbol      -> show symbol
         PatTuple pos ps          -> tupStrs (map show ps)
         PatGuarded pos pat expr  -> show pat ++ " | " ++ show expr
-        PatField pos symbol pats -> show symbol ++ tupStrs (map show pats)
+        PatField pos typ pats    -> show typ ++ tupStrs (map show pats)
         PatAnnotated pat typ     -> show pat ++ ":" ++ show typ
 
 
@@ -263,7 +263,7 @@ instance Show Expr where
         Call pos (Just param) symbol exprs -> show param ++ "." ++ show symbol ++ tupStrs (map show exprs)
         Builtin pos sym exprs              -> sym ++ tupStrs (map show exprs)
         Match pos expr1 expr2              -> "(" ++ show expr1 ++ " -> " ++ show expr2 ++ ")"
-        Construct pos symbol exprs         -> show symbol ++ tupStrs (map show exprs)
+        Construct pos typ exprs            -> show typ ++ tupStrs (map show exprs)
         Reference pos expr                 -> "&" ++ show expr
 
 

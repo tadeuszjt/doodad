@@ -39,7 +39,6 @@ unifyOne pos constraint = withPos pos $ case constraint of
 
             _ -> return []
 
-
     ConsField typ idx exprType -> do
         base <- baseTypeOfm typ
         case base of
@@ -63,15 +62,8 @@ unifyOne pos constraint = withPos pos $ case constraint of
         _ -> fail ("type mismatch: " ++ show t1 ++ " != " ++ show t2)
 
 
-    ConsAdtField adtType i ts -> do
-        basem <- baseTypeOfm adtType
-        case basem of
-            Nothing -> return []
-            Just (TypeApply (Sym "Sum") ts') -> do
-                unless (i >= 0 && i < length ts') (error "index out of range")
-                case ts of
-                    []  -> unifyOne pos $ ConsEq Void (ts' !! i)
-                    [t] -> unifyOne pos $ ConsEq t (ts' !! i)
+    ConsPatField patType fieldType [argType] -> unifyOne pos $ ConsEq fieldType argType
+    ConsPatField patType fieldType []        -> return []
 
     ConsForExpr t1 t2 -> do
         basem <- baseTypeOfm t1
@@ -86,6 +78,8 @@ unifyOne pos constraint = withPos pos $ case constraint of
         case (base1m, base2m) of
             (Just b1, Just b2) -> unifyOne pos (ConsEq b1 b2)
             _                  -> return []
+
+    x -> error (show x)
 
 
 unify :: [(Constraint, TextPos)] -> DoM ASTResolved [(Type, Type)]

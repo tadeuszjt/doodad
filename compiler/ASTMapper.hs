@@ -115,8 +115,11 @@ mapExprM f expr = withPos expr $ do
         AST.Bool pos b      -> return $ AST.Bool pos b
         AST.Char pos c      -> return $ AST.Char pos c
         AST.Tuple pos exprs -> AST.Tuple pos <$> mapM (mapExprM f) exprs
-        Construct pos symbol exprs -> Construct pos symbol <$> mapM (mapExprM f) exprs
         Prefix pos op expr -> Prefix pos op <$> mapExprM f expr
+
+        Construct pos typ exprs -> do
+            typ' <- mapTypeM f typ
+            Construct pos typ' <$> mapM (mapExprM f) exprs
 
         Field pos expr symbol -> do
             expr' <- mapExprM f expr
@@ -158,7 +161,11 @@ mapPattern f pattern = withPos pattern $ do
         PatIgnore pos            -> return pattern
         PatLiteral expr          -> PatLiteral <$> mapExprM f expr
         PatTuple pos pats        -> PatTuple pos <$> mapM (mapPattern f) pats
-        PatField pos symbol pats -> PatField pos symbol <$> mapM (mapPattern f) pats
+
+        PatField pos typ pats -> do
+            typ' <- mapTypeM f typ
+            PatField pos typ' <$> mapM (mapPattern f) pats
+
         PatGuarded pos pat expr  -> do
             pat' <- mapPattern f pat
             expr' <- mapExprM f expr
