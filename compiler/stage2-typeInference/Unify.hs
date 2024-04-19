@@ -22,28 +22,19 @@ import Symbol
 unifyOne :: TextPos -> Constraint -> DoM ASTResolved [(Type, Type)]
 unifyOne pos constraint = withPos pos $ case constraint of
     ConsField typ (Sym _) exprType -> return []
-
     ConsField typ symbol exprType -> do
         resm <- Map.lookup symbol <$> gets ctorDefs
         base <- baseTypeOfm typ
         case base of
             Just (Tuple ts) -> case resm of
-                Just (typeSymbol, i) -> unifyOne pos $ ConsEq exprType (ts !! i) --TODO, check more?
+                Just (typeSymbol, i) ->
+                    unifyOne pos $ ConsEq exprType (ts !! i) --TODO, check more?
 
             Just (Table t)   -> do
                 baseT <- baseTypeOfm t
                 case baseT of
                     _ -> error ""
 
-    ConsTuple tupType ts1 -> do
-        basem <- baseTypeOfm tupType
-        case basem of
-            Nothing -> return []
-            Just (Tuple ts2)
-                | length ts1 == length ts2 ->
-                    concat <$> zipWithM (\a b -> unifyOne pos (ConsEq a b)) ts1 ts2
-
-            _ -> error (show basem)
 
     ConsEq t1 t2 -> case (t1, t2) of
         _ | t1 == t2             -> return []
@@ -65,7 +56,6 @@ unifyOne pos constraint = withPos pos $ case constraint of
                 case ts of
                     []  -> unifyOne pos $ ConsEq Void (ts' !! i)
                     [t] -> unifyOne pos $ ConsEq t (ts' !! i)
-                    ts  -> unifyOne pos $ ConsTuple (ts' !! i) ts
 
     ConsForExpr t1 t2 -> do
         basem <- baseTypeOfm t1

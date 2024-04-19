@@ -69,7 +69,6 @@ applyExpr subs expression = case expression of
     AST.Tuple pos exprs -> AST.Tuple pos (map applyEx exprs)
     Construct pos symbol exprs -> Construct pos symbol (map applyEx exprs)
     AST.Reference pos expr -> AST.Reference pos (applyEx expr)
-    Dereference pos expr -> Dereference pos (applyEx expr)
     x -> error (show x)
     where
         applyEx = applyExpr subs
@@ -107,9 +106,7 @@ applyConstraint :: [(Type, Type)] -> Constraint -> Constraint
 applyConstraint subs constraint = case constraint of
     ConsEq t1 t2           -> ConsEq (rf t1) (rf t2)
     ConsBase t1 t2         -> ConsBase (rf t1) (rf t2)
-    ConsSubscript t1 t2    -> ConsSubscript (rf t1) (rf t2)
     ConsAdtField t i ts    -> ConsAdtField (rf t) i (map rf ts)
-    ConsTuple t1 ts        -> ConsTuple (rf t1) (map rf ts)
     ConsField  t1 s t2     -> ConsField (rf t1) s (rf t2)
     ConsForExpr t1 t2      -> ConsForExpr (rf t1) (rf t2)
     where

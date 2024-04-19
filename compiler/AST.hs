@@ -102,7 +102,6 @@ data Expr
     | Infix        TextPos Operator Expr Expr
     | Match        TextPos Expr Pattern
     | Reference    TextPos Expr
-    | Dereference  TextPos Expr
     deriving (Eq)
 
 instance Typeof Expr where
@@ -167,7 +166,6 @@ instance TextPosition Expr where
         Match        p _ _ -> p
         Construct    p _ _ -> p
         Reference    p _ -> p
-        Dereference  p _ -> p
         _ -> error (show expression)
 
 
@@ -267,7 +265,6 @@ instance Show Expr where
         Match pos expr1 expr2              -> "(" ++ show expr1 ++ " -> " ++ show expr2 ++ ")"
         Construct pos symbol exprs         -> show symbol ++ tupStrs (map show exprs)
         Reference pos expr                 -> "&" ++ show expr
-        Dereference pos expr               -> "*" ++ show expr
 
 
 -- every function must end on a newline and print pre before every line

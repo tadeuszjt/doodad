@@ -260,7 +260,6 @@ expr   : literal                                 { $1 }
        | expr '.' ident                          { Field (tokPos $2) $1 (Sym $ tokStr $3) }
        | expr '.' Ident                          { Field (tokPos $2) $1 (Sym $ tokStr $3) }
        | '&' expr                                { AST.Reference (tokPos $1) $2 }
-       | '*' expr                                { Dereference (tokPos $1) $2 }
 
 
 literal : int_c                                  { AST.Int (tokPos $1) (read $ tokStr $1) }

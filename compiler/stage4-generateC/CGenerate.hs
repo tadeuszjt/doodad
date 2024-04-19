@@ -189,11 +189,37 @@ deref (Ref typ expr) = do
     base <- baseTypeOf typ
     case base of
         x | isSimple x -> return $ Value typ (C.Deref expr)
+        Type.Tuple ts  -> do
+            -- TODO implement memory shear
+            let ptr = C.Member expr "ptr"
+            return $ Value typ (C.Deref ptr)
+
         x -> error (show x)
     
 
 
 set :: Value -> Value -> Generate ()
+
+set (Ref ta a) (Value tb b) = do
+    unless (ta == tb) (error "set: type mismatch")
+    base <- baseTypeOf ta
+    case base of
+        x | isSimple x -> do
+            set (Value ta $ C.Deref a) $ Value tb b
+
+        Type.Tuple ts -> do
+            -- TODO implement shear
+            let tupA = C.Deref (C.Member a "ptr")
+            let tupB = b
+
+            forM_ (zip ts [0..]) $ \(t, i) -> do
+                let va = Value t $ C.Member tupA ("m" ++ show i)
+                let vb = Value t $ C.Member tupB ("m" ++ show i)
+                set va vb
+
+
+        x -> error (show x)
+
 set a b = do
     unless (typeof a == typeof b) (error "set: type mismatch")
     bVal <- deref b
@@ -325,6 +351,11 @@ builtinTableAt (Ref tabType expr) idx = do
             (C.PMember expr "r0")
             (valExpr idx)
 
+        Type.Tuple ts -> do
+            -- TODO implement shear
+            let ptr = C.Address $ C.Subscript (C.PMember expr "r0") (valExpr idx)
+            assign "ref" $ Ref t $ C.Initialiser [ptr, C.Int 0, C.Int 0]
+
         x -> error (show x)
 
 
@@ -342,6 +373,11 @@ cRefTypeOf a = do
     case base of
         x | isSimple x -> Cpointer <$> cTypeOf a 
         Type.Table _   -> Cpointer <$> cTypeOf a
+        Type.Tuple ts  -> do
+            pt <- Cpointer <$> cTypeOf a
+            cst <- return $ Cstruct [C.Param "ptr" pt, C.Param "idx" Csize_t, C.Param "cap" Csize_t]
+            getTypedef "Ref" cst
+
         x -> error (show x)
 
 

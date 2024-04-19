@@ -33,7 +33,7 @@ generate ast = withErrorPrefix "generate: " $ do
             crt <- cRettyType (ASTResolved.funcRetty body)
             cats <- forM (ASTResolved.funcArgs body) $ \param -> case param of
                 S.Param _ _ _ -> cTypeOf param
-                S.RefParam _ _ _ -> Cpointer <$> cTypeOf param
+                S.RefParam _ _ _ -> cRefTypeOf param
                 x -> error (show x)
             newExtern (show symbol) crt cats
 
@@ -48,7 +48,7 @@ generate ast = withErrorPrefix "generate: " $ do
             crt <- cRettyType (ASTResolved.funcRetty func) 
             cats <- forM (ASTResolved.funcArgs func) $ \param -> case param of
                 S.Param _ _ _ -> cTypeOf param
-                S.RefParam _ _ _ -> Cpointer <$> cTypeOf param
+                S.RefParam _ _ _ -> cRefTypeOf param
                 x -> error (show x)
 
             newExtern (show symbol) crt cats
@@ -179,9 +179,7 @@ generateStmt stmt = withPos stmt $ case stmt of
 
     S.SetOp _ S.Eq index expr -> do
         idx <- generateExpr index
-        case idx of
-            Value _ _ -> set idx =<< generateExpr expr
-            Ref _ _ -> set idx =<< generateExpr expr
+        set idx =<< generateExpr expr
 
     S.While _ expr stmt -> do
         id <- appendElem $ C.For Nothing Nothing Nothing []
@@ -427,10 +425,10 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
             Value _ _ -> case base of
                 x | isSimple x -> return $ Ref (typeof val) (C.Address $ valExpr val)
                 Table _        -> return $ Ref (typeof val) (C.Address $ valExpr val)
-
-
-
-    S.Dereference pos expr -> error ""
+                Type.Tuple ts  -> do
+                    ref <- assign "ref" $ Ref (typeof val) $ C.Initialiser [C.Address (valExpr val), C.Int 0, C.Int 0]
+                    return ref
+                x -> error (show x)
 
     _ -> error (show expr_)
     where

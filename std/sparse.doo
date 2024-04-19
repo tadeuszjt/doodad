@@ -9,45 +9,45 @@ type[T] Sparse (
 )
 
 
-fn[T] {s Sparse[T]} len() I64
+fn[T] len(s &Sparse[T]) I64
     return s.values.len() - s.empty.len()
 
-
-fn[T] {s Sparse[T]} at(key Key[T]) {}T
-    return s.values.at(conv(key))
-
-
-fn[T] {s Sparse[T]} get(key Key[T]) ()T
-    return s.values.get(conv(key))
-
-
-fn[T] {s Sparse[T]} insert(value ()T) Key[T]
-    if s.empty.len() > 0
-        let key = s.empty.pop()
-        s.values.at(conv(key)) = value{}
-        return key
-
-    s.values.push(value)
-    return conv(s.values.len() - 1)
-
-
-fn[T] {s Sparse[T]} insert() Key[T]
-    if s.empty.len() > 0
-        let value:()T
-        let key = s.empty.pop()
-        s.values.at(conv(key)) = value{}
-        return key
-
-    s.values.push()
-    return conv(s.values.len() - 1)
-
-
-fn[T] {s Sparse[T]} delete(key Key[T])
-    if key == conv(s.values.len() - 1)
-        s.values.pop()
-    else
-        s.empty.push(key)
-
-
-fn[T] {s Sparse[T]} replace(key Key[T], elem ()T)
-    s.values.at(conv(key)) = elem{}
+//
+//fn[T] {s Sparse[T]} at(key Key[T]) {}T
+//    return s.values.at(conv(key))
+//
+//
+//fn[T] {s Sparse[T]} get(key Key[T]) ()T
+//    return s.values.get(conv(key))
+//
+//
+//fn[T] {s Sparse[T]} insert(value ()T) Key[T]
+//    if s.empty.len() > 0
+//        let key = s.empty.pop()
+//        s.values.at(conv(key)) = value{}
+//        return key
+//
+//    s.values.push(value)
+//    return conv(s.values.len() - 1)
+//
+//
+//fn[T] {s Sparse[T]} insert() Key[T]
+//    if s.empty.len() > 0
+//        let value:()T
+//        let key = s.empty.pop()
+//        s.values.at(conv(key)) = value{}
+//        return key
+//
+//    s.values.push()
+//    return conv(s.values.len() - 1)
+//
+//
+//fn[T] {s Sparse[T]} delete(key Key[T])
+//    if key == conv(s.values.len() - 1)
+//        s.values.pop()
+//    else
+//        s.empty.push(key)
+//
+//
+//fn[T] {s Sparse[T]} replace(key Key[T], elem ()T)
+//    s.values.at(conv(key)) = elem{}

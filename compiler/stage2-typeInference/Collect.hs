@@ -179,7 +179,7 @@ collectPattern (PatAnnotated pattern patType) = withPos pattern $ case pattern o
 
     PatTuple _ pats -> do
         collectDefault patType (Type.Tuple $ map typeof pats)
-        collect $ ConsTuple patType (map typeof pats)
+        collect $ ConsBase patType $ Type.Tuple (map typeof pats)
         mapM_ collectPattern pats
 
     PatAnnotated pat t -> do
@@ -235,14 +235,8 @@ collectExpr (AExpr exprType expression) = withPos expression $ case expression o
         collect $ ConsEq exprType (typeof expr)
         collectExpr expr
 
-    Dereference _ expr -> do
-        error ""
---        collect $ ConsBase (typeof expr) (Type.Reference exprType)
---        collect $ ConsReference (typeof expr) exprType
---        collectExpr expr
-
     AST.Tuple _ exprs -> do
-        collect $ ConsTuple exprType (map typeof exprs)
+        collect $ ConsBase exprType $ Type.Tuple (map typeof exprs)
         collectDefault exprType $ Type.Tuple (map typeof exprs)
         mapM_ collectExpr exprs
 

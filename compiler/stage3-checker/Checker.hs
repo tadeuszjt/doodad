@@ -161,9 +161,6 @@ checkExpr (AExpr exprType expression) = withPos expression $ case expression of
     AST.Reference pos expr -> do
         return []
 
-    Dereference pos expr -> return []
-
-
     x -> fail ("unknown expression: " ++ show x)
 
 checkExpr _ = fail "unresolved type"

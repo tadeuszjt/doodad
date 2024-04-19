@@ -31,6 +31,7 @@ data Type
     | Cuint8_t
     | Cuint64_t
     | Cuint32_t
+    | Csize_t
     | Cbool
     | Cchar
     | Cstruct [Param]
@@ -50,6 +51,7 @@ instance Show Type where
     show Cint16_t = "int16_t"
     show Cint32_t = "int32_t"
     show Cint64_t = "int64_t"
+    show Csize_t  = "size_t"
     show Cbool = "bool"
     show Cchar = "char"
     show (Cstruct ts) = "struct { " ++ concat (map (\t -> show t ++ "; ") ts) ++ "}"

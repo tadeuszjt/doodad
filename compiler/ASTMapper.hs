@@ -145,8 +145,6 @@ mapExprM f expr = withPos expr $ do
             expr' <- mapExprM f expr
             return $ AST.Reference pos expr'
 
-        Dereference pos expr -> Dereference pos <$> mapExprM f expr
-
         _ -> error (show expr)
     case res of
         ElemExpr x -> return x
