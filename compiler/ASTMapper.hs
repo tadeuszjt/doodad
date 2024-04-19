@@ -190,7 +190,7 @@ mapTypeM f typ = do
         Type.Tuple ts  -> Type.Tuple <$> mapM (mapTypeM f) ts
         Table t        -> Table <$> mapTypeM f t
         TypeApply s ts -> TypeApply s <$> mapM (mapTypeM f) ts
-        ADT ts         -> ADT <$> mapM (mapTypeM f) ts
+        Sum ts         -> Sum <$> mapM (mapTypeM f) ts
         Void           -> return typ
         _ -> error (show typ)
     case res of

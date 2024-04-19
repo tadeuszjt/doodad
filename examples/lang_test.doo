@@ -175,8 +175,17 @@ fn testUnordered()
     let 3 = u1.at(k3)
 
 
+fn testSumType()
+    //let s : Sum[I64, Bool]
+    return
+
+
 fn testMaybe()
-    //let ma = Just(1)
+    let m : Maybe[I64]
+    let false = m.isJust
+    m.setJust(3)
+    let 3 = m.just
+
     return
 
 
@@ -193,6 +202,7 @@ fn main()
     testTable()
     testSparse()
     testUnordered()
+    testSumType()
     testMaybe()
 
     print("success")

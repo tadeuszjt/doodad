@@ -140,7 +140,7 @@ annoToType :: AnnoType -> Type
 annoToType anno = case anno of
     AnnoTuple params  -> Type.Tuple (map paramType params)
     AnnoTable params  -> error ""
-    AnnoADT  params   -> Type.ADT    (map paramType params)
+    --AnnoSum  params   -> Type.Sum    (map paramType params)
     AnnoType t        -> t
 
 
@@ -241,7 +241,7 @@ resolveTypeDef (AST.Typedef pos generics (Sym sym) anno) = withPos pos $ do
         AnnoType t        -> AnnoType <$> resolve t
         AnnoTuple params  -> AnnoTuple  <$> mapM resolveTypedefParam params
         AnnoTable params  -> AnnoTable  <$> mapM resolveTypedefParam params
-        AnnoADT params    -> AnnoADT    <$> mapM resolveTypedefParam params
+        --AnnoSum params    -> AnnoSum    <$> mapM resolveTypedefParam params
 
     popSymbolTable
     modify $ \s -> s { typeFuncsMap = Map.insert symbol (genericSymbols, anno') (typeFuncsMap s) }
@@ -384,6 +384,16 @@ instance Resolve Param where
 resolveMapper :: Elem -> DoM ResolveState Elem
 resolveMapper element = case element of
     ElemExpr (Ident pos symbol) -> ElemExpr . Ident pos <$> look symbol KeyVar
+
+    ElemType (Type.TypeApply (Symbol.Sym "Tuple") ts) -> do
+        return $ ElemType $ Type.Tuple ts
+
+    ElemType (Type.TypeApply (Symbol.Sym "Table") ts) -> do
+        let [t] = ts
+        return $ ElemType $ Type.Table t
+
+    ElemType (Type.TypeApply (Symbol.Sym "Sum") ts) -> do
+        return $ ElemType $ Type.Sum ts
 
     ElemType (Type.TypeApply s ts) -> do
         s' <- look s KeyType

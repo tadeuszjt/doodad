@@ -120,8 +120,8 @@ generatePrint app val = case typeof val of
         base <- baseTypeOf val
         generatePrint app $ Value base (valExpr val)
 
-    Type.ADT ts -> do -- TODO
-        void $ appendPrintf ("ADT" ++ app) []
+    Type.Sum ts -> do -- TODO
+        void $ appendPrintf ("Sum" ++ app) []
 
     _ -> error (show $ typeof val)
 
@@ -142,13 +142,11 @@ generateStmt stmt = withPos stmt $ case stmt of
 
     S.ExprStmt expr -> void $ generateExpr expr
     S.Let _ pattern mexpr mblk -> do
-        case mexpr of
-            Just expr -> do
-                matched <- generatePattern pattern =<< generateExpr expr
-                call "assert" [matched]
-            Nothing -> do
-                matched <- generatePattern pattern =<< initialiser (typeof pattern) []
-                call "assert" [matched]
+        rhs <- case mexpr of
+            Just expr -> generateExpr expr
+            Nothing   -> initialiser (typeof pattern) []
+        matched <- generatePattern pattern rhs
+        call "assert" [matched]
 
         case mblk of
             Nothing -> return ()
@@ -265,7 +263,7 @@ generatePattern pattern val = withPos pattern $ do
 
         PatField pos symbol pats -> do
             error ""
---            ADT ts <- baseTypeOf val
+--            Sum ts <- baseTypeOf val
 --            (s, i) <- mapGet symbol =<< gets ctors
 --
 --            endLabel <- fresh "skipMatch"
@@ -394,7 +392,7 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
 --        (typeSymbol, i) <- mapGet symbol =<< gets ctors
 --        base <- baseTypeOf typ
 --        case base of
---            Type.ADT ts -> do
+--            Type.Sum ts -> do
 --                unless (i < length ts) (error "invalid index")
 --                adt <- assign "adt" $ Value typ (C.Initialiser [C.Int $ fromIntegral i])
 --                let fieldType = ts !! i

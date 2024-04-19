@@ -251,7 +251,7 @@ set a b = do
                 let vb = Value t $ C.Member (valExpr bVal) ("m" ++ show i)
                 set va vb
 
-        --Type.ADT ts -> void $ appendElem $ C.Set (valExpr a) (valExpr b) -- TODO broken
+        --Type.Sum ts -> void $ appendElem $ C.Set (valExpr a) (valExpr b) -- TODO broken
             
         Type.Table t -> do
             error ""
@@ -293,7 +293,7 @@ len val = do
 
 adtEnum :: Value -> Generate Value
 adtEnum obj = do
-    base@(Type.ADT _) <- baseTypeOf obj
+    base@(Type.Sum _) <- baseTypeOf obj
     return $ Value I64 $ C.Member (valExpr obj) "en"
 
 
@@ -327,8 +327,8 @@ member index val = do
 --                , C.Member (valExpr val) "cap"
 --                ] ++ elems
 
-        Type.ADT ts   -> do
-            unless (index >= 0 && index < length ts) (error "invalid ADT field index")
+        Type.Sum ts   -> do
+            unless (index >= 0 && index < length ts) (error "invalid Sum field index")
             return $ Value (ts !! index) $ C.Member (valExpr val) ("u" ++ show index)
         _ -> error (show base)
 
@@ -359,7 +359,7 @@ builtinTableGet val idx = do
         Type.Tuple _ -> error ""
 
             
-        ADT ts -> error ""
+        Sum ts -> error ""
         Type.Table _ -> error ""
         x -> error (show x)
 
@@ -420,7 +420,7 @@ cTypeOf a = case typeof a of
     Type.String    -> return (Cpointer Cchar)
     Type.Tuple t   -> getTypedef "Tuple"  =<< cTypeNoDef (Type.Tuple t)
     Type.Table t   -> getTypedef "Table"  =<< cTypeNoDef (Type.Table t)
-    Type.ADT ts    -> getTypedef "Adt"    =<< cTypeNoDef (Type.ADT ts)
+    Type.Sum ts    -> getTypedef "Adt"    =<< cTypeNoDef (Type.Sum ts)
 
     Type.TypeApply symbol args -> do
         (generics, typ) <- mapGet symbol =<< getTypeDefs
@@ -445,7 +445,7 @@ cTypeOf a = case typeof a of
                 cts <- mapM cTypeOf ts
                 return $ Cstruct $ map (\(ct, i) -> C.Param ("m" ++ show i) ct) (zip cts [0..])
 
-            Type.ADT ts -> do
+            Type.Sum ts -> do
                 cts <- mapM cTypeOf ts
                 return $ Cstruct [C.Param "en" Cint64_t, C.Param "" $
                     Cunion $ map (\(ct, i) -> C.Param ("u" ++ show i) ct) (zip cts [0..])]

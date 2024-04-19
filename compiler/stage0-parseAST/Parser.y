@@ -88,7 +88,6 @@ import Symbol
     Bool       { Token _ Token.Reserved "Bool" }
     Char       { Token _ Token.Reserved "Char" }
     String     { Token _ Token.Reserved "String" }
-    Table      { Token _ Token.Reserved "Table" }
 
     int_c      { Token _ Token.Int _ }
     float_c    { Token _ Token.Float _ }
@@ -299,13 +298,12 @@ types1N : type_ 'N'                        { [$1] }
         | type_ ',' 'N' types1N            { $1 : $4 }
 types2N : type_ ',' 'N' types1N            { $1 : $4 }
     
+
 type_         : ordinal_t                  { $1 }
               | '(' type_ ')'              { $2 }
               | Symbol                     { TypeApply (snd $1) [] }
               | Symbol '[' types1 ']'      { TypeApply (snd $1) $3 }
               | tuple_t                    { $1 }
-              | table_t                    { $1 }
-
 
 ordinal_t   : Bool                         { Type.Bool }
             | U8                           { U8 }
@@ -318,19 +316,12 @@ ordinal_t   : Bool                         { Type.Bool }
             | Char                         { Type.Char }
             | String                       { Type.String }
 
+tuple_t : '(' type_ ',' types1 ')' { Type.Tuple ($2:$4) }
 
-tuple_t
-    : '(' type_ ',' types1 ')' { Type.Tuple ($2:$4) }
-
-table_t  : Table '[' type_ ']'             { Type.Table $3 }
-
-
-anno_t   : ordinal_t                       { AnnoType $1 }
-         | tuple_t                         { AnnoType $1 }
-         | table_t                         { AnnoType $1 }
-         | '(' ')' '{' paramsA1 '}'        { AnnoTuple $4 }
-         | Table '[' '{' paramsA1 '}' ']'  { AnnoTable $4 }
-         | '(' paramsA1 ')'                { AnnoTuple $2 }
+anno_t   : ordinal_t               { AnnoType $1 }
+         | tuple_t                 { AnnoType $1 }
+         --| Table '[' paramsA1 ']'  { AnnoTable $3 }
+         | '(' paramsA1 ')'        { AnnoTuple $2 }
 {
 parse :: MonadError Error m => [Token] -> m AST
 parse tokens = do

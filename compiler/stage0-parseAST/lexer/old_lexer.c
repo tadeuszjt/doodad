@@ -215,7 +215,6 @@ bool isKeyword(char *s) {
         "U8",
         "F64",
         "F32",
-        "Table",
         "Char",
         "data",
         "let",

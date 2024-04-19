@@ -67,7 +67,7 @@ unifyOne pos constraint = withPos pos $ case constraint of
         basem <- baseTypeOfm adtType
         case basem of
             Nothing -> return []
-            Just (ADT ts') -> do
+            Just (Sum ts') -> do
                 unless (i >= 0 && i < length ts') (error "index out of range")
                 case ts of
                     []  -> unifyOne pos $ ConsEq Void (ts' !! i)
