@@ -195,6 +195,7 @@ deref (Ref typ expr) = do
     base <- baseTypeOf typ
     case base of
         x | isSimple x -> return $ Value typ (C.Deref expr)
+        Type.TypeApply (Sym "Sum") _ -> return $ Value typ (C.Deref expr)
         Type.TypeApply (Sym "Tuple") ts  -> do
             -- TODO implement memory shear
             let ptr = C.Member expr "ptr"
@@ -228,6 +229,9 @@ set a b = do
                     let va = Value t $ C.Member tupA ("m" ++ show i)
                     let vb = Value t $ C.Member tupB ("m" ++ show i)
                     set va vb
+            Type.TypeApply (Sym "Sum") ts | copyable -> do
+                void $ appendElem $ C.Set (C.Deref a) (C.Deref b)
+
             x -> error (show x)
 
         (Ref _ a, Value _ b) -> case base of
@@ -340,7 +344,8 @@ initialiser :: Type.Type -> [Value] -> Generate Value
 initialiser typ [] = do
     base <- baseTypeOf typ
     case base of
-        _           -> assign "zero" $ Value typ $ C.Initialiser [C.Int 0]
+        TypeApply (Sym "Tuple") [] -> assign "zero" $ Value typ $ C.Initialiser []
+        _ -> assign "zero" $ Value typ $ C.Initialiser [C.Int 0]
 initialiser typ vals = do
     base <- baseTypeOf typ
     case base of
@@ -369,15 +374,19 @@ builtinTableGet val idx = do
 
 
 builtinTableAt :: Value -> Value -> Generate Value
-builtinTableAt (Ref tabType expr) idx = do
+builtinTableAt (Ref tabType expr) idx@(Value _ _) = do
     I64 <- baseTypeOf idx
     TypeApply (Sym "Table") [t] <- baseTypeOf tabType
-
     baseT <- baseTypeOf t
     case baseT of
         x | isSimple x -> return $ Ref t $ C.Address $ C.Subscript
             (C.PMember expr "r0")
             (valExpr idx)
+
+        Type.TypeApply (Sym "Table") [_] -> return $ Ref t $ C.Address $ C.Subscript
+            (C.PMember expr "r0")
+            (valExpr idx)
+            
 
         Type.TypeApply (Sym "Tuple") ts -> do
             -- TODO implement shear

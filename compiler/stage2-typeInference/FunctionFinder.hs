@@ -132,7 +132,7 @@ getConstraintsFromTypes generics t1 t2 = fromTypes t1 t2
                         unless (length ts1 == length ts2) (error "type mismatch")
                         (ConsEq t1 t2 :) . concat <$> zipWithM fromTypes ts1 ts2
 
-                    | otherwise -> fail "here"
+                    | otherwise -> fail "type mismatch"
 
                 (TypeApply s1 [], t) | elem s1 generics -> return [ConsEq t1 t2]
 

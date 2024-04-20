@@ -20,20 +20,20 @@ fn{K, V} len(tree &Tree{K, V}) I64
     return tree.nodes.len()
 
 
-fn{K, V} at(tree &Tree{K, V}, key K) &V
-    switch tree.base
+fn{K, V} at(t &Tree{K, V}, key K) &V
+    switch t.base
         Node{K, V}.Key(current)
-            while tree.nodes[current].key != key   
-                if tree.nodes[current].left -> Node{K, V}.Key(left) | key < tree.nodes[current].key
+            while t.nodes[current].key != key   
+                if t.nodes[current].left -> Node{K, V}.Key(left) | key < t.nodes[current].key
                     current = left
-                else if tree.nodes[current].right -> Node{K, V}.Key(right) | key > tree.nodes[current].key
+                else if t.nodes[current].right -> Node{K, V}.Key(right) | key > t.nodes[current].key
                     current = right
                 else
                     assert(false, "error")
 
-            return tree.nodes[current].value
+            return t.nodes[current].value
 
-fn{K, V} insert(tree &Tree{K, V}, key K, value V)
+fn{K, V} insert(t &Tree{K, V}, key K, value V)
     fn{K, V} insertNode(n &Node{K, V}.Unordered, newNode Node{K, V}.Key, node Node{K, V}.Key)
         let lt = n[newNode].key < n[node].key
         let gt = n[newNode].key > n[node].key
@@ -44,82 +44,84 @@ fn{K, V} insert(tree &Tree{K, V}, key K, value V)
         else if n[node].right -> Nothing()   | gt; n[node].right = conv(newNode)
         else; assert(false, "key already in tree")
 
-    let nodeKey = tree.nodes.insert()
-    tree.nodes[nodeKey].key = key
-    tree.nodes[nodeKey].value = value
+    let nodeKey = t.nodes.insert()
+    t.nodes[nodeKey].key = key
+    t.nodes[nodeKey].value = value
+    switch t.base
+        Nothing()                ; t.base = conv(nodeKey)
+        Key{Node{K, V}}(baseNode); t.nodes.insertNode(nodeKey, baseNode)
+
+
+fn{K, V} delete(tree &Tree{K, V}, key K) 
+    fn{K, V} leftMost(nodes &Node{K, V}.Unordered, node Node{K, V}.Key) Node{K, V}.Key
+        if nodes[node].left -> Node{K, V}.Key(left)
+            return nodes.leftMost(left)
+        return node
+
+    fn{K, V} rightMost(nodes &Node{K, V}.Unordered, node Node{K, V}.Key) Node{K, V}.Key
+        if nodes[node].right -> Node{K, V}.Key(right)
+            return nodes.rightMost(right)
+        return node
+
+    fn{K, V} deleteFromNode(n &Node{K, V}.Unordered, node Node{K, V}.Key, key K)
+        assert(key != n[node].key, "key cannot match current node")
+
+        if n[node].left -> Node{K, V}.Key(left) | key == n[left].key // deleting node on left
+            if n[left].right -> Node{K, V}.Key(leftRight)
+                let leftMost     = n.leftMost(leftRight)
+                n[leftMost].left = n[left].left
+                n[node].left     = conv(leftRight)
+            else; n[node].left   = n[left].left
+            n.delete(left)
+
+        else if n[node].right -> Node{K, V}.Key(right) | key == n[right].key // deleting from right
+            if n[right].left -> Node{K, V}.Key(rightLeft)
+                let rightMost      = n.rightMost(rightLeft)
+                n[rightMost].right = n[right].right
+                n[node].right      = conv(rightLeft)
+            else; n[node].right    = n[right].right
+            n.delete(right)
+                
+        else if n[node].left -> Node{K, V}.Key(left) | key < n[node].key
+            n.deleteFromNode(left, key)
+    
+        else if n[node].right -> Node{K, V}.Key(right) | key > n[node].key
+            n.deleteFromNode(right, key)
+
+        else; assert(false, "invalid key")
+
     switch tree.base
-        Nothing()                ; tree.base = conv(nodeKey)
-        Key{Node{K, V}}(baseNode); tree.nodes.insertNode(nodeKey, baseNode)
-//
-//
-//fn[K, V] {tree Tree[K, V]} delete(key ()K) 
-//    fn[K, V] {nodes Unordered[Node[K, V]]} leftMost(node Key[Node[K, V]]) Key[Node[K, V]]
-//        if nodes[node].left -> Just(left)
-//            return nodes.leftMost(left)
-//        return node
-//
-//    fn[K, V] {nodes Unordered[Node[K, V]]} rightMost(node Key[Node[K, V]]) Key[Node[K, V]]
-//        if nodes[node].right -> Just(right)
-//            return nodes.rightMost(right)
-//        return node
-//
-//    fn[K, V] {n Unordered[Node[K, V]]} deleteFromNode(node Key[Node[K, V]], key ()K)
-//        assert(key{} != n[node].key{}, "key cannot match current node")
-//        let leftm  = n.get(node).left
-//        let rightm = n.get(node).right
-//
-//        if leftm -> Just(left) | key{} == n.at(left).key{} // deleting node on left
-//            if n.get(left).right -> Just(leftRight)
-//                let leftMost        = n.leftMost(leftRight)
-//                n.at(leftMost).left = n.get(left).left
-//                n[node].left     = Just(leftRight)
-//            else; n[node].left   = n.get(left).left
-//            n.delete(left)
-//
-//        else if rightm -> Just(right) | key{} == n.at(right).key{} // deleting from right
-//            if n.get(right).left -> Just(rightLeft)
-//                let rightMost         = n.rightMost(rightLeft)
-//                n.at(rightMost).right = n.get(right).right
-//                n[node].right      = Just(rightLeft)
-//            else; n[node].right    = n.get(right).right
-//            n.delete(right)
-//                
-//        else if leftm -> Just(left) | key{} < n[node].key{}
-//            n.deleteFromNode(left, key)
-//    
-//        else if rightm -> Just(right) | key{} > n[node].key{}
-//            n.deleteFromNode(right, key)
-//
-//        else; assert(false, "invalid key")
-//
-//    switch tree.base
-//        Just(base)
-//            if tree.nodes.at(base).key{} == key{}
-//                if tree.nodes.at(base).left -> Just(left)
-//                    tree.base = Just(left)
-//                    tree.nodes.at(tree.nodes.rightMost(left)).right = tree.nodes.get(base).right
-//                else if tree.nodes.at(base).right -> Just(right)
-//                    tree.base = Just(right)
-//                    tree.nodes.at(tree.nodes.leftMost(right)).left = tree.nodes.get(base).left
-//                else; tree.base = Nothing()
-//                tree.nodes.delete(base)
-//            else; tree.nodes.deleteFromNode(base, key)
-//
-//
-//fn[K, V] {tree Tree[K, V]} contains(key ()K) Bool
-//    fn[K, V] {tree Tree[K, V]} nodeContains(node Key[Node[K, V]], key ()K) Bool
-//        let (less, greater, mLeft, mRight)
-//        let {l, r, k, v} = tree.nodes[node] in
-//            mLeft   = l
-//            mRight  = r
-//            less    = key{} < k{}
-//            greater = key{} > k{}
-//
-//        if      !less && !greater              ; return true
-//        else if mLeft  -> Just(left)  | less   ; return tree.nodeContains(left, key)
-//        else if mRight -> Just(right) | greater; return tree.nodeContains(right, key)
-//        else                                   ; return false
-//
-//    switch tree.base
-//        Nothing();  return false
-//        Just(base); return tree.nodeContains(base, key)
+        Node{K, V}.Key(base)
+            if tree.nodes[base].key == key
+                if tree.nodes[base].left -> Node{K, V}.Key(left)
+                    tree.base = conv(left)
+                    tree.nodes[tree.nodes.rightMost(left)].right = tree.nodes[base].right
+
+                else if tree.nodes[base].right -> Node{K, V}.Key(right)
+                    tree.base = conv(right)
+                    tree.nodes[tree.nodes.leftMost(right)].left = tree.nodes[base].left
+
+                else
+                    tree.base = conv(Nothing())
+
+                tree.nodes.delete(base)
+            else; tree.nodes.deleteFromNode(base, key)
+
+
+fn{K, V} contains(tree &Tree{K, V}, key K) Bool
+    fn{K, V} nodeContains(tree &Tree{K, V}, node Node{K, V}.Key, key K) Bool
+        let less    = key < tree.nodes[node].key
+        let greater = key > tree.nodes[node].key
+
+        if !less && !greater
+            return true
+        else if tree.nodes[node].left  -> Node{K, V}.Key(left)  | less
+            return tree.nodeContains(left, key)
+        else if tree.nodes[node].right -> Node{K, V}.Key(right) | greater
+            return tree.nodeContains(right, key)
+        else
+            return false
+
+    switch tree.base
+        Nothing();  return false
+        Node{K, V}.Key(base); return tree.nodeContains(base, key)

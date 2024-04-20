@@ -381,6 +381,7 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
         vals <- mapM generateExpr exprs
         case vals of
             [val] -> convert typ val
+            []    -> initialiser typ []
 
     S.Reference pos expr -> do
         val <- generateExpr expr

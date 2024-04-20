@@ -5,6 +5,7 @@ import std/sparse
 import std/unordered
 import std/maybe
 import std/binaryTree
+import std/map
 
 
 fn testArithmetic()
@@ -110,9 +111,15 @@ fn testTable()
     t2.at(1) = (3, true)
     let (3, true) = t2.pop
 
+    data m3 I64.Table.Table
+    let 0 = m3.len
+    m3.push
+    m3[0].push
+    let 1 = m3[0].len
+
 
 fn testSparse()
-    data s1 Sparse{I64}
+    data s1 I64.Sparse
 
     let 0 = s1.len
     let k1 = s1.insert
@@ -209,6 +216,39 @@ fn testTree()
     let true = t.at(1)
     let false = t.at(2)
 
+    let true = t.contains(1)
+    let true = t.contains(2)
+    let false = t.contains(3)
+
+    t.delete(1)
+    let 1 = t.len
+
+    let false = t.contains(1)
+    let true = t.contains(2)
+    let false = t.contains(3)
+
+    t.insert(3, true)
+    t.insert(1, true)
+
+    let true = t.contains(1)
+    let true = t.contains(2)
+    let true = t.contains(3)
+
+
+fn testMap()
+    data m Map{I64, Bool}
+    m.insert(1, true)
+    m.insert(2, false)
+    m.insert(3, true)
+
+    let 3 = m.len
+
+    let true = m[1]
+    let false = m[2]
+
+    let false = m.contains(0)
+
+
 fn main()
     testArithmetic()
     testFloats()
@@ -224,5 +264,6 @@ fn main()
     testSumType()
     testMaybe()
     testTree()
+    testMap()
 
     print("success")
