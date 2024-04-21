@@ -70,7 +70,6 @@ generate ast = withErrorPrefix "generate: " $ do
 
 cRettyType :: S.Retty -> Generate C.Type
 cRettyType retty = case retty of
-    VoidRetty -> return Cvoid
     Retty t -> cTypeOf t
     RefRetty t -> cRefTypeOf t
 
@@ -91,7 +90,7 @@ generateFunc symbol body = do
                 x -> error (show x)
 
         generateStmt (ASTResolved.funcStmt body)
-        when (ASTResolved.funcRetty body /= S.VoidRetty) $ -- check to ensure function has return
+        when (ASTResolved.funcRetty body /= S.Retty Void) $ -- check to ensure function has return
             call "assert" [false]
 
     popSymTab
@@ -366,7 +365,7 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
         valB <- generateExpr b
         generateInfix op valA valB
 
-    S.Call _ Nothing symbol exprs -> do
+    S.Call _ symbol exprs -> do
         check (symbolIsResolved symbol) ("unresolved function call: " ++ show symbol)
         vals <- mapM generateExpr exprs
         argExprs <- forM vals $ \val -> case val of

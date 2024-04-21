@@ -41,19 +41,17 @@ genSymbol sym = do
 
 cleanUpMapper :: Elem -> DoM ASTResolved Elem
 cleanUpMapper elem = case elem of
-    ElemType t -> return (ElemType t)
-        
-    ElemExpr (AExpr exprType expr@(AST.Call pos mparam symbol exprs)) -> do
+    ElemExpr (AExpr exprType expr@(AST.Call pos symbol exprs)) -> do
         symbol' <- resolveFuncCall exprType expr
-        fmap (ElemExpr . AExpr exprType) $ return (Call pos mparam symbol' exprs)
+        fmap (ElemExpr . AExpr exprType) $ return (Call pos symbol' exprs)
 
     _ -> return elem
 
     
 -- add extern if needed
 resolveFuncCall :: Type -> AST.Expr -> DoM ASTResolved Symbol
-resolveFuncCall _ (AST.Call _ _ s@(SymResolved _ _ _) _) = return s
-resolveFuncCall exprType (AST.Call pos Nothing callSymbol args) = withPos pos $ do
+resolveFuncCall _ (AST.Call _ s@(SymResolved _ _ _) _) = return s
+resolveFuncCall exprType (AST.Call pos callSymbol args) = withPos pos $ do
     --liftIO $ putStrLn $ "resolving: " ++ show callSymbol
     let callHeader = CallHeader callSymbol (map typeof args) exprType
 

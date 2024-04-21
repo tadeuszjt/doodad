@@ -135,7 +135,7 @@ imports : {- empty -}              { [] }
 generics : {-empty-}                      { [] }
          | '{' Idents1 '}'                { map Symbol.Sym $2 }
 
-retty : {-empty-}     { VoidRetty }
+retty : {-empty-}     { Retty Type.Void }
       | type_         { Retty $1 }
       | '&' type_     { RefRetty $2 }
       | '[' ']' type_ { Retty (Type.Slice $3) }
@@ -247,14 +247,13 @@ expr   : literal                                 { $1 }
        | expr ':' type_                          { AExpr $3 $1 }
        | symbol                                  { AST.Ident (fst $1) (snd $1) }
        | '(' exprsA ')'                          { case $2 of [x] -> x; xs -> AST.Tuple (tokPos $1) xs }
-       | symbol '(' exprsA ')'                   { Call (tokPos $2) Nothing (snd $1) $3 }
        | type_ '(' exprsA ')'                    { Construct (tokPos $2) $1 $3 }
-       --| expr '.' symbol '(' exprsA ')'          { Call (tokPos $4) (Just $1) (snd $3) $5 }
-       | expr '.' symbol '(' exprsA ')'          { Call (tokPos $4) Nothing (snd $3) (AST.Reference (tokPos $2) $1 : $5) }
        | expr '.' int_c                          { Field (tokPos $2) $1 (read $ tokStr $3)  }
-       | expr '.' symbol                         { Call (tokPos $2) Nothing (snd $3) (AST.Reference (tokPos $2) $1 : []) }
        | '&' expr                                { AST.Reference (tokPos $1) $2 }
-       | expr '[' expr ']'                       { Call (tokPos $2) Nothing (Sym "at") [AST.Reference (tokPos $2) $1, $3] }
+       | expr '[' expr ']'                       { Call (tokPos $2) (Sym "at") [AST.Reference (tokPos $2) $1, $3] }
+       | expr '.' symbol                         { Call (tokPos $2) (snd $3) (AST.Reference (tokPos $2) $1 : []) }
+       | expr '.' symbol '(' exprsA ')'          { Call (tokPos $4) (snd $3) (AST.Reference (tokPos $2) $1 : $5) }
+       | symbol '(' exprsA ')'                   { Call (tokPos $2) (snd $1) $3 }
 
 literal : int_c                                  { AST.Int (tokPos $1) (read $ tokStr $1) }
         | float_c                                { AST.Float (tokPos $1) (read $ tokStr $1) }

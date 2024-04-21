@@ -26,7 +26,6 @@ mapParamM f (AST.RefParam pos symbol typ) = withPos pos $ AST.RefParam pos symbo
 mapRettyM :: MapperFunc s -> Retty -> DoM s Retty
 mapRettyM f (AST.Retty t) = AST.Retty <$> mapTypeM f t
 mapRettyM f (AST.RefRetty t) = AST.RefRetty <$> mapTypeM f t
-mapRettyM f (AST.VoidRetty) = return AST.VoidRetty
     
 
 mapFuncBodyM :: MapperFunc s -> FuncBody -> DoM s FuncBody
@@ -108,27 +107,23 @@ mapExprM f expr = withPos expr $ do
             expr' <- mapExprM f expr
             return $ AExpr typ' expr'
 
-        Ident pos symbol    -> return $ Ident pos symbol
-        AST.String pos s    -> return $ AST.String pos s
-        AST.Int pos n       -> return $ AST.Int pos n
-        AST.Float pos f     -> return $ AST.Float pos f
-        AST.Bool pos b      -> return $ AST.Bool pos b
-        AST.Char pos c      -> return $ AST.Char pos c
-        AST.Tuple pos exprs -> AST.Tuple pos <$> mapM (mapExprM f) exprs
-        Prefix pos op expr -> Prefix pos op <$> mapExprM f expr
+        Ident pos symbol      -> return $ Ident pos symbol
+        AST.String pos s      -> return $ AST.String pos s
+        AST.Int pos n         -> return $ AST.Int pos n
+        AST.Float pos f       -> return $ AST.Float pos f
+        AST.Bool pos b        -> return $ AST.Bool pos b
+        AST.Char pos c        -> return $ AST.Char pos c
+        AST.Tuple pos exprs   -> AST.Tuple pos <$> mapM (mapExprM f) exprs
+        Prefix pos op expr    -> Prefix pos op <$> mapExprM f expr
+        Call pos symbol exprs -> Call pos symbol <$> mapM (mapExprM f) exprs
 
         Construct pos typ exprs -> do
             typ' <- mapTypeM f typ
             Construct pos typ' <$> mapM (mapExprM f) exprs
 
-        Field pos expr symbol -> do
+        Field pos expr n -> do
             expr' <- mapExprM f expr
-            return $ Field pos expr' symbol
-
-        Call pos ps symbol es -> do
-            ps' <- mapM (mapExprM f) ps
-            es' <- mapM (mapExprM f) es
-            return $ Call pos ps' symbol es'
+            return $ Field pos expr' n
 
         Builtin pos symbol es -> do
             es' <- mapM (mapExprM f) es

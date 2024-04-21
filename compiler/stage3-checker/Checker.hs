@@ -140,15 +140,11 @@ checkExpr (AExpr exprType expression) = withPos expression $ case expression of
         return []
 
     -- return objects from mparam if returns record
-    Call pos mparam symbol exprs -> do
+    Call pos symbol exprs -> do
         void $ mapM checkExpr exprs
-        resm <- traverse checkExpr mparam
-        objs <- case resm of
-            Nothing -> return []
-            Just res -> return res
         base <- baseTypeOf exprType
         case base of
-            _             -> return []
+            _ -> return []
 
     -- pat defines, redefines references of expr.
     Match pos expr pat -> do

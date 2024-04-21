@@ -62,7 +62,6 @@ data Param
 data Retty
     = Retty Type
     | RefRetty Type
-    | VoidRetty
     deriving (Eq, Ord)
 
 
@@ -72,7 +71,6 @@ instance Type.Typeof Param where
 instance Type.Typeof Retty where
     typeof (Retty t) = t
     typeof (RefRetty t) = t
-    typeof (VoidRetty) = Void
 
 
 data Pattern
@@ -93,7 +91,7 @@ data Expr
     | Char         TextPos Char
     | String       TextPos String
     | Tuple        TextPos [Expr]
-    | Call         TextPos (Maybe Expr) Symbol [Expr]
+    | Call         TextPos Symbol [Expr]
     | Construct    TextPos Type [Expr]
     | Field        TextPos Expr Int
     | Ident        TextPos Symbol
@@ -159,7 +157,7 @@ instance TextPosition Expr where
         Tuple        p _    -> p
         Field        p _ _  -> p
         Ident        p _    -> p
-        Call         p _ _ _ -> p 
+        Call         p _ _ -> p 
         Builtin      p _ _ -> p 
         Prefix       p _ _ -> p
         Infix        p _ _ _ -> p
@@ -203,9 +201,9 @@ instance Show Param where
 
 
 instance Show Retty where
+    show (Retty Void) = ""
     show (Retty t) = show t
     show (RefRetty t) = "&" ++ show t
-    show (VoidRetty)  = ""
 
 
 instance Show Operator where
@@ -259,8 +257,7 @@ instance Show Expr where
         Ident p s                          -> show s 
         Prefix pos op expr                 -> show op ++ show expr
         Infix pos op expr1 expr2           -> show expr1 ++ " " ++ show op ++ " " ++ show expr2
-        Call pos Nothing symbol exprs      -> show symbol ++ tupStrs (map show exprs)
-        Call pos (Just param) symbol exprs -> show param ++ "." ++ show symbol ++ tupStrs (map show exprs)
+        Call pos symbol exprs              -> show symbol ++ tupStrs (map show exprs)
         Builtin pos sym exprs              -> sym ++ tupStrs (map show exprs)
         Match pos expr1 expr2              -> "(" ++ show expr1 ++ " -> " ++ show expr2 ++ ")"
         Construct pos typ exprs            -> show typ ++ tupStrs (map show exprs)

@@ -202,7 +202,7 @@ collectExpr (AExpr exprType expression) = withPos expression $ case expression o
         collectDefault exprType Type.Bool
         collect $ ConsBase exprType Type.Bool
 
-    Call _ Nothing symbol exprs -> do
+    Call _ symbol exprs -> do
         collect $ ConsCall exprType symbol (map typeof exprs)
         mapM_ collectExpr exprs
 
