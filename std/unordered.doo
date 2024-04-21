@@ -4,42 +4,47 @@ import std/sparse
 import std/table
 
 type{T} Key I64
-type{T} Entry ( Key{I64}, T )
-type{T} Unordered ( Sparse{I64}, Table{Entry{T}} )
+type{T} Entry ( I64.Key, T )
+
+type{T} Unordered Tuple{
+    I64.Sparse,
+    T.Entry.Table
+}
+
+fn{T} key(e &T.Entry) &I64.Key;             return &e.0
+fn{T} value(e &T.Entry) &T;                  return &e.1
+fn{T} indices(u &T.Unordered) &Sparse{I64};  return &u.0
+fn{T} values(u &T.Unordered) &T.Entry.Table; return &u.1
 
 
-fn{T} key(e &Entry{T}) &Key{I64};               return &e.0
-fn{T} value(e &Entry{T}) &T;                    return &e.1
-fn{T} indices(u &Unordered{T}) &Sparse{I64};    return &u.0
-fn{T} values(u &Unordered{T}) &Table{Entry{T}}; return &u.1
-
-
-fn{T} len(u &Unordered{T}) I64
+fn{T} len(u &T.Unordered) I64
     return u.values.len
 
-fn{T} insert(u &Unordered{T}, elem T) Key{T}
+fn{T} insert(u &T.Unordered, elem T) T.Key
     let key = u.indices.insert(u.values.len)
     u.values.push((conv(key), elem))
     return conv(key)
 
-fn{T} insert(u &Unordered{T}) Key{T}
-    let value : T
-    return u.insert(value)
+fn{T} insert(u &T.Unordered) T.Key
+    let key = u.indices.insert(u.values.len)
+    u.values.push()
+    u.values[u.values.len - 1].key = I64.Key(key)
+    return T.Key(key)
 
 
-fn{T} at(u &Unordered{T}, key Key{T}) &T
+fn{T} at(u &T.Unordered, key T.Key) &T
     let index = u.indices.at(conv(key))
     return &u.values.at(index).value
 
 
-fn{T} atIndex(u &Unordered{T}, index I64) &T
+fn{T} atIndex(u &T.Unordered, index I64) &T
     return &u.values.at(index).value
 
 
-fn{T} delete(u &Unordered{T}, key Key{T})
+fn{T} delete(u &T.Unordered, key T.Key)
     let end    = u.values.len - 1
     let endKey = u.values.at(end).key
-    let index  = u.indices.at(conv(key))
+    let index  = u.indices.at(I64.sparse::Key(key))
 
     u.values.at(index) = u.values.at(end)
     u.indices.at(conv(endKey)) = index

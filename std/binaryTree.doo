@@ -3,17 +3,26 @@ module binaryTree
 import std/maybe
 import std/unordered
 
-type{K, V} Node (Maybe{unordered::Key{Node{K, V}}}, Maybe{Key{Node{K, V}}}, K, V)
+type{K, V} Node Tuple{
+    Node{K, V}.Key.Maybe,
+    Node{K, V}.Key.Maybe,
+    K,
+    V,
+}
 
 fn{K, V} left(n &Node{K, V})  &Node{K, V}.Key.Maybe; return &n.0
 fn{K, V} right(n &Node{K, V}) &Node{K, V}.Key.Maybe; return &n.1
 fn{K, V} key(n &Node{K, V})   &K                   ; return &n.2
 fn{K, V} value(n &Node{K, V}) &V                   ; return &n.3
 
-type{K, V} Tree (Node{K, V}.Unordered, Node{K, V}.Key.Maybe)
+type{K, V} Tree Tuple{
+    Node{K, V}.Unordered,
+    Node{K, V}.Key.Maybe
+}
 
 fn{K, V} nodes(t &Tree{K, V}) &Node{K, V}.Unordered; return &t.0
 fn{K, V} base(t &Tree{K, V})  &Node{K, V}.Key.Maybe; return &t.1
+
 
 
 fn{K, V} len(tree &Tree{K, V}) I64
@@ -23,11 +32,14 @@ fn{K, V} len(tree &Tree{K, V}) I64
 fn{K, V} at(t &Tree{K, V}, key K) &V
     switch t.base
         Node{K, V}.Key(current)
+
             while t.nodes[current].key != key   
                 if t.nodes[current].left -> Node{K, V}.Key(left) | key < t.nodes[current].key
                     current = left
+
                 else if t.nodes[current].right -> Node{K, V}.Key(right) | key > t.nodes[current].key
                     current = right
+
                 else
                     assert(false, "error")
 
@@ -47,9 +59,10 @@ fn{K, V} insert(t &Tree{K, V}, key K, value V)
     let nodeKey = t.nodes.insert()
     t.nodes[nodeKey].key = key
     t.nodes[nodeKey].value = value
+
     switch t.base
-        Nothing()                ; t.base = conv(nodeKey)
-        Key{Node{K, V}}(baseNode); t.nodes.insertNode(nodeKey, baseNode)
+        Nothing()               ; t.base = conv(nodeKey)
+        Node{K, V}.Key(baseNode); t.nodes.insertNode(nodeKey, baseNode)
 
 
 fn{K, V} delete(tree &Tree{K, V}, key K) 
@@ -110,17 +123,11 @@ fn{K, V} delete(tree &Tree{K, V}, key K)
 
 fn{K, V} contains(tree &Tree{K, V}, key K) Bool
     fn{K, V} nodeContains(tree &Tree{K, V}, node Node{K, V}.Key, key K) Bool
-        let less    = key < tree.nodes[node].key
-        let greater = key > tree.nodes[node].key
-
-        if !less && !greater
-            return true
-        else if tree.nodes[node].left  -> Node{K, V}.Key(left)  | less
+        if tree.nodes[node].left  -> Node{K, V}.Key(left)  | key < tree.nodes[node].key
             return tree.nodeContains(left, key)
-        else if tree.nodes[node].right -> Node{K, V}.Key(right) | greater
+        if tree.nodes[node].right -> Node{K, V}.Key(right) | key > tree.nodes[node].key
             return tree.nodeContains(right, key)
-        else
-            return false
+        return key == tree.nodes[node].key
 
     switch tree.base
         Nothing();  return false

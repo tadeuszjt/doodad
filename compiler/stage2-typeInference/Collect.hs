@@ -130,6 +130,14 @@ collectStmt statement = withPos statement $ case statement of
         collectStmt blk
         void $ traverse collectStmt melse
 
+    For _ expr mpat blk -> do
+        when (isJust mpat) $ do
+            collect $ ConsForExpr (typeof expr) (typeof $ fromJust mpat)
+            collectPattern (fromJust mpat)
+
+        collectExpr expr
+        collectStmt blk
+
     While _ expr blk -> do
         collect $ ConsBase Type.Bool (typeof expr)
         collectDefault Type.Bool (typeof expr)
@@ -266,6 +274,10 @@ collectExpr (AExpr exprType expression) = withPos expression $ case expression o
 
     Int _ n -> do
         collectDefault exprType I64
+
+    AST.Char _ c -> do
+        collect $ ConsBase exprType Type.Char
+        collectDefault exprType Type.Char
 
     AST.String _ s -> do
         collectDefault exprType Type.String

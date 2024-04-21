@@ -294,6 +294,7 @@ mtype  : {-empty-}                         { Nothing }
 types1 : type_                             { [$1] }
        | type_ ',' types1                  { $1 : $3 }
 types1N : type_ 'N'                        { [$1] }
+        | type_ ',' 'N'                    { [$1] }
         | type_ ',' 'N' types1N            { $1 : $4 }
 types2N : type_ ',' 'N' types1N            { $1 : $4 }
     
@@ -303,6 +304,7 @@ type_         : ordinal_t                  { $1 }
               | Symbol                     { TypeApply (snd $1) [] }
               | Symbol '{' '}'             { TypeApply (snd $1) [] }
               | Symbol '{' types1 '}'      { TypeApply (snd $1) $3 }
+              | Symbol '{' 'I' types2N 'D' '}' { TypeApply (snd $1) $4 }
               | type_ '.' Symbol           { TypeApply (snd $3) [$1] }
               | tuple_t                    { $1 }
 

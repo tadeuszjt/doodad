@@ -287,13 +287,20 @@ set a b = do
 
 
 len :: Value -> Generate Value
-len val = do
-    base <- baseTypeOf val
-    case base of
-        TypeApply (Sym "Table") _ -> return $ Value I64 $ C.Member (valExpr val) "len"
-        Type.String               -> return $ Value I64 $ C.Call "strlen" [valExpr val]
---        Type.Array n t -> return $ Value I64 $ C.Int (fromIntegral n)
-        _ -> error (show base)
+len val = case val of
+    Ref typ expr -> do
+        base <- baseTypeOf typ
+        return $ case base of
+            TypeApply (Sym "Table") _ -> Value I64 (C.PMember expr "len")
+
+    Value typ expr -> do
+        base <- baseTypeOf typ
+        return $ case base of
+            TypeApply (Sym "Table") _ -> Value I64 (C.Member expr "len")
+            Type.String               -> Value I64 (C.Call "strlen" [expr])
+    --        Type.Array n t -> return $ Value I64 $ C.Int (fromIntegral n)
+            _ -> error (show base)
+
 
 
 adtEnum :: Value -> Generate Value
@@ -448,7 +455,7 @@ cTypeOf a = case typeof a of
 
     Type.TypeApply symbol args -> do
         (generics, typ) <- mapGet symbol =<< getTypeDefs
-        getTypedef (Symbol.sym symbol) =<< cTypeNoDef =<< applyTypeArguments generics args typ
+        getTypedef (Symbol.sym symbol) =<< cTypeOf =<< applyTypeArguments generics args typ
 
     _ -> error (show $ typeof a)
 

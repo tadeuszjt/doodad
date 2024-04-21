@@ -77,6 +77,13 @@ checkAST ast = do
             objects <- checkStmt (funcStmt body)
             popSymTab
 
+            -- check return type
+--            base <- baseTypeOf (funcRetty body)
+--            case base of
+--                x | isSimple x -> return ()
+--                TypeApply (Sym "Tuple") _ -> return ()
+--                x -> error (show x)
+
 
 checkMultipleReferences :: [Object] -> DoM CheckState ()
 checkMultipleReferences objs = do

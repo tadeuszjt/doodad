@@ -99,7 +99,7 @@ generateFunc symbol body = do
 
 
 generatePrint :: String -> Value -> Generate ()
-generatePrint app val = case typeof val of
+generatePrint app val@(Value _ _) = case typeof val of
     Type.I64 ->    void $ appendPrintf ("%lld" ++ app) [valExpr val]
     Type.I32 ->    void $ appendPrintf ("%ld" ++ app) [valExpr val]
     Type.F64 ->    void $ appendPrintf ("%f" ++ app) [valExpr val]
@@ -186,22 +186,23 @@ generateStmt stmt = withPos stmt $ case stmt of
             generateStmt stmt
         
     S.For _ expr mpat stmt -> do
-        base <- baseTypeOf expr
         idx <- assign "idx" (i64 0)
         first <- assign "first" true
 
         id <- appendElem $ C.For Nothing Nothing (Just $ C.Increment (valExpr idx)) []
         withCurID id $ do
             val <- generateExpr expr
+            base <- baseTypeOf val
             -- special preable for ranges
             case base of
                 Type.String -> return ()
                 Type.TypeApply (Sym "Table") _ -> return ()
                 x -> error (show x)
 
+
             -- check that index is still in range
             idxGtEq <- case base of
-                Type.String    -> generateInfix S.GTEq idx =<< len val
+                Type.String                     -> generateInfix S.GTEq idx =<< len val
                 Type.TypeApply (Sym "Table") _  -> generateInfix S.GTEq idx =<< len val
             if_ idxGtEq (appendElem C.Break)
 
@@ -209,7 +210,7 @@ generateStmt stmt = withPos stmt $ case stmt of
             patMatches <- case mpat of
                 Nothing -> return true
                 Just pat -> case base of
-                    Type.TypeApply (Sym "Table") ts -> generatePattern pat =<< builtinTableGet val idx
+                    Type.TypeApply (Sym "Table") ts -> generatePattern pat =<< builtinTableAt val idx
                     _ -> error (show base)
 
             if_ (not_ patMatches) $ appendElem C.Break
@@ -411,7 +412,6 @@ generateInfix :: S.Operator -> Value -> Value -> Generate Value
 generateInfix op a' b' = do
     a <- deref a'
     b <- deref b'
-
 
     unless (typeof a == typeof b) (error "type mismatch")
     base <- baseTypeOf a

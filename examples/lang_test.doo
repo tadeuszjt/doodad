@@ -6,6 +6,7 @@ import std/unordered
 import std/maybe
 import std/binaryTree
 import std/map
+import std/io
 
 
 fn testArithmetic()
@@ -249,6 +250,23 @@ fn testMap()
     let false = m.contains(0)
 
 
+fn testIo()
+    data io Io
+    io.putChar('b')
+
+    data string Char.Table
+
+    string.push('b')
+    string.push('e')
+    string.push('n')
+    string.push('i')
+
+    let 4 = string.len
+
+    io.putStr(&string)
+
+
+
 fn main()
     testArithmetic()
     testFloats()
@@ -265,5 +283,7 @@ fn main()
     testMaybe()
     testTree()
     testMap()
+
+    testIo()
 
     print("success")

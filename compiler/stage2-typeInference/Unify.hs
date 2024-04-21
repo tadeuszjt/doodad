@@ -65,10 +65,11 @@ unifyOne pos constraint = withPos pos $ case constraint of
     ConsPatField patType fieldType [argType] -> unifyOne pos $ ConsEq fieldType argType
     ConsPatField patType fieldType []        -> return []
 
-    ConsForExpr t1 t2 -> do
-        basem <- baseTypeOfm t1
+    ConsForExpr exprType patType -> do
+        basem <- baseTypeOfm exprType
         case basem of
             Nothing -> return []
+            Just (TypeApply (Sym "Table") [t]) -> unifyOne pos $ ConsEq patType t
 
             x -> error (show x)
 

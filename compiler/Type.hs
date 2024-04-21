@@ -56,7 +56,8 @@ instance Show Type where
         Char              -> "Char"
         String            -> "String"
         TypeApply s []    -> show s
-        TypeApply s ts    -> show s ++ "[" ++ intercalate ", " (map show ts) ++ "]"
+        TypeApply s [t]   -> show t ++ "." ++ show s
+        TypeApply s ts    -> show s ++ "{" ++ intercalate ", " (map show ts) ++ "}"
 
 
 isInt :: Type -> Bool
