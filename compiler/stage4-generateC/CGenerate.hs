@@ -449,6 +449,8 @@ cTypeOf a = case typeof a of
     Type.Bool      -> return Cbool
     Type.Char      -> return Cchar
     Type.String    -> return (Cpointer Cchar)
+
+    Type.Slice t                     -> getTypedef "Slice"  =<< cTypeNoDef (Type.Slice t)
     Type.TypeApply (Sym "Tuple") t   -> getTypedef "Tuple"  =<< cTypeNoDef (Type.TypeApply (Sym "Tuple") t)
     Type.TypeApply (Sym "Table") t   -> getTypedef "Table"  =<< cTypeNoDef (Type.TypeApply (Sym "Table") t)
     Type.TypeApply (Sym "Sum") ts    -> getTypedef "Adt"    =<< cTypeNoDef (Type.TypeApply (Sym "Sum") ts)
@@ -487,6 +489,10 @@ cTypeOf a = case typeof a of
                     t              -> return [t]
                 let pts = zipWith (\ct i -> C.Param ("r" ++ show i) (Cpointer ct)) cts [0..]
                 return $ Cstruct (C.Param "len" Cint64_t:C.Param "cap" Cint64_t:pts)
+
+            Type.Slice t -> do
+                cType <- cTypeOf t
+                return $ Cstruct [C.Param "ptr" (Cpointer cType), C.Param "len" Csize_t]
 
             x -> error (show x)
 

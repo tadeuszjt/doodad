@@ -135,9 +135,10 @@ imports : {- empty -}              { [] }
 generics : {-empty-}                      { [] }
          | '{' Idents1 '}'                { map Symbol.Sym $2 }
 
-retty : {-empty-} { VoidRetty }
-      | type_     { Retty $1 }
-      | '&' type_ { RefRetty $2 }
+retty : {-empty-}     { VoidRetty }
+      | type_         { Retty $1 }
+      | '&' type_     { RefRetty $2 }
+      | '[' ']' type_ { Retty (Type.Slice $3) }
 
 line : let pattern '=' expr               { Let (tokPos $1) $2 (Just $4) Nothing }  
      | let pattern                        { Let (tokPos $1) $2 Nothing Nothing }
@@ -151,7 +152,6 @@ line : let pattern '=' expr               { Let (tokPos $1) $2 (Just $4) Nothing
 
 block : if_                               { $1 }
       | while condition scope             { While (tokPos $1) $2 $3 }
-      | type generics Symbol 'I' paramsLN1 'D' { Typedef (fst $3) $2 (snd $3) (AnnoADT $5) }
       | for expr scope                    { For (tokPos $1) $2 Nothing $3 }
       | for expr '->' pattern scope       { For (tokPos $1) $2 (Just $4) $5 }
       | switch expr 'I' cases1 'D'        { Switch (tokPos $1) $2 $4 }
@@ -191,17 +191,11 @@ Symbol : Ident                           { (tokPos $1, Sym (tokStr $1)) }
 
 param   : ident type_                    { Param (tokPos $1) (Sym $ tokStr $1) $2 }
         | ident '&' type_                { RefParam (tokPos $1) (Sym $ tokStr $1) $3 }
+        | ident '[' ']' type_            { Param (tokPos $2) (Sym $ tokStr $1) $4 }
 params  : {- empty -}                    { [] }
         | params1                        { $1 }
 params1 : param                          { [$1] }
         | param ',' params1              { $1 : $3 }
-
-
-paramL  : Ident type_                    { Param (tokPos $1) (Sym $ tokStr $1) $2 }
-        | Ident '(' ')'                  { Param (tokPos $1) (Sym $ tokStr $1) Void }
-paramsLN1 : paramL 'N'                   { [$1] }
-          | paramL 'N' paramsLN1         { $1 : $3 }
-
 
 paramsN : param 'N'                      { [$1] } 
         | param 'N' paramsN              { $1 : $3 }
@@ -289,8 +283,8 @@ prefix : '-' expr                                { Prefix (tokPos $1) Minus $2 }
 
 ---------------------------------------------------------------------------------------------------
 -- Types ------------------------------------------------------------------------------------------
-mtype  : {-empty-}                         { Nothing }
-       | type_                             { Just $1 }
+types  : {-empty-}                         { [] }
+       | types1                            { $1 }
 types1 : type_                             { [$1] }
        | type_ ',' types1                  { $1 : $3 }
 types1N : type_ 'N'                        { [$1] }
@@ -299,14 +293,13 @@ types1N : type_ 'N'                        { [$1] }
 types2N : type_ ',' 'N' types1N            { $1 : $4 }
     
 
-type_         : ordinal_t                  { $1 }
-              | '(' type_ ')'              { $2 }
-              | Symbol                     { TypeApply (snd $1) [] }
-              | Symbol '{' '}'             { TypeApply (snd $1) [] }
-              | Symbol '{' types1 '}'      { TypeApply (snd $1) $3 }
-              | Symbol '{' 'I' types2N 'D' '}' { TypeApply (snd $1) $4 }
-              | type_ '.' Symbol           { TypeApply (snd $3) [$1] }
-              | tuple_t                    { $1 }
+type_         : ordinal_t                      { $1 }
+              | '(' type_ ')'                  { $2 }
+              | Symbol                         { TypeApply (snd $1) [] }
+              | Symbol '{' types '}'           { TypeApply (snd $1) $3 }
+              | Symbol '{' 'I' types1N 'D' '}' { TypeApply (snd $1) $4 }
+              | type_ '.' Symbol               { TypeApply (snd $3) [$1] }
+              | tuple_t                        { $1 }
 
 ordinal_t   : Bool                         { Type.Bool }
             | U8                           { U8 }

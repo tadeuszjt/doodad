@@ -400,12 +400,19 @@ resolveMapper element = case element of
         define sym KeyVar symbol'
         return $ ElemPattern (PatIdent pos symbol')
 
-    ElemExpr (Call pos mparam (Sym sym) exprs)
-        | sym `elem` ["builtin_table_append", "builtin_len", "builtin_table_at", "conv", "print", "assert"] -> do 
+    ElemExpr (Call pos mparam (Sym sym) exprs) -> do
+        let list = [ "builtin_table_append"
+                   , "builtin_table_at"
+                   , "builtin_table_slice"
+                   , "builtin_len"
+                   , "conv"
+                   , "print"
+                   , "assert"
+                   ]
+        if sym `elem` list then do
             check (isNothing mparam) "invalid builtin function call"
             return $ ElemExpr (Builtin pos sym exprs)
-
-        | otherwise -> do
+        else do
             symbol' <- look (Sym sym) KeyFunc
             return $ ElemExpr (Call pos mparam symbol' exprs)
 

@@ -263,8 +263,17 @@ fn testIo()
 
     let 4 = string.len
 
-    io.putStr(&string)
+    io.putStrLn(&string)
 
+
+fn testSlice()
+    data t I64.Table
+    
+    t.push(1)
+    t.push(2)
+    t.push(3)
+
+    print(builtin_table_slice(&t))
 
 
 fn main()
@@ -283,7 +292,7 @@ fn main()
     testMaybe()
     testTree()
     testMap()
-
     testIo()
+    testSlice()
 
     print("success")

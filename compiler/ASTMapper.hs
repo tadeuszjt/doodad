@@ -186,6 +186,7 @@ mapTypeM f typ = do
         x | isSimple x -> return typ
         Type _         -> return typ
         TypeApply s ts -> TypeApply s <$> mapM (mapTypeM f) ts
+        Slice t        -> Slice <$> mapTypeM f t
         Void           -> return typ
         _ -> error (show typ)
     case res of

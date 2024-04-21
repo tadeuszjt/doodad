@@ -52,4 +52,5 @@ hasTypeVars typ = case typ of
     Void           -> False
     t | isSimple t -> False
     TypeApply s ts -> any id (map hasTypeVars ts)
+    Slice t        -> hasTypeVars t
     _ -> error (show typ)

@@ -107,6 +107,15 @@ generatePrint app val@(Value _ _) = case typeof val of
     Type.String -> void $ appendPrintf ("\"%s\"" ++ app) [valExpr val]
     Type.Char ->   void $ appendPrintf ("%c" ++ app) [valExpr val]
 
+    Type.Slice t -> do
+        appendPrintf "[" []
+        for (Value I64 $ C.Member (valExpr val) "len") $ \i -> do
+            let v = Value t $ C.Subscript (C.Member (valExpr val) "ptr") (valExpr i)
+            generatePrint ", " v
+        appendPrintf ("]" ++ app) []
+        return ()
+        
+
     Type.Bool -> void $ appendPrintf ("%s" ++ app) $
         [C.CndExpr (valExpr val) (C.String "true") (C.String "false")]
 
@@ -319,12 +328,18 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
         call "doodad_assert" [fileNameVal, lineVal, cndVal, strVal]
         return $ Value Void $ C.Int 0
 
+    S.Builtin _ "builtin_table_slice" [expr] -> do
+        ref@(Ref _ exp) <- generateExpr expr
+        TypeApply (Sym "Table") [t] <- baseTypeOf ref
+        assign "slice" $ Value (Slice t) $ C.Initialiser [C.PMember exp "r0", C.PMember exp "len"] 
+
+
+
     S.Builtin _ "builtin_table_at" [expr1, expr2] -> do
         val <- generateExpr expr1
         idx <- generateExpr expr2
         Type.TypeApply (Sym "Table") _ <- baseTypeOf val
         builtinTableAt val idx
-
 
     S.Builtin _ "builtin_table_append" [expr1] -> do
         val <- generateExpr expr1

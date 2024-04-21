@@ -231,6 +231,19 @@ collectExpr (AExpr exprType expression) = withPos expression $ case expression o
 
     Builtin _ sym exprs -> do 
         case sym of
+            "builtin_table_at" -> do
+                check (length exprs == 2) "invalid builtin_table_at call"
+                collect $ ConsBase (typeof $ exprs !! 1) I64
+                collect $ ConsBase (typeof $ exprs !! 0) (Type.TypeApply (Sym "Table") [exprType])
+
+            "builtin_table_append" -> do
+                check (length exprs == 1) "invalid builtin_table_append call"
+                collectEq exprType Void
+
+            "builtin_table_slice" -> do
+                check (length exprs == 1) "invalid builtin_table_slice call"
+                collect $ ConsSlice exprType (typeof $ head exprs)
+
             "conv"  -> return ()
             "assert" -> do
                 check (length exprs == 2) "invalid assert exprs"
@@ -240,14 +253,6 @@ collectExpr (AExpr exprType expression) = withPos expression $ case expression o
             "builtin_len"   -> do
                 collect (ConsBase exprType I64)
                 collectDefault exprType I64
-            "builtin_table_at" -> do
-                check (length exprs == 2) "invalid builtin_table_at call"
-                collect $ ConsBase (typeof $ exprs !! 1) I64
-                collect $ ConsBase (typeof $ exprs !! 0) (Type.TypeApply (Sym "Table") [exprType])
-
-            "builtin_table_append" -> do
-                check (length exprs == 1) "invalid builtin_table_append call"
-                collectEq exprType Void
             "print" -> collectEq exprType Void
 
         mapM_ collectExpr exprs

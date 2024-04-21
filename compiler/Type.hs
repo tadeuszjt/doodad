@@ -39,6 +39,7 @@ data Type
     | Char                   
     | String
     | TypeApply Symbol [Type]
+    | Slice Type
     deriving (Eq, Ord)
 
 instance Show Type where
@@ -58,6 +59,7 @@ instance Show Type where
         TypeApply s []    -> show s
         TypeApply s [t]   -> show t ++ "." ++ show s
         TypeApply s ts    -> show s ++ "{" ++ intercalate ", " (map show ts) ++ "}"
+        Slice t           -> "[]" ++ show t
 
 
 isInt :: Type -> Bool
@@ -97,6 +99,7 @@ mapType f typ = f $ case typ of
     x | isSimple x -> typ
     Type _         -> typ
     TypeApply s ts -> TypeApply s $ map (mapType f) ts
+    Slice t        -> Slice (mapType f t)
     Void           -> typ
     _ -> error (show typ)
 

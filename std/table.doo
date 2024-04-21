@@ -1,22 +1,27 @@
 module table
 
-fn{T} len(table &Table{T}) I64
+fn{T} len(table &T.Table) I64
     let len = 0
     ${ $len = $table->len; }
     return len
 
 
-fn{T} at(table &Table{T}, index I64) &T
+fn{T} at(table &T.Table, index I64) &T
     return builtin_table_at(&table, index)
 
-fn{T} push(table &Table{T}, item T)
+
+fn{T} push(table &T.Table, item T)
     builtin_table_append(&table)
     table.at(table.len() - 1) = item
 
-fn{T} push(table &Table{T})
+
+fn{T} push(table &T.Table)
     builtin_table_append(&table)
 
-fn{T} pop(table &Table{T}) T
+
+fn{T} pop(table &T.Table) T
     let item = table.at(table.len() - 1) : T
     ${ $table->len--; }
     return item
+
+

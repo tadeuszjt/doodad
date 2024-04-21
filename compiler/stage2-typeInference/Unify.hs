@@ -80,6 +80,13 @@ unifyOne pos constraint = withPos pos $ case constraint of
             (Just b1, Just b2) -> unifyOne pos (ConsEq b1 b2)
             _                  -> return []
 
+    ConsSlice exprType typ -> do
+        basem <- baseTypeOfm typ
+        case basem of
+            Nothing -> return []
+            Just (TypeApply (Sym "Table") [t]) -> unifyOne pos $ ConsEq exprType (Type.Slice t)
+            x -> error (show x)
+
     x -> error (show x)
 
 

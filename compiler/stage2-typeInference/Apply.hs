@@ -110,6 +110,7 @@ applyConstraint subs constraint = case constraint of
     ConsField  t1 s t2     -> ConsField (rf t1) s (rf t2)
     ConsForExpr t1 t2      -> ConsForExpr (rf t1) (rf t2)
     ConsCall t1 s t2s      -> ConsCall (rf t1) s (map rf t2s)
+    ConsSlice t1 t2        -> ConsSlice (rf t1) (rf t2)
     where
         rf = applyType subs
 
