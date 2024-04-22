@@ -256,7 +256,6 @@ fn testSlice()
     s.push("a string") 
     io.putStrLn(s.slice())
 
-
 fn main()
     testArithmetic()
     testFloats()

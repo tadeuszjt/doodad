@@ -41,6 +41,7 @@ unifyOne pos constraint = withPos pos $ case constraint of
             _ -> return []
 
     ConsField typ idx exprType -> do
+
         base <- baseTypeOfm typ
         case base of
             Nothing         -> return []
@@ -63,8 +64,10 @@ unifyOne pos constraint = withPos pos $ case constraint of
         _ -> fail ("type mismatch: " ++ show t1 ++ " != " ++ show t2)
 
 
-    ConsPatField patType fieldType [argType] -> unifyOne pos $ ConsEq fieldType argType
-    ConsPatField patType fieldType []        -> return []
+    ConsPatField patType fieldType argTypes -> case argTypes of
+        [] -> return []
+        [argType] -> unifyOne pos (ConsEq fieldType argType)
+
 
     ConsForExpr exprType patType -> do
         basem <- baseTypeOfm exprType

@@ -168,6 +168,7 @@ collectPattern (PatAnnotated pattern patType) = withPos pattern $ case pattern o
         collectExpr expr
     PatGuarded _ pat expr -> do
         collect $ ConsBase Type.Bool (typeof expr)
+        collect $ ConsEq patType (typeof pat)
         collectPattern pat
         collectExpr expr
 

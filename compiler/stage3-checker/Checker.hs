@@ -6,6 +6,7 @@ import qualified Data.Map as Map
 import Control.Monad
 import Control.Monad.State
 import Data.Maybe
+import Data.List
 
 import AST
 import Type
@@ -16,23 +17,45 @@ import qualified SymTab
 import Error
 
 
-data Object
-    = Referencing Symbol -- presenting a reference to
-    | Defining Symbol    -- defining   a reference to
+data Node
+    = NodeNull
+    | NodeArg Symbol
+    | NodeData Symbol
+    | NodeDefine Symbol
+    | NodeUnion [Node]
     deriving (Show, Eq, Ord)
 
 
-isReferencing :: Object -> Bool
-isReferencing (Referencing _) = True
-isReferencing _               = False
 
-isDefining :: Object -> Bool
-isDefining (Defining _) = True
-isDefining _            = False
+isBaseNode :: Node -> Bool
+isBaseNode node = case node of
+    NodeArg _ -> True
+    NodeUnion nodes -> False
+    NodeData _ -> True
+    NodeDefine _ -> True
+    x -> error (show x)
+
+
+listNodes :: Node -> [Node]
+listNodes node = case node of
+    NodeArg symbol -> [node]
+    NodeDefine _ -> [node]
+    NodeData _ -> [node]
+    NodeUnion nodes -> (node : concat (map listNodes nodes))
+    NodeNull -> []
+    x -> error (show x)
+
+
+checkNoSameBaseNodes :: MonadFail m => [Node] -> m ()
+checkNoSameBaseNodes nodes = do
+    let bases = filter isBaseNode $ concat (map listNodes nodes)
+    unless (length bases == length (nub bases)) (fail "error, multiple refernences to same data")
+
+
 
 data CheckState
     = CheckState
-        { symTab      :: SymTab.SymTab Object () ()
+        { symTab      :: SymTab.SymTab Symbol () Node
         , astResolved :: ASTResolved
         }
 
@@ -51,22 +74,27 @@ runASTChecker ast = fmap fst $ runDoMExcept (initCheckState ast) (checkAST ast)
 
 pushSymTab :: DoM CheckState ()
 pushSymTab = modify $ \s -> s { symTab = SymTab.push (symTab s) }
-
-
+--
+--
 popSymTab :: DoM CheckState ()
 popSymTab = modify $ \s -> s { symTab = SymTab.pop (symTab s) }
 
 
-define :: Object -> DoM CheckState ()
-define object = do
-    isDefined <- isJust . SymTab.lookup object () <$> gets symTab
-    check (not isDefined) (show object ++ " already defined")
-    modify $ \s -> s { symTab = SymTab.insert object () () (symTab s) }
+define :: Symbol -> Node -> DoM CheckState ()
+define symbol node = do
+    --liftIO $ putStrLn $ "defining: " ++ show symbol
+    isDefined <- isJust . SymTab.lookup symbol () <$> gets symTab
+    check (not isDefined) (show symbol ++ " already defined")
+    modify $ \s -> s { symTab = SymTab.insert symbol () node (symTab s) }
 
 
-look :: Object -> DoM CheckState Bool
-look object = do
-    isJust . SymTab.lookup object () <$> gets symTab
+look :: Symbol -> DoM CheckState Node
+look symbol = do
+    --liftIO $ putStrLn $ "looking: " ++ show symbol
+    resm <- SymTab.lookup symbol () <$> gets symTab
+    case resm of
+        Nothing -> fail $ show symbol ++ " not defined"
+        Just res -> return res
 
 
 checkAST :: ASTResolved -> DoM CheckState ()
@@ -74,7 +102,10 @@ checkAST ast = do
     forM_ (Map.toList $ funcDefs ast) $ \(symbol, body) -> do
         when (funcGenerics body == []) $ do
             pushSymTab
-            objects <- checkStmt (funcStmt body)
+            forM (funcArgs body) $ \param -> do
+                define (paramName param) (NodeArg $ paramName param)
+
+            checkStmt (funcStmt body)
             popSymTab
 
             -- check return type
@@ -85,84 +116,73 @@ checkAST ast = do
 --                x -> error (show x)
 
 
-checkMultipleReferences :: [Object] -> DoM CheckState ()
-checkMultipleReferences objs = do
-    let uses = filter isReferencing objs
-    let dups = checkDup uses
-    case dups of
-        [] -> return ()
-        (x:xs) -> fail ("multiple uses: " ++ show x)
-    where
-        checkDup :: Eq a => [a] -> [a]
-        checkDup (x:xs) = if x `elem` xs then x : (checkDup xs) else checkDup xs
-        checkDup []     = []
-
-
-pack :: [Object] -> [Object]
+pack :: [Node] -> [Node]
 pack = Set.toList . Set.fromList
 
 
-checkExpr :: Expr -> DoM CheckState [Object]
+checkExpr :: Expr -> DoM CheckState Node
 checkExpr (AExpr exprType expression) = withPos expression $ case expression of
-    Int pos n -> do
-        base <- baseTypeOf exprType
-        case base of
-            I64 -> return []
-            I32 -> return []
-            I16 -> return []
-            I8 -> return []
-            x -> fail ("invalid integer type: " ++ show x)
-
-
-    AST.Float pos n -> return []
-    AST.Bool pos b -> return []
-    AST.String pos s -> return []
-    AST.Char pos c -> return []
+    Int pos n -> return NodeNull
+    AST.Float pos n -> return NodeNull
+    AST.Bool pos b -> return NodeNull
+    AST.String pos s -> return NodeNull
+    AST.Char pos c -> return NodeNull
 
     AST.Tuple pos exprs -> do
         mapM_ checkExpr exprs
-        return []
+        return NodeNull
 
     -- returns the references of the expr
-    Field pos expr ident -> checkExpr expr
+    Field pos expr ident -> do
+        checkExpr expr
 
     -- returns one reference
     Ident pos symbol -> do
-        b <- look (Referencing symbol)
-        when b $ fail $ "invalid reference: " ++ (Symbol.sym symbol)
-        return [Referencing symbol]
+        look symbol
 
     -- ensures no multiple references active
     Infix pos op expr1 expr2 -> do
-        objs1 <- checkExpr expr1
-        objs2 <- checkExpr expr2
-        --checkMultipleReferences (objs1 ++ objs2)
-        return []
+        node1 <- checkExpr expr1
+        node2 <- checkExpr expr2
+        return NodeNull
 
     -- return objects from mparam if returns record
     Call pos symbol exprs -> do
-        void $ mapM checkExpr exprs
-        base <- baseTypeOf exprType
-        case base of
-            _ -> return []
+        ast <- gets astResolved
+        let params = funcArgs (getFunctionBody symbol ast)
+        let retty  = funcRetty (getFunctionBody symbol ast)
+
+        nodes <- mapM checkExpr exprs
+        unless (length nodes == length params) (fail "length error")
+
+        nodes' <- fmap catMaybes $ forM (zip nodes params) $ \(node, param) -> do
+            case param of
+                RefParam _ _ _ -> return (Just node)
+                Param _ _ _    -> return Nothing
+
+        checkNoSameBaseNodes nodes'
+        
+        case retty of
+            RefRetty _ -> return (NodeUnion nodes')
+            Retty _    -> return NodeNull
+
 
     -- pat defines, redefines references of expr.
     Match pos expr pat -> do
-        objs1 <- checkExpr expr
-        ss <- checkPattern pat
-        case ss of
-            [] -> return []
-            _  -> return [ Referencing s | Referencing s <- objs1 ] 
+        --liftIO $ putStrLn "match"
+        checkExpr expr
+        checkPattern pat
+        return NodeNull
 
-    Builtin pos symbol exprs -> return []
+    Builtin pos symbol exprs -> return NodeNull
 
-    Construct pos typ exprs -> return []
+
+    Construct pos typ exprs -> return NodeNull
 
     Prefix pos op expr -> do
-        return []
+        return NodeNull
 
-    AST.Reference pos expr -> do
-        return []
+    AST.Reference pos expr -> checkExpr expr
 
     x -> fail ("unknown expression: " ++ show x)
 
@@ -178,12 +198,13 @@ checkStmt stmt = withPos stmt $ case stmt of
         popSymTab
 
     If _ cnd blk mblk -> do
-        pushSymTab
-        objs <- checkExpr cnd
-        mapM define [ Referencing s | Referencing s <- objs ]
+        --liftIO $ putStrLn $ "If"
+        --pushSymTab
+        checkExpr cnd
         checkStmt blk
         traverse checkStmt mblk
-        popSymTab
+        return ()
+        --popSymTab
 
     Return _ mexpr -> do
         void $ traverse checkExpr mexpr
@@ -196,36 +217,31 @@ checkStmt stmt = withPos stmt $ case stmt of
         return ()
 
     Data _ symbol typ Nothing -> do
+        define symbol (NodeData symbol)
         return ()
 
     SetOp _ op expr1 expr2 -> do
-        objs1 <- checkExpr expr1
-        objs2 <- checkExpr expr2
-        checkMultipleReferences (objs1 ++ objs2)
+        --liftIO $ putStrLn "set"
+        checkExpr expr1
+        checkExpr expr2
         return ()
 
     Let _ pat mexpr mblk -> do
-        pushSymTab
+        --liftIO $ putStrLn "let"
         mobjs <- traverse checkExpr mexpr
-        objs <- case mobjs of
-            Nothing -> return []
-            Just xs -> return xs
+--        objs <- case mobjs of
+--            Nothing -> return []
+--            Just xs -> return xs
 
-        ss <- checkPattern pat 
-        case ss of
-            [] -> return ()
-            ss -> mapM_ define [ Referencing s | Referencing s <- objs ]
+        checkPattern pat 
         traverse checkStmt mblk
-        popSymTab
+        return ()
 
     Switch _ expr cases -> do
         objs <- checkExpr expr
         forM_ cases $ \(pat, blk) -> do
             pushSymTab
-            ss <- checkPattern pat
-            case ss of
-                [] -> return ()
-                ss -> mapM_ define [ Referencing s | Referencing s <- objs ]
+            checkPattern pat
 
             checkStmt blk
             popSymTab
@@ -244,22 +260,34 @@ checkStmt stmt = withPos stmt $ case stmt of
     x -> error (show x)
 
 
--- The only way that patterns concern references is by defining them in the record pattern.
--- Return all defined symbols to references
-checkPattern :: Pattern -> DoM CheckState [Symbol]
+checkPattern :: Pattern -> DoM CheckState Node
 checkPattern (PatAnnotated pattern patType) = withPos pattern $ case pattern of
-    PatIdent _ symbol -> return []
-    PatIgnore _       -> return []
-    PatLiteral expr   -> checkExpr expr >> return []
+    PatIdent _ symbol -> do
+        --liftIO $ putStrLn $ "defining: " ++ show symbol
+        define symbol (NodeDefine symbol)
+        return NodeNull
+
+    PatIgnore _     -> return NodeNull
+    PatLiteral expr -> do
+        --liftIO $ putStrLn $ "PatLiteral"
+        checkExpr expr
+        return NodeNull
 
     PatGuarded _ pat expr -> do
-        checkExpr expr
+        --liftIO $ putStrLn "guard"
         checkPattern pat
+        checkExpr expr
+        return NodeNull
 
-    PatTuple _ pats -> fmap concat $ mapM checkPattern pats
+    PatTuple _ pats -> do
+        --liftIO $ putStrLn $ "PatTuple"
+        mapM checkPattern pats
+        return NodeNull
 
-    PatField _ symbol pats -> fmap concat $ mapM checkPattern pats
+    PatField _ typ pats -> do
+        --liftIO $ putStrLn $ "field: " ++ show typ
+        mapM checkPattern pats
+        return NodeNull
 
     x -> error (show x)
-checkPattern _ = return []
 checkPattern pattern = withPos pattern $ fail $ "unresolved pattern: " ++ show pattern
