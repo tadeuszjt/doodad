@@ -87,12 +87,13 @@ applyType subs = mapType (f subs)
 applyPattern :: [(Type, Type)] -> Pattern -> Pattern
 applyPattern subs pattern = case pattern of
     PatAnnotated pat typ -> PatAnnotated (applyPat pat) (applyTy typ)
-    PatField pos typ pats -> PatField pos (applyTy typ) (map applyPat pats)
+    PatTypeField pos typ pats -> PatTypeField pos (applyTy typ) (map applyPat pats)
     PatIgnore pos -> PatIgnore pos
     PatIdent pos symbol -> PatIdent pos symbol
     PatGuarded pos pat expr -> PatGuarded pos (applyPat pat) (applyEx expr)
     PatTuple pos pats -> PatTuple pos (map applyPat pats)
     PatLiteral expr -> PatLiteral (applyEx expr)
+    PatField pos symbol pat -> PatField pos symbol (applyPat pat)
     x -> error (show x)
     where
         applyEx = applyExpr subs
@@ -105,11 +106,12 @@ applyConstraint :: [(Type, Type)] -> Constraint -> Constraint
 applyConstraint subs constraint = case constraint of
     ConsEq t1 t2           -> ConsEq (rf t1) (rf t2)
     ConsBase t1 t2         -> ConsBase (rf t1) (rf t2)
-    ConsPatField t1 t2 ts  -> ConsPatField (rf t1) (rf t2) (map rf ts)
+    ConsPatTypeField t1 t2 ts  -> ConsPatTypeField (rf t1) (rf t2) (map rf ts)
     ConsField  t1 s t2     -> ConsField (rf t1) s (rf t2)
     ConsForExpr t1 t2      -> ConsForExpr (rf t1) (rf t2)
     ConsCall t1 s t2s      -> ConsCall (rf t1) s (map rf t2s)
     ConsSlice t1 t2        -> ConsSlice (rf t1) (rf t2)
+    ConsPatField t1 s t2   -> ConsPatField (rf t1) s (rf t2)
     where
         rf = applyType subs
 

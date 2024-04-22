@@ -83,7 +83,7 @@ generateFunc symbol body = do
     id <- newFunction rettyType (show symbol) ([] ++ args)
     withCurID id $ do
         forM_ (ASTResolved.funcArgs body) $ \arg -> do
-            let name = show (paramName arg)
+            let name = show (paramSymbol arg)
             case arg of
                 S.Param _ _ _ ->    define name $ Value (typeof arg) (C.Ident name)
                 S.RefParam _ _ _ -> define name $ Ref (typeof arg) (C.Ident name)
@@ -278,7 +278,7 @@ generatePattern pattern val = withPos pattern $ do
             appendElem (C.Label endLabel)
             return match
 
-        PatField pos fieldType pats -> do
+        PatTypeField pos fieldType pats -> do
             TypeApply (Sym "Sum") ts <- baseTypeOf val
             let Just i = elemIndex fieldType ts
 
@@ -380,9 +380,11 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
     S.Call _ symbol exprs -> do
         check (symbolIsResolved symbol) ("unresolved function call: " ++ show symbol)
         vals <- mapM generateExpr exprs
-        argExprs <- forM vals $ \val -> case val of
-            Value _ _ -> return (valExpr val)
-            Ref _ _   -> return (refExpr val)
+
+        argExprs <- forM exprs $ \expr -> case expr of
+            S.AExpr _ (S.Reference _ _) -> refExpr <$> generateExpr expr
+            S.AExpr _ _                 -> valExpr <$> (deref =<< generateExpr expr)
+        
         case typ of
             Void -> do
                 appendElem $ C.ExprStmt $ C.Call (show symbol) argExprs

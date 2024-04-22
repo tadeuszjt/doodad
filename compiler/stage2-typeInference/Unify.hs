@@ -41,15 +41,11 @@ unifyOne pos constraint = withPos pos $ case constraint of
             _ -> return []
 
     ConsField typ idx exprType -> do
-
         base <- baseTypeOfm typ
         case base of
             Nothing         -> return []
             Just (TypeApply (Sym "Tuple") ts) -> unifyOne pos $ ConsEq exprType (ts !! idx)
-            Just (TypeApply (Sym "Table") [t])  -> do
-                baseT <- baseTypeOfm t
-                case baseT of
-                    _ -> error ""
+            Just (TypeApply (Sym "Sum") ts)   -> unifyOne pos $ ConsEq exprType (ts !! idx)
             x -> error (show x)
 
 
@@ -64,7 +60,12 @@ unifyOne pos constraint = withPos pos $ case constraint of
         _ -> fail ("type mismatch: " ++ show t1 ++ " != " ++ show t2)
 
 
-    ConsPatField patType fieldType argTypes -> case argTypes of
+    ConsPatField patType symbol argType -> do
+        error "here"
+        
+
+
+    ConsPatTypeField patType fieldType argTypes -> case argTypes of
         [] -> return []
         [argType] -> unifyOne pos (ConsEq fieldType argType)
 

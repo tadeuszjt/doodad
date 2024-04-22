@@ -185,6 +185,8 @@ fn testSumType()
         I64(n) | n != 1; let true = false
         I64(1);          let true = true
 
+    fn i64(s &Sum{I64, Bool}) I64; return 0
+
     s2 = conv(true)
 
     if s2 -> Bool(true)
@@ -198,13 +200,17 @@ fn testMaybe()
     switch m
         Nothing(); let true = true
         I64(n) ; let false = true
-    let false = m.hasValue()
+    let false = m.isJust()
 
-    m = Maybe{I64}(3)
+    m = I64.Maybe(3)
     switch m
         Nothing(); let false = true
         I64(3) ; let true = true
-    let true = m.hasValue()
+    let true = m.isJust()
+
+    m.just() = 4
+    let 4 = m.just
+    let false = m.isNone
 
 
 fn testTree()

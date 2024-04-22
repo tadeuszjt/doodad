@@ -197,8 +197,8 @@ params  : {- empty -}                    { [] }
 params1 : param                          { [$1] }
         | param ',' params1              { $1 : $3 }
 
-paramsN : param 'N'                      { [$1] } 
-        | param 'N' paramsN              { $1 : $3 }
+paramsN : param ',' 'N'                  { [$1] } 
+        | param ',' 'N' paramsN          { $1 : $4 }
 paramsA : params                         { $1 }
         | 'I' paramsN 'D'                { $2 }
 paramsA1 : params1                       { $1 }
@@ -220,9 +220,9 @@ pattern  : '_'                           { PatIgnore (tokPos $1) }
          | '(' patterns ')'              { PatTuple (tokPos $1) $2 }
          | pattern '|' expr              { PatGuarded (tokPos $2) $1 $3 }
          | pattern '|' expr '->' pattern { PatGuarded (tokPos $2) $1 (Match (tokPos $4) $3 $5) }
-         --| Symbol '(' patterns ')'       { PatField (tokPos $2) (snd $1) $3 }
          | pattern ':' type_             { PatAnnotated $1 $3 }
-         | type_ '(' patterns ')'        { PatField (tokPos $2) $1 $3 }
+         | type_ '(' patterns ')'        { PatTypeField (tokPos $2) $1 $3 }
+         | symbol '(' pattern ')'        { PatField (tokPos $2) (snd $1) $3 }
  
 ---------------------------------------------------------------------------------------------------
 -- Expressions ------------------------------------------------------------------------------------
@@ -313,6 +313,7 @@ ordinal_t   : Bool                         { Type.Bool }
 tuple_t : '(' type_ ',' types1 ')' { Type.TypeApply (Sym "Tuple") ($2:$4) }
 
 anno_t   : type_                   { AnnoType $1 }
+         | Symbol '{' paramsA1 '}' { AnnoApply (snd $1) $3 }
 {
 parse :: MonadError Error m => [Token] -> m AST
 parse tokens = do

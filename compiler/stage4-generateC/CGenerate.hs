@@ -33,12 +33,13 @@ instance Typeof Value where
 
 data GenerateState
     = GenerateState
-        { moduleName :: String
-        , tuples     :: Map.Map C.Type String
-        , supply     :: Map.Map String Int
-        , typefuncs  :: Map.Map Symbol ([Symbol], Type.Type)
-        , refFuncs   :: Map.Map Symbol Bool
-        , symTab     :: SymTab.SymTab String () Value
+        { moduleName  :: String
+        , tuples      :: Map.Map C.Type String
+        , supply      :: Map.Map String Int
+        , typefuncs   :: Map.Map Symbol ([Symbol], Type.Type)
+        , refFuncs    :: Map.Map Symbol Bool
+        , refFuncArgs :: Map.Map (Symbol, Int) Bool
+        , symTab      :: SymTab.SymTab String () Value
         }
 
 initGenerateState modName
@@ -49,6 +50,7 @@ initGenerateState modName
         , typefuncs = Map.empty
         , symTab = SymTab.initSymTab
         , refFuncs = Map.empty
+        , refFuncArgs = Map.empty
         }
 
 newtype Generate a = Generate { unGenerate :: StateT GenerateState (StateT BuilderState (ExceptT Error IO)) a }
@@ -410,7 +412,7 @@ cParamOf param = do
     ctype <- case param of
         S.Param _ _ _ -> cTypeOf param
         S.RefParam _ _ _ -> cRefTypeOf param
-    return $ C.Param { C.cName = show (paramName param), C.cType = ctype }
+    return $ C.Param { C.cName = show (paramSymbol param), C.cType = ctype }
 
 
 cRefTypeOf :: Typeof a => a -> Generate C.Type

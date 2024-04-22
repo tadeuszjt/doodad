@@ -182,9 +182,13 @@ collectPattern (PatAnnotated pattern patType) = withPos pattern $ case pattern o
         collectEq t (typeof pat)
         collectPattern pat
 
-    PatField _ typ pats -> do
-        collect $ ConsPatField patType typ (map typeof pats)
+    PatTypeField _ typ pats -> do
+        collect $ ConsPatTypeField patType typ (map typeof pats)
         mapM_ collectPattern pats
+
+    PatField _ symbol pat -> do
+        collect $ ConsPatField patType symbol (typeof pat)
+        collectPattern pat
 
 
     x -> error (show x)

@@ -103,7 +103,7 @@ checkAST ast = do
         when (funcGenerics body == []) $ do
             pushSymTab
             forM (funcArgs body) $ \param -> do
-                define (paramName param) (NodeArg $ paramName param)
+                define (paramSymbol param) (NodeArg $ paramSymbol param)
 
             checkStmt (funcStmt body)
             popSymTab
@@ -161,6 +161,13 @@ checkExpr (AExpr exprType expression) = withPos expression $ case expression of
                 Param _ _ _    -> return Nothing
 
         checkNoSameBaseNodes nodes'
+
+        -- check explicit reference args
+        forM_ (zip params exprs) $ \(param, expr) -> case param of
+            Param _ _ _ -> return ()
+            RefParam _ _ _ -> case expr of
+                AExpr _ (Reference _ _) -> return ()
+                _                       -> fail "specify reference args with '&'"
         
         case retty of
             RefRetty _ -> return (NodeUnion nodes')
@@ -284,9 +291,13 @@ checkPattern (PatAnnotated pattern patType) = withPos pattern $ case pattern of
         mapM checkPattern pats
         return NodeNull
 
-    PatField _ typ pats -> do
+    PatTypeField _ typ pats -> do
         --liftIO $ putStrLn $ "field: " ++ show typ
         mapM checkPattern pats
+        return NodeNull
+
+    PatField _ symbol pat -> do
+        checkPattern pat
         return NodeNull
 
     x -> error (show x)

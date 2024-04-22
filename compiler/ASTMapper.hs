@@ -157,9 +157,9 @@ mapPattern f pattern = withPos pattern $ do
         PatLiteral expr          -> PatLiteral <$> mapExprM f expr
         PatTuple pos pats        -> PatTuple pos <$> mapM (mapPattern f) pats
 
-        PatField pos typ pats -> do
+        PatTypeField pos typ pats -> do
             typ' <- mapTypeM f typ
-            PatField pos typ' <$> mapM (mapPattern f) pats
+            PatTypeField pos typ' <$> mapM (mapPattern f) pats
 
         PatGuarded pos pat expr  -> do
             pat' <- mapPattern f pat
@@ -169,6 +169,7 @@ mapPattern f pattern = withPos pattern $ do
             pat' <- mapPattern f pat
             typ' <- mapTypeM f typ
             return $ PatAnnotated pat' typ'
+        PatField pos symbol pat -> PatField pos symbol <$> mapPattern f pat
         _ -> error (show pattern)
     case res of
         ElemPattern x -> return x

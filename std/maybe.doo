@@ -1,9 +1,22 @@
 module maybe
 
 type Nothing Tuple{}
-type{T} Maybe Sum{Nothing, T}
+
+type{T} Maybe Sum{
+    Nothing,
+    T,
+}
+
+fn{T} just(m &T.Maybe) &T; return &m.1
 
 
-fn{T} hasValue(m &T.Maybe) Bool
-    if m -> T(_); return true
+
+fn{T} isJust(m &T.Maybe) Bool
+    if m -> T(_)
+        return true
     return false
+
+fn{T} isNone(m &T.Maybe) Bool
+    if m -> T(_)
+        return false
+    return true

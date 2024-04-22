@@ -48,12 +48,12 @@ data Import
 data Param
     = Param
         { paramPos  :: TextPos
-        , paramName :: Symbol
+        , paramSymbol :: Symbol
         , paramType :: Type
         }
     | RefParam
         { paramPos :: TextPos
-        , paramName :: Symbol
+        , paramSymbol :: Symbol
         , paramType :: Type
         }
     deriving (Eq, Ord)
@@ -79,7 +79,8 @@ data Pattern
     | PatIdent     TextPos Symbol
     | PatTuple     TextPos [Pattern]
     | PatGuarded   TextPos Pattern Expr
-    | PatField     TextPos Type [Pattern]
+    | PatTypeField TextPos Type [Pattern]
+    | PatField     TextPos Symbol Pattern
     | PatAnnotated Pattern Type
     deriving (Eq)
 
@@ -131,7 +132,7 @@ data AnnoType
     = AnnoType   Type
     | AnnoTuple  [Param]
     | AnnoTable  [Param]
-    | AnnoADT    [Param]
+    | AnnoApply  Symbol [Param]
     deriving (Eq)
 
 
@@ -142,7 +143,7 @@ instance TextPosition Pattern where
         PatIdent     p _ -> p
         PatTuple     p _ -> p
         PatGuarded   p _ _ -> p
-        PatField     p _ _ -> p
+        PatTypeField     p _ _ -> p
         PatAnnotated pat _ -> textPos pat
 
 
@@ -229,7 +230,6 @@ instance Show AnnoType where
     show annoType = case annoType of
         AnnoType t   -> show t
         AnnoTuple ps -> tupStrs $ map show ps
-        AnnoADT ps   -> "(" ++ intercalate " | " (map show ps) ++ ")"
         AnnoTable xs -> "Table[{" ++ intercalate ", " (map show xs) ++ "}]"
 
 
@@ -240,8 +240,9 @@ instance Show Pattern where
         PatIdent pos symbol      -> show symbol
         PatTuple pos ps          -> tupStrs (map show ps)
         PatGuarded pos pat expr  -> show pat ++ " | " ++ show expr
-        PatField pos typ pats    -> show typ ++ tupStrs (map show pats)
+        PatTypeField pos typ pats    -> show typ ++ tupStrs (map show pats)
         PatAnnotated pat typ     -> show pat ++ ":" ++ show typ
+        PatField _ symbol pat    -> show symbol ++ tupStrs [show pat]
 
 
 instance Show Expr where

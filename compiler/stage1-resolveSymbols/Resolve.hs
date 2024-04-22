@@ -139,6 +139,7 @@ popSymbolTable = do
 annoToType :: AnnoType -> Type
 annoToType anno = case anno of
     AnnoTuple params  -> Type.TypeApply (Sym "Tuple") (map paramType params)
+    AnnoApply s params -> Type.TypeApply s (map paramType params)
     AnnoTable params  -> error ""
     --AnnoSum  params   -> Type.Sum    (map paramType params)
     AnnoType t        -> t
@@ -239,8 +240,20 @@ resolveTypeDef (AST.Typedef pos generics (Sym sym) anno) = withPos pos $ do
 
     anno' <- case anno of
         AnnoType t        -> AnnoType <$> resolve t
-        AnnoTuple params  -> AnnoTuple  <$> mapM resolveTypedefParam params
-        AnnoTable params  -> AnnoTable  <$> mapM resolveTypedefParam params
+        AnnoApply (Sym s) params -> do
+            s' <- case s of
+                "Sum" -> return (Sym s)
+                "Table" -> return (Sym s)
+                "Tuple" -> return (Sym s)
+                _ -> genSymbol s
+            params' <- forM params $ \param -> case param of
+                Param pos (Sym s) t -> do
+                    s' <- genSymbol s
+                    t' <- resolve t
+                    return (Param pos s' t')
+            return (AnnoApply s' params')
+            
+
         --AnnoSum params    -> AnnoSum    <$> mapM resolveTypedefParam params
 
     popSymbolTable
@@ -398,6 +411,10 @@ resolveMapper element = case element of
         symbol' <- genSymbol sym
         define sym KeyVar symbol'
         return $ ElemPattern (PatIdent pos symbol')
+
+    ElemPattern (PatField pos s pat) -> do
+        symbol' <- look s KeyFunc
+        return $ ElemPattern (PatField pos symbol' pat)
 
     ElemExpr (Call pos (Sym sym) exprs) -> do
         let list = [ "builtin_table_append"
