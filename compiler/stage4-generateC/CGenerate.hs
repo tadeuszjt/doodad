@@ -297,7 +297,7 @@ len val = case val of
         base <- baseTypeOf typ
         return $ case base of
             TypeApply (Sym "Table") _ -> Value I64 (C.Member expr "len")
-            Type.String               -> Value I64 (C.Call "strlen" [expr])
+            Slice t                   -> Value I64 (C.Member expr "len")
     --        Type.Array n t -> return $ Value I64 $ C.Int (fromIntegral n)
             _ -> error (show base)
 
@@ -363,22 +363,14 @@ initialiser typ vals = do
         _ -> error (show base)
 
 
-builtinTableGet :: Value -> Value -> Generate Value
-builtinTableGet val idx = do
-    TypeApply (Sym "Table") [t] <- baseTypeOf val
-    baseT <- baseTypeOf t
-    case baseT of
-        _ | isSimple baseT -> return $ Value t $ C.Subscript
-            (C.Member (valExpr val) "r0")
-            (valExpr idx)
-        Type.TypeApply (Sym "Tuple") _ -> error ""
-
-            
-        TypeApply (Sym "Sum") ts -> error ""
-        Type.TypeApply (Sym "Table") _ -> error ""
+builtinSliceAt :: Value -> Value -> Generate Value
+builtinSliceAt (Value sliceType exp) idx@(Value _ _) = do
+    I64 <- baseTypeOf idx
+    Slice t <- baseTypeOf sliceType
+    base <- baseTypeOf t
+    case base of
+        Type.Char -> return $ Ref t $ C.Address $ C.Subscript (C.Member exp "ptr") (valExpr idx)
         x -> error (show x)
-
-
 
 builtinTableAt :: Value -> Value -> Generate Value
 builtinTableAt (Ref tabType expr) idx@(Value _ _) = do
@@ -448,7 +440,6 @@ cTypeOf a = case typeof a of
     Void           -> return Cvoid
     Type.Bool      -> return Cbool
     Type.Char      -> return Cchar
-    Type.String    -> return (Cpointer Cchar)
 
     Type.Slice t                     -> getTypedef "Slice"  =<< cTypeNoDef (Type.Slice t)
     Type.TypeApply (Sym "Tuple") t   -> getTypedef "Tuple"  =<< cTypeNoDef (Type.TypeApply (Sym "Tuple") t)
@@ -473,7 +464,6 @@ cTypeOf a = case typeof a of
             Void -> return Cvoid
             Type.Bool -> return Cbool
             Type.Char -> return Cchar
-            Type.String -> return (Cpointer Cchar)
             Type.TypeApply (Sym "Tuple") ts -> do
                 cts <- mapM cTypeOf ts
                 return $ Cstruct $ map (\(ct, i) -> C.Param ("m" ++ show i) ct) (zip cts [0..])

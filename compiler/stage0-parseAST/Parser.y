@@ -191,7 +191,7 @@ Symbol : Ident                           { (tokPos $1, Sym (tokStr $1)) }
 
 param   : ident type_                    { Param (tokPos $1) (Sym $ tokStr $1) $2 }
         | ident '&' type_                { RefParam (tokPos $1) (Sym $ tokStr $1) $3 }
-        | ident '[' ']' type_            { Param (tokPos $2) (Sym $ tokStr $1) $4 }
+        | ident '[' ']' type_            { Param (tokPos $2) (Sym $ tokStr $1) (Type.Slice $4) }
 params  : {- empty -}                    { [] }
         | params1                        { $1 }
 params1 : param                          { [$1] }
@@ -309,7 +309,6 @@ ordinal_t   : Bool                         { Type.Bool }
             | F32                          { F32 }
             | F64                          { F64 }
             | Char                         { Type.Char }
-            | String                       { Type.String }
 
 tuple_t : '(' type_ ',' types1 ')' { Type.TypeApply (Sym "Tuple") ($2:$4) }
 

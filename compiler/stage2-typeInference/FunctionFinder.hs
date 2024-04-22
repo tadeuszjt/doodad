@@ -17,7 +17,6 @@ import Apply
 import Error
 import Constraint
 import Monad
-import ASTMapper
 
 
 -- Function Finder contains functions which can determine whether a generic function could match
@@ -29,9 +28,20 @@ findCandidates call = do
     --liftIO $ putStrLn $ "findCandidates: " ++ show (callSymbol call)
     fmap catMaybes $ forM (Map.toList $ Map.union (funcDefs ast) (funcImports ast)) $
         \(symbol, body) -> do
-            b <- callCouldMatchFunc call symbol body
-            if b then return (Just symbol)
-            else      return Nothing
+            couldMatch <- callCouldMatchFunc call symbol body
+            if couldMatch then case isGenericFunction symbol ast of
+                False -> return (Just symbol)
+                True -> do
+                    replacedE <- tryError (replaceGenericsInFuncBodyWithCall body call)
+                    case replacedE of
+                        Left _ -> return Nothing
+                        Right replaced -> do
+                            b' <- callCouldMatchFunc call symbol replaced
+                            if b' then return (Just symbol)
+                            else return Nothing
+                        x -> error (show x)
+            else return Nothing
+
 
 
 callCouldMatchFunc :: CallHeader -> Symbol -> FuncBody -> DoM ASTResolved Bool
@@ -63,6 +73,7 @@ funcFullyResolved generics body =
             Type _                          -> False
             TypeApply s _ | elem s generics -> False
             TypeApply s ts                  -> all id (map typeFullyResolved ts)
+            Slice t                         -> typeFullyResolved t
             x | isSimple x                  -> True
             Void                            -> True
             x -> error $ "typeFullyResolved: " ++ show x
@@ -82,6 +93,7 @@ unifyOne generics constraint = case constraint of
         _ | t1 == t2                            -> return []
         (TypeApply s [], _) | s `elem` generics -> return [(t1, t2)]
         (Type _, _)                             -> return [(t1, t2)]
+        (Slice a, Slice b)                      -> return [(t1, t2)]
         (TypeApply s1 ts1, TypeApply s2 ts2)
             | length ts1 == length ts2 ->
                 concat <$> zipWithM (\a -> unifyOne generics . ConsEq a) ts1 ts2
@@ -117,6 +129,7 @@ getConstraintsFromTypes generics t1 t2 = fromTypes t1 t2
                 (a, b) | a == b            -> return [] 
                 (Type _, _)                -> return [ConsEq t1 t2]
                 (_, Type _)                -> return []
+                (Slice a, Slice b)         -> return [ConsEq a b]
 
                 (TypeApply s1 ts1, TypeApply s2 ts2)
                     | s1 `elem` generics -> do 
@@ -136,4 +149,4 @@ getConstraintsFromTypes generics t1 t2 = fromTypes t1 t2
 
                 (TypeApply s1 [], t) | elem s1 generics -> return [ConsEq t1 t2]
 
-                _ -> error $ show (t1, t2)
+                _ -> fail $ show (t1, t2)

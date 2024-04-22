@@ -104,8 +104,8 @@ fn testTable()
     type Person (I64, Bool)
     data t2 Person.Table
 
-    t2.push( (1, true) )
-    t2.push( (2, false))
+    t2.push( (1, true) : Person )
+    t2.push( (2, false) : Person )
 
     let 2 = t2.len
 
@@ -250,30 +250,11 @@ fn testMap()
     let false = m.contains(0)
 
 
-fn testIo()
-    data io Io
-    io.putChar('b')
-
-    data string Char.Table
-
-    string.push('b')
-    string.push('e')
-    string.push('n')
-    string.push('i')
-
-    let 4 = string.len
-
-    io.putStrLn(&string)
-
-
 fn testSlice()
-    data t I64.Table
-    
-    t.push(1)
-    t.push(2)
-    t.push(3)
-
-    print(builtin_table_slice(&t))
+    data io Io
+    data s Char.Table
+    s.push("a string") 
+    io.putStrLn(s.slice())
 
 
 fn main()
@@ -292,7 +273,6 @@ fn main()
     testMaybe()
     testTree()
     testMap()
-    testIo()
     testSlice()
 
     print("success")

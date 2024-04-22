@@ -103,8 +103,11 @@ generatePrint app val@(Value _ _) = case typeof val of
     Type.I32 ->    void $ appendPrintf ("%ld" ++ app) [valExpr val]
     Type.F64 ->    void $ appendPrintf ("%f" ++ app) [valExpr val]
     Type.F32 ->    void $ appendPrintf ("%f" ++ app) [valExpr val]
-    Type.String -> void $ appendPrintf ("\"%s\"" ++ app) [valExpr val]
     Type.Char ->   void $ appendPrintf ("%c" ++ app) [valExpr val]
+
+    Type.Slice Type.Char -> do
+        len <- len val
+        void $ appendPrintf ("%.*s" ++ app) [valExpr len, C.Member (valExpr val) "ptr"]
 
     Type.Slice t -> do
         appendPrintf "[" []
@@ -174,12 +177,17 @@ generateStmt stmt = withPos stmt $ case stmt of
 
     S.Switch _ cnd cases -> do
         newVal <- assign "switchExpr" =<< generateExpr cnd
-        withFakeSwitch $ do
-            forM_ cases $ \(pattern, stmt) -> do
-                cnd <- generatePattern pattern newVal
-                if_ cnd $ do
-                    generateStmt stmt
-                    appendElem C.Break
+        id <- appendElem $ C.Switch { switchBody = [], switchExpr = C.Int 0 }
+        withCurID id $ do
+
+            forM_ (zip cases [0..]) $ \((pattern, stmt), i) -> do
+                caseId <- appendElem $ C.Case { caseExpr = C.Int i, caseBody = [] }
+                withCurID caseId $ do
+                    cnd <- generatePattern pattern newVal
+                    if_ cnd $ do
+                        generateStmt stmt
+                        appendElem C.Break
+
             call "assert" [false]
 
     S.SetOp _ S.Eq index expr -> do
@@ -203,15 +211,15 @@ generateStmt stmt = withPos stmt $ case stmt of
             base <- baseTypeOf val
             -- special preable for ranges
             case base of
-                Type.String -> return ()
                 Type.TypeApply (Sym "Table") _ -> return ()
+                Slice t -> return ()
                 x -> error (show x)
 
 
             -- check that index is still in range
             idxGtEq <- case base of
-                Type.String                     -> generateInfix S.GTEq idx =<< len val
                 Type.TypeApply (Sym "Table") _  -> generateInfix S.GTEq idx =<< len val
+                Slice t -> generateInfix S.GTEq idx =<< len val
             if_ idxGtEq (appendElem C.Break)
 
             -- check that pattern matches
@@ -219,6 +227,7 @@ generateStmt stmt = withPos stmt $ case stmt of
                 Nothing -> return true
                 Just pat -> case base of
                     Type.TypeApply (Sym "Table") ts -> generatePattern pat =<< builtinTableAt val idx
+                    Slice t -> generatePattern pat =<< builtinSliceAt val idx
                     _ -> error (show base)
 
             if_ (not_ patMatches) $ appendElem C.Break
@@ -301,7 +310,9 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
     S.Bool _ b             -> return $ Value typ (C.Bool b)
     S.Int _ n              -> return $ Value typ (C.Int n)
     S.Float _ f            -> return $ Value typ (C.Float f)
-    S.String _ s           -> return $ Value typ (C.String s)
+    S.String _ s           -> do
+        assign "string" $ Value typ $ C.Initialiser [C.String s, C.Int (fromIntegral $ length s)]
+
     S.Char _ c             -> return $ Value typ (C.Char c)
     S.Match _ expr pattern -> generatePattern pattern =<< generateExpr expr
     S.Ident _ symbol       -> do
@@ -322,9 +333,10 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
     S.Builtin pos "assert" [cnd, str] -> do
         cndVal <- generateExpr cnd
         strVal <- generateExpr str
-        fileNameVal <- return $ Value Type.String (C.String $ textFile pos)
-        lineVal <- return $ Value I64 (C.Int $ fromIntegral $ textLine pos)
-        call "doodad_assert" [fileNameVal, lineVal, cndVal, strVal]
+--        fileNameVal <- return $ Value Type.String (C.String $ textFile pos)
+--        lineVal <- return $ Value I64 (C.Int $ fromIntegral $ textLine pos)
+        --call "doodad_assert" [fileNameVal, lineVal, cndVal, strVal]
+        call "assert" [cndVal]
         return $ Value Void $ C.Int 0
 
     S.Builtin _ "builtin_table_slice" [expr] -> do
@@ -459,13 +471,13 @@ generateInfix op a' b' = do
             S.NotEq -> Value Type.Bool $ C.Infix (C.NotEq) (valExpr a) (valExpr b)
             o -> error (show o)
 
-        Type.String -> case op of
-            S.Plus -> return $ Value (typeof a) (C.Call "doodad_string_plus" [valExpr a, valExpr b])
-            S.EqEq -> return $ Value Type.Bool  (C.Call "doodad_string_eqeq" [valExpr a, valExpr b])
-            S.NotEq -> return $ Value Type.Bool $ C.Not (C.Call "doodad_string_eqeq" [valExpr a, valExpr b]) 
-            S.LT   -> return $ Value Type.Bool  (C.Call "doodad_string_lt"   [valExpr a, valExpr b])
-            S.GT   -> return $ Value Type.Bool  (C.Call "doodad_string_gt"   [valExpr a, valExpr b])
-            _ -> error (show op)
+--        Type.String -> case op of
+--            S.Plus -> return $ Value (typeof a) (C.Call "doodad_string_plus" [valExpr a, valExpr b])
+--            S.EqEq -> return $ Value Type.Bool  (C.Call "doodad_string_eqeq" [valExpr a, valExpr b])
+--            S.NotEq -> return $ Value Type.Bool $ C.Not (C.Call "doodad_string_eqeq" [valExpr a, valExpr b]) 
+--            S.LT   -> return $ Value Type.Bool  (C.Call "doodad_string_lt"   [valExpr a, valExpr b])
+--            S.GT   -> return $ Value Type.Bool  (C.Call "doodad_string_gt"   [valExpr a, valExpr b])
+--            _ -> error (show op)
 
 
         Type.TypeApply (Sym "Tuple") ts -> do

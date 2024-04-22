@@ -1,5 +1,6 @@
 module table
 
+
 fn{T} len(table &T.Table) I64
     let len = 0
     ${ $len = $table->len; }
@@ -25,3 +26,10 @@ fn{T} pop(table &T.Table) T
     return item
 
 
+fn{T} push(table &T.Table, slice []T)
+    for slice -> x
+        table.push(x)
+
+
+fn{T} slice(table &T.Table) []T
+    return builtin_table_slice(&table)

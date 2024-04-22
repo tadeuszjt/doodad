@@ -10,12 +10,12 @@ fn putChar(io &Io, c Char)
     ${ putchar($c); }
 
 
-fn putStr(io &Io, string &Char.Table)
+fn putStr(io &Io, string []Char)
     for string -> c
         io.putChar(c)
 
-fn putStrLn(io &Io, string &Char.Table)
-    io.putStr(&string)
+fn putStrLn(io &Io, string []Char)
+    io.putStr(string)
     io.putChar('\n')
 
 //

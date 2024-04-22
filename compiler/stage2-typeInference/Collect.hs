@@ -248,7 +248,7 @@ collectExpr (AExpr exprType expression) = withPos expression $ case expression o
             "assert" -> do
                 check (length exprs == 2) "invalid assert exprs"
                 collect $ ConsBase (typeof $ exprs !! 0) Type.Bool
-                collect $ ConsBase (typeof $ exprs !! 1) Type.String
+                collect $ ConsBase (typeof $ exprs !! 1) (Type.Slice Type.Char)
                 collectEq exprType Void
             "builtin_len"   -> do
                 collect (ConsBase exprType I64)
@@ -285,7 +285,6 @@ collectExpr (AExpr exprType expression) = withPos expression $ case expression o
         collectDefault exprType Type.Char
 
     AST.String _ s -> do
-        collectDefault exprType Type.String
-        collect $ ConsBase exprType Type.String
+        collect $ ConsEq exprType (Type.Slice Type.Char)
 
     x -> error (show x)

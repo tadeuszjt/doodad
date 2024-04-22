@@ -22,7 +22,7 @@ fn{T} len(u &T.Unordered) I64
 
 fn{T} insert(u &T.Unordered, elem T) T.Key
     let key = u.indices.insert(u.values.len)
-    u.values.push((conv(key), elem))
+    u.values.push((conv(key), elem) : T.Entry)
     return conv(key)
 
 fn{T} insert(u &T.Unordered) T.Key

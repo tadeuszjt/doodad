@@ -37,7 +37,6 @@ data Type
     | F64                    
     | Bool                   
     | Char                   
-    | String
     | TypeApply Symbol [Type]
     | Slice Type
     deriving (Eq, Ord)
@@ -55,7 +54,6 @@ instance Show Type where
         F64               -> "F64"
         Bool              -> "Bool"
         Char              -> "Char"
-        String            -> "String"
         TypeApply s []    -> show s
         TypeApply s [t]   -> show t ++ "." ++ show s
         TypeApply s ts    -> show s ++ "{" ++ intercalate ", " (map show ts) ++ "}"
@@ -88,7 +86,6 @@ isSimple typ = case typ of
     F32 -> True
     F64 -> True
     Bool -> True
-    String -> True
     Char -> True
     _ -> False
 
@@ -119,6 +116,7 @@ baseTypeOfm a = case typeof a of
     TypeApply (Sym "Sum") ts  -> return $ Just $ typeof a
     TypeApply (Sym "Tuple") t -> return $ Just $ typeof a
     TypeApply (Sym "Table") t -> return $ Just $ typeof a
+    Slice _                   -> return $ Just (typeof a)
     Void           -> return $ Just Void
 
     TypeApply symbol ts -> do
@@ -156,6 +154,7 @@ typesCouldMatch generics t1 t2 = couldMatch t1 t2
             (a, b) | a == b            -> return True
             (Type _, _)                -> return True
             (_, Type _)                -> return True
+            (Slice a, Slice b)         -> couldMatch a b
 
             (TypeApply s1 ts1, TypeApply s2 ts2)
                 | (s1 `elem` generics && s2 `elem` generics) || (s1 == s2) -> do
