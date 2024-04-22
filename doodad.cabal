@@ -106,5 +106,4 @@ executable doodad-test
         mtl,
     other-modules:
         Symbol,
-        Type,
-        TestTypeMatcher
+        Type

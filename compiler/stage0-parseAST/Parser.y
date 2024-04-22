@@ -282,23 +282,32 @@ prefix : '-' expr                                { Prefix (tokPos $1) Minus $2 }
 
 ---------------------------------------------------------------------------------------------------
 -- Types ------------------------------------------------------------------------------------------
+
+type__ : type_ { $1 }
+       | int_c { Size (read $ tokStr $1) }
+
 types  : {-empty-}                         { [] }
        | types1                            { $1 }
-types1 : type_                             { [$1] }
-       | type_ ',' types1                  { $1 : $3 }
-types1N : type_ 'N'                        { [$1] }
-        | type_ ',' 'N'                    { [$1] }
-        | type_ ',' 'N' types1N            { $1 : $4 }
-types2N : type_ ',' 'N' types1N            { $1 : $4 }
+types1 : type__                             { [$1] }
+       | type__ ',' types1                  { $1 : $3 }
+
+types1N : type__ 'N'                        { [$1] }
+        | type__ ',' 'N'                    { [$1] }
+        | type__ ',' 'N' types1N            { $1 : $4 }
+types2N : type__ ',' 'N' types1N            { $1 : $4 }
+
+
+typeArgs : '{' types '}'           { $2 }
+         | '{' 'I' types1N 'D' '}' { $3 }
     
 
-type_         : ordinal_t                      { $1 }
-              | '(' type_ ')'                  { $2 }
-              | Symbol                         { TypeApply (snd $1) [] }
-              | Symbol '{' types '}'           { TypeApply (snd $1) $3 }
-              | Symbol '{' 'I' types1N 'D' '}' { TypeApply (snd $1) $4 }
-              | type_ '.' Symbol               { TypeApply (snd $3) [$1] }
-              | tuple_t                        { $1 }
+type_     : ordinal_t                      { $1 }
+          | '(' type_ ')'                  { $2 }
+          | Symbol                         { TypeApply (snd $1) [] }
+          | Symbol typeArgs                { TypeApply (snd $1) $2 }
+          | type_ '.' Symbol               { TypeApply (snd $3) [$1] }
+          | type_ '.' Symbol typeArgs      { TypeApply (snd $3) ($1:$4) }
+          | tuple_t                        { $1 }
 
 ordinal_t   : Bool                         { Type.Bool }
             | U8                           { U8 }

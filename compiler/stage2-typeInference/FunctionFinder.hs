@@ -76,6 +76,7 @@ funcFullyResolved generics body =
             Slice t                         -> typeFullyResolved t
             x | isSimple x                  -> True
             Void                            -> True
+            Size _                          -> True
             x -> error $ "typeFullyResolved: " ++ show x
 
 

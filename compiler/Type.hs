@@ -39,6 +39,7 @@ data Type
     | Char                   
     | TypeApply Symbol [Type]
     | Slice Type
+    | Size Int
     deriving (Eq, Ord)
 
 instance Show Type where
@@ -58,6 +59,7 @@ instance Show Type where
         TypeApply s [t]   -> show t ++ "." ++ show s
         TypeApply s ts    -> show s ++ "{" ++ intercalate ", " (map show ts) ++ "}"
         Slice t           -> "[]" ++ show t
+        Size n            -> show n
 
 
 isInt :: Type -> Bool
@@ -95,9 +97,10 @@ mapType :: (Type -> Type) -> Type -> Type
 mapType f typ = f $ case typ of
     x | isSimple x -> typ
     Type _         -> typ
+    Void           -> typ
+    Size n         -> typ
     TypeApply s ts -> TypeApply s $ map (mapType f) ts
     Slice t        -> Slice (mapType f t)
-    Void           -> typ
     _ -> error (show typ)
 
 
@@ -113,9 +116,10 @@ baseTypeOfm :: (MonadFail m, TypeDefs m, Typeof a) => a -> m (Maybe Type)
 baseTypeOfm a = case typeof a of
     Type x         -> return Nothing
     t | isSimple t -> return $ Just t
-    TypeApply (Sym "Sum") ts  -> return $ Just $ typeof a
-    TypeApply (Sym "Tuple") t -> return $ Just $ typeof a
-    TypeApply (Sym "Table") t -> return $ Just $ typeof a
+    TypeApply (Sym "Sum") ts  -> return $ Just (typeof a)
+    TypeApply (Sym "Tuple") t -> return $ Just (typeof a)
+    TypeApply (Sym "Table") t -> return $ Just (typeof a)
+    TypeApply (Sym "Array") t -> return $ Just (typeof a)
     Slice _                   -> return $ Just (typeof a)
     Void           -> return $ Just Void
 
@@ -143,6 +147,7 @@ applyTypeArguments argSymbols argTypes typ = do
 
         _ | isSimple typ -> return typ
         Void             -> return typ
+        Size _           -> return typ
         _                -> error $ "applyTypeArguments: " ++ show typ
 
 

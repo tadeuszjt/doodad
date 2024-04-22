@@ -399,6 +399,7 @@ resolveMapper element = case element of
 
     ElemType (Type.TypeApply (Symbol.Sym "Sum") ts)   -> return element
     ElemType (Type.TypeApply (Symbol.Sym "Tuple") ts) -> return element
+    ElemType (Type.TypeApply (Symbol.Sym "Array") ts) -> return element
     ElemType (Type.TypeApply (Symbol.Sym "Table") ts) -> do
         let [t] = ts
         return element
@@ -420,7 +421,7 @@ resolveMapper element = case element of
         let list = [ "builtin_table_append"
                    , "builtin_table_at"
                    , "builtin_table_slice"
-                   , "builtin_len"
+                   , "builtin_array_at"
                    , "conv"
                    , "print"
                    , "assert"

@@ -53,4 +53,5 @@ hasTypeVars typ = case typ of
     t | isSimple t -> False
     TypeApply s ts -> any id (map hasTypeVars ts)
     Slice t        -> hasTypeVars t
+    Size n         -> False
     _ -> error (show typ)

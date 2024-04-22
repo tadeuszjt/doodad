@@ -3,82 +3,93 @@ module ox
 import ../std/io
 import ../std/strings
 
-type Square (Empty() | Naught() | Cross())
+type Empty Tuple{}
+type Naught Tuple{}
+type Cross Tuple{}
 
-type Board [3 [3 Square]]
+type Square Sum{
+    Empty,
+    Naught,
+    Cross,
+}
 
-fn String(sq Square) string
-    switch sq
-        Empty(); return " "
-        Naught(); return "O"
-        Cross(); return "X"
-
-
-fn {io Io} boardPrint(b Board)
-    for b -> row
-        io.putChar('[')
-        for row[..] -> col
-            let comma = ""
-            if col < (len(row) - 1); comma = ", "
-            io.putStr(String(row[col]) + comma)
-        io.putStrLn("]")
+type Board Square.Array{3}.Array{3}
 
 
-fn winner(b Board) Square
-    // check for horizontal lines
-    for b -> row
-        let match = true
-        for row -> sq
-            if sq != row[0]; match = false
-        if match && row[0] != Empty()
-            return row[0]
-
-    // check for vertical lines
-    for b[0][..] -> col
-        let match = true
-        for b[..] -> row
-            if b[row][col] != b[0][col]; match = false
-        if match && b[0][col] != Empty()
-            return b[0][col]
-
-    // check diagonals
-    if b -> [ [a, _, _], [_, b, _], [_, _, c] ] | a == b && b == c
-        return a
-    if b -> [ [_, _, a], [_, b, _], [c, _, _] ] | a == b && b == c
-        return a
-
-    return Empty()
-
-
-
-type PlayerInput (Move(i64, i64) | Quit())
-fn {io Io} getPlayerInput() PlayerInput
-    io.putStrLn("Please enter move: <row> <col>")
-    
-    let line = ""
-    switch io.getStrLn()
-        null; return Quit()
-        *string(s); line = s
-
-    if readI64(line) -> (*i64(row), rest)
-        if readI64(rest) -> (*i64(col), _)
-            if row < 0 || row >= 3 || col < 0 || col >= 3
-            else
-                return Move(row, col)
-
-    io.putStrLn("invalid input")
-    return io.getPlayerInput()
-
-
-fn {io Io} main()
-    let board = Board()
-
-    while winner(board) == Empty()
-        switch io.getPlayerInput()
-            Quit(); return
-            Move(row, col)
-                print("moving", row, col)
-                board[row][col] = Naught()
-
-        io.boardPrint(board)
-
+//fn String(sq Square) string
+//    switch sq
+//        Empty(); return " "
+//        Naught(); return "O"
+//        Cross(); return "X"
+//
+//
+//fn {io Io} boardPrint(b Board)
+//    for b -> row
+//        io.putChar('[')
+//        for row[..] -> col
+//            let comma = ""
+//            if col < (len(row) - 1); comma = ", "
+//            io.putStr(String(row[col]) + comma)
+//        io.putStrLn("]")
+//
+//
+//fn winner(b Board) Square
+//    // check for horizontal lines
+//    for b -> row
+//        let match = true
+//        for row -> sq
+//            if sq != row[0]; match = false
+//        if match && row[0] != Empty()
+//            return row[0]
+//
+//    // check for vertical lines
+//    for b[0][..] -> col
+//        let match = true
+//        for b[..] -> row
+//            if b[row][col] != b[0][col]; match = false
+//        if match && b[0][col] != Empty()
+//            return b[0][col]
+//
+//    // check diagonals
+//    if b -> [ [a, _, _], [_, b, _], [_, _, c] ] | a == b && b == c
+//        return a
+//    if b -> [ [_, _, a], [_, b, _], [c, _, _] ] | a == b && b == c
+//        return a
+//
+//    return Empty()
+//
+//
+//
+//type PlayerInput (Move(i64, i64) | Quit())
+//fn {io Io} getPlayerInput() PlayerInput
+//    io.putStrLn("Please enter move: <row> <col>")
+//    
+//    let line = ""
+//    switch io.getStrLn()
+//        null; return Quit()
+//        *string(s); line = s
+//
+//    if readI64(line) -> (*i64(row), rest)
+//        if readI64(rest) -> (*i64(col), _)
+//            if row < 0 || row >= 3 || col < 0 || col >= 3
+//            else
+//                return Move(row, col)
+//
+//    io.putStrLn("invalid input")
+//    return io.getPlayerInput()
+//
+//
+fn main()
+    data io Io
+    io.putStrLn("naughts and crosses")
+    let board : Board
+//
+//    while winner(board) == Empty()
+//        switch io.getPlayerInput()
+//            Quit(); return
+//            Move(row, col)
+//                print("moving", row, col)
+//                board[row][col] = Naught()
+//
+//        io.boardPrint(board)
+//

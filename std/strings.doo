@@ -19,9 +19,6 @@ fn isSpace(c Char) Bool
     return r
 
 
-
-
-
 //fn isPrefix(pre:String, str:String) bool
 //    if len(pre) > len(str); return false
 //    for pre[..] -> i
