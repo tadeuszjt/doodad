@@ -7,8 +7,14 @@ type{T} Maybe Sum{
     T,
 }
 
-fn{T} just(m &T.Maybe) &T; return &m.1
 
+fn construct() Nothing
+    let n : Nothing
+    return n
+
+
+fn{T} construct(x T)   T.Maybe; return conv(x)
+fn{T} just(m &T.Maybe) &T     ; return &m.1
 
 
 fn{T} isJust(m &T.Maybe) Bool

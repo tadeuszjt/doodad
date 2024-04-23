@@ -48,8 +48,8 @@ callCouldMatchFunc :: CallHeader -> Symbol -> FuncBody -> DoM ASTResolved Bool
 callCouldMatchFunc call symbol body = do
     if symbolsMatch then do
         am <- argsMatch
-        --rm <- rettyMatch
-        return (am )
+        rm <- rettyMatch
+        return (am && rm)
     else return False
     where
         typesMatch :: [Type] -> [Type] -> DoM ASTResolved Bool
@@ -59,7 +59,7 @@ callCouldMatchFunc call symbol body = do
 
         symbolsMatch    = symbolsCouldMatch (callSymbol call) symbol
         argsMatch       = typesMatch (callArgTypes call) (map typeof $ funcArgs body)
-        --rettyMatch      = typesCouldMatch (funcGenerics body) (callRetType call) (funcRetty body)
+        rettyMatch      = typesCouldMatch (funcGenerics body) (callRetType call) (typeof $ funcRetty body)
 
 
 funcFullyResolved :: [Symbol] -> FuncBody -> Bool

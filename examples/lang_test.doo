@@ -19,6 +19,18 @@ fn testFloats()
     let 3.0 = x
     let 4.0 = 16.0 / 4.0
 
+
+fn construct(f F64) I64
+    let n : I64
+    ${ $n = $f; }
+    return n
+
+
+fn testConvert()
+    let f = 3.14
+    let 3 = I64(f)
+
+
 fn testIf()
     let x = 3
     if x == 3
@@ -173,6 +185,9 @@ fn testUnordered()
 
 
 fn testSumType()
+    fn construct(n I64) Sum{I64, Bool}
+        return conv(n)
+
     let s : Sum{I64, Bool}
     let x = 0
     switch s
@@ -212,7 +227,6 @@ fn testMaybe()
     m.just() = 4
     let 4 = m.just
     let false = m.isNone
-
 
 fn testTree()
     data t binaryTree::Tree{I64, Bool}
@@ -270,12 +284,13 @@ fn testArray()
     let 0 = builtin_array_at(&array, 1)
     let 78 = builtin_array_at(&array, 2)
 
-    let 4 = array.len()
+    let 4 = array.len
     let 78 = array[2]
 
 
 fn main()
     testArithmetic()
+    testConvert()
     testFloats()
     testIf()
     testSwitch()

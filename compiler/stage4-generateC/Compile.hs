@@ -212,6 +212,12 @@ generateStmt stmt = withPos stmt $ case stmt of
             -- special preable for ranges
             case base of
                 TypeApply (Sym "Table") _ -> return ()
+                TypeApply (Sym "Array") _ -> return ()
+                TypeApply (Sym "Tuple") [_, _] -> do
+                    return ()
+                    -- TODO
+                    
+
                 Slice t -> return ()
                 x -> error (show x)
 
@@ -219,7 +225,10 @@ generateStmt stmt = withPos stmt $ case stmt of
             -- check that index is still in range
             idxGtEq <- case base of
                 TypeApply (Sym "Table") _  -> generateInfix S.GTEq idx =<< len val
+                TypeApply (Sym "Array") [_, Size n]  -> generateInfix S.GTEq idx (i64 n)
+                TypeApply (Sym "Tuple") [_, _] -> generateInfix S.GTEq idx =<< member 1 val
                 Slice t -> generateInfix S.GTEq idx =<< len val
+                x -> error (show x)
             if_ idxGtEq (appendElem C.Break)
 
             -- check that pattern matches
@@ -227,6 +236,8 @@ generateStmt stmt = withPos stmt $ case stmt of
                 Nothing -> return true
                 Just pat -> case base of
                     TypeApply (Sym "Table") ts -> generatePattern pat =<< builtinTableAt val idx
+                    TypeApply (Sym "Array") ts -> generatePattern pat =<< builtinArrayAt val idx
+                    TypeApply (Sym "Tuple") ts -> generatePattern pat idx
                     Slice t -> generatePattern pat =<< builtinSliceAt val idx
                     _ -> error (show base)
 
@@ -410,12 +421,6 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
                 unless (length ts == length vals) (error "invalid tuple type")
                 initialiser typ vals
             _ -> error (show base)
-
-    S.Construct pos typ exprs -> do
-        vals <- mapM generateExpr exprs
-        case vals of
-            [val] -> convert typ val
-            []    -> initialiser typ []
 
     S.Reference pos expr -> do
         val <- generateExpr expr

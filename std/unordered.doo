@@ -16,6 +16,15 @@ fn{T} value(e &T.Entry) &T;                  return &e.1
 fn{T} indices(u &T.Unordered) &Sparse{I64};  return &u.0
 fn{T} values(u &T.Unordered) &T.Entry.Table; return &u.1
 
+fn{T} construct(n I64) T.Key
+    return conv(n)
+
+fn{A, B} construct(x A.Key) B.sparse::Key
+    return conv(x)
+
+fn{A, B} construct(x A.sparse::Key) B.Key
+    return conv(x)
+
 
 fn{T} len(u &T.Unordered) I64
     return u.values.len

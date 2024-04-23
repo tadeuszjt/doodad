@@ -99,7 +99,7 @@ collectFuncDef symbol body = do
 
 
 collectStmt :: Stmt -> DoM CollectState ()
-collectStmt statement = withPos statement $ case statement of
+collectStmt statement = collectPos statement $ case statement of
     EmbedC _ _ -> return ()
 
     Block stmts -> mapM_ collectStmt stmts
@@ -159,7 +159,7 @@ collectStmt statement = withPos statement $ case statement of
     x -> error (show x)
 
 collectPattern :: Pattern -> DoM CollectState ()
-collectPattern (PatAnnotated pattern patType) = withPos pattern $ case pattern of
+collectPattern (PatAnnotated pattern patType) = collectPos pattern $ case pattern of
     PatIgnore _           -> return ()
     PatIdent _ symbol     -> do
         define symbol (ObjVar patType)
@@ -195,7 +195,7 @@ collectPattern (PatAnnotated pattern patType) = withPos pattern $ case pattern o
 
 
 collectExpr :: Expr -> DoM CollectState ()
-collectExpr (AExpr exprType expression) = withPos expression $ case expression of
+collectExpr (AExpr exprType expression) = collectPos expression $ case expression of
     Prefix _ op expr -> do
         collect $ ConsEq exprType (typeof expr)
         collectExpr expr
@@ -209,10 +209,6 @@ collectExpr (AExpr exprType expression) = withPos expression $ case expression o
 
     Call _ symbol exprs -> do
         collect $ ConsCall exprType symbol (map typeof exprs)
-        mapM_ collectExpr exprs
-
-    Construct _ typ exprs -> do
-        collect $ ConsEq exprType typ
         mapM_ collectExpr exprs
 
     Match _ expr pat -> do

@@ -1,0 +1,5 @@
+module slice
+
+
+fn{T} at(s []T, index I64) &T
+    return builtin_slice_at([]s, index)

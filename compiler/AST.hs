@@ -93,7 +93,6 @@ data Expr
     | String       TextPos String
     | Tuple        TextPos [Expr]
     | Call         TextPos Symbol [Expr]
-    | Construct    TextPos Type [Expr]
     | Field        TextPos Expr Int
     | Ident        TextPos Symbol
     | Builtin      TextPos String [Expr]
@@ -163,7 +162,6 @@ instance TextPosition Expr where
         Prefix       p _ _ -> p
         Infix        p _ _ _ -> p
         Match        p _ _ -> p
-        Construct    p _ _ -> p
         Reference    p _ -> p
         _ -> error (show expression)
 
@@ -261,7 +259,6 @@ instance Show Expr where
         Call pos symbol exprs              -> show symbol ++ tupStrs (map show exprs)
         Builtin pos sym exprs              -> sym ++ tupStrs (map show exprs)
         Match pos expr1 expr2              -> "(" ++ show expr1 ++ " -> " ++ show expr2 ++ ")"
-        Construct pos typ exprs            -> show typ ++ tupStrs (map show exprs)
         Reference pos expr                 -> "&" ++ show expr
 
 

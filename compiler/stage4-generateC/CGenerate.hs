@@ -198,6 +198,7 @@ deref (Ref typ expr) = do
     case base of
         x | isSimple x -> return $ Value typ (C.Deref expr)
         TypeApply (Sym "Sum") _ -> return $ Value typ (C.Deref expr)
+        TypeApply (Sym "Array") _ -> return $ Value typ (C.Deref expr)
         TypeApply (Sym "Tuple") ts  -> do
             -- TODO implement memory shear
             let ptr = C.Member expr "ptr"
@@ -231,7 +232,9 @@ set a b = do
                     let va = Value t $ C.Member tupA ("m" ++ show i)
                     let vb = Value t $ C.Member tupB ("m" ++ show i)
                     set va vb
-            TypeApply (Sym "Sum") ts | copyable -> do
+            TypeApply (Sym "Sum") _ | copyable -> do
+                void $ appendElem $ C.Set (C.Deref a) (C.Deref b)
+            TypeApply (Sym "Array") _ | copyable -> do
                 void $ appendElem $ C.Set (C.Deref a) (C.Deref b)
 
             x -> error (show x)
@@ -372,8 +375,17 @@ builtinArrayAt value idx@(Value _ _) = do
     base <- baseTypeOf t
 
     case value of
+        Value _ expr -> case base of
+            TypeApply (Sym "Array") _ -> return $ Ref t $ C.Address $ C.Subscript
+                (C.Member expr "arr")
+                (valExpr idx)
+            
+            x -> error (show x)
         Ref _ expr -> case base of
             x | isSimple x -> return $ Ref t $ C.Address $ C.Subscript
+                (C.PMember expr "arr")
+                (valExpr idx)
+            TypeApply (Sym "Sum") ts -> return $ Ref t $ C.Address $ C.Subscript
                 (C.PMember expr "arr")
                 (valExpr idx)
             x -> error (show x)

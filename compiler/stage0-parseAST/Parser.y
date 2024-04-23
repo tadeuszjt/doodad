@@ -247,13 +247,13 @@ expr   : literal                                 { $1 }
        | expr ':' type_                          { AExpr $3 $1 }
        | symbol                                  { AST.Ident (fst $1) (snd $1) }
        | '(' exprsA ')'                          { case $2 of [x] -> x; xs -> AST.Tuple (tokPos $1) xs }
-       | type_ '(' exprsA ')'                    { Construct (tokPos $2) $1 $3 }
        | expr '.' int_c                          { Field (tokPos $2) $1 (read $ tokStr $3)  }
        | '&' expr                                { AST.Reference (tokPos $1) $2 }
        | expr '[' expr ']'                       { Call (tokPos $2) (Sym "at") [AST.Reference (tokPos $2) $1, $3] }
        | expr '.' symbol                         { Call (tokPos $2) (snd $3) (AST.Reference (tokPos $2) $1 : []) }
        | expr '.' symbol '(' exprsA ')'          { Call (tokPos $4) (snd $3) (AST.Reference (tokPos $2) $1 : $5) }
        | symbol '(' exprsA ')'                   { Call (tokPos $2) (snd $1) $3 }
+       | type_ '(' exprsA ')'                    { AExpr $1 (Call (tokPos $2) (Sym "construct") $3) }
 
 literal : int_c                                  { AST.Int (tokPos $1) (read $ tokStr $1) }
         | float_c                                { AST.Float (tokPos $1) (read $ tokStr $1) }

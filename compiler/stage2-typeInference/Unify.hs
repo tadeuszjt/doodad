@@ -28,7 +28,8 @@ unifyOne pos constraint = withPos pos $ case constraint of
             else
                 fmap fst $ runDoMExcept ast $ findCandidates (CallHeader symbol argTypes exprType)
 
-        --liftIO $ putStrLn $ "here: " ++ show symbol ++ ", " ++ show argTypes ++ ", " ++ show candidates
+--        forM_ candidates $ \cand -> do
+--            liftIO $ putStrLn $ "unifyOne: " ++ show cand
         case candidates of
             [symbol] | isNonGenericFunction symbol ast -> do
                 let body = getFunctionBody symbol ast
@@ -74,7 +75,11 @@ unifyOne pos constraint = withPos pos $ case constraint of
         basem <- baseTypeOfm exprType
         case basem of
             Nothing -> return []
-            Just (TypeApply (Sym "Table") [t]) -> unifyOne pos $ ConsEq patType t
+            Just (TypeApply (Sym "Table") [t])         -> unifyOne pos $ ConsEq patType t
+            Just (TypeApply (Sym "Array") [t, Size n]) -> unifyOne pos $ ConsEq patType t
+            Just (TypeApply (Sym "Tuple") [t1, t2])    -> do
+                unifyOne pos $ ConsEq t1 t2
+                unifyOne pos $ ConsEq patType t1
             Just (Slice t) -> unifyOne pos $ ConsEq patType t
 
             x -> error (show x)

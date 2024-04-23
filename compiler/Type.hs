@@ -95,10 +95,18 @@ isIntegral x = isInt x || x == Char
 
 mapType :: (Type -> Type) -> Type -> Type
 mapType f typ = f $ case typ of
-    x | isSimple x -> typ
-    Type _         -> typ
-    Void           -> typ
-    Size n         -> typ
+    U8 -> typ
+    I8 -> typ
+    I16 -> typ
+    I32 -> typ
+    I64 -> typ
+    F32 -> typ
+    F64 -> typ
+    Bool -> typ
+    Char -> typ
+    Void    -> typ
+    Type _  -> typ
+    Size _   -> typ
     TypeApply s ts -> TypeApply s $ map (mapType f) ts
     Slice t        -> Slice (mapType f t)
     _ -> error (show typ)
@@ -135,15 +143,16 @@ baseTypeOfm a = case typeof a of
 applyTypeArguments :: (MonadFail m, TypeDefs m) => [Symbol] -> [Type] -> Type -> m Type
 applyTypeArguments argSymbols argTypes typ = do
     unless (length argSymbols == length argTypes) (fail $ "invalid arguments: " ++ show typ)
-    let args = zip argSymbols argTypes
     case typ of
-        TypeApply s [] -> case lookup s args of
-            Just x  -> return x
+        TypeApply s [] -> case elemIndex s argSymbols of
+            Just x  -> return (argTypes !! x)
             Nothing -> return typ
 
-        TypeApply s ts -> case lookup s args of
+        TypeApply s ts -> case elemIndex s argSymbols of
             Just x  -> error (show x)
-            Nothing -> TypeApply s <$> mapM (applyTypeArguments argSymbols argTypes) ts
+            Nothing -> do
+                ts' <- mapM (applyTypeArguments argSymbols argTypes) ts
+                return $ TypeApply s ts'
 
         _ | isSimple typ -> return typ
         Void             -> return typ

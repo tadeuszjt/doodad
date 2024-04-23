@@ -57,6 +57,11 @@ resolveFuncCall exprType (AST.Call pos callSymbol args) = withPos pos $ do
 
     candidates <- findCandidates callHeader
     ast <- get
+
+--    liftIO $ putStrLn $ "resolveFuncCall: " ++ show callHeader ++ ", " ++ show pos
+--    forM_ candidates $ \cand -> do
+--        liftIO $ putStrLn $ "\tcandidate: " ++ show (getFunctionCallHeader cand ast)
+
     case candidates of
         [] -> fail $ "no candidates for: " ++ show callHeader
 
@@ -85,6 +90,8 @@ resolveFuncCall exprType (AST.Call pos callSymbol args) = withPos pos $ do
         [nonGenericSymbol, genericSymbol] |
             isGenericFunction genericSymbol ast &&
             isNonGenericFunction nonGenericSymbol ast -> do
+                return nonGenericSymbol
+                --liftIO $ putStrLn "should be here"
                 let nonGenericBody = getFunctionBody nonGenericSymbol ast
                 let genericBody = getFunctionBody genericSymbol ast
                 bodyReplaced <- replaceGenericsInFuncBodyWithCall genericBody callHeader

@@ -117,10 +117,6 @@ mapExprM f expr = withPos expr $ do
         Prefix pos op expr    -> Prefix pos op <$> mapExprM f expr
         Call pos symbol exprs -> Call pos symbol <$> mapM (mapExprM f) exprs
 
-        Construct pos typ exprs -> do
-            typ' <- mapTypeM f typ
-            Construct pos typ' <$> mapM (mapExprM f) exprs
-
         Field pos expr n -> do
             expr' <- mapExprM f expr
             return $ Field pos expr' n

@@ -2,6 +2,7 @@ module ox
 
 import ../std/io
 import ../std/strings
+import ../std/array
 
 type Empty Tuple{}
 type Naught Tuple{}
@@ -23,16 +24,24 @@ type Board Square.Array{3}.Array{3}
 //        Cross(); return "X"
 //
 //
-//fn {io Io} boardPrint(b Board)
-//    for b -> row
-//        io.putChar('[')
-//        for row[..] -> col
-//            let comma = ""
-//            if col < (len(row) - 1); comma = ", "
-//            io.putStr(String(row[col]) + comma)
-//        io.putStrLn("]")
-//
-//
+
+
+fn printBoard(io &Io, b Board)
+    for b -> row
+        io.putChar('[')
+        for (0, row.len) -> col
+
+            switch row[col]
+                Empty(); io.putChar(' ')
+                Naught(); io.putChar('O')
+                Cross(); io.putChar('X')
+
+            if col < (row.len - 1)
+                io.putStr(", ")
+
+        io.putStrLn("]")
+
+
 //fn winner(b Board) Square
 //    // check for horizontal lines
 //    for b -> row
@@ -83,6 +92,7 @@ fn main()
     data io Io
     io.putStrLn("naughts and crosses")
     let board : Board
+    io.printBoard(board)
 //
 //    while winner(board) == Empty()
 //        switch io.getPlayerInput()

@@ -81,7 +81,15 @@ getFunctionTypeArgs symbol ast = if Map.member symbol (funcDefs ast) then
         let body = funcDefs ast Map.! symbol in funcGenerics body
     else if Map.member symbol (funcImports ast) then
         let body = funcImports ast Map.! symbol in funcGenerics body
-    else error "symbol is not function"
+    else error ("symbol is not function: " ++ show symbol)
+
+
+getFunctionCallHeader :: Symbol -> ASTResolved -> CallHeader
+getFunctionCallHeader symbol ast = if Map.member symbol (funcDefs ast) then
+        let body = funcDefs ast Map.! symbol in CallHeader symbol (map typeof $ funcArgs body) (typeof $ funcRetty body)
+    else if Map.member symbol (funcImports ast) then
+        let body = funcImports ast Map.! symbol in CallHeader symbol (map typeof $ funcArgs body) (typeof $ funcRetty body)
+    else error ("symbol is not function: " ++ show symbol)
 
 
 getFunctionBody :: Symbol -> ASTResolved -> FuncBody
@@ -89,7 +97,7 @@ getFunctionBody symbol ast = if Map.member symbol (funcDefs ast) then
         funcDefs ast Map.! symbol
     else if Map.member symbol (funcImports ast) then
         funcImports ast Map.! symbol
-    else error "symbol is not function"
+    else error ("symbol is not function: " ++ show symbol)
 
 
 funcHeaderTypesMatch :: FuncBody -> FuncBody -> Bool
