@@ -3,20 +3,37 @@ module io
 import std/map
 
 
-type Io (Map{I64, Bool})
+type Io Tuple{
+    Map{I64, Bool},
+    StdOut,
+}
+
+fn stdout(io &Io) &StdOut; return &io.1
+
+type StdOut Tuple{}
 
 
-fn putChar(io &Io, c Char)
-    ${ putchar($c); }
+fn append(stdout &StdOut, c Char); ${ putchar($c); }
+fn append(stdout &StdOut, x I64); ${ printf("%d", $x); }
+fn append(stdout &StdOut, x Bool); ${ fputs($x ? "true" : "false", stdout); }
+fn append(stdout &StdOut, s []Char)
+    for s -> c
+        stdout += c
 
+fn{A, B} append(stdout &StdOut, x Tuple{A, B})
+    stdout += '('
+    stdout += x.0
+    stdout += ", "
+    stdout += x.1
+    stdout += ')'
 
-fn putStr(io &Io, string []Char)
-    for string -> c
-        io.putChar(c)
-
-fn putStrLn(io &Io, string []Char)
-    io.putStr(string)
-    io.putChar('\n')
+fn{A} append(stdout &StdOut, table &A.Table)
+    stdout += '['
+    for (0, table.len) -> i
+        stdout += table[i]
+        if i < (table.len - 1)
+            stdout += ", "
+    stdout += ']'
 
 //
 //fn {io Io} openFile(fileName String)

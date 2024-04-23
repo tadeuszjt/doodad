@@ -418,7 +418,6 @@ resolveMapper element = case element of
                    , "builtin_table_slice"
                    , "builtin_array_at"
                    , "conv"
-                   , "print"
                    , "assert"
                    ]
         if sym `elem` list then do

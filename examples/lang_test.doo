@@ -12,6 +12,7 @@ import std/tuple
 import std/integer
 import std/floating
 import std/char
+import std/sum
 
 
 fn testArithmetic()
@@ -186,9 +187,6 @@ fn testUnordered()
 
 
 fn testSumType()
-    fn construct(n I64) Sum{I64, Bool}
-        return conv(n)
-
     let s : Sum{I64, Bool}
     let x = 0
     switch s
@@ -273,10 +271,21 @@ fn testMap()
 
 
 fn testSlice()
-    data io Io
     data s Char.Table
     s.push("a string") 
-    io.putStrLn(s.slice())
+
+
+fn testIo(io &Io)
+    io.stdout += "success"
+    io.stdout += '\n'
+    io.stdout += (1, true)
+    io.stdout += " "
+
+    data table Tuple{I64, I64}.Table
+    for (0, 10) -> i
+        table += (i * 2, i * 3)
+
+    io.stdout += &table
 
 
 fn testArray()
@@ -308,4 +317,7 @@ fn main()
     testSlice()
     testArray()
 
-    print("success")
+    data io Io
+    testIo(&io)
+
+

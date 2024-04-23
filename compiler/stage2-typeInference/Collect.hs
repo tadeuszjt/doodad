@@ -247,7 +247,6 @@ collectExpr (AExpr exprType expression) = collectPos expression $ case expressio
                 collect $ ConsBase (typeof $ exprs !! 0) Type.Bool
                 collect $ ConsBase (typeof $ exprs !! 1) (Type.Slice Type.Char)
                 collectEq exprType Void
-            "print" -> collectEq exprType Void
 
         mapM_ collectExpr exprs
 

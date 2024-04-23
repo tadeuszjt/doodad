@@ -13,6 +13,11 @@ fn subtract(a I64, b I64) I64
     ${ $r = $a - $b; }
     return r
 
+fn times(a I64, b I64) I64
+    let r : I64
+    ${ $r = $a * $b; }
+    return r
+
 fn divide(a I64, b I64) I64
     let r : I64
     ${ $r = $a / $b; }

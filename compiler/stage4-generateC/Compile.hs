@@ -97,46 +97,6 @@ generateFunc symbol body = do
     withCurID globalID $ append id
 
 
-generatePrint :: String -> Value -> Generate ()
-generatePrint app val@(Value _ _) = case typeof val of
-    Type.I64 ->    void $ appendPrintf ("%lld" ++ app) [valExpr val]
-    Type.I32 ->    void $ appendPrintf ("%ld" ++ app) [valExpr val]
-    Type.F64 ->    void $ appendPrintf ("%f" ++ app) [valExpr val]
-    Type.F32 ->    void $ appendPrintf ("%f" ++ app) [valExpr val]
-    Type.Char ->   void $ appendPrintf ("%c" ++ app) [valExpr val]
-
-    Type.Slice Type.Char -> do
-        len <- len val
-        void $ appendPrintf ("%.*s" ++ app) [valExpr len, C.Member (valExpr val) "ptr"]
-
-    Type.Slice t -> do
-        appendPrintf "[" []
-        for (Value I64 $ C.Member (valExpr val) "len") $ \i -> do
-            let v = Value t $ C.Subscript (C.Member (valExpr val) "ptr") (valExpr i)
-            generatePrint ", " v
-        appendPrintf ("]" ++ app) []
-        return ()
-        
-
-    Type.Bool -> void $ appendPrintf ("%s" ++ app) $
-        [C.CndExpr (valExpr val) (C.String "true") (C.String "false")]
-
-    TypeApply (Sym "Tuple") ts -> do
-        void $ appendPrintf "(" []
-        forM_ (zip ts [0..]) $ \(t, i) -> do
-            let ap = if i == (length ts - 1) then ")" ++ app else ", "
-            generatePrint ap $ Value t $ C.Member (valExpr val) ("m" ++ show i)
-
-    TypeApply s t -> do
-        base <- baseTypeOf val
-        generatePrint app $ Value base (valExpr val)
-
-    TypeApply (Sym "Sum") ts -> do -- TODO
-        void $ appendPrintf ("Sum" ++ app) []
-
-    _ -> error (show $ typeof val)
-
-
 generateStmt :: S.Stmt -> Generate ()
 generateStmt stmt = withPos stmt $ case stmt of
     S.Block stmts          -> mapM_ generateStmt stmts
@@ -222,7 +182,7 @@ generateStmt stmt = withPos stmt $ case stmt of
             idxGtEq <- case base of
                 TypeApply (Sym "Table") _  -> error "here"--generateInfix S.GTEq idx =<< len val
                 TypeApply (Sym "Array") [_, Size n]  -> error "here" -- generateInfix S.GTEq idx (i64 n)
-                TypeApply (Sym "Tuple") [_, _] -> error "here" -- generateInfix S.GTEq idx =<< member 1 val
+                TypeApply (Sym "Tuple") [_, _] -> greaterEqual idx =<< member 1 val
                 Slice t -> greaterEqual idx =<< len val
                 x -> error (show x)
             if_ idxGtEq (appendElem C.Break)
@@ -332,13 +292,6 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
             Ref   t e -> return val
 
     S.Builtin _ "conv" [expr] -> convert typ =<< generateExpr expr
-
-    S.Builtin _ "print" exprs -> do
-        vals <- mapM generateExpr exprs
-        forM_ (zip vals [0..]) $ \(val, i) -> do
-            let end = i == length vals - 1
-            generatePrint (if end then "\n" else ", ") val
-        return $ Value Void $ C.Int 0
 
     S.Builtin pos "assert" [cnd, str] -> do
         cndVal <- generateExpr cnd
