@@ -11,6 +11,14 @@ type{T} Unordered Tuple{
     T.Entry.Table
 }
 
+fn{T} set(a &T.Key, b T.Key)
+    ${ *$a = $b; }
+
+fn{T} set(a &T.Entry, b T.Entry)
+    a.key = b.key
+    a.value = b.value
+
+
 fn{T} key(e &T.Entry) &I64.Key;             return &e.0
 fn{T} value(e &T.Entry) &T;                  return &e.1
 fn{T} indices(u &T.Unordered) &Sparse{I64};  return &u.0

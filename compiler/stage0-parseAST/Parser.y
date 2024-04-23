@@ -143,8 +143,8 @@ retty : {-empty-}     { Retty Type.Void }
 line : let pattern '=' expr               { Let (tokPos $1) $2 (Just $4) Nothing }  
      | let pattern                        { Let (tokPos $1) $2 Nothing Nothing }
      | expr                               { ExprStmt $1 }
-     | expr '=' expr                      { SetOp (tokPos $2) Eq $1 $3 }
-     | expr '+=' expr                     { SetOp (tokPos $2) PlusEq $1 $3 }
+     | expr '=' expr                      { ExprStmt (Call (tokPos $2) (Sym "set") [Reference (tokPos $2) $1, $3]) }
+     | expr '+=' expr                     { ExprStmt (Call (tokPos $2) (Sym "append") [Reference (tokPos $2) $1, $3]) }
      | type generics Symbol anno_t        { Typedef (fst $3) $2 (snd $3) $4 }
      | data symbol type_                  { Data (tokPos $1) (snd $2) $3 Nothing }
      | return mexpr                       { Return (tokPos $1) $2 }

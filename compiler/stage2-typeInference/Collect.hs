@@ -104,11 +104,6 @@ collectStmt statement = collectPos statement $ case statement of
 
     Block stmts -> mapM_ collectStmt stmts
 
-    SetOp _ op expr1 expr2 -> do
-        collect $ ConsEq (typeof expr1) (typeof expr2) 
-        collectExpr expr1
-        collectExpr expr2
-
     Return _ mexpr -> do
         curRetty <- gets curRetty
         collect $ ConsEq (maybe Void typeof mexpr) curRetty

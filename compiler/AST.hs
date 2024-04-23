@@ -18,12 +18,6 @@ data AST
     deriving (Eq)
 
 
-data Operator
-    = Eq
-    | PlusEq
-    deriving (Eq, Ord)
-
-
 data Import
     = Import FilePath
     | CInclude String
@@ -96,7 +90,6 @@ instance Typeof Pattern where
 
 data Stmt
     = Let         TextPos Pattern (Maybe Expr) (Maybe Stmt)
-    | SetOp       TextPos Operator Expr   Expr
     | ExprStmt    Expr
     | Return      TextPos (Maybe Expr)
     | Block       [Stmt]
@@ -162,7 +155,6 @@ instance TextPosition Stmt where
         For         p _ _ _ -> p
         Data        p _ _ _ -> p
         EmbedC      p _ -> p
-        SetOp       p _ _ _ -> p
         _ -> error (show stmt)
 
 tupStrs, arrStrs, brcStrs :: [String] -> String
@@ -187,16 +179,11 @@ instance Show Retty where
     show (RefRetty t) = "&" ++ show t
 
 
-instance Show Operator where
-    show operator = case operator of
-        Eq     -> "="
-        PlusEq -> "+="
-
 instance Show AnnoType where
     show annoType = case annoType of
         AnnoType t   -> show t
         AnnoTuple ps -> tupStrs $ map show ps
-        AnnoTable xs -> "Table[{" ++ intercalate ", " (map show xs) ++ "}]"
+        AnnoTable xs -> "Table{" ++ intercalate ", " (map show xs) ++ "}"
 
 
 instance Show Pattern where
@@ -263,7 +250,6 @@ prettyStmt pre stmt = case stmt of
         putStrLn $ pre ++ "let " ++ show pat ++ " = " ++ show expr ++ if isJust mblk then " in" else ""
         when (isJust mblk) $ prettyStmt (pre ++ "\t") (fromJust mblk)
 
-    SetOp _ op expr1 expr2 -> putStrLn $ pre ++ (show expr1) ++ " " ++ show op ++ " " ++ show expr2
     Return pos mexpr       -> putStrLn $ pre ++ "return " ++ maybe "" show mexpr
 
     If pos cnd true mfalse -> do

@@ -10,6 +10,13 @@ type{K, V} Node Tuple{
     V,
 }
 
+fn{K, V} set(a &Node{K, V}, b Node{K, V})
+    a.left = b.left
+    a.right = b.right
+    a.key = b.key
+    a.value = b.value
+
+
 fn{K, V} left(n &Node{K, V})  &Node{K, V}.Key.Maybe; return &n.0
 fn{K, V} right(n &Node{K, V}) &Node{K, V}.Key.Maybe; return &n.1
 fn{K, V} key(n &Node{K, V})   &K                   ; return &n.2

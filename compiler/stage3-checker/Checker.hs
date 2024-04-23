@@ -217,12 +217,6 @@ checkStmt stmt = withPos stmt $ case stmt of
         define symbol (NodeData symbol)
         return ()
 
-    SetOp _ op expr1 expr2 -> do
-        --liftIO $ putStrLn "set"
-        checkExpr expr1
-        checkExpr expr2
-        return ()
-
     Let _ pat mexpr mblk -> do
         --liftIO $ putStrLn "let"
         mobjs <- traverse checkExpr mexpr

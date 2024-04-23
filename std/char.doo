@@ -1,0 +1,4 @@
+module char
+
+fn set(a &Char, b Char)
+    ${ *$a = $b; }

@@ -9,6 +9,8 @@ type{T} Sparse Tuple{
     T.Key.Table,
 }
 
+fn{T} set(a &T.Key, b T.Key); ${ *$a = $b; }
+
 fn{T} values(s &T.Sparse) &T.Table;     return &s.0
 fn{T} empty(s &T.Sparse) &Table{T.Key}; return &s.1
 

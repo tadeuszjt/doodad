@@ -37,7 +37,6 @@ applyStmt subs stmt = case stmt of
     ExprStmt expr -> ExprStmt (applyEx expr)
     EmbedC pos s -> EmbedC pos s
     Data pos symbol typ mexpr -> Data pos symbol (applyTy typ) (fmap applyEx mexpr)
-    SetOp pos op expr1 expr2 -> SetOp pos op (applyEx expr1) (applyEx expr2)
     Let pos pattern mexpr mblk -> Let pos (applyPat pattern) (fmap applyEx mexpr) (fmap applySt mblk)
     Switch pos expr cases -> Switch pos (applyEx expr) $ map (\(p, st) -> (applyPat p, applySt st)) cases
     While pos expr blk -> While pos (applyEx expr) (applySt blk)

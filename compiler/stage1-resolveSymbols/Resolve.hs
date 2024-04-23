@@ -329,11 +329,6 @@ instance Resolve Stmt where
             popSymbolTable
             return $ While pos condition' stmt' 
 
-        SetOp pos op index expr -> do
-            index' <- resolve index
-            expr' <- resolve expr
-            return $ SetOp pos op index' expr'
-
         Switch pos expr cases -> do
             expr' <- resolve expr
             cases' <- forM cases $ \(pat, stmt) -> do

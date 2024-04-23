@@ -242,73 +242,14 @@ set a b = do
             else do
                 error "here"
 
-        (Ref _ a, Ref _ b) -> case base of
-            TypeApply (Sym "Tuple") ts -> do
-                -- TODO implement shear
-                let tupA = C.Deref (C.Member a "ptr")
-                let tupB = C.Deref (C.Member b "ptr")
-
-                forM_ (zip ts [0..]) $ \(t, i) -> do
-                    let va = Value t $ C.Member tupA ("m" ++ show i)
-                    let vb = Value t $ C.Member tupB ("m" ++ show i)
-                    set va vb
-            TypeApply (Sym "Sum") _ | copyable -> do
-                void $ appendElem $ C.Set (C.Deref a) (C.Deref b)
-            TypeApply (Sym "Array") _ | copyable -> do
-                void $ appendElem $ C.Set (C.Deref a) (C.Deref b)
-
-            x -> error (show x)
-
-        (Ref _ a, Value _ b) -> case base of
-            x | isSimple x -> set (Value typ $ C.Deref a) (Value typ b)
-
-            TypeApply (Sym "Tuple") ts -> do
-                -- TODO implement shear
-                let tupA = C.Deref (C.Member a "ptr")
-                let tupB = b
-
-                forM_ (zip ts [0..]) $ \(t, i) -> do
-                    let va = Value typ $ C.Member tupA ("m" ++ show i)
-                    let vb = Value typ $ C.Member tupB ("m" ++ show i)
-                    set va vb
-
-            TypeApply (Sym "Sum") ts | copyable ->
-                void $ appendElem $ C.Set (C.Deref a) b
-
-            x -> error (show x)
-
         (Value _ a, Value _ b) -> case base of
             TypeApply (Sym "Tuple") ts -> do
                 forM_ (zip ts [0..]) $ \(t, i) -> do
                     let va = Value t $ C.Member a ("m" ++ show i)
                     let vb = Value t $ C.Member b ("m" ++ show i)
                     set va vb
-
-            TypeApply (Sym "Table") t -> do
-                error ""
-    --            let cap = C.Member (valExpr a) "cap"
-    --            let len = C.Member (valExpr a) "len"
-    --            appendElem $ C.Set len (C.Member (valExpr b) "len")
-    --            appendElem $ C.Set cap (C.Member (valExpr b) "len")
-    --
-    --            ts <- getRecordTypes t
-    --            forM_ (zip ts [0..]) $ \(t, i) -> do
-    --                let size = C.Sizeof $ C.Deref $ C.Member (valExpr a) ("r" ++ show i)
-    --                appendElem $ C.Set -- a.rn = GC_malloc(sizeof(*a.rn) * a.cap
-    --                    (C.Member (valExpr a) ("r" ++ show i))
-    --                    (C.Call "GC_malloc" [C.Infix C.Times size cap])
-    --                
-    --                for (Value I64 len) $ \idx -> set
-    --                    (Value t $ C.Subscript (C.Member (valExpr a) ("r" ++ show i)) $ valExpr idx)
-    --                    (Value t $ C.Subscript (C.Member (valExpr b) ("r" ++ show i)) $ valExpr idx)
-
-    --        Type.Array n t -> do
-    --            for (i64 n) $ \idx -> do
-    --                sa <- subscript a idx
-    --                sb <- subscript b idx
-    --                set sa sb
-
             x -> error (show x)
+        x -> error (show x)
 
 
 len :: Value -> Generate Value

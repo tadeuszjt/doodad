@@ -190,10 +190,6 @@ generateStmt stmt = withPos stmt $ case stmt of
 
             call "assert" [false]
 
-    S.SetOp _ S.Eq index expr -> do
-        idx <- generateExpr index
-        set idx =<< generateExpr expr
-
     S.While _ expr stmt -> do
         id <- appendElem $ C.For Nothing Nothing Nothing []
         withCurID id $ do

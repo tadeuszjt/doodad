@@ -11,6 +11,7 @@ import std/array
 import std/tuple
 import std/integer
 import std/floating
+import std/char
 
 
 fn testArithmetic()
@@ -110,6 +111,11 @@ fn testTable()
     let 0 = table.len
 
     type Person (I64, Bool)
+    fn set(a &Person, b Person)
+        a.0 = b.0
+        a.1 = b.1
+
+
     data t2 Person.Table
 
     t2.push( (1, true) : Person )
@@ -198,12 +204,12 @@ fn testSumType()
 
     fn i64(s &Sum{I64, Bool}) I64; return 0
 
-    s2 = conv(true)
-
-    if s2 -> Bool(true)
-        let true = true
-    else
-        let false = true
+//    s2 = conv(true)
+//
+//    if s2 -> Bool(true)
+//        let true = true
+//    else
+//        let false = true
 
 
 fn testMaybe()

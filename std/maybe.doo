@@ -17,6 +17,10 @@ fn{T} construct(x T)   T.Maybe; return conv(x)
 fn{T} just(m &T.Maybe) &T     ; return &m.1
 
 
+fn{T} set(a &T.Maybe, b T.Maybe)
+    ${ memcpy($a, &$b, sizeof($b)); }
+
+
 fn{T} isJust(m &T.Maybe) Bool
     if m -> T(_)
         return true
