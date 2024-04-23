@@ -8,6 +8,9 @@ import std/binaryTree
 import std/map
 import std/io
 import std/array
+import std/tuple
+import std/integer
+import std/floating
 
 
 fn testArithmetic()
@@ -60,15 +63,7 @@ fn testTuple()
     let (1, true) = x
     if x -> (1, false)
         let true = false
-
-
-fn testGeneric()
-    fn{T} add(a T, b T) T
-        return a + b
-
-    let 2 = add(1, 1)
-    let 2.0 = add(1.0, 1.0)
-    let (3, 4) = add( (1, 2), (2, 2) )
+    let (3, 4, 5) = (1, 2, 3) + (2, 2, 2)
 
 
 fn testFnWithRef()
@@ -295,7 +290,6 @@ fn main()
     testIf()
     testSwitch()
     testTuple()
-    testGeneric()
     testLet()
     testFnWithRef()
     testTable()

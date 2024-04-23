@@ -196,10 +196,6 @@ collectPattern (PatAnnotated pattern patType) = collectPos pattern $ case patter
 
 collectExpr :: Expr -> DoM CollectState ()
 collectExpr (AExpr exprType expression) = collectPos expression $ case expression of
-    Prefix _ op expr -> do
-        collect $ ConsEq exprType (typeof expr)
-        collectExpr expr
-
     Float _ _ -> do
         collectDefault exprType F64
 
@@ -263,22 +259,6 @@ collectExpr (AExpr exprType expression) = collectPos expression $ case expressio
     Ident _ symbol -> do
         ObjVar typ <- look symbol 
         collect $ ConsEq typ exprType
-
-    Infix _ op expr1 expr2 -> do
-        collect $ ConsEq (typeof expr1) (typeof expr2)
-        case op of
-            _ | op `elem` [Plus, Minus, Times, Divide, Modulo] -> do
-                collect $ ConsEq exprType (typeof expr1)
-            _ | op `elem` [AST.LT, AST.GT, AST.LTEq, AST.GTEq, AST.EqEq, AST.NotEq]  -> do
-                collect (ConsBase exprType Type.Bool)
-                collectDefault exprType Type.Bool
-            _ | op `elem` [AndAnd, OrOr] -> do
-                collect (ConsBase exprType Type.Bool)
-                collectEq exprType (typeof expr1)
-            _ -> return ()
-
-        collectExpr expr1
-        collectExpr expr2
 
     Int _ n -> do
         collectDefault exprType I64

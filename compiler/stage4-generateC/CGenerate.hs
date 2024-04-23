@@ -126,6 +126,26 @@ not_ :: Value -> Value
 not_ (Value typ expr) = Value typ (C.Not expr)
 
 
+greaterEqual :: Value -> Value -> Generate Value
+greaterEqual a@(Value _ _) b@(Value _ _) = do
+    unless (typeof a == typeof b) (error "type mismatch")
+    base <- baseTypeOf a
+    case base of
+        I64 -> return $ Value Type.Bool $ C.Infix C.GTEq (valExpr a) (valExpr b)
+        x -> error (show x)
+
+
+equalEqual :: Value -> Value -> Generate Value
+equalEqual a@(Value _ _) b@(Value _ _) = do
+    unless (typeof a == typeof b) (error "type mismatch")
+    base <- baseTypeOf a
+    return $ Value Type.Bool $ case base of
+        I64       -> C.Infix C.EqEq (valExpr a) (valExpr b)
+        F64       -> C.Infix C.EqEq (valExpr a) (valExpr b)
+        Type.Bool -> C.Infix C.EqEq (valExpr a) (valExpr b)
+        x -> error (show x)
+
+
 assign :: String -> Value -> Generate Value
 assign suggestion val = do
     name <- fresh suggestion
@@ -376,10 +396,10 @@ builtinArrayAt value idx@(Value _ _) = do
 
     case value of
         Value _ expr -> case base of
-            TypeApply (Sym "Array") _ -> return $ Ref t $ C.Address $ C.Subscript
+            TypeApply _ _ -> return $ Ref t $ C.Address $ C.Subscript
                 (C.Member expr "arr")
                 (valExpr idx)
-            
+            TypeApply (Sym "Tuple") _ -> error "TODO"
             x -> error (show x)
         Ref _ expr -> case base of
             x | isSimple x -> return $ Ref t $ C.Address $ C.Subscript

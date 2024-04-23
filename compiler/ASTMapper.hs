@@ -114,7 +114,6 @@ mapExprM f expr = withPos expr $ do
         AST.Bool pos b        -> return $ AST.Bool pos b
         AST.Char pos c        -> return $ AST.Char pos c
         AST.Tuple pos exprs   -> AST.Tuple pos <$> mapM (mapExprM f) exprs
-        Prefix pos op expr    -> Prefix pos op <$> mapExprM f expr
         Call pos symbol exprs -> Call pos symbol <$> mapM (mapExprM f) exprs
 
         Field pos expr n -> do
@@ -124,11 +123,6 @@ mapExprM f expr = withPos expr $ do
         Builtin pos symbol es -> do
             es' <- mapM (mapExprM f) es
             return (Builtin pos symbol es')
-
-        Infix pos op expr1 expr2 -> do
-            expr1' <- mapExprM f expr1
-            expr2' <- mapExprM f expr2
-            return $ Infix pos op expr1' expr2'
 
         AST.Match pos expr pattern -> do
             expr' <- mapExprM f expr

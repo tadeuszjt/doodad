@@ -59,8 +59,6 @@ applyExpr subs expression = case expression of
     AST.Char pos c -> AST.Char pos c
     Call pos symbol args -> Call pos symbol (map applyEx args)
     Builtin pos symbol args -> Builtin pos symbol (map applyEx args)
-    Infix pos op expr1 expr2 -> Infix pos op (applyEx expr1) (applyEx expr2)
-    Prefix pos op expr -> Prefix pos op (applyEx expr)
     AST.Int pos n -> AST.Int pos n
     AST.Float pos n -> AST.Float pos n
     AST.String pos s -> AST.String pos s

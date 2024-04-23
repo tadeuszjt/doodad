@@ -19,21 +19,7 @@ data AST
 
 
 data Operator
-    = Plus
-    | Minus
-    | Times
-    | Divide
-    | Modulo
-    | LT
-    | GT
-    | Eq
-    | LTEq
-    | GTEq
-    | EqEq
-    | OrOr
-    | AndAnd
-    | NotEq
-    | Not
+    = Eq
     | PlusEq
     deriving (Eq, Ord)
 
@@ -96,8 +82,6 @@ data Expr
     | Field        TextPos Expr Int
     | Ident        TextPos Symbol
     | Builtin      TextPos String [Expr]
-    | Prefix       TextPos Operator Expr
-    | Infix        TextPos Operator Expr Expr
     | Match        TextPos Expr Pattern
     | Reference    TextPos Expr
     deriving (Eq)
@@ -159,8 +143,6 @@ instance TextPosition Expr where
         Ident        p _    -> p
         Call         p _ _ -> p 
         Builtin      p _ _ -> p 
-        Prefix       p _ _ -> p
-        Infix        p _ _ _ -> p
         Match        p _ _ -> p
         Reference    p _ -> p
         _ -> error (show expression)
@@ -207,21 +189,7 @@ instance Show Retty where
 
 instance Show Operator where
     show operator = case operator of
-        Plus   -> "+"
-        Minus  -> "-"
-        Times  -> "*"
-        Divide -> "/"
-        Modulo -> "%"
-        LT     -> "<"
-        GT     -> ">"
         Eq     -> "="
-        LTEq   -> "<="
-        GTEq   -> ">="
-        EqEq   -> "=="
-        OrOr   -> "||"
-        AndAnd -> "&&"
-        NotEq  -> "!="
-        Not    -> "!"
         PlusEq -> "+="
 
 instance Show AnnoType where
@@ -254,8 +222,6 @@ instance Show Expr where
         Tuple pos exprs                    -> tupStrs (map show exprs)
         Field pos expr symbol              -> show expr ++ "." ++ show symbol
         Ident p s                          -> show s 
-        Prefix pos op expr                 -> show op ++ show expr
-        Infix pos op expr1 expr2           -> show expr1 ++ " " ++ show op ++ " " ++ show expr2
         Call pos symbol exprs              -> show symbol ++ tupStrs (map show exprs)
         Builtin pos sym exprs              -> sym ++ tupStrs (map show exprs)
         Match pos expr1 expr2              -> "(" ++ show expr1 ++ " -> " ++ show expr2 ++ ")"

@@ -140,12 +140,6 @@ checkExpr (AExpr exprType expression) = withPos expression $ case expression of
     Ident pos symbol -> do
         look symbol
 
-    -- ensures no multiple references active
-    Infix pos op expr1 expr2 -> do
-        node1 <- checkExpr expr1
-        node2 <- checkExpr expr2
-        return NodeNull
-
     -- return objects from mparam if returns record
     Call pos symbol exprs -> do
         ast <- gets astResolved
@@ -184,9 +178,6 @@ checkExpr (AExpr exprType expression) = withPos expression $ case expression of
         return NodeNull
 
     Builtin pos symbol exprs -> return NodeNull
-
-    Prefix pos op expr -> do
-        return NodeNull
 
     AST.Reference pos expr -> checkExpr expr
 

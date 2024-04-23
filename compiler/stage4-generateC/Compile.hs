@@ -224,10 +224,10 @@ generateStmt stmt = withPos stmt $ case stmt of
 
             -- check that index is still in range
             idxGtEq <- case base of
-                TypeApply (Sym "Table") _  -> generateInfix S.GTEq idx =<< len val
-                TypeApply (Sym "Array") [_, Size n]  -> generateInfix S.GTEq idx (i64 n)
-                TypeApply (Sym "Tuple") [_, _] -> generateInfix S.GTEq idx =<< member 1 val
-                Slice t -> generateInfix S.GTEq idx =<< len val
+                TypeApply (Sym "Table") _  -> error "here"--generateInfix S.GTEq idx =<< len val
+                TypeApply (Sym "Array") [_, Size n]  -> error "here" -- generateInfix S.GTEq idx (i64 n)
+                TypeApply (Sym "Tuple") [_, _] -> error "here" -- generateInfix S.GTEq idx =<< member 1 val
+                Slice t -> greaterEqual idx =<< len val
                 x -> error (show x)
             if_ idxGtEq (appendElem C.Break)
 
@@ -252,7 +252,9 @@ generatePattern :: Pattern -> Value -> Generate Value
 generatePattern pattern val = withPos pattern $ do
     case pattern of
         PatIgnore _ -> return true
-        PatLiteral expr -> generateInfix S.EqEq val =<< generateExpr expr
+        PatLiteral expr -> do
+            d <- deref val
+            equalEqual d =<< generateExpr expr
         PatAnnotated pat typ -> generatePattern pat val
 
         PatIdent _ symbol -> do 
@@ -294,7 +296,8 @@ generatePattern pattern val = withPos pattern $ do
             let Just i = elemIndex fieldType ts
 
             endLabel <- fresh "skipMatch"
-            match <- assign "match" =<< generateInfix S.EqEq (i64 i) =<< adtEnum val
+            match <- assign "match" =<< (Value Type.Bool . C.Infix C.EqEq (C.Int $ fromIntegral i) . valExpr <$> adtEnum val)
+
             if_ (not_ match) $ appendElem $ C.Goto endLabel
             set match false
 
@@ -377,23 +380,6 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
             Ref _ _   -> tableAppend val >> return (Value Void $ C.Int 0)
 
 
-    S.Prefix _ op a -> do
-        val <- generateExpr a
-        base <- baseTypeOf val
-        case base of
-            Type.Bool -> case op of
-                S.Not -> return (not_ val)
-            Type.I64 -> case op of
-                S.Minus -> generateInfix S.Minus (i64 0) val
-            Type.F32 -> case op of
-                S.Minus -> return $ Value (typeof val) $ C.Prefix C.Minus (valExpr val)
-            _ -> error (show base) 
-
-    S.Infix _ op a b -> do
-        valA <- generateExpr a
-        valB <- generateExpr b
-        generateInfix op valA valB
-
     S.Call _ symbol exprs -> do
         check (symbolIsResolved symbol) ("unresolved function call: " ++ show symbol)
 
@@ -445,94 +431,3 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
             unless (typeof r == typ) $ error ("generateExpr returned incorrect type: " ++ show (typeof r))
             return r
 generateExpr x = fail $ "unresolved expression: " ++ show x
-            
-
-generateInfix :: S.Operator -> Value -> Value -> Generate Value
-generateInfix op a' b' = do
-    a <- deref a'
-    b <- deref b'
-
-    unless (typeof a == typeof b) (error "type mismatch")
-    base <- baseTypeOf a
-    case base of
-        _ | base `elem` [Type.I8, Type.I16, Type.I32, Type.I64, Type.U8, Type.F32, Type.F64] ->
-            return $ case op of
-                S.Plus ->   Value (typeof a) $ C.Infix C.Plus (valExpr a) (valExpr b) 
-                S.Times ->  Value (typeof a) $ C.Infix C.Times (valExpr a) (valExpr b) 
-                S.Minus ->  Value (typeof a) $ C.Infix C.Minus (valExpr a) (valExpr b)
-                S.Modulo -> Value (typeof a) $ C.Infix C.Modulo (valExpr a) (valExpr b)
-                S.Divide -> Value (typeof a) $ C.Infix C.Divide (valExpr a) (valExpr b)
-                S.LT ->     Value Type.Bool  $ C.Infix C.LT (valExpr a) (valExpr b)
-                S.GT ->     Value Type.Bool  $ C.Infix C.GT (valExpr a) (valExpr b)
-                S.LTEq ->   Value Type.Bool  $ C.Infix C.LTEq (valExpr a) (valExpr b)
-                S.EqEq ->   Value Type.Bool  $ C.Infix C.EqEq (valExpr a) (valExpr b)
-                S.GTEq ->   Value Type.Bool  $ C.Infix C.GTEq (valExpr a) (valExpr b)
-                S.NotEq ->  Value Type.Bool  $ C.Infix C.NotEq (valExpr a) (valExpr b)
-                _ -> error (show op)
-
-        Type.Bool -> return $ case op of
-            S.AndAnd -> Value (typeof a) $ C.Infix C.AndAnd (valExpr a) (valExpr b)
-            S.OrOr   -> Value (typeof a) $ C.Infix C.OrOr (valExpr a) (valExpr b)
-            S.EqEq   -> Value (typeof a) $ C.Infix C.EqEq (valExpr a) (valExpr b)
-            S.LT     -> Value (typeof a) $ C.Infix C.LT (valExpr a) (valExpr b)
-            S.GT     -> Value (typeof a) $ C.Infix C.GT (valExpr a) (valExpr b)
-            _ -> error (show op)
-
-        Type.Char -> return $ case op of
-            S.Minus -> Value (typeof a) $ C.Infix C.Minus (valExpr a) (valExpr b)
-            S.EqEq  -> Value Type.Bool $ C.Infix (C.EqEq) (valExpr a) (valExpr b)
-            S.NotEq -> Value Type.Bool $ C.Infix (C.NotEq) (valExpr a) (valExpr b)
-            o -> error (show o)
-
---        Type.String -> case op of
---            S.Plus -> return $ Value (typeof a) (C.Call "doodad_string_plus" [valExpr a, valExpr b])
---            S.EqEq -> return $ Value Type.Bool  (C.Call "doodad_string_eqeq" [valExpr a, valExpr b])
---            S.NotEq -> return $ Value Type.Bool $ C.Not (C.Call "doodad_string_eqeq" [valExpr a, valExpr b]) 
---            S.LT   -> return $ Value Type.Bool  (C.Call "doodad_string_lt"   [valExpr a, valExpr b])
---            S.GT   -> return $ Value Type.Bool  (C.Call "doodad_string_gt"   [valExpr a, valExpr b])
---            _ -> error (show op)
-
-
-        TypeApply (Sym "Tuple") ts -> do
-            res <- assign "res" =<< case op of
-                S.Plus -> initialiser (typeof a) []
-                _      -> return true
-
-            withFakeSwitch $ do
-                forM_ (zip ts [0..]) $ \(t, i) -> do
-                    let ma = Value t $ C.Member (valExpr a) ("m" ++ show i)
-                    let mb = Value t $ C.Member (valExpr b) ("m" ++ show i)
-                    eq <- generateInfix S.EqEq ma mb
-                    case op of
-                        S.NotEq -> void $ if_ (not_ eq) (appendElem C.Break)
-                        S.EqEq -> if_ (not_ eq) $ do
-                            set res false
-                            void $ appendElem C.Break
-
-                        S.LT -> do
-                            lt <- generateInfix S.LT ma mb
-                            if_ lt (appendElem C.Break)
-                            void $ if_ (not_ eq) $ do
-                                set res false
-                                appendElem C.Break
-
-                        S.GT -> do
-                            gt <- generateInfix S.GT ma mb
-                            if_ gt (appendElem C.Break)
-                            void $ if_ (not_ eq) $ do
-                                set res false
-                                appendElem C.Break
-
-                        S.Plus -> do
-                            let mr = Value t $ C.Member (valExpr res) ("m" ++ show i)
-                            void $ set mr =<< generateInfix S.Plus ma mb
-
-                case op of
-                    S.NotEq -> set res false
-                    S.LT    -> set res false
-                    S.GT    -> set res false
-                    _       -> return ()
-
-            return res
-            
-        _ -> error $ show (base, op)

@@ -16,6 +16,12 @@ type Square Sum{
 
 type Board Square.Array{3}.Array{3}
 
+fn construct() Empty
+    let e : Empty
+    return e
+
+fn construct(e Empty) Square; return conv(e)
+
 
 //fn String(sq Square) string
 //    switch sq
@@ -42,15 +48,18 @@ fn printBoard(io &Io, b Board)
         io.putStrLn("]")
 
 
-//fn winner(b Board) Square
-//    // check for horizontal lines
-//    for b -> row
-//        let match = true
-//        for row -> sq
-//            if sq != row[0]; match = false
-//        if match && row[0] != Empty()
-//            return row[0]
-//
+fn winner(board Board) Square
+    // check for horizontal lines
+    for board -> row
+        let match = true
+
+        for row -> square
+            if square != row[0]
+                match = false
+
+        if match && row[0] != Square(Empty())
+            return row[0]
+
 //    // check for vertical lines
 //    for b[0][..] -> col
 //        let match = true

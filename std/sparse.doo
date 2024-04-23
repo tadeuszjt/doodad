@@ -1,6 +1,7 @@
 module sparse
 
 import std/table
+import std/bool
 
 type{T} Key    I64
 type{T} Sparse Tuple{
@@ -37,7 +38,7 @@ fn{T} insert(s &T.Sparse, value T) T.Key
 
 
 fn{T} delete(s &T.Sparse, key T.Key)
-    if key == T.Key(s.values.len - 1)
+    if I64(key) == (s.values.len - 1)
         s.values.pop
     else
         s.empty.push(key)

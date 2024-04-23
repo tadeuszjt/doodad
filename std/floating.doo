@@ -1,0 +1,13 @@
+module floating
+
+fn add(a F64, b F64) F64
+    let r : F64
+    ${ $r = $a + $b; }
+    return r
+
+fn divide(a F64, b F64) F64
+    let r : F64
+    ${ $r = $a / $b; }
+    return r
+
+

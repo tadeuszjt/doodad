@@ -1,0 +1,7 @@
+module bool
+
+
+fn andAnd(a Bool, b Bool) Bool
+    let c : Bool
+    ${ $c = $a && $b; }
+    return c

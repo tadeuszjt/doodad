@@ -1,0 +1,37 @@
+module integer
+
+fn add(a I64, b I64) I64
+    let r : I64
+    ${ $r = $a + $b; }
+    return r
+
+fn subtract(a I64, b I64) I64
+    let r : I64
+    ${ $r = $a - $b; }
+    return r
+
+fn divide(a I64, b I64) I64
+    let r : I64
+    ${ $r = $a / $b; }
+    return r
+
+
+fn less(a I64, b I64) Bool
+    let r : Bool
+    ${ $r = $a < $b; }
+    return r
+
+fn greater(a I64, b I64) Bool
+    let r : Bool
+    ${ $r = $a > $b; }
+    return r
+
+fn equalEqual(a I64, b I64) Bool
+    let r : Bool
+    ${ $r = $a == $b; }
+    return r
+
+fn notEqual(a I64, b I64) Bool
+    let r : Bool
+    ${ $r = $a != $b; }
+    return r
