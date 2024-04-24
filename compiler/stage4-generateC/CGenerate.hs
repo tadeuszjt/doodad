@@ -85,10 +85,11 @@ addFuncRefType :: Symbol -> Bool -> Generate ()
 addFuncRefType symbol b = do
     modify $ \s -> s { refFuncs = Map.insert symbol b (refFuncs s) }
 
+
 getFuncRefType :: Symbol -> Generate Bool
 getFuncRefType symbol = do
     refFuncs <- gets refFuncs
-    return $ refFuncs Map.! symbol
+    mapGet symbol refFuncs
 
 
 define :: String -> Value -> Generate ()

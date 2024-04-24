@@ -93,6 +93,12 @@ isSimple typ = case typ of
 
 isIntegral x = isInt x || x == Char
 
+
+isGeneric :: Type -> Bool
+isGeneric (TypeApply s ts) = "<generic>" `isPrefixOf` (Symbol.sym s)
+isGeneric _                = False
+
+
 mapType :: (Type -> Type) -> Type -> Type
 mapType f typ = f $ case typ of
     U8 -> typ
@@ -150,9 +156,7 @@ applyTypeArguments argSymbols argTypes typ = do
 
         TypeApply s ts -> case elemIndex s argSymbols of
             Just x  -> error (show x)
-            Nothing -> do
-                ts' <- mapM (applyTypeArguments argSymbols argTypes) ts
-                return $ TypeApply s ts'
+            Nothing -> TypeApply s <$> mapM (applyTypeArguments argSymbols argTypes) ts
 
         _ | isSimple typ -> return typ
         Void             -> return typ
@@ -160,8 +164,8 @@ applyTypeArguments argSymbols argTypes typ = do
         _                -> error $ "applyTypeArguments: " ++ show typ
 
 
-typesCouldMatch :: TypeDefs m => [Symbol] -> Type -> Type -> m Bool
-typesCouldMatch generics t1 t2 = couldMatch t1 t2
+typesCouldMatch :: TypeDefs m => Type -> Type -> m Bool
+typesCouldMatch t1 t2 = couldMatch t1 t2
     where
         couldMatch :: TypeDefs m => Type -> Type -> m Bool
         couldMatch t1 t2 = case (t1, t2) of
@@ -171,23 +175,23 @@ typesCouldMatch generics t1 t2 = couldMatch t1 t2
             (Slice a, Slice b)         -> couldMatch a b
 
             (TypeApply s1 ts1, TypeApply s2 ts2)
-                | (s1 `elem` generics && s2 `elem` generics) || (s1 == s2) -> do
+                | (isGeneric t1 && isGeneric t2) || (s1 == s2) -> do
                     bs <- zipWithM couldMatch ts1 ts2
                     return $ length ts1 == length ts2 && all id bs
 
-            (x, TypeApply s ts) | s `elem` generics -> return True
-            (TypeApply s ts, x) | s `elem` generics -> return True
+            (x, TypeApply s ts) | isGeneric t2 -> return True
+            (TypeApply s ts, x) | isGeneric t1 -> return True
 
             _ -> return False
 
+
 typeFullyResolved :: Type -> Bool
 typeFullyResolved typ = case typ of
-    TypeApply s ts
-        | isPrefixOf "<generic>" (Symbol.sym s) -> False
-        | otherwise -> all typeFullyResolved ts
-    Type _                          -> False
-    Slice t                         -> typeFullyResolved t
-    x | isSimple x                  -> True
-    Void                            -> True
-    Size _                          -> True
+    x | isGeneric x -> False
+    x | isSimple x -> True
+    TypeApply s ts -> all typeFullyResolved ts
+    Slice t        -> typeFullyResolved t
+    Void           -> True
+    Size _         -> True
+    Type _         -> False
     x -> error $ "typeFullyResolved: " ++ show x

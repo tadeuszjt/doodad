@@ -38,13 +38,13 @@ lookupHead sym key []    = Nothing
 lookupHead sym key (s:_) = lookup sym key [s]
 
 
-deleteHead :: (Ord s, Ord k) => s -> k -> SymTab s k o -> SymTab s k o
-deleteHead sym key [] = []
-deleteHead sym key (s:ss)
-    | isNothing (Map.lookup sym s)             = (s:ss)
-    | isNothing (Map.lookup key $ s Map.! sym) = (s:ss)
-    | Map.size (s Map.! sym) == 1              = (Map.delete sym s:ss)
-    | otherwise                                = (Map.adjust (Map.delete key) sym s:ss)
+--deleteHead :: (Ord s, Ord k) => s -> k -> SymTab s k o -> SymTab s k o
+--deleteHead sym key [] = []
+--deleteHead sym key (s:ss)
+--    | isNothing (Map.lookup sym s)             = (s:ss)
+--    | isNothing (Map.lookup key $ s Map.! sym) = (s:ss)
+--    | Map.size (s Map.! sym) == 1              = (Map.delete sym s:ss)
+--    | otherwise                                = (Map.adjust (Map.delete key) sym s:ss)
 
 
 map :: (o1 -> o2) -> SymTab s k o1 -> SymTab s k o2

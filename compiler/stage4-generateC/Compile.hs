@@ -39,7 +39,7 @@ generate ast = withErrorPrefix "generate: " $ do
     -- generate function headers
     forM_ (Map.toList $ funcDefs ast) $ \(symbol, func) -> do
          unless (isGenericBody func) $ do
-            case (ASTResolved.funcRetty func) of
+            case ASTResolved.funcRetty func of
                 Retty _    -> addFuncRefType symbol False
                 RefRetty _ -> addFuncRefType symbol True
                 _ -> return ()
@@ -51,6 +51,27 @@ generate ast = withErrorPrefix "generate: " $ do
                 x -> error (show x)
 
             newExtern (show symbol) crt cats
+
+    -- generate function headers
+    forM_ (Map.toList $ funcInstances ast) $ \(symbol, func) -> do
+         unless (isGenericBody func) $ do
+            case ASTResolved.funcRetty func of
+                Retty _    -> addFuncRefType symbol False
+                RefRetty _ -> addFuncRefType symbol True
+                _ -> return ()
+
+            crt <- cRettyType (ASTResolved.funcRetty func) 
+            cats <- forM (ASTResolved.funcArgs func) $ \param -> case param of
+                S.Param _ _ _ -> cTypeOf param
+                S.RefParam _ _ _ -> cRefTypeOf param
+                x -> error (show x)
+
+            newExtern (show symbol) crt cats
+
+    -- generate functions, main is a special case
+    forM_ (Map.toList $ funcInstances ast) $ \(symbol, func) -> do
+        unless (isGenericBody func) $ do
+            generateFunc symbol func
 
     -- generate functions, main is a special case
     forM_ (Map.toList $ funcDefs ast) $ \(symbol, func) -> do
@@ -67,6 +88,7 @@ generate ast = withErrorPrefix "generate: " $ do
                     call (show symbol) []
                     void $ appendElem $ C.Return $ C.Int 0
                 withCurID globalID (append id)
+
 
 cRettyType :: S.Retty -> Generate C.Type
 cRettyType retty = case retty of

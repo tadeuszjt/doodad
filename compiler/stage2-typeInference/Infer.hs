@@ -51,7 +51,13 @@ infer ast printAnnotated verbose = runDoMUntilSameResult ast $ \ast -> do
                         fmap fst (runDoMUntilSameResult func inferFunc)
                     _  -> return func
 
-            return (ast { funcDefs = funcDefs' })
+            funcInstances' <- forM (funcInstances ast) $ \func -> do
+                case funcGenerics func of
+                    [] -> fmap fst $ runDoMExcept ast $
+                        fmap fst (runDoMUntilSameResult func inferFunc)
+                    _  -> return func
+
+            return (ast { funcDefs = funcDefs', funcInstances = funcInstances' })
 
 
         inferDefaults :: ASTResolved -> DoM s ASTResolved
@@ -62,4 +68,10 @@ infer ast printAnnotated verbose = runDoMUntilSameResult ast $ \ast -> do
                         fmap fst (runDoMUntilSameResult func inferFuncDefaults)
                     _  -> return func
 
-            return (ast { funcDefs = funcDefs' })
+            funcInstances' <- forM (funcInstances ast) $ \func -> do
+                case funcGenerics func of
+                    [] -> fmap fst $ runDoMExcept ast $
+                        fmap fst (runDoMUntilSameResult func inferFuncDefaults)
+                    _  -> return func
+
+            return (ast { funcDefs = funcDefs', funcInstances = funcInstances' })

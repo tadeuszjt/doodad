@@ -22,6 +22,25 @@ import Monad
 -- Function Finder contains functions which can determine whether a generic function could match
 -- a function call. This involves using a smaller version of the type inference algorithm to replace
 -- generic symbols with resolved types.
+
+
+findInstance :: CallHeader -> DoM ASTResolved (Maybe Symbol)
+findInstance call = do
+    funcInstances <- gets funcInstances
+    candidates <- fmap catMaybes $ forM (Map.toList funcInstances) $ \(symbol, body) -> do
+        let match = (Symbol.sym (callSymbol call) == Symbol.sym symbol) &&
+                    (callRetType call == (typeof $ funcRetty body)) &&
+                    (callArgTypes call == (map typeof $ funcArgs body))
+        case match of
+            True -> return (Just symbol)
+            False -> return Nothing
+    case candidates of
+        [] -> return Nothing
+        [x] -> return (Just x)
+
+
+
+
 findCandidates :: CallHeader -> DoM ASTResolved [CallHeader]
 findCandidates call = do
     ast <- get
@@ -61,12 +80,12 @@ callCouldMatchFunc call symbol body = do
     where
         typesMatch :: TypeDefs m => [Type] -> [Type] -> m Bool
         typesMatch ts1 ts2 = do
-            bs <- zipWithM (typesCouldMatch (funcGenerics body)) ts1 ts2
+            bs <- zipWithM typesCouldMatch ts1 ts2
             return $ (length ts1 == length ts2) && (all id bs)
 
         symbolsMatch    = symbolsCouldMatch (callSymbol call) symbol
         argsMatch       = typesMatch (callArgTypes call) (map typeof $ funcArgs body)
-        rettyMatch      = typesCouldMatch (funcGenerics body) (callRetType call) (typeof $ funcRetty body)
+        rettyMatch      = typesCouldMatch (callRetType call) (typeof $ funcRetty body)
 
 
 funcFullyResolved :: FuncBody -> Bool

@@ -17,6 +17,7 @@ data ASTResolved
         , typeFuncs       :: Type.TypeDefsMap                -- defined type functions
         , funcImports     :: Map.Map Symbol FuncBody         -- imported funcs
         , funcDefs        :: Map.Map Symbol FuncBody         -- defined functions
+        , funcInstances   :: Map.Map Symbol FuncBody
         , symSupply       :: Map.Map String Int              -- type supply from resovle
         }
     deriving (Eq)
@@ -59,6 +60,8 @@ isGenericFunction symbol ast = if Map.member symbol (funcDefs ast) then
         isGenericBody (funcDefs ast Map.! symbol)
     else if Map.member symbol (funcImports ast) then
         isGenericBody (funcImports ast Map.! symbol)
+    else if Map.member symbol (funcInstances ast) then
+        isGenericBody (funcInstances ast Map.! symbol)
     else False
 
 
@@ -67,6 +70,8 @@ isNonGenericFunction symbol ast = if Map.member symbol (funcDefs ast) then
         not $ isGenericBody (funcDefs ast Map.! symbol)
     else if Map.member symbol (funcImports ast) then
         not $ isGenericBody (funcImports ast Map.! symbol)
+    else if Map.member symbol (funcInstances ast) then
+        not $ isGenericBody (funcInstances ast Map.! symbol)
     else False
 
 
@@ -81,6 +86,8 @@ getFunctionGenerics symbol ast = if Map.member symbol (funcDefs ast) then
         let body = funcDefs ast Map.! symbol in funcGenerics body
     else if Map.member symbol (funcImports ast) then
         let body = funcImports ast Map.! symbol in funcGenerics body
+    else if Map.member symbol (funcInstances ast) then
+        let body = funcInstances ast Map.! symbol in funcGenerics body
     else error ("symbol is not function: " ++ show symbol)
 
 
@@ -89,6 +96,8 @@ getFunctionCallHeader symbol ast = if Map.member symbol (funcDefs ast) then
         let body = funcDefs ast Map.! symbol in CallHeader symbol (map typeof $ funcArgs body) (typeof $ funcRetty body)
     else if Map.member symbol (funcImports ast) then
         let body = funcImports ast Map.! symbol in CallHeader symbol (map typeof $ funcArgs body) (typeof $ funcRetty body)
+    else if Map.member symbol (funcInstances ast) then
+        let body = funcInstances ast Map.! symbol in CallHeader symbol (map typeof $ funcArgs body) (typeof $ funcRetty body)
     else error ("symbol is not function: " ++ show symbol)
 
 
@@ -97,6 +106,8 @@ getFunctionBody symbol ast = if Map.member symbol (funcDefs ast) then
         funcDefs ast Map.! symbol
     else if Map.member symbol (funcImports ast) then
         funcImports ast Map.! symbol
+    else if Map.member symbol (funcInstances ast) then
+        funcInstances ast Map.! symbol
     else error ("symbol is not function: " ++ show symbol)
 
 

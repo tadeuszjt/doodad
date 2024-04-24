@@ -22,6 +22,13 @@ import FunctionFinder
 compile :: Bool -> DoM ASTResolved ()
 compile verbose = do
     --when verbose $ liftIO $ putStrLn $ "cleaning..."
+    funcInstances <- gets funcInstances
+    forM_ (Map.toList funcInstances) $ \(symbol, body) -> do
+        when (funcGenerics body == []) $ do
+            stmt' <- (mapStmtM cleanUpMapper) (funcStmt body)
+            body' <- return body { funcStmt = stmt' }
+            modify $ \s -> s { funcInstances = Map.insert symbol body' (ASTResolved.funcInstances s) }
+
     funcDefs <- gets funcDefs
     forM_ (Map.toList funcDefs) $ \(symbol, body) -> do
         when (funcGenerics body == []) $ do
@@ -62,46 +69,27 @@ resolveFuncCall exprType (AST.Call pos calledSymbol args) = withPos pos $ do
     candidates <- map callSymbol <$> findCandidates callHeader
     ast <- get
 
---    liftIO $ putStrLn $ "resolveFuncCall: " ++ show callHeader ++ ", " ++ show pos
---    forM_ candidates $ \cand -> do
---        liftIO $ putStrLn $ "\tcandidate: " ++ show (getFunctionCallHeader cand ast)
-
     case candidates of
         [] -> fail $ "no candidates for: " ++ show callHeader
 
         [symbol] | isNonGenericFunction symbol ast -> return symbol
         [symbol] | isGenericFunction symbol ast    -> do -- this is where we replace
-            let genericBody = getFunctionBody symbol ast
-            bodyReplaced <- replaceGenericsInFuncBodyWithCall genericBody callHeader
-            --liftIO $ putStrLn $ "new body: " ++ show bodyReplaced
+            bodyReplaced <- replaceGenericsInFuncBodyWithCall
+                (getFunctionBody symbol ast)
+                callHeader
+
             case funcFullyResolved bodyReplaced of
                 False -> return calledSymbol
                 True  -> do
-                    symbol' <- genSymbol (Symbol.sym calledSymbol)
-                    modify $ \s -> s { funcDefs = Map.insert symbol' bodyReplaced (funcDefs s) }
-                    return symbol'
-                    --return calledSymbol -- TODO don't instantiate functions here. leave for Compile
-
-        [genericSymbol, nonGenericSymbol] |
-            isGenericFunction genericSymbol ast &&
-            isNonGenericFunction nonGenericSymbol ast -> do
-                let genericBody = getFunctionBody genericSymbol ast
-                let nonGenericBody = getFunctionBody nonGenericSymbol ast
-                bodyReplaced <- replaceGenericsInFuncBodyWithCall genericBody callHeader
-                case funcHeaderTypesMatch bodyReplaced nonGenericBody of
-                    True -> return nonGenericSymbol
-                    False -> return calledSymbol
-
-        [nonGenericSymbol, genericSymbol] |
-            isGenericFunction genericSymbol ast &&
-            isNonGenericFunction nonGenericSymbol ast -> do
-                return nonGenericSymbol
-                --liftIO $ putStrLn "should be here"
-                let nonGenericBody = getFunctionBody nonGenericSymbol ast
-                let genericBody = getFunctionBody genericSymbol ast
-                bodyReplaced <- replaceGenericsInFuncBodyWithCall genericBody callHeader
-                case funcHeaderTypesMatch bodyReplaced nonGenericBody of
-                    True -> return nonGenericSymbol
-                    False -> return calledSymbol
+                    instancem <- findInstance $ CallHeader
+                        symbol
+                        (map typeof $ funcArgs bodyReplaced)
+                        (typeof $ funcRetty bodyReplaced)
+                    case instancem of
+                        Just s -> return s
+                        Nothing -> do
+                            symbol' <- genSymbol (Symbol.sym calledSymbol)
+                            modify $ \s -> s { funcInstances = Map.insert symbol' bodyReplaced (funcInstances s) }
+                            return symbol'
 
         _ -> return (calledSymbol)
