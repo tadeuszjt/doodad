@@ -230,16 +230,12 @@ prettyAST ast = do
 prettyStmt :: String -> Stmt -> IO ()
 prettyStmt pre stmt = case stmt of
     FuncDef pos typeArgs params symbol args retty blk -> do
-        typeArgsStr <- case typeArgs of
+        genericsStr <- case typeArgs of
             [] -> return ""
-            as -> return $ arrStrs $ map show as
-        paramStr <- case params of
-            [] -> return ""
-            ps -> return $ brcStrs $ map show ps
+            as -> return $ brcStrs (map show as)
         putStrLn $ pre
             ++ "fn"
-            ++ typeArgsStr ++ " "
-            ++ paramStr
+            ++ genericsStr ++ " "
             ++ show symbol
             ++ tupStrs (map show args)
             ++ " "

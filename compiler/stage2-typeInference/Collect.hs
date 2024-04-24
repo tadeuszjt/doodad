@@ -15,10 +15,7 @@ import Symbol
 import ASTResolved
 
 
-type SymTab = SymTab.SymTab Symbol () Object
-data Object
-    = ObjVar Type
-    deriving (Show, Eq)
+type SymTab = SymTab.SymTab Symbol () Type
 
 data CollectState
     = CollectState
@@ -51,22 +48,20 @@ collect :: Constraint -> DoM CollectState ()
 collect constraint =
     modify $ \s -> s { collected = Map.insert (constraint) (curPos s) (collected s) }
 
-collectEq :: Type -> Type -> DoM CollectState ()
-collectEq t1 t2 = collect (ConsEq t1 t2)
 
 collectDefault :: Type -> Type -> DoM CollectState ()
 collectDefault t1 t2 = do
     modify $ \s -> s { defaults = Map.insert (ConsEq t1 t2) (curPos s) (defaults s) }
 
 
-look :: Symbol -> DoM CollectState Object
+look :: Symbol -> DoM CollectState Type
 look symbol = do
     rm <- SymTab.lookup symbol () <$> gets symTab
     unless (isJust rm) (fail $ show symbol ++ " undefined")
     return (fromJust rm)
 
 
-define :: Symbol -> Object -> DoM CollectState ()
+define :: Symbol -> Type -> DoM CollectState ()
 define symbol obj = do
     resm <- SymTab.lookupHead symbol () <$> gets symTab
     unless (isNothing resm) (error $ show symbol ++ " already defined")
@@ -78,18 +73,18 @@ collectAST verbose ast = do
     --when verbose $ liftIO $ putStrLn "collecting..."
     forM_ (Map.toList $ funcDefs ast) $ \(symbol, body) ->
         when (funcGenerics body == []) $
-            collectFuncDef symbol body
+            collectFuncDef body
 
 
-collectFuncDef :: Symbol -> FuncBody -> DoM CollectState ()
-collectFuncDef symbol body = do
+collectFuncDef :: FuncBody -> DoM CollectState ()
+collectFuncDef body = do
     modify $ \s -> s { symTab = SymTab.push (symTab s) }
     oldRetty <- gets curRetty
     modify $ \s -> s { curRetty = typeof (funcRetty body) }
     forM (funcParams body) $ \(Param _ symbol t) -> error ""
     forM_ (funcArgs body) $ \param -> case param of
-        (Param _ symbol t) -> define symbol (ObjVar t)
-        (RefParam _ symbol t) -> define symbol (ObjVar t)
+        (Param _ symbol t) -> define symbol t
+        (RefParam _ symbol t) -> define symbol t
 
     collectStmt (funcStmt body)
 
@@ -147,19 +142,20 @@ collectStmt statement = collectPos statement $ case statement of
         collectExpr expr
 
     Data _ symbol typ mexpr -> do
-        define symbol (ObjVar typ)
-        void $ traverse (collectEq typ . typeof) mexpr
+        define symbol typ
+        void $ traverse (collect . ConsEq typ . typeof) mexpr
         void $ traverse collectExpr mexpr
 
     x -> error (show x)
+
 
 collectPattern :: Pattern -> DoM CollectState ()
 collectPattern (PatAnnotated pattern patType) = collectPos pattern $ case pattern of
     PatIgnore _           -> return ()
     PatIdent _ symbol     -> do
-        define symbol (ObjVar patType)
+        define symbol patType
     PatLiteral expr       -> do
-        collectEq patType (typeof expr)
+        collect $ ConsEq patType (typeof expr)
         collectExpr expr
     PatGuarded _ pat expr -> do
         collect $ ConsBase Type.Bool (typeof expr)
@@ -173,8 +169,8 @@ collectPattern (PatAnnotated pattern patType) = collectPos pattern $ case patter
         mapM_ collectPattern pats
 
     PatAnnotated pat t -> do
-        collectEq t patType
-        collectEq t (typeof pat)
+        collect $ ConsEq t patType
+        collect $ ConsEq t (typeof pat)
         collectPattern pat
 
     PatTypeField _ typ pats -> do
@@ -235,7 +231,7 @@ collectExpr (AExpr exprType expression) = collectPos expression $ case expressio
 
             "builtin_table_append" -> do
                 check (length exprs == 1) "invalid builtin_table_append call"
-                collectEq exprType Void
+                collect $ ConsEq exprType Void
 
             "builtin_table_slice" -> do
                 check (length exprs == 1) "invalid builtin_table_slice call"
@@ -246,12 +242,12 @@ collectExpr (AExpr exprType expression) = collectPos expression $ case expressio
                 check (length exprs == 2) "invalid assert exprs"
                 collect $ ConsBase (typeof $ exprs !! 0) Type.Bool
                 collect $ ConsBase (typeof $ exprs !! 1) (Type.Slice Type.Char)
-                collectEq exprType Void
+                collect $ ConsEq exprType Void
 
         mapM_ collectExpr exprs
 
     Ident _ symbol -> do
-        ObjVar typ <- look symbol 
+        typ <- look symbol 
         collect $ ConsEq typ exprType
 
     Int _ n -> do

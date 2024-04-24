@@ -41,11 +41,15 @@ genSymbol sym = do
 
 cleanUpMapper :: Elem -> DoM ASTResolved Elem
 cleanUpMapper elem = case elem of
-    ElemExpr (AExpr exprType expr@(AST.Call pos symbol exprs)) -> do
+    ElemExpr (AExpr exprType expr@(AST.Call pos symbol exprs)) | all isAnnotated exprs -> do
         symbol' <- resolveFuncCall exprType expr
         fmap (ElemExpr . AExpr exprType) $ return (Call pos symbol' exprs)
 
     _ -> return elem
+    where
+        isAnnotated :: AST.Expr -> Bool
+        isAnnotated (AExpr _ _) = True
+        isAnnotated _           = False
 
     
 -- add extern if needed
@@ -70,7 +74,7 @@ resolveFuncCall exprType (AST.Call pos calledSymbol args) = withPos pos $ do
             let genericBody = getFunctionBody symbol ast
             bodyReplaced <- replaceGenericsInFuncBodyWithCall genericBody callHeader
             --liftIO $ putStrLn $ "new body: " ++ show bodyReplaced
-            case funcFullyResolved (funcGenerics genericBody) bodyReplaced of
+            case funcFullyResolved bodyReplaced of
                 False -> return calledSymbol
                 True  -> do
                     symbol' <- genSymbol (Symbol.sym calledSymbol)

@@ -180,12 +180,13 @@ typesCouldMatch generics t1 t2 = couldMatch t1 t2
 
             _ -> return False
 
-typeFullyResolved :: [Symbol] -> Type -> Bool
-typeFullyResolved generics typ = case typ of
+typeFullyResolved :: Type -> Bool
+typeFullyResolved typ = case typ of
+    TypeApply s ts
+        | isPrefixOf "<generic>" (Symbol.sym s) -> False
+        | otherwise -> all typeFullyResolved ts
     Type _                          -> False
-    TypeApply s _ | elem s generics -> False
-    TypeApply s ts                  -> all (typeFullyResolved generics) ts
-    Slice t                         -> typeFullyResolved generics t
+    Slice t                         -> typeFullyResolved t
     x | isSimple x                  -> True
     Void                            -> True
     Size _                          -> True

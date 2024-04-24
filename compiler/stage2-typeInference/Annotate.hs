@@ -13,6 +13,13 @@ annotate :: ASTResolved -> DoM Int ASTResolved
 annotate resolvedAST = do 
     funcDefs <- mapM (mapFuncBodyM annotateMapper) (funcDefs resolvedAST)
     return $ resolvedAST { funcDefs = funcDefs }
+
+
+annotateFunc :: FuncBody -> DoM Int FuncBody
+annotateFunc func = do
+    mapFuncBodyM annotateMapper func
+
+
         
 annotateMapper :: Elem -> DoM Int Elem
 annotateMapper elem = case elem of
@@ -39,6 +46,12 @@ deAnnotate :: ASTResolved -> DoM () ASTResolved
 deAnnotate resolvedAst = do
     funcDefs <- mapM (mapFuncBodyM deAnnotateMapper) (funcDefs resolvedAst)
     return $ resolvedAst { funcDefs = funcDefs }
+
+
+deAnnotateFunc :: FuncBody -> DoM () FuncBody
+deAnnotateFunc func = do
+    mapFuncBodyM deAnnotateMapper func
+
 
 deAnnotateMapper :: Elem -> DoM () Elem
 deAnnotateMapper elem = return $ case elem of

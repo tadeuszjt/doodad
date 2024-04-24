@@ -19,27 +19,31 @@ import Symbol
 import FunctionFinder (findCandidates)
 
 
+
+allSameType :: [Type] -> Maybe Type
+allSameType [] = Nothing
+allSameType [x] = Just x
+allSameType (x:xs) = case allSameType xs of
+    Just t -> if x == t then Just t else Nothing
+    Nothing -> Nothing
+
+
+
 unifyOne :: TextPos -> Constraint -> DoM ASTResolved [(Type, Type)]
 unifyOne pos constraint = withPos pos $ case constraint of
     ConsCall exprType symbol argTypes -> do
         candidates <- findCandidates (CallHeader symbol argTypes exprType)
-        case candidates of
-            [] -> error "no candidates"
-            [header] -> do
-                generics <- gets $ getFunctionGenerics (callSymbol header)
 
-                s1 <- case typeFullyResolved generics (callRetType header) of
-                    True -> unifyOne pos $ ConsEq exprType (callRetType header)
-                    False -> return []
-
-                s2 <- fmap concat $ forM (zip argTypes (callArgTypes header)) $ \(a, b) -> do
-                    case typeFullyResolved generics b of
-                        True -> unifyOne pos $ ConsEq a b
-                        False -> return []
-
-                return (s1 ++ s2)
-
+        subs1 <- case allSameType (map callRetType candidates) of
+            Just x | typeFullyResolved x -> unifyOne pos $ ConsEq exprType x
             _ -> return []
+
+        subs2 <- fmap concat $ forM (zip [0..] argTypes) $ \(i, at) -> do
+            case allSameType (map ((!! i) . callArgTypes) candidates) of
+                Just x | typeFullyResolved x -> unifyOne pos $ ConsEq at x
+                _ -> return []
+
+        return (subs1 ++ subs2)
 
 
     ConsField typ idx exprType -> do

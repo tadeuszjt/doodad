@@ -14,41 +14,52 @@ import CleanUp
 -- Infer takes an ast and recursively runs the type inference algorithms until it can no longer
 -- make any changes to the ast.
 
+
+inferFunc :: FuncBody -> DoM ASTResolved FuncBody
+inferFunc func = do
+    annotatedFunc <- fmap fst $ withErrorPrefix "annotate: " $
+        runDoMExcept 0 (annotateFunc func)
+    collectState <- fmap snd $ withErrorPrefix "collect: " $
+        runDoMExcept initCollectState (collectFuncDef annotatedFunc)
+    subs <- unify $ Map.toList (collected collectState)
+    let appliedFunc = applyFuncBody subs annotatedFunc
+    fmap fst $ runDoMExcept () (deAnnotateFunc appliedFunc)
+
+
+inferFuncDefaults :: FuncBody -> DoM ASTResolved FuncBody
+inferFuncDefaults func = do
+    annotatedFunc <- fmap fst $ withErrorPrefix "annotate: " $
+        runDoMExcept 0 (annotateFunc func)
+    collectState <- fmap snd $ withErrorPrefix "collect: " $
+        runDoMExcept initCollectState (collectFuncDef annotatedFunc)
+    subs <- unifyDefault $ Map.toList (defaults collectState)
+    let appliedFunc = applyFuncBody subs annotatedFunc
+    fmap fst $ runDoMExcept () (deAnnotateFunc appliedFunc)
+
+
 infer :: ASTResolved -> Bool -> Bool -> DoM s (ASTResolved, Int)
 infer ast printAnnotated verbose = runDoMUntilSameResult ast $ \ast -> do 
-    --when verbose $ liftIO $ putStrLn $ "inferring..."
-    (inferred, inferCount) <- runDoMUntilSameResult ast inferTypes
-    when verbose $ liftIO $ putStrLn ("inferred types " ++ show inferCount ++ " times")
-    (defaulted, defaultCount) <- runDoMUntilSameResult inferred inferDefaults
-    when verbose $ liftIO $ putStrLn ("inferred defaults " ++ show defaultCount ++ " times")
-    return defaulted
+    inferred <- inferTypesPerFunc ast
+    defaulted <- inferDefaults inferred
+    fmap snd $ runDoMExcept defaulted (CleanUp.compile verbose)
     where
-        inferTypes :: ASTResolved -> DoM s ASTResolved
-        inferTypes ast = do
-            (annotated, _) <- withErrorPrefix "annotate: " $ runDoMExcept 0 $ annotate ast
-            when printAnnotated $ do
-                liftIO $ putStrLn ""
-                liftIO $ putStrLn "annotated AST:"
-                liftIO $ prettyASTResolved annotated
-            collectState <- fmap snd $ withErrorPrefix "collect: " $
-                runDoMExcept initCollectState (collectAST verbose annotated)
+        inferTypesPerFunc :: ASTResolved -> DoM s ASTResolved
+        inferTypesPerFunc ast = do
+            funcDefs' <- forM (funcDefs ast) $ \func -> do
+                case funcGenerics func of
+                    [] -> fmap fst $ runDoMExcept ast $
+                        fmap fst (runDoMUntilSameResult func inferFunc)
+                    _  -> return func
 
-            -- turn type constraints into substitutions using unify
-            subs <- fmap fst $ runDoMExcept annotated (unify $ Map.toList $ collected collectState)
-            --annotated' <- applySubs2 subs annotated
-            let annotated' = applyAST subs annotated
-            ast' <- fmap snd $ runDoMExcept annotated' (CleanUp.compile verbose)
-            fmap fst $ runDoMExcept () $ deAnnotate ast'
+            return (ast { funcDefs = funcDefs' })
 
 
         inferDefaults :: ASTResolved -> DoM s ASTResolved
         inferDefaults ast = do
-            (annotated, _) <- withErrorPrefix "annotate: " $ runDoMExcept 0 $ annotate ast
-            collectState <- fmap snd $ withErrorPrefix "collect: " $
-                runDoMExcept initCollectState (collectAST verbose annotated)
+            funcDefs' <- forM (funcDefs ast) $ \func -> do
+                case funcGenerics func of
+                    [] -> fmap fst $ runDoMExcept ast $
+                        fmap fst (runDoMUntilSameResult func inferFuncDefaults)
+                    _  -> return func
 
-            -- apply substitutions to ast
-            subs <- fmap fst $ runDoMExcept ast (unifyDefault $ Map.toList $ defaults collectState)
-            let annotated' = applyAST subs annotated
-            ast' <- fmap snd $ runDoMExcept annotated' (CleanUp.compile verbose)
-            fmap fst $ runDoMExcept () $ deAnnotate ast'
+            return (ast { funcDefs = funcDefs' })

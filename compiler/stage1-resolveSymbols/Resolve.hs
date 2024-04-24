@@ -191,8 +191,12 @@ resolveFuncDef :: AST.Stmt -> DoM ResolveState Symbol
 resolveFuncDef (FuncDef pos generics params (Sym sym) args retty blk) = withPos pos $ do
     symbol' <- genSymbol sym
     pushSymbolTable
-    genericSymbols <- mapM (\(Sym s) -> genSymbol s) generics
-    forM_ genericSymbols $ \symbol -> define (Symbol.sym symbol) KeyType symbol
+
+    genericSymbols <- forM generics $ \(Sym s) -> do
+        symbol <- (\s -> s { sym = ("<generic>" ++ Symbol.sym s) } ) <$> genSymbol s
+        define s KeyType symbol
+        return symbol
+
     params' <- mapM resolve params
     args' <- mapM resolve args
     retty' <- resolve retty
@@ -232,10 +236,10 @@ resolveTypeDef (AST.Typedef pos generics (Sym sym) anno) = withPos pos $ do
 
     -- Push the symbol table in order to temporarily define the type argument as a typedef
     pushSymbolTable
-    genericSymbols <- forM generics $ \(Sym arg) -> do
-        s <- genSymbol arg
-        define arg KeyType s
-        return s
+    genericSymbols <- forM generics $ \(Sym s) -> do
+        symbol <- (\s -> s { sym = ("<generic>" ++ (Symbol.sym s)) } ) <$> genSymbol s
+        define s KeyType symbol
+        return symbol
 
     anno' <- case anno of
         AnnoType t        -> AnnoType <$> resolve t

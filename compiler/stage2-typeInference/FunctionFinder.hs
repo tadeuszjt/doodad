@@ -26,25 +26,28 @@ findCandidates :: CallHeader -> DoM ASTResolved [CallHeader]
 findCandidates call = do
     ast <- get
     --liftIO $ putStrLn $ "findCandidates: " ++ show (callSymbol call)
-    fmap catMaybes $ forM (Map.toList $ Map.union (funcDefs ast) (funcImports ast)) $
-        \(symbol, body) -> do
+    fmap catMaybes $ forM (Map.toList $ Map.union (funcDefs ast) (funcImports ast)) $ \x -> case x of
+        (symbol, body) | funcGenerics body == [] -> do
             couldMatch <- callCouldMatchFunc call symbol body
-            if couldMatch then case isGenericFunction symbol ast of
-                False -> return $ Just $ getFunctionCallHeader symbol ast
+            if couldMatch then return $ Just (getFunctionCallHeader symbol ast)
+            else return Nothing
+
+        (symbol, body) -> do
+            couldMatch <- callCouldMatchFunc call symbol body
+            case couldMatch of
+                False -> return Nothing
                 True -> do
                     replacedE <- tryError (replaceGenericsInFuncBodyWithCall body call)
                     case replacedE of
                         Left _ -> return Nothing
                         Right replaced -> do
-                            b' <- callCouldMatchFunc call symbol replaced
-                            if b' then return $ Just $ CallHeader
+                            True <- callCouldMatchFunc call symbol replaced
+                            return $ Just $ CallHeader
                                 symbol
                                 (map typeof $ funcArgs replaced)
                                 (typeof $ funcRetty replaced)
 
-                            else return Nothing
                         x -> error (show x)
-            else return Nothing
 
 
 
@@ -66,10 +69,10 @@ callCouldMatchFunc call symbol body = do
         rettyMatch      = typesCouldMatch (funcGenerics body) (callRetType call) (typeof $ funcRetty body)
 
 
-funcFullyResolved :: [Symbol] -> FuncBody -> Bool
-funcFullyResolved generics body =
-    all (typeFullyResolved generics) (map typeof $ funcArgs body) &&
-    (typeFullyResolved generics) (typeof (funcRetty body))
+funcFullyResolved :: FuncBody -> Bool
+funcFullyResolved body =
+    all typeFullyResolved (map typeof $ funcArgs body) &&
+    typeFullyResolved (typeof (funcRetty body))
 
 
 replaceGenericsInFuncBodyWithCall :: (MonadFail m, TypeDefs m) => FuncBody -> CallHeader -> m FuncBody
