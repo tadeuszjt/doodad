@@ -22,7 +22,7 @@ import Monad
 -- Function Finder contains functions which can determine whether a generic function could match
 -- a function call. This involves using a smaller version of the type inference algorithm to replace
 -- generic symbols with resolved types.
-findCandidates :: CallHeader -> DoM ASTResolved [Symbol]
+findCandidates :: CallHeader -> DoM ASTResolved [CallHeader]
 findCandidates call = do
     ast <- get
     --liftIO $ putStrLn $ "findCandidates: " ++ show (callSymbol call)
@@ -30,21 +30,25 @@ findCandidates call = do
         \(symbol, body) -> do
             couldMatch <- callCouldMatchFunc call symbol body
             if couldMatch then case isGenericFunction symbol ast of
-                False -> return (Just symbol)
+                False -> return $ Just $ getFunctionCallHeader symbol ast
                 True -> do
                     replacedE <- tryError (replaceGenericsInFuncBodyWithCall body call)
                     case replacedE of
                         Left _ -> return Nothing
                         Right replaced -> do
                             b' <- callCouldMatchFunc call symbol replaced
-                            if b' then return (Just symbol)
+                            if b' then return $ Just $ CallHeader
+                                symbol
+                                (map typeof $ funcArgs replaced)
+                                (typeof $ funcRetty replaced)
+
                             else return Nothing
                         x -> error (show x)
             else return Nothing
 
 
 
-callCouldMatchFunc :: CallHeader -> Symbol -> FuncBody -> DoM ASTResolved Bool
+callCouldMatchFunc :: TypeDefs m => CallHeader -> Symbol -> FuncBody -> m Bool
 callCouldMatchFunc call symbol body = do
     if symbolsMatch then do
         am <- argsMatch
@@ -52,10 +56,10 @@ callCouldMatchFunc call symbol body = do
         return (am && rm)
     else return False
     where
-        typesMatch :: [Type] -> [Type] -> DoM ASTResolved Bool
+        typesMatch :: TypeDefs m => [Type] -> [Type] -> m Bool
         typesMatch ts1 ts2 = do
             bs <- zipWithM (typesCouldMatch (funcGenerics body)) ts1 ts2
-            return $ length ts1 == length ts2 && (all id bs)
+            return $ (length ts1 == length ts2) && (all id bs)
 
         symbolsMatch    = symbolsCouldMatch (callSymbol call) symbol
         argsMatch       = typesMatch (callArgTypes call) (map typeof $ funcArgs body)
@@ -64,8 +68,7 @@ callCouldMatchFunc call symbol body = do
 
 funcFullyResolved :: [Symbol] -> FuncBody -> Bool
 funcFullyResolved generics body =
-    all id (map typeFullyResolved $ map typeof $ funcParams body) &&
-    all id (map typeFullyResolved $ map typeof $ funcArgs body) &&
+    all typeFullyResolved (map typeof $ funcArgs body) &&
     typeFullyResolved (typeof (funcRetty body))
     where
         typeFullyResolved :: Type -> Bool
@@ -80,7 +83,7 @@ funcFullyResolved generics body =
             x -> error $ "typeFullyResolved: " ++ show x
 
 
-replaceGenericsInFuncBodyWithCall :: FuncBody -> CallHeader -> DoM ASTResolved FuncBody
+replaceGenericsInFuncBodyWithCall :: (MonadFail m, TypeDefs m) => FuncBody -> CallHeader -> m FuncBody
 replaceGenericsInFuncBodyWithCall body call = do
     couldMatch <- callCouldMatchFunc call (callSymbol call) body
     unless couldMatch (error "headers could not match")
@@ -88,7 +91,7 @@ replaceGenericsInFuncBodyWithCall body call = do
     return $ (applyFuncBody subs body) { funcGenerics = [] }
 
 
-unifyOne :: [Symbol] -> Constraint -> DoM ASTResolved [(Type, Type)]
+unifyOne :: MonadFail m => [Symbol] -> Constraint -> m [(Type, Type)]
 unifyOne generics constraint = case constraint of
     ConsEq t1 t2 -> case (t1, t2) of
         _ | t1 == t2                            -> return []
@@ -102,7 +105,7 @@ unifyOne generics constraint = case constraint of
         _ -> fail $ "cannot unify: " ++ show (t1, t2)
 
 
-unify :: [Symbol] -> [Constraint] -> DoM ASTResolved [(Type, Type)]
+unify :: MonadFail m => [Symbol] -> [Constraint] -> m [(Type, Type)]
 unify generics []     = return []
 unify generics (x:xs) = do
     subs <- unify generics xs
@@ -110,7 +113,7 @@ unify generics (x:xs) = do
     return (s ++ subs)
 
 
-getConstraints :: CallHeader -> FuncBody -> DoM ASTResolved [Constraint]
+getConstraints :: (TypeDefs m, MonadFail m) => CallHeader -> FuncBody -> m [Constraint]
 getConstraints call body = do
     retCs <- getConstraintsFromTypes (funcGenerics body) (typeof $ funcRetty body) (callRetType call)
     argCs <- fmap concat $ zipWithM (getConstraintsFromTypes $ funcGenerics body)
@@ -120,12 +123,12 @@ getConstraints call body = do
     
 
 
-getConstraintsFromTypes :: [Symbol] -> Type -> Type -> DoM ASTResolved [Constraint]
+getConstraintsFromTypes :: (TypeDefs m, MonadFail m) => [Symbol] -> Type -> Type -> m [Constraint]
 getConstraintsFromTypes generics t1 t2 = fromTypes t1 t2
     where
-        fromTypes :: Type -> Type -> DoM ASTResolved [Constraint]
+        fromTypes :: (TypeDefs m, MonadFail m) => Type -> Type -> m [Constraint]
         fromTypes t1 t2 = do
-            typedefs <- gets typeFuncs
+            typedefs <- getTypeDefs
             case (t1, t2) of
                 (a, b) | a == b            -> return [] 
                 (Type _, _)                -> return [ConsEq t1 t2]

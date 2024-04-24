@@ -34,6 +34,11 @@ fn greater(a I64, b I64) Bool
     ${ $r = $a > $b; }
     return r
 
+fn greaterEqual(a I64, b I64) Bool
+    let r : Bool
+    ${ $r = $a >= $b; }
+    return r
+
 fn equalEqual(a I64, b I64) Bool
     let r : Bool
     ${ $r = $a == $b; }

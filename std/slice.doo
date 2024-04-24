@@ -1,5 +1,10 @@
 module slice
 
 
-fn{T} at(s []T, index I64) &T
-    return builtin_slice_at([]s, index)
+//fn{T} at(s []T, index I64) &T
+//    return builtin_slice_at([]s, index)
+
+fn{T} len(s []T) I64
+    let n = 0
+    ${ $n = $s.len; }
+    return n

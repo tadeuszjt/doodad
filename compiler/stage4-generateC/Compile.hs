@@ -78,6 +78,12 @@ generateFunc :: Symbol -> FuncBody -> Generate ()
 generateFunc symbol body = do
     args <- mapM cParamOf (ASTResolved.funcArgs body)
     rettyType <- cRettyType (ASTResolved.funcRetty body)
+
+    isRefRetty <- case ASTResolved.funcRetty body of
+        RefRetty _ -> return True
+        Retty _    -> return False
+    modify $ \s -> s { curFnIsRef = isRefRetty }
+
     pushSymTab
 
     id <- newFunction rettyType (show symbol) ([] ++ args)
@@ -101,17 +107,17 @@ generateStmt :: S.Stmt -> Generate ()
 generateStmt stmt = withPos stmt $ case stmt of
     S.Block stmts          -> mapM_ generateStmt stmts
     S.EmbedC _ str         -> void $ appendElem (C.Embed str)
-
+    S.ExprStmt expr        -> void $ generateExpr expr
     S.Return _ Nothing     -> void $ appendElem (C.ReturnVoid)
 
     S.Return _ (Just expr) -> do
         val <- generateExpr expr
-        case val of
-            Value _ _ -> void $ appendElem $ C.Return (valExpr val)
-            Ref _ _   -> void $ appendElem $ C.Return (refExpr val)
+        refRetty <- gets curFnIsRef
+        void $ case (refRetty, val) of
+            (False, Value _ _) -> appendElem $ C.Return (valExpr val)
+            (False, Ref _ _)   -> appendElem . C.Return . valExpr =<< deref val
+            (True, Ref _ _)    -> appendElem $ C.Return $ refExpr val
 
-
-    S.ExprStmt expr -> void $ generateExpr expr
     S.Let _ pattern mexpr mblk -> do
         rhs <- case mexpr of
             Just expr -> generateExpr expr
@@ -124,8 +130,13 @@ generateStmt stmt = withPos stmt $ case stmt of
             Just blk -> generateStmt blk
 
     S.Data _ symbol typ Nothing -> do
+        base <- baseTypeOf typ
+        init <- case base of
+            TypeApply (Sym "Tuple") [] -> return (C.Initialiser [])
+            _                          -> return (C.Initialiser [C.Int 0])
+        
         ctyp <- cTypeOf typ
-        appendAssign ctyp (show symbol) (C.Initialiser [C.Int 0])
+        appendAssign ctyp (show symbol) init
         define (show symbol) $ Value typ $ C.Ident (show symbol)
 
     S.If _ expr blk melse -> do
@@ -172,7 +183,6 @@ generateStmt stmt = withPos stmt $ case stmt of
                 TypeApply (Sym "Tuple") [_, _] -> do
                     return ()
                     -- TODO
-                    
 
                 Slice t -> return ()
                 x -> error (show x)
@@ -181,7 +191,7 @@ generateStmt stmt = withPos stmt $ case stmt of
             -- check that index is still in range
             idxGtEq <- case base of
                 TypeApply (Sym "Table") _  -> error "here"--generateInfix S.GTEq idx =<< len val
-                TypeApply (Sym "Array") [_, Size n]  -> error "here" -- generateInfix S.GTEq idx (i64 n)
+                TypeApply (Sym "Array") [_, Size n]  -> greaterEqual idx (i64 n)
                 TypeApply (Sym "Tuple") [_, _] -> greaterEqual idx =<< member 1 val
                 Slice t -> greaterEqual idx =<< len val
                 x -> error (show x)
@@ -363,13 +373,10 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
         case val of
             Ref _ _ -> return val
             Value _ _ -> case base of
-                x | isSimple x                  -> return $ Ref (typeof val) (C.Address $ valExpr val)
-                TypeApply (Sym "Sum") _         -> return $ Ref (typeof val) (C.Address $ valExpr val)
-                TypeApply (Sym "Table") _       -> return $ Ref (typeof val) (C.Address $ valExpr val)
-                TypeApply (Sym "Array") _       -> return $ Ref (typeof val) (C.Address $ valExpr val)
                 TypeApply (Sym "Tuple") ts -> do
                     ref <- assign "ref" $ Ref (typeof val) $ C.Initialiser [C.Address (valExpr val), C.Int 0, C.Int 0]
                     return ref
+                _ -> return $ Ref (typeof val) (C.Address $ valExpr val)
                 x -> error (show x)
 
     _ -> error (show expr_)

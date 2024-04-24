@@ -70,8 +70,8 @@ lookm symbol KeyFunc = case symbol of
     Sym sym -> do
         resm <- SymTab.lookup sym KeyFunc <$> gets symTab
         case resm of
-            Just s -> return (Just s)
-            Nothing -> return (Just symbol)
+            Nothing -> return (Just symbol) -- This is cheating
+            Just s  -> return (Just s)
 
     SymQualified mod sym -> do
         modName <- gets modName
@@ -223,7 +223,6 @@ defineTypeSymbols :: AST.Stmt -> DoM ResolveState ()
 defineTypeSymbols (AST.Typedef pos _ (Sym sym) _) = withPos pos $ do
     symbol <- genSymbol sym
     define sym KeyType symbol
-    define sym KeyFunc symbol
 
 
 -- modifies the typedef function and inserts it into typeFuncsMap

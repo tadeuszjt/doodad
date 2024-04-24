@@ -3,6 +3,8 @@ module ox
 import ../std/io
 import ../std/strings
 import ../std/array
+import ../std/integer
+import ../std/bool
 
 type Empty Tuple{}
 type Naught Tuple{}
@@ -14,7 +16,9 @@ type Square Sum{
     Cross,
 }
 
-type Board Square.Array{3}.Array{3}
+type Board Tuple{
+    Square.Array{3}.Array{3}
+}
 
 fn construct() Empty
     let e : Empty
@@ -22,35 +26,41 @@ fn construct() Empty
 
 fn construct(e Empty) Square; return conv(e)
 
+fn notEqual(a Square, b Square) Bool; return !equalEqual(a, b)
+fn equalEqual(a Square, b Square) Bool
+    switch (a, b)
+        (Empty(), Empty());   return true
+        (Naught(), Naught()); return true
+        (Cross(), Cross());   return true
+        _;                    return false
 
-//fn String(sq Square) string
-//    switch sq
-//        Empty(); return " "
-//        Naught(); return "O"
-//        Cross(); return "X"
-//
-//
 
 
-fn printBoard(io &Io, b Board)
-    for b -> row
-        io.putChar('[')
+fn at(board &Board, index I64) &Square.Array{3}; return (board.0).at(index)
+fn len(board &Board)           I64; return (board.0).len
+
+
+fn printBoard(io &Io, board Board)
+    for board.0 -> row
+        io.stdout += '['
+
         for (0, row.len) -> col
 
             switch row[col]
-                Empty(); io.putChar(' ')
-                Naught(); io.putChar('O')
-                Cross(); io.putChar('X')
+                Empty();  io.stdout += ' '
+                Naught(); io.stdout += 'O'
+                Cross();  io.stdout += 'X'
 
             if col < (row.len - 1)
-                io.putStr(", ")
+                io.stdout += ", "
 
-        io.putStrLn("]")
+        io.stdout += "]"
+        io.stdout += '\n'
 
 
 fn winner(board Board) Square
     // check for horizontal lines
-    for board -> row
+    for board.0 -> row
         let match = true
 
         for row -> square
@@ -60,33 +70,53 @@ fn winner(board Board) Square
         if match && row[0] != Square(Empty())
             return row[0]
 
-//    // check for vertical lines
-//    for b[0][..] -> col
-//        let match = true
-//        for b[..] -> row
-//            if b[row][col] != b[0][col]; match = false
-//        if match && b[0][col] != Empty()
-//            return b[0][col]
-//
-//    // check diagonals
+    // check for vertical lines
+    for (0, board[0].len) -> col
+        let match = true
+        for (0, board.len) -> row
+            if board[row][col] != board[0][col]
+                match = false
+        if match && board[0][col] != Square(Empty())
+            return board[0][col]
+
+    // check diagonals
 //    if b -> [ [a, _, _], [_, b, _], [_, _, c] ] | a == b && b == c
 //        return a
 //    if b -> [ [_, _, a], [_, b, _], [c, _, _] ] | a == b && b == c
 //        return a
 //
-//    return Empty()
-//
-//
-//
-//type PlayerInput (Move(i64, i64) | Quit())
-//fn {io Io} getPlayerInput() PlayerInput
-//    io.putStrLn("Please enter move: <row> <col>")
-//    
-//    let line = ""
-//    switch io.getStrLn()
-//        null; return Quit()
-//        *string(s); line = s
-//
+    return Square(Empty())
+
+
+
+type Move Tuple{I64, I64}
+type Quit Tuple{}
+type Input Sum{Move, Quit}
+
+fn construct() Quit
+    let q : Quit
+    return q
+fn construct(x I64, y I64) Move
+    let m : Move
+    m.0 = x
+    m.1 = y
+    return m
+
+fn construct(q Quit) Input; return conv(q)
+fn construct(m Move) Input; return conv(m)
+
+
+fn getPlayerInput(io &Io) Input
+    io.stdout += "Please enter move: <row> <col>"
+    io.stdout += '\n'
+    
+    data line Char.Table
+    
+    if !io.stdin.getLine(&line)
+        return Input(Quit())
+
+    return Input(Move(1, 2))
+
 //    if readI64(line) -> (*i64(row), rest)
 //        if readI64(rest) -> (*i64(col), _)
 //            if row < 0 || row >= 3 || col < 0 || col >= 3
@@ -99,16 +129,20 @@ fn winner(board Board) Square
 //
 fn main()
     data io Io
-    io.putStrLn("naughts and crosses")
+    io.stdout += "naughts and crosses"
+    io.stdout += '\n'
+
     let board : Board
     io.printBoard(board)
-//
-//    while winner(board) == Empty()
+
+    while winner(board) == Square(Empty())
+        io.getPlayerInput()
 //        switch io.getPlayerInput()
 //            Quit(); return
 //            Move(row, col)
 //                print("moving", row, col)
 //                board[row][col] = Naught()
 //
-//        io.boardPrint(board)
-//
+        io.printBoard(board)
+        return
+

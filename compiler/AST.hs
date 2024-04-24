@@ -54,14 +54,15 @@ instance Type.Typeof Retty where
 
 
 data Pattern
-    = PatLiteral   Expr
-    | PatIgnore    TextPos
-    | PatIdent     TextPos Symbol
-    | PatTuple     TextPos [Pattern]
-    | PatGuarded   TextPos Pattern Expr
-    | PatTypeField TextPos Type [Pattern]
-    | PatField     TextPos Symbol Pattern
-    | PatAnnotated Pattern Type
+    = PatLiteral   Expr                   -- equal(a, b)
+    | PatIgnore    TextPos                -- fine
+    | PatIdent     TextPos Symbol         -- set(&ident, b)
+    | PatTuple     TextPos [Pattern]      -- set(&a, first(&z)); set(&b, second(&z)) ...
+    | PatGuarded   TextPos Pattern Expr   -- fine
+    | PatAnnotated Pattern Type           -- fine
+
+    | PatTypeField TextPos Type [Pattern] -- I64(x) 
+    | PatField     TextPos Symbol Pattern -- just(y) | x.isJust
     deriving (Eq)
 
 data Expr

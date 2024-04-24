@@ -7,3 +7,8 @@ fn andAnd(a Bool, b Bool) Bool
     let c : Bool
     ${ $c = $a && $b; }
     return c
+
+fn not(a Bool) Bool
+    let c : Bool
+    ${ $c = !$c; }
+    return c

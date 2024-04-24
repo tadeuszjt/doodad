@@ -23,20 +23,14 @@ unifyOne :: TextPos -> Constraint -> DoM ASTResolved [(Type, Type)]
 unifyOne pos constraint = withPos pos $ case constraint of
     ConsCall exprType symbol argTypes -> do
         ast <- get
-        candidates <- if symbolIsResolved symbol then
-                return [symbol]
-            else
-                fmap fst $ runDoMExcept ast $ findCandidates (CallHeader symbol argTypes exprType)
+        candidates <- fmap fst $ runDoMExcept ast $ findCandidates
+            (CallHeader symbol argTypes exprType)
 
---        forM_ candidates $ \cand -> do
---            liftIO $ putStrLn $ "unifyOne: " ++ show cand
         case candidates of
-            [symbol] | isNonGenericFunction symbol ast -> do
-                let body = getFunctionBody symbol ast
-
-                subs <- unifyOne pos $ ConsEq exprType (typeof $ funcRetty body)
+            [call] | isNonGenericFunction (callSymbol call) ast -> do
+                subs <- unifyOne pos $ ConsEq exprType (callRetType call)
                 subs' <- fmap concat $ zipWithM (\a b -> unifyOne pos $ ConsEq a b) argTypes
-                    (map typeof $ funcArgs body)
+                    (callArgTypes call)
                 return (subs ++ subs')
 
             _ -> return []
@@ -82,7 +76,7 @@ unifyOne pos constraint = withPos pos $ case constraint of
                 unifyOne pos $ ConsEq patType t1
             Just (Slice t) -> unifyOne pos $ ConsEq patType t
 
-            x -> error (show x)
+            x -> fail (show x)
 
     ConsBase t1 t2 -> do
         base1m <- baseTypeOfm t1

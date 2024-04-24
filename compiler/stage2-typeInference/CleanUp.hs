@@ -51,11 +51,11 @@ cleanUpMapper elem = case elem of
 -- add extern if needed
 resolveFuncCall :: Type -> AST.Expr -> DoM ASTResolved Symbol
 resolveFuncCall _ (AST.Call _ s@(SymResolved _ _ _) _) = return s
-resolveFuncCall exprType (AST.Call pos callSymbol args) = withPos pos $ do
-    --liftIO $ putStrLn $ "resolving: " ++ show callSymbol
-    let callHeader = CallHeader callSymbol (map typeof args) exprType
+resolveFuncCall exprType (AST.Call pos calledSymbol args) = withPos pos $ do
+    --liftIO $ putStrLn $ "resolving: " ++ show calledSymbol
+    let callHeader = CallHeader calledSymbol (map typeof args) exprType
 
-    candidates <- findCandidates callHeader
+    candidates <- map callSymbol <$> findCandidates callHeader
     ast <- get
 
 --    liftIO $ putStrLn $ "resolveFuncCall: " ++ show callHeader ++ ", " ++ show pos
@@ -71,9 +71,9 @@ resolveFuncCall exprType (AST.Call pos callSymbol args) = withPos pos $ do
             bodyReplaced <- replaceGenericsInFuncBodyWithCall genericBody callHeader
             --liftIO $ putStrLn $ "new body: " ++ show bodyReplaced
             case funcFullyResolved (funcGenerics genericBody) bodyReplaced of
-                False -> return callSymbol
+                False -> return calledSymbol
                 True  -> do
-                    symbol' <- genSymbol (Symbol.sym callSymbol)
+                    symbol' <- genSymbol (Symbol.sym calledSymbol)
                     modify $ \s -> s { funcDefs = Map.insert symbol' bodyReplaced (funcDefs s) }
                     return symbol'
 
@@ -85,7 +85,7 @@ resolveFuncCall exprType (AST.Call pos callSymbol args) = withPos pos $ do
                 bodyReplaced <- replaceGenericsInFuncBodyWithCall genericBody callHeader
                 case funcHeaderTypesMatch bodyReplaced nonGenericBody of
                     True -> return nonGenericSymbol
-                    False -> return callSymbol
+                    False -> return calledSymbol
 
         [nonGenericSymbol, genericSymbol] |
             isGenericFunction genericSymbol ast &&
@@ -97,6 +97,6 @@ resolveFuncCall exprType (AST.Call pos callSymbol args) = withPos pos $ do
                 bodyReplaced <- replaceGenericsInFuncBodyWithCall genericBody callHeader
                 case funcHeaderTypesMatch bodyReplaced nonGenericBody of
                     True -> return nonGenericSymbol
-                    False -> return callSymbol
+                    False -> return calledSymbol
 
-        _ -> return callSymbol
+        _ -> return (calledSymbol)

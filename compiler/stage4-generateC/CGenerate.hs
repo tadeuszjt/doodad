@@ -39,6 +39,7 @@ data GenerateState
         , typefuncs   :: Map.Map Symbol ([Symbol], Type.Type)
         , refFuncs    :: Map.Map Symbol Bool
         , refFuncArgs :: Map.Map (Symbol, Int) Bool
+        , curFnIsRef  :: Bool
         , symTab      :: SymTab.SymTab String () Value
         }
 
@@ -51,6 +52,7 @@ initGenerateState modName
         , symTab = SymTab.initSymTab
         , refFuncs = Map.empty
         , refFuncArgs = Map.empty
+        , curFnIsRef = False
         }
 
 newtype Generate a = Generate { unGenerate :: StateT GenerateState (StateT BuilderState (ExceptT Error IO)) a }
@@ -140,9 +142,8 @@ equalEqual a@(Value _ _) b@(Value _ _) = do
     unless (typeof a == typeof b) (error "type mismatch")
     base <- baseTypeOf a
     return $ Value Type.Bool $ case base of
-        I64       -> C.Infix C.EqEq (valExpr a) (valExpr b)
-        F64       -> C.Infix C.EqEq (valExpr a) (valExpr b)
-        Type.Bool -> C.Infix C.EqEq (valExpr a) (valExpr b)
+        x | isSimple x -> C.Infix C.EqEq (valExpr a) (valExpr b)
+
         x -> error (show x)
 
 
@@ -346,7 +347,8 @@ builtinArrayAt value idx@(Value _ _) = do
             x | isSimple x -> return $ Ref t $ C.Address $ C.Subscript
                 (C.PMember expr "arr")
                 (valExpr idx)
-            TypeApply (Sym "Sum") ts -> return $ Ref t $ C.Address $ C.Subscript
+            TypeApply (Sym "Tuple") ts -> error "TODO"
+            TypeApply _ _ -> return $ Ref t $ C.Address $ C.Subscript
                 (C.PMember expr "arr")
                 (valExpr idx)
             x -> error (show x)

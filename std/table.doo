@@ -1,5 +1,8 @@
 module table
 
+fn aFunc()
+    return
+
 fn{T} append(table &T.Table, item T); table.push(item)
 fn{T} append(table &T.Table, slice []T); table.push(slice)
 

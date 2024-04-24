@@ -160,10 +160,10 @@ applyTypeArguments argSymbols argTypes typ = do
         _                -> error $ "applyTypeArguments: " ++ show typ
 
 
-typesCouldMatch :: (MonadFail m, TypeDefs m) => [Symbol] -> Type -> Type -> m Bool
+typesCouldMatch :: TypeDefs m => [Symbol] -> Type -> Type -> m Bool
 typesCouldMatch generics t1 t2 = couldMatch t1 t2
     where
-        couldMatch :: (MonadFail m, TypeDefs m) => Type -> Type -> m Bool
+        couldMatch :: TypeDefs m => Type -> Type -> m Bool
         couldMatch t1 t2 = case (t1, t2) of
             (a, b) | a == b            -> return True
             (Type _, _)                -> return True

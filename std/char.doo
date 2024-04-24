@@ -1,4 +1,34 @@
 module char
 
+fn eof() Char
+    let c : Char
+    ${ $c = EOF; }
+    return c
+
 fn set(a &Char, b Char)
     ${ *$a = $b; }
+
+fn equalEqual(a Char, b Char) Bool
+    let eq = false
+    ${ $eq = $a == $b; }
+    return eq
+
+
+fn isAlpha(c Char) Bool
+    let r = false
+    ${ $r = isalpha($c); }
+    return r
+
+
+fn isDigit(c Char) Bool
+    let r = false
+    ${ $r = isdigit($c); }
+    return r
+
+
+fn isSpace(c Char) Bool
+    let r = false
+    ${ $r = isspace($c); }
+    return r
+
+

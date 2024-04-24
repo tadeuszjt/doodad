@@ -1,21 +1,27 @@
 module io
 
 import std/map
+import std/char
+import std/table
+import std/integer
 
 
 type Io Tuple{
     Map{I64, Bool},
     StdOut,
+    StdIn,
 }
 
-fn stdout(io &Io) &StdOut; return &io.1
-
 type StdOut Tuple{}
+type StdIn  Tuple{}
+
+fn stdout(io &Io) &StdOut; return &io.1
+fn stdin (io &Io) &StdIn ; return &io.2
 
 
-fn append(stdout &StdOut, c Char); ${ putchar($c); }
-fn append(stdout &StdOut, x I64); ${ printf("%d", $x); }
-fn append(stdout &StdOut, x Bool); ${ fputs($x ? "true" : "false", stdout); }
+fn append(stdout &StdOut, c Char);  ${ putchar($c); }
+fn append(stdout &StdOut, x I64);   ${ printf("%d", $x); }
+fn append(stdout &StdOut, x Bool);  ${ fputs($x ? "true" : "false", stdout); }
 fn append(stdout &StdOut, s []Char)
     for s -> c
         stdout += c
@@ -34,6 +40,26 @@ fn{A} append(stdout &StdOut, table &A.Table)
         if i < (table.len - 1)
             stdout += ", "
     stdout += ']'
+
+fn append(stdout &StdOut, table &Char.Table)
+    for (0, table.len) -> i
+        stdout += table[i]
+
+
+fn getChar(stdin &StdIn) Char
+    let c : Char
+    ${ $c = fgetc(stdin); }
+    aFunc()
+    return c
+
+
+fn getLine(stdin &StdIn, line &Char.Table) Bool
+    while true
+        switch stdin.getChar
+            '\n'          ; return true
+            x | x == eof(); return false
+            x             ; line += x
+    
 
 //
 //fn {io Io} openFile(fileName String)
