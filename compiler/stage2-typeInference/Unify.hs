@@ -22,18 +22,25 @@ import FunctionFinder (findCandidates)
 unifyOne :: TextPos -> Constraint -> DoM ASTResolved [(Type, Type)]
 unifyOne pos constraint = withPos pos $ case constraint of
     ConsCall exprType symbol argTypes -> do
-        ast <- get
-        candidates <- fmap fst $ runDoMExcept ast $ findCandidates
-            (CallHeader symbol argTypes exprType)
-
+        candidates <- findCandidates (CallHeader symbol argTypes exprType)
         case candidates of
-            [call] | isNonGenericFunction (callSymbol call) ast -> do
-                subs <- unifyOne pos $ ConsEq exprType (callRetType call)
-                subs' <- fmap concat $ zipWithM (\a b -> unifyOne pos $ ConsEq a b) argTypes
-                    (callArgTypes call)
-                return (subs ++ subs')
+            [] -> error "no candidates"
+            [header] -> do
+                generics <- gets $ getFunctionGenerics (callSymbol header)
+
+                s1 <- case typeFullyResolved generics (callRetType header) of
+                    True -> unifyOne pos $ ConsEq exprType (callRetType header)
+                    False -> return []
+
+                s2 <- fmap concat $ forM (zip argTypes (callArgTypes header)) $ \(a, b) -> do
+                    case typeFullyResolved generics b of
+                        True -> unifyOne pos $ ConsEq a b
+                        False -> return []
+
+                return (s1 ++ s2)
 
             _ -> return []
+
 
     ConsField typ idx exprType -> do
         base <- baseTypeOfm typ

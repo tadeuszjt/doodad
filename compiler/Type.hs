@@ -179,3 +179,14 @@ typesCouldMatch generics t1 t2 = couldMatch t1 t2
             (TypeApply s ts, x) | s `elem` generics -> return True
 
             _ -> return False
+
+typeFullyResolved :: [Symbol] -> Type -> Bool
+typeFullyResolved generics typ = case typ of
+    Type _                          -> False
+    TypeApply s _ | elem s generics -> False
+    TypeApply s ts                  -> all (typeFullyResolved generics) ts
+    Slice t                         -> typeFullyResolved generics t
+    x | isSimple x                  -> True
+    Void                            -> True
+    Size _                          -> True
+    x -> error $ "typeFullyResolved: " ++ show x

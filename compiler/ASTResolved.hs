@@ -76,8 +76,8 @@ getTypeFunction symbol ast = if Map.member symbol (typeFuncs ast) then
     else error "symbol is not a type"
 
 
-getFunctionTypeArgs :: Symbol -> ASTResolved -> [Symbol]
-getFunctionTypeArgs symbol ast = if Map.member symbol (funcDefs ast) then
+getFunctionGenerics :: Symbol -> ASTResolved -> [Symbol]
+getFunctionGenerics symbol ast = if Map.member symbol (funcDefs ast) then
         let body = funcDefs ast Map.! symbol in funcGenerics body
     else if Map.member symbol (funcImports ast) then
         let body = funcImports ast Map.! symbol in funcGenerics body

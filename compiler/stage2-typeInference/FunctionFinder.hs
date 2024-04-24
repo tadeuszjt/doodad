@@ -68,19 +68,8 @@ callCouldMatchFunc call symbol body = do
 
 funcFullyResolved :: [Symbol] -> FuncBody -> Bool
 funcFullyResolved generics body =
-    all typeFullyResolved (map typeof $ funcArgs body) &&
-    typeFullyResolved (typeof (funcRetty body))
-    where
-        typeFullyResolved :: Type -> Bool
-        typeFullyResolved typ = case typ of
-            Type _                          -> False
-            TypeApply s _ | elem s generics -> False
-            TypeApply s ts                  -> all id (map typeFullyResolved ts)
-            Slice t                         -> typeFullyResolved t
-            x | isSimple x                  -> True
-            Void                            -> True
-            Size _                          -> True
-            x -> error $ "typeFullyResolved: " ++ show x
+    all (typeFullyResolved generics) (map typeof $ funcArgs body) &&
+    (typeFullyResolved generics) (typeof (funcRetty body))
 
 
 replaceGenericsInFuncBodyWithCall :: (MonadFail m, TypeDefs m) => FuncBody -> CallHeader -> m FuncBody

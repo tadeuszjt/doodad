@@ -143,7 +143,7 @@ checkExpr (AExpr exprType expression) = withPos expression $ case expression of
     -- return objects from mparam if returns record
     Call pos symbol exprs -> do
         ast <- gets astResolved
-        unless (symbolIsResolved symbol) $ fail ("unresolved function call: " ++ show symbol)
+        --unless (symbolIsResolved symbol) $ fail ("unresolved function call: " ++ show symbol)
 
         let params = funcArgs (getFunctionBody symbol ast)
         let retty  = funcRetty (getFunctionBody symbol ast)

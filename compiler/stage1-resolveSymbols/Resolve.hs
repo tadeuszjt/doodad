@@ -269,7 +269,7 @@ instance Resolve Stmt where
         ExprStmt callExpr -> ExprStmt <$> resolve callExpr
         EmbedC pos str -> EmbedC pos <$> processCEmbed str
 
-        FuncDef pos typeArgs params (Sym sym) args retty blk -> do
+        FuncDef pos generics params (Sym sym) args retty blk -> do
             symbol' <- resolveFuncDef stmt
             body <- mapGet symbol' =<< gets funcDefsMap
             return $ FuncDef

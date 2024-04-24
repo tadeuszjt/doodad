@@ -76,6 +76,7 @@ resolveFuncCall exprType (AST.Call pos calledSymbol args) = withPos pos $ do
                     symbol' <- genSymbol (Symbol.sym calledSymbol)
                     modify $ \s -> s { funcDefs = Map.insert symbol' bodyReplaced (funcDefs s) }
                     return symbol'
+                    --return calledSymbol -- TODO don't instantiate functions here. leave for Compile
 
         [genericSymbol, nonGenericSymbol] |
             isGenericFunction genericSymbol ast &&
