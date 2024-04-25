@@ -14,6 +14,7 @@ import std/floating
 import std/char
 import std/sum
 import std/slice
+import std/push
 
 
 fn testArithmetic()
@@ -96,9 +97,7 @@ fn testTable()
     data table I64.Table
 
     let 0 = table.len
-    table.push(1)
-    table.push(2)
-    table.push(3)
+    table.push(1, 2, 3)
 
     let 3 = table.len
     let 1 = table.at(0)
@@ -277,16 +276,13 @@ fn testSlice()
 
 
 fn testIo(io &Io)
-    io.stdout += "success"
-    io.stdout += '\n'
-    io.stdout += (1, true)
-    io.stdout += " "
+    io.stdout.push("success", '\n', (1, true), " ")
 
     data table Tuple{I64, I64}.Table
     for (0, 10) -> i
-        table += (i * 2, i * 3)
+        table.push((i * 2, i * 3))
 
-    io.stdout += &table
+    io.stdout.push(&table)
 
 
 fn testArray()
@@ -301,10 +297,7 @@ fn testArray()
 
 fn testArrayPattern()
     data t1 I64.Table
-        
-    t1.push(1)
-    t1.push(2)
-    t1.push(3)
+    t1.push(1, 2, 3)
 
     let [1, x, 3] = t1
     let 2 = x
@@ -313,7 +306,7 @@ fn testArrayPattern()
         let true = false
 
     data t2 Char.Table
-    t2 += "abc"
+    t2.push("abc")
 
     let ['a', 'b', y] = t2
     let 'c' = y

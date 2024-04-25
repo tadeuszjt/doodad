@@ -1,14 +1,9 @@
 module table
 
-fn aFunc()
-    return
-
-fn{T} append(table &T.Table, item T); table.push(item)
-fn{T} append(table &T.Table, slice []T); table.push(slice)
 
 fn{T} set(table &T.Table, slice []T)
     ${ $table->len = 0; }
-    table += slice
+    table.push(slice)
 
 
 fn{T} len(table &T.Table) I64

@@ -1,10 +1,11 @@
 module ox
 
-import ../std/io
-import ../std/strings
-import ../std/array
-import ../std/integer
-import ../std/bool
+import std/io
+import std/strings
+import std/array
+import std/integer
+import std/bool
+import std/push
 
 type Empty Tuple{}
 type Naught Tuple{}
@@ -84,20 +85,19 @@ fn set(a &Board, b Board)
 
 fn printBoard(io &Io, board Board)
     for board.0 -> row
-        io.stdout += '['
+        io.stdout.push('[')
 
         for (0, row.len) -> col
 
             switch row[col]
-                Empty();  io.stdout += ' '
-                Naught(); io.stdout += 'O'
-                Cross();  io.stdout += 'X'
+                Empty();  io.stdout.push(' ')
+                Naught(); io.stdout.push('O')
+                Cross();  io.stdout.push('X')
 
             if col < (row.len - 1)
-                io.stdout += ", "
+                io.stdout.push(", ")
 
-        io.stdout += "]"
-        io.stdout += '\n'
+        io.stdout.push("]", '\n')
 
 
 fn winner(board Board) Square
@@ -134,15 +134,13 @@ fn winner(board Board) Square
 
 
 fn getPlayerInput(io &Io) Input
-    io.stdout.append("Please enter move: <row> <col>").append('\n')
+    io.stdout.push("Please enter move: <row> <col>", '\n')
     
     data line Char.Table
     if !io.stdin.getLine(&line)
         return Input(Quit())
 
-    let row = 0
-    let col = 0
-    let idx = 0
+    let (row, col, idx) = (0, 0, 0)
 
     if readI64(line.slice(idx, line.len)) -> (I64, I64)( (n, num) )
         row = n
@@ -161,8 +159,7 @@ fn getPlayerInput(io &Io) Input
 
 fn main()
     data io Io
-    io.stdout += "naughts and crosses"
-    io.stdout += '\n'
+    io.stdout.push("naughts and crosses", '\n')
 
     let board : Board
     io.printBoard(board)
@@ -171,12 +168,9 @@ fn main()
         switch io.getPlayerInput()
             Quit(); return
             Error()
-                io.stdout.append("parse error").append('\n')
+                io.stdout.push("parse error", '\n')
             Move((row, col))
-                io.stdout += "moving "
-                io.stdout += row
-                io.stdout += ", "
-                io.stdout.append(col).append('\n')
+                io.stdout.push("moving ", row, ", ", col, '\n')
 
         io.printBoard(board)
         return

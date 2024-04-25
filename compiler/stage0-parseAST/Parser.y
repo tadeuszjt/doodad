@@ -144,7 +144,6 @@ line : let pattern '=' expr               { Let (tokPos $1) $2 (Just $4) Nothing
      | let pattern                        { Let (tokPos $1) $2 Nothing Nothing }
      | expr                               { ExprStmt $1 }
      | expr '=' expr                      { ExprStmt (Call (tokPos $2) (Sym "set") [Reference (tokPos $2) $1, $3]) }
-     | expr '+=' expr                     { ExprStmt (Call (tokPos $2) (Sym "append") [Reference (tokPos $2) $1, $3]) }
      | type generics Symbol anno_t        { Typedef (fst $3) $2 (snd $3) $4 }
      | data symbol type_                  { Data (tokPos $1) (snd $2) $3 Nothing }
      | return mexpr                       { Return (tokPos $1) $2 }
@@ -275,7 +274,7 @@ expr   : literal                                 { $1 }
 literal : int_c                                  { AST.Int (tokPos $1) (read $ tokStr $1) }
         | float_c                                { AST.Float (tokPos $1) (read $ tokStr $1) }
         | char_c                                 { AST.Char (tokPos $1) (read $ tokStr $1) }
-        | string_c                               { AST.String (tokPos $1) (tokStr $1) }
+        | string_c                               { AST.String (tokPos $1) (processString $ tokStr $1) }
         | true                                   { AST.Bool (tokPos $1) True }
         | false                                  { AST.Bool (tokPos $1) False }
 
@@ -354,5 +353,15 @@ tokPos tok = tokPosn tok
 happyError :: [Token] -> P a
 happyError []    = return $ ParseFail (TextPos "" 0 0)
 happyError (x:_) = return $ ParseFail (tokPosn x)
+
+
+processString :: String -> String
+processString string = case string of
+    ('\\' : 'n' : xs) -> '\n' : processString xs
+    ('\\' : 't' : xs) -> '\t' : processString xs
+    ('\\' : '0' : xs) -> '\0' : processString xs
+    ('\\' : '\\': xs) -> '\\' : processString xs
+    (x : xs) -> x : processString xs
+    [] -> []
 
 }

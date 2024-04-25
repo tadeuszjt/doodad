@@ -40,7 +40,7 @@ fn readI64(str []Char) (I64, I64).Maybe
 
     while str.mat(idx) -> Char(c) | isDigit(c)
         hasDigits = true
-        digits += str[idx]
+        digits.push(str[idx])
         idx = idx + 1
 
     for digits -> digit

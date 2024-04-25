@@ -4,6 +4,7 @@ import std/map
 import std/char
 import std/table
 import std/integer
+import std/push
 
 
 type Io Tuple{
@@ -18,44 +19,34 @@ type StdIn  Tuple{}
 fn stdout(io &Io) &StdOut; return &io.1
 fn stdin (io &Io) &StdIn ; return &io.2
 
-fn append(stdout &StdOut, c Char) &StdOut
+fn push(stdout &StdOut, c Char)
     ${ putchar($c); }
-    return stdout
 
-fn append(stdout &StdOut, x I64) &StdOut
+fn push(stdout &StdOut, x I64)
     ${ printf("%d", $x); }
-    return stdout
 
-fn append(stdout &StdOut, x Bool) &StdOut
+fn push(stdout &StdOut, x Bool)
     ${ fputs($x ? "true" : "false", stdout); }
-    return stdout
 
-fn append(stdout &StdOut, s []Char) &StdOut
+fn push(stdout &StdOut, s []Char)
     for s -> c
-        stdout += c
-    return stdout
+        stdout.push(c)
 
-fn{A, B} append(stdout &StdOut, x Tuple{A, B}) &StdOut
-    stdout += '('
-    stdout += x.0
-    stdout += ", "
-    stdout += x.1
-    stdout += ')'
-    return stdout
+fn{A, B} push(stdout &StdOut, x Tuple{A, B})
+    stdout.push('(', x.0, ", ", x.1, ')')
 
-fn{A} append(stdout &StdOut, table &A.Table) &StdOut
-    stdout += '['
+fn{A} push(stdout &StdOut, table &A.Table)
+    stdout.push('[')
     for (0, table.len) -> i
-        stdout += table[i]
+        stdout.push(table[i])
         if i < (table.len - 1)
-            stdout += ", "
-    stdout += ']'
-    return stdout
+            stdout.push(", ")
+    stdout.push(']')
 
-fn append(stdout &StdOut, table &Char.Table) &StdOut
+
+fn push(stdout &StdOut, table &Char.Table)
     for (0, table.len) -> i
-        stdout += table[i]
-    return stdout
+        stdout.push(table[i])
 
 
 fn getChar(stdin &StdIn) Char
@@ -69,7 +60,7 @@ fn getLine(stdin &StdIn, line &Char.Table) Bool
         switch stdin.getChar
             '\n'          ; return true
             x | x == eof(); return false
-            x             ; line += x
+            x             ; line.push(x)
     
 
 //
