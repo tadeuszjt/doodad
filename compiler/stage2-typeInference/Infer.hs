@@ -9,7 +9,7 @@ import Unify
 import Collect
 import ASTResolved
 import Annotate
-import CleanUp
+import FunctionInstantiator
 
 -- Infer takes an ast and recursively runs the type inference algorithms until it can no longer
 -- make any changes to the ast.
@@ -41,7 +41,7 @@ infer :: ASTResolved -> Bool -> Bool -> DoM s (ASTResolved, Int)
 infer ast printAnnotated verbose = runDoMUntilSameResult ast $ \ast -> do 
     inferred <- inferTypesPerFunc ast
     defaulted <- inferDefaults inferred
-    fmap snd $ runDoMExcept defaulted (CleanUp.compile verbose)
+    fmap snd $ runDoMExcept defaulted (FunctionInstantiator.compile verbose)
     where
         inferTypesPerFunc :: ASTResolved -> DoM s ASTResolved
         inferTypesPerFunc ast = do

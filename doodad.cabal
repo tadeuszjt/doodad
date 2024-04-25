@@ -82,7 +82,7 @@ executable doodad
         ASTResolved,
         Lexer,
         Token,
-        CleanUp,
+        FunctionInstantiator,
         CBuilder,
         CPretty,
         CGenerate,

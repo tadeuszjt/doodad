@@ -260,7 +260,25 @@ generatePattern pattern val = withPos pattern $ do
 
 
         PatSlice _ pats -> do
-            error "here"
+            ref <- reference val
+            len <- callFunction (Sym "len") I64 [ref] 
+            endName <- fresh "end"
+
+            lenMatch <- assign "lenMatch" $ Value Type.Bool $
+                C.Infix C.EqEq (C.Int $ fromIntegral $ length pats) (valExpr len)
+
+            match <- assign "match" false
+            if_ (not_ lenMatch) (appendElem $ C.Goto endName)
+
+            forM_ (zip pats [0..]) $ \(pat, i) -> do
+                at <- callFunction (Sym "at") (typeof $ pats !! i) [val, i64 i]
+                mat <- generatePattern pat at
+                if_ (not_ mat) (appendElem $ C.Goto endName)
+
+            set match true
+            appendElem $ C.Label endName
+
+            return match
 
 
         PatTuple _ pats -> do
@@ -390,18 +408,7 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
                 initialiser typ vals
             _ -> error (show base)
 
-    S.Reference pos expr -> do
-        val <- generateExpr expr
-        base <- baseTypeOf val
-        case val of
-            Ref _ _ -> return val
-            Value _ _ -> case base of
-                TypeApply (Sym "Tuple") ts -> do
-                    ref <- assign "ref" $ Ref (typeof val) $ C.Initialiser [C.Address (valExpr val), C.Int 0, C.Int 0]
-                    return ref
-                _ -> return $ Ref (typeof val) (C.Address $ valExpr val)
-                x -> error (show x)
-
+    S.Reference pos expr -> reference =<< generateExpr expr
     _ -> error (show expr_)
     where
         withTypeCheck :: Generate Value -> Generate Value

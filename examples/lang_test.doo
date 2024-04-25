@@ -13,6 +13,7 @@ import std/integer
 import std/floating
 import std/char
 import std/sum
+import std/slice
 
 
 fn testArithmetic()
@@ -304,12 +305,20 @@ fn testArrayPattern()
     t1.push(2)
     t1.push(3)
 
-    //let [1, 2, 3] = t1
+    let [1, x, 3] = t1
+    let 2 = x
 
+    if t1 -> [1, 2]
+        let true = false
 
-    // let [a, b, z] = x   - calls x.len and x[0], x[1], x[2]
-    // let a = x           - call a.set(x)
-    return
+    data t2 Char.Table
+    t2 += "abc"
+
+    let ['a', 'b', y] = t2
+    let 'c' = y
+
+    let ['a', 'b', 'c'] = "abc"
+    let ['a', 'b', 'c'] = t2.slice()
 
 
 fn main()

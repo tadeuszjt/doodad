@@ -1,4 +1,4 @@
-module CleanUp where
+module FunctionInstantiator where
 
 import Data.List
 import Data.Maybe

@@ -143,9 +143,10 @@ callFunction symbol retty args = do
     callSymbol <- case symbolIsResolved symbol of
         True -> return symbol
         False -> do
-            Just funcSymbol <- findInstance ast $
-                CallHeader symbol (map typeof args) retty
-            return funcSymbol
+            funcSymbolm <- findInstance ast $ CallHeader symbol (map typeof args) retty
+            unless (isJust funcSymbolm)
+                (error $ "couldn't find instance: " ++ show (symbol, retty, map typeof args))
+            return (fromJust funcSymbolm)
 
     let funcParams = getFunctionArgParams callSymbol ast
     unless (length funcParams == length args) (error "invalid number of args")
@@ -154,6 +155,7 @@ callFunction symbol retty args = do
         (Value _ _, S.Param _ _ _) -> return (valExpr arg)
         (Ref _ _, S.RefParam _ _ _) -> return (refExpr arg)
         (Ref _ _, S.Param _ _ _) -> valExpr <$> deref arg
+        (Value _ _, S.RefParam _ _ _) -> refExpr <$> reference arg
         x -> error (show x)
 
     let funcRetty = getFunctionRetty callSymbol ast
@@ -229,6 +231,21 @@ convert typ val = do
                     return sum
 
         x -> error (show x)
+
+
+reference :: Value -> Generate Value
+reference val = do
+    base <- baseTypeOf val
+    case val of
+        Ref _ _ -> return val
+        Value _ _ -> case base of
+            TypeApply (Sym "Tuple") ts -> do
+                ref <- assign "ref" $ Ref (typeof val) $ C.Initialiser [C.Address (valExpr val), C.Int 0, C.Int 0]
+                return ref
+            _ -> return $ Ref (typeof val) (C.Address $ valExpr val)
+            x -> error (show x)
+
+
 
 deref :: Value -> Generate Value
 deref (Value t e) = return (Value t e)

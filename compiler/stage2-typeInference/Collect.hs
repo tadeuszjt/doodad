@@ -197,8 +197,13 @@ collectPattern (PatAnnotated pattern patType) = collectPos pattern $ case patter
         collectPattern pat
 
     PatSlice _ pats -> do
-        when (length pats > 0) $ collect "slice pattern must have at function" $
-            ConsCall (typeof $ head pats) (Sym "at") [patType, I64]
+        when (length pats > 0) $ do
+            collect "slice pattern must have at function" $
+                ConsCall (typeof $ head pats) (Sym "at") [patType, I64]
+            forM_ pats $ \pat -> do
+                collect "slice pattern must all have same type" $
+                    ConsEq (typeof pat) (typeof $ head pats)
+
         collect "slice pattern must have len function" $
             ConsCall I64 (Sym "len") [patType]
         mapM_ collectPattern pats
