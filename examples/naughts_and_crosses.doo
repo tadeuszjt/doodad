@@ -117,6 +117,9 @@ fn getPlayerInput(io &Io) Input
 
     return Input(Move(1, 2))
 
+//    if readI64(line.slice()) -> (I64, I64)( (n, num) )
+//        io.stdout += n
+
 //    if readI64(line) -> (*i64(row), rest)
 //        if readI64(rest) -> (*i64(col), _)
 //            if row < 0 || row >= 3 || col < 0 || col >= 3

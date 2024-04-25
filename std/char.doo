@@ -8,12 +8,6 @@ fn eof() Char
 fn set(a &Char, b Char)
     ${ *$a = $b; }
 
-fn equalEqual(a Char, b Char) Bool
-    let eq = false
-    ${ $eq = $a == $b; }
-    return eq
-
-
 fn isAlpha(c Char) Bool
     let r = false
     ${ $r = isalpha($c); }
@@ -32,3 +26,32 @@ fn isSpace(c Char) Bool
     return r
 
 
+fn add(a Char, b Char) Char
+    let r : Char
+    ${ $r = $a + $b; }
+    return r
+
+fn subtract(a Char, b Char) Char
+    let r : Char
+    ${ $r = $a - $b; }
+    return r
+
+fn less(a Char, b Char) Bool
+    let r : Bool
+    ${ $r = $a < $b; }
+    return r
+
+fn greater(a Char, b Char) Bool
+    let r : Bool
+    ${ $r = $a > $b; }
+    return r
+
+fn greaterEqual(a Char, b Char) Bool
+    let r : Bool
+    ${ $r = $a >= $b; }
+    return r
+
+fn equalEqual(a Char, b Char) Bool
+    let r : Bool
+    ${ $r = $a == $b; }
+    return r

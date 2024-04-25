@@ -420,6 +420,7 @@ resolveMapper element = case element of
         let list = [ "builtin_table_append"
                    , "builtin_table_at"
                    , "builtin_table_slice"
+                   , "builtin_slice_at"
                    , "builtin_array_at"
                    , "conv"
                    , "assert"

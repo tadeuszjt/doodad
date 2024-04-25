@@ -150,12 +150,8 @@ applyTypeArguments :: (MonadFail m, TypeDefs m) => [Symbol] -> [Type] -> Type ->
 applyTypeArguments argSymbols argTypes typ = do
     unless (length argSymbols == length argTypes) (fail $ "invalid arguments: " ++ show typ)
     case typ of
-        TypeApply s [] -> case elemIndex s argSymbols of
-            Just x  -> return (argTypes !! x)
-            Nothing -> return typ
-
         TypeApply s ts -> case elemIndex s argSymbols of
-            Just x  -> error (show x)
+            Just x  -> return (argTypes !! x)
             Nothing -> TypeApply s <$> mapM (applyTypeArguments argSymbols argTypes) ts
 
         _ | isSimple typ -> return typ

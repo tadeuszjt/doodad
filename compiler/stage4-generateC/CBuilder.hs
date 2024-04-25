@@ -60,7 +60,7 @@ append id = do
 
     elem' <- case curElem of
         global@(Global _) -> return $ global { globalBody = globalBody global ++ [id] }
-        func@(Func _ _ _ _) -> return $ func { funcBody = funcBody func ++ [id] }
+        func@(Func _ _ _ _ _) -> return $ func { funcBody = funcBody func ++ [id] }
         if_@(If _ _) -> return $ if_ { ifStmts = ifStmts if_ ++ [id] }
         els@(Else _) -> return $ els { elseStmts = elseStmts els ++ [id] }
         switch@(Switch _ _) -> return $ switch { switchBody = switchBody switch ++ [id] }
@@ -112,9 +112,14 @@ modifyElement id f = do
     liftBuilderState $ modify $ \s -> s { elements = Map.insert id elem' (elements s) }
 
 
-newExtern :: MonadBuilder m => String -> Type -> [Type] -> m ()
-newExtern name retty args = do
-    id <- newElement (Extern { extName = name, extRetty = retty, extArgs = args })
+newExtern :: MonadBuilder m => String -> Type -> [Type] -> [Qualifier] -> m ()
+newExtern name retty args qualifiers = do
+    id <- newElement $ ExternFunc
+        { extName = name
+        , extRetty = retty
+        , extArgs = args
+        , extQualifiers = qualifiers
+        }
     withCurID globalID (append id)
 
 
@@ -125,6 +130,12 @@ newTypedef typ name = do
     return id
 
 
-newFunction :: MonadBuilder m => Type -> String -> [Param] -> m ID 
-newFunction retty name args = do
-    newElement (Func { funcName = name, funcBody = [], funcRetty = retty, funcArgs = args })
+newFunction :: MonadBuilder m => Type -> String -> [Param] -> [Qualifier] -> m ID 
+newFunction retty name args qualifiers = do
+    newElement $ Func
+        { funcName = name
+        , funcBody = []
+        , funcRetty = retty
+        , funcArgs = args
+        , funcQualifiers = qualifiers
+        }

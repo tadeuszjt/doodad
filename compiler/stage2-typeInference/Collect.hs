@@ -227,6 +227,11 @@ collectExpr (AExpr exprType expression) = collectPos expression $ case expressio
             "builtin_array_at" -> do
                 check (length exprs == 2) "invalid builtin_table_at call"
                 collect $ ConsBase (typeof $ exprs !! 1) I64
+
+            "builtin_slice_at" -> do
+                check (length exprs == 2) "invalid builtin_table_at call"
+                collect $ ConsBase (typeof $ exprs !! 1) I64
+                collect $ ConsEq (typeof $ exprs !! 0) (Type.Slice exprType)
                 
 
             "builtin_table_append" -> do

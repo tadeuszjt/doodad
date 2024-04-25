@@ -77,6 +77,17 @@ data Operator
     | AndAnd
     deriving (Eq)
 
+data Qualifier
+    = Static
+    | Const
+    | Extern
+    deriving (Eq)
+
+instance Show Qualifier where
+    show Static = "static"
+    show Const = "const"
+    show Extern = "extern"
+
 instance Show Operator where
     show OrOr = "||"
     show Plus = "+"
@@ -165,16 +176,18 @@ data Element
         , forPost :: Maybe Expression
         , forBody :: [ID]
         }
-    | Extern
+    | ExternFunc
         { extName :: String
         , extRetty :: Type
         , extArgs :: [Type]
+        , extQualifiers :: [Qualifier]
         }
     | Func
         { funcBody :: [ID]
         , funcName :: String
         , funcArgs :: [Param]
         , funcRetty :: Type
+        , funcQualifiers :: [Qualifier]
         }
     | Typedef
         { typedefName :: String

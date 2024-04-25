@@ -192,6 +192,7 @@ Symbol : Ident                           { (tokPos $1, Sym (tokStr $1)) }
 param   : ident type_                    { Param (tokPos $1) (Sym $ tokStr $1) $2 }
         | ident '&' type_                { RefParam (tokPos $1) (Sym $ tokStr $1) $3 }
         | ident '[' ']' type_            { Param (tokPos $2) (Sym $ tokStr $1) (Type.Slice $4) }
+        | ident '&' '[' ']' type_        { RefParam (tokPos $2) (Sym $ tokStr $1) (Type.Slice $5) }
 params  : {- empty -}                    { [] }
         | params1                        { $1 }
 params1 : param                          { [$1] }

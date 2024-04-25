@@ -34,7 +34,7 @@ generate ast = withErrorPrefix "generate: " $ do
                 S.Param _ _ _ -> cTypeOf param
                 S.RefParam _ _ _ -> cRefTypeOf param
                 x -> error (show x)
-            newExtern (show symbol) crt cats
+            newExtern (show symbol) crt cats [C.Extern]
 
     -- generate function headers
     forM_ (Map.toList $ funcDefs ast) $ \(symbol, func) -> do
@@ -50,7 +50,7 @@ generate ast = withErrorPrefix "generate: " $ do
                 S.RefParam _ _ _ -> cRefTypeOf param
                 x -> error (show x)
 
-            newExtern (show symbol) crt cats
+            newExtern (show symbol) crt cats []
 
     -- generate function headers
     forM_ (Map.toList $ funcInstances ast) $ \(symbol, func) -> do
@@ -66,22 +66,25 @@ generate ast = withErrorPrefix "generate: " $ do
                 S.RefParam _ _ _ -> cRefTypeOf param
                 x -> error (show x)
 
-            newExtern (show symbol) crt cats
+            newExtern (show symbol) crt cats [C.Static]
 
     -- generate functions, main is a special case
     forM_ (Map.toList $ funcInstances ast) $ \(symbol, func) -> do
         unless (isGenericBody func) $ do
-            generateFunc symbol func
+            generateFunc True symbol func
 
     -- generate functions, main is a special case
     forM_ (Map.toList $ funcDefs ast) $ \(symbol, func) -> do
         unless (isGenericBody func) $ do
-            generateFunc symbol func
+            generateFunc False symbol func
 
             when (sym symbol == "main") $ do
                 let ioTypedef = TypeApply (SymResolved "io" "Io" 0) []
-                id <- newFunction Cint "main" $ 
+                id <- newFunction
+                    Cint
+                    "main"  
                     [ C.Param "argc" Cint, C.Param "argv" (Cpointer (Cpointer Cchar)) ]
+                    []
 
                 withCurID id $ do
                     appendElem $ C.ExprStmt $ C.Call "doodad_set_args" [C.Ident "argc", C.Ident "argv"]
@@ -96,8 +99,8 @@ cRettyType retty = case retty of
     RefRetty t -> cRefTypeOf t
 
 
-generateFunc :: Symbol -> FuncBody -> Generate ()
-generateFunc symbol body = do
+generateFunc :: Bool -> Symbol -> FuncBody -> Generate ()
+generateFunc isStatic symbol body = do
     args <- mapM cParamOf (ASTResolved.funcArgs body)
     rettyType <- cRettyType (ASTResolved.funcRetty body)
 
@@ -108,7 +111,7 @@ generateFunc symbol body = do
 
     pushSymTab
 
-    id <- newFunction rettyType (show symbol) ([] ++ args)
+    id <- newFunction rettyType (show symbol) ([] ++ args) (if isStatic then [C.Static] else [])
     withCurID id $ do
         forM_ (ASTResolved.funcArgs body) $ \arg -> do
             let name = show (paramSymbol arg)
@@ -212,7 +215,7 @@ generateStmt stmt = withPos stmt $ case stmt of
 
             -- check that index is still in range
             idxGtEq <- case base of
-                TypeApply (Sym "Table") _  -> error "here"--generateInfix S.GTEq idx =<< len val
+                TypeApply (Sym "Table") _  -> greaterEqual idx =<< len val
                 TypeApply (Sym "Array") [_, Size n]  -> greaterEqual idx (i64 n)
                 TypeApply (Sym "Tuple") [_, _] -> greaterEqual idx =<< member 1 val
                 Slice t -> greaterEqual idx =<< len val
@@ -346,6 +349,11 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
         TypeApply (Sym "Table") _ <- baseTypeOf val
         builtinTableAt val idx
 
+    S.Builtin _ "builtin_slice_at" [expr1, expr2] -> do
+        val <- generateExpr expr1
+        idx <- generateExpr expr2
+        Slice _ <- baseTypeOf val
+        builtinSliceAt val idx
 
     S.Builtin _ "builtin_array_at" [expr1, expr2] -> do
         val <- generateExpr expr1

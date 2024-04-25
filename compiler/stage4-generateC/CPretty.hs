@@ -84,7 +84,9 @@ cPrettyElem elem = case elem of
     Goto str            -> printLn $ "goto " ++ str ++ ";"
     Label str           -> printLn $ str ++ ":;"
 
-    func@(Func _ _ _ _) -> do
+    func@(Func _ _ _ _ _) -> do
+        forM (funcQualifiers func) $ \qualifier ->
+            printLn (show qualifier ++ " ")
         printLn ""
         printLn $ show (funcRetty func) ++ " " ++ funcName func ++ "(" ++ intercalate ", " (map show $ funcArgs func) ++ ") {"
         pushIndent
@@ -92,8 +94,9 @@ cPrettyElem elem = case elem of
         popIndent
         printLn $ "}"
 
-    extern@(Extern _ _ _) -> do
-        print $ "extern " ++ show (extRetty extern) ++ " " ++ extName extern ++ "("
+    extern@(ExternFunc _ _ _ _) -> do
+        forM (extQualifiers extern) $ \qualifier -> print (show qualifier ++ " ")
+        print $ show (extRetty extern) ++ " " ++ extName extern ++ "("
         forM_ (zip (extArgs extern) [0..]) $ \(argType, i) -> do
             print (show argType)
             if i < length (extArgs extern) - 1 then print ", "

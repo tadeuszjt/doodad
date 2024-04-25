@@ -39,7 +39,7 @@ optimise = do
             stmts' <- optimiseStmts stmts
             modifyElem id $ \_ -> return $ Case expr' stmts'
         
-        func@(Func _ _ _ _) -> do
+        func@(Func _ _ _ _ _) -> do
             stmts' <- optimiseStmts (funcBody func)
             modifyElem id $ \_ -> return $ func { funcBody = stmts' }
 

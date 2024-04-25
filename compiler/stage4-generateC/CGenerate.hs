@@ -357,35 +357,49 @@ builtinArrayAt value idx@(Value _ _) = do
 
 
 builtinSliceAt :: Value -> Value -> Generate Value
-builtinSliceAt (Value sliceType exp) idx@(Value _ _) = do
+builtinSliceAt val idx@(Value _ _) = do
     I64 <- baseTypeOf idx
-    Slice t <- baseTypeOf sliceType
+    Slice t <- baseTypeOf val
     base <- baseTypeOf t
-    case base of
-        Type.Char -> return $ Ref t $ C.Address $ C.Subscript (C.Member exp "ptr") (valExpr idx)
-        x -> error (show x)
+
+    case val of
+        Ref _ exp -> case base of
+            Type.Char -> return $ Ref t $ C.Address $ C.Subscript (C.PMember exp "ptr") (valExpr idx)
+            x -> error (show x)
+        Value _ exp -> case base of
+            Type.Char -> return $ Ref t $ C.Address $ C.Subscript (C.Member exp "ptr") (valExpr idx)
+            x -> error (show x)
 
 builtinTableAt :: Value -> Value -> Generate Value
-builtinTableAt (Ref tabType expr) idx@(Value _ _) = do
+builtinTableAt val idx@(Value _ _) = do
     I64 <- baseTypeOf idx
-    TypeApply (Sym "Table") [t] <- baseTypeOf tabType
-    baseT <- baseTypeOf t
-    case baseT of
-        x | isSimple x -> return $ Ref t $ C.Address $ C.Subscript
-            (C.PMember expr "r0")
-            (valExpr idx)
+    TypeApply (Sym "Table") [t] <- baseTypeOf val
+    base <- baseTypeOf t
+    case val of
+        Value _ expr -> case base of
+            TypeApply (Sym "Tuple") ts -> do
+                -- TODO implement shear
+                let ptr = C.Address $ C.Subscript (C.Member expr "r0") (valExpr idx)
+                assign "ref" $ Ref t $ C.Initialiser [ptr, C.Int 0, C.Int 0]
 
-        TypeApply (Sym "Table") [_] -> return $ Ref t $ C.Address $ C.Subscript
-            (C.PMember expr "r0")
-            (valExpr idx)
-            
+            _ -> return $ Ref t $ C.Address $ C.Subscript
+                (C.Member expr "r0")
+                (valExpr idx)
 
-        TypeApply (Sym "Tuple") ts -> do
-            -- TODO implement shear
-            let ptr = C.Address $ C.Subscript (C.PMember expr "r0") (valExpr idx)
-            assign "ref" $ Ref t $ C.Initialiser [ptr, C.Int 0, C.Int 0]
+            x -> error (show x)
 
-        x -> error (show x)
+        Ref _ expr -> case base of
+            TypeApply (Sym "Tuple") ts -> do
+                -- TODO implement shear
+                let ptr = C.Address $ C.Subscript (C.PMember expr "r0") (valExpr idx)
+                assign "ref" $ Ref t $ C.Initialiser [ptr, C.Int 0, C.Int 0]
+
+            _ -> return $ Ref t $ C.Address $ C.Subscript
+                (C.PMember expr "r0")
+                (valExpr idx)
+
+            x -> error (show x)
+builtinTableAt _ _ = fail "here"
 
 
 isCopyable :: Type.Type -> Generate Bool
@@ -419,6 +433,8 @@ cRefTypeOf a = do
             pt <- Cpointer <$> cTypeOf a
             cst <- return $ Cstruct [C.Param "ptr" pt, C.Param "idx" Csize_t, C.Param "cap" Csize_t]
             getTypedef "Ref" cst
+
+        Slice t -> Cpointer <$> cTypeOf a
 
         x -> error (show x)
 

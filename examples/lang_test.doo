@@ -298,6 +298,12 @@ fn testArray()
     let 78 = array[2]
 
 
+//fn testArrayPattern()
+
+    // let [a, b, z] = x   - calls x.len and x[0], x[1], x[2]
+    // let a = x           - call a.set(x)
+
+
 fn main()
     testArithmetic()
     testConvert()

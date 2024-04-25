@@ -13,6 +13,12 @@ fn subtract(a I64, b I64) I64
     ${ $r = $a - $b; }
     return r
 
+
+fn subtract(a I64) I64
+    let r : I64
+    ${ $r = - $a; }
+    return r
+
 fn times(a I64, b I64) I64
     let r : I64
     ${ $r = $a * $b; }
@@ -48,3 +54,9 @@ fn notEqual(a I64, b I64) Bool
     let r : Bool
     ${ $r = $a != $b; }
     return r
+
+
+fn construct(c Char) I64
+    let n = 0
+    ${ $n = $c; }
+    return n

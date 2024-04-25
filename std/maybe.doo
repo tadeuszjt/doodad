@@ -14,6 +14,8 @@ fn construct() Nothing
 
 
 fn{T} construct(x T)   T.Maybe; return conv(x)
+fn{T} just(x T)        T.Maybe; return conv(x)
+fn{T} nothing()        T.Maybe; return conv(Nothing())
 fn{T} just(m &T.Maybe) &T     ; return &m.1
 
 

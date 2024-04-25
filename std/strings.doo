@@ -4,6 +4,8 @@ import std/maybe
 import std/char
 import std/integer
 import std/slice
+import std/bool
+import std/table
 
 
 //fn isPrefix(pre:String, str:String) bool
@@ -14,39 +16,43 @@ import std/slice
 //
 //
 //
-//fn readI64(s:String) Maybe((I64, String))
-//    while get(s, 0) -> Just(c) | isSpace(c)
-//        s = drop(s, 1)
-//
-//    let isMinus = false
-//    if get(s, 0) -> Just('-')
-//        isMinus = true
-//        s = drop(s, 1)
-//
-//    let hasDigits = false
-//    let x = 0
-//    data digits []Char
-//    while get(s, 0) -> Just(c) | isDigit(c)
-//        hasDigits = true
-//        digits.push(c)
-//        s = drop(s, 1)
-//
-//    for digits -> {digit}
-//        x = x*10 + conv(digit - '0'):I64
-//
-//    if !hasDigits
-//        return Nothing()
-//    if isMinus
-//        x = 0 - x
-//    return Just((x, s))
 
-fn readI64(string []Char) (I64, I64).Maybe
+fn readI64(str []Char) (I64, I64).Maybe
+    fn mat(str &[]Char, idx I64) Char.Maybe
+        if idx > str.len
+            return nothing()
+        return just(str[idx])
+
     let idx = 0
-    for string -> c | isSpace(c)
+
+    while str.mat(idx) -> Char(c) | isSpace(c)
         idx = idx + 1
 
-    if idx >= len(string)
-        return conv(Nothing())
 
-    return conv(Nothing())
+    let isMinus = false
+    if str.mat(idx) -> Char('-')
+        isMinus = true
+        idx = idx + 1
+
+    let hasDigits = false
+    let x = 0
+    data digits Char.Table
+
+    while str.mat(idx) -> Char(c) | isDigit(c)
+        hasDigits = true
+        digits += str[idx]
+        idx = idx + 1
+
+    for digits -> digit
+        x = x*10 + I64(digit - '0')
+
+    if !hasDigits
+        return nothing()
+
+    if isMinus
+        x = -x
+
+    return just((x, idx))
+
+
 
