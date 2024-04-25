@@ -298,10 +298,18 @@ fn testArray()
     let 78 = array[2]
 
 
-//fn testArrayPattern()
+fn testArrayPattern()
+    data t1 I64.Table
+    t1.push(1)
+    t1.push(2)
+    t1.push(3)
+
+    //let [1, 2, 3] = t1
+
 
     // let [a, b, z] = x   - calls x.len and x[0], x[1], x[2]
     // let a = x           - call a.set(x)
+    return
 
 
 fn main()
@@ -322,6 +330,7 @@ fn main()
     testMap()
     testSlice()
     testArray()
+    testArrayPattern()
 
     data io Io
     testIo(&io)

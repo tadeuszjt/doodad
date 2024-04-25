@@ -91,6 +91,25 @@ getFunctionGenerics symbol ast = if Map.member symbol (funcDefs ast) then
     else error ("symbol is not function: " ++ show symbol)
 
 
+getFunctionArgParams :: Symbol -> ASTResolved -> [Param]
+getFunctionArgParams symbol ast = if Map.member symbol (funcDefs ast) then
+        let body = funcDefs ast Map.! symbol in funcArgs body
+    else if Map.member symbol (funcImports ast) then
+        let body = funcImports ast Map.! symbol in funcArgs body
+    else if Map.member symbol (funcInstances ast) then
+        let body = funcInstances ast Map.! symbol in funcArgs body
+    else error ("symbol is not function: " ++ show symbol)
+
+getFunctionRetty :: Symbol -> ASTResolved -> Retty
+getFunctionRetty symbol ast = if Map.member symbol (funcDefs ast) then
+        let body = funcDefs ast Map.! symbol in funcRetty body
+    else if Map.member symbol (funcImports ast) then
+        let body = funcImports ast Map.! symbol in funcRetty body
+    else if Map.member symbol (funcInstances ast) then
+        let body = funcInstances ast Map.! symbol in funcRetty body
+    else error ("symbol is not function: " ++ show symbol)
+
+
 getFunctionCallHeader :: Symbol -> ASTResolved -> CallHeader
 getFunctionCallHeader symbol ast = if Map.member symbol (funcDefs ast) then
         let body = funcDefs ast Map.! symbol in CallHeader symbol (map typeof $ funcArgs body) (typeof $ funcRetty body)

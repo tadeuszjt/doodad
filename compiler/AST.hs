@@ -58,6 +58,7 @@ data Pattern
     | PatIgnore    TextPos                -- fine
     | PatIdent     TextPos Symbol         -- set(&ident, b)
     | PatTuple     TextPos [Pattern]      -- set(&a, first(&z)); set(&b, second(&z)) ...
+    | PatSlice     TextPos [Pattern]      
     | PatGuarded   TextPos Pattern Expr   -- fine
     | PatAnnotated Pattern Type           -- fine
 
@@ -120,7 +121,8 @@ instance TextPosition Pattern where
         PatIdent     p _ -> p
         PatTuple     p _ -> p
         PatGuarded   p _ _ -> p
-        PatTypeField     p _ _ -> p
+        PatTypeField p _ _ -> p
+        PatSlice     p _ -> p
         PatAnnotated pat _ -> textPos pat
 
 
@@ -197,6 +199,7 @@ instance Show Pattern where
         PatTypeField pos typ pats    -> show typ ++ tupStrs (map show pats)
         PatAnnotated pat typ     -> show pat ++ ":" ++ show typ
         PatField _ symbol pat    -> show symbol ++ tupStrs [show pat]
+        PatSlice _ pats          -> arrStrs (map show pats)
 
 
 instance Show Expr where

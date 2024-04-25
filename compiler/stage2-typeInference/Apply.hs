@@ -90,6 +90,7 @@ applyPattern subs pattern = case pattern of
     PatTuple pos pats -> PatTuple pos (map applyPat pats)
     PatLiteral expr -> PatLiteral (applyEx expr)
     PatField pos symbol pat -> PatField pos symbol (applyPat pat)
+    PatSlice pos pats -> PatSlice pos (map applyPat pats)
     x -> error (show x)
     where
         applyEx = applyExpr subs

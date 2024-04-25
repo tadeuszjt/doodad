@@ -53,7 +53,13 @@ cleanUpMapper elem = case elem of
         fmap (ElemExpr . AExpr exprType) $ return (Call pos symbol' exprs)
 
     ElemPattern (PatAnnotated (PatIdent pos symbol) patType) -> do
-        void $ withPos pos $ resolveFuncCall (Sym "set") [patType, patType] Void
+        void $ resolveFuncCall (Sym "set") [patType, patType] Void
+        return elem
+
+    ElemPattern (PatAnnotated (PatSlice pos pats) patType) -> do
+        when (length pats > 0) $ do
+            void $ resolveFuncCall (Sym "at") [patType, I64] (typeof $ head pats)
+        void $ resolveFuncCall (Sym "len") [patType] I64
         return elem
 
     _ -> return elem

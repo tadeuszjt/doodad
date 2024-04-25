@@ -284,5 +284,9 @@ checkPattern (PatAnnotated pattern patType) = withPos pattern $ case pattern of
         checkPattern pat
         return NodeNull
 
+    PatSlice _ pats -> do
+        mapM checkPattern pats
+        return NodeNull
+
     x -> error (show x)
 checkPattern pattern = withPos pattern $ fail $ "unresolved pattern: " ++ show pattern

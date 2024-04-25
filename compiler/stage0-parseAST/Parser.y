@@ -224,6 +224,7 @@ pattern  : '_'                           { PatIgnore (tokPos $1) }
          | pattern ':' type_             { PatAnnotated $1 $3 }
          | type_ '(' patterns ')'        { PatTypeField (tokPos $2) $1 $3 }
          | symbol '(' pattern ')'        { PatField (tokPos $2) (snd $1) $3 }
+         | '[' patterns ']'              { PatSlice (tokPos $1) $2 } 
  
 ---------------------------------------------------------------------------------------------------
 -- Expressions ------------------------------------------------------------------------------------

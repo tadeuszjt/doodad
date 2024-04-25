@@ -21,6 +21,7 @@ import Type
 import AST as S
 import Error
 import qualified SymTab
+import FunctionFinder
 
 data Value
     = Value { valType :: Type.Type, valExpr :: C.Expression }
@@ -37,8 +38,6 @@ data GenerateState
         { moduleName  :: String
         , tuples      :: Map.Map C.Type String
         , supply      :: Map.Map String Int
-        , refFuncs    :: Map.Map Symbol Bool
-        , refFuncArgs :: Map.Map (Symbol, Int) Bool
         , curFnIsRef  :: Bool
         , symTab      :: SymTab.SymTab String () Value
         , astResolved :: ASTResolved
@@ -50,8 +49,6 @@ initGenerateState ast
         , tuples = Map.empty
         , supply = Map.empty
         , symTab = SymTab.initSymTab
-        , refFuncs = Map.empty
-        , refFuncArgs = Map.empty
         , curFnIsRef = False
         , astResolved = ast
         }
@@ -81,17 +78,6 @@ pushSymTab = modify $ \s -> s { symTab = SymTab.push (symTab s) }
 
 popSymTab :: Generate ()
 popSymTab = modify $ \s -> s { symTab = SymTab.pop (symTab s) }
-
-
-addFuncRefType :: Symbol -> Bool -> Generate ()
-addFuncRefType symbol b = do
-    modify $ \s -> s { refFuncs = Map.insert symbol b (refFuncs s) }
-
-
-getFuncRefType :: Symbol -> Generate Bool
-getFuncRefType symbol = do
-    refFuncs <- gets refFuncs
-    mapGet symbol refFuncs
 
 
 define :: String -> Value -> Generate ()
@@ -148,6 +134,35 @@ equalEqual a@(Value _ _) b@(Value _ _) = do
         x | isSimple x -> C.Infix C.EqEq (valExpr a) (valExpr b)
 
         x -> error (show x)
+
+
+callFunction :: Symbol -> Type.Type -> [Value] -> Generate Value
+callFunction symbol retty args = do
+    ast <- gets astResolved
+
+    callSymbol <- case symbolIsResolved symbol of
+        True -> return symbol
+        False -> do
+            Just funcSymbol <- findInstance ast $
+                CallHeader symbol (map typeof args) retty
+            return funcSymbol
+
+    let funcParams = getFunctionArgParams callSymbol ast
+    unless (length funcParams == length args) (error "invalid number of args")
+
+    argExprs <- forM (zip args funcParams) $ \(arg, param) -> case (arg, param) of
+        (Value _ _, S.Param _ _ _) -> return (valExpr arg)
+        (Ref _ _, S.RefParam _ _ _) -> return (refExpr arg)
+        (Ref _ _, S.Param _ _ _) -> valExpr <$> deref arg
+        x -> error (show x)
+
+    let funcRetty = getFunctionRetty callSymbol ast
+    case funcRetty of
+        Retty Void -> do
+            appendElem $ C.ExprStmt $ C.Call (show callSymbol) argExprs
+            return $ Value Void (C.Int 0)
+        Retty retType    -> assign "call" $ Value retType $ C.Call (show callSymbol) argExprs
+        RefRetty retType -> assign "call" $ Ref retType $ C.Call (show callSymbol) argExprs
 
 
 assign :: String -> Value -> Generate Value

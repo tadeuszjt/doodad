@@ -169,6 +169,7 @@ collectPattern (PatAnnotated pattern patType) = collectPos pattern $ case patter
     PatLiteral expr       -> do
         collect "expression type must match pattern type" $ ConsEq patType (typeof expr)
         collectExpr expr
+
     PatGuarded _ pat expr -> do
         collect "guard expression type must have Bool base type" $ ConsBase Type.Bool (typeof expr)
         collect "guard pattern type must match pattern type" $ ConsEq patType (typeof pat)
@@ -194,6 +195,13 @@ collectPattern (PatAnnotated pattern patType) = collectPos pattern $ case patter
         collect "field pattern must be valid for sum type" $
             ConsPatField patType symbol (typeof pat)
         collectPattern pat
+
+    PatSlice _ pats -> do
+        when (length pats > 0) $ collect "slice pattern must have at function" $
+            ConsCall (typeof $ head pats) (Sym "at") [patType, I64]
+        collect "slice pattern must have len function" $
+            ConsCall I64 (Sym "len") [patType]
+        mapM_ collectPattern pats
 
 
     x -> error (show x)

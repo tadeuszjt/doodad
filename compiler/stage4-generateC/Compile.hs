@@ -15,7 +15,6 @@ import Type as Type
 import ASTResolved
 import Symbol
 import Error
-import FunctionFinder
 
 
 generateAst :: MonadIO m => ASTResolved -> m (Either Error (((), GenerateState), BuilderState))
@@ -32,11 +31,6 @@ generate = withErrorPrefix "generate: " $ do
     -- generate imported function externs
     forM_ (Map.toList $ funcImports ast) $ \(symbol, body) -> do
         unless (isGenericBody body) $ do
-            case (ASTResolved.funcRetty body) of
-                Retty _    -> addFuncRefType symbol False
-                RefRetty _ -> addFuncRefType symbol True
-                _ -> return ()
-
             crt <- cRettyType (ASTResolved.funcRetty body)
             cats <- forM (ASTResolved.funcArgs body) $ \param -> case param of
                 S.Param _ _ _ -> cTypeOf param
@@ -47,11 +41,6 @@ generate = withErrorPrefix "generate: " $ do
     -- generate function headers
     forM_ (Map.toList $ funcDefs ast) $ \(symbol, func) -> do
          unless (isGenericBody func) $ do
-            case ASTResolved.funcRetty func of
-                Retty _    -> addFuncRefType symbol False
-                RefRetty _ -> addFuncRefType symbol True
-                _ -> return ()
-
             crt <- cRettyType (ASTResolved.funcRetty func) 
             cats <- forM (ASTResolved.funcArgs func) $ \param -> case param of
                 S.Param _ _ _ -> cTypeOf param
@@ -63,11 +52,6 @@ generate = withErrorPrefix "generate: " $ do
     -- generate function headers
     forM_ (Map.toList $ funcInstances ast) $ \(symbol, func) -> do
          unless (isGenericBody func) $ do
-            case ASTResolved.funcRetty func of
-                Retty _    -> addFuncRefType symbol False
-                RefRetty _ -> addFuncRefType symbol True
-                _ -> return ()
-
             crt <- cRettyType (ASTResolved.funcRetty func) 
             cats <- forM (ASTResolved.funcArgs func) $ \param -> case param of
                 S.Param _ _ _ -> cTypeOf param
@@ -150,6 +134,7 @@ generateStmt stmt = withPos stmt $ case stmt of
             (False, Value _ _) -> appendElem $ C.Return (valExpr val)
             (False, Ref _ _)   -> appendElem . C.Return . valExpr =<< deref val
             (True, Ref _ _)    -> appendElem $ C.Return $ refExpr val
+
 
     S.Let _ pattern mexpr mblk -> do
         rhs <- case mexpr of
@@ -257,28 +242,26 @@ generatePattern pattern val = withPos pattern $ do
         PatAnnotated pat typ -> generatePattern pat val
 
         PatIdent _ symbol -> do 
-            
             base <- baseTypeOf val
             let name = show symbol
             define name (Value (typeof val) $ C.Ident name)
             cType <- cTypeOf (typeof val)
             void $ appendAssign cType (show symbol) $ C.Initialiser [C.Int 0]
 
-            refVal <- case base of
+            ref <- case base of
                 TypeApply (Sym "Tuple") ts -> do
                     ref <- assign "ref" $ Ref (typeof val) $ C.Initialiser [C.Address (C.Ident name), C.Int 0, C.Int 0]
                     return ref
                 _ -> return $ Ref (typeof val) (C.Address $ C.Ident name)
                 x -> error (show x)
 
-            valVal <- deref val
-
-            ast      <- gets astResolved
-            Just funcSymbol <- findInstance ast $ CallHeader (Sym "set") [typeof val, typeof val] Void
-            appendElem $ C.ExprStmt $ C.Call (show funcSymbol) [refExpr refVal, valExpr valVal]
-
-            --set (Value (typeof val) $ C.Ident name) val
+            callFunction (Sym "set") Void [ref, val]
             return true
+
+
+        PatSlice _ pats -> do
+            error "here"
+
 
         PatTuple _ pats -> do
             base@(TypeApply (Sym "Tuple") ts) <- baseTypeOf val
@@ -391,22 +374,9 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
             Value _ _ -> fail "isn't reference"
             Ref _ _   -> tableAppend val >> return (Value Void $ C.Int 0)
 
-
     S.Call _ symbol exprs -> do
         check (symbolIsResolved symbol) ("unresolved function call: " ++ show symbol)
-
-        argExprs <- forM exprs $ \expr -> case expr of
-            S.AExpr _ (S.Reference _ _) -> refExpr <$> generateExpr expr
-            S.AExpr _ _                 -> valExpr <$> (deref =<< generateExpr expr)
-        
-        case typ of
-            Void -> do
-                appendElem $ C.ExprStmt $ C.Call (show symbol) argExprs
-                return $ Value Void $ C.Int 0
-            _ -> do
-                isRef <- getFuncRefType symbol
-                if isRef then assign "call" $ Ref typ $ C.Call (show symbol) argExprs
-                else          assign "call" $ Value typ $ C.Call (show symbol) argExprs
+        callFunction symbol typ =<< mapM generateExpr exprs
 
     S.Field _ expr idx -> do 
         member idx =<< generateExpr expr

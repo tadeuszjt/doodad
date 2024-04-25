@@ -155,6 +155,7 @@ mapPattern f pattern = withPos pattern $ do
             typ' <- mapTypeM f typ
             return $ PatAnnotated pat' typ'
         PatField pos symbol pat -> PatField pos symbol <$> mapPattern f pat
+        PatSlice pos pats -> PatSlice pos <$> mapM (mapPattern f) pats
         _ -> error (show pattern)
     case res of
         ElemPattern x -> return x
