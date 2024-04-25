@@ -64,6 +64,7 @@ applyExpr subs expression = case expression of
     Field pos expr symbol -> Field pos (applyEx expr) symbol
     AST.Tuple pos exprs -> AST.Tuple pos (map applyEx exprs)
     AST.Reference pos expr -> AST.Reference pos (applyEx expr)
+    AST.Array pos exprs -> AST.Array pos (map applyEx exprs)
     x -> error (show x)
     where
         applyEx = applyExpr subs

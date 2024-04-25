@@ -128,6 +128,9 @@ mapExprM f expr = withPos expr $ do
             expr' <- mapExprM f expr
             return $ AST.Reference pos expr'
 
+        AST.Array pos exprs -> do
+            AST.Array pos <$> mapM (mapExprM f) exprs
+
         _ -> error (show expr)
     case res of
         ElemExpr x -> return x

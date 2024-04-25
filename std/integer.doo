@@ -47,16 +47,10 @@ fn greaterEqual(a I64, b I64) Bool
     ${ $r = $a >= $b; }
     return r
 
-fn equalEqual(a I64, b I64) Bool
+fn equal(a I64, b I64) Bool
     let r : Bool
     ${ $r = $a == $b; }
     return r
-
-fn notEqual(a I64, b I64) Bool
-    let r : Bool
-    ${ $r = $a != $b; }
-    return r
-
 
 fn construct(c Char) I64
     let n = 0

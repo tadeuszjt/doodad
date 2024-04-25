@@ -29,8 +29,10 @@ annotateMapper elem = case elem of
     ElemExpr expr                  -> do
         t <- genType
         return $ ElemExpr (AExpr t expr)
+
     ElemPattern (PatAnnotated (PatAnnotated p _) t) -> do
         return $ ElemPattern (PatAnnotated p t)
+
     ElemPattern pattern -> do
         t <- genType
         return $ ElemPattern (PatAnnotated pattern t)

@@ -247,6 +247,7 @@ expr   : literal                                 { $1 }
        | expr ':' type_                          { AExpr $3 $1 }
        | symbol                                  { AST.Ident (fst $1) (snd $1) }
        | '(' exprsA ')'                          { case $2 of [x] -> x; xs -> AST.Tuple (tokPos $1) xs }
+       | '[' exprsA ']'                          { AST.Array (tokPos $1) $2 }
        | expr '.' int_c                          { Field (tokPos $2) $1 (read $ tokStr $3)  }
        | '&' expr                                { AST.Reference (tokPos $1) $2 }
        | type_ '(' exprsA ')'                    { AExpr $1 (Call (tokPos $2) (Sym "construct") $3) }
@@ -263,8 +264,8 @@ expr   : literal                                 { $1 }
        | expr '>' expr                           { Call (tokPos $2) (Sym "greater") [$1, $3] } 
        | expr '<=' expr                          { Call (tokPos $2) (Sym "lessEqual") [$1, $3] } 
        | expr '>=' expr                          { Call (tokPos $2) (Sym "greaterEqual") [$1, $3] } 
-       | expr '==' expr                          { Call (tokPos $2) (Sym "equalEqual") [$1, $3] } 
-       | expr '!=' expr                          { Call (tokPos $2) (Sym "notEqual") [$1, $3] } 
+       | expr '==' expr                          { Call (tokPos $2) (Sym "equal") [$1, $3] } 
+       | expr '!=' expr                          { Call (tokPos $2) (Sym "not") [Call (tokPos $2) (Sym "equal") [$1, $3]] } 
        | expr '&&' expr                          { Call (tokPos $2) (Sym "andAnd") [$1, $3] } 
        | expr '||' expr                          { Call (tokPos $2) (Sym "orOr") [$1, $3] } 
        | '-' expr                                { Call (tokPos $1) (Sym "subtract") [$2] }

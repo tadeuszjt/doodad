@@ -74,7 +74,11 @@ cPrettyElem :: Element -> DoM CPrettyState ()
 cPrettyElem elem = case elem of
     Return expr         -> printLn $ "return " ++ showNoParens expr ++ ";"
     ReturnVoid          -> printLn $ "return;"
-    Assign typ str expr -> printLn $ show typ ++ " " ++ str ++ " = " ++ showNoParens expr ++ ";"
+    Assign typ str expr -> do
+        case typ of
+            Carray n t -> printLn $ show t ++ " " ++ str ++ "[" ++ show n ++ "]" ++ " = " ++ showNoParens expr ++ ";"
+            _          -> printLn $ show typ ++ " " ++ str ++ " = " ++ showNoParens expr ++ ";"
+
     ExprStmt expr       -> printLn $ showNoParens expr ++ ";"
     Break               -> printLn "break;"
     Set expr1 expr2     -> printLn $ showNoParens expr1 ++ " = " ++ showNoParens expr2 ++ ";"

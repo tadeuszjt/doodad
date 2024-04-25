@@ -10,5 +10,5 @@ fn andAnd(a Bool, b Bool) Bool
 
 fn not(a Bool) Bool
     let c : Bool
-    ${ $c = !$c; }
+    ${ $c = $a ? 0 : 1; }
     return c

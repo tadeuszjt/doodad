@@ -54,7 +54,7 @@ fn greaterEqual(a Char, b Char) Bool
     ${ $r = $a >= $b; }
     return r
 
-fn equalEqual(a Char, b Char) Bool
+fn equal(a Char, b Char) Bool
     let r : Bool
     ${ $r = $a == $b; }
     return r

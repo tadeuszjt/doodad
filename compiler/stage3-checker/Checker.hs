@@ -128,6 +128,10 @@ checkExpr (AExpr exprType expression) = withPos expression $ case expression of
     AST.String pos s -> return NodeNull
     AST.Char pos c -> return NodeNull
 
+    AST.Array pos exprs -> do
+        mapM_ checkExpr exprs
+        return NodeNull
+
     AST.Tuple pos exprs -> do
         mapM_ checkExpr exprs
         return NodeNull

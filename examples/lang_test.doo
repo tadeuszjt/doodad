@@ -301,6 +301,7 @@ fn testArray()
 
 fn testArrayPattern()
     data t1 I64.Table
+        
     t1.push(1)
     t1.push(2)
     t1.push(3)
@@ -318,7 +319,29 @@ fn testArrayPattern()
     let 'c' = y
 
     let ['a', 'b', 'c'] = "abc"
-    let ['a', 'b', 'c'] = t2.slice()
+    let ['a', 'b', 'c'] = t2.slice(0, t2.len)
+
+
+
+fn testArrayExpr()
+    data t1 Tuple{I64, Bool}.Table
+    t1 = [
+        (1, true)
+        (2, false)
+        (3, true)
+    ]
+
+    let 1 = t1[0].0
+    let false = t1[1].1
+
+    t1 = [
+        (4, false)
+        (5, false)
+    ]
+
+    let 2 = t1.len
+    let 5 = t1[1].0
+
 
 
 fn main()
@@ -340,6 +363,7 @@ fn main()
     testSlice()
     testArray()
     testArrayPattern()
+    testArrayExpr()
 
     data io Io
     testIo(&io)

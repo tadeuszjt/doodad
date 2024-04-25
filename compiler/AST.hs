@@ -80,6 +80,7 @@ data Expr
     | Builtin      TextPos String [Expr]
     | Match        TextPos Expr Pattern
     | Reference    TextPos Expr
+    | Array        TextPos [Expr]
     deriving (Eq)
 
 instance Typeof Expr where
@@ -141,6 +142,7 @@ instance TextPosition Expr where
         Builtin      p _ _ -> p 
         Match        p _ _ -> p
         Reference    p _ -> p
+        Array        p _ -> p
         _ -> error (show expression)
 
 
@@ -211,6 +213,7 @@ instance Show Expr where
         Char pos c                         -> show c
         String pos s                       -> show s
         Tuple pos exprs                    -> tupStrs (map show exprs)
+        Array pos exprs                    -> arrStrs (map show exprs)
         Field pos expr symbol              -> show expr ++ "." ++ show symbol
         Ident p s                          -> show s 
         Call pos symbol exprs              -> show symbol ++ tupStrs (map show exprs)

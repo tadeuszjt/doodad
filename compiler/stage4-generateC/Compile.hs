@@ -287,7 +287,6 @@ generatePattern pattern val = withPos pattern $ do
 
             match <- assign "match" false
             endLabel <- fresh "skipMatch"
-            -- TODO early exit?
             forM_ (zip ts [0..]) $ \(t, i) -> do
                 let v = Value t $ C.Member (valExpr val) ("m" ++ show i)
                 b <- generatePattern (pats !! i) v
@@ -361,10 +360,18 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
         call "assert" [cndVal]
         return $ Value Void $ C.Int 0
 
-    S.Builtin _ "builtin_table_slice" [expr] -> do
+    S.Builtin _ "builtin_table_slice" [expr, start, end] -> do
         ref@(Ref _ exp) <- generateExpr expr
+        srt@(Value I64 _) <- generateExpr start
+        en@(Value I64 _) <- generateExpr end
+
+        -- TODO this is broken 
         TypeApply (Sym "Table") [t] <- baseTypeOf ref
-        assign "slice" $ Value (Slice t) $ C.Initialiser [C.PMember exp "r0", C.PMember exp "len"] 
+        assign "slice" $ Value (Slice t) $
+            C.Initialiser
+                [ C.Address (C.Subscript (C.PMember exp "r0") (valExpr srt))
+                , C.Infix C.Minus (C.PMember exp "len") (valExpr srt)
+                ] 
 
 
     S.Builtin _ "builtin_table_at" [expr1, expr2] -> do
@@ -409,6 +416,19 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
             _ -> error (show base)
 
     S.Reference pos expr -> reference =<< generateExpr expr
+
+    S.Array pos exprs -> do
+        vals <- mapM deref =<< mapM generateExpr exprs
+        cTyp <- cTypeOf (head vals)
+        name <- fresh "array"
+        appendElem $ C.Assign (Carray (length exprs) cTyp) name $ C.Initialiser (map valExpr vals)
+        assign "slice" $ Value typ $ C.Initialiser
+            [ C.Ident name
+            , C.Int (fromIntegral $ length exprs)
+            , C.Int 0
+            ]
+
+
     _ -> error (show expr_)
     where
         withTypeCheck :: Generate Value -> Generate Value

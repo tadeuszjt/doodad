@@ -20,14 +20,40 @@ type Board Tuple{
     Square.Array{3}.Array{3}
 }
 
+type Move Tuple{I64, I64}
+type Quit Tuple{}
+type Error Tuple{}
+type Input Sum{
+    Move,
+    Quit,
+    Error
+}
+
+
+fn construct() Quit
+    let q : Quit
+    return q
+
+fn construct() Error
+    let e : Error
+    return e
+
 fn construct() Empty
     let e : Empty
     return e
 
+fn construct(x I64, y I64) Move
+    let m : Move
+    m.0 = x
+    m.1 = y
+    return m
+
+fn construct(q Quit) Input; return conv(q)
+fn construct(m Move) Input; return conv(m)
+fn construct(e Error) Input; return conv(e)
 fn construct(e Empty) Square; return conv(e)
 
-fn notEqual(a Square, b Square) Bool; return !equalEqual(a, b)
-fn equalEqual(a Square, b Square) Bool
+fn equal(a Square, b Square) Bool
     switch (a, b)
         (Empty(), Empty());   return true
         (Naught(), Naught()); return true
@@ -38,6 +64,22 @@ fn equalEqual(a Square, b Square) Bool
 
 fn at(board &Board, index I64) &Square.Array{3}; return (board.0).at(index)
 fn len(board &Board)           I64; return (board.0).len
+
+fn set(a &Square, b Square)
+    ${ memcpy($a, &$b, sizeof($b)); }
+
+fn set(a &Empty, b Empty); return
+fn set(a &Quit, b Quit); return
+fn set(a &Error, b Error); return
+
+fn set(a &Move, b Move)
+    a.0 = b.0
+    a.1 = b.1
+
+fn set(a &Board, b Board)
+    for (0, a.len) -> i
+        a[0] = b[0]
+
 
 
 fn printBoard(io &Io, board Board)
@@ -89,47 +131,34 @@ fn winner(board Board) Square
 
 
 
-type Move Tuple{I64, I64}
-type Quit Tuple{}
-type Input Sum{Move, Quit}
-
-fn construct() Quit
-    let q : Quit
-    return q
-fn construct(x I64, y I64) Move
-    let m : Move
-    m.0 = x
-    m.1 = y
-    return m
-
-fn construct(q Quit) Input; return conv(q)
-fn construct(m Move) Input; return conv(m)
 
 
 fn getPlayerInput(io &Io) Input
-    io.stdout += "Please enter move: <row> <col>"
-    io.stdout += '\n'
+    io.stdout.append("Please enter move: <row> <col>").append('\n')
     
     data line Char.Table
-    
     if !io.stdin.getLine(&line)
         return Input(Quit())
 
-    return Input(Move(1, 2))
+    let row = 0
+    let col = 0
+    let idx = 0
 
-//    if readI64(line.slice()) -> (I64, I64)( (n, num) )
-//        io.stdout += n
+    if readI64(line.slice(idx, line.len)) -> (I64, I64)( (n, num) )
+        row = n
+        idx = idx + num
+    else
+        return Input(Error())
 
-//    if readI64(line) -> (*i64(row), rest)
-//        if readI64(rest) -> (*i64(col), _)
-//            if row < 0 || row >= 3 || col < 0 || col >= 3
-//            else
-//                return Move(row, col)
-//
-//    io.putStrLn("invalid input")
-//    return io.getPlayerInput()
-//
-//
+    if readI64(line.slice(idx, line.len)) -> (I64, I64)( (n, num) )
+        col = n
+        idx = idx + num
+    else
+        return Input(Error())
+
+    return Input(Move(row, col))
+
+
 fn main()
     data io Io
     io.stdout += "naughts and crosses"
@@ -139,13 +168,16 @@ fn main()
     io.printBoard(board)
 
     while winner(board) == Square(Empty())
-        io.getPlayerInput()
-//        switch io.getPlayerInput()
-//            Quit(); return
-//            Move(row, col)
-//                print("moving", row, col)
-//                board[row][col] = Naught()
-//
+        switch io.getPlayerInput()
+            Quit(); return
+            Error()
+                io.stdout.append("parse error").append('\n')
+            Move((row, col))
+                io.stdout += "moving "
+                io.stdout += row
+                io.stdout += ", "
+                io.stdout.append(col).append('\n')
+
         io.printBoard(board)
         return
 

@@ -402,6 +402,10 @@ builtinSliceAt val idx@(Value _ _) = do
             x -> error (show x)
         Value _ exp -> case base of
             Type.Char -> return $ Ref t $ C.Address $ C.Subscript (C.Member exp "ptr") (valExpr idx)
+            TypeApply (Sym "Tuple") ts -> do
+                let ptr = C.Address $ C.Subscript (C.Member exp "ptr") (valExpr idx)
+                assign "ref" $ Ref t $ C.Initialiser [ptr, C.Int 0, C.Int 0]
+
             x -> error (show x)
 
 builtinTableAt :: Value -> Value -> Generate Value

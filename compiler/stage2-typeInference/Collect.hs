@@ -275,7 +275,7 @@ collectExpr (AExpr exprType expression) = collectPos expression $ case expressio
                 collect "builtin returns void" $ ConsEq exprType Void
 
             "builtin_table_slice" -> do
-                check (length exprs == 1) "invalid builtin_table_slice call"
+                check (length exprs == 3) "invalid builtin_table_slice call"
                 collect "builtin must have slice argument" $
                     ConsSlice exprType (typeof $ head exprs)
 
@@ -303,5 +303,16 @@ collectExpr (AExpr exprType expression) = collectPos expression $ case expressio
 
     AST.String _ s -> do
         collect "string literal must have Char.Slice type" $ ConsEq exprType (Type.Slice Type.Char)
+
+    AST.Array _ exprs -> do
+        when (length exprs > 0) $ do
+            forM_ (zip exprs [0..]) $ \(expr, i) ->
+                collect "elements in array must have same type" $
+                    ConsEq (typeof $ exprs !! i) (typeof $ head exprs)
+            collect "array expression must have slice type" $
+                ConsEq exprType (Type.Slice $ typeof $ head exprs)
+        mapM_ collectExpr exprs
+
+
 
     x -> error (show x)

@@ -59,17 +59,17 @@ unifyOne info constraint = withPos info $ case constraint of
         _ | t1 == t2             -> return []
         (Type x, t)              -> return [(Type x, t)]
         (t, Type x)              -> return [(Type x, t)]
+        (Slice a, Slice b)       -> unifyOne info $ ConsEq a b
         (TypeApply s1 ts1, TypeApply s2 ts2)
             | length ts1 == length ts2 ->
                 concat <$> zipWithM (\a b -> unifyOne info (ConsEq a b)) ts1 ts2
 
-        _ -> fail (infoMsg info)
+        _ -> fail $ (infoMsg info) ++ ":" ++ show (t1, t2)
 
 
     ConsPatField patType symbol argType -> do
         error "here"
         
-
 
     ConsPatTypeField patType fieldType argTypes -> case argTypes of
         [] -> return []

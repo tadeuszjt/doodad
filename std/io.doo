@@ -18,38 +18,49 @@ type StdIn  Tuple{}
 fn stdout(io &Io) &StdOut; return &io.1
 fn stdin (io &Io) &StdIn ; return &io.2
 
+fn append(stdout &StdOut, c Char) &StdOut
+    ${ putchar($c); }
+    return stdout
 
-fn append(stdout &StdOut, c Char);  ${ putchar($c); }
-fn append(stdout &StdOut, x I64);   ${ printf("%d", $x); }
-fn append(stdout &StdOut, x Bool);  ${ fputs($x ? "true" : "false", stdout); }
-fn append(stdout &StdOut, s []Char)
+fn append(stdout &StdOut, x I64) &StdOut
+    ${ printf("%d", $x); }
+    return stdout
+
+fn append(stdout &StdOut, x Bool) &StdOut
+    ${ fputs($x ? "true" : "false", stdout); }
+    return stdout
+
+fn append(stdout &StdOut, s []Char) &StdOut
     for s -> c
         stdout += c
+    return stdout
 
-fn{A, B} append(stdout &StdOut, x Tuple{A, B})
+fn{A, B} append(stdout &StdOut, x Tuple{A, B}) &StdOut
     stdout += '('
     stdout += x.0
     stdout += ", "
     stdout += x.1
     stdout += ')'
+    return stdout
 
-fn{A} append(stdout &StdOut, table &A.Table)
+fn{A} append(stdout &StdOut, table &A.Table) &StdOut
     stdout += '['
     for (0, table.len) -> i
         stdout += table[i]
         if i < (table.len - 1)
             stdout += ", "
     stdout += ']'
+    return stdout
 
-fn append(stdout &StdOut, table &Char.Table)
+fn append(stdout &StdOut, table &Char.Table) &StdOut
     for (0, table.len) -> i
         stdout += table[i]
+    return stdout
 
 
 fn getChar(stdin &StdIn) Char
     let c : Char
     ${ $c = fgetc(stdin); }
-    aFunc()
     return c
 
 

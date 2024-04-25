@@ -6,6 +6,10 @@ fn aFunc()
 fn{T} append(table &T.Table, item T); table.push(item)
 fn{T} append(table &T.Table, slice []T); table.push(slice)
 
+fn{T} set(table &T.Table, slice []T)
+    ${ $table->len = 0; }
+    table += slice
+
 
 fn{T} len(table &T.Table) I64
     let len = 0
@@ -37,5 +41,5 @@ fn{T} push(table &T.Table, slice []T)
         table.push(x)
 
 
-fn{T} slice(table &T.Table) []T
-    return builtin_table_slice(&table)
+fn{T} slice(table &T.Table, start I64, end I64) []T
+    return builtin_table_slice(&table, start, end)
