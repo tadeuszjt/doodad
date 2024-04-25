@@ -58,8 +58,6 @@ popIndent = modify $ \s -> s { indent = (indent s - 1) }
 
 cPretty :: Set.Set String -> DoM CPrettyState ()
 cPretty includePaths = do
-    modName <- moduleName <$> gets builder
-    printLn $ "/* Doodad Module: " ++ modName ++ " */"
     printLn "#include \"doodad.h\""
 
     forM_ includePaths $ \includePath -> printLn $ "#include " ++ includePath

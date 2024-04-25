@@ -15,11 +15,19 @@ import Type as Type
 import ASTResolved
 import Symbol
 import Error
+import FunctionFinder
 
-generate :: ASTResolved -> Generate ()
-generate ast = withErrorPrefix "generate: " $ do
-    -- copy members from resolved ast
-    modify $ \s -> s { typefuncs = typeFuncs ast } 
+
+generateAst :: MonadIO m => ASTResolved -> m (Either Error (((), GenerateState), BuilderState))
+generateAst ast = runGenerate
+    (initGenerateState ast)
+    C.initBuilderState
+    generate
+
+
+generate :: Generate ()
+generate = withErrorPrefix "generate: " $ do
+    ast <- gets astResolved
 
     -- generate imported function externs
     forM_ (Map.toList $ funcImports ast) $ \(symbol, body) -> do
@@ -249,12 +257,27 @@ generatePattern pattern val = withPos pattern $ do
         PatAnnotated pat typ -> generatePattern pat val
 
         PatIdent _ symbol -> do 
+            
             base <- baseTypeOf val
             let name = show symbol
             define name (Value (typeof val) $ C.Ident name)
             cType <- cTypeOf (typeof val)
             void $ appendAssign cType (show symbol) $ C.Initialiser [C.Int 0]
-            set (Value (typeof val) $ C.Ident name) val
+
+            refVal <- case base of
+                TypeApply (Sym "Tuple") ts -> do
+                    ref <- assign "ref" $ Ref (typeof val) $ C.Initialiser [C.Address (C.Ident name), C.Int 0, C.Int 0]
+                    return ref
+                _ -> return $ Ref (typeof val) (C.Address $ C.Ident name)
+                x -> error (show x)
+
+            valVal <- deref val
+
+            ast      <- gets astResolved
+            Just funcSymbol <- findInstance ast $ CallHeader (Sym "set") [typeof val, typeof val] Void
+            appendElem $ C.ExprStmt $ C.Call (show funcSymbol) [refExpr refVal, valExpr valVal]
+
+            --set (Value (typeof val) $ C.Ident name) val
             return true
 
         PatTuple _ pats -> do

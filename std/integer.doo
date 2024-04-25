@@ -1,5 +1,7 @@
 module integer
 
+import std/bool
+
 fn set(a &I64, b I64); ${ *$a = $b; }
 
 

@@ -29,18 +29,18 @@ allSameType (x:xs) = case allSameType xs of
 
 
 
-unifyOne :: TextPos -> Constraint -> DoM ASTResolved [(Type, Type)]
-unifyOne pos constraint = withPos pos $ case constraint of
+unifyOne :: ConstraintInfo -> Constraint -> DoM ASTResolved [(Type, Type)]
+unifyOne info constraint = withPos info $ case constraint of
     ConsCall exprType symbol argTypes -> do
         candidates <- findCandidates (CallHeader symbol argTypes exprType)
 
         subs1 <- case allSameType (map callRetType candidates) of
-            Just x | typeFullyResolved x -> unifyOne pos $ ConsEq exprType x
+            Just x | typeFullyResolved x -> unifyOne info $ ConsEq exprType x
             _ -> return []
 
         subs2 <- fmap concat $ forM (zip [0..] argTypes) $ \(i, at) -> do
             case allSameType (map ((!! i) . callArgTypes) candidates) of
-                Just x | typeFullyResolved x -> unifyOne pos $ ConsEq at x
+                Just x | typeFullyResolved x -> unifyOne info $ ConsEq at x
                 _ -> return []
 
         return (subs1 ++ subs2)
@@ -50,8 +50,8 @@ unifyOne pos constraint = withPos pos $ case constraint of
         base <- baseTypeOfm typ
         case base of
             Nothing         -> return []
-            Just (TypeApply (Sym "Tuple") ts) -> unifyOne pos $ ConsEq exprType (ts !! idx)
-            Just (TypeApply (Sym "Sum") ts)   -> unifyOne pos $ ConsEq exprType (ts !! idx)
+            Just (TypeApply (Sym "Tuple") ts) -> unifyOne info $ ConsEq exprType (ts !! idx)
+            Just (TypeApply (Sym "Sum") ts)   -> unifyOne info $ ConsEq exprType (ts !! idx)
             x -> error (show x)
 
 
@@ -61,9 +61,9 @@ unifyOne pos constraint = withPos pos $ case constraint of
         (t, Type x)              -> return [(Type x, t)]
         (TypeApply s1 ts1, TypeApply s2 ts2)
             | length ts1 == length ts2 ->
-                concat <$> zipWithM (\a b -> unifyOne pos (ConsEq a b)) ts1 ts2
+                concat <$> zipWithM (\a b -> unifyOne info (ConsEq a b)) ts1 ts2
 
-        _ -> fail ("type mismatch: " ++ show t1 ++ " != " ++ show t2)
+        _ -> fail (infoMsg info)
 
 
     ConsPatField patType symbol argType -> do
@@ -73,19 +73,19 @@ unifyOne pos constraint = withPos pos $ case constraint of
 
     ConsPatTypeField patType fieldType argTypes -> case argTypes of
         [] -> return []
-        [argType] -> unifyOne pos (ConsEq fieldType argType)
+        [argType] -> unifyOne info (ConsEq fieldType argType)
 
 
     ConsForExpr exprType patType -> do
         basem <- baseTypeOfm exprType
         case basem of
             Nothing -> return []
-            Just (TypeApply (Sym "Table") [t])         -> unifyOne pos $ ConsEq patType t
-            Just (TypeApply (Sym "Array") [t, Size n]) -> unifyOne pos $ ConsEq patType t
+            Just (TypeApply (Sym "Table") [t])         -> unifyOne info $ ConsEq patType t
+            Just (TypeApply (Sym "Array") [t, Size n]) -> unifyOne info $ ConsEq patType t
             Just (TypeApply (Sym "Tuple") [t1, t2])    -> do
-                unifyOne pos $ ConsEq t1 t2
-                unifyOne pos $ ConsEq patType t1
-            Just (Slice t) -> unifyOne pos $ ConsEq patType t
+                unifyOne info $ ConsEq t1 t2
+                unifyOne info $ ConsEq patType t1
+            Just (Slice t) -> unifyOne info $ ConsEq patType t
 
             x -> fail (show x)
 
@@ -93,20 +93,20 @@ unifyOne pos constraint = withPos pos $ case constraint of
         base1m <- baseTypeOfm t1
         base2m <- baseTypeOfm t2
         case (base1m, base2m) of
-            (Just b1, Just b2) -> unifyOne pos (ConsEq b1 b2)
+            (Just b1, Just b2) -> unifyOne info (ConsEq b1 b2)
             _                  -> return []
 
     ConsSlice exprType typ -> do
         basem <- baseTypeOfm typ
         case basem of
             Nothing -> return []
-            Just (TypeApply (Sym "Table") [t]) -> unifyOne pos $ ConsEq exprType (Type.Slice t)
+            Just (TypeApply (Sym "Table") [t]) -> unifyOne info $ ConsEq exprType (Type.Slice t)
             x -> error (show x)
 
     x -> error (show x)
 
 
-unify :: [(Constraint, TextPos)] -> DoM ASTResolved [(Type, Type)]
+unify :: [(Constraint, ConstraintInfo)] -> DoM ASTResolved [(Type, Type)]
 unify []     = return []
 unify (x:xs) = do
     subs <- unify xs
@@ -114,7 +114,7 @@ unify (x:xs) = do
     return (s ++ subs)
 
 
-unifyDefault :: [(Constraint, TextPos)] -> DoM ASTResolved [(Type, Type)]
+unifyDefault :: [(Constraint, ConstraintInfo)] -> DoM ASTResolved [(Type, Type)]
 unifyDefault []     = return []
 unifyDefault (x:xs) = do
     subs <- unifyDefault xs

@@ -200,8 +200,7 @@ buildModule args modPath = do
 
 
         -- build C ast from final ast
-        res <- runGenerate
-            (C.initGenerateState modName) (C.initBuilderState modName) (generate astFinal)
+        res <- generateAst astFinal
         cBuilderState <- case res of
             Right x -> return (snd x)
             Left e -> throwError e

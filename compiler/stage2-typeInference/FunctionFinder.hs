@@ -24,10 +24,11 @@ import Monad
 -- generic symbols with resolved types.
 
 
-findInstance :: CallHeader -> DoM ASTResolved (Maybe Symbol)
-findInstance call = do
-    funcInstances <- gets funcInstances
-    candidates <- fmap catMaybes $ forM (Map.toList funcInstances) $ \(symbol, body) -> do
+findInstance :: Monad m => ASTResolved -> CallHeader -> m (Maybe Symbol)
+findInstance ast call = do
+    let funcs = Map.unions [funcInstances ast, funcDefs ast, funcImports ast]
+
+    candidates <- fmap catMaybes $ forM (Map.toList funcs) $ \(symbol, body) -> do
         let match = (Symbol.sym (callSymbol call) == Symbol.sym symbol) &&
                     (callRetType call == (typeof $ funcRetty body)) &&
                     (callArgTypes call == (map typeof $ funcArgs body))
@@ -37,8 +38,7 @@ findInstance call = do
     case candidates of
         [] -> return Nothing
         [x] -> return (Just x)
-
-
+        xs -> error ("multiple candidates for: " ++ show call)
 
 
 findCandidates :: CallHeader -> DoM ASTResolved [CallHeader]

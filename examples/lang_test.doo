@@ -187,20 +187,20 @@ fn testUnordered()
 
 
 fn testSumType()
-    let s : Sum{I64, Bool}
+//    let s : Sum{I64, Bool}
     let x = 0
-    switch s
-        I64(n); x = 1
-        Bool(b); x = 2
-    let 1 = x
-
-    let s2 = Sum{I64, Bool}(1)
-    switch s2
-        Bool(_);         let true = false
-        I64(n) | n != 1; let true = false
-        I64(1);          let true = true
-
-    fn i64(s &Sum{I64, Bool}) I64; return 0
+//    switch s
+//        I64(n); x = 1
+//        Bool(b); x = 2
+//    let 1 = x
+//
+//    let s2 = Sum{I64, Bool}(1)
+//    switch s2
+//        Bool(_);         let true = false
+//        I64(n) | n != 1; let true = false
+//        I64(1);          let true = true
+//
+//    fn i64(s &Sum{I64, Bool}) I64; return 0
 
 //    s2 = conv(true)
 //

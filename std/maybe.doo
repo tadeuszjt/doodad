@@ -18,6 +18,8 @@ fn{T} just(x T)        T.Maybe; return conv(x)
 fn{T} nothing()        T.Maybe; return conv(Nothing())
 fn{T} just(m &T.Maybe) &T     ; return &m.1
 
+fn set(a &Nothing, b Nothing)
+    return
 
 fn{T} set(a &T.Maybe, b T.Maybe)
     ${ memcpy($a, &$b, sizeof($b)); }

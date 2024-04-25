@@ -49,8 +49,12 @@ genSymbol sym = do
 cleanUpMapper :: Elem -> DoM ASTResolved Elem
 cleanUpMapper elem = case elem of
     ElemExpr (AExpr exprType expr@(AST.Call pos symbol exprs)) | all isAnnotated exprs -> do
-        symbol' <- resolveFuncCall exprType expr
+        symbol' <- withPos pos $ resolveFuncCall symbol (map typeof exprs) exprType
         fmap (ElemExpr . AExpr exprType) $ return (Call pos symbol' exprs)
+
+    ElemPattern (PatAnnotated (PatIdent pos symbol) patType) -> do
+        void $ withPos pos $ resolveFuncCall (Sym "set") [patType, patType] Void
+        return elem
 
     _ -> return elem
     where
@@ -58,13 +62,11 @@ cleanUpMapper elem = case elem of
         isAnnotated (AExpr _ _) = True
         isAnnotated _           = False
 
-    
--- add extern if needed
-resolveFuncCall :: Type -> AST.Expr -> DoM ASTResolved Symbol
-resolveFuncCall _ (AST.Call _ s@(SymResolved _ _ _) _) = return s
-resolveFuncCall exprType (AST.Call pos calledSymbol args) = withPos pos $ do
-    --liftIO $ putStrLn $ "resolving: " ++ show calledSymbol
-    let callHeader = CallHeader calledSymbol (map typeof args) exprType
+resolveFuncCall :: Symbol -> [Type] -> Type -> DoM ASTResolved Symbol
+resolveFuncCall s@(SymResolved _ _ _) argTypes retType = return s
+resolveFuncCall calledSymbol        argTypes retType = do
+
+    let callHeader = CallHeader calledSymbol argTypes retType
 
     candidates <- map callSymbol <$> findCandidates callHeader
     ast <- get
@@ -81,7 +83,7 @@ resolveFuncCall exprType (AST.Call pos calledSymbol args) = withPos pos $ do
             case funcFullyResolved bodyReplaced of
                 False -> return calledSymbol
                 True  -> do
-                    instancem <- findInstance $ CallHeader
+                    instancem <- findInstance ast $ CallHeader
                         symbol
                         (map typeof $ funcArgs bodyReplaced)
                         (typeof $ funcRetty bodyReplaced)

@@ -11,3 +11,4 @@ fn{A, B, C, D} construct(a A) Sum{A, B, C, D}; return conv(a)
 fn{A, B, C, D} construct(a B) Sum{A, B, C, D}; return conv(a)
 fn{A, B, C, D} construct(a C) Sum{A, B, C, D}; return conv(a)
 fn{A, B, C, D} construct(a D) Sum{A, B, C, D}; return conv(a)
+

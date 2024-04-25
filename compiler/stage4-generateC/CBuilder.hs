@@ -12,7 +12,6 @@ data BuilderState
     { elements :: Map.Map ID Element
     , currentID :: ID
     , idSupply :: Int
-    , moduleName :: String
     }
     deriving (Eq)
 
@@ -24,11 +23,10 @@ class (Monad m, MonadFail m) => MonadBuilder m where
 globalID = ID 0
 
 
-initBuilderState moduleName = BuilderState
+initBuilderState = BuilderState
     { elements = Map.singleton globalID (Global [])
     , currentID = globalID
     , idSupply = 1
-    , moduleName = moduleName
     }
 
 

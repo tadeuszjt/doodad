@@ -2,6 +2,7 @@ module Constraint where
 
 import Type
 import Symbol
+import Error
 
 -- constraints obtained from sub-expressions must be to the left
 data Constraint
@@ -14,3 +15,14 @@ data Constraint
     | ConsCall Type Symbol [Type]   -- symbol(t2s):t1
     | ConsSlice Type Type           
     deriving (Show, Eq, Ord)
+
+
+
+data ConstraintInfo
+    = ConstraintInfo
+        { infoTextPos :: TextPos
+        , infoMsg     :: String
+        }
+
+instance TextPosition ConstraintInfo where
+    textPos = infoTextPos

@@ -13,6 +13,7 @@ import Data.Maybe
 
 import Symbol
 import ASTResolved hiding (moduleName)
+import qualified ASTResolved
 import CBuilder as C hiding (moduleName)
 import CAst as C
 import Control.Monad.State
@@ -36,23 +37,23 @@ data GenerateState
         { moduleName  :: String
         , tuples      :: Map.Map C.Type String
         , supply      :: Map.Map String Int
-        , typefuncs   :: Map.Map Symbol ([Symbol], Type.Type)
         , refFuncs    :: Map.Map Symbol Bool
         , refFuncArgs :: Map.Map (Symbol, Int) Bool
         , curFnIsRef  :: Bool
         , symTab      :: SymTab.SymTab String () Value
+        , astResolved :: ASTResolved
         }
 
-initGenerateState modName
+initGenerateState ast
     = GenerateState
-        { moduleName = modName
+        { moduleName = ASTResolved.moduleName ast
         , tuples = Map.empty
         , supply = Map.empty
-        , typefuncs = Map.empty
         , symTab = SymTab.initSymTab
         , refFuncs = Map.empty
         , refFuncArgs = Map.empty
         , curFnIsRef = False
+        , astResolved = ast
         }
 
 newtype Generate a = Generate { unGenerate :: StateT GenerateState (StateT BuilderState (ExceptT Error IO)) a }
@@ -65,7 +66,8 @@ instance MonadFail Generate where
     fail s = throwError (ErrorStr s)
 
 instance TypeDefs Generate where
-    getTypeDefs = gets typefuncs
+    getTypeDefs = gets (typeFuncs . astResolved)
+
 
 
 runGenerate :: MonadIO m => GenerateState -> BuilderState -> Generate a -> m (Either Error ((a, GenerateState), BuilderState))

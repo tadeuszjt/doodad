@@ -1,5 +1,7 @@
 module char
 
+import std/bool
+
 fn eof() Char
     let c : Char
     ${ $c = EOF; }
@@ -7,6 +9,7 @@ fn eof() Char
 
 fn set(a &Char, b Char)
     ${ *$a = $b; }
+
 
 fn isAlpha(c Char) Bool
     let r = false
