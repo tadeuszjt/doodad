@@ -6,6 +6,7 @@ import std/array
 import std/integer
 import std/bool
 import std/push
+import std/table
 
 type Empty Tuple{}
 type Naught Tuple{}

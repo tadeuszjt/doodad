@@ -15,9 +15,10 @@ data ASTResolved
         , includes        :: Set.Set String                  -- c header includes
         , links           :: Set.Set String                  -- linked libraries
         , typeFuncs       :: Type.TypeDefsMap                -- defined type functions
-        , funcImports     :: Map.Map Symbol FuncBody         -- imported funcs
         , funcDefs        :: Map.Map Symbol FuncBody         -- defined functions
+        , funcImports     :: Map.Map Symbol FuncBody         -- imported funcs
         , funcInstances   :: Map.Map Symbol FuncBody
+        , funcExterns     :: Map.Map Symbol FuncBody
         , symSupply       :: Map.Map String Int              -- type supply from resovle
         }
     deriving (Eq)

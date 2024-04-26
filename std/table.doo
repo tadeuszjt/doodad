@@ -18,7 +18,7 @@ fn{T} at(table &T.Table, index I64) &T
 
 fn{T} push(table &T.Table, item T)
     builtin_table_append(&table)
-    table.at(table.len() - 1) = item
+    table[table.len - 1] = item
 
 
 fn{T} push(table &T.Table)
@@ -26,7 +26,7 @@ fn{T} push(table &T.Table)
 
 
 fn{T} pop(table &T.Table) T
-    let item = table.at(table.len() - 1) : T
+    let item = table[table.len - 1]
     ${ $table->len--; }
     return item
 

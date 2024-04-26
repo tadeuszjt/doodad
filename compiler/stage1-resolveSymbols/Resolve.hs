@@ -178,10 +178,15 @@ resolveAsts asts imports = runDoMExcept (initResolveState imports (astModuleName
             { moduleName    = moduleName
             , includes      = Set.fromList includes
             , links         = Set.fromList links
-            , funcImports   = Map.unions $ concat [map ASTResolved.funcDefs imports,  map ASTResolved.funcImports imports]
+            , funcImports   = Map.unions $ concat [map ASTResolved.funcDefs imports]
+            , funcExterns   = Map.unions $ concat
+                [ map ASTResolved.funcExterns imports
+                , map ASTResolved.funcImports imports
+                ]
             , funcDefs      = funcDefs
             , funcInstances = Map.empty
-            , typeFuncs     = Map.union typeFuncImportMap (Map.map (\(x, y) -> (x, annoToType y)) typeFuncs)
+            , typeFuncs     = Map.union typeFuncImportMap
+                (Map.map (\(x, y) -> (x, annoToType y)) typeFuncs)
             , symSupply     = supply
             }
 
