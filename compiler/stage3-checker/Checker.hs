@@ -100,9 +100,9 @@ look symbol = do
 checkAST :: ASTResolved -> DoM CheckState ()
 checkAST ast = do
     forM_ (Map.toList $ funcDefs ast) $ \(symbol, body) -> do
-        when (funcGenerics body == []) $ do
+        when (funcGenerics (funcHeader body) == []) $ do
             pushSymTab
-            forM (funcArgs body) $ \param -> do
+            forM (funcArgs (funcHeader body)) $ \param -> do
                 define (paramSymbol param) (NodeArg $ paramSymbol param)
 
             checkStmt (funcStmt body)
@@ -145,8 +145,8 @@ checkExpr (AExpr exprType expression) = withPos expression $ case expression of
         ast <- gets astResolved
         unless (symbolIsResolved symbol) $ fail ("unresolved function call: " ++ show symbol)
 
-        let params = funcArgs (getFunctionBody symbol ast)
-        let retty  = funcRetty (getFunctionBody symbol ast)
+        let params = funcArgs $ funcHeader (getFunctionBody symbol ast)
+        let retty  = funcRetty $ funcHeader (getFunctionBody symbol ast)
 
         nodes <- mapM checkExpr exprs
         unless (length nodes == length params) (fail "length error")

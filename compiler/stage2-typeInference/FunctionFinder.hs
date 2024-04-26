@@ -17,6 +17,7 @@ import Apply
 import Error
 import Constraint
 import Monad
+import AST
 
 
 -- Function Finder contains functions which can determine whether a generic function could match
@@ -29,9 +30,10 @@ findInstance ast call = do
     let funcs = Map.unions [funcInstances ast, funcDefs ast, funcImports ast]
 
     candidates <- fmap catMaybes $ forM (Map.toList funcs) $ \(symbol, body) -> do
+        let header = funcHeader body
         let match = (Symbol.sym (callSymbol call) == Symbol.sym symbol) &&
-                    (callRetType call == (typeof $ funcRetty body)) &&
-                    (callArgTypes call == (map typeof $ funcArgs body))
+                    (callRetType call == (typeof $ funcRetty header)) &&
+                    (callArgTypes call == (map typeof $ funcArgs header))
         case match of
             True -> return (Just symbol)
             False -> return Nothing
@@ -41,65 +43,45 @@ findInstance ast call = do
         xs -> error ("multiple candidates for: " ++ show call)
 
 
-findCandidates :: CallHeader -> DoM ASTResolved [CallHeader]
+findCandidates :: CallHeader -> DoM ASTResolved [FuncHeader]
 findCandidates call = do
-    ast <- get
-    --liftIO $ putStrLn $ "findCandidates: " ++ show (callSymbol call)
-    fmap catMaybes $ forM (Map.toList $ Map.union (funcDefs ast) (funcImports ast)) $ \x -> case x of
-        (symbol, body) | funcGenerics body == [] -> do
-            couldMatch <- callCouldMatchFunc call symbol body
-            if couldMatch then return $ Just (getFunctionCallHeader symbol ast)
+    funcDefs <- gets funcDefs
+    funcImports <- gets funcImports
+
+    fmap catMaybes $ forM (Map.elems $ Map.union funcDefs funcImports) $ \body -> do
+        couldMatch <- callCouldMatchFunc call (funcHeader body)
+        if not couldMatch then
+            return Nothing
+        else if not (isGenericBody body) then do
+            couldMatch <- callCouldMatchFunc call (funcHeader body)
+            if couldMatch then return $ Just (funcHeader body)
             else return Nothing
-
-        (symbol, body) -> do
-            couldMatch <- callCouldMatchFunc call symbol body
-            case couldMatch of
-                False -> return Nothing
-                True -> do
-                    replacedE <- tryError (replaceGenericsInFuncBodyWithCall body call)
-                    case replacedE of
-                        Left _ -> return Nothing
-                        Right replaced -> do
-                            True <- callCouldMatchFunc call symbol replaced
-                            return $ Just $ CallHeader
-                                symbol
-                                (map typeof $ funcArgs replaced)
-                                (typeof $ funcRetty replaced)
-
-                        x -> error (show x)
+        else do
+            replacedE <- tryError (replaceGenericsInFuncHeader (funcHeader body) call)
+            case replacedE of
+                Left _ -> return Nothing
+                Right replaced -> do
+                    True <- callCouldMatchFunc call replaced
+                    return (Just replaced)
 
 
 
-callCouldMatchFunc :: TypeDefs m => CallHeader -> Symbol -> FuncBody -> m Bool
-callCouldMatchFunc call symbol body = do
-    if symbolsMatch then do
-        am <- argsMatch
-        rm <- rettyMatch
-        return (am && rm)
-    else return False
-    where
-        typesMatch :: TypeDefs m => [Type] -> [Type] -> m Bool
-        typesMatch ts1 ts2 = do
-            bs <- zipWithM typesCouldMatch ts1 ts2
-            return $ (length ts1 == length ts2) && (all id bs)
-
-        symbolsMatch    = symbolsCouldMatch (callSymbol call) symbol
-        argsMatch       = typesMatch (callArgTypes call) (map typeof $ funcArgs body)
-        rettyMatch      = typesCouldMatch (callRetType call) (typeof $ funcRetty body)
-
-
-funcFullyResolved :: FuncBody -> Bool
-funcFullyResolved body =
-    all typeFullyResolved (map typeof $ funcArgs body) &&
-    typeFullyResolved (typeof (funcRetty body))
+replaceGenericsInFuncHeader :: (MonadFail m, TypeDefs m) => FuncHeader -> CallHeader -> m FuncHeader
+replaceGenericsInFuncHeader header call = do
+    couldMatch <- callCouldMatchFunc call (header { funcSymbol = callSymbol call })
+    unless couldMatch (error "headers could not match")
+    subs <- unify (funcGenerics header) =<< getConstraints call header
+    return (applyFuncHeader subs header)
 
 
 replaceGenericsInFuncBodyWithCall :: (MonadFail m, TypeDefs m) => FuncBody -> CallHeader -> m FuncBody
 replaceGenericsInFuncBodyWithCall body call = do
-    couldMatch <- callCouldMatchFunc call (callSymbol call) body
+    couldMatch <- callCouldMatchFunc call $ (funcHeader body) { funcSymbol = callSymbol call }
     unless couldMatch (error "headers could not match")
-    subs <- unify (funcGenerics body) =<< getConstraints call body
-    return $ (applyFuncBody subs body) { funcGenerics = [] }
+    subs <- unify (funcGenerics $ funcHeader body) =<< getConstraints call (funcHeader body)
+    let body'   =  applyFuncBody subs body
+    let header' = (funcHeader body') { funcGenerics = [] }
+    return $ body' { funcHeader = header' } 
 
 
 unifyOne :: MonadFail m => [Symbol] -> Constraint -> m [(Type, Type)]
@@ -124,11 +106,14 @@ unify generics (x:xs) = do
     return (s ++ subs)
 
 
-getConstraints :: (TypeDefs m, MonadFail m) => CallHeader -> FuncBody -> m [Constraint]
-getConstraints call body = do
-    retCs <- getConstraintsFromTypes (funcGenerics body) (typeof $ funcRetty body) (callRetType call)
-    argCs <- fmap concat $ zipWithM (getConstraintsFromTypes $ funcGenerics body)
-        (map typeof $ funcArgs body)
+getConstraints :: (TypeDefs m, MonadFail m) => CallHeader -> FuncHeader -> m [Constraint]
+getConstraints call header = do
+    retCs <- getConstraintsFromTypes
+        (funcGenerics header)
+        (typeof $ funcRetty header)
+        (callRetType call)
+    argCs <- fmap concat $ zipWithM (getConstraintsFromTypes $ funcGenerics header)
+        (map typeof $ funcArgs header)
         (callArgTypes call)
     return (retCs ++ argCs)
     

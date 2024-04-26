@@ -91,7 +91,13 @@ instance Typeof Pattern where
 
 
 data FuncHeader
-    = FuncHeader TextPos [Symbol] Symbol [Param] Retty
+    = FuncHeader
+        { funcPos :: TextPos
+        , funcGenerics :: [Symbol]
+        , funcSymbol :: Symbol
+        , funcArgs :: [Param]
+        , funcRetty :: Retty
+        }
     deriving (Eq, Show)
 
 

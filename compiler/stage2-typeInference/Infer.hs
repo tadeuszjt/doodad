@@ -10,6 +10,7 @@ import Collect
 import ASTResolved
 import Annotate
 import FunctionInstantiator
+import AST
 
 -- Infer takes an ast and recursively runs the type inference algorithms until it can no longer
 -- make any changes to the ast.
@@ -46,13 +47,13 @@ infer ast printAnnotated verbose = runDoMUntilSameResult ast $ \ast -> do
         inferTypesPerFunc :: ASTResolved -> DoM s ASTResolved
         inferTypesPerFunc ast = do
             funcDefs' <- forM (funcDefs ast) $ \func -> do
-                case funcGenerics func of
+                case funcGenerics (funcHeader func) of
                     [] -> fmap fst $ runDoMExcept ast $
                         fmap fst (runDoMUntilSameResult func inferFunc)
                     _  -> return func
 
             funcInstances' <- forM (funcInstances ast) $ \func -> do
-                case funcGenerics func of
+                case funcGenerics (funcHeader func) of
                     [] -> fmap fst $ runDoMExcept ast $
                         fmap fst (runDoMUntilSameResult func inferFunc)
                     _  -> return func
@@ -63,13 +64,13 @@ infer ast printAnnotated verbose = runDoMUntilSameResult ast $ \ast -> do
         inferDefaults :: ASTResolved -> DoM s ASTResolved
         inferDefaults ast = do
             funcDefs' <- forM (funcDefs ast) $ \func -> do
-                case funcGenerics func of
+                case funcGenerics (funcHeader func) of
                     [] -> fmap fst $ runDoMExcept ast $
                         fmap fst (runDoMUntilSameResult func inferFuncDefaults)
                     _  -> return func
 
             funcInstances' <- forM (funcInstances ast) $ \func -> do
-                case funcGenerics func of
+                case funcGenerics (funcHeader func) of
                     [] -> fmap fst $ runDoMExcept ast $
                         fmap fst (runDoMUntilSameResult func inferFuncDefaults)
                     _  -> return func

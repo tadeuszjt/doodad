@@ -34,10 +34,8 @@ data CallHeader = CallHeader
 
 data FuncBody
     = FuncBody
-        { funcGenerics :: [Symbol]
-        , funcArgs     :: [AST.Param]
-        , funcRetty    :: AST.Retty
-        , funcStmt     :: AST.Stmt
+        { funcHeader :: AST.FuncHeader
+        , funcStmt   :: AST.Stmt
         }
     deriving (Eq, Show)
 
@@ -50,74 +48,35 @@ instance Show CallHeader where
                 [] -> "()"
                 ts -> "(" ++ intercalate ", " (map show ts) ++ ")"
 
+
+callCouldMatchFunc :: TypeDefs m => CallHeader -> FuncHeader -> m Bool
+callCouldMatchFunc call header = do
+    if symbolsMatch then do
+        am <- argsMatch
+        rm <- rettyMatch
+        return (am && rm)
+    else return False
+    where
+        typesMatch :: TypeDefs m => [Type] -> [Type] -> m Bool
+        typesMatch ts1 ts2 = do
+            bs <- zipWithM typesCouldMatch ts1 ts2
+            return $ (length ts1 == length ts2) && (all id bs)
+
+        symbolsMatch = symbolsCouldMatch (callSymbol call) (funcSymbol header)
+        argsMatch    = typesMatch (callArgTypes call) (map typeof $ funcArgs header)
+        rettyMatch   = typesCouldMatch (callRetType call) (typeof $ funcRetty header)
+
+
+funcHeaderFullyResolved :: FuncHeader -> Bool
+funcHeaderFullyResolved header =
+    all typeFullyResolved $ (typeof (funcRetty header) : map typeof (funcArgs header))
+
+
 isGenericBody :: FuncBody -> Bool
-isGenericBody (FuncBody [] _ _ _) = False
-isGenericBody _                     = True
+isGenericBody (FuncBody header _) = isGenericHeader header
 
-
-isGenericFunction :: Symbol -> ASTResolved -> Bool
-isGenericFunction symbol ast = if Map.member symbol (funcDefs ast) then
-        isGenericBody (funcDefs ast Map.! symbol)
-    else if Map.member symbol (funcImports ast) then
-        isGenericBody (funcImports ast Map.! symbol)
-    else if Map.member symbol (funcInstances ast) then
-        isGenericBody (funcInstances ast Map.! symbol)
-    else False
-
-
-isNonGenericFunction :: Symbol -> ASTResolved -> Bool
-isNonGenericFunction symbol ast = if Map.member symbol (funcDefs ast) then
-        not $ isGenericBody (funcDefs ast Map.! symbol)
-    else if Map.member symbol (funcImports ast) then
-        not $ isGenericBody (funcImports ast Map.! symbol)
-    else if Map.member symbol (funcInstances ast) then
-        not $ isGenericBody (funcInstances ast Map.! symbol)
-    else False
-
-
-getTypeFunction :: Symbol -> ASTResolved -> ([Symbol], Type)
-getTypeFunction symbol ast = if Map.member symbol (typeFuncs ast) then
-        typeFuncs ast Map.! symbol
-    else error "symbol is not a type"
-
-
-getFunctionGenerics :: Symbol -> ASTResolved -> [Symbol]
-getFunctionGenerics symbol ast = if Map.member symbol (funcDefs ast) then
-        let body = funcDefs ast Map.! symbol in funcGenerics body
-    else if Map.member symbol (funcImports ast) then
-        let body = funcImports ast Map.! symbol in funcGenerics body
-    else if Map.member symbol (funcInstances ast) then
-        let body = funcInstances ast Map.! symbol in funcGenerics body
-    else error ("symbol is not function: " ++ show symbol)
-
-
-getFunctionArgParams :: Symbol -> ASTResolved -> [Param]
-getFunctionArgParams symbol ast = if Map.member symbol (funcDefs ast) then
-        let body = funcDefs ast Map.! symbol in funcArgs body
-    else if Map.member symbol (funcImports ast) then
-        let body = funcImports ast Map.! symbol in funcArgs body
-    else if Map.member symbol (funcInstances ast) then
-        let body = funcInstances ast Map.! symbol in funcArgs body
-    else error ("symbol is not function: " ++ show symbol)
-
-getFunctionRetty :: Symbol -> ASTResolved -> Retty
-getFunctionRetty symbol ast = if Map.member symbol (funcDefs ast) then
-        let body = funcDefs ast Map.! symbol in funcRetty body
-    else if Map.member symbol (funcImports ast) then
-        let body = funcImports ast Map.! symbol in funcRetty body
-    else if Map.member symbol (funcInstances ast) then
-        let body = funcInstances ast Map.! symbol in funcRetty body
-    else error ("symbol is not function: " ++ show symbol)
-
-
-getFunctionCallHeader :: Symbol -> ASTResolved -> CallHeader
-getFunctionCallHeader symbol ast = if Map.member symbol (funcDefs ast) then
-        let body = funcDefs ast Map.! symbol in CallHeader symbol (map typeof $ funcArgs body) (typeof $ funcRetty body)
-    else if Map.member symbol (funcImports ast) then
-        let body = funcImports ast Map.! symbol in CallHeader symbol (map typeof $ funcArgs body) (typeof $ funcRetty body)
-    else if Map.member symbol (funcInstances ast) then
-        let body = funcInstances ast Map.! symbol in CallHeader symbol (map typeof $ funcArgs body) (typeof $ funcRetty body)
-    else error ("symbol is not function: " ++ show symbol)
+isGenericHeader :: FuncHeader -> Bool
+isGenericHeader header = funcGenerics header /= []
 
 
 getFunctionBody :: Symbol -> ASTResolved -> FuncBody
@@ -130,11 +89,15 @@ getFunctionBody symbol ast = if Map.member symbol (funcDefs ast) then
     else error ("symbol is not function: " ++ show symbol)
 
 
-funcHeaderTypesMatch :: FuncBody -> FuncBody -> Bool
-funcHeaderTypesMatch a b =
-    funcRetty a == funcRetty b &&
-    map typeof (funcArgs a) == map typeof (funcArgs b)
-
+getFunctionHeader :: Symbol -> ASTResolved -> FuncHeader
+getFunctionHeader symbol ast = funcHeader $
+        if Map.member symbol (funcDefs ast) then
+            funcDefs ast Map.! symbol
+        else if Map.member symbol (funcImports ast) then
+            funcImports ast Map.! symbol
+        else if Map.member symbol (funcInstances ast) then
+            funcInstances ast Map.! symbol
+        else error ("symbol is not function: " ++ show symbol)
 
 
 prettyFuncBody :: Symbol -> FuncBody -> IO ()
@@ -142,10 +105,10 @@ prettyFuncBody symbol body =
     prettyStmt "" $ FuncDef
         (FuncHeader 
             undefined
-            (funcGenerics body)
+            (funcGenerics $ funcHeader body)
             symbol
-            (funcArgs body)
-            (funcRetty body)
+            (funcArgs $ funcHeader body)
+            (funcRetty $ funcHeader body)
         )
         (funcStmt body)
 

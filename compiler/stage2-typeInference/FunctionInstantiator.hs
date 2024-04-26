@@ -24,14 +24,14 @@ compile verbose = do
     --when verbose $ liftIO $ putStrLn $ "cleaning..."
     funcInstances <- gets funcInstances
     forM_ (Map.toList funcInstances) $ \(symbol, body) -> do
-        when (funcGenerics body == []) $ do
+        when (funcGenerics (funcHeader body) == []) $ do
             stmt' <- (mapStmtM instantiatorMapper) (funcStmt body)
             body' <- return body { funcStmt = stmt' }
             modify $ \s -> s { funcInstances = Map.insert symbol body' (ASTResolved.funcInstances s) }
 
     funcDefs <- gets funcDefs
     forM_ (Map.toList funcDefs) $ \(symbol, body) -> do
-        when (funcGenerics body == []) $ do
+        when (funcGenerics (funcHeader body) == []) $ do
             stmt' <- (mapStmtM instantiatorMapper) (funcStmt body)
             body' <- return body { funcStmt = stmt' }
             modify $ \s -> s { funcDefs = Map.insert symbol body' (ASTResolved.funcDefs s) }
@@ -98,25 +98,25 @@ resolveFuncCall calledSymbol        argTypes retType = do
 
     let callHeader = CallHeader calledSymbol argTypes retType
 
-    candidates <- map callSymbol <$> findCandidates callHeader
+    candidates <- findCandidates callHeader
     ast <- get
 
     case candidates of
         [] -> fail $ "no candidates for: " ++ show callHeader
 
-        [symbol] | isNonGenericFunction symbol ast -> return symbol
-        [symbol] | isGenericFunction symbol ast    -> do -- this is where we replace
+        [FuncHeader _ generics symbol _ _] | generics == [] -> return symbol
+        [FuncHeader _ generics symbol _ _] -> do -- this is where we replace
             bodyReplaced <- replaceGenericsInFuncBodyWithCall
                 (getFunctionBody symbol ast)
                 callHeader
 
-            case funcFullyResolved bodyReplaced of
+            case funcHeaderFullyResolved (funcHeader bodyReplaced) of
                 False -> return calledSymbol
                 True  -> do
                     instancem <- findInstance ast $ CallHeader
                         symbol
-                        (map typeof $ funcArgs bodyReplaced)
-                        (typeof $ funcRetty bodyReplaced)
+                        (map typeof $ funcArgs $ funcHeader bodyReplaced)
+                        (typeof $ funcRetty $ funcHeader bodyReplaced)
                     case instancem of
                         Just s -> return s
                         Nothing -> do

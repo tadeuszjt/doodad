@@ -76,7 +76,7 @@ collectAST :: Prelude.Bool -> ASTResolved -> DoM CollectState ()
 collectAST verbose ast = do
     --when verbose $ liftIO $ putStrLn "collecting..."
     forM_ (Map.toList $ funcDefs ast) $ \(symbol, body) ->
-        when (funcGenerics body == []) $
+        when (funcGenerics (funcHeader body) == []) $
             collectFuncDef body
 
 
@@ -84,8 +84,8 @@ collectFuncDef :: FuncBody -> DoM CollectState ()
 collectFuncDef body = do
     modify $ \s -> s { symTab = SymTab.push (symTab s) }
     oldRetty <- gets curRetty
-    modify $ \s -> s { curRetty = typeof (funcRetty body) }
-    forM_ (funcArgs body) $ \param -> case param of
+    modify $ \s -> s { curRetty = typeof (funcRetty (funcHeader body)) }
+    forM_ (funcArgs $ funcHeader body) $ \param -> case param of
         (Param _ symbol t) -> define symbol t
         (RefParam _ symbol t) -> define symbol t
 

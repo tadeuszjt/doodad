@@ -138,7 +138,10 @@ callFunction symbol retty args = do
                 (error $ "couldn't find instance: " ++ show (symbol, retty, map typeof args))
             return (fromJust funcSymbolm)
 
-    let funcParams = getFunctionArgParams callSymbol ast
+    let header = getFunctionHeader callSymbol ast
+    let funcParams = S.funcArgs header
+    let funcRetty = S.funcRetty header
+
     unless (length funcParams == length args) (error "invalid number of args")
 
     argExprs <- forM (zip args funcParams) $ \(arg, param) -> case (arg, param) of
@@ -148,7 +151,6 @@ callFunction symbol retty args = do
         (Value _ _, S.RefParam _ _ _) -> refExpr <$> reference arg
         x -> error (show x)
 
-    let funcRetty = getFunctionRetty callSymbol ast
     case funcRetty of
         Retty Void -> do
             appendElem $ C.ExprStmt $ C.Call (show callSymbol) argExprs

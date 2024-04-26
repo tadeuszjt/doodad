@@ -27,18 +27,28 @@ mapParamM f (AST.RefParam pos symbol typ) = withPos pos $ AST.RefParam pos symbo
 mapRettyM :: MapperFunc s -> Retty -> DoM s Retty
 mapRettyM f (AST.Retty t) = AST.Retty <$> mapTypeM f t
 mapRettyM f (AST.RefRetty t) = AST.RefRetty <$> mapTypeM f t
+
+
+mapFuncHeaderM :: MapperFunc s -> FuncHeader -> DoM s FuncHeader
+mapFuncHeaderM f header = do
+    funcArgs' <- mapM (mapParamM f) (funcArgs header)
+    funcRetty' <- mapRettyM f (funcRetty header)
+    return $ FuncHeader
+        { funcArgs = funcArgs'
+        , funcRetty = funcRetty'
+        , funcGenerics = funcGenerics header
+        , funcSymbol = funcSymbol header
+        , funcPos = funcPos header
+        }
     
 
 mapFuncBodyM :: MapperFunc s -> FuncBody -> DoM s FuncBody
 mapFuncBodyM f body = do
-    funcArgs'   <- mapM (mapParamM f) (funcArgs body)
-    funcRetty'  <- mapRettyM f (funcRetty body)
-    funcStmt'   <- mapStmtM f (funcStmt body)
+    funcHeader'   <- mapFuncHeaderM f (funcHeader body)
+    funcStmt'     <- mapStmtM f (funcStmt body)
     return $ FuncBody
-        { funcGenerics = funcGenerics body
-        , funcArgs     = funcArgs'
-        , funcRetty    = funcRetty'
-        , funcStmt     = funcStmt'
+        { funcHeader = funcHeader'
+        , funcStmt   = funcStmt'
         }
 
 

@@ -34,12 +34,12 @@ unifyOne info constraint = withPos info $ case constraint of
     ConsCall exprType symbol argTypes -> do
         candidates <- findCandidates (CallHeader symbol argTypes exprType)
 
-        subs1 <- case allSameType (map callRetType candidates) of
+        subs1 <- case allSameType (map (typeof . S.funcRetty) candidates) of
             Just x | typeFullyResolved x -> unifyOne info $ ConsEq exprType x
             _ -> return []
 
         subs2 <- fmap concat $ forM (zip [0..] argTypes) $ \(i, at) -> do
-            case allSameType (map ((!! i) . callArgTypes) candidates) of
+            case allSameType (map (typeof . (!! i) . S.funcArgs) candidates) of
                 Just x | typeFullyResolved x -> unifyOne info $ ConsEq at x
                 _ -> return []
 

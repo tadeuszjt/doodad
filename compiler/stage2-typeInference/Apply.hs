@@ -11,10 +11,18 @@ applyAST :: [(Type, Type)] -> ASTResolved -> ASTResolved
 applyAST subs ast = ast { funcDefs = Map.map (applyFuncBody subs) (funcDefs ast) }
 
 applyFuncBody :: [(Type, Type)] -> FuncBody -> FuncBody
-applyFuncBody subs body = body {
-    funcStmt = applyStmt subs (funcStmt body),
-    funcArgs = map (applyParam subs) (funcArgs body),
-    funcRetty = applyRetty subs (funcRetty body)
+applyFuncBody subs body = body
+    { funcStmt = applyStmt subs (funcStmt body)
+    , funcHeader = applyFuncHeader subs (funcHeader body)
+    }
+
+
+applyFuncHeader :: [(Type, Type)] -> FuncHeader -> FuncHeader
+applyFuncHeader subs header = header
+    { funcArgs = map (applyParam subs) (funcArgs header)
+    , funcRetty = applyRetty subs (funcRetty header)
+    , funcGenerics = funcGenerics header
+    , funcSymbol = funcSymbol header
     }
 
 

@@ -191,7 +191,6 @@ resolveAsts asts imports = runDoMExcept (initResolveState imports (astModuleName
             }
 
 
-
 -- defines in funcDefsMap
 resolveFuncDef :: AST.Stmt -> DoM ResolveState Symbol
 resolveFuncDef (FuncDef (FuncHeader pos generics (Sym sym) args retty) blk) = withPos pos $ do
@@ -212,12 +211,16 @@ resolveFuncDef (FuncDef (FuncHeader pos generics (Sym sym) args retty) blk) = wi
         check (args     == []) "main cannot have arguments"
         check (retty == AST.Retty Void)  "main cannot have a return type"
 
-    let funcBody = FuncBody {
-        funcGenerics = genericSymbols,
-        funcArgs     = args',
-        funcRetty    = retty',
-        funcStmt     = blk'
-        }
+    let funcBody = FuncBody
+            { funcHeader = (FuncHeader
+                { funcGenerics = genericSymbols
+                , funcArgs     = args'
+                , funcRetty    = retty'
+                , funcSymbol   = symbol'
+                , funcPos      = pos
+                })
+            , funcStmt  = blk'
+            }
     popSymbolTable
     modify $ \s -> s { funcDefsMap = Map.insert symbol' funcBody (funcDefsMap s) }
     return symbol'
@@ -268,6 +271,7 @@ resolveTypeDef (AST.Typedef pos generics (Sym sym) anno) = withPos pos $ do
             AST.Param pos s' <$> resolve t
 
 
+
 instance Resolve Stmt where
     resolve stmt = withPos stmt $ case stmt of
         ExprStmt callExpr -> ExprStmt <$> resolve callExpr
@@ -276,14 +280,7 @@ instance Resolve Stmt where
         FuncDef (FuncHeader pos generics (Sym sym) args retty) blk -> do
             symbol' <- resolveFuncDef stmt
             body <- mapGet symbol' =<< gets funcDefsMap
-            return $ FuncDef
-                (FuncHeader
-                    pos
-                    (funcGenerics body)
-                    symbol'
-                    (funcArgs body)
-                    (funcRetty body))
-                (funcStmt body)
+            return $ FuncDef ((funcHeader body) { funcSymbol = symbol' }) (funcStmt body)
 
         AST.Typedef pos args symbol anno -> do
             defineTypeSymbols stmt
