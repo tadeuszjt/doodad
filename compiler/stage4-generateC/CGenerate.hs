@@ -126,16 +126,6 @@ greaterEqual a@(Value _ _) b@(Value _ _) = do
         x -> error (show x)
 
 
-equalEqual :: Value -> Value -> Generate Value
-equalEqual a@(Value _ _) b@(Value _ _) = do
-    unless (typeof a == typeof b) (error "type mismatch")
-    base <- baseTypeOf a
-    return $ Value Type.Bool $ case base of
-        x | isSimple x -> C.Infix C.EqEq (valExpr a) (valExpr b)
-
-        x -> error (show x)
-
-
 callFunction :: Symbol -> Type.Type -> [Value] -> Generate Value
 callFunction symbol retty args = do
     ast <- gets astResolved

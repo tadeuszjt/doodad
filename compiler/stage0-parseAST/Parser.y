@@ -218,7 +218,7 @@ pattern  : '_'                           { PatIgnore (tokPos $1) }
          | '-' int_c                     { PatLiteral (AST.Int (tokPos $1) $ 0 - (read $ tokStr $2)) }
          | ident                         { PatIdent (tokPos $1) (Sym $ tokStr $1) }
          | '(' patterns ')'              { PatTuple (tokPos $1) $2 }
-         | pattern '|' expr              { PatGuarded (tokPos $2) $1 $3 }
+         | pattern '|' expr              { PatGuarded (tokPos $2) $1 $ AExpr Type.Bool $ Call (tokPos $2) (Sym "construct") [$3] }
          | pattern '|' expr '->' pattern { PatGuarded (tokPos $2) $1 (Match (tokPos $4) $3 $5) }
          | pattern ':' type_             { PatAnnotated $1 $3 }
          | type_ '(' patterns ')'        { PatTypeField (tokPos $2) $1 $3 }
@@ -239,7 +239,7 @@ mexpr  : {-empty-}                               { Nothing }
 exprsA : exprs                                   { $1 }
        | 'I' exprsN 'D'                          { $2 }
 
-condition : expr                                 { $1 }
+condition : expr                                 { AExpr Type.Bool $ Call (TextPos "" 0 0) (Sym "construct") [$1] }
           | expr '->' pattern                    { Match (tokPos $2) $1 $3 }
 
 expr   : literal                                 { $1 }
@@ -271,12 +271,12 @@ expr   : literal                                 { $1 }
        | '!' expr                                { Call (tokPos $1) (Sym "not") [$2] }
 
 
-literal : int_c                                  { AST.Int (tokPos $1) (read $ tokStr $1) }
-        | float_c                                { AST.Float (tokPos $1) (read $ tokStr $1) }
-        | char_c                                 { AST.Char (tokPos $1) (read $ tokStr $1) }
+literal : int_c                                  { Call (tokPos $1) (Sym "construct") [AST.Int (tokPos $1) (read $ tokStr $1)] }
+        | float_c                                { Call (tokPos $1) (Sym "construct") [AST.Float (tokPos $1) (read $ tokStr $1)] }
+        | char_c                                 { Call (tokPos $1) (Sym "construct") [AST.Char (tokPos $1) (read $ tokStr $1)] }
+        | true                                   { Call (tokPos $1) (Sym "construct") [AST.Bool (tokPos $1) True] }
+        | false                                  { Call (tokPos $1) (Sym "construct") [AST.Bool (tokPos $1) False] }
         | string_c                               { AST.String (tokPos $1) (processString $ tokStr $1) }
-        | true                                   { AST.Bool (tokPos $1) True }
-        | false                                  { AST.Bool (tokPos $1) False }
 
 ---------------------------------------------------------------------------------------------------
 -- Types ------------------------------------------------------------------------------------------

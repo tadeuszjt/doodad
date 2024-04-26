@@ -2,6 +2,8 @@ module char
 
 import std/bool
 
+fn construct(a Char) Char; return a
+
 fn eof() Char
     let c : Char
     ${ $c = EOF; }

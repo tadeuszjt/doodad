@@ -4,6 +4,18 @@ import std/bool
 
 fn set(a &I64, b I64); ${ *$a = $b; }
 
+fn construct(a I64) I64; return a
+
+fn construct(a F64) I64
+    let b : I64
+    ${ $b = $a; }
+    return b
+
+fn construct(c Char) I64
+    let n = 0
+    ${ $n = $c; }
+    return n
+
 
 fn add(a I64, b I64) I64
     let r : I64
@@ -52,7 +64,3 @@ fn equal(a I64, b I64) Bool
     ${ $r = $a == $b; }
     return r
 
-fn construct(c Char) I64
-    let n = 0
-    ${ $n = $c; }
-    return n

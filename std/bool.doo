@@ -1,7 +1,19 @@
 module bool
 
+fn equal(a Bool, b Bool) Bool
+    let c : Bool
+    ${ $c = $a == $b; }
+    return c
+
+
 fn set(a &Bool, b Bool)
     ${ *$a = $b; }
+
+fn construct(a Bool) Bool
+    let b : Bool
+    ${ $b = $a; }
+    return b
+
 
 fn andAnd(a Bool, b Bool) Bool
     let c : Bool

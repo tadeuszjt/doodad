@@ -56,6 +56,10 @@ instantiatorMapper elem = case elem of
         void $ resolveFuncCall (Sym "set") [patType, patType] Void
         return elem
 
+    ElemPattern (PatAnnotated (PatLiteral expr) patType) | isAnnotated expr -> do
+        void $ resolveFuncCall (Sym "equal") [patType, patType] Type.Bool
+        return elem
+
     ElemPattern (PatAnnotated (PatTuple pos pats) patType) | all patAnnotated pats -> do
         when (length pats > 0) $ void $ resolveFuncCall (Sym "first") [patType] (typeof $ pats !! 0)
         when (length pats > 1) $ void $ resolveFuncCall (Sym "second") [patType] (typeof $ pats !! 1)

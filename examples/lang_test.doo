@@ -28,15 +28,31 @@ fn testFloats()
     let 4.0 = 16.0 / 4.0
 
 
-fn construct(f F64) I64
-    let n : I64
-    ${ $n = $f; }
-    return n
-
-
 fn testConvert()
+    let 3 = 1 + 2
+    type MyInt I64
+
+    fn set(a &MyInt, b MyInt); ${ *$a = $b; }
+    fn add(a MyInt, b MyInt) MyInt
+        let c : MyInt
+        ${ $c = $a + $b; }
+        return c
+    fn equal(a MyInt, b MyInt) Bool
+        let c : Bool
+        ${ $c = $a == $b; }
+        return c
+
+    fn construct(a I64) MyInt
+        let b : MyInt
+        ${ $a = $b; }
+        return b
+
+    let x : MyInt = 3
+    let 4 : MyInt = 1 + x
+    
     let f = 3.14
     let 3 = I64(f)
+    return
 
 
 fn testIf()
@@ -324,7 +340,6 @@ fn testArrayPattern()
     let ['a', 'b', 'c'] = t2.slice(0, t2.len)
 
 
-
 fn testArrayExpr()
     data t1 Tuple{I64, Bool}.Table
     t1 = [
@@ -344,6 +359,77 @@ fn testArrayExpr()
     let 2 = t1.len
     let 5 = t1[1].0
 
+
+fn testBoolConditions()
+    let bool = true
+    if bool
+        let true = true
+    else
+        let false = true
+
+    type AlwaysTrue Tuple{}
+
+    let always : AlwaysTrue
+    fn construct(a AlwaysTrue) Bool
+        return true
+
+    if always
+        let true = true
+    else
+        let false = false
+
+
+    type OnlyThrice I64
+    fn construct(a I64) OnlyThrice
+        let b : OnlyThrice
+        ${ $b = $a; }
+        return b
+
+    fn equal(a OnlyThrice, b OnlyThrice) Bool
+        let c : Bool
+        ${ $c = $a == $b; }
+        return c
+
+    fn set(a &OnlyThrice, b OnlyThrice)
+        ${ *$a = $b; }
+
+    fn add(a OnlyThrice, b OnlyThrice) OnlyThrice
+        let c : OnlyThrice
+        ${ $c = $a + $b; }
+        return c
+
+    fn construct(a &OnlyThrice) Bool
+        if a == 3
+            return false
+        else
+            a = a + 1
+            return true
+
+    let count = 0
+    let onlyThrice : OnlyThrice
+    while &onlyThrice
+        count = count + 1
+    let 3 = count
+        
+
+
+fn testCharType()
+    let a = 'c'
+    let 'c' = a
+
+    type MyChar Char.Tuple
+
+    fn set(a &MyChar, b MyChar); a.0 = b.0
+    fn construct(a Char) MyChar
+        let b : MyChar
+        b.0 = a
+        return b
+    fn equal(a MyChar, b MyChar) Bool; return a.0 == b.0
+
+    let m : MyChar = 'm'
+    let 'm':MyChar = m
+    if m -> 'n'
+        let true = false
 
 
 fn main()
@@ -366,6 +452,8 @@ fn main()
     testArray()
     testArrayPattern()
     testArrayExpr()
+    testBoolConditions()
+    testCharType()
 
     data io Io
     testIo(&io)

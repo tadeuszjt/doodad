@@ -8,6 +8,7 @@ import std/bool
 import std/push
 import std/table
 import std/tuple
+import std/char
 
 type Empty Tuple{}
 type Naught Tuple{}

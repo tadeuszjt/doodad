@@ -245,12 +245,12 @@ generatePatternIsolated (PatAnnotated pattern patType) = withPos pattern $ case 
 
 
 generatePattern :: Pattern -> Value -> Generate Value
-generatePattern pattern val = withPos pattern $ case pattern of
+generatePattern (PatAnnotated pattern patType) val = withPos pattern $ case pattern of
     PatIgnore _ -> return true
+
     PatLiteral expr -> do
-        d <- deref val
-        equalEqual d =<< generateExpr expr
-    PatAnnotated pat typ -> generatePattern pat val
+        v <- generateExpr expr
+        callFunction (Sym "equal") Type.Bool [v, val]
 
     PatIdent _ symbol -> do 
         base <- baseTypeOf val
@@ -258,17 +258,9 @@ generatePattern pattern val = withPos pattern $ case pattern of
         define name (Value (typeof val) $ C.Ident name)
         cType <- cTypeOf (typeof val)
         void $ appendAssign cType (show symbol) $ C.Initialiser [C.Int 0]
-
-        ref <- case base of
-            TypeApply (Sym "Tuple") ts -> do
-                ref <- assign "ref" $ Ref (typeof val) $ C.Initialiser [C.Address (C.Ident name), C.Int 0, C.Int 0]
-                return ref
-            _ -> return $ Ref (typeof val) (C.Address $ C.Ident name)
-            x -> error (show x)
-
+        ref <- reference $ Value (typeof val) (C.Ident name)
         callFunction (Sym "set") Void [ref, val]
         return true
-
 
     PatSlice _ pats -> do
         ref <- reference val
@@ -304,7 +296,7 @@ generatePattern pattern val = withPos pattern $ case pattern of
             void $ if_ (not_ b) $ appendElem (C.Goto endLabel)
 
         set match true
-        appendElem $ C.Label endLabel
+        appendElem (C.Label endLabel)
         return match
 
     PatGuarded _ pat expr -> do

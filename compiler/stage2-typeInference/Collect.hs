@@ -54,8 +54,8 @@ collect msg constraint = do
 collectDefault :: Type -> Type -> DoM CollectState ()
 collectDefault t1 t2 = do
     curPos <- gets curPos
-    let info = ConstraintInfo { infoTextPos = curPos }
-    modify $ \s -> s { defaults = Map.insert (ConsEq t1 t2) info (defaults s) }
+    let info = ConstraintInfo { infoTextPos = curPos, infoMsg = "default" }
+    modify $ \s -> s { defaults = Map.insert (ConsDefault t1 t2) info (defaults s) }
 
 
 look :: Symbol -> DoM CollectState Type
@@ -91,9 +91,7 @@ collectFuncDef body = do
         (RefParam _ symbol t) -> define symbol t
 
     collectStmt (funcStmt body)
-
     modify $ \s -> s { curRetty = oldRetty }
-    --collectDefault (funcRetty body) Void
     modify $ \s -> s { symTab = SymTab.pop (symTab s) }
 
 
@@ -125,7 +123,7 @@ collectStmt statement = collectPos statement $ case statement of
         void $ traverse collectStmt mstmt
         
     If _ expr blk melse -> do
-        collect "if condition must have Bool base type" $ ConsBase Type.Bool (typeof expr)
+        collect "if condition must have bool type" $ ConsEq Type.Bool (typeof expr)
         collectExpr expr
         collectStmt blk
         void $ traverse collectStmt melse
@@ -140,8 +138,7 @@ collectStmt statement = collectPos statement $ case statement of
         collectStmt blk
 
     While _ expr blk -> do
-        collect "while condition must have Bool base type" $
-            ConsBase Type.Bool (typeof expr)
+        collect "while condition must have bool type" $ ConsEq Type.Bool (typeof expr)
         collectDefault Type.Bool (typeof expr)
         collectStmt blk
         collectExpr expr
@@ -179,10 +176,12 @@ collectPattern (PatAnnotated pattern patType) = collectPos pattern $ case patter
 
     PatLiteral expr       -> do
         collect "expression type must match pattern type" $ ConsEq patType (typeof expr)
+        collect "literal pattern needs equal function" $
+            ConsCall Type.Bool (Sym "equal") [patType, patType]
         collectExpr expr
 
     PatGuarded _ pat expr -> do
-        collect "guard expression type must have Bool base type" $ ConsBase Type.Bool (typeof expr)
+        collect "guard expression type must have Bool type" $ ConsEq Type.Bool (typeof expr)
         collect "guard pattern type must match pattern type" $ ConsEq patType (typeof pat)
         collectPattern pat
         collectExpr expr
@@ -228,16 +227,17 @@ collectPattern (PatAnnotated pattern patType) = collectPos pattern $ case patter
 
 collectExpr :: Expr -> DoM CollectState ()
 collectExpr (AExpr exprType expression) = collectPos expression $ case expression of
-    Float _ _ -> do
-        collectDefault exprType F64
+    Float _ _    -> collect "float is F64" (ConsEq exprType F64)
+    AST.Bool _ _ -> collect "bool literal must have Bool type" (ConsEq exprType Type.Bool)
+    Int _ _      -> collect "integer is type I64" (ConsEq exprType I64)
+    AST.Char _ _ -> collect "char literal must have Char type" (ConsEq exprType Type.Char)
 
-    AST.Bool _ _ -> do
-        collectDefault exprType Type.Bool
-        collect "bool literal must have Bool base type" $ ConsBase exprType Type.Bool
 
     Call _ symbol exprs -> do
         when (Symbol.sym symbol == "construct" && length exprs > 1) $ do
             void $ collectDefault exprType $ Type.TypeApply (Sym "Tuple") (map typeof exprs)
+        when (Symbol.sym symbol == "construct" && length exprs == 1) $ do
+            void $ collectDefault exprType $ typeof (head exprs)
 
         collect "call expression must have valid types" $
             ConsCall exprType symbol (map typeof exprs)
@@ -263,20 +263,20 @@ collectExpr (AExpr exprType expression) = collectPos expression $ case expressio
         case sym of
             "builtin_table_at" -> do
                 check (length exprs == 2) "invalid builtin_table_at call"
-                collect "builtin must have I64 base type for index argument" $
-                    ConsBase (typeof $ exprs !! 1) I64
+                collect "builtin must have I64 type for index argument" $
+                    ConsEq (typeof $ exprs !! 1) I64
                 collect "builtin argument must have table base type" $
                     ConsBase (typeof $ exprs !! 0) (Type.TypeApply (Sym "Table") [exprType])
 
             "builtin_array_at" -> do
                 check (length exprs == 2) "invalid builtin_table_at call"
-                collect "builtin must have I64 base type for index" $
-                    ConsBase (typeof $ exprs !! 1) I64
+                collect "builtin must have I64 type for index" $
+                    ConsEq (typeof $ exprs !! 1) I64
 
             "builtin_slice_at" -> do
                 check (length exprs == 2) "invalid builtin_table_at call"
-                collect "builtin must have I64 base type for index" $
-                    ConsBase (typeof $ exprs !! 1) I64
+                collect "builtin must have I64 type for index" $
+                    ConsEq (typeof $ exprs !! 1) I64
                 collect "builtin must have slice argument" $
                     ConsEq (typeof $ exprs !! 0) (Type.Slice exprType)
                 
@@ -293,8 +293,10 @@ collectExpr (AExpr exprType expression) = collectPos expression $ case expressio
             "conv"  -> return ()
             "assert" -> do
                 check (length exprs == 2) "invalid assert exprs"
-                collect "assert must have Bool argument" $ ConsBase (typeof $ exprs !! 0) Type.Bool
-                collect "assert must have Char.Slice message" $ ConsBase (typeof $ exprs !! 1) (Type.Slice Type.Char)
+                collect "assert must have Bool argument" $
+                    ConsEq (typeof $ exprs !! 0) Type.Bool
+                collect "assert must have Char.Slice message" $
+                    ConsEq (typeof $ exprs !! 1) (Type.Slice Type.Char)
                 collect "assert returns void" $
                     ConsEq exprType Void
 
@@ -305,12 +307,6 @@ collectExpr (AExpr exprType expression) = collectPos expression $ case expressio
         collect ("identifier type for " ++ show symbol ++ " must match expression type") $
             ConsEq typ exprType
 
-    Int _ n -> do
-        collectDefault exprType I64
-
-    AST.Char _ c -> do
-        collect "char literal must have Char base type" $ ConsBase exprType Type.Char
-        collectDefault exprType Type.Char
 
     AST.String _ s -> do
         collect "string literal must have Char.Slice type" $ ConsEq exprType (Type.Slice Type.Char)
