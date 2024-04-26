@@ -56,6 +56,13 @@ instantiatorMapper elem = case elem of
         void $ resolveFuncCall (Sym "set") [patType, patType] Void
         return elem
 
+    ElemPattern (PatAnnotated (PatTuple pos pats) patType) | all patAnnotated pats -> do
+        when (length pats > 0) $ void $ resolveFuncCall (Sym "first") [patType] (typeof $ pats !! 0)
+        when (length pats > 1) $ void $ resolveFuncCall (Sym "second") [patType] (typeof $ pats !! 1)
+        when (length pats > 2) $ void $ resolveFuncCall (Sym "third") [patType] (typeof $ pats !! 2)
+        when (length pats > 3) $ void $ resolveFuncCall (Sym "fourth") [patType] (typeof $ pats !! 3)
+        return elem
+
     ElemPattern (PatAnnotated (PatSlice pos pats) patType) -> do
         when (length pats > 0) $ do
             void $ resolveFuncCall (Sym "at") [patType, I64] (typeof $ head pats)
@@ -71,6 +78,11 @@ instantiatorMapper elem = case elem of
 
     _ -> return elem
     where
+        patAnnotated :: AST.Pattern -> Bool
+        patAnnotated (PatAnnotated _ t) = True
+        patAnnotated _                  = False
+
+
         isAnnotated :: AST.Expr -> Bool
         isAnnotated (AExpr _ _) = True
         isAnnotated _           = False

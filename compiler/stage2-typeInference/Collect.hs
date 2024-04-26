@@ -188,8 +188,11 @@ collectPattern (PatAnnotated pattern patType) = collectPos pattern $ case patter
         collectExpr expr
 
     PatTuple _ pats -> do
-        collectDefault patType (Type.TypeApply (Sym "Tuple") $ map typeof pats)
-        collect "expression type must have tuple base" $ ConsBase patType $ Type.TypeApply (Sym "Tuple") (map typeof pats)
+        when (length pats > 0) $ collect "first"  $ ConsCall (typeof $ pats !! 0) (Sym "first") [patType]
+        when (length pats > 1) $ collect "second" $ ConsCall (typeof $ pats !! 1) (Sym "second") [patType]
+        when (length pats > 2) $ collect "third"  $ ConsCall (typeof $ pats !! 2) (Sym "third") [patType]
+        when (length pats > 3) $ collect "fourth" $ ConsCall (typeof $ pats !! 3) (Sym "fourth") [patType]
+
         mapM_ collectPattern pats
 
     PatAnnotated pat t -> do
@@ -233,6 +236,9 @@ collectExpr (AExpr exprType expression) = collectPos expression $ case expressio
         collect "bool literal must have Bool base type" $ ConsBase exprType Type.Bool
 
     Call _ symbol exprs -> do
+        when (Symbol.sym symbol == "construct" && length exprs > 1) $ do
+            void $ collectDefault exprType $ Type.TypeApply (Sym "Tuple") (map typeof exprs)
+
         collect "call expression must have valid types" $
             ConsCall exprType symbol (map typeof exprs)
         mapM_ collectExpr exprs
@@ -252,12 +258,6 @@ collectExpr (AExpr exprType expression) = collectPos expression $ case expressio
     AST.Reference _ expr -> do
         collect "reference type must match expression type" $ ConsEq exprType (typeof expr)
         collectExpr expr
-
-    AST.Tuple _ exprs -> do
-        collect "tuple expression must have tuple base type" $
-            ConsBase exprType $ Type.TypeApply (Sym "Tuple") (map typeof exprs)
-        collectDefault exprType $ Type.TypeApply (Sym "Tuple") (map typeof exprs)
-        mapM_ collectExpr exprs
 
     Builtin _ sym exprs -> do 
         case sym of

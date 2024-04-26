@@ -245,7 +245,6 @@ condition : expr                                 { $1 }
 expr   : literal                                 { $1 }
        | expr ':' type_                          { AExpr $3 $1 }
        | symbol                                  { AST.Ident (fst $1) (snd $1) }
-       | '(' exprsA ')'                          { case $2 of [x] -> x; xs -> AST.Tuple (tokPos $1) xs }
        | '[' exprsA ']'                          { AST.Array (tokPos $1) $2 }
        | expr '.' int_c                          { Field (tokPos $2) $1 (read $ tokStr $3)  }
        | '&' expr                                { AST.Reference (tokPos $1) $2 }
@@ -254,6 +253,7 @@ expr   : literal                                 { $1 }
        | expr '.' symbol                         { Call (tokPos $2) (snd $3) (AST.Reference (tokPos $2) $1 : []) }
        | expr '.' symbol '(' exprsA ')'          { Call (tokPos $4) (snd $3) (AST.Reference (tokPos $2) $1 : $5) }
        | symbol '(' exprsA ')'                   { Call (tokPos $2) (snd $1) $3 }
+       | '(' exprsA ')'                          { case $2 of [x] -> x; xs -> Call (tokPos $1) (Sym "construct") $2 }
        | expr '+' expr                           { Call (tokPos $2) (Sym "add") [$1, $3] }
        | expr '/' expr                           { Call (tokPos $2) (Sym "divide") [$1, $3] }
        | expr '-' expr                           { Call (tokPos $2) (Sym "subtract") [$1, $3] } 

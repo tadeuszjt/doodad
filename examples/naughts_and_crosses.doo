@@ -7,6 +7,7 @@ import std/integer
 import std/bool
 import std/push
 import std/table
+import std/tuple
 
 type Empty Tuple{}
 type Naught Tuple{}
@@ -56,6 +57,9 @@ fn move(x I64, y I64) Input
     m.0 = x
     m.1 = y
     return conv(m)
+
+fn first(m &Move) &I64; return &m.0
+fn second(m &Move) &I64; return &m.1
 
 
 fn equal(a Square, b Square) Bool
@@ -107,6 +111,7 @@ fn winner(board Board) Square
         for (0, board.len) -> row
             if board[row][col] != board[0][col]
                 match = false
+
         if match && board[0][col] != empty()
             return board[0][col]
 

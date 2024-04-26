@@ -132,10 +132,6 @@ checkExpr (AExpr exprType expression) = withPos expression $ case expression of
         mapM_ checkExpr exprs
         return NodeNull
 
-    AST.Tuple pos exprs -> do
-        mapM_ checkExpr exprs
-        return NodeNull
-
     -- returns the references of the expr
     Field pos expr ident -> do
         checkExpr expr

@@ -117,11 +117,19 @@ fn testTable()
         a.0 = b.0
         a.1 = b.1
 
+    fn first(p &Person) &I64; return &p.0
+    fn second(p &Person) &Bool; return &p.1
+    fn construct(a I64, b Bool) Person
+        let p : Person
+        p.first = a
+        p.second = b
+        return p
+
 
     data t2 Person.Table
 
-    t2.push( (1, true) : Person )
-    t2.push( (2, false) : Person )
+    t2.push( Person(1, true) )
+    t2.push( Person(2, false) )
 
     let 2 = t2.len
 
@@ -188,13 +196,13 @@ fn testUnordered()
 
 
 fn testSumType()
-//    let s : Sum{I64, Bool}
+    let s : Sum{I64, Bool}
     let x = 0
-//    switch s
-//        I64(n); x = 1
-//        Bool(b); x = 2
-//    let 1 = x
-//
+    switch s
+        I64(n); x = 1
+        Bool(b); x = 2
+    let 1 = x
+
 //    let s2 = Sum{I64, Bool}(1)
 //    switch s2
 //        Bool(_);         let true = false
@@ -277,7 +285,7 @@ fn testSlice()
 
 
 fn testIo(io &Io)
-    io.stdout.push("success", '\n', (1, true), " ")
+    io.stdout.push("success", '\n', (1, true):(I64, Bool), " ")
 
     data table Tuple{I64, I64}.Table
     for (0, 10) -> i

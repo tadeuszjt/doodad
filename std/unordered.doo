@@ -19,6 +19,13 @@ fn{T} set(a &T.Entry, b T.Entry)
     a.value = b.value
 
 
+fn{T} construct(a I64.Key, b T) T.Entry
+    let e : T.Entry
+    e.0 = a
+    e.1 = b
+    return e
+
+
 fn{T} key(e &T.Entry) &I64.Key;             return &e.0
 fn{T} value(e &T.Entry) &T;                  return &e.1
 fn{T} indices(u &T.Unordered) &Sparse{I64};  return &u.0

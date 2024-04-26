@@ -73,7 +73,6 @@ data Expr
     | Bool         TextPos Bool
     | Char         TextPos Char
     | String       TextPos String
-    | Tuple        TextPos [Expr]
     | Call         TextPos Symbol [Expr]
     | Field        TextPos Expr Int
     | Ident        TextPos Symbol
@@ -135,7 +134,6 @@ instance TextPosition Expr where
         Bool         p _    -> p
         Char         p _    -> p
         String       p _    -> p
-        Tuple        p _    -> p
         Field        p _ _  -> p
         Ident        p _    -> p
         Call         p _ _ -> p 
@@ -212,7 +210,6 @@ instance Show Expr where
         Bool pos b                         -> if b then "true" else "false"
         Char pos c                         -> show c
         String pos s                       -> show s
-        Tuple pos exprs                    -> tupStrs (map show exprs)
         Array pos exprs                    -> arrStrs (map show exprs)
         Field pos expr symbol              -> show expr ++ "." ++ show symbol
         Ident p s                          -> show s 

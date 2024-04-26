@@ -138,10 +138,7 @@ generateStmt stmt = withPos stmt $ case stmt of
     S.Let _ pattern Nothing mblk -> do
         matched <- generatePatternIsolated pattern
         call "assert" [matched]
-
-        case mblk of
-            Nothing -> return ()
-            Just blk -> generateStmt blk
+        void (traverse generateStmt mblk)
 
     S.Let _ pattern mexpr mblk -> do
         rhs <- case mexpr of
@@ -149,10 +146,7 @@ generateStmt stmt = withPos stmt $ case stmt of
             Nothing   -> initialiser (typeof pattern) []
         matched <- generatePattern pattern rhs
         call "assert" [matched]
-
-        case mblk of
-            Nothing -> return ()
-            Just blk -> generateStmt blk
+        void (traverse generateStmt mblk)
 
     S.Data _ symbol typ Nothing -> do
         base <- baseTypeOf typ
@@ -301,19 +295,18 @@ generatePattern pattern val = withPos pattern $ case pattern of
 
 
     PatTuple _ pats -> do
-        base@(TypeApply (Sym "Tuple") ts) <- baseTypeOf val
-        unless (length pats == length ts) (error "invalid tuple pattern")
-
+        endLabel <- fresh "endPatTuple"
         match <- assign "match" false
-        endLabel <- fresh "skipMatch"
-        forM_ (zip ts [0..]) $ \(t, i) -> do
-            let v = Value t $ C.Member (valExpr val) ("m" ++ show i)
-            b <- generatePattern (pats !! i) v
-            if_ (not_ b) $ appendElem (C.Goto endLabel)
+
+        let symList = ["first", "second", "third", "fourth"]
+
+        forM_ (zip pats [0..]) $ \(pat, i) -> do
+            v <- callFunction (Sym $ symList !! i) (typeof pat) [val]
+            b <- generatePattern pat v
+            void $ if_ (not_ b) $ appendElem (C.Goto endLabel)
 
         set match true
-        appendElem (C.Label endLabel)
-
+        appendElem $ C.Label endLabel
         return match
 
     PatGuarded _ pat expr -> do
@@ -357,16 +350,11 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
     S.Bool _ b             -> return $ Value typ (C.Bool b)
     S.Int _ n              -> return $ Value typ (C.Int n)
     S.Float _ f            -> return $ Value typ (C.Float f)
-    S.String _ s           -> do
-        assign "string" $ Value typ $ C.Initialiser [C.String s, C.Int (fromIntegral $ length s)]
-
     S.Char _ c             -> return $ Value typ (C.Char c)
     S.Match _ expr pattern -> generatePattern pattern =<< generateExpr expr
-    S.Ident _ symbol       -> do
-        val <- look (show symbol)
-        case val of
-            Value _ _ -> return val
-            Ref   t e -> return val
+    S.Ident _ symbol       -> look (show symbol)
+    S.String _ s           -> assign "string" $ Value typ $
+        C.Initialiser [C.String s, C.Int (fromIntegral $ length s)]
 
     S.Builtin _ "conv" [expr] -> convert typ =<< generateExpr expr
 
@@ -425,15 +413,6 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
     S.Field _ expr idx -> do 
         member idx =<< generateExpr expr
 
-    S.Tuple _ exprs -> do
-        vals <- mapM generateExpr exprs
-        base <- baseTypeOf typ
-        case base of
-            TypeApply (Sym "Tuple") ts -> do
-                unless (length ts == length vals) (error "invalid tuple type")
-                initialiser typ vals
-            _ -> error (show base)
-
     S.Reference pos expr -> reference =<< generateExpr expr
 
     S.Array pos exprs -> do
@@ -444,7 +423,6 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
         assign "slice" $ Value typ $ C.Initialiser
             [ C.Ident name
             , C.Int (fromIntegral $ length exprs)
-            , C.Int 0
             ]
 
 

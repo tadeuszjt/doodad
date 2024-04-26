@@ -6,16 +6,8 @@ import std/integer
 import std/slice
 import std/bool
 import std/table
+import std/tuple
 
-
-//fn isPrefix(pre:String, str:String) bool
-//    if len(pre) > len(str); return false
-//    for pre[..] -> i
-//        if str[i] != pre[i]; return false
-//    return true
-//
-//
-//
 
 fn readI64(str []Char) (I64, I64).Maybe
     fn mat(str &[]Char, idx I64) Char.Maybe

@@ -5,6 +5,7 @@ import std/char
 import std/table
 import std/integer
 import std/push
+import std/tuple
 
 
 type Io Tuple{
