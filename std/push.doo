@@ -1,0 +1,40 @@
+module push
+
+fn{A, B, C} push(a &A, b B, c C)
+    a.push(b)
+    a.push(c)
+
+fn{A, B, C, D} push(a &A, b B, c C, d D)
+    a.push(b)
+    a.push(c)
+    a.push(d)
+
+fn{A, B, C, D, E} push(a &A, b B, c C, d D, e E)
+    a.push(b)
+    a.push(c)
+    a.push(d)
+    a.push(e)
+
+fn{A, B, C, D, E, F} push(a &A, b B, c C, d D, e E, f F)
+    a.push(b)
+    a.push(c)
+    a.push(d)
+    a.push(e)
+    a.push(f)
+
+fn{A, B, C, D, E, F, G} push(a &A, b B, c C, d D, e E, f F, g G)
+    a.push(b)
+    a.push(c)
+    a.push(d)
+    a.push(e)
+    a.push(f)
+    a.push(g)
+
+fn{A, B, C, D, E, F, G, H} push(a &A, b B, c C, d D, e E, f F, g G, h H)
+    a.push(b)
+    a.push(c)
+    a.push(d)
+    a.push(e)
+    a.push(f)
+    a.push(g)
+    a.push(h)

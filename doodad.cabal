@@ -92,7 +92,8 @@ executable doodad
         Constraint,
         FunctionFinder,
         ASTMapper,
-        Checker
+        Checker,
+        Builtin
 
 executable doodad-test
     main-is: TestMain.hs

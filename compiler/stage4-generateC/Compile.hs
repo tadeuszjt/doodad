@@ -15,6 +15,7 @@ import Type as Type
 import ASTResolved
 import Symbol
 import Error
+import Builtin
 
 
 generateAst :: MonadIO m => ASTResolved -> m (Either Error (((), GenerateState), BuilderState))
@@ -140,11 +141,8 @@ generateStmt stmt = withPos stmt $ case stmt of
         call "assert" [matched]
         void (traverse generateStmt mblk)
 
-    S.Let _ pattern mexpr mblk -> do
-        rhs <- case mexpr of
-            Just expr -> generateExpr expr
-            Nothing   -> initialiser (typeof pattern) []
-        matched <- generatePattern pattern rhs
+    S.Let _ pattern (Just expr) mblk -> do
+        matched <- generatePattern pattern =<< generateExpr expr
         call "assert" [matched]
         void (traverse generateStmt mblk)
 
@@ -209,10 +207,10 @@ generateStmt stmt = withPos stmt $ case stmt of
 
             -- check that index is still in range
             idxGtEq <- case base of
-                TypeApply (Sym "Table") _  -> greaterEqual idx =<< len val
+                TypeApply (Sym "Table") _  -> greaterEqual idx =<< builtinLen val
                 TypeApply (Sym "Array") [_, Size n]  -> greaterEqual idx (i64 n)
                 TypeApply (Sym "Tuple") [_, _] -> greaterEqual idx =<< member 1 val
-                Slice t -> greaterEqual idx =<< len val
+                Slice t -> greaterEqual idx =<< builtinLen val
                 x -> error (show x)
             if_ idxGtEq (appendElem C.Break)
 
@@ -404,7 +402,7 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
         TypeApply (Sym "Table") _ <- baseTypeOf val
         case val of
             Value _ _ -> fail "isn't reference"
-            Ref _ _   -> tableAppend val >> return (Value Void $ C.Int 0)
+            Ref _ _   -> builtinTableAppend val >> return (Value Void $ C.Int 0)
 
     S.Call _ symbol exprs -> do
         check (symbolIsResolved symbol) ("unresolved function call: " ++ show symbol)
