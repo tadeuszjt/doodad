@@ -140,11 +140,13 @@ funcHeaderTypesMatch a b =
 prettyFuncBody :: Symbol -> FuncBody -> IO ()
 prettyFuncBody symbol body =
     prettyStmt "" $ FuncDef
-        undefined
-        (funcGenerics body)
-        symbol
-        (funcArgs body)
-        (funcRetty body)
+        (FuncHeader 
+            undefined
+            (funcGenerics body)
+            symbol
+            (funcArgs body)
+            (funcRetty body)
+        )
         (funcStmt body)
 
 

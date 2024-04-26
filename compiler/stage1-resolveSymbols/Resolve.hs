@@ -152,13 +152,13 @@ resolveAsts asts imports = runDoMExcept (initResolveState imports (astModuleName
         let includes   = [ s | inc@(CInclude s) <- concat $ map astImports asts ]
         let links      = [ s | link@(CLink s) <- concat $ map astImports asts ]
         let typedefs   = [ stmt | stmt@(AST.Typedef _ _ _ _) <- concat $ map astStmts asts ]
-        let funcdefs   = [ stmt | stmt@(AST.FuncDef _ _ _ _ _ _) <- concat $ map astStmts asts ]
+        let funcdefs   = [ stmt | stmt@(AST.FuncDef _ _) <- concat $ map astStmts asts ]
 
         -- check validity
         unless (all (== moduleName) $ map astModuleName asts) (error "module name mismatch")
         forM_ (concat $ map astStmts asts) $ \stmt -> withPos stmt $ case stmt of
             (AST.Typedef _ _ _ _) -> return ()
-            (AST.FuncDef _ _ _ _ _ _) -> return ()
+            (AST.FuncDef _ _) -> return ()
             _ -> fail "invalid top-level statement"
 
         -- get imports
@@ -167,7 +167,7 @@ resolveAsts asts imports = runDoMExcept (initResolveState imports (astModuleName
         mapM_ defineTypeSymbols typedefs
         mapM_ resolveTypeDef typedefs
 
-        forM_ funcdefs $ \funcdef@(FuncDef _ generics (Sym sym) args retty blk) -> do
+        forM_ funcdefs $ \funcdef -> do
             void $ resolveFuncDef funcdef
 
         typeFuncs <- gets typeFuncsMap
@@ -194,7 +194,7 @@ resolveAsts asts imports = runDoMExcept (initResolveState imports (astModuleName
 
 -- defines in funcDefsMap
 resolveFuncDef :: AST.Stmt -> DoM ResolveState Symbol
-resolveFuncDef (FuncDef pos generics (Sym sym) args retty blk) = withPos pos $ do
+resolveFuncDef (FuncDef (FuncHeader pos generics (Sym sym) args retty) blk) = withPos pos $ do
     symbol' <- genSymbol sym
     pushSymbolTable
 
@@ -273,15 +273,16 @@ instance Resolve Stmt where
         ExprStmt callExpr -> ExprStmt <$> resolve callExpr
         EmbedC pos str -> EmbedC pos <$> processCEmbed str
 
-        FuncDef pos generics (Sym sym) args retty blk -> do
+        FuncDef (FuncHeader pos generics (Sym sym) args retty) blk -> do
             symbol' <- resolveFuncDef stmt
             body <- mapGet symbol' =<< gets funcDefsMap
             return $ FuncDef
-                pos
-                (funcGenerics body)
-                symbol'
-                (funcArgs body)
-                (funcRetty body)
+                (FuncHeader
+                    pos
+                    (funcGenerics body)
+                    symbol'
+                    (funcArgs body)
+                    (funcRetty body))
                 (funcStmt body)
 
         AST.Typedef pos args symbol anno -> do
@@ -296,7 +297,7 @@ instance Resolve Stmt where
             -- filter out statements
             stmts'' <- fmap catMaybes $ forM stmts' $ \st -> case st of
                 Typedef _ _ _ _ -> return Nothing
-                FuncDef _ _ _ _ _ _ -> return Nothing
+                FuncDef _ _ -> return Nothing
                 _ -> return (Just st)
 
             popSymbolTable

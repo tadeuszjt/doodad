@@ -90,8 +90,9 @@ instance Typeof Pattern where
     typeof a = error $ "can only take typeof PatAnnotated" 
 
 
---data FuncHeader
---    = FuncHeader TextPos [Symbol] [Param] Symbol [
+data FuncHeader
+    = FuncHeader TextPos [Symbol] Symbol [Param] Retty
+    deriving (Eq, Show)
 
 
 data Stmt
@@ -101,7 +102,8 @@ data Stmt
     | Block       [Stmt]
     | If          TextPos Expr Stmt (Maybe Stmt)
     | While       TextPos Expr Stmt
-    | FuncDef     TextPos [Symbol] Symbol [Param] Retty Stmt
+    | FuncDef     FuncHeader Stmt
+    | Feature     TextPos [Symbol] Symbol Type [FuncHeader]
     | Typedef     TextPos [Symbol] Symbol AnnoType
     | Switch      TextPos Expr [(Pattern, Stmt)]
     | For         TextPos Expr (Maybe Pattern) Stmt
@@ -147,6 +149,8 @@ instance TextPosition Expr where
         Array        p _ -> p
         _ -> error (show expression)
 
+instance TextPosition FuncHeader where
+    textPos (FuncHeader pos _ _ _ _) = pos
 
 instance TextPosition Stmt where
     textPos stmt = case stmt of
@@ -156,7 +160,7 @@ instance TextPosition Stmt where
         Block       s -> textPos (head s)
         If          p _ _ _ -> p
         While       p _ _ -> p
-        FuncDef     p _ _ _ _ _ -> p
+        FuncDef     h _ -> textPos h
         Typedef     p _ _ _ -> p
         Switch      p _ _ -> p
         For         p _ _ _ -> p
@@ -234,19 +238,24 @@ prettyAST ast = do
     mapM_ (prettyStmt "") (astStmts ast)
 
 
+prettyFuncHeader :: String -> FuncHeader -> IO ()
+prettyFuncHeader pre (FuncHeader pos generics symbol args retty) = do
+    genericsStr <- case generics of
+        [] -> return ""
+        as -> return $ brcStrs (map show as)
+    putStrLn $ pre
+        ++ "fn"
+        ++ genericsStr
+        ++ " "
+        ++ show symbol
+        ++ tupStrs (map show args)
+        ++ " "
+        ++ show retty
+
 prettyStmt :: String -> Stmt -> IO ()
 prettyStmt pre stmt = case stmt of
-    FuncDef pos typeArgs symbol args retty blk -> do
-        genericsStr <- case typeArgs of
-            [] -> return ""
-            as -> return $ brcStrs (map show as)
-        putStrLn $ pre
-            ++ "fn"
-            ++ genericsStr ++ " "
-            ++ show symbol
-            ++ tupStrs (map show args)
-            ++ " "
-            ++ show retty
+    FuncDef header blk -> do
+        prettyFuncHeader pre header
         prettyStmt (pre ++ "\t") blk
         putStrLn ""
 
