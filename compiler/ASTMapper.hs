@@ -31,13 +31,11 @@ mapRettyM f (AST.RefRetty t) = AST.RefRetty <$> mapTypeM f t
 
 mapFuncBodyM :: MapperFunc s -> FuncBody -> DoM s FuncBody
 mapFuncBodyM f body = do
-    funcParams' <- mapM (mapParamM f) (funcParams body)
     funcArgs'   <- mapM (mapParamM f) (funcArgs body)
     funcRetty'  <- mapRettyM f (funcRetty body)
     funcStmt'   <- mapStmtM f (funcStmt body)
     return $ FuncBody
         { funcGenerics = funcGenerics body
-        , funcParams   = funcParams'
         , funcArgs     = funcArgs'
         , funcRetty    = funcRetty'
         , funcStmt     = funcStmt'

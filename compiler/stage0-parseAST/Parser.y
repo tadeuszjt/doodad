@@ -73,6 +73,8 @@ import Symbol
     false      { Token _ Token.Reserved "false" }
     for        { Token _ Token.Reserved "for" }
     data       { Token _ Token.Reserved "data" }
+    feature    { Token _ Token.Reserved "feature" }
+    aquires    { Token _ Token.Reserved "aquires" }
     module     { Token _ Token.Module _ }
     import     { Token _ Token.Import _ }
     include    { Token _ Token.CInclude _ }
@@ -157,7 +159,7 @@ block : if_                               { $1 }
       | let pattern '='  expr in scope    { Let (tokPos $1) $2 (Just $4) (Just $6) }
       | let pattern in scope              { Let (tokPos $1) $2 Nothing (Just $4) }
       | fn generics ident '(' paramsA ')' retty scope {
-            FuncDef (tokPos $1) $2 [] (Sym $ tokStr $3) $5 $7 $8
+            FuncDef (tokPos $1) $2 (Sym $ tokStr $3) $5 $7 $8
         }
 
 if_   : if condition scope else_          { If (tokPos $1) $2 $3 $4 }

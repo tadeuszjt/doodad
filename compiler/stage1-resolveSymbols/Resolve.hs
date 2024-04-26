@@ -152,13 +152,13 @@ resolveAsts asts imports = runDoMExcept (initResolveState imports (astModuleName
         let includes   = [ s | inc@(CInclude s) <- concat $ map astImports asts ]
         let links      = [ s | link@(CLink s) <- concat $ map astImports asts ]
         let typedefs   = [ stmt | stmt@(AST.Typedef _ _ _ _) <- concat $ map astStmts asts ]
-        let funcdefs   = [ stmt | stmt@(AST.FuncDef _ _ _ _ _ _ _) <- concat $ map astStmts asts ]
+        let funcdefs   = [ stmt | stmt@(AST.FuncDef _ _ _ _ _ _) <- concat $ map astStmts asts ]
 
         -- check validity
         unless (all (== moduleName) $ map astModuleName asts) (error "module name mismatch")
         forM_ (concat $ map astStmts asts) $ \stmt -> withPos stmt $ case stmt of
             (AST.Typedef _ _ _ _) -> return ()
-            (AST.FuncDef _ _ _ _ _ _ _) -> return ()
+            (AST.FuncDef _ _ _ _ _ _) -> return ()
             _ -> fail "invalid top-level statement"
 
         -- get imports
@@ -167,7 +167,7 @@ resolveAsts asts imports = runDoMExcept (initResolveState imports (astModuleName
         mapM_ defineTypeSymbols typedefs
         mapM_ resolveTypeDef typedefs
 
-        forM_ funcdefs $ \funcdef@(FuncDef _ generics params (Sym sym) args retty blk) -> do
+        forM_ funcdefs $ \funcdef@(FuncDef _ generics (Sym sym) args retty blk) -> do
             void $ resolveFuncDef funcdef
 
         typeFuncs <- gets typeFuncsMap
@@ -194,7 +194,7 @@ resolveAsts asts imports = runDoMExcept (initResolveState imports (astModuleName
 
 -- defines in funcDefsMap
 resolveFuncDef :: AST.Stmt -> DoM ResolveState Symbol
-resolveFuncDef (FuncDef pos generics params (Sym sym) args retty blk) = withPos pos $ do
+resolveFuncDef (FuncDef pos generics (Sym sym) args retty blk) = withPos pos $ do
     symbol' <- genSymbol sym
     pushSymbolTable
 
@@ -203,7 +203,6 @@ resolveFuncDef (FuncDef pos generics params (Sym sym) args retty blk) = withPos 
         define s KeyType symbol
         return symbol
 
-    params' <- mapM resolve params
     args' <- mapM resolve args
     retty' <- resolve retty
     blk' <- resolve blk
@@ -212,14 +211,9 @@ resolveFuncDef (FuncDef pos generics params (Sym sym) args retty blk) = withPos 
         check (generics == []) "main cannot be generic"
         check (args     == []) "main cannot have arguments"
         check (retty == AST.Retty Void)  "main cannot have a return type"
-        case params of
-            []                                    -> return ()
-            [Param _ _ (TypeApply (Sym "Io") [])] -> return ()
-            _ -> check (False) "main may only have one Io parameter"
 
     let funcBody = FuncBody {
         funcGenerics = genericSymbols,
-        funcParams   = params',
         funcArgs     = args',
         funcRetty    = retty',
         funcStmt     = blk'
@@ -279,13 +273,12 @@ instance Resolve Stmt where
         ExprStmt callExpr -> ExprStmt <$> resolve callExpr
         EmbedC pos str -> EmbedC pos <$> processCEmbed str
 
-        FuncDef pos generics params (Sym sym) args retty blk -> do
+        FuncDef pos generics (Sym sym) args retty blk -> do
             symbol' <- resolveFuncDef stmt
             body <- mapGet symbol' =<< gets funcDefsMap
             return $ FuncDef
                 pos
                 (funcGenerics body)
-                (funcParams body)
                 symbol'
                 (funcArgs body)
                 (funcRetty body)
@@ -303,7 +296,7 @@ instance Resolve Stmt where
             -- filter out statements
             stmts'' <- fmap catMaybes $ forM stmts' $ \st -> case st of
                 Typedef _ _ _ _ -> return Nothing
-                FuncDef _ _ _ _ _ _ _ -> return Nothing
+                FuncDef _ _ _ _ _ _ -> return Nothing
                 _ -> return (Just st)
 
             popSymbolTable

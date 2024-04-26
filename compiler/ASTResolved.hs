@@ -35,7 +35,6 @@ data CallHeader = CallHeader
 data FuncBody
     = FuncBody
         { funcGenerics :: [Symbol]
-        , funcParams   :: [AST.Param]
         , funcArgs     :: [AST.Param]
         , funcRetty    :: AST.Retty
         , funcStmt     :: AST.Stmt
@@ -52,7 +51,7 @@ instance Show CallHeader where
                 ts -> "(" ++ intercalate ", " (map show ts) ++ ")"
 
 isGenericBody :: FuncBody -> Bool
-isGenericBody (FuncBody [] _ _ _ _) = False
+isGenericBody (FuncBody [] _ _ _) = False
 isGenericBody _                     = True
 
 
@@ -134,7 +133,6 @@ getFunctionBody symbol ast = if Map.member symbol (funcDefs ast) then
 funcHeaderTypesMatch :: FuncBody -> FuncBody -> Bool
 funcHeaderTypesMatch a b =
     funcRetty a == funcRetty b &&
-    map typeof (funcParams a) == map typeof (funcParams b) &&
     map typeof (funcArgs a) == map typeof (funcArgs b)
 
 
@@ -144,7 +142,6 @@ prettyFuncBody symbol body =
     prettyStmt "" $ FuncDef
         undefined
         (funcGenerics body)
-        (funcParams body)
         symbol
         (funcArgs body)
         (funcRetty body)

@@ -222,6 +222,8 @@ bool isKeyword(char *s) {
         "true",
         "false",
         "type",
+        "feature",
+        "aquires",
         NULL
     };
     for (int i = 0; keywords[i] != NULL; i++) {

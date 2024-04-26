@@ -1,4 +1,4 @@
-syn keyword doodadKeyword len print return 
+syn keyword doodadKeyword len print return feature aquires
 syn keyword doodadConditional if else switch
 syn keyword doodadFunc fn type
 syn keyword doodadDef let data const in

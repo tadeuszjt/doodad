@@ -85,7 +85,6 @@ collectFuncDef body = do
     modify $ \s -> s { symTab = SymTab.push (symTab s) }
     oldRetty <- gets curRetty
     modify $ \s -> s { curRetty = typeof (funcRetty body) }
-    forM (funcParams body) $ \(Param _ symbol t) -> error ""
     forM_ (funcArgs body) $ \param -> case param of
         (Param _ symbol t) -> define symbol t
         (RefParam _ symbol t) -> define symbol t

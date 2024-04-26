@@ -12,7 +12,6 @@ applyAST subs ast = ast { funcDefs = Map.map (applyFuncBody subs) (funcDefs ast)
 
 applyFuncBody :: [(Type, Type)] -> FuncBody -> FuncBody
 applyFuncBody subs body = body {
-    funcParams = map (applyParam subs) (funcParams body),
     funcStmt = applyStmt subs (funcStmt body),
     funcArgs = map (applyParam subs) (funcArgs body),
     funcRetty = applyRetty subs (funcRetty body)

@@ -61,7 +61,6 @@ data Pattern
     | PatSlice     TextPos [Pattern]      
     | PatGuarded   TextPos Pattern Expr   -- fine
     | PatAnnotated Pattern Type           -- fine
-
     | PatTypeField TextPos Type [Pattern] -- I64(x) 
     | PatField     TextPos Symbol Pattern -- just(y) | x.isJust
     deriving (Eq)
@@ -90,6 +89,11 @@ instance Typeof Pattern where
     typeof (PatAnnotated _ typ) = typ
     typeof a = error $ "can only take typeof PatAnnotated" 
 
+
+--data FuncHeader
+--    = FuncHeader TextPos [Symbol] [Param] Symbol [
+
+
 data Stmt
     = Let         TextPos Pattern (Maybe Expr) (Maybe Stmt)
     | ExprStmt    Expr
@@ -97,7 +101,7 @@ data Stmt
     | Block       [Stmt]
     | If          TextPos Expr Stmt (Maybe Stmt)
     | While       TextPos Expr Stmt
-    | FuncDef     TextPos [Symbol] [Param] Symbol [Param] Retty Stmt
+    | FuncDef     TextPos [Symbol] Symbol [Param] Retty Stmt
     | Typedef     TextPos [Symbol] Symbol AnnoType
     | Switch      TextPos Expr [(Pattern, Stmt)]
     | For         TextPos Expr (Maybe Pattern) Stmt
@@ -152,7 +156,7 @@ instance TextPosition Stmt where
         Block       s -> textPos (head s)
         If          p _ _ _ -> p
         While       p _ _ -> p
-        FuncDef     p _ _ _ _ _ _ -> p
+        FuncDef     p _ _ _ _ _ -> p
         Typedef     p _ _ _ -> p
         Switch      p _ _ -> p
         For         p _ _ _ -> p
@@ -232,7 +236,7 @@ prettyAST ast = do
 
 prettyStmt :: String -> Stmt -> IO ()
 prettyStmt pre stmt = case stmt of
-    FuncDef pos typeArgs params symbol args retty blk -> do
+    FuncDef pos typeArgs symbol args retty blk -> do
         genericsStr <- case typeArgs of
             [] -> return ""
             as -> return $ brcStrs (map show as)

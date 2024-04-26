@@ -360,6 +360,7 @@ fn testArrayExpr()
     let 5 = t1[1].0
 
 
+
 fn testBoolConditions()
     let bool = true
     if bool
@@ -377,7 +378,6 @@ fn testBoolConditions()
         let true = true
     else
         let false = false
-
 
     type OnlyThrice I64
     fn construct(a I64) OnlyThrice
@@ -430,6 +430,12 @@ fn testCharType()
     let 'm':MyChar = m
     if m -> 'n'
         let true = false
+
+
+
+//feature{T} Len{T}
+//    fn myLen(& T) I64
+    
 
 
 fn main()
