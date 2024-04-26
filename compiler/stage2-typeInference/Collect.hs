@@ -113,6 +113,10 @@ collectStmt statement = collectPos statement $ case statement of
         --collect $ ConsEq (typeof expr) Void
         collectExpr expr
 
+    Let _ pattern Nothing mstmt  -> do
+        collectPatternIsolated pattern
+        void $ traverse collectStmt mstmt
+
     Let _ pattern mexpr mstmt  -> do
         when (isJust mexpr) $ collect "let pattern type must match expression type" $
             ConsEq (typeof $ fromJust mexpr) (typeof pattern)
@@ -155,6 +159,13 @@ collectStmt statement = collectPos statement $ case statement of
         void $ traverse (collect "data type must match expression type" . ConsEq typ . typeof) mexpr
         void $ traverse collectExpr mexpr
 
+    x -> error (show x)
+
+
+collectPatternIsolated :: Pattern -> DoM CollectState ()
+collectPatternIsolated (PatAnnotated pattern patType) = collectPos pattern $ case pattern of
+    PatIdent _ symbol -> do
+        define symbol patType
     x -> error (show x)
 
 

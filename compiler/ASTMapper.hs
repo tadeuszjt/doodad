@@ -14,6 +14,7 @@ data Elem
     | ElemExpr Expr
     | ElemType Type
     | ElemPattern Pattern
+    | ElemPatternIsolated Pattern
     deriving (Show)
 
 type MapperFunc s = (Elem -> DoM s Elem)
@@ -51,6 +52,11 @@ mapStmtM f stmt = withPos stmt $ do
         Block stmts -> Block <$> mapM (mapStmtM f) stmts
         ExprStmt expr -> ExprStmt <$> mapExprM f expr
         Return pos mexpr -> Return pos <$> traverse (mapExprM f) mexpr
+
+        Let pos pat Nothing mblk -> do
+            pat' <- mapPatternIsolated f pat
+            mblk' <- traverse (mapStmtM f) mblk
+            return $ Let pos pat' Nothing mblk'
 
         Let pos pat mexpr mblk -> do
             pat' <- mapPattern f pat
@@ -136,6 +142,32 @@ mapExprM f expr = withPos expr $ do
         ElemExpr x -> return x
         _          -> error "result wasn't ElemExpr"
 
+mapPatternIsolated :: MapperFunc s -> Pattern -> DoM s Pattern
+mapPatternIsolated f pattern = withPos pattern $ do
+    res <- f . ElemPatternIsolated =<< case pattern of
+        PatIdent pos symbol      -> return pattern
+        PatIgnore pos            -> return pattern
+        PatLiteral expr          -> PatLiteral <$> mapExprM f expr
+        PatTuple pos pats        -> PatTuple pos <$> mapM (mapPatternIsolated f) pats
+
+        PatTypeField pos typ pats -> do
+            typ' <- mapTypeM f typ
+            PatTypeField pos typ' <$> mapM (mapPatternIsolated f) pats
+
+        PatGuarded pos pat expr  -> do
+            pat' <- mapPatternIsolated f pat
+            expr' <- mapExprM f expr
+            return $ PatGuarded pos pat' expr'
+        PatAnnotated pat typ     -> do
+            pat' <- mapPatternIsolated f pat
+            typ' <- mapTypeM f typ
+            return $ PatAnnotated pat' typ'
+        PatField pos symbol pat -> PatField pos symbol <$> mapPatternIsolated f pat
+        PatSlice pos pats -> PatSlice pos <$> mapM (mapPatternIsolated f) pats
+        _ -> error (show pattern)
+    case res of
+        ElemPatternIsolated x -> return x
+        _             -> error "result wasn't ElemPatternIsolated"
 
 mapPattern :: MapperFunc s -> Pattern -> DoM s Pattern
 mapPattern f pattern = withPos pattern $ do

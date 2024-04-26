@@ -37,6 +37,13 @@ annotateMapper elem = case elem of
         t <- genType
         return $ ElemPattern (PatAnnotated pattern t)
 
+    ElemPatternIsolated (PatAnnotated (PatAnnotated p _) t) -> do
+        return $ ElemPatternIsolated (PatAnnotated p t)
+
+    ElemPatternIsolated pattern -> do
+        t <- genType
+        return $ ElemPatternIsolated (PatAnnotated pattern t)
+
 genType :: DoM Int Type
 genType = do
     i <- get

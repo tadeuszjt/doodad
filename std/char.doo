@@ -12,7 +12,7 @@ fn set(a &Char, b Char)
 
 
 fn isAlpha(c Char) Bool
-    let r = false
+    let r : Bool
     ${ $r = isalpha($c); }
     return r
 

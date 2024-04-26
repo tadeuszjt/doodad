@@ -412,14 +412,15 @@ resolveMapper element = case element of
         s' <- look s KeyType
         return $ ElemType (Type.TypeApply s' ts)
 
+    ElemPatternIsolated (PatIdent pos (Sym sym)) -> do
+        symbol' <- genSymbol sym
+        define sym KeyVar symbol'
+        return $ ElemPatternIsolated (PatIdent pos symbol')
+
     ElemPattern (PatIdent pos (Sym sym)) -> do
         symbol' <- genSymbol sym
         define sym KeyVar symbol'
         return $ ElemPattern (PatIdent pos symbol')
-
-    ElemPattern (PatField pos s pat) -> do
-        symbol' <- look s KeyFunc
-        return $ ElemPattern (PatField pos symbol' pat)
 
     ElemExpr (Call pos (Sym sym) exprs) -> do
         let list = [ "builtin_table_append"

@@ -8,6 +8,11 @@ fn andAnd(a Bool, b Bool) Bool
     ${ $c = $a && $b; }
     return c
 
+fn orOr(a Bool, b Bool) Bool
+    let c : Bool
+    ${ $c = $a || $b; }
+    return c
+
 fn not(a Bool) Bool
     let c : Bool
     ${ $c = $a ? 0 : 1; }

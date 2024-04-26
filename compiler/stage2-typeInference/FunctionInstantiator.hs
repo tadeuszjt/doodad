@@ -25,14 +25,14 @@ compile verbose = do
     funcInstances <- gets funcInstances
     forM_ (Map.toList funcInstances) $ \(symbol, body) -> do
         when (funcGenerics body == []) $ do
-            stmt' <- (mapStmtM cleanUpMapper) (funcStmt body)
+            stmt' <- (mapStmtM instantiatorMapper) (funcStmt body)
             body' <- return body { funcStmt = stmt' }
             modify $ \s -> s { funcInstances = Map.insert symbol body' (ASTResolved.funcInstances s) }
 
     funcDefs <- gets funcDefs
     forM_ (Map.toList funcDefs) $ \(symbol, body) -> do
         when (funcGenerics body == []) $ do
-            stmt' <- (mapStmtM cleanUpMapper) (funcStmt body)
+            stmt' <- (mapStmtM instantiatorMapper) (funcStmt body)
             body' <- return body { funcStmt = stmt' }
             modify $ \s -> s { funcDefs = Map.insert symbol body' (ASTResolved.funcDefs s) }
 
@@ -46,8 +46,8 @@ genSymbol sym = do
     return (SymResolved modName sym n)
 
 
-cleanUpMapper :: Elem -> DoM ASTResolved Elem
-cleanUpMapper elem = case elem of
+instantiatorMapper :: Elem -> DoM ASTResolved Elem
+instantiatorMapper elem = case elem of
     ElemExpr (AExpr exprType expr@(AST.Call pos symbol exprs)) | all isAnnotated exprs -> do
         symbol' <- withPos pos $ resolveFuncCall symbol (map typeof exprs) exprType
         fmap (ElemExpr . AExpr exprType) $ return (Call pos symbol' exprs)
@@ -62,11 +62,19 @@ cleanUpMapper elem = case elem of
         void $ resolveFuncCall (Sym "len") [patType] I64
         return elem
 
+    ElemPatternIsolated (PatAnnotated (PatIdent pos symbol) patType) -> do
+        return elem
+
+    ElemPatternIsolated (PatAnnotated (PatSlice pos pats) patType) -> do
+        fail "what"
+        return elem
+
     _ -> return elem
     where
         isAnnotated :: AST.Expr -> Bool
         isAnnotated (AExpr _ _) = True
         isAnnotated _           = False
+
 
 resolveFuncCall :: Symbol -> [Type] -> Type -> DoM ASTResolved Symbol
 resolveFuncCall s@(SymResolved _ _ _) argTypes retType = return s

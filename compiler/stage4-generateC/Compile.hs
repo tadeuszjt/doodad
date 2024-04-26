@@ -135,6 +135,13 @@ generateStmt stmt = withPos stmt $ case stmt of
             (False, Ref _ _)   -> appendElem . C.Return . valExpr =<< deref val
             (True, Ref _ _)    -> appendElem $ C.Return $ refExpr val
 
+    S.Let _ pattern Nothing mblk -> do
+        matched <- generatePatternIsolated pattern
+        call "assert" [matched]
+
+        case mblk of
+            Nothing -> return ()
+            Just blk -> generateStmt blk
 
     S.Let _ pattern mexpr mblk -> do
         rhs <- case mexpr of
@@ -231,105 +238,117 @@ generateStmt stmt = withPos stmt $ case stmt of
     _ -> fail $ "invalid statement: " ++ (show stmt)
 
 
+generatePatternIsolated :: Pattern -> Generate Value
+generatePatternIsolated (PatAnnotated pattern patType) = withPos pattern $ case pattern of
+    PatIdent _ symbol -> do
+        base <- baseTypeOf patType
+        let name = show symbol
+        define name (Value patType $ C.Ident name)
+        cType <- cTypeOf patType
+        void $ appendAssign cType (show symbol) $ C.Initialiser [C.Int 0]
+        return true
+
+    x -> error (show x)
+
+
 
 generatePattern :: Pattern -> Value -> Generate Value
-generatePattern pattern val = withPos pattern $ do
-    case pattern of
-        PatIgnore _ -> return true
-        PatLiteral expr -> do
-            d <- deref val
-            equalEqual d =<< generateExpr expr
-        PatAnnotated pat typ -> generatePattern pat val
+generatePattern pattern val = withPos pattern $ case pattern of
+    PatIgnore _ -> return true
+    PatLiteral expr -> do
+        d <- deref val
+        equalEqual d =<< generateExpr expr
+    PatAnnotated pat typ -> generatePattern pat val
 
-        PatIdent _ symbol -> do 
-            base <- baseTypeOf val
-            let name = show symbol
-            define name (Value (typeof val) $ C.Ident name)
-            cType <- cTypeOf (typeof val)
-            void $ appendAssign cType (show symbol) $ C.Initialiser [C.Int 0]
+    PatIdent _ symbol -> do 
+        base <- baseTypeOf val
+        let name = show symbol
+        define name (Value (typeof val) $ C.Ident name)
+        cType <- cTypeOf (typeof val)
+        void $ appendAssign cType (show symbol) $ C.Initialiser [C.Int 0]
 
-            ref <- case base of
-                TypeApply (Sym "Tuple") ts -> do
-                    ref <- assign "ref" $ Ref (typeof val) $ C.Initialiser [C.Address (C.Ident name), C.Int 0, C.Int 0]
-                    return ref
-                _ -> return $ Ref (typeof val) (C.Address $ C.Ident name)
-                x -> error (show x)
+        ref <- case base of
+            TypeApply (Sym "Tuple") ts -> do
+                ref <- assign "ref" $ Ref (typeof val) $ C.Initialiser [C.Address (C.Ident name), C.Int 0, C.Int 0]
+                return ref
+            _ -> return $ Ref (typeof val) (C.Address $ C.Ident name)
+            x -> error (show x)
 
-            callFunction (Sym "set") Void [ref, val]
-            return true
-
-
-        PatSlice _ pats -> do
-            ref <- reference val
-            len <- callFunction (Sym "len") I64 [ref] 
-            endName <- fresh "end"
-
-            lenMatch <- assign "lenMatch" $ Value Type.Bool $
-                C.Infix C.EqEq (C.Int $ fromIntegral $ length pats) (valExpr len)
-
-            match <- assign "match" false
-            if_ (not_ lenMatch) (appendElem $ C.Goto endName)
-
-            forM_ (zip pats [0..]) $ \(pat, i) -> do
-                at <- callFunction (Sym "at") (typeof $ pats !! i) [val, i64 i]
-                mat <- generatePattern pat at
-                if_ (not_ mat) (appendElem $ C.Goto endName)
-
-            set match true
-            appendElem $ C.Label endName
-
-            return match
+        callFunction (Sym "set") Void [ref, val]
+        return true
 
 
-        PatTuple _ pats -> do
-            base@(TypeApply (Sym "Tuple") ts) <- baseTypeOf val
-            unless (length pats == length ts) (error "invalid tuple pattern")
+    PatSlice _ pats -> do
+        ref <- reference val
+        len <- callFunction (Sym "len") I64 [ref] 
+        endName <- fresh "end"
 
-            match <- assign "match" false
-            endLabel <- fresh "skipMatch"
-            forM_ (zip ts [0..]) $ \(t, i) -> do
-                let v = Value t $ C.Member (valExpr val) ("m" ++ show i)
-                b <- generatePattern (pats !! i) v
-                if_ (not_ b) $ appendElem (C.Goto endLabel)
+        lenMatch <- assign "lenMatch" $ Value Type.Bool $
+            C.Infix C.EqEq (C.Int $ fromIntegral $ length pats) (valExpr len)
 
-            set match true
-            appendElem (C.Label endLabel)
+        match <- assign "match" false
+        if_ (not_ lenMatch) (appendElem $ C.Goto endName)
 
-            return match
+        forM_ (zip pats [0..]) $ \(pat, i) -> do
+            at <- callFunction (Sym "at") (typeof $ pats !! i) [val, i64 i]
+            mat <- generatePattern pat at
+            if_ (not_ mat) (appendElem $ C.Goto endName)
 
-        PatGuarded _ pat expr -> do
-            match <- assign "match" =<< generatePattern pat val
-            endLabel <- fresh "end"
-            if_ (not_ match) $ appendElem (C.Goto endLabel)
-            set match =<< generateExpr expr
-            appendElem (C.Label endLabel)
-            return match
+        set match true
+        appendElem $ C.Label endName
 
-        PatTypeField pos fieldType pats -> do
-            TypeApply (Sym "Sum") ts <- baseTypeOf val
-            let Just i = elemIndex fieldType ts
+        return match
 
-            endLabel <- fresh "skipMatch"
-            match <- assign "match" =<< (Value Type.Bool . C.Infix C.EqEq (C.Int $ fromIntegral i) . valExpr <$> adtEnum val)
 
-            if_ (not_ match) $ appendElem $ C.Goto endLabel
-            set match false
+    PatTuple _ pats -> do
+        base@(TypeApply (Sym "Tuple") ts) <- baseTypeOf val
+        unless (length pats == length ts) (error "invalid tuple pattern")
 
-            case pats of
-                [] -> return ()
-                [pat] -> do
-                    patMatch <- generatePattern pat =<< member i val
-                    if_ (not_ patMatch) $ void $ appendElem (C.Goto endLabel)
-                pats -> do
-                    -- Bit of a hack to use PatTuple
-                    patMatch <- generatePattern (PatTuple pos pats) =<< member i val
-                    if_ (not_ patMatch) $ void $ appendElem (C.Goto endLabel)
+        match <- assign "match" false
+        endLabel <- fresh "skipMatch"
+        forM_ (zip ts [0..]) $ \(t, i) -> do
+            let v = Value t $ C.Member (valExpr val) ("m" ++ show i)
+            b <- generatePattern (pats !! i) v
+            if_ (not_ b) $ appendElem (C.Goto endLabel)
 
-            set match true
-            appendElem $ C.Label endLabel
-            return match
+        set match true
+        appendElem (C.Label endLabel)
 
-        _ -> error (show pattern)
+        return match
+
+    PatGuarded _ pat expr -> do
+        match <- assign "match" =<< generatePattern pat val
+        endLabel <- fresh "end"
+        if_ (not_ match) $ appendElem (C.Goto endLabel)
+        set match =<< generateExpr expr
+        appendElem (C.Label endLabel)
+        return match
+
+    PatTypeField pos fieldType pats -> do
+        TypeApply (Sym "Sum") ts <- baseTypeOf val
+        let Just i = elemIndex fieldType ts
+
+        endLabel <- fresh "skipMatch"
+        match <- assign "match" =<< (Value Type.Bool . C.Infix C.EqEq (C.Int $ fromIntegral i) . valExpr <$> adtEnum val)
+
+        if_ (not_ match) $ appendElem $ C.Goto endLabel
+        set match false
+
+        case pats of
+            [] -> return ()
+            [pat] -> do
+                patMatch <- generatePattern pat =<< member i val
+                if_ (not_ patMatch) $ void $ appendElem (C.Goto endLabel)
+            pats -> do
+                -- Bit of a hack to use PatTuple
+                patMatch <- generatePattern (PatTuple pos pats) =<< member i val
+                if_ (not_ patMatch) $ void $ appendElem (C.Goto endLabel)
+
+        set match true
+        appendElem $ C.Label endLabel
+        return match
+
+    _ -> error (show pattern)
 
 
 -- generateExpr should return a 're-enter-able' expression, eg 1, not func()
