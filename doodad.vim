@@ -1,6 +1,6 @@
-syn keyword doodadKeyword len print return feature aquires
+syn keyword doodadKeyword return 
 syn keyword doodadConditional if else switch
-syn keyword doodadFunc fn type
+syn keyword doodadFunc fn type feature aquires
 syn keyword doodadDef let data const in
 syn keyword doodadLoop for while
 syn keyword doodadTop module import link include

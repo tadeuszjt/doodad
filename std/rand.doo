@@ -1,40 +1,42 @@
 module rand
 
+import std/integer
+
 include <stdlib.h>
 include <time.h>
 include <math.h>
 link m
 
-type Rand I64
+type Rand Tuple{I64}
 
 
-fn {rand Rand} i64(min I64, max I64) I64
-    ${ srand(*$rand); }
-    ${ *$rand = rand(); }
-    return (conv(rand) % (max - min)) + min
+fn i64(r &Rand, min I64, max I64) I64
+    ${ srand($r.ptr->m0); }
+    ${ $r.ptr->m0 = rand(); }
+    return (r.0 % (max - min)) + min
 
 
-fn {rand Rand} f64(min F64, max F64) F64
-    if min == max
-        return min
-
-    let x:F64 = 0 
-
-    ${
-        double d = (double)rand() / RAND_MAX;
-        $x = d * ($max - $min) + $min;
-    }
-    return x
-
-
-fn {rand Rand} f32(min F32, max F32) F32
-    if min == max
-        return min
-
-    let x:F32 = 0 
-    ${
-        double d = (double)rand() / RAND_MAX;
-        $x = (float)d * ($max - $min) + $min;
-    }
-
-    return x
+//fn {rand Rand} f64(min F64, max F64) F64
+//    if min == max
+//        return min
+//
+//    let x:F64 = 0 
+//
+//    ${
+//        double d = (double)rand() / RAND_MAX;
+//        $x = d * ($max - $min) + $min;
+//    }
+//    return x
+//
+//
+//fn {rand Rand} f32(min F32, max F32) F32
+//    if min == max
+//        return min
+//
+//    let x:F32 = 0 
+//    ${
+//        double d = (double)rand() / RAND_MAX;
+//        $x = (float)d * ($max - $min) + $min;
+//    }
+//
+//    return x

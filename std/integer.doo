@@ -43,6 +43,10 @@ fn divide(a I64, b I64) I64
     ${ $r = $a / $b; }
     return r
 
+fn modulo(a I64, b I64) I64
+    let r : I64
+    ${ $r = $a % $b; }
+    return r
 
 fn less(a I64, b I64) Bool
     let r : Bool

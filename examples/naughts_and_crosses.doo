@@ -9,6 +9,7 @@ import std/push
 import std/table
 import std/tuple
 import std/char
+import std/rand
 
 type Empty Tuple{}
 type Naught Tuple{}
@@ -34,6 +35,7 @@ type Input Sum{
 }
 
 
+
 fn error() Input
     let e : Error
     return conv(e)
@@ -52,6 +54,9 @@ fn naught() Square
     let n : Naught
     return conv(n)
 
+fn cross() Square
+    let c : Cross
+    return conv(c)
 
 fn move(x I64, y I64) Input
     let m : Move
@@ -72,9 +77,21 @@ fn equal(a Square, b Square) Bool
 
 fn at(board &Board, index I64) &Square.Array{3}; return (board.0).at(index)
 fn len(board &Board)           I64; return (board.0).len
+fn set(a &Board, b Board)
+    for (0, a.len) -> row
+        for (0, a[row].len) -> col
+            a[row][col] = b[row][col]
+
 
 fn set(a &Square, b Square)
     ${ memcpy($a, &$b, sizeof($b)); }
+
+
+fn push(stdout &StdOut, square Square)
+    switch square
+        Empty(); stdout.push(' ')
+        Naught(); stdout.push('O')
+        Cross(); stdout.push('X')
 
 
 fn printBoard(io &Io, board Board)
@@ -82,12 +99,7 @@ fn printBoard(io &Io, board Board)
         io.stdout.push('[')
 
         for (0, row.len) -> col
-
-            switch row[col]
-                Empty();  io.stdout.push(' ')
-                Naught(); io.stdout.push('O')
-                Cross();  io.stdout.push('X')
-
+            io.stdout.push(row[col])
             if col < (row.len - 1)
                 io.stdout.push(", ")
 
@@ -117,15 +129,22 @@ fn winner(board Board) Square
             return board[0][col]
 
     // check diagonals
-//    if b -> [ [a, _, _], [_, b, _], [_, _, c] ] | a == b && b == c
-//        return a
-//    if b -> [ [_, _, a], [_, b, _], [c, _, _] ] | a == b && b == c
-//        return a
-//
+    let match = true
+    for (0, board.len) -> i | match
+        if board[i][i] != board[0][0]
+            match = false
+    if match && board[0][0] != empty()
+        return board[0][0]
+
+    match = true
+    for (0, board.len) -> i | match
+        let row = board.len - 1 - i
+        if board[row][i] != board[board.len - 1][0]
+            match = false
+    if match && board[board.len - 1][0] != empty()
+        return board[board.len - 1][0]
+
     return empty()
-
-
-
 
 
 fn getPlayerInput(io &Io) Input
@@ -152,6 +171,36 @@ fn getPlayerInput(io &Io) Input
     return move(row, col)
 
 
+fn cpuMove(io &Io, board &Board)
+    io.stdout.push("cpu moving ...", '\n')
+
+    // find all empty squares
+    data empty (I64, I64).Table
+    for (0, board.len) -> row
+        for (0, board[row].len) -> col
+            if board[row][col] == empty()
+                empty.push( (row, col) )
+
+    if empty.len == 0
+        io.stdout.push("cpu can't move\n")
+        return
+
+
+    // find move that wins
+    for empty -> (row, col)
+        board[row][col] = cross()
+        if winner(board) == cross()
+            return
+        board[row][col] = empty()
+
+
+    // choose random move
+    data rand Rand
+    let i = rand.i64(0, empty.len)
+    let (row, col) = empty[i]
+    board[row][col] = cross()
+
+
 fn main()
     data io Io
     io.stdout.push("naughts and crosses", '\n')
@@ -160,7 +209,6 @@ fn main()
     io.printBoard(board)
 
     while winner(board) == empty()
-
         let moved = false
         while !moved
             switch io.getPlayerInput()
@@ -176,6 +224,8 @@ fn main()
                     board[row][col] = naught()
                     moved = true
 
+        io.cpuMove(&board)
         io.printBoard(board)
 
-    return
+    io.stdout.push("winner: ", winner(board), '\n')
+
