@@ -98,7 +98,18 @@ data FuncHeader
         , funcArgs :: [Param]
         , funcRetty :: Retty
         }
-    deriving (Eq, Show)
+    deriving (Eq)
+
+
+instance Show FuncHeader where
+    show (FuncHeader pos generics symbol args retty) =
+        "fn"
+        ++ brcStrs (map show generics)
+        ++ " "
+        ++ show symbol
+        ++ tupStrs (map show args)
+        ++ " "
+        ++ show retty
 
 
 data Stmt
@@ -244,24 +255,10 @@ prettyAST ast = do
     mapM_ (prettyStmt "") (astStmts ast)
 
 
-prettyFuncHeader :: String -> FuncHeader -> IO ()
-prettyFuncHeader pre (FuncHeader pos generics symbol args retty) = do
-    genericsStr <- case generics of
-        [] -> return ""
-        as -> return $ brcStrs (map show as)
-    putStrLn $ pre
-        ++ "fn"
-        ++ genericsStr
-        ++ " "
-        ++ show symbol
-        ++ tupStrs (map show args)
-        ++ " "
-        ++ show retty
-
 prettyStmt :: String -> Stmt -> IO ()
 prettyStmt pre stmt = case stmt of
     FuncDef header blk -> do
-        prettyFuncHeader pre header
+        putStrLn (pre ++ show header)
         prettyStmt (pre ++ "\t") blk
         putStrLn ""
 

@@ -75,13 +75,6 @@ define symbol obj = do
     modify $ \s -> s { symTab = SymTab.insert symbol () obj (symTab s) }
 
 
-collectAST :: Prelude.Bool -> ASTResolved -> DoM CollectState ()
-collectAST verbose ast = do
-    --when verbose $ liftIO $ putStrLn "collecting..."
-    forM_ (Map.toList $ funcDefs ast) $ \(symbol, body) ->
-        when (funcGenerics (funcHeader body) == []) $
-            collectFuncDef body
-
 
 collectFuncDef :: FuncBody -> DoM CollectState ()
 collectFuncDef body = do

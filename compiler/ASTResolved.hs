@@ -100,23 +100,12 @@ getFunctionHeader symbol ast = funcHeader $
         else error ("symbol is not function: " ++ show symbol)
 
 
-prettyFuncBody :: Symbol -> FuncBody -> IO ()
-prettyFuncBody symbol body =
-    prettyStmt "" $ FuncDef
-        (FuncHeader 
-            undefined
-            (funcGenerics $ funcHeader body)
-            symbol
-            (funcArgs $ funcHeader body)
-            (funcRetty $ funcHeader body)
-        )
-        (funcStmt body)
-
 
 prettyASTResolved :: ASTResolved -> IO ()
 prettyASTResolved ast = do
     putStrLn $ "module " ++ moduleName ast
     forM_ (Map.toList $ typeFuncs ast) $ \(symbol, (generics, typ)) ->
         prettyStmt "" (AST.Typedef undefined generics symbol $ AnnoType typ)
-    forM_ (Map.toList $ funcDefs ast) $ \(symbol, body) -> prettyFuncBody symbol body
+    forM_ (Map.toList $ funcDefs ast) $ \(symbol, body) ->
+        prettyStmt "" $ FuncDef (funcHeader body) (funcStmt body)
     putStrLn ""

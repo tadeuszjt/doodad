@@ -32,7 +32,8 @@ findInstance ast call = do
 
     candidates <- fmap catMaybes $ forM (Map.toList funcs) $ \(symbol, body) -> do
         let header = funcHeader body
-        let match = (Symbol.sym (callSymbol call) == Symbol.sym symbol) &&
+        let match = (not $ isGenericHeader header) &&
+                    (Symbol.sym (callSymbol call) == Symbol.sym symbol) &&
                     (callRetType call == (typeof $ funcRetty header)) &&
                     (callArgTypes call == (map typeof $ funcArgs header))
         case match of
