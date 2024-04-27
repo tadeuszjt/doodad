@@ -30,10 +30,10 @@ generate = withErrorPrefix "generate: " $ do
     ast <- gets astResolved
 
     -- generate imported function externs
-    forM_ (Map.toList $ funcImports ast) $ \(symbol, body) -> do
-        unless (isGenericBody body) $ do
-            crt <- cRettyType (S.funcRetty $ ASTResolved.funcHeader body)
-            cats <- forM (S.funcArgs $ ASTResolved.funcHeader body) $ \param -> case param of
+    forM_ (Map.toList $ funcImports ast) $ \(symbol, func) -> do
+        unless (isGenericFunc func) $ do
+            crt <- cRettyType (S.funcRetty $ S.funcHeader func)
+            cats <- forM (S.funcArgs $ S.funcHeader func) $ \param -> case param of
                 S.Param _ _ _ -> cTypeOf param
                 S.RefParam _ _ _ -> cRefTypeOf param
                 x -> error (show x)
@@ -41,9 +41,9 @@ generate = withErrorPrefix "generate: " $ do
 
     -- generate function headers
     forM_ (Map.toList $ funcDefs ast) $ \(symbol, func) -> do
-         unless (isGenericBody func) $ do
-            crt <- cRettyType (S.funcRetty $ ASTResolved.funcHeader func) 
-            cats <- forM (S.funcArgs $ ASTResolved.funcHeader func) $ \param -> case param of
+         unless (isGenericFunc func) $ do
+            crt <- cRettyType (S.funcRetty $ S.funcHeader func) 
+            cats <- forM (S.funcArgs $ S.funcHeader func) $ \param -> case param of
                 S.Param _ _ _ -> cTypeOf param
                 S.RefParam _ _ _ -> cRefTypeOf param
                 x -> error (show x)
@@ -52,9 +52,9 @@ generate = withErrorPrefix "generate: " $ do
 
     -- generate function headers
     forM_ (Map.toList $ funcInstances ast) $ \(symbol, func) -> do
-         unless (isGenericBody func) $ do
-            crt <- cRettyType (S.funcRetty $ ASTResolved.funcHeader func) 
-            cats <- forM (S.funcArgs $ ASTResolved.funcHeader func) $ \param -> case param of
+         unless (isGenericFunc func) $ do
+            crt <- cRettyType (S.funcRetty $ S.funcHeader func) 
+            cats <- forM (S.funcArgs $ S.funcHeader func) $ \param -> case param of
                 S.Param _ _ _ -> cTypeOf param
                 S.RefParam _ _ _ -> cRefTypeOf param
                 x -> error (show x)
@@ -63,12 +63,12 @@ generate = withErrorPrefix "generate: " $ do
 
     -- generate functions, main is a special case
     forM_ (Map.toList $ funcInstances ast) $ \(symbol, func) -> do
-        unless (isGenericBody func) $ do
+        unless (isGenericFunc func) $ do
             generateFunc True symbol func
 
     -- generate functions, main is a special case
     forM_ (Map.toList $ funcDefs ast) $ \(symbol, func) -> do
-        unless (isGenericBody func) $ do
+        unless (isGenericFunc func) $ do
             generateFunc False symbol func
 
             when (sym symbol == "main") $ do
@@ -92,12 +92,12 @@ cRettyType retty = case retty of
     RefRetty t -> cRefTypeOf t
 
 
-generateFunc :: Bool -> Symbol -> FuncBody -> Generate ()
-generateFunc isStatic symbol body = do
-    args <- mapM cParamOf (S.funcArgs $ ASTResolved.funcHeader body)
-    rettyType <- cRettyType (S.funcRetty $ ASTResolved.funcHeader body)
+generateFunc :: Bool -> Symbol -> Func -> Generate ()
+generateFunc isStatic symbol func = do
+    args <- mapM cParamOf (S.funcArgs $ S.funcHeader func)
+    rettyType <- cRettyType (S.funcRetty $ S.funcHeader func)
 
-    isRefRetty <- case S.funcRetty (ASTResolved.funcHeader body) of
+    isRefRetty <- case S.funcRetty (S.funcHeader func) of
         RefRetty _ -> return True
         Retty _    -> return False
     modify $ \s -> s { curFnIsRef = isRefRetty }
@@ -106,15 +106,15 @@ generateFunc isStatic symbol body = do
 
     id <- newFunction rettyType (show symbol) ([] ++ args) $ (if isStatic then [C.Static] else [])
     withCurID id $ do
-        forM_ (S.funcArgs (ASTResolved.funcHeader body)) $ \arg -> do
+        forM_ (S.funcArgs (S.funcHeader func)) $ \arg -> do
             let name = show (paramSymbol arg)
             case arg of
                 S.Param _ _ _ ->    define name $ Value (typeof arg) (C.Ident name)
                 S.RefParam _ _ _ -> define name $ Ref (typeof arg) (C.Ident name)
                 x -> error (show x)
 
-        generateStmt (ASTResolved.funcStmt body)
-        when (S.funcRetty (ASTResolved.funcHeader body) /= S.Retty Void) $ -- check to ensure function has return
+        generateStmt (S.funcStmt func)
+        when (S.funcRetty (S.funcHeader func) /= S.Retty Void) $ -- check to ensure function has return
             call "assert" [false]
 
     popSymTab

@@ -15,10 +15,10 @@ data ASTResolved
         , includes        :: Set.Set String                  -- c header includes
         , links           :: Set.Set String                  -- linked libraries
         , typeFuncs       :: Type.TypeDefsMap                -- defined type functions
-        , funcDefs        :: Map.Map Symbol FuncBody         -- defined functions
-        , funcImports     :: Map.Map Symbol FuncBody         -- imported funcs
-        , funcInstances   :: Map.Map Symbol FuncBody
-        , funcExterns     :: Map.Map Symbol FuncBody
+        , funcDefs        :: Map.Map Symbol Func         -- defined functions
+        , funcImports     :: Map.Map Symbol Func         -- imported funcs
+        , funcInstances   :: Map.Map Symbol Func
+        , funcExterns     :: Map.Map Symbol Func
         , symSupply       :: Map.Map String Int              -- type supply from resovle
         }
     deriving (Eq)
@@ -30,14 +30,6 @@ data CallHeader = CallHeader
     , callRetType   :: Type
     }
     deriving (Eq, Ord)
-
-
-data FuncBody
-    = FuncBody
-        { funcHeader :: AST.FuncHeader
-        , funcStmt   :: AST.Stmt
-        }
-    deriving (Eq, Show)
 
 
 instance Show CallHeader where
@@ -72,15 +64,15 @@ funcHeaderFullyResolved header =
     all typeFullyResolved $ (typeof (funcRetty header) : map typeof (funcArgs header))
 
 
-isGenericBody :: FuncBody -> Bool
-isGenericBody (FuncBody header _) = isGenericHeader header
+isGenericFunc :: Func -> Bool
+isGenericFunc (Func header _) = isGenericHeader header
 
 isGenericHeader :: FuncHeader -> Bool
 isGenericHeader header = funcGenerics header /= []
 
 
-getFunctionBody :: Symbol -> ASTResolved -> FuncBody
-getFunctionBody symbol ast = if Map.member symbol (funcDefs ast) then
+getFunction :: Symbol -> ASTResolved -> Func
+getFunction symbol ast = if Map.member symbol (funcDefs ast) then
         funcDefs ast Map.! symbol
     else if Map.member symbol (funcImports ast) then
         funcImports ast Map.! symbol
@@ -106,6 +98,6 @@ prettyASTResolved ast = do
     putStrLn $ "module " ++ moduleName ast
     forM_ (Map.toList $ typeFuncs ast) $ \(symbol, (generics, typ)) ->
         prettyStmt "" (AST.Typedef undefined generics symbol $ AnnoType typ)
-    forM_ (Map.toList $ funcDefs ast) $ \(symbol, body) ->
-        prettyStmt "" $ FuncDef (funcHeader body) (funcStmt body)
+    forM_ (Map.toList $ funcDefs ast) $ \(symbol, func) ->
+        prettyStmt "" $ FuncDef (Func (funcHeader func) (funcStmt func))
     putStrLn ""

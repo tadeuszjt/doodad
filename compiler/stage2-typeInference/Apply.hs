@@ -8,12 +8,12 @@ import ASTResolved
 
 
 applyAST :: [(Type, Type)] -> ASTResolved -> ASTResolved
-applyAST subs ast = ast { funcDefs = Map.map (applyFuncBody subs) (funcDefs ast) }
+applyAST subs ast = ast { funcDefs = Map.map (applyFunc subs) (funcDefs ast) }
 
-applyFuncBody :: [(Type, Type)] -> FuncBody -> FuncBody
-applyFuncBody subs body = body
-    { funcStmt = applyStmt subs (funcStmt body)
-    , funcHeader = applyFuncHeader subs (funcHeader body)
+applyFunc :: [(Type, Type)] -> Func -> Func
+applyFunc subs func = func
+    { funcStmt = applyStmt subs (funcStmt func)
+    , funcHeader = applyFuncHeader subs (funcHeader func)
     }
 
 

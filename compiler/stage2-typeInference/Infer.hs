@@ -16,7 +16,7 @@ import AST
 -- make any changes to the ast.
 
 
-inferFunc :: FuncBody -> DoM ASTResolved FuncBody
+inferFunc :: Func -> DoM ASTResolved Func
 inferFunc func = do
     annotatedFunc <- fmap fst $ withErrorPrefix "annotate: " $
         runDoMExcept 0 (annotateFunc func)
@@ -24,11 +24,11 @@ inferFunc func = do
     collectState <- fmap snd $ withErrorPrefix "collect: " $
         runDoMExcept (initCollectState ast) (collectFuncDef annotatedFunc)
     subs <- unify $ Map.toList (collected collectState)
-    let appliedFunc = applyFuncBody subs annotatedFunc
+    let appliedFunc = applyFunc subs annotatedFunc
     fmap fst $ runDoMExcept () (deAnnotateFunc appliedFunc)
 
 
-inferFuncDefaults :: FuncBody -> DoM ASTResolved FuncBody
+inferFuncDefaults :: Func -> DoM ASTResolved Func
 inferFuncDefaults func = do
     annotatedFunc <- fmap fst $ withErrorPrefix "annotate: " $
         runDoMExcept 0 (annotateFunc func)
@@ -36,7 +36,7 @@ inferFuncDefaults func = do
     collectState <- fmap snd $ withErrorPrefix "collect: " $
         runDoMExcept (initCollectState ast) (collectFuncDef annotatedFunc)
     subs <- unifyDefault $ Map.toList (defaults collectState)
-    let appliedFunc = applyFuncBody subs annotatedFunc
+    let appliedFunc = applyFunc subs annotatedFunc
     fmap fst $ runDoMExcept () (deAnnotateFunc appliedFunc)
 
 

@@ -112,6 +112,14 @@ instance Show FuncHeader where
         ++ show retty
 
 
+data Func = Func { funcHeader :: FuncHeader, funcStmt :: Stmt }
+    deriving (Eq, Show)
+
+
+instance TextPosition Func where
+    textPos (Func header _) = textPos header
+
+
 data Stmt
     = Let         TextPos Pattern (Maybe Expr) (Maybe Stmt)
     | ExprStmt    Expr
@@ -119,7 +127,7 @@ data Stmt
     | Block       [Stmt]
     | If          TextPos Expr Stmt (Maybe Stmt)
     | While       TextPos Expr Stmt
-    | FuncDef     FuncHeader Stmt
+    | FuncDef     Func
     | Feature     TextPos [Symbol] Symbol Type [FuncHeader]
     | Typedef     TextPos [Symbol] Symbol AnnoType
     | Switch      TextPos Expr [(Pattern, Stmt)]
@@ -177,7 +185,7 @@ instance TextPosition Stmt where
         Block       s -> textPos (head s)
         If          p _ _ _ -> p
         While       p _ _ -> p
-        FuncDef     h _ -> textPos h
+        FuncDef     f -> textPos f
         Typedef     p _ _ _ -> p
         Switch      p _ _ -> p
         For         p _ _ _ -> p
@@ -257,7 +265,7 @@ prettyAST ast = do
 
 prettyStmt :: String -> Stmt -> IO ()
 prettyStmt pre stmt = case stmt of
-    FuncDef header blk -> do
+    FuncDef (Func header blk) -> do
         putStrLn (pre ++ show header)
         prettyStmt (pre ++ "\t") blk
         putStrLn ""

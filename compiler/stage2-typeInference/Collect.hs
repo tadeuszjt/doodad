@@ -76,16 +76,16 @@ define symbol obj = do
 
 
 
-collectFuncDef :: FuncBody -> DoM CollectState ()
-collectFuncDef body = do
+collectFuncDef :: Func -> DoM CollectState ()
+collectFuncDef func = do
     modify $ \s -> s { symTab = SymTab.push (symTab s) }
     oldRetty <- gets curRetty
-    modify $ \s -> s { curRetty = typeof (funcRetty (funcHeader body)) }
-    forM_ (funcArgs $ funcHeader body) $ \param -> case param of
+    modify $ \s -> s { curRetty = typeof (funcRetty (funcHeader func)) }
+    forM_ (funcArgs $ funcHeader func) $ \param -> case param of
         (Param _ symbol t) -> define symbol t
         (RefParam _ symbol t) -> define symbol t
 
-    collectStmt (funcStmt body)
+    collectStmt (funcStmt func)
     modify $ \s -> s { curRetty = oldRetty }
     modify $ \s -> s { symTab = SymTab.pop (symTab s) }
 

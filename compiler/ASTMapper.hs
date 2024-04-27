@@ -42,11 +42,11 @@ mapFuncHeaderM f header = do
         }
     
 
-mapFuncBodyM :: MapperFunc s -> FuncBody -> DoM s FuncBody
-mapFuncBodyM f body = do
-    funcHeader'   <- mapFuncHeaderM f (funcHeader body)
-    funcStmt'     <- mapStmtM f (funcStmt body)
-    return $ FuncBody
+mapFuncM :: MapperFunc s -> Func -> DoM s Func
+mapFuncM f func = do
+    funcHeader'   <- mapFuncHeaderM f (funcHeader func)
+    funcStmt'     <- mapStmtM f (funcStmt func)
+    return $ Func
         { funcHeader = funcHeader'
         , funcStmt   = funcStmt'
         }

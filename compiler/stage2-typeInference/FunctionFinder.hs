@@ -30,8 +30,8 @@ findInstance :: Monad m => ASTResolved -> CallHeader -> m (Maybe Symbol)
 findInstance ast call = do
     let funcs = Map.unions [funcInstances ast, funcDefs ast, funcImports ast]
 
-    candidates <- fmap catMaybes $ forM (Map.toList funcs) $ \(symbol, body) -> do
-        let header = funcHeader body
+    candidates <- fmap catMaybes $ forM (Map.toList funcs) $ \(symbol, func) -> do
+        let header = funcHeader func
         let match = (not $ isGenericHeader header) &&
                     (Symbol.sym (callSymbol call) == Symbol.sym symbol) &&
                     (callRetType call == (typeof $ funcRetty header)) &&
@@ -72,14 +72,14 @@ replaceGenericsInFuncHeader header call = do
     return (applyFuncHeader subs header)
 
 
-replaceGenericsInFuncBodyWithCall :: MonadFail m => FuncBody -> CallHeader -> m FuncBody
-replaceGenericsInFuncBodyWithCall body call = do
-    couldMatch <- callCouldMatchFunc call $ (funcHeader body) { funcSymbol = callSymbol call }
+replaceGenericsInFuncWithCall :: MonadFail m => Func -> CallHeader -> m Func
+replaceGenericsInFuncWithCall func call = do
+    couldMatch <- callCouldMatchFunc call $ (funcHeader func) { funcSymbol = callSymbol call }
     unless couldMatch (error "headers could not match")
-    subs <- unify (funcGenerics $ funcHeader body) =<< getConstraints call (funcHeader body)
-    let body'   =  applyFuncBody subs body
-    let header' = (funcHeader body') { funcGenerics = [] }
-    return $ body' { funcHeader = header' } 
+    subs <- unify (funcGenerics $ funcHeader func) =<< getConstraints call (funcHeader func)
+    let func'   =  applyFunc subs func
+    let header' = (funcHeader func') { funcGenerics = [] }
+    return $ func' { funcHeader = header' } 
 
 
 unifyOne :: MonadFail m => [Symbol] -> Constraint -> m [(Type, Type)]

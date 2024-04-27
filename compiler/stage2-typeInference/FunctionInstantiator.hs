@@ -56,21 +56,21 @@ instAst :: Bool -> DoM InstantiatorState ()
 instAst verbose = do
     --when verbose $ liftIO $ putStrLn $ "cleaning..."
     funcInstances <- gets (funcInstances . astResolved)
-    forM_ (Map.toList funcInstances) $ \(symbol, body) -> do
-        when (funcGenerics (funcHeader body) == []) $ do
+    forM_ (Map.toList funcInstances) $ \(symbol, func) -> do
+        when (funcGenerics (funcHeader func) == []) $ do
             pushSymTab
-            stmt' <- instStmt (funcStmt body)
-            body' <- return body { funcStmt = stmt' }
-            modifyAST $ \s -> s { funcInstances = Map.insert symbol body' (ASTResolved.funcInstances s) }
+            stmt' <- instStmt (funcStmt func)
+            func' <- return func { funcStmt = stmt' }
+            modifyAST $ \s -> s { funcInstances = Map.insert symbol func' (ASTResolved.funcInstances s) }
             popSymTab
 
     funcDefs <- gets (funcDefs . astResolved)
-    forM_ (Map.toList funcDefs) $ \(symbol, body) -> do
-        when (funcGenerics (funcHeader body) == []) $ do
+    forM_ (Map.toList funcDefs) $ \(symbol, func) -> do
+        when (funcGenerics (funcHeader func) == []) $ do
             pushSymTab
-            stmt' <- instStmt (funcStmt body)
-            body' <- return body { funcStmt = stmt' }
-            modifyAST $ \s -> s { funcDefs = Map.insert symbol body' (ASTResolved.funcDefs s) }
+            stmt' <- instStmt (funcStmt func)
+            func' <- return func { funcStmt = stmt' }
+            modifyAST $ \s -> s { funcDefs = Map.insert symbol func' (ASTResolved.funcDefs s) }
             popSymTab
 
 
@@ -219,22 +219,22 @@ resolveFuncCall calledSymbol        argTypes retType = do
 
         [FuncHeader _ generics symbol _ _] | generics == [] -> return symbol
         [FuncHeader _ generics symbol _ _] -> do -- this is where we replace
-            bodyReplaced <- replaceGenericsInFuncBodyWithCall
-                (getFunctionBody symbol ast)
+            funcReplaced <- replaceGenericsInFuncWithCall
+                (getFunction symbol ast)
                 callHeader
 
-            case funcHeaderFullyResolved (funcHeader bodyReplaced) of
+            case funcHeaderFullyResolved (funcHeader funcReplaced) of
                 False -> return calledSymbol
                 True  -> do
                     instancem <- findInstance ast $ CallHeader
                         symbol
-                        (map typeof $ funcArgs $ funcHeader bodyReplaced)
-                        (typeof $ funcRetty $ funcHeader bodyReplaced)
+                        (map typeof $ funcArgs $ funcHeader funcReplaced)
+                        (typeof $ funcRetty $ funcHeader funcReplaced)
                     case instancem of
                         Just s -> return s
                         Nothing -> do
                             symbol' <- genSymbol (Symbol.sym calledSymbol)
-                            modifyAST $ \s -> s { funcInstances = Map.insert symbol' bodyReplaced (funcInstances s) }
+                            modifyAST $ \s -> s { funcInstances = Map.insert symbol' funcReplaced (funcInstances s) }
                             return symbol'
 
         _ -> return (calledSymbol)
