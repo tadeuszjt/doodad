@@ -2,6 +2,7 @@ module binaryTree
 
 import std/maybe
 import std/unordered
+import std/bool
 
 type{K, V} Node Tuple{
     Node{K, V}.Key.Maybe,

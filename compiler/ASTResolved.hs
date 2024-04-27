@@ -35,11 +35,9 @@ data CallHeader = CallHeader
 
 instance Show CallHeader where
     show header =
-        (show $ callSymbol header) ++ argsStr ++ " " ++ show (callRetType header)
+        (show $ callSymbol header) ++ argsStr ++ ":" ++ show (callRetType header)
         where
-            argsStr = case callArgTypes header of
-                [] -> "()"
-                ts -> "(" ++ intercalate ", " (map show ts) ++ ")"
+            argsStr = "(" ++ intercalate ", " (map show $ callArgTypes header) ++ ")"
 
 
 callCouldMatchFunc :: Monad m => CallHeader -> FuncHeader -> m Bool

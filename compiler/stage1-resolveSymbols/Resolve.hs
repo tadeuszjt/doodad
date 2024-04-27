@@ -36,17 +36,24 @@ data SymKey
 type SymTab = SymTab.SymTab String SymKey Symbol
 
 
+-- TODO
+-- currently funcDefs contains all defined functions and all local functions.
+-- Need to sort out the categories of function maps, probably need a funcDefsAll.
+--
+-- Also, lookFuncSymbol is good and it needs to work fully and provide lists of symbols to
+-- calling points.
+
 initAstResolved modName = ASTResolved
     { moduleName = modName
-    , includes      = Set.empty
-    , links         = Set.empty
-    , funcImports   = Map.empty
-    , funcExterns   = Map.empty
-    , funcDefs      = Map.empty
-    , funcInstances = Map.empty
-    , typeDefsAll   = Map.empty
-    , typeDefs      = Map.empty
-    , symSupply     = Map.empty
+    , includes       = Set.empty
+    , links          = Set.empty
+    , funcImports    = Map.empty
+    , funcExterns    = Map.empty
+    , funcDefs       = Map.empty
+    , funcInstances  = Map.empty
+    , typeDefsAll    = Map.empty
+    , typeDefs       = Map.empty
+    , symSupply      = Map.empty
     }
 
 
@@ -60,6 +67,7 @@ data ResolveState
         , ast              :: ASTResolved
         , typeDefsImported :: Type.TypeDefsMap
         , typeDefsLocal    :: SymTab.SymTab String () Symbol
+        , funcDefsLocal    :: SymTab.SymTab String () [Symbol]
         }
 
 initResolveState imports modName = ResolveState
@@ -67,8 +75,26 @@ initResolveState imports modName = ResolveState
     , ast              = initAstResolved modName
     , typeDefsImported = Map.empty
     , typeDefsLocal    = SymTab.initSymTab
+    , funcDefsLocal    = SymTab.initSymTab
     }
 
+
+defineFuncSymbol :: String -> Symbol -> DoM ResolveState ()
+defineFuncSymbol str symbol = do
+    resm <- SymTab.lookupHead str () <$> gets funcDefsLocal
+    current <- case resm of
+        Nothing -> return []
+        Just xs -> return xs
+    modify $ \s -> s { funcDefsLocal = SymTab.insert str () (symbol : current) (funcDefsLocal s) }
+
+
+lookFuncSymbol :: String -> DoM ResolveState [Symbol]
+lookFuncSymbol str = do
+    locals <- concat . map snd . SymTab.lookupAll str <$> gets funcDefsLocal
+    imported <- Map.keys . Map.filterWithKey (\s _ -> Symbol.sym s == str) <$>
+        gets (funcImports . ast)
+    return (locals ++ imported)
+    
 
 
 look :: Symbol -> SymKey -> DoM ResolveState Symbol
@@ -135,6 +161,7 @@ pushSymbolTable = do
     modify $ \s -> s
         { symTab        = SymTab.push (symTab s)
         , typeDefsLocal = SymTab.push (typeDefsLocal s)
+        , funcDefsLocal = SymTab.push (funcDefsLocal s)
         }
 
 
@@ -143,6 +170,7 @@ popSymbolTable = do
     modify $ \s -> s
         { symTab = SymTab.pop (symTab s)
         , typeDefsLocal = SymTab.pop (typeDefsLocal s)
+        , funcDefsLocal = SymTab.pop (funcDefsLocal s)
         }
 
 
@@ -169,8 +197,14 @@ resolveAsts asts imports = runDoMExcept (initResolveState imports (astModuleName
         forM_ typedefs $ \(Typedef pos generics (Sym str) anno) -> do
             symbol' <- genSymbol str
             modify $ \s -> s { typeDefsLocal = SymTab.insert str () symbol' (typeDefsLocal s) }
-            
 
+        -- give all funcdefs a unique name and define symbols.
+        funcdefs' <- forM funcdefs $ \(FuncDef (Func header@(FuncHeader _ _ (Sym str) _ _) stmt)) -> do
+            symbol' <- genSymbol str
+            defineFuncSymbol str symbol'
+            return $ FuncDef (Func header{funcSymbol = symbol'} stmt)
+
+            
         modifyAst $ \s -> s
             { includes    = Set.fromList includes
             , links       = Set.fromList links
@@ -193,7 +227,10 @@ resolveAsts asts imports = runDoMExcept (initResolveState imports (astModuleName
 
         forM_ typedefs $ \typedef -> do
             (symbol, generics, anno) <- resolveTypeDef typedef
-            modify $ \s -> s { typeDefsImported = Map.insert symbol (generics, annoToType anno) (typeDefsImported s) }
+            modify $ \s -> s { typeDefsImported = Map.insert
+                symbol
+                (generics, annoToType anno)
+                (typeDefsImported s) }
             modifyAst $ \s -> s { typeDefsAll = Map.insert
                     symbol
                     (generics, annoToType anno)
@@ -203,7 +240,10 @@ resolveAsts asts imports = runDoMExcept (initResolveState imports (astModuleName
                     (generics, annoToType anno)
                     (typeDefs s) }
 
-        mapM_ resolveFuncDef funcdefs
+
+        forM_ funcdefs' $ \funcdef@(FuncDef (Func header _))-> do
+            func' <- resolveFuncDef funcdef
+            modifyAst $ \s -> s { funcDefs = Map.insert (funcSymbol header) func' (funcDefs s) }
 
         popSymbolTable
 
@@ -211,9 +251,8 @@ resolveAsts asts imports = runDoMExcept (initResolveState imports (astModuleName
 
 
 
-resolveFuncDef :: AST.Stmt -> DoM ResolveState Symbol
-resolveFuncDef (FuncDef (Func (FuncHeader pos generics (Sym sym) args retty) blk)) = withPos pos $ do
-    symbol' <- genSymbol sym
+resolveFuncDef :: AST.Stmt -> DoM ResolveState Func
+resolveFuncDef (FuncDef (Func (FuncHeader pos generics symbol args retty) blk)) = withPos pos $ do
     pushSymbolTable
 
     genericSymbols <- forM generics $ \(Sym str) -> do
@@ -225,30 +264,24 @@ resolveFuncDef (FuncDef (Func (FuncHeader pos generics (Sym sym) args retty) blk
     retty' <- resolve retty
     blk' <- resolve blk
 
-    when (sym == "main") $ do
+    when (Symbol.sym symbol == "main") $ do
         check (generics == []) "main cannot be generic"
         check (args     == []) "main cannot have arguments"
         check (retty == AST.Retty Void)  "main cannot have a return type"
 
-    let func = Func
+    popSymbolTable
+
+    return $ Func
             { funcHeader = (FuncHeader
                 { funcGenerics = genericSymbols
                 , funcArgs     = args'
                 , funcRetty    = retty'
-                , funcSymbol   = symbol'
+                , funcSymbol   = symbol
                 , funcPos      = pos
                 })
             , funcStmt  = blk'
             }
-    popSymbolTable
-    modifyAst $ \s -> s { funcDefs = Map.insert symbol' func (funcDefs s) }
-    return symbol'
 
-
-defineTypeSymbols :: AST.Stmt -> DoM ResolveState ()
-defineTypeSymbols (AST.Typedef pos _ (Sym sym) _) = withPos pos $ do
-    symbol <- genSymbol sym
-    modify $ \s -> s { typeDefsLocal = SymTab.insert sym () symbol (typeDefsLocal s) }
 
 
 resolveTypeDef :: AST.Stmt -> DoM ResolveState (Symbol, [Symbol], AnnoType)
@@ -295,18 +328,24 @@ instance Resolve Stmt where
         ExprStmt callExpr -> ExprStmt <$> resolve callExpr
         EmbedC pos str -> EmbedC pos <$> processCEmbed str
 
-        FuncDef (Func (FuncHeader pos generics (Sym sym) args retty) blk) -> do
-            symbol' <- resolveFuncDef stmt
-            func <- mapGet symbol' =<< gets (funcDefs . ast)
-            return $ FuncDef $ Func ((funcHeader func) { funcSymbol = symbol' }) (funcStmt func)
+        FuncDef (Func header@(FuncHeader pos generics (Sym sym) args retty) blk) -> do
+            symbol <- genSymbol sym
+            defineFuncSymbol sym symbol
 
-        AST.Typedef pos args symbol anno -> do
-            defineTypeSymbols stmt
-            (symbol, generics, anno) <- resolveTypeDef stmt
+            func' <- resolveFuncDef $ FuncDef (Func header{funcSymbol = symbol} blk)
 
-            modifyAst $ \s -> s { typeDefsAll = Map.insert symbol (generics, annoToType anno) (typeDefsAll s) }
+            -- TODO push to local
+            modifyAst $ \s -> s { funcDefs = Map.insert symbol func' (funcDefs s) }
 
-            return $ AST.Typedef pos args symbol anno -- essentially discarded
+            return $ FuncDef $ Func ((funcHeader func') { funcSymbol = symbol }) (funcStmt func')
+
+        AST.Typedef pos args (Sym str) anno -> do
+            symbol' <- genSymbol str
+            modify $ \s -> s { typeDefsLocal = SymTab.insert str () symbol' (typeDefsLocal s) }
+            (_, generics, anno) <- resolveTypeDef stmt
+            modifyAst $ \s -> s { typeDefsAll = Map.insert symbol' (generics, annoToType anno) (typeDefsAll s) }
+
+            return $ AST.Typedef pos args (Sym str) anno -- essentially discarded
 
         Block stmts -> do
             pushSymbolTable
@@ -446,6 +485,11 @@ resolveMapper element = case element of
         if sym `elem` list then do
             return $ ElemExpr (Builtin pos sym exprs)
         else do
+            symbols <- lookFuncSymbol sym
+            case symbols of
+                [] -> liftIO $ putStrLn $ ("warning: no defs for: ") ++ show sym
+                _ -> return ()
+            
             return $ ElemExpr (Call pos (Sym sym) exprs)
 
     _ -> return element

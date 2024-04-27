@@ -2,6 +2,7 @@ module sparse
 
 import std/table
 import std/bool
+import std/integer
 
 type{T} Key    I64
 type{T} Sparse Tuple{

@@ -1,5 +1,7 @@
 module array
 
+import std/integer
+
 
 fn{T, S} at(array &Array{T, S}, index I64) &T
     return builtin_array_at(&array, index)

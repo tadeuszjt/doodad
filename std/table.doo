@@ -1,5 +1,7 @@
 module table
 
+import std/integer
+
 
 fn{T} set(table &T.Table, slice []T)
     ${ $table->len = 0; }

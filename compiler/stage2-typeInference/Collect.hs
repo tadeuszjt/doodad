@@ -167,9 +167,10 @@ collectCall symbol argTypes retType
 collectCall symbol argTypes retType = do
     funcDefs <- gets (funcDefs . astResolved)
     funcImports <- gets (funcImports . astResolved)
-    let headers = Map.elems $ Map.union
-            (Map.map funcHeader funcDefs)
-            (Map.map funcHeader funcImports)
+    let headers = Map.elems $ Map.unions
+            [ Map.map funcHeader funcDefs
+            , Map.map funcHeader funcImports
+            ]
 
     candidates <- findCandidates (CallHeader symbol argTypes retType) headers
 

@@ -206,10 +206,10 @@ resolveFuncCall calledSymbol        argTypes retType = do
 
     let callHeader = CallHeader calledSymbol argTypes retType
 
-    funcDefs <- gets (funcDefs . astResolved)
-    funcImports <- gets (funcImports . astResolved)
+    funcDefs <- gets (Map.map funcHeader . funcDefs . astResolved)
+    funcImports <- gets (Map.map funcHeader . funcImports . astResolved)
 
-    let headers = Map.elems $ Map.union (Map.map funcHeader funcDefs) (Map.map funcHeader funcImports)
+    let headers = Map.elems $ Map.unions [funcDefs, funcImports]
 
     candidates <- findCandidates callHeader headers
     ast <- gets astResolved

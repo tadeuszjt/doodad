@@ -27,6 +27,11 @@ lookupSym sym (s:ss) = case Map.lookup sym s of
     Nothing -> lookupSym sym ss
 
 
+lookupAll :: (Ord s, Ord k) => s -> SymTab s k o -> [(k, o)]
+lookupAll sym [] = []
+lookupAll sym (s : ss) = lookupSym sym [s] ++ lookupAll sym ss
+
+
 lookupKey :: (Ord s, Ord k) => k -> SymTab s k o -> [(s, o)]
 lookupKey key [] = []
 lookupKey key (s:ss) =

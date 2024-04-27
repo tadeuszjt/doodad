@@ -7,9 +7,6 @@ import AST
 import ASTResolved
 
 
-applyAST :: [(Type, Type)] -> ASTResolved -> ASTResolved
-applyAST subs ast = ast { funcDefs = Map.map (applyFunc subs) (funcDefs ast) }
-
 applyFunc :: [(Type, Type)] -> Func -> Func
 applyFunc subs func = func
     { funcStmt = applyStmt subs (funcStmt func)
