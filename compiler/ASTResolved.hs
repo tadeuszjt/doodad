@@ -49,7 +49,7 @@ instance Show CallHeader where
                 ts -> "(" ++ intercalate ", " (map show ts) ++ ")"
 
 
-callCouldMatchFunc :: TypeDefs m => CallHeader -> FuncHeader -> m Bool
+callCouldMatchFunc :: Monad m => CallHeader -> FuncHeader -> m Bool
 callCouldMatchFunc call header = do
     if symbolsMatch then do
         am <- argsMatch
@@ -57,7 +57,7 @@ callCouldMatchFunc call header = do
         return (am && rm)
     else return False
     where
-        typesMatch :: TypeDefs m => [Type] -> [Type] -> m Bool
+        typesMatch :: Monad m => [Type] -> [Type] -> m Bool
         typesMatch ts1 ts2 = do
             bs <- zipWithM typesCouldMatch ts1 ts2
             return $ (length ts1 == length ts2) && (all id bs)

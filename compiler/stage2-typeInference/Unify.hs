@@ -32,7 +32,12 @@ allSameType (x:xs) = case allSameType xs of
 unifyOne :: ConstraintInfo -> Constraint -> DoM ASTResolved [(Type, Type)]
 unifyOne info constraint = withPos info $ case constraint of
     ConsCall exprType symbol argTypes -> do
-        candidates <- findCandidates (CallHeader symbol argTypes exprType)
+        funcDefs <- gets funcDefs
+        funcImports <- gets funcImports
+        let headers = Map.elems $ Map.union (Map.map funcHeader funcDefs) (Map.map funcHeader funcImports)
+
+
+        candidates <- findCandidates (CallHeader symbol argTypes exprType) headers
 
         subs1 <- case allSameType (map (typeof . S.funcRetty) candidates) of
             Just x | typeFullyResolved x -> unifyOne info $ ConsEq exprType x

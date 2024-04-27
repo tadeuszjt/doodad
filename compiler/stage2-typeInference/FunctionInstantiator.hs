@@ -98,7 +98,12 @@ resolveFuncCall calledSymbol        argTypes retType = do
 
     let callHeader = CallHeader calledSymbol argTypes retType
 
-    candidates <- findCandidates callHeader
+    funcDefs <- gets funcDefs
+    funcImports <- gets funcImports
+
+    let headers = Map.elems $ Map.union (Map.map funcHeader funcDefs) (Map.map funcHeader funcImports)
+
+    candidates <- findCandidates callHeader headers
     ast <- get
 
     case candidates of

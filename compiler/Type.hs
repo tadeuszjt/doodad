@@ -160,25 +160,22 @@ applyTypeArguments argSymbols argTypes typ = do
         _                -> error $ "applyTypeArguments: " ++ show typ
 
 
-typesCouldMatch :: TypeDefs m => Type -> Type -> m Bool
-typesCouldMatch t1 t2 = couldMatch t1 t2
-    where
-        couldMatch :: TypeDefs m => Type -> Type -> m Bool
-        couldMatch t1 t2 = case (t1, t2) of
-            (a, b) | a == b            -> return True
-            (Type _, _)                -> return True
-            (_, Type _)                -> return True
-            (Slice a, Slice b)         -> couldMatch a b
+typesCouldMatch :: Monad m => Type -> Type -> m Bool
+typesCouldMatch t1 t2 = case (t1, t2) of
+    (a, b) | a == b            -> return True
+    (Type _, _)                -> return True
+    (_, Type _)                -> return True
+    (Slice a, Slice b)         -> typesCouldMatch a b
 
-            (TypeApply s1 ts1, TypeApply s2 ts2)
-                | (isGeneric t1 && isGeneric t2) || (s1 == s2) -> do
-                    bs <- zipWithM couldMatch ts1 ts2
-                    return $ length ts1 == length ts2 && all id bs
+    (TypeApply s1 ts1, TypeApply s2 ts2)
+        | (isGeneric t1 && isGeneric t2) || (s1 == s2) -> do
+            bs <- zipWithM typesCouldMatch ts1 ts2
+            return $ length ts1 == length ts2 && all id bs
 
-            (x, TypeApply s ts) | isGeneric t2 -> return True
-            (TypeApply s ts, x) | isGeneric t1 -> return True
+    (x, TypeApply s ts) | isGeneric t2 -> return True
+    (TypeApply s ts, x) | isGeneric t1 -> return True
 
-            _ -> return False
+    _ -> return False
 
 
 typeFullyResolved :: Type -> Bool

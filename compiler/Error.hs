@@ -51,7 +51,6 @@ withErrorPrefix str f = do
 check :: MonadFail m => Bool -> String -> m ()
 check b s = unless b (fail s)
 
-
 tryError :: MonadError Error m => m a -> m (Either Error a)
 tryError f = catchError (fmap Right f) $ \e -> return (Left e)
 

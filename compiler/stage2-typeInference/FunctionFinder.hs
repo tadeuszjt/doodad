@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleContexts #-}
 module FunctionFinder where
 
 import Data.Maybe
@@ -43,30 +44,26 @@ findInstance ast call = do
         xs -> error ("multiple candidates for: " ++ show call)
 
 
-findCandidates :: CallHeader -> DoM ASTResolved [FuncHeader]
-findCandidates call = do
-    funcDefs <- gets funcDefs
-    funcImports <- gets funcImports
-
-    fmap catMaybes $ forM (Map.elems $ Map.union funcDefs funcImports) $ \body -> do
-        couldMatch <- callCouldMatchFunc call (funcHeader body)
+findCandidates :: (MonadFail m, MonadError Error m) => CallHeader -> [FuncHeader] -> m [FuncHeader]
+findCandidates call headers = do
+    fmap catMaybes $ forM headers $ \header -> do
+        couldMatch <- callCouldMatchFunc call header
         if not couldMatch then
             return Nothing
-        else if not (isGenericBody body) then do
-            couldMatch <- callCouldMatchFunc call (funcHeader body)
-            if couldMatch then return $ Just (funcHeader body)
-            else return Nothing
+        else if not (isGenericHeader header) then
+            return (Just header)
         else do
-            replacedE <- tryError (replaceGenericsInFuncHeader (funcHeader body) call)
+            replacedE <- tryError (replaceGenericsInFuncHeader header call)
             case replacedE of
                 Left _ -> return Nothing
                 Right replaced -> do
-                    True <- callCouldMatchFunc call replaced
+                    res <- callCouldMatchFunc call replaced
+                    unless res (error "call doesn't match after replace")
                     return (Just replaced)
 
 
 
-replaceGenericsInFuncHeader :: (MonadFail m, TypeDefs m) => FuncHeader -> CallHeader -> m FuncHeader
+replaceGenericsInFuncHeader :: MonadFail m => FuncHeader -> CallHeader -> m FuncHeader
 replaceGenericsInFuncHeader header call = do
     couldMatch <- callCouldMatchFunc call (header { funcSymbol = callSymbol call })
     unless couldMatch (error "headers could not match")
@@ -74,7 +71,7 @@ replaceGenericsInFuncHeader header call = do
     return (applyFuncHeader subs header)
 
 
-replaceGenericsInFuncBodyWithCall :: (MonadFail m, TypeDefs m) => FuncBody -> CallHeader -> m FuncBody
+replaceGenericsInFuncBodyWithCall :: MonadFail m => FuncBody -> CallHeader -> m FuncBody
 replaceGenericsInFuncBodyWithCall body call = do
     couldMatch <- callCouldMatchFunc call $ (funcHeader body) { funcSymbol = callSymbol call }
     unless couldMatch (error "headers could not match")
@@ -106,7 +103,7 @@ unify generics (x:xs) = do
     return (s ++ subs)
 
 
-getConstraints :: (TypeDefs m, MonadFail m) => CallHeader -> FuncHeader -> m [Constraint]
+getConstraints :: MonadFail m => CallHeader -> FuncHeader -> m [Constraint]
 getConstraints call header = do
     retCs <- getConstraintsFromTypes
         (funcGenerics header)
@@ -119,12 +116,11 @@ getConstraints call header = do
     
 
 
-getConstraintsFromTypes :: (TypeDefs m, MonadFail m) => [Symbol] -> Type -> Type -> m [Constraint]
+getConstraintsFromTypes :: MonadFail m => [Symbol] -> Type -> Type -> m [Constraint]
 getConstraintsFromTypes generics t1 t2 = fromTypes t1 t2
     where
-        fromTypes :: (TypeDefs m, MonadFail m) => Type -> Type -> m [Constraint]
+        fromTypes :: MonadFail m => Type -> Type -> m [Constraint]
         fromTypes t1 t2 = do
-            typedefs <- getTypeDefs
             case (t1, t2) of
                 (a, b) | a == b            -> return [] 
                 (Type _, _)                -> return [ConsEq t1 t2]
