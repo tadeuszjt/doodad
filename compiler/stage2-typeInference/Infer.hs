@@ -20,8 +20,9 @@ inferFunc :: FuncBody -> DoM ASTResolved FuncBody
 inferFunc func = do
     annotatedFunc <- fmap fst $ withErrorPrefix "annotate: " $
         runDoMExcept 0 (annotateFunc func)
+    ast <- get
     collectState <- fmap snd $ withErrorPrefix "collect: " $
-        runDoMExcept initCollectState (collectFuncDef annotatedFunc)
+        runDoMExcept (initCollectState ast) (collectFuncDef annotatedFunc)
     subs <- unify $ Map.toList (collected collectState)
     let appliedFunc = applyFuncBody subs annotatedFunc
     fmap fst $ runDoMExcept () (deAnnotateFunc appliedFunc)
@@ -31,8 +32,9 @@ inferFuncDefaults :: FuncBody -> DoM ASTResolved FuncBody
 inferFuncDefaults func = do
     annotatedFunc <- fmap fst $ withErrorPrefix "annotate: " $
         runDoMExcept 0 (annotateFunc func)
+    ast <- get
     collectState <- fmap snd $ withErrorPrefix "collect: " $
-        runDoMExcept initCollectState (collectFuncDef annotatedFunc)
+        runDoMExcept (initCollectState ast) (collectFuncDef annotatedFunc)
     subs <- unifyDefault $ Map.toList (defaults collectState)
     let appliedFunc = applyFuncBody subs annotatedFunc
     fmap fst $ runDoMExcept () (deAnnotateFunc appliedFunc)

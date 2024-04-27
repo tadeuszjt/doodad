@@ -12,7 +12,6 @@ data Constraint
     | ConsPatTypeField Type Type [Type]  -- 
     | ConsPatField Type Symbol Type
     | ConsForExpr Type Type
-    | ConsCall Type Symbol [Type]   -- symbol(t2s):t1
     | ConsSlice Type Type           
     | ConsDefault Type Type
     deriving (Show, Eq, Ord)

@@ -13,6 +13,7 @@ import Control.Monad.State
 import qualified SymTab
 import Symbol
 import ASTResolved
+import FunctionFinder
 
 
 type SymTab = SymTab.SymTab Symbol () Type
@@ -24,14 +25,16 @@ data CollectState
         , collected   :: Map.Map Constraint ConstraintInfo
         , defaults    :: Map.Map Constraint ConstraintInfo
         , curPos      :: TextPos
+        , astResolved :: ASTResolved
         }
 
-initCollectState = CollectState
+initCollectState ast = CollectState
     { symTab      = SymTab.initSymTab
     , curRetty    = Void
     , collected   = Map.empty
     , defaults    = Map.empty
     , curPos      = TextPos "" 0 0
+    , astResolved = ast
     }
 
 
@@ -165,18 +168,43 @@ collectPatternIsolated (PatAnnotated pattern patType) = collectPos pattern $ cas
     x -> error (show x)
 
 
+collectCall :: Symbol -> [Type] -> Type -> DoM CollectState ()
+collectCall symbol argTypes retType = do
+    funcDefs <- gets (funcDefs . astResolved)
+    funcImports <- gets (funcImports . astResolved)
+    let headers = Map.elems $ Map.union
+            (Map.map funcHeader funcDefs)
+            (Map.map funcHeader funcImports)
+
+    candidates <- findCandidates (CallHeader symbol argTypes retType) headers
+
+    case allSameType (map (typeof . AST.funcRetty) candidates) of
+        Just x | typeFullyResolved x -> collect "call" $ ConsEq retType x
+        _ -> return ()
+
+    forM_ (zip [0..] argTypes) $ \(i, at) -> do
+        case allSameType (map (typeof . (!! i) . AST.funcArgs) candidates) of
+            Just x | typeFullyResolved x -> collect "call" (ConsEq at x)
+            _ -> return ()
+    where
+        allSameType :: [Type] -> Maybe Type
+        allSameType [] = Nothing
+        allSameType [x] = Just x
+        allSameType (x:xs) = case allSameType xs of
+            Just t -> if x == t then Just t else Nothing
+            Nothing -> Nothing
+
+
 collectPattern :: Pattern -> DoM CollectState ()
 collectPattern (PatAnnotated pattern patType) = collectPos pattern $ case pattern of
     PatIgnore _           -> return ()
     PatIdent _ symbol     -> do
         define symbol patType
-        collect "ident pattern must have set function" $
-            ConsCall Void (Sym "set") [patType, patType]
+        collectCall (Sym "set") [patType, patType] Void
 
     PatLiteral expr       -> do
         collect "expression type must match pattern type" $ ConsEq patType (typeof expr)
-        collect "literal pattern needs equal function" $
-            ConsCall Type.Bool (Sym "equal") [patType, patType]
+        collectCall (Sym "equal") [patType, patType] Type.Bool
         collectExpr expr
 
     PatGuarded _ pat expr -> do
@@ -186,10 +214,10 @@ collectPattern (PatAnnotated pattern patType) = collectPos pattern $ case patter
         collectExpr expr
 
     PatTuple _ pats -> do
-        when (length pats > 0) $ collect "first"  $ ConsCall (typeof $ pats !! 0) (Sym "first") [patType]
-        when (length pats > 1) $ collect "second" $ ConsCall (typeof $ pats !! 1) (Sym "second") [patType]
-        when (length pats > 2) $ collect "third"  $ ConsCall (typeof $ pats !! 2) (Sym "third") [patType]
-        when (length pats > 3) $ collect "fourth" $ ConsCall (typeof $ pats !! 3) (Sym "fourth") [patType]
+        when (length pats > 0) $ collectCall (Sym "first") [patType] (typeof $ pats !! 0)
+        when (length pats > 1) $ collectCall (Sym "second") [patType] (typeof $ pats !! 1)
+        when (length pats > 2) $ collectCall (Sym "third") [patType] (typeof $ pats !! 2)
+        when (length pats > 3) $ collectCall (Sym "fourth") [patType] (typeof $ pats !! 3)
 
         mapM_ collectPattern pats
 
@@ -210,14 +238,12 @@ collectPattern (PatAnnotated pattern patType) = collectPos pattern $ case patter
 
     PatSlice _ pats -> do
         when (length pats > 0) $ do
-            collect "slice pattern must have at function" $
-                ConsCall (typeof $ head pats) (Sym "at") [patType, I64]
+            collectCall (Sym "at") [patType, I64] (typeof $ head pats)
             forM_ pats $ \pat -> do
                 collect "slice pattern must all have same type" $
                     ConsEq (typeof pat) (typeof $ head pats)
 
-        collect "slice pattern must have len function" $
-            ConsCall I64 (Sym "len") [patType]
+        collectCall (Sym "len") [patType] I64
         mapM_ collectPattern pats
 
 
@@ -238,8 +264,7 @@ collectExpr (AExpr exprType expression) = collectPos expression $ case expressio
         when (Symbol.sym symbol == "construct" && length exprs == 1) $ do
             void $ collectDefault exprType $ typeof (head exprs)
 
-        collect "call expression must have valid types" $
-            ConsCall exprType symbol (map typeof exprs)
+        collectCall symbol (map typeof exprs) exprType
         mapM_ collectExpr exprs
 
     Match _ expr pat -> do
