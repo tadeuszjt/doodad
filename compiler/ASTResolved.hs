@@ -14,8 +14,8 @@ data ASTResolved
         { moduleName      :: String
         , includes        :: Set.Set String                  -- c header includes
         , links           :: Set.Set String                  -- linked libraries
-        , typeFuncs       :: Type.TypeDefsMap                -- defined type functions
-        , typeFuncsVisible :: Type.TypeDefsMap
+        , typeDefsAll     :: Type.TypeDefsMap                -- defined type functions
+        , typeDefs        :: Type.TypeDefsMap
         , funcDefs        :: Map.Map Symbol Func         -- defined functions
         , funcImports     :: Map.Map Symbol Func         -- imported funcs
         , funcInstances   :: Map.Map Symbol Func
@@ -97,7 +97,7 @@ getFunctionHeader symbol ast = funcHeader $
 prettyASTResolved :: ASTResolved -> IO ()
 prettyASTResolved ast = do
     putStrLn $ "module " ++ moduleName ast
-    forM_ (Map.toList $ typeFuncs ast) $ \(symbol, (generics, typ)) ->
+    forM_ (Map.toList $ typeDefsAll ast) $ \(symbol, (generics, typ)) ->
         prettyStmt "" (AST.Typedef undefined generics symbol $ AnnoType typ)
     forM_ (Map.toList $ funcDefs ast) $ \(symbol, func) ->
         prettyStmt "" $ FuncDef (Func (funcHeader func) (funcStmt func))

@@ -65,7 +65,7 @@ initCheckState ast = CheckState
     , astResolved = ast
     }
 
-instance TypeDefs (DoM CheckState) where getTypeDefs = gets (typeFuncs . astResolved)
+instance TypeDefs (DoM CheckState) where getTypeDefs = gets (typeDefsAll . astResolved)
 
 
 runASTChecker :: ASTResolved -> DoM s ()

@@ -38,15 +38,15 @@ type SymTab = SymTab.SymTab String SymKey Symbol
 
 initAstResolved modName = ASTResolved
     { moduleName = modName
-    , includes   = Set.empty
-    , links     = Set.empty
-    , funcImports = Map.empty
-    , funcExterns = Map.empty
-    , funcDefs    = Map.empty
+    , includes      = Set.empty
+    , links         = Set.empty
+    , funcImports   = Map.empty
+    , funcExterns   = Map.empty
+    , funcDefs      = Map.empty
     , funcInstances = Map.empty
-    , typeFuncs = Map.empty
-    , typeFuncsVisible = Map.empty
-    , symSupply = Map.empty
+    , typeDefsAll   = Map.empty
+    , typeDefs      = Map.empty
+    , symSupply     = Map.empty
     }
 
 
@@ -56,13 +56,17 @@ modifyAst f = modify $ \s -> s { ast = f (ast s) }
 
 data ResolveState
     = ResolveState
-        { symTab       :: SymTab
-        , ast          :: ASTResolved
+        { symTab           :: SymTab
+        , ast              :: ASTResolved
+        , typeDefsImported :: Type.TypeDefsMap
+        , typeDefsLocal    :: SymTab.SymTab String () Symbol
         }
 
 initResolveState imports modName = ResolveState
-    { symTab = SymTab.initSymTab
-    , ast    = initAstResolved modName
+    { symTab           = SymTab.initSymTab
+    , ast              = initAstResolved modName
+    , typeDefsImported = Map.empty
+    , typeDefsLocal    = SymTab.initSymTab
     }
 
 
@@ -79,11 +83,11 @@ lookm (Sym sym) KeyVar = SymTab.lookup sym KeyVar <$> gets symTab
 lookm symbol KeyType = do
     results <- case symbol of
         Sym sym -> do
-            resm <- SymTab.lookup sym KeyType <$> gets symTab
+            resm <- SymTab.lookup sym () <$> gets typeDefsLocal
             case resm of
                 Just s -> return [s]
                 Nothing -> do
-                    typeFuncs <- gets (typeFuncsVisible . ast)
+                    typeFuncs <- gets typeDefsImported
                     modName <- gets (moduleName . ast)
                     return $ Map.keys $ Map.filterWithKey
                             (\s _ -> Symbol.sym s == sym && modName /= Symbol.mod s)
@@ -92,12 +96,12 @@ lookm symbol KeyType = do
         SymQualified mod sym -> do
             modName <- gets (moduleName . ast)
             if mod == modName then do
-                resm <- SymTab.lookup sym KeyType <$> gets symTab
+                resm <- SymTab.lookup sym () <$> gets typeDefsLocal
                 case resm of
                     Just x -> return [x]
                     Nothing -> return []
             else do
-                typeFuncs <- gets (typeFuncsVisible . ast)
+                typeFuncs <- gets typeDefsImported
                 return $ Map.keys $ Map.filterWithKey
                         (\s _ -> symbolsCouldMatch symbol s)
                         typeFuncs
@@ -128,12 +132,18 @@ define sym key symbol = do
 
 pushSymbolTable :: DoM ResolveState ()
 pushSymbolTable = do
-    modify $ \s -> s { symTab = SymTab.push (symTab s) }
+    modify $ \s -> s
+        { symTab        = SymTab.push (symTab s)
+        , typeDefsLocal = SymTab.push (typeDefsLocal s)
+        }
 
 
 popSymbolTable :: DoM ResolveState ()
 popSymbolTable = do
-    modify $ \s -> s { symTab = SymTab.pop (symTab s) }
+    modify $ \s -> s
+        { symTab = SymTab.pop (symTab s)
+        , typeDefsLocal = SymTab.pop (typeDefsLocal s)
+        }
 
 
 annoToType :: AnnoType -> Type
@@ -153,22 +163,23 @@ resolveAsts asts imports = runDoMExcept (initResolveState imports (astModuleName
         let typedefs   = [ stmt | stmt@(AST.Typedef _ _ _ _) <- concat $ map astStmts asts ]
         let funcdefs   = [ stmt | stmt@(AST.FuncDef _) <- concat $ map astStmts asts ]
 
-        typeFuncsVisible <- fmap Map.unions $ forM imports $ \imprt -> do
-            return $ Map.filterWithKey
-                (\s _ -> Symbol.mod s == moduleName imprt)
-                (typeFuncsVisible imprt)
+        -- define symbols. resolve uses maps for imports and symbols tables for 
+        -- the current module.
+        modify $ \s -> s { typeDefsImported = Map.unions (map typeDefs imports) }
+        forM_ typedefs $ \(Typedef pos generics (Sym str) anno) -> do
+            symbol' <- genSymbol str
+            modify $ \s -> s { typeDefsLocal = SymTab.insert str () symbol' (typeDefsLocal s) }
             
 
         modifyAst $ \s -> s
             { includes    = Set.fromList includes
             , links       = Set.fromList links
-            , funcImports = Map.unions $ concat [map funcDefs imports]
+            , funcImports = Map.unions (map funcDefs imports)
             , funcExterns = Map.unions $ concat
                 [ map ASTResolved.funcExterns imports
                 , map ASTResolved.funcImports imports
                 ]
-            , typeFuncs = Map.unions (map typeFuncs imports)
-            , typeFuncsVisible = typeFuncsVisible
+            , typeDefsAll = Map.unions (map typeDefsAll imports)
             }
 
         -- check validity
@@ -179,9 +190,22 @@ resolveAsts asts imports = runDoMExcept (initResolveState imports (astModuleName
             (AST.FuncDef _) -> return ()
             _ -> fail "invalid top-level statement"
 
-        mapM_ defineTypeSymbols typedefs
-        mapM_ resolveTypeDef typedefs
+
+        forM_ typedefs $ \typedef -> do
+            (symbol, generics, anno) <- resolveTypeDef typedef
+            modify $ \s -> s { typeDefsImported = Map.insert symbol (generics, annoToType anno) (typeDefsImported s) }
+            modifyAst $ \s -> s { typeDefsAll = Map.insert
+                    symbol
+                    (generics, annoToType anno)
+                    (typeDefsAll s) }
+            modifyAst $ \s -> s { typeDefs = Map.insert
+                    symbol
+                    (generics, annoToType anno)
+                    (typeDefs s) }
+
         mapM_ resolveFuncDef funcdefs
+
+        popSymbolTable
 
         gets ast
 
@@ -192,9 +216,9 @@ resolveFuncDef (FuncDef (Func (FuncHeader pos generics (Sym sym) args retty) blk
     symbol' <- genSymbol sym
     pushSymbolTable
 
-    genericSymbols <- forM generics $ \(Sym s) -> do
-        symbol <- (\s -> s { sym = ("<generic>" ++ Symbol.sym s) } ) <$> genSymbol s
-        define s KeyType symbol
+    genericSymbols <- forM generics $ \(Sym str) -> do
+        symbol <- (\s -> s { sym = ("<generic>" ++ Symbol.sym s) } ) <$> genSymbol str
+        modify $ \s -> s { typeDefsLocal = SymTab.insert str () symbol (typeDefsLocal s) }
         return symbol
 
     args' <- mapM resolve args
@@ -224,18 +248,18 @@ resolveFuncDef (FuncDef (Func (FuncHeader pos generics (Sym sym) args retty) blk
 defineTypeSymbols :: AST.Stmt -> DoM ResolveState ()
 defineTypeSymbols (AST.Typedef pos _ (Sym sym) _) = withPos pos $ do
     symbol <- genSymbol sym
-    define sym KeyType symbol
+    modify $ \s -> s { typeDefsLocal = SymTab.insert sym () symbol (typeDefsLocal s) }
 
 
-resolveTypeDef :: AST.Stmt -> DoM ResolveState ()
+resolveTypeDef :: AST.Stmt -> DoM ResolveState (Symbol, [Symbol], AnnoType)
 resolveTypeDef (AST.Typedef pos generics (Sym sym) anno) = withPos pos $ do
     symbol <- look (Sym sym) KeyType
 
     -- Push the symbol table in order to temporarily define the type argument as a typedef
     pushSymbolTable
-    genericSymbols <- forM generics $ \(Sym s) -> do
-        symbol <- (\s -> s { sym = ("<generic>" ++ (Symbol.sym s)) } ) <$> genSymbol s
-        define s KeyType symbol
+    genericSymbols <- forM generics $ \(Sym str) -> do
+        symbol <- (\s -> s { sym = ("<generic>" ++ (Symbol.sym s)) } ) <$> genSymbol str
+        modify $ \s -> s { typeDefsLocal = SymTab.insert str () symbol (typeDefsLocal s) }
         return symbol
 
     anno' <- case anno of
@@ -257,13 +281,12 @@ resolveTypeDef (AST.Typedef pos generics (Sym sym) anno) = withPos pos $ do
         --AnnoSum params    -> AnnoSum    <$> mapM resolveTypedefParam params
 
     popSymbolTable
-    modifyAst $ \s -> s { typeFuncsVisible = Map.insert symbol (genericSymbols, annoToType anno') (typeFuncsVisible s) }
-    modifyAst $ \s -> s { typeFuncs = Map.insert symbol (genericSymbols, annoToType anno') (typeFuncs s) }
-    where
-        resolveTypedefParam :: AST.Param -> DoM ResolveState AST.Param
-        resolveTypedefParam (AST.Param pos (Sym s) t) = withPos pos $ do
-            s' <- genSymbol s
-            AST.Param pos s' <$> resolve t
+
+    return (symbol, genericSymbols, anno')
+
+
+--    modify $ \s -> s { typeDefsImported = Map.insert symbol (genericSymbols, annoToType anno') (typeDefsImported s) }
+--    modifyAst $ \s -> s { typeDefsAll = Map.insert symbol (genericSymbols, annoToType anno') (typeDefsAll s) }
 
 
 
@@ -279,7 +302,10 @@ instance Resolve Stmt where
 
         AST.Typedef pos args symbol anno -> do
             defineTypeSymbols stmt
-            resolveTypeDef stmt
+            (symbol, generics, anno) <- resolveTypeDef stmt
+
+            modifyAst $ \s -> s { typeDefsAll = Map.insert symbol (generics, annoToType anno) (typeDefsAll s) }
+
             return $ AST.Typedef pos args symbol anno -- essentially discarded
 
         Block stmts -> do

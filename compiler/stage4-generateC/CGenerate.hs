@@ -63,7 +63,7 @@ instance MonadFail Generate where
     fail s = throwError (ErrorStr s)
 
 instance TypeDefs Generate where
-    getTypeDefs = gets (typeFuncs . astResolved)
+    getTypeDefs = gets (typeDefsAll . astResolved)
 
 
 

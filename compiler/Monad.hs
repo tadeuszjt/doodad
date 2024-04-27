@@ -60,5 +60,5 @@ instance MonadFail (DoM s) where
     fail s = throwError (ErrorStr s)
 
 instance TypeDefs (DoM ASTResolved) where
-    getTypeDefs = gets typeFuncs
+    getTypeDefs = gets typeDefsAll
 
