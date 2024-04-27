@@ -15,6 +15,7 @@ data ASTResolved
         , includes        :: Set.Set String                  -- c header includes
         , links           :: Set.Set String                  -- linked libraries
         , typeFuncs       :: Type.TypeDefsMap                -- defined type functions
+        , typeFuncsVisible :: Type.TypeDefsMap
         , funcDefs        :: Map.Map Symbol Func         -- defined functions
         , funcImports     :: Map.Map Symbol Func         -- imported funcs
         , funcInstances   :: Map.Map Symbol Func

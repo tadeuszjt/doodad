@@ -29,30 +29,40 @@ class Resolve a where
 
 data SymKey
     = KeyType
-    | KeyFunc
     | KeyVar
     deriving (Show, Eq, Ord)
 
 
 type SymTab = SymTab.SymTab String SymKey Symbol
 
+
+initAstResolved modName = ASTResolved
+    { moduleName = modName
+    , includes   = Set.empty
+    , links     = Set.empty
+    , funcImports = Map.empty
+    , funcExterns = Map.empty
+    , funcDefs    = Map.empty
+    , funcInstances = Map.empty
+    , typeFuncs = Map.empty
+    , typeFuncsVisible = Map.empty
+    , symSupply = Map.empty
+    }
+
+
+modifyAst :: (ASTResolved -> ASTResolved) -> DoM ResolveState ()
+modifyAst f = modify $ \s -> s { ast = f (ast s) }
+
+
 data ResolveState
     = ResolveState
         { symTab       :: SymTab
-        , imports      :: [ASTResolved]
-        , modName      :: String
-        , supply       :: Map.Map String Int
-        , funcDefsMap  :: Map.Map Symbol Func
-        , typeFuncsMap :: Map.Map Symbol ([Symbol], AnnoType)
+        , ast          :: ASTResolved
         }
 
-initResolveState imports modName typeImports = ResolveState
-    { symTab        = SymTab.initSymTab
-    , imports       = imports
-    , modName       = modName
-    , supply        = Map.empty
-    , funcDefsMap   = Map.empty
-    , typeFuncsMap  = Map.empty
+initResolveState imports modName = ResolveState
+    { symTab = SymTab.initSymTab
+    , ast    = initAstResolved modName
     }
 
 
@@ -66,56 +76,46 @@ look symbol key = do
 
 lookm :: Symbol -> SymKey -> DoM ResolveState (Maybe Symbol)
 lookm (Sym sym) KeyVar = SymTab.lookup sym KeyVar <$> gets symTab
-lookm symbol KeyFunc = case symbol of
-    Sym sym -> do
-        resm <- SymTab.lookup sym KeyFunc <$> gets symTab
-        case resm of
-            Nothing -> return (Just symbol) -- This is cheating
-            Just s  -> return (Just s)
+lookm symbol KeyType = do
+    results <- case symbol of
+        Sym sym -> do
+            resm <- SymTab.lookup sym KeyType <$> gets symTab
+            case resm of
+                Just s -> return [s]
+                Nothing -> do
+                    typeFuncs <- gets (typeFuncsVisible . ast)
+                    modName <- gets (moduleName . ast)
+                    return $ Map.keys $ Map.filterWithKey
+                            (\s _ -> Symbol.sym s == sym && modName /= Symbol.mod s)
+                            typeFuncs
 
-    SymQualified mod sym -> do
-        modName <- gets modName
-        if mod == modName then SymTab.lookup sym KeyFunc <$> gets symTab
-        else lookm (Sym sym) KeyFunc
+        SymQualified mod sym -> do
+            modName <- gets (moduleName . ast)
+            if mod == modName then do
+                resm <- SymTab.lookup sym KeyType <$> gets symTab
+                case resm of
+                    Just x -> return [x]
+                    Nothing -> return []
+            else do
+                typeFuncs <- gets (typeFuncsVisible . ast)
+                return $ Map.keys $ Map.filterWithKey
+                        (\s _ -> symbolsCouldMatch symbol s)
+                        typeFuncs
 
-    _ -> fail $ show symbol
+        _ -> fail $ show symbol
 
-lookm symbol KeyType = case symbol of
-    Sym sym -> do
-        resm <- SymTab.lookup sym KeyType <$> gets symTab
-        case resm of
-            Just s -> return (Just s)
-            Nothing -> do
-                imprts <- gets imports
-                xs <- fmap concat $ forM imprts $
-                    \imprt -> return $ Map.keys $ Map.filterWithKey
-                        (\s _ -> Symbol.sym s == sym && Symbol.mod s == moduleName imprt)
-                        (typeFuncs imprt)
-
-                case xs of
-                    [] -> return Nothing
-                    [x] -> return (Just x)
-                    x   -> fail $ "ambiguous symbol: " ++ show symbol ++ ", use qualifier."
-
-    SymQualified mod sym -> do
-        modName <- gets modName
-        if mod == modName then SymTab.lookup sym KeyType <$> gets symTab
-        else do
-            xs <- Set.toList . Set.fromList . concat . map (Map.keys . Map.filterWithKey (\s _ -> symbolsCouldMatch symbol s) . typeFuncs) <$> gets imports
-            case xs of
-                [] -> return Nothing
-                [x] -> return (Just x)
-                x   -> fail $ "ambiguous symbol: " ++ show symbol ++ ", use qualifier."
-
-    _ -> fail $ show symbol
+    case results of
+        [] -> return Nothing
+        [x] -> return (Just x)
+        x   -> fail $ "ambiguous symbol: " ++ show symbol ++ ", use qualifier."
 
 
 genSymbol :: String -> DoM ResolveState Symbol
 genSymbol sym = do  
-    modName <- gets modName
-    im <- gets $ Map.lookup sym . supply
+    modName <- gets (moduleName . ast)
+    im <- gets $ Map.lookup sym . symSupply . ast
     let n = maybe 0 (id) im
-    modify $ \s -> s { supply = Map.insert sym (n + 1) (supply s) }
+    modifyAst $ \s -> s { symSupply = Map.insert sym (n + 1) (symSupply s) }
     return (SymResolved modName sym n)
         
 
@@ -146,52 +146,47 @@ annoToType anno = case anno of
 
 
 resolveAsts :: [AST] -> [ASTResolved] -> DoM s (ASTResolved, ResolveState)
-resolveAsts asts imports = runDoMExcept (initResolveState imports (astModuleName $ head asts) Map.empty) $
+resolveAsts asts imports = runDoMExcept (initResolveState imports (astModuleName $ head asts)) $
     withErrorPrefix "symbol resolver: " $ do
-        let moduleName = astModuleName (head asts)
         let includes   = [ s | inc@(CInclude s) <- concat $ map astImports asts ]
         let links      = [ s | link@(CLink s) <- concat $ map astImports asts ]
         let typedefs   = [ stmt | stmt@(AST.Typedef _ _ _ _) <- concat $ map astStmts asts ]
         let funcdefs   = [ stmt | stmt@(AST.FuncDef _) <- concat $ map astStmts asts ]
 
+        typeFuncsVisible <- fmap Map.unions $ forM imports $ \imprt -> do
+            return $ Map.filterWithKey
+                (\s _ -> Symbol.mod s == moduleName imprt)
+                (typeFuncsVisible imprt)
+            
+
+        modifyAst $ \s -> s
+            { includes    = Set.fromList includes
+            , links       = Set.fromList links
+            , funcImports = Map.unions $ concat [map funcDefs imports]
+            , funcExterns = Map.unions $ concat
+                [ map ASTResolved.funcExterns imports
+                , map ASTResolved.funcImports imports
+                ]
+            , typeFuncs = Map.unions (map typeFuncs imports)
+            , typeFuncsVisible = typeFuncsVisible
+            }
+
         -- check validity
-        unless (all (== moduleName) $ map astModuleName asts) (error "module name mismatch")
+        unless (all (== (astModuleName $ head asts)) $ map astModuleName asts)
+            (error "module name mismatch")
         forM_ (concat $ map astStmts asts) $ \stmt -> withPos stmt $ case stmt of
             (AST.Typedef _ _ _ _) -> return ()
             (AST.FuncDef _) -> return ()
             _ -> fail "invalid top-level statement"
 
-        -- get imports
-        let typeFuncImportMap = Map.unions (map typeFuncs imports)
-
         mapM_ defineTypeSymbols typedefs
         mapM_ resolveTypeDef typedefs
+        mapM_ resolveFuncDef funcdefs
 
-        forM_ funcdefs $ \funcdef -> do
-            void $ resolveFuncDef funcdef
-
-        typeFuncs <- gets typeFuncsMap
-        funcDefs <- gets funcDefsMap
-
-        supply <- gets supply
-        return $ ASTResolved
-            { moduleName    = moduleName
-            , includes      = Set.fromList includes
-            , links         = Set.fromList links
-            , funcImports   = Map.unions $ concat [map ASTResolved.funcDefs imports]
-            , funcExterns   = Map.unions $ concat
-                [ map ASTResolved.funcExterns imports
-                , map ASTResolved.funcImports imports
-                ]
-            , funcDefs      = funcDefs
-            , funcInstances = Map.empty
-            , typeFuncs     = Map.union typeFuncImportMap
-                (Map.map (\(x, y) -> (x, annoToType y)) typeFuncs)
-            , symSupply     = supply
-            }
+        gets ast
 
 
--- defines in funcDefsMap
+
 resolveFuncDef :: AST.Stmt -> DoM ResolveState Symbol
 resolveFuncDef (FuncDef (Func (FuncHeader pos generics (Sym sym) args retty) blk)) = withPos pos $ do
     symbol' <- genSymbol sym
@@ -222,7 +217,7 @@ resolveFuncDef (FuncDef (Func (FuncHeader pos generics (Sym sym) args retty) blk
             , funcStmt  = blk'
             }
     popSymbolTable
-    modify $ \s -> s { funcDefsMap = Map.insert symbol' func (funcDefsMap s) }
+    modifyAst $ \s -> s { funcDefs = Map.insert symbol' func (funcDefs s) }
     return symbol'
 
 
@@ -232,7 +227,6 @@ defineTypeSymbols (AST.Typedef pos _ (Sym sym) _) = withPos pos $ do
     define sym KeyType symbol
 
 
--- modifies the typedef function and inserts it into typeFuncsMap
 resolveTypeDef :: AST.Stmt -> DoM ResolveState ()
 resolveTypeDef (AST.Typedef pos generics (Sym sym) anno) = withPos pos $ do
     symbol <- look (Sym sym) KeyType
@@ -263,7 +257,8 @@ resolveTypeDef (AST.Typedef pos generics (Sym sym) anno) = withPos pos $ do
         --AnnoSum params    -> AnnoSum    <$> mapM resolveTypedefParam params
 
     popSymbolTable
-    modify $ \s -> s { typeFuncsMap = Map.insert symbol (genericSymbols, anno') (typeFuncsMap s) }
+    modifyAst $ \s -> s { typeFuncsVisible = Map.insert symbol (genericSymbols, annoToType anno') (typeFuncsVisible s) }
+    modifyAst $ \s -> s { typeFuncs = Map.insert symbol (genericSymbols, annoToType anno') (typeFuncs s) }
     where
         resolveTypedefParam :: AST.Param -> DoM ResolveState AST.Param
         resolveTypedefParam (AST.Param pos (Sym s) t) = withPos pos $ do
@@ -279,7 +274,7 @@ instance Resolve Stmt where
 
         FuncDef (Func (FuncHeader pos generics (Sym sym) args retty) blk) -> do
             symbol' <- resolveFuncDef stmt
-            func <- mapGet symbol' =<< gets funcDefsMap
+            func <- mapGet symbol' =<< gets (funcDefs . ast)
             return $ FuncDef $ Func ((funcHeader func) { funcSymbol = symbol' }) (funcStmt func)
 
         AST.Typedef pos args symbol anno -> do
@@ -425,8 +420,7 @@ resolveMapper element = case element of
         if sym `elem` list then do
             return $ ElemExpr (Builtin pos sym exprs)
         else do
-            symbol' <- look (Sym sym) KeyFunc
-            return $ ElemExpr (Call pos symbol' exprs)
+            return $ ElemExpr (Call pos (Sym sym) exprs)
 
     _ -> return element
 
