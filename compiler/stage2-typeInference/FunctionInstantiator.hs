@@ -15,38 +15,146 @@ import Error
 import Type
 import Apply
 import FunctionFinder
+import qualified SymTab
 
+type SymTab = SymTab.SymTab Symbol () FuncHeader
+
+data InstantiatorState
+    = InstantiatorState
+        { astResolved :: ASTResolved
+        , symTab      :: SymTab
+        }
+
+initInstantiatorState ast = InstantiatorState
+    { astResolved = ast
+    , symTab      = SymTab.initSymTab
+    }
+
+
+pushSymTab :: DoM InstantiatorState ()
+pushSymTab = do
+    modify $ \s -> s { symTab = SymTab.push (symTab s) }
+
+popSymTab :: DoM InstantiatorState ()
+popSymTab = do
+    modify $ \s -> s { symTab = SymTab.pop (symTab s) }
+
+
+modifyAST :: (ASTResolved -> ASTResolved) -> DoM InstantiatorState ()
+modifyAST f = modify $ \s -> s { astResolved = f (astResolved s) }
+
+
+compile :: Bool -> ASTResolved -> DoM s ASTResolved
+compile verbose ast = do
+    x <- fmap snd $ runDoMExcept (initInstantiatorState ast) $ do
+        instAst verbose
+    return (astResolved x)
 
 -- Resolves function calls
 -- Creates generic instantiations
-compile :: Bool -> DoM ASTResolved ()
-compile verbose = do
+instAst :: Bool -> DoM InstantiatorState ()
+instAst verbose = do
     --when verbose $ liftIO $ putStrLn $ "cleaning..."
-    funcInstances <- gets funcInstances
+    funcInstances <- gets (funcInstances . astResolved)
     forM_ (Map.toList funcInstances) $ \(symbol, body) -> do
         when (funcGenerics (funcHeader body) == []) $ do
-            stmt' <- (mapStmtM instantiatorMapper) (funcStmt body)
+            pushSymTab
+            stmt' <- instStmt (funcStmt body)
             body' <- return body { funcStmt = stmt' }
-            modify $ \s -> s { funcInstances = Map.insert symbol body' (ASTResolved.funcInstances s) }
+            modifyAST $ \s -> s { funcInstances = Map.insert symbol body' (ASTResolved.funcInstances s) }
+            popSymTab
 
-    funcDefs <- gets funcDefs
+    funcDefs <- gets (funcDefs . astResolved)
     forM_ (Map.toList funcDefs) $ \(symbol, body) -> do
         when (funcGenerics (funcHeader body) == []) $ do
-            stmt' <- (mapStmtM instantiatorMapper) (funcStmt body)
+            pushSymTab
+            stmt' <- instStmt (funcStmt body)
             body' <- return body { funcStmt = stmt' }
-            modify $ \s -> s { funcDefs = Map.insert symbol body' (ASTResolved.funcDefs s) }
+            modifyAST $ \s -> s { funcDefs = Map.insert symbol body' (ASTResolved.funcDefs s) }
+            popSymTab
 
 
-genSymbol :: String -> DoM ASTResolved Symbol
+
+instExpr :: Expr -> DoM InstantiatorState Expr
+instExpr = mapExprM instantiatorMapper
+
+instPattern :: Pattern -> DoM InstantiatorState Pattern
+instPattern = mapPattern instantiatorMapper
+
+
+instPatternIsolated :: Pattern -> DoM InstantiatorState Pattern
+instPatternIsolated = mapPatternIsolated instantiatorMapper
+
+
+instStmt :: Stmt -> DoM InstantiatorState Stmt
+instStmt stmt = withPos stmt $ case stmt of
+    Typedef _ _ _ _ -> return stmt
+    EmbedC pos s -> return stmt
+    ExprStmt expr -> ExprStmt <$> instExpr expr
+    Return pos mexpr -> Return pos <$> traverse instExpr mexpr
+
+    Block stmts -> do
+        pushSymTab
+        stmts' <- mapM instStmt stmts
+        popSymTab
+        return (Block stmts')
+
+    Let pos pat Nothing mblk -> do
+        pat' <- instPatternIsolated pat
+        mblk' <- traverse instStmt mblk
+        return $ Let pos pat' Nothing mblk'
+
+    Let pos pat mexpr mblk -> do
+        pat' <- instPattern pat
+        mexpr' <- traverse instExpr mexpr
+        mblk' <- traverse instStmt mblk
+        return $ Let pos pat' mexpr' mblk'
+
+    For pos expr mcnd blk -> do
+        expr' <- instExpr expr
+        mcnd' <- traverse instPattern mcnd
+        blk'  <- instStmt blk
+        return $ For pos expr' mcnd' blk'
+
+    While pos cnd blk -> do
+        cnd' <- instExpr cnd
+        blk' <- instStmt blk
+        return $ While pos cnd' blk'
+
+    If pos expr true mfalse -> do
+        expr' <- instExpr expr
+        true' <- instStmt true
+        mfalse' <- traverse (instStmt) mfalse
+        return $ If pos expr' true' mfalse'
+
+    Switch pos expr cases -> do
+        expr' <- instExpr expr
+        cases' <- forM cases $ \(pat, stmt) -> do
+            pushSymTab
+            pat' <- instPattern pat
+            stmt' <- instStmt stmt
+            popSymTab
+            return (pat', stmt')
+        return $ Switch pos expr' cases'
+
+    Data pos symbol typ mexpr -> do
+        mexpr' <- traverse instExpr mexpr
+        return $ Data pos symbol typ mexpr'
+
+    _ -> error (show stmt)
+
+
+
+genSymbol :: String -> DoM InstantiatorState Symbol
 genSymbol sym = do  
-    modName <- gets moduleName
-    im <- gets $ Map.lookup sym . symSupply
+    modName <- gets (moduleName . astResolved)
+    im <- gets $ Map.lookup sym . symSupply . astResolved
     let n = maybe 0 (id) im
-    modify $ \s -> s { symSupply = Map.insert sym (n + 1) (symSupply s) }
+    modifyAST $ \s -> s { symSupply = Map.insert sym (n + 1) (symSupply s) }
     return (SymResolved modName sym n)
 
 
-instantiatorMapper :: Elem -> DoM ASTResolved Elem
+instantiatorMapper :: Elem -> DoM InstantiatorState Elem
 instantiatorMapper elem = case elem of
     ElemExpr (AExpr exprType expr@(AST.Call pos symbol exprs)) | all isAnnotated exprs -> do
         symbol' <- withPos pos $ resolveFuncCall symbol (map typeof exprs) exprType
@@ -92,19 +200,19 @@ instantiatorMapper elem = case elem of
         isAnnotated _           = False
 
 
-resolveFuncCall :: Symbol -> [Type] -> Type -> DoM ASTResolved Symbol
+resolveFuncCall :: Symbol -> [Type] -> Type -> DoM InstantiatorState Symbol
 resolveFuncCall s@(SymResolved _ _ _) argTypes retType = return s
 resolveFuncCall calledSymbol        argTypes retType = do
 
     let callHeader = CallHeader calledSymbol argTypes retType
 
-    funcDefs <- gets funcDefs
-    funcImports <- gets funcImports
+    funcDefs <- gets (funcDefs . astResolved)
+    funcImports <- gets (funcImports . astResolved)
 
     let headers = Map.elems $ Map.union (Map.map funcHeader funcDefs) (Map.map funcHeader funcImports)
 
     candidates <- findCandidates callHeader headers
-    ast <- get
+    ast <- gets astResolved
 
     case candidates of
         [] -> fail $ "no candidates for: " ++ show callHeader
@@ -126,7 +234,7 @@ resolveFuncCall calledSymbol        argTypes retType = do
                         Just s -> return s
                         Nothing -> do
                             symbol' <- genSymbol (Symbol.sym calledSymbol)
-                            modify $ \s -> s { funcInstances = Map.insert symbol' bodyReplaced (funcInstances s) }
+                            modifyAST $ \s -> s { funcInstances = Map.insert symbol' bodyReplaced (funcInstances s) }
                             return symbol'
 
         _ -> return (calledSymbol)

@@ -169,6 +169,8 @@ collectPatternIsolated (PatAnnotated pattern patType) = collectPos pattern $ cas
 
 
 collectCall :: Symbol -> [Type] -> Type -> DoM CollectState ()
+collectCall symbol argTypes retType
+    | all typeFullyResolved (retType : argTypes) = return ()
 collectCall symbol argTypes retType = do
     funcDefs <- gets (funcDefs . astResolved)
     funcImports <- gets (funcImports . astResolved)

@@ -87,9 +87,9 @@ cPrettyElem elem = case elem of
     Label str           -> printLn $ str ++ ":;"
 
     func@(Func _ _ _ _ _) -> do
-        forM (funcQualifiers func) $ \qualifier ->
-            printLn (show qualifier ++ " ")
         printLn ""
+        forM (funcQualifiers func) $ \qualifier ->
+            print (show qualifier ++ " ")
         printLn $ show (funcRetty func) ++ " " ++ funcName func ++ "(" ++ intercalate ", " (map show $ funcArgs func) ++ ") {"
         pushIndent
         printElems (funcBody func)

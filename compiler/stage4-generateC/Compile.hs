@@ -104,7 +104,7 @@ generateFunc isStatic symbol body = do
 
     pushSymTab
 
-    id <- newFunction rettyType (show symbol) ([] ++ args) (if isStatic then [C.Static] else [])
+    id <- newFunction rettyType (show symbol) ([] ++ args) $ (if isStatic then [C.Static] else [])
     withCurID id $ do
         forM_ (S.funcArgs (ASTResolved.funcHeader body)) $ \arg -> do
             let name = show (paramSymbol arg)

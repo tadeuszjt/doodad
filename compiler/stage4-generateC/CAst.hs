@@ -81,12 +81,14 @@ data Qualifier
     = Static
     | Const
     | Extern
+    | Inline
     deriving (Eq)
 
 instance Show Qualifier where
     show Static = "static"
     show Const = "const"
     show Extern = "extern"
+    show Inline = "inline"
 
 instance Show Operator where
     show OrOr = "||"

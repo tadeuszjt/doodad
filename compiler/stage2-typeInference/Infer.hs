@@ -44,7 +44,7 @@ infer :: ASTResolved -> Bool -> Bool -> DoM s (ASTResolved, Int)
 infer ast printAnnotated verbose = runDoMUntilSameResult ast $ \ast -> do 
     inferred <- inferTypesPerFunc ast
     defaulted <- inferDefaults inferred
-    fmap snd $ runDoMExcept defaulted (FunctionInstantiator.compile verbose)
+    FunctionInstantiator.compile verbose defaulted
     where
         inferTypesPerFunc :: ASTResolved -> DoM s ASTResolved
         inferTypesPerFunc ast = do
