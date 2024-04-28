@@ -7,12 +7,12 @@ fn construct(a F64) F64
     ${ $b = $a; }
     return b
 
-fn add(a F64, b F64) F64
+fn Arithmetic::add(a F64, b F64) F64
     let r : F64
     ${ $r = $a + $b; }
     return r
 
-fn divide(a F64, b F64) F64
+fn Arithmetic::divide(a F64, b F64) F64
     let r : F64
     ${ $r = $a / $b; }
     return r

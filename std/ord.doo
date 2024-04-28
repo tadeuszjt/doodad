@@ -1,0 +1,5 @@
+module ord
+
+feature Ord
+    fn{T} greater(a T, b T) Bool
+    fn{T} less(a T, b T) Bool

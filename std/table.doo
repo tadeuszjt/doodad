@@ -1,6 +1,7 @@
 module table
 
 import std/integer
+import std/len
 
 
 fn{T} set(table &T.Table, slice []T)

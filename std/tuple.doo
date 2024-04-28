@@ -13,8 +13,8 @@ fn{A, B} set(a &Tuple{A, B}, b Tuple{A, B})
     a.0 = b.0
     a.1 = b.1
 
-fn{A, B} add(a Tuple{A, B}, b Tuple{A, B}) Tuple{A, B}; return ( a.0 + b.0, a.1 + b.1 )
-fn{A, B, C} add(a Tuple{A, B, C}, b Tuple{A, B, C}) Tuple{A, B, C}; return ( a.0 + b.0, a.1 + b.1, a.2 + b.2 )
+fn{A, B}    Arithmetic::add(a Tuple{A, B}, b Tuple{A, B}) Tuple{A, B}; return ( a.0 + b.0, a.1 + b.1 )
+fn{A, B, C} Arithmetic::add(a Tuple{A, B, C}, b Tuple{A, B, C}) Tuple{A, B, C}; return ( a.0 + b.0, a.1 + b.1, a.2 + b.2 )
 
 
 fn{A, B} construct(a A, b B) Tuple{A, B}

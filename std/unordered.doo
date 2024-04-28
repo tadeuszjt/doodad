@@ -3,6 +3,7 @@ module unordered
 import std/sparse
 import std/table
 import std/integer
+import std/len
 
 type{T} Key I64
 type{T} Entry ( I64.Key, T )

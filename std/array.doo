@@ -1,6 +1,7 @@
 module array
 
 import std/integer
+import std/len
 
 
 fn{T, S} at(array &Array{T, S}, index I64) &T

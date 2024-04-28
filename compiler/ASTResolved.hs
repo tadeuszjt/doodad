@@ -24,7 +24,7 @@ data ASTResolved
         , typeDefs             :: Set.Set Symbol                  -- top-level type defs
 
 
-        , featuresAll          :: Map.Map Symbol [FuncHeader]
+        , featuresAll          :: Map.Map Symbol FuncHeader
         , featuresTop          :: Set.Set Symbol
 
 

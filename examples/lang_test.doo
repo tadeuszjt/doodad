@@ -33,7 +33,7 @@ fn testConvert()
     type MyInt I64
 
     fn set(a &MyInt, b MyInt); ${ *$a = $b; }
-    fn add(a MyInt, b MyInt) MyInt
+    fn Arithmetic::add(a MyInt, b MyInt) MyInt
         let c : MyInt
         ${ $c = $a + $b; }
         return c
@@ -393,7 +393,7 @@ fn testBoolConditions()
     fn set(a &OnlyThrice, b OnlyThrice)
         ${ *$a = $b; }
 
-    fn add(a OnlyThrice, b OnlyThrice) OnlyThrice
+    fn Arithmetic::add(a OnlyThrice, b OnlyThrice) OnlyThrice
         let c : OnlyThrice
         ${ $c = $a + $b; }
         return c
@@ -431,11 +431,6 @@ fn testCharType()
     if m -> 'n'
         let true = false
 
-
-
-feature{T} Len
-    fn myLen(t &T) I64
-    
 
 
 fn main()

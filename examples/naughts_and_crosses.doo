@@ -194,6 +194,15 @@ fn cpuMove(io &Io, board &Board)
         board[row][col] = empty()
 
 
+    // find move that opponent wins
+    for empty -> (row, col)
+        board[row][col] = naught()
+        if winner(board) == naught()
+            board[row][col] = cross()
+        else
+            board[row][col] = empty()
+
+
     // choose random move
     data rand Rand
     let i = rand.i64(0, empty.len)

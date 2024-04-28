@@ -133,8 +133,11 @@ imports : {- empty -}              { [] }
 ---------------------------------------------------------------------------------------------------
 -- Statements -------------------------------------------------------------------------------------
 
-fnHeader : fn generics ident '(' paramsA ')' retty
-            { AST.FuncHeader (tokPos $1) $2 (Sym $ tokStr $3) $5 $7 }
+fnSymbol : ident            { Sym (tokStr $1) }
+         | Ident '::' ident { Sym (tokStr $1 ++ "_" ++ tokStr $3) }
+
+fnHeader : fn generics fnSymbol '(' paramsA ')' retty
+            { AST.FuncHeader (tokPos $1) $2 $3 $5 $7 }
 
 func : fnHeader scope  { Func $1 $2 }
 
@@ -166,8 +169,7 @@ block : if_                               { $1 }
       | let pattern '='  expr in scope    { Let (tokPos $1) $2 (Just $4) (Just $6) }
       | let pattern in scope              { Let (tokPos $1) $2 Nothing (Just $4) }
       | func                              { FuncDef $1 }
-      | feature generics Ident 'I' fnHeaders 'D'
-        { Feature (tokPos $1) $2 (Sym $ tokStr $3) $5 }
+      | feature Ident 'I' fnHeaders 'D'   { Feature (tokPos $1) (Sym $ tokStr $2) $4 }
 
 if_   : if condition scope else_          { If (tokPos $1) $2 $3 $4 }
       | if condition 'N' else_            { If (tokPos $1) $2 (Block []) $4 }
@@ -190,8 +192,10 @@ case : pattern scope                      { ($1, $2) }
 Idents1 : Ident                          { [tokStr $1] }
         | Ident ',' Idents1              { (tokStr $1):($3) } 
 
+
 symbol : ident                           { (tokPos $1, Sym (tokStr $1)) }
        | ident '::' ident                { (tokPos $3, SymQualified (tokStr $1) (tokStr $3)) }
+       | Ident '::' ident                { (tokPos $1, Sym (tokStr $1 ++ "_" ++ tokStr $3)) }
 
 Symbol : Ident                           { (tokPos $1, Sym (tokStr $1)) }
        | ident '::' Ident                { (tokPos $3, SymQualified (tokStr $1) (tokStr $3)) }
@@ -263,13 +267,13 @@ expr   : literal                                 { $1 }
        | expr '.' symbol '(' exprsA ')'          { Call (tokPos $4) (snd $3) (AST.Reference (tokPos $2) $1 : $5) }
        | symbol '(' exprsA ')'                   { Call (tokPos $2) (snd $1) $3 }
        | '(' exprsA ')'                          { case $2 of [x] -> x; xs -> Call (tokPos $1) (Sym "construct") $2 }
-       | expr '+' expr                           { Call (tokPos $2) (Sym "add") [$1, $3] }
-       | expr '/' expr                           { Call (tokPos $2) (Sym "divide") [$1, $3] }
-       | expr '-' expr                           { Call (tokPos $2) (Sym "subtract") [$1, $3] } 
-       | expr '*' expr                           { Call (tokPos $2) (Sym "times") [$1, $3] } 
+       | expr '+' expr                           { Call (tokPos $2) (Sym "Arithmetic_add") [$1, $3] }
+       | expr '/' expr                           { Call (tokPos $2) (Sym "Arithmetic_divide") [$1, $3] }
+       | expr '-' expr                           { Call (tokPos $2) (Sym "Arithmetic_subtract") [$1, $3] } 
+       | expr '*' expr                           { Call (tokPos $2) (Sym "Arithmetic_times") [$1, $3] } 
        | expr '%' expr                           { Call (tokPos $2) (Sym "modulo") [$1, $3] } 
-       | expr '<' expr                           { Call (tokPos $2) (Sym "less") [$1, $3] } 
-       | expr '>' expr                           { Call (tokPos $2) (Sym "greater") [$1, $3] } 
+       | expr '<' expr                           { Call (tokPos $2) (Sym "Ord_less") [$1, $3] } 
+       | expr '>' expr                           { Call (tokPos $2) (Sym "Ord_greater") [$1, $3] } 
        | expr '<=' expr                          { Call (tokPos $2) (Sym "lessEqual") [$1, $3] } 
        | expr '>=' expr                          { Call (tokPos $2) (Sym "greaterEqual") [$1, $3] } 
        | expr '==' expr                          { Call (tokPos $2) (Sym "equal") [$1, $3] } 

@@ -1,0 +1,7 @@
+module arithmetic
+
+feature Arithmetic
+    fn{T} add(a T, b T) T
+    fn{T} subtract(a T, b T) T
+    fn{T} times(a T, b T) T
+    fn{T} divide(a T, b T) T
