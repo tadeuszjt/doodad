@@ -9,17 +9,25 @@ import AST
 import Symbol
 import Type
 
+
+
+filterMapBySet :: (Ord k) => Set.Set k -> Map.Map k v -> Map.Map k v
+filterMapBySet set map = Map.filterWithKey (\k _ -> Set.member k set) map
+
+
 data ASTResolved
     = ASTResolved
         { moduleName      :: String
         , includes        :: Set.Set String                  -- c header includes
         , links           :: Set.Set String                  -- linked libraries
-        , typeDefsAll     :: Type.TypeDefsMap                -- defined type functions
-        , typeDefs        :: Type.TypeDefsMap
+        , typeDefsAll     :: Type.TypeDefsMap                -- all type defs
+        , typeDefs        :: Set.Set Symbol                  -- top-level type defs
+
+        , features        :: Map.Map Symbol [FuncHeader]
+
         , funcDefs        :: Map.Map Symbol Func         -- defined functions
         , funcImports     :: Map.Map Symbol Func         -- imported funcs
         , funcInstances   :: Map.Map Symbol Func
-        , funcExterns     :: Map.Map Symbol Func
         , symSupply       :: Map.Map String Int              -- type supply from resovle
         }
     deriving (Eq)

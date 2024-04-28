@@ -433,8 +433,8 @@ fn testCharType()
 
 
 
-//feature{T} Len{T}
-//    fn myLen(& T) I64
+feature{T} Len
+    fn myLen(t &T) I64
     
 
 

@@ -166,8 +166,8 @@ block : if_                               { $1 }
       | let pattern '='  expr in scope    { Let (tokPos $1) $2 (Just $4) (Just $6) }
       | let pattern in scope              { Let (tokPos $1) $2 Nothing (Just $4) }
       | func                              { FuncDef $1 }
-      | feature generics Ident '{' type_ '}' 'I' fnHeaders 'D'
-        { Feature (tokPos $1) $2 (Sym $ tokStr $3) $5 $8 }
+      | feature generics Ident 'I' fnHeaders 'D'
+        { Feature (tokPos $1) $2 (Sym $ tokStr $3) $5 }
 
 if_   : if condition scope else_          { If (tokPos $1) $2 $3 $4 }
       | if condition 'N' else_            { If (tokPos $1) $2 (Block []) $4 }

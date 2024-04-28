@@ -128,7 +128,7 @@ data Stmt
     | If          TextPos Expr Stmt (Maybe Stmt)
     | While       TextPos Expr Stmt
     | FuncDef     Func
-    | Feature     TextPos [Symbol] Symbol Type [FuncHeader]
+    | Feature     TextPos [Symbol] Symbol [FuncHeader]
     | Typedef     TextPos [Symbol] Symbol AnnoType
     | Switch      TextPos Expr [(Pattern, Stmt)]
     | For         TextPos Expr (Maybe Pattern) Stmt
@@ -191,6 +191,7 @@ instance TextPosition Stmt where
         For         p _ _ _ -> p
         Data        p _ _ _ -> p
         EmbedC      p _ -> p
+        Feature     p _ _ _ -> p
         _ -> error (show stmt)
 
 tupStrs, arrStrs, brcStrs :: [String] -> String
