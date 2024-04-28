@@ -26,22 +26,21 @@ import AST
 -- generic symbols with resolved types.
 
 
-findInstance :: Monad m => ASTResolved -> CallHeader -> m (Maybe Symbol)
+findInstance :: MonadIO m => ASTResolved -> CallHeader -> m (Maybe Symbol)
 findInstance ast call = do
-    let funcs = Map.unions [funcInstances ast, funcDefs ast, funcImports ast]
+    let funcs = Map.unions [funcInstance ast, funcInstanceImported ast]
 
-    candidates <- fmap catMaybes $ forM (Map.toList funcs) $ \(symbol, func) -> do
-        let header = funcHeader func
-        let match = (not $ isGenericHeader header) &&
-                    (Symbol.sym (callSymbol call) == Symbol.sym symbol) &&
+    candidates <- fmap catMaybes $ forM (Map.toList funcs) $ \(header, func) -> do
+        let match = (symbolsCouldMatch (callSymbol call) (funcSymbol header)) &&
                     (callRetType call == (typeof $ funcRetty header)) &&
                     (callArgTypes call == (map typeof $ funcArgs header))
         case match of
-            True -> return (Just symbol)
+            True -> return (Just $ funcSymbol $ funcHeader func)
             False -> return Nothing
     case candidates of
         [] -> return Nothing
-        [x] -> return (Just x)
+        [x] -> do
+            return (Just x)
         xs -> error ("multiple candidates for: " ++ show call)
 
 

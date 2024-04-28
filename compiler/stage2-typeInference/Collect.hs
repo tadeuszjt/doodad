@@ -165,14 +165,9 @@ collectCall :: Symbol -> [Type] -> Type -> DoM CollectState ()
 collectCall symbol argTypes retType
     | all typeFullyResolved (retType : argTypes) = return ()
 collectCall symbol argTypes retType = do
-    funcDefs <- gets (funcDefs . astResolved)
-    funcImports <- gets (funcImports . astResolved)
-    let headers = Map.elems $ Map.unions
-            [ Map.map funcHeader funcDefs
-            , Map.map funcHeader funcImports
-            ]
-
+    headers <- gets (Map.elems . Map.map funcHeader . funcDefsAll . astResolved)
     candidates <- findCandidates (CallHeader symbol argTypes retType) headers
+    -- TODO needs to check only visible symbols
 
     case allSameType (map (typeof . AST.funcRetty) candidates) of
         Just x | typeFullyResolved x -> collect "call" $ ConsEq retType x

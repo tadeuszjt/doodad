@@ -16,7 +16,6 @@ import Monad
 import Error
 import Apply
 import Symbol
-import FunctionFinder (findCandidates)
 
 
 

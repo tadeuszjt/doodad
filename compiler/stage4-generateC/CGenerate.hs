@@ -138,7 +138,7 @@ callFunction symbol retty args = do
                 (error $ "couldn't find instance: " ++ show (symbol, retty, map typeof args))
             return (fromJust funcSymbolm)
 
-    let header = getFunctionHeader callSymbol ast
+    let header = getInstanceHeader callSymbol ast
     let funcParams = S.funcArgs header
     let funcRetty = S.funcRetty header
 

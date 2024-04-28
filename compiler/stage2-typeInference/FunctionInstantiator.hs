@@ -54,24 +54,13 @@ compile verbose ast = do
 -- Creates generic instantiations
 instAst :: Bool -> DoM InstantiatorState ()
 instAst verbose = do
-    --when verbose $ liftIO $ putStrLn $ "cleaning..."
-    funcInstances <- gets (funcInstances . astResolved)
-    forM_ (Map.toList funcInstances) $ \(symbol, func) -> do
-        when (funcGenerics (funcHeader func) == []) $ do
-            pushSymTab
-            stmt' <- instStmt (funcStmt func)
-            func' <- return func { funcStmt = stmt' }
-            modifyAST $ \s -> s { funcInstances = Map.insert symbol func' (ASTResolved.funcInstances s) }
-            popSymTab
-
-    funcDefs <- gets (funcDefs . astResolved)
-    forM_ (Map.toList funcDefs) $ \(symbol, func) -> do
-        when (funcGenerics (funcHeader func) == []) $ do
-            pushSymTab
-            stmt' <- instStmt (funcStmt func)
-            func' <- return func { funcStmt = stmt' }
-            modifyAST $ \s -> s { funcDefs = Map.insert symbol func' (ASTResolved.funcDefs s) }
-            popSymTab
+    funcInstances <- gets (funcInstance . astResolved)
+    forM_ (Map.toList funcInstances) $ \(header, func) -> do
+        pushSymTab
+        stmt' <- instStmt (funcStmt func)
+        func' <- return func { funcStmt = stmt' }
+        modifyAST $ \s -> s { funcInstance = Map.insert header func' (ASTResolved.funcInstance s) }
+        popSymTab
 
 
 
@@ -203,38 +192,40 @@ instantiatorMapper elem = case elem of
 resolveFuncCall :: Symbol -> [Type] -> Type -> DoM InstantiatorState Symbol
 resolveFuncCall s@(SymResolved _ _ _) argTypes retType = return s
 resolveFuncCall calledSymbol        argTypes retType = do
-
     let callHeader = CallHeader calledSymbol argTypes retType
-
-    funcDefs <- gets (Map.map funcHeader . funcDefs . astResolved)
-    funcImports <- gets (Map.map funcHeader . funcImports . astResolved)
-
-    let headers = Map.elems $ Map.unions [funcDefs, funcImports]
-
+    headers <- gets (Map.elems . Map.map funcHeader . funcDefsAll . astResolved)
     candidates <- findCandidates callHeader headers
     ast <- gets astResolved
 
     case candidates of
-        [] -> fail $ "no candidates for: " ++ show callHeader
+        [] -> error "no candidates"
 
-        [FuncHeader _ generics symbol _ _] | generics == [] -> return symbol
-        [FuncHeader _ generics symbol _ _] -> do -- this is where we replace
-            funcReplaced <- replaceGenericsInFuncWithCall
-                (getFunction symbol ast)
-                callHeader
+        [header] -> do
+            instancem <- findInstance ast $ CallHeader
+                calledSymbol
+                (map typeof $ funcArgs $ header)
+                (typeof $ funcRetty $ header)
 
-            case funcHeaderFullyResolved (funcHeader funcReplaced) of
-                False -> return calledSymbol
-                True  -> do
-                    instancem <- findInstance ast $ CallHeader
-                        symbol
-                        (map typeof $ funcArgs $ funcHeader funcReplaced)
-                        (typeof $ funcRetty $ funcHeader funcReplaced)
-                    case instancem of
-                        Just s -> return s
-                        Nothing -> do
-                            symbol' <- genSymbol (Symbol.sym calledSymbol)
-                            modifyAST $ \s -> s { funcInstances = Map.insert symbol' funcReplaced (funcInstances s) }
-                            return symbol'
+            case instancem of
+                Just symbol -> return symbol
+                Nothing -> do
+                    funcReplaced <- replaceGenericsInFuncWithCall
+                        (getFunction (funcSymbol header) ast)
+                        callHeader
 
-        _ -> return (calledSymbol)
+                    case funcHeaderFullyResolved (funcHeader funcReplaced) of
+                        True -> do
+                            instanceSymbol <- genSymbol ("instance_" ++ Symbol.sym calledSymbol)
+                            modifyAST $ \s -> s { funcInstance = Map.insert
+                                (funcHeader funcReplaced)
+                                (funcReplaced { funcHeader = (funcHeader funcReplaced)
+                                    { funcSymbol = instanceSymbol
+                                    }})
+                                (funcInstance s) }
+
+                            return instanceSymbol
+
+                        False -> 
+                            error "False"
+
+        _ -> return calledSymbol

@@ -17,18 +17,22 @@ filterMapBySet set map = Map.filterWithKey (\k _ -> Set.member k set) map
 
 data ASTResolved
     = ASTResolved
-        { moduleName      :: String
-        , includes        :: Set.Set String                  -- c header includes
-        , links           :: Set.Set String                  -- linked libraries
-        , typeDefsAll     :: Type.TypeDefsMap                -- all type defs
-        , typeDefs        :: Set.Set Symbol                  -- top-level type defs
+        { moduleName           :: String
+        , includes             :: Set.Set String                  -- c header includes
+        , links                :: Set.Set String                  -- linked libraries
+        , typeDefsAll          :: Type.TypeDefsMap                -- all type defs
+        , typeDefs             :: Set.Set Symbol                  -- top-level type defs
 
-        , features        :: Map.Map Symbol [FuncHeader]
 
-        , funcDefs        :: Map.Map Symbol Func         -- defined functions
-        , funcImports     :: Map.Map Symbol Func         -- imported funcs
-        , funcInstances   :: Map.Map Symbol Func
-        , symSupply       :: Map.Map String Int              -- type supply from resovle
+        , featuresAll          :: Map.Map Symbol [FuncHeader]
+        , featuresTop          :: Set.Set Symbol
+
+
+        , funcDefsAll          :: Map.Map Symbol Func
+        , funcDefsTop          :: Set.Set Symbol
+        , funcInstance         :: Map.Map FuncHeader Func
+        , funcInstanceImported :: Map.Map FuncHeader Func
+        , symSupply            :: Map.Map String Int              
         }
     deriving (Eq)
 
@@ -79,24 +83,23 @@ isGenericHeader header = funcGenerics header /= []
 
 
 getFunction :: Symbol -> ASTResolved -> Func
-getFunction symbol ast = if Map.member symbol (funcDefs ast) then
-        funcDefs ast Map.! symbol
-    else if Map.member symbol (funcImports ast) then
-        funcImports ast Map.! symbol
-    else if Map.member symbol (funcInstances ast) then
-        funcInstances ast Map.! symbol
+getFunction symbol ast = if Map.member symbol (funcDefsAll ast) then
+        funcDefsAll ast Map.! symbol
     else error ("symbol is not function: " ++ show symbol)
 
 
 getFunctionHeader :: Symbol -> ASTResolved -> FuncHeader
 getFunctionHeader symbol ast = funcHeader $
-        if Map.member symbol (funcDefs ast) then
-            funcDefs ast Map.! symbol
-        else if Map.member symbol (funcImports ast) then
-            funcImports ast Map.! symbol
-        else if Map.member symbol (funcInstances ast) then
-            funcInstances ast Map.! symbol
-        else error ("symbol is not function: " ++ show symbol)
+    if Map.member symbol (funcDefsAll ast) then
+        funcDefsAll ast Map.! symbol
+    else error ("symbol is not function: " ++ show symbol)
+
+
+getInstanceHeader :: Symbol -> ASTResolved -> FuncHeader
+getInstanceHeader symbol ast = funcHeader $ snd $ head $ Map.toList $ 
+    Map.filter (\func -> funcSymbol (funcHeader func) == symbol) allInstances
+    where
+        allInstances = Map.union (funcInstance ast) (funcInstanceImported ast)
 
 
 
@@ -105,6 +108,6 @@ prettyASTResolved ast = do
     putStrLn $ "module " ++ moduleName ast
     forM_ (Map.toList $ typeDefsAll ast) $ \(symbol, (generics, typ)) ->
         prettyStmt "" (AST.Typedef undefined generics symbol $ AnnoType typ)
-    forM_ (Map.toList $ funcDefs ast) $ \(symbol, func) ->
-        prettyStmt "" $ FuncDef (Func (funcHeader func) (funcStmt func))
+--    forM_ (Map.toList $ funcDefs ast) $ \(symbol, func) ->
+--        prettyStmt "" $ FuncDef (Func (funcHeader func) (funcStmt func))
     putStrLn ""

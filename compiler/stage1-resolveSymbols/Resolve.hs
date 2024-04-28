@@ -43,17 +43,21 @@ type SymTab = SymTab.SymTab String SymKey Symbol
 -- Also, lookFuncSymbol is good and it needs to work fully and provide lists of symbols to
 -- calling points.
 
-initAstResolved modName = ASTResolved
+
+initAstResolved modName imports = ASTResolved
     { moduleName = modName
     , includes       = Set.empty
     , links          = Set.empty
-    , funcImports    = Map.empty
-    , funcDefs       = Map.empty
-    , features       = Map.empty
-    , funcInstances  = Map.empty
-    , typeDefsAll    = Map.empty
+    , featuresAll    = Map.unions (map featuresAll imports)
+    , featuresTop    = Set.empty
+    , typeDefsAll    = Map.unions (map typeDefsAll imports)
     , typeDefs       = Set.empty
     , symSupply      = Map.empty
+    , funcDefsAll    = Map.unions (map funcDefsAll imports)
+    , funcDefsTop    = Set.empty
+    , funcInstance   = Map.empty
+    , funcInstanceImported = Map.unions $
+        (map funcInstance imports) ++ (map funcInstanceImported imports)
     }
 
 
@@ -67,13 +71,17 @@ data ResolveState
         , ast              :: ASTResolved
         , typeDefsImported :: Set.Set Symbol
         , typeDefsLocal    :: SymTab.SymTab String () Symbol
+        , funcDefsImported :: Set.Set Symbol
         , funcDefsLocal    :: SymTab.SymTab String () [Symbol]
+        , featuresImported :: Set.Set Symbol
         }
 
 initResolveState imports modName = ResolveState
     { symTab           = SymTab.initSymTab
-    , ast              = initAstResolved modName
-    , typeDefsImported = Set.empty
+    , ast              = initAstResolved modName imports
+    , typeDefsImported = Set.unions (map typeDefs imports)
+    , funcDefsImported = Set.unions (map funcDefsTop imports)
+    , featuresImported = Set.unions (map featuresTop imports)
     , typeDefsLocal    = SymTab.initSymTab
     , funcDefsLocal    = SymTab.initSymTab
     }
@@ -91,8 +99,7 @@ defineFuncSymbol str symbol = do
 lookFuncSymbol :: String -> DoM ResolveState [Symbol]
 lookFuncSymbol str = do
     locals <- concat . map snd . SymTab.lookupAll str <$> gets funcDefsLocal
-    imported <- Map.keys . Map.filterWithKey (\s _ -> Symbol.sym s == str) <$>
-        gets (funcImports . ast)
+    imported <- Set.toList . Set.filter (\s -> Symbol.sym s == str) <$> gets funcDefsImported
     return (locals ++ imported)
 
 
@@ -191,17 +198,8 @@ resolveAsts asts imports = runDoMExcept (initResolveState imports (astModuleName
         let funcdefs = [ stmt | stmt@(AST.FuncDef _) <- concat $ map astStmts asts ]
         let features = [ stmt | stmt@(AST.Feature _ _ _ _) <- concat $ map astStmts asts ]
 
-        modifyAst $ \s -> s
-            { includes    = Set.fromList includes
-            , links       = Set.fromList links
-            , funcImports = Map.unions (map funcDefs imports)
-            , typeDefsAll = Map.unions (map typeDefsAll imports)
-            }
+        modifyAst $ \s -> s { includes = Set.fromList includes , links = Set.fromList links }
 
-
-        -- define symbols. resolve uses maps for imports and symbols tables for 
-        -- the current module.
-        modify $ \s -> s { typeDefsImported = Set.unions (map typeDefs imports) }
 
         forM_ typedefs $ \(Typedef pos generics (Sym str) anno) -> do
             symbol' <- genSymbol str
@@ -211,12 +209,14 @@ resolveAsts asts imports = runDoMExcept (initResolveState imports (astModuleName
         funcdefs' <- forM funcdefs $ \(FuncDef (Func header@(FuncHeader _ _ (Sym str) _ _) stmt)) -> do
             symbol' <- genSymbol str
             defineFuncSymbol str symbol'
+            modifyAst $ \s -> s { funcDefsTop = Set.insert symbol' (funcDefsTop s) }
             return $ FuncDef (Func header{funcSymbol = symbol'} stmt)
 
 
         -- define all feature funcs
         -- TODO currently it just defines some function symbols for the resolver to look at
         features' <- forM features $ \(Feature pos generics (Sym str) headers) -> do
+            symbol' <- genSymbol str
             pushSymbolTable
             genericSymbols <- defineGenerics generics
 
@@ -232,7 +232,9 @@ resolveAsts asts imports = runDoMExcept (initResolveState imports (astModuleName
 
             popSymbolTable
 
-            return (Feature pos generics (Sym str) headers')
+            modifyAst $ \s -> s { featuresTop = Set.insert symbol' (featuresTop s) }
+
+            return (Feature pos generics symbol' headers')
 
         -- check validity
         unless (all (== (astModuleName $ head asts)) $ map astModuleName asts)
@@ -257,7 +259,16 @@ resolveAsts asts imports = runDoMExcept (initResolveState imports (astModuleName
 
         forM_ funcdefs' $ \funcdef@(FuncDef (Func header _))-> do
             func' <- resolveFuncDef funcdef
-            modifyAst $ \s -> s { funcDefs = Map.insert (funcSymbol header) func' (funcDefs s) }
+            let header' = funcHeader func'
+            when (not $ isGenericHeader header') $ do
+                instanceSymbol <- genSymbol ("instance_" ++ Symbol.sym (funcSymbol header))
+                modifyAst $ \s -> s { funcInstance = Map.insert
+                    header'
+                    (func' {funcHeader = header' {funcSymbol = instanceSymbol}})
+                    (funcInstance s) }
+
+
+            modifyAst $ \s -> s { funcDefsAll = Map.insert (funcSymbol header) func' (funcDefsAll s) }
 
         popSymbolTable
 
@@ -344,10 +355,19 @@ instance Resolve Stmt where
 
             func' <- resolveFuncDef $ FuncDef (Func header{funcSymbol = symbol} blk)
 
-            -- TODO push to local
-            modifyAst $ \s -> s { funcDefs = Map.insert symbol func' (funcDefs s) }
+            let header' = (funcHeader func')
 
-            return $ FuncDef $ Func ((funcHeader func') { funcSymbol = symbol }) (funcStmt func')
+            when (not $ isGenericHeader header') $ do
+                instanceSymbol <- genSymbol ("instance_" ++ sym)
+                modifyAst $ \s -> s { funcInstance = Map.insert
+                    header'
+                    (func' {funcHeader = header' {funcSymbol = instanceSymbol}})
+                    (funcInstance s) }
+
+            modifyAst $ \s -> s { funcDefsAll = Map.insert symbol func' (funcDefsAll s) }
+
+            return $ FuncDef $ Func header' (funcStmt func')
+
 
         AST.Typedef pos args (Sym str) anno -> do
             symbol' <- genSymbol str

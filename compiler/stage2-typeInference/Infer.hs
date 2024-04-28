@@ -48,33 +48,17 @@ infer ast printAnnotated verbose = runDoMUntilSameResult ast $ \ast -> do
     where
         inferTypesPerFunc :: ASTResolved -> DoM s ASTResolved
         inferTypesPerFunc ast = do
-            funcDefs' <- forM (funcDefs ast) $ \func -> do
-                case funcGenerics (funcHeader func) of
-                    [] -> fmap fst $ runDoMExcept ast $
-                        fmap fst (runDoMUntilSameResult func inferFunc)
-                    _  -> return func
+            funcInstance' <- forM (funcInstance ast) $ \func -> do
+                fmap fst $ runDoMExcept ast $
+                    fmap fst (runDoMUntilSameResult func inferFunc)
 
-            funcInstances' <- forM (funcInstances ast) $ \func -> do
-                case funcGenerics (funcHeader func) of
-                    [] -> fmap fst $ runDoMExcept ast $
-                        fmap fst (runDoMUntilSameResult func inferFunc)
-                    _  -> return func
-
-            return (ast { funcDefs = funcDefs', funcInstances = funcInstances' })
+            return (ast { funcInstance = funcInstance' })
 
 
         inferDefaults :: ASTResolved -> DoM s ASTResolved
         inferDefaults ast = do
-            funcDefs' <- forM (funcDefs ast) $ \func -> do
-                case funcGenerics (funcHeader func) of
-                    [] -> fmap fst $ runDoMExcept ast $
-                        fmap fst (runDoMUntilSameResult func inferFuncDefaults)
-                    _  -> return func
+            funcInstance' <- forM (funcInstance ast) $ \func -> do
+                fmap fst $ runDoMExcept ast $
+                    fmap fst (runDoMUntilSameResult func inferFuncDefaults)
 
-            funcInstances' <- forM (funcInstances ast) $ \func -> do
-                case funcGenerics (funcHeader func) of
-                    [] -> fmap fst $ runDoMExcept ast $
-                        fmap fst (runDoMUntilSameResult func inferFuncDefaults)
-                    _  -> return func
-
-            return (ast { funcDefs = funcDefs', funcInstances = funcInstances' })
+            return (ast { funcInstance = funcInstance' })

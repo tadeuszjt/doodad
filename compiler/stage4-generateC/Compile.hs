@@ -30,60 +30,43 @@ generate = withErrorPrefix "generate: " $ do
     ast <- gets astResolved
 
     -- generate imported function externs
-    forM_ (Map.toList $ funcImports ast) $ \(symbol, func) -> do
-        unless (isGenericFunc func) $ do
-            crt <- cRettyType (S.funcRetty $ S.funcHeader func)
-            cats <- forM (S.funcArgs $ S.funcHeader func) $ \param -> case param of
-                S.Param _ _ _ -> cTypeOf param
-                S.RefParam _ _ _ -> cRefTypeOf param
-                x -> error (show x)
-            newExtern (show symbol) crt cats [C.Extern]
+    forM_ (funcInstanceImported ast) $ \(func) -> do
+        crt <- cRettyType (S.funcRetty $ S.funcHeader func)
+        cats <- forM (S.funcArgs $ S.funcHeader func) $ \param -> case param of
+            S.Param _ _ _ -> cTypeOf param
+            S.RefParam _ _ _ -> cRefTypeOf param
+            x -> error (show x)
+        newExtern (show $ funcSymbol $ funcHeader func) crt cats [C.Extern]
 
-    -- generate function headers
-    forM_ (Map.toList $ funcDefs ast) $ \(symbol, func) -> do
-         unless (isGenericFunc func) $ do
-            crt <- cRettyType (S.funcRetty $ S.funcHeader func) 
-            cats <- forM (S.funcArgs $ S.funcHeader func) $ \param -> case param of
-                S.Param _ _ _ -> cTypeOf param
-                S.RefParam _ _ _ -> cRefTypeOf param
-                x -> error (show x)
-
-            newExtern (show symbol) crt cats []
-
-    -- generate function headers
-    forM_ (Map.toList $ funcInstances ast) $ \(symbol, func) -> do
-         unless (isGenericFunc func) $ do
-            crt <- cRettyType (S.funcRetty $ S.funcHeader func) 
-            cats <- forM (S.funcArgs $ S.funcHeader func) $ \param -> case param of
-                S.Param _ _ _ -> cTypeOf param
-                S.RefParam _ _ _ -> cRefTypeOf param
-                x -> error (show x)
-
-            newExtern (show symbol) crt cats [C.Static]
+    -- generate headers for this module
+    forM_ (funcInstance ast) $ \(func) -> do
+        crt <- cRettyType (S.funcRetty $ S.funcHeader func)
+        cats <- forM (S.funcArgs $ S.funcHeader func) $ \param -> case param of
+            S.Param _ _ _ -> cTypeOf param
+            S.RefParam _ _ _ -> cRefTypeOf param
+            x -> error (show x)
+        newExtern (show $ funcSymbol $ funcHeader func) crt cats []
+        
 
     -- generate functions, main is a special case
-    forM_ (Map.toList $ funcInstances ast) $ \(symbol, func) -> do
-        unless (isGenericFunc func) $ do
-            generateFunc True symbol func
+    forM_ (funcInstance ast) $ \(func) -> do
+        generateFunc False (funcSymbol $ funcHeader func) func
 
-    -- generate functions, main is a special case
-    forM_ (Map.toList $ funcDefs ast) $ \(symbol, func) -> do
-        unless (isGenericFunc func) $ do
-            generateFunc False symbol func
+        when ((sym $ funcSymbol $ funcHeader func) == "instance_main") $ do
+            let ioTypedef = TypeApply (SymResolved "io" "Io" 0) []
+            id <- newFunction
+                Cint
+                "main"  
+                [ C.Param "argc" Cint, C.Param "argv" (Cpointer (Cpointer Cchar)) ]
+                []
 
-            when (sym symbol == "main") $ do
-                let ioTypedef = TypeApply (SymResolved "io" "Io" 0) []
-                id <- newFunction
-                    Cint
-                    "main"  
-                    [ C.Param "argc" Cint, C.Param "argv" (Cpointer (Cpointer Cchar)) ]
-                    []
+            withCurID id $ do
+                appendElem $ C.ExprStmt $ C.Call "doodad_set_args" [C.Ident "argc", C.Ident "argv"]
+                call (show $ funcSymbol $ funcHeader func) []
+                void $ appendElem $ C.Return $ C.Int 0
+            withCurID globalID (append id)
 
-                withCurID id $ do
-                    appendElem $ C.ExprStmt $ C.Call "doodad_set_args" [C.Ident "argc", C.Ident "argv"]
-                    call (show symbol) []
-                    void $ appendElem $ C.Return $ C.Int 0
-                withCurID globalID (append id)
+
 
 
 cRettyType :: S.Retty -> Generate C.Type

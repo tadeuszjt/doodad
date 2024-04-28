@@ -98,7 +98,7 @@ data FuncHeader
         , funcArgs :: [Param]
         , funcRetty :: Retty
         }
-    deriving (Eq)
+    deriving (Eq, Ord)
 
 
 instance Show FuncHeader where
