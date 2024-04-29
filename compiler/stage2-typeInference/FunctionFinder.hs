@@ -31,9 +31,9 @@ findInstance ast call = do
     let funcs = Map.unions [funcInstance ast, funcInstanceImported ast]
 
     candidates <- fmap catMaybes $ forM (Map.toList funcs) $ \(header, func) -> do
-        let match = (symbolsCouldMatch (callSymbol call) (funcSymbol header)) &&
-                    (callRetType call == (typeof $ funcRetty header)) &&
-                    (callArgTypes call == (map typeof $ funcArgs header))
+        let match = (symbolsCouldMatch (callSymbol call) (callSymbol header)) &&
+                    (callRetType call == (callRetType header)) &&
+                    (callArgTypes call == (callArgTypes header))
         case match of
             True -> return (Just $ funcSymbol $ funcHeader func)
             False -> return Nothing

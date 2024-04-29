@@ -10,6 +10,7 @@ import std/table
 import std/tuple
 import std/char
 import std/rand
+import std/features
 
 type Empty Tuple{}
 type Naught Tuple{}
@@ -68,7 +69,7 @@ fn first(m &Move) &I64; return &m.0
 fn second(m &Move) &I64; return &m.1
 
 
-fn equal(a Square, b Square) Bool
+fn Compare::equal(a Square, b Square) Bool
     switch (a, b)
         (Empty(), Empty());   return true
         (Naught(), Naught()); return true

@@ -271,17 +271,17 @@ expr   : literal                                 { $1 }
        | expr '/' expr                           { Call (tokPos $2) (Sym "Arithmetic_divide") [$1, $3] }
        | expr '-' expr                           { Call (tokPos $2) (Sym "Arithmetic_subtract") [$1, $3] } 
        | expr '*' expr                           { Call (tokPos $2) (Sym "Arithmetic_times") [$1, $3] } 
-       | expr '%' expr                           { Call (tokPos $2) (Sym "modulo") [$1, $3] } 
-       | expr '<' expr                           { Call (tokPos $2) (Sym "Ord_less") [$1, $3] } 
-       | expr '>' expr                           { Call (tokPos $2) (Sym "Ord_greater") [$1, $3] } 
+       | expr '%' expr                           { Call (tokPos $2) (Sym "Arithmetic_modulo") [$1, $3] } 
+       | expr '<' expr                           { Call (tokPos $2) (Sym "Compare_less") [$1, $3] } 
+       | expr '>' expr                           { Call (tokPos $2) (Sym "Compare_greater") [$1, $3] } 
+       | expr '==' expr                          { Call (tokPos $2) (Sym "Compare_equal") [$1, $3] } 
        | expr '<=' expr                          { Call (tokPos $2) (Sym "lessEqual") [$1, $3] } 
        | expr '>=' expr                          { Call (tokPos $2) (Sym "greaterEqual") [$1, $3] } 
-       | expr '==' expr                          { Call (tokPos $2) (Sym "equal") [$1, $3] } 
-       | expr '!=' expr                          { Call (tokPos $2) (Sym "not") [Call (tokPos $2) (Sym "equal") [$1, $3]] } 
-       | expr '&&' expr                          { Call (tokPos $2) (Sym "andAnd") [$1, $3] } 
-       | expr '||' expr                          { Call (tokPos $2) (Sym "orOr") [$1, $3] } 
+       | expr '!=' expr                          { Call (tokPos $2) (Sym "Boolean_not") [Call (tokPos $2) (Sym "Compare_equal") [$1, $3]] } 
+       | expr '&&' expr                          { Call (tokPos $2) (Sym "Boolean_and") [$1, $3] } 
+       | expr '||' expr                          { Call (tokPos $2) (Sym "Boolean_or") [$1, $3] } 
+       | '!' expr                                { Call (tokPos $1) (Sym "Boolean_not") [$2] }
        | '-' expr                                { Call (tokPos $1) (Sym "subtract") [$2] }
-       | '!' expr                                { Call (tokPos $1) (Sym "not") [$2] }
 
 
 literal : int_c                                  { Call (tokPos $1) (Sym "construct") [AST.Int (tokPos $1) (read $ tokStr $1)] }

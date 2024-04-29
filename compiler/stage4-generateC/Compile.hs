@@ -53,7 +53,7 @@ generate = withErrorPrefix "generate: " $ do
         generateFunc False (funcSymbol $ funcHeader func) func
 
         when ((sym $ funcSymbol $ funcHeader func) == "instance_main") $ do
-            let ioTypedef = TypeApply (SymResolved "io" "Io" 0) []
+            let ioTypedef = TypeApply (SymResolved "io:Io:0") []
             id <- newFunction
                 Cint
                 "main"  
@@ -233,7 +233,7 @@ generatePattern (PatAnnotated pattern patType) val = withPos pattern $ case patt
 
     PatLiteral expr -> do
         v <- generateExpr expr
-        callFunction (Sym "equal") Type.Bool [v, val]
+        callFunction (Sym "Compare_equal") Type.Bool [v, val]
 
     PatIdent _ symbol -> do 
         base <- baseTypeOf val

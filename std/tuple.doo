@@ -1,5 +1,8 @@
 module tuple
 
+import std/features
+
+
 fn{A} first(a &Tuple{A}) &A; return &a.0
 
 fn{A, B} first(a &Tuple{A, B}) &A; return &a.0

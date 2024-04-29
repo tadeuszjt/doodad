@@ -1,0 +1,20 @@
+module features
+
+feature Arithmetic
+    fn{T} add(a T, b T) T
+    fn{T} subtract(a T, b T) T
+    fn{T} times(a T, b T) T
+    fn{T} divide(a T, b T) T
+    fn{T} modulo(a T, b T) T
+
+
+feature Boolean
+    fn{T} and(a T, b T) Bool
+    fn{T} or(a T, b T) Bool
+    fn{T} not(a T) T
+
+
+feature Compare
+    fn{T} greater(a T, b T) Bool
+    fn{T} less(a T, b T) Bool
+    fn{T} equal(a T, b T) Bool

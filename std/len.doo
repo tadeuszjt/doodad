@@ -1,4 +1,0 @@
-module len
-
-feature Len
-    fn{T} len(t &T) I64

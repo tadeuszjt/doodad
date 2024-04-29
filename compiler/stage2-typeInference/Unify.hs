@@ -100,7 +100,7 @@ unifyOne info constraint = withPos info $ case constraint of
             | length ts1 == length ts2 -> fmap concat $
                 zipWithM (\a b -> unifyOne info (ConsDefault a b)) ts1 ts2
 
-        (TypeApply (SymResolved _ _ _) _, _) -> return []
+        (TypeApply (SymResolved _) _, _) -> return []
 
         x -> error (show x)
 

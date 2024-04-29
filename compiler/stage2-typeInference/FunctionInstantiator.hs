@@ -140,7 +140,7 @@ genSymbol sym = do
     im <- gets $ Map.lookup sym . symSupply . astResolved
     let n = maybe 0 (id) im
     modifyAST $ \s -> s { symSupply = Map.insert sym (n + 1) (symSupply s) }
-    return (SymResolved modName sym n)
+    return $ SymResolved (modName ++ ":" ++ sym ++ ":" ++ show n)
 
 
 instantiatorMapper :: Elem -> DoM InstantiatorState Elem
@@ -154,7 +154,7 @@ instantiatorMapper elem = case elem of
         return elem
 
     ElemPattern (PatAnnotated (PatLiteral expr) patType) | isAnnotated expr -> do
-        void $ resolveFuncCall (Sym "equal") [patType, patType] Type.Bool
+        void $ resolveFuncCall (Sym "Compare_equal") [patType, patType] Type.Bool
         return elem
 
     ElemPattern (PatAnnotated (PatTuple pos pats) patType) | all patAnnotated pats -> do
@@ -190,8 +190,8 @@ instantiatorMapper elem = case elem of
 
 
 resolveFuncCall :: Symbol -> [Type] -> Type -> DoM InstantiatorState Symbol
-resolveFuncCall s@(SymResolved _ _ _) argTypes retType = return s
-resolveFuncCall calledSymbol        argTypes retType = do
+resolveFuncCall s@(SymResolved _) argTypes retType = return s
+resolveFuncCall calledSymbol      argTypes retType = do
     let callHeader = CallHeader calledSymbol argTypes retType
     headers <- gets (Map.elems . Map.map funcHeader . funcDefsAll . astResolved)
     candidates <- findCandidates callHeader headers
@@ -217,7 +217,7 @@ resolveFuncCall calledSymbol        argTypes retType = do
                         True -> do
                             instanceSymbol <- genSymbol ("instance_" ++ Symbol.sym calledSymbol)
                             modifyAST $ \s -> s { funcInstance = Map.insert
-                                (funcHeader funcReplaced)
+                                (callHeaderFromFuncHeader $ funcHeader funcReplaced)
                                 (funcReplaced { funcHeader = (funcHeader funcReplaced)
                                     { funcSymbol = instanceSymbol
                                     }})

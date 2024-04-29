@@ -1,6 +1,7 @@
 module char
 
 import std/bool
+import std/features
 
 fn construct(a Char) Char; return a
 
@@ -41,14 +42,19 @@ fn Arithmetic::subtract(a Char, b Char) Char
     ${ $r = $a - $b; }
     return r
 
-fn Ord::less(a Char, b Char) Bool
+fn Compare::less(a Char, b Char) Bool
     let r : Bool
     ${ $r = $a < $b; }
     return r
 
-fn Ord::greater(a Char, b Char) Bool
+fn Compare::greater(a Char, b Char) Bool
     let r : Bool
     ${ $r = $a > $b; }
+    return r
+
+fn Compare::equal(a Char, b Char) Bool
+    let r : Bool
+    ${ $r = $a == $b; }
     return r
 
 fn greaterEqual(a Char, b Char) Bool
@@ -56,7 +62,3 @@ fn greaterEqual(a Char, b Char) Bool
     ${ $r = $a >= $b; }
     return r
 
-fn equal(a Char, b Char) Bool
-    let r : Bool
-    ${ $r = $a == $b; }
-    return r

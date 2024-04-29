@@ -1,5 +1,7 @@
 module floating
 
+import std/features
+
 fn set(a &F64, b F64); ${ *$a = $b; }
 
 fn construct(a F64) F64
@@ -18,7 +20,7 @@ fn Arithmetic::divide(a F64, b F64) F64
     return r
 
 
-fn equal(a F64, b F64) Bool
+fn Compare::equal(a F64, b F64) Bool
     let r : Bool
     ${ $r = $a == $b; }
     return r

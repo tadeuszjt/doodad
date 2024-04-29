@@ -16,6 +16,7 @@ import std/sum
 import std/slice
 import std/push
 import std/bool
+import std/features
 
 
 fn testArithmetic()
@@ -37,7 +38,7 @@ fn testConvert()
         let c : MyInt
         ${ $c = $a + $b; }
         return c
-    fn equal(a MyInt, b MyInt) Bool
+    fn Compare::equal(a MyInt, b MyInt) Bool
         let c : Bool
         ${ $c = $a == $b; }
         return c
@@ -385,7 +386,7 @@ fn testBoolConditions()
         ${ $b = $a; }
         return b
 
-    fn equal(a OnlyThrice, b OnlyThrice) Bool
+    fn Compare::equal(a OnlyThrice, b OnlyThrice) Bool
         let c : Bool
         ${ $c = $a == $b; }
         return c
@@ -424,7 +425,7 @@ fn testCharType()
         let b : MyChar
         b.0 = a
         return b
-    fn equal(a MyChar, b MyChar) Bool; return a.0 == b.0
+    fn Compare::equal(a MyChar, b MyChar) Bool; return a.0 == b.0
 
     let m : MyChar = 'm'
     let 'm':MyChar = m

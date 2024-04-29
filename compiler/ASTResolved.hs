@@ -23,15 +23,13 @@ data ASTResolved
         , typeDefsAll          :: Type.TypeDefsMap                -- all type defs
         , typeDefs             :: Set.Set Symbol                  -- top-level type defs
 
-
         , featuresAll          :: Map.Map Symbol FuncHeader
         , featuresTop          :: Set.Set Symbol
 
-
         , funcDefsAll          :: Map.Map Symbol Func
         , funcDefsTop          :: Set.Set Symbol
-        , funcInstance         :: Map.Map FuncHeader Func
-        , funcInstanceImported :: Map.Map FuncHeader Func
+        , funcInstance         :: Map.Map CallHeader Func
+        , funcInstanceImported :: Map.Map CallHeader Func
         , symSupply            :: Map.Map String Int              
         }
     deriving (Eq)
@@ -50,6 +48,11 @@ instance Show CallHeader where
         (show $ callSymbol header) ++ argsStr ++ ":" ++ show (callRetType header)
         where
             argsStr = "(" ++ intercalate ", " (map show $ callArgTypes header) ++ ")"
+
+
+callHeaderFromFuncHeader :: FuncHeader -> CallHeader
+callHeaderFromFuncHeader (FuncHeader _ _ symbol args retty)
+    = CallHeader symbol (map typeof args) (typeof retty)
 
 
 callCouldMatchFunc :: Monad m => CallHeader -> FuncHeader -> m Bool
@@ -106,8 +109,16 @@ getInstanceHeader symbol ast = funcHeader $ snd $ head $ Map.toList $
 prettyASTResolved :: ASTResolved -> IO ()
 prettyASTResolved ast = do
     putStrLn $ "module " ++ moduleName ast
-    forM_ (Map.toList $ typeDefsAll ast) $ \(symbol, (generics, typ)) ->
+    putStrLn ""
+
+    forM_ (Set.toList $ typeDefs ast) $ \symbol -> do
+        let (generics, typ) = typeDefsAll ast Map.! symbol
         prettyStmt "" (AST.Typedef undefined generics symbol $ AnnoType typ)
---    forM_ (Map.toList $ funcDefs ast) $ \(symbol, func) ->
---        prettyStmt "" $ FuncDef (Func (funcHeader func) (funcStmt func))
+
+    putStrLn ""
+
+    forM_ (Set.toList $ funcDefsTop ast) $ \symbol -> do
+        let func = funcDefsAll ast Map.! symbol
+        prettyStmt "" $ FuncDef (Func (funcHeader func) (funcStmt func))
+
     putStrLn ""

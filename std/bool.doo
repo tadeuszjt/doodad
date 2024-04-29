@@ -1,6 +1,8 @@
 module bool
 
-fn equal(a Bool, b Bool) Bool
+import std/features
+
+fn Compare::equal(a Bool, b Bool) Bool
     let c : Bool
     ${ $c = $a == $b; }
     return c
@@ -15,17 +17,17 @@ fn construct(a Bool) Bool
     return b
 
 
-fn andAnd(a Bool, b Bool) Bool
+fn Boolean::and(a Bool, b Bool) Bool
     let c : Bool
     ${ $c = $a && $b; }
     return c
 
-fn orOr(a Bool, b Bool) Bool
+fn Boolean::or(a Bool, b Bool) Bool
     let c : Bool
     ${ $c = $a || $b; }
     return c
 
-fn not(a Bool) Bool
+fn Boolean::not(a Bool) Bool
     let c : Bool
     ${ $c = $a ? 0 : 1; }
     return c

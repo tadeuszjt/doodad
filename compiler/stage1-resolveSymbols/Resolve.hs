@@ -171,7 +171,7 @@ genSymbol sym = do
     im <- gets $ Map.lookup sym . symSupply . ast
     let n = maybe 0 (id) im
     modifyAst $ \s -> s { symSupply = Map.insert sym (n + 1) (symSupply s) }
-    return (SymResolved modName sym n)
+    return $ SymResolved (modName ++ ":" ++ sym ++ ":" ++ show n)
         
 
 define :: String -> SymKey -> Symbol -> DoM ResolveState ()
@@ -277,22 +277,45 @@ resolveAsts asts imports = runDoMExcept (initResolveState imports (astModuleName
             func' <- resolveFuncDef funcdef
             let defSymbol = funcSymbol (funcHeader func')
 
-            isFeatureDef <- case Symbol.sym defSymbol of
-                (x : _) | isUpper x -> return True
-                _                   -> return False
 
+            case Symbol.sym defSymbol of
+                -- is feature def
+--                (x : _) | isUpper x -> do
+--                    featureSymbols <- lookFeature (Symbol.sym defSymbol)
+--                    when (featureSymbols == []) $
+--                        fail ("no feature defs for: " ++ show defSymbol)
+--
+--                    let [fs] = featureSymbols
+--
+--                    -- create instance already
+--                    when (not $ isGenericFunc func') $ do
+--                        instanceSymbol <- genSymbol ("instance_" ++ Symbol.sym defSymbol)
+--                        modifyAst $ \s -> s { funcInstance = Map.insert
+--                            ( (funcHeader func') { funcSymbol = fs } )
+--                            (func' {funcHeader = (funcHeader func') {funcSymbol = instanceSymbol}})
+--                            (funcInstance s) }
+--                        
+--                    modifyAst $ \s -> s
+--                        { funcDefsTop = Set.insert defSymbol (funcDefsTop s)
+--                        , funcDefsAll = Map.insert
+--                            defSymbol
+--                            (func' { funcHeader = (funcHeader func') { funcSymbol = fs }} )
+--                            (funcDefsAll s)
+--                        }
 
-            when (not $ isGenericFunc func') $ do
-                instanceSymbol <- genSymbol ("instance_" ++ Symbol.sym defSymbol)
-                modifyAst $ \s -> s { funcInstance = Map.insert
-                    (funcHeader func')
-                    (func' {funcHeader = (funcHeader func') {funcSymbol = instanceSymbol}})
-                    (funcInstance s) }
+                -- is normal def
+                _ -> do
+                    when (not $ isGenericFunc func') $ do
+                        instanceSymbol <- genSymbol ("instance_" ++ Symbol.sym defSymbol)
+                        modifyAst $ \s -> s { funcInstance = Map.insert
+                            (callHeaderFromFuncHeader $ funcHeader func')
+                            (func' {funcHeader = (funcHeader func') {funcSymbol = instanceSymbol}})
+                            (funcInstance s) }
 
-            modifyAst $ \s -> s
-                { funcDefsTop = Set.insert defSymbol (funcDefsTop s)
-                , funcDefsAll = Map.insert defSymbol func' (funcDefsAll s)
-                }
+                    modifyAst $ \s -> s
+                        { funcDefsTop = Set.insert defSymbol (funcDefsTop s)
+                        , funcDefsAll = Map.insert defSymbol func' (funcDefsAll s)
+                        }
 
         popSymbolTable
 
@@ -301,7 +324,8 @@ resolveAsts asts imports = runDoMExcept (initResolveState imports (astModuleName
 
 defineGenerics :: [Symbol] -> DoM ResolveState [Symbol]
 defineGenerics generics = forM generics $ \(Sym str) -> do
-    symbol <- (\s -> s { sym = ("<generic>" ++ Symbol.sym s) } ) <$> genSymbol str
+    symbol <- genSymbol ("<generic>" ++ str)
+
     modify $ \s -> s { typeDefsLocal = SymTab.insert str () symbol (typeDefsLocal s) }
     return symbol
 
@@ -380,11 +404,11 @@ instance Resolve Stmt where
             func' <- resolveFuncDef $ FuncDef (Func header{funcSymbol = symbol} blk)
 
             let header' = (funcHeader func')
-
+            let callHeader = callHeaderFromFuncHeader header'
             when (not $ isGenericHeader header') $ do
                 instanceSymbol <- genSymbol ("instance_" ++ sym)
                 modifyAst $ \s -> s { funcInstance = Map.insert
-                    header'
+                    callHeader
                     (func' {funcHeader = header' {funcSymbol = instanceSymbol}})
                     (funcInstance s) }
 
@@ -541,7 +565,10 @@ resolveMapper element = case element of
         else do
             symbols <- lookFuncSymbol sym
             case symbols of
-                [] -> liftIO $ putStrLn $ ("warning: no defs for: ") ++ show sym
+                [] -> do
+                    modname <- gets (moduleName . ast)
+
+                    liftIO $ putStrLn $ (modname ++ " warning: no defs for: ") ++ show sym
                 _ -> return ()
             
             return $ ElemExpr (Call pos (Sym sym) exprs)

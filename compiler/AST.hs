@@ -104,7 +104,7 @@ data FuncHeader
 instance Show FuncHeader where
     show (FuncHeader pos generics symbol args retty) =
         "fn"
-        ++ brcStrs (map show generics)
+        ++ case generics of [] -> ""; xs -> brcStrs (map show xs)
         ++ " "
         ++ show symbol
         ++ tupStrs (map show args)
@@ -271,8 +271,11 @@ prettyStmt pre stmt = case stmt of
         prettyStmt (pre ++ "\t") blk
         putStrLn ""
 
-    Let pos pat expr mblk -> do
-        putStrLn $ pre ++ "let " ++ show pat ++ " = " ++ show expr ++ if isJust mblk then " in" else ""
+    Let pos pat mexpr mblk -> do
+        exprStr <- case mexpr of
+            Just expr -> return $ " = " ++ show expr
+            Nothing   -> return $ ""
+        putStrLn $ pre ++ "let " ++ show pat ++ exprStr ++ if isJust mblk then " in" else ""
         when (isJust mblk) $ prettyStmt (pre ++ "\t") (fromJust mblk)
 
     Return pos mexpr       -> putStrLn $ pre ++ "return " ++ maybe "" show mexpr
@@ -295,7 +298,7 @@ prettyStmt pre stmt = case stmt of
     Typedef pos typeArgs symbol anno -> do
         argStr <- case typeArgs of
             [] -> return ""
-            xs -> return $ "[" ++ intercalate ", " (map show xs) ++ "]"
+            xs -> return $ brcStrs (map show xs)
         putStrLn $ pre ++ "type" ++ argStr ++ " " ++ show symbol ++ " " ++ show anno
 
     Switch pos expr cases -> do
