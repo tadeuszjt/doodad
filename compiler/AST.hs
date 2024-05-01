@@ -129,19 +129,11 @@ data Stmt
     | While       TextPos Expr Stmt
     | FuncDef     Func
     | Feature     TextPos Symbol [FuncHeader]
-    | Typedef     TextPos [Symbol] Symbol AnnoType
+    | Typedef     TextPos [Symbol] Symbol Type
     | Switch      TextPos Expr [(Pattern, Stmt)]
     | For         TextPos Expr (Maybe Pattern) Stmt
     | Data        TextPos Symbol Type (Maybe Expr)
     | EmbedC      TextPos String
-    deriving (Eq)
-
-
-data AnnoType
-    = AnnoType   Type
-    | AnnoTuple  [Param]
-    | AnnoTable  [Param]
-    | AnnoApply  Symbol [Param]
     deriving (Eq)
 
 
@@ -214,13 +206,6 @@ instance Show Retty where
     show (Retty Void) = ""
     show (Retty t) = show t
     show (RefRetty t) = "&" ++ show t
-
-
-instance Show AnnoType where
-    show annoType = case annoType of
-        AnnoType t   -> show t
-        AnnoTuple ps -> tupStrs $ map show ps
-        AnnoTable xs -> "Table{" ++ intercalate ", " (map show xs) ++ "}"
 
 
 instance Show Pattern where

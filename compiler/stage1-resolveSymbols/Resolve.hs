@@ -199,15 +199,6 @@ popSymbolTable = do
         }
 
 
-annoToType :: AnnoType -> Type
-annoToType anno = case anno of
-    AnnoTuple params  -> Type.TypeApply (Sym "Tuple") (map paramType params)
-    AnnoApply s params -> Type.TypeApply s (map paramType params)
-    AnnoTable params  -> error ""
-    --AnnoSum  params   -> Type.Sum    (map paramType params)
-    AnnoType t        -> t
-
-
 resolveAsts :: [AST] -> [ASTResolved] -> DoM s (ASTResolved, ResolveState)
 resolveAsts asts imports = runDoMExcept (initResolveState imports (astModuleName $ head asts)) $
     withErrorPrefix "symbol resolver: " $ do
@@ -220,7 +211,7 @@ resolveAsts asts imports = runDoMExcept (initResolveState imports (astModuleName
         modifyAst $ \s -> s { includes = Set.fromList includes , links = Set.fromList links }
 
 
-        forM_ typedefs $ \(Typedef pos generics (Sym str) anno) -> do
+        forM_ typedefs $ \(Typedef pos generics (Sym str) _) -> do
             symbol' <- genSymbol str
             modify $ \s -> s { typeDefsLocal = SymTab.insert str () symbol' (typeDefsLocal s) }
 
@@ -264,11 +255,11 @@ resolveAsts asts imports = runDoMExcept (initResolveState imports (astModuleName
 
         -- top-level module type defs
         forM_ typedefs $ \typedef -> do
-            (symbol, generics, anno) <- resolveTypeDef typedef
+            (symbol, generics, typ) <- resolveTypeDef typedef
             modify $ \s -> s { typeDefsImported = Set.insert symbol (typeDefsImported s) }
             modifyAst $ \s -> s { typeDefsAll = Map.insert
                     symbol
-                    (generics, annoToType anno)
+                    (generics, typ)
                     (typeDefsAll s) }
             modifyAst $ \s -> s { typeDefs = Set.insert symbol (typeDefs s) }
 
@@ -279,31 +270,6 @@ resolveAsts asts imports = runDoMExcept (initResolveState imports (astModuleName
 
 
             case Symbol.sym defSymbol of
-                -- is feature def
---                (x : _) | isUpper x -> do
---                    featureSymbols <- lookFeature (Symbol.sym defSymbol)
---                    when (featureSymbols == []) $
---                        fail ("no feature defs for: " ++ show defSymbol)
---
---                    let [fs] = featureSymbols
---
---                    -- create instance already
---                    when (not $ isGenericFunc func') $ do
---                        instanceSymbol <- genSymbol ("instance_" ++ Symbol.sym defSymbol)
---                        modifyAst $ \s -> s { funcInstance = Map.insert
---                            ( (funcHeader func') { funcSymbol = fs } )
---                            (func' {funcHeader = (funcHeader func') {funcSymbol = instanceSymbol}})
---                            (funcInstance s) }
---                        
---                    modifyAst $ \s -> s
---                        { funcDefsTop = Set.insert defSymbol (funcDefsTop s)
---                        , funcDefsAll = Map.insert
---                            defSymbol
---                            (func' { funcHeader = (funcHeader func') { funcSymbol = fs }} )
---                            (funcDefsAll s)
---                        }
-
-                -- is normal def
                 _ -> do
                     when (not $ isGenericFunc func') $ do
                         instanceSymbol <- genSymbol ("instance_" ++ Symbol.sym defSymbol)
@@ -359,37 +325,17 @@ resolveFuncDef (FuncDef (Func (FuncHeader pos generics symbol args retty) blk)) 
         }
 
 
-
-resolveTypeDef :: AST.Stmt -> DoM ResolveState (Symbol, [Symbol], AnnoType)
-resolveTypeDef (AST.Typedef pos generics (Sym sym) anno) = withPos pos $ do
+resolveTypeDef :: AST.Stmt -> DoM ResolveState (Symbol, [Symbol], Type)
+resolveTypeDef (AST.Typedef pos generics (Sym sym) typ) = withPos pos $ do
     symbol <- look (Sym sym) KeyType
 
     -- Push the symbol table in order to temporarily define the type argument as a typedef
     pushSymbolTable
     genericSymbols <- defineGenerics generics
-
-    anno' <- case anno of
-        AnnoType t        -> AnnoType <$> resolve t
-        AnnoApply (Sym s) params -> do
-            s' <- case s of
-                "Sum" -> return (Sym s)
-                "Table" -> return (Sym s)
-                "Tuple" -> return (Sym s)
-                _ -> genSymbol s
-            params' <- forM params $ \param -> case param of
-                Param pos (Sym s) t -> do
-                    s' <- genSymbol s
-                    t' <- resolve t
-                    return (Param pos s' t')
-            return (AnnoApply s' params')
-            
-
-        --AnnoSum params    -> AnnoSum    <$> mapM resolveTypedefParam params
-
+    typ' <- resolve typ
     popSymbolTable
 
-    return (symbol, genericSymbols, anno')
-
+    return (symbol, genericSymbols, typ')
 
 
 instance Resolve Stmt where
@@ -420,8 +366,8 @@ instance Resolve Stmt where
         AST.Typedef pos args (Sym str) anno -> do
             symbol' <- genSymbol str
             modify $ \s -> s { typeDefsLocal = SymTab.insert str () symbol' (typeDefsLocal s) }
-            (_, generics, anno) <- resolveTypeDef stmt
-            modifyAst $ \s -> s { typeDefsAll = Map.insert symbol' (generics, annoToType anno) (typeDefsAll s) }
+            (_, generics, typ) <- resolveTypeDef stmt
+            modifyAst $ \s -> s { typeDefsAll = Map.insert symbol' (generics, typ) (typeDefsAll s) }
 
             return $ AST.Typedef pos args (Sym str) anno -- essentially discarded
 

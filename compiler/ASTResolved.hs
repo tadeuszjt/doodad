@@ -114,7 +114,7 @@ prettyASTResolved ast = do
 
     forM_ (Set.toList $ typeDefs ast) $ \symbol -> do
         let (generics, typ) = typeDefsAll ast Map.! symbol
-        prettyStmt "" (AST.Typedef undefined generics symbol $ AnnoType typ)
+        prettyStmt "" (AST.Typedef undefined generics symbol typ)
 
     putStrLn ""
 

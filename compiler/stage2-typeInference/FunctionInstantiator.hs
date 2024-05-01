@@ -22,22 +22,11 @@ type SymTab = SymTab.SymTab Symbol () FuncHeader
 data InstantiatorState
     = InstantiatorState
         { astResolved :: ASTResolved
-        , symTab      :: SymTab
         }
 
 initInstantiatorState ast = InstantiatorState
     { astResolved = ast
-    , symTab      = SymTab.initSymTab
     }
-
-
-pushSymTab :: DoM InstantiatorState ()
-pushSymTab = do
-    modify $ \s -> s { symTab = SymTab.push (symTab s) }
-
-popSymTab :: DoM InstantiatorState ()
-popSymTab = do
-    modify $ \s -> s { symTab = SymTab.pop (symTab s) }
 
 
 modifyAST :: (ASTResolved -> ASTResolved) -> DoM InstantiatorState ()
@@ -56,12 +45,9 @@ instAst :: Bool -> DoM InstantiatorState ()
 instAst verbose = do
     funcInstances <- gets (funcInstance . astResolved)
     forM_ (Map.toList funcInstances) $ \(header, func) -> do
-        pushSymTab
         stmt' <- instStmt (funcStmt func)
         func' <- return func { funcStmt = stmt' }
         modifyAST $ \s -> s { funcInstance = Map.insert header func' (ASTResolved.funcInstance s) }
-        popSymTab
-
 
 
 instExpr :: Expr -> DoM InstantiatorState Expr
@@ -70,68 +56,11 @@ instExpr = mapExprM instantiatorMapper
 instPattern :: Pattern -> DoM InstantiatorState Pattern
 instPattern = mapPattern instantiatorMapper
 
-
 instPatternIsolated :: Pattern -> DoM InstantiatorState Pattern
 instPatternIsolated = mapPatternIsolated instantiatorMapper
 
-
 instStmt :: Stmt -> DoM InstantiatorState Stmt
-instStmt stmt = withPos stmt $ case stmt of
-    Typedef _ _ _ _ -> return stmt
-    EmbedC pos s -> return stmt
-    ExprStmt expr -> ExprStmt <$> instExpr expr
-    Return pos mexpr -> Return pos <$> traverse instExpr mexpr
-
-    Block stmts -> do
-        pushSymTab
-        stmts' <- mapM instStmt stmts
-        popSymTab
-        return (Block stmts')
-
-    Let pos pat Nothing mblk -> do
-        pat' <- instPatternIsolated pat
-        mblk' <- traverse instStmt mblk
-        return $ Let pos pat' Nothing mblk'
-
-    Let pos pat mexpr mblk -> do
-        pat' <- instPattern pat
-        mexpr' <- traverse instExpr mexpr
-        mblk' <- traverse instStmt mblk
-        return $ Let pos pat' mexpr' mblk'
-
-    For pos expr mcnd blk -> do
-        expr' <- instExpr expr
-        mcnd' <- traverse instPattern mcnd
-        blk'  <- instStmt blk
-        return $ For pos expr' mcnd' blk'
-
-    While pos cnd blk -> do
-        cnd' <- instExpr cnd
-        blk' <- instStmt blk
-        return $ While pos cnd' blk'
-
-    If pos expr true mfalse -> do
-        expr' <- instExpr expr
-        true' <- instStmt true
-        mfalse' <- traverse (instStmt) mfalse
-        return $ If pos expr' true' mfalse'
-
-    Switch pos expr cases -> do
-        expr' <- instExpr expr
-        cases' <- forM cases $ \(pat, stmt) -> do
-            pushSymTab
-            pat' <- instPattern pat
-            stmt' <- instStmt stmt
-            popSymTab
-            return (pat', stmt')
-        return $ Switch pos expr' cases'
-
-    Data pos symbol typ mexpr -> do
-        mexpr' <- traverse instExpr mexpr
-        return $ Data pos symbol typ mexpr'
-
-    _ -> error "invalid statement"
-
+instStmt = mapStmtM instantiatorMapper
 
 
 genSymbol :: String -> DoM InstantiatorState Symbol
