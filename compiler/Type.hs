@@ -55,9 +55,9 @@ instance Show Type where
         F64               -> "F64"
         Bool              -> "Bool"
         Char              -> "Char"
-        TypeApply s []    -> show s
-        TypeApply s [t]   -> show t ++ "." ++ show s
-        TypeApply s ts    -> show s ++ "{" ++ intercalate ", " (map show ts) ++ "}"
+        TypeApply s []    -> prettySymbol s
+        TypeApply s [t]   -> show t ++ "." ++ prettySymbol s
+        TypeApply s ts    -> prettySymbol s ++ "{" ++ intercalate ", " (map show ts) ++ "}"
         Slice t           -> "[]" ++ show t
         Size n            -> show n
 

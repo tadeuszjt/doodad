@@ -45,7 +45,7 @@ applyStmt subs stmt = case stmt of
     Switch pos expr cases -> Switch pos (applyEx expr) $ map (\(p, st) -> (applyPat p, applySt st)) cases
     While pos expr blk -> While pos (applyEx expr) (applySt blk)
     For pos expr mpat blk -> For pos (applyEx expr) (fmap applyPat mpat) (applySt blk)
-    x -> error (show x)
+    x -> error "invalid statement"
     where
         applySt = applyStmt subs
         applyEx = applyExpr subs

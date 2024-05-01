@@ -64,14 +64,14 @@ collectDefault t1 t2 = do
 look :: Symbol -> DoM CollectState Type
 look symbol = do
     rm <- SymTab.lookup symbol () <$> gets symTab
-    unless (isJust rm) (fail $ show symbol ++ " undefined")
+    unless (isJust rm) (fail $ prettySymbol symbol ++ " undefined")
     return (fromJust rm)
 
 
 define :: Symbol -> Type -> DoM CollectState ()
 define symbol obj = do
     resm <- SymTab.lookupHead symbol () <$> gets symTab
-    unless (isNothing resm) (error $ show symbol ++ " already defined")
+    unless (isNothing resm) (error $ prettySymbol symbol ++ " already defined")
     modify $ \s -> s { symTab = SymTab.insert symbol () obj (symTab s) }
 
 
@@ -151,7 +151,7 @@ collectStmt statement = collectPos statement $ case statement of
         void $ traverse (collect "data type must match expression type" . ConsEq typ . typeof) mexpr
         void $ traverse collectExpr mexpr
 
-    x -> error (show x)
+    x -> error "invalid statement"
 
 
 collectPatternIsolated :: Pattern -> DoM CollectState ()
@@ -319,7 +319,7 @@ collectExpr (AExpr exprType expression) = collectPos expression $ case expressio
 
     Ident _ symbol -> do
         typ <- look symbol 
-        collect ("identifier type for " ++ show symbol ++ " must match expression type") $
+        collect ("identifier type for " ++ prettySymbol symbol ++ " must match expression type") $
             ConsEq typ exprType
 
 

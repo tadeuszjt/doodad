@@ -125,7 +125,7 @@ lookFeature str = do
 look :: Symbol -> SymKey -> DoM ResolveState Symbol
 look symbol key = do
     lm <- lookm symbol key
-    check (isJust lm) $ show symbol ++ " isn't defined"
+    check (isJust lm) $ prettySymbol symbol ++ " isn't defined"
     return $ fromJust lm
 
 
@@ -157,12 +157,12 @@ lookm symbol KeyType = do
                         (\s -> symbolsCouldMatch symbol s)
                         typeFuncs
 
-        _ -> fail $ show symbol
+        _ -> fail $ prettySymbol symbol
 
     case results of
         [] -> return Nothing
         [x] -> return (Just x)
-        x   -> fail $ "ambiguous symbol: " ++ show symbol ++ ", use qualifier."
+        x   -> fail $ "ambiguous symbol: " ++ prettySymbol symbol ++ ", use qualifier."
 
 
 genSymbol :: String -> DoM ResolveState Symbol
@@ -171,7 +171,7 @@ genSymbol sym = do
     im <- gets $ Map.lookup sym . symSupply . ast
     let n = maybe 0 (id) im
     modifyAst $ \s -> s { symSupply = Map.insert sym (n + 1) (symSupply s) }
-    return $ SymResolved (modName ++ ":" ++ sym ++ ":" ++ show n)
+    return $ SymResolved (modName ++ "::" ++ sym) n
         
 
 define :: String -> SymKey -> Symbol -> DoM ResolveState ()
@@ -500,7 +500,7 @@ instance Resolve Stmt where
                 let rest = drop (length ident) xs
 
                 symbol <- look (Sym ident) KeyVar
-                (show symbol ++) <$> processCEmbed rest
+                (showSymLocal symbol ++) <$> processCEmbed rest
             processCEmbed (x:xs) = (x:) <$> processCEmbed xs
             processCEmbed [] = return ""
 
@@ -567,7 +567,6 @@ resolveMapper element = case element of
             case symbols of
                 [] -> do
                     modname <- gets (moduleName . ast)
-
                     liftIO $ putStrLn $ (modname ++ " warning: no defs for: ") ++ show sym
                 _ -> return ()
             

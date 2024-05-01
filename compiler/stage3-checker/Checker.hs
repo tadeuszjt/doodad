@@ -23,7 +23,7 @@ data Node
     | NodeData Symbol
     | NodeDefine Symbol
     | NodeUnion [Node]
-    deriving (Show, Eq, Ord)
+    deriving (Eq, Ord)
 
 
 
@@ -33,7 +33,7 @@ isBaseNode node = case node of
     NodeUnion nodes -> False
     NodeData _ -> True
     NodeDefine _ -> True
-    x -> error (show x)
+    x -> error "invalid node"
 
 
 listNodes :: Node -> [Node]
@@ -43,7 +43,7 @@ listNodes node = case node of
     NodeData _ -> [node]
     NodeUnion nodes -> (node : concat (map listNodes nodes))
     NodeNull -> []
-    x -> error (show x)
+    x -> error "invalid node"
 
 
 checkNoSameBaseNodes :: MonadFail m => [Node] -> m ()
@@ -84,7 +84,7 @@ define :: Symbol -> Node -> DoM CheckState ()
 define symbol node = do
     --liftIO $ putStrLn $ "defining: " ++ show symbol
     isDefined <- isJust . SymTab.lookup symbol () <$> gets symTab
-    check (not isDefined) (show symbol ++ " already defined")
+    check (not isDefined) (prettySymbol symbol ++ " already defined")
     modify $ \s -> s { symTab = SymTab.insert symbol () node (symTab s) }
 
 
@@ -93,7 +93,7 @@ look symbol = do
     --liftIO $ putStrLn $ "looking: " ++ show symbol
     resm <- SymTab.lookup symbol () <$> gets symTab
     case resm of
-        Nothing -> fail $ show symbol ++ " not defined"
+        Nothing -> fail $ prettySymbol symbol ++ " not defined"
         Just res -> return res
 
 
@@ -142,7 +142,7 @@ checkExpr (AExpr exprType expression) = withPos expression $ case expression of
     -- return objects from mparam if returns record
     Call pos symbol exprs -> do
         ast <- gets astResolved
-        unless (symbolIsResolved symbol) $ fail ("unresolved function call: " ++ show symbol)
+        unless (symbolIsResolved symbol) $ fail ("unresolved function call: " ++ prettySymbol symbol)
 
         let params = funcArgs $ (getInstanceHeader symbol ast)
         let retty  = funcRetty $ (getInstanceHeader symbol ast)
@@ -247,7 +247,7 @@ checkStmt stmt = withPos stmt $ case stmt of
         traverse checkPattern mpat
         checkStmt blk
 
-    x -> error (show x)
+    x -> error "invalid statement"
 
 
 checkPattern :: Pattern -> DoM CheckState Node

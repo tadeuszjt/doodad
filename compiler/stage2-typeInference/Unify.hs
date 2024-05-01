@@ -100,12 +100,12 @@ unifyOne info constraint = withPos info $ case constraint of
             | length ts1 == length ts2 -> fmap concat $
                 zipWithM (\a b -> unifyOne info (ConsDefault a b)) ts1 ts2
 
-        (TypeApply (SymResolved _) _, _) -> return []
+        (TypeApply s _, _) | symbolIsResolved s -> return []
 
         x -> error (show x)
 
 
-    x -> error (show x)
+    x -> error "invalid constraint"
 
 
 unify :: [(Constraint, ConstraintInfo)] -> DoM ASTResolved [(Type, Type)]

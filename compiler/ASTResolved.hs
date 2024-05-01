@@ -45,7 +45,7 @@ data CallHeader = CallHeader
 
 instance Show CallHeader where
     show header =
-        (show $ callSymbol header) ++ argsStr ++ ":" ++ show (callRetType header)
+        (prettySymbol $ callSymbol header) ++ argsStr ++ ":" ++ show (callRetType header)
         where
             argsStr = "(" ++ intercalate ", " (map show $ callArgTypes header) ++ ")"
 
@@ -53,6 +53,7 @@ instance Show CallHeader where
 callHeaderFromFuncHeader :: FuncHeader -> CallHeader
 callHeaderFromFuncHeader (FuncHeader _ _ symbol args retty)
     = CallHeader symbol (map typeof args) (typeof retty)
+
 
 
 callCouldMatchFunc :: Monad m => CallHeader -> FuncHeader -> m Bool
@@ -88,14 +89,14 @@ isGenericHeader header = funcGenerics header /= []
 getFunction :: Symbol -> ASTResolved -> Func
 getFunction symbol ast = if Map.member symbol (funcDefsAll ast) then
         funcDefsAll ast Map.! symbol
-    else error ("symbol is not function: " ++ show symbol)
+    else error ("symbol is not function: " ++ prettySymbol symbol)
 
 
 getFunctionHeader :: Symbol -> ASTResolved -> FuncHeader
 getFunctionHeader symbol ast = funcHeader $
     if Map.member symbol (funcDefsAll ast) then
         funcDefsAll ast Map.! symbol
-    else error ("symbol is not function: " ++ show symbol)
+    else error ("symbol is not function: " ++ prettySymbol symbol)
 
 
 getInstanceHeader :: Symbol -> ASTResolved -> FuncHeader

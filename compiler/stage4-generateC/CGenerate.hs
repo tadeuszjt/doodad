@@ -135,7 +135,7 @@ callFunction symbol retty args = do
         False -> do
             funcSymbolm <- findInstance ast $ CallHeader symbol (map typeof args) retty
             unless (isJust funcSymbolm)
-                (error $ "couldn't find instance: " ++ show (symbol, retty, map typeof args))
+                (error $ "couldn't find instance: " ++ show (prettySymbol symbol, retty, map typeof args))
             return (fromJust funcSymbolm)
 
     let header = getInstanceHeader callSymbol ast
@@ -153,10 +153,10 @@ callFunction symbol retty args = do
 
     case funcRetty of
         Retty Void -> do
-            appendElem $ C.ExprStmt $ C.Call (show callSymbol) argExprs
+            appendElem $ C.ExprStmt $ C.Call (showSymGlobal callSymbol) argExprs
             return $ Value Void (C.Int 0)
-        Retty retType    -> assign "call" $ Value retType $ C.Call (show callSymbol) argExprs
-        RefRetty retType -> assign "call" $ Ref retType $ C.Call (show callSymbol) argExprs
+        Retty retType    -> assign "call" $ Value retType $ C.Call (showSymGlobal callSymbol) argExprs
+        RefRetty retType -> assign "call" $ Ref retType $ C.Call (showSymGlobal callSymbol) argExprs
 
 
 assign :: String -> Value -> Generate Value
@@ -311,7 +311,7 @@ cParamOf param = do
     ctype <- case param of
         S.Param _ _ _ -> cTypeOf param
         S.RefParam _ _ _ -> cRefTypeOf param
-    return $ C.Param { C.cName = show (paramSymbol param), C.cType = ctype }
+    return $ C.Param { C.cName = showSymLocal (paramSymbol param), C.cType = ctype }
 
 
 cRefTypeOf :: Typeof a => a -> Generate C.Type
@@ -353,7 +353,7 @@ cTypeOf a = case typeof a of
         getTypedef "Array" =<< cTypeNoDef (TypeApply (Sym "Array") ts)
 
     TypeApply symbol args -> do
-        (generics, typ) <- mapGet symbol =<< getTypeDefs
+        (generics, typ) <- (Map.! symbol) <$> getTypeDefs
         getTypedef (Symbol.sym symbol) =<< cTypeOf =<< applyTypeArguments generics args typ
 
     _ -> error (show $ typeof a)

@@ -14,7 +14,7 @@ data Constraint
     | ConsForExpr Type Type
     | ConsSlice Type Type           
     | ConsDefault Type Type
-    deriving (Show, Eq, Ord)
+    deriving (Eq, Ord)
 
 
 

@@ -104,16 +104,16 @@ data FuncHeader
 instance Show FuncHeader where
     show (FuncHeader pos generics symbol args retty) =
         "fn"
-        ++ case generics of [] -> ""; xs -> brcStrs (map show xs)
+        ++ case generics of [] -> ""; xs -> brcStrs (map prettySymbol xs)
         ++ " "
-        ++ show symbol
+        ++ prettySymbol symbol
         ++ tupStrs (map show args)
         ++ " "
         ++ show retty
 
 
 data Func = Func { funcHeader :: FuncHeader, funcStmt :: Stmt }
-    deriving (Eq, Show)
+    deriving (Eq)
 
 
 instance TextPosition Func where
@@ -134,7 +134,7 @@ data Stmt
     | For         TextPos Expr (Maybe Pattern) Stmt
     | Data        TextPos Symbol Type (Maybe Expr)
     | EmbedC      TextPos String
-    deriving (Eq, Show)
+    deriving (Eq)
 
 
 data AnnoType
@@ -192,7 +192,7 @@ instance TextPosition Stmt where
         Data        p _ _ _ -> p
         EmbedC      p _ -> p
         Feature     p _ _ -> p
-        _ -> error (show stmt)
+        _ -> error "invalid stmt"
 
 tupStrs, arrStrs, brcStrs :: [String] -> String
 tupStrs strs = "(" ++ intercalate ", " strs ++ ")"
@@ -206,8 +206,8 @@ instance Show Import where
     show (CLink path) = "link " ++ path
 
 instance Show Param where
-    show (Param pos name typ)    = show name ++ " " ++ show typ
-    show (RefParam pos name typ) = show name ++ "& " ++ show typ
+    show (Param pos name typ)    = prettySymbol name ++ " " ++ show typ
+    show (RefParam pos name typ) = prettySymbol name ++ "& " ++ show typ
 
 
 instance Show Retty where
@@ -227,12 +227,12 @@ instance Show Pattern where
     show pattern = case pattern of
         PatLiteral c             -> show c
         PatIgnore pos            -> "_"
-        PatIdent pos symbol      -> show symbol
+        PatIdent pos symbol      -> prettySymbol symbol
         PatTuple pos ps          -> tupStrs (map show ps)
         PatGuarded pos pat expr  -> show pat ++ " | " ++ show expr
         PatTypeField pos typ pats    -> show typ ++ tupStrs (map show pats)
         PatAnnotated pat typ     -> show pat ++ ":" ++ show typ
-        PatField _ symbol pat    -> show symbol ++ tupStrs [show pat]
+        PatField _ symbol pat    -> prettySymbol symbol ++ tupStrs [show pat]
         PatSlice _ pats          -> arrStrs (map show pats)
 
 
@@ -246,8 +246,8 @@ instance Show Expr where
         String pos s                       -> show s
         Array pos exprs                    -> arrStrs (map show exprs)
         Field pos expr symbol              -> show expr ++ "." ++ show symbol
-        Ident p s                          -> show s 
-        Call pos symbol exprs              -> show symbol ++ tupStrs (map show exprs)
+        Ident p s                          -> prettySymbol s 
+        Call pos symbol exprs              -> prettySymbol symbol ++ tupStrs (map show exprs)
         Builtin pos sym exprs              -> sym ++ tupStrs (map show exprs)
         Match pos expr1 expr2              -> "(" ++ show expr1 ++ " -> " ++ show expr2 ++ ")"
         Reference pos expr                 -> "&" ++ show expr
@@ -298,8 +298,8 @@ prettyStmt pre stmt = case stmt of
     Typedef pos typeArgs symbol anno -> do
         argStr <- case typeArgs of
             [] -> return ""
-            xs -> return $ brcStrs (map show xs)
-        putStrLn $ pre ++ "type" ++ argStr ++ " " ++ show symbol ++ " " ++ show anno
+            xs -> return $ brcStrs (map prettySymbol xs)
+        putStrLn $ pre ++ "type" ++ argStr ++ " " ++ prettySymbol symbol ++ " " ++ show anno
 
     Switch pos expr cases -> do
         putStrLn $ pre ++ "switch " ++ show expr
@@ -314,10 +314,10 @@ prettyStmt pre stmt = case stmt of
         prettyStmt (pre ++ "\t") blk
 
     Data pos symbol typ mexpr -> do
-        putStrLn $ pre ++ "data " ++ show symbol ++ " " ++ show typ ++ maybe "" ((" " ++) . show) mexpr
+        putStrLn $ pre ++ "data " ++ prettySymbol symbol ++ " " ++ show typ ++ maybe "" ((" " ++) . show) mexpr
 
     EmbedC pos str -> do
         putStrLn $ pre ++ "$" ++ str
 
-    _  -> error $ "invalid stmt: " ++ show stmt
+    _  -> error $ "invalid stmt"
 

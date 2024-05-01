@@ -15,7 +15,6 @@ data Elem
     | ElemType Type
     | ElemPattern Pattern
     | ElemPatternIsolated Pattern
-    deriving (Show)
 
 type MapperFunc s = (Elem -> DoM s Elem)
 
@@ -102,7 +101,7 @@ mapStmtM f stmt = withPos stmt $ do
             mexpr' <- traverse (mapExprM f) mexpr
             return $ Data pos symbol typ' mexpr'
 
-        _ -> error (show stmt)
+        _ -> error "invalid statement"
     case res of
         ElemStmt x -> return x
         _          -> error "result wasn't ElemStmt"

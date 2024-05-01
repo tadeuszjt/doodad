@@ -130,7 +130,7 @@ instStmt stmt = withPos stmt $ case stmt of
         mexpr' <- traverse instExpr mexpr
         return $ Data pos symbol typ mexpr'
 
-    _ -> error (show stmt)
+    _ -> error "invalid statement"
 
 
 
@@ -140,7 +140,7 @@ genSymbol sym = do
     im <- gets $ Map.lookup sym . symSupply . astResolved
     let n = maybe 0 (id) im
     modifyAST $ \s -> s { symSupply = Map.insert sym (n + 1) (symSupply s) }
-    return $ SymResolved (modName ++ ":" ++ sym ++ ":" ++ show n)
+    return $ SymResolved (modName ++ "::" ++ sym) n
 
 
 instantiatorMapper :: Elem -> DoM InstantiatorState Elem
@@ -190,7 +190,8 @@ instantiatorMapper elem = case elem of
 
 
 resolveFuncCall :: Symbol -> [Type] -> Type -> DoM InstantiatorState Symbol
-resolveFuncCall s@(SymResolved _) argTypes retType = return s
+resolveFuncCall calledSymbol argTypes retType
+    | symbolIsResolved calledSymbol = return calledSymbol
 resolveFuncCall calledSymbol      argTypes retType = do
     let callHeader = CallHeader calledSymbol argTypes retType
     headers <- gets (Map.elems . Map.map funcHeader . funcDefsAll . astResolved)

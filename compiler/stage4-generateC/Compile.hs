@@ -36,7 +36,7 @@ generate = withErrorPrefix "generate: " $ do
             S.Param _ _ _ -> cTypeOf param
             S.RefParam _ _ _ -> cRefTypeOf param
             x -> error (show x)
-        newExtern (show $ funcSymbol $ funcHeader func) crt cats [C.Extern]
+        newExtern (showSymGlobal $ funcSymbol $ funcHeader func) crt cats [C.Extern]
 
     -- generate headers for this module
     forM_ (funcInstance ast) $ \(func) -> do
@@ -45,7 +45,7 @@ generate = withErrorPrefix "generate: " $ do
             S.Param _ _ _ -> cTypeOf param
             S.RefParam _ _ _ -> cRefTypeOf param
             x -> error (show x)
-        newExtern (show $ funcSymbol $ funcHeader func) crt cats []
+        newExtern (showSymGlobal $ funcSymbol $ funcHeader func) crt cats []
         
 
     -- generate functions, main is a special case
@@ -53,7 +53,7 @@ generate = withErrorPrefix "generate: " $ do
         generateFunc False (funcSymbol $ funcHeader func) func
 
         when ((sym $ funcSymbol $ funcHeader func) == "instance_main") $ do
-            let ioTypedef = TypeApply (SymResolved "io:Io:0") []
+            let ioTypedef = TypeApply (SymResolved "io:Io" 0) []
             id <- newFunction
                 Cint
                 "main"  
@@ -62,7 +62,7 @@ generate = withErrorPrefix "generate: " $ do
 
             withCurID id $ do
                 appendElem $ C.ExprStmt $ C.Call "doodad_set_args" [C.Ident "argc", C.Ident "argv"]
-                call (show $ funcSymbol $ funcHeader func) []
+                call (showSymGlobal $ funcSymbol $ funcHeader func) []
                 void $ appendElem $ C.Return $ C.Int 0
             withCurID globalID (append id)
 
@@ -87,10 +87,10 @@ generateFunc isStatic symbol func = do
 
     pushSymTab
 
-    id <- newFunction rettyType (show symbol) ([] ++ args) $ (if isStatic then [C.Static] else [])
+    id <- newFunction rettyType (showSymGlobal symbol) ([] ++ args) $ (if isStatic then [C.Static] else [])
     withCurID id $ do
         forM_ (S.funcArgs (S.funcHeader func)) $ \arg -> do
-            let name = show (paramSymbol arg)
+            let name = showSymLocal (paramSymbol arg)
             case arg of
                 S.Param _ _ _ ->    define name $ Value (typeof arg) (C.Ident name)
                 S.RefParam _ _ _ -> define name $ Ref (typeof arg) (C.Ident name)
@@ -136,8 +136,8 @@ generateStmt stmt = withPos stmt $ case stmt of
             _                          -> return (C.Initialiser [C.Int 0])
         
         ctyp <- cTypeOf typ
-        appendAssign ctyp (show symbol) init
-        define (show symbol) $ Value typ $ C.Ident (show symbol)
+        appendAssign ctyp (showSymLocal symbol) init
+        define (showSymLocal symbol) $ Value typ $ C.Ident (showSymLocal symbol)
 
     S.If _ expr blk melse -> do
         val <- generateExpr expr
@@ -210,17 +210,17 @@ generateStmt stmt = withPos stmt $ case stmt of
             if_ (not_ patMatches) $ appendElem C.Break
             generateStmt stmt
 
-    _ -> fail $ "invalid statement: " ++ (show stmt)
+    _ -> error "invalid statement"
 
 
 generatePatternIsolated :: Pattern -> Generate Value
 generatePatternIsolated (PatAnnotated pattern patType) = withPos pattern $ case pattern of
     PatIdent _ symbol -> do
         base <- baseTypeOf patType
-        let name = show symbol
+        let name = showSymLocal symbol
         define name (Value patType $ C.Ident name)
         cType <- cTypeOf patType
-        void $ appendAssign cType (show symbol) $ C.Initialiser [C.Int 0]
+        void $ appendAssign cType (showSymLocal symbol) $ C.Initialiser [C.Int 0]
         return true
 
     x -> error (show x)
@@ -237,10 +237,10 @@ generatePattern (PatAnnotated pattern patType) val = withPos pattern $ case patt
 
     PatIdent _ symbol -> do 
         base <- baseTypeOf val
-        let name = show symbol
+        let name = showSymLocal symbol
         define name (Value (typeof val) $ C.Ident name)
         cType <- cTypeOf (typeof val)
-        void $ appendAssign cType (show symbol) $ C.Initialiser [C.Int 0]
+        void $ appendAssign cType (showSymLocal symbol) $ C.Initialiser [C.Int 0]
         ref <- reference $ Value (typeof val) (C.Ident name)
         callFunction (Sym "set") Void [ref, val]
         return true
@@ -325,7 +325,7 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
     S.Float _ f            -> return $ Value typ (C.Float f)
     S.Char _ c             -> return $ Value typ (C.Char c)
     S.Match _ expr pattern -> generatePattern pattern =<< generateExpr expr
-    S.Ident _ symbol       -> look (show symbol)
+    S.Ident _ symbol       -> look (showSymLocal symbol)
     S.String _ s           -> assign "string" $ Value typ $
         C.Initialiser [C.String s, C.Int (fromIntegral $ length s)]
 
@@ -380,7 +380,7 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
             Ref _ _   -> builtinTableAppend val >> return (Value Void $ C.Int 0)
 
     S.Call _ symbol exprs -> do
-        check (symbolIsResolved symbol) ("unresolved function call: " ++ show symbol)
+        check (symbolIsResolved symbol) ("unresolved function call: " ++ prettySymbol symbol)
         callFunction symbol typ =<< mapM generateExpr exprs
 
     S.Field _ expr idx -> do 
