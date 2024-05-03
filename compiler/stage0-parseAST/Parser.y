@@ -130,81 +130,82 @@ imports : {- empty -}              { [] }
         | link 'N' imports         { AST.CLink (tokStr $1) : $3 }
 
 
----------------------------------------------------------------------------------------------------
--- Statements -------------------------------------------------------------------------------------
-
-fnSymbol : ident            { Sym (tokStr $1) }
-         | Ident '::' ident { Sym (tokStr $1 ++ "_" ++ tokStr $3) }
-
-fnHeader : fn generics fnSymbol '(' paramsA ')' retty
-            { AST.FuncHeader (tokPos $1) $2 $3 $5 $7 }
+-----------------------------------------------------------------------------------------------------
+---- Statements -------------------------------------------------------------------------------------
+--
+fnHeader : fn generics symbol '(' paramsA ')' retty
+            { AST.FuncHeader (tokPos $1) $2 (snd $3) $5 $7 }
+--
 
 func : fnHeader scope  { Func $1 $2 }
-
+--
 fnHeaders : fnHeader 'N'            { [$1] }
           | fnHeader 'N' fnHeaders  { ($1 : $3) }
-
+--
 generics : {-empty-}                      { [] }
-         | '{' Idents1 '}'                { map Symbol.Sym $2 }
+         | '{' Idents1 '}'                { map Symbol2 $2 }
 
 retty : {-empty-}     { Retty Type.Void }
       | type_         { Retty $1 }
       | '&' type_     { RefRetty $2 }
       | '[' ']' type_ { Retty (Type.Slice $3) }
 
-line : let pattern '=' expr               { Let (tokPos $1) $2 (Just $4) Nothing }  
+line : expr                               { ExprStmt $1 }
+--     | let pattern '=' expr               { Let (tokPos $1) $2 (Just $4) Nothing }  
      | let pattern                        { Let (tokPos $1) $2 Nothing Nothing }
-     | expr                               { ExprStmt $1 }
-     | expr '=' expr                      { ExprStmt (Call (tokPos $2) (Sym "set") [Reference (tokPos $2) $1, $3]) }
+----     | expr '=' expr                      { ExprStmt (Call (tokPos $2) (Sym "set") [Reference (tokPos $2) $1, $3]) }
      | type generics Symbol type_         { Typedef (fst $3) $2 (snd $3) $4 }
-     | data symbol type_                  { Data (tokPos $1) (snd $2) $3 Nothing }
+----     | data symbol type_                  { Data (tokPos $1) (snd $2) $3 Nothing }
      | return mexpr                       { Return (tokPos $1) $2 }
-     | embed_c                            { AST.EmbedC (tokPos $1) (tokStr $1) }
-
-block : if_                               { $1 }
-      | while condition scope             { While (tokPos $1) $2 $3 }
-      | for expr scope                    { For (tokPos $1) $2 Nothing $3 }
-      | for expr '->' pattern scope       { For (tokPos $1) $2 (Just $4) $5 }
-      | switch expr 'I' cases1 'D'        { Switch (tokPos $1) $2 $4 }
-      | let pattern '='  expr in scope    { Let (tokPos $1) $2 (Just $4) (Just $6) }
-      | let pattern in scope              { Let (tokPos $1) $2 Nothing (Just $4) }
-      | func                              { FuncDef $1 }
-      | feature Ident 'I' fnHeaders 'D'   { Feature (tokPos $1) (Sym $ tokStr $2) $4 }
-
-if_   : if condition scope else_          { If (tokPos $1) $2 $3 $4 }
-      | if condition 'N' else_            { If (tokPos $1) $2 (Block []) $4 }
-else_ : else scope                        { Just $2 }
-      | else if_                          { Just $2 }
-      | {-empty-}                         { Nothing }
-
+----     | embed_c                            { AST.EmbedC (tokPos $1) (tokStr $1) }
+--
+block : func                              { FuncDef $1 }
+      | feature Ident 'I' fnHeaders 'D'   { Feature (tokPos $1) (Symbol2 $ tokStr $2) $4 }
+----      | while condition scope             { While (tokPos $1) $2 $3 }
+----      | for expr scope                    { For (tokPos $1) $2 Nothing $3 }
+----      | for expr '->' pattern scope       { For (tokPos $1) $2 (Just $4) $5 }
+----      | switch expr 'I' cases1 'D'        { Switch (tokPos $1) $2 $4 }
+--      | let pattern '='  expr in scope    { Let (tokPos $1) $2 (Just $4) (Just $6) }
+--      | let pattern in scope              { Let (tokPos $1) $2 Nothing (Just $4) }
+----      | if_ {$1}
+--
+----if_   : if condition scope else_          { If (tokPos $1) $2 $3 $4 }
+----      | if condition 'N' else_            { If (tokPos $1) $2 (Block []) $4 }
+----else_ : else scope                        { Just $2 }
+----      | else if_                          { Just $2 }
+----      | {-empty-}                         { Nothing }
+--
 scope  : 'I' stmts 'D'                    { Block $2 }
        | ';' line 'N'                     { $2 }
        | ';' 'N'                          { Block [] }
 
-cases1 : case                             { [$1] }
-       | case cases1                      { $1 : $2 }
-case : pattern scope                      { ($1, $2) }
-
-
---------------------------------------------------------------------------------------------------
--- Misc ------------------------------------------------------------------------------------------
-
+--cases1 : case                             { [$1] }
+--       | case cases1                      { $1 : $2 }
+--case : pattern scope                      { ($1, $2) }
+--
+--
+----------------------------------------------------------------------------------------------------
+---- Misc ------------------------------------------------------------------------------------------
+--
 Idents1 : Ident                          { [tokStr $1] }
         | Ident ',' Idents1              { (tokStr $1):($3) } 
 
-
-symbol : ident                           { (tokPos $1, Sym (tokStr $1)) }
-       | ident '::' ident                { (tokPos $3, SymQualified (tokStr $1) (tokStr $3)) }
-       | Ident '::' ident                { (tokPos $1, Sym (tokStr $1 ++ "_" ++ tokStr $3)) }
-
-Symbol : Ident                           { (tokPos $1, Sym (tokStr $1)) }
-       | ident '::' Ident                { (tokPos $3, SymQualified (tokStr $1) (tokStr $3)) }
-
-
-param   : ident type_                    { Param (tokPos $1) (Sym $ tokStr $1) $2 }
-        | ident '&' type_                { RefParam (tokPos $1) (Sym $ tokStr $1) $3 }
-        | ident '[' ']' type_            { Param (tokPos $2) (Sym $ tokStr $1) (Type.Slice $4) }
-        | ident '&' '[' ']' type_        { RefParam (tokPos $2) (Sym $ tokStr $1) (Type.Slice $5) }
+--
+symbol : ident                           { (tokPos $1, Symbol2 (tokStr $1)) }
+--       | symbol '::' ident               { (tokPos $3, Symbol2 (snd $1 ++ "::" ++ tokStr $3)) }
+       | Symbol '::' ident               { (tokPos $3, Symbol2 ((symStr (snd $1)) ++ "::" ++ tokStr $3)) }
+--
+Symbol : Ident                           { (tokPos $1, Symbol2 (tokStr $1)) }
+       | symbol '::' Ident               { (tokPos $3, Symbol2 (symStr (snd $1) ++ "::" ++ tokStr $3)) }
+--       | Symbol '::' Ident               { (tokPos $1, Symbol2 (snd $1 ++ "::" ++ tokStr $3)) }
+--
+--
+--
+--
+param   : ident type_                    { Param    (tokPos $1) (Symbol2 $ tokStr $1) $2 }
+        | ident '&' type_                { RefParam (tokPos $1) (Symbol2 $ tokStr $1) $3 }
+        | ident '[' ']' type_            { Param    (tokPos $2) (Symbol2 $ tokStr $1) (Type.Slice $4) }
+        | ident '&' '[' ']' type_        { RefParam (tokPos $2) (Symbol2 $ tokStr $1) (Type.Slice $5) }
 params  : {- empty -}                    { [] }
         | params1                        { $1 }
 params1 : param                          { [$1] }
@@ -218,29 +219,29 @@ paramsA1 : params1                       { $1 }
          | 'I' paramsN 'D'               { $2 }
 
 
----------------------------------------------------------------------------------------------------
--- Patterns ---------------------------------------------------------------------------------------
-
-patterns  : {- empty -}                  { [] }
-          | patterns1                    { $1 }
-patterns1 : pattern                      { [$1] }
-          | pattern ',' patterns1        { $1 : $3 }
-
+-----------------------------------------------------------------------------------------------------
+---- Patterns ---------------------------------------------------------------------------------------
+--
+--patterns  : {- empty -}                  { [] }
+--          | patterns1                    { $1 }
+--patterns1 : pattern                      { [$1] }
+--          | pattern ',' patterns1        { $1 : $3 }
+--
 pattern  : '_'                           { PatIgnore (tokPos $1) }
-         | literal                       { PatLiteral $1 }
-         | '-' int_c                     { PatLiteral (AST.Int (tokPos $1) $ 0 - (read $ tokStr $2)) }
-         | ident                         { PatIdent (tokPos $1) (Sym $ tokStr $1) }
-         | '(' patterns ')'              { PatTuple (tokPos $1) $2 }
-         | pattern '|' expr              { PatGuarded (tokPos $2) $1 $ AExpr Type.Bool $ Call (tokPos $2) (Sym "construct") [$3] }
-         | pattern '|' expr '->' pattern { PatGuarded (tokPos $2) $1 (Match (tokPos $4) $3 $5) }
+----         | literal                       { PatLiteral $1 }
+----         | '-' int_c                     { PatLiteral (AST.Int (tokPos $1) $ 0 - (read $ tokStr $2)) }
+         | ident                         { PatIdent (tokPos $1) (Symbol2 $ tokStr $1) }
+----         | '(' patterns ')'              { PatTuple (tokPos $1) $2 }
+----         | pattern '|' expr              { PatGuarded (tokPos $2) $1 $ AExpr Type.Bool $ Call (tokPos $2) (Sym "construct") [$3] }
+----         | pattern '|' expr '->' pattern { PatGuarded (tokPos $2) $1 (Match (tokPos $4) $3 $5) }
          | pattern ':' type_             { PatAnnotated $1 $3 }
-         | type_ '(' patterns ')'        { PatTypeField (tokPos $2) $1 $3 }
-         | symbol '(' pattern ')'        { PatField (tokPos $2) (snd $1) $3 }
-         | '[' patterns ']'              { PatSlice (tokPos $1) $2 } 
- 
----------------------------------------------------------------------------------------------------
--- Expressions ------------------------------------------------------------------------------------
-
+----         | type_ '(' patterns ')'        { PatTypeField (tokPos $2) $1 $3 }
+----         | symbol '(' pattern ')'        { PatField (tokPos $2) (snd $1) $3 }
+----         | '[' patterns ']'              { PatSlice (tokPos $1) $2 } 
+-- 
+-----------------------------------------------------------------------------------------------------
+---- Expressions ------------------------------------------------------------------------------------
+--
 exprs  : {- empty -}                             { [] }
        | exprs1                                  { $1 }
 exprs1 : expr                                    { [$1] }
@@ -251,75 +252,75 @@ mexpr  : {-empty-}                               { Nothing }
        | expr                                    { Just $1 }
 exprsA : exprs                                   { $1 }
        | 'I' exprsN 'D'                          { $2 }
-
-condition : expr                                 { AExpr Type.Bool $ Call (TextPos "" 0 0) (Sym "construct") [$1] }
-          | expr '->' pattern                    { Match (tokPos $2) $1 $3 }
-
-expr   : literal                                 { $1 }
-       | expr ':' type_                          { AExpr $3 $1 }
-       | symbol                                  { AST.Ident (fst $1) (snd $1) }
-       | '[' exprsA ']'                          { AST.Array (tokPos $1) $2 }
-       | expr '.' int_c                          { Field (tokPos $2) $1 (read $ tokStr $3)  }
-       | '&' expr                                { AST.Reference (tokPos $1) $2 }
-       | type_ '(' exprsA ')'                    { AExpr $1 (Call (tokPos $2) (Sym "construct") $3) }
-       | expr '[' expr ']'                       { Call (tokPos $2) (Sym "at") [AST.Reference (tokPos $2) $1, $3] }
-       | expr '.' symbol                         { Call (tokPos $2) (snd $3) (AST.Reference (tokPos $2) $1 : []) }
-       | expr '.' symbol '(' exprsA ')'          { Call (tokPos $4) (snd $3) (AST.Reference (tokPos $2) $1 : $5) }
-       | symbol '(' exprsA ')'                   { Call (tokPos $2) (snd $1) $3 }
-       | '(' exprsA ')'                          { case $2 of [x] -> x; xs -> Call (tokPos $1) (Sym "construct") $2 }
-       | expr '+' expr                           { Call (tokPos $2) (Sym "Arithmetic_add") [$1, $3] }
-       | expr '/' expr                           { Call (tokPos $2) (Sym "Arithmetic_divide") [$1, $3] }
-       | expr '-' expr                           { Call (tokPos $2) (Sym "Arithmetic_subtract") [$1, $3] } 
-       | expr '*' expr                           { Call (tokPos $2) (Sym "Arithmetic_times") [$1, $3] } 
-       | expr '%' expr                           { Call (tokPos $2) (Sym "Arithmetic_modulo") [$1, $3] } 
-       | expr '<' expr                           { Call (tokPos $2) (Sym "Compare_less") [$1, $3] } 
-       | expr '>' expr                           { Call (tokPos $2) (Sym "Compare_greater") [$1, $3] } 
-       | expr '==' expr                          { Call (tokPos $2) (Sym "Compare_equal") [$1, $3] } 
-       | expr '<=' expr                          { Call (tokPos $2) (Sym "lessEqual") [$1, $3] } 
-       | expr '>=' expr                          { Call (tokPos $2) (Sym "greaterEqual") [$1, $3] } 
-       | expr '!=' expr                          { Call (tokPos $2) (Sym "Boolean_not") [Call (tokPos $2) (Sym "Compare_equal") [$1, $3]] } 
-       | expr '&&' expr                          { Call (tokPos $2) (Sym "Boolean_and") [$1, $3] } 
-       | expr '||' expr                          { Call (tokPos $2) (Sym "Boolean_or") [$1, $3] } 
-       | '!' expr                                { Call (tokPos $1) (Sym "Boolean_not") [$2] }
-       | '-' expr                                { Call (tokPos $1) (Sym "subtract") [$2] }
-
-
-literal : int_c                                  { Call (tokPos $1) (Sym "construct") [AST.Int (tokPos $1) (read $ tokStr $1)] }
-        | float_c                                { Call (tokPos $1) (Sym "construct") [AST.Float (tokPos $1) (read $ tokStr $1)] }
-        | char_c                                 { Call (tokPos $1) (Sym "construct") [AST.Char (tokPos $1) (read $ tokStr $1)] }
-        | true                                   { Call (tokPos $1) (Sym "construct") [AST.Bool (tokPos $1) True] }
-        | false                                  { Call (tokPos $1) (Sym "construct") [AST.Bool (tokPos $1) False] }
-        | string_c                               { AST.String (tokPos $1) (processString $ tokStr $1) }
-
----------------------------------------------------------------------------------------------------
--- Types ------------------------------------------------------------------------------------------
-
-type__ : type_ { $1 }
-       | int_c { Size (read $ tokStr $1) }
-
-types  : {-empty-}                         { [] }
-       | types1                            { $1 }
-types1 : type__                             { [$1] }
-       | type__ ',' types1                  { $1 : $3 }
-
-types1N : type__ 'N'                        { [$1] }
-        | type__ ',' 'N'                    { [$1] }
-        | type__ ',' 'N' types1N            { $1 : $4 }
-types2N : type__ ',' 'N' types1N            { $1 : $4 }
-
-
-typeArgs : '{' types '}'           { $2 }
-         | '{' 'I' types1N 'D' '}' { $3 }
-    
-
+--
+----condition : expr                                 { AExpr Type.Bool $ Call (TextPos "" 0 0) (Sym "construct") [$1] }
+----          | expr '->' pattern                    { Match (tokPos $2) $1 $3 }
+--
+expr : symbol                                  { AST.Ident (fst $1) (snd $1) }
+     | symbol '(' exprsA ')'                   { Call (tokPos $2) (snd $1) $3 }
+--     : literal                                 { $1 }
+----       | expr ':' type_                          { AExpr $3 $1 }
+----       | '[' exprsA ']'                          { AST.Array (tokPos $1) $2 }
+----       | expr '.' int_c                          { Field (tokPos $2) $1 (read $ tokStr $3)  }
+----       | '&' expr                                { AST.Reference (tokPos $1) $2 }
+----       | type_ '(' exprsA ')'                    { AExpr $1 (Call (tokPos $2) (Sym "construct") $3) }
+----       | expr '[' expr ']'                       { Call (tokPos $2) (Sym "at") [AST.Reference (tokPos $2) $1, $3] }
+----       | expr '.' symbol                         { Call (tokPos $2) (snd $3) (AST.Reference (tokPos $2) $1 : []) }
+----       | expr '.' symbol '(' exprsA ')'          { Call (tokPos $4) (snd $3) (AST.Reference (tokPos $2) $1 : $5) }
+----       | '(' exprsA ')'                          { case $2 of [x] -> x; xs -> Call (tokPos $1) (Sym "construct") $2 }
+----       | expr '+' expr                           { Call (tokPos $2) (Sym "Arithmetic_add") [$1, $3] }
+----       | expr '/' expr                           { Call (tokPos $2) (Sym "Arithmetic_divide") [$1, $3] }
+----       | expr '-' expr                           { Call (tokPos $2) (Sym "Arithmetic_subtract") [$1, $3] } 
+----       | expr '*' expr                           { Call (tokPos $2) (Sym "Arithmetic_times") [$1, $3] } 
+----       | expr '%' expr                           { Call (tokPos $2) (Sym "Arithmetic_modulo") [$1, $3] } 
+----       | expr '<' expr                           { Call (tokPos $2) (Sym "Compare_less") [$1, $3] } 
+----       | expr '>' expr                           { Call (tokPos $2) (Sym "Compare_greater") [$1, $3] } 
+----       | expr '==' expr                          { Call (tokPos $2) (Sym "Compare_equal") [$1, $3] } 
+----       | expr '<=' expr                          { Call (tokPos $2) (Sym "lessEqual") [$1, $3] } 
+----       | expr '>=' expr                          { Call (tokPos $2) (Sym "greaterEqual") [$1, $3] } 
+----       | expr '!=' expr                          { Call (tokPos $2) (Sym "Boolean_not") [Call (tokPos $2) (Sym "Compare_equal") [$1, $3]] } 
+----       | expr '&&' expr                          { Call (tokPos $2) (Sym "Boolean_and") [$1, $3] } 
+----       | expr '||' expr                          { Call (tokPos $2) (Sym "Boolean_or") [$1, $3] } 
+----       | '!' expr                                { Call (tokPos $1) (Sym "Boolean_not") [$2] }
+----       | '-' expr                                { Call (tokPos $1) (Sym "subtract") [$2] }
+--
+--
+--literal : int_c                                  { Call (tokPos $1) (Symbol2 "Construct::construct") [AST.Int (tokPos $1) (read $ tokStr $1)] }
+----        | float_c                                { Call (tokPos $1) (Sym "construct") [AST.Float (tokPos $1) (read $ tokStr $1)] }
+----        | char_c                                 { Call (tokPos $1) (Sym "construct") [AST.Char (tokPos $1) (read $ tokStr $1)] }
+----        | true                                   { Call (tokPos $1) (Sym "construct") [AST.Bool (tokPos $1) True] }
+----        | false                                  { Call (tokPos $1) (Sym "construct") [AST.Bool (tokPos $1) False] }
+----        | string_c                               { AST.String (tokPos $1) (processString $ tokStr $1) }
+--
+-----------------------------------------------------------------------------------------------------
+---- Types ------------------------------------------------------------------------------------------
+--
+--type__ : type_ { $1 }
+--       | int_c { Size (read $ tokStr $1) }
+--
+--types  : {-empty-}                         { [] }
+--       | types1                            { $1 }
+--types1 : type__                             { [$1] }
+--       | type__ ',' types1                  { $1 : $3 }
+--
+--types1N : type__ 'N'                        { [$1] }
+--        | type__ ',' 'N'                    { [$1] }
+--        | type__ ',' 'N' types1N            { $1 : $4 }
+--types2N : type__ ',' 'N' types1N            { $1 : $4 }
+--
+--
+--typeArgs : '{' types '}'           { $2 }
+--         | '{' 'I' types1N 'D' '}' { $3 }
+--    
+--
 type_     : ordinal_t                      { $1 }
-          | '(' type_ ')'                  { $2 }
           | Symbol                         { TypeApply (snd $1) [] }
-          | Symbol typeArgs                { TypeApply (snd $1) $2 }
-          | type_ '.' Symbol               { TypeApply (snd $3) [$1] }
-          | type_ '.' Symbol typeArgs      { TypeApply (snd $3) ($1:$4) }
-          | tuple_t                        { $1 }
-
+--          | Symbol typeArgs                { TypeApply (snd $1) $2 }
+--          | '(' type_ ')'                  { $2 }
+--          | type_ '.' Symbol               { TypeApply (snd $3) [$1] }
+--          | type_ '.' Symbol typeArgs      { TypeApply (snd $3) ($1:$4) }
+--          | tuple_t                        { $1 }
+--
 ordinal_t   : Bool                         { Type.Bool }
             | U8                           { U8 }
             | I8                           { I8 }
@@ -330,7 +331,7 @@ ordinal_t   : Bool                         { Type.Bool }
             | F64                          { F64 }
             | Char                         { Type.Char }
 
-tuple_t : '(' type_ ',' types1 ')' { Type.TypeApply (Sym "Tuple") ($2:$4) }
+--tuple_t : '(' type_ ',' types1 ')' { Type.TypeApply (Symbol2 "Tuple") ($2:$4) }
 
 {
 parse :: MonadError Error m => [Token] -> m AST

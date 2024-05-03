@@ -2,13 +2,31 @@ module Symbol where
 
 import Prelude hiding (mod)
 import Data.List
+import Data.Char
 
 
 data Symbol
     = Sym          { sym_ :: String }
     | SymQualified { mod_ :: String, sym_ :: String }
     | SymResolved  { sym_ :: String, level :: Int }
-    deriving (Eq, Ord)
+
+
+    | Symbol2         { symStr :: String }
+    | Symbol2Resolved { symStr :: String }
+
+
+    deriving (Eq, Ord, Show)
+
+
+
+
+isResolved :: Symbol -> Bool
+isResolved (Symbol2Resolved _) = True
+isResolved (Symbol2 _)         = False
+
+isQualified :: Symbol -> Bool
+isQualified symbol = length (parseStr (symStr symbol)) > 1
+
 
 
 sym :: Symbol -> String
@@ -32,15 +50,17 @@ showSymGlobal symbol@(SymResolved s i) = mod symbol ++ "_" ++ sym symbol ++ "_" 
 prettySymbol :: Symbol -> String
 prettySymbol symbol@(SymResolved s i) = mod symbol ++ "::" ++ sym symbol
 prettySymbol symbol@(Sym s)           = s
+prettySymbol symbol@(Symbol2 s)       = s
+prettySymbol symbol@(Symbol2Resolved s) = s
 
 
 parseSymbol :: Symbol -> [String]
 parseSymbol (SymResolved s i) = parseStr s
-    where
-        parseStr :: String -> [String]
-        parseStr str = case isInfixOf "::" str of
-            True -> takeWhile (/= ':') str : parseStr (drop 2 $ dropWhile (/= ':') str)
-            False -> [str]
+
+parseStr :: String -> [String]
+parseStr str = case isInfixOf "::" str of
+    True -> takeWhile (/= ':') str : parseStr (drop 2 $ dropWhile (/= ':') str)
+    False -> [str]
 
 
 

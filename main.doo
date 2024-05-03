@@ -1,0 +1,62 @@
+module main
+
+type MyType2 main::MyType
+type MyType3 MyType2
+
+fn f(a I64)
+    return
+
+fn g(a I64) MyType3
+    a
+    return
+
+
+fn{T, G} generic(a T, b T) G
+    let a : G
+    return a
+
+
+feature Arithmetic
+    fn{T} add(a T, b T) T
+    fn{T} subtract(a T, b T) T
+
+
+fn main()
+    type LocalType I64
+    let x
+    x
+
+    fn Arithmetic::add(a I64, b I64) I64
+        return a
+
+
+    fn g()
+        type LocalType I64
+        let y : LocalType
+        let x : LocalType
+
+        x
+        return
+
+    f()
+    fn f()
+        add(x, x)
+        Arithmetic::add(x, x)
+        main::Arithmetic::add(x, x)
+        
+        feature Arithmetic
+            fn add(a I64, b I64) I64
+
+        add(x, x)
+
+        fn main::Arithmetic::add(a I64, b I64) I64
+            return a
+
+        f()
+        return
+    f()
+
+    x
+
+
+type MyType I64
