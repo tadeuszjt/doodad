@@ -1,5 +1,8 @@
 module main
 
+import imp
+
+
 type MyType2 main::MyType
 type MyType3 MyType2
 
@@ -8,7 +11,8 @@ fn f(a I64)
 
 fn g(a I64) MyType3
     a
-    return
+    impMethod()
+    return impFn(a)
 
 
 fn{T, G} generic(a T, b T) G
@@ -43,6 +47,8 @@ fn main()
         add(x, x)
         Arithmetic::add(x, x)
         main::Arithmetic::add(x, x)
+
+        let t:ImpType
         
         feature Arithmetic
             fn add(a I64, b I64) I64

@@ -1,0 +1,11 @@
+module imp
+
+type ImpType Bool
+
+fn{T} impFn(a ImpType) T
+    let b
+    return b
+
+feature ImpFeature
+    fn impMethod()
+

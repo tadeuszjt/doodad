@@ -143,7 +143,7 @@ fnHeaders : fnHeader 'N'            { [$1] }
           | fnHeader 'N' fnHeaders  { ($1 : $3) }
 --
 generics : {-empty-}                      { [] }
-         | '{' Idents1 '}'                { map Symbol2 $2 }
+         | '{' Idents1 '}'                { map Sym $2 }
 
 retty : {-empty-}     { Retty Type.Void }
       | type_         { Retty $1 }
@@ -160,7 +160,7 @@ line : expr                               { ExprStmt $1 }
 ----     | embed_c                            { AST.EmbedC (tokPos $1) (tokStr $1) }
 --
 block : func                              { FuncDef $1 }
-      | feature Ident 'I' fnHeaders 'D'   { Feature (tokPos $1) (Symbol2 $ tokStr $2) $4 }
+      | feature Ident 'I' fnHeaders 'D'   { Feature (tokPos $1) (Sym $ tokStr $2) $4 }
 ----      | while condition scope             { While (tokPos $1) $2 $3 }
 ----      | for expr scope                    { For (tokPos $1) $2 Nothing $3 }
 ----      | for expr '->' pattern scope       { For (tokPos $1) $2 (Just $4) $5 }
@@ -191,21 +191,21 @@ Idents1 : Ident                          { [tokStr $1] }
         | Ident ',' Idents1              { (tokStr $1):($3) } 
 
 --
-symbol : ident                           { (tokPos $1, Symbol2 (tokStr $1)) }
---       | symbol '::' ident               { (tokPos $3, Symbol2 (snd $1 ++ "::" ++ tokStr $3)) }
-       | Symbol '::' ident               { (tokPos $3, Symbol2 ((symStr (snd $1)) ++ "::" ++ tokStr $3)) }
+symbol : ident                           { (tokPos $1, Sym (tokStr $1)) }
+       | symbol '::' ident               { (tokPos $3, Sym ((symStr (snd $1)) ++ "::" ++ tokStr $3)) }
+       | Symbol '::' ident               { (tokPos $3, Sym ((symStr (snd $1)) ++ "::" ++ tokStr $3)) }
 --
-Symbol : Ident                           { (tokPos $1, Symbol2 (tokStr $1)) }
-       | symbol '::' Ident               { (tokPos $3, Symbol2 (symStr (snd $1) ++ "::" ++ tokStr $3)) }
---       | Symbol '::' Ident               { (tokPos $1, Symbol2 (snd $1 ++ "::" ++ tokStr $3)) }
---
---
+Symbol : Ident                           { (tokPos $1, Sym (tokStr $1)) }
+       | symbol '::' Ident               { (tokPos $3, Sym (symStr (snd $1) ++ "::" ++ tokStr $3)) }
+--       | Symbol '::' Ident               { (tokPos $1, Sym (snd $1 ++ "::" ++ tokStr $3)) }
 --
 --
-param   : ident type_                    { Param    (tokPos $1) (Symbol2 $ tokStr $1) $2 }
-        | ident '&' type_                { RefParam (tokPos $1) (Symbol2 $ tokStr $1) $3 }
-        | ident '[' ']' type_            { Param    (tokPos $2) (Symbol2 $ tokStr $1) (Type.Slice $4) }
-        | ident '&' '[' ']' type_        { RefParam (tokPos $2) (Symbol2 $ tokStr $1) (Type.Slice $5) }
+--
+--
+param   : ident type_                    { Param    (tokPos $1) (Sym $ tokStr $1) $2 }
+        | ident '&' type_                { RefParam (tokPos $1) (Sym $ tokStr $1) $3 }
+        | ident '[' ']' type_            { Param    (tokPos $2) (Sym $ tokStr $1) (Type.Slice $4) }
+        | ident '&' '[' ']' type_        { RefParam (tokPos $2) (Sym $ tokStr $1) (Type.Slice $5) }
 params  : {- empty -}                    { [] }
         | params1                        { $1 }
 params1 : param                          { [$1] }
@@ -230,7 +230,7 @@ paramsA1 : params1                       { $1 }
 pattern  : '_'                           { PatIgnore (tokPos $1) }
 ----         | literal                       { PatLiteral $1 }
 ----         | '-' int_c                     { PatLiteral (AST.Int (tokPos $1) $ 0 - (read $ tokStr $2)) }
-         | ident                         { PatIdent (tokPos $1) (Symbol2 $ tokStr $1) }
+         | ident                         { PatIdent (tokPos $1) (Sym $ tokStr $1) }
 ----         | '(' patterns ')'              { PatTuple (tokPos $1) $2 }
 ----         | pattern '|' expr              { PatGuarded (tokPos $2) $1 $ AExpr Type.Bool $ Call (tokPos $2) (Sym "construct") [$3] }
 ----         | pattern '|' expr '->' pattern { PatGuarded (tokPos $2) $1 (Match (tokPos $4) $3 $5) }
@@ -285,7 +285,7 @@ expr : symbol                                  { AST.Ident (fst $1) (snd $1) }
 ----       | '-' expr                                { Call (tokPos $1) (Sym "subtract") [$2] }
 --
 --
---literal : int_c                                  { Call (tokPos $1) (Symbol2 "Construct::construct") [AST.Int (tokPos $1) (read $ tokStr $1)] }
+--literal : int_c                                  { Call (tokPos $1) (Sym "Construct::construct") [AST.Int (tokPos $1) (read $ tokStr $1)] }
 ----        | float_c                                { Call (tokPos $1) (Sym "construct") [AST.Float (tokPos $1) (read $ tokStr $1)] }
 ----        | char_c                                 { Call (tokPos $1) (Sym "construct") [AST.Char (tokPos $1) (read $ tokStr $1)] }
 ----        | true                                   { Call (tokPos $1) (Sym "construct") [AST.Bool (tokPos $1) True] }
@@ -331,7 +331,7 @@ ordinal_t   : Bool                         { Type.Bool }
             | F64                          { F64 }
             | Char                         { Type.Char }
 
---tuple_t : '(' type_ ',' types1 ')' { Type.TypeApply (Symbol2 "Tuple") ($2:$4) }
+--tuple_t : '(' type_ ',' types1 ')' { Type.TypeApply (Sym "Tuple") ($2:$4) }
 
 {
 parse :: MonadError Error m => [Token] -> m AST

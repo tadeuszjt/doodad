@@ -52,9 +52,10 @@ deAnnotateFunc func = do
 
 deAnnotateMapper :: Elem -> DoM () Elem
 deAnnotateMapper elem = return $ case elem of
-    ElemExpr (AExpr typ expr)          | hasTypeVars typ -> ElemExpr expr
-    ElemPattern (PatAnnotated pat typ) | hasTypeVars typ -> ElemPattern pat
-    _                                                    -> elem
+    ElemExpr (AExpr typ expr)                  | hasTypeVars typ -> ElemExpr expr
+    ElemPattern (PatAnnotated pat typ)         | hasTypeVars typ -> ElemPattern pat
+    ElemPatternIsolated (PatAnnotated pat typ) | hasTypeVars typ -> ElemPatternIsolated pat
+    _                                                            -> elem
 
 hasTypeVars :: Type -> Bool
 hasTypeVars typ = case typ of

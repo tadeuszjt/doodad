@@ -59,6 +59,6 @@ runDoMUntilSameState f = runDoMUntilSameState' 1 f
 instance MonadFail (DoM s) where
     fail s = throwError (ErrorStr s)
 
-instance TypeDefs (DoM ASTResolved) where
-    getTypeDefs = gets typeDefsAll
+--instance TypeDefs (DoM ASTResolved) where
+--    getTypeDefs = gets typeDefsAll
 

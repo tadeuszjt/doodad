@@ -35,6 +35,10 @@ applyParam subs (RefParam pos symbol typ) = RefParam pos symbol (applyType subs 
 
 applyStmt :: [(Type, Type)] -> Stmt -> Stmt
 applyStmt subs stmt = case stmt of
+    Typedef pos generics symbol typ -> Typedef pos generics symbol (applyTy typ)
+    FuncDef func -> FuncDef (applyFunc subs func)
+    Feature pos symbol headers -> Feature pos symbol (map (applyFuncHeader subs) headers)
+
     Return pos mexpr -> Return pos (fmap applyEx mexpr)
     Block stmts      -> Block (map applySt stmts)
     If pos cnd blk mblk  -> If pos (applyEx cnd) (applySt blk) (fmap applySt mblk)
@@ -45,7 +49,7 @@ applyStmt subs stmt = case stmt of
     Switch pos expr cases -> Switch pos (applyEx expr) $ map (\(p, st) -> (applyPat p, applySt st)) cases
     While pos expr blk -> While pos (applyEx expr) (applySt blk)
     For pos expr mpat blk -> For pos (applyEx expr) (fmap applyPat mpat) (applySt blk)
-    x -> error "invalid statement"
+    x -> error (show x)
     where
         applySt = applyStmt subs
         applyEx = applyExpr subs

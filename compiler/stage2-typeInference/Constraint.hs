@@ -14,7 +14,7 @@ data Constraint
     | ConsForExpr Type Type
     | ConsSlice Type Type           
     | ConsDefault Type Type
-    deriving (Eq, Ord)
+    deriving (Eq, Ord, Show)
 
 
 
@@ -23,6 +23,7 @@ data ConstraintInfo
         { infoTextPos :: TextPos
         , infoMsg     :: String
         }
+    deriving (Show)
 
 instance TextPosition ConstraintInfo where
     textPos = infoTextPos

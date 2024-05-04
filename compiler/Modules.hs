@@ -25,8 +25,7 @@ import AST
 import Annotate
 import Infer
 import Collect as C
-import qualified Resolve as R
-import qualified Resolve2
+import qualified ResolveAst
 import qualified SymTab
 import ASTResolved
 import CBuilder as C
@@ -36,6 +35,7 @@ import Lexer
 import Compile as C
 import COptimise as O
 import Checker
+import CombineAsts
 
 -- Modules are groups of .doo files with a module name header
 -- lang/lexer.doo: lexer module
@@ -93,6 +93,22 @@ parse args file = do
     when (printTokens args) $ do
         liftIO $ mapM_ (putStrLn . show) newTokens
     P.parse newTokens
+
+
+getCanonicalImportPaths :: FilePath -> AST -> DoM Modules (Set.Set String)
+getCanonicalImportPaths modDirectory ast = do
+    doodadPath <- gets doodadPath
+    fmap Set.fromList $ forM [fp | S.Import fp <- S.astImports ast] $ \importPath -> do
+        let isRelative = isPrefixOf "../" importPath || isPrefixOf "./" importPath
+        let importPath' = joinPath (if isRelative then [modDirectory, importPath] else [doodadPath, importPath])
+        liftIO (canonicalizePath importPath')
+
+
+getAST :: String -> DoM Modules ASTResolved
+getAST path = do
+    resm <- Map.lookup path <$> gets moduleMap
+    unless (isJust resm) (error $ show path ++ " not in module map")
+    return (fromJust resm)
 
 
 buildBinaryFromModule :: Args -> FilePath -> DoM s ()
@@ -155,41 +171,32 @@ buildModule args modPath = do
         let modName = takeFileName absoluteModPath
         let modDirectory = takeDirectory absoluteModPath
 
-        -- get files and parse asts
         files <- getSpecificModuleFiles args modName =<< getDoodadFilesInDirectory modDirectory
         check (not $ null files) ("no matching files found in module path: " ++ absoluteModPath)
-        asts <- mapM (parse args) files
+        check (length files == 1) ("should only be one file")
+        ast <- parse args (head files)
 
-        when (printAst args) $ mapM_ (liftIO . S.prettyAST) asts
+        when (printAst args) $ liftIO (S.prettyAST ast)
 
+        importPaths <- Set.toList <$> getCanonicalImportPaths modDirectory ast
+        mapM_ (buildModule args) importPaths
+        imports <- mapM getAST importPaths
+        resolved <- ResolveAst.resolve ast imports
 
-        astsResolved <- forM asts $ \ast -> do
-            -- read imports and compile imported modules first
-            importPaths <- fmap (Set.toList . Set.fromList) $
-                forM [fp | S.Import fp <- S.astImports ast] $ \importPath -> do
-                    let isRelative = isPrefixOf "../" importPath || isPrefixOf "./" importPath
-                    let importPath' = joinPath (if isRelative then [modDirectory, importPath] else [doodadPath, importPath])
-                    liftIO (canonicalizePath importPath')
-            mapM (buildModule args) importPaths
+        when (printAstResolved args) $ liftIO (S.prettyAST resolved)
 
-            astImports <- forM importPaths $ \importPath -> do
-                resm <- Map.lookup importPath <$> gets moduleMap
-                unless (isJust resm) (error $ show importPath ++ " not in module map")
-                return (fromJust resm)
-        
-            Resolve2.resolveAst ast astImports
+        combined <- CombineAsts.combineAsts resolved imports
 
-        error "combine"
-        --modify $ \s -> s { moduleMap = Map.insert absoluteModPath resolved (moduleMap s) }
+        (inferred) <- infer args combined
 
 
---        -- compile this module
---        liftIO $ putStrLn $ "compiling: " ++ absoluteModPath
+        when (printAstFinal args) $ liftIO (prettyASTResolved inferred)
 
 
---        astResolved <- fmap (fst . fst) $ runDoMExcept () (R.resolveAsts asts astImports)
---        --Flatten.checkTypeDefs (typeDefs astResolved)
---        when (printAstResolved args) $ liftIO $ prettyASTResolved astResolved
+
+        modify $ \s -> s { moduleMap = Map.insert absoluteModPath inferred (moduleMap s) }
+
+        return ()
 
 
 --        -- infer ast types
