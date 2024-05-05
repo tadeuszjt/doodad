@@ -55,13 +55,6 @@ mapStmtM :: MapperFunc s -> Stmt -> DoM s Stmt
 mapStmtM f stmt = withPos stmt $ do
     res <- f . ElemStmt =<< case stmt of
         Typedef _ _ _ _ -> return stmt -- ignored
-        Feature _ _ _   -> return stmt -- ignored
-
-        FuncDef (Func header stmt) -> do
-            header' <- mapFuncHeaderM f header
-            stmt' <- mapStmtM f stmt
-            return $ FuncDef (Func header' stmt')
-
         EmbedC pos s -> return $ EmbedC pos s
         Block stmts -> Block <$> mapM (mapStmtM f) stmts
         ExprStmt expr -> ExprStmt <$> mapExprM f expr
@@ -83,7 +76,6 @@ mapStmtM f stmt = withPos stmt $ do
             mcnd' <- traverse (mapPattern f) mcnd
             blk'  <- mapStmtM f blk
             return $ For pos expr' mcnd' blk'
-
 
         While pos cnd blk -> do
             cnd' <- mapExprM f cnd

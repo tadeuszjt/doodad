@@ -13,6 +13,7 @@ import Args
 import AST
 import qualified Parser as P
 import qualified SymTab
+import Resolve
 import Lexer
 
 

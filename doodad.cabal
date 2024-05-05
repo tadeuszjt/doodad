@@ -76,6 +76,7 @@ executable doodad
         Annotate,
         Collect,
         Unify,
+        Resolve,
         Infer,
         Symbol,
         ASTResolved,
@@ -93,8 +94,7 @@ executable doodad
         ASTMapper,
         Checker,
         Builtin,
-        ResolveAst,
-        CombineAsts
+        Resolve2
 
 executable doodad-test
     main-is: TestMain.hs

@@ -95,7 +95,7 @@ isIntegral x = isInt x || x == Char
 
 
 isGeneric :: Type -> Bool
-isGeneric (TypeApply s ts) = error "here"
+isGeneric (TypeApply s ts) = "<generic>" `isPrefixOf` (Symbol.sym s)
 isGeneric _                = False
 
 

@@ -1,21 +1,19 @@
-module ResolveAst where
+module Resolve2 where
 
+import ASTResolved
 import Control.Monad
 import Control.Monad.State
 import Control.Monad.IO.Class
+import AST
+import Monad
 import qualified Data.Map as Map
-import qualified Data.Set as Set
 import Data.Maybe
 import Data.Char
 import Data.List
-
-import qualified SymTab
-import Type
-import ASTResolved
 import Symbol
 import Error
-import AST
-import Monad
+import qualified SymTab
+import Type
 
 
 
@@ -47,56 +45,11 @@ pushSymTab :: DoM ResolveState ()
 pushSymTab = modify $ \s -> s { symTab = SymTab.push (symTab s) }
 
 
-resolve :: AST -> [ASTResolved] -> DoM s AST
-resolve ast imports = do
-    fmap fst $ runDoMExcept (initResolveState $ astModuleName ast) resolve'
-    where
-        resolve' :: DoM ResolveState AST
-        resolve' = do
-            forM_ imports $ \imprt -> do
-                forM_ (topTypedefs imprt) $ \(Typedef _ _ symbol _) ->
-                    define symbol KeyType
-
-                forM_ (topFuncdefs imprt) $ \(FuncDef (Func header _)) ->
-                    define (funcSymbol header) KeyFunc
-
-                forM_ (topFeatures imprt) $ \(Feature _ _ headers) ->
-                    forM_ headers $ \header ->
-                        define (funcSymbol header) KeyFunc
-
-            resolveAst ast
-
-
-
-resolveAst :: AST -> DoM ResolveState AST
-resolveAst ast = do
-    forM_ (astStmts ast) $ \stmt -> withPos stmt $ case stmt of
-        FuncDef _       -> return ()
-        Typedef _ _ _ _ -> return ()
-        Feature _ _ _   -> return ()
-        _               -> fail "invalid top-level statement"
-
-    let typeDefs = [ x | x@(Typedef _ _ _ _) <- astStmts ast ]
-    let features = [ x | x@(Feature _ _ _)   <- astStmts ast ]
-    let funcDefs = [ x | x@(FuncDef _)       <- astStmts ast ]
-
-    typeDefs' <- forM typeDefs $ \(Typedef pos generics symbol typ) -> do
-        symbol' <- defineNewType symbol
-        return (Typedef pos generics symbol' typ)
-
-    features' <- forM features $ \(Feature pos symbol headers) -> do
-        symbol' <- defineNewFeature symbol
-        return (Feature pos symbol' headers)
-
-    funcDefs' <- forM funcDefs $ \(FuncDef (Func header stmt)) -> do
-        symbol' <- case isQualified (funcSymbol header) of
-            False -> defineNewFunc (funcSymbol header)
-            True  -> look (funcSymbol header) KeyFunc
-        return $ FuncDef $ Func (header { funcSymbol = symbol' }) stmt
-
-    stmts' <- mapM resolveStmt (typeDefs' ++ features' ++ funcDefs')
-    return (ast { astStmts = stmts' })
-
+resolveAst :: AST -> [ASTResolved] -> DoM s ASTResolved
+resolveAst ast imports = do
+    ast' <- fmap fst $ runDoMExcept (initResolveState $ astModuleName ast) (resolveSymbols ast)
+    liftIO $ prettyAST ast'
+    error "here"
 
 
 look :: Symbol -> SymKey -> DoM ResolveState Symbol
@@ -141,7 +94,7 @@ symbolName symbol = case reverse (parseStr $ symStr symbol) of
 
 
 define :: Symbol -> SymKey -> DoM ResolveState Symbol
-define symbol@(SymResolved _) key = do
+define symbol@(Symbol2Resolved _) key = do
     symbol' <- supplySymbol symbol key
     resm <- lookHeadm symbol key
     unless (isNothing resm) (fail $ "symbol already defined: " ++ prettySymbol symbol)
@@ -153,52 +106,51 @@ define symbol@(SymResolved _) key = do
 supplySymbol :: Symbol -> SymKey -> DoM ResolveState Symbol
 supplySymbol symbol key = do
     resm <- gets $ Map.lookup (symbol, key) . supply
-    res <- case resm of
+    case resm of
         Nothing -> do
             modify $ \s -> s { supply = Map.insert (symbol, key) 1 (supply s) }
-            return $ SymResolved (symStr symbol)
+            return $ Symbol2Resolved (symStr symbol)
         Just n  -> do
-            modify $ \s -> s { supply = Map.insert (symbol, key) (n + 1) (supply s) }
-            return $ SymResolved (symStr symbol ++ "::" ++ show n)
-    return res
+            modify $ \s -> s { supply = Map.insert (symbol, KeyType) (n + 1) (supply s) }
+            return $ Symbol2Resolved (symStr symbol ++ "::" ++ show n)
 
 
 defineNewType :: Symbol -> DoM ResolveState Symbol
-defineNewType symbol@(Sym str) = do
+defineNewType symbol@(Symbol2 str) = do
     unless (length (parseStr str) == 1) (error "symbol must be one ident")
     modName <- gets modName
-    let symbol' = SymResolved (modName ++ "::" ++ str)
+    let symbol' = Symbol2Resolved (modName ++ "::" ++ str)
     define symbol' KeyType
 
 
 defineNewFeature :: Symbol -> DoM ResolveState Symbol
-defineNewFeature symbol@(Sym str) = do
+defineNewFeature symbol@(Symbol2 str) = do
     unless (length (parseStr str) == 1) (error "symbol must be one ident")
     modName <- gets modName
-    let symbol' = SymResolved (modName ++ "::" ++ str)
-    define symbol' KeyFunc
+    let symbol' = Symbol2Resolved (modName ++ "::" ++ str)
+    define symbol' KeyType
 
 
 defineNewFeatureMember :: Symbol -> Symbol -> DoM ResolveState Symbol
-defineNewFeatureMember featureSymbol symbol@(Sym str) = do
+defineNewFeatureMember featureSymbol symbol@(Symbol2 str) = do
     unless (length (parseStr str) == 1) (error "symbol must be one ident")
-    let symbol' = SymResolved (symStr featureSymbol ++ "::" ++ symStr symbol)
+    let symbol' = Symbol2Resolved (symStr featureSymbol ++ "::" ++ symStr symbol)
     define symbol' KeyFunc
 
 
 defineNewFunc :: Symbol -> DoM ResolveState Symbol
-defineNewFunc symbol@(Sym str) = do
+defineNewFunc symbol@(Symbol2 str) = do
     unless (length (parseStr str) == 1) (error "symbol must be one ident")
     modName <- gets modName
-    let symbol' = SymResolved (modName ++ "::" ++ str)
+    let symbol' = Symbol2Resolved (modName ++ "::" ++ str)
     define symbol' KeyFunc
 
 
 defineNewVar :: Symbol -> DoM ResolveState Symbol
-defineNewVar symbol@(Sym str) = do
+defineNewVar symbol@(Symbol2 str) = do
     unless (length (parseStr str) == 1) (error "symbol must be one ident")
     modName <- gets modName
-    let symbol' = SymResolved (modName ++ "::" ++ str)
+    let symbol' = Symbol2Resolved (modName ++ "::" ++ str)
     define symbol' KeyVar
 
 
@@ -206,9 +158,39 @@ defineNewGenerics :: [Symbol] -> DoM ResolveState [Symbol]
 defineNewGenerics symbols = do
     forM symbols $ \symbol -> do
         unless (length (parseStr $ symStr symbol) == 1) (error "symbol must be one ident")
-        let symbol' = SymResolved ("type::" ++ symStr symbol)
+        let symbol' = Symbol2Resolved ("type::" ++ symStr symbol)
         define symbol' KeyType
     
+
+resolveSymbols :: AST -> DoM ResolveState AST
+resolveSymbols ast = do
+    forM_ (astStmts ast) $ \stmt -> withPos stmt $ case stmt of
+        FuncDef _       -> return ()
+        Typedef _ _ _ _ -> return ()
+        Feature _ _ _   -> return ()
+        _               -> fail "invalid top-level statement"
+
+    let typeDefs = [ x | x@(Typedef _ _ _ _) <- astStmts ast ]
+    let features = [ x | x@(Feature _ _ _)   <- astStmts ast ]
+    let funcDefs = [ x | x@(FuncDef _)       <- astStmts ast ]
+
+    typeDefs' <- forM typeDefs $ \(Typedef pos generics symbol typ) -> do
+        symbol' <- defineNewType symbol
+        return (Typedef pos generics symbol' typ)
+
+    features' <- forM features $ \(Feature pos symbol headers) -> do
+        symbol' <- defineNewFeature symbol
+        return (Feature pos symbol' headers)
+
+    funcDefs' <- forM funcDefs $ \(FuncDef (Func header stmt)) -> do
+        symbol' <- case isQualified (funcSymbol header) of
+            False -> defineNewFunc (funcSymbol header)
+            True  -> look (funcSymbol header) KeyFunc
+        return $ FuncDef $ Func (header { funcSymbol = symbol' }) stmt
+
+    stmts' <- mapM resolveStmt (typeDefs' ++ features' ++ funcDefs')
+    return (ast { astStmts = stmts' })
+
 
 resolveArg :: Param -> DoM ResolveState Param
 resolveArg arg = withPos arg $ case arg of
@@ -248,7 +230,7 @@ resolveStmt statement = withPos statement $ case statement of
 
     Feature pos symbol headers -> do
         symbol' <- case isResolved symbol of
-            True -> look symbol KeyFunc
+            True -> look symbol KeyType
             False -> defineNewFeature symbol
         headers' <- forM headers $ \header -> withPos header $ do
             funcSymbol' <- defineNewFeatureMember symbol' (funcSymbol header)

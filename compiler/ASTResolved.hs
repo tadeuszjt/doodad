@@ -17,12 +17,23 @@ filterMapBySet set map = Map.filterWithKey (\k _ -> Set.member k set) map
 
 data ASTResolved
     = ASTResolved
-        { moduleName  :: String
-        , includes    :: Set.Set String                  -- c header includes
-        , links       :: Set.Set String                  -- linked libraries
-        , topTypedefs :: [Stmt]
-        , topFuncdefs :: [Stmt]
-        , topFeatures :: [Stmt]
+        { moduleName           :: String
+        , includes             :: Set.Set String                  -- c header includes
+        , links                :: Set.Set String                  -- linked libraries
+
+        , typeDefsAll          :: Type.TypeDefsMap                -- all type defs
+        , typeDefs             :: Set.Set Symbol                  -- top-level type defs
+
+        , featuresAll          :: Map.Map Symbol FuncHeader
+        , featuresTop          :: Set.Set Symbol
+
+        , funcDefsAll          :: Map.Map Symbol Func
+        , funcDefsTop          :: Set.Set Symbol
+
+        , funcInstance         :: Map.Map CallHeader Func
+        , funcInstanceImported :: Map.Map CallHeader Func
+
+        , symSupply            :: Map.Map String Int              
         }
     deriving (Eq)
 
@@ -48,22 +59,22 @@ callHeaderFromFuncHeader (FuncHeader _ _ symbol args retty)
 
 
 
---callCouldMatchFunc :: Monad m => CallHeader -> FuncHeader -> m Bool
---callCouldMatchFunc call header = do
---    if symbolsMatch then do
---        am <- argsMatch
---        rm <- rettyMatch
---        return (am && rm)
---    else return False
---    where
---        typesMatch :: Monad m => [Type] -> [Type] -> m Bool
---        typesMatch ts1 ts2 = do
---            bs <- zipWithM typesCouldMatch ts1 ts2
---            return $ (length ts1 == length ts2) && (all id bs)
---
---        symbolsMatch = symbolsCouldMatch (callSymbol call) (funcSymbol header)
---        argsMatch    = typesMatch (callArgTypes call) (map typeof $ funcArgs header)
---        rettyMatch   = typesCouldMatch (callRetType call) (typeof $ funcRetty header)
+callCouldMatchFunc :: Monad m => CallHeader -> FuncHeader -> m Bool
+callCouldMatchFunc call header = do
+    if symbolsMatch then do
+        am <- argsMatch
+        rm <- rettyMatch
+        return (am && rm)
+    else return False
+    where
+        typesMatch :: Monad m => [Type] -> [Type] -> m Bool
+        typesMatch ts1 ts2 = do
+            bs <- zipWithM typesCouldMatch ts1 ts2
+            return $ (length ts1 == length ts2) && (all id bs)
+
+        symbolsMatch = symbolsCouldMatch (callSymbol call) (funcSymbol header)
+        argsMatch    = typesMatch (callArgTypes call) (map typeof $ funcArgs header)
+        rettyMatch   = typesCouldMatch (callRetType call) (typeof $ funcRetty header)
 
 
 funcHeaderFullyResolved :: FuncHeader -> Bool
@@ -79,40 +90,39 @@ isGenericHeader header = funcGenerics header /= []
 
 
 getFunction :: Symbol -> ASTResolved -> Func
-getFunction symbol ast = error ""
---getFunction symbol ast = if Map.member symbol (funcDefsAll ast) then
---        funcDefsAll ast Map.! symbol
---    else error ("symbol is not function: " ++ prettySymbol symbol)
+getFunction symbol ast = if Map.member symbol (funcDefsAll ast) then
+        funcDefsAll ast Map.! symbol
+    else error ("symbol is not function: " ++ prettySymbol symbol)
 
 
 getFunctionHeader :: Symbol -> ASTResolved -> FuncHeader
-getFunctionHeader symbol ast = error ""
---getFunctionHeader symbol ast = funcHeader $
---    if Map.member symbol (funcDefsAll ast) then
---        funcDefsAll ast Map.! symbol
---    else error ("symbol is not function: " ++ prettySymbol symbol)
+getFunctionHeader symbol ast = funcHeader $
+    if Map.member symbol (funcDefsAll ast) then
+        funcDefsAll ast Map.! symbol
+    else error ("symbol is not function: " ++ prettySymbol symbol)
 
 
 getInstanceHeader :: Symbol -> ASTResolved -> FuncHeader
-getInstanceHeader symbol ast = error ""
---getInstanceHeader symbol ast = funcHeader $ snd $ head $ Map.toList $ 
---    Map.filter (\func -> funcSymbol (funcHeader func) == symbol) allInstances
---    where
---        allInstances = Map.union (funcInstance ast) (funcInstanceImported ast)
+getInstanceHeader symbol ast = funcHeader $ snd $ head $ Map.toList $ 
+    Map.filter (\func -> funcSymbol (funcHeader func) == symbol) allInstances
+    where
+        allInstances = Map.union (funcInstance ast) (funcInstanceImported ast)
+
+
 
 prettyASTResolved :: ASTResolved -> IO ()
 prettyASTResolved ast = do
     putStrLn $ "module " ++ moduleName ast
     putStrLn ""
 
-    forM_ (topTypedefs ast) $ \stmt -> do
-        putStrLn ""
-        prettyStmt "" stmt
+    forM_ (Set.toList $ typeDefs ast) $ \symbol -> do
+        let (generics, typ) = typeDefsAll ast Map.! symbol
+        prettyStmt "" (AST.Typedef undefined generics symbol typ)
 
-    forM_ (topFeatures ast) $ \stmt -> do
-        putStrLn ""
-        prettyStmt "" stmt
+    putStrLn ""
 
-    forM_ (topFuncdefs ast) $ \stmt -> do
-        putStrLn ""
-        prettyStmt "" stmt
+    forM_ (Set.toList $ funcDefsTop ast) $ \symbol -> do
+        let func = funcDefsAll ast Map.! symbol
+        prettyStmt "" $ FuncDef (Func (funcHeader func) (funcStmt func))
+
+    putStrLn ""
