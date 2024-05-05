@@ -141,13 +141,18 @@ buildBinaryFromModule args modPath = do
         liftIO $ removeFile cFile
 
 
+getCanonicalModPath :: FilePath -> DoM Modules FilePath
+getCanonicalModPath path = do
+    doodadPath <- gets doodadPath
+    let isRelative = isPrefixOf "../" path || isPrefixOf "./" path
+    let modPath' = if isRelative then path else joinPath [doodadPath, path]
+    liftIO (canonicalizePath modPath')
+
 
 buildModule :: Args -> FilePath -> DoM Modules ()
 buildModule args modPath = do
     doodadPath <- gets doodadPath
-    let isRelative = isPrefixOf "../" modPath || isPrefixOf "./" modPath
-    let modPath' = if isRelative then modPath else joinPath [doodadPath, modPath]
-    absoluteModPath <- liftIO $ canonicalizePath modPath'
+    absoluteModPath <- getCanonicalModPath modPath
 
     isCompiled <- Map.member absoluteModPath <$> gets moduleMap
     when (not isCompiled) $ do
@@ -156,48 +161,44 @@ buildModule args modPath = do
 
         -- get files and parse asts
         files <- getSpecificModuleFiles args modName =<< getDoodadFilesInDirectory modDirectory
-        check (not $ null files) ("no matching files found in module path: " ++ absoluteModPath)
-        asts <- mapM (parse args) files
-        when (printAst args) $ mapM_ (liftIO . S.prettyAST) asts
+        file <- case files of
+            [] -> fail ("module file not found in path: " ++ absoluteModPath)
+            [x] -> return x
+            xs  -> fail ("multiple matching module files found in path: " ++ absoluteModPath)
+
+        ast <- parse args file
+        when (printAst args) $ liftIO (S.prettyAST ast)
 
         -- read imports and compile imported modules first
         importPaths <- fmap (Set.toList . Set.fromList) $
-            forM [fp | S.Import fp <- concat $ map S.astImports asts] $ \importPath -> do
-                let isRelative = isPrefixOf "../" importPath || isPrefixOf "./" importPath
-                let importPath' = joinPath (if isRelative then [modDirectory, importPath] else [doodadPath, importPath])
-                liftIO $ canonicalizePath importPath'
+            forM [fp | S.Import fp <- S.astImports ast] $ \importPath -> do
+                getCanonicalModPath importPath
         mapM (buildModule args) importPaths
 
         -- compile this module
-        liftIO $ putStrLn $ "compiling: " ++ absoluteModPath
+        liftIO $ putStrLn ("compiling: " ++ absoluteModPath)
 
 
         -- unify asts and resolve symbols
         astImports <- forM importPaths $ \importPath -> do
             resm <- Map.lookup importPath <$> gets moduleMap
             unless (isJust resm) (error $ show importPath ++ " not in module map")
-            return $ fromJust resm
+            return (fromJust resm)
 
-        astResolved' <- fmap (fst . fst) $ runDoMExcept () (R.resolveAsts asts astImports)
-        --Flatten.checkTypeDefs (typeDefs astResolved)
-        when (printAstResolved args) $ liftIO $ prettyASTResolved astResolved'
-
-        -- remove spurious tuples
-        astResolved <- return astResolved'
+        astResolved <- fmap fst (R.resolveAst ast astImports)
+        when (printAstResolved args) $ liftIO (prettyASTResolved astResolved)
 
         -- infer ast types
-        (astFinal, inferCount) <- fmap fst $ runDoMExcept () $ withErrorPrefix "infer: " $
+        (astFinal, inferCount) <- withErrorPrefix "infer: " $
             infer astResolved (printAstAnnotated args) (verbose args)
         when (verbose args) $ do
             liftIO $ putStrLn $ "ran:       " ++ show inferCount ++ " type inference passes"
-        when (printAstFinal args) $ liftIO $ prettyASTResolved astFinal
+        when (printAstFinal args) $ liftIO (prettyASTResolved astFinal)
         
         modify $ \s -> s { moduleMap = Map.insert absoluteModPath astFinal (moduleMap s) }
 
-        
         -- check ast for memory/type violations
-        withErrorPrefix "checker: " $ runASTChecker astFinal
-
+        withErrorPrefix "checker: " (runASTChecker astFinal)
 
         -- build C ast from final ast
         res <- generateAst astFinal

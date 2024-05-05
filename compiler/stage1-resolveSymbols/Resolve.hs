@@ -62,13 +62,13 @@ initAstResolved modName imports = ASTResolved
 
 
 modifyAst :: (ASTResolved -> ASTResolved) -> DoM ResolveState ()
-modifyAst f = modify $ \s -> s { ast = f (ast s) }
+modifyAst f = modify $ \s -> s { astResolved = f (astResolved s) }
 
 
 data ResolveState
     = ResolveState
         { symTab           :: SymTab
-        , ast              :: ASTResolved
+        , astResolved      :: ASTResolved
         , typeDefsImported :: Set.Set Symbol
         , typeDefsLocal    :: SymTab.SymTab String () Symbol
         , funcDefsImported :: Set.Set Symbol
@@ -79,7 +79,7 @@ data ResolveState
 
 initResolveState imports modName = ResolveState
     { symTab           = SymTab.initSymTab
-    , ast              = initAstResolved modName imports
+    , astResolved      = initAstResolved modName imports
     , typeDefsImported = Set.unions (map typeDefs imports)
     , funcDefsImported = Set.unions (map funcDefsTop imports)
     , featuresImported = Set.unions (map featuresTop imports)
@@ -139,13 +139,13 @@ lookm symbol KeyType = do
                 Just s -> return [s]
                 Nothing -> do
                     typeFuncs <- gets typeDefsImported
-                    modName <- gets (moduleName . ast)
+                    modName <- gets (moduleName . astResolved)
                     return $ Set.toList $ Set.filter
                             (\s -> Symbol.sym s == sym && modName /= Symbol.mod s)
                             typeFuncs
 
         SymQualified mod sym -> do
-            modName <- gets (moduleName . ast)
+            modName <- gets (moduleName . astResolved)
             if mod == modName then do
                 resm <- SymTab.lookup sym () <$> gets typeDefsLocal
                 case resm of
@@ -167,8 +167,8 @@ lookm symbol KeyType = do
 
 genSymbol :: String -> DoM ResolveState Symbol
 genSymbol sym = do  
-    modName <- gets (moduleName . ast)
-    im <- gets $ Map.lookup sym . symSupply . ast
+    modName <- gets (moduleName . astResolved)
+    im <- gets $ Map.lookup sym . symSupply . astResolved
     let n = maybe 0 (id) im
     modifyAst $ \s -> s { symSupply = Map.insert sym (n + 1) (symSupply s) }
     return $ SymResolved (modName ++ "::" ++ sym) n
@@ -199,14 +199,14 @@ popSymbolTable = do
         }
 
 
-resolveAsts :: [AST] -> [ASTResolved] -> DoM s (ASTResolved, ResolveState)
-resolveAsts asts imports = runDoMExcept (initResolveState imports (astModuleName $ head asts)) $
+resolveAst :: AST -> [ASTResolved] -> DoM s (ASTResolved, ResolveState)
+resolveAst ast imports = runDoMExcept (initResolveState imports (astModuleName ast)) $
     withErrorPrefix "symbol resolver: " $ do
-        let includes = [ s | inc@(CInclude s) <- concat $ map astImports asts ]
-        let links    = [ s | link@(CLink s) <- concat $ map astImports asts ]
-        let typedefs = [ stmt | stmt@(AST.Typedef _ _ _ _) <- concat $ map astStmts asts ]
-        let funcdefs = [ stmt | stmt@(AST.FuncDef _) <- concat $ map astStmts asts ]
-        let features = [ stmt | stmt@(AST.Feature _ _ _) <- concat $ map astStmts asts ]
+        let includes = [ s | inc@(CInclude s) <- astImports ast ]
+        let links    = [ s | link@(CLink s) <- astImports ast ]
+        let typedefs = [ stmt | stmt@(AST.Typedef _ _ _ _) <- astStmts ast ]
+        let funcdefs = [ stmt | stmt@(AST.FuncDef _) <- astStmts ast ]
+        let features = [ stmt | stmt@(AST.Feature _ _ _) <- astStmts ast ]
 
         modifyAst $ \s -> s { includes = Set.fromList includes , links = Set.fromList links }
 
@@ -244,9 +244,7 @@ resolveAsts asts imports = runDoMExcept (initResolveState imports (astModuleName
 
 
         -- check validity
-        unless (all (== (astModuleName $ head asts)) $ map astModuleName asts)
-            (error "module name mismatch")
-        forM_ (concat $ map astStmts asts) $ \stmt -> withPos stmt $ case stmt of
+        forM_ (astStmts ast) $ \stmt -> withPos stmt $ case stmt of
             (AST.Typedef _ _ _ _) -> return ()
             (AST.FuncDef _) -> return ()
             (AST.Feature _ _ _) -> return ()
@@ -285,7 +283,7 @@ resolveAsts asts imports = runDoMExcept (initResolveState imports (astModuleName
 
         popSymbolTable
 
-        gets ast
+        gets astResolved
 
 
 defineGenerics :: [Symbol] -> DoM ResolveState [Symbol]
@@ -512,7 +510,7 @@ resolveMapper element = case element of
             symbols <- lookFuncSymbol sym
             case symbols of
                 [] -> do
-                    modname <- gets (moduleName . ast)
+                    modname <- gets (moduleName . astResolved)
                     liftIO $ putStrLn $ (modname ++ " warning: no defs for: ") ++ show sym
                 _ -> return ()
             
