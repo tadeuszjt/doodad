@@ -93,8 +93,7 @@ executable doodad
         FunctionFinder,
         ASTMapper,
         Checker,
-        Builtin,
-        Resolve2
+        Builtin
 
 executable doodad-test
     main-is: TestMain.hs

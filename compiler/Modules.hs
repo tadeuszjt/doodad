@@ -26,7 +26,6 @@ import Annotate
 import Infer
 import Collect as C
 import qualified Resolve as R
-import qualified Resolve2
 import qualified SymTab
 import ASTResolved
 import CBuilder as C
@@ -159,74 +158,68 @@ buildModule args modPath = do
         files <- getSpecificModuleFiles args modName =<< getDoodadFilesInDirectory modDirectory
         check (not $ null files) ("no matching files found in module path: " ++ absoluteModPath)
         asts <- mapM (parse args) files
-
         when (printAst args) $ mapM_ (liftIO . S.prettyAST) asts
 
+        -- read imports and compile imported modules first
+        importPaths <- fmap (Set.toList . Set.fromList) $
+            forM [fp | S.Import fp <- concat $ map S.astImports asts] $ \importPath -> do
+                let isRelative = isPrefixOf "../" importPath || isPrefixOf "./" importPath
+                let importPath' = joinPath (if isRelative then [modDirectory, importPath] else [doodadPath, importPath])
+                liftIO $ canonicalizePath importPath'
+        mapM (buildModule args) importPaths
 
-        astsResolved <- forM asts $ \ast -> do
-            -- read imports and compile imported modules first
-            importPaths <- fmap (Set.toList . Set.fromList) $
-                forM [fp | S.Import fp <- S.astImports ast] $ \importPath -> do
-                    let isRelative = isPrefixOf "../" importPath || isPrefixOf "./" importPath
-                    let importPath' = joinPath (if isRelative then [modDirectory, importPath] else [doodadPath, importPath])
-                    liftIO (canonicalizePath importPath')
-            mapM (buildModule args) importPaths
+        -- compile this module
+        liftIO $ putStrLn $ "compiling: " ++ absoluteModPath
 
-            astImports <- forM importPaths $ \importPath -> do
-                resm <- Map.lookup importPath <$> gets moduleMap
-                unless (isJust resm) (error $ show importPath ++ " not in module map")
-                return (fromJust resm)
+
+        -- unify asts and resolve symbols
+        astImports <- forM importPaths $ \importPath -> do
+            resm <- Map.lookup importPath <$> gets moduleMap
+            unless (isJust resm) (error $ show importPath ++ " not in module map")
+            return $ fromJust resm
+
+        astResolved' <- fmap (fst . fst) $ runDoMExcept () (R.resolveAsts asts astImports)
+        --Flatten.checkTypeDefs (typeDefs astResolved)
+        when (printAstResolved args) $ liftIO $ prettyASTResolved astResolved'
+
+        -- remove spurious tuples
+        astResolved <- return astResolved'
+
+        -- infer ast types
+        (astFinal, inferCount) <- fmap fst $ runDoMExcept () $ withErrorPrefix "infer: " $
+            infer astResolved (printAstAnnotated args) (verbose args)
+        when (verbose args) $ do
+            liftIO $ putStrLn $ "ran:       " ++ show inferCount ++ " type inference passes"
+        when (printAstFinal args) $ liftIO $ prettyASTResolved astFinal
         
-            Resolve2.resolveAst ast astImports
-
-        error "combine"
-        --modify $ \s -> s { moduleMap = Map.insert absoluteModPath resolved (moduleMap s) }
-
-
---        -- compile this module
---        liftIO $ putStrLn $ "compiling: " ++ absoluteModPath
-
-
---        astResolved <- fmap (fst . fst) $ runDoMExcept () (R.resolveAsts asts astImports)
---        --Flatten.checkTypeDefs (typeDefs astResolved)
---        when (printAstResolved args) $ liftIO $ prettyASTResolved astResolved
-
-
---        -- infer ast types
---        (astFinal, inferCount) <- fmap fst $ runDoMExcept () $ withErrorPrefix "infer: " $
---            infer astResolved (printAstAnnotated args) (verbose args)
---        when (verbose args) $ do
---            liftIO $ putStrLn $ "ran:       " ++ show inferCount ++ " type inference passes"
---        when (printAstFinal args) $ liftIO $ prettyASTResolved astFinal
-        
---        modify $ \s -> s { moduleMap = Map.insert absoluteModPath astFinal (moduleMap s) }
+        modify $ \s -> s { moduleMap = Map.insert absoluteModPath astFinal (moduleMap s) }
 
         
---        -- check ast for memory/type violations
---        withErrorPrefix "checker: " $ runASTChecker astFinal
---
---
---        -- build C ast from final ast
---        res <- generateAst astFinal
---        cBuilderState <- case res of
---            Right x -> return (snd x)
---            Left e -> throwError e
---
---        -- optimise C builder state
---        let includePaths = includes astFinal
---        finalBuilderState <- if Args.optimise args then do
---            (((), n), cBuilderStateOptimised) <- runDoMExcept cBuilderState $ do
---                runDoMUntilSameState O.optimise
---            when (verbose args) $ do
---                liftIO $ putStrLn $ "ran:       " ++ show n ++ " optimisation passes"
---            return cBuilderStateOptimised
---        else return cBuilderState
---
---        -- write builder state to C file
---        cFilePath <- liftIO $ writeSystemTempFile (modName ++ ".c") ""
---        modify $ \s -> s { cFileMap = Map.insert absoluteModPath cFilePath (cFileMap s) }
---        cHandle <- liftIO $ openFile cFilePath WriteMode
---        void $ runDoMExcept (initCPrettyState cHandle finalBuilderState) (cPretty includePaths)
---        void $ liftIO $ hClose cHandle
---        count <- liftIO $ length . lines <$> readFile cFilePath
---        when (verbose args) $ liftIO $ putStrLn $ "wrote c:   " ++ cFilePath ++ " LOC:" ++ show count
+        -- check ast for memory/type violations
+        withErrorPrefix "checker: " $ runASTChecker astFinal
+
+
+        -- build C ast from final ast
+        res <- generateAst astFinal
+        cBuilderState <- case res of
+            Right x -> return (snd x)
+            Left e -> throwError e
+
+        -- optimise C builder state
+        let includePaths = includes astFinal
+        finalBuilderState <- if Args.optimise args then do
+            (((), n), cBuilderStateOptimised) <- runDoMExcept cBuilderState $ do
+                runDoMUntilSameState O.optimise
+            when (verbose args) $ do
+                liftIO $ putStrLn $ "ran:       " ++ show n ++ " optimisation passes"
+            return cBuilderStateOptimised
+        else return cBuilderState
+
+        -- write builder state to C file
+        cFilePath <- liftIO $ writeSystemTempFile (modName ++ ".c") ""
+        modify $ \s -> s { cFileMap = Map.insert absoluteModPath cFilePath (cFileMap s) }
+        cHandle <- liftIO $ openFile cFilePath WriteMode
+        void $ runDoMExcept (initCPrettyState cHandle finalBuilderState) (cPretty includePaths)
+        void $ liftIO $ hClose cHandle
+        count <- liftIO $ length . lines <$> readFile cFilePath
+        when (verbose args) $ liftIO $ putStrLn $ "wrote c:   " ++ cFilePath ++ " LOC:" ++ show count

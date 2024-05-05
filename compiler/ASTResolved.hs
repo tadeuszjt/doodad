@@ -20,7 +20,6 @@ data ASTResolved
         { moduleName           :: String
         , includes             :: Set.Set String                  -- c header includes
         , links                :: Set.Set String                  -- linked libraries
-
         , typeDefsAll          :: Type.TypeDefsMap                -- all type defs
         , typeDefs             :: Set.Set Symbol                  -- top-level type defs
 
@@ -29,10 +28,8 @@ data ASTResolved
 
         , funcDefsAll          :: Map.Map Symbol Func
         , funcDefsTop          :: Set.Set Symbol
-
         , funcInstance         :: Map.Map CallHeader Func
         , funcInstanceImported :: Map.Map CallHeader Func
-
         , symSupply            :: Map.Map String Int              
         }
     deriving (Eq)

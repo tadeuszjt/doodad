@@ -39,10 +39,6 @@ data Param
     deriving (Eq, Ord)
 
 
-instance TextPosition Param where
-    textPos = paramPos
-
-
 data Retty
     = Retty Type
     | RefRetty Type
@@ -117,7 +113,7 @@ instance Show FuncHeader where
 
 
 data Func = Func { funcHeader :: FuncHeader, funcStmt :: Stmt }
-    deriving (Eq, Show)
+    deriving (Eq)
 
 
 instance TextPosition Func where
@@ -138,7 +134,7 @@ data Stmt
     | For         TextPos Expr (Maybe Pattern) Stmt
     | Data        TextPos Symbol Type (Maybe Expr)
     | EmbedC      TextPos String
-    deriving (Eq, Show)
+    deriving (Eq)
 
 
 instance TextPosition Pattern where
@@ -249,9 +245,8 @@ prettyAST ast = do
     putStrLn ""
     forM_ (astImports ast) $ \imp ->
         putStrLn $ show imp
-    forM_ (astStmts ast) $ \stmt -> do
-        putStrLn ""
-        prettyStmt "" stmt
+    putStrLn ""
+    mapM_ (prettyStmt "") (astStmts ast)
 
 
 prettyStmt :: String -> Stmt -> IO ()
@@ -276,8 +271,7 @@ prettyStmt pre stmt = case stmt of
         putStrLn $ pre ++ "else"
         maybe (return ()) (prettyStmt (pre ++ "\t")) mfalse
 
-    ExprStmt callExpr -> do
-        putStrLn $ pre ++ show callExpr
+    ExprStmt callExpr -> putStrLn $ pre ++ show callExpr
             
     Block stmts -> do
         mapM_ (prettyStmt pre) stmts
@@ -292,11 +286,6 @@ prettyStmt pre stmt = case stmt of
             xs -> return $ brcStrs (map prettySymbol xs)
         putStrLn $ pre ++ "type" ++ argStr ++ " " ++ prettySymbol symbol ++ " " ++ show anno
 
-    Feature pos symbol headers -> do
-        putStrLn $ pre ++ "feature " ++ prettySymbol symbol
-        forM_ headers $ \header -> do
-            putStrLn $ pre ++ "\t" ++ show header
-            
     Switch pos expr cases -> do
         putStrLn $ pre ++ "switch " ++ show expr
         forM_ cases $ \(pat, stmt) -> do
