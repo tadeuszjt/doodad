@@ -8,6 +8,7 @@ import Data.Char
 data Symbol
     = Sym         { symStr :: String }
     | SymResolved { symStr :: String }
+    | SymSystem   String
 
 
     deriving (Eq, Ord, Show)
@@ -37,6 +38,8 @@ symbolModule (SymResolved str) = head (parseStr str)
 prettySymbol :: Symbol -> String
 prettySymbol symbol@(Sym s)       = s
 prettySymbol symbol@(SymResolved s) = s
+prettySymbol symbol@(SymSystem s)   = s
+
 
 
 parseStr :: String -> [String]

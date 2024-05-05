@@ -23,8 +23,11 @@ initAstResolved = ASTResolved
     , topFeatures = []
     , imports     = []
 
-    , featureHeaders = Map.empty
     , funcHeaders = Map.empty
+
+    , systemSymbols = Map.empty
+
+    , funcInstances = Map.empty
     }
 
 
@@ -45,7 +48,6 @@ combineAsts ast imports = fmap snd (runDoMExcept initAstResolved combineAsts')
                 , topFeatures = [ x | x@(Feature _ _ _)   <- astStmts ast ]
                 , imports     = imports
                 , funcHeaders = Map.unions (map funcHeaders imports)
-                , featureHeaders = Map.unions (map featureHeaders imports)
                 }
 
             mapM_ (mapStmtM combineMapper) (astStmts ast)
@@ -56,18 +58,17 @@ combineAsts ast imports = fmap snd (runDoMExcept initAstResolved combineAsts')
 combineMapper :: Elem -> DoM ASTResolved Elem
 combineMapper elem = case elem of
     ElemStmt (FuncDef (Func header _)) -> do
-        -- hacky, relies of features being first
-        isFeature <- Map.member (funcSymbol header) <$> gets featureHeaders
-        when (not isFeature) $ do
-            False <- Map.member (funcSymbol header) <$> gets funcHeaders
+        -- hacky, relies on features being first
+        isDefined <- Map.member (funcSymbol header) <$> gets funcHeaders
+        when (not isDefined) $ do
             modify $ \s -> s { funcHeaders = Map.insert (funcSymbol header) header (funcHeaders s) }
         return elem
 
     ElemStmt (Feature _ _ headers) -> do
         forM_ headers $ \header -> do
-            False <- Map.member (funcSymbol header) <$> gets featureHeaders
+            False <- Map.member (funcSymbol header) <$> gets funcHeaders
             modify $ \s -> s
-                { featureHeaders = Map.insert (funcSymbol header) header (featureHeaders s) }
+                { funcHeaders = Map.insert (funcSymbol header) header (funcHeaders s) }
         return elem
 
 

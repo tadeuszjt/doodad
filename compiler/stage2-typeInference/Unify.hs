@@ -87,11 +87,11 @@ unifyOne info constraint = withPos info $ case constraint of
 --            Just (TypeApply (Sym "Table") [t]) -> unifyOne info $ ConsEq exprType (Type.Slice t)
 --            x -> error (show x)
 --
---    ConsDefault t1 t2 -> case (t1, t2) of
---        _ | t1 == t2 -> return []
---        (Type _, _)              -> return [(t1, t2)]
---        (x, _) | isSimple x      -> return []
---
+    ConsDefault t1 t2 -> case (t1, t2) of
+        _ | t1 == t2 -> return []
+        (Type _, _)              -> return [(t1, t2)]
+        (x, _) | isSimple x      -> return []
+
 --        (TypeApply (Sym "Tuple") ts1, TypeApply (Sym "Tuple") ts2)
 --            | length ts1 == length ts2 -> fmap concat $
 --                zipWithM (\a b -> unifyOne info (ConsDefault a b)) ts1 ts2
@@ -102,7 +102,7 @@ unifyOne info constraint = withPos info $ case constraint of
 --
 --        (TypeApply s _, _) | symbolIsResolved s -> return []
 --
---        x -> error (show x)
+        x -> error (show x)
 --
 --
     x -> error "invalid constraint"
@@ -116,10 +116,10 @@ unify (x:xs) = do
     return (s ++ subs)
 
 
---unifyDefault :: [(Constraint, ConstraintInfo)] -> DoM ASTResolved [(Type, Type)]
---unifyDefault []     = return []
---unifyDefault (x:xs) = do
---    subs <- unifyDefault xs
---    s <- unifyOne (snd x) (applyConstraint subs (fst x))
---    return (s ++ subs)
---
+unifyDefault :: [(Constraint, ConstraintInfo)] -> DoM ASTResolved [(Type, Type)]
+unifyDefault []     = return []
+unifyDefault (x:xs) = do
+    subs <- unifyDefault xs
+    s <- unifyOne (snd x) (applyConstraint subs (fst x))
+    return (s ++ subs)
+

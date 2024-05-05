@@ -36,6 +36,8 @@ import Compile as C
 import COptimise as O
 import Checker
 import CombineAsts
+import Instantiator
+import ResolveSystem
 
 -- Modules are groups of .doo files with a module name header
 -- lang/lexer.doo: lexer module
@@ -187,14 +189,17 @@ buildModule args modPath = do
 
         combined <- CombineAsts.combineAsts resolved imports
 
-        (inferred) <- infer args combined
+        inferred <- infer args combined
+
+        instantiated <- instantiate inferred
+        
+        liftIO $ prettyFuncInstances instantiated
+
+        --when (printAstFinal args) $ liftIO (prettyASTResolved instantiated)
 
 
-        when (printAstFinal args) $ liftIO (prettyASTResolved inferred)
 
-
-
-        modify $ \s -> s { moduleMap = Map.insert absoluteModPath inferred (moduleMap s) }
+        modify $ \s -> s { moduleMap = Map.insert absoluteModPath instantiated (moduleMap s) }
 
         return ()
 

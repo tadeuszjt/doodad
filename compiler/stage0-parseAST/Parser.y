@@ -153,7 +153,7 @@ retty : {-empty-}     { Retty Type.Void }
 line : expr                               { ExprStmt $1 }
 --     | let pattern '=' expr               { Let (tokPos $1) $2 (Just $4) Nothing }  
      | let pattern                        { Let (tokPos $1) $2 Nothing Nothing }
-----     | expr '=' expr                      { ExprStmt (Call (tokPos $2) (Sym "set") [Reference (tokPos $2) $1, $3]) }
+     | expr '=' expr                      { ExprStmt (Call (tokPos $2) (Sym "Set::set") [Reference (tokPos $2) $1, $3]) }
      | type generics Symbol type_         { Typedef (fst $3) $2 (snd $3) $4 }
 ----     | data symbol type_                  { Data (tokPos $1) (snd $2) $3 Nothing }
      | return mexpr                       { Return (tokPos $1) $2 }
@@ -258,7 +258,7 @@ exprsA : exprs                                   { $1 }
 --
 expr : symbol                                  { AST.Ident (fst $1) (snd $1) }
      | symbol '(' exprsA ')'                   { Call (tokPos $2) (snd $1) $3 }
---     : literal                                 { $1 }
+     | literal                                 { $1 }
 ----       | expr ':' type_                          { AExpr $3 $1 }
 ----       | '[' exprsA ']'                          { AST.Array (tokPos $1) $2 }
 ----       | expr '.' int_c                          { Field (tokPos $2) $1 (read $ tokStr $3)  }
@@ -268,10 +268,10 @@ expr : symbol                                  { AST.Ident (fst $1) (snd $1) }
 ----       | expr '.' symbol                         { Call (tokPos $2) (snd $3) (AST.Reference (tokPos $2) $1 : []) }
 ----       | expr '.' symbol '(' exprsA ')'          { Call (tokPos $4) (snd $3) (AST.Reference (tokPos $2) $1 : $5) }
 ----       | '(' exprsA ')'                          { case $2 of [x] -> x; xs -> Call (tokPos $1) (Sym "construct") $2 }
-----       | expr '+' expr                           { Call (tokPos $2) (Sym "Arithmetic_add") [$1, $3] }
-----       | expr '/' expr                           { Call (tokPos $2) (Sym "Arithmetic_divide") [$1, $3] }
-----       | expr '-' expr                           { Call (tokPos $2) (Sym "Arithmetic_subtract") [$1, $3] } 
-----       | expr '*' expr                           { Call (tokPos $2) (Sym "Arithmetic_times") [$1, $3] } 
+       | expr '+' expr                           { Call (tokPos $2) (Sym "Arithmetic::add") [$1, $3] }
+       | expr '/' expr                           { Call (tokPos $2) (Sym "Arithmetic::divide") [$1, $3] }
+       | expr '-' expr                           { Call (tokPos $2) (Sym "Arithmetic::subtract") [$1, $3] } 
+       | expr '*' expr                           { Call (tokPos $2) (Sym "Arithmetic::times") [$1, $3] } 
 ----       | expr '%' expr                           { Call (tokPos $2) (Sym "Arithmetic_modulo") [$1, $3] } 
 ----       | expr '<' expr                           { Call (tokPos $2) (Sym "Compare_less") [$1, $3] } 
 ----       | expr '>' expr                           { Call (tokPos $2) (Sym "Compare_greater") [$1, $3] } 
@@ -285,7 +285,7 @@ expr : symbol                                  { AST.Ident (fst $1) (snd $1) }
 ----       | '-' expr                                { Call (tokPos $1) (Sym "subtract") [$2] }
 --
 --
---literal : int_c                                  { Call (tokPos $1) (Sym "Construct::construct") [AST.Int (tokPos $1) (read $ tokStr $1)] }
+literal : int_c                                  { Call (tokPos $1) (Sym "Construct::construct") [AST.Int (tokPos $1) (read $ tokStr $1)] }
 ----        | float_c                                { Call (tokPos $1) (Sym "construct") [AST.Float (tokPos $1) (read $ tokStr $1)] }
 ----        | char_c                                 { Call (tokPos $1) (Sym "construct") [AST.Char (tokPos $1) (read $ tokStr $1)] }
 ----        | true                                   { Call (tokPos $1) (Sym "construct") [AST.Bool (tokPos $1) True] }

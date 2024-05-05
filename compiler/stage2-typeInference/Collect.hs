@@ -167,9 +167,7 @@ collectPatternIsolated (PatAnnotated pattern patType) = collectPos pattern $ cas
 collectCall :: Symbol -> [Type] -> Type -> DoM CollectState ()
 collectCall symbol argTypes retType = do
     funcHeaders <- gets (funcHeaders . astResolved)
-    featureHeaders <- gets (featureHeaders . astResolved)
-
-    let header = (Map.! symbol) (Map.union funcHeaders featureHeaders)
+    let header = (Map.! symbol) funcHeaders
     let callHeader = CallHeader symbol argTypes retType
     unless (length (funcArgs header) == length argTypes)
         (fail "invalid function call")
@@ -251,15 +249,15 @@ collectExpr :: Expr -> DoM CollectState ()
 collectExpr (AExpr exprType expression) = collectPos expression $ case expression of
 --    Float _ _    -> collect "float is F64" (ConsEq exprType F64)
 --    AST.Bool _ _ -> collect "bool literal must have Bool type" (ConsEq exprType Type.Bool)
---    Int _ _      -> collect "integer is type I64" (ConsEq exprType I64)
+    Int _ _      -> collect "integer is type I64" (ConsEq exprType I64)
 --    AST.Char _ _ -> collect "char literal must have Char type" (ConsEq exprType Type.Char)
 --
 --
     Call _ symbol exprs -> do
---        when (Symbol.sym symbol == "construct" && length exprs > 1) $ do
+--        when (symStr symbol == "main::Construct::construct" && length exprs > 1) $ do
 --            void $ collectDefault exprType $ Type.TypeApply (Sym "Tuple") (map typeof exprs)
---        when (Symbol.sym symbol == "construct" && length exprs == 1) $ do
---            void $ collectDefault exprType $ typeof (head exprs)
+        when (symStr symbol == "main::Construct::construct" && length exprs == 1) $ do
+            void $ collectDefault exprType $ typeof (head exprs)
 --
         collectCall symbol (map typeof exprs) exprType
         mapM_ collectExpr exprs
@@ -276,10 +274,10 @@ collectExpr (AExpr exprType expression) = collectPos expression $ case expressio
 --            ConsField (typeof expr) idx exprType
 --        collectExpr expr
 --
---    AST.Reference _ expr -> do
---        collect "reference type must match expression type" $ ConsEq exprType (typeof expr)
---        collectExpr expr
---
+    AST.Reference _ expr -> do
+        collect "reference type must match expression type" $ ConsEq exprType (typeof expr)
+        collectExpr expr
+
 --    Builtin _ sym exprs -> do 
 --        case sym of
 --            "builtin_table_at" -> do
