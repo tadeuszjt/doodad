@@ -8,7 +8,7 @@ data Symbol
     = Sym          { sym_ :: String }
     | SymQualified { mod_ :: String, sym_ :: String }
     | SymResolved  { sym_ :: String, level :: Int }
-    deriving (Eq, Ord)
+    deriving (Eq, Ord, Show)
 
 
 sym :: Symbol -> String
@@ -30,7 +30,8 @@ showSymGlobal symbol@(SymResolved s i) = mod symbol ++ "_" ++ sym symbol ++ "_" 
 
 
 prettySymbol :: Symbol -> String
-prettySymbol symbol@(SymResolved s i) = mod symbol ++ "::" ++ sym symbol
+prettySymbol symbol@(SymResolved s i) = mod symbol ++ "::" ++ sym symbol ++ "::" ++ show (level symbol)
+prettySymbol symbol@(SymQualified m s) = mod symbol ++ "::" ++ sym symbol
 prettySymbol symbol@(Sym s)           = s
 
 

@@ -1,0 +1,364 @@
+module ResolveAst where
+
+import Prelude hiding (mod)
+
+import qualified Data.Map as Map
+import qualified Data.Set as Set
+import Control.Monad.State
+import Data.Maybe
+import Data.List
+import Data.Char
+
+import qualified SymTab
+import Type
+import AST
+import Monad
+import Error
+import Symbol
+import ASTResolved
+import ASTMapper
+
+
+data SymKey
+    = KeyFunc
+    | KeyType
+    | KeyVar
+    deriving (Ord, Eq, Show)
+
+
+type MySymTab = [Set.Set (Symbol, SymKey)]
+
+
+data ResolveState
+    = ResolveState
+        { modName :: String
+        , symTab  :: MySymTab
+        , supply  :: Map.Map String Int
+        }
+
+initResolveState = ResolveState
+    { modName = ""
+    , symTab = [Set.empty]
+    , supply = Map.empty
+    }
+
+
+pushSymbolTable :: DoM ResolveState ()
+pushSymbolTable = do
+    modify $ \s -> s { symTab = Set.empty : symTab s }
+
+
+popSymbolTable :: DoM ResolveState ()
+popSymbolTable = do
+    modify $ \s -> s { symTab = tail (symTab s) }
+
+
+printSymbolTable :: DoM ResolveState ()
+printSymbolTable = do
+    symTab <- gets symTab
+    liftIO $ do
+        forM_ symTab $ \set -> do
+            putStrLn "scope:"
+            forM_ (Set.toList set) $ \(s, k) -> do
+                putStrLn $ "\t" ++ show k ++ " " ++ show s
+
+
+lookupSymTab :: Symbol -> SymKey -> MySymTab -> [Symbol]
+lookupSymTab symbol key []       = []
+lookupSymTab symbol key (s : ss) = case symbol of
+    Sym str -> case Set.toList (Set.filter (\(s, k) -> key == k && removeGeneric (sym s) == str) s) of
+        [] -> lookupSymTab symbol key ss
+        xs -> map fst xs
+
+    SymQualified m str -> case Set.toList
+        (Set.filter (\(s, k) -> key == k && sym s == str && mod s == m) s) of
+            [] -> lookupSymTab symbol key ss
+            xs -> map fst xs
+
+    SymResolved _ _ -> case Set.member (symbol, key) s of
+        True -> [symbol]
+        False -> lookupSymTab symbol key ss
+
+    where
+        removeGeneric :: String -> String
+        removeGeneric str = reverse $ takeWhile (/= '>') (reverse str)
+
+
+lookm :: Symbol -> SymKey -> DoM ResolveState (Maybe Symbol)
+lookm symbol key = do
+    ress <- gets $ lookupSymTab symbol key . symTab
+    case ress of
+        [] -> return Nothing
+        [x] -> return (Just x)
+        _   -> fail ("multiple definitions for: " ++ prettySymbol symbol)
+    
+
+lookHeadm :: Symbol -> SymKey -> DoM ResolveState (Maybe Symbol)
+lookHeadm symbol key = do
+    symTabHead <- gets (head . symTab)
+    case lookupSymTab symbol key [symTabHead] of
+        [] -> return Nothing
+        [x] -> return (Just x)
+        _   -> fail ("multiple definitions for: " ++ prettySymbol symbol)
+
+
+look :: Symbol -> SymKey -> DoM ResolveState Symbol
+look symbol key = do
+    resm <- lookm symbol key
+    unless (isJust resm) $ do
+        (fail $ "undefined symbol: " ++ prettySymbol symbol)
+    return (fromJust resm)
+
+
+define :: Symbol -> SymKey -> DoM ResolveState ()
+define symbol@(SymResolved _ _) key = do
+    --liftIO $ putStrLn $ "defining: " ++ prettySymbol symbol
+    resm <- lookHeadm symbol key
+    unless (isNothing resm) (fail $ "symbol already defined: " ++ prettySymbol symbol)
+    modify $ \s -> s { symTab = (Set.insert (symbol, key) $ head $ symTab s) : (tail $ symTab s) }
+
+
+genSymbol :: String -> DoM ResolveState Symbol
+genSymbol str = do
+    modName <- gets modName
+    resm <- gets (Map.lookup str . supply)
+    let n = maybe 0 (id) resm
+    modify $ \s -> s { supply = Map.insert str (n + 1) (supply s) }
+    return $ SymResolved (modName ++ "::" ++ str) n
+
+
+resolveAst :: AST -> [ASTResolved] -> DoM s (AST, Map.Map String Int)
+resolveAst ast imports = fmap fst $ runDoMExcept initResolveState (resolveAst' ast)
+    where
+        resolveAst' :: AST -> DoM ResolveState (AST, Map.Map String Int)
+        resolveAst' ast = do
+            modify $ \s -> s { modName = astModuleName ast }
+            forM_ imports $ \imprt -> do
+                forM_ (typeDefs imprt) $ \symbol -> define symbol KeyType
+
+            
+            -- pre-define types
+            topStmts' <- forM (astStmts ast) $ \stmt -> withPos stmt $ case stmt of
+                Typedef pos generics (Sym str) typ -> do
+                    symbol <- genSymbol str
+                    define symbol KeyType
+                    return $ Typedef pos generics symbol typ
+
+                _ -> return stmt
+
+
+            stmts' <- mapM resolveStmt topStmts'
+            supply <- gets supply
+            return (ast { astStmts = stmts' }, supply)
+
+
+defineGenerics :: [Symbol] -> DoM ResolveState [Symbol]
+defineGenerics generics = forM generics $ \(Sym str) -> do
+    symbol <- genSymbol ("<generic>" ++ str)
+    define symbol KeyType
+    return symbol
+
+
+resolveParam :: Param -> DoM ResolveState Param
+resolveParam param = withPos param $ case param of
+    Param pos (Sym sym) typ -> do
+        symbol <- genSymbol sym
+        define symbol KeyVar
+        Param pos symbol <$> resolveType typ
+    RefParam pos (Sym sym) typ -> do
+        symbol <- genSymbol sym
+        define symbol KeyVar
+        RefParam pos symbol <$> resolveType typ
+
+
+resolveRetty :: Retty -> DoM ResolveState Retty
+resolveRetty retty = case retty of
+    RefRetty typ -> RefRetty <$> resolveType typ
+    Retty typ    -> Retty <$> resolveType typ
+
+
+resolveType :: Type -> DoM ResolveState Type
+resolveType typ = case typ of
+    Void           -> return typ
+    x | isSimple x -> return typ
+    Size n         -> return typ
+    Slice t        -> Slice <$> resolveType t
+    TypeApply s ts -> do
+        symbol <- case s of
+            Sym "Array" -> return s
+            Sym "Table" -> return s
+            Sym "Sum"   -> return s
+            Sym "Tuple" -> return s
+            _           -> look s KeyType
+        TypeApply symbol <$> mapM resolveType ts
+
+    x -> error (show x)
+
+
+resolveStmt :: Stmt -> DoM ResolveState Stmt
+resolveStmt statement = withPos statement $ case statement of
+    Typedef pos generics symbol typ -> do
+        symbol' <- case symbol of
+            SymResolved _ _ -> return symbol
+            Sym str         -> do
+                s <- genSymbol str
+                define s KeyType
+                return s
+
+        pushSymbolTable
+        generics' <- defineGenerics generics
+        typ' <- resolveType typ
+        popSymbolTable
+        return $ Typedef pos generics' symbol' typ'
+
+
+
+    Feature pos symbol headers -> return statement -- TODO does nothing
+    FuncDef (Func header stmt) -> do
+        pushSymbolTable
+        generics' <- defineGenerics (funcGenerics header)
+        args'     <- mapM resolveParam (funcArgs header)
+        retty'    <- resolveRetty (funcRetty header)
+        stmt'     <- resolveStmt stmt
+
+        let header' = header
+                { funcGenerics = generics'
+                , funcArgs     = args'
+                , funcRetty    = retty'
+                }
+        popSymbolTable
+        return $ FuncDef (Func header' stmt')
+
+    Block stmts -> do
+        pushSymbolTable
+        stmts' <- mapM resolveStmt stmts
+        popSymbolTable
+        return (Block stmts')
+
+    Let pos pat mexpr mblk -> do
+        when (isJust mblk) pushSymbolTable
+        mexpr' <- traverse resolveExpr mexpr 
+        pat' <- resolvePattern pat
+        mblk' <- traverse resolveStmt mblk
+        when (isJust mblk) popSymbolTable
+        return (Let pos pat' mexpr' mblk')
+
+    If pos expr stmt melse -> do
+        pushSymbolTable
+        expr' <- resolveExpr expr
+        stmt' <- resolveStmt stmt
+        popSymbolTable
+        pushSymbolTable
+        melse' <- traverse resolveStmt melse
+        popSymbolTable
+        return (If pos expr' stmt' melse')
+
+    For pos expr mpattern blk -> do
+        pushSymbolTable
+        expr' <- resolveExpr expr
+        mpattern' <- traverse resolvePattern mpattern
+        blk' <- resolveStmt blk
+        popSymbolTable
+        return (For pos expr' mpattern' blk')
+
+    Switch pos expr cases -> do
+        expr' <- resolveExpr expr
+        cases' <- forM cases $ \(pat, stmt) -> do
+            pushSymbolTable
+            pat' <- resolvePattern pat
+            stmt' <- resolveStmt stmt
+            popSymbolTable
+            return (pat', stmt')
+        return (Switch pos expr' cases')
+
+    While pos expr stmt -> do
+        pushSymbolTable
+        expr' <- resolveExpr expr
+        stmt' <- resolveStmt stmt
+        popSymbolTable
+        return (While pos expr' stmt')
+    
+    Data pos (Sym str) typ mexpr -> do
+        symbol <- genSymbol str
+        define symbol KeyVar
+        typ' <- resolveType typ
+        mexpr' <- traverse resolveExpr mexpr
+        return (Data pos symbol typ' mexpr')
+
+    Return pos mexpr -> Return pos <$> traverse resolveExpr mexpr
+
+    EmbedC pos str -> EmbedC pos <$> processCEmbed str
+
+    ExprStmt expr -> ExprStmt <$> resolveExpr expr
+
+    x -> error (show x)
+
+
+resolvePattern :: Pattern -> DoM ResolveState Pattern
+resolvePattern pattern = withPos pattern $ case pattern of
+    PatIgnore pos -> return (PatIgnore pos)
+    PatAnnotated pat typ -> do
+        typ' <- resolveType typ
+        pat' <- resolvePattern pat
+        return (PatAnnotated pat' typ')
+
+    PatIdent pos (Sym str) -> do
+        symbol <- genSymbol str
+        define symbol KeyVar
+        return (PatIdent pos symbol)
+
+    PatTypeField pos typ pats -> do
+        typ' <- resolveType typ
+        pats' <- mapM resolvePattern pats
+        return (PatTypeField pos typ' pats')
+
+    PatGuarded pos pat expr -> do
+        pat' <- resolvePattern pat
+        expr' <- resolveExpr expr
+        return (PatGuarded pos pat' expr')
+
+    PatTuple pos pats -> PatTuple pos <$> mapM resolvePattern pats
+    PatLiteral expr -> PatLiteral <$> resolveExpr expr
+    PatSlice pos pats -> PatSlice pos <$> mapM resolvePattern pats 
+        
+    x -> error (show x)
+
+
+resolveExpr :: Expr -> DoM ResolveState Expr
+resolveExpr expression = withPos expression $ case expression of
+    AExpr typ expr -> do
+        expr' <- resolveExpr expr
+        typ' <- resolveType typ
+        return (AExpr typ' expr')
+    AST.Int pos n -> return (AST.Int pos n)
+    AST.Bool pos b -> return (AST.Bool pos b)
+    AST.Char pos c -> return (AST.Char pos c)
+    AST.Float pos f -> return (AST.Float pos f)
+    Ident pos symbol -> Ident pos <$> look symbol KeyVar
+    Call pos symbol exprs -> Call pos symbol <$> mapM resolveExpr exprs
+    Reference pos expr -> Reference pos <$> resolveExpr expr
+    Field pos expr n -> do
+        expr' <- resolveExpr expr
+        return (Field pos expr' n)
+    Match pos expr pat -> do
+        expr' <- resolveExpr expr
+        pat' <- resolvePattern pat
+        return (Match pos expr' pat')
+    AST.String pos s -> return (AST.String pos s)
+    Array pos exprs -> Array pos <$> mapM resolveExpr exprs
+
+
+    x -> error (show x)
+            
+
+processCEmbed :: String -> DoM ResolveState String
+processCEmbed ('$':xs) = do
+    let ident = takeWhile (\c -> isAlpha c || isDigit c || c == '_') xs
+    check (length ident > 0)     "invalid identifier following '$' token"
+    check (isAlpha $ ident !! 0) "invalid identifier following '$' token"
+    let rest = drop (length ident) xs
+
+    symbol <- look (Sym ident) KeyVar
+    (showSymLocal symbol ++) <$> processCEmbed rest
+processCEmbed (x:xs) = (x:) <$> processCEmbed xs
+processCEmbed [] = return ""

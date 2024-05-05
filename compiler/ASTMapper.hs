@@ -55,6 +55,13 @@ mapStmtM :: MapperFunc s -> Stmt -> DoM s Stmt
 mapStmtM f stmt = withPos stmt $ do
     res <- f . ElemStmt =<< case stmt of
         Typedef _ _ _ _ -> return stmt -- ignored
+        Feature _ _ _   -> return stmt -- ignored
+
+        FuncDef (Func header stmt) -> do
+            stmt' <- mapStmtM f stmt
+            return $ FuncDef $ (Func header stmt')
+
+
         EmbedC pos s -> return $ EmbedC pos s
         Block stmts -> Block <$> mapM (mapStmtM f) stmts
         ExprStmt expr -> ExprStmt <$> mapExprM f expr
@@ -101,7 +108,7 @@ mapStmtM f stmt = withPos stmt $ do
             mexpr' <- traverse (mapExprM f) mexpr
             return $ Data pos symbol typ' mexpr'
 
-        _ -> error "invalid statement"
+        x -> error (show x)
     case res of
         ElemStmt x -> return x
         _          -> error "result wasn't ElemStmt"

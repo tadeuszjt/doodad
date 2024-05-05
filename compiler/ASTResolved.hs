@@ -2,6 +2,7 @@ module ASTResolved where
 
 import Data.List
 
+import Control.Monad.IO.Class
 import Control.Monad
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -106,20 +107,53 @@ getInstanceHeader symbol ast = funcHeader $ snd $ head $ Map.toList $
         allInstances = Map.union (funcInstance ast) (funcInstanceImported ast)
 
 
-
 prettyASTResolved :: ASTResolved -> IO ()
 prettyASTResolved ast = do
     putStrLn $ "module " ++ moduleName ast
-    putStrLn ""
 
+    forM_ (includes ast) $ \str -> putStrLn $ "#include " ++ show str
+    forM_ (links ast) $ \str -> putStrLn $ "link " ++ str
+
+    putStrLn ""
+    putStrLn "typeDefsAll:"
+    forM_ (Map.toList $ typeDefsAll ast) $ \(symbol, (generics, typ)) -> do
+        prettyStmt "\t" $ Typedef undefined generics symbol typ
+
+    putStrLn ""
+    putStrLn "typeDefs:"
     forM_ (Set.toList $ typeDefs ast) $ \symbol -> do
-        let (generics, typ) = typeDefsAll ast Map.! symbol
-        prettyStmt "" (AST.Typedef undefined generics symbol typ)
+        liftIO $ putStrLn $ "\t" ++ prettySymbol symbol
 
     putStrLn ""
+    putStrLn "featuresAll:"
+    forM_ (Map.toList $ featuresAll ast) $ \(symbol, header) -> do
+        liftIO $ putStrLn $ "\t" ++ prettySymbol symbol ++ ": " ++ show header 
 
+
+    putStrLn ""
+    putStrLn "featuresTop:"
+    forM_ (Set.toList $ featuresTop ast) $ \symbol -> do
+        putStrLn $ "\t" ++ prettySymbol symbol
+
+    putStrLn ""
+    putStrLn "funcDefsAll:"
+    forM_ (Map.toList $ funcDefsAll ast) $ \(symbol, func) -> do
+        putStr $ "\t" ++ prettySymbol symbol ++ ": "
+        prettyStmt "" $ FuncDef func
+
+    putStrLn ""
+    putStrLn "funcDefsTop:"
     forM_ (Set.toList $ funcDefsTop ast) $ \symbol -> do
-        let func = funcDefsAll ast Map.! symbol
-        prettyStmt "" $ FuncDef (Func (funcHeader func) (funcStmt func))
+        putStrLn $ "\t" ++ prettySymbol symbol
 
     putStrLn ""
+    putStrLn "funcInstance:"
+    forM_ (Map.toList $ funcInstance ast) $ \(call, func) -> do
+        putStr $ "\t" ++ show call ++ ": "
+        prettyStmt "" $ FuncDef func
+
+    putStrLn ""
+    putStrLn "funcInstanceImported:"
+    forM_ (Map.toList $ funcInstanceImported ast) $ \(call, func) -> do
+        putStr $ "\t" ++ show call ++ ": "
+        prettyStmt "" $ FuncDef func

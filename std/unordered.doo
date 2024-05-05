@@ -6,14 +6,14 @@ import std/integer
 import std/features
 
 type{T} Key I64
-type{T} Entry ( I64.Key, T )
+type{T} Entry ( I64.unordered::Key, T )
 
 type{T} Unordered Tuple{
     I64.Sparse,
     T.Entry.Table
 }
 
-fn{T} set(a &T.Key, b T.Key)
+fn{T} set(a &T.unordered::Key, b T.unordered::Key)
     ${ *$a = $b; }
 
 fn{T} set(a &T.Entry, b T.Entry)
@@ -21,44 +21,44 @@ fn{T} set(a &T.Entry, b T.Entry)
     a.value = b.value
 
 
-fn{T} construct(a I64.Key, b T) T.Entry
+fn{T} construct(a I64.unordered::Key, b T) T.Entry
     let e : T.Entry
     e.0 = a
     e.1 = b
     return e
 
 
-fn{T} key(e &T.Entry) &I64.Key;             return &e.0
+fn{T} key(e &T.Entry) &I64.unordered::Key;             return &e.0
 fn{T} value(e &T.Entry) &T;                  return &e.1
 fn{T} indices(u &T.Unordered) &Sparse{I64};  return &u.0
 fn{T} values(u &T.Unordered) &T.Entry.Table; return &u.1
 
-fn{T} construct(n I64) T.Key
+fn{T} construct(n I64) T.unordered::Key
     return conv(n)
 
-fn{A, B} construct(x A.Key) B.sparse::Key
+fn{A, B} construct(x A.unordered::Key) B.sparse::Key
     return conv(x)
 
-fn{A, B} construct(x A.sparse::Key) B.Key
+fn{A, B} construct(x A.sparse::Key) B.unordered::Key
     return conv(x)
 
 
 fn{T} len(u &T.Unordered) I64
     return u.values.len
 
-fn{T} insert(u &T.Unordered, elem T) T.Key
+fn{T} insert(u &T.Unordered, elem T) T.unordered::Key
     let key = u.indices.insert(u.values.len)
     u.values.push((conv(key), elem) : T.Entry)
     return conv(key)
 
-fn{T} insert(u &T.Unordered) T.Key
+fn{T} insert(u &T.Unordered) T.unordered::Key
     let key = u.indices.insert(u.values.len)
     u.values.push()
-    u.values[u.values.len - 1].key = I64.Key(key)
-    return T.Key(key)
+    u.values[u.values.len - 1].key = I64.unordered::Key(key)
+    return T.unordered::Key(key)
 
 
-fn{T} at(u &T.Unordered, key T.Key) &T
+fn{T} at(u &T.Unordered, key T.unordered::Key) &T
     let index = u.indices.at(conv(key))
     return &u.values.at(index).value
 
@@ -67,7 +67,7 @@ fn{T} atIndex(u &T.Unordered, index I64) &T
     return &u.values.at(index).value
 
 
-fn{T} delete(u &T.Unordered, key T.Key)
+fn{T} delete(u &T.Unordered, key T.unordered::Key)
     let end    = u.values.len - 1
     let endKey = u.values.at(end).key
     let index  = u.indices.at(I64.sparse::Key(key))

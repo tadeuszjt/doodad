@@ -44,6 +44,8 @@ data Retty
     | RefRetty Type
     deriving (Eq, Ord)
 
+instance TextPosition Param where
+    textPos = paramPos
 
 instance Type.Typeof Param where
     typeof = paramType
@@ -113,7 +115,7 @@ instance Show FuncHeader where
 
 
 data Func = Func { funcHeader :: FuncHeader, funcStmt :: Stmt }
-    deriving (Eq)
+    deriving (Eq, Show)
 
 
 instance TextPosition Func where
@@ -134,7 +136,7 @@ data Stmt
     | For         TextPos Expr (Maybe Pattern) Stmt
     | Data        TextPos Symbol Type (Maybe Expr)
     | EmbedC      TextPos String
-    deriving (Eq)
+    deriving (Eq, Show)
 
 
 instance TextPosition Pattern where
@@ -255,6 +257,11 @@ prettyStmt pre stmt = case stmt of
         putStrLn (pre ++ show header)
         prettyStmt (pre ++ "\t") blk
         putStrLn ""
+
+    Feature pos symbol headers -> do
+        putStrLn $ pre ++ "feature " ++ prettySymbol symbol
+        forM_ headers $ \header -> do
+            putStrLn $ pre ++ "\t" ++ show header
 
     Let pos pat mexpr mblk -> do
         exprStr <- case mexpr of

@@ -25,7 +25,6 @@ import AST
 import Annotate
 import Infer
 import Collect as C
-import qualified Resolve as R
 import qualified SymTab
 import ASTResolved
 import CBuilder as C
@@ -35,6 +34,8 @@ import Lexer
 import Compile as C
 import COptimise as O
 import Checker
+import qualified ResolveAst
+import qualified CombineAsts
 
 -- Modules are groups of .doo files with a module name header
 -- lang/lexer.doo: lexer module
@@ -167,6 +168,9 @@ buildModule args modPath = do
             xs  -> fail ("multiple matching module files found in path: " ++ absoluteModPath)
 
         ast <- parse args file
+
+
+
         when (printAst args) $ liftIO (S.prettyAST ast)
 
         -- read imports and compile imported modules first
@@ -185,8 +189,15 @@ buildModule args modPath = do
             unless (isJust resm) (error $ show importPath ++ " not in module map")
             return (fromJust resm)
 
-        astResolved <- fmap fst (R.resolveAst ast astImports)
+        (astResolved', supply) <- ResolveAst.resolveAst ast astImports
+        astCombined' <- CombineAsts.combineAsts (astResolved', supply) astImports
+        --liftIO $ prettyAST astResolved'
+
+
+        let astResolved = astCombined'
+
         when (printAstResolved args) $ liftIO (prettyASTResolved astResolved)
+
 
         -- infer ast types
         (astFinal, inferCount) <- withErrorPrefix "infer: " $
@@ -212,7 +223,7 @@ buildModule args modPath = do
             (((), n), cBuilderStateOptimised) <- runDoMExcept cBuilderState $ do
                 runDoMUntilSameState O.optimise
             when (verbose args) $ do
-                liftIO $ putStrLn $ "ran:       " ++ show n ++ " optimisation passes"
+                liftIO $ putStrLn ("ran:       " ++ show n ++ " optimisation passes")
             return cBuilderStateOptimised
         else return cBuilderState
 
