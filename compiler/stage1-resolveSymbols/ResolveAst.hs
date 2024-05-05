@@ -204,10 +204,9 @@ defineNewVar symbol@(Sym str) = do
 
 defineNewGenerics :: [Symbol] -> DoM ResolveState [Symbol]
 defineNewGenerics symbols = do
-    modName <- gets modName
     forM symbols $ \symbol -> do
         unless (length (parseStr $ symStr symbol) == 1) (error "symbol must be one ident")
-        let symbol' = SymResolved (modName ++ "::type::" ++ symStr symbol)
+        let symbol' = SymResolved ("type::" ++ symStr symbol)
         define symbol' KeyType
     
 

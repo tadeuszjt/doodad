@@ -23,16 +23,14 @@ data CollectState
         , collected   :: Map.Map Constraint ConstraintInfo
         , defaults    :: Map.Map Constraint ConstraintInfo
         , curPos      :: TextPos
-        , astResolved :: ASTResolved
         }
 
-initCollectState ast = CollectState
+initCollectState = CollectState
     { symTab      = Map.empty
     , curRetty    = Void
     , collected   = Map.empty
     , defaults    = Map.empty
     , curPos      = TextPos "" 0 0
-    , astResolved = ast
     }
 
 
@@ -162,36 +160,33 @@ collectPatternIsolated (PatAnnotated pattern patType) = collectPos pattern $ cas
     PatIdent _ symbol -> do
         define symbol patType
     x -> error (show x)
-
-
-collectCall :: Symbol -> [Type] -> Type -> DoM CollectState ()
-collectCall symbol argTypes retType = do
-    funcHeaders <- gets (funcHeaders . astResolved)
-    featureHeaders <- gets (featureHeaders . astResolved)
-
-    let header = (Map.! symbol) (Map.union funcHeaders featureHeaders)
-    let callHeader = CallHeader symbol argTypes retType
-    unless (length (funcArgs header) == length argTypes)
-        (fail "invalid function call")
-
-    header' <- replaceGenericsInFuncHeader header callHeader
-
-
-    case typeFullyResolved (funcGenerics header') (typeof $ funcRetty header') of
-        True -> collect "argument types must match call" $ ConsEq retType (typeof $ funcRetty header')
-        False -> return ()
-
-
-    forM_ (zip argTypes $ map typeof $ funcArgs header') $ \(argType, argType') ->
-        case typeFullyResolved (funcGenerics header') argType' of
-            True -> collect "argument types must match call" $ ConsEq argType argType'
-            False -> return ()
-
-    
-    return ()
-
-
-
+--
+--
+--collectCall :: Symbol -> [Type] -> Type -> DoM CollectState ()
+--collectCall symbol argTypes retType
+--    | all typeFullyResolved (retType : argTypes) = return ()
+--collectCall symbol argTypes retType = do
+--    headers <- gets (Map.elems . Map.map funcHeader . funcDefsAll . astResolved)
+--    candidates <- findCandidates (CallHeader symbol argTypes retType) headers
+--    -- TODO needs to check only visible symbols
+--
+--    case allSameType (map (typeof . AST.funcRetty) candidates) of
+--        Just x | typeFullyResolved x -> collect "call" $ ConsEq retType x
+--        _ -> return ()
+--
+--    forM_ (zip [0..] argTypes) $ \(i, at) -> do
+--        case allSameType (map (typeof . (!! i) . AST.funcArgs) candidates) of
+--            Just x | typeFullyResolved x -> collect "call" (ConsEq at x)
+--            _ -> return ()
+--    where
+--        allSameType :: [Type] -> Maybe Type
+--        allSameType [] = Nothing
+--        allSameType [x] = Just x
+--        allSameType (x:xs) = case allSameType xs of
+--            Just t -> if x == t then Just t else Nothing
+--            Nothing -> Nothing
+--
+--
 --collectPattern :: Pattern -> DoM CollectState ()
 --collectPattern (PatAnnotated pattern patType) = collectPos pattern $ case pattern of
 --    PatIgnore _           -> return ()
@@ -261,7 +256,7 @@ collectExpr (AExpr exprType expression) = collectPos expression $ case expressio
 --        when (Symbol.sym symbol == "construct" && length exprs == 1) $ do
 --            void $ collectDefault exprType $ typeof (head exprs)
 --
-        collectCall symbol (map typeof exprs) exprType
+--        collectCall symbol (map typeof exprs) exprType
         mapM_ collectExpr exprs
 --
 --    Match _ expr pat -> do

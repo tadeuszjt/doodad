@@ -178,14 +178,13 @@ typesCouldMatch t1 t2 = case (t1, t2) of
     _ -> return False
 
 
-typeFullyResolved :: [Symbol] -> Type -> Bool
-typeFullyResolved generics typ = case typ of
-    x | isSimple x          -> True
-    TypeApply s _
-        | s `elem` generics -> False
-    TypeApply s ts          -> all (typeFullyResolved generics) ts
-    Slice t                 -> typeFullyResolved generics t
-    Void                    -> True
-    Size _                  -> True
-    Type _                  -> False
+typeFullyResolved :: Type -> Bool
+typeFullyResolved typ = case typ of
+    x | isGeneric x -> False
+    x | isSimple x -> True
+    TypeApply s ts -> all typeFullyResolved ts
+    Slice t        -> typeFullyResolved t
+    Void           -> True
+    Size _         -> True
+    Type _         -> False
     x -> error $ "typeFullyResolved: " ++ show x
