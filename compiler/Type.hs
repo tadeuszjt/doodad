@@ -94,6 +94,11 @@ isSimple typ = case typ of
 isIntegral x = isInt x || x == Char
 
 
+isGeneric :: Type -> Bool
+isGeneric (TypeApply s ts) = error "here"
+isGeneric _                = False
+
+
 mapType :: (Type -> Type) -> Type -> Type
 mapType f typ = f $ case typ of
     U8 -> typ
@@ -155,22 +160,22 @@ applyTypeArguments argSymbols argTypes typ = do
         _                -> error $ "applyTypeArguments: " ++ show typ
 
 
---typesCouldMatch :: Monad m => Type -> Type -> m Bool
---typesCouldMatch t1 t2 = case (t1, t2) of
---    (a, b) | a == b            -> return True
---    (Type _, _)                -> return True
---    (_, Type _)                -> return True
---    (Slice a, Slice b)         -> typesCouldMatch a b
---
---    (TypeApply s1 ts1, TypeApply s2 ts2)
---        | (isGeneric t1 && isGeneric t2) || (s1 == s2) -> do
---            bs <- zipWithM typesCouldMatch ts1 ts2
---            return $ length ts1 == length ts2 && all id bs
---
---    (x, TypeApply s ts) | isGeneric t2 -> return True
---    (TypeApply s ts, x) | isGeneric t1 -> return True
---
---    _ -> return False
+typesCouldMatch :: Monad m => Type -> Type -> m Bool
+typesCouldMatch t1 t2 = case (t1, t2) of
+    (a, b) | a == b            -> return True
+    (Type _, _)                -> return True
+    (_, Type _)                -> return True
+    (Slice a, Slice b)         -> typesCouldMatch a b
+
+    (TypeApply s1 ts1, TypeApply s2 ts2)
+        | (isGeneric t1 && isGeneric t2) || (s1 == s2) -> do
+            bs <- zipWithM typesCouldMatch ts1 ts2
+            return $ length ts1 == length ts2 && all id bs
+
+    (x, TypeApply s ts) | isGeneric t2 -> return True
+    (TypeApply s ts, x) | isGeneric t1 -> return True
+
+    _ -> return False
 
 
 typeFullyResolved :: [Symbol] -> Type -> Bool

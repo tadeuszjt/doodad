@@ -26,29 +26,7 @@ feature Arithmetic
     fn{T} subtract(a T, b T) T
 
 
-feature Set
-    fn{T} set(a &T, b T)
-
-
-feature Construct
-    fn{T, G} construct(a T) G
-
-
 fn main()
-    let g
-    g = 1
-    g = g  + 3
-
-
-
-
-
-
-
-
-
-
-
     type LocalType I64
     let x
     x

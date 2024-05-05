@@ -45,12 +45,12 @@ executable doodad
         include
     hs-source-dirs:
         compiler,
+        compiler/test,
         compiler/stage0-parseAST,
         compiler/stage1-resolveSymbols,
         compiler/stage2-typeInference,
-        compiler/stage3-funcInstantiation
-        compiler/stage4-checker,
-        compiler/stage5-generateC
+        compiler/stage3-checker,
+        compiler/stage4-generateC
     default-language:  Haskell2010
     build-depends:
         base,
@@ -81,6 +81,7 @@ executable doodad
         ASTResolved,
         Lexer,
         Token,
+        FunctionInstantiator,
         CBuilder,
         CPretty,
         CGenerate,
@@ -93,6 +94,18 @@ executable doodad
         Checker,
         Builtin,
         ResolveAst,
-        CombineAsts,
-        Instantiator,
-        ResolveSystem
+        CombineAsts
+
+executable doodad-test
+    main-is: TestMain.hs
+    hs-source-dirs:
+        compiler,
+        compiler/test
+    default-language:  Haskell2010
+    build-depends:
+        base,
+        containers,
+        mtl,
+    other-modules:
+        Symbol,
+        Type

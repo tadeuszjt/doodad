@@ -54,9 +54,7 @@ resolve ast imports = do
         resolve' :: DoM ResolveState AST
         resolve' = do
             forM_ imports $ \imprt -> do
-                forM_ (topTypedefs imprt) $ \(Typedef _ _ system _) -> do
-                    --let symbol = (Map.! system) (systemSymbols imprt)
-                    let symbol = system
+                forM_ (topTypedefs imprt) $ \(Typedef _ _ symbol _) ->
                     define symbol KeyType
 
                 forM_ (topFuncdefs imprt) $ \(FuncDef (Func header _)) ->
@@ -219,10 +217,6 @@ resolveArg arg = withPos arg $ case arg of
         symbol' <- defineNewVar symbol
         typ' <- resolveType typ
         return $ Param pos symbol' typ'
-    RefParam pos symbol typ -> do
-        symbol' <- defineNewVar symbol
-        typ' <- resolveType typ
-        return $ RefParam pos symbol' typ'
     x -> error (show x)
 
 
@@ -322,11 +316,6 @@ resolveExpr expression = withPos expression $ case expression of
     Call pos symbol exprs -> do
         symbol' <- look symbol KeyFunc
         Call pos symbol' <$> mapM resolveExpr exprs
-
-    Reference pos expr -> do
-        Reference pos <$> resolveExpr expr
-
-    AST.Int pos n -> return $ AST.Int pos n
 
     x -> error (show x)
 

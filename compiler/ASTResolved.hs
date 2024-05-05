@@ -20,17 +20,13 @@ data ASTResolved
         , topTypedefs :: [Stmt]
         , topFuncdefs :: [Stmt]
         , topFeatures :: [Stmt]
-
-        -- helping with collect
         , funcHeaders :: Map.Map Symbol FuncHeader
-
-        -- map system to resolved
-        , systemSymbols :: Map.Map Symbol Symbol
-
-
-        , funcInstances :: Map.Map CallHeader Func
+        , featureHeaders :: Map.Map Symbol FuncHeader
         }
     deriving (Eq)
+
+
+
 
 
 
@@ -54,9 +50,44 @@ instance Show CallHeader where
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 callHeaderFromFuncHeader :: FuncHeader -> CallHeader
 callHeaderFromFuncHeader (FuncHeader _ _ symbol args retty)
     = CallHeader symbol (map typeof args) (typeof retty)
+
+
+
+--callCouldMatchFunc :: Monad m => CallHeader -> FuncHeader -> m Bool
+--callCouldMatchFunc call header = do
+--    if symbolsMatch then do
+--        am <- argsMatch
+--        rm <- rettyMatch
+--        return (am && rm)
+--    else return False
+--    where
+--        typesMatch :: Monad m => [Type] -> [Type] -> m Bool
+--        typesMatch ts1 ts2 = do
+--            bs <- zipWithM typesCouldMatch ts1 ts2
+--            return $ (length ts1 == length ts2) && (all id bs)
+--
+--        symbolsMatch = symbolsCouldMatch (callSymbol call) (funcSymbol header)
+--        argsMatch    = typesMatch (callArgTypes call) (map typeof $ funcArgs header)
+--        rettyMatch   = typesCouldMatch (callRetType call) (typeof $ funcRetty header)
+
 
 
 isGenericFunc :: Func -> Bool
@@ -66,17 +97,27 @@ isGenericHeader :: FuncHeader -> Bool
 isGenericHeader header = funcGenerics header /= []
 
 
-
-prettyFuncInstances :: ASTResolved -> IO ()
-prettyFuncInstances ast = do
-    putStrLn $ "module " ++ moduleName ast
-    putStrLn "Instances:"
-
-    forM_ (Map.toList $ funcInstances ast) $ \(call, func) -> do
-        putStrLn $ show call
-    
+getFunction :: Symbol -> ASTResolved -> Func
+getFunction symbol ast = error ""
+--getFunction symbol ast = if Map.member symbol (funcDefsAll ast) then
+--        funcDefsAll ast Map.! symbol
+--    else error ("symbol is not function: " ++ prettySymbol symbol)
 
 
+getFunctionHeader :: Symbol -> ASTResolved -> FuncHeader
+getFunctionHeader symbol ast = error ""
+--getFunctionHeader symbol ast = funcHeader $
+--    if Map.member symbol (funcDefsAll ast) then
+--        funcDefsAll ast Map.! symbol
+--    else error ("symbol is not function: " ++ prettySymbol symbol)
+
+
+getInstanceHeader :: Symbol -> ASTResolved -> FuncHeader
+getInstanceHeader symbol ast = error ""
+--getInstanceHeader symbol ast = funcHeader $ snd $ head $ Map.toList $ 
+--    Map.filter (\func -> funcSymbol (funcHeader func) == symbol) allInstances
+--    where
+--        allInstances = Map.union (funcInstance ast) (funcInstanceImported ast)
 
 prettyASTResolved :: ASTResolved -> IO ()
 prettyASTResolved ast = do
