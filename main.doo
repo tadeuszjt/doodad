@@ -12,7 +12,8 @@ fn f(a I64)
 fn g(a I64) MyType3
     a
     impMethod()
-    return impFn(a)
+    let b : ImpType
+    return impFn(b)
 
 
 fn{T, G} generic(a T, b T) G
@@ -42,7 +43,7 @@ fn main()
         x
         return
 
-    f()
+    f(x)
     fn f()
         add(x, x)
         Arithmetic::add(x, x)

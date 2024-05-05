@@ -9,6 +9,7 @@ import qualified Data.Set as Set
 
 import AST
 import ASTResolved
+import ASTMapper
 import Monad
 import Symbol
 
@@ -20,6 +21,10 @@ initAstResolved = ASTResolved
     , topTypedefs = []
     , topFuncdefs = []
     , topFeatures = []
+    , imports     = []
+
+    , featureHeaders = Map.empty
+    , funcHeaders = Map.empty
     }
 
 
@@ -38,7 +43,36 @@ combineAsts ast imports = fmap snd (runDoMExcept initAstResolved combineAsts')
                 , topTypedefs = [ x | x@(Typedef _ _ _ _) <- astStmts ast ]
                 , topFuncdefs = [ x | x@(FuncDef _)       <- astStmts ast ]
                 , topFeatures = [ x | x@(Feature _ _ _)   <- astStmts ast ]
+                , imports     = imports
+                , funcHeaders = Map.unions (map funcHeaders imports)
+                , featureHeaders = Map.unions (map featureHeaders imports)
                 }
 
+            mapM_ (mapStmtM combineMapper) (astStmts ast)
+
             return ()
+
+
+combineMapper :: Elem -> DoM ASTResolved Elem
+combineMapper elem = case elem of
+    ElemStmt (FuncDef (Func header _)) -> do
+        -- hacky, relies of features being first
+        isFeature <- Map.member (funcSymbol header) <$> gets featureHeaders
+        when (not isFeature) $ do
+            False <- Map.member (funcSymbol header) <$> gets funcHeaders
+            modify $ \s -> s { funcHeaders = Map.insert (funcSymbol header) header (funcHeaders s) }
+        return elem
+
+    ElemStmt (Feature _ _ headers) -> do
+        forM_ headers $ \header -> do
+            False <- Map.member (funcSymbol header) <$> gets featureHeaders
+            modify $ \s -> s
+                { featureHeaders = Map.insert (funcSymbol header) header (featureHeaders s) }
+        return elem
+
+
+    _ -> return elem
+
+
+
 

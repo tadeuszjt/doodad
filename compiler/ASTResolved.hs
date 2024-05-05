@@ -11,20 +11,27 @@ import Type
 
 
 
-filterMapBySet :: (Ord k) => Set.Set k -> Map.Map k v -> Map.Map k v
-filterMapBySet set map = Map.filterWithKey (\k _ -> Set.member k set) map
-
-
 data ASTResolved
     = ASTResolved
         { moduleName  :: String
-        , includes    :: Set.Set String                  -- c header includes
-        , links       :: Set.Set String                  -- linked libraries
+        , includes    :: Set.Set String
+        , links       :: Set.Set String
+        , imports     :: [ASTResolved]
         , topTypedefs :: [Stmt]
         , topFuncdefs :: [Stmt]
         , topFeatures :: [Stmt]
+        , funcHeaders :: Map.Map Symbol FuncHeader
+        , featureHeaders :: Map.Map Symbol FuncHeader
         }
     deriving (Eq)
+
+
+
+
+
+
+
+
 
 
 data CallHeader = CallHeader
@@ -40,6 +47,22 @@ instance Show CallHeader where
         (prettySymbol $ callSymbol header) ++ argsStr ++ ":" ++ show (callRetType header)
         where
             argsStr = "(" ++ intercalate ", " (map show $ callArgTypes header) ++ ")"
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 callHeaderFromFuncHeader :: FuncHeader -> CallHeader
@@ -65,10 +88,6 @@ callHeaderFromFuncHeader (FuncHeader _ _ symbol args retty)
 --        argsMatch    = typesMatch (callArgTypes call) (map typeof $ funcArgs header)
 --        rettyMatch   = typesCouldMatch (callRetType call) (typeof $ funcRetty header)
 
-
-funcHeaderFullyResolved :: FuncHeader -> Bool
-funcHeaderFullyResolved header =
-    all typeFullyResolved $ (typeof (funcRetty header) : map typeof (funcArgs header))
 
 
 isGenericFunc :: Func -> Bool

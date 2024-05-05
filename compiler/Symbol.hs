@@ -22,6 +22,10 @@ isResolved (Sym _)         = False
 isQualified :: Symbol -> Bool
 isQualified symbol = length (parseStr (symStr symbol)) > 1
 
+
+symbolModule :: Symbol -> String
+symbolModule (SymResolved str) = head (parseStr str)
+
 --showSymLocal :: Symbol -> String
 --showSymLocal symbol@(SymResolved s i) = sym symbol ++ "_" ++ show i
 --showSymLocal symbol@(Sym s)           = s

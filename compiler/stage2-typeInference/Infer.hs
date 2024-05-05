@@ -22,8 +22,9 @@ inferFunc func = do
     annotatedFunc <- fmap fst $ withErrorPrefix "annotate: " $
         runDoMExcept 0 (annotateFunc func)
 
+    ast <- get
     collectState <- fmap snd $ withErrorPrefix "collect: " $
-        runDoMExcept (initCollectState) (collectFuncDef annotatedFunc)
+        runDoMExcept (initCollectState ast) (collectFuncDef annotatedFunc)
 
     subs <- unify $ Map.toList (collected collectState)
 
