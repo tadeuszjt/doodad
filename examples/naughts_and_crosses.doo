@@ -37,27 +37,11 @@ type Input Sum{
 
 
 
-fn error() Input
-    let e : Error
-    return conv(e)
-
-
-fn quit() Input
-    let q : Quit
-    return conv(q)
-
-
-fn empty() Square
-    let e : Empty
-    return conv(e)
-
-fn naught() Square
-    let n : Naught
-    return conv(n)
-
-fn cross() Square
-    let c : Cross
-    return conv(c)
+fn error()  Input;  return conv(builtin_zero():Error)
+fn quit()   Input;  return conv(builtin_zero():Quit)
+fn empty()  Square; return conv(builtin_zero():Empty)
+fn naught() Square; return conv(builtin_zero():Naught)
+fn cross()  Square; return conv(builtin_zero():Cross)
 
 fn move(x I64, y I64) Input
     let m : Move
@@ -76,8 +60,11 @@ fn Compare::equal(a Square, b Square) Bool
         (Cross(), Cross());   return true
         _;                    return false
 
-fn at(board &Board, index I64) &Square.Array{3}; return (board.0).at(index)
-fn len(board &Board)           I64; return (board.0).len
+fn At::at(board &Board, index I64) &Square.Array{3}
+    return (board.0).at(index)
+
+fn Len::len(board &Board) I64; return (board.0).len
+
 fn set(a &Board, b Board)
     for (0, a.len) -> row
         for (0, a[row].len) -> col

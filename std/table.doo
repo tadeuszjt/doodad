@@ -9,13 +9,13 @@ fn{T} set(table &T.Table, slice []T)
     table.push(slice)
 
 
-fn{T} len(table &T.Table) I64
+fn{T} Len::len(table &T.Table) I64
     let len = 0
     ${ $len = $table->len; }
     return len
 
 
-fn{T} at(table &T.Table, index I64) &T
+fn{T} At::at(table &T.Table, index I64) &T
     return builtin_table_at(&table, index)
 
 

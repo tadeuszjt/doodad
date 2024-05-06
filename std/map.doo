@@ -2,16 +2,17 @@ module map
 
 import std/maybe
 import std/binaryTree
+import std/features
 
 type{K, V} Map Tree{K, V}.Tuple
 
 fn{K, V} tree(m &Map{K, V}) &Tree{K, V}; return &m.0
 
-fn{K, V} len(m &Map{K, V}) I64
+fn{K, V} Len::len(m &Map{K, V}) I64
     return m.tree.len
 
 
-fn{K, V} at(m &Map{K, V}, key K) &V
+fn{K, V} At::at(m &Map{K, V}, key K) &V
     let true = m.contains(key)
     return m.tree[key]
 

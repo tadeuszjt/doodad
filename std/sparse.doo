@@ -15,14 +15,14 @@ fn{T} set(a &T.Key, b T.Key); ${ *$a = $b; }
 fn{T} values(s &T.Sparse) &T.Table;     return &s.0
 fn{T} empty(s &T.Sparse) &Table{T.Key}; return &s.1
 
-fn{T} construct(n I64) T.Key; return conv(n)
-fn{T} construct(k T.Key) I64; return conv(k)
+fn{T} Construct::construct(n I64) T.Key; return conv(n)
+fn{T} Construct::construct(k T.Key) I64; return conv(k)
 
-fn{T} len(s &T.Sparse) I64
-    return s.values.len - s.empty.len
+fn{T} Len::len(s &T.Sparse) I64
+    return s.values.Len::len - s.empty.len
 
 
-fn{T} at(s &T.Sparse, key T.Key) &T
+fn{T} At::at(s &T.Sparse, key T.Key) &T
     return s.values.at(I64(key))
 
 fn{T} insert(s &T.Sparse) T.Key

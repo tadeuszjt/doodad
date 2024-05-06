@@ -53,7 +53,6 @@ generate = withErrorPrefix "generate: " $ do
         generateFunc False (funcSymbol $ funcHeader func) func
 
         when ((sym $ funcSymbol $ funcHeader func) == "instance_main") $ do
-            let ioTypedef = TypeApply (SymResolved "io:Io" 0) []
             id <- newFunction
                 Cint
                 "main"  
@@ -233,7 +232,7 @@ generatePattern (PatAnnotated pattern patType) val = withPos pattern $ case patt
 
     PatLiteral expr -> do
         v <- generateExpr expr
-        callFunction (Sym "Compare_equal") Type.Bool [v, val]
+        callFunction (Sym "Compare::equal") Type.Bool [v, val]
 
     PatIdent _ symbol -> do 
         base <- baseTypeOf val
@@ -339,6 +338,18 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
         --call "doodad_assert" [fileNameVal, lineVal, cndVal, strVal]
         call "assert" [cndVal]
         return $ Value Void $ C.Int 0
+
+
+    S.Builtin _ "builtin_zero" exprs -> do
+        check (length exprs == 0) "builtin_zero cannot have arguments"
+        base <- baseTypeOf typ
+        name <- fresh "zero"
+        ctyp <- cTypeOf typ
+        appendElem $ C.Assign ctyp name $ C.Initialiser $ case base of
+            TypeApply (Sym "Tuple") [] -> []
+            _                          -> [C.Int 0]
+        return $ Value typ (C.Ident name)
+
 
     S.Builtin _ "builtin_table_slice" [expr, start, end] -> do
         ref@(Ref _ exp) <- generateExpr expr

@@ -134,7 +134,7 @@ imports : {- empty -}              { [] }
 -- Statements -------------------------------------------------------------------------------------
 
 fnSymbol : ident            { Sym (tokStr $1) }
-         | Ident '::' ident { Sym (tokStr $1 ++ "_" ++ tokStr $3) }
+         | Ident '::' ident { Sym (tokStr $1 ++ "::" ++ tokStr $3) }
 
 fnHeader : fn generics fnSymbol '(' paramsA ')' retty
             { AST.FuncHeader (tokPos $1) $2 $3 $5 $7 }
@@ -194,11 +194,11 @@ Idents1 : Ident                          { [tokStr $1] }
 
 
 symbol : ident                           { (tokPos $1, Sym (tokStr $1)) }
-       | ident '::' ident                { (tokPos $3, SymQualified (tokStr $1) (tokStr $3)) }
-       | Ident '::' ident                { (tokPos $1, Sym (tokStr $1 ++ "_" ++ tokStr $3)) }
+       | ident '::' ident                { (tokPos $3, Sym (tokStr $1 ++ "::" ++ tokStr $2)) }
+       | Ident '::' ident                { (tokPos $1, Sym (tokStr $1 ++ "::" ++ tokStr $3)) }
 
 Symbol : Ident                           { (tokPos $1, Sym (tokStr $1)) }
-       | ident '::' Ident                { (tokPos $3, SymQualified (tokStr $1) (tokStr $3)) }
+       | ident '::' Ident                { (tokPos $3, Sym (tokStr $1 ++ "::" ++ tokStr $3)) }
 
 
 param   : ident type_                    { Param (tokPos $1) (Sym $ tokStr $1) $2 }
@@ -231,7 +231,7 @@ pattern  : '_'                           { PatIgnore (tokPos $1) }
          | '-' int_c                     { PatLiteral (AST.Int (tokPos $1) $ 0 - (read $ tokStr $2)) }
          | ident                         { PatIdent (tokPos $1) (Sym $ tokStr $1) }
          | '(' patterns ')'              { PatTuple (tokPos $1) $2 }
-         | pattern '|' expr              { PatGuarded (tokPos $2) $1 $ AExpr Type.Bool $ Call (tokPos $2) (Sym "construct") [$3] }
+         | pattern '|' expr              { PatGuarded (tokPos $2) $1 $ AExpr Type.Bool $ Call (tokPos $2) (Sym "Construct::construct") [$3] }
          | pattern '|' expr '->' pattern { PatGuarded (tokPos $2) $1 (Match (tokPos $4) $3 $5) }
          | pattern ':' type_             { PatAnnotated $1 $3 }
          | type_ '(' patterns ')'        { PatTypeField (tokPos $2) $1 $3 }
@@ -252,7 +252,7 @@ mexpr  : {-empty-}                               { Nothing }
 exprsA : exprs                                   { $1 }
        | 'I' exprsN 'D'                          { $2 }
 
-condition : expr                                 { AExpr Type.Bool $ Call (TextPos "" 0 0) (Sym "construct") [$1] }
+condition : expr                                 { AExpr Type.Bool $ Call (TextPos "" 0 0) (Sym "Construct::construct") [$1] }
           | expr '->' pattern                    { Match (tokPos $2) $1 $3 }
 
 expr   : literal                                 { $1 }
@@ -261,34 +261,34 @@ expr   : literal                                 { $1 }
        | '[' exprsA ']'                          { AST.Array (tokPos $1) $2 }
        | expr '.' int_c                          { Field (tokPos $2) $1 (read $ tokStr $3)  }
        | '&' expr                                { AST.Reference (tokPos $1) $2 }
-       | type_ '(' exprsA ')'                    { AExpr $1 (Call (tokPos $2) (Sym "construct") $3) }
-       | expr '[' expr ']'                       { Call (tokPos $2) (Sym "at") [AST.Reference (tokPos $2) $1, $3] }
+       | type_ '(' exprsA ')'                    { AExpr $1 (Call (tokPos $2) (Sym "Construct::construct") $3) }
+       | expr '[' expr ']'                       { Call (tokPos $2) (Sym "At::at") [AST.Reference (tokPos $2) $1, $3] }
        | expr '.' symbol                         { Call (tokPos $2) (snd $3) (AST.Reference (tokPos $2) $1 : []) }
        | expr '.' symbol '(' exprsA ')'          { Call (tokPos $4) (snd $3) (AST.Reference (tokPos $2) $1 : $5) }
        | symbol '(' exprsA ')'                   { Call (tokPos $2) (snd $1) $3 }
-       | '(' exprsA ')'                          { case $2 of [x] -> x; xs -> Call (tokPos $1) (Sym "construct") $2 }
-       | expr '+' expr                           { Call (tokPos $2) (Sym "Arithmetic_add") [$1, $3] }
-       | expr '/' expr                           { Call (tokPos $2) (Sym "Arithmetic_divide") [$1, $3] }
-       | expr '-' expr                           { Call (tokPos $2) (Sym "Arithmetic_subtract") [$1, $3] } 
-       | expr '*' expr                           { Call (tokPos $2) (Sym "Arithmetic_times") [$1, $3] } 
-       | expr '%' expr                           { Call (tokPos $2) (Sym "Arithmetic_modulo") [$1, $3] } 
-       | expr '<' expr                           { Call (tokPos $2) (Sym "Compare_less") [$1, $3] } 
-       | expr '>' expr                           { Call (tokPos $2) (Sym "Compare_greater") [$1, $3] } 
-       | expr '==' expr                          { Call (tokPos $2) (Sym "Compare_equal") [$1, $3] } 
+       | '(' exprsA ')'                          { case $2 of [x] -> x; xs -> Call (tokPos $1) (Sym "Construct::construct") $2 }
+       | expr '+' expr                           { Call (tokPos $2) (Sym "Arithmetic::add") [$1, $3] }
+       | expr '/' expr                           { Call (tokPos $2) (Sym "Arithmetic::divide") [$1, $3] }
+       | expr '-' expr                           { Call (tokPos $2) (Sym "Arithmetic::subtract") [$1, $3] } 
+       | expr '*' expr                           { Call (tokPos $2) (Sym "Arithmetic::times") [$1, $3] } 
+       | expr '%' expr                           { Call (tokPos $2) (Sym "Arithmetic::modulo") [$1, $3] } 
+       | expr '<' expr                           { Call (tokPos $2) (Sym "Compare::less") [$1, $3] } 
+       | expr '>' expr                           { Call (tokPos $2) (Sym "Compare::greater") [$1, $3] } 
+       | expr '==' expr                          { Call (tokPos $2) (Sym "Compare::equal") [$1, $3] } 
        | expr '<=' expr                          { Call (tokPos $2) (Sym "lessEqual") [$1, $3] } 
        | expr '>=' expr                          { Call (tokPos $2) (Sym "greaterEqual") [$1, $3] } 
-       | expr '!=' expr                          { Call (tokPos $2) (Sym "Boolean_not") [Call (tokPos $2) (Sym "Compare_equal") [$1, $3]] } 
-       | expr '&&' expr                          { Call (tokPos $2) (Sym "Boolean_and") [$1, $3] } 
-       | expr '||' expr                          { Call (tokPos $2) (Sym "Boolean_or") [$1, $3] } 
-       | '!' expr                                { Call (tokPos $1) (Sym "Boolean_not") [$2] }
+       | expr '!=' expr                          { Call (tokPos $2) (Sym "Boolean::not") [Call (tokPos $2) (Sym "Compare::equal") [$1, $3]] } 
+       | expr '&&' expr                          { Call (tokPos $2) (Sym "Boolean::and") [$1, $3] } 
+       | expr '||' expr                          { Call (tokPos $2) (Sym "Boolean::or") [$1, $3] } 
+       | '!' expr                                { Call (tokPos $1) (Sym "Boolean::not") [$2] }
        | '-' expr                                { Call (tokPos $1) (Sym "subtract") [$2] }
 
 
-literal : int_c                                  { Call (tokPos $1) (Sym "construct") [AST.Int (tokPos $1) (read $ tokStr $1)] }
-        | float_c                                { Call (tokPos $1) (Sym "construct") [AST.Float (tokPos $1) (read $ tokStr $1)] }
-        | char_c                                 { Call (tokPos $1) (Sym "construct") [AST.Char (tokPos $1) (read $ tokStr $1)] }
-        | true                                   { Call (tokPos $1) (Sym "construct") [AST.Bool (tokPos $1) True] }
-        | false                                  { Call (tokPos $1) (Sym "construct") [AST.Bool (tokPos $1) False] }
+literal : int_c                                  { Call (tokPos $1) (Sym "Construct::construct") [AST.Int (tokPos $1) (read $ tokStr $1)] }
+        | float_c                                { Call (tokPos $1) (Sym "Construct::construct") [AST.Float (tokPos $1) (read $ tokStr $1)] }
+        | char_c                                 { Call (tokPos $1) (Sym "Construct::construct") [AST.Char (tokPos $1) (read $ tokStr $1)] }
+        | true                                   { Call (tokPos $1) (Sym "Construct::construct") [AST.Bool (tokPos $1) True] }
+        | false                                  { Call (tokPos $1) (Sym "Construct::construct") [AST.Bool (tokPos $1) False] }
         | string_c                               { AST.String (tokPos $1) (processString $ tokStr $1) }
 
 ---------------------------------------------------------------------------------------------------

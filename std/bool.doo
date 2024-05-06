@@ -11,7 +11,7 @@ fn Compare::equal(a Bool, b Bool) Bool
 fn set(a &Bool, b Bool)
     ${ *$a = $b; }
 
-fn construct(a Bool) Bool
+fn Construct::construct(a Bool) Bool
     let b : Bool
     ${ $b = $a; }
     return b

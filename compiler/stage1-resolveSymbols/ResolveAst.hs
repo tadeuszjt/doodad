@@ -15,7 +15,7 @@ import AST
 import Monad
 import Error
 import Symbol
-import ASTResolved
+import ASTResolved hiding (genSymbol)
 import ASTMapper
 
 
@@ -33,7 +33,7 @@ data ResolveState
     = ResolveState
         { modName :: String
         , symTab  :: MySymTab
-        , supply  :: Map.Map String Int
+        , supply  :: Map.Map Symbol Int
         }
 
 initResolveState = ResolveState
@@ -66,16 +66,11 @@ printSymbolTable = do
 lookupSymTab :: Symbol -> SymKey -> MySymTab -> [Symbol]
 lookupSymTab symbol key []       = []
 lookupSymTab symbol key (s : ss) = case symbol of
-    Sym str -> case Set.toList (Set.filter (\(s, k) -> key == k && removeGeneric (sym s) == str) s) of
+    Sym str -> case Set.toList (Set.filter (\(s, k) -> key == k && symbolsCouldMatch (Sym str) s) s) of
         [] -> lookupSymTab symbol key ss
         xs -> map fst xs
 
-    SymQualified m str -> case Set.toList
-        (Set.filter (\(s, k) -> key == k && sym s == str && mod s == m) s) of
-            [] -> lookupSymTab symbol key ss
-            xs -> map fst xs
-
-    SymResolved _ _ -> case Set.member (symbol, key) s of
+    SymResolved _ -> case Set.member (symbol, key) s of
         True -> [symbol]
         False -> lookupSymTab symbol key ss
 
@@ -111,26 +106,26 @@ look symbol key = do
 
 
 define :: Symbol -> SymKey -> DoM ResolveState ()
-define symbol@(SymResolved _ _) key = do
+define symbol@(SymResolved _) key = do
     --liftIO $ putStrLn $ "defining: " ++ prettySymbol symbol
     resm <- lookHeadm symbol key
     unless (isNothing resm) (fail $ "symbol already defined: " ++ prettySymbol symbol)
     modify $ \s -> s { symTab = (Set.insert (symbol, key) $ head $ symTab s) : (tail $ symTab s) }
 
 
-genSymbol :: String -> DoM ResolveState Symbol
-genSymbol str = do
+genSymbol :: Symbol -> DoM ResolveState Symbol
+genSymbol symbol@(SymResolved str) = do
     modName <- gets modName
-    resm <- gets (Map.lookup str . supply)
+    resm <- gets (Map.lookup symbol . supply)
     let n = maybe 0 (id) resm
-    modify $ \s -> s { supply = Map.insert str (n + 1) (supply s) }
-    return $ SymResolved (modName ++ "::" ++ str) n
+    modify $ \s -> s { supply = Map.insert symbol (n + 1) (supply s) }
+    return $ SymResolved (modName ++ "::" ++ str ++ "::" ++ show n)
 
 
-resolveAst :: AST -> [ASTResolved] -> DoM s (AST, Map.Map String Int)
+resolveAst :: AST -> [ASTResolved] -> DoM s (AST, Map.Map Symbol Int)
 resolveAst ast imports = fmap fst $ runDoMExcept initResolveState (resolveAst' ast)
     where
-        resolveAst' :: AST -> DoM ResolveState (AST, Map.Map String Int)
+        resolveAst' :: AST -> DoM ResolveState (AST, Map.Map Symbol Int)
         resolveAst' ast = do
             modify $ \s -> s { modName = astModuleName ast }
             forM_ imports $ \imprt -> do
@@ -140,7 +135,7 @@ resolveAst ast imports = fmap fst $ runDoMExcept initResolveState (resolveAst' a
             -- pre-define types
             topStmts' <- forM (astStmts ast) $ \stmt -> withPos stmt $ case stmt of
                 Typedef pos generics (Sym str) typ -> do
-                    symbol <- genSymbol str
+                    symbol <- genSymbol (SymResolved str)
                     define symbol KeyType
                     return $ Typedef pos generics symbol typ
 
@@ -154,7 +149,7 @@ resolveAst ast imports = fmap fst $ runDoMExcept initResolveState (resolveAst' a
 
 defineGenerics :: [Symbol] -> DoM ResolveState [Symbol]
 defineGenerics generics = forM generics $ \(Sym str) -> do
-    symbol <- genSymbol ("<generic>" ++ str)
+    symbol <- genSymbol $ SymResolved ("type::" ++ str)
     define symbol KeyType
     return symbol
 
@@ -162,11 +157,11 @@ defineGenerics generics = forM generics $ \(Sym str) -> do
 resolveParam :: Param -> DoM ResolveState Param
 resolveParam param = withPos param $ case param of
     Param pos (Sym sym) typ -> do
-        symbol <- genSymbol sym
+        symbol <- genSymbol (SymResolved sym)
         define symbol KeyVar
         Param pos symbol <$> resolveType typ
     RefParam pos (Sym sym) typ -> do
-        symbol <- genSymbol sym
+        symbol <- genSymbol (SymResolved sym)
         define symbol KeyVar
         RefParam pos symbol <$> resolveType typ
 
@@ -199,9 +194,9 @@ resolveStmt :: Stmt -> DoM ResolveState Stmt
 resolveStmt statement = withPos statement $ case statement of
     Typedef pos generics symbol typ -> do
         symbol' <- case symbol of
-            SymResolved _ _ -> return symbol
+            SymResolved _ -> return symbol
             Sym str         -> do
-                s <- genSymbol str
+                s <- genSymbol (SymResolved str)
                 define s KeyType
                 return s
 
@@ -279,7 +274,7 @@ resolveStmt statement = withPos statement $ case statement of
         return (While pos expr' stmt')
     
     Data pos (Sym str) typ mexpr -> do
-        symbol <- genSymbol str
+        symbol <- genSymbol (SymResolved str)
         define symbol KeyVar
         typ' <- resolveType typ
         mexpr' <- traverse resolveExpr mexpr
@@ -303,7 +298,7 @@ resolvePattern pattern = withPos pattern $ case pattern of
         return (PatAnnotated pat' typ')
 
     PatIdent pos (Sym str) -> do
-        symbol <- genSymbol str
+        symbol <- genSymbol (SymResolved str)
         define symbol KeyVar
         return (PatIdent pos symbol)
 

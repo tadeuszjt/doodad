@@ -5,15 +5,15 @@ import std/features
 
 fn set(a &I64, b I64); ${ *$a = $b; }
 
-fn construct(a I64) I64; return a
+fn Construct::construct(a I64) I64; return a
 
 
-fn construct(a F64) I64
+fn Construct::construct(a F64) I64
     let b : I64
     ${ $b = $a; }
     return b
 
-fn construct(c Char) I64
+fn Construct::construct(c Char) I64
     let n = 0
     ${ $n = $c; }
     return n

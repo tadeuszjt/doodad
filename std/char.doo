@@ -3,7 +3,7 @@ module char
 import std/bool
 import std/features
 
-fn construct(a Char) Char; return a
+fn Construct::construct(a Char) Char; return a
 
 fn eof() Char
     let c : Char

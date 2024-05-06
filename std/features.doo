@@ -18,3 +18,17 @@ feature Compare
     fn{T} greater(a T, b T) Bool
     fn{T} less(a T, b T) Bool
     fn{T} equal(a T, b T) Bool
+
+
+feature Len
+    fn{T} len(a &T) I64
+
+
+feature At
+    fn{T, K, V} at(a &T, i K) &V
+
+
+feature Construct
+    fn{T, A}       construct(a A) T
+    fn{T, A, B}    construct(a A, b B) T
+    fn{T, A, B, C} construct(a A, b B, c C) T

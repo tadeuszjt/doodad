@@ -43,10 +43,12 @@ fn testConvert()
         ${ $c = $a == $b; }
         return c
 
-    fn construct(a I64) MyInt
+    fn Construct::construct(a I64) MyInt
         let b : MyInt
         ${ $a = $b; }
         return b
+
+    let 1 : MyInt = add(0, 1)
 
     let x : MyInt = 3
     let 4 : MyInt = 1 + x
@@ -136,7 +138,7 @@ fn testTable()
 
     fn first(p &Person) &I64; return &p.0
     fn second(p &Person) &Bool; return &p.1
-    fn construct(a I64, b Bool) Person
+    fn Construct::construct(a I64, b Bool) Person
         let p : Person
         p.first = a
         p.second = b
@@ -258,7 +260,7 @@ fn testTree()
     let 0 = t.len()
     t.insert(1, true)
     t.insert(2, false)
-    let 2 = t.len()
+    let 2 = t.Len::len()
 
     let true = t.at(1)
     let false = t.at(2)
@@ -372,7 +374,7 @@ fn testBoolConditions()
     type AlwaysTrue Tuple{}
 
     let always : AlwaysTrue
-    fn construct(a AlwaysTrue) Bool
+    fn Construct::construct(a AlwaysTrue) Bool
         return true
 
     if always
@@ -381,7 +383,7 @@ fn testBoolConditions()
         let false = false
 
     type OnlyThrice I64
-    fn construct(a I64) OnlyThrice
+    fn Construct::construct(a I64) OnlyThrice
         let b : OnlyThrice
         ${ $b = $a; }
         return b
@@ -399,7 +401,7 @@ fn testBoolConditions()
         ${ $c = $a + $b; }
         return c
 
-    fn construct(a &OnlyThrice) Bool
+    fn Construct::construct(a &OnlyThrice) Bool
         if a == 3
             return false
         else
@@ -421,7 +423,7 @@ fn testCharType()
     type MyChar Char.Tuple
 
     fn set(a &MyChar, b MyChar); a.0 = b.0
-    fn construct(a Char) MyChar
+    fn Construct::construct(a Char) MyChar
         let b : MyChar
         b.0 = a
         return b

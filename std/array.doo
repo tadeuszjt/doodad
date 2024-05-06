@@ -4,11 +4,11 @@ import std/integer
 import std/features
 
 
-fn{T, S} at(array &Array{T, S}, index I64) &T
+fn{T, S} At::at(array &Array{T, S}, index I64) &T
     return builtin_array_at(&array, index)
 
 
-fn{T, S} len(array &Array{T, S}) I64
+fn{T, S} Len::len(array &Array{T, S}) I64
     let len
     ${ $len = sizeof($array->arr) / sizeof($array->arr[0]); }
     return len

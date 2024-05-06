@@ -34,11 +34,11 @@ fn{K, V} base(t &Tree{K, V})  &Node{K, V}.Key.Maybe; return &t.1
 
 
 
-fn{K, V} len(tree &Tree{K, V}) I64
+fn{K, V} Len::len(tree &Tree{K, V}) I64
     return tree.nodes.len()
 
 
-fn{K, V} at(t &Tree{K, V}, key K) &V
+fn{K, V} At::at(t &Tree{K, V}, key K) &V
     switch t.base
         Node{K, V}.Key(current)
 

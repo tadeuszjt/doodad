@@ -29,6 +29,15 @@ initInstantiatorState ast = InstantiatorState
     }
 
 
+
+liftASTState :: DoM ASTResolved a -> DoM InstantiatorState a
+liftASTState m = do
+    ast <- gets astResolved
+    (a, ast') <- runDoMExcept ast m
+    modify $ \s -> s { astResolved = ast' }
+    return a
+
+
 modifyAST :: (ASTResolved -> ASTResolved) -> DoM InstantiatorState ()
 modifyAST f = modify $ \s -> s { astResolved = f (astResolved s) }
 
@@ -63,15 +72,6 @@ instStmt :: Stmt -> DoM InstantiatorState Stmt
 instStmt = mapStmtM instantiatorMapper
 
 
-genSymbol :: String -> DoM InstantiatorState Symbol
-genSymbol sym = do  
-    modName <- gets (moduleName . astResolved)
-    im <- gets $ Map.lookup sym . symSupply . astResolved
-    let n = maybe 0 (id) im
-    modifyAST $ \s -> s { symSupply = Map.insert sym (n + 1) (symSupply s) }
-    return $ SymResolved (modName ++ "::" ++ sym) n
-
-
 instantiatorMapper :: Elem -> DoM InstantiatorState Elem
 instantiatorMapper elem = case elem of
     ElemExpr (AExpr exprType expr@(AST.Call pos symbol exprs)) | all isAnnotated exprs -> do
@@ -83,7 +83,7 @@ instantiatorMapper elem = case elem of
         return elem
 
     ElemPattern (PatAnnotated (PatLiteral expr) patType) | isAnnotated expr -> do
-        void $ resolveFuncCall (Sym "Compare_equal") [patType, patType] Type.Bool
+        void $ resolveFuncCall (Sym "Compare::equal") [patType, patType] Type.Bool
         return elem
 
     ElemPattern (PatAnnotated (PatTuple pos pats) patType) | all patAnnotated pats -> do
@@ -128,7 +128,7 @@ resolveFuncCall calledSymbol      argTypes retType = do
     ast <- gets astResolved
 
     case candidates of
-        [] -> error "no candidates"
+        [] -> error ("no candidates for: " ++ prettySymbol calledSymbol)
 
         [header] -> do
             instancem <- findInstance ast $ CallHeader
@@ -145,7 +145,8 @@ resolveFuncCall calledSymbol      argTypes retType = do
 
                     case funcHeaderFullyResolved (funcHeader funcReplaced) of
                         True -> do
-                            instanceSymbol <- genSymbol ("instance_" ++ Symbol.sym calledSymbol)
+                            instanceSymbol <- liftASTState $ genSymbol $
+                                SymResolved ("instance_" ++ Symbol.sym calledSymbol)
                             modifyAST $ \s -> s { funcInstance = Map.insert
                                 (callHeaderFromFuncHeader $ funcHeader funcReplaced)
                                 (funcReplaced { funcHeader = (funcHeader funcReplaced)

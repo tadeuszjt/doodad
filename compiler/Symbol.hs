@@ -2,70 +2,55 @@ module Symbol where
 
 import Prelude hiding (mod)
 import Data.List
+import Data.Char
 
 
 data Symbol
-    = Sym          { sym_ :: String }
-    | SymQualified { mod_ :: String, sym_ :: String }
-    | SymResolved  { sym_ :: String, level :: Int }
+    = Sym          { symStr :: String }
+    | SymResolved  { symStr :: String }
     deriving (Eq, Ord, Show)
 
 
 sym :: Symbol -> String
-sym (Sym s) = s
-sym (SymQualified m s) = s
-sym (SymResolved s _)  = reverse $ takeWhile (/= ':') (reverse s)
+sym (Sym s)          = last (parseStr s)
+sym (SymResolved s ) = last $ dropLevels (parseStr s)
+
+
+dropLevels :: [String] -> [String]
+dropLevels = filter (\s -> not $ isDigit $ head s)
+
+
+parseStr :: String -> [String]
+parseStr str = case isInfixOf "::" str of
+    True -> takeWhile (/= ':') str : parseStr (dropWhile (==':') $ dropWhile (/= ':') str)
+    False -> [str]
+
 
 mod :: Symbol -> String
-mod (SymResolved s _) = takeWhile (/= ':') s
-mod (SymQualified m _) = m
+mod (SymResolved s) = head (parseStr s)
 
 
 showSymLocal :: Symbol -> String
-showSymLocal symbol@(SymResolved s i) = sym symbol ++ "_" ++ show i
+showSymLocal symbol@(SymResolved s) = intercalate "_" (parseStr s)
 showSymLocal symbol@(Sym s)           = s
 
 
-showSymGlobal symbol@(SymResolved s i) = mod symbol ++ "_" ++ sym symbol ++ "_" ++ show i
+showSymGlobal symbol@(SymResolved s) = intercalate "_" (parseStr s)
 
 
 prettySymbol :: Symbol -> String
-prettySymbol symbol@(SymResolved s i) = mod symbol ++ "::" ++ sym symbol ++ "::" ++ show (level symbol)
-prettySymbol symbol@(SymQualified m s) = mod symbol ++ "::" ++ sym symbol
-prettySymbol symbol@(Sym s)           = s
-
-
-parseSymbol :: Symbol -> [String]
-parseSymbol (SymResolved s i) = parseStr s
-    where
-        parseStr :: String -> [String]
-        parseStr str = case isInfixOf "::" str of
-            True -> takeWhile (/= ':') str : parseStr (drop 2 $ dropWhile (/= ':') str)
-            False -> [str]
-
-
-
---
---instance Show Symbol where
---    show symbol = case symbol of
---        Sym s -> s
---        SymQualified mod sym -> mod ++ "::" ++ sym
---        s@(SymResolved _ _) -> case level s of
---            0 -> mod s ++ "_" ++ sym s
---            n -> mod s ++ "_" ++ sym s ++ "_" ++ show (level s)
+prettySymbol symbol@(SymResolved s)  = intercalate "::" (parseStr s)
+prettySymbol symbol@(Sym s)          = s
 
 
 symbolIsResolved :: Symbol -> Bool
-symbolIsResolved (SymResolved _ _) = True
+symbolIsResolved (SymResolved _) = True
 symbolIsResolved _               = False
 
 
 symbolsCouldMatch :: Symbol -> Symbol -> Bool
-symbolsCouldMatch a@(SymResolved _ _)    b@(SymResolved _ _)     = a == b
-symbolsCouldMatch a@(SymResolved _ _)    b@(SymQualified _ _)  = mod a == mod b && sym a == sym b
-symbolsCouldMatch a@(SymQualified _ _) b@(SymResolved _ _)     = mod a == mod b && sym a == sym b
-symbolsCouldMatch a@(SymQualified _ _) b@(Sym _)             = sym a == sym b
-symbolsCouldMatch a@(Sym _)            b@(SymQualified _ _)  = sym a == sym b
-symbolsCouldMatch a@(SymResolved _ _)    b@(Sym _)             = sym a == sym b
-symbolsCouldMatch a@(Sym _)            b@(SymResolved _ _)     = sym a == sym b
-symbolsCouldMatch a@(Sym _)            b@(Sym _)             = sym a == sym b
+symbolsCouldMatch (SymResolved a)  (SymResolved b) = a == b
+symbolsCouldMatch (Sym a)          (SymResolved b) = isPrefixOf (reverse $ parseStr a) (reverse $ dropLevels $ parseStr b)
+symbolsCouldMatch (SymResolved b)  (Sym a)         = isPrefixOf (reverse $ parseStr a) (reverse $ dropLevels $ parseStr b)
+symbolsCouldMatch (Sym a)          (Sym b)         = a == b
+

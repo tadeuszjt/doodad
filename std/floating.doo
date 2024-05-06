@@ -4,7 +4,7 @@ import std/features
 
 fn set(a &F64, b F64); ${ *$a = $b; }
 
-fn construct(a F64) F64
+fn Construct::construct(a F64) F64
     let b : F64
     ${ $b = $a; }
     return b

@@ -12,7 +12,6 @@ import Control.Monad.Identity
 
 import Error
 import Type
-import ASTResolved
 
 
 newtype DoM s a
@@ -58,7 +57,4 @@ runDoMUntilSameState f = runDoMUntilSameState' 1 f
 
 instance MonadFail (DoM s) where
     fail s = throwError (ErrorStr s)
-
-instance TypeDefs (DoM ASTResolved) where
-    getTypeDefs = gets typeDefsAll
 

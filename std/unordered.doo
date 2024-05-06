@@ -21,7 +21,7 @@ fn{T} set(a &T.Entry, b T.Entry)
     a.value = b.value
 
 
-fn{T} construct(a I64.unordered::Key, b T) T.Entry
+fn{T} Construct::construct(a I64.unordered::Key, b T) T.Entry
     let e : T.Entry
     e.0 = a
     e.1 = b
@@ -33,17 +33,17 @@ fn{T} value(e &T.Entry) &T;                  return &e.1
 fn{T} indices(u &T.Unordered) &Sparse{I64};  return &u.0
 fn{T} values(u &T.Unordered) &T.Entry.Table; return &u.1
 
-fn{T} construct(n I64) T.unordered::Key
+fn{T} Construct::construct(n I64) T.unordered::Key
     return conv(n)
 
-fn{A, B} construct(x A.unordered::Key) B.sparse::Key
+fn{A, B} Construct::construct(x A.unordered::Key) B.sparse::Key
     return conv(x)
 
-fn{A, B} construct(x A.sparse::Key) B.unordered::Key
+fn{A, B} Construct::construct(x A.sparse::Key) B.unordered::Key
     return conv(x)
 
 
-fn{T} len(u &T.Unordered) I64
+fn{T} Len::len(u &T.Unordered) I64
     return u.values.len
 
 fn{T} insert(u &T.Unordered, elem T) T.unordered::Key
@@ -58,8 +58,8 @@ fn{T} insert(u &T.Unordered) T.unordered::Key
     return T.unordered::Key(key)
 
 
-fn{T} at(u &T.Unordered, key T.unordered::Key) &T
-    let index = u.indices.at(conv(key))
+fn{T} At::at(u &T.Unordered, key T.unordered::Key) &T
+    let index = u.indices.At::at(conv(key))
     return &u.values.at(index).value
 
 

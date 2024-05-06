@@ -20,13 +20,13 @@ fn{A, B}    Arithmetic::add(a Tuple{A, B}, b Tuple{A, B}) Tuple{A, B}; return ( 
 fn{A, B, C} Arithmetic::add(a Tuple{A, B, C}, b Tuple{A, B, C}) Tuple{A, B, C}; return ( a.0 + b.0, a.1 + b.1, a.2 + b.2 )
 
 
-fn{A, B} construct(a A, b B) Tuple{A, B}
+fn{A, B} Construct::construct(a A, b B) Tuple{A, B}
     let x : Tuple{A, B}
     x.0 = a
     x.1 = b
     return x
 
-fn{A, B, C} construct(a A, b B, c C) Tuple{A, B, C}
+fn{A, B, C} Construct::construct(a A, b B, c C) Tuple{A, B, C}
     let x : Tuple{A, B, C}
     x.0 = a
     x.1 = b

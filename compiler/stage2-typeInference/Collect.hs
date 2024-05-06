@@ -295,7 +295,6 @@ collectExpr (AExpr exprType expression) = collectPos expression $ case expressio
                 collect "builtin must have slice argument" $
                     ConsEq (typeof $ exprs !! 0) (Type.Slice exprType)
                 
-
             "builtin_table_append" -> do
                 check (length exprs == 1) "invalid builtin_table_append call"
                 collect "builtin returns void" $ ConsEq exprType Void
@@ -304,6 +303,9 @@ collectExpr (AExpr exprType expression) = collectPos expression $ case expressio
                 check (length exprs == 3) "invalid builtin_table_slice call"
                 collect "builtin must have slice argument" $
                     ConsSlice exprType (typeof $ head exprs)
+
+            "builtin_zero" -> do
+                check (length exprs == 0) "invalid builtin_zero call"
 
             "conv"  -> return ()
             "assert" -> do

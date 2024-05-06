@@ -1,14 +1,17 @@
+{-# LANGUAGE FlexibleInstances #-}
 module ASTResolved where
 
 import Data.List
 
 import Control.Monad.IO.Class
 import Control.Monad
+import Control.Monad.State
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import AST
 import Symbol
 import Type
+import Monad
 
 
 
@@ -31,7 +34,7 @@ data ASTResolved
         , funcDefsTop          :: Set.Set Symbol
         , funcInstance         :: Map.Map CallHeader Func
         , funcInstanceImported :: Map.Map CallHeader Func
-        , symSupply            :: Map.Map String Int              
+        , symSupply            :: Map.Map Symbol Int              
         }
     deriving (Eq)
 
@@ -43,12 +46,25 @@ data CallHeader = CallHeader
     }
     deriving (Eq, Ord)
 
+instance TypeDefs (DoM ASTResolved) where
+    getTypeDefs = gets typeDefsAll
+
 
 instance Show CallHeader where
     show header =
         (prettySymbol $ callSymbol header) ++ argsStr ++ ":" ++ show (callRetType header)
         where
             argsStr = "(" ++ intercalate ", " (map show $ callArgTypes header) ++ ")"
+
+
+
+genSymbol :: Symbol -> DoM ASTResolved Symbol
+genSymbol symbol@(SymResolved str) = do  
+    modName <- gets moduleName
+    im <- gets $ Map.lookup symbol . symSupply
+    let n = maybe 0 (id) im
+    modify $ \s -> s { symSupply = Map.insert symbol (n + 1) (symSupply s) }
+    return $ SymResolved (modName ++ "::" ++ str ++ "::" ++ show n)
 
 
 callHeaderFromFuncHeader :: FuncHeader -> CallHeader
@@ -128,7 +144,6 @@ prettyASTResolved ast = do
     putStrLn "featuresAll:"
     forM_ (Map.toList $ featuresAll ast) $ \(symbol, header) -> do
         liftIO $ putStrLn $ "\t" ++ prettySymbol symbol ++ ": " ++ show header 
-
 
     putStrLn ""
     putStrLn "featuresTop:"

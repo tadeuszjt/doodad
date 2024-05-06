@@ -1,14 +1,14 @@
 module sum
 
-fn{A, B} construct(a A) Sum{A, B}; return conv(a)
-fn{A, B} construct(a B) Sum{A, B}; return conv(a)
+fn{A, B} Construct::construct(a A) Sum{A, B}; return conv(a)
+fn{A, B} Construct::construct(a B) Sum{A, B}; return conv(a)
 
-fn{A, B, C} construct(a A) Sum{A, B, C}; return conv(a)
-fn{A, B, C} construct(a B) Sum{A, B, C}; return conv(a)
-fn{A, B, C} construct(a C) Sum{A, B, C}; return conv(a)
+fn{A, B, C} Construct::construct(a A) Sum{A, B, C}; return conv(a)
+fn{A, B, C} Construct::construct(a B) Sum{A, B, C}; return conv(a)
+fn{A, B, C} Construct::construct(a C) Sum{A, B, C}; return conv(a)
 
-fn{A, B, C, D} construct(a A) Sum{A, B, C, D}; return conv(a)
-fn{A, B, C, D} construct(a B) Sum{A, B, C, D}; return conv(a)
-fn{A, B, C, D} construct(a C) Sum{A, B, C, D}; return conv(a)
-fn{A, B, C, D} construct(a D) Sum{A, B, C, D}; return conv(a)
+fn{A, B, C, D} Construct::construct(a A) Sum{A, B, C, D}; return conv(a)
+fn{A, B, C, D} Construct::construct(a B) Sum{A, B, C, D}; return conv(a)
+fn{A, B, C, D} Construct::construct(a C) Sum{A, B, C, D}; return conv(a)
+fn{A, B, C, D} Construct::construct(a D) Sum{A, B, C, D}; return conv(a)
 

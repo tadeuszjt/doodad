@@ -30,7 +30,7 @@ initAstResolved modName imports = ASTResolved
     }
 
 
-combineAsts :: (AST, Map.Map String Int) -> [ASTResolved] -> DoM s ASTResolved
+combineAsts :: (AST, Map.Map Symbol Int) -> [ASTResolved] -> DoM s ASTResolved
 combineAsts (ast, supply) imports = fmap snd $
     runDoMExcept (initAstResolved (astModuleName ast) imports) combineAsts'
     where
@@ -45,7 +45,7 @@ combineAsts (ast, supply) imports = fmap snd $
             stmts' <- mapM (mapStmtM combineMapper) (astStmts ast)
 
             forM_ stmts' $ \stmt -> withPos stmt $ case stmt of
-                Typedef pos generics symbol@(SymResolved _ _) typ ->
+                Typedef pos generics symbol@(SymResolved _) typ ->
                     modify $ \s -> s { typeDefs = Set.insert symbol (typeDefs s) }
 
                 FuncDef (Func header stmt) ->
@@ -59,7 +59,7 @@ combineMapper :: Elem -> DoM ASTResolved Elem
 combineMapper element = case element of
     ElemStmt (FuncDef (Func header stmt)) -> do
         let Sym str = funcSymbol header
-        symbol <- genSymbol str
+        symbol <- genSymbol (SymResolved str)
 
         let header' = header { funcSymbol = symbol }
         let callHeader = callHeaderFromFuncHeader header'
@@ -67,7 +67,7 @@ combineMapper element = case element of
         modify $ \s -> s { funcDefsAll = Map.insert symbol (Func header' stmt) (funcDefsAll s) }
 
         when (not $ isGenericHeader header') $ do
-            instanceSymbol <- genSymbol ("instance_" ++ str)
+            instanceSymbol <- genSymbol $ SymResolved ("instance_" ++ str)
             let headerInstance = header { funcSymbol = instanceSymbol }
             modify $ \s -> s
                 { funcInstance = Map.insert callHeader (Func headerInstance stmt) (funcInstance s)
@@ -97,6 +97,7 @@ combineMapper element = case element of
                    , "builtin_table_slice"
                    , "builtin_slice_at"
                    , "builtin_array_at"
+                   , "builtin_zero"
                    , "conv"
                    , "assert"
                    ]
@@ -108,13 +109,4 @@ combineMapper element = case element of
 
 
     _ -> return element
-
-
-genSymbol :: String -> DoM ASTResolved Symbol
-genSymbol sym = do  
-    modName <- gets moduleName
-    im <- gets $ Map.lookup sym . symSupply
-    let n = maybe 0 (id) im
-    modify $ \s -> s { symSupply = Map.insert sym (n + 1) (symSupply s) }
-    return $ SymResolved (modName ++ "::" ++ sym) n
 
