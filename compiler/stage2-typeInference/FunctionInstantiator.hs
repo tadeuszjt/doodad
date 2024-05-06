@@ -79,24 +79,24 @@ instantiatorMapper elem = case elem of
         fmap (ElemExpr . AExpr exprType) $ return (Call pos symbol' exprs)
 
     ElemPattern (PatAnnotated (PatIdent pos symbol) patType) -> do
-        void $ resolveFuncCall (Sym "Store::store") [patType, patType] Void
+        void $ resolveFuncCall (Sym ["Store", "store"]) [patType, patType] Void
         return elem
 
     ElemPattern (PatAnnotated (PatLiteral expr) patType) | isAnnotated expr -> do
-        void $ resolveFuncCall (Sym "Compare::equal") [patType, patType] Type.Bool
+        void $ resolveFuncCall (Sym ["Compare", "equal"]) [patType, patType] Type.Bool
         return elem
 
     ElemPattern (PatAnnotated (PatTuple pos pats) patType) | all patAnnotated pats -> do
-        when (length pats > 0) $ void $ resolveFuncCall (Sym "first") [patType] (typeof $ pats !! 0)
-        when (length pats > 1) $ void $ resolveFuncCall (Sym "second") [patType] (typeof $ pats !! 1)
-        when (length pats > 2) $ void $ resolveFuncCall (Sym "third") [patType] (typeof $ pats !! 2)
-        when (length pats > 3) $ void $ resolveFuncCall (Sym "fourth") [patType] (typeof $ pats !! 3)
+        when (length pats > 0) $ void $ resolveFuncCall (Sym ["first"]) [patType] (typeof $ pats !! 0)
+        when (length pats > 1) $ void $ resolveFuncCall (Sym ["second"]) [patType] (typeof $ pats !! 1)
+        when (length pats > 2) $ void $ resolveFuncCall (Sym ["third"]) [patType] (typeof $ pats !! 2)
+        when (length pats > 3) $ void $ resolveFuncCall (Sym ["fourth"]) [patType] (typeof $ pats !! 3)
         return elem
 
     ElemPattern (PatAnnotated (PatSlice pos pats) patType) -> do
         when (length pats > 0) $ do
-            void $ resolveFuncCall (Sym "at") [patType, I64] (typeof $ head pats)
-        void $ resolveFuncCall (Sym "len") [patType] I64
+            void $ resolveFuncCall (Sym ["At", "at"]) [patType, I64] (typeof $ head pats)
+        void $ resolveFuncCall (Sym ["Len", "len"]) [patType] I64
         return elem
 
     ElemPatternIsolated (PatAnnotated (PatIdent pos symbol) patType) -> do
@@ -146,7 +146,7 @@ resolveFuncCall calledSymbol      argTypes retType = do
                     case funcHeaderFullyResolved (funcHeader funcReplaced) of
                         True -> do
                             instanceSymbol <- liftASTState $ genSymbol $
-                                SymResolved ("instance_" ++ Symbol.sym calledSymbol)
+                                SymResolved ["instance_" ++ Symbol.sym calledSymbol]
                             modifyAST $ \s -> s { funcInstance = Map.insert
                                 (callHeaderFromFuncHeader $ funcHeader funcReplaced)
                                 (funcReplaced { funcHeader = (funcHeader funcReplaced)

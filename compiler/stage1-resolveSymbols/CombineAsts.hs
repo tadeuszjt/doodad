@@ -58,22 +58,18 @@ combineAsts (ast, supply) imports = fmap snd $
 combineMapper :: Elem -> DoM ASTResolved Elem
 combineMapper element = case element of
     ElemStmt (FuncDef (Func header stmt)) -> do
-        let Sym str = funcSymbol header
-        symbol <- genSymbol (SymResolved str)
+        let callHeader = callHeaderFromFuncHeader header
+        modify $ \s -> s {
+            funcDefsAll = Map.insert (funcSymbol header) (Func header stmt) (funcDefsAll s) }
 
-        let header' = header { funcSymbol = symbol }
-        let callHeader = callHeaderFromFuncHeader header'
-
-        modify $ \s -> s { funcDefsAll = Map.insert symbol (Func header' stmt) (funcDefsAll s) }
-
-        when (not $ isGenericHeader header') $ do
-            instanceSymbol <- genSymbol $ SymResolved ("instance_" ++ str)
+        when (not $ isGenericHeader header) $ do
+            instanceSymbol <- genSymbol $ SymResolved ["instance_" ++ sym (funcSymbol header)]
             let headerInstance = header { funcSymbol = instanceSymbol }
             modify $ \s -> s
                 { funcInstance = Map.insert callHeader (Func headerInstance stmt) (funcInstance s)
                 } 
 
-        return $ ElemStmt $ FuncDef (Func header' stmt)
+        return $ ElemStmt $ FuncDef (Func header stmt)
 
 
     ElemStmt (Typedef pos generics symbol typ) -> do
@@ -91,7 +87,7 @@ combineMapper element = case element of
         return $ ElemStmt (Block stmts')
 
 
-    ElemExpr (Call pos symbol@(Sym str) exprs) -> do
+    ElemExpr (Call pos symbol@(Sym [str]) exprs) -> do
         let list = [ "builtin_table_append"
                    , "builtin_table_at"
                    , "builtin_table_slice"

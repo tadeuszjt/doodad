@@ -131,7 +131,7 @@ generateStmt stmt = withPos stmt $ case stmt of
     S.Data _ symbol typ Nothing -> do
         base <- baseTypeOf typ
         init <- case base of
-            TypeApply (Sym "Tuple") [] -> return (C.Initialiser [])
+            TypeApply (Sym ["Tuple"]) [] -> return (C.Initialiser [])
             _                          -> return (C.Initialiser [C.Int 0])
         
         ctyp <- cTypeOf typ
@@ -177,9 +177,9 @@ generateStmt stmt = withPos stmt $ case stmt of
             base <- baseTypeOf val
             -- special preable for ranges
             case base of
-                TypeApply (Sym "Table") _ -> return ()
-                TypeApply (Sym "Array") _ -> return ()
-                TypeApply (Sym "Tuple") [_, _] -> do
+                TypeApply (Sym ["Table"]) _ -> return ()
+                TypeApply (Sym ["Array"]) _ -> return ()
+                TypeApply (Sym ["Tuple"]) [_, _] -> do
                     return ()
                     -- TODO
 
@@ -189,9 +189,9 @@ generateStmt stmt = withPos stmt $ case stmt of
 
             -- check that index is still in range
             idxGtEq <- case base of
-                TypeApply (Sym "Table") _  -> greaterEqual idx =<< builtinLen val
-                TypeApply (Sym "Array") [_, Size n]  -> greaterEqual idx (i64 n)
-                TypeApply (Sym "Tuple") [_, _] -> greaterEqual idx =<< member 1 val
+                TypeApply (Sym ["Table"]) _  -> greaterEqual idx =<< builtinLen val
+                TypeApply (Sym ["Array"]) [_, Size n]  -> greaterEqual idx (i64 n)
+                TypeApply (Sym ["Tuple"]) [_, _] -> greaterEqual idx =<< member 1 val
                 Slice t -> greaterEqual idx =<< builtinLen val
                 x -> error (show x)
             if_ idxGtEq (appendElem C.Break)
@@ -200,9 +200,9 @@ generateStmt stmt = withPos stmt $ case stmt of
             patMatches <- case mpat of
                 Nothing -> return true
                 Just pat -> case base of
-                    TypeApply (Sym "Table") ts -> generatePattern pat =<< builtinTableAt val idx
-                    TypeApply (Sym "Array") ts -> generatePattern pat =<< builtinArrayAt val idx
-                    TypeApply (Sym "Tuple") ts -> generatePattern pat idx
+                    TypeApply (Sym ["Table"]) ts -> generatePattern pat =<< builtinTableAt val idx
+                    TypeApply (Sym ["Array"]) ts -> generatePattern pat =<< builtinArrayAt val idx
+                    TypeApply (Sym ["Tuple"]) ts -> generatePattern pat idx
                     Slice t -> generatePattern pat =<< builtinSliceAt val idx
                     _ -> error (show base)
 
@@ -232,7 +232,7 @@ generatePattern (PatAnnotated pattern patType) val = withPos pattern $ case patt
 
     PatLiteral expr -> do
         v <- generateExpr expr
-        callFunction (Sym "Compare::equal") Type.Bool [v, val]
+        callFunction (Sym ["Compare", "equal"]) Type.Bool [v, val]
 
     PatIdent _ symbol -> do 
         base <- baseTypeOf val
@@ -241,12 +241,12 @@ generatePattern (PatAnnotated pattern patType) val = withPos pattern $ case patt
         cType <- cTypeOf (typeof val)
         void $ appendAssign cType (showSymLocal symbol) $ C.Initialiser [C.Int 0]
         ref <- reference $ Value (typeof val) (C.Ident name)
-        callFunction (Sym "Store::store") Void [ref, val]
+        callFunction (Sym ["Store", "store"]) Void [ref, val]
         return true
 
     PatSlice _ pats -> do
         ref <- reference val
-        len <- callFunction (Sym "len") I64 [ref] 
+        len <- callFunction (Sym ["Len", "len"]) I64 [ref] 
         endName <- fresh "end"
 
         lenMatch <- assign "lenMatch" $ Value Type.Bool $
@@ -256,7 +256,7 @@ generatePattern (PatAnnotated pattern patType) val = withPos pattern $ case patt
         if_ (not_ lenMatch) (appendElem $ C.Goto endName)
 
         forM_ (zip pats [0..]) $ \(pat, i) -> do
-            at <- callFunction (Sym "at") (typeof $ pats !! i) [val, i64 i]
+            at <- callFunction (Sym ["At", "at"]) (typeof $ pats !! i) [val, i64 i]
             mat <- generatePattern pat at
             if_ (not_ mat) (appendElem $ C.Goto endName)
 
@@ -273,7 +273,7 @@ generatePattern (PatAnnotated pattern patType) val = withPos pattern $ case patt
         let symList = ["first", "second", "third", "fourth"]
 
         forM_ (zip pats [0..]) $ \(pat, i) -> do
-            v <- callFunction (Sym $ symList !! i) (typeof pat) [val]
+            v <- callFunction (Sym [symList !! i]) (typeof pat) [val]
             b <- generatePattern pat v
             void $ if_ (not_ b) $ appendElem (C.Goto endLabel)
 
@@ -290,7 +290,7 @@ generatePattern (PatAnnotated pattern patType) val = withPos pattern $ case patt
         return match
 
     PatTypeField pos fieldType pats -> do
-        TypeApply (Sym "Sum") ts <- baseTypeOf val
+        TypeApply (Sym ["Sum"]) ts <- baseTypeOf val
         let Just i = elemIndex fieldType ts
 
         endLabel <- fresh "skipMatch"
@@ -346,7 +346,7 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
         name <- fresh "zero"
         ctyp <- cTypeOf typ
         appendElem $ C.Assign ctyp name $ C.Initialiser $ case base of
-            TypeApply (Sym "Tuple") [] -> []
+            TypeApply (Sym ["Tuple"]) [] -> []
             _                          -> [C.Int 0]
         return $ Value typ (C.Ident name)
 
@@ -357,7 +357,7 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
         en@(Value I64 _) <- generateExpr end
 
         -- TODO this is broken 
-        TypeApply (Sym "Table") [t] <- baseTypeOf ref
+        TypeApply (Sym ["Table"]) [t] <- baseTypeOf ref
         assign "slice" $ Value (Slice t) $
             C.Initialiser
                 [ C.Address (C.Subscript (C.PMember exp "r0") (valExpr srt))
@@ -368,7 +368,7 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
     S.Builtin _ "builtin_table_at" [expr1, expr2] -> do
         val <- generateExpr expr1
         idx <- generateExpr expr2
-        TypeApply (Sym "Table") _ <- baseTypeOf val
+        TypeApply (Sym ["Table"]) _ <- baseTypeOf val
         builtinTableAt val idx
 
     S.Builtin _ "builtin_slice_at" [expr1, expr2] -> do
@@ -380,12 +380,12 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
     S.Builtin _ "builtin_array_at" [expr1, expr2] -> do
         val <- generateExpr expr1
         idx <- generateExpr expr2
-        TypeApply (Sym "Array") [t, Size n] <- baseTypeOf val
+        TypeApply (Sym ["Array"]) [t, Size n] <- baseTypeOf val
         builtinArrayAt val idx
 
     S.Builtin _ "builtin_table_append" [expr1] -> do
         val <- generateExpr expr1
-        TypeApply (Sym "Table") _ <- baseTypeOf val
+        TypeApply (Sym ["Table"]) _ <- baseTypeOf val
         case val of
             Value _ _ -> fail "isn't reference"
             Ref _ _   -> builtinTableAppend val >> return (Value Void $ C.Int 0)

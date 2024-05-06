@@ -95,7 +95,7 @@ isIntegral x = isInt x || x == Char
 
 
 isGeneric :: Type -> Bool
-isGeneric (TypeApply s ts) = "::type::" `isInfixOf` (Symbol.symStr s)
+isGeneric (TypeApply s ts) = "type" `elem` (Symbol.symStr s)
 isGeneric _                = False
 
 
@@ -130,10 +130,10 @@ baseTypeOfm :: (MonadFail m, TypeDefs m, Typeof a) => a -> m (Maybe Type)
 baseTypeOfm a = case typeof a of
     Type x         -> return Nothing
     t | isSimple t -> return $ Just t
-    TypeApply (Sym "Sum") ts  -> return $ Just (typeof a)
-    TypeApply (Sym "Tuple") t -> return $ Just (typeof a)
-    TypeApply (Sym "Table") t -> return $ Just (typeof a)
-    TypeApply (Sym "Array") t -> return $ Just (typeof a)
+    TypeApply (Sym ["Sum"]) ts  -> return $ Just (typeof a)
+    TypeApply (Sym ["Tuple"]) t -> return $ Just (typeof a)
+    TypeApply (Sym ["Table"]) t -> return $ Just (typeof a)
+    TypeApply (Sym ["Array"]) t -> return $ Just (typeof a)
     Slice _                   -> return $ Just (typeof a)
     Void           -> return $ Just Void
 

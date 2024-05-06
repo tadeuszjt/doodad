@@ -191,11 +191,11 @@ collectPattern (PatAnnotated pattern patType) = collectPos pattern $ case patter
     PatIgnore _           -> return ()
     PatIdent _ symbol     -> do
         define symbol patType
-        collectCall (Sym "Store::store") [patType, patType] Void
+        collectCall (Sym ["Store", "store"]) [patType, patType] Void
 
     PatLiteral expr       -> do
         collect "expression type must match pattern type" $ ConsEq patType (typeof expr)
-        collectCall (Sym "equal") [patType, patType] Type.Bool
+        collectCall (Sym ["Compare", "equal"]) [patType, patType] Type.Bool
         collectExpr expr
 
     PatGuarded _ pat expr -> do
@@ -205,10 +205,10 @@ collectPattern (PatAnnotated pattern patType) = collectPos pattern $ case patter
         collectExpr expr
 
     PatTuple _ pats -> do
-        when (length pats > 0) $ collectCall (Sym "first") [patType] (typeof $ pats !! 0)
-        when (length pats > 1) $ collectCall (Sym "second") [patType] (typeof $ pats !! 1)
-        when (length pats > 2) $ collectCall (Sym "third") [patType] (typeof $ pats !! 2)
-        when (length pats > 3) $ collectCall (Sym "fourth") [patType] (typeof $ pats !! 3)
+        when (length pats > 0) $ collectCall (Sym ["first"]) [patType] (typeof $ pats !! 0)
+        when (length pats > 1) $ collectCall (Sym ["second"]) [patType] (typeof $ pats !! 1)
+        when (length pats > 2) $ collectCall (Sym ["third"]) [patType] (typeof $ pats !! 2)
+        when (length pats > 3) $ collectCall (Sym ["fourth"]) [patType] (typeof $ pats !! 3)
 
         mapM_ collectPattern pats
 
@@ -229,12 +229,12 @@ collectPattern (PatAnnotated pattern patType) = collectPos pattern $ case patter
 
     PatSlice _ pats -> do
         when (length pats > 0) $ do
-            collectCall (Sym "at") [patType, I64] (typeof $ head pats)
+            collectCall (Sym ["at"]) [patType, I64] (typeof $ head pats)
             forM_ pats $ \pat -> do
                 collect "slice pattern must all have same type" $
                     ConsEq (typeof pat) (typeof $ head pats)
 
-        collectCall (Sym "len") [patType] I64
+        collectCall (Sym ["len"]) [patType] I64
         mapM_ collectPattern pats
 
 
@@ -251,7 +251,7 @@ collectExpr (AExpr exprType expression) = collectPos expression $ case expressio
 
     Call _ symbol exprs -> do
         when (Symbol.sym symbol == "construct" && length exprs > 1) $ do
-            void $ collectDefault exprType $ Type.TypeApply (Sym "Tuple") (map typeof exprs)
+            void $ collectDefault exprType $ Type.TypeApply (Sym ["Tuple"]) (map typeof exprs)
         when (Symbol.sym symbol == "construct" && length exprs == 1) $ do
             void $ collectDefault exprType $ typeof (head exprs)
 
@@ -281,7 +281,7 @@ collectExpr (AExpr exprType expression) = collectPos expression $ case expressio
                 collect "builtin must have I64 type for index argument" $
                     ConsEq (typeof $ exprs !! 1) I64
                 collect "builtin argument must have table base type" $
-                    ConsBase (typeof $ exprs !! 0) (Type.TypeApply (Sym "Table") [exprType])
+                    ConsBase (typeof $ exprs !! 0) (Type.TypeApply (Sym ["Table"]) [exprType])
 
             "builtin_array_at" -> do
                 check (length exprs == 2) "invalid builtin_table_at call"

@@ -6,41 +6,45 @@ import Data.Char
 
 
 data Symbol
-    = Sym          { symStr :: String }
-    | SymResolved  { symStr :: String }
+    = Sym          { symStr :: [String] }
+    | SymResolved  { symStr :: [String] }
     deriving (Eq, Ord, Show)
 
 
 sym :: Symbol -> String
-sym (Sym s)          = last (parseStr s)
-sym (SymResolved s ) = last $ dropLevels (parseStr s)
+sym (Sym s)          = last s
+sym (SymResolved s ) = last $ dropLevels s
 
 
 dropLevels :: [String] -> [String]
 dropLevels = filter (\s -> not $ isDigit $ head s)
 
 
-parseStr :: String -> [String]
-parseStr str = case isInfixOf "::" str of
-    True -> takeWhile (/= ':') str : parseStr (dropWhile (==':') $ dropWhile (/= ':') str)
-    False -> [str]
+parseStr_ :: String -> [String]
+parseStr_ []  = []
+parseStr_ str = let (pre, post) = span (/= ':') str in
+    pre : parseStr_ (dropWhile (==':') post)
+
+mkSym :: String -> Symbol
+mkSym str = Sym (parseStr_ str)
+
 
 
 mod :: Symbol -> String
-mod (SymResolved s) = head (parseStr s)
+mod (SymResolved s) = head s
 
 
 showSymLocal :: Symbol -> String
-showSymLocal symbol@(SymResolved s) = intercalate "_" (parseStr s)
-showSymLocal symbol@(Sym s)           = s
+showSymLocal symbol@(SymResolved s) = intercalate "_" (s)
+showSymLocal symbol@(Sym s)         = intercalate "_" s
 
 
-showSymGlobal symbol@(SymResolved s) = intercalate "_" (parseStr s)
+showSymGlobal symbol@(SymResolved s) = intercalate "_" (s)
 
 
 prettySymbol :: Symbol -> String
-prettySymbol symbol@(SymResolved s)  = intercalate "::" (parseStr s)
-prettySymbol symbol@(Sym s)          = s
+prettySymbol symbol@(SymResolved s)  = intercalate "::" (s)
+prettySymbol symbol@(Sym s)          = intercalate "::" s
 
 
 symbolIsResolved :: Symbol -> Bool
@@ -50,7 +54,7 @@ symbolIsResolved _               = False
 
 symbolsCouldMatch :: Symbol -> Symbol -> Bool
 symbolsCouldMatch (SymResolved a)  (SymResolved b) = a == b
-symbolsCouldMatch (Sym a)          (SymResolved b) = isPrefixOf (reverse $ parseStr a) (reverse $ dropLevels $ parseStr b)
-symbolsCouldMatch (SymResolved b)  (Sym a)         = isPrefixOf (reverse $ parseStr a) (reverse $ dropLevels $ parseStr b)
+symbolsCouldMatch (Sym a)          (SymResolved b) = isSuffixOf (a) (dropLevels $ b)
+symbolsCouldMatch (SymResolved b)  (Sym a)         = isSuffixOf (a) (dropLevels $ b)
 symbolsCouldMatch (Sym a)          (Sym b)         = a == b
 

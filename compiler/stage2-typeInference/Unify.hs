@@ -34,8 +34,8 @@ unifyOne info constraint = withPos info $ case constraint of
         base <- baseTypeOfm typ
         case base of
             Nothing         -> return []
-            Just (TypeApply (Sym "Tuple") ts) -> unifyOne info $ ConsEq exprType (ts !! idx)
-            Just (TypeApply (Sym "Sum") ts)   -> unifyOne info $ ConsEq exprType (ts !! idx)
+            Just (TypeApply (Sym ["Tuple"]) ts) -> unifyOne info $ ConsEq exprType (ts !! idx)
+            Just (TypeApply (Sym ["Sum"]) ts)   -> unifyOne info $ ConsEq exprType (ts !! idx)
             x -> error (show x)
 
 
@@ -64,9 +64,9 @@ unifyOne info constraint = withPos info $ case constraint of
         basem <- baseTypeOfm exprType
         case basem of
             Nothing -> return []
-            Just (TypeApply (Sym "Table") [t])         -> unifyOne info $ ConsEq patType t
-            Just (TypeApply (Sym "Array") [t, Size n]) -> unifyOne info $ ConsEq patType t
-            Just (TypeApply (Sym "Tuple") [t1, t2])    -> do
+            Just (TypeApply (Sym ["Table"]) [t])         -> unifyOne info $ ConsEq patType t
+            Just (TypeApply (Sym ["Array"]) [t, Size n]) -> unifyOne info $ ConsEq patType t
+            Just (TypeApply (Sym ["Tuple"]) [t1, t2])    -> do
                 unifyOne info $ ConsEq t1 t2
                 unifyOne info $ ConsEq patType t1
             Just (Slice t) -> unifyOne info $ ConsEq patType t
@@ -84,7 +84,7 @@ unifyOne info constraint = withPos info $ case constraint of
         basem <- baseTypeOfm typ
         case basem of
             Nothing -> return []
-            Just (TypeApply (Sym "Table") [t]) -> unifyOne info $ ConsEq exprType (Type.Slice t)
+            Just (TypeApply (Sym ["Table"]) [t]) -> unifyOne info $ ConsEq exprType (Type.Slice t)
             x -> error (show x)
 
     ConsDefault t1 t2 -> case (t1, t2) of
@@ -92,11 +92,11 @@ unifyOne info constraint = withPos info $ case constraint of
         (Type _, _)              -> return [(t1, t2)]
         (x, _) | isSimple x      -> return []
 
-        (TypeApply (Sym "Tuple") ts1, TypeApply (Sym "Tuple") ts2)
+        (TypeApply (Sym ["Tuple"]) ts1, TypeApply (Sym ["Tuple"]) ts2)
             | length ts1 == length ts2 -> fmap concat $
                 zipWithM (\a b -> unifyOne info (ConsDefault a b)) ts1 ts2
 
-        (TypeApply (Sym "Table") ts1, TypeApply (Sym "Table") ts2)
+        (TypeApply (Sym ["Table"]) ts1, TypeApply (Sym ["Table"]) ts2)
             | length ts1 == length ts2 -> fmap concat $
                 zipWithM (\a b -> unifyOne info (ConsDefault a b)) ts1 ts2
 

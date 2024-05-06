@@ -119,7 +119,7 @@ genSymbol symbol@(SymResolved str) = do
     resm <- gets (Map.lookup symbol . supply)
     let n = maybe 0 (id) resm
     modify $ \s -> s { supply = Map.insert symbol (n + 1) (supply s) }
-    return $ SymResolved (modName ++ "::" ++ str ++ "::" ++ show n)
+    return $ SymResolved $ [modName] ++ str ++ [show n]
 
 
 resolveAst :: AST -> [ASTResolved] -> DoM s (AST, Map.Map Symbol Int)
@@ -149,7 +149,7 @@ resolveAst ast imports = fmap fst $ runDoMExcept initResolveState (resolveAst' a
 
 defineGenerics :: [Symbol] -> DoM ResolveState [Symbol]
 defineGenerics generics = forM generics $ \(Sym str) -> do
-    symbol <- genSymbol $ SymResolved ("type::" ++ str)
+    symbol <- genSymbol $ SymResolved ("type" : str)
     define symbol KeyType
     return symbol
 
@@ -180,10 +180,10 @@ resolveType typ = case typ of
     Slice t        -> Slice <$> resolveType t
     TypeApply s ts -> do
         symbol <- case s of
-            Sym "Array" -> return s
-            Sym "Table" -> return s
-            Sym "Sum"   -> return s
-            Sym "Tuple" -> return s
+            Sym ["Array"] -> return s
+            Sym ["Table"] -> return s
+            Sym ["Sum"]   -> return s
+            Sym ["Tuple"] -> return s
             _           -> look s KeyType
         TypeApply symbol <$> mapM resolveType ts
 
@@ -210,6 +210,7 @@ resolveStmt statement = withPos statement $ case statement of
 
     Feature pos symbol headers -> return statement -- TODO does nothing
     FuncDef (Func header stmt) -> do
+        symbol' <- genSymbol $ SymResolved (symStr $ funcSymbol header)
         pushSymbolTable
         generics' <- defineGenerics (funcGenerics header)
         args'     <- mapM resolveParam (funcArgs header)
@@ -220,6 +221,7 @@ resolveStmt statement = withPos statement $ case statement of
                 { funcGenerics = generics'
                 , funcArgs     = args'
                 , funcRetty    = retty'
+                , funcSymbol   = symbol'
                 }
         popSymbolTable
         return $ FuncDef (Func header' stmt')
@@ -353,7 +355,7 @@ processCEmbed ('$':xs) = do
     check (isAlpha $ ident !! 0) "invalid identifier following '$' token"
     let rest = drop (length ident) xs
 
-    symbol <- look (Sym ident) KeyVar
+    symbol <- look (Sym [ident]) KeyVar
     (showSymLocal symbol ++) <$> processCEmbed rest
 processCEmbed (x:xs) = (x:) <$> processCEmbed xs
 processCEmbed [] = return ""
