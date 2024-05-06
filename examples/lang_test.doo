@@ -33,7 +33,7 @@ fn testConvert()
     let 3 = 1 + 2
     type MyInt I64
 
-    fn set(a &MyInt, b MyInt); ${ *$a = $b; }
+    fn Store::store(a &MyInt, b MyInt); ${ *$a = $b; }
     fn Arithmetic::add(a MyInt, b MyInt) MyInt
         let c : MyInt
         ${ $c = $a + $b; }
@@ -132,7 +132,7 @@ fn testTable()
     let 0 = table.len
 
     type Person (I64, Bool)
-    fn set(a &Person, b Person)
+    fn Store::store(a &Person, b Person)
         a.0 = b.0
         a.1 = b.1
 
@@ -393,7 +393,7 @@ fn testBoolConditions()
         ${ $c = $a == $b; }
         return c
 
-    fn set(a &OnlyThrice, b OnlyThrice)
+    fn Store::store(a &OnlyThrice, b OnlyThrice)
         ${ *$a = $b; }
 
     fn Arithmetic::add(a OnlyThrice, b OnlyThrice) OnlyThrice
@@ -422,7 +422,7 @@ fn testCharType()
 
     type MyChar Char.Tuple
 
-    fn set(a &MyChar, b MyChar); a.0 = b.0
+    fn Store::store(a &MyChar, b MyChar); a.0 = b.0
     fn Construct::construct(a Char) MyChar
         let b : MyChar
         b.0 = a

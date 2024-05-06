@@ -2,7 +2,7 @@ module floating
 
 import std/features
 
-fn set(a &F64, b F64); ${ *$a = $b; }
+fn Store::store(a &F64, b F64); ${ *$a = $b; }
 
 fn Construct::construct(a F64) F64
     let b : F64

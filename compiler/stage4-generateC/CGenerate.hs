@@ -219,7 +219,7 @@ convert typ val = do
 
                         
                     sum <- assign "sum" $ Value typ (C.Initialiser [C.Int $ fromIntegral idx])
-                    set (Value (typeof val) $ C.Member (valExpr sum) ("u" ++ show idx)) val
+                    store (Value (typeof val) $ C.Member (valExpr sum) ("u" ++ show idx)) val
                     return sum
 
         x -> error (show x)
@@ -255,9 +255,9 @@ deref (Ref typ expr) = do
         x -> error (show x)
     
 
-set :: Value -> Value -> Generate ()
-set a b = do
-    unless (typeof a == typeof b) $ error "set: type mismatch"
+store :: Value -> Value -> Generate ()
+store a b = do
+    unless (typeof a == typeof b) $ error "store: type mismatch"
     let typ = typeof a
     base <- baseTypeOf (typeof a)
     copyable <- isCopyable (typeof a)

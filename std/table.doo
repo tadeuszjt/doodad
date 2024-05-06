@@ -4,7 +4,7 @@ import std/integer
 import std/features
 
 
-fn{T} set(table &T.Table, slice []T)
+fn{T} Store::store(table &T.Table, slice []T)
     ${ $table->len = 0; }
     table.push(slice)
 

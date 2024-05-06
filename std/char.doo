@@ -10,7 +10,7 @@ fn eof() Char
     ${ $c = EOF; }
     return c
 
-fn set(a &Char, b Char)
+fn Store::store(a &Char, b Char)
     ${ *$a = $b; }
 
 

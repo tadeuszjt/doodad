@@ -79,7 +79,7 @@ instantiatorMapper elem = case elem of
         fmap (ElemExpr . AExpr exprType) $ return (Call pos symbol' exprs)
 
     ElemPattern (PatAnnotated (PatIdent pos symbol) patType) -> do
-        void $ resolveFuncCall (Sym "set") [patType, patType] Void
+        void $ resolveFuncCall (Sym "Store::store") [patType, patType] Void
         return elem
 
     ElemPattern (PatAnnotated (PatLiteral expr) patType) | isAnnotated expr -> do

@@ -12,9 +12,9 @@ import std/char
 import std/rand
 import std/features
 
-type Empty Tuple{}
+type Empty  Tuple{}
 type Naught Tuple{}
-type Cross Tuple{}
+type Cross  Tuple{}
 
 type Square Sum{
     Empty,
@@ -24,7 +24,9 @@ type Square Sum{
 
 type Board Tuple{
     Square.Array{3}.Array{3}
-}
+} 
+
+
 
 type Move Tuple{I64, I64}
 type Quit Tuple{}
@@ -60,18 +62,20 @@ fn Compare::equal(a Square, b Square) Bool
         (Cross(), Cross());   return true
         _;                    return false
 
+
+
 fn At::at(board &Board, index I64) &Square.Array{3}
     return (board.0).at(index)
 
 fn Len::len(board &Board) I64; return (board.0).len
 
-fn set(a &Board, b Board)
+fn Store::store(a &Board, b Board)
     for (0, a.len) -> row
         for (0, a[row].len) -> col
             a[row][col] = b[row][col]
 
 
-fn set(a &Square, b Square)
+fn Store::store(a &Square, b Square)
     ${ memcpy($a, &$b, sizeof($b)); }
 
 

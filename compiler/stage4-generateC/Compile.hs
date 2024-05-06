@@ -241,7 +241,7 @@ generatePattern (PatAnnotated pattern patType) val = withPos pattern $ case patt
         cType <- cTypeOf (typeof val)
         void $ appendAssign cType (showSymLocal symbol) $ C.Initialiser [C.Int 0]
         ref <- reference $ Value (typeof val) (C.Ident name)
-        callFunction (Sym "set") Void [ref, val]
+        callFunction (Sym "Store::store") Void [ref, val]
         return true
 
     PatSlice _ pats -> do
@@ -260,7 +260,7 @@ generatePattern (PatAnnotated pattern patType) val = withPos pattern $ case patt
             mat <- generatePattern pat at
             if_ (not_ mat) (appendElem $ C.Goto endName)
 
-        set match true
+        store match true
         appendElem $ C.Label endName
 
         return match
@@ -277,7 +277,7 @@ generatePattern (PatAnnotated pattern patType) val = withPos pattern $ case patt
             b <- generatePattern pat v
             void $ if_ (not_ b) $ appendElem (C.Goto endLabel)
 
-        set match true
+        store match true
         appendElem (C.Label endLabel)
         return match
 
@@ -285,7 +285,7 @@ generatePattern (PatAnnotated pattern patType) val = withPos pattern $ case patt
         match <- assign "match" =<< generatePattern pat val
         endLabel <- fresh "end"
         if_ (not_ match) $ appendElem (C.Goto endLabel)
-        set match =<< generateExpr expr
+        store match =<< generateExpr expr
         appendElem (C.Label endLabel)
         return match
 
@@ -297,7 +297,7 @@ generatePattern (PatAnnotated pattern patType) val = withPos pattern $ case patt
         match <- assign "match" =<< (Value Type.Bool . C.Infix C.EqEq (C.Int $ fromIntegral i) . valExpr <$> adtEnum val)
 
         if_ (not_ match) $ appendElem $ C.Goto endLabel
-        set match false
+        store match false
 
         case pats of
             [] -> return ()
@@ -309,7 +309,7 @@ generatePattern (PatAnnotated pattern patType) val = withPos pattern $ case patt
                 patMatch <- generatePattern (PatTuple pos pats) =<< member i val
                 if_ (not_ patMatch) $ void $ appendElem (C.Goto endLabel)
 
-        set match true
+        store match true
         appendElem $ C.Label endLabel
         return match
 

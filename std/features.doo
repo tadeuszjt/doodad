@@ -32,3 +32,7 @@ feature Construct
     fn{T, A}       construct(a A) T
     fn{T, A, B}    construct(a A, b B) T
     fn{T, A, B, C} construct(a A, b B, c C) T
+
+
+feature Store
+    fn{T, G} store(a &T, b G)

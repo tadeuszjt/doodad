@@ -191,7 +191,7 @@ collectPattern (PatAnnotated pattern patType) = collectPos pattern $ case patter
     PatIgnore _           -> return ()
     PatIdent _ symbol     -> do
         define symbol patType
-        collectCall (Sym "set") [patType, patType] Void
+        collectCall (Sym "Store::store") [patType, patType] Void
 
     PatLiteral expr       -> do
         collect "expression type must match pattern type" $ ConsEq patType (typeof expr)

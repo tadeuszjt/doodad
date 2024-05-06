@@ -13,10 +13,10 @@ type{T} Unordered Tuple{
     T.Entry.Table
 }
 
-fn{T} set(a &T.unordered::Key, b T.unordered::Key)
+fn{T} Store::store(a &T.unordered::Key, b T.unordered::Key)
     ${ *$a = $b; }
 
-fn{T} set(a &T.Entry, b T.Entry)
+fn{T} Store::store(a &T.Entry, b T.Entry)
     a.key = b.key
     a.value = b.value
 

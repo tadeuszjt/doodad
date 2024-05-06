@@ -12,7 +12,7 @@ type{K, V} Node Tuple{
     V,
 }
 
-fn{K, V} set(a &Node{K, V}, b Node{K, V})
+fn{K, V} Store::store(a &Node{K, V}, b Node{K, V})
     a.left = b.left
     a.right = b.right
     a.key = b.key

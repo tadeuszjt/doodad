@@ -8,7 +8,7 @@ fn Compare::equal(a Bool, b Bool) Bool
     return c
 
 
-fn set(a &Bool, b Bool)
+fn Store::store(a &Bool, b Bool)
     ${ *$a = $b; }
 
 fn Construct::construct(a Bool) Bool
