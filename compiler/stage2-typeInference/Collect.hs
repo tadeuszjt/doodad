@@ -89,6 +89,7 @@ collectStmt :: Stmt -> DoM CollectState ()
 collectStmt statement = collectPos statement $ case statement of
     EmbedC _ _ -> return ()
 
+    Scoped stmt -> collectStmt stmt
     Block stmts -> mapM_ collectStmt stmts
 
     Return _ mexpr -> do
@@ -97,20 +98,16 @@ collectStmt statement = collectPos statement $ case statement of
             ConsEq (maybe Void typeof mexpr) curRetty
         void $ traverse collectExpr mexpr
 
-    ExprStmt expr -> do
-        --collect $ ConsEq (typeof expr) Void
-        collectExpr expr
+    ExprStmt expr -> collectExpr expr
 
-    Let _ pattern Nothing mstmt  -> do
-        collectPatternIsolated pattern
-        void $ traverse collectStmt mstmt
+    Let _ pattern mexpr Nothing  -> do
+        case mexpr of
+            Nothing   -> collectPatternIsolated pattern
+            Just expr -> do
+                collect "let pattern type must match expression type" $ ConsEq (typeof expr) (typeof pattern)
+                collectExpr expr
+                collectPattern pattern
 
-    Let _ pattern mexpr mstmt  -> do
-        when (isJust mexpr) $ collect "let pattern type must match expression type" $
-            ConsEq (typeof $ fromJust mexpr) (typeof pattern)
-        collectPattern pattern
-        void $ traverse collectExpr mexpr
-        void $ traverse collectStmt mstmt
         
     If _ expr blk melse -> do
         collect "if condition must have bool type" $ ConsEq Type.Bool (typeof expr)

@@ -81,6 +81,7 @@ data Expr
     | Match        TextPos Expr Pattern
     | Reference    TextPos Expr
     | Array        TextPos [Expr]
+    | Subscript    TextPos Expr Expr
     deriving (Eq)
 
 instance Typeof Expr where
@@ -241,6 +242,7 @@ instance Show Expr where
         Builtin pos sym exprs              -> sym ++ tupStrs (map show exprs)
         Match pos expr1 expr2              -> "(" ++ show expr1 ++ " -> " ++ show expr2 ++ ")"
         Reference pos expr                 -> "&" ++ show expr
+        Subscript pos expr1 expr2          -> show expr1 ++ "[" ++ show expr2 ++ "]"
 
 
 -- every function must end on a newline and print pre before every line

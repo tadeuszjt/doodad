@@ -108,6 +108,8 @@ mapStmtM f stmt = withPos stmt $ do
             mexpr' <- traverse (mapExprM f) mexpr
             return $ Data pos symbol typ' mexpr'
 
+        Scoped stmt -> Scoped <$> mapStmtM f stmt
+
         x -> error (show x)
     case res of
         ElemStmt x -> return x
@@ -149,6 +151,11 @@ mapExprM f expr = withPos expr $ do
 
         AST.Array pos exprs -> do
             AST.Array pos <$> mapM (mapExprM f) exprs
+
+        AST.Subscript pos expr1 expr2 -> do
+            expr1' <- mapExprM f expr1
+            expr2' <- mapExprM f expr2
+            return (AST.Subscript pos expr1' expr2')
 
         _ -> error (show expr)
     case res of

@@ -189,8 +189,11 @@ checkExpr x = fail $ "unresolved type: " ++ show x
 checkStmt :: Stmt -> DoM CheckState ()
 checkStmt stmt = withPos stmt $ case stmt of
     Block stmts -> do
-        pushSymTab
         mapM_ checkStmt stmts
+
+    Scoped stmt -> do
+        pushSymTab
+        checkStmt stmt
         popSymTab
 
     If _ cnd blk mblk -> do
@@ -216,7 +219,7 @@ checkStmt stmt = withPos stmt $ case stmt of
         define symbol (NodeData symbol)
         return ()
 
-    Let _ pat mexpr mblk -> do
+    Let _ pat mexpr Nothing -> do
         --liftIO $ putStrLn "let"
         mobjs <- traverse checkExpr mexpr
 --        objs <- case mobjs of
@@ -224,7 +227,6 @@ checkStmt stmt = withPos stmt $ case stmt of
 --            Just xs -> return xs
 
         checkPattern pat 
-        traverse checkStmt mblk
         return ()
 
     Switch _ expr cases -> do

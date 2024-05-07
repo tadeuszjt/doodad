@@ -252,7 +252,7 @@ mexpr  : {-empty-}                               { Nothing }
 exprsA : exprs                                   { $1 }
        | 'I' exprsN 'D'                          { $2 }
 
-condition : expr                                 { AExpr Type.Bool $ Call (TextPos "" 0 0) (Sym ["Construct", "construct"]) [$1] }
+condition : expr                                 { $1 }
           | expr '->' pattern                    { Match (tokPos $2) $1 $3 }
 
 expr   : literal                                 { $1 }
@@ -262,7 +262,7 @@ expr   : literal                                 { $1 }
        | expr '.' int_c                          { Field (tokPos $2) $1 (read $ tokStr $3)  }
        | '&' expr                                { AST.Reference (tokPos $1) $2 }
        | type_ '(' exprsA ')'                    { AExpr $1 (Call (tokPos $2) (Sym ["Construct", "construct"]) $3) }
-       | expr '[' expr ']'                       { Call (tokPos $2) (Sym ["At", "at"]) [AST.Reference (tokPos $2) $1, $3] }
+       | expr '[' expr ']'                       { Subscript (tokPos $2) $1 $3 }
        | expr '.' symbol                         { Call (tokPos $2) (snd $3) (AST.Reference (tokPos $2) $1 : []) }
        | expr '.' symbol '(' exprsA ')'          { Call (tokPos $4) (snd $3) (AST.Reference (tokPos $2) $1 : $5) }
        | symbol '(' exprsA ')'                   { Call (tokPos $2) (snd $1) $3 }

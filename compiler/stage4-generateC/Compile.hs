@@ -105,6 +105,7 @@ generateFunc isStatic symbol func = do
 
 generateStmt :: S.Stmt -> Generate ()
 generateStmt stmt = withPos stmt $ case stmt of
+    S.Scoped stmt          -> generateStmt stmt
     S.Block stmts          -> mapM_ generateStmt stmts
     S.EmbedC _ str         -> void $ appendElem (C.Embed str)
     S.ExprStmt expr        -> void $ generateExpr expr
@@ -118,21 +119,17 @@ generateStmt stmt = withPos stmt $ case stmt of
             (False, Ref _ _)   -> appendElem . C.Return . valExpr =<< deref val
             (True, Ref _ _)    -> appendElem $ C.Return $ refExpr val
 
-    S.Let _ pattern Nothing mblk -> do
-        matched <- generatePatternIsolated pattern
+    S.Let _ pattern mexpr Nothing -> do
+        matched <- case mexpr of
+            Just expr -> generatePattern pattern =<< generateExpr expr
+            Nothing   -> generatePatternIsolated pattern
         call "assert" [matched]
-        void (traverse generateStmt mblk)
-
-    S.Let _ pattern (Just expr) mblk -> do
-        matched <- generatePattern pattern =<< generateExpr expr
-        call "assert" [matched]
-        void (traverse generateStmt mblk)
 
     S.Data _ symbol typ Nothing -> do
         base <- baseTypeOf typ
         init <- case base of
             TypeApply (Sym ["Tuple"]) [] -> return (C.Initialiser [])
-            _                          -> return (C.Initialiser [C.Int 0])
+            _                            -> return (C.Initialiser [C.Int 0])
         
         ctyp <- cTypeOf typ
         appendAssign ctyp (showSymLocal symbol) init
