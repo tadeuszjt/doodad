@@ -39,7 +39,7 @@ data GenerateState
         , tuples      :: Map.Map C.Type String
         , supply      :: Map.Map String Int
         , curFnIsRef  :: Bool
-        , symTab      :: SymTab.SymTab String () Value
+        , symTab      :: SymTab.SymTab String Value
         , astResolved :: ASTResolved
         }
 
@@ -82,14 +82,14 @@ popSymTab = modify $ \s -> s { symTab = SymTab.pop (symTab s) }
 
 define :: String -> Value -> Generate ()
 define str obj = do
-    resm <- SymTab.lookup str () <$> gets symTab
+    resm <- SymTab.lookup str <$> gets symTab
     check (isNothing resm) $ str ++ " already defined"
-    modify $ \s -> s { symTab = SymTab.insert str () obj (symTab s) }
+    modify $ \s -> s { symTab = SymTab.insert str obj (symTab s) }
 
 
 look :: String -> Generate Value
 look str = do
-    resm <- SymTab.lookup str () <$> gets symTab
+    resm <- SymTab.lookup str <$> gets symTab
     when (isNothing resm) $ fail $ str ++ " isn't defined"
     return (fromJust resm)
 

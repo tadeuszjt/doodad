@@ -9,7 +9,6 @@ import Data.Maybe
 import Data.List
 import Data.Char
 
-import qualified SymTab
 import Type
 import AST
 import Monad
@@ -129,17 +128,23 @@ resolveAst ast imports = fmap fst $ runDoMExcept initResolveState (resolveAst' a
         resolveAst' ast = do
             modify $ \s -> s { modName = astModuleName ast }
             forM_ imports $ \imprt -> do
-                forM_ (typeDefs imprt) $ \symbol -> define symbol KeyType
+                forM_ (typeDefsTop imprt) $ \symbol -> define symbol KeyType
 
             
-            -- pre-define types
+            -- pre-define top-level symbols
             topStmts' <- forM (astStmts ast) $ \stmt -> withPos stmt $ case stmt of
                 Typedef pos generics (Sym str) typ -> do
                     symbol <- genSymbol (SymResolved str)
                     define symbol KeyType
                     return $ Typedef pos generics symbol typ
 
+                FuncDef (Func header stmt) -> do
+                    symbol <- genSymbol (SymResolved $ symStr $ funcSymbol header)
+                    define symbol KeyFunc
+                    return $ FuncDef $ Func (header { funcSymbol = symbol }) stmt
+
                 _ -> return stmt
+
 
 
             stmts' <- mapM resolveStmt topStmts'
@@ -195,7 +200,7 @@ resolveStmt statement = withPos statement $ case statement of
     Typedef pos generics symbol typ -> do
         symbol' <- case symbol of
             SymResolved _ -> return symbol
-            Sym str         -> do
+            Sym str       -> do
                 s <- genSymbol (SymResolved str)
                 define s KeyType
                 return s
@@ -204,13 +209,17 @@ resolveStmt statement = withPos statement $ case statement of
         generics' <- defineGenerics generics
         typ' <- resolveType typ
         popSymbolTable
-        return $ Typedef pos generics' symbol' typ'
-
-
+        return (Typedef pos generics' symbol' typ')
 
     Feature pos symbol headers -> return statement -- TODO does nothing
     FuncDef (Func header stmt) -> do
-        symbol' <- genSymbol $ SymResolved (symStr $ funcSymbol header)
+        symbol' <- case (funcSymbol header) of
+            SymResolved _ -> return (funcSymbol header)
+            Sym str       -> do
+                s <- genSymbol (SymResolved $ symStr $ funcSymbol header)
+                define s KeyFunc
+                return s
+
         pushSymbolTable
         generics' <- defineGenerics (funcGenerics header)
         args'     <- mapM resolveParam (funcArgs header)
@@ -283,9 +292,7 @@ resolveStmt statement = withPos statement $ case statement of
         return (Data pos symbol typ' mexpr')
 
     Return pos mexpr -> Return pos <$> traverse resolveExpr mexpr
-
     EmbedC pos str -> EmbedC pos <$> processCEmbed str
-
     ExprStmt expr -> ExprStmt <$> resolveExpr expr
 
     x -> error (show x)

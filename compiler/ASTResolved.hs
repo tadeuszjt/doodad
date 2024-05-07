@@ -21,7 +21,7 @@ data ASTResolved
         , includes             :: Set.Set String                  -- c header includes
         , links                :: Set.Set String                  -- linked libraries
         , typeDefsAll          :: Type.TypeDefsMap                -- all type defs
-        , typeDefs             :: Set.Set Symbol                  -- top-level type defs
+        , typeDefsTop          :: Set.Set Symbol                  -- top-level type defs
 
         , featuresAll          :: Map.Map Symbol FuncHeader
         , featuresTop          :: Set.Set Symbol
@@ -133,7 +133,7 @@ prettyASTResolved ast = do
 
     putStrLn ""
     putStrLn "typeDefs:"
-    forM_ (Set.toList $ typeDefs ast) $ \symbol -> do
+    forM_ (Set.toList $ typeDefsTop ast) $ \symbol -> do
         liftIO $ putStrLn $ "\t" ++ prettySymbol symbol
 
     putStrLn ""

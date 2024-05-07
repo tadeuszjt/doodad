@@ -7,58 +7,49 @@ import           Data.Maybe
 import qualified Data.List as List 
 
 
-type SymTab s k o = [Map.Map s (Map.Map k o)]
-initSymTab        = [Map.empty]
+type SymTab s o = [Map.Map s o]
+initSymTab      = [Map.empty]
 
 
-lookup :: (Ord s, Ord k) => s -> k -> SymTab s k o -> Maybe o
-lookup sym key []     = Nothing
-lookup sym key (s:ss) = case Map.lookup sym s of
-    Just km -> case Map.lookup key km of
-        Nothing -> lookup sym key ss
-        Just o  -> Just o
-    Nothing -> lookup sym key ss
+lookup :: (Ord s) => s -> SymTab s o -> Maybe o
+lookup sym []     = Nothing
+lookup sym (s:ss) = case Map.lookup sym s of
+    Just o -> Just o
+    Nothing -> lookup sym ss
 
 
-lookupSym :: (Ord s, Ord k) => s -> SymTab s k o -> [(k, o)]
-lookupSym sym []     = []
-lookupSym sym (s:ss) = case Map.lookup sym s of
-    Just km -> Map.toList km
-    Nothing -> lookupSym sym ss
-
-
-lookupAll :: (Ord s, Ord k) => s -> SymTab s k o -> [(k, o)]
+lookupAll :: (Ord s) => s -> SymTab s o -> [o]
 lookupAll sym [] = []
-lookupAll sym (s : ss) = lookupSym sym [s] ++ lookupAll sym ss
+lookupAll sym (s : ss) = case lookup sym [s] of
+    Nothing -> lookupAll sym ss
+    Just o  -> o : lookupAll sym ss
 
 
-lookupHead :: (Ord s, Ord k) => s -> k -> SymTab s k o -> Maybe o
-lookupHead sym key []    = Nothing
-lookupHead sym key (s:_) = lookup sym key [s]
+lookupHead :: (Ord s) => s -> SymTab s o -> Maybe o
+lookupHead sym []    = Nothing
+lookupHead sym (s:_) = lookup sym [s]
 
 
-insert :: (Ord s, Ord k) => s -> k -> o -> SymTab s k o -> SymTab s k o
-insert sym key obj (s:ss) =
-    let km = maybe Map.empty id (Map.lookup sym s) in
-    (Map.insert sym (Map.insert key obj km) s):ss
+insert :: (Ord s) => s -> o -> SymTab s o -> SymTab s o
+insert sym obj (s:ss) =
+    (Map.insert sym obj s):ss
 
 
-push :: SymTab s k o -> SymTab s k o
+push :: SymTab s o -> SymTab s o
 push s =
     (Map.empty):s
 
 
-pop :: SymTab s k o -> SymTab s k o
+pop :: SymTab s o -> SymTab s o
 pop s =
     tail s
 
 
-prettySymTab :: (Show s, Show k, Show o) => SymTab s k o -> IO ()
+prettySymTab :: (Show s, Show o) => SymTab s o -> IO ()
 prettySymTab symTab = do
     forM_ (reverse symTab) $ \symMap -> do
         putStrLn $ "scope: "
-        forM_ (Map.toList symMap) $ \(s, keyMap) -> do
-            forM_ (Map.toList keyMap) $ \(k, v) -> do
-                putStrLn $ "\t" ++ show s ++ "\t" ++ show k ++ "\t" ++ show v
+        forM_ (Map.toList symMap) $ \(s, v) -> do
+                putStrLn $ "\t" ++ show s ++ "\t" ++ show v
 
         putStrLn ""

@@ -25,7 +25,6 @@ import AST
 import Annotate
 import Infer
 import Collect as C
-import qualified SymTab
 import ASTResolved
 import CBuilder as C
 import CPretty as C

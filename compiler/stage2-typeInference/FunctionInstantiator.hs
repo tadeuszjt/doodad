@@ -15,9 +15,7 @@ import Error
 import Type
 import Apply
 import FunctionFinder
-import qualified SymTab
 
-type SymTab = SymTab.SymTab Symbol () FuncHeader
 
 data InstantiatorState
     = InstantiatorState

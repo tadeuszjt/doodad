@@ -10,17 +10,14 @@ import Constraint
 import Monad
 import Error
 import Control.Monad.State
-import qualified SymTab
 import Symbol
 import ASTResolved
 import FunctionFinder
 
 
-type SymTab = SymTab.SymTab Symbol () Type
-
 data CollectState
     = CollectState
-        { symTab      :: SymTab
+        { symTab      :: Map.Map Symbol Type
         , curRetty    :: Type
         , collected   :: Map.Map Constraint ConstraintInfo
         , defaults    :: Map.Map Constraint ConstraintInfo
@@ -29,7 +26,7 @@ data CollectState
         }
 
 initCollectState ast = CollectState
-    { symTab      = SymTab.initSymTab
+    { symTab      = Map.empty
     , curRetty    = Void
     , collected   = Map.empty
     , defaults    = Map.empty
@@ -63,22 +60,21 @@ collectDefault t1 t2 = do
 
 look :: Symbol -> DoM CollectState Type
 look symbol = do
-    rm <- SymTab.lookup symbol () <$> gets symTab
+    rm <- Map.lookup symbol <$> gets symTab
     unless (isJust rm) (fail $ prettySymbol symbol ++ " undefined")
     return (fromJust rm)
 
 
 define :: Symbol -> Type -> DoM CollectState ()
 define symbol obj = do
-    resm <- SymTab.lookupHead symbol () <$> gets symTab
+    resm <- Map.lookup symbol <$> gets symTab
     unless (isNothing resm) (error $ prettySymbol symbol ++ " already defined")
-    modify $ \s -> s { symTab = SymTab.insert symbol () obj (symTab s) }
+    modify $ \s -> s { symTab = Map.insert symbol obj (symTab s) }
 
 
 
 collectFuncDef :: Func -> DoM CollectState ()
 collectFuncDef func = do
-    modify $ \s -> s { symTab = SymTab.push (symTab s) }
     oldRetty <- gets curRetty
     modify $ \s -> s { curRetty = typeof (funcRetty (funcHeader func)) }
     forM_ (funcArgs $ funcHeader func) $ \param -> case param of
@@ -87,7 +83,6 @@ collectFuncDef func = do
 
     collectStmt (funcStmt func)
     modify $ \s -> s { curRetty = oldRetty }
-    modify $ \s -> s { symTab = SymTab.pop (symTab s) }
 
 
 collectStmt :: Stmt -> DoM CollectState ()

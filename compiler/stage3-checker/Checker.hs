@@ -55,7 +55,7 @@ checkNoSameBaseNodes nodes = do
 
 data CheckState
     = CheckState
-        { symTab      :: SymTab.SymTab Symbol () Node
+        { symTab      :: SymTab.SymTab Symbol Node
         , astResolved :: ASTResolved
         }
 
@@ -83,15 +83,15 @@ popSymTab = modify $ \s -> s { symTab = SymTab.pop (symTab s) }
 define :: Symbol -> Node -> DoM CheckState ()
 define symbol node = do
     --liftIO $ putStrLn $ "defining: " ++ show symbol
-    isDefined <- isJust . SymTab.lookup symbol () <$> gets symTab
+    isDefined <- isJust . SymTab.lookup symbol <$> gets symTab
     check (not isDefined) (prettySymbol symbol ++ " already defined")
-    modify $ \s -> s { symTab = SymTab.insert symbol () node (symTab s) }
+    modify $ \s -> s { symTab = SymTab.insert symbol node (symTab s) }
 
 
 look :: Symbol -> DoM CheckState Node
 look symbol = do
     --liftIO $ putStrLn $ "looking: " ++ show symbol
-    resm <- SymTab.lookup symbol () <$> gets symTab
+    resm <- SymTab.lookup symbol <$> gets symTab
     case resm of
         Nothing -> fail $ prettySymbol symbol ++ " not defined"
         Just res -> return res
