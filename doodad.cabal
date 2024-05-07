@@ -46,6 +46,7 @@ executable doodad
     hs-source-dirs:
         compiler,
         compiler/stage0-parseAST,
+        compiler/stage1-preprocess,
         compiler/stage1-resolveSymbols,
         compiler/stage2-typeInference,
         compiler/stage3-checker,
@@ -93,4 +94,5 @@ executable doodad
         Checker,
         Builtin,
         ResolveAst,
-        CombineAsts
+        CombineAsts,
+        Preprocess

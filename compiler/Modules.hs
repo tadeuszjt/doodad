@@ -35,6 +35,7 @@ import COptimise as O
 import Checker
 import qualified ResolveAst
 import qualified CombineAsts
+import Preprocess
 
 -- Modules are groups of .doo files with a module name header
 -- lang/lexer.doo: lexer module
@@ -166,8 +167,8 @@ buildModule args modPath = do
             [x] -> return x
             xs  -> fail ("multiple matching module files found in path: " ++ absoluteModPath)
 
-        ast <- parse args file
-
+        astNoPre <- parse args file
+        ast <- preprocess astNoPre
 
 
         when (printAst args) $ liftIO (S.prettyAST ast)

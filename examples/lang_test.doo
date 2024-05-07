@@ -435,7 +435,6 @@ fn testCharType()
         let true = false
 
 
-
 fn main()
     testArithmetic()
     testConvert()

@@ -178,7 +178,7 @@ else_ : else scope                        { Just $2 }
       | {-empty-}                         { Nothing }
 
 scope  : 'I' stmts 'D'                    { Block $2 }
-       | ';' line 'N'                     { $2 }
+       | ';' line 'N'                     { Block [$2] }
        | ';' 'N'                          { Block [] }
 
 cases1 : case                             { [$1] }
@@ -284,11 +284,11 @@ expr   : literal                                 { $1 }
        | '-' expr                                { Call (tokPos $1) (Sym ["subtract"]) [$2] }
 
 
-literal : int_c                                  { Call (tokPos $1) (Sym ["Construct", "construct"]) [AST.Int (tokPos $1) (read $ tokStr $1)] }
-        | float_c                                { Call (tokPos $1) (Sym ["Construct", "construct"]) [AST.Float (tokPos $1) (read $ tokStr $1)] }
-        | char_c                                 { Call (tokPos $1) (Sym ["Construct", "construct"]) [AST.Char (tokPos $1) (read $ tokStr $1)] }
-        | true                                   { Call (tokPos $1) (Sym ["Construct", "construct"]) [AST.Bool (tokPos $1) True] }
-        | false                                  { Call (tokPos $1) (Sym ["Construct", "construct"]) [AST.Bool (tokPos $1) False] }
+literal : int_c                                  { AST.Int (tokPos $1) (read $ tokStr $1) }
+        | float_c                                { AST.Float (tokPos $1) (read $ tokStr $1) }
+        | char_c                                 { AST.Char (tokPos $1) (read $ tokStr $1) }
+        | true                                   { AST.Bool (tokPos $1) True }
+        | false                                  { AST.Bool (tokPos $1) False }
         | string_c                               { AST.String (tokPos $1) (processString $ tokStr $1) }
 
 ---------------------------------------------------------------------------------------------------

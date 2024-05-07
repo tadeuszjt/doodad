@@ -136,6 +136,9 @@ data Stmt
     | For         TextPos Expr (Maybe Pattern) Stmt
     | Data        TextPos Symbol Type (Maybe Expr)
     | EmbedC      TextPos String
+
+    -- after preprocess
+    | Scoped      Stmt
     deriving (Eq, Show)
 
 
