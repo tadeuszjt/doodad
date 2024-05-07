@@ -213,8 +213,15 @@ collectPattern (PatAnnotated pattern patType) = collectPos pattern $ case patter
         collectPattern pat
 
     PatTypeField _ typ pats -> do
-        collect "field pattern must be valid member of sum type" $
-            ConsPatTypeField patType typ (map typeof pats)
+        case pats of
+            []    -> return ()
+            [pat] -> collect "field pattern must be member of sum type" $ ConsEq (typeof pat) typ
+            _ -> do
+                when (length pats > 0) $ collectCall (Sym ["first"])  [typ] (typeof $ pats !! 0)
+                when (length pats > 1) $ collectCall (Sym ["second"]) [typ] (typeof $ pats !! 1)
+                when (length pats > 2) $ collectCall (Sym ["third"])  [typ] (typeof $ pats !! 2)
+                when (length pats > 3) $ collectCall (Sym ["fourth"]) [typ] (typeof $ pats !! 3)
+
         mapM_ collectPattern pats
 
     PatField _ symbol pat -> do
@@ -301,6 +308,9 @@ collectExpr (AExpr exprType expression) = collectPos expression $ case expressio
 
             "builtin_zero" -> do
                 check (length exprs == 0) "invalid builtin_zero call"
+
+            "builtin_pretend" -> do
+                check (length exprs == 1) "invalid builtin_pretend call"
 
             "conv"  -> return ()
             "assert" -> do

@@ -9,7 +9,6 @@ data Constraint
     = ConsEq Type Type               -- t1 == t2
     | ConsBase   Type Type           -- base(t1) == base(t2)
     | ConsField Type Int Type        -- ((MyType:t1).x):t2
-    | ConsPatTypeField Type Type [Type]  -- 
     | ConsPatField Type Symbol Type
     | ConsForExpr Type Type
     | ConsSlice Type Type           

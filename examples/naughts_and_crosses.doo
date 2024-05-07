@@ -11,6 +11,7 @@ import std/tuple
 import std/char
 import std/rand
 import std/features
+import std/sum
 
 type Empty  Tuple{}
 type Naught Tuple{}
@@ -22,10 +23,7 @@ type Square Sum{
     Cross,
 }
 
-type Board Tuple{
-    Square.Array{3}.Array{3}
-} 
-
+type Board Square.Array{3}.Array{3}
 
 
 type Move Tuple{I64, I64}
@@ -36,8 +34,6 @@ type Input Sum{
     Quit, 
     Error 
 }
-
-
 
 fn error()  Input;  return conv(builtin_zero():Error)
 fn quit()   Input;  return conv(builtin_zero():Quit)
@@ -63,31 +59,34 @@ fn Compare::equal(a Square, b Square) Bool
         _;                    return false
 
 
-
 fn At::at(board &Board, index I64) &Square.Array{3}
-    return (board.0).at(index)
+    return (builtin_pretend(&board):Square.Array{3}.Array{3}).at(index)
 
-fn Len::len(board &Board) I64; return (board.0).len
+fn Len::len(board &Board) I64
+    return (builtin_pretend(&board):Square.Array{3}.Array{3}).len
 
 fn Store::store(a &Board, b Board)
-    for (0, a.len) -> row
-        for (0, a[row].len) -> col
-            a[row][col] = b[row][col]
-
+    Store::store(
+        &builtin_pretend(&a):Square.Array{3}.Array{3}
+        builtin_pretend(&b):Square.Array{3}.Array{3}
+    )
 
 fn Store::store(a &Square, b Square)
-    ${ memcpy($a, &$b, sizeof($b)); }
+    Store::store(
+        &builtin_pretend(&a):Sum{Empty, Naught, Cross}
+        builtin_pretend(&b):Sum{Empty, Naught, Cross}
+    )
 
 
 fn push(stdout &StdOut, square Square)
     switch square
-        Empty(); stdout.push(' ')
+        Empty();  stdout.push(' ')
         Naught(); stdout.push('O')
-        Cross(); stdout.push('X')
+        Cross();  stdout.push('X')
 
 
 fn printBoard(io &Io, board Board)
-    for board.0 -> row
+    for board -> row
         io.stdout.push('[')
 
         for (0, row.len) -> col
@@ -100,9 +99,8 @@ fn printBoard(io &Io, board Board)
 
 fn winner(board Board) Square
     // check for horizontal lines
-    for board.0 -> row
+    for board -> row
         let match = true
-
         for row -> square
             if square != row[0]
                 match = false
@@ -148,13 +146,13 @@ fn getPlayerInput(io &Io) Input
 
     let (row, col, idx) = (0, 0, 0)
 
-    if readI64(line.slice(idx, line.len)) -> (I64, I64)( (n, num) )
+    if readI64(line.slice(idx, line.len)) -> (I64, I64)(n, num)
         row = n
         idx = idx + num
     else
         return error()
 
-    if readI64(line.slice(idx, line.len)) -> (I64, I64)( (n, num) )
+    if readI64(line.slice(idx, line.len)) -> (I64, I64)(n, num)
         col = n
         idx = idx + num
     else

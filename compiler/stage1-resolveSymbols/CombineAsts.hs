@@ -94,6 +94,7 @@ combineMapper element = case element of
                    , "builtin_slice_at"
                    , "builtin_array_at"
                    , "builtin_zero"
+                   , "builtin_pretend"
                    , "conv"
                    , "assert"
                    ]

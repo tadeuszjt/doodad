@@ -305,15 +305,19 @@ generatePattern (PatAnnotated pattern patType) val = withPos pattern $ case patt
                 patMatch <- generatePattern pat =<< member i val
                 if_ (not_ patMatch) $ void $ appendElem (C.Goto endLabel)
             pats -> do
-                -- Bit of a hack to use PatTuple
-                patMatch <- generatePattern (PatTuple pos pats) =<< member i val
-                if_ (not_ patMatch) $ void $ appendElem (C.Goto endLabel)
+                let symList = ["first", "second", "third", "fourth"]
+                forM_ (zip pats [0..]) $ \(pat, j) -> do
+                    f <- member i val
+                    v <- callFunction (Sym [symList !! j]) (typeof pat) [f]
+                    b <- generatePattern pat v
+                    void $ if_ (not_ b) $ appendElem (C.Goto endLabel)
 
         store match true
         appendElem $ C.Label endLabel
         return match
 
     _ -> error (show pattern)
+generatePattern x _ = error (show x)
 
 
 -- generateExpr should return a 're-enter-able' expression, eg 1, not func()
@@ -349,6 +353,19 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
             TypeApply (Sym ["Tuple"]) [] -> []
             _                          -> [C.Int 0]
         return $ Value typ (C.Ident name)
+
+    S.Builtin _ "builtin_pretend" [expr] -> do
+        Ref exprType refExpr <- generateExpr expr
+
+        base <- baseTypeOf typ
+        baseExpr <- baseTypeOf exprType
+        check (base == baseExpr) "types do not have same base"
+
+        case base of
+            TypeApply (Sym ["Tuple"]) _ ->
+                assign "ref" $ Ref typ $ C.Initialiser [C.Member refExpr "ptr"]
+            _ -> 
+                assign "ref" $ Ref typ $ C.Initialiser [refExpr]
 
 
     S.Builtin _ "builtin_table_slice" [expr, start, end] -> do

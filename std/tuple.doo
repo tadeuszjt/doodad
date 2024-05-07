@@ -12,10 +12,6 @@ fn{A, B, C} first(a &Tuple{A, B, C}) &A; return &a.0
 fn{A, B, C} second(a &Tuple{A, B, C}) &B; return &a.1
 fn{A, B, C} third(a &Tuple{A, B, C}) &C; return &a.2
 
-fn{A, B} Store::store(a &Tuple{A, B}, b Tuple{A, B})
-    a.0 = b.0
-    a.1 = b.1
-
 fn{A, B}    Arithmetic::add(a Tuple{A, B}, b Tuple{A, B}) Tuple{A, B}; return ( a.0 + b.0, a.1 + b.1 )
 fn{A, B, C} Arithmetic::add(a Tuple{A, B, C}, b Tuple{A, B, C}) Tuple{A, B, C}; return ( a.0 + b.0, a.1 + b.1, a.2 + b.2 )
 
@@ -32,3 +28,15 @@ fn{A, B, C} Construct::construct(a A, b B, c C) Tuple{A, B, C}
     x.1 = b
     x.2 = c
     return x
+
+
+fn Store::store(a &Tuple{}, b Tuple{})
+    return
+
+fn{A} Store::store(a &Tuple{A}, b Tuple{A})
+    a.0 = b.0
+
+fn{A, B} Store::store(a &Tuple{A, B}, b Tuple{A, B})
+    a.0 = b.0
+    a.1 = b.1
+

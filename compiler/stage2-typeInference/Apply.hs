@@ -107,7 +107,6 @@ applyConstraint :: [(Type, Type)] -> Constraint -> Constraint
 applyConstraint subs constraint = case constraint of
     ConsEq t1 t2           -> ConsEq (rf t1) (rf t2)
     ConsBase t1 t2         -> ConsBase (rf t1) (rf t2)
-    ConsPatTypeField t1 t2 ts  -> ConsPatTypeField (rf t1) (rf t2) (map rf ts)
     ConsField  t1 s t2     -> ConsField (rf t1) s (rf t2)
     ConsForExpr t1 t2      -> ConsForExpr (rf t1) (rf t2)
     ConsSlice t1 t2        -> ConsSlice (rf t1) (rf t2)

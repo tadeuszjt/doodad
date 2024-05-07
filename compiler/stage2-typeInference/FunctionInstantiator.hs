@@ -91,6 +91,14 @@ instantiatorMapper elem = case elem of
         when (length pats > 3) $ void $ resolveFuncCall (Sym ["fourth"]) [patType] (typeof $ pats !! 3)
         return elem
 
+
+    ElemPattern (PatAnnotated (PatTypeField pos typ pats) patType) | all patAnnotated pats -> do
+        when (length pats > 1) $ void $ resolveFuncCall (Sym ["first"])  [typ] (typeof $ pats !! 0)
+        when (length pats > 1) $ void $ resolveFuncCall (Sym ["second"]) [typ] (typeof $ pats !! 1)
+        when (length pats > 2) $ void $ resolveFuncCall (Sym ["third"])  [typ] (typeof $ pats !! 2)
+        when (length pats > 3) $ void $ resolveFuncCall (Sym ["fourth"]) [typ] (typeof $ pats !! 3)
+        return elem
+
     ElemPattern (PatAnnotated (PatSlice pos pats) patType) -> do
         when (length pats > 0) $ do
             void $ resolveFuncCall (Sym ["At", "at"]) [patType, I64] (typeof $ head pats)
@@ -126,7 +134,7 @@ resolveFuncCall calledSymbol      argTypes retType = do
     ast <- gets astResolved
 
     case candidates of
-        [] -> error ("no candidates for: " ++ prettySymbol calledSymbol)
+        [] -> fail ("no candidates for: " ++ prettySymbol calledSymbol)
 
         [header] -> do
             instancem <- findInstance ast $ CallHeader

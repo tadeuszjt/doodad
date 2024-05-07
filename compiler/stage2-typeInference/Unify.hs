@@ -36,7 +36,7 @@ unifyOne info constraint = withPos info $ case constraint of
             Nothing         -> return []
             Just (TypeApply (Sym ["Tuple"]) ts) -> unifyOne info $ ConsEq exprType (ts !! idx)
             Just (TypeApply (Sym ["Sum"]) ts)   -> unifyOne info $ ConsEq exprType (ts !! idx)
-            x -> error (show x)
+            x -> fail ("cannot take field")
 
 
     ConsEq t1 t2 -> case (t1, t2) of
@@ -54,11 +54,6 @@ unifyOne info constraint = withPos info $ case constraint of
     ConsPatField patType symbol argType -> do
         error "here"
         
-
-    ConsPatTypeField patType fieldType argTypes -> case argTypes of
-        [] -> return []
-        [argType] -> unifyOne info (ConsEq fieldType argType)
-
 
     ConsForExpr exprType patType -> do
         basem <- baseTypeOfm exprType
