@@ -68,35 +68,6 @@ append id = do
     liftBuilderState $ modify $ \s -> s { elements = Map.insert curId elem' (elements s) }
 
 
-appendElem :: MonadBuilder m => Element -> m ID
-appendElem elem = do
-    id <- newElement elem
-    append id
-    return id
-
-
-appendIf :: MonadBuilder m => Expression -> m ID
-appendIf cnd = do
-    id <- newElement $ If { ifExpr = cnd, ifStmts = [] }
-    append id
-    return id
-
-
-appendElse :: MonadBuilder m => m ID
-appendElse = do
-    appendElem $ Else { elseStmts = [] }
-
-
-appendPrintf :: MonadBuilder m => String -> [Expression] -> m ID
-appendPrintf fmt exprs = do
-    appendElem $ ExprStmt $ Call "printf" (String fmt : exprs)
-
-
-appendAssign :: MonadBuilder m => Type -> String -> Expression -> m ID
-appendAssign ctyp name expr = do
-    appendElem $ Assign ctyp name expr
-
-
 newElement :: MonadBuilder m => Element -> m ID
 newElement elem = do
     id <- freshId
@@ -110,27 +81,48 @@ modifyElement id f = do
     liftBuilderState $ modify $ \s -> s { elements = Map.insert id elem' (elements s) }
 
 
-newExtern :: MonadBuilder m => String -> Type -> [Type] -> [Qualifier] -> m ()
-newExtern name retty args qualifiers = do
-    id <- newElement $ ExternFunc
+appendElem :: MonadBuilder m => Element -> m ID
+appendElem elem = do
+    id <- newElement elem
+    append id
+    return id
+
+
+appendIf :: MonadBuilder m => Expression -> m ID
+appendIf cnd = appendElem $ If { ifExpr = cnd, ifStmts = [] }
+
+
+appendElse :: MonadBuilder m => m ID
+appendElse = appendElem $ Else { elseStmts = [] }
+
+
+appendPrintf :: MonadBuilder m => String -> [Expression] -> m ID
+appendPrintf fmt exprs = do
+    appendElem $ ExprStmt $ Call "printf" (String fmt : exprs)
+
+
+appendAssign :: MonadBuilder m => Type -> String -> Expression -> m ID
+appendAssign ctyp name expr = do
+    appendElem $ Assign ctyp name expr
+
+
+
+appendExtern :: MonadBuilder m => String -> Type -> [Type] -> [Qualifier] -> m ID
+appendExtern name retty args qualifiers = withCurID globalID $ appendElem $ ExternFunc
         { extName = name
         , extRetty = retty
         , extArgs = args
         , extQualifiers = qualifiers
         }
-    withCurID globalID (append id)
 
 
-newTypedef :: MonadBuilder m => Type -> String -> m ID
-newTypedef typ name = do
-    id <- newElement (Typedef { typedefName = name, typedefType = typ })
-    withCurID globalID (append id)
-    return id
+appendTypedef :: MonadBuilder m => Type -> String -> m ID
+appendTypedef typ name = withCurID globalID $ appendElem $
+    (Typedef { typedefName = name, typedefType = typ })
 
 
 newFunction :: MonadBuilder m => Type -> String -> [Param] -> [Qualifier] -> m ID 
-newFunction retty name args qualifiers = do
-    newElement $ Func
+newFunction retty name args qualifiers = newElement $ Func
         { funcName = name
         , funcBody = []
         , funcRetty = retty

@@ -16,3 +16,6 @@ fn{A, B, C, D} Construct::construct(a D) Sum{A, B, C, D}; return conv(a)
 
 fn{A, B, C} Store::store(a &Sum{A, B, C}, b Sum{A, B, C})
     ${ memcpy($a, &$b, sizeof($b)); }
+
+fn{A, B} Store::store(a &Sum{A, B}, b Sum{A, B})
+    ${ memcpy($a, &$b, sizeof($b)); }

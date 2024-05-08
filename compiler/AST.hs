@@ -316,5 +316,7 @@ prettyStmt pre stmt = case stmt of
     EmbedC pos str -> do
         putStrLn $ pre ++ "$" ++ str
 
-    _  -> error $ "invalid stmt"
+    Scoped stmt -> prettyStmt pre stmt
+
+    x  -> error (show x)
 

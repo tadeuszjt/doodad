@@ -60,6 +60,7 @@ collectDefault t1 t2 = do
 
 look :: Symbol -> DoM CollectState Type
 look symbol = do
+    --liftIO $ putStrLn $ "looking: " ++ prettySymbol symbol
     rm <- Map.lookup symbol <$> gets symTab
     unless (isJust rm) (fail $ prettySymbol symbol ++ " undefined")
     return (fromJust rm)
@@ -67,6 +68,7 @@ look symbol = do
 
 define :: Symbol -> Type -> DoM CollectState ()
 define symbol obj = do
+    --liftIO $ putStrLn $ "defining: " ++ prettySymbol symbol
     resm <- Map.lookup symbol <$> gets symTab
     unless (isNothing resm) (error $ prettySymbol symbol ++ " already defined")
     modify $ \s -> s { symTab = Map.insert symbol obj (symTab s) }
@@ -127,8 +129,8 @@ collectStmt statement = collectPos statement $ case statement of
     While _ expr blk -> do
         collect "while condition must have bool type" $ ConsEq Type.Bool (typeof expr)
         collectDefault Type.Bool (typeof expr)
-        collectStmt blk
         collectExpr expr
+        collectStmt blk
 
     Switch _ expr cases -> do
         forM_ cases $ \(pat, blk) -> do
@@ -212,7 +214,8 @@ collectPattern (PatAnnotated pattern patType) = collectPos pattern $ case patter
     PatTypeField _ typ pats -> do
         case pats of
             []    -> return ()
-            [pat] -> collect "field pattern must be member of sum type" $ ConsEq (typeof pat) typ
+            [pat] -> do
+                collect "field pattern must be member of sum type" $ ConsEq (typeof pat) typ
             _ -> do
                 when (length pats > 0) $ collectCall (Sym ["first"])  [typ] (typeof $ pats !! 0)
                 when (length pats > 1) $ collectCall (Sym ["second"]) [typ] (typeof $ pats !! 1)

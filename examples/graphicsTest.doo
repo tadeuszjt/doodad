@@ -1,19 +1,15 @@
 module graphicsTest
 
-//import std/io
-//import std/sfml/sfml
-//import std/rand
-//import std/table
-//import std/sparse
+import std/io
+import std/sfml/sfml
+import std/rand
+import std/table
+import std/sparse
 //import std/time
 
 
-//type Blob {
-//    position    Vec2f
-//    velocity    Vec2f
-//    triangleKey Key[I64]
-//}
-//
+type Blob Tuple{ Vec2f, Vec2f, I64.Key }
+
 //type Triangles (
 //    vertexKeys Sparse[I64]
 //    vertexes   Table[Vertex]
@@ -43,32 +39,33 @@ module graphicsTest
 //
 fn main()
     data io Io
-    return
-//    let rand:Rand
-//    let w:Window
-//
-//    w.create()
-//
+    io.stdout.push("graphics test\n")
+
+    let rand:Rand
+    let w:Window
+
+    w.create()
+
 //    data triangles Triangles
-//    data blobs     Table[Blob]
-//
+    data blobs     Blob.Table
+
 //    for (0, 100000)
 //        let blob:()Blob
 //        blob.position    = rand.vec2f()
 //        blob.velocity    = rand.vec2f( (-0.5, -0.5), (0.5, 0.5) )
 //        blob.triangleKey = triangles.addTriangle( blob.position )
 //        blobs.push(blob)
-//
-//
-//    while w.isOpen()
-//
+
+
+    while w.isOpen()
+
 //        let prevNs = time::getTimestampNs()
 //
-//        while w.pollEvent() -> Just(event)
-//            switch event
-//                Closed(); w.close()
-//                None();
-//
+        while w.pollEvent() -> Event(event)
+            switch event
+                Closed(); w.close()
+                None();
+
 //        for blobs -> {p, v, k}
 //            p = p + v
 //            triangles.setTrianglePosition(k, p)
@@ -83,15 +80,16 @@ fn main()
 //
 //        prevNs = time::getTimestampNs()
 //
-//        let (width, height) = w.getSize()
+        let (width, height) = w.getSize()
 //        w.setViewFromRect(((0, 0), (conv(width), conv(height))))
-//        w.clearWindow(white())
+        w.clearWindow(white())
 //        {w, triangles.vertexes}.drawPrimitives()
-//        w.display()
+        w.display()
 //
 //        nextNs = time::getTimestampNs()
 //        print("render time: ", nextNs - prevNs)
 //
-//    w.destroy()
+    w.destroy()
 //
+
 

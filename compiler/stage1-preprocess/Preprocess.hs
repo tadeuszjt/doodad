@@ -42,10 +42,10 @@ preprocessMapper element = case element of
         let expr' = Call pos (Sym ["Construct", "construct"]) [expr]
         return $ ElemStmt (If pos expr' blk melse)
 
+    ElemStmt (While pos (Match _ _ _) blk) -> return element
     ElemStmt (While pos expr blk) -> do
         let expr' = Call pos (Sym ["Construct", "construct"]) [expr]
         return $ ElemStmt (While pos expr' blk)
 
     _ -> return element
-    
 

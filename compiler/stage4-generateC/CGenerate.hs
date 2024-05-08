@@ -405,7 +405,7 @@ getTypedef suggestion typ = do
         Just s -> return $ Ctypedef s
         Nothing -> do
             name <- fresh suggestion
-            newTypedef typ name
+            appendTypedef typ name
             modify $ \s -> s { tuples = Map.insert typ name (tuples s) }
             return $ Ctypedef name
 

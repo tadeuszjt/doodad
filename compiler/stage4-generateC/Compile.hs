@@ -36,7 +36,7 @@ generate = withErrorPrefix "generate: " $ do
             S.Param _ _ _ -> cTypeOf param
             S.RefParam _ _ _ -> cRefTypeOf param
             x -> error (show x)
-        newExtern (showSymGlobal $ funcSymbol $ funcHeader func) crt cats [C.Extern]
+        appendExtern (showSymGlobal $ funcSymbol $ funcHeader func) crt cats [C.Extern]
 
     -- generate headers for this module
     forM_ (funcInstance ast) $ \(func) -> do
@@ -45,7 +45,7 @@ generate = withErrorPrefix "generate: " $ do
             S.Param _ _ _ -> cTypeOf param
             S.RefParam _ _ _ -> cRefTypeOf param
             x -> error (show x)
-        newExtern (showSymGlobal $ funcSymbol $ funcHeader func) crt cats []
+        appendExtern (showSymGlobal $ funcSymbol $ funcHeader func) crt cats []
         
 
     -- generate functions, main is a special case

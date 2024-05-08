@@ -1,7 +1,10 @@
 module sfml
 
+import std/integer
+import std/tuple
 import std/colours
 import std/maybe
+import std/sum
 
 include <SFML/Graphics.h>
 link csfml-graphics
@@ -9,37 +12,44 @@ link csfml-window
 link csfml-system
 
 
-type Vec2f (x F32, y F32)
+type Vec2f Tuple{F32, F32}
 
-type Rectf (min Vec2f, max Vec2f)
+type Rectf Tuple{Vec2f, Vec2f}
 
-type Vertex (position Vec2f, colour Colour, texCoords Vec2f)
+type Vertex Tuple{Vec2f, Colour, Vec2f}
 
 type Window I64
 
-type Event
-    None()
-    Closed()
+type None Tuple{}
+type Closed Tuple{}
+type Event Sum{None, Closed}
+
+fn Store::store(a &Event, b Event)
+    Store::store(
+        &builtin_pretend(&a):Sum{None, Closed}
+        builtin_pretend(&b):Sum{None, Closed}
+    )
 
 
-fn {w Window} create()
+fn create(w &Window)
     ${
         sfVideoMode mode = {640, 480, 32};
-        sfRenderWindow *window = sfRenderWindow_create(mode, "benis", sfClose | sfResize, NULL);
+        sfRenderWindow *window = sfRenderWindow_create(mode, "graphicsTest", sfClose | sfResize, NULL);
         assert(window != NULL);
         *$w = (int64_t)(window);
     }
 
 
-fn {w Window} close()
+fn close(w &Window)
     ${ sfRenderWindow_close((sfRenderWindow*)(*$w)); }
 
 
-fn {w Window} destroy()
+fn destroy(w &Window)
     ${ sfRenderWindow_close((sfRenderWindow*)(*$w)); }
+    ${ *$w = (int64_t)NULL; }
 
 
-fn {w Window} getSize() (I64, I64)
+fn getSize(w &Window) (I64, I64)
     let x = 0
     let y = 0
     ${
@@ -50,24 +60,24 @@ fn {w Window} getSize() (I64, I64)
     return (x, y)
 
 
-fn {w Window} clearWindow(colour Colour)
+fn clearWindow(w &Window, colour Colour)
     ${
         sfColor color = {$colour.m0, $colour.m1, $colour.m2, $colour.m3};
         sfRenderWindow_clear((sfRenderWindow*)(*$w), color);
     }
 
 
-fn {w Window} display()
+fn display(w &Window)
     ${ sfRenderWindow_display((sfRenderWindow*)(*$w)); }
 
 
-fn {w Window} isOpen() Bool
+fn isOpen(w &Window) Bool
     let isOpen = false
     ${ $isOpen = sfRenderWindow_isOpen((sfRenderWindow*)(*$w)); }
     return isOpen
 
 
-fn {w Window} pollEvent() Maybe[Event]
+fn pollEvent(w &Window) Event.Maybe
     let continue = false
     let event:Event
     ${
@@ -78,25 +88,25 @@ fn {w Window} pollEvent() Maybe[Event]
         }
     }
     if continue
-        return Just(event)
-    return Nothing()
+        return just(event)
+    return nothing()
 
 
-fn {w Window, vertices Table[Vertex]} drawPrimitives()
-    ${
-        sfRenderWindow_drawPrimitives(
-            (sfRenderWindow*)*$w,
-            (const sfVertex *)$vertices->r0,
-            $vertices->len,
-            sfTriangles,
-            NULL
-        );
-    }
-
-fn {w Window} setViewFromRect(rect Rectf)
-    let (l, t, r, b) = (rect.min.x, rect.min.y, rect.max.x, rect.max.y)
-    ${
-        sfFloatRect rect = {$l, $t, $r, $b};
-        sfView *view = sfView_createFromRect(rect);
-        sfRenderWindow_setView((sfRenderWindow*)(*$w), view);
-    }
+//fn {w Window, vertices Table[Vertex]} drawPrimitives()
+//    ${
+//        sfRenderWindow_drawPrimitives(
+//            (sfRenderWindow*)*$w,
+//            (const sfVertex *)$vertices->r0,
+//            $vertices->len,
+//            sfTriangles,
+//            NULL
+//        );
+//    }
+//
+//fn {w Window} setViewFromRect(rect Rectf)
+//    let (l, t, r, b) = (rect.min.x, rect.min.y, rect.max.x, rect.max.y)
+//    ${
+//        sfFloatRect rect = {$l, $t, $r, $b};
+//        sfView *view = sfView_createFromRect(rect);
+//        sfRenderWindow_setView((sfRenderWindow*)(*$w), view);
+//    }

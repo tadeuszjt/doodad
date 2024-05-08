@@ -1,9 +1,19 @@
 module colours
 
-type Colour (r U8, g U8, b U8, a U8)
+import std/integer
 
-fn black() Colour; return (0, 0, 0, 255)
+type Colour Tuple{U8, U8, U8, U8}
+
+fn Construct::construct(r U8, g U8, b U8, a U8) Colour
+    let c : Colour
+    c.0 = r
+    c.1 = g
+    c.2 = b
+    c.3 = a
+    return c
+
+//fn black() Colour; return (0, 0, 0, 255)
 fn white() Colour; return (255, 255, 255, 255)
-fn red()   Colour; return (255, 0, 0, 255)
-fn green() Colour; return (0, 255, 0, 255)
-fn blue()  Colour; return (0, 0, 255, 255)
+//fn red()   Colour; return (255, 0, 0, 255)
+//fn green() Colour; return (0, 255, 0, 255)
+//fn blue()  Colour; return (0, 0, 255, 255)
