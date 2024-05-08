@@ -40,8 +40,6 @@ appendId id = do
     stmt <- gets $ (Map.! curId) . statements
     stmt' <- case stmt of
         Block ids -> return $ Block (ids ++ [Stmt id])
-
-
         x -> error (show x)
 
     modify $ \s -> s { statements = Map.insert curId stmt' (statements s) }

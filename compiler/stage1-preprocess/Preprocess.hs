@@ -1,5 +1,9 @@
 module Preprocess where
 
+import qualified Data.Map as Map
+import Control.Monad
+import Control.Monad.State
+
 import Monad
 import AST
 import ASTMapper
@@ -24,20 +28,98 @@ preprocess ast = fmap fst $ runDoMExcept initPreprocessState preprocess'
 
 
             ((), builderState) <- runDoMExcept initAstBuilderState (mapM_ buildStmt stmts')
+            stmts'' <- fmap fst (runDoMExcept builderState unpackAst)
 
-            return $ ast { astStmts = stmts' }
+            return $ ast { astStmts = stmts'' }
+
+
+unpackAst :: DoM AstBuilderState [Stmt]
+unpackAst = do
+    Block topStmts <- gets $ (Map.! globalId) . statements
+    mapM unpackStmt topStmts
+
+
+unpackStmt :: Stmt -> DoM AstBuilderState Stmt
+unpackStmt statement = withPos statement $ case statement of
+    EmbedC _ _ -> return statement
+    Return _ _  -> return statement
+    ExprStmt _ -> return statement
+    Data _ _ _ _ -> return statement
+    Feature _ _ _ -> return statement
+
+    Stmt id -> unpackStmt =<< gets ((Map.! id) . statements)
+
+    FuncDef (Func header stmt) -> FuncDef . Func header <$> unpackStmt stmt
+    Block stmts -> Block <$> mapM unpackStmt stmts
+    Let pos pat mexpr mblk -> Let pos pat mexpr <$> traverse unpackStmt mblk
+    Typedef pos generics symbol typ -> return statement
+    For pos expr mpat stmt -> For pos expr mpat <$> unpackStmt stmt
+    While pos expr stmt    -> While pos expr <$> unpackStmt stmt
+    If pos expr blk mblk -> do
+        blk' <- unpackStmt blk
+        mblk' <- traverse unpackStmt mblk
+        return (If pos expr blk' mblk')
+    Switch pos expr cases -> do
+        fmap (Switch pos expr) $ forM cases $ \(pat, stmt) -> do
+            stmt' <- unpackStmt stmt
+            return (pat, stmt')
+
+    x -> error (show x)
 
 
 buildStmt :: Stmt -> DoM AstBuilderState ()
 buildStmt statement = withPos statement $ case statement of
+    ExprStmt expr    -> void $ appendStmt (ExprStmt expr)
+    Typedef _ _ _ _  -> void $ appendStmt statement
+    EmbedC _ _       -> void $ appendStmt statement
+    Return pos mexpr -> void $ appendStmt statement
+    Data _ _ _ _     -> void $ appendStmt statement
+    Feature _ _ _    -> void $ appendStmt statement
+
     FuncDef (Func header (Block stmts)) -> do
         blockId <- newStmt (Block [])
         funcId <- appendStmt $ FuncDef (Func header (Stmt blockId))
-        withCurId blockId $
-            mapM_ buildStmt stmts
+        withCurId blockId (mapM_ buildStmt stmts)
 
+    Let pos pat mexpr mblk -> do
+        case mblk of
+            Nothing -> do
+                void $ appendStmt (Let pos pat mexpr Nothing)
 
-    _ -> return ()
+    If pos expr blk mblk -> do
+        blkId <- newStmt (Block [])
+        withCurId blkId (buildStmt blk)
+        mblkIdm <- case mblk of
+            Nothing -> return Nothing
+            Just blk -> do
+                blkId <- newStmt (Block [])
+                withCurId blkId (buildStmt blk)
+                return (Just blkId)
+
+        void $ appendStmt $ If pos expr (Stmt blkId) (fmap Stmt mblkIdm)
+
+    Block stmts -> do
+        id <- appendStmt (Block [])
+        withCurId id (mapM_ buildStmt stmts)
+
+    Switch pos expr cases -> do
+        cases' <- forM cases $ \(pat, (Block stmts)) -> do
+            blkId <- newStmt (Block [])
+            withCurId blkId (mapM_ buildStmt stmts)
+            return (pat, (Stmt blkId))
+
+        void $ appendStmt (Switch pos expr cases')
+
+    For pos expr mpat (Block stmts) -> do
+        blkId <- newStmt (Block [])
+        withCurId blkId (mapM_ buildStmt stmts)
+        void $ appendStmt $ For pos expr mpat (Stmt blkId)
+
+    While pos expr (Block stmts) -> do
+        blkId <- newStmt (Block [])
+        withCurId blkId (mapM_ buildStmt stmts)
+        void $ appendStmt $ While pos expr (Stmt blkId)
+
     x -> error (show x)
 
 
