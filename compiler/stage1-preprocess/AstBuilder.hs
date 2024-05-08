@@ -47,6 +47,13 @@ appendId id = do
     modify $ \s -> s { statements = Map.insert curId stmt' (statements s) }
 
 
+newStmt :: Stmt -> DoM AstBuilderState ID
+newStmt stmt = do
+    id <- generateId
+    modify $ \s -> s { statements = Map.insert id stmt (statements s) }
+    return id
+
+
 appendStmt :: Stmt -> DoM AstBuilderState ID
 appendStmt stmt = do
     id <- generateId

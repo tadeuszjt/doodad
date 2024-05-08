@@ -189,11 +189,8 @@ checkExpr x = fail $ "unresolved type: " ++ show x
 checkStmt :: Stmt -> DoM CheckState ()
 checkStmt stmt = withPos stmt $ case stmt of
     Block stmts -> do
-        mapM_ checkStmt stmts
-
-    Scoped stmt -> do
         pushSymTab
-        checkStmt stmt
+        mapM_ checkStmt stmts
         popSymTab
 
     If _ cnd blk mblk -> do

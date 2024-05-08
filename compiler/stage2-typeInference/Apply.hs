@@ -37,7 +37,6 @@ applyStmt :: [(Type, Type)] -> Stmt -> Stmt
 applyStmt subs stmt = case stmt of
     Return pos mexpr -> Return pos (fmap applyEx mexpr)
     Block stmts      -> Block (map applySt stmts)
-    Scoped stmt      -> Scoped (applySt stmt)
     If pos cnd blk mblk  -> If pos (applyEx cnd) (applySt blk) (fmap applySt mblk)
     ExprStmt expr -> ExprStmt (applyEx expr)
     EmbedC pos s -> EmbedC pos s

@@ -124,7 +124,8 @@ instance TextPosition Func where
 
 
 data Stmt
-    = Let         TextPos Pattern (Maybe Expr) (Maybe Stmt)
+    = Stmt        Int
+    | Let         TextPos Pattern (Maybe Expr) (Maybe Stmt)
     | ExprStmt    Expr
     | Return      TextPos (Maybe Expr)
     | Block       [Stmt]
@@ -137,9 +138,6 @@ data Stmt
     | For         TextPos Expr (Maybe Pattern) Stmt
     | Data        TextPos Symbol Type (Maybe Expr)
     | EmbedC      TextPos String
-
-    -- after preprocess
-    | Scoped      Stmt
     deriving (Eq, Show)
 
 
@@ -315,8 +313,6 @@ prettyStmt pre stmt = case stmt of
 
     EmbedC pos str -> do
         putStrLn $ pre ++ "$" ++ str
-
-    Scoped stmt -> prettyStmt pre stmt
 
     x  -> error (show x)
 

@@ -235,13 +235,11 @@ resolveStmt statement = withPos statement $ case statement of
         popSymbolTable
         return $ FuncDef (Func header' stmt')
 
-    Scoped stmt -> do
+    Block stmts -> do
         pushSymbolTable
-        stmt' <- resolveStmt stmt
+        stmts' <- mapM resolveStmt stmts
         popSymbolTable
-        return (Scoped stmt')
-
-    Block stmts -> Block <$> mapM resolveStmt stmts
+        return (Block stmts')
 
     Let pos pat mexpr mblk -> do
         when (isJust mblk) pushSymbolTable

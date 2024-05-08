@@ -4,6 +4,8 @@ import Monad
 import AST
 import ASTMapper
 import Symbol
+import AstBuilder
+import Error
 
 
 data PreprocessState = PreprocessState
@@ -19,7 +21,24 @@ preprocess ast = fmap fst $ runDoMExcept initPreprocessState preprocess'
         preprocess' :: DoM PreprocessState AST
         preprocess' = do
             stmts' <- mapM (mapStmtM preprocessMapper) (astStmts ast)
+
+
+            ((), builderState) <- runDoMExcept initAstBuilderState (mapM_ buildStmt stmts')
+
             return $ ast { astStmts = stmts' }
+
+
+buildStmt :: Stmt -> DoM AstBuilderState ()
+buildStmt statement = withPos statement $ case statement of
+    FuncDef (Func header (Block stmts)) -> do
+        blockId <- newStmt (Block [])
+        funcId <- appendStmt $ FuncDef (Func header (Stmt blockId))
+        withCurId blockId $
+            mapM_ buildStmt stmts
+
+
+    _ -> return ()
+    x -> error (show x)
 
 
 preprocessMapper :: Elem -> DoM PreprocessState Elem
@@ -29,10 +48,8 @@ preprocessMapper element = case element of
     ElemExpr (AST.Bool pos b) -> return $ ElemExpr $ Call pos (Sym ["Construct", "construct"]) [AST.Bool pos b]
     ElemExpr (AST.Char pos c) -> return $ ElemExpr $ Call pos (Sym ["Construct", "construct"]) [AST.Char pos c]
 
-    ElemStmt (Block stmts) -> return $ ElemStmt $ Scoped (Block stmts)
-
     ElemStmt (Let pos pattern mexpr (Just blk)) -> do
-        return $ ElemStmt $ Scoped $ Block [Let pos pattern mexpr Nothing, blk]
+        return $ ElemStmt $ Block [Let pos pattern mexpr Nothing, blk]
 
     ElemExpr (Subscript pos expr1 expr2) ->
         return $ ElemExpr $ Call pos (Sym ["At", "at"]) [Reference pos expr1, expr2]

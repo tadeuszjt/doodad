@@ -108,8 +108,6 @@ mapStmtM f stmt = withPos stmt $ do
             mexpr' <- traverse (mapExprM f) mexpr
             return $ Data pos symbol typ' mexpr'
 
-        Scoped stmt -> Scoped <$> mapStmtM f stmt
-
         x -> error (show x)
     case res of
         ElemStmt x -> return x

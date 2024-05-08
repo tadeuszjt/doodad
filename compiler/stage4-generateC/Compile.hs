@@ -105,7 +105,6 @@ generateFunc isStatic symbol func = do
 
 generateStmt :: S.Stmt -> Generate ()
 generateStmt stmt = withPos stmt $ case stmt of
-    S.Scoped stmt          -> generateStmt stmt
     S.Block stmts          -> mapM_ generateStmt stmts
     S.EmbedC _ str         -> void $ appendElem (C.Embed str)
     S.ExprStmt expr        -> void $ generateExpr expr

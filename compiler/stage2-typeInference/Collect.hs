@@ -91,7 +91,6 @@ collectStmt :: Stmt -> DoM CollectState ()
 collectStmt statement = collectPos statement $ case statement of
     EmbedC _ _ -> return ()
 
-    Scoped stmt -> collectStmt stmt
     Block stmts -> mapM_ collectStmt stmts
 
     Return _ mexpr -> do
