@@ -95,5 +95,4 @@ executable doodad
         Builtin,
         ResolveAst,
         CombineAsts,
-        Preprocess,
-        AstBuilder
+        Preprocess

@@ -83,7 +83,7 @@ collectFuncDef func = do
         (Param _ symbol t) -> define symbol t
         (RefParam _ symbol t) -> define symbol t
 
-    mapM_ collectStmt (funcStmts func)
+    collectStmt (funcStmt func)
     modify $ \s -> s { curRetty = oldRetty }
 
 
@@ -102,7 +102,7 @@ collectStmt statement = collectPos statement $ case statement of
 
     ExprStmt expr -> collectExpr expr
 
-    Let _ pattern mexpr []  -> do
+    Let _ pattern mexpr Nothing  -> do
         case mexpr of
             Nothing   -> collectPatternIsolated pattern
             Just expr -> do
@@ -111,11 +111,11 @@ collectStmt statement = collectPos statement $ case statement of
                 collectPattern pattern
 
         
-    If _ expr trueStmts falseStmts -> do
+    If _ expr blk melse -> do
         collect "if condition must have bool type" $ ConsEq Type.Bool (typeof expr)
         collectExpr expr
-        mapM_ collectStmt trueStmts
-        mapM_ collectStmt falseStmts
+        collectStmt blk
+        void $ traverse collectStmt melse
 
     For _ expr mpat blk -> do
         when (isJust mpat) $ do
@@ -126,11 +126,11 @@ collectStmt statement = collectPos statement $ case statement of
         collectExpr expr
         collectStmt blk
 
-    While _ expr stmts -> do
+    While _ expr blk -> do
         collect "while condition must have bool type" $ ConsEq Type.Bool (typeof expr)
         collectDefault Type.Bool (typeof expr)
         collectExpr expr
-        mapM_ collectStmt stmts
+        collectStmt blk
 
     Switch _ expr cases -> do
         forM_ cases $ \(pat, blk) -> do

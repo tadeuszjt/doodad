@@ -44,10 +44,10 @@ mapFuncHeaderM f header = do
 mapFuncM :: MapperFunc s -> Func -> DoM s Func
 mapFuncM f func = do
     funcHeader'   <- mapFuncHeaderM f (funcHeader func)
-    funcStmts'    <- mapM (mapStmtM f) (funcStmts func)
+    funcStmt'     <- mapStmtM f (funcStmt func)
     return $ Func
         { funcHeader = funcHeader'
-        , funcStmts  = funcStmts'
+        , funcStmt   = funcStmt'
         }
 
 
@@ -57,9 +57,9 @@ mapStmtM f stmt = withPos stmt $ do
         Typedef _ _ _ _ -> return stmt -- ignored
         Feature _ _ _   -> return stmt -- ignored
 
-        FuncDef (Func header stmts) -> do
-            stmts' <- mapM (mapStmtM f) stmts
-            return $ FuncDef $ (Func header stmts')
+        FuncDef (Func header stmt) -> do
+            stmt' <- mapStmtM f stmt
+            return $ FuncDef $ (Func header stmt')
 
 
         EmbedC pos s -> return $ EmbedC pos s
@@ -84,16 +84,16 @@ mapStmtM f stmt = withPos stmt $ do
             blk'  <- mapStmtM f blk
             return $ For pos expr' mcnd' blk'
 
-        While pos cnd stmts -> do
+        While pos cnd blk -> do
             cnd' <- mapExprM f cnd
-            stmts' <- mapM (mapStmtM f) stmts
-            return (While pos cnd' stmts')
+            blk' <- mapStmtM f blk
+            return $ While pos cnd' blk'
 
-        If pos expr trueStmts falseStmts -> do
+        If pos expr true mfalse -> do
             expr' <- mapExprM f expr
-            trueStmts' <- mapM (mapStmtM f) trueStmts
-            falseStmts' <- mapM (mapStmtM f) falseStmts
-            return (If pos expr' trueStmts' falseStmts')
+            true' <- mapStmtM f true
+            mfalse' <- traverse (mapStmtM f) mfalse
+            return $ If pos expr' true' mfalse'
 
         Switch pos expr cases -> do
             expr' <- mapExprM f expr

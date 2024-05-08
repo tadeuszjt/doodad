@@ -115,7 +115,7 @@ instance Show FuncHeader where
         ++ show retty
 
 
-data Func = Func { funcHeader :: FuncHeader, funcStmts :: [Stmt] }
+data Func = Func { funcHeader :: FuncHeader, funcStmt :: Stmt }
     deriving (Eq, Show)
 
 
@@ -124,13 +124,12 @@ instance TextPosition Func where
 
 
 data Stmt
-    = Stmt        Int
-    | Let         TextPos Pattern (Maybe Expr) [Stmt]
+    = Let         TextPos Pattern (Maybe Expr) (Maybe Stmt)
     | ExprStmt    Expr
     | Return      TextPos (Maybe Expr)
     | Block       [Stmt]
-    | If          TextPos Expr [Stmt] [Stmt]
-    | While       TextPos Expr [Stmt]
+    | If          TextPos Expr Stmt (Maybe Stmt)
+    | While       TextPos Expr Stmt
     | FuncDef     Func
     | Feature     TextPos Symbol [FuncHeader]
     | Typedef     TextPos [Symbol] Symbol Type
@@ -259,9 +258,9 @@ prettyAST ast = do
 
 prettyStmt :: String -> Stmt -> IO ()
 prettyStmt pre stmt = case stmt of
-    FuncDef (Func header stmts) -> do
+    FuncDef (Func header blk) -> do
         putStrLn (pre ++ show header)
-        forM_ stmts $ prettyStmt (pre ++ "\t")
+        prettyStmt (pre ++ "\t") blk
         putStrLn ""
 
     Feature pos symbol headers -> do
@@ -269,30 +268,29 @@ prettyStmt pre stmt = case stmt of
         forM_ headers $ \header -> do
             putStrLn $ pre ++ "\t" ++ show header
 
-    Let pos pat mexpr stmts -> do
+    Let pos pat mexpr mblk -> do
         exprStr <- case mexpr of
             Just expr -> return $ " = " ++ show expr
             Nothing   -> return $ ""
-        putStrLn $ pre ++ "let " ++ show pat ++ exprStr ++ if stmts /= [] then " in" else ""
-        forM_ stmts $ prettyStmt (pre ++ "\t")
+        putStrLn $ pre ++ "let " ++ show pat ++ exprStr ++ if isJust mblk then " in" else ""
+        when (isJust mblk) $ prettyStmt (pre ++ "\t") (fromJust mblk)
 
     Return pos mexpr       -> putStrLn $ pre ++ "return " ++ maybe "" show mexpr
 
-    If pos cnd trueStmts falseStmts -> do
+    If pos cnd true mfalse -> do
         putStrLn $ pre ++ "if " ++ show cnd
-        forM_ trueStmts $ prettyStmt (pre ++ "\t")
-        putStrLn (pre ++ "else")
-        forM_ falseStmts $ prettyStmt (pre ++ "\t")
+        prettyStmt (pre ++ "\t") true
+        putStrLn $ pre ++ "else"
+        maybe (return ()) (prettyStmt (pre ++ "\t")) mfalse
 
     ExprStmt callExpr -> putStrLn $ pre ++ show callExpr
             
     Block stmts -> do
         mapM_ (prettyStmt pre) stmts
 
-    While pos cnd stmts -> do
+    While pos cnd stmt -> do
         putStrLn $ pre ++ "while " ++ show cnd
-        forM_ stmts $ prettyStmt (pre ++ "\t")
-
+        prettyStmt (pre ++ "\t") stmt
 
     Typedef pos typeArgs symbol anno -> do
         argStr <- case typeArgs of

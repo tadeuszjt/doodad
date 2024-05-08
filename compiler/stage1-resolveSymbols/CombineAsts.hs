@@ -54,45 +54,37 @@ combineAsts (ast, supply) imports = fmap snd $
                 Feature _ _ _ -> return ()
 
 
-filterStmts :: [Stmt] -> [Stmt]
-filterStmts = filter keepStmt
-    where
-        keepStmt :: Stmt -> Bool
-        keepStmt stmt = case stmt of
-            Typedef _ _ _ _ -> False
-            FuncDef _       -> False
-            Feature _ _ _   -> False
-            _               -> True
-
-
 
 combineMapper :: Elem -> DoM ASTResolved Elem
 combineMapper element = case element of
-    ElemStmt (FuncDef (Func header stmts)) -> do
-        let stmts' = filterStmts stmts
+    ElemStmt (FuncDef (Func header stmt)) -> do
         let callHeader = callHeaderFromFuncHeader header
-
         modify $ \s -> s {
-            funcDefsAll = Map.insert (funcSymbol header) (Func header stmts') (funcDefsAll s) }
+            funcDefsAll = Map.insert (funcSymbol header) (Func header stmt) (funcDefsAll s) }
 
         when (not $ isGenericHeader header) $ do
             instanceSymbol <- genSymbol $ SymResolved ["instance_" ++ sym (funcSymbol header)]
             let headerInstance = header { funcSymbol = instanceSymbol }
             modify $ \s -> s
-                { funcInstance = Map.insert callHeader (Func headerInstance stmts') (funcInstance s)
+                { funcInstance = Map.insert callHeader (Func headerInstance stmt) (funcInstance s)
                 } 
 
-        return $ ElemStmt $ FuncDef (Func header stmts')
+        return $ ElemStmt $ FuncDef (Func header stmt)
 
 
     ElemStmt (Typedef pos generics symbol typ) -> do
         modify $ \s -> s { typeDefsAll = Map.insert symbol (generics, typ) (typeDefsAll s) }
         return $ ElemStmt (Typedef pos generics symbol typ)
 
-    ElemStmt (Block stmts)          -> return $ ElemStmt (Block $ filterStmts stmts)
-    ElemStmt (While pos expr stmts) -> return $ ElemStmt (While pos expr $ filterStmts stmts)
-    ElemStmt (If pos expr trueStmts falseStmts) ->
-        return $ ElemStmt $ If pos expr (filterStmts trueStmts) (filterStmts falseStmts)
+    ElemStmt (Block stmts) -> do
+        -- filter out statements
+        stmts' <- fmap catMaybes $ forM stmts $ \stmt -> case stmt of
+            Typedef _ _ _ _ -> return Nothing
+            FuncDef _       -> return Nothing
+            Feature _ _ _   -> return Nothing
+            _ -> return (Just stmt)
+
+        return $ ElemStmt (Block stmts')
 
 
     ElemExpr (Call pos symbol@(Sym [str]) exprs) -> do

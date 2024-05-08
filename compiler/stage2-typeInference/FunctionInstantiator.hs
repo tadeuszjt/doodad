@@ -52,8 +52,8 @@ instAst :: Bool -> DoM InstantiatorState ()
 instAst verbose = do
     funcInstances <- gets (funcInstance . astResolved)
     forM_ (Map.toList funcInstances) $ \(header, func) -> do
-        stmts' <- mapM instStmt (funcStmts func)
-        func' <- return func { funcStmts = stmts' }
+        stmt' <- instStmt (funcStmt func)
+        func' <- return func { funcStmt = stmt' }
         modifyAST $ \s -> s { funcInstance = Map.insert header func' (ASTResolved.funcInstance s) }
 
 
