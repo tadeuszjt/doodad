@@ -1,5 +1,7 @@
+{-# LANGUAGE FlexibleInstances #-}
 module Preprocess where
 
+import Control.Monad.Identity
 import qualified Data.Map as Map
 import Control.Monad
 import Control.Monad.State
@@ -12,25 +14,48 @@ import AstBuilder
 import Error
 
 
-data PreprocessState = PreprocessState
-    {
-    }
-
-initPreprocessState = PreprocessState
-
-
 preprocess :: AST -> DoM s AST
-preprocess ast = fmap fst $ runDoMExcept initPreprocessState preprocess'
+preprocess ast = fmap fst $ runDoMExcept () preprocess'
     where
-        preprocess' :: DoM PreprocessState AST
+        preprocess' :: DoM s AST
         preprocess' = do
             stmts' <- mapM (mapStmtM preprocessMapper) (astStmts ast)
 
 
-            ((), builderState) <- runDoMExcept initAstBuilderState (mapM_ buildStmt stmts')
-            stmts'' <- fmap fst (runDoMExcept builderState unpackAst)
+            ((), buildState) <- runDoMExcept initBuildState (mapM_ buildStmt stmts')
+            stmts'' <- fmap fst $ runDoMExcept (astBuilderState buildState) unpackAst
 
             return $ ast { astStmts = stmts'' }
+
+
+data BuildState = BuildState 
+    { astBuilderState :: AstBuilderState
+    , supply          :: Int
+    }
+
+
+initBuildState = BuildState
+    { astBuilderState = initAstBuilderState
+    , supply = 0
+    }
+
+
+fresh :: DoM BuildState Int
+fresh = do
+    n <- gets supply
+    modify $ \s -> s { supply = n + 1 }
+    return n
+
+
+freshSym :: DoM BuildState Symbol
+freshSym = do
+    id <- fresh
+    return (Sym ["_x" ++ show id])
+
+
+instance MonadAstBuilder (DoM BuildState) where
+    liftAstBuilderState (StateT s) = DoM $
+        StateT (\a -> pure $ (\(x, b) -> (x, a { astBuilderState = b })) $ runIdentity $ s $ astBuilderState a)
 
 
 unpackAst :: DoM AstBuilderState [Stmt]
@@ -67,7 +92,52 @@ unpackStmt statement = withPos statement $ case statement of
     x -> error (show x)
 
 
-buildStmt :: Stmt -> DoM AstBuilderState ()
+buildPattern :: Pattern -> Expr -> DoM BuildState Expr
+buildPattern pattern expr = do
+    liftIO $ putStrLn "here"
+
+    withPos pattern $ case pattern of
+        PatIdent pos symbol -> do
+            liftIO $ putStrLn "here"
+            appendStmt $ Let pos (PatIdent pos symbol) Nothing Nothing
+            appendStmt $ ExprStmt $ Call pos (Sym ["Store", "store"]) [Reference pos (Ident pos symbol), expr]
+            return (AST.Bool pos True)
+
+        PatLiteral literal -> do
+            return $ Call (textPos pattern) (Sym ["Compare", "equal"]) [literal, expr]
+
+        PatAnnotated pat patTyp -> case pat of
+            PatLiteral literal -> do
+                return $ Call (textPos pattern) (Sym ["Compare", "equal"]) [AExpr patTyp literal, expr]
+
+            PatIdent pos symbol -> do
+                appendStmt $ Let pos (PatIdent pos symbol) Nothing Nothing
+                appendStmt $ ExprStmt $ Call pos (Sym ["Store", "store"])
+                    [ Reference pos (AExpr patTyp $ Ident pos symbol)
+                    , expr
+                    ]
+                return (AST.Bool pos True)
+
+            x -> error (show x)
+
+        PatTuple pos pats -> do
+            symbol <- freshSym
+            appendStmt $ Let pos (PatIdent pos symbol) Nothing Nothing
+            appendStmt $ ExprStmt $ Call pos (Sym ["Store", "store"]) [Reference pos (Ident pos symbol), expr]
+
+            let syms = ["first", "second", "third", "fourth"]
+            boolExprs <- forM (zip pats [0..]) $ \(pat, i) -> do
+                buildPattern pat $ Call pos (Sym [syms !! i]) [Reference pos $ Ident pos symbol]
+
+            return (head boolExprs)
+
+                
+            
+
+        x -> error (show x)
+
+
+buildStmt :: Stmt -> DoM BuildState ()
 buildStmt statement = withPos statement $ case statement of
     ExprStmt expr    -> void $ appendStmt (ExprStmt expr)
     Typedef _ _ _ _  -> void $ appendStmt statement
@@ -85,6 +155,13 @@ buildStmt statement = withPos statement $ case statement of
         case mblk of
             Nothing -> do
                 void $ appendStmt (Let pos pat mexpr Nothing)
+--                case mexpr of
+--                    Just expr -> do
+--                        boolExpr <- buildPattern pat expr
+--                        void $ appendStmt $ ExprStmt $ Call pos (Sym ["assert"]) [boolExpr]
+--
+--                    Nothing -> do
+--                        void $ appendStmt (Let pos pat mexpr Nothing)
 
     If pos expr blk mblk -> do
         blkId <- newStmt (Block [])
@@ -123,7 +200,7 @@ buildStmt statement = withPos statement $ case statement of
     x -> error (show x)
 
 
-preprocessMapper :: Elem -> DoM PreprocessState Elem
+preprocessMapper :: Elem -> DoM s Elem
 preprocessMapper element = case element of
     ElemExpr (AST.Int pos n) -> return $ ElemExpr $ Call pos (Sym ["Construct", "construct"]) [AST.Int pos n]
     ElemExpr (AST.Float pos f) -> return $ ElemExpr $ Call pos (Sym ["Construct", "construct"]) [AST.Float pos f]

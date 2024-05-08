@@ -96,7 +96,6 @@ combineMapper element = case element of
                    , "builtin_zero"
                    , "builtin_pretend"
                    , "conv"
-                   , "assert"
                    ]
         if str `elem` list then do
             return $ ElemExpr (Builtin pos str exprs)

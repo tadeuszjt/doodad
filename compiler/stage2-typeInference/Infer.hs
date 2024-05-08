@@ -18,6 +18,7 @@ import AST
 
 inferFunc :: Func -> DoM ASTResolved Func
 inferFunc func = do
+    --liftIO $ putStrLn "inferFunc"
     annotatedFunc <- fmap fst $ withErrorPrefix "annotate: " $
         runDoMExcept 0 (annotateFunc func)
     ast <- get
@@ -30,6 +31,7 @@ inferFunc func = do
 
 inferFuncDefaults :: Func -> DoM ASTResolved Func
 inferFuncDefaults func = do
+    --liftIO $ putStrLn "inferFuncDefaults"
     annotatedFunc <- fmap fst $ withErrorPrefix "annotate: " $
         runDoMExcept 0 (annotateFunc func)
     ast <- get

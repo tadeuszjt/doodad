@@ -54,6 +54,7 @@ deAnnotateMapper :: Elem -> DoM () Elem
 deAnnotateMapper elem = return $ case elem of
     ElemExpr (AExpr typ expr)          | hasTypeVars typ -> ElemExpr expr
     ElemPattern (PatAnnotated pat typ) | hasTypeVars typ -> ElemPattern pat
+    ElemPatternIsolated (PatAnnotated pat typ) | hasTypeVars typ -> ElemPatternIsolated pat
     _                                                    -> elem
 
 hasTypeVars :: Type -> Bool

@@ -189,6 +189,7 @@ buildModule args modPath = do
             unless (isJust resm) (error $ show importPath ++ " not in module map")
             return (fromJust resm)
 
+        when (verbose args) $ liftIO $ putStrLn "resolving symbols..."
         (astResolved', supply) <- ResolveAst.resolveAst ast astImports
         astCombined' <- CombineAsts.combineAsts (astResolved', supply) astImports
         --liftIO $ prettyAST astResolved'
@@ -200,6 +201,7 @@ buildModule args modPath = do
 
 
         -- infer ast types
+        when (verbose args) $ liftIO $ putStrLn "inferring types..."
         (astFinal, inferCount) <- withErrorPrefix "infer: " $
             infer astResolved (printAstAnnotated args) (verbose args)
         when (verbose args) $ do
@@ -212,6 +214,7 @@ buildModule args modPath = do
         withErrorPrefix "checker: " (runASTChecker astFinal)
 
         -- build C ast from final ast
+        when (verbose args) $ liftIO $ putStrLn "generating C file..."
         res <- generateAst astFinal
         cBuilderState <- case res of
             Right x -> return (snd x)

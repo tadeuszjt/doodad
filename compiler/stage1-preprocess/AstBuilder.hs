@@ -1,7 +1,9 @@
+{-# LANGUAGE FlexibleInstances #-}
 module AstBuilder where
 
 import qualified Data.Map as Map
 import Control.Monad.State
+import Control.Monad.Identity
 
 import AST
 import Monad
@@ -17,6 +19,13 @@ data AstBuilderState = AstBuilderState
     , curId      :: ID
     }
 
+class (Monad m, MonadFail m) => MonadAstBuilder m where
+    liftAstBuilderState :: State AstBuilderState a -> m a
+
+
+instance MonadAstBuilder (DoM AstBuilderState) where
+    liftAstBuilderState (StateT s) = DoM $ StateT (pure . runIdentity . s)
+
 
 initAstBuilderState = AstBuilderState
     { statements = Map.singleton globalId (Block [])
@@ -25,47 +34,47 @@ initAstBuilderState = AstBuilderState
     }
 
 
-generateId :: DoM AstBuilderState ID
-generateId = do
+generateId :: MonadAstBuilder m => m ID
+generateId = liftAstBuilderState $ do
     idSupply <- gets idSupply
     modify $ \s -> s { idSupply = idSupply + 1 }
     return idSupply
 
 
 
-appendId :: ID -> DoM AstBuilderState ()
+appendId :: MonadAstBuilder m => ID -> m ()
 appendId id = do
-    curId <- gets curId
-    True <- gets (Map.member curId . statements)
-    stmt <- gets $ (Map.! curId) . statements
+    curId <- liftAstBuilderState (gets curId)
+    True <- liftAstBuilderState $ gets (Map.member curId . statements)
+    stmt <- liftAstBuilderState $ gets $ (Map.! curId) . statements
     stmt' <- case stmt of
         Block ids -> return $ Block (ids ++ [Stmt id])
         x -> error (show x)
 
-    modify $ \s -> s { statements = Map.insert curId stmt' (statements s) }
+    liftAstBuilderState $ modify $ \s -> s { statements = Map.insert curId stmt' (statements s) }
 
 
-newStmt :: Stmt -> DoM AstBuilderState ID
+newStmt :: MonadAstBuilder m => Stmt -> m ID
 newStmt stmt = do
     id <- generateId
-    modify $ \s -> s { statements = Map.insert id stmt (statements s) }
+    liftAstBuilderState $ modify $ \s -> s { statements = Map.insert id stmt (statements s) }
     return id
 
 
-appendStmt :: Stmt -> DoM AstBuilderState ID
+appendStmt :: MonadAstBuilder m => Stmt -> m ID
 appendStmt stmt = do
     id <- generateId
     appendId id
-    modify $ \s -> s { statements = Map.insert id stmt (statements s) }
+    liftAstBuilderState $ modify $ \s -> s { statements = Map.insert id stmt (statements s) }
     return id
 
 
-withCurId :: ID -> (DoM AstBuilderState a) -> DoM AstBuilderState a
+withCurId :: MonadAstBuilder m => ID -> (m a) -> m a
 withCurId id f = do
-    prevId <- gets curId
-    modify $ \s -> s { curId = id }
+    prevId <- liftAstBuilderState (gets curId)
+    liftAstBuilderState $ modify $ \s -> s { curId = id }
     a <- f
-    modify $ \s -> s { curId = prevId }
+    liftAstBuilderState $ modify $ \s -> s { curId = prevId }
     return a
 
 

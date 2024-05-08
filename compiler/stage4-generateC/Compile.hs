@@ -330,16 +330,6 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
 
     S.Builtin _ "conv" [expr] -> convert typ =<< generateExpr expr
 
-    S.Builtin pos "assert" [cnd, str] -> do
-        cndVal <- generateExpr cnd
-        strVal <- generateExpr str
---        fileNameVal <- return $ Value Type.String (C.String $ textFile pos)
---        lineVal <- return $ Value I64 (C.Int $ fromIntegral $ textLine pos)
-        --call "doodad_assert" [fileNameVal, lineVal, cndVal, strVal]
-        call "assert" [cndVal]
-        return $ Value Void $ C.Int 0
-
-
     S.Builtin _ "builtin_zero" exprs -> do
         check (length exprs == 0) "builtin_zero cannot have arguments"
         base <- baseTypeOf typ

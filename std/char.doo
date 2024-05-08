@@ -2,6 +2,7 @@ module char
 
 import std/bool
 import std/features
+import std/assert
 
 fn Construct::construct(a Char) Char; return a
 

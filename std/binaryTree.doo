@@ -4,6 +4,7 @@ import std/maybe
 import std/unordered
 import std/bool
 import std/features
+import std/assert
 
 type{K, V} Node Tuple{
     Node{K, V}.Key.Maybe,
