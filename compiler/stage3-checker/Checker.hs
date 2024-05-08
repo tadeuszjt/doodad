@@ -104,7 +104,7 @@ checkAST ast = do
         forM (funcArgs (funcHeader func)) $ \param -> do
             define (paramSymbol param) (NodeArg $ paramSymbol param)
 
-        checkStmt (funcStmt func)
+        mapM_ checkStmt (funcStmts func)
         popSymTab
 
             -- check return type
@@ -196,14 +196,15 @@ checkStmt stmt = withPos stmt $ case stmt of
         checkStmt stmt
         popSymTab
 
-    If _ cnd blk mblk -> do
+    If _ cnd trueStmts falseStmts -> do
         --liftIO $ putStrLn $ "If"
-        --pushSymTab
+        pushSymTab
         checkExpr cnd
-        checkStmt blk
-        traverse checkStmt mblk
-        return ()
-        --popSymTab
+        mapM_ checkStmt trueStmts
+        popSymTab
+        pushSymTab
+        mapM_ checkStmt falseStmts
+        popSymTab
 
     Return _ mexpr -> do
         void $ traverse checkExpr mexpr
@@ -219,7 +220,7 @@ checkStmt stmt = withPos stmt $ case stmt of
         define symbol (NodeData symbol)
         return ()
 
-    Let _ pat mexpr Nothing -> do
+    Let _ pat mexpr [] -> do
         --liftIO $ putStrLn "let"
         mobjs <- traverse checkExpr mexpr
 --        objs <- case mobjs of
@@ -239,9 +240,9 @@ checkStmt stmt = withPos stmt $ case stmt of
             popSymTab
         return ()
 
-    While _ cnd blk -> do
+    While _ cnd stmts -> do
         checkExpr cnd
-        checkStmt blk
+        mapM_ checkStmt stmts
         return ()
 
     For _ expr mpat blk -> do

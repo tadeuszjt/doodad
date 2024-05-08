@@ -212,7 +212,7 @@ resolveStmt statement = withPos statement $ case statement of
         return (Typedef pos generics' symbol' typ')
 
     Feature pos symbol headers -> return statement -- TODO does nothing
-    FuncDef (Func header stmt) -> do
+    FuncDef (Func header stmts) -> do
         symbol' <- case (funcSymbol header) of
             SymResolved _ -> return (funcSymbol header)
             Sym str       -> do
@@ -224,7 +224,7 @@ resolveStmt statement = withPos statement $ case statement of
         generics' <- defineGenerics (funcGenerics header)
         args'     <- mapM resolveParam (funcArgs header)
         retty'    <- resolveRetty (funcRetty header)
-        stmt'     <- resolveStmt stmt
+        stmts'     <- mapM resolveStmt stmts
 
         let header' = header
                 { funcGenerics = generics'
@@ -233,7 +233,7 @@ resolveStmt statement = withPos statement $ case statement of
                 , funcSymbol   = symbol'
                 }
         popSymbolTable
-        return $ FuncDef (Func header' stmt')
+        return $ FuncDef (Func header' stmts')
 
     Scoped stmt -> do
         pushSymbolTable
@@ -243,23 +243,20 @@ resolveStmt statement = withPos statement $ case statement of
 
     Block stmts -> Block <$> mapM resolveStmt stmts
 
-    Let pos pat mexpr mblk -> do
-        when (isJust mblk) pushSymbolTable
+    Let pos pat mexpr [] -> do
         mexpr' <- traverse resolveExpr mexpr 
         pat' <- resolvePattern pat
-        mblk' <- traverse resolveStmt mblk
-        when (isJust mblk) popSymbolTable
-        return (Let pos pat' mexpr' mblk')
+        return (Let pos pat' mexpr' [])
 
-    If pos expr stmt melse -> do
+    If pos expr trueStmts falseStmts -> do
         pushSymbolTable
         expr' <- resolveExpr expr
-        stmt' <- resolveStmt stmt
+        trueStmts' <- mapM resolveStmt trueStmts
         popSymbolTable
         pushSymbolTable
-        melse' <- traverse resolveStmt melse
+        falseStmts' <- mapM resolveStmt falseStmts
         popSymbolTable
-        return (If pos expr' stmt' melse')
+        return (If pos expr' trueStmts' falseStmts')
 
     For pos expr mpattern blk -> do
         pushSymbolTable
@@ -279,12 +276,12 @@ resolveStmt statement = withPos statement $ case statement of
             return (pat', stmt')
         return (Switch pos expr' cases')
 
-    While pos expr stmt -> do
+    While pos expr stmts -> do
         pushSymbolTable
         expr' <- resolveExpr expr
-        stmt' <- resolveStmt stmt
+        stmts' <- mapM resolveStmt stmts
         popSymbolTable
-        return (While pos expr' stmt')
+        return (While pos expr' stmts')
     
     Data pos (Sym str) typ mexpr -> do
         symbol <- genSymbol (SymResolved str)

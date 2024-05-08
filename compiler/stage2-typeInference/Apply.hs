@@ -9,7 +9,7 @@ import ASTResolved
 
 applyFunc :: [(Type, Type)] -> Func -> Func
 applyFunc subs func = func
-    { funcStmt = applyStmt subs (funcStmt func)
+    { funcStmts = map (applyStmt subs) (funcStmts func)
     , funcHeader = applyFuncHeader subs (funcHeader func)
     }
 
@@ -38,13 +38,13 @@ applyStmt subs stmt = case stmt of
     Return pos mexpr -> Return pos (fmap applyEx mexpr)
     Block stmts      -> Block (map applySt stmts)
     Scoped stmt      -> Scoped (applySt stmt)
-    If pos cnd blk mblk  -> If pos (applyEx cnd) (applySt blk) (fmap applySt mblk)
+    If pos cnd trueStmts falseStmts -> If pos (applyEx cnd) (map applySt trueStmts) (map applySt falseStmts)
     ExprStmt expr -> ExprStmt (applyEx expr)
     EmbedC pos s -> EmbedC pos s
     Data pos symbol typ mexpr -> Data pos symbol (applyTy typ) (fmap applyEx mexpr)
-    Let pos pattern mexpr Nothing -> Let pos (applyPat pattern) (fmap applyEx mexpr) Nothing
+    Let pos pattern mexpr [] -> Let pos (applyPat pattern) (fmap applyEx mexpr) []
     Switch pos expr cases -> Switch pos (applyEx expr) $ map (\(p, st) -> (applyPat p, applySt st)) cases
-    While pos expr blk -> While pos (applyEx expr) (applySt blk)
+    While pos expr stmts -> While pos (applyEx expr) (map applySt stmts)
     For pos expr mpat blk -> For pos (applyEx expr) (fmap applyPat mpat) (applySt blk)
     x -> error "invalid statement"
     where

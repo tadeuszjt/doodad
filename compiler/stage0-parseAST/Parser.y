@@ -139,7 +139,7 @@ fnSymbol : ident            { Sym [tokStr $1] }
 fnHeader : fn generics fnSymbol '(' paramsA ')' retty
             { AST.FuncHeader (tokPos $1) $2 $3 $5 $7 }
 
-func : fnHeader scope  { Func $1 $2 }
+func : fnHeader scope_ { Func $1 $2 }
 
 fnHeaders : fnHeader 'N'            { [$1] }
           | fnHeader 'N' fnHeaders  { ($1 : $3) }
@@ -152,8 +152,8 @@ retty : {-empty-}     { Retty Type.Void }
       | '&' type_     { RefRetty $2 }
       | '[' ']' type_ { Retty (Type.Slice $3) }
 
-line : let pattern '=' expr               { Let (tokPos $1) $2 (Just $4) Nothing }  
-     | let pattern                        { Let (tokPos $1) $2 Nothing Nothing }
+line : let pattern '=' expr               { Let (tokPos $1) $2 (Just $4) [] }  
+     | let pattern                        { Let (tokPos $1) $2 Nothing [] }
      | expr                               { ExprStmt $1 }
      | expr '=' expr                      { ExprStmt (Call (tokPos $2) (Sym ["Store", "store"]) [Reference (tokPos $2) $1, $3]) }
      | type generics Symbol type_         { Typedef (fst $3) $2 (snd $3) $4 }
@@ -162,20 +162,24 @@ line : let pattern '=' expr               { Let (tokPos $1) $2 (Just $4) Nothing
      | embed_c                            { AST.EmbedC (tokPos $1) (tokStr $1) }
 
 block : if_                               { $1 }
-      | while condition scope             { While (tokPos $1) $2 $3 }
+      | while condition scope_            { While (tokPos $1) $2 $3 }
       | for expr scope                    { For (tokPos $1) $2 Nothing $3 }
       | for expr '->' pattern scope       { For (tokPos $1) $2 (Just $4) $5 }
       | switch expr 'I' cases1 'D'        { Switch (tokPos $1) $2 $4 }
-      | let pattern '='  expr in scope    { Let (tokPos $1) $2 (Just $4) (Just $6) }
-      | let pattern in scope              { Let (tokPos $1) $2 Nothing (Just $4) }
+      | let pattern '='  expr in scope_   { Let (tokPos $1) $2 (Just $4) $6 }
+      | let pattern in scope_             { Let (tokPos $1) $2 Nothing $4 }
       | func                              { FuncDef $1 }
       | feature Ident 'I' fnHeaders 'D'   { Feature (tokPos $1) (Sym [tokStr $2]) $4 }
 
-if_   : if condition scope else_          { If (tokPos $1) $2 $3 $4 }
-      | if condition 'N' else_            { If (tokPos $1) $2 (Block []) $4 }
-else_ : else scope                        { Just $2 }
-      | else if_                          { Just $2 }
-      | {-empty-}                         { Nothing }
+if_   : if condition scope_ else_         { If (tokPos $1) $2 $3 $4 }
+      | if condition 'N' else_            { If (tokPos $1) $2 [] $4 }
+else_ : else scope_                       { $2 }
+      | else if_                          { [$2] }
+      | {-empty-}                         { [] }
+
+scope_ : 'I' stmts 'D'                    { $2 }
+       | ';' line 'N'                     { [$2] }
+       | ';' 'N'                          { [] }
 
 scope  : 'I' stmts 'D'                    { Block $2 }
        | ';' line 'N'                     { Block [$2] }

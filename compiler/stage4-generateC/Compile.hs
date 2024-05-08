@@ -95,7 +95,7 @@ generateFunc isStatic symbol func = do
                 S.RefParam _ _ _ -> define name $ Ref (typeof arg) (C.Ident name)
                 x -> error (show x)
 
-        generateStmt (S.funcStmt func)
+        mapM generateStmt (S.funcStmts func)
         when (S.funcRetty (S.funcHeader func) /= S.Retty Void) $ -- check to ensure function has return
             call "assert" [false]
 
@@ -119,7 +119,7 @@ generateStmt stmt = withPos stmt $ case stmt of
             (False, Ref _ _)   -> appendElem . C.Return . valExpr =<< deref val
             (True, Ref _ _)    -> appendElem $ C.Return $ refExpr val
 
-    S.Let _ pattern mexpr Nothing -> do
+    S.Let _ pattern mexpr [] -> do
         matched <- case mexpr of
             Just expr -> generatePattern pattern =<< generateExpr expr
             Nothing   -> generatePatternIsolated pattern
@@ -135,12 +135,13 @@ generateStmt stmt = withPos stmt $ case stmt of
         appendAssign ctyp (showSymLocal symbol) init
         define (showSymLocal symbol) $ Value typ $ C.Ident (showSymLocal symbol)
 
-    S.If _ expr blk melse -> do
+    S.If _ expr trueStmts falseStmts -> do
         val <- generateExpr expr
-        if_ val $ generateStmt blk
-        when (isJust melse) $ do
+        if_ val (mapM_ generateStmt trueStmts)
+
+        when (falseStmts /= []) $ do
             elseID <- appendElem $ C.Else { elseStmts = [] }
-            withCurID elseID $ generateStmt (fromJust melse)
+            withCurID elseID $ mapM_ generateStmt falseStmts
 
     S.Switch _ cnd cases -> do
         newVal <- assign "switchExpr" =<< generateExpr cnd
@@ -157,12 +158,12 @@ generateStmt stmt = withPos stmt $ case stmt of
 
             call "assert" [false]
 
-    S.While _ expr stmt -> do
+    S.While _ expr stmts -> do
         id <- appendElem $ C.For Nothing Nothing Nothing []
         withCurID id $ do
             val <- generateExpr expr
-            if_ (not_ val) $ appendElem C.Break
-            generateStmt stmt
+            if_ (not_ val) (appendElem C.Break)
+            mapM_ generateStmt stmts
         
     S.For _ expr mpat stmt -> do
         idx <- assign "idx" (i64 0)
