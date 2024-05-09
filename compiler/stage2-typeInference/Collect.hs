@@ -101,14 +101,8 @@ collectStmt statement = collectPos statement $ case statement of
 
     ExprStmt expr -> collectExpr expr
 
-    Let _ pattern mexpr Nothing  -> do
-        case mexpr of
-            Nothing   -> collectPatternIsolated pattern
-            Just expr -> do
-                collect "let pattern type must match expression type" $ ConsEq (typeof expr) (typeof pattern)
-                collectExpr expr
-                collectPattern pattern
-
+    Let _ pattern Nothing Nothing  -> do
+        collectPatternIsolated pattern
         
     If _ expr blk melse -> do
         collect "if condition must have bool type" $ ConsEq Type.Bool (typeof expr)
@@ -253,6 +247,7 @@ collectExpr (AExpr exprType expression) = collectPos expression $ case expressio
     Call _ symbol exprs -> do
         when (Symbol.sym symbol == "construct" && length exprs > 1) $ do
             void $ collectDefault exprType $ Type.TypeApply (Sym ["Tuple"]) (map typeof exprs)
+
         when (Symbol.sym symbol == "construct" && length exprs == 1) $ do
             void $ collectDefault exprType $ typeof (head exprs)
 

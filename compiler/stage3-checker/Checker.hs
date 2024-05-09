@@ -216,13 +216,7 @@ checkStmt stmt = withPos stmt $ case stmt of
         define symbol (NodeData symbol)
         return ()
 
-    Let _ pat mexpr Nothing -> do
-        --liftIO $ putStrLn "let"
-        mobjs <- traverse checkExpr mexpr
---        objs <- case mobjs of
---            Nothing -> return []
---            Just xs -> return xs
-
+    Let _ pat Nothing Nothing -> do
         checkPattern pat 
         return ()
 

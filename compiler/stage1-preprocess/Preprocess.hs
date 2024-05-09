@@ -92,14 +92,12 @@ unpackStmt statement = withPos statement $ case statement of
     x -> error (show x)
 
 
-buildPattern :: Pattern -> Expr -> DoM BuildState Expr
-buildPattern pattern expr = do
-    liftIO $ putStrLn "here"
-
+buildPattern :: ID -> Pattern -> Expr -> DoM BuildState Expr
+buildPattern defBlkId pattern expr = do
     withPos pattern $ case pattern of
         PatIdent pos symbol -> do
-            liftIO $ putStrLn "here"
-            appendStmt $ Let pos (PatIdent pos symbol) Nothing Nothing
+            withCurId defBlkId $
+                appendStmt $ Let pos (PatIdent pos symbol) Nothing Nothing
             appendStmt $ ExprStmt $ Call pos (Sym ["Store", "store"]) [Reference pos (Ident pos symbol), expr]
             return (AST.Bool pos True)
 
@@ -111,7 +109,8 @@ buildPattern pattern expr = do
                 return $ Call (textPos pattern) (Sym ["Compare", "equal"]) [AExpr patTyp literal, expr]
 
             PatIdent pos symbol -> do
-                appendStmt $ Let pos (PatIdent pos symbol) Nothing Nothing
+                withCurId defBlkId $ 
+                    appendStmt $ Let pos (PatIdent pos symbol) Nothing Nothing
                 appendStmt $ ExprStmt $ Call pos (Sym ["Store", "store"])
                     [ Reference pos (AExpr patTyp $ Ident pos symbol)
                     , expr
@@ -121,18 +120,28 @@ buildPattern pattern expr = do
             x -> error (show x)
 
         PatTuple pos pats -> do
+            let syms = ["first", "second", "third", "fourth"]
+
             symbol <- freshSym
-            appendStmt $ Let pos (PatIdent pos symbol) Nothing Nothing
+            withCurId defBlkId $
+                appendStmt $ Let pos (PatIdent pos symbol) Nothing Nothing
+
             appendStmt $ ExprStmt $ Call pos (Sym ["Store", "store"]) [Reference pos (Ident pos symbol), expr]
 
-            let syms = ["first", "second", "third", "fourth"]
-            boolExprs <- forM (zip pats [0..]) $ \(pat, i) -> do
-                buildPattern pat $ Call pos (Sym [syms !! i]) [Reference pos $ Ident pos symbol]
 
-            return (head boolExprs)
+            matchSym <- freshSym
+            appendStmt $ Let pos (PatIdent pos matchSym) Nothing Nothing
+            appendStmt $ ExprStmt $ Call pos (Sym ["Store", "store"]) [Reference pos (Ident pos matchSym), AST.Bool pos True]
 
-                
-            
+            forM_ (zip pats [0..]) $ \(pat, i) -> do
+                ifBlkId <- newStmt (Block [])
+                appendStmt $ If pos (Ident pos matchSym) (Stmt ifBlkId) Nothing
+                withCurId ifBlkId $ do
+                    b <- buildPattern defBlkId pat $
+                        Call pos (Sym [syms !! i]) [Reference pos $ Ident pos symbol]
+                    appendStmt $ ExprStmt $ Call pos (Sym ["Store", "store"]) [Reference pos (Ident pos matchSym), b]
+
+            return (Ident pos matchSym)
 
         x -> error (show x)
 
@@ -151,17 +160,15 @@ buildStmt statement = withPos statement $ case statement of
         funcId <- appendStmt $ FuncDef (Func header (Stmt blockId))
         withCurId blockId (mapM_ buildStmt stmts)
 
-    Let pos pat mexpr mblk -> do
-        case mblk of
+    Let pos pat mexpr Nothing -> do
+        case mexpr of
+            Just expr -> do
+                curId <- liftAstBuilderState (gets curId)
+                boolExpr <- buildPattern curId pat expr
+                void $ appendStmt $ ExprStmt $ Call pos (Sym ["assert", "assert"]) [boolExpr]
+
             Nothing -> do
-                void $ appendStmt (Let pos pat mexpr Nothing)
---                case mexpr of
---                    Just expr -> do
---                        boolExpr <- buildPattern pat expr
---                        void $ appendStmt $ ExprStmt $ Call pos (Sym ["assert"]) [boolExpr]
---
---                    Nothing -> do
---                        void $ appendStmt (Let pos pat mexpr Nothing)
+                void $ appendStmt (Let pos pat Nothing Nothing)
 
     If pos expr blk mblk -> do
         blkId <- newStmt (Block [])

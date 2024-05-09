@@ -118,11 +118,8 @@ generateStmt stmt = withPos stmt $ case stmt of
             (False, Ref _ _)   -> appendElem . C.Return . valExpr =<< deref val
             (True, Ref _ _)    -> appendElem $ C.Return $ refExpr val
 
-    S.Let _ pattern mexpr Nothing -> do
-        matched <- case mexpr of
-            Just expr -> generatePattern pattern =<< generateExpr expr
-            Nothing   -> generatePatternIsolated pattern
-        call "assert" [matched]
+    S.Let _ pattern Nothing Nothing -> do
+        void $ generatePatternIsolated pattern
 
     S.Data _ symbol typ Nothing -> do
         base <- baseTypeOf typ

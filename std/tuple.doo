@@ -40,3 +40,7 @@ fn{A, B} Store::store(a &Tuple{A, B}, b Tuple{A, B})
     a.0 = b.0
     a.1 = b.1
 
+fn{A, B, C} Store::store(a &Tuple{A, B, C}, b Tuple{A, B, C})
+    a.0 = b.0
+    a.1 = b.1
+    a.2 = b.2

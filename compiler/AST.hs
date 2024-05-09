@@ -258,7 +258,7 @@ prettyStmt :: String -> Stmt -> IO ()
 prettyStmt pre stmt = case stmt of
     FuncDef (Func header blk) -> do
         putStrLn (pre ++ show header)
-        prettyStmt (pre ++ "\t") blk
+        prettyStmt pre blk
         putStrLn ""
 
     Feature pos symbol headers -> do
@@ -271,24 +271,27 @@ prettyStmt pre stmt = case stmt of
             Just expr -> return $ " = " ++ show expr
             Nothing   -> return $ ""
         putStrLn $ pre ++ "let " ++ show pat ++ exprStr ++ if isJust mblk then " in" else ""
-        when (isJust mblk) $ prettyStmt (pre ++ "\t") (fromJust mblk)
+        when (isJust mblk) $ prettyStmt pre (fromJust mblk)
 
     Return pos mexpr       -> putStrLn $ pre ++ "return " ++ maybe "" show mexpr
 
     If pos cnd true mfalse -> do
         putStrLn $ pre ++ "if " ++ show cnd
-        prettyStmt (pre ++ "\t") true
-        putStrLn $ pre ++ "else"
-        maybe (return ()) (prettyStmt (pre ++ "\t")) mfalse
+        prettyStmt pre true
+        case mfalse of
+            Nothing -> return ()
+            Just false -> do 
+                putStrLn (pre ++ "else")
+                prettyStmt pre false
 
     ExprStmt callExpr -> putStrLn $ pre ++ show callExpr
             
     Block stmts -> do
-        mapM_ (prettyStmt pre) stmts
+        mapM_ (prettyStmt (pre ++ "\t")) stmts
 
     While pos cnd stmt -> do
-        putStrLn $ pre ++ "while " ++ show cnd
-        prettyStmt (pre ++ "\t") stmt
+        putStrLn (pre ++ "while " ++ show cnd)
+        prettyStmt pre stmt
 
     Typedef pos typeArgs symbol anno -> do
         argStr <- case typeArgs of
@@ -300,13 +303,13 @@ prettyStmt pre stmt = case stmt of
         putStrLn $ pre ++ "switch " ++ show expr
         forM_ cases $ \(pat, stmt) -> do
             putStrLn $ pre ++ "\t" ++ show pat
-            prettyStmt (pre ++ "\t\t") stmt
+            prettyStmt (pre ++ "\t") stmt
 
     For pos expr mcnd blk -> do
         let cndStr = maybe "" ((" -> " ++) . show) mcnd
         let exprStr = "" ++ show expr
         putStrLn $ pre ++ "for " ++ exprStr ++ cndStr
-        prettyStmt (pre ++ "\t") blk
+        prettyStmt pre blk
 
     Data pos symbol typ mexpr -> do
         putStrLn $ pre ++ "data " ++ prettySymbol symbol ++ " " ++ show typ ++ maybe "" ((" " ++) . show) mexpr
