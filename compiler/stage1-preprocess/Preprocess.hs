@@ -12,6 +12,7 @@ import ASTMapper
 import Symbol
 import AstBuilder
 import Error
+import Type
 
 
 preprocess :: AST -> DoM s AST
@@ -122,6 +123,29 @@ buildPattern defBlkId pattern expr = do
 
             x -> error (show x)
 
+
+        PatGuarded pos pat guardExpr -> do
+            match <- buildPattern defBlkId pat expr
+
+            patMatch <- freshSym "patMatch"
+            appendStmt $ Let pos (PatIdent pos patMatch) Nothing Nothing
+            appendStmt $ ExprStmt $ Call pos (Sym ["Store", "store"])
+                [ Reference pos (Ident pos patMatch)
+                , match
+                ]
+
+            ifBlkId <- newStmt (Block [])
+            withCurId ifBlkId $ do
+                guard <- buildCondition defBlkId guardExpr
+                appendStmt $ ExprStmt $ Call pos (Sym ["Store", "store"])
+                    [ Reference pos (Ident pos patMatch)
+                    , guard
+                    ]
+
+            appendStmt $ If pos (Ident pos patMatch) (Stmt ifBlkId) Nothing
+            return (Ident pos patMatch)
+
+
         PatTuple pos pats -> do
             let syms = ["first", "second", "third", "fourth"]
 
@@ -147,7 +171,24 @@ buildPattern defBlkId pattern expr = do
 
             return (Ident pos matchSym)
 
-        x -> error (show x)
+        x -> fail (show x)
+
+
+buildCondition :: ID -> Expr -> DoM BuildState Expr
+buildCondition defBlkId expression = withPos expression $ case expression of
+    Call pos _ _       -> return $ AExpr Type.Bool $ Call pos (Sym ["Construct", "construct"]) [expression]
+    Match pos expr pat -> buildPattern defBlkId pat expr
+    AST.Bool _ _       -> return expression
+    Ident pos _        -> return $ AExpr Type.Bool $ Call pos (Sym ["Construct", "construct"]) [expression]
+
+    AExpr exprType expr -> do
+        check (exprType == Type.Bool) "condition type must be bool"
+        buildCondition defBlkId expr
+
+    Reference pos expr -> return $ AExpr Type.Bool $ Call pos (Sym ["Construct", "construct"]) [expression]
+        
+
+    x -> error (show x)
 
 
 buildStmt :: Stmt -> DoM BuildState ()
@@ -175,16 +216,21 @@ buildStmt statement = withPos statement $ case statement of
                 void $ appendStmt (Let pos pat Nothing Nothing)
 
     If pos expr blk mblk -> do
-        blkId <- newStmt (Block [])
-        withCurId blkId (buildStmt blk)
-        mblkIdm <- case mblk of
-            Nothing -> return Nothing
-            Just blk -> do
-                blkId <- newStmt (Block [])
-                withCurId blkId (buildStmt blk)
-                return (Just blkId)
+        id <- appendStmt (Block [])
+        withCurId id $ do -- new scope for if condition
+            cnd <- buildCondition id expr
 
-        void $ appendStmt $ If pos expr (Stmt blkId) (fmap Stmt mblkIdm)
+            trueBlkId <- newStmt (Block [])
+            withCurId trueBlkId (buildStmt blk)
+
+            falseBlkIdm <- case mblk of
+                Nothing -> return Nothing
+                Just blk -> do
+                    falseBlkId <- newStmt (Block [])
+                    withCurId falseBlkId (buildStmt blk)
+                    return (Just falseBlkId)
+
+            void $ appendStmt $ If pos cnd (Stmt trueBlkId) (fmap Stmt falseBlkIdm)
 
     Block stmts -> do
         id <- appendStmt (Block [])
@@ -204,9 +250,12 @@ buildStmt statement = withPos statement $ case statement of
         void $ appendStmt $ For pos expr mpat (Stmt blkId)
 
     While pos expr (Block stmts) -> do
-        blkId <- newStmt (Block [])
-        withCurId blkId (mapM_ buildStmt stmts)
-        void $ appendStmt $ While pos expr (Stmt blkId)
+        id <- appendStmt (Block [])
+        withCurId id $ do
+            cnd <- buildCondition id expr
+            blkId <- newStmt (Block [])
+            withCurId blkId (mapM buildStmt stmts)
+            void $ appendStmt $ While pos cnd (Stmt blkId)
 
     x -> error (show x)
 
@@ -223,16 +272,6 @@ preprocessMapper element = case element of
 
     ElemExpr (Subscript pos expr1 expr2) ->
         return $ ElemExpr $ Call pos (Sym ["At", "at"]) [Reference pos expr1, expr2]
-
-
-    ElemStmt (If pos expr blk melse) -> do
-        let expr' = Call pos (Sym ["Construct", "construct"]) [expr]
-        return $ ElemStmt (If pos expr' blk melse)
-
-    ElemStmt (While pos (Match _ _ _) blk) -> return element
-    ElemStmt (While pos expr blk) -> do
-        let expr' = Call pos (Sym ["Construct", "construct"]) [expr]
-        return $ ElemStmt (While pos expr' blk)
 
     _ -> return element
 
