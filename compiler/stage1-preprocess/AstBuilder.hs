@@ -41,6 +41,10 @@ generateId = liftAstBuilderState $ do
     return idSupply
 
 
+getCurId :: MonadAstBuilder m => m ID
+getCurId = do
+    liftAstBuilderState (gets curId)
+
 
 appendId :: MonadAstBuilder m => ID -> m ()
 appendId id = do
