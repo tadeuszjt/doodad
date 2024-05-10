@@ -266,16 +266,6 @@ resolveStmt statement = withPos statement $ case statement of
         popSymbolTable
         return (For pos expr' mpattern' blk')
 
-    Switch pos expr cases -> do
-        expr' <- resolveExpr expr
-        cases' <- forM cases $ \(pat, stmt) -> do
-            pushSymbolTable
-            pat' <- resolvePattern pat
-            stmt' <- resolveStmt stmt
-            popSymbolTable
-            return (pat', stmt')
-        return (Switch pos expr' cases')
-
     While pos expr stmt -> do
         pushSymbolTable
         expr' <- resolveExpr expr

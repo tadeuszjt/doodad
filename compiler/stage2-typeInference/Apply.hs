@@ -42,7 +42,6 @@ applyStmt subs stmt = case stmt of
     EmbedC pos s -> EmbedC pos s
     Data pos symbol typ mexpr -> Data pos symbol (applyTy typ) (fmap applyEx mexpr)
     Let pos pattern Nothing Nothing -> Let pos (applyPat pattern) Nothing Nothing
-    Switch pos expr cases -> Switch pos (applyEx expr) $ map (\(p, st) -> (applyPat p, applySt st)) cases
     While pos expr blk -> While pos (applyEx expr) (applySt blk)
     For pos expr mpat blk -> For pos (applyEx expr) (fmap applyPat mpat) (applySt blk)
     x -> error "invalid statement"

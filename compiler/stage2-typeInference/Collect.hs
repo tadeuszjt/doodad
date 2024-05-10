@@ -125,14 +125,6 @@ collectStmt statement = collectPos statement $ case statement of
         collectExpr expr
         collectStmt blk
 
-    Switch _ expr cases -> do
-        forM_ cases $ \(pat, blk) -> do
-            collect "switch case pattern type must match switch expression type" $
-                ConsEq (typeof pat) (typeof expr)
-            collectPattern pat
-            collectStmt blk
-        collectExpr expr
-
     Data _ symbol typ mexpr -> do
         define symbol typ
         void $ traverse (collect "data type must match expression type" . ConsEq typ . typeof) mexpr

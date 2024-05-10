@@ -41,8 +41,7 @@ fn{K, V} Len::len(tree &Tree{K, V}) I64
 
 fn{K, V} At::at(t &Tree{K, V}, key K) &V
     switch t.base
-        Node{K, V}.Key(current)
-
+        x | x.isJust() | x.fromJust() -> current
             while t.nodes[current].key != key   
                 if t.nodes[current].left -> x | x.isJust() | x.fromJust() -> left | key < t.nodes[current].key
                     current = left
@@ -71,8 +70,8 @@ fn{K, V} insert(t &Tree{K, V}, key K, value V)
     t.nodes[nodeKey].value = value
 
     switch t.base
-        Nothing()               ; t.base = conv(nodeKey)
-        Node{K, V}.Key(baseNode); t.nodes.insertNode(nodeKey, baseNode)
+        x | x.isNothing(); t.base = conv(nodeKey)
+        x | x.isJust() | x.fromJust() -> baseNode; t.nodes.insertNode(nodeKey, baseNode)
 
 
 fn{K, V} delete(tree &Tree{K, V}, key K) 
@@ -142,5 +141,5 @@ fn{K, V} contains(tree &Tree{K, V}, key K) Bool
         return key == tree.nodes[node].key
 
     switch tree.base
-        Nothing();  return false
-        Node{K, V}.Key(base); return tree.nodeContains(base, key)
+        x | x.isNothing(); return false
+        x | x.isJust() | x.fromJust() -> base; return tree.nodeContains(base, key)

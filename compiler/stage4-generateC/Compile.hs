@@ -138,21 +138,6 @@ generateStmt stmt = withPos stmt $ case stmt of
             elseID <- appendElem $ C.Else { elseStmts = [] }
             withCurID elseID $ generateStmt (fromJust melse)
 
-    S.Switch _ cnd cases -> do
-        newVal <- assign "switchExpr" =<< generateExpr cnd
-        id <- appendElem $ C.Switch { switchBody = [], switchExpr = C.Int 0 }
-        withCurID id $ do
-
-            forM_ (zip cases [0..]) $ \((pattern, stmt), i) -> do
-                caseId <- appendElem $ C.Case { caseExpr = C.Int i, caseBody = [] }
-                withCurID caseId $ do
-                    cnd <- generatePattern pattern newVal
-                    if_ cnd $ do
-                        generateStmt stmt
-                        appendElem C.Break
-
-            call "assert" [false]
-
     S.While _ expr stmt -> do
         id <- appendElem $ C.For Nothing Nothing Nothing []
         withCurID id $ do

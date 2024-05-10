@@ -220,16 +220,6 @@ checkStmt stmt = withPos stmt $ case stmt of
         checkPattern pat 
         return ()
 
-    Switch _ expr cases -> do
-        objs <- checkExpr expr
-        forM_ cases $ \(pat, blk) -> do
-            pushSymTab
-            checkPattern pat
-
-            checkStmt blk
-            popSymTab
-        return ()
-
     While _ cnd blk -> do
         checkExpr cnd
         checkStmt blk

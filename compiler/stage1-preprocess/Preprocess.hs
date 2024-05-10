@@ -96,6 +96,8 @@ unpackStmt statement = withPos statement $ case statement of
 buildPattern :: ID -> Pattern -> Expr -> DoM BuildState Expr
 buildPattern defBlkId pattern expr = do
     withPos pattern $ case pattern of
+        PatIgnore pos -> return (AST.Bool pos True)
+
         PatIdent pos symbol -> do
             withCurId defBlkId $
                 appendStmt $ Let pos (PatIdent pos symbol) Nothing Nothing
@@ -237,12 +239,35 @@ buildStmt statement = withPos statement $ case statement of
         withCurId id (mapM_ buildStmt stmts)
 
     Switch pos expr cases -> do
-        cases' <- forM cases $ \(pat, (Block stmts)) -> do
-            blkId <- newStmt (Block [])
-            withCurId blkId (mapM_ buildStmt stmts)
-            return (pat, (Stmt blkId))
+        copySym <- freshSym "exprCopy"
+        appendStmt $ Let pos (PatIdent pos copySym) Nothing Nothing
+        appendStmt $ ExprStmt $ Call pos (Sym ["Store", "store"])
+            [ Reference pos (Ident pos copySym)
+            , expr
+            ]
 
-        void $ appendStmt (Switch pos expr cases')
+        caseSyms <- replicateM (length cases) (freshSym "caseMatch")
+
+        forM_ (zip cases [0..]) $ \((pat, Block stmts), i) -> do
+            appendStmt $ Let pos (PatIdent pos $ caseSyms !! i) Nothing Nothing
+
+            lastCaseFailed <- case i of
+                0 -> return (AST.Bool pos True)
+                _ -> return $ Call pos (Sym ["Boolean", "not"]) [Ident pos $ caseSyms !! (i - 1)]
+
+            blkId <- newStmt (Block [])
+            withCurId blkId $ do
+                match <- buildPattern blkId pat (Ident pos copySym)
+                appendStmt $ ExprStmt $ Call pos (Sym ["Store", "store"])
+                    [ Reference pos (Ident pos $ caseSyms !! i)
+                    , match
+                    ]
+
+                trueBlkId <- newStmt (Block [])
+                withCurId trueBlkId (mapM_ buildStmt stmts)
+                appendStmt $ If pos match (Stmt trueBlkId) Nothing
+
+            appendStmt $ If pos lastCaseFailed (Stmt blkId) Nothing
 
     For pos expr mpat (Block stmts) -> do
         blkId <- newStmt (Block [])
