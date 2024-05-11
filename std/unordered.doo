@@ -6,7 +6,12 @@ import std/integer
 import std/features
 
 type{T} Key I64
-type{T} Entry ( I64.unordered::Key, T )
+
+
+type{T} Entry Tuple{
+    I64.unordered::Key,
+    T
+}
 
 type{T} Unordered Tuple{
     I64.Sparse,
@@ -28,7 +33,7 @@ fn{T} Construct::construct(a I64.unordered::Key, b T) T.Entry
     return e
 
 
-fn{T} key(e &T.Entry) &I64.unordered::Key;             return &e.0
+fn{T} key(e &T.Entry) &I64.unordered::Key;   return &e.0
 fn{T} value(e &T.Entry) &T;                  return &e.1
 fn{T} indices(u &T.Unordered) &Sparse{I64};  return &u.0
 fn{T} values(u &T.Unordered) &T.Entry.Table; return &u.1

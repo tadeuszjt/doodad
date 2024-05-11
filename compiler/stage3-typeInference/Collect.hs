@@ -225,6 +225,10 @@ collectExpr (AExpr exprType expression) = collectPos expression $ case expressio
                 collect "builtin must have slice argument" $
                     ConsSlice exprType (typeof $ head exprs)
 
+            "builtin_sum_enum" -> do
+                check (length exprs == 1) "invalid builtin_sum_enum call"
+                collect "sum enum is I64" $ ConsEq exprType I64
+
             "builtin_zero" -> do
                 check (length exprs == 0) "invalid builtin_zero call"
 

@@ -16,12 +16,7 @@ fn Construct::construct() Nothing
 fn{T} Construct::construct(x T)   T.Maybe; return conv(x)
 fn{T} just(x T)        T.Maybe; return conv(x)
 fn{T} nothing()        T.Maybe; return conv(Nothing())
-fn{T} just(m &T.Maybe) &T     ; return &m.1
 
-
-
-fn{T} fromJust(m &T.Maybe) &T
-    return &m.1
 
 fn Store::store(a &Nothing, b Nothing)
     return
@@ -30,12 +25,8 @@ fn{T} Store::store(a &T.Maybe, b T.Maybe)
     ${ memcpy($a, &$b, sizeof($b)); }
 
 
-fn{T} isJust(m &T.Maybe) Bool
-    let en : I64
-    ${ $en = $m->en; }
-    return en == 1
+fn{T} isJust(m &T.Maybe) Bool; return builtin_sum_enum(&m) == 1
+fn{T} isNothing(m &T.Maybe) Bool; return builtin_sum_enum(&m) == 0
+fn{T} fromJust(m &T.Maybe) &T
+    return &m.1
 
-fn{T} isNothing(m &T.Maybe) Bool
-    let en : I64
-    ${ $en = $m->en; }
-    return en == 0

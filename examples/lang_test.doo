@@ -251,8 +251,8 @@ fn testMaybe()
         x | x.isJust() | x.fromJust() == 3 ; let true = true
     let true = m.isJust()
 
-    m.just() = 4
-    let 4 = m.just
+    m.fromJust = 4
+    let 4 = m.fromJust
     let false = m.isNothing
 
 fn testTree()

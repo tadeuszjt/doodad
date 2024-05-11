@@ -42,6 +42,22 @@ fn empty()  Square; return conv(builtin_zero():Empty)
 fn naught() Square; return conv(builtin_zero():Naught)
 fn cross()  Square; return conv(builtin_zero():Cross)
 
+
+fn Store::store(a &Input, b Input)
+    Store::store(
+        &builtin_pretend(&a):Sum{Move, Quit, Error}
+        builtin_pretend(&b):Sum{Move, Quit, Error}
+    )
+
+
+fn fromMove(input &Input) Move
+    return input.0
+
+
+fn isMove(input &Input) Bool; return builtin_sum_enum(input) == 0
+fn isQuit(input &Input) Bool; return builtin_sum_enum(input) == 1
+fn isError(input &Input) Bool; return builtin_sum_enum(input) == 2
+
 fn move(x I64, y I64) Input
     let m : Move
     m.0 = x
@@ -51,13 +67,11 @@ fn move(x I64, y I64) Input
 fn first(m &Move) &I64; return &m.0
 fn second(m &Move) &I64; return &m.1
 
+fn isEmpty(square &Square) Bool; return builtin_sum_enum(&square) == 0
+fn isNaught(square &Square) Bool; return builtin_sum_enum(&square) == 1
+fn isCross(square &Square) Bool; return builtin_sum_enum(&square) == 2
 
-fn Compare::equal(a Square, b Square) Bool
-    switch (a, b)
-        (Empty(), Empty());   return true
-        (Naught(), Naught()); return true
-        (Cross(), Cross());   return true
-        _;                    return false
+fn Compare::equal(a Square, b Square) Bool; return builtin_sum_enum(a) == builtin_sum_enum(b)
 
 
 fn At::at(board &Board, index I64) &Square.Array{3}
@@ -81,9 +95,16 @@ fn Store::store(a &Square, b Square)
 
 fn push(stdout &StdOut, square Square)
     switch square
-        Empty();  stdout.push(' ')
-        Naught(); stdout.push('O')
-        Cross();  stdout.push('X')
+        _ | square.isEmpty; stdout.push(' ')
+        _ | square.isNaught; stdout.push('O')
+        _ | square.isCross; stdout.push('X')
+
+
+
+fn For::begin(b &Board) I64; return 0
+fn For::end(b &Board) I64; return b.len
+fn For::forAt(b &Board, idx I64) &Square.Array{3}; return b.at(idx)
+
 
 
 fn printBoard(io &Io, board Board)
@@ -147,13 +168,13 @@ fn getPlayerInput(io &Io) Input
 
     let (row, col, idx) = (0, 0, 0)
 
-    if readI64(line.slice(idx, line.len)) -> (I64, I64)(n, num)
+    if readI64(line.slice(idx, line.len)) -> x | x.isJust | x.fromJust -> (n, num)
         row = n
         idx = idx + num
     else
         return error()
 
-    if readI64(line.slice(idx, line.len)) -> (I64, I64)(n, num)
+    if readI64(line.slice(idx, line.len)) -> x | x.isJust | x.fromJust -> (n, num)
         col = n
         idx = idx + num
     else
@@ -212,14 +233,17 @@ fn main()
         let moved = false
         while !moved
             switch io.getPlayerInput()
-                Quit(); return
-                Error()
+                x | x.isQuit; return
+                x | x.isError
                     io.stdout.push("parse error", '\n')
-                Move((row, col)) | row < 0 || row > (board.len - 1)
+
+                x | x.isMove | x.fromMove -> (row, col) | row < 0 || row > (board.len - 1)
                     io.stdout.push("row not in range\n")
-                Move((row, col)) | col < 0 || col > (board[0].len - 1)
+
+                x | x.isMove | x.fromMove -> (row, col) | col < 0 || col > (board.len - 1)
                     io.stdout.push("col not in range\n")
-                Move((row, col))
+
+                x | x.isMove | x.fromMove -> (row, col)
                     io.stdout.push("moving ", row, ", ", col, '\n')
                     board[row][col] = naught()
                     moved = true

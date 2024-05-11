@@ -246,6 +246,9 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
             Value _ _ -> fail "isn't reference"
             Ref _ _   -> builtinTableAppend val >> return (Value Void $ C.Int 0)
 
+    S.Builtin _ "builtin_sum_enum" [expr] -> do
+        builtinSumEnum =<< generateExpr expr
+
     S.Call _ symbol exprs -> do
         check (symbolIsResolved symbol) ("unresolved function call: " ++ prettySymbol symbol)
         callFunction symbol typ =<< mapM generateExpr exprs

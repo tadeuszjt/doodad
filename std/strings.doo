@@ -17,12 +17,12 @@ fn readI64(str []Char) (I64, I64).Maybe
 
     let idx = 0
 
-    while str.mat(idx) -> Char(c) | isSpace(c)
+    while str.mat(idx) -> x | x.isJust | x.fromJust -> c | isSpace(c)
         idx = idx + 1
 
 
     let isMinus = false
-    if str.mat(idx) -> Char('-')
+    if str.mat(idx) -> x | x.isJust | x.fromJust -> '-'
         isMinus = true
         idx = idx + 1
 
@@ -30,7 +30,7 @@ fn readI64(str []Char) (I64, I64).Maybe
     let x = 0
     data digits Char.Table
 
-    while str.mat(idx) -> Char(c) | isDigit(c)
+    while str.mat(idx) -> x | x.isJust | x.fromJust -> c | isDigit(c)
         hasDigits = true
         digits.push(str[idx])
         idx = idx + 1

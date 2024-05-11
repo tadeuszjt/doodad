@@ -95,6 +95,7 @@ combineMapper element = case element of
                    , "builtin_array_at"
                    , "builtin_zero"
                    , "builtin_pretend"
+                   , "builtin_sum_enum"
                    , "conv"
                    ]
         if str `elem` list then do

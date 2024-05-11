@@ -26,8 +26,8 @@ builtinLen val = case val of
 
 
 
-adtEnum :: Value -> Generate Value
-adtEnum val = do
+builtinSumEnum :: Value -> Generate Value
+builtinSumEnum val = do
     TypeApply (Sym ["Sum"]) _ <- baseTypeOf val
     case val of
         Value _ expr -> return $ Value I64 $ C.Member expr "en"

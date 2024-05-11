@@ -113,7 +113,7 @@ fn{K, V} delete(tree &Tree{K, V}, key K)
         else; assert(false, "invalid key")
 
     if tree.base.isJust
-        let base = tree.base.just
+        let base = tree.base.fromJust
         if tree.nodes[base].key == key
             if tree.nodes[base].left -> x | x.isJust() | x.fromJust() -> left
                 tree.base = conv(left)
@@ -129,13 +129,13 @@ fn{K, V} delete(tree &Tree{K, V}, key K)
             tree.nodes.delete(base)
 
     else
-        tree.nodes.deleteFromNode(tree.base.just, key)
+        tree.nodes.deleteFromNode(tree.base.fromJust, key)
 
 
 fn{K, V} contains(tree &Tree{K, V}, key K) Bool
     fn{K, V} nodeContains(tree &Tree{K, V}, node Node{K, V}.Key, key K) Bool
         if tree.nodes[node].left.isJust && key < tree.nodes[node].key
-            return tree.nodeContains(tree.nodes[node].left.just, key)
+            return tree.nodeContains(tree.nodes[node].left.fromJust, key)
         if tree.nodes[node].right -> x | x.isJust() | x.fromJust() -> right | key > tree.nodes[node].key
             return tree.nodeContains(right, key)
         return key == tree.nodes[node].key
