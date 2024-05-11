@@ -46,11 +46,11 @@ executable doodad
     hs-source-dirs:
         compiler,
         compiler/stage0-parseAST,
-        compiler/stage1-preprocess,
-        compiler/stage1-resolveSymbols,
-        compiler/stage2-typeInference,
-        compiler/stage3-checker,
-        compiler/stage4-generateC
+        compiler/stage1-macroExpansion,
+        compiler/stage2-resolveSymbols,
+        compiler/stage3-typeInference,
+        compiler/stage4-referenceChecker,
+        compiler/stage5-emitCFile
     default-language:  Haskell2010
     build-depends:
         base,

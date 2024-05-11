@@ -195,7 +195,7 @@ buildStmt statement = withPos statement $ case statement of
 
     FuncDef (Func header (Block stmts)) -> do
         blockId <- newStmt (Block [])
-        funcId <- appendStmt $ FuncDef (Func header (Stmt blockId))
+        appendStmt $ FuncDef (Func header (Stmt blockId))
         withCurId blockId (mapM_ buildStmt stmts)
 
     Let pos pat mexpr Nothing -> do
