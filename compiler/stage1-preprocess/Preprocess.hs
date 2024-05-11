@@ -257,6 +257,58 @@ buildStmt statement = withPos statement $ case statement of
             appendStmt $ If pos lastCaseFailed (Stmt blkId) Nothing
 
     For pos expr mpat (Block stmts) -> do
+        exprCopy <- freshSym "exprCopy"
+        appendStmt $ Assign pos exprCopy expr
+
+        idx <- freshSym "idx"
+        appendStmt $ Assign pos idx (AST.Int pos 0)
+        appendStmt $ ExprStmt $ Call pos (Sym ["Store", "store"])
+            [ Reference pos (Ident pos idx)
+            , Call pos (Sym ["For", "begin"])
+                [ Reference pos (Ident pos exprCopy) ]
+            ]
+
+
+
+        let whileCnd = Call pos (Sym ["Compare", "less"])
+                [ (Ident pos idx)
+                , Call pos (Sym ["For", "end"]) [Reference pos $ Ident pos exprCopy]
+                ]
+
+        blkId <- newStmt (Block [])
+        withCurId blkId $ do
+            match <- case mpat of
+                Just pat -> buildPattern blkId pat $ Call pos (Sym ["For", "forAt"])
+                    [ Reference pos (Ident pos exprCopy)
+                    , (Ident pos idx)
+                    ]
+                Nothing -> return (AST.Bool pos True)
+
+            trueBlkId <- newStmt (Block [])
+            withCurId trueBlkId $ do
+                (mapM_ buildStmt stmts)
+                appendStmt $ ExprStmt $ Call pos (Sym ["Store", "store"])
+                    [ Reference pos (Ident pos idx)
+                    , Call pos (Sym ["Arithmetic", "add"])
+                        [ (Ident pos idx)
+                        , AST.Int pos 1
+                        ]
+                    ]
+
+            falseBlkId <- newStmt (Block [])
+            withCurId falseBlkId $ do
+                appendStmt $ ExprStmt $ Call pos (Sym ["Store", "store"])
+                    [ Reference pos (Ident pos idx)
+                    , AST.Int pos 9999999 -- TODO
+                    ]
+
+            appendStmt $ If pos match (Stmt trueBlkId) (Just $ Stmt falseBlkId)
+
+        void $ appendStmt $ While pos whileCnd (Stmt blkId)
+
+
+
+    For pos expr mpat (Block stmts) -> do
         blkId <- newStmt (Block [])
         withCurId blkId (mapM_ buildStmt stmts)
         void $ appendStmt $ For pos expr mpat (Stmt blkId)
@@ -264,7 +316,6 @@ buildStmt statement = withPos statement $ case statement of
     While pos expr (Block stmts) -> do
         loop <- freshSym "loop"
         appendStmt $ Assign pos loop (AST.Bool pos True)
-        -- TODO needs to be while loop ...
         id <- appendStmt (Block [])
         withCurId id $ do
             cnd <- buildCondition id expr

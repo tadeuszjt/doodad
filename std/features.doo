@@ -36,3 +36,9 @@ feature Construct
 
 feature Store
     fn{T, G} store(a &T, b G)
+
+
+feature For
+    fn{T} begin(t &T) I64
+    fn{T} end(t &T) I64
+    fn{T, G} at(t &T, idx I64) &G

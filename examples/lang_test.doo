@@ -307,6 +307,7 @@ fn testIo(io &Io)
     io.stdout.push("success", '\n', (1, true):(I64, Bool), " ")
 
     data table Tuple{I64, I64}.Table
+
     for (0, 10) -> i
         table.push((i * 2, i * 3))
 

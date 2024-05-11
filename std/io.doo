@@ -7,6 +7,8 @@ import std/integer
 import std/push
 import std/tuple
 import std/bool
+import std/features
+import std/slice
 
 
 type Io Tuple{
@@ -49,7 +51,7 @@ fn{A} push(stdout &StdOut, table &A.Table)
 fn push(stdout &StdOut, table &Char.Table)
     for (0, table.len) -> i
         stdout.push(table[i])
-
+        
 
 fn getChar(stdin &StdIn) Char
     let c : Char

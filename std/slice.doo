@@ -9,5 +9,17 @@ fn{T} Len::len(s &[]T) I64
     ${ $n = $s->len; }
     return n
 
+
+fn{T} For::begin(s &[]T) I64
+    return 0
+
+fn{T} For::end(s &[]T) I64
+    return s.len
+
+fn{T} For::forAt(s &[]T, idx I64) &T
+    return s.at(idx)
+
+
+
 fn{T} At::at(s &[]T, idx I64) &T
     return builtin_slice_at(&s, idx)

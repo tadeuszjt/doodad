@@ -56,6 +56,8 @@ builtinTableAppend (Ref typ expr) = do
 
 
 
+
+
 builtinArrayAt :: Value -> Value -> Generate Value
 builtinArrayAt value idx@(Value _ _) = do
     I64 <- baseTypeOf idx
@@ -89,6 +91,12 @@ builtinSliceAt val idx@(Value _ _) = do
     case val of
         Ref _ exp -> case base of
             Type.Char -> return $ Ref t $ C.Address $ C.Subscript (C.PMember exp "ptr") (valExpr idx)
+
+            TypeApply (Sym ["Tuple"]) _ -> do
+                -- TODO not real tuple case
+                let ptr = C.Address $ C.Subscript (C.PMember exp "ptr") (valExpr idx)
+                assign "ref" $ Ref t $ C.Initialiser [ptr, C.Int 0, C.Int 0]
+
             x -> error (show x)
         Value _ exp -> case base of
             Type.Char -> return $ Ref t $ C.Address $ C.Subscript (C.Member exp "ptr") (valExpr idx)

@@ -3,6 +3,18 @@ module tuple
 import std/features
 
 
+fn{A, B} For::begin(tuple &Tuple{A, B}) I64
+    return tuple.0
+
+fn{A, B} For::end(tuple &Tuple{A, B}) I64
+    return tuple.1
+
+fn{A, B} For::forAt(tuple &Tuple{A, B}, idx I64) I64
+    return idx
+
+
+
+
 fn{A} first(a &Tuple{A}) &A; return &a.0
 
 fn{A, B} first(a &Tuple{A, B}) &A; return &a.0

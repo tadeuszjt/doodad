@@ -15,6 +15,13 @@ fn{T} Len::len(table &T.Table) I64
     return len
 
 
+fn{T} For::begin(table &T.Table) I64
+    return 0
+
+fn{T} For::end(table &T.Table) I64
+    return table.len
+
+
 fn{T} At::at(table &T.Table, index I64) &T
     return builtin_table_at(&table, index)
 
