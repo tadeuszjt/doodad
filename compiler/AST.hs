@@ -138,6 +138,7 @@ data Stmt
     | For         TextPos Expr (Maybe Pattern) Stmt
     | Data        TextPos Symbol Type (Maybe Expr)
     | EmbedC      TextPos String
+    | Assign      TextPos Symbol Expr
     deriving (Eq, Show)
 
 
@@ -256,6 +257,12 @@ prettyAST ast = do
 
 prettyStmt :: String -> Stmt -> IO ()
 prettyStmt pre stmt = case stmt of
+    Return pos mexpr -> putStrLn $ pre ++ "return " ++ maybe "" show mexpr
+    ExprStmt callExpr -> putStrLn $ pre ++ show callExpr
+    Block stmts -> mapM_ (prettyStmt (pre ++ "\t")) stmts
+    EmbedC pos str -> putStrLn $ pre ++ "$" ++ str
+    Assign pos symbol expr -> putStrLn $ pre ++ "assign " ++ prettySymbol symbol ++ " " ++ show expr
+
     FuncDef (Func header blk) -> do
         putStrLn (pre ++ show header)
         prettyStmt pre blk
@@ -273,8 +280,6 @@ prettyStmt pre stmt = case stmt of
         putStrLn $ pre ++ "let " ++ show pat ++ exprStr ++ if isJust mblk then " in" else ""
         when (isJust mblk) $ prettyStmt pre (fromJust mblk)
 
-    Return pos mexpr       -> putStrLn $ pre ++ "return " ++ maybe "" show mexpr
-
     If pos cnd true mfalse -> do
         putStrLn $ pre ++ "if " ++ show cnd
         prettyStmt pre true
@@ -284,10 +289,6 @@ prettyStmt pre stmt = case stmt of
                 putStrLn (pre ++ "else")
                 prettyStmt pre false
 
-    ExprStmt callExpr -> putStrLn $ pre ++ show callExpr
-            
-    Block stmts -> do
-        mapM_ (prettyStmt (pre ++ "\t")) stmts
 
     While pos cnd stmt -> do
         putStrLn (pre ++ "while " ++ show cnd)
@@ -313,9 +314,6 @@ prettyStmt pre stmt = case stmt of
 
     Data pos symbol typ mexpr -> do
         putStrLn $ pre ++ "data " ++ prettySymbol symbol ++ " " ++ show typ ++ maybe "" ((" " ++) . show) mexpr
-
-    EmbedC pos str -> do
-        putStrLn $ pre ++ "$" ++ str
 
     x  -> error (show x)
 

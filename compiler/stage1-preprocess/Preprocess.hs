@@ -67,13 +67,14 @@ unpackAst = do
 
 unpackStmt :: Stmt -> DoM AstBuilderState Stmt
 unpackStmt statement = withPos statement $ case statement of
+    Stmt id -> unpackStmt =<< gets ((Map.! id) . statements)
+
     EmbedC _ _ -> return statement
     Return _ _  -> return statement
     ExprStmt _ -> return statement
     Data _ _ _ _ -> return statement
     Feature _ _ _ -> return statement
-
-    Stmt id -> unpackStmt =<< gets ((Map.! id) . statements)
+    Assign _ _ _ -> return statement
 
     FuncDef (Func header stmt) -> FuncDef . Func header <$> unpackStmt stmt
     Block stmts -> Block <$> mapM unpackStmt stmts
@@ -128,13 +129,8 @@ buildPattern defBlkId pattern expr = do
 
         PatGuarded pos pat guardExpr -> do
             match <- buildPattern defBlkId pat expr
-
             patMatch <- freshSym "patMatch"
-            appendStmt $ Let pos (PatIdent pos patMatch) Nothing Nothing
-            appendStmt $ ExprStmt $ Call pos (Sym ["Store", "store"])
-                [ Reference pos (Ident pos patMatch)
-                , match
-                ]
+            appendStmt $ Assign pos patMatch match
 
             ifBlkId <- newStmt (Block [])
             withCurId ifBlkId $ do
@@ -150,17 +146,12 @@ buildPattern defBlkId pattern expr = do
 
         PatTuple pos pats -> do
             let syms = ["first", "second", "third", "fourth"]
-
+        
             symbol <- freshSym "tupleCopy"
-            withCurId defBlkId $
-                appendStmt $ Let pos (PatIdent pos symbol) Nothing Nothing
-
-            appendStmt $ ExprStmt $ Call pos (Sym ["Store", "store"]) [Reference pos (Ident pos symbol), expr]
-
+            appendStmt (Assign pos symbol expr)
 
             matchSym <- freshSym "tupleMatch"
-            appendStmt $ Let pos (PatIdent pos matchSym) Nothing Nothing
-            appendStmt $ ExprStmt $ Call pos (Sym ["Store", "store"]) [Reference pos (Ident pos matchSym), AST.Bool pos True]
+            appendStmt $ Assign pos matchSym (AST.Bool pos True)
 
             forM_ (zip pats [0..]) $ \(pat, i) -> do
                 ifBlkId <- newStmt (Block [])
@@ -239,17 +230,13 @@ buildStmt statement = withPos statement $ case statement of
         withCurId id (mapM_ buildStmt stmts)
 
     Switch pos expr cases -> do
-        copySym <- freshSym "exprCopy"
-        appendStmt $ Let pos (PatIdent pos copySym) Nothing Nothing
-        appendStmt $ ExprStmt $ Call pos (Sym ["Store", "store"])
-            [ Reference pos (Ident pos copySym)
-            , expr
-            ]
+        copySym <- freshSym "expr"
+        appendStmt (Assign pos copySym expr)
 
         caseSyms <- replicateM (length cases) (freshSym "caseMatch")
 
         forM_ (zip cases [0..]) $ \((pat, Block stmts), i) -> do
-            appendStmt $ Let pos (PatIdent pos $ caseSyms !! i) Nothing Nothing
+            appendStmt $ Assign pos (caseSyms !! i) (AST.Bool pos False)
 
             lastCaseFailed <- case i of
                 0 -> return (AST.Bool pos True)
@@ -275,12 +262,26 @@ buildStmt statement = withPos statement $ case statement of
         void $ appendStmt $ For pos expr mpat (Stmt blkId)
 
     While pos expr (Block stmts) -> do
+        loop <- freshSym "loop"
+        appendStmt $ Assign pos loop (AST.Bool pos True)
+        -- TODO needs to be while loop ...
         id <- appendStmt (Block [])
         withCurId id $ do
             cnd <- buildCondition id expr
-            blkId <- newStmt (Block [])
-            withCurId blkId (mapM buildStmt stmts)
-            void $ appendStmt $ While pos cnd (Stmt blkId)
+
+            trueBlkId <- newStmt (Block [])
+            falseBlkId <- newStmt (Block [])
+
+            withCurId trueBlkId (mapM buildStmt stmts)
+            withCurId falseBlkId $ do
+                appendStmt $ ExprStmt $ Call pos (Sym ["Store", "store"])
+                    [ Reference pos (Ident pos loop)
+                    , AST.Bool pos False
+                    ]
+
+            appendStmt $ If pos cnd (Stmt trueBlkId) (Just $ Stmt falseBlkId)
+
+        void $ appendStmt $ While pos (Ident pos loop) (Stmt id)
 
     x -> error (show x)
 

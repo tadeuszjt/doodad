@@ -130,6 +130,10 @@ collectStmt statement = collectPos statement $ case statement of
         void $ traverse (collect "data type must match expression type" . ConsEq typ . typeof) mexpr
         void $ traverse collectExpr mexpr
 
+    Assign pos symbol expr -> do
+        define symbol (typeof expr)
+        collectExpr expr
+
     x -> error "invalid statement"
 
 

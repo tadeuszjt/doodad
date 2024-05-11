@@ -284,6 +284,11 @@ resolveStmt statement = withPos statement $ case statement of
     EmbedC pos str -> EmbedC pos <$> processCEmbed str
     ExprStmt expr -> ExprStmt <$> resolveExpr expr
 
+    Assign pos (Sym str) expr -> do
+        symbol <- genSymbol (SymResolved str)
+        define symbol KeyVar
+        Assign pos symbol <$> resolveExpr expr
+
     x -> error (show x)
 
 

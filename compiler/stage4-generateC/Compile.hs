@@ -121,6 +121,25 @@ generateStmt stmt = withPos stmt $ case stmt of
     S.Let _ pattern Nothing Nothing -> do
         void $ generatePatternIsolated pattern
 
+
+    S.Assign pos symbol expr -> do
+        val <- generateExpr expr
+        case val of
+            Value _ _ -> do
+                let name = showSymLocal symbol
+                cType <- cTypeOf (typeof val)
+                void $ appendAssign cType name (valExpr val)
+                define name $ Value (typeof val) (C.Ident name)
+
+            Ref _ _ -> do
+                let name = showSymLocal symbol
+                cType <- cRefTypeOf (typeof val)
+                void $ appendAssign cType name (refExpr val)
+                define name $ Ref (typeof val) (C.Ident name)
+
+            x -> error (show x)
+
+
     S.Data _ symbol typ Nothing -> do
         base <- baseTypeOf typ
         init <- case base of

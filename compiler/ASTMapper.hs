@@ -108,6 +108,8 @@ mapStmtM f stmt = withPos stmt $ do
             mexpr' <- traverse (mapExprM f) mexpr
             return $ Data pos symbol typ' mexpr'
 
+        Assign pos symbol expr -> Assign pos symbol <$> mapExprM f expr
+
         x -> error (show x)
     case res of
         ElemStmt x -> return x

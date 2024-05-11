@@ -44,6 +44,7 @@ applyStmt subs stmt = case stmt of
     Let pos pattern Nothing Nothing -> Let pos (applyPat pattern) Nothing Nothing
     While pos expr blk -> While pos (applyEx expr) (applySt blk)
     For pos expr mpat blk -> For pos (applyEx expr) (fmap applyPat mpat) (applySt blk)
+    Assign pos symbol expr -> Assign pos symbol (applyEx expr)
     x -> error "invalid statement"
     where
         applySt = applyStmt subs

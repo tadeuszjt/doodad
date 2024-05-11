@@ -230,6 +230,12 @@ checkStmt stmt = withPos stmt $ case stmt of
         traverse checkPattern mpat
         checkStmt blk
 
+    Assign pos symbol expr -> do
+        define symbol (NodeDefine symbol)
+        checkExpr expr
+        return ()
+
+
     x -> error "invalid statement"
 
 
