@@ -35,6 +35,7 @@ type Input Sum{
     Error 
 }
 
+
 fn error()  Input;  return conv(builtin_zero():Error)
 fn quit()   Input;  return conv(builtin_zero():Quit)
 fn empty()  Square; return conv(builtin_zero():Empty)

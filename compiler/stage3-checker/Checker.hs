@@ -225,11 +225,6 @@ checkStmt stmt = withPos stmt $ case stmt of
         checkStmt blk
         return ()
 
-    For _ expr mpat blk -> do
-        checkExpr expr
-        traverse checkPattern mpat
-        checkStmt blk
-
     Assign pos symbol expr -> do
         define symbol (NodeDefine symbol)
         checkExpr expr
@@ -244,36 +239,6 @@ checkPattern (PatAnnotated pattern patType) = withPos pattern $ case pattern of
     PatIdent _ symbol -> do
         --liftIO $ putStrLn $ "defining: " ++ show symbol
         define symbol (NodeDefine symbol)
-        return NodeNull
-
-    PatIgnore _     -> return NodeNull
-    PatLiteral expr -> do
-        --liftIO $ putStrLn $ "PatLiteral"
-        checkExpr expr
-        return NodeNull
-
-    PatGuarded _ pat expr -> do
-        --liftIO $ putStrLn "guard"
-        checkPattern pat
-        checkExpr expr
-        return NodeNull
-
-    PatTuple _ pats -> do
-        --liftIO $ putStrLn $ "PatTuple"
-        mapM checkPattern pats
-        return NodeNull
-
-    PatTypeField _ typ pats -> do
-        --liftIO $ putStrLn $ "field: " ++ show typ
-        mapM checkPattern pats
-        return NodeNull
-
-    PatField _ symbol pat -> do
-        checkPattern pat
-        return NodeNull
-
-    PatSlice _ pats -> do
-        mapM checkPattern pats
         return NodeNull
 
     x -> error (show x)

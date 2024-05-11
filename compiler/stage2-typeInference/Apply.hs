@@ -43,7 +43,6 @@ applyStmt subs stmt = case stmt of
     Data pos symbol typ mexpr -> Data pos symbol (applyTy typ) (fmap applyEx mexpr)
     Let pos pattern Nothing Nothing -> Let pos (applyPat pattern) Nothing Nothing
     While pos expr blk -> While pos (applyEx expr) (applySt blk)
-    For pos expr mpat blk -> For pos (applyEx expr) (fmap applyPat mpat) (applySt blk)
     Assign pos symbol expr -> Assign pos symbol (applyEx expr)
     x -> error "invalid statement"
     where
@@ -83,24 +82,11 @@ applyType subs = mapType (f subs)
         f ((x, u):xs) z = f xs (if z == x then u else z)
 
 
-
 applyPattern :: [(Type, Type)] -> Pattern -> Pattern
 applyPattern subs pattern = case pattern of
-    PatAnnotated pat typ -> PatAnnotated (applyPat pat) (applyTy typ)
-    PatTypeField pos typ pats -> PatTypeField pos (applyTy typ) (map applyPat pats)
-    PatIgnore pos -> PatIgnore pos
+    PatAnnotated pat typ -> PatAnnotated (applyPattern subs pat) (applyType subs typ)
     PatIdent pos symbol -> PatIdent pos symbol
-    PatGuarded pos pat expr -> PatGuarded pos (applyPat pat) (applyEx expr)
-    PatTuple pos pats -> PatTuple pos (map applyPat pats)
-    PatLiteral expr -> PatLiteral (applyEx expr)
-    PatField pos symbol pat -> PatField pos symbol (applyPat pat)
-    PatSlice pos pats -> PatSlice pos (map applyPat pats)
     x -> error (show x)
-    where
-        applyEx = applyExpr subs
-        applyPat = applyPattern subs
-        applyTy = applyType subs
-
 
 
 applyConstraint :: [(Type, Type)] -> Constraint -> Constraint

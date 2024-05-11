@@ -118,9 +118,12 @@ generateStmt stmt = withPos stmt $ case stmt of
             (False, Ref _ _)   -> appendElem . C.Return . valExpr =<< deref val
             (True, Ref _ _)    -> appendElem $ C.Return $ refExpr val
 
-    S.Let _ pattern Nothing Nothing -> do
-        void $ generatePatternIsolated pattern
-
+    S.Let _ (PatAnnotated (PatIdent _ symbol) patType) Nothing Nothing -> do
+        base <- baseTypeOf patType
+        let name = showSymLocal symbol
+        define name (Value patType $ C.Ident name)
+        cType <- cTypeOf patType
+        void $ appendAssign cType (showSymLocal symbol) $ C.Initialiser [C.Int 0]
 
     S.Assign pos symbol expr -> do
         val <- generateExpr expr
@@ -164,157 +167,7 @@ generateStmt stmt = withPos stmt $ case stmt of
             if_ (not_ val) $ appendElem C.Break
             generateStmt stmt
         
-    S.For _ expr mpat stmt -> do
-        idx <- assign "idx" (i64 0)
-        first <- assign "first" true
-
-        id <- appendElem $ C.For Nothing Nothing (Just $ C.Increment (valExpr idx)) []
-        withCurID id $ do
-            val <- generateExpr expr
-            base <- baseTypeOf val
-            -- special preable for ranges
-            case base of
-                TypeApply (Sym ["Table"]) _ -> return ()
-                TypeApply (Sym ["Array"]) _ -> return ()
-                TypeApply (Sym ["Tuple"]) [_, _] -> do
-                    return ()
-                    -- TODO
-
-                Slice t -> return ()
-                x -> error (show x)
-
-
-            -- check that index is still in range
-            idxGtEq <- case base of
-                TypeApply (Sym ["Table"]) _  -> greaterEqual idx =<< builtinLen val
-                TypeApply (Sym ["Array"]) [_, Size n]  -> greaterEqual idx (i64 n)
-                TypeApply (Sym ["Tuple"]) [_, _] -> greaterEqual idx =<< member 1 val
-                Slice t -> greaterEqual idx =<< builtinLen val
-                x -> error (show x)
-            if_ idxGtEq (appendElem C.Break)
-
-            -- check that pattern matches
-            patMatches <- case mpat of
-                Nothing -> return true
-                Just pat -> case base of
-                    TypeApply (Sym ["Table"]) ts -> generatePattern pat =<< builtinTableAt val idx
-                    TypeApply (Sym ["Array"]) ts -> generatePattern pat =<< builtinArrayAt val idx
-                    TypeApply (Sym ["Tuple"]) ts -> generatePattern pat idx
-                    Slice t -> generatePattern pat =<< builtinSliceAt val idx
-                    _ -> error (show base)
-
-            if_ (not_ patMatches) $ appendElem C.Break
-            generateStmt stmt
-
     _ -> error "invalid statement"
-
-
-generatePatternIsolated :: Pattern -> Generate Value
-generatePatternIsolated (PatAnnotated pattern patType) = withPos pattern $ case pattern of
-    PatIdent _ symbol -> do
-        base <- baseTypeOf patType
-        let name = showSymLocal symbol
-        define name (Value patType $ C.Ident name)
-        cType <- cTypeOf patType
-        void $ appendAssign cType (showSymLocal symbol) $ C.Initialiser [C.Int 0]
-        return true
-
-    x -> error (show x)
-
-
-
-generatePattern :: Pattern -> Value -> Generate Value
-generatePattern (PatAnnotated pattern patType) val = withPos pattern $ case pattern of
-    PatIgnore _ -> return true
-
-    PatLiteral expr -> do
-        v <- generateExpr expr
-        callFunction (Sym ["Compare", "equal"]) Type.Bool [v, val]
-
-    PatIdent _ symbol -> do 
-        base <- baseTypeOf val
-        let name = showSymLocal symbol
-        define name (Value (typeof val) $ C.Ident name)
-        cType <- cTypeOf (typeof val)
-        void $ appendAssign cType (showSymLocal symbol) $ C.Initialiser [C.Int 0]
-        ref <- reference $ Value (typeof val) (C.Ident name)
-        callFunction (Sym ["Store", "store"]) Void [ref, val]
-        return true
-
-    PatSlice _ pats -> do
-        ref <- reference val
-        len <- callFunction (Sym ["Len", "len"]) I64 [ref] 
-        endName <- fresh "end"
-
-        lenMatch <- assign "lenMatch" $ Value Type.Bool $
-            C.Infix C.EqEq (C.Int $ fromIntegral $ length pats) (valExpr len)
-
-        match <- assign "match" false
-        if_ (not_ lenMatch) (appendElem $ C.Goto endName)
-
-        forM_ (zip pats [0..]) $ \(pat, i) -> do
-            at <- callFunction (Sym ["At", "at"]) (typeof $ pats !! i) [val, i64 i]
-            mat <- generatePattern pat at
-            if_ (not_ mat) (appendElem $ C.Goto endName)
-
-        store match true
-        appendElem $ C.Label endName
-
-        return match
-
-
-    PatTuple _ pats -> do
-        endLabel <- fresh "endPatTuple"
-        match <- assign "match" false
-
-        let symList = ["first", "second", "third", "fourth"]
-
-        forM_ (zip pats [0..]) $ \(pat, i) -> do
-            v <- callFunction (Sym [symList !! i]) (typeof pat) [val]
-            b <- generatePattern pat v
-            void $ if_ (not_ b) $ appendElem (C.Goto endLabel)
-
-        store match true
-        appendElem (C.Label endLabel)
-        return match
-
-    PatGuarded _ pat expr -> do
-        match <- assign "match" =<< generatePattern pat val
-        endLabel <- fresh "end"
-        if_ (not_ match) $ appendElem (C.Goto endLabel)
-        store match =<< generateExpr expr
-        appendElem (C.Label endLabel)
-        return match
-
-    PatTypeField pos fieldType pats -> do
-        TypeApply (Sym ["Sum"]) ts <- baseTypeOf val
-        let Just i = elemIndex fieldType ts
-
-        endLabel <- fresh "skipMatch"
-        match <- assign "match" =<< (Value Type.Bool . C.Infix C.EqEq (C.Int $ fromIntegral i) . valExpr <$> adtEnum val)
-
-        if_ (not_ match) $ appendElem $ C.Goto endLabel
-        store match false
-
-        case pats of
-            [] -> return ()
-            [pat] -> do
-                patMatch <- generatePattern pat =<< member i val
-                if_ (not_ patMatch) $ void $ appendElem (C.Goto endLabel)
-            pats -> do
-                let symList = ["first", "second", "third", "fourth"]
-                forM_ (zip pats [0..]) $ \(pat, j) -> do
-                    f <- member i val
-                    v <- callFunction (Sym [symList !! j]) (typeof pat) [f]
-                    b <- generatePattern pat v
-                    void $ if_ (not_ b) $ appendElem (C.Goto endLabel)
-
-        store match true
-        appendElem $ C.Label endLabel
-        return match
-
-    _ -> error (show pattern)
-generatePattern x _ = error (show x)
 
 
 -- generateExpr should return a 're-enter-able' expression, eg 1, not func()
@@ -324,7 +177,6 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
     S.Int _ n              -> return $ Value typ (C.Int n)
     S.Float _ f            -> return $ Value typ (C.Float f)
     S.Char _ c             -> return $ Value typ (C.Char c)
-    S.Match _ expr pattern -> generatePattern pattern =<< generateExpr expr
     S.Ident _ symbol       -> look (showSymLocal symbol)
     S.String _ s           -> assign "string" $ Value typ $
         C.Initialiser [C.String s, C.Int (fromIntegral $ length s)]

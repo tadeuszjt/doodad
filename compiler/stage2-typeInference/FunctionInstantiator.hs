@@ -52,22 +52,9 @@ instAst :: Bool -> DoM InstantiatorState ()
 instAst verbose = do
     funcInstances <- gets (funcInstance . astResolved)
     forM_ (Map.toList funcInstances) $ \(header, func) -> do
-        stmt' <- instStmt (funcStmt func)
+        stmt' <- mapStmtM instantiatorMapper (funcStmt func)
         func' <- return func { funcStmt = stmt' }
         modifyAST $ \s -> s { funcInstance = Map.insert header func' (ASTResolved.funcInstance s) }
-
-
-instExpr :: Expr -> DoM InstantiatorState Expr
-instExpr = mapExprM instantiatorMapper
-
-instPattern :: Pattern -> DoM InstantiatorState Pattern
-instPattern = mapPattern instantiatorMapper
-
-instPatternIsolated :: Pattern -> DoM InstantiatorState Pattern
-instPatternIsolated = mapPatternIsolated instantiatorMapper
-
-instStmt :: Stmt -> DoM InstantiatorState Stmt
-instStmt = mapStmtM instantiatorMapper
 
 
 instantiatorMapper :: Elem -> DoM InstantiatorState Elem
@@ -76,49 +63,8 @@ instantiatorMapper elem = case elem of
         symbol' <- withPos pos $ resolveFuncCall symbol (map typeof exprs) exprType
         fmap (ElemExpr . AExpr exprType) $ return (Call pos symbol' exprs)
 
-    ElemPattern (PatAnnotated (PatIdent pos symbol) patType) -> do
-        void $ resolveFuncCall (Sym ["Store", "store"]) [patType, patType] Void
-        return elem
-
-    ElemPattern (PatAnnotated (PatLiteral expr) patType) | isAnnotated expr -> do
-        void $ resolveFuncCall (Sym ["Compare", "equal"]) [patType, patType] Type.Bool
-        return elem
-
-    ElemPattern (PatAnnotated (PatTuple pos pats) patType) | all patAnnotated pats -> do
-        when (length pats > 0) $ void $ resolveFuncCall (Sym ["first"]) [patType] (typeof $ pats !! 0)
-        when (length pats > 1) $ void $ resolveFuncCall (Sym ["second"]) [patType] (typeof $ pats !! 1)
-        when (length pats > 2) $ void $ resolveFuncCall (Sym ["third"]) [patType] (typeof $ pats !! 2)
-        when (length pats > 3) $ void $ resolveFuncCall (Sym ["fourth"]) [patType] (typeof $ pats !! 3)
-        return elem
-
-
-    ElemPattern (PatAnnotated (PatTypeField pos typ pats) patType) | all patAnnotated pats -> do
-        when (length pats > 1) $ void $ resolveFuncCall (Sym ["first"])  [typ] (typeof $ pats !! 0)
-        when (length pats > 1) $ void $ resolveFuncCall (Sym ["second"]) [typ] (typeof $ pats !! 1)
-        when (length pats > 2) $ void $ resolveFuncCall (Sym ["third"])  [typ] (typeof $ pats !! 2)
-        when (length pats > 3) $ void $ resolveFuncCall (Sym ["fourth"]) [typ] (typeof $ pats !! 3)
-        return elem
-
-    ElemPattern (PatAnnotated (PatSlice pos pats) patType) -> do
-        when (length pats > 0) $ do
-            void $ resolveFuncCall (Sym ["At", "at"]) [patType, I64] (typeof $ head pats)
-        void $ resolveFuncCall (Sym ["Len", "len"]) [patType] I64
-        return elem
-
-    ElemPatternIsolated (PatAnnotated (PatIdent pos symbol) patType) -> do
-        return elem
-
-    ElemPatternIsolated (PatAnnotated (PatSlice pos pats) patType) -> do
-        fail "what"
-        return elem
-
     _ -> return elem
     where
-        patAnnotated :: AST.Pattern -> Bool
-        patAnnotated (PatAnnotated _ t) = True
-        patAnnotated _                  = False
-
-
         isAnnotated :: AST.Expr -> Bool
         isAnnotated (AExpr _ _) = True
         isAnnotated _           = False

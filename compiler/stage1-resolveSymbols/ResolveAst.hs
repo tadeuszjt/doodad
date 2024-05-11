@@ -258,14 +258,6 @@ resolveStmt statement = withPos statement $ case statement of
         popSymbolTable
         return (If pos expr' stmt' melse')
 
-    For pos expr mpattern blk -> do
-        pushSymbolTable
-        expr' <- resolveExpr expr
-        mpattern' <- traverse resolvePattern mpattern
-        blk' <- resolveStmt blk
-        popSymbolTable
-        return (For pos expr' mpattern' blk')
-
     While pos expr stmt -> do
         pushSymbolTable
         expr' <- resolveExpr expr
@@ -294,7 +286,6 @@ resolveStmt statement = withPos statement $ case statement of
 
 resolvePattern :: Pattern -> DoM ResolveState Pattern
 resolvePattern pattern = withPos pattern $ case pattern of
-    PatIgnore pos -> return (PatIgnore pos)
     PatAnnotated pat typ -> do
         typ' <- resolveType typ
         pat' <- resolvePattern pat
@@ -305,20 +296,6 @@ resolvePattern pattern = withPos pattern $ case pattern of
         define symbol KeyVar
         return (PatIdent pos symbol)
 
-    PatTypeField pos typ pats -> do
-        typ' <- resolveType typ
-        pats' <- mapM resolvePattern pats
-        return (PatTypeField pos typ' pats')
-
-    PatGuarded pos pat expr -> do
-        pat' <- resolvePattern pat
-        expr' <- resolveExpr expr
-        return (PatGuarded pos pat' expr')
-
-    PatTuple pos pats -> PatTuple pos <$> mapM resolvePattern pats
-    PatLiteral expr -> PatLiteral <$> resolveExpr expr
-    PatSlice pos pats -> PatSlice pos <$> mapM resolvePattern pats 
-        
     x -> error (show x)
 
 

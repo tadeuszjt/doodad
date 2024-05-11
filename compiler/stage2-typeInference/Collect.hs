@@ -102,22 +102,13 @@ collectStmt statement = collectPos statement $ case statement of
     ExprStmt expr -> collectExpr expr
 
     Let _ pattern Nothing Nothing  -> do
-        collectPatternIsolated pattern
+        collectPattern pattern
         
     If _ expr blk melse -> do
         collect "if condition must have bool type" $ ConsEq Type.Bool (typeof expr)
         collectExpr expr
         collectStmt blk
         void $ traverse collectStmt melse
-
-    For _ expr mpat blk -> do
-        when (isJust mpat) $ do
-            collect "for pattern type must match expression type" $
-                ConsForExpr (typeof expr) (typeof $ fromJust mpat)
-            collectPattern (fromJust mpat)
-
-        collectExpr expr
-        collectStmt blk
 
     While _ expr blk -> do
         collect "while condition must have bool type" $ ConsEq Type.Bool (typeof expr)
@@ -135,13 +126,6 @@ collectStmt statement = collectPos statement $ case statement of
         collectExpr expr
 
     x -> error "invalid statement"
-
-
-collectPatternIsolated :: Pattern -> DoM CollectState ()
-collectPatternIsolated (PatAnnotated pattern patType) = collectPos pattern $ case pattern of
-    PatIdent _ symbol -> do
-        define symbol patType
-    x -> error (show x)
 
 
 collectCall :: Symbol -> [Type] -> Type -> DoM CollectState ()
@@ -171,63 +155,8 @@ collectCall symbol argTypes retType = do
 
 collectPattern :: Pattern -> DoM CollectState ()
 collectPattern (PatAnnotated pattern patType) = collectPos pattern $ case pattern of
-    PatIgnore _           -> return ()
     PatIdent _ symbol     -> do
         define symbol patType
-        collectCall (Sym ["Store", "store"]) [patType, patType] Void
-
-    PatLiteral expr       -> do
-        collect "expression type must match pattern type" $ ConsEq patType (typeof expr)
-        collectCall (Sym ["Compare", "equal"]) [patType, patType] Type.Bool
-        collectExpr expr
-
-    PatGuarded _ pat expr -> do
-        collect "guard expression type must have Bool type" $ ConsEq Type.Bool (typeof expr)
-        collect "guard pattern type must match pattern type" $ ConsEq patType (typeof pat)
-        collectPattern pat
-        collectExpr expr
-
-    PatTuple _ pats -> do
-        when (length pats > 0) $ collectCall (Sym ["first"]) [patType] (typeof $ pats !! 0)
-        when (length pats > 1) $ collectCall (Sym ["second"]) [patType] (typeof $ pats !! 1)
-        when (length pats > 2) $ collectCall (Sym ["third"]) [patType] (typeof $ pats !! 2)
-        when (length pats > 3) $ collectCall (Sym ["fourth"]) [patType] (typeof $ pats !! 3)
-
-        mapM_ collectPattern pats
-
-    PatAnnotated pat t -> do
-        collect "pattern type must match annotation type" $ ConsEq t patType
-        collect "pattern type must match annotation type" $ ConsEq t (typeof pat)
-        collectPattern pat
-
-    PatTypeField _ typ pats -> do
-        case pats of
-            []    -> return ()
-            [pat] -> do
-                collect "field pattern must be member of sum type" $ ConsEq (typeof pat) typ
-            _ -> do
-                when (length pats > 0) $ collectCall (Sym ["first"])  [typ] (typeof $ pats !! 0)
-                when (length pats > 1) $ collectCall (Sym ["second"]) [typ] (typeof $ pats !! 1)
-                when (length pats > 2) $ collectCall (Sym ["third"])  [typ] (typeof $ pats !! 2)
-                when (length pats > 3) $ collectCall (Sym ["fourth"]) [typ] (typeof $ pats !! 3)
-
-        mapM_ collectPattern pats
-
-    PatField _ symbol pat -> do
-        collect "field pattern must be valid for sum type" $
-            ConsPatField patType symbol (typeof pat)
-        collectPattern pat
-
-    PatSlice _ pats -> do
-        when (length pats > 0) $ do
-            collectCall (Sym ["at"]) [patType, I64] (typeof $ head pats)
-            forM_ pats $ \pat -> do
-                collect "slice pattern must all have same type" $
-                    ConsEq (typeof pat) (typeof $ head pats)
-
-        collectCall (Sym ["len"]) [patType] I64
-        mapM_ collectPattern pats
-
 
     x -> error (show x)
 
