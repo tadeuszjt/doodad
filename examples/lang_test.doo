@@ -244,7 +244,7 @@ fn testMaybe()
         x | x.isJust() ; let false = true
     let false = m.isJust()
 
-    m = I64.Maybe(3)
+    m = just(3)
     switch m
         x | x.isNothing(); let false = true
         x | x.isJust() | x.fromJust() == 3 ; let true = true
@@ -456,7 +456,14 @@ fn testEnum()
 
     let true = Enum::three().isThree()
 
+    enum Enum2 {
+        one(I64)
+        two(I64, I64)
+    }
 
+    let true = Enum2::two(1, 2).isTwo
+    let false = Enum2::two(1, 2).isOne
+    let 1 = Enum2::two(1, 2). 1 . 0
 
 
 fn main()

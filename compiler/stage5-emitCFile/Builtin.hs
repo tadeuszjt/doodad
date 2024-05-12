@@ -58,6 +58,7 @@ convert typ val = do
                     x -> error (show x)
 
         TypeApply (Sym ["Sum"]) ts -> do
+            error "here"
             case val of
                 val -> do
                     let Just idx = elemIndex (typeof val) ts

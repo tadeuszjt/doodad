@@ -138,7 +138,7 @@ data Stmt
     | Data        TextPos Symbol Type (Maybe Expr)
     | EmbedC      TextPos String
     | Assign      TextPos Symbol Expr
-    | Enum        TextPos [Symbol] Symbol [Symbol] 
+    | Enum        TextPos [Symbol] Symbol [ (Symbol, [Type] ) ]
     deriving (Eq, Show)
 
 

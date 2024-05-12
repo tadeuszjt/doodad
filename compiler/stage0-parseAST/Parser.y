@@ -136,8 +136,9 @@ imports : {- empty -}              { [] }
 
 enumMacro : enum generics Ident '{'  'I' enumCases 'D' '}' { AST.Enum (tokPos $1) $2 (Sym [tokStr $3]) $6 }
 
-enumCases : {-empty-}           { [] }
-          | ident 'N' enumCases { (Sym [tokStr $1] : $3) }
+enumCases : {-empty-}                         { [] }
+          | ident 'N' enumCases               { (Sym [tokStr $1], []) : $3 }
+          | ident '(' types ')' 'N' enumCases { (Sym [tokStr $1], $3) : $6 }
 
 
 fnSymbol : ident            { Sym [tokStr $1] }

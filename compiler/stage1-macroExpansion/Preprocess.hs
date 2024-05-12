@@ -362,10 +362,11 @@ buildStmt statement = withPos statement $ case statement of
         void $ appendStmt $ While pos (Ident pos loop) (Stmt id)
 
     Enum pos generics symbol cases -> do
-        caseTypes <- forM cases $ \symbol -> return $ TypeApply (Sym ["Tuple"]) []
+        caseTypes <- forM cases $ \(symbol, ts) -> return $ TypeApply (Sym ["Tuple"]) ts
         void $ appendStmt $ Typedef pos generics symbol $ TypeApply (Sym ["Sum"]) caseTypes
 
-        forM_ (zip cases [0..]) $ \(Sym [str], i) -> do
+        -- write isCase0, isCase1 functions
+        forM_ (zip cases [0..]) $ \( (Sym [str], ts) , i) -> do
             blkId <- newStmt (Block [])
             withCurId blkId $
                 appendStmt $ Return pos $ Just $ Builtin pos "builtin_equal"
@@ -383,7 +384,8 @@ buildStmt statement = withPos statement $ case statement of
                     }
             appendStmt $ FuncDef $ Func header (Stmt blkId)
 
-        forM_ (zip cases [0..]) $ \(Sym [str], i) -> do
+        -- write case0, case1 constructors
+        forM_ (zip cases [0..]) $ \( (Sym [str], ts) , i) -> do
             blkId <- newStmt (Block [])
             withCurId blkId $ do
                 appendStmt $ Let pos (PatIdent pos $ Sym ["en"]) Nothing Nothing
@@ -391,12 +393,20 @@ buildStmt statement = withPos statement $ case statement of
                     [ Reference pos (Ident pos $ Sym ["en"])
                     , AST.Int pos i
                     ]
+                forM_ (zip ts [0..]) $ \(t, j) -> do
+                    appendStmt $ ExprStmt $ Call pos (Sym ["Store", "store"])
+                        [ Reference pos (Field pos (Field pos (Ident pos $ Sym ["en"]) (fromIntegral i)) j)
+                        , Ident pos (Sym ["a" ++ show j])
+                        ]
                 appendStmt $ Return pos $ Just (Ident pos $ Sym ["en"])
+
+            args <- forM (zip ts [0..]) $ \(t, j) -> do
+                return $ Param pos (Sym ["a" ++ show j]) t
 
             let header = FuncHeader
                     { funcSymbol = Sym [sym symbol, str]
                     , funcRetty  = Retty $ TypeApply symbol (map (\x -> TypeApply x []) generics)
-                    , funcArgs   = []
+                    , funcArgs   = args
                     , funcGenerics = generics
                     , funcPos = pos
                     }

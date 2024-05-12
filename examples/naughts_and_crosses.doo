@@ -19,6 +19,15 @@ enum Square {
     cross
 }
 
+enum Input {
+    move(I64, I64)
+    quit()
+    error()
+}
+
+type Board Square.Array{3}.Array{3}
+
+
 fn Store::store(a &Square, b Square)
     Store::store(
         &builtin_pretend(&a):Sum{Tuple{}, Tuple{}, Tuple{}}
@@ -27,51 +36,16 @@ fn Store::store(a &Square, b Square)
 
 fn Compare::equal(a Square, b Square) Bool; return builtin_sum_enum(a) == builtin_sum_enum(b)
 
-fn push(stdout &StdOut, square Square)
-    switch square
-        _ | square.isEmpty; stdout.push(' ')
-        _ | square.isNaught; stdout.push('O')
-        _ | square.isCross; stdout.push('X')
-
-
-type Board Square.Array{3}.Array{3}
-
-type Move Tuple{I64, I64}
-type Quit Tuple{}
-type Error Tuple{}
-type Input Sum{
-    Move, 
-    Quit, 
-    Error 
-}
-
-
-fn error()  Input;  return conv(builtin_zero():Error)
-fn quit()   Input;  return conv(builtin_zero():Quit)
-
 fn Store::store(a &Input, b Input)
     Store::store(
-       &builtin_pretend(&a):Sum{Move, Quit, Error}
-        builtin_pretend(&b):Sum{Move, Quit, Error}
+        &builtin_pretend(&a):Sum{Tuple{I64, I64}, Tuple{}, Tuple{}}
+        builtin_pretend(&b):Sum{Tuple{I64, I64}, Tuple{}, Tuple{}}
     )
 
 
-fn fromMove(input &Input) Move
-    return input.0
+fn fromMove(input &Input) &Tuple{I64, I64}
+    return &input.0
 
-
-fn isMove(input &Input) Bool; return builtin_sum_enum(input) == 0
-fn isQuit(input &Input) Bool; return builtin_sum_enum(input) == 1
-fn isError(input &Input) Bool; return builtin_sum_enum(input) == 2
-
-fn move(x I64, y I64) Input
-    let m : Move
-    m.0 = x
-    m.1 = y
-    return conv(m)
-
-fn first(m &Move) &I64; return &m.0
-fn second(m &Move) &I64; return &m.1
 
 fn At::at(board &Board, index I64) &Square.Array{3}
     return (builtin_pretend(&board):Square.Array{3}.Array{3}).at(index)
@@ -88,6 +62,13 @@ fn Store::store(a &Board, b Board)
 fn For::begin(b &Board) I64;                       return 0
 fn For::end(b &Board) I64;                         return b.len
 fn For::forAt(b &Board, idx I64) &Square.Array{3}; return b.at(idx)
+
+
+fn push(stdout &StdOut, square Square)
+    switch square
+        _ | square.isEmpty; stdout.push(' ')
+        _ | square.isNaught; stdout.push('O')
+        _ | square.isCross; stdout.push('X')
 
 
 fn printBoard(io &Io, board Board)
