@@ -10,7 +10,11 @@ type{T} Sparse Tuple{
     T.Key.Table,
 }
 
-fn{T} Store::store(a &T.Key, b T.Key); ${ *$a = $b; }
+fn{T} Store::store(a &T.Key, b T.Key)
+    Store::store(
+        &builtin_pretend(&a):I64
+        builtin_pretend(&b):I64
+    )
 
 fn{T} values(s &T.Sparse) &T.Table;     return &s.0
 fn{T} empty(s &T.Sparse) &Table{T.Key}; return &s.1

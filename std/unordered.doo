@@ -19,7 +19,10 @@ type{T} Unordered Tuple{
 }
 
 fn{T} Store::store(a &T.unordered::Key, b T.unordered::Key)
-    ${ *$a = $b; }
+    Store::store(
+        &builtin_pretend(&a):I64
+        builtin_pretend(&b):I64
+    )
 
 fn{T} Store::store(a &T.Entry, b T.Entry)
     a.key = b.key

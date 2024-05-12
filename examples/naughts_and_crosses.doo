@@ -35,7 +35,6 @@ type Input Sum{
     Error 
 }
 
-
 fn error()  Input;  return conv(builtin_zero():Error)
 fn quit()   Input;  return conv(builtin_zero():Quit)
 fn empty()  Square; return conv(builtin_zero():Empty)
@@ -72,7 +71,6 @@ fn isNaught(square &Square) Bool; return builtin_sum_enum(&square) == 1
 fn isCross(square &Square) Bool; return builtin_sum_enum(&square) == 2
 
 fn Compare::equal(a Square, b Square) Bool; return builtin_sum_enum(a) == builtin_sum_enum(b)
-
 
 fn At::at(board &Board, index I64) &Square.Array{3}
     return (builtin_pretend(&board):Square.Array{3}.Array{3}).at(index)

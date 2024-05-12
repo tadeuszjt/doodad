@@ -1,12 +1,14 @@
 module Builtin where
 
 import Control.Monad
+import Data.List
 
 import qualified CAst as C
 import Type
 import Symbol
 import CGenerate
 import CBuilder
+import Error
 
 
 builtinLen :: Value -> Generate Value
@@ -25,6 +27,51 @@ builtinLen val = case val of
             _ -> error (show base)
 
 
+builtinStore :: Value -> Value -> Generate ()
+builtinStore dst@(Ref _ _) src = do
+    check (typeof dst == typeof src) "type mismatch"
+    base <- baseTypeOf dst
+    isCopyable <- isCopyable (typeof dst)
+
+    case src of
+        Value _ _ -> case base of
+            x | isSimple x -> void $ appendElem $ C.Set (C.Deref $ refExpr dst) (valExpr src)
+
+            TypeApply (Sym ["Tuple"]) ts | isCopyable -> do
+                void $ appendElem $ C.Set (C.Deref $ C.Member (refExpr dst) "ptr") (valExpr src)
+
+
+            x -> error (show x)
+
+        x -> error (show x)
+
+convert :: Type.Type -> Value -> Generate Value
+convert typ val = do
+    base <- baseTypeOf typ
+    case base of
+        I64 -> case val of
+            Value t e -> do
+                baseVal <- baseTypeOf t
+                case baseVal of
+                    I32 -> return $ Value typ e
+                    I64 -> return $ Value typ e
+                    x -> error (show x)
+
+        TypeApply (Sym ["Sum"]) ts -> do
+            case val of
+                val -> do
+                    let Just idx = elemIndex (typeof val) ts
+                    idx <- case elemIndex (typeof val) ts of
+                        Nothing -> error $ show (typeof val) ++ " not found in: " ++ show typ
+                        Just idx -> return idx
+
+                    sum <- assign "sum" $ Value typ (C.Initialiser [C.Int $ fromIntegral idx])
+                    ref <- reference $ Value (typeof val) $ C.Member (valExpr sum) ("u" ++ show idx)
+                    builtinStore ref val
+                    return sum
+
+        x -> error (show x)
+
 
 builtinSumEnum :: Value -> Generate Value
 builtinSumEnum val = do
@@ -32,6 +79,55 @@ builtinSumEnum val = do
     case val of
         Value _ expr -> return $ Value I64 $ C.Member expr "en"
         Ref _ expr   -> return $ Value I64 $ C.PMember expr "en"
+
+
+builtinAdd :: Value -> Value -> Generate Value
+builtinAdd val1@(Value _ _) val2@(Value _ _) = do
+    check (typeof val1 == typeof val2) "type mismatch"
+    base <- baseTypeOf val1
+    case base of
+        x | isInt x || isFloat x || x == Char -> return $ Value (typeof val1) $
+            C.Infix C.Plus (valExpr val1) (valExpr val2)
+
+        x -> error (show x)
+
+builtinSubtract :: Value -> Value -> Generate Value
+builtinSubtract val1@(Value _ _) val2@(Value _ _) = do
+    check (typeof val1 == typeof val2) "type mismatch"
+    base <- baseTypeOf val1
+    case base of
+        x | isInt x || isFloat x || x == Char -> return $ Value (typeof val1) $
+            C.Infix C.Minus (valExpr val1) (valExpr val2)
+        x -> error (show x)
+
+builtinMultiply :: Value -> Value -> Generate Value
+builtinMultiply val1@(Value _ _) val2@(Value _ _) = do
+    check (typeof val1 == typeof val2) "type mismatch"
+    base <- baseTypeOf val1
+    case base of
+        x | isInt x || isFloat x || x == Char -> return $ Value (typeof val1) $
+            C.Infix C.Times (valExpr val1) (valExpr val2)
+        x -> error (show x)
+
+
+builtinDivide :: Value -> Value -> Generate Value
+builtinDivide val1@(Value _ _) val2@(Value _ _) = do
+    check (typeof val1 == typeof val2) "type mismatch"
+    base <- baseTypeOf val1
+    case base of
+        x | isInt x || isFloat x || x == Char -> return $ Value (typeof val1) $
+            C.Infix C.Divide (valExpr val1) (valExpr val2)
+        x -> error (show x)
+
+
+builtinModulo :: Value -> Value -> Generate Value
+builtinModulo val1@(Value _ _) val2@(Value _ _) = do
+    check (typeof val1 == typeof val2) "type mismatch"
+    base <- baseTypeOf val1
+    case base of
+        x | isInt x || isFloat x || x == Char -> return $ Value (typeof val1) $
+            C.Infix C.Modulo (valExpr val1) (valExpr val2)
+        x -> error (show x)
 
 
 builtinTableAppend :: Value -> Generate ()
@@ -53,9 +149,6 @@ builtinTableAppend (Ref typ expr) = do
         appendElem $ C.Set pMem $ C.Call "GC_realloc" [pMem, newSize]
 
     void $ appendElem $ C.ExprStmt $ C.Increment $ C.PMember expr "len"
-
-
-
 
 
 builtinArrayAt :: Value -> Value -> Generate Value

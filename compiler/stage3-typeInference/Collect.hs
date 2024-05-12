@@ -235,6 +235,55 @@ collectExpr (AExpr exprType expression) = collectPos expression $ case expressio
             "builtin_pretend" -> do
                 check (length exprs == 1) "invalid builtin_pretend call"
 
+            "builtin_store" -> do
+                check (length exprs == 2) "invalid builtin_store call"
+                collect "store args must have same type" $
+                    ConsEq (typeof $ exprs !! 0) (typeof $ exprs !! 1)
+                collect "store returns void" $
+                    ConsEq Void exprType
+
+            "builtin_add" -> do
+                check (length exprs == 2) "invalid builtin_add call"
+                collect "add args must have same type" $
+                    ConsEq (typeof $ exprs !! 0) (typeof $ exprs !! 1)
+                collect "add return must be same type" $
+                    ConsEq exprType (typeof $ exprs !! 0)
+
+            "builtin_subtract" -> do
+                check (length exprs == 2) "invalid builtin_subtract call"
+                collect "subtract args must have same type" $
+                    ConsEq (typeof $ exprs !! 0) (typeof $ exprs !! 1)
+                collect "subtract return must be same type" $
+                    ConsEq exprType (typeof $ exprs !! 0)
+
+            "builtin_subtract" -> do
+                check (length exprs == 2) "invalid builtin_subtract call"
+                collect "subtract args must have same type" $
+                    ConsEq (typeof $ exprs !! 0) (typeof $ exprs !! 1)
+                collect "subtract return must be same type" $
+                    ConsEq exprType (typeof $ exprs !! 0)
+
+            "builtin_multiply" -> do
+                check (length exprs == 2) "invalid builtin_multiply call"
+                collect "multiply args must have same type" $
+                    ConsEq (typeof $ exprs !! 0) (typeof $ exprs !! 1)
+                collect "multiply return must be same type" $
+                    ConsEq exprType (typeof $ exprs !! 0)
+
+            "builtin_divide" -> do
+                check (length exprs == 2) "invalid builtin_divide call"
+                collect "divide args must have same type" $
+                    ConsEq (typeof $ exprs !! 0) (typeof $ exprs !! 1)
+                collect "divide return must be same type" $
+                    ConsEq exprType (typeof $ exprs !! 0)
+
+            "builtin_modulo" -> do
+                check (length exprs == 2) "invalid builtin_modulo call"
+                collect "modulo args must have same type" $
+                    ConsEq (typeof $ exprs !! 0) (typeof $ exprs !! 1)
+                collect "modulo return must be same type" $
+                    ConsEq exprType (typeof $ exprs !! 0)
+
             "conv"  -> return ()
             "assert" -> do
                 check (length exprs == 2) "invalid assert exprs"

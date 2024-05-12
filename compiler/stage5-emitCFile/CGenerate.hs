@@ -36,7 +36,7 @@ instance Typeof Value where
 data GenerateState
     = GenerateState
         { moduleName  :: String
-        , tuples      :: Map.Map C.Type String
+        , structs      :: Map.Map C.Type String
         , supply      :: Map.Map String Int
         , curFnIsRef  :: Bool
         , symTab      :: SymTab.SymTab String Value
@@ -46,7 +46,7 @@ data GenerateState
 initGenerateState ast
     = GenerateState
         { moduleName = ASTResolved.moduleName ast
-        , tuples = Map.empty
+        , structs = Map.empty
         , supply = Map.empty
         , symTab = SymTab.initSymTab
         , curFnIsRef = False
@@ -197,34 +197,6 @@ for len f = do
     withCurID id (f idx)
 
 
-convert :: Type.Type -> Value -> Generate Value
-convert typ val = do
-    base <- baseTypeOf typ
-    case base of
-        I64 -> case val of
-            Value t e -> do
-                baseVal <- baseTypeOf t
-                case baseVal of
-                    I32 -> return $ Value typ e
-                    I64 -> return $ Value typ e
-                    x -> error (show x)
-
-        TypeApply (Sym ["Sum"]) ts -> do
-            case val of
-                val -> do
-                    let Just idx = elemIndex (typeof val) ts
-                    idx <- case elemIndex (typeof val) ts of
-                        Nothing -> error $ show (typeof val) ++ " not found in: " ++ show typ
-                        Just idx -> return idx
-
-                        
-                    sum <- assign "sum" $ Value typ (C.Initialiser [C.Int $ fromIntegral idx])
-                    store (Value (typeof val) $ C.Member (valExpr sum) ("u" ++ show idx)) val
-                    return sum
-
-        x -> error (show x)
-
-
 reference :: Value -> Generate Value
 reference val = do
     base <- baseTypeOf val
@@ -236,7 +208,6 @@ reference val = do
                 return ref
             _ -> return $ Ref (typeof val) (C.Address $ valExpr val)
             x -> error (show x)
-
 
 
 deref :: Value -> Generate Value
@@ -254,17 +225,6 @@ deref (Ref typ expr) = do
 
         x -> error (show x)
     
-
-store :: Value -> Value -> Generate ()
-store a b = do
-    unless (typeof a == typeof b) $ error "store: type mismatch"
-    let typ = typeof a
-    base <- baseTypeOf (typeof a)
-    copyable <- isCopyable (typeof a)
-    case (a, b) of
-        (Value _ a, Value _ b) | copyable -> void $ appendElem (C.Set a b)
-        x -> error (show x)
-
 
 member :: Int -> Value -> Generate Value
 member idx (Ref typ expr) = do
@@ -299,7 +259,7 @@ isCopyable :: Type.Type -> Generate Bool
 isCopyable typ = do
     base <- baseTypeOf typ
     case base of
-        x | isSimple x                           -> return True
+        x | isSimple x                        -> return True
         TypeApply (Sym ["Tuple"]) ts          -> all id <$> mapM isCopyable ts
         TypeApply (Sym ["Sum"])   ts          -> all id <$> mapM isCopyable ts
         TypeApply (Sym ["Array"]) [t, Size n] -> isCopyable t
@@ -400,19 +360,11 @@ cTypeOf a = case typeof a of
 
 getTypedef :: String -> C.Type -> Generate C.Type
 getTypedef suggestion typ = do
-    sm <- Map.lookup typ <$> gets tuples
+    sm <- Map.lookup typ <$> gets structs
     case sm of
         Just s -> return $ Ctypedef s
         Nothing -> do
             name <- fresh suggestion
             appendTypedef typ name
-            modify $ \s -> s { tuples = Map.insert typ name (tuples s) }
+            modify $ \s -> s { structs = Map.insert typ name (structs s) }
             return $ Ctypedef name
-
-
-withFakeSwitch :: Generate a -> Generate a
-withFakeSwitch f = do
-    switchId <- appendElem $ C.Switch { switchBody = [], switchExpr = C.Int 0 }
-    caseId <- newElement $ C.Case { caseExpr = C.Int 0, caseBody = [] }
-    withCurID switchId $ append caseId
-    withCurID caseId f

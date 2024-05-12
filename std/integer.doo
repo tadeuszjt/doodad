@@ -4,9 +4,8 @@ import std/bool
 import std/features
 import std/assert
 
-fn Store::store(a &I64, b I64); ${ *$a = $b; }
-
-fn Store::store(a &U8, b U8); ${ *$a = $b; }
+fn Store::store(a &I64, b I64); builtin_store(&a, b)
+fn Store::store(a &U8, b U8);   builtin_store(&a, b)
 
 fn Construct::construct(a I64) I64; return a
 fn Construct::construct(a U8) U8; return a
@@ -14,6 +13,13 @@ fn Construct::construct(a I64) U8
     let b : U8
     ${ $b = $a; }
     return b
+
+
+fn Arithmetic::add(a I64, b I64) I64;      return builtin_add(a, b)
+fn Arithmetic::subtract(a I64, b I64) I64; return builtin_subtract(a, b)
+fn Arithmetic::times(a I64, b I64) I64;    return builtin_multiply(a, b)
+fn Arithmetic::divide(a I64, b I64) I64;   return builtin_divide(a, b)
+fn Arithmetic::modulo(a I64, b I64) I64;   return builtin_modulo(a, b)
 
 
 fn Construct::construct(a F64) I64
@@ -25,36 +31,6 @@ fn Construct::construct(c Char) I64
     let n = 0
     ${ $n = $c; }
     return n
-
-
-fn Arithmetic::add(a I64, b I64) I64
-    let r : I64
-    ${ $r = $a + $b; }
-    return r
-
-
-fn Arithmetic::subtract(a I64, b I64) I64
-    let r : I64
-    ${ $r = $a - $b; }
-    return r
-
-
-fn Arithmetic::times(a I64, b I64) I64
-    let r : I64
-    ${ $r = $a * $b; }
-    return r
-
-
-fn Arithmetic::divide(a I64, b I64) I64
-    let r : I64
-    ${ $r = $a / $b; }
-    return r
-
-
-fn Arithmetic::modulo(a I64, b I64) I64
-    let r : I64
-    ${ $r = $a % $b; }
-    return r
 
 
 fn subtract(a I64) I64

@@ -8,8 +8,8 @@ fn Compare::equal(a Bool, b Bool) Bool
     return c
 
 
-fn Store::store(a &Bool, b Bool)
-    ${ *$a = $b; }
+fn Store::store(a &Bool, b Bool); builtin_store(&a, b)
+
 
 fn Construct::construct(a Bool) Bool
     let b : Bool

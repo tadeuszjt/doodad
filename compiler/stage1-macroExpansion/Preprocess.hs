@@ -135,7 +135,7 @@ buildPattern defBlkId pattern expr = do
             ifBlkId <- newStmt (Block [])
             withCurId ifBlkId $ do
                 guard <- buildCondition defBlkId guardExpr
-                appendStmt $ ExprStmt $ Call pos (Sym ["Store", "store"])
+                appendStmt $ ExprStmt $ Call pos (Sym ["builtin_store"])
                     [ Reference pos (Ident pos patMatch)
                     , guard
                     ]
@@ -156,9 +156,12 @@ buildPattern defBlkId pattern expr = do
             forM_ (zip pats [0..]) $ \(pat, i) -> do
                 ifBlkId <- newStmt (Block [])
                 withCurId ifBlkId $ do
-                    b <- buildPattern defBlkId pat $
+                    match <- buildPattern defBlkId pat $
                         Call pos (Sym [syms !! i]) [Reference pos $ Ident pos symbol]
-                    appendStmt $ ExprStmt $ Call pos (Sym ["Store", "store"]) [Reference pos (Ident pos matchSym), b]
+                    appendStmt $ ExprStmt $ Call pos (Sym ["builtin_store"])
+                        [ Reference pos (Ident pos matchSym)
+                        , match
+                        ]
 
                 appendStmt $ If pos (Ident pos matchSym) (Stmt ifBlkId) Nothing
 
@@ -258,17 +261,14 @@ buildStmt statement = withPos statement $ case statement of
 
     For pos expr mpat (Block stmts) -> do
         exprCopy <- freshSym "exprCopy"
-        appendStmt $ Assign pos exprCopy expr
+        appendStmt (Assign pos exprCopy expr)
 
         idx <- freshSym "idx"
         appendStmt $ Assign pos idx (AST.Int pos 0)
-        appendStmt $ ExprStmt $ Call pos (Sym ["Store", "store"])
+        appendStmt $ ExprStmt $ Call pos (Sym ["builtin_store"])
             [ Reference pos (Ident pos idx)
-            , Call pos (Sym ["For", "begin"])
-                [ Reference pos (Ident pos exprCopy) ]
+            , Call pos (Sym ["For", "begin"]) [ Reference pos (Ident pos exprCopy) ]
             ]
-
-
 
         let whileCnd = Call pos (Sym ["Compare", "less"])
                 [ (Ident pos idx)
@@ -287,17 +287,14 @@ buildStmt statement = withPos statement $ case statement of
             trueBlkId <- newStmt (Block [])
             withCurId trueBlkId $ do
                 (mapM_ buildStmt stmts)
-                appendStmt $ ExprStmt $ Call pos (Sym ["Store", "store"])
+                appendStmt $ ExprStmt $ Call pos (Sym ["builtin_store"])
                     [ Reference pos (Ident pos idx)
-                    , Call pos (Sym ["Arithmetic", "add"])
-                        [ (Ident pos idx)
-                        , AST.Int pos 1
-                        ]
+                    , Call pos (Sym ["builtin_add"]) [ (Ident pos idx) , AST.Int pos 1 ]
                     ]
 
             falseBlkId <- newStmt (Block [])
             withCurId falseBlkId $ do
-                appendStmt $ ExprStmt $ Call pos (Sym ["Store", "store"])
+                appendStmt $ ExprStmt $ Call pos (Sym ["builtin_store"])
                     [ Reference pos (Ident pos idx)
                     , AST.Int pos 9999999 -- TODO
                     ]

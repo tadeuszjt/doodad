@@ -33,7 +33,12 @@ fn testConvert()
     let 3 = 1 + 2
     type MyInt I64
 
-    fn Store::store(a &MyInt, b MyInt); ${ *$a = $b; }
+    fn Store::store(a &MyInt, b MyInt)
+        Store::store(
+            &builtin_pretend(&a):I64
+            builtin_pretend(&b):I64
+        )
+
     fn Arithmetic::add(a MyInt, b MyInt) MyInt
         let c : MyInt
         ${ $c = $a + $b; }

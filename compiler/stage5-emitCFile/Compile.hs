@@ -220,7 +220,6 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
                 , C.Infix C.Minus (C.PMember exp "len") (valExpr srt)
                 ] 
 
-
     S.Builtin _ "builtin_table_at" [expr1, expr2] -> do
         val <- generateExpr expr1
         idx <- generateExpr expr2
@@ -248,6 +247,39 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
 
     S.Builtin _ "builtin_sum_enum" [expr] -> do
         builtinSumEnum =<< generateExpr expr
+
+    S.Builtin _ "builtin_store" [expr1, expr2] -> do
+        check (typeof expr1 == typeof expr2) "type mismatch"
+        base <- baseTypeOf expr1
+        ref1@(Ref _ _) <- generateExpr expr1
+        val2 <- generateExpr expr2
+        builtinStore ref1 val2
+        return $ Value Void (C.Int 0)
+
+    S.Builtin _ "builtin_add" [expr1, expr2] -> do
+        val1 <- deref =<< generateExpr expr1
+        val2 <- deref =<< generateExpr expr2
+        builtinAdd val1 val2
+
+    S.Builtin _ "builtin_subtract" [expr1, expr2] -> do
+        val1 <- deref =<< generateExpr expr1
+        val2 <- deref =<< generateExpr expr2
+        builtinSubtract val1 val2
+
+    S.Builtin _ "builtin_multiply" [expr1, expr2] -> do
+        val1 <- deref =<< generateExpr expr1
+        val2 <- deref =<< generateExpr expr2
+        builtinMultiply val1 val2
+
+    S.Builtin _ "builtin_divide" [expr1, expr2] -> do
+        val1 <- deref =<< generateExpr expr1
+        val2 <- deref =<< generateExpr expr2
+        builtinDivide val1 val2
+
+    S.Builtin _ "builtin_modulo" [expr1, expr2] -> do
+        val1 <- deref =<< generateExpr expr1
+        val2 <- deref =<< generateExpr expr2
+        builtinModulo val1 val2
 
     S.Call _ symbol exprs -> do
         check (symbolIsResolved symbol) ("unresolved function call: " ++ prettySymbol symbol)

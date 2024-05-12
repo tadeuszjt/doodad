@@ -36,17 +36,17 @@ fn{K, V} base(t &Tree{K, V})  &Node{K, V}.Key.Maybe; return &t.1
 
 
 fn{K, V} Len::len(tree &Tree{K, V}) I64
-    return tree.nodes.len()
+    return tree.nodes.len
 
 
 fn{K, V} At::at(t &Tree{K, V}, key K) &V
     switch t.base
-        x | x.isJust() | x.fromJust() -> current
+        x | x.isJust | x.fromJust -> current
             while t.nodes[current].key != key   
-                if t.nodes[current].left -> x | x.isJust() | x.fromJust() -> left | key < t.nodes[current].key
+                if t.nodes[current].left -> x | x.isJust | x.fromJust -> left | key < t.nodes[current].key
                     current = left
 
-                else if t.nodes[current].right -> x | x.isJust() | x.fromJust -> right | key > t.nodes[current].key
+                else if t.nodes[current].right -> x | x.isJust | x.fromJust -> right | key > t.nodes[current].key
                     current = right
 
                 else
@@ -59,87 +59,88 @@ fn{K, V} insert(t &Tree{K, V}, key K, value V)
         let lt = n[newNode].key < n[node].key
         let gt = n[newNode].key > n[node].key
 
-        if      n[node].left -> x | x.isJust() | x.fromJust() -> left | lt; n.insertNode(newNode, left)
-        else if n[node].right -> x | x.isJust() | x.fromJust () -> right | gt; n.insertNode(newNode, right)
-        else if n[node].left -> x | x.isNothing() | lt; n[node].left = conv(newNode)
-        else if n[node].right -> x | x.isNothing() | gt; n[node].right = conv(newNode)
+        if      n[node].left -> x | x.isJust | x.fromJust -> left | lt; n.insertNode(newNode, left)
+        else if n[node].right -> x | x.isJust | x.fromJust  -> right | gt; n.insertNode(newNode, right)
+        else if n[node].left -> x | x.isNothing | lt; n[node].left = conv(newNode)
+        else if n[node].right -> x | x.isNothing | gt; n[node].right = conv(newNode)
         else; assert(false, "key already in tree")
 
-    let nodeKey = t.nodes.insert()
+    let nodeKey = t.nodes.insert
     t.nodes[nodeKey].key = key
     t.nodes[nodeKey].value = value
 
     switch t.base
-        x | x.isNothing(); t.base = conv(nodeKey)
-        x | x.isJust() | x.fromJust() -> baseNode; t.nodes.insertNode(nodeKey, baseNode)
+        x | x.isNothing; t.base = conv(nodeKey)
+        x | x.isJust | x.fromJust -> baseNode; t.nodes.insertNode(nodeKey, baseNode)
 
 
 fn{K, V} delete(tree &Tree{K, V}, key K) 
     fn{K, V} leftMost(nodes &Node{K, V}.Unordered, node Node{K, V}.Key) Node{K, V}.Key
-        if nodes[node].left -> x | x.isJust() | x.fromJust() -> left
+        if nodes[node].left -> x | x.isJust | x.fromJust -> left
             return nodes.leftMost(left)
         return node
 
     fn{K, V} rightMost(nodes &Node{K, V}.Unordered, node Node{K, V}.Key) Node{K, V}.Key
-        if nodes[node].right -> x | x.isJust() | x.fromJust() -> right
+        if nodes[node].right -> x | x.isJust | x.fromJust -> right
             return nodes.rightMost(right)
         return node
 
     fn{K, V} deleteFromNode(n &Node{K, V}.Unordered, node Node{K, V}.Key, key K)
         assert(key != n[node].key, "key cannot match current node")
 
-        if n[node].left -> x | x.isJust() | x.fromJust() -> left | key == n[left].key // deleting node on left
-            if n[left].right -> x | x.isJust() | x.fromJust() -> leftRight 
+        if n[node].left -> x | x.isJust | x.fromJust -> left | key == n[left].key // deleting node on left
+            if n[left].right -> x | x.isJust | x.fromJust -> leftRight 
                 let leftMost     = n.leftMost(leftRight)
                 n[leftMost].left = n[left].left
                 n[node].left     = conv(leftRight)
             else; n[node].left   = n[left].left
             n.delete(left)
 
-        else if n[node].right -> x | x.isJust() | x.fromJust() -> right | key == n[right].key // deleting from right
-            if n[right].left -> x | x.isJust() | x.fromJust() -> rightLeft 
+        else if n[node].right -> x | x.isJust | x.fromJust -> right | key == n[right].key // deleting from right
+            if n[right].left -> x | x.isJust | x.fromJust -> rightLeft 
                 let rightMost      = n.rightMost(rightLeft)
                 n[rightMost].right = n[right].right
                 n[node].right      = conv(rightLeft)
             else; n[node].right    = n[right].right
             n.delete(right)
                 
-        else if n[node].left -> x | x.isJust() | x.fromJust() -> left | key < n[node].key
+        else if n[node].left -> x | x.isJust | x.fromJust -> left | key < n[node].key
             n.deleteFromNode(left, key)
     
-        else if n[node].right -> x | x.isJust() | x.fromJust() -> right | key > n[node].key
+        else if n[node].right -> x | x.isJust | x.fromJust -> right | key > n[node].key
             n.deleteFromNode(right, key)
 
         else; assert(false, "invalid key")
 
     if tree.base.isJust
-        let base = tree.base.fromJust
-        if tree.nodes[base].key == key
-            if tree.nodes[base].left -> x | x.isJust() | x.fromJust() -> left
-                tree.base = conv(left)
-                tree.nodes[tree.nodes.rightMost(left)].right = tree.nodes[base].right
+    switch tree.base
+        x | x.isJust | x.fromJust -> base
+            if tree.nodes[base].key == key
+                if tree.nodes[base].left -> x | x.isJust | x.fromJust -> left
+                    tree.base = conv(left)
+                    tree.nodes[tree.nodes.rightMost(left)].right = tree.nodes[base].right
 
-            else if tree.nodes[base].right -> x | x.isJust() | x.fromJust() -> right
-                tree.base = conv(right)
-                tree.nodes[tree.nodes.leftMost(right)].left = tree.nodes[base].left
+                else if tree.nodes[base].right -> x | x.isJust | x.fromJust -> right
+                    tree.base = conv(right)
+                    tree.nodes[tree.nodes.leftMost(right)].left = tree.nodes[base].left
 
-            else
-                tree.base = conv(Nothing())
+                else
+                    tree.base = conv(Nothing())
 
-            tree.nodes.delete(base)
+                tree.nodes.delete(base)
 
-    else
-        tree.nodes.deleteFromNode(tree.base.fromJust, key)
+        x | x.isNothing
+            tree.nodes.deleteFromNode(tree.base.fromJust, key)
 
 
 fn{K, V} contains(tree &Tree{K, V}, key K) Bool
     fn{K, V} nodeContains(tree &Tree{K, V}, node Node{K, V}.Key, key K) Bool
         if tree.nodes[node].left.isJust && key < tree.nodes[node].key
             return tree.nodeContains(tree.nodes[node].left.fromJust, key)
-        if tree.nodes[node].right -> x | x.isJust() | x.fromJust() -> right | key > tree.nodes[node].key
+        if tree.nodes[node].right -> x | x.isJust | x.fromJust -> right | key > tree.nodes[node].key
             return tree.nodeContains(right, key)
         return key == tree.nodes[node].key
 
     switch tree.base
-        x | x.isNothing(); return false
-        x | x.isJust() | x.fromJust() -> base; return tree.nodeContains(base, key)
+        x | x.isNothing; return false
+        x | x.isJust | x.fromJust -> base; return tree.nodeContains(base, key)

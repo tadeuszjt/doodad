@@ -54,7 +54,6 @@ instance Type.Typeof Retty where
     typeof (Retty t) = t
     typeof (RefRetty t) = t
 
-
 data Pattern
     = PatLiteral   Expr                   -- equal(a, b)
     | PatIgnore    TextPos                -- fine
