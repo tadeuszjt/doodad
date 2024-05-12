@@ -230,6 +230,11 @@ collectExpr (AExpr exprType expression) = collectPos expression $ case expressio
                 check (length exprs == 1) "invalid builtin_sum_enum call"
                 collect "sum enum is I64" $ ConsEq exprType I64
 
+            "builtin_sum_reset" -> do
+                check (length exprs == 2) "invalid builtin_sum_reset call"
+                collect "second arg is I64" $ ConsEq (typeof $ exprs !! 1) I64
+                collect "void function" $ ConsEq exprType Void
+
             "builtin_zero" -> do
                 check (length exprs == 0) "invalid builtin_zero call"
 

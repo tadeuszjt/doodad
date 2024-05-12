@@ -321,6 +321,7 @@ resolveExpr expression = withPos expression $ case expression of
         return (Match pos expr' pat')
     AST.String pos s -> return (AST.String pos s)
     Array pos exprs -> Array pos <$> mapM resolveExpr exprs
+    Builtin pos str exprs -> Builtin pos str <$> mapM resolveExpr exprs
 
 
     x -> error (show x)

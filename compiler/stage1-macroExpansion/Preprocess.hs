@@ -1,6 +1,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 module Preprocess where
 
+import Data.Char
 import Control.Monad.Identity
 import qualified Data.Map as Map
 import Control.Monad
@@ -135,7 +136,7 @@ buildPattern defBlkId pattern expr = do
             ifBlkId <- newStmt (Block [])
             withCurId ifBlkId $ do
                 guard <- buildCondition defBlkId guardExpr
-                appendStmt $ ExprStmt $ Call pos (Sym ["builtin_store"])
+                appendStmt $ ExprStmt $ Builtin pos "builtin_store"
                     [ Reference pos (Ident pos patMatch)
                     , guard
                     ]
@@ -158,7 +159,7 @@ buildPattern defBlkId pattern expr = do
                 withCurId ifBlkId $ do
                     match <- buildPattern defBlkId pat $
                         Call pos (Sym [syms !! i]) [Reference pos $ Ident pos symbol]
-                    appendStmt $ ExprStmt $ Call pos (Sym ["builtin_store"])
+                    appendStmt $ ExprStmt $ Builtin pos "builtin_store"
                         [ Reference pos (Ident pos matchSym)
                         , match
                         ]
@@ -172,7 +173,7 @@ buildPattern defBlkId pattern expr = do
             appendStmt (Assign pos exprCopy expr)
 
             match <- freshSym "match"
-            appendStmt $ Assign pos match $ Call pos (Sym ["builtin_equal"])
+            appendStmt $ Assign pos match $ Builtin pos "builtin_equal"
                 [ Call pos (Sym ["Pattern", "sliceLen"]) [Reference pos (Ident pos exprCopy)]
                 , AST.Int pos (fromIntegral $ length pats)
                 ]
@@ -186,7 +187,7 @@ buildPattern defBlkId pattern expr = do
                         , AST.Int pos (fromIntegral i)
                         ]
 
-                    appendStmt $ ExprStmt $ Call pos (Sym ["builtin_store"])
+                    appendStmt $ ExprStmt $ Builtin pos "builtin_store"
                         [ Reference pos (Ident pos match)
                         , patMatch
                         ]
@@ -334,8 +335,6 @@ buildStmt statement = withPos statement $ case statement of
 
         void $ appendStmt $ While pos whileCnd (Stmt blkId)
 
-
-
     For pos expr mpat (Block stmts) -> do
         blkId <- newStmt (Block [])
         withCurId blkId (mapM_ buildStmt stmts)
@@ -353,7 +352,7 @@ buildStmt statement = withPos statement $ case statement of
 
             withCurId trueBlkId (mapM buildStmt stmts)
             withCurId falseBlkId $ do
-                appendStmt $ ExprStmt $ Call pos (Sym ["Store", "store"])
+                appendStmt $ ExprStmt $ Builtin pos "builtin_store"
                     [ Reference pos (Ident pos loop)
                     , AST.Bool pos False
                     ]
@@ -361,6 +360,47 @@ buildStmt statement = withPos statement $ case statement of
             appendStmt $ If pos cnd (Stmt trueBlkId) (Just $ Stmt falseBlkId)
 
         void $ appendStmt $ While pos (Ident pos loop) (Stmt id)
+
+    Enum pos generics symbol cases -> do
+        caseTypes <- forM cases $ \symbol -> return $ TypeApply (Sym ["Tuple"]) []
+        void $ appendStmt $ Typedef pos generics symbol $ TypeApply (Sym ["Sum"]) caseTypes
+
+        forM_ (zip cases [0..]) $ \(Sym [str], i) -> do
+            blkId <- newStmt (Block [])
+            withCurId blkId $
+                appendStmt $ Return pos $ Just $ Builtin pos "builtin_equal"
+                    [ Builtin pos "builtin_sum_enum" [Reference pos $ Ident pos $ Sym ["en"]]
+                    , AST.Int pos i
+                    ]
+
+            let header = FuncHeader
+                    { funcSymbol = Sym [sym symbol, "is" ++ (toUpper (head str) : tail str)]
+                    , funcRetty  = Retty Type.Bool
+                    , funcArgs   =
+                        [RefParam pos (Sym ["en"]) (TypeApply symbol $ map (\x -> TypeApply x []) generics)]
+                    , funcGenerics = generics
+                    , funcPos = pos
+                    }
+            appendStmt $ FuncDef $ Func header (Stmt blkId)
+
+        forM_ (zip cases [0..]) $ \(Sym [str], i) -> do
+            blkId <- newStmt (Block [])
+            withCurId blkId $ do
+                appendStmt $ Let pos (PatIdent pos $ Sym ["en"]) Nothing Nothing
+                appendStmt $ ExprStmt $ Builtin pos "builtin_sum_reset"
+                    [ Reference pos (Ident pos $ Sym ["en"])
+                    , AST.Int pos i
+                    ]
+                appendStmt $ Return pos $ Just (Ident pos $ Sym ["en"])
+
+            let header = FuncHeader
+                    { funcSymbol = Sym [sym symbol, str]
+                    , funcRetty  = Retty $ TypeApply symbol (map (\x -> TypeApply x []) generics)
+                    , funcArgs   = []
+                    , funcGenerics = generics
+                    , funcPos = pos
+                    }
+            appendStmt $ FuncDef $ Func header (Stmt blkId)
 
     x -> error (show x)
 

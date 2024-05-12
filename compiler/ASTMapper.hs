@@ -109,6 +109,11 @@ mapStmtM f stmt = withPos stmt $ do
 
         Assign pos symbol expr -> Assign pos symbol <$> mapExprM f expr
 
+        Enum pos generics symbol cases -> do
+            cases' <- forM cases $ \symbol ->
+                return symbol
+            return (Enum pos generics symbol cases')
+
         x -> error (show x)
     case res of
         ElemStmt x -> return x

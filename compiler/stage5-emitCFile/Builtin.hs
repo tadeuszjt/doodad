@@ -81,6 +81,14 @@ builtinSumEnum val = do
         Ref _ expr   -> return $ Value I64 $ C.PMember expr "en"
 
 
+builtinSumReset :: Value -> Value -> Generate ()
+builtinSumReset sum@(Ref _ _) idx@(Value _ _) = do
+    appendElem $ C.ExprStmt $
+        C.Call "memset" [ refExpr sum , C.Int 0, C.Sizeof (C.Deref $ refExpr sum) ]
+    appendElem $ C.Set (C.PMember (refExpr sum) "en") (valExpr idx)
+    return ()
+
+
 builtinAdd :: Value -> Value -> Generate Value
 builtinAdd val1@(Value _ _) val2@(Value _ _) = do
     check (typeof val1 == typeof val2) "type mismatch"

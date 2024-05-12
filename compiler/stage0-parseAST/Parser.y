@@ -67,6 +67,7 @@ import Symbol
     let        { Token _ Token.Reserved "let" }
     in         { Token _ Token.Reserved "in" }
     while      { Token _ Token.Reserved "while" }
+    enum       { Token _ Token.Reserved "enum" }
     return     { Token _ Token.Reserved "return" }
     switch     { Token _ Token.Reserved "switch" }
     true       { Token _ Token.Reserved "true" }
@@ -133,6 +134,12 @@ imports : {- empty -}              { [] }
 ---------------------------------------------------------------------------------------------------
 -- Statements -------------------------------------------------------------------------------------
 
+enumMacro : enum generics Ident '{'  'I' enumCases 'D' '}' { AST.Enum (tokPos $1) $2 (Sym [tokStr $3]) $6 }
+
+enumCases : {-empty-}           { [] }
+          | ident 'N' enumCases { (Sym [tokStr $1] : $3) }
+
+
 fnSymbol : ident            { Sym [tokStr $1] }
          | Ident '::' ident { Sym [tokStr $1, tokStr $3] }
 
@@ -160,6 +167,7 @@ line : let pattern '=' expr               { Let (tokPos $1) $2 (Just $4) Nothing
      | data symbol type_                  { Data (tokPos $1) (snd $2) $3 Nothing }
      | return mexpr                       { Return (tokPos $1) $2 }
      | embed_c                            { AST.EmbedC (tokPos $1) (tokStr $1) }
+     | enumMacro                          { $1 }
 
 block : if_                               { $1 }
       | while condition scope             { While (tokPos $1) $2 $3 }

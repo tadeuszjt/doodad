@@ -96,6 +96,7 @@ combineMapper element = case element of
                    , "builtin_zero"
                    , "builtin_pretend"
                    , "builtin_sum_enum"
+                   , "builtin_sum_reset"
                    , "builtin_store"
                    , "builtin_add"
                    , "builtin_subtract"

@@ -248,6 +248,12 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
     S.Builtin _ "builtin_sum_enum" [expr] -> do
         builtinSumEnum =<< generateExpr expr
 
+    S.Builtin _ "builtin_sum_reset" [expr1, expr2] -> do
+        val1 <- generateExpr expr1
+        val2 <- generateExpr expr2
+        builtinSumReset val1 val2
+        return $ Value Void (C.Int 0)
+
     S.Builtin _ "builtin_store" [expr1, expr2] -> do
         check (typeof expr1 == typeof expr2) "type mismatch"
         base <- baseTypeOf expr1

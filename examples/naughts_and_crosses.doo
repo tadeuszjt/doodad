@@ -13,18 +13,28 @@ import std/rand
 import std/features
 import std/sum
 
-type Empty  Tuple{}
-type Naught Tuple{}
-type Cross  Tuple{}
-
-type Square Sum{
-    Empty,
-    Naught,
-    Cross,
+enum Square {
+    empty
+    naught
+    cross
 }
 
-type Board Square.Array{3}.Array{3}
+fn Store::store(a &Square, b Square)
+    Store::store(
+        &builtin_pretend(&a):Sum{Tuple{}, Tuple{}, Tuple{}}
+        builtin_pretend(&b):Sum{Tuple{}, Tuple{}, Tuple{}}
+    )
 
+fn Compare::equal(a Square, b Square) Bool; return builtin_sum_enum(a) == builtin_sum_enum(b)
+
+fn push(stdout &StdOut, square Square)
+    switch square
+        _ | square.isEmpty; stdout.push(' ')
+        _ | square.isNaught; stdout.push('O')
+        _ | square.isCross; stdout.push('X')
+
+
+type Board Square.Array{3}.Array{3}
 
 type Move Tuple{I64, I64}
 type Quit Tuple{}
@@ -35,16 +45,13 @@ type Input Sum{
     Error 
 }
 
+
 fn error()  Input;  return conv(builtin_zero():Error)
 fn quit()   Input;  return conv(builtin_zero():Quit)
-fn empty()  Square; return conv(builtin_zero():Empty)
-fn naught() Square; return conv(builtin_zero():Naught)
-fn cross()  Square; return conv(builtin_zero():Cross)
-
 
 fn Store::store(a &Input, b Input)
     Store::store(
-        &builtin_pretend(&a):Sum{Move, Quit, Error}
+       &builtin_pretend(&a):Sum{Move, Quit, Error}
         builtin_pretend(&b):Sum{Move, Quit, Error}
     )
 
@@ -66,12 +73,6 @@ fn move(x I64, y I64) Input
 fn first(m &Move) &I64; return &m.0
 fn second(m &Move) &I64; return &m.1
 
-fn isEmpty(square &Square) Bool; return builtin_sum_enum(&square) == 0
-fn isNaught(square &Square) Bool; return builtin_sum_enum(&square) == 1
-fn isCross(square &Square) Bool; return builtin_sum_enum(&square) == 2
-
-fn Compare::equal(a Square, b Square) Bool; return builtin_sum_enum(a) == builtin_sum_enum(b)
-
 fn At::at(board &Board, index I64) &Square.Array{3}
     return (builtin_pretend(&board):Square.Array{3}.Array{3}).at(index)
 
@@ -84,25 +85,9 @@ fn Store::store(a &Board, b Board)
         builtin_pretend(&b):Square.Array{3}.Array{3}
     )
 
-fn Store::store(a &Square, b Square)
-    Store::store(
-        &builtin_pretend(&a):Sum{Empty, Naught, Cross}
-        builtin_pretend(&b):Sum{Empty, Naught, Cross}
-    )
-
-
-fn push(stdout &StdOut, square Square)
-    switch square
-        _ | square.isEmpty; stdout.push(' ')
-        _ | square.isNaught; stdout.push('O')
-        _ | square.isCross; stdout.push('X')
-
-
-
-fn For::begin(b &Board) I64; return 0
-fn For::end(b &Board) I64; return b.len
+fn For::begin(b &Board) I64;                       return 0
+fn For::end(b &Board) I64;                         return b.len
 fn For::forAt(b &Board, idx I64) &Square.Array{3}; return b.at(idx)
-
 
 
 fn printBoard(io &Io, board Board)
@@ -227,7 +212,7 @@ fn main()
     let board : Board
     io.printBoard(board)
 
-    while winner(board) == empty()
+    while winner(board) == Square::empty()
         let moved = false
         while !moved
             switch io.getPlayerInput()

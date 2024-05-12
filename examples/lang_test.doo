@@ -435,6 +435,30 @@ fn testCharType()
         let true = false
 
 
+fn testEnum()
+    enum Enum {
+        one
+        two
+        three
+    }
+
+    let e : Enum
+
+    switch e
+        _ | e.isOne; let true = true
+        _ | e.isTwo; let false = true
+
+    e.builtin_sum_reset(1)
+
+    switch e
+        _ | e.isOne; let true = false
+        _ | e.isTwo; let true = true
+
+    let true = Enum::three().isThree()
+
+
+
+
 fn main()
     testArithmetic()
     testConvert()
@@ -457,8 +481,7 @@ fn main()
     testArrayExpr()
     testBoolConditions()
     testCharType()
+    testEnum()
 
     data io Io
     testIo(&io)
-
-
