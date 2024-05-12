@@ -9,12 +9,8 @@ fn Construct::construct(a F64) F64
     ${ $b = $a; }
     return b
 
-fn Arithmetic::add(a F64, b F64) F64; return builtin_add(a, b)
+fn Arithmetic::add(a F64, b F64) F64;    return builtin_add(a, b)
 fn Arithmetic::divide(a F64, b F64) F64; return builtin_divide(a, b)
-
-fn Compare::equal(a F64, b F64) Bool
-    let r : Bool
-    ${ $r = $a == $b; }
-    return r
+fn Compare::equal(a F64, b F64) Bool;    return builtin_equal(a, b)
 
 

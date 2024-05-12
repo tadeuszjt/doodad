@@ -281,6 +281,13 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
         val2 <- deref =<< generateExpr expr2
         builtinModulo val1 val2
 
+    S.Builtin _ "builtin_equal" [expr1, expr2] -> do
+        val1 <- deref =<< generateExpr expr1
+        val2 <- deref =<< generateExpr expr2
+        builtinEqual val1 val2
+
+    S.Builtin _ "builtin_len" [expr] -> builtinLen =<< generateExpr expr
+
     S.Call _ symbol exprs -> do
         check (symbolIsResolved symbol) ("unresolved function call: " ++ prettySymbol symbol)
         callFunction symbol typ =<< mapM generateExpr exprs

@@ -21,6 +21,8 @@ fn Arithmetic::times(a I64, b I64) I64;    return builtin_multiply(a, b)
 fn Arithmetic::divide(a I64, b I64) I64;   return builtin_divide(a, b)
 fn Arithmetic::modulo(a I64, b I64) I64;   return builtin_modulo(a, b)
 
+fn Compare::equal(a I64, b I64) Bool; return builtin_equal(a, b)
+
 
 fn Construct::construct(a F64) I64
     let b : I64
@@ -49,13 +51,6 @@ fn Compare::greater(a I64, b I64) Bool
     let r : Bool
     ${ $r = $a > $b; }
     return r
-
-
-fn Compare::equal(a I64, b I64) Bool
-    let r : Bool
-    ${ $r = $a == $b; }
-    return r
-
 
 fn greaterEqual(a I64, b I64) Bool
     let r : Bool

@@ -130,6 +130,15 @@ builtinModulo val1@(Value _ _) val2@(Value _ _) = do
         x -> error (show x)
 
 
+builtinEqual :: Value -> Value -> Generate Value
+builtinEqual val1@(Value _ _) val2@(Value _ _) = do
+    check (typeof val1 == typeof val2) "type mismatch"
+    base <- baseTypeOf val1
+    case base of
+        x | isInt x || isFloat x || x == Char -> return $ Value Bool $
+            C.Infix C.EqEq (valExpr val1) (valExpr val2)
+
+
 builtinTableAppend :: Value -> Generate ()
 builtinTableAppend (Ref typ expr) = do
     TypeApply (Sym ["Table"]) t <- baseTypeOf typ

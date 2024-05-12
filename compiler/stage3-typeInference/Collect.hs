@@ -95,6 +95,7 @@ collectStmt statement = collectPos statement $ case statement of
 
     Return _ mexpr -> do
         curRetty <- gets curRetty
+        when (isJust mexpr && curRetty == Void) (fail "cannot return in void function")
         collect "return type must match function return type" $
             ConsEq (maybe Void typeof mexpr) curRetty
         void $ traverse collectExpr mexpr
@@ -283,6 +284,16 @@ collectExpr (AExpr exprType expression) = collectPos expression $ case expressio
                     ConsEq (typeof $ exprs !! 0) (typeof $ exprs !! 1)
                 collect "modulo return must be same type" $
                     ConsEq exprType (typeof $ exprs !! 0)
+
+            "builtin_equal" -> do
+                check (length exprs == 2) "invalid builtin_equal call"
+                collect "equal args must have same type" $
+                    ConsEq (typeof $ exprs !! 0) (typeof $ exprs !! 1)
+                collect "builtin_equal returns Bool" $ ConsEq exprType Type.Bool
+
+            "builtin_len" -> do
+                check (length exprs == 1) "invalid builtin_len call"
+                collect "builtin_len returns I64" $ ConsEq exprType Type.I64
 
             "conv"  -> return ()
             "assert" -> do

@@ -167,7 +167,38 @@ buildPattern defBlkId pattern expr = do
 
             return (Ident pos matchSym)
 
-        x -> fail (show x)
+        PatSlice pos pats -> do
+            exprCopy <- freshSym "exprCopy"
+            appendStmt (Assign pos exprCopy expr)
+
+            match <- freshSym "match"
+            appendStmt $ Assign pos match $ Call pos (Sym ["builtin_equal"])
+                [ Call pos (Sym ["Pattern", "sliceLen"]) [Reference pos (Ident pos exprCopy)]
+                , AST.Int pos (fromIntegral $ length pats)
+                ]
+
+
+            forM_ (zip pats [0..]) $ \(pat, i) -> do
+                ifBlkId <- newStmt (Block [])
+                withCurId ifBlkId $ do
+                    patMatch <- buildPattern defBlkId pat $ Call pos (Sym ["Pattern", "sliceAt"])
+                        [ Reference pos (Ident pos exprCopy)
+                        , AST.Int pos (fromIntegral i)
+                        ]
+
+                    appendStmt $ ExprStmt $ Call pos (Sym ["builtin_store"])
+                        [ Reference pos (Ident pos match)
+                        , patMatch
+                        ]
+
+                appendStmt $ If pos (Ident pos match) (Stmt ifBlkId) Nothing
+
+            return (Ident pos match)
+                
+
+
+
+        x -> error (show x)
 
 
 buildCondition :: ID -> Expr -> DoM BuildState Expr

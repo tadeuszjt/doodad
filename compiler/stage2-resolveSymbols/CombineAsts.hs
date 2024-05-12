@@ -102,6 +102,8 @@ combineMapper element = case element of
                    , "builtin_multiply"
                    , "builtin_divide"
                    , "builtin_modulo"
+                   , "builtin_equal"
+                   , "builtin_len"
                    , "conv"
                    ]
         if str `elem` list then do

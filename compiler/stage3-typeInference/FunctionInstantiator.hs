@@ -80,7 +80,7 @@ resolveFuncCall calledSymbol      argTypes retType = do
     ast <- gets astResolved
 
     case candidates of
-        [] -> fail ("no candidates for: " ++ prettySymbol calledSymbol)
+        [] -> fail ("no candidates for: " ++ show callHeader)
 
         [header] -> do
             instancem <- findInstance ast $ CallHeader

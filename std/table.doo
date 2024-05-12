@@ -9,20 +9,15 @@ fn{T} Store::store(table &T.Table, slice []T)
     table.push(slice)
 
 
-fn{T} Len::len(table &T.Table) I64
-    let len = 0
-    ${ $len = $table->len; }
-    return len
+fn{T} Len::len(table &T.Table) I64; return builtin_len(&table)
 
 
-fn{T} For::begin(table &T.Table) I64
-    return 0
+fn{T} For::begin(table &T.Table) I64;         return 0
+fn{T} For::end(table &T.Table) I64;           return table.len
+fn{T} For::forAt(table &T.Table, idx I64) &T; return table.at(idx)
 
-fn{T} For::end(table &T.Table) I64
-    return table.len
-
-fn{T} For::forAt(table &T.Table, idx I64) &T
-    return table.at(idx)
+fn{T} Pattern::sliceLen(table &T.Table) I64;        return table.len
+fn{T} Pattern::sliceAt(table &T.Table, idx I64) &T; return table.at(idx)
 
 
 fn{T} At::at(table &T.Table, index I64) &T

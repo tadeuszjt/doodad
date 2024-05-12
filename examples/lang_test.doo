@@ -39,14 +39,8 @@ fn testConvert()
             builtin_pretend(&b):I64
         )
 
-    fn Arithmetic::add(a MyInt, b MyInt) MyInt
-        let c : MyInt
-        ${ $c = $a + $b; }
-        return c
-    fn Compare::equal(a MyInt, b MyInt) Bool
-        let c : Bool
-        ${ $c = $a == $b; }
-        return c
+    fn Arithmetic::add(a MyInt, b MyInt) MyInt; return builtin_add(a, b)
+    fn Compare::equal(a MyInt, b MyInt) Bool; return builtin_equal(a, b)
 
     fn Construct::construct(a I64) MyInt
         let b : MyInt
@@ -333,20 +327,20 @@ fn testArrayPattern()
     data t1 I64.Table
     t1.push(1, 2, 3)
 
-    //let [1, x, 3] = t1
-    //let 2 = x
+    let [1, x, 3] = t1
+    let 2 = x
 
-//    if t1 -> [1, 2]
-//        let true = false
+    if t1 -> [_, _]
+        let true = false
 
     data t2 Char.Table
     t2.push("abc")
 
-    //let ['a', 'b', y] = t2
-    //let 'c' = y
+    let ['a', 'b', y] = t2
+    let 'c' = y
 
-    //let ['a', 'b', 'c'] = "abc"
-    //let ['a', 'b', 'c'] = t2.slice(0, t2.len)
+    let ['a', 'b', 'c'] = "abc"
+    let ['a', 'b', 'c'] = t2.slice(0, t2.len)
 
 
 fn testArrayExpr()
