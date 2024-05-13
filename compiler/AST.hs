@@ -63,7 +63,7 @@ data Pattern
     | PatGuarded   TextPos Pattern Expr   -- fine
     | PatAnnotated Pattern Type           -- fine
     | PatTypeField TextPos Type [Pattern] -- I64(x) 
-    | PatField     TextPos Symbol Pattern -- just(y) | x.isJust
+    | PatField     TextPos Symbol [Pattern] -- just(y) | x.isJust
     deriving (Eq)
 
 data Expr

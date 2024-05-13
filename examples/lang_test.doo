@@ -240,8 +240,8 @@ fn testSumType()
 fn testMaybe()
     let m : I64.Maybe
     switch m
-        x | x.isNothing(); let true = true
-        just(_); let false = true
+        nothing(); let true = true
+        just(); let false = true
     let false = m.isJust()
 
     m = just(3)
