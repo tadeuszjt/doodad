@@ -54,65 +54,23 @@ combineAsts (ast, supply) imports = fmap snd $
                 Feature _ _ _ -> return ()
 
 
-
 combineMapper :: Elem -> DoM ASTResolved Elem
 combineMapper element = case element of
     ElemStmt (FuncDef (Func header stmt)) -> do
-        let callHeader = callHeaderFromFuncHeader header
-        modify $ \s -> s {
-            funcDefsAll = Map.insert (funcSymbol header) (Func header stmt) (funcDefsAll s) }
-
-        when (not $ isGenericHeader header) $ do
-            instanceSymbol <- genSymbol $ SymResolved ["instance_" ++ sym (funcSymbol header)]
-            let headerInstance = header { funcSymbol = instanceSymbol }
-            modify $ \s -> s
-                { funcInstance = Map.insert callHeader (Func headerInstance stmt) (funcInstance s)
-                } 
-
-        return $ ElemStmt $ FuncDef (Func header stmt)
-
+        modify $ \s -> s { funcDefsAll = Map.insert (funcSymbol header) (Func header stmt) (funcDefsAll s) }
+        return element
 
     ElemStmt (Typedef pos generics symbol typ) -> do
         modify $ \s -> s { typeDefsAll = Map.insert symbol (generics, typ) (typeDefsAll s) }
-        return $ ElemStmt (Typedef pos generics symbol typ)
+        return element
 
-    ElemStmt (Block stmts) -> do
-        -- filter out statements
-        stmts' <- fmap catMaybes $ forM stmts $ \stmt -> case stmt of
+    -- filter out statements
+    ElemStmt (Block stmts) -> fmap (ElemStmt . Block . catMaybes) $
+        forM stmts $ \stmt -> case stmt of
             Typedef _ _ _ _ -> return Nothing
             FuncDef _       -> return Nothing
             Feature _ _ _   -> return Nothing
-            _ -> return (Just stmt)
-
-        return $ ElemStmt (Block stmts')
-
-
-    ElemExpr (Call pos symbol@(Sym [str]) exprs) -> do
-        let list = [ "builtin_table_append"
-                   , "builtin_table_at"
-                   , "builtin_table_slice"
-                   , "builtin_slice_at"
-                   , "builtin_array_at"
-                   , "builtin_zero"
-                   , "builtin_pretend"
-                   , "builtin_sum_enum"
-                   , "builtin_sum_reset"
-                   , "builtin_store"
-                   , "builtin_add"
-                   , "builtin_subtract"
-                   , "builtin_multiply"
-                   , "builtin_divide"
-                   , "builtin_modulo"
-                   , "builtin_equal"
-                   , "builtin_len"
-                   , "conv"
-                   ]
-        if str `elem` list then do
-            return $ ElemExpr (Builtin pos str exprs)
-        else
-            return element
-
-
+            _               -> return (Just stmt)
 
     _ -> return element
 

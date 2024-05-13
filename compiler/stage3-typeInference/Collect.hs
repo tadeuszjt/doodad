@@ -202,8 +202,8 @@ collectExpr (AExpr exprType expression) = collectPos expression $ case expressio
                 check (length exprs == 2) "invalid builtin_table_at call"
                 collect "builtin must have I64 type for index argument" $
                     ConsEq (typeof $ exprs !! 1) I64
-                collect "builtin argument must have table base type" $
-                    ConsBase (typeof $ exprs !! 0) (Type.TypeApply (Sym ["Table"]) [exprType])
+                collect "builtin argument must have table arg" $
+                    ConsEq (typeof $ exprs !! 0) (Type.TypeApply (Sym ["Table"]) [exprType])
 
             "builtin_array_at" -> do
                 check (length exprs == 2) "invalid builtin_table_at call"
@@ -300,7 +300,6 @@ collectExpr (AExpr exprType expression) = collectPos expression $ case expressio
                 check (length exprs == 1) "invalid builtin_len call"
                 collect "builtin_len returns I64" $ ConsEq exprType Type.I64
 
-            "conv"  -> return ()
             "assert" -> do
                 check (length exprs == 2) "invalid assert exprs"
                 collect "assert must have Bool argument" $

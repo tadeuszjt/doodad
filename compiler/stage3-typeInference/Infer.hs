@@ -37,7 +37,7 @@ inferFuncDefaults func = do
     ast <- get
     collectState <- fmap snd $ withErrorPrefix "collect: " $
         runDoMExcept (initCollectState ast) (collectFuncDef annotatedFunc)
-    subs <- unifyDefault $ Map.toList (defaults collectState)
+    subs <- unify $ Map.toList (defaults collectState)
     let appliedFunc = applyFunc subs annotatedFunc
     fmap fst $ runDoMExcept () (deAnnotateFunc appliedFunc)
 

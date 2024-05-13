@@ -181,9 +181,6 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
     S.String _ s           -> assign "string" $ Value typ $
         C.Initialiser [C.String s, C.Int (fromIntegral $ length s)]
 
-    S.Builtin _ "conv" [expr] -> do
-        convert typ =<< generateExpr expr
-
     S.Builtin _ "builtin_zero" exprs -> do
         check (length exprs == 0) "builtin_zero cannot have arguments"
         base <- baseTypeOf typ

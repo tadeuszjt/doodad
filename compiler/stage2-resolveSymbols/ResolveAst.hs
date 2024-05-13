@@ -310,7 +310,6 @@ resolveExpr expression = withPos expression $ case expression of
     AST.Char pos c -> return (AST.Char pos c)
     AST.Float pos f -> return (AST.Float pos f)
     Ident pos symbol -> Ident pos <$> look symbol KeyVar
-    Call pos symbol exprs -> Call pos symbol <$> mapM resolveExpr exprs
     Reference pos expr -> Reference pos <$> resolveExpr expr
     Field pos expr n -> do
         expr' <- resolveExpr expr
@@ -323,6 +322,32 @@ resolveExpr expression = withPos expression $ case expression of
     Array pos exprs -> Array pos <$> mapM resolveExpr exprs
     Builtin pos str exprs -> Builtin pos str <$> mapM resolveExpr exprs
 
+    Call pos symbol exprs -> do 
+        let builtinList =
+                   [ "builtin_table_append"
+                   , "builtin_table_at"
+                   , "builtin_table_slice"
+                   , "builtin_slice_at"
+                   , "builtin_array_at"
+                   , "builtin_zero"
+                   , "builtin_pretend"
+                   , "builtin_sum_enum"
+                   , "builtin_sum_reset"
+                   , "builtin_store"
+                   , "builtin_add"
+                   , "builtin_subtract"
+                   , "builtin_multiply"
+                   , "builtin_divide"
+                   , "builtin_modulo"
+                   , "builtin_equal"
+                   , "builtin_len"
+                   ]
+
+        case symbol of
+            (Sym [str]) | str `elem` builtinList ->
+                Builtin pos str <$> mapM resolveExpr exprs
+            _ ->
+                Call pos symbol <$> mapM resolveExpr exprs
 
     x -> error (show x)
             

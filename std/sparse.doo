@@ -17,8 +17,8 @@ fn{T} Store::store(a &T.Key, b T.Key)
         builtin_pretend(&b):I64
     )
 
-fn{T} Construct::construct(n I64) T.Key; return conv(n)
-fn{T} Construct::construct(k T.Key) I64; return conv(k)
+fn{T} Construct::construct(n I64) T.Key; return n.builtin_pretend
+fn{T} Construct::construct(k T.Key) I64; return k.builtin_pretend
 
 fn{T} Len::len(s &T.Sparse) I64
     return s.values.Len::len - s.empty.len

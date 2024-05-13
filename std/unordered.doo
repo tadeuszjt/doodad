@@ -37,22 +37,24 @@ fn{T} Construct::construct(a I64.unordered::Key, b T) T.Entry
 
 
 fn{T} Construct::construct(n I64) T.unordered::Key
-    return conv(n)
+    return builtin_pretend(&n)
 
 fn{A, B} Construct::construct(x A.unordered::Key) B.sparse::Key
-    return conv(x)
+    return x.builtin_pretend
 
 fn{A, B} Construct::construct(x A.sparse::Key) B.unordered::Key
-    return conv(x)
+    return x.builtin_pretend
 
 
 fn{T} Len::len(u &T.Unordered) I64
     return u.values.len
 
+
 fn{T} insert(u &T.Unordered, elem T) T.unordered::Key
     let key = u.indices.insert(u.values.len)
-    u.values.push((conv(key), elem) : T.Entry)
-    return conv(key)
+    u.values.push( (key.builtin_pretend, elem) : T.Entry )
+    return key.builtin_pretend
+
 
 fn{T} insert(u &T.Unordered) T.unordered::Key
     let key = u.indices.insert(u.values.len)
@@ -62,7 +64,7 @@ fn{T} insert(u &T.Unordered) T.unordered::Key
 
 
 fn{T} At::at(u &T.Unordered, key T.unordered::Key) &T
-    let index = u.indices.At::at(conv(key))
+    let index = u.indices.At::at(key.builtin_pretend)
     return &u.values.at(index).value
 
 
@@ -76,6 +78,6 @@ fn{T} delete(u &T.Unordered, key T.unordered::Key)
     let index  = u.indices.at(I64.sparse::Key(key))
 
     u.values.at(index) = u.values.at(end)
-    u.indices.at(conv(endKey)) = index
-    u.indices.delete(conv(key))
+    u.indices.at(endKey.builtin_pretend) = index
+    u.indices.delete(key.builtin_pretend)
     u.values.pop

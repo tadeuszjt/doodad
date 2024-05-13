@@ -45,34 +45,6 @@ builtinStore dst@(Ref _ _) src = do
 
         x -> error (show x)
 
-convert :: Type.Type -> Value -> Generate Value
-convert typ val = do
-    base <- baseTypeOf typ
-    case base of
-        I64 -> case val of
-            Value t e -> do
-                baseVal <- baseTypeOf t
-                case baseVal of
-                    I32 -> return $ Value typ e
-                    I64 -> return $ Value typ e
-                    x -> error (show x)
-
-        TypeApply (Sym ["Sum"]) ts -> do
-            error "here"
-            case val of
-                val -> do
-                    let Just idx = elemIndex (typeof val) ts
-                    idx <- case elemIndex (typeof val) ts of
-                        Nothing -> error $ show (typeof val) ++ " not found in: " ++ show typ
-                        Just idx -> return idx
-
-                    sum <- assign "sum" $ Value typ (C.Initialiser [C.Int $ fromIntegral idx])
-                    ref <- reference $ Value (typeof val) $ C.Member (valExpr sum) ("u" ++ show idx)
-                    builtinStore ref val
-                    return sum
-
-        x -> error (show x)
-
 
 builtinSumEnum :: Value -> Generate Value
 builtinSumEnum val = do

@@ -50,6 +50,21 @@ compile verbose ast = do
 -- Creates generic instantiations
 instAst :: Bool -> DoM InstantiatorState ()
 instAst verbose = do
+    ast <- gets astResolved
+    forM_ (funcDefsTop ast) $ \symbol -> do
+        let func = (funcDefsAll ast) Map.! symbol
+        let header = funcHeader func
+        let isGeneric = isGenericHeader (funcHeader func)
+        let callHeader = callHeaderFromFuncHeader (funcHeader func)
+        let isInstantiated = Map.member callHeader (funcInstance ast)
+
+        when (not isGeneric && not isInstantiated) $ do
+            instanceSymbol <- liftASTState $ genSymbol $ SymResolved ["instance_" ++ sym (funcSymbol header)]
+            let headerInstance = header { funcSymbol = instanceSymbol }
+            modifyAST $ \s -> s
+                { funcInstance = Map.insert callHeader (Func headerInstance $ funcStmt func) (funcInstance s)
+                } 
+
     funcInstances <- gets (funcInstance . astResolved)
     forM_ (Map.toList funcInstances) $ \(header, func) -> do
         stmt' <- mapStmtM instantiatorMapper (funcStmt func)

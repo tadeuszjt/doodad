@@ -4,7 +4,7 @@ syn keyword doodadFunc fn type feature aquires enum tuple
 syn keyword doodadDef let data const in
 syn keyword doodadLoop for while
 syn keyword doodadTop module import link include
-syn keyword doodadType U8 I8 I16 I32 I64 F32 F64 Bool Char String Table conv
+syn keyword doodadType U8 I8 I16 I32 I64 F32 F64 Bool Char String Table
 syn keyword doodadConst true false
 syn match   doodadInt '\<\d\+\>'
 syn match   doodadChar '\'.\''
