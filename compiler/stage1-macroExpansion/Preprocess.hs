@@ -376,7 +376,7 @@ buildStmt statement = withPos statement $ case statement of
     While pos expr (Block stmts) -> do
         loop <- freshSym "loop"
         appendStmt $ Assign pos loop (AST.Bool pos True)
-        id <- appendStmt (Block [])
+        id <- newStmt (Block [])
         withCurId id $ do
             cnd <- buildCondition id expr
 

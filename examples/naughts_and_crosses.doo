@@ -31,16 +31,20 @@ type Board Square.Array{3}.Array{3}
 
 fn Store::store(a &Square, b Square)
     Store::store(
-        &builtin_pretend(&a):Sum{Tuple{}, Tuple{}, Tuple{}}
-        builtin_pretend(&b):Sum{Tuple{}, Tuple{}, Tuple{}}
+        &builtin_pretend(&a):Sum{Tuple, Tuple, Tuple}
+        builtin_pretend(&b):Sum{Tuple, Tuple, Tuple}
     )
 
-fn Compare::equal(a Square, b Square) Bool; return builtin_sum_enum(a) == builtin_sum_enum(b)
+fn Compare::equal(a Square, b Square) Bool
+    return Compare::equal(
+        builtin_pretend(&a):Sum{Tuple, Tuple, Tuple}
+        builtin_pretend(&b):Sum{Tuple, Tuple, Tuple}
+    )
 
 fn Store::store(a &Input, b Input)
     Store::store(
-        &builtin_pretend(&a):Sum{Tuple{I64, I64}, Tuple{}, Tuple{}}
-        builtin_pretend(&b):Sum{Tuple{I64, I64}, Tuple{}, Tuple{}}
+        &builtin_pretend(&a):Sum{Tuple{I64, I64}, Tuple, Tuple}
+        builtin_pretend(&b):Sum{Tuple{I64, I64}, Tuple, Tuple}
     )
 
 
@@ -159,7 +163,6 @@ fn cpuMove(io &Io, board &Board)
         io.stdout.push("cpu can't move\n")
         return
 
-
     // find move that wins
     for empty -> (row, col)
         board[row][col] = cross()
@@ -167,15 +170,14 @@ fn cpuMove(io &Io, board &Board)
             return
         board[row][col] = empty()
 
-
     // find move that opponent wins
     for empty -> (row, col)
         board[row][col] = naught()
         if winner(board) == naught()
             board[row][col] = cross()
+            return
         else
             board[row][col] = empty()
-
 
     // choose random move
     data rand Rand
@@ -191,7 +193,7 @@ fn main()
     let board : Board
     io.printBoard(board)
 
-    while winner(board) == Square::empty()
+    while winner(board).isEmpty
         let moved = false
         while !moved
             switch io.getPlayerInput()
@@ -209,6 +211,8 @@ fn main()
                     io.stdout.push("moving ", row, ", ", col, '\n')
                     board[row][col] = naught()
                     moved = true
+
+                _; assert(false)
 
         io.cpuMove(&board)
         io.printBoard(board)

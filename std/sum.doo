@@ -1,21 +1,45 @@
 module sum
 
-fn{A, B} Construct::construct(a A) Sum{A, B}; return conv(a)
-fn{A, B} Construct::construct(a B) Sum{A, B}; return conv(a)
+import std/features
+import std/tuple
 
-fn{A, B, C} Construct::construct(a A) Sum{A, B, C}; return conv(a)
-fn{A, B, C} Construct::construct(a B) Sum{A, B, C}; return conv(a)
-fn{A, B, C} Construct::construct(a C) Sum{A, B, C}; return conv(a)
 
-fn{A, B, C, D} Construct::construct(a A) Sum{A, B, C, D}; return conv(a)
-fn{A, B, C, D} Construct::construct(a B) Sum{A, B, C, D}; return conv(a)
-fn{A, B, C, D} Construct::construct(a C) Sum{A, B, C, D}; return conv(a)
-fn{A, B, C, D} Construct::construct(a D) Sum{A, B, C, D}; return conv(a)
-
+fn{A, B} Store::store(a &Sum{A, B}, b Sum{A, B})
+    let en = b.builtin_sum_enum
+    a.builtin_sum_reset(en)
+    switch en
+        0; a.0 = b.0
+        1; a.1 = b.1
 
 
 fn{A, B, C} Store::store(a &Sum{A, B, C}, b Sum{A, B, C})
-    ${ memcpy($a, &$b, sizeof($b)); }
+    let en = b.builtin_sum_enum
+    a.builtin_sum_reset(en)
+    switch en
+        0; a.0 = b.0
+        1; a.1 = b.1
+        2; a.2 = b.2
 
-fn{A, B} Store::store(a &Sum{A, B}, b Sum{A, B})
-    ${ memcpy($a, &$b, sizeof($b)); }
+
+fn{A, B} Compare::equal(a Sum{A, B}, b Sum{A, B}) Bool
+    let enA = builtin_sum_enum(a)
+    let enB = builtin_sum_enum(b)
+    if enA != enB
+        return false
+
+    switch enA
+        0; return Compare::equal(a.0, b.0)
+        1; return Compare::equal(a.1, b.1)
+
+
+fn{A, B, C} Compare::equal(a Sum{A, B, C}, b Sum{A, B, C}) Bool
+    let enA = builtin_sum_enum(a)
+    let enB = builtin_sum_enum(b)
+    if enA != enB
+        return false
+
+    switch enA
+        0; return Compare::equal(a.0, b.0)
+        1; return Compare::equal(a.1, b.1)
+        2; return Compare::equal(a.2, b.2)
+    

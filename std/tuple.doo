@@ -1,6 +1,7 @@
 module tuple
 
 import std/features
+import std/bool
 
 
 fn{A, B} For::begin(t &Tuple{A, B}) I64
@@ -56,3 +57,9 @@ fn{A, B, C} Store::store(a &Tuple{A, B, C}, b Tuple{A, B, C})
     a.0 = b.0
     a.1 = b.1
     a.2 = b.2
+
+
+
+fn Compare::equal(a Tuple{}, b Tuple{}) Bool; return true
+fn{A} Compare::equal(a Tuple{A}, b Tuple{A}) Bool; return a.0 == b.0
+fn{A, B} Compare::equal(a Tuple{A, B}, b Tuple{A, B}) Bool; return a.0 == b.0 && a.1 == b.1
