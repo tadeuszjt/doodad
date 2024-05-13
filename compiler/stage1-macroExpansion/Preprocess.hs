@@ -168,6 +168,33 @@ buildPattern defBlkId pattern expr = do
 
             return (Ident pos matchSym)
 
+
+        PatField pos (Sym [str]) pat -> do
+            exprCopy <- freshSym "exprCopy"
+            appendStmt (Assign pos exprCopy expr)
+
+            enumMatch <- freshSym "enumMatch"
+            appendStmt $ Assign pos enumMatch $ Call pos (Sym ["is" ++ (toUpper (head str) : tail str) ])
+                [ Reference pos (Ident pos exprCopy)
+                ]
+
+            blkId <- newStmt (Block [])
+            withCurId blkId $ do
+                caseCopy <- freshSym "caseCopy"
+                appendStmt $ Assign pos caseCopy $ Call pos (Sym ["from" ++ (toUpper (head str) : tail str)])
+                    [ Reference pos (Ident pos exprCopy)
+                    ]
+
+                match <- buildPattern defBlkId pat (Ident pos caseCopy)
+                appendStmt $ ExprStmt $ Builtin pos "builtin_store"
+                    [ Reference pos (Ident pos enumMatch)
+                    , match
+                    ]
+            appendStmt $ If pos (Ident pos enumMatch) (Stmt blkId) Nothing
+
+            return (Ident pos enumMatch)
+                        
+
         PatSlice pos pats -> do
             exprCopy <- freshSym "exprCopy"
             appendStmt (Assign pos exprCopy expr)
@@ -196,8 +223,6 @@ buildPattern defBlkId pattern expr = do
 
             return (Ident pos match)
                 
-
-
 
         x -> error (show x)
 

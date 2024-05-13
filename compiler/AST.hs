@@ -190,7 +190,10 @@ instance TextPosition Stmt where
         Data        p _ _ _ -> p
         EmbedC      p _ -> p
         Feature     p _ _ -> p
-        _ -> error "invalid stmt"
+        Enum        p _ _ _ -> p
+        MacroTuple  p _ _ _ -> p
+        Assign      p _ _ -> p
+        x -> error (show x)
 
 tupStrs, arrStrs, brcStrs :: [String] -> String
 tupStrs strs = "(" ++ intercalate ", " strs ++ ")"

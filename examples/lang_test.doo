@@ -241,13 +241,14 @@ fn testMaybe()
     let m : I64.Maybe
     switch m
         x | x.isNothing(); let true = true
-        x | x.isJust() ; let false = true
+        just(_); let false = true
     let false = m.isJust()
 
     m = just(3)
     switch m
         x | x.isNothing(); let false = true
-        x | x.isJust() | x.fromJust() == 3 ; let true = true
+        just(3); let true = true
+
     let true = m.isJust()
 
     m.fromJust = 4

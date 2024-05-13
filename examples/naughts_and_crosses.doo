@@ -25,6 +25,9 @@ enum Input {
     error()
 }
 
+fn fromQuit(i &Input) &Tuple{}; return &i.1
+fn fromError(i &Input) &Tuple{}; return &i.2
+
 type Board Square.Array{3}.Array{3}
 
 
@@ -132,13 +135,13 @@ fn getPlayerInput(io &Io) Input
 
     let (row, col, idx) = (0, 0, 0)
 
-    if readI64(line.slice(idx, line.len)) -> x | x.isJust | x.fromJust -> (n, num)
+    if readI64(line.slice(idx, line.len)) -> just((n, num))
         row = n
         idx = idx + num
     else
         return error()
 
-    if readI64(line.slice(idx, line.len)) -> x | x.isJust | x.fromJust -> (n, num)
+    if readI64(line.slice(idx, line.len)) -> just((n, num))
         col = n
         idx = idx + num
     else
@@ -197,17 +200,17 @@ fn main()
         let moved = false
         while !moved
             switch io.getPlayerInput()
-                x | x.isQuit; return
-                x | x.isError
+                quit(_); return
+                error(_)
                     io.stdout.push("parse error", '\n')
 
-                x | x.isMove | x.fromMove -> (row, col) | row < 0 || row > (board.len - 1)
+                move((row, col)) | row < 0 || row > (board.len - 1)
                     io.stdout.push("row not in range\n")
 
-                x | x.isMove | x.fromMove -> (row, col) | col < 0 || col > (board.len - 1)
+                move((row, col)) | col < 0 || col > (board.len - 1)
                     io.stdout.push("col not in range\n")
 
-                x | x.isMove | x.fromMove -> (row, col)
+                move((row, col))
                     io.stdout.push("moving ", row, ", ", col, '\n')
                     board[row][col] = naught()
                     moved = true
