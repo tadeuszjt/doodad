@@ -25,8 +25,6 @@ enum Input {
     error()
 }
 
-fn fromQuit(i &Input) &Tuple{}; return &i.1
-fn fromError(i &Input) &Tuple{}; return &i.2
 
 type Board Square.Array{3}.Array{3}
 
@@ -45,9 +43,6 @@ fn Store::store(a &Input, b Input)
         builtin_pretend(&b):Sum{Tuple{I64, I64}, Tuple{}, Tuple{}}
     )
 
-
-fn fromMove(input &Input) &Tuple{I64, I64}
-    return &input.0
 
 
 fn At::at(board &Board, index I64) &Square.Array{3}

@@ -416,7 +416,10 @@ buildStmt statement = withPos statement $ case statement of
 
 
     Enum pos generics symbol cases -> do
-        caseTypes <- forM cases $ \(symbol, ts) -> return $ TypeApply (Sym ["Tuple"]) ts
+        caseTypes <- forM cases $ \(symbol, ts) -> case ts of
+            [t] -> return t
+            ts -> return $ TypeApply (Sym ["Tuple"]) ts
+
         void $ appendStmt $ Typedef pos generics symbol $ TypeApply (Sym ["Sum"]) caseTypes
 
         -- write isCase0, isCase1 functions
@@ -447,11 +450,19 @@ buildStmt statement = withPos statement $ case statement of
                     [ Reference pos (Ident pos $ Sym ["en"])
                     , AST.Int pos i
                     ]
-                forM_ (zip ts [0..]) $ \(t, j) -> do
-                    appendStmt $ ExprStmt $ Call pos (Sym ["Store", "store"])
-                        [ Reference pos (Field pos (Field pos (Ident pos $ Sym ["en"]) (fromIntegral i)) j)
-                        , Ident pos (Sym ["a" ++ show j])
+
+                case ts of
+                    [t] -> void $ appendStmt $ ExprStmt $ Call pos (Sym ["Store", "store"])
+                        [ Reference pos (Field pos (Ident pos $ Sym ["en"]) (fromIntegral i))
+                        , Ident pos (Sym ["a0"])
                         ]
+
+                    ts -> forM_ (zip ts [0..]) $ \(t, j) -> do
+                        appendStmt $ ExprStmt $ Call pos (Sym ["Store", "store"])
+                            [ Reference pos (Field pos (Field pos (Ident pos $ Sym ["en"]) (fromIntegral i)) j)
+                            , Ident pos (Sym ["a" ++ show j])
+                            ]
+
                 appendStmt $ Return pos $ Just (Ident pos $ Sym ["en"])
 
             args <- forM (zip ts [0..]) $ \(t, j) -> do
@@ -461,6 +472,27 @@ buildStmt statement = withPos statement $ case statement of
                     { funcSymbol = Sym [sym symbol, str]
                     , funcRetty  = Retty $ TypeApply symbol (map (\x -> TypeApply x []) generics)
                     , funcArgs   = args
+                    , funcGenerics = generics
+                    , funcPos = pos
+                    }
+            appendStmt $ FuncDef $ Func header (Stmt blkId)
+
+        -- write fromCase0, fromCase1 accessors
+        forM_ (zip cases [0..]) $ \( (Sym [str], ts) , i) -> do
+            blkId <- newStmt (Block [])
+            withCurId blkId $ do
+                appendStmt $ Return pos $ Just $ Reference pos $ Field pos (Ident pos $ Sym ["en"]) i
+
+            let genericTypes = map (\x -> TypeApply x []) generics
+
+            retty <- case ts of
+                [t] -> return (RefRetty t)
+                ts  -> return $ RefRetty (TypeApply (Sym ["Tuple"]) ts)
+
+            let header = FuncHeader
+                    { funcSymbol = Sym [sym symbol, "from" ++ (toUpper $ head str) : (tail str) ]
+                    , funcRetty  = retty
+                    , funcArgs   = [RefParam pos (Sym ["en"]) (TypeApply symbol genericTypes)]
                     , funcGenerics = generics
                     , funcPos = pos
                     }
