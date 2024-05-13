@@ -139,6 +139,7 @@ data Stmt
     | EmbedC      TextPos String
     | Assign      TextPos Symbol Expr
     | Enum        TextPos [Symbol] Symbol [ (Symbol, [Type] ) ]
+    | MacroTuple  TextPos [Symbol] Symbol [ (String, Type) ]
     deriving (Eq, Show)
 
 

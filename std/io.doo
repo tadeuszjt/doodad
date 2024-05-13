@@ -10,18 +10,14 @@ import std/bool
 import std/features
 import std/slice
 
-
-type Io Tuple{
-    Map{I64, Bool},
-    StdOut,
-    StdIn,
-}
-
 type StdOut Tuple{}
 type StdIn  Tuple{}
 
-fn stdout(io &Io) &StdOut; return &io.1
-fn stdin (io &Io) &StdIn ; return &io.2
+tuple Io {
+    ioMap  Map{I64, Bool}
+    stdout StdOut
+    stdin  StdIn
+}
 
 fn push(stdout &StdOut, c Char)
     ${ putchar($c); }

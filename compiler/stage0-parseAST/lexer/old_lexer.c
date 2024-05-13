@@ -222,6 +222,7 @@ bool isKeyword(char *s) {
         "true",
         "false",
         "type",
+        "tuple",
         "feature",
         "aquires",
         NULL

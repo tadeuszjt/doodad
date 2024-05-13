@@ -8,14 +8,14 @@ import std/features
 type{T} Key I64
 
 
-type{T} Entry Tuple{
-    I64.unordered::Key,
-    T
+tuple{T} Entry {
+    key   I64.unordered::Key
+    value T
 }
 
-type{T} Unordered Tuple{
-    I64.Sparse,
-    T.Entry.Table
+tuple{T} Unordered {
+    indices I64.Sparse
+    values  T.Entry.Table
 }
 
 fn{T} Store::store(a &T.unordered::Key, b T.unordered::Key)
@@ -35,11 +35,6 @@ fn{T} Construct::construct(a I64.unordered::Key, b T) T.Entry
     e.1 = b
     return e
 
-
-fn{T} key(e &T.Entry) &I64.unordered::Key;   return &e.0
-fn{T} value(e &T.Entry) &T;                  return &e.1
-fn{T} indices(u &T.Unordered) &Sparse{I64};  return &u.0
-fn{T} values(u &T.Unordered) &T.Entry.Table; return &u.1
 
 fn{T} Construct::construct(n I64) T.unordered::Key
     return conv(n)

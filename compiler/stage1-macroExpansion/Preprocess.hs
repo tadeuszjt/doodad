@@ -361,6 +361,27 @@ buildStmt statement = withPos statement $ case statement of
 
         void $ appendStmt $ While pos (Ident pos loop) (Stmt id)
 
+
+    MacroTuple pos generics symbol fields -> do
+        appendStmt $ Typedef pos generics symbol $ TypeApply (Sym ["Tuple"]) (map snd fields)
+
+        -- write field accessor functions
+        forM_ (zip fields [0..]) $ \( (str, typ), i ) -> do
+            blkId <- newStmt (Block [])
+            withCurId blkId $ appendStmt $ Return pos $ Just $ Reference pos $ Field pos
+                (Ident pos $ Sym ["t"])
+                (fromIntegral i)
+
+            let header = FuncHeader
+                    { funcSymbol = Sym [sym symbol, str]
+                    , funcRetty  = RefRetty typ
+                    , funcArgs   = [RefParam pos (Sym ["t"]) (TypeApply symbol $ map (\x -> TypeApply x []) generics)]
+                    , funcGenerics = generics
+                    , funcPos = pos
+                    }
+            appendStmt $ FuncDef $ Func header (Stmt blkId)
+
+
     Enum pos generics symbol cases -> do
         caseTypes <- forM cases $ \(symbol, ts) -> return $ TypeApply (Sym ["Tuple"]) ts
         void $ appendStmt $ Typedef pos generics symbol $ TypeApply (Sym ["Sum"]) caseTypes

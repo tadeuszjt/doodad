@@ -466,6 +466,24 @@ fn testEnum()
     let 1 = Enum2::two(1, 2). 1 . 0
 
 
+fn testMacroTuple()
+    tuple{T} MyTuple {
+        one I64
+        two T
+    }
+
+    let t : Bool.MyTuple
+    t.one = 23
+
+    let 23 = t.one
+
+    let false = t.two
+    t.MyTuple::two = true
+    let true = t.two
+
+
+
+
 fn main()
     testArithmetic()
     testConvert()
@@ -489,6 +507,7 @@ fn main()
     testBoolConditions()
     testCharType()
     testEnum()
+    testMacroTuple()
 
     data io Io
     testIo(&io)

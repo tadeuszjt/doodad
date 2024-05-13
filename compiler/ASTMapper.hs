@@ -114,6 +114,12 @@ mapStmtM f stmt = withPos stmt $ do
                 return symbol
             return (Enum pos generics symbol cases')
 
+        MacroTuple pos generics symbol fields -> do
+            fields' <- forM fields $ \(str, typ) -> do
+                typ' <- mapTypeM f typ
+                return (str, typ')
+            return (MacroTuple pos generics symbol fields')
+
         x -> error (show x)
     case res of
         ElemStmt x -> return x

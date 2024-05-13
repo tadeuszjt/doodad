@@ -3,13 +3,13 @@ module tuple
 import std/features
 
 
-fn{A, B} For::begin(tuple &Tuple{A, B}) I64
-    return tuple.0
+fn{A, B} For::begin(t &Tuple{A, B}) I64
+    return t.0
 
-fn{A, B} For::end(tuple &Tuple{A, B}) I64
-    return tuple.1
+fn{A, B} For::end(t &Tuple{A, B}) I64
+    return t.1
 
-fn{A, B} For::forAt(tuple &Tuple{A, B}, idx I64) I64
+fn{A, B} For::forAt(t &Tuple{A, B}, idx I64) I64
     return idx
 
 

@@ -6,37 +6,28 @@ import std/bool
 import std/features
 import std/assert
 
-type{K, V} Node Tuple{
-    Node{K, V}.Key.Maybe,
-    Node{K, V}.Key.Maybe,
-    K,
-    V,
+tuple{K, V} Node {
+    left  Node{K, V}.Key.Maybe
+    right Node{K, V}.Key.Maybe
+    key   K
+    value V
 }
+
+tuple{K, V} Tree {
+    nodes Node{K, V}.Unordered
+    base  Node{K, V}.Key.Maybe
+}
+
+
+fn{K, V} Len::len(tree &Tree{K, V}) I64
+    return tree.nodes.len
+
 
 fn{K, V} Store::store(a &Node{K, V}, b Node{K, V})
     a.left = b.left
     a.right = b.right
     a.key = b.key
     a.value = b.value
-
-
-fn{K, V} left(n &Node{K, V})  &Node{K, V}.Key.Maybe; return &n.0
-fn{K, V} right(n &Node{K, V}) &Node{K, V}.Key.Maybe; return &n.1
-fn{K, V} key(n &Node{K, V})   &K                   ; return &n.2
-fn{K, V} value(n &Node{K, V}) &V                   ; return &n.3
-
-type{K, V} Tree Tuple{
-    Node{K, V}.Unordered,
-    Node{K, V}.Key.Maybe
-}
-
-fn{K, V} nodes(t &Tree{K, V}) &Node{K, V}.Unordered; return &t.0
-fn{K, V} base(t &Tree{K, V})  &Node{K, V}.Key.Maybe; return &t.1
-
-
-
-fn{K, V} Len::len(tree &Tree{K, V}) I64
-    return tree.nodes.len
 
 
 fn{K, V} At::at(t &Tree{K, V}, key K) &V

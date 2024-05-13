@@ -5,9 +5,10 @@ import std/bool
 import std/integer
 
 type{T} Key    I64
-type{T} Sparse Tuple{
-    T.Table,
-    T.Key.Table,
+
+tuple{T} Sparse {
+    values T.Table
+    empty  T.Key.Table
 }
 
 fn{T} Store::store(a &T.Key, b T.Key)
@@ -15,9 +16,6 @@ fn{T} Store::store(a &T.Key, b T.Key)
         &builtin_pretend(&a):I64
         builtin_pretend(&b):I64
     )
-
-fn{T} values(s &T.Sparse) &T.Table;     return &s.0
-fn{T} empty(s &T.Sparse) &Table{T.Key}; return &s.1
 
 fn{T} Construct::construct(n I64) T.Key; return conv(n)
 fn{T} Construct::construct(k T.Key) I64; return conv(k)
