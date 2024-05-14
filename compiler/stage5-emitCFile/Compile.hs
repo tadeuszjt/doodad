@@ -146,8 +146,8 @@ generateStmt stmt = withPos stmt $ case stmt of
     S.Data _ symbol typ Nothing -> do
         base <- baseTypeOf typ
         init <- case base of
-            TypeApply (Sym ["Tuple"]) [] -> return (C.Initialiser [])
-            _                            -> return (C.Initialiser [C.Int 0])
+            TypeDef (Sym ["Tuple"]) -> return (C.Initialiser [])
+            _                       -> return (C.Initialiser [C.Int 0])
         
         ctyp <- cTypeOf typ
         appendAssign ctyp (showSymLocal symbol) init
@@ -186,9 +186,10 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
         base <- baseTypeOf typ
         name <- fresh "zero"
         ctyp <- cTypeOf typ
-        appendElem $ C.Assign ctyp name $ C.Initialiser $ case base of
-            TypeApply (Sym ["Tuple"]) [] -> []
-            _                          -> [C.Int 0]
+        error ""
+--        appendElem $ C.Assign ctyp name $ C.Initialiser $ case base of
+--            TypeApply (Sym ["Tuple"]) [] -> []
+--            _                          -> [C.Int 0]
         return $ Value typ (C.Ident name)
 
     S.Builtin _ "builtin_pretend" [expr] -> do
@@ -196,10 +197,10 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
 
         base <- baseTypeOf typ
         baseExpr <- baseTypeOf exprType
-        check (base == baseExpr) "types do not have same base"
+        check (base == baseExpr) ("types do not have same base: " ++ show (base, baseExpr))
 
         case base of
-            TypeApply (Sym ["Tuple"]) _ ->
+            Apply (TypeDef (Sym ["Tuple"])) _ ->
                 assign "ref" $ Ref typ $ C.Initialiser [C.Member refExpr "ptr"]
             _ -> 
                 assign "ref" $ Ref typ $ C.Initialiser [refExpr]
@@ -211,7 +212,7 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
         en@(Value I64 _) <- generateExpr end
 
         -- TODO this is broken 
-        TypeApply (Sym ["Table"]) [t] <- baseTypeOf ref
+        Apply (TypeDef (Sym ["Table"])) [t] <- baseTypeOf ref
         assign "slice" $ Value (Slice t) $
             C.Initialiser
                 [ C.Address (C.Subscript (C.PMember exp "r0") (valExpr srt))
@@ -221,7 +222,7 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
     S.Builtin _ "builtin_table_at" [expr1, expr2] -> do
         val <- generateExpr expr1
         idx <- generateExpr expr2
-        TypeApply (Sym ["Table"]) _ <- baseTypeOf val
+        Apply (TypeDef (Sym ["Table"])) _ <- baseTypeOf val
         builtinTableAt val idx
 
     S.Builtin _ "builtin_slice_at" [expr1, expr2] -> do
@@ -233,12 +234,12 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
     S.Builtin _ "builtin_array_at" [expr1, expr2] -> do
         val <- generateExpr expr1
         idx <- generateExpr expr2
-        TypeApply (Sym ["Array"]) [t, Size n] <- baseTypeOf val
+        Apply (TypeDef (Sym ["Array"])) [t, Size n] <- baseTypeOf val
         builtinArrayAt val idx
 
     S.Builtin _ "builtin_table_append" [expr1] -> do
         val <- generateExpr expr1
-        TypeApply (Sym ["Table"]) _ <- baseTypeOf val
+        Apply (TypeDef (Sym ["Table"])) _ <- baseTypeOf val
         case val of
             Value _ _ -> fail "isn't reference"
             Ref _ _   -> builtinTableAppend val >> return (Value Void $ C.Int 0)

@@ -170,7 +170,7 @@ collectExpr (AExpr exprType expression) = collectPos expression $ case expressio
 
     Call _ symbol exprs -> do
         when (symbolsCouldMatch symbol (Sym ["Construct", "construct"]) && length exprs > 1) $ do
-            void $ collectDefault exprType $ Type.TypeApply (Sym ["Tuple"]) (map typeof exprs)
+            void $ collectDefault exprType $ Apply (TypeDef $ Sym ["Tuple"]) (map typeof exprs)
    
         when (symbolsCouldMatch symbol (Sym ["Construct", "construct"]) && length exprs == 1) $ do
             void $ collectDefault exprType $ typeof (head exprs)
@@ -198,7 +198,8 @@ collectExpr (AExpr exprType expression) = collectPos expression $ case expressio
         case (sym, exprs) of
             ("builtin_table_at", [tab, idx]) -> do
                 collect "index must be I64" $ ConsEq (typeof idx) I64
-                collect "invalid builtin" $ ConsEq (typeof tab) $ TypeApply (Sym ["Table"]) [exprType]
+                collect "invalid builtin" $ ConsEq (typeof tab) $
+                    Apply (TypeDef $ Sym ["Table"]) [exprType]
 
             ("builtin_array_at", [arr, idx]) -> do
                 collect "index must be I64" $ ConsEq (typeof idx) I64

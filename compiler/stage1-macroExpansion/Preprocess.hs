@@ -396,7 +396,9 @@ buildStmt statement = withPos statement $ case statement of
 
 
     MacroTuple pos generics symbol fields -> do
-        appendStmt $ Typedef pos generics symbol $ TypeApply (Sym ["Tuple"]) (map snd fields)
+        appendStmt $ Typedef pos generics symbol $ case fields of
+            [] -> TypeDef (Sym ["Tuple"])
+            ts -> Apply (TypeDef $ Sym ["Tuple"]) (map snd ts)
 
         -- write field accessor functions
         forM_ (zip fields [0..]) $ \( (str, typ), i ) -> do
@@ -405,10 +407,14 @@ buildStmt statement = withPos statement $ case statement of
                 (Ident pos $ Sym ["t"])
                 (fromIntegral i)
 
+            paramType <- case generics of
+                [] -> return (TypeDef symbol)
+                ts -> return (Apply (TypeDef symbol) (map TypeDef generics))
+
             let header = FuncHeader
                     { funcSymbol = Sym [sym symbol, str]
                     , funcRetty  = RefRetty typ
-                    , funcArgs   = [RefParam pos (Sym ["t"]) (TypeApply symbol $ map (\x -> TypeApply x []) generics)]
+                    , funcArgs   = [RefParam pos (Sym ["t"]) paramType]
                     , funcGenerics = generics
                     , funcPos = pos
                     }
@@ -418,9 +424,13 @@ buildStmt statement = withPos statement $ case statement of
     Enum pos generics symbol cases -> do
         caseTypes <- forM cases $ \(symbol, ts) -> case ts of
             [t] -> return t
-            ts -> return $ TypeApply (Sym ["Tuple"]) ts
+            ts -> return $ Apply (TypeDef $ Sym ["Tuple"]) ts
 
-        void $ appendStmt $ Typedef pos generics symbol $ TypeApply (Sym ["Sum"]) caseTypes
+        paramType <- case generics of
+            [] -> return (TypeDef symbol)
+            ts -> return (Apply (TypeDef symbol) (map TypeDef generics))
+
+        void $ appendStmt $ Typedef pos generics symbol $ Apply (TypeDef $ Sym ["Sum"]) caseTypes
 
         -- write isCase0, isCase1 functions
         forM_ (zip cases [0..]) $ \( (Sym [str], ts) , i) -> do
@@ -432,12 +442,11 @@ buildStmt statement = withPos statement $ case statement of
                     ]
 
             let header = FuncHeader
-                    { funcSymbol = Sym [sym symbol, "is" ++ (toUpper (head str) : tail str)]
-                    , funcRetty  = Retty Type.Bool
-                    , funcArgs   =
-                        [RefParam pos (Sym ["en"]) (TypeApply symbol $ map (\x -> TypeApply x []) generics)]
+                    { funcSymbol   = Sym [sym symbol, "is" ++ (toUpper (head str) : tail str)]
+                    , funcRetty    = Retty Type.Bool
+                    , funcArgs     = [RefParam pos (Sym ["en"]) paramType]
                     , funcGenerics = generics
-                    , funcPos = pos
+                    , funcPos      = pos
                     }
             appendStmt $ FuncDef $ Func header (Stmt blkId)
 
@@ -470,7 +479,7 @@ buildStmt statement = withPos statement $ case statement of
 
             let header = FuncHeader
                     { funcSymbol = Sym [sym symbol, str]
-                    , funcRetty  = Retty $ TypeApply symbol (map (\x -> TypeApply x []) generics)
+                    , funcRetty  = Retty paramType
                     , funcArgs   = args
                     , funcGenerics = generics
                     , funcPos = pos
@@ -483,16 +492,14 @@ buildStmt statement = withPos statement $ case statement of
             withCurId blkId $ do
                 appendStmt $ Return pos $ Just $ Reference pos $ Field pos (Ident pos $ Sym ["en"]) i
 
-            let genericTypes = map (\x -> TypeApply x []) generics
-
             retty <- case ts of
                 [t] -> return (RefRetty t)
-                ts  -> return $ RefRetty (TypeApply (Sym ["Tuple"]) ts)
+                ts  -> return $ RefRetty $ Apply (TypeDef $ Sym ["Tuple"]) ts
 
             let header = FuncHeader
                     { funcSymbol = Sym [sym symbol, "from" ++ (toUpper $ head str) : (tail str) ]
                     , funcRetty  = retty
-                    , funcArgs   = [RefParam pos (Sym ["en"]) (TypeApply symbol genericTypes)]
+                    , funcArgs   = [RefParam pos (Sym ["en"]) paramType]
                     , funcGenerics = generics
                     , funcPos = pos
                     }

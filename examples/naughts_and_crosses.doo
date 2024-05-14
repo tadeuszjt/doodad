@@ -31,20 +31,20 @@ type Board Square.Array{3}.Array{3}
 
 fn Store::store(a &Square, b Square)
     Store::store(
-        &builtin_pretend(&a):Sum{Tuple, Tuple, Tuple}
-        builtin_pretend(&b):Sum{Tuple, Tuple, Tuple}
+        &builtin_pretend(&a):Sum{Tuple{}, Tuple{}, Tuple{}}
+        builtin_pretend(&b):Sum{Tuple{}, Tuple{}, Tuple{}}
     )
 
 fn Compare::equal(a Square, b Square) Bool
     return Compare::equal(
-        builtin_pretend(&a):Sum{Tuple, Tuple, Tuple}
-        builtin_pretend(&b):Sum{Tuple, Tuple, Tuple}
+        builtin_pretend(&a):Sum{Tuple{}, Tuple{}, Tuple{}}
+        builtin_pretend(&b):Sum{Tuple{}, Tuple{}, Tuple{}}
     )
 
 fn Store::store(a &Input, b Input)
     Store::store(
-        &builtin_pretend(&a):Sum{Tuple{I64, I64}, Tuple, Tuple}
-        builtin_pretend(&b):Sum{Tuple{I64, I64}, Tuple, Tuple}
+        &builtin_pretend(&a):Sum{Tuple{I64, I64}, Tuple{}, Tuple{}}
+        builtin_pretend(&b):Sum{Tuple{I64, I64}, Tuple{}, Tuple{}}
     )
 
 

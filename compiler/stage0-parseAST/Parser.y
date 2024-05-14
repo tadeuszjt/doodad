@@ -339,16 +339,16 @@ types1N : type__ 'N'                        { [$1] }
 types2N : type__ ',' 'N' types1N            { $1 : $4 }
 
 
-typeArgs : '{' types '}'           { $2 }
+typeArgs : '{' types  '}'          { $2 }
          | '{' 'I' types1N 'D' '}' { $3 }
     
 
 type_     : ordinal_t                      { $1 }
           | '(' type_ ')'                  { $2 }
-          | Symbol                         { TypeApply (snd $1) [] }
-          | Symbol typeArgs                { TypeApply (snd $1) $2 }
-          | type_ '.' Symbol               { TypeApply (snd $3) [$1] }
-          | type_ '.' Symbol typeArgs      { TypeApply (snd $3) ($1:$4) }
+          | Symbol                         { TypeDef (snd $1) }
+          | Symbol typeArgs                { Apply (TypeDef $ snd $1) $2 }
+          | type_ '.' Symbol               { Apply (TypeDef $ snd $3) [$1] }
+          | type_ '.' Symbol typeArgs      { Apply (TypeDef $ snd $3) ($1:$4) }
           | tuple_t                        { $1 }
 
 ordinal_t   : Bool                         { Type.Bool }
@@ -361,7 +361,7 @@ ordinal_t   : Bool                         { Type.Bool }
             | F64                          { F64 }
             | Char                         { Type.Char }
 
-tuple_t : '(' type_ ',' types1 ')' { Type.TypeApply (Sym ["Tuple"]) ($2:$4) }
+tuple_t : '(' type_ ',' types1 ')' { Apply (TypeDef $ Sym ["Tuple"]) ($2:$4) }
 
 {
 parse :: MonadError Error m => [Token] -> m AST

@@ -207,7 +207,12 @@ mapTypeM f typ = do
         Type _         -> return typ
         Void           -> return typ
         Size _         -> return typ
-        TypeApply s ts -> TypeApply s <$> mapM (mapTypeM f) ts
+        TypeDef s      -> return typ
+        Apply t ts     -> do
+            t' <- mapTypeM f t
+            ts' <- mapM (mapTypeM f) ts
+            return (Apply t' ts')
+
         Slice t        -> Slice <$> mapTypeM f t
         _ -> error (show typ)
     case res of

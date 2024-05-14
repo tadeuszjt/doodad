@@ -312,6 +312,7 @@ fn testIo(io &Io)
         table.push((i * 2, i * 3))
 
     io.stdout.push(&table)
+    return
 
 
 fn testArray()
@@ -372,7 +373,7 @@ fn testBoolConditions()
     else
         let false = true
 
-    type AlwaysTrue Tuple{}
+    type AlwaysTrue Tuple
 
     let always : AlwaysTrue
     fn Construct::construct(a AlwaysTrue) Bool
@@ -512,3 +513,4 @@ fn main()
 
     data io Io
     testIo(&io)
+    return

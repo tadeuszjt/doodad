@@ -193,14 +193,17 @@ resolveType typ = case typ of
     x | isSimple x -> return typ
     Size n         -> return typ
     Slice t        -> Slice <$> resolveType t
-    TypeApply s ts -> do
-        symbol <- case s of
-            Sym ["Array"] -> return s
-            Sym ["Table"] -> return s
-            Sym ["Sum"]   -> return s
-            Sym ["Tuple"] -> return s
-            _           -> look s KeyType
-        TypeApply symbol <$> mapM resolveType ts
+    TypeDef s      -> fmap TypeDef $ case s of
+        Sym ["Array"] -> return s
+        Sym ["Table"] -> return s
+        Sym ["Sum"]   -> return s
+        Sym ["Tuple"] -> return s
+        _             -> look s KeyType
+
+    Apply t ts -> do
+        t' <- resolveType t
+        ts' <- mapM resolveType ts
+        return (Apply t' ts')
 
     x -> error (show x)
 

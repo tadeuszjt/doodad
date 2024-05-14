@@ -62,7 +62,6 @@ findCandidates call headers = do
                     return (Just replaced)
 
 
-
 replaceGenericsInFuncHeader :: MonadFail m => FuncHeader -> CallHeader -> m FuncHeader
 replaceGenericsInFuncHeader header call = do
     couldMatch <- callCouldMatchFunc call (header { funcSymbol = callSymbol call })
@@ -84,13 +83,13 @@ replaceGenericsInFuncWithCall func call = do
 unifyOne :: MonadFail m => [Symbol] -> Constraint -> m [(Type, Type)]
 unifyOne generics constraint = case constraint of
     ConsEq t1 t2 -> case (t1, t2) of
-        _ | t1 == t2                            -> return []
-        (TypeApply s [], _) | s `elem` generics -> return [(t1, t2)]
-        (Type _, _)                             -> return [(t1, t2)]
-        (Slice a, Slice b)                      -> return [(t1, t2)]
-        (TypeApply s1 ts1, TypeApply s2 ts2)
-            | length ts1 == length ts2 ->
-                concat <$> zipWithM (\a -> unifyOne generics . ConsEq a) ts1 ts2
+        _ | t1 == t2       -> return []
+        _ | isGeneric t1   -> return [(t1, t2)]
+        (Slice a, Slice b) -> return [(t1, t2)]
+        (Type _, _)        -> return [(t1, t2)]
+
+        (TypeDef _, _) -> error "here"
+        (Apply _ _, _) -> error "here"
 
         _ -> fail $ "cannot unify: " ++ show (t1, t2)
 
@@ -115,34 +114,19 @@ getConstraints call header = do
     return (retCs ++ argCs)
     
 
-
 getConstraintsFromTypes :: MonadFail m => [Symbol] -> Type -> Type -> m [Constraint]
-getConstraintsFromTypes generics t1 t2 = fromTypes t1 t2
-    where
-        fromTypes :: MonadFail m => Type -> Type -> m [Constraint]
-        fromTypes t1 t2 = do
-            case (t1, t2) of
-                (a, b) | a == b            -> return [] 
-                (Type _, _)                -> return [ConsEq t1 t2]
-                (_, Type _)                -> return []
-                (Slice a, Slice b)         -> return [ConsEq a b]
+getConstraintsFromTypes generics t1 t2 = case (t1, t2) of
+    (a, b) | a == b            -> return [] 
+    (Type _, _)                -> return [ConsEq t1 t2]
+    (_, Type _)                -> return []
+    (Slice a, Slice b)         -> return [ConsEq a b]
 
-                (TypeApply s1 ts1, TypeApply s2 ts2)
-                    | s1 `elem` generics -> do 
-                        unless (not $ s2 `elem` generics) (error "unknown")
+    (Apply t1 ts1, Apply t2 ts2) -> do
+        unless (length ts1 == length ts2) (error "type mismatch")
+        concat <$> zipWithM (getConstraintsFromTypes generics) (t1 : ts1) (t2 : ts2)
 
-                        case ts1 of
-                            [] -> return [ConsEq t1 t2]
-                            _  -> do
-                                unless (length ts1 == length ts2) (error "type mismatch")
-                                (ConsEq t1 t2 :) . concat <$> zipWithM fromTypes ts1 ts2
+    _ | isGeneric t1 && isGeneric t2 -> error $ show (t1, t2)
+    _ | isGeneric t1 && not (isGeneric t2) -> return [ConsEq t1 t2]
 
-                    | not (elem s1 generics) && s1 == s2 -> do
-                        unless (length ts1 == length ts2) (error "type mismatch")
-                        (ConsEq t1 t2 :) . concat <$> zipWithM fromTypes ts1 ts2
-
-                    | otherwise -> fail "type mismatch"
-
-                (TypeApply s1 [], t) | elem s1 generics -> return [ConsEq t1 t2]
-
-                _ -> fail $ show (t1, t2)
+    x -> error (show x)
+    _ -> fail $ show (t1, t2)
