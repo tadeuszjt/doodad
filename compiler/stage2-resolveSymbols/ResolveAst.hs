@@ -143,8 +143,18 @@ resolveAst ast imports = fmap fst $ runDoMExcept initResolveState (resolveAst' a
                     define symbol KeyFunc
                     return $ FuncDef $ Func (header { funcSymbol = symbol }) stmt
 
-                _ -> return stmt
+                Feature pos symbol marg headers -> do
+                    symbol' <- genSymbol (SymResolved $ symStr symbol)
+                    define symbol' KeyType
+                    headers' <- forM headers $ \header -> do
+                        fnSymbol' <- genSymbol $
+                            SymResolved (symStr symbol' ++ symStr (funcSymbol header))
+                        define fnSymbol' KeyFunc
+                        return $ header { funcSymbol = fnSymbol' }
 
+                    return (Feature pos symbol' marg headers')
+
+                _ -> return stmt
 
 
             stmts' <- mapM resolveStmt topStmts'
@@ -211,7 +221,41 @@ resolveStmt statement = withPos statement $ case statement of
         popSymbolTable
         return (Typedef pos generics' symbol' typ')
 
-    Feature pos symbol marg headers -> return statement -- TODO does nothing
+    Feature pos symbol marg headers -> do
+        symbol' <- case symbol of
+            SymResolved _ -> return symbol
+            Sym str -> do
+                s <- genSymbol (SymResolved str)
+                define s KeyType
+                return s
+
+        headers' <- forM headers $ \header -> do
+            fnSymbol' <- case funcSymbol header of
+                SymResolved _ -> return (funcSymbol header)
+                Sym str -> do
+                    s <- genSymbol $ SymResolved (symStr symbol' ++ str)
+                    define s KeyFunc
+                    return s
+            return $ header { funcSymbol = fnSymbol' }
+
+        pushSymbolTable
+
+        marg' <- case marg of
+            Nothing -> return Nothing
+            Just arg -> Just . head <$> defineGenerics [arg]
+
+        headers'' <- forM headers' $ \header -> do
+            pushSymbolTable
+            fnGenerics' <- defineGenerics (funcGenerics header)
+            fnArgs' <- mapM resolveParam (funcArgs header)
+            fnRetty' <- resolveRetty (funcRetty header)
+            popSymbolTable
+            return $ header { funcArgs = fnArgs', funcGenerics = fnGenerics', funcRetty = fnRetty' }
+
+        popSymbolTable
+
+        return (Feature pos symbol' marg' headers'')
+
     FuncDef (Func header stmt) -> do
         symbol' <- case (funcSymbol header) of
             SymResolved _ -> return (funcSymbol header)

@@ -74,7 +74,6 @@ define symbol obj = do
     modify $ \s -> s { symTab = Map.insert symbol obj (symTab s) }
 
 
-
 collectFuncDef :: Func -> DoM CollectState ()
 collectFuncDef func = do
     oldRetty <- gets curRetty
@@ -169,12 +168,11 @@ collectExpr (AExpr exprType expression) = collectPos expression $ case expressio
     Int _ _      -> collect "integer is type I64" (ConsEq exprType I64)
     AST.Char _ _ -> collect "char literal must have Char type" (ConsEq exprType Type.Char)
 
-
     Call _ symbol exprs -> do
-        when (Symbol.sym symbol == "construct" && length exprs > 1) $ do
+        when (symbolsCouldMatch symbol (Sym ["Construct", "construct"]) && length exprs > 1) $ do
             void $ collectDefault exprType $ Type.TypeApply (Sym ["Tuple"]) (map typeof exprs)
-
-        when (Symbol.sym symbol == "construct" && length exprs == 1) $ do
+   
+        when (symbolsCouldMatch symbol (Sym ["Construct", "construct"]) && length exprs == 1) $ do
             void $ collectDefault exprType $ typeof (head exprs)
 
         collectCall symbol (map typeof exprs) exprType
@@ -197,117 +195,68 @@ collectExpr (AExpr exprType expression) = collectPos expression $ case expressio
         collectExpr expr
 
     Builtin _ sym exprs -> do 
-        case sym of
-            "builtin_table_at" -> do
-                check (length exprs == 2) "invalid builtin_table_at call"
-                collect "builtin must have I64 type for index argument" $
-                    ConsEq (typeof $ exprs !! 1) I64
-                collect "builtin argument must have table arg" $
-                    ConsEq (typeof $ exprs !! 0) (Type.TypeApply (Sym ["Table"]) [exprType])
+        case (sym, exprs) of
+            ("builtin_table_at", [tab, idx]) -> do
+                collect "index must be I64" $ ConsEq (typeof idx) I64
+                collect "invalid builtin" $ ConsEq (typeof tab) $ TypeApply (Sym ["Table"]) [exprType]
 
-            "builtin_array_at" -> do
-                check (length exprs == 2) "invalid builtin_table_at call"
-                collect "builtin must have I64 type for index" $
-                    ConsEq (typeof $ exprs !! 1) I64
+            ("builtin_array_at", [arr, idx]) -> do
+                collect "index must be I64" $ ConsEq (typeof idx) I64
 
-            "builtin_slice_at" -> do
-                check (length exprs == 2) "invalid builtin_table_at call"
-                collect "builtin must have I64 type for index" $
-                    ConsEq (typeof $ exprs !! 1) I64
-                collect "builtin must have slice argument" $
-                    ConsEq (typeof $ exprs !! 0) (Type.Slice exprType)
+            ("builtin_slice_at", [slc, idx]) -> do
+                collect "index must be I64" $ ConsEq (typeof idx) I64
+                collect "invalid slice type" $ ConsEq (typeof slc) (Slice exprType)
                 
-            "builtin_table_append" -> do
-                check (length exprs == 1) "invalid builtin_table_append call"
-                collect "builtin returns void" $ ConsEq exprType Void
+            ("builtin_table_append", [tab]) -> do
+                collect "void function" (ConsEq exprType Void)
 
-            "builtin_table_slice" -> do
-                check (length exprs == 3) "invalid builtin_table_slice call"
-                collect "builtin must have slice argument" $
-                    ConsSlice exprType (typeof $ head exprs)
+            ("builtin_table_slice", [tab, start, end]) -> do
+                collect "invalid slice type" $ ConsSlice exprType (typeof tab)
+                collect "start must be I64" $ ConsEq (typeof start) I64
+                collect "end must be I64" $ ConsEq (typeof end) I64
 
-            "builtin_sum_enum" -> do
-                check (length exprs == 1) "invalid builtin_sum_enum call"
-                collect "sum enum is I64" $ ConsEq exprType I64
+            ("builtin_sum_enum", [sum]) -> do
+                collect "function returns I64" $ ConsEq exprType I64
 
-            "builtin_sum_reset" -> do
-                check (length exprs == 2) "invalid builtin_sum_reset call"
-                collect "second arg is I64" $ ConsEq (typeof $ exprs !! 1) I64
-                collect "void function" $ ConsEq exprType Void
+            ("builtin_sum_reset", [sum, en]) -> do
+                collect "enum value must be I64" $ ConsEq (typeof en) I64
+                collect "function returns void" $ ConsEq exprType Void
 
-            "builtin_zero" -> do
-                check (length exprs == 0) "invalid builtin_zero call"
+            ("builtin_zero", []) -> return ()
+            ("builtin_pretend", [_]) -> return ()
 
-            "builtin_pretend" -> do
-                check (length exprs == 1) "invalid builtin_pretend call"
+            ("builtin_store", [dst, src]) -> do
+                collect "builtin_store arguments must have same type" $ ConsEq (typeof dst) (typeof src)
+                collect "builtin_store returns void" $ ConsEq Void exprType
 
-            "builtin_store" -> do
-                check (length exprs == 2) "invalid builtin_store call"
-                collect "store args must have same type" $
-                    ConsEq (typeof $ exprs !! 0) (typeof $ exprs !! 1)
-                collect "store returns void" $
-                    ConsEq Void exprType
+            ("builtin_add", [a, b]) -> do
+                collect "builtin_add arguments must have same type" $ ConsEq (typeof a) (typeof b)
+                collect "builtin_add returns same type as arguments" $ ConsEq exprType (typeof a)
 
-            "builtin_add" -> do
-                check (length exprs == 2) "invalid builtin_add call"
-                collect "add args must have same type" $
-                    ConsEq (typeof $ exprs !! 0) (typeof $ exprs !! 1)
-                collect "add return must be same type" $
-                    ConsEq exprType (typeof $ exprs !! 0)
+            ("builtin_subtract", [a, b]) -> do
+                collect "builtin_subtract arguments must have same type" $ ConsEq (typeof a) (typeof b)
+                collect "builtin_subtract returns same type as arguments" $ ConsEq exprType (typeof a)
 
-            "builtin_subtract" -> do
-                check (length exprs == 2) "invalid builtin_subtract call"
-                collect "subtract args must have same type" $
-                    ConsEq (typeof $ exprs !! 0) (typeof $ exprs !! 1)
-                collect "subtract return must be same type" $
-                    ConsEq exprType (typeof $ exprs !! 0)
+            ("builtin_multiply", [a, b]) -> do
+                collect "builtin_multiply arguments must have same type" $ ConsEq (typeof a) (typeof b)
+                collect "builtin_multiply returns same type as arguments" $ ConsEq exprType (typeof a)
 
-            "builtin_subtract" -> do
-                check (length exprs == 2) "invalid builtin_subtract call"
-                collect "subtract args must have same type" $
-                    ConsEq (typeof $ exprs !! 0) (typeof $ exprs !! 1)
-                collect "subtract return must be same type" $
-                    ConsEq exprType (typeof $ exprs !! 0)
+            ("builtin_divide", [a, b]) -> do
+                collect "builtin_divide arguments must have same type" $ ConsEq (typeof a) (typeof b)
+                collect "builtin_divide returns same type as arguments" $ ConsEq exprType (typeof a)
 
-            "builtin_multiply" -> do
-                check (length exprs == 2) "invalid builtin_multiply call"
-                collect "multiply args must have same type" $
-                    ConsEq (typeof $ exprs !! 0) (typeof $ exprs !! 1)
-                collect "multiply return must be same type" $
-                    ConsEq exprType (typeof $ exprs !! 0)
+            ("builtin_modulo", [a, b]) -> do
+                collect "builtin_modulo arguments must have same type" $ ConsEq (typeof a) (typeof b)
+                collect "builtin_modulo returns same type as arguments" $ ConsEq exprType (typeof a)
 
-            "builtin_divide" -> do
-                check (length exprs == 2) "invalid builtin_divide call"
-                collect "divide args must have same type" $
-                    ConsEq (typeof $ exprs !! 0) (typeof $ exprs !! 1)
-                collect "divide return must be same type" $
-                    ConsEq exprType (typeof $ exprs !! 0)
-
-            "builtin_modulo" -> do
-                check (length exprs == 2) "invalid builtin_modulo call"
-                collect "modulo args must have same type" $
-                    ConsEq (typeof $ exprs !! 0) (typeof $ exprs !! 1)
-                collect "modulo return must be same type" $
-                    ConsEq exprType (typeof $ exprs !! 0)
-
-            "builtin_equal" -> do
-                check (length exprs == 2) "invalid builtin_equal call"
-                collect "equal args must have same type" $
-                    ConsEq (typeof $ exprs !! 0) (typeof $ exprs !! 1)
+            ("builtin_equal", [a, b]) -> do
+                collect "builtin_equal arguments must have same type" $ ConsEq (typeof a) (typeof b)
                 collect "builtin_equal returns Bool" $ ConsEq exprType Type.Bool
 
-            "builtin_len" -> do
-                check (length exprs == 1) "invalid builtin_len call"
+            ("builtin_len", [x]) -> do
                 collect "builtin_len returns I64" $ ConsEq exprType Type.I64
 
-            "assert" -> do
-                check (length exprs == 2) "invalid assert exprs"
-                collect "assert must have Bool argument" $
-                    ConsEq (typeof $ exprs !! 0) Type.Bool
-                collect "assert must have Char.Slice message" $
-                    ConsEq (typeof $ exprs !! 1) (Type.Slice Type.Char)
-                collect "assert returns void" $
-                    ConsEq exprType Void
+            _ -> fail "invalid builtin arguments"
 
         mapM_ collectExpr exprs
 
@@ -315,7 +264,6 @@ collectExpr (AExpr exprType expression) = collectPos expression $ case expressio
         typ <- look symbol 
         collect ("identifier type for " ++ prettySymbol symbol ++ " must match expression type") $
             ConsEq typ exprType
-
 
     AST.String _ s -> do
         collect "string literal must have Char.Slice type" $ ConsEq exprType (Type.Slice Type.Char)
@@ -328,7 +276,5 @@ collectExpr (AExpr exprType expression) = collectPos expression $ case expressio
             collect "array expression must have slice type" $
                 ConsEq exprType (Type.Slice $ typeof $ head exprs)
         mapM_ collectExpr exprs
-
-
 
     x -> error (show x)
