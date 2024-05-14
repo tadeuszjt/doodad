@@ -176,7 +176,7 @@ fnHeaders : fnHeader 'N'            { [$1] }
 retty : {-empty-}     { Retty Type.Void }
       | type_         { Retty $1 }
       | '&' type_     { RefRetty $2 }
-      | '[' ']' type_ { Retty (Type.Slice $3) }
+      | '[' ']' type_ { Retty (Apply Type.Slice [$3]) }
 
 line : let pattern '=' expr               { Let (tokPos $1) $2 (Just $4) Nothing }  
      | let pattern                        { Let (tokPos $1) $2 Nothing Nothing }
@@ -231,8 +231,8 @@ Symbol : Ident                           { (tokPos $1, Sym [tokStr $1]) }
 
 param   : ident type_                    { Param (tokPos $1)    (Sym [tokStr $1]) $2 }
         | ident '&' type_                { RefParam (tokPos $1) (Sym [tokStr $1]) $3 }
-        | ident '[' ']' type_            { Param (tokPos $2)    (Sym [tokStr $1]) (Type.Slice $4) }
-        | ident '&' '[' ']' type_        { RefParam (tokPos $2) (Sym [tokStr $1]) (Type.Slice $5) }
+        | ident '[' ']' type_            { Param (tokPos $2)    (Sym [tokStr $1]) (Apply Type.Slice [$4]) }
+        | ident '&' '[' ']' type_        { RefParam (tokPos $2) (Sym [tokStr $1]) (Apply Type.Slice [$5]) }
 params  : {- empty -}                    { [] }
         | params1                        { $1 }
 params1 : param                          { [$1] }

@@ -12,6 +12,7 @@ import std/char
 import std/rand
 import std/features
 import std/sum
+import std/builtin
 
 enum Square {
     empty
@@ -31,34 +32,34 @@ type Board Square.Array{3}.Array{3}
 
 fn Store::store(a &Square, b Square)
     Store::store(
-        &builtin_pretend(&a):Sum{Tuple{}, Tuple{}, Tuple{}}
-        builtin_pretend(&b):Sum{Tuple{}, Tuple{}, Tuple{}}
+        &pretend(&a):Sum{Tuple{}, Tuple{}, Tuple{}}
+        pretend(&b):Sum{Tuple{}, Tuple{}, Tuple{}}
     )
 
 fn Compare::equal(a Square, b Square) Bool
     return Compare::equal(
-        builtin_pretend(&a):Sum{Tuple{}, Tuple{}, Tuple{}}
-        builtin_pretend(&b):Sum{Tuple{}, Tuple{}, Tuple{}}
+        pretend(&a):Sum{Tuple{}, Tuple{}, Tuple{}}
+        pretend(&b):Sum{Tuple{}, Tuple{}, Tuple{}}
     )
 
 fn Store::store(a &Input, b Input)
     Store::store(
-        &builtin_pretend(&a):Sum{Tuple{I64, I64}, Tuple{}, Tuple{}}
-        builtin_pretend(&b):Sum{Tuple{I64, I64}, Tuple{}, Tuple{}}
+        &pretend(&a):Sum{Tuple{I64, I64}, Tuple{}, Tuple{}}
+        pretend(&b):Sum{Tuple{I64, I64}, Tuple{}, Tuple{}}
     )
 
 
 
 fn At::at(board &Board, index I64) &Square.Array{3}
-    return (builtin_pretend(&board):Square.Array{3}.Array{3}).at(index)
+    return (pretend(&board):Square.Array{3}.Array{3}).at(index)
 
 fn Len::len(board &Board) I64
-    return (builtin_pretend(&board):Square.Array{3}.Array{3}).len
+    return (pretend(&board):Square.Array{3}.Array{3}).len
 
 fn Store::store(a &Board, b Board)
     Store::store(
-        &builtin_pretend(&a):Square.Array{3}.Array{3}
-        builtin_pretend(&b):Square.Array{3}.Array{3}
+        &pretend(&a):Square.Array{3}.Array{3}
+        pretend(&b):Square.Array{3}.Array{3}
     )
 
 fn For::begin(b &Board) I64;                       return 0

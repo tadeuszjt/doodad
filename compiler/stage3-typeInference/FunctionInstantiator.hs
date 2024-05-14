@@ -59,7 +59,7 @@ instAst verbose = do
         let isInstantiated = Map.member callHeader (funcInstance ast)
 
         when (not isGeneric && not isInstantiated) $ do
-            instanceSymbol <- liftASTState $ genSymbol $ SymResolved ["instance_" ++ sym (funcSymbol header)]
+            instanceSymbol <- liftASTState $ genSymbol $ SymResolved $ ["instance"] ++ symStr (funcSymbol header)
             let headerInstance = header { funcSymbol = instanceSymbol }
             modifyAST $ \s -> s
                 { funcInstance = Map.insert callHeader (Func headerInstance $ funcStmt func) (funcInstance s)
@@ -112,8 +112,8 @@ resolveFuncCall calledSymbol      argTypes retType = do
 
                     case funcHeaderFullyResolved (funcHeader funcReplaced) of
                         True -> do
-                            instanceSymbol <- liftASTState $ genSymbol $
-                                SymResolved ["instance_" ++ Symbol.sym calledSymbol]
+                            instanceSymbol <- liftASTState $ genSymbol $ SymResolved $
+                                ["instance"] ++ symStr (funcSymbol $ funcHeader funcReplaced)
                             modifyAST $ \s -> s { funcInstance = Map.insert
                                 (callHeaderFromFuncHeader $ funcHeader funcReplaced)
                                 (funcReplaced { funcHeader = (funcHeader funcReplaced)

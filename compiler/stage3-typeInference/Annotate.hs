@@ -52,11 +52,5 @@ deAnnotateMapper elem = return $ case elem of
 hasTypeVars :: Type -> Bool
 hasTypeVars typ = case typ of
     Type _         -> True
-    Void           -> False
-    t | isSimple t -> False
-    Slice t        -> hasTypeVars t
-    Size n         -> False
     Apply t ts     -> any hasTypeVars (t : ts)
-    TypeDef s      -> False
-
-    x -> error (show x)
+    _              -> False

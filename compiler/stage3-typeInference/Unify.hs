@@ -17,7 +17,6 @@ unifyOne info constraint = withPos info $ case constraint of
         _ | t1 == t2             -> return []
         (Type x, t)              -> return [(Type x, t)]
         (t, Type x)              -> return [(Type x, t)]
-        (Slice a, Slice b)       -> unifyOne info (ConsEq a b)
 
         (Apply t1 ts1, Apply t2 ts2)
             | length ts1 == length ts2 ->
@@ -39,7 +38,7 @@ unifyOne info constraint = withPos info $ case constraint of
         basem <- baseTypeOfm typ
         case basem of
             Nothing -> return []
-            Just (Apply (TypeDef (Sym ["Table"])) [t]) -> unifyOne info $ ConsEq exprType (Type.Slice t)
+            Just (Apply (TypeDef (Sym ["Table"])) [t]) -> unifyOne info $ ConsEq exprType (Apply Type.Slice [t])
             x -> error (show x)
 
     ConsDefault t1 t2 -> case (t1, t2) of

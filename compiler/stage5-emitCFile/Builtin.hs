@@ -24,7 +24,7 @@ builtinLen val = case val of
         return $ case base of
             x -> error (show x)
             --TypeApply (Sym ["Table"]) _ -> Value I64 (C.Member expr "len")
-            Slice t                   -> Value I64 (C.Member expr "len")
+            Apply Slice [t]                -> Value I64 (C.Member expr "len")
     --        Type.Array n t -> return $ Value I64 $ C.Int (fromIntegral n)
             _ -> error (show base)
 
@@ -171,7 +171,7 @@ builtinArrayAt value idx@(Value _ _) = do
 builtinSliceAt :: Value -> Value -> Generate Value
 builtinSliceAt val idx@(Value _ _) = do
     I64 <- baseTypeOf idx
-    Slice t <- baseTypeOf val
+    Apply Slice [t] <- baseTypeOf val
     base <- baseTypeOf t
 
     case val of

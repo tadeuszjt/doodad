@@ -17,6 +17,7 @@ import std/slice
 import std/push
 import std/bool
 import std/features
+import std/builtin
 
 
 fn testArithmetic()
@@ -35,8 +36,8 @@ fn testConvert()
 
     fn Store::store(a &MyInt, b MyInt)
         Store::store(
-            &builtin_pretend(&a):I64
-            builtin_pretend(&b):I64
+            &pretend(&a):I64
+            pretend(&b):I64
         )
 
     fn Arithmetic::add(a MyInt, b MyInt) MyInt; return builtin_add(a, b)
@@ -483,7 +484,10 @@ fn testMacroTuple()
     t.MyTuple::two = true
     let true = t.two
 
-
+fn testBuiltin()
+    let x : I64
+    let y : I64 = x.pretend()
+    return
 
 
 fn main()
@@ -510,6 +514,7 @@ fn main()
     testCharType()
     testEnum()
     testMacroTuple()
+    testBuiltin()
 
     data io Io
     testIo(&io)

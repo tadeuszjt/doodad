@@ -5,6 +5,7 @@ import std/tuple
 import std/colours
 import std/maybe
 import std/sum
+import std/builtin
 
 include <SFML/Graphics.h>
 link csfml-graphics
@@ -26,8 +27,8 @@ type Event Sum{None, Closed}
 
 fn Store::store(a &Event, b Event)
     Store::store(
-        &builtin_pretend(&a):Sum{None, Closed}
-        builtin_pretend(&b):Sum{None, Closed}
+        &pretend(&a):Sum{None, Closed}
+        pretend(&b):Sum{None, Closed}
     )
 
 

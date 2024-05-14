@@ -293,7 +293,7 @@ cRefTypeOf a = do
         Apply (TypeDef (Sym ["Table"])) _  -> Cpointer <$> cTypeOf a
         Apply (TypeDef (Sym ["Sum"])) ts   -> Cpointer <$> cTypeOf a
         Apply (TypeDef (Sym ["Array"])) ts -> Cpointer <$> cTypeOf a
-        Slice t -> Cpointer <$> cTypeOf a
+        Apply Slice [t] -> Cpointer <$> cTypeOf a
 
         x -> error (show x)
 
@@ -310,7 +310,7 @@ cTypeOf a = case typeof a of
     Type.Bool      -> return Cbool
     Type.Char      -> return Cchar
 
-    Type.Slice t              -> getTypedef "Slice"  =<< cTypeNoDef (Type.Slice t)
+    Apply Type.Slice [t] -> getTypedef "Slice" =<< cTypeNoDef (typeof a)
 
     TypeDef (Sym ["Tuple"])           -> getTypedef "Tuple" =<< cTypeNoDef (typeof a)
     Apply (TypeDef (Sym ["Tuple"])) t -> getTypedef "Tuple" =<< cTypeNoDef (typeof a)
@@ -325,10 +325,6 @@ cTypeOf a = case typeof a of
     TypeDef s -> do
         ([], typ) <- (Map.! s) <$> getTypeDefs
         getTypedef (Symbol.sym s) =<< cTypeOf typ
-
---    TypeApply symbol args -> do
---        (generics, typ) <- (Map.! symbol) <$> getTypeDefs
---        getTypedef (Symbol.sym symbol) =<< cTypeOf =<< applyTypeArguments generics args typ
 
     x -> error (show x)
 
@@ -345,7 +341,7 @@ cTypeOf a = case typeof a of
             Type.Bool -> return Cbool
             Type.Char -> return Cchar
 
-            Type.Slice t -> do
+            Apply Type.Slice [t] -> do
                 cType <- cTypeOf t
                 return $ Cstruct [C.Param "ptr" (Cpointer cType), C.Param "len" Csize_t]
 

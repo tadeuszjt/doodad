@@ -203,18 +203,11 @@ mapPattern f pattern = withPos pattern $ do
 mapTypeM :: MapperFunc s -> Type -> DoM s Type
 mapTypeM f typ = do
     res <- f . ElemType =<< case typ of
-        x | isSimple x -> return typ
-        Type _         -> return typ
-        Void           -> return typ
-        Size _         -> return typ
-        TypeDef s      -> return typ
         Apply t ts     -> do
             t' <- mapTypeM f t
             ts' <- mapM (mapTypeM f) ts
             return (Apply t' ts')
-
-        Slice t        -> Slice <$> mapTypeM f t
-        _ -> error (show typ)
+        _ -> return typ
     case res of
         ElemType x -> return x
         _          -> error "result wasn't ElemType"

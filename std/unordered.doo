@@ -4,6 +4,7 @@ import std/sparse
 import std/table
 import std/integer
 import std/features
+import std/builtin
 
 type{T} Key I64
 
@@ -20,8 +21,8 @@ tuple{T} Unordered {
 
 fn{T} Store::store(a &T.unordered::Key, b T.unordered::Key)
     Store::store(
-        &builtin_pretend(&a):I64
-        builtin_pretend(&b):I64
+        &pretend(&a):I64
+        pretend(&b):I64
     )
 
 fn{T} Store::store(a &T.Entry, b T.Entry)
@@ -37,13 +38,13 @@ fn{T} Construct::construct(a I64.unordered::Key, b T) T.Entry
 
 
 fn{T} Construct::construct(n I64) T.unordered::Key
-    return builtin_pretend(&n)
+    return pretend(&n)
 
 fn{A, B} Construct::construct(x A.unordered::Key) B.sparse::Key
-    return x.builtin_pretend
+    return x.pretend
 
 fn{A, B} Construct::construct(x A.sparse::Key) B.unordered::Key
-    return x.builtin_pretend
+    return x.pretend
 
 
 fn{T} Len::len(u &T.Unordered) I64
@@ -52,8 +53,8 @@ fn{T} Len::len(u &T.Unordered) I64
 
 fn{T} insert(u &T.Unordered, elem T) T.unordered::Key
     let key = u.indices.insert(u.values.len)
-    u.values.push( (key.builtin_pretend, elem) : T.Entry )
-    return key.builtin_pretend
+    u.values.push( (key.pretend, elem) : T.Entry )
+    return key.pretend
 
 
 fn{T} insert(u &T.Unordered) T.unordered::Key
@@ -64,7 +65,7 @@ fn{T} insert(u &T.Unordered) T.unordered::Key
 
 
 fn{T} At::at(u &T.Unordered, key T.unordered::Key) &T
-    let index = u.indices.At::at(key.builtin_pretend)
+    let index = u.indices.At::at(key.pretend)
     return &u.values.at(index).value
 
 
@@ -78,6 +79,6 @@ fn{T} delete(u &T.Unordered, key T.unordered::Key)
     let index  = u.indices.at(I64.sparse::Key(key))
 
     u.values.at(index) = u.values.at(end)
-    u.indices.at(endKey.builtin_pretend) = index
-    u.indices.delete(key.builtin_pretend)
+    u.indices.at(endKey.pretend) = index
+    u.indices.delete(key.pretend)
     u.values.pop

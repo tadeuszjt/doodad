@@ -85,11 +85,12 @@ unifyOne generics constraint = case constraint of
     ConsEq t1 t2 -> case (t1, t2) of
         _ | t1 == t2       -> return []
         _ | isGeneric t1   -> return [(t1, t2)]
-        (Slice a, Slice b) -> return [(t1, t2)]
         (Type _, _)        -> return [(t1, t2)]
 
+        (Apply Slice [t1], Apply Slice [t2]) -> return [(t1, t2)]
+
         (TypeDef _, _) -> error "here"
-        (Apply _ _, _) -> error "here"
+        (Apply (TypeDef _) _, _) -> error $ show (t1, t2)
 
         _ -> fail $ "cannot unify: " ++ show (t1, t2)
 
@@ -119,7 +120,6 @@ getConstraintsFromTypes generics t1 t2 = case (t1, t2) of
     (a, b) | a == b            -> return [] 
     (Type _, _)                -> return [ConsEq t1 t2]
     (_, Type _)                -> return []
-    (Slice a, Slice b)         -> return [ConsEq a b]
 
     (Apply t1 ts1, Apply t2 ts2) -> do
         unless (length ts1 == length ts2) (error "type mismatch")

@@ -189,10 +189,6 @@ resolveRetty retty = case retty of
 
 resolveType :: Type -> DoM ResolveState Type
 resolveType typ = case typ of
-    Void           -> return typ
-    x | isSimple x -> return typ
-    Size n         -> return typ
-    Slice t        -> Slice <$> resolveType t
     TypeDef s      -> fmap TypeDef $ case s of
         Sym ["Array"] -> return s
         Sym ["Table"] -> return s
@@ -205,7 +201,7 @@ resolveType typ = case typ of
         ts' <- mapM resolveType ts
         return (Apply t' ts')
 
-    x -> error (show x)
+    _ -> return typ
 
 
 resolveStmt :: Stmt -> DoM ResolveState Stmt
@@ -377,7 +373,6 @@ resolveExpr expression = withPos expression $ case expression of
                    , "builtin_slice_at"
                    , "builtin_array_at"
                    , "builtin_zero"
-                   , "builtin_pretend"
                    , "builtin_sum_enum"
                    , "builtin_sum_reset"
                    , "builtin_store"

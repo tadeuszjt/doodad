@@ -39,7 +39,7 @@ data Type
     | Char                   
     | Apply Type [Type]
     | TypeDef Symbol
-    | Slice Type
+    | Slice
     | Size Int
     deriving (Eq, Ord)
 
@@ -59,7 +59,7 @@ instance Show Type where
         TypeDef s     -> prettySymbol s
         Apply t1 [t2] -> show t2 ++ "." ++ show t1
         Apply t ts    -> show t ++ "{" ++ intercalate ", " (map show ts) ++ "}"
-        Slice t       -> "[]" ++ show t
+        Slice         -> "[]"
         Size n        -> show n
         x -> error ""
 
@@ -103,22 +103,8 @@ isGeneric _           = False
 
 mapType :: (Type -> Type) -> Type -> Type
 mapType f typ = f $ case typ of
-    U8 -> typ
-    I8 -> typ
-    I16 -> typ
-    I32 -> typ
-    I64 -> typ
-    F32 -> typ
-    F64 -> typ
-    Bool -> typ
-    Char -> typ
-    Void    -> typ
-    Type _  -> typ
-    Size _   -> typ
-    Slice t  -> Slice (mapType f t)
     Apply t ts -> Apply (mapType f t) $ map (mapType f) ts
-    TypeDef s -> typ
-    _ -> error (show typ)
+    _          -> typ
 
 
 baseTypeOf :: (MonadFail m, TypeDefs m, Typeof a) => a -> m Type
@@ -132,9 +118,9 @@ baseTypeOf a = do
 baseTypeOfm :: (MonadFail m, TypeDefs m, Typeof a) => a -> m (Maybe Type)
 baseTypeOfm a = case typeof a of
     Type x         -> return Nothing
-    t | isSimple t -> return $ Just t
-    Slice _        -> return $ Just (typeof a)
-    Void           -> return $ Just Void
+    t | isSimple t -> return $ Just (typeof a)
+    Slice          -> return $ Just (typeof a)
+    Void           -> return $ Just (typeof a)
 
     TypeDef s | isBaseSym s           -> return $ Just (typeof a)
     Apply (TypeDef s) _ | isBaseSym s -> return $ Just (typeof a)
@@ -150,6 +136,8 @@ baseTypeOfm a = case typeof a of
         case resm of
             Nothing -> return Nothing
             Just ([], t) -> baseTypeOfm t
+
+    Apply _ _ -> return $ Just (typeof a)
 
     x -> error (show x)
     where
@@ -184,7 +172,6 @@ typesCouldMatch t1 t2 = case (t1, t2) of
     (a, b) | a == b            -> return True
     (Type _, _)                -> return True
     (_, Type _)                -> return True
-    (Slice a, Slice b)         -> typesCouldMatch a b
 
     (TypeDef s, _) | isGeneric t1 -> return True
     (_, TypeDef s) | isGeneric t2 -> return True
@@ -201,12 +188,7 @@ typesCouldMatch t1 t2 = case (t1, t2) of
 
 typeFullyResolved :: Type -> Bool
 typeFullyResolved typ = case typ of
-    x | isGeneric x -> False
-    x | isSimple x -> True
-    Apply t ts     -> all typeFullyResolved (t : ts)
-    Slice t        -> typeFullyResolved t
-    Void           -> True
-    Size _         -> True
     Type _         -> False
-    TypeDef s      -> True
-    x -> error $ "typeFullyResolved: " ++ show x
+    x | isGeneric x -> False
+    Apply t ts     -> all typeFullyResolved (t : ts)
+    _              -> True

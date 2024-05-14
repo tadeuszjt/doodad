@@ -112,7 +112,6 @@ collectStmt statement = collectPos statement $ case statement of
 
     While _ expr blk -> do
         collect "while condition must have bool type" $ ConsEq Type.Bool (typeof expr)
-        collectDefault Type.Bool (typeof expr)
         collectExpr expr
         collectStmt blk
 
@@ -206,7 +205,7 @@ collectExpr (AExpr exprType expression) = collectPos expression $ case expressio
 
             ("builtin_slice_at", [slc, idx]) -> do
                 collect "index must be I64" $ ConsEq (typeof idx) I64
-                collect "invalid slice type" $ ConsEq (typeof slc) (Slice exprType)
+                collect "invalid slice type" $ ConsEq (typeof slc) (Apply Slice [exprType])
                 
             ("builtin_table_append", [tab]) -> do
                 collect "void function" (ConsEq exprType Void)
@@ -224,7 +223,6 @@ collectExpr (AExpr exprType expression) = collectPos expression $ case expressio
                 collect "function returns void" $ ConsEq exprType Void
 
             ("builtin_zero", []) -> return ()
-            ("builtin_pretend", [_]) -> return ()
 
             ("builtin_store", [dst, src]) -> do
                 collect "builtin_store arguments must have same type" $ ConsEq (typeof dst) (typeof src)
@@ -267,7 +265,7 @@ collectExpr (AExpr exprType expression) = collectPos expression $ case expressio
             ConsEq typ exprType
 
     AST.String _ s -> do
-        collect "string literal must have Char.Slice type" $ ConsEq exprType (Type.Slice Type.Char)
+        collect "string literal must have Char.Slice type" $ ConsEq exprType (Apply Type.Slice [Type.Char])
 
     AST.Array _ exprs -> do
         when (length exprs > 0) $ do
@@ -275,7 +273,7 @@ collectExpr (AExpr exprType expression) = collectPos expression $ case expressio
                 collect "elements in array must have same type" $
                     ConsEq (typeof $ exprs !! i) (typeof $ head exprs)
             collect "array expression must have slice type" $
-                ConsEq exprType (Type.Slice $ typeof $ head exprs)
+                ConsEq exprType (Apply Type.Slice [typeof $ head exprs])
         mapM_ collectExpr exprs
 
     x -> error (show x)

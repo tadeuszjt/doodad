@@ -3,6 +3,7 @@ module sparse
 import std/table
 import std/bool
 import std/integer
+import std/builtin
 
 type{T} Key    I64
 
@@ -13,12 +14,12 @@ tuple{T} Sparse {
 
 fn{T} Store::store(a &T.Key, b T.Key)
     Store::store(
-        &builtin_pretend(&a):I64
-        builtin_pretend(&b):I64
+        &pretend(&a):I64
+        pretend(&b):I64
     )
 
-fn{T} Construct::construct(n I64) T.Key; return n.builtin_pretend
-fn{T} Construct::construct(k T.Key) I64; return k.builtin_pretend
+fn{T} Construct::construct(n I64) T.Key; return n.pretend
+fn{T} Construct::construct(k T.Key) I64; return k.pretend
 
 fn{T} Len::len(s &T.Sparse) I64
     return s.values.Len::len - s.empty.len

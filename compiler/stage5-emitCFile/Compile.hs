@@ -52,7 +52,7 @@ generate = withErrorPrefix "generate: " $ do
     forM_ (funcInstance ast) $ \(func) -> do
         generateFunc False (funcSymbol $ funcHeader func) func
 
-        when ((sym $ funcSymbol $ funcHeader func) == "instance_main") $ do
+        when (symbolsCouldMatch (Sym ["main"]) (funcSymbol $ funcHeader func)) $ do
             id <- newFunction
                 Cint
                 "main"  
@@ -192,7 +192,8 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
 --            _                          -> [C.Int 0]
         return $ Value typ (C.Ident name)
 
-    S.Builtin _ "builtin_pretend" [expr] -> do
+    S.Call _ symbol exprs | symbolsCouldMatch (Sym ["builtin", "pretend"]) symbol -> do
+        let [expr] = exprs
         Ref exprType refExpr <- generateExpr expr
 
         base <- baseTypeOf typ
@@ -213,7 +214,7 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
 
         -- TODO this is broken 
         Apply (TypeDef (Sym ["Table"])) [t] <- baseTypeOf ref
-        assign "slice" $ Value (Slice t) $
+        assign "slice" $ Value (Apply Slice [t]) $
             C.Initialiser
                 [ C.Address (C.Subscript (C.PMember exp "r0") (valExpr srt))
                 , C.Infix C.Minus (C.PMember exp "len") (valExpr srt)
@@ -228,7 +229,7 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
     S.Builtin _ "builtin_slice_at" [expr1, expr2] -> do
         val <- generateExpr expr1
         idx <- generateExpr expr2
-        Slice _ <- baseTypeOf val
+        Apply Slice _ <- baseTypeOf val
         builtinSliceAt val idx
 
     S.Builtin _ "builtin_array_at" [expr1, expr2] -> do
