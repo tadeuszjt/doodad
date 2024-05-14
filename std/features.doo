@@ -1,44 +1,44 @@
 module features
 
-feature Arithmetic
-    fn{T} add(a T, b T) T
-    fn{T} subtract(a T, b T) T
-    fn{T} times(a T, b T) T
-    fn{T} divide(a T, b T) T
-    fn{T} modulo(a T, b T) T
+feature Arithmetic{T}
+    fn add(T, T) T
+    fn subtract(T, T) T
+    fn times(T, T) T
+    fn divide(T, T) T
+    fn modulo(T, T) T
 
 
-feature Boolean
-    fn{T} and(a T, b T) Bool
-    fn{T} or(a T, b T) Bool
-    fn{T} not(a T) T
+feature Boolean{T}
+    fn and(T, T) T
+    fn or(T, T) T
+    fn not(T) T
 
 
-feature Compare
-    fn{T} greater(a T, b T) Bool
-    fn{T} less(a T, b T) Bool
-    fn{T} equal(a T, b T) Bool
+feature Compare{T}
+    fn greater(T, T) Bool
+    fn less(T, T) Bool
+    fn equal(T, T) Bool
 
 
-feature Len
-    fn{T} len(a &T) I64
+feature Len{T}
+    fn len(T) I64
 
 
-feature At
-    fn{T, K, V} at(a &T, i K) &V
+feature At{T}
+    fn{K, V} at(T, K) V
 
 
-feature Construct
-    fn{T, A}       construct(a A) T
-    fn{T, A, B}    construct(a A, b B) T
-    fn{T, A, B, C} construct(a A, b B, c C) T
+feature Construct{T}
+    fn{A}       construct(A) T
+    fn{A, B}    construct(A, B) T
+    fn{A, B, C} construct(A, B, C) T
 
 
-feature Store
-    fn{T, G} store(a &T, b G)
+feature Store{T}
+    fn{G} store(T, G)
 
 
-feature For
-    fn{T} begin(t &T) I64
-    fn{T} end(t &T) I64
-    fn{T, G} at(t &T, idx I64) &G
+feature For{T}
+    fn    begin(T) I64
+    fn    end(T) I64
+    fn{G} at(T, I64) G

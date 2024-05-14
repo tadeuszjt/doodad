@@ -98,7 +98,7 @@ parse args file = do
 buildBinaryFromModule :: Args -> FilePath -> DoM s ()
 buildBinaryFromModule args modPath = do
     doodadPath <- liftIO $ getEnv "DOODAD_PATH"
-    state <- fmap snd $ runDoMExcept (initModulesState doodadPath) (buildModule args modPath)
+    state <- fmap snd $ runDoMExcept (initModulesState doodadPath) (buildModule True args modPath)
 
     let hDoodad   = joinPath [doodadPath, "include"]
     let cDoodad   = joinPath [doodadPath, "include/doodad.c"]
@@ -150,8 +150,8 @@ getCanonicalModPath path = do
     liftIO (canonicalizePath modPath')
 
 
-buildModule :: Args -> FilePath -> DoM Modules ()
-buildModule args modPath = do
+buildModule :: Bool -> Args -> FilePath -> DoM Modules ()
+buildModule isMain args modPath = do
     doodadPath <- gets doodadPath
     absoluteModPath <- getCanonicalModPath modPath
 
@@ -171,13 +171,13 @@ buildModule args modPath = do
         ast <- preprocess astNoPre
 
 
-        when (printAst args) $ liftIO (S.prettyAST ast)
+        when (isMain && printAst args) $ liftIO (S.prettyAST ast)
 
         -- read imports and compile imported modules first
         importPaths <- fmap (Set.toList . Set.fromList) $
             forM [fp | S.Import fp <- S.astImports ast] $ \importPath -> do
                 getCanonicalModPath importPath
-        mapM (buildModule args) importPaths
+        mapM (buildModule False args) importPaths
 
         -- compile this module
         liftIO $ putStrLn ("compiling: " ++ absoluteModPath)
@@ -197,7 +197,7 @@ buildModule args modPath = do
 
         let astResolved = astCombined'
 
-        when (printAstResolved args) $ liftIO (prettyASTResolved astResolved)
+        when (isMain && printAstResolved args) $ liftIO (prettyASTResolved astResolved)
 
 
         -- infer ast types
@@ -206,7 +206,8 @@ buildModule args modPath = do
             infer astResolved (printAstAnnotated args) (verbose args)
         when (verbose args) $ do
             liftIO $ putStrLn $ "ran:       " ++ show inferCount ++ " type inference passes"
-        when (printAstFinal args) $ liftIO (prettyASTResolved astFinal)
+
+        when (isMain && printAstFinal args ) $ liftIO (prettyASTResolved astFinal)
         
         modify $ \s -> s { moduleMap = Map.insert absoluteModPath astFinal (moduleMap s) }
 

@@ -150,19 +150,28 @@ tupleFields : {-empty-}                       { [] }
 ---------------------------------------------------------------------------------------------------
 -- Statements -------------------------------------------------------------------------------------
 
+
+featureDef : feature Ident featureType 'I' featureHeaders 'D' { Feature (tokPos $1) (Sym [tokStr $2]) $3 $5 }
+featureHeader : fn generics ident '(' types ')' retty
+    { FuncHeader (tokPos $1) $2 (Sym [tokStr $3]) (map (Param (tokPos $1) (Sym [])) $5) $7 }
+
+featureType : {-empty-}     { Nothing }
+            | '{' Ident '}' { (Just $ Sym [tokStr $2]) }
+featureHeaders : {-empty-}                        { [] }
+               | featureHeader 'N' featureHeaders { ($1 : $3) }
+
+
+
 fnSymbol : ident            { Sym [tokStr $1] }
          | Ident '::' ident { Sym [tokStr $1, tokStr $3] }
 
 fnHeader : fn generics fnSymbol '(' paramsA ')' retty
             { AST.FuncHeader (tokPos $1) $2 $3 $5 $7 }
 
-func : fnHeader scope  { Func $1 $2 }
+funcDef : fnHeader scope  { FuncDef (Func $1 $2) }
 
 fnHeaders : fnHeader 'N'            { [$1] }
           | fnHeader 'N' fnHeaders  { ($1 : $3) }
-
-generics : {-empty-}                      { [] }
-         | '{' Idents1 '}'                { map (\s -> Symbol.Sym [s]) $2 }
 
 retty : {-empty-}     { Retty Type.Void }
       | type_         { Retty $1 }
@@ -187,8 +196,8 @@ block : if_                               { $1 }
       | switch expr 'I' cases1 'D'        { Switch (tokPos $1) $2 $4 }
       | let pattern '='  expr in scope    { Let (tokPos $1) $2 (Just $4) (Just $6) }
       | let pattern in scope              { Let (tokPos $1) $2 Nothing (Just $4) }
-      | func                              { FuncDef $1 }
-      | feature Ident 'I' fnHeaders 'D'   { Feature (tokPos $1) (Sym [tokStr $2]) $4 }
+      | funcDef                           { $1 }
+      | featureDef                        { $1 }
 
 if_   : if condition scope else_          { If (tokPos $1) $2 $3 $4 }
       | if condition 'N' else_            { If (tokPos $1) $2 (Block []) $4 }
@@ -236,6 +245,9 @@ paramsA : params                         { $1 }
 paramsA1 : params1                       { $1 }
          | 'I' paramsN 'D'               { $2 }
 
+
+generics : {-empty-}                      { [] }
+         | '{' Idents1 '}'                { map (\s -> Symbol.Sym [s]) $2 }
 
 ---------------------------------------------------------------------------------------------------
 -- Patterns ---------------------------------------------------------------------------------------

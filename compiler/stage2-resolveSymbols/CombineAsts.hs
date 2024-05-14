@@ -51,7 +51,7 @@ combineAsts (ast, supply) imports = fmap snd $
                 FuncDef (Func header stmt) ->
                     modify $ \s -> s { funcDefsTop = Set.insert (funcSymbol header) (funcDefsTop s) }
 
-                Feature _ _ _ -> return ()
+                Feature _ _ _ _ -> return ()
 
 
 combineMapper :: Elem -> DoM ASTResolved Elem
@@ -69,7 +69,7 @@ combineMapper element = case element of
         forM stmts $ \stmt -> case stmt of
             Typedef _ _ _ _ -> return Nothing
             FuncDef _       -> return Nothing
-            Feature _ _ _   -> return Nothing
+            Feature _ _ _ _ -> return Nothing
             _               -> return (Just stmt)
 
     _ -> return element

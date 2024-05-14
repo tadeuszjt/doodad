@@ -160,8 +160,8 @@ prettyASTResolved ast = do
     putStrLn ""
     putStrLn "funcInstance:"
     forM_ (Map.toList $ funcInstance ast) $ \(call, func) -> do
-        putStr $ "\t" ++ show call ++ ": "
-        prettyStmt "" $ FuncDef func
+        putStrLn $ show call ++ ":"
+        prettyStmt "\t" $ FuncDef func
 
     putStrLn ""
     putStrLn "funcInstanceImported:"

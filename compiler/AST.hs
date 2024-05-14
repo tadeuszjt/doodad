@@ -38,6 +38,7 @@ data Param
         }
     deriving (Eq, Ord)
 
+type Generics = [Symbol]
 
 data Retty
     = Retty Type
@@ -95,7 +96,7 @@ instance Typeof Pattern where
 data FuncHeader
     = FuncHeader
         { funcPos :: TextPos
-        , funcGenerics :: [Symbol]
+        , funcGenerics :: Generics
         , funcSymbol :: Symbol
         , funcArgs :: [Param]
         , funcRetty :: Retty
@@ -131,15 +132,15 @@ data Stmt
     | If          TextPos Expr Stmt (Maybe Stmt)
     | While       TextPos Expr Stmt
     | FuncDef     Func
-    | Feature     TextPos Symbol [FuncHeader]
-    | Typedef     TextPos [Symbol] Symbol Type
+    | Feature     TextPos Symbol (Maybe Symbol) [FuncHeader]
+    | Typedef     TextPos Generics Symbol Type
     | Switch      TextPos Expr [(Pattern, Stmt)]
     | For         TextPos Expr (Maybe Pattern) Stmt
     | Data        TextPos Symbol Type (Maybe Expr)
     | EmbedC      TextPos String
     | Assign      TextPos Symbol Expr
-    | Enum        TextPos [Symbol] Symbol [ (Symbol, [Type] ) ]
-    | MacroTuple  TextPos [Symbol] Symbol [ (String, Type) ]
+    | Enum        TextPos Generics Symbol [ (Symbol, [Type] ) ]
+    | MacroTuple  TextPos Generics Symbol [ (String, Type) ]
     deriving (Eq, Show)
 
 
@@ -189,7 +190,7 @@ instance TextPosition Stmt where
         For         p _ _ _ -> p
         Data        p _ _ _ -> p
         EmbedC      p _ -> p
-        Feature     p _ _ -> p
+        Feature     p _ _ _ -> p
         Enum        p _ _ _ -> p
         MacroTuple  p _ _ _ -> p
         Assign      p _ _ -> p
@@ -272,8 +273,11 @@ prettyStmt pre stmt = case stmt of
         prettyStmt pre blk
         putStrLn ""
 
-    Feature pos symbol headers -> do
-        putStrLn $ pre ++ "feature " ++ prettySymbol symbol
+    Feature pos symbol marg headers -> do
+        argStr <- case marg of
+            Nothing -> return ""
+            Just arg -> return (brcStrs [prettySymbol arg])
+        putStrLn $ pre ++ "feature " ++ prettySymbol symbol ++ argStr
         forM_ headers $ \header -> do
             putStrLn $ pre ++ "\t" ++ show header
 

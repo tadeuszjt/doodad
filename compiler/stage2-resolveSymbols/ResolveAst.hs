@@ -211,7 +211,7 @@ resolveStmt statement = withPos statement $ case statement of
         popSymbolTable
         return (Typedef pos generics' symbol' typ')
 
-    Feature pos symbol headers -> return statement -- TODO does nothing
+    Feature pos symbol marg headers -> return statement -- TODO does nothing
     FuncDef (Func header stmt) -> do
         symbol' <- case (funcSymbol header) of
             SymResolved _ -> return (funcSymbol header)
