@@ -146,10 +146,6 @@ mapExprM f expr = withPos expr $ do
             expr' <- mapExprM f expr
             return $ Field pos expr' n
 
-        Builtin pos symbol es -> do
-            es' <- mapM (mapExprM f) es
-            return (Builtin pos symbol es')
-
         AST.Match pos expr pattern -> do
             expr' <- mapExprM f expr
             pattern' <- mapPattern f pattern

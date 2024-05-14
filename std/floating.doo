@@ -1,16 +1,17 @@
 module floating
 
 import std/features
+import std/builtin
 
-fn Store::store(a &F64, b F64); builtin_store(&a, b)
+fn Store::store(a &F64, b F64); builtin::store(&a, b)
 
 fn Construct::construct(a F64) F64
     let b : F64
     ${ $b = $a; }
     return b
 
-fn Arithmetic::add(a F64, b F64) F64;    return builtin_add(a, b)
-fn Arithmetic::divide(a F64, b F64) F64; return builtin_divide(a, b)
-fn Compare::equal(a F64, b F64) Bool;    return builtin_equal(a, b)
+fn Arithmetic::add(a F64, b F64) F64;    return builtin::add(a, b)
+fn Arithmetic::divide(a F64, b F64) F64; return builtin::divide(a, b)
+fn Compare::equal(a F64, b F64) Bool;    return builtin::equal(a, b)
 
 

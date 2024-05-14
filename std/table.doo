@@ -2,6 +2,7 @@ module table
 
 import std/integer
 import std/features
+import std/builtin
 
 
 fn{T} Store::store(table &T.Table, slice []T)
@@ -9,7 +10,7 @@ fn{T} Store::store(table &T.Table, slice []T)
     table.push(slice)
 
 
-fn{T} Len::len(table &T.Table) I64; return builtin_len(&table)
+fn{T} Len::len(table &T.Table) I64; return builtin::tableLen(&table)
 
 
 fn{T} For::begin(table &T.Table) I64;         return 0
@@ -21,16 +22,16 @@ fn{T} Pattern::sliceAt(table &T.Table, idx I64) &T; return table.at(idx)
 
 
 fn{T} At::at(table &T.Table, index I64) &T
-    return builtin_table_at(&table, index)
+    return builtin::tableAt(&table, index)
 
 
 fn{T} push(table &T.Table, item T)
-    builtin_table_append(&table)
+    builtin::tableAppend(&table)
     table[table.len - 1] = item
 
 
 fn{T} push(table &T.Table)
-    builtin_table_append(&table)
+    builtin::tableAppend(&table)
 
 
 fn{T} pop(table &T.Table) T
@@ -45,4 +46,4 @@ fn{T} push(table &T.Table, slice []T)
 
 
 fn{T} slice(table &T.Table, start I64, end I64) []T
-    return builtin_table_slice(&table, start, end)
+    return builtin::tableSlice(&table, start, end)

@@ -40,15 +40,15 @@ fn testConvert()
             pretend(&b):I64
         )
 
-    fn Arithmetic::add(a MyInt, b MyInt) MyInt; return builtin_add(a, b)
-    fn Compare::equal(a MyInt, b MyInt) Bool; return builtin_equal(a, b)
+    fn Arithmetic::add(a MyInt, b MyInt) MyInt; return builtin::add(a, b)
+    fn Compare::equal(a MyInt, b MyInt) Bool; return builtin::equal(a, b)
 
     fn Construct::construct(a I64) MyInt
         let b : MyInt
         ${ $a = $b; }
         return b
 
-    let 1 : MyInt = add(0, 1)
+    let 1 : MyInt = Arithmetic::add(0, 1)
 
     let x : MyInt = 3
     let 4 : MyInt = 1 + x
@@ -123,8 +123,8 @@ fn testTable()
     let 1 = table.at(0)
 
     let 2 = table.at(1)
-    builtin_table_at(&table, 1) = 3
-    let 3 = builtin_table_at(&table, 1)
+    builtin::tableAt(&table, 1) = 3
+    let 3 = builtin::tableAt(&table, 1)
 
     let 3 = table.pop
     let 3 = table.pop
@@ -318,9 +318,9 @@ fn testIo(io &Io)
 
 fn testArray()
     let array : I64.Array{4}
-    builtin_array_at(&array, 2) = 78
-    let 0 = builtin_array_at(&array, 1)
-    let 78 = builtin_array_at(&array, 2)
+    builtin::arrayAt(&array, 2) = 78
+    let 0 = builtin::arrayAt(&array, 1)
+    let 78 = builtin::arrayAt(&array, 2)
 
     let 4 = array.len
     let 78 = array[2]
@@ -451,7 +451,7 @@ fn testEnum()
         _ | e.isOne; let true = true
         _ | e.isTwo; let false = true
 
-    e.builtin_sum_reset(1)
+    e.builtin::sumReset(1)
 
     switch e
         _ | e.isOne; let true = false

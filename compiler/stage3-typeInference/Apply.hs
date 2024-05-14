@@ -60,7 +60,6 @@ applyExpr subs expression = case expression of
     AST.Bool pos b -> AST.Bool pos b
     AST.Char pos c -> AST.Char pos c
     Call pos symbol args -> Call pos symbol (map applyEx args)
-    Builtin pos symbol args -> Builtin pos symbol (map applyEx args)
     AST.Int pos n -> AST.Int pos n
     AST.Float pos n -> AST.Float pos n
     AST.String pos s -> AST.String pos s

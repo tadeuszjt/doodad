@@ -176,8 +176,6 @@ checkExpr (AExpr exprType expression) = withPos expression $ case expression of
         checkPattern pat
         return NodeNull
 
-    Builtin pos symbol exprs -> return NodeNull
-
     AST.Reference pos expr -> checkExpr expr
 
     x -> fail ("unknown expression: " ++ show x)

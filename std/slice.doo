@@ -2,6 +2,7 @@ module slice
 
 import std/integer
 import std/features
+import std/builtin
 
 
 fn{T} Len::len(s &[]T) I64
@@ -19,4 +20,4 @@ fn{T} Pattern::sliceAt(s &[]T, idx I64) &T; return s.at(idx)
 
 
 fn{T} At::at(s &[]T, idx I64) &T
-    return builtin_slice_at(&s, idx)
+    return builtin::sliceAt(&s, idx)

@@ -2,19 +2,20 @@ module sum
 
 import std/features
 import std/tuple
+import std/builtin
 
 
 fn{A, B} Store::store(a &Sum{A, B}, b Sum{A, B})
-    let en = b.builtin_sum_enum
-    a.builtin_sum_reset(en)
+    let en = b.builtin::sumEnum
+    a.builtin::sumReset(en)
     switch en
         0; a.0 = b.0
         1; a.1 = b.1
 
 
 fn{A, B, C} Store::store(a &Sum{A, B, C}, b Sum{A, B, C})
-    let en = b.builtin_sum_enum
-    a.builtin_sum_reset(en)
+    let en = b.builtin::sumEnum
+    a.builtin::sumReset(en)
     switch en
         0; a.0 = b.0
         1; a.1 = b.1
@@ -22,8 +23,8 @@ fn{A, B, C} Store::store(a &Sum{A, B, C}, b Sum{A, B, C})
 
 
 fn{A, B} Compare::equal(a Sum{A, B}, b Sum{A, B}) Bool
-    let enA = builtin_sum_enum(a)
-    let enB = builtin_sum_enum(b)
+    let enA = builtin::sumEnum(a)
+    let enB = builtin::sumEnum(b)
     if enA != enB
         return false
 
@@ -33,8 +34,8 @@ fn{A, B} Compare::equal(a Sum{A, B}, b Sum{A, B}) Bool
 
 
 fn{A, B, C} Compare::equal(a Sum{A, B, C}, b Sum{A, B, C}) Bool
-    let enA = builtin_sum_enum(a)
-    let enB = builtin_sum_enum(b)
+    let enA = a.builtin::sumEnum
+    let enB = b.builtin::sumEnum
     if enA != enB
         return false
 

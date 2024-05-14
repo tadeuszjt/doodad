@@ -222,7 +222,7 @@ Idents1 : Ident                          { [tokStr $1] }
 
 
 symbol : ident                           { (tokPos $1, Sym [tokStr $1]) }
-       | ident '::' ident                { (tokPos $3, Sym [tokStr $1, tokStr $2]) }
+       | ident '::' ident                { (tokPos $3, Sym [tokStr $1, tokStr $3]) }
        | Ident '::' ident                { (tokPos $1, Sym [tokStr $1, tokStr $3]) }
 
 Symbol : Ident                           { (tokPos $1, Sym [tokStr $1]) }

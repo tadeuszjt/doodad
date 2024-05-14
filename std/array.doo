@@ -2,10 +2,11 @@ module array
 
 import std/integer
 import std/features
+import std/builtin
 
 
 fn{T, S} At::at(array &Array{T, S}, index I64) &T
-    return builtin_array_at(&array, index)
+    return builtin::arrayAt(&array, index)
 
 
 fn{T, S} Len::len(array &Array{T, S}) I64

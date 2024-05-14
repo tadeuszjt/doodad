@@ -3,6 +3,7 @@ module char
 import std/bool
 import std/features
 import std/assert
+import std/builtin
 
 fn Construct::construct(a Char) Char; return a
 
@@ -11,7 +12,7 @@ fn eof() Char
     ${ $c = EOF; }
     return c
 
-fn Store::store(a &Char, b Char); builtin_store(&a, b)
+fn Store::store(a &Char, b Char); builtin::store(&a, b)
 
 
 fn isAlpha(c Char) Bool
@@ -32,8 +33,8 @@ fn isSpace(c Char) Bool
     return r
 
 
-fn Arithmetic::add(a Char, b Char) Char; return builtin_add(a, b)
-fn Arithmetic::subtract(a Char, b Char) Char; return builtin_subtract(a, b)
+fn Arithmetic::add(a Char, b Char) Char;      return builtin::add(a, b)
+fn Arithmetic::subtract(a Char, b Char) Char; return builtin::subtract(a, b)
 
 fn Compare::less(a Char, b Char) Bool
     let r : Bool
@@ -45,7 +46,7 @@ fn Compare::greater(a Char, b Char) Bool
     ${ $r = $a > $b; }
     return r
 
-fn Compare::equal(a Char, b Char) Bool; return builtin_equal(a, b)
+fn Compare::equal(a Char, b Char) Bool; return builtin::equal(a, b)
 
 fn greaterEqual(a Char, b Char) Bool
     let r : Bool

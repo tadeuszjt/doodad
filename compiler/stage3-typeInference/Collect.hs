@@ -180,7 +180,7 @@ collectExpr (AExpr exprType expression) = collectPos expression $ case expressio
     Match _ expr pat -> do
         collect "match must have same type for pattern and expression" $
             ConsEq (typeof pat) (typeof expr)
-        collectDefault exprType Type.Bool
+        collect "match type is Bool" $ ConsEq exprType Type.Bool
         collectExpr expr
         collectPattern pat
 
@@ -192,72 +192,6 @@ collectExpr (AExpr exprType expression) = collectPos expression $ case expressio
     AST.Reference _ expr -> do
         collect "reference type must match expression type" $ ConsEq exprType (typeof expr)
         collectExpr expr
-
-    Builtin _ sym exprs -> do 
-        case (sym, exprs) of
-            ("builtin_table_at", [tab, idx]) -> do
-                collect "index must be I64" $ ConsEq (typeof idx) I64
-                collect "invalid builtin" $ ConsEq (typeof tab) $
-                    Apply (TypeDef $ Sym ["Table"]) [exprType]
-
-            ("builtin_array_at", [arr, idx]) -> do
-                collect "index must be I64" $ ConsEq (typeof idx) I64
-
-            ("builtin_slice_at", [slc, idx]) -> do
-                collect "index must be I64" $ ConsEq (typeof idx) I64
-                collect "invalid slice type" $ ConsEq (typeof slc) (Apply Slice [exprType])
-                
-            ("builtin_table_append", [tab]) -> do
-                collect "void function" (ConsEq exprType Void)
-
-            ("builtin_table_slice", [tab, start, end]) -> do
-                collect "invalid slice type" $ ConsSlice exprType (typeof tab)
-                collect "start must be I64" $ ConsEq (typeof start) I64
-                collect "end must be I64" $ ConsEq (typeof end) I64
-
-            ("builtin_sum_enum", [sum]) -> do
-                collect "function returns I64" $ ConsEq exprType I64
-
-            ("builtin_sum_reset", [sum, en]) -> do
-                collect "enum value must be I64" $ ConsEq (typeof en) I64
-                collect "function returns void" $ ConsEq exprType Void
-
-            ("builtin_zero", []) -> return ()
-
-            ("builtin_store", [dst, src]) -> do
-                collect "builtin_store arguments must have same type" $ ConsEq (typeof dst) (typeof src)
-                collect "builtin_store returns void" $ ConsEq Void exprType
-
-            ("builtin_add", [a, b]) -> do
-                collect "builtin_add arguments must have same type" $ ConsEq (typeof a) (typeof b)
-                collect "builtin_add returns same type as arguments" $ ConsEq exprType (typeof a)
-
-            ("builtin_subtract", [a, b]) -> do
-                collect "builtin_subtract arguments must have same type" $ ConsEq (typeof a) (typeof b)
-                collect "builtin_subtract returns same type as arguments" $ ConsEq exprType (typeof a)
-
-            ("builtin_multiply", [a, b]) -> do
-                collect "builtin_multiply arguments must have same type" $ ConsEq (typeof a) (typeof b)
-                collect "builtin_multiply returns same type as arguments" $ ConsEq exprType (typeof a)
-
-            ("builtin_divide", [a, b]) -> do
-                collect "builtin_divide arguments must have same type" $ ConsEq (typeof a) (typeof b)
-                collect "builtin_divide returns same type as arguments" $ ConsEq exprType (typeof a)
-
-            ("builtin_modulo", [a, b]) -> do
-                collect "builtin_modulo arguments must have same type" $ ConsEq (typeof a) (typeof b)
-                collect "builtin_modulo returns same type as arguments" $ ConsEq exprType (typeof a)
-
-            ("builtin_equal", [a, b]) -> do
-                collect "builtin_equal arguments must have same type" $ ConsEq (typeof a) (typeof b)
-                collect "builtin_equal returns Bool" $ ConsEq exprType Type.Bool
-
-            ("builtin_len", [x]) -> do
-                collect "builtin_len returns I64" $ ConsEq exprType Type.I64
-
-            _ -> fail "invalid builtin arguments"
-
-        mapM_ collectExpr exprs
 
     Ident _ symbol -> do
         typ <- look symbol 

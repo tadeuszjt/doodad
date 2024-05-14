@@ -77,7 +77,6 @@ data Expr
     | Call         TextPos Symbol [Expr]
     | Field        TextPos Expr Int
     | Ident        TextPos Symbol
-    | Builtin      TextPos String [Expr]
     | Match        TextPos Expr Pattern
     | Reference    TextPos Expr
     | Array        TextPos [Expr]
@@ -167,7 +166,6 @@ instance TextPosition Expr where
         Field        p _ _  -> p
         Ident        p _    -> p
         Call         p _ _ -> p 
-        Builtin      p _ _ -> p 
         Match        p _ _ -> p
         Reference    p _ -> p
         Array        p _ -> p
@@ -243,7 +241,6 @@ instance Show Expr where
         Field pos expr symbol              -> show expr ++ "." ++ show symbol
         Ident p s                          -> prettySymbol s 
         Call pos symbol exprs              -> prettySymbol symbol ++ tupStrs (map show exprs)
-        Builtin pos sym exprs              -> sym ++ tupStrs (map show exprs)
         Match pos expr1 expr2              -> "(" ++ show expr1 ++ " -> " ++ show expr2 ++ ")"
         Reference pos expr                 -> "&" ++ show expr
         Subscript pos expr1 expr2          -> show expr1 ++ "[" ++ show expr2 ++ "]"

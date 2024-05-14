@@ -1,0 +1,26 @@
+module builtin
+
+
+fn{T, G} pretend(a &T) G; ${}
+
+fn{T} add(a T, b T) T; ${}
+fn{T} subtract(a T, b T) T; ${}
+fn{T} multiply(a T, b T) T; ${}
+fn{T} divide(a T, b T) T; ${}
+fn{T} modulo(a T, b T) T; ${}
+
+fn{T} equal(a T, b T) Bool; ${}
+
+fn{T}    tableAt(t &T.Table, idx I64) &T; ${}
+fn{T}    sliceAt(t &[]T, idx I64) &T; ${}
+fn{T, S} arrayAt(t T.Array{S}, idx I64) &T; ${}
+
+fn{T} tableAppend(t &T.Table); ${}
+fn{T} tableSlice(t &T.Table, start I64, end I64) []T; ${}
+
+fn{T} sumEnum(sum &T) I64; ${}
+fn{T} sumReset(sum &T, idx I64); ${}
+
+fn{T} store(a &T, b T); ${}
+
+fn{T} tableLen(a &T) I64; ${}

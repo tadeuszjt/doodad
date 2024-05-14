@@ -1,6 +1,7 @@
 module bool
 
 import std/features
+import std/builtin
 
 fn Compare::equal(a Bool, b Bool) Bool
     let c : Bool
@@ -8,7 +9,7 @@ fn Compare::equal(a Bool, b Bool) Bool
     return c
 
 
-fn Store::store(a &Bool, b Bool); builtin_store(&a, b)
+fn Store::store(a &Bool, b Bool); builtin::store(&a, b)
 
 
 fn Construct::construct(a Bool) Bool
