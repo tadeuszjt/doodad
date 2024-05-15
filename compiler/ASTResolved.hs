@@ -48,13 +48,6 @@ genSymbol symbol@(SymResolved str) = do
     return $ SymResolved ([modName] ++ str ++ [show n])
 
 
-isGenericFunc :: Func -> Bool
-isGenericFunc (AST.Func header _) = isGenericHeader header
-
-isGenericHeader :: FuncHeader -> Bool
-isGenericHeader header = funcGenerics header /= []
-
-
 getFunction :: Symbol -> ASTResolved -> Func
 getFunction symbol ast = if Map.member symbol (funcDefsAll ast) then
         funcDefsAll ast Map.! symbol
@@ -106,7 +99,7 @@ prettyASTResolved ast = do
     putStrLn "funcDefsAll:"
     forM_ (Map.toList $ funcDefsAll ast) $ \(symbol, func) -> do
         putStr $ "\t" ++ prettySymbol symbol ++ ": "
-        prettyStmt "" $ FuncDef func
+        prettyStmt "" $ FuncDef [] func
 
     putStrLn ""
     putStrLn "funcDefsTop:"
@@ -117,10 +110,10 @@ prettyASTResolved ast = do
     putStrLn "funcInstance:"
     forM_ (Map.toList $ funcInstance ast) $ \(call, func) -> do
         putStrLn $ show call ++ ":"
-        prettyStmt "\t" $ FuncDef func
+        prettyStmt "\t" $ FuncDef [] func
 
     putStrLn ""
     putStrLn "funcInstanceImported:"
     forM_ (Map.toList $ funcInstanceImported ast) $ \(call, func) -> do
         putStr $ "\t" ++ show call ++ ": "
-        prettyStmt "" $ FuncDef func
+        prettyStmt "" $ FuncDef [] func

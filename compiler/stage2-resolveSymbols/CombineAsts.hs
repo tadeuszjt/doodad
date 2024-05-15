@@ -11,6 +11,7 @@ import AST
 import Monad
 import Symbol
 import Error
+import Type
 
  
 initAstResolved modName imports = ASTResolved
@@ -51,7 +52,7 @@ combineAsts (ast, supply) imports = fmap snd $
                 Typedef pos generics symbol@(SymResolved _) typ ->
                     modify $ \s -> s { typeDefsTop = Set.insert symbol (typeDefsTop s) }
 
-                FuncDef (Func header stmt) ->
+                FuncDef generics (AST.Func header stmt) ->
                     modify $ \s -> s { funcDefsTop = Set.insert (funcSymbol header) (funcDefsTop s) }
 
                 Feature _ symbol _ _ ->
@@ -60,8 +61,9 @@ combineAsts (ast, supply) imports = fmap snd $
 
 combineMapper :: Elem -> DoM ASTResolved Elem
 combineMapper element = case element of
-    ElemStmt (FuncDef (Func header stmt)) -> do
-        modify $ \s -> s { funcDefsAll = Map.insert (funcSymbol header) (Func header stmt) (funcDefsAll s) }
+    ElemStmt (FuncDef generics (AST.Func header stmt)) -> do
+        modify $ \s -> s { funcDefsAll = Map.insert (funcSymbol header) (AST.Func header stmt) (funcDefsAll s) }
+        modify $ \s -> s { typeDefsAll = Map.insert (funcSymbol header) (generics, typeof header) (typeDefsAll s) }
         return element
 
     ElemStmt (Typedef pos generics symbol typ) -> do
@@ -76,7 +78,7 @@ combineMapper element = case element of
     ElemStmt (Block stmts) -> fmap (ElemStmt . Block . catMaybes) $
         forM stmts $ \stmt -> case stmt of
             Typedef _ _ _ _ -> return Nothing
-            FuncDef _       -> return Nothing
+            FuncDef _ _     -> return Nothing
             Feature _ _ _ _ -> return Nothing
             _               -> return (Just stmt)
 

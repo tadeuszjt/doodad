@@ -18,7 +18,6 @@ applyFuncHeader :: [(Type, Type)] -> FuncHeader -> FuncHeader
 applyFuncHeader subs header = header
     { funcArgs = map (applyParam subs) (funcArgs header)
     , funcRetty = applyRetty subs (funcRetty header)
-    , funcGenerics = funcGenerics header
     , funcSymbol = funcSymbol header
     }
 

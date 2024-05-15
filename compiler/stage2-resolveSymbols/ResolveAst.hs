@@ -138,10 +138,10 @@ resolveAst ast imports = fmap fst $ runDoMExcept initResolveState (resolveAst' a
                     define symbol KeyType
                     return $ Typedef pos generics symbol typ
 
-                FuncDef (AST.Func header stmt) -> do
+                FuncDef generics (AST.Func header stmt) -> do
                     symbol <- genSymbol (SymResolved $ symStr $ funcSymbol header)
                     define symbol KeyFunc
-                    return $ FuncDef $ AST.Func (header { funcSymbol = symbol }) stmt
+                    return $ FuncDef generics $ AST.Func (header { funcSymbol = symbol }) stmt
 
                 Feature pos symbol arg headers -> do
                     symbol' <- genSymbol (SymResolved $ symStr symbol)
@@ -222,39 +222,41 @@ resolveStmt statement = withPos statement $ case statement of
         return (Typedef pos generics' symbol' typ')
 
     Feature pos symbol arg headers -> do
-        symbol' <- case symbol of
-            SymResolved _ -> return symbol
-            Sym str -> do
-                s <- genSymbol (SymResolved str)
-                define s KeyType
-                return s
+        return statement
+--        symbol' <- case symbol of
+--            SymResolved _ -> return symbol
+--            Sym str -> do
+--                s <- genSymbol (SymResolved str)
+--                define s KeyType
+--                return s
+--
+--        headers' <- forM headers $ \header -> do
+--            fnSymbol' <- case funcSymbol header of
+--                SymResolved _ -> return (funcSymbol header)
+--                Sym str -> do
+--                    s <- genSymbol $ SymResolved (tail (symStr symbol') ++ str)
+--                    define s KeyFunc
+--                    return s
+--            return $ header { funcSymbol = fnSymbol' }
+--
+--        pushSymbolTable
+--
+--        arg' <- head <$> defineGenerics [arg]
+--
+--        headers'' <- forM headers' $ \header -> do
+--            pushSymbolTable
+--            --fnGenerics' <- defineGenerics (funcGenerics header)
+--            fnArgs' <- mapM resolveParam (funcArgs header)
+--            fnRetty' <- resolveRetty (funcRetty header)
+--            popSymbolTable
+--            --return $ header { funcArgs = fnArgs', funcGenerics = fnGenerics', funcRetty = fnRetty' }
+--            return $ header { funcArgs = fnArgs', funcRetty = fnRetty' }
+--
+--        popSymbolTable
+--
+--        return (Feature pos symbol' arg' headers'')
 
-        headers' <- forM headers $ \header -> do
-            fnSymbol' <- case funcSymbol header of
-                SymResolved _ -> return (funcSymbol header)
-                Sym str -> do
-                    s <- genSymbol $ SymResolved (tail (symStr symbol') ++ str)
-                    define s KeyFunc
-                    return s
-            return $ header { funcSymbol = fnSymbol' }
-
-        pushSymbolTable
-
-        arg' <- head <$> defineGenerics [arg]
-
-        headers'' <- forM headers' $ \header -> do
-            pushSymbolTable
-            fnGenerics' <- defineGenerics (funcGenerics header)
-            fnArgs' <- mapM resolveParam (funcArgs header)
-            fnRetty' <- resolveRetty (funcRetty header)
-            popSymbolTable
-            return $ header { funcArgs = fnArgs', funcGenerics = fnGenerics', funcRetty = fnRetty' }
-
-        popSymbolTable
-
-        return (Feature pos symbol' arg' headers'')
-
-    FuncDef (AST.Func header stmt) -> do
+    FuncDef generics (AST.Func header stmt) -> do
         symbol' <- case (funcSymbol header) of
             SymResolved _ -> return (funcSymbol header)
             Sym str       -> do
@@ -263,19 +265,18 @@ resolveStmt statement = withPos statement $ case statement of
                 return s
 
         pushSymbolTable
-        generics' <- defineGenerics (funcGenerics header)
+        generics' <- defineGenerics generics
         args'     <- mapM resolveParam (funcArgs header)
         retty'    <- resolveRetty (funcRetty header)
         stmt'     <- resolveStmt stmt
 
         let header' = header
-                { funcGenerics = generics'
-                , funcArgs     = args'
+                { funcArgs     = args'
                 , funcRetty    = retty'
                 , funcSymbol   = symbol'
                 }
         popSymbolTable
-        return $ FuncDef (AST.Func header' stmt')
+        return $ FuncDef generics' (AST.Func header' stmt')
 
     Block stmts -> do
         pushSymbolTable

@@ -54,7 +54,11 @@ instAst verbose = do
     forM_ (funcDefsTop ast) $ \symbol -> do
         let func = (funcDefsAll ast) Map.! symbol
         let header = funcHeader func
-        let isGeneric = isGenericHeader (funcHeader func)
+
+        isGeneric <- case Map.lookup symbol (typeDefsAll ast) of
+            Just ([], _) -> return False
+            Just (_, _)  -> return True
+
         let isInstantiated = Map.member (funcSymbol header, typeof header) (funcInstance ast)
 
         when (not isGeneric && not isInstantiated) $ do

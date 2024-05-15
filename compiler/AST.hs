@@ -95,7 +95,6 @@ instance Typeof Pattern where
 data FuncHeader
     = FuncHeader
         { funcPos :: TextPos
-        , funcGenerics :: Generics
         , funcSymbol :: Symbol
         , funcArgs :: [Param]
         , funcRetty :: Retty
@@ -104,9 +103,8 @@ data FuncHeader
 
 
 instance Show FuncHeader where
-    show (FuncHeader pos generics symbol args retty) =
+    show (FuncHeader pos symbol args retty) =
         "fn"
-        ++ case generics of [] -> ""; xs -> brcStrs (map prettySymbol xs)
         ++ " "
         ++ prettySymbol symbol
         ++ tupStrs (map show args)
@@ -134,7 +132,7 @@ data Stmt
     | Block       [Stmt]
     | If          TextPos Expr Stmt (Maybe Stmt)
     | While       TextPos Expr Stmt
-    | FuncDef     Func
+    | FuncDef     [Symbol] Func
     | Feature     TextPos Symbol Symbol [FuncHeader]
     | Typedef     TextPos Generics Symbol Type
     | Switch      TextPos Expr [(Pattern, Stmt)]
@@ -176,7 +174,7 @@ instance TextPosition Expr where
         _ -> error (show expression)
 
 instance TextPosition FuncHeader where
-    textPos (FuncHeader pos _ _ _ _) = pos
+    textPos (FuncHeader pos _ _ _) = pos
 
 instance TextPosition Stmt where
     textPos stmt = case stmt of
@@ -186,7 +184,7 @@ instance TextPosition Stmt where
         Block       s -> textPos (head s)
         If          p _ _ _ -> p
         While       p _ _ -> p
-        FuncDef     f -> textPos f
+        FuncDef     _ f -> textPos f
         Typedef     p _ _ _ -> p
         Switch      p _ _ -> p
         For         p _ _ _ -> p
@@ -269,7 +267,7 @@ prettyStmt pre stmt = case stmt of
     EmbedC pos str -> putStrLn $ pre ++ "$" ++ str
     Assign pos symbol expr -> putStrLn $ pre ++ "assign " ++ prettySymbol symbol ++ " " ++ show expr
 
-    FuncDef (AST.Func header blk) -> do
+    FuncDef generics (AST.Func header blk) -> do
         putStrLn (pre ++ show header)
         prettyStmt pre blk
         putStrLn ""

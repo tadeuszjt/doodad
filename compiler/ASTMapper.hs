@@ -34,7 +34,6 @@ mapFuncHeaderM f header = do
     return $ FuncHeader
         { funcArgs = funcArgs'
         , funcRetty = funcRetty'
-        , funcGenerics = funcGenerics header
         , funcSymbol = funcSymbol header
         , funcPos = funcPos header
         }
@@ -56,9 +55,9 @@ mapStmtM f stmt = withPos stmt $ do
         Typedef _ _ _ _ -> return stmt -- ignored
         Feature _ _ _ _ -> return stmt -- ignored
 
-        FuncDef (AST.Func header stmt) -> do
+        FuncDef generics (AST.Func header stmt) -> do
             stmt' <- mapStmtM f stmt
-            return $ FuncDef $ (AST.Func header stmt')
+            return $ FuncDef generics $ (AST.Func header stmt')
 
 
         EmbedC pos s -> return $ EmbedC pos s

@@ -153,7 +153,7 @@ tupleFields : {-empty-}                       { [] }
 
 featureDef : feature Ident '{' Ident '}' 'I' featureHeaders 'D' { Feature (tokPos $1) (Sym [tokStr $2]) (Sym [tokStr $4]) $7 }
 featureHeader : fn generics ident '(' types ')' retty
-    { FuncHeader (tokPos $1) $2 (Sym [tokStr $3]) (map (Param (tokPos $1) (Sym [])) $5) $7 }
+    { FuncHeader (tokPos $1) (Sym [tokStr $3]) (map (Param (tokPos $1) (Sym [])) $5) $7 }
 
 featureHeaders : {-empty-}                        { [] }
                | featureHeader 'N' featureHeaders { ($1 : $3) }
@@ -163,13 +163,10 @@ featureHeaders : {-empty-}                        { [] }
 fnSymbol : ident            { Sym [tokStr $1] }
          | Ident '::' ident { Sym [tokStr $1, tokStr $3] }
 
-fnHeader : fn generics fnSymbol '(' paramsA ')' retty
-            { AST.FuncHeader (tokPos $1) $2 $3 $5 $7 }
 
-funcDef : fnHeader scope  { FuncDef (AST.Func $1 $2) }
+funcDef : fn generics fnSymbol '(' paramsA ')' retty scope 
+            { FuncDef $2 (AST.Func (FuncHeader (tokPos $1) $3 $5 $7) $8) }
 
-fnHeaders : fnHeader 'N'            { [$1] }
-          | fnHeader 'N' fnHeaders  { ($1 : $3) }
 
 retty : {-empty-}     { Retty Type.Void }
       | type_         { Retty $1 }

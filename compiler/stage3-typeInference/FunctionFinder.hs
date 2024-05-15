@@ -77,9 +77,7 @@ replaceGenericsInFunc func callType = do
     couldMatch <- typesCouldMatch callType (typeof $ funcHeader func)
     unless couldMatch (error "headers could not match")
     subs <- unify =<< getConstraintsFromTypes (typeof $ funcHeader func) callType
-    let func'   =  applyFunc subs func
-    let header' = (funcHeader func') { funcGenerics = [] }
-    return $ func' { funcHeader = header' } 
+    return (applyFunc subs func)
 
 
 unifyOne :: MonadFail m => Constraint -> m [(Type, Type)]
