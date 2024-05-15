@@ -93,7 +93,7 @@ funcHeaderFullyResolved header =
 
 
 isGenericFunc :: Func -> Bool
-isGenericFunc (Func header _) = isGenericHeader header
+isGenericFunc (AST.Func header _) = isGenericHeader header
 
 isGenericHeader :: FuncHeader -> Bool
 isGenericHeader header = funcGenerics header /= []

@@ -62,7 +62,7 @@ instAst verbose = do
             instanceSymbol <- liftASTState $ genSymbol $ SymResolved $ ["instance"] ++ symStr (funcSymbol header)
             let headerInstance = header { funcSymbol = instanceSymbol }
             modifyAST $ \s -> s
-                { funcInstance = Map.insert callHeader (Func headerInstance $ funcStmt func) (funcInstance s)
+                { funcInstance = Map.insert callHeader (AST.Func headerInstance $ funcStmt func) (funcInstance s)
                 } 
 
     funcInstances <- gets (funcInstance . astResolved)

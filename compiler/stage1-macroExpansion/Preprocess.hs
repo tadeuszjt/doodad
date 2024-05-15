@@ -77,7 +77,7 @@ unpackStmt statement = withPos statement $ case statement of
     Feature _ _ _ _ -> return statement
     Assign _ _ _ -> return statement
 
-    FuncDef (Func header stmt) -> FuncDef . Func header <$> unpackStmt stmt
+    FuncDef (AST.Func header stmt) -> FuncDef . AST.Func header <$> unpackStmt stmt
     Block stmts -> Block <$> mapM unpackStmt stmts
     Let pos pat mexpr mblk -> Let pos pat mexpr <$> traverse unpackStmt mblk
     Typedef pos generics symbol typ -> return statement
@@ -261,9 +261,9 @@ buildStmt statement = withPos statement $ case statement of
     Data _ _ _ _     -> void $ appendStmt statement
     Feature _ _ _ _  -> void $ appendStmt statement
 
-    FuncDef (Func header (Block stmts)) -> do
+    FuncDef (AST.Func header (Block stmts)) -> do
         blockId <- newStmt (Block [])
-        appendStmt $ FuncDef (Func header (Stmt blockId))
+        appendStmt $ FuncDef (AST.Func header (Stmt blockId))
         withCurId blockId (mapM_ buildStmt stmts)
 
     Let pos pat mexpr Nothing -> do
@@ -418,7 +418,7 @@ buildStmt statement = withPos statement $ case statement of
                     , funcGenerics = generics
                     , funcPos = pos
                     }
-            appendStmt $ FuncDef $ Func header (Stmt blkId)
+            appendStmt $ FuncDef $ AST.Func header (Stmt blkId)
 
 
     Enum pos generics symbol cases -> do
@@ -448,7 +448,7 @@ buildStmt statement = withPos statement $ case statement of
                     , funcGenerics = generics
                     , funcPos      = pos
                     }
-            appendStmt $ FuncDef $ Func header (Stmt blkId)
+            appendStmt $ FuncDef $ AST.Func header (Stmt blkId)
 
         -- write case0, case1 constructors
         forM_ (zip cases [0..]) $ \( (Sym [str], ts) , i) -> do
@@ -484,7 +484,7 @@ buildStmt statement = withPos statement $ case statement of
                     , funcGenerics = generics
                     , funcPos = pos
                     }
-            appendStmt $ FuncDef $ Func header (Stmt blkId)
+            appendStmt $ FuncDef $ AST.Func header (Stmt blkId)
 
         -- write fromCase0, fromCase1 accessors
         forM_ (zip cases [0..]) $ \( (Sym [str], ts) , i) -> do
@@ -503,7 +503,7 @@ buildStmt statement = withPos statement $ case statement of
                     , funcGenerics = generics
                     , funcPos = pos
                     }
-            appendStmt $ FuncDef $ Func header (Stmt blkId)
+            appendStmt $ FuncDef $ AST.Func header (Stmt blkId)
 
     x -> error (show x)
 

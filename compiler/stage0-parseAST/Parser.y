@@ -166,7 +166,7 @@ fnSymbol : ident            { Sym [tokStr $1] }
 fnHeader : fn generics fnSymbol '(' paramsA ')' retty
             { AST.FuncHeader (tokPos $1) $2 $3 $5 $7 }
 
-funcDef : fnHeader scope  { FuncDef (Func $1 $2) }
+funcDef : fnHeader scope  { FuncDef (AST.Func $1 $2) }
 
 fnHeaders : fnHeader 'N'            { [$1] }
           | fnHeader 'N' fnHeaders  { ($1 : $3) }

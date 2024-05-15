@@ -27,11 +27,14 @@ getFeatureArgFromFuncCall call = do
         \(symbol, (arg, headers)) -> fmap catMaybes $ forM headers $ \header -> do
             couldMatch <- callCouldMatchFunc call header
             case couldMatch of
-                True -> return (Just header)
+                True -> return $ Just (symbol, header)
                 False -> return Nothing
 
-    forM_ featureHeaderCandidates $ \header -> do
-        liftIO $ putStrLn $ "\t" ++ prettySymbol (funcSymbol header)
+
+    case featureHeaderCandidates of
+        [x] -> do
+            liftIO $ putStrLn $ "here: " ++ show x
+        _ -> return ()
 
 
     return Void

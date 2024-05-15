@@ -40,11 +40,11 @@ mapFuncHeaderM f header = do
         }
     
 
-mapFuncM :: MapperFunc s -> Func -> DoM s Func
+mapFuncM :: MapperFunc s -> AST.Func -> DoM s AST.Func
 mapFuncM f func = do
     funcHeader'   <- mapFuncHeaderM f (funcHeader func)
     funcStmt'     <- mapStmtM f (funcStmt func)
-    return $ Func
+    return $ AST.Func
         { funcHeader = funcHeader'
         , funcStmt   = funcStmt'
         }
@@ -56,9 +56,9 @@ mapStmtM f stmt = withPos stmt $ do
         Typedef _ _ _ _ -> return stmt -- ignored
         Feature _ _ _ _ -> return stmt -- ignored
 
-        FuncDef (Func header stmt) -> do
+        FuncDef (AST.Func header stmt) -> do
             stmt' <- mapStmtM f stmt
-            return $ FuncDef $ (Func header stmt')
+            return $ FuncDef $ (AST.Func header stmt')
 
 
         EmbedC pos s -> return $ EmbedC pos s

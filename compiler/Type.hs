@@ -42,6 +42,7 @@ data Type
     | Table
     | Sum
     | Array
+    | Func
     | Size Int
     | TypeDef Symbol
     | Apply Type [Type]
@@ -64,6 +65,7 @@ instance Show Type where
         Table         -> "Table"
         Sum           -> "Sum"
         Slice         -> "Slice"
+        Func          -> "Func"
         TypeDef s     -> prettySymbol s
 
         Apply t1 [t2] -> show t2 ++ "." ++ show t1
@@ -128,16 +130,12 @@ baseTypeOfm a = case typeof a of
     Type _ -> return Nothing
 
     Apply (TypeDef s) ts -> do
-        resm <- Map.lookup s <$> getTypeDefs
-        case resm of
-            Nothing -> return Nothing
-            Just (ss, t) -> baseTypeOfm =<< applyTypeArguments ss ts t
+        Just (ss, t) <- Map.lookup s <$> getTypeDefs
+        baseTypeOfm =<< applyTypeArguments ss ts t
 
     TypeDef s -> do
-        resm <- Map.lookup s <$> getTypeDefs
-        case resm of
-            Nothing -> return Nothing
-            Just ([], t) -> baseTypeOfm t
+        Just ([], t) <- Map.lookup s <$> getTypeDefs
+        baseTypeOfm t
 
     _ -> return $ Just (typeof a)
 

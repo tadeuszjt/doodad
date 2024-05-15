@@ -5,7 +5,7 @@ import Data.Maybe
 import Data.Word
 import Data.List
 import Control.Monad
-import Type (Type, Type(Void), Typeof, typeof)
+import Type 
 import Error
 import Symbol
 
@@ -114,12 +114,16 @@ instance Show FuncHeader where
         ++ show retty
 
 
+instance Typeof FuncHeader where
+    typeof header = Apply Type.Func $ typeof (funcRetty header) : map typeof (funcArgs header)
+
+
 data Func = Func { funcHeader :: FuncHeader, funcStmt :: Stmt }
     deriving (Eq, Show)
 
 
 instance TextPosition Func where
-    textPos (Func header _) = textPos header
+    textPos (AST.Func header _) = textPos header
 
 
 data Stmt
@@ -160,15 +164,15 @@ instance TextPosition Expr where
         AExpr        t expr -> textPos expr
         Int          p _    -> p
         Float        p _    -> p
-        Bool         p _    -> p
-        Char         p _    -> p
+        AST.Bool     p _    -> p
+        AST.Char    p _    -> p
         String       p _    -> p
         Field        p _ _  -> p
         Ident        p _    -> p
         Call         p _ _ -> p 
         Match        p _ _ -> p
         Reference    p _ -> p
-        Array        p _ -> p
+        AST.Array    p _ -> p
         _ -> error (show expression)
 
 instance TextPosition FuncHeader where
@@ -234,10 +238,10 @@ instance Show Expr where
         AExpr t expr                       -> show expr ++ ":" ++ show t 
         Int pos n                          -> show n
         Float pos f                        -> show f
-        Bool pos b                         -> if b then "true" else "false"
-        Char pos c                         -> show c
+        AST.Bool pos b                     -> if b then "true" else "false"
+        AST.Char pos c                     -> show c
         String pos s                       -> show s
-        Array pos exprs                    -> arrStrs (map show exprs)
+        AST.Array pos exprs                -> arrStrs (map show exprs)
         Field pos expr symbol              -> show expr ++ "." ++ show symbol
         Ident p s                          -> prettySymbol s 
         Call pos symbol exprs              -> prettySymbol symbol ++ tupStrs (map show exprs)
@@ -265,7 +269,7 @@ prettyStmt pre stmt = case stmt of
     EmbedC pos str -> putStrLn $ pre ++ "$" ++ str
     Assign pos symbol expr -> putStrLn $ pre ++ "assign " ++ prettySymbol symbol ++ " " ++ show expr
 
-    FuncDef (Func header blk) -> do
+    FuncDef (AST.Func header blk) -> do
         putStrLn (pre ++ show header)
         prettyStmt pre blk
         putStrLn ""
