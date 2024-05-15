@@ -359,7 +359,7 @@ ordinal_t   : Bool                         { Type.Bool }
             | F64                          { F64 }
             | Char                         { Type.Char }
 
-tuple_t : '(' type_ ',' types1 ')' { Apply (TypeDef $ Sym ["Tuple"]) ($2:$4) }
+tuple_t : '(' type_ ',' types1 ')' { Apply Tuple ($2:$4) }
 
 {
 parse :: MonadError Error m => [Token] -> m AST

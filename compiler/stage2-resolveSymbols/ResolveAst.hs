@@ -190,12 +190,12 @@ resolveRetty retty = case retty of
 
 resolveType :: Type -> DoM ResolveState Type
 resolveType typ = case typ of
-    TypeDef s      -> fmap TypeDef $ case s of
-        Sym ["Array"] -> return s
-        Sym ["Table"] -> return s
-        Sym ["Sum"]   -> return s
-        Sym ["Tuple"] -> return s
-        _             -> look s KeyType
+    TypeDef s      -> case s of
+        Sym ["Array"] -> return Type.Array
+        Sym ["Table"] -> return Table
+        Sym ["Sum"]   -> return Sum
+        Sym ["Tuple"] -> return Tuple
+        _             -> TypeDef <$> look s KeyType
 
     Apply t ts -> do
         t' <- resolveType t
@@ -361,7 +361,7 @@ resolveExpr expression = withPos expression $ case expression of
         pat' <- resolvePattern pat
         return (Match pos expr' pat')
     AST.String pos s -> return (AST.String pos s)
-    Array pos exprs -> Array pos <$> mapM resolveExpr exprs
+    AST.Array pos exprs -> AST.Array pos <$> mapM resolveExpr exprs
     Call pos symbol exprs -> Call pos symbol <$> mapM resolveExpr exprs
 
     x -> error (show x)

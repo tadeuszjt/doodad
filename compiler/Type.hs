@@ -38,6 +38,10 @@ data Type
     | Bool                   
     | Char                   
     | Slice
+    | Tuple
+    | Table
+    | Sum
+    | Array
     | Size Int
     | TypeDef Symbol
     | Apply Type [Type]
@@ -56,10 +60,14 @@ instance Show Type where
         F64           -> "F64"
         Bool          -> "Bool"
         Char          -> "Char"
+        Tuple         -> "Tuple"
+        Table         -> "Table"
+        Sum           -> "Sum"
+        Slice         -> "Slice"
         TypeDef s     -> prettySymbol s
+
         Apply t1 [t2] -> show t2 ++ "." ++ show t1
         Apply t ts    -> show t ++ "{" ++ intercalate ", " (map show ts) ++ "}"
-        Slice         -> "[]"
         Size n        -> show n
         x -> error ""
 
@@ -117,13 +125,7 @@ baseTypeOf a = do
 
 baseTypeOfm :: (MonadFail m, TypeDefs m, Typeof a) => a -> m (Maybe Type)
 baseTypeOfm a = case typeof a of
-    Type x         -> return Nothing
-    t | isSimple t -> return $ Just (typeof a)
-    Slice          -> return $ Just (typeof a)
-    Void           -> return $ Just (typeof a)
-
-    TypeDef s | isBaseSym s           -> return $ Just (typeof a)
-    Apply (TypeDef s) _ | isBaseSym s -> return $ Just (typeof a)
+    Type _ -> return Nothing
 
     Apply (TypeDef s) ts -> do
         resm <- Map.lookup s <$> getTypeDefs
@@ -137,25 +139,13 @@ baseTypeOfm a = case typeof a of
             Nothing -> return Nothing
             Just ([], t) -> baseTypeOfm t
 
-    Apply _ _ -> return $ Just (typeof a)
-
-    x -> error (show x)
-    where
-        isBaseSym :: Symbol -> Bool
-        isBaseSym symbol = case symbol of
-            Sym ["Tuple"] -> True
-            Sym ["Table"] -> True
-            Sym ["Array"] -> True
-            Sym ["Sum"] -> True
-            _ -> False
+    _ -> return $ Just (typeof a)
 
 
 applyTypeArguments :: (MonadFail m, TypeDefs m) => [Symbol] -> [Type] -> Type -> m Type
 applyTypeArguments argSymbols argTypes typ = do
     unless (length argSymbols == length argTypes) (fail $ "invalid arguments: " ++ show typ)
     case typ of
-        x | isSimple x -> return x
-
         TypeDef s -> case elemIndex s argSymbols of
             Just x -> return (argTypes !! x)
             Nothing -> return (TypeDef s)
@@ -164,7 +154,7 @@ applyTypeArguments argSymbols argTypes typ = do
             ts' <- mapM (applyTypeArguments argSymbols argTypes) (t : ts)
             return $ Apply (head ts') (tail ts')
 
-        x -> error (show x)
+        _ -> return typ
 
 
 typesCouldMatch :: Monad m => Type -> Type -> m Bool

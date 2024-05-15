@@ -139,8 +139,8 @@ generateStmt stmt = withPos stmt $ case stmt of
     S.Data _ symbol typ Nothing -> do
         base <- baseTypeOf typ
         init <- case base of
-            TypeDef (Sym ["Tuple"]) -> return (C.Initialiser [])
-            _                       -> return (C.Initialiser [C.Int 0])
+            Apply Tuple [] -> return (C.Initialiser [])
+            _              -> return (C.Initialiser [C.Int 0])
         
         ctyp <- cTypeOf typ
         appendAssign ctyp (showSymLocal symbol) init
@@ -221,7 +221,7 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
 
     S.Call _ symbol [expr] | symbolsCouldMatch symbol (Sym ["builtin", "tableAppend"]) -> do
         val <- generateExpr expr
-        Apply (TypeDef (Sym ["Table"])) _ <- baseTypeOf val
+        Apply Table _ <- baseTypeOf val
         case val of
             Value _ _ -> fail "isn't reference"
             Ref _ _   -> builtinTableAppend val >> return (Value Void $ C.Int 0)
@@ -232,7 +232,7 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
         en@(Value I64 _) <- generateExpr end
 
         -- TODO this is broken 
-        Apply (TypeDef (Sym ["Table"])) [t] <- baseTypeOf ref
+        Apply Table [t] <- baseTypeOf ref
         assign "slice" $ Value (Apply Slice [t]) $ C.Initialiser
             [ C.Address (C.Subscript (C.PMember exp "r0") (valExpr srt))
             , C.Infix C.Minus (C.PMember exp "len") (valExpr srt)
@@ -265,7 +265,7 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
         check (base == baseExpr) ("types do not have same base: " ++ show (base, baseExpr))
 
         case base of
-            Apply (TypeDef (Sym ["Tuple"])) _ ->
+            Apply Tuple _ ->
                 assign "ref" $ Ref typ $ C.Initialiser [C.Member refExpr "ptr"]
             _ -> 
                 assign "ref" $ Ref typ $ C.Initialiser [refExpr]

@@ -16,7 +16,7 @@ builtinLen val = case val of
     Ref typ expr -> do
         base <- baseTypeOf typ
         return $ case base of
-            Apply (TypeDef (Sym ["Table"])) _ -> Value I64 (C.PMember expr "len")
+            Apply Table _ -> Value I64 (C.PMember expr "len")
             x -> error (show x)
 
     Value typ expr -> do
@@ -51,7 +51,7 @@ builtinStore dst@(Ref _ _) src = do
 
 builtinSumEnum :: Value -> Generate Value
 builtinSumEnum val = do
-    Apply (TypeDef (Sym ["Sum"])) _ <- baseTypeOf val
+    Apply Sum _ <- baseTypeOf val
     case val of
         Value _ expr -> return $ Value I64 $ C.Member expr "en"
         Ref _ expr   -> return $ Value I64 $ C.PMember expr "en"
@@ -125,7 +125,7 @@ builtinEqual val1@(Value _ _) val2@(Value _ _) = do
 
 builtinTableAppend :: Value -> Generate ()
 builtinTableAppend (Ref typ expr) = do
-    Apply (TypeDef (Sym ["Table"])) t <- baseTypeOf typ
+    Apply Table _ <- baseTypeOf typ
 
     let len    = C.Member (C.Deref expr) "len"
     let newLen = (C.Infix C.Plus len $ C.Int 1)
@@ -147,7 +147,7 @@ builtinTableAppend (Ref typ expr) = do
 builtinArrayAt :: Value -> Value -> Generate Value
 builtinArrayAt value idx@(Value _ _) = do
     I64 <- baseTypeOf idx
-    Apply (TypeDef (Sym ["Array"])) [t, Size n] <- baseTypeOf value
+    Apply Array [t, Size n] <- baseTypeOf value
     base <- baseTypeOf t
 
     case value of
@@ -161,7 +161,7 @@ builtinArrayAt value idx@(Value _ _) = do
             x | isSimple x -> return $ Ref t $ C.Address $ C.Subscript
                 (C.PMember expr "arr")
                 (valExpr idx)
-            Apply (TypeDef (Sym ["Tuple"])) ts -> error "TODO"
+            Apply Tuple ts -> error "TODO"
             Apply _ _ -> return $ Ref t $ C.Address $ C.Subscript
                 (C.PMember expr "arr")
                 (valExpr idx)
@@ -178,7 +178,7 @@ builtinSliceAt val idx@(Value _ _) = do
         Ref _ exp -> case base of
             Type.Char -> return $ Ref t $ C.Address $ C.Subscript (C.PMember exp "ptr") (valExpr idx)
 
-            Apply (TypeDef (Sym ["Tuple"])) _ -> do
+            Apply Tuple _ -> do
                 -- TODO not real tuple case
                 let ptr = C.Address $ C.Subscript (C.PMember exp "ptr") (valExpr idx)
                 assign "ref" $ Ref t $ C.Initialiser [ptr, C.Int 0, C.Int 0]
@@ -197,11 +197,11 @@ builtinSliceAt val idx@(Value _ _) = do
 builtinTableAt :: Value -> Value -> Generate Value
 builtinTableAt val idx@(Value _ _) = do
     I64 <- baseTypeOf idx
-    Apply (TypeDef (Sym ["Table"])) [t] <- baseTypeOf val
+    Apply Table [t] <- baseTypeOf val
     base <- baseTypeOf t
     case val of
         Value _ expr -> case base of
-            Apply (TypeDef (Sym ["Tuple"])) ts -> do
+            Apply Tuple ts -> do
                 -- TODO implement shear
                 let ptr = C.Address $ C.Subscript (C.Member expr "r0") (valExpr idx)
                 assign "ref" $ Ref t $ C.Initialiser [ptr, C.Int 0, C.Int 0]
@@ -213,7 +213,7 @@ builtinTableAt val idx@(Value _ _) = do
             x -> error (show x)
 
         Ref _ expr -> case base of
-            Apply (TypeDef (Sym ["Tuple"])) ts -> do
+            Apply Tuple ts -> do
                 -- TODO implement shear
                 let ptr = C.Address $ C.Subscript (C.PMember expr "r0") (valExpr idx)
                 assign "ref" $ Ref t $ C.Initialiser [ptr, C.Int 0, C.Int 0]

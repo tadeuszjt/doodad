@@ -29,16 +29,15 @@ unifyOne info constraint = withPos info $ case constraint of
         base <- baseTypeOfm typ
         case base of
             Nothing                                   -> return []
-            Just (Apply (TypeDef (Sym ["Tuple"])) ts) -> unifyOne info $ ConsEq exprType (ts !! idx)
-            Just (Apply (TypeDef (Sym ["Sum"])) ts)   -> unifyOne info $ ConsEq exprType (ts !! idx)
-
-            x                                   -> fail ("cannot take field")
+            Just (Apply Tuple ts) -> unifyOne info $ ConsEq exprType (ts !! idx)
+            Just (Apply Sum ts)   -> unifyOne info $ ConsEq exprType (ts !! idx)
+            x                     -> fail ("cannot take field of: " ++ show x)
 
     ConsSlice exprType typ -> do
         basem <- baseTypeOfm typ
         case basem of
             Nothing -> return []
-            Just (Apply (TypeDef (Sym ["Table"])) [t]) -> unifyOne info $ ConsEq exprType (Apply Type.Slice [t])
+            Just (Apply Table [t]) -> unifyOne info $ ConsEq exprType (Apply Type.Slice [t])
             x -> error (show x)
 
     ConsDefault t1 t2 -> case (t1, t2) of

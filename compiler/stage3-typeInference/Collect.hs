@@ -175,7 +175,7 @@ collectExpr (AExpr exprType expression) = collectPos expression $ case expressio
 
     Call _ symbol exprs -> do
         when (symbolsCouldMatch symbol (Sym ["Construct", "construct"]) && length exprs > 1) $ do
-            void $ collectDefault exprType $ Apply (TypeDef $ Sym ["Tuple"]) (map typeof exprs)
+            void $ collectDefault exprType $ Apply Tuple (map typeof exprs)
    
         when (symbolsCouldMatch symbol (Sym ["Construct", "construct"]) && length exprs == 1) $ do
             void $ collectDefault exprType $ typeof (head exprs)

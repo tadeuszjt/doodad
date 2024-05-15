@@ -374,7 +374,7 @@ fn testBoolConditions()
     else
         let false = true
 
-    type AlwaysTrue Tuple
+    type AlwaysTrue Tuple{}
 
     let always : AlwaysTrue
     fn Construct::construct(a AlwaysTrue) Bool
