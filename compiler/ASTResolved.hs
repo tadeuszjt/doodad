@@ -28,30 +28,15 @@ data ASTResolved
 
         , funcDefsAll          :: Map.Map Symbol Func
         , funcDefsTop          :: Set.Set Symbol
-        , funcInstance         :: Map.Map CallHeader Func
-        , funcInstanceImported :: Map.Map CallHeader Func
+        , funcInstance         :: Map.Map (Symbol, Type) Func
+        , funcInstanceImported :: Map.Map (Symbol, Type) Func
         , symSupply            :: Map.Map Symbol Int              
         }
     deriving (Eq)
 
 
-data CallHeader = CallHeader
-    { callSymbol    :: Symbol
-    , callArgTypes  :: [Type]
-    , callRetType   :: Type
-    }
-    deriving (Eq, Ord)
-
 instance TypeDefs (DoM ASTResolved) where
     getTypeDefs = gets typeDefsAll
-
-
-instance Show CallHeader where
-    show header =
-        (prettySymbol $ callSymbol header) ++ argsStr ++ ":" ++ show (callRetType header)
-        where
-            argsStr = "(" ++ intercalate ", " (map show $ callArgTypes header) ++ ")"
-
 
 
 genSymbol :: Symbol -> DoM ASTResolved Symbol
@@ -61,35 +46,6 @@ genSymbol symbol@(SymResolved str) = do
     let n = maybe 0 (id) im
     modify $ \s -> s { symSupply = Map.insert symbol (n + 1) (symSupply s) }
     return $ SymResolved ([modName] ++ str ++ [show n])
-
-
-callHeaderFromFuncHeader :: FuncHeader -> CallHeader
-callHeaderFromFuncHeader (FuncHeader _ _ symbol args retty)
-    = CallHeader symbol (map typeof args) (typeof retty)
-
-
-
-callCouldMatchFunc :: Monad m => CallHeader -> FuncHeader -> m Bool
-callCouldMatchFunc call header = do
-    if symbolsMatch then do
-        am <- argsMatch
-        rm <- rettyMatch
-        return (am && rm)
-    else return False
-    where
-        typesMatch :: Monad m => [Type] -> [Type] -> m Bool
-        typesMatch ts1 ts2 = do
-            bs <- zipWithM typesCouldMatch ts1 ts2
-            return $ (length ts1 == length ts2) && (all id bs)
-
-        symbolsMatch = symbolsCouldMatch (callSymbol call) (funcSymbol header)
-        argsMatch    = typesMatch (callArgTypes call) (map typeof $ funcArgs header)
-        rettyMatch   = typesCouldMatch (callRetType call) (typeof $ funcRetty header)
-
-
-funcHeaderFullyResolved :: FuncHeader -> Bool
-funcHeaderFullyResolved header =
-    all typeFullyResolved $ (typeof (funcRetty header) : map typeof (funcArgs header))
 
 
 isGenericFunc :: Func -> Bool

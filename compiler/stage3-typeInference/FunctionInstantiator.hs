@@ -55,14 +55,13 @@ instAst verbose = do
         let func = (funcDefsAll ast) Map.! symbol
         let header = funcHeader func
         let isGeneric = isGenericHeader (funcHeader func)
-        let callHeader = callHeaderFromFuncHeader (funcHeader func)
-        let isInstantiated = Map.member callHeader (funcInstance ast)
+        let isInstantiated = Map.member (funcSymbol header, typeof header) (funcInstance ast)
 
         when (not isGeneric && not isInstantiated) $ do
             instanceSymbol <- liftASTState $ genSymbol $ SymResolved $ ["instance"] ++ symStr (funcSymbol header)
             let headerInstance = header { funcSymbol = instanceSymbol }
             modifyAST $ \s -> s
-                { funcInstance = Map.insert callHeader (AST.Func headerInstance $ funcStmt func) (funcInstance s)
+                { funcInstance = Map.insert (funcSymbol header, typeof header) (AST.Func headerInstance $ funcStmt func) (funcInstance s)
                 } 
 
     funcInstances <- gets (funcInstance . astResolved)
@@ -75,7 +74,8 @@ instAst verbose = do
 instantiatorMapper :: Elem -> DoM InstantiatorState Elem
 instantiatorMapper elem = case elem of
     ElemExpr (AExpr exprType expr@(AST.Call pos symbol exprs)) | all isAnnotated exprs -> do
-        symbol' <- withPos pos $ resolveFuncCall symbol (map typeof exprs) exprType
+        symbol' <- withPos pos $ resolveFuncCall symbol $
+            Apply Type.Func (exprType : map typeof exprs)
         fmap (ElemExpr . AExpr exprType) $ return (Call pos symbol' exprs)
 
     _ -> return elem
@@ -85,37 +85,35 @@ instantiatorMapper elem = case elem of
         isAnnotated _           = False
 
 
-resolveFuncCall :: Symbol -> [Type] -> Type -> DoM InstantiatorState Symbol
-resolveFuncCall calledSymbol argTypes retType
+resolveFuncCall :: Symbol -> Type -> DoM InstantiatorState Symbol
+resolveFuncCall calledSymbol callType
     | symbolIsResolved calledSymbol = return calledSymbol
-resolveFuncCall calledSymbol      argTypes retType = do
-    let callHeader = CallHeader calledSymbol argTypes retType
-    headers <- gets (Map.elems . Map.map funcHeader . funcDefsAll . astResolved)
-    candidates <- findCandidates callHeader headers
+resolveFuncCall calledSymbol callType = do
+    headers <- gets $ filter
+        (\x -> symbolsCouldMatch (funcSymbol x) calledSymbol)
+        . Map.elems . Map.map funcHeader . funcDefsAll . astResolved
+    
+    candidates <- findCandidates callType headers
     ast <- gets astResolved
 
     case candidates of
-        [] -> fail ("no candidates for: " ++ show callHeader)
+        [] -> fail ("no candidates for: " ++ show callType)
 
         [header] -> do
-            instancem <- findInstance ast $ CallHeader
-                calledSymbol
-                (map typeof $ funcArgs $ header)
-                (typeof $ funcRetty $ header)
-
+            instancem <- findInstance ast calledSymbol (typeof header)
             case instancem of
                 Just symbol -> return symbol
                 Nothing -> do
-                    funcReplaced <- replaceGenericsInFuncWithCall
+                    funcReplaced <- replaceGenericsInFunc
                         (getFunction (funcSymbol header) ast)
-                        callHeader
+                        callType
 
-                    case funcHeaderFullyResolved (funcHeader funcReplaced) of
+                    case typeFullyResolved (typeof $ funcHeader funcReplaced) of
                         True -> do
                             instanceSymbol <- liftASTState $ genSymbol $ SymResolved $
                                 ["instance"] ++ symStr (funcSymbol $ funcHeader funcReplaced)
                             modifyAST $ \s -> s { funcInstance = Map.insert
-                                (callHeaderFromFuncHeader $ funcHeader funcReplaced)
+                                (funcSymbol (funcHeader funcReplaced), typeof (funcHeader funcReplaced))
                                 (funcReplaced { funcHeader = (funcHeader funcReplaced)
                                     { funcSymbol = instanceSymbol
                                     }})

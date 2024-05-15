@@ -26,14 +26,12 @@ import AST
 -- generic symbols with resolved types.
 
 
-findInstance :: MonadIO m => ASTResolved -> CallHeader -> m (Maybe Symbol)
-findInstance ast call = do
+findInstance :: MonadIO m => ASTResolved -> Symbol -> Type -> m (Maybe Symbol)
+findInstance ast symbol callType = do
     let funcs = Map.unions [funcInstance ast, funcInstanceImported ast]
 
-    candidates <- fmap catMaybes $ forM (Map.toList funcs) $ \(header, func) -> do
-        let match = (symbolsCouldMatch (callSymbol call) (callSymbol header)) &&
-                    (callRetType call == (callRetType header)) &&
-                    (callArgTypes call == (callArgTypes header))
+    candidates <- fmap catMaybes $ forM (Map.toList funcs) $ \((instSymbol, instType), func) -> do
+        let match = symbolsCouldMatch symbol instSymbol && callType == instType
         case match of
             True -> return (Just $ funcSymbol $ funcHeader func)
             False -> return Nothing
@@ -41,47 +39,51 @@ findInstance ast call = do
         [] -> return Nothing
         [x] -> do
             return (Just x)
-        xs -> error ("multiple candidates for: " ++ show call)
+        xs -> error ("multiple candidates for: " ++ show callType)
 
 
-findCandidates :: (MonadFail m, MonadError Error m) => CallHeader -> [FuncHeader] -> m [FuncHeader]
-findCandidates call headers = do
+findCandidates :: (MonadFail m, MonadError Error m) => Type -> [FuncHeader] -> m [FuncHeader]
+findCandidates callType headers = do
     fmap catMaybes $ forM headers $ \header -> do
-        couldMatch <- callCouldMatchFunc call header
+        couldMatch <- typesCouldMatch callType (typeof header)
         if not couldMatch then
             return Nothing
-        else if not (isGenericHeader header) then
-            return (Just header)
         else do
-            replacedE <- tryError (replaceGenericsInFuncHeader header call)
+            replacedE <- tryError $ replaceGenericsInFuncHeader header callType
             case replacedE of
                 Left _ -> return Nothing
                 Right replaced -> do
-                    res <- callCouldMatchFunc call replaced
+                    res <- typesCouldMatch callType (typeof replaced)
                     unless res (error "call doesn't match after replace")
                     return (Just replaced)
 
 
-replaceGenericsInFuncHeader :: MonadFail m => FuncHeader -> CallHeader -> m FuncHeader
-replaceGenericsInFuncHeader header call = do
-    couldMatch <- callCouldMatchFunc call (header { funcSymbol = callSymbol call })
+replaceGenericsInType :: MonadFail m => Type -> Type -> m Type
+replaceGenericsInType t1 t2 = do
+    subs <- unify =<< getConstraintsFromTypes t1 t2
+    return (applyType subs t1)
+
+
+replaceGenericsInFuncHeader :: MonadFail m => FuncHeader -> Type -> m FuncHeader
+replaceGenericsInFuncHeader header callType = do
+    couldMatch <- typesCouldMatch callType (typeof header)
     unless couldMatch (error "headers could not match")
-    subs <- unify (funcGenerics header) =<< getConstraints call header
+    subs <- unify =<< getConstraintsFromTypes (typeof header) callType
     return (applyFuncHeader subs header)
 
 
-replaceGenericsInFuncWithCall :: MonadFail m => Func -> CallHeader -> m Func
-replaceGenericsInFuncWithCall func call = do
-    couldMatch <- callCouldMatchFunc call $ (funcHeader func) { funcSymbol = callSymbol call }
+replaceGenericsInFunc :: MonadFail m => Func -> Type -> m Func
+replaceGenericsInFunc func callType = do
+    couldMatch <- typesCouldMatch callType (typeof $ funcHeader func)
     unless couldMatch (error "headers could not match")
-    subs <- unify (funcGenerics $ funcHeader func) =<< getConstraints call (funcHeader func)
+    subs <- unify =<< getConstraintsFromTypes (typeof $ funcHeader func) callType
     let func'   =  applyFunc subs func
     let header' = (funcHeader func') { funcGenerics = [] }
     return $ func' { funcHeader = header' } 
 
 
-unifyOne :: MonadFail m => [Symbol] -> Constraint -> m [(Type, Type)]
-unifyOne generics constraint = case constraint of
+unifyOne :: MonadFail m => Constraint -> m [(Type, Type)]
+unifyOne constraint = case constraint of
     ConsEq t1 t2 -> case (t1, t2) of
         _ | t1 == t2       -> return []
         _ | isGeneric t1   -> return [(t1, t2)]
@@ -95,35 +97,23 @@ unifyOne generics constraint = case constraint of
         _ -> fail $ "cannot unify: " ++ show (t1, t2)
 
 
-unify :: MonadFail m => [Symbol] -> [Constraint] -> m [(Type, Type)]
-unify generics []     = return []
-unify generics (x:xs) = do
-    subs <- unify generics xs
-    s <- unifyOne generics (applyConstraint subs x)
+unify :: MonadFail m => [Constraint] -> m [(Type, Type)]
+unify []     = return []
+unify (x:xs) = do
+    subs <- unify xs
+    s <- unifyOne (applyConstraint subs x)
     return (s ++ subs)
 
 
-getConstraints :: MonadFail m => CallHeader -> FuncHeader -> m [Constraint]
-getConstraints call header = do
-    retCs <- getConstraintsFromTypes
-        (funcGenerics header)
-        (typeof $ funcRetty header)
-        (callRetType call)
-    argCs <- fmap concat $ zipWithM (getConstraintsFromTypes $ funcGenerics header)
-        (map typeof $ funcArgs header)
-        (callArgTypes call)
-    return (retCs ++ argCs)
-    
-
-getConstraintsFromTypes :: MonadFail m => [Symbol] -> Type -> Type -> m [Constraint]
-getConstraintsFromTypes generics t1 t2 = case (t1, t2) of
+getConstraintsFromTypes :: MonadFail m => Type -> Type -> m [Constraint]
+getConstraintsFromTypes t1 t2 = case (t1, t2) of
     (a, b) | a == b            -> return [] 
     (Type _, _)                -> return [ConsEq t1 t2]
     (_, Type _)                -> return []
 
     (Apply t1 ts1, Apply t2 ts2) -> do
         unless (length ts1 == length ts2) (error "type mismatch")
-        concat <$> zipWithM (getConstraintsFromTypes generics) (t1 : ts1) (t2 : ts2)
+        concat <$> zipWithM (getConstraintsFromTypes) (t1 : ts1) (t2 : ts2)
 
     _ | isGeneric t1 && isGeneric t2 -> error $ show (t1, t2)
     _ | isGeneric t1 && not (isGeneric t2) -> return [ConsEq t1 t2]

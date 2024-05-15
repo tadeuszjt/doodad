@@ -128,28 +128,25 @@ collectStmt statement = collectPos statement $ case statement of
     x -> error "invalid statement"
 
 
-collectCall :: Symbol -> [Type] -> Type -> DoM CollectState ()
-collectCall symbol argTypes retType
-    | all typeFullyResolved (retType : argTypes) = return ()
-collectCall symbol argTypes retType = do
-    headers <- gets (Map.elems . Map.map funcHeader . funcDefsAll . astResolved)
-    candidates <- findCandidates (CallHeader symbol argTypes retType) headers
+collectCall :: Symbol -> Type -> DoM CollectState ()
+collectCall symbol callType | typeFullyResolved callType = return ()
+collectCall symbol callType = do
+    headers <- gets $ filter (\x -> symbolsCouldMatch (funcSymbol x) symbol)
+        . Map.elems . Map.map funcHeader . funcDefsAll . astResolved
+    candidates <- map (flatten . typeof) <$> findCandidates callType headers
     -- TODO needs to check only visible symbols
-
 
     --ast <- gets astResolved
     --_ <- runDoMExcept ast $ getFeatureArgFromFuncCall (CallHeader symbol argTypes retType)
 
-
-    case allSameType (map (typeof . AST.funcRetty) candidates) of
-        Just x | typeFullyResolved x -> collect "call" $ ConsEq retType x
-        _ -> return ()
-
-    forM_ (zip [0..] argTypes) $ \(i, at) -> do
-        case allSameType (map (typeof . (!! i) . AST.funcArgs) candidates) of
-            Just x | typeFullyResolved x -> collect "call" (ConsEq at x)
+    forM_ (zip [0..] (flatten callType)) $ \(i, t) -> do
+        case allSameType (map (!! i) candidates) of
+            Just x | typeFullyResolved x -> collect "call" (ConsEq t x)
             _ -> return ()
     where
+        flatten :: Type -> [Type]
+        flatten (Apply Type.Func ts) = ts
+
         allSameType :: [Type] -> Maybe Type
         allSameType [] = Nothing
         allSameType [x] = Just x
@@ -180,7 +177,7 @@ collectExpr (AExpr exprType expression) = collectPos expression $ case expressio
         when (symbolsCouldMatch symbol (Sym ["Construct", "construct"]) && length exprs == 1) $ do
             void $ collectDefault exprType $ typeof (head exprs)
 
-        collectCall symbol (map typeof exprs) exprType
+        collectCall symbol $ Apply Type.Func (exprType : map typeof exprs)
         mapM_ collectExpr exprs
 
     Match _ expr pat -> do

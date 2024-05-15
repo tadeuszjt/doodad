@@ -133,7 +133,7 @@ callFunction symbol retty args = do
     callSymbol <- case symbolIsResolved symbol of
         True -> return symbol
         False -> do
-            funcSymbolm <- findInstance ast $ CallHeader symbol (map typeof args) retty
+            funcSymbolm <- findInstance ast symbol $ Apply Type.Func (retty : map typeof args)
             unless (isJust funcSymbolm)
                 (error $ "couldn't find instance: " ++ show (prettySymbol symbol, retty, map typeof args))
             return (fromJust funcSymbolm)

@@ -18,15 +18,16 @@ import Symbol
 -- eg: At::at(T.Table, G) V   ==>   Table{T}   -> use feature instance
 -- eg: At::at(T, G) V         ==>   T          -> use feature header
 
-getFeatureArgFromFuncCall :: CallHeader -> DoM ASTResolved Type
-getFeatureArgFromFuncCall call = do
-    liftIO $ putStrLn $ "getFeatureArgFromFuncCall: " ++ show call
+getFeatureArgFromFuncCall :: Symbol -> Type -> DoM ASTResolved Type
+getFeatureArgFromFuncCall symbol callType = do
+    liftIO $ putStrLn $ "getFeatureArgFromFuncCall: " ++ show callType
     ast <- get
 
     featureHeaderCandidates <- fmap concat $ forM (Map.toList $ featureDefsAll ast) $
         \(symbol, (arg, headers)) -> fmap catMaybes $ forM headers $ \header -> do
-            couldMatch <- callCouldMatchFunc call header
-            case couldMatch of
+            symbolsMatch <- return $ symbolsCouldMatch symbol (funcSymbol header)
+            typesMatch <- typesCouldMatch callType (typeof header)
+            case symbolsMatch && typesMatch of
                 True -> return $ Just (symbol, header)
                 False -> return Nothing
 
