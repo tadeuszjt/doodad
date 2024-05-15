@@ -149,7 +149,7 @@ resolveAst ast imports = fmap fst $ runDoMExcept initResolveState (resolveAst' a
 
                     headers' <- forM headers $ \header -> do
                         fnSymbol' <- genSymbol $
-                            SymResolved (symStr symbol' ++ symStr (funcSymbol header))
+                            SymResolved (tail (symStr symbol') ++ symStr (funcSymbol header))
                         define fnSymbol' KeyFunc
                         return $ header { funcSymbol = fnSymbol' }
 
@@ -233,7 +233,7 @@ resolveStmt statement = withPos statement $ case statement of
             fnSymbol' <- case funcSymbol header of
                 SymResolved _ -> return (funcSymbol header)
                 Sym str -> do
-                    s <- genSymbol $ SymResolved (symStr symbol' ++ str)
+                    s <- genSymbol $ SymResolved (tail (symStr symbol') ++ str)
                     define s KeyFunc
                     return s
             return $ header { funcSymbol = fnSymbol' }

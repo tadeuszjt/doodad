@@ -96,4 +96,5 @@ executable doodad
         ResolveAst,
         CombineAsts,
         Preprocess,
-        AstBuilder
+        AstBuilder,
+        FeatureFinder

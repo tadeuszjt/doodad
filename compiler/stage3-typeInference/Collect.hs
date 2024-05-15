@@ -13,6 +13,7 @@ import Control.Monad.State
 import Symbol
 import ASTResolved
 import FunctionFinder
+import FeatureFinder
 
 
 data CollectState
@@ -134,6 +135,11 @@ collectCall symbol argTypes retType = do
     headers <- gets (Map.elems . Map.map funcHeader . funcDefsAll . astResolved)
     candidates <- findCandidates (CallHeader symbol argTypes retType) headers
     -- TODO needs to check only visible symbols
+
+
+    --ast <- gets astResolved
+    --_ <- runDoMExcept ast $ getFeatureArgFromFuncCall (CallHeader symbol argTypes retType)
+
 
     case allSameType (map (typeof . AST.funcRetty) candidates) of
         Just x | typeFullyResolved x -> collect "call" $ ConsEq retType x
