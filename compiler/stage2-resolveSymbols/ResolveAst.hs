@@ -64,18 +64,10 @@ printSymbolTable = do
 
 lookupSymTab :: Symbol -> SymKey -> MySymTab -> [Symbol]
 lookupSymTab symbol key []       = []
-lookupSymTab symbol key (s : ss) = case symbol of
-    Sym str -> case Set.toList (Set.filter (\(s, k) -> key == k && symbolsCouldMatch (Sym str) s) s) of
+lookupSymTab symbol key (s : ss) = 
+    case Set.toList (Set.filter (\(s, k) -> key == k && symbolsCouldMatch symbol s) s) of
         [] -> lookupSymTab symbol key ss
         xs -> map fst xs
-
-    SymResolved _ -> case Set.member (symbol, key) s of
-        True -> [symbol]
-        False -> lookupSymTab symbol key ss
-
-    where
-        removeGeneric :: String -> String
-        removeGeneric str = reverse $ takeWhile (/= '>') (reverse str)
 
 
 lookm :: Symbol -> SymKey -> DoM ResolveState (Maybe Symbol)

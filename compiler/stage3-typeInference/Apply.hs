@@ -72,14 +72,6 @@ applyExpr subs expression = case expression of
         applyTy = applyType subs
 
 
-applyType :: [(Type, Type)] -> Type -> Type
-applyType subs = mapType (f subs)
-    where
-        f :: [(Type, Type)] -> Type -> Type
-        f []          z = z
-        f ((x, u):xs) z = f xs (if z == x then u else z)
-
-
 applyPattern :: [(Type, Type)] -> Pattern -> Pattern
 applyPattern subs pattern = case pattern of
     PatAnnotated pat typ -> PatAnnotated (applyPattern subs pat) (applyType subs typ)

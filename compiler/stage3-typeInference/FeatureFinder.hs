@@ -26,7 +26,7 @@ getFeatureArgFromFuncCall symbol callType = do
     featureHeaderCandidates <- fmap concat $ forM (Map.toList $ featureDefsAll ast) $
         \(symbol, (arg, headers)) -> fmap catMaybes $ forM headers $ \header -> do
             symbolsMatch <- return $ symbolsCouldMatch symbol (funcSymbol header)
-            typesMatch <- typesCouldMatch callType (typeof header)
+            let typesMatch = typesCouldMatch callType (typeof header)
             case symbolsMatch && typesMatch of
                 True -> return $ Just (symbol, header)
                 False -> return Nothing

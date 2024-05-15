@@ -38,11 +38,8 @@ builtinStore dst@(Ref _ _) src = do
     case src of
         Value _ _ -> case base of
             x | isSimple x -> void $ appendElem $ C.Set (C.Deref $ refExpr dst) (valExpr src)
-
-            x -> error (show x)
 --            TypeApply (Sym ["Tuple"]) ts | isCopyable -> do
 --                void $ appendElem $ C.Set (C.Deref $ C.Member (refExpr dst) "ptr") (valExpr src)
-
 
             x -> error (show x)
 

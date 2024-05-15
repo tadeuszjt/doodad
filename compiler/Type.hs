@@ -13,15 +13,6 @@ type TypeDefsMap = Map.Map Symbol ([Symbol], Type)
 
 class Monad m => TypeDefs m where getTypeDefs :: m TypeDefsMap
 
-newtype TypeDefsMonad a = TypeDefsMonad { getState :: State TypeDefsMap a }
-    deriving (Applicative, Functor, Monad, MonadState TypeDefsMap)
-
-instance TypeDefs TypeDefsMonad where getTypeDefs = get
-
-runTypeDefsMonad :: TypeDefsMap -> TypeDefsMonad a -> a
-runTypeDefsMonad typeDefs f = evalState (getState f) typeDefs
-
-
 class Typeof a where typeof :: a -> Type
 instance Typeof Type where typeof = id
 
@@ -117,6 +108,21 @@ mapType f typ = f $ case typ of
     _          -> typ
 
 
+applyType :: [(Type, Type)] -> Type -> Type
+applyType subs = mapType (f subs)
+    where
+        f :: [(Type, Type)] -> Type -> Type
+        f []          z = z
+        f ((x, u):xs) z = f xs (if z == x then u else z)
+
+
+applyTypeM :: MonadFail m => [Symbol] -> [Type] -> Type -> m Type
+applyTypeM argSymbols argTypes typ = do
+    unless (length argSymbols == length argTypes) (fail $ "invalid arguments: " ++ show typ)
+    let subs = zip (map TypeDef argSymbols) argTypes
+    return (applyType subs typ)
+
+
 baseTypeOf :: (MonadFail m, TypeDefs m, Typeof a) => a -> m Type
 baseTypeOf a = do
     resm <- baseTypeOfm a
@@ -131,7 +137,7 @@ baseTypeOfm a = case typeof a of
 
     Apply (TypeDef s) ts -> do
         Just (ss, t) <- Map.lookup s <$> getTypeDefs
-        baseTypeOfm =<< applyTypeArguments ss ts t
+        baseTypeOfm =<< applyTypeM ss ts t
 
     TypeDef s -> do
         Just ([], t) <- Map.lookup s <$> getTypeDefs
@@ -140,38 +146,22 @@ baseTypeOfm a = case typeof a of
     _ -> return $ Just (typeof a)
 
 
-applyTypeArguments :: (MonadFail m, TypeDefs m) => [Symbol] -> [Type] -> Type -> m Type
-applyTypeArguments argSymbols argTypes typ = do
-    unless (length argSymbols == length argTypes) (fail $ "invalid arguments: " ++ show typ)
-    case typ of
-        TypeDef s -> case elemIndex s argSymbols of
-            Just x -> return (argTypes !! x)
-            Nothing -> return (TypeDef s)
-
-        Apply t ts -> do
-            ts' <- mapM (applyTypeArguments argSymbols argTypes) (t : ts)
-            return $ Apply (head ts') (tail ts')
-
-        _ -> return typ
-
-
-typesCouldMatch :: Monad m => Type -> Type -> m Bool
+typesCouldMatch :: Type -> Type -> Bool
 typesCouldMatch t1 t2 = case (t1, t2) of
-    (a, b) | a == b            -> return True
-    (Type _, _)                -> return True
-    (_, Type _)                -> return True
+    (a, b) | a == b            -> True
+    (Type _, _)                -> True
+    (_, Type _)                -> True
 
-    (TypeDef s, _) | isGeneric t1 -> return True
-    (_, TypeDef s) | isGeneric t2 -> return True
+    (TypeDef s, _) | isGeneric t1 -> True
+    (_, TypeDef s) | isGeneric t2 -> True
 
     (Apply t1 ts1, Apply t2 ts2)
         | length ts1 == length ts2 ->
-            all id <$> zipWithM typesCouldMatch (t1 : ts1) (t2 : ts2)
+            all id $ zipWith typesCouldMatch (t1 : ts1) (t2 : ts2)
 
-    (TypeDef s1, TypeDef s2) | symbolsCouldMatch s1 s2 ->
-        return True
+    (TypeDef s1, TypeDef s2) -> symbolsCouldMatch s1 s2
 
-    _ -> return False
+    _ -> False
 
 
 typeFullyResolved :: Type -> Bool

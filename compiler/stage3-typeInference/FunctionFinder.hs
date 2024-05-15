@@ -45,15 +45,14 @@ findInstance ast symbol callType = do
 findCandidates :: (MonadFail m, MonadError Error m) => Type -> [FuncHeader] -> m [FuncHeader]
 findCandidates callType headers = do
     fmap catMaybes $ forM headers $ \header -> do
-        couldMatch <- typesCouldMatch callType (typeof header)
-        if not couldMatch then
+        if not (typesCouldMatch callType $ typeof header) then
             return Nothing
         else do
             replacedE <- tryError $ replaceGenericsInFuncHeader header callType
             case replacedE of
                 Left _ -> return Nothing
                 Right replaced -> do
-                    res <- typesCouldMatch callType (typeof replaced)
+                    let res = typesCouldMatch callType (typeof replaced)
                     unless res (error "call doesn't match after replace")
                     return (Just replaced)
 
@@ -66,7 +65,7 @@ replaceGenericsInType t1 t2 = do
 
 replaceGenericsInFuncHeader :: MonadFail m => FuncHeader -> Type -> m FuncHeader
 replaceGenericsInFuncHeader header callType = do
-    couldMatch <- typesCouldMatch callType (typeof header)
+    let couldMatch = typesCouldMatch callType (typeof header)
     unless couldMatch (error "headers could not match")
     subs <- unify =<< getConstraintsFromTypes (typeof header) callType
     return (applyFuncHeader subs header)
@@ -74,7 +73,7 @@ replaceGenericsInFuncHeader header callType = do
 
 replaceGenericsInFunc :: MonadFail m => Func -> Type -> m Func
 replaceGenericsInFunc func callType = do
-    couldMatch <- typesCouldMatch callType (typeof $ funcHeader func)
+    let couldMatch = typesCouldMatch callType (typeof $ funcHeader func)
     unless couldMatch (error "headers could not match")
     subs <- unify =<< getConstraintsFromTypes (typeof $ funcHeader func) callType
     return (applyFunc subs func)

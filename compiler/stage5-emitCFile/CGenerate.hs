@@ -319,7 +319,7 @@ cTypeOf a = case typeof a of
 
     Apply (TypeDef s) ts -> do
         (generics, typ) <- (Map.! s) <$> getTypeDefs
-        getTypedef (Symbol.sym s) =<< cTypeOf =<< applyTypeArguments generics ts typ
+        getTypedef (Symbol.sym s) =<< cTypeOf =<< applyTypeM generics ts typ
 
     TypeDef s -> do
         ([], typ) <- (Map.! s) <$> getTypeDefs

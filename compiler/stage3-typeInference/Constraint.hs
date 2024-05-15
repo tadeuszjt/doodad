@@ -13,7 +13,6 @@ data Constraint
     deriving (Eq, Ord)
 
 
-
 data ConstraintInfo
     = ConstraintInfo
         { infoTextPos :: TextPos

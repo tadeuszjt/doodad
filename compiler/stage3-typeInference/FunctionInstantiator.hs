@@ -112,20 +112,18 @@ resolveFuncCall calledSymbol callType = do
                         (getFunction (funcSymbol header) ast)
                         callType
 
-                    case typeFullyResolved (typeof $ funcHeader funcReplaced) of
-                        True -> do
-                            instanceSymbol <- liftASTState $ genSymbol $ SymResolved $
-                                ["instance"] ++ symStr (funcSymbol $ funcHeader funcReplaced)
-                            modifyAST $ \s -> s { funcInstance = Map.insert
-                                (funcSymbol (funcHeader funcReplaced), typeof (funcHeader funcReplaced))
-                                (funcReplaced { funcHeader = (funcHeader funcReplaced)
-                                    { funcSymbol = instanceSymbol
-                                    }})
-                                (funcInstance s) }
+                    let isResolved = typeFullyResolved $ typeof (funcHeader funcReplaced)
+                    unless isResolved (error "not resolved")
 
-                            return instanceSymbol
+                    instanceSymbol <- liftASTState $ genSymbol $ SymResolved $
+                        ["instance"] ++ symStr (funcSymbol $ funcHeader funcReplaced)
+                    modifyAST $ \s -> s { funcInstance = Map.insert
+                        (funcSymbol (funcHeader funcReplaced), typeof (funcHeader funcReplaced))
+                        (funcReplaced { funcHeader = (funcHeader funcReplaced)
+                            { funcSymbol = instanceSymbol
+                            }})
+                        (funcInstance s) }
 
-                        False -> 
-                            error "False"
+                    return instanceSymbol
 
         _ -> return calledSymbol
