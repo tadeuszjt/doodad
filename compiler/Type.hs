@@ -37,10 +37,10 @@ data Type
     | F64                    
     | Bool                   
     | Char                   
-    | Apply Type [Type]
-    | TypeDef Symbol
     | Slice
     | Size Int
+    | TypeDef Symbol
+    | Apply Type [Type]
     deriving (Eq, Ord)
 
 instance Show Type where

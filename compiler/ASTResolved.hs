@@ -23,8 +23,8 @@ data ASTResolved
         , typeDefsAll          :: Type.TypeDefsMap                -- all type defs
         , typeDefsTop          :: Set.Set Symbol                  -- top-level type defs
 
-        , featuresAll          :: Map.Map Symbol FuncHeader
-        , featuresTop          :: Set.Set Symbol
+        , featureDefsAll       :: Map.Map Symbol (Symbol, [FuncHeader])
+        , featureDefsTop       :: Set.Set Symbol
 
         , funcDefsAll          :: Map.Map Symbol Func
         , funcDefsTop          :: Set.Set Symbol
@@ -136,14 +136,14 @@ prettyASTResolved ast = do
     forM_ (Set.toList $ typeDefsTop ast) $ \symbol -> do
         liftIO $ putStrLn $ "\t" ++ prettySymbol symbol
 
-    putStrLn ""
-    putStrLn "featuresAll:"
-    forM_ (Map.toList $ featuresAll ast) $ \(symbol, header) -> do
-        liftIO $ putStrLn $ "\t" ++ prettySymbol symbol ++ ": " ++ show header 
+--    putStrLn ""
+--    putStrLn "featuresAll:"
+--    forM_ (Map.toList $ featuresAll ast) $ \(symbol, header) -> do
+--        liftIO $ putStrLn $ "\t" ++ prettySymbol symbol ++ ": " ++ show header 
 
     putStrLn ""
-    putStrLn "featuresTop:"
-    forM_ (Set.toList $ featuresTop ast) $ \symbol -> do
+    putStrLn "featureDefsTop:"
+    forM_ (Set.toList $ featureDefsTop ast) $ \symbol -> do
         putStrLn $ "\t" ++ prettySymbol symbol
 
     putStrLn ""

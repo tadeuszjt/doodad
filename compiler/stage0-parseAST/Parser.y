@@ -151,12 +151,10 @@ tupleFields : {-empty-}                       { [] }
 -- Statements -------------------------------------------------------------------------------------
 
 
-featureDef : feature Ident featureType 'I' featureHeaders 'D' { Feature (tokPos $1) (Sym [tokStr $2]) $3 $5 }
+featureDef : feature Ident '{' Ident '}' 'I' featureHeaders 'D' { Feature (tokPos $1) (Sym [tokStr $2]) (Sym [tokStr $4]) $7 }
 featureHeader : fn generics ident '(' types ')' retty
     { FuncHeader (tokPos $1) $2 (Sym [tokStr $3]) (map (Param (tokPos $1) (Sym [])) $5) $7 }
 
-featureType : {-empty-}     { Nothing }
-            | '{' Ident '}' { (Just $ Sym [tokStr $2]) }
 featureHeaders : {-empty-}                        { [] }
                | featureHeader 'N' featureHeaders { ($1 : $3) }
 

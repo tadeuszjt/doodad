@@ -143,16 +143,17 @@ resolveAst ast imports = fmap fst $ runDoMExcept initResolveState (resolveAst' a
                     define symbol KeyFunc
                     return $ FuncDef $ Func (header { funcSymbol = symbol }) stmt
 
-                Feature pos symbol marg headers -> do
+                Feature pos symbol arg headers -> do
                     symbol' <- genSymbol (SymResolved $ symStr symbol)
                     define symbol' KeyType
+
                     headers' <- forM headers $ \header -> do
                         fnSymbol' <- genSymbol $
                             SymResolved (symStr symbol' ++ symStr (funcSymbol header))
                         define fnSymbol' KeyFunc
                         return $ header { funcSymbol = fnSymbol' }
 
-                    return (Feature pos symbol' marg headers')
+                    return (Feature pos symbol' arg headers')
 
                 _ -> return stmt
 
@@ -220,7 +221,7 @@ resolveStmt statement = withPos statement $ case statement of
         popSymbolTable
         return (Typedef pos generics' symbol' typ')
 
-    Feature pos symbol marg headers -> do
+    Feature pos symbol arg headers -> do
         symbol' <- case symbol of
             SymResolved _ -> return symbol
             Sym str -> do
@@ -239,9 +240,7 @@ resolveStmt statement = withPos statement $ case statement of
 
         pushSymbolTable
 
-        marg' <- case marg of
-            Nothing -> return Nothing
-            Just arg -> Just . head <$> defineGenerics [arg]
+        arg' <- head <$> defineGenerics [arg]
 
         headers'' <- forM headers' $ \header -> do
             pushSymbolTable
@@ -253,7 +252,7 @@ resolveStmt statement = withPos statement $ case statement of
 
         popSymbolTable
 
-        return (Feature pos symbol' marg' headers'')
+        return (Feature pos symbol' arg' headers'')
 
     FuncDef (Func header stmt) -> do
         symbol' <- case (funcSymbol header) of

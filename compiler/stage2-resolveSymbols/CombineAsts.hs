@@ -17,11 +17,14 @@ initAstResolved modName imports = ASTResolved
     { moduleName     = modName
     , includes       = Set.empty
     , links          = Set.empty
-    , featuresAll    = Map.unions (map featuresAll imports)
     , typeDefsAll    = Map.unions (map typeDefsAll imports)
     , funcDefsAll    = Map.unions (map funcDefsAll imports)
-    , featuresTop    = Set.empty
+
+    , featureDefsAll   = Map.unions (map featureDefsAll imports)
+    , featureDefsTop   = Set.empty
+
     , typeDefsTop    = Set.empty
+
     , funcDefsTop    = Set.empty
     , funcInstance   = Map.empty
     , funcInstanceImported = Map.unions $
@@ -51,7 +54,8 @@ combineAsts (ast, supply) imports = fmap snd $
                 FuncDef (Func header stmt) ->
                     modify $ \s -> s { funcDefsTop = Set.insert (funcSymbol header) (funcDefsTop s) }
 
-                Feature _ _ _ _ -> return ()
+                Feature _ symbol _ _ ->
+                    modify $ \s -> s { featureDefsTop = Set.insert symbol (featureDefsTop s) }
 
 
 combineMapper :: Elem -> DoM ASTResolved Elem
@@ -62,6 +66,10 @@ combineMapper element = case element of
 
     ElemStmt (Typedef pos generics symbol typ) -> do
         modify $ \s -> s { typeDefsAll = Map.insert symbol (generics, typ) (typeDefsAll s) }
+        return element
+
+    ElemStmt (Feature pos symbol arg headers) -> do
+        modify $ \s -> s { featureDefsAll = Map.insert symbol (arg, headers) (featureDefsAll s) }
         return element
 
     -- filter out statements

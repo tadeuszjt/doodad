@@ -131,7 +131,7 @@ data Stmt
     | If          TextPos Expr Stmt (Maybe Stmt)
     | While       TextPos Expr Stmt
     | FuncDef     Func
-    | Feature     TextPos Symbol (Maybe Symbol) [FuncHeader]
+    | Feature     TextPos Symbol Symbol [FuncHeader]
     | Typedef     TextPos Generics Symbol Type
     | Switch      TextPos Expr [(Pattern, Stmt)]
     | For         TextPos Expr (Maybe Pattern) Stmt
@@ -270,11 +270,8 @@ prettyStmt pre stmt = case stmt of
         prettyStmt pre blk
         putStrLn ""
 
-    Feature pos symbol marg headers -> do
-        argStr <- case marg of
-            Nothing -> return ""
-            Just arg -> return (brcStrs [prettySymbol arg])
-        putStrLn $ pre ++ "feature " ++ prettySymbol symbol ++ argStr
+    Feature pos symbol arg headers -> do
+        putStrLn $ pre ++ "feature " ++ prettySymbol symbol ++ brcStrs [prettySymbol arg]
         forM_ headers $ \header -> do
             putStrLn $ pre ++ "\t" ++ show header
 
