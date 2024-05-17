@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleInstances #-}
 module Collect where
 
 import Data.Maybe
@@ -34,6 +35,10 @@ initCollectState ast = CollectState
     , curPos      = TextPos "" 0 0
     , astResolved = ast
     }
+
+
+instance TypeDefs (DoM CollectState) where
+    getTypeDefs = gets (typeDefsAll . astResolved)
 
 
 collectPos :: (TextPosition t) => t -> DoM CollectState a -> DoM CollectState a
@@ -170,15 +175,14 @@ collectExpr (AExpr exprType expression) = collectPos expression $ case expressio
     Int _ _      -> collect "integer is type I64" (ConsEq exprType I64)
     AST.Char _ _ -> collect "char literal must have Char type" (ConsEq exprType Type.Char)
 
-    Call _ symbol exprs -> do
-        when (symbolsCouldMatch symbol (Sym ["Construct", "construct"]) && length exprs > 1) $ do
-            void $ collectDefault exprType $ Apply Tuple (map typeof exprs)
-   
-        when (symbolsCouldMatch symbol (Sym ["Construct", "construct"]) && length exprs == 1) $ do
-            void $ collectDefault exprType $ typeof (head exprs)
-
-        collectCall symbol $ Apply Type.Func (exprType : map typeof exprs)
+    Call _ callType exprs -> do
+        Apply Type.Func ts <- baseTypeOf callType
+        unless ((length exprs + 1) == length ts) (fail "invalid function type arguments")
+        collect "call return" $ ConsEq exprType (head ts)
+        forM_ (zip (tail ts) exprs) $ \(t, expr) -> do
+            collect "call arg" $ ConsEq (typeof expr) t
         mapM_ collectExpr exprs
+
 
     Match _ expr pat -> do
         collect "match must have same type for pattern and expression" $

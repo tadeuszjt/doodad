@@ -98,8 +98,8 @@ prettyASTResolved ast = do
     putStrLn ""
     putStrLn "funcDefsAll:"
     forM_ (Map.toList $ funcDefsAll ast) $ \(symbol, func) -> do
-        putStr $ "\t" ++ prettySymbol symbol ++ ": "
-        prettyStmt "" $ FuncDef [] func
+        let Just (generics, typ) = Map.lookup symbol (typeDefsAll ast)
+        prettyStmt "" $ FuncDef generics func
 
     putStrLn ""
     putStrLn "funcDefsTop:"

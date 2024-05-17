@@ -1,6 +1,7 @@
 module Infer where
 
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 import Control.Monad.State
 import Monad
 import Error
@@ -46,21 +47,28 @@ infer :: ASTResolved -> Bool -> Bool -> DoM s (ASTResolved, Int)
 infer ast printAnnotated verbose = runDoMUntilSameResult ast $ \ast -> do 
     inferred <- inferTypesPerFunc ast
     defaulted <- inferDefaults inferred
-    FunctionInstantiator.compile verbose defaulted
+    --FunctionInstantiator.compile verbose defaulted
+    return defaulted
     where
         inferTypesPerFunc :: ASTResolved -> DoM s ASTResolved
         inferTypesPerFunc ast = do
-            funcInstance' <- forM (funcInstance ast) $ \func -> do
-                fmap fst $ runDoMExcept ast $
-                    fmap fst (runDoMUntilSameResult func inferFunc)
+            funcDefsAll' <- fmap Map.fromList $ forM (Map.toList $ funcDefsAll ast) $ \(symbol, func) ->
+                if Set.member symbol (funcDefsTop ast) then do
+                    func' <- fmap fst $ runDoMExcept ast $
+                        fmap fst (runDoMUntilSameResult func inferFunc)
+                    return (symbol, func')
+                else return (symbol, func)
 
-            return (ast { funcInstance = funcInstance' })
+            return (ast { funcDefsAll = funcDefsAll' })
 
 
         inferDefaults :: ASTResolved -> DoM s ASTResolved
         inferDefaults ast = do
-            funcInstance' <- forM (funcInstance ast) $ \func -> do
-                fmap fst $ runDoMExcept ast $
-                    fmap fst (runDoMUntilSameResult func inferFuncDefaults)
+            funcDefsAll' <- fmap Map.fromList $ forM (Map.toList $ funcDefsAll ast) $ \(symbol, func) ->
+                if Set.member symbol (funcDefsTop ast) then do
+                    func' <- fmap fst $ runDoMExcept ast $
+                        fmap fst (runDoMUntilSameResult func inferFuncDefaults)
+                    return (symbol, func')
+                else return (symbol, func)
 
-            return (ast { funcInstance = funcInstance' })
+            return (ast { funcDefsAll = funcDefsAll' })

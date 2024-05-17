@@ -74,7 +74,7 @@ data Expr
     | Bool         TextPos Bool
     | Char         TextPos Char
     | String       TextPos String
-    | Call         TextPos Symbol [Expr]
+    | Call         TextPos Type [Expr]
     | Field        TextPos Expr Int
     | Ident        TextPos Symbol
     | Match        TextPos Expr Pattern
@@ -132,7 +132,7 @@ data Stmt
     | Block       [Stmt]
     | If          TextPos Expr Stmt (Maybe Stmt)
     | While       TextPos Expr Stmt
-    | FuncDef     [Symbol] Func
+    | FuncDef     Generics Func
     | Feature     TextPos Symbol Symbol [FuncHeader]
     | Typedef     TextPos Generics Symbol Type
     | Switch      TextPos Expr [(Pattern, Stmt)]
@@ -242,7 +242,7 @@ instance Show Expr where
         AST.Array pos exprs                -> arrStrs (map show exprs)
         Field pos expr symbol              -> show expr ++ "." ++ show symbol
         Ident p s                          -> prettySymbol s 
-        Call pos symbol exprs              -> prettySymbol symbol ++ tupStrs (map show exprs)
+        Call pos typ exprs                  -> show typ ++ tupStrs (map show exprs)
         Match pos expr1 expr2              -> "(" ++ show expr1 ++ " -> " ++ show expr2 ++ ")"
         Reference pos expr                 -> "&" ++ show expr
         Subscript pos expr1 expr2          -> show expr1 ++ "[" ++ show expr2 ++ "]"
@@ -268,7 +268,15 @@ prettyStmt pre stmt = case stmt of
     Assign pos symbol expr -> putStrLn $ pre ++ "assign " ++ prettySymbol symbol ++ " " ++ show expr
 
     FuncDef generics (AST.Func header blk) -> do
-        putStrLn (pre ++ show header)
+        putStrLn $
+            pre
+            ++ "fn"
+            ++ brcStrs (map prettySymbol generics)
+            ++ " "
+            ++ prettySymbol (funcSymbol header)
+            ++ tupStrs (map show $ funcArgs header)
+            ++ " "
+            ++ show (funcRetty header)
         prettyStmt pre blk
         putStrLn ""
 

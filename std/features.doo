@@ -6,6 +6,7 @@ feature Arithmetic{T}
     fn times(T, T) T
     fn divide(T, T) T
     fn modulo(T, T) T
+    fn subtract(T) T
 
 
 feature Boolean{T}

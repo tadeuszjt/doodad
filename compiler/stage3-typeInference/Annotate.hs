@@ -13,11 +13,11 @@ annotateFunc :: Func -> DoM Int Func
 annotateFunc func = do
     mapFuncM annotateMapper func
 
-
         
 annotateMapper :: Elem -> DoM Int Elem
 annotateMapper elem = case elem of
     ElemStmt _                     -> return elem
+    ElemType (Type 0)              -> ElemType <$> genType
     ElemType _                     -> return elem
     ElemExpr (AExpr t (AExpr _ e)) -> return $ ElemExpr $ AExpr t e
     ElemExpr expr                  -> do
@@ -31,11 +31,12 @@ annotateMapper elem = case elem of
         t <- genType
         return $ ElemPattern (PatAnnotated pattern t)
 
+
 genType :: DoM Int Type
 genType = do
     i <- get
     put (i + 1)
-    return (Type i)
+    return $ Type (i + 1)
 
 -- DeAnnotate takes an AST and removes all unresolved type annotations.
 deAnnotateFunc :: Func -> DoM () Func
@@ -45,9 +46,11 @@ deAnnotateFunc func = do
 
 deAnnotateMapper :: Elem -> DoM () Elem
 deAnnotateMapper elem = return $ case elem of
+    ElemType (Type n)                                    -> ElemType (Type 0)
     ElemExpr (AExpr typ expr)          | hasTypeVars typ -> ElemExpr expr
     ElemPattern (PatAnnotated pat typ) | hasTypeVars typ -> ElemPattern pat
     _                                                    -> elem
+
 
 hasTypeVars :: Type -> Bool
 hasTypeVars typ = case typ of

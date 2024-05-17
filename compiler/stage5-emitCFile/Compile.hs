@@ -174,106 +174,106 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
     S.String _ s           -> assign "string" $ Value typ $
         C.Initialiser [C.String s, C.Int (fromIntegral $ length s)]
 
-    S.Call _ symbol [expr1, expr2] | symbolsCouldMatch symbol (Sym ["builtin", "add"]) -> do
-        val1 <- deref =<< generateExpr expr1
-        val2 <- deref =<< generateExpr expr2
-        builtinAdd val1 val2
-
-    S.Call _ symbol [expr1, expr2] | symbolsCouldMatch symbol (Sym ["builtin", "subtract"]) -> do
-        val1 <- deref =<< generateExpr expr1
-        val2 <- deref =<< generateExpr expr2
-        builtinSubtract val1 val2
-
-    S.Call _ symbol [expr1, expr2] | symbolsCouldMatch symbol (Sym ["builtin", "multiply"]) -> do
-        val1 <- deref =<< generateExpr expr1
-        val2 <- deref =<< generateExpr expr2
-        builtinMultiply val1 val2
-
-    S.Call _ symbol [expr1, expr2] | symbolsCouldMatch symbol (Sym ["builtin", "divide"]) -> do
-        val1 <- deref =<< generateExpr expr1
-        val2 <- deref =<< generateExpr expr2
-        builtinDivide val1 val2
-
-    S.Call _ symbol [expr1, expr2] | symbolsCouldMatch symbol (Sym ["builtin", "modulo"]) -> do
-        val1 <- deref =<< generateExpr expr1
-        val2 <- deref =<< generateExpr expr2
-        builtinModulo val1 val2
-
-    S.Call _ symbol [expr1, expr2] | symbolsCouldMatch symbol (Sym ["builtin", "equal"]) -> do
-        val1 <- deref =<< generateExpr expr1
-        val2 <- deref =<< generateExpr expr2
-        builtinEqual val1 val2
-
-    S.Call _ symbol [expr1, expr2] | symbolsCouldMatch symbol (Sym ["builtin", "tableAt"]) -> do
-        val <- generateExpr expr1
-        idx <- generateExpr expr2
-        builtinTableAt val idx
-
-    S.Call _ symbol [expr1, expr2] | symbolsCouldMatch symbol (Sym ["builtin", "sliceAt"]) -> do
-        val <- generateExpr expr1
-        idx <- generateExpr expr2
-        builtinSliceAt val idx
-
-    S.Call _ symbol [expr1, expr2] | symbolsCouldMatch symbol (Sym ["builtin", "arrayAt"]) -> do
-        val <- generateExpr expr1
-        idx <- generateExpr expr2
-        builtinArrayAt val idx
-
-    S.Call _ symbol [expr] | symbolsCouldMatch symbol (Sym ["builtin", "tableAppend"]) -> do
-        val <- generateExpr expr
-        Apply Table _ <- baseTypeOf val
-        case val of
-            Value _ _ -> fail "isn't reference"
-            Ref _ _   -> builtinTableAppend val >> return (Value Void $ C.Int 0)
-
-    S.Call _ symbol [expr, start, end] | symbolsCouldMatch symbol (Sym ["builtin", "tableSlice"]) -> do
-        ref@(Ref _ exp) <- generateExpr expr
-        srt@(Value I64 _) <- generateExpr start
-        en@(Value I64 _) <- generateExpr end
-
-        -- TODO this is broken 
-        Apply Table [t] <- baseTypeOf ref
-        assign "slice" $ Value (Apply Slice [t]) $ C.Initialiser
-            [ C.Address (C.Subscript (C.PMember exp "r0") (valExpr srt))
-            , C.Infix C.Minus (C.PMember exp "len") (valExpr srt)
-            ] 
-
-    S.Call _ symbol [expr] | symbolsCouldMatch symbol (Sym ["builtin", "sumEnum"]) -> do
-        builtinSumEnum =<< generateExpr expr
-
-    S.Call _ symbol [expr, idx] | symbolsCouldMatch symbol (Sym ["builtin", "sumReset"]) -> do
-        val1 <- generateExpr expr
-        builtinSumReset val1 =<< generateExpr idx
-        return $ Value Void (C.Int 0)
-
-    S.Call _ symbol [expr1, expr2] | symbolsCouldMatch symbol (Sym ["builtin", "store"]) -> do
-        check (typeof expr1 == typeof expr2) "type mismatch"
-        base <- baseTypeOf expr1
-        ref1@(Ref _ _) <- generateExpr expr1
-        builtinStore ref1 =<< generateExpr expr2
-        return $ Value Void (C.Int 0)
-
-    S.Call _ symbol [expr] | symbolsCouldMatch symbol (Sym ["builtin", "tableLen"]) -> do
-        builtinLen =<< generateExpr expr
-
-    S.Call _ symbol exprs | symbolsCouldMatch (Sym ["builtin", "pretend"]) symbol -> do
-        let [expr] = exprs
-        Ref exprType refExpr <- generateExpr expr
-
-        base <- baseTypeOf typ
-        baseExpr <- baseTypeOf exprType
-        check (base == baseExpr) ("types do not have same base: " ++ show (base, baseExpr))
-
-        case base of
-            Apply Tuple _ ->
-                assign "ref" $ Ref typ $ C.Initialiser [C.Member refExpr "ptr"]
-            _ -> 
-                assign "ref" $ Ref typ $ C.Initialiser [refExpr]
-
-
-    S.Call _ symbol exprs -> do
-        check (symbolIsResolved symbol) ("unresolved function call: " ++ prettySymbol symbol)
-        callFunction symbol typ =<< mapM generateExpr exprs
+--    S.Call _ symbol [expr1, expr2] | symbolsCouldMatch symbol (Sym ["builtin", "add"]) -> do
+--        val1 <- deref =<< generateExpr expr1
+--        val2 <- deref =<< generateExpr expr2
+--        builtinAdd val1 val2
+--
+--    S.Call _ symbol [expr1, expr2] | symbolsCouldMatch symbol (Sym ["builtin", "subtract"]) -> do
+--        val1 <- deref =<< generateExpr expr1
+--        val2 <- deref =<< generateExpr expr2
+--        builtinSubtract val1 val2
+--
+--    S.Call _ symbol [expr1, expr2] | symbolsCouldMatch symbol (Sym ["builtin", "multiply"]) -> do
+--        val1 <- deref =<< generateExpr expr1
+--        val2 <- deref =<< generateExpr expr2
+--        builtinMultiply val1 val2
+--
+--    S.Call _ symbol [expr1, expr2] | symbolsCouldMatch symbol (Sym ["builtin", "divide"]) -> do
+--        val1 <- deref =<< generateExpr expr1
+--        val2 <- deref =<< generateExpr expr2
+--        builtinDivide val1 val2
+--
+--    S.Call _ symbol [expr1, expr2] | symbolsCouldMatch symbol (Sym ["builtin", "modulo"]) -> do
+--        val1 <- deref =<< generateExpr expr1
+--        val2 <- deref =<< generateExpr expr2
+--        builtinModulo val1 val2
+--
+--    S.Call _ symbol [expr1, expr2] | symbolsCouldMatch symbol (Sym ["builtin", "equal"]) -> do
+--        val1 <- deref =<< generateExpr expr1
+--        val2 <- deref =<< generateExpr expr2
+--        builtinEqual val1 val2
+--
+--    S.Call _ symbol [expr1, expr2] | symbolsCouldMatch symbol (Sym ["builtin", "tableAt"]) -> do
+--        val <- generateExpr expr1
+--        idx <- generateExpr expr2
+--        builtinTableAt val idx
+--
+--    S.Call _ symbol [expr1, expr2] | symbolsCouldMatch symbol (Sym ["builtin", "sliceAt"]) -> do
+--        val <- generateExpr expr1
+--        idx <- generateExpr expr2
+--        builtinSliceAt val idx
+--
+--    S.Call _ symbol [expr1, expr2] | symbolsCouldMatch symbol (Sym ["builtin", "arrayAt"]) -> do
+--        val <- generateExpr expr1
+--        idx <- generateExpr expr2
+--        builtinArrayAt val idx
+--
+--    S.Call _ symbol [expr] | symbolsCouldMatch symbol (Sym ["builtin", "tableAppend"]) -> do
+--        val <- generateExpr expr
+--        Apply Table _ <- baseTypeOf val
+--        case val of
+--            Value _ _ -> fail "isn't reference"
+--            Ref _ _   -> builtinTableAppend val >> return (Value Void $ C.Int 0)
+--
+--    S.Call _ symbol [expr, start, end] | symbolsCouldMatch symbol (Sym ["builtin", "tableSlice"]) -> do
+--        ref@(Ref _ exp) <- generateExpr expr
+--        srt@(Value I64 _) <- generateExpr start
+--        en@(Value I64 _) <- generateExpr end
+--
+--        -- TODO this is broken 
+--        Apply Table [t] <- baseTypeOf ref
+--        assign "slice" $ Value (Apply Slice [t]) $ C.Initialiser
+--            [ C.Address (C.Subscript (C.PMember exp "r0") (valExpr srt))
+--            , C.Infix C.Minus (C.PMember exp "len") (valExpr srt)
+--            ] 
+--
+--    S.Call _ symbol [expr] | symbolsCouldMatch symbol (Sym ["builtin", "sumEnum"]) -> do
+--        builtinSumEnum =<< generateExpr expr
+--
+--    S.Call _ symbol [expr, idx] | symbolsCouldMatch symbol (Sym ["builtin", "sumReset"]) -> do
+--        val1 <- generateExpr expr
+--        builtinSumReset val1 =<< generateExpr idx
+--        return $ Value Void (C.Int 0)
+--
+--    S.Call _ symbol [expr1, expr2] | symbolsCouldMatch symbol (Sym ["builtin", "store"]) -> do
+--        check (typeof expr1 == typeof expr2) "type mismatch"
+--        base <- baseTypeOf expr1
+--        ref1@(Ref _ _) <- generateExpr expr1
+--        builtinStore ref1 =<< generateExpr expr2
+--        return $ Value Void (C.Int 0)
+--
+--    S.Call _ symbol [expr] | symbolsCouldMatch symbol (Sym ["builtin", "tableLen"]) -> do
+--        builtinLen =<< generateExpr expr
+--
+--    S.Call _ symbol exprs | symbolsCouldMatch (Sym ["builtin", "pretend"]) symbol -> do
+--        let [expr] = exprs
+--        Ref exprType refExpr <- generateExpr expr
+--
+--        base <- baseTypeOf typ
+--        baseExpr <- baseTypeOf exprType
+--        check (base == baseExpr) ("types do not have same base: " ++ show (base, baseExpr))
+--
+--        case base of
+--            Apply Tuple _ ->
+--                assign "ref" $ Ref typ $ C.Initialiser [C.Member refExpr "ptr"]
+--            _ -> 
+--                assign "ref" $ Ref typ $ C.Initialiser [refExpr]
+--
+--
+--    S.Call _ symbol exprs -> do
+--        check (symbolIsResolved symbol) ("unresolved function call: " ++ prettySymbol symbol)
+--        callFunction symbol typ =<< mapM generateExpr exprs
 
     S.Field _ expr idx -> member idx =<< generateExpr expr
 

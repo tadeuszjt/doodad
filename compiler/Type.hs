@@ -28,12 +28,12 @@ data Type
     | F64                    
     | Bool                   
     | Char                   
+    | Sum
+    | Func
     | Slice
     | Tuple
     | Table
-    | Sum
     | Array
-    | Func
     | Size Int
     | TypeDef Symbol
     | Apply Type [Type]
@@ -57,6 +57,7 @@ instance Show Type where
         Sum           -> "Sum"
         Slice         -> "Slice"
         Func          -> "Func"
+        Array         -> "Array"
         TypeDef s     -> prettySymbol s
 
         Apply t1 [t2] -> show t2 ++ "." ++ show t1

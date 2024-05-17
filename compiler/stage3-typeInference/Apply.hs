@@ -58,7 +58,7 @@ applyExpr subs expression = case expression of
     Ident pos symbol -> Ident pos symbol
     AST.Bool pos b -> AST.Bool pos b
     AST.Char pos c -> AST.Char pos c
-    Call pos symbol args -> Call pos symbol (map applyEx args)
+    Call pos typ exprs -> Call pos (applyTy typ) (map applyEx exprs)
     AST.Int pos n -> AST.Int pos n
     AST.Float pos n -> AST.Float pos n
     AST.String pos s -> AST.String pos s

@@ -141,32 +141,34 @@ checkExpr (AExpr exprType expression) = withPos expression $ case expression of
 
     -- return objects from mparam if returns record
     Call pos symbol exprs -> do
-        ast <- gets astResolved
-        unless (symbolIsResolved symbol) $ fail ("unresolved function call: " ++ prettySymbol symbol)
-
-        let params = funcArgs $ (getInstanceHeader symbol ast)
-        let retty  = funcRetty $ (getInstanceHeader symbol ast)
-
-        nodes <- mapM checkExpr exprs
-        unless (length nodes == length params) (fail "length error")
-
-        nodes' <- fmap catMaybes $ forM (zip nodes params) $ \(node, param) -> do
-            case param of
-                RefParam _ _ _ -> return (Just node)
-                Param _ _ _    -> return Nothing
-
-        checkNoSameBaseNodes nodes'
-
-        -- check explicit reference args
-        forM_ (zip params exprs) $ \(param, expr) -> case param of
-            Param _ _ _ -> return ()
-            RefParam _ _ _ -> case expr of
-                AExpr _ (Reference _ _) -> return ()
-                _                       -> fail "specify reference args with '&'"
-        
-        case retty of
-            RefRetty _ -> return (NodeUnion nodes')
-            Retty _    -> return NodeNull
+        return NodeNull
+--
+--        ast <- gets astResolved
+--        unless (symbolIsResolved symbol) $ fail ("unresolved function call: " ++ prettySymbol symbol)
+--
+--        let params = funcArgs $ (getInstanceHeader symbol ast)
+--        let retty  = funcRetty $ (getInstanceHeader symbol ast)
+--
+--        nodes <- mapM checkExpr exprs
+--        unless (length nodes == length params) (fail "length error")
+--
+--        nodes' <- fmap catMaybes $ forM (zip nodes params) $ \(node, param) -> do
+--            case param of
+--                RefParam _ _ _ -> return (Just node)
+--                Param _ _ _    -> return Nothing
+--
+--        checkNoSameBaseNodes nodes'
+--
+--        -- check explicit reference args
+--        forM_ (zip params exprs) $ \(param, expr) -> case param of
+--            Param _ _ _ -> return ()
+--            RefParam _ _ _ -> case expr of
+--                AExpr _ (Reference _ _) -> return ()
+--                _                       -> fail "specify reference args with '&'"
+--        
+--        case retty of
+--            RefRetty _ -> return (NodeUnion nodes')
+--            Retty _    -> return NodeNull
         --return NodeNull -- TODO
 
     -- pat defines, redefines references of expr.

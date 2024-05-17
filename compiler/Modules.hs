@@ -214,28 +214,28 @@ buildModule isMain args modPath = do
         -- check ast for memory/type violations
         withErrorPrefix "checker: " (runASTChecker astFinal)
 
-        -- build C ast from final ast
-        when (verbose args) $ liftIO $ putStrLn "generating C file..."
-        res <- generateAst astFinal
-        cBuilderState <- case res of
-            Right x -> return (snd x)
-            Left e -> throwError e
-
-        -- optimise C builder state
-        let includePaths = includes astFinal
-        finalBuilderState <- if Args.optimise args then do
-            (((), n), cBuilderStateOptimised) <- runDoMExcept cBuilderState $ do
-                runDoMUntilSameState O.optimise
-            when (verbose args) $ do
-                liftIO $ putStrLn ("ran:       " ++ show n ++ " optimisation passes")
-            return cBuilderStateOptimised
-        else return cBuilderState
-
-        -- write builder state to C file
-        cFilePath <- liftIO $ writeSystemTempFile (modName ++ ".c") ""
-        modify $ \s -> s { cFileMap = Map.insert absoluteModPath cFilePath (cFileMap s) }
-        cHandle <- liftIO $ openFile cFilePath WriteMode
-        void $ runDoMExcept (initCPrettyState cHandle finalBuilderState) (cPretty includePaths)
-        void $ liftIO $ hClose cHandle
-        count <- liftIO $ length . lines <$> readFile cFilePath
-        when (verbose args) $ liftIO $ putStrLn $ "wrote c:   " ++ cFilePath ++ " LOC:" ++ show count
+--        -- build C ast from final ast
+--        when (verbose args) $ liftIO $ putStrLn "generating C file..."
+--        res <- generateAst astFinal
+--        cBuilderState <- case res of
+--            Right x -> return (snd x)
+--            Left e -> throwError e
+--
+--        -- optimise C builder state
+--        let includePaths = includes astFinal
+--        finalBuilderState <- if Args.optimise args then do
+--            (((), n), cBuilderStateOptimised) <- runDoMExcept cBuilderState $ do
+--                runDoMUntilSameState O.optimise
+--            when (verbose args) $ do
+--                liftIO $ putStrLn ("ran:       " ++ show n ++ " optimisation passes")
+--            return cBuilderStateOptimised
+--        else return cBuilderState
+--
+--        -- write builder state to C file
+--        cFilePath <- liftIO $ writeSystemTempFile (modName ++ ".c") ""
+--        modify $ \s -> s { cFileMap = Map.insert absoluteModPath cFilePath (cFileMap s) }
+--        cHandle <- liftIO $ openFile cFilePath WriteMode
+--        void $ runDoMExcept (initCPrettyState cHandle finalBuilderState) (cPretty includePaths)
+--        void $ liftIO $ hClose cHandle
+--        count <- liftIO $ length . lines <$> readFile cFilePath
+--        when (verbose args) $ liftIO $ putStrLn $ "wrote c:   " ++ cFilePath ++ " LOC:" ++ show count

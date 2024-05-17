@@ -103,23 +103,23 @@ buildPattern defBlkId pattern expr = do
         PatIdent pos symbol -> do
             withCurId defBlkId $
                 appendStmt $ Let pos (PatIdent pos symbol) Nothing Nothing
-            appendStmt $ ExprStmt $ Call pos (Sym ["Store", "store"])
+            appendStmt $ ExprStmt $ Call pos (TypeDef $ Sym ["Store", "store"])
                 [ Reference pos (Ident pos symbol)
                 , expr
                 ]
             return (AST.Bool pos True)
 
         PatLiteral literal -> do
-            return $ Call (textPos pattern) (Sym ["Compare", "equal"]) [literal, expr]
+            return $ Call (textPos pattern) (TypeDef $ Sym ["Compare", "equal"]) [literal, expr]
 
         PatAnnotated pat patTyp -> case pat of
             PatLiteral literal -> do
-                return $ Call (textPos pattern) (Sym ["Compare", "equal"]) [AExpr patTyp literal, expr]
+                return $ Call (textPos pattern) (TypeDef $ Sym ["Compare", "equal"]) [AExpr patTyp literal, expr]
 
             PatIdent pos symbol -> do
                 withCurId defBlkId $ 
                     appendStmt $ Let pos (PatIdent pos symbol) Nothing Nothing
-                appendStmt $ ExprStmt $ Call pos (Sym ["Store", "store"])
+                appendStmt $ ExprStmt $ Call pos (TypeDef $ Sym ["Store", "store"])
                     [ Reference pos (AExpr patTyp $ Ident pos symbol)
                     , expr
                     ]
@@ -136,7 +136,7 @@ buildPattern defBlkId pattern expr = do
             ifBlkId <- newStmt (Block [])
             withCurId ifBlkId $ do
                 guard <- buildCondition defBlkId guardExpr
-                appendStmt $ ExprStmt $ Call pos (Sym ["builtin", "store"])
+                appendStmt $ ExprStmt $ Call pos (TypeDef $ Sym ["builtin", "store"])
                     [ Reference pos (Ident pos patMatch)
                     , guard
                     ]
@@ -158,8 +158,8 @@ buildPattern defBlkId pattern expr = do
                 ifBlkId <- newStmt (Block [])
                 withCurId ifBlkId $ do
                     match <- buildPattern defBlkId pat $
-                        Call pos (Sym [syms !! i]) [Reference pos $ Ident pos symbol]
-                    appendStmt $ ExprStmt $ Call pos (Sym ["builtin", "store"])
+                        Call pos (TypeDef $ Sym [syms !! i]) [Reference pos $ Ident pos symbol]
+                    appendStmt $ ExprStmt $ Call pos (TypeDef $ Sym ["builtin", "store"])
                         [ Reference pos (Ident pos matchSym)
                         , match
                         ]
@@ -174,7 +174,7 @@ buildPattern defBlkId pattern expr = do
             appendStmt (Assign pos exprCopy expr)
 
             enumMatch <- freshSym "enumMatch"
-            appendStmt $ Assign pos enumMatch $ Call pos (Sym ["is" ++ (toUpper (head str) : tail str) ])
+            appendStmt $ Assign pos enumMatch $ Call pos (TypeDef $ Sym ["is" ++ (toUpper (head str) : tail str) ])
                 [ Reference pos (Ident pos exprCopy)
                 ]
 
@@ -184,7 +184,7 @@ buildPattern defBlkId pattern expr = do
                 case pats of
                     [] -> return ()
                     _  -> void $ appendStmt $ Assign pos caseCopy $
-                        Call pos (Sym ["from" ++ (toUpper (head str) : tail str)])
+                        Call pos (TypeDef $ Sym ["from" ++ (toUpper (head str) : tail str)])
                             [ Reference pos (Ident pos exprCopy) ]
 
                 match <- case pats of
@@ -192,7 +192,7 @@ buildPattern defBlkId pattern expr = do
                     [pat] -> buildPattern defBlkId pat (Ident pos caseCopy)
                     pats  -> buildPattern defBlkId (PatTuple pos pats) (Ident pos caseCopy)
 
-                void $ appendStmt $ ExprStmt $ Call pos (Sym ["builtin", "store"])
+                void $ appendStmt $ ExprStmt $ Call pos (TypeDef $ Sym ["builtin", "store"])
                     [ Reference pos (Ident pos enumMatch)
                     , match
                     ]
@@ -208,8 +208,8 @@ buildPattern defBlkId pattern expr = do
             appendStmt (Assign pos exprCopy expr)
 
             match <- freshSym "match"
-            appendStmt $ Assign pos match $ Call pos (Sym ["builtin", "equal"])
-                [ Call pos (Sym ["Pattern", "sliceLen"]) [Reference pos (Ident pos exprCopy)]
+            appendStmt $ Assign pos match $ Call pos (TypeDef $ Sym ["builtin", "equal"])
+                [ Call pos (TypeDef $ Sym ["Pattern", "sliceLen"]) [Reference pos (Ident pos exprCopy)]
                 , AST.Int pos (fromIntegral $ length pats)
                 ]
 
@@ -217,12 +217,12 @@ buildPattern defBlkId pattern expr = do
             forM_ (zip pats [0..]) $ \(pat, i) -> do
                 ifBlkId <- newStmt (Block [])
                 withCurId ifBlkId $ do
-                    patMatch <- buildPattern defBlkId pat $ Call pos (Sym ["Pattern", "sliceAt"])
+                    patMatch <- buildPattern defBlkId pat $ Call pos (TypeDef $ Sym ["Pattern", "sliceAt"])
                         [ Reference pos (Ident pos exprCopy)
                         , AST.Int pos (fromIntegral i)
                         ]
 
-                    appendStmt $ ExprStmt $ Call pos (Sym ["builtin", "store"])
+                    appendStmt $ ExprStmt $ Call pos (TypeDef $ Sym ["builtin", "store"])
                         [ Reference pos (Ident pos match)
                         , patMatch
                         ]
@@ -237,16 +237,16 @@ buildPattern defBlkId pattern expr = do
 
 buildCondition :: ID -> Expr -> DoM BuildState Expr
 buildCondition defBlkId expression = withPos expression $ case expression of
-    Call pos _ _       -> return $ AExpr Type.Bool $ Call pos (Sym ["Construct", "construct"]) [expression]
+    Call pos _ _       -> return $ AExpr Type.Bool $ Call pos (TypeDef $ Sym ["Construct", "construct"]) [expression]
     Match pos expr pat -> buildPattern defBlkId pat expr
     AST.Bool _ _       -> return expression
-    Ident pos _        -> return $ AExpr Type.Bool $ Call pos (Sym ["Construct", "construct"]) [expression]
+    Ident pos _        -> return $ AExpr Type.Bool $ Call pos (TypeDef $ Sym ["Construct", "construct"]) [expression]
 
     AExpr exprType expr -> do
         check (exprType == Type.Bool) "condition type must be bool"
         buildCondition defBlkId expr
 
-    Reference pos expr -> return $ AExpr Type.Bool $ Call pos (Sym ["Construct", "construct"]) [expression]
+    Reference pos expr -> return $ AExpr Type.Bool $ Call pos (TypeDef $ Sym ["Construct", "construct"]) [expression]
         
 
     x -> error (show x)
@@ -271,7 +271,7 @@ buildStmt statement = withPos statement $ case statement of
             Just expr -> do
                 curId <- getCurId
                 boolExpr <- buildPattern curId pat expr
-                void $ appendStmt $ ExprStmt $ Call pos (Sym ["assert", "assert"]) [boolExpr]
+                void $ appendStmt $ ExprStmt $ Call pos (TypeDef $ Sym ["assert", "assert"]) [boolExpr]
 
             Nothing -> do
                 void $ appendStmt (Let pos pat Nothing Nothing)
@@ -308,12 +308,12 @@ buildStmt statement = withPos statement $ case statement of
 
             lastCaseFailed <- case i of
                 0 -> return (AST.Bool pos True)
-                _ -> return $ Call pos (Sym ["Boolean", "not"]) [Ident pos $ caseSyms !! (i - 1)]
+                _ -> return $ Call pos (TypeDef $ Sym ["Boolean", "not"]) [Ident pos $ caseSyms !! (i - 1)]
 
             blkId <- newStmt (Block [])
             withCurId blkId $ do
                 match <- buildPattern blkId pat (Ident pos copySym)
-                appendStmt $ ExprStmt $ Call pos (Sym ["Store", "store"])
+                appendStmt $ ExprStmt $ Call pos (TypeDef $ Sym ["Store", "store"])
                     [ Reference pos (Ident pos $ caseSyms !! i)
                     , match
                     ]
@@ -330,20 +330,20 @@ buildStmt statement = withPos statement $ case statement of
 
         idx <- freshSym "idx"
         appendStmt $ Assign pos idx (AST.Int pos 0)
-        appendStmt $ ExprStmt $ Call pos (Sym ["builtin", "store"])
+        appendStmt $ ExprStmt $ Call pos (TypeDef $ Sym ["builtin", "store"])
             [ Reference pos (Ident pos idx)
-            , Call pos (Sym ["For", "begin"]) [ Reference pos (Ident pos exprCopy) ]
+            , Call pos (TypeDef $ Sym ["For", "begin"]) [ Reference pos (Ident pos exprCopy) ]
             ]
 
-        let whileCnd = Call pos (Sym ["Compare", "less"])
+        let whileCnd = Call pos (TypeDef $ Sym ["Compare", "less"])
                 [ (Ident pos idx)
-                , Call pos (Sym ["For", "end"]) [Reference pos $ Ident pos exprCopy]
+                , Call pos (TypeDef $ Sym ["For", "end"]) [Reference pos $ Ident pos exprCopy]
                 ]
 
         blkId <- newStmt (Block [])
         withCurId blkId $ do
             match <- case mpat of
-                Just pat -> buildPattern blkId pat $ Call pos (Sym ["For", "forAt"])
+                Just pat -> buildPattern blkId pat $ Call pos (TypeDef $ Sym ["For", "forAt"])
                     [ Reference pos (Ident pos exprCopy)
                     , (Ident pos idx)
                     ]
@@ -352,14 +352,14 @@ buildStmt statement = withPos statement $ case statement of
             trueBlkId <- newStmt (Block [])
             withCurId trueBlkId $ do
                 (mapM_ buildStmt stmts)
-                appendStmt $ ExprStmt $ Call pos (Sym ["builtin", "store"])
+                appendStmt $ ExprStmt $ Call pos (TypeDef $ Sym ["builtin", "store"])
                     [ Reference pos (Ident pos idx)
-                    , Call pos (Sym ["builtin", "add"]) [ (Ident pos idx) , AST.Int pos 1 ]
+                    , Call pos (TypeDef $ Sym ["builtin", "add"]) [ (Ident pos idx) , AST.Int pos 1 ]
                     ]
 
             falseBlkId <- newStmt (Block [])
             withCurId falseBlkId $ do
-                appendStmt $ ExprStmt $ Call pos (Sym ["builtin", "store"])
+                appendStmt $ ExprStmt $ Call pos (TypeDef $ Sym ["builtin", "store"])
                     [ Reference pos (Ident pos idx)
                     , AST.Int pos 9999999 -- TODO
                     ]
@@ -385,7 +385,7 @@ buildStmt statement = withPos statement $ case statement of
 
             withCurId trueBlkId (mapM buildStmt stmts)
             withCurId falseBlkId $ do
-                appendStmt $ ExprStmt $ Call pos (Sym ["builtin", "store"])
+                appendStmt $ ExprStmt $ Call pos (TypeDef $ Sym ["builtin", "store"])
                     [ Reference pos (Ident pos loop)
                     , AST.Bool pos False
                     ]
@@ -435,8 +435,8 @@ buildStmt statement = withPos statement $ case statement of
         forM_ (zip cases [0..]) $ \( (Sym [str], ts) , i) -> do
             blkId <- newStmt (Block [])
             withCurId blkId $
-                appendStmt $ Return pos $ Just $ Call pos (Sym ["builtin", "equal"])
-                    [ Call pos (Sym ["builtin", "sumEnum"]) [Reference pos $ Ident pos $ Sym ["en"]]
+                appendStmt $ Return pos $ Just $ Call pos (TypeDef $ Sym ["builtin", "equal"])
+                    [ Call pos (TypeDef $ Sym ["builtin", "sumEnum"]) [Reference pos $ Ident pos $ Sym ["en"]]
                     , AST.Int pos i
                     ]
 
@@ -453,19 +453,19 @@ buildStmt statement = withPos statement $ case statement of
             blkId <- newStmt (Block [])
             withCurId blkId $ do
                 appendStmt $ Let pos (PatIdent pos $ Sym ["en"]) Nothing Nothing
-                appendStmt $ ExprStmt $ Call pos (Sym ["builtin", "sumReset"])
+                appendStmt $ ExprStmt $ Call pos (TypeDef $ Sym ["builtin", "sumReset"])
                     [ Reference pos (Ident pos $ Sym ["en"])
                     , AST.Int pos i
                     ]
 
                 case ts of
-                    [t] -> void $ appendStmt $ ExprStmt $ Call pos (Sym ["Store", "store"])
+                    [t] -> void $ appendStmt $ ExprStmt $ Call pos (TypeDef $ Sym ["Store", "store"])
                         [ Reference pos (Field pos (Ident pos $ Sym ["en"]) (fromIntegral i))
                         , Ident pos (Sym ["a0"])
                         ]
 
                     ts -> forM_ (zip ts [0..]) $ \(t, j) -> do
-                        appendStmt $ ExprStmt $ Call pos (Sym ["Store", "store"])
+                        appendStmt $ ExprStmt $ Call pos (TypeDef $ Sym ["Store", "store"])
                             [ Reference pos (Field pos (Field pos (Ident pos $ Sym ["en"]) (fromIntegral i)) j)
                             , Ident pos (Sym ["a" ++ show j])
                             ]
@@ -506,16 +506,16 @@ buildStmt statement = withPos statement $ case statement of
 
 preprocessMapper :: Elem -> DoM s Elem
 preprocessMapper element = case element of
-    ElemExpr (AST.Int pos n) -> return $ ElemExpr $ Call pos (Sym ["Construct", "construct"]) [AST.Int pos n]
-    ElemExpr (AST.Float pos f) -> return $ ElemExpr $ Call pos (Sym ["Construct", "construct"]) [AST.Float pos f]
-    ElemExpr (AST.Bool pos b) -> return $ ElemExpr $ Call pos (Sym ["Construct", "construct"]) [AST.Bool pos b]
-    ElemExpr (AST.Char pos c) -> return $ ElemExpr $ Call pos (Sym ["Construct", "construct"]) [AST.Char pos c]
+    ElemExpr (AST.Int pos n) -> return $ ElemExpr $ Call pos (TypeDef $ Sym ["Construct", "construct"]) [AST.Int pos n]
+    ElemExpr (AST.Float pos f) -> return $ ElemExpr $ Call pos (TypeDef $ Sym ["Construct", "construct"]) [AST.Float pos f]
+    ElemExpr (AST.Bool pos b) -> return $ ElemExpr $ Call pos (TypeDef $ Sym ["Construct", "construct"]) [AST.Bool pos b]
+    ElemExpr (AST.Char pos c) -> return $ ElemExpr $ Call pos (TypeDef $ Sym ["Construct", "construct"]) [AST.Char pos c]
 
     ElemStmt (Let pos pattern mexpr (Just blk)) -> do
         return $ ElemStmt $ Block [Let pos pattern mexpr Nothing, blk]
 
     ElemExpr (Subscript pos expr1 expr2) ->
-        return $ ElemExpr $ Call pos (Sym ["At", "at"]) [Reference pos expr1, expr2]
+        return $ ElemExpr $ Call pos (TypeDef $ Sym ["At", "at"]) [Reference pos expr1, expr2]
 
     _ -> return element
 

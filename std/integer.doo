@@ -1,20 +1,12 @@
 module integer
 
-import std/bool
 import std/features
-import std/assert
 import std/builtin
 
 fn Store::store(a &I64, b I64); builtin::store(&a, b)
 fn Store::store(a &U8, b U8);   builtin::store(&a, b)
 
 fn Construct::construct(a I64) I64; return a
-fn Construct::construct(a U8) U8; return a
-fn Construct::construct(a I64) U8
-    let b : U8
-    ${ $b = $a; }
-    return b
-
 
 fn Arithmetic::add(a I64, b I64) I64;      return builtin::add(a, b)
 fn Arithmetic::subtract(a I64, b I64) I64; return builtin::subtract(a, b)
@@ -22,39 +14,7 @@ fn Arithmetic::times(a I64, b I64) I64;    return builtin::multiply(a, b)
 fn Arithmetic::divide(a I64, b I64) I64;   return builtin::divide(a, b)
 fn Arithmetic::modulo(a I64, b I64) I64;   return builtin::modulo(a, b)
 
-fn Compare::equal(a I64, b I64) Bool; return builtin::equal(a, b)
+fn Compare::equal(a I64, b I64) Bool;      return builtin::equal(a, b)
 
 
-fn Construct::construct(a F64) I64
-    let b : I64
-    ${ $b = $a; }
-    return b
-
-fn Construct::construct(c Char) I64
-    let n = 0
-    ${ $n = $c; }
-    return n
-
-
-fn subtract(a I64) I64
-    let r : I64
-    ${ $r = - $a; }
-    return r
-
-
-fn Compare::less(a I64, b I64) Bool
-    let r : Bool
-    ${ $r = $a < $b; }
-    return r
-
-
-fn Compare::greater(a I64, b I64) Bool
-    let r : Bool
-    ${ $r = $a > $b; }
-    return r
-
-fn greaterEqual(a I64, b I64) Bool
-    let r : Bool
-    ${ $r = $a >= $b; }
-    return r
-
+fn Arithmetic::subtract(a I64) I64; return builtin::subtract(0, a)

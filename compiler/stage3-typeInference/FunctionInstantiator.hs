@@ -78,9 +78,10 @@ instAst verbose = do
 instantiatorMapper :: Elem -> DoM InstantiatorState Elem
 instantiatorMapper elem = case elem of
     ElemExpr (AExpr exprType expr@(AST.Call pos symbol exprs)) | all isAnnotated exprs -> do
-        symbol' <- withPos pos $ resolveFuncCall symbol $
-            Apply Type.Func (exprType : map typeof exprs)
-        fmap (ElemExpr . AExpr exprType) $ return (Call pos symbol' exprs)
+        error ""
+--        symbol' <- withPos pos $ resolveFuncCall symbol $
+--            Apply Type.Func (exprType : map typeof exprs)
+--        fmap (ElemExpr . AExpr exprType) $ return (Call pos symbol' exprs)
 
     _ -> return elem
     where

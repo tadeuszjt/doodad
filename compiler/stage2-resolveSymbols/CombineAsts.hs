@@ -82,5 +82,15 @@ combineMapper element = case element of
             Feature _ _ _ _ -> return Nothing
             _               -> return (Just stmt)
 
+    ElemExpr (Call pos typ@(TypeDef symbol) exprs) -> do
+        Just (generics, _) <- Map.lookup symbol <$> getTypeDefs
+
+        let typ' = case generics of
+                [] -> typ
+                x  -> Apply typ $ replicate (length x) (Type (-1))
+
+        return $ ElemExpr (Call pos typ' exprs)
+        
+
     _ -> return element
 

@@ -139,7 +139,9 @@ mapExprM f expr = withPos expr $ do
         AST.Float pos f       -> return $ AST.Float pos f
         AST.Bool pos b        -> return $ AST.Bool pos b
         AST.Char pos c        -> return $ AST.Char pos c
-        Call pos symbol exprs -> Call pos symbol <$> mapM (mapExprM f) exprs
+        Call pos typ exprs -> do
+            typ' <- mapTypeM f typ
+            Call pos typ' <$> mapM (mapExprM f) exprs
 
         Field pos expr n -> do
             expr' <- mapExprM f expr

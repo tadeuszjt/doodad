@@ -120,8 +120,8 @@ resolveAst ast imports = fmap fst $ runDoMExcept initResolveState (resolveAst' a
         resolveAst' ast = do
             modify $ \s -> s { modName = astModuleName ast }
             forM_ imports $ \imprt -> do
-                forM_ (typeDefsTop imprt) $ \symbol -> define symbol KeyType
-
+                forM_ (typeDefsTop imprt) (\symbol -> define symbol KeyType)
+                forM_ (funcDefsTop imprt) (\symbol -> define symbol KeyType)
             
             -- pre-define top-level symbols
             topStmts' <- forM (astStmts ast) $ \stmt -> withPos stmt $ case stmt of
@@ -132,7 +132,7 @@ resolveAst ast imports = fmap fst $ runDoMExcept initResolveState (resolveAst' a
 
                 FuncDef generics (AST.Func header stmt) -> do
                     symbol <- genSymbol (SymResolved $ symStr $ funcSymbol header)
-                    define symbol KeyFunc
+                    define symbol KeyType
                     return $ FuncDef generics $ AST.Func (header { funcSymbol = symbol }) stmt
 
                 Feature pos symbol arg headers -> do
@@ -253,7 +253,7 @@ resolveStmt statement = withPos statement $ case statement of
             SymResolved _ -> return (funcSymbol header)
             Sym str       -> do
                 s <- genSymbol (SymResolved $ symStr $ funcSymbol header)
-                define s KeyFunc
+                define s KeyType
                 return s
 
         pushSymbolTable
@@ -355,7 +355,10 @@ resolveExpr expression = withPos expression $ case expression of
         return (Match pos expr' pat')
     AST.String pos s -> return (AST.String pos s)
     AST.Array pos exprs -> AST.Array pos <$> mapM resolveExpr exprs
-    Call pos symbol exprs -> Call pos symbol <$> mapM resolveExpr exprs
+
+    Call pos typ exprs -> do
+        typ' <- resolveType typ
+        Call pos typ' <$> mapM resolveExpr exprs
 
     x -> error (show x)
             
