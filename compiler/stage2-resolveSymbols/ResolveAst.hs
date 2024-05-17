@@ -110,7 +110,9 @@ genSymbol symbol@(SymResolved str) = do
     resm <- gets (Map.lookup symbol . supply)
     let n = maybe 0 (id) resm
     modify $ \s -> s { supply = Map.insert symbol (n + 1) (supply s) }
-    return $ SymResolved $ [modName] ++ str ++ [show n]
+    case n of
+        0 -> return $ SymResolved $ [modName] ++ str
+        n -> return $ SymResolved $ [modName] ++ str ++ [show n]
 
 
 resolveAst :: AST -> [ASTResolved] -> DoM s (AST, Map.Map Symbol Int)

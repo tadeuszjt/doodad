@@ -506,7 +506,7 @@ buildStmt statement = withPos statement $ case statement of
 
 preprocessMapper :: Elem -> DoM s Elem
 preprocessMapper element = case element of
-    ElemExpr (AST.Int pos n) -> return $ ElemExpr $ Call pos (TypeDef $ Sym ["Construct", "construct"]) [AST.Int pos n]
+    --ElemExpr (AST.Int pos n) -> return $ ElemExpr $ Call pos (TypeDef $ Sym ["Construct", "construct"]) [AST.Int pos n]
     ElemExpr (AST.Float pos f) -> return $ ElemExpr $ Call pos (TypeDef $ Sym ["Construct", "construct"]) [AST.Float pos f]
     ElemExpr (AST.Bool pos b) -> return $ ElemExpr $ Call pos (TypeDef $ Sym ["Construct", "construct"]) [AST.Bool pos b]
     ElemExpr (AST.Char pos c) -> return $ ElemExpr $ Call pos (TypeDef $ Sym ["Construct", "construct"]) [AST.Char pos c]

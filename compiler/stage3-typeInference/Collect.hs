@@ -133,33 +133,6 @@ collectStmt statement = collectPos statement $ case statement of
     x -> error "invalid statement"
 
 
-collectCall :: Symbol -> Type -> DoM CollectState ()
-collectCall symbol callType | typeFullyResolved callType = return ()
-collectCall symbol callType = do
-    headers <- gets $ filter (\x -> symbolsCouldMatch (funcSymbol x) symbol)
-        . Map.elems . Map.map funcHeader . funcDefsAll . astResolved
-    candidates <- map (flatten . typeof) <$> findCandidates callType headers
-    -- TODO needs to check only visible symbols
-
-    --ast <- gets astResolved
-    --_ <- runDoMExcept ast $ getFeatureArgFromFuncCall (CallHeader symbol argTypes retType)
-
-    forM_ (zip [0..] (flatten callType)) $ \(i, t) -> do
-        case allSameType (map (!! i) candidates) of
-            Just x | typeFullyResolved x -> collect "call" (ConsEq t x)
-            _ -> return ()
-    where
-        flatten :: Type -> [Type]
-        flatten (Apply Type.Func ts) = ts
-
-        allSameType :: [Type] -> Maybe Type
-        allSameType [] = Nothing
-        allSameType [x] = Just x
-        allSameType (x:xs) = case allSameType xs of
-            Just t -> if x == t then Just t else Nothing
-            Nothing -> Nothing
-
-
 collectPattern :: Pattern -> DoM CollectState ()
 collectPattern (PatAnnotated pattern patType) = collectPos pattern $ case pattern of
     PatIdent _ symbol     -> do
@@ -177,6 +150,7 @@ collectExpr (AExpr exprType expression) = collectPos expression $ case expressio
 
     Call _ callType exprs -> do
         Apply Type.Func ts <- baseTypeOf callType
+        liftIO $ putStrLn $ "collect call: " ++ show callType ++ " , base: " ++ show (Apply Type.Func ts)
         unless ((length exprs + 1) == length ts) (fail "invalid function type arguments")
         collect "call return" $ ConsEq exprType (head ts)
         forM_ (zip (tail ts) exprs) $ \(t, expr) -> do

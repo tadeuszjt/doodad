@@ -28,24 +28,27 @@ generate = withErrorPrefix "generate: " $ do
     ast <- gets astResolved
 
     -- generate imported function externs
---    forM_ (funcInstanceImported ast) $ \func -> do
---        crt <- cRettyType (S.funcRetty $ S.funcHeader func)
---        cats <- forM (S.funcArgs $ S.funcHeader func) $ \param -> case param of
---            S.Param _ _ _ -> cTypeOf param
---            S.RefParam _ _ _ -> cRefTypeOf param
---        appendExtern (showSymGlobal $ funcSymbol $ funcHeader func) crt cats [C.Extern]
+    forM_ (Map.toList $ funcInstanceImported ast) $ \(funcType, generatedSymbol) -> do
+        header <- case funcType of
+            TypeDef symbol -> do
+                Just func <- gets (Map.lookup symbol . funcDefsAll . astResolved)
+                return (funcHeader func)
 
---    -- generate headers for this module
---    forM_ (funcInstance ast) $ \func -> do
---        crt <- cRettyType (S.funcRetty $ S.funcHeader func)
---        cats <- forM (S.funcArgs $ S.funcHeader func) $ \param -> case param of
---            S.Param _ _ _ -> cTypeOf param
---            S.RefParam _ _ _ -> cRefTypeOf param
---        appendExtern (showSymGlobal $ funcSymbol $ funcHeader func) crt cats []
-        
+            Apply (TypeDef symbol) params -> do
+                Just func <- gets (Map.lookup symbol . funcDefsAll . astResolved)
+                Just (generics, _) <- gets (Map.lookup symbol . typeDefsAll . astResolved)
+                unless (length generics == length params) (error "type mismatch")
+                let subs = zip (map TypeDef generics) params
+                return $ applyFuncHeader subs (funcHeader func)
+
+        crt <- cRettyType (S.funcRetty header)
+        cats <- forM (S.funcArgs header) $ \param -> case param of
+            S.Param _ _ _ -> cTypeOf param
+            S.RefParam _ _ _ -> cRefTypeOf param
+        appendExtern (showSymGlobal generatedSymbol) crt cats [C.Extern]
+
 
     -- generate functions, main is a special case
-    --forM_ (funcInstance ast) $ \(func) -> do
     forM_ (funcDefsTop ast) $ \symbol -> let Just func = Map.lookup symbol (funcDefsAll ast) in do
         let Just (generics, _) = Map.lookup symbol (typeDefsAll ast)
         when (generics == []) $ do
@@ -245,11 +248,6 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
 --        val2 <- deref =<< generateExpr expr2
 --        builtinEqual val1 val2
 --
---    S.Call _ symbol [expr1, expr2] | symbolsCouldMatch symbol (Sym ["builtin", "tableAt"]) -> do
---        val <- generateExpr expr1
---        idx <- generateExpr expr2
---        builtinTableAt val idx
---
 --    S.Call _ symbol [expr1, expr2] | symbolsCouldMatch symbol (Sym ["builtin", "sliceAt"]) -> do
 --        val <- generateExpr expr1
 --        idx <- generateExpr expr2
@@ -287,6 +285,11 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
 --        builtinSumReset val1 =<< generateExpr idx
 --        return $ Value Void (C.Int 0)
 --
+    S.Call _ (Apply (TypeDef symbol) ts) [expr1, expr2] | symbolsCouldMatch symbol (Sym ["builtin", "tableAt"]) -> do
+        val <- generateExpr expr1
+        idx <- generateExpr expr2
+        builtinTableAt val idx
+
     S.Call _ (Apply (TypeDef symbol) ts) [expr1, expr2] | symbolsCouldMatch symbol (Sym ["builtin", "store"]) -> do
         check (typeof expr1 == typeof expr2) "type mismatch"
         base <- baseTypeOf expr1
@@ -322,7 +325,7 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
             Apply (TypeDef s) _ -> return s
 
         header <- gets (getFunctionHeader defSymbol . astResolved)
-        liftIO $ putStrLn $ "call: " ++ show header
+        --liftIO $ putStrLn $ "call: " ++ show header
 
         argExprs <- forM (zip args $ S.funcArgs header) $ \(arg, param) -> case (arg, param) of
             (Value _ _, S.Param _ _ _) -> return (valExpr arg)

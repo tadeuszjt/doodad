@@ -20,9 +20,12 @@ unifyOne info constraint = withPos info $ case constraint of
 
         (Apply t1 ts1, Apply t2 ts2)
             | length ts1 == length ts2 ->
-                concat <$> zipWithM (\a b -> unifyOne info (ConsEq a b)) ts1 ts2
+                concat <$> zipWithM (\a b -> unifyOne info (ConsEq a b)) (t1 : ts1) (t2 : ts2)
 
-        x -> error (show x)
+--        (TypeDef _, _) | isGeneric t1 -> return [(t1, t2)]
+--        (_, TypeDef _) | isGeneric t2 -> return [(t2, t1)]
+
+        --x -> error (show x)
         _ -> fail $ (infoMsg info) ++ ":" ++ show (t1, t2)
 
     ConsField typ idx exprType -> do

@@ -87,7 +87,7 @@ combineMapper element = case element of
 
         let typ' = case generics of
                 [] -> typ
-                x  -> Apply typ $ replicate (length x) (Type (-1))
+                x  -> Apply typ $ replicate (length x) (Type 0)
 
         return $ ElemExpr (Call pos typ' exprs)
         

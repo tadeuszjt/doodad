@@ -21,24 +21,13 @@ dropLevels :: [String] -> [String]
 dropLevels = filter (\s -> not $ isDigit $ head s)
 
 
-parseStr_ :: String -> [String]
-parseStr_ []  = []
-parseStr_ str = let (pre, post) = span (/= ':') str in
-    pre : parseStr_ (dropWhile (==':') post)
-
-mkSym :: String -> Symbol
-mkSym str = Sym (parseStr_ str)
-
-
 
 mod :: Symbol -> String
 mod (SymResolved s) = head s
 
 
 showSymLocal :: Symbol -> String
-showSymLocal symbol@(SymResolved s) = intercalate "_" (s)
-showSymLocal symbol@(Sym s)         = intercalate "_" s
-
+showSymLocal symbol@(SymResolved s) = intercalate "_" (tail s)
 
 showSymGlobal symbol@(SymResolved s) = intercalate "_" (s)
 
