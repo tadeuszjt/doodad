@@ -31,8 +31,10 @@ data ASTResolved
 
         , funcDefsAll          :: Map.Map Symbol Func
         , funcDefsTop          :: Set.Set Symbol
-        , funcInstance         :: Map.Map Type Symbol
-        , funcInstanceImported :: Map.Map Type Symbol
+
+        , funcInstance         :: Map.Map Type FuncHeader
+        , funcInstanceImported :: Map.Map Type FuncHeader
+
         , symSupply            :: Map.Map Symbol Int              
         }
     deriving (Eq)

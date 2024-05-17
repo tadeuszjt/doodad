@@ -10,7 +10,7 @@ data Constraint
     | ConsField Type Int Type        -- ((MyType:t1).x):t2
     | ConsSlice Type Type           
     | ConsDefault Type Type
-    deriving (Eq, Ord)
+    deriving (Eq, Ord, Show)
 
 
 data ConstraintInfo

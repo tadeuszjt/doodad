@@ -1,0 +1,5 @@
+module builtin
+
+fn{T} store(a &T, b T); ${}
+
+fn{T, K, V} tableAt(table &T, idx K) &V; ${}

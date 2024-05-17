@@ -134,7 +134,7 @@ data Stmt
     | While       TextPos Expr Stmt
     | FuncDef     Generics Func
     | Feature     TextPos Generics Symbol [Type] Type
-    | Aquires     TextPos Generics Type [Param] Stmt
+    | Aquires     TextPos Generics Type [Param] Bool Stmt
     | Typedef     TextPos Generics Symbol Type
     | Switch      TextPos Expr [(Pattern, Stmt)]
     | For         TextPos Expr (Maybe Pattern) Stmt
@@ -195,7 +195,7 @@ instance TextPosition Stmt where
         Enum        p _ _ _ -> p
         MacroTuple  p _ _ _ -> p
         Assign      p _ _ -> p
-        Aquires     p _ _ _ _ -> p
+        Aquires     p _ _ _ _ _ -> p
         x -> error ("invalid statement")
 
 tupStrs, arrStrs, brcStrs :: [String] -> String
@@ -312,7 +312,7 @@ prettyStmt pre stmt = case stmt of
     Typedef pos generics symbol anno -> do
         putStrLn $ pre ++ "type" ++ genericsStr generics ++ " " ++ prettySymbol symbol ++ " " ++ show anno
 
-    Aquires pos generics typ args stmt -> do
+    Aquires pos generics typ args isRef stmt -> do
         putStrLn $ pre
             ++ "aquires"
             ++ genericsStr generics
@@ -320,6 +320,7 @@ prettyStmt pre stmt = case stmt of
             ++ show typ
             ++ " "
             ++ tupStrs (map show args)
+            ++ (case isRef of False -> ""; True -> " -> &")
         prettyStmt "" stmt
         
 

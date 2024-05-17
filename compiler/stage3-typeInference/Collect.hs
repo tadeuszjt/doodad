@@ -94,7 +94,7 @@ collectFuncDef func = do
 
 collectStmt :: Stmt -> DoM CollectState ()
 collectStmt statement = collectPos statement $ case statement of
-    Aquires pos generics typ args stmt -> do
+    Aquires pos generics typ args isRef stmt -> do
         Apply Type.Func (retty : argTypes) <- baseTypeOf typ
 
         unless (length argTypes == length args) (fail "arg length mismatch")

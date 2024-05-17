@@ -253,7 +253,7 @@ resolveStmt statement = withPos statement $ case statement of
 --
 --        return (Feature pos symbol' arg' headers'')
 
-    Aquires pos generics typ args stmt -> do
+    Aquires pos generics typ args isRef stmt -> do
         pushSymbolTable
         generics' <- defineGenerics generics
         typ' <- resolveType typ
@@ -261,7 +261,7 @@ resolveStmt statement = withPos statement $ case statement of
         stmt' <- resolveStmt stmt
 
         popSymbolTable
-        return (Aquires pos generics' typ' args' stmt')
+        return (Aquires pos generics' typ' args' isRef stmt')
 
     FuncDef generics (AST.Func header stmt) -> do
         symbol' <- case (funcSymbol header) of

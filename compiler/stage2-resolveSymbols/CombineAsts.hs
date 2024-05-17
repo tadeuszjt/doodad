@@ -61,7 +61,7 @@ combineAsts (ast, supply) imports = fmap snd $
                 Feature _ _ symbol _ _ ->
                     modify $ \s -> s { featureDefsTop = Set.insert symbol (featureDefsTop s) }
                 
-                Aquires _ _ (Apply (TypeDef symbol) _) _ _ -> return ()
+                Aquires _ _ (Apply (TypeDef symbol) _) _ _ _ -> return ()
                     --modify $ \s -> s { aquiresTop = Set.insert symbol (aquiresTop s) }
 
 
@@ -81,7 +81,7 @@ combineMapper element = case element of
         modify $ \s -> s { typeDefsAll = Map.insert symbol (generics, Apply Type.Func (retty : args)) (typeDefsAll s) }
         return element
 
-    ElemStmt stmt@(Aquires _ _ _ _ _) -> do
+    ElemStmt stmt@(Aquires _ _ typ args _ _) -> do
         symbol <- genSymbol $ SymResolved ["aquires"]
         modify $ \s -> s { aquiresAll = Map.insert symbol stmt (aquiresAll s) }
         modify $ \s -> s { aquiresTop = Set.insert symbol (aquiresTop s) }

@@ -155,11 +155,14 @@ featureDef : feature generics ident '(' types ')' typeMaybe
             { Feature (tokPos $1) $2 (Sym [tokStr $3]) $5 (case $7 of Nothing -> Void; Just x -> x) }
 
 
-aquiresDef : aquires generics ident '{' types '}' '(' args ')' scope
-            { Aquires (tokPos $1) $2 (Apply (TypeDef $ Sym [tokStr $3]) $5) $8 $10 }
+aquiresDef : aquires generics ident '{' types '}' '(' args ')' aquiresRetty scope
+            { Aquires (tokPos $1) $2 (Apply (TypeDef $ Sym [tokStr $3]) $5) $8 $10 $11 }
 
---aquiresDef : aquires
---            { Aquires undefined undefined undefined undefined undefined }
+
+aquiresRetty : {-empty-}  { False }
+             | '->' '&'   { True  }
+
+
 
 arg : ident      { Param    (tokPos $1) (Sym [tokStr $1]) Void }
     | ident '&'  { RefParam (tokPos $1) (Sym [tokStr $1]) Void }

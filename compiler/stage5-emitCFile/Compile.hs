@@ -17,6 +17,8 @@ import Symbol
 import Error
 import Builtin
 import Apply
+import FindFunc
+import Monad
 
 
 generateAst :: MonadIO m => ASTResolved -> m (Either Error (((), GenerateState), BuilderState))
@@ -28,31 +30,19 @@ generate = withErrorPrefix "generate: " $ do
     ast <- gets astResolved
 
     -- generate imported function externs
-    forM_ (Map.toList $ funcInstanceImported ast) $ \(funcType, generatedSymbol) -> do
-        header <- case funcType of
-            TypeDef symbol -> do
-                Just func <- gets (Map.lookup symbol . funcDefsAll . astResolved)
-                return (funcHeader func)
-
-            Apply (TypeDef symbol) params -> do
-                Just func <- gets (Map.lookup symbol . funcDefsAll . astResolved)
-                Just (generics, _) <- gets (Map.lookup symbol . typeDefsAll . astResolved)
-                unless (length generics == length params) (error "type mismatch")
-                let subs = zip (map TypeDef generics) params
-                return $ applyFuncHeader subs (funcHeader func)
-
+    forM_ (Map.toList $ funcInstanceImported ast) $ \(funcType, header) -> do
         crt <- cRettyType (S.funcRetty header)
         cats <- forM (S.funcArgs header) $ \param -> case param of
             S.Param _ _ _ -> cTypeOf param
             S.RefParam _ _ _ -> cRefTypeOf param
-        appendExtern (showSymGlobal generatedSymbol) crt cats [C.Extern]
+        appendExtern (showSymGlobal $ funcSymbol header) crt cats [C.Extern]
 
 
     -- generate functions, main is a special case
     forM_ (funcDefsTop ast) $ \symbol -> let Just func = Map.lookup symbol (funcDefsAll ast) in do
         let Just (generics, _) = Map.lookup symbol (typeDefsAll ast)
         when (generics == []) $ do
-            generatedSymbol <- generateFunc (TypeDef symbol)
+            header <- generateFunc (TypeDef symbol)
 
 
             when (symbolsCouldMatch (Sym ["main"]) (funcSymbol $ funcHeader func)) $ do
@@ -64,7 +54,7 @@ generate = withErrorPrefix "generate: " $ do
 
                 withCurID id $ do
                     --appendElem $ C.ExprStmt $ C.Call "doodad_set_args" [C.Ident "argc", C.Ident "argv"]
-                    call (showSymGlobal generatedSymbol) []
+                    call (showSymGlobal $ funcSymbol header) []
                     void $ appendElem $ C.Return $ C.Int 0
                 withCurID globalID (append id)
 
@@ -75,7 +65,7 @@ cRettyType retty = case retty of
     RefRetty t -> cRefTypeOf t
 
 
-generateFunc :: Type.Type -> Generate Symbol
+generateFunc :: Type.Type -> Generate FuncHeader
 generateFunc funcType = do
     isImportedInstance <- gets (Map.member funcType . funcInstanceImported . astResolved)
     isInstance <- gets (Map.member funcType . funcInstance . astResolved)
@@ -89,32 +79,19 @@ generateFunc funcType = do
         return symbol
 
     else do
-        func <- case funcType of
-            TypeDef symbol -> do
-                Just func <- gets (Map.lookup symbol . funcDefsAll . astResolved)
-                return func
+        ast <- gets astResolved
+        func <- fmap fst $ runDoMExcept ast (findFunction funcType)
+        let header = funcHeader func
+        args <- mapM cParamOf (S.funcArgs header)
+        rettyType <- cRettyType (S.funcRetty header)
 
-            Apply (TypeDef symbol) params -> do
-                Just func <- gets (Map.lookup symbol . funcDefsAll . astResolved)
-                Just (generics, _) <- gets (Map.lookup symbol . typeDefsAll . astResolved)
-                unless (length generics == length params) (error "type mismatch")
-                let subs = zip (map TypeDef generics) params
-                return (applyFunc subs func)
-                
-
-        args <- mapM cParamOf (S.funcArgs $ S.funcHeader func)
-        rettyType <- cRettyType (S.funcRetty $ S.funcHeader func)
-
-
-        isRefRetty <- case S.funcRetty (S.funcHeader func) of
+        isRefRetty <- case S.funcRetty header of
             RefRetty _ -> return True
             Retty _    -> return False
         modify $ \s -> s { curFnIsRef = isRefRetty }
 
         pushSymTab
-
-        ast <- gets astResolved
-        (symbol, ast') <- CGenerate.genSymbol (funcSymbol (funcHeader func)) ast
+        (symbol, ast') <- CGenerate.genSymbol (funcSymbol header) ast
 
         id <- newFunction rettyType (showSymGlobal $ symbol) ([] ++ args) []
         withCurID id $ do
@@ -126,16 +103,16 @@ generateFunc funcType = do
                     x -> error (show x)
 
             generateStmt (S.funcStmt func)
-            when (S.funcRetty (S.funcHeader func) /= S.Retty Void) $ -- check to ensure function has return
+            when (S.funcRetty header /= S.Retty Void) $ -- check to ensure function has return
                 call "assert" [false]
 
         popSymTab
         withCurID globalID $ append id
 
-
-        --let func' = func { funcHeader = funcHeader func { funcSymbol = symbol } }
-        modify $ \s -> s { astResolved = ast' { funcInstance = Map.insert funcType symbol (funcInstance ast') } }
-        return symbol
+        let header' = header { funcSymbol = symbol }
+        modify $ \s -> s { astResolved = ast'
+            { funcInstance = Map.insert funcType header' (funcInstance ast') } }
+        return header'
 
 
 
@@ -317,16 +294,9 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
 --
     S.Call _ funcType exprs -> do
         args <- mapM generateExpr exprs
-        symbol <- generateFunc funcType
+        header <- generateFunc funcType
+        let symbol = funcSymbol header
     
-
-        defSymbol <- case funcType of
-            TypeDef s -> return s
-            Apply (TypeDef s) _ -> return s
-
-        header <- gets (getFunctionHeader defSymbol . astResolved)
-        --liftIO $ putStrLn $ "call: " ++ show header
-
         argExprs <- forM (zip args $ S.funcArgs header) $ \(arg, param) -> case (arg, param) of
             (Value _ _, S.Param _ _ _) -> return (valExpr arg)
             (Ref _ _, S.RefParam _ _ _) -> return (refExpr arg)

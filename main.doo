@@ -1,0 +1,40 @@
+module main
+
+import builtin
+
+
+feature{T} len(T) I64
+
+feature{T, K, V} at(T{V}, K) V
+
+
+aquires{T} at{ Table, I64, T } (t&, idx) -> &
+    return builtin::tableAt(&t, idx)
+
+
+
+fn main()
+    data t I64.Table
+
+    at(&t, 3)
+
+    let x
+    let y
+
+    data g Tuple{I64, Bool}
+
+    store(&x, len(&t))
+    store(&y, len(&g))
+
+    ${ printf("%d\n", $x); }
+    ${ printf("%d\n", $y); }
+
+    return
+
+aquires{T} len{T.Table} (t&)
+    return 12
+
+
+aquires{A, B} len{ Tuple{A, B} } (t&)
+    return 2
+
