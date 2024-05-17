@@ -59,20 +59,22 @@ instAst verbose = do
             Just ([], _) -> return False
             Just (_, _)  -> return True
 
-        let isInstantiated = Map.member (funcSymbol header, typeof header) (funcInstance ast)
 
-        when (not isGeneric && not isInstantiated) $ do
-            instanceSymbol <- liftASTState $ genSymbol $ SymResolved $ ["instance"] ++ symStr (funcSymbol header)
-            let headerInstance = header { funcSymbol = instanceSymbol }
-            modifyAST $ \s -> s
-                { funcInstance = Map.insert (funcSymbol header, typeof header) (AST.Func headerInstance $ funcStmt func) (funcInstance s)
-                } 
+        error "here"
+        --let isInstantiated = Map.member (funcSymbol header, typeof header) (funcInstance ast)
 
-    funcInstances <- gets (funcInstance . astResolved)
-    forM_ (Map.toList funcInstances) $ \(header, func) -> do
-        stmt' <- mapStmtM instantiatorMapper (funcStmt func)
-        func' <- return func { funcStmt = stmt' }
-        modifyAST $ \s -> s { funcInstance = Map.insert header func' (ASTResolved.funcInstance s) }
+--        when (not isGeneric && not isInstantiated) $ do
+--            instanceSymbol <- liftASTState $ genSymbol $ SymResolved $ ["instance"] ++ symStr (funcSymbol header)
+--            let headerInstance = header { funcSymbol = instanceSymbol }
+--            modifyAST $ \s -> s
+--                { funcInstance = Map.insert (funcSymbol header, typeof header) (AST.Func headerInstance $ funcStmt func) (funcInstance s)
+--                } 
+
+--    funcInstances <- gets (funcInstance . astResolved)
+--    forM_ (Map.toList funcInstances) $ \(header, func) -> do
+--        stmt' <- mapStmtM instantiatorMapper (funcStmt func)
+--        func' <- return func { funcStmt = stmt' }
+--        modifyAST $ \s -> s { funcInstance = Map.insert header func' (ASTResolved.funcInstance s) }
 
 
 instantiatorMapper :: Elem -> DoM InstantiatorState Elem
@@ -116,15 +118,16 @@ resolveFuncCall calledSymbol callType = do
                     let isResolved = typeFullyResolved $ typeof (funcHeader funcReplaced)
                     unless isResolved (error "not resolved")
 
-                    instanceSymbol <- liftASTState $ genSymbol $ SymResolved $
-                        ["instance"] ++ symStr (funcSymbol $ funcHeader funcReplaced)
-                    modifyAST $ \s -> s { funcInstance = Map.insert
-                        (funcSymbol (funcHeader funcReplaced), typeof (funcHeader funcReplaced))
-                        (funcReplaced { funcHeader = (funcHeader funcReplaced)
-                            { funcSymbol = instanceSymbol
-                            }})
-                        (funcInstance s) }
-
-                    return instanceSymbol
+                    error "here"
+--                    instanceSymbol <- liftASTState $ genSymbol $ SymResolved $
+--                        ["instance"] ++ symStr (funcSymbol $ funcHeader funcReplaced)
+--                    modifyAST $ \s -> s { funcInstance = Map.insert
+--                        (funcSymbol (funcHeader funcReplaced), typeof (funcHeader funcReplaced))
+--                        (funcReplaced { funcHeader = (funcHeader funcReplaced)
+--                            { funcSymbol = instanceSymbol
+--                            }})
+--                        (funcInstance s) }
+--
+--                    return instanceSymbol
 
         _ -> return calledSymbol

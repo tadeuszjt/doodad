@@ -17,8 +17,8 @@ import AST
 -- make any changes to the ast.
 
 
-inferFunc :: Func -> DoM ASTResolved Func
-inferFunc func = do
+inferFuncTypes :: Func -> DoM ASTResolved Func
+inferFuncTypes func = do
     --liftIO $ putStrLn "inferFunc"
     annotatedFunc <- fmap fst $ withErrorPrefix "annotate: " $
         runDoMExcept 0 (annotateFunc func)
@@ -55,7 +55,7 @@ infer ast printAnnotated verbose = runDoMUntilSameResult ast $ \ast -> do
             funcDefsAll' <- fmap Map.fromList $ forM (Map.toList $ funcDefsAll ast) $ \(symbol, func) ->
                 if Set.member symbol (funcDefsTop ast) then do
                     func' <- fmap fst $ runDoMExcept ast $
-                        fmap fst (runDoMUntilSameResult func inferFunc)
+                        fmap fst (runDoMUntilSameResult func inferFuncTypes)
                     return (symbol, func')
                 else return (symbol, func)
 

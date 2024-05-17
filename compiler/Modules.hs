@@ -24,7 +24,6 @@ import Args
 import AST
 import Annotate
 import Infer
-import Collect as C
 import ASTResolved
 import CBuilder as C
 import CPretty as C
@@ -101,8 +100,9 @@ buildBinaryFromModule args modPath = do
     state <- fmap snd $ runDoMExcept (initModulesState doodadPath) (buildModule True args modPath)
 
     let hDoodad   = joinPath [doodadPath, "include"]
-    let cDoodad   = joinPath [doodadPath, "include/doodad.c"]
-    let cFiles    = Map.elems (cFileMap state) ++ [cDoodad]
+    --let cDoodad   = joinPath [doodadPath, "include/doodad.c"]
+    --let cFiles    = Map.elems (cFileMap state) ++ [cDoodad]
+    let cFiles    = Map.elems (cFileMap state)
     let binFile   = takeFileName modPath
     let linkPaths = Set.toList $ Set.unions (map links $ Map.elems $ moduleMap state)
 
@@ -208,34 +208,35 @@ buildModule isMain args modPath = do
             liftIO $ putStrLn $ "ran:       " ++ show inferCount ++ " type inference passes"
 
         when (isMain && printAstFinal args ) $ liftIO (prettyASTResolved astFinal)
-        
-        modify $ \s -> s { moduleMap = Map.insert absoluteModPath astFinal (moduleMap s) }
 
         -- check ast for memory/type violations
-        withErrorPrefix "checker: " (runASTChecker astFinal)
+        --withErrorPrefix "checker: " (runASTChecker astFinal)
 
---        -- build C ast from final ast
---        when (verbose args) $ liftIO $ putStrLn "generating C file..."
---        res <- generateAst astFinal
---        cBuilderState <- case res of
---            Right x -> return (snd x)
---            Left e -> throwError e
---
---        -- optimise C builder state
---        let includePaths = includes astFinal
---        finalBuilderState <- if Args.optimise args then do
---            (((), n), cBuilderStateOptimised) <- runDoMExcept cBuilderState $ do
---                runDoMUntilSameState O.optimise
---            when (verbose args) $ do
---                liftIO $ putStrLn ("ran:       " ++ show n ++ " optimisation passes")
---            return cBuilderStateOptimised
---        else return cBuilderState
---
---        -- write builder state to C file
---        cFilePath <- liftIO $ writeSystemTempFile (modName ++ ".c") ""
---        modify $ \s -> s { cFileMap = Map.insert absoluteModPath cFilePath (cFileMap s) }
---        cHandle <- liftIO $ openFile cFilePath WriteMode
---        void $ runDoMExcept (initCPrettyState cHandle finalBuilderState) (cPretty includePaths)
---        void $ liftIO $ hClose cHandle
---        count <- liftIO $ length . lines <$> readFile cFilePath
---        when (verbose args) $ liftIO $ putStrLn $ "wrote c:   " ++ cFilePath ++ " LOC:" ++ show count
+        -- build C ast from final ast
+        when (verbose args) $ liftIO $ putStrLn "generating C file..."
+        res <- generateAst astFinal
+        (((), something), cBuilderState) <- case res of
+            Right x -> return x
+            Left e -> throwError e
+
+        -- optimise C builder state
+        let includePaths = includes astFinal
+        finalBuilderState <- if Args.optimise args then do
+            (((), n), cBuilderStateOptimised) <- runDoMExcept cBuilderState $ do
+                runDoMUntilSameState O.optimise
+            when (verbose args) $ do
+                liftIO $ putStrLn ("ran:       " ++ show n ++ " optimisation passes")
+            return cBuilderStateOptimised
+        else return cBuilderState
+
+        -- write builder state to C file
+        cFilePath <- liftIO $ writeSystemTempFile (modName ++ ".c") ""
+        modify $ \s -> s { cFileMap = Map.insert absoluteModPath cFilePath (cFileMap s) }
+        cHandle <- liftIO $ openFile cFilePath WriteMode
+        void $ runDoMExcept (initCPrettyState cHandle finalBuilderState) (cPretty includePaths)
+        void $ liftIO $ hClose cHandle
+        count <- liftIO $ length . lines <$> readFile cFilePath
+        when (verbose args) $ liftIO $ putStrLn $ "wrote c:   " ++ cFilePath ++ " LOC:" ++ show count
+        
+        let astCompiled = C.astResolved something
+        modify $ \s -> s { moduleMap = Map.insert absoluteModPath astCompiled (moduleMap s) }

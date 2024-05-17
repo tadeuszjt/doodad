@@ -30,16 +30,18 @@ findInstance :: MonadIO m => ASTResolved -> Symbol -> Type -> m (Maybe Symbol)
 findInstance ast symbol callType = do
     let funcs = Map.unions [funcInstance ast, funcInstanceImported ast]
 
-    candidates <- fmap catMaybes $ forM (Map.toList funcs) $ \((instSymbol, instType), func) -> do
-        let match = symbolsCouldMatch symbol instSymbol && callType == instType
-        case match of
-            True -> return (Just $ funcSymbol $ funcHeader func)
-            False -> return Nothing
-    case candidates of
-        [] -> return Nothing
-        [x] -> do
-            return (Just x)
-        xs -> error ("multiple candidates for: " ++ show callType)
+    error "here"
+
+--    candidates <- fmap catMaybes $ forM (Map.toList funcs) $ \((instSymbol, instType), func) -> do
+--        let match = symbolsCouldMatch symbol instSymbol && callType == instType
+--        case match of
+--            True -> return (Just $ funcSymbol $ funcHeader func)
+--            False -> return Nothing
+--    case candidates of
+--        [] -> return Nothing
+--        [x] -> do
+--            return (Just x)
+--        xs -> error ("multiple candidates for: " ++ show callType)
 
 
 findCandidates :: (MonadFail m, MonadError Error m) => Type -> [FuncHeader] -> m [FuncHeader]

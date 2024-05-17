@@ -99,13 +99,14 @@ look symbol = do
 
 checkAST :: ASTResolved -> DoM CheckState ()
 checkAST ast = do
-    forM_ (funcInstance ast) $ \func -> do
-        pushSymTab
-        forM (funcArgs (funcHeader func)) $ \param -> do
-            define (paramSymbol param) (NodeArg $ paramSymbol param)
-
-        checkStmt (funcStmt func)
-        popSymTab
+    error "here"
+--    forM_ (funcInstance ast) $ \func -> do
+--        pushSymTab
+--        forM (funcArgs (funcHeader func)) $ \param -> do
+--            define (paramSymbol param) (NodeArg $ paramSymbol param)
+--
+--        checkStmt (funcStmt func)
+--        popSymTab
 
             -- check return type
 --            base <- baseTypeOf (funcRetty func)

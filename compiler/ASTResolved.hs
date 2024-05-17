@@ -28,8 +28,8 @@ data ASTResolved
 
         , funcDefsAll          :: Map.Map Symbol Func
         , funcDefsTop          :: Set.Set Symbol
-        , funcInstance         :: Map.Map (Symbol, Type) Func
-        , funcInstanceImported :: Map.Map (Symbol, Type) Func
+        , funcInstance         :: Map.Map Type Symbol
+        , funcInstanceImported :: Map.Map Type Symbol
         , symSupply            :: Map.Map Symbol Int              
         }
     deriving (Eq)
@@ -37,6 +37,7 @@ data ASTResolved
 
 instance TypeDefs (DoM ASTResolved) where
     getTypeDefs = gets typeDefsAll
+
 
 
 genSymbol :: Symbol -> DoM ASTResolved Symbol
@@ -61,11 +62,13 @@ getFunctionHeader symbol ast = funcHeader $
     else error ("symbol is not function: " ++ prettySymbol symbol)
 
 
-getInstanceHeader :: Symbol -> ASTResolved -> FuncHeader
-getInstanceHeader symbol ast = funcHeader $ snd $ head $ Map.toList $ 
-    Map.filter (\func -> funcSymbol (funcHeader func) == symbol) allInstances
-    where
-        allInstances = Map.union (funcInstance ast) (funcInstanceImported ast)
+--getInstanceHeader :: Type -> ASTResolved -> FuncHeader
+--getInstanceHeader funcType ast = if Map.member funcType (funcInstance ast) then
+--        funcHeader $ funcInstance ast Map.! funcType
+--    else if Map.member funcType (funcInstanceImported ast) then
+--        funcHeader $ funcInstanceImported ast Map.! funcType
+--    else
+--        error "cannot find func instance"
 
 
 prettyASTResolved :: ASTResolved -> IO ()
@@ -106,14 +109,14 @@ prettyASTResolved ast = do
     forM_ (Set.toList $ funcDefsTop ast) $ \symbol -> do
         putStrLn $ "\t" ++ prettySymbol symbol
 
-    putStrLn ""
-    putStrLn "funcInstance:"
-    forM_ (Map.toList $ funcInstance ast) $ \(call, func) -> do
-        putStrLn $ show call ++ ":"
-        prettyStmt "\t" $ FuncDef [] func
-
-    putStrLn ""
-    putStrLn "funcInstanceImported:"
-    forM_ (Map.toList $ funcInstanceImported ast) $ \(call, func) -> do
-        putStr $ "\t" ++ show call ++ ": "
-        prettyStmt "" $ FuncDef [] func
+--    putStrLn ""
+--    putStrLn "funcInstance:"
+--    forM_ (Map.toList $ funcInstance ast) $ \(call, func) -> do
+--        putStrLn $ show call ++ ":"
+--        prettyStmt "\t" $ FuncDef [] func
+--
+--    putStrLn ""
+--    putStrLn "funcInstanceImported:"
+--    forM_ (Map.toList $ funcInstanceImported ast) $ \(call, func) -> do
+--        putStr $ "\t" ++ show call ++ ": "
+--        prettyStmt "" $ FuncDef [] func

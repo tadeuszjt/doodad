@@ -53,6 +53,16 @@ initGenerateState ast
         , astResolved = ast
         }
 
+
+genSymbol :: Symbol -> ASTResolved -> Generate (Symbol, ASTResolved)
+genSymbol symbol@(SymResolved str) ast = do  
+    let modName = ASTResolved.moduleName ast
+    let im = Map.lookup symbol (symSupply ast)
+    let n = maybe 0 (id) im
+    let ast' = ast { symSupply = Map.insert symbol (n + 1) (symSupply ast) }
+    return (SymResolved ([modName] ++ str ++ [show n]), ast')
+
+
 newtype Generate a = Generate { unGenerate :: StateT GenerateState (StateT BuilderState (ExceptT Error IO)) a }
     deriving (Functor, Applicative, Monad, MonadState GenerateState, MonadIO, MonadError Error)
 
@@ -128,35 +138,36 @@ greaterEqual a@(Value _ _) b@(Value _ _) = do
 
 callFunction :: Symbol -> Type.Type -> [Value] -> Generate Value
 callFunction symbol retty args = do
-    ast <- gets astResolved
-
-    callSymbol <- case symbolIsResolved symbol of
-        True -> return symbol
-        False -> do
-            funcSymbolm <- findInstance ast symbol $ Apply Type.Func (retty : map typeof args)
-            unless (isJust funcSymbolm)
-                (error $ "couldn't find instance: " ++ show (prettySymbol symbol, retty, map typeof args))
-            return (fromJust funcSymbolm)
-
-    let header = getInstanceHeader callSymbol ast
-    let funcParams = S.funcArgs header
-    let funcRetty = S.funcRetty header
-
-    unless (length funcParams == length args) (error "invalid number of args")
-
-    argExprs <- forM (zip args funcParams) $ \(arg, param) -> case (arg, param) of
-        (Value _ _, S.Param _ _ _) -> return (valExpr arg)
-        (Ref _ _, S.RefParam _ _ _) -> return (refExpr arg)
-        (Ref _ _, S.Param _ _ _) -> valExpr <$> deref arg
-        (Value _ _, S.RefParam _ _ _) -> refExpr <$> reference arg
-        x -> error (show x)
-
-    case funcRetty of
-        Retty Void -> do
-            appendElem $ C.ExprStmt $ C.Call (showSymGlobal callSymbol) argExprs
-            return $ Value Void (C.Int 0)
-        Retty retType    -> assign "call" $ Value retType $ C.Call (showSymGlobal callSymbol) argExprs
-        RefRetty retType -> assign "call" $ Ref retType $ C.Call (showSymGlobal callSymbol) argExprs
+    error "callFunction"
+--    ast <- gets astResolved
+--
+--    callSymbol <- case symbolIsResolved symbol of
+--        True -> return symbol
+--        False -> do
+--            funcSymbolm <- findInstance ast symbol $ Apply Type.Func (retty : map typeof args)
+--            unless (isJust funcSymbolm)
+--                (error $ "couldn't find instance: " ++ show (prettySymbol symbol, retty, map typeof args))
+--            return (fromJust funcSymbolm)
+--
+--    let header = getInstanceHeader callSymbol ast
+--    let funcParams = S.funcArgs header
+--    let funcRetty = S.funcRetty header
+--
+--    unless (length funcParams == length args) (error "invalid number of args")
+--
+--    argExprs <- forM (zip args funcParams) $ \(arg, param) -> case (arg, param) of
+--        (Value _ _, S.Param _ _ _) -> return (valExpr arg)
+--        (Ref _ _, S.RefParam _ _ _) -> return (refExpr arg)
+--        (Ref _ _, S.Param _ _ _) -> valExpr <$> deref arg
+--        (Value _ _, S.RefParam _ _ _) -> refExpr <$> reference arg
+--        x -> error (show x)
+--
+--    case funcRetty of
+--        Retty Void -> do
+--            appendElem $ C.ExprStmt $ C.Call (showSymGlobal callSymbol) argExprs
+--            return $ Value Void (C.Int 0)
+--        Retty retType    -> assign "call" $ Value retType $ C.Call (showSymGlobal callSymbol) argExprs
+--        RefRetty retType -> assign "call" $ Ref retType $ C.Call (showSymGlobal callSymbol) argExprs
 
 
 assign :: String -> Value -> Generate Value
