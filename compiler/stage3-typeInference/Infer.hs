@@ -43,32 +43,51 @@ inferFuncDefaults func = do
     fmap fst $ runDoMExcept () (deAnnotateFunc appliedFunc)
 
 
-infer :: ASTResolved -> Bool -> Bool -> DoM s (ASTResolved, Int)
-infer ast printAnnotated verbose = runDoMUntilSameResult ast $ \ast -> do 
-    inferred <- inferTypesPerFunc ast
-    defaulted <- inferDefaults inferred
-    --FunctionInstantiator.compile verbose defaulted
-    return defaulted
+inferStmtTypes :: Stmt -> DoM ASTResolved Stmt
+inferStmtTypes func = do
+    --liftIO $ putStrLn "inferStmt"
+    annotatedStmt <- fmap fst $ withErrorPrefix "annotate: " $
+        runDoMExcept 0 (annotateStmt func)
+    ast <- get
+    collectState <- fmap snd $ withErrorPrefix "collect: " $
+        runDoMExcept (initCollectState ast) (collectStmt annotatedStmt)
+    subs <- unify $ Map.toList (collected collectState)
+    let appliedStmt = applyStmt subs annotatedStmt
+    fmap fst $ runDoMExcept () (deAnnotateStmt appliedStmt)
+
+
+inferStmtDefaults :: Stmt -> DoM ASTResolved Stmt
+inferStmtDefaults func = do
+    --liftIO $ putStrLn "inferStmtDefaults"
+    annotatedStmt <- fmap fst $ withErrorPrefix "annotate: " $
+        runDoMExcept 0 (annotateStmt func)
+    ast <- get
+    collectState <- fmap snd $ withErrorPrefix "collect: " $
+        runDoMExcept (initCollectState ast) (collectStmt annotatedStmt)
+    subs <- unify $ Map.toList (defaults collectState)
+    let appliedStmt = applyStmt subs annotatedStmt
+    fmap fst $ runDoMExcept () (deAnnotateStmt appliedStmt)
+
+
+infer :: ASTResolved -> Bool -> Bool -> DoM s ASTResolved
+infer ast printAnnotated verbose = fmap snd $ runDoMExcept ast inferFuncs
     where
-        inferTypesPerFunc :: ASTResolved -> DoM s ASTResolved
-        inferTypesPerFunc ast = do
-            funcDefsAll' <- fmap Map.fromList $ forM (Map.toList $ funcDefsAll ast) $ \(symbol, func) ->
-                if Set.member symbol (funcDefsTop ast) then do
-                    func' <- fmap fst $ runDoMExcept ast $
-                        fmap fst (runDoMUntilSameResult func inferFuncTypes)
-                    return (symbol, func')
-                else return (symbol, func)
+        inferFuncs :: DoM ASTResolved ()
+        inferFuncs = do
+            funcDefsTop <- gets funcDefsTop
+            forM_ funcDefsTop $ \symbol -> do
+                Just func <- gets (Map.lookup symbol . funcDefsAll)
+                (func', _) <- runDoMUntilSameResult func $ \func -> do
+                    (funcInferred, _) <- runDoMUntilSameResult func inferFuncTypes
+                    fmap fst $ runDoMUntilSameResult funcInferred inferFuncDefaults
 
-            return (ast { funcDefsAll = funcDefsAll' })
+                modify $ \s -> s { funcDefsAll = Map.insert symbol func' (funcDefsAll s) }
 
+            aquiresTop <- gets aquiresTop 
+            forM_ aquiresTop $ \symbol -> do
+                Just stmt <- gets (Map.lookup symbol . aquiresAll)
+                (stmt', _) <- runDoMUntilSameResult stmt $ \stmt -> do
+                    (stmtInferred, _) <- runDoMUntilSameResult stmt inferStmtTypes
+                    fmap fst $ runDoMUntilSameResult stmtInferred inferStmtDefaults
 
-        inferDefaults :: ASTResolved -> DoM s ASTResolved
-        inferDefaults ast = do
-            funcDefsAll' <- fmap Map.fromList $ forM (Map.toList $ funcDefsAll ast) $ \(symbol, func) ->
-                if Set.member symbol (funcDefsTop ast) then do
-                    func' <- fmap fst $ runDoMExcept ast $
-                        fmap fst (runDoMUntilSameResult func inferFuncDefaults)
-                    return (symbol, func')
-                else return (symbol, func)
-
-            return (ast { funcDefsAll = funcDefsAll' })
+                modify $ \s -> s { aquiresAll = Map.insert symbol stmt' (aquiresAll s) }

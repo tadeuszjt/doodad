@@ -43,6 +43,7 @@ applyStmt subs stmt = case stmt of
     Let pos pattern Nothing Nothing -> Let pos (applyPat pattern) Nothing Nothing
     While pos expr blk -> While pos (applyEx expr) (applySt blk)
     Assign pos symbol expr -> Assign pos symbol (applyEx expr)
+    Aquires pos generics typ args stmt -> Aquires pos generics typ args (applySt stmt)
     x -> error "invalid statement"
     where
         applySt = applyStmt subs

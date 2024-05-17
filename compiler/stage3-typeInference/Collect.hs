@@ -94,6 +94,24 @@ collectFuncDef func = do
 
 collectStmt :: Stmt -> DoM CollectState ()
 collectStmt statement = collectPos statement $ case statement of
+    Aquires pos generics typ args stmt -> do
+        Apply Type.Func (retty : argTypes) <- baseTypeOf typ
+
+        unless (length argTypes == length args) (fail "arg length mismatch")
+
+        oldRetty <- gets curRetty
+        modify $ \s -> s { curRetty = retty }
+
+        forM_ (zip args argTypes) $ \(arg, t) -> case arg of
+            Param _ symbol _    -> define symbol t
+            RefParam _ symbol _ -> define symbol t
+
+        collectStmt stmt
+
+        modify $ \s -> s { curRetty = oldRetty }
+            
+
+
     EmbedC _ _ -> return ()
 
     Block stmts -> mapM_ collectStmt stmts
@@ -150,7 +168,7 @@ collectExpr (AExpr exprType expression) = collectPos expression $ case expressio
 
     Call _ callType exprs -> do
         Apply Type.Func ts <- baseTypeOf callType
-        liftIO $ putStrLn $ "collect call: " ++ show callType ++ " , base: " ++ show (Apply Type.Func ts)
+        --liftIO $ putStrLn $ "collect call: " ++ show callType ++ " , base: " ++ show (Apply Type.Func ts)
         unless ((length exprs + 1) == length ts) (fail "invalid function type arguments")
         collect "call return" $ ConsEq exprType (head ts)
         forM_ (zip (tail ts) exprs) $ \(t, expr) -> do

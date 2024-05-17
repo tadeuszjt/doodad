@@ -155,12 +155,23 @@ featureDef : feature generics ident '(' types ')' typeMaybe
             { Feature (tokPos $1) $2 (Sym [tokStr $3]) $5 (case $7 of Nothing -> Void; Just x -> x) }
 
 
-fnSymbol : ident            { Sym [tokStr $1] }
-         | Ident '::' ident { Sym [tokStr $1, tokStr $3] }
+aquiresDef : aquires generics ident '{' types '}' '(' args ')' scope
+            { Aquires (tokPos $1) $2 (Apply (TypeDef $ Sym [tokStr $3]) $5) $8 $10 }
+
+--aquiresDef : aquires
+--            { Aquires undefined undefined undefined undefined undefined }
+
+arg : ident      { Param    (tokPos $1) (Sym [tokStr $1]) Void }
+    | ident '&'  { RefParam (tokPos $1) (Sym [tokStr $1]) Void }
+
+args : {-empty-}       { [] }
+     | args1           { $1 }
+args1 : arg            { [$1] }
+      | arg ',' args1  { ($1 : $3) }
 
 
-funcDef : fn generics fnSymbol '(' paramsA ')' retty scope 
-            { FuncDef $2 (AST.Func (FuncHeader (tokPos $1) $3 $5 $7) $8) }
+funcDef : fn generics ident '(' paramsA ')' retty scope 
+            { FuncDef $2 (AST.Func (FuncHeader (tokPos $1) (Sym [tokStr $3]) $5 $7) $8) }
 
 
 retty : {-empty-}     { Retty Type.Void }
@@ -188,6 +199,7 @@ block : if_                               { $1 }
       | let pattern '='  expr in scope    { Let (tokPos $1) $2 (Just $4) (Just $6) }
       | let pattern in scope              { Let (tokPos $1) $2 Nothing (Just $4) }
       | funcDef                           { $1 }
+      | aquiresDef                        { $1 }
 
 if_   : if condition scope else_          { If (tokPos $1) $2 $3 $4 }
       | if condition 'N' else_            { If (tokPos $1) $2 (Block []) $4 }

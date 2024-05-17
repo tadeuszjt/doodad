@@ -24,6 +24,9 @@ initAstResolved modName imports = ASTResolved
     , featureDefsAll   = Map.unions (map featureDefsAll imports)
     , featureDefsTop   = Set.empty
 
+    , aquiresAll     = Map.unions (map aquiresAll imports) 
+    , aquiresTop     = Set.empty
+
     , typeDefsTop    = Set.empty
 
     , funcDefsTop    = Set.empty
@@ -57,6 +60,9 @@ combineAsts (ast, supply) imports = fmap snd $
 
                 Feature _ _ symbol _ _ ->
                     modify $ \s -> s { featureDefsTop = Set.insert symbol (featureDefsTop s) }
+                
+                Aquires _ _ (Apply (TypeDef symbol) _) _ _ -> return ()
+                    --modify $ \s -> s { aquiresTop = Set.insert symbol (aquiresTop s) }
 
 
 combineMapper :: Elem -> DoM ASTResolved Elem
@@ -73,6 +79,12 @@ combineMapper element = case element of
     ElemStmt (Feature pos generics symbol args retty) -> do
         --modify $ \s -> s { featureDefsAll = Map.insert symbol (arg, headers) (featureDefsAll s) }
         modify $ \s -> s { typeDefsAll = Map.insert symbol (generics, Apply Type.Func (retty : args)) (typeDefsAll s) }
+        return element
+
+    ElemStmt stmt@(Aquires _ _ _ _ _) -> do
+        symbol <- genSymbol $ SymResolved ["aquires"]
+        modify $ \s -> s { aquiresAll = Map.insert symbol stmt (aquiresAll s) }
+        modify $ \s -> s { aquiresTop = Set.insert symbol (aquiresTop s) }
         return element
 
     -- filter out statements

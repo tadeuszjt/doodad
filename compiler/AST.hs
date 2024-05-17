@@ -134,6 +134,7 @@ data Stmt
     | While       TextPos Expr Stmt
     | FuncDef     Generics Func
     | Feature     TextPos Generics Symbol [Type] Type
+    | Aquires     TextPos Generics Type [Param] Stmt
     | Typedef     TextPos Generics Symbol Type
     | Switch      TextPos Expr [(Pattern, Stmt)]
     | For         TextPos Expr (Maybe Pattern) Stmt
@@ -194,7 +195,8 @@ instance TextPosition Stmt where
         Enum        p _ _ _ -> p
         MacroTuple  p _ _ _ -> p
         Assign      p _ _ -> p
-        x -> error (show x)
+        Aquires     p _ _ _ _ -> p
+        x -> error ("invalid statement")
 
 tupStrs, arrStrs, brcStrs :: [String] -> String
 tupStrs strs = "(" ++ intercalate ", " strs ++ ")"
@@ -271,7 +273,7 @@ prettyStmt pre stmt = case stmt of
         putStrLn $
             pre
             ++ "fn"
-            ++ brcStrs (map prettySymbol generics)
+            ++ genericsStr generics
             ++ " "
             ++ prettySymbol (funcSymbol header)
             ++ tupStrs (map show $ funcArgs header)
@@ -307,11 +309,19 @@ prettyStmt pre stmt = case stmt of
         putStrLn (pre ++ "while " ++ show cnd)
         prettyStmt pre stmt
 
-    Typedef pos typeArgs symbol anno -> do
-        argStr <- case typeArgs of
-            [] -> return ""
-            xs -> return $ brcStrs (map prettySymbol xs)
-        putStrLn $ pre ++ "type" ++ argStr ++ " " ++ prettySymbol symbol ++ " " ++ show anno
+    Typedef pos generics symbol anno -> do
+        putStrLn $ pre ++ "type" ++ genericsStr generics ++ " " ++ prettySymbol symbol ++ " " ++ show anno
+
+    Aquires pos generics typ args stmt -> do
+        putStrLn $ pre
+            ++ "aquires"
+            ++ genericsStr generics
+            ++ " "
+            ++ show typ
+            ++ " "
+            ++ tupStrs (map show args)
+        prettyStmt "" stmt
+        
 
     Switch pos expr cases -> do
         putStrLn $ pre ++ "switch " ++ show expr
@@ -329,4 +339,9 @@ prettyStmt pre stmt = case stmt of
         putStrLn $ pre ++ "data " ++ prettySymbol symbol ++ " " ++ show typ ++ maybe "" ((" " ++) . show) mexpr
 
     x  -> error (show x)
+
+    where
+        genericsStr :: [Symbol] -> String
+        genericsStr [] = ""
+        genericsStr xs = "{" ++ intercalate ", " (map prettySymbol xs) ++ "}"
 

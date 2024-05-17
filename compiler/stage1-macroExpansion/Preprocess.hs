@@ -77,6 +77,8 @@ unpackStmt statement = withPos statement $ case statement of
     Feature _ _ _ _ _ -> return statement
     Assign _ _ _ -> return statement
 
+    Aquires pos generics typ args stmt -> Aquires pos generics typ args <$> unpackStmt stmt
+
     FuncDef generics (AST.Func header stmt) -> FuncDef generics . AST.Func header <$> unpackStmt stmt
     Block stmts -> Block <$> mapM unpackStmt stmts
     Let pos pat mexpr mblk -> Let pos pat mexpr <$> traverse unpackStmt mblk
@@ -260,6 +262,7 @@ buildStmt statement = withPos statement $ case statement of
     Return pos mexpr -> void $ appendStmt statement
     Data _ _ _ _     -> void $ appendStmt statement
     Feature _ _ _ _ _ -> void $ appendStmt statement
+    Aquires _ _ _ _ _ -> void $ appendStmt statement
 
     FuncDef generics (AST.Func header (Block stmts)) -> do
         blockId <- newStmt (Block [])

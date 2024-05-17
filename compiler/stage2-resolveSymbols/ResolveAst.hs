@@ -104,6 +104,16 @@ define symbol@(SymResolved _) key = do
     modify $ \s -> s { symTab = (Set.insert (symbol, key) $ head $ symTab s) : (tail $ symTab s) }
 
 
+genGeneric :: Symbol -> DoM ResolveState Symbol
+genGeneric symbol@(SymResolved str) = do
+    modName <- gets modName
+    resm <- gets (Map.lookup symbol . supply)
+    let n = maybe 0 (id) resm
+    modify $ \s -> s { supply = Map.insert symbol (n + 1) (supply s) }
+    case n of
+        0 -> return $ SymResolved $ str
+        n -> return $ SymResolved $ str ++ [show n]
+
 genSymbol :: Symbol -> DoM ResolveState Symbol
 genSymbol symbol@(SymResolved str) = do
     modName <- gets modName
@@ -152,7 +162,7 @@ resolveAst ast imports = fmap fst $ runDoMExcept initResolveState (resolveAst' a
 
 defineGenerics :: [Symbol] -> DoM ResolveState [Symbol]
 defineGenerics generics = forM generics $ \(Sym str) -> do
-    symbol <- genSymbol $ SymResolved ("type" : str)
+    symbol <- genGeneric $ SymResolved str
     define symbol KeyType
     return symbol
 
@@ -242,6 +252,16 @@ resolveStmt statement = withPos statement $ case statement of
 --        popSymbolTable
 --
 --        return (Feature pos symbol' arg' headers'')
+
+    Aquires pos generics typ args stmt -> do
+        pushSymbolTable
+        generics' <- defineGenerics generics
+        typ' <- resolveType typ
+        args' <- mapM resolveParam args
+        stmt' <- resolveStmt stmt
+
+        popSymbolTable
+        return (Aquires pos generics' typ' args' stmt')
 
     FuncDef generics (AST.Func header stmt) -> do
         symbol' <- case (funcSymbol header) of

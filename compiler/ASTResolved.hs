@@ -26,6 +26,9 @@ data ASTResolved
         , featureDefsAll       :: Map.Map Symbol (Symbol, [FuncHeader])
         , featureDefsTop       :: Set.Set Symbol
 
+        , aquiresAll           :: Map.Map Symbol Stmt
+        , aquiresTop           :: Set.Set Symbol
+
         , funcDefsAll          :: Map.Map Symbol Func
         , funcDefsTop          :: Set.Set Symbol
         , funcInstance         :: Map.Map Type Symbol
@@ -79,36 +82,33 @@ prettyASTResolved ast = do
     forM_ (includes ast) $ \str -> putStrLn $ "#include " ++ show str
     forM_ (links ast) $ \str -> putStrLn $ "link " ++ str
 
+
     putStrLn ""
+    putStrLn "typeDefsTop:"
+    forM_ (Set.toList $ typeDefsTop ast) $ \symbol -> do
+        liftIO $ putStrLn $ "\t" ++ prettySymbol symbol
     putStrLn "typeDefsAll:"
     forM_ (Map.toList $ typeDefsAll ast) $ \(symbol, (generics, typ)) -> do
         prettyStmt "\t" $ Typedef undefined generics symbol typ
 
+
     putStrLn ""
-    putStrLn "typeDefs:"
-    forM_ (Set.toList $ typeDefsTop ast) $ \symbol -> do
+    putStrLn "aquiresTop:"
+    forM_ (Set.toList $ aquiresTop ast) $ \symbol -> do
         liftIO $ putStrLn $ "\t" ++ prettySymbol symbol
+    putStrLn "aquiresAll:"
+    forM_ (Map.toList $ aquiresAll ast) $ \(symbol, aquires) -> do
+        prettyStmt "" aquires
 
---    putStrLn ""
---    putStrLn "featuresAll:"
---    forM_ (Map.toList $ featuresAll ast) $ \(symbol, header) -> do
---        liftIO $ putStrLn $ "\t" ++ prettySymbol symbol ++ ": " ++ show header 
-
-    putStrLn ""
-    putStrLn "featureDefsTop:"
-    forM_ (Set.toList $ featureDefsTop ast) $ \symbol -> do
-        putStrLn $ "\t" ++ prettySymbol symbol
-
-    putStrLn ""
-    putStrLn "funcDefsAll:"
-    forM_ (Map.toList $ funcDefsAll ast) $ \(symbol, func) -> do
-        let Just (generics, typ) = Map.lookup symbol (typeDefsAll ast)
-        prettyStmt "" $ FuncDef generics func
 
     putStrLn ""
     putStrLn "funcDefsTop:"
     forM_ (Set.toList $ funcDefsTop ast) $ \symbol -> do
         putStrLn $ "\t" ++ prettySymbol symbol
+    putStrLn "funcDefsAll:"
+    forM_ (Map.toList $ funcDefsAll ast) $ \(symbol, func) -> do
+        let Just (generics, typ) = Map.lookup symbol (typeDefsAll ast)
+        prettyStmt "" $ FuncDef generics func
 
 --    putStrLn ""
 --    putStrLn "funcInstance:"

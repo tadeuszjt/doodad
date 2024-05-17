@@ -202,10 +202,8 @@ buildModule isMain args modPath = do
 
         -- infer ast types
         when (verbose args) $ liftIO $ putStrLn "inferring types..."
-        (astFinal, inferCount) <- withErrorPrefix "infer: " $
+        (astFinal) <- withErrorPrefix "infer: " $
             infer astResolved (printAstAnnotated args) (verbose args)
-        when (verbose args) $ do
-            liftIO $ putStrLn $ "ran:       " ++ show inferCount ++ " type inference passes"
 
         when (isMain && printAstFinal args ) $ liftIO (prettyASTResolved astFinal)
 
