@@ -13,8 +13,6 @@ import Error
 import Control.Monad.State
 import Symbol
 import ASTResolved
-import FunctionFinder
-import FeatureFinder
 
 
 data CollectState

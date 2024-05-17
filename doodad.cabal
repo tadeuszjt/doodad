@@ -81,7 +81,6 @@ executable doodad
         ASTResolved,
         Lexer,
         Token,
-        FunctionInstantiator,
         CBuilder,
         CPretty,
         CGenerate,
@@ -89,7 +88,6 @@ executable doodad
         Compile,
         COptimise,
         Constraint,
-        FunctionFinder,
         ASTMapper,
         Checker,
         Builtin,
@@ -97,5 +95,4 @@ executable doodad
         CombineAsts,
         Preprocess,
         AstBuilder,
-        FeatureFinder,
         FindFunc

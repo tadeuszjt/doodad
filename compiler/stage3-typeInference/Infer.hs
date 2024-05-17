@@ -10,7 +10,6 @@ import Unify
 import Collect
 import ASTResolved
 import Annotate
-import FunctionInstantiator
 import AST
 
 -- Infer takes an ast and recursively runs the type inference algorithms until it can no longer

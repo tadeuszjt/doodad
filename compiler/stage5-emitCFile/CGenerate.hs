@@ -21,7 +21,6 @@ import Type
 import AST as S
 import Error
 import qualified SymTab
-import FunctionFinder
 
 data Value
     = Value { valType :: Type.Type, valExpr :: C.Expression }
