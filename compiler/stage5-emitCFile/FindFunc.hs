@@ -110,7 +110,7 @@ findFunction funcType = case funcType of
                             return Nothing
 
                 case results of
-                    [] -> fail "no valid aquires"
+                    [] -> fail $ "no valid aquires for: " ++ show funcType
                     [func] -> return func
 
 

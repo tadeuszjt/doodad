@@ -282,11 +282,18 @@ prettyStmt pre stmt = case stmt of
         prettyStmt pre blk
         putStrLn ""
 
-    Feature pos generics symbol args mtyp  -> do
-        error "here"
---        putStrLn $ pre ++ "feature " ++ prettySymbol symbol ++ brcStrs [prettySymbol arg]
---        forM_ headers $ \header -> do
---            putStrLn $ pre ++ "\t" ++ show header
+    Feature pos generics symbol args typ  -> do
+        let genericsStr = case generics of
+                [] -> "" 
+                xs -> brcStrs (map prettySymbol xs)
+        putStrLn $ pre
+            ++ "feature"
+            ++ genericsStr
+            ++ " "
+            ++ prettySymbol symbol
+            ++ tupStrs (map show args)
+            ++ " " ++ show typ
+
 
     Let pos pat mexpr mblk -> do
         exprStr <- case mexpr of

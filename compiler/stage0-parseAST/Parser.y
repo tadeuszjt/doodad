@@ -185,7 +185,7 @@ retty : {-empty-}     { Retty Type.Void }
 line : let pattern '=' expr               { Let (tokPos $1) $2 (Just $4) Nothing }  
      | let pattern                        { Let (tokPos $1) $2 Nothing Nothing }
      | expr                               { ExprStmt $1 }
-     | expr '=' expr                      { ExprStmt (Call (tokPos $2) (TypeDef $ Sym ["Store", "store"]) [Reference (tokPos $2) $1, $3]) }
+     | expr '=' expr                      { ExprStmt (Call (tokPos $2) (TypeDef $ Sym ["store"]) [Reference (tokPos $2) $1, $3]) }
      | type generics Symbol type_         { Typedef (fst $3) $2 (snd $3) $4 }
      | data symbol type_                  { Data (tokPos $1) (snd $2) $3 Nothing }
      | return mexpr                       { Return (tokPos $1) $2 }
@@ -267,7 +267,7 @@ pattern  : '_'                           { PatIgnore (tokPos $1) }
          | '-' int_c                     { PatLiteral (AST.Int (tokPos $1) $ 0 - (read $ tokStr $2)) }
          | ident                         { PatIdent (tokPos $1) (Sym [tokStr $1]) }
          | '(' patterns ')'              { PatTuple (tokPos $1) $2 }
---         | pattern '|' expr              { PatGuarded (tokPos $2) $1 $ AExpr Type.Bool $ Call (tokPos $2) (Sym ["Construct", "construct"]) [$3] }
+         | pattern '|' expr              { PatGuarded (tokPos $2) $1 (AExpr Type.Bool $3) }
          | pattern '|' expr '->' pattern { PatGuarded (tokPos $2) $1 (Match (tokPos $4) $3 $5) }
          | pattern ':' type_             { PatAnnotated $1 $3 }
          | type_ '(' patterns ')'        { PatTypeField (tokPos $2) $1 $3 }
@@ -299,18 +299,18 @@ expr   : literal                                 { $1 }
        | '&' expr                                { AST.Reference (tokPos $1) $2 }
 --       | type_ '(' exprsA ')'                    { AExpr $1 (Call (tokPos $2) (Sym ["Construct", "construct"]) $3) }
        | expr '[' expr ']'                       { Subscript (tokPos $2) $1 $3 }
---       | expr '.' symbol                         { Call (tokPos $2) (snd $3) (AST.Reference (tokPos $2) $1 : []) }
---       | expr '.' symbol '(' exprsA ')'          { Call (tokPos $4) (snd $3) (AST.Reference (tokPos $2) $1 : $5) }
+       | expr '.' symbol                         { Call (tokPos $2) (TypeDef $ snd $3) (AST.Reference (tokPos $2) $1 : []) }
+       | expr '.' symbol '(' exprsA ')'          { Call (tokPos $4) (TypeDef $ snd $3) (AST.Reference (tokPos $2) $1 : $5) }
        | symbol '(' exprsA ')'                   { Call (tokPos $2) (TypeDef $ snd $1) $3 }
---       | '(' exprsA ')'                          { case $2 of [x] -> x; xs -> Call (tokPos $1) (Sym ["Construct", "construct"]) $2 }
-       | expr '+' expr                           { Call (tokPos $2) (TypeDef $ Sym ["Arithmetic", "add"]) [$1, $3] }
---       | expr '/' expr                           { Call (tokPos $2) (Sym ["Arithmetic", "divide"]) [$1, $3] }
---       | expr '-' expr                           { Call (tokPos $2) (Sym ["Arithmetic", "subtract"]) [$1, $3] } 
+       | '(' exprsA ')'                          { case $2 of [x] -> x; xs -> Call (tokPos $1) (TypeDef $ Sym ["construct" ++ show (length xs) ]) $2 }
+       | expr '+' expr                           { Call (tokPos $2) (TypeDef $ Sym ["add"]) [$1, $3] }
+       | expr '/' expr                           { Call (tokPos $2) (TypeDef $ Sym ["divide"]) [$1, $3] }
+       | expr '-' expr                           { Call (tokPos $2) (TypeDef $ Sym ["subtract"]) [$1, $3] } 
 --       | expr '*' expr                           { Call (tokPos $2) (Sym ["Arithmetic", "times"]) [$1, $3] } 
 --       | expr '%' expr                           { Call (tokPos $2) (Sym ["Arithmetic", "modulo"]) [$1, $3] } 
 --       | expr '<' expr                           { Call (tokPos $2) (Sym ["Compare", "less"]) [$1, $3] } 
 --       | expr '>' expr                           { Call (tokPos $2) (Sym ["Compare", "greater"]) [$1, $3] } 
---       | expr '==' expr                          { Call (tokPos $2) (Sym ["Compare", "equal"]) [$1, $3] } 
+       | expr '==' expr                          { Call (tokPos $2) (TypeDef $ Sym ["equal"]) [$1, $3] } 
 --       | expr '<=' expr                          { Call (tokPos $2) (Sym ["lessEqual"]) [$1, $3] } 
 --       | expr '>=' expr                          { Call (tokPos $2) (Sym ["greaterEqual"]) [$1, $3] } 
 --       | expr '!=' expr                          { Call (tokPos $2) (Sym ["Boolean", "not"]) [Call (tokPos $2) (Sym ["Compare", "equal"]) [$1, $3]] } 

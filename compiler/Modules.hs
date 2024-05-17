@@ -8,7 +8,7 @@ import System.IO.Temp
 import System.Environment
 import System.Directory
 import Control.Monad.State
-import Control.Monad.IO.Class
+--import Control.Monad.IO.Class
 import Control.Monad.Except hiding (void, fail)
 import Data.List
 import Data.Char
@@ -22,16 +22,14 @@ import Monad
 import Error
 import Args
 import AST
-import Annotate
 import Infer
 import ASTResolved
-import CBuilder as C
 import CPretty as C
 import CGenerate as C
 import Lexer
 import Compile as C
 import COptimise as O
-import Checker
+--import Checker
 import qualified ResolveAst
 import qualified CombineAsts
 import Preprocess
@@ -152,7 +150,7 @@ getCanonicalModPath path = do
 
 buildModule :: Bool -> Args -> FilePath -> DoM Modules ()
 buildModule isMain args modPath = do
-    doodadPath <- gets doodadPath
+    --doodadPath <- gets doodadPath
     absoluteModPath <- getCanonicalModPath modPath
 
     isCompiled <- Map.member absoluteModPath <$> gets moduleMap
@@ -165,7 +163,7 @@ buildModule isMain args modPath = do
         file <- case files of
             [] -> fail ("module file not found in path: " ++ absoluteModPath)
             [x] -> return x
-            xs  -> fail ("multiple matching module files found in path: " ++ absoluteModPath)
+            _  -> fail ("multiple matching module files found in path: " ++ absoluteModPath)
 
         astNoPre <- parse args file
         ast <- preprocess astNoPre
@@ -177,7 +175,7 @@ buildModule isMain args modPath = do
         importPaths <- fmap (Set.toList . Set.fromList) $
             forM [fp | S.Import fp <- S.astImports ast] $ \importPath -> do
                 getCanonicalModPath importPath
-        mapM (buildModule False args) importPaths
+        mapM_ (buildModule False args) importPaths
 
         -- compile this module
         liftIO $ putStrLn ("compiling: " ++ absoluteModPath)
@@ -191,19 +189,17 @@ buildModule isMain args modPath = do
 
         when (verbose args) $ liftIO $ putStrLn "resolving symbols..."
         (astResolved', supply) <- ResolveAst.resolveAst ast astImports
+
+        when (isMain && printAstResolved args) $ liftIO (prettyAST astResolved')
+
         astCombined' <- CombineAsts.combineAsts (astResolved', supply) astImports
         --liftIO $ prettyAST astResolved'
-
-
-        let astResolved = astCombined'
-
-        when (isMain && printAstResolved args) $ liftIO (prettyASTResolved astResolved)
 
 
         -- infer ast types
         when (verbose args) $ liftIO $ putStrLn "inferring types..."
         (astFinal) <- withErrorPrefix "infer: " $
-            infer astResolved (printAstAnnotated args) (verbose args)
+            infer astCombined' (printAstAnnotated args) (verbose args)
 
         when (isMain && printAstFinal args ) $ liftIO (prettyASTResolved astFinal)
 

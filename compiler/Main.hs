@@ -2,17 +2,13 @@ module Main where
 
 import System.Exit
 import System.Environment
-import System.IO
 import Control.Monad
-import Control.Monad.Except
 
 import Error
 import Modules
 import Monad
 import Args
 import AST
-import qualified Parser as P
-import Lexer
 
 
 main :: IO ()

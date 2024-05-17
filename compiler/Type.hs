@@ -98,11 +98,6 @@ isSimple typ = case typ of
 isIntegral x = isInt x || x == Char
 
 
-isGeneric :: Type -> Bool
-isGeneric (TypeDef s) = "type" `elem` symStr s
-isGeneric _           = False
-
-
 mapType :: (Type -> Type) -> Type -> Type
 mapType f typ = f $ case typ of
     Apply t ts -> Apply (mapType f t) $ map (mapType f) ts
@@ -153,9 +148,6 @@ typesCouldMatch t1 t2 = case (t1, t2) of
     (Type _, _)                -> True
     (_, Type _)                -> True
 
-    (TypeDef s, _) | isGeneric t1 -> True
-    (_, TypeDef s) | isGeneric t2 -> True
-
     (Apply t1 ts1, Apply t2 ts2)
         | length ts1 == length ts2 ->
             all id $ zipWith typesCouldMatch (t1 : ts1) (t2 : ts2)
@@ -168,6 +160,5 @@ typesCouldMatch t1 t2 = case (t1, t2) of
 typeFullyResolved :: Type -> Bool
 typeFullyResolved typ = case typ of
     Type _         -> False
-    x | isGeneric x -> False
     Apply t ts     -> all typeFullyResolved (t : ts)
     _              -> True

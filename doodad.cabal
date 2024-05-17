@@ -28,6 +28,7 @@ executable doodad
 -- run as usual (cabal run doodad -- main2)
 -- look at doodad.prof file
     ghc-options:
+        -Wunused-imports
         -fno-warn-overlapping-patterns
         --O2
         --threaded

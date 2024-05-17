@@ -45,6 +45,7 @@ generate = withErrorPrefix "generate: " $ do
             header <- generateFunc (TypeDef symbol)
 
 
+
             when (symbolsCouldMatch (Sym ["main"]) (funcSymbol $ funcHeader func)) $ do
                 id <- newFunction
                     Cint
@@ -70,6 +71,9 @@ generateFunc funcType = do
     isImportedInstance <- gets (Map.member funcType . funcInstanceImported . astResolved)
     isInstance <- gets (Map.member funcType . funcInstance . astResolved)
 
+    --liftIO $ putStrLn $ "generateFunc: " ++ show funcType
+    --liftIO $ putStrLn $ "isImpInst, isInst: " ++ show (isImportedInstance, isInstance)
+
     if isImportedInstance then do
         Just symbol <- gets (Map.lookup funcType . funcInstanceImported . astResolved)
         return symbol
@@ -92,6 +96,11 @@ generateFunc funcType = do
 
         pushSymTab
         (symbol, ast') <- CGenerate.genSymbol (funcSymbol header) ast
+        let header' = header { funcSymbol = symbol }
+        --liftIO $ putStrLn $ "generated: " ++ show funcType
+        modify $ \s -> s { astResolved = ast'
+            { funcInstance = Map.insert funcType header' (funcInstance ast') } }
+
 
         id <- newFunction rettyType (showSymGlobal $ symbol) ([] ++ args) []
         withCurID id $ do
@@ -109,9 +118,6 @@ generateFunc funcType = do
         popSymTab
         withCurID globalID $ append id
 
-        let header' = header { funcSymbol = symbol }
-        modify $ \s -> s { astResolved = ast'
-            { funcInstance = Map.insert funcType header' (funcInstance ast') } }
         return header'
 
 
@@ -181,7 +187,7 @@ generateStmt stmt = withPos stmt $ case stmt of
             if_ (not_ val) $ appendElem C.Break
             generateStmt stmt
         
-    _ -> error "invalid statement"
+    x -> error (show x)
 
 
 -- generateExpr should return a 're-enter-able' expression, eg 1, not func()
@@ -195,35 +201,10 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
     S.String _ s           -> assign "string" $ Value typ $
         C.Initialiser [C.String s, C.Int (fromIntegral $ length s)]
 
---    S.Call _ symbol [expr1, expr2] | symbolsCouldMatch symbol (Sym ["builtin", "add"]) -> do
---        val1 <- deref =<< generateExpr expr1
---        val2 <- deref =<< generateExpr expr2
---        builtinAdd val1 val2
---
---    S.Call _ symbol [expr1, expr2] | symbolsCouldMatch symbol (Sym ["builtin", "subtract"]) -> do
---        val1 <- deref =<< generateExpr expr1
---        val2 <- deref =<< generateExpr expr2
---        builtinSubtract val1 val2
---
---    S.Call _ symbol [expr1, expr2] | symbolsCouldMatch symbol (Sym ["builtin", "multiply"]) -> do
---        val1 <- deref =<< generateExpr expr1
---        val2 <- deref =<< generateExpr expr2
---        builtinMultiply val1 val2
---
---    S.Call _ symbol [expr1, expr2] | symbolsCouldMatch symbol (Sym ["builtin", "divide"]) -> do
---        val1 <- deref =<< generateExpr expr1
---        val2 <- deref =<< generateExpr expr2
---        builtinDivide val1 val2
---
 --    S.Call _ symbol [expr1, expr2] | symbolsCouldMatch symbol (Sym ["builtin", "modulo"]) -> do
 --        val1 <- deref =<< generateExpr expr1
 --        val2 <- deref =<< generateExpr expr2
 --        builtinModulo val1 val2
---
---    S.Call _ symbol [expr1, expr2] | symbolsCouldMatch symbol (Sym ["builtin", "equal"]) -> do
---        val1 <- deref =<< generateExpr expr1
---        val2 <- deref =<< generateExpr expr2
---        builtinEqual val1 val2
 --
 --    S.Call _ symbol [expr1, expr2] | symbolsCouldMatch symbol (Sym ["builtin", "sliceAt"]) -> do
 --        val <- generateExpr expr1
@@ -234,13 +215,6 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
 --        val <- generateExpr expr1
 --        idx <- generateExpr expr2
 --        builtinArrayAt val idx
---
---    S.Call _ symbol [expr] | symbolsCouldMatch symbol (Sym ["builtin", "tableAppend"]) -> do
---        val <- generateExpr expr
---        Apply Table _ <- baseTypeOf val
---        case val of
---            Value _ _ -> fail "isn't reference"
---            Ref _ _   -> builtinTableAppend val >> return (Value Void $ C.Int 0)
 --
 --    S.Call _ symbol [expr, start, end] | symbolsCouldMatch symbol (Sym ["builtin", "tableSlice"]) -> do
 --        ref@(Ref _ exp) <- generateExpr expr
@@ -262,21 +236,61 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
 --        builtinSumReset val1 =<< generateExpr idx
 --        return $ Value Void (C.Int 0)
 --
-    S.Call _ (Apply (TypeDef symbol) ts) [expr1, expr2] | symbolsCouldMatch symbol (Sym ["builtin", "tableAt"]) -> do
-        val <- generateExpr expr1
-        idx <- generateExpr expr2
-        builtinTableAt val idx
+    S.Call _ (Apply (TypeDef symbol) _) [expr1, expr2] | symbolsCouldMatch symbol (Sym ["builtin", "builtinAdd"]) -> do
+        val1 <- deref =<< generateExpr expr1
+        val2 <- deref =<< generateExpr expr2
+        builtinAdd val1 val2
 
-    S.Call _ (Apply (TypeDef symbol) ts) [expr1, expr2] | symbolsCouldMatch symbol (Sym ["builtin", "store"]) -> do
+    S.Call _ (Apply (TypeDef symbol) _) [expr1, expr2] | symbolsCouldMatch symbol (Sym ["builtin", "builtinSubtract"]) -> do
+        val1 <- deref =<< generateExpr expr1
+        val2 <- deref =<< generateExpr expr2
+        builtinSubtract val1 val2
+
+    S.Call _ (Apply (TypeDef symbol) _) [expr1, expr2] | symbolsCouldMatch symbol (Sym ["builtin", "builtinMultiply"]) -> do
+        val1 <- deref =<< generateExpr expr1
+        val2 <- deref =<< generateExpr expr2
+        builtinMultiply val1 val2
+
+    S.Call _ (Apply (TypeDef symbol) _) [expr1, expr2] | symbolsCouldMatch symbol (Sym ["builtin", "builtinDivide"]) -> do
+        val1 <- deref =<< generateExpr expr1
+        val2 <- deref =<< generateExpr expr2
+        builtinDivide val1 val2
+
+    S.Call _ (Apply (TypeDef symbol) _) [expr1, expr2] | symbolsCouldMatch symbol (Sym ["builtin", "builtinEqual"]) -> do
+        val1 <- deref =<< generateExpr expr1
+        val2 <- deref =<< generateExpr expr2
+        builtinEqual val1 val2
+
+    S.Call _ (Apply (TypeDef symbol) _) [expr1] | symbolsCouldMatch symbol (Sym ["builtin", "builtinNot"]) -> do
+        val1 <- deref =<< generateExpr expr1
+        builtinNot val1
+
+    S.Call _ (Apply (TypeDef symbol) ts) [expr1, expr2] | symbolsCouldMatch symbol (Sym ["builtin", "builtinStore"]) -> do
         check (typeof expr1 == typeof expr2) "type mismatch"
         base <- baseTypeOf expr1
         ref1@(Ref _ _) <- generateExpr expr1
         builtinStore ref1 =<< generateExpr expr2
         return $ Value Void (C.Int 0)
 
---    S.Call _ symbol [expr] | symbolsCouldMatch symbol (Sym ["builtin", "tableLen"]) -> do
---        builtinLen =<< generateExpr expr
---
+    S.Call _ (Apply (TypeDef symbol) _) [expr]
+        | symbolsCouldMatch symbol (Sym ["builtin", "builtinTableLen"]) ->
+            builtinLen =<< generateExpr expr
+
+    S.Call _ (Apply (TypeDef symbol) _) [expr]
+        | symbolsCouldMatch symbol (Sym ["builtin", "builtinTableAppend"]) -> do
+        val <- generateExpr expr
+        Apply Table _ <- baseTypeOf val
+        case val of
+            Value _ _ -> fail "isn't reference"
+            Ref _ _   -> builtinTableAppend val >> return (Value Void $ C.Int 0)
+
+    S.Call _ (Apply (TypeDef symbol) ts) [expr1, expr2]
+        | symbolsCouldMatch symbol (Sym ["builtin", "builtinTableAt"]) -> do
+            val <- generateExpr expr1
+            idx <- generateExpr expr2
+            builtinTableAt val idx
+
+
 --    S.Call _ symbol exprs | symbolsCouldMatch (Sym ["builtin", "pretend"]) symbol -> do
 --        let [expr] = exprs
 --        Ref exprType refExpr <- generateExpr expr

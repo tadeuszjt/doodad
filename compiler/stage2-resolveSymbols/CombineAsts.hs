@@ -49,9 +49,7 @@ combineAsts (ast, supply) imports = fmap snd $
                 , symSupply = supply
                 }
 
-            stmts' <- mapM (mapStmtM combineMapper) (astStmts ast)
-
-            forM_ stmts' $ \stmt -> withPos stmt $ case stmt of
+            forM_ (astStmts ast) $ \stmt -> withPos stmt $ case stmt of
                 Typedef pos generics symbol@(SymResolved _) typ ->
                     modify $ \s -> s { typeDefsTop = Set.insert symbol (typeDefsTop s) }
 
@@ -64,7 +62,9 @@ combineAsts (ast, supply) imports = fmap snd $
                 Aquires _ _ (Apply (TypeDef symbol) _) _ _ _ -> return ()
                     --modify $ \s -> s { aquiresTop = Set.insert symbol (aquiresTop s) }
 
+            mapM_ (mapStmtM combineMapper) (astStmts ast)
 
+-- TODO this makes stuff ordered FIX 
 combineMapper :: Elem -> DoM ASTResolved Elem
 combineMapper element = case element of
     ElemStmt (FuncDef generics (AST.Func header stmt)) -> do
@@ -96,13 +96,15 @@ combineMapper element = case element of
             _               -> return (Just stmt)
 
     ElemExpr (Call pos typ@(TypeDef symbol) exprs) -> do
-        Just (generics, _) <- Map.lookup symbol <$> getTypeDefs
+        resm <- Map.lookup symbol <$> getTypeDefs
+        case resm of
+            Nothing -> fail ("no def for: " ++ prettySymbol symbol)
+            Just (generics, _) -> do
+                let typ' = case generics of
+                        [] -> typ
+                        x  -> Apply typ $ replicate (length x) (Type 0)
 
-        let typ' = case generics of
-                [] -> typ
-                x  -> Apply typ $ replicate (length x) (Type 0)
-
-        return $ ElemExpr (Call pos typ' exprs)
+                return $ ElemExpr (Call pos typ' exprs)
         
 
     _ -> return element

@@ -1,26 +1,32 @@
 module builtin
 
+fn{T} builtinStore(a &T, b T); ${}
 
-fn{T, G} pretend(a &T) G; ${}
+//fn{T, G} pretend(a &T) G; ${}
+//
+fn{T} builtinAdd(a T, b T) T; ${}
+fn{T} builtinSubtract(a T, b T) T; ${}
+fn{T} builtinMultiply(a T, b T) T; ${}
+fn{T} builtinDivide(a T, b T) T; ${}
+//fn{T} modulo(a T, b T) T; ${}
 
-fn{T} add(a T, b T) T; ${}
-fn{T} subtract(a T, b T) T; ${}
-fn{T} multiply(a T, b T) T; ${}
-fn{T} divide(a T, b T) T; ${}
-fn{T} modulo(a T, b T) T; ${}
+fn{T} builtinEqual(a T, b T) Bool; ${}
+fn{T} builtinNot(a T) T; ${}
 
-fn{T} equal(a T, b T) Bool; ${}
+fn{T} builtinTableLen(a &T.Table) I64; ${}
+fn{T} builtinTableAppend(a &T.Table); ${}
+fn{T} builtinTableAt(a &T.Table, b I64) &T; ${}
 
-fn{T}    tableAt(t &T.Table, idx I64) &T; ${}
-fn{T}    sliceAt(t &[]T, idx I64) &T; ${}
-fn{T, S} arrayAt(t T.Array{S}, idx I64) &T; ${}
-
-fn{T} tableAppend(t &T.Table); ${}
-fn{T} tableSlice(t &T.Table, start I64, end I64) []T; ${}
-
-fn{T} sumEnum(sum &T) I64; ${}
-fn{T} sumReset(sum &T, idx I64); ${}
-
-fn{T} store(a &T, b T); ${}
-
-fn{T} tableLen(a &T) I64; ${}
+//fn{T}    tableAt(t &T.Table, idx I64) &T; ${}
+//fn{T}    sliceAt(t &[]T, idx I64) &T; ${}
+//fn{T, S} arrayAt(t T.Array{S}, idx I64) &T; ${}
+//
+//fn{T} tableAppend(t &T.Table); ${}
+//fn{T} tableSlice(t &T.Table, start I64, end I64) []T; ${}
+//
+//fn{T} sumEnum(sum &T) I64; ${}
+//fn{T} sumReset(sum &T, idx I64); ${}
+//
+//fn{T} store(a &T, b T); ${}
+//
+//fn{T} tableLen(a &T) I64; ${}

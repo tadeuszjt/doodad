@@ -219,39 +219,8 @@ resolveStmt statement = withPos statement $ case statement of
         return (Typedef pos generics' symbol' typ')
 
     Feature pos generics symbol args retty -> do
+        --TODO do something
         return statement
---        symbol' <- case symbol of
---            SymResolved _ -> return symbol
---            Sym str -> do
---                s <- genSymbol (SymResolved str)
---                define s KeyType
---                return s
---
---        headers' <- forM headers $ \header -> do
---            fnSymbol' <- case funcSymbol header of
---                SymResolved _ -> return (funcSymbol header)
---                Sym str -> do
---                    s <- genSymbol $ SymResolved (tail (symStr symbol') ++ str)
---                    define s KeyFunc
---                    return s
---            return $ header { funcSymbol = fnSymbol' }
---
---        pushSymbolTable
---
---        arg' <- head <$> defineGenerics [arg]
---
---        headers'' <- forM headers' $ \header -> do
---            pushSymbolTable
---            --fnGenerics' <- defineGenerics (funcGenerics header)
---            fnArgs' <- mapM resolveParam (funcArgs header)
---            fnRetty' <- resolveRetty (funcRetty header)
---            popSymbolTable
---            --return $ header { funcArgs = fnArgs', funcGenerics = fnGenerics', funcRetty = fnRetty' }
---            return $ header { funcArgs = fnArgs', funcRetty = fnRetty' }
---
---        popSymbolTable
---
---        return (Feature pos symbol' arg' headers'')
 
     Aquires pos generics typ args isRef stmt -> do
         pushSymbolTable
@@ -286,9 +255,7 @@ resolveStmt statement = withPos statement $ case statement of
         return $ FuncDef generics' (AST.Func header' stmt')
 
     Block stmts -> do
-        pushSymbolTable
         stmts' <- mapM resolveStmt stmts
-        popSymbolTable
         return (Block stmts')
 
     Let pos pat Nothing mblk -> do

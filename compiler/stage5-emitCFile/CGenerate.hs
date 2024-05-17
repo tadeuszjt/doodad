@@ -82,23 +82,27 @@ runGenerate generateState builderState generate =
 
 
 pushSymTab :: Generate ()
-pushSymTab = modify $ \s -> s { symTab = SymTab.push (symTab s) }
+pushSymTab = do
+    --liftIO $ putStrLn "pushSymTab"
+    modify $ \s -> s { symTab = SymTab.push (symTab s) }
 
 
 popSymTab :: Generate ()
-popSymTab = modify $ \s -> s { symTab = SymTab.pop (symTab s) }
-
+popSymTab = do
+    --liftIO $ putStrLn "popSymTab"
+    modify $ \s -> s { symTab = SymTab.pop (symTab s) }
 
 define :: String -> Value -> Generate ()
 define str obj = do
-    resm <- SymTab.lookup str <$> gets symTab
+    --liftIO $ putStrLn ("defining: " ++ show str)
+    resm <- SymTab.lookupHead str <$> gets symTab
     check (isNothing resm) $ str ++ " already defined"
     modify $ \s -> s { symTab = SymTab.insert str obj (symTab s) }
 
 
 look :: String -> Generate Value
 look str = do
-    resm <- SymTab.lookup str <$> gets symTab
+    resm <- SymTab.lookupHead str <$> gets symTab
     when (isNothing resm) $ fail $ str ++ " isn't defined"
     return (fromJust resm)
 

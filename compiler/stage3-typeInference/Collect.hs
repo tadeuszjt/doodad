@@ -165,9 +165,28 @@ collectExpr (AExpr exprType expression) = collectPos expression $ case expressio
     AST.Char _ _ -> collect "char literal must have Char type" (ConsEq exprType Type.Char)
 
     Call _ callType exprs -> do
+        case (callType, exprs) of
+            (Apply (TypeDef symbol) _, [_, _]) | symbolsCouldMatch symbol (Sym ["construct2"]) ->
+                collectDefault exprType $ Apply Type.Tuple (map typeof exprs)
+            (Apply (TypeDef symbol) _, [_, _, _]) | symbolsCouldMatch symbol (Sym ["construct3"]) ->
+                collectDefault exprType $ Apply Type.Tuple (map typeof exprs)
+
+            _ -> return ()
+
+
+        case callType of
+            Apply (TypeDef symbol) _ | symbolsCouldMatch (Sym ["store"]) symbol ->
+                case exprs of
+                    [_, _] -> collectDefault (typeof $ exprs !! 0) (typeof $ exprs !! 1)
+                    _ -> return ()
+
+            _ -> return ()
+
+
         Apply Type.Func ts <- baseTypeOf callType
         --liftIO $ putStrLn $ "collect call: " ++ show callType ++ " , base: " ++ show (Apply Type.Func ts)
-        unless ((length exprs + 1) == length ts) (fail "invalid function type arguments")
+        unless ((length exprs + 1) == length ts)
+            (fail $ "invalid function type arguments: " ++ show callType)
         collect "call return" $ ConsEq exprType (head ts)
         forM_ (zip (tail ts) exprs) $ \(t, expr) -> do
             collect "call arg" $ ConsEq (typeof expr) t

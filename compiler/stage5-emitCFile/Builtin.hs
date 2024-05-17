@@ -116,8 +116,15 @@ builtinEqual val1@(Value _ _) val2@(Value _ _) = do
     check (typeof val1 == typeof val2) "type mismatch"
     base <- baseTypeOf val1
     case base of
-        x | isInt x || isFloat x || x == Char -> return $ Value Bool $
+        x | isInt x || isFloat x || x == Char || x == Bool -> return $ Value Bool $
             C.Infix C.EqEq (valExpr val1) (valExpr val2)
+
+
+builtinNot :: Value -> Generate Value
+builtinNot val@(Value _ _) = do
+    base <- baseTypeOf val
+    case base of
+        Bool -> return $ Value (typeof val) (C.Not $ valExpr val)
 
 
 builtinTableAppend :: Value -> Generate ()
