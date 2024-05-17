@@ -55,7 +55,7 @@ combineAsts (ast, supply) imports = fmap snd $
                 FuncDef generics (AST.Func header stmt) ->
                     modify $ \s -> s { funcDefsTop = Set.insert (funcSymbol header) (funcDefsTop s) }
 
-                Feature _ symbol _ _ ->
+                Feature _ _ symbol _ _ ->
                     modify $ \s -> s { featureDefsTop = Set.insert symbol (featureDefsTop s) }
 
 
@@ -70,8 +70,9 @@ combineMapper element = case element of
         modify $ \s -> s { typeDefsAll = Map.insert symbol (generics, typ) (typeDefsAll s) }
         return element
 
-    ElemStmt (Feature pos symbol arg headers) -> do
-        modify $ \s -> s { featureDefsAll = Map.insert symbol (arg, headers) (featureDefsAll s) }
+    ElemStmt (Feature pos generics symbol args retty) -> do
+        --modify $ \s -> s { featureDefsAll = Map.insert symbol (arg, headers) (featureDefsAll s) }
+        modify $ \s -> s { typeDefsAll = Map.insert symbol (generics, Apply Type.Func (retty : args)) (typeDefsAll s) }
         return element
 
     -- filter out statements
@@ -79,7 +80,7 @@ combineMapper element = case element of
         forM stmts $ \stmt -> case stmt of
             Typedef _ _ _ _ -> return Nothing
             FuncDef _ _     -> return Nothing
-            Feature _ _ _ _ -> return Nothing
+            Feature _ _ _ _ _ -> return Nothing
             _               -> return (Just stmt)
 
     ElemExpr (Call pos typ@(TypeDef symbol) exprs) -> do

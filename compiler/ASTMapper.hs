@@ -53,7 +53,7 @@ mapStmtM :: MapperFunc s -> Stmt -> DoM s Stmt
 mapStmtM f stmt = withPos stmt $ do
     res <- f . ElemStmt =<< case stmt of
         Typedef _ _ _ _ -> return stmt -- ignored
-        Feature _ _ _ _ -> return stmt -- ignored
+        Feature _ _ _ _ _ -> return stmt -- ignored
 
         FuncDef generics (AST.Func header stmt) -> do
             stmt' <- mapStmtM f stmt

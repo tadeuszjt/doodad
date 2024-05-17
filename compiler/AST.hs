@@ -133,7 +133,7 @@ data Stmt
     | If          TextPos Expr Stmt (Maybe Stmt)
     | While       TextPos Expr Stmt
     | FuncDef     Generics Func
-    | Feature     TextPos Symbol Symbol [FuncHeader]
+    | Feature     TextPos Generics Symbol [Type] Type
     | Typedef     TextPos Generics Symbol Type
     | Switch      TextPos Expr [(Pattern, Stmt)]
     | For         TextPos Expr (Maybe Pattern) Stmt
@@ -190,7 +190,7 @@ instance TextPosition Stmt where
         For         p _ _ _ -> p
         Data        p _ _ _ -> p
         EmbedC      p _ -> p
-        Feature     p _ _ _ -> p
+        Feature     p _ _ _ _ -> p
         Enum        p _ _ _ -> p
         MacroTuple  p _ _ _ -> p
         Assign      p _ _ -> p
@@ -280,10 +280,11 @@ prettyStmt pre stmt = case stmt of
         prettyStmt pre blk
         putStrLn ""
 
-    Feature pos symbol arg headers -> do
-        putStrLn $ pre ++ "feature " ++ prettySymbol symbol ++ brcStrs [prettySymbol arg]
-        forM_ headers $ \header -> do
-            putStrLn $ pre ++ "\t" ++ show header
+    Feature pos generics symbol args mtyp  -> do
+        error "here"
+--        putStrLn $ pre ++ "feature " ++ prettySymbol symbol ++ brcStrs [prettySymbol arg]
+--        forM_ headers $ \header -> do
+--            putStrLn $ pre ++ "\t" ++ show header
 
     Let pos pat mexpr mblk -> do
         exprStr <- case mexpr of

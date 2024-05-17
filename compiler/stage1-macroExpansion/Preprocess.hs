@@ -74,7 +74,7 @@ unpackStmt statement = withPos statement $ case statement of
     Return _ _  -> return statement
     ExprStmt _ -> return statement
     Data _ _ _ _ -> return statement
-    Feature _ _ _ _ -> return statement
+    Feature _ _ _ _ _ -> return statement
     Assign _ _ _ -> return statement
 
     FuncDef generics (AST.Func header stmt) -> FuncDef generics . AST.Func header <$> unpackStmt stmt
@@ -259,7 +259,7 @@ buildStmt statement = withPos statement $ case statement of
     EmbedC _ _       -> void $ appendStmt statement
     Return pos mexpr -> void $ appendStmt statement
     Data _ _ _ _     -> void $ appendStmt statement
-    Feature _ _ _ _  -> void $ appendStmt statement
+    Feature _ _ _ _ _ -> void $ appendStmt statement
 
     FuncDef generics (AST.Func header (Block stmts)) -> do
         blockId <- newStmt (Block [])

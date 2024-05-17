@@ -151,13 +151,8 @@ tupleFields : {-empty-}                       { [] }
 -- Statements -------------------------------------------------------------------------------------
 
 
-featureDef : feature Ident '{' Ident '}' 'I' featureHeaders 'D' { Feature (tokPos $1) (Sym [tokStr $2]) (Sym [tokStr $4]) $7 }
-featureHeader : fn generics ident '(' types ')' retty
-    { FuncHeader (tokPos $1) (Sym [tokStr $3]) (map (Param (tokPos $1) (Sym [])) $5) $7 }
-
-featureHeaders : {-empty-}                        { [] }
-               | featureHeader 'N' featureHeaders { ($1 : $3) }
-
+featureDef : feature generics ident '(' types ')' typeMaybe
+            { Feature (tokPos $1) $2 (Sym [tokStr $3]) $5 (case $7 of Nothing -> Void; Just x -> x) }
 
 
 fnSymbol : ident            { Sym [tokStr $1] }
@@ -183,6 +178,7 @@ line : let pattern '=' expr               { Let (tokPos $1) $2 (Just $4) Nothing
      | embed_c                            { AST.EmbedC (tokPos $1) (tokStr $1) }
      | enumMacro                          { $1 }
      | tupleMacro                         { $1 }
+     | featureDef                         { $1 }
 
 block : if_                               { $1 }
       | while condition scope             { While (tokPos $1) $2 $3 }
@@ -192,7 +188,6 @@ block : if_                               { $1 }
       | let pattern '='  expr in scope    { Let (tokPos $1) $2 (Just $4) (Just $6) }
       | let pattern in scope              { Let (tokPos $1) $2 Nothing (Just $4) }
       | funcDef                           { $1 }
-      | featureDef                        { $1 }
 
 if_   : if condition scope else_          { If (tokPos $1) $2 $3 $4 }
       | if condition 'N' else_            { If (tokPos $1) $2 (Block []) $4 }
@@ -319,6 +314,10 @@ literal : int_c                                  { AST.Int (tokPos $1) (read $ t
 
 ---------------------------------------------------------------------------------------------------
 -- Types ------------------------------------------------------------------------------------------
+
+typeMaybe : {-empty-} { Nothing }
+          | type_     { Just $1 }
+
 
 type__ : type_ { $1 }
        | int_c { Size (read $ tokStr $1) }
