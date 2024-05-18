@@ -4,7 +4,6 @@ import Monad
 import Control.Monad.State
 import Type
 import AST
-import ASTResolved
 import ASTMapper
 
 -- 'Annotate takes an AST and annotates all expressions with a type variable using 'AExpr'.

@@ -1,11 +1,9 @@
 module Builtin where
 
 import Control.Monad
-import Data.List
 
 import qualified CAst as C
 import Type
-import Symbol
 import CGenerate
 import CBuilder
 import Error

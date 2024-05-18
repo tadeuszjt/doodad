@@ -2,7 +2,6 @@ module AST where
 
 import Prelude hiding (LT, GT)
 import Data.Maybe
-import Data.Word
 import Data.List
 import Control.Monad
 import Type 

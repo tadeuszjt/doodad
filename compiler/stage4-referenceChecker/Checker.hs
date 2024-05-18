@@ -2,7 +2,6 @@
 module Checker where
 
 import qualified Data.Set as Set
-import qualified Data.Map as Map
 import Control.Monad
 import Control.Monad.State
 import Data.Maybe

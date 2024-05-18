@@ -130,9 +130,9 @@ resolveAst ast imports = fmap fst $ runDoMExcept initResolveState (resolveAst' a
         resolveAst' ast = do
             modify $ \s -> s { modName = astModuleName ast }
             forM_ imports $ \imprt -> do
-                forM_ (typeDefsTop imprt) (\symbol -> define symbol KeyType)
-                forM_ (funcDefsTop imprt) (\symbol -> define symbol KeyType)
-            
+                forM_ (typeDefsTop imprt) $ \symbol -> do
+                    define symbol KeyType
+
             -- pre-define top-level symbols
             topStmts' <- forM (astStmts ast) $ \stmt -> withPos stmt $ case stmt of
                 Typedef pos generics (Sym str) typ -> do

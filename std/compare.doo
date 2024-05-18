@@ -1,0 +1,11 @@
+module compare
+
+import std/builtin
+
+
+feature{T} equal(T, T) Bool
+
+
+aquires equal{ I64 }  (a, b); return builtinEqual(a, b)
+aquires equal{ F64 }  (a, b); return builtinEqual(a, b)
+aquires equal{ Bool } (a, b); return builtinEqual(a, b)

@@ -1,0 +1,25 @@
+module arithmetic
+
+import std/builtin
+import std/store
+
+
+feature{T} add(T, T) T
+feature{T} subtract(T, T) T
+feature{T} divide(T, T) T
+
+
+aquires add{I64}      (a, b); return builtinAdd(a, b)
+aquires subtract{I64} (a, b); return builtinSubtract(a, b)
+
+
+aquires add{ F64 }    (a, b); return builtinAdd(a, b)
+aquires divide{ F64 } (a, b); return builtinDivide(a, b)
+
+
+aquires{A, B, C} add{ Tuple{A, B, C} } (a, b)
+    let tup
+    tup.0 = a.0 + b.0
+    tup.1 = a.1 + b.1
+    tup.2 = a.2 + b.2
+    return tup

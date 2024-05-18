@@ -1,6 +1,10 @@
 module langTest
 
 import std/builtin
+import std/store
+import std/arithmetic
+import std/compare
+import std/tuple
 //import std/table
 //import std/sparse
 //import std/unordered
@@ -19,19 +23,8 @@ import std/builtin
 //import std/bool
 //import std/features
 
-feature{T}       store(T, T)
 feature{T, A, B} construct2(A, B) T
 feature{T, A, B, C} construct3(A, B, C) T
-
-feature{T} add(T, T) T
-feature{T} subtract(T, T) T
-feature{T} divide(T, T) T
-feature{T} equal(T, T) Bool
-
-
-feature{T, G} first(T) G
-feature{T, G} second(T) G
-feature{T, G} third(T) G
 
 
 feature{T}       len(T) I64
@@ -41,34 +34,11 @@ feature{T}       grow(T)
 feature{T, V}    pop(T{V}) V
 
 
-aquires store{I64}    (a&, b); builtinStore(&a, b)
-aquires add{I64}      (a, b); return builtinAdd(a, b)
-aquires subtract{I64} (a, b); return builtinSubtract(a, b)
-aquires equal{ I64 }  (a, b); return builtinEqual(a, b)
-
-
-aquires store{ F64 }  (a&, b); builtinStore(&a, b)
-aquires add{ F64 }    (a, b); return builtinAdd(a, b)
-aquires divide{ F64 } (a, b); return builtinDivide(a, b)
-aquires equal{ F64 }  (a, b); return builtinEqual(a, b)
-
-
-aquires store{ Bool } (a&, b); builtinStore(&a, b)
-aquires equal{ Bool } (a, b); return builtinEqual(a, b)
-
-
-aquires{A, B} store{ Tuple{A, B} } (a&, b)
-    a.0 = b.0
-    a.1 = b.1
-
 aquires{A, B} construct2{ Tuple{A, B}, A, B } (x, y)
     let r
     r.0 = x
     r.1 = y
     return r
-
-aquires{A, B} first{ Tuple{A, B}, A } (t&) -> &; return &t.0
-aquires{A, B} second{ Tuple{A, B}, B } (t&) -> &; return &t.1
 
 
 aquires{A, B, C} construct3{ Tuple{A, B, C}, A, B, C } (x, y, z)
@@ -77,13 +47,6 @@ aquires{A, B, C} construct3{ Tuple{A, B, C}, A, B, C } (x, y, z)
     r.1 = y
     r.2 = z
     return r
-
-aquires{A, B, C} first{ Tuple{A, B, C}, A } (t&) -> &; return &t.0
-aquires{A, B, C} second{ Tuple{A, B, C}, B } (t&) -> &; return &t.1
-aquires{A, B, C} third{ Tuple{A, B, C}, C } (t&) -> &; return &t.2
-
-aquires{A, B, C} add{ Tuple{A, B, C} } (a, b); return (a.0 + b.0, a.1 + b.1, a.2 + b.2)
-
 
 aquires{T} len{ T.Table }      (t&);           return builtinTableLen(&t)
 aquires{T} at{ Table, I64, T } (t&, idx) -> &; return builtinTableAt(&t, idx)

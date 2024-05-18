@@ -4,14 +4,10 @@
 module Monad where
 -- A monad which encapsulates StateT and error handling using Error
 
-import Control.Monad.Fail
 import Control.Monad.State 
 import Control.Monad.Except 
-import Control.Monad.Trans
-import Control.Monad.Identity
 
 import Error
-import Type
 
 
 newtype DoM s a

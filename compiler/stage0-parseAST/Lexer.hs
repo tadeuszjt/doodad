@@ -1,12 +1,10 @@
 module Lexer where
 import Data.Maybe
 import Data.List
-import Data.Maybe
 import Data.Char
 import Control.Monad
 import System.FilePath
 import System.IO.Temp
-import System.IO
 import System.Directory
 import Token
 import Error

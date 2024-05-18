@@ -2,7 +2,6 @@
 module Collect where
 
 import Data.Maybe
-import Data.List
 import qualified Data.Map as Map
 
 import AST

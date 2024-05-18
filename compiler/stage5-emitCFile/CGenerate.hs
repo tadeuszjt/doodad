@@ -2,13 +2,9 @@
 
 module CGenerate where
 
-import Data.List
-import Data.Char
-import Control.Monad.State
 import Control.Monad.Except
 import Control.Monad.Identity
 import qualified Data.Map as Map
-import qualified Data.Set as Set
 import Data.Maybe
 
 import Symbol

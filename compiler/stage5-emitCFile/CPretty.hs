@@ -6,7 +6,6 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Control.Monad
 import Control.Monad.State
-import Control.Monad.IO.Class
 import System.IO hiding (print)
 
 import Monad

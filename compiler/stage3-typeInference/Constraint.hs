@@ -1,7 +1,6 @@
 module Constraint where
 
 import Type
-import Symbol
 import Error
 
 -- constraints obtained from sub-expressions must be to the left

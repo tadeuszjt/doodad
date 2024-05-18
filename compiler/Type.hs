@@ -2,10 +2,8 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module Type where
 
-import Data.Maybe
 import Control.Monad
-import Control.Monad.State
-import qualified Data.Map as Map (Map, (!), member, lookup)
+import qualified Data.Map as Map (Map, member, lookup)
 import Data.List
 import Symbol
 

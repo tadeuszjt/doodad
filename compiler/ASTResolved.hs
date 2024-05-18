@@ -1,8 +1,6 @@
 {-# LANGUAGE FlexibleInstances #-}
 module ASTResolved where
 
-import Data.List
-
 import Control.Monad.IO.Class
 import Control.Monad
 import Control.Monad.State
@@ -22,8 +20,6 @@ data ASTResolved
         , links                :: Set.Set String                  -- linked libraries
         , typeDefsAll          :: Type.TypeDefsMap                -- all type defs
         , typeDefsTop          :: Set.Set Symbol                  -- top-level type defs
-
-        , featureDefsTop       :: Set.Set Symbol
 
         , aquiresAll           :: Map.Map Symbol Stmt
         , aquiresTop           :: Set.Set Symbol

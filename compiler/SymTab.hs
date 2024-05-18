@@ -3,8 +3,6 @@ module SymTab where
 import Prelude hiding (lookup, map, filter)
 import Control.Monad
 import qualified Data.Map as Map
-import           Data.Maybe
-import qualified Data.List as List 
 
 
 type SymTab s o = [Map.Map s o]

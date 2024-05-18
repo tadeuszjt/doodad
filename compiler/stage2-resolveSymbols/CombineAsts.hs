@@ -21,8 +21,6 @@ initAstResolved modName imports = ASTResolved
     , typeDefsAll    = Map.unions (map typeDefsAll imports)
     , funcDefsAll    = Map.unions (map funcDefsAll imports)
 
-    , featureDefsTop   = Set.empty
-
     , aquiresAll     = Map.unions (map aquiresAll imports) 
     , aquiresTop     = Set.empty
 
@@ -52,10 +50,11 @@ combineAsts (ast, supply) imports = fmap snd $
             forM_ (astStmts ast) $ \stmt -> withPos stmt $ case stmt of
                 Typedef pos generics symbol@(SymResolved _) typ ->
                     modify $ \s -> s { typeDefsTop = Set.insert symbol (typeDefsTop s) }
-                FuncDef generics (AST.Func header stmt) ->
+                FuncDef generics (AST.Func header stmt) -> do
                     modify $ \s -> s { funcDefsTop = Set.insert (funcSymbol header) (funcDefsTop s) }
+                    modify $ \s -> s { typeDefsTop = Set.insert (funcSymbol header) (typeDefsTop s) }
                 Feature _ _ symbol _ _ ->
-                    modify $ \s -> s { featureDefsTop = Set.insert symbol (featureDefsTop s) }
+                    modify $ \s -> s { typeDefsTop = Set.insert symbol (typeDefsTop s) }
 
                 _ -> return ()
                 
