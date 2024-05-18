@@ -21,7 +21,6 @@ initAstResolved modName imports = ASTResolved
     , typeDefsAll    = Map.unions (map typeDefsAll imports)
     , funcDefsAll    = Map.unions (map funcDefsAll imports)
 
-    , featureDefsAll   = Map.unions (map featureDefsAll imports)
     , featureDefsTop   = Set.empty
 
     , aquiresAll     = Map.unions (map aquiresAll imports) 
@@ -77,7 +76,6 @@ combineMapper element = case element of
         return element
 
     ElemStmt (Feature pos generics symbol args retty) -> do
-        --modify $ \s -> s { featureDefsAll = Map.insert symbol (arg, headers) (featureDefsAll s) }
         modify $ \s -> s { typeDefsAll = Map.insert symbol (generics, Apply Type.Func (retty : args)) (typeDefsAll s) }
         return element
 

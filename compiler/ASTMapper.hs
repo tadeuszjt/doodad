@@ -2,9 +2,7 @@
 module ASTMapper where
 
 import Control.Monad.State
-import Control.Monad.Except
 import AST
-import ASTResolved
 import Type
 import Error
 import Monad

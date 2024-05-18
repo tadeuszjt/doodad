@@ -23,7 +23,6 @@ data ASTResolved
         , typeDefsAll          :: Type.TypeDefsMap                -- all type defs
         , typeDefsTop          :: Set.Set Symbol                  -- top-level type defs
 
-        , featureDefsAll       :: Map.Map Symbol (Symbol, [FuncHeader])
         , featureDefsTop       :: Set.Set Symbol
 
         , aquiresAll           :: Map.Map Symbol Stmt
@@ -53,28 +52,6 @@ genSymbol symbol@(SymResolved str) = do
     case n of
         0 -> return $ SymResolved ([modName] ++ str)
         n -> return $ SymResolved ([modName] ++ str ++ [show n])
-
-
-getFunction :: Symbol -> ASTResolved -> Func
-getFunction symbol ast = if Map.member symbol (funcDefsAll ast) then
-        funcDefsAll ast Map.! symbol
-    else error ("symbol is not function: " ++ prettySymbol symbol)
-
-
-getFunctionHeader :: Symbol -> ASTResolved -> FuncHeader
-getFunctionHeader symbol ast = funcHeader $
-    if Map.member symbol (funcDefsAll ast) then
-        funcDefsAll ast Map.! symbol
-    else error ("symbol is not function: " ++ prettySymbol symbol)
-
-
---getInstanceHeader :: Type -> ASTResolved -> FuncHeader
---getInstanceHeader funcType ast = if Map.member funcType (funcInstance ast) then
---        funcHeader $ funcInstance ast Map.! funcType
---    else if Map.member funcType (funcInstanceImported ast) then
---        funcHeader $ funcInstanceImported ast Map.! funcType
---    else
---        error "cannot find func instance"
 
 
 prettyASTResolved :: ASTResolved -> IO ()

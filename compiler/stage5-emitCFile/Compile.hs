@@ -1,6 +1,5 @@
 module Compile where
 
-import Data.List
 import Data.Maybe
 import qualified Data.Map as Map
 import Control.Monad
@@ -9,14 +8,12 @@ import Control.Monad.State
 import CGenerate
 import CAst as C
 import CBuilder as C
-import CGenerate
 import AST as S
 import Type as Type
 import ASTResolved
 import Symbol
 import Error
 import Builtin
-import Apply
 import FindFunc
 import Monad
 

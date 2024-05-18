@@ -78,20 +78,17 @@ define symbol obj = do
     modify $ \s -> s { symTab = Map.insert symbol obj (symTab s) }
 
 
-collectFuncDef :: Func -> DoM CollectState ()
-collectFuncDef func = do
-    oldRetty <- gets curRetty
-    modify $ \s -> s { curRetty = typeof (funcRetty (funcHeader func)) }
-    forM_ (funcArgs $ funcHeader func) $ \param -> case param of
-        (Param _ symbol t) -> define symbol t
-        (RefParam _ symbol t) -> define symbol t
-
-    collectStmt (funcStmt func)
-    modify $ \s -> s { curRetty = oldRetty }
-
-
 collectStmt :: Stmt -> DoM CollectState ()
 collectStmt statement = collectPos statement $ case statement of
+    FuncDef generics (AST.Func header stmt) -> do
+        oldRetty <- gets curRetty
+        modify $ \s -> s { curRetty = typeof (funcRetty header) }
+        forM_ (funcArgs header) $ \param -> 
+            define (paramSymbol param) (typeof param)
+        collectStmt stmt
+        modify $ \s -> s { curRetty = oldRetty }
+
+
     Aquires pos generics typ args isRef stmt -> do
         Apply Type.Func (retty : argTypes) <- baseTypeOf typ
 
@@ -107,8 +104,6 @@ collectStmt statement = collectPos statement $ case statement of
         collectStmt stmt
 
         modify $ \s -> s { curRetty = oldRetty }
-            
-
 
     EmbedC _ _ -> return ()
 

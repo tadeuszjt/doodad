@@ -1,10 +1,8 @@
 module Apply where
 
-import qualified Data.Map as Map
 import Type
 import Constraint
 import AST
-import ASTResolved
 
 
 applyFunc :: [(Type, Type)] -> Func -> Func
@@ -44,6 +42,8 @@ applyStmt subs stmt = case stmt of
     While pos expr blk -> While pos (applyEx expr) (applySt blk)
     Assign pos symbol expr -> Assign pos symbol (applyEx expr)
     Aquires pos generics typ args isRef stmt -> Aquires pos generics typ args isRef (applySt stmt)
+
+    FuncDef generics (AST.Func header stmt) -> FuncDef generics (AST.Func header $ applySt stmt)
     x -> error "invalid statement"
     where
         applySt = applyStmt subs

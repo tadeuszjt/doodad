@@ -2,7 +2,6 @@ module FindFunc where
 
 import qualified Data.Map as Map
 import Control.Monad.State
-import Control.Monad.Except
 import Data.Maybe
 
 
@@ -12,7 +11,6 @@ import ASTResolved
 import Type
 import Apply
 import Constraint
-import Symbol
 import Error
 
 
@@ -51,67 +49,61 @@ getConstraintsFromTypes t1 t2 = case (t1, t2) of
 
 
 findFunction :: Type -> DoM ASTResolved Func
-findFunction funcType = case funcType of
-    TypeDef symbol -> do
-        Just func <- gets (Map.lookup symbol . funcDefsAll)
-        return func
+findFunction funcType = do
+    (symbol, params) <- case funcType of
+        TypeDef symbol                -> return (symbol, [])
+        Apply (TypeDef symbol) params -> return (symbol, params)
 
-    Apply (TypeDef symbol) params -> do
-        isFunc <- gets (Map.member symbol . funcDefsAll)
-        case isFunc of
-            True -> do
-                Just func <- gets (Map.lookup symbol . funcDefsAll)
-                Just (generics, _) <- gets (Map.lookup symbol . typeDefsAll)
-                unless (length generics == length params) (error "type mismatch")
-                let subs = zip (map TypeDef generics) params
-                return (applyFunc subs func)
+    isFunc <- gets (Map.member symbol . funcDefsAll)
+    case isFunc of
+        True -> do
+            Just func <- gets (Map.lookup symbol . funcDefsAll)
+            Just (generics, _) <- gets (Map.lookup symbol . typeDefsAll)
+            unless (length generics == length params) (error "type mismatch")
+            let subs = zip (map TypeDef generics) params
+            return (applyFunc subs func)
 
-            False -> do -- is aquire
-                aquiresAll <- gets aquiresAll
+        False -> do -- is aquire
+            aquiresAll <- gets aquiresAll
 
-                results <- fmap catMaybes $ forM (Map.toList aquiresAll) $ \(symbol, stmt) -> do
-                    --liftIO $ putStrLn $ "checking aquire: " ++ prettySymbol symbol
+            results <- fmap catMaybes $ forM (Map.toList aquiresAll) $ \(symbol, stmt) -> do
+                --liftIO $ putStrLn $ "checking aquire: " ++ prettySymbol symbol
+                let Aquires pos generics typ args isRef scope = stmt
+                let genericSubs = zipWith (\g i -> (TypeDef g, Type i)) generics [1..]
+                let appliedType = applyType genericSubs typ
 
+                --liftIO $ putStrLn $ "\tappliedType: " ++ show appliedType ++ ", " ++ show funcType
 
-                    let Aquires pos generics typ args isRef scope = stmt
-                    let genericSubs = zipWith (\g i -> (TypeDef g, Type i)) generics [1..]
-                    let appliedType = applyType genericSubs typ
+                subsEither <- tryError (unify =<< getConstraintsFromTypes appliedType funcType)
 
+                case subsEither of
+                    Right subs -> do
+                        --liftIO $ putStrLn "\tRight"
+                        let typeSame = applyType subs appliedType
+                        unless (typeSame == funcType) (error "something went terribly wrong")
 
-                    --liftIO $ putStrLn $ "\tappliedType: " ++ show appliedType ++ ", " ++ show funcType
+                        -- args need to be swapped from void
+                        Apply Type.Func (retType : argTypes) <- baseTypeOf funcType
+                        unless (length argTypes == length args) (error "something else went wrong")
 
-                    subsEither <- tryError (unify =<< getConstraintsFromTypes appliedType funcType)
+                        args' <- forM (zip argTypes args) $ \(t, param) -> case param of
+                            Param p s _ -> return (Param p s t)
+                            RefParam p s _ -> return (RefParam p s t)
 
-                    case subsEither of
-                        Right subs -> do
-                            --liftIO $ putStrLn "\tRight"
-                            let typeSame = applyType subs appliedType
-                            unless (typeSame == funcType) (error "something went terribly wrong")
+                        retty' <- case isRef of
+                            True -> return (RefRetty retType)
+                            False -> return (Retty retType)
 
-                            -- args need to be swapped from void
-                            Apply Type.Func (retType : argTypes) <- baseTypeOf funcType
-                            unless (length argTypes == length args) (error "something else went wrong")
+                        let stmt' = applyStmt subs (applyStmt genericSubs scope)
+                        let header' = FuncHeader pos symbol args' retty'
 
-                            args' <- forM (zip argTypes args) $ \(t, param) -> case param of
-                                Param p s _ -> return (Param p s t)
-                                RefParam p s _ -> return (RefParam p s t)
+                        return $ Just (AST.Func header' stmt')
 
-                            retty' <- case isRef of
-                                True -> return (RefRetty retType)
-                                False -> return (Retty retType)
+                    Left e -> do
+                        --liftIO $ putStrLn $ "\tLeft: " ++ show e
+                        return Nothing
 
-                            let stmt' = applyStmt subs (applyStmt genericSubs scope)
-                            let header' = FuncHeader pos symbol args' retty'
+            case results of
+                [] -> fail $ "no valid aquires for: " ++ show funcType
+                [func] -> return func
 
-                            return $ Just (AST.Func header' stmt')
-
-                        Left e -> do
-                            --liftIO $ putStrLn $ "\tLeft: " ++ show e
-                            return Nothing
-
-                case results of
-                    [] -> fail $ "no valid aquires for: " ++ show funcType
-                    [func] -> return func
-
-
-    x -> error (show x)

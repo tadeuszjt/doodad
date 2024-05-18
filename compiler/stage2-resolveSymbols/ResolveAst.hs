@@ -6,7 +6,6 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Control.Monad.State
 import Data.Maybe
-import Data.List
 import Data.Char
 
 import Type
@@ -15,7 +14,6 @@ import Monad
 import Error
 import Symbol
 import ASTResolved hiding (genSymbol)
-import ASTMapper
 
 
 data SymKey

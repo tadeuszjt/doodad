@@ -8,7 +8,6 @@ import Constraint
 import Monad
 import Error
 import Apply
-import Symbol
 
 
 unifyOne :: ConstraintInfo -> Constraint -> DoM ASTResolved [(Type, Type)]
