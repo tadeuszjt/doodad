@@ -160,20 +160,19 @@ collectExpr (AExpr exprType expression) = collectPos expression $ case expressio
     AST.Char _ _ -> collect "char literal must have Char type" (ConsEq exprType Type.Char)
 
     Call _ callType exprs -> do
-        case (callType, exprs) of
-            (Apply (TypeDef symbol) _, [_, _]) | symbolsCouldMatch symbol (Sym ["construct2"]) ->
-                collectDefault exprType $ Apply Type.Tuple (map typeof exprs)
-            (Apply (TypeDef symbol) _, [_, _, _]) | symbolsCouldMatch symbol (Sym ["construct3"]) ->
-                collectDefault exprType $ Apply Type.Tuple (map typeof exprs)
-
-            _ -> return ()
-
-
         case callType of
             Apply (TypeDef symbol) _ | symbolsCouldMatch (Sym ["store"]) symbol ->
                 case exprs of
                     [_, _] -> collectDefault (typeof $ exprs !! 0) (typeof $ exprs !! 1)
                     _ -> return ()
+
+            _ -> return ()
+
+        case (callType, exprs) of
+            (Apply (TypeDef symbol) _, [_, _]) | symbolsCouldMatch symbol (Sym ["construct2"]) ->
+                collectDefault exprType $ Apply Type.Tuple (map typeof exprs)
+            (Apply (TypeDef symbol) _, [_, _, _]) | symbolsCouldMatch symbol (Sym ["construct3"]) ->
+                collectDefault exprType $ Apply Type.Tuple (map typeof exprs)
 
             _ -> return ()
 

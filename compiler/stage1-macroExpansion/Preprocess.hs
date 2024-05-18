@@ -4,7 +4,6 @@ module Preprocess where
 import Data.Char
 import Control.Monad.Identity
 import qualified Data.Map as Map
-import Control.Monad
 import Control.Monad.State
 
 import Monad
@@ -522,7 +521,7 @@ preprocessMapper element = case element of
         return $ ElemStmt $ Block [Let pos pattern mexpr Nothing, blk]
 
     ElemExpr (Subscript pos expr1 expr2) ->
-        return $ ElemExpr $ Call pos (TypeDef $ Sym ["At", "at"]) [Reference pos expr1, expr2]
+        return $ ElemExpr $ Call pos (TypeDef $ Sym ["at"]) [Reference pos expr1, expr2]
 
     _ -> return element
 

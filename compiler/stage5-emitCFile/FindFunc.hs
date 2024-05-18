@@ -22,7 +22,9 @@ unifyOne constraint = case constraint of
         (Type _, _)        -> return [(t1, t2)]
         (_, Type _)        -> return [(t2, t1)]
 
-        _ -> error "here"
+        (Apply _ _, Apply _ _) -> error "here"
+
+        --x -> error (show x)
 
         _ -> fail $ "cannot unify: " ++ show (t1, t2)
 

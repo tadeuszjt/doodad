@@ -19,7 +19,7 @@ import std/builtin
 //import std/bool
 //import std/features
 
-feature{A, B} store(A, B)
+feature{T}       store(T, T)
 feature{T, A, B} construct2(A, B) T
 feature{T, A, B, C} construct3(A, B, C) T
 
@@ -36,27 +36,28 @@ feature{T, G} third(T) G
 
 feature{T}       len(T) I64
 feature{T, K, V} at(T{V}, K) V
-feature{T, E}    push(T, E)
-feature{T, E}    pop(T) E
+feature{T, V}    push(T{V}, V)
+feature{T}       grow(T)
+feature{T, V}    pop(T{V}) V
 
 
-aquires store{I64, I64} (a&, b); builtinStore(&a, b)
-aquires add{I64}        (a, b); return builtinAdd(a, b)
-aquires subtract{I64}   (a, b); return builtinSubtract(a, b)
-aquires equal{ I64 }    (a, b); return builtinEqual(a, b)
+aquires store{I64}    (a&, b); builtinStore(&a, b)
+aquires add{I64}      (a, b); return builtinAdd(a, b)
+aquires subtract{I64} (a, b); return builtinSubtract(a, b)
+aquires equal{ I64 }  (a, b); return builtinEqual(a, b)
 
 
-aquires store{ F64, F64 } (a&, b); builtinStore(&a, b)
-aquires add{ F64 }        (a, b); return builtinAdd(a, b)
-aquires divide{ F64 }     (a, b); return builtinDivide(a, b)
-aquires equal{ F64 }      (a, b); return builtinEqual(a, b)
+aquires store{ F64 }  (a&, b); builtinStore(&a, b)
+aquires add{ F64 }    (a, b); return builtinAdd(a, b)
+aquires divide{ F64 } (a, b); return builtinDivide(a, b)
+aquires equal{ F64 }  (a, b); return builtinEqual(a, b)
 
 
-aquires store{ Bool, Bool } (a&, b); builtinStore(&a, b)
-aquires equal{ Bool }       (a, b); return builtinEqual(a, b)
+aquires store{ Bool } (a&, b); builtinStore(&a, b)
+aquires equal{ Bool } (a, b); return builtinEqual(a, b)
 
 
-aquires{A, B} store{ Tuple{A, B}, Tuple{A, B} } (a&, b)
+aquires{A, B} store{ Tuple{A, B} } (a&, b)
     a.0 = b.0
     a.1 = b.1
 
@@ -87,14 +88,17 @@ aquires{A, B, C} add{ Tuple{A, B, C} } (a, b); return (a.0 + b.0, a.1 + b.1, a.2
 aquires{T} len{ T.Table }      (t&);           return builtinTableLen(&t)
 aquires{T} at{ Table, I64, T } (t&, idx) -> &; return builtinTableAt(&t, idx)
 
-aquires{T} push{ T.Table, T } (t&, e)
+aquires{T} push{ Table, T } (t&, e)
     builtinTableAppend(&t)
     builtinTableAt(&t, t.len - 1) = e
 
-//aquires{T} pop{ T.Table, T } (t&)
-//    let e = t.at(t.len - 1)
-//    ${ $t->len--; }
-//    return e
+aquires{T} grow{ T.Table } (t&)
+    builtinTableAppend(&t)
+
+aquires{T} pop{ Table, T } (t&)
+    let e = t.at(t.len - 1)
+    ${ $t->len--; }
+    return e
 
 
 fn assert(cnd Bool)
@@ -213,42 +217,42 @@ fn testTable()
     builtin::builtinTableAt(&table, 1) = 3
     let 3 = builtin::builtinTableAt(&table, 1)
 
-//    let 3 = table.pop
-//    let 3 = table.pop
-//    let 1 = table.pop
-//    let 0 = table.len
-//
-//    type Person (I64, Bool)
-//    fn Store::store(a &Person, b Person)
-//        a.0 = b.0
-//        a.1 = b.1
-//
-//    fn first(p &Person) &I64; return &p.0
-//    fn second(p &Person) &Bool; return &p.1
-//    fn Construct::construct(a I64, b Bool) Person
-//        let p : Person
-//        p.first = a
-//        p.second = b
-//        return p
-//
-//
-//    data t2 Person.Table
-//
-//    t2.push( Person(1, true) )
-//    t2.push( Person(2, false) )
-//
-//    let 2 = t2.len
-//
-//    t2.at(1) = (3, true)
-//    let (3, true) = t2.pop
-//
-//    data m3 I64.Table.Table
-//    let 0 = m3.len
-//    m3.push
-//    m3[0].push
-//    let 1 = m3[0].len
-//
-//
+    let 3 = table.pop
+    let 3 = table.pop
+    let 1 = table.pop
+    let 0 = table.len
+
+    type Person (I64, Bool)
+    aquires store{ Person } (a&, b)
+        a.0 = b.0
+        a.1 = b.1
+
+    aquires first{ Person, I64 } (p&) -> &; return &p.0
+    aquires second{ Person, Bool } (p&) -> &; return &p.1
+
+    aquires construct2{ Person, I64, Bool } (a, b)
+        let p : Person
+        p.first = a
+        p.second = b
+        return p
+
+    data t2 Person.Table
+
+    t2.push( (1, true) )
+    t2.push( (2, false) : Person )
+
+    let 2 = t2.len
+
+    t2.at(1) = (3, true)
+    let (3, true) = t2.pop
+
+    data m3 I64.Table.Table
+    let 0 = m3.len
+    m3.grow
+    m3[0].grow
+    let 1 = m3[0].len
+
+
 //fn testSparse()
 //    data s1 I64.Sparse
 //

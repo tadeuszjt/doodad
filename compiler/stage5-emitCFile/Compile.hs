@@ -86,10 +86,6 @@ generateFunc funcType = do
         args <- mapM cParamOf (S.funcArgs header)
         rettyType <- cRettyType (S.funcRetty header)
 
-        isRefRetty <- case S.funcRetty header of
-            RefRetty _ -> return True
-            Retty _    -> return False
-        modify $ \s -> s { curFnIsRef = isRefRetty }
 
         pushSymTab
         (symbol, ast') <- CGenerate.genSymbol (funcSymbol header) ast
@@ -108,7 +104,15 @@ generateFunc funcType = do
                     S.RefParam _ _ _ -> define name $ Ref (typeof arg) (C.Ident name)
                     x -> error (show x)
 
+
+            isRefRetty <- case S.funcRetty header of
+                RefRetty _ -> return True
+                Retty _    -> return False
+            oldCurFnIsRef <- gets curFnIsRef
+            modify $ \s -> s { curFnIsRef = isRefRetty }
             generateStmt (S.funcStmt func)
+            modify $ \s -> s { curFnIsRef = oldCurFnIsRef }
+
             when (S.funcRetty header /= S.Retty Void) $ -- check to ensure function has return
                 call "assert" [false]
 
@@ -134,6 +138,7 @@ generateStmt stmt = withPos stmt $ case stmt of
             (False, Value _ _) -> appendElem $ C.Return (valExpr val)
             (False, Ref _ _)   -> appendElem . C.Return . valExpr =<< deref val
             (True, Ref _ _)    -> appendElem $ C.Return $ refExpr val
+            (True, Value _ _)  -> fail "cannot return value in reference function"
 
     S.Let _ (PatAnnotated (PatIdent _ symbol) patType) Nothing Nothing -> do
         base <- baseTypeOf patType
