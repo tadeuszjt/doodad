@@ -13,21 +13,21 @@ feature{T}       grow(T)
 feature{T, V}    pop(T{V}) V
 
 
-aquires{T} len{ T.Table }      (t&);           return builtinTableLen(&t)
-aquires{T} at{ Table, I64, T } (t&, idx) -> &; return builtinTableAt(&t, idx)
+acquires{T} len{ T.Table }      (t&);           return builtinTableLen(&t)
+acquires{T} at{ Table, I64, T } (t&, idx) -> &; return builtinTableAt(&t, idx)
 
-aquires{T} push{ Table, T } (t&, e)
+acquires{T} push{ Table, T } (t&, e)
     builtinTableAppend(&t)
     builtinTableAt(&t, t.len - 1) = e
 
-aquires{T} grow{ T.Table } (t&)
+acquires{T} grow{ T.Table } (t&)
     builtinTableAppend(&t)
 
-aquires{T} pop{ Table, T } (t&)
+acquires{T} pop{ Table, T } (t&)
     let e = t.at(t.len - 1)
     ${ $t->len--; }
     return e
 
 
-aquires{T} len{ T.Slice } (s&);           return builtinSliceLen(&s)
-aquires{T} at{ Slice, I64, T } (s&, idx); return builtinSliceAt(&s, idx)
+acquires{T} len{ T.Slice } (s&);           return builtinSliceLen(&s)
+acquires{T} at{ Slice, I64, T } (s&, idx); return builtinSliceAt(&s, idx)

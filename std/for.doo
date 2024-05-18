@@ -8,6 +8,6 @@ feature{T}    forEnd(T) I64
 feature{T, E} forAt(T{E}, I64) E
 
 
-aquires{T} forBegin{ T.Slice } (s&);    return 0
-aquires{T} forEnd{ T.Slice } (s&);      return s.len
-aquires{T} forAt{ Slice, T } (s&, idx); return s[idx]
+acquires{T} forBegin{ T.Slice } (s&);    return 0
+acquires{T} forEnd{ T.Slice } (s&);      return s.len
+acquires{T} forAt{ Slice, T } (s&, idx); return s[idx]

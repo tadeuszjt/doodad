@@ -224,7 +224,7 @@ bool isKeyword(char *s) {
         "type",
         "tuple",
         "feature",
-        "aquires",
+        "acquires",
         NULL
     };
     for (int i = 0; keywords[i] != NULL; i++) {

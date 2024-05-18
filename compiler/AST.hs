@@ -320,7 +320,7 @@ prettyStmt pre stmt = case stmt of
 
     Aquires pos generics typ args isRef stmt -> do
         putStrLn $ pre
-            ++ "aquires"
+            ++ "acquires"
             ++ genericsStr generics
             ++ " "
             ++ show typ

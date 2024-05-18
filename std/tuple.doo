@@ -8,13 +8,13 @@ feature{T, G} second(T) G
 feature{T, G} third(T) G
 
 
-aquires{A, B} first{ Tuple{A, B}, A } (t&) -> &; return &t.0
-aquires{A, B} second{ Tuple{A, B}, B } (t&) -> &; return &t.1
+acquires{A, B} first{ Tuple{A, B}, A } (t&) -> &; return &t.0
+acquires{A, B} second{ Tuple{A, B}, B } (t&) -> &; return &t.1
 
 
-aquires{A, B, C} first{ Tuple{A, B, C}, A } (t&) -> &; return &t.0
-aquires{A, B, C} second{ Tuple{A, B, C}, B } (t&) -> &; return &t.1
-aquires{A, B, C} third{ Tuple{A, B, C}, C } (t&) -> &; return &t.2
+acquires{A, B, C} first{ Tuple{A, B, C}, A } (t&) -> &; return &t.0
+acquires{A, B, C} second{ Tuple{A, B, C}, B } (t&) -> &; return &t.1
+acquires{A, B, C} third{ Tuple{A, B, C}, C } (t&) -> &; return &t.2
 
 
 

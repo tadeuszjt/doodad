@@ -21,8 +21,8 @@ initAstResolved modName imports = ASTResolved
     , typeDefsAll    = Map.unions (map typeDefsAll imports)
     , funcDefsAll    = Map.unions (map funcDefsAll imports)
 
-    , aquiresAll     = Map.unions (map aquiresAll imports) 
-    , aquiresTop     = Set.empty
+    , acquiresAll     = Map.unions (map acquiresAll imports) 
+    , acquiresTop     = Set.empty
 
     , typeDefsTop    = Set.empty
 
@@ -93,9 +93,9 @@ combineMapper element = case element of
         return element
 
     ElemStmt stmt@(Aquires _ _ typ args _ _) -> do
-        symbol <- genSymbol $ SymResolved ["aquires"]
-        modify $ \s -> s { aquiresAll = Map.insert symbol stmt (aquiresAll s) }
-        modify $ \s -> s { aquiresTop = Set.insert symbol (aquiresTop s) }
+        symbol <- genSymbol $ SymResolved ["acquires"]
+        modify $ \s -> s { acquiresAll = Map.insert symbol stmt (acquiresAll s) }
+        modify $ \s -> s { acquiresTop = Set.insert symbol (acquiresTop s) }
         return element
 
     -- filter out statements

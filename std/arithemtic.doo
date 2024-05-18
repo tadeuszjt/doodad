@@ -11,23 +11,23 @@ feature{T} divide(T, T) T
 feature{T} modulo(T, T) T
 
 
-aquires add{I64}      (a, b); return builtinAdd(a, b)
-aquires subtract{I64} (a, b); return builtinSubtract(a, b)
-aquires multiply{I64} (a, b); return builtinMultiply(a, b)
-aquires divide{I64}   (a, b); return builtinDivide(a, b)
-aquires modulo{I64}   (a, b); return builtinModulo(a, b)
+acquires add{I64}      (a, b); return builtinAdd(a, b)
+acquires subtract{I64} (a, b); return builtinSubtract(a, b)
+acquires multiply{I64} (a, b); return builtinMultiply(a, b)
+acquires divide{I64}   (a, b); return builtinDivide(a, b)
+acquires modulo{I64}   (a, b); return builtinModulo(a, b)
 
 
-aquires add{ F64 }    (a, b); return builtinAdd(a, b)
-aquires divide{ F64 } (a, b); return builtinDivide(a, b)
+acquires add{ F64 }    (a, b); return builtinAdd(a, b)
+acquires divide{ F64 } (a, b); return builtinDivide(a, b)
 
 
-aquires add{Char}      (a, b); return builtinAdd(a, b)
-aquires subtract{Char} (a, b); return builtinSubtract(a, b)
+acquires add{Char}      (a, b); return builtinAdd(a, b)
+acquires subtract{Char} (a, b); return builtinSubtract(a, b)
 
 
 
-aquires{A, B, C} add{ Tuple{A, B, C} } (a, b)
+acquires{A, B, C} add{ Tuple{A, B, C} } (a, b)
     let tup
     tup.0 = a.0 + b.0
     tup.1 = a.1 + b.1

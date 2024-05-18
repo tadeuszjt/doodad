@@ -76,7 +76,7 @@ import Symbol
     for        { Token _ Token.Reserved "for" }
     data       { Token _ Token.Reserved "data" }
     feature    { Token _ Token.Reserved "feature" }
-    aquires    { Token _ Token.Reserved "aquires" }
+    acquires    { Token _ Token.Reserved "acquires" }
     module     { Token _ Token.Module _ }
     import     { Token _ Token.Import _ }
     include    { Token _ Token.CInclude _ }
@@ -155,11 +155,11 @@ featureDef : feature generics ident '(' types ')' typeMaybe
             { Feature (tokPos $1) $2 (Sym [tokStr $3]) $5 (case $7 of Nothing -> Void; Just x -> x) }
 
 
-aquiresDef : aquires generics symbol '{' types '}' '(' args ')' aquiresRetty scope
+acquiresDef : acquires generics symbol '{' types '}' '(' args ')' acquiresRetty scope
             { Aquires (tokPos $1) $2 (Apply (TypeDef $ snd $3) $5) $8 $10 $11 }
 
 
-aquiresRetty : {-empty-}  { False }
+acquiresRetty : {-empty-}  { False }
              | '->' '&'   { True  }
 
 
@@ -202,7 +202,7 @@ block : if_                               { $1 }
       | let pattern '='  expr in scope    { Let (tokPos $1) $2 (Just $4) (Just $6) }
       | let pattern in scope              { Let (tokPos $1) $2 Nothing (Just $4) }
       | funcDef                           { $1 }
-      | aquiresDef                        { $1 }
+      | acquiresDef                        { $1 }
 
 if_   : if condition scope else_          { If (tokPos $1) $2 $3 $4 }
       | if condition 'N' else_            { If (tokPos $1) $2 (Block []) $4 }

@@ -66,9 +66,9 @@ findFunction funcType = do
             return (applyFunc subs func)
 
         False -> do -- is aquire
-            aquiresAll <- gets aquiresAll
+            acquiresAll <- gets acquiresAll
 
-            results <- fmap catMaybes $ forM (Map.toList aquiresAll) $ \(symbol, stmt) -> do
+            results <- fmap catMaybes $ forM (Map.toList acquiresAll) $ \(symbol, stmt) -> do
                 --liftIO $ putStrLn $ "checking aquire: " ++ prettySymbol symbol
                 let Aquires pos generics typ args isRef scope = stmt
                 let genericSubs = zipWith (\g i -> (TypeDef g, Type i)) generics [1..]
@@ -106,6 +106,6 @@ findFunction funcType = do
                         return Nothing
 
             case results of
-                [] -> fail $ "no valid aquires for: " ++ show funcType
+                [] -> fail $ "no valid acquires for: " ++ show funcType
                 [func] -> return func
 

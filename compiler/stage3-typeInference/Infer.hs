@@ -60,11 +60,11 @@ infer ast printAnnotated verbose = fmap snd $ runDoMExcept ast inferFuncs
                     modify $ \s -> s { funcDefsAll = Map.insert symbol func' (funcDefsAll s) }
 
 
-            aquires <- gets aquiresAll
-            forM_ (Map.toList aquires) $ \(symbol, stmt) ->
+            acquires <- gets acquiresAll
+            forM_ (Map.toList acquires) $ \(symbol, stmt) ->
                 when (symbolModule symbol == modName) $ do
                     (stmt', _) <- runDoMUntilSameResult stmt $ \stmt -> do
                         (stmtInferred, _) <- runDoMUntilSameResult stmt inferStmtTypes
                         fmap fst $ runDoMUntilSameResult stmtInferred inferStmtDefaults
 
-                    modify $ \s -> s { aquiresAll = Map.insert symbol stmt' (aquiresAll s) }
+                    modify $ \s -> s { acquiresAll = Map.insert symbol stmt' (acquiresAll s) }

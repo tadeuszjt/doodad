@@ -21,8 +21,8 @@ data ASTResolved
         , typeDefsAll          :: Type.TypeDefsMap                -- all type defs
         , typeDefsTop          :: Set.Set Symbol                  -- top-level type defs
 
-        , aquiresAll           :: Map.Map Symbol Stmt
-        , aquiresTop           :: Set.Set Symbol
+        , acquiresAll           :: Map.Map Symbol Stmt
+        , acquiresTop           :: Set.Set Symbol
 
         , funcDefsAll          :: Map.Map Symbol Func
         , funcDefsTop          :: Set.Set Symbol
@@ -68,12 +68,12 @@ prettyASTResolved ast = do
 
 
     putStrLn ""
-    putStrLn "aquiresTop:"
-    forM_ (Set.toList $ aquiresTop ast) $ \symbol -> do
+    putStrLn "acquiresTop:"
+    forM_ (Set.toList $ acquiresTop ast) $ \symbol -> do
         liftIO $ putStrLn $ "\t" ++ prettySymbol symbol
-    putStrLn "aquiresAll:"
-    forM_ (Map.toList $ aquiresAll ast) $ \(symbol, aquires) -> do
-        prettyStmt "" aquires
+    putStrLn "acquiresAll:"
+    forM_ (Map.toList $ acquiresAll ast) $ \(symbol, acquires) -> do
+        prettyStmt "" acquires
 
 
     putStrLn ""

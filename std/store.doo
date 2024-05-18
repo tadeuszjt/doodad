@@ -6,12 +6,12 @@ import std/builtin
 feature{T} store(T, T)
 
 
-aquires store{ I64 }  (a&, b); builtinStore(&a, b)
-aquires store{ F64 }  (a&, b); builtinStore(&a, b)
-aquires store{ Bool } (a&, b); builtinStore(&a, b)
-aquires store{ Char } (a&, b); builtinStore(&a, b)
+acquires store{ I64 }  (a&, b); builtinStore(&a, b)
+acquires store{ F64 }  (a&, b); builtinStore(&a, b)
+acquires store{ Bool } (a&, b); builtinStore(&a, b)
+acquires store{ Char } (a&, b); builtinStore(&a, b)
 
-aquires{A, B} store{ Tuple{A, B} } (a&, b)
+acquires{A, B} store{ Tuple{A, B} } (a&, b)
     a.0 = b.0
     a.1 = b.1
 

@@ -17,14 +17,14 @@ feature{T, A, B} construct2(A, B) T
 feature{T, A, B, C} construct3(A, B, C) T
 
 
-aquires{A, B} construct2{ Tuple{A, B}, A, B } (x, y)
+acquires{A, B} construct2{ Tuple{A, B}, A, B } (x, y)
     let r
     r.0 = x
     r.1 = y
     return r
 
 
-aquires{A, B, C} construct3{ Tuple{A, B, C}, A, B, C } (x, y, z)
+acquires{A, B, C} construct3{ Tuple{A, B, C}, A, B, C } (x, y, z)
     let r
     r.0 = x
     r.1 = y
@@ -149,14 +149,14 @@ fn testTable()
     let 0 = table.len
 
     type Person (I64, Bool)
-    aquires store::store{ Person } (a&, b)
+    acquires store::store{ Person } (a&, b)
         a.0 = b.0
         a.1 = b.1
 
-    aquires first{ Person, I64 } (p&) -> &; return &p.0
-    aquires second{ Person, Bool } (p&) -> &; return &p.1
+    acquires first{ Person, I64 } (p&) -> &; return &p.0
+    acquires second{ Person, Bool } (p&) -> &; return &p.1
 
-    aquires construct2{ Person, I64, Bool } (a, b)
+    acquires construct2{ Person, I64, Bool } (a, b)
         let p : Person
         p.first = a
         p.second = b

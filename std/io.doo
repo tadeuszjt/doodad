@@ -14,7 +14,7 @@ tuple Io {
 }
 
 
-aquires print{ StdOut, Char } (stdout&, c)
+acquires print{ StdOut, Char } (stdout&, c)
     ${ putchar($c); }
 
 

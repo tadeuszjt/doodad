@@ -15,16 +15,16 @@ tuple{T} Sparse {
 }
 
 
-aquires{T} store{ T.Key } (a&, b); builtinStore(&a, b)
+acquires{T} store{ T.Key } (a&, b); builtinStore(&a, b)
 
 //
 //fn{T} Construct::construct(n I64) T.Key; return n.pretend
 //fn{T} Construct::construct(k T.Key) I64; return k.pretend
 //
-aquires{T} container::len{ T.Sparse } (s&)
+acquires{T} container::len{ T.Sparse } (s&)
     return s.values.len - s.empty.len
 
-aquires{T, K, V} container::at{ Sparse, T.Key, V } (s&, key) -> &
+acquires{T, K, V} container::at{ Sparse, T.Key, V } (s&, key) -> &
     return s.values.at( key.pretend:I64 )
 
 
