@@ -28,3 +28,6 @@ aquires{T} pop{ Table, T } (t&)
     ${ $t->len--; }
     return e
 
+
+aquires{T} len{ T.Slice } (s&);           return builtinSliceLen(&s)
+aquires{T} at{ Slice, I64, T } (s&, idx); return builtinSliceAt(&s, idx)

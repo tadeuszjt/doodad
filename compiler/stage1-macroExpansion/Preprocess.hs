@@ -193,7 +193,7 @@ buildPattern defBlkId pattern expr = do
                     [pat] -> buildPattern defBlkId pat (Ident pos caseCopy)
                     pats  -> buildPattern defBlkId (PatTuple pos pats) (Ident pos caseCopy)
 
-                void $ appendStmt $ ExprStmt $ Call pos (TypeDef $ Sym ["builtin", "store"])
+                void $ appendStmt $ ExprStmt $ Call pos (TypeDef $ Sym ["builtin", "builtinStore"])
                     [ Reference pos (Ident pos enumMatch)
                     , match
                     ]
@@ -209,7 +209,7 @@ buildPattern defBlkId pattern expr = do
             appendStmt (Assign pos exprCopy expr)
 
             match <- freshSym "match"
-            appendStmt $ Assign pos match $ Call pos (TypeDef $ Sym ["builtin", "equal"])
+            appendStmt $ Assign pos match $ Call pos (TypeDef $ Sym ["builtin", "builtinEqual"])
                 [ Call pos (TypeDef $ Sym ["Pattern", "sliceLen"]) [Reference pos (Ident pos exprCopy)]
                 , AST.Int pos (fromIntegral $ length pats)
                 ]
@@ -223,7 +223,7 @@ buildPattern defBlkId pattern expr = do
                         , AST.Int pos (fromIntegral i)
                         ]
 
-                    appendStmt $ ExprStmt $ Call pos (TypeDef $ Sym ["builtin", "store"])
+                    appendStmt $ ExprStmt $ Call pos (TypeDef $ Sym ["builtin", "builtinStore"])
                         [ Reference pos (Ident pos match)
                         , patMatch
                         ]
@@ -241,13 +241,13 @@ buildCondition defBlkId expression = withPos expression $ case expression of
     Call pos _ _       -> return $ AExpr Type.Bool expression
     Match pos expr pat -> buildPattern defBlkId pat expr
     AST.Bool _ _       -> return expression
-    Ident pos _        -> return $ AExpr Type.Bool $ Call pos (TypeDef $ Sym ["Construct", "construct"]) [expression]
+    Ident pos _        -> return $ AExpr Type.Bool expression
 
     AExpr exprType expr -> do
         check (exprType == Type.Bool) "condition type must be bool"
         buildCondition defBlkId expr
 
-    Reference pos expr -> return $ AExpr Type.Bool $ Call pos (TypeDef $ Sym ["Construct", "construct"]) [expression]
+    Reference pos expr -> return $ AExpr Type.Bool expression
         
 
     x -> error (show x)
@@ -336,20 +336,20 @@ buildStmt statement = withPos statement $ case statement of
 
         idx <- freshSym "idx"
         appendStmt $ Assign pos idx (AST.Int pos 0)
-        appendStmt $ ExprStmt $ Call pos (TypeDef $ Sym ["builtin", "store"])
+        appendStmt $ ExprStmt $ Call pos (TypeDef $ Sym ["builtin", "builtinStore"])
             [ Reference pos (Ident pos idx)
-            , Call pos (TypeDef $ Sym ["For", "begin"]) [ Reference pos (Ident pos exprCopy) ]
+            , Call pos (TypeDef $ Sym ["for", "forBegin"]) [ Reference pos (Ident pos exprCopy) ]
             ]
 
-        let whileCnd = Call pos (TypeDef $ Sym ["Compare", "less"])
+        let whileCnd = Call pos (TypeDef $ Sym ["builtin", "builtinLessThan"])
                 [ (Ident pos idx)
-                , Call pos (TypeDef $ Sym ["For", "end"]) [Reference pos $ Ident pos exprCopy]
+                , Call pos (TypeDef $ Sym ["for", "forEnd"]) [Reference pos $ Ident pos exprCopy]
                 ]
 
         blkId <- newStmt (Block [])
         withCurId blkId $ do
             match <- case mpat of
-                Just pat -> buildPattern blkId pat $ Call pos (TypeDef $ Sym ["For", "forAt"])
+                Just pat -> buildPattern blkId pat $ Call pos (TypeDef $ Sym ["for", "forAt"])
                     [ Reference pos (Ident pos exprCopy)
                     , (Ident pos idx)
                     ]
@@ -358,14 +358,14 @@ buildStmt statement = withPos statement $ case statement of
             trueBlkId <- newStmt (Block [])
             withCurId trueBlkId $ do
                 (mapM_ buildStmt stmts)
-                appendStmt $ ExprStmt $ Call pos (TypeDef $ Sym ["builtin", "store"])
+                appendStmt $ ExprStmt $ Call pos (TypeDef $ Sym ["builtin", "builtinStore"])
                     [ Reference pos (Ident pos idx)
-                    , Call pos (TypeDef $ Sym ["builtin", "add"]) [ (Ident pos idx) , AST.Int pos 1 ]
+                    , Call pos (TypeDef $ Sym ["builtin", "builtinAdd"]) [ (Ident pos idx) , AST.Int pos 1 ]
                     ]
 
             falseBlkId <- newStmt (Block [])
             withCurId falseBlkId $ do
-                appendStmt $ ExprStmt $ Call pos (TypeDef $ Sym ["builtin", "store"])
+                appendStmt $ ExprStmt $ Call pos (TypeDef $ Sym ["builtin", "builtinStore"])
                     [ Reference pos (Ident pos idx)
                     , AST.Int pos 9999999 -- TODO
                     ]
@@ -391,7 +391,7 @@ buildStmt statement = withPos statement $ case statement of
 
             withCurId trueBlkId (mapM buildStmt stmts)
             withCurId falseBlkId $ do
-                appendStmt $ ExprStmt $ Call pos (TypeDef $ Sym ["builtin", "store"])
+                appendStmt $ ExprStmt $ Call pos (TypeDef $ Sym ["builtin", "builtinStore"])
                     [ Reference pos (Ident pos loop)
                     , AST.Bool pos False
                     ]
@@ -441,8 +441,8 @@ buildStmt statement = withPos statement $ case statement of
         forM_ (zip cases [0..]) $ \( (Sym [str], ts) , i) -> do
             blkId <- newStmt (Block [])
             withCurId blkId $
-                appendStmt $ Return pos $ Just $ Call pos (TypeDef $ Sym ["builtin", "equal"])
-                    [ Call pos (TypeDef $ Sym ["builtin", "sumEnum"]) [Reference pos $ Ident pos $ Sym ["en"]]
+                appendStmt $ Return pos $ Just $ Call pos (TypeDef $ Sym ["builtin", "builtinEqual"])
+                    [ Call pos (TypeDef $ Sym ["builtin", "builtinSumEnum"]) [Reference pos $ Ident pos $ Sym ["en"]]
                     , AST.Int pos i
                     ]
 
@@ -459,7 +459,7 @@ buildStmt statement = withPos statement $ case statement of
             blkId <- newStmt (Block [])
             withCurId blkId $ do
                 appendStmt $ Let pos (PatIdent pos $ Sym ["en"]) Nothing Nothing
-                appendStmt $ ExprStmt $ Call pos (TypeDef $ Sym ["builtin", "sumReset"])
+                appendStmt $ ExprStmt $ Call pos (TypeDef $ Sym ["builtin", "builtinSumReset"])
                     [ Reference pos (Ident pos $ Sym ["en"])
                     , AST.Int pos i
                     ]

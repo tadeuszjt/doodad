@@ -15,6 +15,7 @@ builtinLen val = case val of
         base <- baseTypeOf typ
         return $ case base of
             Apply Table _ -> Value I64 (C.PMember expr "len")
+            Apply Slice _ -> Value I64 (C.PMember expr "len")
             x -> error (show x)
 
     Value typ expr -> do
@@ -125,6 +126,15 @@ builtinLessThan val1@(Value _ _) val2@(Value _ _) = do
     case base of
         x | isInt x || isFloat x || x == Char || x == Bool -> return $ Value Bool $
             C.Infix C.LT (valExpr val1) (valExpr val2)
+
+
+builtinGreaterThan :: Value -> Value -> Generate Value
+builtinGreaterThan val1@(Value _ _) val2@(Value _ _) = do
+    check (typeof val1 == typeof val2) "type mismatch"
+    base <- baseTypeOf val1
+    case base of
+        x | isInt x || isFloat x || x == Char || x == Bool -> return $ Value Bool $
+            C.Infix C.GT (valExpr val1) (valExpr val2)
 
 
 builtinNot :: Value -> Generate Value

@@ -1,68 +1,37 @@
 module io
 
-import std/map
-import std/char
-import std/table
-import std/integer
-import std/push
-import std/tuple
-import std/bool
-import std/features
-import std/slice
+import std/builtin
+import std/store
+import std/print
+
 
 type StdOut Tuple{}
 type StdIn  Tuple{}
 
 tuple Io {
-    ioMap  Map{I64, Bool}
     stdout StdOut
     stdin  StdIn
 }
 
-fn push(stdout &StdOut, c Char)
+
+aquires print{ StdOut, Char } (stdout&, c)
     ${ putchar($c); }
 
-fn push(stdout &StdOut, x I64)
-    ${ printf("%d", $x); }
 
-fn push(stdout &StdOut, x Bool)
-    ${ fputs($x ? "true" : "false", stdout); }
-
-fn push(stdout &StdOut, s []Char)
-    for s -> c
-        stdout.push(c)
-
-fn{A, B} push(stdout &StdOut, x Tuple{A, B})
-    stdout.push('(', x.0, ", ", x.1, ')')
-
-fn{A} push(stdout &StdOut, table &A.Table)
-    stdout.push('[')
-    for (0, table.len) -> i
-        stdout.push(table[i])
-        if i < (table.len - 1)
-            stdout.push(", ")
-    stdout.push(']')
-
-
-fn push(stdout &StdOut, table &Char.Table)
-    for (0, table.len) -> i
-        stdout.push(table[i])
-        
-
-fn getChar(stdin &StdIn) Char
-    let c : Char
-    ${ $c = fgetc(stdin); }
-    return c
-
-
-fn getLine(stdin &StdIn, line &Char.Table) Bool
-    while true
-        switch stdin.getChar
-            '\n'          ; return true
-            x | x == eof(); return false
-            x             ; line.push(x)
-    
-
+//fn getChar(stdin &StdIn) Char
+//    let c : Char
+//    ${ $c = fgetc(stdin); }
+//    return c
+//
+//
+//fn getLine(stdin &StdIn, line &Char.Table) Bool
+//    while true
+//        switch stdin.getChar
+//            '\n'          ; return true
+//            x | x == eof(); return false
+//            x             ; line.push(x)
+//    
+//
 //
 //fn {io Io} openFile(fileName String)
 //    assert(!io.files.contains(fileName), fileName + " already open")

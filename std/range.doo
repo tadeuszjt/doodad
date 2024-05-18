@@ -1,3 +1,0 @@
-module range
-
-type[T] Range (min ()T, max ()T)

@@ -190,6 +190,7 @@ resolveType typ = case typ of
         Sym ["Table"] -> return Table
         Sym ["Sum"]   -> return Sum
         Sym ["Tuple"] -> return Tuple
+        Sym ["Slice"] -> return Slice
         _             -> TypeDef <$> look s KeyType
 
     Apply t ts -> do
@@ -217,8 +218,14 @@ resolveStmt statement = withPos statement $ case statement of
         return (Typedef pos generics' symbol' typ')
 
     Feature pos generics symbol args retty -> do
+        unless (symbolIsResolved symbol) (error "TODO")
+        pushSymbolTable
+        generics' <- defineGenerics generics
+        args' <- mapM resolveType args
+        retty' <- resolveType retty
+        popSymbolTable
         --TODO do something
-        return statement
+        return (Feature pos generics' symbol args' retty')
 
     Aquires pos generics typ args isRef stmt -> do
         pushSymbolTable

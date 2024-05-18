@@ -1,0 +1,76 @@
+module print
+
+import std/builtin
+import std/for
+import std/tuple
+import std/store
+import std/container
+import std/assert
+import std/compare
+import std/arithmetic
+
+
+feature{T, G} print(T, G)
+
+
+aquires print{ Char.Table, Char } (t&, c)
+    t.push(c)
+
+
+aquires{T} print{ T, Char.Slice } (t&, s)
+    for s -> c
+        t.print(c)
+
+
+aquires{T} print{ T, I64 } (t&, n)
+    fn convertInt(n I64) Char
+        let c : Char
+        ${ $c = $n; }
+        return c
+
+    if n < 0
+        t.print('-')
+        n = 0 - n
+    else if n == 0
+        t.print('0')
+        return
+
+    data digits Char.Table
+
+    while (n % 10) -> d | d != 0
+        digits.push( '0' + convertInt(d) )
+        n = n / 10
+
+    let idx = 0
+    while idx < digits.len
+        t.print(digits[digits.len - 1 - idx])
+        idx = idx + 1
+
+
+aquires{T} print{ T, Bool } (t&, b)
+    if b
+        t.print("true")
+    else
+        t.print("false")
+
+
+aquires{T, G} print{ T, G.Table } (t&, g&)
+    t.print('[')
+
+    let idx = 0
+    while idx < g.len
+        t.print(g[idx])
+        if idx < (g.len - 1)
+            t.print(", ")
+        idx = idx + 1
+
+    t.print(']')
+
+
+aquires{T, A, B} print{ T, Tuple{A, B} } (a&, b)
+    a.print('(')
+    a.print( b.first() : A )
+    a.print(", ")
+    a.print( b.second() : B )
+    a.print(')')
+

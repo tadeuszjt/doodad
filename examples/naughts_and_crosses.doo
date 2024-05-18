@@ -1,18 +1,19 @@
 module ox
 
 import std/io
-import std/strings
-import std/array
-import std/integer
-import std/bool
-import std/push
-import std/table
-import std/tuple
-import std/char
-import std/rand
-import std/features
-import std/sum
 import std/builtin
+//import std/strings
+//import std/array
+//import std/integer
+//import std/bool
+//import std/push
+//import std/table
+//import std/tuple
+//import std/char
+//import std/rand
+//import std/features
+//import std/sum
+//import std/builtin
 
 enum Square {
     empty
@@ -20,203 +21,203 @@ enum Square {
     cross
 }
 
-enum Input {
-    move(I64, I64)
-    quit()
-    error()
-}
-
-
+//enum Input {
+//    move(I64, I64)
+//    quit()
+//    error()
+//}
+//
+//
 type Board Square.Array{3}.Array{3}
 
 
-fn Store::store(a &Square, b Square)
-    Store::store(
-        &pretend(&a):Sum{Tuple{}, Tuple{}, Tuple{}}
-        pretend(&b):Sum{Tuple{}, Tuple{}, Tuple{}}
-    )
-
-fn Compare::equal(a Square, b Square) Bool
-    return Compare::equal(
-        pretend(&a):Sum{Tuple{}, Tuple{}, Tuple{}}
-        pretend(&b):Sum{Tuple{}, Tuple{}, Tuple{}}
-    )
-
-fn Store::store(a &Input, b Input)
-    Store::store(
-        &pretend(&a):Sum{Tuple{I64, I64}, Tuple{}, Tuple{}}
-        pretend(&b):Sum{Tuple{I64, I64}, Tuple{}, Tuple{}}
-    )
-
-
-
-fn At::at(board &Board, index I64) &Square.Array{3}
-    return (pretend(&board):Square.Array{3}.Array{3}).at(index)
-
-fn Len::len(board &Board) I64
-    return (pretend(&board):Square.Array{3}.Array{3}).len
-
-fn Store::store(a &Board, b Board)
-    Store::store(
-        &pretend(&a):Square.Array{3}.Array{3}
-        pretend(&b):Square.Array{3}.Array{3}
-    )
-
-fn For::begin(b &Board) I64;                       return 0
-fn For::end(b &Board) I64;                         return b.len
-fn For::forAt(b &Board, idx I64) &Square.Array{3}; return b.at(idx)
-
-
-fn push(stdout &StdOut, square Square)
-    switch square
-        empty(); stdout.push(' ')
-        naught(); stdout.push('O')
-        cross(); stdout.push('X')
-
-
-fn printBoard(io &Io, board Board)
-    for board -> row
-        io.stdout.push('[')
-
-        for (0, row.len) -> col
-            io.stdout.push(row[col])
-            if col < (row.len - 1)
-                io.stdout.push(", ")
-
-        io.stdout.push("]", '\n')
-
-
-fn winner(board Board) Square
-    // check for horizontal lines
-    for board -> row
-        let match = true
-        for row -> square
-            if square != row[0]
-                match = false
-
-        if match && row[0] != empty()
-            return row[0]
-
-    // check for vertical lines
-    for (0, board[0].len) -> col
-        let match = true
-        for (0, board.len) -> row
-            if board[row][col] != board[0][col]
-                match = false
-
-        if match && board[0][col] != empty()
-            return board[0][col]
-
-    // check diagonals
-    let match = true
-    for (0, board.len) -> i | match
-        if board[i][i] != board[0][0]
-            match = false
-    if match && board[0][0] != empty()
-        return board[0][0]
-
-    match = true
-    for (0, board.len) -> i | match
-        let row = board.len - 1 - i
-        if board[row][i] != board[board.len - 1][0]
-            match = false
-    if match && board[board.len - 1][0] != empty()
-        return board[board.len - 1][0]
-
-    return empty()
-
-
-fn getPlayerInput(io &Io) Input
-    io.stdout.push("Please enter move: <row> <col>", '\n')
-    
-    data line Char.Table
-    if !io.stdin.getLine(&line)
-        return quit()
-
-    let (row, col, idx) = (0, 0, 0)
-
-    if readI64(line.slice(idx, line.len)) -> just(n, num)
-        row = n
-        idx = idx + num
-    else
-        return error()
-
-    if readI64(line.slice(idx, line.len)) -> just(n, num)
-        col = n
-        idx = idx + num
-    else
-        return error()
-
-    return move(row, col)
-
-
-fn cpuMove(io &Io, board &Board)
-    io.stdout.push("cpu moving ...", '\n')
-
-    // find all empty squares
-    data empty (I64, I64).Table
-    for (0, board.len) -> row
-        for (0, board[row].len) -> col
-            if board[row][col] == empty()
-                empty.push( (row, col) )
-
-    if empty.len == 0
-        io.stdout.push("cpu can't move\n")
-        return
-
-    // find move that wins
-    for empty -> (row, col)
-        board[row][col] = cross()
-        if winner(board) == cross()
-            return
-        board[row][col] = empty()
-
-    // find move that opponent wins
-    for empty -> (row, col)
-        board[row][col] = naught()
-        if winner(board) == naught()
-            board[row][col] = cross()
-            return
-        else
-            board[row][col] = empty()
-
-    // choose random move
-    data rand Rand
-    let i = rand.i64(0, empty.len)
-    let (row, col) = empty[i]
-    board[row][col] = cross()
-
+//fn Store::store(a &Square, b Square)
+//    Store::store(
+//        &pretend(&a):Sum{Tuple{}, Tuple{}, Tuple{}}
+//        pretend(&b):Sum{Tuple{}, Tuple{}, Tuple{}}
+//    )
+//
+//fn Compare::equal(a Square, b Square) Bool
+//    return Compare::equal(
+//        pretend(&a):Sum{Tuple{}, Tuple{}, Tuple{}}
+//        pretend(&b):Sum{Tuple{}, Tuple{}, Tuple{}}
+//    )
+//
+//fn Store::store(a &Input, b Input)
+//    Store::store(
+//        &pretend(&a):Sum{Tuple{I64, I64}, Tuple{}, Tuple{}}
+//        pretend(&b):Sum{Tuple{I64, I64}, Tuple{}, Tuple{}}
+//    )
+//
+//
+//
+//fn At::at(board &Board, index I64) &Square.Array{3}
+//    return (pretend(&board):Square.Array{3}.Array{3}).at(index)
+//
+//fn Len::len(board &Board) I64
+//    return (pretend(&board):Square.Array{3}.Array{3}).len
+//
+//fn Store::store(a &Board, b Board)
+//    Store::store(
+//        &pretend(&a):Square.Array{3}.Array{3}
+//        pretend(&b):Square.Array{3}.Array{3}
+//    )
+//
+//fn For::begin(b &Board) I64;                       return 0
+//fn For::end(b &Board) I64;                         return b.len
+//fn For::forAt(b &Board, idx I64) &Square.Array{3}; return b.at(idx)
+//
+//
+//fn push(stdout &StdOut, square Square)
+//    switch square
+//        empty(); stdout.push(' ')
+//        naught(); stdout.push('O')
+//        cross(); stdout.push('X')
+//
+//
+//fn printBoard(io &Io, board Board)
+//    for board -> row
+//        io.stdout.push('[')
+//
+//        for (0, row.len) -> col
+//            io.stdout.push(row[col])
+//            if col < (row.len - 1)
+//                io.stdout.push(", ")
+//
+//        io.stdout.push("]", '\n')
+//
+//
+//fn winner(board Board) Square
+//    // check for horizontal lines
+//    for board -> row
+//        let match = true
+//        for row -> square
+//            if square != row[0]
+//                match = false
+//
+//        if match && row[0] != empty()
+//            return row[0]
+//
+//    // check for vertical lines
+//    for (0, board[0].len) -> col
+//        let match = true
+//        for (0, board.len) -> row
+//            if board[row][col] != board[0][col]
+//                match = false
+//
+//        if match && board[0][col] != empty()
+//            return board[0][col]
+//
+//    // check diagonals
+//    let match = true
+//    for (0, board.len) -> i | match
+//        if board[i][i] != board[0][0]
+//            match = false
+//    if match && board[0][0] != empty()
+//        return board[0][0]
+//
+//    match = true
+//    for (0, board.len) -> i | match
+//        let row = board.len - 1 - i
+//        if board[row][i] != board[board.len - 1][0]
+//            match = false
+//    if match && board[board.len - 1][0] != empty()
+//        return board[board.len - 1][0]
+//
+//    return empty()
+//
+//
+//fn getPlayerInput(io &Io) Input
+//    io.stdout.push("Please enter move: <row> <col>", '\n')
+//    
+//    data line Char.Table
+//    if !io.stdin.getLine(&line)
+//        return quit()
+//
+//    let (row, col, idx) = (0, 0, 0)
+//
+//    if readI64(line.slice(idx, line.len)) -> just(n, num)
+//        row = n
+//        idx = idx + num
+//    else
+//        return error()
+//
+//    if readI64(line.slice(idx, line.len)) -> just(n, num)
+//        col = n
+//        idx = idx + num
+//    else
+//        return error()
+//
+//    return move(row, col)
+//
+//
+//fn cpuMove(io &Io, board &Board)
+//    io.stdout.push("cpu moving ...", '\n')
+//
+//    // find all empty squares
+//    data empty (I64, I64).Table
+//    for (0, board.len) -> row
+//        for (0, board[row].len) -> col
+//            if board[row][col] == empty()
+//                empty.push( (row, col) )
+//
+//    if empty.len == 0
+//        io.stdout.push("cpu can't move\n")
+//        return
+//
+//    // find move that wins
+//    for empty -> (row, col)
+//        board[row][col] = cross()
+//        if winner(board) == cross()
+//            return
+//        board[row][col] = empty()
+//
+//    // find move that opponent wins
+//    for empty -> (row, col)
+//        board[row][col] = naught()
+//        if winner(board) == naught()
+//            board[row][col] = cross()
+//            return
+//        else
+//            board[row][col] = empty()
+//
+//    // choose random move
+//    data rand Rand
+//    let i = rand.i64(0, empty.len)
+//    let (row, col) = empty[i]
+//    board[row][col] = cross()
+//
 
 fn main()
     data io Io
-    io.stdout.push("naughts and crosses", '\n')
+    io.stdout.print("naughts and crosses\n")
 
     let board : Board
-    io.printBoard(board)
-
-    while winner(board).isEmpty
-        let moved = false
-        while !moved
-            switch io.getPlayerInput()
-                quit(); return
-                error()
-                    io.stdout.push("parse error", '\n')
-
-                move(row, col) | row < 0 || row > (board.len - 1)
-                    io.stdout.push("row not in range\n")
-
-                move(row, col) | col < 0 || col > (board.len - 1)
-                    io.stdout.push("col not in range\n")
-
-                move(row, col)
-                    io.stdout.push("moving ", row, ", ", col, '\n')
-                    board[row][col] = naught()
-                    moved = true
-
-                _; assert(false)
-
-        io.cpuMove(&board)
-        io.printBoard(board)
-
-    io.stdout.push("winner: ", winner(board), '\n')
-
+//    io.printBoard(board)
+//
+//    while winner(board).isEmpty
+//        let moved = false
+//        while !moved
+//            switch io.getPlayerInput()
+//                quit(); return
+//                error()
+//                    io.stdout.push("parse error", '\n')
+//
+//                move(row, col) | row < 0 || row > (board.len - 1)
+//                    io.stdout.push("row not in range\n")
+//
+//                move(row, col) | col < 0 || col > (board.len - 1)
+//                    io.stdout.push("col not in range\n")
+//
+//                move(row, col)
+//                    io.stdout.push("moving ", row, ", ", col, '\n')
+//                    board[row][col] = naught()
+//                    moved = true
+//
+//                _; assert(false)
+//
+//        io.cpuMove(&board)
+//        io.printBoard(board)
+//
+//    io.stdout.push("winner: ", winner(board), '\n')
+//

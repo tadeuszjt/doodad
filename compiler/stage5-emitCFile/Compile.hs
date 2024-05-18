@@ -203,11 +203,6 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
     S.String _ s           -> assign "string" $ Value typ $
         C.Initialiser [C.String s, C.Int (fromIntegral $ length s)]
 
---    S.Call _ symbol [expr1, expr2] | symbolsCouldMatch symbol (Sym ["builtin", "modulo"]) -> do
---        val1 <- deref =<< generateExpr expr1
---        val2 <- deref =<< generateExpr expr2
---        builtinModulo val1 val2
---
 --    S.Call _ symbol [expr1, expr2] | symbolsCouldMatch symbol (Sym ["builtin", "sliceAt"]) -> do
 --        val <- generateExpr expr1
 --        idx <- generateExpr expr2
@@ -230,14 +225,16 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
 --            , C.Infix C.Minus (C.PMember exp "len") (valExpr srt)
 --            ] 
 --
---    S.Call _ symbol [expr] | symbolsCouldMatch symbol (Sym ["builtin", "sumEnum"]) -> do
---        builtinSumEnum =<< generateExpr expr
---
---    S.Call _ symbol [expr, idx] | symbolsCouldMatch symbol (Sym ["builtin", "sumReset"]) -> do
---        val1 <- generateExpr expr
---        builtinSumReset val1 =<< generateExpr idx
---        return $ Value Void (C.Int 0)
---
+    S.Call _ (Apply (TypeDef symbol) _) [expr]
+        | symbolsCouldMatch symbol (Sym ["builtin", "builtinSumEnum"]) ->
+            builtinSumEnum =<< generateExpr expr
+
+    S.Call _ (Apply (TypeDef symbol) _) [expr, idx]
+        | symbolsCouldMatch symbol (Sym ["builtin", "builtinSumReset"]) -> do
+            val1 <- generateExpr expr
+            builtinSumReset val1 =<< generateExpr idx
+            return $ Value Void (C.Int 0)
+
     S.Call _ (Apply (TypeDef symbol) _) [expr1, expr2] | symbolsCouldMatch symbol (Sym ["builtin", "builtinAdd"]) -> do
         val1 <- deref =<< generateExpr expr1
         val2 <- deref =<< generateExpr expr2
@@ -258,6 +255,12 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
         val2 <- deref =<< generateExpr expr2
         builtinDivide val1 val2
 
+    S.Call _ (Apply (TypeDef symbol) _) [expr1, expr2]
+        | symbolsCouldMatch symbol (Sym ["builtin", "builtinModulo"]) -> do
+            val1 <- deref =<< generateExpr expr1
+            val2 <- deref =<< generateExpr expr2
+            builtinModulo val1 val2
+
     S.Call _ (Apply (TypeDef symbol) _) [expr1, expr2] | symbolsCouldMatch symbol (Sym ["builtin", "builtinEqual"]) -> do
         val1 <- deref =<< generateExpr expr1
         val2 <- deref =<< generateExpr expr2
@@ -268,6 +271,12 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
             val1 <- deref =<< generateExpr expr1
             val2 <- deref =<< generateExpr expr2
             builtinLessThan val1 val2
+
+    S.Call _ (Apply (TypeDef symbol) _) [expr1, expr2]
+        | symbolsCouldMatch symbol (Sym ["builtin", "builtinGreaterThan"]) -> do
+            val1 <- deref =<< generateExpr expr1
+            val2 <- deref =<< generateExpr expr2
+            builtinGreaterThan val1 val2
 
     S.Call _ (Apply (TypeDef symbol) _) [expr1] | symbolsCouldMatch symbol (Sym ["builtin", "builtinNot"]) -> do
         val1 <- deref =<< generateExpr expr1
@@ -297,6 +306,18 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
             val <- generateExpr expr1
             idx <- generateExpr expr2
             builtinTableAt val idx
+
+
+    S.Call _ (Apply (TypeDef symbol) _) [expr]
+        | symbolsCouldMatch symbol (Sym ["builtin", "builtinSliceLen"]) ->
+            builtinLen =<< generateExpr expr
+
+
+    S.Call _ (Apply (TypeDef symbol) _) [expr1, expr2]
+        | symbolsCouldMatch symbol (Sym ["builtin", "builtinSliceAt"]) -> do
+            val <- generateExpr expr1
+            idx <- generateExpr expr2
+            builtinSliceAt val idx
 
 
     S.Call _ (Apply (TypeDef symbol) _) [expr]

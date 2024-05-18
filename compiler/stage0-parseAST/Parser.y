@@ -304,13 +304,14 @@ expr   : literal                                 { $1 }
        | symbol '(' exprsA ')'                   { Call (tokPos $2) (TypeDef $ snd $1) $3 }
        | '(' exprsA ')'                          { case $2 of [x] -> x; xs -> Call (tokPos $1) (TypeDef $ Sym ["construct" ++ show (length xs) ]) $2 }
        | expr '+' expr                           { Call (tokPos $2) (TypeDef $ Sym ["add"]) [$1, $3] }
-       | expr '/' expr                           { Call (tokPos $2) (TypeDef $ Sym ["divide"]) [$1, $3] }
        | expr '-' expr                           { Call (tokPos $2) (TypeDef $ Sym ["subtract"]) [$1, $3] } 
---       | expr '*' expr                           { Call (tokPos $2) (Sym ["Arithmetic", "times"]) [$1, $3] } 
---       | expr '%' expr                           { Call (tokPos $2) (Sym ["Arithmetic", "modulo"]) [$1, $3] } 
+       | expr '*' expr                           { Call (tokPos $2) (TypeDef $ Sym ["multiply"]) [$1, $3] } 
+       | expr '/' expr                           { Call (tokPos $2) (TypeDef $ Sym ["divide"]) [$1, $3] }
+       | expr '%' expr                           { Call (tokPos $2) (TypeDef $ Sym ["modulo"]) [$1, $3] } 
        | expr '<' expr                           { Call (tokPos $2) (TypeDef $ Sym ["lessThan"]) [$1, $3] } 
        | expr '>' expr                           { Call (tokPos $2) (TypeDef $ Sym ["greaterThan"]) [$1, $3] } 
        | expr '==' expr                          { Call (tokPos $2) (TypeDef $ Sym ["equal"]) [$1, $3] } 
+       | expr '!=' expr                          { Call (tokPos $2) (TypeDef $ Sym ["notEqualTo"]) [$1, $3] } 
 --       | expr '<=' expr                          { Call (tokPos $2) (Sym ["lessEqual"]) [$1, $3] } 
 --       | expr '>=' expr                          { Call (tokPos $2) (Sym ["greaterEqual"]) [$1, $3] } 
 --       | expr '!=' expr                          { Call (tokPos $2) (Sym ["Boolean", "not"]) [Call (tokPos $2) (Sym ["Compare", "equal"]) [$1, $3]] } 
