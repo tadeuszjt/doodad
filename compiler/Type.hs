@@ -3,7 +3,7 @@
 module Type where
 
 import Control.Monad
-import qualified Data.Map as Map (Map, member, lookup)
+import qualified Data.Map as Map
 import Data.List
 import Symbol
 

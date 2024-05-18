@@ -2,8 +2,8 @@ module builtin
 
 fn{T} builtinStore(a &T, b T); ${}
 
-//fn{T, G} pretend(a &T) G; ${}
-//
+fn{T, G} pretend(a &T) G; ${}
+
 fn{T} builtinAdd(a T, b T) T; ${}
 fn{T} builtinSubtract(a T, b T) T; ${}
 fn{T} builtinMultiply(a T, b T) T; ${}
@@ -11,6 +11,9 @@ fn{T} builtinDivide(a T, b T) T; ${}
 //fn{T} modulo(a T, b T) T; ${}
 
 fn{T} builtinEqual(a T, b T) Bool; ${}
+fn{T} builtinLessThan(a T, b T) Bool; ${}
+
+
 fn{T} builtinNot(a T) T; ${}
 
 fn{T} builtinTableLen(a &T.Table) I64; ${}

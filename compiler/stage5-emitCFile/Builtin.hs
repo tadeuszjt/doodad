@@ -118,6 +118,15 @@ builtinEqual val1@(Value _ _) val2@(Value _ _) = do
             C.Infix C.EqEq (valExpr val1) (valExpr val2)
 
 
+builtinLessThan :: Value -> Value -> Generate Value
+builtinLessThan val1@(Value _ _) val2@(Value _ _) = do
+    check (typeof val1 == typeof val2) "type mismatch"
+    base <- baseTypeOf val1
+    case base of
+        x | isInt x || isFloat x || x == Char || x == Bool -> return $ Value Bool $
+            C.Infix C.LT (valExpr val1) (valExpr val2)
+
+
 builtinNot :: Value -> Generate Value
 builtinNot val@(Value _ _) = do
     base <- baseTypeOf val

@@ -5,6 +5,10 @@ import std/store
 import std/arithmetic
 import std/compare
 import std/tuple
+import std/container
+import std/assert
+import std/sparse
+
 //import std/table
 //import std/sparse
 //import std/unordered
@@ -27,13 +31,6 @@ feature{T, A, B} construct2(A, B) T
 feature{T, A, B, C} construct3(A, B, C) T
 
 
-feature{T}       len(T) I64
-feature{T, K, V} at(T{V}, K) V
-feature{T, V}    push(T{V}, V)
-feature{T}       grow(T)
-feature{T, V}    pop(T{V}) V
-
-
 aquires{A, B} construct2{ Tuple{A, B}, A, B } (x, y)
     let r
     r.0 = x
@@ -48,24 +45,6 @@ aquires{A, B, C} construct3{ Tuple{A, B, C}, A, B, C } (x, y, z)
     r.2 = z
     return r
 
-aquires{T} len{ T.Table }      (t&);           return builtinTableLen(&t)
-aquires{T} at{ Table, I64, T } (t&, idx) -> &; return builtinTableAt(&t, idx)
-
-aquires{T} push{ Table, T } (t&, e)
-    builtinTableAppend(&t)
-    builtinTableAt(&t, t.len - 1) = e
-
-aquires{T} grow{ T.Table } (t&)
-    builtinTableAppend(&t)
-
-aquires{T} pop{ Table, T } (t&)
-    let e = t.at(t.len - 1)
-    ${ $t->len--; }
-    return e
-
-
-fn assert(cnd Bool)
-    ${ if (!$cnd) { abort(); } }
 
 
 fn testArithmetic()
@@ -95,7 +74,6 @@ fn testSwitch()
         _; let true = false
 
     let 1 = x
-
 
 
 //fn testConvert()
@@ -142,27 +120,26 @@ fn testTuple()
 
 
 fn testFnWithRef()
-    return // TODO
-//    fn f(a &I64)
-//        a = a + 1
-//    let x = 1
-//    f(&x)
-//    let 2 = x
-//
-//    fn g(a &I64) &I64
-//        a = a + 1
-//        return &a
-//    let y = 34
-//    g(&y)
-//    let 35 = y
-//    g(&y) = 0
-//    let 0 = y
-//
-//    fn h(a &(I64, I64))
-//        a = (1, 2)
-//    let z = (0, 0)
-//    h(&z)
-//    let (1, 2) = z
+    fn f(a &I64)
+        a = a + 1
+    let x = 1
+    f(&x)
+    let 2 = x
+
+    fn g(a &I64) &I64
+        a = a + 1
+        return &a
+    let y = 34
+    g(&y)
+    let 35 = y
+    g(&y) = 0
+    let 0 = y
+
+    fn h(a &(I64, I64))
+        a = (1, 2)
+    let z = (0, 0)
+    h(&z)
+    let (1, 2) = z
 
 
 fn testTable()
@@ -216,33 +193,37 @@ fn testTable()
     let 1 = m3[0].len
 
 
-//fn testSparse()
-//    data s1 I64.Sparse
-//
-//    let 0 = s1.len
-//    let k1 = s1.insert
-//    let k2 = s1.insert
-//    let k3 = s1.insert
-//    let 3 = s1.len
-//
-//    s1.at(k1) = 1
-//    s1.at(k2) = 2
-//    s1.at(k3) = 3
-//
-//    let 1 = s1.at(k1)
-//    let 2 = s1.at(k2)
-//    let 3 = s1.at(k3)
-//
-//    s1.delete(k2)
-//    let 2 = s1.len
-//    let 1 = s1.at(k1)
-//    let 3 = s1.at(k3)
-//
-//    s1.delete(k3)
-//    let 1 = s1.len
-//    let 1 = s1.at(k1)
-//
-//
+fn testSparse()
+    data s1 I64.Sparse
+
+    let 0 = s1.len
+    let k1 = s1.insertZero
+    let k2 = s1.insertZero
+    let k3 = s1.insertZero
+    let 3 = s1.len
+
+    s1.at(k1) = 1
+    s1.at(k2) = 2
+
+    let k4 = s1.insert(4)
+
+    s1.at(k3) = 3
+
+    let 1 = s1.at(k1)
+    let 2 = s1.at(k2)
+    let 3 = s1.at(k3)
+    let 4 = s1[k4]
+
+    s1.delete(k2)
+    let 3 = s1.len
+    let 1 = s1.at(k1)
+    let 3 = s1.at(k3)
+
+    s1.delete(k3)
+    let 2 = s1.len
+    let 1 = s1.at(k1)
+
+
 //fn testUnordered()
 //    data u1 I64.Unordered
 //
@@ -554,7 +535,7 @@ fn main()
 //    testLet()
     testFnWithRef()
     testTable()
-//    testSparse()
+    testSparse()
 //    testUnordered()
 //    testSumType()
 //    testMaybe()

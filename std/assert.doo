@@ -1,13 +1,5 @@
 module assert
 
-import std/bool
 
 fn assert(cnd Bool)
-    if !cnd
-        ${ abort(); }
-
-
-fn assert(cnd Bool, str []Char)
-    if !cnd
-        ${ printf("assert: %.*s\n", $str.len, $str.ptr); }
-        ${ abort(); }
+    ${ if (!$cnd) { abort(); } }

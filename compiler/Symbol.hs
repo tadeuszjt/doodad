@@ -21,9 +21,8 @@ dropLevels :: [String] -> [String]
 dropLevels = filter (\s -> not $ isDigit $ head s)
 
 
-
-mod :: Symbol -> String
-mod (SymResolved s) = head s
+symbolModule :: Symbol -> String
+symbolModule (SymResolved s) = head s
 
 
 showSymLocal :: Symbol -> String

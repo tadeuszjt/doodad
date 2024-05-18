@@ -10,6 +10,7 @@ import Collect
 import ASTResolved
 import Annotate
 import AST
+import Symbol
 
 -- Infer takes an ast and recursively runs the type inference algorithms until it can no longer
 -- make any changes to the ast.
@@ -45,23 +46,25 @@ infer ast printAnnotated verbose = fmap snd $ runDoMExcept ast inferFuncs
     where
         inferFuncs :: DoM ASTResolved ()
         inferFuncs = do
-            funcDefsTop <- gets funcDefsTop
-            forM_ funcDefsTop $ \symbol -> do
-                Just func <- gets (Map.lookup symbol . funcDefsAll)
-                let stmt = FuncDef [] func
-                (stmt', _) <- runDoMUntilSameResult stmt $ \stmt -> do
-                    (stmtInferred, _) <- runDoMUntilSameResult stmt inferStmtTypes
-                    fmap fst $ runDoMUntilSameResult stmtInferred inferStmtDefaults
+            funcDefs <- gets funcDefsAll
+            modName <- gets moduleName
 
-                let FuncDef _ func' = stmt'
-                modify $ \s -> s { funcDefsAll = Map.insert symbol func' (funcDefsAll s) }
+            forM_ (Map.toList $ funcDefs) $ \(symbol, func) ->
+                when (symbolModule symbol == modName) $ do
+                    let stmt = FuncDef [] func
+                    (stmt', _) <- runDoMUntilSameResult stmt $ \stmt -> do
+                        (stmtInferred, _) <- runDoMUntilSameResult stmt inferStmtTypes
+                        fmap fst $ runDoMUntilSameResult stmtInferred inferStmtDefaults
+
+                    let FuncDef _ func' = stmt'
+                    modify $ \s -> s { funcDefsAll = Map.insert symbol func' (funcDefsAll s) }
 
 
-            aquiresTop <- gets aquiresTop 
-            forM_ aquiresTop $ \symbol -> do
-                Just stmt <- gets (Map.lookup symbol . aquiresAll)
-                (stmt', _) <- runDoMUntilSameResult stmt $ \stmt -> do
-                    (stmtInferred, _) <- runDoMUntilSameResult stmt inferStmtTypes
-                    fmap fst $ runDoMUntilSameResult stmtInferred inferStmtDefaults
+            aquires <- gets aquiresAll
+            forM_ (Map.toList aquires) $ \(symbol, stmt) ->
+                when (symbolModule symbol == modName) $ do
+                    (stmt', _) <- runDoMUntilSameResult stmt $ \stmt -> do
+                        (stmtInferred, _) <- runDoMUntilSameResult stmt inferStmtTypes
+                        fmap fst $ runDoMUntilSameResult stmtInferred inferStmtDefaults
 
-                modify $ \s -> s { aquiresAll = Map.insert symbol stmt' (aquiresAll s) }
+                    modify $ \s -> s { aquiresAll = Map.insert symbol stmt' (aquiresAll s) }

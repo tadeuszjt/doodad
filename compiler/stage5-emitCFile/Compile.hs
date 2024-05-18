@@ -263,6 +263,12 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
         val2 <- deref =<< generateExpr expr2
         builtinEqual val1 val2
 
+    S.Call _ (Apply (TypeDef symbol) _) [expr1, expr2]
+        | symbolsCouldMatch symbol (Sym ["builtin", "builtinLessThan"]) -> do
+            val1 <- deref =<< generateExpr expr1
+            val2 <- deref =<< generateExpr expr2
+            builtinLessThan val1 val2
+
     S.Call _ (Apply (TypeDef symbol) _) [expr1] | symbolsCouldMatch symbol (Sym ["builtin", "builtinNot"]) -> do
         val1 <- deref =<< generateExpr expr1
         builtinNot val1
@@ -293,21 +299,21 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
             builtinTableAt val idx
 
 
---    S.Call _ symbol exprs | symbolsCouldMatch (Sym ["builtin", "pretend"]) symbol -> do
---        let [expr] = exprs
---        Ref exprType refExpr <- generateExpr expr
---
---        base <- baseTypeOf typ
---        baseExpr <- baseTypeOf exprType
---        check (base == baseExpr) ("types do not have same base: " ++ show (base, baseExpr))
---
---        case base of
---            Apply Tuple _ ->
---                assign "ref" $ Ref typ $ C.Initialiser [C.Member refExpr "ptr"]
---            _ -> 
---                assign "ref" $ Ref typ $ C.Initialiser [refExpr]
---
---
+    S.Call _ (Apply (TypeDef symbol) _) [expr]
+        | symbolsCouldMatch (Sym ["builtin", "pretend"]) symbol -> do
+            Ref exprType refExpr <- generateExpr expr
+
+            base <- baseTypeOf typ
+            baseExpr <- baseTypeOf exprType
+            check (base == baseExpr) ("types do not have same base: " ++ show (base, baseExpr))
+
+            case base of
+                Apply Tuple _ ->
+                    assign "ref" $ Ref typ $ C.Initialiser [C.Member refExpr "ptr"]
+                _ -> 
+                    assign "ref" $ Ref typ $ C.Initialiser [refExpr]
+
+
     S.Call _ funcType exprs -> do
         args <- mapM generateExpr exprs
         header <- generateFunc funcType

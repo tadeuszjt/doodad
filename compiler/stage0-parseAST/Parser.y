@@ -155,8 +155,8 @@ featureDef : feature generics ident '(' types ')' typeMaybe
             { Feature (tokPos $1) $2 (Sym [tokStr $3]) $5 (case $7 of Nothing -> Void; Just x -> x) }
 
 
-aquiresDef : aquires generics ident '{' types '}' '(' args ')' aquiresRetty scope
-            { Aquires (tokPos $1) $2 (Apply (TypeDef $ Sym [tokStr $3]) $5) $8 $10 $11 }
+aquiresDef : aquires generics symbol '{' types '}' '(' args ')' aquiresRetty scope
+            { Aquires (tokPos $1) $2 (Apply (TypeDef $ snd $3) $5) $8 $10 $11 }
 
 
 aquiresRetty : {-empty-}  { False }
@@ -228,7 +228,7 @@ Idents1 : Ident                          { [tokStr $1] }
 
 symbol : ident                           { (tokPos $1, Sym [tokStr $1]) }
        | ident '::' ident                { (tokPos $3, Sym [tokStr $1, tokStr $3]) }
-       | Ident '::' ident                { (tokPos $1, Sym [tokStr $1, tokStr $3]) }
+       --| Ident '::' ident                { (tokPos $1, Sym [tokStr $1, tokStr $3]) }
 
 Symbol : Ident                           { (tokPos $1, Sym [tokStr $1]) }
        | ident '::' Ident                { (tokPos $3, Sym [tokStr $1, tokStr $3]) }
@@ -308,8 +308,8 @@ expr   : literal                                 { $1 }
        | expr '-' expr                           { Call (tokPos $2) (TypeDef $ Sym ["subtract"]) [$1, $3] } 
 --       | expr '*' expr                           { Call (tokPos $2) (Sym ["Arithmetic", "times"]) [$1, $3] } 
 --       | expr '%' expr                           { Call (tokPos $2) (Sym ["Arithmetic", "modulo"]) [$1, $3] } 
---       | expr '<' expr                           { Call (tokPos $2) (Sym ["Compare", "less"]) [$1, $3] } 
---       | expr '>' expr                           { Call (tokPos $2) (Sym ["Compare", "greater"]) [$1, $3] } 
+       | expr '<' expr                           { Call (tokPos $2) (TypeDef $ Sym ["lessThan"]) [$1, $3] } 
+       | expr '>' expr                           { Call (tokPos $2) (TypeDef $ Sym ["greaterThan"]) [$1, $3] } 
        | expr '==' expr                          { Call (tokPos $2) (TypeDef $ Sym ["equal"]) [$1, $3] } 
 --       | expr '<=' expr                          { Call (tokPos $2) (Sym ["lessEqual"]) [$1, $3] } 
 --       | expr '>=' expr                          { Call (tokPos $2) (Sym ["greaterEqual"]) [$1, $3] } 
