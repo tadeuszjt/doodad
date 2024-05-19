@@ -6,6 +6,10 @@ import std/container
 import std/print
 import std/for
 import std/store
+import std/assert
+import std/compare
+import std/arithmetic
+
 
 enum Square {
     empty
@@ -27,10 +31,42 @@ acquires{T} len{ Array3{T} } (a&)
     return 3
 
 acquires{T} at{ Array3, I64, T } (a&, idx) -> &
-    return builtinArrayAt(&a.pretend, idx)
+    return builtinArrayAt(&a.pretend:Array{3, T}, idx)
 
 
 type Board Square.Array3.Array3
+
+fn row(b &Board, r I64) &Square.Array3
+    return (b.pretend:Square.Array3.Array3).at(r)
+
+
+acquires{P} print{ P, Square } (p&, square)
+    switch square
+        empty(); p.print('_')
+        naught(); p.print('O')
+        cross(); p.print('X')
+
+
+
+acquires{P, T} print{ P, Array3{T} } (p&, array&)
+    p.print('[')
+
+    let idx = 0
+    while idx < array.len
+        p.print(array[idx])
+        if idx < (array.len - 1)
+            p.print(", ")
+        idx = idx + 1
+
+    p.print(']')
+
+
+acquires{T} print{ T, Board } (p&, board)
+    let row = 0
+    while row < 3
+        p.print(board.row(row))
+        p.print('\n')
+        row = row + 1
 
 
 //fn Store::store(a &Square, b Square)
@@ -79,18 +115,6 @@ type Board Square.Array3.Array3
 //
 
 
-//fn printBoard(io &Io, board Board)
-//    for board -> row
-//        io.stdout.push('[')
-//
-//        for (0, row.len) -> col
-//            io.stdout.push(row[col])
-//            if col < (row.len - 1)
-//                io.stdout.push(", ")
-//
-//        io.stdout.push("]", '\n')
-//
-//
 //fn winner(board Board) Square
 //    // check for horizontal lines
 //    for board -> row
@@ -197,7 +221,7 @@ fn main()
     io.stdout.print("naughts and crosses\n")
 
     let board : Board
-    //io.stdout.print(board)
+    io.stdout.print(board)
 //
 //    while winner(board).isEmpty
 //        let moved = false

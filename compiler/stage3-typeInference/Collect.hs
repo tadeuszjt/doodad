@@ -159,14 +159,6 @@ collectExpr (AExpr exprType expression) = collectPos expression $ case expressio
     AST.Char _ _ -> collect "char literal must have Char type" (ConsEq exprType Type.Char)
 
     Call _ callType exprs -> do
-        case callType of
-            Apply (TypeDef symbol) _ | symbolsCouldMatch (Sym ["store"]) symbol ->
-                case exprs of
-                    [_, _] -> collectDefault (typeof $ exprs !! 0) (typeof $ exprs !! 1)
-                    _ -> return ()
-
-            _ -> return ()
-
         case (callType, exprs) of
             (Apply (TypeDef symbol) _, [_, _]) | symbolsCouldMatch symbol (Sym ["construct2"]) ->
                 collectDefault exprType $ Apply Type.Tuple (map typeof exprs)
@@ -175,14 +167,18 @@ collectExpr (AExpr exprType expression) = collectPos expression $ case expressio
 
             _ -> return ()
 
+        -- at{ t0, t1, t2 }                     => Func{ t2, t0.t1, t2 }
+        -- at( x : Array{3, I64}, idx : t3 ):t4 -> Func{ t4, Array.3.I64, t3 }
 
-        Apply Type.Func ts <- baseTypeOf callType
-        --liftIO $ putStrLn $ "collect call: " ++ show callType ++ " , base: " ++ show (Apply Type.Func ts)
-        unless ((length exprs + 1) == length ts)
+        -- len{ t0 }( x:t1 ):t2 => Func{ I64, t0 }
+        --          ( x:t1 ):t2 => Func{ t2 , t1 }
+        Apply Type.Func (retType : argTypes) <- baseTypeOf callType
+        unless (length exprs == length argTypes)
             (fail $ "invalid function type arguments: " ++ show callType)
-        collect "call return" $ ConsEq exprType (head ts)
-        forM_ (zip (tail ts) exprs) $ \(t, expr) -> do
-            collect "call arg" $ ConsEq (typeof expr) t
+
+        collect "call return" (ConsEq exprType retType)
+        zipWithM (\x y -> collect "call argument" (ConsEq x y)) argTypes (map typeof exprs)
+
         mapM_ collectExpr exprs
 
 

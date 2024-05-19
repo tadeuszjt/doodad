@@ -14,17 +14,14 @@ import Constraint
 import Error
 
 
-
 unifyOne :: MonadFail m => Constraint -> m [(Type, Type)]
 unifyOne constraint = case constraint of
     ConsEq t1 t2 -> case (t1, t2) of
-        _ | t1 == t2       -> return []
-        (Type _, _)        -> return [(t1, t2)]
-        (_, Type _)        -> return [(t2, t1)]
+        _ | t1 == t2  -> return []
+        (Type _, _)   -> return [(t1, t2)]
+        (_, Type _)   -> return [(t2, t1)]
 
         (Apply _ _, Apply _ _) -> error "here"
-
-        --x -> error (show x)
 
         _ -> fail $ "cannot unify: " ++ show (t1, t2)
 
@@ -52,17 +49,17 @@ getConstraintsFromTypes t1 t2 = case (t1, t2) of
 
 findFunction :: Type -> DoM ASTResolved Func
 findFunction funcType = do
-    (symbol, params) <- case funcType of
-        TypeDef symbol                -> return (symbol, [])
-        Apply (TypeDef symbol) params -> return (symbol, params)
+    (symbol, typeArgs) <- case funcType of
+        TypeDef symbol                  -> return (symbol, [])
+        Apply (TypeDef symbol) typeArgs -> return (symbol, typeArgs)
 
     isFunc <- gets (Map.member symbol . funcDefsAll)
     case isFunc of
         True -> do
             Just func <- gets (Map.lookup symbol . funcDefsAll)
             Just (generics, _) <- gets (Map.lookup symbol . typeDefsAll)
-            unless (length generics == length params) (error "type mismatch")
-            let subs = zip (map TypeDef generics) params
+            unless (length generics == length typeArgs) (error "type mismatch")
+            let subs = zip (map TypeDef generics) typeArgs
             return (applyFunc subs func)
 
         False -> do -- is aquire
@@ -74,32 +71,21 @@ findFunction funcType = do
                 let genericSubs = zipWith (\g i -> (TypeDef g, Type i)) generics [1..]
                 let appliedType = applyType genericSubs typ
 
-                --liftIO $ putStrLn $ "\tappliedType: " ++ show appliedType ++ ", " ++ show funcType
-
                 subsEither <- tryError (unify =<< getConstraintsFromTypes appliedType funcType)
 
                 case subsEither of
                     Right subs -> do
-                        --liftIO $ putStrLn "\tRight"
-                        let typeSame = applyType subs appliedType
-                        unless (typeSame == funcType) (error "something went terribly wrong")
+                        unless (applyType subs appliedType == funcType)
+                            (error "something went terribly wrong")
 
-                        -- args need to be swapped from void
                         Apply Type.Func (retType : argTypes) <- baseTypeOf funcType
                         unless (length argTypes == length args) (error "something else went wrong")
 
-                        args' <- forM (zip argTypes args) $ \(t, param) -> case param of
-                            Param p s _ -> return (Param p s t)
-                            RefParam p s _ -> return (RefParam p s t)
-
-                        retty' <- case isRef of
-                            True -> return (RefRetty retType)
-                            False -> return (Retty retType)
-
-                        let stmt' = applyStmt subs (applyStmt genericSubs scope)
-                        let header' = FuncHeader pos symbol args' retty'
-
-                        return $ Just (AST.Func header' stmt')
+                        -- args need to be swapped from void
+                        let args'   = zipWith (\t p -> p { paramType = t}) argTypes args 
+                        let retty'  = (if isRef then RefRetty else Retty) retType
+                        let stmt'   = applyStmt subs (applyStmt genericSubs scope)
+                        return $ Just $ AST.Func (FuncHeader pos symbol args' retty') stmt'
 
                     Left e -> do
                         --liftIO $ putStrLn $ "\tLeft: " ++ show e

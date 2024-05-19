@@ -168,7 +168,7 @@ builtinTableAppend (Ref typ expr) = do
 builtinArrayAt :: Value -> Value -> Generate Value
 builtinArrayAt value idx@(Value _ _) = do
     I64 <- baseTypeOf idx
-    Apply Array [t, Size n] <- baseTypeOf value
+    Apply Array [Size n, t] <- baseTypeOf value
     base <- baseTypeOf t
 
     case value of

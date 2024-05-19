@@ -62,10 +62,14 @@ getDoodadFilesInDirectory dir = do
 
 readModuleName :: FilePath -> DoM s (Maybe String)
 readModuleName filePath = do 
-    src <- liftIO (readFile filePath) 
-    let start = dropWhile isSpace src
-    let modStr = takeWhile isAlpha start
-    let nameStr = takeWhile (\c -> isAlpha c || isDigit c) $ dropWhile isSpace $ dropWhile isAlpha start
+    firstLine <- liftIO $ do
+        handle <- openFile filePath ReadMode
+        line <- hGetLine handle
+        hClose handle
+        return (dropWhile isSpace line)
+
+    let modStr = takeWhile isAlpha firstLine
+    let nameStr = dropWhile isSpace (dropWhile isAlpha firstLine)
     case modStr of 
         "module" -> return (Just nameStr)
         _ -> return Nothing

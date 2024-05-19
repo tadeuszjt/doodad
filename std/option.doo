@@ -1,0 +1,12 @@
+module option
+
+import std/builtin
+import std/store
+
+enum{T} Option {
+    none
+    some(T)
+}
+
+acquires{T} store{ T.Option } (a&, b)
+    a.pretend:Sum{Tuple{}, T} = b.pretend:Sum{Tuple{}, T}

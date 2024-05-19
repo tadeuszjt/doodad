@@ -30,8 +30,8 @@ executable doodad
     ghc-options:
         -Wunused-imports
         -fno-warn-overlapping-patterns
-        --O2
-        --threaded
+        ---O2
+        ---threaded
         ---prof
         ---fprof-auto
         --"-with-rtsopts=-N -p -s -h -i0.1"

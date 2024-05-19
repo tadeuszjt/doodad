@@ -67,6 +67,7 @@ acquires{T, G} print{ T, G.Table } (t&, g&)
     t.print(']')
 
 
+
 acquires{T, A, B} print{ T, Tuple{A, B} } (a&, b)
     a.print('(')
     a.print( b.first() : A )
