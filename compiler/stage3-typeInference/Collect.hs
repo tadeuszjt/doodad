@@ -89,7 +89,7 @@ collectStmt statement = collectPos statement $ case statement of
 
 
     Aquires pos generics typ args isRef stmt -> do
-        Apply Type.Func (retty : argTypes) <- baseTypeOf typ
+        (Type.Func, retty : argTypes) <- unfoldType <$> baseTypeOf typ
 
         unless (length argTypes == length args) (fail "arg length mismatch")
 
@@ -159,11 +159,11 @@ collectExpr (AExpr exprType expression) = collectPos expression $ case expressio
     AST.Char _ _ -> collect "char literal must have Char type" (ConsEq exprType Type.Char)
 
     Call _ callType exprs -> do
-        case (callType, exprs) of
-            (Apply (TypeDef symbol) _, [_, _]) | symbolsCouldMatch symbol (Sym ["construct2"]) ->
-                collectDefault exprType $ Apply Type.Tuple (map typeof exprs)
-            (Apply (TypeDef symbol) _, [_, _, _]) | symbolsCouldMatch symbol (Sym ["construct3"]) ->
-                collectDefault exprType $ Apply Type.Tuple (map typeof exprs)
+        case (unfoldType callType, exprs) of
+            ((TypeDef symbol, _), [_, _]) | symbolsCouldMatch symbol (Sym ["construct2"]) ->
+                collectDefault exprType $ foldl Apply Type.Tuple (map typeof exprs)
+            ((TypeDef symbol, _), [_, _, _]) | symbolsCouldMatch symbol (Sym ["construct3"]) ->
+                collectDefault exprType $ foldl Apply Type.Tuple (map typeof exprs)
 
             _ -> return ()
 
@@ -172,7 +172,9 @@ collectExpr (AExpr exprType expression) = collectPos expression $ case expressio
 
         -- len{ t0 }( x:t1 ):t2 => Func{ I64, t0 }
         --          ( x:t1 ):t2 => Func{ t2 , t1 }
-        Apply Type.Func (retType : argTypes) <- baseTypeOf callType
+
+
+        (Type.Func, retType : argTypes) <- unfoldType <$> baseTypeOf callType
         unless (length exprs == length argTypes)
             (fail $ "invalid function type arguments: " ++ show callType)
 
@@ -204,7 +206,7 @@ collectExpr (AExpr exprType expression) = collectPos expression $ case expressio
             ConsEq typ exprType
 
     AST.String _ s -> do
-        collect "string literal must have Char.Slice type" $ ConsEq exprType (Apply Type.Slice [Type.Char])
+        collect "string literal must have Char.Slice type" $ ConsEq exprType (Apply Type.Slice Type.Char)
 
     AST.Array _ exprs -> do
         when (length exprs > 0) $ do
@@ -212,7 +214,7 @@ collectExpr (AExpr exprType expression) = collectPos expression $ case expressio
                 collect "elements in array must have same type" $
                     ConsEq (typeof $ exprs !! i) (typeof $ head exprs)
             collect "array expression must have slice type" $
-                ConsEq exprType (Apply Type.Slice [typeof $ head exprs])
+                ConsEq exprType $ Apply Type.Slice (typeof $ head exprs)
         mapM_ collectExpr exprs
 
     x -> error (show x)

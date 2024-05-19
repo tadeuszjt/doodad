@@ -40,8 +40,10 @@ getConstraintsFromTypes t1 t2 = case (t1, t2) of
     (Type _, _)      -> return [ConsEq t1 t2]
     (_, Type _)      -> return [ConsEq t2 t1]
 
-    (Apply t1 ts1, Apply t2 ts2) | length ts1 == length ts2 ->
-        concat <$> zipWithM (getConstraintsFromTypes) (t1 : ts1) (t2 : ts2)
+    (Apply a1 a2, Apply b1 b2) -> do
+        subs1 <- getConstraintsFromTypes a1 b1
+        subs2 <- getConstraintsFromTypes a2 b2
+        return (subs1 ++ subs2)
 
     _ -> fail $ show (t1, t2)
 
@@ -49,9 +51,8 @@ getConstraintsFromTypes t1 t2 = case (t1, t2) of
 
 findFunction :: Type -> DoM ASTResolved Func
 findFunction funcType = do
-    (symbol, typeArgs) <- case funcType of
-        TypeDef symbol                  -> return (symbol, [])
-        Apply (TypeDef symbol) typeArgs -> return (symbol, typeArgs)
+    (symbol, typeArgs) <- case unfoldType funcType of
+        (TypeDef symbol, ts) -> return (symbol, ts)
 
     isFunc <- gets (Map.member symbol . funcDefsAll)
     case isFunc of
@@ -78,7 +79,7 @@ findFunction funcType = do
                         unless (applyType subs appliedType == funcType)
                             (error "something went terribly wrong")
 
-                        Apply Type.Func (retType : argTypes) <- baseTypeOf funcType
+                        (Type.Func, retType : argTypes) <- unfoldType <$> baseTypeOf funcType
                         unless (length argTypes == length args) (error "something else went wrong")
 
                         -- args need to be swapped from void

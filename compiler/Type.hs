@@ -2,7 +2,6 @@ module Type where
 
 import Control.Monad
 import qualified Data.Map as Map
-import Data.List
 import Symbol
 
 type TypeDefsMap = Map.Map Symbol ([Symbol], Type)
@@ -32,7 +31,7 @@ data Type
     | Array
     | Size Int
     | TypeDef Symbol
-    | Apply Type [Type]
+    | Apply Type Type
     deriving (Eq, Ord)
 
 instance Show Type where
@@ -55,9 +54,8 @@ instance Show Type where
         Func          -> "Func"
         Array         -> "Array"
         TypeDef s     -> prettySymbol s
+        Apply t1 t2   -> show t1 ++ "{" ++ show t2 ++ "}"
 
-        Apply t1 [t2] -> show t2 ++ "." ++ show t1
-        Apply t ts    -> show t ++ "{" ++ intercalate ", " (map show ts) ++ "}"
         Size n        -> show n
         x -> error ""
 
@@ -94,10 +92,17 @@ isSimple typ = case typ of
 isIntegral x = isInt x || x == Char
 
 
+unfoldType :: Type -> (Type, [Type])
+unfoldType typ = case typ of
+    Apply t1 t2 -> let (x, xs) = unfoldType t1 in (x, xs ++ [t2])
+    _         -> (typ, [])
+
+
+
 mapType :: (Type -> Type) -> Type -> Type
 mapType f typ = f $ case typ of
-    Apply t ts -> Apply (mapType f t) $ map (mapType f) ts
-    _          -> typ
+    Apply t1 t2 -> Apply (mapType f t1) (mapType f t2)
+    _           -> typ
 
 
 applyType :: [(Type, Type)] -> Type -> Type
@@ -124,18 +129,14 @@ baseTypeOf a = do
 
 
 baseTypeOfm :: (MonadFail m, TypeDefs m, Typeof a) => a -> m (Maybe Type)
-baseTypeOfm a = case typeof a of
-    Type _ -> return Nothing
+baseTypeOfm a = case unfoldType (typeof a) of
+    (Type _, _) -> return Nothing
 
-    Apply (TypeDef s) ts -> do
+    (TypeDef s, ts) -> do
         Just (ss, t) <- Map.lookup s <$> getTypeDefs
         baseTypeOfm =<< applyTypeM ss ts t
 
-    TypeDef s -> do
-        Just ([], t) <- Map.lookup s <$> getTypeDefs
-        baseTypeOfm t
-
-    _ -> return $ Just (typeof a)
+    (_, _) -> return $ Just (typeof a)
 
 
 typesCouldMatch :: Type -> Type -> Bool
@@ -143,12 +144,8 @@ typesCouldMatch t1 t2 = case (t1, t2) of
     (a, b) | a == b            -> True
     (Type _, _)                -> True
     (_, Type _)                -> True
-
-    (Apply t1 ts1, Apply t2 ts2)
-        | length ts1 == length ts2 ->
-            all id $ zipWith typesCouldMatch (t1 : ts1) (t2 : ts2)
-
-    (TypeDef s1, TypeDef s2) -> symbolsCouldMatch s1 s2
+    (Apply a1 a2, Apply b1 b2) -> typesCouldMatch a1 b1 && typesCouldMatch a2 b2
+    (TypeDef s1, TypeDef s2)   -> symbolsCouldMatch s1 s2
 
     _ -> False
 
@@ -156,5 +153,5 @@ typesCouldMatch t1 t2 = case (t1, t2) of
 typeFullyResolved :: Type -> Bool
 typeFullyResolved typ = case typ of
     Type _         -> False
-    Apply t ts     -> all typeFullyResolved (t : ts)
+    Apply t1 t2    -> all typeFullyResolved [t1, t2]
     _              -> True

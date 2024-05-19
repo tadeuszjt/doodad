@@ -13,19 +13,20 @@ builtinLen :: Value -> Generate Value
 builtinLen val = case val of
     Ref typ expr -> do
         base <- baseTypeOf typ
-        return $ case base of
-            Apply Table _ -> Value I64 (C.PMember expr "len")
-            Apply Slice _ -> Value I64 (C.PMember expr "len")
+        return $ case unfoldType base of
+            (Table, [_]) -> Value I64 (C.PMember expr "len")
+            (Slice, [_]) -> Value I64 (C.PMember expr "len")
+            (Array, [Size n, _]) -> Value I64 (C.Int $ fromIntegral n)
+
             x -> error (show x)
 
     Value typ expr -> do
         base <- baseTypeOf typ
-        return $ case base of
+        return $ case unfoldType base of
             x -> error (show x)
             --TypeApply (Sym ["Table"]) _ -> Value I64 (C.Member expr "len")
-            Apply Slice [t]                -> Value I64 (C.Member expr "len")
+            --Apply Slice t                -> Value I64 (C.Member expr "len")
     --        Type.Array n t -> return $ Value I64 $ C.Int (fromIntegral n)
-            _ -> error (show base)
 
 
 builtinStore :: Value -> Value -> Generate ()
@@ -47,7 +48,7 @@ builtinStore dst@(Ref _ _) src = do
 
 builtinSumEnum :: Value -> Generate Value
 builtinSumEnum val = do
-    Apply Sum _ <- baseTypeOf val
+    (Sum, _) <- unfoldType <$> baseTypeOf val
     case val of
         Value _ expr -> return $ Value I64 $ C.Member expr "en"
         Ref _ expr   -> return $ Value I64 $ C.PMember expr "en"
@@ -55,6 +56,7 @@ builtinSumEnum val = do
 
 builtinSumReset :: Value -> Value -> Generate ()
 builtinSumReset sum@(Ref _ _) idx@(Value _ _) = do
+    (Sum, _) <- unfoldType <$> baseTypeOf sum
     appendElem $ C.ExprStmt $
         C.Call "memset" [ refExpr sum , C.Int 0, C.Sizeof (C.Deref $ refExpr sum) ]
     appendElem $ C.Set (C.PMember (refExpr sum) "en") (valExpr idx)
@@ -168,7 +170,7 @@ builtinTableAppend (Ref typ expr) = do
 builtinArrayAt :: Value -> Value -> Generate Value
 builtinArrayAt value idx@(Value _ _) = do
     I64 <- baseTypeOf idx
-    Apply Array [Size n, t] <- baseTypeOf value
+    (Array, [Size n, t]) <- unfoldType <$> baseTypeOf value
     base <- baseTypeOf t
 
     case value of
@@ -178,12 +180,12 @@ builtinArrayAt value idx@(Value _ _) = do
 --                (valExpr idx)
 --            TypeApply (Sym ["Tuple"]) _ -> error "TODO"
             x -> error (show x)
-        Ref _ expr -> case base of
-            x | isSimple x -> return $ Ref t $ C.Address $ C.Subscript
+        Ref _ expr -> case unfoldType base of
+            (x, []) | isSimple x -> return $ Ref t $ C.Address $ C.Subscript
                 (C.PMember expr "arr")
                 (valExpr idx)
-            Apply Tuple ts -> error "TODO"
-            Apply _ _ -> return $ Ref t $ C.Address $ C.Subscript
+            (Tuple, ts) -> error "TODO"
+            (_, _) -> return $ Ref t $ C.Address $ C.Subscript
                 (C.PMember expr "arr")
                 (valExpr idx)
             x -> error (show x)
@@ -192,14 +194,14 @@ builtinArrayAt value idx@(Value _ _) = do
 builtinSliceAt :: Value -> Value -> Generate Value
 builtinSliceAt val idx@(Value _ _) = do
     I64 <- baseTypeOf idx
-    Apply Slice [t] <- baseTypeOf val
+    Apply Slice t <- baseTypeOf val
     base <- baseTypeOf t
 
     case val of
-        Ref _ exp -> case base of
-            Type.Char -> return $ Ref t $ C.Address $ C.Subscript (C.PMember exp "ptr") (valExpr idx)
+        Ref _ exp -> case unfoldType base of
+            (Type.Char, []) -> return $ Ref t $ C.Address $ C.Subscript (C.PMember exp "ptr") (valExpr idx)
 
-            Apply Tuple _ -> do
+            (Tuple, _) -> do
                 -- TODO not real tuple case
                 let ptr = C.Address $ C.Subscript (C.PMember exp "ptr") (valExpr idx)
                 assign "ref" $ Ref t $ C.Initialiser [ptr, C.Int 0, C.Int 0]
@@ -218,11 +220,11 @@ builtinSliceAt val idx@(Value _ _) = do
 builtinTableAt :: Value -> Value -> Generate Value
 builtinTableAt val idx@(Value _ _) = do
     I64 <- baseTypeOf idx
-    Apply Table [t] <- baseTypeOf val
+    Apply Table t <- baseTypeOf val
     base <- baseTypeOf t
     case val of
-        Value _ expr -> case base of
-            Apply Tuple ts -> do
+        Value _ expr -> case unfoldType base of
+            (Tuple, ts) -> do
                 -- TODO implement shear
                 let ptr = C.Address $ C.Subscript (C.Member expr "r0") (valExpr idx)
                 assign "ref" $ Ref t $ C.Initialiser [ptr, C.Int 0, C.Int 0]
@@ -233,8 +235,8 @@ builtinTableAt val idx@(Value _ _) = do
 
             x -> error (show x)
 
-        Ref _ expr -> case base of
-            Apply Tuple ts -> do
+        Ref _ expr -> case unfoldType base of
+            (Tuple, ts) -> do
                 -- TODO implement shear
                 let ptr = C.Address $ C.Subscript (C.PMember expr "r0") (valExpr idx)
                 assign "ref" $ Ref t $ C.Initialiser [ptr, C.Int 0, C.Int 0]

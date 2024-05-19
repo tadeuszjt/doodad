@@ -212,8 +212,8 @@ reference val = do
     base <- baseTypeOf val
     case val of
         Ref _ _ -> return val
-        Value _ _ -> case base of
-            Apply Tuple ts -> do
+        Value _ _ -> case unfoldType base of
+            (Tuple, ts) -> do
                 ref <- assign "ref" $ Ref (typeof val) $ C.Initialiser [C.Address (valExpr val), C.Int 0, C.Int 0]
                 return ref
             _ -> return $ Ref (typeof val) (C.Address $ valExpr val)
@@ -224,12 +224,12 @@ deref :: Value -> Generate Value
 deref (Value t e) = return (Value t e)
 deref (Ref typ expr) = do
     base <- baseTypeOf typ
-    case base of
-        x | isSimple x -> return $ Value typ (C.Deref expr)
+    case unfoldType base of
+        (x, []) | isSimple x -> return $ Value typ (C.Deref expr)
 
-        Apply Sum _ -> return $ Value typ (C.Deref expr)
-        Apply Type.Array _ -> return $ Value typ (C.Deref expr)
-        Apply Tuple ts  -> do
+        (Sum, _) -> return $ Value typ (C.Deref expr)
+        --Apply Type.Array _ -> return $ Value typ (C.Deref expr)
+        (Tuple, ts) -> do
             -- TODO implement memory shear
             let ptr = C.Member expr "ptr"
             return $ Value typ (C.Deref ptr)
@@ -240,26 +240,26 @@ deref (Ref typ expr) = do
 member :: Int -> Value -> Generate Value
 member idx (Ref typ expr) = do
     base <- baseTypeOf typ
-    case base of
-        Apply Tuple ts -> do
+    case unfoldType base of
+        (Tuple, ts) -> do
             unless (idx >= 0 && idx < length ts) (error "invalid member index")
             -- TODO implement shear
             return $ Value (ts !! idx) $ C.PMember (C.Member expr "ptr") ("m" ++ show idx)
-        Apply Sum ts   -> do
+        (Sum, ts) -> do
             unless (idx >= 0 && idx < length ts) (error "invalid Sum field index")
             return $ Value (ts !! idx) $ C.PMember expr ("u" ++ show idx)
         x -> error (show x)
 member idx val = do
     base <- baseTypeOf val
-    case base of
-        Apply Tuple ts -> do
+    case unfoldType base of
+        (Tuple, ts) -> do
             unless (idx >= 0 && idx < length ts) (error "invalid member index")
             return $ Value (ts !! idx) $ C.Member (valExpr val) ("m" ++ show idx)
 --
 --        TypeApply (Sym ["Table"]) t -> do
 --            error ""
 --
-        Apply Sum ts   -> do
+        (Sum, ts) -> do
             unless (idx >= 0 && idx < length ts) (error "invalid Sum field index")
             return $ Value (ts !! idx) $ C.Member (valExpr val) ("u" ++ show idx)
         x -> error (show x)
@@ -289,21 +289,17 @@ cParamOf param = do
 cRefTypeOf :: Typeof a => a -> Generate C.Type
 cRefTypeOf a = do
     base <- baseTypeOf a
-    case base of
-        x | isSimple x -> Cpointer <$> cTypeOf a 
+    case unfoldType base of
+        (x, []) | isSimple x -> Cpointer <$> cTypeOf a
+        (Table, _)           -> Cpointer <$> cTypeOf a
+        (Slice, _)           -> Cpointer <$> cTypeOf a
+        (Sum, _)             -> Cpointer <$> cTypeOf a
+        (Type.Array, _)      -> Cpointer <$> cTypeOf a
 
-        --TypeDef Tuple -> return (Cpointer Cchar)
-
-
-        Apply Tuple ts -> do
+        (Tuple, ts) -> do
             pt <- Cpointer <$> cTypeOf a
             cst <- return $ Cstruct [C.Param "ptr" pt, C.Param "idx" Csize_t, C.Param "cap" Csize_t]
             getTypedef "Ref" cst
-
-        Apply Table _  -> Cpointer <$> cTypeOf a
-        Apply Sum ts   -> Cpointer <$> cTypeOf a
-        Apply Type.Array ts -> Cpointer <$> cTypeOf a
-        Apply Slice [t] -> Cpointer <$> cTypeOf a
 
         x -> error (show x)
 
@@ -319,21 +315,31 @@ cTypeOf a = case typeof a of
     Void           -> return Cvoid
     Type.Bool      -> return Cbool
     Type.Char      -> return Cchar
-
-    Apply Type.Slice [t] -> getTypedef "Slice" =<< cTypeNoDef (typeof a)
-
-    Apply Tuple _ -> getTypedef "Tuple" =<< cTypeNoDef (typeof a)
-    Apply Table _ -> getTypedef "Table" =<< cTypeNoDef (typeof a)
-    Apply Sum _   -> getTypedef "Sym" =<< cTypeNoDef (typeof a)
-    Apply Type.Array t -> getTypedef "Array" =<< cTypeNoDef (typeof a)
-
-    Apply (TypeDef s) ts -> do
-        (generics, typ) <- (Map.! s) <$> getTypeDefs
-        getTypedef (Symbol.sym s) =<< cTypeOf =<< applyTypeM generics ts typ
+    Type.Tuple     -> getTypedef "Tuple" (Cstruct [])
 
     TypeDef s -> do
         ([], typ) <- (Map.! s) <$> getTypeDefs
         getTypedef (Symbol.sym s) =<< cTypeOf typ
+
+    Apply Type.Slice t -> getTypedef "Slice" =<< cTypeNoDef (typeof a)
+    Apply Table _ -> getTypedef "Table" =<< cTypeNoDef (typeof a)
+
+    x@(Apply _ _) -> case unfoldType x of
+        (Tuple, _)      -> getTypedef "Tuple" =<< cTypeNoDef (typeof a)
+        (Sum, _)        -> getTypedef "Sum" =<< cTypeNoDef (typeof a)
+        (Type.Array, _) -> getTypedef "Array" =<< cTypeNoDef (typeof a)
+
+        (TypeDef s, ts) -> do
+            (generics, typ) <- (Map.! s) <$> getTypeDefs
+            getTypedef (Symbol.sym s) =<< cTypeOf =<< applyTypeM generics ts typ
+
+
+        x -> error (show x)
+
+
+--    Apply Tuple _ -> getTypedef "Tuple" =<< cTypeNoDef (typeof a)
+--    Apply Type.Array t -> getTypedef "Array" =<< cTypeNoDef (typeof a)
+
 
     x -> error (show x)
 
@@ -350,29 +356,33 @@ cTypeOf a = case typeof a of
             Type.Bool -> return Cbool
             Type.Char -> return Cchar
 
-            Apply Type.Slice [t] -> do
+            Apply Type.Slice t -> do
                 cType <- cTypeOf t
                 return $ Cstruct [C.Param "ptr" (Cpointer cType), C.Param "len" Csize_t]
 
-            Apply Tuple ts -> do
-                cts <- mapM cTypeOf ts
-                return $ Cstruct $ map (\(ct, i) -> C.Param ("m" ++ show i) ct) (zip cts [0..])
-
-            Apply Table [t] -> do
+            Apply Table t -> do
                 baseT <- baseTypeOf t
                 cts <- mapM cTypeOf =<< case baseT of
                     t              -> return [t]
                 let pts = zipWith (\ct i -> C.Param ("r" ++ show i) (Cpointer ct)) cts [0..]
                 return $ Cstruct (C.Param "len" Cint64_t:C.Param "cap" Cint64_t:pts)
 
-            Apply Sum ts -> do
-                cts <- mapM cTypeOf ts
-                return $ Cstruct [C.Param "en" Cint64_t, C.Param "" $
-                    Cunion $ map (\(ct, i) -> C.Param ("u" ++ show i) ct) (zip cts [0..])]
 
-            Apply Type.Array [Size n, t] -> do
+            Apply (Apply Type.Array (Size n)) t -> do
                 cType <- cTypeOf t
                 return $ Cstruct [C.Param "arr" (Carray n cType) ]
+
+            x@(Apply _ _) -> case unfoldType x of
+                (Tuple, ts) -> do
+                    cts <- mapM cTypeOf ts
+                    return $ Cstruct $ map (\(ct, i) -> C.Param ("m" ++ show i) ct) (zip cts [0..])
+                
+                (Sum, ts) -> do
+                    cts <- mapM cTypeOf ts
+                    return $ Cstruct [C.Param "en" Cint64_t, C.Param "" $
+                        Cunion $ map (\(ct, i) -> C.Param ("u" ++ show i) ct) (zip cts [0..])]
+                x -> error (show x)
+
 
             x -> error (show x)
 

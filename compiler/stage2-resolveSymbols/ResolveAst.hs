@@ -193,10 +193,10 @@ resolveType typ = case typ of
         Sym ["Slice"] -> return Slice
         _             -> TypeDef <$> look s KeyType
 
-    Apply t ts -> do
-        t' <- resolveType t
-        ts' <- mapM resolveType ts
-        return (Apply t' ts')
+    Apply t1 t2 -> do
+        t1' <- resolveType t1
+        t2' <- resolveType t2
+        return (Apply t1' t2')
 
     _ -> return typ
 

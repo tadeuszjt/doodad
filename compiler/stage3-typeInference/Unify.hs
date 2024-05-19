@@ -1,7 +1,5 @@
 module Unify where
 
-import Control.Monad.Except
-
 import Type
 import ASTResolved
 import Constraint
@@ -17,26 +15,33 @@ unifyOne info constraint = withPos info $ case constraint of
         (Type x, t)              -> return [(Type x, t)]
         (t, Type x)              -> return [(Type x, t)]
 
-        (Apply t1 ts1, Apply t2 ts2)
-            | length ts1 == length ts2 ->
-                concat <$> zipWithM (\a b -> unifyOne info (ConsEq a b)) (t1 : ts1) (t2 : ts2)
-
+        (Apply a1 a2, Apply b1 b2) -> do
+            subs1 <- unifyOne info (ConsEq a1 b1)
+            subs2 <- unifyOne info (ConsEq a2 b2)
+            return (subs1 ++ subs2)
+            
         --x -> error (show x)
         _ -> fail $ (infoMsg info) ++ ":" ++ show (t1, t2)
 
     ConsField typ idx exprType -> do
         base <- baseTypeOfm typ
         case base of
-            Nothing                                   -> return []
-            Just (Apply Tuple ts) -> unifyOne info $ ConsEq exprType (ts !! idx)
-            Just (Apply Sum ts)   -> unifyOne info $ ConsEq exprType (ts !! idx)
-            x                     -> fail ("cannot take field of: " ++ show x)
+            Nothing -> return []
+            Just x -> case unfoldType x of
+                (Tuple, ts) -> unifyOne info $ ConsEq exprType (ts !! idx)
+                (Sum,   ts) -> unifyOne info $ ConsEq exprType (ts !! idx)
+                x -> error (show x)
+
+
+--            Just (Apply Tuple ts) -> unifyOne info $ ConsEq exprType (ts !! idx)
+--            Just (Apply Sum ts)   -> unifyOne info $ ConsEq exprType (ts !! idx)
+            --x                     -> fail ("cannot take field of: " ++ show x)
 
     ConsSlice exprType typ -> do
         basem <- baseTypeOfm typ
         case basem of
             Nothing -> return []
-            Just (Apply Table [t]) -> unifyOne info $ ConsEq exprType (Apply Type.Slice [t])
+            --Just (Apply Table [t]) -> unifyOne info $ ConsEq exprType (Apply Type.Slice [t])
             x -> error (show x)
 
     ConsDefault t1 t2 -> case (t1, t2) of

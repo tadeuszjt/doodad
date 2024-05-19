@@ -375,11 +375,6 @@ buildStmt statement = withPos statement $ case statement of
 
         void $ appendStmt $ While pos whileCnd (Stmt blkId)
 
-    For pos expr mpat (Block stmts) -> do
-        blkId <- newStmt (Block [])
-        withCurId blkId (mapM_ buildStmt stmts)
-        void $ appendStmt $ For pos expr mpat (Stmt blkId)
-
     While pos expr (Block stmts) -> do
         loop <- freshSym "loop"
         appendStmt $ Assign pos loop (AST.Bool pos True)
@@ -405,7 +400,7 @@ buildStmt statement = withPos statement $ case statement of
     MacroTuple pos generics symbol fields -> do
         appendStmt $ Typedef pos generics symbol $ case fields of
             [] -> error "here"
-            ts -> Apply Tuple (map snd ts)
+            ts -> foldl Apply Tuple (map snd ts)
 
         -- write field accessor functions
         forM_ (zip fields [0..]) $ \( (str, typ), i ) -> do
@@ -416,7 +411,7 @@ buildStmt statement = withPos statement $ case statement of
 
             paramType <- case generics of
                 [] -> return (TypeDef symbol)
-                ts -> return (Apply (TypeDef symbol) (map TypeDef generics))
+                ts -> return $ foldl Apply (TypeDef symbol) (map TypeDef generics)
 
             let header = FuncHeader
                     { funcSymbol = Sym [sym symbol, str]
@@ -430,13 +425,13 @@ buildStmt statement = withPos statement $ case statement of
     Enum pos generics symbol cases -> do
         caseTypes <- forM cases $ \(symbol, ts) -> case ts of
             [t] -> return t
-            ts -> return $ Apply Tuple ts
+            ts -> return $ foldl Apply Tuple ts
 
         paramType <- case generics of
             [] -> return (TypeDef symbol)
-            ts -> return (Apply (TypeDef symbol) (map TypeDef generics))
+            ts -> return $ foldl Apply (TypeDef symbol) (map TypeDef generics)
 
-        void $ appendStmt $ Typedef pos generics symbol (Apply Sum caseTypes)
+        void $ appendStmt $ Typedef pos generics symbol (foldl Apply Sum caseTypes)
 
         -- write isCase0, isCase1 functions
         forM_ (zip cases [0..]) $ \( (Sym [str], ts) , i) -> do
@@ -498,7 +493,7 @@ buildStmt statement = withPos statement $ case statement of
 
             retty <- case ts of
                 [t] -> return (RefRetty t)
-                ts  -> return $ RefRetty $ Apply Tuple ts
+                ts  -> return $ RefRetty (foldl Apply Tuple ts)
 
             let header = FuncHeader
                     { funcSymbol = Sym [sym symbol, "from" ++ (toUpper $ head str) : (tail str) ]

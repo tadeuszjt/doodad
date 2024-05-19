@@ -79,7 +79,7 @@ typeDefsMapper element = case element of
     ElemStmt (Feature pos generics symbol args retty) -> do
         modify $ \s -> s { typeDefsAll = Map.insert
             symbol
-            (generics, Apply Type.Func (retty : args))
+            (generics, foldl Apply Type.Func (retty : args))
             (typeDefsAll s) }
         return element
 
@@ -114,7 +114,7 @@ combineMapper element = case element of
             Just (generics, _) -> do
                 let typ' = case generics of
                         [] -> typ
-                        x  -> Apply typ $ replicate (length x) (Type 0)
+                        x  -> foldl Apply typ $ replicate (length x) (Type 0)
 
                 return $ ElemExpr (Call pos typ' exprs)
         

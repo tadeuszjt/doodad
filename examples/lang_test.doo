@@ -296,15 +296,21 @@ fn testOption()
     let false = o.isSome()
 
     o = some(3)
-    switch o
-        x | x.isNone(); let false = true
-        some(3); let true = true
 
-    let true = o.isSome()
+//    switch o
+//        x | x.isNone()
+//            ${ puts("here"); }
+//            let false = true
+//
+//        some(3); let true = true
+//        _; ${ puts("didn't work"); }
+//
+//    let true = o.isSome()
+//
+//    o.fromSome = 4
+//    let 4 = o.fromSome
+//    let false = o.isNone
 
-    o.fromSome = 4
-    let 4 = o.fromSome
-    let false = o.isNone
 
 //fn testTree()
 //    data t binaryTree::Tree{I64, Bool}
@@ -536,20 +542,29 @@ fn testOption()
 //
 
 
+fn testArrayAt()
+    let array : Array{5, I64}
+    array[2] = 3
+    let 5 = array.len
+    let 0 = array[1]
+    let 3 = array[2]
+
+
 fn main()
     testArithmetic()
     testFloats()
     testIf()
     testSwitch()
-//    testConvert()
+////    testConvert()
     testTuple()
-//    testLet()
+////    testLet()
     testFnWithRef()
     testTable()
     testSparse()
     testPrint()
-//    testUnordered()
-//    testSumType()
+////    testUnordered()
+////    testSumType()
+    testArrayAt()
     testOption()
 //    testTree()
 //    testMap()

@@ -112,7 +112,7 @@ instance Show FuncHeader where
 
 
 instance Typeof FuncHeader where
-    typeof header = Apply Type.Func $ typeof (funcRetty header) : map typeof (funcArgs header)
+    typeof header = foldl Apply Type.Func $ typeof (funcRetty header) : map typeof (funcArgs header)
 
 
 data Func = Func { funcHeader :: FuncHeader, funcStmt :: Stmt }

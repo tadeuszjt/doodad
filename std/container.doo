@@ -29,6 +29,9 @@ acquires{T} pop{ Table, T } (t&)
     return e
 
 
-acquires{T} len{ T.Slice } (s&);           return builtinSliceLen(&s)
-acquires{T} at{ Slice, I64, T } (s&, idx); return builtinSliceAt(&s, idx)
+acquires{T} len{ T.Slice } (s&);                return builtinSliceLen(&s)
+acquires{T} at{ Slice, I64, T } (s&, idx) -> &; return builtinSliceAt(&s, idx)
 
+
+acquires{T, S} at{  Array{S}, I64, T } (arr&, idx) -> &; return builtinArrayAt(&arr, idx)
+acquires{T, S} len{ Array{S, T} }      (arr&);           return builtinArrayLen(&arr)
