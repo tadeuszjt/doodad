@@ -11,6 +11,7 @@ import std/sparse
 import std/for
 import std/print
 import std/io
+import std/option
 
 
 feature{T, A, B} construct2(A, B) T
@@ -287,24 +288,24 @@ fn testPrint()
 ////        let false = true
 //
 //
-//fn testMaybe()
-//    let m : I64.Maybe
-//    switch m
-//        nothing(); let true = true
-//        just(); let false = true
-//    let false = m.isJust()
-//
-//    m = just(3)
-//    switch m
-//        x | x.isNothing(); let false = true
-//        just(3); let true = true
-//
-//    let true = m.isJust()
-//
-//    m.fromJust = 4
-//    let 4 = m.fromJust
-//    let false = m.isNothing
-//
+fn testOption()
+    let o : I64.Option
+    switch o
+        none(); let true = true
+        some(); let false = true
+    let false = o.isSome()
+
+    o = some(3)
+    switch o
+        x | x.isNone(); let false = true
+        some(3); let true = true
+
+    let true = o.isSome()
+
+    o.fromSome = 4
+    let 4 = o.fromSome
+    let false = o.isNone
+
 //fn testTree()
 //    data t binaryTree::Tree{I64, Bool}
 //    let 0 = t.len()
@@ -533,10 +534,6 @@ fn testPrint()
 //    t.MyTuple::two = true
 //    let true = t.two
 //
-//fn testBuiltin()
-//    let x : I64
-//    let y : I64 = x.pretend()
-//    return
 
 
 fn main()
@@ -553,7 +550,7 @@ fn main()
     testPrint()
 //    testUnordered()
 //    testSumType()
-//    testMaybe()
+    testOption()
 //    testTree()
 //    testMap()
 //    testSlice()

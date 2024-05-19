@@ -18,8 +18,8 @@ acquires print{ Char.Table, Char } (t&, c)
 
 
 acquires{T} print{ T, Char.Slice } (t&, s)
-    for s -> c
-        t.print(c)
+    for s -> i
+        t.print(s[i])
 
 
 acquires{T} print{ T, I64 } (t&, n)

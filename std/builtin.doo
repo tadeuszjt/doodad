@@ -24,6 +24,10 @@ fn{T} builtinTableAppend(a &T.Table); ${}
 fn{T} builtinTableAt(a &T.Table, b I64) &T; ${}
 
 
+fn{T, S} builtinArrayLen(a &Array{S, T}) I64; ${}
+fn{T, S} builtinArrayAt(a &Array{S, T}, idx I64) &T; ${}
+
+
 fn{T} builtinSliceLen(a &T.Slice) I64; ${}
 fn{T} builtinSliceAt(a &T.Slice, b I64) &T; ${}
 

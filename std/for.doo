@@ -5,9 +5,13 @@ import std/container
 
 feature{T}    forBegin(T) I64
 feature{T}    forEnd(T) I64
-feature{T, E} forAt(T{E}, I64) E
-
 
 acquires{T} forBegin{ T.Slice } (s&);    return 0
 acquires{T} forEnd{ T.Slice } (s&);      return s.len
-acquires{T} forAt{ Slice, T } (s&, idx); return s[idx]
+
+acquires forBegin{ Tuple{I64, I64} } (t); return t.0
+acquires forEnd{   Tuple{I64, I64} } (t); return t.1
+
+
+acquires{T} forBegin{ T.Table } (s&);    return 0
+acquires{T} forEnd{ T.Table } (s&);      return s.len

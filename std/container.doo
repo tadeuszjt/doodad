@@ -9,11 +9,11 @@ import std/assert
 feature{T}       len(T) I64
 feature{T, K, V} at(T{V}, K) V
 feature{T, V}    push(T{V}, V)
-feature{T}       grow(T)
 feature{T, V}    pop(T{V}) V
+feature{T}       grow(T)
 
 
-acquires{T} len{ T.Table }      (t&);           return builtinTableLen(&t)
+acquires{V} len{ Table{V} }    (t&);            return builtinTableLen(&t)
 acquires{T} at{ Table, I64, T } (t&, idx) -> &; return builtinTableAt(&t, idx)
 
 acquires{T} push{ Table, T } (t&, e)
@@ -31,3 +31,4 @@ acquires{T} pop{ Table, T } (t&)
 
 acquires{T} len{ T.Slice } (s&);           return builtinSliceLen(&s)
 acquires{T} at{ Slice, I64, T } (s&, idx); return builtinSliceAt(&s, idx)
+

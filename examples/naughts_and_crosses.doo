@@ -2,18 +2,10 @@ module ox
 
 import std/io
 import std/builtin
-//import std/strings
-//import std/array
-//import std/integer
-//import std/bool
-//import std/push
-//import std/table
-//import std/tuple
-//import std/char
-//import std/rand
-//import std/features
-//import std/sum
-//import std/builtin
+import std/container
+import std/print
+import std/for
+import std/store
 
 enum Square {
     empty
@@ -28,7 +20,17 @@ enum Square {
 //}
 //
 //
-type Board Square.Array{3}.Array{3}
+
+type{T} Array3 Array{3, T}
+
+acquires{T} len{ Array3{T} } (a&)
+    return 3
+
+acquires{T} at{ Array3, I64, T } (a&, idx) -> &
+    return builtinArrayAt(&a.pretend, idx)
+
+
+type Board Square.Array3.Array3
 
 
 //fn Store::store(a &Square, b Square)
@@ -75,6 +77,8 @@ type Board Square.Array{3}.Array{3}
 //        cross(); stdout.push('X')
 //
 //
+
+
 //fn printBoard(io &Io, board Board)
 //    for board -> row
 //        io.stdout.push('[')
@@ -193,7 +197,7 @@ fn main()
     io.stdout.print("naughts and crosses\n")
 
     let board : Board
-//    io.printBoard(board)
+    //io.stdout.print(board)
 //
 //    while winner(board).isEmpty
 //        let moved = false

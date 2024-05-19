@@ -370,7 +370,7 @@ cTypeOf a = case typeof a of
                 return $ Cstruct [C.Param "en" Cint64_t, C.Param "" $
                     Cunion $ map (\(ct, i) -> C.Param ("u" ++ show i) ct) (zip cts [0..])]
 
-            Apply Type.Array [t, Size n] -> do
+            Apply Type.Array [Size n, t] -> do
                 cType <- cTypeOf t
                 return $ Cstruct [C.Param "arr" (Carray n cType) ]
 
