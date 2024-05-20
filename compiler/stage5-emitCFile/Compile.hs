@@ -277,6 +277,14 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
                     Type.Bool -> return $ Value (typeof val1) $
                         C.Infix C.AndAnd (valExpr val1) (valExpr val2)
 
+            (s, [expr1, expr2]) | symbolsCouldMatch s (Sym ["builtin", "builtinOr"]) -> do
+                unless (typeof expr1 == typeof expr2) (error "type mismatch")
+                base <- baseTypeOf expr1
+                val1 <- deref =<< generateExpr expr1
+                val2 <- deref =<< generateExpr expr2
+                case base of
+                    Type.Bool -> return $ Value (typeof val1) $
+                        C.Infix C.OrOr (valExpr val1) (valExpr val2)
 
 
             (s, [expr]) | symbolsCouldMatch s (Sym ["builtin", "builtinNot"]) -> do

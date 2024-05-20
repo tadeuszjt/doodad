@@ -158,8 +158,7 @@ buildPattern defBlkId pattern expr = do
             forM_ (zip pats [0..]) $ \(pat, i) -> do
                 ifBlkId <- newStmt (Block [])
                 withCurId ifBlkId $ do
-                    match <- buildPattern defBlkId pat $
-                        Call pos (TypeDef $ Sym [syms !! i]) [Reference pos $ Ident pos symbol]
+                    match <- buildPattern defBlkId pat $ Field pos (Ident pos symbol) i
                     appendStmt $ ExprStmt $ Call pos (TypeDef $ Sym ["builtin", "builtinStore"])
                         [ Reference pos (Ident pos matchSym)
                         , match

@@ -17,8 +17,7 @@ fn{T} builtinLessThan(a T, b T) Bool; ${}
 fn{T} builtinGreaterThan(a T, b T) Bool; ${}
 
 fn{T} builtinAnd(a T, b T) T; ${}
-
-
+fn{T} builtinOr(a T, b T) T; ${}
 fn{T} builtinNot(a T) T; ${}
 
 fn{T} builtinTableLen(a &T.Table) I64; ${}

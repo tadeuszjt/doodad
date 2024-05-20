@@ -52,6 +52,7 @@ deAnnotateStmt =
     mapStmtM deAnnotateMapper
 
 
+-- TODO, don't delete the annotations, you lose information. use the Type 0 technique
 deAnnotateMapper :: Elem -> DoM () Elem
 deAnnotateMapper elem = return $ case elem of
     ElemType (Type n)                                    -> ElemType (Type 0)

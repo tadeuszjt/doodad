@@ -1,0 +1,10 @@
+module boolean
+
+import std/builtin
+
+feature{T} and(T, T) T
+feature{T} or(T, T) T
+
+
+acquires and{ Bool } (a, b); return builtinAnd(a, b)
+acquires or{ Bool } (a, b); return builtinOr(a, b)

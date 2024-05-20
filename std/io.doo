@@ -3,6 +3,9 @@ module io
 import std/builtin
 import std/store
 import std/print
+import std/char
+import std/compare
+import std/container
 
 
 type StdOut Tuple{}
@@ -18,21 +21,21 @@ acquires print{ StdOut, Char } (stdout&, c)
     ${ putchar($c); }
 
 
-//fn getChar(stdin &StdIn) Char
-//    let c : Char
-//    ${ $c = fgetc(stdin); }
-//    return c
-//
-//
-//fn getLine(stdin &StdIn, line &Char.Table) Bool
-//    while true
-//        switch stdin.getChar
-//            '\n'          ; return true
-//            x | x == eof(); return false
-//            x             ; line.push(x)
-//    
-//
-//
+fn getChar(x &StdIn) Char
+    let c : Char
+    ${ $c = fgetc(stdin); }
+    return c
+
+
+fn getLine(stdin &StdIn, line &Char.Table) Bool
+    while true
+        switch stdin.getChar
+            '\n'          ; return true
+            x | x == eof(); return false
+            x             ; line.push(x)
+  
+
+
 //fn {io Io} openFile(fileName String)
 //    assert(!io.files.contains(fileName), fileName + " already open")
 //    let ptr = 0

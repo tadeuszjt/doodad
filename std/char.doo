@@ -1,18 +1,13 @@
 module char
 
-import std/bool
-import std/features
+import std/store
 import std/assert
-import std/builtin
 
-fn Construct::construct(a Char) Char; return a
 
 fn eof() Char
     let c : Char
     ${ $c = EOF; }
     return c
-
-fn Store::store(a &Char, b Char); builtin::store(&a, b)
 
 
 fn isAlpha(c Char) Bool
@@ -31,25 +26,3 @@ fn isSpace(c Char) Bool
     let r = false
     ${ $r = isspace($c); }
     return r
-
-
-fn Arithmetic::add(a Char, b Char) Char;      return builtin::add(a, b)
-fn Arithmetic::subtract(a Char, b Char) Char; return builtin::subtract(a, b)
-
-fn Compare::less(a Char, b Char) Bool
-    let r : Bool
-    ${ $r = $a < $b; }
-    return r
-
-fn Compare::greater(a Char, b Char) Bool
-    let r : Bool
-    ${ $r = $a > $b; }
-    return r
-
-fn Compare::equal(a Char, b Char) Bool; return builtin::equal(a, b)
-
-fn greaterEqual(a Char, b Char) Bool
-    let r : Bool
-    ${ $r = $a >= $b; }
-    return r
-

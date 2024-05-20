@@ -11,6 +11,8 @@ import std/compare
 import std/arithmetic
 import std/boolean
 import std/tuple
+import std/read
+import std/option
 
 
 enum Square {
@@ -19,13 +21,13 @@ enum Square {
     cross
 }
 
-//enum Input {
-//    move(I64, I64)
-//    quit()
-//    error()
-//}
-//
-//
+enum Input {
+    move(I64, I64)
+    quit()
+    error()
+}
+
+
 
 type Board Array{3, Array{3, Square}}
 
@@ -51,7 +53,6 @@ acquires store{ Square } (a&, b)
 
 acquires equal{ Square } (a, b)
     return builtinSumEnum(a) == builtinSumEnum(b)
-
 
 
 acquires{P} print{ P, Board } (p&, board)
@@ -110,15 +111,18 @@ fn winner(board Board) Square
     return empty()
 
 
-//fn getPlayerInput(io &Io) Input
-//    io.stdout.push("Please enter move: <row> <col>", '\n')
-//    
-//    data line Char.Table
-//    if !io.stdin.getLine(&line)
-//        return quit()
-//
-//    let (row, col, idx) = (0, 0, 0)
-//
+fn getPlayerInput(io &Io) Input
+    io.stdout.print("Please enter move: <row> <col>\n")
+    
+    data line Char.Table
+
+    if io.stdin.getLine(&line) == false
+        return quit()
+
+    let row = 0
+    let col = 0
+    let idx = 0
+
 //    if readI64(line.slice(idx, line.len)) -> just(n, num)
 //        row = n
 //        idx = idx + num
@@ -177,6 +181,11 @@ fn main()
 
     let board : Board
     io.stdout.print(board)
+
+    data table Char.Table
+    table.print("1234")
+
+//    let some(x : I64, _) = table.read(0)
 //
 //    while winner(board).isEmpty
 //        let moved = false

@@ -1,0 +1,69 @@
+module read
+
+import std/option
+import std/boolean
+import std/compare
+import std/container
+import std/option
+import std/tuple
+import std/store
+import std/builtin
+import std/arithmetic
+
+
+feature{R, T} read(R, I64) Tuple{T, I64}.Option
+
+
+acquires read{ Char.Table, Char } (r&, idx)
+    if idx < 0 || idx > r.len
+        return none()
+    return some( (r[idx], 1) )
+
+
+acquires{R} read{ R, I64 } (r&, idx)
+    while r.read(idx) -> some(c : Char, n)
+        idx = idx + 1
+
+    ${ puts("hello"); }
+
+
+//fn readI64(str []Char) Tuple{I64, I64}.Maybe
+//
+//    fn mat(str &[]Char, idx I64) Char.Maybe
+//        if idx > str.len
+//            return nothing()
+//        return just(str[idx])
+//
+//    let idx = 0
+//
+//    while str.mat(idx) -> just(c) | isSpace(c)
+//        idx = idx + 1
+//
+//
+//    let isMinus = false
+//    if str.mat(idx) -> just('-')
+//        isMinus = true
+//        idx = idx + 1
+//
+//    let hasDigits = false
+//    let x = 0
+//    data digits Char.Table
+//
+//    while str.mat(idx) -> just(c) | isDigit(c)
+//        hasDigits = true
+//        digits.push(str[idx])
+//        idx = idx + 1
+//
+//    for digits -> digit
+//        x = x*10 + I64(digit - '0')
+//
+//    if !hasDigits
+//        return nothing()
+//
+//    if isMinus
+//        x = -x
+//
+//    return just((x, idx))
+//
+//
+//

@@ -3,6 +3,7 @@ module Type where
 import Control.Monad
 import qualified Data.Map as Map
 import Symbol
+import Data.List
 
 type TypeDefsMap = Map.Map Symbol ([Symbol], Type)
 
@@ -54,7 +55,8 @@ instance Show Type where
         Func          -> "Func"
         Array         -> "Array"
         TypeDef s     -> prettySymbol s
-        Apply t1 t2   -> show t1 ++ "{" ++ show t2 ++ "}"
+        Apply t1 t2   -> let (x, xs) = unfoldType t in
+            show x ++ "{" ++ intercalate ", " (map show xs) ++ "}"
 
         Size n        -> show n
         x -> error ""
