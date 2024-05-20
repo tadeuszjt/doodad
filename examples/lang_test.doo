@@ -254,6 +254,10 @@ fn testUnordered()
     let 2 = u2[key0].len
     let 0 = u2[key1].len
 
+    data io Io
+    io.stdout.print( &u2 )
+    io.stdout.print('\n')
+
 
 
 fn testOption()
@@ -523,14 +527,13 @@ fn main()
     testFloats()
     testIf()
     testSwitch()
-////    testConvert()
+//    testConvert()
     testTuple()
     testFnWithRef()
     testTable()
     testSparse()
     testPrint()
-////    testUnordered()
-////    testSumType()
+//    testSumType()
     testArrayAt()
     testOption()
     testUnordered()

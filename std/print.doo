@@ -63,6 +63,17 @@ acquires{T, G} print{ T, G.Table } (t&, g&)
     t.print(']')
 
 
+acquires{P, S, T} print{ P, Array{S, T} } (p&, array)
+    p.print('[')
+
+    for (0, array.len) -> idx
+        p.print(array[idx])
+        if idx < (array.len - 1)
+            p.print(", ")
+
+    p.print(']')
+
+
 acquires{T, A, B} print{ T, Tuple{A, B} } (a&, b)
     a.print('(')
     a.print( b.first() : A )

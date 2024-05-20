@@ -7,6 +7,9 @@ import std/assert
 import std/tuple
 import std/builtin
 import std/arithmetic
+import std/print
+import std/for
+import std/compare
 
 
 type{T} Key I64
@@ -75,3 +78,15 @@ fn{T} delete(u &T.Unordered, key T.Key)
     u.indices.at(endKey.pretend:sparse::Key{I64}) = index
     u.indices.sparse::delete(key.pretend)
     u.values.pop
+
+
+acquires{P, T} print{P, Unordered{T}} (p&, u&)
+    p.print('[')
+
+    for (0, u.len) -> idx
+        p.print(u.index(idx))
+
+        if idx < (u.len - 1)
+            p.print(", ")
+
+    p.print(']')

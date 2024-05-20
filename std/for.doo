@@ -16,6 +16,11 @@ acquires forEnd{   Tuple{I64, I64} } (t);      return t.1
 acquires forAt{    Tuple{I64}, I64 } (t, idx); return idx
 
 
-acquires{T} forBegin{ T.Table } (s&);    return 0
-acquires{T} forEnd{ T.Table } (s&);      return s.len
-acquires{T} forAt{ Table, T } (s&, idx); return s[idx]
+acquires{T} forBegin{ T.Table } (s&);         return 0
+acquires{T} forEnd{ T.Table } (s&);           return s.len
+acquires{T} forAt{ Table, T } (s&, idx) -> &; return s[idx]
+
+
+acquires{T, S} forBegin{ Array{S, T} } (a&);        return 0
+acquires{T, S} forEnd{ Array{S, T} }   (a&);        return a.len
+acquires{T, S} forAt{ Array{S}, T } (a&, idx) -> &; return a[idx]

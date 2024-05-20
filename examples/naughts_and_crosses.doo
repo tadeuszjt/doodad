@@ -9,6 +9,8 @@ import std/store
 import std/assert
 import std/compare
 import std/arithmetic
+import std/boolean
+import std/tuple
 
 
 enum Square {
@@ -27,8 +29,10 @@ enum Square {
 
 type Board Array{3, Array{3, Square}}
 
-fn row(b &Board, r I64) &Array{3, Square}
-    return (b.pretend:Array{3, Array{3, Square}}).at(r)
+
+fn arr(b &Board) &Array{3, Array{3, Square}}
+    return b.pretend
+
 
 
 acquires{P} print{ P, Square } (p&, square)
@@ -38,40 +42,24 @@ acquires{P} print{ P, Square } (p&, square)
         cross(); p.print('X')
 
 
-
-acquires{P, T} print{ P, Array{3, T} } (p&, array&)
-    p.print('[')
-
-    let idx = 0
-    while idx < array.len
-        p.print(array[idx])
-        if idx < (array.len - 1)
-            p.print(", ")
-        idx = idx + 1
-
-    p.print(']')
+acquires store{ Square } (a&, b)
+    store(
+        &a.pretend:Sum{Tuple{}, Tuple{}, Tuple{}}
+        &b.pretend:Sum{Tuple{}, Tuple{}, Tuple{}}
+    )
 
 
-acquires{T} print{ T, Board } (p&, board)
-    let row = 0
-    while row < 3
-        p.print(board.row(row))
+acquires equal{ Square } (a, b)
+    return builtinSumEnum(a) == builtinSumEnum(b)
+
+
+
+acquires{P} print{ P, Board } (p&, board)
+    for board.arr -> row
+        p.print(row)
         p.print('\n')
-        row = row + 1
 
 
-//fn Store::store(a &Square, b Square)
-//    Store::store(
-//        &pretend(&a):Sum{Tuple{}, Tuple{}, Tuple{}}
-//        pretend(&b):Sum{Tuple{}, Tuple{}, Tuple{}}
-//    )
-//
-//fn Compare::equal(a Square, b Square) Bool
-//    return Compare::equal(
-//        pretend(&a):Sum{Tuple{}, Tuple{}, Tuple{}}
-//        pretend(&b):Sum{Tuple{}, Tuple{}, Tuple{}}
-//    )
-//
 //fn Store::store(a &Input, b Input)
 //    Store::store(
 //        &pretend(&a):Sum{Tuple{I64, I64}, Tuple{}, Tuple{}}
@@ -80,72 +68,48 @@ acquires{T} print{ T, Board } (p&, board)
 //
 //
 //
-//fn At::at(board &Board, index I64) &Square.Array{3}
-//    return (pretend(&board):Square.Array{3}.Array{3}).at(index)
-//
-//fn Len::len(board &Board) I64
-//    return (pretend(&board):Square.Array{3}.Array{3}).len
-//
-//fn Store::store(a &Board, b Board)
-//    Store::store(
-//        &pretend(&a):Square.Array{3}.Array{3}
-//        pretend(&b):Square.Array{3}.Array{3}
-//    )
-//
-//fn For::begin(b &Board) I64;                       return 0
-//fn For::end(b &Board) I64;                         return b.len
-//fn For::forAt(b &Board, idx I64) &Square.Array{3}; return b.at(idx)
-//
-//
-//fn push(stdout &StdOut, square Square)
-//    switch square
-//        empty(); stdout.push(' ')
-//        naught(); stdout.push('O')
-//        cross(); stdout.push('X')
-//
-//
+
+fn winner(board Board) Square
+    // check for horizontal lines
+    for board.arr -> row
+        let match = true
+        for row -> square
+            if square != row[0]
+                match = false
+        if match && row[0] != empty()
+            return row[0]
 
 
-//fn winner(board Board) Square
-//    // check for horizontal lines
-//    for board -> row
-//        let match = true
-//        for row -> square
-//            if square != row[0]
-//                match = false
-//
-//        if match && row[0] != empty()
-//            return row[0]
-//
-//    // check for vertical lines
-//    for (0, board[0].len) -> col
-//        let match = true
-//        for (0, board.len) -> row
-//            if board[row][col] != board[0][col]
-//                match = false
-//
-//        if match && board[0][col] != empty()
-//            return board[0][col]
-//
-//    // check diagonals
-//    let match = true
-//    for (0, board.len) -> i | match
-//        if board[i][i] != board[0][0]
-//            match = false
-//    if match && board[0][0] != empty()
-//        return board[0][0]
-//
-//    match = true
-//    for (0, board.len) -> i | match
-//        let row = board.len - 1 - i
-//        if board[row][i] != board[board.len - 1][0]
-//            match = false
-//    if match && board[board.len - 1][0] != empty()
-//        return board[board.len - 1][0]
-//
-//    return empty()
-//
-//
+    // check for vertical lines
+    for (0, board.arr[0].len) -> col
+        let match = true
+        for (0, board.arr.len) -> row
+            if board.arr[row][col] != board.arr[0][col]
+                match = false
+
+        if match && board.arr[0][col] != empty()
+            return board.arr[0][col]
+
+
+    // check diagonals
+    let match = true
+    for (0, board.arr.len) -> i | match
+        if board.arr[i][i] != board.arr[0][0]
+            match = false
+    if match && board.arr[0][0] != empty()
+        return board.arr[0][0]
+
+    match = true
+    for (0, board.arr.len) -> i | match
+        let row = board.arr.len - 1 - i
+        if board.arr[row][i] != board.arr[board.arr.len - 1][0]
+            match = false
+    if match && board.arr[board.arr.len - 1][0] != empty()
+        return board.arr[board.arr.len - 1][0]
+
+    return empty()
+
+
 //fn getPlayerInput(io &Io) Input
 //    io.stdout.push("Please enter move: <row> <col>", '\n')
 //    

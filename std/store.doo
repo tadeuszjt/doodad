@@ -3,6 +3,7 @@ module store
 import std/builtin
 import std/assert
 import std/compare
+//import std/tuple
 
 
 feature{T} store(T, T)
@@ -28,3 +29,21 @@ acquires{A, B} store{ Sum{A, B} } (a&, b)
         0; a.0 = b.0
         1; a.1 = b.1
 
+
+acquires{A, B, C} store{ Sum{A, B, C} } (a&, b)
+    let en = b.builtinSumEnum
+    a.builtinSumReset(en)
+    switch en
+        0; a.0 = b.0
+        1; a.1 = b.1
+        2; a.2 = b.2
+
+
+acquires{T, S} store{ Array{S, T} } (a&, b)
+    let idx = 0
+    while idx < b.builtinArrayLen
+        a.builtinArrayAt(idx) = b.builtinArrayAt(idx)
+        idx = builtinAdd(idx, 1)
+
+//    for (0, b.len) -> idx
+//        a[idx] = b[idx]

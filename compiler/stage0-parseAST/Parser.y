@@ -312,10 +312,10 @@ expr   : literal                                 { $1 }
        | expr '>' expr                           { Call (tokPos $2) (TypeDef $ Sym ["greaterThan"]) [$1, $3] } 
        | expr '==' expr                          { Call (tokPos $2) (TypeDef $ Sym ["equal"]) [$1, $3] } 
        | expr '!=' expr                          { Call (tokPos $2) (TypeDef $ Sym ["notEqualTo"]) [$1, $3] } 
+       | expr '&&' expr                          { Call (tokPos $2) (TypeDef $ Sym ["boolean", "and"]) [$1, $3] } 
 --       | expr '<=' expr                          { Call (tokPos $2) (Sym ["lessEqual"]) [$1, $3] } 
 --       | expr '>=' expr                          { Call (tokPos $2) (Sym ["greaterEqual"]) [$1, $3] } 
 --       | expr '!=' expr                          { Call (tokPos $2) (Sym ["Boolean", "not"]) [Call (tokPos $2) (Sym ["Compare", "equal"]) [$1, $3]] } 
---       | expr '&&' expr                          { Call (tokPos $2) (Sym ["Boolean", "and"]) [$1, $3] } 
 --       | expr '||' expr                          { Call (tokPos $2) (Sym ["Boolean", "or"]) [$1, $3] } 
 --       | '!' expr                                { Call (tokPos $1) (Sym ["Boolean", "not"]) [$2] }
 --       | '-' expr                                { Call (tokPos $1) (Sym ["subtract"]) [$2] }

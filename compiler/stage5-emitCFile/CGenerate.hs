@@ -248,16 +248,12 @@ deref (Value t e) = return (Value t e)
 deref (Ref typ expr) = do
     base <- baseTypeOf typ
     case unfoldType base of
-        (x, []) | isSimple x -> return $ Value typ (C.Deref expr)
-
-        (Sum, _) -> return $ Value typ (C.Deref expr)
-        --Apply Type.Array _ -> return $ Value typ (C.Deref expr)
         (Tuple, ts) -> do
             -- TODO implement memory shear
             let ptr = C.Member expr "ptr"
             return $ Value typ (C.Deref ptr)
 
-        x -> error (show x)
+        _ -> return $ Value typ (C.Deref expr)
     
 
 member :: Int -> Value -> Generate Value
