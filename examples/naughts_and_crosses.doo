@@ -25,19 +25,10 @@ enum Square {
 //
 //
 
-type{T} Array3 Array{3, T}
+type Board Array{3, Array{3, Square}}
 
-acquires{T} len{ Array3{T} } (a&)
-    return 3
-
-acquires{T} at{ Array3, I64, T } (a&, idx) -> &
-    return builtinArrayAt(&a.pretend:Array{3, T}, idx)
-
-
-type Board Square.Array3.Array3
-
-fn row(b &Board, r I64) &Square.Array3
-    return (b.pretend:Square.Array3.Array3).at(r)
+fn row(b &Board, r I64) &Array{3, Square}
+    return (b.pretend:Array{3, Array{3, Square}}).at(r)
 
 
 acquires{P} print{ P, Square } (p&, square)
@@ -48,7 +39,7 @@ acquires{P} print{ P, Square } (p&, square)
 
 
 
-acquires{P, T} print{ P, Array3{T} } (p&, array&)
+acquires{P, T} print{ P, Array{3, T} } (p&, array&)
     p.print('[')
 
     let idx = 0

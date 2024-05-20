@@ -145,7 +145,8 @@ generateStmt stmt = withPos stmt $ case stmt of
         let name = showSymLocal symbol
         define name (Value patType $ C.Ident name)
         cType <- cTypeOf patType
-        void $ appendAssign cType (showSymLocal symbol) $ C.Initialiser [C.Int 0]
+
+        void $ appendAssign cType (showSymLocal symbol) =<< initialiser base
 
     S.Assign pos symbol expr -> do
         val <- generateExpr expr
@@ -167,12 +168,8 @@ generateStmt stmt = withPos stmt $ case stmt of
 
     S.Data _ symbol typ Nothing -> do
         base <- baseTypeOf typ
-        init <- case unfoldType base of
-            (Tuple, []) -> return (C.Initialiser [])
-            _           -> return (C.Initialiser [C.Int 0])
-       
         ctyp <- cTypeOf typ
-        appendAssign ctyp (showSymLocal symbol) init
+        appendAssign ctyp (showSymLocal symbol) =<< initialiser typ
         define (showSymLocal symbol) $ Value typ $ C.Ident (showSymLocal symbol)
 
     S.If _ expr blk melse -> do
@@ -226,7 +223,7 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
             (s, [expr]) | symbolsCouldMatch s (Sym ["builtin", "builtinSumEnum"]) -> do
                 builtinSumEnum =<< generateExpr expr
 
-            (s, [expr, idx]) | symbolsCouldMatch s (Sym ["buitin", "builtinSumReset"]) -> do
+            (s, [expr, idx]) | symbolsCouldMatch s (Sym ["builtin", "builtinSumReset"]) -> do
                 val1 <- generateExpr expr
                 builtinSumReset val1 =<< generateExpr idx
                 return $ Value Void (C.Int 0)

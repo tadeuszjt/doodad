@@ -167,6 +167,29 @@ callFunction symbol retty args = do
 --            return $ Value Void (C.Int 0)
 --        Retty retType    -> assign "call" $ Value retType $ C.Call (showSymGlobal callSymbol) argExprs
 --        RefRetty retType -> assign "call" $ Ref retType $ C.Call (showSymGlobal callSymbol) argExprs
+--
+
+initialiser :: Type.Type -> Generate C.Expression
+initialiser typ = do
+    b <- hasNonZero typ
+    case b of
+        True -> return $ C.Initialiser [C.Int 0]
+        False -> return $ C.Initialiser []
+    where
+        hasNonZero :: Type.Type -> Generate Bool
+        hasNonZero typ = do
+            base <- baseTypeOf typ
+            case unfoldType base of
+                (x, []) | isSimple x -> return True
+
+                (Tuple, []) -> return False
+                (Tuple, ts) -> any id <$> mapM hasNonZero ts
+
+                (Type.Array, _) -> return True
+                (Type.Sum, _) -> return True
+                (Type.Table, _) -> return True
+
+                x -> error (show x)
 
 
 assign :: String -> Value -> Generate Value
