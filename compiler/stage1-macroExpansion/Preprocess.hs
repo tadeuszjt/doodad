@@ -349,11 +349,11 @@ buildStmt statement = withPos statement $ case statement of
         blkId <- newStmt (Block [])
         withCurId blkId $ do
             match <- case mpat of
-                Just pat -> buildPattern blkId pat $ (Ident pos idx)
-                --Call pos (TypeDef $ Sym ["for", "forAt"])
-                --    [ Reference pos (Ident pos exprCopy)
-                --    , (Ident pos idx)
-                --    ]
+                Just pat -> buildPattern blkId pat $ 
+                    Call pos (TypeDef $ Sym ["for", "forAt"])
+                        [ Reference pos (Ident pos exprCopy)
+                        , (Ident pos idx)
+                        ]
                 Nothing -> return (AST.Bool pos True)
 
             trueBlkId <- newStmt (Block [])
