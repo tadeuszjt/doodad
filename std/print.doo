@@ -37,8 +37,8 @@ acquires{T} print{ T, I64 } (t&, n)
 
     data digits Char.Table
 
-    while (n % 10) -> d | d != 0
-        digits.push( '0' + convertInt(d) )
+    while n != 0
+        digits.push( '0' + convertInt(n % 10) )
         n = n / 10
 
     for (0, digits.len) -> idx

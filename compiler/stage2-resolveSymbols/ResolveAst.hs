@@ -133,6 +133,8 @@ resolveAst ast imports = fmap fst $ runDoMExcept initResolveState (resolveAst' a
                 forM_ (typeDefsTop imprt) $ \symbol -> do
                     define symbol KeyType
 
+            pushSymbolTable
+
             -- pre-define top-level symbols
             topStmts' <- forM (astStmts ast) $ \stmt -> withPos stmt $ case stmt of
                 Typedef pos generics (Sym str) typ -> do
@@ -155,6 +157,8 @@ resolveAst ast imports = fmap fst $ runDoMExcept initResolveState (resolveAst' a
 
             stmts' <- mapM resolveStmt topStmts'
             supply <- gets supply
+
+            popSymbolTable
             return (ast { astStmts = stmts' }, supply)
 
 

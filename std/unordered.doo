@@ -1,84 +1,77 @@
 module unordered
 
 import std/sparse
-import std/table
-import std/integer
-import std/features
+import std/container
+import std/store
+import std/assert
+import std/tuple
 import std/builtin
+import std/arithmetic
+
 
 type{T} Key I64
 
 
 tuple{T} Entry {
-    key   I64.unordered::Key
+    key   I64.Key
     value T
 }
 
+
 tuple{T} Unordered {
     indices I64.Sparse
-    values  T.Entry.Table
+    values T.Entry.Table
 }
 
-fn{T} Store::store(a &T.unordered::Key, b T.unordered::Key)
-    Store::store(
-        &pretend(&a):I64
-        pretend(&b):I64
-    )
 
-fn{T} Store::store(a &T.Entry, b T.Entry)
+acquires{T} store{ Key{T} } (a&, b)
+    (a.pretend:I64).store( b.pretend:I64 )
+
+
+acquires{T} store{ Entry{T} } (a&, b)
     a.key = b.key
     a.value = b.value
 
 
-fn{T} Construct::construct(a I64.unordered::Key, b T) T.Entry
-    let e : T.Entry
-    e.0 = a
-    e.1 = b
-    return e
-
-
-fn{T} Construct::construct(n I64) T.unordered::Key
-    return pretend(&n)
-
-fn{A, B} Construct::construct(x A.unordered::Key) B.sparse::Key
-    return x.pretend
-
-fn{A, B} Construct::construct(x A.sparse::Key) B.unordered::Key
-    return x.pretend
-
-
-fn{T} Len::len(u &T.Unordered) I64
+acquires{T} len{ T.Unordered } (u&)
     return u.values.len
 
 
-fn{T} insert(u &T.Unordered, elem T) T.unordered::Key
-    let key = u.indices.insert(u.values.len)
-    u.values.push( (key.pretend, elem) : T.Entry )
+fn{T} insertZero(u &T.Unordered) T.Key
+    let key = u.indices.sparse::insert(u.values.len)
+
+    u.values.grow
+    u.values[u.values.len - 1].key   = key.pretend:Key{I64}
+
     return key.pretend
 
 
-fn{T} insert(u &T.Unordered) T.unordered::Key
-    let key = u.indices.insert(u.values.len)
-    u.values.push()
-    u.values[u.values.len - 1].key = I64.unordered::Key(key)
-    return T.unordered::Key(key)
+fn{T} insert(u &T.Unordered, elem T) T.Key
+    let key = u.indices.sparse::insert(u.values.len)
+
+    u.values.grow
+    u.values[u.values.len - 1].key   = key.pretend:Key{I64}
+    u.values[u.values.len - 1].value = elem
+
+    return key.pretend
 
 
-fn{T} At::at(u &T.Unordered, key T.unordered::Key) &T
-    let index = u.indices.At::at(key.pretend)
-    return &u.values.at(index).value
+acquires{T} index{ Unordered, T } (u&, idx) -> &
+    return u.values[idx].value
 
 
-fn{T} atIndex(u &T.Unordered, index I64) &T
-    return &u.values.at(index).value
+acquires{T} at{ Unordered, T.Key, T} (u&, key) -> &
+    let index = u.indices[key.pretend:sparse::Key{I64}]
+    return &u.values[index].value
 
 
-fn{T} delete(u &T.Unordered, key T.unordered::Key)
+fn{T} delete(u &T.Unordered, key T.Key)
     let end    = u.values.len - 1
-    let endKey = u.values.at(end).key
-    let index  = u.indices.at(I64.sparse::Key(key))
+    let endKey = u.values[end].key
+    let index  = u.indices.at(key.pretend:sparse::Key{I64})
 
-    u.values.at(index) = u.values.at(end)
-    u.indices.at(endKey.pretend) = index
-    u.indices.delete(key.pretend)
+    u.values[index] = u.values[end]
+
+    u.indices.at(endKey.pretend:sparse::Key{I64}) = index
+    u.indices.sparse::delete(key.pretend)
     u.values.pop

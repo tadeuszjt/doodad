@@ -12,6 +12,7 @@ import std/for
 import std/print
 import std/io
 import std/option
+import std/unordered
 
 
 fn testArithmetic()
@@ -158,15 +159,15 @@ fn testSparse()
     data s1 I64.Sparse
 
     let 0 = s1.len
-    let k1 = s1.insertZero
-    let k2 = s1.insertZero
-    let k3 = s1.insertZero
+    let k1 = s1.sparse::insertZero
+    let k2 = s1.sparse::insertZero
+    let k3 = s1.sparse::insertZero
     let 3 = s1.len
 
     s1.at(k1) = 1
     s1.at(k2) = 2
 
-    let k4 = s1.insert(4)
+    let k4 = s1.sparse::insert(4)
 
     s1.at(k3) = 3
 
@@ -175,12 +176,12 @@ fn testSparse()
     let 3 = s1.at(k3)
     let 4 = s1[k4]
 
-    s1.delete(k2)
+    s1.sparse::delete(k2)
     let 3 = s1.len
     let 1 = s1.at(k1)
     let 3 = s1.at(k3)
 
-    s1.delete(k3)
+    s1.sparse::delete(k3)
     let 2 = s1.len
     let 1 = s1.at(k1)
 
@@ -204,40 +205,57 @@ fn testPrint()
 
     data table Tuple{I64, Bool}.Table
 
-    table.push( (1, true) )
+    table.push( (10, true) )
     table.push( (2, false) )
-    table.push( (3, true) )
+    table.push( (38-243, true) )
+    table.push( (0, true) )
 
     data io Io
     io.stdout.print( &table )
     io.stdout.print('\n')
 
 
-//fn testUnordered()
-//    data u1 I64.Unordered
-//
-//    let 0  = u1.len
-//    let k1 = u1.insert(1)
-//    let k2 = u1.insert(2)
-//    let k3 = u1.insert(3)
-//
-//    let 3 = u1.len
-//    let 1 = u1.atIndex(0)
-//    let 2 = u1.atIndex(1)
-//    let 3 = u1.atIndex(2)
-//    let 1 = u1.at(k1)
-//    let 2 = u1.at(k2)
-//    let 3 = u1.at(k3)
-//
-//    u1.delete(k1)
-//
-//    let 2 = u1.len
-//    let 3 = u1.atIndex(0)
-//    let 2 = u1.atIndex(1)
-//    let 2 = u1.at(k2)
-//    let 3 = u1.at(k3)
-//
-//
+fn testUnordered()
+    data u1 I64.Unordered
+
+    let 0  = u1.len
+    let k1 = u1.unordered::insert(1)
+    let k2 = u1.unordered::insert(2)
+    let k3 = u1.unordered::insert(3)
+
+    let 3 = u1.len
+    let 1 = u1.index(0)
+    let 2 = u1.index(1)
+    let 3 = u1.index(2)
+    let 1 = u1[k1]
+    let 2 = u1[k2]
+    let 3 = u1[k3]
+
+    u1.unordered::delete(k1)
+
+    let 2 = u1.len
+    let 3 = u1.index(0)
+    let 2 = u1.index(1)
+    let 2 = u1.at(k2)
+    let 3 = u1.at(k3)
+
+    data u2 I64.Table.Unordered
+
+    let 0 = u2.len
+
+    let key0 = u2.unordered::insertZero
+    let key1 = u2.unordered::insertZero
+
+    let 2 = u2.len
+
+    u2[key0].push(23)
+    u2[key0].push(24)
+
+    let 2 = u2[key0].len
+    let 0 = u2[key1].len
+
+
+
 fn testOption()
     let o : I64.Option
     switch o
@@ -515,6 +533,7 @@ fn main()
 ////    testSumType()
     testArrayAt()
     testOption()
+    testUnordered()
 //    testTree()
 //    testMap()
 //    testSlice()

@@ -7,14 +7,17 @@ import std/assert
 
 
 feature{T}       len(T) I64
-feature{T, K, V} at(T{V}, K) V
 feature{T, V}    push(T{V}, V)
 feature{T, V}    pop(T{V}) V
+feature{T, K, V} at(T{V}, K) V
 feature{T}       grow(T)
+feature{T, V}    index(T{V}, I64) V
 
 
 acquires{V} len{ Table{V} }    (t&);            return builtinTableLen(&t)
 acquires{T} at{ Table, I64, T } (t&, idx) -> &; return builtinTableAt(&t, idx)
+acquires{T} index{ Table, T }   (t&, idx) -> &; return builtinTableAt(&t, idx)
+
 
 acquires{T} push{ Table, T } (t&, e)
     builtinTableAppend(&t)
@@ -31,6 +34,7 @@ acquires{T} pop{ Table, T } (t&)
 
 acquires{T} len{ T.Slice } (s&);                return builtinSliceLen(&s)
 acquires{T} at{ Slice, I64, T } (s&, idx) -> &; return builtinSliceAt(&s, idx)
+acquires{T} index{ Slice, T}    (s&, idx) -> &; return builtinSliceAt(&s, idx)
 
 
 acquires{T, S} at{  Array{S}, I64, T } (arr&, idx) -> &; return builtinArrayAt(&arr, idx)
