@@ -13,6 +13,7 @@ import std/boolean
 import std/tuple
 import std/read
 import std/option
+import std/rand
 
 
 enum Square {
@@ -60,15 +61,6 @@ acquires{P} print{ P, Board } (p&, board)
         p.print(row)
         p.print('\n')
 
-
-//fn Store::store(a &Input, b Input)
-//    Store::store(
-//        &pretend(&a):Sum{Tuple{I64, I64}, Tuple{}, Tuple{}}
-//        pretend(&b):Sum{Tuple{I64, I64}, Tuple{}, Tuple{}}
-//    )
-//
-//
-//
 
 fn winner(board Board) Square
     // check for horizontal lines
@@ -138,81 +130,77 @@ fn getPlayerInput(io &Io) Input
     return move(row, col)
 
 
-//fn cpuMove(io &Io, board &Board)
-//    io.stdout.push("cpu moving ...", '\n')
-//
-//    // find all empty squares
-//    data empty (I64, I64).Table
-//    for (0, board.len) -> row
-//        for (0, board[row].len) -> col
-//            if board[row][col] == empty()
-//                empty.push( (row, col) )
-//
-//    if empty.len == 0
-//        io.stdout.push("cpu can't move\n")
-//        return
-//
-//    // find move that wins
-//    for empty -> (row, col)
-//        board[row][col] = cross()
-//        if winner(board) == cross()
-//            return
-//        board[row][col] = empty()
-//
-//    // find move that opponent wins
-//    for empty -> (row, col)
-//        board[row][col] = naught()
-//        if winner(board) == naught()
-//            board[row][col] = cross()
-//            return
-//        else
-//            board[row][col] = empty()
-//
-//    // choose random move
-//    data rand Rand
-//    let i = rand.i64(0, empty.len)
-//    let (row, col) = empty[i]
-//    board[row][col] = cross()
-//
+fn cpuMove(io &Io, board &Board)
+    io.stdout.print("cpu moving ...\n")
+
+    // find all empty squares
+    data empty (I64, I64).Table
+    for (0, board.arr.len) -> row
+        for (0, board.arr[row].len) -> col
+            if board.arr[row][col] == empty()
+                empty.push( (row, col) )
+
+    if empty.len == 0
+        io.stdout.print("cpu can't move\n")
+        return
+
+    // find move that wins
+    for empty -> (row, col)
+        board.arr[row][col] = cross()
+        if winner(board) == cross()
+            return
+        board.arr[row][col] = empty()
+
+    // find move that opponent wins
+    for empty -> (row, col)
+        board.arr[row][col] = naught()
+        if winner(board) == naught()
+            board.arr[row][col] = cross()
+            return
+        else
+            board.arr[row][col] = empty()
+
+    // choose random move
+    data rand Rand
+    let i = rand.i64(0, empty.len)
+    let (row, col) = empty[i]
+    board.arr[row][col] = cross()
+
 
 fn main()
     data io Io
     io.stdout.print("naughts and crosses\n")
 
-    let board : Board
+    data board Board
     io.stdout.print(board)
 
-    data table Char.Table
-    table.print("  -1234")
+    while winner(board).isEmpty
+        let moved = false
+        while !moved
+            switch io.getPlayerInput()
+                quit(); return
+                error()
+                    io.stdout.print("parse error\n")
 
-    let some(x : I64, n) = table.read(0)
+                move(row, col) | row < 0 || row > (board.arr.len - 1)
+                    io.stdout.print("row not in range\n")
 
-    io.stdout.print(x)
-    io.stdout.print(n)
-//
-//    while winner(board).isEmpty
-//        let moved = false
-//        while !moved
-//            switch io.getPlayerInput()
-//                quit(); return
-//                error()
-//                    io.stdout.push("parse error", '\n')
-//
-//                move(row, col) | row < 0 || row > (board.len - 1)
-//                    io.stdout.push("row not in range\n")
-//
-//                move(row, col) | col < 0 || col > (board.len - 1)
-//                    io.stdout.push("col not in range\n")
-//
-//                move(row, col)
-//                    io.stdout.push("moving ", row, ", ", col, '\n')
-//                    board[row][col] = naught()
-//                    moved = true
-//
-//                _; assert(false)
-//
-//        io.cpuMove(&board)
-//        io.printBoard(board)
+                move(row, col) | col < 0 || col > (board.arr.len - 1)
+                    io.stdout.print("col not in range\n")
+
+                move(row, col)
+                    io.stdout.print("moving: ")
+                    io.stdout.print(row)
+                    io.stdout.print(", ")
+                    io.stdout.print(col)
+                    io.stdout.print('\n')
+                    board.arr[row][col] = naught()
+                    moved = true
+
+                _; io.stdout.print("something")
+
+        io.cpuMove(&board)
+        io.stdout.print(board)
 //
 //    io.stdout.push("winner: ", winner(board), '\n')
 //

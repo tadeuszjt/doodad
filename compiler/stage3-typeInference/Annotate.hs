@@ -18,6 +18,7 @@ annotateStmt =
     mapStmtM annotateMapper
         
 
+-- TODO, would be simpler to apply the annotations before, maybe in ResolvedAst.
 annotateMapper :: Elem -> DoM Int Elem
 annotateMapper elem = case elem of
     ElemStmt _                     -> return elem
@@ -42,18 +43,19 @@ genType = do
     put (i + 1)
     return $ Type (i + 1)
 
+
 -- DeAnnotate takes an AST and removes all unresolved type annotations.
 deAnnotateFunc :: Func -> DoM () Func
 deAnnotateFunc =
     mapFuncM deAnnotateMapper
+
 
 deAnnotateStmt :: Stmt -> DoM () Stmt
 deAnnotateStmt = 
     mapStmtM deAnnotateMapper
 
 
--- TODO, don't delete the annotations, you lose information. use the Type 0 technique
 deAnnotateMapper :: Elem -> DoM () Elem
 deAnnotateMapper elem = return $ case elem of
-    ElemType (Type n)                                    -> ElemType (Type 0)
-    _                                                    -> elem
+    ElemType (Type n) -> ElemType (Type 0)
+    _                 -> elem

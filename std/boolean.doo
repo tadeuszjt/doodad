@@ -4,7 +4,22 @@ import std/builtin
 
 feature{T} and(T, T) T
 feature{T} or(T, T) T
+feature{T} not(T) T
 
 
-acquires and{ Bool } (a, b); return builtinAnd(a, b)
-acquires or{ Bool } (a, b); return builtinOr(a, b)
+acquires and{ Bool } (a, b)
+    if a
+        return b
+    return false
+
+
+acquires or{ Bool } (a, b)
+    if a
+        return a
+    return b
+
+
+acquires not{ Bool } (a)
+    if a
+        return false
+    return true

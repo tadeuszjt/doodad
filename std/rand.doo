@@ -1,6 +1,9 @@
 module rand
 
-import std/integer
+import std/store
+import std/assert
+import std/arithmetic
+
 
 include <stdlib.h>
 include <time.h>

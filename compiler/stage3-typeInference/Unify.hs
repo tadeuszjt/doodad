@@ -20,7 +20,6 @@ unifyOne info constraint = withPos info $ case constraint of
             subs2 <- unifyOne info (ConsEq a2 b2)
             return (subs1 ++ subs2)
             
-        --x -> error (show x)
         _ -> fail $ (infoMsg info) ++ ":" ++ show (t1, t2)
 
     ConsField typ idx exprType -> do
@@ -32,11 +31,6 @@ unifyOne info constraint = withPos info $ case constraint of
                 (Sum,   ts) -> unifyOne info $ ConsEq exprType (ts !! idx)
                 x -> error (show x)
 
-
---            Just (Apply Tuple ts) -> unifyOne info $ ConsEq exprType (ts !! idx)
---            Just (Apply Sum ts)   -> unifyOne info $ ConsEq exprType (ts !! idx)
-            --x                     -> fail ("cannot take field of: " ++ show x)
-
     ConsSlice exprType typ -> do
         basem <- baseTypeOfm typ
         case basem of
@@ -47,7 +41,7 @@ unifyOne info constraint = withPos info $ case constraint of
     ConsDefault t1 t2 -> case (t1, t2) of
         _ | t1 == t2 -> return []
         (Type _, _)  -> return [(t1, t2)]
-        (_, _)       -> return []
+        (_, _)       -> error "here"
 
     x -> error "invalid constraint"
 

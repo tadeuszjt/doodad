@@ -90,16 +90,12 @@ collectStmt statement = collectPos statement $ case statement of
 
     Aquires pos generics typ args isRef stmt -> do
         (Type.Func, retty : argTypes) <- unfoldType <$> baseTypeOf typ
-
         unless (length argTypes == length args) (fail "arg length mismatch")
 
         oldRetty <- gets curRetty
         modify $ \s -> s { curRetty = retty }
 
-        forM_ (zip args argTypes) $ \(arg, t) -> case arg of
-            Param _ symbol _    -> define symbol t
-            RefParam _ symbol _ -> define symbol t
-
+        forM_ (zip args argTypes) $ \(arg, t) -> define (paramSymbol arg) t
         collectStmt stmt
 
         modify $ \s -> s { curRetty = oldRetty }
@@ -159,13 +155,11 @@ collectExpr (AExpr exprType expression) = collectPos expression $ case expressio
     AST.Char _ _ -> collect "char literal must have Char type" (ConsEq exprType Type.Char)
 
     Call _ callType exprs -> do
-        -- at{ t0, t1, t2 }                     => Func{ t2, t0.t1, t2 }
-        -- at( x : Array{3, I64}, idx : t3 ):t4 -> Func{ t4, Array.3.I64, t3 }
+        -- at{ t0, t1, t2 }                     => Func{ t2, t0 t1, t2 }
+        -- at( x : Array{3, I64}, idx : t3 ):t4 -> Func{ t4, Array 3 I64, t3 }
 
         -- len{ t0 }( x:t1 ):t2 => Func{ I64, t0 }
         --          ( x:t1 ):t2 => Func{ t2 , t1 }
-
-
         (Type.Func, retType : argTypes) <- unfoldType <$> baseTypeOf callType
         unless (length exprs == length argTypes)
             (fail $ "invalid function type arguments: " ++ show callType)

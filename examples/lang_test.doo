@@ -44,35 +44,6 @@ fn testSwitch()
     let 1 = x
 
 
-//fn testConvert()
-//    let 3 = 1 + 2
-//    type MyInt I64
-//
-//    fn Store::store(a &MyInt, b MyInt)
-//        Store::store(
-//            &pretend(&a):I64
-//            pretend(&b):I64
-//        )
-//
-//    fn Arithmetic::add(a MyInt, b MyInt) MyInt; return builtin::add(a, b)
-//    fn Compare::equal(a MyInt, b MyInt) Bool; return builtin::equal(a, b)
-//
-//    fn Construct::construct(a I64) MyInt
-//        let b : MyInt
-//        ${ $a = $b; }
-//        return b
-//
-//    let 1 : MyInt = Arithmetic::add(0, 1)
-//
-//    let x : MyInt = 3
-//    let 4 : MyInt = 1 + x
-//    
-//    let f = 3.14
-//    let 3 = I64(f)
-//    return
-//
-//
-
 fn testTuple()
     let x = (1, true)
     let (1, true) = x
@@ -475,52 +446,52 @@ fn testOption()
 //        let true = false
 //
 //
-//fn testEnum()
-//    enum Enum {
-//        one
-//        two
-//        three
-//    }
-//
-//    let e : Enum
-//
-//    switch e
-//        _ | e.isOne; let true = true
-//        _ | e.isTwo; let false = true
-//
-//    e.builtin::sumReset(1)
-//
-//    switch e
-//        _ | e.isOne; let true = false
-//        _ | e.isTwo; let true = true
-//
-//    let true = Enum::three().isThree()
-//
-//    enum Enum2 {
-//        one(I64)
-//        two(I64, I64)
-//    }
-//
-//    let true = Enum2::two(1, 2).isTwo
-//    let false = Enum2::two(1, 2).isOne
-//    let 1 = Enum2::two(1, 2). 1 . 0
-//
-//
-//fn testMacroTuple()
-//    tuple{T} MyTuple {
-//        one I64
-//        two T
-//    }
-//
-//    let t : Bool.MyTuple
-//    t.one = 23
-//
-//    let 23 = t.one
-//
-//    let false = t.two
-//    t.MyTuple::two = true
-//    let true = t.two
-//
+fn testEnum()
+    enum Enum {
+        one
+        two
+        three
+    }
+
+    let e : Enum
+
+    switch e
+        _ | e.isOne; let true = true
+        _ | e.isTwo; let false = true
+
+    e.builtin::builtinSumReset(1)
+
+    switch e
+        _ | e.isOne; let true = false
+        _ | e.isTwo; let true = true
+
+    let true = three().isThree()
+
+    enum Enum2 {
+        en2One(I64)
+        en2Two(I64, I64)
+    }
+
+    let true = en2Two(1, 2).isEn2Two
+    let false = en2Two(1, 2).isEn2One
+    let 1 = en2Two(1, 2). 1 . 0
+
+
+fn testMacroTuple()
+    tuple{T} MyTuple {
+        one I64
+        two T
+    }
+
+    let t : Bool.MyTuple
+    t.one = 23
+
+    let 23 = t.one
+
+    let false = t.two
+    t.two = true
+    let true = t.two
+
 
 
 fn testArrayAt()
@@ -536,7 +507,6 @@ fn main()
     testFloats()
     testIf()
     testSwitch()
-////    testConvert()
     testTuple()
     testFnWithRef()
     testTable()
@@ -554,10 +524,9 @@ fn main()
 //    testArrayExpr()
 //    testBoolConditions()
 //    testCharType()
-//    testEnum()
-//    testMacroTuple()
-//    testBuiltin()
-//
+    testEnum()
+    testMacroTuple()
+
 //    data io Io
 //    testIo(&io)
     ${ puts("langTest success"); }
