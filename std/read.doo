@@ -9,6 +9,10 @@ import std/tuple
 import std/store
 import std/builtin
 import std/arithmetic
+import std/char
+import std/assert
+import std/for
+import std/convert
 
 
 feature{R, T} read(R, I64) Tuple{T, I64}.Option
@@ -20,11 +24,37 @@ acquires read{ Char.Table, Char } (r&, idx)
     return some( (r[idx], 1) )
 
 
-acquires{R} read{ R, I64 } (r&, idx)
-    while r.read(idx) -> some(c : Char, n)
-        idx = idx + 1
+acquires{R} read{ R, I64 } (r&, start)
+    let idx = start
 
-    ${ puts("hello"); }
+    while r.read(idx) -> some(c : Char, n) | isSpace(c)
+        idx = idx + n
+
+    let isMinus = false
+
+    if r.read(idx) -> some('-', n)
+        idx = idx + n
+        isMinus = true
+
+    data digits Char.Table
+
+
+    while r.read(idx) -> some(c : Char, n) | isDigit(c)
+        idx = idx + n
+        digits.push(c)
+
+    if digits.len == 0
+        return none()
+
+    let num = 0
+    for digits -> digit
+        num = num * 10 + convert(digit - '0')
+
+    if isMinus
+        num = 0 - num
+        
+    return some( (num, idx - start) )
+        
 
 
 //fn readI64(str []Char) Tuple{I64, I64}.Maybe

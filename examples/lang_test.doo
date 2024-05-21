@@ -132,7 +132,7 @@ fn testTable()
     acquires first{ Person, I64 } (p&) -> &; return &p.0
     acquires second{ Person, Bool } (p&) -> &; return &p.1
 
-    acquires construct2{ Person, I64, Bool } (a, b)
+    fn person(a I64, b Bool) Person
         let p : Person
         p.first = a
         p.second = b
@@ -140,12 +140,12 @@ fn testTable()
 
     data t2 Person.Table
 
-    t2.push( (1, true) )
-    t2.push( (2, false) : Person )
+    t2.push( person(1, true) )
+    t2.push( person(2, false) : Person )
 
     let 2 = t2.len
 
-    t2.at(1) = (3, true)
+    t2.at(1) = person(3, true)
     let (3, true) = t2.pop
 
     data m3 I64.Table.Table
@@ -199,7 +199,16 @@ fn testPrint()
     let 5 = str.len
 
     data tupStr Char.Table
-    tupStr.print( (0, true) )
+
+
+    fn{A, B} makeTuple2(a A, b B) Tuple{A, B}
+        let t : Tuple{A, B}
+        t.0 = a
+        t.1 = b
+        return t
+
+
+    tupStr.print( makeTuple2(0, true) )
 
     ${ printf("%s\n", $tupStr.r0); }
 
@@ -527,7 +536,7 @@ fn main()
     testFloats()
     testIf()
     testSwitch()
-//    testConvert()
+////    testConvert()
     testTuple()
     testFnWithRef()
     testTable()

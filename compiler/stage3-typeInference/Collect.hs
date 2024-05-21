@@ -159,14 +159,6 @@ collectExpr (AExpr exprType expression) = collectPos expression $ case expressio
     AST.Char _ _ -> collect "char literal must have Char type" (ConsEq exprType Type.Char)
 
     Call _ callType exprs -> do
-        case (unfoldType callType, exprs) of
-            ((TypeDef symbol, _), [_, _]) | symbolsCouldMatch symbol (Sym ["construct2"]) ->
-                collectDefault exprType $ foldl Apply Type.Tuple (map typeof exprs)
-            ((TypeDef symbol, _), [_, _, _]) | symbolsCouldMatch symbol (Sym ["construct3"]) ->
-                collectDefault exprType $ foldl Apply Type.Tuple (map typeof exprs)
-
-            _ -> return ()
-
         -- at{ t0, t1, t2 }                     => Func{ t2, t0.t1, t2 }
         -- at( x : Array{3, I64}, idx : t3 ):t4 -> Func{ t4, Array.3.I64, t3 }
 

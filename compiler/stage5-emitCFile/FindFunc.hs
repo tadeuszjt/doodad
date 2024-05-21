@@ -76,8 +76,12 @@ findFunction funcType = do
 
                 case subsEither of
                     Right subs -> do
-                        unless (applyType subs appliedType == funcType)
-                            (error "something went terribly wrong")
+                        unless (applyType subs appliedType == funcType) $ do
+                            error $
+                                "applied type did not match funcType: " ++
+                                show appliedType ++
+                                ", " ++
+                                show funcType
 
                         (Type.Func, retType : argTypes) <- unfoldType <$> baseTypeOf funcType
                         unless (length argTypes == length args) (error "something else went wrong")

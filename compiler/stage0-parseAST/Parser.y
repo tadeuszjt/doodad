@@ -302,7 +302,7 @@ expr   : literal                                 { $1 }
        | expr '.' symbol                         { Call (tokPos $2) (TypeDef $ snd $3) (AST.Reference (tokPos $2) $1 : []) }
        | expr '.' symbol '(' exprsA ')'          { Call (tokPos $4) (TypeDef $ snd $3) (AST.Reference (tokPos $2) $1 : $5) }
        | symbol '(' exprsA ')'                   { Call (tokPos $2) (TypeDef $ snd $1) $3 }
-       | '(' exprsA ')'                          { case $2 of [x] -> x; xs -> Call (tokPos $1) (TypeDef $ Sym ["construct" ++ show (length xs) ]) $2 }
+       | '(' exprsA ')'                          { case $2 of [x] -> x; xs -> Call (tokPos $1) (TypeDef $ Sym ["tuple", "makeTuple" ++ show (length xs) ]) $2 }
        | expr '+' expr                           { Call (tokPos $2) (TypeDef $ Sym ["add"]) [$1, $3] }
        | expr '-' expr                           { Call (tokPos $2) (TypeDef $ Sym ["subtract"]) [$1, $3] } 
        | expr '*' expr                           { Call (tokPos $2) (TypeDef $ Sym ["multiply"]) [$1, $3] } 

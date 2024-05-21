@@ -264,7 +264,9 @@ resolveStmt statement = withPos statement $ case statement of
         return $ FuncDef generics' (AST.Func header' stmt')
 
     Block stmts -> do
+        pushSymbolTable
         stmts' <- mapM resolveStmt stmts
+        popSymbolTable
         return (Block stmts')
 
     Let pos pat Nothing mblk -> do

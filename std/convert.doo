@@ -1,0 +1,14 @@
+module convert
+
+feature{A, B} convert(A) B
+
+
+acquires convert{Char, I64} (a)
+    let b
+    ${ $b = $a; }
+    return b
+
+acquires convert{I64, Char} (a)
+    let b
+    ${ $b = $a; }
+    return b

@@ -56,13 +56,4 @@ deAnnotateStmt =
 deAnnotateMapper :: Elem -> DoM () Elem
 deAnnotateMapper elem = return $ case elem of
     ElemType (Type n)                                    -> ElemType (Type 0)
-    ElemExpr (AExpr typ expr)          | hasTypeVars typ -> ElemExpr expr
-    ElemPattern (PatAnnotated pat typ) | hasTypeVars typ -> ElemPattern pat
     _                                                    -> elem
-
-
-hasTypeVars :: Type -> Bool
-hasTypeVars typ = case typ of
-    Type _         -> True
-    Apply t1 t2    -> any hasTypeVars [t1, t2]
-    _              -> False

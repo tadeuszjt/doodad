@@ -123,21 +123,21 @@ fn getPlayerInput(io &Io) Input
     let col = 0
     let idx = 0
 
-//    if readI64(line.slice(idx, line.len)) -> just(n, num)
-//        row = n
-//        idx = idx + num
-//    else
-//        return error()
-//
-//    if readI64(line.slice(idx, line.len)) -> just(n, num)
-//        col = n
-//        idx = idx + num
-//    else
-//        return error()
-//
-//    return move(row, col)
-//
-//
+    if line.read(idx) -> some(n : I64, num)
+        row = n
+        idx = idx + num
+    else
+        return error()
+
+    if line.read(idx) -> some(n : I64, num)
+        col = n
+        idx = idx + num
+    else
+        return error()
+
+    return move(row, col)
+
+
 //fn cpuMove(io &Io, board &Board)
 //    io.stdout.push("cpu moving ...", '\n')
 //
@@ -183,9 +183,12 @@ fn main()
     io.stdout.print(board)
 
     data table Char.Table
-    table.print("1234")
+    table.print("  -1234")
 
-//    let some(x : I64, _) = table.read(0)
+    let some(x : I64, n) = table.read(0)
+
+    io.stdout.print(x)
+    io.stdout.print(n)
 //
 //    while winner(board).isEmpty
 //        let moved = false

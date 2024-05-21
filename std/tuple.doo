@@ -8,10 +8,6 @@ feature{T, G} second(T) G
 feature{T, G} third(T) G
 
 
-feature{T, A, B} construct2(A, B) T
-feature{T, A, B, C} construct3(A, B, C) T
-
-
 acquires{A, B} first{ Tuple{A, B}, A } (t&) -> &; return &t.0
 acquires{A, B} second{ Tuple{A, B}, B } (t&) -> &; return &t.1
 
@@ -21,20 +17,17 @@ acquires{A, B, C} second{ Tuple{A, B, C}, B } (t&) -> &; return &t.1
 acquires{A, B, C} third{ Tuple{A, B, C}, C } (t&) -> &; return &t.2
 
 
-acquires{A, B} construct2{ Tuple{A, B}, A, B } (x, y)
-    let r
-    r.0 = x
-    r.1 = y
-    return r
+fn{A, B} makeTuple2(a A, b B) Tuple{A, B}
+    let tup
+    tup.0 = a
+    tup.1 = b
+    return tup 
 
-
-acquires{A, B, C} construct3{ Tuple{A, B, C}, A, B, C } (x, y, z)
-    let r
-    r.0 = x
-    r.1 = y
-    r.2 = z
-    return r
-
-
+fn{A, B, C} makeTuple3(a A, b B, c C) Tuple{A, B, C}
+    let tup
+    tup.0 = a
+    tup.1 = b
+    tup.2 = c
+    return tup 
 
 

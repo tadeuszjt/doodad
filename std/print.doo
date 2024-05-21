@@ -8,6 +8,7 @@ import std/container
 import std/assert
 import std/compare
 import std/arithmetic
+import std/convert
 
 
 feature{T, G} print(T, G)
@@ -23,11 +24,6 @@ acquires{T} print{ T, Char.Slice } (t&, s)
 
 
 acquires{T} print{ T, I64 } (t&, n)
-    fn convertInt(n I64) Char
-        let c : Char
-        ${ $c = $n; }
-        return c
-
     if n < 0
         t.print('-')
         n = 0 - n
@@ -38,7 +34,7 @@ acquires{T} print{ T, I64 } (t&, n)
     data digits Char.Table
 
     while n != 0
-        digits.push( '0' + convertInt(n % 10) )
+        digits.push( '0' + convert(n % 10) )
         n = n / 10
 
     for (0, digits.len) -> idx
