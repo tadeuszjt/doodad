@@ -14,8 +14,7 @@ tuple{T} Sparse {
     empty  T.Key.Table
 }
 
-
-acquires{T} store{ T.Key } (a&, b); builtinStore(&a, b)
+derives{T} Key{T} (store)
 
 
 acquires{T} container::len{ T.Sparse } (s&)

@@ -26,16 +26,8 @@ tuple{T} Unordered {
     values T.Entry.Table
 }
 
-
-//derives{T} Key{T} (store)
-
-acquires{T} store{ Key{T} } (a&, b)
-    (a.pretend:I64).store( b.pretend:I64 )
-
-
-acquires{T} store{ Entry{T} } (a&, b)
-    a.key = b.key
-    a.value = b.value
+derives{T} Key{T} (store)
+derives{T} Entry{T} (store)
 
 
 acquires{T} len{ T.Unordered } (u&)

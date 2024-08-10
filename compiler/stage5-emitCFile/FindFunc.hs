@@ -48,7 +48,6 @@ getConstraintsFromTypes t1 t2 = case (t1, t2) of
     _ -> fail $ show (t1, t2)
 
 
-
 findFunction :: Type -> DoM ASTResolved Func
 findFunction funcType = do
     (symbol, typeArgs) <- case unfoldType funcType of
@@ -63,62 +62,60 @@ findFunction funcType = do
             let subs = zip (map TypeDef generics) typeArgs
             return (applyFunc subs func)
 
-        False -> do -- is aquire
-            acquiresAll <- gets acquiresAll
+        False -> findAcquire funcType
 
-            results <- fmap catMaybes $ forM (Map.toList acquiresAll) $ \(symbol, stmt) -> do
-                case stmt of
-                    Derives pos generics argType [typSymbol] -> do
-                        -- substitues a generic with a type argument
-                        let genericSubs = zipWith (\g i -> (TypeDef g, Type i)) generics [1..]
 
-                        let appliedType = applyType genericSubs $ Apply (TypeDef typSymbol) argType
+findAcquire :: Type -> DoM ASTResolved Func
+findAcquire callType = do
+    -- store::store{unordered::Key{Table{I64}}}
 
-                        subsEither <- tryError (unify =<< getConstraintsFromTypes appliedType funcType)
-                        case subsEither of
-                            Right subs -> do
-                                unless (subs == []) (error "not handled")
+    acquiresAll <- gets acquiresAll
+    results <- fmap catMaybes $ forM (Map.toList acquiresAll) $ \(symbol, stmt) -> case stmt of
+        Derives _ generics argType [typSymbol] -> do
+            let implType = Apply (TypeDef typSymbol) argType
+            -- {T} store::store{unordered::Key{T}}
 
-                                x@(Type.Func, retType : argTypes) <- unfoldType <$> baseTypeOf funcType
-                                Just lowerType <- lowerTypeOfm argType
-                                let fromLowerSubs = [(lowerType, argType)]
-                                let toLowerSubs   = [(argType, lowerType)]
-                                
-                                fmap Just $ findFunction $ applyType toLowerSubs appliedType
+            let genericSubs = zip (map TypeDef generics) (map Type [1..])
+            -- (T, t1), (G, t2)
 
-                            Left _ -> return Nothing
+            let appliedImpl = applyType genericSubs implType
+            -- store::store{unoredered::Key{t1}}
 
-                    Aquires pos generics typ args isRef scope -> do
-                        --liftIO $ putStrLn $ "checking aquire: " ++ prettySymbol symbol
-                        let genericSubs = zipWith (\g i -> (TypeDef g, Type i)) generics [1..]
-                        let appliedType = applyType genericSubs typ
+            subsEither <- tryError (unify =<< getConstraintsFromTypes appliedImpl callType)
+            -- (t1, Table{I64})
 
-                        subsEither <- tryError (unify =<< getConstraintsFromTypes appliedType funcType)
+            case subsEither of
+                Left _ -> return Nothing
+                Right subs -> do
+                    unless (applyType subs appliedImpl == callType) (error "type mismatch")
 
-                        case subsEither of
-                            Right subs -> do
-                                unless (applyType subs appliedType == funcType) $ do
-                                    error $
-                                        "applied type did not match funcType: " ++
-                                        show appliedType ++
-                                        ", " ++
-                                        show funcType
+                    -- simply return the acquires for the lower type, compile converts args
+                    Just lowerType <- lowerTypeOfm argType
+                    let lowerCall = applyType subs $
+                            Apply (TypeDef typSymbol) (applyType genericSubs lowerType)
+                    Just <$> findFunction lowerCall
 
-                                (Type.Func, retType : argTypes) <- unfoldType <$> baseTypeOf funcType
-                                unless (length argTypes == length args) (error "something else went wrong")
+        Aquires pos generics implType args isRef scope -> do
+            --liftIO $ putStrLn $ "checking aquire: " ++ prettySymbol symbol
+            let genericSubs = zip (map TypeDef generics) (map Type [1..])
+            let appliedImpl = applyType genericSubs implType
 
-                                -- args need to be swapped from void
-                                let args'   = zipWith (\t p -> p { paramType = t}) argTypes args 
-                                let retty'  = (if isRef then RefRetty else Retty) retType
-                                let stmt'   = applyStmt subs (applyStmt genericSubs scope)
-                                return $ Just $ AST.Func (FuncHeader pos symbol args' retty') stmt'
+            subsEither <- tryError (unify =<< getConstraintsFromTypes appliedImpl callType)
+            case subsEither of
+                Left _ -> return Nothing
+                Right subs -> do
+                    unless (applyType subs appliedImpl == callType) (error "type mismatch")
+                    (Type.Func, retType : argTypes) <- unfoldType <$> baseTypeOf callType
+                    unless (length argTypes == length args) (error "something else went wrong")
 
-                            Left e -> do
-                                --liftIO $ putStrLn $ "\tLeft: " ++ show e
-                                return Nothing
+                    -- args need to be swapped from void
+                    let args'   = zipWith (\t p -> p { paramType = t}) argTypes args 
+                    let retty'  = (if isRef then RefRetty else Retty) retType
+                    let stmt'   = applyStmt subs (applyStmt genericSubs scope)
+                    return $ Just $ AST.Func (FuncHeader pos symbol args' retty') stmt'
 
-            case results of
-                [] -> fail $ "no valid acquires for: " ++ show funcType
-                [func] -> return func
-                funcs -> fail $ "multiple acquires for: " ++ show funcType
+    case results of
+        [] -> fail $ "no valid acquires for: " ++ show callType
+        [func] -> return func
+        funcs -> fail $ "multiple acquires for: " ++ show callType
 

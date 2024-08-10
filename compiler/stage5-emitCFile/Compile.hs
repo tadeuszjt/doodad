@@ -71,14 +71,10 @@ generateFunc funcType = do
     --liftIO $ putStrLn $ "generateFunc: " ++ show funcType
     --liftIO $ putStrLn $ "isImpInst, isInst: " ++ show (isImportedInstance, isInstance)
 
-    if isImportedInstance then do
-        Just symbol <- gets (Map.lookup funcType . funcInstanceImported . astResolved)
-        return symbol
-
-    else if isInstance then do
-        Just symbol <- gets (Map.lookup funcType . funcInstance . astResolved)
-        return symbol
-
+    if isImportedInstance then fmap fromJust $
+        gets (Map.lookup funcType . funcInstanceImported . astResolved)
+    else if isInstance then fmap fromJust $ 
+        gets (Map.lookup funcType . funcInstance . astResolved)
     else do
         ast <- gets astResolved
         func <- fmap fst $ runDoMExcept ast (findFunction funcType)
@@ -347,10 +343,10 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
                 let symbol = funcSymbol header
             
                 argExprs <- forM (zip args $ S.funcArgs header) $ \(arg, param) -> case (arg, param) of
-                    (Value _ _, S.Param _ _ _) -> return (valExpr arg)
-                    (Ref _ _, S.RefParam _ _ _) -> return (refExpr arg)
-                    (Ref _ _, S.Param _ _ _) -> valExpr <$> deref arg
-                    (Value _ _, S.RefParam _ _ _) -> refExpr <$> reference arg
+                    (Value _ valType, S.Param _ _ paramType) -> valExpr <$> convert paramType arg
+                    (Ref _ _, S.RefParam _ _ paramType)      -> refExpr <$> convert paramType arg
+                    (Ref _ _, S.Param _ _ paramType)         -> valExpr <$> (convert paramType =<< deref arg)
+                    (Value _ _, S.RefParam _ _ paramType)    -> refExpr <$> (convert paramType =<< reference arg)
                     x -> error (show x)
 
                 case S.funcRetty header of

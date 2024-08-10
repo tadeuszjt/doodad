@@ -231,6 +231,17 @@ resolveStmt statement = withPos statement $ case statement of
         --TODO do something
         return (Feature pos generics' symbol args' retty')
 
+
+    Derives pos generics typ symbols -> do
+        pushSymbolTable
+        generics' <- defineGenerics generics
+        typ' <- resolveType typ
+        symbols' <- mapM (\s -> look s KeyType) symbols
+        popSymbolTable
+        return $ Derives pos generics' typ' symbols'
+
+
+
     Aquires pos generics typ args isRef stmt -> do
         pushSymbolTable
         generics' <- defineGenerics generics
@@ -308,13 +319,6 @@ resolveStmt statement = withPos statement $ case statement of
         symbol <- genSymbol (SymResolved str)
         define symbol KeyVar
         Assign pos symbol <$> resolveExpr expr
-
-    Derives pos generics typ symbols -> do
-        generics' <- defineGenerics generics
-        typ' <- resolveType typ
-        symbols' <- mapM (\s -> look s KeyType) symbols
-        return $ Derives pos generics' typ' symbols'
-
 
     x -> error (show x)
 

@@ -135,40 +135,6 @@ greaterEqual a@(Value _ _) b@(Value _ _) = do
         x -> error (show x)
 
 
-callFunction :: Symbol -> Type.Type -> [Value] -> Generate Value
-callFunction symbol retty args = do
-    error "callFunction"
---    ast <- gets astResolved
---
---    callSymbol <- case symbolIsResolved symbol of
---        True -> return symbol
---        False -> do
---            funcSymbolm <- findInstance ast symbol $ Apply Type.Func (retty : map typeof args)
---            unless (isJust funcSymbolm)
---                (error $ "couldn't find instance: " ++ show (prettySymbol symbol, retty, map typeof args))
---            return (fromJust funcSymbolm)
---
---    let header = getInstanceHeader callSymbol ast
---    let funcParams = S.funcArgs header
---    let funcRetty = S.funcRetty header
---
---    unless (length funcParams == length args) (error "invalid number of args")
---
---    argExprs <- forM (zip args funcParams) $ \(arg, param) -> case (arg, param) of
---        (Value _ _, S.Param _ _ _) -> return (valExpr arg)
---        (Ref _ _, S.RefParam _ _ _) -> return (refExpr arg)
---        (Ref _ _, S.Param _ _ _) -> valExpr <$> deref arg
---        (Value _ _, S.RefParam _ _ _) -> refExpr <$> reference arg
---        x -> error (show x)
---
---    case funcRetty of
---        Retty Void -> do
---            appendElem $ C.ExprStmt $ C.Call (showSymGlobal callSymbol) argExprs
---            return $ Value Void (C.Int 0)
---        Retty retType    -> assign "call" $ Value retType $ C.Call (showSymGlobal callSymbol) argExprs
---        RefRetty retType -> assign "call" $ Ref retType $ C.Call (showSymGlobal callSymbol) argExprs
---
-
 initialiser :: Type.Type -> Generate C.Expression
 initialiser typ = do
     b <- hasNonZero typ
@@ -307,16 +273,16 @@ cParamOf param = do
 
 cRefTypeOf :: Typeof a => a -> Generate C.Type
 cRefTypeOf a = do
-    base <- baseTypeOf a
+    base <- baseTypeOf a -- use base makes conversions simpler
     case unfoldType base of
-        (x, []) | isSimple x -> Cpointer <$> cTypeOf a
-        (Table, _)           -> Cpointer <$> cTypeOf a
-        (Slice, _)           -> Cpointer <$> cTypeOf a
-        (Sum, _)             -> Cpointer <$> cTypeOf a
-        (Type.Array, _)      -> Cpointer <$> cTypeOf a
+        (x, []) | isSimple x -> Cpointer <$> cTypeOf base
+        (Table, _)           -> Cpointer <$> cTypeOf base
+        (Slice, _)           -> Cpointer <$> cTypeOf base
+        (Sum, _)             -> Cpointer <$> cTypeOf base
+        (Type.Array, _)      -> Cpointer <$> cTypeOf base
 
         (Tuple, ts) -> do
-            pt <- Cpointer <$> cTypeOf a
+            pt <- Cpointer <$> cTypeOf base
             cst <- return $ Cstruct [C.Param "ptr" pt, C.Param "idx" Csize_t, C.Param "cap" Csize_t]
             getTypedef "Ref" cst
 
@@ -416,3 +382,15 @@ getTypedef suggestion typ = do
             appendTypedef typ name
             modify $ \s -> s { structs = Map.insert typ name (structs s) }
             return $ Ctypedef name
+
+
+convert :: Type.Type -> Value -> Generate Value
+convert typ val = do
+    baseVal <- baseTypeOf val
+    baseTyp <- baseTypeOf typ
+
+    unless (baseVal == baseTyp) (error "types do not have same base")
+
+    case val of
+        Value _ _ -> return (val { valType = typ })
+        Ref _ _   -> return (val { refType = typ })

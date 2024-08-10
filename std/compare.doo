@@ -16,6 +16,17 @@ acquires equal{ Bool } (a, b); return builtinEqual(a, b)
 acquires equal{ Char } (a, b); return builtinEqual(a, b)
 acquires equal{ Tuple{} } (a, b); return true
 
+acquires{A, B} equal{ Sum{A, B} } (a, b)
+    let enA = a.builtin::builtinSumEnum
+    let enB = b.builtin::builtinSumEnum
+
+    if enA != enB
+        return false
+
+    switch enA
+        0; return a.0 == b.0
+        1; return a.1 == b.1
+
 acquires{A, B, C} equal{ Sum{A, B, C} } (a, b)
     let enA = a.builtin::builtinSumEnum
     let enB = b.builtin::builtinSumEnum

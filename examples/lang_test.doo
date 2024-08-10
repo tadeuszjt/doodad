@@ -264,6 +264,16 @@ fn testOption()
     let 4 = o.fromSome
     let false = o.isNone
 
+    let o1 = some(3)
+    let o2 = some(4)
+    let false = o1 == o2
+    o2 = some(3)
+    let true = o1 == o2
+    o1 = none()
+    let false = o1 == o2
+    o2 = none()
+    let true = o1 == o2
+
 
 //fn testTree()
 //    data t binaryTree::Tree{I64, Bool}
