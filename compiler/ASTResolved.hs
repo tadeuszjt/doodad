@@ -16,12 +16,12 @@ import Monad
 data ASTResolved
     = ASTResolved
         { moduleName           :: String
-        , includes             :: Set.Set String                  -- c header includes
-        , links                :: Set.Set String                  -- linked libraries
-        , typeDefsAll          :: Type.TypeDefsMap                -- all type defs
-        , typeDefsTop          :: Set.Set Symbol                  -- top-level type defs
+        , includes             :: Set.Set String           -- c header includes
+        , links                :: Set.Set String           -- linked libraries
+        , typeDefsAll          :: Type.TypeDefsMap         -- all type defs
+        , typeDefsTop          :: Set.Set Symbol           -- top-level type defs
 
-        , acquiresAll           :: Map.Map Symbol Stmt
+        , acquiresAll           :: Map.Map Symbol Stmt 
         , acquiresTop           :: Set.Set Symbol
 
         , funcDefsAll          :: Map.Map Symbol Func

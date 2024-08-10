@@ -92,10 +92,16 @@ combineMapper element = case element of
         modify $ \s -> s { funcDefsAll = Map.insert (funcSymbol header) (AST.Func header stmt) (funcDefsAll s) }
         return element
 
-    ElemStmt stmt@(Aquires _ _ typ args _ _) -> do
+    ElemStmt stmt@(Aquires _ _ _ _ _ _) -> do
         symbol <- genSymbol $ SymResolved ["acquires"]
         modify $ \s -> s { acquiresAll = Map.insert symbol stmt (acquiresAll s) }
         modify $ \s -> s { acquiresTop = Set.insert symbol (acquiresTop s) }
+        return element
+
+    ElemStmt stmt@(Derives _ _ _ [x]) -> do -- TODO handle multiple symbols
+        symbol' <- genSymbol $ SymResolved ["derives"]
+        modify $ \s -> s { acquiresAll = Map.insert symbol' stmt (acquiresAll s) }
+        modify $ \s -> s { acquiresTop = Set.insert symbol' (acquiresTop s) }
         return element
 
     -- filter out statements
@@ -105,6 +111,7 @@ combineMapper element = case element of
             FuncDef _ _     -> return Nothing
             Feature _ _ _ _ _ -> return Nothing
             Aquires _ _ _ _ _ _ -> return Nothing
+            Derives _ _ _ _     -> return Nothing
             _               -> return (Just stmt)
 
     ElemExpr (Call pos typ@(TypeDef symbol) exprs) -> do

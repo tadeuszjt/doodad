@@ -28,14 +28,13 @@ enum Input {
     error()
 }
 
-
+derives Square (store)
+derives Square (equal)
 
 type Board Array{3, Array{3, Square}}
 
-
 fn arr(b &Board) &Array{3, Array{3, Square}}
     return b.pretend
-
 
 
 acquires{P} print{ P, Square } (p&, square)
@@ -43,18 +42,6 @@ acquires{P} print{ P, Square } (p&, square)
         empty(); p.print('_')
         naught(); p.print('O')
         cross(); p.print('X')
-
-
-acquires store{ Square } (a&, b)
-    store(
-        &a.pretend:Sum{Tuple{}, Tuple{}, Tuple{}}
-        &b.pretend:Sum{Tuple{}, Tuple{}, Tuple{}}
-    )
-
-
-acquires equal{ Square } (a, b)
-    return builtinSumEnum(a) == builtinSumEnum(b)
-
 
 acquires{P} print{ P, Board } (p&, board)
     for board.arr -> row

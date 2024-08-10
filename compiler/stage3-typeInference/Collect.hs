@@ -100,6 +100,7 @@ collectStmt statement = collectPos statement $ case statement of
 
         modify $ \s -> s { curRetty = oldRetty }
 
+    Derives _ _ _ _ -> return ()
     EmbedC _ _ -> return ()
 
     Block stmts -> mapM_ collectStmt stmts
@@ -136,7 +137,9 @@ collectStmt statement = collectPos statement $ case statement of
         define symbol (typeof expr)
         collectExpr expr
 
-    x -> error "invalid statement"
+    x -> do
+        liftIO $ prettyStmt "" x
+        error "invalid statement"
 
 
 collectPattern :: Pattern -> DoM CollectState ()

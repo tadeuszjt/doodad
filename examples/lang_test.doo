@@ -96,7 +96,8 @@ fn testTable()
     let 0 = table.len
 
     type Person (I64, Bool)
-    acquires store::store{ Person } (a&, b)
+    //derives Person (store::store)
+    acquires store{ Person } (a&, b)
         a.0 = b.0
         a.1 = b.1
 
@@ -324,16 +325,6 @@ fn testOption()
 //    return
 //
 //
-//fn testArray()
-//    let array : I64.Array{4}
-//    builtin::arrayAt(&array, 2) = 78
-//    let 0 = builtin::arrayAt(&array, 1)
-//    let 78 = builtin::arrayAt(&array, 2)
-//
-//    let 4 = array.len
-//    let 78 = array[2]
-//
-//
 //fn testArrayPattern()
 //    data t1 I64.Table
 //    t1.push(1, 2, 3)
@@ -519,7 +510,6 @@ fn main()
 //    testTree()
 //    testMap()
 //    testSlice()
-//    testArray()
 //    testArrayPattern()
 //    testArrayExpr()
 //    testBoolConditions()

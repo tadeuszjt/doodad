@@ -17,10 +17,7 @@ tuple{T} Sparse {
 
 acquires{T} store{ T.Key } (a&, b); builtinStore(&a, b)
 
-//
-//fn{T} Construct::construct(n I64) T.Key; return n.pretend
-//fn{T} Construct::construct(k T.Key) I64; return k.pretend
-//
+
 acquires{T} container::len{ T.Sparse } (s&)
     return s.values.len - s.empty.len
 
@@ -28,9 +25,6 @@ acquires{T, K, V} container::at{ Sparse, T.Key, V } (s&, key) -> &
     return s.values.at( key.pretend:I64 )
 
 
-//fn{T} At::at(s &T.Sparse, key T.Key) &T
-//    return s.values.at(I64(key))
-//
 fn{T} insertZero(s &T.Sparse) T.Key
     let value : T
     return s.insert(value)

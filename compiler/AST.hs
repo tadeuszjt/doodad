@@ -142,6 +142,7 @@ data Stmt
     | Assign      TextPos Symbol Expr
     | Enum        TextPos Generics Symbol [ (Symbol, [Type] ) ]
     | MacroTuple  TextPos Generics Symbol [ (String, Type) ]
+    | Derives     TextPos Generics Type [Symbol]
     deriving (Eq, Show)
 
 
@@ -195,6 +196,7 @@ instance TextPosition Stmt where
         MacroTuple  p _ _ _ -> p
         Assign      p _ _ -> p
         Aquires     p _ _ _ _ _ -> p
+        Derives     p _ _ _ -> p
         x -> error ("invalid statement")
 
 tupStrs, arrStrs, brcStrs :: [String] -> String
@@ -344,6 +346,9 @@ prettyStmt pre stmt = case stmt of
 
     Data pos symbol typ mexpr -> do
         putStrLn $ pre ++ "data " ++ prettySymbol symbol ++ " " ++ show typ ++ maybe "" ((" " ++) . show) mexpr
+
+    Derives pos generics typ symbols -> do
+        putStrLn $ pre ++ "derives" ++ genericsStr generics ++ " " ++ show typ ++ " " ++ tupStrs (map prettySymbol symbols)
 
     x  -> error (show x)
 

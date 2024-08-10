@@ -35,17 +35,3 @@ fn{T} builtinSliceAt(a &T.Slice, b I64) &T; ${}
 
 fn{T} builtinSumEnum(t &T) I64; ${}
 fn{T} builtinSumReset(t &T, en I64); ${}
-
-//fn{T}    tableAt(t &T.Table, idx I64) &T; ${}
-//fn{T}    sliceAt(t &[]T, idx I64) &T; ${}
-//fn{T, S} arrayAt(t T.Array{S}, idx I64) &T; ${}
-//
-//fn{T} tableAppend(t &T.Table); ${}
-//fn{T} tableSlice(t &T.Table, start I64, end I64) []T; ${}
-//
-//fn{T} sumEnum(sum &T) I64; ${}
-//fn{T} sumReset(sum &T, idx I64); ${}
-//
-//fn{T} store(a &T, b T); ${}
-//
-//fn{T} tableLen(a &T) I64; ${}

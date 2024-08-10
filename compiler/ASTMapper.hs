@@ -62,6 +62,9 @@ mapStmtM f stmt = withPos stmt $ do
             return $ FuncDef generics $ (AST.Func header stmt')
 
 
+        Derives pos generics symbol symbols ->
+            return (Derives pos generics symbol symbols)
+
         EmbedC pos s -> return $ EmbedC pos s
         Block stmts -> Block <$> mapM (mapStmtM f) stmts
         ExprStmt expr -> ExprStmt <$> mapExprM f expr

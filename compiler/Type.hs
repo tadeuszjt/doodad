@@ -141,6 +141,19 @@ baseTypeOfm a = case unfoldType (typeof a) of
     (_, _) -> return $ Just (typeof a)
 
 
+lowerTypeOfm :: (MonadFail m, TypeDefs m, Typeof a) => a -> m (Maybe Type) 
+lowerTypeOfm a = case unfoldType (typeof a) of
+    (Type _, _) -> return Nothing
+    (TypeDef s, ts) -> do
+        Just (ss, t) <- Map.lookup s <$> getTypeDefs
+        Just <$> applyTypeM ss ts t
+
+    _ -> error "type isn't a TypeDef"
+
+
+
+
+
 typesCouldMatch :: Type -> Type -> Bool
 typesCouldMatch t1 t2 = case (t1, t2) of
     (a, b) | a == b            -> True

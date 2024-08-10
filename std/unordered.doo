@@ -27,6 +27,8 @@ tuple{T} Unordered {
 }
 
 
+//derives{T} Key{T} (store)
+
 acquires{T} store{ Key{T} } (a&, b)
     (a.pretend:I64).store( b.pretend:I64 )
 

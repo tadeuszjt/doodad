@@ -8,5 +8,6 @@ enum{T} Option {
     some(T)
 }
 
+// derives{T} T.Option (store)
 acquires{T} store{ T.Option } (a&, b)
     a.pretend:Sum{Tuple{}, T} = b.pretend:Sum{Tuple{}, T}

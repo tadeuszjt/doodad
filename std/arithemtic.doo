@@ -26,7 +26,6 @@ acquires add{Char}      (a, b); return builtinAdd(a, b)
 acquires subtract{Char} (a, b); return builtinSubtract(a, b)
 
 
-
 acquires{A, B, C} add{ Tuple{A, B, C} } (a, b)
     let tup
     tup.0 = a.0 + b.0

@@ -75,6 +75,7 @@ unpackStmt statement = withPos statement $ case statement of
     Data _ _ _ _ -> return statement
     Feature _ _ _ _ _ -> return statement
     Assign _ _ _ -> return statement
+    Derives _ _ _ _ -> return statement
 
     Aquires pos generics typ args isRef stmt -> Aquires pos generics typ args isRef <$> unpackStmt stmt
 
@@ -254,12 +255,13 @@ buildCondition defBlkId expression = withPos expression $ case expression of
 
 buildStmt :: Stmt -> DoM BuildState ()
 buildStmt statement = withPos statement $ case statement of
-    ExprStmt expr    -> void $ appendStmt (ExprStmt expr)
-    Typedef _ _ _ _  -> void $ appendStmt statement
-    EmbedC _ _       -> void $ appendStmt statement
-    Return pos mexpr -> void $ appendStmt statement
-    Data _ _ _ _     -> void $ appendStmt statement
+    ExprStmt expr     -> void $ appendStmt (ExprStmt expr)
+    Typedef _ _ _ _   -> void $ appendStmt statement
+    EmbedC _ _        -> void $ appendStmt statement
+    Return pos mexpr  -> void $ appendStmt statement
+    Data _ _ _ _      -> void $ appendStmt statement
     Feature _ _ _ _ _ -> void $ appendStmt statement
+    Derives _ _ _ _   -> void $ appendStmt statement
 
     Aquires pos generics typ args isRef (Block stmts) -> do
         blockId <- newStmt (Block [])

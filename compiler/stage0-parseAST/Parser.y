@@ -76,7 +76,8 @@ import Symbol
     for        { Token _ Token.Reserved "for" }
     data       { Token _ Token.Reserved "data" }
     feature    { Token _ Token.Reserved "feature" }
-    acquires    { Token _ Token.Reserved "acquires" }
+    acquires   { Token _ Token.Reserved "acquires" }
+    derives    { Token _ Token.Reserved "derives" }
     module     { Token _ Token.Module _ }
     import     { Token _ Token.Import _ }
     include    { Token _ Token.CInclude _ }
@@ -151,6 +152,10 @@ tupleFields : {-empty-}                       { [] }
 -- Statements -------------------------------------------------------------------------------------
 
 
+derivesDef : derives generics type_ '(' symbols1 ')'
+           { Derives (tokPos $1) $2 $3 (map snd $5) }
+
+
 featureDef : feature generics ident '(' types ')' typeMaybe
             { Feature (tokPos $1) $2 (Sym [tokStr $3]) $5 (case $7 of Nothing -> Void; Just x -> x) }
 
@@ -193,6 +198,7 @@ line : let pattern '=' expr               { Let (tokPos $1) $2 (Just $4) Nothing
      | enumMacro                          { $1 }
      | tupleMacro                         { $1 }
      | featureDef                         { $1 }
+     | derivesDef                         { $1 }
 
 block : if_                               { $1 }
       | while condition scope             { While (tokPos $1) $2 $3 }
@@ -225,10 +231,16 @@ case : pattern scope                      { ($1, $2) }
 Idents1 : Ident                          { [tokStr $1] }
         | Ident ',' Idents1              { (tokStr $1):($3) } 
 
+idents1 : ident                          { [tokStr $1] }
+        | ident ',' idents1              { (tokStr $1):$3 }
+
 
 symbol : ident                           { (tokPos $1, Sym [tokStr $1]) }
        | ident '::' ident                { (tokPos $3, Sym [tokStr $1, tokStr $3]) }
        --| Ident '::' ident                { (tokPos $1, Sym [tokStr $1, tokStr $3]) }
+
+symbols1 : symbol                        { [$1] }
+         | symbol ',' symbols1           { $1:$3}
 
 Symbol : Ident                           { (tokPos $1, Sym [tokStr $1]) }
        | ident '::' Ident                { (tokPos $3, Sym [tokStr $1, tokStr $3]) }

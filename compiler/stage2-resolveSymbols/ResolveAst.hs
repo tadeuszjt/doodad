@@ -309,6 +309,13 @@ resolveStmt statement = withPos statement $ case statement of
         define symbol KeyVar
         Assign pos symbol <$> resolveExpr expr
 
+    Derives pos generics typ symbols -> do
+        generics' <- defineGenerics generics
+        typ' <- resolveType typ
+        symbols' <- mapM (\s -> look s KeyType) symbols
+        return $ Derives pos generics' typ' symbols'
+
+
     x -> error (show x)
 
 

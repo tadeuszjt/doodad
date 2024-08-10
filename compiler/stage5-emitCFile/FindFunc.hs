@@ -67,36 +67,58 @@ findFunction funcType = do
             acquiresAll <- gets acquiresAll
 
             results <- fmap catMaybes $ forM (Map.toList acquiresAll) $ \(symbol, stmt) -> do
-                --liftIO $ putStrLn $ "checking aquire: " ++ prettySymbol symbol
-                let Aquires pos generics typ args isRef scope = stmt
-                let genericSubs = zipWith (\g i -> (TypeDef g, Type i)) generics [1..]
-                let appliedType = applyType genericSubs typ
+                case stmt of
+                    Derives pos generics argType [typSymbol] -> do
+                        -- substitues a generic with a type argument
+                        let genericSubs = zipWith (\g i -> (TypeDef g, Type i)) generics [1..]
 
-                subsEither <- tryError (unify =<< getConstraintsFromTypes appliedType funcType)
+                        let appliedType = applyType genericSubs $ Apply (TypeDef typSymbol) argType
 
-                case subsEither of
-                    Right subs -> do
-                        unless (applyType subs appliedType == funcType) $ do
-                            error $
-                                "applied type did not match funcType: " ++
-                                show appliedType ++
-                                ", " ++
-                                show funcType
+                        subsEither <- tryError (unify =<< getConstraintsFromTypes appliedType funcType)
+                        case subsEither of
+                            Right subs -> do
+                                unless (subs == []) (error "not handled")
 
-                        (Type.Func, retType : argTypes) <- unfoldType <$> baseTypeOf funcType
-                        unless (length argTypes == length args) (error "something else went wrong")
+                                x@(Type.Func, retType : argTypes) <- unfoldType <$> baseTypeOf funcType
+                                Just lowerType <- lowerTypeOfm argType
+                                let fromLowerSubs = [(lowerType, argType)]
+                                let toLowerSubs   = [(argType, lowerType)]
+                                
+                                fmap Just $ findFunction $ applyType toLowerSubs appliedType
 
-                        -- args need to be swapped from void
-                        let args'   = zipWith (\t p -> p { paramType = t}) argTypes args 
-                        let retty'  = (if isRef then RefRetty else Retty) retType
-                        let stmt'   = applyStmt subs (applyStmt genericSubs scope)
-                        return $ Just $ AST.Func (FuncHeader pos symbol args' retty') stmt'
+                            Left _ -> return Nothing
 
-                    Left e -> do
-                        --liftIO $ putStrLn $ "\tLeft: " ++ show e
-                        return Nothing
+                    Aquires pos generics typ args isRef scope -> do
+                        --liftIO $ putStrLn $ "checking aquire: " ++ prettySymbol symbol
+                        let genericSubs = zipWith (\g i -> (TypeDef g, Type i)) generics [1..]
+                        let appliedType = applyType genericSubs typ
+
+                        subsEither <- tryError (unify =<< getConstraintsFromTypes appliedType funcType)
+
+                        case subsEither of
+                            Right subs -> do
+                                unless (applyType subs appliedType == funcType) $ do
+                                    error $
+                                        "applied type did not match funcType: " ++
+                                        show appliedType ++
+                                        ", " ++
+                                        show funcType
+
+                                (Type.Func, retType : argTypes) <- unfoldType <$> baseTypeOf funcType
+                                unless (length argTypes == length args) (error "something else went wrong")
+
+                                -- args need to be swapped from void
+                                let args'   = zipWith (\t p -> p { paramType = t}) argTypes args 
+                                let retty'  = (if isRef then RefRetty else Retty) retType
+                                let stmt'   = applyStmt subs (applyStmt genericSubs scope)
+                                return $ Just $ AST.Func (FuncHeader pos symbol args' retty') stmt'
+
+                            Left e -> do
+                                --liftIO $ putStrLn $ "\tLeft: " ++ show e
+                                return Nothing
 
             case results of
                 [] -> fail $ "no valid acquires for: " ++ show funcType
                 [func] -> return func
+                funcs -> fail $ "multiple acquires for: " ++ show funcType
 
