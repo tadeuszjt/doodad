@@ -26,7 +26,7 @@ symbolModule (SymResolved s) = head s
 
 
 showSymLocal :: Symbol -> String
-showSymLocal symbol@(SymResolved s) = intercalate "_" (tail s)
+showSymLocal symbol@(SymResolved s) = intercalate "_" (s)
 
 showSymGlobal symbol@(SymResolved s) = intercalate "_" (s)
 

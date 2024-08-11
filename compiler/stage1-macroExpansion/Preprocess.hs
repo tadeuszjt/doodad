@@ -170,7 +170,9 @@ buildPattern defBlkId pattern expr = do
             return (Ident pos matchSym)
 
 
-        PatField pos (Sym [str]) pats -> do
+        PatField pos symbol pats -> do
+            let Sym [str] = symbol
+
             exprCopy <- freshSym "exprCopy"
             appendStmt (Assign pos exprCopy expr)
 

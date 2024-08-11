@@ -3,12 +3,18 @@ module graphicsTest
 import std/io
 import std/sfml/sfml
 import std/rand
-import std/table
 import std/sparse
+import std/print
+import std/option
+import std/store
+import std/builtin
 //import std/time
 
 
-type Blob Tuple{ Vec2f, Vec2f, I64.Key }
+tuple Blob {
+    position Vec2f
+    velocity Vec2f
+}
 
 //type Triangles (
 //    vertexKeys Sparse[I64]
@@ -39,7 +45,7 @@ type Blob Tuple{ Vec2f, Vec2f, I64.Key }
 //
 fn main()
     data io Io
-    io.stdout.push("graphics test\n")
+    io.stdout.print("graphics test\n")
 
     let rand:Rand
     let w:Window
@@ -61,11 +67,12 @@ fn main()
 
 //        let prevNs = time::getTimestampNs()
 //
-        while w.pollEvent() -> Event(event)
+        while w.pollEvent() -> some(event)
             switch event
-                Closed(); w.close()
-                None();
-
+                closed(); w.close()
+                //none();
+                _;
+//
 //        for blobs -> {p, v, k}
 //            p = p + v
 //            triangles.setTrianglePosition(k, p)
@@ -80,16 +87,16 @@ fn main()
 //
 //        prevNs = time::getTimestampNs()
 //
-        let (width, height) = w.getSize()
+//        let (width, height) = w.getSize()
 //        w.setViewFromRect(((0, 0), (conv(width), conv(height))))
-        w.clearWindow(white())
+//        w.clearWindow(white())
 //        {w, triangles.vertexes}.drawPrimitives()
-        w.display()
+//        w.display()
 //
 //        nextNs = time::getTimestampNs()
 //        print("render time: ", nextNs - prevNs)
 //
     w.destroy()
-//
+
 
 

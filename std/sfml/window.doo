@@ -1,11 +1,10 @@
 module sfml
 
-import std/integer
-import std/tuple
-import std/colours
-import std/maybe
-import std/sum
 import std/builtin
+import std/store
+import std/assert
+import std/tuple
+import std/option
 
 include <SFML/Graphics.h>
 link csfml-graphics
@@ -13,23 +12,37 @@ link csfml-window
 link csfml-system
 
 
-type Vec2f Tuple{F32, F32}
+tuple Vec2f {
+    x F32
+    y F32
+}
 
-type Rectf Tuple{Vec2f, Vec2f}
+tuple Rectf {
+    min Vec2f
+    max Vec2f
+}
 
-type Vertex Tuple{Vec2f, Colour, Vec2f}
+tuple Colour {
+    a F32
+    r F32
+    g F32
+    b F32
+}
+
+tuple Vertex {
+    position Vec2f
+    colour   Colour
+    texCoord Vec2f
+}
+
 
 type Window I64
 
-type None Tuple{}
-type Closed Tuple{}
-type Event Sum{None, Closed}
-
-fn Store::store(a &Event, b Event)
-    Store::store(
-        &pretend(&a):Sum{None, Closed}
-        pretend(&b):Sum{None, Closed}
-    )
+enum Event {
+    none
+    closed
+}
+derives Event (store)
 
 
 fn create(w &Window)
@@ -78,9 +91,10 @@ fn isOpen(w &Window) Bool
     return isOpen
 
 
-fn pollEvent(w &Window) Event.Maybe
+fn pollEvent(w &Window) Event.Option
     let continue = false
     let event:Event
+
     ${
         sfEvent event;
         $continue = sfRenderWindow_pollEvent((sfRenderWindow*)(*$w), &event);
@@ -88,12 +102,13 @@ fn pollEvent(w &Window) Event.Maybe
             $event.en = 1;
         }
     }
+
     if continue
-        return just(event)
-    return nothing()
+        return Option::some(event)
+    return Option::none()
 
 
-//fn {w Window, vertices Table[Vertex]} drawPrimitives()
+//fn {w Window, vertices Table{Vertex}} drawPrimitives()
 //    ${
 //        sfRenderWindow_drawPrimitives(
 //            (sfRenderWindow*)*$w,
@@ -103,11 +118,11 @@ fn pollEvent(w &Window) Event.Maybe
 //            NULL
 //        );
 //    }
-//
-//fn {w Window} setViewFromRect(rect Rectf)
-//    let (l, t, r, b) = (rect.min.x, rect.min.y, rect.max.x, rect.max.y)
-//    ${
-//        sfFloatRect rect = {$l, $t, $r, $b};
-//        sfView *view = sfView_createFromRect(rect);
-//        sfRenderWindow_setView((sfRenderWindow*)(*$w), view);
-//    }
+
+////fn {w Window} setViewFromRect(rect Rectf)
+////    let (l, t, r, b) = (rect.min.x, rect.min.y, rect.max.x, rect.max.y)
+////    ${
+////        sfFloatRect rect = {$l, $t, $r, $b};
+////        sfView *view = sfView_createFromRect(rect);
+////        sfRenderWindow_setView((sfRenderWindow*)(*$w), view);
+////    }

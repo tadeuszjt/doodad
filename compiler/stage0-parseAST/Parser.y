@@ -237,7 +237,7 @@ idents1 : ident                          { [tokStr $1] }
 
 symbol : ident                           { (tokPos $1, Sym [tokStr $1]) }
        | ident '::' ident                { (tokPos $3, Sym [tokStr $1, tokStr $3]) }
-       --| Ident '::' ident                { (tokPos $1, Sym [tokStr $1, tokStr $3]) }
+       | Ident '::' ident                { (tokPos $1, Sym [tokStr $1, tokStr $3]) }
 
 symbols1 : symbol                        { [$1] }
          | symbol ',' symbols1           { $1:$3}
@@ -282,7 +282,7 @@ pattern  : '_'                           { PatIgnore (tokPos $1) }
          | pattern '|' expr              { PatGuarded (tokPos $2) $1 (AExpr Type.Bool $3) }
          | pattern '|' expr '->' pattern { PatGuarded (tokPos $2) $1 (Match (tokPos $4) $3 $5) }
          | pattern ':' type_             { PatAnnotated $1 $3 }
-         | type_ '(' patterns ')'        { PatTypeField (tokPos $2) $1 $3 }
+         --| type_ '(' patterns ')'        { PatTypeField (tokPos $2) $1 $3 }
          | symbol '(' patterns ')'       { PatField (tokPos $2) (snd $1) $3 }
          | '[' patterns ']'              { PatSlice (tokPos $1) $2 } 
  
