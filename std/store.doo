@@ -2,14 +2,16 @@ module store
 
 import std/builtin
 import std/assert
-//import std/tuple
+import std/convert
 
 
 feature{T} store(T, T)
 
 
 acquires store{ I64 }  (a&, b); builtinStore(&a, b)
+acquires store{ I32 }  (a&, b); builtinStore(&a, b)
 acquires store{ F64 }  (a&, b); builtinStore(&a, b)
+acquires store{ F32 }  (a&, b); builtinStore(&a, b)
 acquires store{ Bool } (a&, b); builtinStore(&a, b)
 acquires store{ Char } (a&, b); builtinStore(&a, b)
 
@@ -21,24 +23,31 @@ acquires{A, B} store{ Tuple{A, B} } (a&, b)
     a.0 = b.0
     a.1 = b.1
 
+acquires{A, B, C} store{ Tuple{A, B, C} } (a&, b)
+    a.0 = b.0
+    a.1 = b.1
+    a.2 = b.2
+
+acquires{A} store{ Sum{A} } (a&, b)
+    a.0 = b.0
+
 acquires{A, B} store{ Sum{A, B} } (a&, b)
     let en = b.builtinSumEnum
     a.builtinSumReset(en)
 
     if builtin::builtinEqual(en, 0)
         a.0 = b.0
-    if builtin::builtinEqual(en, 1)
+    else if builtin::builtinEqual(en, 1)
         a.1 = b.1
-
 
 acquires{A, B, C} store{ Sum{A, B, C} } (a&, b)
     let en = b.builtinSumEnum
     a.builtinSumReset(en)
     if builtin::builtinEqual(en, 0)
         a.0 = b.0
-    if builtin::builtinEqual(en, 1)
+    else if builtin::builtinEqual(en, 1)
         a.1 = b.1
-    if builtin::builtinEqual(en, 2)
+    else if builtin::builtinEqual(en, 2)
         a.2 = b.2
 
 
@@ -47,6 +56,3 @@ acquires{T, S} store{ Array{S, T} } (a&, b)
     while builtin::builtinLessThan(idx, b.builtinArrayLen)
         a.builtinArrayAt(idx) = b.builtinArrayAt(idx)
         idx = builtinAdd(idx, 1)
-
-//    for (0, b.len) -> idx
-//        a[idx] = b[idx]

@@ -58,7 +58,7 @@ findFunction funcType = do
         True -> do
             Just func <- gets (Map.lookup symbol . funcDefsAll)
             Just (generics, _) <- gets (Map.lookup symbol . typeDefsAll)
-            unless (length generics == length typeArgs) (error "type mismatch")
+            unless (length generics == length typeArgs) (error $ "type mismatch for: " ++ show symbol)
             let subs = zip (map TypeDef generics) typeArgs
             return (applyFunc subs func)
 
@@ -104,7 +104,7 @@ findAcquire callType = do
             case subsEither of
                 Left _ -> return Nothing
                 Right subs -> do
-                    unless (applyType subs appliedImpl == callType) (error "type mismatch")
+                    unless (applyType subs appliedImpl == callType) (error $ "type mismatch: " ++ show callType)
                     (Type.Func, retType : argTypes) <- unfoldType <$> baseTypeOf callType
                     unless (length argTypes == length args) (error "something else went wrong")
 

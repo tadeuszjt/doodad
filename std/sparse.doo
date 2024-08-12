@@ -6,6 +6,7 @@ import std/arithmetic
 import std/compare
 import std/container
 import std/assert
+import std/convert
 
 type{T} Key I64
 

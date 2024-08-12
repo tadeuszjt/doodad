@@ -231,7 +231,6 @@ resolveStmt statement = withPos statement $ case statement of
         --TODO do something
         return (Feature pos generics' symbol args' retty')
 
-
     Derives pos generics typ symbols -> do
         pushSymbolTable
         generics' <- defineGenerics generics
@@ -239,8 +238,6 @@ resolveStmt statement = withPos statement $ case statement of
         symbols' <- mapM (\s -> look s KeyType) symbols
         popSymbolTable
         return $ Derives pos generics' typ' symbols'
-
-
 
     Aquires pos generics typ args isRef stmt -> do
         pushSymbolTable

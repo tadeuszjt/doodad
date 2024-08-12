@@ -5,6 +5,9 @@ import std/store
 import std/assert
 import std/tuple
 import std/option
+import std/arithmetic
+import std/boolean
+import std/convert
 
 include <SFML/Graphics.h>
 link csfml-graphics
@@ -16,6 +19,15 @@ tuple Vec2f {
     x F32
     y F32
 }
+derives Vec2f (store)
+derives Vec2f (arithmetic::add)
+
+fn vec2f(x F32, y F32) Vec2f
+    let vec
+    vec.x = x
+    vec.y = y
+    return vec
+
 
 tuple Rectf {
     min Vec2f
@@ -39,7 +51,6 @@ tuple Vertex {
 type Window I64
 
 enum Event {
-    none
     closed
 }
 derives Event (store)
@@ -94,16 +105,22 @@ fn isOpen(w &Window) Bool
 fn pollEvent(w &Window) Event.Option
     let continue = false
     let event:Event
+    let isNone = false
 
     ${
         sfEvent event;
         $continue = sfRenderWindow_pollEvent((sfRenderWindow*)(*$w), &event);
         if (event.type == sfEvtClosed) {
-            $event.en = 1;
+            $event.en = 0;
+        } else {
+            $isNone = true;
         }
     }
 
-    if continue
+    if isNone
+        return Option::none()
+
+    if continue && !isNone
         return Option::some(event)
     return Option::none()
 

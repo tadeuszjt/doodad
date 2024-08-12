@@ -10,6 +10,7 @@ import std/arithmetic
 import std/print
 import std/for
 import std/compare
+import std/convert
 
 
 type{T} Key I64
@@ -25,6 +26,7 @@ tuple{T} Unordered {
     indices I64.Sparse
     values T.Entry.Table
 }
+
 
 derives{T} Key{T} (store)
 derives{T} Entry{T} (store)

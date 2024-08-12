@@ -3,6 +3,7 @@ module compare
 import std/builtin
 import std/store
 import std/assert
+import std/convert
 
 
 feature{T} equal(T, T) Bool
@@ -12,6 +13,7 @@ feature{T} lessThan(T, T) Bool
 
 acquires equal{ I64 }  (a, b); return builtinEqual(a, b)
 acquires equal{ F64 }  (a, b); return builtinEqual(a, b)
+acquires equal{ F32 }  (a, b); return builtinEqual(a, b)
 acquires equal{ Bool } (a, b); return builtinEqual(a, b)
 acquires equal{ Char } (a, b); return builtinEqual(a, b)
 acquires equal{ Tuple{} } (a, b); return true

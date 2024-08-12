@@ -4,6 +4,7 @@ import std/builtin
 import std/store
 import std/arithmetic
 import std/assert
+import std/convert
 
 
 feature{T}       len(T) I64

@@ -17,6 +17,22 @@ acquires multiply{I64} (a, b); return builtinMultiply(a, b)
 acquires divide{I64}   (a, b); return builtinDivide(a, b)
 acquires modulo{I64}   (a, b); return builtinModulo(a, b)
 
+acquires add{F64}      (a, b); return builtinAdd(a, b)
+acquires subtract{F64} (a, b); return builtinSubtract(a, b)
+acquires multiply{F64} (a, b); return builtinMultiply(a, b)
+acquires divide{F64}   (a, b); return builtinDivide(a, b)
+
+acquires add{F32}      (a, b); return builtinAdd(a, b)
+acquires subtract{F32} (a, b); return builtinSubtract(a, b)
+acquires multiply{F32} (a, b); return builtinMultiply(a, b)
+acquires divide{F32}   (a, b); return builtinDivide(a, b)
+
+acquires{A, B} add{ Tuple{A, B} } (a, b)
+    let c : Tuple{A, B}
+    c.0 = a.0 + b.0
+    c.1 = a.1 + b.1
+    return c
+
 
 acquires add{ F64 }    (a, b); return builtinAdd(a, b)
 acquires divide{ F64 } (a, b); return builtinDivide(a, b)

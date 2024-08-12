@@ -2,6 +2,10 @@ module convert
 
 feature{A, B} convert(A) B
 
+acquires convert{I64, I64} (a); return a
+acquires convert{I32, I32} (a); return a
+acquires convert{F64, F64} (a); return a
+acquires convert{F32, F32} (a); return a
 
 acquires convert{Char, I64} (a)
     let b
@@ -9,6 +13,11 @@ acquires convert{Char, I64} (a)
     return b
 
 acquires convert{I64, Char} (a)
+    let b
+    ${ $b = $a; }
+    return b
+
+acquires convert{F64, F32} (a)
     let b
     ${ $b = $a; }
     return b

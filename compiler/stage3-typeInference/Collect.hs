@@ -163,9 +163,17 @@ collectExpr (AExpr exprType expression) = collectPos expression $ case expressio
 
         -- len{ t0 }( x:t1 ):t2 => Func{ I64, t0 }
         --          ( x:t1 ):t2 => Func{ t2 , t1 }
+
+        funcSymbol <- case unfoldType callType of
+            (TypeDef funcSymbol,  _) -> return funcSymbol
+
         (Type.Func, retType : argTypes) <- unfoldType <$> baseTypeOf callType
         unless (length exprs == length argTypes)
             (fail $ "invalid function type arguments: " ++ show callType)
+
+        when (Symbol.sym funcSymbol == "convert" && symbolModule funcSymbol == "convert") $ do
+            unless (length argTypes == 1) (error "invalid")
+            collectDefault exprType (argTypes !! 0)
 
         collect "call return" (ConsEq exprType retType)
         zipWithM (\x y -> collect "call argument" (ConsEq x y)) argTypes (map typeof exprs)

@@ -14,6 +14,7 @@ import std/tuple
 import std/read
 import std/option
 import std/rand
+import std/convert
 
 
 enum Square {
@@ -30,6 +31,7 @@ enum Input {
 
 derives Square (store)
 derives Square (equal)
+
 
 type Board Array{3, Array{3, Square}}
 

@@ -8,19 +8,32 @@ import std/print
 import std/option
 import std/store
 import std/builtin
-//import std/time
+import std/for
+import std/assert
+import std/arithmetic
+import std/tuple
+import std/container
+import std/unordered
+import std/convert
 
 
 tuple Blob {
     position Vec2f
     velocity Vec2f
+    quadKey  unordered::Key{Quad}
 }
+derives Blob (store)
 
-//type Triangles (
-//    vertexKeys Sparse[I64]
-//    vertexes   Table[Vertex]
-//)
-//
+
+type Triangle Array{3, sfml::Vertex}
+
+type Quad Array{2, Triangle}
+
+
+//fn setQuadPosition(quads &Quad.Unordered, key unordered::Key{Quad}, position Vec2f) {
+//    quads[key][0][0] = sfml::vertex(vec2f(position.x - convert(10.0)
+//}
+
 //fn {t Triangles} addTriangle(position Vec2f) Key[I64]
 //    let key = t.vertexes.len()
 //    t.vertexes.push( (position + (0, -10),  green(),   (0, 0)) )
@@ -35,10 +48,10 @@ tuple Blob {
 //    let {p, _, _} = t.vertexes.at(index + 1) in; p = pos + (-10, 10)
 //    let {p, _, _} = t.vertexes.at(index + 2) in; p = pos + (10, 10)
 //
-//
-//fn {rand Rand} vec2f() Vec2f
-//    return (rand.f32(0, 5000), rand.f32(0, 5000))
-//
+// TODO Broken
+//fn vec2f(rand &Rand) Vec2f
+//    return (rand.f32(convert(0.0), convert(5000.0)), rand.f32(convert(0.0), convert(5000.0))).pretend
+
 //fn {rand Rand} vec2f(min Vec2f, max Vec2f) Vec2f
 //    return (rand.f32(min.x, max.x), rand.f32(min.y, max.y))
 //
@@ -53,7 +66,16 @@ fn main()
     w.create()
 
 //    data triangles Triangles
-    data blobs     Blob.Table
+    data blobs Blob.Table
+    data quads Quad.Unordered
+
+    for (0, 10)
+        let blob:Blob
+        //blob.position = rand.vec2f()
+        blob.position = vec2f(1.0, 0.0)
+        blob.quadKey = quads.unordered::insertZero
+        blobs.push(blob)
+
 
 //    for (0, 100000)
 //        let blob:()Blob
@@ -64,7 +86,6 @@ fn main()
 
 
     while w.isOpen()
-
 //        let prevNs = time::getTimestampNs()
 //
         while w.pollEvent() -> some(event)
@@ -72,11 +93,11 @@ fn main()
                 closed(); w.close()
                 //none();
                 _;
-//
-//        for blobs -> {p, v, k}
-//            p = p + v
-//            triangles.setTrianglePosition(k, p)
-//
+
+        for (0, blobs.len) -> i
+            blobs[i].position = blobs[i].position + blobs[i].velocity
+
+
 //        let nextNs = time::getTimestampNs()
 //
 //        print("process time:", nextNs - prevNs)

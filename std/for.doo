@@ -1,6 +1,7 @@
 module for
 
 import std/container
+import std/convert
 
 
 feature{T}    forBegin(T) I64

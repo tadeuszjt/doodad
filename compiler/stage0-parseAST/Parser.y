@@ -334,8 +334,8 @@ expr   : literal                                 { $1 }
 --       | '-' expr                                { Call (tokPos $1) (Sym ["subtract"]) [$2] }
 
 
-literal : int_c                                  { AST.Int (tokPos $1) (read $ tokStr $1) }
-        | float_c                                { AST.Float (tokPos $1) (read $ tokStr $1) }
+literal : int_c                                  { Call (tokPos $1) (TypeDef $ Sym ["convert", "convert"]) [AST.Int (tokPos $1) (read $ tokStr $1)] }
+        | float_c                                { Call (tokPos $1) (TypeDef $ Sym ["convert", "convert"]) [AST.Float (tokPos $1) (read $ tokStr $1)] }
         | char_c                                 { AST.Char (tokPos $1) (read $ tokStr $1) }
         | true                                   { AST.Bool (tokPos $1) True }
         | false                                  { AST.Bool (tokPos $1) False }

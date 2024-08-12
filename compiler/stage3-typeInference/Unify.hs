@@ -41,7 +41,7 @@ unifyOne info constraint = withPos info $ case constraint of
     ConsDefault t1 t2 -> case (t1, t2) of
         _ | t1 == t2 -> return []
         (Type _, _)  -> return [(t1, t2)]
-        (_, _)       -> error "here"
+        (_, _)       -> return []
 
     x -> error "invalid constraint"
 
