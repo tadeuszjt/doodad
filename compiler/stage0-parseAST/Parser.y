@@ -331,7 +331,7 @@ expr   : literal                                 { $1 }
 --       | expr '!=' expr                          { Call (tokPos $2) (Sym ["Boolean", "not"]) [Call (tokPos $2) (Sym ["Compare", "equal"]) [$1, $3]] } 
 --       | expr '||' expr                          { Call (tokPos $2) (Sym ["Boolean", "or"]) [$1, $3] } 
        | '!' expr                                { Call (tokPos $1) (TypeDef $ Sym ["boolean", "not"]) [$2] }
---       | '-' expr                                { Call (tokPos $1) (Sym ["subtract"]) [$2] }
+       | '-' expr                                { Call (tokPos $1) (TypeDef $ Sym ["arithmetic", "negate"]) [$2] }
 
 
 literal : int_c                                  { Call (tokPos $1) (TypeDef $ Sym ["convert", "convert"]) [AST.Int (tokPos $1) (read $ tokStr $1)] }

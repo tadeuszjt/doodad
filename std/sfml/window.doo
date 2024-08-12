@@ -8,6 +8,7 @@ import std/option
 import std/arithmetic
 import std/boolean
 import std/convert
+import std/container
 
 include <SFML/Graphics.h>
 link csfml-graphics
@@ -35,17 +36,42 @@ tuple Rectf {
 }
 
 tuple Colour {
-    a F32
-    r F32
-    g F32
-    b F32
+    a U8
+    r U8
+    g U8
+    b U8
 }
+derives Colour (store)
+
+fn makecolour(a U8, r U8, g U8, b U8) Colour
+    let colour
+    colour.a = a
+    colour.r = r
+    colour.g = g
+    colour.b = b
+    return colour
+
+fn white() Colour; return makecolour(255, 255, 255, 255)
+fn black() Colour; return makecolour(255, 0, 0, 0)
+
 
 tuple Vertex {
     position Vec2f
     colour   Colour
     texCoord Vec2f
 }
+derives Vertex (store)
+
+fn vertex(position Vec2f, colour Colour, texCoord Vec2f) Vertex
+    let vert
+    vert.position = position
+    vert.colour = colour
+    vert.texCoord = texCoord
+    return vert
+
+
+type Quad Array{6, sfml::Vertex}
+fn tri(quad &Quad, i I64) &Vertex; return quad.pretend:Array{6, Vertex}[i]
 
 
 type Window I64
@@ -125,16 +151,16 @@ fn pollEvent(w &Window) Event.Option
     return Option::none()
 
 
-//fn {w Window, vertices Table{Vertex}} drawPrimitives()
-//    ${
-//        sfRenderWindow_drawPrimitives(
-//            (sfRenderWindow*)*$w,
-//            (const sfVertex *)$vertices->r0,
-//            $vertices->len,
-//            sfTriangles,
-//            NULL
-//        );
-//    }
+fn drawQuads(w &Window, quads &Quad.Table)
+    ${
+        sfRenderWindow_drawPrimitives(
+            (sfRenderWindow*)*$w,
+            (const sfVertex *)$quads->r0,
+            $quads->len * 6,
+            sfTriangles,
+            NULL
+        );
+    }
 
 ////fn {w Window} setViewFromRect(rect Rectf)
 ////    let (l, t, r, b) = (rect.min.x, rect.min.y, rect.max.x, rect.max.y)

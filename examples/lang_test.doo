@@ -13,6 +13,7 @@ import std/print
 import std/io
 import std/option
 import std/unordered
+import std/convert
 
 
 fn testArithmetic()

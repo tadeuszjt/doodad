@@ -14,22 +14,15 @@ import std/convert
 
 
 type{T} Key I64
-
-
-tuple{T} Entry {
-    key   I64.Key
-    value T
-}
+derives{T} Key{T} (store)
 
 
 tuple{T} Unordered {
     indices I64.Sparse
-    values T.Entry.Table
+    entries I64.Key.Table
+    values  T.Table
 }
 
-
-derives{T} Key{T} (store)
-derives{T} Entry{T} (store)
 
 
 acquires{T} len{ T.Unordered } (u&)
@@ -40,7 +33,8 @@ fn{T} insertZero(u &T.Unordered) T.Key
     let key = u.indices.sparse::insert(u.values.len)
 
     u.values.grow
-    u.values[u.values.len - 1].key   = key.pretend:Key{I64}
+    u.entries.grow
+    u.entries[u.entries.len - 1] = key.pretend:Key{I64}
 
     return key.pretend
 
@@ -49,31 +43,34 @@ fn{T} insert(u &T.Unordered, elem T) T.Key
     let key = u.indices.sparse::insert(u.values.len)
 
     u.values.grow
-    u.values[u.values.len - 1].key   = key.pretend:Key{I64}
-    u.values[u.values.len - 1].value = elem
+    u.entries.grow
+    u.values[u.values.len - 1] = elem
+    u.entries[u.entries.len - 1] = key.pretend:Key{I64}
 
     return key.pretend
 
 
 acquires{T} index{ Unordered, T } (u&, idx) -> &
-    return u.values[idx].value
+    return u.values[idx]
 
 
 acquires{T} at{ Unordered, T.Key, T} (u&, key) -> &
     let index = u.indices[key.pretend:sparse::Key{I64}]
-    return &u.values[index].value
+    return &u.values[index]
 
 
 fn{T} delete(u &T.Unordered, key T.Key)
-    let end    = u.values.len - 1
-    let endKey = u.values[end].key
+    let end    = u.entries.len - 1
+    let endKey = u.entries[end]
     let index  = u.indices.at(key.pretend:sparse::Key{I64})
 
+    u.entries[index] = u.entries[end]
     u.values[index] = u.values[end]
 
     u.indices.at(endKey.pretend:sparse::Key{I64}) = index
     u.indices.sparse::delete(key.pretend)
     u.values.pop
+    u.entries.pop
 
 
 acquires{P, T} print{P, Unordered{T}} (p&, u&)

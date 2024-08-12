@@ -21,3 +21,8 @@ acquires convert{F64, F32} (a)
     let b
     ${ $b = $a; }
     return b
+
+acquires convert{I64, U8} (a)
+    let b
+    ${ $b = $a; }
+    return b

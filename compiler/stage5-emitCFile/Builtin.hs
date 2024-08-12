@@ -184,7 +184,11 @@ builtinArrayAt value idx@(Value _ _) = do
             (x, []) | isSimple x -> return $ Ref t $ C.Address $ C.Subscript
                 (C.PMember expr "arr")
                 (valExpr idx)
-            (Tuple, ts) -> error "TODO"
+            (Tuple, ts) -> do
+                -- TODO implement shear
+                let ptr = C.Address $ C.Subscript (C.PMember expr "arr") (valExpr idx)
+                assign "ref" $ Ref t $ C.Initialiser [ptr, C.Int 0, C.Int 0]
+
             (_, _) -> return $ Ref t $ C.Address $ C.Subscript
                 (C.PMember expr "arr")
                 (valExpr idx)

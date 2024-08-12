@@ -25,14 +25,14 @@ tuple Blob {
 derives Blob (store)
 
 
-type Triangle Array{3, sfml::Vertex}
+fn setQuadPosition(quads &Quad.Unordered, key unordered::Key{Quad}, position Vec2f)
+    quads[key].tri(0) = sfml::vertex(position + vec2f(-10.0, -10.0), black(), vec2f(0.0, 0.0))
+    quads[key].tri(1) = sfml::vertex(position + vec2f(10.0, -10.0),  black(), vec2f(0.0, 0.0))
+    quads[key].tri(2) = sfml::vertex(position + vec2f(10.0, 10.0),   black(), vec2f(0.0, 0.0))
+    quads[key].tri(3) = sfml::vertex(position + vec2f(10.0, -10.0),  black(), vec2f(0.0, 0.0))
+    quads[key].tri(4) = sfml::vertex(position + vec2f(10.0, 10.0),   black(), vec2f(0.0, 0.0))
+    quads[key].tri(5) = sfml::vertex(position + vec2f(-10.0, 10.0),  black(), vec2f(0.0, 0.0))
 
-type Quad Array{2, Triangle}
-
-
-//fn setQuadPosition(quads &Quad.Unordered, key unordered::Key{Quad}, position Vec2f) {
-//    quads[key][0][0] = sfml::vertex(vec2f(position.x - convert(10.0)
-//}
 
 //fn {t Triangles} addTriangle(position Vec2f) Key[I64]
 //    let key = t.vertexes.len()
@@ -69,11 +69,12 @@ fn main()
     data blobs Blob.Table
     data quads Quad.Unordered
 
-    for (0, 10)
+    for (0, 1)
         let blob:Blob
         //blob.position = rand.vec2f()
-        blob.position = vec2f(1.0, 0.0)
+        blob.position = vec2f(50.0, 50.0)
         blob.quadKey = quads.unordered::insertZero
+        quads.setQuadPosition(blob.quadKey, vec2f(0.0, 0.0))
         blobs.push(blob)
 
 
@@ -110,9 +111,9 @@ fn main()
 //
 //        let (width, height) = w.getSize()
 //        w.setViewFromRect(((0, 0), (conv(width), conv(height))))
-//        w.clearWindow(white())
-//        {w, triangles.vertexes}.drawPrimitives()
-//        w.display()
+        w.clearWindow(white())
+        w.drawQuads(quads.Unordered::values)
+        w.display()
 //
 //        nextNs = time::getTimestampNs()
 //        print("render time: ", nextNs - prevNs)
