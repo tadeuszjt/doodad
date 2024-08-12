@@ -21,8 +21,9 @@ data ASTResolved
         , typeDefsAll          :: Type.TypeDefsMap         -- all type defs
         , typeDefsTop          :: Set.Set Symbol           -- top-level type defs
 
-        , acquiresAll           :: Map.Map Symbol Stmt 
-        , acquiresTop           :: Set.Set Symbol
+        , acquiresAll          :: Map.Map Symbol Stmt 
+        , acquiresImports      :: Map.Map Symbol Stmt
+        , acquiresTop          :: Set.Set Symbol
 
         , funcDefsAll          :: Map.Map Symbol Func
         , funcDefsTop          :: Set.Set Symbol

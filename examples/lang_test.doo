@@ -503,6 +503,11 @@ fn testArrayAt()
     let 0 = array[1]
     let 3 = array[2]
 
+fn testFunctionalDependency()
+    data table Tuple{I64, Bool}.Table
+    table.grow
+    let x = table[0]
+
 
 fn main()
     testArithmetic()
@@ -527,6 +532,7 @@ fn main()
 //    testCharType()
     testEnum()
     testMacroTuple()
+    testFunctionalDependency()
 
 //    data io Io
 //    testIo(&io)

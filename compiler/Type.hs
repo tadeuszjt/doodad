@@ -100,7 +100,6 @@ unfoldType typ = case typ of
     _         -> (typ, [])
 
 
-
 mapType :: (Type -> Type) -> Type -> Type
 mapType f typ = f $ case typ of
     Apply t1 t2 -> Apply (mapType f t1) (mapType f t2)
@@ -151,9 +150,6 @@ lowerTypeOfm a = case unfoldType (typeof a) of
     _ -> error "type isn't a TypeDef"
 
 
-
-
-
 typesCouldMatch :: Type -> Type -> Bool
 typesCouldMatch t1 t2 = case (t1, t2) of
     (a, b) | a == b            -> True
@@ -170,3 +166,25 @@ typeFullyResolved typ = case typ of
     Type _         -> False
     Apply t1 t2    -> all typeFullyResolved [t1, t2]
     _              -> True
+
+
+-- function to determine if a type could not be overridden by another type when describing a type.
+typeFullyDescribes :: Type -> Type -> Bool
+typeFullyDescribes t1 t2 = case (t1, t2) of
+    (Apply a1 b1, Apply a2 b2) -> typeFullyDescribes a1 a2 && typeFullyDescribes b1 b2
+    (Apply _ _, _) -> False
+
+    (x, y) | isSimple x -> x == y
+    (Table, b) -> b == Table
+    (Tuple, b) -> b == Tuple
+    (Slice, b) -> b == Slice
+    (Sum, b)   -> b == Sum
+    (Type.Array, b) -> b == Type.Array
+    (TypeDef s1, b) -> b == TypeDef s1
+
+    (Type _, _) -> True
+    (_, Type _) -> False
+
+    x -> error (show x)
+
+

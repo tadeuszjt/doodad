@@ -12,6 +12,7 @@ import Error
 import Control.Monad.State
 import Symbol
 import ASTResolved
+import FindFunc
 
 
 data CollectState
@@ -158,15 +159,39 @@ collectExpr (AExpr exprType expression) = collectPos expression $ case expressio
     AST.Char _ _ -> collect "char literal must have Char type" (ConsEq exprType Type.Char)
 
     Call _ callType exprs -> do
-        -- at{ t0, t1, t2 }                     => Func{ t2, t0 t1, t2 }
-        -- at( x : Array{3, I64}, idx : t3 ):t4 -> Func{ t4, Array 3 I64, t3 }
-
-        -- len{ t0 }( x:t1 ):t2 => Func{ I64, t0 }
-        --          ( x:t1 ):t2 => Func{ t2 , t1 }
-
         funcSymbol <- case unfoldType callType of
             (TypeDef funcSymbol,  _) -> return funcSymbol
+        
+        -- TODO implement functional dependencies and type-check acquires def
+        -- You need to prove that no other acquires could ever conflict with the one you are checking against
+        -- the promise is that we will not define different acquires with different V types with same T
+        -- Q: is this needed when we don't allow for overlapping definitions?
+        -- Right now it seems to work regardless.
+        ast <- gets astResolved
+        fullAcqs <- fmap catMaybes $ forM (Map.toList $ acquiresImports ast) $ \(symbol, stmt) -> case stmt of
+            Aquires _ generics funType _ _ _ -> do
+                let genericsToVars = zip (map TypeDef generics) (map Type [-1, -2..])
+                let appliedFunType = applyType genericsToVars funType
+                case typeFullyDescribes appliedFunType callType of
+                    True -> return (Just appliedFunType)
+                    False -> return Nothing
 
+            _ -> return Nothing -- TODO
+
+        case fullAcqs of
+            [] -> return () -- TODO, need to check derives also
+            [acq] -> do
+                --liftIO $ putStrLn $ show acq ++ ", " ++ show callType
+                subs <- unify =<< getConstraintsFromTypes acq callType
+
+                (Type.Func, retType : argTypes) <- unfoldType <$> baseTypeOf (applyType subs acq)
+                collect "call return" (ConsEq exprType retType)
+                zipWithM (\x y -> collect "call argument" (ConsEq x y)) argTypes (map typeof exprs)
+                return ()
+
+
+            x -> error (show x)
+                
         (Type.Func, retType : argTypes) <- unfoldType <$> baseTypeOf callType
         unless (length exprs == length argTypes)
             (fail $ "invalid function type arguments: " ++ show callType)

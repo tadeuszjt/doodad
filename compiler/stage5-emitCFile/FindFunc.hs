@@ -67,8 +67,9 @@ findFunction funcType = do
 
 findAcquire :: Type -> DoM ASTResolved Func
 findAcquire callType = do
-    -- store::store{unordered::Key{Table{I64}}}
-
+    -- TODO incorrect to look through acquiresAll? depends on imports
+    -- Problem, Compile is compiling function defined in other module in context of this module.
+    -- Solution: Compile needs access to all 'Modules' not just 'ASTResolved'.
     acquiresAll <- gets acquiresAll
     results <- fmap catMaybes $ forM (Map.toList acquiresAll) $ \(symbol, stmt) -> case stmt of
         Derives _ generics argType [typSymbol] -> do

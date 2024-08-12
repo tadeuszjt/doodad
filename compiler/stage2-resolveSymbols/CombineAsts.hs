@@ -22,6 +22,7 @@ initAstResolved modName imports = ASTResolved
     , funcDefsAll    = Map.unions (map funcDefsAll imports)
 
     , acquiresAll     = Map.unions (map acquiresAll imports) 
+    , acquiresImports = Map.unions $ map (\imp -> Map.restrictKeys (acquiresAll imp) (acquiresTop imp)) imports
     , acquiresTop     = Set.empty
 
     , typeDefsTop    = Set.empty
