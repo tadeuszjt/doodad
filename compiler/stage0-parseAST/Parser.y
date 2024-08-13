@@ -156,8 +156,17 @@ derivesDef : derives generics type_ '(' symbols1 ')'
            { Derives (tokPos $1) $2 $3 (map snd $5) }
 
 
-featureDef : feature generics ident '(' types ')' typeMaybe
-            { Feature (tokPos $1) $2 (Sym [tokStr $3]) $5 (case $7 of Nothing -> Void; Just x -> x) }
+featureGenerics : '{' Idents1 funDeps '}'  { (map (\s -> Symbol.Sym [s]) $2, $3) }
+
+funDeps : {-empty-}    { [] }
+        | '|' funDeps1 { $2 }
+
+funDep : Ident '->' Ident { (Symbol.Sym [tokStr $1], Symbol.Sym [tokStr $3]) }
+funDeps1 : funDep              { [$1] }
+         | funDep ',' funDeps1 { $1:$3 }
+
+featureDef : feature featureGenerics ident '(' types ')' typeMaybe
+            { Feature (tokPos $1) (fst $2) (snd $2) (Sym [tokStr $3]) $5 (case $7 of Nothing -> Void; Just x -> x) }
 
 
 acquiresDef : acquires generics symbol '{' types '}' '(' args ')' acquiresRetty scope
@@ -227,6 +236,9 @@ case : pattern scope                      { ($1, $2) }
 
 --------------------------------------------------------------------------------------------------
 -- Misc ------------------------------------------------------------------------------------------
+
+Idents : {-empty-}                       { [] }
+       | Idents1                         { $1 }
 
 Idents1 : Ident                          { [tokStr $1] }
         | Ident ',' Idents1              { (tokStr $1):($3) } 

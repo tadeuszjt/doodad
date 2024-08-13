@@ -18,8 +18,11 @@ data ASTResolved
         { moduleName           :: String
         , includes             :: Set.Set String           -- c header includes
         , links                :: Set.Set String           -- linked libraries
+
         , typeDefsAll          :: Type.TypeDefsMap         -- all type defs
         , typeDefsTop          :: Set.Set Symbol           -- top-level type defs
+
+        , featuresAll          :: Map.Map Symbol Stmt
 
         , acquiresAll          :: Map.Map Symbol Stmt 
         , acquiresImports      :: Map.Map Symbol Stmt

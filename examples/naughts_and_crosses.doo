@@ -35,12 +35,13 @@ derives Square (equal)
 
 type Board Array{3, Array{3, Square}}
 
-// TODO implement functional dependencies so this can be type-checked.
-//acquires container::at{ Board, I64, Array{3, Square} } (b&, idx) -> &
-//    return b.pretend:Array{3, Array{3, Square}}[idx]
+derives Board (container::len)
+acquires container::at{ Board, I64, Array{3, Square} } (b&, idx) -> &
+    return b.pretend:Array{3, Array{3, Square}}[idx]
 
-fn arr(b &Board) &Array{3, Array{3, Square}}
-    return b.pretend
+acquires forAt{ Board, Array{3, Square} } (b&, idx) -> &; return b[idx]
+acquires forBegin{ Board } (b&); return 0
+acquires forEnd{ Board } (b&); return b.len
 
 
 acquires{P} print{ P, Square } (p&, square)
@@ -50,14 +51,14 @@ acquires{P} print{ P, Square } (p&, square)
         cross(); p.print('X')
 
 acquires{P} print{ P, Board } (p&, board)
-    for board.arr -> row
+    for board -> row
         p.print(row)
         p.print('\n')
 
 
 fn winner(board Board) Square
     // check for horizontal lines
-    for board.arr -> row
+    for board -> row
         let match = true
         for row -> square
             if square != row[0]
@@ -67,31 +68,31 @@ fn winner(board Board) Square
 
 
     // check for vertical lines
-    for (0, board.arr[0].len) -> col
+    for (0, board[0].len) -> col
         let match = true
-        for (0, board.arr.len) -> row
-            if board.arr[row][col] != board.arr[0][col]
+        for (0, board.len) -> row
+            if board[row][col] != board[0][col]
                 match = false
 
-        if match && board.arr[0][col] != empty()
-            return board.arr[0][col]
+        if match && board[0][col] != empty()
+            return board[0][col]
 
 
     // check diagonals
     let match = true
-    for (0, board.arr.len) -> i | match
-        if board.arr[i][i] != board.arr[0][0]
+    for (0, board.len) -> i | match
+        if board[i][i] != board[0][0]
             match = false
-    if match && board.arr[0][0] != empty()
-        return board.arr[0][0]
+    if match && board[0][0] != empty()
+        return board[0][0]
 
     match = true
-    for (0, board.arr.len) -> i | match
-        let row = board.arr.len - 1 - i
-        if board.arr[row][i] != board.arr[board.arr.len - 1][0]
+    for (0, board.len) -> i | match
+        let row = board.len - 1 - i
+        if board[row][i] != board[board.len - 1][0]
             match = false
-    if match && board.arr[board.arr.len - 1][0] != empty()
-        return board.arr[board.arr.len - 1][0]
+    if match && board[board.len - 1][0] != empty()
+        return board[board.len - 1][0]
 
     return empty()
 
@@ -128,9 +129,9 @@ fn cpuMove(io &Io, board &Board)
 
     // find all empty squares
     data empty (I64, I64).Table
-    for (0, board.arr.len) -> row
-        for (0, board.arr[row].len) -> col
-            if board.arr[row][col] == empty()
+    for (0, board.len) -> row
+        for (0, board[row].len) -> col
+            if board[row][col] == empty()
                 empty.push( (row, col) )
 
     if empty.len == 0
@@ -139,25 +140,25 @@ fn cpuMove(io &Io, board &Board)
 
     // find move that wins
     for empty -> (row, col)
-        board.arr[row][col] = cross()
+        board[row][col] = cross()
         if winner(board) == cross()
             return
-        board.arr[row][col] = empty()
+        board[row][col] = empty()
 
     // find move that opponent wins
     for empty -> (row, col)
-        board.arr[row][col] = naught()
+        board[row][col] = naught()
         if winner(board) == naught()
-            board.arr[row][col] = cross()
+            board[row][col] = cross()
             return
         else
-            board.arr[row][col] = empty()
+            board[row][col] = empty()
 
     // choose random move
     data rand Rand
     let i = rand.i64(0, empty.len)
     let (row, col) = empty[i]
-    board.arr[row][col] = cross()
+    board[row][col] = cross()
 
 
 fn main()
@@ -175,10 +176,10 @@ fn main()
                 error()
                     io.stdout.print("parse error\n")
 
-                move(row, col) | row < 0 || row > (board.arr.len - 1)
+                move(row, col) | row < 0 || row > (board.len - 1)
                     io.stdout.print("row not in range\n")
 
-                move(row, col) | col < 0 || col > (board.arr.len - 1)
+                move(row, col) | col < 0 || col > (board.len - 1)
                     io.stdout.print("col not in range\n")
 
                 move(row, col)
@@ -187,7 +188,7 @@ fn main()
                     io.stdout.print(", ")
                     io.stdout.print(col)
                     io.stdout.print('\n')
-                    board.arr[row][col] = naught()
+                    board[row][col] = naught()
                     moved = true
 
                 _; io.stdout.print("something")

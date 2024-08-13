@@ -2,6 +2,7 @@
 module Collect where
 
 import Data.Maybe
+import Data.List
 import qualified Data.Map as Map
 
 import AST
@@ -162,49 +163,60 @@ collectExpr (AExpr exprType expression) = collectPos expression $ case expressio
     AST.Char _ _ -> collect "char literal must have Char type" (ConsEq exprType Type.Char)
 
     Call _ callType exprs -> do
-        funcSymbol <- case unfoldType callType of
-            (TypeDef funcSymbol,  _) -> return funcSymbol
-        
-        -- TODO implement functional dependencies and type-check acquires def
-        -- Helpful: instances are globally imported, we can use acquiresAll.
-        -- You need to prove that no other acquires could ever conflict with the one you are checking against
-        -- the promise is that we will not define different acquires with different V types with same T
-        -- Q: is this needed when we don't allow for overlapping definitions?
-        -- Right now it seems to work regardless.
-        -- Q: what if 'main' types in callType are generic? IMPORTANT, these are filled in later so may need different acquires implementations
-        -- We need to ask the question whether we are type-checking using a feature or an aquires. depends on the function generics
-        ast <- gets astResolved
-        fullAcqs <- fmap catMaybes $ forM (Map.toList $ acquiresAll ast) $ \(symbol, stmt) -> case stmt of
-            Aquires _ generics funType _ _ _ -> do
-                -- funType eg: container::at{Table{T::6, I64, T::6}
-                -- 1.) Identify 'main' types, do not depend on others
-
-
-                let genericsToVars = zip (map TypeDef generics) (map Type [-1, -2..])
-                let appliedFunType = applyType genericsToVars funType
-                case typeFullyDescribes appliedFunType callType of
-                    True -> return (Just appliedFunType)
-                    False -> return Nothing
-
-            _ -> return Nothing -- TODO
-
-        case fullAcqs of
-            [] -> return () -- TODO, need to check derives also
-            [acq] -> do
-                --liftIO $ putStrLn $ show acq ++ ", " ++ show callType
-                subs <- unify =<< getConstraintsFromTypes acq callType
-
-                (Type.Func, retType : argTypes) <- unfoldType <$> baseTypeOf (applyType subs acq)
-                collect "call return" (ConsEq exprType retType)
-                zipWithM (\x y -> collect "call argument" (ConsEq x y)) argTypes (map typeof exprs)
-                return ()
-
-
-            x -> error (show x)
-                
+        let (TypeDef funcSymbol, _) = unfoldType callType
         (Type.Func, retType : argTypes) <- unfoldType <$> baseTypeOf callType
         unless (length exprs == length argTypes)
             (fail $ "invalid function type arguments: " ++ show callType)
+
+        ast <- gets astResolved
+-- TODO implement functional dependencies and type-check acquires def
+-- Helpful: instances are globally imported, we can use acquiresAll.
+-- You need to prove that no other acquires could ever conflict with the one you are checking against
+-- Q: is this needed when we don't allow for overlapping definitions?
+        when (Map.member funcSymbol $ featuresAll ast) $ do
+            let Feature _ featureGenerics funDeps _ _ _ = (featuresAll ast) Map.! funcSymbol
+
+            let (TypeDef funcSymbol, callTypeArgs) = unfoldType callType
+            unless (length callTypeArgs == length featureGenerics) (error "xs needs to be > 0")
+            -- need to work out which of xs to check
+            -- naive approach (may be correct) test if not a dependent var.
+        
+            indices <- fmap catMaybes $ forM (zip featureGenerics [0..]) $ \(g, i) -> do
+                case findIndex (\(_, x) -> g == x) funDeps of
+                    Just _  -> return Nothing
+                    Nothing -> return (Just i) 
+
+            fullAcqs <- fmap catMaybes $ forM (Map.toList $ acquiresAll ast) $ \(symbol, stmt) -> case stmt of
+                Aquires _ generics acqType _ _ _ -> do
+                    -- funType eg: container::at{Table{T::6, I64, T::6}
+                    let genericsToVars = zip (map TypeDef generics) (map Type [-1, -2..])
+                    let appliedAcqType = applyType genericsToVars acqType
+
+                    case typesCouldMatch appliedAcqType callType of
+                        False -> return Nothing
+                        True -> do
+                            let (TypeDef _, acqTypeArgs) = unfoldType appliedAcqType
+                            let b = all id $ map (\i -> typeFullyDescribes (acqTypeArgs !! i) (callTypeArgs !! i)) indices
+                            case b of
+                                True -> return (Just appliedAcqType) 
+                                False -> return Nothing
+
+                _ -> return Nothing -- TODO
+
+            case fullAcqs of
+                [] -> return () -- TODO, need to check derives also
+                [acq] -> do
+                    --liftIO $ putStrLn $ show acq ++ ", " ++ show callType
+                    subs <- unify =<< getConstraintsFromTypes acq callType
+
+                    (Type.Func, retType : argTypes) <- unfoldType <$> baseTypeOf (applyType subs acq)
+                    collect "call return" (ConsEq exprType retType)
+                    zipWithM (\x y -> collect "call argument" (ConsEq x y)) argTypes (map typeof exprs)
+                    return ()
+
+
+                x -> error (show x)
+                
 
         when (Symbol.sym funcSymbol == "convert" && symbolModule funcSymbol == "convert") $ do
             unless (length argTypes == 1) (error "invalid")

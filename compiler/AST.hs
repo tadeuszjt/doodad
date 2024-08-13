@@ -38,6 +38,7 @@ data Param
     deriving (Eq, Ord)
 
 type Generics = [Symbol]
+type FunDeps  = [(Symbol, Symbol)]
 
 data Retty
     = Retty Type
@@ -132,7 +133,7 @@ data Stmt
     | If          TextPos Expr Stmt (Maybe Stmt)
     | While       TextPos Expr Stmt
     | FuncDef     Generics Func
-    | Feature     TextPos Generics Symbol [Type] Type
+    | Feature     TextPos Generics FunDeps Symbol [Type] Type
     | Aquires     TextPos Generics Type [Param] Bool Stmt
     | Typedef     TextPos Generics Symbol Type
     | Switch      TextPos Expr [(Pattern, Stmt)]
@@ -191,7 +192,7 @@ instance TextPosition Stmt where
         For         p _ _ _ -> p
         Data        p _ _ _ -> p
         EmbedC      p _ -> p
-        Feature     p _ _ _ _ -> p
+        Feature     p _ _ _ _ _ -> p
         Enum        p _ _ _ -> p
         MacroTuple  p _ _ _ -> p
         Assign      p _ _ -> p
@@ -283,10 +284,13 @@ prettyStmt pre stmt = case stmt of
         prettyStmt pre blk
         putStrLn ""
 
-    Feature pos generics symbol args typ  -> do
+    Feature pos generics funDeps symbol args typ  -> do
+        let funDepsStr = case funDeps of
+                [] -> ""
+                xs -> " | " ++ intercalate ", " (map (\(a, b) -> show a ++ "->" ++ show b) funDeps)
         let genericsStr = case generics of
                 [] -> "" 
-                xs -> brcStrs (map prettySymbol xs)
+                xs -> brcStrs [intercalate ", " (map prettySymbol xs), funDepsStr]
         putStrLn $ pre
             ++ "feature"
             ++ genericsStr

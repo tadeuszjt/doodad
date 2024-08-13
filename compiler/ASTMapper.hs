@@ -51,7 +51,7 @@ mapStmtM :: MapperFunc s -> Stmt -> DoM s Stmt
 mapStmtM f stmt = withPos stmt $ do
     res <- f . ElemStmt =<< case stmt of
         Typedef _ _ _ _ -> return stmt -- ignored
-        Feature _ _ _ _ _ -> return stmt -- ignored
+        Feature _ _ _ _ _ _ -> return stmt -- ignored
 
         Aquires pos generics typ args isRef stmt -> do
             stmt' <- mapStmtM f stmt

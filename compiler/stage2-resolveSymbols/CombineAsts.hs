@@ -21,6 +21,8 @@ initAstResolved modName imports = ASTResolved
     , typeDefsAll    = Map.unions (map typeDefsAll imports)
     , funcDefsAll    = Map.unions (map funcDefsAll imports)
 
+    , featuresAll    = Map.unions (map featuresAll imports)
+
     , acquiresAll     = Map.unions (map acquiresAll imports) 
     , acquiresImports = Map.unions $ map (\imp -> Map.restrictKeys (acquiresAll imp) (acquiresTop imp)) imports
     , acquiresTop     = Set.empty
@@ -54,7 +56,7 @@ combineAsts (ast, supply) imports = fmap snd $
                 FuncDef generics (AST.Func header stmt) -> do
                     modify $ \s -> s { funcDefsTop = Set.insert (funcSymbol header) (funcDefsTop s) }
                     modify $ \s -> s { typeDefsTop = Set.insert (funcSymbol header) (typeDefsTop s) }
-                Feature _ _ symbol _ _ ->
+                Feature _ _ _ symbol _ _ ->
                     modify $ \s -> s { typeDefsTop = Set.insert symbol (typeDefsTop s) }
 
                 _ -> return ()
@@ -77,7 +79,8 @@ typeDefsMapper element = case element of
         modify $ \s -> s { typeDefsAll = Map.insert symbol (generics, typ) (typeDefsAll s) }
         return element
 
-    ElemStmt (Feature pos generics symbol args retty) -> do
+    ElemStmt stmt@(Feature pos generics funDeps symbol args retty) -> do
+        modify $ \s -> s { featuresAll = Map.insert symbol stmt (featuresAll s) }
         modify $ \s -> s { typeDefsAll = Map.insert
             symbol
             (generics, foldl Apply Type.Func (retty : args))
@@ -110,7 +113,7 @@ combineMapper element = case element of
         forM stmts $ \stmt -> case stmt of
             Typedef _ _ _ _ -> return Nothing
             FuncDef _ _     -> return Nothing
-            Feature _ _ _ _ _ -> return Nothing
+            Feature _ _ _ _ _ _ -> return Nothing
             Aquires _ _ _ _ _ _ -> return Nothing
             Derives _ _ _ _     -> return Nothing
             _               -> return (Just stmt)
