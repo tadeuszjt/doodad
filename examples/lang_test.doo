@@ -173,15 +173,7 @@ fn testPrint()
 
     data tupStr Char.Table
 
-
-    fn{A, B} makeTuple2(a A, b B) Tuple{A, B}
-        let t : Tuple{A, B}
-        t.0 = a
-        t.1 = b
-        return t
-
-
-    tupStr.print( makeTuple2(0, true) )
+    tupStr.print( (0, true) )
 
     ${ printf("%s\n", $tupStr.r0); }
 
@@ -509,6 +501,24 @@ fn testFunctionalDependency()
     let x = table[0]
 
 
+type MyTup Tuple{Bool, U8}
+derives MyTup (store)
+
+acquires make2{ Bool, U8, MyTup } (a, b)
+    let myTup
+    myTup.0 = a
+    myTup.1 = b
+    return myTup
+
+fn testMake2()
+    let tup = make2(1, true):Tuple{I64, Bool}
+    let myTup : MyTup
+    myTup = make2(true, 3)
+
+
+
+
+
 fn main()
     testArithmetic()
     testFloats()
@@ -533,6 +543,7 @@ fn main()
     testEnum()
     testMacroTuple()
     testFunctionalDependency()
+    testMake2()
 
 //    data io Io
 //    testIo(&io)

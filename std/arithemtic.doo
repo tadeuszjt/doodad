@@ -5,7 +5,7 @@ import std/store
 import std/convert
 
 
-feature{T} add(T, T) T
+feature{A, B | A->B } add(A, A) B
 feature{T} subtract(T, T) T
 feature{T} multiply(T, T) T
 feature{T} divide(T, T) T
@@ -14,18 +14,18 @@ feature{T} modulo(T, T) T
 feature{T} negate(T) T
 
 
-acquires add{I64}      (a, b); return builtinAdd(a, b)
+acquires add{I64, I64} (a, b); return builtinAdd(a, b)
 acquires subtract{I64} (a, b); return builtinSubtract(a, b)
 acquires multiply{I64} (a, b); return builtinMultiply(a, b)
 acquires divide{I64}   (a, b); return builtinDivide(a, b)
 acquires modulo{I64}   (a, b); return builtinModulo(a, b)
 
-acquires add{F64}      (a, b); return builtinAdd(a, b)
+acquires add{F64, F64} (a, b); return builtinAdd(a, b)
 acquires subtract{F64} (a, b); return builtinSubtract(a, b)
 acquires multiply{F64} (a, b); return builtinMultiply(a, b)
 acquires divide{F64}   (a, b); return builtinDivide(a, b)
 
-acquires add{F32}      (a, b); return builtinAdd(a, b)
+acquires add{F32, F32} (a, b); return builtinAdd(a, b)
 acquires subtract{F32} (a, b); return builtinSubtract(a, b)
 acquires multiply{F32} (a, b); return builtinMultiply(a, b)
 acquires divide{F32}   (a, b); return builtinDivide(a, b)
@@ -35,18 +35,18 @@ acquires negate{F32}   (a); return builtinSubtract(0.0, a)
 
 
 
-acquires{A, B} add{ Tuple{A, B} } (a, b)
+acquires{A, B} add{ Tuple{A, B}, Tuple{A, B} } (a, b)
     let c : Tuple{A, B}
     c.0 = a.0 + b.0
     c.1 = a.1 + b.1
     return c
 
 
-acquires add{Char}      (a, b); return builtinAdd(a, b)
-acquires subtract{Char} (a, b); return builtinSubtract(a, b)
+acquires add{Char, Char} (a, b); return builtinAdd(a, b)
+acquires subtract{Char}  (a, b); return builtinSubtract(a, b)
 
 
-acquires{A, B, C} add{ Tuple{A, B, C} } (a, b)
+acquires{A, B, C} add{ Tuple{A, B, C}, Tuple{A, B, C} } (a, b)
     let tup
     tup.0 = a.0 + b.0
     tup.1 = a.1 + b.1

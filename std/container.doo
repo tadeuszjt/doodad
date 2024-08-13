@@ -8,26 +8,26 @@ import std/convert
 
 
 feature{T}                 len(T) I64
-feature{T, V}              push(T{V}, V)
-feature{T, V}              pop(T{V}) V
+feature{T, V | T -> V}     push(T, V)
+feature{T, V | T -> V}     pop(T) V
 feature{T, K, V | T -> V } at(T, K) V
 feature{T}                 grow(T)
-feature{T, V}              index(T{V}, I64) V
+feature{T, V | T -> V}     index(T, I64) V
 
 
 acquires{V} len{ Table{V} }    (t&);            return builtinTableLen(&t)
 acquires{T} at{ Table{T}, I64, T } (t&, idx) -> &; return builtinTableAt(&t, idx)
-acquires{T} index{ Table, T }   (t&, idx) -> &; return builtinTableAt(&t, idx)
+acquires{T} index{ Table{T}, T }   (t&, idx) -> &; return builtinTableAt(&t, idx)
 
 
-acquires{T} push{ Table, T } (t&, e)
+acquires{T} push{ Table{T}, T } (t&, e)
     builtinTableAppend(&t)
     builtinTableAt(&t, t.len - 1) = e
 
 acquires{T} grow{ T.Table } (t&)
     builtinTableAppend(&t)
 
-acquires{T} pop{ Table, T } (t&)
+acquires{T} pop{ Table{T}, T } (t&)
     let e = t.at(t.len - 1)
     ${ $t->len--; }
     return e
@@ -35,7 +35,7 @@ acquires{T} pop{ Table, T } (t&)
 
 acquires{T} len{ T.Slice } (s&);                return builtinSliceLen(&s)
 acquires{T} at{ Slice{T}, I64, T } (s&, idx) -> &; return builtinSliceAt(&s, idx)
-acquires{T} index{ Slice, T}    (s&, idx) -> &; return builtinSliceAt(&s, idx)
+acquires{T} index{ Slice{T}, T}    (s&, idx) -> &; return builtinSliceAt(&s, idx)
 
 
 acquires{T, S} at{  Array{S, T}, I64, T } (arr&, idx) -> &; return builtinArrayAt(&arr, idx)

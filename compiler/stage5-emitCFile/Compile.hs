@@ -331,8 +331,8 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
                 baseExpr <- baseTypeOf exprType
                 check (base == baseExpr) ("types do not have same base: " ++ show (base, baseExpr))
 
-                case base of
-                    Apply Tuple _ ->
+                case unfoldType base of
+                    (Tuple, _) ->
                         assign "ref" $ Ref typ $ C.Initialiser [C.Member refExpr "ptr"]
                     _ -> 
                         assign "ref" $ Ref typ $ C.Initialiser [refExpr]

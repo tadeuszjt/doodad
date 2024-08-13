@@ -26,12 +26,12 @@ derives Blob (store)
 
 
 fn setQuadPosition(quads &Quad.Unordered, key unordered::Key{Quad}, position Vec2f)
-    quads[key].tri(0) = sfml::vertex(position + vec2f(-10.0, -10.0), black(), vec2f(0.0, 0.0))
-    quads[key].tri(1) = sfml::vertex(position + vec2f(10.0, -10.0),  black(), vec2f(0.0, 0.0))
-    quads[key].tri(2) = sfml::vertex(position + vec2f(10.0, 10.0),   black(), vec2f(0.0, 0.0))
-    quads[key].tri(3) = sfml::vertex(position + vec2f(10.0, -10.0),  black(), vec2f(0.0, 0.0))
-    quads[key].tri(4) = sfml::vertex(position + vec2f(10.0, 10.0),   black(), vec2f(0.0, 0.0))
-    quads[key].tri(5) = sfml::vertex(position + vec2f(-10.0, 10.0),  black(), vec2f(0.0, 0.0))
+    quads[key][0] = sfml::vertex(position + (-10.0, -10.0), black(), (0.0, 0.0))
+    quads[key][1] = sfml::vertex(position + (10.0, -10.0),  black(), (0.0, 0.0))
+    quads[key][2] = sfml::vertex(position + (10.0, 10.0),   black(), (0.0, 0.0))
+    quads[key][3] = sfml::vertex(position + (10.0, -10.0),  black(), (0.0, 0.0))
+    quads[key][4] = sfml::vertex(position + (10.0, 10.0),   black(), (0.0, 0.0))
+    quads[key][5] = sfml::vertex(position + (-10.0, 10.0),  black(), (0.0, 0.0))
 
 
 //fn {t Triangles} addTriangle(position Vec2f) Key[I64]
@@ -65,6 +65,7 @@ fn main()
 
     w.create()
 
+
 //    data triangles Triangles
     data blobs Blob.Table
     data quads Quad.Unordered
@@ -72,18 +73,12 @@ fn main()
     for (0, 1)
         let blob:Blob
         //blob.position = rand.vec2f()
-        blob.position = vec2f(50.0, 50.0)
+        blob.position = (50.0, 50.0)
         blob.quadKey = quads.unordered::insertZero
-        quads.setQuadPosition(blob.quadKey, vec2f(0.0, 0.0))
+        quads.setQuadPosition(blob.quadKey, (0.0, 0.0))
         blobs.push(blob)
 
-
-//    for (0, 100000)
-//        let blob:()Blob
-//        blob.position    = rand.vec2f()
-//        blob.velocity    = rand.vec2f( (-0.5, -0.5), (0.5, 0.5) )
-//        blob.triangleKey = triangles.addTriangle( blob.position )
-//        blobs.push(blob)
+    io.stdout.print(quads)
 
 
     while w.isOpen()

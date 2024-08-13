@@ -3,9 +3,9 @@ module tuple
 import std/store
 
 
-feature{T, G} first(T) G
-feature{T, G} second(T) G
-feature{T, G} third(T) G
+feature{T, G | T -> G } first(T) G
+feature{T, G | T -> G } second(T) G
+feature{T, G | T -> G } third(T) G
 
 
 acquires{A, B} first{ Tuple{A, B}, A } (t&) -> &; return &t.0
@@ -17,17 +17,27 @@ acquires{A, B, C} second{ Tuple{A, B, C}, B } (t&) -> &; return &t.1
 acquires{A, B, C} third{ Tuple{A, B, C}, C } (t&) -> &; return &t.2
 
 
-fn{A, B} makeTuple2(a A, b B) Tuple{A, B}
-    let tup
-    tup.0 = a
-    tup.1 = b
-    return tup 
+feature{ A, B, C | C->A, C->B }                   make2(A, B) C
+feature{ A, B, C, D | D->A, D->B, D->C }          make3(A, B, C) D
+feature{ A, B, C, D, E | E->A, E->B, E->C, E->D } make4(A, B, C, D) E
 
-fn{A, B, C} makeTuple3(a A, b B, c C) Tuple{A, B, C}
+acquires{A, B} make2{ A, B, Tuple{A, B} } (a, b)
     let tup
-    tup.0 = a
+    tup.0 = a 
+    tup.1 = b
+    return tup
+
+acquires{A, B, C} make3{ A, B, C, Tuple{A, B, C} } (a, b, c)
+    let tup
+    tup.0 = a 
     tup.1 = b
     tup.2 = c
-    return tup 
+    return tup
 
-
+acquires{A, B, C, D} make4{ A, B, C, D, Tuple{A, B, C, D} } (a, b, c, d)
+    let tup
+    tup.0 = a 
+    tup.1 = b
+    tup.2 = c
+    tup.3 = d
+    return tup

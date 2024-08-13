@@ -9,6 +9,7 @@ import std/arithmetic
 import std/boolean
 import std/convert
 import std/container
+import std/print
 
 include <SFML/Graphics.h>
 link csfml-graphics
@@ -21,13 +22,10 @@ tuple Vec2f {
     y F32
 }
 derives Vec2f (store)
-derives Vec2f (arithmetic::add)
 
-fn vec2f(x F32, y F32) Vec2f
-    let vec
-    vec.x = x
-    vec.y = y
-    return vec
+acquires{P} print::print{ P, Vec2f }     (p&, v); p.print(v.pretend:Tuple{F32, F32})
+acquires make2{ F32, F32, Vec2f }        (a, b); return (a, b).pretend
+acquires arithmetic::add{ Vec2f, Vec2f } (a, b); return (a.x + b.x, a.y + b.y)
 
 
 tuple Rectf {
@@ -36,23 +34,19 @@ tuple Rectf {
 }
 
 tuple Colour {
-    a U8
     r U8
     g U8
     b U8
+    a U8
 }
 derives Colour (store)
 
-fn makecolour(a U8, r U8, g U8, b U8) Colour
-    let colour
-    colour.a = a
-    colour.r = r
-    colour.g = g
-    colour.b = b
-    return colour
+acquires{P} print::print{ P, Colour } (p&, c); p.print(c.pretend:Tuple{U8, U8, U8, U8})
 
-fn white() Colour; return makecolour(255, 255, 255, 255)
-fn black() Colour; return makecolour(255, 0, 0, 0)
+acquires make4{U8, U8, U8, U8, Colour} (r, g, b, a); return (r, g, b, a).pretend
+
+fn white() Colour; return (255, 255, 255, 255)
+fn black() Colour; return (0, 0, 0, 255)
 
 
 tuple Vertex {
@@ -61,6 +55,8 @@ tuple Vertex {
     texCoord Vec2f
 }
 derives Vertex (store)
+
+acquires{P} print::print{ P, Vertex } (p&, v); p.print(v.pretend:Tuple{Vec2f, Colour, Vec2f})
 
 fn vertex(position Vec2f, colour Colour, texCoord Vec2f) Vertex
     let vert
@@ -71,7 +67,13 @@ fn vertex(position Vec2f, colour Colour, texCoord Vec2f) Vertex
 
 
 type Quad Array{6, sfml::Vertex}
-fn tri(quad &Quad, i I64) &Vertex; return quad.pretend:Array{6, Vertex}[i]
+
+acquires container::at{ Quad, I64, sfml::Vertex } (q&, idx) -> &
+    return q.pretend:Array{6, sfml::Vertex}[idx]
+
+acquires{P} print::print{ P, Quad } (p&, quad)
+    p.print(quad.pretend:Array{6, sfml::Vertex})
+
 
 
 type Window I64

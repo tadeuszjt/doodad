@@ -23,8 +23,6 @@ tuple{T} Unordered {
     values  T.Table
 }
 
-
-
 acquires{T} len{ T.Unordered } (u&)
     return u.values.len
 
@@ -50,7 +48,7 @@ fn{T} insert(u &T.Unordered, elem T) T.Key
     return key.pretend
 
 
-acquires{T} index{ Unordered, T } (u&, idx) -> &
+acquires{T} index{ Unordered{T}, T } (u&, idx) -> &
     return u.values[idx]
 
 

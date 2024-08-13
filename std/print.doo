@@ -22,6 +22,7 @@ acquires{T} print{ T, Char.Slice } (t&, s)
     for s -> c
         t.print(c)
 
+acquires{T} print{ T, U8 } (p&, n); p.print(convert(n) : I64)
 
 acquires{T} print{ T, I64 } (t&, n)
     if n < 0
@@ -39,6 +40,13 @@ acquires{T} print{ T, I64 } (t&, n)
 
     for (0, digits.len) -> idx
         t.print(digits[digits.len - 1 - idx])
+
+
+acquires{T} print{ T, F32 } (p&, n)
+    let str : Array{ 32, Char } 
+    ${ sprintf( $str.arr, "%g", $n ); }
+    for str -> c
+        p.print(c)
 
 
 acquires{T} print{ T, Bool } (t&, b)
@@ -70,10 +78,29 @@ acquires{P, S, T} print{ P, Array{S, T} } (p&, array)
     p.print(']')
 
 
-acquires{T, A, B} print{ T, Tuple{A, B} } (a&, b)
+acquires{P, A, B} print{ P, Tuple{A, B} } (a&, b)
     a.print('(')
     a.print( b.first() : A )
     a.print(", ")
     a.print( b.second() : B )
     a.print(')')
 
+acquires{P, A, B, C} print{ P, Tuple{A, B, C} } (a&, b)
+    a.print('(')
+    a.print( b.first() )
+    a.print(", ")
+    a.print( b.second() )
+    a.print(", ")
+    a.print( b.third() )
+    a.print(')')
+
+acquires{P, A, B, C, D} print{ P, Tuple{A, B, C, D} } (a&, b)
+    a.print('(')
+    a.print( b.0 )
+    a.print(", ")
+    a.print( b.1 )
+    a.print(", ")
+    a.print( b.2  )
+    a.print(", ")
+    a.print( b.3  )
+    a.print(')')

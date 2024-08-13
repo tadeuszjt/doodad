@@ -93,6 +93,9 @@ isSimple typ = case typ of
 
 isIntegral x = isInt x || x == Char
 
+foldType :: [Type] -> Type
+foldType (x:xs) = foldl Apply x xs
+
 
 unfoldType :: Type -> (Type, [Type])
 unfoldType typ = case typ of

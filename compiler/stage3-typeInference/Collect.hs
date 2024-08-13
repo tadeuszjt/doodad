@@ -222,6 +222,19 @@ collectExpr (AExpr exprType expression) = collectPos expression $ case expressio
             unless (length argTypes == 1) (error "invalid")
             collectDefault exprType (argTypes !! 0)
 
+
+        when (Symbol.sym funcSymbol == "make2" && symbolModule funcSymbol == "tuple") $ do
+            unless (length argTypes == 2) (error "invalid")
+            collectDefault exprType $ foldType [Tuple, argTypes !! 0, argTypes !! 1]
+            
+        when (Symbol.sym funcSymbol == "make3" && symbolModule funcSymbol == "tuple") $ do
+            unless (length argTypes == 3) (error "invalid")
+            collectDefault exprType $ foldType [Tuple, argTypes !! 0, argTypes !! 1, argTypes !! 2]
+
+        when (Symbol.sym funcSymbol == "make4" && symbolModule funcSymbol == "tuple") $ do
+            unless (length argTypes == 4) (error "invalid")
+            collectDefault exprType $ foldType [Tuple, argTypes !! 0, argTypes !! 1, argTypes !! 2, argTypes !! 3]
+
         collect "call return" (ConsEq exprType retType)
         zipWithM (\x y -> collect "call argument" (ConsEq x y)) argTypes (map typeof exprs)
 
