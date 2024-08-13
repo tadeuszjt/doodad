@@ -35,6 +35,10 @@ derives Square (equal)
 
 type Board Array{3, Array{3, Square}}
 
+// TODO implement functional dependencies so this can be type-checked.
+//acquires container::at{ Board, I64, Array{3, Square} } (b&, idx) -> &
+//    return b.pretend:Array{3, Array{3, Square}}[idx]
+
 fn arr(b &Board) &Array{3, Array{3, Square}}
     return b.pretend
 

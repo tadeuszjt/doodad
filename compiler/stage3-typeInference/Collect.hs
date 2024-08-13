@@ -151,6 +151,9 @@ collectPattern (PatAnnotated pattern patType) = collectPos pattern $ case patter
     x -> error (show x)
 
 
+
+
+
 collectExpr :: Expr -> DoM CollectState ()
 collectExpr (AExpr exprType expression) = collectPos expression $ case expression of
     Float _ _    -> collect "float is F64" (ConsEq exprType F64)
@@ -163,13 +166,20 @@ collectExpr (AExpr exprType expression) = collectPos expression $ case expressio
             (TypeDef funcSymbol,  _) -> return funcSymbol
         
         -- TODO implement functional dependencies and type-check acquires def
+        -- Helpful: instances are globally imported, we can use acquiresAll.
         -- You need to prove that no other acquires could ever conflict with the one you are checking against
         -- the promise is that we will not define different acquires with different V types with same T
         -- Q: is this needed when we don't allow for overlapping definitions?
         -- Right now it seems to work regardless.
+        -- Q: what if 'main' types in callType are generic? IMPORTANT, these are filled in later so may need different acquires implementations
+        -- We need to ask the question whether we are type-checking using a feature or an aquires. depends on the function generics
         ast <- gets astResolved
-        fullAcqs <- fmap catMaybes $ forM (Map.toList $ acquiresImports ast) $ \(symbol, stmt) -> case stmt of
+        fullAcqs <- fmap catMaybes $ forM (Map.toList $ acquiresAll ast) $ \(symbol, stmt) -> case stmt of
             Aquires _ generics funType _ _ _ -> do
+                -- funType eg: container::at{Table{T::6, I64, T::6}
+                -- 1.) Identify 'main' types, do not depend on others
+
+
                 let genericsToVars = zip (map TypeDef generics) (map Type [-1, -2..])
                 let appliedFunType = applyType genericsToVars funType
                 case typeFullyDescribes appliedFunType callType of

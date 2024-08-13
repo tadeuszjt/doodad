@@ -21,7 +21,10 @@ unifyOne constraint = case constraint of
         (Type _, _)   -> return [(t1, t2)]
         (_, Type _)   -> return [(t2, t1)]
 
-        (Apply _ _, Apply _ _) -> error "here"
+        (Apply a1 b1, Apply a2 b2) -> do    
+            subs1 <- unifyOne (ConsEq a1 a2)
+            subs2 <- unifyOne (ConsEq b1 b2)
+            return (subs1 ++ subs2)
 
         _ -> fail $ "cannot unify: " ++ show (t1, t2)
 
@@ -67,24 +70,15 @@ findFunction funcType = do
 
 findAcquire :: Type -> DoM ASTResolved Func
 findAcquire callType = do
-    -- TODO incorrect to look through acquiresAll? depends on imports
-    -- Problem, Compile is compiling function defined in other module in context of this module.
-    -- Solution: Compile needs access to all 'Modules' not just 'ASTResolved'.
+    -- In haskell, instances are globally visible, so we do not have to worry about different instances.
     acquiresAll <- gets acquiresAll
     results <- fmap catMaybes $ forM (Map.toList acquiresAll) $ \(symbol, stmt) -> case stmt of
         Derives _ generics argType [typSymbol] -> do
             let implType = Apply (TypeDef typSymbol) argType
-            -- {T} store::store{unordered::Key{T}}
-
             let genericSubs = zip (map TypeDef generics) (map Type [1..])
-            -- (T, t1), (G, t2)
-
             let appliedImpl = applyType genericSubs implType
-            -- store::store{unoredered::Key{t1}}
 
             subsEither <- tryError (unify =<< getConstraintsFromTypes appliedImpl callType)
-            -- (t1, Table{I64})
-
             case subsEither of
                 Left _ -> return Nothing
                 Right subs -> do

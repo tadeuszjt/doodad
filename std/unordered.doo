@@ -54,7 +54,7 @@ acquires{T} index{ Unordered, T } (u&, idx) -> &
     return u.values[idx]
 
 
-acquires{T} at{ Unordered, T.Key, T} (u&, key) -> &
+acquires{T} at{ Unordered{T}, T.Key, T} (u&, key) -> &
     let index = u.indices[key.pretend:sparse::Key{I64}]
     return &u.values[index]
 
