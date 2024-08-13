@@ -26,12 +26,12 @@ derives Blob (store)
 
 
 fn setQuadPosition(quads &Quad.Unordered, key unordered::Key{Quad}, position Vec2f)
-    quads[key][0] = sfml::vertex(position + (-10.0, -10.0), black(), (0.0, 0.0))
-    quads[key][1] = sfml::vertex(position + (10.0, -10.0),  black(), (0.0, 0.0))
-    quads[key][2] = sfml::vertex(position + (10.0, 10.0),   black(), (0.0, 0.0))
-    quads[key][3] = sfml::vertex(position + (10.0, -10.0),  black(), (0.0, 0.0))
-    quads[key][4] = sfml::vertex(position + (10.0, 10.0),   black(), (0.0, 0.0))
-    quads[key][5] = sfml::vertex(position + (-10.0, 10.0),  black(), (0.0, 0.0))
+    quads[key][0] = (position + (-10.0, -10.0), black(), (0.0, 0.0)):Vertex
+    quads[key][1] = (position + (10.0, -10.0),  black(), (0.0, 0.0)):Vertex
+    quads[key][2] = (position + (10.0, 10.0),   black(), (0.0, 0.0)):Vertex
+    quads[key][3] = (position + (10.0, -10.0),  black(), (0.0, 0.0)):Vertex
+    quads[key][4] = (position + (10.0, 10.0),   black(), (0.0, 0.0)):Vertex
+    quads[key][5] = (position + (-10.0, 10.0),  black(), (0.0, 0.0)):Vertex
 
 
 //fn {t Triangles} addTriangle(position Vec2f) Key[I64]

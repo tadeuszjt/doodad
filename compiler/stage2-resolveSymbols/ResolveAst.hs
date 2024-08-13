@@ -234,13 +234,13 @@ resolveStmt statement = withPos statement $ case statement of
         popSymbolTable
         return (Feature pos generics' funDeps' symbol args' retty')
 
-    Derives pos generics typ symbols -> do
+    Derives pos generics t1 t2 -> do
         pushSymbolTable
         generics' <- defineGenerics generics
-        typ' <- resolveType typ
-        symbols' <- mapM (\s -> look s KeyType) symbols
+        t1' <- resolveType t1
+        t2' <- resolveType t2
         popSymbolTable
-        return $ Derives pos generics' typ' symbols'
+        return (Derives pos generics' t1' t2')
 
     Aquires pos generics typ args isRef stmt -> do
         pushSymbolTable

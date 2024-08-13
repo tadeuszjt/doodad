@@ -21,10 +21,9 @@ tuple Vec2f {
     x F32
     y F32
 }
-derives Vec2f (store)
-
-acquires{P} print::print{ P, Vec2f }     (p&, v); p.print(v.pretend:Tuple{F32, F32})
-acquires make2{ F32, F32, Vec2f }        (a, b); return (a, b).pretend
+derives    Vec2f (store)
+derives    Vec2f (make2{F32, F32})
+derives{P} Vec2f (print::print{P})
 acquires arithmetic::add{ Vec2f, Vec2f } (a, b); return (a.x + b.x, a.y + b.y)
 
 
@@ -33,6 +32,7 @@ tuple Rectf {
     max Vec2f
 }
 
+
 tuple Colour {
     r U8
     g U8
@@ -40,10 +40,8 @@ tuple Colour {
     a U8
 }
 derives Colour (store)
-
-acquires{P} print::print{ P, Colour } (p&, c); p.print(c.pretend:Tuple{U8, U8, U8, U8})
-
-acquires make4{U8, U8, U8, U8, Colour} (r, g, b, a); return (r, g, b, a).pretend
+derives Colour (make4{U8, U8, U8, U8})
+derives{P} Colour (print::print{P})
 
 fn white() Colour; return (255, 255, 255, 255)
 fn black() Colour; return (0, 0, 0, 255)
@@ -54,26 +52,14 @@ tuple Vertex {
     colour   Colour
     texCoord Vec2f
 }
-derives Vertex (store)
-
-acquires{P} print::print{ P, Vertex } (p&, v); p.print(v.pretend:Tuple{Vec2f, Colour, Vec2f})
-
-fn vertex(position Vec2f, colour Colour, texCoord Vec2f) Vertex
-    let vert
-    vert.position = position
-    vert.colour = colour
-    vert.texCoord = texCoord
-    return vert
+derives    Vertex (store)
+derives    Vertex (make3{Vec2f, Colour, Vec2f})
+derives{P} Vertex (print::print{P})
 
 
 type Quad Array{6, sfml::Vertex}
-
-acquires container::at{ Quad, I64, sfml::Vertex } (q&, idx) -> &
-    return q.pretend:Array{6, sfml::Vertex}[idx]
-
-acquires{P} print::print{ P, Quad } (p&, quad)
-    p.print(quad.pretend:Array{6, sfml::Vertex})
-
+derives{P} Quad (print::print{P})
+derives    Quad (container::at{ I64, Vertex })
 
 
 type Window I64

@@ -137,7 +137,10 @@ baseTypeOfm a = case unfoldType (typeof a) of
     (Type _, _) -> return Nothing
 
     (TypeDef s, ts) -> do
-        Just (ss, t) <- Map.lookup s <$> getTypeDefs
+        resm <- Map.lookup s <$> getTypeDefs
+        (ss, t) <- case resm of
+            Nothing -> error $ prettySymbol s ++ " isn't in typeDefs"
+            Just x -> return x
         baseTypeOfm =<< applyTypeM ss ts t
 
     (_, _) -> return $ Just (typeof a)

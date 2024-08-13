@@ -152,8 +152,11 @@ tupleFields : {-empty-}                       { [] }
 -- Statements -------------------------------------------------------------------------------------
 
 
-derivesDef : derives generics type_ '(' symbols1 ')'
-           { Derives (tokPos $1) $2 $3 (map snd $5) }
+smallType : symbol                 { TypeDef (snd $1) }
+          | symbol typeArgs        { foldType (TypeDef (snd $1) : $2) }
+
+derivesDef : derives generics type_ '(' smallType ')'
+           { Derives (tokPos $1) $2 $3 ($5) }
 
 
 featureGenerics : '{' Idents1 funDeps '}'  { (map (\s -> Symbol.Sym [s]) $2, $3) }

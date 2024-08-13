@@ -4,7 +4,6 @@ import qualified Data.Map as Map
 import Control.Monad.State
 import Data.Maybe
 
-
 import Monad
 import AST
 import ASTResolved
@@ -72,34 +71,35 @@ findAcquire :: Type -> DoM ASTResolved Func
 findAcquire callType = do
     -- In haskell, instances are globally visible, so we do not have to worry about different instances.
     acquiresAll <- gets acquiresAll
+    featuresAll <- gets featuresAll
+    typeDefsAll <- gets typeDefsAll
     results <- fmap catMaybes $ forM (Map.toList acquiresAll) $ \(symbol, stmt) -> case stmt of
-        Derives _ generics argType [typSymbol] -> do
-            let implType = Apply (TypeDef typSymbol) argType
+        Derives _ generics argType featureType -> do
             let genericSubs = zip (map TypeDef generics) (map Type [1..])
-            let appliedImpl = applyType genericSubs implType
+            let upperType = applyType genericSubs $ Apply featureType argType
 
-            subsEither <- tryError (unify =<< getConstraintsFromTypes appliedImpl callType)
+            subsEither <- tryError (unify =<< getConstraintsFromTypes upperType callType)
             case subsEither of
                 Left _ -> return Nothing
                 Right subs -> do
-                    unless (applyType subs appliedImpl == callType) (error "type mismatch")
+                    lowerArgType <- fromJust <$> lowerTypeOfm argType
+                    let lowerType = applyType genericSubs (Apply featureType lowerArgType)
+                    let lower = applyType subs lowerType
 
-                    -- simply return the acquires for the lower type, compile converts args
-                    Just lowerType <- lowerTypeOfm argType
-                    let lowerCall = applyType subs $
-                            Apply (TypeDef typSymbol) (applyType genericSubs lowerType)
-                    Just <$> findFunction lowerCall
+                    unless (applyType subs upperType == callType) (error "type mismatch")
+                    unless (typeFullyResolved lower) (error "propagating type vars")
+                    Just <$> findFunction lower
 
         Aquires pos generics implType args isRef scope -> do
             --liftIO $ putStrLn $ "checking aquire: " ++ prettySymbol symbol
             let genericSubs = zip (map TypeDef generics) (map Type [1..])
-            let appliedImpl = applyType genericSubs implType
+            let typ = applyType genericSubs implType
 
-            subsEither <- tryError (unify =<< getConstraintsFromTypes appliedImpl callType)
+            subsEither <- tryError (unify =<< getConstraintsFromTypes typ callType)
             case subsEither of
                 Left _ -> return Nothing
                 Right subs -> do
-                    unless (applyType subs appliedImpl == callType) (error $ "type mismatch: " ++ show callType)
+                    unless (applyType subs typ == callType) (error $ "type mismatch: " ++ show callType)
                     (Type.Func, retType : argTypes) <- unfoldType <$> baseTypeOf callType
                     unless (length argTypes == length args) (error "something else went wrong")
 

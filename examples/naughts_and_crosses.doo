@@ -22,6 +22,9 @@ enum Square {
     naught
     cross
 }
+derives Square (store)
+derives Square (equal)
+
 
 enum Input {
     move(I64, I64)
@@ -29,19 +32,14 @@ enum Input {
     error()
 }
 
-derives Square (store)
-derives Square (equal)
-
 
 type Board Array{3, Array{3, Square}}
 
 derives Board (container::len)
-acquires container::at{ Board, I64, Array{3, Square} } (b&, idx) -> &
-    return b.pretend:Array{3, Array{3, Square}}[idx]
-
-acquires forAt{ Board, Array{3, Square} } (b&, idx) -> &; return b[idx]
-acquires forBegin{ Board } (b&); return 0
-acquires forEnd{ Board } (b&); return b.len
+derives Board (container::at{I64, Array{3, Square}})
+derives Board (forAt{Array{3, Square}})
+derives Board (forBegin)
+derives Board (forEnd)
 
 
 acquires{P} print{ P, Square } (p&, square)

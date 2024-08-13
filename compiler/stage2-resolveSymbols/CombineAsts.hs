@@ -102,7 +102,7 @@ combineMapper element = case element of
         modify $ \s -> s { acquiresTop = Set.insert symbol (acquiresTop s) }
         return element
 
-    ElemStmt stmt@(Derives _ _ _ [x]) -> do -- TODO handle multiple symbols
+    ElemStmt stmt@(Derives _ _ _ _) -> do
         symbol' <- genSymbol $ SymResolved ["derives"]
         modify $ \s -> s { acquiresAll = Map.insert symbol' stmt (acquiresAll s) }
         modify $ \s -> s { acquiresTop = Set.insert symbol' (acquiresTop s) }

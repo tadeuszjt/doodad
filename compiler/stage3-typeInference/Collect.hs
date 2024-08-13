@@ -165,14 +165,9 @@ collectExpr (AExpr exprType expression) = collectPos expression $ case expressio
     Call _ callType exprs -> do
         let (TypeDef funcSymbol, _) = unfoldType callType
         (Type.Func, retType : argTypes) <- unfoldType <$> baseTypeOf callType
-        unless (length exprs == length argTypes)
-            (fail $ "invalid function type arguments: " ++ show callType)
+        unless (length exprs == length argTypes) (fail $ "invalid function type arguments: " ++ show callType)
 
         ast <- gets astResolved
--- TODO implement functional dependencies and type-check acquires def
--- Helpful: instances are globally imported, we can use acquiresAll.
--- You need to prove that no other acquires could ever conflict with the one you are checking against
--- Q: is this needed when we don't allow for overlapping definitions?
         when (Map.member funcSymbol $ featuresAll ast) $ do
             let Feature _ featureGenerics funDeps _ _ _ = (featuresAll ast) Map.! funcSymbol
 
@@ -201,20 +196,28 @@ collectExpr (AExpr exprType expression) = collectPos expression $ case expressio
                                 True -> return (Just appliedAcqType) 
                                 False -> return Nothing
 
-                _ -> return Nothing -- TODO
+                Derives pos generics argType featureType -> do
+                    let acqType = Apply featureType argType
+                    let genericsToVars = zip (map TypeDef generics) (map Type [-1, -2..])
+                    let appliedAcqType = applyType genericsToVars acqType
+
+                    case typesCouldMatch appliedAcqType callType of
+                        False -> return Nothing
+                        True -> do
+                            let (TypeDef _, acqTypeArgs) = unfoldType appliedAcqType
+                            let b = all id $ map (\i -> typeFullyDescribes (acqTypeArgs !! i) (callTypeArgs !! i)) indices
+                            case b of
+                                True -> return (Just appliedAcqType) 
+                                False -> return Nothing
 
             case fullAcqs of
-                [] -> return () -- TODO, need to check derives also
+                [] -> return ()
                 [acq] -> do
-                    --liftIO $ putStrLn $ show acq ++ ", " ++ show callType
                     subs <- unify =<< getConstraintsFromTypes acq callType
-
                     (Type.Func, retType : argTypes) <- unfoldType <$> baseTypeOf (applyType subs acq)
                     collect "call return" (ConsEq exprType retType)
                     zipWithM (\x y -> collect "call argument" (ConsEq x y)) argTypes (map typeof exprs)
                     return ()
-
-
                 x -> error (show x)
                 
 

@@ -21,7 +21,7 @@ derives{T} Key{T} (store)
 acquires{T} container::len{ T.Sparse } (s&)
     return s.values.len - s.empty.len
 
-acquires{T, K, V} container::at{ Sparse{V}, T.Key, V } (s&, key) -> &
+acquires{T, K, V} container::at{ T.Key, V, Sparse{V} } (s&, key) -> &
     return s.values.at( key.pretend:I64 )
 
 
