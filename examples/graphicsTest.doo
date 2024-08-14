@@ -26,36 +26,14 @@ derives Blob (store)
 
 
 fn setQuadPosition(quads &Quad.Unordered, key unordered::Key{Quad}, position Vec2f)
-    quads[key][0] = (position + (-10.0, -10.0), black(), (0.0, 0.0)):Vertex
-    quads[key][1] = (position + (10.0, -10.0),  black(), (0.0, 0.0)):Vertex
-    quads[key][2] = (position + (10.0, 10.0),   black(), (0.0, 0.0)):Vertex
-    quads[key][3] = (position + (10.0, -10.0),  black(), (0.0, 0.0)):Vertex
-    quads[key][4] = (position + (10.0, 10.0),   black(), (0.0, 0.0)):Vertex
-    quads[key][5] = (position + (-10.0, 10.0),  black(), (0.0, 0.0)):Vertex
+    quads[key][0] = (position + (-10.0, -10.0), black(), (0.0, 0.0))
+    quads[key][1] = (position + (10.0, -10.0),  black(), (0.0, 0.0))
+    quads[key][2] = (position + (10.0, 10.0),   black(), (0.0, 0.0))
+    quads[key][3] = (position + (-10.0, -10.0), black(), (0.0, 0.0))
+    quads[key][4] = (position + (10.0, 10.0),   black(), (0.0, 0.0))
+    quads[key][5] = (position + (-10.0, 10.0),  black(), (0.0, 0.0))
 
 
-//fn {t Triangles} addTriangle(position Vec2f) Key[I64]
-//    let key = t.vertexes.len()
-//    t.vertexes.push( (position + (0, -10),  green(),   (0, 0)) )
-//    t.vertexes.push( (position + (-10, 10), green(), (0, 0)) )
-//    t.vertexes.push( (position + (10, 10),  green(),  (0, 0)) )
-//    return t.vertexKeys.insert(key)
-//
-//
-//fn {t Triangles} setTrianglePosition(key Key[I64], pos Vec2f)
-//    let index = t.vertexKeys.get(key)
-//    let {p, _, _} = t.vertexes.at(index + 0) in; p = pos + (0, -10)
-//    let {p, _, _} = t.vertexes.at(index + 1) in; p = pos + (-10, 10)
-//    let {p, _, _} = t.vertexes.at(index + 2) in; p = pos + (10, 10)
-//
-// TODO Broken
-//fn vec2f(rand &Rand) Vec2f
-//    return (rand.f32(convert(0.0), convert(5000.0)), rand.f32(convert(0.0), convert(5000.0))).pretend
-
-//fn {rand Rand} vec2f(min Vec2f, max Vec2f) Vec2f
-//    return (rand.f32(min.x, max.x), rand.f32(min.y, max.y))
-//
-//
 fn main()
     data io Io
     io.stdout.print("graphics test\n")
@@ -75,7 +53,7 @@ fn main()
         //blob.position = rand.vec2f()
         blob.position = (50.0, 50.0)
         blob.quadKey = quads.unordered::insertZero
-        quads.setQuadPosition(blob.quadKey, (0.0, 0.0))
+        quads.setQuadPosition(blob.quadKey, blob.position)
         blobs.push(blob)
 
     io.stdout.print(quads)

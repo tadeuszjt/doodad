@@ -173,42 +173,36 @@ collectExpr (AExpr exprType expression) = collectPos expression $ case expressio
 
             let (TypeDef funcSymbol, callTypeArgs) = unfoldType callType
             unless (length callTypeArgs == length featureGenerics) (error "xs needs to be > 0")
-            -- need to work out which of xs to check
-            -- naive approach (may be correct) test if not a dependent var.
-        
+
+
+            -- These indices describe the type variables which are independed according to the 
+            -- functional dependencies. If the independent variables fully describe the call type,
+            -- it can be said that no other overlapping definition could conflict with it so we can
+            -- type check.
             indices <- fmap catMaybes $ forM (zip featureGenerics [0..]) $ \(g, i) -> do
                 case findIndex (\(_, x) -> g == x) funDeps of
                     Just _  -> return Nothing
                     Nothing -> return (Just i) 
 
-            fullAcqs <- fmap catMaybes $ forM (Map.toList $ acquiresAll ast) $ \(symbol, stmt) -> case stmt of
-                Aquires _ generics acqType _ _ _ -> do
-                    -- funType eg: container::at{Table{T::6, I64, T::6}
-                    let genericsToVars = zip (map TypeDef generics) (map Type [-1, -2..])
-                    let appliedAcqType = applyType genericsToVars acqType
+            fullAcqs <- fmap catMaybes $ forM (Map.toList $ acquiresAll ast) $ \(symbol, stmt) -> do
+                appliedAcqType <- case stmt of
+                    Aquires _ generics acqType _ _ _ -> do
+                        let genericsToVars = zip (map TypeDef generics) (map Type [-1, -2..])
+                        return (applyType genericsToVars acqType)
 
-                    case typesCouldMatch appliedAcqType callType of
-                        False -> return Nothing
-                        True -> do
-                            let (TypeDef _, acqTypeArgs) = unfoldType appliedAcqType
-                            let b = all id $ map (\i -> typeFullyDescribes (acqTypeArgs !! i) (callTypeArgs !! i)) indices
-                            case b of
-                                True -> return (Just appliedAcqType) 
-                                False -> return Nothing
+                    Derives pos generics argType featureType -> do
+                        let acqType = Apply featureType argType
+                        let genericsToVars = zip (map TypeDef generics) (map Type [-1, -2..])
+                        return (applyType genericsToVars acqType)
 
-                Derives pos generics argType featureType -> do
-                    let acqType = Apply featureType argType
-                    let genericsToVars = zip (map TypeDef generics) (map Type [-1, -2..])
-                    let appliedAcqType = applyType genericsToVars acqType
-
-                    case typesCouldMatch appliedAcqType callType of
-                        False -> return Nothing
-                        True -> do
-                            let (TypeDef _, acqTypeArgs) = unfoldType appliedAcqType
-                            let b = all id $ map (\i -> typeFullyDescribes (acqTypeArgs !! i) (callTypeArgs !! i)) indices
-                            case b of
-                                True -> return (Just appliedAcqType) 
-                                False -> return Nothing
+                case typesCouldMatch appliedAcqType callType of
+                    False -> return Nothing
+                    True -> do
+                        let (TypeDef _, acqTypeArgs) = unfoldType appliedAcqType
+                        let b = all id $ map (\i -> typeFullyDescribes (acqTypeArgs !! i) (callTypeArgs !! i)) indices
+                        case b of
+                            True -> return (Just appliedAcqType) 
+                            False -> return Nothing
 
             case fullAcqs of
                 [] -> return ()

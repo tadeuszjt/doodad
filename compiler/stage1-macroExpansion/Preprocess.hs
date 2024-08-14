@@ -22,7 +22,6 @@ preprocess ast = fmap fst $ runDoMExcept () preprocess'
         preprocess' = do
             stmts' <- mapM (mapStmtM preprocessMapper) (astStmts ast)
 
-
             ((), buildState) <- runDoMExcept initBuildState (mapM_ buildStmt stmts')
             stmts'' <- fmap fst $ runDoMExcept (astBuilderState buildState) unpackAst
 
@@ -105,18 +104,18 @@ buildPattern defBlkId pattern expr = do
         PatIdent pos symbol -> do
             withCurId defBlkId $
                 appendStmt $ Let pos (PatIdent pos symbol) Nothing Nothing
-            appendStmt $ ExprStmt $ Call pos (TypeDef $ Sym ["store"])
+            appendStmt $ ExprStmt $ Call pos (TypeDef $ Sym ["store",  "store"])
                 [ Reference pos (Ident pos symbol)
                 , expr
                 ]
             return (AST.Bool pos True)
 
         PatLiteral literal -> do
-            return $ Call (textPos pattern) (TypeDef $ Sym ["equal"]) [literal, expr]
+            return $ Call (textPos pattern) (TypeDef $ Sym ["compare", "equal"]) [literal, expr]
 
         PatAnnotated pat patTyp -> case pat of
             PatLiteral literal -> do
-                return $ Call (textPos pattern) (TypeDef $ Sym ["Compare", "equal"]) [AExpr patTyp literal, expr]
+                return $ Call (textPos pattern) (TypeDef $ Sym ["compare", "equal"]) [AExpr patTyp literal, expr]
 
             PatIdent pos symbol -> do
                 withCurId defBlkId $ 

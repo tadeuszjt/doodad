@@ -10,7 +10,7 @@ import std/convert
 feature{T}                 len(T) I64
 feature{T, V | T -> V}     push(T, V)
 feature{T, V | T -> V}     pop(T) V
-feature{K, V, T | T -> V } at(T, K) V
+feature{K, V, T | T->V, T->K } at(T, K) V
 feature{T}                 grow(T)
 feature{T, V | T -> V}     index(T, I64) V
 
