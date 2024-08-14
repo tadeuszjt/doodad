@@ -75,6 +75,7 @@ unpackStmt statement = withPos statement $ case statement of
     Feature _ _ _ _ _ _ -> return statement
     Assign _ _ _ -> return statement
     Derives _ _ _ _ -> return statement
+    MacroTuple _ _ _ _ -> return statement
 
     Aquires pos generics typ args isRef stmt -> Aquires pos generics typ args isRef <$> unpackStmt stmt
 
@@ -263,6 +264,7 @@ buildStmt statement = withPos statement $ case statement of
     Data _ _ _ _      -> void $ appendStmt statement
     Feature _ _ _ _ _ _ -> void $ appendStmt statement
     Derives _ _ _ _   -> void $ appendStmt statement
+    MacroTuple _ _ _ _ -> void $ appendStmt statement
 
     Aquires pos generics typ args isRef (Block stmts) -> do
         blockId <- newStmt (Block [])
@@ -397,31 +399,6 @@ buildStmt statement = withPos statement $ case statement of
             appendStmt $ If pos cnd (Stmt trueBlkId) (Just $ Stmt falseBlkId)
 
         void $ appendStmt $ While pos (Ident pos loop) (Stmt id)
-
-
-    MacroTuple pos generics symbol fields -> do
-        appendStmt $ Typedef pos generics symbol $ case fields of
-            [] -> error "here"
-            ts -> foldl Apply Tuple (map snd ts)
-
-        -- write field accessor functions
-        forM_ (zip fields [0..]) $ \( (str, typ), i ) -> do
-            blkId <- newStmt (Block [])
-            withCurId blkId $ appendStmt $ Return pos $ Just $ Reference pos $ Field pos
-                (Ident pos $ Sym ["t"])
-                (fromIntegral i)
-
-            paramType <- case generics of
-                [] -> return (TypeDef symbol)
-                ts -> return $ foldl Apply (TypeDef symbol) (map TypeDef generics)
-
-            let header = FuncHeader
-                    { funcSymbol = Sym [sym symbol, str]
-                    , funcRetty  = RefRetty typ
-                    , funcArgs   = [RefParam pos (Sym ["t"]) paramType]
-                    , funcPos = pos
-                    }
-            appendStmt $ FuncDef generics $ AST.Func header (Stmt blkId)
 
 
     Enum pos generics symbol cases -> do

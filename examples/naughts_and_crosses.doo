@@ -107,13 +107,13 @@ fn getPlayerInput(io &Io) Input
     let col = 0
     let idx = 0
 
-    if line.read(idx) -> some(n : I64, num)
+    if line.read(idx) -> some(n, num)
         row = n
         idx = idx + num
     else
         return error()
 
-    if line.read(idx) -> some(n : I64, num)
+    if line.read(idx) -> some(n, num)
         col = n
         idx = idx + num
     else

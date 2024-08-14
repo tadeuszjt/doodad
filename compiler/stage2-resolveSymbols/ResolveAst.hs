@@ -17,8 +17,7 @@ import ASTResolved hiding (genSymbol)
 
 
 data SymKey
-    = KeyFunc
-    | KeyType
+    = KeyType
     | KeyVar
     deriving (Ord, Eq, Show)
 
@@ -130,7 +129,7 @@ resolveAst ast imports = fmap fst $ runDoMExcept initResolveState (resolveAst' a
         resolveAst' ast = do
             modify $ \s -> s { modName = astModuleName ast }
             forM_ imports $ \imprt -> do
-                forM_ (typeDefsTop imprt) $ \symbol -> do
+                forM_ (typeDefsTop imprt) $ \symbol -> do -- functions are also typedefs
                     define symbol KeyType
 
             pushSymbolTable
@@ -151,6 +150,17 @@ resolveAst ast imports = fmap fst $ runDoMExcept initResolveState (resolveAst' a
                     symbol' <- genSymbol (SymResolved $ symStr symbol)
                     define symbol' KeyType
                     return (Feature pos generics funDeps symbol' args retty)
+
+                MacroTuple pos generics (Sym [str]) fields -> do
+                    symbol' <- genSymbol (SymResolved [str])
+                    define symbol' KeyType
+
+                    fields' <- forM fields $ \(Sym [fieldStr], fieldType) -> do
+                        fieldSymbol <- genSymbol (SymResolved [fieldStr])
+                        define fieldSymbol KeyType
+                        return (fieldSymbol, fieldType)
+                        
+                    return $ MacroTuple pos generics symbol' fields'
 
                 _ -> return stmt
 
@@ -220,6 +230,29 @@ resolveStmt statement = withPos statement $ case statement of
         typ' <- resolveType typ
         popSymbolTable
         return (Typedef pos generics' symbol' typ')
+
+    MacroTuple pos generics symbol fields -> do
+        symbol' <- case symbol of
+            Sym str -> do
+                s <- genSymbol (SymResolved str)
+                define s KeyType
+                return s
+            SymResolved _ -> return symbol
+
+        fieldSymbols' <- forM fields $ \(fieldSymbol, _) -> case fieldSymbol of
+            SymResolved _ -> return fieldSymbol
+            Sym s -> do
+                s' <- genSymbol (SymResolved s)
+                define s' KeyType
+                return s'
+
+        pushSymbolTable
+        generics' <- defineGenerics generics
+        fieldTypes' <- mapM resolveType (map snd fields)
+        popSymbolTable
+
+        return $ MacroTuple pos generics' symbol' (zip fieldSymbols' fieldTypes')
+
 
     Feature pos generics funDeps symbol args retty -> do
         unless (symbolIsResolved symbol) (error "TODO")

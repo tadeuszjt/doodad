@@ -76,6 +76,7 @@ data Expr
     | String       TextPos String
     | Call         TextPos Type [Expr]
     | Field        TextPos Expr Int
+    | Member       TextPos Expr Symbol
     | Ident        TextPos Symbol
     | Match        TextPos Expr Pattern
     | Reference    TextPos Expr
@@ -142,7 +143,7 @@ data Stmt
     | EmbedC      TextPos String
     | Assign      TextPos Symbol Expr
     | Enum        TextPos Generics Symbol [ (Symbol, [Type] ) ]
-    | MacroTuple  TextPos Generics Symbol [ (String, Type) ]
+    | MacroTuple  TextPos Generics Symbol [ (Symbol, Type) ]
     | Derives     TextPos Generics Type Type
     deriving (Eq, Show)
 
@@ -353,6 +354,14 @@ prettyStmt pre stmt = case stmt of
 
     Derives pos generics t1 t2 -> do
         putStrLn $ pre ++ "derives" ++ genericsStr generics ++ " " ++ show t1 ++ " " ++ show t2
+
+    MacroTuple pos generics symbol fields -> do
+        putStrLn $ pre ++ "tuple" ++ genericsStr generics ++ " " ++ prettySymbol symbol ++ " {"
+
+        forM_ fields $ \(fieldSymbol, fieldType) -> do
+            putStrLn $ pre ++ "\t" ++ prettySymbol fieldSymbol ++ " " ++ show fieldType
+
+        putStrLn "}"
 
     x  -> error (show x)
 

@@ -516,9 +516,6 @@ fn testMake2()
     myTup = make2(true, 3)
 
 
-
-
-
 fn main()
     testArithmetic()
     testFloats()

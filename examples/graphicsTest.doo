@@ -85,7 +85,7 @@ fn main()
 //        let (width, height) = w.getSize()
 //        w.setViewFromRect(((0, 0), (conv(width), conv(height))))
         w.clearWindow(white())
-        w.drawQuads(quads.Unordered::values)
+        w.drawQuads(quads.unordered::values)
         w.display()
 //
 //        nextNs = time::getTimestampNs()

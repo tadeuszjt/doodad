@@ -24,8 +24,9 @@ data ASTResolved
 
         , featuresAll          :: Map.Map Symbol Stmt
 
+        , fieldsAll            :: Map.Map Symbol Int
+
         , acquiresAll          :: Map.Map Symbol Stmt 
-        , acquiresImports      :: Map.Map Symbol Stmt
         , acquiresTop          :: Set.Set Symbol
 
         , funcDefsAll          :: Map.Map Symbol Func

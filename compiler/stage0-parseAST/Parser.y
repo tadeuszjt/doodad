@@ -145,7 +145,7 @@ enumCases : {-empty-}                         { [] }
 tupleMacro : tuple generics Ident '{' 'I' tupleFields 'D' '}' { MacroTuple (tokPos $1) $2 (Sym [tokStr $3]) $6 }
 
 tupleFields : {-empty-}                       { [] }
-            | ident type_ 'N' tupleFields     { (tokStr $1, $2) : $4 }
+            | symbol type_ 'N' tupleFields    { (snd $1, $2) : $4 }
 
 
 ---------------------------------------------------------------------------------------------------

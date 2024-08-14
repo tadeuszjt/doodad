@@ -23,8 +23,9 @@ initAstResolved modName imports = ASTResolved
 
     , featuresAll    = Map.unions (map featuresAll imports)
 
+    , fieldsAll      = Map.unions (map fieldsAll imports)
+
     , acquiresAll     = Map.unions (map acquiresAll imports) 
-    , acquiresImports = Map.unions $ map (\imp -> Map.restrictKeys (acquiresAll imp) (acquiresTop imp)) imports
     , acquiresTop     = Set.empty
 
     , typeDefsTop    = Set.empty
@@ -59,6 +60,11 @@ combineAsts (ast, supply) imports = fmap snd $
                 Feature _ _ _ symbol _ _ ->
                     modify $ \s -> s { typeDefsTop = Set.insert symbol (typeDefsTop s) }
 
+                MacroTuple pos generics symbol fields -> do
+                    modify $ \s -> s { typeDefsTop = Set.insert symbol (typeDefsTop s) }
+                    forM_ fields $ \(fieldSymbol, _) -> do
+                        modify $ \s -> s { typeDefsTop = Set.insert fieldSymbol (typeDefsTop s) }
+
                 _ -> return ()
                 
             mapM_ (mapStmtM typeDefsMapper) (astStmts ast)
@@ -87,6 +93,21 @@ typeDefsMapper element = case element of
             (typeDefsAll s) }
         return element
 
+    ElemStmt stmt@(MacroTuple pos generics symbol fields) -> do
+        modify $ \s -> s { typeDefsAll = Map.insert
+            symbol
+            (generics, foldType (Tuple : map snd fields))
+            (typeDefsAll s) }
+
+        forM_ fields $ \(fieldSymbol, fieldType) ->
+            modify $ \s -> s { typeDefsAll = Map.insert
+                fieldSymbol
+                (generics, foldType [Type.Func, fieldType, foldType (TypeDef symbol : map TypeDef generics)])
+                (typeDefsAll s) }
+
+        return element
+        
+
     _ -> return element
 
 
@@ -108,6 +129,11 @@ combineMapper element = case element of
         modify $ \s -> s { acquiresTop = Set.insert symbol' (acquiresTop s) }
         return element
 
+    ElemStmt stmt@(MacroTuple pos generics symbol fields) -> do
+        forM_ (zip fields [0..]) $ \((fieldSymbol, fieldType), i) -> do
+            modify $ \s -> s { fieldsAll = Map.insert fieldSymbol i (fieldsAll s) }
+        return element
+
     -- filter out statements
     ElemStmt (Block stmts) -> fmap (ElemStmt . Block . catMaybes) $
         forM stmts $ \stmt -> case stmt of
@@ -116,13 +142,25 @@ combineMapper element = case element of
             Feature _ _ _ _ _ _ -> return Nothing
             Aquires _ _ _ _ _ _ -> return Nothing
             Derives _ _ _ _     -> return Nothing
+            MacroTuple _ _ _ _  -> return Nothing
             _               -> return (Just stmt)
 
     ElemExpr (Call pos typ@(TypeDef symbol) exprs) -> do
         resm <- Map.lookup symbol <$> getTypeDefs
-        case resm of
-            Nothing -> fail ("no def for: " ++ prettySymbol symbol)
-            Just (generics, _) -> do
+        unless (isJust resm) (fail $ "no def for: " ++ prettySymbol symbol)
+        let Just (generics, _) = resm
+
+
+        fieldResm <- Map.lookup symbol <$> gets fieldsAll
+
+        case fieldResm of
+            Just i -> do
+                unless (length exprs == 1) (error "cannot have arguments to field access") 
+                -- TODO this is just a hack, use member
+                return $ ElemExpr (Field pos (exprs !! 0) i)
+                
+                
+            Nothing -> do
                 let typ' = case generics of
                         [] -> typ
                         x  -> foldl Apply typ $ replicate (length x) (Type 0)
