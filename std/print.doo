@@ -14,6 +14,11 @@ import std/convert
 feature{T, G} print(T, G)
 
 
+fn{P, T} printLn(p &P, t T)
+    p.print(t)
+    p.print('\n')
+
+
 acquires print{ Char.Table, Char } (t&, c)
     t.push(c)
 

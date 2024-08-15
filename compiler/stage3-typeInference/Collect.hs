@@ -245,10 +245,26 @@ collectExpr (AExpr exprType expression) = collectPos expression $ case expressio
         collectExpr expr
         collectPattern pat
 
-    Field _ expr idx -> do
-        collect "field access must have valid types" $
-            ConsField (typeof expr) idx exprType
+    Field _ expr (Right symbol) -> do
+        Just (idx, typeSymbol) <- gets (Map.lookup symbol . fieldsAll . astResolved)
+        base <- baseTypeOfm (typeof expr)
+        case unfoldType (typeof expr) of
+            (Type _, _) -> return ()
+            (Table, [t]) -> case unfoldType t of
+                (TypeDef s, _) -> unless (s == typeSymbol) (fail "invalid field")
+
+            (TypeDef s, _) -> case fmap unfoldType base of
+                Just (Tuple, _) -> unless (s == typeSymbol) (fail "invalid field")
+
+            x -> error (show x)
+
+        collect "field access must have valid types" $ ConsField (typeof expr) idx exprType
         collectExpr expr
+
+    Field _ expr (Left idx) -> do
+        collect "field access must have valid types" $ ConsField (typeof expr) idx exprType
+        collectExpr expr
+
 
     AST.Reference _ expr -> do
         collect "reference type must match expression type" $ ConsEq exprType (typeof expr)

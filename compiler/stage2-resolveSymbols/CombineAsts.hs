@@ -131,7 +131,7 @@ combineMapper element = case element of
 
     ElemStmt stmt@(MacroTuple pos generics symbol fields) -> do
         forM_ (zip fields [0..]) $ \((fieldSymbol, fieldType), i) -> do
-            modify $ \s -> s { fieldsAll = Map.insert fieldSymbol i (fieldsAll s) }
+            modify $ \s -> s { fieldsAll = Map.insert fieldSymbol (i, symbol) (fieldsAll s) }
         return element
 
     -- filter out statements
@@ -150,15 +150,12 @@ combineMapper element = case element of
         unless (isJust resm) (fail $ "no def for: " ++ prettySymbol symbol)
         let Just (generics, _) = resm
 
-
         fieldResm <- Map.lookup symbol <$> gets fieldsAll
 
         case fieldResm of
-            Just i -> do
+            Just (i, _) -> do
                 unless (length exprs == 1) (error "cannot have arguments to field access") 
-                -- TODO this is just a hack, use member
-                return $ ElemExpr (Field pos (exprs !! 0) i)
-                
+                return $ ElemExpr $ Field pos (exprs !! 0) (Right symbol)
                 
             Nothing -> do
                 let typ' = case generics of

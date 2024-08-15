@@ -334,44 +334,44 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
                     Retty retType    -> assign "call" $ Value typ $ C.Call (showSymGlobal symbol) argExprs
                     RefRetty retType -> assign "call" $ Ref typ $ C.Call (showSymGlobal symbol) argExprs
 
-    S.Field _ expr i -> do
-        -- TODO implement shear
+    S.Field _ expr field -> do
+        i <- case field of
+            Left i -> return i
+            Right symbol -> gets (fst . fromJust . Map.lookup symbol . fieldsAll . astResolved)
+
         val <- generateExpr expr
         base <- baseTypeOf val
         case val of
-            Value _ _ -> case unfoldType base of
-                (Tuple, ts) -> return $ Value (ts !! i) $ C.Member (valExpr val) ("m" ++ show i)
-                (Sum, ts)   -> return $ Value (ts !! i) $ C.Member (valExpr val) ("u" ++ show i)
+            Value _ expr -> case unfoldType base of
+                (Tuple, ts) -> return $ Value (ts !! i) $ C.Member expr ("m" ++ show i)
+                (Sum, ts)   -> return $ Value (ts !! i) $ C.Member expr ("u" ++ show i)
                 (Table, [t]) -> do
                     baseT <- baseTypeOf t
                     case unfoldType baseT of
                         (Tuple, ts) -> do
                             ct <- cTypeOf baseT
                             let off = C.Offsetof ct ("m" ++ show i)
-                            let ptr = C.Cast (Cpointer Cvoid) (C.Member (valExpr val) "r0")
-                            let row = C.Infix C.Plus ptr (C.Infix C.Times off $ C.Member (valExpr val) "cap")
+                            let ptr = C.Cast (Cpointer Cvoid) (C.Member expr "r0")
+                            let row = C.Infix C.Plus ptr (C.Infix C.Times off $ C.Member expr "cap")
 
                             -- setting slice cap to 0 represents non-flat memory
                             assign "slice" $ Value (Apply Slice $ ts !! i) $
-                                C.Initialiser [ row, C.Member (valExpr val) "len", C.Int 0 ]
+                                C.Initialiser [ row, C.Member expr "len", C.Int 0 ]
 
                 x -> error (show x)
 
             Ref _ expr -> case unfoldType base of
+                (Sum, ts)   -> return $ Value (ts !! i) $ C.PMember (refExpr val) ("u" ++ show i)
                 (Tuple, ts) -> do
                     cts <- mapM cTypeOf ts
                     ct <- cTypeOf base
-
                     let off = C.Offsetof ct ("m" ++ show i)
+                    let ptr = C.Cast (Cpointer Cvoid) (C.Member expr "ptr")
                     let idx = C.Member expr "idx"
                     let cap = C.Member expr "cap"
-                    let ptr = C.Cast (Cpointer Cvoid) (C.Member expr "ptr")
-                    let size = C.SizeofType (cts !! i)
-                    let offset = C.Infix C.Plus (C.Infix C.Times cap off) (C.Infix C.Times idx size)
-                    let fieldP = C.Cast (Cpointer $ cts !! i) (C.Infix C.Plus ptr offset)
-                    return $ Value (ts !! i) $ C.Deref fieldP
-
-                (Sum, ts)   -> return $ Value (ts !! i) $ C.PMember (refExpr val) ("u" ++ show i)
+                    return $ Value (ts !! i) $ C.Deref $ C.Cast (Cpointer $ cts !! i) $ 
+                        C.Infix C.Plus ptr $ C.Infix Plus
+                            (C.Infix C.Times cap off) (C.Infix C.Times idx $ C.SizeofType $ cts !! i)
 
                 (Table, [t]) -> do
                     baseT <- baseTypeOf t
@@ -379,15 +379,14 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
                         (Tuple, ts) -> do
                             ct <- cTypeOf baseT
                             let off = C.Offsetof ct ("m" ++ show i)
-                            let ptr = C.Cast (Cpointer Cvoid) (C.PMember (refExpr val) "r0")
-                            let row = C.Infix C.Plus ptr (C.Infix C.Times off $ C.PMember (refExpr val) "cap")
-
+                            let ptr = C.Cast (Cpointer Cvoid) (C.PMember expr "r0")
+                            let row = C.Infix C.Plus ptr $ C.Infix C.Times off $ C.PMember expr "cap"
                             -- setting slice cap to 0 represents non-flat memory
                             assign "slice" $ Value (Apply Slice $ ts !! i) $
-                                C.Initialiser [ row, C.PMember (refExpr val) "len", C.Int 0 ]
+                                C.Initialiser [ row, C.PMember expr "len", C.Int 0 ]
+
                 x -> error (show x)
                         
-
     S.Reference pos expr -> makeRef =<< generateExpr expr
 
     S.Array pos exprs -> do
@@ -396,9 +395,7 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
         name <- fresh "array"
         appendElem $ C.Assign (Carray (length exprs) cTyp) name $ C.Initialiser (map valExpr vals)
         assign "slice" $ Value typ $ C.Initialiser
-            [ C.Ident name
-            , C.Int (fromIntegral $ length exprs)
-            ]
+            [ C.Ident name , C.Int (fromIntegral $ length exprs) , C.Int 0 ]
 
     _ -> error (show expr_)
     where

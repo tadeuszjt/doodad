@@ -75,7 +75,7 @@ data Expr
     | Char         TextPos Char
     | String       TextPos String
     | Call         TextPos Type [Expr]
-    | Field        TextPos Expr Int
+    | Field        TextPos Expr (Either Int Symbol)
     | Member       TextPos Expr Symbol
     | Ident        TextPos Symbol
     | Match        TextPos Expr Pattern

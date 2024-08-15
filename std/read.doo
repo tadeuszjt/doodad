@@ -27,7 +27,7 @@ acquires read{ Char.Table, Char } (r&, idx)
 acquires{R} read{ R, I64 } (r&, start)
     let idx = start
 
-    while r.read(idx) -> some(c : Char, n) | isSpace(c)
+    while r.read(idx) -> some(c, n) | isSpace(c)
         idx = idx + n
 
     let isMinus = false
@@ -38,8 +38,7 @@ acquires{R} read{ R, I64 } (r&, start)
 
     data digits Char.Table
 
-
-    while r.read(idx) -> some(c : Char, n) | isDigit(c)
+    while r.read(idx) -> some(c, n) | isDigit(c)
         idx = idx + n
         digits.push(c)
 
@@ -51,49 +50,6 @@ acquires{R} read{ R, I64 } (r&, start)
         num = num * 10 + convert(digit - '0')
 
     if isMinus
-        num = 0 - num
+        num = -num
         
     return some( (num, idx - start) )
-        
-
-
-//fn readI64(str []Char) Tuple{I64, I64}.Maybe
-//
-//    fn mat(str &[]Char, idx I64) Char.Maybe
-//        if idx > str.len
-//            return nothing()
-//        return just(str[idx])
-//
-//    let idx = 0
-//
-//    while str.mat(idx) -> just(c) | isSpace(c)
-//        idx = idx + 1
-//
-//
-//    let isMinus = false
-//    if str.mat(idx) -> just('-')
-//        isMinus = true
-//        idx = idx + 1
-//
-//    let hasDigits = false
-//    let x = 0
-//    data digits Char.Table
-//
-//    while str.mat(idx) -> just(c) | isDigit(c)
-//        hasDigits = true
-//        digits.push(str[idx])
-//        idx = idx + 1
-//
-//    for digits -> digit
-//        x = x*10 + I64(digit - '0')
-//
-//    if !hasDigits
-//        return nothing()
-//
-//    if isMinus
-//        x = -x
-//
-//    return just((x, idx))
-//
-//
-//

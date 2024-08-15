@@ -159,7 +159,7 @@ buildPattern defBlkId pattern expr = do
             forM_ (zip pats [0..]) $ \(pat, i) -> do
                 ifBlkId <- newStmt (Block [])
                 withCurId ifBlkId $ do
-                    match <- buildPattern defBlkId pat $ Field pos (Ident pos symbol) i
+                    match <- buildPattern defBlkId pat $ Field pos (Ident pos symbol) (Left i)
                     appendStmt $ ExprStmt $ Call pos (TypeDef $ Sym ["builtin", "builtinStore"])
                         [ Reference pos (Ident pos matchSym)
                         , match
@@ -441,13 +441,13 @@ buildStmt statement = withPos statement $ case statement of
 
                 case ts of
                     [t] -> void $ appendStmt $ ExprStmt $ Call pos (TypeDef $ Sym ["store"])
-                        [ Reference pos (Field pos (Ident pos $ Sym ["en"]) (fromIntegral i))
+                        [ Reference pos (Field pos (Ident pos $ Sym ["en"]) (Left $ fromIntegral i))
                         , Ident pos (Sym ["a0"])
                         ]
 
                     ts -> forM_ (zip ts [0..]) $ \(t, j) -> do
                         appendStmt $ ExprStmt $ Call pos (TypeDef $ Sym ["store"])
-                            [ Reference pos (Field pos (Field pos (Ident pos $ Sym ["en"]) (fromIntegral i)) j)
+                            [ Reference pos (Field pos (Field pos (Ident pos $ Sym ["en"]) (Left $ fromIntegral i)) $ Left j)
                             , Ident pos (Sym ["a" ++ show j])
                             ]
 
@@ -468,7 +468,7 @@ buildStmt statement = withPos statement $ case statement of
         forM_ (zip cases [0..]) $ \( (Sym [str], ts) , i) -> do
             blkId <- newStmt (Block [])
             withCurId blkId $ do
-                appendStmt $ Return pos $ Just $ Reference pos $ Field pos (Ident pos $ Sym ["en"]) i
+                appendStmt $ Return pos $ Just $ Reference pos $ Field pos (Ident pos $ Sym ["en"]) (Left i)
 
             retty <- case ts of
                 [t] -> return (RefRetty t)

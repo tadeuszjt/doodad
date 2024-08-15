@@ -96,7 +96,7 @@ fn winner(board Board) Square
 
 
 fn getPlayerInput(io &Io) Input
-    io.stdout.print("Please enter move: <row> <col>\n")
+    io.stdout.printLn("Please enter move: <row> <col>")
     
     data line Char.Table
 
@@ -123,7 +123,7 @@ fn getPlayerInput(io &Io) Input
 
 
 fn cpuMove(io &Io, board &Board)
-    io.stdout.print("cpu moving ...\n")
+    io.stdout.printLn("cpu moving ...")
 
     // find all empty squares
     data empty (I64, I64).Table
@@ -133,7 +133,7 @@ fn cpuMove(io &Io, board &Board)
                 empty.push( (row, col) )
 
     if empty.len == 0
-        io.stdout.print("cpu can't move\n")
+        io.stdout.printLn("cpu can't move")
         return
 
     // find move that wins
@@ -161,7 +161,7 @@ fn cpuMove(io &Io, board &Board)
 
 fn main()
     data io Io
-    io.stdout.print("naughts and crosses\n")
+    io.stdout.printLn("naughts and crosses")
 
     data board Board
     io.stdout.print(board)
@@ -172,20 +172,19 @@ fn main()
             switch io.getPlayerInput()
                 quit(); return
                 error()
-                    io.stdout.print("parse error\n")
+                    io.stdout.printLn("parse error")
 
                 move(row, col) | row < 0 || row > (board.len - 1)
-                    io.stdout.print("row not in range\n")
+                    io.stdout.printLn("row not in range")
 
                 move(row, col) | col < 0 || col > (board.len - 1)
-                    io.stdout.print("col not in range\n")
+                    io.stdout.printLn("col not in range")
 
                 move(row, col)
                     io.stdout.print("moving: ")
                     io.stdout.print(row)
                     io.stdout.print(", ")
-                    io.stdout.print(col)
-                    io.stdout.print('\n')
+                    io.stdout.printLn(col)
                     board[row][col] = naught()
                     moved = true
 

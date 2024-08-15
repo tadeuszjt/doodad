@@ -322,7 +322,7 @@ expr   : literal                                 { $1 }
        | expr ':' type_                          { AExpr $3 $1 }
        | symbol                                  { AST.Ident (fst $1) (snd $1) }
        | '[' exprsA ']'                          { AST.Array (tokPos $1) $2 }
-       | expr '.' int_c                          { Field (tokPos $2) $1 (read $ tokStr $3)  }
+       | expr '.' int_c                          { Field (tokPos $2) $1 (Left $ read $ tokStr $3)  }
        | '&' expr                                { AST.Reference (tokPos $1) $2 }
 --       | type_ '(' exprsA ')'                    { AExpr $1 (Call (tokPos $2) (Sym ["Construct", "construct"]) $3) }
        | expr '[' expr ']'                       { Subscript (tokPos $2) $1 $3 }
