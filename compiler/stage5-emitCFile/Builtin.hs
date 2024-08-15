@@ -161,15 +161,16 @@ builtinTableAppend (Ref typ expr) = do
         let newSize = C.Infix C.Times cap elemSize
         appendElem $ C.Set pMem $ C.Call "GC_realloc" [pMem, newSize]
 
-
         case unfoldType base of
             (Tuple, ts) -> do
                 cts <- mapM cTypeOf ts
+                ct <- cTypeOf base
                 forM_ (reverse $ zip ts [0..]) $ \(t, i) -> do
                     let ptr = C.Cast (C.Cpointer C.Cvoid) (C.PMember expr "r0")
-                    prevSizes <- assign "prev" $ Value I64 $ foldl (C.Infix C.Plus) (C.Int 0) $ map C.SizeofType (take i cts)
-                    let src = C.Infix C.Plus ptr (C.Infix C.Times (valExpr oldCap) $ valExpr prevSizes)
-                    let dst = C.Infix C.Plus ptr (C.Infix C.Times cap $ valExpr prevSizes)
+                    let off = C.Offsetof ct ("m" ++ show i)
+
+                    let src = C.Infix C.Plus ptr (C.Infix C.Times (valExpr oldCap) off)
+                    let dst = C.Infix C.Plus ptr (C.Infix C.Times cap off)
                     let l = C.Infix C.Times len $ C.SizeofType (cts !! i)
                     appendElem $ C.ExprStmt $ C.Call "memcpy" [dst, src, l]
 
@@ -188,16 +189,27 @@ builtinArrayAt value idx@(Value _ _) = do
         Ref _ expr   -> makeRef $ Value t $ C.Subscript (C.PMember expr "arr") (valExpr idx)
 
 
+-- TODO slice may represent non-flat memory when representing table row
 builtinSliceAt :: Value -> Value -> Generate Value
 builtinSliceAt val idx@(Value _ _) = do
     I64 <- baseTypeOf idx
     Apply Slice t <- baseTypeOf val
     base <- baseTypeOf t
-
+    -- ptr = ptr + (cap ? 0 : sizeof(struct) * idx)
+    -- idx = cap ? idx : 0
+    -- cap = cap ? cap : 1
     case val of
         Ref _ exp -> case unfoldType base of
-            (Tuple, ts) -> assign "ref" $ Ref t $ C.Initialiser [C.PMember exp "ptr", valExpr idx, C.PMember exp "cap" ]
-            (_, _)      -> assign "ref" $ Ref t $ C.Address $ C.Subscript (C.PMember exp "ptr") (valExpr idx)
+            (Tuple, ts) -> do 
+                ct <- cTypeOf base
+                let ptr = C.Infix C.Plus (C.Cast (C.Cpointer C.Cvoid) $ C.PMember exp "ptr") $ C.CndExpr (C.PMember exp "cap")
+                        (C.Int 0)
+                        (C.Infix C.Times (valExpr idx) (C.SizeofType ct))
+                let id = C.CndExpr (C.PMember exp "cap") (valExpr idx) (C.Int 0)
+                let cap = C.CndExpr (C.PMember exp "cap") (C.PMember exp "cap") (C.Int 1)
+                assign "ref" $ Ref t $ C.Initialiser [ptr, id, cap]
+
+            (_, _) -> assign "ref" $ Ref t $ C.Address $ C.Subscript (C.PMember exp "ptr") (valExpr idx)
 
         Value _ exp -> case base of
             Type.Char -> assign "ref" $ Ref t $ C.Address $ C.Subscript (C.Member exp "ptr") (valExpr idx)

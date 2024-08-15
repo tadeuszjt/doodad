@@ -126,6 +126,7 @@ data Expression
     | Not Expression
     | Sizeof Expression
     | SizeofType Type
+    | Offsetof Type String
     | Cast Type Expression
     deriving (Eq)
 
@@ -136,7 +137,7 @@ instance Show Expression where
     show (Float f) = show f
     show (String s) = show s
     show (Call name exprs) = name ++ "(" ++ intercalate ", " (map showNoParens exprs) ++ ")"
-    show (CndExpr c a b) = show c ++ " ? " ++ show a ++ " : " ++ show b
+    show (CndExpr c a b) = "(" ++ show c ++ " ? " ++ show a ++ " : " ++ show b ++ ")"
     show (Infix op a b) = "(" ++ show a ++ " " ++ show op ++ " " ++ show b ++ ")"
     show (Prefix op a) = "(" ++ show op ++ " " ++ show a ++ ")"
     show (Initialiser es) = "{" ++ intercalate ", " (map showNoParens es) ++ "}"
@@ -152,6 +153,7 @@ instance Show Expression where
     show (Char c) = show c
     show (Sizeof e) = "sizeof(" ++ showNoParens e ++ ")"
     show (SizeofType t) = "sizeof(" ++ show t ++ ")"
+    show (Offsetof t s) = "offsetof(" ++ show t ++ ", " ++ s ++ ")"
     show (Cast t e) = "(" ++ show t ++ ")(" ++ showNoParens e ++ ")"
 
 showNoParens :: Expression -> String

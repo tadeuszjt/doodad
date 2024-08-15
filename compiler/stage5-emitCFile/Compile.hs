@@ -340,25 +340,35 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
         base <- baseTypeOf val
         case val of
             Value _ _ -> case unfoldType base of
-                (Tuple, ts) -> do
-                    return $ Value (ts !! i) $ C.Member (valExpr val) ("m" ++ show i)
-
+                (Tuple, ts) -> return $ Value (ts !! i) $ C.Member (valExpr val) ("m" ++ show i)
                 (Sum, ts)   -> return $ Value (ts !! i) $ C.Member (valExpr val) ("u" ++ show i)
+                (Table, [t]) -> do
+                    baseT <- baseTypeOf t
+                    case unfoldType baseT of
+                        (Tuple, ts) -> do
+                            ct <- cTypeOf baseT
+                            let off = C.Offsetof ct ("m" ++ show i)
+                            let ptr = C.Cast (Cpointer Cvoid) (C.Member (valExpr val) "r0")
+                            let row = C.Infix C.Plus ptr (C.Infix C.Times off $ C.Member (valExpr val) "cap")
+
+                            -- setting slice cap to 0 represents non-flat memory
+                            assign "slice" $ Value (Apply Slice $ ts !! i) $
+                                C.Initialiser [ row, C.Member (valExpr val) "len", C.Int 0 ]
+
                 x -> error (show x)
 
             Ref _ expr -> case unfoldType base of
                 (Tuple, ts) -> do
                     cts <- mapM cTypeOf ts
+                    ct <- cTypeOf base
 
-                    let prevSizes = foldl (C.Infix C.Plus) (C.Int 0) $ map C.SizeofType (take i cts)
-
+                    let off = C.Offsetof ct ("m" ++ show i)
                     let idx = C.Member expr "idx"
                     let cap = C.Member expr "cap"
                     let ptr = C.Cast (Cpointer Cvoid) (C.Member expr "ptr")
-                    let siz = C.SizeofType (cts !! i)
-                    let off = C.Infix C.Plus (C.Infix C.Times cap prevSizes) (C.Infix C.Times idx siz)
-                    let fieldP = C.Cast (Cpointer $ cts !! i) (C.Infix C.Plus ptr off)
-
+                    let size = C.SizeofType (cts !! i)
+                    let offset = C.Infix C.Plus (C.Infix C.Times cap off) (C.Infix C.Times idx size)
+                    let fieldP = C.Cast (Cpointer $ cts !! i) (C.Infix C.Plus ptr offset)
                     return $ Value (ts !! i) $ C.Deref fieldP
 
                 (Sum, ts)   -> return $ Value (ts !! i) $ C.PMember (refExpr val) ("u" ++ show i)

@@ -517,11 +517,18 @@ fn testMake2()
 
 
 fn testTableRows()
-    
-    data table (I64, Bool).Table
+    data table (I32, (Bool, I64)).Table
 
-//    for table.1 -> b
-//        let true = b
+    table.push( (1, (true, 11)) )
+    table.push( (2, (false , 12)) )
+    table.push( (3, (true , 13)) )
+
+    let 3 = table.0 .len
+    let 3 = table.1 .len
+
+    let (true, 11) = table.1[0]
+    let (false, 12) = table.1[1]
+    let (true, 13) = table.1[2]
 
 
 fn main()
@@ -549,6 +556,7 @@ fn main()
     testMacroTuple()
     testFunctionalDependency()
     testMake2()
+    testTableRows()
 
 //    data io Io
 //    testIo(&io)

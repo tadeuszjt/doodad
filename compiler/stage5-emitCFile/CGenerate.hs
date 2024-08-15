@@ -223,17 +223,17 @@ deref (Ref typ expr) = do
         (Tuple, ts) -> do -- {ptr, idx, cap}
             tup <- assign "deref" $ Value typ $ C.Initialiser [C.Int 0]
             cts <- mapM cTypeOf ts
+            ct <- cTypeOf base
             forM_ (zip ts [0..]) $ \(t, i) -> do
-                -- field = ptr + cap * (sizeof(i-1) .. sizeof(0)) + idx * sizeof(i)
                 
-                let prevSizes = foldl (C.Infix C.Plus) (C.Int 0) $ map C.SizeofType (take i cts)
-
+                let off = C.Offsetof ct ("m" ++ show i)
                 let idx = C.Member expr "idx"
                 let cap = C.Member expr "cap"
                 let ptr = C.Cast (Cpointer Cvoid) (C.Member expr "ptr")
-                let siz = C.SizeofType (cts !! i)
-                let off = C.Infix C.Plus (C.Infix C.Times cap prevSizes) (C.Infix C.Times idx siz)
-                let fieldP = C.Cast (Cpointer $ cts !! i) (C.Infix C.Plus ptr off)
+
+                let size = C.SizeofType (cts !! i)
+                let offset = C.Infix C.Plus (C.Infix C.Times cap off) (C.Infix C.Times idx size)
+                let fieldP = C.Cast (Cpointer $ cts !! i) (C.Infix C.Plus ptr offset)
 
                 appendElem $ C.Set (C.Member (valExpr tup) $ "m" ++ show i) (C.Deref fieldP)
 

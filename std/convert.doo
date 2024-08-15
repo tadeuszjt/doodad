@@ -27,6 +27,16 @@ acquires convert{I64, U8} (a)
     ${ $b = $a; }
     return b
 
+acquires convert{I64, I32} (a)
+    let b
+    ${ $b = $a; }
+    return b
+
+acquires convert{I32, I64} (a)
+    let b
+    ${ $b = $a; }
+    return b
+
 acquires convert{U8, I64} (a)
     let b
     ${ $b = $a; }

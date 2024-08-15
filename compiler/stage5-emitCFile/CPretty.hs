@@ -73,6 +73,20 @@ cPrettyElem :: Element -> DoM CPrettyState ()
 cPrettyElem elem = case elem of
     Return expr         -> printLn $ "return " ++ showNoParens expr ++ ";"
     ReturnVoid          -> printLn $ "return;"
+
+    Assign typ str (Initialiser exprs) | length exprs > 1 -> do
+        case typ of
+            Carray n t -> printLn $ show t ++ " " ++ str ++ "[" ++ show n ++ "]" ++ " = {"
+            _          -> printLn $ show typ ++ " " ++ str ++ " = {"
+
+        pushIndent
+        forM (zip exprs [0..]) $ \(expr, i) -> do
+            printLn $ showNoParens expr ++ (if i < (length exprs - 1) then ", " else "")
+
+        popIndent
+        printLn "};"
+
+
     Assign typ str expr -> do
         case typ of
             Carray n t -> printLn $ show t ++ " " ++ str ++ "[" ++ show n ++ "]" ++ " = " ++ showNoParens expr ++ ";"
