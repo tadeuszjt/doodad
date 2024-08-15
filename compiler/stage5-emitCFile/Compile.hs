@@ -372,6 +372,19 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
                     return $ Value (ts !! i) $ C.Deref fieldP
 
                 (Sum, ts)   -> return $ Value (ts !! i) $ C.PMember (refExpr val) ("u" ++ show i)
+
+                (Table, [t]) -> do
+                    baseT <- baseTypeOf t
+                    case unfoldType baseT of
+                        (Tuple, ts) -> do
+                            ct <- cTypeOf baseT
+                            let off = C.Offsetof ct ("m" ++ show i)
+                            let ptr = C.Cast (Cpointer Cvoid) (C.PMember (refExpr val) "r0")
+                            let row = C.Infix C.Plus ptr (C.Infix C.Times off $ C.PMember (refExpr val) "cap")
+
+                            -- setting slice cap to 0 represents non-flat memory
+                            assign "slice" $ Value (Apply Slice $ ts !! i) $
+                                C.Initialiser [ row, C.PMember (refExpr val) "len", C.Int 0 ]
                 x -> error (show x)
                         
 

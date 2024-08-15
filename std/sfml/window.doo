@@ -60,6 +60,7 @@ derives{P} Vertex (print::print{P})
 type Quad Array{6, sfml::Vertex}
 derives{P} Quad (print::print{P})
 derives    Quad (container::at{ I64, Vertex })
+derives    Quad (store::store)
 
 
 type Window I64
@@ -139,12 +140,12 @@ fn pollEvent(w &Window) Event.Option
     return Option::none()
 
 
-fn drawQuads(w &Window, quads &Quad.Table)
+fn drawQuads(w &Window, quads Slice{Quad})
     ${
         sfRenderWindow_drawPrimitives(
             (sfRenderWindow*)*$w,
-            (const sfVertex *)$quads->r0,
-            $quads->len * 6,
+            (const sfVertex *)$quads.ptr,
+            $quads.len * 6,
             sfTriangles,
             NULL
         );

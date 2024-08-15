@@ -20,19 +20,21 @@ import std/convert
 tuple Blob {
     position Vec2f
     velocity Vec2f
-    quadKey  unordered::Key{Quad}
+    sprite   Quad
 }
 derives Blob (store)
 derives{P} Blob (print::print{P})
 
 
-fn setQuadPosition(quads &Quad.Unordered, key unordered::Key{Quad}, position Vec2f)
-    quads[key][0] = (position + (-10.0, -10.0), black(), (0.0, 0.0))
-    quads[key][1] = (position + (10.0, -10.0),  black(), (0.0, 0.0))
-    quads[key][2] = (position + (10.0, 10.0),   black(), (0.0, 0.0))
-    quads[key][3] = (position + (-10.0, -10.0), black(), (0.0, 0.0))
-    quads[key][4] = (position + (10.0, 10.0),   black(), (0.0, 0.0))
-    quads[key][5] = (position + (-10.0, 10.0),  black(), (0.0, 0.0))
+fn makeQuad(position Vec2f) Quad
+    let quad
+    quad[0] = (position + (-10.0, -10.0), black(), (0.0, 0.0))
+    quad[1] = (position + (10.0, -10.0),  black(), (0.0, 0.0))
+    quad[2] = (position + (10.0, 10.0),   black(), (0.0, 0.0))
+    quad[3] = (position + (-10.0, -10.0), black(), (0.0, 0.0))
+    quad[4] = (position + (10.0, 10.0),   black(), (0.0, 0.0))
+    quad[5] = (position + (-10.0, 10.0),  black(), (0.0, 0.0))
+    return quad
 
 
 fn main()
@@ -44,41 +46,22 @@ fn main()
 
     w.create()
 
-
-//    data triangles Triangles
     data blobs Blob.Table
-    data quads Quad.Unordered
 
     for (0, 1)
         let blob:Blob
-        //blob.position = rand.vec2f()
         blob.position = (50.0, 50.0)
-        blob.quadKey = quads.unordered::insertZero
-        quads.setQuadPosition(blob.quadKey, blob.position)
+        blob.sprite = makeQuad(blob.position)
         blobs.push(blob)
 
     for (0, 1)
         let blob:Blob
-        //blob.position = rand.vec2f()
         blob.position = (100.0, 100.0)
-        blob.quadKey = quads.unordered::insertZero
-        quads.setQuadPosition(blob.quadKey, blob.position)
+        blob.sprite = makeQuad(blob.position)
         blobs.push(blob)
-    //io.stdout.print(quads)
 
     io.stdout.print(blobs)
     io.stdout.print('\n')
-
-    ${
-        printf("blobs len: %d\n", $blobs.len);
-
-        for (int i = 0; i < 24 * 2; i++) {
-            printf("%x ", ((char*)$blobs.r0)[i]);
-        }
-
-        puts("");
-    }    
-
 
     while w.isOpen()
 //        let prevNs = time::getTimestampNs()
@@ -106,7 +89,7 @@ fn main()
 //        let (width, height) = w.getSize()
 //        w.setViewFromRect(((0, 0), (conv(width), conv(height))))
         w.clearWindow(white())
-        w.drawQuads(quads.unordered::values)
+        w.drawQuads(blobs.sprite)
         w.display()
 //
 //        nextNs = time::getTimestampNs()
