@@ -1,6 +1,7 @@
 module Builtin where
 
 import Control.Monad
+--import Control.Monad.IO.Class
 
 import qualified CAst as C
 import Type
@@ -22,11 +23,8 @@ builtinLen val = case val of
 
     Value typ expr -> do
         base <- baseTypeOf typ
-        return $ case unfoldType base of
+        case unfoldType base of
             x -> error (show x)
-            --TypeApply (Sym ["Table"]) _ -> Value I64 (C.Member expr "len")
-            --Apply Slice t                -> Value I64 (C.Member expr "len")
-    --        Type.Array n t -> return $ Value I64 $ C.Int (fromIntegral n)
 
 
 builtinStore :: Value -> Value -> Generate ()
@@ -38,9 +36,6 @@ builtinStore dst@(Ref _ _) src = do
     case src of
         Value _ _ -> case base of
             x | isSimple x -> void $ appendElem $ C.Set (C.Deref $ refExpr dst) (valExpr src)
---            TypeApply (Sym ["Tuple"]) ts | isCopyable -> do
---                void $ appendElem $ C.Set (C.Deref $ C.Member (refExpr dst) "ptr") (valExpr src)
-
             x -> error (show x)
 
         x -> error (show x)
@@ -148,51 +143,49 @@ builtinNot val@(Value _ _) = do
 
 builtinTableAppend :: Value -> Generate ()
 builtinTableAppend (Ref typ expr) = do
-    Apply Table _ <- baseTypeOf typ
+    Apply Table t <- baseTypeOf typ
+    base <- baseTypeOf t
 
-    let len    = C.Member (C.Deref expr) "len"
+    let len    = C.PMember expr "len"
+    let cap    = C.PMember expr "cap"
     let newLen = (C.Infix C.Plus len $ C.Int 1)
-    let cap    = C.Member (C.Deref expr) "cap"
+    oldCap <- assign "oldCap" $ Value I64 cap
     
     -- realloc if needed
     if_ (Value Type.Bool $ C.Infix C.GTEq len cap) $ do
         appendElem $ C.Set cap (C.Infix C.Times newLen (C.Int 2))
 
+        -- double mem size
         let pMem = C.PMember expr "r0"
-        let elemSize = C.Sizeof $ C.Deref $ C.PMember expr "r0"
+        elemSize <- C.SizeofType <$> cTypeOf t
         let newSize = C.Infix C.Times cap elemSize
-        let dataSize = C.Infix C.Times len elemSize
         appendElem $ C.Set pMem $ C.Call "GC_realloc" [pMem, newSize]
 
+
+        case unfoldType base of
+            (Tuple, ts) -> do
+                cts <- mapM cTypeOf ts
+                forM_ (reverse $ zip ts [0..]) $ \(t, i) -> do
+                    let ptr = C.Cast (C.Cpointer C.Cvoid) (C.PMember expr "r0")
+                    prevSizes <- assign "prev" $ Value I64 $ foldl (C.Infix C.Plus) (C.Int 0) $ map C.SizeofType (take i cts)
+                    let src = C.Infix C.Plus ptr (C.Infix C.Times (valExpr oldCap) $ valExpr prevSizes)
+                    let dst = C.Infix C.Plus ptr (C.Infix C.Times cap $ valExpr prevSizes)
+                    let l = C.Infix C.Times len $ C.SizeofType (cts !! i)
+                    appendElem $ C.ExprStmt $ C.Call "memcpy" [dst, src, l]
+
+            (_, _) -> return ()
+
     void $ appendElem $ C.ExprStmt $ C.Increment $ C.PMember expr "len"
+
 
 
 builtinArrayAt :: Value -> Value -> Generate Value
 builtinArrayAt value idx@(Value _ _) = do
     I64 <- baseTypeOf idx
     (Array, [Size n, t]) <- unfoldType <$> baseTypeOf value
-    base <- baseTypeOf t
-
-    case value of
-        Value _ expr -> case base of
---            TypeApply _ _ -> return $ Ref t $ C.Address $ C.Subscript
---                (C.Member expr "arr")
---                (valExpr idx)
---            TypeApply (Sym ["Tuple"]) _ -> error "TODO"
-            x -> error (show x)
-        Ref _ expr -> case unfoldType base of
-            (x, []) | isSimple x -> return $ Ref t $ C.Address $ C.Subscript
-                (C.PMember expr "arr")
-                (valExpr idx)
-            (Tuple, ts) -> do
-                -- TODO implement shear
-                let ptr = C.Address $ C.Subscript (C.PMember expr "arr") (valExpr idx)
-                assign "ref" $ Ref t $ C.Initialiser [ptr, C.Int 0, C.Int 0]
-
-            (_, _) -> return $ Ref t $ C.Address $ C.Subscript
-                (C.PMember expr "arr")
-                (valExpr idx)
-            x -> error (show x)
+    case value of -- TODO arrays can also have shear?
+        Value _ expr -> makeRef $ Value t $ C.Subscript (C.Member expr "arr") (valExpr idx)
+        Ref _ expr   -> makeRef $ Value t $ C.Subscript (C.PMember expr "arr") (valExpr idx)
 
 
 builtinSliceAt :: Value -> Value -> Generate Value
@@ -203,21 +196,11 @@ builtinSliceAt val idx@(Value _ _) = do
 
     case val of
         Ref _ exp -> case unfoldType base of
-            (Type.Char, []) -> return $ Ref t $ C.Address $ C.Subscript (C.PMember exp "ptr") (valExpr idx)
+            (Tuple, ts) -> assign "ref" $ Ref t $ C.Initialiser [C.PMember exp "ptr", valExpr idx, C.PMember exp "cap" ]
+            (_, _)      -> assign "ref" $ Ref t $ C.Address $ C.Subscript (C.PMember exp "ptr") (valExpr idx)
 
-            (Tuple, _) -> do
-                -- TODO not real tuple case
-                let ptr = C.Address $ C.Subscript (C.PMember exp "ptr") (valExpr idx)
-                assign "ref" $ Ref t $ C.Initialiser [ptr, C.Int 0, C.Int 0]
-
-            x -> error (show x)
         Value _ exp -> case base of
-            Type.Char -> return $ Ref t $ C.Address $ C.Subscript (C.Member exp "ptr") (valExpr idx)
-            x -> error (show x)
---            TypeApply (Sym ["Tuple"]) ts -> do
---                let ptr = C.Address $ C.Subscript (C.Member exp "ptr") (valExpr idx)
---                assign "ref" $ Ref t $ C.Initialiser [ptr, C.Int 0, C.Int 0]
-
+            Type.Char -> assign "ref" $ Ref t $ C.Address $ C.Subscript (C.Member exp "ptr") (valExpr idx)
             x -> error (show x)
 
 
@@ -228,26 +211,9 @@ builtinTableAt val idx@(Value _ _) = do
     base <- baseTypeOf t
     case val of
         Value _ expr -> case unfoldType base of
-            (Tuple, ts) -> do
-                -- TODO implement shear
-                let ptr = C.Address $ C.Subscript (C.Member expr "r0") (valExpr idx)
-                assign "ref" $ Ref t $ C.Initialiser [ptr, C.Int 0, C.Int 0]
-
-            _ -> return $ Ref t $ C.Address $ C.Subscript
-                (C.Member expr "r0")
-                (valExpr idx)
-
-            x -> error (show x)
+            (Tuple, ts) -> assign "ref" $ Ref t $ C.Initialiser [C.Member expr "r0", valExpr idx, C.Member expr "cap"]
+            _           -> assign "ref" $ Ref t $ C.Address $ C.Subscript (C.Member expr "r0") (valExpr idx)
 
         Ref _ expr -> case unfoldType base of
-            (Tuple, ts) -> do
-                -- TODO implement shear
-                let ptr = C.Address $ C.Subscript (C.PMember expr "r0") (valExpr idx)
-                assign "ref" $ Ref t $ C.Initialiser [ptr, C.Int 0, C.Int 0]
-
-            _ -> return $ Ref t $ C.Address $ C.Subscript
-                (C.PMember expr "r0")
-                (valExpr idx)
-
-            x -> error (show x)
-builtinTableAt _ _ = fail "here"
+            (Tuple, ts) -> assign "ref" $ Ref t $ C.Initialiser [C.PMember expr "r0", valExpr idx, C.PMember expr "cap"]
+            _           -> assign "ref" $ Ref t $ C.Address $ C.Subscript (C.PMember expr "r0") (valExpr idx)

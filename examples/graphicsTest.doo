@@ -23,6 +23,7 @@ tuple Blob {
     quadKey  unordered::Key{Quad}
 }
 derives Blob (store)
+derives{P} Blob (print::print{P})
 
 
 fn setQuadPosition(quads &Quad.Unordered, key unordered::Key{Quad}, position Vec2f)
@@ -56,7 +57,27 @@ fn main()
         quads.setQuadPosition(blob.quadKey, blob.position)
         blobs.push(blob)
 
-    io.stdout.print(quads)
+    for (0, 1)
+        let blob:Blob
+        //blob.position = rand.vec2f()
+        blob.position = (100.0, 100.0)
+        blob.quadKey = quads.unordered::insertZero
+        quads.setQuadPosition(blob.quadKey, blob.position)
+        blobs.push(blob)
+    //io.stdout.print(quads)
+
+    io.stdout.print(blobs)
+    io.stdout.print('\n')
+
+    ${
+        printf("blobs len: %d\n", $blobs.len);
+
+        for (int i = 0; i < 24 * 2; i++) {
+            printf("%x ", ((char*)$blobs.r0)[i]);
+        }
+
+        puts("");
+    }    
 
 
     while w.isOpen()

@@ -29,6 +29,11 @@ unifyOne info constraint = withPos info $ case constraint of
             Just x -> case unfoldType x of
                 (Tuple, ts) -> unifyOne info $ ConsEq exprType (ts !! idx)
                 (Sum,   ts) -> unifyOne info $ ConsEq exprType (ts !! idx)
+                (Table, [t]) -> do
+                    baseT <- baseTypeOf t
+                    case unfoldType baseT of
+                        (Tuple, ts) -> unifyOne info $ ConsEq exprType (Apply Slice $ ts !! idx)
+                        x -> error (show x)
                 x -> error (show x)
 
     ConsSlice exprType typ -> do

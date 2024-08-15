@@ -15,6 +15,7 @@ import std/convert
 
 type{T} Key I64
 derives{T} Key{T} (store)
+derives{P, T} Key{T} (print::print{P})
 
 
 tuple{T} Unordered {

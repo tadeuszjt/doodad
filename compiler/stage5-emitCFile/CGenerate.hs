@@ -196,17 +196,23 @@ for len f = do
     withCurID id (f idx)
 
 
-reference :: Value -> Generate Value
-reference val = do
+
+makeRef :: Value -> Generate Value
+makeRef val = do
     base <- baseTypeOf val
     case val of
-        Ref _ _ -> return val
         Value _ _ -> case unfoldType base of
-            (Tuple, ts) -> do
-                ref <- assign "ref" $ Ref (typeof val) $ C.Initialiser [C.Address (valExpr val), C.Int 0, C.Int 0]
-                return ref
-            _ -> return $ Ref (typeof val) (C.Address $ valExpr val)
-            x -> error (show x)
+            (Tuple, ts) -> assign "ref" $ Ref (typeof val) $ C.Initialiser
+                [ C.Address (valExpr val)  -- ptr
+                , C.Int 0                  -- idx
+                , C.Int 1                  -- cap
+                ]
+
+            (_, _) -> assign "ref" $ Ref (typeof val) $ C.Address (valExpr val)
+
+        Ref _ _ -> return val
+
+
 
 
 deref :: Value -> Generate Value
@@ -214,40 +220,27 @@ deref (Value t e) = return (Value t e)
 deref (Ref typ expr) = do
     base <- baseTypeOf typ
     case unfoldType base of
-        (Tuple, ts) -> do
-            -- TODO implement memory shear
-            let ptr = C.Member expr "ptr"
-            return $ Value typ (C.Deref ptr)
+        (Tuple, ts) -> do -- {ptr, idx, cap}
+            tup <- assign "deref" $ Value typ $ C.Initialiser [C.Int 0]
+            cts <- mapM cTypeOf ts
+            forM_ (zip ts [0..]) $ \(t, i) -> do
+                -- field = ptr + cap * (sizeof(i-1) .. sizeof(0)) + idx * sizeof(i)
+                
+                let prevSizes = foldl (C.Infix C.Plus) (C.Int 0) $ map C.SizeofType (take i cts)
+
+                let idx = C.Member expr "idx"
+                let cap = C.Member expr "cap"
+                let ptr = C.Cast (Cpointer Cvoid) (C.Member expr "ptr")
+                let siz = C.SizeofType (cts !! i)
+                let off = C.Infix C.Plus (C.Infix C.Times cap prevSizes) (C.Infix C.Times idx siz)
+                let fieldP = C.Cast (Cpointer $ cts !! i) (C.Infix C.Plus ptr off)
+
+                appendElem $ C.Set (C.Member (valExpr tup) $ "m" ++ show i) (C.Deref fieldP)
+
+            return tup
 
         _ -> return $ Value typ (C.Deref expr)
     
-
-member :: Int -> Value -> Generate Value
-member idx (Ref typ expr) = do
-    base <- baseTypeOf typ
-    case unfoldType base of
-        (Tuple, ts) -> do
-            unless (idx >= 0 && idx < length ts) (error "invalid member index")
-            -- TODO implement shear
-            return $ Value (ts !! idx) $ C.PMember (C.Member expr "ptr") ("m" ++ show idx)
-        (Sum, ts) -> do
-            unless (idx >= 0 && idx < length ts) (error "invalid Sum field index")
-            return $ Value (ts !! idx) $ C.PMember expr ("u" ++ show idx)
-        x -> error (show x)
-member idx val = do
-    base <- baseTypeOf val
-    case unfoldType base of
-        (Tuple, ts) -> do
-            unless (idx >= 0 && idx < length ts) (error "invalid member index")
-            return $ Value (ts !! idx) $ C.Member (valExpr val) ("m" ++ show idx)
---
---        TypeApply (Sym ["Table"]) t -> do
---            error ""
---
-        (Sum, ts) -> do
-            unless (idx >= 0 && idx < length ts) (error "invalid Sum field index")
-            return $ Value (ts !! idx) $ C.Member (valExpr val) ("u" ++ show idx)
-        x -> error (show x)
 
 
 
@@ -284,7 +277,7 @@ cRefTypeOf a = do
         (Tuple, ts) -> do
             pt <- Cpointer <$> cTypeOf base
             cst <- return $ Cstruct [C.Param "ptr" pt, C.Param "idx" Csize_t, C.Param "cap" Csize_t]
-            getTypedef "Ref" cst
+            getTypedef "WideRef" cst
 
         x -> error (show x)
 
@@ -343,7 +336,7 @@ cTypeOf a = case typeof a of
 
             Apply Type.Slice t -> do
                 cType <- cTypeOf t
-                return $ Cstruct [C.Param "ptr" (Cpointer cType), C.Param "len" Csize_t]
+                return $ Cstruct [C.Param "ptr" (Cpointer cType), C.Param "len" Csize_t, C.Param "cap" Csize_t]
 
             Apply Table t -> do
                 baseT <- baseTypeOf t

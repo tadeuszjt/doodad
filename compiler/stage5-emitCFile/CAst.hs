@@ -125,6 +125,7 @@ data Expression
     | Address Expression
     | Not Expression
     | Sizeof Expression
+    | SizeofType Type
     | Cast Type Expression
     deriving (Eq)
 
@@ -150,6 +151,7 @@ instance Show Expression where
     show (Char '\0') = "'\\0'"
     show (Char c) = show c
     show (Sizeof e) = "sizeof(" ++ showNoParens e ++ ")"
+    show (SizeofType t) = "sizeof(" ++ show t ++ ")"
     show (Cast t e) = "(" ++ show t ++ ")(" ++ showNoParens e ++ ")"
 
 showNoParens :: Expression -> String

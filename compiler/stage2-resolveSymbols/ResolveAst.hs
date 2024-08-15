@@ -255,7 +255,7 @@ resolveStmt statement = withPos statement $ case statement of
 
 
     Feature pos generics funDeps symbol args retty -> do
-        unless (symbolIsResolved symbol) (error "TODO")
+        unless (symbolIsResolved symbol) (error "feature symbol wasn't resolved")
         pushSymbolTable
         generics' <- defineGenerics generics
         funDeps' <- forM funDeps $ \(a, b) -> do

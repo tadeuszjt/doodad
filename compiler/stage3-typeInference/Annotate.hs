@@ -18,7 +18,6 @@ annotateStmt =
     mapStmtM annotateMapper
         
 
--- TODO, would be simpler to apply the annotations before, maybe in ResolvedAst.
 annotateMapper :: Elem -> DoM Int Elem
 annotateMapper elem = case elem of
     ElemStmt _                     -> return elem

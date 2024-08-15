@@ -194,24 +194,7 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
     S.Char _ c             -> return $ Value typ (C.Char c)
     S.Ident _ symbol       -> look (showSymLocal symbol)
     S.String _ s           -> assign "string" $ Value typ $
-        C.Initialiser [C.String s, C.Int (fromIntegral $ length s)]
-
---    S.Call _ symbol [expr1, expr2] | symbolsCouldMatch symbol (Sym ["builtin", "sliceAt"]) -> do
---        val <- generateExpr expr1
---        idx <- generateExpr expr2
---        builtinSliceAt val idx
---
---    S.Call _ symbol [expr, start, end] | symbolsCouldMatch symbol (Sym ["builtin", "tableSlice"]) -> do
---        ref@(Ref _ exp) <- generateExpr expr
---        srt@(Value I64 _) <- generateExpr start
---        en@(Value I64 _) <- generateExpr end
---
---        -- TODO this is broken 
---        Apply Table [t] <- baseTypeOf ref
---        assign "slice" $ Value (Apply Slice [t]) $ C.Initialiser
---            [ C.Address (C.Subscript (C.PMember exp "r0") (valExpr srt))
---            , C.Infix C.Minus (C.PMember exp "len") (valExpr srt)
---            ] 
+        C.Initialiser [C.String s, C.Int (fromIntegral $ length s), C.Int (fromIntegral $ length s)]
 
     S.Call _ funcType exprs -> let (TypeDef symbol, _) = unfoldType funcType in
         case (symbol, exprs) of
@@ -330,12 +313,7 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
                 base <- baseTypeOf typ
                 baseExpr <- baseTypeOf exprType
                 check (base == baseExpr) ("types do not have same base: " ++ show (base, baseExpr))
-
-                case unfoldType base of
-                    (Tuple, _) ->
-                        assign "ref" $ Ref typ $ C.Initialiser [C.Member refExpr "ptr"]
-                    _ -> 
-                        assign "ref" $ Ref typ $ C.Initialiser [refExpr]
+                assign "ref" (Ref typ refExpr)
 
             (s, exprs) -> do
                 args <- mapM generateExpr exprs
@@ -346,7 +324,7 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
                     (Value _ valType, S.Param _ _ paramType) -> valExpr <$> convert paramType arg
                     (Ref _ _, S.RefParam _ _ paramType)      -> refExpr <$> convert paramType arg
                     (Ref _ _, S.Param _ _ paramType)         -> valExpr <$> (convert paramType =<< deref arg)
-                    (Value _ _, S.RefParam _ _ paramType)    -> refExpr <$> (convert paramType =<< reference arg)
+                    (Value _ _, S.RefParam _ _ paramType)    -> refExpr <$> (convert paramType =<< makeRef arg)
                     x -> error (show x)
 
                 case S.funcRetty header of
@@ -356,10 +334,38 @@ generateExpr (AExpr typ expr_) = withPos expr_ $ withTypeCheck $ case expr_ of
                     Retty retType    -> assign "call" $ Value typ $ C.Call (showSymGlobal symbol) argExprs
                     RefRetty retType -> assign "call" $ Ref typ $ C.Call (showSymGlobal symbol) argExprs
 
+    S.Field _ expr i -> do
+        -- TODO implement shear
+        val <- generateExpr expr
+        base <- baseTypeOf val
+        case val of
+            Value _ _ -> case unfoldType base of
+                (Tuple, ts) -> do
+                    return $ Value (ts !! i) $ C.Member (valExpr val) ("m" ++ show i)
 
-    S.Field _ expr idx -> member idx =<< generateExpr expr
+                (Sum, ts)   -> return $ Value (ts !! i) $ C.Member (valExpr val) ("u" ++ show i)
+                x -> error (show x)
 
-    S.Reference pos expr -> reference =<< generateExpr expr
+            Ref _ expr -> case unfoldType base of
+                (Tuple, ts) -> do
+                    cts <- mapM cTypeOf ts
+
+                    let prevSizes = foldl (C.Infix C.Plus) (C.Int 0) $ map C.SizeofType (take i cts)
+
+                    let idx = C.Member expr "idx"
+                    let cap = C.Member expr "cap"
+                    let ptr = C.Cast (Cpointer Cvoid) (C.Member expr "ptr")
+                    let siz = C.SizeofType (cts !! i)
+                    let off = C.Infix C.Plus (C.Infix C.Times cap prevSizes) (C.Infix C.Times idx siz)
+                    let fieldP = C.Cast (Cpointer $ cts !! i) (C.Infix C.Plus ptr off)
+
+                    return $ Value (ts !! i) $ C.Deref fieldP
+
+                (Sum, ts)   -> return $ Value (ts !! i) $ C.PMember (refExpr val) ("u" ++ show i)
+                x -> error (show x)
+                        
+
+    S.Reference pos expr -> makeRef =<< generateExpr expr
 
     S.Array pos exprs -> do
         vals <- mapM deref =<< mapM generateExpr exprs
