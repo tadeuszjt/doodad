@@ -21,10 +21,6 @@ Features:
     cabal install cabal-install
     cabal update
 
-3.) Install bdwgc: https://github.com/ivmai/bdwgc
-
-    sudo apt-get install gc
-  
 # Usage
 
   Compile a module:

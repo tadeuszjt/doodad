@@ -1,10 +1,13 @@
 module builtin
 
+// memory
 fn{T} builtinStore(a &T, b T); ${}
 
+// types
 fn{T, G} pretend(a &T) G; ${}
 
 
+// arithmetic
 fn{T} builtinAdd(a T, b T) T; ${}
 fn{T} builtinSubtract(a T, b T) T; ${}
 fn{T} builtinMultiply(a T, b T) T; ${}
@@ -12,6 +15,7 @@ fn{T} builtinDivide(a T, b T) T; ${}
 fn{T} builtinModulo(a T, b T) T; ${}
 
 
+// boolean
 fn{T} builtinEqual(a T, b T) Bool; ${}
 fn{T} builtinLessThan(a T, b T) Bool; ${}
 fn{T} builtinGreaterThan(a T, b T) Bool; ${}
@@ -20,18 +24,19 @@ fn{T} builtinAnd(a T, b T) T; ${}
 fn{T} builtinOr(a T, b T) T; ${}
 fn{T} builtinNot(a T) T; ${}
 
+
+// container
 fn{T} builtinTableLen(a &T.Table) I64; ${}
 fn{T} builtinTableAppend(a &T.Table); ${}
 fn{T} builtinTableAt(a &T.Table, b I64) &T; ${}
 
-
 fn{T, S} builtinArrayLen(a &Array{S, T}) I64; ${}
 fn{T, S} builtinArrayAt(a &Array{S, T}, idx I64) &T; ${}
-
 
 fn{T} builtinSliceLen(a &T.Slice) I64; ${}
 fn{T} builtinSliceAt(a &T.Slice, b I64) &T; ${}
 
 
+// sum
 fn{T} builtinSumEnum(t &T) I64; ${}
 fn{T} builtinSumReset(t &T, en I64); ${}

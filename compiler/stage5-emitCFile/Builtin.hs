@@ -159,7 +159,7 @@ builtinTableAppend (Ref typ expr) = do
         let pMem = C.PMember expr "r0"
         elemSize <- C.SizeofType <$> cTypeOf t
         let newSize = C.Infix C.Times cap elemSize
-        appendElem $ C.Set pMem $ C.Call "GC_realloc" [pMem, newSize]
+        appendElem $ C.Set pMem $ C.Call "realloc" [pMem, newSize]
 
         case unfoldType base of
             (Tuple, ts) -> do
@@ -172,7 +172,7 @@ builtinTableAppend (Ref typ expr) = do
                     let src = C.Infix C.Plus ptr (C.Infix C.Times (valExpr oldCap) off)
                     let dst = C.Infix C.Plus ptr (C.Infix C.Times cap off)
                     let l = C.Infix C.Times len $ C.SizeofType (cts !! i)
-                    appendElem $ C.ExprStmt $ C.Call "memcpy" [dst, src, l]
+                    appendElem $ C.ExprStmt $ C.Call "memmove" [dst, src, l]
 
             (_, _) -> return ()
 

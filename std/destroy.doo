@@ -1,0 +1,56 @@
+module destroy
+
+import std/tuple
+import std/convert
+import std/container
+import std/builtin
+import std/for
+import std/store
+
+
+feature{T} destroy(T)
+
+
+acquires destroy{ U8 } (n&); return
+acquires destroy{ I64 } (n&); return
+acquires destroy{ F32 } (n&); return
+acquires destroy{ F64 } (n&); return
+
+
+acquires destroy{ Tuple{} } (tup&)
+    return
+
+acquires{A} destroy{ Tuple{A} } (tup&)
+    tup.0 .destroy
+
+acquires{A, B} destroy{ Tuple{A, B} } (tup&)
+    tup.0 .destroy
+    tup.1 .destroy
+
+acquires{A, B, C} destroy{ Tuple{A, B, C} } (tup&)
+    tup.0 .destroy
+    tup.1 .destroy
+    tup.2 .destroy
+
+acquires{A, B, C, D} destroy{ Tuple{A, B, C, D} } (tup&)
+    tup.0 .destroy
+    tup.1 .destroy
+    tup.2 .destroy
+    tup.3 .destroy
+
+
+acquires{N, T} destroy{ Array{N, T} } (arr&)
+    for (0, arr.len) -> i
+        arr[i].destroy
+    
+
+acquires{T} destroy{ T.Table } (t&)
+    for (0, t.len) -> i
+        t[i].destroy
+    ${
+        free($t->r0);
+        $t->r0 = 0;
+        $t->len = 0;
+        $t->cap = 0;
+    }
+

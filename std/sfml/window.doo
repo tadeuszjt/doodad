@@ -11,6 +11,7 @@ import std/convert
 import std/container
 import std/print
 import std/sparse
+import std/destroy
 
 include <SFML/Graphics.h>
 link csfml-graphics
@@ -23,6 +24,7 @@ tuple Vec2f {
     y F32
 }
 derives    Vec2f (store)
+derives    Vec2f (destroy::destroy)
 derives    Vec2f (make2{F32, F32})
 derives{P} Vec2f (print::print{P})
 acquires arithmetic::add{ Vec2f, Vec2f } (a, b); return (a.x + b.x, a.y + b.y)
@@ -42,6 +44,7 @@ tuple Colour {
     a U8
 }
 derives Colour (store)
+derives Colour (destroy::destroy)
 derives Colour (make4{U8, U8, U8, U8})
 derives{P} Colour (print::print{P})
 
@@ -55,6 +58,7 @@ tuple Vertex {
     texCoord Vec2f
 }
 derives    Vertex (store)
+derives    Vertex (destroy::destroy)
 derives    Vertex (make3{Vec2f, Colour, Vec2f})
 derives{P} Vertex (print::print{P})
 
@@ -63,12 +67,19 @@ type Quad Array{6, sfml::Vertex}
 derives{P} Quad (print::print{P})
 derives    Quad (container::at{ I64, Vertex })
 derives    Quad (store::store)
+derives    Quad (destroy::destroy)
 
 
 tuple Window {
     windowPtr I64
     textures  Texture.Sparse
 }
+acquires destroy{Window} (w&)
+    w.textures.destroy
+    let ptr = w.windowPtr
+    ${ sfRenderWindow_close((sfRenderWindow*)($ptr)); }
+
+
 
 fn loadTextureFromFile(w &Window, fileName Char.Slice) Texture.sparse::Key
     let texturePtr = 0
@@ -86,22 +97,16 @@ fn loadTextureFromFile(w &Window, fileName Char.Slice) Texture.sparse::Key
     return key
 
 
-fn textureDestroy(w &Window, key Texture.sparse::Key)
-    let texturePtr = w.textures[key].texturePtr
-    ${
-        sfTexture_destroy((sfTexture*)$texturePtr);
-    }
-    w.textures[key].texturePtr = 0
-    w.textures.delete(key)
-    
-
 
 derives Texture (store::store)
-
 
 tuple Texture {
     texturePtr I64
 }
+acquires destroy{Texture} (t&)
+    let ptr = t.texturePtr
+    ${ sfTexture_destroy((sfTexture*)$ptr); }
+    
 
 
 enum Event {
@@ -125,11 +130,6 @@ fn close(w &Window)
     let ptr = w.windowPtr
     ${ sfRenderWindow_close((sfRenderWindow*)($ptr)); }
 
-
-fn destroy(w &Window)
-    let ptr = w.windowPtr
-    ${ sfRenderWindow_close((sfRenderWindow*)($ptr)); }
-    //${ *$w = (int64_t)NULL; }
 
 
 fn getSize(w &Window) (I64, I64)

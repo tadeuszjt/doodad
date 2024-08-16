@@ -1,5 +1,8 @@
 module graphicsTest
 
+// TODO need to sort this out
+include <SFML/Graphics.h>
+
 import std/io
 import std/sfml/sfml
 import std/rand
@@ -16,6 +19,7 @@ import std/container
 import std/unordered
 import std/convert
 import std/time
+import std/destroy
 
 
 tuple Blob {
@@ -25,6 +29,7 @@ tuple Blob {
     sprite   Quad
 }
 derives Blob (store)
+derives Blob (destroy::destroy)
 derives{P} Blob (print::print{P})
 
 
@@ -75,7 +80,6 @@ fn main(io Io, rand Rand, w Window)
             blobs[i].sprite   = makeQuad(blobs[i].position, blobs[i].blobColour)
 
 
-        
         let (width, height) = w.getSize()
         w.setViewFromRect(((0.0, 0.0), (convert(width), convert(height))))
         w.clearWindow(white())
@@ -86,6 +90,7 @@ fn main(io Io, rand Rand, w Window)
         let diff = nextNs - prevNs
         sleepNs(16 * 1000 * 1000 - diff)
 
+    blobs.destroy::destroy
     w.destroy()
 
 

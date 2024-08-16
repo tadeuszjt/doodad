@@ -7,16 +7,22 @@ import std/compare
 import std/container
 import std/assert
 import std/convert
+import std/destroy
 
 
 type{T} Key I64
+derives{T} Key{T} (destroy)
+
+
 
 tuple{T} Sparse {
     values T.Table
     empty  T.Key.Table
 }
 
+
 derives{T} Key{T} (store)
+derives{T} Sparse{T} (destroy)
 
 
 acquires{T} container::len{ T.Sparse } (s&)
