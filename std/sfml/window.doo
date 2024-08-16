@@ -10,6 +10,7 @@ import std/boolean
 import std/convert
 import std/container
 import std/print
+import std/sparse
 
 include <SFML/Graphics.h>
 link csfml-graphics
@@ -31,6 +32,7 @@ tuple Rectf {
     min Vec2f
     max Vec2f
 }
+derives Rectf (make2{Vec2f, Vec2f})
 
 
 tuple Colour {
@@ -49,7 +51,7 @@ fn black() Colour; return (0, 0, 0, 255)
 
 tuple Vertex {
     position Vec2f
-    colour   Colour
+    vertColour  Colour
     texCoord Vec2f
 }
 derives    Vertex (store)
@@ -63,7 +65,44 @@ derives    Quad (container::at{ I64, Vertex })
 derives    Quad (store::store)
 
 
-type Window I64
+tuple Window {
+    windowPtr I64
+    textures  Texture.Sparse
+}
+
+fn loadTextureFromFile(w &Window, fileName Char.Slice) Texture.sparse::Key
+    let texturePtr = 0
+    ${
+        assert($fileName.len < 128);
+        char filename[128] = {0};
+        snprintf(filename, sizeof(filename), "%s", $fileName.ptr);
+        sfTexture *texture = sfTexture_createFromFile(filename, NULL);
+        assert(NULL != texture);
+        $texturePtr = (int64_t)(texture);
+    }
+
+    let key = w.textures.insertZero
+    w.textures[key].texturePtr = texturePtr
+    return key
+
+
+fn textureDestroy(w &Window, key Texture.sparse::Key)
+    let texturePtr = w.textures[key].texturePtr
+    ${
+        sfTexture_destroy((sfTexture*)$texturePtr);
+    }
+    w.textures[key].texturePtr = 0
+    w.textures.delete(key)
+    
+
+
+derives Texture (store::store)
+
+
+tuple Texture {
+    texturePtr I64
+}
+
 
 enum Event {
     closed
@@ -72,28 +111,33 @@ derives Event (store)
 
 
 fn create(w &Window)
+    let ptr = 0
     ${
         sfVideoMode mode = {640, 480, 32};
         sfRenderWindow *window = sfRenderWindow_create(mode, "graphicsTest", sfClose | sfResize, NULL);
         assert(window != NULL);
-        *$w = (int64_t)(window);
+        $ptr = (int64_t)(window);
     }
+    w.windowPtr = ptr
 
 
 fn close(w &Window)
-    ${ sfRenderWindow_close((sfRenderWindow*)(*$w)); }
+    let ptr = w.windowPtr
+    ${ sfRenderWindow_close((sfRenderWindow*)($ptr)); }
 
 
 fn destroy(w &Window)
-    ${ sfRenderWindow_close((sfRenderWindow*)(*$w)); }
-    ${ *$w = (int64_t)NULL; }
+    let ptr = w.windowPtr
+    ${ sfRenderWindow_close((sfRenderWindow*)($ptr)); }
+    //${ *$w = (int64_t)NULL; }
 
 
 fn getSize(w &Window) (I64, I64)
+    let ptr = w.windowPtr
     let x = 0
     let y = 0
     ${
-        sfVector2u vec = sfRenderWindow_getSize((sfRenderWindow*)(*$w));
+        sfVector2u vec = sfRenderWindow_getSize((sfRenderWindow*)($ptr));
         $x = vec.x;
         $y = vec.y;
     }
@@ -101,30 +145,34 @@ fn getSize(w &Window) (I64, I64)
 
 
 fn clearWindow(w &Window, colour Colour)
+    let ptr = w.windowPtr
     ${
         sfColor color = {$colour.m0, $colour.m1, $colour.m2, $colour.m3};
-        sfRenderWindow_clear((sfRenderWindow*)(*$w), color);
+        sfRenderWindow_clear((sfRenderWindow*)($ptr), color);
     }
 
 
 fn display(w &Window)
-    ${ sfRenderWindow_display((sfRenderWindow*)(*$w)); }
+    let ptr = w.windowPtr
+    ${ sfRenderWindow_display((sfRenderWindow*)($ptr)); }
 
 
 fn isOpen(w &Window) Bool
+    let ptr = w.windowPtr
     let isOpen = false
-    ${ $isOpen = sfRenderWindow_isOpen((sfRenderWindow*)(*$w)); }
+    ${ $isOpen = sfRenderWindow_isOpen((sfRenderWindow*)($ptr)); }
     return isOpen
 
 
 fn pollEvent(w &Window) Event.Option
+    let ptr = w.windowPtr
     let continue = false
     let event:Event
     let isNone = false
 
     ${
         sfEvent event;
-        $continue = sfRenderWindow_pollEvent((sfRenderWindow*)(*$w), &event);
+        $continue = sfRenderWindow_pollEvent((sfRenderWindow*)($ptr), &event);
         if (event.type == sfEvtClosed) {
             $event.en = 0;
         } else {
@@ -141,20 +189,29 @@ fn pollEvent(w &Window) Event.Option
 
 
 fn drawQuads(w &Window, quads Slice{Quad})
+    let ptr = w.windowPtr
+    //let texturePtr = w.textures[texture].texturePtr
+    let something = 0
     ${
+        sfRenderStates states;
+        states.texture = NULL;
+        states.blendMode = sfBlendAlpha;
+        states.transform = sfTransform_Identity;
+
         sfRenderWindow_drawPrimitives(
-            (sfRenderWindow*)*$w,
+            (sfRenderWindow*)$ptr,
             (const sfVertex *)$quads.ptr,
             $quads.len * 6,
             sfTriangles,
-            NULL
+            &states
         );
     }
 
-////fn {w Window} setViewFromRect(rect Rectf)
-////    let (l, t, r, b) = (rect.min.x, rect.min.y, rect.max.x, rect.max.y)
-////    ${
-////        sfFloatRect rect = {$l, $t, $r, $b};
-////        sfView *view = sfView_createFromRect(rect);
-////        sfRenderWindow_setView((sfRenderWindow*)(*$w), view);
-////    }
+fn setViewFromRect(w &Window, rect Rectf)
+    let ptr = w.windowPtr
+    let (l, t, r, b) = (rect.min.x, rect.min.y, rect.max.x, rect.max.y)
+    ${
+        sfFloatRect rect = {$l, $t, $r, $b};
+        sfView *view = sfView_createFromRect(rect);
+        sfRenderWindow_setView((sfRenderWindow*)($ptr), view);
+    }

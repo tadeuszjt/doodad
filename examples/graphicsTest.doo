@@ -15,57 +15,55 @@ import std/tuple
 import std/container
 import std/unordered
 import std/convert
+import std/time
 
 
 tuple Blob {
     position Vec2f
     velocity Vec2f
+    blobColour   Colour
     sprite   Quad
 }
 derives Blob (store)
 derives{P} Blob (print::print{P})
 
 
-fn makeQuad(position Vec2f) Quad
+fn vec2f(rand &Rand, rect Rectf) Vec2f
+    return ( rand.f32(rect.min.x, rect.max.x), rand.f32(rect.min.y, rect.max.y) )
+
+fn colour(rand &Rand) Colour
+    return ( convert(rand.i64(0, 255)), convert(rand.i64(0, 255)), convert(rand.i64(0, 255)), 255 )
+
+
+fn makeQuad(position Vec2f, colour Colour) Quad
     let quad
-    quad[0] = (position + (-10.0, -10.0), black(), (0.0, 0.0))
-    quad[1] = (position + (10.0, -10.0),  black(), (0.0, 0.0))
-    quad[2] = (position + (10.0, 10.0),   black(), (0.0, 0.0))
-    quad[3] = (position + (-10.0, -10.0), black(), (0.0, 0.0))
-    quad[4] = (position + (10.0, 10.0),   black(), (0.0, 0.0))
-    quad[5] = (position + (-10.0, 10.0),  black(), (0.0, 0.0))
+    quad[0] = (position + (-10.0, -10.0), colour, (0.0, 0.0))
+    quad[1] = (position + (10.0, -10.0),  colour, (0.0, 0.0))
+    quad[2] = (position + (10.0, 10.0),   colour, (0.0, 0.0))
+    quad[3] = (position + (-10.0, -10.0), colour, (0.0, 0.0))
+    quad[4] = (position + (10.0, 10.0),   colour, (0.0, 0.0))
+    quad[5] = (position + (-10.0, 10.0),  colour, (0.0, 0.0))
     return quad
 
 
-fn main()
-    data io Io
+fn main(io Io, rand Rand, w Window)
     io.stdout.print("graphics test\n")
-
-    let rand:Rand
-    let w:Window
-
     w.create()
 
     data blobs Blob.Table
 
-    for (0, 1)
+    for (0, 100)
         let blob:Blob
-        blob.position = (50.0, 50.0)
-        blob.sprite = makeQuad(blob.position)
+        blob.position = rand.vec2f( ( (0.0, 0.0), (500.0, 500.0) ) )
+        blob.velocity = rand.vec2f( ( (-1.0, -1.0), (1.0, 1.0) ) )
+        blob.blobColour   = rand.colour
         blobs.push(blob)
 
-    for (0, 1)
-        let blob:Blob
-        blob.position = (100.0, 100.0)
-        blob.sprite = makeQuad(blob.position)
-        blobs.push(blob)
-
-    io.stdout.print(blobs)
-    io.stdout.print('\n')
+    //io.stdout.printLn(blobs)
 
     while w.isOpen()
-//        let prevNs = time::getTimestampNs()
-//
+        let prevNs = time::getTimestampNs()
+
         while w.pollEvent() -> some(event)
             switch event
                 closed(); w.close()
@@ -74,27 +72,20 @@ fn main()
 
         for (0, blobs.len) -> i
             blobs[i].position = blobs[i].position + blobs[i].velocity
+            blobs[i].sprite   = makeQuad(blobs[i].position, blobs[i].blobColour)
 
 
-//        let nextNs = time::getTimestampNs()
-//
-//        print("process time:", nextNs - prevNs)
-//
-//        let diff = nextNs - prevNs
-//        //sleepNs(15600000 - diff)
-//        
-//
-//        prevNs = time::getTimestampNs()
-//
-//        let (width, height) = w.getSize()
-//        w.setViewFromRect(((0, 0), (conv(width), conv(height))))
+        
+        let (width, height) = w.getSize()
+        w.setViewFromRect(((0.0, 0.0), (convert(width), convert(height))))
         w.clearWindow(white())
         w.drawQuads(blobs.sprite)
         w.display()
-//
-//        nextNs = time::getTimestampNs()
-//        print("render time: ", nextNs - prevNs)
-//
+
+        let nextNs = time::getTimestampNs()
+        let diff = nextNs - prevNs
+        sleepNs(16 * 1000 * 1000 - diff)
+
     w.destroy()
 
 

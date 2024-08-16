@@ -99,7 +99,8 @@ typeDefsMapper element = case element of
             (generics, foldType (Tuple : map snd fields))
             (typeDefsAll s) }
 
-        forM_ fields $ \(fieldSymbol, fieldType) ->
+        forM_ (zip fields [0..]) $ \((fieldSymbol, fieldType), i) -> do
+            modify $ \s -> s { fieldsAll = Map.insert fieldSymbol (i, symbol) (fieldsAll s) }
             modify $ \s -> s { typeDefsAll = Map.insert
                 fieldSymbol
                 (generics, foldType [Type.Func, fieldType, foldType (TypeDef symbol : map TypeDef generics)])
@@ -127,11 +128,6 @@ combineMapper element = case element of
         symbol' <- genSymbol $ SymResolved ["derives"]
         modify $ \s -> s { acquiresAll = Map.insert symbol' stmt (acquiresAll s) }
         modify $ \s -> s { acquiresTop = Set.insert symbol' (acquiresTop s) }
-        return element
-
-    ElemStmt stmt@(MacroTuple pos generics symbol fields) -> do
-        forM_ (zip fields [0..]) $ \((fieldSymbol, fieldType), i) -> do
-            modify $ \s -> s { fieldsAll = Map.insert fieldSymbol (i, symbol) (fieldsAll s) }
         return element
 
     -- filter out statements

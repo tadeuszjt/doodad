@@ -19,7 +19,7 @@ fn sleepMs(n I64)
     }
 
 fn getTimestampNs() I64
-    let t = 0
+    let t
     ${
         struct timespec time = {0};
         clock_gettime(CLOCK_MONOTONIC, &time);

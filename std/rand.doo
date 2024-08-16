@@ -13,7 +13,6 @@ link m
 
 type Rand Tuple{I64}
 
-
 fn i64(r &Rand, min I64, max I64) I64
     let n = r.0
     ${ srand($n); }

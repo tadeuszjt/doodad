@@ -142,10 +142,13 @@ enumCases : {-empty-}                         { [] }
           | ident '(' types ')' 'N' enumCases { (Sym [tokStr $1], $3) : $6 }
 
 
-tupleMacro : tuple generics Ident '{' 'I' tupleFields 'D' '}' { MacroTuple (tokPos $1) $2 (Sym [tokStr $3]) $6 }
+tupleMacro : tuple generics Ident '{' tupleFieldsN '}' { MacroTuple (tokPos $1) $2 (Sym [tokStr $3]) $5 }
 
-tupleFields : {-empty-}                       { [] }
-            | symbol type_ 'N' tupleFields    { (snd $1, $2) : $4 }
+tupleFieldsN : 'N'                   { [] }
+             | 'I' tupleFields1 'D'  { $2 }
+
+tupleFields1 : symbol type_ 'N'              { [(snd $1, $2)] }
+             | symbol type_ 'N' tupleFields1 { (snd $1, $2) : $4 }
 
 
 ---------------------------------------------------------------------------------------------------

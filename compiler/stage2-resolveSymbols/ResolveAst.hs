@@ -137,9 +137,9 @@ resolveAst ast imports = fmap fst $ runDoMExcept initResolveState (resolveAst' a
             -- pre-define top-level symbols
             topStmts' <- forM (astStmts ast) $ \stmt -> withPos stmt $ case stmt of
                 Typedef pos generics (Sym str) typ -> do
-                    symbol <- genSymbol (SymResolved str)
-                    define symbol KeyType
-                    return $ Typedef pos generics symbol typ
+                    symbol' <- genSymbol (SymResolved str)
+                    define symbol' KeyType
+                    return (Typedef pos generics symbol' typ)
 
                 FuncDef generics (AST.Func header stmt) -> do
                     symbol <- genSymbol (SymResolved $ symStr $ funcSymbol header)

@@ -20,6 +20,9 @@ acquires store{ Char } (a&, b); builtinStore(&a, b)
 acquires store{ Tuple{} } (a&, b)
     return
 
+acquires{A} store{ Tuple{A} } (a&, b)
+    a.0 = b.0
+
 acquires{A, B} store{ Tuple{A, B} } (a&, b)
     a.0 = b.0
     a.1 = b.1

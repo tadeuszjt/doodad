@@ -41,8 +41,6 @@ generate = withErrorPrefix "generate: " $ do
         when (generics == []) $ do
             header <- generateFunc (TypeDef symbol)
 
-
-
             when (symbolsCouldMatch (Sym ["main"]) (funcSymbol $ funcHeader func)) $ do
                 id <- newFunction
                     Cint
@@ -52,7 +50,17 @@ generate = withErrorPrefix "generate: " $ do
 
                 withCurID id $ do
                     --appendElem $ C.ExprStmt $ C.Call "doodad_set_args" [C.Ident "argc", C.Ident "argv"]
-                    call (showSymGlobal $ funcSymbol header) []
+                    (Type.Func, mainRetType : mainArgTypes) <- unfoldType <$> baseTypeOf (TypeDef symbol)
+
+                    cts <- mapM cTypeOf mainArgTypes
+                    vals <- forM mainArgTypes $ \argType -> do
+                        assign "mainArg" $ Value argType $ C.Initialiser [C.Int 0]
+
+                    args <- forM (zip vals (S.funcArgs $ funcHeader func)) $ \(val, param) -> case param of
+                        S.Param _ _ _ -> return val
+                        x -> error (show x)
+
+                    call (showSymGlobal $ funcSymbol header) args
                     void $ appendElem $ C.Return $ C.Int 0
                 withCurID globalID (append id)
 
