@@ -50,7 +50,7 @@ executable doodad
         compiler/stage1-macroExpansion,
         compiler/stage2-resolveSymbols,
         compiler/stage3-typeInference,
-        compiler/stage4-referenceChecker,
+        compiler/stage4-midLevelIR,
         compiler/stage5-emitCFile
     default-language:  Haskell2010
     build-depends:
@@ -90,7 +90,6 @@ executable doodad
         COptimise,
         Constraint,
         ASTMapper,
-        Checker,
         Builtin,
         ResolveAst,
         CombineAsts,

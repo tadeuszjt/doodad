@@ -33,7 +33,6 @@ data ASTResolved
         , funcDefsTop          :: Set.Set Symbol
 
         , funcInstance         :: Map.Map Type FuncHeader
-        , funcInstanceImported :: Map.Map Type FuncHeader
 
         , symSupply            :: Map.Map Symbol Int              
         }

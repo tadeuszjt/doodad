@@ -50,25 +50,23 @@ getConstraintsFromTypes t1 t2 = case (t1, t2) of
     _ -> fail $ show (t1, t2)
 
 
-findFunction :: Type -> DoM ASTResolved Func
-findFunction funcType = do
-    (symbol, typeArgs) <- case unfoldType funcType of
-        (TypeDef symbol, ts) -> return (symbol, ts)
 
-    isFunc <- gets (Map.member symbol . funcDefsAll)
-    case isFunc of
-        True -> do
-            Just func <- gets (Map.lookup symbol . funcDefsAll)
-            Just (generics, _) <- gets (Map.lookup symbol . typeDefsAll)
-            unless (length generics == length typeArgs) (error $ "type mismatch for: " ++ show symbol)
-            let subs = zip (map TypeDef generics) typeArgs
-            return (applyFunc subs func)
+makeFunctionInstance :: Type -> DoM ASTResolved Func
+makeFunctionInstance funcType = do
+    let (TypeDef symbol, typeArgs) = unfoldType funcType
 
-        False -> findAcquire funcType
+    Just func          <- gets (Map.lookup symbol . funcDefsAll)
+    Just (generics, _) <- gets (Map.lookup symbol . typeDefsAll)
+
+    unless (length generics == length typeArgs) (error $ "type mismatch for: " ++ show symbol)
+
+    let subs = zip (map TypeDef generics) typeArgs
+    return (applyFunc subs func)
 
 
-findAcquire :: Type -> DoM ASTResolved Func
-findAcquire callType = do
+
+makeAcquireInstance :: Type -> DoM ASTResolved Func
+makeAcquireInstance callType = do
     -- In haskell, instances are globally visible, so we do not have to worry about different instances.
     acquiresAll <- gets acquiresAll
     featuresAll <- gets featuresAll
@@ -88,7 +86,7 @@ findAcquire callType = do
 
                     unless (applyType subs upperType == callType) (error "type mismatch")
                     unless (typeFullyResolved lower) (error "propagating type vars")
-                    Just <$> findFunction lower
+                    Just <$> makeAcquireInstance lower
 
         Aquires pos generics implType args isRef scope -> do
             --liftIO $ putStrLn $ "checking aquire: " ++ prettySymbol symbol

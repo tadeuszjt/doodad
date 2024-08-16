@@ -29,7 +29,6 @@ import CGenerate as C
 import Lexer
 import Compile as C
 import COptimise as O
---import Checker
 import qualified ResolveAst
 import qualified CombineAsts
 import Preprocess
@@ -207,9 +206,6 @@ buildModule isMain args modPath = do
             infer astCombined' (printAstAnnotated args) (verbose args)
 
         when (isMain && printAstFinal args ) $ liftIO (prettyASTResolved astFinal)
-
-        -- check ast for memory/type violations
-        --withErrorPrefix "checker: " (runASTChecker astFinal)
 
         -- build C ast from final ast
         when (verbose args) $ liftIO $ putStrLn "generating C file..."

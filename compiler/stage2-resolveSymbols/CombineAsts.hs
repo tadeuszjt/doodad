@@ -18,22 +18,22 @@ initAstResolved modName imports = ASTResolved
     { moduleName     = modName
     , includes       = Set.empty
     , links          = Set.empty
+
+    , typeDefsTop    = Set.empty
     , typeDefsAll    = Map.unions (map typeDefsAll imports)
+
     , funcDefsAll    = Map.unions (map funcDefsAll imports)
+    , funcDefsTop    = Set.empty
 
     , featuresAll    = Map.unions (map featuresAll imports)
 
     , fieldsAll      = Map.unions (map fieldsAll imports)
 
-    , acquiresAll     = Map.unions (map acquiresAll imports) 
-    , acquiresTop     = Set.empty
+    , acquiresAll    = Map.unions (map acquiresAll imports) 
+    , acquiresTop    = Set.empty
 
-    , typeDefsTop    = Set.empty
+    , funcInstance   = Map.unions (map funcInstance imports)
 
-    , funcDefsTop    = Set.empty
-    , funcInstance   = Map.empty
-    , funcInstanceImported = Map.unions $
-        (map funcInstance imports) ++ (map funcInstanceImported imports)
     , symSupply      = Map.empty
     }
 

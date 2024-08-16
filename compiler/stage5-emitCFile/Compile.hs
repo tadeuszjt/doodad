@@ -27,7 +27,7 @@ generate = withErrorPrefix "generate: " $ do
     ast <- gets astResolved
 
     -- generate imported function externs
-    forM_ (Map.toList $ funcInstanceImported ast) $ \(funcType, header) -> do
+    forM_ (Map.toList $ funcInstance ast) $ \(funcType, header) -> do
         crt <- cRettyType (S.funcRetty header)
         cats <- forM (S.funcArgs header) $ \param -> case param of
             S.Param _ _ _ -> cTypeOf param
@@ -73,19 +73,20 @@ cRettyType retty = case retty of
 
 generateFunc :: Type.Type -> Generate FuncHeader
 generateFunc funcType = do
-    isImportedInstance <- gets (Map.member funcType . funcInstanceImported . astResolved)
+    let (TypeDef symbol, typeArgs) = unfoldType funcType
+
     isInstance <- gets (Map.member funcType . funcInstance . astResolved)
+    isFunction <- gets (Map.member symbol . funcDefsAll . astResolved)
+    isAcquire  <- gets (Map.member symbol . featuresAll . astResolved)
 
-    --liftIO $ putStrLn $ "generateFunc: " ++ show funcType
-    --liftIO $ putStrLn $ "isImpInst, isInst: " ++ show (isImportedInstance, isInstance)
-
-    if isImportedInstance then fmap fromJust $
-        gets (Map.lookup funcType . funcInstanceImported . astResolved)
-    else if isInstance then fmap fromJust $ 
-        gets (Map.lookup funcType . funcInstance . astResolved)
+    if isInstance then
+        fromJust <$> gets (Map.lookup funcType . funcInstance . astResolved)
     else do
         ast <- gets astResolved
-        func <- fmap fst $ runDoMExcept ast (findFunction funcType)
+        func <- case (isFunction, isAcquire) of
+            (True, False) -> fmap fst $ runDoMExcept ast (makeFunctionInstance funcType)
+            (False, True) -> fmap fst $ runDoMExcept ast (makeAcquireInstance funcType)
+
         let header = funcHeader func
         args <- mapM cParamOf (S.funcArgs header)
         rettyType <- cRettyType (S.funcRetty header)
