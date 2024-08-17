@@ -1,33 +1,34 @@
 module builtin
 
 // memory
-fn{T} builtinStore(a &T, b T); ${}
+fn{T} builtinStore(a &T, b T); ${ *$a = $b; }
 
 // types
 fn{T, G} pretend(a &T) G; ${}
 
 
 // arithmetic
-fn{T} builtinAdd(a T, b T) T; ${}
-fn{T} builtinSubtract(a T, b T) T; ${}
-fn{T} builtinMultiply(a T, b T) T; ${}
-fn{T} builtinDivide(a T, b T) T; ${}
-fn{T} builtinModulo(a T, b T) T; ${}
+fn{T} builtinAdd(a T, b T) T; ${ return $a + $b; }
+
+fn{T} builtinSubtract(a T, b T) T; ${ return $a - $b; }
+fn{T} builtinMultiply(a T, b T) T; ${ return $a * $b; }
+fn{T} builtinDivide(a T, b T) T; ${ return $a / $b; }
+fn{T} builtinModulo(a T, b T) T; ${ return $a % $b; }
 
 
 // boolean
-fn{T} builtinEqual(a T, b T) Bool; ${}
-fn{T} builtinLessThan(a T, b T) Bool; ${}
-fn{T} builtinGreaterThan(a T, b T) Bool; ${}
+fn{T} builtinEqual(a T, b T)       Bool; ${ return $a == $b; }
+fn{T} builtinLessThan(a T, b T)    Bool; ${ return $a < $b; }
+fn{T} builtinGreaterThan(a T, b T) Bool; ${ return $a > $b; }
 
-fn{T} builtinAnd(a T, b T) T; ${}
-fn{T} builtinOr(a T, b T) T; ${}
-fn{T} builtinNot(a T) T; ${}
+fn{T} builtinAnd(a T, b T) T; ${ return $a && $b; }
+fn{T} builtinOr(a T, b T)  T; ${ return $a || $b; }
+fn{T} builtinNot(a T)      T; ${ return !$a; }
 
 
 // container
-fn{T} builtinTableLen(a &T.Table) I64; ${}
-fn{T} builtinTableAppend(a &T.Table); ${}
+fn{T} builtinTableLen(a &T.Table) I64;      ${}
+fn{T} builtinTableAppend(a &T.Table);       ${}
 fn{T} builtinTableAt(a &T.Table, b I64) &T; ${}
 
 fn{T, S} builtinArrayLen(a &Array{S, T}) I64; ${}

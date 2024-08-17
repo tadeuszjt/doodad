@@ -247,7 +247,7 @@ makeVal (S.AExpr exprType expression) = withPos expression $ case expression of
                 -- TODO might be slow, create makeAny function?
                 id' <- appendStmt (MakeValueFromReference id)
                 addType id' typ Value
-                return (ArgID id)
+                return (ArgID id')
 
 
     S.Call _ funcType exprs -> do
@@ -284,7 +284,11 @@ makeVal (S.AExpr exprType expression) = withPos expression $ case expression of
     S.Bool _ b -> return (ArgConst exprType $ ConstBool b)
     S.Char _ c -> return (ArgConst exprType $ ConstChar c)
     S.Int _  n -> return (ArgConst exprType $ ConstInt n)
-    S.String _ str -> return $ ArgConst exprType (ConstString str)
+    S.String _ str -> do
+        id <- appendStmt (MakeString str)
+        addType id exprType Value
+        return (ArgID id)
+
     S.Float _ f -> return $ ArgConst exprType (ConstFloat f)
 
     S.Field _ expr field -> do

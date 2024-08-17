@@ -41,7 +41,7 @@ data Arg
     | ArgID ID
 
 instance Show Arg where
-    show (ArgConst typ const) = "(" ++ show const ++ ":" ++ show typ ++ ")"
+    show (ArgConst typ const) = show const ++ ":" ++ show typ
     show (ArgID id)           = "%" ++ show id
 
 
@@ -64,6 +64,7 @@ data Stmt
     | MakeValueFromReference ID
     | MakeFieldFromRef ID Int
     | MakeFieldFromVal ID Int
+    | MakeString String
     deriving (Show)
 
 showStmt :: Stmt -> String
@@ -73,6 +74,7 @@ showStmt statement = case statement of
     MakeValueFromReference id -> "*" ++ show (ArgID id)
     MakeFieldFromRef id n     -> show (ArgID id) ++ "->" ++ show n
     MakeFieldFromVal id n     -> show (ArgID id) ++ "." ++ show n
+    MakeString str            -> show str
     Call callType args -> show callType ++ "(" ++ intercalate ", " (map show args) ++ ")"
     x -> error (show x)
 

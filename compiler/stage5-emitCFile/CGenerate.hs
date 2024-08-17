@@ -49,13 +49,15 @@ initGenerateState ast
         }
 
 
-genSymbol :: Symbol -> ASTResolved -> Generate (Symbol, ASTResolved)
-genSymbol symbol@(SymResolved str) ast = do  
-    let modName = ASTResolved.moduleName ast
-    let im = Map.lookup symbol (symSupply ast)
+genSymbol :: Symbol -> Generate Symbol
+genSymbol symbol@(SymResolved str) = do  
+    ast <- gets astResolved
+    let modName = (ASTResolved.moduleName ast)
+    let im = (Map.lookup symbol $ symSupply ast)
     let n = maybe 0 (id) im
-    let ast' = ast { symSupply = Map.insert symbol (n + 1) (symSupply ast) }
-    return (SymResolved ([modName] ++ str ++ [show n]), ast')
+
+    modify $ \s -> s { astResolved = ast { symSupply = Map.insert symbol (n + 1) (symSupply ast) } }
+    return $ SymResolved ([modName] ++ str ++ [show n])
 
 
 newtype Generate a = Generate { unGenerate :: StateT GenerateState (StateT BuilderState (ExceptT Error IO)) a }
