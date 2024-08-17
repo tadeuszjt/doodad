@@ -65,7 +65,7 @@ mapStmtM f stmt = withPos stmt $ do
         Derives pos generics symbol symbols ->
             return (Derives pos generics symbol symbols)
 
-        EmbedC pos s -> return $ EmbedC pos s
+        EmbedC pos m s -> return $ EmbedC pos m s
         Block stmts -> Block <$> mapM (mapStmtM f) stmts
         ExprStmt expr -> ExprStmt <$> mapExprM f expr
         Return pos mexpr -> Return pos <$> traverse (mapExprM f) mexpr

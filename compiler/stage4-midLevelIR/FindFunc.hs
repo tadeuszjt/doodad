@@ -50,6 +50,17 @@ getConstraintsFromTypes t1 t2 = case (t1, t2) of
     _ -> fail $ show (t1, t2)
 
 
+makeInstance :: Type -> DoM ASTResolved Func
+makeInstance funcType = do
+    let (TypeDef symbol, typeArgs) = unfoldType funcType
+
+    isFunction <- gets (Map.member symbol . funcDefsAll)
+    isAcquire  <- gets (Map.member symbol . featuresAll)
+
+    case (isFunction, isAcquire) of
+        (True, False) -> makeFunctionInstance funcType
+        (False, True) -> makeAcquireInstance funcType
+
 
 makeFunctionInstance :: Type -> DoM ASTResolved Func
 makeFunctionInstance funcType = do

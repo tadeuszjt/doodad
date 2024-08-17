@@ -36,7 +36,7 @@ applyStmt subs stmt = case stmt of
     Block stmts      -> Block (map applySt stmts)
     If pos cnd blk mblk  -> If pos (applyEx cnd) (applySt blk) (fmap applySt mblk)
     ExprStmt expr -> ExprStmt (applyEx expr)
-    EmbedC pos s -> EmbedC pos s
+    EmbedC pos m s -> EmbedC pos m s
     Data pos symbol typ mexpr -> Data pos symbol (applyTy typ) (fmap applyEx mexpr)
     Let pos pattern Nothing Nothing -> Let pos (applyPat pattern) Nothing Nothing
     While pos expr blk -> While pos (applyEx expr) (applySt blk)

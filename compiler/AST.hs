@@ -140,7 +140,7 @@ data Stmt
     | Switch      TextPos Expr [(Pattern, Stmt)]
     | For         TextPos Expr (Maybe Pattern) Stmt
     | Data        TextPos Symbol Type (Maybe Expr)
-    | EmbedC      TextPos String
+    | EmbedC      TextPos [(String, Symbol)] String
     | Assign      TextPos Symbol Expr
     | Enum        TextPos Generics Symbol [ (Symbol, [Type] ) ]
     | MacroTuple  TextPos Generics Symbol [ (Symbol, Type) ]
@@ -192,7 +192,7 @@ instance TextPosition Stmt where
         Switch      p _ _ -> p
         For         p _ _ _ -> p
         Data        p _ _ _ -> p
-        EmbedC      p _ -> p
+        EmbedC      p _ _ -> p
         Feature     p _ _ _ _ _ -> p
         Enum        p _ _ _ -> p
         MacroTuple  p _ _ _ -> p
@@ -245,7 +245,7 @@ instance Show Expr where
         AST.Char pos c                     -> show c
         String pos s                       -> show s
         AST.Array pos exprs                -> arrStrs (map show exprs)
-        Field pos expr symbol              -> show expr ++ "." ++ show symbol
+        Field pos expr either              -> show expr ++ "." ++ (case either of Left id -> show id; Right symbol -> prettySymbol symbol)
         Ident p s                          -> prettySymbol s 
         Call pos typ exprs                  -> show typ ++ tupStrs (map show exprs)
         Match pos expr1 expr2              -> "(" ++ show expr1 ++ " -> " ++ show expr2 ++ ")"
@@ -269,7 +269,7 @@ prettyStmt pre stmt = case stmt of
     Return pos mexpr -> putStrLn $ pre ++ "return " ++ maybe "" show mexpr
     ExprStmt callExpr -> putStrLn $ pre ++ show callExpr
     Block stmts -> mapM_ (prettyStmt (pre ++ "\t")) stmts
-    EmbedC pos str -> putStrLn $ pre ++ "$" ++ str
+    EmbedC pos m str -> putStrLn $ pre ++ "$" ++ str
     Assign pos symbol expr -> putStrLn $ pre ++ "assign " ++ prettySymbol symbol ++ " " ++ show expr
 
     FuncDef generics (AST.Func header blk) -> do

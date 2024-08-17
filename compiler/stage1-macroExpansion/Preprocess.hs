@@ -68,7 +68,7 @@ unpackStmt :: Stmt -> DoM AstBuilderState Stmt
 unpackStmt statement = withPos statement $ case statement of
     Stmt id -> unpackStmt =<< gets ((Map.! id) . statements)
 
-    EmbedC _ _ -> return statement
+    EmbedC _ _ _ -> return statement
     Return _ _  -> return statement
     ExprStmt _ -> return statement
     Data _ _ _ _ -> return statement
@@ -259,7 +259,7 @@ buildStmt :: Stmt -> DoM BuildState ()
 buildStmt statement = withPos statement $ case statement of
     ExprStmt expr     -> void $ appendStmt (ExprStmt expr)
     Typedef _ _ _ _   -> void $ appendStmt statement
-    EmbedC _ _        -> void $ appendStmt statement
+    EmbedC _ _ _      -> void $ appendStmt statement
     Return pos mexpr  -> void $ appendStmt statement
     Data _ _ _ _      -> void $ appendStmt statement
     Feature _ _ _ _ _ _ -> void $ appendStmt statement

@@ -209,7 +209,7 @@ line : let pattern '=' expr               { Let (tokPos $1) $2 (Just $4) Nothing
      | type generics Symbol type_         { Typedef (fst $3) $2 (snd $3) $4 }
      | data symbol type_                  { Data (tokPos $1) (snd $2) $3 Nothing }
      | return mexpr                       { Return (tokPos $1) $2 }
-     | embed_c                            { AST.EmbedC (tokPos $1) (tokStr $1) }
+     | embed_c                            { AST.EmbedC (tokPos $1) [] (tokStr $1) }
      | enumMacro                          { $1 }
      | tupleMacro                         { $1 }
      | featureDef                         { $1 }

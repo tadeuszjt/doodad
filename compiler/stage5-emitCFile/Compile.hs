@@ -1,6 +1,7 @@
 module Compile where
 
 import Data.Maybe
+import Data.Char
 import qualified Data.Map as Map
 import Control.Monad
 import Control.Monad.State
@@ -16,6 +17,8 @@ import Error
 import Builtin
 import FindFunc
 import Monad
+import qualified MakeFuncIR as IR
+import qualified IR
 
 
 generateAst :: MonadIO m => ASTResolved -> m (Either Error (((), GenerateState), BuilderState))
@@ -83,11 +86,15 @@ generateFunc funcType = do
         fromJust <$> gets (Map.lookup funcType . funcInstance . astResolved)
     else do
         ast <- gets astResolved
-        func <- case (isFunction, isAcquire) of
-            (True, False) -> fmap fst $ runDoMExcept ast (makeFunctionInstance funcType)
-            (False, True) -> fmap fst $ runDoMExcept ast (makeAcquireInstance funcType)
+        funcAst <- fmap fst $ runDoMExcept ast (makeInstance funcType)
+        func <- fmap fst $ runDoMExcept (IR.initFuncIRState ast) (IR.makeFuncIR funcAst)
 
-        let header = funcHeader func
+        liftIO $ IR.prettyIR "" func
+
+
+
+
+        let header = IR.irHeader func
         args <- mapM cParamOf (S.funcArgs header)
         rettyType <- cRettyType (S.funcRetty header)
 
@@ -102,7 +109,7 @@ generateFunc funcType = do
 
         id <- newFunction rettyType (showSymGlobal $ symbol) ([] ++ args) []
         withCurID id $ do
-            forM_ (S.funcArgs (S.funcHeader func)) $ \arg -> do
+            forM_ (S.funcArgs header) $ \arg -> do
                 let name = showSymLocal (paramSymbol arg)
                 case arg of
                     S.Param _ _ _ ->    define name $ Value (typeof arg) (C.Ident name)
@@ -115,7 +122,7 @@ generateFunc funcType = do
                 Retty _    -> return False
             oldCurFnIsRef <- gets curFnIsRef
             modify $ \s -> s { curFnIsRef = isRefRetty }
-            generateStmt (S.funcStmt func)
+            generateStmt (IR.irStatement func)
             modify $ \s -> s { curFnIsRef = oldCurFnIsRef }
 
             when (S.funcRetty header /= S.Retty Void) $ -- check to ensure function has return
@@ -127,12 +134,29 @@ generateFunc funcType = do
         return header'
 
 
+processCEmbed :: [(String, Symbol)] -> String -> Generate String
+processCEmbed strMap str = case str of
+    ('$':xs) -> do
+        let ident = takeWhile (\c -> isAlpha c || isDigit c || c == '_') xs
+        check (length ident > 0)     "invalid identifier following '$' token"
+        check (isAlpha $ ident !! 0) "invalid identifier following '$' token"
+        let rest = drop (length ident) xs
+
+        case lookup ident strMap of
+            Nothing -> error "here" 
+            Just symbol -> (showSymLocal symbol ++) <$> processCEmbed strMap rest
+
+    (x:xs) -> (x:) <$> processCEmbed strMap xs
+    []     -> return ""
 
 
 generateStmt :: S.Stmt -> Generate ()
 generateStmt stmt = withPos stmt $ case stmt of
     S.Block stmts          -> mapM_ generateStmt stmts
-    S.EmbedC _ str         -> void $ appendElem (C.Embed str)
+    S.EmbedC _ strMap str  -> do
+        str' <- processCEmbed strMap str
+        void $ appendElem (C.Embed str')
+
     S.ExprStmt expr        -> void $ generateExpr expr
     S.Return _ Nothing     -> void $ appendElem (C.ReturnVoid)
 

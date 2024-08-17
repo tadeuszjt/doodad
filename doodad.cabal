@@ -95,4 +95,6 @@ executable doodad
         CombineAsts,
         Preprocess,
         AstBuilder,
-        FindFunc
+        FindFunc,
+        MakeFuncIR,
+        IR

@@ -103,7 +103,7 @@ collectStmt statement = collectPos statement $ case statement of
         modify $ \s -> s { curRetty = oldRetty }
 
     Derives _ _ _ _ -> return ()
-    EmbedC _ _ -> return ()
+    EmbedC _ _ _ -> return ()
 
     Block stmts -> mapM_ collectStmt stmts
 

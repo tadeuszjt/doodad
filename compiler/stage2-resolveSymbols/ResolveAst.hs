@@ -345,7 +345,9 @@ resolveStmt statement = withPos statement $ case statement of
         return (Data pos symbol typ' mexpr')
 
     Return pos mexpr -> Return pos <$> traverse resolveExpr mexpr
-    EmbedC pos str -> EmbedC pos <$> processCEmbed str
+    EmbedC pos [] str -> do 
+        map <- processCEmbed str
+        return (EmbedC pos map str)
     ExprStmt expr -> ExprStmt <$> resolveExpr expr
 
     Assign pos (Sym str) expr -> do
@@ -400,14 +402,14 @@ resolveExpr expression = withPos expression $ case expression of
     x -> error (show x)
             
 
-processCEmbed :: String -> DoM ResolveState String
+processCEmbed :: String -> DoM ResolveState [(String, Symbol)]
 processCEmbed ('$':xs) = do
     let ident = takeWhile (\c -> isAlpha c || isDigit c || c == '_') xs
     check (length ident > 0)     "invalid identifier following '$' token"
     check (isAlpha $ ident !! 0) "invalid identifier following '$' token"
     let rest = drop (length ident) xs
-
     symbol <- look (Sym [ident]) KeyVar
-    (showSymLocal symbol ++) <$> processCEmbed rest
-processCEmbed (x:xs) = (x:) <$> processCEmbed xs
-processCEmbed [] = return ""
+    ((ident, symbol) :) <$> processCEmbed rest
+
+processCEmbed (x:xs) = processCEmbed xs
+processCEmbed [] = return []
