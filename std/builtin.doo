@@ -4,7 +4,7 @@ module builtin
 fn{T} builtinStore(a &T, b T); ${ *$a = $b; }
 
 // types
-fn{T, G} pretend(a &T) G; ${}
+fn{T, G} pretend(a &T) &G; ${ return $a; }
 
 
 // arithmetic
@@ -27,17 +27,17 @@ fn{T} builtinNot(a T)      T; ${ return !$a; }
 
 
 // container
-fn{T} builtinTableLen(a &T.Table) I64;      ${}
-fn{T} builtinTableAppend(a &T.Table);       ${}
-fn{T} builtinTableAt(a &T.Table, b I64) &T; ${}
+fn{T} builtinTableLen(a &T.Table) I64;      ${ assert(false); }
+fn{T} builtinTableAppend(a &T.Table);       ${ assert(false); }
+fn{T} builtinTableAt(a &T.Table, b I64) &T; ${ assert(false); }
 
-fn{T, S} builtinArrayLen(a &Array{S, T}) I64; ${}
-fn{T, S} builtinArrayAt(a &Array{S, T}, idx I64) &T; ${}
+fn{T, S} builtinArrayLen(a &Array{S, T}) I64;        ${ assert(false); }
+fn{T, S} builtinArrayAt(a &Array{S, T}, idx I64) &T; ${ assert(false); }
 
-fn{T} builtinSliceLen(a &T.Slice) I64; ${}
-fn{T} builtinSliceAt(a &T.Slice, b I64) &T; ${}
+fn{T} builtinSliceLen(a &T.Slice) I64;      ${ return $a->len; }
+fn{T} builtinSliceAt(a  T.Slice, b I64) &T; ${ assert(false); }
 
 
 // sum
-fn{T} builtinSumEnum(t &T) I64; ${}
-fn{T} builtinSumReset(t &T, en I64); ${}
+fn{T} builtinSumEnum(t &T) I64;      ${ return $t->en; }
+fn{T} builtinSumReset(t &T, en I64); ${ assert(false); }

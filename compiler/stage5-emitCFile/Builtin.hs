@@ -141,8 +141,8 @@ builtinNot val@(Value _ _) = do
         Bool -> return $ Value (typeof val) (C.Not $ valExpr val)
 
 
-builtinTableAppend :: Value -> Generate ()
-builtinTableAppend (Ref typ expr) = do
+builtinTableAppend :: Type -> C.Expression -> Generate ()
+builtinTableAppend typ expr = do
     Apply Table t <- baseTypeOf typ
     base <- baseTypeOf t
 
@@ -180,52 +180,38 @@ builtinTableAppend (Ref typ expr) = do
 
 
 
-builtinArrayAt :: Value -> Value -> Generate Value
-builtinArrayAt value idx@(Value _ _) = do
-    I64 <- baseTypeOf idx
-    (Array, [Size n, t]) <- unfoldType <$> baseTypeOf value
-    case value of -- TODO arrays can also have shear?
-        Value _ expr -> makeRef $ Value t $ C.Subscript (C.Member expr "arr") (valExpr idx)
-        Ref _ expr   -> makeRef $ Value t $ C.Subscript (C.PMember expr "arr") (valExpr idx)
+builtinArrayAt :: Type -> C.Expression -> C.Expression -> Generate Value
+builtinArrayAt typ cexpr cidx = do
+    (Array, [Size n, t]) <- unfoldType <$> baseTypeOf typ
+    makeRef $ Value t $ C.Subscript (C.PMember cexpr "arr") cidx
 
 
 -- TODO slice may represent non-flat memory when representing table row
-builtinSliceAt :: Value -> Value -> Generate Value
-builtinSliceAt val idx@(Value _ _) = do
-    I64 <- baseTypeOf idx
-    Apply Slice t <- baseTypeOf val
+builtinSliceAt :: Type -> C.Expression -> C.Expression -> Generate Value
+builtinSliceAt typ cexpr cidx = do
+    Apply Slice t <- baseTypeOf typ
     base <- baseTypeOf t
     -- ptr = ptr + (cap ? 0 : sizeof(struct) * idx)
     -- idx = cap ? idx : 0
     -- cap = cap ? cap : 1
-    case val of
-        Ref _ exp -> case unfoldType base of
-            (Tuple, ts) -> do 
-                ct <- cTypeOf base
-                let ptr = C.Infix C.Plus (C.Cast (C.Cpointer C.Cvoid) $ C.PMember exp "ptr") $ C.CndExpr (C.PMember exp "cap")
-                        (C.Int 0)
-                        (C.Infix C.Times (valExpr idx) (C.SizeofType ct))
-                let id = C.CndExpr (C.PMember exp "cap") (valExpr idx) (C.Int 0)
-                let cap = C.CndExpr (C.PMember exp "cap") (C.PMember exp "cap") (C.Int 1)
-                assign "ref" $ Ref t $ C.Initialiser [ptr, id, cap]
+    case unfoldType base of
+        (Tuple, ts) -> do 
+            ct <- cTypeOf base
+            let ptr = C.Infix C.Plus (C.Cast (C.Cpointer C.Cvoid) $ C.Member cexpr "ptr") $ C.CndExpr (C.Member cexpr "cap")
+                    (C.Int 0)
+                    (C.Infix C.Times cidx (C.SizeofType ct))
+            let id = C.CndExpr (C.Member cexpr "cap") cidx (C.Int 0)
+            let cap = C.CndExpr (C.Member cexpr "cap") (C.Member cexpr "cap") (C.Int 1)
+            assign "ref" $ Ref t $ C.Initialiser [ptr, id, cap]
 
-            (_, _) -> assign "ref" $ Ref t $ C.Address $ C.Subscript (C.PMember exp "ptr") (valExpr idx)
-
-        Value _ exp -> case base of
-            Type.Char -> assign "ref" $ Ref t $ C.Address $ C.Subscript (C.Member exp "ptr") (valExpr idx)
-            x -> error (show x)
+        (_, _) -> assign "ref" $ Ref t $ C.Address $ C.Subscript (C.Member cexpr "ptr") cidx
 
 
-builtinTableAt :: Value -> Value -> Generate Value
-builtinTableAt val idx@(Value _ _) = do
-    I64 <- baseTypeOf idx
-    Apply Table t <- baseTypeOf val
+
+builtinTableAt :: Type -> C.Expression -> C.Expression -> Generate Value
+builtinTableAt typ cexpr cidx = do
+    Apply Table t <- baseTypeOf typ
     base <- baseTypeOf t
-    case val of
-        Value _ expr -> case unfoldType base of
-            (Tuple, ts) -> assign "ref" $ Ref t $ C.Initialiser [C.Member expr "r0", valExpr idx, C.Member expr "cap"]
-            _           -> assign "ref" $ Ref t $ C.Address $ C.Subscript (C.Member expr "r0") (valExpr idx)
-
-        Ref _ expr -> case unfoldType base of
-            (Tuple, ts) -> assign "ref" $ Ref t $ C.Initialiser [C.PMember expr "r0", valExpr idx, C.PMember expr "cap"]
-            _           -> assign "ref" $ Ref t $ C.Address $ C.Subscript (C.PMember expr "r0") (valExpr idx)
+    case unfoldType base of
+        (Tuple, ts) -> assign "ref" $ Ref t $ C.Initialiser [C.PMember cexpr "r0", cidx, C.PMember cexpr "cap"]
+        _           -> assign "ref" $ Ref t $ C.Address $ C.Subscript (C.PMember cexpr "r0") cidx
