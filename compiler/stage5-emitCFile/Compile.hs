@@ -91,15 +91,17 @@ generateFunc funcType = do
     else do
         ast <- gets astResolved
         funcAst <- fmap fst $ runDoMExcept ast (makeInstance funcType)
-        (funcIrHeader, funcIr) <- fmap fst $ runDoMExcept (IR.initFuncIRState ast) (IR.makeFuncIR funcAst)
-        --funcIr <- fmap (IR.funcIr . snd) $ runDoMExcept (IR.initFuncIrDestroyState ast) (IR.addFuncDestroy funcIr')
+        (funcIrHeader, funcIr') <- fmap fst $ runDoMExcept (IR.initFuncIRState ast) (IR.makeFuncIR funcAst)
+        funcIr <- fmap (IR.funcIr . snd) $ runDoMExcept (IR.initFuncIrDestroyState ast) (IR.addFuncDestroy funcIr')
 
         liftIO $ putStrLn ""
         liftIO $ putStrLn $ show funcIrHeader
         liftIO $ IR.prettyIR "" funcIr
 
-        symbol <- CGenerate.genSymbol (funcSymbol $ IR.irAstHeader funcIrHeader)
-        let header' = (IR.irAstHeader funcIrHeader) { funcSymbol = symbol }
+        let originalSymbol = (funcSymbol $ IR.irAstHeader funcIrHeader)
+
+        generatedSymbol <- CGenerate.genSymbol (funcSymbol $ IR.irAstHeader funcIrHeader)
+        let header' = (IR.irAstHeader funcIrHeader) { funcSymbol = generatedSymbol }
 
 
         modify $ \s -> s { astResolved = (astResolved s)
@@ -118,8 +120,10 @@ generateFunc funcType = do
             x -> error (show x)
 
         rettyType <- cRettyType (S.funcRetty header')
-        funcId <- newFunction rettyType (showSymGlobal $ symbol) ([] ++ args) []
-        withCurID funcId (generateStmt funcIr 0)
+        funcId <- newFunction rettyType (showSymGlobal $ generatedSymbol) ([] ++ args) []
+        withCurID funcId $ do
+            --appendElem $ C.ExprStmt $ C.Call "puts" [C.String $ prettySymbol originalSymbol]
+            (generateStmt funcIr 0)
 
         withCurID globalID (append funcId)
         return header'

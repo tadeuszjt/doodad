@@ -37,6 +37,13 @@ builtinTableAppend typ expr = do
         elemSize <- C.SizeofType <$> cTypeOf t
         let newSize = C.Infix C.Times cap elemSize
         appendElem $ C.Set pMem $ C.Call "realloc" [pMem, newSize]
+        appendElem $ C.ExprStmt $ C.Call "assert" [pMem]
+
+        -- zero memory
+        let oldSize = C.Infix C.Times (valExpr oldCap) elemSize
+        let zeroSize = C.Infix C.Minus newSize oldSize
+        let zeroPtr  = C.Infix C.Plus (C.Cast (C.Cpointer C.Cvoid) pMem) oldSize
+        appendElem $ C.ExprStmt $ C.Call "memset" [zeroPtr, C.Int 0, zeroSize]
 
         case unfoldType base of
             (Tuple, ts) -> do

@@ -23,10 +23,10 @@ import std/destroy
 
 
 tuple Blob {
+    sprite   Quad
     position Vec2f
     velocity Vec2f
     blobColour   Colour
-    sprite   Quad
 }
 derives Blob (store)
 derives Blob (builtin::destroy)
@@ -64,7 +64,6 @@ fn main(io Io, rand Rand, w Window)
         blob.blobColour   = rand.colour
         blobs.push(blob)
 
-    //io.stdout.printLn(blobs)
 
     while w.isOpen()
         let prevNs = time::getTimestampNs()
@@ -82,7 +81,8 @@ fn main(io Io, rand Rand, w Window)
 
         let (width, height) = w.getSize()
         w.setViewFromRect(((0.0, 0.0), (convert(width), convert(height))))
-        w.clearWindow(white())
+        w.clearWindow(black())
+
         w.drawQuads(blobs.sprite)
         w.display()
 

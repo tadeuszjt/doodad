@@ -46,10 +46,9 @@ acquires{N, T} destroy{ Array{N, T} } (arr&)
 
 acquires{T} destroy{ T.Table } (t&)
     for (0, t.len) -> i
-        ${ printf("destroying elem:%d\n", $i); }
         t[i].destroy
     ${
-        printf("destroying table:%p\n", $t->r0);
+        //printf("destroying table:%p\n", $t->r0);
         if ($t->r0) free($t->r0);
         $t->r0 = NULL;
         $t->len = 0;

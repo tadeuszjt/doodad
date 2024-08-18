@@ -12,6 +12,8 @@ import std/container
 import std/print
 import std/sparse
 import std/destroy
+import std/io
+import std/for
 
 include <SFML/Graphics.h>
 link csfml-graphics
@@ -190,9 +192,11 @@ fn pollEvent(w &Window) Event.Option
 
 
 fn drawQuads(w &Window, quads Slice{Quad})
+    // TODO why does this fix 'Bus Error'?!
+    for (0, 1) -> i
+        let q = quads[i]
+
     let ptr = w.windowPtr
-    //let texturePtr = w.textures[texture].texturePtr
-    let something = 0
     ${
         sfRenderStates states;
         states.texture = NULL;

@@ -16,8 +16,9 @@ feature{T, V | T -> V}     index(T, I64) V
 
 
 acquires{V} len{ Table{V} }    (t&);            return builtinTableLen(&t)
-acquires{T} at{ I64, T, Table{T} } (t&, idx) -> &; return builtinTableAt(&t, idx)
 acquires{T} index{ Table{T}, T }   (t&, idx) -> &; return builtinTableAt(&t, idx)
+acquires{T} at{ I64, T, Table{T} } (t&, idx) -> &
+    return builtinTableAt(&t, idx)
 
 
 acquires{T} push{ Table{T}, T } (t&, e)
