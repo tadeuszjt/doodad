@@ -15,6 +15,7 @@ import std/read
 import std/option
 import std/rand
 import std/convert
+import std/destroy
 
 
 enum Square {
@@ -24,6 +25,7 @@ enum Square {
 }
 derives Square (store)
 derives Square (equal)
+derives Square (destroy)
 
 
 enum Input {
@@ -31,9 +33,11 @@ enum Input {
     quit()
     error()
 }
+derives Input (builtin::destroy)
 
 
 type Board Array{3, Array{3, Square}}
+derives Board (destroy)
 
 derives Board (container::len)
 derives Board (container::at{I64, Array{3, Square}})

@@ -24,7 +24,7 @@ tuple Vec2f {
     y F32
 }
 derives    Vec2f (store)
-derives    Vec2f (destroy::destroy)
+derives    Vec2f (builtin::destroy)
 derives    Vec2f (make2{F32, F32})
 derives{P} Vec2f (print::print{P})
 acquires arithmetic::add{ Vec2f, Vec2f } (a, b); return (a.x + b.x, a.y + b.y)
@@ -44,7 +44,7 @@ tuple Colour {
     a U8
 }
 derives Colour (store)
-derives Colour (destroy::destroy)
+derives Colour (builtin::destroy)
 derives Colour (make4{U8, U8, U8, U8})
 derives{P} Colour (print::print{P})
 
@@ -58,7 +58,7 @@ tuple Vertex {
     texCoord Vec2f
 }
 derives    Vertex (store)
-derives    Vertex (destroy::destroy)
+derives    Vertex (builtin::destroy)
 derives    Vertex (make3{Vec2f, Colour, Vec2f})
 derives{P} Vertex (print::print{P})
 
@@ -67,7 +67,7 @@ type Quad Array{6, sfml::Vertex}
 derives{P} Quad (print::print{P})
 derives    Quad (container::at{ I64, Vertex })
 derives    Quad (store::store)
-derives    Quad (destroy::destroy)
+derives    Quad (builtin::destroy)
 
 
 tuple Window {
@@ -113,6 +113,7 @@ enum Event {
     closed
 }
 derives Event (store)
+derives Event (builtin::destroy)
 
 
 fn create(w &Window)

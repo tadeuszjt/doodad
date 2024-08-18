@@ -9,6 +9,7 @@ import Data.Maybe
 import Type
 import qualified AST as S
 import Monad
+import Symbol
 
 
 type ID = Int
@@ -101,6 +102,9 @@ data FuncIrHeader = FuncIrHeader
     , irArgs      :: [ParamIR]
     }
 
+instance Show FuncIrHeader where
+    show (FuncIrHeader astHeader retty args) = prettySymbol (S.funcSymbol astHeader) ++ " (" ++ intercalate ", " (map show args) ++ ") " ++ show retty
+
 
 data FuncIR = FuncIR
     { irStmts     :: Map.Map ID Stmt
@@ -160,6 +164,21 @@ appendStmt stmt = do
     modify $ \s -> s { irStmts = Map.insert curId curStmt' (irStmts s) }
     modify $ \s -> s { irStmts = Map.insert id stmt (irStmts s) }
     return id
+
+
+appendStmtWithId :: ID -> Stmt -> DoM FuncIR ()
+appendStmtWithId id stmt = do
+    curId <- (gets irCurrentId)
+    curStmt <- gets $ (Map.! curId) . irStmts
+    curStmt' <- case curStmt of
+        Block xs -> return (Block $ xs ++ [id])
+        Loop ids -> return (Loop $ ids ++ [id])
+        If arg ids    -> return (If arg $ ids ++ [id])
+        Else ids      -> return (Else $ ids ++ [id])
+        x -> error (show x)
+
+    modify $ \s -> s { irStmts = Map.insert curId curStmt' (irStmts s) }
+    modify $ \s -> s { irStmts = Map.insert id stmt (irStmts s) }
 
 
 prettyIR :: String -> FuncIR -> IO ()

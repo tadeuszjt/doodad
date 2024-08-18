@@ -11,10 +11,12 @@ import std/print
 import std/for
 import std/compare
 import std/convert
+import std/destroy
 
 
 type{T} Key I64
 derives{T} Key{T} (store)
+derives{T} Key{T} (destroy)
 derives{P, T} Key{T} (print::print{P})
 
 
@@ -23,6 +25,8 @@ tuple{T} Unordered {
     entries I64.Key.Table
     values  T.Table
 }
+derives{T} T.Unordered (destroy)
+
 
 acquires{T} len{ T.Unordered } (u&)
     return u.values.len

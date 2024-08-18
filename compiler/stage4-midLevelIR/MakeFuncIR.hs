@@ -24,13 +24,9 @@ data FuncIRState = FuncIRState
     }
 
 
-
-
 initFuncIRState ast = FuncIRState
     { symbolTable = Map.empty
-
     , irFunc = initFuncIr
-
     , astResolved = ast
     , astRetty = Nothing
     }
@@ -141,6 +137,7 @@ makeStmt statement = withPos statement $ case statement of
         define symbol id
 
     S.Assign _ symbol expr -> do
+        -- TODO remove Assign, it is bad
         arg <- makeVal expr
         (typ, _) <- liftFuncIr (getType arg)
         id <- liftFuncIr $ appendStmt (InitVar $ Just arg)

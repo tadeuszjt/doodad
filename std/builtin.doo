@@ -3,6 +3,19 @@ module builtin
 // memory
 fn{T} builtinStore(a &T, b T); ${ *$a = $b; }
 
+feature{T} destroy(T)
+acquires destroy{Char} (c&); return
+acquires destroy{Bool} (c&); return
+acquires destroy{F32} (c&); return
+acquires destroy{F64} (c&); return
+acquires destroy{I64} (c&); return
+acquires destroy{I32} (c&); return
+
+acquires{A, B} destroy{Sum{A, B}} (sum&); return // TODO
+acquires{A} destroy{Sum{A}} (sum&); return // TODO
+
+acquires destroy{Tuple{}} (tup&); return
+
 // types
 fn{T, G} pretend(a &T) &G; ${ return $a; }
 

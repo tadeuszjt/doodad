@@ -4,6 +4,7 @@ import std/store
 import std/assert
 import std/arithmetic
 import std/compare
+import std/builtin
 
 
 include <stdlib.h>
@@ -12,6 +13,7 @@ include <math.h>
 link m
 
 type Rand Tuple{I64}
+derives Rand (destroy)
 
 fn i64(r &Rand, min I64, max I64) I64
     let n = r.0

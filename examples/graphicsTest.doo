@@ -29,7 +29,7 @@ tuple Blob {
     sprite   Quad
 }
 derives Blob (store)
-derives Blob (destroy::destroy)
+derives Blob (builtin::destroy)
 derives{P} Blob (print::print{P})
 
 
@@ -90,7 +90,7 @@ fn main(io Io, rand Rand, w Window)
         let diff = nextNs - prevNs
         sleepNs(16 * 1000 * 1000 - diff)
 
-    blobs.destroy::destroy
+    blobs.builtin::destroy
     w.destroy()
 
 

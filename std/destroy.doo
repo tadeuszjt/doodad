@@ -6,18 +6,19 @@ import std/container
 import std/builtin
 import std/for
 import std/store
+import std/compare
 
 
-feature{T} destroy(T)
+//feature{T} destroy(T)
 
 acquires destroy{ U8 } (n&); return
-acquires destroy{ I64 } (n&); return
-acquires destroy{ F32 } (n&); return
-acquires destroy{ F64 } (n&); return
+//acquires destroy{ I64 } (n&); return
+//acquires destroy{ F32 } (n&); return
+//acquires destroy{ F64 } (n&); return
 
 
-acquires destroy{ Tuple{} } (tup&)
-    return
+acquires{T} destroy{ Slice{T} } (slice&); return
+
 
 acquires{A} destroy{ Tuple{A} } (tup&)
     tup.0 .destroy
@@ -45,11 +46,21 @@ acquires{N, T} destroy{ Array{N, T} } (arr&)
 
 acquires{T} destroy{ T.Table } (t&)
     for (0, t.len) -> i
+        ${ printf("destroying elem:%d\n", $i); }
         t[i].destroy
     ${
-        free($t->r0);
-        $t->r0 = 0;
+        printf("destroying table:%p\n", $t->r0);
+        if ($t->r0) free($t->r0);
+        $t->r0 = NULL;
         $t->len = 0;
         $t->cap = 0;
     }
 
+
+acquires{A, B, C} destroy{ Sum{A, B, C} } (sum&)
+    switch sum.builtinSumEnum
+        0; sum.0 .destroy
+        1; sum.1 .destroy
+        2; sum.2 .destroy
+
+    sum.builtinSumReset(0)

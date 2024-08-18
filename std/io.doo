@@ -11,10 +11,14 @@ import std/container
 type StdOut Tuple{}
 type StdIn  Tuple{}
 
+derives StdOut (destroy)
+derives StdIn (destroy)
+
 tuple Io {
     stdout StdOut
     stdin  StdIn
 }
+derives Io (destroy)
 
 
 acquires print{ StdOut, Char } (stdout&, c)

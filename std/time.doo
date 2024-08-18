@@ -1,5 +1,7 @@
 module time
 
+import std/builtin
+
 include <time.h>
 include <inttypes.h>
 

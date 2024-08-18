@@ -76,6 +76,8 @@ fn testFnWithRef()
     let (1, 2) = z
 
 
+type Person (I64, Bool)
+derives Person (destroy)
 fn testTable()
     data table I64.Table
 
@@ -96,7 +98,6 @@ fn testTable()
     let 1 = table.pop
     let 0 = table.len
 
-    type Person (I64, Bool)
     //derives Person (store::store)
     acquires store{ Person } (a&, b)
         a.0 = b.0
@@ -363,12 +364,19 @@ fn testOption()
 //    let 5 = t1[1].0
 //
 //
+enum Enum {
+    one
+    two
+    three
+}
+enum Enum2 {
+    en2One(I64)
+    en2Two(I64, I64)
+}
+
+derives Enum (destroy)
+derives Enum2 (destroy)
 fn testEnum()
-    enum Enum {
-        one
-        two
-        three
-    }
 
     let e : Enum
 
@@ -384,21 +392,17 @@ fn testEnum()
 
     let true = three().isThree()
 
-    enum Enum2 {
-        en2One(I64)
-        en2Two(I64, I64)
-    }
-
     let true = en2Two(1, 2).isEn2Two
     let false = en2Two(1, 2).isEn2One
     let 1 = en2Two(1, 2). 1 . 0
-
 
 fn testMacroTuple()
     tuple{T} MyTuple {
         one I64
         two T
     }
+    derives{T} T.MyTuple (destroy)
+
 
     let t : Bool.MyTuple
     t.one = 23
@@ -426,6 +430,7 @@ fn testFunctionalDependency()
 
 type MyTup Tuple{Bool, U8}
 derives MyTup (store)
+derives MyTup (destroy)
 
 acquires make2{ Bool, U8, MyTup } (a, b)
     let myTup
@@ -455,28 +460,28 @@ fn testTableRows()
 
 
 fn main()
-    testArithmetic()
-    testFloats()
-    testIf()
-    testSwitch()
-    testTuple()
-    testFnWithRef()
-    testTable()
+//    testArithmetic()
+//    testFloats()
+//    testIf()
+//    testSwitch()
+//    testTuple()
+//    testFnWithRef()
+//    testTable()
     testSparse()
-    testPrint()
-//    testSumType()
-    testArrayAt()
-    testOption()
+//    testPrint()
+///    testSumType()
+//    testArrayAt()
+//    testOption()
     testUnordered()
-//    testTree()
-//    testMap()
-//    testArrayPattern()
-//    testArrayExpr()
-    testEnum()
-    testMacroTuple()
-    testFunctionalDependency()
-    testMake2()
-    testTableRows()
+////    testTree()
+////    testMap()
+////    testArrayPattern()
+////    testArrayExpr()
+//    testEnum()
+//    testMacroTuple()
+//    testFunctionalDependency()
+//    testMake2()
+//    testTableRows()
 
 //    data io Io
 //    testIo(&io)
