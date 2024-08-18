@@ -59,7 +59,10 @@ makeInstance funcType = do
 
     case (isFunction, isAcquire) of
         (True, False) -> makeFunctionInstance funcType
-        (False, True) -> makeAcquireInstance funcType
+        (False, True) -> do
+            mfunc <- makeAcquireInstance funcType
+            unless (isJust mfunc) (fail $ "no valid acquires for: " ++ show funcType)
+            return (fromJust mfunc)
 
 
 makeFunctionInstance :: Type -> DoM ASTResolved Func
@@ -76,7 +79,7 @@ makeFunctionInstance funcType = do
 
 
 
-makeAcquireInstance :: Type -> DoM ASTResolved Func
+makeAcquireInstance :: Type -> DoM ASTResolved (Maybe Func)
 makeAcquireInstance callType = do
     -- In haskell, instances are globally visible, so we do not have to worry about different instances.
     acquiresAll <- gets acquiresAll
@@ -97,7 +100,7 @@ makeAcquireInstance callType = do
 
                     unless (applyType subs upperType == callType) (error "type mismatch")
                     unless (typeFullyResolved lower) (error "propagating type vars")
-                    Just <$> makeAcquireInstance lower
+                    makeAcquireInstance lower
 
         Aquires pos generics implType args isRef scope -> do
             --liftIO $ putStrLn $ "checking aquire: " ++ prettySymbol symbol
@@ -119,7 +122,7 @@ makeAcquireInstance callType = do
                     return $ Just $ AST.Func (FuncHeader pos symbol args' retty') stmt'
 
     case results of
-        [] -> fail $ "no valid acquires for: " ++ show callType
-        [func] -> return func
-        funcs -> fail $ "multiple acquires for: " ++ show callType
+        []     -> return Nothing
+        [func] -> return (Just func)
+        funcs  -> fail $ "multiple acquires for: " ++ show callType
 

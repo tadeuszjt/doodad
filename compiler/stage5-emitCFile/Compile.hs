@@ -19,6 +19,7 @@ import FindFunc
 import Monad
 import qualified MakeFuncIR as IR
 import qualified IR
+import qualified AddFuncDestroy as IR
 
 
 generateAst :: MonadIO m => ASTResolved -> m (Either Error (((), GenerateState), BuilderState))
@@ -90,19 +91,20 @@ generateFunc funcType = do
     else do
         ast <- gets astResolved
         funcAst <- fmap fst $ runDoMExcept ast (makeInstance funcType)
-        func <- fmap fst $ runDoMExcept (IR.initFuncIRState ast) (IR.makeFuncIR funcAst)
+        (funcIrHeader, funcIr) <- fmap fst $ runDoMExcept (IR.initFuncIRState ast) (IR.makeFuncIR funcAst)
+        --func <- fmap (IR.funcIr . snd) $ runDoMExcept (IR.initAddFuncDestroyState funcIR) (IR.addFuncDestroy ast)
 
         --liftIO $ IR.prettyIR "" func
 
-        symbol <- CGenerate.genSymbol (funcSymbol $ IR.irHeader func)
-        let header' = (IR.irHeader func) { funcSymbol = symbol }
+        symbol <- CGenerate.genSymbol (funcSymbol $ IR.irAstHeader funcIrHeader)
+        let header' = (IR.irAstHeader funcIrHeader) { funcSymbol = symbol }
 
 
         modify $ \s -> s { astResolved = (astResolved s)
             { funcInstance = Map.insert funcType header' (funcInstance $ astResolved s) } }
 
         --args <- mapM cParamOf (S.funcArgs header')
-        args <- forM (IR.irArgs func) $ \arg -> case arg of
+        args <- forM (IR.irArgs funcIrHeader) $ \arg -> case arg of
             IR.ParamIR (IR.ArgID id) IR.Value typ -> do
                 cType <- cTypeOf typ
                 return $ C.Param (idName id) cType
@@ -115,7 +117,7 @@ generateFunc funcType = do
 
         rettyType <- cRettyType (S.funcRetty header')
         funcId <- newFunction rettyType (showSymGlobal $ symbol) ([] ++ args) []
-        withCurID funcId (generateStmt func 0)
+        withCurID funcId (generateStmt funcIr 0)
 
         withCurID globalID (append funcId)
         return header'

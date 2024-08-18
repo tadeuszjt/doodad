@@ -2,7 +2,7 @@ module char
 
 import std/store
 import std/assert
-
+import std/builtin
 
 fn eof() Char
     let c : Char

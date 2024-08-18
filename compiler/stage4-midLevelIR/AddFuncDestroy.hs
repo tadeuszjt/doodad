@@ -1,0 +1,111 @@
+module AddFuncDestroy where
+
+--import qualified Data.Map as Map
+----import qualified Data.Set as Set
+--import Control.Monad
+--import Control.Monad.State
+--import Control.Monad.IO.Class
+--import Data.Maybe
+--
+--import IR
+--import Monad
+--import ASTResolved
+--import Symbol
+--import Type
+--import FindFunc
+--import qualified AST as S
+--
+--
+--data AddFuncDestroyState = AddFuncDestroyState
+--    { funcIr      :: FuncIR
+--    }
+--
+--
+--initAddFuncDestroyState func = AddFuncDestroyState
+--    { funcIr      = func
+--    }
+--
+--
+--modifyFunc :: (FuncIR -> FuncIR) -> DoM AddFuncDestroyState ()
+--modifyFunc f = modify $ \s -> s { funcIr = f (funcIr s) }
+--
+--
+--getType :: ID -> DoM AddFuncDestroyState Type
+--getType id = do
+--    resm <- gets (Map.lookup id . irTypes . funcIr)
+--    case resm of
+--        Just (typ, _) -> return typ
+--
+--
+--createStmt :: RefType -> Type -> Stmt -> DoM AddFuncDestroyState ID
+--createStmt refType typ stmt = do
+--    idSupply <- gets (irIdSupply . funcIr)
+--
+--    modifyFunc $ \s -> s
+--        { irIdSupply = (irIdSupply s) + 1
+--        , irStmts    = Map.insert (irIdSupply s) stmt (irStmts s)
+--        , irTypes    = Map.insert (irIdSupply s) (typ, refType) (irTypes s)
+--        }
+--
+--    return idSupply
+--
+--
+--
+--
+--addFuncDestroy :: ASTResolved -> DoM AddFuncDestroyState ()
+--addFuncDestroy ast = do
+--    -- need to find the symbol for destroy::destroy feature
+--
+--    let xs = Map.keys $ Map.filterWithKey
+--            (\k v -> symbolsCouldMatch k $ Sym ["builtin", "destroy"])
+--            (typeDefsAll ast)
+--    mdestroySymbol <- case xs of
+--        [] -> return Nothing
+--        [x] -> return (Just x)
+--    unless (isJust mdestroySymbol) (fail "no destroy symbol")
+--    let destroySymbol = fromJust mdestroySymbol
+--
+--    statements <- gets (irStmts . funcIr)
+--    statements' <- forM statements $ \statement -> case statement of
+--        Block ids -> do
+--            destroys <- getDestroys destroySymbol =<< getInits ids
+--            return $ Block (ids ++ destroys)
+--
+--        EmbedC _ _ -> return statement
+--        InitVar _ -> return statement
+--        Return _ -> return statement
+--        MakeReferenceFromValue _ -> return statement
+--        Call _ _ -> return statement
+--
+--        x -> error (show x)
+--
+--    return ()
+--    where
+--        getDestroys :: Symbol -> [ID] -> DoM AddFuncDestroyState [ID]
+--        getDestroys destroySymbol initIds = do
+--            fmap concat $ forM initIds $ \id -> do
+--                typ <- getType id
+--                acq <- fmap fst $ runDoMExcept ast $
+--                    makeAcquireInstance (foldType [TypeDef destroySymbol, typ])
+--                unless (isJust acq) (fail $ "no destroy for: " ++ show typ)
+--
+--                let acqSymbol = S.funcSymbol $ S.funcHeader (fromJust acq)
+--                case S.funcArgs (S.funcHeader $ fromJust acq) of
+--                    [S.RefParam _ argSymbol argType] -> do
+--                        unless (argType == typ) (error $ "argType was: " ++ show argType ++ " instead of: " ++ show typ)
+--                        id1 <- createStmt Ref typ (MakeReferenceFromValue id)
+--                        id2 <- createStmt Const Void (Call (Apply (TypeDef acqSymbol) typ) [ArgID id1])
+--                        return [id1, id2]
+--
+--
+--
+--getInits :: [ID] -> DoM AddFuncDestroyState [ID]
+--getInits []       = return []
+--getInits (id:ids) = do
+--    funcIr <- gets funcIr
+--    case (irStmts funcIr) Map.! id of
+--        InitVar argId -> (id:) <$> getInits ids
+--        _             -> getInits ids
+--    
+--
+--

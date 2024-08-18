@@ -17,26 +17,31 @@ import qualified AST as S
 
 
 data FuncIRState = FuncIRState
-    { idSupply  :: ID
-    , idCurrent :: ID
-    , statements :: Map.Map ID Stmt
-    , symbolTable :: Map.Map Symbol ID
-    , typeTable :: Map.Map ID (Type, RefType)
-
+    { symbolTable :: Map.Map Symbol ID
+    , irFunc :: FuncIR
     , astResolved :: ASTResolved
     , astRetty    :: Maybe S.Retty
     }
 
 
+
+
 initFuncIRState ast = FuncIRState
-    { idSupply = 0
-    , idCurrent = 0
-    , statements = Map.singleton 0 (Block [])
-    , symbolTable = Map.empty
-    , typeTable = Map.empty
+    { symbolTable = Map.empty
+
+    , irFunc = initFuncIr
+
     , astResolved = ast
     , astRetty = Nothing
     }
+
+
+liftFuncIr :: DoM FuncIR a -> DoM FuncIRState a
+liftFuncIr f = do
+    fn <- gets irFunc
+    (a, fn') <- runDoMExcept fn f
+    modify $ \s -> s { irFunc = fn' }
+    return a
 
 
 define :: Symbol -> ID -> DoM FuncIRState ()
@@ -53,75 +58,28 @@ look symbol = do
     return (fromJust resm)
 
 
-lookType :: Arg -> DoM FuncIRState (Type, RefType)
-lookType arg = do
-    case arg of
-        ArgConst typ _ -> return (typ, Const)
-        ArgID id -> do
-            resm <- gets (Map.lookup id . typeTable)
-            unless (isJust resm) (fail $ "no type added for: " ++ show id)
-            return (fromJust resm)
-    
-
-
-addType :: ID -> Type -> RefType -> DoM FuncIRState ()
-addType id typ refType = do
-    resm <- gets (Map.lookup id . typeTable)
-    unless (isNothing resm) (fail $ "id already typed: " ++ show id)
-    modify $ \s -> s { typeTable = Map.insert id (typ, refType) (typeTable s) }
-
-
-generateID :: DoM FuncIRState ID
-generateID = do
-    id <- (+1) <$> gets idSupply
-    modify $ \s -> s { idSupply = (idSupply s) + 1 }
-    return id
-
-
-
-appendStmt :: Stmt -> DoM FuncIRState ID
-appendStmt stmt = do
-    id <- generateID
-
-    curId <- gets idCurrent
-    curStmt <- gets $ (Map.! curId) . statements
-    curStmt' <- case curStmt of
-        Block xs -> return (Block $ xs ++ [id])
-        Loop ids -> return (Loop $ ids ++ [id])
-        If arg ids    -> return (If arg $ ids ++ [id])
-        Else ids      -> return (Else $ ids ++ [id])
-        x -> error (show x)
-
-    modify $ \s -> s { statements = Map.insert curId curStmt' (statements s) }
-    modify $ \s -> s { statements = Map.insert id stmt (statements s) }
-
-    return id
-
-
 withCurrentID :: ID -> (DoM FuncIRState a) -> DoM FuncIRState ()
 withCurrentID id f = do
-    oldId <- gets idCurrent
-    modify $ \s -> s { idCurrent = id }
+    oldId <- liftFuncIr (gets irCurrentId)
+    liftFuncIr $ modify $ \s -> s { irCurrentId = id }
     void f
-    modify $ \s -> s { idCurrent = oldId }
-    
+    liftFuncIr $ modify $ \s -> s { irCurrentId = oldId }
 
 
-
-makeFuncIR :: S.Func -> DoM FuncIRState FuncIR
+makeFuncIR :: S.Func -> DoM FuncIRState (FuncIrHeader, FuncIR)
 makeFuncIR func = do
     irParams <- forM (S.funcArgs $ S.funcHeader func) $ \param -> case param of
         -- TODO what about slice?
         S.Param _ symbol typ -> do
-            id <- generateID
+            id <- liftFuncIr generateId
             define symbol id
-            addType id typ Value
+            liftFuncIr $ addType id typ Value
             return $ ParamIR (ArgID id) Value typ
 
         S.RefParam _ symbol typ -> do
-            id <- generateID
+            id <- liftFuncIr generateId
             define symbol id
-            addType id typ Ref
+            liftFuncIr $ addType id typ Ref
             return $ ParamIR (ArgID id) Ref typ
 
         x -> error (show x)
@@ -135,17 +93,13 @@ makeFuncIR func = do
     makeStmt (S.funcStmt func)
 
     state <- get
+    let funcIrHeader = FuncIrHeader
+            { irAstHeader = S.funcHeader func
+            , irRetty     = irRetty
+            , irArgs      = irParams
+            }
+    return (funcIrHeader, irFunc state)
 
-    return $ FuncIR
-        { irStatement = S.funcStmt func
-        , irHeader    = S.funcHeader func
-
-        , irRetty     = irRetty
-        , irArgs      = irParams
-        , irStmts     = statements state
-        , irTypes     = typeTable state
-        , irSymbols   = symbolTable state
-        }
 
 processCEmbed :: [(String, Symbol)] -> String -> DoM FuncIRState String
 processCEmbed strMap str = case str of
@@ -168,64 +122,62 @@ processCEmbed strMap str = case str of
 makeStmt :: S.Stmt -> DoM FuncIRState ()
 makeStmt statement = withPos statement $ case statement of
     S.Block stmts -> do
-        id <- appendStmt (Block [])
+        id <- liftFuncIr $ appendStmt (Block [])
         withCurrentID id (mapM_ makeStmt stmts)
 
     S.EmbedC _ strMap str -> do
         str' <- processCEmbed strMap str
         uses <- mapM look (map snd strMap)
-        void $ appendStmt (EmbedC uses str')
+        void $ liftFuncIr $ appendStmt (EmbedC uses str')
 
     S.Let _ (S.PatAnnotated (S.PatIdent _ symbol) typ) Nothing Nothing -> do
-        id <- appendStmt (InitVar Nothing)
-        addType id typ Value
+        id <- liftFuncIr $ appendStmt (InitVar Nothing)
+        liftFuncIr $ addType id typ Value
         define symbol id
 
     S.Data _ symbol typ Nothing -> do
-        id <- appendStmt (InitVar Nothing) 
-        addType id typ Value
+        id <- liftFuncIr $ appendStmt (InitVar Nothing) 
+        liftFuncIr $ addType id typ Value
         define symbol id
 
     S.Assign _ symbol expr -> do
         arg <- makeVal expr
-        (typ, _) <- lookType arg
-        id <- appendStmt (InitVar $ Just arg)
-        addType id typ Value
+        (typ, _) <- liftFuncIr (getType arg)
+        id <- liftFuncIr $ appendStmt (InitVar $ Just arg)
+        liftFuncIr $ addType id typ Value
         define symbol id
 
     S.Return _ (Just expr) -> do
         Just retty <- gets astRetty
         case retty of
-            S.Retty typ -> void $ appendStmt . Return =<< makeVal expr
-            S.RefRetty typ -> void $ appendStmt . Return . ArgID =<< makeRef expr
+            S.Retty typ -> void $ (liftFuncIr . appendStmt . Return) =<< makeVal expr
+            S.RefRetty typ -> void $ (liftFuncIr . appendStmt . Return . ArgID) =<< makeRef expr
             x -> error (show x)
 
-
-
-    S.Return _ Nothing     -> void $ appendStmt ReturnVoid
+    S.Return _ Nothing     -> void $ liftFuncIr $ appendStmt ReturnVoid
     S.ExprStmt expr        -> void (makeVal expr)
 
     S.While _ expr (S.Block stmts) -> do
-        id <- appendStmt $ Loop []
+        id <- liftFuncIr $ appendStmt $ Loop []
         withCurrentID id $ do
             cnd <- makeVal expr
-            ifId <- appendStmt (If cnd [])
-            elseId <- appendStmt (Else [])
+            ifId <- liftFuncIr $ appendStmt (If cnd [])
+            elseId <- liftFuncIr $ appendStmt (Else [])
             withCurrentID elseId $ do
-                appendStmt Break
+                liftFuncIr $ appendStmt Break
                 
             mapM_ makeStmt stmts
 
 
     S.If _ expr (S.Block trueStmts) mfalse -> do
         arg <- makeVal expr
-        id <- appendStmt (If arg [])
+        id <- liftFuncIr $ appendStmt (If arg [])
         withCurrentID id (mapM_  makeStmt trueStmts)
 
         case mfalse of
             Nothing -> return ()
             Just (S.Block falseStmts) -> do
-                elseId <- appendStmt (Else [])
+                elseId <- liftFuncIr $ appendStmt (Else [])
                 withCurrentID elseId (mapM_ makeStmt falseStmts)
         
 
@@ -238,15 +190,15 @@ makeVal (S.AExpr exprType expression) = withPos expression $ case expression of
 
     S.Ident _ symbol -> do
         id <- look symbol
-        (typ, refType) <- lookType (ArgID id)
+        (typ, refType) <- liftFuncIr (getType (ArgID id))
         unless (typ == exprType) (error "type mismatch")
 
         case refType of
             Value -> return (ArgID id)
             Ref   -> do
                 -- TODO might be slow, create makeAny function?
-                id' <- appendStmt (MakeValueFromReference id)
-                addType id' typ Value
+                id' <- liftFuncIr $ appendStmt (MakeValueFromReference id)
+                liftFuncIr $ addType id' typ Value
                 return (ArgID id')
 
 
@@ -260,21 +212,21 @@ makeVal (S.AExpr exprType expression) = withPos expression $ case expression of
                 S.RefParam _ argSymbol argType -> ArgID <$> makeRef expr
                 S.Param    _ argSymbol argType -> makeVal expr
 
-        id <- appendStmt (Call funcType args)
+        id <- liftFuncIr $ appendStmt (Call funcType args)
 
         case S.funcRetty header of
             S.Retty Void -> do
-                addType id Void Const
+                liftFuncIr $ addType id Void Const
                 return (ArgID id)
 
             S.Retty typ -> do
-                addType id typ Value
+                liftFuncIr $ addType id typ Value
                 return (ArgID id)
 
             S.RefRetty typ -> do
-                addType id typ Ref
-                id' <- appendStmt (MakeValueFromReference id)
-                addType id' typ Value
+                liftFuncIr $ addType id typ Ref
+                id' <- liftFuncIr $ appendStmt (MakeValueFromReference id)
+                liftFuncIr (addType id' typ Value)
                 return (ArgID id')
 
             -- TODO slice
@@ -285,8 +237,8 @@ makeVal (S.AExpr exprType expression) = withPos expression $ case expression of
     S.Char _ c -> return (ArgConst exprType $ ConstChar c)
     S.Int _  n -> return (ArgConst exprType $ ConstInt n)
     S.String _ str -> do
-        id <- appendStmt (MakeString str)
-        addType id exprType Value
+        id <- liftFuncIr $ appendStmt (MakeString str)
+        liftFuncIr (addType id exprType Value)
         return (ArgID id)
 
     S.Float _ f -> return $ ArgConst exprType (ConstFloat f)
@@ -302,19 +254,19 @@ makeVal (S.AExpr exprType expression) = withPos expression $ case expression of
 
 
         arg <- makeVal expr
-        (typ, refType) <- lookType arg
+        (typ, refType) <- liftFuncIr (getType arg)
         case refType of
             Ref -> do
                 -- TODO what about slice?
                 let ArgID argId = arg 
-                id <- appendStmt (MakeFieldFromRef argId i)
-                addType id exprType Value
+                id <- liftFuncIr $ appendStmt (MakeFieldFromRef argId i)
+                liftFuncIr (addType id exprType Value)
                 return (ArgID id)
 
             Value -> do
                 let ArgID argId = arg
-                id <- appendStmt (MakeFieldFromVal argId i)
-                addType id exprType Value
+                id <- liftFuncIr $ appendStmt (MakeFieldFromVal argId i)
+                liftFuncIr (addType id exprType Value)
                 return (ArgID id)
                 
             x -> error (show x)
@@ -332,13 +284,13 @@ makeRef (S.AExpr exprType expression) = withPos expression $ case expression of
     S.Reference _ expr -> makeRef expr
     S.Ident _ symbol -> do
         id <- look symbol
-        (typ, refType) <- lookType (ArgID id)
+        (typ, refType) <- liftFuncIr $ getType (ArgID id)
         unless (typ == exprType) (error "type mismatch")
 
         case refType of
             Value -> do
-                id' <- appendStmt (MakeReferenceFromValue id)
-                addType id' typ Ref
+                id' <- liftFuncIr $ appendStmt (MakeReferenceFromValue id)
+                liftFuncIr (addType id' typ Ref)
                 return id'
 
             Ref -> return id
@@ -355,18 +307,18 @@ makeRef (S.AExpr exprType expression) = withPos expression $ case expression of
                 S.RefParam _ argSymbol argType -> ArgID <$> makeRef expr
                 S.Param    _ argSymbol argType -> makeVal expr
 
-        id <- appendStmt (Call funcType args)
+        id <- liftFuncIr $ appendStmt (Call funcType args)
 
         case S.funcRetty header of
             -- TODO slice
             S.RefRetty typ -> do
-                addType id typ Ref
+                liftFuncIr (addType id typ Ref)
                 return id
 
             S.Retty typ -> do
-                addType id typ Value
-                id' <- appendStmt (MakeReferenceFromValue id)
-                addType id' typ Ref
+                liftFuncIr (addType id typ Value)
+                id' <- liftFuncIr $ appendStmt (MakeReferenceFromValue id)
+                liftFuncIr (addType id' typ Ref)
                 return id'
 
             x -> error (show x)
@@ -379,11 +331,11 @@ makeRef (S.AExpr exprType expression) = withPos expression $ case expression of
                 return i
 
         argId <- makeRef expr
-        (typ, refType) <- lookType (ArgID argId)
+        (typ, refType) <- liftFuncIr $ getType (ArgID argId)
         case refType of
             Ref -> do
-                id <- appendStmt (MakeFieldFromRef argId i)
-                addType id exprType Ref
+                id <- liftFuncIr $ appendStmt (MakeFieldFromRef argId i)
+                liftFuncIr (addType id exprType Ref)
                 return id
                 
             x -> error (show x)

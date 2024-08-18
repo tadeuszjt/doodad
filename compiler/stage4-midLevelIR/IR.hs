@@ -2,11 +2,13 @@ module IR where
 
 import qualified Data.Map as Map
 import Control.Monad
+import Control.Monad.State
 import Data.List
+import Data.Maybe
 
 import Type
-import Symbol
 import qualified AST as S
+import Monad
 
 
 type ID = Int
@@ -92,22 +94,77 @@ data RettyIR
 instance Show RettyIR where
     show (RettyIR refType typ) = "(" ++ show refType ++ " " ++ show typ ++ ")"
 
-data FuncIR = FuncIR
-    { irHeader    :: S.FuncHeader
-    , irStatement :: S.Stmt
 
+data FuncIrHeader = FuncIrHeader
+    { irAstHeader :: S.FuncHeader
     , irRetty     :: RettyIR
     , irArgs      :: [ParamIR]
-    , irStmts     :: Map.Map ID Stmt
-    , irTypes     :: Map.Map ID (Type, RefType)
-    , irSymbols   :: Map.Map Symbol ID
     }
+
+
+data FuncIR = FuncIR
+    { irStmts     :: Map.Map ID Stmt
+    , irTypes     :: Map.Map ID (Type, RefType)
+    , irIdSupply  :: ID
+    , irCurrentId :: ID
+    }
+
+
+initFuncIr = FuncIR
+    { irStmts     = Map.singleton 0 (Block [])
+    , irTypes     = Map.empty
+    , irIdSupply  = 1
+    , irCurrentId = 0
+    }
+
+
+
+generateId :: DoM FuncIR ID
+generateId = do
+    id <- gets irIdSupply
+    modify $ \s -> s { irIdSupply = (irIdSupply s) + 1 }
+    return id
+
+
+addType :: ID -> Type -> RefType -> DoM FuncIR ()
+addType id typ refType = do
+    resm <- gets (Map.lookup id . irTypes)
+    unless (isNothing resm) (fail $ "id already typed: " ++ show id)
+    modify $ \s -> s { irTypes = Map.insert id (typ, refType) (irTypes s) }
+
+
+
+
+getType :: Arg -> DoM FuncIR (Type, RefType)
+getType arg = case arg of
+    ArgConst typ _ -> return (typ, Const)
+    ArgID id -> do
+        resm <- gets (Map.lookup id . irTypes)
+        unless (isJust resm) (fail $ "id isn't typed: " ++ show id)
+        return (fromJust resm)
+    
+
+appendStmt :: Stmt -> DoM FuncIR ID
+appendStmt stmt = do
+    id <- generateId
+
+    curId <- (gets irCurrentId)
+    curStmt <- gets $ (Map.! curId) . irStmts
+    curStmt' <- case curStmt of
+        Block xs -> return (Block $ xs ++ [id])
+        Loop ids -> return (Loop $ ids ++ [id])
+        If arg ids    -> return (If arg $ ids ++ [id])
+        Else ids      -> return (Else $ ids ++ [id])
+        x -> error (show x)
+
+    modify $ \s -> s { irStmts = Map.insert curId curStmt' (irStmts s) }
+    modify $ \s -> s { irStmts = Map.insert id stmt (irStmts s) }
+    return id
 
 
 prettyIR :: String -> FuncIR -> IO ()
 prettyIR pre funcIr = do
-
-    putStrLn $ pre ++ "fn (" ++ intercalate ", " (map show $ irArgs funcIr) ++ ") " ++ show (irRetty funcIr)
+    --putStrLn $ pre ++ "fn (" ++ intercalate ", " (map show $ irArgs funcIr) ++ ") " ++ show (irRetty funcIr)
 
     let Block ids = irStmts funcIr Map.! 0
     forM_ ids $ \id -> do

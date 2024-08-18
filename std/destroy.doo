@@ -10,7 +10,6 @@ import std/store
 
 feature{T} destroy(T)
 
-
 acquires destroy{ U8 } (n&); return
 acquires destroy{ I64 } (n&); return
 acquires destroy{ F32 } (n&); return

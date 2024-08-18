@@ -97,4 +97,5 @@ executable doodad
         AstBuilder,
         FindFunc,
         MakeFuncIR,
-        IR
+        IR,
+        AddFuncDestroy
