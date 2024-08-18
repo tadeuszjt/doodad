@@ -7,46 +7,6 @@ import qualified CAst as C
 import Type
 import CGenerate
 import CBuilder
-import Error
-
-
-builtinLen :: Value -> Generate Value
-builtinLen val = case val of
-    Ref typ expr -> do
-        base <- baseTypeOf typ
-        return $ case unfoldType base of
-            (Table, [_]) -> Value I64 (C.PMember expr "len")
-            (Slice, [_]) -> Value I64 (C.PMember expr "len")
-            (Array, [Size n, _]) -> Value I64 (C.Int $ fromIntegral n)
-
-            x -> error (show x)
-
-    Value typ expr -> do
-        base <- baseTypeOf typ
-        case unfoldType base of
-            x -> error (show x)
-
-
-builtinStore :: Value -> Value -> Generate ()
-builtinStore dst@(Ref _ _) src = do
-    check (typeof dst == typeof src) "type mismatch"
-    base <- baseTypeOf dst
-    isCopyable <- isCopyable (typeof dst)
-
-    case src of
-        Value _ _ -> case base of
-            x | isSimple x -> void $ appendElem $ C.Set (C.Deref $ refExpr dst) (valExpr src)
-            x -> error (show x)
-
-        x -> error (show x)
-
-
-builtinSumEnum :: Value -> Generate Value
-builtinSumEnum val = do
-    (Sum, _) <- unfoldType <$> baseTypeOf val
-    case val of
-        Value _ expr -> return $ Value I64 $ C.Member expr "en"
-        Ref _ expr   -> return $ Value I64 $ C.PMember expr "en"
 
 
 builtinSumReset :: Value -> Value -> Generate ()
@@ -56,89 +16,6 @@ builtinSumReset sum@(Ref _ _) idx@(Value _ _) = do
         C.Call "memset" [ refExpr sum , C.Int 0, C.Sizeof (C.Deref $ refExpr sum) ]
     appendElem $ C.Set (C.PMember (refExpr sum) "en") (valExpr idx)
     return ()
-
-
-builtinAdd :: Value -> Value -> Generate Value
-builtinAdd val1@(Value _ _) val2@(Value _ _) = do
-    check (typeof val1 == typeof val2) "type mismatch"
-    base <- baseTypeOf val1
-    case base of
-        x | isInt x || isFloat x || x == Char -> return $ Value (typeof val1) $
-            C.Infix C.Plus (valExpr val1) (valExpr val2)
-
-        x -> error (show x)
-
-builtinSubtract :: Value -> Value -> Generate Value
-builtinSubtract val1@(Value _ _) val2@(Value _ _) = do
-    check (typeof val1 == typeof val2) "type mismatch"
-    base <- baseTypeOf val1
-    case base of
-        x | isInt x || isFloat x || x == Char -> return $ Value (typeof val1) $
-            C.Infix C.Minus (valExpr val1) (valExpr val2)
-        x -> error (show x)
-
-builtinMultiply :: Value -> Value -> Generate Value
-builtinMultiply val1@(Value _ _) val2@(Value _ _) = do
-    check (typeof val1 == typeof val2) "type mismatch"
-    base <- baseTypeOf val1
-    case base of
-        x | isInt x || isFloat x || x == Char -> return $ Value (typeof val1) $
-            C.Infix C.Times (valExpr val1) (valExpr val2)
-        x -> error (show x)
-
-
-builtinDivide :: Value -> Value -> Generate Value
-builtinDivide val1@(Value _ _) val2@(Value _ _) = do
-    check (typeof val1 == typeof val2) "type mismatch"
-    base <- baseTypeOf val1
-    case base of
-        x | isInt x || isFloat x || x == Char -> return $ Value (typeof val1) $
-            C.Infix C.Divide (valExpr val1) (valExpr val2)
-        x -> error (show x)
-
-
-builtinModulo :: Value -> Value -> Generate Value
-builtinModulo val1@(Value _ _) val2@(Value _ _) = do
-    check (typeof val1 == typeof val2) "type mismatch"
-    base <- baseTypeOf val1
-    case base of
-        x | isInt x || isFloat x || x == Char -> return $ Value (typeof val1) $
-            C.Infix C.Modulo (valExpr val1) (valExpr val2)
-        x -> error (show x)
-
-
-builtinEqual :: Value -> Value -> Generate Value
-builtinEqual val1@(Value _ _) val2@(Value _ _) = do
-    check (typeof val1 == typeof val2) "type mismatch"
-    base <- baseTypeOf val1
-    case base of
-        x | isInt x || isFloat x || x == Char || x == Bool -> return $ Value Bool $
-            C.Infix C.EqEq (valExpr val1) (valExpr val2)
-
-
-builtinLessThan :: Value -> Value -> Generate Value
-builtinLessThan val1@(Value _ _) val2@(Value _ _) = do
-    check (typeof val1 == typeof val2) "type mismatch"
-    base <- baseTypeOf val1
-    case base of
-        x | isInt x || isFloat x || x == Char || x == Bool -> return $ Value Bool $
-            C.Infix C.LT (valExpr val1) (valExpr val2)
-
-
-builtinGreaterThan :: Value -> Value -> Generate Value
-builtinGreaterThan val1@(Value _ _) val2@(Value _ _) = do
-    check (typeof val1 == typeof val2) "type mismatch"
-    base <- baseTypeOf val1
-    case base of
-        x | isInt x || isFloat x || x == Char || x == Bool -> return $ Value Bool $
-            C.Infix C.GT (valExpr val1) (valExpr val2)
-
-
-builtinNot :: Value -> Generate Value
-builtinNot val@(Value _ _) = do
-    base <- baseTypeOf val
-    case base of
-        Bool -> return $ Value (typeof val) (C.Not $ valExpr val)
 
 
 builtinTableAppend :: Type -> C.Expression -> Generate ()

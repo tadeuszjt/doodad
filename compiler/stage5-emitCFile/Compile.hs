@@ -63,7 +63,10 @@ generate = withErrorPrefix "generate: " $ do
                         S.Param _ _ _ -> return val
                         x -> error (show x)
 
-                    call (showSymGlobal $ funcSymbol header) args
+                    void $ appendElem $ C.ExprStmt $ C.Call
+                        (showSymGlobal $ funcSymbol header)
+                        (map valExpr args)
+
                     void $ appendElem $ C.Return $ C.Int 0
                 withCurID globalID (append id)
 
@@ -89,7 +92,7 @@ generateFunc funcType = do
         funcAst <- fmap fst $ runDoMExcept ast (makeInstance funcType)
         func <- fmap fst $ runDoMExcept (IR.initFuncIRState ast) (IR.makeFuncIR funcAst)
 
-        liftIO $ IR.prettyIR "" func
+        --liftIO $ IR.prettyIR "" func
 
         symbol <- CGenerate.genSymbol (funcSymbol $ IR.irHeader func)
         let header' = (IR.irHeader func) { funcSymbol = symbol }
@@ -98,7 +101,6 @@ generateFunc funcType = do
         modify $ \s -> s { astResolved = (astResolved s)
             { funcInstance = Map.insert funcType header' (funcInstance $ astResolved s) } }
 
-        pushSymTab
         --args <- mapM cParamOf (S.funcArgs header')
         args <- forM (IR.irArgs func) $ \arg -> case arg of
             IR.ParamIR (IR.ArgID id) IR.Value typ -> do
@@ -111,41 +113,11 @@ generateFunc funcType = do
 
             x -> error (show x)
 
-
         rettyType <- cRettyType (S.funcRetty header')
-
         funcId <- newFunction rettyType (showSymGlobal $ symbol) ([] ++ args) []
-        withCurID funcId $ do
-            forM_ (IR.irArgs func) $ \arg -> do
-                --error (show arg)
-                return ()
+        withCurID funcId (generateStmt func 0)
 
-            generateStmt func 0
-
-
---            forM_ (S.funcArgs header') $ \arg -> do
---                let name = showSymLocal (paramSymbol arg)
---                case arg of
---                    S.Param _ _ _ ->    define name $ Value (typeof arg) (C.Ident name)
---                    S.RefParam _ _ _ -> define name $ Ref (typeof arg) (C.Ident name)
---                    x -> error (show x)
---
---
---            isRefRetty <- case S.funcRetty header' of
---                RefRetty _ -> return True
---                Retty _    -> return False
---
---            oldCurFnIsRef <- gets curFnIsRef
---            modify $ \s -> s { curFnIsRef = isRefRetty }
---            generateStmt (IR.irStatement func)
---            modify $ \s -> s { curFnIsRef = oldCurFnIsRef }
---
---            when (S.funcRetty header' /= S.Retty Void) $ -- check to ensure function has return
---                call "assert" [false]
-
-        popSymTab
         withCurID globalID (append funcId)
-
         return header'
 
 
@@ -188,9 +160,7 @@ generateStmt funcIr id = case (IR.irStmts funcIr) Map.! id of
 
     IR.InitVar marg -> do
         let (typ, IR.Value) = (IR.irTypes funcIr) Map.! id
-
         cType <- cTypeOf typ
-
         cexpr <- case marg of
             Nothing -> return (C.Initialiser [C.Int 0])
             Just arg -> generateArg arg
@@ -457,8 +427,5 @@ generateStmt funcIr id = case (IR.irStmts funcIr) Map.! id of
                     x -> error (show x)
             
             x -> error (show x)
-
-
-        
 
     x -> error (show x)

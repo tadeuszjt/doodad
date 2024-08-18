@@ -5,7 +5,6 @@ module CGenerate where
 import Control.Monad.Except
 import Control.Monad.Identity
 import qualified Data.Map as Map
-import Data.Maybe
 
 import Symbol
 import ASTResolved hiding (moduleName)
@@ -16,7 +15,6 @@ import Control.Monad.State
 import Type
 import AST as S
 import Error
-import qualified SymTab
 
 data Value
     = Value { valType :: Type.Type, valExpr :: C.Expression }
@@ -34,7 +32,6 @@ data GenerateState
         , structs      :: Map.Map C.Type String
         , supply      :: Map.Map String Int
         , curFnIsRef  :: Bool
-        , symTab      :: SymTab.SymTab String Value
         , astResolved :: ASTResolved
         }
 
@@ -43,7 +40,6 @@ initGenerateState ast
         { moduleName = ASTResolved.moduleName ast
         , structs = Map.empty
         , supply = Map.empty
-        , symTab = SymTab.initSymTab
         , curFnIsRef = False
         , astResolved = ast
         }
@@ -79,85 +75,12 @@ runGenerate generateState builderState generate =
     liftIO $ runExceptT $ runStateT (runStateT (unGenerate generate) generateState) builderState
 
 
-pushSymTab :: Generate ()
-pushSymTab = do
-    --liftIO $ putStrLn "pushSymTab"
-    modify $ \s -> s { symTab = SymTab.push (symTab s) }
-
-
-popSymTab :: Generate ()
-popSymTab = do
-    --liftIO $ putStrLn "popSymTab"
-    modify $ \s -> s { symTab = SymTab.pop (symTab s) }
-
-define :: String -> Value -> Generate ()
-define str obj = do
-    --liftIO $ putStrLn ("defining: " ++ show str)
-    resm <- SymTab.lookupHead str <$> gets symTab
-    check (isNothing resm) $ str ++ " already defined"
-    modify $ \s -> s { symTab = SymTab.insert str obj (symTab s) }
-
-
-look :: String -> Generate Value
-look str = do
-    resm <- SymTab.lookupHead str <$> gets symTab
-    when (isNothing resm) $ fail $ str ++ " isn't defined"
-    return (fromJust resm)
-
-
 fresh :: String -> Generate String
 fresh suggestion = do
     nm <- Map.lookup suggestion <$> gets supply
     let n = maybe 0 id nm
     modify $ \s -> s { supply = Map.insert suggestion (n + 1) (supply s) }
     return $ suggestion ++ show n
-
-
-true :: Value
-true = Value Type.Bool (C.Bool True)
-
-
-false :: Value
-false = Value Type.Bool (C.Bool False)
-
-
-i64 :: Int -> Value
-i64 n = Value I64 (C.Int $ fromIntegral n)
-
-not_ :: Value -> Value
-not_ (Value typ expr) = Value typ (C.Not expr)
-
-
-greaterEqual :: Value -> Value -> Generate Value
-greaterEqual a@(Value _ _) b@(Value _ _) = do
-    unless (typeof a == typeof b) (error "type mismatch")
-    base <- baseTypeOf a
-    case base of
-        I64 -> return $ Value Type.Bool $ C.Infix C.GTEq (valExpr a) (valExpr b)
-        x -> error (show x)
-
-
-initialiser :: Type.Type -> Generate C.Expression
-initialiser typ = do
-    b <- hasNonZero typ
-    case b of
-        True -> return $ C.Initialiser [C.Int 0]
-        False -> return $ C.Initialiser []
-    where
-        hasNonZero :: Type.Type -> Generate Bool
-        hasNonZero typ = do
-            base <- baseTypeOf typ
-            case unfoldType base of
-                (x, []) | isSimple x -> return True
-
-                (Tuple, []) -> return False
-                (Tuple, ts) -> any id <$> mapM hasNonZero ts
-
-                (Type.Array, _) -> return True
-                (Type.Sum, _) -> return True
-                (Type.Table, _) -> return True
-
-                x -> error (show x)
 
 
 assign :: String -> Value -> Generate Value
@@ -181,24 +104,6 @@ if_ cnd f = do
     withCurID id f
 
 
-call :: String -> [Value] -> Generate () 
-call name args = do
-    void $ appendElem $ C.ExprStmt $ C.Call name (map valExpr args)
-
-
-for :: Value -> (Value -> Generate a) -> Generate a
-for len f = do
-    base@(I64) <- baseTypeOf len
-    idx <- assign "idx" (i64 0)
-    id <- appendElem $ C.For
-        Nothing
-        (Just $ C.Infix C.LT (valExpr idx) (valExpr len))
-        (Just $ C.Increment $ valExpr idx)
-        []
-    withCurID id (f idx)
-
-
-
 makeRef :: Value -> Generate Value
 makeRef val = do
     base <- baseTypeOf val
@@ -213,8 +118,6 @@ makeRef val = do
             (_, _) -> assign "ref" $ Ref (typeof val) $ C.Address (valExpr val)
 
         Ref _ _ -> return val
-
-
 
 
 deref :: Value -> Generate Value
@@ -243,20 +146,6 @@ deref (Ref typ expr) = do
 
         _ -> return $ Value typ (C.Deref expr)
     
-
-
-
-isCopyable :: Type.Type -> Generate Bool
-isCopyable typ = do
-    base <- baseTypeOf typ
-    case base of
-        x | isSimple x                        -> return True
-        x -> error (show x)
---        TypeApply (Sym ["Tuple"]) ts          -> all id <$> mapM isCopyable ts
---        TypeApply (Sym ["Sum"])   ts          -> all id <$> mapM isCopyable ts
---        TypeApply (Sym ["Array"]) [t, Size n] -> isCopyable t
-        x -> error (show x)
-
 
 cParamOf :: S.Param -> Generate C.Param
 cParamOf param = do
@@ -316,11 +205,6 @@ cTypeOf a = case typeof a of
 
         x -> error (show x)
 
-
---    Apply Tuple _ -> getTypedef "Tuple" =<< cTypeNoDef (typeof a)
---    Apply Type.Array t -> getTypedef "Array" =<< cTypeNoDef (typeof a)
-
-
     x -> error (show x)
 
     where
@@ -379,13 +263,3 @@ getTypedef suggestion typ = do
             return $ Ctypedef name
 
 
-convert :: Type.Type -> Value -> Generate Value
-convert typ val = do
-    baseVal <- baseTypeOf val
-    baseTyp <- baseTypeOf typ
-
-    unless (baseVal == baseTyp) (error "types do not have same base")
-
-    case val of
-        Value _ _ -> return (val { valType = typ })
-        Ref _ _   -> return (val { refType = typ })
