@@ -38,7 +38,7 @@ applyStmt subs stmt = case stmt of
     ExprStmt expr -> ExprStmt (applyEx expr)
     EmbedC pos m s -> EmbedC pos m s
     Data pos symbol typ mexpr -> Data pos symbol (applyTy typ) (fmap applyEx mexpr)
-    Let pos pattern Nothing Nothing -> Let pos (applyPat pattern) Nothing Nothing
+    Let pos pattern mexpr Nothing -> Let pos (applyPat pattern) (fmap applyEx mexpr) Nothing
     While pos expr blk -> While pos (applyEx expr) (applySt blk)
     Assign pos symbol expr -> Assign pos symbol (applyEx expr)
     Aquires pos generics typ args isRef stmt -> Aquires pos generics typ args isRef (applySt stmt)

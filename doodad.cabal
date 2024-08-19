@@ -98,4 +98,5 @@ executable doodad
         FindFunc,
         MakeFuncIR,
         IR,
-        FuncIrDestroy
+        FuncIrDestroy,
+        FuncIrUnused

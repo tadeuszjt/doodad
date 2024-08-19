@@ -116,7 +116,11 @@ collectStmt statement = collectPos statement $ case statement of
 
     ExprStmt expr -> collectExpr expr
 
-    Let _ pattern Nothing Nothing  -> do
+    Let _ pattern mexpr Nothing  -> do
+        when (isJust mexpr) $ do
+            collect "let type must match expression type" $
+                ConsEq (typeof pattern) (typeof $ fromJust mexpr)
+            collectExpr (fromJust mexpr)
         collectPattern pattern
         
     If _ expr blk melse -> do

@@ -30,6 +30,7 @@ acquires{T} grow{ T.Table } (t&)
 
 acquires{T} pop{ Table{T}, T } (t&)
     let e = t.at(t.len - 1)
+    t.at(t.len - 1).destroy
     ${ $t->len--; }
     return e
 

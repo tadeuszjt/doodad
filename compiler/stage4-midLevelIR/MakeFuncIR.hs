@@ -126,6 +126,43 @@ makeStmt statement = withPos statement $ case statement of
         uses <- mapM look (map snd strMap)
         void $ liftFuncIr $ appendStmt (EmbedC uses str')
 
+    S.Let _ (S.PatAnnotated (S.PatIdent _ symbol) typ) (Just expr) Nothing -> do
+        val <- makeVal expr
+        id <- case val of
+            ArgConst _ _ -> liftFuncIr $ appendStmt (InitVar $ Just val)
+            ArgID argId -> do
+                resm <- liftFuncIr $ gets (Map.lookup argId . irStmts)
+                case resm of
+                    Just (Call _ _) -> liftFuncIr $ appendStmt (InitVar $ Just val)
+                    Just (MakeFieldFromVal _ _) -> do
+                        id <- liftFuncIr $ appendStmt (InitVar Nothing)
+                        idRef <- liftFuncIr $ appendStmt (MakeReferenceFromValue id)
+                        liftFuncIr $ addType idRef typ Ref
+                        store (ArgID idRef) (ArgID argId)
+                        return id
+
+                    Just (MakeValueFromReference _) -> do
+                        id <- liftFuncIr $ appendStmt (InitVar Nothing)
+                        idRef <- liftFuncIr $ appendStmt (MakeReferenceFromValue id)
+                        liftFuncIr $ addType idRef typ Ref
+                        store (ArgID idRef) (ArgID argId)
+                        return id
+
+                    Nothing -> do -- probably an arg TODO
+                        id <- liftFuncIr $ appendStmt (InitVar Nothing)
+                        idRef <- liftFuncIr $ appendStmt (MakeReferenceFromValue id)
+                        liftFuncIr $ addType idRef typ Ref
+                        store (ArgID idRef) (ArgID argId)
+                        return id
+                        
+
+                    x -> error (show x)
+
+        liftFuncIr $ addType id typ Value
+        define symbol id
+
+        
+
     S.Let _ (S.PatAnnotated (S.PatIdent _ symbol) typ) Nothing Nothing -> do
         id <- liftFuncIr $ appendStmt (InitVar Nothing)
         liftFuncIr $ addType id typ Value
@@ -147,7 +184,28 @@ makeStmt statement = withPos statement $ case statement of
     S.Return _ (Just expr) -> do
         Just retty <- gets astRetty
         case retty of
-            S.Retty typ -> void $ (liftFuncIr . appendStmt . Return) =<< makeVal expr
+            S.Retty typ -> do
+                -- if this is a stack value, can return
+                -- anything else needs to be created with store
+                val <- makeVal expr
+                case val of
+                    ArgConst _ _ -> void $ liftFuncIr $ appendStmt (Return val)
+                    ArgID argId -> do
+                        mstmt <- liftFuncIr $ gets $ Map.lookup argId . irStmts
+                        case mstmt of
+                            Just (InitVar _) -> void $ liftFuncIr $ appendStmt (Return val)
+                            Just (Call _ _ ) -> void $ liftFuncIr $ appendStmt (Return val)
+                            _                -> do
+                                id1 <- liftFuncIr $ appendStmt (InitVar Nothing)
+                                liftFuncIr $ addType id1 typ Value
+                                id2 <- liftFuncIr $ appendStmt (MakeReferenceFromValue id1)
+                                liftFuncIr $ addType id2 typ Ref
+                                store (ArgID id2) (ArgID argId)
+                                void $ liftFuncIr $ appendStmt (Return $ ArgID id1)
+
+
+                    x -> error (show x)
+                
             S.RefRetty typ -> void $ (liftFuncIr . appendStmt . Return . ArgID) =<< makeRef expr
             x -> error (show x)
 
@@ -188,7 +246,7 @@ makeVal (S.AExpr exprType expression) = withPos expression $ case expression of
     S.Ident _ symbol -> do
         id <- look symbol
         (typ, refType) <- liftFuncIr (getType (ArgID id))
-        unless (typ == exprType) (error "type mismatch")
+        unless (typ == exprType) (error $ "type mismatch: " ++ show (typ, exprType))
 
         case refType of
             Value -> return (ArgID id)
@@ -338,3 +396,29 @@ makeRef (S.AExpr exprType expression) = withPos expression $ case expression of
             x -> error (show x)
 
     x -> error (show x)
+
+
+store :: Arg -> Arg -> DoM FuncIRState ()
+store dst src = do
+    (t1, Ref) <- liftFuncIr $ getType dst
+    (t2, Value) <- liftFuncIr $ getType src
+    unless (t1 == t2) (error "type mismatch")
+
+    -- get store feature symbol
+    ast <- gets astResolved
+    let xs = Map.keys $ Map.filterWithKey
+            (\k v -> symbolsCouldMatch k $ Sym ["store", "store"])
+            (typeDefsAll ast)
+    storeSymbol <- case xs of
+        [] -> fail "store::store undefined"
+        [x] -> return x
+
+
+    acq <- fmap fst $ runDoMExcept ast $ makeAcquireInstance (foldType [TypeDef storeSymbol, t1])
+    unless (isJust acq) (fail $ "no store acquire for: " ++ show t1)
+
+    let acqSymbol = S.funcSymbol $ S.funcHeader (fromJust acq)
+    case S.funcArgs (S.funcHeader $ fromJust acq) of
+        [S.RefParam _ _ _, S.Param _ _ _] -> do
+            id <- liftFuncIr $ appendStmt $ Call (Apply (TypeDef storeSymbol) t1) [dst, src]
+            liftFuncIr $ addType id Void Const

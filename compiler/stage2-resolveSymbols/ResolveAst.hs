@@ -313,12 +313,13 @@ resolveStmt statement = withPos statement $ case statement of
         popSymbolTable
         return (Block stmts')
 
-    Let pos pat Nothing mblk -> do
+    Let pos pat mexpr mblk -> do
         when (isJust mblk) pushSymbolTable
         pat' <- resolvePattern pat
+        mexpr' <- traverse resolveExpr mexpr
         mblk' <- traverse resolveStmt mblk
         when (isJust mblk) popSymbolTable
-        return (Let pos pat' Nothing mblk')
+        return (Let pos pat' mexpr' mblk')
 
     If pos expr stmt melse -> do
         pushSymbolTable

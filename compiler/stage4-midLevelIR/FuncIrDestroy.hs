@@ -19,19 +19,15 @@ import qualified AST as S
 
 data FuncIrDestroyState = FuncIrDestroyState
     { funcIr       :: FuncIR
-    , idTable      :: Map.Map ID ID
     , astResolved  :: ASTResolved
     , destroyStack :: [Set.Set ID] -- a stack of 'Values' that have been created in this scope
-    , destroySymbol :: Maybe Symbol
     }
 
 
 initFuncIrDestroyState ast = FuncIrDestroyState
     { funcIr      = initFuncIr
-    , idTable     = Map.empty
     , destroyStack = []
     , astResolved = ast
-    , destroySymbol = Nothing
     }
 
 
@@ -60,16 +56,6 @@ addDestroy id = do
 
 addFuncDestroy :: FuncIR -> DoM FuncIrDestroyState ()
 addFuncDestroy func = do
-    -- get symbol for destroy::destroy(x)
-    ast <- gets astResolved
-    let xs = Map.keys $ Map.filterWithKey
-            (\k v -> symbolsCouldMatch k $ Sym ["builtin", "destroy"])
-            (typeDefsAll ast)
-    case xs of
-        [] -> return ()
-        [x] -> modify $ \s -> s { destroySymbol = Just x }
-
-
     -- copy types from old map
     liftFuncIr $ modify $ \s -> s { irTypes = irTypes func }
 
@@ -109,7 +95,7 @@ processStmt funcIr id = let stmt = irStmts funcIr Map.! id in case stmt of
 
             -- destroy
             set <- Set.toList <$> gets (head . destroyStack)
-            --forM_ set $ \idToDestroy -> destroy idToDestroy
+            forM_ set $ \idToDestroy -> destroy idToDestroy
             popStack
 
     If cnd ids -> do
@@ -120,7 +106,7 @@ processStmt funcIr id = let stmt = irStmts funcIr Map.! id in case stmt of
 
             -- destroy
             set <- Set.toList <$> gets (head . destroyStack)
-            --forM_ set $ \idToDestroy -> destroy idToDestroy
+            forM_ set $ \idToDestroy -> destroy idToDestroy
             popStack
 
     Else ids -> do
@@ -131,27 +117,32 @@ processStmt funcIr id = let stmt = irStmts funcIr Map.! id in case stmt of
 
             -- destroy
             set <- Set.toList <$> gets (head . destroyStack)
-            --forM_ set $ \idToDestroy -> destroy idToDestroy
+            forM_ set $ \idToDestroy -> destroy idToDestroy
             popStack
 
     Break -> do
         -- destroy
         set <- Set.toList <$> gets (head . destroyStack)
-        --forM_ set $ \idToDestroy -> destroy idToDestroy
+        forM_ set $ \idToDestroy -> destroy idToDestroy
         void $ liftFuncIr $ appendStmtWithId id stmt
 
 
     EmbedC _ _ ->
         void $ liftFuncIr (appendStmtWithId id stmt)
 
-    Return _ -> do
-        allSet <- gets $ concat . (map Set.toList) . destroyStack
-        --forM_ allSet $ \idToDestroy -> destroy idToDestroy
+    Return arg -> do
+        allSet <- gets $ Set.unions . destroyStack
+        allSet' <- case arg of -- don't destroy if returning stack var
+            (ArgID argId) -> return (Set.delete argId allSet)
+            (ArgConst _ _ ) -> return allSet
+            x -> error (show x)
+
+        mapM_ destroy allSet'
         void $ liftFuncIr (appendStmtWithId id stmt)
 
     ReturnVoid -> do
         allSet <- gets $ concat . (map Set.toList) . destroyStack
-        --forM_ allSet $ \idToDestroy -> destroy idToDestroy
+        forM_ allSet $ \idToDestroy -> destroy idToDestroy
         void $ liftFuncIr (appendStmtWithId id stmt)
 
 
@@ -161,31 +152,24 @@ processStmt funcIr id = let stmt = irStmts funcIr Map.! id in case stmt of
         void $ liftFuncIr (appendStmtWithId id stmt)
 
     InitVar _ -> do -- TODO this is not destroying because Preprocess using Assign to beat the system
-        (typ, refType) <- fmap fst $ runDoMExcept funcIr $ getType (ArgID id)
         void $ liftFuncIr (appendStmtWithId id stmt)
 
     MakeReferenceFromValue _ -> do
-        (typ, refType) <- fmap fst $ runDoMExcept funcIr $ getType (ArgID id)
         void $ liftFuncIr (appendStmtWithId id stmt)
 
     MakeValueFromReference _ -> do
-        (typ, refType) <- fmap fst $ runDoMExcept funcIr $ getType (ArgID id)
         void $ liftFuncIr (appendStmtWithId id stmt)
 
     MakeFieldFromVal _ _ -> do
-        (typ, refType) <- fmap fst $ runDoMExcept funcIr $ getType (ArgID id)
         void $ liftFuncIr (appendStmtWithId id stmt)
 
     MakeFieldFromRef _ _ -> do
-        (typ, refType) <- fmap fst $ runDoMExcept funcIr $ getType (ArgID id)
         void $ liftFuncIr (appendStmtWithId id stmt)
 
     MakeString _ -> do
-        (typ, refType) <- fmap fst $ runDoMExcept funcIr $ getType (ArgID id)
         void $ liftFuncIr (appendStmtWithId id stmt)
 
     Call _ _ -> do
-        (typ, refType) <- fmap fst $ runDoMExcept funcIr $ getType (ArgID id)
         void $ liftFuncIr (appendStmtWithId id stmt)
         
     x -> error (show x)
@@ -195,13 +179,16 @@ destroy :: ID -> DoM FuncIrDestroyState ()
 destroy id = do
     (typ, refType) <- liftFuncIr $ getType (ArgID id)
 
-    destroySymbolm <- gets destroySymbol
-    destroySymbol <- case destroySymbolm of
-        Nothing -> fail "no destroy symbol" 
-        Just  x -> return x
-
-        
+    -- get destroy symbol
     ast <- gets astResolved
+    let xs = Map.keys $ Map.filterWithKey
+            (\k v -> symbolsCouldMatch k $ Sym ["builtin", "destroy"])
+            (typeDefsAll ast)
+    destroySymbol <- case xs of
+        [] -> fail "builtin::destroy undefined"
+        [x] -> return x
+
+
     acq <- fmap fst $ runDoMExcept ast $ makeAcquireInstance (foldType [TypeDef destroySymbol, typ])
     unless (isJust acq) (fail $ "no destroy for: " ++ show typ)
 
@@ -214,61 +201,3 @@ destroy id = do
             id2 <- liftFuncIr $ appendStmt $ Call (Apply (TypeDef destroySymbol) typ) [ArgID id1]
             liftFuncIr $ addType id2 Void Const
 
-
---addFuncDestroy :: ASTResolved -> DoM FuncIrDestroyState ()
---addFuncDestroy ast = do
---    -- need to find the symbol for destroy::destroy feature
---
---    let xs = Map.keys $ Map.filterWithKey
---            (\k v -> symbolsCouldMatch k $ Sym ["builtin", "destroy"])
---            (typeDefsAll ast)
---    mdestroySymbol <- case xs of
---        [] -> return Nothing
---        [x] -> return (Just x)
---    unless (isJust mdestroySymbol) (fail "no destroy symbol")
---    let destroySymbol = fromJust mdestroySymbol
---
---    statements <- gets (irStmts . funcIr)
---    statements' <- forM statements $ \statement -> case statement of
---        Block ids -> do
---            destroys <- getDestroys destroySymbol =<< getInits ids
---            return $ Block (ids ++ destroys)
---
---        EmbedC _ _ -> return statement
---        InitVar _ -> return statement
---        Return _ -> return statement
---        MakeReferenceFromValue _ -> return statement
---        Call _ _ -> return statement
---
---        x -> error (show x)
---
---    return ()
---    where
---        getDestroys :: Symbol -> [ID] -> DoM FuncIrDestroyState [ID]
---        getDestroys destroySymbol initIds = do
---            fmap concat $ forM initIds $ \id -> do
---                typ <- getType id
---                acq <- fmap fst $ runDoMExcept ast $
---                    makeAcquireInstance (foldType [TypeDef destroySymbol, typ])
---                unless (isJust acq) (fail $ "no destroy for: " ++ show typ)
---
---                let acqSymbol = S.funcSymbol $ S.funcHeader (fromJust acq)
---                case S.funcArgs (S.funcHeader $ fromJust acq) of
---                    [S.RefParam _ argSymbol argType] -> do
---                        unless (argType == typ) (error $ "argType was: " ++ show argType ++ " instead of: " ++ show typ)
---                        id1 <- createStmt Ref typ (MakeReferenceFromValue id)
---                        id2 <- createStmt Const Void (Call (Apply (TypeDef acqSymbol) typ) [ArgID id1])
---                        return [id1, id2]
---
---
---
---getInits :: [ID] -> DoM FuncIrDestroyState [ID]
---getInits []       = return []
---getInits (id:ids) = do
---    funcIr <- gets funcIr
---    case (irStmts funcIr) Map.! id of
---        InitVar argId -> (id:) <$> getInits ids
---        _             -> getInits ids
---    
---
---

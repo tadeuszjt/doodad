@@ -20,6 +20,7 @@ import Monad
 import qualified MakeFuncIR as IR
 import qualified IR
 import qualified FuncIrDestroy as IR
+import qualified FuncIrUnused as IrUnused
 
 
 generateAst :: MonadIO m => ASTResolved -> m (Either Error (((), GenerateState), BuilderState))
@@ -92,7 +93,8 @@ generateFunc funcType = do
         ast <- gets astResolved
         funcAst <- fmap fst $ runDoMExcept ast (makeInstance funcType)
         (funcIrHeader, funcIr') <- fmap fst $ runDoMExcept (IR.initFuncIRState ast) (IR.makeFuncIR funcAst)
-        funcIr <- fmap (IR.funcIr . snd) $ runDoMExcept (IR.initFuncIrDestroyState ast) (IR.addFuncDestroy funcIr')
+        funcIr'' <- fmap (IR.funcIr . snd) $ runDoMExcept (IR.initFuncIrDestroyState ast) (IR.addFuncDestroy funcIr')
+        funcIr <- fmap (IrUnused.funcIr . snd) $ runDoMExcept (IrUnused.initFuncIrUnusedState ast) (IrUnused.funcIrUnused funcIr'')
 
         liftIO $ putStrLn ""
         liftIO $ putStrLn $ show funcIrHeader

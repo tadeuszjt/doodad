@@ -276,6 +276,10 @@ buildStmt statement = withPos statement $ case statement of
         appendStmt $ FuncDef generics (AST.Func header (Stmt blockId))
         withCurId blockId (mapM_ buildStmt stmts)
 
+    Let pos (PatIdent _ _) mexpr Nothing -> case mexpr of
+        Nothing -> void $ appendStmt statement
+        Just expr -> void $ appendStmt statement
+
     Let pos pat mexpr Nothing -> do
         case mexpr of
             Just expr -> do
@@ -496,7 +500,7 @@ preprocessMapper element = case element of
         return $ ElemStmt $ Block [Let pos pattern mexpr Nothing, blk]
 
     ElemExpr (Subscript pos expr1 expr2) ->
-        return $ ElemExpr $ Call pos (TypeDef $ Sym ["at"]) [Reference pos expr1, expr2]
+        return $ ElemExpr $ Call pos (TypeDef $ Sym ["container", "at"]) [Reference pos expr1, expr2]
 
     _ -> return element
 

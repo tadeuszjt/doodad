@@ -83,7 +83,7 @@ fn main(io Io, rand Rand, w Window)
         w.setViewFromRect(((0.0, 0.0), (convert(width), convert(height))))
         w.clearWindow(black())
 
-        w.drawQuads(blobs.sprite)
+        w.drawQuads(blobs.sprite, none())
         w.display()
 
         let nextNs = time::getTimestampNs()

@@ -15,6 +15,8 @@ import std/destroy
 import std/io
 import std/for
 
+import std/sfml/texture
+
 include <SFML/Graphics.h>
 link csfml-graphics
 link csfml-window
@@ -74,41 +76,11 @@ derives    Quad (builtin::destroy)
 
 tuple Window {
     windowPtr I64
-    textures  Texture.Sparse
 }
 acquires destroy{Window} (w&)
-    w.textures.destroy
     let ptr = w.windowPtr
     ${ sfRenderWindow_close((sfRenderWindow*)($ptr)); }
 
-
-
-fn loadTextureFromFile(w &Window, fileName Char.Slice) Texture.sparse::Key
-    let texturePtr = 0
-    ${
-        assert($fileName.len < 128);
-        char filename[128] = {0};
-        snprintf(filename, sizeof(filename), "%s", $fileName.ptr);
-        sfTexture *texture = sfTexture_createFromFile(filename, NULL);
-        assert(NULL != texture);
-        $texturePtr = (int64_t)(texture);
-    }
-
-    let key = w.textures.insertZero
-    w.textures[key].texturePtr = texturePtr
-    return key
-
-
-
-derives Texture (store::store)
-
-tuple Texture {
-    texturePtr I64
-}
-acquires destroy{Texture} (t&)
-    let ptr = t.texturePtr
-    ${ sfTexture_destroy((sfTexture*)$ptr); }
-    
 
 
 enum Event {
@@ -191,15 +163,19 @@ fn pollEvent(w &Window) Event.Option
     return Option::none()
 
 
-fn drawQuads(w &Window, quads Slice{Quad})
+fn drawQuads(w &Window, quads Slice{Quad}, texture Texture.Option)
     // TODO why does this fix 'Bus Error'?!
     for (0, 1) -> i
         let q = quads[i]
 
+    let texturePtr = 0
+    if texture.isSome
+        texturePtr = texture.fromSome.texturePtr
+
     let ptr = w.windowPtr
     ${
         sfRenderStates states;
-        states.texture = NULL;
+        states.texture = $texturePtr;
         states.blendMode = sfBlendAlpha;
         states.transform = sfTransform_Identity;
 

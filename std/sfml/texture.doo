@@ -1,0 +1,53 @@
+module texture
+
+import std/builtin
+import std/store
+import std/assert
+import std/convert
+
+
+include <SFML/Graphics.h>
+link csfml-graphics
+link csfml-window
+link csfml-system
+
+tuple Texture {
+    texturePtr I64
+}
+
+
+acquires destroy{Texture} (t&)
+    let ptr = t.texturePtr
+    ${ if ($ptr) sfTexture_destroy((sfTexture*)$ptr); }
+    t.texturePtr = 0
+
+
+acquires store{Texture} (a&, b)
+    let bPtr = b.texturePtr
+    let ptr = 0
+    ${
+        sfImage *image = sfTexture_copyToImage((sfTexture*)$bPtr);
+        assert(image);
+        $ptr = (int64_t)sfTexture_createFromImage(image, NULL);
+        assert($ptr);
+    }
+    a.destroy
+    a.texturePtr = ptr
+
+
+fn textureFromFile(fileName Char.Slice) Texture
+    let texture
+    let texturePtr = 0
+    ${
+        assert($fileName.len < 128);
+        char filename[128] = {0};
+        snprintf(filename, sizeof(filename), "%s", $fileName.ptr);
+        sfTexture *texture = sfTexture_createFromFile(filename, NULL);
+        assert(NULL != texture);
+        $texturePtr = (int64_t)(texture);
+    }
+    texture.texturePtr = texturePtr
+    return texture
+    
+
+
