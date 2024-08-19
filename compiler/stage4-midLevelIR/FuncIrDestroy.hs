@@ -146,32 +146,16 @@ processStmt funcIr id = let stmt = irStmts funcIr Map.! id in case stmt of
         void $ liftFuncIr (appendStmtWithId id stmt)
 
 
-    InitVar Nothing -> do
+    SSA _ _ (InitVar Nothing) -> do
         addDestroy id
         (typ, refType) <- fmap fst $ runDoMExcept funcIr $ getType (ArgID id)
         void $ liftFuncIr (appendStmtWithId id stmt)
 
-    InitVar _ -> do -- TODO this is not destroying because Preprocess using Assign to beat the system
+    SSA _ _ (InitVar _) -> do -- TODO this is not destroying because Preprocess using Assign to beat the system
         void $ liftFuncIr (appendStmtWithId id stmt)
 
-    MakeReferenceFromValue _ -> do
-        void $ liftFuncIr (appendStmtWithId id stmt)
+    SSA _ _ _ -> void $ liftFuncIr (appendStmtWithId id stmt)
 
-    MakeValueFromReference _ -> do
-        void $ liftFuncIr (appendStmtWithId id stmt)
-
-    MakeFieldFromVal _ _ -> do
-        void $ liftFuncIr (appendStmtWithId id stmt)
-
-    MakeFieldFromRef _ _ -> do
-        void $ liftFuncIr (appendStmtWithId id stmt)
-
-    MakeString _ -> do
-        void $ liftFuncIr (appendStmtWithId id stmt)
-
-    Call _ _ -> do
-        void $ liftFuncIr (appendStmtWithId id stmt)
-        
     x -> error (show x)
 
 
@@ -195,9 +179,7 @@ destroy id = do
     let acqSymbol = S.funcSymbol $ S.funcHeader (fromJust acq)
     case S.funcArgs (S.funcHeader $ fromJust acq) of
         [S.RefParam _ argSymbol argType] -> do
-            id1 <- liftFuncIr $ appendStmt (MakeReferenceFromValue id)
-            liftFuncIr $ addType id1 typ Ref
-
-            id2 <- liftFuncIr $ appendStmt $ Call (Apply (TypeDef destroySymbol) typ) [ArgID id1]
-            liftFuncIr $ addType id2 Void Const
+            id1 <- liftFuncIr $ appendSSA typ Ref (MakeReferenceFromValue id)
+            void $ liftFuncIr $ appendSSA Void Const $
+                Call (Apply (TypeDef destroySymbol) typ) [ArgID id1]
 

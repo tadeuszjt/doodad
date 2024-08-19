@@ -48,10 +48,28 @@ instance Show Arg where
     show (ArgID id)           = "%" ++ show id
 
 
+data Operation
+    = InitVar (Maybe Arg)
+    | Call Type [Arg]
+    | MakeReferenceFromValue ID
+    | MakeValueFromReference ID
+    | MakeFieldFromRef ID Int
+    | MakeFieldFromVal ID Int
+    | MakeString String
+
+instance Show Operation where
+    show operation = case operation of
+        InitVar marg -> "init " ++ maybe "" show marg
+        MakeReferenceFromValue id -> "&" ++ show (ArgID id)
+        MakeValueFromReference id -> "*" ++ show (ArgID id)
+        MakeFieldFromRef id n     -> show (ArgID id) ++ "->" ++ show n
+        MakeFieldFromVal id n     -> show (ArgID id) ++ "." ++ show n
+        MakeString str            -> show str
+        Call callType args -> show callType ++ "(" ++ intercalate ", " (map show args) ++ ")"
+        x -> error (show x)
 
 data Stmt
-    = SSA Int
-    | Block [ID]
+    = Block [ID]
     | Loop [ID]
     | Break
     | Return Arg
@@ -59,27 +77,8 @@ data Stmt
     | EmbedC [ID] String
     | If Arg [ID]
     | Else [ID]
-
-    -- value stmts
-    | InitVar (Maybe Arg)
-    | Call Type [Arg]
-    | MakeReferenceFromValue ID
-    | MakeValueFromReference ID
-    | MakeFieldFromRef ID Int
-    | MakeFieldFromVal ID Int
-    | MakeString String
+    | SSA Type RefType Operation
     deriving (Show)
-
-showStmt :: Stmt -> String
-showStmt statement = case statement of
-    InitVar marg -> "init " ++ maybe "" show marg
-    MakeReferenceFromValue id -> "&" ++ show (ArgID id)
-    MakeValueFromReference id -> "*" ++ show (ArgID id)
-    MakeFieldFromRef id n     -> show (ArgID id) ++ "->" ++ show n
-    MakeFieldFromVal id n     -> show (ArgID id) ++ "." ++ show n
-    MakeString str            -> show str
-    Call callType args -> show callType ++ "(" ++ intercalate ", " (map show args) ++ ")"
-    x -> error (show x)
 
 
 data ParamIR
@@ -166,6 +165,13 @@ appendStmt stmt = do
     return id
 
 
+appendSSA :: Type -> RefType -> Operation -> DoM FuncIR ID
+appendSSA typ refType op = do
+    id <- appendStmt $ SSA typ refType op
+    addType id typ refType
+    return id
+
+
 appendStmtWithId :: ID -> Stmt -> DoM FuncIR ()
 appendStmtWithId id stmt = do
     curId <- (gets irCurrentId)
@@ -231,10 +237,8 @@ prettyIrStmt pre funcIr id = do
             putStrLn $ "else:"
             mapM_ (prettyIrStmt (pre ++ "\t") funcIr) ids
 
-
-
-        stmt-> putStrLn $ showStmt stmt
-
+        SSA typ refType operation -> do
+            putStrLn $ "%" ++ show id ++ " " ++ show refType ++ " " ++ show typ ++ " = " ++ show operation
             
         x -> error (show x)
 

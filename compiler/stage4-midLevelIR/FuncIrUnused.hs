@@ -99,29 +99,8 @@ processStmt funcIr id = do
                 modify $ \s -> s { hasReturned = True }
                 void $ liftFuncIr (appendStmtWithId id stmt)
 
-            InitVar Nothing -> do
+            SSA _ _ _ ->
                 void $ liftFuncIr (appendStmtWithId id stmt)
 
-            InitVar _ -> do
-                void $ liftFuncIr (appendStmtWithId id stmt)
-
-            MakeReferenceFromValue _ -> do
-                void $ liftFuncIr (appendStmtWithId id stmt)
-
-            MakeValueFromReference _ -> do
-                void $ liftFuncIr (appendStmtWithId id stmt)
-
-            MakeFieldFromVal _ _ -> do
-                void $ liftFuncIr (appendStmtWithId id stmt)
-
-            MakeFieldFromRef _ _ -> do
-                void $ liftFuncIr (appendStmtWithId id stmt)
-
-            MakeString _ -> do
-                void $ liftFuncIr (appendStmtWithId id stmt)
-
-            Call _ _ -> do
-                void $ liftFuncIr (appendStmtWithId id stmt)
-                
             x -> error (show x)
 

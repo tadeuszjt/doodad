@@ -128,62 +128,50 @@ makeStmt statement = withPos statement $ case statement of
 
     S.Let _ (S.PatAnnotated (S.PatIdent _ symbol) typ) (Just expr) Nothing -> do
         val <- makeVal expr
-        id <- case val of
-            ArgConst _ _ -> liftFuncIr $ appendStmt (InitVar $ Just val)
+        case val of
+            ArgConst _ _ -> define symbol =<< liftFuncIr (appendSSA typ Value (InitVar $ Just val))
             ArgID argId -> do
                 resm <- liftFuncIr $ gets (Map.lookup argId . irStmts)
                 case resm of
-                    Just (Call _ _) -> liftFuncIr $ appendStmt (InitVar $ Just val)
-                    Just (MakeFieldFromVal _ _) -> do
-                        id <- liftFuncIr $ appendStmt (InitVar Nothing)
-                        idRef <- liftFuncIr $ appendStmt (MakeReferenceFromValue id)
-                        liftFuncIr $ addType idRef typ Ref
-                        store (ArgID idRef) (ArgID argId)
-                        return id
+                    Just (SSA _ _ (Call _ _)) -> do define symbol argId
 
-                    Just (MakeValueFromReference _) -> do
-                        id <- liftFuncIr $ appendStmt (InitVar Nothing)
-                        idRef <- liftFuncIr $ appendStmt (MakeReferenceFromValue id)
-                        liftFuncIr $ addType idRef typ Ref
+                    Just (SSA _ _ (MakeFieldFromVal _ _)) -> do
+                        id <- liftFuncIr $ appendSSA typ Value (InitVar Nothing)
+                        idRef <- liftFuncIr $ appendSSA typ Ref (MakeReferenceFromValue id)
                         store (ArgID idRef) (ArgID argId)
-                        return id
+                        void $ define symbol id
+
+                    Just (SSA _ _ (MakeValueFromReference _)) -> do
+                        id <- liftFuncIr $ appendSSA typ Value (InitVar Nothing)
+                        idRef <- liftFuncIr $ appendSSA typ Ref (MakeReferenceFromValue id)
+                        store (ArgID idRef) (ArgID argId)
+                        void $ define symbol id
 
                     Nothing -> do -- probably an arg TODO
-                        id <- liftFuncIr $ appendStmt (InitVar Nothing)
-                        idRef <- liftFuncIr $ appendStmt (MakeReferenceFromValue id)
-                        liftFuncIr $ addType idRef typ Ref
+                        id <- liftFuncIr $ appendSSA typ Value (InitVar Nothing)
+                        idRef <- liftFuncIr $ appendSSA typ Ref (MakeReferenceFromValue id)
                         store (ArgID idRef) (ArgID argId)
-                        return id
-                        
+                        void $ define symbol id
 
                     x -> error (show x)
 
-        liftFuncIr $ addType id typ Value
-        define symbol id
-
-        
 
     S.Let _ (S.PatAnnotated (S.PatIdent _ symbol) typ) Nothing Nothing -> do
-        id <- liftFuncIr $ appendStmt (InitVar Nothing)
-        liftFuncIr $ addType id typ Value
-        define symbol id
+        define symbol =<< liftFuncIr (appendSSA typ Value (InitVar Nothing))
 
     S.Data _ symbol typ Nothing -> do
-        id <- liftFuncIr $ appendStmt (InitVar Nothing) 
-        liftFuncIr $ addType id typ Value
-        define symbol id
+        define symbol =<< liftFuncIr (appendSSA typ Value (InitVar Nothing))
 
     S.Assign _ symbol expr -> do
         -- TODO remove Assign, it is bad
         arg <- makeVal expr
         (typ, _) <- liftFuncIr (getType arg)
-        id <- liftFuncIr $ appendStmt (InitVar $ Just arg)
-        liftFuncIr $ addType id typ Value
-        define symbol id
+        define symbol =<< liftFuncIr (appendSSA typ Value (InitVar $ Just arg))
 
     S.Return _ (Just expr) -> do
         Just retty <- gets astRetty
         case retty of
+            S.RefRetty typ -> void $ (liftFuncIr . appendStmt . Return . ArgID) =<< makeRef expr
             S.Retty typ -> do
                 -- if this is a stack value, can return
                 -- anything else needs to be created with store
@@ -193,20 +181,16 @@ makeStmt statement = withPos statement $ case statement of
                     ArgID argId -> do
                         mstmt <- liftFuncIr $ gets $ Map.lookup argId . irStmts
                         case mstmt of
-                            Just (InitVar _) -> void $ liftFuncIr $ appendStmt (Return val)
-                            Just (Call _ _ ) -> void $ liftFuncIr $ appendStmt (Return val)
+                            Just (SSA _ _ (InitVar _)) -> void $ liftFuncIr $ appendStmt (Return val)
+                            Just (SSA _ _ (Call _ _)) -> void $ liftFuncIr $ appendStmt (Return val)
                             _                -> do
-                                id1 <- liftFuncIr $ appendStmt (InitVar Nothing)
-                                liftFuncIr $ addType id1 typ Value
-                                id2 <- liftFuncIr $ appendStmt (MakeReferenceFromValue id1)
-                                liftFuncIr $ addType id2 typ Ref
+                                id1 <- liftFuncIr $ appendSSA typ Value (InitVar Nothing)
+                                id2 <- liftFuncIr $ appendSSA typ Ref (MakeReferenceFromValue id1)
                                 store (ArgID id2) (ArgID argId)
                                 void $ liftFuncIr $ appendStmt (Return $ ArgID id1)
 
 
                     x -> error (show x)
-                
-            S.RefRetty typ -> void $ (liftFuncIr . appendStmt . Return . ArgID) =<< makeRef expr
             x -> error (show x)
 
     S.Return _ Nothing     -> void $ liftFuncIr $ appendStmt ReturnVoid
@@ -242,6 +226,12 @@ makeStmt statement = withPos statement $ case statement of
 -- returns either a Value or a Const ID
 makeVal :: S.Expr -> DoM FuncIRState Arg
 makeVal (S.AExpr exprType expression) = withPos expression $ case expression of
+    S.Bool _ b -> return (ArgConst exprType $ ConstBool b)
+    S.Char _ c -> return (ArgConst exprType $ ConstChar c)
+    S.Int _  n -> return (ArgConst exprType $ ConstInt n)
+    S.String _ str -> fmap ArgID $ liftFuncIr $ appendSSA exprType Value (MakeString str)
+    S.Float _ f -> return $ ArgConst exprType (ConstFloat f)
+    S.Reference _ expr -> makeVal expr
 
     S.Ident _ symbol -> do
         id <- look symbol
@@ -250,11 +240,8 @@ makeVal (S.AExpr exprType expression) = withPos expression $ case expression of
 
         case refType of
             Value -> return (ArgID id)
-            Ref   -> do
-                -- TODO might be slow, create makeAny function?
-                id' <- liftFuncIr $ appendStmt (MakeValueFromReference id)
-                liftFuncIr $ addType id' typ Value
-                return (ArgID id')
+            -- TODO might be slow, create makeAny function?
+            Ref   -> fmap ArgID $ liftFuncIr $ appendSSA typ Value (MakeValueFromReference id)
 
 
     S.Call _ funcType exprs -> do
@@ -267,36 +254,16 @@ makeVal (S.AExpr exprType expression) = withPos expression $ case expression of
                 S.RefParam _ argSymbol argType -> ArgID <$> makeRef expr
                 S.Param    _ argSymbol argType -> makeVal expr
 
-        id <- liftFuncIr $ appendStmt (Call funcType args)
-
         case S.funcRetty header of
-            S.Retty Void -> do
-                liftFuncIr $ addType id Void Const
-                return (ArgID id)
-
-            S.Retty typ -> do
-                liftFuncIr $ addType id typ Value
-                return (ArgID id)
-
+            S.Retty Void -> fmap ArgID $ liftFuncIr $ appendSSA Void Const (Call funcType args)
+            S.Retty typ -> fmap ArgID $ liftFuncIr $ appendSSA typ Value (Call funcType args)
             S.RefRetty typ -> do
-                liftFuncIr $ addType id typ Ref
-                id' <- liftFuncIr $ appendStmt (MakeValueFromReference id)
-                liftFuncIr (addType id' typ Value)
-                return (ArgID id')
+                fmap ArgID $ liftFuncIr $ appendSSA typ Value . MakeValueFromReference =<<
+                    appendSSA typ Ref (Call funcType args)
 
             -- TODO slice
 
             x -> error (show x)
-
-    S.Bool _ b -> return (ArgConst exprType $ ConstBool b)
-    S.Char _ c -> return (ArgConst exprType $ ConstChar c)
-    S.Int _  n -> return (ArgConst exprType $ ConstInt n)
-    S.String _ str -> do
-        id <- liftFuncIr $ appendStmt (MakeString str)
-        liftFuncIr (addType id exprType Value)
-        return (ArgID id)
-
-    S.Float _ f -> return $ ArgConst exprType (ConstFloat f)
 
     S.Field _ expr field -> do
         i <- case field of
@@ -307,28 +274,19 @@ makeVal (S.AExpr exprType expression) = withPos expression $ case expression of
 
             x -> error (show x)
 
-
         arg <- makeVal expr
         (typ, refType) <- liftFuncIr (getType arg)
         case refType of
             Ref -> do
                 -- TODO what about slice?
                 let ArgID argId = arg 
-                id <- liftFuncIr $ appendStmt (MakeFieldFromRef argId i)
-                liftFuncIr (addType id exprType Value)
-                return (ArgID id)
+                fmap ArgID $ liftFuncIr $ appendSSA exprType Value (MakeFieldFromRef argId i)
 
             Value -> do
                 let ArgID argId = arg
-                id <- liftFuncIr $ appendStmt (MakeFieldFromVal argId i)
-                liftFuncIr (addType id exprType Value)
-                return (ArgID id)
+                fmap ArgID $ liftFuncIr $ appendSSA exprType Value (MakeFieldFromVal argId i)
                 
             x -> error (show x)
-
-    S.Reference _ expr -> do
-        -- TODO is this a fail?
-        makeVal expr
 
     x -> error (show x)
 
@@ -344,9 +302,7 @@ makeRef (S.AExpr exprType expression) = withPos expression $ case expression of
 
         case refType of
             Value -> do
-                id' <- liftFuncIr $ appendStmt (MakeReferenceFromValue id)
-                liftFuncIr (addType id' typ Ref)
-                return id'
+                liftFuncIr $ appendSSA typ Ref (MakeReferenceFromValue id)
 
             Ref -> return id
                 
@@ -362,37 +318,25 @@ makeRef (S.AExpr exprType expression) = withPos expression $ case expression of
                 S.RefParam _ argSymbol argType -> ArgID <$> makeRef expr
                 S.Param    _ argSymbol argType -> makeVal expr
 
-        id <- liftFuncIr $ appendStmt (Call funcType args)
-
         case S.funcRetty header of
             -- TODO slice
-            S.RefRetty typ -> do
-                liftFuncIr (addType id typ Ref)
-                return id
+            S.RefRetty typ -> liftFuncIr $ appendSSA typ Ref (Call funcType args)
 
             S.Retty typ -> do
-                liftFuncIr (addType id typ Value)
-                id' <- liftFuncIr $ appendStmt (MakeReferenceFromValue id)
-                liftFuncIr (addType id' typ Ref)
-                return id'
+                id <- liftFuncIr $ appendSSA typ Value (Call funcType args)
+                liftFuncIr $ appendSSA typ Ref (MakeReferenceFromValue id)
 
             x -> error (show x)
 
     S.Field _ expr field -> do
         i <- case field of
             Left i -> return i
-            Right fieldSymbol -> do
-                (i, _) <- gets $ (Map.! fieldSymbol) . fieldsAll . astResolved
-                return i
+            Right fieldSymbol -> gets $ fst . (Map.! fieldSymbol) . fieldsAll . astResolved
 
         argId <- makeRef expr
         (typ, refType) <- liftFuncIr $ getType (ArgID argId)
         case refType of
-            Ref -> do
-                id <- liftFuncIr $ appendStmt (MakeFieldFromRef argId i)
-                liftFuncIr (addType id exprType Ref)
-                return id
-                
+            Ref -> liftFuncIr $ appendSSA exprType Ref (MakeFieldFromRef argId i)
             x -> error (show x)
 
     x -> error (show x)
@@ -420,5 +364,4 @@ store dst src = do
     let acqSymbol = S.funcSymbol $ S.funcHeader (fromJust acq)
     case S.funcArgs (S.funcHeader $ fromJust acq) of
         [S.RefParam _ _ _, S.Param _ _ _] -> do
-            id <- liftFuncIr $ appendStmt $ Call (Apply (TypeDef storeSymbol) t1) [dst, src]
-            liftFuncIr $ addType id Void Const
+            void $ liftFuncIr $ appendSSA Void Const $ Call (Apply (TypeDef storeSymbol) t1) [dst, src]
