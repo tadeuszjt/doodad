@@ -191,6 +191,8 @@ typeFullyDescribes t1 t2 = case (t1, t2) of
     (Type _, _) -> True
     (_, Type _) -> False
 
+    (Size a, Size b) -> a == b
+
     x -> error (show x)
 
 

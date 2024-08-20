@@ -155,10 +155,7 @@ tupleFields1 : symbol type_ 'N'              { [(snd $1, $2)] }
 -- Statements -------------------------------------------------------------------------------------
 
 
-smallType : symbol                 { TypeDef (snd $1) }
-          | symbol typeArgs        { foldType (TypeDef (snd $1) : $2) }
-
-derivesDef : derives generics type_ '(' smallType ')'
+derivesDef : derives generics type_ '(' callType ')'
            { Derives (tokPos $1) $2 $3 ($5) }
 
 
@@ -327,11 +324,10 @@ expr   : literal                                 { $1 }
        | '[' exprsA ']'                          { AST.Array (tokPos $1) $2 }
        | expr '.' int_c                          { Field (tokPos $2) $1 (Left $ read $ tokStr $3)  }
        | '&' expr                                { AST.Reference (tokPos $1) $2 }
---       | type_ '(' exprsA ')'                    { AExpr $1 (Call (tokPos $2) (Sym ["Construct", "construct"]) $3) }
-       | expr '[' expr ']'                       { Subscript (tokPos $2) $1 $3 }
-       | expr '.' symbol                         { Call (tokPos $2) (TypeDef $ snd $3) (AST.Reference (tokPos $2) $1 : []) }
-       | expr '.' symbol '(' exprsA ')'          { Call (tokPos $4) (TypeDef $ snd $3) (AST.Reference (tokPos $2) $1 : $5) }
-       | symbol '(' exprsA ')'                   { Call (tokPos $2) (TypeDef $ snd $1) $3 }
+       | expr '[' expr ']'                       { Call (tokPos $2) (TypeDef $ Sym ["container", "at"]) [AST.Reference (tokPos $2) $1, $3] }
+       | expr '.' callType                       { Call (tokPos $2) $3 (AST.Reference (tokPos $2) $1 : []) }
+       | expr '.' callType  '(' exprsA ')'       { Call (tokPos $4) $3 (AST.Reference (tokPos $2) $1 : $5) }
+       | callType '(' exprsA ')'                 { Call (tokPos $2) $1 $3 }
        | '(' exprsA ')'                          { case $2 of [x] -> x; xs -> Call (tokPos $1) (TypeDef $ Sym ["tuple", "make" ++ show (length xs) ]) $2 }
        | expr '+' expr                           { Call (tokPos $2) (TypeDef $ Sym ["add"]) [$1, $3] }
        | expr '-' expr                           { Call (tokPos $2) (TypeDef $ Sym ["subtract"]) [$1, $3] } 
@@ -403,6 +399,9 @@ ordinal_t   : Bool                         { Type.Bool }
             | Char                         { Type.Char }
 
 tuple_t : '(' type_ ',' types1 ')' { foldl Apply Tuple ($2:$4) }
+
+callType : symbol                  { TypeDef (snd $1) }
+         | symbol typeArgs         { foldType (TypeDef (snd $1) : $2) }
 
 {
 parse :: MonadError Error m => [Token] -> m AST

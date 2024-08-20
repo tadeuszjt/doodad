@@ -106,7 +106,6 @@ optimiseExpr expr = case expr of
     Address e                  -> Address (optimiseExpr e)
     Deref e                    -> Deref (optimiseExpr e)
     Initialiser es             -> Initialiser (map optimiseExpr es)
-    Subscript e1 e2            -> Subscript (optimiseExpr e1) (optimiseExpr e2)
 
     _ -> expr
 

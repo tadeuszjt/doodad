@@ -148,8 +148,6 @@ buildPattern defBlkId pattern expr = do
 
 
         PatTuple pos pats -> do
-            let syms = ["first", "second", "third", "fourth"]
-        
             symbol <- freshSym "tupleCopy"
             appendStmt (Assign pos symbol expr)
 
@@ -159,7 +157,8 @@ buildPattern defBlkId pattern expr = do
             forM_ (zip pats [0..]) $ \(pat, i) -> do
                 ifBlkId <- newStmt (Block [])
                 withCurId ifBlkId $ do
-                    match <- buildPattern defBlkId pat $ Field pos (Ident pos symbol) (Left i)
+                    let callType = foldType [ TypeDef (Sym ["tuple", "tuplePattern"]), Type 0, Size (length pats), Size i, Type 0]
+                    match <- buildPattern defBlkId pat $ Call pos callType [Reference pos $ Ident pos symbol]
                     appendStmt $ ExprStmt $ Call pos (TypeDef $ Sym ["builtin", "builtinStore"])
                         [ Reference pos (Ident pos matchSym)
                         , match
@@ -491,16 +490,8 @@ buildStmt statement = withPos statement $ case statement of
 
 preprocessMapper :: Elem -> DoM s Elem
 preprocessMapper element = case element of
-    --ElemExpr (AST.Int pos n) -> return $ ElemExpr $ Call pos (TypeDef $ Sym ["Construct", "construct"]) [AST.Int pos n]
-    --ElemExpr (AST.Float pos f) -> return $ ElemExpr $ Call pos (TypeDef $ Sym ["Construct", "construct"]) [AST.Float pos f]
-    --ElemExpr (AST.Bool pos b) -> return $ ElemExpr $ Call pos (TypeDef $ Sym ["Construct", "construct"]) [AST.Bool pos b]
-    --ElemExpr (AST.Char pos c) -> return $ ElemExpr $ Call pos (TypeDef $ Sym ["Construct", "construct"]) [AST.Char pos c]
-
     ElemStmt (Let pos pattern mexpr (Just blk)) -> do
         return $ ElemStmt $ Block [Let pos pattern mexpr Nothing, blk]
-
-    ElemExpr (Subscript pos expr1 expr2) ->
-        return $ ElemExpr $ Call pos (TypeDef $ Sym ["container", "at"]) [Reference pos expr1, expr2]
 
     _ -> return element
 

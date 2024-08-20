@@ -3,18 +3,19 @@ module tuple
 import std/store
 
 
-feature{T, G | T -> G } first(T) G
-feature{T, G | T -> G } second(T) G
-feature{T, G | T -> G } third(T) G
+feature{G, TupSize, TupField, T | T -> TupSize, TupField -> G } tuplePattern(T) G
 
+acquires{A, B} tuplePattern{ A, 2, 0, Tuple{A, B}} (tup&) -> &; return tup.0
+acquires{A, B} tuplePattern{ B, 2, 1, Tuple{A, B}} (tup&) -> &; return tup.1
 
-acquires{A, B} first{ Tuple{A, B}, A } (t&) -> &; return &t.0
-acquires{A, B} second{ Tuple{A, B}, B } (t&) -> &; return &t.1
+acquires{A, B, C} tuplePattern{A, 3, 0, Tuple{A, B, C}} (tup&) -> &; return tup.0
+acquires{A, B, C} tuplePattern{B, 3, 1, Tuple{A, B, C}} (tup&) -> &; return tup.1
+acquires{A, B, C} tuplePattern{C, 3, 2, Tuple{A, B, C}} (tup&) -> &; return tup.2
 
-
-acquires{A, B, C} first{ Tuple{A, B, C}, A } (t&) -> &; return &t.0
-acquires{A, B, C} second{ Tuple{A, B, C}, B } (t&) -> &; return &t.1
-acquires{A, B, C} third{ Tuple{A, B, C}, C } (t&) -> &; return &t.2
+acquires{A, B, C, D} tuplePattern{A, 4, 0, Tuple{A, B, C, D}} (tup&) -> &; return tup.0
+acquires{A, B, C, D} tuplePattern{B, 4, 1, Tuple{A, B, C, D}} (tup&) -> &; return tup.1
+acquires{A, B, C, D} tuplePattern{C, 4, 2, Tuple{A, B, C, D}} (tup&) -> &; return tup.2
+acquires{A, B, C, D} tuplePattern{D, 4, 3, Tuple{A, B, C, D}} (tup&) -> &; return tup.3
 
 
 feature{ A, B, C | C->A, C->B }                   make2(A, B) C

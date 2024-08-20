@@ -98,7 +98,7 @@ makeAcquireInstance callType = do
                     let lowerType = applyType genericSubs (Apply featureType lowerArgType)
                     let lower = applyType subs lowerType
 
-                    unless (applyType subs upperType == callType) (error "type mismatch")
+                    unless (applyType subs upperType == callType) (fail $ "type mismatch: " ++ show callType)
                     unless (typeFullyResolved lower) (error "propagating type vars")
                     makeAcquireInstance lower
 

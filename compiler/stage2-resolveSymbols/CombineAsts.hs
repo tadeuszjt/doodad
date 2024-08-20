@@ -141,7 +141,9 @@ combineMapper element = case element of
             MacroTuple _ _ _ _  -> return Nothing
             _               -> return (Just stmt)
 
-    ElemExpr (Call pos typ@(TypeDef symbol) exprs) -> do
+    ElemExpr (Call pos typ exprs) -> do
+        let (TypeDef symbol, _) = unfoldType typ
+
         resm <- Map.lookup symbol <$> getTypeDefs
         unless (isJust resm) (fail $ "no def for: " ++ prettySymbol symbol)
         let Just (generics, _) = resm
@@ -154,9 +156,10 @@ combineMapper element = case element of
                 return $ ElemExpr $ Field pos (exprs !! 0) (Right symbol)
                 
             Nothing -> do
-                let typ' = case generics of
-                        [] -> typ
-                        x  -> foldl Apply typ $ replicate (length x) (Type 0)
+                let typ' = case (typ, generics) of
+                        (TypeDef _, []) -> typ
+                        (TypeDef _, x)  -> foldl Apply typ $ replicate (length x) (Type 0)
+                        (_, x)          -> typ
 
                 return $ ElemExpr (Call pos typ' exprs)
         
