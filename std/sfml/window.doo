@@ -156,11 +156,11 @@ fn pollEvent(w &Window) Event.Option
     }
 
     if isNone
-        return Option::none()
+        return option::none()
 
     if continue && !isNone
-        return Option::some(event)
-    return Option::none()
+        return option::some(event)
+    return option::none()
 
 
 fn drawQuads(w &Window, quads Slice{Quad}, texture Texture.Option)

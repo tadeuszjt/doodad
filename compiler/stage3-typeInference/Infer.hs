@@ -46,20 +46,7 @@ infer ast printAnnotated verbose = fmap snd $ runDoMExcept ast inferFuncs
     where
         inferFuncs :: DoM ASTResolved ()
         inferFuncs = do
-            funcDefs <- gets funcDefsAll
             modName <- gets moduleName
-
-            forM_ (Map.toList $ funcDefs) $ \(symbol, func) ->
-                when (symbolModule symbol == modName) $ do
-                    let stmt = FuncDef [] func
-                    (stmt', _) <- runDoMUntilSameResult stmt $ \stmt -> do
-                        (stmtInferred, _) <- runDoMUntilSameResult stmt inferStmtTypes
-                        fmap fst $ runDoMUntilSameResult stmtInferred inferStmtDefaults
-
-                    let FuncDef _ func' = stmt'
-                    modify $ \s -> s { funcDefsAll = Map.insert symbol func' (funcDefsAll s) }
-
-
             acquires <- gets acquiresAll
             forM_ (Map.toList acquires) $ \(symbol, stmt) ->
                 when (symbolModule symbol == modName) $ do

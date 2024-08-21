@@ -141,11 +141,6 @@ resolveAst ast imports = fmap fst $ runDoMExcept initResolveState (resolveAst' a
                     define symbol' KeyType
                     return (Typedef pos generics symbol' typ)
 
-                FuncDef generics (AST.Func header stmt) -> do
-                    symbol <- genSymbol (SymResolved $ symStr $ funcSymbol header)
-                    define symbol KeyType
-                    return $ FuncDef generics $ AST.Func (header { funcSymbol = symbol }) stmt
-
                 Feature pos generics funDeps symbol args retty -> do
                     symbol' <- genSymbol (SymResolved $ symStr symbol)
                     define symbol' KeyType
@@ -284,28 +279,6 @@ resolveStmt statement = withPos statement $ case statement of
 
         popSymbolTable
         return (Acquires pos generics' typ' args' isRef stmt')
-
-    FuncDef generics (AST.Func header stmt) -> do
-        symbol' <- case (funcSymbol header) of
-            SymResolved _ -> return (funcSymbol header)
-            Sym str       -> do
-                s <- genSymbol (SymResolved $ symStr $ funcSymbol header)
-                define s KeyType
-                return s
-
-        pushSymbolTable
-        generics' <- defineGenerics generics
-        args'     <- mapM resolveParam (funcArgs header)
-        retty'    <- resolveRetty (funcRetty header)
-        stmt'     <- resolveStmt stmt
-
-        let header' = header
-                { funcArgs     = args'
-                , funcRetty    = retty'
-                , funcSymbol   = symbol'
-                }
-        popSymbolTable
-        return $ FuncDef generics' (AST.Func header' stmt')
 
     Block stmts -> do
         pushSymbolTable

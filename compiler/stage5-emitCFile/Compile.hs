@@ -40,13 +40,11 @@ generate = withErrorPrefix "generate: " $ do
         appendExtern (showSymGlobal $ funcSymbol header) crt cats [C.Extern]
 
 
-    -- generate functions, main is a special case
-    forM_ (funcDefsTop ast) $ \symbol -> let Just func = Map.lookup symbol (funcDefsAll ast) in do
+    forM_ (featuresTop ast) $ \symbol -> let Just acq = Map.lookup symbol (featuresAll ast) in do
         let Just (generics, _) = Map.lookup symbol (typeDefsAll ast)
         when (generics == []) $ do
             header <- generateFunc (TypeDef symbol)
-
-            when (symbolsCouldMatch (Sym ["main"]) (funcSymbol $ funcHeader func)) $ do
+            when (symbolsCouldMatch (Sym ["main"]) (funcSymbol $ header)) $ do
                 id <- newFunction
                     Cint
                     "main"  
@@ -61,7 +59,7 @@ generate = withErrorPrefix "generate: " $ do
                     vals <- forM mainArgTypes $ \argType -> do
                         assign "mainArg" $ Value argType $ C.Initialiser [C.Int 0]
 
-                    args <- forM (zip vals (S.funcArgs $ funcHeader func)) $ \(val, param) -> case param of
+                    args <- forM (zip vals (S.funcArgs header)) $ \(val, param) -> case param of
                         S.Param _ _ _ -> return val
                         x -> error (show x)
 
@@ -71,6 +69,7 @@ generate = withErrorPrefix "generate: " $ do
 
                     void $ appendElem $ C.Return $ C.Int 0
                 withCurID globalID (append id)
+
 
 
 cRettyType :: S.Retty -> Generate C.Type
@@ -84,7 +83,6 @@ generateFunc funcType = do
     let (TypeDef symbol, typeArgs) = unfoldType funcType
 
     isInstance <- gets (Map.member funcType . funcInstance . astResolved)
-    isFunction <- gets (Map.member symbol . funcDefsAll . astResolved)
     isAcquire  <- gets (Map.member symbol . featuresAll . astResolved)
 
     if isInstance then

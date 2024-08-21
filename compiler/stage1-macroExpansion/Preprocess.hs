@@ -79,7 +79,6 @@ unpackStmt statement = withPos statement $ case statement of
 
     Acquires pos generics typ args isRef stmt -> Acquires pos generics typ args isRef <$> unpackStmt stmt
 
-    FuncDef generics (AST.Func header stmt) -> FuncDef generics . AST.Func header <$> unpackStmt stmt
     Block stmts -> Block <$> mapM unpackStmt stmts
     Let pos pat mexpr mblk -> Let pos pat mexpr <$> traverse unpackStmt mblk
     Typedef pos generics symbol typ -> return statement
@@ -94,6 +93,7 @@ unpackStmt statement = withPos statement $ case statement of
             stmt' <- unpackStmt stmt
             return (pat, stmt')
 
+    FuncDef generics (AST.Func header stmt) -> FuncDef generics . AST.Func header <$> unpackStmt stmt
     x -> error (show x)
 
 
@@ -270,8 +270,17 @@ buildStmt statement = withPos statement $ case statement of
         void $ appendStmt $ Acquires pos generics typ args isRef (Stmt blockId)
 
     FuncDef generics (AST.Func header (Block stmts)) -> do
+        let pos = TextPos "" 0 0
+        appendStmt $ Feature pos generics [] (funcSymbol header) (map typeof $ funcArgs header) (typeof $ funcRetty header)
+
+        acqIsRef <- case funcRetty header of
+            RefRetty _ -> return True
+            Retty _    -> return False
+
         blockId <- newStmt (Block [])
-        appendStmt $ FuncDef generics (AST.Func header (Stmt blockId))
+        appendStmt $ Acquires pos generics (foldl Apply (TypeDef $ funcSymbol header) $ map TypeDef generics) (funcArgs header) acqIsRef (Stmt blockId)
+
+        --appendStmt $ FuncDef generics (AST.Func header (Stmt blockId))
         withCurId blockId (mapM_ buildStmt stmts)
 
     Let pos (PatIdent _ _) mexpr Nothing -> case mexpr of
@@ -436,6 +445,7 @@ buildStmt statement = withPos statement $ case statement of
 
         -- write isCase0, isCase1 functions
         forM_ (zip cases [0..]) $ \( (Sym [str], ts) , i) -> do
+            let name = Sym ["is" ++ (toUpper $ head str) : (tail str) ]
             blkId <- newStmt (Block [])
             withCurId blkId $
                 appendStmt $ Return pos $ Just $ Call pos (TypeDef $ Sym ["builtin", "builtinEqual"])
@@ -443,16 +453,17 @@ buildStmt statement = withPos statement $ case statement of
                     , AST.Int pos i
                     ]
 
-            let header = FuncHeader
-                    { funcSymbol   = Sym [sym symbol, "is" ++ (toUpper (head str) : tail str)]
-                    , funcRetty    = Retty Type.Bool
-                    , funcArgs     = [RefParam pos (Sym ["en"]) sumType]
-                    , funcPos      = pos
-                    }
-            appendStmt $ FuncDef generics $ AST.Func header (Stmt blkId)
+            -- feature{N, T, G} field0(A) B
+            let (t) = (Sym ["T"])
+            appendStmt $ Feature pos [t] [] name [TypeDef t] Type.Bool
+            -- acquires{A, B}  field0{0, MyType{A, B}, MyType.0} (a&) -> &
+            let acq = foldl Apply (TypeDef name) [sumType]
+            appendStmt $ Acquires pos generics acq [RefParam pos (Sym ["en"]) Void] False (Stmt blkId)
 
         -- write case0, case1 constructors
         forM_ (zip cases [0..]) $ \( (Sym [str], ts) , i) -> do
+            let name = Sym [str]
+
             blkId <- newStmt (Block [])
             withCurId blkId $ do
                 appendStmt $ Let pos (PatIdent pos $ Sym ["en"]) Nothing Nothing
@@ -477,13 +488,10 @@ buildStmt statement = withPos statement $ case statement of
             args <- forM (zip ts [0..]) $ \(t, j) -> do
                 return $ Param pos (Sym ["a" ++ show j]) t
 
-            let header = FuncHeader
-                    { funcSymbol = Sym [sym symbol, str]
-                    , funcRetty  = Retty sumType
-                    , funcArgs   = args
-                    , funcPos = pos
-                    }
-            appendStmt $ FuncDef generics $ AST.Func header (Stmt blkId)
+            appendStmt $ Feature pos generics [] name ts sumType
+            let acq = foldl Apply (TypeDef name) (map TypeDef generics)
+            appendStmt $ Acquires pos generics acq args False (Stmt blkId)
+
 
         -- write fromCase0, fromCase1 accessors
         forM_ (zip cases [0..]) $ \( (Sym [str], ts) , i) -> do

@@ -61,7 +61,6 @@ mapStmtM f stmt = withPos stmt $ do
             stmt' <- mapStmtM f stmt
             return $ FuncDef generics $ (AST.Func header stmt')
 
-
         Derives pos generics symbol symbols ->
             return (Derives pos generics symbol symbols)
 

@@ -52,31 +52,9 @@ getConstraintsFromTypes t1 t2 = case (t1, t2) of
 
 makeInstance :: Type -> DoM ASTResolved Func
 makeInstance funcType = do
-    let (TypeDef symbol, typeArgs) = unfoldType funcType
-
-    isFunction <- gets (Map.member symbol . funcDefsAll)
-    isAcquire  <- gets (Map.member symbol . featuresAll)
-
-    case (isFunction, isAcquire) of
-        (True, False) -> makeFunctionInstance funcType
-        (False, True) -> do
-            mfunc <- makeAcquireInstance funcType
-            unless (isJust mfunc) (fail $ "no valid acquires for: " ++ show funcType)
-            return (fromJust mfunc)
-
-
-makeFunctionInstance :: Type -> DoM ASTResolved Func
-makeFunctionInstance funcType = do
-    let (TypeDef symbol, typeArgs) = unfoldType funcType
-
-    Just func          <- gets (Map.lookup symbol . funcDefsAll)
-    Just (generics, _) <- gets (Map.lookup symbol . typeDefsAll)
-
-    unless (length generics == length typeArgs) (error $ "type mismatch for: " ++ show symbol)
-
-    let subs = zip (map TypeDef generics) typeArgs
-    return (applyFunc subs func)
-
+    mfunc <- makeAcquireInstance funcType
+    unless (isJust mfunc) (fail $ "no valid acquires for: " ++ show funcType)
+    return (fromJust mfunc)
 
 
 makeAcquireInstance :: Type -> DoM ASTResolved (Maybe Func)

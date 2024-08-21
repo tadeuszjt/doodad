@@ -42,7 +42,6 @@ applyStmt subs stmt = case stmt of
     While pos expr blk -> While pos (applyEx expr) (applySt blk)
     Assign pos symbol expr -> Assign pos symbol (applyEx expr)
     Acquires pos generics typ args isRef stmt -> Acquires pos generics typ args isRef (applySt stmt)
-    FuncDef generics (AST.Func header stmt) -> FuncDef generics (AST.Func header $ applySt stmt)
     Derives pos generics symbol symbols -> Derives pos generics symbol symbols
     x -> error "invalid statement"
     where

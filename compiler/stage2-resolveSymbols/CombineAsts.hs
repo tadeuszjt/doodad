@@ -22,9 +22,7 @@ initAstResolved modName imports = ASTResolved
     , typeDefsTop    = Set.empty
     , typeDefsAll    = Map.unions (map typeDefsAll imports)
 
-    , funcDefsAll    = Map.unions (map funcDefsAll imports)
-    , funcDefsTop    = Set.empty
-
+    , featuresTop    = Set.empty
     , featuresAll    = Map.unions (map featuresAll imports)
 
     , acquiresAll    = Map.unions (map acquiresAll imports) 
@@ -52,9 +50,6 @@ combineAsts (ast, supply) imports = fmap snd $
             forM_ (astStmts ast) $ \stmt -> withPos stmt $ case stmt of
                 Typedef pos generics symbol@(SymResolved _) typ ->
                     modify $ \s -> s { typeDefsTop = Set.insert symbol (typeDefsTop s) }
-                FuncDef generics (AST.Func header stmt) -> do
-                    modify $ \s -> s { funcDefsTop = Set.insert (funcSymbol header) (funcDefsTop s) }
-                    modify $ \s -> s { typeDefsTop = Set.insert (funcSymbol header) (typeDefsTop s) }
                 Feature _ _ _ symbol _ _ ->
                     modify $ \s -> s { typeDefsTop = Set.insert symbol (typeDefsTop s) }
 
@@ -72,13 +67,6 @@ combineAsts (ast, supply) imports = fmap snd $
 -- define all typedefs
 typeDefsMapper :: Elem -> DoM ASTResolved Elem
 typeDefsMapper element = case element of
-    ElemStmt (FuncDef generics (AST.Func header _)) -> do
-        modify $ \s -> s { typeDefsAll = Map.insert
-            (funcSymbol header)
-            (generics, typeof header)
-            (typeDefsAll s) }
-        return element
-
     ElemStmt (Typedef pos generics symbol typ) -> do
         modify $ \s -> s { typeDefsAll = Map.insert symbol (generics, typ) (typeDefsAll s) }
         return element
@@ -96,18 +84,21 @@ typeDefsMapper element = case element of
 
 combineMapper :: Elem -> DoM ASTResolved Elem
 combineMapper element = case element of
-    ElemStmt (FuncDef generics (AST.Func header stmt)) -> do
-        modify $ \s -> s { funcDefsAll = Map.insert (funcSymbol header) (AST.Func header stmt) (funcDefsAll s) }
-        return element
+    ElemStmt stmt@(Acquires _ _ acqType _ _ _) -> do
+        let (TypeDef symbol, _) = unfoldType acqType
 
-    ElemStmt stmt@(Acquires _ _ _ _ _ _) -> do
-        symbol <- genSymbol $ SymResolved ["acquires"]
+        symbol <- genSymbol $ symbol
         modify $ \s -> s { acquiresAll = Map.insert symbol stmt (acquiresAll s) }
         modify $ \s -> s { acquiresTop = Set.insert symbol (acquiresTop s) }
         return element
 
-    ElemStmt stmt@(Derives _ _ _ _) -> do
-        symbol' <- genSymbol $ SymResolved ["derives"]
+    ElemStmt stmt@(Feature _ _ _ symbol _ _) -> do
+        modify $ \s -> s { featuresTop = Set.insert symbol (featuresTop s) }
+        return element
+
+    ElemStmt stmt@(Derives _ _ derType _) -> do
+        let (TypeDef symbol, _) = unfoldType derType
+        symbol' <- genSymbol symbol
         modify $ \s -> s { acquiresAll = Map.insert symbol' stmt (acquiresAll s) }
         modify $ \s -> s { acquiresTop = Set.insert symbol' (acquiresTop s) }
         return element
@@ -116,7 +107,6 @@ combineMapper element = case element of
     ElemStmt (Block stmts) -> fmap (ElemStmt . Block . catMaybes) $
         forM stmts $ \stmt -> case stmt of
             Typedef _ _ _ _ -> return Nothing
-            FuncDef _ _     -> return Nothing
             Feature _ _ _ _ _ _ -> return Nothing
             Acquires _ _ _ _ _ _ -> return Nothing
             Derives _ _ _ _     -> return Nothing

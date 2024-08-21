@@ -81,15 +81,6 @@ define symbol obj = do
 
 collectStmt :: Stmt -> DoM CollectState ()
 collectStmt statement = collectPos statement $ case statement of
-    FuncDef generics (AST.Func header stmt) -> do
-        oldRetty <- gets curRetty
-        modify $ \s -> s { curRetty = typeof (funcRetty header) }
-        forM_ (funcArgs header) $ \param -> 
-            define (paramSymbol param) (typeof param)
-        collectStmt stmt
-        modify $ \s -> s { curRetty = oldRetty }
-
-
     Acquires pos generics typ args isRef stmt -> do
         (Type.Func, retty : argTypes) <- unfoldType <$> baseTypeOf typ
         unless (length argTypes == length args) (fail "arg length mismatch")

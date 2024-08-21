@@ -22,13 +22,11 @@ data ASTResolved
         , typeDefsAll          :: Type.TypeDefsMap         -- all type defs
         , typeDefsTop          :: Set.Set Symbol           -- top-level type defs
 
+        , featuresTop          :: Set.Set Symbol
         , featuresAll          :: Map.Map Symbol Stmt
 
         , acquiresAll          :: Map.Map Symbol Stmt 
         , acquiresTop          :: Set.Set Symbol
-
-        , funcDefsAll          :: Map.Map Symbol Func
-        , funcDefsTop          :: Set.Set Symbol
 
         , funcInstance         :: Map.Map Type FuncHeader
 
@@ -77,15 +75,6 @@ prettyASTResolved ast = do
     forM_ (Map.toList $ acquiresAll ast) $ \(symbol, acquires) -> do
         prettyStmt "" acquires
 
-
-    putStrLn ""
-    putStrLn "funcDefsTop:"
-    forM_ (Set.toList $ funcDefsTop ast) $ \symbol -> do
-        putStrLn $ "\t" ++ prettySymbol symbol
-    putStrLn "funcDefsAll:"
-    forM_ (Map.toList $ funcDefsAll ast) $ \(symbol, func) -> do
-        let Just (generics, typ) = Map.lookup symbol (typeDefsAll ast)
-        prettyStmt "" $ FuncDef generics func
 
 --    putStrLn ""
 --    putStrLn "funcInstance:"
