@@ -213,6 +213,7 @@ collectExpr (AExpr exprType expression) = collectPos expression $ case expressio
                 [acq] -> do
                     subs <- unify =<< getConstraintsFromTypes acq callType
                     (Type.Func, retType : argTypes) <- unfoldType <$> baseTypeOf (applyType subs acq)
+                    collect "call type" $ ConsEq callType (applyType subs acq)
                     collect "call return" (ConsEq exprType retType)
                     zipWithM (\x y -> collect "call argument" (ConsEq x y)) argTypes (map typeof exprs)
                     return ()

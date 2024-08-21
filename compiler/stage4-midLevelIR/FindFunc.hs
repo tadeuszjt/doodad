@@ -111,7 +111,7 @@ makeAcquireInstance callType = do
             case subsEither of
                 Left _ -> return Nothing
                 Right subs -> do
-                    unless (applyType subs typ == callType) (error $ "type mismatch: " ++ show callType)
+                    unless (applyType subs typ == callType) (fail $ "type mismatch: " ++ show callType)
                     (Type.Func, retType : argTypes) <- unfoldType <$> baseTypeOf callType
                     unless (length argTypes == length args) (error "something else went wrong")
 

@@ -198,7 +198,6 @@ buildPattern defBlkId pattern expr = do
                     [ Reference pos (Ident pos enumMatch)
                     , match
                     ]
-                        
 
             appendStmt $ If pos (Ident pos enumMatch) (Stmt blkId) Nothing
 
@@ -432,10 +431,7 @@ buildStmt statement = withPos statement $ case statement of
             [t] -> return t
             ts -> return $ foldl Apply Tuple ts
 
-        paramType <- case generics of
-            [] -> return (TypeDef symbol)
-            ts -> return $ foldl Apply (TypeDef symbol) (map TypeDef generics)
-
+        let sumType = foldl Apply (TypeDef symbol) (map TypeDef generics)
         void $ appendStmt $ Typedef pos generics symbol (foldl Apply Sum caseTypes)
 
         -- write isCase0, isCase1 functions
@@ -450,7 +446,7 @@ buildStmt statement = withPos statement $ case statement of
             let header = FuncHeader
                     { funcSymbol   = Sym [sym symbol, "is" ++ (toUpper (head str) : tail str)]
                     , funcRetty    = Retty Type.Bool
-                    , funcArgs     = [RefParam pos (Sym ["en"]) paramType]
+                    , funcArgs     = [RefParam pos (Sym ["en"]) sumType]
                     , funcPos      = pos
                     }
             appendStmt $ FuncDef generics $ AST.Func header (Stmt blkId)
@@ -470,7 +466,6 @@ buildStmt statement = withPos statement $ case statement of
                         [ Reference pos (Field pos (Ident pos $ Sym ["en"]) (fromIntegral i))
                         , Ident pos (Sym ["a0"])
                         ]
-
                     ts -> forM_ (zip ts [0..]) $ \(t, j) -> do
                         appendStmt $ ExprStmt $ Call pos (TypeDef $ Sym ["store"])
                             [ Reference pos (Field pos (Field pos (Ident pos $ Sym ["en"]) (fromIntegral i)) j)
@@ -484,7 +479,7 @@ buildStmt statement = withPos statement $ case statement of
 
             let header = FuncHeader
                     { funcSymbol = Sym [sym symbol, str]
-                    , funcRetty  = Retty paramType
+                    , funcRetty  = Retty sumType
                     , funcArgs   = args
                     , funcPos = pos
                     }
@@ -492,21 +487,21 @@ buildStmt statement = withPos statement $ case statement of
 
         -- write fromCase0, fromCase1 accessors
         forM_ (zip cases [0..]) $ \( (Sym [str], ts) , i) -> do
+            let name = Sym ["from" ++ (toUpper $ head str) : (tail str) ]
+            let fieldType = case ts of
+                    [t] -> t
+                    ts  -> foldl Apply Tuple ts
+
+            -- feature{N, T, G} field0(A) B
+            let (n, t, g) = (Sym ["N"], Sym ["T"], Sym ["G"])
+            appendStmt $ Feature pos [n, g, t] [(n, g), (t, n)] name [TypeDef t] (TypeDef g)
+
+            -- acquires{A, B}  field0{0, MyType{A, B}, MyType.0} (a&) -> &
+            let acq = foldl Apply (TypeDef name) [Size i, fieldType, sumType]
             blkId <- newStmt (Block [])
+            appendStmt $ Acquires pos generics acq [RefParam pos (Sym ["x"]) Void] True (Stmt blkId)
             withCurId blkId $ do
-                appendStmt $ Return pos $ Just $ Reference pos $ Field pos (Ident pos $ Sym ["en"]) i
-
-            retty <- case ts of
-                [t] -> return (RefRetty t)
-                ts  -> return $ RefRetty (foldl Apply Tuple ts)
-
-            let header = FuncHeader
-                    { funcSymbol = Sym [sym symbol, "from" ++ (toUpper $ head str) : (tail str) ]
-                    , funcRetty  = retty
-                    , funcArgs   = [RefParam pos (Sym ["en"]) paramType]
-                    , funcPos = pos
-                    }
-            appendStmt $ FuncDef generics $ AST.Func header (Stmt blkId)
+                appendStmt $ Return pos . Just $ Field pos (Ident pos $ Sym ["x"]) i
 
     x -> error (show x)
 
