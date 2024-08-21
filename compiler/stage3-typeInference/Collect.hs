@@ -241,10 +241,6 @@ collectExpr (AExpr exprType expression) = collectPos expression $ case expressio
         collectExpr expr
         collectPattern pat
 
-    Field _ expr idx -> do
-        collect "field access must have valid types" $ ConsField (typeof expr) idx exprType
-        collectExpr expr
-
     AST.Reference _ expr -> do
         collect "reference type must match expression type" $ ConsEq exprType (typeof expr)
         collectExpr expr

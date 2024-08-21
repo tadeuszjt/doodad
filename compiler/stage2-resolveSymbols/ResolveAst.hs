@@ -359,9 +359,6 @@ resolveExpr expression = withPos expression $ case expression of
     AST.Float pos f -> return (AST.Float pos f)
     Ident pos symbol -> Ident pos <$> look symbol KeyVar
     Reference pos expr -> Reference pos <$> resolveExpr expr
-    Field pos expr n -> do
-        expr' <- resolveExpr expr
-        return (Field pos expr' n)
     Match pos expr pat -> do
         expr' <- resolveExpr expr
         pat' <- resolvePattern pat

@@ -12,15 +12,17 @@ include <time.h>
 include <math.h>
 link m
 
-type Rand Tuple{I64}
+type Rand I64
+
 derives Rand (destroy)
+derives Rand (store)
 
 fn i64(r &Rand, min I64, max I64) I64
-    let n = r.0
+    let n = r
     ${ srand($n); }
     ${ $n = rand(); }
-    r.0 = n
-    return (r.0 % (max - min)) + min
+    r = n
+    return (r.pretend % (max - min)) + min
 
 
 fn f64(rand &Rand, min F64, max F64) F64

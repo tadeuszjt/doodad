@@ -75,7 +75,6 @@ data Expr
     | Char         TextPos Char
     | String       TextPos String
     | Call         TextPos Type [Expr]
-    | Field        TextPos Expr Int
     | Member       TextPos Expr Symbol
     | Ident        TextPos Symbol
     | Match        TextPos Expr Pattern
@@ -167,7 +166,6 @@ instance TextPosition Expr where
         AST.Bool     p _    -> p
         AST.Char    p _    -> p
         String       p _    -> p
-        Field        p _ _  -> p
         Ident        p _    -> p
         Call         p _ _ -> p 
         Match        p _ _ -> p
@@ -244,7 +242,6 @@ instance Show Expr where
         AST.Char pos c                     -> show c
         String pos s                       -> show s
         AST.Array pos exprs                -> arrStrs (map show exprs)
-        Field pos expr i                   -> show expr ++ "." ++ show i
         Ident p s                          -> prettySymbol s 
         Call pos typ exprs                  -> show typ ++ tupStrs (map show exprs)
         Match pos expr1 expr2              -> "(" ++ show expr1 ++ " -> " ++ show expr2 ++ ")"

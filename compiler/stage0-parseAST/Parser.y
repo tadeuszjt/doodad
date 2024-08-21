@@ -322,7 +322,7 @@ expr   : literal                                 { $1 }
        | expr ':' type_                          { AExpr $3 $1 }
        | symbol                                  { AST.Ident (fst $1) (snd $1) }
        | '[' exprsA ']'                          { AST.Array (tokPos $1) $2 }
-       | expr '.' int_c                          { Field (tokPos $2) $1 (read $ tokStr $3)  }
+       | expr '.' int_c                          { Call (tokPos $2) (foldType $ [TypeDef (Sym ["builtin", "field"]), Size (read $ tokStr $3), Type 0, Type 0]) [AST.Reference (tokPos $2) $1] }
        | '&' expr                                { AST.Reference (tokPos $1) $2 }
        | expr '[' expr ']'                       { Call (tokPos $2) (TypeDef $ Sym ["container", "at"]) [AST.Reference (tokPos $2) $1, $3] }
        | expr '.' callType                       { Call (tokPos $2) $3 (AST.Reference (tokPos $2) $1 : []) }

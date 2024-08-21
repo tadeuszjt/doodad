@@ -56,10 +56,24 @@ acquires{T} destroy{ T.Table } (t&)
     }
 
 
+acquires{A} destroy{Sum{A}} (sum&)
+    sum.0 .destroy
+    ${ memset($sum, 0, sizeof(*$sum)); }
+
+
+acquires{A, B} destroy{Sum{A, B}} (sum&)
+    switch sum.builtinSumEnum
+        0; sum.0 .destroy
+        1; sum.1 .destroy
+
+    ${ memset($sum, 0, sizeof(*$sum)); }
+
+
 acquires{A, B, C} destroy{ Sum{A, B, C} } (sum&)
     switch sum.builtinSumEnum
         0; sum.0 .destroy
         1; sum.1 .destroy
         2; sum.2 .destroy
 
-    sum.builtinSumReset(0)
+    ${ memset($sum, 0, sizeof(*$sum)); }
+

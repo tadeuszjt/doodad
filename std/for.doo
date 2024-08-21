@@ -2,6 +2,7 @@ module for
 
 import std/container
 import std/convert
+import std/builtin
 
 
 feature{T}             forBegin(T) I64

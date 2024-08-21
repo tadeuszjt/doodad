@@ -81,10 +81,7 @@ cRettyType retty = case retty of
 generateFunc :: Type.Type -> Generate FuncHeader
 generateFunc funcType = do
     let (TypeDef symbol, typeArgs) = unfoldType funcType
-
     isInstance <- gets (Map.member funcType . funcInstance . astResolved)
-    isAcquire  <- gets (Map.member symbol . featuresAll . astResolved)
-
     if isInstance then
         fromJust <$> gets (Map.lookup funcType . funcInstance . astResolved)
     else do
@@ -308,6 +305,74 @@ generateStmt funcIr id = case (IR.irStmts funcIr) Map.! id of
 
                         x -> error (show x)
 
+                x | symbolsCouldMatch x (Sym ["builtin", "builtinField"]) -> do
+                    unless (length args == 1) (error "arg length mismatch")
+                    let (TypeDef _, [Size i, _, _]) = unfoldType callType
+
+                    let (IR.ArgID argId) = (args !! 0)
+                    let (argType, IR.Ref) = (IR.irTypes funcIr) Map.! argId
+
+                    cexpr <- generateArg (IR.ArgID argId)
+                    cType <- cTypeOf argType
+                    cRefType <- cRefTypeOf argType
+                    base <- baseTypeOf argType
+
+                    case unfoldType base of
+                        (Sum, ts) -> do
+                            let IR.Ref = ssaRefTyp
+                            let ptr = C.Address (C.PMember cexpr $ "u" ++ show i)
+                            base <- baseTypeOf (ts !! i)
+                            cRefType <- cRefTypeOf (ts !! i)
+                            case unfoldType base of
+                                (Type.Tuple, ts) -> do
+                                    void $ appendAssign cRefType (idName id) $ C.Initialiser [ptr, C.Int 0, C.Int 1]
+                                (_, ts) -> void $ appendAssign cRefType (idName id) ptr
+
+                        (Table, [t]) -> do
+                            let IR.Ref = ssaRefTyp
+                            baseT <- baseTypeOf t
+
+                            case unfoldType baseT of
+                                (Tuple, ts) -> do
+                                    ct <- cTypeOf baseT
+                                    let off = C.Offsetof ct ("m" ++ show i)
+                                    let ptr = C.Cast (Cpointer Cvoid) (C.PMember cexpr "r0")
+                                    let row = C.Infix C.Plus ptr $ C.Infix C.Times off $ C.PMember cexpr "cap"
+                                    -- setting slice cap to 0 represents non-flat memory
+                                    slice <- assign "slice" $ Value (Apply Slice $ ts !! i) $
+                                        C.Initialiser [ row, C.PMember cexpr "len", C.Int 0 ]
+
+                                    Ref _ refExpr <- makeRef slice
+                                    cRefType <- cRefTypeOf (Apply Slice $ ts !! i)
+                                    void $ appendAssign cRefType (idName id) refExpr
+
+                        (Tuple, ts) -> do
+                            let IR.Ref = ssaRefTyp
+                            cts <- mapM cTypeOf ts
+                            ct <- cTypeOf base
+
+                            let off = C.Offsetof ct ("m" ++ show i)
+                            let ptr = C.Cast (Cpointer Cvoid) (C.Member cexpr "ptr")
+                            let idx = C.Member cexpr "idx"
+                            let cap = C.Member cexpr "cap"
+
+                            case ssaRefTyp of
+                                IR.Ref -> do
+                                    let ptr' = C.Cast (Cpointer $ cts !! i) $ C.Infix C.Plus ptr $ C.Infix Plus
+                                                (C.Infix C.Times cap off)
+                                                (C.Infix C.Times idx $ C.SizeofType $ cts !! i)
+
+                                    baseField <- baseTypeOf (ts !! i)
+                                    cRefTypeField <- cRefTypeOf (ts !! i)
+                                    case unfoldType baseField of
+                                        (Tuple, _) -> do
+                                            void $ appendAssign cRefTypeField (idName id) $ C.Initialiser [ptr', C.Int 0, C.Int 1]
+                                        (_, _) -> do
+                                            void $ appendAssign cRefTypeField (idName id) ptr'
+
+                                x -> error (show x)
+                        
+                        x -> error (show x)
 
 
                 x -> do
@@ -337,106 +402,5 @@ generateStmt funcIr id = case (IR.irStmts funcIr) Map.! id of
                 void $ appendElem $ C.Assign cType (idName id) cRef
 
             x -> error (show x)
-
-        IR.MakeFieldFromVal argId i -> do
-            let (typ, IR.Value) = (IR.irTypes funcIr) Map.! argId
-            cexpr <- generateArg (IR.ArgID argId)
-            base <- baseTypeOf typ
-
-            case (IR.irTypes funcIr) Map.! id of
-                (t, IR.Value) -> do
-                    cType <- cTypeOf t
-                    case unfoldType base of
-                        (Tuple, ts) -> void $ appendAssign cType (idName id) (C.Member cexpr $ "m" ++ show i)
-                        (Sum, ts)   -> void $ appendAssign cType (idName id) (C.Member cexpr $ "u" ++ show i)
-                        (Table, [t]) -> do
-                            baseT <- baseTypeOf t
-                            case unfoldType baseT of
-                                (Tuple, ts) -> do
-                                    ct <- cTypeOf baseT
-                                    let off = C.Offsetof ct ("m" ++ show i)
-                                    let ptr = C.Cast (Cpointer Cvoid) (C.Member cexpr "r0")
-                                    let row = C.Infix C.Plus ptr $ C.Infix C.Times off $ C.Member cexpr "cap"
-                                    -- setting slice cap to 0 represents non-flat memory
-                                    slice <- assign "slice" $ Value (Apply Slice $ ts !! i) $
-                                        C.Initialiser [ row, C.Member cexpr "len", C.Int 0 ]
-
-                                    cType <- cTypeOf (Apply Slice $ ts !! i)
-                                    void $ appendAssign cType (idName id) (valExpr slice)
-
-                                x -> error (show x)
-                x -> error (show x)
-
-
-        IR.MakeFieldFromRef argId i -> do
-            let (argType, IR.Ref) = (IR.irTypes funcIr) Map.! argId
-            cexpr <- generateArg (IR.ArgID argId)
-            cType <- cTypeOf argType
-            cRefType <- cRefTypeOf argType
-            base <- baseTypeOf argType
-
-            case unfoldType base of
-                (Sum, ts) -> do
-                    let IR.Ref = ssaRefTyp
-                    let ptr = C.Address (C.PMember cexpr $ "u" ++ show i)
-                    base <- baseTypeOf (ts !! i)
-                    cRefType <- cRefTypeOf (ts !! i)
-                    case unfoldType base of
-                        (Type.Tuple, ts) -> do
-                            void $ appendAssign cRefType (idName id) $ C.Initialiser [ptr, C.Int 0, C.Int 1]
-                        (_, ts) -> void $ appendAssign cRefType (idName id) ptr
-
-                (Table, [t]) -> do
-                    let IR.Ref = ssaRefTyp
-                    baseT <- baseTypeOf t
-
-                    case unfoldType baseT of
-                        (Tuple, ts) -> do
-                            ct <- cTypeOf baseT
-                            let off = C.Offsetof ct ("m" ++ show i)
-                            let ptr = C.Cast (Cpointer Cvoid) (C.PMember cexpr "r0")
-                            let row = C.Infix C.Plus ptr $ C.Infix C.Times off $ C.PMember cexpr "cap"
-                            -- setting slice cap to 0 represents non-flat memory
-                            slice <- assign "slice" $ Value (Apply Slice $ ts !! i) $
-                                C.Initialiser [ row, C.PMember cexpr "len", C.Int 0 ]
-
-                            Ref _ refExpr <- makeRef slice
-                            cRefType <- cRefTypeOf (Apply Slice $ ts !! i)
-                            void $ appendAssign cRefType (idName id) refExpr
-
-
-                (Tuple, ts) -> do
-                    cts <- mapM cTypeOf ts
-                    ct <- cTypeOf base
-
-                    let off = C.Offsetof ct ("m" ++ show i)
-                    let ptr = C.Cast (Cpointer Cvoid) (C.Member cexpr "ptr")
-                    let idx = C.Member cexpr "idx"
-                    let cap = C.Member cexpr "cap"
-
-                    case ssaRefTyp of
-                        IR.Value -> do
-                            cTypeField <- cTypeOf (ts !! i)
-                            void $ appendAssign cTypeField (idName id) $ C.Deref $
-                                C.Cast (Cpointer cTypeField) $ C.Infix C.Plus ptr $ C.Infix Plus
-                                    (C.Infix C.Times cap off)
-                                    (C.Infix C.Times idx $ C.SizeofType cTypeField)
-
-                        IR.Ref -> do
-                            let ptr' = C.Cast (Cpointer $ cts !! i) $ C.Infix C.Plus ptr $ C.Infix Plus
-                                        (C.Infix C.Times cap off)
-                                        (C.Infix C.Times idx $ C.SizeofType $ cts !! i)
-
-                            baseField <- baseTypeOf (ts !! i)
-                            cRefTypeField <- cRefTypeOf (ts !! i)
-                            case unfoldType baseField of
-                                (Tuple, _) -> do
-                                    void $ appendAssign cRefTypeField (idName id) $ C.Initialiser [ptr', C.Int 0, C.Int 1]
-                                (_, _) -> do
-                                    void $ appendAssign cRefTypeField (idName id) ptr'
-
-                        x -> error (show x)
-                
-                x -> error (show x)
 
     x -> error (show x)

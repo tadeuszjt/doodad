@@ -86,7 +86,7 @@ acquires{P, S, T} print{ P, Array{S, T} } (p&, array)
 
 acquires{P, A, B} print{ P, Tuple{A, B} } (a&, b)
     a.print('(')
-    a.print( b.0 )
+    a.print( b.builtinField{0, A, Tuple{A, B}} )
     a.print(", ")
     a.print( b.1 )
     a.print(')')

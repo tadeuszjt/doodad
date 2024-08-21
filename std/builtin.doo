@@ -1,5 +1,6 @@
 module builtin
 
+
 // memory
 fn{T} builtinStore(a &T, b T); ${ *$a = $b; }
 
@@ -11,13 +12,36 @@ acquires destroy{F64} (c&); return
 acquires destroy{I64} (c&); return
 acquires destroy{I32} (c&); return
 
-acquires{A, B} destroy{Sum{A, B}} (sum&); return // TODO
-acquires{A} destroy{Sum{A}} (sum&); return // TODO
-
 acquires destroy{Tuple{}} (tup&); return
 
 // types
 fn{T, G} pretend(a &T) &G; ${ return $a; }
+
+feature{N, G, T | N -> G} field(T) G
+
+acquires{A, B} field{0, A, Tuple{A, B}} (tup&) -> &; return tup.builtinField{0, A, Tuple{A, B}}
+acquires{A, B} field{1, B, Tuple{A, B}} (tup&) -> &; return tup.builtinField{1, B, Tuple{A, B}}
+
+acquires{A, B, C} field{0, A, Tuple{A, B, C}} (tup&) -> &; return tup.builtinField{0, A, Tuple{A, B, C}}
+acquires{A, B, C} field{1, B, Tuple{A, B, C}} (tup&) -> &; return tup.builtinField{1, B, Tuple{A, B, C}}
+acquires{A, B, C} field{2, C, Tuple{A, B, C}} (tup&) -> &; return tup.builtinField{2, C, Tuple{A, B, C}}
+
+acquires{A, B, C, D} field{0, A, Tuple{A, B, C, D}} (tup&) -> &; return tup.builtinField{0, A, Tuple{A, B, C, D}}
+acquires{A, B, C, D} field{1, B, Tuple{A, B, C, D}} (tup&) -> &; return tup.builtinField{1, B, Tuple{A, B, C, D}}
+acquires{A, B, C, D} field{2, C, Tuple{A, B, C, D}} (tup&) -> &; return tup.builtinField{2, C, Tuple{A, B, C, D}}
+acquires{A, B, C, D} field{3, D, Tuple{A, B, C, D}} (tup&) -> &; return tup.builtinField{3, D, Tuple{A, B, C, D}}
+
+acquires{A} field{0, A, Sum{A}} (sum&) -> &; return sum.builtinField{0, A, Sum{A}}
+
+acquires{A, B} field{0, A, Sum{A, B}} (sum&) -> &; return sum.builtinField{0, A, Sum{A, B}}
+acquires{A, B} field{1, B, Sum{A, B}} (sum&) -> &; return sum.builtinField{1, B, Sum{A, B}}
+
+acquires{A, B, C} field{0, A, Sum{A, B, C}} (sum&) -> &; return sum.builtinField{0, A, Sum{A, B, C}}
+acquires{A, B, C} field{1, B, Sum{A, B, C}} (sum&) -> &; return sum.builtinField{1, B, Sum{A, B, C}}
+acquires{A, B, C} field{2, C, Sum{A, B, C}} (sum&) -> &; return sum.builtinField{2, C, Sum{A, B, C}}
+
+
+fn{I, G, T} builtinField(t &T) &G; ${ assert(false); }
 
 
 // arithmetic

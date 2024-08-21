@@ -147,10 +147,6 @@ mapExprM f expr = withPos expr $ do
             typ' <- mapTypeM f typ
             Call pos typ' <$> mapM (mapExprM f) exprs
 
-        Field pos expr n -> do
-            expr' <- mapExprM f expr
-            return $ Field pos expr' n
-
         AST.Match pos expr pattern -> do
             expr' <- mapExprM f expr
             pattern' <- mapPattern f pattern

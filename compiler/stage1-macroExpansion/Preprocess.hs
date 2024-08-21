@@ -253,6 +253,13 @@ buildCondition defBlkId expression = withPos expression $ case expression of
     x -> error (show x)
 
 
+field :: Type -> Integer -> Expr -> Expr
+field fieldType i expr = AExpr fieldType $ Call (textPos expr) typ [expr]
+    where
+        typ = foldType [TypeDef (Sym ["builtin", "builtinField"]), Size (fromIntegral i), Type 0, Type 0]
+    
+
+
 buildStmt :: Stmt -> DoM BuildState ()
 buildStmt statement = withPos statement $ case statement of
     ExprStmt expr     -> void $ appendStmt (ExprStmt expr)
@@ -334,7 +341,7 @@ buildStmt statement = withPos statement $ case statement of
             blkId <- newStmt (Block [])
             withCurId blkId $ do
                 match <- buildPattern blkId pat (Ident pos copySym)
-                appendStmt $ ExprStmt $ Call pos (TypeDef $ Sym ["store"])
+                appendStmt $ ExprStmt $ Call pos (TypeDef $ Sym ["builtin", "builtinStore"])
                     [ Reference pos (Ident pos $ caseSyms !! i)
                     , match
                     ]
@@ -426,13 +433,13 @@ buildStmt statement = withPos statement $ case statement of
             blkId <- newStmt (Block [])
             appendStmt $ Acquires pos generics acq [RefParam pos (Sym ["x"]) Void] True (Stmt blkId)
             withCurId blkId $ do
-                appendStmt $ Return pos . Just $ Field pos (Ident pos $ Sym ["x"]) i
+                appendStmt $ Return pos . Just $ field fieldType i (Ident pos $ Sym ["x"])
                 
             blkId2 <- newStmt (Block [])
             let acq2 = foldType [TypeDef fieldSymbol, Apply Table typ, Apply Slice fieldType]
             appendStmt $ Acquires pos generics acq2 [Param pos (Sym ["x"]) Void] False (Stmt blkId2)
             withCurId blkId2 $ do
-                appendStmt $ Return pos . Just $ Field pos (Ident pos $ Sym ["x"]) i
+                appendStmt $ Return pos . Just $ field (Apply Slice fieldType) i (Ident pos $ Sym ["x"])
 
 
     Enum pos generics symbol cases -> do
@@ -474,12 +481,12 @@ buildStmt statement = withPos statement $ case statement of
 
                 case ts of
                     [t] -> void $ appendStmt $ ExprStmt $ Call pos (TypeDef $ Sym ["store"])
-                        [ Reference pos (Field pos (Ident pos $ Sym ["en"]) (fromIntegral i))
+                        [ Reference pos (field t i (Ident pos $ Sym ["en"]))
                         , Ident pos (Sym ["a0"])
                         ]
                     ts -> forM_ (zip ts [0..]) $ \(t, j) -> do
                         appendStmt $ ExprStmt $ Call pos (TypeDef $ Sym ["store"])
-                            [ Reference pos (Field pos (Field pos (Ident pos $ Sym ["en"]) (fromIntegral i)) j)
+                            [ Reference pos (field (ts !! j) (fromIntegral j) (field (foldType (Tuple : ts)) i (Ident pos $ Sym ["en"])))
                             , Ident pos (Sym ["a" ++ show j])
                             ]
 
@@ -505,11 +512,11 @@ buildStmt statement = withPos statement $ case statement of
             appendStmt $ Feature pos [n, g, t] [(n, g), (t, n)] name [TypeDef t] (TypeDef g)
 
             -- acquires{A, B}  field0{0, MyType{A, B}, MyType.0} (a&) -> &
-            let acq = foldl Apply (TypeDef name) [Size i, fieldType, sumType]
+            let acq = foldl Apply (TypeDef name) [Size (fromIntegral i), fieldType, sumType]
             blkId <- newStmt (Block [])
             appendStmt $ Acquires pos generics acq [RefParam pos (Sym ["x"]) Void] True (Stmt blkId)
             withCurId blkId $ do
-                appendStmt $ Return pos . Just $ Field pos (Ident pos $ Sym ["x"]) i
+                appendStmt $ Return pos . Just $ field fieldType i (Ident pos $ Sym ["x"])
 
     x -> error (show x)
 

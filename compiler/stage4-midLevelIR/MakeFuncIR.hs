@@ -135,12 +135,6 @@ makeStmt statement = withPos statement $ case statement of
                 case resm of
                     Just (SSA _ _ (Call _ _)) -> do define symbol argId
 
-                    Just (SSA _ _ (MakeFieldFromVal _ _)) -> do
-                        id <- liftFuncIr $ appendSSA typ Value (InitVar Nothing)
-                        idRef <- liftFuncIr $ appendSSA typ Ref (MakeReferenceFromValue id)
-                        store (ArgID idRef) (ArgID argId)
-                        void $ define symbol id
-
                     Just (SSA _ _ (MakeValueFromReference _)) -> do
                         id <- liftFuncIr $ appendSSA typ Value (InitVar Nothing)
                         idRef <- liftFuncIr $ appendSSA typ Ref (MakeReferenceFromValue id)
@@ -266,21 +260,6 @@ makeVal (S.AExpr exprType expression) = withPos expression $ case expression of
 
             x -> error (show x)
 
-    S.Field _ expr i -> do
-        arg <- makeVal expr
-        (typ, refType) <- liftFuncIr (getType arg)
-        case refType of
-            Ref -> do
-                -- TODO what about slice?
-                let ArgID argId = arg 
-                fmap ArgID $ liftFuncIr $ appendSSA exprType Value (MakeFieldFromRef argId i)
-
-            Value -> do
-                let ArgID argId = arg
-                fmap ArgID $ liftFuncIr $ appendSSA exprType Value (MakeFieldFromVal argId i)
-                
-            x -> error (show x)
-
     x -> error (show x)
 
 
@@ -319,13 +298,6 @@ makeRef (S.AExpr exprType expression) = withPos expression $ case expression of
                 id <- liftFuncIr $ appendSSA typ Value (Call funcType args)
                 liftFuncIr $ appendSSA typ Ref (MakeReferenceFromValue id)
 
-            x -> error (show x)
-
-    S.Field _ expr i -> do
-        argId <- makeRef expr
-        (typ, refType) <- liftFuncIr $ getType (ArgID argId)
-        case refType of
-            Ref -> liftFuncIr $ appendSSA exprType Ref (MakeFieldFromRef argId i)
             x -> error (show x)
 
     x -> error (show x)
