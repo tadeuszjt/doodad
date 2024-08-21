@@ -172,6 +172,7 @@ makeStmt statement = withPos statement $ case statement of
         Just retty <- gets astRetty
         case retty of
             S.RefRetty typ -> void $ (liftFuncIr . appendStmt . Return . ArgID) =<< makeRef expr
+            S.Retty (Apply Type.Slice _) -> void $ (liftFuncIr . appendStmt . Return) =<< makeVal expr
             S.Retty typ -> do
                 -- if this is a stack value, can return
                 -- anything else needs to be created with store
@@ -182,7 +183,7 @@ makeStmt statement = withPos statement $ case statement of
                         mstmt <- liftFuncIr $ gets $ Map.lookup argId . irStmts
                         case mstmt of
                             Just (SSA _ _ (InitVar _)) -> void $ liftFuncIr $ appendStmt (Return val)
-                            Just (SSA _ _ (Call _ _)) -> void $ liftFuncIr $ appendStmt (Return val)
+                            Just (SSA _ _ (Call _ _))  -> void $ liftFuncIr $ appendStmt (Return val)
                             _                -> do
                                 id1 <- liftFuncIr $ appendSSA typ Value (InitVar Nothing)
                                 id2 <- liftFuncIr $ appendSSA typ Ref (MakeReferenceFromValue id1)
@@ -265,15 +266,7 @@ makeVal (S.AExpr exprType expression) = withPos expression $ case expression of
 
             x -> error (show x)
 
-    S.Field _ expr field -> do
-        i <- case field of
-            Left i -> return i
-            Right fieldSymbol -> do
-                (i, _) <- gets $ (Map.! fieldSymbol) . fieldsAll . astResolved
-                return i
-
-            x -> error (show x)
-
+    S.Field _ expr i -> do
         arg <- makeVal expr
         (typ, refType) <- liftFuncIr (getType arg)
         case refType of
@@ -328,11 +321,7 @@ makeRef (S.AExpr exprType expression) = withPos expression $ case expression of
 
             x -> error (show x)
 
-    S.Field _ expr field -> do
-        i <- case field of
-            Left i -> return i
-            Right fieldSymbol -> gets $ fst . (Map.! fieldSymbol) . fieldsAll . astResolved
-
+    S.Field _ expr i -> do
         argId <- makeRef expr
         (typ, refType) <- liftFuncIr $ getType (ArgID argId)
         case refType of

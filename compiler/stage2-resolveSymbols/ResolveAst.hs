@@ -151,16 +151,16 @@ resolveAst ast imports = fmap fst $ runDoMExcept initResolveState (resolveAst' a
                     define symbol' KeyType
                     return (Feature pos generics funDeps symbol' args retty)
 
-                MacroTuple pos generics (Sym [str]) fields -> do
-                    symbol' <- genSymbol (SymResolved [str])
-                    define symbol' KeyType
-
-                    fields' <- forM fields $ \(Sym [fieldStr], fieldType) -> do
-                        fieldSymbol <- genSymbol (SymResolved [fieldStr])
-                        define fieldSymbol KeyType
-                        return (fieldSymbol, fieldType)
-                        
-                    return $ MacroTuple pos generics symbol' fields'
+--                MacroTuple pos generics (Sym [str]) fields -> do
+--                    symbol' <- genSymbol (SymResolved [str])
+--                    define symbol' KeyType
+--
+--                    fields' <- forM fields $ \(Sym [fieldStr], fieldType) -> do
+--                        fieldSymbol <- genSymbol (SymResolved [fieldStr])
+--                        define fieldSymbol KeyType
+--                        return (fieldSymbol, fieldType)
+--                        
+--                    return $ MacroTuple pos generics symbol' fields'
 
                 _ -> return stmt
 
@@ -231,27 +231,27 @@ resolveStmt statement = withPos statement $ case statement of
         popSymbolTable
         return (Typedef pos generics' symbol' typ')
 
-    MacroTuple pos generics symbol fields -> do
-        symbol' <- case symbol of
-            Sym str -> do
-                s <- genSymbol (SymResolved str)
-                define s KeyType
-                return s
-            SymResolved _ -> return symbol
-
-        fieldSymbols' <- forM fields $ \(fieldSymbol, _) -> case fieldSymbol of
-            SymResolved _ -> return fieldSymbol
-            Sym s -> do
-                s' <- genSymbol (SymResolved s)
-                define s' KeyType
-                return s'
-
-        pushSymbolTable
-        generics' <- defineGenerics generics
-        fieldTypes' <- mapM resolveType (map snd fields)
-        popSymbolTable
-
-        return $ MacroTuple pos generics' symbol' (zip fieldSymbols' fieldTypes')
+--    MacroTuple pos generics symbol fields -> do
+--        symbol' <- case symbol of
+--            Sym str -> do
+--                s <- genSymbol (SymResolved str)
+--                define s KeyType
+--                return s
+--            SymResolved _ -> return symbol
+--
+--        fieldSymbols' <- forM fields $ \(fieldSymbol, _) -> case fieldSymbol of
+--            SymResolved _ -> return fieldSymbol
+--            Sym s -> do
+--                s' <- genSymbol (SymResolved s)
+--                define s' KeyType
+--                return s'
+--
+--        pushSymbolTable
+--        generics' <- defineGenerics generics
+--        fieldTypes' <- mapM resolveType (map snd fields)
+--        popSymbolTable
+--
+--        return $ MacroTuple pos generics' symbol' (zip fieldSymbols' fieldTypes')
 
 
     Feature pos generics funDeps symbol args retty -> do
@@ -275,7 +275,7 @@ resolveStmt statement = withPos statement $ case statement of
         popSymbolTable
         return (Derives pos generics' t1' t2')
 
-    Aquires pos generics typ args isRef stmt -> do
+    Acquires pos generics typ args isRef stmt -> do
         pushSymbolTable
         generics' <- defineGenerics generics
         typ' <- resolveType typ
@@ -283,7 +283,7 @@ resolveStmt statement = withPos statement $ case statement of
         stmt' <- resolveStmt stmt
 
         popSymbolTable
-        return (Aquires pos generics' typ' args' isRef stmt')
+        return (Acquires pos generics' typ' args' isRef stmt')
 
     FuncDef generics (AST.Func header stmt) -> do
         symbol' <- case (funcSymbol header) of

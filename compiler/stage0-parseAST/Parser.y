@@ -173,7 +173,7 @@ featureDef : feature featureGenerics ident '(' types ')' typeMaybe
 
 
 acquiresDef : acquires generics symbol '{' types '}' '(' args ')' acquiresRetty scope
-            { Aquires (tokPos $1) $2 (foldl Apply (TypeDef $ snd $3) $5) $8 $10 $11 }
+            { Acquires (tokPos $1) $2 (foldl Apply (TypeDef $ snd $3) $5) $8 $10 $11 }
 
 
 acquiresRetty : {-empty-}  { False }
@@ -322,7 +322,7 @@ expr   : literal                                 { $1 }
        | expr ':' type_                          { AExpr $3 $1 }
        | symbol                                  { AST.Ident (fst $1) (snd $1) }
        | '[' exprsA ']'                          { AST.Array (tokPos $1) $2 }
-       | expr '.' int_c                          { Field (tokPos $2) $1 (Left $ read $ tokStr $3)  }
+       | expr '.' int_c                          { Field (tokPos $2) $1 (read $ tokStr $3)  }
        | '&' expr                                { AST.Reference (tokPos $1) $2 }
        | expr '[' expr ']'                       { Call (tokPos $2) (TypeDef $ Sym ["container", "at"]) [AST.Reference (tokPos $2) $1, $3] }
        | expr '.' callType                       { Call (tokPos $2) $3 (AST.Reference (tokPos $2) $1 : []) }

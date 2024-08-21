@@ -75,7 +75,7 @@ data Expr
     | Char         TextPos Char
     | String       TextPos String
     | Call         TextPos Type [Expr]
-    | Field        TextPos Expr (Either Int Symbol)
+    | Field        TextPos Expr Int
     | Member       TextPos Expr Symbol
     | Ident        TextPos Symbol
     | Match        TextPos Expr Pattern
@@ -134,7 +134,7 @@ data Stmt
     | While       TextPos Expr Stmt
     | FuncDef     Generics Func
     | Feature     TextPos Generics FunDeps Symbol [Type] Type
-    | Aquires     TextPos Generics Type [Param] Bool Stmt
+    | Acquires     TextPos Generics Type [Param] Bool Stmt
     | Typedef     TextPos Generics Symbol Type
     | Switch      TextPos Expr [(Pattern, Stmt)]
     | For         TextPos Expr (Maybe Pattern) Stmt
@@ -196,7 +196,7 @@ instance TextPosition Stmt where
         Enum        p _ _ _ -> p
         MacroTuple  p _ _ _ -> p
         Assign      p _ _ -> p
-        Aquires     p _ _ _ _ _ -> p
+        Acquires     p _ _ _ _ _ -> p
         Derives     p _ _ _ -> p
         x -> error ("invalid statement")
 
@@ -244,7 +244,7 @@ instance Show Expr where
         AST.Char pos c                     -> show c
         String pos s                       -> show s
         AST.Array pos exprs                -> arrStrs (map show exprs)
-        Field pos expr either              -> show expr ++ "." ++ (case either of Left id -> show id; Right symbol -> prettySymbol symbol)
+        Field pos expr i                   -> show expr ++ "." ++ show i
         Ident p s                          -> prettySymbol s 
         Call pos typ exprs                  -> show typ ++ tupStrs (map show exprs)
         Match pos expr1 expr2              -> "(" ++ show expr1 ++ " -> " ++ show expr2 ++ ")"
@@ -323,7 +323,7 @@ prettyStmt pre stmt = case stmt of
     Typedef pos generics symbol anno -> do
         putStrLn $ pre ++ "type" ++ genericsStr generics ++ " " ++ prettySymbol symbol ++ " " ++ show anno
 
-    Aquires pos generics typ args isRef stmt -> do
+    Acquires pos generics typ args isRef stmt -> do
         putStrLn $ pre
             ++ "acquires"
             ++ genericsStr generics

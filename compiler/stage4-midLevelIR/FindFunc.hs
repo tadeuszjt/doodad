@@ -102,7 +102,7 @@ makeAcquireInstance callType = do
                     unless (typeFullyResolved lower) (error "propagating type vars")
                     makeAcquireInstance lower
 
-        Aquires pos generics implType args isRef scope -> do
+        Acquires pos generics implType args isRef scope -> do
             --liftIO $ putStrLn $ "checking aquire: " ++ prettySymbol symbol
             let genericSubs = zip (map TypeDef generics) (map Type [1..])
             let typ = applyType genericSubs implType

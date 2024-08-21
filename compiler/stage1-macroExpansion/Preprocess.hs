@@ -77,7 +77,7 @@ unpackStmt statement = withPos statement $ case statement of
     Derives _ _ _ _ -> return statement
     MacroTuple _ _ _ _ -> return statement
 
-    Aquires pos generics typ args isRef stmt -> Aquires pos generics typ args isRef <$> unpackStmt stmt
+    Acquires pos generics typ args isRef stmt -> Acquires pos generics typ args isRef <$> unpackStmt stmt
 
     FuncDef generics (AST.Func header stmt) -> FuncDef generics . AST.Func header <$> unpackStmt stmt
     Block stmts -> Block <$> mapM unpackStmt stmts
@@ -263,12 +263,12 @@ buildStmt statement = withPos statement $ case statement of
     Data _ _ _ _      -> void $ appendStmt statement
     Feature _ _ _ _ _ _ -> void $ appendStmt statement
     Derives _ _ _ _   -> void $ appendStmt statement
-    MacroTuple _ _ _ _ -> void $ appendStmt statement
+    --MacroTuple _ _ _ _ -> void $ appendStmt statement
 
-    Aquires pos generics typ args isRef (Block stmts) -> do
+    Acquires pos generics typ args isRef (Block stmts) -> do
         blockId <- newStmt (Block [])
         withCurId blockId (mapM_ buildStmt stmts)
-        void $ appendStmt $ Aquires pos generics typ args isRef (Stmt blockId)
+        void $ appendStmt $ Acquires pos generics typ args isRef (Stmt blockId)
 
     FuncDef generics (AST.Func header (Block stmts)) -> do
         blockId <- newStmt (Block [])
@@ -404,6 +404,29 @@ buildStmt statement = withPos statement $ case statement of
         void $ appendStmt $ While pos (Ident pos loop) (Stmt id)
 
 
+    MacroTuple pos generics symbol fields -> do
+        void $ appendStmt $ Typedef pos generics symbol (foldl Apply Tuple $ map snd fields)
+        forM_ (zip fields [0..]) $ \((fieldSymbol, fieldType), i) -> do
+            -- write field feature
+            let a = Sym ["A"]
+            let b = Sym ["B"]
+            appendStmt $ Feature pos [a, b] [(a, b)] fieldSymbol [TypeDef a] (TypeDef b)
+
+            -- write acquires
+            let typ = foldType (TypeDef symbol : map TypeDef generics)
+            let acq = foldType [TypeDef fieldSymbol, typ, fieldType]
+            blkId <- newStmt (Block [])
+            appendStmt $ Acquires pos generics acq [RefParam pos (Sym ["x"]) Void] True (Stmt blkId)
+            withCurId blkId $ do
+                appendStmt $ Return pos . Just $ Field pos (Ident pos $ Sym ["x"]) i
+                
+            blkId2 <- newStmt (Block [])
+            let acq2 = foldType [TypeDef fieldSymbol, Apply Table typ, Apply Slice fieldType]
+            appendStmt $ Acquires pos generics acq2 [Param pos (Sym ["x"]) Void] False (Stmt blkId2)
+            withCurId blkId2 $ do
+                appendStmt $ Return pos . Just $ Field pos (Ident pos $ Sym ["x"]) i
+
+
     Enum pos generics symbol cases -> do
         caseTypes <- forM cases $ \(symbol, ts) -> case ts of
             [t] -> return t
@@ -444,13 +467,13 @@ buildStmt statement = withPos statement $ case statement of
 
                 case ts of
                     [t] -> void $ appendStmt $ ExprStmt $ Call pos (TypeDef $ Sym ["store"])
-                        [ Reference pos (Field pos (Ident pos $ Sym ["en"]) (Left $ fromIntegral i))
+                        [ Reference pos (Field pos (Ident pos $ Sym ["en"]) (fromIntegral i))
                         , Ident pos (Sym ["a0"])
                         ]
 
                     ts -> forM_ (zip ts [0..]) $ \(t, j) -> do
                         appendStmt $ ExprStmt $ Call pos (TypeDef $ Sym ["store"])
-                            [ Reference pos (Field pos (Field pos (Ident pos $ Sym ["en"]) (Left $ fromIntegral i)) $ Left j)
+                            [ Reference pos (Field pos (Field pos (Ident pos $ Sym ["en"]) (fromIntegral i)) j)
                             , Ident pos (Sym ["a" ++ show j])
                             ]
 
@@ -471,7 +494,7 @@ buildStmt statement = withPos statement $ case statement of
         forM_ (zip cases [0..]) $ \( (Sym [str], ts) , i) -> do
             blkId <- newStmt (Block [])
             withCurId blkId $ do
-                appendStmt $ Return pos $ Just $ Reference pos $ Field pos (Ident pos $ Sym ["en"]) (Left i)
+                appendStmt $ Return pos $ Just $ Reference pos $ Field pos (Ident pos $ Sym ["en"]) i
 
             retty <- case ts of
                 [t] -> return (RefRetty t)

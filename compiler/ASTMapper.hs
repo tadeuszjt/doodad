@@ -53,9 +53,9 @@ mapStmtM f stmt = withPos stmt $ do
         Typedef _ _ _ _ -> return stmt -- ignored
         Feature _ _ _ _ _ _ -> return stmt -- ignored
 
-        Aquires pos generics typ args isRef stmt -> do
+        Acquires pos generics typ args isRef stmt -> do
             stmt' <- mapStmtM f stmt
-            return (Aquires pos generics typ args isRef stmt')
+            return (Acquires pos generics typ args isRef stmt')
 
         FuncDef generics (AST.Func header stmt) -> do
             stmt' <- mapStmtM f stmt
