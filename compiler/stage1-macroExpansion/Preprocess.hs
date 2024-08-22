@@ -277,15 +277,14 @@ buildStmt statement = withPos statement $ case statement of
         void $ appendStmt $ Acquires pos generics typ args isRef (Stmt blockId)
 
     FuncDef generics (AST.Func header (Block stmts)) -> do
-        let pos = TextPos "" 0 0
-        appendStmt $ Feature pos generics [] (funcSymbol header) (map typeof $ funcArgs header) (typeof $ funcRetty header)
+        appendStmt $ Feature (textPos header) generics [] (funcSymbol header) (map typeof $ funcArgs header) (typeof $ funcRetty header)
 
         acqIsRef <- case funcRetty header of
             RefRetty _ -> return True
             Retty _    -> return False
 
         blockId <- newStmt (Block [])
-        appendStmt $ Acquires pos generics (foldl Apply (TypeDef $ funcSymbol header) $ map TypeDef generics) (funcArgs header) acqIsRef (Stmt blockId)
+        appendStmt $ Acquires (textPos header) generics (foldl Apply (TypeDef $ funcSymbol header) $ map TypeDef generics) (funcArgs header) acqIsRef (Stmt blockId)
 
         --appendStmt $ FuncDef generics (AST.Func header (Stmt blockId))
         withCurId blockId (mapM_ buildStmt stmts)

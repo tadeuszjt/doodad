@@ -12,6 +12,7 @@ import Type
 import FindFunc
 import Error
 import IR
+import qualified FuncIrRunConst
 
 import qualified AST as S
 
@@ -90,9 +91,9 @@ makeFuncIR func = do
 
     state <- get
     let funcIrHeader = FuncIrHeader
-            { irAstHeader = S.funcHeader func
-            , irRetty     = irRetty
+            { irRetty     = irRetty
             , irArgs      = irParams
+            , irFuncSymbol = S.funcSymbol (S.funcHeader func)
             }
     return (funcIrHeader, irFunc state)
 
@@ -157,10 +158,11 @@ makeStmt statement = withPos statement $ case statement of
         define symbol =<< liftFuncIr (appendSSA typ Value (InitVar Nothing))
 
     S.Assign _ symbol expr -> do
-        -- TODO remove Assign, it is bad
         arg <- makeVal expr
-        (typ, _) <- liftFuncIr (getType arg)
-        define symbol =<< liftFuncIr (appendSSA typ Value (InitVar $ Just arg))
+        case arg of
+            ArgConst typ const -> define symbol =<< liftFuncIr (appendSSA typ Value $ InitVar $ Just arg)
+            ArgID id -> define symbol id
+            x -> error (show x)
 
     S.Return _ (Just expr) -> do
         Just retty <- gets astRetty
@@ -231,7 +233,9 @@ makeVal (S.AExpr exprType expression) = withPos expression $ case expression of
     S.Ident _ symbol -> do
         id <- look symbol
         (typ, refType) <- liftFuncIr (getType (ArgID id))
-        unless (typ == exprType) (error $ "type mismatch: " ++ show (typ, exprType))
+        --TODO these may be different because of lower functions
+        --unless (typ == exprType) (fail $ "type mismatch: " ++ show typ ++ ", " ++ show exprType)
+        --unless (typ == exprType) (error $ "type mismatch: " ++ show (typ, exprType))
 
         case refType of
             Value -> return (ArgID id)
@@ -270,7 +274,8 @@ makeRef (S.AExpr exprType expression) = withPos expression $ case expression of
     S.Ident _ symbol -> do
         id <- look symbol
         (typ, refType) <- liftFuncIr $ getType (ArgID id)
-        unless (typ == exprType) (error "type mismatch")
+        --TODO these may be different because of lower functions
+        --unless (typ == exprType) (fail $ "type mismatch: " ++ show typ ++ ", " ++ show exprType)
 
         case refType of
             Value -> do

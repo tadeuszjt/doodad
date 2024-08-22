@@ -20,6 +20,7 @@ data Constant
     | ConstInt  Integer
     | ConstString String
     | ConstFloat Double
+    deriving (Eq)
 
 instance Show Constant where
     show constant = case constant of
@@ -36,12 +37,13 @@ data RefType
     | Value  -- can be addressed
     | Ref    -- user ref (&)
     | Slice  -- user slice ([])
-    deriving (Show)
+    deriving (Show, Eq)
 
 
 data Arg
     = ArgConst Type Constant
     | ArgID ID
+    deriving (Eq)
 
 instance Show Arg where
     show (ArgConst typ const) = show const ++ ":" ++ show typ
@@ -79,6 +81,7 @@ data Stmt
 
 data ParamIR
     = ParamIR Arg RefType Type
+    deriving (Eq)
 
 instance Show ParamIR where
     show (ParamIR arg refType typ) = show arg ++ " " ++ show refType ++ " " ++ show typ
@@ -86,19 +89,21 @@ instance Show ParamIR where
 
 data RettyIR
     = RettyIR RefType Type
+    deriving (Eq)
 
 instance Show RettyIR where
     show (RettyIR refType typ) = "(" ++ show refType ++ " " ++ show typ ++ ")"
 
 
 data FuncIrHeader = FuncIrHeader
-    { irAstHeader :: S.FuncHeader
-    , irRetty     :: RettyIR
+    { irRetty     :: RettyIR
     , irArgs      :: [ParamIR]
+    , irFuncSymbol :: Symbol
     }
+    deriving (Eq)
 
 instance Show FuncIrHeader where
-    show (FuncIrHeader astHeader retty args) = prettySymbol (S.funcSymbol astHeader) ++ " (" ++ intercalate ", " (map show args) ++ ") " ++ show retty
+    show (FuncIrHeader retty args symbol) = prettySymbol symbol ++ " (" ++ intercalate ", " (map show args) ++ ") " ++ show retty
 
 
 data FuncIR = FuncIR
@@ -197,15 +202,7 @@ prettyIR pre funcIr = do
 
 prettyIrStmt :: String -> FuncIR -> ID -> IO ()
 prettyIrStmt pre funcIr id = do
-    let resm = Map.lookup id (irTypes funcIr)
-    case resm of
-        Nothing -> putStr pre
-        Just (typ, refType) -> do
-            putStr $ pre ++ "%" ++ show id ++ " " ++ show refType ++ " " ++ show typ ++ " = "
-
-        x -> error (show x)
-
-
+    putStr pre
     case irStmts funcIr Map.! id of
         Block ids -> do
             putStrLn $ "block: "

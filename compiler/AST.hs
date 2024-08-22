@@ -75,7 +75,6 @@ data Expr
     | Char         TextPos Char
     | String       TextPos String
     | Call         TextPos Type [Expr]
-    | Member       TextPos Expr Symbol
     | Ident        TextPos Symbol
     | Match        TextPos Expr Pattern
     | Reference    TextPos Expr
@@ -133,7 +132,7 @@ data Stmt
     | While       TextPos Expr Stmt
     | FuncDef     Generics Func
     | Feature     TextPos Generics FunDeps Symbol [Type] Type
-    | Acquires     TextPos Generics Type [Param] Bool Stmt
+    | Acquires    TextPos Generics Type [Param] Bool Stmt
     | Typedef     TextPos Generics Symbol Type
     | Switch      TextPos Expr [(Pattern, Stmt)]
     | For         TextPos Expr (Maybe Pattern) Stmt
@@ -268,6 +267,7 @@ prettyStmt pre stmt = case stmt of
     Assign pos symbol expr -> putStrLn $ pre ++ "assign " ++ prettySymbol symbol ++ " " ++ show expr
 
     FuncDef generics (AST.Func header blk) -> do
+        putStrLn ""
         putStrLn $
             pre
             ++ "fn"
@@ -278,7 +278,6 @@ prettyStmt pre stmt = case stmt of
             ++ " "
             ++ show (funcRetty header)
         prettyStmt pre blk
-        putStrLn ""
 
     Feature pos generics funDeps symbol args typ  -> do
         let funDepsStr = case funDeps of
@@ -287,6 +286,7 @@ prettyStmt pre stmt = case stmt of
         let genericsStr = case generics of
                 [] -> "" 
                 xs -> brcStrs [intercalate ", " (map prettySymbol xs), funDepsStr]
+        putStrLn ""
         putStrLn $ pre
             ++ "feature"
             ++ genericsStr
@@ -294,7 +294,6 @@ prettyStmt pre stmt = case stmt of
             ++ prettySymbol symbol
             ++ tupStrs (map show args)
             ++ " " ++ show typ
-
 
     Let pos pat mexpr mblk -> do
         exprStr <- case mexpr of
@@ -321,6 +320,7 @@ prettyStmt pre stmt = case stmt of
         putStrLn $ pre ++ "type" ++ genericsStr generics ++ " " ++ prettySymbol symbol ++ " " ++ show anno
 
     Acquires pos generics typ args isRef stmt -> do
+        putStrLn ""
         putStrLn $ pre
             ++ "acquires"
             ++ genericsStr generics

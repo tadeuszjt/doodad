@@ -85,16 +85,20 @@ acquires destroy{Window} (w&)
 
 enum Event {
     closed
+    mouseMove(I64, I64)
 }
 derives Event (store)
 derives Event (builtin::destroy)
 
 
-fn create(w &Window)
+fn create(w &Window, sizeX I64, sizeY I64, name Char.Slice)
     let ptr = 0
     ${
-        sfVideoMode mode = {640, 480, 32};
-        sfRenderWindow *window = sfRenderWindow_create(mode, "graphicsTest", sfClose | sfResize, NULL);
+        char cname[128+1] = {0};
+        assert($name.len < 128);
+        strncpy(cname, $name.ptr, $name.len);
+        sfVideoMode mode = {$sizeX, $sizeY, 32};
+        sfRenderWindow *window = sfRenderWindow_create(mode, cname, sfClose | sfResize, NULL);
         assert(window != NULL);
         $ptr = (int64_t)(window);
     }
@@ -141,37 +145,43 @@ fn isOpen(w &Window) Bool
 
 fn pollEvent(w &Window) Event.Option
     let ptr = w.windowPtr
-    let continue = false
+
+    let hasEvent = false
     let event:Event
-    let isNone = false
 
     ${
         sfEvent event;
-        $continue = sfRenderWindow_pollEvent((sfRenderWindow*)($ptr), &event);
-        if (event.type == sfEvtClosed) {
-            $event.en = 0;
-        } else {
-            $isNone = true;
+        bool b = sfRenderWindow_pollEvent((sfRenderWindow*)($ptr), &event);
+        if (b) {
+            switch (event.type) {
+                case sfEvtClosed: {
+                    $event.en = 0;
+                    $hasEvent = true;
+                    break;
+                }
+                case sfEvtMouseMoved: {
+                    $event.en = 1;
+                    $event.u1.m0 = event.mouseMove.x;
+                    $event.u1.m1 = event.mouseMove.y;
+                    $hasEvent = true;
+                    break;
+                }
+                default: {
+                    printf("unknown event: %d\n", event.type);
+                    $hasEvent = false;
+                    break;
+                }
+            }
         }
     }
 
-    if isNone
-        return option::none()
-
-    if continue && !isNone
-        return option::some(event)
-    return option::none()
+    if hasEvent
+        return some(event)
+    return none()
 
 
-fn drawQuads(w &Window, quads Slice{Quad}, texture Texture.Option)
-    // TODO why does this fix 'Bus Error'?!
-    for (0, 1) -> i
-        let q = quads[i]
-
-    let texturePtr = 0
-    if texture.isSome
-        texturePtr = texture.fromSome.texturePtr
-
+fn drawQuads(w &Window, quads Slice{Quad}, texture &Texture)
+    let texturePtr = texture.texturePtr
     let ptr = w.windowPtr
     ${
         sfRenderStates states;

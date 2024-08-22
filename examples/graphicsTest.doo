@@ -5,6 +5,7 @@ include <SFML/Graphics.h>
 
 import std/io
 import std/sfml/sfml
+import std/sfml/texture
 import std/rand
 import std/sparse
 import std/print
@@ -53,8 +54,9 @@ fn makeQuad(position Vec2f, colour Colour) Quad
 
 fn main(io Io, rand Rand, w Window)
     io.stdout.print("graphics test\n")
-    w.create()
+    w.create(640, 480, "graphics test")
 
+    let texture : Texture
     data blobs Blob.Table
 
     for (0, 100)
@@ -83,7 +85,7 @@ fn main(io Io, rand Rand, w Window)
         w.setViewFromRect(((0.0, 0.0), (convert(width), convert(height))))
         w.clearWindow(black())
 
-        w.drawQuads(blobs.sprite, none())
+        w.drawQuads(blobs.sprite, &texture)
         w.display()
 
         let nextNs = time::getTimestampNs()

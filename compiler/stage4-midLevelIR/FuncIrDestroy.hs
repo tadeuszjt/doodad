@@ -145,13 +145,8 @@ processStmt funcIr id = let stmt = irStmts funcIr Map.! id in case stmt of
         forM_ allSet $ \idToDestroy -> destroy idToDestroy
         void $ liftFuncIr (appendStmtWithId id stmt)
 
-
-    SSA _ _ (InitVar Nothing) -> do
+    SSA _ _ (InitVar _) -> do
         addDestroy id
-        (typ, refType) <- fmap fst $ runDoMExcept funcIr $ getType (ArgID id)
-        void $ liftFuncIr (appendStmtWithId id stmt)
-
-    SSA _ _ (InitVar _) -> do -- TODO this is not destroying because Preprocess using Assign to beat the system
         void $ liftFuncIr (appendStmtWithId id stmt)
 
     SSA _ _ _ -> void $ liftFuncIr (appendStmtWithId id stmt)

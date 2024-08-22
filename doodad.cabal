@@ -99,4 +99,5 @@ executable doodad
         MakeFuncIR,
         IR,
         FuncIrDestroy,
-        FuncIrUnused
+        FuncIrUnused,
+        FuncIrRunConst

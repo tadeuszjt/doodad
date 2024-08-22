@@ -21,6 +21,7 @@ import qualified MakeFuncIR as IR
 import qualified IR
 import qualified FuncIrDestroy as IR
 import qualified FuncIrUnused as IrUnused
+import qualified FuncIrRunConst as IrRunConst
 
 
 generateAst :: MonadIO m => ASTResolved -> m (Either Error (((), GenerateState), BuilderState))
@@ -33,18 +34,21 @@ generate = withErrorPrefix "generate: " $ do
 
     -- generate imported function externs
     forM_ (Map.toList $ funcInstance ast) $ \(funcType, header) -> do
-        crt <- cRettyType (S.funcRetty header)
-        cats <- forM (S.funcArgs header) $ \param -> case param of
-            S.Param _ _ _ -> cTypeOf param
-            S.RefParam _ _ _ -> cRefTypeOf param
-        appendExtern (showSymGlobal $ funcSymbol header) crt cats [C.Extern]
+        crt <- case IR.irRetty header of
+            IR.RettyIR IR.Value t -> cTypeOf t
+            IR.RettyIR IR.Ref t -> cRefTypeOf t
+
+        cats <- forM (IR.irArgs header) $ \param -> case param of
+            IR.ParamIR _ IR.Value t -> cTypeOf t
+            IR.ParamIR _ IR.Ref t -> cRefTypeOf t
+        appendExtern (showSymGlobal $ IR.irFuncSymbol header) crt cats [C.Extern]
 
 
     forM_ (featuresTop ast) $ \symbol -> let Just acq = Map.lookup symbol (featuresAll ast) in do
         let Just (generics, _) = Map.lookup symbol (typeDefsAll ast)
         when (generics == []) $ do
             header <- generateFunc (TypeDef symbol)
-            when (symbolsCouldMatch (Sym ["main"]) (funcSymbol $ header)) $ do
+            when (symbolsCouldMatch (Sym ["main"]) (IR.irFuncSymbol header)) $ do
                 id <- newFunction
                     Cint
                     "main"  
@@ -59,12 +63,12 @@ generate = withErrorPrefix "generate: " $ do
                     vals <- forM mainArgTypes $ \argType -> do
                         assign "mainArg" $ Value argType $ C.Initialiser [C.Int 0]
 
-                    args <- forM (zip vals (S.funcArgs header)) $ \(val, param) -> case param of
-                        S.Param _ _ _ -> return val
+                    args <- forM (zip vals (IR.irArgs header)) $ \(val, param) -> case param of
+                        IR.ParamIR _ IR.Value _ -> return val
                         x -> error (show x)
 
                     void $ appendElem $ C.ExprStmt $ C.Call
-                        (showSymGlobal $ funcSymbol header)
+                        (showSymGlobal $ IR.irFuncSymbol header)
                         (map valExpr args)
 
                     void $ appendElem $ C.Return $ C.Int 0
@@ -72,13 +76,7 @@ generate = withErrorPrefix "generate: " $ do
 
 
 
-cRettyType :: S.Retty -> Generate C.Type
-cRettyType retty = case retty of
-    Retty t -> cTypeOf t
-    RefRetty t -> cRefTypeOf t
-
-
-generateFunc :: Type.Type -> Generate FuncHeader
+generateFunc :: Type.Type -> Generate IR.FuncIrHeader
 generateFunc funcType = do
     let (TypeDef symbol, typeArgs) = unfoldType funcType
     isInstance <- gets (Map.member funcType . funcInstance . astResolved)
@@ -91,20 +89,18 @@ generateFunc funcType = do
         funcIr'' <- fmap (IR.funcIr . snd) $ runDoMExcept (IR.initFuncIrDestroyState ast) (IR.addFuncDestroy funcIr')
         funcIr <- fmap (IrUnused.funcIr . snd) $ runDoMExcept (IrUnused.initFuncIrUnusedState ast) (IrUnused.funcIrUnused funcIr'')
 
+        --result <- runDoM (IrRunConst.initFuncIrRunState ast) (IrRunConst.funcIrRun funcIr)
+
         liftIO $ putStrLn ""
         liftIO $ putStrLn $ show funcIrHeader
         liftIO $ IR.prettyIR "" funcIr
 
-        let originalSymbol = (funcSymbol $ IR.irAstHeader funcIrHeader)
-
-        generatedSymbol <- CGenerate.genSymbol (funcSymbol $ IR.irAstHeader funcIrHeader)
-        let header' = (IR.irAstHeader funcIrHeader) { funcSymbol = generatedSymbol }
-
+        generatedSymbol <- CGenerate.genSymbol symbol
+        let header' = (funcIrHeader) { IR.irFuncSymbol = generatedSymbol }
 
         modify $ \s -> s { astResolved = (astResolved s)
             { funcInstance = Map.insert funcType header' (funcInstance $ astResolved s) } }
 
-        --args <- mapM cParamOf (S.funcArgs header')
         args <- forM (IR.irArgs funcIrHeader) $ \arg -> case arg of
             IR.ParamIR (IR.ArgID id) IR.Value typ -> do
                 cType <- cTypeOf typ
@@ -116,10 +112,13 @@ generateFunc funcType = do
 
             x -> error (show x)
 
-        rettyType <- cRettyType (S.funcRetty header')
-        funcId <- newFunction rettyType (showSymGlobal $ generatedSymbol) ([] ++ args) []
+        cRettyType <- case IR.irRetty funcIrHeader of
+            IR.RettyIR IR.Value typ -> cTypeOf typ
+            IR.RettyIR IR.Ref   typ -> cRefTypeOf typ
+            x -> error (show x)
+
+        funcId <- newFunction cRettyType (showSymGlobal $ generatedSymbol) ([] ++ args) []
         withCurID funcId $ do
-            --appendElem $ C.ExprStmt $ C.Call "puts" [C.String $ prettySymbol originalSymbol]
             (generateStmt funcIr 0)
 
         withCurID globalID (append funcId)
@@ -378,7 +377,7 @@ generateStmt funcIr id = case (IR.irStmts funcIr) Map.! id of
                 x -> do
                     header <- generateFunc callType
                     cArgs <- mapM generateArg args
-                    let cCall = C.Call (showSymGlobal $ S.funcSymbol header) cArgs
+                    let cCall = C.Call (showSymGlobal $ IR.irFuncSymbol header) cArgs
 
                     case (IR.irTypes funcIr) Map.! id of
                         (Void, IR.Const) -> void $ appendElem (C.ExprStmt cCall)

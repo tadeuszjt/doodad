@@ -11,6 +11,7 @@ import Symbol
 import Type
 import Monad
 
+import qualified IR
 
 
 data ASTResolved
@@ -28,7 +29,7 @@ data ASTResolved
         , acquiresAll          :: Map.Map Symbol Stmt 
         , acquiresTop          :: Set.Set Symbol
 
-        , funcInstance         :: Map.Map Type FuncHeader
+        , funcInstance         :: Map.Map Type IR.FuncIrHeader
 
         , symSupply            :: Map.Map Symbol Int              
         }
