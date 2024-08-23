@@ -97,7 +97,7 @@ makeAcquireInstance callType = do
                     let args'   = zipWith (\t p -> p { paramType = t}) argTypes args 
                     let retty'  = (if isRef then RefRetty else Retty) retType
                     let stmt'   = applyStmt subs (applyStmt genericSubs scope)
-                    return $ Just $ AST.Func (FuncHeader pos symbol args' retty') stmt'
+                    return $ Just $ AST.Func pos symbol args' retty' stmt'
 
     case results of
         []     -> return Nothing

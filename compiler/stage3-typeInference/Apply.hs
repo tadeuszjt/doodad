@@ -8,15 +8,9 @@ import AST
 applyFunc :: [(Type, Type)] -> Func -> Func
 applyFunc subs func = func
     { funcStmt = applyStmt subs (funcStmt func)
-    , funcHeader = applyFuncHeader subs (funcHeader func)
-    }
-
-
-applyFuncHeader :: [(Type, Type)] -> FuncHeader -> FuncHeader
-applyFuncHeader subs header = header
-    { funcArgs = map (applyParam subs) (funcArgs header)
-    , funcRetty = applyRetty subs (funcRetty header)
-    , funcSymbol = funcSymbol header
+    , funcArgs = map (applyParam subs) (funcArgs func)
+    , funcRetty = applyRetty subs (funcRetty func)
+    , funcSymbol = funcSymbol func
     }
 
 

@@ -65,7 +65,7 @@ withCurrentID id f = do
 
 makeFuncIR :: S.Func -> DoM FuncIRState (FuncIrHeader, FuncIR)
 makeFuncIR func = do
-    irParams <- forM (S.funcArgs $ S.funcHeader func) $ \param -> case param of
+    irParams <- forM (S.funcArgs func) $ \param -> case param of
         -- TODO what about slice?
         S.Param _ symbol typ -> do
             id <- liftFuncIr generateId
@@ -81,11 +81,11 @@ makeFuncIR func = do
 
         x -> error (show x)
 
-    irRetty <- case (S.funcRetty $ S.funcHeader func) of
+    irRetty <- case (S.funcRetty func) of
         S.RefRetty t -> return (RettyIR Ref t)
         S.Retty t    -> return (RettyIR Value t)
 
-    modify $ \s -> s { astRetty = Just (S.funcRetty $ S.funcHeader func) }
+    modify $ \s -> s { astRetty = Just (S.funcRetty func) }
 
     makeStmt (S.funcStmt func)
 
@@ -93,7 +93,7 @@ makeFuncIR func = do
     let funcIrHeader = FuncIrHeader
             { irRetty     = irRetty
             , irArgs      = irParams
-            , irFuncSymbol = S.funcSymbol (S.funcHeader func)
+            , irFuncSymbol = S.funcSymbol func
             }
     return (funcIrHeader, irFunc state)
 
@@ -245,15 +245,15 @@ makeVal (S.AExpr exprType expression) = withPos expression $ case expression of
 
     S.Call _ funcType exprs -> do
         ast <- gets astResolved
-        header <- fmap (S.funcHeader . fst) $ runDoMExcept ast (makeInstance funcType)
-        unless (length exprs == length (S.funcArgs header)) (error "arg length mismatch")
+        func <- fmap fst $ runDoMExcept ast (makeInstance funcType)
+        unless (length exprs == length (S.funcArgs func)) (error "arg length mismatch")
 
-        args <- forM (zip exprs $ S.funcArgs header) $ \(expr, arg) -> do
+        args <- forM (zip exprs $ S.funcArgs func) $ \(expr, arg) -> do
             case arg of
                 S.RefParam _ argSymbol argType -> ArgID <$> makeRef expr
                 S.Param    _ argSymbol argType -> makeVal expr
 
-        case S.funcRetty header of
+        case S.funcRetty func of
             S.Retty Void -> fmap ArgID $ liftFuncIr $ appendSSA Void Const (Call funcType args)
             S.Retty typ -> fmap ArgID $ liftFuncIr $ appendSSA typ Value (Call funcType args)
             S.RefRetty typ -> do
@@ -287,15 +287,15 @@ makeRef (S.AExpr exprType expression) = withPos expression $ case expression of
 
     S.Call _ funcType exprs -> do
         ast <- gets astResolved
-        header <- fmap (S.funcHeader . fst) $ runDoMExcept ast (makeInstance funcType)
-        unless (length exprs == length (S.funcArgs header)) (error "arg length mismatch")
+        func <- fmap fst $ runDoMExcept ast (makeInstance funcType)
+        unless (length exprs == length (S.funcArgs func)) (error "arg length mismatch")
 
-        args <- forM (zip exprs $ S.funcArgs header) $ \(expr, arg) -> do
+        args <- forM (zip exprs $ S.funcArgs func) $ \(expr, arg) -> do
             case arg of
                 S.RefParam _ argSymbol argType -> ArgID <$> makeRef expr
                 S.Param    _ argSymbol argType -> makeVal expr
 
-        case S.funcRetty header of
+        case S.funcRetty func of
             -- TODO slice
             S.RefRetty typ -> liftFuncIr $ appendSSA typ Ref (Call funcType args)
 
@@ -327,7 +327,7 @@ store dst src = do
     acq <- fmap fst $ runDoMExcept ast $ makeAcquireInstance (foldType [TypeDef storeSymbol, t1])
     unless (isJust acq) (fail $ "no store acquire for: " ++ show t1)
 
-    let acqSymbol = S.funcSymbol $ S.funcHeader (fromJust acq)
-    case S.funcArgs (S.funcHeader $ fromJust acq) of
+    let acqSymbol = S.funcSymbol (fromJust acq)
+    case S.funcArgs (fromJust acq) of
         [S.RefParam _ _ _, S.Param _ _ _] -> do
             void $ liftFuncIr $ appendSSA Void Const $ Call (Apply (TypeDef storeSymbol) t1) [dst, src]

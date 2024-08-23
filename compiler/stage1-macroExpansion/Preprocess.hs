@@ -93,7 +93,8 @@ unpackStmt statement = withPos statement $ case statement of
             stmt' <- unpackStmt stmt
             return (pat, stmt')
 
-    FuncDef generics (AST.Func header stmt) -> FuncDef generics . AST.Func header <$> unpackStmt stmt
+    FuncDef generics (AST.Func pos symbol args retty stmt) ->
+        FuncDef generics . AST.Func pos symbol args retty <$> unpackStmt stmt
     x -> error (show x)
 
 
@@ -276,15 +277,15 @@ buildStmt statement = withPos statement $ case statement of
         withCurId blockId (mapM_ buildStmt stmts)
         void $ appendStmt $ Acquires pos generics typ args isRef (Stmt blockId)
 
-    FuncDef generics (AST.Func header (Block stmts)) -> do
-        appendStmt $ Feature (textPos header) generics [] (funcSymbol header) (map typeof $ funcArgs header) (typeof $ funcRetty header)
+    FuncDef generics (AST.Func pos symbol args retty (Block stmts)) -> do
+        appendStmt $ Feature pos generics [] symbol (map typeof args) (typeof retty)
 
-        acqIsRef <- case funcRetty header of
+        acqIsRef <- case retty of
             RefRetty _ -> return True
             Retty _    -> return False
 
         blockId <- newStmt (Block [])
-        appendStmt $ Acquires (textPos header) generics (foldl Apply (TypeDef $ funcSymbol header) $ map TypeDef generics) (funcArgs header) acqIsRef (Stmt blockId)
+        appendStmt $ Acquires pos generics (foldl Apply (TypeDef symbol) $ map TypeDef generics) args acqIsRef (Stmt blockId)
 
         --appendStmt $ FuncDef generics (AST.Func header (Stmt blockId))
         withCurId blockId (mapM_ buildStmt stmts)

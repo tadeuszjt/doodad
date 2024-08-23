@@ -90,36 +90,19 @@ instance Typeof Pattern where
     typeof a = error $ "can only take typeof PatAnnotated" 
 
 
-data FuncHeader
-    = FuncHeader
-        { funcPos :: TextPos
-        , funcSymbol :: Symbol
-        , funcArgs :: [Param]
-        , funcRetty :: Retty
-        }
-    deriving (Eq, Ord)
 
-
-instance Show FuncHeader where
-    show (FuncHeader pos symbol args retty) =
-        "fn"
-        ++ " "
-        ++ prettySymbol symbol
-        ++ tupStrs (map show args)
-        ++ " "
-        ++ show retty
-
-
-instance Typeof FuncHeader where
-    typeof header = foldl Apply Type.Func $ typeof (funcRetty header) : map typeof (funcArgs header)
-
-
-data Func = Func { funcHeader :: FuncHeader, funcStmt :: Stmt }
+data Func = Func
+    { funcPos :: TextPos
+    , funcSymbol :: Symbol
+    , funcArgs :: [Param]
+    , funcRetty :: Retty
+    , funcStmt :: Stmt
+    }
     deriving (Eq, Show)
 
 
 instance TextPosition Func where
-    textPos (AST.Func header _) = textPos header
+    textPos = funcPos
 
 
 data Stmt
@@ -172,8 +155,6 @@ instance TextPosition Expr where
         AST.Array    p _ -> p
         _ -> error (show expression)
 
-instance TextPosition FuncHeader where
-    textPos (FuncHeader pos _ _ _) = pos
 
 instance TextPosition Stmt where
     textPos stmt = case stmt of
@@ -266,17 +247,17 @@ prettyStmt pre stmt = case stmt of
     EmbedC pos m str -> putStrLn $ pre ++ "$" ++ str
     Assign pos symbol expr -> putStrLn $ pre ++ "assign " ++ prettySymbol symbol ++ " " ++ show expr
 
-    FuncDef generics (AST.Func header blk) -> do
+    FuncDef generics (AST.Func _ funcSymbol funcArgs funcRetty blk) -> do
         putStrLn ""
         putStrLn $
             pre
             ++ "fn"
             ++ genericsStr generics
             ++ " "
-            ++ prettySymbol (funcSymbol header)
-            ++ tupStrs (map show $ funcArgs header)
+            ++ prettySymbol funcSymbol
+            ++ tupStrs (map show funcArgs)
             ++ " "
-            ++ show (funcRetty header)
+            ++ show funcRetty
         prettyStmt pre blk
 
     Feature pos generics funDeps symbol args typ  -> do

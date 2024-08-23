@@ -25,25 +25,17 @@ mapRettyM f (AST.Retty t) = AST.Retty <$> mapTypeM f t
 mapRettyM f (AST.RefRetty t) = AST.RefRetty <$> mapTypeM f t
 
 
-mapFuncHeaderM :: MapperFunc s -> FuncHeader -> DoM s FuncHeader
-mapFuncHeaderM f header = do
-    funcArgs' <- mapM (mapParamM f) (funcArgs header)
-    funcRetty' <- mapRettyM f (funcRetty header)
-    return $ FuncHeader
-        { funcArgs = funcArgs'
-        , funcRetty = funcRetty'
-        , funcSymbol = funcSymbol header
-        , funcPos = funcPos header
-        }
-    
-
 mapFuncM :: MapperFunc s -> AST.Func -> DoM s AST.Func
 mapFuncM f func = do
-    funcHeader'   <- mapFuncHeaderM f (funcHeader func)
+    funcArgs' <- mapM (mapParamM f) (funcArgs func)
+    funcRetty' <- mapRettyM f (funcRetty func)
     funcStmt'     <- mapStmtM f (funcStmt func)
     return $ AST.Func
-        { funcHeader = funcHeader'
-        , funcStmt   = funcStmt'
+        { funcStmt   = funcStmt'
+        , funcArgs = funcArgs'
+        , funcRetty = funcRetty'
+        , funcSymbol = funcSymbol func
+        , funcPos = funcPos func
         }
 
 
@@ -57,9 +49,9 @@ mapStmtM f stmt = withPos stmt $ do
             stmt' <- mapStmtM f stmt
             return (Acquires pos generics typ args isRef stmt')
 
-        FuncDef generics (AST.Func header stmt) -> do
+        FuncDef generics (AST.Func pos symbol args retty stmt) -> do
             stmt' <- mapStmtM f stmt
-            return $ FuncDef generics $ (AST.Func header stmt')
+            return $ FuncDef generics $ (AST.Func pos symbol args retty stmt')
 
         Derives pos generics symbol symbols ->
             return (Derives pos generics symbol symbols)
