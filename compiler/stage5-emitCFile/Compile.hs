@@ -99,9 +99,9 @@ generateFunc funcType = do
             return funcIr'''
 
 
-        liftIO $ putStrLn ""
-        liftIO $ putStrLn $ show funcIrHeader
-        liftIO $ IR.prettyIR "" funcIr
+        --liftIO $ putStrLn ""
+        --liftIO $ putStrLn $ show funcIrHeader
+        --liftIO $ IR.prettyIR "" funcIr
 
         generatedSymbol <- CGenerate.genSymbol symbol
         let header' = (funcIrHeader) { IR.irFuncSymbol = generatedSymbol }
@@ -251,6 +251,61 @@ generateStmt funcIr id = case (IR.irStmts funcIr) Map.! id of
                     unless (length args == 2) (error "arg length mismatch")
                     [cexpr1, cexpr2] <- mapM generateArg args
                     void $ appendElem $ C.Set (C.Deref cexpr1) cexpr2
+
+                x | symbolsCouldMatch x (Sym ["builtin", "builtinAdd"]) -> do
+                    [cexpr1, cexpr2] <- mapM generateArg args
+                    cType <- cTypeOf ssaTyp
+                    void $ appendAssign cType (idName id) $ C.Infix C.Plus cexpr1 cexpr2
+
+                x | symbolsCouldMatch x (Sym ["builtin", "builtinSubtract"]) -> do
+                    [cexpr1, cexpr2] <- mapM generateArg args
+                    cType <- cTypeOf ssaTyp
+                    void $ appendAssign cType (idName id) $ C.Infix C.Minus cexpr1 cexpr2
+
+                x | symbolsCouldMatch x (Sym ["builtin", "builtinMultiply"]) -> do
+                    [cexpr1, cexpr2] <- mapM generateArg args
+                    cType <- cTypeOf ssaTyp
+                    void $ appendAssign cType (idName id) $ C.Infix C.Times cexpr1 cexpr2
+
+                x | symbolsCouldMatch x (Sym ["builtin", "builtinDivide"]) -> do
+                    [cexpr1, cexpr2] <- mapM generateArg args
+                    cType <- cTypeOf ssaTyp
+                    void $ appendAssign cType (idName id) $ C.Infix C.Divide cexpr1 cexpr2
+
+                x | symbolsCouldMatch x (Sym ["builtin", "builtinModulo"]) -> do
+                    [cexpr1, cexpr2] <- mapM generateArg args
+                    cType <- cTypeOf ssaTyp
+                    void $ appendAssign cType (idName id) $ C.Infix C.Modulo cexpr1 cexpr2
+
+                x | symbolsCouldMatch x (Sym ["builtin", "builtinEqual"]) -> do
+                    [cexpr1, cexpr2] <- mapM generateArg args
+                    cType <- cTypeOf ssaTyp
+                    void $ appendAssign cType (idName id) $ C.Infix C.EqEq cexpr1 cexpr2
+
+                x | symbolsCouldMatch x (Sym ["builtin", "builtinLessThan"]) -> do
+                    [cexpr1, cexpr2] <- mapM generateArg args
+                    cType <- cTypeOf ssaTyp
+                    void $ appendAssign cType (idName id) $ C.Infix C.LT cexpr1 cexpr2
+
+                x | symbolsCouldMatch x (Sym ["builtin", "builtinGreaterThan"]) -> do
+                    [cexpr1, cexpr2] <- mapM generateArg args
+                    cType <- cTypeOf ssaTyp
+                    void $ appendAssign cType (idName id) $ C.Infix C.GT cexpr1 cexpr2
+
+                x | symbolsCouldMatch x (Sym ["builtin", "builtinAnd"]) -> do
+                    [cexpr1, cexpr2] <- mapM generateArg args
+                    cType <- cTypeOf ssaTyp
+                    void $ appendAssign cType (idName id) $ C.Infix C.AndAnd cexpr1 cexpr2
+
+                x | symbolsCouldMatch x (Sym ["builtin", "builtinOr"]) -> do
+                    [cexpr1, cexpr2] <- mapM generateArg args
+                    cType <- cTypeOf ssaTyp
+                    void $ appendAssign cType (idName id) $ C.Infix C.OrOr cexpr1 cexpr2
+
+                x | symbolsCouldMatch x (Sym ["builtin", "builtinNot"]) -> do
+                    [cexpr1] <- mapM generateArg args
+                    cType <- cTypeOf ssaTyp
+                    void $ appendAssign cType (idName id) $ C.Not cexpr1
 
                 x | symbolsCouldMatch x (Sym ["builtin", "builtinConvert"]) -> do
                     unless (length args == 1) (error "arg length mismatch")

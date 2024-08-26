@@ -43,28 +43,25 @@ acquires{A, B, C} field{2, C, Sum{A, B, C}} (sum&) -> &; return sum.builtinField
 
 
 fn{I, G, T} builtinField(t &T) &G; ${ assert(false); }
-fn{T, G} builtinConvert(a T) G
-    ${ assert(false); }
-
+fn{T, G} builtinConvert(a T) G;    ${ assert(false); }
 
 
 // arithmetic
-fn{T} builtinAdd(a T, b T) T; ${ return $a + $b; }
-
-fn{T} builtinSubtract(a T, b T) T; ${ return $a - $b; }
-fn{T} builtinMultiply(a T, b T) T; ${ return $a * $b; }
-fn{T} builtinDivide(a T, b T) T; ${ return $a / $b; }
-fn{T} builtinModulo(a T, b T) T; ${ return $a % $b; }
+fn{T} builtinAdd(a T, b T) T;      ${ assert(false); }
+fn{T} builtinSubtract(a T, b T) T; ${ assert(false); }
+fn{T} builtinMultiply(a T, b T) T; ${ assert(false); }
+fn{T} builtinDivide(a T, b T) T;   ${ assert(false); }
+fn{T} builtinModulo(a T, b T) T;   ${ assert(false); }
 
 
 // boolean
-fn{T} builtinEqual(a T, b T)       Bool; ${ return $a == $b; }
-fn{T} builtinLessThan(a T, b T)    Bool; ${ return $a < $b; }
-fn{T} builtinGreaterThan(a T, b T) Bool; ${ return $a > $b; }
+fn{T} builtinEqual(a T, b T)       Bool; ${ assert(false); }
+fn{T} builtinLessThan(a T, b T)    Bool; ${ assert(false); }
+fn{T} builtinGreaterThan(a T, b T) Bool; ${ assert(false); }
 
-fn{T} builtinAnd(a T, b T) T; ${ return $a && $b; }
-fn{T} builtinOr(a T, b T)  T; ${ return $a || $b; }
-fn{T} builtinNot(a T)      T; ${ return !$a; }
+fn{T} builtinAnd(a T, b T) T; ${ assert(false); }
+fn{T} builtinOr(a T, b T)  T; ${ assert(false); }
+fn{T} builtinNot(a T)      T; ${ assert(false); }
 
 
 // container

@@ -12,8 +12,6 @@ import Type
 import FindFunc
 import Error
 import IR
-import qualified FuncIrRunConst
-
 import qualified AST as S
 
 

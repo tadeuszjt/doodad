@@ -105,13 +105,8 @@ processStmt funcIr id = let Just stmt = Map.lookup id (irStmts funcIr) in case s
         callIr1  <- fmap (FuncIrDestroy.funcIr . snd) $ runDoMExcept (FuncIrDestroy.initFuncIrDestroyState ast) (FuncIrDestroy.addFuncDestroy callIr0)
         callIr2  <- fmap (IR.funcIr . snd) $ runDoMExcept (IR.initFuncIrUnusedState ast) (IR.funcIrUnused callIr1)
 
-
-        isBuiltin <- case unfoldType callType of
-            (TypeDef (SymResolved ("builtin" : _)), _) -> return True
-            _                                          -> return False
-
         isInline <- fmap fst $ runDoMExcept () (functionIsInlineable callIr2)
-        case isInline && not isBuiltin of
+        case isInline of
             False -> void $ liftFuncIr (appendStmtWithId id stmt)
             True  -> do
                 modify $ \s -> s { idMap = Map.empty }

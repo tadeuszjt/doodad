@@ -24,6 +24,8 @@ data FuncIrConstState = FuncIrConstState
     { funcIr       :: FuncIR
     , astResolved  :: ASTResolved
     , constMap     :: Map.Map ID Arg
+    , pointsMap    :: Map.Map ID ID
+    , unchangedSet :: Set.Set ID
     }
 
 
@@ -31,6 +33,8 @@ initFuncIrConstState ast = FuncIrConstState
     { funcIr      = initFuncIr
     , astResolved = ast
     , constMap    = Map.empty
+    , pointsMap   = Map.empty
+    , unchangedSet = Set.empty
     }
 
 
@@ -86,10 +90,18 @@ processArg arg = case arg of
     ArgID argId -> do
         resm <- gets $ Map.lookup argId . constMap
         case resm of
-            Nothing -> return arg
-            Just c  -> do
-                --liftIO $ putStrLn $ "replacing: " ++ show argId
-                return c
+            Just c  -> return c
+            Nothing -> do
+                resm' <- gets $ Map.lookup argId . pointsMap
+                case resm' of
+                    Nothing -> return arg
+                    Just id' -> do
+                        b1 <- gets $ Set.member id' . unchangedSet
+                        b2 <- gets $ Set.member argId . unchangedSet
+                        --liftIO $ putStrLn $ "here: " ++ show argId ++ ", " ++ show id'
+                        case b1 && b2 of
+                            False -> return arg
+                            True -> return (ArgID id')
 
     x -> error (show x)
 
@@ -102,6 +114,7 @@ processStmt funcIr id = let Just stmt = Map.lookup id (irStmts funcIr) in case s
 
     Loop ids -> do
         modify $ \s -> s { constMap = Map.empty } -- TODO
+        modify $ \s -> s { unchangedSet = Set.empty } -- TODO
         void $ liftFuncIr $ appendStmtWithId id (Loop [])
         withCurrentId id $ mapM_ (processStmt funcIr) ids
 
@@ -136,21 +149,33 @@ processStmt funcIr id = let Just stmt = Map.lookup id (irStmts funcIr) in case s
                 _ -> return ()
                 x -> error (show x)
 
+        modify $ \s -> s { unchangedSet = Set.insert id (unchangedSet s) }
         void $ liftFuncIr (appendStmtWithId id stmt)
 
     SSA typ refType (Call callType args) -> do
+        modify $ \s -> s { unchangedSet = Set.insert id (unchangedSet s) }
         args' <- mapM processArg args
         void $ liftFuncIr $ appendStmtWithId id (SSA typ refType $ Call callType args')
 
     SSA _ Ref (MakeReferenceFromValue i) -> do
         removeConst i
+        modify $ \s -> s { unchangedSet = Set.delete i (unchangedSet s) }
         void $ liftFuncIr $ appendStmtWithId id stmt
 
     SSA _ Value (MakeValueFromReference _) -> void $ liftFuncIr $ appendStmtWithId id stmt
     SSA _ _ (MakeString str)               -> void $ liftFuncIr $ appendStmtWithId id stmt
 
-    SSA _ _ (MakeValueFromValue _) -> void $ liftFuncIr $ appendStmtWithId id stmt -- TODO
-    SSA _ _ (MakeRefFromRef _) -> void $ liftFuncIr $ appendStmtWithId id stmt -- TODO
+    SSA _ _ (MakeValueFromValue (ArgConst _ _)) ->
+        void $ liftFuncIr $ appendStmtWithId id stmt
+
+    SSA _ _ (MakeValueFromValue (ArgID i)) -> do
+        modify $ \s -> s { pointsMap = Map.insert id i (pointsMap s) }
+        modify $ \s -> s { unchangedSet = Set.insert id (unchangedSet s) }
+        void $ liftFuncIr $ appendStmtWithId id stmt
+
+    SSA _ _ (MakeRefFromRef (ArgID i)) -> do
+        --modify $ \s -> s { pointsMap = Map.insert id i (pointsMap s) }
+        void $ liftFuncIr $ appendStmtWithId id stmt
 
     x -> error (show x)
 
