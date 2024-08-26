@@ -55,6 +55,7 @@ data Operation
     | Call Type [Arg]
     | MakeReferenceFromValue ID
     | MakeValueFromReference ID
+    | MakeValueFromValue Arg
     | MakeString String
 
 instance Show Operation where
@@ -62,6 +63,7 @@ instance Show Operation where
         InitVar marg -> "init " ++ maybe "" show marg
         MakeReferenceFromValue id -> "&" ++ show (ArgID id)
         MakeValueFromReference id -> "*" ++ show (ArgID id)
+        MakeValueFromValue arg    -> show arg
         MakeString str            -> show str
         Call callType args -> show callType ++ "(" ++ intercalate ", " (map show args) ++ ")"
         x -> error (show x)

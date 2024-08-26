@@ -1,0 +1,93 @@
+module blobs
+
+import std/io
+import std/sfml/sfml
+import std/sfml/texture
+import std/rand
+import std/sparse
+import std/print
+import std/option
+import std/store
+import std/builtin
+import std/for
+import std/assert
+import std/arithmetic
+import std/tuple
+import std/container
+import std/unordered
+import std/convert
+import std/time
+
+include <SFML/Graphics.h>
+
+tuple Blob {
+    position Vec2f
+    velocity Vec2f
+    blobColour   Colour
+    sprite   Quad
+}
+derives Blob (store)
+derives Blob (destroy)
+derives{P} Blob (print::print{P})
+
+
+fn vec2f(rand &Rand, rect Rectf) Vec2f
+    return ( rand.f32(rect.min.x, rect.max.x), rand.f32(rect.min.y, rect.max.y) )
+
+fn colour(rand &Rand) Colour
+    return ( convert(rand.i64(0, 255)), convert(rand.i64(0, 255)), convert(rand.i64(0, 255)), 255 )
+
+
+fn makeQuad(position Vec2f, colour Colour) Quad
+    let quad
+    quad[0] = (position + (-10.0, -10.0), colour, (0.0, 0.0))
+    quad[1] = (position + (10.0, -10.0),  colour, (640.0, 0.0))
+    quad[2] = (position + (10.0, 10.0),   colour, (640.0, 640.0))
+    quad[3] = (position + (-10.0, -10.0), colour, (0.0, 0.0))
+    quad[4] = (position + (10.0, 10.0),   colour, (640.0, 640.0))
+    quad[5] = (position + (-10.0, 10.0),  colour, (0.0, 640.0))
+    return quad
+
+
+fn main(io Io, rand Rand, w sfml::Window)
+    io.stdout.printLn("blobs")
+    w.create(1000, 800, "blobs")
+    let blobTexture = textureFromFile("blob.png")
+
+    let arena = Rectf( (0.0, 0.0), (500.0, 500.0) )
+    data blobs Blob.Table
+
+    for (0, 100)
+        let blob:Blob
+        blob.position   = rand.vec2f( ( arena.min, arena.max ) )
+        blob.velocity   = rand.vec2f( ( (-1.0, -1.0), (1.0, 1.0) ) )
+        blob.blobColour = rand.colour
+        blobs.push(blob)
+
+    //io.stdout.printLn(blobs)
+
+    while w.isOpen()
+        let prevNs = time::getTimestampNs()
+
+        while w.pollEvent() -> some(event)
+            switch event
+                closed(); w.close()
+                mouseMove(x, y);
+
+        for (0, blobs.len) -> i
+            blobs[i].position = blobs[i].position + blobs[i].velocity
+            blobs[i].sprite   = makeQuad(blobs[i].position, blobs[i].blobColour)
+
+        
+        let (width, height) = w.getSize()
+        w.setViewFromRect(((0, 0), (width.convert, height.convert)))
+        w.clearWindow(white())
+        w.drawQuads(blobs.sprite, &blobTexture)
+        w.display()
+
+        let nextNs = time::getTimestampNs()
+        let diff = nextNs - prevNs
+        sleepNs(16 * 1000 * 1000 - diff)
+
+
+

@@ -87,7 +87,9 @@ makeFuncIR func = do
 
     modify $ \s -> s { astRetty = Just (S.funcRetty func) }
 
-    makeStmt (S.funcStmt func)
+    case S.funcStmt func of
+        S.Block stmts -> mapM_ makeStmt stmts
+        stmt          -> makeStmt stmt
 
     state <- get
     let funcIrHeader = FuncIrHeader

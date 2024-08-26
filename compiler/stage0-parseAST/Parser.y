@@ -297,7 +297,6 @@ pattern  : '_'                           { PatIgnore (tokPos $1) }
          | pattern '|' expr              { PatGuarded (tokPos $2) $1 (AExpr Type.Bool $3) }
          | pattern '|' expr '->' pattern { PatGuarded (tokPos $2) $1 (Match (tokPos $4) $3 $5) }
          | pattern ':' type_             { PatAnnotated $1 $3 }
-         --| type_ '(' patterns ')'        { PatTypeField (tokPos $2) $1 $3 }
          | symbol '(' patterns ')'       { PatField (tokPos $2) (snd $1) $3 }
          | '[' patterns ']'              { PatSlice (tokPos $1) $2 } 
  
@@ -328,8 +327,8 @@ expr   : literal                                 { $1 }
        | expr '.' callType                       { Call (tokPos $2) $3 (AST.Reference (tokPos $2) $1 : []) }
        | expr '.' callType  '(' exprsA ')'       { Call (tokPos $4) $3 (AST.Reference (tokPos $2) $1 : $5) }
        | callType '(' exprsA ')'                 { Call (tokPos $2) $1 $3 }
-       | '(' exprsA ')'                          { case $2 of [x] -> x; xs -> Call (tokPos $1) (TypeDef $ Sym ["tuple", "make" ++ show (length xs) ]) $2 }
        | type_ '(' exprsA ')'                    { AExpr $1 $ case $3 of [x] -> x; xs -> Call (tokPos $2) (TypeDef $ Sym ["tuple", "make" ++ show (length xs) ]) $3 }
+       | '(' exprsA ')'                          { case $2 of [x] -> x; xs -> Call (tokPos $1) (TypeDef $ Sym ["tuple", "make" ++ show (length xs) ]) $2 }
        | expr '+' expr                           { Call (tokPos $2) (TypeDef $ Sym ["add"]) [$1, $3] }
        | expr '-' expr                           { Call (tokPos $2) (TypeDef $ Sym ["subtract"]) [$1, $3] } 
        | expr '*' expr                           { Call (tokPos $2) (TypeDef $ Sym ["multiply"]) [$1, $3] } 

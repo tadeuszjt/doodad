@@ -43,10 +43,10 @@ acquires{A, B, C} equal{ Sum{A, B, C} } (a, b)
 
 
 fn{T} notEqualTo(a T, b T) Bool
+    let c = true
     if equal(a, b)
-        return false
-    else
-        return true
+        c = false
+    return c
 
 
 acquires greaterThan{ I64 } (a, b); return builtinGreaterThan(a, b)

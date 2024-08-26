@@ -22,6 +22,7 @@ import qualified IR
 import qualified FuncIrDestroy as IR
 import qualified FuncIrUnused as IrUnused
 import qualified FuncIrRunConst as IrRunConst
+import qualified FuncIrInline as IrInline
 
 
 generateAst :: MonadIO m => ASTResolved -> m (Either Error (((), GenerateState), BuilderState))
@@ -87,9 +88,9 @@ generateFunc funcType = do
         funcAst <- fmap fst $ runDoMExcept ast (makeInstance funcType)
         (funcIrHeader, funcIr') <- fmap fst $ runDoMExcept (IR.initFuncIRState ast) (IR.makeFuncIR funcAst)
         funcIr'' <- fmap (IR.funcIr . snd) $ runDoMExcept (IR.initFuncIrDestroyState ast) (IR.addFuncDestroy funcIr')
-        funcIr <- fmap (IrUnused.funcIr . snd) $ runDoMExcept (IrUnused.initFuncIrUnusedState ast) (IrUnused.funcIrUnused funcIr'')
+        funcIr''' <- fmap (IrUnused.funcIr . snd) $ runDoMExcept (IrUnused.initFuncIrUnusedState ast) (IrUnused.funcIrUnused funcIr'')
 
-        --result <- runDoM (IrRunConst.initFuncIrRunState ast) (IrRunConst.funcIrRun funcIr)
+        funcIr <- fmap (IrInline.funcIr . snd) $ runDoMExcept (IrInline.initFuncIrInlineState ast) (IrInline.funcIrInline funcIr''')
 
         liftIO $ putStrLn ""
         liftIO $ putStrLn $ show funcIrHeader
@@ -181,6 +182,14 @@ generateStmt funcIr id = case (IR.irStmts funcIr) Map.! id of
 
 
     IR.SSA ssaTyp ssaRefTyp operation -> case operation of
+        IR.MakeValueFromValue arg -> do
+            let IR.Value = ssaRefTyp
+
+            cType <- cTypeOf ssaTyp
+            cexpr <- generateArg arg
+            void $ appendAssign cType (idName id) cexpr
+
+
         IR.InitVar marg -> do
             let IR.Value = ssaRefTyp
             cType <- cTypeOf ssaTyp
@@ -236,8 +245,12 @@ generateStmt funcIr id = case (IR.irStmts funcIr) Map.! id of
                     let (IR.ArgID argId) = (args !! 0)
                     let (argType, IR.Ref) = (IR.irTypes funcIr) Map.! argId
 
-                    let (Type.Array, [Size n, t]) = unfoldType argType
-                    void $ appendAssign C.Cint64_t (idName id) (C.Int $ fromIntegral n)
+                    base <- baseTypeOf argType
+
+                    case unfoldType base of
+                        (Type.Array, [Size n, t]) -> do
+                            void $ appendAssign C.Cint64_t (idName id) (C.Int $ fromIntegral n)
+                        x -> error (show x)
 
                 x | symbolsCouldMatch x (Sym ["builtin", "builtinSumReset"]) -> do
                     unless (length args == 2) (error "arg length mismatch")
