@@ -28,7 +28,6 @@ import CPretty as C
 import CGenerate as C
 import Lexer
 import Compile as C
-import COptimise as O
 import qualified ResolveAst
 import qualified CombineAsts
 import Preprocess
@@ -216,13 +215,7 @@ buildModule isMain args modPath = do
 
         -- optimise C builder state
         let includePaths = includes astFinal
-        finalBuilderState <- if Args.optimise args then do
-            (((), n), cBuilderStateOptimised) <- runDoMExcept cBuilderState $ do
-                runDoMUntilSameState O.optimise
-            when (verbose args) $ do
-                liftIO $ putStrLn ("ran:       " ++ show n ++ " optimisation passes")
-            return cBuilderStateOptimised
-        else return cBuilderState
+        let finalBuilderState = cBuilderState
 
         -- write builder state to C file
         cFilePath <- liftIO $ writeSystemTempFile (modName ++ ".c") ""

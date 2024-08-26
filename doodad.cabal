@@ -87,7 +87,6 @@ executable doodad
         CGenerate,
         CAst,
         Compile,
-        COptimise,
         Constraint,
         ASTMapper,
         Builtin,
