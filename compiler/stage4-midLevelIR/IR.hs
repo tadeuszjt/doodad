@@ -56,7 +56,9 @@ data Operation
     | MakeReferenceFromValue ID
     | MakeValueFromReference ID
     | MakeValueFromValue Arg
+    | MakeRefFromRef Arg
     | MakeString String
+    deriving (Eq)
 
 instance Show Operation where
     show operation = case operation of
@@ -64,6 +66,7 @@ instance Show Operation where
         MakeReferenceFromValue id -> "&" ++ show (ArgID id)
         MakeValueFromReference id -> "*" ++ show (ArgID id)
         MakeValueFromValue arg    -> show arg
+        MakeRefFromRef arg        -> show arg
         MakeString str            -> show str
         Call callType args -> show callType ++ "(" ++ intercalate ", " (map show args) ++ ")"
         x -> error (show x)
@@ -78,7 +81,7 @@ data Stmt
     | If Arg [ID]
     | Else [ID]
     | SSA Type RefType Operation
-    deriving (Show)
+    deriving (Show, Eq)
 
 
 data ParamIR
@@ -114,6 +117,7 @@ data FuncIR = FuncIR
     , irIdSupply  :: ID
     , irCurrentId :: ID
     }
+    deriving (Eq)
 
 
 initFuncIr = FuncIR

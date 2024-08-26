@@ -20,6 +20,7 @@ data FuncIrUnusedState = FuncIrUnusedState
     { funcIr       :: FuncIR
     , astResolved  :: ASTResolved
     , hasReturned  :: Bool
+    , usedSet      :: Set.Set ID
     }
 
 
@@ -27,7 +28,17 @@ initFuncIrUnusedState ast = FuncIrUnusedState
     { funcIr      = initFuncIr
     , astResolved = ast
     , hasReturned = False
+    , usedSet     = Set.empty
     }
+
+
+addUsed :: ID -> DoM FuncIrUnusedState ()
+addUsed id = do
+    modify $ \s -> s { usedSet = Set.insert id (usedSet s) }
+
+isUsed :: ID -> DoM FuncIrUnusedState Bool
+isUsed id = do
+    gets $ Set.member id . usedSet
 
 
 liftFuncIr :: DoM FuncIR a -> DoM FuncIrUnusedState a
@@ -41,10 +52,50 @@ liftFuncIr f = do
 
 funcIrUnused :: FuncIR -> DoM FuncIrUnusedState ()
 funcIrUnused func = do
-    -- copy types from old map
     liftFuncIr $ modify $ \s -> s { irTypes = irTypes func }
-    -- generate new ids from here
     liftFuncIr $ modify $ \s -> s { irIdSupply = irIdSupply func }
+
+    forM_ (Map.toList $ irStmts func) $ \(id, stmt) -> case stmt of
+        Block _ -> addUsed id
+        Loop _  -> addUsed id
+        If arg _ -> do
+            addUsed id
+            case arg of
+                ArgID argId -> addUsed argId
+                _           -> return ()
+
+        Else _ -> addUsed id
+        Break  -> addUsed id
+
+        EmbedC ids _ -> do
+            mapM addUsed ids
+            addUsed id
+
+        SSA typ Value (InitVar marg) -> case marg of
+            Nothing -> return ()
+            Just (ArgConst _ _) -> return ()
+            Just (ArgID argId) -> addUsed argId
+
+        Return (ArgID argId) -> addUsed argId
+        Return (ArgConst _ _) -> return ()
+        ReturnVoid            -> return ()
+
+        SSA typ Ref (MakeReferenceFromValue i) -> addUsed i
+        SSA typ Value (MakeValueFromReference i) -> addUsed i
+        SSA _ Ref (MakeRefFromRef (ArgID i)) -> addUsed i
+        SSA _ Value (MakeValueFromValue (ArgID i)) -> addUsed i
+
+        SSA _ Value (MakeValueFromValue (ArgConst _ _)) -> return ()
+
+        SSA _ _ (MakeString str) -> return ()
+
+        SSA _ _ (Call _ args) -> do 
+            forM_ args $ \arg -> case arg of
+                ArgConst _ _ -> return ()
+                ArgID argId  -> addUsed argId
+            addUsed id
+
+        SSA _ _ x -> error (show x)
 
     void $ processStmt func 0
 
@@ -99,8 +150,9 @@ processStmt funcIr id = do
                 modify $ \s -> s { hasReturned = True }
                 void $ liftFuncIr (appendStmtWithId id stmt)
 
-            SSA _ _ _ ->
-                void $ liftFuncIr (appendStmtWithId id stmt)
+            SSA _ _ _ -> do
+                used <- isUsed id
+                when used $ void $ liftFuncIr (appendStmtWithId id stmt)
 
             x -> error (show x)
 

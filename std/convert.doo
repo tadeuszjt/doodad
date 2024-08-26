@@ -1,49 +1,24 @@
 module convert
 
+import std/builtin
+
 feature{A, B} convert(A) B
 
-acquires convert{I64, I64} (a); return a
-acquires convert{I32, I32} (a); return a
-acquires convert{F64, F64} (a); return a
+acquires convert{Char, I64} (a); return a.builtinConvert
+
 acquires convert{F32, F32} (a); return a
 
-acquires convert{Char, I64} (a)
-    let b
-    ${ $b = $a; }
-    return b
+acquires convert{F64, F64} (a); return a
+acquires convert{F64, F32} (a); return a.builtinConvert
 
-acquires convert{I64, Char} (a)
-    let b
-    ${ $b = $a; }
-    return b
+acquires convert{I64, I64} (a); return a
+acquires convert{I64, Char} (a); return a.builtinConvert
+acquires convert{I64, U8} (a); return a.builtinConvert
+acquires convert{I64, I32} (a); return a.builtinConvert
+acquires convert{I64, F32} (a); return a.builtinConvert
 
-acquires convert{F64, F32} (a)
-    let b
-    ${ $b = $a; }
-    return b
+acquires convert{I32, I32} (a); return a
+acquires convert{I32, I64} (a); return a.builtinConvert
 
-acquires convert{I64, U8} (a)
-    let b
-    ${ $b = $a; }
-    return b
-
-acquires convert{I64, I32} (a)
-    let b
-    ${ $b = $a; }
-    return b
-
-// TODO use different function to create numbers from literals
-acquires convert{I64, F32} (a)
-    let b
-    ${ $b = $a; }
-    return b
-
-acquires convert{I32, I64} (a)
-    let b
-    ${ $b = $a; }
-    return b
-
-acquires convert{U8, I64} (a)
-    let b
-    ${ $b = $a; }
-    return b
+acquires convert{U8, U8} (a);  return a
+acquires convert{U8, I64} (a);  return a.builtinConvert

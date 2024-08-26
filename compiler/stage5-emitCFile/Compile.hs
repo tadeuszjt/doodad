@@ -21,8 +21,8 @@ import qualified MakeFuncIR as IR
 import qualified IR
 import qualified FuncIrDestroy as IR
 import qualified FuncIrUnused as IrUnused
-import qualified FuncIrRunConst as IrRunConst
 import qualified FuncIrInline as IrInline
+import qualified FuncIrConst as IrConst
 
 
 generateAst :: MonadIO m => ASTResolved -> m (Either Error (((), GenerateState), BuilderState))
@@ -90,7 +90,14 @@ generateFunc funcType = do
         funcIr'' <- fmap (IR.funcIr . snd) $ runDoMExcept (IR.initFuncIrDestroyState ast) (IR.addFuncDestroy funcIr')
         funcIr''' <- fmap (IrUnused.funcIr . snd) $ runDoMExcept (IrUnused.initFuncIrUnusedState ast) (IrUnused.funcIrUnused funcIr'')
 
-        funcIr <- fmap (IrInline.funcIr . snd) $ runDoMExcept (IrInline.initFuncIrInlineState ast) (IrInline.funcIrInline funcIr''')
+        --funcIr <- fmap (IrInline.funcIr . snd) $ runDoMExcept (IrInline.initFuncIrInlineState ast) (IrInline.funcIrInline funcIr''')
+
+        (funcIr, ()) <- runDoMExcept () $ fmap fst $ runDoMUntilSameResult funcIr''' $ \funcIr -> do
+            funcIr' <- fmap (IrInline.funcIr . snd) $ runDoMExcept (IrInline.initFuncIrInlineState ast) (IrInline.funcIrInline funcIr)
+            funcIr'' <- fmap (IrConst.funcIr . snd) $ runDoMExcept (IrConst.initFuncIrConstState ast) (IrConst.funcIrConst funcIr')
+            funcIr''' <- fmap (IrUnused.funcIr . snd) $ runDoMExcept (IrUnused.initFuncIrUnusedState ast) (IrUnused.funcIrUnused funcIr'')
+            return funcIr'''
+
 
         liftIO $ putStrLn ""
         liftIO $ putStrLn $ show funcIrHeader
@@ -182,6 +189,7 @@ generateStmt funcIr id = case (IR.irStmts funcIr) Map.! id of
 
 
     IR.SSA ssaTyp ssaRefTyp operation -> case operation of
+
         IR.MakeValueFromValue arg -> do
             let IR.Value = ssaRefTyp
 
@@ -189,6 +197,12 @@ generateStmt funcIr id = case (IR.irStmts funcIr) Map.! id of
             cexpr <- generateArg arg
             void $ appendAssign cType (idName id) cexpr
 
+        IR.MakeRefFromRef arg -> do
+            let IR.Ref = ssaRefTyp
+
+            cType <- cRefTypeOf ssaTyp
+            cexpr <- generateArg arg
+            void $ appendAssign cType (idName id) cexpr
 
         IR.InitVar marg -> do
             let IR.Value = ssaRefTyp
@@ -232,6 +246,23 @@ generateStmt funcIr id = case (IR.irStmts funcIr) Map.! id of
                     let (argType, IR.Ref) = (IR.irTypes funcIr) Map.! argId
                     cexpr <- generateArg (head args)
                     builtinTableAppend argType cexpr
+
+                x | symbolsCouldMatch x (Sym ["builtin", "builtinStore"]) -> do
+                    unless (length args == 2) (error "arg length mismatch")
+                    [cexpr1, cexpr2] <- mapM generateArg args
+                    void $ appendElem $ C.Set (C.Deref cexpr1) cexpr2
+
+                x | symbolsCouldMatch x (Sym ["builtin", "builtinConvert"]) -> do
+                    unless (length args == 1) (error "arg length mismatch")
+                    --let (IR.ArgID argId) = head args
+
+                    argType <- case head args of
+                        IR.ArgID argId -> return $ fst $ (IR.irTypes funcIr) Map.! argId
+                        IR.ArgConst typ _ -> return typ
+
+                    cexpr <- generateArg (head args)
+                    cType <- cTypeOf argType
+                    void $ appendAssign cType (idName id) cexpr
 
                 x | symbolsCouldMatch x (Sym ["builtin", "builtinTableLen"]) -> do
                     unless (length args == 1) (error "arg length mismatch")

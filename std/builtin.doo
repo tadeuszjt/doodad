@@ -2,7 +2,7 @@ module builtin
 
 
 // memory
-fn{T} builtinStore(a &T, b T); ${ *$a = $b; }
+fn{T} builtinStore(a &T, b T); ${ assert(false); }
 
 feature{T} destroy(T)
 acquires destroy{Char} (c&); return
@@ -16,6 +16,7 @@ acquires destroy{Tuple{}} (tup&); return
 
 // types
 fn{T, G} pretend(a &T) &G; ${ return $a; }
+
 
 feature{N, G, T | N -> G} field(T) G
 
@@ -42,6 +43,9 @@ acquires{A, B, C} field{2, C, Sum{A, B, C}} (sum&) -> &; return sum.builtinField
 
 
 fn{I, G, T} builtinField(t &T) &G; ${ assert(false); }
+fn{T, G} builtinConvert(a T) G
+    ${ assert(false); }
+
 
 
 // arithmetic
