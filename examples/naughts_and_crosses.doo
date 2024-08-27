@@ -47,13 +47,13 @@ derives Board (forBegin)
 derives Board (forEnd)
 
 
-acquires{P} print{ P, Square } (p&, square)
+inst{P} print{ P, Square } (p&, square)
     switch square
         empty(); p.print('_')
         naught(); p.print('O')
         cross(); p.print('X')
 
-acquires{P} print{ P, Board } (p&, board)
+inst{P} print{ P, Board } (p&, board)
     for board -> row
         p.print(row)
         p.print('\n')

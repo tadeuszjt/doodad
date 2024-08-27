@@ -4,39 +4,39 @@ import builtin/store
 import builtin/builtin
 
 
-feature{G, TupSize, TupField, T | T -> TupSize, TupField -> G } tuplePattern(T) G
+func{G, TupSize, TupField, T | T -> TupSize, TupField -> G } tuplePattern(T) G
 
-acquires{A, B} tuplePattern{ A, 2, 0, Tuple{A, B}} (tup&) -> &; return tup.0
-acquires{A, B} tuplePattern{ B, 2, 1, Tuple{A, B}} (tup&) -> &; return tup.1
+inst{A, B} tuplePattern{ A, 2, 0, Tuple{A, B}} (tup&) -> &; return tup.0
+inst{A, B} tuplePattern{ B, 2, 1, Tuple{A, B}} (tup&) -> &; return tup.1
 
-acquires{A, B, C} tuplePattern{A, 3, 0, Tuple{A, B, C}} (tup&) -> &; return tup.0
-acquires{A, B, C} tuplePattern{B, 3, 1, Tuple{A, B, C}} (tup&) -> &; return tup.1
-acquires{A, B, C} tuplePattern{C, 3, 2, Tuple{A, B, C}} (tup&) -> &; return tup.2
+inst{A, B, C} tuplePattern{A, 3, 0, Tuple{A, B, C}} (tup&) -> &; return tup.0
+inst{A, B, C} tuplePattern{B, 3, 1, Tuple{A, B, C}} (tup&) -> &; return tup.1
+inst{A, B, C} tuplePattern{C, 3, 2, Tuple{A, B, C}} (tup&) -> &; return tup.2
 
-acquires{A, B, C, D} tuplePattern{A, 4, 0, Tuple{A, B, C, D}} (tup&) -> &; return tup.0
-acquires{A, B, C, D} tuplePattern{B, 4, 1, Tuple{A, B, C, D}} (tup&) -> &; return tup.1
-acquires{A, B, C, D} tuplePattern{C, 4, 2, Tuple{A, B, C, D}} (tup&) -> &; return tup.2
-acquires{A, B, C, D} tuplePattern{D, 4, 3, Tuple{A, B, C, D}} (tup&) -> &; return tup.3
+inst{A, B, C, D} tuplePattern{A, 4, 0, Tuple{A, B, C, D}} (tup&) -> &; return tup.0
+inst{A, B, C, D} tuplePattern{B, 4, 1, Tuple{A, B, C, D}} (tup&) -> &; return tup.1
+inst{A, B, C, D} tuplePattern{C, 4, 2, Tuple{A, B, C, D}} (tup&) -> &; return tup.2
+inst{A, B, C, D} tuplePattern{D, 4, 3, Tuple{A, B, C, D}} (tup&) -> &; return tup.3
 
 
-feature{ A, B, C | C->A, C->B }                   make2(A, B) C
-feature{ A, B, C, D | D->A, D->B, D->C }          make3(A, B, C) D
-feature{ A, B, C, D, E | E->A, E->B, E->C, E->D } make4(A, B, C, D) E
+func{ A, B, C | C->A, C->B }                   make2(A, B) C
+func{ A, B, C, D | D->A, D->B, D->C }          make3(A, B, C) D
+func{ A, B, C, D, E | E->A, E->B, E->C, E->D } make4(A, B, C, D) E
 
-acquires{A, B} make2{ A, B, Tuple{A, B} } (a, b)
+inst{A, B} make2{ A, B, Tuple{A, B} } (a, b)
     let tup
     tup.0 = a 
     tup.1 = b
     return tup
 
-acquires{A, B, C} make3{ A, B, C, Tuple{A, B, C} } (a, b, c)
+inst{A, B, C} make3{ A, B, C, Tuple{A, B, C} } (a, b, c)
     let tup
     tup.0 = a 
     tup.1 = b
     tup.2 = c
     return tup
 
-acquires{A, B, C, D} make4{ A, B, C, D, Tuple{A, B, C, D} } (a, b, c, d)
+inst{A, B, C, D} make4{ A, B, C, D, Tuple{A, B, C, D} } (a, b, c, d)
     let tup
     tup.0 = a 
     tup.1 = b

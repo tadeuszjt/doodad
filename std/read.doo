@@ -14,16 +14,16 @@ import builtin/for
 import builtin/convert
 
 
-feature{R, T} read(R, I64) Tuple{T, I64}.Option
+func{R, T} read(R, I64) Tuple{T, I64}.Option
 
 
-acquires read{ Char.Table, Char } (r&, idx)
+inst read{ Char.Table, Char } (r&, idx)
     if idx < 0 || idx > r.len
         return none()
     return some( (r[idx], 1) )
 
 
-acquires{R} read{ R, I64 } (r&, start)
+inst{R} read{ R, I64 } (r&, start)
     let idx = start
 
     while r.read(idx) -> some(c, n) | isSpace(c)

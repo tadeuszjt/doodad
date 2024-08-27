@@ -101,12 +101,12 @@ fn testTuple()
 //    let 0 = table.len
 //
 //    //derives Person (store::store)
-//    acquires store{ Person } (a&, b)
+//    inst store{ Person } (a&, b)
 //        a.0 = b.0
 //        a.1 = b.1
 //
-//    acquires first{ Person, I64 } (p&) -> &; return &p.0
-//    acquires second{ Person, Bool } (p&) -> &; return &p.1
+//    inst first{ Person, I64 } (p&) -> &; return &p.0
+//    inst second{ Person, Bool } (p&) -> &; return &p.1
 //
 //    fn person(a I64, b Bool) Person
 //        let p : Person
@@ -434,7 +434,7 @@ type MyTup Tuple{Bool, U8}
 derives MyTup (store)
 derives MyTup (destroy)
 
-acquires make2{ Bool, U8, MyTup } (a, b)
+inst make2{ Bool, U8, MyTup } (a, b)
     let myTup
     myTup.0 = a
     myTup.1 = b

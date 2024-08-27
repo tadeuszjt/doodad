@@ -16,13 +16,13 @@ tuple Texture {
 }
 
 
-acquires destroy{Texture} (t&)
+inst destroy{Texture} (t&)
     let ptr = t.texturePtr
     ${ if ($ptr) sfTexture_destroy((sfTexture*)$ptr); }
     t.texturePtr = 0
 
 
-acquires store{Texture} (a&, b)
+inst store{Texture} (a&, b)
     let bPtr = b.texturePtr
     let ptr = 0
     ${

@@ -2,24 +2,24 @@ module boolean
 
 import builtin/builtin
 
-feature{T} and(T, T) T
-feature{T} or(T, T) T
-feature{T} not(T) T
+func{T} and(T, T) T
+func{T} or(T, T) T
+func{T} not(T) T
 
 
-acquires and{ Bool } (a, b)
+inst and{ Bool } (a, b)
     if a
         return b
     return false
 
 
-acquires or{ Bool } (a, b)
+inst or{ Bool } (a, b)
     if a
         return a
     return b
 
 
-acquires not{ Bool } (a)
+inst not{ Bool } (a)
     if a
         return false
     return true

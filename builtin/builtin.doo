@@ -3,40 +3,40 @@ module builtin
 
 fn{T, G} pretend(a &T) &G; return a.builtinPretend
 
-// destroy feature
-feature{T} destroy(T)
-acquires destroy{Char} (c&);      return
-acquires destroy{Bool} (c&);      return
-acquires destroy{F32} (c&);       return
-acquires destroy{F64} (c&);       return
-acquires destroy{I64} (c&);       return
-acquires destroy{I32} (c&);       return
-acquires destroy{Tuple{}} (tup&); return
+// destroy func
+func{T} destroy(T)
+inst destroy{Char} (c&);      return
+inst destroy{Bool} (c&);      return
+inst destroy{F32} (c&);       return
+inst destroy{F64} (c&);       return
+inst destroy{I64} (c&);       return
+inst destroy{I32} (c&);       return
+inst destroy{Tuple{}} (tup&); return
 
 
-// field feature
-feature{N, G, T | N -> G} field(T) G
+// field func
+func{N, G, T | N -> G} field(T) G
 
-acquires{A, B} field{0, A, Tuple{A, B}} (tup&) -> &; return tup.builtinField{0, A, Tuple{A, B}}
-acquires{A, B} field{1, B, Tuple{A, B}} (tup&) -> &; return tup.builtinField{1, B, Tuple{A, B}}
+inst{A, B} field{0, A, Tuple{A, B}} (tup&) -> &; return tup.builtinField{0, A, Tuple{A, B}}
+inst{A, B} field{1, B, Tuple{A, B}} (tup&) -> &; return tup.builtinField{1, B, Tuple{A, B}}
 
-acquires{A, B, C} field{0, A, Tuple{A, B, C}} (tup&) -> &; return tup.builtinField{0, A, Tuple{A, B, C}}
-acquires{A, B, C} field{1, B, Tuple{A, B, C}} (tup&) -> &; return tup.builtinField{1, B, Tuple{A, B, C}}
-acquires{A, B, C} field{2, C, Tuple{A, B, C}} (tup&) -> &; return tup.builtinField{2, C, Tuple{A, B, C}}
+inst{A, B, C} field{0, A, Tuple{A, B, C}} (tup&) -> &; return tup.builtinField{0, A, Tuple{A, B, C}}
+inst{A, B, C} field{1, B, Tuple{A, B, C}} (tup&) -> &; return tup.builtinField{1, B, Tuple{A, B, C}}
+inst{A, B, C} field{2, C, Tuple{A, B, C}} (tup&) -> &; return tup.builtinField{2, C, Tuple{A, B, C}}
 
-acquires{A, B, C, D} field{0, A, Tuple{A, B, C, D}} (tup&) -> &; return tup.builtinField{0, A, Tuple{A, B, C, D}}
-acquires{A, B, C, D} field{1, B, Tuple{A, B, C, D}} (tup&) -> &; return tup.builtinField{1, B, Tuple{A, B, C, D}}
-acquires{A, B, C, D} field{2, C, Tuple{A, B, C, D}} (tup&) -> &; return tup.builtinField{2, C, Tuple{A, B, C, D}}
-acquires{A, B, C, D} field{3, D, Tuple{A, B, C, D}} (tup&) -> &; return tup.builtinField{3, D, Tuple{A, B, C, D}}
+inst{A, B, C, D} field{0, A, Tuple{A, B, C, D}} (tup&) -> &; return tup.builtinField{0, A, Tuple{A, B, C, D}}
+inst{A, B, C, D} field{1, B, Tuple{A, B, C, D}} (tup&) -> &; return tup.builtinField{1, B, Tuple{A, B, C, D}}
+inst{A, B, C, D} field{2, C, Tuple{A, B, C, D}} (tup&) -> &; return tup.builtinField{2, C, Tuple{A, B, C, D}}
+inst{A, B, C, D} field{3, D, Tuple{A, B, C, D}} (tup&) -> &; return tup.builtinField{3, D, Tuple{A, B, C, D}}
 
-acquires{A} field{0, A, Sum{A}} (sum&) -> &; return sum.builtinField{0, A, Sum{A}}
+inst{A} field{0, A, Sum{A}} (sum&) -> &; return sum.builtinField{0, A, Sum{A}}
 
-acquires{A, B} field{0, A, Sum{A, B}} (sum&) -> &; return sum.builtinField{0, A, Sum{A, B}}
-acquires{A, B} field{1, B, Sum{A, B}} (sum&) -> &; return sum.builtinField{1, B, Sum{A, B}}
+inst{A, B} field{0, A, Sum{A, B}} (sum&) -> &; return sum.builtinField{0, A, Sum{A, B}}
+inst{A, B} field{1, B, Sum{A, B}} (sum&) -> &; return sum.builtinField{1, B, Sum{A, B}}
 
-acquires{A, B, C} field{0, A, Sum{A, B, C}} (sum&) -> &; return sum.builtinField{0, A, Sum{A, B, C}}
-acquires{A, B, C} field{1, B, Sum{A, B, C}} (sum&) -> &; return sum.builtinField{1, B, Sum{A, B, C}}
-acquires{A, B, C} field{2, C, Sum{A, B, C}} (sum&) -> &; return sum.builtinField{2, C, Sum{A, B, C}}
+inst{A, B, C} field{0, A, Sum{A, B, C}} (sum&) -> &; return sum.builtinField{0, A, Sum{A, B, C}}
+inst{A, B, C} field{1, B, Sum{A, B, C}} (sum&) -> &; return sum.builtinField{1, B, Sum{A, B, C}}
+inst{A, B, C} field{2, C, Sum{A, B, C}} (sum&) -> &; return sum.builtinField{2, C, Sum{A, B, C}}
 
 
 // misc

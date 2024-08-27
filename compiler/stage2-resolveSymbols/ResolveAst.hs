@@ -146,17 +146,6 @@ resolveAst ast imports = fmap fst $ runDoMExcept initResolveState (resolveAst' a
                     define symbol' KeyType
                     return (Feature pos generics funDeps symbol' args retty)
 
---                MacroTuple pos generics (Sym [str]) fields -> do
---                    symbol' <- genSymbol (SymResolved [str])
---                    define symbol' KeyType
---
---                    fields' <- forM fields $ \(Sym [fieldStr], fieldType) -> do
---                        fieldSymbol <- genSymbol (SymResolved [fieldStr])
---                        define fieldSymbol KeyType
---                        return (fieldSymbol, fieldType)
---                        
---                    return $ MacroTuple pos generics symbol' fields'
-
                 _ -> return stmt
 
 

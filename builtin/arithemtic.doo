@@ -6,50 +6,49 @@ import builtin/convert
 import builtin/tuple
 
 
-feature{A, B | A->B } add(A, A) B
-feature{T} subtract(T, T) T
-feature{T} multiply(T, T) T
-feature{T} divide(T, T) T
-feature{T} modulo(T, T) T
-feature{T} negate(T) T
+func{A, B | A->B } add(A, A) B
+func{T} subtract(T, T) T
+func{T} multiply(T, T) T
+func{T} divide(T, T) T
+func{T} modulo(T, T) T
+func{T} negate(T) T
+
+inst add{I64, I64} (a, b); return builtinAdd(a, b)
+inst subtract{I64} (a, b); return builtinSubtract(a, b)
+inst multiply{I64} (a, b); return builtinMultiply(a, b)
+inst divide{I64}   (a, b); return builtinDivide(a, b)
+inst modulo{I64}   (a, b); return builtinModulo(a, b)
+inst negate{I64}   (a);    return 0 - a
+
+inst add{F64, F64} (a, b); return builtinAdd(a, b)
+inst subtract{F64} (a, b); return builtinSubtract(a, b)
+inst multiply{F64} (a, b); return builtinMultiply(a, b)
+inst divide{F64}   (a, b); return builtinDivide(a, b)
+
+inst add{F32, F32} (a, b); return builtinAdd(a, b)
+inst subtract{F32} (a, b); return builtinSubtract(a, b)
+inst multiply{F32} (a, b); return builtinMultiply(a, b)
+inst divide{F32}   (a, b); return builtinDivide(a, b)
+
+inst negate{F64}   (a); return builtinSubtract(0.0, a)
+inst negate{F32}   (a); return builtinSubtract(0.0, a)
 
 
-acquires add{I64, I64} (a, b); return builtinAdd(a, b)
-acquires subtract{I64} (a, b); return builtinSubtract(a, b)
-acquires multiply{I64} (a, b); return builtinMultiply(a, b)
-acquires divide{I64}   (a, b); return builtinDivide(a, b)
-acquires modulo{I64}   (a, b); return builtinModulo(a, b)
-acquires negate{I64}   (a);    return 0 - a
+inst add{Char, Char} (a, b); return builtinAdd(a, b)
+inst subtract{Char}  (a, b); return builtinSubtract(a, b)
 
-acquires add{F64, F64} (a, b); return builtinAdd(a, b)
-acquires subtract{F64} (a, b); return builtinSubtract(a, b)
-acquires multiply{F64} (a, b); return builtinMultiply(a, b)
-acquires divide{F64}   (a, b); return builtinDivide(a, b)
-
-acquires add{F32, F32} (a, b); return builtinAdd(a, b)
-acquires subtract{F32} (a, b); return builtinSubtract(a, b)
-acquires multiply{F32} (a, b); return builtinMultiply(a, b)
-acquires divide{F32}   (a, b); return builtinDivide(a, b)
-
-acquires negate{F64}   (a); return builtinSubtract(0.0, a)
-acquires negate{F32}   (a); return builtinSubtract(0.0, a)
-
-
-acquires add{Char, Char} (a, b); return builtinAdd(a, b)
-acquires subtract{Char}  (a, b); return builtinSubtract(a, b)
-
-acquires{A} add{ Tuple{A}, Tuple{A} } (a, b)
+inst{A} add{ Tuple{A}, Tuple{A} } (a, b)
     let tup
     tup.0 = a.0 + b.0
     return tup
 
-acquires{A, B} add{ Tuple{A, B}, Tuple{A, B} } (a, b); return (a.0 + b.0, a.1 + b.1)
-acquires{A, B} subtract{ Tuple{A, B} } (a, b); return (a.0 - b.0, a.1 - b.1)
-acquires{A, B} multiply{ Tuple{A, B} } (a, b); return (a.0 * b.0, a.1 * b.1)
-acquires{A, B} divide{ Tuple{A, B} } (a, b); return (a.0 / b.0, a.1 / b.1)
+inst{A, B} add{ Tuple{A, B}, Tuple{A, B} } (a, b); return (a.0 + b.0, a.1 + b.1)
+inst{A, B} subtract{ Tuple{A, B} } (a, b); return (a.0 - b.0, a.1 - b.1)
+inst{A, B} multiply{ Tuple{A, B} } (a, b); return (a.0 * b.0, a.1 * b.1)
+inst{A, B} divide{ Tuple{A, B} } (a, b); return (a.0 / b.0, a.1 / b.1)
 
-acquires{A, B, C} add{ Tuple{A, B, C}, Tuple{A, B, C} } (a, b)
+inst{A, B, C} add{ Tuple{A, B, C}, Tuple{A, B, C} } (a, b)
     return (a.0 + b.0, a.1 + b.1, a.2 + b.2)
 
-acquires{A, B, C, D} add{ Tuple{A, B, C, D}, Tuple{A, B, C, D} } (a, b)
+inst{A, B, C, D} add{ Tuple{A, B, C, D}, Tuple{A, B, C, D} } (a, b)
     return (a.0 + b.0, a.1 + b.1, a.2 + b.2, a.3 + b.3)

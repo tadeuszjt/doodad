@@ -9,42 +9,42 @@ import builtin/store
 import builtin/compare
 
 
-//feature{T} destroy(T)
+//func{T} destroy(T)
 
-acquires destroy{ U8 } (n&); return
-//acquires destroy{ I64 } (n&); return
-//acquires destroy{ F32 } (n&); return
-//acquires destroy{ F64 } (n&); return
-
-
-acquires{T} destroy{ Slice{T} } (slice&); return
+inst destroy{ U8 } (n&); return
+//inst destroy{ I64 } (n&); return
+//inst destroy{ F32 } (n&); return
+//inst destroy{ F64 } (n&); return
 
 
-acquires{A} destroy{ Tuple{A} } (tup&)
+inst{T} destroy{ Slice{T} } (slice&); return
+
+
+inst{A} destroy{ Tuple{A} } (tup&)
     tup.0 .destroy
 
-acquires{A, B} destroy{ Tuple{A, B} } (tup&)
+inst{A, B} destroy{ Tuple{A, B} } (tup&)
     tup.0 .destroy
     tup.1 .destroy
 
-acquires{A, B, C} destroy{ Tuple{A, B, C} } (tup&)
+inst{A, B, C} destroy{ Tuple{A, B, C} } (tup&)
     tup.0 .destroy
     tup.1 .destroy
     tup.2 .destroy
 
-acquires{A, B, C, D} destroy{ Tuple{A, B, C, D} } (tup&)
+inst{A, B, C, D} destroy{ Tuple{A, B, C, D} } (tup&)
     tup.0 .destroy
     tup.1 .destroy
     tup.2 .destroy
     tup.3 .destroy
 
 
-acquires{N, T} destroy{ Array{N, T} } (arr&)
+inst{N, T} destroy{ Array{N, T} } (arr&)
     for (0, arr.len) -> i
         arr[i].destroy
     
 
-acquires{T} destroy{ T.Table } (t&)
+inst{T} destroy{ T.Table } (t&)
     for (0, t.len) -> i
         t[i].destroy
     ${
@@ -56,12 +56,12 @@ acquires{T} destroy{ T.Table } (t&)
     }
 
 
-acquires{A} destroy{Sum{A}} (sum&)
+inst{A} destroy{Sum{A}} (sum&)
     sum.0 .destroy
     ${ memset($sum, 0, sizeof(*$sum)); }
 
 
-acquires{A, B} destroy{Sum{A, B}} (sum&)
+inst{A, B} destroy{Sum{A, B}} (sum&)
     switch sum.builtinSumEnum
         0; sum.0 .destroy
         1; sum.1 .destroy
@@ -69,7 +69,7 @@ acquires{A, B} destroy{Sum{A, B}} (sum&)
     ${ memset($sum, 0, sizeof(*$sum)); }
 
 
-acquires{A, B, C} destroy{ Sum{A, B, C} } (sum&)
+inst{A, B, C} destroy{ Sum{A, B, C} } (sum&)
     switch sum.builtinSumEnum
         0; sum.0 .destroy
         1; sum.1 .destroy

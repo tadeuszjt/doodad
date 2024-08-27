@@ -11,7 +11,7 @@ import builtin/arithmetic
 import builtin/convert
 
 
-feature{T, G} print(T, G)
+func{T, G} print(T, G)
 
 
 fn{P, T} printLn(p &P, t T)
@@ -19,18 +19,18 @@ fn{P, T} printLn(p &P, t T)
     p.print('\n')
 
 
-acquires print{ Char.Table, Char } (t&, c)
+inst print{ Char.Table, Char } (t&, c)
     t.push(c)
 
 
-acquires{T} print{ T, Char.Slice } (t&, s)
+inst{T} print{ T, Char.Slice } (t&, s)
     for s -> c
         t.print(c)
 
-acquires{T} print{ T, U8 }  (p&, n); p.print(convert(n) : I64)
-acquires{T} print{ T, I32 } (p&, n); p.print(convert(n) : I64)
+inst{T} print{ T, U8 }  (p&, n); p.print(convert(n) : I64)
+inst{T} print{ T, I32 } (p&, n); p.print(convert(n) : I64)
 
-acquires{T} print{ T, I64 } (t&, n)
+inst{T} print{ T, I64 } (t&, n)
     if n < 0
         t.print('-')
         n = 0 - n
@@ -48,21 +48,21 @@ acquires{T} print{ T, I64 } (t&, n)
         t.print(digits[digits.len - 1 - idx])
 
 
-acquires{T} print{ T, F32 } (p&, n)
+inst{T} print{ T, F32 } (p&, n)
     let str : Array{ 32, Char } 
     ${ sprintf( $str.arr, "%g", $n ); }
     for str -> c
         p.print(c)
 
 
-acquires{T} print{ T, Bool } (t&, b)
+inst{T} print{ T, Bool } (t&, b)
     if b
         t.print("true")
     else
         t.print("false")
 
 
-acquires{T, G} print{ T, G.Table } (t&, g&)
+inst{T, G} print{ T, G.Table } (t&, g&)
     t.print('[')
 
     for (0, g.len) -> idx
@@ -73,7 +73,7 @@ acquires{T, G} print{ T, G.Table } (t&, g&)
     t.print(']')
 
 
-acquires{P, S, T} print{ P, Array{S, T} } (p&, array)
+inst{P, S, T} print{ P, Array{S, T} } (p&, array)
     p.print('[')
 
     for (0, array.len) -> idx
@@ -84,14 +84,14 @@ acquires{P, S, T} print{ P, Array{S, T} } (p&, array)
     p.print(']')
 
 
-acquires{P, A, B} print{ P, Tuple{A, B} } (a&, b)
+inst{P, A, B} print{ P, Tuple{A, B} } (a&, b)
     a.print('(')
     a.print( b.builtinField{0, A, Tuple{A, B}} )
     a.print(", ")
     a.print( b.1 )
     a.print(')')
 
-acquires{P, A, B, C} print{ P, Tuple{A, B, C} } (a&, b)
+inst{P, A, B, C} print{ P, Tuple{A, B, C} } (a&, b)
     a.print('(')
     a.print( b.0 )
     a.print(", ")
@@ -100,7 +100,7 @@ acquires{P, A, B, C} print{ P, Tuple{A, B, C} } (a&, b)
     a.print( b.2 )
     a.print(')')
 
-acquires{P, A, B, C, D} print{ P, Tuple{A, B, C, D} } (a&, b)
+inst{P, A, B, C, D} print{ P, Tuple{A, B, C, D} } (a&, b)
     a.print('(')
     a.print( b.0 )
     a.print(", ")

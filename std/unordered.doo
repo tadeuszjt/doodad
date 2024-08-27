@@ -28,7 +28,7 @@ tuple{T} Unordered {
 derives{T} T.Unordered (destroy)
 
 
-acquires{T} len{ T.Unordered } (u&)
+inst{T} len{ T.Unordered } (u&)
     return u.values.len
 
 
@@ -53,11 +53,11 @@ fn{T} insert(u &T.Unordered, elem T) T.Key
     return key.pretend
 
 
-acquires{T} index{ Unordered{T}, T } (u&, idx) -> &
+inst{T} index{ Unordered{T}, T } (u&, idx) -> &
     return u.values[idx]
 
 
-acquires{T} at{ T.Key, T, Unordered{T} } (u&, key) -> &
+inst{T} at{ T.Key, T, Unordered{T} } (u&, key) -> &
 //    ${
 //        printf("at{T.Key, T, Unordered{T}}, u.ptr:%p, key:%d\n", $u.ptr, $key);
 //    }
@@ -80,7 +80,7 @@ fn{T} delete(u &T.Unordered, key T.Key)
     u.entries.pop
 
 
-acquires{P, T} print{P, Unordered{T}} (p&, u&)
+inst{P, T} print{P, Unordered{T}} (p&, u&)
     p.print('[')
 
     for (0, u.len) -> idx

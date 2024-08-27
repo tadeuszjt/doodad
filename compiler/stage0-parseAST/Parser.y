@@ -75,8 +75,8 @@ import Symbol
     false      { Token _ Token.Reserved "false" }
     for        { Token _ Token.Reserved "for" }
     data       { Token _ Token.Reserved "data" }
-    feature    { Token _ Token.Reserved "feature" }
-    acquires   { Token _ Token.Reserved "acquires" }
+    func       { Token _ Token.Reserved "func" }
+    inst       { Token _ Token.Reserved "inst" }
     derives    { Token _ Token.Reserved "derives" }
     module     { Token _ Token.Module _ }
     import     { Token _ Token.Import _ }
@@ -159,7 +159,7 @@ derivesDef : derives generics type_ '(' callType ')'
            { Derives (tokPos $1) $2 $3 ($5) }
 
 
-featureGenerics : '{' Idents1 funDeps '}'  { (map (\s -> Symbol.Sym [s]) $2, $3) }
+funcGenerics : '{' Idents1 funDeps '}'  { (map (\s -> Symbol.Sym [s]) $2, $3) }
 
 funDeps : {-empty-}    { [] }
         | '|' funDeps1 { $2 }
@@ -168,15 +168,15 @@ funDep : Ident '->' Ident { (Symbol.Sym [tokStr $1], Symbol.Sym [tokStr $3]) }
 funDeps1 : funDep              { [$1] }
          | funDep ',' funDeps1 { $1:$3 }
 
-featureDef : feature featureGenerics ident '(' types ')' typeMaybe
+funcDef : func funcGenerics ident '(' types ')' typeMaybe
             { Feature (tokPos $1) (fst $2) (snd $2) (Sym [tokStr $3]) $5 (case $7 of Nothing -> Void; Just x -> x) }
 
 
-acquiresDef : acquires generics symbol '{' types '}' '(' args ')' acquiresRetty scope
+instDef : inst generics symbol '{' types '}' '(' args ')' instRetty scope
             { Acquires (tokPos $1) $2 (foldl Apply (TypeDef $ snd $3) $5) $8 $10 $11 }
 
 
-acquiresRetty : {-empty-}  { False }
+instRetty : {-empty-}  { False }
              | '->' '&'   { True  }
 
 
@@ -190,7 +190,7 @@ args1 : arg            { [$1] }
       | arg ',' args1  { ($1 : $3) }
 
 
-funcDef : fn generics ident '(' paramsA ')' retty scope 
+fnDef : fn generics ident '(' paramsA ')' retty scope 
             { FuncDef $2 (AST.Func (tokPos $1) (Sym [tokStr $3]) $5 $7 $8) }
 
 
@@ -209,7 +209,7 @@ line : let pattern '=' expr               { Let (tokPos $1) $2 (Just $4) Nothing
      | embed_c                            { AST.EmbedC (tokPos $1) [] (tokStr $1) }
      | enumMacro                          { $1 }
      | tupleMacro                         { $1 }
-     | featureDef                         { $1 }
+     | funcDef                            { $1 }
      | derivesDef                         { $1 }
 
 block : if_                               { $1 }
@@ -219,8 +219,8 @@ block : if_                               { $1 }
       | switch expr 'I' cases1 'D'        { Switch (tokPos $1) $2 $4 }
       | let pattern '='  expr in scope    { Let (tokPos $1) $2 (Just $4) (Just $6) }
       | let pattern in scope              { Let (tokPos $1) $2 Nothing (Just $4) }
-      | funcDef                           { $1 }
-      | acquiresDef                        { $1 }
+      | fnDef                             { $1 }
+      | instDef                           { $1 }
 
 if_   : if condition scope else_          { If (tokPos $1) $2 $3 $4 }
       | if condition 'N' else_            { If (tokPos $1) $2 (Block []) $4 }

@@ -21,7 +21,7 @@ tuple Io {
 derives Io (destroy)
 
 
-acquires print{ StdOut, Char } (stdout&, c)
+inst print{ StdOut, Char } (stdout&, c)
     ${ putchar($c); }
 
 
