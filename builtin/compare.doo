@@ -50,4 +50,7 @@ fn{T} notEqualTo(a T, b T) Bool
 
 
 inst greaterThan{ I64 } (a, b); return builtinGreaterThan(a, b)
+
 inst lessThan{ I64 }    (a, b); return builtinLessThan(a, b)
+inst lessThan{ F32 }    (a, b); return builtinLessThan(a, b)
+inst lessThan{ F64 }    (a, b); return builtinLessThan(a, b)

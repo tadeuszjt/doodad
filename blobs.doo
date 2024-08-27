@@ -9,6 +9,7 @@ import std/print
 import std/option
 import std/unordered
 import std/time
+import std/maths
 
 import builtin/all
 
@@ -44,6 +45,19 @@ fn makeQuad(position Vec2f, colour Colour) Quad
     return quad
 
 
+fn length(v Vec2f) F32
+    return sqrt(v.x * v.x + v.y * v.y)
+
+
+fn containsBlob(table &Blob.Table, point Vec2f) Bool
+    for (0, table.len) -> i
+        if (point - table.position[i]).length < 10.0
+            return true
+
+    return false
+        
+
+
 fn main(io Io, rand Rand, w sfml::Window)
     io.stdout.printLn("blobs")
     w.create(1000, 800, "blobs")
@@ -61,21 +75,29 @@ fn main(io Io, rand Rand, w sfml::Window)
 
     //io.stdout.printLn(blobs)
 
+    let mousePos = Vec2f(0.0, 0.0)
+
     while w.isOpen()
         let prevNs = time::getTimestampNs()
 
         while w.pollEvent() -> some(event)
             switch event
                 closed(); w.close()
-                mouseMove(x, y);
+                mouseMove(x, y)
+                    mousePos.x = x.convert
+                    mousePos.y = y.convert
 
         for (0, blobs.len) -> i
-            blobs[i].position = blobs[i].position + blobs[i].velocity
+            //blobs[i].position = blobs[i].position + blobs[i].velocity
             blobs[i].sprite   = makeQuad(blobs[i].position, blobs[i].blobColour)
 
         
         let (width, height) = w.getSize()
         w.setViewFromRect(((0, 0), (width.convert, height.convert)))
+
+        if blobs.containsBlob(mousePos)
+            io.stdout.print("contains")
+
         w.clearWindow(white())
         w.drawQuads(blobs.sprite, &blobTexture)
         w.display()

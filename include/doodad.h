@@ -7,6 +7,7 @@
 #include <string.h>
 #include <ctype.h>
 #include <stdarg.h>
+#include <math.h>
 
 //#define doodad_assert(filename, line, cnd, str) do { if (!cnd) { fprintf(stderr, "%s:%d failed: %s\n", filename, line, str); abort(); } } while(0)
 //#define doodad_fail  (filename, line, str)      do { fprintf(stderr, "%s:%d failed: %s\n", filename, line, str); abort(); } while(0)

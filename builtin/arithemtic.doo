@@ -6,26 +6,26 @@ import builtin/convert
 import builtin/tuple
 
 
-func{A, B | A->B } add(A, A) B
+func{T} add(T, T) T
 func{T} subtract(T, T) T
 func{T} multiply(T, T) T
 func{T} divide(T, T) T
 func{T} modulo(T, T) T
 func{T} negate(T) T
 
-inst add{I64, I64} (a, b); return builtinAdd(a, b)
+inst add{I64}      (a, b); return builtinAdd(a, b)
 inst subtract{I64} (a, b); return builtinSubtract(a, b)
 inst multiply{I64} (a, b); return builtinMultiply(a, b)
 inst divide{I64}   (a, b); return builtinDivide(a, b)
 inst modulo{I64}   (a, b); return builtinModulo(a, b)
 inst negate{I64}   (a);    return 0 - a
 
-inst add{F64, F64} (a, b); return builtinAdd(a, b)
+inst add{F64}      (a, b); return builtinAdd(a, b)
 inst subtract{F64} (a, b); return builtinSubtract(a, b)
 inst multiply{F64} (a, b); return builtinMultiply(a, b)
 inst divide{F64}   (a, b); return builtinDivide(a, b)
 
-inst add{F32, F32} (a, b); return builtinAdd(a, b)
+inst add{F32}      (a, b); return builtinAdd(a, b)
 inst subtract{F32} (a, b); return builtinSubtract(a, b)
 inst multiply{F32} (a, b); return builtinMultiply(a, b)
 inst divide{F32}   (a, b); return builtinDivide(a, b)
@@ -34,21 +34,21 @@ inst negate{F64}   (a); return builtinSubtract(0.0, a)
 inst negate{F32}   (a); return builtinSubtract(0.0, a)
 
 
-inst add{Char, Char} (a, b); return builtinAdd(a, b)
-inst subtract{Char}  (a, b); return builtinSubtract(a, b)
+inst add{Char}      (a, b); return builtinAdd(a, b)
+inst subtract{Char} (a, b); return builtinSubtract(a, b)
 
-inst{A} add{ Tuple{A}, Tuple{A} } (a, b)
+inst{A} add{ Tuple{A} } (a, b)
     let tup
     tup.0 = a.0 + b.0
     return tup
 
-inst{A, B} add{ Tuple{A, B}, Tuple{A, B} } (a, b); return (a.0 + b.0, a.1 + b.1)
+inst{A, B} add{ Tuple{A, B} }      (a, b); return (a.0 + b.0, a.1 + b.1)
 inst{A, B} subtract{ Tuple{A, B} } (a, b); return (a.0 - b.0, a.1 - b.1)
 inst{A, B} multiply{ Tuple{A, B} } (a, b); return (a.0 * b.0, a.1 * b.1)
-inst{A, B} divide{ Tuple{A, B} } (a, b); return (a.0 / b.0, a.1 / b.1)
+inst{A, B} divide{ Tuple{A, B} }   (a, b); return (a.0 / b.0, a.1 / b.1)
 
-inst{A, B, C} add{ Tuple{A, B, C}, Tuple{A, B, C} } (a, b)
+inst{A, B, C} add{ Tuple{A, B, C} } (a, b)
     return (a.0 + b.0, a.1 + b.1, a.2 + b.2)
 
-inst{A, B, C, D} add{ Tuple{A, B, C, D}, Tuple{A, B, C, D} } (a, b)
+inst{A, B, C, D} add{ Tuple{A, B, C, D} } (a, b)
     return (a.0 + b.0, a.1 + b.1, a.2 + b.2, a.3 + b.3)

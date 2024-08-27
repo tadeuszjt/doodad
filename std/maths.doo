@@ -1,0 +1,13 @@
+module maths
+
+func{T} sqrt(T) T
+
+inst sqrt{F32} (a)
+    let b
+    ${ $b = sqrt($a); }
+    return b
+
+inst sqrt{F64} (a)
+    let b
+    ${ $b = sqrt($a); }
+    return b

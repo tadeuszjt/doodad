@@ -32,7 +32,9 @@ derives    Vec2f (store)
 derives    Vec2f (builtin::destroy)
 derives    Vec2f (make2{F32, F32})
 derives{P} Vec2f (print::print{P})
-inst arithmetic::add{ Vec2f, Vec2f } (a, b); return (a.x + b.x, a.y + b.y)
+
+derives Vec2f (subtract)
+derives Vec2f (add)
 
 
 tuple Rectf {
