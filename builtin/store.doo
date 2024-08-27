@@ -1,8 +1,8 @@
 module store
 
-import std/builtin
-import std/assert
-import std/convert
+import builtin/builtin
+import builtin/assert
+import builtin/convert
 
 
 feature{T} store(T, T)

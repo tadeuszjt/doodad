@@ -1,8 +1,8 @@
 module for
 
-import std/container
-import std/convert
-import std/builtin
+import builtin/container
+import builtin/convert
+import builtin/builtin
 
 
 feature{T}             forBegin(T) I64

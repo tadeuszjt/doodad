@@ -7,15 +7,15 @@ import std/rand
 import std/sparse
 import std/print
 import std/option
-import std/store
-import std/builtin
-import std/for
-import std/assert
-import std/arithmetic
-import std/tuple
-import std/container
+import builtin/store
+import builtin/builtin
+import builtin/for
+import builtin/assert
+import builtin/arithmetic
+import builtin/tuple
+import builtin/container
 import std/unordered
-import std/convert
+import builtin/convert
 import std/time
 
 include <SFML/Graphics.h>

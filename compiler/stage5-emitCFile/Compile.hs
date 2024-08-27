@@ -248,7 +248,6 @@ generateStmt funcIr id = case (IR.irStmts funcIr) Map.! id of
                     builtinTableAppend argType cexpr
 
                 x | symbolsCouldMatch x (Sym ["builtin", "builtinStore"]) -> do
-                    unless (length args == 2) (error "arg length mismatch")
                     [cexpr1, cexpr2] <- mapM generateArg args
                     void $ appendElem $ C.Set (C.Deref cexpr1) cexpr2
 
@@ -320,19 +319,14 @@ generateStmt funcIr id = case (IR.irStmts funcIr) Map.! id of
                     void $ appendAssign cType (idName id) cexpr
 
                 x | symbolsCouldMatch x (Sym ["builtin", "builtinTableLen"]) -> do
-                    unless (length args == 1) (error "arg length mismatch")
-                    let (IR.ArgID argId) = head args
-                    let (argType, IR.Ref) = (IR.irTypes funcIr) Map.! argId
-                    cexpr <- generateArg (args !! 0)
+                    [cexpr] <- mapM generateArg args
                     void $ appendAssign C.Cint64_t (idName id) (C.PMember cexpr "len")
 
                 x | symbolsCouldMatch x (Sym ["builtin", "builtinArrayLen"]) -> do
                     unless (length args == 1) (error "arg length mismatch")
                     let (IR.ArgID argId) = (args !! 0)
                     let (argType, IR.Ref) = (IR.irTypes funcIr) Map.! argId
-
                     base <- baseTypeOf argType
-
                     case unfoldType base of
                         (Type.Array, [Size n, t]) -> do
                             void $ appendAssign C.Cint64_t (idName id) (C.Int $ fromIntegral n)
@@ -351,16 +345,26 @@ generateStmt funcIr id = case (IR.irStmts funcIr) Map.! id of
                     appendElem $ C.Set (C.PMember cref "en") cidx
                     return ()
 
-                x | symbolsCouldMatch x (Sym ["builtin", "builtinArrayAt"]) -> do
-                    unless (length args == 2) (error "arg length mismatch")
+                x | symbolsCouldMatch x (Sym ["builtin", "builtinSumEnum"]) -> do
+                    [cexpr] <- mapM generateArg args
+                    void $ appendAssign C.Cint64_t (idName id) $ C.PMember cexpr "en"
 
-                    carg <- generateArg (args !! 0)
-                    cidx <- generateArg (args !! 1)
+                x | symbolsCouldMatch x (Sym ["builtin", "builtinSliceLen"]) -> do
+                    [cexpr] <- mapM generateArg args
+                    void $ appendAssign C.Cint64_t (idName id) $ C.Member cexpr "len"
+
+                x | symbolsCouldMatch x (Sym ["builtin", "builtinPretend"]) -> do
+                    [cexpr] <- mapM generateArg args
+                    cRefType <- cRefTypeOf ssaTyp
+                    void $ appendAssign cRefType (idName id) cexpr
+
+                x | symbolsCouldMatch x (Sym ["builtin", "builtinArrayAt"]) -> do
+                    [carg, cidx] <- mapM generateArg args
 
                     let IR.ArgID argId = args !! 0
-
                     let (argType, IR.Ref) = (IR.irTypes funcIr) Map.! argId
                     Ref refTyp cref <- builtinArrayAt argType carg cidx
+
                     case (IR.irTypes funcIr) Map.! id of
                         (_, IR.Ref) -> do
                             cRefType <- cRefTypeOf refTyp

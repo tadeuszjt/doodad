@@ -1,19 +1,19 @@
 module langTest
 
-import std/builtin
-import std/store
-import std/arithmetic
-import std/compare
-import std/tuple
-import std/container
-import std/assert
+import builtin/builtin
+import builtin/store
+import builtin/arithmetic
+import builtin/compare
+import builtin/tuple
+import builtin/container
+import builtin/assert
 import std/sparse
-import std/for
+import builtin/for
 import std/print
 import std/io
 import std/option
 import std/unordered
-import std/convert
+import builtin/convert
 
 
 fn testArithmetic()

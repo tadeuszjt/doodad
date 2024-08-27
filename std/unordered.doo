@@ -1,17 +1,17 @@
 module unordered
 
 import std/sparse
-import std/container
-import std/store
-import std/assert
-import std/tuple
-import std/builtin
-import std/arithmetic
+import builtin/container
+import builtin/store
+import builtin/assert
+import builtin/tuple
+import builtin/builtin
+import builtin/arithmetic
 import std/print
-import std/for
-import std/compare
-import std/convert
-import std/destroy
+import builtin/for
+import builtin/compare
+import builtin/convert
+import builtin/destroy
 
 
 type{T} Key I64

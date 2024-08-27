@@ -1,10 +1,10 @@
 module container
 
-import std/builtin
-import std/store
-import std/arithmetic
-import std/assert
-import std/convert
+import builtin/builtin
+import builtin/store
+import builtin/arithmetic
+import builtin/assert
+import builtin/convert
 
 
 feature{T}                 len(T) I64
@@ -15,10 +15,9 @@ feature{T}                 grow(T)
 feature{T, V | T -> V}     index(T, I64) V
 
 
-acquires{V} len{ Table{V} }    (t&);            return builtinTableLen(&t)
-acquires{T} index{ Table{T}, T }   (t&, idx) -> &; return builtinTableAt(&t, idx)
-acquires{T} at{ I64, T, Table{T} } (t&, idx) -> &
-    return builtinTableAt(&t, idx)
+acquires{V} len{ Table{V} }        (t&);           return t.builtinTableLen()
+acquires{T} index{ Table{T}, T }   (t&, idx) -> &; return t.builtinTableAt(idx)
+acquires{T} at{ I64, T, Table{T} } (t&, idx) -> &; return t.builtinTableAt(idx)
 
 
 acquires{T} push{ Table{T}, T } (t&, e)

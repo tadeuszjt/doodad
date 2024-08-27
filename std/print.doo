@@ -1,14 +1,14 @@
 module print
 
-import std/builtin
-import std/for
-import std/tuple
-import std/store
-import std/container
-import std/assert
-import std/compare
-import std/arithmetic
-import std/convert
+import builtin/builtin
+import builtin/for
+import builtin/tuple
+import builtin/store
+import builtin/container
+import builtin/assert
+import builtin/compare
+import builtin/arithmetic
+import builtin/convert
 
 
 feature{T, G} print(T, G)

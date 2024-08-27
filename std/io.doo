@@ -1,11 +1,11 @@
 module io
 
-import std/builtin
-import std/store
+import builtin/builtin
+import builtin/store
 import std/print
 import std/char
-import std/compare
-import std/container
+import builtin/compare
+import builtin/container
 
 
 type StdOut Tuple{}

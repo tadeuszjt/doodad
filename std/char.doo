@@ -1,8 +1,8 @@
 module char
 
-import std/store
-import std/assert
-import std/builtin
+import builtin/store
+import builtin/assert
+import builtin/builtin
 
 fn eof() Char
     let c : Char

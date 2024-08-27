@@ -1,19 +1,20 @@
 module sfml
 
-import std/builtin
-import std/store
-import std/assert
-import std/tuple
+import builtin/builtin
+import builtin/store
+import builtin/assert
+import builtin/tuple
 import std/option
-import std/arithmetic
-import std/boolean
-import std/convert
-import std/container
+import builtin/arithmetic
+import builtin/boolean
+import builtin/convert
+import builtin/container
 import std/print
 import std/sparse
-import std/destroy
 import std/io
-import std/for
+import builtin/destroy
+import builtin/for
+import builtin/slice
 
 import std/sfml/texture
 
@@ -72,6 +73,7 @@ derives{P} Quad (print::print{P})
 derives    Quad (container::at{ I64, Vertex })
 derives    Quad (store::store)
 derives    Quad (builtin::destroy)
+derives    Quad (slice::makeSlice{sfml::Vertex})
 
 
 tuple Window {

@@ -1,10 +1,10 @@
 module rand
 
-import std/store
-import std/assert
-import std/arithmetic
-import std/compare
-import std/builtin
+import builtin/store
+import builtin/assert
+import builtin/arithmetic
+import builtin/compare
+import builtin/builtin
 
 
 include <stdlib.h>

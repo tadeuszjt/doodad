@@ -1,8 +1,8 @@
 module option
 
-import std/builtin
-import std/store
-import std/compare
+import builtin/builtin
+import builtin/store
+import builtin/compare
 
 enum{T} Option {
     none

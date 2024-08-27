@@ -1,6 +1,6 @@
 module time
 
-import std/builtin
+import builtin/builtin
 
 include <time.h>
 include <inttypes.h>

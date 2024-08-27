@@ -1,7 +1,7 @@
 module tuple
 
-import std/store
-import std/builtin
+import builtin/store
+import builtin/builtin
 
 
 feature{G, TupSize, TupField, T | T -> TupSize, TupField -> G } tuplePattern(T) G

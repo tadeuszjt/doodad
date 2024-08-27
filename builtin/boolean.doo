@@ -1,6 +1,6 @@
 module boolean
 
-import std/builtin
+import builtin/builtin
 
 feature{T} and(T, T) T
 feature{T} or(T, T) T

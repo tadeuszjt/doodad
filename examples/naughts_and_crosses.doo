@@ -1,21 +1,21 @@
 module ox
 
 import std/io
-import std/builtin
-import std/container
+import builtin/builtin
+import builtin/container
 import std/print
-import std/for
-import std/store
-import std/assert
-import std/compare
-import std/arithmetic
-import std/boolean
-import std/tuple
+import builtin/for
+import builtin/store
+import builtin/assert
+import builtin/compare
+import builtin/arithmetic
+import builtin/boolean
+import builtin/tuple
 import std/read
 import std/option
 import std/rand
-import std/convert
-import std/destroy
+import builtin/convert
+import builtin/destroy
 
 
 enum Square {

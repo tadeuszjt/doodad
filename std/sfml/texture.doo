@@ -1,9 +1,9 @@
 module texture
 
-import std/builtin
-import std/store
-import std/assert
-import std/convert
+import builtin/builtin
+import builtin/store
+import builtin/assert
+import builtin/convert
 
 
 include <SFML/Graphics.h>

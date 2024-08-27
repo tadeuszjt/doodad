@@ -242,6 +242,16 @@ makeVal (S.AExpr exprType expression) = withPos expression $ case expression of
             -- TODO might be slow, create makeAny function?
             Ref   -> fmap ArgID $ liftFuncIr $ appendSSA typ Value (MakeValueFromReference id)
 
+    S.Array _ exprs -> do
+        let (Type.Slice, [t]) = unfoldType exprType
+
+        liftFuncIr $ appendSSA (foldType [Array, Size (length exprs), t]) Value (InitVar Nothing)
+        forM_ (zip exprs [0..]) $ \(expr, i) -> do
+            error "here"
+
+        error (show exprType)
+
+
 
     S.Call _ funcType exprs -> do
         ast <- gets astResolved

@@ -1,13 +1,13 @@
 module sparse
 
-import std/builtin
-import std/store
-import std/arithmetic
-import std/compare
-import std/container
-import std/assert
-import std/convert
-import std/destroy
+import builtin/builtin
+import builtin/store
+import builtin/arithmetic
+import builtin/compare
+import builtin/container
+import builtin/assert
+import builtin/convert
+import builtin/destroy
 
 
 type{T} Key I64

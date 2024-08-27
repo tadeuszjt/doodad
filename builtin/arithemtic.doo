@@ -1,8 +1,9 @@
 module arithmetic
 
-import std/builtin
-import std/store
-import std/convert
+import builtin/builtin
+import builtin/store
+import builtin/convert
+import builtin/tuple
 
 
 feature{A, B | A->B } add(A, A) B
@@ -37,17 +38,18 @@ acquires negate{F32}   (a); return builtinSubtract(0.0, a)
 acquires add{Char, Char} (a, b); return builtinAdd(a, b)
 acquires subtract{Char}  (a, b); return builtinSubtract(a, b)
 
-
-acquires{A, B} add{ Tuple{A, B}, Tuple{A, B} } (a, b)
-    let c : Tuple{A, B}
-    c.0 = a.0 + b.0
-    c.1 = a.1 + b.1
-    return c
-
-
-acquires{A, B, C} add{ Tuple{A, B, C}, Tuple{A, B, C} } (a, b)
+acquires{A} add{ Tuple{A}, Tuple{A} } (a, b)
     let tup
     tup.0 = a.0 + b.0
-    tup.1 = a.1 + b.1
-    tup.2 = a.2 + b.2
     return tup
+
+acquires{A, B} add{ Tuple{A, B}, Tuple{A, B} } (a, b); return (a.0 + b.0, a.1 + b.1)
+acquires{A, B} subtract{ Tuple{A, B} } (a, b); return (a.0 - b.0, a.1 - b.1)
+acquires{A, B} multiply{ Tuple{A, B} } (a, b); return (a.0 * b.0, a.1 * b.1)
+acquires{A, B} divide{ Tuple{A, B} } (a, b); return (a.0 / b.0, a.1 / b.1)
+
+acquires{A, B, C} add{ Tuple{A, B, C}, Tuple{A, B, C} } (a, b)
+    return (a.0 + b.0, a.1 + b.1, a.2 + b.2)
+
+acquires{A, B, C, D} add{ Tuple{A, B, C, D}, Tuple{A, B, C, D} } (a, b)
+    return (a.0 + b.0, a.1 + b.1, a.2 + b.2, a.3 + b.3)

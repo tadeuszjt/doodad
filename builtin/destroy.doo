@@ -1,12 +1,12 @@
 module destroy
 
-import std/tuple
-import std/convert
-import std/container
-import std/builtin
-import std/for
-import std/store
-import std/compare
+import builtin/tuple
+import builtin/convert
+import builtin/container
+import builtin/builtin
+import builtin/for
+import builtin/store
+import builtin/compare
 
 
 //feature{T} destroy(T)
