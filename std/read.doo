@@ -1,17 +1,8 @@
 module read
 
+import builtin/all
 import std/option
-import builtin/boolean
-import builtin/compare
-import builtin/container
-import builtin/tuple
-import builtin/store
-import builtin/builtin
-import builtin/arithmetic
 import std/char
-import builtin/assert
-import builtin/for
-import builtin/convert
 
 
 func{R, T} read(R, I64) Tuple{T, I64}.Option

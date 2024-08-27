@@ -175,19 +175,21 @@ buildModule isMain args modPath = do
 
         -- read imports and compile imported modules first
         importPaths <- fmap (Set.toList . Set.fromList) $
-            forM [fp | S.Import fp <- S.astImports ast] $ \importPath -> do
-                getCanonicalModPath importPath
-        mapM_ (buildModule False args) importPaths
+            forM [(fp, isVisible) | S.Import isVisible fp <- S.astImports ast] $ \(importPath, isVisible)-> do
+                path' <- getCanonicalModPath importPath
+                return (path', isVisible)
+
+        mapM_ (buildModule False args) (map fst importPaths)
 
         -- compile this module
         liftIO $ putStrLn ("compiling: " ++ absoluteModPath)
 
 
         -- unify asts and resolve symbols
-        astImports <- forM importPaths $ \importPath -> do
+        astImports <- forM importPaths $ \(importPath, isVisible) -> do
             resm <- Map.lookup importPath <$> gets moduleMap
             unless (isJust resm) (error $ show importPath ++ " not in module map")
-            return (fromJust resm)
+            return (fromJust resm, isVisible)
 
         when (verbose args) $ liftIO $ putStrLn "resolving symbols..."
         (astResolved', supply) <- ResolveAst.resolveAst ast astImports

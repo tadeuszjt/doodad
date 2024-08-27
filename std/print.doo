@@ -1,14 +1,6 @@
 module print
 
-import builtin/builtin
-import builtin/for
-import builtin/tuple
-import builtin/store
-import builtin/container
-import builtin/assert
-import builtin/compare
-import builtin/arithmetic
-import builtin/convert
+import builtin/all
 
 
 func{T, G} print(T, G)

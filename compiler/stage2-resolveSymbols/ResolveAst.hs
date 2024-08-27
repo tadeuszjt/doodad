@@ -122,13 +122,13 @@ genSymbol symbol@(SymResolved str) = do
         n -> return $ SymResolved $ [modName] ++ str ++ [show n]
 
 
-resolveAst :: AST -> [ASTResolved] -> DoM s (AST, Map.Map Symbol Int)
+resolveAst :: AST -> [(ASTResolved, Bool)] -> DoM s (AST, Map.Map Symbol Int)
 resolveAst ast imports = fmap fst $ runDoMExcept initResolveState (resolveAst' ast)
     where
         resolveAst' :: AST -> DoM ResolveState (AST, Map.Map Symbol Int)
         resolveAst' ast = do
             modify $ \s -> s { modName = astModuleName ast }
-            forM_ imports $ \imprt -> do
+            forM_ imports $ \(imprt, isVisible) -> do
                 forM_ (typeDefsTop imprt) $ \symbol -> do -- functions are also typedefs
                     define symbol KeyType
 

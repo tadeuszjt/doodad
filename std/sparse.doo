@@ -1,13 +1,6 @@
 module sparse
 
-import builtin/builtin
-import builtin/store
-import builtin/arithmetic
-import builtin/compare
-import builtin/container
-import builtin/assert
-import builtin/convert
-import builtin/destroy
+import builtin/all
 
 
 type{T} Key I64

@@ -78,6 +78,7 @@ import Symbol
     func       { Token _ Token.Reserved "func" }
     inst       { Token _ Token.Reserved "inst" }
     derives    { Token _ Token.Reserved "derives" }
+    visible    { Token _ Token.Reserved "visible" }
     module     { Token _ Token.Module _ }
     import     { Token _ Token.Import _ }
     include    { Token _ Token.CInclude _ }
@@ -127,7 +128,8 @@ stmts : {-empty-}                  { [] }
 
 header : module 'N' imports        { ($1, $3) }
 imports : {- empty -}              { [] }
-        | import 'N' imports       { AST.Import   (tokStr $1) : $3 }
+        | import 'N' imports       { AST.Import False (tokStr $1) : $3 }
+        | visible import 'N' imports { AST.Import True (tokStr $2) : $4 }
         | include 'N' imports      { AST.CInclude (tokStr $1) : $3 }
         | link 'N' imports         { AST.CLink (tokStr $1) : $3 }
 

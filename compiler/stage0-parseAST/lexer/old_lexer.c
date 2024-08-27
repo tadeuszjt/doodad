@@ -217,6 +217,7 @@ bool isKeyword(char *s) {
         "return",
         "switch",
         "derives",
+        "visible",
         "I8",
         "U8",
         "I64",
