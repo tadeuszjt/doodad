@@ -103,6 +103,9 @@ inst{P, S, T} print{ P, Array{S, T} } (p&, array)
     p.print(']')
 
 
+inst{P, A, B} printLn{P, Tuple{A, B}} (p&, t)
+    p.print(t)
+    p.print('\n')
 inst{P, A, B} print{ P, Tuple{A, B} } (a&, b)
     a.print('(')
     a.print( b.builtinField{0, A, Tuple{A, B}} )
@@ -111,6 +114,9 @@ inst{P, A, B} print{ P, Tuple{A, B} } (a&, b)
     a.print(')')
 
 
+inst{P, A, B, C} printLn{P, Tuple{A, B, C}} (p&, t)
+    p.print(t)
+    p.print('\n')
 inst{P, A, B, C} print{ P, Tuple{A, B, C} } (a&, b)
     a.print('(')
     a.print( b.0 )

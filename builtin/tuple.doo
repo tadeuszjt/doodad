@@ -2,6 +2,7 @@ module tuple
 
 import builtin/store
 import builtin/builtin
+import builtin/convert
 
 
 func{G, TupSize, TupField, T | T -> TupSize, TupField -> G } tuplePattern(T) G
@@ -43,3 +44,9 @@ inst{A, B, C, D} make4{ A, B, C, D, Tuple{A, B, C, D} } (a, b, c, d)
     tup.2 = c
     tup.3 = d
     return tup
+
+
+inst{A, B} convert{Tuple{A, A}, Tuple{B, B}} (a)
+    return (a.0 .convert, a.1 .convert)
+inst{A, B} convert{Tuple{A, A, A}, Tuple{B, B, B}} (a)
+    return (a.0 .convert, a.1 .convert, a.2 .convert)

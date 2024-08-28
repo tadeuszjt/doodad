@@ -10,7 +10,7 @@ import std/option
 import std/unordered
 import std/time
 import std/maths
-import std/geom
+import std/geometry
 
 import builtin/all
 
@@ -23,27 +23,33 @@ tuple Blob {
     blobColour sf::Colour
     sprite     sf::Quad
 }
-derives Blob (store, destroy)
+derives    Blob (store, destroy)
 derives{P} Blob (print::print{P})
 
 
 inst convert{sf::Vec2f, Vec2} (a); return (a.sf::x.convert, a.sf::y.convert)
 inst convert{Vec2, sf::Vec2f} (a); return (a.x.convert, a.y.convert)
+inst convert{Mat3, sf::Mat3f} (a)
+    let b
+    for (0, a.len) -> r
+        for (0, a[0].len) -> c
+            b[r][c] = a[r][c].convert
+    return b
+            
 
-
-fn vec2(rand &Rand, rect Rect) Vec2
+inst rand::uniform{Vec2} (rand&, min, max)
     return Vec2(
-        rand.f64(rect.min.x, rect.max.x)
-        rand.f64(rect.min.y, rect.max.y)
+        rand.uniform(min.x, max.x)
+        rand.uniform(min.y, max.y)
     )
 
 
-fn colour(rand &Rand) sf::Colour
+inst rand::uniform{sf::Colour} (rand&, min, max)
     return (
-        rand.i64(0, 255).convert
-        rand.i64(0, 255).convert
-        rand.i64(0, 255).convert
-        255
+        rand.uniform(min.sf::r, max.sf::r)
+        rand.uniform(min.sf::g, max.sf::g)
+        rand.uniform(min.sf::b, max.sf::b)
+        rand.uniform(min.sf::a, max.sf::a)
     )
 
 
@@ -71,23 +77,20 @@ fn main(io Io, rand Rand, w sf::Window)
     w.sf::create(1000, 800, "blobs")
     let blobTexture = sf::textureFromFile("blob.png")
 
-    let arena = sf::Rectf( (0.0, 0.0), (500.0, 500.0) )
+    let arena = Rect( (0.0, 0.0), (500.0, 500.0) )
     data blobs Blob.Table
 
     for (0, 100)
-        let blob:Blob
-        blob.position   = rand.vec2( ( arena.sf::min.convert, arena.sf::max.convert ) )
-        blob.velocity   = rand.vec2( ( (-1.0, -1.0), (1.0, 1.0) ) )
-        blob.blobColour = rand.colour
+        let blob
+        blob.blobColour = rand.uniform(sf::black(), sf::white())
+        blob.position   = rand.uniform(arena.min, arena.max)
+        blob.velocity   = rand.uniform( (-1.0, -1.0), (1.0, 1.0) )
         blobs.push(blob)
 
-    //io.stdout.printLn(blobs)
 
     let mousePos = Vec2(0.0, 0.0)
-
-    let m = mat3Rotation(1.3)
-
-    io.stdout.printLn(m)
+    let translation = mat3Translation(Vec2(250, 150))
+    let translationInv = mat3Translation(Vec2(-250, -150))
 
 
     while w.sf::isOpen()
@@ -95,10 +98,26 @@ fn main(io Io, rand Rand, w sf::Window)
 
         while w.sf::pollEvent() -> some(event)
             switch event
-                sf::closed(); w.sf::close()
-                sf::mouseMove(x, y)
-                    mousePos.x = x.convert
-                    mousePos.y = y.convert
+                sf::closed()       ; w.sf::close()
+                sf::mouseMove(x, y); mousePos = (x, y).convert
+
+        blobs[0].position = translationInv.transformVec2(mousePos, 1.0)
+
+        for (0, blobs.len) -> i
+            if rand.uniform(0, 100) == 0
+                let childPos = blobs.position[i] + Vec2(rand.uniform(0, 40), 0).rotate(rand.uniform(0, 10))
+                let collides = false
+                for (0, blobs.len) -> j | !collides
+                    let neighborPos = blobs.position[j]
+                    if (childPos - neighborPos).length < 20 
+                        collides = true
+
+                if !collides
+                    let child
+                    child.position   = childPos
+                    child.blobColour = rand.uniform(sf::black(), sf::white())
+                    blobs.push(child)
+                
 
         for (0, blobs.len) -> i
             //blobs[i].position = blobs[i].position + blobs[i].velocity
@@ -108,11 +127,9 @@ fn main(io Io, rand Rand, w sf::Window)
         let (width, height) = w.sf::getSize()
         w.sf::setViewFromRect(((0, 0), (width.convert, height.convert)))
 
-        if blobs.containsBlob(mousePos)
-            io.stdout.print("contains")
 
         w.sf::clearWindow(sf::white())
-        w.sf::drawQuads(blobs.sprite, &blobTexture)
+        w.sf::drawQuads(blobs.sprite, &blobTexture, translation.convert)
         w.sf::display()
 
         let nextNs = time::getTimestampNs()

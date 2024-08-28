@@ -35,10 +35,18 @@ derives{P} Blob (print::print{P})
 
 
 fn vec2f(rand &Rand, rect Rectf) Vec2f
-    return ( rand.f32(rect.min.x, rect.max.x), rand.f32(rect.min.y, rect.max.y) )
+    return (
+        rand.uniform(rect.min.x, rect.max.x)
+        rand.uniform(rect.min.y, rect.max.y)
+    )
 
 fn colour(rand &Rand) Colour
-    return ( convert(rand.i64(0, 255)), convert(rand.i64(0, 255)), convert(rand.i64(0, 255)), 255 )
+    return (
+        convert(rand.uniform(0, 255))
+        convert(rand.uniform(0, 255))
+        convert(rand.uniform(0, 255))
+        255
+    )
 
 
 fn makeQuad(position Vec2f, colour Colour) Quad
@@ -66,6 +74,11 @@ fn main(io Io, rand Rand, w Window)
         blob.blobColour   = rand.colour
         blobs.push(blob)
 
+    let m
+    m[0][0] = 1
+    m[1][1] = 1
+    m[2][2] = 1
+
 
     while w.isOpen()
         let prevNs = time::getTimestampNs()
@@ -85,7 +98,7 @@ fn main(io Io, rand Rand, w Window)
         w.setViewFromRect(((0.0, 0.0), (convert(width), convert(height))))
         w.clearWindow(black())
 
-        w.drawQuads(blobs.sprite, &texture)
+        w.drawQuads(blobs.sprite, &texture, m)
         w.display()
 
         let nextNs = time::getTimestampNs()

@@ -1,11 +1,6 @@
 module rand
 
-import builtin/store
-import builtin/assert
-import builtin/arithmetic
-import builtin/compare
-import builtin/builtin
-
+import builtin/all
 
 include <stdlib.h>
 include <time.h>
@@ -14,36 +9,31 @@ link m
 
 type Rand I64
 
-derives Rand (destroy)
-derives Rand (store)
+derives Rand (store, destroy)
 
-fn i64(r &Rand, min I64, max I64) I64
-    let n = r
-    ${ srand($n); }
-    ${ $n = rand(); }
-    r = n
-    return (r.pretend % (max - min)) + min
+func{T} uniform(Rand, T, T) T
 
 
-fn f64(rand &Rand, min F64, max F64) F64
-    if min == max
+inst uniform{U8} (rand&, min, max); return uniform{I64}(rand, min.convert, max.convert).convert
+
+
+inst uniform{I64} (rand&, min, max)
+    if max == min
         return min
-
-    let x
+    let i64  = 0
     ${
-        double d = (double)rand() / RAND_MAX;
-        $x = d * ($max - $min) + $min;
+        $i64 = rand();
     }
-    return x
+    return i64 % (max - min) + min
 
 
-fn f32(rand &Rand, min F32, max F32) F32
-    if min == max
+inst uniform{F32} (rand&, min, max)
+    return uniform{F64}(rand, min.convert, max.convert).convert
+inst uniform{F64} (rand&, min, max)
+    if max == min
         return min
-
-    let x
+    let f64
     ${
-        double d = (double)rand() / RAND_MAX;
-        $x = (float)d * ($max - $min) + $min;
+        $f64 = (double)rand() / RAND_MAX;
     }
-    return x
+    return f64 * (max - min) + min

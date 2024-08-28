@@ -39,6 +39,12 @@ tuple Rectf {
 derives Rectf (make2{Vec2f, Vec2f})
 
 
+
+type Mat3f Array{3, Array{3, F32}}
+derives Mat3f (destroy, at{I64, Array{3, F32}})
+
+
+
 tuple Colour {
     r U8
     g U8
@@ -171,14 +177,21 @@ fn pollEvent(w &Window) Event.Option
     return none()
 
 
-fn drawQuads(w &Window, quads Slice{Quad}, texture &Texture)
+fn drawQuads(w &Window, quads Slice{Quad}, texture &Texture, transform Mat3f)
+    for (0, quads.len) -> i
+        let q = quads[i]
+
     let texturePtr = texture.texturePtr
     let ptr = w.windowPtr
     ${
         sfRenderStates states;
-        states.texture = $texturePtr;
+        states.texture = (sfTexture*)$texturePtr;
         states.blendMode = sfBlendAlpha;
-        states.transform = sfTransform_Identity;
+        states.transform = sfTransform_fromMatrix(
+            $transform.arr[0].arr[0], $transform.arr[0].arr[1], $transform.arr[0].arr[2],
+            $transform.arr[1].arr[0], $transform.arr[1].arr[1], $transform.arr[1].arr[2],
+            $transform.arr[2].arr[0], $transform.arr[2].arr[1], $transform.arr[2].arr[2]
+        );
 
         sfRenderWindow_drawPrimitives(
             (sfRenderWindow*)$ptr,
