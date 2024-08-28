@@ -1,4 +1,4 @@
-module sfml
+module window
 
 import builtin/builtin
 import builtin/store
@@ -70,12 +70,12 @@ derives    Vertex (make3{Vec2f, Colour, Vec2f})
 derives{P} Vertex (print::print{P})
 
 
-type Quad Array{6, sfml::Vertex}
+type Quad Array{6, window::Vertex}
 derives{P} Quad (print::print{P})
 derives    Quad (container::at{ I64, Vertex })
 derives    Quad (store::store)
 derives    Quad (builtin::destroy)
-derives    Quad (slice::makeSlice{sfml::Vertex})
+derives    Quad (slice::makeSlice{window::Vertex})
 
 
 tuple Window {

@@ -4,7 +4,7 @@ module graphicsTest
 include <SFML/Graphics.h>
 
 import std/io
-import std/sfml/sfml
+import std/sfml/window
 import std/sfml/texture
 import std/rand
 import std/sparse

@@ -11,6 +11,7 @@ data Token
     | TokenImport
         { tokPosn    :: TextPos
         , tokImpExp  :: Bool
+        , tokImpQual :: Bool
         , tokImpPath :: String
         , tokImpAs   :: Maybe String
         }
@@ -19,7 +20,7 @@ data Token
 
 instance Show Token where
     show (Token p t s) = show t ++ ": " ++ s
-    show (TokenImport p b s _) = "import:" ++ s
+    show (TokenImport p b q s _) = "import:" ++ s
 
 data TokenType
     = TokSym

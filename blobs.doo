@@ -1,8 +1,8 @@
 module blobs
 
 import std/io
-import std/sfml/sfml
-import std/sfml/texture
+import qualified std/sfml/window  as sf
+import qualified std/sfml/texture as sf
 import std/rand
 import std/sparse
 import std/print
@@ -17,24 +17,32 @@ import builtin/all
 include <SFML/Graphics.h>
 
 tuple Blob {
-    position Vec2f
-    velocity Vec2f
-    blobColour   Colour
-    sprite   Quad
+    position   sf::Vec2f
+    velocity   sf::Vec2f
+    blobColour sf::Colour
+    sprite     sf::Quad
 }
 derives Blob (store)
 derives Blob (destroy)
 derives{P} Blob (print::print{P})
 
 
-fn vec2f(rand &Rand, rect Rectf) Vec2f
-    return ( rand.f32(rect.min.x, rect.max.x), rand.f32(rect.min.y, rect.max.y) )
+fn vec2f(rand &Rand, rect sf::Rectf) sf::Vec2f
+    return (
+        rand.f32(rect.sf::min.sf::x, rect.sf::max.sf::x)
+        rand.f32(rect.sf::min.sf::y, rect.sf::max.sf::y)
+    )
 
-fn colour(rand &Rand) Colour
-    return ( convert(rand.i64(0, 255)), convert(rand.i64(0, 255)), convert(rand.i64(0, 255)), 255 )
+fn colour(rand &Rand) sf::Colour
+    return (
+        convert(rand.i64(0, 255))
+        convert(rand.i64(0, 255))
+        convert(rand.i64(0, 255))
+        255
+    )
 
 
-fn makeQuad(position Vec2f, colour Colour) Quad
+fn makeQuad(position sf::Vec2f, colour sf::Colour) sf::Quad
     let quad
     quad[0] = (position + (-10.0, -10.0), colour, (0.0, 0.0))
     quad[1] = (position + (10.0, -10.0),  colour, (640.0, 0.0))
@@ -45,11 +53,11 @@ fn makeQuad(position Vec2f, colour Colour) Quad
     return quad
 
 
-fn length(v Vec2f) F32
-    return sqrt(v.x * v.x + v.y * v.y)
+fn length(v sf::Vec2f) F32
+    return sqrt(v.sf::x * v.sf::x + v.sf::y * v.sf::y)
 
 
-fn containsBlob(table &Blob.Table, point Vec2f) Bool
+fn containsBlob(table &Blob.Table, point sf::Vec2f) Bool
     for (0, table.len) -> i
         if (point - table.position[i]).length < 10.0
             return true
@@ -58,49 +66,49 @@ fn containsBlob(table &Blob.Table, point Vec2f) Bool
         
 
 
-fn main(io Io, rand Rand, w sfml::Window)
+fn main(io Io, rand Rand, w sf::Window)
     io.stdout.printLn("blobs")
-    w.create(1000, 800, "blobs")
-    let blobTexture = textureFromFile("blob.png")
+    w.sf::create(1000, 800, "blobs")
+    let blobTexture = sf::textureFromFile("blob.png")
 
-    let arena = Rectf( (0.0, 0.0), (500.0, 500.0) )
+    let arena = sf::Rectf( (0.0, 0.0), (500.0, 500.0) )
     data blobs Blob.Table
 
     for (0, 100)
         let blob:Blob
-        blob.position   = rand.vec2f( ( arena.min, arena.max ) )
+        blob.position   = rand.vec2f( ( arena.sf::min, arena.sf::max ) )
         blob.velocity   = rand.vec2f( ( (-1.0, -1.0), (1.0, 1.0) ) )
         blob.blobColour = rand.colour
         blobs.push(blob)
 
     //io.stdout.printLn(blobs)
 
-    let mousePos = Vec2f(0.0, 0.0)
+    let mousePos = sf::Vec2f(0.0, 0.0)
 
-    while w.isOpen()
+    while w.sf::isOpen()
         let prevNs = time::getTimestampNs()
 
-        while w.pollEvent() -> some(event)
+        while w.sf::pollEvent() -> some(event)
             switch event
-                closed(); w.close()
-                mouseMove(x, y)
-                    mousePos.x = x.convert
-                    mousePos.y = y.convert
+                sf::closed(); w.sf::close()
+                sf::mouseMove(x, y)
+                    mousePos.sf::x = x.convert
+                    mousePos.sf::y = y.convert
 
         for (0, blobs.len) -> i
             //blobs[i].position = blobs[i].position + blobs[i].velocity
             blobs[i].sprite   = makeQuad(blobs[i].position, blobs[i].blobColour)
 
         
-        let (width, height) = w.getSize()
-        w.setViewFromRect(((0, 0), (width.convert, height.convert)))
+        let (width, height) = w.sf::getSize()
+        w.sf::setViewFromRect(((0, 0), (width.convert, height.convert)))
 
         if blobs.containsBlob(mousePos)
             io.stdout.print("contains")
 
-        w.clearWindow(white())
-        w.drawQuads(blobs.sprite, &blobTexture)
-        w.display()
+        w.sf::clearWindow(sf::white())
+        w.sf::drawQuads(blobs.sprite, &blobTexture)
+        w.sf::display()
 
         let nextNs = time::getTimestampNs()
         let diff = nextNs - prevNs

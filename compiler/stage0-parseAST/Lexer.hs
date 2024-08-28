@@ -72,8 +72,10 @@ lexFile printTokens filename = do
 
 parseImport :: TextPos -> String -> Token
 parseImport pos str = case splitOnSpace str of
-    ["import:", path] -> TokenImport pos False path Nothing
-    ["export:", path] -> TokenImport pos True path Nothing
+    ["import:", path]                          -> TokenImport pos False False path Nothing
+    ["import:", path, "as", name]              -> TokenImport pos False False path (Just name)
+    ["import:", "qualified", path, "as", name] -> TokenImport pos False True path (Just name)
+    ["export:", path]                          -> TokenImport pos True  False path Nothing
 
     x -> error (show x)
 

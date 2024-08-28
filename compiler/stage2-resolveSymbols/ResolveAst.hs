@@ -22,26 +22,25 @@ data SymKey
     deriving (Ord, Eq, Show)
 
 
-type MySymTab = [Set.Set (Symbol, SymKey)]
-
+type MySymTab = [Map.Map (Symbol, SymKey, Bool) Symbol]
 
 data ResolveState
     = ResolveState
-        { modName :: String
-        , symTab  :: MySymTab
-        , supply  :: Map.Map Symbol Int
+        { modName   :: String
+        , supply    :: Map.Map Symbol Int
+        , symTab    :: MySymTab
         }
 
 initResolveState = ResolveState
     { modName = ""
-    , symTab = [Set.empty]
+    , symTab = [Map.empty]
     , supply = Map.empty
     }
 
 
 pushSymbolTable :: DoM ResolveState ()
 pushSymbolTable = do
-    modify $ \s -> s { symTab = Set.empty : symTab s }
+    modify $ \s -> s { symTab = Map.empty : symTab s }
 
 
 popSymbolTable :: DoM ResolveState ()
@@ -53,18 +52,26 @@ printSymbolTable :: DoM ResolveState ()
 printSymbolTable = do
     symTab <- gets symTab
     liftIO $ do
-        forM_ symTab $ \set -> do
+        forM_ symTab $ \mp -> do
             putStrLn "scope:"
-            forM_ (Set.toList set) $ \(s, k) -> do
+            forM_ (Map.toList mp) $ \(s, k) -> do
                 putStrLn $ "\t" ++ show k ++ " " ++ show s
 
 
 lookupSymTab :: Symbol -> SymKey -> MySymTab -> [Symbol]
 lookupSymTab symbol key []       = []
 lookupSymTab symbol key (s : ss) = 
-    case Set.toList (Set.filter (\(s, k) -> key == k && symbolsCouldMatch symbol s) s) of
+    case Map.elems (Map.filterWithKey (\(s, k, q) _ -> key == k && match (s, q) symbol) s) of
         [] -> lookupSymTab symbol key ss
-        xs -> map fst xs
+        xs -> xs
+    where
+        match :: (Symbol, Bool) -> Symbol -> Bool
+        match (s, isQualified) symbol = case (isQualified, symbol) of
+            (True, Sym [_])    -> False
+            (True, Sym [_, _]) -> symbolsCouldMatch symbol s
+            (True, SymResolved [_, _]) -> symbolsCouldMatch symbol s
+            (False, _)         -> symbolsCouldMatch symbol s
+            x                  -> error (show x)
 
 
 lookm :: Symbol -> SymKey -> DoM ResolveState (Maybe Symbol)
@@ -93,12 +100,12 @@ look symbol key = do
     return (fromJust resm)
 
 
-define :: Symbol -> SymKey -> DoM ResolveState ()
-define symbol@(SymResolved _) key = do
+define :: Symbol -> SymKey -> Symbol -> Bool -> DoM ResolveState ()
+define symbol@(SymResolved _) key symbol2 isQualified = do
     --liftIO $ putStrLn $ "defining: " ++ prettySymbol symbol
     resm <- lookHeadm symbol key
     unless (isNothing resm) (fail $ "symbol already defined: " ++ prettySymbol symbol)
-    modify $ \s -> s { symTab = (Set.insert (symbol, key) $ head $ symTab s) : (tail $ symTab s) }
+    modify $ \s -> s { symTab = (Map.insert (symbol, key, isQualified) symbol2 $ head $ symTab s) : (tail $ symTab s) }
 
 
 genGeneric :: Symbol -> DoM ResolveState Symbol
@@ -122,15 +129,23 @@ genSymbol symbol@(SymResolved str) = do
         n -> return $ SymResolved $ [modName] ++ str ++ [show n]
 
 
-resolveAst :: AST -> [(ASTResolved, Bool)] -> DoM s (AST, Map.Map Symbol Int)
+resolveAst :: AST -> [(Import, ASTResolved)] -> DoM s (AST, Map.Map Symbol Int)
 resolveAst ast imports = fmap fst $ runDoMExcept initResolveState (resolveAst' ast)
     where
         resolveAst' :: AST -> DoM ResolveState (AST, Map.Map Symbol Int)
         resolveAst' ast = do
             modify $ \s -> s { modName = astModuleName ast }
-            forM_ imports $ \(imprt, isVisible) -> do
-                forM_ (typeDefsTop imprt) $ \symbol -> do -- functions are also typedefs
-                    define symbol KeyType
+
+            forM_ imports $ \(Import isExport isQualified path mName, imprt) -> do
+                forM_ (typeDefsTop imprt) $ \symbol -> do
+                    let SymResolved [mod, name] = symbol
+
+                    symbol' <- case mName of
+                        Nothing -> return symbol
+                        Just n  -> return $ SymResolved [n, name]
+
+                    define symbol' KeyType symbol isQualified
+
 
             pushSymbolTable
 
@@ -138,12 +153,12 @@ resolveAst ast imports = fmap fst $ runDoMExcept initResolveState (resolveAst' a
             topStmts' <- forM (astStmts ast) $ \stmt -> withPos stmt $ case stmt of
                 Typedef pos generics (Sym str) typ -> do
                     symbol' <- genSymbol (SymResolved str)
-                    define symbol' KeyType
+                    define symbol' KeyType symbol' False
                     return (Typedef pos generics symbol' typ)
 
                 Feature pos generics funDeps symbol args retty -> do
                     symbol' <- genSymbol (SymResolved $ symStr symbol)
-                    define symbol' KeyType
+                    define symbol' KeyType symbol' False
                     return (Feature pos generics funDeps symbol' args retty)
 
                 _ -> return stmt
@@ -159,7 +174,7 @@ resolveAst ast imports = fmap fst $ runDoMExcept initResolveState (resolveAst' a
 defineGenerics :: [Symbol] -> DoM ResolveState [Symbol]
 defineGenerics generics = forM generics $ \(Sym str) -> do
     symbol <- genGeneric $ SymResolved str
-    define symbol KeyType
+    define symbol KeyType symbol False
     return symbol
 
 
@@ -167,11 +182,11 @@ resolveParam :: Param -> DoM ResolveState Param
 resolveParam param = withPos param $ case param of
     Param pos (Sym sym) typ -> do
         symbol <- genSymbol (SymResolved sym)
-        define symbol KeyVar
+        define symbol KeyVar symbol False
         Param pos symbol <$> resolveType typ
     RefParam pos (Sym sym) typ -> do
         symbol <- genSymbol (SymResolved sym)
-        define symbol KeyVar
+        define symbol KeyVar symbol False
         RefParam pos symbol <$> resolveType typ
 
 
@@ -207,7 +222,7 @@ resolveStmt statement = withPos statement $ case statement of
             SymResolved _ -> return symbol
             Sym str       -> do
                 s <- genSymbol (SymResolved str)
-                define s KeyType
+                define s KeyType symbol False
                 return s
 
         pushSymbolTable
@@ -280,7 +295,7 @@ resolveStmt statement = withPos statement $ case statement of
     
     Data pos (Sym str) typ mexpr -> do
         symbol <- genSymbol (SymResolved str)
-        define symbol KeyVar
+        define symbol KeyVar symbol False
         typ' <- resolveType typ
         mexpr' <- traverse resolveExpr mexpr
         return (Data pos symbol typ' mexpr')
@@ -291,7 +306,7 @@ resolveStmt statement = withPos statement $ case statement of
 
     Assign pos (Sym str) expr -> do
         symbol <- genSymbol (SymResolved str)
-        define symbol KeyVar
+        define symbol KeyVar symbol False
         Assign pos symbol <$> resolveExpr expr
 
     x -> error (show x)
@@ -306,7 +321,7 @@ resolvePattern pattern = withPos pattern $ case pattern of
 
     PatIdent pos (Sym str) -> do
         symbol <- genSymbol (SymResolved str)
-        define symbol KeyVar
+        define symbol KeyVar symbol False
         return (PatIdent pos symbol)
 
     x -> error (show x)

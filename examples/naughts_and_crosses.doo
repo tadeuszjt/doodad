@@ -5,7 +5,7 @@ import std/io
 import std/print
 import std/read
 import std/option
-import std/rand
+import std/rand as rond
 
 
 enum Square {
@@ -148,7 +148,7 @@ fn cpuMove(io &Io, board &Board)
             board[row][col] = empty()
 
     // choose random move
-    data rand Rand
+    data rand rond::Rand
     let i = rand.i64(0, empty.len)
     let (row, col) = empty[i]
     board[row][col] = cross()

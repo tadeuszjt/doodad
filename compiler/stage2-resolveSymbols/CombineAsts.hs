@@ -34,13 +34,13 @@ initAstResolved modName imports = ASTResolved
     }
 
 
-combineAsts :: (AST, Map.Map Symbol Int) -> [(ASTResolved, Bool)] -> DoM s ASTResolved
+combineAsts :: (AST, Map.Map Symbol Int) -> [(Import, ASTResolved)] -> DoM s ASTResolved
 combineAsts (ast, supply) imports = fmap snd $
-    runDoMExcept (initAstResolved (astModuleName ast) (map fst imports)) combineAsts'
+    runDoMExcept (initAstResolved (astModuleName ast) (map snd imports)) combineAsts'
     where
         combineAsts' :: DoM ASTResolved ()
         combineAsts' = do
-            forM_ imports $ \(imprt, isVisible) -> when isVisible $ do
+            forM_ imports $ \(Import isExport _ _ _, imprt) -> when isExport $ do
                 modify $ \s -> s { typeDefsTop = Set.union (typeDefsTop s) (typeDefsTop imprt) }
 
             modify $ \s -> s

@@ -79,7 +79,7 @@ import Symbol
     inst       { Token _ Token.Reserved "inst" }
     derives    { Token _ Token.Reserved "derives" }
     module     { Token _ Token.Module _ }
-    import     { TokenImport _ _ _ _ }
+    import     { TokenImport _ _ _ _ _ }
     include    { Token _ Token.CInclude _ }
     link       { Token _ Token.CLink _ }
 
@@ -127,7 +127,7 @@ stmts : {-empty-}                  { [] }
 
 header : module 'N' imports        { ($1, $3) }
 imports : {- empty -}              { [] }
-        | import 'N' imports       { AST.Import (tokImpExp $1) (tokImpPath $1) : $3 }
+        | import 'N' imports       { AST.Import (tokImpExp $1) (tokImpQual $1) (tokImpPath $1) (tokImpAs $1) : $3 }
         | include 'N' imports      { AST.CInclude (tokStr $1) : $3 }
         | link 'N' imports         { AST.CLink (tokStr $1) : $3 }
 

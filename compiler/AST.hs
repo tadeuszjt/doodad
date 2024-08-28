@@ -18,7 +18,7 @@ data AST
 
 
 data Import
-    = Import Bool FilePath
+    = Import Bool Bool FilePath (Maybe String)
     | CInclude String
     | CLink String
     deriving (Eq, Ord)
@@ -185,7 +185,11 @@ brcStrs strs = "{" ++ intercalate ", " strs ++ "}"
 
 
 instance Show Import where
-    show (Import isVisible path) = (if isVisible then "export " else "import ") ++ path
+    show (Import isExport isQualified path mname) =
+        (if isExport then "export " else "import ")
+        ++ (if isQualified then "qualified " else "")
+        ++ path
+        ++ maybe "" id mname
     show (CInclude path) = "#include " ++ path
     show (CLink path) = "link " ++ path
 

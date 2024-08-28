@@ -171,13 +171,18 @@ buildPattern defBlkId pattern expr = do
 
 
         PatField pos symbol pats -> do
-            let Sym [str] = symbol
+            --let Sym [str] = symbol
+            let Sym xs = symbol
+            let isSymbol   = Sym $ init xs ++ [ "is" ++ [toUpper $ head $ last xs] ++ (tail $ last xs) ]
+            let fromSymbol = Sym $ init xs ++ [ "from" ++ [toUpper $ head $ last xs] ++ (tail $ last xs) ]
+
+
 
             exprCopy <- freshSym "exprCopy"
             appendStmt (Assign pos exprCopy expr)
 
             enumMatch <- freshSym "enumMatch"
-            appendStmt $ Assign pos enumMatch $ Call pos (TypeDef $ Sym ["is" ++ (toUpper (head str) : tail str) ])
+            appendStmt $ Assign pos enumMatch $ Call pos (TypeDef isSymbol)
                 [ Reference pos (Ident pos exprCopy)
                 ]
 
@@ -187,8 +192,7 @@ buildPattern defBlkId pattern expr = do
                 case pats of
                     [] -> return ()
                     _  -> void $ appendStmt $ Assign pos caseCopy $
-                        Call pos (TypeDef $ Sym ["from" ++ (toUpper (head str) : tail str)])
-                            [ Reference pos (Ident pos exprCopy) ]
+                        Call pos (TypeDef fromSymbol) [ Reference pos (Ident pos exprCopy) ]
 
                 match <- case pats of
                     []    -> return (AST.Bool pos True)

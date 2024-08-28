@@ -167,29 +167,26 @@ buildModule isMain args modPath = do
             [x] -> return x
             _  -> fail ("multiple matching module files found in path: " ++ absoluteModPath)
 
-        astNoPre <- parse args file
-        ast <- preprocess astNoPre
-
-
+        ast <- preprocess =<< parse args file
         when (isMain && printAst args) $ liftIO (S.prettyAST ast)
 
         -- read imports and compile imported modules first
-        importPaths <- fmap (Set.toList . Set.fromList) $
-            forM [(fp, isVisible) | S.Import isVisible fp <- S.astImports ast] $ \(importPath, isVisible)-> do
-                path' <- getCanonicalModPath importPath
-                return (path', isVisible)
+        imports <- fmap (Set.toList . Set.fromList) $
+            forM [ (stmt, path) | stmt@(S.Import _ _ path _) <- S.astImports ast] $ \(stmt, path)-> do
+                path' <- getCanonicalModPath path
+                return (stmt, path')
 
-        mapM_ (buildModule False args) (map fst importPaths)
+        mapM_ (buildModule False args) (map snd imports)
 
         -- compile this module
         liftIO $ putStrLn ("compiling: " ++ absoluteModPath)
 
 
         -- unify asts and resolve symbols
-        astImports <- forM importPaths $ \(importPath, isVisible) -> do
-            resm <- Map.lookup importPath <$> gets moduleMap
-            unless (isJust resm) (error $ show importPath ++ " not in module map")
-            return (fromJust resm, isVisible)
+        astImports <- forM imports $ \(stmt, canonPath) -> do
+            resm <- Map.lookup canonPath <$> gets moduleMap
+            unless (isJust resm) (error $ show canonPath ++ " not in module map")
+            return (stmt, fromJust resm)
 
         when (verbose args) $ liftIO $ putStrLn "resolving symbols..."
         (astResolved', supply) <- ResolveAst.resolveAst ast astImports
