@@ -49,11 +49,12 @@ lexFile printTokens filename = do
             l | isPrefixOf "floating: " l -> Token pos Float (fromJust $ stripPrefix "floating: " l)
             l | isPrefixOf "string: " l   -> Token pos String (fromJust $ stripPrefix "string: " l)
             l | isPrefixOf "char: " l     -> Token pos Char (fromJust $ stripPrefix "char: " l)
-            l | isPrefixOf "import: " l   -> Token pos Import (dropWhile isSpace $ fromJust $ stripPrefix "import: " l)
             l | isPrefixOf "include: " l  -> Token pos CInclude (fromJust $ stripPrefix "include: " l)
             l | isPrefixOf "module: " l   -> Token pos Module (fromJust $ stripPrefix "module: " l)
             l | isPrefixOf "link: " l     -> Token pos CLink (fromJust $ stripPrefix "link: " l)
             l | isPrefixOf "cembed: " l   -> Token pos EmbedC (fromJust $ stripPrefix "cembed: " $ replace31 l)
+            l | isPrefixOf "import: " l   -> parseImport pos l
+            l | isPrefixOf "export: " l   -> parseImport pos l
             l -> error ("line is: " ++ l)
     where
         readInt :: String -> Int
@@ -67,3 +68,23 @@ lexFile printTokens filename = do
             | ord x == 31 = '\n' : (replace31 xs)
             | otherwise   = x : (replace31 xs)
         replace31 xs = xs
+
+
+parseImport :: TextPos -> String -> Token
+parseImport pos str = case splitOnSpace str of
+    ["import:", path] -> TokenImport pos False path Nothing
+    ["export:", path] -> TokenImport pos True path Nothing
+
+    x -> error (show x)
+
+
+splitOnSpace :: String -> [String]
+splitOnSpace str = case (pre, post) of
+    ([], []) -> []
+    (as, bs) -> as : splitOnSpace bs
+    x -> error (show x)
+    where
+        pre = takeWhile (/= ' ') stripped
+        post = dropWhile (/= ' ') stripped
+
+        stripped = dropWhile (== ' ') str

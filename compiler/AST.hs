@@ -185,7 +185,7 @@ brcStrs strs = "{" ++ intercalate ", " strs ++ "}"
 
 
 instance Show Import where
-    show (Import isVisible path) = (if isVisible then "visible " else "") ++ "import " ++ path
+    show (Import isVisible path) = (if isVisible then "export " else "import ") ++ path
     show (CInclude path) = "#include " ++ path
     show (CLink path) = "link " ++ path
 

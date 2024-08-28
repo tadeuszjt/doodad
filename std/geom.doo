@@ -1,0 +1,23 @@
+module geom
+
+import builtin/all
+import std/maths
+
+
+tuple Vec2 {
+    x F64
+    y F64
+}
+
+derives Vec2 (subtract)
+derives Vec2 (multiply)
+
+fn length(v Vec2) F64
+    return maths::sqrt(v.x*v.x + v.y*v.y)
+
+
+
+tuple Rect {
+    min Vec2
+    max Vec2
+}

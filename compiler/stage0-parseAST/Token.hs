@@ -8,11 +8,18 @@ data Token
         , tokType :: TokenType
         , tokStr  :: String
         }
+    | TokenImport
+        { tokPosn    :: TextPos
+        , tokImpExp  :: Bool
+        , tokImpPath :: String
+        , tokImpAs   :: Maybe String
+        }
     deriving (Eq)
 
 
 instance Show Token where
     show (Token p t s) = show t ++ ": " ++ s
+    show (TokenImport p b s _) = "import:" ++ s
 
 data TokenType
     = TokSym
@@ -26,7 +33,6 @@ data TokenType
     | Indent
     | NewLine
     | Module
-    | Import
     | Dedent
     | EmbedC
     | CInclude

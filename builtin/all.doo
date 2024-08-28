@@ -1,13 +1,13 @@
 module all
 
-visible import builtin/for
-visible import builtin/store
-visible import builtin/tuple
-visible import builtin/destroy
-visible import builtin/convert
-visible import builtin/boolean
-visible import builtin/compare
-visible import builtin/assert
-visible import builtin/container
-visible import builtin/builtin
-visible import builtin/arithmetic
+export builtin/for
+export builtin/store
+export builtin/tuple
+export builtin/destroy
+export builtin/convert
+export builtin/boolean
+export builtin/compare
+export builtin/assert
+export builtin/container
+export builtin/builtin
+export builtin/arithmetic

@@ -201,6 +201,7 @@ resolveType typ = case typ of
 
 resolveStmt :: Stmt -> DoM ResolveState Stmt
 resolveStmt statement = withPos statement $ case statement of
+    Return pos mexpr -> Return pos <$> traverse resolveExpr mexpr
     Typedef pos generics symbol typ -> do
         symbol' <- case symbol of
             SymResolved _ -> return symbol
@@ -214,29 +215,6 @@ resolveStmt statement = withPos statement $ case statement of
         typ' <- resolveType typ
         popSymbolTable
         return (Typedef pos generics' symbol' typ')
-
---    MacroTuple pos generics symbol fields -> do
---        symbol' <- case symbol of
---            Sym str -> do
---                s <- genSymbol (SymResolved str)
---                define s KeyType
---                return s
---            SymResolved _ -> return symbol
---
---        fieldSymbols' <- forM fields $ \(fieldSymbol, _) -> case fieldSymbol of
---            SymResolved _ -> return fieldSymbol
---            Sym s -> do
---                s' <- genSymbol (SymResolved s)
---                define s' KeyType
---                return s'
---
---        pushSymbolTable
---        generics' <- defineGenerics generics
---        fieldTypes' <- mapM resolveType (map snd fields)
---        popSymbolTable
---
---        return $ MacroTuple pos generics' symbol' (zip fieldSymbols' fieldTypes')
-
 
     Feature pos generics funDeps symbol args retty -> do
         unless (symbolIsResolved symbol) (fail "feature symbol wasn't resolved")
@@ -306,8 +284,6 @@ resolveStmt statement = withPos statement $ case statement of
         typ' <- resolveType typ
         mexpr' <- traverse resolveExpr mexpr
         return (Data pos symbol typ' mexpr')
-
-    Return pos mexpr -> Return pos <$> traverse resolveExpr mexpr
     EmbedC pos [] str -> do 
         map <- processCEmbed str
         return (EmbedC pos map str)

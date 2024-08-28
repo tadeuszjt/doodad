@@ -217,7 +217,6 @@ bool isKeyword(char *s) {
         "return",
         "switch",
         "derives",
-        "visible",
         "I8",
         "U8",
         "I64",
@@ -276,6 +275,7 @@ bool lex() { // returns false for EOF
         } else {
             // print ident
             if (strcmp(stack, "import") == 0  ||
+                strcmp(stack, "export") == 0  ||
                 strcmp(stack, "include") == 0 ||
                 strcmp(stack, "link") == 0    ||
                 strcmp(stack, "module") == 0) {
